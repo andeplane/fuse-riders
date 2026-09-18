@@ -47,11 +47,11 @@ export {
 } from "./room-settings.js";
 
 export * from "./state.js";
-export { toSnapshot } from "./view.js";
+export { toView } from "./view.js";
 export { gravityBend } from "./gravity.js";
 export * from "./tuning.js";
 
-/** What a tick reports. A caller that wants the public snapshot asks `toSnapshot(state)` for it. */
+/** What a tick reports. A caller that wants the public snapshot asks `toView(state)` for it. */
 export interface TickResult {
   events: GameEvent[];
 }
@@ -135,7 +135,6 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     grip: false,
     drunkUntilTick: 0,
     inkUntilTick: 0,
-    targetBombArmed: false,
     tripleShotArmed: false,
     fiveShotArmed: false,
     drunkStartedTick: 0,
@@ -310,7 +309,7 @@ function prepareRound(state: GameState): void {
     player.alive = false;
     player.trail = [];
     player.bombChargeStartedTick = undefined;
-    player.bombTarget = undefined;
+    player.gunAim = undefined;
     player.aimSlowTicks = 0;
     player.aimSlowSpentTicks = 0;
     player.bombReadyAtTick = state.tick;
@@ -329,7 +328,6 @@ function prepareRound(state: GameState): void {
     player.inkUntilTick = 0;
     player.gunArmed = false;
     player.shellArmed = false;
-    player.targetBombArmed = false;
     player.tripleShotArmed = false;
     player.fiveShotArmed = false;
     player.shielded = false;

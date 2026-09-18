@@ -6,7 +6,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   OVERTIME_START_TICK,
   PICKUP_RADIUS,
   RIDER_OBSTACLE_RADIUS,
@@ -43,6 +43,13 @@ const press: InputIntent = {
   bomb: true,
   bombCommands: [{ action: "press" }],
 };
+/** A Gun fires on release; a tap is the press and its release arriving in one tick. */
+const tap: InputIntent = {
+  left: false,
+  right: false,
+  bomb: false,
+  bombCommands: [{ action: "press" }, { action: "release" }],
+};
 const boulder = (overrides: Partial<Obstacle> = {}): Obstacle => ({
   id: 1,
   kind: "rock",
@@ -55,6 +62,9 @@ const boulder = (overrides: Partial<Obstacle> = {}): Obstacle => ({
 /** Where a rider heading +x first touches an obstacle: its hitbox's near face, less the rider's own contact radius. */
 const touchX = (obstacle: Obstacle): number =>
   obstacle.x - obstacleHitbox(obstacle).halfWidth - RIDER_OBSTACLE_RADIUS;
+
+/** The default rotation also visits the obstacle-free classic arena, so a test about scenery names its map. */
+const SCENERY_MAPS = ["desert", "forest", "city"] as const;
 
 /** A started round with whatever scenery the test asks for, and no drops of its own. */
 function scene(
@@ -383,7 +393,7 @@ test("a blast clears the scenery it covers and leaves the rest standing", () => 
     "the rock in the blast is gone, the distant one stands",
   );
   assert.equal(
-    toSnapshot(game).obstacles.length,
+    toView(game).obstacles.length,
     1,
     "and the board every device draws agrees",
   );
@@ -469,7 +479,7 @@ test("a gun ray stops at scenery and cannot shoot through it", () => {
     angle: Math.PI,
     trail: [],
   });
-  step(covered, new Map([["p0", press]]));
+  step(covered, new Map([["p0", tap]]));
   assert.equal(rider(covered, "p1").alive, true, "the rock took the bullet");
   const tracer = [...covered.bombs.values()].find((bomb) => bomb.shell?.gun)!;
   assert.ok(
@@ -485,7 +495,7 @@ test("a gun ray stops at scenery and cannot shoot through it", () => {
     angle: Math.PI,
     trail: [],
   });
-  step(open, new Map([["p0", press]]));
+  step(open, new Map([["p0", tap]]));
   assert.equal(
     rider(open, "p1").alive,
     false,
@@ -601,7 +611,10 @@ test("every round lays a board that leaves each rider a clear start", () => {
         classicSettings(),
         seed,
       );
-      game.settings = defaultRoomSettings(); // a room's default: rotate through the scenery maps
+      game.settings = {
+        ...defaultRoomSettings(),
+        map: SCENERY_MAPS[seed % 3]!,
+      };
       for (let slot = 0; slot < riders; slot += 1)
         addPlayer(game, {
           id: `p${slot}`,
@@ -684,7 +697,7 @@ test("the room setting picks the board, and rotate gives each round a different 
 
 test("the board travels in snapshots and checkpoints, and a controller is not sent one", () => {
   const game = scene([boulder(), boulder({ id: 2, x: 1200, y: 300 })]);
-  const snapshot = toSnapshot(game);
+  const snapshot = toView(game);
   assert.equal(snapshot.map, game.map);
   assert.deepEqual(
     snapshot.obstacles.map((obstacle) => obstacle.id),
@@ -755,7 +768,7 @@ test("bots ride around scenery instead of into it", () => {
   let survived = 0;
   for (let seed = 1; seed <= 12; seed += 1) {
     const game = createGame(`bot-map-${seed}`, classicSettings(), seed);
-    game.settings = defaultRoomSettings(); // a room's default: rotate through the scenery maps
+    game.settings = { ...defaultRoomSettings(), map: SCENERY_MAPS[seed % 3]! };
     addPlayer(game, {
       id: "bot:1",
       name: "AI Rider · Hard",

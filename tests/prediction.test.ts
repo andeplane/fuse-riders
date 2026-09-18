@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { interpolateWorld, presentWorld } from "../src/online/prediction.js";
+import { interpolateWorld, presentWorld } from "../src/render/time/present.js";
 import { World } from "../src/online/rollback.js";
 import { ACTION, JOIN } from "../src/engine/input-log.js";
 import { createRoomState } from "../src/engine/apply-tick.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { COUNTDOWN_TICKS, riderMotionStep } from "../src/engine/game.js";
 import { advanceRiderPose } from "../src/engine/rider-motion.js";
-import { bombPreviewDistance } from "../src/client/bomb-preview.js";
+import { GUN_AIM_STEP } from "../src/engine/gun.js";
+import { bombPreviewDistance } from "../src/render/bomb-preview.js";
 
 function frames() {
   const world = new World(
@@ -143,8 +144,9 @@ test("presentation leads the local rider by its held controls and marks its pres
   assert.equal(
     bombPreviewDistance(
       preview.presentationTick! - preview.bombChargeStartedTick!,
+      charging.bombChargeTicks,
     ),
-    bombPreviewDistance(3.5),
+    bombPreviewDistance(3.5, charging.bombChargeTicks),
   );
   assert.equal(
     presentWorld(older, newer, newer.tick, {
@@ -171,5 +173,62 @@ test("presentation leads the local rider by its held controls and marks its pres
       lead: 1,
     }),
     newer,
+  );
+});
+
+test("a held Gun leads its sight with the controls while the rider is shown running straight", () => {
+  const { older, newer } = frames();
+  const aiming = (gunAim: number, frame: typeof newer) => ({
+    ...frame,
+    players: frame.players.map((p) => ({
+      ...p,
+      gunArmed: true,
+      bombChargeStartedTick: frame.tick - 2,
+      gunAim,
+    })),
+  });
+  const held = aiming(0.3, newer);
+  const led = presentWorld(aiming(0.2, older), held, held.tick, {
+    id: "h",
+    controls: { left: false, right: true },
+    lead: 0.5,
+  });
+  const rider = led.players.find((p) => p.id === "h")!,
+    base = held.players.find((p) => p.id === "h")!;
+  assert.equal(rider.angle, base.angle, "steering no longer turns the rider");
+  assert.ok(Math.abs(rider.gunAim! - (0.3 + GUN_AIM_STEP * 0.5)) < 1e-12);
+  assert.equal(
+    led.players.find((p) => p.id === "p")!.gunAim,
+    0.3,
+    "a remote sight is shown as simulated",
+  );
+  const between = interpolateWorld(aiming(0.2, older), held, 0.5);
+  assert.ok(Math.abs(between.players[0]!.gunAim! - 0.25) < 1e-12);
+  // The sight is shown exactly while the newer tick has it: raised at once, gone with the shot.
+  assert.equal(
+    interpolateWorld(older, held, 0.5).players[0]!.gunAim,
+    0.3,
+    "a sight raised on the newer tick shows at once",
+  );
+  assert.equal(
+    interpolateWorld(aiming(0.2, older), newer, 0.5).players[0]!.gunAim,
+    undefined,
+    "a sight lowered on the newer tick is gone",
+  );
+});
+
+test("frames several game ticks apart, as in a bots-only endgame, interpolate over the whole gap", () => {
+  const { older, newer } = frames();
+  // One log tick that ran three steps: the same poses, three game ticks apart.
+  const later = { ...newer, tick: older.tick + 3 };
+  const shown = presentWorld(older, later, older.tick + 1.5);
+  const before = older.players[0]!,
+    after = later.players[0]!,
+    mid = shown.players[0]!;
+  assert.equal(shown.tick, older.tick + 1.5);
+  assert.ok(
+    Math.abs(mid.x - (before.x + after.x) / 2) < 1e-9 &&
+      Math.abs(mid.y - (before.y + after.y) / 2) < 1e-9,
+    "half way through the gap is half way along",
   );
 });

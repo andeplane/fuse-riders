@@ -12,7 +12,6 @@ import {
 } from "../../src/engine/apply-tick.ts";
 import {
   ACTION,
-  AIM,
   BOT,
   CANCEL,
   JOIN,
@@ -22,7 +21,6 @@ import {
   RELEASE,
   STEER,
   SETTINGS,
-  quantizeAim,
   type Entry,
 } from "../../src/engine/input-log.ts";
 import {
@@ -198,7 +196,7 @@ const hand = (restlessness: number): Hand => ({
  * Seeded recording: two scripted humans and three AI riders of three strengths.
  *
  * The humans are flown by the bots' own planner, read from the state a player would be looking at, and everything
- * they do reaches the room as the log entries a device would send: steering flags, aim, press, release and cancel.
+ * they do reaches the room as the log entries a device would send: steering flags, press, release and cancel.
  * On top of that come the things only a human stream does — a wandering thumb, a cancelled charge, a second press
  * over a held one — and the things only a human decides: holding a gun for a clean line, putting a bullet into a
  * rock, sitting out a duel until the walls come in, riding across the other rider's bows.
@@ -340,7 +338,7 @@ export function makeRecording(
       game.tick >= player.bombReadyAtTick &&
       !held.gesture
     ) {
-      // A bullet is cast on the tick of the press; a shell leaves on the release, a tick later.
+      // Both leave on the release, a tick after the press: a bullet along its held sight, a shell along the heading.
       const lined = player.gunArmed
         ? linedUp(game, player, Infinity, 1, GUN_SIGHT, 8) ||
           (isObstacleMap(game.map) &&
@@ -373,13 +371,6 @@ export function makeRecording(
       held.flags = flags;
       log(member, STEER, flags);
     }
-    if (random() < 0.02)
-      log(
-        member,
-        AIM,
-        Math.floor(random() * 65536),
-        Math.floor(random() * 65536),
-      );
     const ownsBomb = [...game.bombs.values()].some(
       (bomb) => bomb.ownerId === member && !bomb.shell,
     );
@@ -397,12 +388,7 @@ export function makeRecording(
       // The bots never hold a charge past its reach. Until the aiming slowdown has run out of budget once, the second
       // rider keeps its thumb down well past that, and lets the aim walk back and forth.
     } else if (held.gesture && release) {
-      log(
-        member,
-        RELEASE,
-        held.gesture,
-        ...(intent.aim ? quantizeAim(intent.aim) : []),
-      );
+      log(member, RELEASE, held.gesture);
       held.gesture = 0;
     } else if (held.gesture && random() < 0.02) {
       log(member, CANCEL, held.gesture);
@@ -412,7 +398,6 @@ export function makeRecording(
       held.gesture = ++held.latest;
       log(member, PRESS, held.gesture);
     } else if (!held.gesture && press && !ownsBomb) {
-      if (intent.aim) log(member, AIM, ...quantizeAim(intent.aim));
       held.gesture = ++held.latest;
       log(member, PRESS, held.gesture);
     }

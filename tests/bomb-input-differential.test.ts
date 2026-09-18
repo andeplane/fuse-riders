@@ -2,57 +2,39 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { BombInputBuffer } from "../src/engine/bomb-input.js";
 import {
-  AIM,
   CANCEL,
   PRESS,
   RELEASE,
   foldPlayerEntries,
   neutralControls,
-  quantizeAim,
   type Entry,
   type HeldControls,
 } from "../src/engine/input-log.js";
-import type { AimPoint, BombActionCommand } from "../src/engine/primitives.js";
+import type { BombActionCommand } from "../src/engine/primitives.js";
 
 /**
  * Two implementations used to turn a rider's bomb button into the ordered `press` / `release` / `cancel` commands
  * `step` reads: `BombInputBuffer`, written for the LAN server's per-connection frames, and `foldPlayerEntries`, the
  * fold of log entries every online replica agrees on. The architecture review (C2) said they had drifted. The first
  * version of this file (commit `769a2fb`) fed both the same device behaviour and wrote down where they parted on
- * `14e1452`; the cases below keep those seven findings by name. Both now run one core (`src/engine/bomb-gesture.ts`)
+ * `14e1452`; the cases below keep those findings by name (drift 5, about Target Bomb's aim, went with the aim input
+ * in `fuse-p2p-40`). Both now run one core (`src/engine/bomb-gesture.ts`)
  * with the fold's semantics, so what is asserted here is agreement.
  *
  * A device is modelled by what it does, not by either implementation: it presses (always a new gesture, numbered
- * from 1), aims while it holds one, releases or cancels the gesture it holds, and misbehaves in the ways a lossy or
+ * from 1), releases or cancels the gesture it holds, and misbehaves in the ways a lossy or
  * hostile link can: resends, stale ids, a second press over a held one. Each act becomes one frame for the buffer and
- * the entries the wire contract (`docs/online/PROTOCOL.md`: PRESS/RELEASE/CANCEL carry the gesture id, a RELEASE may
- * carry its aim, a device logs an aim only while it holds a gesture) has for it.
+ * the entries the wire contract (`docs/online/PROTOCOL.md`: PRESS/RELEASE/CANCEL carry the gesture id) has for it.
  */
 type Act =
   | "pressIdle"
-  | "pressIdleAimed"
   | "pressOverHeld"
   | "resendPress"
-  | "aimHeld"
-  | "aimIdle"
   | "releaseHeld"
-  | "releaseHeldAimed"
   | "releaseStale"
   | "cancelHeld"
   | "cancelStale"
   | "emptyFrame";
-const AIMED: readonly Act[] = [
-  "pressIdleAimed",
-  "aimHeld",
-  "aimIdle",
-  "releaseHeldAimed",
-];
-
-/** Aims on the uint16 grid, so the log's quantisation is the identity and cannot be what differs. */
-const gridAim = (random: () => number): AimPoint => ({
-  x: Math.floor(random() * 65536) / 65535,
-  y: Math.floor(random() * 65536) / 65535,
-});
 function seeded(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -77,34 +59,21 @@ class Pair {
   private log(...body: number[]): void {
     this.entries.push([++this.seq, this.tick, ...body] as unknown as Entry);
   }
-  act(act: Act, aim?: AimPoint): void {
-    const q = aim ? quantizeAim(aim) : undefined;
+  act(act: Act): void {
     switch (act) {
       case "pressIdle":
-      case "pressIdleAimed":
       case "pressOverHeld":
         this.active = ++this.latest;
-        this.buffer.accept("press", aim);
+        this.buffer.accept("press");
         this.log(PRESS, this.active);
-        // A device logs the press, then where it is aiming (`RoomRuntime.input`): the press itself carries no aim.
-        if (q) this.log(AIM, ...q);
         return;
       case "resendPress":
         // The link repeats the entry. A device's frames have no such thing: the edge happened once.
         this.log(PRESS, this.active);
         return;
-      case "aimHeld":
-        this.buffer.accept(undefined, aim);
-        this.log(AIM, ...q!);
-        return;
-      case "aimIdle":
-        // Nothing is held, so the device logs nothing, and the buffer must not keep the aim for a later press either.
-        this.buffer.accept(undefined, aim);
-        return;
       case "releaseHeld":
-      case "releaseHeldAimed":
-        this.buffer.accept("release", aim);
-        this.log(RELEASE, this.active, ...(q ?? []));
+        this.buffer.accept("release");
+        this.log(RELEASE, this.active);
         this.active = 0;
         return;
       case "releaseStale":
@@ -141,16 +110,12 @@ const possible = (pair: Pair): Act[] =>
     ? [
         "pressOverHeld",
         "resendPress",
-        "aimHeld",
         "releaseHeld",
-        "releaseHeldAimed",
         "cancelHeld",
         "emptyFrame",
       ]
     : [
         "pressIdle",
-        "pressIdleAimed",
-        "aimIdle",
         "emptyFrame",
         ...(pair.latest ? (["releaseStale", "cancelStale"] as const) : []),
       ];
@@ -168,7 +133,7 @@ test("differential: the buffer and the fold hand step the same commands, act for
       for (let count = Math.floor(random() * 5); count > 0; count--) {
         const acts = possible(pair),
           act = acts[Math.floor(random() * acts.length)]!;
-        pair.act(act, AIMED.includes(act) ? gridAim(random) : undefined);
+        pair.act(act);
         trace.push(act);
         seen.add(act);
       }
@@ -177,11 +142,11 @@ test("differential: the buffer and the fold hand step the same commands, act for
       commands += fold.length;
     }
   }
-  assert.equal(seen.size, 12, "every act was exercised");
+  assert.equal(seen.size, 8, "every act was exercised");
   assert.ok(commands > 10_000, `${commands} commands compared`);
 });
 
-/** The seven places the two parted before they shared a core, one minimal case each, now with one answer. */
+/** The places the two parted before they shared a core, one minimal case each, now with one answer. */
 const names = (commands: BombActionCommand[]) =>
   commands.map((command) => command.action);
 function both(script: (pair: Pair) => void): BombActionCommand[] {
@@ -238,28 +203,9 @@ test("was drift 4: a cancel closes its own gesture and leaves the tick's earlier
   assert.deepEqual(names(commands), ["press", "release", "press", "cancel"]);
 });
 
-test("was drift 5: an aim belongs to the gesture it was made in", () => {
-  const first = { x: 16384 / 65535, y: 49151 / 65535 };
-  const commands = both((pair) => {
-    pair.act("aimIdle", first);
-    pair.act("pressIdleAimed", first);
-    pair.act("releaseHeld");
-    pair.act("pressIdle");
-  });
-  assert.deepEqual(
-    commands.map((command) => [command.action, command.aim !== undefined]),
-    [
-      ["press", false],
-      ["release", true],
-      ["press", false],
-    ],
-    "aimed during the first gesture; the second starts clean",
-  );
-});
-
 test("was drift 6: a release nobody pressed for is nothing (a held frame with a lost press used to arm the buffer)", () => {
   const buffer = new BombInputBuffer();
-  buffer.accept(undefined, { x: 0.5, y: 0.5 });
+  buffer.accept();
   buffer.accept("release");
   assert.deepEqual(buffer.drain(), []);
   assert.deepEqual(

@@ -14,13 +14,13 @@ startGcpRoomService({
 });
 ```
 
-| Route                             |                                                                         |
-| --------------------------------- | ----------------------------------------------------------------------- |
-| `POST /api/rooms`                 | new room → `{ code, token }`; the token is the creator's identity       |
-| `GET /api/rooms/:code/ws?token=`  | admission, roster, `signal` forwarding, `time` probes and lease renewal |
-| `GET /api/rooms/:code/ice?token=` | STUN servers, members only                                              |
-| `POST /api/rooms/:code/end`       | creator ends the room (`Authorization: Bearer <token>`)                 |
-| `GET /healthz`                    | gateway state                                                           |
+| Route                       |                                                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/rooms`           | new room → `{ code, token }`; the token is the creator's identity                                                   |
+| `GET /api/rooms/:code/ws`   | first frame `{"type":"auth","token"}`, then admission, roster, `signal` forwarding, `time` probes and lease renewal |
+| `GET /api/rooms/:code/ice`  | STUN servers, members only (`Authorization: Bearer <token>`)                                                        |
+| `POST /api/rooms/:code/end` | creator ends the room (`Authorization: Bearer <token>`)                                                             |
+| `GET /healthz`              | gateway state                                                                                                       |
 
 Pieces, for other hosts: `RoomStore` (rules, over a `RoomDatabase`), `RoomGateway` (sockets, over a `RoomBus`),
 `createRoomServer` (HTTP + upgrade). `MemoryRoomDatabase`/`LocalRoomBus` and `FirestoreRoomDatabase`/`PubSubRoomBus`

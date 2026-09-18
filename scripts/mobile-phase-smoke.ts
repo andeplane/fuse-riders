@@ -1,4 +1,4 @@
-import { chromium, webkit } from "playwright";
+import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
@@ -8,11 +8,8 @@ const base = process.env.HOME_URL ?? "http://127.0.0.1:4188/";
 const results: object[] = [];
 await mkdir("artifacts", { recursive: true });
 const PHASES = ["countdown", "playing", "matchOver"] as const;
-for (const [name, type] of [
-  ["chrome", chromium],
-  ["webkit", webkit],
-] as const) {
-  const browser = await type.launch({ headless: true });
+for (const { name, kind } of BOTH_ENGINES) {
+  const browser = await launchBrowser(kind, { headless: true });
   const context = await browser.newContext({
     viewport: { width: 844, height: 390 },
     isMobile: true,

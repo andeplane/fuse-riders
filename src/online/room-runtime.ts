@@ -1,5 +1,5 @@
 import { StatusNotices } from "./status-notices.js";
-import { TickClock } from "./clock.js";
+import { TICK_MS, TickClock } from "./clock.js";
 import { World, type Frame } from "./rollback.js";
 import { STALL_TICKS } from "./rollback.js";
 import { PACKET_ENTRIES } from "./stream.js";
@@ -17,7 +17,6 @@ import {
   decodeSnapshot,
   encodeSnapshot,
 } from "./snapshot.js";
-import { presentWorld } from "./prediction.js";
 import {
   BOT_NAMES,
   RULES,
@@ -28,7 +27,6 @@ import {
 } from "../engine/apply-tick.js";
 import {
   ACTION,
-  AIM,
   AVATAR,
   BOT,
   CANCEL,
@@ -39,7 +37,6 @@ import {
   RELEASE,
   SETTINGS,
   STEER,
-  quantizeAim,
 } from "../engine/input-log.js";
 import { isAvatarId, type AvatarId } from "../shared/avatars.js";
 import {
@@ -48,9 +45,7 @@ import {
 } from "../engine/room-settings.js";
 import { botDisplayName, BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { MAX_RIDER_NAME, seatRiderName } from "../engine/rider-name.js";
-import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from "../engine/game.js";
-import type { AimPoint, GameEvent } from "../shared/protocol.js";
-import type { ViewSnapshot } from "../client/snapshot-stream.js";
+import type { GameEvent } from "../engine/view.js";
 import { uuid } from "../shared/uuid.js";
 import type { RoomTransport, TransportEvents } from "fuse-network-fe";
 
@@ -63,7 +58,6 @@ export type RoomCommand =
       right: boolean;
       bomb: boolean;
       bombAction?: "press" | "release" | "cancel";
-      aim?: AimPoint;
     }
   | { type: "avatar"; avatarId: AvatarId }
   | { type: "action"; action: "start" | "lobby" | "rematch" }
@@ -84,6 +78,20 @@ export interface Callbacks {
   status(text: string): void;
   ready(id: string, host: boolean): void;
   ended?(): void;
+}
+/** What `presentation()` hands the screen: frames and times, not a finished picture. */
+export interface PresentationFrames {
+  /** The tick before `newer`, when there is one to interpolate from. */
+  older?: Frame;
+  newer: Frame;
+  /** The fractional tick to show, between the two frames. */
+  tick: number;
+  /** Present while this device steers a rider: lead it `lead` ticks (0 to 1) past `tick` with the held controls. */
+  local?: {
+    id: string;
+    controls: { left: boolean; right: boolean };
+    lead: number;
+  };
 }
 /** What the runtime can report about its own health: per link, per stream and for the fold as a whole. */
 export interface RuntimeMetrics {
@@ -199,9 +207,6 @@ export const HASH_INTERVAL = 20,
   DIVERGENCE_WINDOW_MS = 60_000,
   DIVERGENCE_LIMIT = 3,
   FRESH_WORLD_WAIT_MS = 3000;
-/** How long one reading of the authority's clock rate spans, and how long a follower trusts its own answer against a steady reading. */
-export const RATE_WINDOW_MS = 500,
-  RATE_DEFER_MS = 1500;
 /** A page's generation: 100 ms units since 2020-09-13, so two loads of the same page never share one (the previous whole-second value collided on quick reloads); wraps in 2034. */
 export const pageGeneration = (nowMs = Date.now()): number =>
   Math.floor((nowMs - 1_600_000_000_000) / 100) >>> 0;
@@ -243,8 +248,6 @@ export class RoomRuntime {
   private noWorld = new Map<string, number>();
   private held = {
     flags: -1,
-    aim: undefined as [number, number] | undefined,
-    aimTick: -1,
     active: 0,
     latest: 0,
   };
@@ -556,17 +559,13 @@ export class RoomRuntime {
     member.lastPacketAt = now;
     member.lastSentAt = packet.sentAt;
     member.lastSentReceivedAt = now;
-    member.clockTick = packet.clockTick + (member.rttMs ?? 0) / 2 / 50;
+    member.clockTick = packet.clockTick + (member.rttMs ?? 0) / 2 / TICK_MS;
     if (packet.echoSentAt !== 0) {
       const rtt = wrapDelta(wrapMs(now), packet.echoSentAt) - packet.echoHeld;
       if (rtt >= 0 && rtt < 10_000) {
         member.rttMs = rtt;
         if (id === this.authority()) this.clock.sample(packet.clockTick, rtt);
       }
-    }
-    if (id === this.authority()) {
-      this.observeRate(id, packet.sentAt, packet.clockTick);
-      if (this.hiddenState) this.paceClock(now);
     }
     if (!this.world) return;
     const result = this.world.receive(
@@ -739,7 +738,7 @@ export class RoomRuntime {
       this.assembler = new SnapshotAssembler(this.room);
       return;
     }
-    const tick = decoded.state.game.tick,
+    const tick = decoded.state.tick,
       previous = this.world?.streams.get(this.id);
     if (this.world) this.world.install(decoded.state);
     else {
@@ -805,12 +804,13 @@ export class RoomRuntime {
               now - member.lastPacketAt < 2000,
           )
           .map(
-            (member) => member.clockTick! + (now - member.lastPacketAt) / 50,
+            (member) =>
+              member.clockTick! + (now - member.lastPacketAt) / TICK_MS,
           );
       this.clock.start(
         readings.length
           ? Math.max(...readings)
-          : tick + (now - this.snapshotRequest.at) / 2 / 50,
+          : tick + (now - this.snapshotRequest.at) / 2 / TICK_MS,
       );
     }
     this.snapshotRequest = undefined;
@@ -1042,8 +1042,6 @@ export class RoomRuntime {
   private resetHeld(): void {
     this.held = {
       flags: -1,
-      aim: undefined,
-      aimTick: -1,
       active: 0,
       latest: Math.max(
         this.held.latest,
@@ -1193,33 +1191,17 @@ export class RoomRuntime {
       this.append(STEER, flags);
       this.held.flags = flags;
     }
-    const aim = command.aim ? quantizeAim(command.aim) : undefined;
     if (command.bombAction === "press") {
       this.held.active = ++this.held.latest;
       this.append(PRESS, this.held.active);
-      this.held.aim = undefined;
-    }
-    if (
-      aim &&
-      this.held.active &&
-      command.bombAction !== "release" &&
-      (!this.held.aim ||
-        this.held.aim[0] !== aim[0] ||
-        this.held.aim[1] !== aim[1]) &&
-      this.held.aimTick !== this.lastOwnTick
-    ) {
-      this.held.aimTick = this.append(AIM, aim[0], aim[1]);
-      this.held.aim = aim;
     }
     if (command.bombAction === "release" && this.held.active) {
-      this.append(RELEASE, this.held.active, ...(aim ?? []));
+      this.append(RELEASE, this.held.active);
       this.held.active = 0;
-      this.held.aim = undefined;
     }
     if (command.bombAction === "cancel" && this.held.active) {
       this.append(CANCEL, this.held.active);
       this.held.active = 0;
-      this.held.aim = undefined;
     }
     if (this.lastPacketTick === -1) this.sendPackets(this.deps.now());
     return true;
@@ -1240,7 +1222,6 @@ export class RoomRuntime {
     const hidden = this.deps.hidden();
     if (hidden === this.hiddenState) return;
     this.hiddenState = hidden;
-    this.paceClock(this.deps.now());
     if (hidden) {
       if (this.world && this.player()) {
         if (this.held.flags > 0) {
@@ -1266,69 +1247,6 @@ export class RoomRuntime {
       Math.floor(this.clock.tick()) - this.world.tick > BEHIND_TICKS
     )
       this.requestSnapshot();
-  }
-  private pace = {
-    from: "",
-    sentAt: 0,
-    clockTick: 0,
-    observed: 1,
-    streak: 0,
-    local: 1,
-    localSince: -Infinity,
-  };
-  /** The authority's clock rate as its packets show it: ticks gained per 50 ms of its own send times, over half a second. */
-  private observeRate(id: string, sentAt: number, clockTick: number): void {
-    const pace = this.pace,
-      elapsed = wrapDelta(sentAt, pace.sentAt);
-    // The fast channel is unordered: a late packet is skipped, never taken as a new baseline.
-    if (pace.from === id && elapsed < 0 && elapsed > -5000) return;
-    if (pace.from !== id || elapsed < 0 || elapsed > 5000) {
-      pace.from = id;
-      pace.sentAt = sentAt;
-      pace.clockTick = clockTick;
-      pace.streak = 0;
-      return;
-    }
-    if (elapsed < RATE_WINDOW_MS) return;
-    const observed =
-      ((clockTick - pace.clockTick) * 50) / elapsed >
-      (1 + BOTS_ONLY_TIME_SCALE) / 2
-        ? BOTS_ONLY_TIME_SCALE
-        : 1;
-    pace.streak = observed === pace.observed ? pace.streak + 1 : 1;
-    pace.observed = observed;
-    pace.sentAt = sentAt;
-    pace.clockTick = clockTick;
-  }
-  /**
-   * The clock's rate comes from this member's own world, which every member folds alike. A hidden member's world is
-   * frozen, so it cannot judge: a follower then keeps the pace its authority shows and a hidden authority keeps normal
-   * pace. A follower whose own answer has disagreed with a steady authority for a while defers to it for the same reason.
-   */
-  private paceClock(now: number): void {
-    if (!this.world) return;
-    const pace = this.pace,
-      stale = this.hiddenState && !this.solo;
-    const local = stale
-      ? undefined
-      : simulationTimeScale(this.world.state.game, this.world.state.bots);
-    if (local !== undefined && local !== pace.local) {
-      pace.local = local;
-      pace.localSince = now;
-    }
-    const follows =
-      !this.solo &&
-      this.authority() !== this.id &&
-      pace.from === this.authority() &&
-      pace.streak >= 2;
-    if (local === undefined) this.clock.rate = follows ? pace.observed : 1;
-    else
-      this.clock.rate =
-        follows &&
-        pace.observed !== local &&
-        now - pace.localSince > RATE_DEFER_MS
-          ? pace.observed
-          : local;
   }
   private lastLoopAt = -Infinity;
   private tickLoop(): void {
@@ -1396,7 +1314,6 @@ export class RoomRuntime {
       return;
     }
     const world = this.world!;
-    this.paceClock(now);
     const tick = Math.floor(this.clock.tick());
     if (
       this.snapshotRequest &&
@@ -1601,38 +1518,58 @@ export class RoomRuntime {
     )
       this.lastFrameTick = frame.tick;
   }
-  /** The frame to draw now: one tick behind the clock, the local rider led by its held controls. */
-  view(): ViewSnapshot | undefined {
+  /**
+   * What to draw now, for presentation to place in time (`presentWorld` in `src/render/time/`): the two newest
+   * simulated ticks, the fractional tick to show (one log tick behind the clock) and how far to lead the local rider
+   * with the controls it holds. The runtime says when; it does not interpolate or predict.
+   *
+   * The clock counts log ticks and the frames' `tick` is the game's clock, which a log tick can advance by several
+   * steps (`driveGameTick`). The fraction of the way from the older frame's log tick to the newer one's is the
+   * same fraction of the way between their game ticks, so a game running several steps per log tick is drawn that
+   * many times faster while the clock keeps its one rate.
+   */
+  presentation(): PresentationFrames | undefined {
     const frames = this.world?.view();
     const newer = frames?.[0];
     if (!newer) return undefined;
     const older = frames[1],
       clock = this.clock.tick(),
-      presentation = Math.max(
-        older?.tick ?? newer.tick,
-        Math.min(newer.tick, clock - 1),
-      );
+      at = Math.max(
+        older?.logTick ?? newer.logTick,
+        Math.min(newer.logTick, clock - 1),
+      ),
+      span = older ? newer.logTick - older.logTick : 0,
+      presentation =
+        older && span > 0
+          ? older.tick +
+            ((at - older.logTick) / span) * (newer.tick - older.tick)
+          : newer.tick;
     const player = this.player(),
       controls = {
         left: (this.held.flags & 1) === 1,
         right: (this.held.flags & 2) === 2,
       };
-    return presentWorld(
-      older,
+    return {
+      ...(older ? { older } : {}),
       newer,
-      presentation,
-      player && this.held.flags >= 0
+      tick: presentation,
+      ...(player && this.held.flags >= 0
         ? {
-            id: this.id,
-            controls,
-            lead: Math.max(0, Math.min(1, clock - presentation)),
+            local: {
+              id: this.id,
+              controls,
+              lead: Math.max(0, Math.min(1, clock - at)),
+            },
           }
-        : undefined,
-    );
+        : {}),
+    };
   }
-  /** Every connected rider's input is confirmed through this tick, so no rollback can change state up to it. */
+  /**
+   * The game's clock (`GameState.tick`, what `DecidedRound.tick` and the frames carry) at the newest log tick every
+   * connected rider's input is confirmed through, so no rollback can change state up to it.
+   */
   confirmedTick(): number {
-    return this.world ? this.world.completeTick() : -1;
+    return this.world ? this.world.confirmedGameTick() : -1;
   }
   metrics(): RuntimeMetrics {
     const streams = Object.fromEntries(

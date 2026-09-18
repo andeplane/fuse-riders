@@ -9,7 +9,7 @@ import {
   weightFor,
 } from "./powerup-rarity.js";
 import { TICK_HZ, type PickupType } from "../engine/game.js";
-import { ARENA_MAP_LABELS } from "../client/arena-maps.js";
+import { ARENA_MAP_LABELS } from "../render/arena-maps.js";
 import type { ArenaMapChoice } from "../engine/arena-map.js";
 import {
   BOMB_MIN_CHARGE_TICKS,
@@ -119,7 +119,10 @@ export function showRoomSettings(
         "Arena map",
         draft.map,
         [
-          ["rotate", "A different map every round"],
+          [
+            "rotate",
+            "A different map every round · with and without obstacles",
+          ],
           ["desert", ARENA_MAP_LABELS.desert],
           ["forest", ARENA_MAP_LABELS.forest],
           ["city", ARENA_MAP_LABELS.city],

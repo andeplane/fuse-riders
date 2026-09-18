@@ -12,12 +12,13 @@ import {
   DISCONNECT_MS,
   SNAPSHOT_RETRY_MS,
   SNAPSHOT_SERVE_MS,
-  RATE_DEFER_MS,
   pageGeneration,
 } from "../src/online/room-runtime.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { COUNTDOWN_TICKS } from "../src/engine/game.js";
 import { validRiderName } from "../src/engine/rider-name.js";
+import { presentFrames } from "../src/render/time/present.js";
+import type { WorldView } from "../src/engine/view.js";
 import { roomHash, packMessage } from "../src/online/packet.js";
 import { RULES } from "../src/engine/apply-tick.js";
 import { hashRoomState } from "../src/engine/apply-tick.js";
@@ -511,7 +512,7 @@ test("solo runs a room with no peers: one human, four AI, a paused clock while h
     reliableMs: 0,
   });
   const recorded: string[] = [];
-  let frame: ReturnType<RoomRuntime["view"]>;
+  let frame: WorldView | undefined;
   const runtime = new RoomRuntime(
     "SOLO",
     { ...settings, mode: "shared" },
@@ -548,7 +549,7 @@ test("solo runs a room with no peers: one human, four AI, a paused clock while h
   );
   net.step(50);
   assert.notEqual(frame!.players[0]!.bombChargeStartedTick, undefined);
-  const view = runtime.view()!;
+  const view = presentFrames(runtime.presentation()!);
   assert.equal(view.players[0]!.presentationTick! > frame!.tick - 1, true);
   net.setHidden("solo", true);
   const paused = frame!.tick;
@@ -1006,7 +1007,7 @@ test("a creator and four joiners that all connect at once open one world and eve
   for (const runtime of runtimes) runtime.stop();
 });
 
-test("once both humans are out the room runs three ticks per 50 ms on every member, stays in one world and drops back at round over", () => {
+test("once both humans are out every member runs three steps per log tick while the clock keeps its rate, stays in one world and drops back at round over", () => {
   const { net, join } = room();
   const host = join(HOST, "Host");
   net.step(200);
@@ -1015,6 +1016,18 @@ test("once both humans are out the room runs three ticks per 50 ms on every memb
   for (let i = 0; i < 3; i++) host.command({ type: "bot", action: "add" });
   host.command({ type: "action", action: "start" });
   net.step(COUNTDOWN_TICKS * 50 + 200);
+  // The wall clock's rate, sampled on both members every half second for the whole run: ten ticks each time.
+  const rates: number[] = [];
+  let last: number[] | undefined;
+  const step = (ms: number) => {
+    for (let elapsed = 0; elapsed < ms; elapsed += 50) {
+      net.step(50);
+      if (net.now % 500 !== 0) continue;
+      const now = [host.metrics().clockTick, guest.metrics().clockTick];
+      if (last) rates.push(now[0]! - last[0]!, now[1]! - last[1]!);
+      last = now;
+    }
+  };
   const botsOnly = () => {
     const frame = net.frame(HOST)!;
     return (
@@ -1025,35 +1038,45 @@ test("once both humans are out the room runs three ticks per 50 ms on every memb
       frame.players.some((p) => p.alive)
     );
   };
-  for (let i = 0; i < 600 && !botsOnly(); i++) net.step(50);
+  for (let i = 0; i < 600 && !botsOnly(); i++) step(50);
   assert.ok(
     botsOnly(),
     "the unsteered humans crashed while AI riders were still racing",
   );
-  net.step(300);
-  const before = net.frame(HOST)!.tick;
-  net.step(500);
+  step(300);
+  const before = net.frame(HOST)!,
+    logBefore = world(host).tick;
+  step(500);
   assert.equal(net.frame(HOST)!.phase, "playing");
   assert.ok(
-    Math.abs(net.frame(HOST)!.tick - before - 30) <= 2,
-    `thirty ticks in half a second: ${net.frame(HOST)!.tick - before}`,
+    Math.abs(net.frame(HOST)!.tick - before.tick - 30) <= 3,
+    `thirty game ticks in half a second: ${net.frame(HOST)!.tick - before.tick}`,
+  );
+  assert.ok(
+    Math.abs(world(host).tick - logBefore - 10) <= 1,
+    `ten log ticks in half a second: ${world(host).tick - logBefore}`,
   );
   assert.ok(
     Math.abs(guest.metrics().clockTick - host.metrics().clockTick) < 6,
     `clocks stay together: ${guest.metrics().clockTick - host.metrics().clockTick}`,
   );
   for (let i = 0; i < 1200 && net.frame(HOST)!.phase === "playing"; i++)
-    net.step(50);
+    step(50);
   assert.equal(net.frame(HOST)!.phase, "roundOver");
-  net.step(200);
+  step(200);
   const after = net.frame(HOST)!.tick;
-  net.step(500);
+  step(500);
   assert.ok(
     Math.abs(net.frame(HOST)!.tick - after - 10) <= 2,
     `normal pace after the round: ${net.frame(HOST)!.tick - after}`,
   );
-  net.step(2000);
+  step(2000);
   assert.ok(Math.abs(guest.metrics().clockTick - host.metrics().clockTick) < 3);
+  assert.ok(rates.length > 20);
+  assert.ok(
+    rates.every((ticks) => Math.abs(ticks - 10) < 0.5),
+    `the wall clock never changed rate: ${rates.map((ticks) => ticks.toFixed(2)).join(" ")}`,
+  );
   // The clocks may sit a tick apart when sampled, so compare the world both members have already simulated.
   const hashAt = (runtime: RoomRuntime, tick: number) =>
     (
@@ -1103,7 +1126,7 @@ function botsOnlyRoom(options?: NetworkOptions) {
 const apart = (a: RoomRuntime, b: RoomRuntime) =>
   Math.abs(a.metrics().clockTick - b.metrics().clockTick);
 
-test("a guest hidden before the last human dies follows the authority to triple pace instead of holding the room back", () => {
+test("a guest hidden before the last human dies does not hold the room back, and its clock stays with the authority's", () => {
   const f = botsOnlyRoom();
   f.net.step(300);
   f.net.setHidden(GUESTS[0]!, true);
@@ -1116,41 +1139,45 @@ test("a guest hidden before the last human dies follows the authority to triple 
     f.net.frame(HOST)!.tick - before >= 27,
     `the room is not waiting on the hidden guest: ${f.net.frame(HOST)!.tick - before}`,
   );
+  assert.ok(
+    apart(f.host, f.guest) < 3,
+    `the hidden guest's clock never left the authority's: ${apart(f.host, f.guest)}`,
+  );
   f.host.stop();
   f.guest.stop();
 });
 
-test("a guest hidden while only AI riders race drops back with the authority at round over and returns in step", () => {
+test("a guest hidden while only AI riders race keeps the authority's clock throughout and catches up in the same world", () => {
   const f = botsOnlyRoom();
   f.untilBotsOnly();
   f.net.step(300);
   f.net.setHidden(GUESTS[0]!, true);
-  for (let i = 0; i < 1200 && f.net.frame(HOST)!.phase === "playing"; i++)
+  let widest = 0;
+  for (let i = 0; i < 1200 && f.net.frame(HOST)!.phase === "playing"; i++) {
     f.net.step(50);
+    widest = Math.max(widest, apart(f.host, f.guest));
+  }
   f.net.step(3000);
-  assert.ok(
-    apart(f.host, f.guest) < 45,
-    `the frozen world did not keep the guest at triple pace: ${apart(f.host, f.guest)}`,
-  );
+  widest = Math.max(widest, apart(f.host, f.guest));
+  // There is no rate to disagree on: a hidden follower's clock is the authority's, give or take a round trip.
+  assert.ok(widest < 3, `the clocks stayed together: ${widest}`);
   f.net.setHidden(GUESTS[0]!, false);
-  // The round's end can land anywhere in the rate-observation window. Recovery slews at one tick per second;
-  // a fixed three-second wait only worked for the previous pickup balance's smaller clock gap.
-  // Restoring visibility also requests the frozen world's snapshot. Even when the clocks are already close,
-  // advance the network until that recovery completes before asserting that both clocks and worlds are ready.
-  const recoveryMs =
-    (apart(f.host, f.guest) / SLEW_TICKS_PER_SECOND) * 1000 +
-    SAMPLE_WINDOW_MS +
-    RATE_DEFER_MS;
   for (
     let elapsed = 0;
-    elapsed < recoveryMs &&
-    (apart(f.host, f.guest) >= 5 || f.guest.metrics().snapshotRequest);
+    elapsed < 5000 &&
+    (Math.abs(world(f.host).tick - world(f.guest).tick) > 2 ||
+      f.guest.metrics().snapshotRequest);
     elapsed += 50
   )
     f.net.step(50);
+  f.net.step(1000);
   assert.ok(
-    apart(f.host, f.guest) < 5,
+    apart(f.host, f.guest) < 3,
     `back in step: ${apart(f.host, f.guest)}`,
+  );
+  assert.ok(
+    Math.abs(world(f.host).tick - world(f.guest).tick) <= 2,
+    "the guest's world caught up",
   );
   assert.equal(f.host.metrics().mismatches + f.guest.metrics().mismatches, 0);
   assert.equal(f.guest.metrics().snapshotRequest, false);
@@ -1158,7 +1185,7 @@ test("a guest hidden while only AI riders race drops back with the authority at 
   f.guest.stop();
 });
 
-test("reordered packets do not reset the hidden guest's reading of the authority's pace", () => {
+test("with a hidden guest on a lossy, reordering link the room keeps triple game speed", () => {
   const f = botsOnlyRoom({
     loss: 0.02,
     baseMs: 20,
@@ -1174,7 +1201,7 @@ test("reordered packets do not reset the hidden guest's reading of the authority
   assert.equal(f.net.frame(HOST)!.phase, "playing");
   assert.ok(
     f.net.frame(HOST)!.tick - before >= 50,
-    `the room keeps triple pace through jitter: ${f.net.frame(HOST)!.tick - before}`,
+    `the room keeps triple game speed through jitter: ${f.net.frame(HOST)!.tick - before}`,
   );
   f.host.stop();
   f.guest.stop();

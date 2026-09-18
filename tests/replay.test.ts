@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_AVATAR } from "../src/shared/avatars.ts";
 import type { Moment } from "../src/engine/moments.ts";
-import type { ViewSnapshot } from "../src/client/snapshot-stream.ts";
+import { createGame, toView } from "../src/engine/game.ts";
+import type { WorldView } from "../src/engine/view.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 import {
   BARS_IN_MS,
   BARS_OUT_MS,
@@ -35,8 +37,8 @@ function world(
   tick: number,
   round: number,
   riders: Rider[],
-  phase: ViewSnapshot["phase"] = "playing",
-): ViewSnapshot {
+  phase: WorldView["phase"] = "playing",
+): WorldView {
   return {
     tick,
     round,
@@ -72,7 +74,6 @@ function world(
       invulnerableUntilTick: 0,
       drunkUntilTick: 0,
       inkUntilTick: 0,
-      targetBombArmed: false,
       tripleShotArmed: false,
       fiveShotArmed: false,
       nitroUntilTicks: [],
@@ -83,7 +84,12 @@ function world(
       shieldGraceUntilTick: 0,
       portalCooldownUntilTick: 0,
       portalGraceUntilTick: 0,
+      speed: 7.5,
+      turn: 0.14,
+      nextVolleyAngles: [0],
     })),
+    rules: toView(createGame("replay-rules", classicSettings(), 1)).rules,
+    openEdges: false,
     map: "classic",
     obstacles: [],
     bombs: [],

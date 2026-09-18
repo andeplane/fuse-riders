@@ -602,6 +602,7 @@ test("comparison rows order by placement then seat and format every recorded cou
       inkPickups: 1,
       triplePickups: 1,
       fivePickups: 1,
+      // The retired Target Bomb: a stored result can still carry the counter, and the row no longer lists it.
       targetPickups: 1,
       shieldPickups: 1,
       portalPickups: 1,
@@ -628,7 +629,7 @@ test("comparison rows order by placement then seat and format every recorded cou
   assert.equal(late.eliminations, "2");
   assert.equal(
     late.pickups,
-    "9 · power 1 · star 2 · beer 1 · ink 1 · triple 1 · five 1 · target 1 · shield 1 · portal 1 · 2 jumps",
+    "9 · power 1 · star 2 · beer 1 · ink 1 · triple 1 · five 1 · shield 1 · portal 1 · 2 jumps",
   );
   assert.match(
     comparisonRows([{ ...stats[0]!, portalTransits: 1 }])[0]!.pickups,

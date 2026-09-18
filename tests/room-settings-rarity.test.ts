@@ -25,14 +25,40 @@ test("rarity chips scale each power-up around its default weight and round-trip"
     );
 });
 
-test("star has no default weight, so its rarities come from the median of the enabled defaults", () => {
-  assert.equal(defaults.star ?? 0, 0);
-  assert.ok(weightFor("star", "normal", defaults) > 0);
+test("star ships enabled, so its rarities scale its own default weight", () => {
+  assert.equal(defaults.star, 160);
+  assert.equal(weightFor("star", "normal", defaults), 160);
+  assert.equal(weightFor("star", "rare", defaults), 53);
+  assert.equal(weightFor("star", "common", defaults), 480);
   assert.equal(rarityOf("star", 0, defaults), "off");
+  for (const rarity of ["off", "rare", "normal", "common"] as const)
+    assert.equal(
+      rarityOf("star", weightFor("star", rarity, defaults), defaults),
+      rarity,
+    );
+});
+
+test("a type with no default weight takes its rarities from the median of the enabled defaults", () => {
+  // Star is disabled and beer is missing altogether; the enabled weights are 60, 300 and 900, so the median is 300.
+  const sparse = { power: 900, gun: 300, shell: 60, star: 0 };
+  for (const type of ["star", "beer"] as const) {
+    assert.equal(weightFor(type, "normal", sparse), 300);
+    assert.equal(weightFor(type, "rare", sparse), 100);
+    assert.equal(weightFor(type, "common", sparse), 900);
+    assert.equal(weightFor(type, "off", sparse), 0);
+    assert.equal(rarityOf(type, 0, sparse), "off");
+    for (const rarity of ["rare", "normal", "common"] as const)
+      assert.equal(
+        rarityOf(type, weightFor(type, rarity, sparse), sparse),
+        rarity,
+      );
+  }
   assert.equal(
-    rarityOf("star", weightFor("star", "common", defaults), defaults),
-    "common",
+    weightFor("gun", "normal", sparse),
+    300,
+    "an enabled default still scales its own weight",
   );
+  assert.equal(weightFor("shell", "common", sparse), 180);
 });
 
 test("a hand-typed weight lights the nearest chip", () => {
@@ -45,10 +71,17 @@ test("a hand-typed weight lights the nearest chip", () => {
 
 test("presets: classic restores defaults, chaos makes everything common, no power-ups zeroes all", () => {
   assert.equal(POWERUP_PRESETS["CLASSIC"]!("power", defaults), defaults.power);
-  assert.equal(POWERUP_PRESETS["CLASSIC"]!("star", defaults), 0);
+  assert.equal(POWERUP_PRESETS["CLASSIC"]!("star", defaults), defaults.star);
   assert.equal(
-    POWERUP_PRESETS["CHAOS"]!("star", defaults),
-    weightFor("star", "common", defaults),
+    POWERUP_PRESETS["CLASSIC"]!("star", { power: 900 }),
+    0,
+    "classic leaves a type with no default switched off",
   );
+  for (const type of Object.keys(defaults) as (keyof typeof defaults)[])
+    assert.equal(
+      POWERUP_PRESETS["CHAOS"]!(type, defaults),
+      weightFor(type, "common", defaults),
+    );
+  assert.equal(POWERUP_PRESETS["CHAOS"]!("star", defaults), 480);
   assert.equal(POWERUP_PRESETS["NO POWER-UPS"]!("power", defaults), 0);
 });

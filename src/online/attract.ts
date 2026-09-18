@@ -3,8 +3,9 @@ import { World } from "./rollback.js";
 import { BOT_NAMES, createRoomState } from "../engine/apply-tick.js";
 import { ACTION, BOT } from "../engine/input-log.js";
 import { defaultRoomSettings } from "../engine/room-settings.js";
-import { mountArenaPresentation } from "../client/phaser/presentation.js";
-import { selectedTheme } from "../client/themes.js";
+import { mountArenaPresentation } from "../render/phaser/presentation.js";
+import { selectedTheme } from "../client/theme-choice.js";
+import { reportGraphics } from "./analytics.js";
 
 /** A separate, silent local game on the shared log core. It never opens a room or a connection. */
 export async function startAttract(
@@ -30,9 +31,13 @@ export async function startAttract(
   world.advance(target);
   const theme = selectedTheme();
   let canvas = initialCanvas;
-  const presentation = mountArenaPresentation(canvas, (replacement) => {
-    canvas = replacement;
-  });
+  const presentation = mountArenaPresentation(
+    canvas,
+    (replacement) => {
+      canvas = replacement;
+    },
+    reportGraphics,
+  );
   const motion = matchMedia("(prefers-reduced-motion: reduce)");
   let paused = motion.matches,
     disposed = false,

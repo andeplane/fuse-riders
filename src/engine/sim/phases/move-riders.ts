@@ -8,6 +8,7 @@ import { advanceRiderPose } from "../../rider-motion.js";
 import { drunkHeadingOffset } from "../../drunk.js";
 import { gravityBend } from "../../gravity.js";
 import { riderMotionStep } from "../../tuning.js";
+import { sweepGunAim } from "../../gun.js";
 
 /**
  * Every living rider's step for this tick is worked out and held in the context; nobody is moved yet.
@@ -35,13 +36,23 @@ export function moveRiders(ctx: TickContext): void {
     );
     player.aimSlowTicks = aimSlowTicks;
     player.aimSlowSpentTicks = aimSlowSpentTicks;
+    // A held Gun takes the steering for its sight: the rider runs straight while left and right sweep the aim.
+    // The release tick still counts as held, so a steering key down as the trigger lets go swings the sight one last
+    // step rather than turning the rider under the shot.
+    const aiming =
+      player.gunAim !== undefined &&
+      (input.bomb ||
+        (input.bombCommands ?? []).some(
+          (command) => command.action === "release",
+        ));
+    if (aiming) player.gunAim = sweepGunAim(player.gunAim!, input);
     // Curved space turns the rider before the kernel does, so steering and the hole add up inside one ordinary turn-then-move step.
     const pose = advanceRiderPose(
       {
         ...player,
         angle: player.angle + gravityBend(state.gravityFields, player, turn),
       },
-      input,
+      aiming ? NEUTRAL_INPUT : input,
       { distance, turn, drunkHeadingOffset: offset },
     );
     player.drunkHeadingOffset = pose.drunkHeadingOffset;

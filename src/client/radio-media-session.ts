@@ -1,4 +1,4 @@
-import { assetUrl } from "./asset-url.js";
+import { assetUrl } from "../render/asset-url.js";
 
 /**
  * Fuse Riders Radio on the OS media surfaces (iOS lock screen and Control Center, CarPlay, a Tesla's media

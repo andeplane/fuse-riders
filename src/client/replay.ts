@@ -1,11 +1,11 @@
-import type { ViewSnapshot } from "./snapshot-stream.js";
+import type { WorldView } from "../engine/view.js";
 import { momentKey, type Moment } from "../engine/moments.js";
 import {
   describeMoment,
   rankMoments,
   type MomentCard,
 } from "../engine/match-recap.js";
-import { interpolateWorld } from "../online/prediction.js";
+import { interpolateWorld } from "../render/time/present.js";
 
 /**
  * Instant replay (ADR 044): presentation only. Every screen already receives one authoritative world snapshot per
@@ -29,16 +29,16 @@ const TICK_MS = 50;
 export interface ReplayClip {
   key: string;
   moment: Moment;
-  frames: ViewSnapshot[];
+  frames: WorldView[];
 }
 
 /** Keeps recent authoritative frames for one match and the clips cut from them. */
 export class ReplayRecorder {
   private matchId = "";
   private round = -1;
-  private frames: ViewSnapshot[] = [];
+  private frames: WorldView[] = [];
   private readonly clips = new Map<string, ReplayClip>();
-  record(snapshot: ViewSnapshot, matchId: string): void {
+  record(snapshot: WorldView, matchId: string): void {
     if (matchId !== this.matchId) {
       this.matchId = matchId;
       this.clips.clear();
@@ -143,7 +143,7 @@ export type ReplayStage = "hold" | "in" | "play" | "out" | "done";
 export interface ReplayFrame {
   stage: ReplayStage;
   /** The world to draw; absent during the hold, when live play stays on screen. */
-  snapshot?: ViewSnapshot;
+  snapshot?: WorldView;
   zoom: number;
   focus?: { x: number; y: number };
   slow: boolean;
@@ -243,7 +243,7 @@ export class ReplayDirector {
   private startedAt = 0;
   private lastStage: ReplayStage = "done";
   private impactCued = false;
-  private phase: ViewSnapshot["phase"] = "lobby";
+  private phase: WorldView["phase"] = "lobby";
   /** A replay torn down by a phase change still reports one `done` frame so the screen undresses. */
   private torn?: ReplayClip;
   get active(): boolean {
@@ -253,7 +253,7 @@ export class ReplayDirector {
     return this.timeline?.clip;
   }
   /** Every authoritative snapshot. Entering a pause with moments on file arms the replay of the best one. */
-  observe(snapshot: ViewSnapshot, matchId: string, now: number): void {
+  observe(snapshot: WorldView, matchId: string, now: number): void {
     this.recorder.record(snapshot, matchId);
     const scope = `${matchId}:${snapshot.round}`;
     for (const key of this.pending.keys())

@@ -3,17 +3,17 @@ import test from "node:test";
 import {
   GunImpacts,
   gunImpactFrame,
-} from "../src/client/phaser/gun-impacts.js";
-import { visualFixture } from "../src/client/phaser/benchmark-fixture.js";
+} from "../src/render/phaser/gun-impacts.js";
+import { visualFixture } from "../scripts/lib/benchmark-fixture.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
-import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
+import type { WorldView as ViewSnapshot } from "../src/engine/view.js";
 import {
   addPlayer,
   createGame,
   startMatch,
   step,
-  toSnapshot,
+  toView,
   COUNTDOWN_TICKS,
   SLOT_COLORS,
 } from "../src/engine/game.js";
@@ -69,7 +69,7 @@ function scene(kind: "trail" | "head" | "wall", wrap = false) {
       ];
   }
   const snapshot = (): ViewSnapshot => ({
-    ...toSnapshot(game),
+    ...toView(game),
     tick: game.tick,
     round: game.round,
   });
@@ -82,8 +82,8 @@ function scene(kind: "trail" | "head" | "wall", wrap = false) {
         {
           left: false,
           right: false,
-          bomb: true,
-          bombCommands: [{ action: "press" }],
+          bomb: false,
+          bombCommands: [{ action: "press" }, { action: "release" }],
         },
       ],
     ]),

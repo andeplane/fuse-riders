@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { defaultRoomSettings } from "../src/engine/room-settings.ts";
 import { BOMB_FLIGHT_TICKS } from "../src/engine/bomb-launch.ts";
+import { volleyAngles } from "../src/engine/launch-modifiers.ts";
 import {
   BOXED_IN_LOOKBACK_TICKS,
   CUT_OFF_MAX_AGE_TICKS,
@@ -26,7 +27,7 @@ import {
   returnToLobby,
   startMatch,
   step,
-  toSnapshot,
+  toView,
   type BombState,
   type GameState,
 } from "../src/engine/game.ts";
@@ -237,7 +238,7 @@ test("a shell that bounced before hitting is a trick shot; a fresh, stray or gun
           left: false,
           right: false,
           bomb: true,
-          bombCommands: [{ action: "press" }],
+          bombCommands: [{ action: "press" }, { action: "release" }],
         },
       ],
     ]),
@@ -516,32 +517,27 @@ test("leaving a blast zone in the last half second is a dodge; owners, immune ri
   );
 });
 
-test("a Target Bomb resolved in the launch tick feeds the same detector", () => {
-  // The victims ride on separate rows: on the launch tick they have already laid a trail each.
+test("a Gun volley resolved in the tick it is fired feeds the same detector", () => {
+  // Triple fans the Gun out into three bullets. Two victims each ride head on down a bullet's line, so the bullet
+  // reaches the rider before the trail the rider has laid by the time it fires. A tap fires on release, straight on.
   const state = scene(3, 3);
-  place(state, "p0", 900, 700);
-  place(state, "p1", 500, 450);
-  place(state, "p2", 520, 480);
-  const thrower = state.players.get("p0")!;
-  thrower.targetBombArmed = true;
-  step(
+  const shooter = state.players.get("p0")!;
+  place(state, "p0", 900, 450, Math.PI);
+  Object.assign(shooter, { gunArmed: true, tripleShotArmed: true });
+  const [, middle, outer] = volleyAngles(shooter.angle, 3);
+  place(
     state,
-    new Map([
-      [
-        "p0",
-        {
-          left: false,
-          right: false,
-          bomb: true,
-          bombCommands: [
-            {
-              action: "press",
-              aim: { x: 510 / state.width, y: 450 / state.height },
-            },
-          ],
-        },
-      ],
-    ]),
+    "p1",
+    900 + Math.cos(middle!) * 300,
+    450 + Math.sin(middle!) * 300,
+    middle! + Math.PI,
+  );
+  place(
+    state,
+    "p2",
+    900 + Math.cos(outer!) * 300,
+    450 + Math.sin(outer!) * 300,
+    outer! + Math.PI,
   );
   step(
     state,
@@ -552,18 +548,14 @@ test("a Target Bomb resolved in the launch tick feeds the same detector", () => 
           left: false,
           right: false,
           bomb: false,
-          bombCommands: [
-            {
-              action: "release",
-              aim: { x: 510 / state.width, y: 450 / state.height },
-            },
-          ],
+          bombCommands: [{ action: "press" }, { action: "release" }],
         },
       ],
     ]),
   );
   assert.equal(state.players.get("p1")!.alive, false);
   assert.equal(state.players.get("p2")!.alive, false);
+  assert.equal(shooter.alive, true);
   assert.deepEqual(only(state, "multiKill").targetIds, ["p1", "p2"]);
 });
 
@@ -627,7 +619,7 @@ test("moments travel only in the match-over snapshot, detached, and clear with t
   assert.deepEqual(kinds(state), ["ownGoal"]);
   assert.equal(state.phase, "roundOver");
   assert.deepEqual(
-    toSnapshot(state).moments,
+    toView(state).moments,
     [],
     "nothing leaks before the match is over",
   );
@@ -639,7 +631,7 @@ test("moments travel only in the match-over snapshot, detached, and clear with t
   dueBomb(decided, "p0", 500, 350);
   step(decided, new Map());
   assert.equal(decided.phase, "matchOver");
-  const snapshot = toSnapshot(decided);
+  const snapshot = toView(decided);
   assert.deepEqual(snapshot.moments, decided.moments);
   snapshot.moments[0]!.targetIds.push("tampered");
   assert.deepEqual(decided.moments[0]!.targetIds, []);

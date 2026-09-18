@@ -1,19 +1,12 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
-import { createServer } from "vite";
-import { chromium, webkit } from "playwright";
+import { launchSelected } from "./lib/browser.js";
+import { startViteServer } from "./lib/server.js";
 
 // Read actual marker pixels using supplied frame times in an isolated renderer.
 // This checks presentation wiring, not real network latency or physical-phone performance.
-const server = await createServer({
-  server: { port: 0, host: "127.0.0.1", hmr: false },
-});
-await server.listen();
-const address = server.httpServer!.address();
-if (!address || typeof address === "string") throw Error("No server");
-const browser = await (process.env.BROWSER === "webkit"
-  ? webkit.launch()
-  : chromium.launch({ channel: "chrome" }));
+const server = await startViteServer();
+const browser = await launchSelected("chrome");
 try {
   const page = await browser.newPage({
     viewport: { width: 1600, height: 1000 },
@@ -22,20 +15,22 @@ try {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript("window.__name = value => value");
-  await page.goto(`http://127.0.0.1:${address.port}/`);
+  await page.goto(`${server.url}?mute`);
   const results = await page.evaluate(async () => {
     const { createPhaserArena } = (await import(
-      String("/src/client/phaser/arena.ts")
-    )) as typeof import("../src/client/phaser/arena.js");
+      String("/src/render/phaser/arena.ts")
+    )) as typeof import("../src/render/phaser/arena.js");
     const { visualFixture } = (await import(
-      String("/src/client/phaser/benchmark-fixture.ts")
-    )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+      String("/scripts/lib/benchmark-fixture.ts")
+    )) as typeof import("./lib/benchmark-fixture.js");
     const { themes } = (await import(
-      String("/src/client/themes.ts")
-    )) as typeof import("../src/client/themes.js");
+      String("/src/render/themes.ts")
+    )) as typeof import("../src/render/themes.js");
     const fixture = visualFixture(40);
     const snapshot = {
       ...fixture,
+      // Linear clamped aim unless a case below turns the bounce on; the fixture now carries the default settings.
+      aimBounce: false,
       boundaryInset: 20,
       bombs: [],
       blasts: [],
@@ -56,7 +51,6 @@ try {
         drunkUntilTick: 0,
         inkUntilTick: 0,
         bombChargeStartedTick: 40,
-        targetBombArmed: false,
         tripleShotArmed: false,
         fiveShotArmed: false,
         shellArmed: false,
@@ -264,17 +258,11 @@ try {
         }
         const sheet = document.createElement("canvas");
         sheet.width = 1280;
-        sheet.height = 4 * 350;
+        sheet.height = 3 * 350;
         const ctx = sheet.getContext("2d")!;
         const cases = [
           { name: "Single / gold", angle: 0.16, color: "#ffdd55" },
           { name: "Five-shot / cyan", fiveShotArmed: true },
-          {
-            name: "Target / nearby / pink",
-            targetBombArmed: true,
-            bombTarget: { x: 230, y: 310 },
-            color: "#ff70bd",
-          },
           {
             name: "Wall-clamped / violet",
             x: 60,
@@ -348,5 +336,5 @@ try {
   );
 } finally {
   await browser.close();
-  await server.close();
+  await server.stop();
 }

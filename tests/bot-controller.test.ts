@@ -415,12 +415,8 @@ test("AI chooses hold times from the room's eased distance curve", () => {
   }
 });
 
-test("AI target/gun/shell shots use normal input actions and target aim is bounded", () => {
-  for (const powerup of [
-    "targetBombArmed",
-    "gunArmed",
-    "shellArmed",
-  ] as const) {
+test("AI gun/shell shots use normal input actions", () => {
+  for (const powerup of ["gunArmed", "shellArmed"] as const) {
     const game = fixture(),
       bot = new BotController(),
       player = game.players.get("bot:1")!;
@@ -428,21 +424,17 @@ test("AI target/gun/shell shots use normal input actions and target aim is bound
     player[powerup] = true;
     const press = bot.input(game, player.id);
     assert.equal(press.bombCommands?.[0]?.action, "press");
-    if (powerup === "targetBombArmed") {
-      const aim = press.aim!;
-      assert.ok(
-        aim.x >= 0 && aim.x <= 1 && aim.y >= 0 && aim.y <= 1,
-        "aim stays inside the arena",
-      );
-      const error = BOT_TIERS[botDifficulty(player.name)].aimError;
-      assert.ok(
-        Math.abs(aim.x * game.width - 600) <= error &&
-          Math.abs(aim.y * game.height - 450) <= error,
-        "aim misses by at most this tier's error",
-      );
-    }
     step(game, new Map([[player.id, press]]));
     if (powerup === "gunArmed") {
+      assert.equal(game.shots.length, 0, "a Gun holds fire until release");
+      // The hold is brief: a few ticks of swinging the sight, then an ordinary release.
+      let release = bot.input(game, player.id);
+      for (let held = 0; held < 5 && !release.bombCommands; held++) {
+        step(game, new Map([[player.id, release]]));
+        release = bot.input(game, player.id);
+      }
+      assert.equal(release.bombCommands?.[0]?.action, "release");
+      step(game, new Map([[player.id, release]]));
       assert.equal(player.gunArmed, false);
       assert.equal(game.shots[0]!.weapon, "gun");
       continue;
@@ -453,6 +445,45 @@ test("AI target/gun/shell shots use normal input actions and target aim is bound
     step(game, new Map([[player.id, release]]));
     assert.equal(player[powerup], false);
   }
+});
+
+test("an AI rider swings a held Gun's sight toward a rival off its heading, briefly, and fires", () => {
+  const game = fixture(),
+    bot = new BotController(),
+    player = game.players.get("bot:1")!,
+    human = game.players.get("human")!;
+  // Running alongside, 0.3 rad off the bot's nose: a clear miss if fired straight along the heading.
+  Object.assign(human, {
+    x: player.x + Math.cos(0.3) * 300,
+    y: player.y + Math.sin(0.3) * 300,
+    angle: 0,
+  });
+  player.gunArmed = true;
+  let held = 0,
+    bearing = 0;
+  for (let tick = 0; tick < 8 && !game.shots.length; tick++) {
+    const input = bot.input(game, player.id);
+    if (player.bombChargeStartedTick !== undefined) {
+      held += 1;
+      assert.equal(input.left, false, "the sight only ever swings toward it");
+    }
+    step(game, new Map([[player.id, input]]));
+    bearing = Math.atan2(human.y - player.y, human.x - player.x);
+  }
+  assert.equal(game.shots[0]?.weapon, "gun");
+  assert.ok(held >= 2 && held <= 5, `held ${held} ticks`);
+  const tracer = [...game.bombs.values()][0]!;
+  const fired = Math.atan2(
+    tracer.y - tracer.launchY,
+    tracer.x - tracer.launchX,
+  );
+  const off = (a: number, b: number) =>
+    Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  assert.ok(off(fired, player.angle) > 0.2, "the shot left the heading");
+  assert.ok(
+    off(fired, bearing) < 0.1,
+    `the sight closed on the rival: ${off(fired, bearing)}`,
+  );
 });
 
 test("AI riders are logged by the creator, take the five shared slots, and never steer from a stream of their own", () => {
@@ -553,12 +584,8 @@ test("Explicit tiers in existing names retain their deterministic controller set
   const [easy, medium, hard] = BOT_DIFFICULTIES.map(
     (difficulty) => BOT_TIERS[difficulty],
   );
-  assert.ok(
-    easy!.aimError > medium!.aimError && medium!.aimError > hard!.aimError,
-    "a harder AI aims better",
-  );
   assert.equal(
-    hard!.aimError,
+    hard!.blunderRate,
     0,
     "the top tier is exactly the shipped controller, never a quiet downgrade of it",
   );
@@ -686,4 +713,27 @@ test("AI ignores harmless gun tracers when choosing a route", () => {
     shell: { vx: 1, vy: 0, gun: true },
   });
   assert.deepEqual(new BotController().input(game, player.id), without);
+});
+
+test("an AI rider fires a held Gun at once when riding straight on would die sooner than turning", () => {
+  const game = fixture(),
+    bot = new BotController(),
+    player = game.players.get("bot:1")!;
+  // Nose to the wall with room to turn away, and the rival behind: the sight is far off target.
+  Object.assign(player, {
+    x: game.width - 100,
+    y: 450,
+    angle: 0,
+    trail: [],
+    gunArmed: true,
+    gunAim: 0,
+    bombChargeStartedTick: game.tick,
+  });
+  const input = bot.input(game, player.id);
+  assert.deepEqual(input.bombCommands, [{ action: "release" }]);
+  step(game, new Map([[player.id, input]]));
+  assert.equal(player.gunAim, undefined, "the sight is down");
+  assert.equal(game.shots[0]?.weapon, "gun");
+  const next = bot.input(game, player.id);
+  assert.ok(next.left || next.right, "and it steers away on the next tick");
 });

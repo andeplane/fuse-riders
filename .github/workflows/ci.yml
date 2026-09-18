@@ -45,21 +45,50 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  # The browser matrix: ~10 of CI's ~12 minutes, so it runs on the way to production
-  # rather than in front of every push to a pull request. Deployment still waits for it:
-  # pages.yml and backend.yml gate on this whole workflow's conclusion for a main push,
-  # and a job skipped on a pull request does not affect that conclusion.
+  # The browser matrix. It runs on the way to production rather than in front of every push to a
+  # pull request. Deployment still waits for it: pages.yml and backend.yml gate on this whole
+  # workflow's conclusion for a main push, and jobs skipped on a pull request do not affect that
+  # conclusion.
   #
-  # Run it on a pull request before merging, for a change to the renderer, the online
-  # runtime, the controller or any other browser-facing path: add the `full-ci` label,
-  # dispatch this workflow on the branch, or run `scripts/ci-local.sh` locally.
-  e2e:
+  # Run it on a pull request before merging, for a change to the renderer, the online runtime,
+  # the controller or any other browser-facing path: add the `full-ci` label, dispatch this
+  # workflow on the branch, or run `scripts/ci-local.sh` locally.
+  #
+  # scripts/ci-manifest.json is the only list of smokes. `plan` reads it, `smoke` runs one job per
+  # entry in parallel (its name, browsers, env and timeout all come from the entry), and `e2e`
+  # is the single result a branch rule or a reader can wait on. scripts/ci-local.sh runs the same
+  # entries through the same runner, and tests/ci-manifest.test.ts fails when this file stops
+  # doing so.
+  plan:
     if: >-
       github.event_name != 'pull_request' ||
       contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-latest
-    # Each smoke may run twice (scripts/ci-smoke.sh), so the stop sits above the ~10-minute matrix doubled.
-    timeout-minutes: 40
+    timeout-minutes: 5
+    outputs:
+      ids: ${{ steps.manifest.outputs.ids }}
+      byId: ${{ steps.manifest.outputs.byId }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the smokes from scripts/ci-manifest.json
+        id: manifest
+        run: |
+          printf 'ids=%s\n' "$(jq -c '[.smokes[].id]' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"
+          printf 'byId=%s\n' "$(jq -c '.smokes | map({key: .id, value: .}) | from_entries' scripts/ci-manifest.json)" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    needs: plan
+    # The matrix is the ids alone and the job has no dynamic `name:`, so it reads `smoke (online-webkit)`
+    # when it runs and plain `smoke` when a pull request without `full-ci` skips it. Everything else about
+    # an entry is looked up by id.
+    runs-on: ubuntu-latest
+    strategy:
+      # Every smoke reports, so one run shows everything that is broken rather than the first thing.
+      fail-fast: false
+      matrix:
+        id: ${{ fromJson(needs.plan.outputs.ids) }}
+    # Setup plus the smoke, which may run twice (scripts/ci-smoke.sh).
+    timeout-minutes: ${{ fromJson(needs.plan.outputs.byId)[matrix.id].timeoutMinutes }}
     permissions:
       contents: read
       # scripts/ci-smoke.sh comments on the `flaky-test` issue when a smoke on main passes only on retry.
@@ -81,95 +110,18 @@ jobs:
           cache: npm
       - run: npm ci
       # Before the browser downloads, so a revision that does not compile fails in
-      # seconds rather than after a minute of Playwright installs.
+      # seconds rather than after a minute of Playwright installs. The room service serves dist/.
       - run: npm run build
-      - run: npx playwright install --with-deps chrome chromium webkit
-      # The production room protocol (packages/fuse-network-be) over in-memory metadata, serving dist/.
-      - name: Start local online room service
-        run: |
-          mkdir -p artifacts
-          npx tsx src/service/dev.ts --port 8787 > artifacts/room-service.log 2>&1 &
-          for attempt in $(seq 1 30); do
-            if curl -fsS http://localhost:8787/ > /dev/null; then exit 0; fi
-            sleep 1
-          done
-          cat artifacts/room-service.log
-          exit 1
-      - name: Online voice chat (synthetic microphone)
-        run: scripts/ci-smoke.sh "Online voice chat" npx tsx scripts/voice-smoke.ts
-        env:
-          ONLINE_URL: http://localhost:8787/
-      - name: Desktop keyboard steering and firing
-        run: scripts/ci-smoke.sh "Desktop keyboard steering and firing" npx tsx scripts/keyboard-smoke.ts
-        env:
-          HOME_URL: http://localhost:8787/
-      # Compact desktop bar, ultrawide fit, resize recovery and the ? help — uncovered until #166 found it broken.
-      - name: Desktop control bar and keyboard help
-        run: scripts/ci-smoke.sh "Desktop control bar and keyboard help" npx tsx scripts/desktop-controls-smoke.ts
-        env:
-          ONLINE_URL: http://localhost:8787/
-      # Keep five-peer functional assertions on Phaser Canvas; six software-GL views
-      # overloaded the runner. Single-view Phaser remains a separate required gate.
-      - name: Online WebRTC room smoke (Phaser Canvas)
-        run: scripts/ci-smoke.sh "Online WebRTC room smoke (Phaser Canvas)" npx tsx scripts/online-smoke.ts
-        env:
-          ROOM_RENDERER: phaser-canvas
-      - name: Online WebKit room smoke (Phaser Canvas)
-        run: scripts/ci-smoke.sh "Online WebKit room smoke (Phaser Canvas)" npx tsx scripts/online-smoke.ts
-        env:
-          SMOKE_RIDERS: 3
-          BROWSER: webkit
-          ROOM_RENDERER: phaser-canvas
-      # The unit tests pin the charge ramp; this is the only thing that renders it, and a new room bounces by
-      # default, so without it CI never draws the ramp most rooms actually use (#176).
-      - name: Chrome bomb charge preview
-        run: scripts/ci-smoke.sh "Chrome bomb charge preview" npx tsx scripts/bomb-preview-smoke.ts
-      - name: WebKit bomb charge preview
-        run: scripts/ci-smoke.sh "WebKit bomb charge preview" npx tsx scripts/bomb-preview-smoke.ts
-        env:
-          BROWSER: webkit
-      - name: Chrome Phaser lifecycle and graphics retry
-        run: scripts/ci-smoke.sh "Chrome Phaser lifecycle and graphics retry" npx tsx scripts/phaser-browser.ts
-      - name: WebKit Phaser lifecycle and graphics retry
-        run: scripts/ci-smoke.sh "WebKit Phaser lifecycle and graphics retry" npx tsx scripts/phaser-browser.ts
-        env:
-          BROWSER: webkit
-      - name: Landing, offline solo and mobile menus
-        run: scripts/ci-smoke.sh "Landing, offline solo and mobile menus" npx tsx scripts/home-mobile-smoke.ts
-        env:
-          HOME_URL: http://localhost:8787/
-      - name: Landscape gameplay and touch zones
-        run: scripts/ci-smoke.sh "Landscape gameplay and touch zones" npx tsx scripts/mobile-landscape-smoke.ts
-        env:
-          HOME_URL: http://localhost:8787/
-      - name: One controller presentation across phone phases
-        run: scripts/ci-smoke.sh "One controller presentation across phone phases" npx tsx scripts/mobile-phase-smoke.ts
-        env:
-          HOME_URL: http://localhost:8787/
-      - name: Chrome end-of-match recap
-        run: scripts/ci-smoke.sh "Chrome end-of-match recap" npx tsx scripts/match-recap-smoke.ts
-        env:
-          HOME_URL: http://localhost:8787/
-      - name: WebKit end-of-match recap
-        run: scripts/ci-smoke.sh "WebKit end-of-match recap" npx tsx scripts/match-recap-smoke.ts
-        env:
-          HOME_URL: http://localhost:8787/
-          BROWSER: webkit
-      - name: Shared QR lobby and room termination regression
-        run: scripts/ci-smoke.sh "Shared QR lobby and room termination regression" npx tsx scripts/shared-room-smoke.ts
-        env:
-          ONLINE_URL: http://localhost:8787/
-      - name: Cross-engine determinism replay
-        run: scripts/ci-smoke.sh "Cross-engine determinism replay" npx tsx scripts/determinism-replay.ts
-      - name: Six-peer WebRTC mesh transport
-        run: scripts/ci-smoke.sh "Six-peer WebRTC mesh transport" npx tsx scripts/p2p-mesh-browser.ts
-        env:
-          ONLINE_URL: http://localhost:8787/
+      - run: npx playwright install --with-deps ${{ join(fromJson(needs.plan.outputs.byId)[matrix.id].browsers, ' ') }}
+      # Starts the local room service on a free port when the smoke needs one (log in
+      # artifacts/room-service.log), applies the entry's env and retries once through scripts/ci-smoke.sh.
+      - name: ${{ fromJson(needs.plan.outputs.byId)[matrix.id].name }}
+        run: npx tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"
       - name: Save browser evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: browser-evidence
+          name: browser-evidence-${{ matrix.id }}
           path: |
             artifacts/*.png
             artifacts/room-service.log
@@ -179,3 +131,16 @@ jobs:
             docs/online/browser-network.json
           if-no-files-found: ignore
           retention-days: 7
+
+  # One stable check name for the whole matrix: green only when every smoke passed.
+  e2e:
+    needs: smoke
+    if: >-
+      always() &&
+      (github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every smoke passed
+        run: test "${{ needs.smoke.result }}" = success

@@ -8,7 +8,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   type InputIntent,
   type PickupType,
 } from "../src/engine/game.js";
@@ -26,7 +26,7 @@ import {
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
 import { PICKUP_WEIGHTS } from "../src/engine/pickup-weights.js";
-import { powerLabel } from "../src/client/power-indicator.js";
+import { powerLabel } from "../src/render/power-indicator.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing() {
@@ -90,7 +90,7 @@ test("each pickup adds one bomb, every subsequent shot retains it, and a new rou
     step(game, fire);
     assert.equal(rider.extraBombs, upgrades);
     assert.equal(game.bombs.size, upgrades + 1);
-    assert.equal(toSnapshot(game).players[0]!.extraBombs, upgrades);
+    assert.equal(toView(game).players[0]!.extraBombs, upgrades);
     const ids = game.nextBombId;
     step(game, fire);
     assert.equal(
@@ -168,25 +168,24 @@ test("Triple/Five add their temporary bonus; Power applies to upgraded volleys",
   }
 });
 
-test("Shell and Gun fan out with the volley and spend it; Target fires one and preserves it", () => {
-  for (const special of ["target", "shell", "gun"] as const) {
+test("Shell and Gun fan out with the volley and spend it", () => {
+  for (const special of ["shell", "gun"] as const) {
     const game = playing(),
       rider = game.players.get("p0")!;
     collect(game, "extraBomb", "extraBomb", "triple", special);
     const events = step(game, fire);
-    const projectile = special !== "target";
     assert.equal(
       events.events.filter((event) => event.type === "bombPlaced").length,
-      projectile ? 5 : 1,
+      5,
     );
     assert.equal(rider.extraBombs, 2);
-    assert.equal(rider.tripleShotArmed, !projectile);
+    assert.equal(rider.tripleShotArmed, false);
     // Shells deliberately remain in flight and do not block the next ordinary shot.
     while (game.tick < rider.bombReadyAtTick) step(game, new Map());
     const followup = step(game, fire);
     assert.equal(
       followup.events.filter((event) => event.type === "bombPlaced").length,
-      projectile ? 3 : 5,
+      3,
     );
   }
 });

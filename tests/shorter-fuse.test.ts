@@ -10,7 +10,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   type InputIntent,
   type PickupType,
 } from "../src/engine/game.js";
@@ -94,10 +94,7 @@ test("Fuse stacks twice, applies on the collection tick, explodes exactly on tim
     step(game, fire);
     const bomb = [...game.bombs.values()][0]!;
     assert.equal(bomb.explodeAtTick - bomb.launchedTick, duration);
-    assert.equal(
-      toSnapshot(game).players[0]!.fuseLevel,
-      duration === 30 ? 1 : 2,
-    );
+    assert.equal(toView(game).players[0]!.fuseLevel, duration === 30 ? 1 : 2);
     assert.equal(rider.reloadDurationTicks, powerReloadTicks(0));
     while (game.tick < bomb.explodeAtTick - 1) step(game, new Map());
     assert.ok(game.bombs.has(bomb.id));
@@ -152,25 +149,20 @@ test("held and cancelled input preserves Fuse; shortened volleys retain Power", 
   }
 });
 
-test("Target still explodes instantly and Shell/Gun retain their projectile/tracer lifetimes", () => {
-  for (const special of ["target", "shell", "gun"] as const) {
+test("Shell and Gun retain their projectile/tracer lifetimes", () => {
+  for (const special of ["shell", "gun"] as const) {
     const game = playing(),
       rider = game.players.get("p0")!;
     collect(game, "stopwatch", "stopwatch", special);
     step(game, fire);
     assert.equal(rider.fuseLevel, 2);
-    if (special === "target") {
-      assert.equal(game.bombs.size, 0);
-      assert.equal(game.blasts.length, 1);
-    } else {
-      const bomb = [...game.bombs.values()][0]!;
-      assert.equal(
-        bomb.explodeAtTick,
-        special === "shell"
-          ? Number.MAX_SAFE_INTEGER
-          : game.tick + GUN_TRACER_TICKS,
-      );
-    }
+    const bomb = [...game.bombs.values()][0]!;
+    assert.equal(
+      bomb.explodeAtTick,
+      special === "shell"
+        ? Number.MAX_SAFE_INTEGER
+        : game.tick + GUN_TRACER_TICKS,
+    );
   }
 });
 

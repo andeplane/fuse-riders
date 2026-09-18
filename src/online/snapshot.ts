@@ -11,6 +11,7 @@ import {
   decodeGameState,
   encodeGameState,
 } from "../engine/codec/checkpoint.js";
+import { stepsCover } from "../engine/tick-driver.js";
 import { packMessage, unpackMessage } from "./packet.js";
 import type { World } from "./rollback.js";
 
@@ -54,8 +55,6 @@ export function encodeSnapshot(world: World, room: number): SnapshotChunk[] {
     id,
     fold.generation,
     fold.flags,
-    fold.aim?.x ?? null,
-    fold.aim?.y ?? null,
     fold.activeGesture,
     fold.latestGesture,
   ]);
@@ -199,7 +198,7 @@ export function decodeSnapshot(
   if (
     !game ||
     !settings ||
-    game.tick !== tick ||
+    !stepsCover(tick, game.tick) ||
     !Array.isArray(rawFolds) ||
     !Array.isArray(rawBots) ||
     !Array.isArray(rawStreams) ||
@@ -218,11 +217,9 @@ export function decodeSnapshot(
     bots.add(id);
   }
   const folds = new Map<string, Fold>();
-  const unit = (v: unknown): v is number =>
-    typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
   for (const raw of rawFolds) {
-    if (!Array.isArray(raw) || raw.length !== 7) return;
-    const [id, generation, flags, x, y, active, latest] = raw;
+    if (!Array.isArray(raw) || raw.length !== 5) return;
+    const [id, generation, flags, active, latest] = raw;
     if (
       !memberId(id) ||
       !game.players.has(id) ||
@@ -236,18 +233,16 @@ export function decodeSnapshot(
       (active !== 0 && active !== latest)
     )
       return;
-    if (!((x === null && y === null) || (unit(x) && unit(y)))) return;
     folds.set(id, {
       generation,
       flags,
       activeGesture: active,
       latestGesture: latest,
-      ...(x === null ? {} : { aim: { x, y: y as number } }),
     });
   }
   for (const player of game.players.values())
     if (!bots.has(player.id) && !folds.has(player.id)) return;
-  const state: RoomState = { game, settings, folds, bots };
+  const state: RoomState = { tick, game, settings, folds, bots };
   if (hashRoomState(state) !== hash) return;
   const streams: SnapshotStream[] = [],
     seen = new Set<string>();

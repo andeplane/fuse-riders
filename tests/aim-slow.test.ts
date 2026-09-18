@@ -15,11 +15,11 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   type GameState,
   type InputIntent,
 } from "../src/engine/game.js";
-import { presentWorld } from "../src/online/prediction.js";
+import { presentWorld } from "../src/render/time/present.js";
 import {
   decodeGameState,
   encodeGameState,
@@ -215,15 +215,39 @@ test("aiming under three Snails stays survivable: the slowdown stops at the floo
   );
 });
 
-test("a gun fires on the press and never slows its rider", () => {
+test("a tapped gun fires at once and never slows; a held gun sight slows like any charge", () => {
   const game = playing();
   const shooter = game.players.get("p0")!;
   shooter.gunArmed = true;
-  ratio(game, PRESS);
-  assert.equal(game.bombs.size, 1, "the press fired the bullet");
+  ratio(game, {
+    ...NEUTRAL,
+    bombCommands: [{ action: "press" }, { action: "release" }],
+  });
+  assert.equal(game.bombs.size, 1, "the tap fired the bullet");
   assert.equal(shooter.bombChargeStartedTick, undefined, "and left no charge");
   for (let tick = 0; tick < 4; tick += 1)
     close(ratio(game), 1, "no charge, no slowdown");
+
+  const held = playing();
+  const aimer = held.players.get("p0")!;
+  aimer.gunArmed = true;
+  ratio(held, { ...PRESS, bomb: true });
+  assert.equal(aimer.gunAim, 0, "the press raised the sight");
+  for (let tick = 0; tick < AIM_SLOW_RAMP_TICKS; tick += 1)
+    ratio(held, { ...NEUTRAL, bomb: true });
+  assert.equal(
+    aimer.aimSlowTicks,
+    AIM_SLOW_RAMP_TICKS,
+    "the held sight eased the rider down",
+  );
+  close(
+    ratio(held, { ...NEUTRAL, bomb: true }),
+    AIM_SLOW_SPEED,
+    "at the aiming speed",
+  );
+  ratio(held, RELEASE);
+  assert.equal(aimer.gunArmed, false, "the release fired the Gun");
+  assert.equal(aimer.gunAim, undefined, "and lowered the sight");
 });
 
 test("steering keeps its rate while aiming: the slowdown tightens the circle, like a Snail", () => {
@@ -296,7 +320,7 @@ test("the local rider's predicted lead uses the slowed stride", () => {
   ratio(game, PRESS);
   ratio(game);
   ratio(game);
-  const snapshot = { ...toSnapshot(game), tick: game.tick, round: game.round };
+  const snapshot = { ...toView(game), tick: game.tick, round: game.round };
   const shown = presentWorld(undefined, snapshot, snapshot.tick, {
     id: "p0",
     controls: NEUTRAL,

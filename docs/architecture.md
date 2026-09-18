@@ -21,7 +21,8 @@ There is one tick driver. `driveGameTick` (`src/engine/tick-driver.ts`) is a tic
 
 | Location                                                                              | Owns                                                                                                                |
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `src/engine/game.ts`, `state.ts`, `view.ts`                                           | Lifecycle commands and `step` (a loop over `PHASES`); plain game state and its ordered readers; snapshot projection |
+| `src/engine/game.ts`, `state.ts`                                                      | Lifecycle commands and `step` (a loop over `PHASES`); plain game state and its ordered readers                      |
+| `src/engine/view.ts`, `view-kit.ts`                                                   | `WorldView` and `toView`: the contract rendering sees, rule values included as data; the few kernels it may run     |
 | `src/engine/sim/`                                                                     | `TickContext`, the ordered `PHASES` list and one file per phase: the tick, and the only place rules run during play |
 | `src/engine/tuning.ts`, `geometry.ts`, `rng.ts`                                       | Balance constants and pure functions of them, plane geometry, the seeded random stream                              |
 | `src/engine/rider-motion.ts`, geometry and weapon helpers                             | Pure turn-then-move motion, swept contacts, launch and hazard calculations                                          |
@@ -32,7 +33,8 @@ There is one tick driver. `driveGameTick` (`src/engine/tick-driver.ts`) is a tic
 | `src/online/stream.ts`, `rollback.ts`                                                 | Bounded stream history, completeness, repair and rollback                                                           |
 | `src/online/packet.ts`, `snapshot.ts`                                                 | Packet decoding and chunked world transfer                                                                          |
 | `src/engine/codec/checkpoint.ts`                                                      | Runtime validation of a game state before installation                                                              |
-| `src/client/`                                                                         | Phaser rendering, themes, audio, display/controller UI and controls                                                 |
+| `src/render/`                                                                         | Phaser scene, presentation time (`time/`), themes and the pure drawing helpers; imports only the engine's view      |
+| `src/client/`                                                                         | Audio, avatars, controls, replay, announcer and the stored style choice                                             |
 | `src/online/ui.ts` and adjacent UI modules                                            | Online and solo app composition, menus, replay, layouts and diagnostics                                             |
 | `packages/fuse-network-fe/`                                                           | Game-agnostic WebRTC mesh, room API/socket client, link health, ICE recovery and diagnostics                        |
 | `packages/fuse-network-be/`                                                           | Game-agnostic room admission, metadata, signalling gateway and backend adapters                                     |
@@ -40,9 +42,9 @@ There is one tick driver. `driveGameTick` (`src/engine/tick-driver.ts`) is a tic
 | `src/service/`                                                                        | Game entry points and optional account/history routes composed with the networking service                          |
 | `src/service/history*.ts`, `firestore-history.ts`, `memory-history.ts`, `identity.ts` | Completed-match history, storage adapters and account identity verification                                         |
 
-Networking packages must not import `src/`. The game composes them through `RoomTransport` and related interfaces. The renderer currently still imports game rules and the view type still lives in `src/client/snapshot-stream.ts`; the desired `engine/view` boundary is not yet enforced. See [#254](https://github.com/andeplane/fuse-riders/issues/254).
+Networking packages must not import `src/`. The game composes them through `RoomTransport` and related interfaces. Rendering lives in `src/render/` and imports only `src/engine/view.ts` (types) and `src/engine/view-kit.ts`; the rule values it needs travel as data in the `WorldView`, and netcode no longer imports presentation code. See the [render boundary](design/render-boundary.md).
 
-The target is `engine` (pure rules), `net` (simulation coordination), `render` (engine view contract only), and `app` (composition). Renaming folders alone does not establish this boundary. The engine half of that is in place: the simulation lives in `src/engine/`, imports nothing outside it except wire type names from `src/shared/protocol.ts`, and runs each tick as the ordered `PHASES` list ([engine pipeline](design/engine-pipeline.md)). A layer-boundary test pins every remaining cross-layer import exactly. The single tick driver and the effect/pickup/weapon registries (#253 A3, A4), the view projection (#254) and shared UI (#255) are still staged work.
+The target is `engine` (pure rules), `net` (simulation coordination), `render` (engine view contract only), and `app` (composition). Renaming folders alone does not establish this boundary. The engine half of that is in place: the simulation lives in `src/engine/`, imports nothing outside it except wire type names from `src/shared/protocol.ts`, and runs each tick as the ordered `PHASES` list ([engine pipeline](design/engine-pipeline.md)). A layer-boundary test pins every remaining cross-layer import exactly. The render half is too ([render boundary](design/render-boundary.md)). The single tick driver and the effect/pickup/weapon registries (#253 A3, A4) and the app layer with its shared UI (#255) are still staged work.
 
 ## Online data flow and recovery
 
@@ -61,7 +63,7 @@ The service renews room lifetime on any member's admission or valid heartbeat, s
 
 ## Simulation and time
 
-Simulation state uses ticks; clocks schedule work and rendering samples presentation time. The current online clock changes pace when only bots survive, using `simulationTimeScale` and runtime pacing logic ([ADR 047 §11](adr/047-p2p-input-log-lockstep-rollback.md#11-game-speed-when-only-ai-survive)). Moving this acceleration into deterministic shared tick execution is proposed in #258. Do not describe the clock as fixed-rate across every current mode.
+Simulation state uses ticks; clocks schedule work and rendering samples presentation time. The online clock has one rate, `TICK_MS` per log tick, in every phase. When only bots survive, the tick driver runs `BOTS_ONLY_STEPS_PER_TICK` simulation steps per log tick, decided by `stepsPerTick` from folded state, so the game runs faster while the clock, the log and the network cadence do not ([ADR 047 §11](adr/047-p2p-input-log-lockstep-rollback.md#11-game-speed-when-only-ai-survive), [design note](design/fixed-clock-game-speed.md)). `RoomState.tick` counts log ticks; `GameState.tick` counts simulation steps.
 
 `src/engine/rider-motion.ts` applies steering before movement at a fixed simulation step. Bots emit ordinary inputs through `BotController`; they do not receive special collision or movement rules. Seeded RNG and pinned deterministic trigonometry live in shared modules. Room settings, pickup definitions and game constants are the sources for balance; this guide intentionally does not duplicate numeric balance tables.
 
@@ -72,10 +74,10 @@ Simulation state uses ticks; clocks schedule work and rendering samples presenta
 3. Compute every rider's step, collect pickups, fly shells, explode due fuses and their chains.
 4. Sweep the steps against projectiles, blasts, walls, scenery, trails and each other; resolve shields and portal transits. Nothing has been committed yet.
 5. Commit positions and trails, then the sweep's deaths.
-6. Apply weapon inputs against the committed board; resolve guns and Target Bombs in the same tick; commit those deaths.
+6. Apply weapon inputs against the committed board; resolve guns in the same tick; commit those deaths.
 7. `recordFacts` writes match statistics, the shot log and highlight moments from the facts the phases stated; `resolveRound` decides the round.
 
-Every death goes through one `commitDeaths` over `DeathFact`s, and no phase before `recordFacts` reads statistics, so they cannot steer an outcome. `step` returns events only; callers that need the public snapshot call `toSnapshot`. The order of `PHASES` is part of the rules: the [engine pipeline note](design/engine-pipeline.md) has the full contract, the orderings it preserves, and the behaviour kept behind a named flag for stage A4. A phase that throws surfaces as a `TickFault` naming the tick and the phase; the state is still left part-way through the tick, as it always was, and recovering from that is tracked separately (#253 C8).
+Every death goes through one `commitDeaths` over `DeathFact`s, and no phase before `recordFacts` reads statistics, so they cannot steer an outcome. `step` returns events only; callers that need the public snapshot call `toView`. The order of `PHASES` is part of the rules: the [engine pipeline note](design/engine-pipeline.md) has the full contract, the orderings it preserves, and the behaviour kept behind a named flag for stage A4. A phase that throws surfaces as a `TickFault` naming the tick and the phase; the state is still left part-way through the tick, as it always was, and recovering from that is tracked separately (#253 C8).
 
 `RULES` in [apply-tick.ts](../src/engine/apply-tick.ts) identifies compatible simulation rules. A rules change requires a version change; a source refactor must preserve behavior, and `tests/golden-hash.test.ts` holds it to that on every tick of a recording that exercises every mechanic ([engine safety net](design/engine-safety-net.md)).
 

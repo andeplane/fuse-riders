@@ -5,6 +5,7 @@ import {
   ARENA_MAP_RECIPES,
   MAX_OBSTACLES,
   chooseArenaMap,
+  ROTATION_MAPS,
   generateObstacles,
   obstacleBlocksPath,
   obstacleBounceNormal,
@@ -23,8 +24,8 @@ import {
   obstacleParts,
   OBSTACLE_STYLES,
   ARENA_MAP_LABELS,
-} from "../src/client/arena-maps.js";
-import { themes } from "../src/client/themes.js";
+} from "../src/render/arena-maps.js";
+import { themes } from "../src/render/themes.js";
 
 const BOUNDS = { minX: 46, minY: 46, maxX: 1554, maxY: 854 };
 // The maps that put scenery on the board; `wrap` and `cross` change the edges instead and stand on the classic floor.
@@ -200,8 +201,12 @@ test("a board with no room left simply carries fewer obstacles", () => {
   );
 });
 
-test("rotation visits every obstacle map before repeating one, and a named map is taken as given", () => {
-  const rotation = OBSTACLE_MAPS.length;
+test("rotation visits every obstacle map and the obstacle-free classic before repeating one, and a named map is taken as given", () => {
+  const rotation = ROTATION_MAPS.length;
+  assert.deepEqual(
+    [...ROTATION_MAPS].sort(),
+    ["classic", ...OBSTACLE_MAPS].sort(),
+  );
   for (const seed of [1, 2, 3, 999]) {
     const rounds = Array.from({ length: rotation }, (_, index) =>
       chooseArenaMap("rotate", seed, index + 1),
@@ -212,8 +217,8 @@ test("rotation visits every obstacle map before repeating one, and a named map i
       `seed ${seed} repeated a map within one cycle`,
     );
     assert.ok(
-      rounds.every((map) => map !== "classic"),
-      "rotation is between the maps that have scenery",
+      rounds.includes("classic"),
+      "a cycle has a round with nothing standing on the board",
     );
     assert.equal(
       chooseArenaMap("rotate", seed, rotation + 1),

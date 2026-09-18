@@ -74,27 +74,19 @@ test("overflow drops the tick's queue for one cancel and a later fresh press rec
   assert.deepEqual(buffer.drain(), ["press"]);
 });
 
-test("target input: a release carries its own aim despite later frames and caller mutation", () => {
+test("commands drain as bare actions in order across frames without an edge", () => {
   const buffer = new BombInputBuffer();
-  const first = { x: 0.1, y: 0.2 };
-  buffer.accept("press", first);
-  first.x = 1;
-  buffer.accept(undefined, { x: 0.3, y: 0.4 });
-  const released = { x: 0.5, y: 0.6 };
-  buffer.accept("release", released);
-  released.x = 1;
-  buffer.accept("press", { x: 0.7, y: 0.8 });
+  buffer.accept("press");
+  buffer.accept();
+  buffer.accept("release");
+  buffer.accept("press");
   assert.deepEqual(buffer.drainCommands(), [
-    // A device logs the press before the aim of the same frame, so the press is unaimed; `step` reads the aim of a
-    // charging Target Bomb from the tick's intent.
     { action: "press" },
-    { action: "release", aim: { x: 0.5, y: 0.6 } },
+    { action: "release" },
     { action: "press" },
   ]);
   buffer.accept("release");
-  assert.deepEqual(buffer.drainCommands(), [
-    { action: "release", aim: { x: 0.7, y: 0.8 } },
-  ]);
+  assert.deepEqual(buffer.drainCommands(), [{ action: "release" }]);
   buffer.accept("press");
   assert.deepEqual(buffer.drainCommands(), [{ action: "press" }]);
   buffer.cancel();

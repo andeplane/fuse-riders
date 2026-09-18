@@ -26,6 +26,7 @@ import {
   MAX_RANGE_LEVEL,
 } from "./bomb-launch.js";
 import { advanceRiderPose } from "./rider-motion.js";
+import { GUN_AIM_STEP, isAimingGun } from "./gun.js";
 import {
   edgesOpen,
   obstacleBlocksPath,
@@ -44,8 +45,8 @@ export const BOT_BLUNDER_WINDOW = 4;
 export type BotDifficulty = "easy" | "medium" | "hard";
 export const BOT_DIFFICULTIES = ["easy", "medium", "hard"] as const;
 /**
- * lookaheadTicks is how far the rider plans, aimError how badly it throws a target bomb, and blunderRate how often it
- * stops steering well for a moment, the way a distracted human does. Every knob must be a pure function of folded
+ * lookaheadTicks is how far the rider plans, aimError how far off it points a Gun's sight, and blunderRate how often
+ * it stops steering well for a moment, the way a distracted human does. Every knob must be a pure function of folded
  * state: the controller runs inside the fold on every device, and a rollback replays it without restoring anything it
  * kept for itself, so a remembered decision would replay differently than it was first played and diverge the room.
  */
@@ -113,6 +114,8 @@ function distanceToSegmentSquared(
     squared(y - segment.y1 - fraction * dy)
   );
 }
+/** The longest a bot holds a Gun's trigger: its planner does not know the hold locks steering, so it stays brief. */
+const BOT_GUN_AIM_TICKS = 4;
 function angleDifference(a: number, b: number): number {
   return atan2(sin(a - b), cos(a - b));
 }
@@ -125,7 +128,10 @@ const TURN_DURATIONS = [2, 4, 8, 12, 16, 24, BOT_LOOKAHEAD_TICKS] as const;
 const SAFETY_MARGIN = 2;
 const TRAIL_CLEARANCE = RIDER_RADIUS + TRAIL_WIDTH / 2 + SAFETY_MARGIN;
 
-/** Replan every tick, but evaluate short turns followed by straight escape paths. */
+/**
+ * Replan every tick, but evaluate short turns followed by straight escape paths. `straightSafe` says whether riding
+ * straight on survives as long as the chosen plan does: a held Gun sight rides straight, so it may only stay up then.
+ */
 function chooseSteering(
   game: Readonly<GameState>,
   player: PlayerState,
@@ -133,7 +139,7 @@ function chooseSteering(
   target: { x: number; y: number } | undefined,
   random: number,
   lookahead: number,
-): number {
+): { direction: number; straightSafe: boolean } {
   // The fastest anyone here could go inside the lookahead: a Snail wearing off, or a rival's stacked Nitros, must not
   // put a trail past the horizon that is about to be reachable. The floor keeps a quarter of slack over base speed.
   let fastest = 1.25;
@@ -270,7 +276,8 @@ function chooseSteering(
   );
   let chosen = 0,
     bestSurvived = -1,
-    bestScore = -Infinity;
+    bestScore = -Infinity,
+    straightSurvived = -1;
   for (const plan of plans) {
     let pose = {
         x: player.x,
@@ -477,6 +484,7 @@ function chooseSteering(
           near(target.x - pose.x, game.width),
           near(target.y - pose.y, game.height),
         ) * 0.025;
+    if (plan.direction === 0) straightSurvived = survived;
     if (plan.direction === 0 && survived === lookahead) score += 1;
     // Survival is lexicographic: a pickup or extra clearance can never buy a
     // shorter predicted life. Among equally safe paths, prefer breathing room.
@@ -489,7 +497,10 @@ function chooseSteering(
       chosen = plan.direction;
     }
   }
-  return chosen;
+  return {
+    direction: chosen,
+    straightSafe: straightSurvived >= bestSurvived,
+  };
 }
 
 /** A bounded controller which can only ask the normal simulation to steer/fire. */
@@ -529,7 +540,7 @@ export class BotController {
       );
     const target = pickup ?? nearest;
     const tier = BOT_TIERS[botDifficulty(player.name)];
-    let chosen = chooseSteering(
+    const steering = chooseSteering(
       game,
       player,
       enemies,
@@ -537,6 +548,7 @@ export class BotController {
       this.dependencies.random(game.seed, id, game.tick),
       tier.lookaheadTicks,
     );
+    let chosen = steering.direction;
     // A lapse holds for a whole window so it costs something, and both draws come from the tick, not from memory.
     if (tier.blunderRate) {
       const window = Math.floor(game.tick / BOT_BLUNDER_WINDOW);
@@ -568,8 +580,6 @@ export class BotController {
         : nearest.y - player.y;
     const distance = hypot2(towardX, towardY);
     const bearing = atan2(towardY, towardX);
-    const aimed =
-      player.targetBombArmed && !player.gunArmed && !player.shellArmed;
     // One fixed miss per shot: the cooldown stamp is stable while charging, so a weak rider commits to its bad aim.
     const scatter = (axis: string) =>
       (Math.max(
@@ -586,21 +596,9 @@ export class BotController {
         2 -
         1) *
       tier.aimError;
-    const aim = aimed
-      ? {
-          x: Math.max(
-            0,
-            Math.min(1, (nearest.x + scatter(":aimX")) / game.width),
-          ),
-          y: Math.max(
-            0,
-            Math.min(1, (nearest.y + scatter(":aimY")) / game.height),
-          ),
-        }
-      : undefined;
     const maxChargeTicks = game.settings.bombChargeTicks;
     let wantedCharge =
-      aimed || player.gunArmed || player.shellArmed
+      player.gunArmed || player.shellArmed
         ? 1
         : Math.max(
             1,
@@ -614,12 +612,27 @@ export class BotController {
               ),
             ),
           );
-    if (
-      game.settings.aimBounce &&
-      !aimed &&
-      !player.gunArmed &&
-      !player.shellArmed
-    ) {
+    if (player.bombChargeStartedTick !== undefined && isAimingGun(player)) {
+      // A held Gun runs straight and steers its sight, so the hold is kept short: swing toward the target, then fire.
+      // If riding straight on is now the shorter life, the sight fires where it points and the steering comes back.
+      const off = angleDifference(
+        bearing + scatter(":gun") / Math.max(distance, 1),
+        player.angle + player.gunAim!,
+      );
+      const release =
+        !steering.straightSafe ||
+        Math.abs(off) <= GUN_AIM_STEP / 2 ||
+        game.tick - player.bombChargeStartedTick >= BOT_GUN_AIM_TICKS;
+      return release
+        ? {
+            left: false,
+            right: false,
+            bomb: false,
+            bombCommands: [{ action: "release" }],
+          }
+        : { left: off < 0, right: off > 0, bomb: true };
+    }
+    if (game.settings.aimBounce && !player.gunArmed && !player.shellArmed) {
       // The eased curve is nonlinear. Pick the closest attainable first-swing distance.
       let error = Infinity;
       for (let ticks = 1; ticks <= maxChargeTicks; ticks++) {
@@ -638,22 +651,17 @@ export class BotController {
       return {
         ...intent,
         bomb: !release,
-        ...(aim ? { aim } : {}),
-        ...(release
-          ? { bombCommands: [{ action: "release", ...(aim ? { aim } : {}) }] }
-          : {}),
+        ...(release ? { bombCommands: [{ action: "release" }] } : {}),
       };
     }
     if (
-      aimed ||
-      (distance < bombMaxLaunchDistance(player.rangeLevel) + 100 &&
-        Math.abs(angleDifference(bearing, player.angle)) < 0.6)
+      distance < bombMaxLaunchDistance(player.rangeLevel) + 100 &&
+      Math.abs(angleDifference(bearing, player.angle)) < 0.6
     ) {
       return {
         ...intent,
         bomb: true,
-        ...(aim ? { aim } : {}),
-        bombCommands: [{ action: "press", ...(aim ? { aim } : {}) }],
+        bombCommands: [{ action: "press" }],
       };
     }
     return intent;

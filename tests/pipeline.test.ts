@@ -38,7 +38,6 @@ test("PHASES is the tick order the design note describes", () => {
       "commitSweepDeaths",
       "launchWeapons",
       "fireGuns",
-      "explodeInstant",
       "resolveInstantHits",
       "commitInstantDeaths",
       "observeDodges",

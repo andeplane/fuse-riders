@@ -12,7 +12,7 @@ export interface RoomSettings {
   chainReaction: boolean;
   /** Holding past full reach walks the aim back down and up again instead of parking at maximum (#166). */
   aimBounce: boolean;
-  /** Which ground and obstacles a round is played on. `rotate` cycles them; `classic` is the obstacle-free arena. */
+  /** Which ground and obstacles a round is played on. `rotate` cycles them, the obstacle-free `classic` included. */
   map: ArenaMapChoice;
   weights: Partial<Record<PickupType, number>>;
 }
@@ -120,7 +120,9 @@ export function loadRoomSettings(
       saved.match === "wins"
         ? { ...saved, match: "rounds", length: 5 }
         : saved;
-    // A pickup retired since the save (Boost) would fail the whole parse and reset every other preference with it.
+    // A pickup retired since the save (Boost, Target Bomb) would fail the whole parse and reset every other preference with it.
+    // One added or enabled since (Star) has no key in the save at all: creating a room stores the whole blob, so without
+    // the defaults underneath it would stay off for ever. A host who turned a pickup off saved an explicit 0, which wins.
     if (
       migrated &&
       typeof migrated === "object" &&
@@ -132,11 +134,14 @@ export function loadRoomSettings(
       return (
         parseRoomSettings({
           ...migrated,
-          weights: Object.fromEntries(
-            Object.entries(migrated.weights).filter(([type]) =>
-              known.has(type),
+          weights: {
+            ...defaultRoomSettings().weights,
+            ...Object.fromEntries(
+              Object.entries(migrated.weights).filter(([type]) =>
+                known.has(type),
+              ),
             ),
-          ),
+          },
         }) ?? defaultRoomSettings()
       );
     }

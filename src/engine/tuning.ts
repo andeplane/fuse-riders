@@ -120,11 +120,16 @@ export function roundSpeedMultiplier(elapsedTicks: number): number {
   );
 }
 /**
- * Once every human rider is out, the rest of the round is bots racing each other: the clock that drives the
- * simulation runs this many times faster until the round ends. Tick rules are untouched, so outcomes are the same.
+ * Once every human rider is out, the rest of the round is bots racing each other, and each shared tick steps the
+ * simulation this many times (`driveGameTick`) until the round ends. The clock keeps its rate; the game runs faster.
  */
-export const BOTS_ONLY_TIME_SCALE = 3;
-export function simulationTimeScale(
+export const BOTS_ONLY_STEPS_PER_TICK = 3;
+/**
+ * How many steps the next log tick runs, from the state before it: `BOTS_ONLY_STEPS_PER_TICK` while a round is
+ * playing, at least one human rider is seated, none is alive and a bot is; otherwise one. A pure function of folded
+ * state, so every replica takes the same count, and a rollback that changes it replays the ticks after it with theirs.
+ */
+export function stepsPerTick(
   state: Pick<GameState, "phase" | "players">,
   bots: ReadonlySet<string>,
 ): number {
@@ -138,7 +143,7 @@ export function simulationTimeScale(
     } else if (player.alive) botsAlive++;
   }
   // A room with no human rider at all is a showcase, not a wait: it keeps its pace.
-  return humans > 0 && botsAlive > 0 ? BOTS_ONLY_TIME_SCALE : 1;
+  return humans > 0 && botsAlive > 0 ? BOTS_ONLY_STEPS_PER_TICK : 1;
 }
 export interface SpeedEffects {
   nitroUntilTicks: ReadonlyArray<number>;
@@ -162,7 +167,7 @@ export function riderSpeedMultiplier(
  * back out the same way on release, cancel or the cap: speed never jumps. The cap is a budget, not the age of a charge:
  * every slowed tick of aiming spends one of AIM_SLOW_MAX_TICKS, and they come back one per tick only while the button is
  * up, so a second of slowdown is all a hold buys however long it lasts, and cancelling into a fresh press buys nothing.
- * A gun fires on the press and never charges, so it never slows.
+ * A held Gun charges like any other weapon, so sweeping its sight slows the rider the same way.
  */
 export const AIM_SLOW_SPEED = 0.5;
 export const AIM_SLOW_MAX_TICKS = TICK_HZ;

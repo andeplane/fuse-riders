@@ -1,17 +1,9 @@
 import assert from "node:assert/strict";
-import { createServer } from "vite";
-import { chromium, webkit } from "playwright";
+import { launchSelected } from "./lib/browser.js";
+import { startViteServer } from "./lib/server.js";
 import { smokeTimeout } from "./smoke-timeout.js";
-const server = await createServer({
-  server: { port: 0, host: "127.0.0.1", hmr: false },
-});
-await server.listen();
-const address = server.httpServer!.address();
-if (!address || typeof address === "string") throw Error("No server");
-const browser =
-  process.env.BROWSER === "webkit"
-    ? await webkit.launch()
-    : await chromium.launch({ channel: "chrome" });
+const server = await startViteServer();
+const browser = await launchSelected("chrome");
 const page = await browser.newPage({
   viewport: { width: 1600, height: 1000 },
   deviceScaleFactor: Number(process.env.DPR ?? 2),
@@ -20,18 +12,18 @@ const errors: string[] = [];
 page.on("pageerror", (e) => errors.push(e.stack ?? e.message));
 try {
   await page.addInitScript("window.__name = value => value");
-  await page.goto(`http://127.0.0.1:${address.port}/?mute&room=INVALID`);
+  await page.goto(`${server.url}?mute&room=INVALID`);
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   const result = await page.evaluate(async (recoveryBudgetMs) => {
     const { createPhaserArena } = (await import(
-      String("/src/client/phaser/arena.ts")
-    )) as typeof import("../src/client/phaser/arena.js");
+      String("/src/render/phaser/arena.ts")
+    )) as typeof import("../src/render/phaser/arena.js");
     const { visualFixture } = (await import(
-      String("/src/client/phaser/benchmark-fixture.ts")
-    )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+      String("/scripts/lib/benchmark-fixture.ts")
+    )) as typeof import("./lib/benchmark-fixture.js");
     const { themes } = (await import(
-      String("/src/client/themes.ts")
-    )) as typeof import("../src/client/themes.js");
+      String("/src/render/themes.ts")
+    )) as typeof import("../src/render/themes.js");
     const results = [];
     // #127: a navigation can abort the embedded default images Phaser decodes at boot. Its texture manager still reports
     // READY, and booting the WebGL renderer without __DEFAULT throws. Failing those images (only they are data PNGs set
@@ -344,8 +336,8 @@ try {
       wrapper.remove();
     }
     const { mountArenaPresentation } = (await import(
-      String("/src/client/phaser/presentation.ts")
-    )) as typeof import("../src/client/phaser/presentation.js");
+      String("/src/render/phaser/presentation.ts")
+    )) as typeof import("../src/render/phaser/presentation.js");
     const wrapper = document.createElement("div");
     wrapper.style.cssText = "width:800px;height:450px";
     document.body.append(wrapper);
@@ -451,5 +443,5 @@ try {
 } finally {
   if (errors.length) console.error("Page errors:", errors);
   await browser.close();
-  await server.close();
+  await server.stop();
 }

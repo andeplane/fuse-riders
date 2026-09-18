@@ -11,7 +11,7 @@ import {
   startNextRound,
   step,
   eliminatePlayer,
-  toSnapshot,
+  toView,
   COUNTDOWN_TICKS,
   ROUND_DRAW_TICK,
   SLOT_COLORS,
@@ -88,7 +88,7 @@ test("spawned pickups survive the old timeout and late round, then reset with th
     game.tick = game.roundStartedTick! + elapsed - 1;
     step(game, new Map());
     assert.ok(game.pickups.some((p) => p.id === spawned.id));
-    assert.ok(toSnapshot(game).pickups.some((p) => p.id === spawned.id));
+    assert.ok(toView(game).pickups.some((p) => p.id === spawned.id));
   }
   if (game.phase === "playing") {
     eliminatePlayer(game, "p1");
@@ -106,13 +106,13 @@ test("blast destruction is strictly inside 60% of the actual radius, using cente
     pickup(game, 800, 400, "grip");
     pickup(game, 800 + edge - 0.01, 400, "star");
     const boundary = pickup(game, 800 + edge, 400, "extraBomb");
-    const fringe = pickup(game, 800 + edge + 0.01, 400, "target");
+    const fringe = pickup(game, 800 + edge + 0.01, 400, "shell");
     const diagonal = pickup(game, 800 + radius * 0.5, 400 + radius * 0.5);
     const outside = pickup(game, 800 + radius + 1, 400);
     bomb(game, 800, 400, radius);
     const result = step(game, new Map());
     assert.deepEqual(
-      toSnapshot(game).pickups.map((p) => p.id),
+      toView(game).pickups.map((p) => p.id),
       [boundary, fringe, diagonal, outside],
     );
     assert.equal(
@@ -145,31 +145,6 @@ test("chained bombs destroy pickups and replay identically from a checkpoint", (
   const later = pickup(game, 930, 400);
   step(game, new Map());
   assert.ok(game.pickups.some((p) => p.id === later));
-});
-
-test("Target blasts destroy pickups on their release tick", () => {
-  const game = playing();
-  game.players.get("p0")!.targetBombArmed = true;
-  pickup(game, 800, 450);
-  const result = step(
-    game,
-    new Map([
-      [
-        "p0",
-        {
-          left: false,
-          right: false,
-          bomb: false,
-          bombCommands: [
-            { action: "press", aim: { x: 0.5, y: 0.5 } },
-            { action: "release", aim: { x: 0.5, y: 0.5 } },
-          ],
-        },
-      ],
-    ]),
-  );
-  assert.equal(result.events.filter((e) => e.type === "explosion").length, 1);
-  assert.deepEqual(toSnapshot(game).pickups, []);
 });
 
 test("collection wins before a same-tick explosion and destruction frees a spawn slot", () => {

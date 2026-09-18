@@ -7,7 +7,7 @@ import {
   step,
   COUNTDOWN_TICKS,
   returnToLobby,
-  toSnapshot,
+  toView,
   type GamePhase,
 } from "../src/engine/game.ts";
 import { classicSettings } from "./fixtures/classic-settings.ts";
@@ -39,10 +39,9 @@ for (const phase of [
     const player = game.players.get("p0")!;
     player.avatarId = "dragon";
     player.roundWins = 2;
-    player.targetBombArmed = true;
+    player.gunArmed = true;
     player.fiveShotArmed = true;
     player.bombChargeStartedTick = game.tick;
-    player.bombTarget = { x: 1, y: 2 };
     player.invulnerableUntilTick = 999;
     player.inkUntilTick = 999;
     game.pickups = [
@@ -85,7 +84,7 @@ for (const phase of [
     assert.equal(game.matchWinnerId, undefined);
     assert.equal(game.roundStartedTick, undefined);
     assert.equal(game.phaseEndsAtTick, undefined);
-    const snapshot = toSnapshot(game);
+    const snapshot = toView(game);
     assert.deepEqual(snapshot.bombs, []);
     assert.deepEqual(snapshot.blasts, []);
     assert.deepEqual(snapshot.pickups, []);
@@ -95,9 +94,8 @@ for (const phase of [
           p.connected &&
           !p.alive &&
           p.roundWins === 0 &&
-          !p.targetBombArmed &&
+          !p.gunArmed &&
           !p.fiveShotArmed &&
-          p.bombTarget === undefined &&
           p.bombChargeStartedTick === undefined &&
           p.invulnerableUntilTick === 0 &&
           p.inkUntilTick === 0 &&

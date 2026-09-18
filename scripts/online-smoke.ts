@@ -1,4 +1,5 @@
-import { chromium, webkit, type Page } from "playwright";
+import type { Page } from "playwright";
+import { launchSelected } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
@@ -16,9 +17,7 @@ interface Snapshot {
   players: Array<{ id: string; alive: boolean; angle: number }>;
 }
 await mkdir("artifacts", { recursive: true });
-const browser = await (
-  process.env.BROWSER === "webkit" ? webkit : chromium
-).launch({ headless: true });
+const browser = await launchSelected("chromium", { headless: true });
 const base = process.env.ONLINE_URL ?? "http://localhost:8787/";
 const phone = {
   viewport: { width: 844, height: 390 },

@@ -5,7 +5,7 @@ import {
   createGame,
   startMatch,
   step,
-  toSnapshot,
+  toView,
   ARENA_HEIGHT,
   ARENA_WIDTH,
   BOMB_FUSE_TICKS,
@@ -34,14 +34,13 @@ import {
   decodeGameState,
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
-import { renderedSnapshot } from "../src/client/render-snapshot.js";
-import { interpolateWorld } from "../src/online/prediction.js";
-import { trailPaths } from "../src/client/phaser/trails.js";
+import { interpolateWorld } from "../src/render/time/present.js";
+import { trailPaths } from "../src/render/phaser/trails.js";
 import {
   crossScreenPoint,
   crossViews,
   edgeGhosts,
-} from "../src/client/arena-views.js";
+} from "../src/render/arena-views.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
@@ -49,6 +48,13 @@ const press: InputIntent = {
   ...neutral,
   bomb: true,
   bombCommands: [{ action: "press" }],
+};
+/** A Gun fires on release; a tap is the press and its release arriving in one tick. */
+const tap: InputIntent = {
+  left: false,
+  right: false,
+  bomb: false,
+  bombCommands: [{ action: "press" }, { action: "release" }],
 };
 const release: InputIntent = {
   ...neutral,
@@ -227,7 +233,7 @@ test("cross is the classic arena move for move: only the drawing differs", () =>
           [...game.players.keys()].map((id) => [id, bots.input(game, id)]),
         ),
       );
-    const { map: _map, ...rest } = toSnapshot(game);
+    const { map: _map, ...rest } = toView(game);
     return rest;
   };
   assert.deepEqual(play("cross"), play("classic"));
@@ -385,7 +391,7 @@ test("a bullet carries on through an open edge and hits a rider beyond it, withi
   const game = scene();
   place(game, "p0", { x: 1500, y: 400, angle: 0, gunArmed: true });
   place(game, "p1", { x: 100, y: 400, angle: Math.PI / 2 });
-  const events = step(game, new Map([["p0", press]])).events;
+  const events = step(game, new Map([["p0", tap]])).events;
   assert.ok(
     events.some(
       (event) =>
@@ -407,7 +413,7 @@ test("a bullet carries on through an open edge and hits a rider beyond it, withi
   const empty = scene();
   place(empty, "p0", { x: 800, y: 100, angle: 0, gunArmed: true });
   place(empty, "p1", { x: 800, y: 800, angle: 0 });
-  step(empty, new Map([["p0", press]]));
+  step(empty, new Map([["p0", tap]]));
   const legs = [...empty.bombs.values()].filter((bomb) => bomb.shell?.gun);
   const travelled = legs.reduce(
     (sum, leg) => sum + Math.abs(leg.x - leg.launchX),
@@ -517,24 +523,29 @@ test("a wrap round survives a checkpoint, and replays to the same state afterwar
   assert.ok(restored, "the checkpoint is accepted");
   drive(game, 100);
   drive(restored!, 100);
-  assert.deepEqual(toSnapshot(restored!), toSnapshot(game));
+  assert.deepEqual(toView(restored!), toView(game));
 });
 
-test("rotation still visits only the maps with scenery", () => {
+test("rotation visits the walled maps and neither wrap nor cross", () => {
   const visited = new Set(
     Array.from({ length: 12 }, (_, round) =>
       chooseArenaMap("rotate", 5, round + 1),
     ),
   );
-  assert.deepEqual([...visited].sort(), ["city", "desert", "forest"]);
+  assert.deepEqual([...visited].sort(), [
+    "city",
+    "classic",
+    "desert",
+    "forest",
+  ]);
 });
 
 test("presentation follows a rider through the edge instead of sweeping it back across the board", () => {
   const game = scene();
   place(game, "p0", { x: 1597, y: 400, angle: 0 });
-  const older = { ...toSnapshot(game), tick: game.tick, round: game.round };
+  const older = { ...toView(game), tick: game.tick, round: game.round };
   step(game, new Map());
-  const newer = { ...toSnapshot(game), tick: game.tick, round: game.round };
+  const newer = { ...toView(game), tick: game.tick, round: game.round };
   assert.ok(
     newer.players[0]!.x < 20,
     "the rider crossed between the two ticks",
@@ -543,17 +554,6 @@ test("presentation follows a rider through the edge instead of sweeping it back 
   assert.ok(
     half.x > 1597 && half.x < 1605,
     `half way is half a step on, not mid-board: ${half.x}`,
-  );
-  const projected = renderedSnapshot(
-    [
-      { snapshot: older, matchId: "m", round: 1, receivedAt: 0 },
-      { snapshot: newer, matchId: "m", round: 1, receivedAt: 50 },
-    ],
-    75,
-  )!.players[0]!;
-  assert.ok(
-    projected.x > newer.players[0]!.x && projected.x < newer.players[0]!.x + 10,
-    `projected forwards by part of a step: ${projected.x}`,
   );
 });
 
@@ -638,7 +638,7 @@ test("a bullet fired along an open edge hits a rider overhanging that edge from 
     const game = scene();
     place(game, "p0", { x: 1596, y: 100, angle: Math.PI / 2, gunArmed: true });
     place(game, "p1", { x: victimX, y: 500, angle: Math.PI / 2 });
-    return step(game, new Map([["p0", press]])).events.some(
+    return step(game, new Map([["p0", tap]])).events.some(
       (event) => event.type === "playerEliminated" && event.playerId === "p1",
     );
   };

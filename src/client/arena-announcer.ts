@@ -7,7 +7,7 @@ import {
 } from "../engine/game.js";
 import { ARENA_MAP_RECIPES } from "../engine/arena-map.js";
 import type { ArenaMapId, GameEvent } from "../shared/protocol.js";
-import type { ViewSnapshot } from "./snapshot-stream.js";
+import type { WorldView } from "../engine/view.js";
 
 /**
  * Pure text model for the in-arena announcements the online screen renders: countdown, round result with
@@ -34,7 +34,7 @@ const points = (units: number): string => {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 };
 
-type Pause = Pick<ViewSnapshot, "phase" | "tick" | "phaseEndsAtTick">;
+type Pause = Pick<WorldView, "phase" | "tick" | "phaseEndsAtTick">;
 const ticksLeft = (snapshot: Pause): number =>
   snapshot.phaseEndsAtTick === undefined
     ? 0
@@ -52,7 +52,7 @@ export function showsRoundResult(snapshot: Pause): boolean {
 }
 
 /** The round winner's name. The placements keep it when the host removes that rider during the pause; the roster does not. */
-export function roundWinnerName(snapshot: ViewSnapshot): string | undefined {
+export function roundWinnerName(snapshot: WorldView): string | undefined {
   const id = snapshot.roundWinnerId;
   if (id === undefined) return undefined;
   return (
@@ -62,14 +62,14 @@ export function roundWinnerName(snapshot: ViewSnapshot): string | undefined {
 }
 
 /** The match winner's name, or undefined for a shared victory. Match stats outlive a rider the host removes. */
-export function matchWinnerName(snapshot: ViewSnapshot): string | undefined {
+export function matchWinnerName(snapshot: WorldView): string | undefined {
   return snapshot.matchStats.find(
     (player) => player.playerId === snapshot.matchWinnerId,
   )?.name;
 }
 
 export function announcementFor(
-  snapshot: ViewSnapshot,
+  snapshot: WorldView,
   selfId: string,
   touch: boolean,
 ): Announcement {
@@ -154,7 +154,7 @@ export function announcementFor(
 }
 
 /** "ROUND 2/5 · 01:12" for the header chip; the clock counts down to the draw, mirroring the LAN TV timer. */
-export function roundClock(snapshot: ViewSnapshot): string {
+export function roundClock(snapshot: WorldView): string {
   if (snapshot.phase === "lobby") return "";
   const remaining =
     snapshot.phase === "playing" && snapshot.roundStartedTick !== undefined

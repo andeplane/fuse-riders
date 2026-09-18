@@ -47,6 +47,7 @@ export interface MatchPlayerStats {
   inkPickups: number;
   triplePickups: number;
   fivePickups: number;
+  /** Target Bomb is gone; the counter stays because stored match results are validated field by field. */
   targetPickups: number;
 
   shieldPickups: number;
@@ -162,8 +163,7 @@ export function recordPickup(
   const entry = stats.get(playerId);
   if (!entry) return;
   entry.pickupsCollected += 1;
-  if (type === "target") entry.targetPickups += 1;
-  else if (type === "power") entry.powerPickups += 1;
+  if (type === "power") entry.powerPickups += 1;
   else if (type === "star") entry.starPickups += 1;
   else if (type === "ink") entry.inkPickups += 1;
   else if (type === "beer") entry.beerPickups += 1;
