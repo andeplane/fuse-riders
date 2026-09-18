@@ -173,6 +173,13 @@ export interface Analytics {
   /** `listener` runs whenever the status may have changed, from this page or another tab. Returns the unsubscribe. */
   onChange(listener: () => void): () => void;
   reportBootFailure(error: unknown): void;
+  /**
+   * The arena's renderer (`webgl`, or Phaser's `canvas` fallback) is a `Graphics Ready` event and, from then on, a
+   * super property. The event is what counts renderers: the first events of a solo run (`Seat Taken`,
+   * `Match Started`) usually fire while Phaser is still downloading, before the super property exists. A view that
+   * ends on the RETRY GRAPHICS card is a `Graphics Failed` event.
+   */
+  reportGraphics(event: GraphicsReport): void;
 }
 
 const ignore = () => {
@@ -312,6 +319,12 @@ export function createAnalytics(environment: AnalyticsEnvironment): Analytics {
      * Registers nothing of its own: a boot failure raised after a room already registered its `role` would
      * otherwise relabel every later event on the page as `boot`. The role travels on the event instead.
      */
+    reportGraphics(event) {
+      if (event.kind === "ready") {
+        analytics.start({ renderer: event.renderer });
+        analytics.track("Graphics Ready");
+      } else analytics.track("Graphics Failed", { stage: event.stage });
+    },
     reportBootFailure(error) {
       analytics.start({});
       analytics.track("Boot Failed", {
@@ -362,18 +375,7 @@ export const analyticsStatusNow = page.status;
 export const setAnalyticsOptOut = page.setOptOut;
 export const onAnalyticsChange = page.onChange;
 export const reportBootFailure = page.reportBootFailure;
-/**
- * The arena's renderer (`webgl`, or Phaser's `canvas` fallback) is a `Graphics Ready` event and, from then on, a
- * super property. The event is what counts pages by renderer: the first events of a solo run (`Seat Taken`,
- * `Match Started`) usually fire while Phaser is still downloading, before the super property exists. A view that
- * ends on the RETRY GRAPHICS card is a `Graphics Failed` event.
- */
-export function reportGraphics(event: GraphicsReport): void {
-  if (event.kind === "ready") {
-    page.start({ renderer: event.renderer });
-    page.track("Graphics Ready");
-  } else page.track("Graphics Failed", { stage: event.stage });
-}
+export const reportGraphics = page.reportGraphics;
 
 const seconds = (ticks: number) => Math.round(ticks / TICK_HZ);
 /** Tenths, where whole seconds would put nearly every Gun, Target and Shell kill in the same bucket. */

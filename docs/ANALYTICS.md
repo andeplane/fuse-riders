@@ -123,7 +123,7 @@ super property on every event. `mode` and `solo` are registered only on the room
 `renderer` (`webgl`, or `canvas` for Phaser's fallback when WebGL is unavailable or `?renderer=phaser-canvas`
 forces it) is registered as a super property once the arena first draws, together with a `Graphics Ready` event.
 Events before that do not carry it: `App Opened`, and in solo usually `Seat Taken` and `Match Started` too, which
-fire while Phaser is still downloading. Count renderers with `Graphics Ready`. A device that never draws an arena,
+fire while Phaser is still downloading. Count renderers with `Graphics Ready`. The landing page's backdrop and a room's arena each report one, even when CREATE ROOM keeps the same page, and `role` (`landing` or the room role) tells them apart. A device that never draws an arena,
 such as a shared-TV rider's phone, reports neither. This shows how many players still depend on the Canvas fallback.
 
 | Event              | Fires                                                                                             | Key properties                                                                                                                                                                                                                                                                                                                                                 |
