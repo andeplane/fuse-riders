@@ -57,8 +57,11 @@ async function act(tab: Page): Promise<boolean> {
     (await tab.locator(".dice-total strong").textContent()) ?? "0",
   );
   const button = total >= 12 && (await hold.isEnabled()) ? hold : roll;
-  await button.click();
-  return true;
+  // The turn can pass between the check and the press (the timer, the frame after a HOLD): that press is simply lost.
+  return button.click({ timeout: smokeTimeout(2_000) }).then(
+    () => true,
+    () => false,
+  );
 }
 /** Both boards show the same scores: the replicas agree. */
 const boards = (tab: Page) => tab.locator(".dice-board").innerText();

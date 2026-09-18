@@ -362,6 +362,7 @@ function room(solo: boolean): void {
 
   // ---- the runtime ----
   const sent = new Set<string>();
+  const remembered = seatName(store.getItem(names.name) ?? "");
   let lastDie = "",
     joinSent = false;
   const callbacks: DiceCallbacks = {
@@ -374,8 +375,8 @@ function room(solo: boolean): void {
       if (model.die && model.die.key !== lastDie && model.die.bust)
         toast.flash(`${model.die.by} rolled a 1: BUST!`, "warn");
       lastDie = model.die?.key ?? "";
-      // Back in the lobby after a reload frees the seat: rejoin under the remembered name.
-      const remembered = seatName(store.getItem(names.name) ?? "");
+      // A page that loads into a room with a name remembered from before (a reload frees a lobby seat) joins under it
+      // once; a name typed on this page joins only through JOIN.
       if (model.askName && remembered && !joinSent) {
         joinSent = true;
         runtime.command({ type: "join", name: remembered });
