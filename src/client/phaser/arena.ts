@@ -28,8 +28,8 @@ import { wrapCoordinate } from "../../shared/wrap.js";
 import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
-import { GunImpacts, gunImpactFrame } from "../gun-impacts.js";
-import { gunFrame, gunRoots, gunPortalPulses } from "../gun-animation.js";
+import { GunImpacts, gunImpactFrame } from "./gun-impacts.js";
+import { gunFrame, gunRoots, gunPortalPulses } from "./gun-animation.js";
 import { TrailDebris } from "../trail-debris.js";
 import {
   selfLocatorRing,
@@ -817,12 +817,13 @@ class ArenaScene extends Phaser.Scene {
       const frame = gunImpactFrame(hit, s.presentationTick ?? s.tick);
       const tint = color(hit.color);
       for (const fragment of frame.fragments)
-        g.fillStyle(tint, frame.alpha).fillRect(
-          fragment.x - fragment.size / 2,
-          fragment.y - fragment.size / 2,
-          fragment.size,
-          fragment.size,
-        );
+        for (const { dx, dy } of ghosts(fragment.x, fragment.y, fragment.size))
+          g.fillStyle(tint, frame.alpha).fillRect(
+            fragment.x + dx - fragment.size / 2,
+            fragment.y + dy - fragment.size / 2,
+            fragment.size,
+            fragment.size,
+          );
       for (const end of hit.ends)
         g.fillStyle(0xffffff, frame.alpha ** 2).fillRect(
           end.x - 2,
@@ -831,11 +832,12 @@ class ArenaScene extends Phaser.Scene {
           4,
         );
       if (hit.kind === "lethal")
-        g.lineStyle(2, 0xffffff, frame.core).strokeCircle(
-          hit.x,
-          hit.y,
-          5 + (1 - frame.core) * 15,
-        );
+        for (const { dx, dy } of ghosts(hit.x, hit.y, 20))
+          g.lineStyle(2, 0xffffff, frame.core).strokeCircle(
+            hit.x + dx,
+            hit.y + dy,
+            5 + (1 - frame.core) * 15,
+          );
     }
     for (const p of s.pickups) {
       const pulse = 1 + Math.sin(now / 210 + p.id) * 0.06;

@@ -1,6 +1,8 @@
-import { GUN_RADIUS } from "../shared/gun.js";
-import { PORTAL_WALL_HALF_WIDTH } from "../shared/portal.js";
-import type { ViewSnapshot } from "./snapshot-stream.js";
+import {
+  GUN_RADIUS,
+  PORTAL_WALL_HALF_WIDTH,
+  type GunView as ViewSnapshot,
+} from "../../engine/view-kit.js";
 
 type Tracer = ViewSnapshot["bombs"][number];
 

@@ -4,7 +4,7 @@ import {
   gunFrame,
   gunRoots,
   gunPortalPulses,
-} from "../src/client/gun-animation.js";
+} from "../src/client/phaser/gun-animation.js";
 import { visualFixture } from "../src/client/phaser/benchmark-fixture.js";
 
 const base = visualFixture(100);

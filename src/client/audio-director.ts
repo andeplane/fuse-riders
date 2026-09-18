@@ -1,4 +1,4 @@
-import { GunImpacts } from "./gun-impacts.js";
+import { GunImpacts } from "./phaser/gun-impacts.js";
 import type { ServerMessage } from "../shared/protocol.js";
 import { showsRoundResult } from "./arena-announcer.js";
 import {
@@ -273,11 +273,15 @@ export class AudioDirector {
       this.armedGuns = new Map(
         message.state.players.map((player) => [player.id, !!player.gunArmed]),
       );
-      for (const impact of this.gunImpacts.accept(
-        { ...message.state, tick: message.tick, round: message.round },
-        message.matchId,
-      ).fresh)
-        this.cue(`gun-${impact.kind}`);
+      const impactKinds = new Set(
+        this.gunImpacts
+          .accept(
+            { ...message.state, tick: message.tick, round: message.round },
+            message.matchId,
+          )
+          .fresh.map((impact) => impact.kind),
+      );
+      for (const kind of impactKinds) this.cue(`gun-${kind}`);
       this.latestTick = message.tick;
       // The final pause opens on the round's own result; the match sting belongs to the card that names the match winner.
       if (

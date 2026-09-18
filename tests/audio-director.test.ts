@@ -807,3 +807,45 @@ test("Gun pickup racks once after the pickup cue, while joins and hidden transit
   f.director.message(f.snapshot(15));
   assert.equal(f.notes.length, 2, "hidden pickup is not replayed");
 });
+
+test("impact audio coalesces a volley and respects repeated snapshots and hidden tabs", async () => {
+  const f = fixture();
+  await f.director.unlock();
+  const before = f.snapshot(10);
+  if (before.type !== "snapshot") throw Error("Expected snapshot");
+  f.director.message(before);
+  const bomb = {
+    id: 1,
+    ownerId: "p",
+    launchX: 200,
+    launchY: 450,
+    x: before.state.width - before.state.boundaryInset - 2,
+    y: 450,
+    launchedTick: 11,
+    landsAtTick: 14,
+    explodeAtTick: 14,
+    blastRange: 0,
+    shell: { gun: true, vx: 1, vy: 0 },
+    flightPath: [],
+  };
+  const after = {
+    ...before,
+    tick: 11,
+    state: { ...before.state, bombs: [bomb, { ...bomb, id: 2 }] },
+  };
+  f.director.message(after);
+  assert.equal(f.notes.length, 2, "one solid-impact cue for the volley");
+  f.director.message(after);
+  assert.equal(f.notes.length, 2);
+  f.director.setEffectsSilenced(true);
+  f.director.message({
+    ...after,
+    tick: 12,
+    state: { ...after.state, bombs: [{ ...bomb, id: 3, launchedTick: 12 }] },
+  });
+  assert.equal(f.notes.length, 2);
+  f.director.disconnect();
+  f.director.setEffectsSilenced(false);
+  f.director.message(after);
+  assert.equal(f.notes.length, 2, "reconnect baseline is silent");
+});

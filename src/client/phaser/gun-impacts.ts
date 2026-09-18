@@ -1,10 +1,12 @@
-import { edgesOpen, obstacleDistanceSquared } from "../shared/arena-map.js";
 import {
+  edgesOpen,
+  obstacleDistanceSquared,
   GUN_HEADSHOT_RADIUS,
   GUN_HOLE_RADIUS,
   GUN_RADIUS,
-} from "../shared/gun.js";
-import type { ViewSnapshot } from "./snapshot-stream.js";
+  wrapDelta,
+  type GunView as ViewSnapshot,
+} from "../../engine/view-kit.js";
 
 type Point = { x: number; y: number };
 export interface GunImpact extends Point {
@@ -16,7 +18,6 @@ export interface GunImpact extends Point {
   dy: number;
   ends: Point[];
 }
-const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /** Cosmetic evidence at an already-resolved endpoint, never a new raycast or damage decision. */
 function contact(
@@ -24,6 +25,12 @@ function contact(
   previous: ViewSnapshot,
   bomb: ViewSnapshot["bombs"][number],
 ): GunImpact | undefined {
+  const open = edgesOpen(snapshot);
+  const distance = (a: Point, b: Point) =>
+    Math.hypot(
+      open ? wrapDelta(a.x - b.x, snapshot.width) : a.x - b.x,
+      open ? wrapDelta(a.y - b.y, snapshot.height) : a.y - b.y,
+    );
   const impact: GunImpact = {
     id: bomb.id,
     born: bomb.launchedTick,
@@ -77,7 +84,7 @@ function contact(
   }
   const inset = snapshot.boundaryInset + GUN_RADIUS;
   const wall =
-    !edgesOpen(snapshot) &&
+    !open &&
     Math.min(
       Math.abs(bomb.x - inset),
       Math.abs(bomb.x - (snapshot.width - inset)),
@@ -148,7 +155,7 @@ export class GunImpacts {
 
 export function gunImpactFrame(hit: GunImpact, tick: number) {
   const age = Math.max(0, tick - hit.born);
-  const alpha = Math.max(0, 1 - age / 8);
+  const alpha = tick < hit.born ? 0 : Math.max(0, 1 - age / 8);
   const count = hit.kind === "lethal" ? 12 : 6;
   const fragments = Array.from({ length: count }, (_, i) => {
     const spread = hit.kind === "solid" ? Math.PI * 0.85 : Math.PI * 2;
@@ -162,5 +169,9 @@ export function gunImpactFrame(hit: GunImpact, tick: number) {
       size: (hit.kind === "lethal" ? 4 : 3) * alpha,
     };
   });
-  return { alpha, fragments, core: Math.max(0, 1 - age / 2) };
+  return {
+    alpha,
+    fragments,
+    core: tick < hit.born ? 0 : Math.max(0, 1 - age / 2),
+  };
 }
