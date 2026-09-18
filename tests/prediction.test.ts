@@ -24,7 +24,9 @@ function frames() {
   log.through = 200;
   world.advance(COUNTDOWN_TICKS + 4);
   const [newer, older] = world.view();
-  return { older: older!, newer };
+  assert.ok(newer);
+  assert.ok(older);
+  return { older, newer };
 }
 
 test("interpolation uses coherent past state and fractional ticks without portal chords or dead riders", () => {

@@ -268,7 +268,7 @@ try {
   await guest.waitForFunction(
     () => (Reflect.get(window, "__voiceTest") as Capture).tracks.length === 2,
   );
-  assert.equal((await data(guest)).tracks[0].state, "ended");
+  assert.equal((await data(guest)).tracks[0]!.state, "ended");
   await guest.getByRole("combobox", { name: "Microphone" }).selectOption("");
   await guest.waitForFunction(
     () => (Reflect.get(window, "__voiceTest") as Capture).tracks.length === 3,
@@ -281,7 +281,7 @@ try {
       !document.querySelector<HTMLSelectElement>(".voice-settings select")
         ?.disabled,
   );
-  assert.equal((await data(guest)).tracks[1].state, "ended");
+  assert.equal((await data(guest)).tracks[1]!.state, "ended");
   assert.equal(
     (await data(guest)).total,
     peersBefore,

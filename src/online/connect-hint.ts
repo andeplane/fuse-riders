@@ -1,7 +1,7 @@
 import { plainStatus } from "./status-copy.js";
 /** A status that already tells the player what to do; the boot card hides the header, so it must show these verbatim. */
 const ACTIONABLE =
-  /reload this page|newer tab|incompatible|damaged|room ended/i;
+  /reload this page|newer tab|incompatible|damaged|room ended|start a new room/i;
 /** Boot-card copy while a room links up: plain progress first, then the network hint once ICE has failed or plainly stalled. */
 export function connectHint(status: string, elapsedMs: number): string {
   if (ACTIONABLE.test(status)) return status;

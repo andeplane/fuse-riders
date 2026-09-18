@@ -1,25 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 // CSS-free policy is imported from the dedicated policy boundary.
-import { mobilePlayPolicy } from "../src/online/mobile-play-policy.js";
+import {
+  arenaView,
+  mobilePlayPolicy,
+} from "../src/online/mobile-play-policy.js";
 const PLAY_PHASES = ["countdown", "playing", "roundOver", "matchOver"];
 const PHASES = ["lobby", ...PLAY_PHASES];
-test("a joined phone is the same landscape controller in every play phase (#13)", () => {
+test("a joined phone is the same controller in both orientations in every play phase (#13)", () => {
   for (const phase of PLAY_PHASES) {
     const state = { joined: true, phase, displayOnly: false };
     assert.deepEqual(
       mobilePlayPolicy(state, true, 390, 844),
-      { phone: true, lobby: false, active: true, blocked: true },
+      { phone: true, lobby: false, active: true, portrait: true },
       phase,
     );
     assert.deepEqual(
       mobilePlayPolicy(state, true, 844, 390),
-      { phone: true, lobby: false, active: true, blocked: false },
+      { phone: true, lobby: false, active: true, portrait: false },
       phase,
     );
     assert.deepEqual(
       mobilePlayPolicy(state, true, 320, 568),
-      { phone: true, lobby: false, active: true, blocked: true },
+      { phone: true, lobby: false, active: true, portrait: true },
       phase,
     );
   }
@@ -31,7 +34,7 @@ test("a phone in the lobby gets the lobby screen, never the controller", () => {
       [390, 844],
       [844, 390],
       [320, 568],
-    ])
+    ] as const)
       assert.deepEqual(
         mobilePlayPolicy(
           { joined, phase: "lobby", displayOnly: false },
@@ -39,7 +42,7 @@ test("a phone in the lobby gets the lobby screen, never the controller", () => {
           width,
           height,
         ),
-        { phone: true, lobby: true, active: false, blocked: false },
+        { phone: true, lobby: true, active: false, portrait: false },
         `joined=${joined} ${width}x${height}`,
       );
 });
@@ -47,11 +50,11 @@ test("once the report is ready an unjoined phone is back on the lobby screen and
   const state = { phase: "matchOver", displayOnly: false, recapReady: true };
   assert.deepEqual(
     mobilePlayPolicy({ ...state, joined: false }, true, 390, 844),
-    { phone: true, lobby: true, active: false, blocked: false },
+    { phone: true, lobby: true, active: false, portrait: false },
   );
   assert.deepEqual(
     mobilePlayPolicy({ ...state, joined: true }, true, 844, 390),
-    { phone: true, lobby: false, active: true, blocked: false },
+    { phone: true, lobby: false, active: true, portrait: false },
   );
   assert.equal(
     mobilePlayPolicy(
@@ -64,7 +67,7 @@ test("once the report is ready an unjoined phone is back on the lobby screen and
     "the final-round pause keeps the arena",
   );
 });
-test("unjoined, display-only, desktop and mouse views keep the normal layout", () => {
+test("unjoined, display-only and wide desktop views keep the normal layout", () => {
   for (const phase of PHASES) {
     const state = { joined: true, phase, displayOnly: false };
     assert.equal(
@@ -74,12 +77,12 @@ test("unjoined, display-only, desktop and mouse views keep the normal layout", (
     );
     assert.deepEqual(
       mobilePlayPolicy({ ...state, displayOnly: true }, true, 390, 844),
-      { phone: false, lobby: false, active: false, blocked: false },
+      { phone: false, lobby: false, active: false, portrait: false },
       phase,
     );
-    assert.equal(mobilePlayPolicy(state, false, 390, 844).phone, false, phase);
+    assert.equal(mobilePlayPolicy(state, false, 844, 390).phone, false, phase);
     assert.equal(mobilePlayPolicy(state, true, 1366, 1024).phone, false, phase);
-    assert.equal(mobilePlayPolicy(state, true, 701, 1200).phone, false, phase);
+    assert.equal(mobilePlayPolicy(state, true, 1025, 1366).phone, false, phase);
   }
 });
 // #44: a terminal room close leaves the controller so the header status ("Room ended — return to menu to start again") and MENU are reachable without ☰ MENU.
@@ -90,10 +93,10 @@ test("an ended room is not joined play on any phone size or phase", () => {
       [390, 844],
       [844, 390],
       [320, 568],
-    ])
+    ] as const)
       assert.deepEqual(
         mobilePlayPolicy(ended, true, width, height),
-        { phone: false, lobby: false, active: false, blocked: false },
+        { phone: false, lobby: false, active: false, portrait: false },
         `${phase} ${width}x${height}`,
       );
     assert.equal(
@@ -107,4 +110,60 @@ test("an ended room is not joined play on any phone size or phase", () => {
       phase,
     );
   }
+});
+// #321 keeps the live arena behind the lobby and results; a shared-TV controller never shows or renders it, because the TV does.
+test("a shared-TV controller never shows the arena, in any phase", () => {
+  for (const phase of PHASES)
+    for (const recapReady of phase === "matchOver" ? [false, true] : [false]) {
+      const base = {
+        shared: true,
+        displayOnly: false,
+        joined: true,
+        joining: false,
+        phase,
+        recapReady,
+      };
+      assert.deepEqual(
+        arenaView(base),
+        { controller: true, sceneBackground: false, hidden: true },
+        `${phase} recap=${recapReady}`,
+      );
+      const behind = phase === "lobby" || recapReady;
+      // The TV, an unjoined host driving it and every own-screen rider keep the scene: blurred behind lobby and results, sharp in play.
+      for (const view of [
+        { ...base, displayOnly: true },
+        { ...base, joined: false },
+        { ...base, shared: false },
+      ])
+        assert.deepEqual(
+          arenaView(view),
+          { controller: false, sceneBackground: behind, hidden: false },
+          `${JSON.stringify(view)}`,
+        );
+      // A joiner still on the join card sees no arena.
+      assert.equal(
+        arenaView({ ...base, shared: false, joined: false, joining: true })
+          .hidden,
+        true,
+      );
+    }
+});
+
+test("portrait tablets and narrow mouse windows get compact play without a rotation gate", () => {
+  for (const touch of [false, true])
+    for (const [width, height] of [
+      [390, 844],
+      [768, 1024],
+      [1024, 1366],
+    ] as const) {
+      assert.deepEqual(
+        mobilePlayPolicy(
+          { joined: true, phase: "playing", displayOnly: false },
+          touch,
+          width,
+          height,
+        ),
+        { phone: true, lobby: false, active: true, portrait: true },
+      );
+    }
 });

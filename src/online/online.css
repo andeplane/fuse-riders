@@ -2969,6 +2969,74 @@
   background: #16e7ff;
   border-color: #a6f7ff;
 }
+/* PRIVACY: this device's analytics choice. A section of the room's SETTINGS list; on the landing page a one-line
+   disclosure under the settings draft, outside its scrolling body. */
+.settings-privacy {
+  display: grid;
+  gap: 0.5rem;
+}
+.settings-privacy .settings-group {
+  margin: 0.625rem 0 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.0625rem;
+  color: #16e7ff;
+}
+.settings-privacy > button {
+  width: 100%;
+  min-height: 2.75rem;
+}
+.settings-privacy > button[data-muted="true"] {
+  color: #8ba3c0;
+  border-color: #365477;
+}
+.settings-privacy > button:disabled {
+  cursor: not-allowed;
+}
+.settings-note {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: #b6cce3;
+}
+/* Two lines reserved, so switching on and off never moves the button above it. */
+.settings-reason {
+  min-height: 3em;
+  color: #8ba3c0;
+}
+/* A <details> lays its content out itself: block flow and margins, not the section's grid. */
+.settings-privacy.dialog-foot {
+  display: block;
+  flex-shrink: 0;
+  max-height: 50dvh;
+  overflow: auto;
+  padding: 0.625rem 1.125rem;
+  border-top: 0.0625rem solid #334965;
+  background: #0b1628;
+}
+.settings-privacy.dialog-foot > * + * {
+  margin-top: 0.5rem;
+}
+.settings-privacy.dialog-foot > summary {
+  margin: 0;
+  min-height: 1.75rem;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.settings-privacy.dialog-foot > summary::before {
+  content: "▸";
+  margin-right: 0.5rem;
+}
+.settings-privacy.dialog-foot[open] > summary::before {
+  content: "▾";
+}
+.settings-privacy.dialog-foot > summary::-webkit-details-marker {
+  display: none;
+}
+.settings-privacy.dialog-foot > summary:focus-visible {
+  outline: 0.125rem solid #16e7ff;
+  outline-offset: 0.125rem;
+}
 
 /* Standings: every score card carries its rank, and the leader wears gold. */
 .online-score-card {

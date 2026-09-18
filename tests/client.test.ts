@@ -82,6 +82,7 @@ function playingFrame(
           invulnerableUntilTick: 0,
           nitroUntilTicks: [],
           snailUntilTicks: [],
+          rangeLevel: 0,
           grip: false,
           drunkUntilTick: 0,
           inkUntilTick: 0,
