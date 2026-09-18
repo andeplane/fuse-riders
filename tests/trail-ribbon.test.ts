@@ -39,7 +39,7 @@ function snapshot(): ViewSnapshot {
     phase: "playing",
     players: [
       {
-        ...state.players[0],
+        ...state.players[0]!,
         alive: true,
         x: 120,
         y: 100,
@@ -95,12 +95,12 @@ test("ribbon cache reuses equivalent snapshots but follows fractional tips witho
   const original = structuredClone(state);
   const first = update(cache, state);
   assert.equal(update(cache, structuredClone(state)), first);
-  state.players[0].x = 124;
-  state.players[0].y = 103;
+  state.players[0]!.x = 124;
+  state.players[0]!.y = 103;
   const next = update(cache, state);
   assert.notEqual(next, first);
   // The new tip turns at (120,100); replacing the segment endpoint would lose that cross section.
-  const vertices = next[0].vertices;
+  const vertices = next[0]!.vertices;
   assert(
     vertices.some((v, i) =>
       vertices.some(
@@ -111,10 +111,10 @@ test("ribbon cache reuses equivalent snapshots but follows fractional tips witho
       ),
     ),
   );
-  assert.deepEqual(state.players[0].trail, original.players[0].trail);
+  assert.deepEqual(state.players[0]!.trail, original.players[0]!.trail);
   assert(
     Math.max(...vertices.map((v) => v.x)) >
-      Math.max(...first[0].vertices.map((v) => v.x)),
+      Math.max(...first[0]!.vertices.map((v) => v.x)),
   );
   state.phase = "roundOver";
   assert.deepEqual(
@@ -126,14 +126,14 @@ test("ribbon cache reuses equivalent snapshots but follows fractional tips witho
 
 test("holes and teleports never get a connecting triangle, and removal clears cached ribbons", () => {
   const state = snapshot();
-  state.players[0].trail = [
+  state.players[0]!.trail = [
     segment(100, 110, 16),
     segment(140, 150, 18),
     segment(200, 210, 19),
   ];
   const cache = new TrailRibbonCache(TRAIL_WIDTH);
   const ribbons = update(cache, state);
-  const vertices = ribbons[0].vertices;
+  const vertices = ribbons[0]!.vertices;
   for (let i = 0; i < vertices.length; i += 3) {
     const xs = vertices.slice(i, i + 3).map((v) => v.x);
     assert(
@@ -141,7 +141,7 @@ test("holes and teleports never get a connecting triangle, and removal clears ca
       "triangle bridges a removed segment or teleport",
     );
   }
-  state.players[0].trail = [];
+  state.players[0]!.trail = [];
   assert.deepEqual(update(cache, state), []);
   state.players = [];
   assert.deepEqual(update(cache, state), []);
@@ -149,22 +149,22 @@ test("holes and teleports never get a connecting triangle, and removal clears ca
 
 test("death, detachment, erosion and rider color are reflected without mutating snapshots", () => {
   const state = snapshot();
-  state.players[0].trail[0].detached = { id: 1, decayStartTick: 80 };
+  state.players[0]!.trail[0]!.detached = { id: 1, decayStartTick: 80 };
   const original = structuredClone(state);
   const cache = new TrailRibbonCache(TRAIL_WIDTH);
   const first = update(cache, state);
   assert(first.every((r) => r.color === 0x22d3ee));
   assert.deepEqual(state, original);
-  state.players[0].alive = false;
+  state.players[0]!.alive = false;
   const dead = update(cache, state);
-  assert.equal(dead[0].color, first[0].color);
-  assert.notEqual(dead[1].color, first[1].color);
-  state.players[0].trail[0].x1 += 3;
+  assert.equal(dead[0]!.color, first[0]!.color);
+  assert.notEqual(dead[1]!.color, first[1]!.color);
+  state.players[0]!.trail[0]!.x1 += 3;
   const eroded = update(cache, state);
   assert(
-    Math.min(...eroded[0].vertices.map((v) => v.x)) >
-      Math.min(...dead[0].vertices.map((v) => v.x)),
+    Math.min(...eroded[0]!.vertices.map((v) => v.x)) >
+      Math.min(...dead[0]!.vertices.map((v) => v.x)),
   );
-  state.players[0].color = "invalid";
+  state.players[0]!.color = "invalid";
   assert(update(cache, state).every((r) => r.color === 0xffffff));
 });

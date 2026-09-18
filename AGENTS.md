@@ -12,6 +12,11 @@ Fuse Riders is a small TypeScript game for 2–5 friends under active developmen
 - Use existing issues when useful. Creating issues, changing labels, posting progress comments and producing formal handoffs are not prerequisites for work. Update tracking at meaningful milestones, not every iteration.
 - Make reasonable implementation decisions autonomously. Ask only when missing information materially affects scope or an action needs authorization.
 - Finish the requested scope with relevant checks and a concise report. Do not expand every development task into a release, exhaustive audit or network qualification project.
+- Several agents work in this repo at once. Before starting, search open pull requests, recently pushed branches and open issues for overlapping work; if another agent already owns it, report that and stop rather than duplicating it.
+- When asked for a plan, review, audit or issues, produce only that artifact. Do not edit code, run mutating commands or create repositories until the user says to execute.
+- For removals and layout changes, state what goes and what stays (or where things go) before editing when the request leaves it open.
+- Size work in agent sessions or hours, not developer days or weeks. This project ships at agent speed.
+- Dev servers pick a free port when theirs is taken (`listenFree`); never let `EADDRINUSE` reach the user. End with the URL to open on its own line.
 
 These workflow rules replace older process requirements in ADRs, review notes and other repo documents. Those documents remain useful technical context; their historical approval and reporting requirements do not create new gates. Preserve relevant correctness requirements and explain material changes to technical contracts.
 
@@ -50,6 +55,9 @@ npm run build
 ## Pull requests
 
 - Open a pull request whenever the work is finished and you believe it is ready. Pushing a branch is not delivery: finish the change, run the checks the change deserves, then open the pull request describing what changed and what was verified. Do not wait to be asked.
+- Before opening, merge the latest `origin/main`; main moves fast, and green CI from before a rebase is stale. When a check fails, see whether it already fails on main before blaming the change.
+- Before asking for review, check the feature itself: a user can reach it from the menus; empty, loading and failed-fetch states render, with a retry where a fetch can fail; no effect can refetch or re-render in a loop. For UI changes, include a browser screenshot of the real flow, not a staged fixture.
+- While waiting on CI, watch it with one blocking command (`gh pr checks --watch`) and report only state changes: green, failed with the failing log tail, or main moved and needs a merge.
 - Review every pull request with subagents before asking for a merge. Dispatch them on the diff — correctness and simulation/protocol risk, then tests and documentation as the change warrants — and act on what they find: fix it, or say in the pull request why it stands. A review that produced no pushed fix and no written answer did not happen.
 - Stop by default at a reviewed pull request with a concise verification report. Do not merge, enable auto-merge or deploy unless the user explicitly authorizes that action for the current change. Requests to implement, try, test, commit, push or open a pull request are not merge or deployment authorization. Continue implementation, fixes and verification autonomously; do not ask for permission at every step.
 - For gameplay, controls, sound, effects and visual changes, provide a runnable preview or clear playtesting instructions and leave the pull request open for the user to try. Automated checks and agent review establish technical readiness, not the user's acceptance of the feel or appearance. Requests such as "try this", "prototype" or "in stages" do not authorize shipping the experiment. The user may explicitly waive playtesting or authorize a merge.
