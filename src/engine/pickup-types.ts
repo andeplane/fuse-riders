@@ -15,6 +15,7 @@ export const PICKUP_TYPES = [
   "portal",
   "gravity",
   "grip",
+  "range",
   "nitro",
   "snail",
 ] as const;

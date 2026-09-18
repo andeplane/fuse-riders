@@ -41,6 +41,8 @@ export interface RoomHttpOptions {
   now?: () => number;
   /** Local development only: serve this built frontend with single-page fallback. Production serves no files. */
   staticDirectory?: string;
+  /** The deployed source revision, reported by the health route so a frontend release can wait for the backend it needs. */
+  revision?: string;
 }
 
 const ROOM_ROUTE = /^\/api\/rooms\/([A-Z]{2}[0-9]{2})\/(end|ice|ws)$/;
@@ -110,7 +112,10 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
   const { store, gateway } = options,
     now = options.now ?? Date.now;
   const admissions = new AdmissionGate(store.database, now);
-  const server = createServer(async (req, res) => {
+  const handle = async (
+    req: IncomingMessage,
+    res: ServerResponse,
+  ): Promise<void> => {
     const origin = req.headers.origin;
     if (origin && !options.allowOrigin(origin, req)) {
       res.writeHead(403);
@@ -148,7 +153,10 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
     try {
       const url = new URL(req.url ?? "/", "http://gateway");
       if (url.pathname === "/api/health" || url.pathname === "/healthz") {
-        json({ ok: true });
+        json({
+          ok: true,
+          ...(options.revision ? { revision: options.revision } : {}),
+        });
         return;
       }
       if (url.pathname === "/api/ready" || url.pathname === "/readyz") {
@@ -229,6 +237,26 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
         error instanceof RoomError ? error.status : 503,
       );
     }
+  };
+  const server = createServer((req, res) => {
+    // node:http drops the handler's promise. What rejects here is whatever the boundary above could
+    // not answer, so it must neither hang nor become an unhandled rejection that ends the process.
+    // A failure before the response started (the Origin decision threw) still gets a status; one
+    // after it started cannot, so that connection is dropped. The body never carries the error.
+    handle(req, res).catch((error: unknown) => {
+      logFailure("http-handler", error);
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
+      try {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Room service unavailable" }));
+      } catch {
+        // A header set before the failure can make even this answer unwritable.
+        res.destroy();
+      }
+    });
   });
   const sockets = new WebSocketServer({
     noServer: true,

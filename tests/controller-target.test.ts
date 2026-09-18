@@ -5,7 +5,7 @@ import {
   type ControllerInputMessage,
 } from "../src/client/controller-state.js";
 
-function fixture() {
+function fixture(aimRotated = () => false) {
   const messages: ControllerInputMessage[] = [];
   let now = 0;
   const state = new ControllerInputState(
@@ -16,6 +16,7 @@ function fixture() {
       },
     },
     () => now,
+    aimRotated,
   );
   state.configureTargetAim({ x: 0.5, y: 0.5 });
   return {
@@ -86,4 +87,24 @@ test("ordinary controls send no aim and invalid positions do not corrupt it", ()
   f.state.clear(false);
   f.state.pointerDown(3, "bomb");
   assert.equal(f.state.pointerMove(3, { x: 10, y: 10 }), false);
+});
+
+test("portrait target dragging follows screen axes and final release, then returns to landscape after cancellation", () => {
+  let rotated = true;
+  const f = fixture(() => rotated);
+  f.state.pointerDown(1, "bomb", { x: 100, y: 100 });
+  f.advance(16);
+  f.state.pointerMove(1, { x: 118, y: 132 });
+  assert.deepEqual(f.messages.at(-1)!.aim, { x: 0.6, y: 0.4 });
+  f.state.pointerRelease(1, { x: 136, y: 164 });
+  assert.ok(Math.abs(f.messages.at(-1)!.aim!.x - 0.7) < 1e-8);
+  assert.ok(Math.abs(f.messages.at(-1)!.aim!.y - 0.3) < 1e-8);
+  assert.equal(f.messages.at(-1)!.bombAction, "release");
+  f.state.pointerDown(2, "bomb", { x: 0, y: 0 });
+  f.state.clear();
+  assert.equal(f.messages.at(-1)!.bombAction, "cancel");
+  rotated = false;
+  f.state.pointerDown(3, "bomb", { x: 0, y: 0 });
+  f.state.pointerRelease(3, { x: 32, y: 18 });
+  assert.deepEqual(f.messages.at(-1)!.aim, { x: 0.6, y: 0.6 });
 });
