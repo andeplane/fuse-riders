@@ -214,8 +214,8 @@ round linked to your account; already settled rounds are not rewritten by a late
 
 ### Player stats and human Elo
 
-The stats dashboard leads with current **Rider Elo**, global rank, peak rating and a dated graph of the latest 100
-rated results. Rating history is also available as a table. The main page shows rank and Elo when signed in; new
+The stats dashboard leads with current **Rider Elo**, global rank, peak rating and a graph of the latest 100
+rated results with one evenly spaced point per entry, regardless of when they were played. Rating history is also available as a table. The main page shows rank and Elo when signed in; new
 players start at 1,000 and remain unranked until their first rated round. Equal rounded Elo values share a rank.
 The public leaderboard exposes rider names, avatars, Elo and individual-round counts, never account IDs or emails.
 
@@ -229,7 +229,7 @@ The public leaderboard exposes rider names, avatars, Elo and individual-round co
 - Whole-game recap reports still credit career history and rivalries once, but no longer award Elo. Existing ratings
   and older whole-game graph entries are retained; new round counts are shown separately from earlier full-game rating counts. This is a community
   ladder with peer-confirmed results, not anti-cheat; colluding accounts can fabricate results and leaving mid-round
-  avoids a loss. Graph dates are server settlement times.
+  avoids a loss. Graph and table dates are server settlement times.
 - All time / Last 20 controls the expanded stats. A shared opponent filter separates humans-only, mixed human/AI,
   and AI/solo practice games. Combat has an additional human/AI target filter, so mixed games can be broken down.
   Distance, time and placements belong to a whole game and are filtered by game composition, not assigned to targets.
