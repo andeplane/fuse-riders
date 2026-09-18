@@ -10,8 +10,11 @@ on:
         description: Local test and visual verification evidence (no secrets)
         required: true
         type: string
+  # After the backend, never beside it. Both used to start from the same CI run, and Pages finishes in a couple
+  # of minutes while the Cloud Run build takes ten: for that gap the new frontend called routes the live backend
+  # did not have, which a browser reports as a CORS error.
   workflow_run:
-    workflows: [CI]
+    workflows: [Deploy backend]
     branches: [main]
     types: [completed]
 permissions:
@@ -25,7 +28,6 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
@@ -36,29 +38,37 @@ jobs:
       - name: Resolve the verified revision and require it to still be on main
         id: revision
         uses: actions/github-script@v7
+        env:
+          VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
         with:
           script: |
             const manual = context.eventName === 'workflow_dispatch';
-            // An automatic run publishes the newest CI-verified main revision, not whichever run triggered it.
-            // CI runs for different commits overlap and finish out of order, and this concurrency group keeps
-            // only one waiting run, so the trigger's own revision may be older than the published one or belong
-            // to a run that was replaced. Resolving it here means a replaced run never loses a release.
+            // An automatic run publishes the revision the live backend reports, not the newest CI-verified one and
+            // not whichever run triggered this: a frontend is only safe to publish once the backend it was built
+            // against is serving. The backend deploys the newest CI-verified main revision, so this is that
+            // revision or, while a newer one is still building, the one before it; that one's own backend
+            // deployment triggers this workflow again.
             let sha = context.payload.inputs?.revision;
             if (!manual) {
-              // Start from the run that triggered this, which is known to have passed, and only move forward to a
-              // later passing run whose commit descends from it. The `status` filter is eventually consistent and
-              // has answered with a months-old run right after a completion, so it is not used, and whatever the
-              // listing says can never select something older than the trigger.
-              const trigger = context.payload.workflow_run;
-              let run = trigger;
-              const { data } = await github.rest.actions.listWorkflowRuns({ ...context.repo, workflow_id: 'ci.yml', branch: 'main', event: 'push', per_page: 50 });
-              const newer = data.workflow_runs.filter((r) => r.conclusion === 'success' && r.run_number > trigger.run_number).sort((a, b) => b.run_number - a.run_number)[0];
-              if (newer) {
-                const { data: order } = await github.rest.repos.compareCommitsWithBasehead({ ...context.repo, basehead: `${trigger.head_sha}...${newer.head_sha}` });
-                if (order.status === 'ahead') run = newer;
+              const origin = process.env.VITE_API_ORIGIN;
+              if (!origin || new URL(origin).protocol !== 'https:' || new URL(origin).origin !== origin) throw new Error('Set repository variable VITE_API_ORIGIN to the exact verified Cloud Run HTTPS origin, without a path.');
+              // The service scales to zero and nothing retries a failed Pages run until the next backend run, so ride
+              // out a cold start or a transient 5xx instead of losing the release.
+              let health;
+              for (const wait of [0, 5000, 15000, 30000]) {
+                await new Promise((resolve) => setTimeout(resolve, wait));
+                health = await fetch(`${origin}/api/health`, { cache: 'no-store', signal: AbortSignal.timeout(30000) }).catch((error) => ({ ok: false, status: String(error) }));
+                if (health.ok) break;
               }
-              sha = run.head_sha;
-              core.setOutput('ci_run', String(run.id));
+              if (!health.ok) throw new Error(`Backend health returned ${health.status}; refusing to publish a frontend it may not serve.`);
+              sha = (await health.json()).revision;
+              if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('The live backend does not report its revision; deploy a backend that does before publishing.');
+              // Look the revision's own CI runs up by commit and check the conclusion here: the runs API's `status`
+              // filter is eventually consistent and has answered wrongly right after a completion.
+              const { data } = await github.rest.actions.listWorkflowRuns({ ...context.repo, workflow_id: 'ci.yml', branch: 'main', event: 'push', head_sha: sha, per_page: 20 });
+              const verified = data.workflow_runs.filter((r) => r.head_sha === sha && r.conclusion === 'success').sort((a, b) => b.run_number - a.run_number)[0];
+              if (!verified) throw new Error(`No successful CI push run for the live backend revision ${sha}; refusing to publish it.`);
+              core.setOutput('ci_run', String(verified.id));
             }
             if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('An exact full revision is required.');
             if (manual && !context.payload.inputs.local_verification?.trim()) throw new Error('Local verification evidence is required.');

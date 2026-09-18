@@ -15,6 +15,7 @@ test("actual service exposes Cloud Run safe health aliases without requiring pro
         PUBSUB_TOPIC: "fuse-local-health",
         ROOM_COLLECTION_PREFIX: "fuse-local-health",
         ALLOWED_ORIGINS: "https://andeplane.github.io",
+        BUILD_REVISION: "0123456789abcdef0123456789abcdef01234567",
       },
       stdio: ["ignore", "pipe", "ignore"],
     },
@@ -56,8 +57,15 @@ test("actual service exposes Cloud Run safe health aliases without requiring pro
         signal: AbortSignal.timeout(1000),
       });
       assert.equal(response.status, 200, path);
-      const body = (await response.json()) as { ok: boolean; state?: string };
+      const body = (await response.json()) as {
+        ok: boolean;
+        state?: string;
+        revision?: string;
+      };
       assert.equal(body.ok, true);
+      // The Pages release reads this to publish only the revision the backend is serving.
+      if (path === "/api/health" || path === "/healthz")
+        assert.equal(body.revision, "0123456789abcdef0123456789abcdef01234567");
       if (path.endsWith("ready") || path === "/readyz")
         assert.equal(body.state, "idle");
     }
