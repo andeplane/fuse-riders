@@ -70,6 +70,7 @@ const pull = (
   power: 0,
   extraBombs: 0,
   fuseLevel: 0,
+  rangeLevel: 1,
   grip: false,
   kills,
 });
@@ -179,6 +180,7 @@ test("a decided round's kills and misses go out once it is confirmed, once, and 
     power: 0,
     extraBombs: 0,
     fuseLevel: 0,
+    rangeLevel: 1,
     grip: false,
     riders: 3,
     bots: 1,
