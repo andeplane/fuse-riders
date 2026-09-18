@@ -19,6 +19,7 @@ import {
 } from "../src/shared/arena-map.js";
 import {
   mapGround,
+  paintMapGround,
   obstacleParts,
   OBSTACLE_STYLES,
   ARENA_MAP_LABELS,
@@ -400,88 +401,153 @@ test("the map owns the ground, the style still owns the grid spacing", () => {
 test("every obstacle kind draws its whole footprint, and nothing outside it", () => {
   // Both directions matter, and for the same reason: the footprint is exactly what the simulation kills against.
   // Drawing past it promises cover that is not there; leaving part of it bare kills riders that touched nothing.
-  for (const kind of Object.keys(OBSTACLE_STYLES) as Obstacle["kind"][]) {
-    for (const [halfWidth, halfHeight] of [
-      [60, 45],
-      [29, 20],
-      [22, 36],
-      [15, 15],
-    ] as const) {
-      const obstacle: Obstacle = {
-        id: 3,
-        kind,
+  for (const map of ARENA_MAPS)
+    for (const kind of Object.keys(OBSTACLE_STYLES) as Obstacle["kind"][]) {
+      for (const [halfWidth, halfHeight] of [
+        [60, 45],
+        [29, 20],
+        [22, 36],
+        [15, 15],
+      ] as const) {
+        const obstacle: Obstacle = {
+          id: 3,
+          kind,
+          x: 500,
+          y: 400,
+          halfWidth,
+          halfHeight,
+        };
+        const parts = obstacleParts(obstacle, map);
+        const where = `${kind} at ${halfWidth}x${halfHeight}`;
+        assert.ok(parts.length > 1, `${where} draws more than a shadow`);
+        assert.deepEqual(
+          parts,
+          obstacleParts(obstacle, map),
+          `${where} is stable between frames`,
+        );
+        const bounds = rect(obstacle);
+        // The shadow is deliberately offset onto the ground and is excluded from both checks.
+        const drawn = {
+          minX: Infinity,
+          maxX: -Infinity,
+          minY: Infinity,
+          maxY: -Infinity,
+        };
+        for (const part of parts.slice(1)) {
+          const [minX, maxX, minY, maxY] =
+            part.shape === "ellipse"
+              ? [
+                  part.x - part.radiusX,
+                  part.x + part.radiusX,
+                  part.y - part.radiusY,
+                  part.y + part.radiusY,
+                ]
+              : part.shape === "triangle"
+                ? [
+                    Math.min(part.x1, part.x2, part.x3),
+                    Math.max(part.x1, part.x2, part.x3),
+                    Math.min(part.y1, part.y2, part.y3),
+                    Math.max(part.y1, part.y2, part.y3),
+                  ]
+                : [part.x, part.x + part.width, part.y, part.y + part.height];
+          assert.ok(
+            minX >= bounds.minX - 1 && maxX <= bounds.maxX + 1,
+            `${where} drew outside its width`,
+          );
+          assert.ok(
+            minY >= bounds.minY - 1 && maxY <= bounds.maxY + 1,
+            `${where} drew outside its height`,
+          );
+          assert.match(part.color, /^#[0-9a-f]{6}$/);
+          if (part.shape === "rect")
+            assert.ok(
+              part.width > 0 && part.height > 0,
+              `${where} drew an empty rectangle`,
+            );
+          else if (part.shape === "ellipse")
+            assert.ok(part.radiusX > 0 && part.radiusY > 0);
+          else
+            assert.ok(
+              Math.abs(
+                (part.x2 - part.x1) * (part.y3 - part.y1) -
+                  (part.x3 - part.x1) * (part.y2 - part.y1),
+              ) > 0,
+            );
+          drawn.minX = Math.min(drawn.minX, minX);
+          drawn.maxX = Math.max(drawn.maxX, maxX);
+          drawn.minY = Math.min(drawn.minY, minY);
+          drawn.maxY = Math.max(drawn.maxY, maxY);
+        }
+        assert.ok(
+          drawn.minX <= bounds.minX + 1 && drawn.maxX >= bounds.maxX - 1,
+          `${where} left part of its width undrawn`,
+        );
+        assert.ok(
+          drawn.minY <= bounds.minY + 1 && drawn.maxY >= bounds.maxY - 1,
+          `${where} left part of its height undrawn`,
+        );
+      }
+    }
+  // Roof materials vary between buildings, so a city block is not a repeated stamp.
+  const roofs = (id: number) =>
+    obstacleParts(
+      {
+        id,
+        kind: "building",
         x: 500,
         y: 400,
-        halfWidth,
-        halfHeight,
-      };
-      const parts = obstacleParts(obstacle);
-      const where = `${kind} at ${halfWidth}x${halfHeight}`;
-      assert.ok(parts.length > 1, `${where} draws more than a shadow`);
-      assert.deepEqual(
-        parts,
-        obstacleParts(obstacle),
-        `${where} is stable between frames`,
-      );
-      const bounds = rect(obstacle);
-      // The shadow is deliberately offset onto the ground and is excluded from both checks.
-      const drawn = {
-        minX: Infinity,
-        maxX: -Infinity,
-        minY: Infinity,
-        maxY: -Infinity,
-      };
-      for (const part of parts.slice(1)) {
-        const [minX, maxX, minY, maxY] =
-          part.shape === "ellipse"
-            ? [
-                part.x - part.radiusX,
-                part.x + part.radiusX,
-                part.y - part.radiusY,
-                part.y + part.radiusY,
-              ]
-            : [part.x, part.x + part.width, part.y, part.y + part.height];
-        assert.ok(
-          minX >= bounds.minX - 1 && maxX <= bounds.maxX + 1,
-          `${where} drew outside its width`,
-        );
-        assert.ok(
-          minY >= bounds.minY - 1 && maxY <= bounds.maxY + 1,
-          `${where} drew outside its height`,
-        );
-        assert.match(part.color, /^#[0-9a-f]{6}$/);
-        if (part.shape === "rect")
-          assert.ok(
-            part.width > 0 && part.height > 0,
-            `${where} drew an empty rectangle`,
-          );
-        else assert.ok(part.radiusX > 0 && part.radiusY > 0);
-        drawn.minX = Math.min(drawn.minX, minX);
-        drawn.maxX = Math.max(drawn.maxX, maxX);
-        drawn.minY = Math.min(drawn.minY, minY);
-        drawn.maxY = Math.max(drawn.maxY, maxY);
-      }
-      assert.ok(
-        drawn.minX <= bounds.minX + 1 && drawn.maxX >= bounds.maxX - 1,
-        `${where} left part of its width undrawn`,
-      );
-      assert.ok(
-        drawn.minY <= bounds.minY + 1 && drawn.maxY >= bounds.maxY - 1,
-        `${where} left part of its height undrawn`,
-      );
-    }
-  }
-  // Two buildings light different windows, so a city block is not a repeated stamp.
-  const windows = (id: number) =>
-    obstacleParts({
-      id,
-      kind: "building",
-      x: 500,
-      y: 400,
-      halfWidth: 90,
-      halfHeight: 70,
-    })
+        halfWidth: 90,
+        halfHeight: 70,
+      },
+      "city",
+    )
       .map((part) => part.color)
       .join();
-  assert.notEqual(windows(1), windows(2));
+  assert.notEqual(roofs(1), roofs(2));
+});
+
+test("ground decoration is stable, bounded and absent on classic edge variants", () => {
+  for (const map of ARENA_MAPS) {
+    const draw = () => {
+      const commands: unknown[][] = [];
+      const record =
+        (name: string) =>
+        (...args: unknown[]) => {
+          commands.push([name, ...args]);
+        };
+      const context: Parameters<typeof paintMapGround>[0] = {
+        lineWidth: 0,
+        strokeStyle: "",
+        fillStyle: "",
+        save: record("save"),
+        restore: record("restore"),
+        strokeRect: record("strokeRect"),
+        fillRect: record("fillRect"),
+        beginPath: record("beginPath"),
+        ellipse: record("ellipse"),
+        stroke: record("stroke"),
+        fill: record("fill"),
+        moveTo: record("moveTo"),
+        lineTo: record("lineTo"),
+      };
+      paintMapGround(context, map, 1600, 900);
+      return commands;
+    };
+    const commands = draw();
+    assert.deepEqual(
+      commands,
+      draw(),
+      "texture must not shimmer on regeneration",
+    );
+    if (map === "classic" || map === "wrap" || map === "cross") {
+      assert.equal(commands.length, 0);
+    } else {
+      assert.deepEqual(commands[0], ["save"]);
+      assert.deepEqual(commands.at(-1), ["restore"]);
+      assert.ok(commands.length > 10 && commands.length < 10000);
+      for (const command of commands)
+        for (const value of command.slice(1))
+          if (typeof value === "number") assert.ok(Number.isFinite(value));
+    }
+  }
 });

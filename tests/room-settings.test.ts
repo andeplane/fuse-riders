@@ -5,9 +5,34 @@ import {
   parseRoomSettings,
   roomPickup,
   loadRoomSettings,
+  SETTINGS_KEY,
 } from "../src/shared/room-settings.js";
 import { BOMB_MAX_CHARGE_TICKS } from "../src/shared/bomb-launch.js";
 import { ARENA_MAP_CHOICES } from "../src/shared/arena-map.js";
+test("old browser preferences reset to current defaults, and new preferences persist", () => {
+  const defaults = defaultRoomSettings();
+  const saved = new Map<string, string>([
+    [
+      "fuse-riders-room-settings-v1",
+      JSON.stringify({ ...defaults, length: 9, weights: { power: 8000 } }),
+    ],
+  ]);
+  const storage = { getItem: (key: string) => saved.get(key) ?? null };
+  const reset = loadRoomSettings(storage);
+  assert.deepEqual(reset, defaults);
+  assert.ok(reset.weights.nitro! > 0);
+  assert.ok(reset.weights.snail! > 0);
+
+  // Reset only once: an explicit choice made after the reset still wins on reload.
+  const updated = {
+    ...defaults,
+    length: 3,
+    weights: { ...defaults.weights, nitro: 0 },
+  };
+  saved.set(SETTINGS_KEY, JSON.stringify(updated));
+  assert.deepEqual(loadRoomSettings(storage), updated);
+});
+
 test("room settings reject malformed values, restore safe defaults and allow all drops off", () => {
   const defaults = defaultRoomSettings();
   assert.deepEqual(parseRoomSettings(defaults), defaults);
@@ -21,8 +46,8 @@ test("room settings reject malformed values, restore safe defaults and allow all
     undefined,
   );
   assert.equal(roomPickup(0.5, {}), undefined);
-  assert.equal(roomPickup(0.1, { shell: 1, gun: 3 }), "shell");
-  assert.equal(roomPickup(0.9, { shell: 1, gun: 3 }), "gun");
+  assert.equal(roomPickup(0.1, { shell: 1, gun: 3 }), "gun");
+  assert.equal(roomPickup(0.9, { shell: 1, gun: 3 }), "shell");
   assert.deepEqual(loadRoomSettings({ getItem: () => "{broken" }), defaults);
 });
 test("the arena map validates, and a preference saved before maps existed opts into the rotation", () => {

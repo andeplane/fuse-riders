@@ -102,18 +102,21 @@ export function installMobilePlayLayout(
     if (["countdown", "playing"].includes(state.phase)) closeTools();
   });
   // Phase transitions: entering countdown/play closes the tools overlay and restarts the hint fade (re-appending restarts the CSS animation);
-  // entering matchOver opens the overlay so the roster and (for the host) REMATCH are in view. The lobby is its own phone screen (#134), never the controller.
+  // the recap opening ends the match for this screen, and opens the overlay so the roster and (for the host) REMATCH are in view. The pause before
+  // it keeps the overlay shut: it hides the announcer, which is showing the final round's result and then the match winner. The lobby is its own phone screen (#134), never the controller.
   const enter = () => {
     if (["countdown", "playing"].includes(state.phase)) {
       closeTools();
       hints.remove();
       app.append(hints);
-    } else if (state.phase === "matchOver") openTools();
+    } else if (state.phase === "matchOver" && state.recapReady) openTools();
   };
   return {
     update(next: MobilePlayState) {
       const entered =
-        next.phase !== state.phase || !app.classList.contains("mobile-play");
+        next.phase !== state.phase ||
+        Boolean(next.recapReady) !== Boolean(state.recapReady) ||
+        !app.classList.contains("mobile-play");
       state = next;
       update();
       if (entered && app.classList.contains("mobile-play")) enter();
