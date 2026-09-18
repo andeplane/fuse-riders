@@ -216,6 +216,9 @@ export const HASH_INTERVAL = 20,
   FRESH_WORLD_WAIT_MS = 3000,
   /** How long a replica whose confirmed tick threw waits for a peer's hash at or past that tick: twice the 3 s a hash takes to appear. */
   FAULT_EVIDENCE_MS = 6000;
+/** Total time to resolve one fault, including missing inputs, evidence and snapshot delivery. */
+export const FAULT_RECOVERY_MS =
+  FAULT_EVIDENCE_MS + SNAPSHOT_RETRY_MS * (SNAPSHOT_FAILURES + 1);
 /** How long one reading of the authority's clock rate spans, and how long a follower trusts its own answer against a steady reading. */
 export const RATE_WINDOW_MS = 500,
   RATE_DEFER_MS = 1500;
@@ -281,6 +284,7 @@ export class RoomRuntime {
    */
   private faultWatch?: {
     tick: number;
+    startedAt: number;
     retried: boolean;
     confirmedAt?: number;
     evidence: boolean;
@@ -924,7 +928,12 @@ export class RoomRuntime {
       );
     }
     if (this.faultWatch?.tick !== fault.tick)
-      this.faultWatch = { tick: fault.tick, retried: false, evidence: false };
+      this.faultWatch = {
+        tick: fault.tick,
+        startedAt: this.deps.now(),
+        retried: false,
+        evidence: false,
+      };
     this.watchFault(this.deps.now());
   }
   /**
@@ -938,10 +947,17 @@ export class RoomRuntime {
     const world = this.world,
       watch = this.faultWatch;
     if (!world || !watch || this.stopped) return;
-    if (!world.fault) {
-      if (world.tick >= watch.tick) this.faultWatch = undefined;
+    if (!world.fault && world.tick >= watch.tick) {
+      this.faultWatch = undefined;
       return;
     }
+    // A departed input owner or an undeliverable snapshot must not keep this page faulted forever.
+    // Evidence and snapshot installation do not reset the deadline; only actually passing the tick does.
+    if (now - watch.startedAt >= FAULT_RECOVERY_MS) {
+      this.stopSimulation();
+      return;
+    }
+    if (!world.fault) return;
     if (watch.confirmedAt === undefined) {
       if (!world.faultConfirmed()) return;
       if (!watch.retried) {

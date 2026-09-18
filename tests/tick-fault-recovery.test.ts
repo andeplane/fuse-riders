@@ -26,7 +26,7 @@ import {
   FAULT_EVIDENCE_MS,
   RoomRuntime,
 } from "../src/online/room-runtime.js";
-import { FakeNetwork } from "./fixtures/fake-room.js";
+import { FakeNetwork, type NetworkOptions } from "./fixtures/fake-room.js";
 
 /**
  * The seam: PHASES with one more phase in the middle of the tick, after riders have been stepped and pickups collected
@@ -69,7 +69,7 @@ const STOPPED = "Simulation stopped — reload this page";
 function mesh(
   ids: readonly string[],
   phases: (id: string) => Phase[] | undefined,
-  options = QUIET,
+  options: NetworkOptions = QUIET,
 ) {
   const net = new FakeNetwork(ids[0]!, options);
   const faults = new Map<string, WorldFault[]>(ids.map((id) => [id, []]));
@@ -543,5 +543,87 @@ test("statistics dropped for a damaged state are reported once per match", () =>
     assert.equal(solo.metrics().faults, 0, "and the simulation never threw");
   } finally {
     solo.stop();
+  }
+});
+
+test("fault evidence followed by lost snapshots has a bounded terminal outcome", () => {
+  let dropSnapshots = false;
+  const failing = COUNTDOWN_TICKS + 41;
+  const { net, runtimes, requests } = mesh(
+    ["host", "rider"],
+    (id) =>
+      id === "rider" ? failingAt((tick) => tick === failing) : undefined,
+    {
+      ...QUIET,
+      dropReliable: (_from, to, type) =>
+        dropSnapshots && to === "rider" && type === "snapshot",
+    },
+  );
+  try {
+    dropSnapshots = true;
+    net.step(25_000);
+    assert.ok(
+      net.recorded
+        .get("rider")!
+        .statuses.includes("Simulation fault · resyncing"),
+    );
+    assert.equal(runtimes[1]!.metrics().stopped, true);
+    assert.equal(runtimes[1]!.metrics().snapshotRequest, false);
+    const count = requests();
+    net.step(10_000);
+    assert.equal(
+      requests(),
+      count,
+      "stopped recovery does not keep requesting snapshots",
+    );
+  } finally {
+    for (const runtime of runtimes) runtime.stop();
+  }
+});
+
+test("a speculative fault stops when the missing input owner leaves before correction", () => {
+  let failing = Infinity;
+  const { net, runtimes, faults } = mesh(
+    ["host", "rider", "third"],
+    (id) =>
+      id === "host"
+        ? failingWhen(
+            ({ state, inputs }) =>
+              state.tick === failing && inputs.get("rider")?.left === true,
+          )
+        : undefined,
+    { ...QUIET, baseMs: 300 },
+  );
+  try {
+    const rider = runtimes[1]!;
+    rider.command({
+      type: "input",
+      seq: 1,
+      left: true,
+      right: false,
+      bomb: false,
+    });
+    net.step(4000);
+    rider.command({
+      type: "input",
+      seq: 2,
+      left: false,
+      right: false,
+      bomb: false,
+    });
+    failing = Math.floor(rider.metrics().clockTick) + 3;
+    net.step(200);
+    assert.equal(
+      faults.get("host")!.length,
+      1,
+      "host faulted on the still-speculative held input",
+    );
+    rider.stop();
+    net.disconnect("rider");
+    net.step(20_000);
+    assert.equal(runtimes[0]!.metrics().stopped, true);
+    assert.equal(net.recorded.get("host")!.statuses.at(-1), STOPPED);
+  } finally {
+    for (const runtime of runtimes) runtime.stop();
   }
 });

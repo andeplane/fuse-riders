@@ -21,6 +21,8 @@ export interface NetworkOptions {
   duplicate?: number;
   /** Extra time before the link between two members opens, as when ICE to one peer takes longer than to another. Unset: none. */
   linkMs?: (a: string, b: string) => number;
+  /** An accepted reliable send whose delivery is lost (for bounded recovery tests). */
+  dropReliable?: (from: string, to: string, type: string) => boolean;
 }
 interface Delivery {
   at: number;
@@ -140,6 +142,14 @@ export class FakeNetwork {
       type: String((data as { type?: unknown })?.type),
       at: this.now,
     });
+    if (
+      this.options.dropReliable?.(
+        from,
+        to,
+        String((data as { type?: unknown })?.type),
+      )
+    )
+      return true;
     const key = `${from}>${to}`,
       at = Math.max(
         this.now + this.options.reliableMs,
