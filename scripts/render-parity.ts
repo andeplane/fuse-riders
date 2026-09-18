@@ -309,7 +309,7 @@ try {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
   `);
-  await page.goto(`http://127.0.0.1:${address.port}/?room=INVALID`);
+  await page.goto(`http://127.0.0.1:${address.port}/?mute&room=INVALID`);
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   const frames: {
     name: string;
