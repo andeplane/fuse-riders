@@ -9,7 +9,7 @@ interface Lockfile {
 }
 
 /**
- * Dockerfile.cloud installs with `npm ci --omit=dev` and starts `node --import tsx src/service/index.ts`,
+ * Dockerfile.cloud installs with `npm ci --omit=dev` and starts `node --import tsx service/index.ts`,
  * so a package the service reaches must not be dev-only in the lockfile. A violation here would
  * otherwise first show up as a Cloud Run revision that cannot start.
  *
@@ -42,12 +42,12 @@ test("the Cloud Run entry and its tsx loader resolve from production dependencie
     );
   assert.match(
     dockerfile,
-    /CMD \["node", "--import", "tsx", "src\/service\/index\.ts"\]/,
+    /CMD \["node", "--import", "tsx", "service\/index\.ts"\]/,
   );
 
   // Bundling is only a way to walk the static import graph; nothing is written.
   const result = await build({
-    entryPoints: ["src/service/index.ts"],
+    entryPoints: ["service/index.ts"],
     absWorkingDir: fileURLToPath(new URL("..", import.meta.url)),
     bundle: true,
     write: false,
@@ -69,7 +69,7 @@ test("the Cloud Run entry and its tsx loader resolve from production dependencie
     "the walk reached the service's third-party imports",
   );
   assert.ok(
-    firstParty.includes("src/service/index.ts") &&
+    firstParty.includes("service/index.ts") &&
       firstParty.some((file) => file.startsWith("packages/fuse-network-be/")) &&
       firstParty.some((file) => file.startsWith("packages/fuse-platform/")),
     "the walk reached the service's own source, including its workspace packages",

@@ -7,11 +7,11 @@ import {
   step,
   toView,
   SLOT_COLORS,
-} from "../src/engine/game.js";
-import { defaultRoomSettings } from "../src/engine/room-settings.js";
-import { buildRoundReport } from "../src/online/match-report.js";
+} from "../games/fuse-riders/src/engine/game.js";
+import { defaultRoomSettings } from "../games/fuse-riders/src/engine/room-settings.js";
+import { buildRoundReport } from "../games/fuse-riders/src/online/match-report.js";
 import { calculateElo } from "fuse-platform";
-import { GAME_ID } from "../src/shared/game-id.js";
+import { GAME_ID } from "../games/fuse-riders/src/shared/game-id.js";
 import {
   parseRating,
   newRating,
@@ -21,8 +21,11 @@ import {
   beginMatchParticipant,
   snapshotMatchStats,
   type MatchStatsState,
-} from "../src/engine/match-stats.js";
-import { emptyCombat, parseCombat } from "../src/engine/combat-stats.js";
+} from "../games/fuse-riders/src/engine/match-stats.js";
+import {
+  emptyCombat,
+  parseCombat,
+} from "../games/fuse-riders/src/engine/combat-stats.js";
 import {
   careerFor,
   emptyBuckets,
@@ -30,7 +33,7 @@ import {
   gameGroup,
   mergeCareer,
   parseBuckets,
-} from "../src/shared/career-stats.js";
+} from "../games/fuse-riders/src/shared/career-stats.js";
 import {
   HistoryStore,
   parseMatchRecord,
@@ -39,10 +42,10 @@ import {
   type MatchResult,
   fuseRiders,
   platform,
-} from "../src/service/history.js";
+} from "../service/history.js";
 import { MemoryHistoryDatabase } from "fuse-platform";
 import { MemoryRoomDatabase, RoomStore, peerId, digest } from "fuse-network-be";
-import { classicSettings } from "./fixtures/classic-settings.js";
+import { classicSettings } from "../games/fuse-riders/tests/fixtures/classic-settings.js";
 
 function result(ids: string[], matchId = "match-1"): MatchResult {
   const map: MatchStatsState = new Map();

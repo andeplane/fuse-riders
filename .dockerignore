@@ -3,8 +3,8 @@
 !Dockerfile.cloud
 !package.json
 !package-lock.json
-!src/
-!src/**
+!service/
+!service/**
 !packages/
 !packages/*/
 !packages/*/package.json

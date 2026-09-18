@@ -39,14 +39,14 @@ const revision = execFileSync("git", ["rev-parse", "HEAD"], {
 const sourceHashes = Object.fromEntries(
   await Promise.all(
     [
-      "src/render/phaser/arena.ts",
-      "src/render/blast-animation.ts",
-      "src/render/phaser/trails.ts",
-      "src/render/phaser/beveled-trails.ts",
-      "src/render/phaser/trail-ribbon.ts",
-      "src/render/phaser/viewport.ts",
-      "src/client/main.ts",
-      "src/render/themes.ts",
+      "games/fuse-riders/src/render/phaser/arena.ts",
+      "games/fuse-riders/src/render/blast-animation.ts",
+      "games/fuse-riders/src/render/phaser/trails.ts",
+      "games/fuse-riders/src/render/phaser/beveled-trails.ts",
+      "games/fuse-riders/src/render/phaser/trail-ribbon.ts",
+      "games/fuse-riders/src/render/phaser/viewport.ts",
+      "games/fuse-riders/src/client/main.ts",
+      "games/fuse-riders/src/render/themes.ts",
       "scripts/lib/benchmark-fixture.ts",
       "scripts/phaser-benchmark.ts",
     ].map(async (path) => [
@@ -94,14 +94,14 @@ try {
       const result = await page.evaluate(
         async ({ config, mode }) => {
           const { createPhaserArena } = (await import(
-            String("/src/render/phaser/arena.ts")
-          )) as typeof import("../src/render/phaser/arena.js");
+            String("/games/fuse-riders/src/render/phaser/arena.ts")
+          )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
           const { visualFixture } = (await import(
             String("/scripts/lib/benchmark-fixture.ts")
           )) as typeof import("./lib/benchmark-fixture.js");
           const { defaultTheme } = (await import(
-            String("/src/render/themes.ts")
-          )) as typeof import("../src/render/themes.js");
+            String("/games/fuse-riders/src/render/themes.ts")
+          )) as typeof import("../games/fuse-riders/src/render/themes.js");
           const wrapper = document.createElement("div");
           const fitWidth = Math.min(config.width, (config.height * 16) / 9);
           wrapper.style.cssText = `width:${fitWidth}px;height:${(fitWidth * 9) / 16}px`;

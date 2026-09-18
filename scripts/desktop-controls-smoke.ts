@@ -1,7 +1,7 @@
 import { launchSelected } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { smokeTimeout } from "./smoke-timeout.js";
-import { keyboardShortcuts } from "../src/online/keyboard-shortcuts.js";
+import { keyboardShortcuts } from "../games/fuse-riders/src/online/keyboard-shortcuts.js";
 
 // Isolated offline solo game: never joins or disturbs an occupied online room.
 const browser = await launchSelected("chrome", { headless: true });

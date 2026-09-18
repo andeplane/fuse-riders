@@ -1,6 +1,6 @@
 import type { Page, Locator, Browser } from "playwright";
 import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
-import { POWERUP_GUIDE } from "../src/client/powerup-guide.js"; // count the guide against its source, not a literal that rots with the next pickup
+import { POWERUP_GUIDE } from "../games/fuse-riders/src/client/powerup-guide.js"; // count the guide against its source, not a literal that rots with the next pickup
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";

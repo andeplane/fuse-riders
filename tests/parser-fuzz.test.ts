@@ -1,14 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseClientMessage } from "../src/shared/protocol.js";
-import { STEER } from "../src/engine/input-log.js";
+import { parseClientMessage } from "../games/fuse-riders/src/shared/protocol.js";
+import { STEER } from "../games/fuse-riders/src/engine/input-log.js";
 import {
   decodePacket,
   encodePacket,
   MAX_PACKET_BYTES,
   type Packet,
 } from "fuse-netcode";
-import { fuseGame } from "../src/online/fuse-game.js";
+import { fuseGame } from "../games/fuse-riders/src/online/fuse-game.js";
 import { validSignal } from "../packages/fuse-network-be/src/signal.js";
 import { parseRoomRecord } from "../packages/fuse-network-be/src/room-store.js";
 

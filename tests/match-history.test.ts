@@ -5,10 +5,10 @@ import type { AddressInfo } from "node:net";
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from "jose";
 import { WebSocket } from "ws";
 import { SOLO_RATING_PLAYER_ID, type Rating } from "fuse-platform/rating";
-import { AVATARS } from "../src/shared/avatars.js";
-import { createDevRoomService } from "../src/service/dev.js";
+import { AVATARS } from "../games/fuse-riders/src/shared/avatars.js";
+import { createDevRoomService } from "../service/dev.js";
 import { createIdentityVerifier } from "fuse-platform";
-import { GAME_ID } from "../src/shared/game-id.js";
+import { GAME_ID } from "../games/fuse-riders/src/shared/game-id.js";
 import {
   GUEST_MATCH_TTL_MS,
   HistoryStore,
@@ -21,7 +21,7 @@ import {
   type StoredPlayer,
   fuseRiders,
   platform,
-} from "../src/service/history.js";
+} from "../service/history.js";
 import { MemoryRoomDatabase } from "fuse-network-be";
 import { MemoryHistoryDatabase } from "fuse-platform";
 import { RoomStore, authFrame, digest, peerId } from "fuse-network-be";

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { createServer } from "vite";
 import { chromium, webkit } from "playwright";
-import { POWERUP_GUIDE } from "../src/client/powerup-guide.js";
-import { themes } from "../src/render/themes.js";
+import { POWERUP_GUIDE } from "../games/fuse-riders/src/client/powerup-guide.js";
+import { themes } from "../games/fuse-riders/src/render/themes.js";
 
 /** Reproducible sprite sheet and actual arena captures, without a live room. */
 const output = "artifacts/powerup-showcase";
@@ -92,14 +92,14 @@ try {
       await page.evaluate(
         async ({ backend, themeId, types }) => {
           const { createPhaserArena } = (await import(
-            String("/src/render/phaser/arena.ts")
-          )) as typeof import("../src/render/phaser/arena.js");
+            String("/games/fuse-riders/src/render/phaser/arena.ts")
+          )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
           const { visualFixture } = (await import(
             String("/scripts/lib/benchmark-fixture.ts")
           )) as typeof import("./lib/benchmark-fixture.js");
           const { themes } = (await import(
-            String("/src/render/themes.ts")
-          )) as typeof import("../src/render/themes.js");
+            String("/games/fuse-riders/src/render/themes.ts")
+          )) as typeof import("../games/fuse-riders/src/render/themes.js");
           document.body.innerHTML =
             '<div style="width:1280px;height:720px"><canvas width="1600" height="900"></canvas></div>';
           const canvas = document.querySelector("canvas")!;

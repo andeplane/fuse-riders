@@ -50,5 +50,5 @@ bots, what a confirmed match adds to an account (`credit`, `addTotals`, `parseTo
 The account (username, name, avatar) is one per sign-in across every game. Storage: `${prefix}-matches` holds every
 game's records (a record without `gameId` is `fuse-riders`), `${prefix}-users` the shared account plus Fuse Riders'
 rating and totals as they were before games, and `${prefix}-ratings` every other game's, one document per
-`gameId:uid`. The package must not import from `src/` or `games/`; see
+`gameId:uid`. The package must not import from `service/` or `games/`; see
 [the multi-game design](../../docs/design/multi-game.md).

@@ -12,7 +12,7 @@ import "fuse-ui/components.css"; // styles for the components' default fui-* cla
 
 Put the `fui-app` class on the page root to get the base page, button and field styles. The tokens are colours (`--fui-cyan`, `--fui-pink`, `--fui-yellow`, `--fui-navy`, …), `--fui-font-pixel`, `--fui-space-1…6`, `--fui-border`, radii and glows, and a z-index scale (`--fui-z-scene` up to `--fui-z-status`, including `--fui-z-dialog`). See `src/tokens.css`. The values are the ones Fuse Riders draws, so a token keeps a game in the same look.
 
-Fuse Riders loads `tokens.css` but not `components.css` yet. It passes its own class names to the components and styles them in `src/online/online.css`.
+Fuse Riders loads `tokens.css` but not `components.css` yet. It passes its own class names to the components and styles them in `games/fuse-riders/src/online/online.css`.
 
 ## DOM helpers
 

@@ -20,20 +20,20 @@ try {
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   const pictures = await page.evaluate(async () => {
     const { createPhaserArena } = (await import(
-      String("/src/render/phaser/arena.ts")
-    )) as typeof import("../src/render/phaser/arena.js");
+      String("/games/fuse-riders/src/render/phaser/arena.ts")
+    )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
     const { visualFixture } = (await import(
       String("/scripts/lib/benchmark-fixture.ts")
     )) as typeof import("./lib/benchmark-fixture.js");
     const { themes } = (await import(
-      String("/src/render/themes.ts")
-    )) as typeof import("../src/render/themes.js");
+      String("/games/fuse-riders/src/render/themes.ts")
+    )) as typeof import("../games/fuse-riders/src/render/themes.js");
     const { generateObstacles, ARENA_MAP_RECIPES } = (await import(
-      String("/src/engine/arena-map.ts")
-    )) as typeof import("../src/engine/arena-map.js");
+      String("/games/fuse-riders/src/engine/arena-map.ts")
+    )) as typeof import("../games/fuse-riders/src/engine/arena-map.js");
     const { fixedScenery, mapTracks, advanceScenery } = (await import(
-      String("/src/engine/scenery-motion.ts")
-    )) as typeof import("../src/engine/scenery-motion.js");
+      String("/games/fuse-riders/src/engine/scenery-motion.ts")
+    )) as typeof import("../games/fuse-riders/src/engine/scenery-motion.js");
     const maps = ["desert", "forest", "city", "drift", "trains"] as const;
     const pictures: { name: string; data: string }[] = [];
     for (const backend of ["auto", "canvas"] as const) {

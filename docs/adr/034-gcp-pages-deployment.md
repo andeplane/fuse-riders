@@ -53,7 +53,7 @@ Delete subscriptions on orderly idle/shutdown and configure expiry for crashes. 
 
 Frontend API/WSS URLs use public `VITE_API_ORIGIN`; Pages assets/invites preserve `/fuse-riders/`. Backend allows exact Origin `https://andeplane.github.io` (no repository path), plus explicitly configured development origins. Handle CORS preflight and WebSocket Origin independently of bearer-capability authorization. Public configuration carries no service account or TURN secrets.
 
-Backend entrypoint: `src/service/index.ts`, executed with `tsx`. Required deployment env: `GOOGLE_CLOUD_PROJECT=andershaf-87`, `GCP_REGION=europe-west1`, `FIRESTORE_DATABASE_ID=fuse-riders`, `PUBSUB_TOPIC=fuse-riders-signalling`, `ROOM_COLLECTION_PREFIX=fuse-production`, `ALLOWED_ORIGINS=https://andeplane.github.io`, and Cloud Run `PORT`.
+Backend entrypoint: `service/index.ts`, executed with `tsx`. Required deployment env: `GOOGLE_CLOUD_PROJECT=andershaf-87`, `GCP_REGION=europe-west1`, `FIRESTORE_DATABASE_ID=fuse-riders`, `PUBSUB_TOPIC=fuse-riders-signalling`, `ROOM_COLLECTION_PREFIX=fuse-production`, `ALLOWED_ORIGINS=https://andeplane.github.io`, and Cloud Run `PORT`.
 
 Routes preserve v2: `POST /api/rooms`, `/api/rooms/:code/ws`, `/api/rooms/:code/ice`; plus `/healthz` and `/readyz`. ICE reports STUN configuration and no configured relay. GitHub Pages and Cloud Run release independently, so protocol mismatch, browser cache and mixed-revision compatibility must be tested. No claim that all users update simultaneously.
 
