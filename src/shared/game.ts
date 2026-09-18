@@ -1956,7 +1956,7 @@ function prepareRound(state: GameState): void {
   // The layout is laid around riders already standing on the board, so nobody starts inside a rock or facing one
   // with no room to turn. Drawn from the round's own stream, after every participant has a pose.
   // A game with no room settings — LAN play, which has no settings screen — keeps the arena it has always had, like
-  // every other settings fallback. `rotate` is the default of a room that has settings, and so a way to turn it off.
+  // every other settings fallback. `rotate` is a room's default; a room that names `classic` turns scenery off.
   state.map = chooseArenaMap(
     state.settings?.map ?? "classic",
     state.seed,

@@ -30,12 +30,12 @@ export type ArenaMapId = (typeof ARENA_MAPS)[number];
  */
 export type ArenaMapChoice = ArenaMapId | "rotate";
 export const ARENA_MAP_CHOICES = ["rotate", ...ARENA_MAPS] as const;
-export const ROTATION_MAPS: readonly ArenaMapId[] = [
+export const ROTATION_MAPS = [
   "classic",
   "desert",
   "forest",
   "city",
-];
+] as const satisfies readonly ArenaMapId[];
 
 export const OBSTACLE_KINDS = [
   "rock",
