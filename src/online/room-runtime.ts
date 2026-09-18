@@ -143,6 +143,10 @@ interface Member {
   rules?: string;
   /** Since when every packet from this member has fallen outside this replica's window; -Infinity once one is taken. */
   windowSince: number;
+  /** When this runtime learned of the member's current connection: the start of the wait for a link that never comes up. */
+  since: number;
+  /** When the link to the member's current connection was first seen usable, so its packets could arrive; -Infinity until then. */
+  linkedAt: number;
   presence?: { connected: boolean; tick: number; at: number };
 }
 /**
@@ -176,6 +180,8 @@ export function rulesAge(theirs: unknown): "newer" | "older" | "unknown" {
 
 export const DISCONNECT_MS = 1000,
   CREATOR_SILENCE_MS = 5000,
+  /** How long a member this runtime has never heard is given for its link to come up before that counts as silence. */
+  LINK_WAIT_MS = 5000,
   LAG_INDICATOR_MS = 250,
   SNAPSHOT_RETRY_MS = 2000,
   SNAPSHOT_FAILURES = 3,
@@ -227,6 +233,8 @@ export class RoomRuntime {
   private readonly members = new Map<string, Member>();
   private readonly generation: number;
   private world?: World;
+  /** When this runtime first held a world: before that it could judge nobody, so no wait for a link starts earlier. */
+  private judgingSince = -Infinity;
   private id = "";
   private hostId = "";
   private room = 0;
@@ -370,7 +378,14 @@ export class RoomRuntime {
   }
   private peer(id: string, online: boolean): void {
     if (online) {
-      if (!this.members.has(id))
+      const known = this.members.get(id);
+      // The same member on a new connection (a reload the service saw before the old socket closed): the transport has
+      // dropped the old link, and the new page cannot be heard before its own link is up. A member never heard gets
+      // the whole link wait again, for the connection that can now link.
+      if (known) {
+        known.linkedAt = -Infinity;
+        known.since = this.deps.now();
+      } else
         this.members.set(id, {
           generation: 0,
           snapshotServedAt: -Infinity,
@@ -384,6 +399,8 @@ export class RoomRuntime {
           rejected: 0,
           refused: false,
           windowSince: -Infinity,
+          since: this.deps.now(),
+          linkedAt: -Infinity,
         });
       return;
     }
@@ -625,6 +642,9 @@ export class RoomRuntime {
       this.id,
     );
     this.world.stream(this.id, this.generation);
+    // Nobody is seated in a fresh world, and a seat needs a link (`join` travels over it): the anchor is set for one
+    // invariant — "since the first world" — not because anything here could be misjudged.
+    this.judgingSince = this.deps.now();
     this.clock.start(0);
     this.lastOwnTick = 0;
     this.resetHeld();
@@ -714,7 +734,11 @@ export class RoomRuntime {
     const tick = decoded.state.game.tick,
       previous = this.world?.streams.get(this.id);
     if (this.world) this.world.install(decoded.state);
-    else this.world = new World(decoded.state, this.hostId, this.id);
+    else {
+      this.world = new World(decoded.state, this.hostId, this.id);
+      // Not on a resync: a replica that already judged its members keeps the waits it started.
+      this.judgingSince = this.deps.now();
+    }
     for (const stream of decoded.streams) {
       // My own current stream is rebuilt below with its continuity; my retired generations (the previous page's entries before
       // its presence switched) install like anyone else's, and the own-stream creation then retires them in order.
@@ -900,6 +924,8 @@ export class RoomRuntime {
       rejected: 0,
       refused: false,
       windowSince: -Infinity,
+      since: -Infinity,
+      linkedAt: -Infinity,
     };
   }
   private ensurePresence(id: string, member: Member): void {
@@ -921,17 +947,40 @@ export class RoomRuntime {
     const tick = this.append(PRESENCE, id, connected, member.generation);
     member.presence = { connected, tick, at: now };
   }
+  /**
+   * Whether `member` has been silent for `ms`, counting only time in which this runtime could have heard it: since its
+   * last packet, or since the link to its current connection became usable if that is later. A page that has just
+   * loaded has heard nobody, and a page that has just loaded cannot be heard — neither is silence. A member never heard
+   * whose link never comes up is given `LINK_WAIT_MS`, counted from when this runtime learned of its connection or from
+   * when it first held a world, whichever is later: a page whose own first link or snapshot took five seconds has
+   * only then begun to wait for the others. Without this a reloaded creator logged every rider it had not heard YET as
+   * absent in its second pass, and a round boundary or lobby reset inside that window took a healthy rider's seat. The
+   * link counts once per connection, so a flapping link cannot stand in for packets.
+   */
+  private silent(member: Member, now: number, ms: number): boolean {
+    const from = Math.max(member.lastPacketAt, member.linkedAt);
+    return from === -Infinity
+      ? now - Math.max(member.since, this.judgingSince) >
+          Math.max(ms, LINK_WAIT_MS)
+      : now - from > ms;
+  }
   private creatorDuties(now: number): void {
     const game = this.world!.state.game,
       stalled = now - this.lastLoopAt > DISCONNECT_MS / 2;
     for (const [id, member] of this.members) {
       const player = game.players.get(id);
       if (!player) continue;
-      const live = now - member.lastPacketAt <= DISCONNECT_MS;
+      // Present again only on a packet; absent only on silence this runtime could have heard. In between — a link
+      // just up and no packet yet — nothing is logged either way.
+      const heard = now - member.lastPacketAt <= DISCONNECT_MS;
       // A creator whose own loop just stalled cannot tell silence from its own absence.
-      if (player.connected && !live && !stalled)
+      if (
+        player.connected &&
+        !stalled &&
+        this.silent(member, now, DISCONNECT_MS)
+      )
         this.logPresence(id, member, false);
-      else if (!player.connected && live) this.ensurePresence(id, member);
+      else if (!player.connected && heard) this.ensurePresence(id, member);
     }
     const self = game.players.get(this.id);
     if (self && !self.connected)
@@ -946,9 +995,10 @@ export class RoomRuntime {
     const state = this.world!.state,
       order = successionOrder(state, this.hostId),
       mine = order.indexOf(this.id);
+    // No record at all: the service says that member is offline. A record not heard yet gets the same fair chance as above.
     const silent = (id: string) => {
       const member = this.members.get(id);
-      return !member || now - member.lastPacketAt > CREATOR_SILENCE_MS;
+      return !member || this.silent(member, now, CREATOR_SILENCE_MS);
     };
     // Only a silent creator opens the succession: while it is heard, it alone marks riders absent, on its one-second rule.
     if (mine < 0 || !silent(this.hostId)) return;
@@ -1277,7 +1327,12 @@ export class RoomRuntime {
     const now = this.deps.now();
     this.status.refresh();
     if (this.transport && this.id === "") return;
-    for (const [id, member] of this.members) this.greet(id, member);
+    for (const [id, member] of this.members) {
+      // Once per connection: a link that flaps cannot keep restarting the wait for a member that never sends.
+      if (member.linkedAt === -Infinity && this.transport!.linked(id))
+        member.linkedAt = now;
+      this.greet(id, member);
+    }
     if (this.needsWorld()) {
       // Creator included: a room whose members all connected together has no world anywhere until every linked peer has said so.
       const candidates = this.compatible();

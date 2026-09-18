@@ -19,6 +19,7 @@ import {
 import { MAX_PACKET_BYTES, MAX_PACKET_ENTRIES } from "../src/online/packet.js";
 import { MAX_SNAPSHOT_BYTES } from "../src/online/snapshot.js";
 import {
+  DISCONNECT_MS,
   HASH_INTERVAL,
   HASH_LAG,
   SNAPSHOT_BUFFER_LIMIT,
@@ -135,6 +136,8 @@ test("the couplings ADR 047 marks as checked hold", () => {
   assert.ok(BOTS_ONLY_TIME_SCALE > 1);
   // C6: an honest out-of-reach stream gets a stalled-gap wait and a snapshot retry in before its owner stops counting as heard.
   assert.ok(WINDOW_GRACE_MS >= STALLED_GAP_MS + SNAPSHOT_RETRY_MS);
+  // C6: a link just up holds off an absence for one DISCONNECT_MS, which nobody stalls on at 1×.
+  assert.ok(DISCONNECT_MS < STALL_TICKS * TICK_MS);
   // C7: a follower still slewing toward the authority is never refused as too far ahead.
   assert.ok(FUTURE_TICKS > SNAP_TICKS);
   // C9: a full snapshot's base64 text fits the buffer it is served through.
