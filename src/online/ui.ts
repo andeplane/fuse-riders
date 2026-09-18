@@ -229,11 +229,14 @@ export async function startOnline(): Promise<void> {
     guide.setAttribute("aria-labelledby", guideTitle.id);
     guide.append(
       guideTitle,
-      createPowerupGuide(POWERUP_GUIDE, {
-        className: "landing-powerups",
-        themeId: selectedTheme().id,
-        offByDefaultNote: "(off by default, enable in room settings)",
-      }).element,
+      createPowerupGuide(
+        POWERUP_GUIDE.filter((entry) => entry.type !== "target"),
+        {
+          className: "landing-powerups",
+          themeId: selectedTheme().id,
+          offByDefaultNote: "(off by default, enable in room settings)",
+        },
+      ).element,
     );
     card.querySelector(".landing-content")!.append(guide);
     const mode = node("fieldset", "", "landing-mode");
