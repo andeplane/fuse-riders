@@ -13,3 +13,4 @@ export {
 } from "../shared/gun.js";
 export { PORTAL_WALL_HALF_WIDTH } from "../shared/portal.js";
 export { wrapDelta } from "../shared/wrap.js";
+export { TRAIL_DECAY_PAUSE_TICKS } from "../shared/trail-lifecycle.js";
