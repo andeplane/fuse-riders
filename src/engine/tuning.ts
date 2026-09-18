@@ -81,9 +81,13 @@ export const PICKUP_SEPARATION = 28;
  * deadline: two Nitros run at 4x until the first expires, and a Snail on a Nitro rider cancels to 1x.
  * Only distance changes, so a fast rider turns wide and a slowed one turns tight.
  */
-export const NITRO_DURATION_TICKS = 100;
-export const SNAIL_DURATION_TICKS = 100;
-export { MAX_SPEED_EFFECT_STACK, NITRO_SPEED, SNAIL_SPEED } from "./effects.js";
+export {
+  MAX_SPEED_EFFECT_STACK,
+  NITRO_DURATION_TICKS,
+  NITRO_SPEED,
+  SNAIL_DURATION_TICKS,
+  SNAIL_SPEED,
+} from "./effects.js";
 export const STAR_DURATION_TICKS = 100;
 export const SHIELD_GRACE_TICKS = 10;
 

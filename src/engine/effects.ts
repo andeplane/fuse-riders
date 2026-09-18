@@ -8,9 +8,14 @@
  */
 import { drunkHeadingOffset } from "./drunk.js";
 
-/** Nitro doubles the collector's speed and Snail halves every rival's; see `NITRO_DURATION_TICKS`. */
+/**
+ * Nitro doubles the collector's speed and Snail halves every rival's, each for five seconds. Every pickup is its own
+ * deadline: two Nitros run at 4x until the first expires, and a Snail on a Nitro rider cancels to 1x.
+ */
 export const NITRO_SPEED = 2;
 export const SNAIL_SPEED = 0.5;
+export const NITRO_DURATION_TICKS = 100;
+export const SNAIL_DURATION_TICKS = 100;
 /** Deadlines a rider can hold per stacking effect: a bound for checkpoints. A 33rd collection inside one window is dropped, at a speed nobody survives anyway. */
 export const MAX_SPEED_EFFECT_STACK = 32;
 
@@ -38,8 +43,18 @@ export type EffectKind = (typeof EFFECT_KINDS)[number];
  */
 export type EffectStacking = "stack" | "extend" | "replace";
 
-export interface EffectRule {
-  stacking: EffectStacking;
+/**
+ * How an effect stacks. A stacking effect also states the longest one application lasts, `maxDurationTicks`: its
+ * deadlines are never further out than that from the tick they were taken on, and a checkpoint holding one that is
+ * refuses it (`isCanonical`). The type makes it part of the row, so a new stacking kind cannot forget it.
+ */
+export type EffectStackingRule =
+  | { stacking: "stack"; maxDurationTicks: number }
+  | { stacking: "extend" | "replace"; maxDurationTicks?: never };
+
+export type EffectRule = EffectStackingRule & EffectFlags;
+
+export interface EffectFlags {
   /** A factor on the rider's pace for every deadline in force, multiplied in `EFFECT_KINDS` order. */
   speed?: number;
   /** No hazard harms the rider (trails, blasts, walls, other riders, bullets), and the boundary turns it back. */
@@ -60,8 +75,16 @@ export interface EffectRule {
 
 export const EFFECTS: Readonly<Record<EffectKind, EffectRule>> = {
   star: { stacking: "extend", immune: true, invulnerable: true },
-  nitro: { stacking: "stack", speed: NITRO_SPEED },
-  snail: { stacking: "stack", speed: SNAIL_SPEED },
+  nitro: {
+    stacking: "stack",
+    maxDurationTicks: NITRO_DURATION_TICKS,
+    speed: NITRO_SPEED,
+  },
+  snail: {
+    stacking: "stack",
+    maxDurationTicks: SNAIL_DURATION_TICKS,
+    speed: SNAIL_SPEED,
+  },
   drunk: { stacking: "extend", heading: drunkHeadingOffset },
   // Ink is drawn, not simulated: the renderer blots the screen of whoever carries it.
   ink: { stacking: "extend" },
@@ -257,7 +280,47 @@ export function effectTable<K extends string>(
     return offset ?? 0;
   }
 
+  /**
+   * Whether a rider's effects are a list these rules could have produced by `tick`: known kinds in table order and by
+   * deadline within a kind, one entry per kind that does not stack, at most MAX_SPEED_EFFECT_STACK of one that does,
+   * each within its row's `maxDurationTicks` of `tick`, none begun in the future. The checkpoint's guard.
+   */
+  function isCanonical(
+    effects: readonly Readonly<ActiveEffect<K>>[],
+    tick: number,
+  ): boolean {
+    const counts = new Map<K, number>();
+    for (let index = 0; index < effects.length; index++) {
+      const effect = effects[index]!,
+        previous = effects[index - 1];
+      if (!order.has(effect.kind)) return false;
+      const rule = rules[effect.kind];
+      const kept = (counts.get(effect.kind) ?? 0) + 1;
+      counts.set(effect.kind, kept);
+      if (
+        effect.sinceTick > tick ||
+        kept > (rule.stacking === "stack" ? MAX_SPEED_EFFECT_STACK : 1)
+      )
+        return false;
+      if (
+        rule.stacking === "stack" &&
+        effect.untilTick > tick + rule.maxDurationTicks
+      )
+        return false;
+      if (previous) {
+        const position = order.get(previous.kind)! - order.get(effect.kind)!;
+        if (
+          position > 0 ||
+          (position === 0 && previous.untilTick > effect.untilTick)
+        )
+          return false;
+      }
+    }
+    return true;
+  }
+
   return {
+    isCanonical,
     applyEffect,
     expireEffects,
     effectDeadlines,
@@ -274,6 +337,7 @@ export function effectTable<K extends string>(
 
 /** The game's effects: every reader and writer the engine uses, from `EFFECT_KINDS` and `EFFECTS`. */
 export const {
+  isCanonical: effectsAreCanonical,
   applyEffect,
   expireEffects,
   effectDeadlines,

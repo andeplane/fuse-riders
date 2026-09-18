@@ -11,6 +11,7 @@ import {
   EFFECTS,
   EFFECT_KINDS,
   type EffectHolder,
+  type EffectRule,
   applyEffect,
   effectDeadlines,
   expireEffects,
@@ -146,7 +147,7 @@ test("a new timed effect is only a row: a table with a kind the game lacks works
   type Kind = (typeof kinds)[number];
   const table = effectTable<Kind>(kinds, {
     ...EFFECTS,
-    haste: { stacking: "stack", speed: 3 },
+    haste: { stacking: "stack", maxDurationTicks: 40, speed: 3 },
     ward: { stacking: "extend", immune: true },
     daze: { stacking: "extend", heading: () => 0.25 },
   });
@@ -178,6 +179,80 @@ test("a new timed effect is only a row: a table with a kind the game lacks works
   assert.deepEqual(table.effectDeadlines(rider, "haste"), [30]);
   assert.equal(table.speedMultiplier(rider, 20), 2 * 3);
   assert.equal(table.headingOffset(0, rider, 20), 0.25);
+  // The checkpoint's guard is the table's own: the new kind's list is canonical, and a deadline past its row's
+  // horizon, a second single entry or an unknown kind is refused.
+  assert.equal(table.isCanonical(rider.effects, 20), true);
+  assert.equal(
+    table.isCanonical(
+      [...rider.effects, { kind: "haste", sinceTick: 20, untilTick: 61 }],
+      20,
+    ),
+    false,
+    "past haste's maxDurationTicks",
+  );
+  assert.equal(
+    table.isCanonical(
+      [...rider.effects, { kind: "ward", sinceTick: 12, untilTick: 19 }],
+      20,
+    ),
+    false,
+    "two entries of an extending kind",
+  );
+  assert.equal(
+    effectTable(EFFECT_KINDS, EFFECTS).isCanonical(rider.effects as never, 20),
+    false,
+    "the engine's table does not know haste",
+  );
+  // A stacking row without its horizon does not compile.
+  // @ts-expect-error maxDurationTicks is required on a stacking row
+  const incomplete: EffectRule = { stacking: "stack", speed: 3 };
+  void incomplete;
   // The engine's own table is untouched by any of it.
   assert.deepEqual(Object.keys(EFFECTS).sort(), [...EFFECT_KINDS].sort());
+});
+
+test("each non-stacking effect keeps its own rule: extend pushes out and keeps the start, replace sets both", () => {
+  for (const kind of EFFECT_KINDS) {
+    const rule = EFFECTS[kind];
+    if (rule.stacking === "stack") continue;
+    const game = createGame("stacking", classicSettings());
+    addPlayer(game, { id: "a", name: "A", slot: 0, color: "#fff" });
+    const rider = game.players.get("a")!;
+    applyEffect(rider, kind, 10, 50);
+    applyEffect(rider, kind, 20, 30);
+    const [effect] = rider.effects;
+    assert.equal(rider.effects.length, 1, kind);
+    if (rule.stacking === "extend") {
+      assert.deepEqual(
+        [effect!.sinceTick, effect!.untilTick],
+        [10, 50],
+        `${kind}: a shorter spell does not cut the running one short`,
+      );
+      applyEffect(rider, kind, 60, 90);
+      assert.deepEqual(
+        [rider.effects[0]!.sinceTick, rider.effects[0]!.untilTick],
+        [60, 90],
+        `${kind}: a spell after the last one ran out starts afresh`,
+      );
+    } else
+      assert.deepEqual(
+        [effect!.sinceTick, effect!.untilTick],
+        [20, 30],
+        `${kind}: the newest application wins outright`,
+      );
+  }
+  // The rows as the game plays them.
+  assert.deepEqual(
+    EFFECT_KINDS.map((kind) => [kind, EFFECTS[kind].stacking]),
+    [
+      ["star", "extend"],
+      ["nitro", "stack"],
+      ["snail", "stack"],
+      ["drunk", "extend"],
+      ["ink", "extend"],
+      ["shieldGrace", "replace"],
+      ["portalGrace", "replace"],
+      ["portalCooldown", "replace"],
+    ],
+  );
 });

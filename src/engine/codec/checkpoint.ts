@@ -34,10 +34,9 @@ import {
   type TracerState,
 } from "../game.js";
 import {
-  EFFECTS,
   EFFECT_KINDS,
+  effectsAreCanonical,
   type ActiveEffect,
-  type EffectKind,
 } from "../effects.js";
 import { WEAPON_KINDS } from "../weapons.js";
 import { isAvatarId } from "../../shared/avatars.js";
@@ -132,7 +131,7 @@ const trail: Guard = (v) =>
   })(v) &&
   record(v) &&
   (v.expiresAtTick as number) > (v.createdTick as number);
-/** One entry per timed effect application; the ordering and per-kind bounds are checked with the game (`effectsInvariant`). */
+/** One entry per timed effect application; the ordering and per-kind bounds are checked with the game (`effectsAreCanonical`). */
 const activeEffects: Guard = array(
   shape({
     kind: (v) =>
@@ -456,51 +455,6 @@ function decodeTree(value: unknown, depth = 0, budget = { nodes: 0 }): unknown {
   return result;
 }
 
-/**
- * The longest a stacked effect can reach past the tick it was taken on: stacked deadlines are appended in tick order
- * and never further out than one duration, so a list the rules could not have produced is refused rather than left to
- * expire on a schedule no other replica shares.
- */
-const STACK_DURATIONS: Partial<Record<EffectKind, number>> = {
-  nitro: NITRO_DURATION_TICKS,
-  snail: SNAIL_DURATION_TICKS,
-};
-/**
- * Effects as the rules hold them (`effects.ts`): in `EFFECT_KINDS` order and by deadline within a kind, one entry per
- * kind that does not stack, at most MAX_SPEED_EFFECT_STACK of one that does, none begun in the future.
- */
-function effectsInvariant(
-  effects: readonly ActiveEffect[],
-  tick: number,
-): boolean {
-  const counts = new Map<EffectKind, number>();
-  for (let index = 0; index < effects.length; index++) {
-    const effect = effects[index]!,
-      previous = effects[index - 1];
-    const rule = EFFECTS[effect.kind];
-    const kept = (counts.get(effect.kind) ?? 0) + 1;
-    counts.set(effect.kind, kept);
-    if (
-      effect.sinceTick > tick ||
-      kept > (rule.stacking === "stack" ? MAX_SPEED_EFFECT_STACK : 1)
-    )
-      return false;
-    // A stacking kind with no horizon listed here is refused outright rather than left unbounded.
-    const horizon = STACK_DURATIONS[effect.kind];
-    if (
-      rule.stacking === "stack" &&
-      (horizon === undefined || effect.untilTick > tick + horizon)
-    )
-      return false;
-    if (previous) {
-      const order =
-        EFFECT_KINDS.indexOf(previous.kind) - EFFECT_KINDS.indexOf(effect.kind);
-      if (order > 0 || (order === 0 && previous.untilTick > effect.untilTick))
-        return false;
-    }
-  }
-  return true;
-}
 function gameInvariants(game: GameState): boolean {
   const slots = new Set<number>();
   const pieceIds = new Set<number>();
@@ -530,7 +484,7 @@ function gameInvariants(game: GameState): boolean {
     )
       return false;
     if (
-      !effectsInvariant(p.effects, game.tick) ||
+      !effectsAreCanonical(p.effects, game.tick) ||
       p.trail.some((t) => t.createdTick > game.tick)
     )
       return false;
@@ -638,11 +592,12 @@ function gameInvariants(game: GameState): boolean {
     // A pull's shot id is its first bomb's id, so no bomb names a shot issued after it.
     if (b.shot !== undefined && b.shot > id) return false;
   }
-  const tracerIds = new Set<number>();
+  // Tracers are held in id order (the order they were fired in), which also makes their ids distinct.
+  let previousTracer = 0;
   for (const t of game.tracers) {
     if (
       game.bombs.has(t.id) ||
-      tracerIds.has(t.id) ||
+      t.id <= previousTracer ||
       t.id >= game.nextBombId ||
       !game.matchStats.has(t.ownerId) ||
       t.launchedTick > game.tick ||
@@ -650,7 +605,7 @@ function gameInvariants(game: GameState): boolean {
       (t.shot !== undefined && t.shot > t.id)
     )
       return false;
-    tracerIds.add(t.id);
+    previousTracer = t.id;
   }
   for (const b of game.blasts)
     if (b.bombId >= game.nextBombId || !game.matchStats.has(b.ownerId))
