@@ -25,7 +25,7 @@ The simulation runs at `TICK_HZ` = 20 (`src/shared/game.ts`), one tick per `TICK
 
 ### 2. Streams, sequence numbers and generations
 
-Each member owns one append-only stream (`src/online/stream.ts` `StreamLog`). An entry is `[seq, tick, kind, ...args]` (`src/shared/input-log.ts` `Entry`, `isEntry`): `seq` starts at 1 and increases by one; `tick` is absolute and never decreases within a stream. Player kinds are `STEER`, `PRESS`, `RELEASE`, `CANCEL`, `AVATAR` (kind 1, Target Bomb's `AIM`, was retired in `fuse-p2p-30` and is refused); management kinds are `JOIN`, `LEAVE`, `PRESENCE`, `SETTINGS`, `ACTION`, `BOT`. Press gesture ids must strictly increase along a stream (`StreamLog.append`, `StreamLog.receive`).
+Each member owns one append-only stream (`src/online/stream.ts` `StreamLog`). An entry is `[seq, tick, kind, ...args]` (`src/shared/input-log.ts` `Entry`, `isEntry`): `seq` starts at 1 and increases by one; `tick` is absolute and never decreases within a stream. Player kinds are `STEER`, `PRESS`, `RELEASE`, `CANCEL`, `AVATAR` (kind 1, Target Bomb's `AIM`, was retired in `fuse-p2p-39` and is refused); management kinds are `JOIN`, `LEAVE`, `PRESENCE`, `SETTINGS`, `ACTION`, `BOT`. Press gesture ids must strictly increase along a stream (`StreamLog.append`, `StreamLog.receive`).
 
 A member stamps its own entries `max(floor(clock) + 1, lastOwnTick)` (`RoomRuntime.ownTick`), so its own input applies on the next tick with no round trip. Input is edge-filtered: an unchanged frame produces no entry (`RoomRuntime.input`).
 

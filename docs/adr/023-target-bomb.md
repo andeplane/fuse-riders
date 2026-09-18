@@ -1,6 +1,6 @@
 # ADR 023: Target Bomb
 
-Status: Removed in fold rules `fuse-p2p-30`. Target Bomb, the `aim` input, the AIM log entry (kind 1), `targetBombArmed` and `bombTarget` no longer exist; see [PROTOCOL.md](../online/PROTOCOL.md). Kept as a record of the design.
+Status: Removed in fold rules `fuse-p2p-39`. Target Bomb, the `aim` input, the AIM log entry (kind 1), `targetBombArmed` and `bombTarget` no longer exist; see [PROTOCOL.md](../online/PROTOCOL.md). Kept as a record of the design.
 
 A rare Target Bomb pickup (weight 1, ordinary weight 3) arms one targeted bomb. While Fire is held, normalized absolute aim coordinates in input packets map to the current arena dimensions and clamp to the playable rider-safe bounds. Initial preview defaults 100 units forward. Releasing creates one immediately landed bomb at that target with the ordinary fuse, cooldown and blast upgrades. Triple/Five remain armed for the following ordinary launch. Only an accepted release consumes Target Bomb.
 
