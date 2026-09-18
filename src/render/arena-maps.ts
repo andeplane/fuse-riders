@@ -630,11 +630,12 @@ function wallParts(obstacle: Obstacle, style: ObstacleStyle): ObstaclePart[] {
     width = hw * 2,
     height = hh * 2;
   const horizontal = width >= height;
+  // A shallower drop shadow than a rock's: a 12-unit band with six units of shadow under it would read as half again its lethal thickness.
   const parts: ObstaclePart[] = [
     {
       shape: "rect",
-      x: left + 4,
-      y: top + 6,
+      x: left + 2,
+      y: top + 3,
       width,
       height,
       color: "#000000",

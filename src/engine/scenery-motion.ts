@@ -50,7 +50,7 @@ export const TRAIN_CAR_HALF_SIZE = 16;
 export const TRAIN_CAR_SPACING = 36;
 /** Half the thickness of a drifting wall, the thickness of the pixel style's boundary wall. */
 export const CROSS_WALL_HALF_THICKNESS = 6;
-/** Units per tick the cross drifts at, on each axis: 3 a tick, 60 a second, against a rider's 150 at the start of a round. */
+/** Units per tick each wall slides along its normal: 2.4 across and 1.8 down, so the crossing point moves 3 a tick, 60 a second, against a rider's 150 at the start of a round. */
 export const DRIFT_VELOCITY = Object.freeze({ vx: 2.4, vy: 1.8 });
 /** Bounds checkpoint decoding admits, well over anything a map defines. */
 export const MAX_MOVER_SPEED = 50;
@@ -211,7 +211,11 @@ export function fixedScenery(
   return [];
 }
 
-/** A value stepped by `velocity` and turned back wherever it left [min, max]; a range too small to move in pins it. */
+/**
+ * A value stepped by `velocity` and turned back wherever it left [min, max]; a range too small to move in pins it.
+ * The reflected value is clamped as well: a step longer than the range (nothing a map defines, but within what a
+ * checkpoint admits) would otherwise reflect out the other side, and the piece must never leave the board.
+ */
 function reflect(
   value: number,
   velocity: number,
@@ -220,8 +224,16 @@ function reflect(
 ): { value: number; velocity: number } {
   if (max <= min) return { value: (min + max) / 2, velocity: 0 };
   const next = value + velocity;
-  if (next < min) return { value: min + (min - next), velocity: -velocity };
-  if (next > max) return { value: max - (next - max), velocity: -velocity };
+  if (next < min)
+    return {
+      value: Math.min(max, min + (min - next)),
+      velocity: -velocity,
+    };
+  if (next > max)
+    return {
+      value: Math.max(min, max - (next - max)),
+      velocity: -velocity,
+    };
   return { value: next, velocity };
 }
 

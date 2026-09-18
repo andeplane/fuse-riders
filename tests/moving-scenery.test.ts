@@ -207,27 +207,24 @@ test("the trains map lays every car of every train on its track, head first, cle
       "the locomotive has the lowest id of its train",
     );
   });
-  // The same spawn geometry `prepareRound` uses: a circle of riders, each with a corridor ahead to keep clear.
-  const radius = 0.28 * Math.min(ARENA_WIDTH, ARENA_HEIGHT);
-  for (let riders = 2; riders <= 5; riders += 1)
-    for (let index = 0; index < riders; index += 1) {
-      const angle = -Math.PI / 2 + (index * 2 * Math.PI) / riders;
-      const x = ARENA_WIDTH / 2 + Math.cos(angle) * radius;
-      const y = ARENA_HEIGHT / 2 + Math.sin(angle) * radius;
-      const heading = angle + Math.PI / 2;
-      for (const car of cars)
+  // Where riders actually start, read from started rounds rather than recomputed: nobody moves during the countdown,
+  // so each rider still stands on its spawn with the corridor ahead of it that the sampled maps keep clear.
+  for (let riders = 2; riders <= 5; riders += 1) {
+    const game = scene("trains", riders);
+    for (const player of game.players.values())
+      for (const car of movers(game))
         assert.ok(
           !obstacleBlocksPath(
             car,
-            x,
-            y,
-            x + Math.cos(heading) * SPAWN_CORRIDOR_LENGTH,
-            y + Math.sin(heading) * SPAWN_CORRIDOR_LENGTH,
+            player.x,
+            player.y,
+            player.x + Math.cos(player.angle) * SPAWN_CORRIDOR_LENGTH,
+            player.y + Math.sin(player.angle) * SPAWN_CORRIDOR_LENGTH,
             SPAWN_CORRIDOR_RADIUS,
           ),
-          `car ${car.id} stands across the start of rider ${index} of ${riders}`,
+          `car ${car.id} stands across the start of ${player.id} of ${riders}`,
         );
-    }
+  }
 });
 
 test("the drifting cross starts on the board's edges as two walls that span it, each sliding along its own normal", () => {
@@ -279,11 +276,29 @@ test("a bouncing piece is turned back by the edges with its whole rectangle kept
       wall.x - wall.halfWidth >= 0 && wall.x + wall.halfWidth <= ARENA_WIDTH,
     );
   }
-  // A whole board of width at 2.4 a tick: the same distance back and forth, so it is at the far end and returning.
+  // Two thousand steps later it is still at 2.4 a tick one way or the other: a reversal only changes the sign.
   assert.ok(
     Math.abs(wall.motion!.kind === "bounce" ? wall.motion.vx : 0) === 2.4,
     "the speed is kept through every reversal",
   );
+  // A step longer than the room it bounces in (nothing a map defines) is turned back and held at the edge rather
+  // than reflected out the other side: whatever a checkpoint admits, the piece stays on the board.
+  const wide: Obstacle = {
+    id: 2,
+    kind: "wall",
+    x: 800,
+    y: 450,
+    halfWidth: 799,
+    halfHeight: 450,
+    motion: { kind: "bounce", vx: 50, vy: 0 },
+  };
+  for (let tick = 0; tick < 20; tick += 1) {
+    advanceScenery(wide, ARENA_WIDTH, ARENA_HEIGHT, []);
+    assert.ok(
+      wide.x - wide.halfWidth >= 0 && wide.x + wide.halfWidth <= ARENA_WIDTH,
+      `an overlong step is held on the board on tick ${tick}`,
+    );
+  }
 });
 
 test("during a round the cars advance along their loops every tick, keep their id order, and only while the round is in play", () => {
@@ -382,6 +397,81 @@ test("a car that runs into a rider standing still kills it, and the rider dies w
   place(game, "p1", { x: 1200, y: 450, angle: 0 });
   const deaths = run(game, 60);
   assert.deepEqual(deaths, [{ playerId: "p0", cause: "wall" }]);
+  const wreck = rider(game, "p0");
+  assert.ok(
+    movers(game).some((car) =>
+      obstacleBlocksPath(car, wreck.x, wreck.y, wreck.x, wreck.y, 4),
+    ),
+    "the rider died where the car reached it",
+  );
+});
+
+test("a shell reflects off a car as it does off a rock, and a shield turns a rider back from one", () => {
+  const game = scene("trains", 3);
+  for (const car of movers(game))
+    if (car.motion?.kind === "rail") car.motion.speed = 0; // parked, so the car itself does not move onto anything
+  const car = movers(game)[0]!;
+  place(game, "p0", {
+    x: car.x - 120,
+    y: car.y,
+    angle: 0,
+    shellArmed: true,
+    bombReadyAtTick: 0,
+  });
+  place(game, "p1", { x: 1200, y: 450, angle: 0 });
+  place(game, "p2", { x: 1200, y: 700, angle: 0 });
+  step(game, new Map([["p0", tap]]));
+  const shell = () =>
+    [...game.bombs.values()].find((bomb) => bomb.shell && !bomb.shell.gun)!;
+  assert.ok(shell().shell!.vx > 0, "launched at the car");
+  // Tick by tick up to the bounce: left to fly on, the shell comes straight back at the rider that fired it.
+  let reflected = false;
+  for (let tick = 0; tick < 12 && !reflected; tick += 1) {
+    run(game, 1);
+    reflected = shell().shell!.vx < 0;
+  }
+  assert.ok(reflected, "reflected off the car");
+  assert.equal(shell().shell!.bounces, 1);
+  assert.ok(rider(game, "p0").alive, "the rider has not reached the car yet");
+  game.bombs.delete(shell().id);
+
+  place(game, "p0", { x: car.x - 60, y: car.y, angle: 0, shielded: true });
+  const deaths = run(game, 8);
+  assert.deepEqual(deaths, []);
+  const bounced = rider(game, "p0");
+  assert.ok(!bounced.shielded, "the shield was spent");
+  assert.ok(
+    Math.abs(Math.abs(bounced.angle) - Math.PI) < 1e-6,
+    "turned straight back from the face it hit",
+  );
+  assert.ok(
+    bounced.x < car.x - TRAIN_CAR_HALF_SIZE,
+    "and standing outside the car",
+  );
+});
+
+test("on the drifting cross a shield also turns a rider back from the wall met through an edge, and the horizontal wall kills through the top", () => {
+  const game = scene("drift");
+  const upright = movers(game).find(
+    (wall) => wall.halfHeight > wall.halfWidth,
+  )!;
+  upright.x = ARENA_WIDTH - CROSS_WALL_HALF_THICKNESS;
+  upright.motion = { kind: "bounce", vx: 0, vy: 0 };
+  place(game, "p0", { x: 8, y: 300, angle: Math.PI, shielded: true });
+  place(game, "p1", { x: 800, y: 700, angle: 0 });
+  assert.deepEqual(run(game, 3), []);
+  const bounced = rider(game, "p0");
+  assert.ok(!bounced.shielded && bounced.alive);
+  assert.ok(Math.abs(bounced.angle) < 1e-6, "turned back the way it came");
+  assert.ok(bounced.x > 8, "riding away from the edge again");
+
+  const flat = scene("drift");
+  const across = movers(flat).find((wall) => wall.halfWidth > wall.halfHeight)!;
+  across.y = ARENA_HEIGHT - CROSS_WALL_HALF_THICKNESS; // hugging the bottom edge
+  across.motion = { kind: "bounce", vx: 0, vy: 0 };
+  place(flat, "p0", { x: 300, y: 8, angle: -Math.PI / 2 });
+  place(flat, "p1", { x: 800, y: 700, angle: 0 });
+  assert.deepEqual(run(flat, 3), [{ playerId: "p0", cause: "wall" }]);
 });
 
 test("neither a blast nor the closing overtime walls remove a train, while ordinary scenery beside it goes", () => {
@@ -610,6 +700,36 @@ test("a checkpoint carries movers exactly, restores them where they were, and re
     }),
     undefined,
     "rail cars belong to the trains map",
+  );
+  assert.equal(
+    corrupt((data) => {
+      data.obstacles[0]!.kind = "rock";
+    }),
+    undefined,
+    "only walls and trains move",
+  );
+  assert.equal(
+    corrupt((data) => {
+      data.obstacles.push({
+        id: 97,
+        kind: "wall",
+        x: 800,
+        y: 450,
+        halfWidth: 20,
+        halfHeight: 20,
+      });
+    }),
+    undefined,
+    "a wall stands only on the drifting cross",
+  );
+  const driftData = JSON.parse(encodeGameState(drift)) as {
+    obstacles: Record<string, unknown>[];
+  };
+  (driftData.obstacles[1]!.motion as Record<string, unknown>).vx = 1590;
+  assert.equal(
+    decodeGameState(JSON.stringify(driftData)),
+    undefined,
+    "a bounce step longer than the room it bounces in",
   );
   assert.equal(
     corrupt((data) => {

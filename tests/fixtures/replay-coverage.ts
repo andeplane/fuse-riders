@@ -66,6 +66,8 @@ export interface ReplayCoverage {
   obstaclesBlasted: number;
   /** Riders killed under `wall` standing against scenery, which keeps clear of the boundary by more than a rider. */
   sceneryCrashes: number;
+  /** Of those, the ones standing against scenery that moves: a wandering wall or a train. */
+  moverCrashes: number;
   /** Living riders carried through an open edge of the wrap map, without a portal. */
   edgeCrossings: number;
   /** Blasts opened over an open edge, which also stand on the far side of it. */
@@ -165,6 +167,7 @@ export function emptyCoverage(): ReplayCoverage {
     maps: [],
     obstaclesBlasted: 0,
     sceneryCrashes: 0,
+    moverCrashes: 0,
     edgeCrossings: 0,
     edgeBlasts: 0,
     pulls: zeroes(WEAPONS),
@@ -384,18 +387,24 @@ export function coverageObserver(coverage: ReplayCoverage) {
           const crashed = game.players.get(event.playerId);
           if (!crashed) continue;
           const from = players.get(event.playerId);
-          if (
-            obstacles.some((obstacle) =>
-              obstacleTouchesCircle(
-                obstacle,
-                crashed.x,
-                crashed.y,
-                RIDER_RADIUS + 1,
-              ),
-            )
-          )
+          const against = (
+            obstacle: { motion?: unknown } & Parameters<
+              typeof obstacleTouchesCircle
+            >[0],
+          ) =>
+            obstacleTouchesCircle(
+              obstacle,
+              crashed.x,
+              crashed.y,
+              RIDER_RADIUS + 1,
+            );
+          if (obstacles.some(against)) {
             coverage.sceneryCrashes++;
-          else if (
+            if (
+              obstacles.some((obstacle) => obstacle.motion && against(obstacle))
+            )
+              coverage.moverCrashes++;
+          } else if (
             from &&
             game.gravityFields.some(
               (field) =>
@@ -827,6 +836,13 @@ export const REQUIREMENTS: readonly Requirement[] = [
     (coverage) => coverage.sceneryCrashes > 0,
     [],
     "forest",
+  ),
+  requirement(
+    "mover:crash",
+    "a rider dies against scenery that moves: a train or the drifting cross",
+    (coverage) => coverage.moverCrashes > 0,
+    [],
+    "trains",
   ),
   requirement(
     "wrap:crossing",

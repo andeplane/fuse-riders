@@ -37,7 +37,7 @@ export function fitField(ctx: TickContext): void {
     .map((pair) => fitPortalPair(pair, trailBounds, RIDER_RADIUS))
     .filter((pair): pair is PortalPair => pair !== undefined);
   // Scenery is not resized the way a gate is: an obstacle the closing walls have reached is rubble. The movers a
-  // map is made of run on under the walls instead, where nothing alive can meet them.
+  // map is made of run on regardless, through the closing band and across what is left of the field.
   state.obstacles = state.obstacles.filter(
     (obstacle) =>
       obstacleIsPermanent(obstacle) ||

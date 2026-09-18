@@ -639,11 +639,25 @@ function gameInvariants(game: GameState): boolean {
       piece.y + piece.halfHeight > game.height
     )
       return false;
+    // Only the kinds that move carry a motion, and each mover belongs to the map that lays it: a rock on the
+    // classic board never moves, and a blast-proof wall never stands anywhere but on the drifting cross.
+    if (piece.motion && piece.kind !== "wall" && piece.kind !== "train")
+      return false;
+    if (piece.kind === "wall" && game.map !== "drift") return false;
+    if (piece.kind === "train" && game.map !== "trains") return false;
     // A car is somewhere on a loop of the map it is on: the track index passed the shape, so the loop exists.
     if (
       piece.motion?.kind === "rail" &&
-      (game.map !== "trains" ||
+      (piece.kind !== "train" ||
         piece.motion.along > trackLength(TRAIN_TRACKS[piece.motion.track]!))
+    )
+      return false;
+    // A bouncing piece's step fits inside the room it has to bounce in, so it cannot overshoot the far edge.
+    if (
+      piece.motion?.kind === "bounce" &&
+      (piece.kind !== "wall" ||
+        Math.abs(piece.motion.vx) > game.width - 2 * piece.halfWidth ||
+        Math.abs(piece.motion.vy) > game.height - 2 * piece.halfHeight)
     )
       return false;
   }
