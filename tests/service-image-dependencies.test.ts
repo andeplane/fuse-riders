@@ -78,11 +78,10 @@ function productionPackages(lock: Lockfile): Set<string> {
  * package production when any production package declares it.
  */
 test("the Cloud Run entry and its tsx loader resolve from production dependencies only", async () => {
-  const production = productionPackages(
-    parse(
-      await readFile(new URL("../pnpm-lock.yaml", import.meta.url), "utf8"),
-    ) as Lockfile,
-  );
+  const lock = parse(
+    await readFile(new URL("../pnpm-lock.yaml", import.meta.url), "utf8"),
+  ) as Lockfile;
+  const production = productionPackages(lock);
   const dockerfile = await readFile(
     new URL("../Dockerfile.cloud", import.meta.url),
     "utf8",
@@ -144,6 +143,29 @@ test("the Cloud Run entry and its tsx loader resolve from production dependencie
     firstParty.includes("src/service/index.ts") &&
       firstParty.some((file) => file.startsWith("packages/fuse-network-be/")),
     "the walk reached the service's own source, including its workspace packages",
+  );
+  // pnpm links only a workspace's own declared dependencies, so a package being somewhere in the
+  // production tree is not enough: each first-party file's bare imports must be production
+  // dependencies of its own workspace (the root for src/, packages/<name> for its sources).
+  const undeclared: string[] = [];
+  for (const file of firstParty) {
+    const importer = file.match(/^packages\/[^/]+(?=\/)/)?.[0] ?? ".";
+    const entry = lock.importers[importer];
+    assert.ok(entry, `${importer} is a workspace importer`);
+    const declared = new Set([
+      ...Object.keys(entry.dependencies ?? {}),
+      ...Object.keys(entry.optionalDependencies ?? {}),
+    ]);
+    for (const { original } of result.metafile.inputs[file]!.imports) {
+      if (!original || /^(\.|\/|node:)/.test(original)) continue;
+      const name = original.match(/^(?:@[^/]+\/)?[^/]+/)![0];
+      if (!declared.has(name)) undeclared.push(`${file} imports ${name}`);
+    }
+  }
+  assert.deepEqual(
+    undeclared,
+    [],
+    "imports a package that is not a production dependency of its own workspace",
   );
   // Resolution the walk above cannot follow. `import(` followed by anything but a quote is a computed
   // specifier; a template literal counts, because only a plain string is certain to be walked.
