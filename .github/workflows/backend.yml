@@ -84,7 +84,10 @@ jobs:
       # service's `commit` label alone is not that (a rollout that never became ready has already
       # written it), so the label counts only when the last created revision is the ready one and
       # carries all of the traffic; then a change whose own run failed or was replaced is deployed by
-      # the next run. A manual dispatch always deploys, and so does any doubt about what is served.
+      # the next run. Any doubt about what is served deploys, except one: when the revision that
+      # carries all of the traffic was built from a commit strictly newer than this target (a stale
+      # run after a local deploy and a failed rollout, or a pin), deploying would roll production
+      # back, so the run skips. A manual dispatch always deploys, so an intended rollback still works.
       - name: Did anything the backend is built from change?
         id: changes
         run: npx tsx scripts/backend-changed.ts
