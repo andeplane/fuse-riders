@@ -6,7 +6,7 @@ import { defaultRoomSettings } from "../src/shared/room-settings.js";
 import { smokeTimeout } from "./smoke-timeout.js";
 /**
  * End-of-match recap evidence: a solo match plays to completion, the report opens only after the
- * final-round pause, shows a podium/awards/comparison, closes, and reopens from RESULTS on a desktop
+ * final-round pause, shows standings and highlights with expandable statistics, closes, and reopens from RESULTS on a desktop
  * viewport and on a phone-landscape viewport. BROWSER=webkit selects WebKit; HOME_URL the served app.
  */
 const base = process.env.HOME_URL ?? "http://127.0.0.1:4188/";
@@ -24,7 +24,7 @@ interface ViewportResult {
   viewport: { width: number; height: number };
   matchOverTick: number;
   pauseTicks: number;
-  podium: number;
+  champions: number;
   awards: number;
   totals: number;
   rows: number;
@@ -60,7 +60,7 @@ async function inside(page: Page, locator: Locator): Promise<void> {
   );
 }
 async function assertRecapLayout(page: Page): Promise<{
-  podium: number;
+  champions: number;
   awards: number;
   totals: number;
   rows: number;
@@ -81,7 +81,46 @@ async function assertRecapLayout(page: Page): Promise<{
     "the report announces itself as the results, not the game menu",
   );
   await inside(page, dialog);
-  await inside(page, page.getByRole("button", { name: "CLOSE", exact: true }));
+  const surface = await dialog.evaluate((element) => {
+    const style = getComputedStyle(element),
+      box = element.getBoundingClientRect();
+    return {
+      width: box.width,
+      viewport: innerWidth,
+      background: style.backgroundColor,
+      shadow: style.boxShadow,
+      border: style.borderWidth,
+    };
+  });
+  assert.equal(
+    surface.width,
+    surface.viewport,
+    "results span the viewport without side panels",
+  );
+  assert.equal(
+    surface.background,
+    "rgba(0, 0, 0, 0)",
+    "results have no opaque panel",
+  );
+  assert.equal(surface.shadow, "none");
+  assert.equal(surface.border, "0px");
+  const scene = page.locator(".online-arena");
+  assert.ok(
+    await scene.isVisible(),
+    "the actual arena stays visible behind results",
+  );
+  assert.equal(
+    await page.locator("canvas").count(),
+    1,
+    "results use the existing scene, not a copied canvas",
+  );
+  assert.ok(
+    await scene.evaluate((element) =>
+      getComputedStyle(element).filter.includes("blur"),
+    ),
+    "the scene is blurred for the overview",
+  );
+  await inside(page, page.getByRole("button", { name: /full stats/ }));
   assert.ok(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth + 1,
@@ -94,29 +133,30 @@ async function assertRecapLayout(page: Page): Promise<{
       .evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
     "dialog body must not scroll horizontally",
   );
+  await dialog.getByText("MATCH COMPLETE", { exact: true }).waitFor();
+  const champions = await page.locator(".recap-standings .is-champion").count();
+  assert.ok(champions >= 1 && champions <= 5, `champions: ${champions}`);
+  assert.equal(await page.locator(".recap-standings tbody tr").count(), 5);
+  assert.equal(await page.locator(".recap-standings .is-you").count(), 1);
+  assert.ok(await page.locator(".recap-victory h2").textContent());
+  assert.ok((await page.locator(".recap-feature").count()) >= 1);
+  assert.equal(await page.locator(".recap-details").isVisible(), false);
   await page
-    .getByText("MATCH COMPLETE // AFTER ACTION REPORT", { exact: true })
-    .waitFor({ state: "visible" });
-  const podium = await page.locator(".podium-card").count(),
-    awards = await page.locator(".recap-awards .award-card").count(),
-    totals = await page.locator(".recap-total").count();
-  const rows = await page
-    .locator(".comparison-row:not(.comparison-header)")
-    .count();
-  assert.ok(podium >= 1 && podium <= 5, `podium cards: ${podium}`);
-  assert.ok(
-    (await page.locator(".podium-card.podium-place-1").count()) >= 1,
-    "a champion card is present",
+    .getByRole("button", { name: "View full stats ↗", exact: true })
+    .click();
+  assert.equal(await page.locator(".recap-details").isVisible(), true);
+  assert.equal(
+    await page.locator(".recap-stats-toggle").getAttribute("aria-expanded"),
+    "true",
   );
+  const awards = await page.locator(".recap-awards .award-card").count(),
+    totals = await page.locator(".recap-total").count(),
+    rows = await page
+      .locator(".comparison-row:not(.comparison-header)")
+      .count();
   assert.ok(awards >= 1, "at least one award card");
   assert.equal(totals, 8, "gameplay totals strip");
   assert.equal(rows, 5, "one comparison row per rider");
-  assert.ok(
-    (await page.locator(".podium-card small").allTextContents()).every((text) =>
-      text.includes(" PTS · "),
-    ),
-    "podium explains match points and round wins",
-  );
   await page
     .locator(".comparison-header")
     .getByText("PTS", { exact: true })
@@ -129,7 +169,11 @@ async function assertRecapLayout(page: Page): Promise<{
   const comparisonScrolls = await page
     .locator(".recap-comparison")
     .evaluate((element) => element.scrollWidth > element.clientWidth + 1);
-  return { podium, awards, totals, rows, comparisonScrolls };
+  await page
+    .getByRole("button", { name: "Hide full stats ↗", exact: true })
+    .click();
+  assert.equal(await page.locator(".recap-details").isVisible(), false);
+  return { champions, awards, totals, rows, comparisonScrolls };
 }
 
 const browser = await (browserName === "webkit" ? webkit : chromium).launch({
@@ -139,6 +183,7 @@ try {
   for (const viewport of [
     { width: 1280, height: 800 },
     { width: 844, height: 390 },
+    { width: 390, height: 844 },
   ]) {
     const phone = viewport.width < 1000;
     const context = await browser.newContext({
@@ -160,7 +205,7 @@ try {
     await page.addInitScript(
       (settings: string | undefined) => {
         if (settings)
-          localStorage.setItem("fuse-riders-room-settings-v1", settings);
+          localStorage.setItem("fuse-riders-room-settings-v2", settings);
         window.addEventListener("fuse-benchmark", (event) => {
           const detail = (
             event as CustomEvent<{
@@ -314,10 +359,13 @@ try {
             : [],
         ),
         firstFinal = banners.findIndex((banner) => banner.kind === "final");
-      assert.ok(
-        firstFinal > 0,
-        `the round result comes before the match result: ${JSON.stringify(banners.map((banner) => banner.kind))}`,
-      );
+      // Portrait phones show the rotation gate instead of arena announcements.
+      if (viewport.height > viewport.width) assert.equal(banners.length, 0);
+      else
+        assert.ok(
+          firstFinal > 0,
+          `the round result comes before the match result: ${JSON.stringify(banners.map((banner) => banner.kind))}`,
+        );
       for (const [index, banner] of banners.entries())
         if (index < firstFinal) {
           assert.equal(banner.kind, "round", JSON.stringify(banner));
@@ -329,15 +377,56 @@ try {
           assert.match(banner.big, /THE MATCH$|^SHARED VICTORY$/);
         }
       const layout = await assertRecapLayout(page);
+      if (!phone) {
+        await page
+          .getByRole("button", { name: "View full stats ↗", exact: true })
+          .click();
+        const watch = page.locator(".watch-again").first();
+        if (await watch.count()) {
+          await watch.click();
+          await page.locator(".online-app.replaying").waitFor();
+          const playback = await page
+            .locator(".online-arena")
+            .evaluate((element) => ({
+              filter: getComputedStyle(element).filter,
+              fit: getComputedStyle(element).objectFit,
+            }));
+          assert.deepEqual(
+            playback,
+            { filter: "none", fit: "contain" },
+            "WATCH restores a sharp, uncropped arena",
+          );
+          assert.equal(
+            await page.locator(".shared-lobby").isVisible(),
+            false,
+            "lobby controls do not cover replay",
+          );
+          console.log(`PASS ${tag} sharp highlight replay`);
+          await page
+            .getByRole("dialog", { name: "Match results" })
+            .waitFor({ timeout: smokeTimeout(20000) });
+          await assertRecapLayout(page);
+        } else {
+          await page
+            .getByRole("button", { name: "Hide full stats ↗", exact: true })
+            .click();
+        }
+        await page.setViewportSize({ width: 2000, height: 1100 });
+        await assertRecapLayout(page);
+        await page.screenshot({
+          path: `artifacts/match-recap-${browserName}-ultrawide.png`,
+        });
+        await page.setViewportSize(viewport);
+      }
       const screenshots = [`artifacts/match-recap-${tag}.png`];
       await page.screenshot({ path: screenshots[0]! });
+      await page
+        .getByRole("button", { name: "View full stats ↗", exact: true })
+        .click();
       await page.locator("dialog[open] .dialog-body").evaluate((element) => {
         element.scrollTop = element.scrollHeight;
       });
-      await inside(
-        page,
-        page.getByRole("button", { name: "CLOSE", exact: true }),
-      );
+      await inside(page, page.getByRole("button", { name: /full stats/ }));
       screenshots.push(`artifacts/match-recap-${tag}-scrolled.png`);
       await page.screenshot({ path: screenshots[1]! });
       await page.getByRole("button", { name: "CLOSE", exact: true }).click();
@@ -365,14 +454,13 @@ try {
           .locator("dialog[open] .dialog-body")
           .evaluate((element) => element.scrollTop),
         0,
-        "reopening starts at the podium, not where the reader left off",
+        "reopening starts at the champions, not where the reader left off",
       );
       screenshots.push(`artifacts/match-recap-${tag}-reopened.png`);
       await page.screenshot({ path: screenshots[2]! });
-      await page.getByRole("button", { name: "CLOSE", exact: true }).click();
-      await page.getByRole("dialog").waitFor({ state: "hidden" });
       if (!phone) {
         await page
+          .getByRole("dialog")
           .getByRole("button", { name: "REMATCH", exact: true })
           .click();
         await waitFor(
@@ -392,6 +480,39 @@ try {
           false,
           "a rematch does not reopen the old report",
         );
+        assert.equal(
+          await page
+            .locator(".online-app")
+            .evaluate((element) =>
+              element.classList.contains("scene-background"),
+            ),
+          false,
+          "rematch restores the sharp playing arena",
+        );
+      }
+      if (phone) {
+        await page
+          .getByRole("dialog")
+          .getByRole("button", { name: "Back to lobby", exact: true })
+          .click();
+        await waitFor(
+          () => latest()?.phase === "lobby",
+          20000,
+          "footer returns to lobby",
+        );
+        assert.ok(
+          await page.locator(".online-arena").isVisible(),
+          "the lobby retains the actual arena",
+        );
+        assert.ok(
+          await page
+            .locator(".online-arena")
+            .evaluate((element) =>
+              getComputedStyle(element).filter.includes("blur"),
+            ),
+          "lobby keeps the scene treatment",
+        );
+        assert.equal(await page.getByRole("dialog").isVisible(), false);
       }
       assert.deepEqual(errors, []);
       const result: ViewportResult = {
@@ -403,7 +524,7 @@ try {
       };
       results.push({ browser: browserName, passed: true, ...result });
       console.log(
-        `PASS ${tag} match recap (${layout.podium} podium, ${layout.awards} awards, ${layout.rows} rows)`,
+        `PASS ${tag} match recap (${layout.champions} champions, ${layout.awards} awards, ${layout.rows} rows)`,
       );
     } catch (error) {
       await page
