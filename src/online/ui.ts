@@ -1,8 +1,5 @@
 import { VoiceChat } from "./voice-chat.js";
 import { uuid } from "fuse-netcode";
-import { showRoomSettings } from "./room-settings-menu.js";
-import { keyboardShortcuts } from "./keyboard-shortcuts.js";
-import { startAttract } from "./attract.js";
 import { mountArenaPresentation } from "../render/phaser/presentation.js";
 import { presentFrames } from "../render/time/present.js";
 import { apiUrl, appUrl } from "./endpoints.js";
@@ -21,10 +18,7 @@ import {
 import { ControllerInputState } from "../client/controller-state.js";
 import { ControllerKeyboardBindings } from "../client/controller-keyboard.js";
 import { ControllerPointerBindings } from "../client/controller-pointers.js";
-import {
-  createAvatarPicker,
-  createAvatarPortrait,
-} from "../client/avatar-heads.js";
+import { createAvatarPortrait } from "../client/avatar-heads.js";
 import {
   applyThemeProperties,
   themes,
@@ -34,25 +28,38 @@ import {
 import { selectedTheme, storeTheme } from "../client/theme-choice.js";
 import { createGameAudio, type GameAudio } from "../client/game-audio.js";
 import {
-  defaultRoomSettings,
   loadRoomSettings,
-  parseRoomSettings,
   SETTINGS_KEY,
   type RoomSettings,
 } from "../engine/room-settings.js";
-import type { PickupType } from "../engine/game.js";
 import type { WorldView } from "../engine/view.js";
 import { renderMatchRecap } from "./match-recap-view.js";
+import { node, setAttributeIfChanged, setIfChanged } from "./dom.js";
+import { showLanding } from "./landing.js";
+import {
+  displayQuery,
+  hostTokenKey,
+  LAST_ROOM_KEY,
+  onlineRoute,
+} from "./landing-route.js";
+import { PICKUP_LABELS } from "./pickup-labels.js";
+import { createAvatarDialog } from "./dialogs/avatar.js";
+import { createMenuDialog } from "./dialogs/menu.js";
+import { createRadioDialog } from "./dialogs/radio.js";
+import { createRecapDialog } from "./dialogs/recap.js";
+import { createDialogRegistry, type RoomDialogId } from "./dialogs/registry.js";
+import { createRoomSettingsDialog } from "./dialogs/room-settings.js";
+import { createSettingsDialog } from "./dialogs/settings.js";
+import { createShortcutsDialog } from "./dialogs/shortcuts.js";
+import { createVoiceDialog } from "./dialogs/voice.js";
 import { ReplayDirector, describeClip } from "../client/replay.js";
 import { createReplayOverlay } from "../client/replay-overlay.js";
 import { RoomRuntime, type Callbacks } from "./room-runtime.js";
 import {
   PeerTransport,
-  createRoom,
   endRoom,
   formatLinkDiagnostics,
   installRoomLifecycle,
-  validRoomCode,
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES } from "fuse-netcode";
 import { NetStats } from "./net-stats.js";
@@ -79,25 +86,12 @@ import { reportGraphics, startAnalytics, track } from "./analytics.js";
 import { createAnalyticsSetting } from "./analytics-setting.js";
 import { connectStatus } from "./analytics-text.js";
 import { createFunnel } from "./funnel.js";
-import { POWERUP_GUIDE } from "../client/powerup-guide.js";
-import { createPowerupGuide } from "../client/powerup-guide-view.js";
 import { announcementFor, eliminationLine } from "../client/arena-announcer.js";
 /** The blurred scene behind the lobby and results redraws at 10 fps. */
 const BACKDROP_FRAME_MS = 100;
-const LAST_ROOM_KEY = "fuse-last-room";
 const reducedMotion = () =>
   matchMedia("(prefers-reduced-motion: reduce)").matches;
 const storage = safeStorage(() => localStorage);
-const node = <K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  text = "",
-  className = "",
-) => {
-  const e = document.createElement(tag);
-  e.textContent = text;
-  e.className = className;
-  return e;
-};
 /** Clipboard write with an execCommand fallback. `navigator.clipboard` is secure-context only, so on an
  *  insecure origin it is undefined rather than throwing: only a write that actually ran reports success. */
 const copyText = async (text: string) => {
@@ -123,25 +117,6 @@ const copyText = async (text: string) => {
   } finally {
     field.remove();
   }
-};
-const labels: Record<PickupType, string> = {
-  stopwatch: "Shorter fuse",
-  extraBomb: "Extra Bomb",
-  power: "Power",
-  triple: "Triple shot",
-  five: "Five shot",
-  gun: "Gun",
-  shell: "Shell",
-  beer: "Beer",
-  ink: "Ink",
-  orbitShield: "Shield",
-  portal: "Portal",
-  star: "Star",
-  grip: "Grip",
-  range: "Range",
-  nitro: "Nitro",
-  snail: "Snail",
-  gravity: "Gravity",
 };
 // Storage only ever through `safeStorage`: Safari with "Block all cookies" throws on merely evaluating `localStorage`.
 const read = (key: string) => storage.getItem(key);
@@ -183,254 +158,26 @@ export async function startOnline(): Promise<void> {
   const app = document.querySelector<HTMLElement>("#app")!;
   app.className = "online-app";
   const url = new URL(location.href);
-  const solo = url.searchParams.get("solo") === "1";
-  const code = solo ? "SOLO" : url.searchParams.get("room")?.toUpperCase();
-  if (!code) {
-    app.classList.add("landing-app");
-    startAnalytics({ role: "landing" });
-    track("App Opened");
-    const card = node("main", "", "landing");
-    card.innerHTML = `<canvas class="landing-arena" aria-hidden="true"></canvas><div class="landing-shade"></div>
-      <header class="landing-top"><a class="landing-brand" href="${appUrl()}">FUSE<span>RIDERS</span></a><div class="landing-top-end game-top-menu"><span class="landing-tag">TINY RIDERS. BIG TROUBLE.</span><button class="landing-audio" type="button">♫ MUSIC ON</button><button class="landing-mute" type="button">🔊 SOUND ON</button></div></header>
-      <section class="landing-content"><p class="landing-eyebrow"><span></span> A NEON ARENA PARTY GAME</p>
-      <h1>LEAVE A TRAIL.<br>MAKE A <em>MESS.</em></h1>
-      <p class="landing-intro">Outrun your friends. Blow up their plans.<br>One arena. Five riders. Absolutely no brakes.</p>
-      <a class="solo-cta" href="${appUrl("?solo=1")}"><span>▶ &nbsp; PLAY SOLO</span><small>YOU VS. FOUR AI RIVALS</small></a>
-      <div class="landing-multiplayer"><p class="landing-section-label">OR BRING YOUR FRIENDS</p></div>
-      <p class="landing-hint">Phones are your controllers. A TV can be your arena.<br>On the same Wi-Fi? Even better.</p></section>
-      <aside class="landing-live"><span class="live-dot"></span> LIVE AI FREE-FOR-ALL <small>Real riders. Real explosions.</small></aside>
-      <footer class="landing-footer"><span>STEER. CHARGE. RELEASE. SURVIVE.</span><button class="attract-toggle" type="button">Ⅱ PAUSE BACKGROUND</button></footer>`;
-    const form = card.querySelector<HTMLElement>(".landing-multiplayer")!;
-    const guide = node("section", "", "landing-guide"),
-      guideTitle = node("h2", "POWER-UPS", "landing-section-label");
-    guideTitle.id = "landing-guide-title";
-    guide.setAttribute("aria-labelledby", guideTitle.id);
-    guide.append(
-      guideTitle,
-      createPowerupGuide(POWERUP_GUIDE, {
-        className: "landing-powerups",
-        themeId: selectedTheme().id,
-        offByDefaultNote: "(off by default, enable in room settings)",
-      }).element,
-    );
-    card.querySelector(".landing-content")!.append(guide);
-    const mode = node("fieldset", "", "landing-mode");
-    mode.setAttribute("aria-label", "Where will you play?");
-    mode.append(node("legend", "Where will you play?"));
-    let selectedMode = loadRoomSettings(storage).mode;
-    for (const [value, label] of [
-      ["devices", "Each device"],
-      ["shared", "Shared TV"],
-    ] as const) {
-      const option = node("label"),
-        radio = node("input");
-      radio.type = "radio";
-      radio.name = "landing-mode";
-      radio.value = value;
-      radio.checked = selectedMode === value;
-      radio.onchange = () => {
-        selectedMode = value;
-      };
-      option.append(radio, node("span", label));
-      mode.append(option);
-    }
-    const create = node("button", "CREATE ROOM"),
-      join = node("button", "JOIN ROOM"),
-      input = node("input");
-    input.placeholder = "Room code";
-    input.maxLength = 10;
-    input.autocapitalize = "characters";
-    const error = node("p");
-    // `enter` keeps the document, so Room Created no longer needs a send-before-unload flush: nothing unloads out from
-    // under the request, and the room stops waiting up to 700ms for Mixpanel before it appears.
-    create.onclick = async () => {
-      create.disabled = true;
-      try {
-        const body = await createRoom(apiUrl);
-        save(`fuse-room-${body.code}`, body.token);
-        const settings = loadRoomSettings(storage);
-        settings.mode = selectedMode;
-        save(SETTINGS_KEY, JSON.stringify(settings));
-        track("Room Created", { mode: selectedMode });
-        enter(`?room=${body.code}`);
-      } catch (e) {
-        error.textContent = String(e);
-        create.disabled = false;
-      }
-    };
-    join.onclick = () => {
-      const value = input.value.trim().toUpperCase();
-      if (validRoomCode(value)) enter(`?room=${value}`);
-      else error.textContent = "Enter a room code, for example AB42";
-    };
-    mode.setAttribute("aria-label", "Where will you play?");
-    input.setAttribute("aria-label", "Room code");
-    error.setAttribute("role", "alert");
-    const createRow = node("div", "", "landing-create");
-    createRow.append(mode, create);
-    const joinRow = node("div", "", "landing-join");
-    joinRow.append(input, join);
-    input.onkeydown = (event) => {
-      if (event.key === "Enter") join.click();
-    };
-    // The last room this browser was in is one tap away; a closed room still lands on its ROOM CLOSED card, which forgets it.
-    const lastRoom = read(LAST_ROOM_KEY);
-    if (lastRoom && validRoomCode(lastRoom)) {
-      const rejoin = node("button", `REJOIN ${lastRoom}`, "landing-rejoin");
-      rejoin.title = "Return to the room you were in last";
-      rejoin.onclick = () => {
-        location.href = appUrl(`?room=${lastRoom}`);
-      };
-      joinRow.append(rejoin);
-    }
-    form.append(createRow, joinRow, error);
-    app.replaceChildren(card);
-    let cleanup: (() => void) | undefined,
-      ended = false;
-    // Leaving the landing page for a room, keeping the document (and so the music) alive. Back goes through a reload,
-    // which is what a fresh load of either view does anyway.
-    const enter = (query: string) => {
-      ended = true;
-      cleanup?.();
-      accountPanel.dispose();
-      window.addEventListener("popstate", () => location.reload(), {
-        once: true,
-      });
-      history.pushState(null, "", appUrl(query));
-      void startOnline();
-    };
-    window.addEventListener(
-      "pagehide",
-      () => {
-        ended = true;
-        cleanup?.();
+  // Before a room exists the page is the landing page (landing.ts); a room code, a solo run or a TV display is a room.
+  const route = onlineRoute(url.search, (code) => read(hostTokenKey(code)));
+  if (route.kind === "landing") {
+    showLanding({
+      app,
+      storage,
+      audio: sharedAudio(),
+      setRadioToggle: (toggle) => {
+        radioToggle = toggle;
       },
-      { once: true },
-    );
-    window.addEventListener("pageshow", (event) => {
-      if (event.persisted) location.reload();
+      accountPanel: createPlayerAccountPanel,
+      startRoom: () => void startOnline(),
     });
-    // The landing page has no room and no snapshots, so its music is background music the toggle owns outright.
-    const landingAudio = sharedAudio();
-    landingAudio.bindMusicToggle(
-      card.querySelector<HTMLButtonElement>(".landing-audio")!,
-    );
-    landingAudio.bindMuteToggle(
-      card.querySelector<HTMLButtonElement>(".landing-mute")!,
-    );
-    card.querySelector(".landing-audio")!.before(landingAudio.controls);
-    radioToggle = () => landingAudio.controls.toggleAttribute("open");
-    // PLAY SOLO is a real link for a new tab or a bookmark; a plain click takes the in-place route with the music.
-    card
-      .querySelector<HTMLAnchorElement>(".solo-cta")!
-      .addEventListener("click", (event) => {
-        if (
-          event.button ||
-          event.metaKey ||
-          event.ctrlKey ||
-          event.shiftKey ||
-          event.altKey
-        )
-          return;
-        event.preventDefault();
-        enter("?solo=1");
-      });
-    // Settings before a game exists (#168): the same room settings CREATE ROOM and PLAY SOLO read from storage. The screen layout
-    // stays disabled here because the radio buttons below choose it for the room being created.
-    const landingSettings = node("button", "SETTINGS", "landing-settings");
-    landingSettings.type = "button";
-    const landingDialog = node("dialog", "", "game-dialog");
-    landingDialog.setAttribute("aria-label", "Settings");
-    const landingBar = node("header", "", "dialog-bar"),
-      landingClose = node("button", "✕  CLOSE");
-    landingClose.type = "button";
-    landingClose.setAttribute("aria-label", "CLOSE");
-    landingClose.onclick = () => landingDialog.close();
-    const landingActions = node("span", "", "dialog-actions");
-    landingActions.append(landingClose);
-    landingBar.append(node("strong", "SETTINGS"), landingActions);
-    const landingBody = node("div", "", "dialog-body");
-    // This device's privacy choice sits under the room settings draft rather than in it: it is not the room's.
-    const landingPrivacy = createAnalyticsSetting({ collapsed: true });
-    landingDialog.append(landingBar, landingBody, landingPrivacy.element);
-    landingDialog.addEventListener("click", (event) => {
-      if (event.target === landingDialog) {
-        const r = landingDialog.getBoundingClientRect();
-        if (
-          event.clientX < r.left ||
-          event.clientX > r.right ||
-          event.clientY < r.top ||
-          event.clientY > r.bottom
-        )
-          landingDialog.close();
-      }
-    });
-    // `solo:true` disables the screen-layout fieldset, which is what keeps CREATE ROOM's own `settings.mode=selectedMode` from fighting
-    // this dialog over the same stored key: the page's radios remain the only writer of `mode`.
-    landingSettings.onclick = () => {
-      landingPrivacy.render();
-      showRoomSettings(
-        landingBody,
-        loadRoomSettings(storage),
-        true,
-        labels,
-        (draft) => {
-          if (!parseRoomSettings(draft)) return false; // no room authority behind this save: a draft the loader would reject later must never reach storage, or every setting resets on the next load
-          save(SETTINGS_KEY, JSON.stringify(draft));
-          track("Settings Changed", {
-            mode: draft.mode,
-            match: draft.match,
-            matchLength: draft.length,
-            bombChargeTicks: draft.bombChargeTicks,
-            chainReaction: draft.chainReaction,
-            aimBounce: draft.aimBounce,
-            map: draft.map,
-            powerupTypes: Object.values(draft.weights).filter(
-              (weight) => weight > 0,
-            ).length,
-          });
-          return true;
-        },
-        () => landingDialog.close(),
-      );
-      landingDialog.showModal();
-    };
-    card.querySelector(".landing-top-end")!.append(landingSettings);
-    card.append(landingDialog);
-    // Optional sign-in and match history. A guest who never opens it never downloads the sign-in SDK.
-    const accountPanel = createPlayerAccountPanel();
-    card
-      .querySelector(".landing-top-end")!
-      .append(accountPanel.leaderboardButton, accountPanel.button);
-    card.append(accountPanel.dialog);
-    window.addEventListener("pagehide", accountPanel.dispose, { once: true });
-    void startAttract(
-      card.querySelector("canvas")!,
-      card.querySelector(".attract-toggle")!,
-    )
-      .then((stop) => {
-        if (ended) stop();
-        else cleanup = stop;
-      })
-      .catch(() => {
-        card.querySelector(".landing-live")?.remove();
-      });
     return;
   }
-  if (!solo && !validRoomCode(code)) {
+  if (route.kind === "invalid") {
     app.textContent = "Invalid room code";
     return;
   }
-  const displayOnly = !solo && url.searchParams.has("display");
-  // CREATE ROOM is the only writer of fuse-room-<code>: its presence makes this browser the host's. Everyone else is a joiner with a separate peer identity.
-  const hostToken = solo || displayOnly ? null : read(`fuse-room-${code}`);
-  const role: "solo" | "display" | "host" | "joiner" = solo
-    ? "solo"
-    : displayOnly
-      ? "display"
-      : hostToken
-        ? "host"
-        : "joiner";
+  const { code, solo, displayOnly, role, hostToken } = route;
   const token = solo ? "" : displayOnly ? secret() : hostToken || peerToken();
   function peerToken() {
     const key = `fuse-peer-${code}`;
@@ -438,7 +185,7 @@ export async function startOnline(): Promise<void> {
     save(key, token);
     return token;
   }
-  const forgetHostToken = () => storage.removeItem(`fuse-room-${code}`);
+  const forgetHostToken = () => storage.removeItem(hostTokenKey(code));
   if (!solo && !displayOnly) save(LAST_ROOM_KEY, code);
   let id = "",
     isHost = false,
@@ -843,74 +590,9 @@ export async function startOnline(): Promise<void> {
   const avatarButton = node("button", "AVATAR");
   avatarButton.hidden = true;
   header.append(avatarButton, prefsButton, menu, help);
-  const dialog = node("dialog", "", "game-dialog");
-  dialog.setAttribute("aria-label", "Game menu");
-  // One dialog serves every menu. Which one is up is kept here, never inferred from its classes or contents:
-  // the results stay "open" until the dialog closes, and the avatar picker is the node the AVATAR button mounted.
-  let recapOpen = false,
-    avatarPicker: HTMLElement | undefined;
-  const close = node("button", "✕  CLOSE", "dialog-close");
-  close.type = "button";
-  close.setAttribute("aria-label", "CLOSE");
-  close.onclick = () => dialog.close();
-  const rematch = node("button", "REMATCH");
-  rematch.type = "button";
-  rematch.setAttribute("aria-label", "REMATCH");
-  rematch.hidden = true;
-  rematch.title = "Play the same match again";
-  const dialogActions = node("span", "", "dialog-actions");
-  dialogActions.append(rematch, close);
-  const dialogBar = node("header", "", "dialog-bar"),
-    dialogTitle = node("strong", "GAME MENU");
-  const fullStats = node("button", "View full stats ↗", "recap-stats-toggle");
-  fullStats.type = "button";
-  fullStats.hidden = true;
-  fullStats.setAttribute("aria-controls", "match-full-stats");
-  fullStats.onclick = () => {
-    const details = dialogBody.querySelector<HTMLElement>(".recap-details");
-    if (!details) return;
-    details.hidden = !details.hidden;
-    fullStats.setAttribute("aria-expanded", String(!details.hidden));
-    fullStats.textContent = details.hidden
-      ? "View full stats ↗"
-      : "Hide full stats ↗";
-    if (!details.hidden) details.scrollIntoView({ block: "start" });
-    else dialogBody.scrollTop = 0;
-  };
-  const recapLobby = node("button", "Back to lobby", "recap-lobby");
-  recapLobby.type = "button";
-  recapLobby.hidden = true;
-  recapLobby.onclick = () => {
-    dialog.close();
-    reset.click();
-  };
-  dialogActions.prepend(recapLobby);
-  dialogBar.append(dialogTitle, fullStats, dialogActions);
-  const dialogBody = node("div", "", "dialog-body");
-  dialog.append(dialogBar, dialogBody);
-  dialog.addEventListener("close", () => {
-    rematch.hidden = true;
-    fullStats.hidden = recapLobby.hidden = true;
-    close.hidden = false;
-    close.textContent = "✕  CLOSE";
-    close.setAttribute("aria-label", "CLOSE");
-    recapOpen = false;
-    dialog.classList.remove("recap-dialog");
-    dialogTitle.textContent = "GAME MENU";
-    dialog.setAttribute("aria-label", "Game menu");
-  });
-  dialog.addEventListener("click", (event) => {
-    if (event.target === dialog) {
-      const r = dialog.getBoundingClientRect();
-      if (
-        event.clientX < r.left ||
-        event.clientX > r.right ||
-        event.clientY < r.top ||
-        event.clientY > r.bottom
-      )
-        dialog.close();
-    }
-  });
+  // Every menu is its own dialog (dialogs/*), and which one is open is the registry's state: never read from a
+  // dialog's title, classes or contents. They sit where the one shared dialog used to, right after the phone HUD.
+  const dialogs = createDialogRegistry<RoomDialogId>();
   // Desktop hides the on-screen controls entirely, so a first-timer has only the ? button. One fading reminder on the first countdown of the session.
   const keyHint = node("div", "", "key-hint");
   keyHint.hidden = true;
@@ -932,7 +614,7 @@ export async function startOnline(): Promise<void> {
   // header and joinPanel are app's only children here (line 116, and nothing else attaches before this point).
   if (role === "joiner") {
     header.after(canvas, sharedLobby, scoreboard);
-    joinPanel.after(footer, keyHint, announcer, feed, hud, dialog);
+    joinPanel.after(footer, keyHint, announcer, feed, hud);
   } else
     app.replaceChildren(
       header,
@@ -946,27 +628,15 @@ export async function startOnline(): Promise<void> {
       announcer,
       feed,
       hud,
-      dialog,
     );
   app.append(powerStatus);
   const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-  help.onclick = () => {
-    dialogTitle.textContent = "SHORTCUTS";
-    dialog.setAttribute("aria-label", "Keyboard shortcuts"); // the close handler resets both
-    dialogBody.replaceChildren(node("h2", "Keyboard shortcuts"));
-    for (const group of keyboardShortcuts({
-      mac,
-      canConfigure: isHost || solo,
-      solo,
-    })) {
-      const list = node("dl", "", "shortcut-list");
-      for (const [keys, action] of group.entries) {
-        list.append(node("dt", keys), node("dd", action));
-      }
-      dialogBody.append(node("h3", group.title, "shortcut-group"), list);
-    }
-    dialog.showModal();
-  };
+  const shortcutsDialog = createShortcutsDialog(dialogs, {
+    mac,
+    solo,
+    canConfigure: () => isHost || solo,
+  });
+  help.onclick = () => shortcutsDialog.open();
   // Move the existing actions, keeping their handlers and mobile/lobby destinations intact.
   const desktopQuery = matchMedia(
     "(min-width: 1000px) and (hover: hover) and (pointer: fine)",
@@ -1038,17 +708,20 @@ export async function startOnline(): Promise<void> {
     device: device(),
   });
   // Every class the room screen implies is set here, from the derived screen, and nothing reads one back.
-  let screen: RoomScreen = roomScreen(screenInput());
+  let screen: RoomScreen = roomScreen(screenInput()),
+    shownKind: RoomScreen["kind"] | undefined;
   const showScreen = (next: RoomScreen, resized = false) => {
     screen = next;
     for (const [name, on] of Object.entries(screenClasses(next)))
       app.classList.toggle(name, on);
-    app.dataset.screen = next.kind;
-    canvas.hidden = next.arenaHidden;
-    sharedLobby.hidden = !next.lobbyCard;
-    roster.hidden = next.lobbyCard;
+    // Nothing reads it back; it names the screen for a person in the inspector, so it is written only when it changes.
+    if (next.kind !== shownKind) app.dataset.screen = shownKind = next.kind;
+    setIfChanged(canvas, "hidden", next.arenaHidden);
+    setIfChanged(sharedLobby, "hidden", !next.lobbyCard);
+    setIfChanged(roster, "hidden", next.lobbyCard);
     // VISUAL STYLE only changes the arena, which a shared-TV controller never draws, lobby included.
-    styleHeading.hidden = styleRow.hidden = next.arenaController;
+    setIfChanged(styleHeading, "hidden", next.arenaController);
+    setIfChanged(styleRow, "hidden", next.arenaController);
     mobileLayout.update(
       next.mobile,
       snapshot?.phase ?? "lobby",
@@ -1067,14 +740,6 @@ export async function startOnline(): Promise<void> {
   window.visualViewport?.addEventListener("resize", resizeScreen);
   desktopQuery.addEventListener("change", resizeScreen);
 
-  const openRadio = () => {
-    audio.unlock();
-    audio.controls.setAttribute("open", "");
-    dialogTitle.textContent = "RADIO";
-    dialog.setAttribute("aria-label", "Radio");
-    dialogBody.replaceChildren(node("h2", "Fuse Riders Radio"), audio.controls);
-    if (!dialog.open) dialog.showModal();
-  };
   const roomAccount = createPlayerAccountPanel();
   roomAccount.button.classList.add("player-account");
   app.append(roomAccount.dialog);
@@ -1084,7 +749,7 @@ export async function startOnline(): Promise<void> {
     topMusic = node("button"),
     topMute = node("button");
   topRadio.type = topMusic.type = topMute.type = "button";
-  topRadio.onclick = () => openRadio();
+  topRadio.onclick = () => radioDialog.open();
   topMenu.append(
     topRadio,
     topMusic,
@@ -1112,11 +777,8 @@ export async function startOnline(): Promise<void> {
   const audio = sharedAudio();
   audio.bindMusicToggle(topMusic);
   audio.bindMuteToggle(topMute);
-  radioToggle = () => {
-    if (!dialog.open) openRadio();
-    else if (dialogBody.contains(audio.controls))
-      dialog.close(); /* Another open dialog (results, a settings draft) is left alone. */
-  };
+  const radioDialog = createRadioDialog(dialogs, audio);
+  radioToggle = radioDialog.toggle;
   // Device preferences: music, effects, radio, visual style and fullscreen are this device's own and change nothing shared, so
   // they sit behind one SETTINGS button instead of five in the header. Built once; the dialog body adopts the same nodes each open.
   const prefs = node("div", "", "settings-list");
@@ -1128,7 +790,7 @@ export async function startOnline(): Promise<void> {
   audio.bindMusicToggle(musicButton);
   audio.bindEffectsToggle(effectsButton);
   audio.bindMuteToggle(muteButton);
-  radioButton.onclick = openRadio; // The same ♫ MUSIC ON / OFF toggle as the landing page.
+  radioButton.onclick = radioDialog.open; // The same ♫ MUSIC ON / OFF toggle as the landing page.
   // iPhone Safari has no element fullscreen (#142): a button that can do nothing is not shown.
   fullscreen.hidden = !document.fullscreenEnabled;
   fullscreen.onclick = () =>
@@ -1154,18 +816,16 @@ export async function startOnline(): Promise<void> {
     privacy.element,
   );
   const voice = solo ? undefined : new VoiceChat();
-  if (voice) {
+  const voiceDialog = voice
+    ? createVoiceDialog(dialogs, voice.controls)
+    : undefined;
+  if (voice && voiceDialog) {
     prefs.prepend(node("h3", "GAME AUDIO", "settings-group"));
     muteButton.title =
       "Music and effects only; use DEAFEN in voice chat to silence voice.";
     prefs.append(voice.controls);
     topMenu.insertBefore(voice.button, prefsButton);
-    voice.button.onclick = () => {
-      dialogTitle.textContent = "VOICE CHAT";
-      dialog.setAttribute("aria-label", "Voice chat");
-      dialogBody.replaceChildren(voice.controls);
-      if (!dialog.open) dialog.showModal();
-    };
+    voice.button.onclick = voiceDialog.open;
     voice.setChanged(() => {
       for (const [playerId, row] of rosterEntries)
         row.entry.dataset.voice = voice.indicator(playerId);
@@ -1173,17 +833,20 @@ export async function startOnline(): Promise<void> {
         row.entry.dataset.voice = voice.indicator(playerId);
     });
   }
-  prefsButton.onclick = () => {
-    privacy.render();
-    if (voice) prefs.append(voice.controls);
-    dialogTitle.textContent = "SETTINGS";
-    dialog.setAttribute("aria-label", "Settings");
-    dialogBody.replaceChildren(prefs);
-    dialog.showModal();
-  };
+  const settingsDialog = createSettingsDialog(dialogs, {
+    content: prefs,
+    ...(voice ? { voiceControls: voice.controls } : {}),
+    beforeOpen: () => privacy.render(),
+  });
+  prefsButton.onclick = settingsDialog.open;
+  const recapDialog = createRecapDialog(dialogs, {
+    isHost: () => isHost,
+    rematch: () => start.click(),
+    backToLobby: () => reset.click(),
+  });
   const openRecap = () => {
     if (!snapshot) return;
-    dialogBody.replaceChildren(
+    recapDialog.open(
       renderMatchRecap(snapshot.matchStats, snapshot.moments, {
         playerId: id,
         canWatch: (key) => !screen.arenaHidden && !!replay.recorder.clip(key),
@@ -1192,23 +855,12 @@ export async function startOnline(): Promise<void> {
           if (!clip) return;
           audio.unlock();
           reopenRecap = true;
-          dialog.close();
+          dialogs.close("recap");
           replay.play(clip, performance.now());
         },
       }),
+      snapshot.matchStats.length > 0,
     );
-    dialogTitle.textContent = "MATCH RESULTS";
-    dialog.setAttribute("aria-label", "Match results");
-    recapOpen = true;
-    dialog.classList.add("recap-dialog");
-    rematch.hidden = !isHost;
-    recapLobby.hidden = !isHost;
-    close.textContent = "✕";
-    fullStats.hidden = !snapshot.matchStats.length;
-    fullStats.textContent = "View full stats ↗";
-    fullStats.setAttribute("aria-expanded", "false");
-    dialog.showModal();
-    dialogBody.scrollTop = 0;
   };
   results.onclick = () => {
     track("Recap Reopened");
@@ -1387,9 +1039,9 @@ export async function startOnline(): Promise<void> {
       const player = state.players.find((player) => player.id === id);
       // The final-round pause keeps the arena visible until phaseEndsAtTick; the report opens once per match afterwards and stays reopenable.
       recapIsReady = recapReady(state);
-      results.hidden = !recapIsReady;
+      setIfChanged(results, "hidden", !recapIsReady);
       // Every device dismisses the report when the shared state moves on, including peers that did not click REMATCH.
-      if (!recapIsReady && dialog.open && recapOpen) dialog.close();
+      if (!recapIsReady) dialogs.close("recap");
       if (state.phase === "lobby") lastRecap = "";
       joined = Boolean(player);
       // A watcher is in the room, not queuing at its door: it gets the arena and the lists, never the join card or the controls.
@@ -1411,17 +1063,12 @@ export async function startOnline(): Promise<void> {
         mobileActive: screen.mobile.active,
         bombHeld: inputState.isHeld("bomb"),
       });
-      joinPanel.hidden = view.joinPanelHidden;
-      /* Avatars are a lobby choice: before a seat the join form carries it, the button leaves with the lobby, and a picker left open closes when the round starts. */ avatarButton.hidden =
-        view.avatarHidden;
-      if (
-        avatarButton.hidden &&
-        dialog.open &&
-        avatarPicker &&
-        dialogBody.contains(avatarPicker)
-      )
-        dialog.close();
-      controls.hidden = view.controlsHidden;
+      // Every write below goes through setIfChanged: the view is rewritten each frame, and an unchanged value must not touch the DOM.
+      setIfChanged(joinPanel, "hidden", view.joinPanelHidden);
+      // Avatars are a lobby choice: before a seat the join form carries it, the button leaves with the lobby, and a picker left open closes when the round starts.
+      setIfChanged(avatarButton, "hidden", view.avatarHidden);
+      if (view.avatarHidden) dialogs.close("avatar");
+      setIfChanged(controls, "hidden", view.controlsHidden);
       // A rider the room still lists as offline (page reload mid-round) reconnects by itself; anyone absent goes through the join card.
       // A watcher the room still lists does the same, asking for its place in the watching list back rather than for a seat.
       if (player && !player.connected && !displayOnly) {
@@ -1439,8 +1086,8 @@ export async function startOnline(): Promise<void> {
           runtime.command({ type: "spectate", name: watcher.name });
         }
       } else rejoinPending = false;
-      lobbyCount.textContent = view.lobby.count;
-      lobbyEmpty.hidden = !view.lobby.empty;
+      setIfChanged(lobbyCount, "textContent", view.lobby.count);
+      setIfChanged(lobbyEmpty, "hidden", !view.lobby.empty);
       for (const [playerId, row] of lobbyEntries)
         if (!state.players.some((p) => p.id === playerId)) {
           row.entry.remove();
@@ -1468,9 +1115,9 @@ export async function startOnline(): Promise<void> {
         }
         row.entry.style.setProperty("--rider-color", p.color);
         if (row.shown !== p.name) row.name.textContent = row.shown = p.name;
-        row.status.textContent = p.status;
+        setIfChanged(row.status, "textContent", p.status);
       }
-      lobbyWatchers.hidden = view.lobby.watchersHidden;
+      setIfChanged(lobbyWatchers, "hidden", view.lobby.watchersHidden);
       for (const [watcherId, row] of watcherEntries)
         if (!view.lobby.watchers.some((seat) => seat.id === watcherId)) {
           row.entry.remove();
@@ -1498,7 +1145,7 @@ export async function startOnline(): Promise<void> {
         }
         if (row.shown !== seat.name)
           row.name.textContent = row.shown = seat.name;
-        row.status.textContent = seat.status;
+        setIfChanged(row.status, "textContent", seat.status);
       }
       if (!screen.arenaHidden)
         replay.observe(state, state.matchId, performance.now());
@@ -1539,16 +1186,16 @@ export async function startOnline(): Promise<void> {
             identityToken: signedInToken,
           });
       }
-      powerStatus.hidden = view.power.hidden;
-      powerStatus.textContent = view.power.text;
+      setIfChanged(powerStatus, "hidden", view.power.hidden);
+      setIfChanged(powerStatus, "textContent", view.power.text);
       fireButton.classList.toggle("gun-armed", view.fire.gunReady);
       hudFire.classList.toggle("gun-armed", view.fire.gunReady);
-      fireButton.title = view.fire.title;
+      setIfChanged(fireButton, "title", view.fire.title);
       if (view.playerColor)
         app.style.setProperty("--player-color", view.playerColor);
       if (view.fire.label !== undefined)
-        fireButton.textContent = view.fire.label;
-      notice.textContent = view.notice;
+        setIfChanged(fireButton, "textContent", view.fire.label);
+      setIfChanged(notice, "textContent", view.notice);
       for (const [playerId, row] of rosterEntries)
         if (!state.players.some((p) => p.id === playerId)) {
           row.entry.remove();
@@ -1577,13 +1224,13 @@ export async function startOnline(): Promise<void> {
             node("span", p.points, "online-score-points"),
           );
         }
-        row.label.title = p.title;
-        row.label.setAttribute("aria-label", row.label.title);
+        setIfChanged(row.label, "title", p.title);
+        setAttributeIfChanged(row.label, "aria-label", p.title);
         row.entry.style.color = p.color;
         row.entry.style.setProperty("--rider-color", p.color);
         row.entry.classList.toggle("out", p.out);
         row.entry.style.order = String(p.rank);
-        row.entry.dataset.rank = String(p.rank);
+        setIfChanged(row.entry.dataset, "rank", String(p.rank));
         row.entry.classList.toggle("leader", p.leader);
         row.entry.style.setProperty("--lead", p.lead);
         if (row.avatar !== p.avatarId) {
@@ -1597,29 +1244,31 @@ export async function startOnline(): Promise<void> {
           : row.entry;
         if (row.remove.parentElement !== removeParent)
           removeParent.append(row.remove);
-        row.remove.hidden = p.remove.hidden;
-        row.remove.disabled = p.remove.disabled;
-        row.remove.setAttribute("aria-label", p.remove.label);
-        row.remove.title = p.remove.title;
+        setIfChanged(row.remove, "hidden", p.remove.hidden);
+        setIfChanged(row.remove, "disabled", p.remove.disabled);
+        setAttributeIfChanged(row.remove, "aria-label", p.remove.label);
+        setIfChanged(row.remove, "title", p.remove.title);
       }
-      addAI.disabled = view.actions.addAIDisabled;
+      setIfChanged(addAI, "disabled", view.actions.addAIDisabled);
       if (startLabel !== view.actions.start.label)
         start.textContent = startLabel = view.actions.start.label;
-      start.disabled = view.actions.start.disabled;
-      hostControls.hidden = view.actions.hidden;
-      reset.disabled = view.actions.reset.disabled;
-      reset.hidden = view.actions.reset.hidden;
-      share.hidden = view.actions.shareHidden;
+      setIfChanged(start, "disabled", view.actions.start.disabled);
+      setIfChanged(hostControls, "hidden", view.actions.hidden);
+      setIfChanged(reset, "disabled", view.actions.reset.disabled);
+      setIfChanged(reset, "hidden", view.actions.reset.hidden);
+      setIfChanged(share, "hidden", view.actions.shareHidden);
       voice?.setRoster(id, state.players);
       for (const [playerId, row] of rosterEntries)
-        if (voice) row.entry.dataset.voice = voice.indicator(playerId);
+        if (voice)
+          setIfChanged(row.entry.dataset, "voice", voice.indicator(playerId));
       for (const [playerId, row] of lobbyEntries)
-        if (voice) row.entry.dataset.voice = voice.indicator(playerId);
-      roundChip.textContent = view.roundClock;
-      roundChip.hidden = view.roundChipHidden;
+        if (voice)
+          setIfChanged(row.entry.dataset, "voice", voice.indicator(playerId));
+      setIfChanged(roundChip, "textContent", view.roundClock);
+      setIfChanged(roundChip, "hidden", view.roundChipHidden);
       showAnnouncement(state, view.announcerVisible);
       // Phone HUD: who you are, what the fire button would do, match points and the clock. The thirds themselves stay transparent.
-      hud.hidden = view.hudHidden;
+      setIfChanged(hud, "hidden", view.hudHidden);
       if (player && view.hud) {
         if (hudAvatar !== player.avatarId) {
           hudWho.replaceChildren(
@@ -1628,9 +1277,9 @@ export async function startOnline(): Promise<void> {
           );
           hudAvatar = player.avatarId;
         }
-        hudFire.textContent = view.hud.fire;
-        hudWins.textContent = view.hud.wins;
-        hudRound.textContent = view.hud.clock;
+        setIfChanged(hudFire, "textContent", view.hud.fire);
+        setIfChanged(hudWins, "textContent", view.hud.wins);
+        setIfChanged(hudRound, "textContent", view.hud.clock);
       }
     },
   };
@@ -1666,34 +1315,17 @@ export async function startOnline(): Promise<void> {
   statsPanel.hidden = solo || !url.searchParams.has("stats");
   app.append(statsPanel);
   reset.onclick = () => runtime.command({ type: "action", action: "lobby" });
-  rematch.onclick = () => {
-    start.click();
-  };
-  menu.onclick = () => {
-    dialogTitle.textContent = solo ? "EXIT" : "ROOM";
-    dialog.setAttribute("aria-label", solo ? "Exit" : "Room");
-    dialogBody.replaceChildren(
-      node(
-        "p",
-        solo
-          ? "End this solo run and go back to the menu?"
-          : isHost
-            ? "End this room for everyone?"
-            : "Leave this room?",
-      ),
-    );
-    const leave = node(
-        "button",
-        solo ? "END RUN" : isHost ? "END ROOM" : "LEAVE ROOM",
-        "exit-confirm",
-      ),
-      stay = node("button", solo ? "KEEP PLAYING" : "STAY"),
-      choices = node("div", "", "exit-choices");
-    stay.onclick = () => dialog.close();
-    choices.append(stay, leave);
-    leave.onclick = async () => {
-      leave.disabled = stay.disabled = true;
-      leave.textContent = "LEAVING…";
+  const menuDialog = createMenuDialog(dialogs, {
+    solo,
+    isHost: () => isHost,
+    playerId: () => id,
+    standings: () => snapshot?.leaderboard ?? [],
+    linkDiagnostics: () => app.dataset.linkDiagnostics,
+    statsHidden: () => statsPanel.hidden,
+    toggleStats: () => {
+      statsPanel.hidden = !statsPanel.hidden;
+    },
+    leave: async () => {
       runtime.stop();
       if (isHost && !solo) {
         const controller = new AbortController();
@@ -1712,142 +1344,66 @@ export async function startOnline(): Promise<void> {
       }
       if (read(LAST_ROOM_KEY) === code) storage.removeItem(LAST_ROOM_KEY);
       location.href = appUrl();
-    };
-    dialogBody.append(choices);
-    const standings = [...(snapshot?.leaderboard ?? [])].sort(
-      (a, b) =>
-        b.totalScoreUnits - a.totalScoreUnits ||
-        b.matchWins - a.matchWins ||
-        a.name.localeCompare(b.name),
-    );
-    if (standings.length) {
-      const list = node("div", "", "session-board");
-      list.append(node("h2", "Session standings"));
-      let rank = 0,
-        previous: number | undefined;
-      standings.forEach((entry, index) => {
-        if (entry.totalScoreUnits !== previous) rank = index + 1;
-        previous = entry.totalScoreUnits;
-        const row = node("div", "", "session-row");
-        if (entry.id === id) row.classList.add("is-you");
-        const points = entry.totalScoreUnits / 60;
-        row.append(
-          node("b", `#${rank}`),
-          node("span", entry.id === id ? `${entry.name} (you)` : entry.name),
-          node(
-            "strong",
-            `${Number.isInteger(points) ? points : points.toFixed(1)} PTS`,
-          ),
-          node(
-            "small",
-            `${entry.matchWins} ${entry.matchWins === 1 ? "MATCH" : "MATCHES"} · ${entry.roundWins} ${entry.roundWins === 1 ? "ROUND" : "ROUNDS"}`,
-          ),
-        );
-        list.append(row);
-      });
-      list.append(
-        node(
-          "p",
-          "Round points: +1 per opponent outlasted, +1 for the sole survivor. Same-tick deaths tie.",
-          "session-key",
-        ),
-      );
-      dialogBody.append(list);
-    }
-    if (!solo) {
-      const diagnostics = node("pre", "", "link-diagnostics");
-      diagnostics.textContent =
-        app.dataset.linkDiagnostics ?? "collecting link diagnostics…";
-      const statsToggle = node(
-        "button",
-        statsPanel.hidden ? "SHOW NETWORK STATS" : "HIDE NETWORK STATS",
-      );
-      statsToggle.onclick = () => {
-        statsPanel.hidden = !statsPanel.hidden;
-        dialog.close();
-      };
-      dialogBody.append(
-        statsToggle,
-        node(
-          "p",
-          "LINK DIAGNOSTICS (redacted: candidate types and states, no addresses)",
-        ),
-        diagnostics,
-      );
-      const refresh = setInterval(() => {
-        if (!dialog.open) {
-          clearInterval(refresh);
-          return;
-        }
-        diagnostics.textContent =
-          app.dataset.linkDiagnostics ?? diagnostics.textContent;
-      }, 1000);
-    }
-    dialog.showModal();
-  };
-  avatarButton.onclick = () => {
-    dialogTitle.textContent = "AVATAR";
-    dialog.setAttribute("aria-label", "Avatar");
-    dialogBody.replaceChildren(node("h2", "Your avatar"));
-    const picker = createAvatarPicker(storage, (chosen) => {
+    },
+  });
+  menu.onclick = menuDialog.open;
+  const avatarDialog = createAvatarDialog(dialogs, {
+    storage,
+    wornBy: (avatarId) =>
+      snapshot?.players.find((p) => p.id !== id && p.avatarId === avatarId)
+        ?.name,
+    chosen: (chosen) => {
       joinForm.picker.sync(chosen);
       if (joined) runtime.command({ type: "avatar", avatarId: chosen });
-      dialog.close();
-    });
-    // Avatars other riders already wear are marked, not blocked: two foxes are allowed, but nobody picks one by accident.
-    picker.element
-      .querySelectorAll<HTMLButtonElement>(".avatar-option")
-      .forEach((option) => {
-        const owner = snapshot?.players.find(
-          (p) => p.id !== id && p.avatarId === option.dataset.avatarId,
-        );
-        option.classList.toggle("taken", Boolean(owner));
-        option.title = owner ? `${owner.name} has this one` : "";
-      });
-    avatarPicker = picker.element;
-    dialogBody.append(picker.element);
-    dialog.showModal();
-  };
+    },
+  });
+  avatarButton.onclick = avatarDialog.open;
   // The lobby card already carries the QR and the copyable link, so this opens the shared-screen display directly instead of a dialog that repeats them.
   share.title = "Open this room on a shared screen";
   share.onclick = () => {
-    window.open(appUrl(`?room=${code}&display=1`), "_blank", "noopener");
+    window.open(appUrl(displayQuery(code)), "_blank", "noopener");
   };
-  const openSettings = (start: "main" | "powerups" = "main") => {
-    showRoomSettings(
-      dialogBody,
-      settings,
-      solo,
-      labels,
-      (draft) => {
-        if (!runtime.command({ type: "settings", settings: draft }))
-          return false;
-        pendingSettings = {
-          draft,
-          before: JSON.stringify(settings),
-          at: performance.now(),
-        };
-        settings = draft;
-        save(SETTINGS_KEY, JSON.stringify(draft));
-        track("Settings Changed", {
-          mode: draft.mode,
-          match: draft.match,
-          matchLength: draft.length,
-          bombChargeTicks: draft.bombChargeTicks,
-          chainReaction: draft.chainReaction,
-          aimBounce: draft.aimBounce,
-          map: draft.map,
-          powerupTypes: Object.values(draft.weights).filter(
-            (weight) => weight > 0,
-          ).length,
-        });
-        return true;
-      },
-      () => dialog.close(),
-      start,
-    );
-    if (!dialog.open) dialog.showModal();
-  };
+  const roomSettingsDialog = createRoomSettingsDialog(dialogs, {
+    solo,
+    labels: PICKUP_LABELS,
+    settings: () => settings,
+    save: (draft) => {
+      if (!runtime.command({ type: "settings", settings: draft })) return false;
+      pendingSettings = {
+        draft,
+        before: JSON.stringify(settings),
+        at: performance.now(),
+      };
+      settings = draft;
+      save(SETTINGS_KEY, JSON.stringify(draft));
+      track("Settings Changed", {
+        mode: draft.mode,
+        match: draft.match,
+        matchLength: draft.length,
+        bombChargeTicks: draft.bombChargeTicks,
+        chainReaction: draft.chainReaction,
+        aimBounce: draft.aimBounce,
+        map: draft.map,
+        powerupTypes: Object.values(draft.weights).filter(
+          (weight) => weight > 0,
+        ).length,
+      });
+      return true;
+    },
+  });
+  const openSettings = roomSettingsDialog.open;
+  // Every dialog now exists: they take the place the one shared dialog had, right after the phone HUD.
+  const dialogElements = [
+    shortcutsDialog.element,
+    settingsDialog.element,
+    radioDialog.element,
+    ...(voiceDialog ? [voiceDialog.element] : []),
+    menuDialog.element,
+    avatarDialog.element,
+    roomSettingsDialog.element,
+    recapDialog.element,
+  ];
+  hud.after(...dialogElements);
   settingsButton.onclick = () => openSettings();
   // Ctrl+P (⌘P on a Mac) goes to the power-ups page instead of the browser's print dialog (#168). The key is only taken when it will act:
   // a joiner, a display or an ended room keeps the browser's print dialog, and an open dialog keeps its own chrome.
@@ -1867,7 +1423,7 @@ export async function startOnline(): Promise<void> {
     )
       return;
     if (
-      dialog.open ||
+      dialogs.current() !== undefined ||
       roomAccount.dialog.open ||
       roomEnded ||
       !(isHost || solo)
@@ -1935,7 +1491,7 @@ export async function startOnline(): Promise<void> {
       joined &&
       !roomEnded &&
       !mobileLayout.blocked() &&
-      !dialog.open &&
+      dialogs.current() === undefined &&
       !roomAccount.dialog.open &&
       !document.hidden &&
       !leftButton.disabled &&
@@ -1965,8 +1521,8 @@ export async function startOnline(): Promise<void> {
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) clearControls();
   });
-  dialog.addEventListener("focusin", clearControls);
-  roomAccount.dialog.addEventListener("focusin", clearControls);
+  for (const modal of [...dialogElements, roomAccount.dialog])
+    modal.addEventListener("focusin", clearControls);
   document.addEventListener("focusin", () => {
     if (
       document.activeElement?.closest(
@@ -1975,14 +1531,17 @@ export async function startOnline(): Promise<void> {
     )
       keyboard.clear();
   });
-  const dialogsObserver = new MutationObserver(() => {
-    if (dialog.open || roomAccount.dialog.open) clearControls();
+  // Opening any dialog lets go of held controls: ours say so through the registry, the account panel's through its `open`.
+  dialogs.onChange((open) => {
+    if (open === undefined) mobileLayout.dialogClosed();
+    else clearControls();
   });
-  for (const modal of [dialog, roomAccount.dialog])
-    dialogsObserver.observe(modal, {
-      attributes: true,
-      attributeFilter: ["open"],
-    });
+  new MutationObserver(() => {
+    if (roomAccount.dialog.open) clearControls();
+  }).observe(roomAccount.dialog, {
+    attributes: true,
+    attributeFilter: ["open"],
+  });
   window.addEventListener("pagehide", clearControls);
   setInterval(() => {
     if (joined && !roomEnded) inputState.resend();

@@ -5,8 +5,9 @@ import {
   arenaView,
   mobilePlayPolicy,
 } from "../src/online/mobile-play-policy.js";
-const PLAY_PHASES = ["countdown", "playing", "roundOver", "matchOver"];
-const PHASES = ["lobby", ...PLAY_PHASES];
+import { endedScreen, roomScreen } from "../src/online/room-screen.js";
+const PLAY_PHASES = ["countdown", "playing", "roundOver", "matchOver"] as const;
+const PHASES = ["lobby", ...PLAY_PHASES] as const;
 test("a joined phone is the same controller in both orientations in every play phase (#13)", () => {
   for (const phase of PLAY_PHASES) {
     const state = { joined: true, phase, displayOnly: false };
@@ -87,29 +88,31 @@ test("unjoined, display-only and wide desktop views keep the normal layout", () 
 });
 // #44: a terminal room close leaves the controller so the header status ("Room ended — return to menu to start again") and MENU are reachable without ☰ MENU.
 test("an ended room is not joined play on any phone size or phase", () => {
-  for (const phase of PHASES) {
-    const ended = { joined: true, phase, displayOnly: false, ended: true };
+  for (const phase of PHASES)
     for (const [width, height] of [
       [390, 844],
       [844, 390],
       [320, 568],
-    ] as const)
+    ] as const) {
+      const live = roomScreen({
+        role: "host",
+        booted: true,
+        joined: true,
+        watching: false,
+        phase,
+        recapReady: false,
+        shared: false,
+        device: { touch: true, width, height, desktopPointer: false },
+      });
+      const { mobile } = endedScreen(live);
       assert.deepEqual(
-        mobilePlayPolicy(ended, true, width, height),
-        { phone: false, lobby: false, active: false, portrait: false },
+        [mobile.active, mobile.portrait, mobile.lobby],
+        [false, false, false],
         `${phase} ${width}x${height}`,
       );
-    assert.equal(
-      mobilePlayPolicy(
-        { ...ended, ended: false, phase: "playing" },
-        true,
-        844,
-        390,
-      ).active,
-      true,
-      phase,
-    );
-  }
+      if (phase !== "lobby")
+        assert.equal(live.mobile.active, true, `${phase} ${width}x${height}`);
+    }
 });
 // #321 keeps the live arena behind the lobby and results; a shared-TV controller never shows or renders it, because the TV does.
 test("a shared-TV controller never shows the arena, in any phase", () => {
