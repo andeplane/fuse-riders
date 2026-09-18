@@ -120,11 +120,11 @@ test("overtime trims dead and living trails before collision and snapshot, retai
   assert.deepEqual(owner.trail, [
     {
       ...segment(20.5, 100, 100, 100),
-      detached: { id: 1, decayStartTick: state.tick + 20 },
+      detached: { id: 1, decayStartTick: state.tick + 60 },
     },
     {
       ...segment(1500, 100, 1579.5, 100),
-      detached: { id: 2, decayStartTick: state.tick + 20 },
+      detached: { id: 2, decayStartTick: state.tick + 60 },
     },
   ]);
   assert.deepEqual(

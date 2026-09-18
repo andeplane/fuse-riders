@@ -4,9 +4,14 @@ import { addPlayer, createGame, toView } from "../src/engine/game.js";
 import type { TrailSegment } from "../src/shared/protocol.js";
 import {
   TrailHistoryCache,
+  completeTrailStrokes,
+  trailColor,
   trailPaths,
   trailTip,
 } from "../src/render/phaser/trails.js";
+
+/** The fade reads the view's rules, as the scene does. */
+const RULES = toView(createGame("trail-rules", 1)).rules;
 
 const segment = (
   tick: number,
@@ -71,18 +76,19 @@ test("portal jumps, deleted ticks and clipped segments remain separate strokes",
 test("history survives fractional motion, a changing predicted tip and equivalent deserialized snapshots", () => {
   const cache = new TrailHistoryCache(),
     player = rider();
-  const initial = cache.update([player], "epoch:match:round1");
+  const initial = cache.update([player], "epoch:match:round1", 0, RULES);
   const moved = {
     ...player,
     x: 27,
     trail: [structuredClone(player.trail[0]!), { ...player.trail[1]!, x2: 27 }],
   };
-  const next = cache.update([moved], "epoch:match:round1");
+  const next = cache.update([moved], "epoch:match:round1", 0, RULES);
   assert.equal(initial.changed, true);
   assert.equal(next.changed, false);
   assert.equal(next.strokes, initial.strokes);
   assert.equal(
-    cache.update([structuredClone(moved)], "epoch:match:round1").changed,
+    cache.update([structuredClone(moved)], "epoch:match:round1", 0, RULES)
+      .changed,
     false,
   );
   assert.deepEqual(
@@ -107,16 +113,16 @@ test("history refreshes for trail holes, clipping, expiry, death, identity, scop
     { ...player, color: "#ff0000" },
   ]) {
     const cache = new TrailHistoryCache();
-    cache.update([player], "match:1");
-    assert.equal(cache.update([changed], "match:1").changed, true);
+    cache.update([player], "match:1", 0, RULES);
+    assert.equal(cache.update([changed], "match:1", 0, RULES).changed, true);
   }
   const cache = new TrailHistoryCache();
-  cache.update([player], "match:1");
-  assert.equal(cache.update([player], "match:2").changed, true);
-  assert.deepEqual(cache.update([], "match:2").strokes, []);
-  cache.update([player], "match:2");
+  cache.update([player], "match:1", 0, RULES);
+  assert.equal(cache.update([player], "match:2", 0, RULES).changed, true);
+  assert.deepEqual(cache.update([], "match:2", 0, RULES).strokes, []);
+  cache.update([player], "match:2", 0, RULES);
   cache.reset();
-  assert.equal(cache.update([player], "match:2").changed, true);
+  assert.equal(cache.update([player], "match:2", 0, RULES).changed, true);
 });
 
 test("a fresh trail follows the interpolated head by at most one simulation step", () => {
@@ -194,9 +200,9 @@ test("detached living pieces use dead-trail styling and refresh either shrinking
     player = rider();
   player.trail = player.trail.map((s) => ({
     ...s,
-    detached: { id: 1, decayStartTick: 30 },
+    detached: { id: 1, decayStartTick: 70 },
   }));
-  const first = cache.update([player], "match:1");
+  const first = cache.update([player], "match:1", 0, RULES);
   assert.equal(first.strokes[0]!.alive, false);
   assert.deepEqual(trailTip(player, 10.5, "playing").at(-1), { x: 20, y: 10 });
   const shrunk = {
@@ -206,13 +212,16 @@ test("detached living pieces use dead-trail styling and refresh either shrinking
       { ...player.trail[1]!, x2: 17 },
     ],
   };
-  assert.equal(cache.update([shrunk], "match:1").changed, true);
+  assert.equal(cache.update([shrunk], "match:1", 0, RULES).changed, true);
   assert.equal(trailTip(shrunk, 11, "playing").at(-1)!.x, 17);
   const active = rider();
-  assert.equal(cache.update([active], "match:1").strokes[0]!.alive, true);
+  assert.equal(
+    cache.update([active], "match:1", 0, RULES).strokes[0]!.alive,
+    true,
+  );
   const crossing = [
     segment(1, 0, 0, 10, 0),
-    { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 30 } },
+    { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 70 } },
   ];
   assert.equal(trailPaths(crossing).length, 2);
 });
@@ -235,5 +244,80 @@ test("a Snail that ends on the next tick no longer clips the tip: the cap is the
   assert.deepEqual(
     trailTip({ ...player, x: 27 }, game.tick + 0.9, "playing").at(-1),
     { x: 27, y: 10 },
+  );
+});
+
+test("pieces desaturate independently from snapshot time, preserving geometry and rider identity", () => {
+  const player = rider();
+  player.trail = [
+    { ...segment(1, 0, 0, 10, 0), detached: { id: 1, decayStartTick: 70 } },
+    { ...segment(2, 10, 0, 20, 0), detached: { id: 2, decayStartTick: 100 } },
+    segment(3, 20, 0, 30, 0),
+  ];
+  const original = structuredClone(player);
+  const fresh = completeTrailStrokes([player], 10, "playing", RULES);
+  const middle = completeTrailStrokes([player], 40, "playing", RULES);
+  const gray = completeTrailStrokes([player], 70, "playing", RULES);
+  assert.equal(fresh[0].color, player.color);
+  const channels = (color: string) =>
+    [1, 3, 5].map((offset) => parseInt(color.slice(offset, offset + 2), 16));
+  const chroma = (color: string) =>
+    Math.max(...channels(color)) - Math.min(...channels(color));
+  assert(chroma(middle[0].color) > 0);
+  assert(chroma(middle[0].color) < chroma(fresh[0].color));
+  assert.equal(chroma(gray[0].color), 0);
+  assert.equal(
+    middle[1].color,
+    player.color,
+    "newer piece starts at full color",
+  );
+  assert(gray.every((stroke, i) => i !== 2 || stroke.color === player.color));
+  assert.deepEqual(
+    gray.map((stroke) => stroke.paths),
+    fresh.map((stroke) => stroke.paths),
+  );
+  assert.deepEqual(
+    completeTrailStrokes([player], 10, "playing", RULES),
+    fresh,
+    "rollback restores saturation",
+  );
+  assert.deepEqual(player, original);
+  assert.equal(
+    trailColor(player.color, false, player.trail[0], 70, RULES),
+    gray[0].color,
+    "death does not restart an older piece's fade",
+  );
+});
+
+test("Canvas history refreshes color with stationary geometry, settles at gray and restores on rollback", () => {
+  const cache = new TrailHistoryCache();
+  const player = rider();
+  player.trail = player.trail.map((segment) => ({
+    ...segment,
+    detached: { id: 1, decayStartTick: 70 },
+  }));
+  const first = cache.update([player], "match:1", 10, RULES);
+  const middle = cache.update([player], "match:1", 40.5, RULES);
+  assert(middle.changed);
+  assert.notEqual(middle.strokes[0].color, first.strokes[0].color);
+  assert.equal(
+    middle.strokes[0].color,
+    completeTrailStrokes([player], 40.5, "playing", RULES)[0].color,
+  );
+  assert.deepEqual(middle.strokes[0].paths, first.strokes[0].paths);
+  cache.update([player], "match:1", 70, RULES);
+  assert.equal(cache.update([player], "match:1", 80, RULES).changed, false);
+  assert.deepEqual(
+    cache.update([player], "match:1", 10, RULES).strokes,
+    first.strokes,
+  );
+  player.trail[0] = {
+    ...player.trail[0],
+    detached: { id: 1, decayStartTick: 0 },
+  };
+  assert.equal(
+    cache.update([player], "match:1", 10, RULES).changed,
+    true,
+    "corrected schedule invalidates cached color",
   );
 });

@@ -15,6 +15,9 @@ import {
   riderMotionStep,
 } from "./tuning.js";
 import { edgesOpen } from "./arena-map.js";
+import { GUN_HEADSHOT_RADIUS, GUN_HOLE_RADIUS, GUN_RADIUS } from "./gun.js";
+import { PORTAL_WALL_HALF_WIDTH } from "./portal.js";
+import { TRAIL_DECAY_PAUSE_TICKS } from "./trail-lifecycle.js";
 import {
   MAX_VOLLEY_BOMBS,
   bombsPerShot,
@@ -60,6 +63,16 @@ export interface ViewRules {
   blastVisibleTicks: number;
   /** The width a trail collides at, which is the width it is drawn and burnt at. */
   trailWidth: number;
+  /** How long a detached or dead trail holds still before it starts to shrink from `detached.decayStartTick`. */
+  trailDecayPauseTicks: number;
+  /** A gun ray's radius: where it stops against a wall or a piece of scenery. */
+  gunRadius: number;
+  /** The hole a gun ray cuts in a trail: the new ends of the cut lie this far from where it stopped. */
+  gunHoleRadius: number;
+  /** How close a gun ray passes to a rider's centre and kills it. */
+  gunHeadshotRadius: number;
+  /** Half the thickness of a portal gate: a ray stops this far plus its own radius from the gate's line. */
+  portalWallHalfWidth: number;
 }
 
 /** One rider as a screen sees it. */
@@ -213,6 +226,11 @@ const RULES_VIEW: ViewRules = Object.freeze({
   tickHz: TICK_HZ,
   blastVisibleTicks: BLAST_VISIBLE_TICKS,
   trailWidth: TRAIL_WIDTH,
+  trailDecayPauseTicks: TRAIL_DECAY_PAUSE_TICKS,
+  gunRadius: GUN_RADIUS,
+  gunHoleRadius: GUN_HOLE_RADIUS,
+  gunHeadshotRadius: GUN_HEADSHOT_RADIUS,
+  portalWallHalfWidth: PORTAL_WALL_HALF_WIDTH,
 });
 
 /** What a screen is given of the state. Read-only over `GameState`; callers ask for it when they need one. */

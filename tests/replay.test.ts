@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEFAULT_AVATAR } from "../src/shared/avatars.ts";
 import type { Moment } from "../src/engine/moments.ts";
+import { createGame, toView } from "../src/engine/game.ts";
 import type { WorldView } from "../src/engine/view.ts";
 import {
   BARS_IN_MS,
@@ -86,7 +87,7 @@ function world(
       turn: 0.14,
       nextVolleyAngles: [0],
     })),
-    rules: { tickHz: 20, blastVisibleTicks: 8, trailWidth: 6 },
+    rules: toView(createGame("replay-rules", 1)).rules,
     openEdges: false,
     map: "classic",
     obstacles: [],

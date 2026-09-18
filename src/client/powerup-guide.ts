@@ -79,7 +79,9 @@ const copy: Record<PickupType, readonly [name: string, description: string]> = {
   ],
 };
 
-const defaultSpawns = new Set(PICKUP_WEIGHTS.map((row) => row.type));
+const defaultSpawns = new Set(
+  PICKUP_WEIGHTS.filter((row) => row.weight > 0).map((row) => row.type),
+);
 
 export const POWERUP_GUIDE: readonly PowerupGuideEntry[] = (
   Object.entries(copy) as Array<[PickupType, readonly [string, string]]>

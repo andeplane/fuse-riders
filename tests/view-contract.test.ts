@@ -13,6 +13,13 @@ import {
   riderMotionStep,
 } from "../src/engine/tuning.js";
 import { edgesOpen } from "../src/engine/arena-map.js";
+import {
+  GUN_HEADSHOT_RADIUS,
+  GUN_HOLE_RADIUS,
+  GUN_RADIUS,
+} from "../src/engine/gun.js";
+import { PORTAL_WALL_HALF_WIDTH } from "../src/engine/portal.js";
+import { TRAIL_DECAY_PAUSE_TICKS } from "../src/engine/trail-lifecycle.js";
 import { bombsPerShot, volleyAngles } from "../src/engine/launch-modifiers.js";
 import { toView, type WorldView } from "../src/engine/view.js";
 import { legacySnapshot } from "./fixtures/legacy-snapshot.js";
@@ -75,6 +82,11 @@ test("the view publishes every field it did before #254, unchanged, over the who
       tickHz: TICK_HZ,
       blastVisibleTicks: BLAST_VISIBLE_TICKS,
       trailWidth: TRAIL_WIDTH,
+      trailDecayPauseTicks: TRAIL_DECAY_PAUSE_TICKS,
+      gunRadius: GUN_RADIUS,
+      gunHoleRadius: GUN_HOLE_RADIUS,
+      gunHeadshotRadius: GUN_HEADSHOT_RADIUS,
+      portalWallHalfWidth: PORTAL_WALL_HALF_WIDTH,
     });
     assert.equal(view.openEdges, edgesOpen(game));
     if (view.openEdges) open++;

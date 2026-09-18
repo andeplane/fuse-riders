@@ -1,3 +1,4 @@
+import { GunImpacts } from "../render/phaser/gun-impacts.js";
 import type { ServerMessage } from "../shared/protocol.js";
 import { showsRoundResult } from "./arena-announcer.js";
 import {
@@ -52,6 +53,8 @@ export interface GameSynth {
  */
 export class AudioDirector {
   private unlocked = false;
+  private gunImpacts = new GunImpacts();
+  private armedGuns = new Map<string, boolean>();
   private scope = "";
   private matchId = "";
   private round = -1;
@@ -241,6 +244,8 @@ export class AudioDirector {
   disconnect(): void {
     this.save();
     this.scope = "";
+    this.gunImpacts.reset();
+    this.armedGuns.clear();
     this.seen.clear();
     this.stingFor = "";
     this.playing = false;
@@ -256,11 +261,27 @@ export class AudioDirector {
       this.matchId = message.matchId;
       this.round = message.round;
       if (scope !== this.scope) {
+        this.armedGuns.clear();
         this.scope = scope;
         this.baselineTick = message.tick;
         this.seen.clear();
         this.stingFor = "";
       } else if (message.tick < this.latestTick) return;
+      for (const player of message.state.players)
+        if (player.gunArmed && this.armedGuns.get(player.id) === false)
+          this.cue("gun-armed");
+      this.armedGuns = new Map(
+        message.state.players.map((player) => [player.id, !!player.gunArmed]),
+      );
+      const impactKinds = new Set(
+        this.gunImpacts
+          .accept(
+            { ...message.state, tick: message.tick, round: message.round },
+            message.matchId,
+          )
+          .fresh.map((impact) => impact.kind),
+      );
+      for (const kind of impactKinds) this.cue(`gun-${kind}`);
       this.latestTick = message.tick;
       // The final pause opens on the round's own result; the match sting belongs to the card that names the match winner.
       if (
@@ -283,7 +304,8 @@ export class AudioDirector {
       message.tick < this.latestTick - 2
     )
       return;
-    const key = `${message.tick}:${message.event.type}`;
+    const gun = message.event.type === "bombPlaced" && message.event.gun;
+    const key = `${message.tick}:${message.event.type}${gun && message.event.type === "bombPlaced" ? `:${message.event.playerId}` : ""}`;
     if (this.seen.has(key)) return;
     this.seen.add(key);
     if (this.seen.size > 100)
@@ -293,9 +315,8 @@ export class AudioDirector {
       return;
     }
     this.cue(
-      message.event.type === "bombPlaced" && message.event.gun
-        ? "cannon"
-        : message.event.type,
+      gun ? "cannon" : message.event.type,
+      gun && message.event.type === "bombPlaced" ? message.event.bombId : 0,
     );
   }
   /**
@@ -376,7 +397,7 @@ export class AudioDirector {
         break;
     }
   }
-  private cue(type: string): void {
+  private cue(type: string, identity = 0): void {
     if (!this.unlocked || this.silenced) return;
     const note = (
       frequency: number,
@@ -384,6 +405,7 @@ export class AudioDirector {
       duration: number,
       wave: SynthNote["wave"] = "square",
       delay = 0,
+      level = 0.24,
     ) =>
       this.synth.note("effects", {
         frequency,
@@ -391,13 +413,32 @@ export class AudioDirector {
         duration,
         wave,
         delay,
-        level: 0.24,
+        level,
       });
     switch (type) {
-      case "cannon":
-        note(180, 35, 0.32, "sawtooth");
-        note(90, 24, 0.4, "triangle");
-        note(900, 90, 0.09);
+      case "cannon": {
+        // Stable cosmetic variation: re-delivery never changes the shot's voice.
+        const pitch = 0.96 + ((identity * 7) % 9) * 0.01;
+        note(2400 * pitch, 650 * pitch, 0.035, "square", 0, 0.18);
+        note(260 * pitch, 115 * pitch, 0.105, "triangle", 0, 0.3);
+        note(780 * pitch, 180 * pitch, 0.075, "sawtooth", 0.008, 0.12);
+        note(1500 * pitch, 480 * pitch, 0.16, "sawtooth", 0.025, 0.045);
+        break;
+      }
+      case "gun-armed":
+        note(620, 300, 0.035, "square", 0.32, 0.12);
+        note(1350, 850, 0.045, "square", 0.38, 0.16);
+        break;
+      case "gun-solid":
+        note(1900, 800, 0.045, "square", 0, 0.075);
+        note(2700, 1800, 0.065, "triangle", 0.01, 0.05);
+        break;
+      case "gun-trail":
+        note(1100, 220, 0.085, "sawtooth", 0, 0.1);
+        break;
+      case "gun-lethal":
+        note(1700, 1100, 0.045, "square", 0, 0.13);
+        note(880, 1320, 0.12, "triangle", 0.035, 0.17);
         break;
       case "bombPlaced":
         note(260, 1050, 0.12);

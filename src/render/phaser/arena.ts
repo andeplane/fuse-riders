@@ -10,10 +10,17 @@ import type { WorldView } from "../../engine/view.js";
 import { themes, type ThemeDefinition } from "../themes.js";
 import { AVATAR_ATLAS } from "../avatar-atlas.js";
 import { bombPreviewDistance } from "../bomb-preview.js";
+import { drawBombAim } from "./bomb-aim.js";
 import { drawInkClouds } from "../ink-renderer.js";
 import { portalPalettes } from "../portal-palettes.js";
 import { EffectTransitions, bombPose } from "./effects.js";
-import { TrailHistoryCache, trailTip, type TrailPoint } from "./trails.js";
+import {
+  completeTrailStrokes,
+  trailColor,
+  TrailHistoryCache,
+  trailTip,
+  type TrailPoint,
+} from "./trails.js";
 import { arenaWall, trailStuds } from "../arena-wall.js";
 import { mapGround, obstacleParts, paintMapGround } from "../arena-maps.js";
 import { crossViews, edgeGhosts } from "../arena-views.js";
@@ -21,7 +28,10 @@ import { PICKUP_TYPES, wrapCoordinate } from "../../engine/view-kit.js";
 import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
+import { GunImpacts, gunImpactFrame } from "./gun-impacts.js";
+import { gunFrame, gunRoots, gunPortalPulses } from "./gun-animation.js";
 import { TrailDebris } from "../trail-debris.js";
+import { BeveledTrails } from "./beveled-trails.js";
 import {
   selfLocatorRing,
   selfLocatorSide,
@@ -301,8 +311,10 @@ class ArenaScene extends Phaser.Scene {
   private floorImage!: Phaser.GameObjects.Image;
   private trails!: Phaser.GameObjects.Graphics;
   private trailTips!: Phaser.GameObjects.Graphics;
+  private beveledTrails?: BeveledTrails;
   private dynamic!: Phaser.GameObjects.Graphics;
   private front!: Phaser.GameObjects.Graphics;
+  private gunImpacts = new GunImpacts();
   private sparks!: Phaser.GameObjects.Particles.ParticleEmitter;
   private world!: Phaser.GameObjects.Layer;
   private maskShape!: Phaser.GameObjects.Graphics;
@@ -401,6 +413,12 @@ class ArenaScene extends Phaser.Scene {
       .layer([this.trails, this.trailTips, this.dynamic, this.front])
       .setDepth(1)
       .setMask(mask);
+    if (this.game.renderer.type === Phaser.WEBGL) {
+      this.beveledTrails = new BeveledTrails(this).setDepth(1);
+      this.world.add(this.beveledTrails);
+      this.trails.setVisible(false);
+      this.trailTips.setVisible(false);
+    }
     this.sparks = this.add
       .particles(0, 0, "spark", {
         emitting: false,
@@ -428,6 +446,7 @@ class ArenaScene extends Phaser.Scene {
   }
   resetEffects(): void {
     this.transitions.reset();
+    this.gunImpacts.reset();
     this.sparks?.killAll();
     this.trailHistory.reset();
     this.debris.reset();
@@ -451,7 +470,6 @@ class ArenaScene extends Phaser.Scene {
     graphics: Phaser.GameObjects.Graphics,
     paths: readonly (readonly TrailPoint[])[],
     tint: number,
-    alive: boolean,
     theme: ThemeDefinition,
   ): void {
     const pixel = theme.rendering.pixelated;
@@ -463,10 +481,8 @@ class ArenaScene extends Phaser.Scene {
     ] as const;
     for (const [index, [width, alpha, shade]] of passes.entries()) {
       const core = index === passes.length - 1;
-      // Detached trails are quieter visually but remain collidable until eroded.
-      graphics
-        .lineStyle(width, shade, alpha * (alive ? 1 : 0.6))
-        .fillStyle(shade, alpha * (alive ? 1 : 0.6));
+      // The solid body stays opaque throughout detachment and death.
+      graphics.lineStyle(width, shade, alpha).fillStyle(shade, alpha);
       for (const path of paths) {
         if (path.length < 2) continue;
         if (core && pixel) {
@@ -687,8 +703,10 @@ class ArenaScene extends Phaser.Scene {
     this.drawFloor(frame);
     this.drawTrails(frame);
     this.drawTransitions(frame);
+    this.drawGunImpacts(frame);
     this.drawPickups(frame);
     this.drawPortals(frame);
+    this.drawGunMuzzles(frame);
     this.drawBombs(frame);
     this.drawFields(frame);
     this.drawBlasts(frame);
@@ -860,29 +878,51 @@ class ArenaScene extends Phaser.Scene {
   /** Established trail from the cache, restroked only when it changes; the moving tips every frame. */
   private drawTrails(frame: Frame): void {
     const { s, theme, matchId } = frame;
+    // Snapshot ticks keep advancing during results; the decision owns the frozen board.
+    const trailColorTick =
+      s.phase === "playing"
+        ? (s.presentationTick ?? s.tick)
+        : (s.phase === "roundOver" || s.phase === "matchOver") &&
+            s.decidedRound?.round === s.round
+          ? s.decidedRound.tick
+          : s.tick;
     const history = this.trailHistory.update(
       s.players,
       `${matchId}:${s.round}:${theme.id}`,
+      trailColorTick,
+      s.rules,
     );
     if (history.changed) {
       this.trailHistoryBuilds++;
       this.trails.clear();
-      for (const stroke of history.strokes)
-        this.strokeTrail(
-          this.trails,
-          stroke.paths,
-          color(stroke.color),
-          stroke.alive,
-          theme,
-        );
+      for (const stroke of this.beveledTrails ? [] : history.strokes)
+        this.strokeTrail(this.trails, stroke.paths, color(stroke.color), theme);
     }
     this.trailTips.clear();
-    for (const player of s.players)
+    if (this.beveledTrails)
+      this.beveledTrails.updateTrails(
+        completeTrailStrokes(
+          s.players,
+          s.tick,
+          s.phase,
+          s.rules,
+          trailColorTick,
+        ),
+        s.rules.trailWidth,
+      );
+    for (const player of this.beveledTrails ? [] : s.players)
       this.strokeTrail(
         this.trailTips,
         [trailTip(player, s.tick, s.phase)],
-        color(player.color),
-        player.alive && !player.trail.at(-1)?.detached,
+        color(
+          trailColor(
+            player.color,
+            player.alive,
+            player.trail.at(-1),
+            trailColorTick,
+            s.rules,
+          ),
+        ),
         theme,
       );
   }
@@ -897,6 +937,36 @@ class ArenaScene extends Phaser.Scene {
     for (const piece of events.rubble) {
       this.sparks.setParticleTint(color(ground.dust));
       this.sparks.explode(10, piece.x, piece.y);
+    }
+  }
+  /** Gun impacts: bursts at the endpoints the simulation already resolved, and the new ends of a cut trail. */
+  private drawGunImpacts(frame: Frame): void {
+    const { s, matchId, g, ghosts } = frame;
+    for (const hit of this.gunImpacts.accept(s, matchId).active) {
+      const burst = gunImpactFrame(hit, s.presentationTick ?? s.tick);
+      const tint = color(hit.color);
+      for (const fragment of burst.fragments)
+        for (const { dx, dy } of ghosts(fragment.x, fragment.y, fragment.size))
+          g.fillStyle(tint, burst.alpha).fillRect(
+            fragment.x + dx - fragment.size / 2,
+            fragment.y + dy - fragment.size / 2,
+            fragment.size,
+            fragment.size,
+          );
+      for (const end of hit.ends)
+        g.fillStyle(0xffffff, burst.alpha ** 2).fillRect(
+          end.x - 2,
+          end.y - 2,
+          4,
+          4,
+        );
+      if (hit.kind === "lethal")
+        for (const { dx, dy } of ghosts(hit.x, hit.y, 20))
+          g.lineStyle(2, 0xffffff, burst.core).strokeCircle(
+            hit.x + dx,
+            hit.y + dy,
+            5 + (1 - burst.core) * 15,
+          );
     }
   }
   private drawPickups(frame: Frame): void {
@@ -933,12 +1003,26 @@ class ArenaScene extends Phaser.Scene {
   }
   private drawPortals(frame: Frame): void {
     const { s, now, g } = frame;
+    const portalPulses = gunPortalPulses(s, s.presentationTick ?? s.tick);
     const livePortals = s.portalPairs.filter(
       (pair) => pair.expiresAtTick > s.tick,
     );
     const portalTints = portalPalettes(livePortals.map((pair) => pair.id));
     for (const [pairIndex, pair] of livePortals.entries()) {
       const tints = portalTints[pairIndex]!.map(color) as [number, number];
+      const shotPulses = portalPulses.filter(
+        (pulse) => pulse.pairId === pair.id,
+      );
+      const shotGlow = Math.max(
+        0,
+        ...shotPulses.map((pulse) => pulse.strength),
+      );
+      for (const pulse of shotPulses)
+        for (const point of [pulse.entry, pulse.exit])
+          g.fillStyle(0xffffff, pulse.strength)
+            .fillRect(point.x - 2, point.y - 8, 4, 16)
+            .fillRect(point.x - 8, point.y - 2, 16, 4);
+
       // The faint tether keeps the two ends of one pair readable when several pairs are open.
       g.lineStyle(2, tints[0], 0.18).lineBetween(
         pair.gates[0].x,
@@ -962,6 +1046,21 @@ class ArenaScene extends Phaser.Scene {
             gate.x,
             gate.y + gate.halfLength,
           );
+        if (shotGlow > 0)
+          g.lineStyle(30, tint, 0.3 * shotGlow)
+            .lineBetween(
+              gate.x,
+              gate.y - gate.halfLength,
+              gate.x,
+              gate.y + gate.halfLength,
+            )
+            .lineStyle(3, 0xffffff, 0.9 * shotGlow)
+            .lineBetween(
+              gate.x,
+              gate.y - gate.halfLength,
+              gate.x,
+              gate.y + gate.halfLength,
+            );
         for (let y = -gate.halfLength; y < gate.halfLength; y += 20) {
           const offset = (now / 35) % 20;
           g.fillStyle(0xffffff, 0.75).fillRect(
@@ -981,24 +1080,70 @@ class ArenaScene extends Phaser.Scene {
       }
     }
   }
+  /** Only original rays flash at the muzzle and kick the rider back; drawn under the tracers themselves. */
+  private drawGunMuzzles(frame: Frame): void {
+    const { s, g, f } = frame;
+    // Portal/wrap legs never create a second rider.
+    for (const bomb of gunRoots(s.bombs)) {
+      const pose = gunFrame(bomb, s.presentationTick ?? s.tick);
+      const owner = s.players.find((p) => p.id === bomb.ownerId);
+      const tint = color(owner?.color ?? "#ffffff");
+      const { dx, dy, flash, recoil } = pose;
+      if (flash > 0) {
+        const offset = Math.min(
+          23,
+          Math.hypot(bomb.x - bomb.launchX, bomb.y - bomb.launchY),
+        );
+        const x = bomb.launchX + dx * offset,
+          y = bomb.launchY + dy * offset;
+        g.fillStyle(tint, flash * 0.35).fillTriangle(
+          x - dy * 9,
+          y + dx * 9,
+          x + dx * 23,
+          y + dy * 23,
+          x + dy * 9,
+          y - dx * 9,
+        );
+        g.fillStyle(0xffffff, flash)
+          .fillRect(x - 2, y - 8, 4, 16)
+          .fillRect(x - 8, y - 2, 16, 4);
+      }
+      if (owner?.alive && recoil > 0)
+        f.lineStyle(2, tint, 0.65 * (1 - recoil / 10)).strokeCircle(
+          owner.x - dx * recoil,
+          owner.y - dy * recoil,
+          18,
+        );
+    }
+  }
   /** Gun tracers, shells, and lobbed bombs with their landing ring and fuse arc. */
   private drawBombs(frame: Frame): void {
     const { s, now, theme, g, w, h, open, ghosts } = frame;
     for (const bomb of s.bombs) {
       if (bomb.shell?.gun) {
-        const alpha = clamp(
-          (bomb.explodeAtTick - (s.presentationTick ?? s.tick)) /
-            Math.max(1, bomb.explodeAtTick - bomb.launchedTick),
-          0,
-          1,
+        const { alpha, glow } = gunFrame(bomb, s.presentationTick ?? s.tick);
+        const tint = color(
+          s.players.find((p) => p.id === bomb.ownerId)?.color ?? "#ffffff",
         );
-        g.lineStyle(2, 0xd8edff, 0.7 * alpha).lineBetween(
+        g.lineStyle(10 * glow + 2, tint, 0.24 * glow).lineBetween(
           bomb.launchX,
           bomb.launchY,
           bomb.x,
           bomb.y,
         );
-        g.fillStyle(0xffffff, alpha).fillCircle(bomb.x, bomb.y, 2);
+        g.lineStyle(4, tint, 0.65 * alpha).lineBetween(
+          bomb.launchX,
+          bomb.launchY,
+          bomb.x,
+          bomb.y,
+        );
+        g.lineStyle(1.5, 0xffffff, alpha).lineBetween(
+          bomb.launchX,
+          bomb.launchY,
+          bomb.x,
+          bomb.y,
+        );
+        g.fillStyle(0xffffff, alpha).fillRect(bomb.x - 2, bomb.y - 2, 4, 4);
         continue;
       }
       if (bomb.shell) {
@@ -1230,6 +1375,28 @@ class ArenaScene extends Phaser.Scene {
           p.x + dx * 16 - dy * 5,
           p.y + dy * 16 + dx * 5,
         );
+        if (p.gunArmed && (s.phase === "playing" || s.phase === "countdown")) {
+          // A compact luminous barrel/chevron, aligned with the next shot.
+          f.lineStyle(6, tint, 0.25).lineBetween(
+            p.x + dx * 20,
+            p.y + dy * 20,
+            p.x + dx * 33,
+            p.y + dy * 33,
+          );
+          f.lineStyle(2, 0xffffff, 0.95)
+            .lineBetween(
+              p.x + dx * 23 + dy * 5,
+              p.y + dy * 23 - dx * 5,
+              p.x + dx * 30,
+              p.y + dy * 30,
+            )
+            .lineBetween(
+              p.x + dx * 30,
+              p.y + dy * 30,
+              p.x + dx * 23 - dy * 5,
+              p.y + dy * 23 + dx * 5,
+            );
+        }
         const labelY = p.y - (self ? 30 : 27);
         if (self)
           f.lineStyle(2, tint, 0.55 + Math.sin(now / 180) * 0.25).strokeCircle(
@@ -1335,10 +1502,7 @@ class ArenaScene extends Phaser.Scene {
               y = open
                 ? p.y + Math.sin(a) * distance
                 : clamp(p.y + Math.sin(a) * distance, b + 20, h - b - 20);
-            f.lineStyle(2, tint, 0.5)
-              .lineBetween(p.x, p.y, x, y)
-              .lineStyle(2, tint, 0.9)
-              .strokeRect(x - 9, y - 9, 18, 18);
+            drawBombAim(f, p, { x, y }, tint);
           }
         }
         if (
@@ -1349,14 +1513,7 @@ class ArenaScene extends Phaser.Scene {
           p.bombTarget
         ) {
           const { x, y } = p.bombTarget;
-          f.lineStyle(2, tint, 0.5)
-            .lineBetween(p.x, p.y, x, y)
-            .lineStyle(3, tint)
-            .strokeCircle(x, y, 23)
-            .lineBetween(x - 32, y, x - 11, y)
-            .lineBetween(x + 11, y, x + 32, y)
-            .lineBetween(x, y - 32, x, y - 11)
-            .lineBetween(x, y + 11, x, y + 32);
+          drawBombAim(f, p, { x, y }, tint);
           this.label(`TARGET · ${p.name}`, x, y + 45, p.color, 12, 7);
         }
       }

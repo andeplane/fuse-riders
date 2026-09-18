@@ -4,7 +4,7 @@
  * data in the `WorldView`: if a renderer wants a constant from here, publish the value in the view instead.
  *
  * An entry earns its place by being a function of its arguments alone (no state, no tuning a screen would have to keep
- * in step) that presentation must evaluate at a time or place the simulation never did:
+ * in step) that presentation must evaluate at a time or place the simulation never did. No simulation is run here.
  */
 
 // Between two ticks: the local rider is led ahead with the turn-then-move kernel, bent by the holes it is inside of,
@@ -28,6 +28,10 @@ export {
 // the tick before exactly as the simulation would have, and tests what is missing against the blast's disk.
 export { advanceTrail } from "./trail-lifecycle.js";
 export { segmentIntersectsDisk } from "./blast-geometry.js";
+
+// A gun impact is cosmetic evidence at an endpoint the simulation already resolved: the screen asks whether that
+// endpoint touches a piece of scenery, with the same rectangle distance the simulation used.
+export { obstacleDistanceSquared } from "./arena-map.js";
 
 // The pickup vocabulary as a list: the scene preloads one sprite per type before any view exists.
 export { PICKUP_TYPES } from "./pickup-types.js";
