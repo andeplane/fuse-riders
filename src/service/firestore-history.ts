@@ -97,6 +97,18 @@ export class FirestoreHistoryDatabase implements HistoryDatabase {
       { maxAttempts: 5 },
     );
   }
+  async recentMatches(
+    before: number | undefined,
+    limit: number,
+  ): Promise<MatchRecord[]> {
+    // A single-field order, so Firestore's automatic index serves it; no composite index to deploy.
+    let query = this.matches().orderBy("feedAt", "desc");
+    if (before !== undefined) query = query.where("feedAt", "<", before);
+    return (await query.limit(limit).get()).docs.flatMap((doc) => {
+      const match = parseMatchRecord(doc.data());
+      return match ? [match] : [];
+    });
+  }
   async matchesFor(
     uid: string,
     before: number | undefined,

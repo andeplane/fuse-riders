@@ -171,6 +171,8 @@ try {
               leaderboardUrl: `${api}/api/leaderboard`,
               historyUrl: (before) =>
                 `${api}/api/me/matches${before === undefined ? "" : `?before=${before}`}`,
+              matchesUrl: (before) =>
+                `${api}/api/matches${before === undefined ? "" : `?before=${before}`}`,
               localName: () => "Neon Rider",
               fetch: (input, init) => fetch(input, init),
               track: () => {},
@@ -274,8 +276,56 @@ try {
         await page.screenshot({
           path: `artifacts/player-stats-${name}-${viewport.width}.png`,
         });
+        // Recent matches: everyone's by default, your own one tap away, and each opens into its full results.
         await page
-          .getByRole("button", { name: "GLOBAL LEADERBOARD", exact: true })
+          .getByRole("button", { name: "MATCHES", exact: true })
+          .click();
+        await page.locator(".account-match").first().waitFor();
+        assert.equal(await page.locator(".account-match").count(), 8);
+        assert.equal(
+          await page.locator(".account-day h3").first().textContent(),
+          "TODAY",
+        );
+        assert.equal(
+          await page
+            .locator(".stats-dialog .dialog-body")
+            .evaluate((e) => e.scrollWidth > e.clientWidth + 1),
+          false,
+          "match list fits",
+        );
+        await page.screenshot({
+          path: `artifacts/player-matches-${name}-${viewport.width}.png`,
+        });
+        await page.getByRole("button", { name: "YOURS", exact: true }).click();
+        await page.locator(".account-match").first().waitFor();
+        assert.equal(await page.locator(".account-match").count(), 8);
+        await page.locator(".account-match-open").first().click();
+        await page.locator(".match-recap-report").waitFor();
+        assert.match(
+          await page.locator(".recap-standings").innerText(),
+          /YOU/,
+          "your seat is marked in an opened match",
+        );
+        assert.equal(await page.locator(".recap-details").isVisible(), true);
+        assert.equal(
+          await page
+            .locator(".stats-dialog .dialog-body")
+            .evaluate((e) => e.scrollWidth > e.clientWidth + 1),
+          false,
+          "opened match fits",
+        );
+        await page.screenshot({
+          path: `artifacts/player-match-${name}-${viewport.width}.png`,
+        });
+        await page
+          .getByRole("button", { name: "‹ MATCHES", exact: true })
+          .click();
+        await page.locator(".account-match").first().waitFor();
+        await page.getByRole("button", { name: "STATS", exact: true }).click();
+        await page.locator(".stats-finish").first().click();
+        await page.locator(".match-recap-report").waitFor();
+        await page
+          .getByRole("button", { name: "LEADERBOARD", exact: true })
           .click();
         await page.locator(".stats-leaderboard").waitFor();
         assert.match(
@@ -287,9 +337,7 @@ try {
         await page.screenshot({
           path: `artifacts/player-leaderboard-${name}-${viewport.width}.png`,
         });
-        await page
-          .getByRole("button", { name: "MY STATS", exact: true })
-          .click();
+        await page.getByRole("button", { name: "STATS", exact: true }).click();
         await page.locator(".rating-chart").waitFor();
         await page.getByText("Account settings", { exact: true }).click();
         await page
@@ -311,7 +359,9 @@ try {
         assert.equal(await page.locator(".rating-chart").count(), 0);
         assert.deepEqual(errors, []);
         await page.close();
-        console.log(`PASS stats + leaderboard ${name} ${viewport.width}px`);
+        console.log(
+          `PASS stats + matches + leaderboard ${name} ${viewport.width}px`,
+        );
       }
     } finally {
       await browser.close();

@@ -218,6 +218,7 @@ try {
               profileUrl: "/profile",
               leaderboardUrl: "/board",
               historyUrl: () => "/history",
+              matchesUrl: () => "/matches",
               localName: () => "Test",
               track: () => {},
               fetch: async () => {

@@ -309,7 +309,10 @@ function rivalrySection(page: StatsPage): HTMLElement {
   rivals.append(columns);
   return rivals;
 }
-export function playerStats(page: StatsPage): HTMLElement {
+export function playerStats(
+  page: StatsPage,
+  options: { openMatch?(match: HistoryEntry): void } = {},
+): HTMLElement {
   const root = element("div", "", "player-stats");
   root.append(
     ratingCard(page.profile?.rating ?? newRating(), page.profile?.rank),
@@ -427,9 +430,15 @@ export function playerStats(page: StatsPage): HTMLElement {
     for (const m of [...recent.slice(0, 10)].reverse()) {
       const p = m.result.players.find((p) => p.playerId === m.you);
       if (!p) continue;
-      const chip = element("span", `#${p.matchPlacement}`, "stats-finish");
+      const open = options.openMatch,
+        chip = element(open ? "button" : "span", `#${p.matchPlacement}`);
+      chip.className = "stats-finish";
       chip.dataset.won = String(p.matchPlacement === 1);
-      chip.title = `${date(m.endedAt)} · ${p.matchPlacement} of ${m.result.players.length} riders`;
+      chip.title = `${date(m.endedAt)} · ${p.matchPlacement} of ${m.result.players.length} riders${open ? " · Open results" : ""}`;
+      if (open && chip instanceof HTMLButtonElement) {
+        chip.type = "button";
+        chip.onclick = () => open(m);
+      }
       form.append(chip);
     }
     results.append(form);

@@ -5,6 +5,7 @@ import {
   leaderboardTable,
   type StatsPage,
 } from "./player-stats.js";
+import { renderMatchRecap } from "./match-recap-view.js";
 import { newRating, type LeaderboardEntry } from "../shared/rating.js";
 import {
   accountReady,
@@ -17,7 +18,7 @@ import {
   watchAccount,
   type Account,
 } from "./account.js";
-import type { MatchPlayerStats } from "../shared/match-stats.js";
+import type { FeedEntry } from "../service/history.js";
 import {
   MAX_RIDER_NAME,
   suggestRiderName,
@@ -25,21 +26,22 @@ import {
 } from "../shared/rider-name.js";
 
 /**
- * The landing page's account button and its dialog: sign in, career totals and past matches. Everything a server or
+ * The player dialog behind the landing page's account and leaderboard buttons: your stats, recent matches (everyone's
+ * or your own) and the global leaderboard, one tab each. A match opens into its full results. Everything a server or
  * another player supplied (names, colours, numbers) is written with textContent or a validated style property, never
  * as markup.
  */
-interface HistoryEntry {
-  id: string;
-  endedAt: number;
-  roomCode: string;
-  you?: string;
-  result: { length: number; winnerId?: string; players: MatchPlayerStats[] };
-}
 type HistoryPage = StatsPage;
+type MatchEntry = FeedEntry;
+type View = "stats" | "matches" | "leaderboard";
+type Scope = "everyone" | "mine";
+/** A server page is full at this size, so a shorter one is the last. Mirrors HISTORY_PAGE in the service. */
+const PAGE = 20;
 export interface AccountPanelDependencies {
   /** GET the signed-in player's history; `before` pages backwards from an `endedAt`. */
   historyUrl: (before?: number) => string;
+  /** GET everyone's recent games; `before` pages backwards from an `endedAt`. */
+  matchesUrl: (before?: number) => string;
   /** GET the profile, PUT `{ username }`. */
   profileUrl: string;
   leaderboardUrl: string;
@@ -86,52 +88,112 @@ const el = <K extends keyof HTMLElementTagNameMap>(
 };
 const ordinal = (place: number): string =>
   `${place}${place % 100 >= 11 && place % 100 <= 13 ? "TH" : (["TH", "ST", "ND", "RD"][place % 10] ?? "TH")}`;
-const count = (value: unknown): string =>
-  typeof value === "number" && Number.isFinite(value)
-    ? Math.round(value).toLocaleString()
-    : "0";
+const clock = (at: number): string =>
+  new Date(at).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+/** TODAY, YESTERDAY, else the date; the year only when it is not this one. */
+function dayLabel(at: number, now: number): string {
+  const midnight = (value: number): number => {
+    const d = new Date(value);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  const days = Math.round((midnight(now) - midnight(at)) / 86_400_000);
+  if (days === 0) return "TODAY";
+  if (days === 1) return "YESTERDAY";
+  const date = new Date(at);
+  return date
+    .toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      ...(date.getFullYear() === new Date(now).getFullYear()
+        ? {}
+        : { year: "numeric" }),
+    })
+    .toUpperCase();
+}
+const roundsOf = (entry: MatchEntry): number =>
+  Math.max(0, ...entry.result.players.map((player) => player.roundsPlayed));
+function headline(entry: MatchEntry): string {
+  const winners = entry.result.players.filter(
+    (player) => player.matchPlacement === 1,
+  );
+  if (winners.length !== 1) return "Shared win";
+  return winners[0]!.playerId === entry.you
+    ? "You won"
+    : `${winners[0]!.name} won`;
+}
 
-function matchRow(entry: HistoryEntry): HTMLLIElement {
-  const row = el("li", "", "account-match"),
-    detail = el("details"),
-    head = el("summary"),
-    riders = el("ul", "", "account-riders");
-  const mine = entry.result.players.find(
-    (player) => player.playerId === entry.you,
-  );
-  row.dataset.won = String(mine?.matchPlacement === 1);
-  head.append(
-    el(
-      "strong",
-      mine
-        ? `${ordinal(mine.matchPlacement)} OF ${entry.result.players.length}`
-        : "PLAYED",
+function matchRow(
+  entry: MatchEntry,
+  now: number,
+  open: (entry: MatchEntry) => void,
+): HTMLLIElement {
+  const item = el("li", "", "account-match"),
+    button = el("button", "", "account-match-open"),
+    riders = el("span", "", "account-riders");
+  button.type = "button";
+  const players = [...entry.result.players].sort(
+      (a, b) => a.matchPlacement - b.matchPlacement,
     ),
-    el(
-      "span",
-      `${new Date(entry.endedAt).toLocaleDateString()} · ROOM ${entry.roomCode}`,
-    ),
-  );
-  for (const player of [...entry.result.players].sort(
-    (a, b) => a.matchPlacement - b.matchPlacement,
-  )) {
-    const item = el("li"),
+    mine = players.find((player) => player.playerId === entry.you),
+    rounds = roundsOf(entry);
+  item.dataset.won = String(mine?.matchPlacement === 1);
+  for (const player of players) {
+    const rider = el("span"),
       dot = el("i");
     // The service only stores #rrggbb, and a colour that is not one is simply not applied.
     if (/^#[0-9a-fA-F]{6}$/.test(player.color))
       dot.style.background = player.color;
-    item.dataset.you = String(player.playerId === entry.you);
-    item.append(
-      dot,
-      document.createTextNode(
-        `${player.name} · ${player.roundWins}W · ${player.eliminations}K`,
-      ),
-    );
-    riders.append(item);
+    rider.dataset.you = String(player.playerId === entry.you);
+    rider.append(dot, document.createTextNode(player.name));
+    riders.append(rider);
   }
-  detail.append(head, riders);
-  row.append(detail);
-  return row;
+  const summary = el("span", "", "account-match-summary");
+  summary.append(
+    el(
+      "strong",
+      `${headline(entry)} · ${rounds} ${rounds === 1 ? "round" : "rounds"}`,
+    ),
+    riders,
+  );
+  const place = el("span", "", "account-match-place");
+  if (mine)
+    place.append(
+      el("strong", ordinal(mine.matchPlacement)),
+      el("small", `OF ${players.length}`),
+    );
+  const chevron = el("span", "›", "account-match-chevron");
+  chevron.setAttribute("aria-hidden", "true");
+  button.append(
+    el("span", clock(entry.endedAt), "account-match-time"),
+    summary,
+    place,
+    chevron,
+  );
+  button.setAttribute(
+    "aria-label",
+    `${headline(entry)}, ${players.length} riders, ${rounds} rounds, ${dayLabel(entry.endedAt, now).toLowerCase()} ${clock(entry.endedAt)}${mine ? `, you finished ${ordinal(mine.matchPlacement).toLowerCase()}` : ""}. Open results.`,
+  );
+  button.onclick = () => open(entry);
+  item.append(button);
+  return item;
+}
+
+/** One list of recent games and how far back it has been read. */
+interface Feed {
+  matches: MatchEntry[];
+  more: boolean;
+  state: "idle" | "loading" | "failed";
+}
+const emptyFeed = (): Feed => ({ matches: [], more: true, state: "idle" });
+/** Appends a page, dropping anything already listed: two games can end in the same millisecond at a page boundary. */
+function extend(feed: Feed, page: readonly MatchEntry[]): void {
+  const known = new Set(feed.matches.map((entry) => entry.id));
+  feed.matches.push(...page.filter((entry) => !known.has(entry.id)));
+  feed.more = page.length >= PAGE;
 }
 
 export function createAccountPanel(dependencies: AccountPanelDependencies): {
@@ -147,20 +209,45 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
   const button = el("button", "SIGN IN", "landing-account");
   button.type = "button";
   const dialog = el("dialog", "", "game-dialog stats-dialog");
-  dialog.setAttribute("aria-label", "Account");
+  dialog.setAttribute("aria-label", "Player");
   const bar = el("header", "", "dialog-bar"),
-    close = el("button", "✕  CLOSE"),
+    close = el("button", "✕  CLOSE", "dialog-close"),
     actions = el("span", "", "dialog-actions"),
+    tabs = el("nav", "", "stats-tabs"),
     body = el("div", "", "dialog-body account-panel");
   close.type = "button";
   close.setAttribute("aria-label", "CLOSE");
   close.onclick = () => dialog.close();
   actions.append(close);
-  bar.append(el("strong", "RIDER STATS"), actions);
+  tabs.setAttribute("aria-label", "Player sections");
+  const tabButtons = new Map<View, HTMLButtonElement>();
+  for (const [key, label] of [
+    ["stats", "STATS"],
+    ["matches", "MATCHES"],
+    ["leaderboard", "LEADERBOARD"],
+  ] as const) {
+    const tab = el("button", label);
+    tab.type = "button";
+    tab.onclick = () => show(key);
+    tabButtons.set(key, tab);
+    tabs.append(tab);
+  }
+  bar.append(tabs, actions);
   dialog.append(bar, body);
   let account: Account | undefined,
     generation = 0,
-    view: "stats" | "leaderboard" = "stats";
+    view: View = "stats",
+    scope: Scope = "everyone",
+    opened: MatchEntry | undefined,
+    listScroll = 0;
+  // Read once per opening and kept while the dialog is up, so switching tabs never refetches.
+  let session = 0,
+    history:
+      | { page: HistoryPage; username?: string; feed: Feed }
+      | "loading"
+      | "failed"
+      | undefined,
+    everyone = emptyFeed();
   let landingGeneration = 0;
   const refreshClock = dependencies.refreshClock ?? {
     now: Date.now,
@@ -233,152 +320,167 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     return true;
   }
 
-  async function load(
-    list: HTMLUListElement,
-    totals: HTMLElement,
-    more: HTMLButtonElement,
-    note: HTMLElement,
-    name: HTMLInputElement,
-    before?: number,
-  ): Promise<void> {
-    const mine = generation;
-    more.hidden = true;
-    note.textContent = "Loading your games…";
+  async function get<T>(url: string, signedIn: boolean): Promise<T> {
+    const token = await auth.token();
+    if (signedIn && !token) throw new Error("signed out");
+    const response = await dependencies.fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!response.ok) throw new Error(String(response.status));
+    return (await response.json()) as T;
+  }
+
+  /** Forget everything read so far: the dialog reopened or the account changed, and a reply still in flight is stale. */
+  function reset(): void {
+    session++;
+    history = undefined;
+    everyone = emptyFeed();
+    opened = undefined;
+    listScroll = 0;
+  }
+
+  /** The signed-in history's first page: profile, stats and the newest of your own games. */
+  async function loadHistory(): Promise<void> {
+    const mine = session;
+    history = "loading";
     try {
-      const token = await auth.token();
-      if (!token) throw new Error("signed out");
-      const response = await dependencies.fetch(
-        dependencies.historyUrl(before),
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      if (!response.ok) throw new Error(String(response.status));
-      const page = (await response.json()) as HistoryPage;
-      if (mine !== generation) return; // signed out, or reopened, while this was in flight
-      if (before === undefined) {
-        // An account without a username takes the name this browser already rides under, else the first word of the
-        // Google name: the rider should have one from the first room on, and the field right here changes it.
-        let username = page.profile?.username;
-        if (!username) {
-          const stored = dependencies.localName()?.trim(),
-            first = validRiderName(stored)
-              ? stored
-              : suggestRiderName(account?.name ?? "");
-          if (first && (await saveUsername(first))) username = first;
-        }
-        if (mine !== generation) return;
-        if (username) {
-          const heading = body.querySelector(".stats-player-name");
-          if (heading) {
-            heading.textContent = username;
-            if (page.profile?.avatarId)
-              heading.prepend(createAvatarPortrait(page.profile.avatarId));
-          }
-          auth.remember(username);
-          if (document.activeElement !== name) name.value = username;
-        }
-        totals.replaceChildren(playerStats(page));
-        void refreshLanding();
+      const page = await get<HistoryPage>(dependencies.historyUrl(), true);
+      if (mine !== session) return;
+      // An account without a username takes the name this browser already rides under, else the first word of the
+      // Google name: the rider should have one from the first room on, and the stats tab changes it.
+      let username = page.profile?.username;
+      if (!username) {
+        const stored = dependencies.localName()?.trim(),
+          first = validRiderName(stored)
+            ? stored
+            : suggestRiderName(account?.name ?? "");
+        if (first && (await saveUsername(first))) username = first;
       }
-      list.append(...page.matches.map(matchRow));
-      note.textContent = list.childElementCount
-        ? ""
-        : "No games yet. Finish a match in a room while signed in and it lands here.";
-      const last = page.matches.at(-1);
-      // A full page means there may be more; the oldest entry is the cursor for the next one.
-      more.hidden = page.matches.length < 20 || !last;
-      if (last)
-        more.onclick = () => {
-          void load(list, totals, more, note, name, last.endedAt);
-        };
+      if (mine !== session) return;
+      if (username) auth.remember(username);
+      const feed = emptyFeed();
+      extend(feed, page.matches);
+      history = { page, ...(username ? { username } : {}), feed };
+      void refreshLanding();
     } catch {
-      if (mine === generation)
-        note.textContent = "Could not load your games. Try again in a moment.";
+      if (mine !== session) return;
+      history = "failed";
+    }
+    if (dialog.open) render();
+  }
+
+  /** The next page of a list of games: the first when it is empty, else strictly older than its last. */
+  async function loadMatches(which: Scope): Promise<void> {
+    const feed =
+      which === "everyone"
+        ? everyone
+        : typeof history === "object"
+          ? history.feed
+          : undefined;
+    if (!feed || feed.state === "loading") return;
+    const mine = session,
+      before = feed.matches.at(-1)?.endedAt;
+    feed.state = "loading";
+    try {
+      const page =
+        which === "everyone"
+          ? (
+              await get<{ matches: MatchEntry[] }>(
+                dependencies.matchesUrl(before),
+                false,
+              )
+            ).matches
+          : (await get<HistoryPage>(dependencies.historyUrl(before), true))
+              .matches;
+      if (mine !== session) return;
+      extend(feed, page);
+      feed.state = "idle";
+    } catch {
+      if (mine !== session) return;
+      feed.state = "failed";
+    }
+    if (dialog.open && view === "matches" && !opened) {
+      const top = body.scrollTop;
+      render();
+      body.scrollTop = top;
     }
   }
 
-  function render(): void {
-    generation++;
-    if (view === "leaderboard") {
-      const mine = generation,
-        message = el("p", "Loading leaderboard…", "stats-muted");
-      const back = el("button", "MY STATS");
-      back.type = "button";
-      back.onclick = () => {
-        view = "stats";
-        render();
-      };
-      body.replaceChildren(back, message);
-      void (async () => {
-        try {
-          const token = await auth.token();
-          const response = await dependencies.fetch(
-            dependencies.leaderboardUrl,
-            { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-          );
-          if (!response.ok) throw new Error("leaderboard");
-          const page = (await response.json()) as {
-            players: LeaderboardEntry[];
-          };
-          if (mine === generation)
-            body.replaceChildren(back, leaderboardTable(page.players));
-        } catch {
-          if (mine === generation)
-            message.textContent =
-              "Could not load the leaderboard. Close and try again.";
-        }
-      })();
+  function show(next: View, entry?: MatchEntry): void {
+    if (next === "matches" && entry && view === "matches" && !opened)
+      listScroll = body.scrollTop;
+    const back = next === "matches" && !entry && view === "matches" && opened;
+    view = next;
+    opened = entry;
+    render();
+    body.scrollTop = back ? listScroll : 0;
+  }
+
+  function signInPrompt(message: string): HTMLElement[] {
+    const error = el("p", "", "account-error"),
+      enter = el("button", "SIGN IN WITH GOOGLE");
+    error.setAttribute("role", "alert");
+    enter.type = "button";
+    enter.onclick = async () => {
+      enter.disabled = true;
+      error.textContent = "";
+      try {
+        await auth.signIn();
+        dependencies.track("Signed In");
+      } catch (failure) {
+        error.textContent = signInFailure(failure);
+      } finally {
+        enter.disabled = false;
+      }
+    };
+    // Held until the SDK is in: a tap that had to wait for the download would find its popup blocked, notably in Safari.
+    const mine = generation;
+    enter.disabled = true;
+    auth.ready().then(
+      () => {
+        if (mine === generation) enter.disabled = false;
+      },
+      () => {
+        if (mine === generation)
+          error.textContent =
+            "Could not reach the sign-in service. Close this and try again.";
+      },
+    );
+    return [el("p", message, "account-note"), enter, error];
+  }
+
+  /** Loading, failed or signed out: what stands in for the signed-in history. Undefined once it is ready. */
+  function historyPending(signedOut: string): HTMLElement[] | undefined {
+    if (!account) return signInPrompt(signedOut);
+    if (typeof history === "object") return undefined;
+    if (history === undefined) void loadHistory();
+    if (history !== "failed")
+      return [el("p", "Loading your games…", "account-note")];
+    const retry = el("button", "TRY AGAIN");
+    retry.type = "button";
+    retry.onclick = () => {
+      history = undefined;
+      render();
+    };
+    return [el("p", "Could not load your games.", "account-note"), retry];
+  }
+
+  function renderStats(): void {
+    const pending = historyPending(
+      "Sign in to keep a history of every match you finish and your career totals, on any device. Playing never needs an account. Your rider name, avatar and Elo appear on the public leaderboard after a rated round; your email is never shown.",
+    );
+    if (pending || typeof history !== "object" || !account) {
+      body.replaceChildren(...(pending ?? []));
       return;
     }
+    const cache = history,
+      heading = el("h2", cache.username ?? account.name, "stats-player-name");
+    if (cache.page.profile?.avatarId)
+      heading.prepend(createAvatarPortrait(cache.page.profile.avatarId));
     const error = el("p", "", "account-error");
     error.setAttribute("role", "alert");
-    if (!account) {
-      const enter = el("button", "SIGN IN WITH GOOGLE");
-      enter.type = "button";
-      enter.onclick = async () => {
-        enter.disabled = true;
-        error.textContent = "";
-        try {
-          await auth.signIn();
-          dependencies.track("Signed In");
-        } catch (failure) {
-          error.textContent = signInFailure(failure);
-        } finally {
-          enter.disabled = false;
-        }
-      };
-      // Held until the SDK is in: a tap that had to wait for the download would find its popup blocked, notably in Safari.
-      const mine = generation;
-      enter.disabled = true;
-      auth.ready().then(
-        () => {
-          if (mine === generation) enter.disabled = false;
-        },
-        () => {
-          if (mine === generation)
-            error.textContent =
-              "Could not reach the sign-in service. Close this and try again.";
-        },
-      );
-      body.replaceChildren(
-        el(
-          "p",
-          "Sign in to keep a history of every match you finish and your career totals, on any device. Playing never needs an account. Your rider name, avatar and Elo appear on the public leaderboard after a rated round; your email is never shown.",
-          "account-note",
-        ),
-        enter,
-        error,
-      );
-      return;
-    }
-    const totals = el("div", "", "account-dashboard"),
-      list = el("ul", "", "account-matches"),
-      note = el("p", "", "account-note"),
-      more = el("button", "OLDER GAMES"),
-      leave = el("button", "SIGN OUT"),
-      row = el("div", "", "account-actions");
-    more.type = "button";
+    const leave = el("button", "SIGN OUT");
     leave.type = "button";
-    more.hidden = true;
     leave.onclick = async () => {
       leave.disabled = true;
       try {
@@ -388,7 +490,6 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
         leave.disabled = false;
       }
     };
-    row.append(more, leave);
     const rename = el("form", "", "account-username"),
       label = el("label", "USERNAME"),
       name = el("input"),
@@ -397,6 +498,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     name.maxLength = MAX_RIDER_NAME + 2;
     name.setAttribute("autocomplete", "nickname");
     name.id = "account-username";
+    name.value = cache.username ?? "";
     label.htmlFor = name.id;
     saved.setAttribute("role", "status");
     name.oninput = () => {
@@ -411,16 +513,15 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       }
       save.disabled = true;
       saved.textContent = "Saving…";
-      const mine = generation;
       try {
         const success = await saveUsername(value);
         saved.textContent = success
           ? "Saved. This is your name in every room."
           : "Could not save. Try again.";
-        if (success && mine === generation) {
-          const heading = body.querySelector(".stats-player-name");
-          const portrait = heading?.querySelector(".avatar-portrait");
-          heading?.replaceChildren(
+        if (success && history === cache) {
+          cache.username = value;
+          const portrait = heading.querySelector(".avatar-portrait");
+          heading.replaceChildren(
             ...(portrait ? [portrait] : []),
             document.createTextNode(value),
           );
@@ -434,24 +535,148 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     rename.append(label, name, save, saved);
     const settings = el("details", "", "stats-details");
     settings.append(el("summary", "Account settings"), rename, leave);
-    const leaderboard = el("button", "GLOBAL LEADERBOARD");
-    leaderboard.type = "button";
-    leaderboard.onclick = () => {
-      view = "leaderboard";
-      render();
-    };
     body.replaceChildren(
-      el("h2", account.name, "stats-player-name"),
-      totals,
-      leaderboard,
-      el("h3", "MATCH HISTORY"),
-      list,
-      note,
-      row,
+      heading,
+      playerStats(cache.page, {
+        openMatch: (entry) => {
+          scope = "mine";
+          show("matches", entry);
+        },
+      }),
       settings,
       error,
     );
-    void load(list, totals, more, note, name);
+  }
+
+  function renderMatches(): void {
+    const filter = el("div", "", "account-scope");
+    filter.setAttribute("role", "group");
+    filter.setAttribute("aria-label", "Whose matches");
+    for (const [key, label] of [
+      ["everyone", "EVERYONE"],
+      ["mine", "YOURS"],
+    ] as const) {
+      const choice = el("button", label);
+      choice.type = "button";
+      choice.setAttribute("aria-pressed", String(scope === key));
+      choice.onclick = () => {
+        if (scope === key) return;
+        scope = key;
+        show("matches");
+      };
+      filter.append(choice);
+    }
+    const intro = el(
+      "p",
+      scope === "everyone"
+        ? "Recent finished games across Fuse Riders, newest first."
+        : "Every game you finished while signed in, newest first.",
+      "stats-muted",
+    );
+    if (scope === "mine") {
+      const pending = historyPending(
+        "Sign in to keep a history of every match you finish, on any device. Playing never needs an account.",
+      );
+      if (pending) {
+        body.replaceChildren(filter, ...pending);
+        return;
+      }
+    }
+    const feed =
+      scope === "everyone"
+        ? everyone
+        : typeof history === "object"
+          ? history.feed
+          : emptyFeed();
+    if (scope === "everyone" && !feed.matches.length && feed.state === "idle")
+      void loadMatches("everyone");
+    const now = refreshClock.now(),
+      list = el("div", "", "account-matches");
+    let day: string | undefined, rows: HTMLUListElement | undefined;
+    for (const entry of feed.matches) {
+      const label = dayLabel(entry.endedAt, now);
+      if (label !== day || !rows) {
+        day = label;
+        rows = el("ul");
+        const group = el("section", "", "account-day");
+        group.append(el("h3", label), rows);
+        list.append(group);
+      }
+      rows.append(matchRow(entry, now, (match) => show("matches", match)));
+    }
+    const note = el("p", "", "account-note");
+    if (feed.state === "loading")
+      note.textContent = feed.matches.length
+        ? "Loading older matches…"
+        : "Loading matches…";
+    else if (feed.state === "failed")
+      note.textContent = "Could not load matches. Try again in a moment.";
+    else if (!feed.matches.length)
+      note.textContent =
+        scope === "everyone"
+          ? "No finished games yet. Start a room and be the first."
+          : "No games yet. Finish a match in a room while signed in and it lands here.";
+    const more = el(
+      "button",
+      feed.state === "failed" ? "TRY AGAIN" : "OLDER MATCHES",
+    );
+    more.type = "button";
+    more.hidden =
+      feed.state === "loading" ||
+      (feed.state === "idle" && (!feed.more || !feed.matches.length));
+    more.onclick = () => void loadMatches(scope);
+    body.replaceChildren(filter, intro, list, note, more);
+  }
+
+  function renderMatch(entry: MatchEntry): void {
+    const back = el("button", "‹ MATCHES", "account-back");
+    back.type = "button";
+    back.onclick = () => show("matches");
+    const now = refreshClock.now(),
+      day = dayLabel(entry.endedAt, now);
+    body.replaceChildren(
+      back,
+      renderMatchRecap(entry.result.players, [], {
+        playerId: entry.you ?? "",
+        canWatch: () => false,
+        watch: () => {},
+        kicker: `${day} · ${clock(entry.endedAt)}`,
+        expanded: true,
+      }),
+    );
+    back.focus({ preventScroll: true });
+  }
+
+  function renderLeaderboard(): void {
+    const mine = generation,
+      message = el("p", "Loading leaderboard…", "stats-muted");
+    body.replaceChildren(message);
+    void (async () => {
+      try {
+        const page = await get<{ players: LeaderboardEntry[] }>(
+          dependencies.leaderboardUrl,
+          false,
+        );
+        if (mine === generation)
+          body.replaceChildren(leaderboardTable(page.players));
+      } catch {
+        if (mine === generation)
+          message.textContent =
+            "Could not load the leaderboard. Close and try again.";
+      }
+    })();
+  }
+
+  function render(): void {
+    generation++;
+    for (const [key, tab] of tabButtons)
+      if (key === view) tab.setAttribute("aria-current", "page");
+      else tab.removeAttribute("aria-current");
+    body.dataset.view = opened ? "match" : view;
+    if (view === "leaderboard") renderLeaderboard();
+    else if (view === "stats") renderStats();
+    else if (opened) renderMatch(opened);
+    else renderMatches();
   }
 
   const stop = auth.watch((next) => {
@@ -465,23 +690,24 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       ? `Signed in as ${next.name}`
       : "Sign in to keep your match history";
     landingGeneration++;
+    reset();
     if (next) void refreshLanding();
     if (dialog.open) render();
   });
   // The SDK is fetched when the pointer arrives, so the Google popup can open inside the click that asks for it.
   button.addEventListener("pointerenter", auth.warm, { once: true });
   button.addEventListener("focus", auth.warm, { once: true });
+  const open = (next: View) => {
+    reset();
+    view = next;
+    render();
+    dialog.showModal();
+  };
   button.onclick = () => {
-    view = "stats";
     auth.warm();
-    render();
-    dialog.showModal();
+    open("stats");
   };
-  leaderboardButton.onclick = () => {
-    view = "leaderboard";
-    render();
-    dialog.showModal();
-  };
+  leaderboardButton.onclick = () => open("leaderboard");
   dialog.addEventListener("close", () => {
     generation++;
   });
@@ -506,6 +732,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       cancelRefresh?.();
       generation++;
       landingGeneration++;
+      reset();
       stop();
     },
   };
