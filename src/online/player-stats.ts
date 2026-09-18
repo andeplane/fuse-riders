@@ -7,14 +7,14 @@ import {
   type CareerStats,
   type GameGroup,
 } from "../shared/career-stats.js";
-import { KILL_METHODS, type KillMethod } from "../shared/combat-stats.js";
+import { KILL_METHODS, type KillMethod } from "../engine/combat-stats.js";
 import {
   newRating,
   type Rating,
   type LeaderboardEntry,
   type Rivalries,
 } from "../shared/rating.js";
-import { WEAPONS } from "../shared/shot-log.js";
+import { WEAPONS } from "../engine/shot-log.js";
 import type { HistoryEntry, UserProfile } from "../service/history.js";
 export interface StatsPage {
   profile?: UserProfile;
@@ -140,30 +140,26 @@ export function ratingCard(rating: Rating, rank?: number): HTMLElement {
     const values = samples.map((p) => p.value),
       min = Math.floor((Math.min(...values) - 12) / 20) * 20,
       max = Math.ceil((Math.max(...values) + 12) / 20) * 20;
-    const start = samples[0]!.at,
-      end = last.at,
-      width = window.innerWidth < 540 ? 340 : 640,
+    const width = window.innerWidth < 540 ? 340 : 640,
       height = 190,
       left = 52,
       right = 16,
       top = 16,
       bottom = 34;
-    const x = (at: number, i: number): number =>
-      left +
-      (end > start
-        ? (at - start) / (end - start)
-        : i / Math.max(1, samples.length - 1)) *
-        (width - left - right);
+    // One evenly spaced step per rated entry, so rounds played back to back
+    // are as readable as rounds days apart.
+    const x = (i: number): number =>
+      left + (i / Math.max(1, samples.length - 1)) * (width - left - right);
     const y = (value: number): number =>
       top + ((max - value) / (max - min)) * (height - top - bottom);
     const chart = svgElement("svg", {
       viewBox: `0 0 ${width} ${height}`,
       role: "img",
-      "aria-label": `Elo rating over time, ${date(start)} to ${date(end)}. Current ${number(rating.value)}.`,
+      "aria-label": `Elo rating per rated entry, ${number(points.length)} latest entries ending ${date(last.at)}. Current ${number(rating.value)}.`,
       class: "rating-chart",
     });
     const title = svgElement("title");
-    title.textContent = "Elo rating over time";
+    title.textContent = "Elo rating per rated entry";
     chart.append(title);
     for (const tick of [min, (min + max) / 2, max]) {
       chart.append(
@@ -185,40 +181,40 @@ export function ratingCard(rating: Rating, rank?: number): HTMLElement {
     }
     chart.append(
       svgElement("polyline", {
-        points: samples.map((p, i) => `${x(p.at, i)},${y(p.value)}`).join(" "),
+        points: samples.map((p, i) => `${x(i)},${y(p.value)}`).join(" "),
         fill: "none",
         class: "rating-line",
       }),
     );
     samples.forEach((p, i) => {
       const dot = svgElement("circle", {
-        cx: x(p.at, i),
+        cx: x(i),
         cy: y(p.value),
         r: i === samples.length - 1 ? 4 : 2.5,
         class: "rating-dot",
       });
       const t = svgElement("title");
-      t.textContent = `${date(p.at)} · ${number(p.value)} Elo`;
+      t.textContent =
+        i === 0
+          ? `Before entry 1 · ${number(p.value)} Elo`
+          : `Entry ${number(i)} · ${date(p.at)} · ${number(p.value)} Elo`;
       dot.append(t);
       chart.append(dot);
     });
-    for (const [at, pos, anchor] of [
-      [start, left, "start"],
-      [end, width - right, "end"],
+    for (const [text, pos, anchor] of [
+      ["Start", left, "start"],
+      [
+        `Entry ${number(points.length)} · ${date(last.at)}`,
+        width - right,
+        "end",
+      ],
     ] as const) {
       const label = svgElement("text", {
         x: pos,
         y: height - 7,
         "text-anchor": anchor,
       });
-      label.textContent =
-        end - start < 86_400_000
-          ? new Date(at).toLocaleTimeString(undefined, {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-            })
-          : date(at);
+      label.textContent = text;
       chart.append(label);
     }
     card.append(chart);

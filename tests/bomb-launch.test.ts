@@ -7,7 +7,7 @@ import {
   bombLandingPoint,
   bombLaunchDistance,
   isBombChargeTicks,
-} from "../src/shared/bomb-launch.ts";
+} from "../src/engine/bomb-launch.ts";
 
 test("maps charge ticks linearly between accepted minimum and maximum", () => {
   assert.equal(bombLaunchDistance(0), BOMB_MIN_LAUNCH_DISTANCE);

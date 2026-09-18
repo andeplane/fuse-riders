@@ -2,21 +2,21 @@ import {
   pickupPacing,
   powerBlastRadius,
   powerReloadTicks,
-} from "../src/shared/power-progression.js";
+} from "../src/engine/power-progression.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { POINT_UNIT } from "../src/shared/leaderboard.ts";
-import { defaultRoomSettings } from "../src/shared/room-settings.ts";
+import { POINT_UNIT } from "../src/engine/leaderboard.ts";
+import { defaultRoomSettings } from "../src/engine/room-settings.ts";
 import {
   DRUNK_DURATION_TICKS,
   drunkHeadingOffset,
-} from "../src/shared/drunk.ts";
+} from "../src/engine/drunk.ts";
 import {
   BOMB_FLIGHT_TICKS,
   BOMB_MAX_CHARGE_TICKS,
   BOMB_MAX_LAUNCH_DISTANCE,
   BOMB_MIN_LAUNCH_DISTANCE,
-} from "../src/shared/bomb-launch.ts";
+} from "../src/engine/bomb-launch.ts";
 
 import {
   BOMB_COOLDOWN_TICKS,
@@ -48,7 +48,8 @@ import {
   toSnapshot,
   type GameState,
   type InputIntent,
-} from "../src/shared/game.ts";
+} from "../src/engine/game.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 const fixedFlightPath = (x: number, y: number) =>
@@ -59,7 +60,7 @@ function gameWithPlayers(
   matchId = "match",
   seed?: number,
 ): GameState {
-  const state = createGame(matchId, seed);
+  const state = createGame(matchId, classicSettings(), seed);
   for (let slot = 0; slot < count; slot += 1) {
     addPlayer(state, {
       id: `p${slot}`,
@@ -459,8 +460,10 @@ test("fatal trail ends at the nearest contact regardless of trail array order", 
         expiresAtTick: state.tick + 100,
       })),
     });
-    const { snapshot } = step(state, new Map());
-    const dead = snapshot.players.find((player) => player.id === rider.id)!;
+    step(state, new Map());
+    const dead = toSnapshot(state).players.find(
+      (player) => player.id === rider.id,
+    )!;
     assert.equal(dead.alive, false);
     assert.ok(Math.abs(dead.x - 505) < 1e-6);
     assert.equal(dead.y, 350);
@@ -1062,8 +1065,8 @@ test("overtime inset updates before collision and a 90-second unresolved round d
 });
 
 test("lifecycle commands enforce phase, capacity, identity, and connected-player guards", () => {
-  assert.throws(() => createGame(""), /matchId/);
-  const state = createGame("guards");
+  assert.throws(() => createGame("", classicSettings()), /matchId/);
+  const state = createGame("guards", classicSettings());
   assert.throws(() => startMatch(state), /requires 2-5/);
   addPlayer(state, { id: "a", name: "A", slot: 0, color: SLOT_COLORS[0] });
   assert.throws(
@@ -2571,14 +2574,13 @@ test("a tied match shares victory and credits both champions once", () => {
 // The preview reads this flag off the snapshot, so if it stops tracking the room's setting every rider aims with a
 // clamped ramp while the simulation still bounces, and the marker lies about where the bomb lands. The ramp maths and
 // the settings parser are both well covered; this is the wire hop between them, which nothing else exercises (#182).
-test("the snapshot carries the room aim-bounce flag, in both directions and without settings", () => {
-  const state = createGame("aim-bounce-wire");
+test("the snapshot carries the room aim-bounce flag, in both directions", () => {
+  const state = createGame("aim-bounce-wire", classicSettings());
   assert.equal(
     toSnapshot(state).aimBounce,
     false,
-    "a game with no settings yet must not claim the room bounces",
+    "the classic fixture parks its aim, and the snapshot says so",
   );
-  // defaultRoomSettings() already bounces, so the true case has to come from the settings object to mean anything.
   state.settings = { ...defaultRoomSettings(), aimBounce: true };
   assert.equal(
     toSnapshot(state).aimBounce,
@@ -2594,7 +2596,7 @@ test("the snapshot carries the room aim-bounce flag, in both directions and with
 });
 
 test("the simulation clock triples only while a round is live, a human rode in it and only bots survive", () => {
-  const state = createGame("bots-only"),
+  const state = createGame("bots-only", classicSettings()),
     bots = new Set(["bot:1", "bot:2"]);
   addPlayer(state, {
     id: "human",

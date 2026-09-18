@@ -1,10 +1,10 @@
 import type { ViewSnapshot } from "./snapshot-stream.js";
-import { momentKey, type Moment } from "../shared/moments.js";
+import { momentKey, type Moment } from "../engine/moments.js";
 import {
   describeMoment,
   rankMoments,
   type MomentCard,
-} from "../shared/match-recap.js";
+} from "../engine/match-recap.js";
 import { interpolateWorld } from "../online/prediction.js";
 
 /**

@@ -1,11 +1,11 @@
-import { gravityBend, riderMotionStep } from "../shared/game.js";
+import { gravityBend, riderMotionStep } from "../engine/game.js";
 import {
   advanceRiderPose,
   type MotionControls,
-} from "../shared/rider-motion.js";
-import { atan2, cos, hypot2, sin } from "../shared/deterministic-math.js";
-import { edgesOpen } from "../shared/arena-map.js";
-import { wrapDelta } from "../shared/wrap.js";
+} from "../engine/rider-motion.js";
+import { atan2, cos, hypot2, sin } from "../engine/deterministic-math.js";
+import { edgesOpen } from "../engine/arena-map.js";
+import { wrapDelta } from "../engine/wrap.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
 
 /** All discrete state belongs to the earlier tick; never expose future trail/death state. */

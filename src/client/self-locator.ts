@@ -1,4 +1,4 @@
-import { TICK_HZ } from "../shared/game.js";
+import { TICK_HZ } from "../engine/game.js";
 import type { ViewSnapshot } from "./snapshot-stream.js";
 
 /** The locator fades out over the end of the countdown, so it is gone by the time the riders move. */

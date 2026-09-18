@@ -6,7 +6,7 @@ import {
   rankRound,
   sortedLeaderboard,
   type SessionLeaderboardEntry,
-} from "../src/shared/leaderboard.ts";
+} from "../src/engine/leaderboard.ts";
 
 const p = (id: string, eliminatedAtTick?: number) => ({
   id,

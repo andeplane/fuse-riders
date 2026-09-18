@@ -18,18 +18,20 @@ export function trailRibbon(
 ): RibbonVertex[] {
   const points = path.filter(
     (p, i) =>
-      i === 0 || Math.hypot(p.x - path[i - 1].x, p.y - path[i - 1].y) > 1e-6,
+      i === 0 || Math.hypot(p.x - path[i - 1]!.x, p.y - path[i - 1]!.y) > 1e-6,
   );
   if (points.length < 2) return [];
+  // At least two points remain; each segment has a normal and all indexes below
+  // are bounded by the corresponding point/segment loop.
   const normals = points.slice(1).map((p, i) => {
-    const dx = p.x - points[i].x;
-    const dy = p.y - points[i].y;
+    const dx = p.x - points[i]!.x;
+    const dy = p.y - points[i]!.y;
     const length = Math.hypot(dx, dy);
     return { x: -dy / length, y: dx / length };
   });
   const sections = points.map((p, i) => {
-    const before = normals[Math.max(0, i - 1)];
-    const after = normals[Math.min(i, normals.length - 1)];
+    const before = normals[Math.max(0, i - 1)]!;
+    const after = normals[Math.min(i, normals.length - 1)]!;
     const sumX = before.x + after.x;
     const sumY = before.y + after.y;
     const length = Math.hypot(sumX, sumY);
@@ -37,17 +39,18 @@ export function trailRibbon(
       length > 1e-6 ? { x: sumX / length, y: sumY / length } : after;
     // Bound miters even for malformed/sharply corrected presentation paths.
     const miter = 1 / Math.max(0.5, normal.x * after.x + normal.y * after.y);
-    return [-1, 1].map((side): RibbonVertex => ({
+    const vertex = (side: number): RibbonVertex => ({
       x: p.x + normal.x * radius * OUTER * miter * side,
       y: p.y + normal.y * radius * OUTER * miter * side,
       nx: normal.x * OUTER * side,
       ny: normal.y * OUTER * side,
-    }));
+    });
+    return [vertex(-1), vertex(1)] as const;
   });
   const vertices: RibbonVertex[] = [];
   for (let i = 1; i < sections.length; i++) {
-    const [a, b] = sections[i - 1];
-    const [c, d] = sections[i];
+    const [a, b] = sections[i - 1]!;
+    const [c, d] = sections[i]!;
     vertices.push(a, b, c, b, d, c);
   }
   const cap = (p: TrailPoint, normal: TrailPoint, start: boolean) => {
@@ -62,8 +65,8 @@ export function trailRibbon(
     for (let i = 0; i < CAP_STEPS; i++)
       vertices.push(center, edge(i), edge(i + 1));
   };
-  cap(points[0], normals[0], true);
-  cap(points[points.length - 1], normals[normals.length - 1], false);
+  cap(points[0]!, normals[0]!, true);
+  cap(points[points.length - 1]!, normals[normals.length - 1]!, false);
   return vertices;
 }
 

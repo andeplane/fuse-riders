@@ -29,8 +29,8 @@ try {
       String("/src/client/themes.ts")
     )) as typeof import("../src/client/themes.js");
     const { generateObstacles } = (await import(
-      String("/src/shared/arena-map.ts")
-    )) as typeof import("../src/shared/arena-map.js");
+      String("/src/engine/arena-map.ts")
+    )) as typeof import("../src/engine/arena-map.js");
     const pictures: { name: string; data: string }[] = [];
     for (const backend of ["auto", "canvas"] as const) {
       const canvas = document.createElement("canvas");
@@ -104,9 +104,11 @@ try {
   assert.deepEqual(errors, []);
   await mkdir("artifacts", { recursive: true });
   for (const picture of pictures) {
+    const encoded = picture.data.split(",")[1];
+    assert.ok(encoded, "screenshot must contain base64 image data");
     await writeFile(
       `artifacts/${picture.name}.png`,
-      Buffer.from(picture.data.split(",")[1], "base64"),
+      Buffer.from(encoded, "base64"),
     );
   }
   console.log(

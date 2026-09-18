@@ -4,7 +4,7 @@ import {
   VOLLEY_FLIGHT_STEPS,
   createVolleyFlightPaths,
   volleyAngles,
-} from "../src/shared/launch-modifiers.ts";
+} from "../src/engine/launch-modifiers.ts";
 
 const bounds = { minX: 20, maxX: 1580, minY: 20, maxY: 880 };
 

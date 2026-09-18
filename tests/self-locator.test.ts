@@ -4,7 +4,7 @@ import {
   startMatch,
   toSnapshot,
   SLOT_COLORS,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -15,9 +15,10 @@ import {
   selfLocatorStrength,
 } from "../src/client/self-locator.js";
 import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const view = (overrides: Partial<ViewSnapshot>): ViewSnapshot => {
-  const game = createGame("self-locator");
+  const game = createGame("self-locator", classicSettings());
   addPlayer(game, { id: "me", name: "Anders", slot: 0, color: SLOT_COLORS[0] });
   addPlayer(game, { id: "ai", name: "AI Ada", slot: 1, color: SLOT_COLORS[1] });
   startMatch(game);

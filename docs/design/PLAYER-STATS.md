@@ -1,6 +1,6 @@
 # Player stats and human Elo
 
-Stacked on #249. The stats dialog puts current Elo and its dated graph first, followed by four career totals, results, rivalries, combat and records. Detailed counters and match rosters are collapsible. The landing page shows the signed-in rider's rating and global rank; the public leaderboard exposes only rider names, avatars, rounded Elo and rated-result counts, never account IDs.
+Stacked on #249. The stats dialog puts current Elo and its per-entry Elo graph first, followed by four career totals, results, rivalries, combat and records. Detailed counters and match rosters are collapsible. The landing page shows the signed-in rider's rating and global rank; the public leaderboard exposes only rider names, avatars, rounded Elo and rated-result counts, never account IDs.
 
 Elo starts at 1000, K=32. It now settles after each individual round from the frozen, confirmed round standings,
 comparing signed-in human finishers only. Guests and bots are removed before pairwise calculations, and a lone signed-in human records a zero-change round. Each round's mean pairwise updates use the pre-round ratings simultaneously. A player

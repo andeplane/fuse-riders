@@ -1,5 +1,5 @@
-import type { PickupType } from "../shared/game.js";
-import type { RoomSettings } from "../shared/room-settings.js";
+import type { PickupType } from "../engine/game.js";
+import type { RoomSettings } from "../engine/room-settings.js";
 /** Rarity chips and presets for the power-up settings: pure weight arithmetic, no DOM, so it is unit-tested. */
 export type Rarity = "off" | "rare" | "normal" | "common";
 export const RARITIES: readonly Rarity[] = ["off", "rare", "normal", "common"];

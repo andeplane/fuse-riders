@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FakeNetwork } from "./fixtures/fake-room.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 
 for (const seed of [7, 20260917, 0xdeadbeef])
   test(`replicas converge after seeded loss, duplication and reordering (${seed})`, () => {

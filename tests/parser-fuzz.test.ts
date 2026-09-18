@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseClientMessage } from "../src/shared/protocol.js";
-import { STEER } from "../src/shared/input-log.js";
+import { STEER } from "../src/engine/input-log.js";
 import {
   decodePacket,
   encodePacket,
