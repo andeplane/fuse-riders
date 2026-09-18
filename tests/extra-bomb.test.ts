@@ -27,9 +27,10 @@ import {
 } from "../src/engine/codec/checkpoint.js";
 import { PICKUP_WEIGHTS } from "../src/engine/pickup-weights.js";
 import { powerLabel } from "../src/render/power-indicator.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing() {
-  const game = createGame("extra-bomb", 725);
+  const game = createGame("extra-bomb", classicSettings(), 725);
   for (let slot = 0; slot < 2; slot++)
     addPlayer(game, {
       id: `p${slot}`,

@@ -11,6 +11,7 @@ import {
   TICK_HZ,
   type InputIntent,
 } from "../src/engine/game.js";
+import { classicSettings } from "../src/engine/room-settings.js";
 
 // Same seeds and normal game physics before/after. Steering-only runs remove firing
 // and random pickups to isolate navigation; combat runs retain both.
@@ -23,7 +24,7 @@ for (const [riders, combat] of [
 ] as const) {
   const samples = [];
   for (let seed = 0; seed < 10; seed++) {
-    const game = createGame(`bot-survival-${seed}`),
+    const game = createGame(`bot-survival-${seed}`, classicSettings()),
       controller = new BotController();
     for (let slot = 0; slot < riders; slot++)
       addPlayer(game, {

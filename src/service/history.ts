@@ -23,7 +23,7 @@ import type {
   MatchDeathCounts,
   MatchPlayerStats,
 } from "../engine/match-stats.js";
-import { validRiderName } from "../shared/rider-name.js";
+import { validRiderName } from "../engine/rider-name.js";
 import { validUid } from "./identity.js";
 import {
   RoomError,

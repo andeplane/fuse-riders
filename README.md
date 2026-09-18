@@ -264,7 +264,7 @@ test identity, Chromium and WebKit at desktop/phone widths; it does not exercise
 
 An account has one **username**, and a signed-in rider rides under it in every room and on every device: the join form
 shows it and is not editable there. It is changed under **Account settings** in your stats. The rule is the rider-name rule everywhere
-([`rider-name.ts`](src/shared/rider-name.ts)): 1–18 characters, trimmed, no control characters.
+([`rider-name.ts`](src/engine/rider-name.ts)): 1–18 characters, trimmed, no control characters.
 
 - The first time an account opens their stats without a username, it takes the rider name that browser already used, or
   failing that the first word of the Google display name, and the field is right there to change it.

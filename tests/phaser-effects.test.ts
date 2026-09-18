@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import { EffectTransitions, bombPose } from "../src/render/phaser/effects.js";
 import { createGame, addPlayer, toView } from "../src/engine/game.js";
 import type { WorldView } from "../src/engine/view.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 const frame = (): WorldView => {
-  const game = createGame("visual-test");
+  const game = createGame("visual-test", classicSettings());
   addPlayer(game, { id: "p", name: "P", slot: 0, color: "#22d3ee" });
   return { ...toView(game), tick: 10, round: 1 };
 };

@@ -4,7 +4,6 @@
  * Compare with `git show 14e1452:src/engine/view.ts`. Delete this file and that test the next time the shape of
  * the view changes on purpose (stage A4 of #253 keeps it; whatever follows may not).
  */
-import { BOMB_MAX_CHARGE_TICKS } from "../../src/engine/bomb-launch.js";
 import {
   type GameState,
   sortedBombs,
@@ -15,9 +14,9 @@ import { sortedLeaderboard } from "../../src/engine/leaderboard.js";
 
 export function legacySnapshot(state: GameState) {
   return {
-    matchLength: state.settings?.length ?? 5,
-    bombChargeTicks: state.settings?.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS,
-    aimBounce: state.settings?.aimBounce ?? false,
+    matchLength: state.settings.length,
+    bombChargeTicks: state.settings.bombChargeTicks,
+    aimBounce: state.settings.aimBounce,
     phase: state.phase,
     ...(state.phaseEndsAtTick === undefined
       ? {}

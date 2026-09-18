@@ -15,6 +15,7 @@ import {
   TRAIL_LIFETIME_TICKS,
 } from "../src/engine/game.ts";
 import type { TrailSegment } from "../src/shared/protocol.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 
 const bounds = { minX: 10, minY: 20, maxX: 90, maxY: 80 };
 const segment = (
@@ -78,7 +79,7 @@ test("trail clipping removes exterior points, parallel lines and disjoint diagon
 });
 
 function overtimeArena() {
-  const state = createGame("shrinking-trails", 123);
+  const state = createGame("shrinking-trails", classicSettings(), 123);
   for (let slot = 0; slot < 3; slot++)
     addPlayer(state, { id: `p${slot}`, name: `P${slot}`, slot, color: "#fff" });
   startMatch(state);

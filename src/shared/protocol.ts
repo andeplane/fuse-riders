@@ -1,5 +1,6 @@
 import { isAvatarId, type AvatarId } from "./avatars.js";
 import type { GameEvent, WorldView } from "../engine/view.js";
+import { trimmedRiderName } from "../engine/rider-name.js";
 
 export type { AvatarId } from "./avatars.js";
 // The engine publishes what a screen sees and what a tick reports; the LAN wire only names them.
@@ -120,17 +121,14 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case "join":
       if (
         !keys("type", "name", "playerToken", "avatarId") ||
-        typeof v.name !== "string" ||
-        !v.name.trim() ||
-        Array.from(v.name.trim()).length > 18 ||
-        /[\u0000-\u001f\u007f]/.test(v.name) ||
+        trimmedRiderName(v.name) === undefined ||
         (v.playerToken !== undefined && !token(v.playerToken)) ||
         (v.avatarId !== undefined && !isAvatarId(v.avatarId))
       )
         return null;
       return {
         type: "join",
-        name: v.name.trim(),
+        name: trimmedRiderName(v.name)!,
         ...(v.playerToken ? { playerToken: v.playerToken as string } : {}),
         ...(isAvatarId(v.avatarId) ? { avatarId: v.avatarId } : {}),
       };

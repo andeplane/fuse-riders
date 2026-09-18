@@ -29,7 +29,7 @@ export function explodeInstant(ctx: TickContext): void {
 /** Explodes what is due, in bomb-id order, and follows the chain breadth-first in id order. */
 function resolveExplosions({ state, events, facts }: TickContext): NewBlast[] {
   // #166: with chaining off a bomb only ever answers to its own fuse, neither to a blast already on the field nor to one opened this tick.
-  const chain = state.settings?.chainReaction ?? true;
+  const chain = state.settings.chainReaction;
   const queue = sortedBombs(state)
     .filter(
       (bomb) =>

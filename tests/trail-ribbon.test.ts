@@ -11,6 +11,7 @@ import {
   TrailRibbonCache,
 } from "../src/render/phaser/trail-ribbon.js";
 import type { TrailSegment } from "../src/shared/protocol.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 import type { WorldView as ViewSnapshot } from "../src/engine/view.js";
 
 import { completeTrailStrokes } from "../src/render/phaser/trails.js";
@@ -30,7 +31,7 @@ const segment = (x1: number, x2: number, tick: number): TrailSegment => ({
   expiresAtTick: 200,
 });
 function snapshot(): ViewSnapshot {
-  const game = createGame("ribbon", 42);
+  const game = createGame("ribbon", classicSettings(), 42);
   addPlayer(game, { id: "p", name: "Player", slot: 0, color: "#22d3ee" });
   const state = toView(game);
   return {

@@ -10,8 +10,9 @@ import {
   riderMotionStep,
 } from "../src/engine/game.js";
 import { drunkHeadingOffset } from "../src/engine/drunk.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 test("pure rider kernel exactly matches authoritative turns including drunk offsets", () => {
-  const game = createGame("motion-kernel");
+  const game = createGame("motion-kernel", classicSettings());
   for (let i = 0; i < 2; i++)
     addPlayer(game, {
       id: `p${i}`,

@@ -1,5 +1,6 @@
 import {
   createGame,
+  defaultRoomSettings,
   addPlayer,
   toView,
   SLOT_COLORS,
@@ -8,7 +9,7 @@ import { AVATARS } from "../../src/shared/avatars.js";
 import type { WorldView } from "../../src/engine/view.js";
 /** Synthetic reproducible visual stress, not a physics or network benchmark. */
 export function visualFixture(tick: number): WorldView {
-  const game = createGame("renderer-fixture", 42);
+  const game = createGame("renderer-fixture", defaultRoomSettings(), 42);
   // The fixture uses five of the available slot colors and avatars.
   for (let p = 0; p < 5; p++)
     addPlayer(game, {

@@ -29,11 +29,12 @@ import {
 } from "../src/engine/codec/checkpoint.js";
 import { speedEffectLabel } from "../src/render/power-indicator.js";
 import { POWERUP_GUIDE } from "../src/client/powerup-guide.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 // Nitro and Snail are the stacking speed pickups: every collection is its own five-second deadline, so unlike the
 // refreshing effect, two Nitros run at four times speed until the first expires, and a Snail cancels a Nitro one for one.
 function playing(seed = 11) {
-  const game = createGame("stack", seed);
+  const game = createGame("stack", classicSettings(), seed);
   for (let slot = 0; slot < 3; slot += 1)
     addPlayer(game, {
       id: `p${slot}`,

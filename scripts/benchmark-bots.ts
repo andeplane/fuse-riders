@@ -10,9 +10,10 @@ import {
   step,
   SLOT_COLORS,
 } from "../src/engine/game.js";
+import { classicSettings } from "../src/engine/room-settings.js";
 const results = [];
 for (const trailsPerRider of [0, 160, 800]) {
-  const game = createGame("bot-benchmark");
+  const game = createGame("bot-benchmark", classicSettings());
   for (let slot = 0; slot < 5; slot++)
     addPlayer(game, {
       id: slot ? "bot:" + slot : "human",

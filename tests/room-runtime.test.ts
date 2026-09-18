@@ -17,6 +17,7 @@ import {
 } from "../src/online/room-runtime.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { COUNTDOWN_TICKS } from "../src/engine/game.js";
+import { validRiderName } from "../src/engine/rider-name.js";
 import { presentFrames } from "../src/render/time/present.js";
 import type { WorldView } from "../src/engine/view.js";
 import { roomHash, packMessage } from "../src/online/packet.js";
@@ -1181,6 +1182,24 @@ test("reordered packets do not reset the hidden guest's reading of the authority
   f.guest.stop();
 });
 
+test("a join is seated under the one rider-name rule: cut by code point, never through an emoji, and valid for a match report", () => {
+  const { net, join } = room();
+  const host = join(HOST, "Host");
+  net.step(200);
+  const fox = String.fromCodePoint(0x1f98a);
+  // The join used to cut at 20 UTF-16 units: nineteen letters and half a fox, a name the history service refuses.
+  join(GUESTS[0]!, "x".repeat(19) + fox);
+  // Eleven foxes are 22 units; ten fit the log.
+  join(GUESTS[1]!, fox.repeat(11));
+  join(GUESTS[2]!, "  padded  ");
+  net.step(900);
+  const names = net.frame(HOST)!.players.map((player) => player.name);
+  assert.deepEqual(names, ["Host", "x".repeat(18), fox.repeat(10), "padded"]);
+  for (const name of names) assert.equal(validRiderName(name), true, name);
+  for (const runtime of net.runtimes.values()) runtime.stop();
+  host.stop();
+});
+
 test("a name carrying a control character is refused at the join and the rider is not seated; the characters either side of the range are kept", () => {
   const { net, join } = room();
   const host = join(HOST, "Host");
@@ -1193,7 +1212,7 @@ test("a name carrying a control character is refused at the join and the rider i
     assert.ok(
       net.recorded
         .get(id)!
-        .statuses.includes("Choose a name (1–20 characters)"),
+        .statuses.includes("Choose a name (1–18 characters)"),
       `character ${code}`,
     );
   }

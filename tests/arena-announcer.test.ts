@@ -20,12 +20,13 @@ import {
   type Announcement,
 } from "../src/client/arena-announcer.js";
 import type { WorldView } from "../src/engine/view.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 type ScoredView = WorldView;
 const field = (announcement: Announcement, key: string) =>
   (announcement as unknown as Record<string, unknown>)[key];
 
 const view = (overrides: Partial<ScoredView>): ScoredView => {
-  const game = createGame("announcer");
+  const game = createGame("announcer", classicSettings());
   for (const [slot, id, name] of [
     [0, "me", "Anders"],
     [1, "ai", "AI Ada"],

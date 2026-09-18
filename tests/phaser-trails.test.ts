@@ -9,9 +9,10 @@ import {
   trailPaths,
   trailTip,
 } from "../src/render/phaser/trails.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 /** The fade reads the view's rules, as the scene does. */
-const RULES = toView(createGame("trail-rules", 1)).rules;
+const RULES = toView(createGame("trail-rules", classicSettings(), 1)).rules;
 
 const segment = (
   tick: number,
@@ -28,7 +29,7 @@ const segment = (
   expiresAtTick: tick + 160,
 });
 const rider = () => {
-  const game = createGame("trail-test", 42);
+  const game = createGame("trail-test", classicSettings(), 42);
   addPlayer(game, { id: "p", name: "Player", slot: 0, color: "#22d3ee" });
   return {
     ...toView(game).players[0]!,
@@ -227,7 +228,7 @@ test("detached living pieces use dead-trail styling and refresh either shrinking
 });
 
 test("a Snail that ends on the next tick no longer clips the tip: the cap is the step the simulation will take", () => {
-  const game = createGame("trail-tip-snail", 42);
+  const game = createGame("trail-tip-snail", classicSettings(), 42);
   addPlayer(game, { id: "p", name: "Player", slot: 0, color: "#22d3ee" });
   const state = game.players.get("p")!;
   state.snailUntilTicks = [game.tick + 1];

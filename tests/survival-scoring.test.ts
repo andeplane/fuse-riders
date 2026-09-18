@@ -30,9 +30,10 @@ import {
   snapshotMatchStats,
   type MatchStatsState,
 } from "../src/engine/match-stats.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function match(count: number, length = 3): GameState {
-  const game = createGame("survival-scoring", 42);
+  const game = createGame("survival-scoring", classicSettings(), 42);
   game.settings = { ...defaultRoomSettings(), length, weights: {} };
   for (let slot = 0; slot < count; slot++)
     addPlayer(game, {

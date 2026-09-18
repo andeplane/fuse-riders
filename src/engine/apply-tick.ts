@@ -7,8 +7,6 @@ import {
   setPlayerConnected,
   SLOT_COLORS,
   startMatch,
-  startNextRound,
-  step,
   sortedPlayers,
   type GameState,
   type InputIntent,
@@ -32,6 +30,7 @@ import {
   type HeldControls,
 } from "./input-log.js";
 import type { GameEvent } from "./state.js";
+import { driveGameTick } from "./tick-driver.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
 export const RULES = "fuse-p2p-36"; // 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
@@ -59,8 +58,7 @@ export function createRoomState(
   matchId: string,
   settings: RoomSettings,
 ): RoomState {
-  const game = createGame(matchId);
-  game.settings = settings;
+  const game = createGame(matchId, settings);
   return { game, settings, folds: new Map(), bots: new Set() };
 }
 export const reclaimable = (game: GameState): boolean =>
@@ -245,7 +243,8 @@ function applyManagement(state: RoomState, entry: Entry): void {
 
 /**
  * Advance the room by one tick from the entries stamped with that tick. Management entries apply first, then each
- * player's entries fold into its held controls, then the shared `step`, then automatic round progression.
+ * player's entries fold into its held controls, then `driveGameTick`: the shared `step` and automatic round
+ * progression. What is the room's and not the game's (folds, bot seats) follows what the driver reports.
  *
  * Not transactional, as it never was: if `step` throws (a `TickFault` naming the phase), `state` is left part-way
  * through the tick and the error reaches the caller. `phases` is the fault-injection seam of `step`, passed through
@@ -304,30 +303,13 @@ export function applyTick(
       if (entry[2] === AVATAR) player.avatarId = entry[3];
     inputs.set(player.id, foldPlayerEntries(fold, entries));
   }
-  const result = step(game, inputs, phases);
-  if (
-    game.phase === "roundOver" &&
-    game.phaseEndsAtTick !== undefined &&
-    game.tick >= game.phaseEndsAtTick
-  ) {
-    pruneDisconnected(state);
-    if (sortedPlayers(game).filter((player) => player.connected).length >= 2) {
-      // Format stays fixed for a match; powerup changes apply at round boundaries.
-      game.settings = {
-        ...state.settings,
-        match: game.settings!.match,
-        length: game.settings!.length,
-      };
-      startNextRound(game);
-      resetGestures(state);
-    }
+  const driven = driveGameTick(game, inputs, state.settings, phases);
+  for (const id of driven.removed) {
+    state.folds.delete(id);
+    state.bots.delete(id);
   }
-  if (game.phase !== "playing")
-    for (const player of sortedPlayers(game)) {
-      player.bombChargeStartedTick = undefined;
-      player.bombTarget = undefined;
-    }
-  return result.events;
+  if (driven.roundStarted) resetGestures(state);
+  return driven.events;
 }
 
 /** Canonical JSON of the whole room state: Map entries and object keys sorted, so insertion order never matters. */

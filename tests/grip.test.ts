@@ -21,9 +21,10 @@ import {
 } from "../src/engine/codec/checkpoint.js";
 import { presentWorld } from "../src/render/time/present.js";
 import { powerLabel } from "../src/render/power-indicator.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing() {
-  const game = createGame("grip", 725);
+  const game = createGame("grip", classicSettings(), 725);
   for (let slot = 0; slot < 3; slot++)
     addPlayer(game, {
       id: `p${slot}`,

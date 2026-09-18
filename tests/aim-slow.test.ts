@@ -24,6 +24,7 @@ import {
   decodeGameState,
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 // Holding the bomb button eases the rider down to AIM_SLOW_SPEED to steady the aim, for at most a second, and eases
 // them back up afterwards. `control` is the same game with nobody aiming: the round's own speed ramp cancels out.
@@ -39,7 +40,7 @@ const CANCEL: InputIntent = {
 };
 
 function playing(seed = 7) {
-  const game = createGame("aim", seed);
+  const game = createGame("aim", classicSettings(), seed);
   for (let slot = 0; slot < 2; slot += 1)
     addPlayer(game, {
       id: `p${slot}`,

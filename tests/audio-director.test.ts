@@ -17,6 +17,7 @@ import {
 } from "../src/engine/game.ts";
 import { beginMatchParticipant } from "../src/engine/match-stats.ts";
 import type { GameEvent, ServerMessage } from "../src/shared/protocol.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 function fixture(stored: Partial<RadioState> = {}) {
   let canUnlock = true;
   let stops = 0;
@@ -56,7 +57,7 @@ function fixture(stored: Partial<RadioState> = {}) {
     { ...defaultRadio(), ...stored },
     (state) => saved.push(structuredClone(state)),
   );
-  const game = createGame("audio");
+  const game = createGame("audio", classicSettings());
   addPlayer(game, { id: "p", name: "P", slot: 0, color: "#ffffff" });
   beginMatchParticipant(game.matchStats, {
     id: "p",

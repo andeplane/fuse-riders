@@ -4,6 +4,7 @@ import { DEFAULT_AVATAR } from "../src/shared/avatars.ts";
 import type { Moment } from "../src/engine/moments.ts";
 import { createGame, toView } from "../src/engine/game.ts";
 import type { WorldView } from "../src/engine/view.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 import {
   BARS_IN_MS,
   BARS_OUT_MS,
@@ -88,7 +89,7 @@ function world(
       turn: 0.14,
       nextVolleyAngles: [0],
     })),
-    rules: toView(createGame("replay-rules", 1)).rules,
+    rules: toView(createGame("replay-rules", classicSettings(), 1)).rules,
     openEdges: false,
     map: "classic",
     obstacles: [],

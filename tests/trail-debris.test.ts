@@ -4,6 +4,7 @@ import { TrailDebris } from "../src/render/trail-debris.js";
 import { createGame, addPlayer, toView } from "../src/engine/game.js";
 import type { WorldView } from "../src/engine/view.js";
 import type { TrailSegment } from "../src/shared/protocol.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const segment: TrailSegment = {
   x1: 540,
@@ -23,7 +24,7 @@ function frame(
   trail: TrailSegment[],
   blasts: WorldView["blasts"] = [],
 ): WorldView {
-  const game = createGame("debris");
+  const game = createGame("debris", classicSettings());
   addPlayer(game, { id: "rider", name: "Rider", slot: 0, color: "#22d3ee" });
   const snapshot = toView(game);
   return {

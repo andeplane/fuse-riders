@@ -10,8 +10,10 @@
 
 // The world: plain-data state, the commands that change it between ticks, and `step`, which is a loop over PHASES.
 export * from "./game.js";
-// The tick driver every replica runs, the rules version, and the canonical state hash.
+// The room's tick: management entries, the fold of each rider's entries, the rules version, the canonical state hash.
 export * from "./apply-tick.js";
+// The game's tick, which `applyTick` calls: `step`, round progression, settings at the round boundary.
+export * from "./tick-driver.js";
 // Log entries and their validation, and the fold of a rider's entries into held controls.
 export * from "./input-log.js";
 export * from "./room-settings.js";

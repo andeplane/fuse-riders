@@ -1,4 +1,3 @@
-import { BOMB_MAX_CHARGE_TICKS } from "./bomb-launch.js";
 import {
   type AvatarId,
   type GameState,
@@ -241,9 +240,9 @@ export function toView(state: GameState): WorldView {
     tick: state.tick,
     round: state.round,
     rules: RULES_VIEW,
-    matchLength: state.settings?.length ?? 5,
-    bombChargeTicks: state.settings?.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS,
-    aimBounce: state.settings?.aimBounce ?? false,
+    matchLength: state.settings.length,
+    bombChargeTicks: state.settings.bombChargeTicks,
+    aimBounce: state.settings.aimBounce,
     phase: state.phase,
     ...(state.phaseEndsAtTick === undefined
       ? {}

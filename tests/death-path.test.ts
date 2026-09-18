@@ -10,11 +10,12 @@ import {
   type InputIntent,
 } from "../src/engine/game.ts";
 import { INSTANT_DEATHS_COMMIT_PER_RIDER } from "../src/engine/sim/phases/commit-deaths.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 
 const NEUTRAL: InputIntent = { left: false, right: false, bomb: false };
 
 function playing(riders: number): GameState {
-  const game = createGame("death-path");
+  const game = createGame("death-path", classicSettings());
   for (let slot = 0; slot < riders; slot++)
     addPlayer(game, { id: `p${slot}`, name: `P${slot}`, slot, color: "#fff" });
   startMatch(game);

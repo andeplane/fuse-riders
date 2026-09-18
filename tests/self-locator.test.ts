@@ -16,10 +16,11 @@ import {
   selfLocatorStrength,
 } from "../src/render/self-locator.js";
 import type { WorldView } from "../src/engine/view.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const SELF_LOCATOR_FADE_TICKS = SELF_LOCATOR_FADE_SECONDS * TICK_HZ;
 const view = (overrides: Partial<WorldView>): WorldView => {
-  const game = createGame("self-locator");
+  const game = createGame("self-locator", classicSettings());
   addPlayer(game, { id: "me", name: "Anders", slot: 0, color: SLOT_COLORS[0] });
   addPlayer(game, { id: "ai", name: "AI Ada", slot: 1, color: SLOT_COLORS[1] });
   startMatch(game);

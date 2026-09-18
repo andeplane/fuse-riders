@@ -6,6 +6,7 @@ import {
 } from "../src/render/phaser/gun-impacts.js";
 import { visualFixture } from "../scripts/lib/benchmark-fixture.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 import type { WorldView as ViewSnapshot } from "../src/engine/view.js";
 import {
   addPlayer,
@@ -18,7 +19,7 @@ import {
 } from "../src/engine/game.js";
 
 function scene(kind: "trail" | "head" | "wall", wrap = false) {
-  const game = createGame("gun-art", 42);
+  const game = createGame("gun-art", classicSettings(), 42);
   for (let i = 0; i < 4; i++)
     addPlayer(game, {
       id: `p${i}`,
