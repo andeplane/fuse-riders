@@ -10,7 +10,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   type InputIntent,
   type PickupType,
 } from "../src/engine/game.js";
@@ -94,10 +94,7 @@ test("Fuse stacks twice, applies on the collection tick, explodes exactly on tim
     step(game, fire);
     const bomb = [...game.bombs.values()][0]!;
     assert.equal(bomb.explodeAtTick - bomb.launchedTick, duration);
-    assert.equal(
-      toSnapshot(game).players[0]!.fuseLevel,
-      duration === 30 ? 1 : 2,
-    );
+    assert.equal(toView(game).players[0]!.fuseLevel, duration === 30 ? 1 : 2);
     assert.equal(rider.reloadDurationTicks, powerReloadTicks(0));
     while (game.tick < bomb.explodeAtTick - 1) step(game, new Map());
     assert.ok(game.bombs.has(bomb.id));

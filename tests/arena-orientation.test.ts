@@ -4,7 +4,7 @@ import {
   crossViews,
   quarterTurnView,
   uprightOffset,
-} from "../src/client/arena-views.js";
+} from "../src/render/arena-views.js";
 
 test("rotated crossed cameras tile odd-sized backing pixels and preserve each quarter", () => {
   const views = crossViews(1600, 900, 1001, 563);

@@ -1,10 +1,5 @@
-import {
-  chromium,
-  webkit,
-  type Page,
-  type Locator,
-  type Browser,
-} from "playwright";
+import type { Page, Locator, Browser } from "playwright";
+import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import { POWERUP_GUIDE } from "../src/client/powerup-guide.js"; // count the guide against its source, not a literal that rots with the next pickup
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -111,11 +106,8 @@ async function rapidNavigation(browser: Browser, browserName: string) {
     );
   }
 }
-for (const [browserName, type] of [
-  ["chrome", chromium],
-  ["webkit", webkit],
-] as const) {
-  const browser = await type.launch({ headless: true });
+for (const { name: browserName, kind } of BOTH_ENGINES) {
+  const browser = await launchBrowser(kind, { headless: true });
   try {
     for (const viewport of [
       { width: 320, height: 568 },

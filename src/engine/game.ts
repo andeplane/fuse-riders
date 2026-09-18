@@ -47,11 +47,11 @@ export {
 } from "./room-settings.js";
 
 export * from "./state.js";
-export { toSnapshot } from "./view.js";
+export { toView } from "./view.js";
 export { gravityBend } from "./gravity.js";
 export * from "./tuning.js";
 
-/** What a tick reports. A caller that wants the public snapshot asks `toSnapshot(state)` for it. */
+/** What a tick reports. A caller that wants the public snapshot asks `toView(state)` for it. */
 export interface TickResult {
   events: GameEvent[];
 }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { build } from "esbuild";
-import { chromium, webkit } from "playwright";
+import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import { GOLDEN_SEED } from "../tests/fixtures/golden-replay.ts";
 import { replayHashes, type Recording } from "../tests/fixtures/replay-log.ts";
 import { makeRecording } from "../tests/fixtures/replay-recorder.ts";
@@ -44,11 +44,8 @@ const results: Record<
   string,
   { ticks: number; ms: number; firstMismatch?: number }
 > = { node: { ticks, ms: Math.round(performance.now() - started) } };
-for (const [name, engine] of [
-  ["chromium", chromium],
-  ["webkit", webkit],
-] as const) {
-  const browser = await engine.launch({ headless: true });
+for (const { kind: name } of BOTH_ENGINES) {
+  const browser = await launchBrowser(name, { headless: true });
   try {
     const page = await browser.newPage();
     await page.setContent("<!doctype html><title>Determinism replay</title>");

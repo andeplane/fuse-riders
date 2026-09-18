@@ -11,7 +11,7 @@ import {
   startNextRound,
   step,
   eliminatePlayer,
-  toSnapshot,
+  toView,
   COUNTDOWN_TICKS,
   ROUND_DRAW_TICK,
   SLOT_COLORS,
@@ -88,7 +88,7 @@ test("spawned pickups survive the old timeout and late round, then reset with th
     game.tick = game.roundStartedTick! + elapsed - 1;
     step(game, new Map());
     assert.ok(game.pickups.some((p) => p.id === spawned.id));
-    assert.ok(toSnapshot(game).pickups.some((p) => p.id === spawned.id));
+    assert.ok(toView(game).pickups.some((p) => p.id === spawned.id));
   }
   if (game.phase === "playing") {
     eliminatePlayer(game, "p1");
@@ -112,7 +112,7 @@ test("blast destruction is strictly inside 60% of the actual radius, using cente
     bomb(game, 800, 400, radius);
     const result = step(game, new Map());
     assert.deepEqual(
-      toSnapshot(game).pickups.map((p) => p.id),
+      toView(game).pickups.map((p) => p.id),
       [boundary, fringe, diagonal, outside],
     );
     assert.equal(
