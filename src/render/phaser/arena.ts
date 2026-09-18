@@ -29,7 +29,11 @@ import {
   uprightOffset,
   edgeGhosts,
 } from "../arena-views.js";
-import { PICKUP_TYPES, wrapCoordinate } from "../../engine/view-kit.js";
+import {
+  PICKUP_TYPES,
+  isAimingGun,
+  wrapCoordinate,
+} from "../../engine/view-kit.js";
 import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
@@ -1539,6 +1543,49 @@ class ArenaScene extends Phaser.Scene {
                 ? p.y + Math.sin(a) * distance
                 : clamp(p.y + Math.sin(a) * distance, b + 20, h - b - 20);
             drawBombAim(f, p, { x, y }, tint);
+          }
+        }
+        if (isAimingGun(p)) {
+          // The held sight, one line per barrel: to the wall, or over open edges round the board for the one board's
+          // width a bullet flies. What stops the bullet short of that is for the shooter to read.
+          for (const offset of p.nextVolleyAngles) {
+            const a = p.angle + (p.gunAim ?? 0) + offset;
+            const cx = Math.cos(a),
+              cy = Math.sin(a),
+              edge = open ? 0 : b;
+            let x = p.x,
+              y = p.y,
+              range = open ? w : Infinity;
+            for (let leg = 0; leg < 6 && range > 0; leg++) {
+              const t = Math.max(
+                0,
+                Math.min(
+                  range,
+                  cx > 0
+                    ? (w - edge - x) / cx
+                    : cx < 0
+                      ? (edge - x) / cx
+                      : range,
+                  cy > 0
+                    ? (h - edge - y) / cy
+                    : cy < 0
+                      ? (edge - y) / cy
+                      : range,
+                ),
+              );
+              if (!Number.isFinite(t)) break;
+              const x2 = x + cx * t,
+                y2 = y + cy * t;
+              f.lineStyle(4, tint, 0.18)
+                .lineBetween(x, y, x2, y2)
+                .lineStyle(1.5, 0xffffff, 0.75)
+                .lineBetween(x, y, x2, y2);
+              if (!open) break;
+              range -= t;
+              // Carry on from the opposite edge.
+              x = x2 >= w - 1e-6 ? 0 : x2 <= 1e-6 ? w : x2;
+              y = y2 >= h - 1e-6 ? 0 : y2 <= 1e-6 ? h : y2;
+            }
           }
         }
         if (

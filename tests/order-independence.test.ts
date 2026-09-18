@@ -192,8 +192,8 @@ test("a gun ray stops at the same point whichever order the scenery in its line 
           {
             left: false,
             right: false,
-            bomb: true,
-            bombCommands: [{ action: "press" }],
+            bomb: false,
+            bombCommands: [{ action: "press" }, { action: "release" }],
           },
         ],
       ]),

@@ -167,7 +167,7 @@ export function riderSpeedMultiplier(
  * back out the same way on release, cancel or the cap: speed never jumps. The cap is a budget, not the age of a charge:
  * every slowed tick of aiming spends one of AIM_SLOW_MAX_TICKS, and they come back one per tick only while the button is
  * up, so a second of slowdown is all a hold buys however long it lasts, and cancelling into a fresh press buys nothing.
- * A gun fires on the press and never charges, so it never slows.
+ * A held Gun charges like any other weapon, so sweeping its sight slows the rider the same way.
  */
 export const AIM_SLOW_SPEED = 0.5;
 export const AIM_SLOW_MAX_TICKS = TICK_HZ;

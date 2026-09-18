@@ -6,6 +6,7 @@
  * callback computed them inline, and the browser smokes wait on several of these strings.
  */
 import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
+import { isAimingGun } from "../engine/gun.js";
 import type { WorldView } from "../engine/view.js";
 import type { AvatarId } from "../shared/avatars.js";
 import { powerLabel } from "../render/power-indicator.js";
@@ -197,7 +198,9 @@ function fire(
     label = remaining
       ? `${Math.ceil(remaining / TICKS_PER_SECOND)}s RECHARGE`
       : player.gunArmed
-        ? "TAP TO FIRE GUN"
+        ? isAimingGun(player)
+          ? "STEER TO AIM · RELEASE!"
+          : "HOLD TO AIM GUN"
         : player.targetBombArmed
           ? "SLIDE TO AIM"
           : player.shellArmed
@@ -209,7 +212,7 @@ function fire(
   return {
     gunReady,
     title: gunReady
-      ? "Tap to fire Gun (Space)"
+      ? "Tap to fire Gun, or hold and steer to aim (Space)"
       : "Hold to charge, release to fire (Space)",
     label,
   };

@@ -1,6 +1,6 @@
 # Spectators
 
-> Phase G of the lobby roster and spectators plan, under fold rules `fuse-p2p-39`. What the room agrees on, why it
+> Phase G of the lobby roster and spectators plan, under fold rules `fuse-p2p-40`. What the room agrees on, why it
 > agrees on it there, and what it costs. The optional follow-ups it names (O4, O5, O8) are that plan's.
 
 ## What a spectator is

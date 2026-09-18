@@ -35,7 +35,7 @@ export function moveShells(ctx: TickContext): void {
   // must not read across it: a rider standing between two gates is not in the way of a teleport.
   for (const bomb of sortedBombs(state)) {
     if (!bomb.shell) continue;
-    // Gun damage was resolved on press; these are stationary, harmless tracers.
+    // Gun damage was resolved on firing; these are stationary, harmless tracers.
     if (bomb.shell.gun) {
       if (state.tick >= bomb.explodeAtTick) state.bombs.delete(bomb.id);
       continue;
