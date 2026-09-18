@@ -20,7 +20,7 @@ export function drawBombAim(
     [7, 0.07],
     [4, 0.16],
     [2, 0.95],
-  ]) {
+  ] as const) {
     graphics.lineStyle(width, tint, alpha).beginPath();
     for (let distance = start; distance < end; distance += 22) {
       const tip = Math.min(distance + 12, end);

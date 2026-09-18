@@ -29,7 +29,7 @@ export function clipTrailSegment(
   for (const [origin, delta, minimum, maximum] of [
     [segment.x1, segment.x2 - segment.x1, bounds.minX, bounds.maxX],
     [segment.y1, segment.y2 - segment.y1, bounds.minY, bounds.maxY],
-  ]) {
+  ] as const) {
     if (delta === 0) {
       if (origin < minimum || origin > maximum) return undefined;
       continue;
