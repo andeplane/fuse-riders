@@ -20,7 +20,7 @@ const errors: string[] = [];
 page.on("pageerror", (e) => errors.push(e.stack ?? e.message));
 try {
   await page.addInitScript("window.__name = value => value");
-  await page.goto(`http://127.0.0.1:${address.port}/?room=INVALID`);
+  await page.goto(`http://127.0.0.1:${address.port}/?mute&room=INVALID`);
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   const result = await page.evaluate(async (recoveryBudgetMs) => {
     const { createPhaserArena } = (await import(
@@ -127,7 +127,7 @@ try {
         [800, 450],
         [1200, 675],
         [400, 225],
-      ]) {
+      ] as const) {
         wrapper.style.width = `${w}px`;
         wrapper.style.height = `${h}px`;
         await settle();
@@ -176,7 +176,7 @@ try {
         for (const [x, y] of [
           [200, 100],
           [1300, 800],
-        ]) {
+        ] as const) {
           const px = Math.floor((x * canvas.width) / 1600),
             py = Math.floor((y * canvas.height) / 900);
           const gl = backend === "auto" ? canvas.getContext("webgl") : null;
@@ -309,7 +309,7 @@ try {
         );
         const pixel = new Uint8Array(4);
         gl!.readPixels(200, 200, 1, 1, gl!.RGBA, gl!.UNSIGNED_BYTE, pixel);
-        if (pixel[0] + pixel[1] + pixel[2] === 0)
+        if (pixel[0]! + pixel[1]! + pixel[2]! === 0)
           throw Error("Restored renderer remained blank");
         restored = true;
       }
@@ -384,7 +384,7 @@ try {
       const gl = canvas.getContext("webgl")!;
       const pixel = new Uint8Array(4);
       gl.readPixels(200, 200, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-      return pixel[0] + pixel[1] + pixel[2] > 0;
+      return pixel[0]! + pixel[1]! + pixel[2]! > 0;
     };
     await until("restored pixels", readPixel);
     extension.loseContext();

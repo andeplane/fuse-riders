@@ -31,7 +31,7 @@ test("a phone in the lobby gets the lobby screen, never the controller", () => {
       [390, 844],
       [844, 390],
       [320, 568],
-    ])
+    ] as const)
       assert.deepEqual(
         mobilePlayPolicy(
           { joined, phase: "lobby", displayOnly: false },
@@ -90,7 +90,7 @@ test("an ended room is not joined play on any phone size or phase", () => {
       [390, 844],
       [844, 390],
       [320, 568],
-    ])
+    ] as const)
       assert.deepEqual(
         mobilePlayPolicy(ended, true, width, height),
         { phone: false, lobby: false, active: false, portrait: false },
@@ -115,7 +115,7 @@ test("portrait tablets and narrow mouse windows get compact play without a rotat
       [390, 844],
       [768, 1024],
       [1024, 1366],
-    ]) {
+    ] as const) {
       assert.deepEqual(
         mobilePlayPolicy(
           { joined: true, phase: "playing", displayOnly: false },
