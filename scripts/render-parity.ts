@@ -120,7 +120,7 @@ const toView = engine.toView ?? engine.toSnapshot!;
 const recording = JSON.parse(
   readFileSync(
     new URL(
-      "../games/fuse-riders/tests/fixtures/mechanics-recording.json",
+      `../${game}tests/fixtures/mechanics-recording.json`,
       import.meta.url,
     ),
     "utf8",

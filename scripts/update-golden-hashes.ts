@@ -15,7 +15,7 @@ import {
 import type { Recording } from "../games/fuse-riders/tests/fixtures/replay-log.js";
 import { makeRecording } from "../games/fuse-riders/tests/fixtures/replay-recorder.js";
 
-const path = new URL("../tests/fixtures/", import.meta.url);
+const path = new URL("../games/fuse-riders/tests/fixtures/", import.meta.url);
 const previous: GoldenHashes = JSON.parse(
   readFileSync(new URL("golden-hashes.json", path), "utf8"),
 );
