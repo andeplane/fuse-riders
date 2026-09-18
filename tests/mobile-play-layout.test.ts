@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 // CSS-free policy is imported from the dedicated policy boundary.
-import { mobilePlayPolicy } from "../src/online/mobile-play-policy.js";
+import {
+  arenaView,
+  mobilePlayPolicy,
+} from "../src/online/mobile-play-policy.js";
 const PLAY_PHASES = ["countdown", "playing", "roundOver", "matchOver"];
 const PHASES = ["lobby", ...PLAY_PHASES];
 test("a joined phone is the same controller in both orientations in every play phase (#13)", () => {
@@ -31,7 +34,7 @@ test("a phone in the lobby gets the lobby screen, never the controller", () => {
       [390, 844],
       [844, 390],
       [320, 568],
-    ])
+    ] as const)
       assert.deepEqual(
         mobilePlayPolicy(
           { joined, phase: "lobby", displayOnly: false },
@@ -90,7 +93,7 @@ test("an ended room is not joined play on any phone size or phase", () => {
       [390, 844],
       [844, 390],
       [320, 568],
-    ])
+    ] as const)
       assert.deepEqual(
         mobilePlayPolicy(ended, true, width, height),
         { phone: false, lobby: false, active: false, portrait: false },
@@ -108,6 +111,43 @@ test("an ended room is not joined play on any phone size or phase", () => {
     );
   }
 });
+// #321 keeps the live arena behind the lobby and results; a shared-TV controller never shows or renders it, because the TV does.
+test("a shared-TV controller never shows the arena, in any phase", () => {
+  for (const phase of PHASES)
+    for (const recapReady of phase === "matchOver" ? [false, true] : [false]) {
+      const base = {
+        shared: true,
+        displayOnly: false,
+        joined: true,
+        joining: false,
+        phase,
+        recapReady,
+      };
+      assert.deepEqual(
+        arenaView(base),
+        { controller: true, sceneBackground: false, hidden: true },
+        `${phase} recap=${recapReady}`,
+      );
+      const behind = phase === "lobby" || recapReady;
+      // The TV, an unjoined host driving it and every own-screen rider keep the scene: blurred behind lobby and results, sharp in play.
+      for (const view of [
+        { ...base, displayOnly: true },
+        { ...base, joined: false },
+        { ...base, shared: false },
+      ])
+        assert.deepEqual(
+          arenaView(view),
+          { controller: false, sceneBackground: behind, hidden: false },
+          `${JSON.stringify(view)}`,
+        );
+      // A joiner still on the join card sees no arena.
+      assert.equal(
+        arenaView({ ...base, shared: false, joined: false, joining: true })
+          .hidden,
+        true,
+      );
+    }
+});
 
 test("portrait tablets and narrow mouse windows get compact play without a rotation gate", () => {
   for (const touch of [false, true])
@@ -115,7 +155,7 @@ test("portrait tablets and narrow mouse windows get compact play without a rotat
       [390, 844],
       [768, 1024],
       [1024, 1366],
-    ]) {
+    ] as const) {
       assert.deepEqual(
         mobilePlayPolicy(
           { joined: true, phase: "playing", displayOnly: false },

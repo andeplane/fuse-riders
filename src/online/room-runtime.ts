@@ -1792,8 +1792,9 @@ export class RoomRuntime {
   /** The frame to draw now: one tick behind the clock, the local rider led by its held controls. */
   view(): ViewSnapshot | undefined {
     const frames = this.world?.view();
-    if (!frames?.length) return undefined;
-    const [newer, older] = frames,
+    const newer = frames?.[0];
+    if (!newer) return undefined;
+    const older = frames[1],
       clock = this.clock.tick(),
       presentation = Math.max(
         older?.tick ?? newer.tick,
