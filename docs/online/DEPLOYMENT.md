@@ -8,7 +8,7 @@ The backend never simulates or relays gameplay. A `relay` frame is answered with
 
 `npm run dev:online` builds the assets and starts the local room service on http://localhost:8787: the same `src/service` gateway and room store as production, over in-memory room metadata and a single-process bus (`src/service/dev.ts`). Rooms disappear when it stops. Create a room, then open its link in another browser/profile. Test WebRTC on localhost or HTTPS: ordinary remote HTTP addresses are not secure browser contexts.
 
-Legacy LAN hosting is still available through `npm start`, `/display` and `/controller`. The online home page requires a room API, so use `dev:online` for the room flow.
+The app uses the online room flow in both development and production. `npm run dev` runs the in-memory room service locally; production uses the deployed room service.
 
 ## Deploy
 

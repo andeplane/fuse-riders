@@ -1,0 +1,496 @@
+.landing-top .landing-account {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #a8bad2;
+  border: 1px solid #43536b;
+  background: #040b19b0;
+  white-space: nowrap;
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.landing-top .landing-account[data-signed-in="true"] {
+  color: #9ff5ff;
+  border-color: #16e7ff;
+}
+.account-panel {
+  display: grid;
+  gap: 14px;
+}
+.account-panel .account-note {
+  margin: 0;
+  color: #b6cce3;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.account-panel .account-error {
+  margin: 0;
+  color: #ffa6c9;
+  font-size: 13px;
+  min-height: 1em;
+}
+.account-panel .account-totals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+.account-panel .account-totals div {
+  padding: 10px 6px;
+  border: 1px solid #2b3a52;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  text-align: center;
+}
+.account-panel .account-totals dt {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #9cbad4;
+}
+.account-panel .account-totals dd {
+  margin: 6px 0 0;
+  font:
+    14px "Press Start 2P",
+    monospace;
+  color: #eefaff;
+}
+.account-panel .account-matches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.account-panel .account-match {
+  padding: 10px 12px;
+  border: 1px solid #2b3a52;
+  border-radius: var(--ui-radius);
+  background: var(--ui-surface);
+  display: grid;
+  gap: 6px;
+}
+.account-panel .account-match[data-won="true"] {
+  border-color: #a3e635;
+}
+.account-panel .account-match header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: #9cbad4;
+}
+.account-panel .account-match header strong {
+  color: #eefaff;
+}
+.account-panel .account-riders {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 13px;
+  color: #b6cce3;
+}
+.account-panel .account-riders li[data-you="true"] {
+  color: #eefaff;
+  font-weight: 700;
+}
+.account-panel .account-riders i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 50%;
+}
+.account-panel .account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+@media (max-width: 520px) {
+  .account-panel .account-totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.account-panel .account-username {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 10px;
+}
+.account-panel .account-username label {
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: #9cbad4;
+}
+.account-panel .account-username small {
+  grid-column: 1/-1;
+  color: #b6cce3;
+  font-size: 12px;
+  min-height: 1em;
+}
+.online-join .join-account {
+  grid-column: 1/-1;
+  margin: 0;
+  font-size: 12px;
+  color: #9ff5ff;
+}
+.online-join input[readonly] {
+  opacity: 0.85;
+  cursor: default;
+}
+/* One dashboard, restrained accents. Detailed numbers stay behind native disclosure controls. */
+.online-app dialog.game-dialog.stats-dialog {
+  width: min(54rem, calc(100vw - 1.5rem));
+}
+.stats-dialog .dialog-body {
+  padding: clamp(14px, 3vw, 28px);
+  background: #07101f;
+}
+.stats-dialog .stats-player-name {
+  font:
+    18px/1.5 "Press Start 2P",
+    monospace;
+  color: #edfaff;
+  margin: 0;
+}
+.player-stats,
+.stats-content {
+  display: grid;
+  gap: 22px;
+  min-width: 0;
+}
+.stats-section {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid #263951;
+  border-radius: var(--ui-panel-radius);
+  background: #0a1627;
+}
+.stats-section h3,
+.account-panel > h3 {
+  margin: 0 0 12px;
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #d3e6f8;
+}
+.stats-muted {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #99aec6;
+  margin: 6px 0;
+}
+.stats-empty {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #bbcede;
+  padding: 14px 0;
+}
+.stats-rating {
+  background: linear-gradient(125deg, #10273a, #10172a 70%);
+  border-color: #326477;
+}
+.rating-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 18px 0 8px;
+}
+.rating-value {
+  font:
+    clamp(28px, 7vw, 46px)/1.3 "Press Start 2P",
+    monospace;
+  color: #b0f7ff;
+  letter-spacing: -2px;
+}
+.rating-rank {
+  font-size: 13px;
+  letter-spacing: 1px;
+  color: #d5e7fb;
+}
+.rating-delta {
+  margin-left: auto;
+  color: #b5cddd;
+  font-size: 12px;
+}
+.rating-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 16px 0 0;
+  overflow: visible;
+}
+.rating-chart text {
+  fill: #9db6ca;
+  font:
+    12px ui-monospace,
+    monospace;
+}
+.rating-grid {
+  stroke: #2c4158;
+  stroke-width: 1;
+  stroke-dasharray: 3 5;
+}
+.rating-line {
+  stroke: #61e8f8;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.rating-dot {
+  fill: #bafcff;
+  stroke: #0b2635;
+  stroke-width: 1;
+}
+.stats-filters {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.stats-filters .stats-muted {
+  flex-basis: 100%;
+  margin: 0;
+}
+.stats-dialog select {
+  max-width: 100%;
+  border: 1px solid #3f5570;
+  border-radius: var(--ui-radius);
+  background: #101e32;
+  color: #e1edfa;
+  font: 13px/1.4 inherit;
+  padding: 10px;
+  min-height: 42px;
+}
+.stats-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 14px 0 0;
+}
+.stats-metrics div {
+  min-width: 0;
+}
+.stats-metrics dt {
+  color: #9ab2ca;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.stats-metrics dd {
+  margin: 6px 0 0;
+  color: #ebf6ff;
+  font:
+    18px/1.4 ui-monospace,
+    monospace;
+  overflow-wrap: anywhere;
+}
+.stats-primary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-block: 1px solid #263951;
+  padding: 18px 0;
+}
+.stats-primary dd {
+  font-size: 23px;
+}
+.stats-bars {
+  display: grid;
+  gap: 9px;
+}
+.stats-bar {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 90px;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #bad0e4;
+}
+.stats-bar > span:last-child {
+  text-align: right;
+}
+.stats-track {
+  display: block;
+  background: #15273c;
+  height: 8px;
+}
+.stats-track i {
+  display: block;
+  height: 100%;
+  background: #6693aa;
+}
+.stats-bar:first-child .stats-track i {
+  background: #b9d988;
+}
+.stats-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 18px;
+}
+.stats-form > .stats-muted {
+  margin-right: 8px;
+}
+.stats-finish {
+  padding: 7px;
+  background: #14263b;
+  color: #b6cbe0;
+  font:
+    12px ui-monospace,
+    monospace;
+}
+.stats-finish[data-won="true"] {
+  color: #d9efa4;
+  background: #263327;
+}
+.stats-rivals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 25px;
+}
+.stats-rivals h4 {
+  font-size: 14px;
+  color: #d2e0f0;
+  margin: 0 0 12px;
+}
+.stats-rivals ol {
+  margin: 0;
+  padding-left: 22px;
+}
+.stats-rivals li {
+  font-size: 13px;
+  padding: 7px 0;
+  color: #9eb4c9;
+}
+.stats-rivals li strong {
+  display: block;
+  color: #e3edfa;
+  overflow-wrap: anywhere;
+}
+.stats-rivals li span {
+  display: block;
+}
+.stats-details {
+  padding: 12px 0;
+  border-top: 1px solid #2b3b51;
+  font-size: 13px;
+  color: #bdd0e3;
+  min-width: 0;
+}
+.stats-details summary {
+  cursor: pointer;
+  min-height: 24px;
+  line-height: 1.6;
+  color: #bdd8ee;
+}
+.stats-details[open] > summary {
+  margin-bottom: 12px;
+}
+.stats-details p {
+  line-height: 1.6;
+}
+.stats-dialog table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  table-layout: fixed;
+}
+.stats-dialog td,
+.stats-dialog th {
+  text-align: left;
+  padding: 10px 5px;
+  border-bottom: 1px solid #273b51;
+  overflow-wrap: anywhere;
+}
+.stats-dialog th {
+  font-weight: 400;
+  color: #97b3cd;
+}
+.stats-dialog td {
+  color: #e2edf8;
+}
+.stats-leaderboard td:nth-child(3) {
+  color: #a3f2fd;
+  font-weight: bold;
+}
+.stats-leaderboard tr[data-you="true"] {
+  background: #163447;
+}
+.stats-leaderboard th:nth-child(2) {
+  width: 40%;
+}
+.account-match summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: #a4bbd2;
+  min-height: 24px;
+}
+.account-match summary strong {
+  color: #edf7ff;
+}
+.account-match .account-riders {
+  margin-top: 12px;
+}
+.landing-top .landing-account {
+  max-width: none;
+}
+.landing-top-end {
+  flex-wrap: wrap;
+}
+@media (max-width: 540px) {
+  .stats-section {
+    padding: 14px;
+  }
+  .stats-primary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stats-metrics:not(.stats-primary) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stats-rivals {
+    gap: 14px;
+  }
+  .rating-delta {
+    margin-left: 0;
+  }
+  .stats-filters select {
+    flex: 1;
+    min-width: 0;
+  }
+  .stats-dialog .stats-player-name {
+    font-size: 14px;
+  }
+  .landing-top .landing-account {
+    font-size: 8px;
+    letter-spacing: 0;
+  }
+  .stats-dialog td,
+  .stats-dialog th {
+    padding: 9px 3px;
+  }
+}
+.stats-dialog .stats-filters select {
+  width: auto;
+  flex: 0 1 auto;
+}
+.stats-player-name .avatar-portrait {
+  width: 32px;
+  height: 32px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 12px;
+}
+.rating-chart {
+  max-height: 210px;
+}
+@media (max-width: 540px) {
+  .stats-dialog .stats-filters select {
+    flex: 1 1 42%;
+  }
+}

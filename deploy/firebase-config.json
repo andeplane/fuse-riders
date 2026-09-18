@@ -1,0 +1,28 @@
+{
+  "projectId": "andershaf-87",
+  "projectNumber": "867594018708",
+  "databaseId": "fuse-riders",
+  "webAppId": "1:867594018708:web:4444ada96e29685f063981",
+  "authDomain": "andershaf-87.firebaseapp.com",
+  "googleClientId": "867594018708-qjam0hrcgr2jdqvn40i70o3bn41tiqg4.apps.googleusercontent.com",
+  "apiKeyId": "06d6ec38-6348-4b7b-865d-1ea58a9b7d91",
+  "authorizedDomains": [
+    "localhost",
+    "andershaf-87.firebaseapp.com",
+    "andeplane.github.io",
+    "fuse-riders.web.app"
+  ],
+  "allowedReferrers": [
+    "https://andeplane.github.io/*",
+    "https://fuse-riders.web.app/*",
+    "https://andershaf-87.firebaseapp.com/*",
+    "localhost",
+    "localhost:*",
+    "127.0.0.1",
+    "127.0.0.1:*"
+  ],
+  "apiServices": [
+    "identitytoolkit.googleapis.com",
+    "securetoken.googleapis.com"
+  ]
+}

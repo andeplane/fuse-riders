@@ -88,6 +88,7 @@ guest on the same Wi-Fi (network configuration (a)). Repeat once with the
 phone as guest instead, laptop as host.
 
 **Steps**:
+
 1. Host a fresh room from the phone at the public URL (or join as guest for
    the repeat run). Note the room code.
 2. Serve the room from the laptop with `npm run dev` (the dev server records
@@ -128,8 +129,9 @@ the join form inline before taking a seat) in either orientation, with no
 rotate gate and one ROOM button. It is the desktop lobby stacked (headline,
 QR card, riders, actions) rather than a card of its own. From **countdown** through **matchOver** `mobilePlayPolicy` is
 active: the full-screen thirds are the only controller and roster/host
-actions live inside the ☰ MENU overlay, auto-opened for a phone host in
-matchOver. `scripts/mobile-phase-smoke.ts` asserts the lobby screen in
+actions live inside the ☰ MENU overlay, auto-opened for a phone host when
+the recap opens at the end of matchOver (the pause before it shows the final
+round's result, then the match winner, on the arena). `scripts/mobile-phase-smoke.ts` asserts the lobby screen in
 both orientations and identical control elements across `countdown`,
 `playing`, `matchOver` in Chrome/WebKit emulation only; the music resume on
 a real iPhone (#134 finding 1) is not covered by emulation at all.
@@ -139,6 +141,7 @@ configuration (a) is fine — this section is about rendering, not link
 quality.
 
 **Steps**:
+
 1. Start music on the landing page, then CREATE ROOM on the phone
    (portrait). Confirm music resumes on the first tap on the room page
    (any tap, not only SETTINGS → ♫ RADIO), continuing the same track.
@@ -149,13 +152,16 @@ quality.
 3. Rotate to landscape and back: the same lobby screen both times, nothing
    hidden. JOIN AS PLAYER, then add an AI opponent and set a short match
    length so a match can complete quickly.
-4. Start the race; screenshot during **countdown**. In portrait the rotate
-   gate shows; in landscape the three full-screen thirds plus the ☰ MENU
-   pill, hint labels visible and fading per the design (compare against
+4. Start the race; screenshot during **countdown**. Portrait shows the complete
+   arena rotated 90°, with upright avatars/labels and bottom touch thirds;
+   landscape keeps full-screen thirds. The ☰ MENU pill stays accessible in
+   both, with hint labels visible and fading per the design (compare against
    [#14](#14--long-press-text-selection) hint-fade note below).
 5. Screenshot during **playing**. Confirm identical positions/sizes to the
    countdown screenshot (same thirds, same pill).
-6. Let the match reach **matchOver**; screenshot. Confirm exactly one
+6. Let the match reach **matchOver** and wait for the recap (the final
+   round's result, then the match winner, show first); close it and
+   screenshot. Confirm exactly one
    control surface, the ☰ MENU overlay auto-opened for the phone host with
    REMATCH, BACK TO LOBBY, ROOM SETTINGS, TV VIEW and ADD AI all readable (none
    clipped), and that rotating keeps the overlay open.
@@ -185,12 +191,20 @@ plus `selectstart`/`contextmenu` prevention while `.mobile-play` is active.
 `scripts/mobile-landscape-smoke.ts` asserts this with a 650 ms **CDP**
 synthetic touch per third in Chromium — not a real touchscreen gesture, and
 WebKit's own long-press/callout behavior is emulator-only there too.
+The smoke records the hold result inside the page and retries only when a
+benchmark snapshot proves the round phase changed during the attempt. It
+requires a complete 650 ms hold within one playing phase for every third;
+a lost hold in a stable phase or any selected text remains a failure.
+Run `MOBILE_HOLD_PHASE_RACE=1 HOME_URL=http://localhost:8787/ npx tsx scripts/mobile-landscape-smoke.ts`
+to force the first gesture to span a real round transition and verify that
+it is retried before a complete hold passes in both engines.
 
 **Devices/network**: iPhone Safari (WebKit's real long-press gesture is the
 primary risk named in #14's own root-cause note) and Android Chrome. Either
 network configuration is fine.
 
 **Steps**:
+
 1. Join a fresh room as a phone player in landscape.
 2. On each of the three touch thirds, press and hold with a real finger for
    at least one second (long enough to trigger iOS's native selection/
@@ -221,7 +235,7 @@ issue naming the exact element, device, OS version and gesture.
 ## #12 — Cellular guest direct link
 
 Fixed in #39: STUN-race and buffering defects, a second STUN server, bounded
-ICE restarts, and a ROOM → LINK DIAGNOSTICS panel that reports *why* a link
+ICE restarts, and a ROOM → LINK DIAGNOSTICS panel that reports _why_ a link
 is not connected. #39's own "what the real test should show now" section
 predicts the header/diagnostics text below; nothing in that PR was verified
 against a real cellular guest — that verification is this section.
@@ -233,6 +247,7 @@ and #39 both note symmetric NAT/CGNAT is common on cellular specifically and
 a second Wi-Fi network isolates that variable.
 
 **Steps**:
+
 1. Host a fresh room on Wi-Fi. Send the invite link to the guest phone over
    a channel that does not depend on the link under test (SMS, AirDrop
    beforehand, etc.).
@@ -266,7 +281,7 @@ host and guest, and whether gameplay actually flowed once "connected."
 selected pair with working gameplay. A `candidates exchanged, ICE failed —
 likely symmetric NAT/CGNAT on one side` result after restarts are exhausted
 is a **known, documented limitation** (no TURN, per ADR035) — record it as
-such, not as a new defect, unless the *host's* Wi-Fi also fails this way
+such, not as a new defect, unless the _host's_ Wi-Fi also fails this way
 (which would mean host-side STUN reachability is broken, a genuine fail). A
 result where either device shows only `local host×N` with no `srflx` is a
 fail specific to that device's network reaching STUN (UDP blocked) and
@@ -294,6 +309,7 @@ is sufficient — this section is a UI/input qualification, not a link-quality
 test (see #12/#5 for that).
 
 **Steps** (repeat the whole sequence once per phone):
+
 1. Open the public URL in **portrait**. Screenshot. Rotate to **landscape**
    and confirm the transition happens cleanly (no stuck rotate-gate, no
    dropped input from the transition) and the board uses the full available
@@ -360,6 +376,7 @@ framing — a smaller session is acceptable evidence as long as it's recorded
 as smaller than #5's full ask, not silently substituted for it.
 
 **Steps**:
+
 1. Record the candidate route: ☰ MENU → ROOM → LINK DIAGNOSTICS `selected` pair on
    each device, per the [#12](#12--cellular-guest-direct-link) capture
    method.
@@ -406,7 +423,7 @@ any screen recordings, all 3 reconnect-downtime samples with min/median/max,
 and the observed behavior for each of the three host lifecycle cases.
 
 **Pass/fail**: #5 does not give numeric phone-side thresholds (unlike the
-desktop ADR032/037 budgets it asks to be *compared* against, not replicated
+desktop ADR032/037 budgets it asks to be _compared_ against, not replicated
 physically) — record what is measured and flag anything that looks clearly
 broken (reconnect never completes, host backgrounding silently desyncs
 without any suspended-state UI, duplicate tabs produce two live hosts
@@ -426,32 +443,38 @@ session:
 # Device test — <date> — #<issue>
 
 ## Build under test
+
 - release.json gitRevision: <sha>
 - release.json verifiedCiRun: <ci run id>
 - release.json apiOrigin / builtAt: <value> / <value>
 
 ## Devices
+
 - Device A: <model>, <OS + version>, <browser + version>
 - Device B: <model>, <OS + version>, <browser + version>
 - Host laptop (if used): <OS>, <browser + version>
 
 ## Network
+
 - Configuration: (a) same Wi-Fi / (b) host Wi-Fi + guest cellular / (c) host Wi-Fi + guest different Wi-Fi
 - Notes: <SSID types, carrier if relevant — no need for exact network names, just enough to reproduce>
 
 ## Room
+
 - Fresh room per step: yes/no (note any reuse and why)
 
 ## Results
 
-| Step | Expected (from issue) | Observed | Pass/Fail | Evidence |
-| --- | --- | --- | --- | --- |
-| 1 | ... | ... | ... | screenshot-a.png |
-| 2 | ... | ... | ... | ... |
+| Step | Expected (from issue) | Observed | Pass/Fail | Evidence         |
+| ---- | --------------------- | -------- | --------- | ---------------- |
+| 1    | ...                   | ...      | ...       | screenshot-a.png |
+| 2    | ...                   | ...      | ...       | ...              |
 
 ## Raw captures
-- LINK DIAGNOSTICS (verbatim): 
-  ```
+
+- LINK DIAGNOSTICS (verbatim):
+```
+
   <paste>
   ```
 - Status-line text: `<paste>`
@@ -459,13 +482,17 @@ session:
 - Screenshots: ![label](<date>-<issue>-<device>-<label>.png)
 
 ## Defects filed
+
 - #<new issue> — <one line>
 
 ## Known limitations acknowledged (not defects)
+
 - <e.g. symmetric NAT/CGNAT on cellular without TURN, per ADR035>
+
 ```
 
 Keep every run's file even if it fails or is incomplete — a failed or
 partial run is still evidence, per the same standard the existing
 `RESPONSE-BENCHMARK.md` trials use (failures are retained, not deleted or
 overwritten by later successful ones).
+```

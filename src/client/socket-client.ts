@@ -1,4 +1,4 @@
-import type { ClientMessage, ServerMessage } from '../shared/protocol.js';
+import type { ClientMessage, ServerMessage } from "../shared/protocol.js";
 
 const HEARTBEAT_MS = 2_000;
 /** WebSocket.OPEN per the WHATWG spec — kept as a literal so tests do not need the DOM WebSocket global. */
@@ -9,16 +9,19 @@ export interface WebSocketLike {
   readonly readyState: number;
   send(data: string): void;
   close(code?: number, reason?: string): void;
-  addEventListener(type: 'open', listener: (event: Event) => void): void;
-  addEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
-  addEventListener(type: 'close', listener: (event: CloseEvent) => void): void;
-  addEventListener(type: 'error', listener: (event: Event) => void): void;
+  addEventListener(type: "open", listener: (event: Event) => void): void;
+  addEventListener(
+    type: "message",
+    listener: (event: MessageEvent) => void,
+  ): void;
+  addEventListener(type: "close", listener: (event: CloseEvent) => void): void;
+  addEventListener(type: "error", listener: (event: Event) => void): void;
 }
 
 export type WebSocketFactory = () => WebSocketLike;
 
 function websocketUrl(): string {
-  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   return `${protocol}//${location.host}/ws`;
 }
 
@@ -32,9 +35,13 @@ export class SocketClient {
   constructor(
     private readonly authenticate: () => ClientMessage | undefined,
     private readonly onMessage: (message: ServerMessage) => void,
-    private readonly onStatus: (connected: boolean, reason?: 'replaced') => void,
+    private readonly onStatus: (
+      connected: boolean,
+      reason?: "replaced",
+    ) => void,
     private readonly onRoundTrip?: (milliseconds: number) => void,
-    private readonly createSocket: WebSocketFactory = () => new WebSocket(websocketUrl()),
+    private readonly createSocket: WebSocketFactory = () =>
+      new WebSocket(websocketUrl()),
   ) {}
 
   connect(): void {
@@ -48,38 +55,47 @@ export class SocketClient {
     // Wi-Fi). Close it now that this.socket points at the new one — its own listeners already guard
     // on `socket !== this.socket`, so this close is ignored rather than reported as a real disconnect.
     if (previous && previous !== socket) previous.close();
-    socket.addEventListener('open', () => {
+    socket.addEventListener("open", () => {
       if (socket !== this.socket) return;
       this.retry = 0;
       this.onStatus(true);
       const auth = this.authenticate();
       if (auth) this.send(auth);
       this.heartbeat = setInterval(() => {
-        this.send({ type: 'heartbeat' });
-        this.send({ type: 'ping', id: this.pingId++, sentAt: performance.now() });
+        this.send({ type: "heartbeat" });
+        this.send({
+          type: "ping",
+          id: this.pingId++,
+          sentAt: performance.now(),
+        });
       }, HEARTBEAT_MS);
     });
-    socket.addEventListener('message', (event) => {
-      if (socket !== this.socket || typeof event.data !== 'string') return;
+    socket.addEventListener("message", (event) => {
+      if (socket !== this.socket || typeof event.data !== "string") return;
+      let message: ServerMessage;
       try {
-        const message = JSON.parse(event.data) as ServerMessage;
-        if (message.type === 'pong') { this.onRoundTrip?.(performance.now() - message.sentAt); return; }
-        this.onMessage(message);
+        message = JSON.parse(event.data) as ServerMessage;
       } catch {
-        // Ignore malformed server frames; the next complete snapshot repairs the view.
+        // Ignore malformed JSON; application exceptions belong to the browser error boundary.
+        return;
       }
+      if (message?.type === "pong") {
+        this.onRoundTrip?.(performance.now() - message.sentAt);
+        return;
+      }
+      this.onMessage(message);
     });
-    socket.addEventListener('close', (event) => {
+    socket.addEventListener("close", (event) => {
       if (socket !== this.socket) return;
       clearInterval(this.heartbeat);
       if (event.code === 4001) this.intentionallyClosed = true;
-      this.onStatus(false, event.code === 4001 ? 'replaced' : undefined);
+      this.onStatus(false, event.code === 4001 ? "replaced" : undefined);
       if (!this.intentionallyClosed) {
         const delay = Math.min(3_000, 300 * 2 ** this.retry++);
         this.reconnectTimer = setTimeout(() => this.connect(), delay);
       }
     });
-    socket.addEventListener('error', () => socket.close());
+    socket.addEventListener("error", () => socket.close());
   }
 
   send(message: ClientMessage): boolean {

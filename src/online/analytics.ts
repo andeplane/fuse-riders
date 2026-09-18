@@ -11,16 +11,16 @@
  * `?analytics=1` to verify a build, off outright with `?analytics=0`. The Mixpanel bundle is imported only
  * once analytics is on, so a LAN game never downloads it.
  */
-import { TICK_HZ } from '../shared/game.js';
-import { BOT_ID_PREFIX } from '../shared/bot-controller.js';
-import type { MatchPlayerStats } from '../shared/match-stats.js';
-import type { DecidedRound, RoundShot } from '../shared/shot-log.js';
+import { TICK_HZ } from "../shared/game.js";
+import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
+import type { MatchPlayerStats } from "../shared/match-stats.js";
+import type { DecidedRound, RoundShot } from "../shared/shot-log.js";
 
-type Mixpanel = (typeof import('mixpanel-browser'))['default'];
+type Mixpanel = (typeof import("mixpanel-browser"))["default"];
 
 /** A Mixpanel project token is a write-only public identifier — every browser bundle reporting to a project ships one. It is not a credential and grants no read access. */
-const TOKEN = 'b5022dd7fe5b3cd0396d84284ae647e6';
-const PREFIX = 'FlowRiders.';
+const TOKEN = "b5022dd7fe5b3cd0396d84284ae647e6";
+const PREFIX = "FlowRiders.";
 /**
  * Also the ordering guarantee: every `track` attaches its own reaction to this one promise, and same-promise
  * reactions run in the order they were attached, so calls made before Mixpanel loads still arrive in order.
@@ -28,7 +28,7 @@ const PREFIX = 'FlowRiders.';
  */
 let client: Promise<Mixpanel> | undefined;
 
-const OVERRIDE_KEY = 'fuse-analytics';
+const OVERRIDE_KEY = "fuse-analytics";
 
 /**
  * The override sticks for the browser rather than riding the URL. `appUrl` replaces the query string on every
@@ -40,18 +40,29 @@ const OVERRIDE_KEY = 'fuse-analytics';
  * and `?analytics=false` report a dev session into the production project, the opposite of what someone typing
  * them wants.
  */
-export function analyticsOverride(search: string, storage: Pick<Storage, 'getItem' | 'setItem'>): string | null {
-  const found = new URLSearchParams(search).get('analytics');
+export function analyticsOverride(
+  search: string,
+  storage: Pick<Storage, "getItem" | "setItem">,
+): string | null {
+  const found = new URLSearchParams(search).get("analytics");
   try {
-    if (found === '1' || found === '0') { storage.setItem(OVERRIDE_KEY, found); return found; }
+    if (found === "1" || found === "0") {
+      storage.setItem(OVERRIDE_KEY, found);
+      return found;
+    }
     return storage.getItem(OVERRIDE_KEY);
-  } catch { return found; }
+  } catch {
+    return found;
+  }
 }
 
-export function analyticsEnabled(override: string | null, port: string): boolean {
-  if (override === '1') return true;
-  if (override === '0') return false;
-  return port === '';
+export function analyticsEnabled(
+  override: string | null,
+  port: string,
+): boolean {
+  if (override === "1") return true;
+  if (override === "0") return false;
+  return port === "";
 }
 
 /**
@@ -60,21 +71,33 @@ export function analyticsEnabled(override: string | null, port: string): boolean
  * one's — which is what the boot-failure path wants when it reports against a room that had already started.
  */
 export function startAnalytics(superProperties: Record<string, unknown>): void {
-  if (!analyticsEnabled(analyticsOverride(location.search, localStorage), location.port)) return;
+  if (
+    !analyticsEnabled(
+      analyticsOverride(location.search, localStorage),
+      location.port,
+    )
+  )
+    return;
   // localStorage over cookies: the game stores everything else there too, and a batch that outlives a navigation
   // is what lets CREATE ROOM report before the page it triggers replaces this one.
-  client ??= import('mixpanel-browser').then(module => {
+  client ??= import("mixpanel-browser").then((module) => {
     module.default.init(TOKEN, {
-      persistence: 'localStorage', track_pageview: false, autocapture: false,
+      persistence: "localStorage",
+      track_pageview: false,
+      autocapture: false,
       // A room page is `?room=AB42`, and that code is the whole join credential — there is no second token, so
       // anyone holding the URL can walk into the game. Mixpanel attaches `$current_url` and `$referrer` to every
       // event by default, which would ship a live invite to a third party on every seat, match and setting change.
       // The `*_domain` properties survive: they answer where players come from and carry no room code.
-      property_blacklist: ['$current_url', '$referrer', '$initial_referrer'],
+      property_blacklist: ["$current_url", "$referrer", "$initial_referrer"],
     });
     return module.default;
   });
-  void client.then(mixpanel => mixpanel.register(superProperties)).catch(() => { /* analytics never breaks the game */ });
+  void client
+    .then((mixpanel) => mixpanel.register(superProperties))
+    .catch(() => {
+      /* analytics never breaks the game */
+    });
 }
 
 /**
@@ -83,13 +106,20 @@ export function startAnalytics(superProperties: Record<string, unknown>): void {
  * property bag — super properties included — is dropped silently, with a 200 back from the API. Room settings
  * call theirs `length`; they are reported as `matchLength`.
  */
-export function track(event: string, properties?: Record<string, unknown>): void {
-  void client?.then(mixpanel => mixpanel.track(PREFIX + event, properties)).catch(() => { /* analytics never breaks the game */ });
+export function track(
+  event: string,
+  properties?: Record<string, unknown>,
+): void {
+  void client
+    ?.then((mixpanel) => mixpanel.track(PREFIX + event, properties))
+    .catch(() => {
+      /* analytics never breaks the game */
+    });
 }
 
 const seconds = (ticks: number) => Math.round(ticks / TICK_HZ);
 /** Tenths, where whole seconds would put nearly every Gun, Target and Shell kill in the same bucket. */
-const tenths = (ticks: number) => Math.round(ticks / TICK_HZ * 10) / 10;
+const tenths = (ticks: number) => Math.round((ticks / TICK_HZ) * 10) / 10;
 
 /**
  * Identifies the snapshot that begins a match, or `undefined` for every other snapshot. Callers report a match
@@ -101,44 +131,63 @@ const tenths = (ticks: number) => Math.round(ticks / TICK_HZ * 10) / 10;
  * first observed phase is already `countdown`. A rematch takes a fresh match id and returns to round 1, so it
  * keys apart from the match before it; a device that joins at round 3 reports no start, which is the truth.
  */
-export function matchStartKey(matchId: string, phase: string, round: number): string | undefined {
-  return phase === 'countdown' && round === 1 ? `${matchId}:${round}` : undefined;
+export function matchStartKey(
+  matchId: string,
+  phase: string,
+  round: number,
+): string | undefined {
+  return phase === "countdown" && round === 1
+    ? `${matchId}:${round}`
+    : undefined;
 }
 
 /**
  * One event per finished match, from the authoritative end-of-match stats. `playerId` is this device's rider:
  * a shared-TV display or a spectator has none, and reports only the shape of the match it watched.
  */
-export function matchEndedProps(stats: readonly MatchPlayerStats[], playerId: string): Record<string, unknown> {
-  const botCount = stats.filter(entry => entry.playerId.startsWith(BOT_ID_PREFIX)).length;
-  const mine = stats.find(entry => entry.playerId === playerId);
+export function matchEndedProps(
+  stats: readonly MatchPlayerStats[],
+  playerId: string,
+): Record<string, unknown> {
+  const botCount = stats.filter((entry) =>
+    entry.playerId.startsWith(BOT_ID_PREFIX),
+  ).length;
+  const mine = stats.find((entry) => entry.playerId === playerId);
   return {
     playerCount: stats.length,
     botCount,
     humanCount: stats.length - botCount,
-    rounds: stats.reduce((most, entry) => Math.max(most, entry.roundsPlayed), 0),
+    rounds: stats.reduce(
+      (most, entry) => Math.max(most, entry.roundsPlayed),
+      0,
+    ),
     played: Boolean(mine),
-    ...(mine ? {
-      placement: mine.matchPlacement,
-      won: mine.matchPlacement === 1,
-      roundWins: mine.roundWins,
-      eliminations: mine.eliminations,
-      pickups: mine.pickupsCollected,
-      bombsPlaced: mine.bombsPlaced,
-      bombsExploded: mine.bombsExploded,
-      distance: Math.round(mine.distanceUnits),
-      survivalSeconds: seconds(mine.survivalTicks),
-      // Optional chaining rather than trust: this is built inside the host's publish loop, where a throw stops
-      // the room publishing for everyone, so the invariant belongs here and not only in the code upstream.
-      deathsWall: mine.deathsByCause?.wall,
-      deathsTrail: mine.deathsByCause?.trail,
-      deathsExplosion: mine.deathsByCause?.explosion,
-      deathsRider: mine.deathsByCause?.rider,
-    } : {}),
+    ...(mine
+      ? {
+          placement: mine.matchPlacement,
+          won: mine.matchPlacement === 1,
+          roundWins: mine.roundWins,
+          eliminations: mine.eliminations,
+          pickups: mine.pickupsCollected,
+          bombsPlaced: mine.bombsPlaced,
+          bombsExploded: mine.bombsExploded,
+          distance: Math.round(mine.distanceUnits),
+          survivalSeconds: seconds(mine.survivalTicks),
+          // Optional chaining rather than trust: this is built inside the host's publish loop, where a throw stops
+          // the room publishing for everyone, so the invariant belongs here and not only in the code upstream.
+          deathsWall: mine.deathsByCause?.wall,
+          deathsTrail: mine.deathsByCause?.trail,
+          deathsExplosion: mine.deathsByCause?.explosion,
+          deathsRider: mine.deathsByCause?.rider,
+        }
+      : {}),
   };
 }
 
-export interface AnalyticsEvent { event: string; properties: Record<string, unknown> }
+export interface AnalyticsEvent {
+  event: string;
+  properties: Record<string, unknown>;
+}
 
 /**
  * One `Kill` per rider this device's rider killed and one `Miss` per pull of its own that killed nobody, for a
@@ -156,23 +205,48 @@ export interface AnalyticsEvent { event: string; properties: Record<string, unkn
  * upgrades at the pull (`power`, `extraBombs`, `fuseLevel`, `grip`), how many bombs the pull launched, and the room
  * it happened in (`riders`, `bots`).
  */
-export interface RoundContext { round: number; riders: number; bots: number }
-export function roundShotEvents(shots: readonly RoundShot[], playerId: string, { round, riders, bots }: RoundContext): AnalyticsEvent[] {
+export interface RoundContext {
+  round: number;
+  riders: number;
+  bots: number;
+}
+export function roundShotEvents(
+  shots: readonly RoundShot[],
+  playerId: string,
+  { round, riders, bots }: RoundContext,
+): AnalyticsEvent[] {
   const events: AnalyticsEvent[] = [];
   for (const shot of shots) {
     if (!playerId || shot.shooterId !== playerId) continue;
     const pulled = {
-      weapon: shot.weapon, round, secondsIntoRound: tenths(shot.elapsed), bombs: shot.bombs,
-      power: shot.power, extraBombs: shot.extraBombs, fuseLevel: shot.fuseLevel, grip: shot.grip, riders, bots,
+      weapon: shot.weapon,
+      round,
+      secondsIntoRound: tenths(shot.elapsed),
+      bombs: shot.bombs,
+      power: shot.power,
+      extraBombs: shot.extraBombs,
+      fuseLevel: shot.fuseLevel,
+      rangeLevel: shot.rangeLevel,
+      grip: shot.grip,
+      riders,
+      bots,
     };
-    if (shot.kills.length === 0) { events.push({ event: 'Miss', properties: pulled }); continue; }
-    shot.kills.forEach((kill, index) => events.push({ event: 'Kill', properties: {
-      ...pulled,
-      victimBot: kill.victimId.startsWith(BOT_ID_PREFIX),
-      shotKills: shot.kills.length,
-      firstKillOfShot: index === 0,
-      secondsToKill: tenths(kill.elapsed - shot.elapsed),
-    } }));
+    if (shot.kills.length === 0) {
+      events.push({ event: "Miss", properties: pulled });
+      continue;
+    }
+    shot.kills.forEach((kill, index) =>
+      events.push({
+        event: "Kill",
+        properties: {
+          ...pulled,
+          victimBot: kill.victimId.startsWith(BOT_ID_PREFIX),
+          shotKills: shot.kills.length,
+          firstKillOfShot: index === 0,
+          secondsToKill: tenths(kill.elapsed - shot.elapsed),
+        },
+      }),
+    );
   }
   return events;
 }
@@ -190,10 +264,20 @@ export function roundShotEvents(shots: readonly RoundShot[], playerId: string, {
  * yet consumes nothing: it may learn its seat on the next snapshot.
  */
 export function decidedRoundReport(
-  decided: DecidedRound | undefined, playerId: string, confirmedTick: number, reported: string, room: { riders: number; bots: number },
+  decided: DecidedRound | undefined,
+  playerId: string,
+  confirmedTick: number,
+  reported: string,
+  room: { riders: number; bots: number },
 ): { key: string; events: AnalyticsEvent[] } | undefined {
   if (!decided || !playerId || decided.tick > confirmedTick) return undefined;
   const key = `${decided.matchId}:${decided.round}:${playerId}`;
   if (key === reported) return undefined;
-  return { key, events: roundShotEvents(decided.shots, playerId, { round: decided.round, ...room }) };
+  return {
+    key,
+    events: roundShotEvents(decided.shots, playerId, {
+      round: decided.round,
+      ...room,
+    }),
+  };
 }

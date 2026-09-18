@@ -26,21 +26,30 @@ export interface RoundPlacement {
 }
 
 /** Rank a round without changing the participant input. Later elimination wins. */
-export function rankRound(participants: readonly RoundParticipant[]): RoundPlacement[] {
+export function rankRound(
+  participants: readonly RoundParticipant[],
+): RoundPlacement[] {
   if (participants.length < 2 || participants.length > MAX_PARTICIPANTS) {
-    throw new RangeError('A round has two to five participants');
+    throw new RangeError("A round has two to five participants");
   }
   const ids = new Set<string>();
   for (const participant of participants) {
-    if (!participant.id || ids.has(participant.id)) throw new Error('Round participants must have unique ids');
-    if (participant.eliminatedAtTick !== undefined &&
-      (!Number.isSafeInteger(participant.eliminatedAtTick) || participant.eliminatedAtTick < 0)) {
-      throw new RangeError('eliminatedAtTick must be a non-negative safe integer');
+    if (!participant.id || ids.has(participant.id))
+      throw new Error("Round participants must have unique ids");
+    if (
+      participant.eliminatedAtTick !== undefined &&
+      (!Number.isSafeInteger(participant.eliminatedAtTick) ||
+        participant.eliminatedAtTick < 0)
+    ) {
+      throw new RangeError(
+        "eliminatedAtTick must be a non-negative safe integer",
+      );
     }
     ids.add(participant.id);
   }
 
-  const ordered = participants.map((participant, index) => ({ participant, index }))
+  const ordered = participants
+    .map((participant, index) => ({ participant, index }))
     .sort((a, b) => {
       const aTick = a.participant.eliminatedAtTick ?? Number.POSITIVE_INFINITY;
       const bTick = b.participant.eliminatedAtTick ?? Number.POSITIVE_INFINITY;
@@ -49,10 +58,12 @@ export function rankRound(participants: readonly RoundParticipant[]): RoundPlace
 
   const placements: RoundPlacement[] = [];
   for (let start = 0; start < ordered.length;) {
-    const startTick = ordered[start]!.participant.eliminatedAtTick ?? Number.POSITIVE_INFINITY;
+    const startTick =
+      ordered[start]!.participant.eliminatedAtTick ?? Number.POSITIVE_INFINITY;
     let end = start + 1;
     while (end < ordered.length) {
-      const endTick = ordered[end]!.participant.eliminatedAtTick ?? Number.POSITIVE_INFINITY;
+      const endTick =
+        ordered[end]!.participant.eliminatedAtTick ?? Number.POSITIVE_INFINITY;
       if (endTick !== startTick) break;
       end += 1;
     }
@@ -63,7 +74,12 @@ export function rankRound(participants: readonly RoundParticipant[]): RoundPlace
     const scoreUnits = (ordered.length - end + bonus) * POINT_UNIT;
     for (let index = start; index < end; index += 1) {
       const { participant } = ordered[index]!;
-      placements.push({ playerId: participant.id, name: participant.name, place: firstPlace, scoreUnits });
+      placements.push({
+        playerId: participant.id,
+        name: participant.name,
+        place: firstPlace,
+        scoreUnits,
+      });
     }
     start = end;
   }
@@ -78,24 +94,39 @@ export function applyRoundScores(
 ): void {
   const seen = new Set<string>();
   for (const placement of placements) {
-    if (!placement.playerId || seen.has(placement.playerId)) throw new Error('Round placements must have unique ids');
-    if (!Number.isInteger(placement.place) || placement.place < 1 || placement.place > MAX_PARTICIPANTS) {
-      throw new RangeError('Round placement must be between one and five');
+    if (!placement.playerId || seen.has(placement.playerId))
+      throw new Error("Round placements must have unique ids");
+    if (
+      !Number.isInteger(placement.place) ||
+      placement.place < 1 ||
+      placement.place > MAX_PARTICIPANTS
+    ) {
+      throw new RangeError("Round placement must be between one and five");
     }
-    if (!Number.isSafeInteger(placement.scoreUnits) || placement.scoreUnits < 0) {
-      throw new RangeError('Round score units must be a non-negative safe integer');
+    if (
+      !Number.isSafeInteger(placement.scoreUnits) ||
+      placement.scoreUnits < 0
+    ) {
+      throw new RangeError(
+        "Round score units must be a non-negative safe integer",
+      );
     }
     seen.add(placement.playerId);
   }
-  if (winnerId !== undefined && !seen.has(winnerId)) throw new Error('Round winner must be a participant');
+  if (winnerId !== undefined && !seen.has(winnerId))
+    throw new Error("Round winner must be a participant");
   if (matchWinnerId !== undefined && matchWinnerId !== winnerId) {
-    throw new Error('Match winner must also be the round winner');
+    throw new Error("Match winner must also be the round winner");
   }
 
   for (const placement of placements) {
     const current = entries.get(placement.playerId) ?? {
-      id: placement.playerId, name: placement.name, totalScoreUnits: 0,
-      roundsPlayed: 0, roundWins: 0, matchWins: 0,
+      id: placement.playerId,
+      name: placement.name,
+      totalScoreUnits: 0,
+      roundsPlayed: 0,
+      roundWins: 0,
+      matchWins: 0,
     };
     current.name = placement.name;
     current.totalScoreUnits += placement.scoreUnits;
@@ -106,8 +137,15 @@ export function applyRoundScores(
   }
 }
 
-export function sortedLeaderboard(entries: ReadonlyMap<string, SessionLeaderboardEntry>): SessionLeaderboardEntry[] {
+export function sortedLeaderboard(
+  entries: ReadonlyMap<string, SessionLeaderboardEntry>,
+): SessionLeaderboardEntry[] {
   return [...entries.values()]
-    .map(entry => ({ ...entry }))
-    .sort((a, b) => b.totalScoreUnits - a.totalScoreUnits || b.matchWins - a.matchWins || a.id.localeCompare(b.id));
+    .map((entry) => ({ ...entry }))
+    .sort(
+      (a, b) =>
+        b.totalScoreUnits - a.totalScoreUnits ||
+        b.matchWins - a.matchWins ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    );
 }

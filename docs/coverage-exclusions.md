@@ -1,0 +1,51 @@
+# Coverage exclusions
+
+The unit gate includes `src/**` and `packages/*/src/**` by default. New source files automatically join the gate. `.c8rc.json` lists exact-file exemptions so an untested module cannot silently exempt its whole directory. Declaration files (`**/*.d.ts`) contain no executable behavior.
+
+This makes coverage scope explicit; it does not claim these excluded modules are safe or tested. Browser smokes and production-adapter checks are separate evidence. Existing line/statements/functions and branch thresholds are unchanged. Six already-tested helpers previously omitted from the gate are now included: arena announcements, blast animation, trail debris, status copy, pickup rarity and room-code validation.
+
+| Excluded file                                         | Why / removal criterion                                                                                                                                            |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `packages/fuse-network-be/src/gcp/firestore-store.ts` | Production persistence or messaging adapter; needs injected Firestore/PubSub tests before removal.                                                                 |
+| `packages/fuse-network-be/src/gcp/index.ts`           | Entry point, re-export or contract module; cover executable initialization/lifecycle behavior before removing this exemption. Pure types need no behavioral tests. |
+| `packages/fuse-network-be/src/gcp/pubsub-bus.ts`      | Production persistence or messaging adapter; needs injected Firestore/PubSub tests before removal.                                                                 |
+| `packages/fuse-network-be/src/index.ts`               | Entry point, re-export or contract module; cover executable initialization/lifecycle behavior before removing this exemption. Pure types need no behavioral tests. |
+| `packages/fuse-network-fe/src/index.ts`               | Entry point, re-export or contract module; cover executable initialization/lifecycle behavior before removing this exemption. Pure types need no behavioral tests. |
+| `packages/fuse-network-fe/src/peer-transport.ts`      | Browser WebRTC integration; needs injected RTC and timer coverage (#258). Existing policy tests do not cover this module.                                          |
+| `packages/fuse-network-fe/src/transport.ts`           | Entry point, re-export or contract module; cover executable initialization/lifecycle behavior before removing this exemption. Pure types need no behavioral tests. |
+| `packages/fuse-network-protocol/src/index.ts`         | Entry point, re-export or contract module; cover executable initialization/lifecycle behavior before removing this exemption. Pure types need no behavioral tests. |
+| `packages/fuse-network-protocol/src/wire.ts`          | Entry point, re-export or contract module; cover executable initialization/lifecycle behavior before removing this exemption. Pure types need no behavioral tests. |
+| `src/client/avatar-heads.ts`                          | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/game-audio.ts`                            | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/ink-renderer.ts`                          | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/main.ts`                                  | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/phaser/arena.ts`                          | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/phaser/benchmark-fixture.ts`              | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/phaser/presentation.ts`                   | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/portal-palettes.ts`                       | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/power-indicator.ts`                       | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/powerup-guide-view.ts`                    | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/reload-ring.ts`                           | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/replay-overlay.ts`                        | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/themes.ts`                                | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/client/viewport-lock.ts`                         | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/online/account-panel.ts`                         | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/online/account.ts`                               | Firebase browser authentication integration; needs typed SDK/browser test seams.                                                                                   |
+| `src/online/analytics.ts`                             | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/online/attract.ts`                               | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/online/connect-hint.ts`                          | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/online/endpoints.ts`                             | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/online/join-form.ts`                             | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/online/keyboard-shortcuts.ts`                    | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/online/mobile-play-layout.ts`                    | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/online/room-settings-menu.ts`                    | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/online/telemetry.ts`                             | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/online/ui.ts`                                    | Browser presentation or app composition currently outside the unit gate; add focused behavior tests and remove the exemption during #254/#255.                     |
+| `src/service/firestore-history.ts`                    | Production persistence or messaging adapter; needs injected Firestore/PubSub tests before removal.                                                                 |
+| `src/service/index.ts`                                | Entry point, re-export or contract module; cover executable initialization/lifecycle behavior before removing this exemption. Pure types need no behavioral tests. |
+| `src/service/listen-free.ts`                          | TCP listener startup integration; needs explicit binding/retry tests.                                                                                              |
+| `src/service/room-limits.ts`                          | Entry point, re-export or contract module; cover executable initialization/lifecycle behavior before removing this exemption. Pure types need no behavioral tests. |
+
+## Player stats rendering
+
+`src/online/player-stats.ts` creates DOM/SVG only and is exercised by `scripts/player-stats-smoke.ts` in Chromium and WebKit at desktop and phone widths. Its aggregation, Elo and parsing logic lives in covered shared/service modules. Remove this exact-file exemption when the Node coverage harness supports the browser DOM/SVG fixture; browser coverage is not implied by the unit percentage.

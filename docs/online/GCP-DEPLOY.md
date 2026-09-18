@@ -4,16 +4,16 @@ The online beta is deployed; exact source/image versions and public acceptance a
 
 ## Resources and runtime
 
-| Component | Configuration |
-| --- | --- |
-| Static frontend | GitHub Pages, `https://andeplane.github.io/fuse-riders/` (verify actual Pages configuration) |
-| Gateway | Cloud Run service, configurable `CLOUD_RUN_SERVICE` (script default `fuse-riders-gateway`) |
-| Region/project | `europe-west1`, `andershaf-87` |
-| Simulation | Creator browser; the gateway does not run game ticks |
-| Room metadata | Native Firestore database `fuse-riders`, collection prefix `fuse-production` |
+| Component                                   | Configuration                                                                                     |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Static frontend                             | GitHub Pages, `https://andeplane.github.io/fuse-riders/` (verify actual Pages configuration)      |
+| Gateway                                     | Cloud Run service, configurable `CLOUD_RUN_SERVICE` (script default `fuse-riders-gateway`)        |
+| Region/project                              | `europe-west1`, `andershaf-87`                                                                    |
+| Simulation                                  | Creator browser; the gateway does not run game ticks                                              |
+| Room metadata                               | Native Firestore database `fuse-riders`, collection prefix `fuse-production`                      |
 | Inter-instance signalling/coordination only | Existing Pub/Sub topic `fuse-riders-signalling`; process-addressed short-lived pull subscriptions |
-| Public origins | Exact `https://andeplane.github.io`; HTTPS Origin is checked but is not authentication |
-| Cloud Run limits | Minimum 0, maximum 2; 1 CPU, 512 MiB, concurrency 80, timeout 3600 seconds, request-based CPU |
+| Public origins                              | Exact `https://andeplane.github.io`; HTTPS Origin is checked but is not authentication            |
+| Cloud Run limits                            | Minimum 0, maximum 2; 1 CPU, 512 MiB, concurrency 80, timeout 3600 seconds, request-based CPU     |
 
 Zero minimum instances removes the requested idle compute floor. Open WebSockets are active requests and keep their gateways billable. Firestore, Pub/Sub, artifact storage/builds and egress have separate usage charges. Instance caps are cost controls, not authority fencing. Cloud Run may disconnect a socket at the request timeout; clients must reconnect safely. [Cloud Run WebSockets](https://docs.cloud.google.com/run/docs/triggering/websockets)
 
@@ -129,7 +129,7 @@ The attribute condition is the authorization boundary: only tokens issued to `an
 
 Set repository variable **`VITE_API_ORIGIN`** to the verified Cloud Run HTTPS origin, without a path or trailing slash. It is public configuration, not a secret. Choose GitHub Actions as the Pages source. The `github-pages` environment should permit only `main`.
 
-`.github/workflows/pages.yml` runs automatically only after a successful `CI` push run on this repository's `main`, checks out that exact SHA and verifies it is still current before building and again before publishing. Pull requests and unchecked branches cannot deploy. It can also be dispatched manually from `main` with two required inputs: `revision`, the exact 40-character SHA that was verified locally, and `local_verification`, a non-blank description of the completed local checks (no secrets). The build job refuses a dispatch whose `revision` is not the current `main` head, and the deploy job re-checks that `main` has not moved before publishing. A manual dispatch does not wait for or consult the CI run for that commit. It uses `npm run build -- --base=/fuse-riders/`, injects `VITE_API_ORIGIN`, uploads one Pages artifact, and deploys that same artifact without a rebuild. The application must use the injected API origin and preserve the Pages base path; gateway deployment alone cannot repair hardcoded `/api` URLs.
+`.github/workflows/pages.yml` runs automatically only after a successful `CI` push run on this repository's `main`, resolves the newest CI-verified `main` revision (not necessarily the triggering run's, because CI runs for different commits overlap and a waiting deploy run can be replaced), checks out that exact SHA and verifies it is still on `main` before building and again before publishing. `backend.yml` resolves its target the same way and skips a target that is already live or older than the live revision, so no merge is left undeployed. Pull requests and unchecked branches cannot deploy. It can also be dispatched manually from `main` with two required inputs: `revision`, the exact 40-character SHA that was verified locally, and `local_verification`, a non-blank description of the completed local checks (no secrets). The build job refuses a dispatch whose `revision` is not the current `main` head, and the deploy job re-checks that `main` has not moved before publishing. A manual dispatch does not wait for or consult the CI run for that commit. It uses `npm run build -- --base=/fuse-riders/`, injects `VITE_API_ORIGIN`, uploads one Pages artifact, and deploys that same artifact without a rebuild. The application must use the injected API origin and preserve the Pages base path; gateway deployment alone cannot repair hardcoded `/api` URLs.
 
 `release.json` in the static artifact identifies the source commit, backend origin and `sourceVerification.mode`. For automatic deployments the mode is `ci` and `verifiedCiRun` names the successful CI run; for manual dispatches the mode is `local`, `sourceVerification.note` carries the `local_verification` input verbatim and `verifiedCiRun` is `null`. Treat a `local` manifest as a locally verified deployment, not a CI-certified release. The workflow separately archives SHA-256 hashes of every built file plus a manifest digest in `pages-release-evidence-<commit>`. The hosted release metadata and workflow evidence let an operator identify the exact frontend being served. The deploy job alone has `pages:write` and `id-token:write`; repository checkout credentials are not persisted. [GitHub Pages workflow requirements](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
 
@@ -144,6 +144,8 @@ Use dedicated runtime and build accounts. Neither needs project Owner, Editor, F
 - **Deployer:** Cloud Build build submission/read permissions; Artifact Registry image/repository read permissions; Cloud Run service create/update/read; Service Account User on the specific build/runtime accounts. Making the service public additionally requires service IAM policy permission; let a reviewed bootstrap principal grant public invocation if regular deployers should not have that permission. Read-only prerequisite checks need database/topic metadata access.
 - **Cloud Run service agent:** retain the provider-managed artifact-pull/service-agent role; do not use it as the application runtime account.
 - **GitHub Actions:** `pages.yml` deploys Pages only and needs no GCP access. `backend.yml` impersonates `fuse-riders-deployer@andershaf-87.iam.gserviceaccount.com` through workload identity federation; no service-account key exists in the repository. The deployer holds build submission, Artifact Registry read, source-bucket object access plus bucket metadata read (`roles/storage.legacyBucketReader`, which `gcloud builds submit` needs for its bucket existence check), Service Account User on the build/runtime accounts, `roles/run.admin` on the single `fuse-riders-gateway` service, and metadata-only read on the signalling topic and the `fuse-riders` database for the script's prerequisite checks. It can write no room data.
+
+The backend workflow also applies and verifies versioned Firestore, Auth and web-key configuration before the gateway build. See [configuration CD](CONFIGURATION-CD.md) for the committed configuration, existing-identity IAM bootstrap and failure recovery. This does not run document migrations or provision new services.
 
 Role bindings/resource creation are deliberately not embedded in the deploy script. Record actual custom role definitions and scopes in the release inventory after review.
 
@@ -165,18 +167,18 @@ That command changes live traffic. Existing WebSockets can remain on old revisio
 
 Read-only provider inspection confirmed the following application-owned resources. The Cloud Run service did not yet exist at this inspection; this is provisioning evidence, not deployed acceptance.
 
-| Resource | Verified binding/configuration |
-| --- | --- |
-| `projects/andershaf-87/databases/fuse-riders` | Native Firestore, `europe-west1`; default database untouched |
-| `fuse-production-rooms.cleanupAt`, `fuse-production-creation-limits.cleanupAt` | Both TTL policies `ACTIVE` |
-| Runtime account | `fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com` |
-| Runtime database grant | `roles/datastore.user`, condition `resource.name=="projects/andershaf-87/databases/fuse-riders"` |
-| `fuse-riders-signalling` topic | Runtime custom `fuseRidersTopic`: `pubsub.topics.attachSubscription`, `get`, `publish`, bound only to this topic |
-| Runtime subscriptions | Project custom `fuseRidersSignalling`: `pubsub.subscriptions.create`, `consume`, `get`, `delete` |
-| Build account | `fuse-riders-build@andershaf-87.iam.gserviceaccount.com` |
-| `europe-west1/fuse-riders` Artifact Registry | Build account `roles/artifactregistry.writer` on this repository |
-| `gs://andershaf-87-fuse-riders-build` | Build account `roles/storage.objectViewer` on source bucket |
-| Build logging | Build account `roles/logging.logWriter` at project level |
+| Resource                                                                       | Verified binding/configuration                                                                                   |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `projects/andershaf-87/databases/fuse-riders`                                  | Native Firestore, `europe-west1`; default database untouched                                                     |
+| `fuse-production-rooms.cleanupAt`, `fuse-production-creation-limits.cleanupAt` | Both TTL policies `ACTIVE`                                                                                       |
+| Runtime account                                                                | `fuse-riders-runtime@andershaf-87.iam.gserviceaccount.com`                                                       |
+| Runtime database grant                                                         | `roles/datastore.user`, condition `resource.name=="projects/andershaf-87/databases/fuse-riders"`                 |
+| `fuse-riders-signalling` topic                                                 | Runtime custom `fuseRidersTopic`: `pubsub.topics.attachSubscription`, `get`, `publish`, bound only to this topic |
+| Runtime subscriptions                                                          | Project custom `fuseRidersSignalling`: `pubsub.subscriptions.create`, `consume`, `get`, `delete`                 |
+| Build account                                                                  | `fuse-riders-build@andershaf-87.iam.gserviceaccount.com`                                                         |
+| `europe-west1/fuse-riders` Artifact Registry                                   | Build account `roles/artifactregistry.writer` on this repository                                                 |
+| `gs://andershaf-87-fuse-riders-build`                                          | Build account `roles/storage.objectViewer` on source bucket                                                      |
+| Build logging                                                                  | Build account `roles/logging.logWriter` at project level                                                         |
 
 **Subscription IAM residual scope:** the runtime's four subscription permissions currently apply project-wide. Topic attachment and publishing remain restricted to the game's topic, and the adapter creates names beginning `fuse-production-`, but code naming is not an IAM boundary for consuming/deleting other subscriptions. The official supported `resource.name` attribute table lists Pub/Sub Lite, not standard Pub/Sub; a speculative prefix condition was therefore not installed. See [supported resource attributes](https://docs.cloud.google.com/iam/docs/conditions-resource-attributes) and [Pub/Sub permission requirements](https://docs.cloud.google.com/pubsub/docs/access-control). Stronger isolation would use a separate GCP project, or separately provisioned subscription resource policies with a redesigned lifecycle. Record this remaining permission scope when assessing production risk; do not call the current role fully prefix-scoped. No unrelated project bindings were changed by this review.
 

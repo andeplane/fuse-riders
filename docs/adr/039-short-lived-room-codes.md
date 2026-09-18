@@ -1,6 +1,6 @@
 # ADR 039: short codes and host-session room lifetime
 
-Status: accepted after independent root review; implementation and deployment verification in progress.
+Status: Partially current, partially historical. Short-code allocation and creator capability fencing remain. Worker-specific implementation notes are superseded by the extracted Cloud Run room service. The creator-only lifetime below is superseded by [member-kept room lifetime](../design/member-kept-room-lifetime.md): any admitted member can renew the room, while explicit end remains creator-authorized. The remaining text preserves the original decision. See [current architecture](../architecture.md).
 
 ## User intent and default semantics
 
