@@ -177,6 +177,7 @@ function matchRow(
     "aria-label",
     `${headline(entry)}, ${players.length} riders, ${rounds} rounds, ${dayLabel(entry.endedAt, now).toLowerCase()} ${clock(entry.endedAt)}${mine ? `, you finished ${ordinal(mine.matchPlacement).toLowerCase()}` : ""}. Open results.`,
   );
+  button.dataset.focus = `match-${entry.id}`;
   button.onclick = () => open(entry);
   item.append(button);
   return item;
@@ -366,7 +367,20 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       if (mine !== session) return;
       history = "failed";
     }
-    if (dialog.open) render();
+    // Only the views that show your games change; redrawing another would refetch or move focus for nothing.
+    if (
+      dialog.open &&
+      (view === "stats" || (view === "matches" && scope === "mine" && !opened))
+    )
+      render();
+  }
+
+  /** Redraws an open list in place, where it was scrolled. */
+  function redrawList(): void {
+    if (!dialog.open || view !== "matches" || opened) return;
+    const top = body.scrollTop;
+    render();
+    body.scrollTop = top;
   }
 
   /** The next page of a list of games: the first when it is empty, else strictly older than its last. */
@@ -381,6 +395,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     const mine = session,
       before = feed.matches.at(-1)?.endedAt;
     feed.state = "loading";
+    redrawList();
     try {
       const page =
         which === "everyone"
@@ -399,21 +414,25 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       if (mine !== session) return;
       feed.state = "failed";
     }
-    if (dialog.open && view === "matches" && !opened) {
-      const top = body.scrollTop;
-      render();
-      body.scrollTop = top;
-    }
+    redrawList();
   }
 
   function show(next: View, entry?: MatchEntry): void {
-    if (next === "matches" && entry && view === "matches" && !opened)
-      listScroll = body.scrollTop;
-    const back = next === "matches" && !entry && view === "matches" && opened;
+    // A match opened from the list returns to where the list was; one opened from elsewhere returns to its top.
+    if (next === "matches" && entry)
+      listScroll = view === "matches" && !opened ? body.scrollTop : 0;
+    const back =
+      next === "matches" && !entry && view === "matches" ? opened : undefined;
     view = next;
     opened = entry;
     render();
     body.scrollTop = back ? listScroll : 0;
+    if (back)
+      body
+        .querySelector<HTMLElement>(
+          `[data-focus="${CSS.escape(`match-${back.id}`)}"]`,
+        )
+        ?.focus({ preventScroll: true });
   }
 
   function signInPrompt(message: string): HTMLElement[] {
@@ -559,6 +578,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       const choice = el("button", label);
       choice.type = "button";
       choice.setAttribute("aria-pressed", String(scope === key));
+      choice.dataset.focus = `scope-${key}`;
       choice.onclick = () => {
         if (scope === key) return;
         scope = key;
@@ -618,12 +638,17 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
           : "No games yet. Finish a match in a room while signed in and it lands here.";
     const more = el(
       "button",
-      feed.state === "failed" ? "TRY AGAIN" : "OLDER MATCHES",
+      feed.state === "failed"
+        ? "TRY AGAIN"
+        : feed.state === "loading"
+          ? "LOADING…"
+          : "OLDER MATCHES",
     );
     more.type = "button";
-    more.hidden =
-      feed.state === "loading" ||
-      (feed.state === "idle" && (!feed.more || !feed.matches.length));
+    more.dataset.focus = "more";
+    // Disabled rather than hidden while loading, so a keyboard user's focus survives the redraw.
+    more.disabled = feed.state === "loading";
+    more.hidden = !feed.matches.length || (feed.state === "idle" && !feed.more);
     more.onclick = () => void loadMatches(scope);
     body.replaceChildren(filter, intro, list, note, more);
   }
@@ -669,6 +694,12 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
 
   function render(): void {
     generation++;
+    // A redraw replaces the focused control; the same control in the new view takes the focus back.
+    const focused =
+      document.activeElement instanceof HTMLElement &&
+      body.contains(document.activeElement)
+        ? document.activeElement.dataset.focus
+        : undefined;
     for (const [key, tab] of tabButtons)
       if (key === view) tab.setAttribute("aria-current", "page");
       else tab.removeAttribute("aria-current");
@@ -677,6 +708,10 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     else if (view === "stats") renderStats();
     else if (opened) renderMatch(opened);
     else renderMatches();
+    if (focused)
+      body
+        .querySelector<HTMLElement>(`[data-focus="${CSS.escape(focused)}"]`)
+        ?.focus({ preventScroll: true });
   }
 
   const stop = auth.watch((next) => {

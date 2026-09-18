@@ -321,6 +321,13 @@ try {
           .getByRole("button", { name: "‹ MATCHES", exact: true })
           .click();
         await page.locator(".account-match").first().waitFor();
+        assert.equal(
+          await page.evaluate(() =>
+            document.activeElement?.classList.contains("account-match-open"),
+          ),
+          true,
+          "back returns focus to the opened match",
+        );
         await page.getByRole("button", { name: "STATS", exact: true }).click();
         await page.locator(".stats-finish").first().click();
         await page.locator(".match-recap-report").waitFor();
