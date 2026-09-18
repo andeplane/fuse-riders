@@ -97,6 +97,9 @@ try {
         await page.route(`${api}/api/me/matches*`, (route) =>
           route.fulfill({ json: { matches: [] } }),
         );
+        await page.route(`${api}/api/matches*`, (route) =>
+          route.fulfill({ json: { matches: [] } }),
+        );
         await page.route(`${api}/api/leaderboard*`, (route) =>
           route.fulfill({ json: { players: [] } }),
         );
@@ -142,6 +145,7 @@ try {
           /♫ MUSIC (ON|OFF)/,
           /🔊 SOUND (ON|OFF)/,
           "SETTINGS",
+          "MATCHES",
           "#3 · LEADERBOARD",
           rating,
         ])

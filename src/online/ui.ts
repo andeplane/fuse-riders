@@ -415,7 +415,11 @@ export async function startOnline(): Promise<void> {
     const accountPanel = createPlayerAccountPanel();
     card
       .querySelector(".landing-top-end")!
-      .append(accountPanel.leaderboardButton, accountPanel.button);
+      .append(
+        accountPanel.matchesButton,
+        accountPanel.leaderboardButton,
+        accountPanel.button,
+      );
     card.append(accountPanel.dialog);
     window.addEventListener("pagehide", accountPanel.dispose, { once: true });
     void startAttract(
@@ -1037,6 +1041,7 @@ export async function startOnline(): Promise<void> {
     topMusic,
     topMute,
     prefsButton,
+    roomAccount.matchesButton,
     roomAccount.leaderboardButton,
     roomAccount.button,
   );

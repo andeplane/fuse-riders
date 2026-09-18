@@ -200,7 +200,11 @@ try {
               control.remove();
             for (const dialog of app.querySelectorAll(".stats-dialog"))
               dialog.remove();
-            landing.append(panel.leaderboardButton, panel.button);
+            landing.append(
+              panel.matchesButton,
+              panel.leaderboardButton,
+              panel.button,
+            );
             app.append(panel.dialog);
           },
           { api },

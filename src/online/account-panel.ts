@@ -199,12 +199,16 @@ function extend(feed: Feed, page: readonly MatchEntry[]): void {
 
 export function createAccountPanel(dependencies: AccountPanelDependencies): {
   button: HTMLButtonElement;
+  matchesButton: HTMLButtonElement;
   leaderboardButton: HTMLButtonElement;
   dialog: HTMLDialogElement;
   refresh: () => void;
   dispose: () => void;
 } {
   const auth = dependencies.auth ?? liveAuth;
+  const matchesButton = el("button", "MATCHES", "landing-account");
+  matchesButton.type = "button";
+  matchesButton.title = "Recent matches, everyone's or your own";
   const leaderboardButton = el("button", "LEADERBOARD", "landing-account");
   leaderboardButton.type = "button";
   const button = el("button", "SIGN IN", "landing-account");
@@ -742,6 +746,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     auth.warm();
     open("stats");
   };
+  matchesButton.onclick = () => open("matches");
   leaderboardButton.onclick = () => open("leaderboard");
   dialog.addEventListener("close", () => {
     generation++;
@@ -759,6 +764,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
   });
   return {
     button,
+    matchesButton,
     leaderboardButton,
     dialog,
     refresh,
