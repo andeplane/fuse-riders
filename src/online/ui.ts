@@ -34,7 +34,7 @@ import {
 } from "../engine/room-settings.js";
 import type { WorldView } from "../engine/view.js";
 import { renderMatchRecap } from "./match-recap-view.js";
-import { node } from "./dom.js";
+import { node, setAttributeIfChanged, setIfChanged } from "./dom.js";
 import { showLanding } from "./landing.js";
 import {
   displayQuery,
@@ -716,11 +716,12 @@ export async function startOnline(): Promise<void> {
       app.classList.toggle(name, on);
     // Nothing reads it back; it names the screen for a person in the inspector, so it is written only when it changes.
     if (next.kind !== shownKind) app.dataset.screen = shownKind = next.kind;
-    canvas.hidden = next.arenaHidden;
-    sharedLobby.hidden = !next.lobbyCard;
-    roster.hidden = next.lobbyCard;
+    setIfChanged(canvas, "hidden", next.arenaHidden);
+    setIfChanged(sharedLobby, "hidden", !next.lobbyCard);
+    setIfChanged(roster, "hidden", next.lobbyCard);
     // VISUAL STYLE only changes the arena, which a shared-TV controller never draws, lobby included.
-    styleHeading.hidden = styleRow.hidden = next.arenaController;
+    setIfChanged(styleHeading, "hidden", next.arenaController);
+    setIfChanged(styleRow, "hidden", next.arenaController);
     mobileLayout.update(
       next.mobile,
       snapshot?.phase ?? "lobby",
@@ -1038,7 +1039,7 @@ export async function startOnline(): Promise<void> {
       const player = state.players.find((player) => player.id === id);
       // The final-round pause keeps the arena visible until phaseEndsAtTick; the report opens once per match afterwards and stays reopenable.
       recapIsReady = recapReady(state);
-      results.hidden = !recapIsReady;
+      setIfChanged(results, "hidden", !recapIsReady);
       // Every device dismisses the report when the shared state moves on, including peers that did not click REMATCH.
       if (!recapIsReady) dialogs.close("recap");
       if (state.phase === "lobby") lastRecap = "";
@@ -1062,11 +1063,12 @@ export async function startOnline(): Promise<void> {
         mobileActive: screen.mobile.active,
         bombHeld: inputState.isHeld("bomb"),
       });
-      joinPanel.hidden = view.joinPanelHidden;
-      /* Avatars are a lobby choice: before a seat the join form carries it, the button leaves with the lobby, and a picker left open closes when the round starts. */ avatarButton.hidden =
-        view.avatarHidden;
+      // Every write below goes through setIfChanged: the view is rewritten each frame, and an unchanged value must not touch the DOM.
+      setIfChanged(joinPanel, "hidden", view.joinPanelHidden);
+      // Avatars are a lobby choice: before a seat the join form carries it, the button leaves with the lobby, and a picker left open closes when the round starts.
+      setIfChanged(avatarButton, "hidden", view.avatarHidden);
       if (view.avatarHidden) dialogs.close("avatar");
-      controls.hidden = view.controlsHidden;
+      setIfChanged(controls, "hidden", view.controlsHidden);
       // A rider the room still lists as offline (page reload mid-round) reconnects by itself; anyone absent goes through the join card.
       // A watcher the room still lists does the same, asking for its place in the watching list back rather than for a seat.
       if (player && !player.connected && !displayOnly) {
@@ -1084,8 +1086,8 @@ export async function startOnline(): Promise<void> {
           runtime.command({ type: "spectate", name: watcher.name });
         }
       } else rejoinPending = false;
-      lobbyCount.textContent = view.lobby.count;
-      lobbyEmpty.hidden = !view.lobby.empty;
+      setIfChanged(lobbyCount, "textContent", view.lobby.count);
+      setIfChanged(lobbyEmpty, "hidden", !view.lobby.empty);
       for (const [playerId, row] of lobbyEntries)
         if (!state.players.some((p) => p.id === playerId)) {
           row.entry.remove();
@@ -1113,9 +1115,9 @@ export async function startOnline(): Promise<void> {
         }
         row.entry.style.setProperty("--rider-color", p.color);
         if (row.shown !== p.name) row.name.textContent = row.shown = p.name;
-        row.status.textContent = p.status;
+        setIfChanged(row.status, "textContent", p.status);
       }
-      lobbyWatchers.hidden = view.lobby.watchersHidden;
+      setIfChanged(lobbyWatchers, "hidden", view.lobby.watchersHidden);
       for (const [watcherId, row] of watcherEntries)
         if (!view.lobby.watchers.some((seat) => seat.id === watcherId)) {
           row.entry.remove();
@@ -1143,7 +1145,7 @@ export async function startOnline(): Promise<void> {
         }
         if (row.shown !== seat.name)
           row.name.textContent = row.shown = seat.name;
-        row.status.textContent = seat.status;
+        setIfChanged(row.status, "textContent", seat.status);
       }
       if (!screen.arenaHidden)
         replay.observe(state, state.matchId, performance.now());
@@ -1184,16 +1186,16 @@ export async function startOnline(): Promise<void> {
             identityToken: signedInToken,
           });
       }
-      powerStatus.hidden = view.power.hidden;
-      powerStatus.textContent = view.power.text;
+      setIfChanged(powerStatus, "hidden", view.power.hidden);
+      setIfChanged(powerStatus, "textContent", view.power.text);
       fireButton.classList.toggle("gun-armed", view.fire.gunReady);
       hudFire.classList.toggle("gun-armed", view.fire.gunReady);
-      fireButton.title = view.fire.title;
+      setIfChanged(fireButton, "title", view.fire.title);
       if (view.playerColor)
         app.style.setProperty("--player-color", view.playerColor);
       if (view.fire.label !== undefined)
-        fireButton.textContent = view.fire.label;
-      notice.textContent = view.notice;
+        setIfChanged(fireButton, "textContent", view.fire.label);
+      setIfChanged(notice, "textContent", view.notice);
       for (const [playerId, row] of rosterEntries)
         if (!state.players.some((p) => p.id === playerId)) {
           row.entry.remove();
@@ -1222,13 +1224,13 @@ export async function startOnline(): Promise<void> {
             node("span", p.points, "online-score-points"),
           );
         }
-        row.label.title = p.title;
-        row.label.setAttribute("aria-label", row.label.title);
+        setIfChanged(row.label, "title", p.title);
+        setAttributeIfChanged(row.label, "aria-label", p.title);
         row.entry.style.color = p.color;
         row.entry.style.setProperty("--rider-color", p.color);
         row.entry.classList.toggle("out", p.out);
         row.entry.style.order = String(p.rank);
-        row.entry.dataset.rank = String(p.rank);
+        setIfChanged(row.entry.dataset, "rank", String(p.rank));
         row.entry.classList.toggle("leader", p.leader);
         row.entry.style.setProperty("--lead", p.lead);
         if (row.avatar !== p.avatarId) {
@@ -1242,29 +1244,31 @@ export async function startOnline(): Promise<void> {
           : row.entry;
         if (row.remove.parentElement !== removeParent)
           removeParent.append(row.remove);
-        row.remove.hidden = p.remove.hidden;
-        row.remove.disabled = p.remove.disabled;
-        row.remove.setAttribute("aria-label", p.remove.label);
-        row.remove.title = p.remove.title;
+        setIfChanged(row.remove, "hidden", p.remove.hidden);
+        setIfChanged(row.remove, "disabled", p.remove.disabled);
+        setAttributeIfChanged(row.remove, "aria-label", p.remove.label);
+        setIfChanged(row.remove, "title", p.remove.title);
       }
-      addAI.disabled = view.actions.addAIDisabled;
+      setIfChanged(addAI, "disabled", view.actions.addAIDisabled);
       if (startLabel !== view.actions.start.label)
         start.textContent = startLabel = view.actions.start.label;
-      start.disabled = view.actions.start.disabled;
-      hostControls.hidden = view.actions.hidden;
-      reset.disabled = view.actions.reset.disabled;
-      reset.hidden = view.actions.reset.hidden;
-      share.hidden = view.actions.shareHidden;
+      setIfChanged(start, "disabled", view.actions.start.disabled);
+      setIfChanged(hostControls, "hidden", view.actions.hidden);
+      setIfChanged(reset, "disabled", view.actions.reset.disabled);
+      setIfChanged(reset, "hidden", view.actions.reset.hidden);
+      setIfChanged(share, "hidden", view.actions.shareHidden);
       voice?.setRoster(id, state.players);
       for (const [playerId, row] of rosterEntries)
-        if (voice) row.entry.dataset.voice = voice.indicator(playerId);
+        if (voice)
+          setIfChanged(row.entry.dataset, "voice", voice.indicator(playerId));
       for (const [playerId, row] of lobbyEntries)
-        if (voice) row.entry.dataset.voice = voice.indicator(playerId);
-      roundChip.textContent = view.roundClock;
-      roundChip.hidden = view.roundChipHidden;
+        if (voice)
+          setIfChanged(row.entry.dataset, "voice", voice.indicator(playerId));
+      setIfChanged(roundChip, "textContent", view.roundClock);
+      setIfChanged(roundChip, "hidden", view.roundChipHidden);
       showAnnouncement(state, view.announcerVisible);
       // Phone HUD: who you are, what the fire button would do, match points and the clock. The thirds themselves stay transparent.
-      hud.hidden = view.hudHidden;
+      setIfChanged(hud, "hidden", view.hudHidden);
       if (player && view.hud) {
         if (hudAvatar !== player.avatarId) {
           hudWho.replaceChildren(
@@ -1273,9 +1277,9 @@ export async function startOnline(): Promise<void> {
           );
           hudAvatar = player.avatarId;
         }
-        hudFire.textContent = view.hud.fire;
-        hudWins.textContent = view.hud.wins;
-        hudRound.textContent = view.hud.clock;
+        setIfChanged(hudFire, "textContent", view.hud.fire);
+        setIfChanged(hudWins, "textContent", view.hud.wins);
+        setIfChanged(hudRound, "textContent", view.hud.clock);
       }
     },
   };
