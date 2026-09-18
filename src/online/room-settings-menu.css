@@ -19,7 +19,8 @@
   margin: 0;
   padding: 0.875rem;
   border: 0.0625rem solid #365477;
-  background: #061125;
+  background: var(--ui-surface);
+  border-radius: var(--ui-radius);
   cursor: pointer;
   min-height: 3rem;
   box-sizing: border-box;

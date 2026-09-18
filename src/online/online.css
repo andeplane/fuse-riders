@@ -15,14 +15,26 @@
   font-size: 1rem;
   min-height: 2.75rem;
   color: #eefaff;
-  background: #08152b;
+  background: var(--ui-surface);
   border: 0.0625rem solid #365477;
-  border-radius: 0;
+  border-radius: var(--ui-radius);
   padding: 0.5rem;
 }
 .online-app button {
   cursor: pointer;
-  border-color: var(--player-color);
+  border-color: color-mix(in srgb, var(--player-color) 40%, #365477);
+  background: var(--ui-button-fill);
+  box-shadow: var(--ui-edge);
+}
+.online-app button:enabled:hover {
+  filter: brightness(1.15);
+}
+.online-app button:focus-visible,
+.online-app input:focus-visible,
+.online-app select:focus-visible,
+.online-app summary:focus-visible {
+  outline: 0.1875rem solid #b4f7ff;
+  outline-offset: 0.1875rem;
 }
 .online-app button:disabled {
   opacity: 0.4;
@@ -166,6 +178,7 @@
   display: contents;
 }
 .online-roster .online-score-card {
+  border-radius: var(--ui-radius);
   min-width: 0;
   gap: 0.5rem;
   padding: 0.375rem 0.5rem;
@@ -478,10 +491,13 @@
   align-items: center;
   gap: 0.875rem;
   padding: 1.375rem 1.5rem;
-  background: #08233c;
-  color: #effcff;
+  background: var(--ui-cyan-fill);
+  color: #03253d;
+  border-radius: var(--ui-panel-radius);
   text-decoration: none;
-  box-shadow: 0 0 0.875rem #16e7ff33;
+  box-shadow:
+    var(--ui-edge),
+    0 0.375rem 1.5rem #00d9ff33;
   border: 0.125rem solid #16e7ff;
   transition: transform 0.15s;
   max-width: 33.125rem;
@@ -493,12 +509,14 @@
   letter-spacing: 0.0625rem;
 }
 .solo-cta small {
+  border-left: 0.0625rem solid #03253d33;
+  padding-left: 1rem;
   font-size: 0.625rem;
   letter-spacing: 0.0625rem;
 }
 .solo-cta:hover {
   transform: translateY(-0.1875rem);
-  background: #103952;
+  background: linear-gradient(180deg, #7cffff, #16deed);
 }
 .solo-cta:focus-visible,
 .landing button:focus-visible,
@@ -535,9 +553,17 @@
   font-weight: 700;
   letter-spacing: 0.0625rem;
 }
+.landing-create button {
+  background: linear-gradient(180deg, #075779, #03384f);
+  border-color: #1289ad;
+}
+.landing-join button {
+  background: var(--ui-button-fill);
+  border-color: #5278ac;
+}
 .landing input,
 .landing select {
-  background: #081327dd;
+  background: var(--ui-surface);
   border-color: #435575;
 }
 .landing-hint {
@@ -557,8 +583,12 @@
   right: 6vw;
   bottom: 20vh;
   padding: 0.9375rem 1.25rem;
-  border-left: 0.125rem solid #b6ff4d;
-  background: #040b19bd;
+  border: 0.0625rem solid #365477;
+  border-radius: var(--ui-panel-radius);
+  background: var(--ui-surface);
+  box-shadow:
+    var(--ui-edge),
+    0 0.5rem 1.5rem #0003;
   font-size: 0.6875rem;
   letter-spacing: 0.125rem;
   backdrop-filter: blur(0.5rem);
@@ -688,6 +718,7 @@
     font-size: 1.125rem;
   }
   .solo-cta small {
+    padding-left: 0.5rem;
     font-size: 0.5rem;
     max-width: 5rem;
     text-align: right;
@@ -729,7 +760,7 @@
   );
   padding: 0;
   border: 0.0625rem solid #53def7;
-  border-radius: 0;
+  border-radius: var(--ui-panel-radius);
   box-sizing: border-box;
   overflow: hidden;
   box-shadow: 0 1.5rem 6.25rem #000c;
@@ -1045,7 +1076,7 @@
   padding: 0.75rem;
   font-size: clamp(1.625rem, 6vw, 3rem);
   border-width: 0.1875rem;
-  border-radius: 0;
+  border-radius: var(--ui-radius);
   font-weight: 800;
   overflow-wrap: anywhere;
   -webkit-touch-callout: none;
@@ -1182,7 +1213,7 @@
   box-sizing: border-box;
   min-height: 28.75rem;
   border: 0.125rem solid #6544c2;
-  border-radius: 0;
+  border-radius: var(--ui-panel-radius);
   background: linear-gradient(135deg, #091531, #040919);
   box-shadow: 0 0 1.625rem #4035ca26;
   align-items: center;
@@ -1273,7 +1304,7 @@
   letter-spacing: 0.125rem;
   font-weight: 900;
   border: 0.125rem solid #0b1933;
-  border-radius: 0;
+  border-radius: var(--ui-radius);
   background: #0b1933;
   color: #eefbff;
   cursor: pointer;
@@ -1293,6 +1324,7 @@
   width: 100%;
 }
 .room-rider {
+  border-radius: var(--ui-radius);
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -1346,7 +1378,7 @@
 }
 .room-lobby-footer button {
   font-size: 0.6875rem;
-  border-radius: 0;
+  border-radius: var(--ui-radius);
   padding: 0.625rem 0.75rem;
 }
 .room-lobby-footer button:first-child {
@@ -1357,7 +1389,7 @@
 }
 .landing-mode {
   display: flex;
-  gap: 0.5rem;
+  gap: 0;
   margin: 0;
   border: 0;
   padding: 0;
@@ -1370,6 +1402,10 @@
   margin-bottom: 0.5rem;
 }
 .landing-mode label {
+  position: relative;
+  flex: 1 1 auto;
+  justify-content: center;
+  border-radius: var(--ui-radius);
   display: flex;
   gap: 0.4375rem;
   align-items: center;
@@ -1377,18 +1413,30 @@
   border: 0.0625rem solid #365477;
   font-size: 0.8125rem;
   cursor: pointer;
-  background: #08152b;
+  background: var(--ui-surface);
 }
 .landing-mode label:has(input:checked) {
-  border-color: #00d9ff;
-  background: #103246;
+  border-color: #16e7ff;
+  background: var(--ui-cyan-fill);
+  color: #03253d;
+  font-weight: 700;
+  box-shadow: 0 0 0.875rem #16e7ff33;
 }
+.landing-mode label:has(input:focus-visible) {
+  outline: 0.1875rem solid #fff;
+  outline-offset: 0.1875rem;
+  z-index: 1;
+}
+/* Keep native radio semantics and arrow-key navigation in the filled selector. */
 .landing-mode input[type="radio"] {
+  position: absolute;
   min-height: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
   margin: 0;
-  width: 1rem;
-  height: 1rem;
-  accent-color: #00d9ff;
+  clip-path: inset(50%);
+  overflow: hidden;
 }
 @media (max-width: 800px) {
   .room-lobby {
@@ -1500,49 +1548,362 @@
   flex-shrink: 0;
 }
 
-/* End-of-match report: the LAN podium/award/comparison styling inside a wider, scrollable dialog. */
+/* Post-match summary, with the detailed report available from the persistent footer. */
 .online-app dialog.game-dialog.recap-dialog {
-  width: min(70rem, calc(100vw - 1.5rem));
+  width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: #eef0ff;
+  background: transparent;
+  isolation: isolate;
+}
+.recap-dialog::backdrop {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* The existing Phaser canvas is the continuous room scene, including lobby/results. */
+.online-app.scene-background {
+  isolation: isolate;
+}
+.online-app.scene-background > .online-arena {
+  position: fixed;
+  inset: -24px;
+  width: calc(100vw + 48px) !important;
+  height: calc(100dvh + 48px) !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  filter: blur(10px) brightness(0.45);
+  pointer-events: none;
+  z-index: -1;
+}
+.online-app.scene-background .shared-lobby {
+  background: transparent;
+  border: 0;
+}
+/* Results float over the arena alone; room controls return when the dialog closes. */
+.online-app:has(.recap-dialog[open]) > :not(.online-arena):not(dialog) {
+  visibility: hidden;
+}
+/* WATCH temporarily brings the same scene forward, sharp and uncropped. */
+.online-app.scene-background.replaying > .online-arena {
+  inset: 0;
+  width: 100vw !important;
+  height: 100dvh !important;
+  object-fit: contain;
+  filter: none;
+}
+.online-app.scene-background.replaying > :not(.online-arena):not(dialog) {
+  visibility: hidden;
 }
 .recap-dialog .dialog-body {
-  padding: 0.875rem 1.125rem 1.125rem;
+  flex: 1;
+  padding: max(2.5rem, env(safe-area-inset-top))
+    max(2rem, env(safe-area-inset-right)) 2rem
+    max(2rem, env(safe-area-inset-left));
 }
 .match-recap-report {
+  width: min(100%, 72rem);
+  margin: 0 auto;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.recap-masthead {
+  padding-right: 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1.5rem;
+}
+.recap-brand {
+  color: #f4f0ff;
+  font:
+    clamp(0.75rem, 1.5vw, 1.25rem)/1.5 "Press Start 2P",
+    monospace;
+  text-shadow: 0 0 1rem #9b63ff70;
+}
+.recap-context {
   display: grid;
-  gap: 0.75rem;
-  align-content: start;
+  gap: 0.5rem;
+  text-align: right;
+  color: #a6bee7;
+}
+.recap-context > span {
+  font-size: 0.875rem;
+  letter-spacing: 0.24em;
+}
+.recap-context small {
+  font-size: 0.75rem;
+}
+.recap-victory {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 1.25rem;
+  padding: 1.75rem 0 3.5rem;
+}
+.recap-crown {
+  width: 3.5rem;
+  height: 2.75rem;
+  background: var(--winner-color);
+  clip-path: polygon(
+    0 20%,
+    14% 20%,
+    14% 40%,
+    28% 40%,
+    28% 20%,
+    42% 20%,
+    42% 0,
+    58% 0,
+    58% 20%,
+    72% 20%,
+    72% 40%,
+    86% 40%,
+    86% 20%,
+    100% 20%,
+    100% 60%,
+    90% 60%,
+    90% 82%,
+    10% 82%,
+    10% 60%,
+    0 60%
+  );
+  filter: drop-shadow(0 0 0.7rem var(--winner-color));
+}
+.recap-dialog .dialog-body .recap-victory h2 {
+  max-width: 100%;
+  margin: 0;
+  font:
+    clamp(1.3rem, 3.8vw, 3.5rem)/1.5 "Press Start 2P",
+    monospace;
+  color: #f7f4ff;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  text-shadow:
+    0 0 0.2rem var(--winner-color),
+    0 0 2rem color-mix(in srgb, var(--winner-color) 45%, transparent);
+}
+.recap-victory p {
+  margin: 0;
+  color: #c5c4d9;
+  font-size: clamp(0.85rem, 1.5vw, 1.25rem);
+  overflow-wrap: anywhere;
+}
+.recap-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+  gap: 2.5rem;
+}
+.match-recap-report h3 {
+  margin: 0 0 1.125rem;
+  color: #afc9ff;
+  font-size: 1rem;
+  letter-spacing: 0.19em;
+  line-height: 1.5;
+}
+.recap-standings table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 1rem;
+}
+.recap-standings th,
+.recap-standings td {
+  padding: 0.95rem 0.75rem;
+  text-align: center;
+}
+.recap-standings thead th {
+  color: #92a6cb;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+.recap-standings th:first-child {
+  width: 3.5rem;
+}
+.recap-standings th:nth-child(2) {
+  width: auto;
+  text-align: left;
+}
+.recap-standings th:nth-child(n + 3) {
+  width: 5rem;
+}
+.recap-standings tbody tr {
+  border-bottom: 1px solid #24365c;
+}
+.recap-standings tbody td:first-child {
+  color: #9bb7e7;
+}
+.recap-standings .is-champion {
+  background: color-mix(in srgb, var(--player-color) 13%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--player-color) 50%, transparent);
+  outline-offset: -1px;
+}
+.recap-standings .is-you {
+  background: color-mix(in srgb, var(--player-color) 12%, transparent);
+  box-shadow:
+    inset 0 1px color-mix(in srgb, var(--player-color) 50%, transparent),
+    inset 0 -1px color-mix(in srgb, var(--player-color) 50%, transparent);
+}
+.recap-rider-name {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  text-align: left;
+  text-transform: uppercase;
+}
+.recap-rider-name > span {
+  overflow-wrap: anywhere;
   min-width: 0;
 }
-.match-recap-report .recap-heading {
-  border-bottom: 0.0625rem solid #284068;
-  padding-bottom: 0.625rem;
+.recap-rider-name i {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: 0 0 0.85rem;
+  transform: rotate(45deg);
+  background: var(--player-color);
+  box-shadow: 0 0 1rem color-mix(in srgb, var(--player-color) 50%, transparent);
 }
-.match-recap-report .recap-heading .kicker {
-  margin: 0;
-  color: #79e9ff;
-  font-size: 0.6875rem;
-  letter-spacing: 0.125rem;
-  font-weight: 900;
+.recap-rider-name small {
+  font-size: 0.6rem;
+  color: var(--player-color);
 }
-.recap-dialog .dialog-body .match-recap-report h2 {
-  margin: 0.375rem 0 0;
-  color: #effcff;
+.recap-standings .is-you .recap-rider-name {
+  color: var(--player-color);
+}
+.recap-tie-note {
+  margin: 1.25rem 0 0;
+  color: #94aacf;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.recap-featured {
+  border-left: 1px solid #253554;
+  padding-left: 2.5rem;
+  min-width: 0;
+}
+.recap-feature {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: 1.5rem;
+  margin: 2.5rem 0;
+}
+.recap-feature-icon {
+  font-size: 3.5rem;
+  text-shadow: 0 0 1.5rem currentColor;
+  text-align: center;
+  line-height: 1;
+}
+.recap-feature h4 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+.recap-feature-names {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+.recap-feature small {
+  color: #94aacf;
+  font-size: 0.75rem;
+  line-height: 1.7;
+}
+.recap-feature > div {
+  overflow-wrap: anywhere;
+}
+.recap-details:not([hidden]) {
+  display: grid;
+  gap: 1rem;
+  padding-top: 3rem;
+}
+.recap-details {
+  scroll-margin-top: 1rem;
+}
+.online-app .recap-dialog .dialog-bar {
+  order: 2;
+  margin: 0 max(2rem, env(safe-area-inset-right)) 0
+    max(2rem, env(safe-area-inset-left));
+  padding: 1.25rem 0 max(1.5rem, env(safe-area-inset-bottom));
+  border: 0;
+  border-top: 1px solid #2c3d61;
+  background: transparent;
+}
+.recap-dialog .dialog-bar > strong {
+  display: none;
+}
+.recap-dialog .dialog-actions {
+  margin-left: auto;
+  align-items: center;
+  gap: 1.5rem;
+}
+.online-app .recap-dialog .dialog-bar button {
+  min-height: 3rem;
+  color: #a7bfe9;
+  border-color: transparent;
+  background: transparent;
   font:
-    clamp(0.9375rem, 2.2vw, 1.625rem)/1.25 "Press Start 2P",
-    ui-monospace,
+    0.875rem/1.4 ui-monospace,
     monospace;
-  text-transform: uppercase;
-  text-shadow:
-    0.25rem 0.25rem 0 #332167,
-    0 0 1rem #21ddff73;
+  padding: 0.5rem 0.25rem;
 }
-.match-recap-report .recap-podium {
-  align-items: end;
-  flex-wrap: wrap;
+.online-app .recap-dialog .dialog-bar .recap-stats-toggle {
+  text-decoration: underline;
+  text-underline-offset: 0.35rem;
+  text-align: left;
 }
-.match-recap-report .podium-card {
-  flex: 1 1 7.5rem;
-  max-width: 13.75rem;
+.online-app
+  .recap-dialog
+  .dialog-actions
+  button[title="Play the same match again"] {
+  order: 2;
+  padding: 0.75rem 2rem;
+  min-width: 11rem;
+  border: 1px solid #79efff;
+  border-radius: 0.25rem;
+  color: #79efff;
+  background: #53d7ef12;
+  box-shadow:
+    inset 0 0 0 3px #070c1d,
+    0 0 1.5rem #53d7ef0a;
+  font-size: 1.125rem;
+  letter-spacing: 0.05em;
+}
+.online-app
+  .recap-dialog
+  .dialog-actions
+  button[title="Play the same match again"]::after {
+  content: " →";
+}
+.online-app .recap-dialog .dialog-bar button:hover {
+  color: #fff;
+  background-color: #92c7ff12;
+}
+.online-app .recap-dialog button:focus-visible {
+  outline: 2px solid #79efff;
+  outline-offset: 3px;
+}
+.online-app .recap-dialog .dialog-bar .dialog-close {
+  position: absolute;
+  top: max(0.25rem, env(safe-area-inset-top));
+  right: max(0.25rem, env(safe-area-inset-right));
+  z-index: 2;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.5rem;
+}
+.match-recap-report .recap-empty {
+  text-align: center;
+  padding: 4rem 0;
+  color: #94aacf;
 }
 .match-recap-report .recap-totals {
   display: grid;
@@ -1589,76 +1950,112 @@
     minmax(9.375rem, 1.55fr) repeat(7, minmax(3.25rem, 1fr))
     minmax(14.375rem, 2.4fr) repeat(2, minmax(3.25rem, 1fr));
 }
-.match-recap-report .recap-empty {
-  margin: 0;
-  padding: 1.5rem 0;
-  color: #8da3c4;
-  text-align: center;
-}
+
 @media (max-width: 700px) {
-  .match-recap-report .recap-awards {
-    grid-template-columns: repeat(auto-fit, minmax(9.375rem, 1fr));
+  .recap-dialog .dialog-body {
+    padding: max(1.25rem, env(safe-area-inset-top)) 1rem 1.5rem;
   }
-  .match-recap-report .recap-highlights {
-    grid-template-columns: 1fr;
+  .recap-context > span {
+    font-size: 0.625rem;
+    letter-spacing: 0.12em;
+  }
+  .recap-context small {
+    font-size: 0.625rem;
+  }
+  .recap-victory {
+    padding: 2rem 0;
+    gap: 1rem;
+  }
+  .recap-overview {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2rem;
+  }
+  .recap-featured {
+    padding: 1.5rem 0 0;
+    border-left: 0;
+    border-top: 1px solid #253554;
+  }
+  .recap-feature {
+    margin: 1.5rem 0;
+  }
+  .recap-standings th,
+  .recap-standings td {
+    padding: 0.9rem 0.375rem;
+    font-size: 0.8125rem;
+  }
+  .recap-standings th:first-child {
+    width: 2rem;
+  }
+  .recap-standings th:nth-child(n + 3) {
+    width: 3.5rem;
+  }
+  .recap-rider-name {
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .recap-rider-name > span {
+    flex: 1;
+  }
+  .recap-rider-name small {
+    flex-basis: 100%;
+  }
+  .recap-rider-name i {
+    width: 0.625rem;
+    height: 0.625rem;
+    flex-basis: 0.625rem;
+  }
+  .online-app .recap-dialog .dialog-bar {
+    margin: 0 1rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding-top: 0.75rem;
+  }
+  .recap-dialog .dialog-actions {
+    gap: 1rem;
+  }
+  .online-app
+    .recap-dialog
+    .dialog-actions
+    button[title="Play the same match again"] {
+    min-width: auto;
+    padding: 0.65rem 1rem;
+    font-size: 0.875rem;
+  }
+  .online-app .recap-dialog .dialog-bar button {
+    font-size: 0.75rem;
   }
   .match-recap-report .recap-totals {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .match-recap-report .recap-highlights {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 @media (orientation: landscape) and (max-height: 550px) {
   .recap-dialog .dialog-body {
-    padding: 0.5rem 0.75rem 0.75rem;
+    padding-top: 1rem;
   }
-  .match-recap-report {
-    gap: 0.5rem;
+  .recap-victory {
+    padding: 1rem 0 1.5rem;
+    gap: 0.75rem;
   }
-  .match-recap-report .recap-heading {
-    padding-bottom: 0.375rem;
+  .recap-crown {
+    width: 2rem;
+    height: 1.5rem;
   }
-  .match-recap-report .recap-heading .kicker {
-    font-size: 0.5625rem;
+  .recap-dialog .dialog-body .recap-victory h2 {
+    font-size: 1.5rem;
   }
-  .match-recap-report .podium-place-1 {
-    min-height: 5.5rem;
+  .recap-featured {
+    padding-left: 1.5rem;
   }
-  .match-recap-report .podium-place-2 {
-    min-height: 4.625rem;
-  }
-  .match-recap-report .podium-place-3 {
-    min-height: 4rem;
-  }
-  .match-recap-report .podium-card {
-    padding: 0.5rem 0.375rem;
-    gap: 0.3125rem;
-  }
-  .match-recap-report .recap-totals {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  .match-recap-report .recap-total {
-    padding: 0.375rem 0.25rem;
-  }
-  .match-recap-report .recap-total strong {
-    font-size: 0.625rem;
-  }
-  .match-recap-report .recap-total small {
-    font-size: 0.5625rem;
-  }
-  .match-recap-report .award-card {
-    padding: 0.4375rem;
-  }
-  .match-recap-report .recap-awards {
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  }
-  .match-recap-report .comparison-row {
-    min-height: 2.75rem;
+  .recap-feature {
+    gap: 1rem;
+    margin: 1.5rem 0;
   }
   .online-app .recap-dialog .dialog-bar {
-    padding: 0.375rem 0.75rem;
-  }
-  .online-app .recap-dialog .dialog-bar button {
-    min-height: 2.375rem;
-    font-size: 0.875rem;
+    padding-top: 0.5rem;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
 }
 .room-boot {
@@ -2189,8 +2586,20 @@
   color: #ffb85a;
   text-shadow: none;
 }
+/* The match result follows the final round's own card in the same spot: gold, and a keyframe name of its own so the
+   card pops a second time rather than only changing its words. */
 .online-announce.final {
-  animation: announce-pop 0.4s ease-out;
+  border-color: #ffe46b;
+  box-shadow: 0 0 3rem #ffe46b7a;
+  animation: announce-crown 0.5s ease-out;
+}
+.online-announce.final .announce-small {
+  color: #ffe46b;
+}
+.online-announce.final strong {
+  text-shadow:
+    0.3125rem 0.3125rem 0 #8a6a12,
+    0 0 1.375rem #ffe46b;
 }
 .online-announce.round {
   animation: announce-pop 0.3s ease-out;
@@ -2206,6 +2615,16 @@
   border-color: #fff;
   box-shadow: 0 0 1.125rem
     color-mix(in srgb, var(--player-color) 60%, transparent);
+}
+@keyframes announce-crown {
+  from {
+    transform: translate(-50%, -50%) scale(1.25);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
 }
 @keyframes announce-pop {
   from {
@@ -2823,4 +3242,19 @@
 }
 .voice-toggle {
   white-space: nowrap;
+}
+
+/* The same chevron marks an armed rider and its fire control, including the phone HUD. */
+.online-controls button.gun-armed::before,
+.hud-fire.gun-armed::before {
+  content: "›";
+  display: inline-block;
+  margin-right: 0.45em;
+  color: #fff;
+  text-shadow: 0 0 8px var(--player-color, #65fff2);
+}
+.online-controls button.gun-armed {
+  border-color: var(--player-color, #65fff2);
+  box-shadow: inset 0 0 14px
+    color-mix(in srgb, var(--player-color, #65fff2) 20%, transparent);
 }

@@ -25,22 +25,33 @@ const allocator = () => {
 const length = (trail: readonly TrailSegment[]) =>
   trail.reduce((n, s) => n + Math.hypot(s.x2 - s.x1, s.y2 - s.y1), 0);
 
-test("pause includes the exact boundary, then consumes equal distance at each end until gone", () => {
-  const trail = detachTrail([line(100, 400)], 10, allocator());
-  assert.deepEqual(trail[0]!.detached, { id: 1, decayStartTick: 30 });
-  for (let tick = 11; tick <= 30; tick++)
-    assert.deepEqual(advanceTrail(trail, tick), trail);
-  let current = advanceTrail(trail, 31);
-  assert.equal(current[0]!.x1, 101.875);
-  assert.equal(current[0]!.x2, 398.125);
-  for (let tick = 32; tick < 110; tick++) current = advanceTrail(current, tick);
-  assert.equal(
-    length(current),
-    3.75,
-    "300-unit piece lasts four seconds after the one-second pause",
-  );
-  assert.deepEqual(advanceTrail(current, 110), []);
-});
+for (const cause of ["death", "cut"] as const) {
+  test(`${cause} pauses for three seconds including the boundary, then shrinks at the same rate`, () => {
+    const trail =
+      cause === "death"
+        ? detachTrail([line(100, 400)], 10, allocator())
+        : cutTrail(
+            [line(100, 400), line(400, 500, 2)],
+            10,
+            (segment) => (segment.createdTick === 2 ? [] : [segment]),
+            allocator(),
+          );
+    assert.deepEqual(trail[0]!.detached, { id: 1, decayStartTick: 70 });
+    for (let tick = 11; tick <= 70; tick++)
+      assert.deepEqual(advanceTrail(trail, tick), trail);
+    let current = advanceTrail(trail, 71);
+    assert.equal(current[0]!.x1, 101.875);
+    assert.equal(current[0]!.x2, 398.125);
+    for (let tick = 72; tick < 150; tick++)
+      current = advanceTrail(current, tick);
+    assert.equal(
+      length(current),
+      3.75,
+      "300-unit piece lasts four seconds after the three-second pause",
+    );
+    assert.deepEqual(advanceTrail(current, 150), []);
+  });
+}
 
 test("erosion follows bends, removes multiple/zero segments, is segmentation-independent and pure", () => {
   const curve = [
@@ -79,7 +90,7 @@ test("a gun split detaches only the older half; repeat cuts and death never refr
   assert.equal(trail.length, 2);
   assert.equal(trail[0]!.x2, 225);
   assert.equal(trail[1]!.x1, 275);
-  assert.equal(trail[0]!.detached?.decayStartTick, 30);
+  assert.equal(trail[0]!.detached?.decayStartTick, 70);
   assert.equal(trail[1]!.detached, undefined);
   const recut = cutTrail(
     trail,
@@ -88,12 +99,12 @@ test("a gun split detaches only the older half; repeat cuts and death never refr
     allocate,
   );
   assert.equal(recut.length, 3);
-  assert.equal(recut[0]!.detached?.decayStartTick, 30);
-  assert.equal(recut[1]!.detached?.decayStartTick, 30);
+  assert.equal(recut[0]!.detached?.decayStartTick, 70);
+  assert.equal(recut[1]!.detached?.decayStartTick, 70);
   assert.notEqual(recut[0]!.detached?.id, recut[1]!.detached?.id);
   const dead = detachTrail(recut, 45, allocate);
   assert.deepEqual(dead.slice(0, 2), recut.slice(0, 2));
-  assert.equal(dead[2]!.detached?.decayStartTick, 65);
+  assert.equal(dead[2]!.detached?.decayStartTick, 105);
 });
 
 test("complete removal, head cuts, simultaneous holes and single survivors keep history order", () => {
@@ -173,7 +184,7 @@ test("portal gaps preserve active lifetime but detach as separate runs without c
   );
   const dead = detachTrail(input, 10, allocator());
   assert.notEqual(dead[0]!.detached?.id, dead[1]!.detached?.id);
-  const shrunk = advanceTrail(dead, 31);
+  const shrunk = advanceTrail(dead, 71);
   assert.equal(length(shrunk), 192.5);
   assert.equal(shrunk[1]!.x1, 801.875);
   const severed = cutTrail(

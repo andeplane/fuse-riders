@@ -24,5 +24,7 @@ export function segmentIntersectsDisk(
         );
   const x = x1 + t * dx - disk.x;
   const y = y1 + t * dy - disk.y;
-  return x * x + y * y <= (disk.radius + padding) ** 2 + 1e-9;
+  return (
+    x * x + y * y <= (disk.radius + padding) * (disk.radius + padding) + 1e-9
+  );
 }

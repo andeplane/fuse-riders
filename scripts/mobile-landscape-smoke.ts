@@ -10,7 +10,7 @@ interface HoldPhase {
   generation: number;
 }
 await mkdir("artifacts", { recursive: true });
-// A solo round can end while the hints fade: matchOver opens the tools overlay (pointer-events:none on the thirds) and a phase
+// A solo round can end while the hints fade: the recap that ends matchOver opens the tools overlay (pointer-events:none on the thirds) and a phase
 // change clears held input. Close the overlay and retry the press instead of racing the round clock.
 const press = async (page: Page, x: number, y: number) => {
   for (let attempt = 0; attempt < 6; attempt++) {
@@ -47,9 +47,9 @@ for (const [name, type] of [
   try {
     /* The rider is left riding while the touch zones are probed: the classic board has nothing for it to crash into. */ await page.addInitScript(
       () => {
-        if (!localStorage.getItem("fuse-riders-room-settings-v1"))
+        if (!localStorage.getItem("fuse-riders-room-settings-v2"))
           localStorage.setItem(
-            "fuse-riders-room-settings-v1",
+            "fuse-riders-room-settings-v2",
             JSON.stringify({
               version: 1,
               mode: "devices",
@@ -75,7 +75,12 @@ for (const [name, type] of [
       });
     });
     await page.goto(new URL("?solo=1&benchmark=1", base).href);
-    await page.locator(".mobile-rotate-gate").waitFor({ state: "visible" });
+    await page.locator(".mobile-play.mobile-portrait").waitFor();
+    await page.waitForFunction(
+      () =>
+        document.querySelector<HTMLCanvasElement>(".online-arena")?.dataset
+          .arenaOrientation === "portrait",
+    );
     await page.locator(".mobile-tools-toggle").click();
     await page.screenshot({
       path: `artifacts/mobile-portrait-tools-${name}.png`,
@@ -88,13 +93,22 @@ for (const [name, type] of [
       path: `artifacts/mobile-portrait-lobby-${name}.png`,
     });
     await page.getByRole("button", { name: "START RACE", exact: true }).click();
-    await page.locator(".mobile-rotate-gate").waitFor({ state: "visible" });
+    await page.locator(".mobile-play.mobile-portrait").waitFor();
+    await page.waitForFunction(
+      () =>
+        document.querySelector<HTMLCanvasElement>(".online-arena")?.dataset
+          .arenaOrientation === "portrait",
+    );
     await page
       .locator(".mobile-tools-open")
       .waitFor({ state: "detached" })
       .catch(() => assert.fail("starting a race closes the tools overlay"));
     await page.setViewportSize({ width: 844, height: 390 });
-    await page.locator(".mobile-rotate-gate").waitFor({ state: "hidden" });
+    await page.waitForFunction(
+      () =>
+        document.querySelector<HTMLCanvasElement>(".online-arena")?.dataset
+          .arenaOrientation === "landscape",
+    );
     await page.waitForFunction(() =>
       document.querySelector("canvas")?.dataset.renderer?.startsWith("phaser-"),
     );
@@ -263,7 +277,7 @@ for (const [name, type] of [
     );
     const noSelect = await page
       .locator(
-        ".online-controls>button,.mobile-control-hints span,.mobile-rotate-gate,.mobile-tools-toggle,.online-notice",
+        ".online-controls>button,.mobile-control-hints span,.mobile-tools-toggle,.online-notice",
       )
       .evaluateAll(
         (elements, selectors) =>
@@ -280,7 +294,7 @@ for (const [name, type] of [
           }),
         calloutSelectors,
       );
-    assert.equal(noSelect.length, 9);
+    assert.equal(noSelect.length, 8);
     for (const style of noSelect)
       assert.deepEqual(style, {
         userSelect: "none",
@@ -305,7 +319,12 @@ for (const [name, type] of [
     });
     await press(page, 100, 200);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.locator(".mobile-rotate-gate").waitFor({ state: "visible" });
+    await page.locator(".mobile-play.mobile-portrait").waitFor();
+    await page.waitForFunction(
+      () =>
+        document.querySelector<HTMLCanvasElement>(".online-arena")?.dataset
+          .arenaOrientation === "portrait",
+    );
     assert.equal(
       await page.locator(".online-controls button.active").count(),
       0,

@@ -1,3 +1,4 @@
+import { MAX_RANGE_LEVEL } from "../shared/bomb-launch.js";
 import { parseCombat } from "../shared/combat-stats.js";
 import {
   MAX_TRAIL_SEGMENTS,
@@ -15,6 +16,8 @@ import {
   POWER_TUNING,
 } from "../shared/power-progression.js";
 import {
+  AIM_SLOW_MAX_TICKS,
+  AIM_SLOW_RAMP_TICKS,
   ARENA_WIDTH,
   ARENA_HEIGHT,
   GRAVITY_FIELD_TICKS,
@@ -156,8 +159,11 @@ const playerFields = {
     integer(v) &&
     range(POWER_TUNING.minReloadTicks, POWER_TUNING.baseReloadTicks)(v),
   invulnerableUntilTick: integer,
+  aimSlowTicks: count(AIM_SLOW_RAMP_TICKS),
+  aimSlowSpentTicks: count(AIM_SLOW_MAX_TICKS),
   nitroUntilTicks: array(integer, MAX_SPEED_EFFECT_STACK),
   snailUntilTicks: array(integer, MAX_SPEED_EFFECT_STACK),
+  rangeLevel: count(MAX_RANGE_LEVEL),
   grip: boolean,
   drunkUntilTick: integer,
   inkUntilTick: integer,
@@ -271,6 +277,7 @@ const shotRecord = shape({
   power: count(MAX_POWER_PICKUPS),
   extraBombs: count(MAX_EXTRA_BOMBS),
   fuseLevel: count(2),
+  rangeLevel: count(MAX_RANGE_LEVEL),
   grip: boolean,
   kills: array(shape({ victimId: text, elapsed: integer }), 4),
 } satisfies Record<keyof RoundShot, Guard>);

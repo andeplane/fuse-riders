@@ -8,6 +8,7 @@ import {
 import type { RoomSettings } from "../../src/shared/room-settings.js";
 import type { Frame } from "../../src/online/rollback.js";
 import type { GameEvent } from "../../src/shared/protocol.js";
+import { decodePacket } from "../../src/online/packet.js";
 
 export interface NetworkOptions {
   loss: number;
@@ -15,6 +16,10 @@ export interface NetworkOptions {
   jitterMs: number;
   reliableMs: number;
   oneWayMs?: (from: string, to: string) => number;
+  /** Share of delivered fast packets that arrive a second time, after a delay of their own. */
+  duplicate?: number;
+  /** Extra time before the link between two members opens, as when ICE to one peer takes longer than to another. Unset: none. */
+  linkMs?: (a: string, b: string) => number;
 }
 interface Delivery {
   at: number;
@@ -46,6 +51,11 @@ export class FakeNetwork {
   sentFast = 0;
   droppedFast = 0;
   bytesFast = 0;
+  duplicatedFast = 0;
+  reorderedFast = 0;
+  private fastDelivered = new Map<string, number>();
+  /** Actual state hashes emitted by each replica's normal fast-packet path. */
+  readonly reportedHashes = new Map<string, Map<number, string>>();
   /** Every reliable message by sender, receiver and type, so a test can count joins, hellos and snapshot requests. */
   readonly reliableLog: {
     from: string;
@@ -76,6 +86,7 @@ export class FakeNetwork {
       this.random() * this.options.jitterMs
     );
   }
+  private readonly unannounced = new Set<string>();
   /** Members whose fast packets are dropped outright, as if their links were not yet carrying traffic. */
   readonly muted = new Set<string>();
   sendFast(from: string, to: string, bytes: Uint8Array): boolean {
@@ -83,14 +94,35 @@ export class FakeNetwork {
     if (!target?.online || !this.transports.get(from)?.online) return false;
     this.sentFast++;
     this.bytesFast += bytes.byteLength;
+    const decoded = decodePacket(bytes);
+    const packet = decoded && "packet" in decoded ? decoded.packet : undefined;
+    if (packet?.hash) {
+      let hashes = this.reportedHashes.get(from);
+      if (!hashes) this.reportedHashes.set(from, (hashes = new Map()));
+      hashes.set(packet.hash[0], packet.hash[1]);
+    }
     if (this.muted.has(from) || this.random() < this.options.loss) {
       this.droppedFast++;
       return true;
     }
-    this.schedule(this.now + this.delay(from, to), () => {
-      if (target.online && !target.deaf && target.linkedWith(from))
+    const sequence = this.sentFast;
+    const deliver = (duplicate: boolean) => {
+      if (target.online && !target.deaf && target.linkedWith(from)) {
+        const key = `${from}>${to}`;
+        if (duplicate) this.duplicatedFast++;
+        if (!duplicate && sequence < (this.fastDelivered.get(key) ?? 0))
+          this.reorderedFast++;
+        this.fastDelivered.set(
+          key,
+          Math.max(sequence, this.fastDelivered.get(key) ?? 0),
+        );
         target.events.fast(from, bytes);
-    });
+      }
+    };
+    this.schedule(this.now + this.delay(from, to), () => deliver(false));
+    if (this.options.duplicate && this.random() < this.options.duplicate) {
+      this.schedule(this.now + this.delay(from, to), () => deliver(true));
+    }
     return true;
   }
   sendReliable(from: string, to: string, data: unknown): boolean {
@@ -216,7 +248,8 @@ export class FakeNetwork {
   }
   private openLink(a: string, b: string): void {
     // Like the WebRTC transport, the open event precedes the probe-confirmed sendable state by a few hundred milliseconds.
-    this.schedule(this.now + this.options.reliableMs * 2, () => {
+    const extra = this.options.linkMs?.(a, b) ?? 0;
+    this.schedule(this.now + this.options.reliableMs * 2 + extra, () => {
       const first = this.transports.get(a),
         second = this.transports.get(b);
       if (!first?.online || !second?.online) return;
@@ -230,7 +263,8 @@ export class FakeNetwork {
       });
     });
   }
-  disconnect(id: string): void {
+  /** `announced: false` is a connection the service replaces rather than retires: peers lose the link and get no offline event. */
+  disconnect(id: string, announced = !this.unannounced.has(id)): void {
     const transport = this.transports.get(id);
     if (!transport) return;
     transport.online = false;
@@ -239,20 +273,31 @@ export class FakeNetwork {
       if (other !== id && peer.online) {
         peer.links.delete(id);
         peer.events.link(id, false);
-        peer.events.peer(id, false);
+        if (announced) peer.events.peer(id, false);
       }
   }
-  /** Simulate a page reload: the old runtime stops, a fresh one comes back with a higher generation. */
+  /**
+   * Simulate a page reload: the old runtime stops, a fresh one comes back with a higher generation. `replaced`: the
+   * service sees the new connection before the old socket closes, so peers get a second online event and never an
+   * offline one.
+   */
   reload(
     id: string,
     settings: RoomSettings,
-    extra: { displayOnly?: boolean; humanName?: string } = {},
+    extra: {
+      displayOnly?: boolean;
+      humanName?: string;
+      replaced?: boolean;
+    } = {},
   ): RoomRuntime {
+    if (extra.replaced) this.unannounced.add(id);
     this.runtimes.get(id)!.stop();
     this.disconnect(id);
+    this.unannounced.delete(id);
     this.transports.delete(id);
     const runtime = this.add(id, settings, {
-      ...extra,
+      displayOnly: extra.displayOnly,
+      humanName: extra.humanName,
       generation: (this.generations.get(id) ?? 1) + 1,
     });
     runtime.start();
@@ -299,8 +344,13 @@ export class FakeTransport implements RoomTransport {
     if (sent) this.sentBytes += bytes.byteLength;
     return sent;
   }
+  /**
+   * Links that deliver but do not report as sendable, like a WebRTC link whose `input` channel carries packets while the
+   * reliable channel or its health probes are not there yet. Empty unless a test fills it.
+   */
+  readonly unhealthy = new Set<string>();
   linked(id: string): boolean {
-    return this.links.has(id);
+    return this.links.has(id) && !this.unhealthy.has(id);
   }
   linkedWith(id: string): boolean {
     return this.links.has(id);

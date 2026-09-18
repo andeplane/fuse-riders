@@ -2,7 +2,7 @@ import { chromium, webkit, type Page } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
-// Online gate: create, joins through the join card, start, three rounds on the shared log, guest and creator refresh
+// Online gate: create, joins through the join card, start, three rounds on the shared log, rematch dismisses every recap, guest and creator refresh
 // mid-round, settings and the phone lobby, a lobby reload that re-confirms the seat, an AI rider, and shared-TV mode
 // with controller phones steering riders the TV simulates — in Chromium and WebKit.
 interface Snapshot {
@@ -332,6 +332,26 @@ try {
   console.log(
     "Three rounds played on the shared log; completed rounds reported independently",
   );
+  // Leave the results open on every device: only the host clicks REMATCH, but nobody should have to dismiss the old report to play.
+  await waitPhase(host, ["matchOver"], 90000);
+  const matchPages = [host, guest, ...riders];
+  await Promise.all(
+    matchPages.map((page) =>
+      page
+        .getByRole("dialog", { name: "Match results", exact: true })
+        .waitFor(),
+    ),
+  );
+  await host
+    .getByRole("dialog", { name: "Match results", exact: true })
+    .getByRole("button", { name: "REMATCH", exact: true })
+    .click();
+  for (const page of matchPages) {
+    await waitPhase(page, ["countdown", "playing"]);
+    await page.locator("dialog.game-dialog[open]").waitFor({ state: "hidden" });
+    assert.notEqual((await latest(page))!.matchId, hostRound.matchId);
+  }
+  console.log("Rematch dismissed the results on every device");
   // The first match may have ended by now: the results dialog opens on its own and must be closed before the room actions.
   const closeRecap = async (page: Page) => {
     if (await page.locator("dialog[open]").count())
@@ -340,38 +360,109 @@ try {
   // A rematch keeps the refresh checks inside a running match whichever rider won three rounds first.
   const ensurePlaying = async () => {
     if ((await latest(host))!.phase === "matchOver") {
-      await closeRecap(host);
-      await host.getByRole("button", { name: "REMATCH", exact: true }).click();
+      // The recap opens by itself a moment into matchOver and carries its own REMATCH (close, then the room's button):
+      // press whichever is in front, since the recap can open over the room's button between the look and the click.
+      for (let tries = 0; ; tries++) {
+        const recap = host
+          .locator("dialog[open]")
+          .getByRole("button", { name: "REMATCH", exact: true });
+        try {
+          await (
+            (await recap.count())
+              ? recap
+              : host.locator("button:not(dialog button)", {
+                  hasText: /^REMATCH$/,
+                })
+          ).click({ timeout: 2000 });
+          break;
+        } catch (error) {
+          if (tries >= 10) throw error;
+        }
+      }
     }
     await waitPhase(host, ["playing"], 60000);
   };
   await ensurePlaying();
-  const running = await latest(host);
+  let running = await latest(host);
   // Guest refresh mid-round: a reload comes back into the running match with the seat it held, without the join card.
-  await guest.reload();
+  // The seat is read from the runtime's own snapshots and from the roster text the page keeps current whether or not
+  // the layout shows it: the phone play layout hides the roster, so a wait on visible roster text only ended when the
+  // match did. Back means listed in the recovered world and no longer marked offline. A recovered world that does not
+  // list this rider, with the join card up, is the rider pruned at a round boundary that fell inside the reload.
+  const landed = (cardCounts: boolean) =>
+    guest.waitForFunction(
+      (cardCounts) => {
+        const list = Reflect.get(window, "__snapshots") as
+          Snapshot[] | undefined;
+        const state = list?.at(-1);
+        if (!state || state.phase === "lobby") return false;
+        if (state.players.some((player) => player.id === state.playerId))
+          return [
+            ...document.querySelectorAll(".online-roster .online-score-name"),
+          ].some((name) => /^Guest(?! · offline)/.test(name.textContent ?? ""))
+            ? "seated"
+            : false;
+        return cardCounts &&
+          document.querySelector(".room-join")?.getClientRects().length
+          ? "pruned"
+          : false;
+      },
+      cardCounts,
+      { timeout: smokeTimeout(30000) },
+    );
+  // Absent riders leave at round progression and come back through the join card, so a reload that straddles a round
+  // boundary legitimately loses the seat, and idle riders crash often enough that one does. That outcome must not be
+  // able to stand in for the proof: after a pruned rejoin the guest reloads again at the start of the next round, with
+  // a whole round ahead of it, and only a kept seat passes. A second boundary inside a reload earns one more attempt.
+  for (let attempt = 1; ; attempt++) {
+    await guest.reload();
+    if ((await (await landed(true)).jsonValue()) === "seated") break;
+    const pruned = (await latest(guest))!;
+    assert.ok(
+      pruned.round !== running!.round || pruned.matchId !== running!.matchId,
+      "a guest that reloads inside one round keeps its seat without the join card",
+    );
+    assert.ok(
+      attempt < 3,
+      "three reloads in a row lost the seat: a reload does not keep it",
+    );
+    await guest.getByPlaceholder("Your name").fill("Guest");
+    await guest
+      .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
+      .click();
+    await landed(false);
+    console.log(
+      `Guest seat pruned at a round boundary (reload ${attempt}); rejoined by the card, reloading again`,
+    );
+    const rejoined = (await latest(host))!;
+    for (const deadline = Date.now() + smokeTimeout(90000); ;) {
+      await ensurePlaying();
+      running = await latest(host);
+      if (
+        running!.phase === "playing" &&
+        (running!.round !== rejoined.round ||
+          running!.matchId !== rejoined.matchId)
+      )
+        break;
+      assert.ok(Date.now() < deadline, "the next round never started");
+      await host.waitForTimeout(100);
+    }
+  }
+  // The seat is proven above whatever the layout shows; the phone must also be able to see it. A refreshed phone starts
+  // with its tools closed and the roster lives behind MENU during play.
+  await waitPhase(guest, ["playing"]);
+  await guest.locator(".mobile-tools-toggle").click();
   await guest
     .locator(".online-roster:visible")
     .getByText("Guest", { exact: false })
     .waitFor();
-  await guest.waitForFunction(
-    () => {
-      const list = Reflect.get(window, "__snapshots") as Snapshot[] | undefined;
-      const state = list?.at(-1);
-      return (
-        !!state &&
-        state.phase !== "lobby" &&
-        state.players.some((player) => player.id === state.playerId)
-      );
-    },
-    undefined,
-    { timeout: smokeTimeout(30000) },
-  );
   const afterGuest = await latest(guest);
   assert.equal(
     afterGuest!.matchId,
     running!.matchId,
     "the guest rejoined the running match",
   );
+  await guest.locator(".mobile-tools-toggle").click();
   console.log("Guest refresh mid-round confirmed");
   // Creator refresh mid-round: the creator recovers the running world from a peer instead of opening a fresh lobby.
   await ensurePlaying();
@@ -604,7 +695,7 @@ try {
   await display.locator(".shared-lobby").waitFor({ state: "visible" });
   assert.deepEqual(pageErrors, []);
   console.log(
-    "Online smoke passed: room creation, joins, start, three rounds, guest and creator refresh mid-round, settings, phone lobby, lobby reloads, AI rider, shared TV with controller phones.",
+    "Online smoke passed: room creation, joins, start, three rounds, rematch dismisses every recap, guest and creator refresh mid-round, settings, phone lobby, lobby reloads, AI rider, shared TV with controller phones.",
   );
 } catch (error) {
   for (const [index, context] of browser.contexts().entries())
@@ -622,7 +713,7 @@ try {
             let savedMode: unknown;
             try {
               savedMode = JSON.parse(
-                localStorage.getItem("fuse-riders-room-settings-v1") ?? "{}",
+                localStorage.getItem("fuse-riders-room-settings-v2") ?? "{}",
               ).mode;
             } catch {}
             return {
