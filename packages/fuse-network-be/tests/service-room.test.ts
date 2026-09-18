@@ -22,8 +22,11 @@ class Database implements RoomDatabase {
   queued: (() => void)[] = [];
   delay = false;
   retry = false;
+  reads = 0;
+  transactions = 0;
   private chain: Promise<void> = Promise.resolve();
   async read(code: string) {
+    this.reads++;
     return structuredClone(this.rooms.get(code));
   }
   async transact<T>(
@@ -33,6 +36,7 @@ class Database implements RoomDatabase {
       result: T;
     },
   ): Promise<T> {
+    this.transactions++;
     const work = this.chain.then(() => {
       if (this.retry) operation(structuredClone(this.rooms.get(code)));
       const next = operation(structuredClone(this.rooms.get(code)));
@@ -76,6 +80,8 @@ class Bus implements RoomBus {
   published: RoutedMessage[] = [];
   delayed = false;
   queued: RoutedMessage[] = [];
+  /** While set, every publish waits for it: a bus slower than the socket feeding it. */
+  gate?: Promise<void>;
   constructor(
     private network: Map<string, Bus>,
     readonly id: string,
@@ -92,6 +98,7 @@ class Bus implements RoomBus {
   }
   async publish(message: RoutedMessage) {
     this.published.push(structuredClone(message));
+    if (this.gate) await this.gate;
     if (this.delayed) this.queued.push(message);
     else
       await this.network
@@ -843,20 +850,481 @@ test("bus dedupe overflow drops only that room's frames; local and other-room si
   await f.b.stop();
 });
 
-test("signalling allows an ICE burst and five-per-second refill, then closes only the abusive sender", async () => {
+// A full room is the creator, five guests: whoever rejoins negotiates five links at once. Members alternate gateways
+// so every burst crosses the bus as well as the local path.
+const TOKENS = [HOST, GUEST, ..."cdef"].map((c) => c[0]!.repeat(64));
+async function fullRoom(f: ReturnType<typeof fixture>, code = CODE) {
+  await f.store.create(code, HOST);
+  const members = [];
+  for (const [index, token] of TOKENS.entries()) {
+    const socket = new Socket(),
+      gateway = index % 2 ? f.b : f.a;
+    members.push({
+      token,
+      id: peerId(token),
+      socket,
+      gateway,
+      connection: await gateway.connect(code, token, socket),
+    });
+  }
+  return members;
+}
+type RoomMember = Awaited<ReturnType<typeof fullRoom>>[number];
+const candidate = (to: RoomMember, n: number) =>
+  JSON.stringify({
+    type: "signal",
+    to: to.id,
+    targetConnectionId: to.connection,
+    data: {
+      candidate: {
+        candidate: `candidate:${n} 1 udp 2122260223 192.0.2.${n % 250} 5000${n % 10} typ host`,
+        sdpMid: "0",
+        sdpMLineIndex: 0,
+        usernameFragment: "frag",
+      },
+    },
+  });
+/** One negotiation of one link as the browser sends it: the description, then `candidates` trickled candidates. */
+const negotiation = (to: RoomMember, candidates: number, sdp = "v=0") => [
+  signal(to.id, to.connection, sdp),
+  ...Array.from({ length: candidates }, (_, n) => candidate(to, n)),
+];
+/** Every frame in one turn, as `ws` hands over frames that arrived in one read; nothing is awaited in between. */
+const burst = (from: RoomMember, frames: string[]) =>
+  Promise.all(frames.map((raw) => from.gateway.receive(from.connection, raw)));
+const signalsFrom = (to: RoomMember, from: RoomMember) =>
+  to.socket.frames("signal").filter((m) => m.connectionId === from.connection)
+    .length;
+const notices = (member: RoomMember) => member.socket.frames("notice");
+/** Time passes as it does for live pages: every member's two-second `time` heartbeat keeps its seat current. */
+async function pass(
+  f: ReturnType<typeof fixture>,
+  room: RoomMember[],
+  milliseconds: number,
+) {
+  for (let left = milliseconds; left > 0; left -= 2000) {
+    f.advance(Math.min(2000, left));
+    for (const member of room)
+      await member.gateway.receive(
+        member.connection,
+        JSON.stringify({ type: "time", id: 1, sentAt: 1 }),
+      );
+  }
+}
+
+test("a rider reloading into a five-rider room sends 36 signal frames in 30 ms and is not closed", async () => {
+  // The measured failure: four links, a description and eight candidates each, 30 ms after the welcome.
   const f = fixture(),
-    { host, guest, hostConnection, guestConnection } = await joined(f);
-  for (let i = 0; i < 32; i++)
-    await f.a.receive(hostConnection, signal(peerId(GUEST), guestConnection));
-  assert.equal(guest.frames("signal").length, 32);
-  f.advance(1000);
-  for (let i = 0; i < 5; i++)
-    await f.a.receive(hostConnection, signal(peerId(GUEST), guestConnection));
-  assert.equal(guest.frames("signal").length, 37);
+    room = await fullRoom(f),
+    peers = room.slice(0, 4),
+    left = room[5]!;
+  await left.gateway.disconnect(left.connection);
+  const rider = room[4]!,
+    socket = new Socket();
+  rider.socket = socket;
+  rider.connection = await rider.gateway.connect(CODE, rider.token, socket);
+  const frames = peers.flatMap((peer) => negotiation(peer, 8));
+  assert.equal(frames.length, 36);
+  for (const raw of frames) {
+    await rider.gateway.receive(rider.connection, raw);
+    f.advance(1);
+  }
+  for (const peer of peers) assert.equal(signalsFrom(peer, rider), 9);
+  assert.deepEqual(socket.closes, []);
+  assert.deepEqual(notices(rider), []);
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("an honest rejoin into a full room negotiates, restarts and renegotiates every link with nothing dropped", async () => {
+  const f = fixture(),
+    room = await fullRoom(f),
+    rider = room[3]!,
+    peers = room.filter((member) => member !== rider);
+  const socket = new Socket();
+  rider.socket = socket;
+  rider.connection = await rider.gateway.connect(CODE, rider.token, socket);
+  // Every link at once on a rich network: a description, the 64 candidates a peer will hold, two end markers.
+  await burst(
+    rider,
+    peers.flatMap((peer) => negotiation(peer, 66)),
+  );
+  for (const peer of peers) assert.equal(signalsFrom(peer, rider), 67);
+  // The restart policy allows one ICE restart per link every eight seconds; each gathers afresh.
+  for (let restart = 1; restart <= 4; restart++) {
+    await pass(f, room, 8000);
+    await burst(
+      rider,
+      peers.flatMap((peer) => negotiation(peer, 66)),
+    );
+    for (const peer of peers)
+      assert.equal(signalsFrom(peer, rider), 67 * (restart + 1));
+  }
+  // A media renegotiation on every link a second later: an offer out and an answer back.
+  await pass(f, room, 1000);
+  await burst(
+    rider,
+    peers.flatMap((peer) => negotiation(peer, 0)),
+  );
+  for (const peer of peers) {
+    await burst(peer, negotiation(rider, 0));
+    assert.equal(signalsFrom(peer, rider), 67 * 5 + 1);
+    assert.deepEqual(peer.socket.closes, []);
+  }
+  assert.equal(signalsFrom(rider, peers[0]!), 1);
+  assert.deepEqual(socket.closes, []);
+  assert.deepEqual(notices(rider), []);
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("a full-room burst queued behind a slow bus is delivered, not dropped or closed", async () => {
+  const f = fixture(),
+    room = await fullRoom(f),
+    rider = room[1]!,
+    remote = room.filter((member) => member.gateway !== rider.gateway);
+  let release = () => {};
+  f.bBus.gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const sent = burst(
+    rider,
+    remote.flatMap((peer) => negotiation(peer, 66)),
+  );
+  release();
+  await sent;
+  for (const peer of remote) assert.equal(signalsFrom(peer, rider), 67);
+  assert.deepEqual(rider.socket.closes, []);
+  assert.deepEqual(notices(rider), []);
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("flooding one link is throttled to its refill, leaves the sender's other links alone and is announced once a second", async () => {
+  const f = fixture(),
+    room = await fullRoom(f),
+    [host, victim, bystander] = room as [RoomMember, RoomMember, RoomMember];
+  const published = f.aBus.published.length;
+  for (let second = 0; second < 5; second++) {
+    await burst(
+      host,
+      Array.from({ length: 100 }, (_, n) => candidate(victim, n)),
+    );
+    // Relayed frames are bounded by one negotiation plus the refill, however many were sent.
+    assert.ok(
+      signalsFrom(victim, host) <= 80 + 10 * second,
+      "relay bounded by the burst and the refill",
+    );
+    assert.equal(notices(host).length, second + 1, "one notice a second");
+    f.advance(1000);
+  }
+  assert.ok(signalsFrom(victim, host) >= 80, "the burst itself is relayed");
+  assert.equal(f.aBus.published.length - published, signalsFrom(victim, host));
+  // Each notice counts what was dropped since the one before: 89 in the rest of that second, and the frame that raised it.
+  const notice = notices(host)[2]!;
+  assert.equal(notice.notice, "signal-throttled");
+  assert.equal(notice.dropped, 90);
+  assert.deepEqual(host.socket.closes, [], "throttled, not closed");
+  // The flooded link's bucket is its own: the same sender still negotiates with everyone else.
+  await burst(host, negotiation(bystander, 66));
+  assert.equal(signalsFrom(bystander, host), 67);
+  assert.equal(f.a.state, "ready");
+  assert.equal(f.b.state, "ready");
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("naming unknown targets mints no allowance and no unbounded database reads", async () => {
+  const f = fixture(),
+    { host, hostConnection, guestConnection, guest } = await joined(f),
+    reads = f.database.reads;
+  for (let n = 0; n < 300; n++)
+    await f.a.receive(hostConnection, signal(`stranger-${n}`, "unknown"));
+  for (const name of ["__proto__", "constructor", "toString"])
+    await f.a.receive(hostConnection, signal(name, "unknown"));
+  assert.ok(f.database.reads - reads <= 16, "one shared bucket of lookups");
+  assert.equal(guest.frames("signal").length, 0);
+  assert.deepEqual(host.closes, []);
+  // Strangers spent the strangers' bucket only.
   await f.a.receive(hostConnection, signal(peerId(GUEST), guestConnection));
-  assert.equal(host.closes.at(-1)?.code, 1008);
-  assert.equal(guest.closes.length, 0);
-  assert.equal(guest.frames("signal").length, 37);
+  assert.equal(guest.frames("signal").length, 1);
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("a sustained flood ends only that connection, and the member reconnects without a fresh burst", async () => {
+  const f = fixture(),
+    room = await fullRoom(f),
+    [host, victim] = room as [RoomMember, RoomMember];
+  await f.store.create("CD34", HOST);
+  const otherHost = new Socket(),
+    otherGuest = new Socket();
+  const otherHostConnection = await f.a.connect("CD34", HOST, otherHost),
+    otherGuestConnection = await f.b.connect("CD34", GUEST, otherGuest);
+  // Refused frames are tolerated for a while: ten times the refill for five seconds is throttled, not closed.
+  for (let second = 0; second < 5; second++) {
+    await burst(
+      host,
+      Array.from({ length: 100 }, (_, n) => candidate(victim, n)),
+    );
+    f.advance(1000);
+  }
+  assert.deepEqual(host.socket.closes, []);
+  let seconds = 5;
+  for (; seconds < 30 && !host.socket.closes.length; seconds++) {
+    await burst(
+      host,
+      Array.from({ length: 100 }, (_, n) => candidate(victim, n)),
+    );
+    f.advance(1000);
+  }
+  assert.deepEqual(host.socket.closes, [
+    { code: 1008, reason: "Signalling flood" },
+  ]);
+  assert.ok(
+    signalsFrom(victim, host) <= 80 + 10 * seconds,
+    "relay bounded by the burst and the refill until the close",
+  );
+  const relayed = signalsFrom(victim, host);
+  await burst(host, negotiation(victim, 8));
+  assert.equal(signalsFrom(victim, host), relayed, "a closed flood is over");
+  assert.equal(host.socket.closes.length, 1);
+  for (const member of room.slice(1))
+    assert.deepEqual(member.socket.closes, []);
+  // The room next door never noticed.
+  await f.a.receive(
+    otherHostConnection,
+    signal(peerId(GUEST), otherGuestConnection),
+  );
+  assert.equal(otherGuest.frames("signal").length, 1);
+  assert.deepEqual(otherHost.closes, []);
+  // The page reconnects 1.5 s later. It may link again, but a reconnect is not a way to buy another burst.
+  f.advance(1500);
+  const again = new Socket();
+  host.socket = again;
+  host.connection = await f.a.connect(CODE, HOST, again);
+  await burst(
+    host,
+    Array.from({ length: 100 }, (_, n) => candidate(victim, n)),
+  );
+  assert.equal(signalsFrom(victim, host), 10);
+  assert.deepEqual(again.closes, []);
+  // The flag lapses; an honest reload a minute later negotiates in full.
+  await pass(f, room, 60_000);
+  const later = new Socket();
+  host.socket = later;
+  host.connection = await f.a.connect(CODE, HOST, later);
+  await burst(host, negotiation(victim, 66));
+  assert.equal(signalsFrom(victim, host), 67);
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("a frame storm beyond any negotiation is dropped unparsed and closed as a flood", async () => {
+  const f = fixture(),
+    room = await fullRoom(f),
+    [host, victim] = room as [RoomMember, RoomMember];
+  await burst(
+    host,
+    Array.from({ length: 2000 }, (_, n) => candidate(victim, n)),
+  );
+  assert.ok(signalsFrom(victim, host) <= 80, "one burst at most is relayed");
+  assert.deepEqual(host.socket.closes, [
+    { code: 1008, reason: "Signalling flood" },
+  ]);
+  assert.deepEqual(victim.socket.closes, []);
+  assert.equal(f.a.state, "ready");
+  await f.a.stop();
+  await f.b.stop();
+});
+
+// About what Chromium offers for one audio and one data section.
+const RICH_SDP = "v=0\r\n" + "a=rtpmap:111 opus/48000/2\r\n".repeat(120);
+
+test("a whole rich-network room renegotiating at once crosses two gateways with nothing dropped", async () => {
+  // Every member rebuilds all five links together (a gateway restart): 27 frames a link, 243 into each gateway.
+  const f = fixture(),
+    room = await fullRoom(f);
+  assert.ok(RICH_SDP.length > 3000, "a realistic description size");
+  await Promise.all(
+    room.map((member) =>
+      burst(
+        member,
+        room
+          .filter((peer) => peer !== member)
+          .flatMap((peer) => negotiation(peer, 26, RICH_SDP)),
+      ),
+    ),
+  );
+  for (const member of room) {
+    for (const peer of room)
+      if (peer !== member) assert.equal(signalsFrom(peer, member), 27);
+    assert.deepEqual(member.socket.closes, []);
+    assert.deepEqual(notices(member), []);
+  }
+  assert.equal(f.aBus.published.length, 243);
+  assert.equal(f.bBus.published.length, 243);
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("the same storm at the 64-candidate ceiling loses trailing cross-gateway frames, never a socket or a local frame", async () => {
+  const f = fixture(),
+    room = await fullRoom(f);
+  await Promise.all(
+    room.map((member) =>
+      burst(
+        member,
+        room
+          .filter((peer) => peer !== member)
+          .flatMap((peer) => negotiation(peer, 66, RICH_SDP)),
+      ),
+    ),
+  );
+  for (const member of room) {
+    assert.deepEqual(member.socket.closes, []);
+    for (const peer of room)
+      if (peer !== member && peer.gateway === member.gateway)
+        assert.equal(signalsFrom(peer, member), 67, "local links are whole");
+  }
+  // 603 frames were bound for each gateway; the receiving window holds 512 ids, and the sender now stops there.
+  for (const bus of [f.aBus, f.bBus]) {
+    assert.ok(bus.published.length <= 512, "no publish the receiver drops");
+    assert.ok(bus.published.length >= 480, "all but the trailing candidates");
+  }
+  const delivered = room.reduce(
+    (n, to) =>
+      n +
+      room.reduce(
+        (m, from) =>
+          m + (from.gateway !== to.gateway ? signalsFrom(to, from) : 0),
+        0,
+      ),
+    0,
+  );
+  assert.equal(
+    delivered,
+    f.aBus.published.length + f.bBus.published.length,
+    "every paid publish is delivered",
+  );
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("reconnecting, even under a new token each time, buys no publishes beyond the room's allowance", async () => {
+  const f = fixture(),
+    room = await fullRoom(f),
+    peers = room.filter((_, index) => index !== 2);
+  let churner = room[2]!;
+  const published = f.aBus.published.length;
+  for (let cycle = 0; cycle < 10; cycle++) {
+    await churner.gateway.disconnect(churner.connection);
+    const token = cycle.toString(16).repeat(64),
+      socket = new Socket();
+    churner = {
+      token,
+      id: peerId(token),
+      socket,
+      gateway: f.a,
+      connection: await f.a.connect(CODE, token, socket),
+    };
+    await burst(
+      churner,
+      peers.flatMap((peer) =>
+        Array.from({ length: 80 }, (_, n) => candidate(peer, n)),
+      ),
+    );
+    assert.deepEqual(socket.closes, [], "each connection is within its own");
+    await pass(f, [...peers, churner], 1000);
+  }
+  // Unbounded, ten cycles publish 10 × 3 remote peers × 80 = 2400 frames. The room has 512 and 51.2 a second.
+  const paid = f.aBus.published.length - published;
+  assert.ok(paid <= 512 + 52 * 10, `published ${paid}`);
+  assert.ok(paid >= 512, `published ${paid}`);
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("frames addressed to a member's replaced connection share the strangers' bucket: reads bounded, other links untouched", async () => {
+  const f = fixture(),
+    room = await fullRoom(f),
+    [host, victim, bystander] = room as [RoomMember, RoomMember, RoomMember];
+  const reads = f.database.reads;
+  for (let second = 0; second < 5; second++) {
+    await burst(
+      host,
+      Array.from({ length: 90 }, () => signal(victim.id, "replaced")),
+    );
+    await pass(f, room, 1000);
+  }
+  const spent = f.database.reads - reads;
+  assert.ok(spent <= 16 + 5, `database reads ${spent}`);
+  assert.equal(signalsFrom(victim, host), 0, "a stale frame is never relayed");
+  assert.deepEqual(host.socket.closes, []);
+  // The victim's own bucket was never charged, and neither was anyone else's.
+  await burst(host, [
+    ...negotiation(victim, 66),
+    ...negotiation(bystander, 66),
+  ]);
+  assert.equal(signalsFrom(victim, host), 67);
+  assert.equal(signalsFrom(bystander, host), 67);
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("the heartbeat is answered for as long as it runs; a storm of time frames costs a handful of transactions", async () => {
+  const f = fixture(),
+    { host, hostConnection } = await joined(f),
+    time = JSON.stringify({ type: "time", id: 1, sentAt: 1 });
+  for (let beat = 0; beat < 60; beat++) {
+    f.advance(2000);
+    await f.a.receive(hostConnection, time);
+  }
+  assert.equal(host.frames("time").length, 60);
+  assert.deepEqual(host.frames("notice"), []);
+  const transactions = f.database.transactions;
+  await Promise.all(
+    Array.from({ length: 300 }, () => f.a.receive(hostConnection, time)),
+  );
+  const spent = f.database.transactions - transactions;
+  assert.ok(spent <= 8, `transactions ${spent}`);
+  assert.deepEqual(host.closes, []);
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("the creator has the same byte allowance as anyone: large descriptions stop at 256 kB a second", async () => {
+  const f = fixture(),
+    room = await fullRoom(f),
+    [host, , local] = room as [RoomMember, RoomMember, RoomMember];
+  await burst(
+    host,
+    Array.from({ length: 40 }, () =>
+      signal(local.id, local.connection, "v".repeat(30_000)),
+    ),
+  );
+  assert.equal(signalsFrom(local, host), 8, "8 × 30 kB fit in 256 kB");
+  assert.deepEqual(host.socket.closes, []);
+  await f.a.stop();
+  await f.b.stop();
+});
+
+test("limiter state is bounded by the room, not by everyone who ever passed through it", async () => {
+  const f = fixture();
+  await f.store.create(CODE, HOST);
+  const socket = new Socket(),
+    connection = await f.a.connect(CODE, HOST, socket);
+  for (let visitor = 0; visitor < 20; visitor++) {
+    const token = (visitor + 16).toString(16).repeat(32),
+      guest = new Socket(),
+      guestConnection = await f.b.connect(CODE, token, guest);
+    await f.a.receive(connection, signal(peerId(token), guestConnection));
+    assert.equal(guest.frames("signal").length, 1);
+    await f.b.disconnect(guestConnection);
+    f.advance(100);
+  }
+  // One bucket for the last visitor (pruned when the next is made), one publish bucket for the room's other gateway.
+  assert.ok(f.a.limiterEntries <= 3, `entries ${f.a.limiterEntries}`);
   await f.a.stop();
   await f.b.stop();
 });
