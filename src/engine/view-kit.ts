@@ -3,8 +3,10 @@
  * `src/render/` may import (`tests/layer-boundaries.test.ts`). Everything else a screen needs of the rules travels as
  * data in the `WorldView`: if a renderer wants a constant from here, publish the value in the view instead.
  *
- * An entry earns its place by being a function of its arguments alone (no state, no tuning a screen would have to keep
- * in step) that presentation must evaluate at a time or place the simulation never did. No simulation is run here.
+ * An entry earns its place by being a function of its arguments, holding no state, that presentation must evaluate at a
+ * time or place the simulation never did. Some embed tuning (`bombLaunchDistance` the launch range and charge time,
+ * `advanceTrail` the decay per tick): they are the same functions the simulation runs, re-exported, so a screen never
+ * keeps a copy in step. No simulation is run here.
  */
 
 // Between two ticks: the local rider is led ahead with the turn-then-move kernel, bent by the holes it is inside of,

@@ -8,7 +8,7 @@ src/engine/view-kit.ts   the few pure kernels presentation runs itself          
 src/render/**            imports those two, other src/render/ files, and npm packages. Nothing else.
 ```
 
-`tests/layer-boundaries.test.ts` enforces it from the import graph. `src/render/` has no entry in `tests/fixtures/layer-allowlist.json` and the test refuses one: a new edge from a render file to `engine/tuning`, `shared/`, `online/` or `client/` fails, and so does adding an exception for it.
+`tests/layer-boundaries.test.ts` enforces it from the import graph. `src/render/` has no entry in `tests/fixtures/layer-allowlist.json` and the test refuses one: a new edge from a render file to `engine/tuning`, `shared/`, `online/` or `client/` fails, and so does adding an exception for it. From `engine/view.ts` a render file may import types only (`import type`, or every named binding marked `type`); a value import, a namespace or side-effect import, a value re-export or a dynamic import of it fails, because `toView` would bring the tuning and the rules in behind the contract. Values come from `view-kit` alone.
 
 All of #254 is `[hash-identical]`: `RULES` is main's `fuse-p2p-34` and the golden fixtures are main's, untouched.
 
@@ -44,7 +44,7 @@ Adding to the contract: work the value out in `toView` from the state and the tu
 
 ## `view-kit`
 
-A kernel belongs there when presentation has to evaluate it at a time or place the simulation never did, and it is a function of its arguments:
+A kernel belongs there when presentation has to evaluate it at a time or place the simulation never did. Each is a function of its arguments and holds no state, but not all are free of tuning: `bombLaunchDistance` embeds the minimum and maximum launch distance and defaults to the maximum charge time, and `advanceTrail` embeds the decay per tick. They are the same functions the simulation runs, re-exported, not copies a screen has to keep in step; a balance change reaches the screen with them.
 
 | Export                                                    | Used by                         | Why presentation runs it                                                                                              |
 | --------------------------------------------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -79,7 +79,12 @@ The netcode does not interpolate or predict any more. `RoomRuntime.presentation(
 
 `PARITY_REFERENCE=<ref> npx tsx scripts/render-parity.ts` hashes the checkout, then `<ref>` in a throwaway worktree running the same file (it resolves the renderer's path and `toSnapshot`/`toView` at run time), and lists every frame that differs. Against `origin/codex/arch-step-pipeline` at `4755160` (main `9479799`'s renderer in `src/client/`, reading engine constants), 156 of 156 frames are identical. It does not cover the interpolated tip between two ticks; that is covered by the unit tests of `trails` and `present`.
 
-The one intended difference is not in those frames: a trail tip that used to be dropped for the tick on which a Snail ended is now drawn (`tests/phaser-trails.test.ts`).
+Two intended differences are not in those frames. Every parity moment is a whole simulated tick with no local lead, so neither can show there.
+
+- **The remote trail tip on the tick a Snail wears off.** A remote rider's trail tip is extended to its interpolated position only if that is at most one step from the last segment. The cap used to be built from constants at the drawing tick (`RIDER_SPEED * riderSpeedMultiplier * SPEED_RAMP_MAX / TICK_HZ`, 3.75 × 1.5 = 5.6 with the Snail still counted), while the rider actually moved 7.5; the tip was dropped for that one tick (about 50 ms, roughly 3 frames at 60 Hz). The cap is now the view's `speed`, the step the simulation takes, so the tip is drawn. Remote riders only: the local rider's tip is its predicted segment. Pinned by `tests/phaser-trails.test.ts`.
+- **The lead on your own rider during the aim-slow ramp.** `presentWorld` leads the local rider up to one tick past the newest simulated tick. It used to call `riderMotionStep(rider, newer.tick + 1, …)` on the interpolated rider, which carries the OLDER tick's aim-slow and speed-effect state (`aimSlowTicks`, `aimSlowSpentTicks`, `nitroUntilTicks`, `snailUntilTicks`). It now takes `speed` and `turn` from the NEWER view, which `toView` works out with `riderMotionStep` on the newest state: the step the simulation will actually take next. That is arguably more correct, since the lead predicts the tick after `newer` and the older state is one tick stale. Measured by the independent review over the golden recording: 1297 of 23914 rider-ticks (5.4%) differ, by up to about ±16% of a step, all during the aim-slow ramp (tick 66, for example: 6.54 before, 5.64 now). Outside the ramp the two are equal. What to look for: no stutter or snap-back when you charge a bomb at full speed or while the slow ramps in.
+
+Also cosmetic: `interpolateWorld` takes the shortest turn between two headings with the platform's `Math.atan2`, `Math.sin` and `Math.cos` instead of the engine's `deterministic-math` versions (presentation is not simulated, and `deterministic-math` is not in `view-kit`). The interpolated heading differs from before by about one ulp.
 
 ## What remains
 
