@@ -1,6 +1,5 @@
 import type { TickContext, TickFact } from "../context.js";
 import {
-  type AimPoint,
   type BombActionCommand,
   type BombState,
   type FlightPoint,
@@ -30,10 +29,10 @@ import { wrapCoordinate } from "../../wrap.js";
 
 /**
  * Every living rider's bomb commands for the tick — press, release, cancel — run against the board as it was just
- * committed, in seat order: charging, aiming a Target Bomb, and launching whatever the rider has armed.
+ * committed, in seat order: charging and launching whatever the rider has armed.
  */
 export function launchWeapons(ctx: TickContext): void {
-  const { state, inputs, movements } = ctx;
+  const { inputs, movements } = ctx;
   // Target every launch against the same committed tick, independent of player slot.
   for (const movement of movements.values()) {
     if (movement.player.alive) {
@@ -45,44 +44,8 @@ export function launchWeapons(ctx: TickContext): void {
         movement.player.bombChargeStartedTick = undefined;
         movement.player.gunAim = undefined;
       }
-      if (
-        movement.player.targetBombArmed &&
-        !movement.player.shellArmed &&
-        !movement.player.gunArmed &&
-        movement.player.bombChargeStartedTick !== undefined
-      )
-        movement.player.bombTarget = targetPoint(
-          state,
-          movement.player,
-          input?.aim,
-          movement.player.bombTarget,
-        );
     }
   }
-}
-
-function targetPoint(
-  state: GameState,
-  player: PlayerState,
-  aim?: AimPoint,
-  previous?: AimPoint,
-): AimPoint {
-  const x = aim
-    ? aim.x * state.width
-    : (previous?.x ?? player.x + cos(player.angle) * 100);
-  const y = aim
-    ? aim.y * state.height
-    : (previous?.y ?? player.y + sin(player.angle) * 100);
-  return {
-    x: Math.max(
-      state.boundaryInset + RIDER_RADIUS,
-      Math.min(state.width - state.boundaryInset - RIDER_RADIUS, x),
-    ),
-    y: Math.max(
-      state.boundaryInset + RIDER_RADIUS,
-      Math.min(state.height - state.boundaryInset - RIDER_RADIUS, y),
-    ),
-  };
 }
 
 function applyBombActions(
@@ -94,7 +57,6 @@ function applyBombActions(
     const { action } = command;
     if (action === "cancel") {
       player.bombChargeStartedTick = undefined;
-      player.bombTarget = undefined;
       player.gunAim = undefined;
       continue;
     }
@@ -109,20 +71,14 @@ function applyBombActions(
       ) {
         player.bombChargeStartedTick = state.tick;
         if (player.gunArmed) player.gunAim = 0;
-        else if (player.targetBombArmed && !player.shellArmed)
-          player.bombTarget = targetPoint(state, player, command.aim);
       }
       // Every weapon fires on release; a Gun spends the hold sweeping its sight, and a tap fires straight ahead.
       continue;
     }
 
-    const target = player.targetBombArmed
-      ? targetPoint(state, player, command.aim, player.bombTarget)
-      : undefined;
     const chargeStartedTick = player.bombChargeStartedTick;
     const gunAim = player.gunAim ?? 0;
     player.bombChargeStartedTick = undefined;
-    player.bombTarget = undefined;
     player.gunAim = undefined;
     if (chargeStartedTick === undefined) continue;
     const ownsBomb = sortedBombs(state).some(
@@ -209,9 +165,8 @@ function applyBombActions(
       : player.tripleShotArmed
         ? "triple"
         : undefined;
-    const paths = target
-      ? [[{ ...target, angle: player.angle }]]
-      : bombsPerShot(player) > 1
+    const paths =
+      bombsPerShot(player) > 1
         ? createVolleyFlightPaths(
             player,
             player.angle,
@@ -228,18 +183,11 @@ function applyBombActions(
               bounds,
             ),
           ];
-    if (target) player.targetBombArmed = false;
-    else {
-      player.tripleShotArmed = false;
-      player.fiveShotArmed = false;
-    }
-    /**
-     * One label for the whole trigger pull. Gun and Shell never reach here — they launch in the branch above, which
-     * is why they outrank everything (a Triple or Five they fan out is spent under their label), and why a rider
-     * holding Target as well keeps it armed for the next pull.
-     * Among the launches that do reach here, Target comes first, because it is the only one the others cannot combine with.
-     */
-    const weapon: Weapon = target ? "target" : (volley ?? "bomb");
+    player.tripleShotArmed = false;
+    player.fiveShotArmed = false;
+    // One label for the whole trigger pull. Gun and Shell never reach here — they launch in the branch above, which
+    // is why they outrank everything (a Triple or Five they fan out is spent under their label).
+    const weapon: Weapon = volley ?? "bomb";
     // Every bomb of the pull names the same shot: the id its first bomb is about to take.
     const shot = state.nextBombId;
     facts.push(shotFired(state, player, shot, weapon, paths.length));
@@ -255,11 +203,9 @@ function applyBombActions(
         y: open ? wrapCoordinate(landing.y, state.height) : landing.y,
         placedTick: state.tick,
         launchedTick: state.tick,
-        landsAtTick: target ? state.tick : state.tick + BOMB_FLIGHT_TICKS,
-        explodeAtTick: target
-          ? state.tick
-          : state.tick + bombFuseTicks(player.fuseLevel),
-        blastRange: powerBlastRadius(player.powerPickups) * (target ? 0.7 : 1),
+        landsAtTick: state.tick + BOMB_FLIGHT_TICKS,
+        explodeAtTick: state.tick + bombFuseTicks(player.fuseLevel),
+        blastRange: powerBlastRadius(player.powerPickups),
         flightPath,
         shot,
       };

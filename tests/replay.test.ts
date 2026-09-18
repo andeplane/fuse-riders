@@ -74,7 +74,6 @@ function world(
       invulnerableUntilTick: 0,
       drunkUntilTick: 0,
       inkUntilTick: 0,
-      targetBombArmed: false,
       tripleShotArmed: false,
       fiveShotArmed: false,
       nitroUntilTicks: [],

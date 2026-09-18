@@ -213,6 +213,7 @@ test("new rooms default to five rounds and saved win-format preferences migrate 
     ...old,
     match: "rounds",
     length: 5,
+    weights: settings.weights, // a save with no key for a pickup takes that pickup's default
   });
   assert.equal(parseRoomSettings({ ...settings, length: 3 })?.length, 3);
 });

@@ -1,8 +1,7 @@
 import { isAvatarId, type AvatarId } from "../shared/avatars.js";
 import { parseRoomSettings, type RoomSettings } from "./room-settings.js";
-import type { AimPoint, BombActionCommand } from "./primitives.js";
+import type { BombActionCommand } from "./primitives.js";
 import {
-  aimGesture,
   cancelGesture,
   pressGesture,
   releaseGesture,
@@ -11,9 +10,11 @@ import {
 import type { InputIntent } from "./state.js";
 import { loggedRiderName } from "./rider-name.js";
 
-/** Entry kinds. Player kinds come from any member's own stream; management kinds only from the creator's. */
+/**
+ * Entry kinds. Player kinds come from any member's own stream; management kinds only from the creator's.
+ * Kind 1 carried Target Bomb aim and is retired: it is refused like any unknown kind, and the number stays unused.
+ */
 export const STEER = 0,
-  AIM = 1,
   PRESS = 2,
   RELEASE = 3,
   CANCEL = 4,
@@ -25,15 +26,12 @@ export const JOIN = 10,
   ACTION = 14,
   BOT = 15,
   SPECTATOR = 16;
-export const UINT16_MAX = 0xffff,
-  UINT32_MAX = 0xffff_ffff;
+export const UINT32_MAX = 0xffff_ffff;
 export type RoomAction = "start" | "rematch" | "lobby";
 export type Entry =
   | [seq: number, tick: number, kind: 0, flags: number]
-  | [seq: number, tick: number, kind: 1, x: number, y: number]
   | [seq: number, tick: number, kind: 2, gesture: number]
   | [seq: number, tick: number, kind: 3, gesture: number]
-  | [seq: number, tick: number, kind: 3, gesture: number, x: number, y: number]
   | [seq: number, tick: number, kind: 4, gesture: number]
   | [seq: number, tick: number, kind: 5, avatarId: AvatarId]
   | [
@@ -90,8 +88,6 @@ export const uint32 = (value: unknown): value is number =>
   value >= 0 &&
   value <= UINT32_MAX &&
   !Object.is(value, -0);
-const uint16 = (value: unknown): value is number =>
-  uint32(value) && value <= UINT16_MAX;
 const slot = (value: unknown): value is number => uint32(value) && value <= 4;
 export const memberId = (value: unknown): value is string =>
   typeof value === "string" && /^[\w:.-]{1,64}$/.test(value);
@@ -117,18 +113,10 @@ export function isEntry(raw: unknown): raw is Entry {
   switch (raw[2]) {
     case STEER:
       return raw.length === 4 && uint32(raw[3]) && raw[3] <= 3;
-    case AIM:
-      return raw.length === 5 && uint16(raw[3]) && uint16(raw[4]);
     case PRESS:
+    case RELEASE:
     case CANCEL:
       return raw.length === 4 && uint32(raw[3]) && raw[3] > 0;
-    case RELEASE:
-      return (
-        (raw.length === 4 ||
-          (raw.length === 6 && uint16(raw[4]) && uint16(raw[5]))) &&
-        uint32(raw[3]) &&
-        raw[3] > 0
-      );
     case AVATAR:
       return raw.length === 4 && isAvatarId(raw[3]);
     case JOIN:
@@ -176,17 +164,6 @@ export function isEntry(raw: unknown): raw is Entry {
   }
 }
 
-export function quantizeAim(aim: AimPoint): [number, number] {
-  const clamp = (value: number) =>
-    Math.round(
-      Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)) * UINT16_MAX,
-    );
-  return [clamp(aim.x), clamp(aim.y)];
-}
-export function dequantizeAim(x: number, y: number): AimPoint {
-  return { x: x / UINT16_MAX, y: y / UINT16_MAX };
-}
-
 /** Per-player controls between entries; the reducer folds one tick of entries into an intent. */
 export interface HeldControls extends GestureControls {
   flags: number;
@@ -200,8 +177,7 @@ export const neutralControls = (): HeldControls => ({
 /**
  * Folds one tick of a rider's entries into its held controls and the tick's intent. The bomb button goes through the
  * gesture core (`bomb-gesture.ts`) with the ids the entries carry: a press over a held gesture yields `cancel` then
- * `press`, a repeated press or a release or cancel of another gesture is a no-op, a RELEASE may carry its own aim.
- * Mutates `held`.
+ * `press`, and a repeated press or a release or cancel of another gesture is a no-op. Mutates `held`.
  */
 export function foldPlayerEntries(
   held: HeldControls,
@@ -213,19 +189,11 @@ export function foldPlayerEntries(
       case STEER:
         held.flags = entry[3];
         break;
-      case AIM:
-        aimGesture(held, dequantizeAim(entry[3], entry[4]));
-        break;
       case PRESS:
         pressGesture(held, entry[3], commands);
         break;
       case RELEASE:
-        releaseGesture(
-          held,
-          entry[3],
-          entry.length === 6 ? dequantizeAim(entry[4], entry[5]) : undefined,
-          commands,
-        );
+        releaseGesture(held, entry[3], commands);
         break;
       case CANCEL:
         cancelGesture(held, entry[3], commands);
@@ -245,7 +213,6 @@ export function intentOf(
     left: (held.flags & 1) !== 0,
     right: (held.flags & 2) !== 0,
     bomb: held.activeGesture > 0,
-    ...(held.aim ? { aim: { ...held.aim } } : {}),
     ...(commands.length ? { bombCommands: commands } : {}),
   };
 }

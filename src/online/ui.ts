@@ -132,7 +132,6 @@ const labels: Record<PickupType, string> = {
   five: "Five shot",
   gun: "Gun",
   shell: "Shell",
-  target: "Target bomb",
   beer: "Beer",
   ink: "Ink",
   orbitShield: "Shield",
@@ -208,14 +207,11 @@ export async function startOnline(): Promise<void> {
     guide.setAttribute("aria-labelledby", guideTitle.id);
     guide.append(
       guideTitle,
-      createPowerupGuide(
-        POWERUP_GUIDE.filter((entry) => entry.type !== "target"),
-        {
-          className: "landing-powerups",
-          themeId: selectedTheme().id,
-          offByDefaultNote: "(off by default, enable in room settings)",
-        },
-      ).element,
+      createPowerupGuide(POWERUP_GUIDE, {
+        className: "landing-powerups",
+        themeId: selectedTheme().id,
+        offByDefaultNote: "(off by default, enable in room settings)",
+      }).element,
     );
     card.querySelector(".landing-content")!.append(guide);
     const mode = node("fieldset", "", "landing-mode");
@@ -1543,7 +1539,6 @@ export async function startOnline(): Promise<void> {
             identityToken: signedInToken,
           });
       }
-      inputState.configureTargetAim(view.targetAim);
       powerStatus.hidden = view.power.hidden;
       powerStatus.textContent = view.power.text;
       fireButton.classList.toggle("gun-armed", view.fire.gunReady);
@@ -1881,49 +1876,42 @@ export async function startOnline(): Promise<void> {
     event.preventDefault();
     openSettings("powerups");
   });
-  const inputState = new ControllerInputState(
-    {
-      send: (message) => {
-        if (roomEnded) return false;
-        const controlsKey = `${message.left}:${message.right}:${message.bomb}`,
-          changed = controlsKey !== lastControls;
-        if (changed) {
-          inputAt = performance.now();
-          benchmarkInput = { seq: message.seq, at: inputAt };
-          lastControls = controlsKey;
-        }
-        const sent = runtime.command(message);
-        if (benchmark)
-          sample({
-            kind: "input",
-            at: performance.now(),
-            seq: message.seq,
-            left: message.left,
-            right: message.right,
-            bomb: message.bomb,
-            bombAction: message.bombAction,
-            sent,
-            tick: runtime.tick,
-          });
-        if (changed || message.bombAction)
-          telemetry.log("input", {
-            seq: message.seq,
-            left: message.left,
-            right: message.right,
-            bomb: message.bomb,
-            bombAction: message.bombAction,
-            sent,
-            tick: runtime.tick,
-          });
-        return sent;
-      },
+  const inputState = new ControllerInputState({
+    send: (message) => {
+      if (roomEnded) return false;
+      const controlsKey = `${message.left}:${message.right}:${message.bomb}`,
+        changed = controlsKey !== lastControls;
+      if (changed) {
+        inputAt = performance.now();
+        benchmarkInput = { seq: message.seq, at: inputAt };
+        lastControls = controlsKey;
+      }
+      const sent = runtime.command(message);
+      if (benchmark)
+        sample({
+          kind: "input",
+          at: performance.now(),
+          seq: message.seq,
+          left: message.left,
+          right: message.right,
+          bomb: message.bomb,
+          bombAction: message.bombAction,
+          sent,
+          tick: runtime.tick,
+        });
+      if (changed || message.bombAction)
+        telemetry.log("input", {
+          seq: message.seq,
+          left: message.left,
+          right: message.right,
+          bomb: message.bomb,
+          bombAction: message.bombAction,
+          sent,
+          tick: runtime.tick,
+        });
+      return sent;
     },
-    undefined,
-    () =>
-      !screen.arenaHidden &&
-      !screen.controllerOnly &&
-      canvas.dataset.arenaOrientation === "portrait",
-  );
+  });
   const bindings = new ControllerPointerBindings(
     inputState,
     [

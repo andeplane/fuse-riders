@@ -36,80 +36,93 @@ function detachedIds(game: GameState, id: string): number[] {
   ];
 }
 
+/** A tap on the trigger: since `fuse-p2p-39` a Gun fires on release, straight along the rider's heading. */
+const PRESS: InputIntent = {
+  ...NEUTRAL,
+  bombCommands: [{ action: "press" }, { action: "release" }],
+};
+
 /**
- * Pins INSTANT_DEATHS_COMMIT_PER_RIDER. A Target Bomb goes off on the tick it is released. p1 (seat 1) is inside the
- * blast with its whole trail just outside it, so the only trail pieces p1 gets this tick are the ones its death
- * detaches; p2 (seat 2) is far away with the middle of its trail inside the blast, so the burn detaches its tail.
- * Both draw piece ids from one counter. Committed per rider, p1's wreck is numbered before p2's burn; committed after
- * the whole pass, as the sweep's deaths are, the numbers would swap — and they are state every replica compares.
+ * Pins the value of INSTANT_DEATHS_COMMIT_PER_RIDER and that Gun kills commit in seat order; it no longer tells the two
+ * settings apart. Two Guns fire in one tick: p0 shoots p2
+ * and p1 shoots p3. Each victim's death detaches its trail into debris, and the pieces take ids from one counter in
+ * seat order: p2's wreck first, then p3's. Target Bomb, removed in `fuse-p2p-40`, also burnt trails in this pass, and
+ * that is what once made the per-rider commit matter; with bullets alone both settings number the pieces alike.
  */
-test("an instant kill's wreck takes its trail-piece ids before a later rider's trail is burnt", () => {
+test("instant kills in one tick detach their wrecks in seat order", () => {
   assert.equal(INSTANT_DEATHS_COMMIT_PER_RIDER, true);
-  const game = playing(3);
-  const [shooter, victim, bystander] = ["p0", "p1", "p2"].map((id) =>
-    game.players.get(id)!,
-  );
+  const game = playing(4);
+  game.obstacles = [];
+  game.nextPickupSpawnTick = game.tick + 1000;
+  const [first, second, firstVictim, secondVictim] = [
+    "p0",
+    "p1",
+    "p2",
+    "p3",
+  ].map((id) => game.players.get(id)!);
   const tick = game.tick;
-  const forever = tick + 1000;
-  Object.assign(shooter!, { x: 300, y: 700, angle: 0, trail: [] });
-  shooter!.targetBombArmed = true;
-  shooter!.bombChargeStartedTick = tick;
-  // 67 from the blast's centre and riding across it: inside the 63 + 7 that kills, outside the 63 + 3 that burns trail.
-  Object.assign(victim!, { x: 1067, y: 446.25, angle: Math.PI / 2 });
-  victim!.trail = [
-    {
-      x1: 1067,
-      y1: 246.25,
-      x2: 1067,
-      y2: 446.25,
-      createdTick: tick,
-      expiresAtTick: forever,
-    },
-  ];
-  Object.assign(bystander!, { x: 1200, y: 420, angle: 0 });
-  bystander!.trail = [800, 900, 1000, 1100].map((x, index) => ({
-    x1: x,
-    y1: 420,
-    x2: x + 100,
-    y2: 420,
-    createdTick: tick - 3 + index,
-    expiresAtTick: forever,
-  }));
+  Object.assign(first!, {
+    x: 200,
+    y: 300,
+    angle: 0,
+    trail: [],
+    gunArmed: true,
+  });
+  Object.assign(second!, {
+    x: 200,
+    y: 600,
+    angle: 0,
+    trail: [],
+    gunArmed: true,
+  });
+  // Each victim's trail runs away from the bullet's line, so only the head is hit.
+  for (const [victim, y] of [
+    [firstVictim!, 300],
+    [secondVictim!, 600],
+  ] as const) {
+    Object.assign(victim, { x: 900, y, angle: Math.PI });
+    victim.trail = [
+      {
+        x1: 900,
+        y1: y - 200,
+        x2: 900,
+        y2: y - 40,
+        createdTick: tick,
+        expiresAtTick: tick + 1000,
+      },
+    ];
+  }
   const nextPiece = game.nextTrailPieceId;
 
   const { events } = step(
     game,
     new Map<string, InputIntent>([
-      [
-        "p0",
-        {
-          ...NEUTRAL,
-          bombCommands: [{ action: "release", aim: { x: 0.625, y: 0.5 } }],
-        },
-      ],
+      ["p0", PRESS],
+      ["p1", PRESS],
     ]),
   );
 
   assert.deepEqual(
     events.filter((event) => event.type === "playerEliminated"),
-    [{ type: "playerEliminated", playerId: "p1", cause: "explosion" }],
+    [
+      { type: "playerEliminated", playerId: "p2", cause: "explosion" },
+      { type: "playerEliminated", playerId: "p3", cause: "explosion" },
+    ],
   );
-  assert.equal(bystander!.alive, true);
-  const wreck = detachedIds(game, "p1"),
-    burnt = detachedIds(game, "p2");
-  assert.ok(wreck.length > 0, "the wreck's trail became debris");
-  assert.ok(burnt.length > 0, "the blast cut the bystander's tail loose");
+  const firstWreck = detachedIds(game, "p2"),
+    secondWreck = detachedIds(game, "p3");
+  assert.ok(firstWreck.length > 0 && secondWreck.length > 0);
+  assert.ok(
+    Math.max(...firstWreck) < Math.min(...secondWreck),
+    `seat 2's wreck (${firstWreck}) is numbered before seat 3's (${secondWreck})`,
+  );
   assert.deepEqual(
-    [...wreck, ...burnt].sort((a, b) => a - b),
+    [...firstWreck, ...secondWreck].sort((a, b) => a - b),
     Array.from(
-      { length: wreck.length + burnt.length },
+      { length: firstWreck.length + secondWreck.length },
       (_, index) => nextPiece + index,
     ),
     "nothing else took a piece id this tick",
-  );
-  assert.ok(
-    Math.max(...wreck) < Math.min(...burnt),
-    `the wreck (${wreck}) is numbered before the later rider's burn (${burnt})`,
   );
 });
 
@@ -150,34 +163,30 @@ test("a sweep death and an instant death are recorded the same way", () => {
   });
   const sweptEvents = step(swept, new Map()).events;
 
-  // Instant: p1 stands where p0's Target Bomb lands on the tick it is released.
+  // Instant: p0's Gun hits p1's head on the tick it is pressed.
   const instant = playing(2);
-  const shooter = instant.players.get("p0")!;
-  Object.assign(shooter, { x: 300, y: 700, angle: 0 });
-  shooter.targetBombArmed = true;
-  shooter.bombChargeStartedTick = instant.tick;
+  instant.obstacles = [];
+  Object.assign(instant.players.get("p0")!, {
+    x: 300,
+    y: 450,
+    angle: 0,
+    trail: [],
+    gunArmed: true,
+  });
   Object.assign(instant.players.get("p1")!, {
     x: 1000,
     y: 450,
-    angle: 0,
+    angle: Math.PI,
     trail: [],
   });
   const instantEvents = step(
     instant,
-    new Map<string, InputIntent>([
-      [
-        "p0",
-        {
-          ...NEUTRAL,
-          bombCommands: [{ action: "release", aim: { x: 0.625, y: 0.5 } }],
-        },
-      ],
-    ]),
+    new Map<string, InputIntent>([["p0", PRESS]]),
   ).events;
 
   for (const [game, events, weapon] of [
     [swept, sweptEvents, "bomb"],
-    [instant, instantEvents, "target"],
+    [instant, instantEvents, "gun"],
   ] as const) {
     assert.deepEqual(
       events.filter((event) => event.type === "playerEliminated"),

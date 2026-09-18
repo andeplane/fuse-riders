@@ -292,17 +292,17 @@ test("snapshot validation rejects foreign rules and rooms, corrupt state, incons
   );
   assert.equal(
     mutate((v) => {
-      (v[5] as unknown[][])[0]![5] = 3;
+      (v[5] as unknown[][])[0]![3] = 3;
     }),
     undefined,
     "active gesture must match latest",
   );
   assert.equal(
     mutate((v) => {
-      (v[5] as unknown[][])[0]![3] = 2;
+      (v[5] as unknown[][])[0]!.splice(3, 0, null, null);
     }),
     undefined,
-    "aim out of range",
+    "the retired seven-element fold that carried aim",
   );
   assert.equal(
     mutate((v) => {
@@ -313,7 +313,7 @@ test("snapshot validation rejects foreign rules and rooms, corrupt state, incons
   );
   assert.equal(
     mutate((v) => {
-      (v[5] as unknown[][]).push(["bot:1", 1, 0, null, null, 0, 0]);
+      (v[5] as unknown[][]).push(["bot:1", 1, 0, 0, 0]);
     }),
     undefined,
     "bots have no fold",
@@ -380,14 +380,6 @@ test("snapshot validation rejects foreign rules and rooms, corrupt state, incons
   );
   assert.equal(decodeSnapshot(packMessage("nope"), ROOM), undefined);
   assert.equal(decodeSnapshot(new Uint8Array([0xc1]), ROOM), undefined);
-  assert.equal(
-    mutate((v) => {
-      (v[5] as unknown[][])[0]![3] = 0.5;
-      (v[5] as unknown[][])[0]![4] = null;
-    }),
-    undefined,
-    "aim needs both coordinates",
-  );
 });
 
 test("replica game-state encoding preserves negative zero, maps and connection flags and rejects corruption", () => {
@@ -413,12 +405,10 @@ test("replica game-state encoding preserves negative zero, maps and connection f
   game.players.get("p0")!.connected = false;
   game.players.get("p1")!.drunkHeadingOffset = -0;
   game.players.get("p1")!.bombChargeStartedTick = game.tick;
-  game.players.get("p1")!.bombTarget = { x: 800, y: 450 };
   const restored = decodeGameState(encodeGameState(game))!;
   assert.ok(restored);
   assert.equal(restored.players.get("p0")!.connected, false);
   assert.ok(Object.is(restored.players.get("p1")!.drunkHeadingOffset, -0));
-  assert.deepEqual(restored.players.get("p1")!.bombTarget, { x: 800, y: 450 });
   assert.equal(encodeGameState(restored), encodeGameState(game));
   const corrupt = (change: (data: Record<string, unknown>) => void) => {
     const data = JSON.parse(encodeGameState(game));

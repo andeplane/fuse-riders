@@ -32,24 +32,14 @@ import type { FlightPoint } from "./launch-modifiers.js";
 import type { PickupType } from "./pickup-types.js";
 import type { Moment } from "./moments.js";
 import type { DecidedRound } from "./shot-log.js";
-import type {
-  AimPoint,
-  BlastCircle,
-  PlayerId,
-  TrailSegment,
-} from "./primitives.js";
+import type { BlastCircle, PlayerId, TrailSegment } from "./primitives.js";
 
 // The vocabulary the view is written in, so a screen needs no other engine module to name what it draws.
 export type { ArenaMapId, Obstacle, ObstacleKind } from "./arena-map.js";
 export type { FlightPoint } from "./launch-modifiers.js";
 export type { PickupType } from "./pickup-types.js";
 export type { PortalPair } from "./portal.js";
-export type {
-  AimPoint,
-  BlastCircle,
-  PlayerId,
-  TrailSegment,
-} from "./primitives.js";
+export type { BlastCircle, PlayerId, TrailSegment } from "./primitives.js";
 
 /**
  * Rule values a screen needs, as data. A renderer never imports a balance constant: what it must know about the
@@ -114,8 +104,6 @@ export interface RiderView {
    */
   gunAim?: number;
   shellArmed?: boolean;
-  targetBombArmed: boolean;
-  bombTarget?: AimPoint;
   tripleShotArmed: boolean;
   fiveShotArmed: boolean;
   shielded: boolean;
@@ -300,8 +288,6 @@ export function toView(state: GameState): WorldView {
       gunArmed: player.gunArmed,
       ...(player.gunAim === undefined ? {} : { gunAim: player.gunAim }),
       shellArmed: player.shellArmed,
-      targetBombArmed: player.targetBombArmed,
-      ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}),
       tripleShotArmed: player.tripleShotArmed,
       fiveShotArmed: player.fiveShotArmed,
       shielded: player.shielded,

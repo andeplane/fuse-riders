@@ -13,7 +13,7 @@ import { moveRiders } from "./phases/move-riders.js";
 import { collectPickups } from "./phases/collect-pickups.js";
 import { bounceImmuneRiders } from "./phases/bounce-immune-riders.js";
 import { moveShells } from "./phases/move-shells.js";
-import { explodeFuses, explodeInstant } from "./phases/explode.js";
+import { explodeFuses } from "./phases/explode.js";
 import { hitProjectiles } from "./phases/hit-projectiles.js";
 import { burnTrails } from "./phases/burn-trails.js";
 import { detectHazards } from "./phases/detect-hazards.js";
@@ -66,7 +66,6 @@ export const PHASES: readonly Phase[] = [
   { name: "commitSweepDeaths", when: "playing", run: commitDeaths },
   { name: "launchWeapons", when: "playing", run: launchWeapons },
   { name: "fireGuns", when: "playing", run: fireGuns },
-  { name: "explodeInstant", when: "playing", run: explodeInstant },
   { name: "resolveInstantHits", when: "playing", run: resolveInstantHits },
   { name: "commitInstantDeaths", when: "playing", run: commitDeaths },
   { name: "observeDodges", when: "playing", run: observeDodges },

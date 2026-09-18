@@ -29,7 +29,6 @@ import {
 } from "../engine/apply-tick.js";
 import {
   ACTION,
-  AIM,
   AVATAR,
   BOT,
   CANCEL,
@@ -41,7 +40,6 @@ import {
   SETTINGS,
   SPECTATOR,
   STEER,
-  quantizeAim,
 } from "../engine/input-log.js";
 import { isAvatarId, type AvatarId } from "../shared/avatars.js";
 import {
@@ -50,7 +48,6 @@ import {
 } from "../engine/room-settings.js";
 import { botDisplayName, BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { MAX_RIDER_NAME, seatRiderName } from "../engine/rider-name.js";
-import type { AimPoint } from "../engine/primitives.js";
 import type { GameEvent } from "../engine/view.js";
 import { uuid } from "../shared/uuid.js";
 import type { RoomTransport, TransportEvents } from "fuse-network-fe";
@@ -66,7 +63,6 @@ export type RoomCommand =
       right: boolean;
       bomb: boolean;
       bombAction?: "press" | "release" | "cancel";
-      aim?: AimPoint;
     }
   | { type: "avatar"; avatarId: AvatarId }
   | { type: "action"; action: "start" | "lobby" | "rematch" }
@@ -257,8 +253,6 @@ export class RoomRuntime {
   private noWorld = new Map<string, number>();
   private held = {
     flags: -1,
-    aim: undefined as [number, number] | undefined,
-    aimTick: -1,
     active: 0,
     latest: 0,
   };
@@ -1111,8 +1105,6 @@ export class RoomRuntime {
   private resetHeld(): void {
     this.held = {
       flags: -1,
-      aim: undefined,
-      aimTick: -1,
       active: 0,
       latest: Math.max(
         this.held.latest,
@@ -1266,33 +1258,17 @@ export class RoomRuntime {
       this.append(STEER, flags);
       this.held.flags = flags;
     }
-    const aim = command.aim ? quantizeAim(command.aim) : undefined;
     if (command.bombAction === "press") {
       this.held.active = ++this.held.latest;
       this.append(PRESS, this.held.active);
-      this.held.aim = undefined;
-    }
-    if (
-      aim &&
-      this.held.active &&
-      command.bombAction !== "release" &&
-      (!this.held.aim ||
-        this.held.aim[0] !== aim[0] ||
-        this.held.aim[1] !== aim[1]) &&
-      this.held.aimTick !== this.lastOwnTick
-    ) {
-      this.held.aimTick = this.append(AIM, aim[0], aim[1]);
-      this.held.aim = aim;
     }
     if (command.bombAction === "release" && this.held.active) {
-      this.append(RELEASE, this.held.active, ...(aim ?? []));
+      this.append(RELEASE, this.held.active);
       this.held.active = 0;
-      this.held.aim = undefined;
     }
     if (command.bombAction === "cancel" && this.held.active) {
       this.append(CANCEL, this.held.active);
       this.held.active = 0;
-      this.held.aim = undefined;
     }
     if (this.lastPacketTick === -1) this.sendPackets(this.deps.now());
     return true;

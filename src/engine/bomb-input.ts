@@ -1,11 +1,10 @@
 import {
-  aimGesture,
   cancelGesture,
   pressGesture,
   releaseGesture,
   type GestureControls,
 } from "./bomb-gesture.js";
-import type { AimPoint, BombAction, BombActionCommand } from "./primitives.js";
+import type { BombAction, BombActionCommand } from "./primitives.js";
 
 export const MAX_PENDING_BOMB_ACTIONS = 8;
 
@@ -13,8 +12,7 @@ export const MAX_PENDING_BOMB_ACTIONS = 8;
  * The gesture core for a caller that has a device's frames and no log: it numbers the gestures itself and queues the
  * commands until the next tick drains them. Frame for frame it yields what an online replica folds from the entries
  * the same device would log (`tests/bomb-input-differential.test.ts` holds it to that): a press is always a new
- * gesture, so one over a held gesture is `cancel` then `press`; a release or a cancel with nothing held is nothing;
- * an aim is kept only while a gesture is held, and the aim a release frame carries goes with that release.
+ * gesture, so one over a held gesture is `cancel` then `press`; a release or a cancel with nothing held is nothing.
  *
  * It was the LAN server's per-connection buffer and had drifted from the fold. Nothing in the app or in `scripts/`
  * uses it now; only tests that script a rider by frames do.
@@ -26,20 +24,13 @@ export class BombInputBuffer {
     latestGesture: 0,
   };
 
-  /** One frame from the device: the button's edge in it, if any, and where the rider is aiming. */
-  accept(action?: BombAction, aim?: AimPoint): void {
+  /** One frame from the device: the button's edge in it, if any. */
+  accept(action?: BombAction): void {
     const { controls } = this;
     if (action === "press")
       pressGesture(controls, controls.latestGesture + 1, this.pending);
-    if (aim && controls.activeGesture && action !== "release")
-      aimGesture(controls, { ...aim });
     if (action === "release" && controls.activeGesture)
-      releaseGesture(
-        controls,
-        controls.activeGesture,
-        aim && { ...aim },
-        this.pending,
-      );
+      releaseGesture(controls, controls.activeGesture, this.pending);
     if (action === "cancel") this.cancel();
     this.bound();
   }
@@ -68,7 +59,6 @@ export class BombInputBuffer {
   private bound(): void {
     if (this.pending.length <= MAX_PENDING_BOMB_ACTIONS) return;
     this.controls.activeGesture = 0;
-    this.controls.aim = undefined;
     this.pending = [{ action: "cancel" }];
   }
 }

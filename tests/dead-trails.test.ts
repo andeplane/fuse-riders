@@ -62,17 +62,9 @@ function advanceWithSurvivors(game: GameState, ticks: number) {
   }
 }
 
-for (const cause of [
-  "leave",
-  "wall",
-  "trail",
-  "rider",
-  "bomb",
-  "target",
-] as const) {
+for (const cause of ["leave", "wall", "trail", "rider", "bomb"] as const) {
   test(`${cause} elimination pauses then erodes the remaining trail and clears it next round`, () => {
     const { game, dead, survivor } = fixture();
-    let input = new Map<string, InputIntent>();
     if (cause === "leave") eliminatePlayer(game, dead.id);
     if (cause === "wall")
       Object.assign(dead, { x: game.boundaryInset + 1, angle: Math.PI });
@@ -106,25 +98,7 @@ for (const cause of [
       });
       game.nextBombId = 2;
     }
-    if (cause === "target") {
-      survivor.targetBombArmed = true;
-      input = new Map([
-        [
-          survivor.id,
-          {
-            ...neutral,
-            bombCommands: [
-              { action: "press" },
-              {
-                action: "release",
-                aim: { x: 500 / game.width, y: 450 / game.height },
-              },
-            ],
-          },
-        ],
-      ]);
-    }
-    step(game, input);
+    step(game, new Map());
     assert.equal(dead.alive, false);
     assert.ok(dead.trail.length > 0);
     if (cause === "trail" || cause === "rider")
@@ -194,25 +168,29 @@ test("explosions can still destroy a dead trail after its original expiry", () =
   const { game, dead, survivor } = fixture();
   eliminatePlayer(game, dead.id);
   advanceWithSurvivors(game, 10);
-  survivor.targetBombArmed = true;
-  step(
-    game,
-    new Map([
-      [
-        survivor.id,
-        {
-          ...neutral,
-          bombCommands: [
-            { action: "press" },
-            {
-              action: "release",
-              aim: { x: 250 / game.width, y: 200 / game.height },
-            },
-          ],
-        },
-      ],
-    ]),
+  assert.ok(
+    game.tick > dead.trail[0]!.expiresAtTick,
+    "the trail has outlived its original expiry",
   );
+  assert.ok(dead.trail.length > 0, "and is still on the board");
+  // A landed bomb whose fuse runs out on the next step, right on top of the dead trail.
+  game.bombs.set(1, {
+    id: 1,
+    ownerId: survivor.id,
+    x: 250,
+    y: 200,
+    launchX: 250,
+    launchY: 200,
+    launchedTick: game.tick,
+    placedTick: game.tick,
+    landsAtTick: game.tick,
+    explodeAtTick: game.tick + 1,
+    blastRange: 90,
+    flightPath: [{ x: 250, y: 200, angle: 0 }],
+  });
+  game.nextBombId = 2;
+  step(game, new Map());
+  assert.equal(game.bombs.size, 0, "the bomb went off");
   assert.deepEqual(dead.trail, []);
 });
 
@@ -257,7 +235,7 @@ test("riders can pass through space eroded before this tick collision check", ()
   assert.equal(survivor.alive, true);
 });
 
-for (const weapon of ["bomb", "target", "gun"] as const) {
+for (const weapon of ["bomb", "gun"] as const) {
   test(`${weapon} cuts detach older history, preserve active suffix and allow full boosted regrowth`, () => {
     const { game, dead: rider, survivor } = fixture();
     rider.trail = Array.from({ length: 20 }, (_, i) => ({
@@ -270,24 +248,7 @@ for (const weapon of ["bomb", "target", "gun"] as const) {
     }));
     rider.powerPickups = 4;
     let inputs = new Map<string, InputIntent>();
-    if (weapon === "target") {
-      survivor.targetBombArmed = true;
-      inputs = new Map([
-        [
-          survivor.id,
-          {
-            ...neutral,
-            bombCommands: [
-              { action: "press" },
-              {
-                action: "release",
-                aim: { x: 350 / game.width, y: 200 / game.height },
-              },
-            ],
-          },
-        ],
-      ]);
-    } else if (weapon === "gun") {
+    if (weapon === "gun") {
       Object.assign(survivor, {
         x: 350,
         y: 160,

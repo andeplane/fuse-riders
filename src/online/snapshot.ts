@@ -58,8 +58,6 @@ export function encodeSnapshot(world: World, room: number): SnapshotChunk[] {
     id,
     fold.generation,
     fold.flags,
-    fold.aim?.x ?? null,
-    fold.aim?.y ?? null,
     fold.activeGesture,
     fold.latestGesture,
   ]);
@@ -240,11 +238,9 @@ export function decodeSnapshot(
     bots.add(id);
   }
   const folds = new Map<string, Fold>();
-  const unit = (v: unknown): v is number =>
-    typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1;
   for (const raw of rawFolds) {
-    if (!Array.isArray(raw) || raw.length !== 7) return;
-    const [id, generation, flags, x, y, active, latest] = raw;
+    if (!Array.isArray(raw) || raw.length !== 5) return;
+    const [id, generation, flags, active, latest] = raw;
     if (
       !memberId(id) ||
       !game.players.has(id) ||
@@ -258,13 +254,11 @@ export function decodeSnapshot(
       (active !== 0 && active !== latest)
     )
       return;
-    if (!((x === null && y === null) || (unit(x) && unit(y)))) return;
     folds.set(id, {
       generation,
       flags,
       activeGesture: active,
       latestGesture: latest,
-      ...(x === null ? {} : { aim: { x, y: y as number } }),
     });
   }
   for (const player of game.players.values())

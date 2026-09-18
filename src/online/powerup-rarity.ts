@@ -9,7 +9,7 @@ const SCALE: Record<Rarity, number> = {
   normal: 1,
   common: 3,
 };
-/** Star ships with weight 0, so a rarity for it (or any disabled default) scales the median default weight instead. */
+/** A type that ships with weight 0 has no default to scale, so a rarity for it scales the median default weight instead. */
 export function weightFor(
   type: PickupType,
   rarity: Rarity,

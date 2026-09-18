@@ -2,7 +2,6 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ACTION,
-  AIM,
   AVATAR,
   BOT,
   CANCEL,
@@ -14,12 +13,10 @@ import {
   SETTINGS,
   SPECTATOR,
   STEER,
-  dequantizeAim,
   foldPlayerEntries,
   isEntry,
   isManagementKind,
   neutralControls,
-  quantizeAim,
   type Entry,
 } from "../src/engine/input-log.js";
 import { BotController } from "../src/engine/bot-controller.js";
@@ -97,10 +94,8 @@ function playing() {
 test("entry validation accepts every kind and rejects malformed shapes, bounds and unknown kinds", () => {
   const valid: Entry[] = [
     entry(1, 1, STEER, 3),
-    entry(2, 1, AIM, 0, 65535),
     entry(3, 2, PRESS, 1),
     entry(4, 2, RELEASE, 1),
-    entry(5, 3, RELEASE, 2, 10, 20),
     entry(6, 3, CANCEL, 2),
     entry(7, 3, AVATAR, "fox"),
     entry(8, 4, JOIN, "abc", "Name", 4, "robot", 0),
@@ -120,9 +115,10 @@ test("entry validation accepts every kind and rejects malformed shapes, bounds a
     [1, 0, STEER, 0],
     [1, 1, STEER, 4],
     [1, 1, STEER],
-    [1, 1, AIM, 65536, 0],
+    [1, 1, 1, 0, 65535], // kind 1 carried Target Bomb aim and is retired
     [1, 1, PRESS, 0],
     [1, 1, RELEASE, 1, 5],
+    [1, 1, RELEASE, 1, 10, 20], // the retired release-with-aim form
     [1, 1, AVATAR, "nope"],
     [1, 1, JOIN, "", "Name", 0, "fox", 1],
     [1, 1, JOIN, "abc", "   ", 0, "fox", 1],
@@ -152,45 +148,36 @@ test("entry validation accepts every kind and rejects malformed shapes, bounds a
   assert.equal(isManagementKind(SPECTATOR), true);
   assert.equal(isManagementKind(SPECTATOR + 1), false);
   assert.equal(isManagementKind(STEER), false);
-  assert.deepEqual(quantizeAim({ x: 0.5, y: 2 }), [32768, 65535]);
-  assert.deepEqual(quantizeAim({ x: NaN, y: -1 }), [0, 0]);
-  assert.deepEqual(dequantizeAim(65535, 0), { x: 1, y: 0 });
 });
 
-test("the gesture fold mirrors the LAN bomb buffer: press, replacement, matching release with aim, cancel, mismatch", () => {
+test("the gesture fold mirrors the LAN bomb buffer: press, replacement, matching release, cancel, mismatch", () => {
   const held = neutralControls();
-  assert.deepEqual(
-    foldPlayerEntries(held, [
-      entry(1, 1, STEER, 1),
-      entry(2, 1, AIM, 65535, 0),
-    ]),
-    { left: true, right: false, bomb: false, aim: { x: 1, y: 0 } },
-  );
+  assert.deepEqual(foldPlayerEntries(held, [entry(1, 1, STEER, 1)]), {
+    left: true,
+    right: false,
+    bomb: false,
+  });
   assert.deepEqual(foldPlayerEntries(held, [entry(3, 2, PRESS, 1)]), {
     left: true,
     right: false,
     bomb: true,
-    aim: { x: 1, y: 0 },
-    bombCommands: [{ action: "press", aim: { x: 1, y: 0 } }],
+    bombCommands: [{ action: "press" }],
   });
   assert.deepEqual(
     foldPlayerEntries(held, [entry(4, 3, PRESS, 2)]).bombCommands,
-    [{ action: "cancel" }, { action: "press", aim: { x: 1, y: 0 } }],
+    [{ action: "cancel" }, { action: "press" }],
   );
   assert.deepEqual(
     foldPlayerEntries(held, [entry(5, 4, RELEASE, 1)]).bombCommands,
     undefined,
     "a stale gesture id is a no-op",
   );
-  assert.deepEqual(
-    foldPlayerEntries(held, [entry(6, 5, RELEASE, 2, 0, 65535)]),
-    {
-      left: true,
-      right: false,
-      bomb: false,
-      bombCommands: [{ action: "release", aim: { x: 0, y: 1 } }],
-    },
-  );
+  assert.deepEqual(foldPlayerEntries(held, [entry(6, 5, RELEASE, 2)]), {
+    left: true,
+    right: false,
+    bomb: false,
+    bombCommands: [{ action: "release" }],
+  });
   assert.deepEqual(
     foldPlayerEntries(held, [entry(7, 6, PRESS, 2)]).bombCommands,
     undefined,
@@ -527,7 +514,7 @@ test("bots are simulated on every replica and the same log always folds to the s
   );
   assert.match(hashText("x"), /^[0-9a-f]{16}$/);
   assert.notEqual(hashText("a"), hashText("b"));
-  assert.equal(RULES, "fuse-p2p-40");
+  assert.equal(RULES, "fuse-p2p-41");
   const reordered = createRoomState("room", settings);
   reordered.game.players = new Map([...a.game.players].reverse());
   reordered.game.tick = a.game.tick;

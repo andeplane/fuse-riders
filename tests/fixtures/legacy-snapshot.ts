@@ -68,8 +68,6 @@ export function legacySnapshot(state: GameState) {
       gunArmed: player.gunArmed,
       ...(player.gunAim === undefined ? {} : { gunAim: player.gunAim }),
       shellArmed: player.shellArmed,
-      targetBombArmed: player.targetBombArmed,
-      ...(player.bombTarget ? { bombTarget: { ...player.bombTarget } } : {}),
       tripleShotArmed: player.tripleShotArmed,
       fiveShotArmed: player.fiveShotArmed,
       shielded: player.shielded,

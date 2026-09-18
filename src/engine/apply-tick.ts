@@ -35,7 +35,7 @@ import type { GameEvent } from "./state.js";
 import { driveGameTick } from "./tick-driver.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-40"; // 40: spectators are room members in the fold: SPECTATOR entries seat and free them, PRESENCE and LEAVE reach them, and they rank last in the succession order. 39: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
+export const RULES = "fuse-p2p-41"; // 41: spectators are room members in the fold: SPECTATOR entries seat and free them, PRESENCE and LEAVE reach them, and they rank last in the succession order. 40: Target Bomb and the aim input are gone; Star drops by default. 39: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
 /** How many named watchers a room lists beside its five seats. The room service admits them (`ROOM_LIMITS.maxGuests`). */
@@ -189,10 +189,7 @@ function pruneOrphans(state: RoomState): void {
     if (!state.game.players.has(id)) state.bots.delete(id);
 }
 function resetGestures(state: RoomState): void {
-  for (const fold of state.folds.values()) {
-    fold.activeGesture = 0;
-    fold.aim = undefined;
-  }
+  for (const fold of state.folds.values()) fold.activeGesture = 0;
 }
 
 /** Every management entry is applied defensively: an inapplicable entry is a no-op on every replica alike. */
