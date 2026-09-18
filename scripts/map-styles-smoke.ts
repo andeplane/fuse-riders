@@ -194,9 +194,11 @@ try {
   assert.deepEqual(errors, []);
   await mkdir("artifacts", { recursive: true });
   for (const picture of pictures) {
+    const encoded = picture.data.split(",")[1];
+    assert.ok(encoded, "screenshot must contain base64 image data");
     await writeFile(
       `artifacts/${picture.name}-${browserName}.png`,
-      Buffer.from(picture.data.split(",")[1], "base64"),
+      Buffer.from(encoded, "base64"),
     );
   }
   console.log(
