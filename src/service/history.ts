@@ -17,6 +17,7 @@ import type {
 } from "../engine/match-stats.js";
 import { validRiderName } from "../engine/rider-name.js";
 import { GAME_ID } from "../shared/game-id.js";
+import { diceRegistration } from "dice/platform";
 import {
   LEGACY_GAME_ID,
   MAX_MATCH_PARTICIPANTS,
@@ -36,7 +37,7 @@ import {
  * Fuse Riders' part of the shared backend (`fuse-platform`): what a rider's stats are, what a match adds to an
  * account's totals and career, and rivalries from eliminations. Attestation, settlement, Elo and storage are the
  * platform's. This module also builds the service's `platform`: the account rules every game shares, and every
- * registered game. A second game's registration joins Fuse Riders in that list.
+ * registered game: Fuse Riders and the dice game (`games/dice/src/platform.ts`).
  */
 
 export {
@@ -290,7 +291,10 @@ if (GAME_ID !== LEGACY_GAME_ID)
   throw new Error("Fuse Riders must remain the legacy game");
 
 /** Every game this service hosts. The room service is configured with the same ids. */
-export const platform = new Platform(ACCOUNT_RULES, [fuseRiders]);
+export const platform = new Platform(ACCOUNT_RULES, [
+  fuseRiders,
+  diceRegistration,
+]);
 
 /** Runtime boundary for a Fuse Riders result, reported or stored: unknown fields are refused, not ignored. */
 export const parseMatchResult = (raw: unknown): MatchResult | undefined =>

@@ -1,14 +1,13 @@
-import type { MatchResult, PlayerResult } from "fuse-platform";
-import { noStats, players, type DiceRoom, type PlayerStats } from "./rules.js";
+import type { MatchResult } from "fuse-platform";
+import type { DiceStats } from "../platform.js";
+import { noStats, players, type DiceRoom } from "./rules.js";
 
 /**
- * One player's result as `fuse-platform` stores it: the fields it reads itself, the points they banked and their play
- * in the match. A round receipt carries its points and no play (all zero): it rates, and never credits totals.
+ * One player's result as `fuse-platform` stores it (`parseDiceStats` is its boundary): the fields it reads itself,
+ * the points they banked over the rounds reported, and their play in the match. A round receipt carries its points
+ * and no play (all zero): it rates, and never credits totals.
  */
-export interface DicePlayerResult extends PlayerResult, PlayerStats {
-  /** Points banked in the rounds reported, summed over rounds. */
-  points: number;
-}
+export type DicePlayerResult = DiceStats;
 
 /** 1 plus the number of players strictly ahead; ties share a place. */
 function placements<T>(items: T[], better: (a: T, b: T) => boolean): number[] {

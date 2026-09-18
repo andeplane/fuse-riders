@@ -1,6 +1,7 @@
 import { defaultText, type RollbackGame, type Stage } from "fuse-netcode";
 import { decodeRoom, encodeRoom, hashRoom } from "./checkpoint.js";
 import {
+  BOT_PREFIX,
   CAPACITY,
   MAX_WATCHERS,
   TARGET,
@@ -108,9 +109,6 @@ export function diceView(room: DiceRoom): DiceView {
     ...(room.winner ? { winnerId: room.winner } : {}),
   };
 }
-
-export const BOT_PREFIX = "bot:";
-export const isBotId = (id: string): boolean => /^bot:[0-9]{1,6}$/.test(id);
 
 export const diceGame: RollbackGame<
   DiceRoom,

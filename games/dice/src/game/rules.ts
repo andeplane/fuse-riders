@@ -13,6 +13,15 @@ import {
   type Stage,
   type StreamEntries,
 } from "fuse-netcode";
+import {
+  CAPACITY,
+  MAX_NAME,
+  MAX_POINTS,
+  TARGET,
+  WINS_NEEDED,
+  validName,
+} from "./basics.js";
+export * from "./basics.js";
 
 /**
  * Pig on the shared log. On your turn you roll a d6 as often as you like, adding each roll to the turn total; a 1 busts
@@ -27,10 +36,6 @@ export const ROLL = 0,
   HOLD = 1;
 export type DiceAction = typeof ROLL | typeof HOLD;
 
-export const TARGET = 50;
-export const WINS_NEEDED = 2;
-/** Seats per room: 2–5 players, bots included. */
-export const CAPACITY = 5;
 export const MAX_WATCHERS = 8;
 /** Log ticks are the fixed 50 ms clock: 20 per second. */
 export const TICKS_PER_SECOND = 20;
@@ -38,13 +43,8 @@ export const MIN_TURN_TICKS = 2 * TICKS_PER_SECOND;
 export const MAX_TURN_TICKS = 60 * TICKS_PER_SECOND;
 /** Log ticks between a decided round and the next one. */
 export const BETWEEN_TICKS = 3 * TICKS_PER_SECOND;
-/** A round every seat but one can win before someone reaches `WINS_NEEDED`, plus the deciding one. */
-export const MAX_ROUNDS = CAPACITY * (WINS_NEEDED - 1) + 1;
 /** Everyone who ever sat in a match, departed seats included. */
 export const MAX_PARTICIPANTS = 64;
-/** The most one turn or one round's bank can hold; far past anything a legal game reaches. */
-export const MAX_POINTS = 10_000;
-export const MAX_NAME = 18;
 
 export interface DiceSettings {
   /** How long a turn waits for its player, in log ticks; running out holds for them. */
@@ -140,18 +140,6 @@ export type DiceEvent =
   | { type: "match"; id: string };
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
-const LONE_SURROGATE = /\p{Cs}/u;
-/** The account name rule every game shares: trimmed, 1–18 code points, no control characters or half surrogate pairs. */
-export function validName(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.length > 0 &&
-    value === value.trim() &&
-    Array.from(value).length <= MAX_NAME &&
-    !CONTROL.test(value) &&
-    !LONE_SURROGATE.test(value)
-  );
-}
 /** What a player typed, as it is seated: trimmed and cut to `MAX_NAME` code points, or refused. */
 export function seatName(raw: string): string | undefined {
   if (CONTROL.test(raw)) return;
