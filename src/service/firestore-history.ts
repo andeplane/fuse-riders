@@ -150,6 +150,7 @@ export class FirestoreHistoryDatabase implements HistoryDatabase {
           ...(profile.avatarId ? { avatarId: profile.avatarId } : {}),
           elo,
           games: profile.rating.games,
+          rounds: profile.rating.rounds ?? 0,
           ...(doc.id === uid ? { you: true } : {}),
         },
       ];

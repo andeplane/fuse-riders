@@ -48,8 +48,10 @@ An authorized project IAM administrator runs the reviewed bootstrap once:
 BOOTSTRAP_ACCOUNT=YOUR_AUTHORIZED_GOOGLE_ACCOUNT bash scripts/bootstrap-configuration-cd.sh
 ```
 
-It grants the existing `fuse-riders-deployer` a custom role from `deploy/configuration-role.yaml`.
-There are no new secrets, downloaded keys, runtime grants or enabled services. The role has configuration permissions,
+It enables the API Keys API (`apikeys.googleapis.com`), which CD needs to read and restrict the web key, and grants
+the existing `fuse-riders-deployer` a custom role from `deploy/configuration-role.yaml`. A local
+`config:plan --account` passes without that API because a personal gcloud token bills gcloud's own project; the
+workload identity bills this one. There are no new secrets, downloaded keys or runtime grants. The role has configuration permissions,
 not Firestore document access, IAM administration, database creation/deletion or index deletion. Auth configuration
 is project-wide; this project's Auth is shared, so domain/provider edits need review. The script pins the game's database,
 web app and API key; those checks are application safeguards, not an IAM boundary for every configuration API.
@@ -71,7 +73,8 @@ let the existing operation finish and rerun the backend workflow at the current 
 when readiness times out. Partial configuration changes can remain after failure, so keep schema changes compatible
 with the currently running gateway. Firestore document migrations/backfills are not implemented by this workflow.
 
-A queued old revision cannot overwrite newer configuration: if it needs a change and is behind main, it stops.
+A queued old revision cannot overwrite newer configuration: if it needs a change and `main` holds different
+configuration files, it stops. Being behind `main` alone does not stop it, because `main` moves faster than CI.
 Use a reviewed revert on current main to roll configuration back. An application traffic rollback does not revert
 rules, TTLs or indexes, and deleting data through TTL cannot be undone by reverting configuration.
 

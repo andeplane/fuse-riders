@@ -78,7 +78,8 @@ export function createJoinForm(
   hint.setAttribute("role", "alert");
   hint.textContent = "Enter your name to join";
   hint.hidden = true;
-  form.append(name, account, button, hint, current, picker.element);
+  // The note follows the button and spans the row like the hint: between name and button it took the grid's auto column and crushed both.
+  form.append(name, button, account, hint, current, picker.element);
   if (accountName) useAccountName(accountName);
   // The name is remembered as it is typed, so a page that reloads before JOIN is tapped keeps it rather than an empty field.
   name.addEventListener("input", () => {
@@ -101,6 +102,7 @@ export function createJoinForm(
   };
   return {
     element: form,
+    submitButton: button,
     picker: {
       ...picker,
       sync(id: AvatarId) {

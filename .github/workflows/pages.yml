@@ -50,13 +50,18 @@ jobs:
             // deployment triggers this workflow again.
             let sha = context.payload.inputs?.revision;
             if (!manual) {
-              const health = await fetch(`${process.env.VITE_API_ORIGIN}/api/health`, { signal: AbortSignal.timeout(30000) });
+              const origin = process.env.VITE_API_ORIGIN;
+              if (!origin) throw new Error('Set repository variable VITE_API_ORIGIN to the verified Cloud Run HTTPS origin.');
+              const health = await fetch(`${origin}/api/health`, { cache: 'no-store', signal: AbortSignal.timeout(30000) });
               if (!health.ok) throw new Error(`Backend health returned ${health.status}; refusing to publish a frontend it may not serve.`);
               sha = (await health.json()).revision;
               if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('The live backend does not report its revision; deploy a backend that does before publishing.');
-              const { data } = await github.rest.actions.listWorkflowRuns({ ...context.repo, workflow_id: 'ci.yml', branch: 'main', event: 'push', status: 'success', head_sha: sha, per_page: 1 });
-              if (!data.workflow_runs[0]) throw new Error(`No successful CI run for the live backend revision ${sha}; refusing to publish it.`);
-              core.setOutput('ci_run', String(data.workflow_runs[0].id));
+              // Look the revision's own CI runs up by commit and check the conclusion here: the runs API's `status`
+              // filter is eventually consistent and has answered wrongly right after a completion.
+              const { data } = await github.rest.actions.listWorkflowRuns({ ...context.repo, workflow_id: 'ci.yml', branch: 'main', event: 'push', head_sha: sha, per_page: 20 });
+              const verified = data.workflow_runs.filter((r) => r.head_sha === sha && r.conclusion === 'success').sort((a, b) => b.run_number - a.run_number)[0];
+              if (!verified) throw new Error(`No successful CI push run for the live backend revision ${sha}; refusing to publish it.`);
+              core.setOutput('ci_run', String(verified.id));
             }
             if (!/^[a-f0-9]{40}$/.test(sha ?? '')) throw new Error('An exact full revision is required.');
             if (manual && !context.payload.inputs.local_verification?.trim()) throw new Error('Local verification evidence is required.');

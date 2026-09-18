@@ -5,7 +5,6 @@ import {
   botRandom,
   botDifficulty,
   botDisplayName,
-  rollBotDifficulty,
   BOT_DIFFICULTIES,
   BOT_TIERS,
 } from "../src/shared/bot-controller.js";
@@ -356,6 +355,62 @@ test("AI presses, holds and releases ordinary bombs through the same charge/cool
   assert.equal(bot.input(game, player.id).bomb, false);
 });
 
+test("Range bots use upgraded reach for charge selection and distant targets", () => {
+  for (const rangeLevel of [1, 2, 3])
+    for (const aimBounce of [false, true]) {
+      const game = fixture(),
+        bot = new BotController(),
+        player = game.players.get("bot:1")!;
+      const maximum = [400, 600, 700, 800][rangeLevel]!;
+      player.rangeLevel = rangeLevel;
+      game.settings = { ...defaultRoomSettings(), aimBounce };
+      game.players.get("human")!.x = player.x + maximum;
+      assert.equal(
+        bot.input(game, player.id).bombCommands?.[0]?.action,
+        "press",
+      );
+      // The midpoint of either curve is reached at four ticks.
+      game.players.get("human")!.x = player.x + (100 + maximum) / 2;
+      player.bombChargeStartedTick = game.tick - 3;
+      assert.equal(bot.input(game, player.id).bomb, true);
+      player.bombChargeStartedTick = game.tick - 4;
+      assert.equal(
+        bot.input(game, player.id).bombCommands?.[0]?.action,
+        "release",
+      );
+    }
+});
+
+test("AI chooses hold times from the room's eased distance curve", () => {
+  for (const [window, distance, wanted] of [
+    [8, 150, 2],
+    [8, 350, 6],
+    [24, 150, 6],
+    [24, 350, 18],
+  ]) {
+    const game = fixture(),
+      bot = new BotController(),
+      player = game.players.get("bot:1")!;
+    game.settings = {
+      ...defaultRoomSettings(),
+      bombChargeTicks: window!,
+      aimBounce: true,
+    };
+    game.players.get("human")!.x = player.x + distance!;
+    player.bombChargeStartedTick = game.tick - wanted! + 1;
+    assert.equal(
+      bot.input(game, player.id).bomb,
+      true,
+      "holds before the closest distance",
+    );
+    player.bombChargeStartedTick = game.tick - wanted!;
+    assert.equal(
+      bot.input(game, player.id).bombCommands?.[0]?.action,
+      "release",
+    );
+  }
+});
+
 test("AI target/gun/shell shots use normal input actions and target aim is bounded", () => {
   for (const powerup of [
     "targetBombArmed",
@@ -458,13 +513,21 @@ test("AI arriving during a match waits and appears in the next round; removal be
   );
 });
 
-test("Every AI is rolled a difficulty that shows in its name and steers its own controller", () => {
-  assert.deepEqual([0, 0.34, 0.67, 0.99].map(rollBotDifficulty), [
-    "easy",
-    "medium",
-    "hard",
-    "hard",
-  ]);
+test("New AI names omit difficulty and use the full-strength controller", () => {
+  const game = fixture();
+  const player = game.players.get("bot:1")!;
+  const bot = new BotController();
+  for (const base of BOT_NAMES) {
+    player.name = botDisplayName(base);
+    assert.equal(player.name, `AI ${base}`);
+    assert.equal(botDifficulty(player.name), "hard");
+    const input = bot.input(game, player.id);
+    player.name = botDisplayName(base, "hard");
+    assert.deepEqual(bot.input(game, player.id), input);
+  }
+});
+
+test("Explicit tiers in existing names retain their deterministic controller settings", () => {
   for (const base of BOT_NAMES)
     for (const difficulty of BOT_DIFFICULTIES) {
       const name = botDisplayName(base, difficulty);
@@ -568,6 +631,34 @@ test("an upgraded bot ignores nearby GRIP drops and continues toward useful pick
     bot.input(game, player.id).left,
     true,
     "an eligible bot still pursues GRIP",
+  );
+});
+
+test("an upgraded bot ignores nearby Range drops and continues toward useful pickups", () => {
+  const game = steeringFixture(),
+    player = game.players.get("bot:1")!;
+  player.rangeLevel = 3;
+  const bot = new BotController({ random: () => 0.25 });
+  game.pickups = [{ id: 1, type: "power", x: 460, y: 550, expiresAtTick: 999 }];
+  const useful = bot.input(game, player.id);
+  assert.equal(useful.right, true, "the useful pickup lies to the right");
+  game.pickups.push({
+    id: 2,
+    type: "range",
+    x: 430,
+    y: 420,
+    expiresAtTick: 999,
+  });
+  assert.deepEqual(
+    bot.input(game, player.id),
+    useful,
+    "uncollectible Range must not distract the bot",
+  );
+  player.rangeLevel = 2;
+  assert.equal(
+    bot.input(game, player.id).left,
+    true,
+    "an eligible bot still pursues Range",
   );
 });
 

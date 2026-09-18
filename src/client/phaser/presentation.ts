@@ -27,6 +27,8 @@ export function mountArenaPresentation(
     theme: ThemeDefinition,
     scope: string,
     selfId?: string,
+    /** A replayed moment is not the round opening for the viewer, so it never points them out. */
+    replay?: boolean,
   ): void;
   destroy(): void;
 } {
@@ -44,6 +46,7 @@ export function mountArenaPresentation(
         theme: ThemeDefinition;
         scope: string;
         selfId?: string;
+        replay?: boolean;
       }
     | undefined;
   const status = document.createElement("div");
@@ -93,6 +96,7 @@ export function mountArenaPresentation(
         latest.theme,
         latest.scope,
         latest.selfId,
+        latest.replay,
       );
       if (latest.now - metricsAt > 500) {
         canvas.dataset.rendererMetrics = JSON.stringify(engine.metrics());
@@ -114,6 +118,7 @@ export function mountArenaPresentation(
       const module = await dependencies.loadArena();
       if (!current()) return;
       const arena = module.createPhaserArena(canvas, {
+        rotateToFit: canvas.classList.contains("online-arena"),
         renderer:
           new URLSearchParams(location.search).get("renderer") ===
           "phaser-canvas"
@@ -163,9 +168,9 @@ export function mountArenaPresentation(
     initialize();
   };
   return {
-    render(snapshot, now, theme, scope, selfId) {
+    render(snapshot, now, theme, scope, selfId, replay) {
       if (state === "disposed") return;
-      latest = { snapshot, now, theme, scope, selfId };
+      latest = { snapshot, now, theme, scope, selfId, replay };
       initialize();
       paint();
     },

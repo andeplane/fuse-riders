@@ -45,6 +45,10 @@ export interface AccountPanelDependencies {
   leaderboardUrl: string;
   /** Browser smoke tests inject an explicit identity surface, never real credentials. */
   auth?: AccountPanelAuth;
+  refreshClock?: {
+    now: () => number;
+    schedule: (callback: () => void, delayMs: number) => () => void;
+  };
   /** The rider name this browser already uses, the natural first username. */
   localName: () => string | null;
   fetch: typeof fetch;
@@ -134,6 +138,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
   button: HTMLButtonElement;
   leaderboardButton: HTMLButtonElement;
   dialog: HTMLDialogElement;
+  refresh: () => void;
   dispose: () => void;
 } {
   const auth = dependencies.auth ?? liveAuth;
@@ -157,9 +162,30 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     generation = 0,
     view: "stats" | "leaderboard" = "stats";
   let landingGeneration = 0;
+  const refreshClock = dependencies.refreshClock ?? {
+    now: Date.now,
+    schedule: (callback: () => void, delayMs: number) => {
+      const timer = setTimeout(callback, delayMs);
+      return () => clearTimeout(timer);
+    },
+  };
+  let lastRefresh = 0;
+  let cancelRefresh: (() => void) | undefined;
+  // Coalesce round completions and focus changes: no background polling, at most one profile refresh per 15 seconds.
+  const refresh = () => {
+    if (!account || cancelRefresh !== undefined) return;
+    cancelRefresh = refreshClock.schedule(
+      () => {
+        cancelRefresh = undefined;
+        void refreshLanding();
+      },
+      Math.max(1500, 15_000 - (refreshClock.now() - lastRefresh)),
+    );
+  };
   async function refreshLanding(): Promise<void> {
     const mine = ++landingGeneration;
     if (!account) return;
+    lastRefresh = refreshClock.now();
     try {
       const token = await auth.token();
       if (!token) return;
@@ -172,11 +198,22 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       };
       if (mine !== landingGeneration || !account) return;
       const rating = profile?.rating ?? newRating();
-      button.textContent = `${profile?.rank ? `#${profile.rank}` : "UNRANKED"} · ${Math.round(rating.value).toLocaleString()} ELO`;
+      leaderboardButton.textContent = profile?.rank
+        ? `#${profile.rank} · LEADERBOARD`
+        : "LEADERBOARD";
+      const nickname =
+        [profile?.username, profile?.name, dependencies.localName()].find(
+          validRiderName,
+        ) ?? account.name;
+      button.textContent = `${nickname}\n${Math.round(rating.value).toLocaleString()} ELO`;
       button.title = "Your global rank and Elo · Open player stats";
     } catch {
-      if (mine === landingGeneration && account)
-        button.textContent = "MY STATS · OFFLINE";
+      if (mine === landingGeneration && account) {
+        if (!button.textContent?.includes("ELO"))
+          button.textContent = "MY STATS · OFFLINE";
+        button.title =
+          "Could not refresh Elo · Showing the last available rating";
+      }
     }
   }
 
@@ -325,7 +362,7 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       body.replaceChildren(
         el(
           "p",
-          "Sign in to keep a history of every match you finish and your career totals, on any device. Playing never needs an account. Your rider name, avatar and Elo appear on the public leaderboard after a rated match; your email is never shown.",
+          "Sign in to keep a history of every match you finish and your career totals, on any device. Playing never needs an account. Your rider name, avatar and Elo appear on the public leaderboard after a rated round; your email is never shown.",
           "account-note",
         ),
         enter,
@@ -418,8 +455,11 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
   }
 
   const stop = auth.watch((next) => {
+    cancelRefresh?.();
+    cancelRefresh = undefined;
     account = next;
-    button.textContent = next ? "MY STATS" : "SIGN IN";
+    leaderboardButton.textContent = "LEADERBOARD";
+    button.textContent = next ? next.name : "SIGN IN";
     button.dataset.signedIn = String(Boolean(next));
     button.title = next
       ? `Signed in as ${next.name}`
@@ -460,7 +500,10 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     button,
     leaderboardButton,
     dialog,
+    refresh,
     dispose: () => {
+      account = undefined;
+      cancelRefresh?.();
       generation++;
       landingGeneration++;
       stop();

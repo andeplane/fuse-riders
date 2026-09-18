@@ -2,7 +2,7 @@ import { chromium, webkit, type Page } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
-// Online gate: create, joins through the join card, start, three rounds on the shared log, guest and creator refresh
+// Online gate: create, joins through the join card, start, three rounds on the shared log, rematch dismisses every recap, guest and creator refresh
 // mid-round, settings and the phone lobby, a lobby reload that re-confirms the seat, an AI rider, and shared-TV mode
 // with controller phones steering riders the TV simulates — in Chromium and WebKit.
 interface Snapshot {
@@ -80,6 +80,11 @@ try {
   });
   a.setDefaultTimeout(smokeTimeout(30000));
   const host = await a.newPage();
+  const roundReports: Array<{ round: number; length: number }> = [];
+  host.on("request", (request) => {
+    if (request.url().endsWith("/round-results") && request.method() === "POST")
+      roundReports.push(request.postDataJSON().result);
+  });
   // WebKit reports a send on a channel whose transport just died as a page error (the transport gates on connection state, but the last task hop can still race),
   // and a spurious same-origin access-control failure from Phaser's asset loader that Chromium never raises.
   const benign = (error: Error) =>
@@ -142,6 +147,17 @@ try {
   target.searchParams.set("benchmark", "1");
   await host.goto(target.href);
   const url = host.url().replace(/&benchmark=1/, "");
+  await host.locator(".room-riders .online-join").waitFor();
+  const lobbyBox = await host.locator(".room-lobby").boundingBox();
+  const joinBox = await host.locator(".room-riders .online-join").boundingBox();
+  assert.ok(lobbyBox && joinBox);
+  assert.ok(
+    joinBox.x >= lobbyBox.x &&
+      joinBox.y >= lobbyBox.y &&
+      joinBox.x + joinBox.width <= lobbyBox.x + lobbyBox.width &&
+      joinBox.y + joinBox.height <= lobbyBox.y + lobbyBox.height,
+    "the creator's join controls belong inside the lobby beside the riders",
+  );
   await host.getByPlaceholder("Your name").fill("Host");
   await host
     .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
@@ -233,15 +249,9 @@ try {
     name: "START RACE",
     exact: true,
   });
-  const startBounds = await startButton.boundingBox();
-  assert.ok(startBounds);
-  await host.mouse.move(
-    startBounds.x + startBounds.width / 2,
-    startBounds.y + startBounds.height / 2,
-  );
-  await host.mouse.down();
-  await new Promise((resolve) => setTimeout(resolve, 180));
-  await host.mouse.up();
+  // The shared menu may wrap and push the lobby footer below the viewport.
+  // Use a real held click with actionability/scrolling, not raw viewport coordinates.
+  await startButton.click({ delay: 180 });
   await guest.waitForFunction(() =>
     document.querySelector(".online-notice")?.textContent?.includes("READY"),
   );
@@ -311,7 +321,37 @@ try {
     hostRound && guestRound && hostRound.matchId === guestRound.matchId,
     "one match on every device",
   );
-  console.log("Three rounds played on the shared log");
+  assert.ok(
+    roundReports.some((r) => r.round === 1 && r.length === 1),
+    "round one reported before the full game recap",
+  );
+  assert.ok(
+    roundReports.some((r) => r.round === 2 && r.length === 1),
+    "round two reported independently",
+  );
+  console.log(
+    "Three rounds played on the shared log; completed rounds reported independently",
+  );
+  // Leave the results open on every device: only the host clicks REMATCH, but nobody should have to dismiss the old report to play.
+  await waitPhase(host, ["matchOver"], 90000);
+  const matchPages = [host, guest, ...riders];
+  await Promise.all(
+    matchPages.map((page) =>
+      page
+        .getByRole("dialog", { name: "Match results", exact: true })
+        .waitFor(),
+    ),
+  );
+  await host
+    .getByRole("dialog", { name: "Match results", exact: true })
+    .getByRole("button", { name: "REMATCH", exact: true })
+    .click();
+  for (const page of matchPages) {
+    await waitPhase(page, ["countdown", "playing"]);
+    await page.locator("dialog.game-dialog[open]").waitFor({ state: "hidden" });
+    assert.notEqual((await latest(page))!.matchId, hostRound.matchId);
+  }
+  console.log("Rematch dismissed the results on every device");
   // The first match may have ended by now: the results dialog opens on its own and must be closed before the room actions.
   const closeRecap = async (page: Page) => {
     if (await page.locator("dialog[open]").count())
@@ -329,6 +369,9 @@ try {
   const running = await latest(host);
   // Guest refresh mid-round: a reload comes back into the running match with the seat it held, without the join card.
   await guest.reload();
+  await waitPhase(guest, ["playing"]);
+  // A refreshed phone starts with its tools closed; the roster lives behind MENU during play.
+  await guest.locator(".mobile-tools-toggle").click();
   await guest
     .locator(".online-roster:visible")
     .getByText("Guest", { exact: false })
@@ -352,6 +395,7 @@ try {
     running!.matchId,
     "the guest rejoined the running match",
   );
+  await guest.locator(".mobile-tools-toggle").click();
   console.log("Guest refresh mid-round confirmed");
   // Creator refresh mid-round: the creator recovers the running world from a peer instead of opening a fresh lobby.
   await ensurePlaying();
@@ -448,6 +492,13 @@ try {
   }
   await host.getByRole("button", { name: "ADD AI", exact: true }).click();
   await host.getByRole("button", { name: /Remove AI/ }).waitFor();
+  assert.match(
+    (await host
+      .getByRole("button", { name: /Remove AI/ })
+      .getAttribute("aria-label"))!,
+    /^Remove AI \w+$/,
+    "AI roster names omit difficulty",
+  );
   await host.getByRole("button", { name: "START RACE", exact: true }).click();
   await waitPhase(host, ["countdown", "playing"]);
   await waitPhase(guest, ["countdown", "playing"]);
@@ -577,7 +628,7 @@ try {
   await display.locator(".shared-lobby").waitFor({ state: "visible" });
   assert.deepEqual(pageErrors, []);
   console.log(
-    "Online smoke passed: room creation, joins, start, three rounds, guest and creator refresh mid-round, settings, phone lobby, lobby reloads, AI rider, shared TV with controller phones.",
+    "Online smoke passed: room creation, joins, start, three rounds, rematch dismisses every recap, guest and creator refresh mid-round, settings, phone lobby, lobby reloads, AI rider, shared TV with controller phones.",
   );
 } catch (error) {
   for (const [index, context] of browser.contexts().entries())
@@ -588,14 +639,29 @@ try {
           .evaluate(() => {
             const canvas =
               document.querySelector<HTMLCanvasElement>(".online-arena");
+            const start = [...document.querySelectorAll("button")].find(
+              (button) => button.textContent === "START RACE",
+            );
+            const startBox = start?.getBoundingClientRect();
             let savedMode: unknown;
             try {
               savedMode = JSON.parse(
-                localStorage.getItem("fuse-riders-room-settings-v1") ?? "{}",
+                localStorage.getItem("fuse-riders-room-settings-v2") ?? "{}",
               ).mode;
             } catch {}
             return {
               body: document.body.innerText,
+              viewport: { width: innerWidth, height: innerHeight },
+              startButton: startBox
+                ? {
+                    bounds: startBox.toJSON(),
+                    disabled: start?.disabled,
+                    centerTarget: document.elementFromPoint(
+                      startBox.x + startBox.width / 2,
+                      startBox.y + startBox.height / 2,
+                    )?.outerHTML,
+                  }
+                : undefined,
               metrics:
                 document.querySelector<HTMLElement>("#app")?.dataset.metrics,
               linkDiagnostics:
