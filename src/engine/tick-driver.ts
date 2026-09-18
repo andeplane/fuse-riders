@@ -37,7 +37,7 @@ export interface DrivenTick {
  *    remain, the next round starts. With fewer the game waits in `roundOver` for the room to act.
  * 3. Settings at the round boundary. The next round plays under the room's current settings, except the match format
  *    (`match`, `length`), which is fixed when the match starts.
- * 4. Outside play nobody holds a charge or a target.
+ * 4. Outside play nobody holds a charge.
  *
  * The driver knows the game and nothing about the room's log, streams or bots; `applyTick` folds those into `inputs`
  * and applies `removed` and `roundStarted` to its own records. `roomSettings` is what the room has chosen now, which

@@ -43,7 +43,8 @@ const PRESS: InputIntent = {
 };
 
 /**
- * Pins INSTANT_DEATHS_COMMIT_PER_RIDER and the seat order of instant commits. Two Guns fire in one tick: p0 shoots p2
+ * Pins the value of INSTANT_DEATHS_COMMIT_PER_RIDER and that Gun kills commit in seat order; it no longer tells the two
+ * settings apart. Two Guns fire in one tick: p0 shoots p2
  * and p1 shoots p3. Each victim's death detaches its trail into debris, and the pieces take ids from one counter in
  * seat order: p2's wreck first, then p3's. Target Bomb, removed in `fuse-p2p-39`, also burnt trails in this pass, and
  * that is what once made the per-rider commit matter; with bullets alone both settings number the pieces alike.
@@ -115,7 +116,14 @@ test("instant kills in one tick detach their wrecks in seat order", () => {
     Math.max(...firstWreck) < Math.min(...secondWreck),
     `seat 2's wreck (${firstWreck}) is numbered before seat 3's (${secondWreck})`,
   );
-  assert.ok(Math.min(...firstWreck) >= nextPiece);
+  assert.deepEqual(
+    [...firstWreck, ...secondWreck].sort((a, b) => a - b),
+    Array.from(
+      { length: firstWreck.length + secondWreck.length },
+      (_, index) => nextPiece + index,
+    ),
+    "nothing else took a piece id this tick",
+  );
 });
 
 test("a sweep death and an instant death are recorded the same way", () => {
