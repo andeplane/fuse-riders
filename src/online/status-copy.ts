@@ -11,7 +11,7 @@ export interface PlainStatus {
 }
 
 const ACTIONABLE =
-  /reload this page|newer tab|incompatible|damaged|room ended|room full|out of sync/i;
+  /reload this page|newer tab|incompatible|damaged|room ended|room full|out of sync|start a new room/i;
 const BAD =
   /failed|interrupted|error|unreachable|expired|NAT|relay|disconnected/i;
 const OK =

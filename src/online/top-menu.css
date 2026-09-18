@@ -20,10 +20,13 @@
   line-height: 1.2;
   letter-spacing: 0.0625rem;
   white-space: nowrap;
-  color: #a8bad2;
-  background: #040b19e6;
-  border: 0.0625rem solid #43536b;
-  border-radius: 0;
+  color: #d5e4f5;
+  background: var(--ui-surface);
+  border: 0.0625rem solid #365477;
+  border-radius: var(--ui-radius);
+  box-shadow:
+    var(--ui-edge),
+    0 0.25rem 0.75rem #0003;
 }
 .online-app :is(.landing-top, .online-header) .game-top-menu button:hover,
 .online-app

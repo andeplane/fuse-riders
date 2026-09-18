@@ -146,6 +146,6 @@ export function sortedLeaderboard(
       (a, b) =>
         b.totalScoreUnits - a.totalScoreUnits ||
         b.matchWins - a.matchWins ||
-        a.id.localeCompare(b.id),
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
     );
 }

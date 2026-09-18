@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { RULES_MISMATCH } from "../src/online/room-runtime.js";
+import { connectHint } from "../src/online/connect-hint.js";
 import { plainStatus } from "../src/online/status-copy.js";
 
 test("link status collapses to connected / connecting / trouble", () => {
@@ -82,4 +84,27 @@ test("a status that tells the player what to do is shown verbatim", () => {
     ).tone,
     "busy",
   );
+});
+
+test("a rules mismatch offers the reload only to the page it would help, and never hides the reason", () => {
+  assert.deepEqual(plainStatus(RULES_MISMATCH.stale), {
+    tone: "bad",
+    text: RULES_MISMATCH.stale,
+    retry: true,
+  });
+  // The current page in an older room: the reason stays, a reload button would do nothing.
+  assert.deepEqual(plainStatus(RULES_MISMATCH.staleRoom), {
+    tone: "bad",
+    text: RULES_MISMATCH.staleRoom,
+    retry: false,
+  });
+  assert.equal(plainStatus(RULES_MISMATCH.replyToNewer).retry, false);
+  assert.equal(plainStatus(RULES_MISMATCH.replyToStale).retry, true);
+  assert.deepEqual(plainStatus(RULES_MISMATCH.staleRider), {
+    tone: "busy",
+    text: RULES_MISMATCH.staleRider,
+    retry: false,
+  });
+  for (const text of [RULES_MISMATCH.stale, RULES_MISMATCH.staleRoom])
+    assert.equal(connectHint(text, 60_000), text);
 });

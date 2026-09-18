@@ -75,7 +75,7 @@ for (const [name, type] of [
   );
   await page.addInitScript(() => {
     localStorage.setItem(
-      "fuse-riders-room-settings-v1",
+      "fuse-riders-room-settings-v2",
       JSON.stringify({
         version: 1,
         mode: "devices",

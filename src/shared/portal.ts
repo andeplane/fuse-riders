@@ -172,7 +172,11 @@ function entryFraction(
   const top = gate.y - gate.halfLength;
   const bottom = gate.y + gate.halfLength;
   const closestY = Math.max(top, Math.min(bottom, from.y));
-  if ((from.x - gate.x) ** 2 + (from.y - closestY) ** 2 <= radius ** 2)
+  if (
+    (from.x - gate.x) * (from.x - gate.x) +
+      (from.y - closestY) * (from.y - closestY) <=
+    radius * radius
+  )
     return undefined;
   const candidates: number[] = [];
   const dx = to.x - from.x;

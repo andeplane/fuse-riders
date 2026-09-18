@@ -39,8 +39,11 @@ grant. No live world is stored by the room service: returning devices recover it
 See [the lifetime design](../../docs/design/member-kept-room-lifetime.md) for
 expiry, verification and rollout boundaries.
 
-Signalling abuse is isolated per room: a 32-frame ICE burst refills at five frames
-per second per member, and bus retry IDs use a bounded room-local window.
+Signalling abuse is isolated per room. Each connection may send 80 signal frames
+per target member, refilled at 10 a second; a frame over any limit is dropped and
+the sender told, and only a flood closes the socket. Paid work is metered
+separately: each room may publish 512 kB to another gateway, refilled at 51.2 kB a
+second, matching the bounded room-local window for bus retry IDs.
 Admission uses a separate 30-failures/hour/IP budget plus bounded pending work;
 successful joins do not consume it. See [abuse isolation](../../docs/design/signalling-abuse-isolation.md)
 for ordering, limits and multi-instance concurrency boundaries.
