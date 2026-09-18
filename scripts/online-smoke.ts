@@ -369,6 +369,9 @@ try {
   const running = await latest(host);
   // Guest refresh mid-round: a reload comes back into the running match with the seat it held, without the join card.
   await guest.reload();
+  await waitPhase(guest, ["playing"]);
+  // A refreshed phone starts with its tools closed; the roster lives behind MENU during play.
+  await guest.locator(".mobile-tools-toggle").click();
   await guest
     .locator(".online-roster:visible")
     .getByText("Guest", { exact: false })
@@ -392,6 +395,7 @@ try {
     running!.matchId,
     "the guest rejoined the running match",
   );
+  await guest.locator(".mobile-tools-toggle").click();
   console.log("Guest refresh mid-round confirmed");
   // Creator refresh mid-round: the creator recovers the running world from a peer instead of opening a fresh lobby.
   await ensurePlaying();
