@@ -192,6 +192,51 @@ try {
           throw Error("Trail hit produced no debris");
         arena.reset();
         paint(100);
+        const pair = {
+          id: "gate",
+          expiresAtTick: 200,
+          gates: [
+            { x: 600, y: 450, halfLength: 100 },
+            { x: 1000, y: 350, halfLength: 100 },
+          ] as const,
+        };
+        const incoming = { ...shot, x: 594 };
+        const outgoing = {
+          ...shot,
+          id: 2,
+          launchX: 1007,
+          launchY: 350,
+          x: 1300,
+          y: 350,
+        };
+        const portal = {
+          ...base,
+          portalPairs: [pair],
+          bombs: [incoming, outgoing],
+        };
+        arena.reset();
+        arena.render(portal, 1000, theme, "portal-gun");
+        const glowing = read();
+        arena.render(
+          { ...portal, bombs: [incoming] },
+          1000,
+          theme,
+          "portal-gun",
+        );
+        const quiet = read();
+        for (const gate of pair.gates) {
+          const offset =
+            ((mode === "webgl" ? 899 - (gate.y - 67) : gate.y - 67) * 1600 +
+              (gate.x + 13)) *
+            4;
+          if (
+            [0, 1, 2].reduce(
+              (sum, c) => sum + glowing[offset + c]! - quiet[offset + c]!,
+              0,
+            ) <= 20
+          )
+            throw Error("Portal pair did not pulse together");
+        }
         results.push({ theme: theme.id, renderer: arena.metrics().renderer });
       }
       const controls = document.createElement("div");
@@ -213,6 +258,86 @@ try {
       }
       controls.remove();
       hud.remove();
+      // A contact sheet of the five visual beats, captured from the real renderer.
+      const rows = [
+        "ARMED",
+        "TRAIL CUT",
+        "LETHAL HIT",
+        "WALL HIT",
+        "PORTAL SHOT",
+      ];
+      const shooters = rows.map((name, i) => ({
+        ...player,
+        id: `s${i}`,
+        name,
+        y: 140 + i * 150,
+        color: fixture.players[i]!.color,
+        gunArmed: i === 0,
+      }));
+      const target = {
+        ...player,
+        id: "target",
+        name: "TARGET",
+        x: 1250,
+        y: 290,
+        color: "#ff5577",
+      };
+      const victim = { ...target, id: "victim", x: 916, y: 440 };
+      const trail = {
+        x1: 900,
+        y1: 220,
+        x2: 900,
+        y2: 360,
+        createdTick: 90,
+        expiresAtTick: 300,
+      };
+      const pair = {
+        id: "showcase",
+        expiresAtTick: 200,
+        gates: [
+          { x: 600, y: 740, halfLength: 55 },
+          { x: 1000, y: 740, halfLength: 55 },
+        ] as const,
+      };
+      const before = {
+        ...base,
+        tick: 99,
+        bombs: [],
+        portalPairs: [pair],
+        players: [...shooters, { ...target, trail: [trail] }, victim],
+      };
+      const shots = shooters.slice(1).map((p, i) => ({
+        ...shot,
+        id: i + 1,
+        ownerId: p.id,
+        launchY: p.y,
+        y: p.y,
+        x: [895, 900, 1563, 594][i]!,
+      }));
+      const cut = Math.sqrt(14 ** 2 - 5 ** 2);
+      const after = {
+        ...before,
+        tick: 100,
+        presentationTick: 100.35,
+        players: [
+          ...shooters,
+          {
+            ...target,
+            trail: [
+              { ...trail, y2: 290 - cut },
+              { ...trail, y1: 290 + cut },
+            ],
+          },
+          { ...victim, alive: false },
+        ],
+        bombs: [
+          ...shots,
+          { ...shots[3]!, id: 5, launchX: 1007, launchY: 740, x: 1450 },
+        ],
+      };
+      arena.reset();
+      arena.render(before, 1000, themes["neon-pixel"], "gun-sheet");
+      arena.render(after, 1000, themes["neon-pixel"], "gun-sheet");
       Reflect.set(window, "disposeGun", () => arena.destroy());
       return results;
     }, mode);

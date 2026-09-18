@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { gunFrame, gunRoots } from "../src/client/gun-animation.js";
+import {
+  gunFrame,
+  gunRoots,
+  gunPortalPulses,
+} from "../src/client/gun-animation.js";
 import { visualFixture } from "../src/client/phaser/benchmark-fixture.js";
 
 const base = visualFixture(100);
@@ -47,4 +51,46 @@ test("tracer glow collapses before the authoritative tracer expires", () => {
   assert.ok(gunFrame(tracer, 101.5).alpha > 0);
   assert.equal(gunFrame(tracer, 103).alpha, 0);
   assert.equal(gunFrame({ ...tracer, shell: undefined }, 100).alpha, 0);
+});
+
+test("portal pairs flash together only when matching resolved segments cross them", () => {
+  const pair = {
+    id: "gate",
+    expiresAtTick: 200,
+    gates: [
+      { x: 600, y: 450, halfLength: 100 },
+      { x: 1000, y: 350, halfLength: 100 },
+    ] as const,
+  };
+  const incoming = { ...tracer, x: 594, y: 450 };
+  const outgoing = {
+    ...tracer,
+    id: 3,
+    launchX: 1007,
+    launchY: 350,
+    x: 1300,
+    y: 350,
+  };
+  const state = { ...base, bombs: [incoming, outgoing], portalPairs: [pair] };
+  const pulses = gunPortalPulses(state, 100);
+  assert.equal(pulses.length, 1);
+  assert.deepEqual(pulses[0]!.entry, { x: 594, y: 450 });
+  assert.deepEqual(pulses[0]!.exit, { x: 1007, y: 350 });
+  assert.ok(gunPortalPulses(state, 101)[0]!.strength < pulses[0]!.strength);
+  assert.deepEqual(gunPortalPulses(state, 103), []);
+  assert.deepEqual(gunPortalPulses({ ...state, bombs: [incoming] }, 100), []);
+  assert.deepEqual(
+    gunPortalPulses(
+      { ...state, bombs: [incoming, { ...outgoing, ownerId: "other" }] },
+      100,
+    ),
+    [],
+  );
+  assert.deepEqual(
+    gunPortalPulses(
+      { ...state, portalPairs: [{ ...pair, expiresAtTick: 100 }] },
+      100,
+    ),
+    [],
+  );
 });

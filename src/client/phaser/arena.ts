@@ -29,7 +29,7 @@ import { observeArenaDisplay } from "./viewport.js";
 import { blastFrame } from "../blast-animation.js";
 import { reloadRemaining, RELOAD_RING_RADIUS } from "../reload-ring.js";
 import { GunImpacts, gunImpactFrame } from "../gun-impacts.js";
-import { gunFrame, gunRoots } from "../gun-animation.js";
+import { gunFrame, gunRoots, gunPortalPulses } from "../gun-animation.js";
 import { TrailDebris } from "../trail-debris.js";
 import {
   selfLocatorRing,
@@ -866,12 +866,26 @@ class ArenaScene extends Phaser.Scene {
           9,
         );
     }
+    const portalPulses = gunPortalPulses(s, s.presentationTick ?? s.tick);
     const livePortals = s.portalPairs.filter(
       (pair) => pair.expiresAtTick > s.tick,
     );
     const portalTints = portalPalettes(livePortals.map((pair) => pair.id));
     for (const [pairIndex, pair] of livePortals.entries()) {
       const tints = portalTints[pairIndex]!.map(color) as [number, number];
+      const shotPulses = portalPulses.filter(
+        (pulse) => pulse.pairId === pair.id,
+      );
+      const shotGlow = Math.max(
+        0,
+        ...shotPulses.map((pulse) => pulse.strength),
+      );
+      for (const pulse of shotPulses)
+        for (const point of [pulse.entry, pulse.exit])
+          g.fillStyle(0xffffff, pulse.strength)
+            .fillRect(point.x - 2, point.y - 8, 4, 16)
+            .fillRect(point.x - 8, point.y - 2, 16, 4);
+
       // The faint tether keeps the two ends of one pair readable when several pairs are open.
       g.lineStyle(2, tints[0], 0.18).lineBetween(
         pair.gates[0].x,
@@ -895,6 +909,21 @@ class ArenaScene extends Phaser.Scene {
             gate.x,
             gate.y + gate.halfLength,
           );
+        if (shotGlow > 0)
+          g.lineStyle(30, tint, 0.3 * shotGlow)
+            .lineBetween(
+              gate.x,
+              gate.y - gate.halfLength,
+              gate.x,
+              gate.y + gate.halfLength,
+            )
+            .lineStyle(3, 0xffffff, 0.9 * shotGlow)
+            .lineBetween(
+              gate.x,
+              gate.y - gate.halfLength,
+              gate.x,
+              gate.y + gate.halfLength,
+            );
         for (let y = -gate.halfLength; y < gate.halfLength; y += 20) {
           const offset = (now / 35) % 20;
           g.fillStyle(0xffffff, 0.75).fillRect(

@@ -1,3 +1,5 @@
+import { GUN_RADIUS } from "../shared/gun.js";
+import { PORTAL_WALL_HALF_WIDTH } from "../shared/portal.js";
 import type { ViewSnapshot } from "./snapshot-stream.js";
 
 type Tracer = ViewSnapshot["bombs"][number];
@@ -28,4 +30,59 @@ export function gunFrame(bomb: Tracer, tick: number) {
     dx: bomb.shell?.vx ?? 0,
     dy: bomb.shell?.vy ?? 0,
   };
+}
+
+/** Match supplied incoming and outgoing segments; a ray merely ending near a gate does not pulse it. */
+export function gunPortalPulses(snapshot: ViewSnapshot, tick: number) {
+  const pulses: {
+    pairId: string;
+    strength: number;
+    entry: { x: number; y: number };
+    exit: { x: number; y: number };
+  }[] = [];
+  const rays = snapshot.bombs.filter(
+    (bomb) => bomb.shell?.gun && gunFrame(bomb, tick).alpha > 0,
+  );
+  const clearance = PORTAL_WALL_HALF_WIDTH + GUN_RADIUS;
+  for (const pair of snapshot.portalPairs) {
+    if (pair.expiresAtTick <= tick) continue;
+    for (const [index, gate] of pair.gates.entries()) {
+      const linked = pair.gates[1 - index]!;
+      for (const ray of rays) {
+        const nearY = Math.max(
+          gate.y - gate.halfLength,
+          Math.min(gate.y + gate.halfLength, ray.y),
+        );
+        if (
+          Math.abs(Math.hypot(ray.x - gate.x, ray.y - nearY) - clearance) > 0.1
+        )
+          continue;
+        const proportion = Math.max(
+          -1,
+          Math.min(1, (ray.y - gate.y) / gate.halfLength),
+        );
+        const exit = rays.find(
+          (next) =>
+            next.id > ray.id &&
+            next.ownerId === ray.ownerId &&
+            next.launchedTick === ray.launchedTick &&
+            next.shell!.vx === ray.shell!.vx &&
+            next.shell!.vy === ray.shell!.vy &&
+            Math.abs(Math.abs(next.launchX - linked.x) - (clearance + 1)) <
+              0.1 &&
+            Math.abs(
+              next.launchY - (linked.y + proportion * linked.halfLength),
+            ) < 0.1,
+        );
+        if (exit)
+          pulses.push({
+            pairId: pair.id,
+            strength: gunFrame(ray, tick).alpha,
+            entry: { x: ray.x, y: ray.y },
+            exit: { x: exit.launchX, y: exit.launchY },
+          });
+      }
+    }
+  }
+  return pulses;
 }
