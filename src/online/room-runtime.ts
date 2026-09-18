@@ -406,8 +406,17 @@ export class RoomRuntime {
     this.members.delete(id);
     this.noWorld.delete(id);
     if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
-    if (this.manager && this.world?.state.game.players.has(id))
-      this.append(LEAVE, id);
+    const state = this.world?.state,
+      player = state?.game.players.get(id);
+    if (!this.manager || !player) return;
+    // A reload reaches here too: the service retires the old socket before it admits the new page. In the lobby that
+    // frees the seat, and the page confirms its name on the join card. Mid-match it is absence, not departure: `LEAVE`
+    // frees a seat at once in `roundOver` and `matchOver`, so a reload that landed just after the round ended lost the
+    // seat inside that round. Absent riders are pruned when the next round starts, which leaves the page the whole
+    // pause to come back, and they are logged present again once heard (`creatorDuties`).
+    if (state!.game.phase === "lobby") this.append(LEAVE, id);
+    else if (player.connected)
+      this.append(PRESENCE, id, false, state!.folds.get(id)?.generation ?? 0);
   }
   /** A link opening is only a hint: the transport admits sends once its own probes confirm the path, so the tick loop retries. */
   private link(id: string, open: boolean): void {
