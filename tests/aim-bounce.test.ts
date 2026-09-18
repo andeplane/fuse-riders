@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   BOMB_MAX_CHARGE_TICKS,
+  BOMB_MAX_AIM_HOLD_TICKS,
   BOMB_MAX_LAUNCH_DISTANCE,
   BOMB_MIN_LAUNCH_DISTANCE,
   bombLaunchDistance,
@@ -14,6 +15,16 @@ import {
 } from "../src/shared/room-settings.js";
 
 const max = BOMB_MAX_CHARGE_TICKS;
+const dwell = BOMB_MAX_AIM_HOLD_TICKS;
+test("maximum reach holds for 100 ms before smoothly shrinking, for every aim window", () => {
+  assert.equal(dwell, 2);
+  for (let window = 2; window <= 40; window++) {
+    for (let offset = 0; offset <= dwell; offset += 0.25)
+      assert.equal(bombPreviewDistance(window + offset, window, true), 400);
+    assert.ok(bombPreviewDistance(window - 0.01, window, true) < 400);
+    assert.ok(bombPreviewDistance(window + dwell + 0.01, window, true) < 400);
+  }
+});
 test("most of the aim range stays linear, with smooth joins into the endpoint easing", () => {
   // Central 60% of each leg's time covers 75% of the distance at a constant speed.
   for (let age = 2; age <= 6; age += 0.25) {
@@ -22,7 +33,7 @@ test("most of the aim range stays linear, with smooth joins into the endpoint ea
       bombPreviewDistance(age, max, true);
     assert.ok(Math.abs(step - 11.71875) < 1e-10);
   }
-  for (const join of [1.6, 6.4, 9.6, 14.4]) {
+  for (const join of [1.6, 6.4, 9.6 + dwell, 14.4 + dwell]) {
     const dt = 0.001;
     const before =
       (bombPreviewDistance(join, max, true) -
@@ -39,7 +50,7 @@ test("most of the aim range stays linear, with smooth joins into the endpoint ea
   }
 });
 
-test("bouncing aim swings between both endpoints without dwelling", () => {
+test("bouncing aim eases on both legs around the brief maximum hold", () => {
   for (let window = 2; window <= 40; window++) {
     const outward = Array.from({ length: window + 1 }, (_, tick) =>
       bombLaunchDistance(tick, window, true),
@@ -59,14 +70,14 @@ test("bouncing aim swings between both endpoints without dwelling", () => {
           `window ${window}: departure accelerates`,
         );
       assert.equal(
-        bombLaunchDistance(2 * window - tick, window, true),
+        bombLaunchDistance(2 * window + dwell - tick, window, true),
         outward[tick],
       );
       previousStep = step;
     }
   }
   assert.ok(Math.abs(bombLaunchDistance(4, 8, true) - 250) < 1e-10);
-  assert.ok(Math.abs(bombLaunchDistance(12, 8, true) - 250) < 1e-10);
+  assert.ok(Math.abs(bombLaunchDistance(12 + dwell, 8, true) - 250) < 1e-10);
   assert.equal(
     bombLaunchDistance(4.75, 8, true),
     bombLaunchDistance(4, 8, true),
@@ -74,9 +85,9 @@ test("bouncing aim swings between both endpoints without dwelling", () => {
   );
 });
 
-test("fractional previews ease within each tick and reverse with continuous velocity and no pause", () => {
-  // The closer we sample to a turning point, the smaller its velocity; neither side dwells.
-  for (const endpoint of [0, max]) {
+test("fractional previews ease within each tick and reverse with continuous velocity entering and leaving the maximum hold", () => {
+  // The closer we sample to a turning point, the smaller its velocity; the minimum reverses immediately and the maximum holds briefly.
+  for (const endpoint of [0, max + dwell]) {
     const dt = 0.001;
     const at = bombPreviewDistance(endpoint, max, true);
     const near = Math.abs(bombPreviewDistance(endpoint + dt, max, true) - at);
@@ -95,8 +106,8 @@ test("fractional previews ease within each tick and reverse with continuous velo
     let previousStep = 0;
     for (let frame = 1; frame <= hz * 0.08; frame++) {
       const age = frame * dt;
-      const before = bombPreviewDistance(max + age - dt, max, true);
-      const after = bombPreviewDistance(max + age, max, true);
+      const before = bombPreviewDistance(max + dwell + age - dt, max, true);
+      const after = bombPreviewDistance(max + dwell + age, max, true);
       const step = before - after;
       assert.ok(
         step > previousStep,
@@ -109,7 +120,7 @@ test("fractional previews ease within each tick and reverse with continuous velo
       previousStep = step;
     }
     assert.ok(bombPreviewDistance(max - dt, max, true) < peak);
-    assert.ok(bombPreviewDistance(max + dt, max, true) < peak);
+    assert.ok(bombPreviewDistance(max + dwell + dt, max, true) < peak);
   }
 });
 
@@ -129,44 +140,48 @@ test("the ramp holds its shape for every aim window a host can choose", () => {
       `window ${window} peaks at the top`,
     );
     assert.equal(
-      bombLaunchDistance(window * 2, window, true),
+      bombLaunchDistance(window * 2 + dwell, window, true),
       BOMB_MIN_LAUNCH_DISTANCE,
       `window ${window} returns to the bottom`,
     );
     for (let held = 0; held <= window * 3; held += 1) {
       assert.equal(
         bombLaunchDistance(held, window, true),
-        bombLaunchDistance(held + window * 2, window, true),
+        bombLaunchDistance(held + (window * 2 + dwell), window, true),
         `window ${window} repeats every period`,
       );
       assert.equal(
         chargeRamp(held, window, true),
-        chargeRamp(window * 2 - (held % (window * 2)), window, true),
+        chargeRamp(
+          window * 2 + dwell - (held % (window * 2 + dwell)),
+          window,
+          true,
+        ),
         `window ${window} is symmetric about the peak`,
       );
     }
   }
 });
-test("with bounce the range walks back to the minimum and climbs again, on a period of twice the window", () => {
+test("with bounce the range walks back to the minimum and climbs again, on a period of twice the window plus the maximum hold", () => {
   assert.equal(
     bombLaunchDistance(max, max, true),
     BOMB_MAX_LAUNCH_DISTANCE,
     "still peaks at the top of the ramp",
   );
   assert.equal(
-    bombLaunchDistance(max * 2, max, true),
+    bombLaunchDistance(max * 2 + dwell, max, true),
     BOMB_MIN_LAUNCH_DISTANCE,
     "a full period later it is back at the bottom",
   );
   assert.equal(
-    bombLaunchDistance(max * 3, max, true),
+    bombLaunchDistance(max * 3 + dwell, max, true),
     BOMB_MAX_LAUNCH_DISTANCE,
     "and climbing again",
   );
   for (let held = 0; held <= max * 4; held += 1) {
     assert.equal(
       bombLaunchDistance(held, max, true),
-      bombLaunchDistance(held + max * 2, max, true),
+      bombLaunchDistance(held + max * 2 + dwell, max, true),
       `tick ${held} repeats one period later`,
     );
   }
@@ -175,7 +190,7 @@ test("the ramp is symmetric around the peak, so the way down offers the same dis
   for (let step = 0; step <= max; step += 1)
     assert.equal(
       chargeRamp(max - step, max, true),
-      chargeRamp(max + step, max, true),
+      chargeRamp(max + dwell + step, max, true),
     );
 });
 test("every distance stays inside the launch range, bouncing or not", () => {
@@ -197,9 +212,10 @@ test("the preview follows the same ramp, including across the turnaround", () =>
       bombPreviewDistance(held, max, true),
       bombLaunchDistance(held, max, true),
     );
-  // Between ticks it samples the curve, so just past the peak it must already be shortening rather than sitting still.
+  // Between ticks it samples the curve, so after the maximum hold it must be shortening.
   assert.ok(
-    bombPreviewDistance(max + 0.5, max, true) < BOMB_MAX_LAUNCH_DISTANCE,
+    bombPreviewDistance(max + dwell + 0.5, max, true) <
+      BOMB_MAX_LAUNCH_DISTANCE,
     "the preview turns around with the ramp",
   );
   assert.equal(

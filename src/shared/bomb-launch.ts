@@ -2,6 +2,7 @@ import { sin, cos } from "./deterministic-math.js";
 export const BOMB_MIN_LAUNCH_DISTANCE = 100;
 export const BOMB_MAX_LAUNCH_DISTANCE = 400;
 export const BOMB_MAX_CHARGE_TICKS = 8; // Full reach in 0.4 seconds at 20 Hz.
+export const BOMB_MAX_AIM_HOLD_TICKS = 2; // Pause at full reach for 100 ms at 20 Hz.
 export const BOMB_MIN_CHARGE_TICKS = 2;
 export const BOMB_CHARGE_TICKS_LIMIT = 40;
 export const BOMB_FLIGHT_TICKS = 6;
@@ -35,8 +36,13 @@ export function chargeRamp(
 ): number {
   const held = Number.isFinite(ticks) ? Math.max(0, ticks) : 0;
   if (!bounce) return Math.min(maxChargeTicks, held);
-  const period = maxChargeTicks * 2;
+  const period = maxChargeTicks * 2 + BOMB_MAX_AIM_HOLD_TICKS;
   const phase = held % period;
+  if (
+    phase >= maxChargeTicks &&
+    phase <= maxChargeTicks + BOMB_MAX_AIM_HOLD_TICKS
+  )
+    return maxChargeTicks;
   const fraction =
     (phase <= maxChargeTicks ? phase : period - phase) / maxChargeTicks;
   // Ease only the outer 12.5% of distance at either end; the middle 75% stays linear.

@@ -766,7 +766,8 @@ test("bomb uses the configured aim time while steering and follows the release h
     [24, 200],
     [2, 400],
     [8, 156.25, true, 2],
-    [8, 156.25, true, 14],
+    [8, 156.25, true, 16],
+    [8, 400, true, 9],
   ] as const) {
     const state = gameWithPlayers();
     if (bombChargeTicks !== undefined)

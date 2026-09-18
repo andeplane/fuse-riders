@@ -156,9 +156,12 @@ try {
         for (const timing of ["local", "world"] as const) {
           for (const aimBounce of [true, false] as const) {
             const expected = aimBounce
-              ? [598.0688095092773, 600.0, 598.0688095092773, 587.4114990234375]
-              : [581.25, 600, 600, 600];
-            const ages = [7.5, 8, 8.5, 9],
+              ? [
+                  598.0688095092773, 600, 600, 600, 598.0688095092773,
+                  587.4114990234375,
+                ]
+              : [581.25, 600, 600, 600, 600, 600];
+            const ages = [7.5, 8, 9, 10, 10.5, 11],
               centers = [];
             for (let index = 0; index < ages.length; index++) {
               const tick = 40 + ages[index]!;
