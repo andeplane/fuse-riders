@@ -43,7 +43,7 @@ Not exercised, and not asserted; the recording may pass through some of these, n
 `tests/golden-hash.test.ts` checks the rules version and the per-tick hashes first, and its message names the case and the first diverging tick. The coverage claims are checked after the hashes match. Every claim is listed in `tests/fixtures/golden-replay.ts`, which the test and the updater both read.
 
 1. **`RULES` unchanged, hashes changed.** The simulation now behaves differently. Decide which it is:
-   - _You meant to change behaviour_ (a mechanic, a constant, an ordering, anything a peer on the old code would disagree about): bump `RULES` in `src/shared/apply-tick.ts` and add what changed to its comment, then go to 2.
+   - _You meant to change behaviour_ (a mechanic, a constant, an ordering, anything a peer on the old code would disagree about): bump `RULES` in `src/engine/apply-tick.ts` and add what changed to its comment, then go to 2.
    - _You did not_ (a refactor, a cosmetic, tooling or test change): it is a determinism or behaviour regression. Do not refresh anything. The message names the first diverging tick; find what changed state there and fix it. A `[hash-identical]` commit leaves every tick as it is.
 2. **`RULES` changed, golden not refreshed.** Run
 

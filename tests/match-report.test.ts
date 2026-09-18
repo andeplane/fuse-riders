@@ -4,7 +4,7 @@ import {
   beginMatchParticipant,
   snapshotMatchStats,
   type MatchStatsState,
-} from "../src/shared/match-stats.js";
+} from "../src/engine/match-stats.js";
 import {
   createGame,
   addPlayer,
@@ -15,7 +15,7 @@ import {
   startNextRound,
   toSnapshot,
   SLOT_COLORS,
-} from "../src/shared/game.js";
+} from "../src/engine/game.js";
 import {
   buildMatchReport,
   buildRoundReport,
@@ -23,6 +23,7 @@ import {
   type FinishedMatch,
 } from "../src/online/match-report.js";
 import { parseMatchResult } from "../src/service/history.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const RIDER = "a".repeat(24),
   OTHER = "b".repeat(24);
@@ -217,7 +218,7 @@ test("a lost race or a dropped connection is retried; a refusal is final; nothin
 });
 
 test("round reports use frozen confirmed standings, survive the next round and exclude spectators", () => {
-  const game = createGame("round-rating");
+  const game = createGame("round-rating", classicSettings());
   for (const [slot, id] of [RIDER, OTHER].entries())
     addPlayer(game, {
       id,

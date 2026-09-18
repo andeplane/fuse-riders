@@ -1,35 +1,58 @@
 import { isAvatarId, type AvatarId } from "./avatars.js";
-import type { PortalPair } from "./portal.js";
-import type { ArenaMapId, Obstacle } from "./arena-map.js";
-import type { RoundPlacement, SessionLeaderboardEntry } from "./leaderboard.js";
-import type { MatchPlayerStats } from "./match-stats.js";
-import type { FlightPoint } from "./launch-modifiers.js";
-import type { PickupType } from "./game.js"; // the type alone: this module never needs the tuple's value
-import type { Moment } from "./moments.js";
-import type { DecidedRound } from "./shot-log.js";
+import { trimmedRiderName } from "../engine/rider-name.js";
+import type { PortalPair } from "../engine/portal.js";
+import type { ArenaMapId, Obstacle } from "../engine/arena-map.js";
+import type {
+  RoundPlacement,
+  SessionLeaderboardEntry,
+} from "../engine/leaderboard.js";
+import type { MatchPlayerStats } from "../engine/match-stats.js";
+import type { FlightPoint } from "../engine/launch-modifiers.js";
+import type { PickupType } from "../engine/pickup-types.js";
+import type { Moment } from "../engine/moments.js";
+import type { DecidedRound } from "../engine/shot-log.js";
 
-export type { ArenaMapId, Obstacle, ObstacleKind } from "./arena-map.js";
-export type { RoundPlacement, SessionLeaderboardEntry } from "./leaderboard.js";
+export type { AvatarId } from "./avatars.js";
+export type {
+  ArenaMapId,
+  Obstacle,
+  ObstacleKind,
+} from "../engine/arena-map.js";
+export type {
+  RoundPlacement,
+  SessionLeaderboardEntry,
+} from "../engine/leaderboard.js";
 export type {
   MatchDeathCause,
   MatchDeathCounts,
   MatchPlayerStats,
-} from "./match-stats.js";
-export type { FlightPoint } from "./launch-modifiers.js";
-export type { Moment, MomentKind } from "./moments.js";
-export type { DecidedRound, RoundShot, ShotKill, Weapon } from "./shot-log.js";
+} from "../engine/match-stats.js";
+export type { FlightPoint } from "../engine/launch-modifiers.js";
+export type { Moment, MomentKind } from "../engine/moments.js";
+export type {
+  DecidedRound,
+  RoundShot,
+  ShotKill,
+  Weapon,
+} from "../engine/shot-log.js";
 
-export type PlayerId = string;
+// The primitives the simulation itself is written in are the engine's; the wire vocabulary re-exports them.
+import type {
+  AimPoint,
+  BlastCircle,
+  BombAction,
+  PlayerId,
+  TrailSegment,
+} from "../engine/primitives.js";
+export type {
+  AimPoint,
+  BlastCircle,
+  BombAction,
+  BombActionCommand,
+  PlayerId,
+  TrailSegment,
+} from "../engine/primitives.js";
 export type PlayerToken = string;
-export interface AimPoint {
-  x: number;
-  y: number;
-}
-export interface BombActionCommand {
-  action: BombAction;
-  aim?: AimPoint;
-}
-export type BombAction = "press" | "release" | "cancel";
 export type ClientMessage =
   | {
       type: "join";
@@ -53,21 +76,6 @@ export type ClientMessage =
   | { type: "hostAuth"; token: string }
   | { type: "hostAction"; action: "start" | "nextRound" | "rematch" | "lobby" }
   | { type: "hostBot"; action: "add" | "remove"; id?: string };
-export interface TrailSegment {
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  createdTick: number;
-  expiresAtTick: number;
-  /** Absent on the living, age-limited tail. Detached runs share an issued id and decay clock. */
-  detached?: Readonly<{ id: number; decayStartTick: number }>;
-}
-export interface BlastCircle {
-  x: number;
-  y: number;
-  radius: number;
-}
 export interface GameSnapshot {
   matchLength: number;
   bombChargeTicks: number;
@@ -232,17 +240,14 @@ export function parseClientMessage(raw: string): ClientMessage | null {
     case "join":
       if (
         !keys("type", "name", "playerToken", "avatarId") ||
-        typeof v.name !== "string" ||
-        !v.name.trim() ||
-        Array.from(v.name.trim()).length > 18 ||
-        /[\u0000-\u001f\u007f]/.test(v.name) ||
+        trimmedRiderName(v.name) === undefined ||
         (v.playerToken !== undefined && !token(v.playerToken)) ||
         (v.avatarId !== undefined && !isAvatarId(v.avatarId))
       )
         return null;
       return {
         type: "join",
-        name: v.name.trim(),
+        name: trimmedRiderName(v.name)!,
         ...(v.playerToken ? { playerToken: v.playerToken as string } : {}),
         ...(isAvatarId(v.avatarId) ? { avatarId: v.avatarId } : {}),
       };

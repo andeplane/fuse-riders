@@ -2,7 +2,7 @@ import type {
   ArenaMapId,
   Obstacle,
   ObstacleKind,
-} from "../shared/arena-map.js";
+} from "../engine/arena-map.js";
 import type { ThemeDefinition } from "./themes.js";
 
 /**

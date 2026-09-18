@@ -14,10 +14,10 @@
  * on, so none of those ever downloads it. When each event fires is `funnel.ts`; what free text may leave is
  * `analytics-text.ts`; `docs/ANALYTICS.md` is the account of all of it.
  */
-import { TICK_HZ } from "../shared/game.js";
-import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
-import type { MatchPlayerStats } from "../shared/match-stats.js";
-import type { DecidedRound, RoundShot } from "../shared/shot-log.js";
+import { TICK_HZ } from "../engine/game.js";
+import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
+import type { MatchPlayerStats } from "../engine/match-stats.js";
+import type { DecidedRound, RoundShot } from "../engine/shot-log.js";
 import { safeStorage, type SafeStorage } from "../client/safe-storage.js";
 import { bootFailedProps, sanitizeProperties } from "./analytics-text.js";
 

@@ -4,6 +4,8 @@ export interface GoldenHashes {
 }
 
 /** The one command that refreshes the golden after an intended rules change. About a minute, deterministic. */
+/** Where `RULES` is declared. The one place the path is written: the messages below, their test and the docs check all read it. */
+export const RULES_FILE = "src/engine/apply-tick.ts";
 export const RECORD_COMMAND =
   "npx tsx scripts/update-golden-hashes.ts --record";
 const WORKFLOW = "docs/design/engine-safety-net.md, 'When the golden fails'";
@@ -23,7 +25,7 @@ export function validateGoldenUpdate(
     previous.hashes.some((hash, index) => hash !== next.hashes[index]);
   if (hashesChanged || recordingChanged)
     throw new GoldenRefusal(
-      `Refusing to update the golden or recording under unchanged RULES (${next.rules}). Preserve the baseline for refactors, or bump RULES in src/shared/apply-tick.ts for intended simulation/workload changes and run \`${RECORD_COMMAND}\`.`,
+      `Refusing to update the golden or recording under unchanged RULES (${next.rules}). Preserve the baseline for refactors, or bump RULES in ${RULES_FILE} for intended simulation/workload changes and run \`${RECORD_COMMAND}\`.`,
     );
 }
 
@@ -46,7 +48,7 @@ export function validateGoldenCoverage(
     );
   if (previous.rules === next.rules)
     throw new GoldenRefusal(
-      `The stored recording does not reach ${list} under unchanged RULES (${next.rules}): tests/fixtures/replay-coverage.ts asks for something these inputs never did. A new workload is a rules change: bump RULES in src/shared/apply-tick.ts and run \`${RECORD_COMMAND}\`. Nothing was written.`,
+      `The stored recording does not reach ${list} under unchanged RULES (${next.rules}): tests/fixtures/replay-coverage.ts asks for something these inputs never did. A new workload is a rules change: bump RULES in ${RULES_FILE} and run \`${RECORD_COMMAND}\`. Nothing was written.`,
     );
   throw new GoldenRefusal(
     `Refusing to pin ${next.rules}: replayed under the new rules (was ${previous.rules}), the stored inputs no longer reach ${list}, so tests/golden-hash.test.ts would fail. Run \`${RECORD_COMMAND}\` instead (about a minute): it plays a fresh workload under the new rules. Nothing was written.`,
@@ -83,7 +85,7 @@ export function goldenFailure(
       `  To finish the rules change: ${refresh[0]}`,
       `  ${refresh[1]}`,
       `  If you merged main and both sides bumped RULES: take the next free number, then run the same command again.`,
-      `  If you did not mean to change RULES: restore it in src/shared/apply-tick.ts.`,
+      `  If you did not mean to change RULES: restore it in ${RULES_FILE}.`,
       `See ${WORKFLOW}.`,
     ]
       .filter(Boolean)
@@ -92,13 +94,13 @@ export function goldenFailure(
   if (!firstDivergence)
     return [
       `${where} One was changed without the other, under unchanged RULES (${rules}).`,
-      `  Restore both from main; or, for an intended workload change, bump RULES in src/shared/apply-tick.ts, ${refresh[0]}`,
+      `  Restore both from main; or, for an intended workload change, bump RULES in ${RULES_FILE}, ${refresh[0]}`,
       `  ${refresh[1]}`,
       `See ${WORKFLOW}.`,
     ].join("\n");
   return [
     `The simulation's behaviour changed and RULES did not (still ${rules}). ${where}`,
-    `  If the change is INTENDED: bump RULES in src/shared/apply-tick.ts, ${refresh[0]}`,
+    `  If the change is INTENDED: bump RULES in ${RULES_FILE}, ${refresh[0]}`,
     `  ${refresh[1]}`,
     `  If it is NOT intended (a refactor, a cosmetic or tooling change): this is a determinism or behaviour regression.`,
     `  Do not refresh the golden; find what changed the state at tick ${firstDivergence} and fix it. A [hash-identical] change must leave every tick as it is.`,

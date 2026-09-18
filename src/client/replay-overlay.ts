@@ -1,4 +1,4 @@
-import type { MomentCard } from "../shared/match-recap.js";
+import type { MomentCard } from "../engine/match-recap.js";
 import { zoomOrigin, type ReplayUpdate } from "./replay.js";
 
 /**
