@@ -7,10 +7,12 @@ import { themes } from "../src/render/themes.js";
 
 // Resolved from this file, not the working directory, so the test means the same run from anywhere.
 const manifestPath = fileURLToPath(
-  new URL("../public/themes/manifest.json", import.meta.url),
+  new URL("../../../public/themes/manifest.json", import.meta.url),
 );
 const themeFile = (id: string, file: string) =>
-  fileURLToPath(new URL(`../public/themes/${id}/${file}`, import.meta.url));
+  fileURLToPath(
+    new URL(`../../../public/themes/${id}/${file}`, import.meta.url),
+  );
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
   themes: Record<string, { label: string; path: string }>;
   sprites: Record<string, { file: string }>;

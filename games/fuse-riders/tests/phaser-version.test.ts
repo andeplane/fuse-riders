@@ -12,17 +12,17 @@ test("the Phaser internals the arena patches belong to the exact release that is
   )?.[1];
   assert.ok(guarded, "arena.ts states the Phaser release its guard targets");
   // Phaser is bundled into the client, so it may be declared among either set of dependencies.
-  const manifest = JSON.parse(read("../package.json")) as Record<
+  const manifest = JSON.parse(read("../../../package.json")) as Record<
     "dependencies" | "devDependencies",
     Record<string, string> | undefined
   >;
   const declared =
     manifest.dependencies?.phaser ?? manifest.devDependencies?.phaser;
   const installed: string = JSON.parse(
-    read("../node_modules/phaser/package.json"),
+    read("../../../node_modules/phaser/package.json"),
   ).version;
   const advice =
-    "guardDefaultTextures (src/render/phaser/arena.ts) takes over two private READY listeners and leaves Phaser " +
+    "guardDefaultTextures (games/fuse-riders/src/render/phaser/arena.ts) takes over two private READY listeners and leaves Phaser " +
     "untouched when they have another shape. After a Phaser upgrade, run `npx tsx scripts/phaser-browser.ts` in " +
     "Chrome and WebKit (it fails when metrics().defaultTextureGuard is false), then update GUARDED_PHASER_VERSION.";
   assert.equal(

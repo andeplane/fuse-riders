@@ -97,7 +97,7 @@ export interface PhaserArena {
 
 /**
  * The Phaser release `guardDefaultTextures` was last verified against (#344 checked the READY listeners on Phaser 4).
- * `tests/phaser-version.test.ts` fails when `package.json` or the installed Phaser differs, so a bump re-verifies it.
+ * `games/fuse-riders/tests/phaser-version.test.ts` fails when `package.json` or the installed Phaser differs, so a bump re-verifies it.
  */
 export const GUARDED_PHASER_VERSION = "4.2.1";
 

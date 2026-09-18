@@ -1,6 +1,6 @@
 import type { RuntimeText } from "./game.js";
 
-/** Neutral wording for a new game; Fuse Riders supplies its own (`src/online/fuse-game.ts`). */
+/** Neutral wording for a new game; Fuse Riders supplies its own (`games/fuse-riders/src/online/fuse-game.ts`). */
 export const defaultText: RuntimeText = {
   solo: "Solo · you and the AI",
   connected: "Connected · direct game link",

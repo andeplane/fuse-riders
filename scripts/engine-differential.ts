@@ -52,10 +52,14 @@ interface Recording {
 
 async function load(root: string, label: string): Promise<Engine> {
   const at = (file: string) => path.join(root, file);
-  const tick = await import(at("src/engine/apply-tick.ts"));
-  const view = await import(at("src/engine/view.ts"));
-  const settings = await import(at("src/engine/room-settings.ts"));
-  const bots = await import(at("src/engine/bot-controller.ts"));
+  const tick = await import(at("games/fuse-riders/src/engine/apply-tick.ts"));
+  const view = await import(at("games/fuse-riders/src/engine/view.ts"));
+  const settings = await import(
+    at("games/fuse-riders/src/engine/room-settings.ts")
+  );
+  const bots = await import(
+    at("games/fuse-riders/src/engine/bot-controller.ts")
+  );
   return {
     label,
     createRoomState: tick.createRoomState,
@@ -68,7 +72,7 @@ async function load(root: string, label: string): Promise<Engine> {
 
 /**
  * The accepted view differences, applied to both sides alike. Each one is a projection of a default that only a lobby
- * rider shows, and no reader tells the two apart (`src/render/**` treats a missing flag as false).
+ * rider shows, and no reader tells the two apart (`games/fuse-riders/src/render/**` treats a missing flag as false).
  */
 function normalise(view: { players: Array<Record<string, unknown>> }): unknown {
   for (const rider of view.players) {
@@ -163,14 +167,17 @@ const engines = [
   await load(head, `head (${head})`),
 ] as const;
 const { streamReader } = await import(
-  path.join(base, "tests/fixtures/replay-log.ts")
+  path.join(base, "games/fuse-riders/tests/fixtures/replay-log.ts")
 );
 const { makeRecording } = await import(
-  path.join(base, "tests/fixtures/replay-recorder.ts")
+  path.join(base, "games/fuse-riders/tests/fixtures/replay-recorder.ts")
 );
 const golden: Recording = JSON.parse(
   await readFile(
-    path.join(base, "tests/fixtures/mechanics-recording.json"),
+    path.join(
+      base,
+      "games/fuse-riders/tests/fixtures/mechanics-recording.json",
+    ),
     "utf8",
   ),
 );

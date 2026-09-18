@@ -1,5 +1,5 @@
 /**
- * The small records the simulation is written in. They also travel on the wire, so `src/shared/protocol.ts` re-exports
+ * The small records the simulation is written in. They also travel on the wire, so `games/fuse-riders/src/shared/protocol.ts` re-exports
  * them; they are defined here because the engine imports nothing outside itself.
  */
 export type PlayerId = string;

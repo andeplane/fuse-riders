@@ -29,17 +29,17 @@ try {
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   const results = await page.evaluate(async () => {
     const { createPhaserArena } = (await import(
-      String("/src/render/phaser/arena.ts")
-    )) as typeof import("../src/render/phaser/arena.js");
+      String("/games/fuse-riders/src/render/phaser/arena.ts")
+    )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
     const { visualFixture } = (await import(
       String("/scripts/lib/benchmark-fixture.ts")
     )) as typeof import("./lib/benchmark-fixture.js");
     const { themes } = (await import(
-      String("/src/render/themes.ts")
-    )) as typeof import("../src/render/themes.js");
+      String("/games/fuse-riders/src/render/themes.ts")
+    )) as typeof import("../games/fuse-riders/src/render/themes.js");
     const { crossScreenPoint } = (await import(
-      String("/src/render/arena-views.ts")
-    )) as typeof import("../src/render/arena-views.js");
+      String("/games/fuse-riders/src/render/arena-views.ts")
+    )) as typeof import("../games/fuse-riders/src/render/arena-views.js");
     document.body.replaceChildren();
     const results = [];
     for (const backend of ["auto", "canvas"] as const) {

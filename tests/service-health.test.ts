@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 test("actual service exposes Cloud Run safe health aliases without requiring provider operations", async () => {
   const child = spawn(
     process.execPath,
-    ["--import", "tsx", "src/service/index.ts"],
+    ["--import", "tsx", "service/index.ts"],
     {
       env: {
         ...process.env,

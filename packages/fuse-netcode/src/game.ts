@@ -1,7 +1,7 @@
 /**
  * The contract between a game and the netcode. The netcode owns streams, their order and repair, the shared clock,
  * rollback, event deduplication, snapshot transfer and the desync hash; the game owns its whole room state and folds
- * one log tick of entries into it. Every member is derived from what `src/online/` read from Fuse Riders' engine
+ * one log tick of entries into it. Every member is derived from what `games/fuse-riders/src/online/` read from Fuse Riders' engine
  * before the extraction (see `docs/design/multi-game.md`).
  */
 

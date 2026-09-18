@@ -7,7 +7,7 @@ import { themes } from "../src/render/themes.js";
 
 // Resolved from this file, not the working directory, so the test means the same run from anywhere.
 const themeDirectory = (id: string) =>
-  fileURLToPath(new URL(`../public/themes/${id}`, import.meta.url));
+  fileURLToPath(new URL(`../../../public/themes/${id}`, import.meta.url));
 
 // Neither the compiler nor the renderers notice a pickup whose artwork was never drawn: Phaser logs a load error and the
 // canvas quietly falls back to a generic glyph. This is the only check that a new type actually has a picture (#177).

@@ -4,15 +4,15 @@ import {
   RoomStore,
   ROOM_TTL_MS,
   peerId,
-} from "../packages/fuse-network-be/src/room-store.js";
+} from "../../../packages/fuse-network-be/src/room-store.js";
 import {
   MemoryRoomDatabase,
   LocalRoomBus,
-} from "../packages/fuse-network-be/src/memory-database.js";
+} from "../../../packages/fuse-network-be/src/memory-database.js";
 import {
   RoomGateway,
   type GatewaySocket,
-} from "../packages/fuse-network-be/src/gateway.js";
+} from "../../../packages/fuse-network-be/src/gateway.js";
 import { FakeNetwork } from "./fixtures/fake-room.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 

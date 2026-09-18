@@ -27,7 +27,7 @@ export function freePort(): Promise<number> {
   });
 }
 
-/** The `Home:` line of the banner `src/service/dev.ts` prints once it is listening. */
+/** The `Home:` line of the banner `service/dev.ts` prints once it is listening. */
 export function roomServiceUrl(log: string): string | undefined {
   return /^Home:\s+(http:\/\/\S+\/)/m.exec(log)?.[1];
 }
@@ -42,7 +42,7 @@ export interface RoomServiceOptions {
 
 /**
  * The production room protocol (packages/fuse-network-be) over in-memory metadata, serving `dist/`:
- * `src/service/dev.ts` as a child process, so its log stays separate from the smoke's. The URL comes from
+ * `service/dev.ts` as a child process, so its log stays separate from the smoke's. The URL comes from
  * the service's own banner, because it moves to the next port when the requested one is in use.
  */
 export async function startRoomService(
@@ -53,7 +53,7 @@ export async function startRoomService(
   const requested = options.port ?? (await freePort());
   const child = spawn(
     process.execPath,
-    ["--import", "tsx", "src/service/dev.ts", "--port", String(requested)],
+    ["--import", "tsx", "service/dev.ts", "--port", String(requested)],
     { stdio: ["ignore", "pipe", "pipe"] },
   );
   const log = createWriteStream(logFile);

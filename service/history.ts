@@ -7,16 +7,19 @@ import {
   type CareerBuckets,
   type CareerStats,
   type GameGroup,
-} from "../shared/career-stats.js";
-import { parseCombat } from "../engine/combat-stats.js";
-import { isAvatarId, type AvatarId } from "../shared/avatars.js";
-import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
+} from "../games/fuse-riders/src/shared/career-stats.js";
+import { parseCombat } from "../games/fuse-riders/src/engine/combat-stats.js";
+import {
+  isAvatarId,
+  type AvatarId,
+} from "../games/fuse-riders/src/shared/avatars.js";
+import { BOT_ID_PREFIX } from "../games/fuse-riders/src/engine/bot-controller.js";
 import type {
   MatchDeathCounts,
   MatchPlayerStats,
-} from "../engine/match-stats.js";
-import { validRiderName } from "../engine/rider-name.js";
-import { GAME_ID } from "../shared/game-id.js";
+} from "../games/fuse-riders/src/engine/match-stats.js";
+import { validRiderName } from "../games/fuse-riders/src/engine/rider-name.js";
+import { GAME_ID } from "../games/fuse-riders/src/shared/game-id.js";
 import { diceRegistration } from "dice/platform";
 import {
   LEGACY_GAME_ID,

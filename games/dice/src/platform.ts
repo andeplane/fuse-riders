@@ -13,7 +13,7 @@ import {
 
 /**
  * The dice game's part of the shared backend (`fuse-platform`): what a player's reported stats are and what a
- * confirmed match adds to an account. The room service registers it beside Fuse Riders (`src/service/history.ts`);
+ * confirmed match adds to an account. The room service registers it beside Fuse Riders (`service/history.ts`);
  * attestation, settlement, Elo and storage are the platform's. It imports only `basics.ts`, so the service never loads
  * the netcode.
  */

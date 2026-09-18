@@ -68,7 +68,7 @@ export interface PickupRule {
   weight: number;
   /**
    * The stored per-type counter it bumps, or `null` for a type the stored match results have no counter for (adding
-   * one is a change to the stored results' schema, validated field by field in `src/service/history.ts`).
+   * one is a change to the stored results' schema, validated field by field in `service/history.ts`).
    */
   stat: PickupStat | null;
   /** Whether this rider may take it at all; a rider it refuses rides over it and leaves it for someone else. */

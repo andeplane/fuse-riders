@@ -31,7 +31,7 @@ import {
   parseTotals,
   fuseRiders,
   platform,
-} from "../src/service/history.js";
+} from "../../../service/history.js";
 import { MemoryRoomDatabase } from "fuse-network-be";
 import { MemoryHistoryDatabase } from "fuse-platform";
 import { RoomStore, peerId } from "fuse-network-be";

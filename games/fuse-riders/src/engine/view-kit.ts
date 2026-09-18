@@ -1,6 +1,6 @@
 /**
  * The few pure kernels presentation legitimately runs itself, and the only engine module besides `view.ts` that
- * `src/render/` may import (`tests/layer-boundaries.test.ts`). Everything else a screen needs of the rules travels as
+ * `games/fuse-riders/src/render/` may import (`tests/layer-boundaries.test.ts`). Everything else a screen needs of the rules travels as
  * data in the `WorldView`: if a renderer wants a constant from here, publish the value in the view instead.
  *
  * An entry earns its place by being a function of its arguments, holding no state, that presentation must evaluate at a

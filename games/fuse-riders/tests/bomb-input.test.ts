@@ -5,8 +5,8 @@ import {
   MAX_PENDING_BOMB_ACTIONS,
 } from "../src/engine/bomb-input.js";
 
-// The buffer is the gesture core (`src/engine/bomb-gesture.ts`) behind a device's frames. Its semantics are the log
-// fold's, which `tests/bomb-input-differential.test.ts` holds it to stream by stream; these are the cases by hand.
+// The buffer is the gesture core (`games/fuse-riders/src/engine/bomb-gesture.ts`) behind a device's frames. Its semantics are the log
+// fold's, which `games/fuse-riders/tests/bomb-input-differential.test.ts` holds it to stream by stream; these are the cases by hand.
 // Until #253 A3 it was the LAN server's own state machine: it ignored a press over a held button, cancelled on an
 // unheld frame, wiped its queue on a cancel and wanted a neutral frame after an interruption. The log never did.
 

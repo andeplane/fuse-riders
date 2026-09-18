@@ -60,7 +60,7 @@ test("new-game copies the dice template to a renamed game whose own tests pass",
         "tsx",
         "--test",
         "tests/rules.test.ts",
-        "tests/checkpoint.test.ts",
+        "games/fuse-riders/tests/checkpoint.test.ts",
       ],
       {
         cwd: join(dir, "snake-eyes"),

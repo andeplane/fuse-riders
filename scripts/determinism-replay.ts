@@ -3,9 +3,12 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { build } from "esbuild";
 import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
-import { GOLDEN_SEED } from "../tests/fixtures/golden-replay.ts";
-import { replayHashes, type Recording } from "../tests/fixtures/replay-log.ts";
-import { makeRecording } from "../tests/fixtures/replay-recorder.ts";
+import { GOLDEN_SEED } from "../games/fuse-riders/tests/fixtures/golden-replay.ts";
+import {
+  replayHashes,
+  type Recording,
+} from "../games/fuse-riders/tests/fixtures/replay-log.ts";
+import { makeRecording } from "../games/fuse-riders/tests/fixtures/replay-recorder.ts";
 
 // Phase 0 gate: the same seeded five-rider log folds to the same state hash on every tick in Node, Chromium and WebKit.
 // By default that log is the pinned golden recording, read from its fixture, and the seed is only reported: it is
@@ -19,7 +22,10 @@ const recording: Recording = custom
   ? makeRecording(seed, Number(process.env.REPLAY_TICKS ?? 3000))
   : JSON.parse(
       await readFile(
-        new URL("../tests/fixtures/mechanics-recording.json", import.meta.url),
+        new URL(
+          "../games/fuse-riders/tests/fixtures/mechanics-recording.json",
+          import.meta.url,
+        ),
         "utf8",
       ),
     );

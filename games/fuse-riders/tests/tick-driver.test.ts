@@ -101,7 +101,10 @@ test("one shared tick is one step unless asked for more, and applyTick has no ti
   const before = game.tick;
   driveGameTick(game, new Map(), defaultRoomSettings());
   assert.equal(game.tick, before + 1);
-  const source = readFileSync("src/engine/apply-tick.ts", "utf8");
+  const source = readFileSync(
+    "games/fuse-riders/src/engine/apply-tick.ts",
+    "utf8",
+  );
   assert.match(source, /driveGameTick\(/);
   assert.doesNotMatch(
     source,

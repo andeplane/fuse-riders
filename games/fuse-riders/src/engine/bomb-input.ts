@@ -11,7 +11,7 @@ export const MAX_PENDING_BOMB_ACTIONS = 8;
 /**
  * The gesture core for a caller that has a device's frames and no log: it numbers the gestures itself and queues the
  * commands until the next tick drains them. Frame for frame it yields what an online replica folds from the entries
- * the same device would log (`tests/bomb-input-differential.test.ts` holds it to that): a press is always a new
+ * the same device would log (`games/fuse-riders/tests/bomb-input-differential.test.ts` holds it to that): a press is always a new
  * gesture, so one over a held gesture is `cancel` then `press`; a release or a cancel with nothing held is nothing.
  *
  * It was the LAN server's per-connection buffer and had drifted from the fold. Nothing in the app or in `scripts/`

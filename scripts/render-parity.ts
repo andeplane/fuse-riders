@@ -8,7 +8,7 @@
  *   PARITY_PNG=1 npx tsx scripts/render-parity.ts   # also writes artifacts/render-parity/*.png
  *
  * Paths are resolved at run time so the file can be copied onto an older revision (the renderer lived in
- * `src/client/` and the view was built by `toSnapshot` before issue #254). Most moments are one frame after `reset()`.
+ * `games/fuse-riders/src/client/` and the view was built by `toSnapshot` before issue #254). Most moments are one frame after `reset()`.
  * The "after-*" moments draw the tick before and then the tick itself, so what needs two frames is drawn too: gun
  * impacts, death sparks, rubble and trail debris. `Math.random` is replaced by one seeded stream for the page (not
  * reseeded per moment: Phaser names textures with it), so those cosmetics are the same on every run. Every moment is
@@ -97,20 +97,26 @@ if (reference) {
 
 const engine = (await import(
   String("../src/engine/game.ts")
-)) as typeof import("../src/engine/game.js") & {
-  toSnapshot?: (typeof import("../src/engine/game.js"))["toView"];
+)) as typeof import("../games/fuse-riders/src/engine/game.js") & {
+  toSnapshot?: (typeof import("../games/fuse-riders/src/engine/game.js"))["toView"];
 };
 const { applyTick, createRoomState } =
-  await import("../src/engine/apply-tick.js");
-const { BotController } = await import("../src/engine/bot-controller.js");
-const { defaultRoomSettings } = await import("../src/engine/room-settings.js");
-const { streamReader } = await import("../tests/fixtures/replay-log.js");
+  await import("../games/fuse-riders/src/engine/apply-tick.js");
+const { BotController } =
+  await import("../games/fuse-riders/src/engine/bot-controller.js");
+const { defaultRoomSettings } =
+  await import("../games/fuse-riders/src/engine/room-settings.js");
+const { streamReader } =
+  await import("../games/fuse-riders/tests/fixtures/replay-log.js");
 type View = ReturnType<(typeof engine)["toView"]>;
 const toView = engine.toView ?? engine.toSnapshot!;
 
 const recording = JSON.parse(
   readFileSync(
-    new URL("../tests/fixtures/mechanics-recording.json", import.meta.url),
+    new URL(
+      "../games/fuse-riders/tests/fixtures/mechanics-recording.json",
+      import.meta.url,
+    ),
     "utf8",
   ),
 );
@@ -265,12 +271,12 @@ const transitions: [string, number, (view: View, previous: View) => boolean][] =
   }
 }
 
-const arenaPath = existsSync("src/render/phaser/arena.ts")
-  ? "/src/render/phaser/arena.ts"
-  : "/src/client/phaser/arena.ts";
-const themesPath = existsSync("src/render/themes.ts")
-  ? "/src/render/themes.ts"
-  : "/src/client/themes.ts";
+const arenaPath = existsSync("games/fuse-riders/src/render/phaser/arena.ts")
+  ? "/games/fuse-riders/src/render/phaser/arena.ts"
+  : "/games/fuse-riders/src/client/phaser/arena.ts";
+const themesPath = existsSync("games/fuse-riders/src/render/themes.ts")
+  ? "/games/fuse-riders/src/render/themes.ts"
+  : "/games/fuse-riders/src/client/themes.ts";
 const server = await createServer({
   server: { port: 0, host: "127.0.0.1", hmr: false },
   logLevel: "error",
@@ -317,10 +323,10 @@ try {
         const portrait = backend === "portrait";
         const { createPhaserArena } = (await import(
           arenaPath
-        )) as typeof import("../src/render/phaser/arena.js");
+        )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
         const { themes } = (await import(
           themesPath
-        )) as typeof import("../src/render/themes.js");
+        )) as typeof import("../games/fuse-riders/src/render/themes.js");
         const canvas = document.createElement("canvas");
         canvas.width = 1600;
         canvas.height = 900;
@@ -433,7 +439,7 @@ try {
         revision: execFileSync("git", ["rev-parse", "HEAD"], {
           encoding: "utf8",
         }).trim(),
-        recording: "tests/fixtures/mechanics-recording.json",
+        recording: "games/fuse-riders/tests/fixtures/mechanics-recording.json",
         frames,
       },
       null,

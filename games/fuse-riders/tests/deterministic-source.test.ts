@@ -5,7 +5,7 @@ import {
   layer,
   sourceFiles,
   syntax,
-} from "./fixtures/source-guards.js";
+} from "../../../tests/fixtures/source-guards.js";
 
 test("Math aliases and destructured functions cannot bypass the simulation guard", () => {
   for (const source of [
@@ -38,7 +38,7 @@ test("Math aliases and destructured functions cannot bypass the simulation guard
 });
 
 test("simulation source uses deterministic math and has no clock or locale dependencies", () => {
-  const violations = sourceFiles("src")
+  const violations = sourceFiles("games/fuse-riders/src")
     .filter((file) => layer(file) === "engine")
     .flatMap((file) =>
       deterministicViolations(syntax(file)).map((hit) => `${file}: ${hit}`),

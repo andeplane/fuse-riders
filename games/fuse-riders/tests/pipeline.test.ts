@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import ts from "typescript";
 import { PHASES } from "../src/engine/sim/pipeline.ts";
-import { sourceFiles, syntax } from "./fixtures/source-guards.js";
+import { sourceFiles, syntax } from "../../../tests/fixtures/source-guards.js";
 
-const SIM = "src/engine/sim";
+const SIM = "games/fuse-riders/src/engine/sim";
 
 /**
  * The tick contract, written out a second time on purpose: the order of PHASES is part of the rules, so moving,

@@ -160,7 +160,7 @@ export class RoomRuntime extends NetRuntime<
     return true;
   }
   /**
-   * What to draw now, for presentation to place in time (`presentWorld` in `src/render/time/`): the netcode's frames
+   * What to draw now, for presentation to place in time (`presentWorld` in `games/fuse-riders/src/render/time/`): the netcode's frames
    * and fractional tick, and how far to lead the local rider with the controls it holds.
    */
   presentation(): PresentationFrames | undefined {

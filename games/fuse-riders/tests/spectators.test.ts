@@ -10,7 +10,7 @@ import {
   type RoomState,
 } from "../src/engine/apply-tick.js";
 import { MAX_PLAYERS } from "../src/engine/game.js";
-import { ROOM_LIMITS } from "../src/service/room-limits.js";
+import { ROOM_LIMITS } from "../../../service/room-limits.js";
 
 // The classic arena: these rooms are driven by idle riders, and scenery would end their rounds before the membership
 // behaviour under test had played out.

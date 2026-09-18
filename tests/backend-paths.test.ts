@@ -78,7 +78,7 @@ function dockerSources(dockerfile: string): string[] {
 
 test("everything the image is built from is a backend path", () => {
   const copied = dockerSources(readFileSync("Dockerfile.cloud", "utf8"));
-  assert.ok(copied.includes("src") && copied.includes("packages"));
+  assert.ok(copied.includes("service") && copied.includes("packages"));
   for (const source of copied)
     assert.ok(
       affectsBackend(source) || affectsBackend(`${source}/any/file.ts`),
@@ -99,8 +99,8 @@ test("everything the image is built from is a backend path", () => {
 
 test("the release inputs are backend paths and documentation or browser tooling is not", () => {
   for (const file of [
-    "src/service/index.ts",
-    "src/shared/game.ts",
+    "service/index.ts",
+    "games/fuse-riders/src/shared/game.ts",
     "packages/fuse-network-be/src/gateway.ts",
     "packages/fuse-network-protocol/package.json",
     "package-lock.json",
@@ -121,7 +121,7 @@ test("the release inputs are backend paths and documentation or browser tooling 
     "README.md",
     "AGENTS.md",
     "docs/architecture.md",
-    "tests/game.test.ts",
+    "tests/ci-manifest.test.ts",
     "scripts/online-smoke.ts",
     "scripts/ci-manifest.json",
     ".github/workflows/ci.yml",
@@ -174,10 +174,14 @@ test("a backend change anywhere since the served commit deploys", () => {
 });
 
 test("a file moved out of the backend paths still counts: the diff lists its old path", () => {
-  // `git mv src/x.ts docs/x.ts` with --no-renames prints both names; with rename detection only the new one.
-  const decision = decideDeploy(served, HEAD, git(["docs/x.ts", "src/x.ts"]));
+  // `git mv service/x.ts docs/x.ts` with --no-renames prints both names; with rename detection only the new one.
+  const decision = decideDeploy(
+    served,
+    HEAD,
+    git(["docs/x.ts", "service/x.ts"]),
+  );
   assert.equal(decision.deploy, true);
-  assert.match(decision.reason, /1 backend file\(s\) changed.*src\/x\.ts/);
+  assert.match(decision.reason, /1 backend file\(s\) changed.*service\/x\.ts/);
 });
 
 test("the Dockerfile reader sees ADD, continuation lines, flags and the JSON form", () => {

@@ -11,7 +11,7 @@ import {
 } from "../scripts/lib/ci-manifest.js";
 import { browserKind } from "../scripts/lib/browser.js";
 import { roomServiceUrl } from "../scripts/lib/server.js";
-import { devBanner } from "../src/service/dev.js";
+import { devBanner } from "../service/dev.js";
 
 // scripts/ci-manifest.json is the only list of CI steps. These tests fail when .github/workflows/ci.yml or
 // scripts/ci-local.sh stops reading it, or when the one hand-written copy (the `verify` job) differs from it.
@@ -271,7 +271,7 @@ test("a manifest the workflow or the runner would misread is rejected", () => {
   );
 });
 
-test("the room service URL is read from the banner src/service/dev.ts really prints", () => {
+test("the room service URL is read from the banner service/dev.ts really prints", () => {
   const at = {
     port: 8801,
     base: "http://localhost:8803",

@@ -63,7 +63,7 @@ test("distances render as whole arena units and durations reuse the shared forma
   assert.equal(distanceText(0), "0");
   assert.equal(distanceText(1234.6), "1235");
   assert.equal(distanceText(-3), "0");
-  // durationText is re-exported from src/shared/duration-text.ts; tests/duration-text.test.ts owns its cases.
+  // durationText is re-exported from games/fuse-riders/src/shared/duration-text.ts; games/fuse-riders/tests/duration-text.test.ts owns its cases.
   assert.equal(durationText, sharedDurationText);
 });
 

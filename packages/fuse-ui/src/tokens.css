@@ -1,7 +1,7 @@
 /*
  * Fuse UI design tokens: the neon/pixel look every game in the repo shares.
  *
- * Values are taken from what Fuse Riders already draws (src/client/style.css, src/online/online.css,
+ * Values are taken from what Fuse Riders already draws (games/fuse-riders/src/client/style.css, games/fuse-riders/src/online/online.css,
  * top-menu.css, room-settings-menu.css), so a game that adopts a token looks the same pixel for pixel.
  * Import this file once, before any stylesheet that reads the tokens:
  *

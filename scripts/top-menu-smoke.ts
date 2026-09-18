@@ -6,7 +6,7 @@ import { mkdir } from "node:fs/promises";
 import type { AddressInfo } from "node:net";
 import { chromium, webkit, type Page } from "playwright";
 import { createServer } from "vite";
-import { createDevRoomService } from "../src/service/dev.js";
+import { createDevRoomService } from "../service/dev.js";
 
 const origin = "http://127.0.0.1:4197";
 const service = createDevRoomService({ allowedOrigins: [origin] });
@@ -64,10 +64,12 @@ try {
           if (!/access control checks/.test(e.message)) errors.push(e.message);
         });
         // Only authentication is substituted; actual createAccountPanel and room navigation execute unchanged.
-        await page.route("**/src/online/account.ts", (route) =>
-          route.fulfill({
-            contentType: "application/javascript",
-            body: `
+        await page.route(
+          "**/games/fuse-riders/src/online/account.ts",
+          (route) =>
+            route.fulfill({
+              contentType: "application/javascript",
+              body: `
           export const remembersSignIn = () => false;
           export const accountUsername = () => 'Neon Rider';
           export const rememberUsername = () => {};
@@ -81,7 +83,7 @@ try {
           export const identityToken = async () => 'smoke:header';
           export const signInFailure = () => '';
         `,
-          }),
+            }),
         );
         await page.route(`${api}/api/me`, (route) =>
           route.fulfill({
@@ -203,10 +205,10 @@ try {
         assert.deepEqual(errors, [], "No browser exceptions");
         if (!phone) {
           const refreshChecks = await page.evaluate(async () => {
-            const path = "/src/online/account-panel.ts";
+            const path = "/games/fuse-riders/src/online/account-panel.ts";
             const { createAccountPanel } = (await import(
               path
-            )) as typeof import("../src/online/account-panel.js");
+            )) as typeof import("../games/fuse-riders/src/online/account-panel.js");
             let now = 0,
               requests = 0,
               score = 1000,

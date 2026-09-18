@@ -5,7 +5,7 @@ import { memberId, uint32 } from "./wire.js";
  * Management entries: the room's seats, presence, settings and match lifecycle, in one wire format every game shares.
  * The creator logs them (or, while it is absent, whoever succeeds it); every replica applies them in succession order
  * at their tick, and only those `permitted` for the stream that carries them. Kinds 10–16; a game's own entries use
- * other kinds. Fuse Riders' engine applies these kinds with its own reducer (`src/engine/apply-tick.ts`, which cannot
+ * other kinds. Fuse Riders' engine applies these kinds with its own reducer (`games/fuse-riders/src/engine/apply-tick.ts`, which cannot
  * import this package); a new game can apply them with `applyManagementTick` below.
  */
 export const JOIN = 10,

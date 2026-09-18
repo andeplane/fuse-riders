@@ -1,7 +1,7 @@
 /**
  * `toSnapshot` exactly as it stood before issue #254 added the rules-as-data fields (#309, 14e1452), kept so
- * `tests/view-contract.test.ts` can show that every field a screen read before is still published unchanged.
- * Compare with `git show 14e1452:src/engine/view.ts`. Delete this file and that test the next time the shape of
+ * `games/fuse-riders/tests/view-contract.test.ts` can show that every field a screen read before is still published unchanged.
+ * Compare with `git show 14e1452:games/fuse-riders/src/engine/view.ts`. Delete this file and that test the next time the shape of
  * the view changes on purpose (stage A4 of #253 keeps it; whatever follows may not).
  */
 import {

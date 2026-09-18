@@ -8,7 +8,7 @@ import { smokeTimeout } from "./smoke-timeout.js";
  * Dice (Pig) browser smoke: a creator and a phone joiner in one room over WebRTC, playing turns to a round result
  * with a refresh mid-round that recovers the world from the peer; then a shared-screen room, where the TV shows the
  * table and the phone is a controller. `BROWSER=webkit` runs it in WebKit. `ONLINE_URL` is the room service that
- * serves the build (`npx tsx src/service/dev.ts`); screenshots go to `SMOKE_SHOTS` (default artifacts/).
+ * serves the build (`npx tsx service/dev.ts`); screenshots go to `SMOKE_SHOTS` (default artifacts/).
  */
 const base = process.env.ONLINE_URL ?? "http://localhost:8787/";
 const page = new URL("dice/", base).href;

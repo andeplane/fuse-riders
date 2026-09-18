@@ -12,8 +12,8 @@ import {
 /**
  * Pure end-of-match presentation model shared by the LAN TV and the online UI.
  * It only reads authoritative `MatchPlayerStats`; it never invents or rescores data.
- * Durations use the formatter added by #55, relocated from `src/client/` to `src/shared/` so this
- * module — which `src/online/` renders too — keeps one implementation without importing client code.
+ * Durations use the formatter added by #55, relocated from `games/fuse-riders/src/client/` to `games/fuse-riders/src/shared/` so this
+ * module — which `games/fuse-riders/src/online/` renders too — keeps one implementation without importing client code.
  */
 export { durationText };
 export const RECAP_KICKER = "MATCH COMPLETE // AFTER ACTION REPORT";

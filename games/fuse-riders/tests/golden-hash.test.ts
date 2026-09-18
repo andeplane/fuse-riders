@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { RULES } from "../src/engine/apply-tick.js";
 import { isEntry } from "../src/engine/input-log.js";
-import { goldenFailure } from "../scripts/lib/golden-update.js";
+import { goldenFailure } from "../../../scripts/lib/golden-update.js";
 import { replayGolden } from "./fixtures/golden-replay.js";
 import type { Recording } from "./fixtures/replay-log.js";
 
@@ -56,7 +56,7 @@ test("the input-only mechanic recording keeps every tick on the pinned rules", (
         `The hashes match, but the recording no longer reaches requirement ${key}: ${claim}.`,
         ...(detail ? [`  Seen instead: ${detail}`] : []),
         `  The fixtures were refreshed with a workload that lost coverage. The requirements are in`,
-        `  tests/fixtures/replay-coverage.ts (REQUIREMENTS) and tests/fixtures/golden-replay.ts; restore both fixtures`,
+        `  games/fuse-riders/tests/fixtures/replay-coverage.ts (REQUIREMENTS) and games/fuse-riders/tests/fixtures/golden-replay.ts; restore both fixtures`,
         `  from main, or see docs/design/engine-safety-net.md, 'When the golden fails', for a recorder that cannot reach one.`,
       ].join("\n"),
     );

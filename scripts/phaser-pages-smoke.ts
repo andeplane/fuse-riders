@@ -1,7 +1,10 @@
 import { preview } from "vite";
-import { AVATAR_ATLAS_URL } from "../src/shared/avatars.js";
-import { defaultTheme, themes } from "../src/render/themes.js";
-import { POWERUP_GUIDE } from "../src/client/powerup-guide.js";
+import { AVATAR_ATLAS_URL } from "../games/fuse-riders/src/shared/avatars.js";
+import {
+  defaultTheme,
+  themes,
+} from "../games/fuse-riders/src/render/themes.js";
+import { POWERUP_GUIDE } from "../games/fuse-riders/src/client/powerup-guide.js";
 import { chromium } from "playwright";
 import { readdir } from "node:fs/promises";
 import assert from "node:assert/strict";
@@ -38,7 +41,7 @@ try {
     async ({ chunk, state, theme }) => {
       const module = (await import(
         `/fuse-riders/assets/${chunk}`
-      )) as typeof import("../src/render/phaser/arena.js");
+      )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
       const canvas = document.createElement("canvas");
       canvas.width = 1600;
       canvas.height = 900;

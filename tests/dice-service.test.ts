@@ -14,9 +14,9 @@ import {
   roundResult,
 } from "dice";
 import { diceRegistration, parseDiceStats } from "dice/platform";
-import { createDevRoomService } from "../src/service/dev.js";
-import { extraGameIds, platform, platformFor } from "../src/service/history.js";
-import { GAME_ID } from "../src/shared/game-id.js";
+import { createDevRoomService } from "../service/dev.js";
+import { extraGameIds, platform, platformFor } from "../service/history.js";
+import { GAME_ID } from "../games/fuse-riders/src/shared/game-id.js";
 import { fold, runTo } from "../games/dice/tests/fixtures/dice.js";
 
 const token = () => randomBytes(32).toString("hex");

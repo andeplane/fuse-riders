@@ -79,7 +79,7 @@ const loop = (
 /**
  * Two loops that never meet, on a 1600x900 board: an outer one with a corridor of at least 100 units between its
  * cars and the classic wall, and an inner one inside the circle riders start on. Every spawn lies in the ring
- * between them (`tests/moving-scenery.test.ts` holds the trains clear of every spawn corridor for two to five riders).
+ * between them (`games/fuse-riders/tests/moving-scenery.test.ts` holds the trains clear of every spawn corridor for two to five riders).
  */
 export const TRAIN_TRACKS: readonly Track[] = Object.freeze([
   loop(160, 150, 1440, 750, 48),

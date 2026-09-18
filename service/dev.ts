@@ -15,7 +15,7 @@ import {
   type Platform,
 } from "fuse-platform";
 import { platform } from "./history.js";
-import { FIREBASE_PROJECT_ID } from "../shared/firebase-config.js";
+import { FIREBASE_PROJECT_ID } from "../games/fuse-riders/src/shared/firebase-config.js";
 export type { DevRoomService };
 export interface DevRoomServiceOptions extends Omit<
   NetworkOptions,
@@ -82,7 +82,7 @@ if (
   const port = Number(argument("port") ?? process.env.PORT ?? 8787),
     host = argument("host") ?? "127.0.0.1";
   const staticDirectory =
-    argument("static") ?? fileURLToPath(new URL("../../dist", import.meta.url));
+    argument("static") ?? fileURLToPath(new URL("../dist", import.meta.url));
   const service = createDevRoomService({ staticDirectory });
   // The port asked for is where the search starts, not a demand: another worktree's service may already hold it.
   const actual = await listenFree(service.server, port, host);
