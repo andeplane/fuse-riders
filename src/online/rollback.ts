@@ -7,6 +7,7 @@ import {
   type StreamEntries,
 } from "../engine/apply-tick.js";
 import { stepsPerTick, toView } from "../engine/game.js";
+import { MAX_STEPS_PER_TICK } from "../engine/tick-driver.js";
 import { LEAVE, PRESENCE } from "../engine/input-log.js";
 import type { GameEvent, WorldView } from "../engine/view.js";
 import { ROLLBACK_TICKS, StreamLog, type ReceiveResult } from "./stream.js";
@@ -220,10 +221,13 @@ export class World {
         waitingFor = stall.waitingFor;
         break;
       }
-      if (!this.step(events)) break;
+      if (!this.step(events, Math.min(targetTick, stall.tick))) break;
       advanced = true;
     }
-    if (advanced) this.retain();
+    if (advanced) {
+      this.showNewest();
+      this.retain();
+    }
     return { events, ...(waitingFor === undefined ? {} : { waitingFor }) };
   }
   /** Feed one packet's entries for a stream; a late applicable entry rolls the world back and re-simulates. */
@@ -296,20 +300,33 @@ export class World {
    */
   private replay(events: WorldEvent[]): boolean {
     let ran = false;
-    while (this.work.tick < this.state.tick && this.step(events)) ran = true;
+    while (
+      this.work.tick < this.state.tick &&
+      this.step(events, this.state.tick)
+    )
+      ran = true;
     if (!this.settled && this.work.tick >= this.state.tick) {
       this.state = this.work;
-      this.frames = this.replayFrames.length
-        ? this.replayFrames
-        : [this.frame(this.state)];
+      this.frames = this.replayFrames;
+      this.showNewest();
       events.push(...this.replayEvents.map((held) => held.event));
       this.replayFrames = [];
       this.replayEvents = [];
     }
     return ran;
   }
-  /** Fold one log tick if the budget window has room for its steps; false when it does not. */
-  private step(events: WorldEvent[]): boolean {
+  /** Make sure the newest frame is the settled state's, when a window stopped before a tick it expected to build one for. */
+  private showNewest(): void {
+    if (this.frames[0]?.logTick === this.state.tick) return;
+    this.frames.unshift(this.frame(this.state));
+    if (this.frames.length > 2) this.frames.length = 2;
+  }
+  /**
+   * Fold one log tick if the budget window has room for its steps; false when it does not. Only the ticks that can end
+   * up shown build a frame (`toView` is not free): the last two before `last`, and, settled, the last few a budget
+   * window can hold; `showNewest` covers a window that stops earlier than expected.
+   */
+  private step(events: WorldEvent[], last: number): boolean {
     const state = this.work,
       replaying = !this.settled;
     if (
@@ -343,9 +360,14 @@ export class World {
     this.gameTicks.set(tick, state.game.tick);
     if (tick % SNAPSHOT_INTERVAL === 0)
       this.snapshots.set(tick, structuredClone(state));
-    const frames = replaying ? this.replayFrames : this.frames;
-    frames.unshift(this.frame(state));
-    if (frames.length > 2) frames.length = 2;
+    const shown =
+      last - tick <= 1 ||
+      (!replaying && this.budget - this.spent < 2 * MAX_STEPS_PER_TICK);
+    if (shown) {
+      const frames = replaying ? this.replayFrames : this.frames;
+      frames.unshift(this.frame(state));
+      if (frames.length > 2) frames.length = 2;
+    }
     return true;
   }
   /** Drop what can never be replayed again: old snapshots, applied entries before them and their event keys. */
@@ -385,12 +407,20 @@ export class World {
    * clocks drift apart for good once a bots-only endgame has run. -1 while nothing is confirmed.
    */
   confirmedGameTick(): number {
+    // While a re-run is owed, `gameTicks` past it hold overturned history: nothing is newly confirmed until it is done.
+    if (!this.settled) return this.settledConfirmed;
     const complete = this.completeTick();
-    if (complete >= this.tick) return this.state.game.tick;
-    if (complete < 0) return -1;
-    // Older than anything retained: the log tick itself is a lower bound, since every log tick steps at least once.
-    return this.gameTicks.get(complete) ?? complete;
+    this.settledConfirmed =
+      complete >= this.tick
+        ? this.state.game.tick
+        : complete < 0
+          ? -1
+          : // Older than anything retained: the log tick itself is a lower bound, since every log tick steps at least once.
+            (this.gameTicks.get(complete) ?? complete);
+    return this.settledConfirmed;
   }
+  /** `confirmedGameTick` as last read while settled. */
+  private settledConfirmed = -1;
   /**
    * The state to serve a joiner: the newest retained snapshot no later than the complete tick, so nothing any rider has
    * already logged up to it is still in flight; the current speculative state only when everything is complete.
