@@ -81,7 +81,8 @@ export class BeveledTrails extends Phaser.GameObjects.Extern {
           unit = pipeline.setTexture2D();
         }
         for (let j = 0; j < 3; j++) {
-          const v = ribbon.vertices[i + j];
+          // trailRibbon emits complete triangles, so all three vertices exist.
+          const v = ribbon.vertices[i + j]!;
           pipeline.batchVert(
             matrix.getX(v.x, v.y),
             matrix.getY(v.x, v.y),

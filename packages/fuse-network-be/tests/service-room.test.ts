@@ -189,7 +189,7 @@ test("service transaction retries keep one logical connection/grant and fenced r
   assert.equal(second.room.grant?.validFrom, first.room.grant!.expiresAt + 250);
   await f.store.leave(CODE, first.member);
   assert.equal(
-    (await f.store.get(CODE)).members[first.member.id].connectionId,
+    (await f.store.get(CODE)).members[first.member.id]!.connectionId,
     second.member.connectionId,
   );
   await assert.rejects(
@@ -217,12 +217,12 @@ test("service reserves creator slot and atomically bounds concurrent admission",
 test("two gateways advertise actual remote members and route only signalling", async () => {
   const f = fixture(),
     { host, guest, hostConnection, guestConnection } = await joined(f);
-  assert.equal(guest.frames("welcome")[0].hostId, peerId(HOST));
+  assert.equal(guest.frames("welcome")[0]!.hostId, peerId(HOST));
   assert.equal(host.frames("peer").at(-1)?.connectionId, guestConnection);
   await f.a.receive(hostConnection, signal(peerId(GUEST), guestConnection));
   assert.equal(f.aBus.published.length, 1);
   assert.equal(guest.frames("signal").length, 1);
-  assert.equal(guest.frames("signal")[0].connectionId, hostConnection);
+  assert.equal(guest.frames("signal")[0]!.connectionId, hostConnection);
   await f.a.receive(
     hostConnection,
     JSON.stringify({
@@ -300,17 +300,17 @@ test("fast bus after delayed metadata emits new source membership before SDP", a
   const before = host.messages.length;
   await f.b.receive(
     newGuest,
-    signal(peerId(HOST), String(host.frames("welcome")[0].connectionId)),
+    signal(peerId(HOST), String(host.frames("welcome")[0]!.connectionId)),
   );
   const after = host.messages.slice(before);
-  assert.equal(after[0].type, "peer");
-  assert.equal(after[0].connectionId, newGuest);
-  assert.equal(after[1].type, "signal");
+  assert.equal(after[0]!.type, "peer");
+  assert.equal(after[0]!.connectionId, newGuest);
+  assert.equal(after[1]!.type, "signal");
   f.database.flush();
   assert.equal(host.frames("peer").at(-1)?.connectionId, newGuest);
   await f.b.disconnect(guestConnection);
   assert.equal(
-    (await f.store.get(CODE)).members[peerId(GUEST)].connectionId,
+    (await f.store.get(CODE)).members[peerId(GUEST)]!.connectionId,
     newGuest,
   );
 });
@@ -321,6 +321,7 @@ test("expired and duplicate bus packets never repeat SDP; old replacement source
   f.aBus.delayed = true;
   await f.a.receive(hostConnection, signal(peerId(GUEST), guestConnection));
   const packet = f.aBus.published[0];
+  assert.ok(packet);
   await f.b.deliver(packet);
   await f.b.deliver(packet);
   assert.equal(guest.frames("signal").length, 1);
@@ -337,13 +338,14 @@ test("expired and duplicate bus packets never repeat SDP; old replacement source
 test("time renewals preserve exact authority and stale close cannot revoke replacement", async () => {
   const f = fixture(),
     { host, hostConnection } = await joined(f);
-  const grant = host.frames("welcome")[0].grant;
+  const grant = host.frames("welcome")[0]!.grant;
   f.advance(1000);
   await f.a.receive(
     hostConnection,
     JSON.stringify({ type: "time", id: 1, sentAt: 25, renew: grant }),
   );
   const response = host.frames("time")[0];
+  assert.ok(response);
   assert.equal(response.sentAt, 25);
   assert.equal(response.serviceTime, 2000);
   assert.ok(response.grant);
@@ -447,7 +449,7 @@ test("v2 renewal accepts GrantIdentity without timestamps at the actual JSON bou
     hostConnection,
     JSON.stringify({ type: "time", id: 1, sentAt: 50, renew: identity }),
   );
-  const renewed = host.frames("time")[0].grant;
+  const renewed = host.frames("time")[0]!.grant;
   assert.ok(renewed && typeof renewed === "object");
   assert.equal(
     (renewed as { expiresAt: number }).expiresAt,
