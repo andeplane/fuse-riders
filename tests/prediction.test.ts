@@ -174,3 +174,19 @@ test("presentation leads the local rider by its held controls and marks its pres
     newer,
   );
 });
+
+test("frames several game ticks apart, as in a bots-only endgame, interpolate over the whole gap", () => {
+  const { older, newer } = frames();
+  // One log tick that ran three steps: the same poses, three game ticks apart.
+  const later = { ...newer, tick: older.tick + 3 };
+  const shown = presentWorld(older, later, older.tick + 1.5);
+  const before = older.players[0]!,
+    after = later.players[0]!,
+    mid = shown.players[0]!;
+  assert.equal(shown.tick, older.tick + 1.5);
+  assert.ok(
+    Math.abs(mid.x - (before.x + after.x) / 2) < 1e-9 &&
+      Math.abs(mid.y - (before.y + after.y) / 2) < 1e-9,
+    "half way through the gap is half way along",
+  );
+});

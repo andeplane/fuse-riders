@@ -8,17 +8,34 @@ import {
   type Phase,
 } from "./game.js";
 import type { PlayerId } from "./primitives.js";
+import { BOTS_ONLY_STEPS_PER_TICK } from "./tuning.js";
 import type { RoomSettings } from "./room-settings.js";
 import type { GameEvent } from "./state.js";
 
 /**
- * How many times one shared tick steps the simulation. One today, and `RULES` would have to change with it.
- *
- * This is where issue #258's N2 (game speed as N steps per tick instead of a faster shared clock) belongs, but it is
- * not only this number: `applyTick` reads the log's tick off `game.tick + 1`, and a press, release or cancel in
- * `inputs` must reach the first step alone. See `docs/design/engine-tick-driver.md`.
+ * The most steps one log tick runs. `applyTick` chooses the count for each tick from the state before it; the
+ * snapshot guard (`stepsCover`) bounds a game clock by it. See `docs/design/fixed-clock-game-speed.md`.
  */
-export const STEPS_PER_TICK = 1;
+export const MAX_STEPS_PER_TICK = BOTS_ONLY_STEPS_PER_TICK;
+
+/**
+ * Whether a game clock can belong to a room at `logTick`: every log tick steps the game at least once and at most
+ * `MAX_STEPS_PER_TICK` times, and nothing else moves the game's clock. The snapshot guard refuses any other pair.
+ */
+export function stepsCover(logTick: number, gameTick: number): boolean {
+  return gameTick >= logTick && gameTick <= logTick * MAX_STEPS_PER_TICK;
+}
+
+/** How one log tick steps the game when it steps more than once. */
+export interface TickSteps {
+  /** Steps to run, at least one. Steps after the first run only while the round is still playing. */
+  count: number;
+  /**
+   * The inputs of each step after the first, from the game as the previous step left it: held controls without the
+   * tick's bomb commands, which belong to the first step alone, and bots asked again.
+   */
+  later: (game: Readonly<GameState>) => ReadonlyMap<PlayerId, InputIntent>;
+}
 
 /** What one driven tick did to the game that the room around it has to follow. */
 export interface DrivenTick {
@@ -32,7 +49,8 @@ export interface DrivenTick {
 /**
  * One tick of a game, whoever runs it: the simulation, then what follows from it without anyone asking.
  *
- * 1. `step`, `STEPS_PER_TICK` times, over the same inputs.
+ * 1. `step` with `inputs`, then, if `steps` asks for more, further steps with `steps.later` for as long as the round
+ *    is playing: a round that ends on an early step is not stepped on into its pause.
  * 2. Round progression. When the round-over pause has run out, riders who are absent lose their seat; if two or more
  *    remain, the next round starts. With fewer the game waits in `roundOver` for the room to act.
  * 3. Settings at the round boundary. The next round plays under the room's current settings, except the match format
@@ -51,12 +69,15 @@ export function driveGameTick(
   inputs: ReadonlyMap<PlayerId, InputIntent>,
   roomSettings: RoomSettings,
   phases?: readonly Phase[],
+  steps?: TickSteps,
 ): DrivenTick {
   const events: GameEvent[] = [],
     removed: PlayerId[] = [];
   let roundStarted = false;
-  for (let count = 0; count < STEPS_PER_TICK; count += 1)
-    events.push(...step(game, inputs, phases).events);
+  events.push(...step(game, inputs, phases).events);
+  const count = Math.floor(steps?.count ?? 1);
+  for (let index = 1; index < count && game.phase === "playing"; index += 1)
+    events.push(...step(game, steps!.later(game), phases).events);
   if (
     game.phase === "roundOver" &&
     game.phaseEndsAtTick !== undefined &&

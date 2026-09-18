@@ -264,4 +264,8 @@ Fold rules `fuse-p2p-36` add the round-long Range pickup. Players, LAN snapshots
 
 ## Map rotation
 
-Fold rules `fuse-p2p-37`, the current rules, put the obstacle-free `classic` arena into the `rotate` cycle (`ROTATION_MAPS`: `classic`, `desert`, `forest`, `city`), so a default room plays open rounds among the obstacle ones; `wrap` and `cross` remain opt-in. The same seed and round now pick a different map, so rule equality rejects older peers and snapshots. No state or settings shape changed. Refresh all peers together, and use fresh rooms after rollback. Room-service and transport envelopes are unchanged.
+Fold rules `fuse-p2p-37` put the obstacle-free `classic` arena into the `rotate` cycle (`ROTATION_MAPS`: `classic`, `desert`, `forest`, `city`), so a default room plays open rounds among the obstacle ones; `wrap` and `cross` remain opt-in. The same seed and round now pick a different map, so rule equality rejects older peers and snapshots. No state or settings shape changed. Refresh all peers together, and use fresh rooms after rollback. Room-service and transport envelopes are unchanged.
+
+## Game speed as steps per log tick
+
+Fold rules `fuse-p2p-38`, the current rules, keep the shared clock at one rate and run a bots-only endgame as three simulation steps per log tick (`stepsPerTick`, `driveGameTick`; #258 N2, [design note](../design/fixed-clock-game-speed.md)). The packet, entry and snapshot wire formats are unchanged. A snapshot's `tick` field is the log tick (`RoomState.tick`) and its checkpoint's `game.tick` is the game's step count; the guard used to require them equal and now requires `tick ≤ game.tick ≤ tick × MAX_STEPS_PER_TICK`. The desync hash covers the log tick as well. Rule equality rejects older peers, which would change the clock's rate instead.

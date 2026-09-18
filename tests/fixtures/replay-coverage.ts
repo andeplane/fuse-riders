@@ -12,6 +12,7 @@ import {
   SHIELD_GRACE_TICKS,
   SNAIL_DURATION_TICKS,
   STAR_DURATION_TICKS,
+  stepsPerTick,
   TICK_HZ,
   TRAIL_WIDTH,
   type EliminationCause,
@@ -117,6 +118,10 @@ export interface ReplayCoverage {
   immuneBounces: number;
 
   roundsEnded: number;
+  /** Simulation steps beyond the first that bots-only log ticks ran (#258 N2). */
+  fastSteps: number;
+  /** Rounds that ended inside a log tick decided to run several steps, which stops stepping there. */
+  fastRoundEnds: number;
   /** Rounds that ended with no winner. */
   roundsDrawn: number;
   /** Rounds whose ranking shares a place between riders eliminated on the same tick. */
@@ -187,6 +192,8 @@ export function emptyCoverage(): ReplayCoverage {
     shieldedTicks: 0,
     immuneBounces: 0,
     roundsEnded: 0,
+    fastSteps: 0,
+    fastRoundEnds: 0,
     roundsDrawn: 0,
     tiedRounds: 0,
     timedOutRounds: 0,
@@ -297,8 +304,13 @@ export function coverageObserver(coverage: ReplayCoverage) {
       0,
     );
     const humans = state.folds.size;
+    const gameTick = before.tick,
+      fast = stepsPerTick(before, state.bots) > 1;
     return (events: readonly GameEvent[]) => {
       const game = state.game;
+      coverage.fastSteps += Math.max(0, game.tick - gameTick - 1);
+      if (fast && events.some((event) => event.type === "roundEnded"))
+        coverage.fastRoundEnds++;
       const sameRound = round === `${game.matchId}/${game.round}`;
       const playing = game.phase === "playing";
       const elapsed = game.tick - (game.roundStartedTick ?? game.tick);
@@ -854,6 +866,11 @@ export const REQUIREMENTS: readonly Requirement[] = [
       coverage.matchesEnded >= 2 &&
       coverage.matchesWon > 0 &&
       coverage.fewestFinishers >= 2,
+  ),
+  requirement(
+    "fast:steps",
+    "only bots survive a round in play: log ticks run extra simulation steps, and a round ends inside such a tick",
+    (coverage) => coverage.fastSteps >= 60 && coverage.fastRoundEnds > 0,
   ),
   requirement("moment", "a highlight moment is recorded", (coverage) =>
     any(coverage.moments),
