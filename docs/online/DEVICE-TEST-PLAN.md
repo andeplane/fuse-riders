@@ -134,8 +134,9 @@ the join form inline before taking a seat) in either orientation, with no
 rotate gate and one ROOM button. It is the desktop lobby stacked (headline,
 QR card, riders, actions) rather than a card of its own. From **countdown** through **matchOver** `mobilePlayPolicy` is
 active: the full-screen thirds are the only controller and roster/host
-actions live inside the ☰ MENU overlay, auto-opened for a phone host in
-matchOver. `scripts/mobile-phase-smoke.ts` asserts the lobby screen in
+actions live inside the ☰ MENU overlay, auto-opened for a phone host when
+the recap opens at the end of matchOver (the pause before it shows the final
+round's result, then the match winner, on the arena). `scripts/mobile-phase-smoke.ts` asserts the lobby screen in
 both orientations and identical control elements across `countdown`,
 `playing`, `matchOver` in Chrome/WebKit emulation only; the music resume on
 a real iPhone (#134 finding 1) is not covered by emulation at all.
@@ -162,7 +163,9 @@ quality.
    [#14](#14--long-press-text-selection) hint-fade note below).
 5. Screenshot during **playing**. Confirm identical positions/sizes to the
    countdown screenshot (same thirds, same pill).
-6. Let the match reach **matchOver**; screenshot. Confirm exactly one
+6. Let the match reach **matchOver** and wait for the recap (the final
+   round's result, then the match winner, show first); close it and
+   screenshot. Confirm exactly one
    control surface, the ☰ MENU overlay auto-opened for the phone host with
    REMATCH, BACK TO LOBBY, ROOM SETTINGS, TV VIEW and ADD AI all readable (none
    clipped), and that rotating keeps the overlay open.
@@ -192,6 +195,13 @@ plus `selectstart`/`contextmenu` prevention while `.mobile-play` is active.
 `scripts/mobile-landscape-smoke.ts` asserts this with a 650 ms **CDP**
 synthetic touch per third in Chromium — not a real touchscreen gesture, and
 WebKit's own long-press/callout behavior is emulator-only there too.
+The smoke records the hold result inside the page and retries only when a
+benchmark snapshot proves the round phase changed during the attempt. It
+requires a complete 650 ms hold within one playing phase for every third;
+a lost hold in a stable phase or any selected text remains a failure.
+Run `MOBILE_HOLD_PHASE_RACE=1 HOME_URL=http://localhost:8787/ npx tsx scripts/mobile-landscape-smoke.ts`
+to force the first gesture to span a real round transition and verify that
+it is retried before a complete hold passes in both engines.
 
 **Devices/network**: iPhone Safari (WebKit's real long-press gesture is the
 primary risk named in #14's own root-cause note) and Android Chrome. Either

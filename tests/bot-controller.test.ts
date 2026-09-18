@@ -5,7 +5,6 @@ import {
   botRandom,
   botDifficulty,
   botDisplayName,
-  rollBotDifficulty,
   BOT_DIFFICULTIES,
   BOT_TIERS,
 } from "../src/shared/bot-controller.js";
@@ -458,13 +457,21 @@ test("AI arriving during a match waits and appears in the next round; removal be
   );
 });
 
-test("Every AI is rolled a difficulty that shows in its name and steers its own controller", () => {
-  assert.deepEqual([0, 0.34, 0.67, 0.99].map(rollBotDifficulty), [
-    "easy",
-    "medium",
-    "hard",
-    "hard",
-  ]);
+test("New AI names omit difficulty and use the full-strength controller", () => {
+  const game = fixture();
+  const player = game.players.get("bot:1")!;
+  const bot = new BotController();
+  for (const base of BOT_NAMES) {
+    player.name = botDisplayName(base);
+    assert.equal(player.name, `AI ${base}`);
+    assert.equal(botDifficulty(player.name), "hard");
+    const input = bot.input(game, player.id);
+    player.name = botDisplayName(base, "hard");
+    assert.deepEqual(bot.input(game, player.id), input);
+  }
+});
+
+test("Explicit tiers in existing names retain their deterministic controller settings", () => {
   for (const base of BOT_NAMES)
     for (const difficulty of BOT_DIFFICULTIES) {
       const name = botDisplayName(base, difficulty);

@@ -8,6 +8,7 @@ import {
 import type { RoomSettings } from "../../src/shared/room-settings.js";
 import type { Frame } from "../../src/online/rollback.js";
 import type { GameEvent } from "../../src/shared/protocol.js";
+import { decodePacket } from "../../src/online/packet.js";
 
 export interface NetworkOptions {
   loss: number;
@@ -15,6 +16,7 @@ export interface NetworkOptions {
   jitterMs: number;
   reliableMs: number;
   oneWayMs?: (from: string, to: string) => number;
+  duplicate?: number;
 }
 interface Delivery {
   at: number;
@@ -46,6 +48,11 @@ export class FakeNetwork {
   sentFast = 0;
   droppedFast = 0;
   bytesFast = 0;
+  duplicatedFast = 0;
+  reorderedFast = 0;
+  private fastDelivered = new Map<string, number>();
+  /** Actual state hashes emitted by each replica's normal fast-packet path. */
+  readonly reportedHashes = new Map<string, Map<number, string>>();
   /** Every reliable message by sender, receiver and type, so a test can count joins, hellos and snapshot requests. */
   readonly reliableLog: {
     from: string;
@@ -83,14 +90,35 @@ export class FakeNetwork {
     if (!target?.online || !this.transports.get(from)?.online) return false;
     this.sentFast++;
     this.bytesFast += bytes.byteLength;
+    const decoded = decodePacket(bytes);
+    const packet = decoded && "packet" in decoded ? decoded.packet : undefined;
+    if (packet?.hash) {
+      let hashes = this.reportedHashes.get(from);
+      if (!hashes) this.reportedHashes.set(from, (hashes = new Map()));
+      hashes.set(packet.hash[0], packet.hash[1]);
+    }
     if (this.muted.has(from) || this.random() < this.options.loss) {
       this.droppedFast++;
       return true;
     }
-    this.schedule(this.now + this.delay(from, to), () => {
-      if (target.online && !target.deaf && target.linkedWith(from))
+    const sequence = this.sentFast;
+    const deliver = (duplicate: boolean) => {
+      if (target.online && !target.deaf && target.linkedWith(from)) {
+        const key = `${from}>${to}`;
+        if (duplicate) this.duplicatedFast++;
+        if (!duplicate && sequence < (this.fastDelivered.get(key) ?? 0))
+          this.reorderedFast++;
+        this.fastDelivered.set(
+          key,
+          Math.max(sequence, this.fastDelivered.get(key) ?? 0),
+        );
         target.events.fast(from, bytes);
-    });
+      }
+    };
+    this.schedule(this.now + this.delay(from, to), () => deliver(false));
+    if (this.options.duplicate && this.random() < this.options.duplicate) {
+      this.schedule(this.now + this.delay(from, to), () => deliver(true));
+    }
     return true;
   }
   sendReliable(from: string, to: string, data: unknown): boolean {

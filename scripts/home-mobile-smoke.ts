@@ -187,8 +187,12 @@ for (const [browserName, type] of [
         const guide = page.getByRole("region", { name: "POWER-UPS" });
         assert.equal(
           await guide.getByRole("listitem").count(),
-          POWERUP_GUIDE.length,
-          "power-up guide lists every pickup",
+          POWERUP_GUIDE.length - 1,
+          "power-up guide lists every pickup except Target Bomb",
+        );
+        assert.equal(
+          await guide.getByText("TARGET", { exact: true }).count(),
+          0,
         );
         await guide.getByText("blocks one crash", { exact: false }).waitFor(); // the landing guide is the only place descriptions render; the TV legend is names alone
         await guide.getByText("STAR", { exact: true }).scrollIntoViewIfNeeded();
@@ -281,7 +285,7 @@ for (const [browserName, type] of [
           await inside(page, dialog);
           assert.ok(
             await page
-              .locator(".dialog-body")
+              .locator("dialog[open] .dialog-body")
               .evaluate((e) => e.scrollWidth <= e.clientWidth + 1),
             "dialog body horizontal overflow",
           );
@@ -400,7 +404,7 @@ for (const [browserName, type] of [
               await page.evaluate(
                 () =>
                   JSON.parse(
-                    localStorage.getItem("fuse-riders-room-settings-v1")!,
+                    localStorage.getItem("fuse-riders-room-settings-v2")!,
                   ).bombChargeTicks,
               ),
               24,
@@ -451,7 +455,7 @@ for (const [browserName, type] of [
               page,
               page.getByRole("button", { name: "EFFECTS ON", exact: true }),
             );
-            await page
+            await dialog
               .getByRole("button", { name: "♫ RADIO", exact: true })
               .click();
             await page.locator(".audio-panel").waitFor({ state: "visible" });
@@ -460,7 +464,7 @@ for (const [browserName, type] of [
               .all())
               await inside(page, slider);
           }
-          await page.locator(".dialog-body").evaluate((e) => {
+          await page.locator("dialog[open] .dialog-body").evaluate((e) => {
             e.scrollTop = e.scrollHeight;
           });
           await inside(

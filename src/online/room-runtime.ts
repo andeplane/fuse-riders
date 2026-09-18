@@ -23,7 +23,6 @@ import {
   RULES,
   actingCreator,
   createRoomState,
-  freeSlot,
   reclaimable,
   successionOrder,
 } from "../shared/apply-tick.js";
@@ -48,12 +47,7 @@ import {
   parseRoomSettings,
   type RoomSettings,
 } from "../shared/room-settings.js";
-import {
-  botDisplayName,
-  botRandom,
-  rollBotDifficulty,
-  BOT_ID_PREFIX,
-} from "../shared/bot-controller.js";
+import { botDisplayName, BOT_ID_PREFIX } from "../shared/bot-controller.js";
 import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from "../shared/game.js";
 import type { AimPoint, GameEvent } from "../shared/protocol.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
@@ -722,7 +716,8 @@ export class RoomRuntime {
   ): string | undefined {
     if (!this.world) return "The room is still loading";
     const name = rawName.trim().slice(0, MAX_NAME_LENGTH);
-    if (!name || /[ -]/.test(name)) return "Choose a name (1–20 characters)";
+    if (!name || /[\x00-\x1f\x7f]/.test(name))
+      return "Choose a name (1–20 characters)";
     const game = this.world.state.game,
       member = from === this.id ? undefined : this.members.get(from);
     const generation = from === this.id ? this.generation : member?.generation;
@@ -981,16 +976,7 @@ export class RoomRuntime {
         )
           number++;
         const id = `${BOT_ID_PREFIX}${number}`;
-        const difficulty = rollBotDifficulty(
-          botRandom(game.seed, id, game.tick),
-        );
-        this.append(
-          BOT,
-          "add",
-          id,
-          botDisplayName(BOT_NAMES[slot]!, difficulty),
-          slot,
-        );
+        this.append(BOT, "add", id, botDisplayName(BOT_NAMES[slot]!), slot);
         return true;
       }
       if (

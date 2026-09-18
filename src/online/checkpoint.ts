@@ -15,6 +15,8 @@ import {
   POWER_TUNING,
 } from "../shared/power-progression.js";
 import {
+  AIM_SLOW_MAX_TICKS,
+  AIM_SLOW_RAMP_TICKS,
   ARENA_WIDTH,
   ARENA_HEIGHT,
   GRAVITY_FIELD_TICKS,
@@ -156,6 +158,8 @@ const playerFields = {
     integer(v) &&
     range(POWER_TUNING.minReloadTicks, POWER_TUNING.baseReloadTicks)(v),
   invulnerableUntilTick: integer,
+  aimSlowTicks: count(AIM_SLOW_RAMP_TICKS),
+  aimSlowSpentTicks: count(AIM_SLOW_MAX_TICKS),
   nitroUntilTicks: array(integer, MAX_SPEED_EFFECT_STACK),
   snailUntilTicks: array(integer, MAX_SPEED_EFFECT_STACK),
   grip: boolean,
@@ -357,6 +361,22 @@ const gameShape = shape({
       round: (v) => integer(v) && v !== 0,
       tick: integer,
       shots: array(shotRecord, MAX_ROUND_SHOTS),
+      rating: optional(
+        shape({
+          finishers: array(text, 5),
+          standings: array(
+            shape({
+              playerId: text,
+              name,
+              slot: count(4),
+              color: text,
+              place: (v) => count(5)(v) && v !== 0,
+              scoreUnits: integer,
+            }),
+            5,
+          ),
+        }),
+      ),
     }),
   ),
   roundWinnerId: optional(text),
@@ -610,6 +630,23 @@ function gameInvariants(game: GameState): boolean {
       (decided.matchId === game.matchId && decided.round > game.round))
   )
     return false;
+  if (decided?.rating) {
+    const { standings, finishers } = decided.rating;
+    const ids = new Set(standings.map((p) => p.playerId));
+    if (
+      standings.length < 2 ||
+      ids.size !== standings.length ||
+      new Set(finishers).size !== finishers.length ||
+      finishers.some((id) => !ids.has(id) || id.startsWith("bot:")) ||
+      standings.some(
+        (p) =>
+          p.place > standings.length ||
+          !/^#[0-9a-fA-F]{6}$/.test(p.color) ||
+          p.scoreUnits > 300,
+      )
+    )
+      return false;
+  }
   const perKind = new Map<string, number>();
   for (const m of game.moments) {
     if (

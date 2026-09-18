@@ -45,7 +45,7 @@ export function orderedStats(
     (a, b) =>
       a.matchPlacement - b.matchPlacement ||
       a.slot - b.slot ||
-      a.playerId.localeCompare(b.playerId),
+      (a.playerId < b.playerId ? -1 : a.playerId > b.playerId ? 1 : 0),
   );
 }
 

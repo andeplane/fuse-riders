@@ -49,10 +49,11 @@ import {
   edgesOpen,
   initialBoundaryInset,
   generateObstacles,
-  obstacleBlocksPath,
-  obstacleBounceNormal,
   obstacleDistanceSquared,
   obstacleEdges,
+  obstacleHitbox,
+  hitboxBlocksPath,
+  hitboxBounceNormal,
   obstacleInsideBounds,
   obstacleTouchesCircle,
   segmentObstacleDistanceSquared,
@@ -60,6 +61,7 @@ import {
   type ArenaMapId,
   type ClearCapsule,
   type Obstacle,
+  type ObstacleHitbox,
 } from "./arena-map.js";
 import {
   NO_WRAP,
@@ -170,6 +172,12 @@ export const RIDER_RADIUS = 7;
 export const TRAIL_WIDTH = 6;
 /** Trail heads collide at their visible width; portraits and heading arrows are cosmetic. */
 export const RIDER_CONTACT_RADIUS = TRAIL_WIDTH / 2;
+/**
+ * Scenery is met at the head's visible width too, and against the obstacle's hitbox (`obstacleHitbox`) rather than
+ * always its whole footprint: a portrait that overlapped a rock, or a rider that crossed the empty corner of a
+ * crown's footprint, did not crash.
+ */
+export const RIDER_OBSTACLE_RADIUS = RIDER_CONTACT_RADIUS;
 export const TRAIL_LIFETIME_TICKS = POWER_TUNING.baseTrailLifetimeTicks;
 export const SELF_TRAIL_GRACE_TICKS = 10;
 
@@ -231,6 +239,11 @@ export const SPAWN_CORRIDOR_RADIUS = 56;
 
 export const COUNTDOWN_TICKS = 60;
 export const ROUND_OVER_TICKS = 60;
+/**
+ * The final round ends like any other (its own result, then the replay), and only then names the match winner for this
+ * long before the recap. Without the second beat the match result covered the round's, and read as the round's.
+ */
+export const MATCH_WINNER_TICKS = 60;
 export const OVERTIME_START_TICK = 1200;
 export const OVERTIME_INSET_PER_TICK = 0.5;
 export const ROUND_DRAW_TICK = 1800;
@@ -260,7 +273,7 @@ export function simulationTimeScale(
   if (state.phase !== "playing") return 1;
   let humans = 0,
     botsAlive = 0;
-  for (const player of state.players.values()) {
+  for (const player of sortedPlayers(state)) {
     if (!bots.has(player.id)) {
       if (player.alive) return 1;
       humans++;
@@ -286,17 +299,80 @@ export function riderSpeedMultiplier(
     if (until > tick) multiplier *= SNAIL_SPEED;
   return multiplier;
 }
-/** How far a rider moves and may turn on `tick`: the round's ramp on both, then the speed pickups on distance alone. */
+/**
+ * Holding the bomb button slows the rider to steady the aim. The slowdown eases in over AIM_SLOW_RAMP_TICKS and eases
+ * back out the same way on release, cancel or the cap: speed never jumps. The cap is a budget, not the age of a charge:
+ * every slowed tick of aiming spends one of AIM_SLOW_MAX_TICKS, and they come back one per tick only while the button is
+ * up, so a second of slowdown is all a hold buys however long it lasts, and cancelling into a fresh press buys nothing.
+ * A gun fires on the press and never charges, so it never slows.
+ */
+export const AIM_SLOW_SPEED = 0.5;
+export const AIM_SLOW_MAX_TICKS = TICK_HZ;
+export const AIM_SLOW_RAMP_TICKS = 6;
+/**
+ * Aiming never takes a rider below this fraction of the round's pace. Self-trail immunity is counted in ticks, so a rider
+ * much slower than this is still touching trail they laid after the grace ran out: three Snails are survivable, and
+ * pressing the bomb button under them must stay so.
+ */
+export const AIM_SLOW_FLOOR = 0.125;
+export interface AimSlow {
+  /** How far into the slowdown the rider is, 0 (full speed) to AIM_SLOW_RAMP_TICKS (slowest). One step per tick. */
+  aimSlowTicks: number;
+  /** Ticks of the slowdown budget in use, 0 to AIM_SLOW_MAX_TICKS. */
+  aimSlowSpentTicks: number;
+  bombChargeStartedTick?: number;
+}
+/** The rider's slowdown once the next tick has moved them: a step toward slow while they aim within budget, a step back otherwise. */
+export function nextAimSlow(
+  player: AimSlow,
+): Pick<AimSlow, "aimSlowTicks" | "aimSlowSpentTicks"> {
+  const held = player.bombChargeStartedTick !== undefined;
+  const aiming = held && player.aimSlowSpentTicks < AIM_SLOW_MAX_TICKS;
+  return {
+    aimSlowTicks: Math.max(
+      0,
+      Math.min(AIM_SLOW_RAMP_TICKS, player.aimSlowTicks + (aiming ? 1 : -1)),
+    ),
+    aimSlowSpentTicks: Math.max(
+      0,
+      player.aimSlowSpentTicks + (aiming ? 1 : held ? 0 : -1),
+    ),
+  };
+}
+/** Smoothstep from 1 down to AIM_SLOW_SPEED: basic arithmetic only, so every replica agrees to the bit. */
+export function aimSlowMultiplier(aimSlowTicks: number): number {
+  const t = aimSlowTicks / AIM_SLOW_RAMP_TICKS;
+  return 1 - (1 - AIM_SLOW_SPEED) * t * t * (3 - 2 * t);
+}
+/**
+ * How far a rider moves and may turn on `tick`, given their state after the tick before: the round's ramp on both, then
+ * the speed pickups and the aiming slowdown on distance alone. The slowdown returned is the one this step moves at, for
+ * the simulation to store. A caller looking further ahead than one tick holds the slowdown at that level, which is close
+ * enough for a forecast: it is never more than AIM_SLOW_RAMP_TICKS steps from the truth.
+ */
 export function riderMotionStep(
-  player: SpeedEffects & { grip: boolean },
+  player: SpeedEffects & AimSlow & { grip: boolean },
   tick: number,
   roundStartedTick: number | undefined,
-): { distance: number; turn: number } {
+): {
+  distance: number;
+  turn: number;
+  aimSlowTicks: number;
+  aimSlowSpentTicks: number;
+} {
   const ramp = roundSpeedMultiplier(tick - (roundStartedTick ?? tick));
   const distance = (RIDER_SPEED / TICK_HZ) * ramp;
+  const aimSlow = nextAimSlow(player);
+  const speed = riderSpeedMultiplier(player, tick);
   return {
-    distance: distance * riderSpeedMultiplier(player, tick),
+    distance:
+      distance *
+      Math.max(
+        speed * aimSlowMultiplier(aimSlow.aimSlowTicks),
+        Math.min(speed, AIM_SLOW_FLOOR),
+      ),
     turn: (riderTurnRate(player) / TICK_HZ) * ramp,
+    ...aimSlow,
   };
 }
 
@@ -351,6 +427,9 @@ export interface PlayerState extends Required<PlayerIdentity> {
   roundWins: number;
   bombReadyAtTick: number;
   bombChargeStartedTick?: number;
+  /** Eased aiming slowdown, 0 to AIM_SLOW_RAMP_TICKS, and the budget it has used, 0 to AIM_SLOW_MAX_TICKS: see `nextAimSlow`. */
+  aimSlowTicks: number;
+  aimSlowSpentTicks: number;
   gunArmed?: boolean;
   shellArmed?: boolean;
   targetBombArmed: boolean;
@@ -553,7 +632,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
   ) {
     throw new Error(`invalid slot: ${identity.slot}`);
   }
-  for (const player of state.players.values()) {
+  for (const player of sortedPlayers(state)) {
     if (player.slot === identity.slot)
       throw new Error(`slot is occupied: ${identity.slot}`);
   }
@@ -567,6 +646,8 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     alive: false,
     roundWins: 0,
     bombReadyAtTick: 0,
+    aimSlowTicks: 0,
+    aimSlowSpentTicks: 0,
     extraBombs: 0,
     fuseLevel: 0,
     powerPickups: 0,
@@ -631,7 +712,7 @@ export function startMatch(state: GameState): void {
   assertPhase(state, ["lobby"], "startMatch");
   requireEnoughPlayers(state);
   state.round = 1;
-  for (const player of state.players.values()) player.roundWins = 0;
+  for (const player of sortedPlayers(state)) player.roundWins = 0;
   prepareRound(state);
 }
 
@@ -687,7 +768,7 @@ export function resetMatch(state: GameState, newMatchId: string): void {
   state.matchFinishers = [];
   state.moments = [];
   state.round = 1;
-  for (const player of state.players.values()) player.roundWins = 0;
+  for (const player of sortedPlayers(state)) player.roundWins = 0;
   prepareRound(state);
 }
 
@@ -709,7 +790,7 @@ export function step(
   );
 
   const pickupSchedule = pickupPacing(
-    [...state.players.values()].filter((player) => player.alive).length,
+    sortedPlayers(state).filter((player) => player.alive).length,
   );
   if (
     state.phase === "countdown" &&
@@ -724,7 +805,7 @@ export function step(
 
   if (state.phase !== "playing") return { snapshot: toSnapshot(state), events };
 
-  for (const player of state.players.values())
+  for (const player of sortedPlayers(state))
     player.trail = advanceTrail(player.trail, state.tick);
 
   const elapsed = state.tick - (state.roundStartedTick ?? state.tick);
@@ -747,7 +828,7 @@ export function step(
     field.x = Math.max(trailBounds.minX, Math.min(trailBounds.maxX, field.x));
     field.y = Math.max(trailBounds.minY, Math.min(trailBounds.maxY, field.y));
   }
-  for (const player of state.players.values()) {
+  for (const player of sortedPlayers(state)) {
     player.trail = cutTrail(
       player.trail,
       state.tick,
@@ -765,7 +846,7 @@ export function step(
   }
 
   const movements = new Map<PlayerId, Movement>();
-  for (const player of state.players.values())
+  for (const player of sortedPlayers(state))
     expireSpeedEffects(player, state.tick);
   for (const player of sortedPlayers(state).filter(
     (candidate) => candidate.alive,
@@ -778,11 +859,13 @@ export function step(
       player.drunkStartedTick,
       player.drunkUntilTick,
     );
-    const { distance, turn } = riderMotionStep(
+    const { distance, turn, aimSlowTicks, aimSlowSpentTicks } = riderMotionStep(
       player,
       state.tick,
       state.roundStartedTick,
     );
+    player.aimSlowTicks = aimSlowTicks;
+    player.aimSlowSpentTicks = aimSlowSpentTicks;
     // Curved space turns the rider before the kernel does, so steering and the hole add up inside one ordinary turn-then-move step.
     const pose = advanceRiderPose(
       {
@@ -818,7 +901,7 @@ export function step(
   // One run per portal hop. The gap between runs is travel the shell never made, so the sweep below
   // must not read across it: a rider standing between two gates is not in the way of a teleport.
   const shellPaths = new Map<number, ShellPoint[][]>();
-  for (const bomb of state.bombs.values()) {
+  for (const bomb of sortedBombs(state)) {
     if (!bomb.shell) continue;
     // Gun damage was resolved on press; these are stationary, harmless tracers.
     if (bomb.shell.gun) {
@@ -842,14 +925,14 @@ export function step(
     // Scenery reflects a shell exactly as a trail does; it is the one surface a shell meets that it cannot cut.
     // An edge reflects from either side, so a shell fired by an immune rider from inside an obstacle would rattle
     // between its walls for ever. The obstacle a shell is inside of lets it out, as it lets the rider out.
-    const obstacleWalls = state.obstacles
+    const obstacleWalls = sortedObstacles(state)
       .filter(
         (obstacle) => obstacleDistanceSquared(obstacle, bomb.x, bomb.y) > 0,
       )
       .flatMap(obstacleEdges);
     const solid: ShellTrail[] = [
       ...obstacleWalls,
-      ...[...state.players.values()].flatMap((player) =>
+      ...sortedPlayers(state).flatMap((player) =>
         player.id === bomb.ownerId &&
         state.tick - bomb.launchedTick < PROJECTILE_OWNER_GRACE_TICKS
           ? []
@@ -938,7 +1021,7 @@ export function step(
   const captureOrigins = (): void => {
     if (origins) return;
     origins = new Map();
-    for (const player of state.players.values()) {
+    for (const player of sortedPlayers(state)) {
       const segment = player.trail.find(
         (candidate) =>
           candidate.createdTick === state.tick - DODGE_LOOKBACK_TICKS,
@@ -969,8 +1052,13 @@ export function step(
   const riderContactTimes = new Map<PlayerId, number>();
   /** Crashing into scenery is `wall`, and only these riders stop against what they hit rather than at the boundary. */
   const obstacleContactTimes = new Map<PlayerId, number>();
+  // Id order: each contact bisection starts from the one before it, and the last to shorten it is what a shield
+  // turns away from, so the order obstacles are visited in is part of the outcome.
+  const obstacleHitboxes = sortedObstacles(state).map(obstacleHitbox);
+  /** The scenery each of those contacts is with, which is what an absorbed crash turns the rider away from. */
+  const obstaclesReached = new Map<PlayerId, ObstacleHitbox>();
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
-  for (const bomb of state.bombs.values()) {
+  for (const bomb of sortedBombs(state)) {
     if (
       bomb.shell?.gun ||
       bomb.launchedTick >= state.tick ||
@@ -1060,7 +1148,7 @@ export function step(
 
   if (newBlasts.length > 0) {
     captureOrigins();
-    for (const player of state.players.values()) {
+    for (const player of sortedPlayers(state)) {
       player.trail = cutTrail(
         player.trail,
         state.tick,
@@ -1145,16 +1233,16 @@ export function step(
     // through untouched rather than bouncing: there is a far side to arrive at, unlike the arena wall.
     // Only the contact time is recorded here; the cause is decided below, once the trail and rider contacts of
     // this tick are known and can be compared against it.
-    for (const obstacle of state.obstacles) {
+    for (const obstacle of obstacleHitboxes) {
       if (isHazardImmune(movement.player, state.tick)) break;
       const touches = (time: number): boolean =>
-        obstacleBlocksPath(
+        hitboxBlocksPath(
           obstacle,
           movement.oldX,
           movement.oldY,
           movement.oldX + (movement.x - movement.oldX) * time,
           movement.oldY + (movement.y - movement.oldY) * time,
-          RIDER_RADIUS,
+          RIDER_OBSTACLE_RADIUS,
         );
       const previous = obstacleContactTimes.get(movement.player.id) ?? 1;
       // Only immunity — a Star, shield grace, portal grace — can carry a rider into scenery, and it can lapse in
@@ -1165,13 +1253,14 @@ export function step(
         movement.player.id,
         firstContactTime(touches, previous),
       );
+      obstaclesReached.set(movement.player.id, obstacle);
     }
 
     // A step that reaches past an open edge is also tested from the far side, where the trails it is about to meet are.
     const images = open
       ? movementImages(state, movement, RIDER_CONTACT_RADIUS + TRAIL_WIDTH / 2)
       : NO_WRAP;
-    for (const owner of state.players.values()) {
+    for (const owner of sortedPlayers(state)) {
       if (isHazardImmune(movement.player, state.tick)) break;
       for (const trail of owner.trail) {
         if (
@@ -1318,9 +1407,11 @@ export function step(
     // Whatever the winning cause was, a rider that reached scenery this tick is standing against it: an absorbed
     // blast must not leave it inside the rock, riding out its grace ticks in there.
     const obstacleTime = sceneryReached.get(movement.player.id);
+    const obstacleHit = obstaclesReached.get(movement.player.id);
     if (
       obstacleTime !== undefined &&
-      reflectAtObstacle(state, movement, obstacleTime)
+      obstacleHit &&
+      reflectAtObstacle(obstacleHit, movement, obstacleTime)
     )
       bounced.add(movement.player.id);
     if (reflectAtBoundary(state, movement)) bounced.add(movement.player.id);
@@ -1691,6 +1782,8 @@ export function toSnapshot(state: GameState): GameSnapshot {
       ...(player.bombChargeStartedTick === undefined
         ? {}
         : { bombChargeStartedTick: player.bombChargeStartedTick }),
+      aimSlowTicks: player.aimSlowTicks,
+      aimSlowSpentTicks: player.aimSlowSpentTicks,
       extraBombs: player.extraBombs,
       fuseLevel: player.fuseLevel,
       powerPickups: player.powerPickups,
@@ -1713,22 +1806,20 @@ export function toSnapshot(state: GameState): GameSnapshot {
       portalGraceUntilTick: player.portalGraceUntilTick,
       trail: player.trail.map((segment) => ({ ...segment })),
     })),
-    bombs: [...state.bombs.values()]
-      .sort((a, b) => a.id - b.id)
-      .map((bomb) => ({
-        id: bomb.id,
-        ownerId: bomb.ownerId,
-        launchX: bomb.launchX,
-        launchY: bomb.launchY,
-        x: bomb.x,
-        y: bomb.y,
-        launchedTick: bomb.launchedTick,
-        landsAtTick: bomb.landsAtTick,
-        flightPath: bomb.flightPath.map((point) => ({ ...point })),
-        explodeAtTick: bomb.explodeAtTick,
-        blastRange: bomb.blastRange,
-        ...(bomb.shell ? { shell: { ...bomb.shell } } : {}),
-      })),
+    bombs: sortedBombs(state).map((bomb) => ({
+      id: bomb.id,
+      ownerId: bomb.ownerId,
+      launchX: bomb.launchX,
+      launchY: bomb.launchY,
+      x: bomb.x,
+      y: bomb.y,
+      launchedTick: bomb.launchedTick,
+      landsAtTick: bomb.landsAtTick,
+      flightPath: bomb.flightPath.map((point) => ({ ...point })),
+      explodeAtTick: bomb.explodeAtTick,
+      blastRange: bomb.blastRange,
+      ...(bomb.shell ? { shell: { ...bomb.shell } } : {}),
+    })),
     blasts: state.blasts.map((blast) => ({
       bombId: blast.bombId,
       circle: { ...blast.circle },
@@ -1759,6 +1850,9 @@ export function toSnapshot(state: GameState): GameSnapshot {
       ? {
           decidedRound: {
             ...state.decidedRound,
+            ...(state.decidedRound.rating
+              ? { rating: structuredClone(state.decidedRound.rating) }
+              : {}),
             shots: state.decidedRound.shots.map((shot) => ({
               ...shot,
               kills: shot.kills.map((kill) => ({ ...kill })),
@@ -1813,11 +1907,13 @@ function prepareRound(state: GameState): void {
   for (const player of participants)
     beginMatchParticipant(state.matchStats, player);
 
-  for (const player of state.players.values()) {
+  for (const player of sortedPlayers(state)) {
     player.alive = false;
     player.trail = [];
     player.bombChargeStartedTick = undefined;
     player.bombTarget = undefined;
+    player.aimSlowTicks = 0;
+    player.aimSlowSpentTicks = 0;
     player.bombReadyAtTick = state.tick;
     player.extraBombs = 0;
     player.fuseLevel = 0;
@@ -1909,7 +2005,7 @@ function maybeSpawnPickup(state: GameState, cap: number): void {
 }
 
 function isSafePickupPosition(state: GameState, x: number, y: number): boolean {
-  for (const player of state.players.values()) {
+  for (const player of sortedPlayers(state)) {
     if (
       player.alive &&
       square(player.x - x) + square(player.y - y) <
@@ -1930,7 +2026,7 @@ function isSafePickupPosition(state: GameState, x: number, y: number): boolean {
         return false;
     }
   }
-  for (const bomb of state.bombs.values()) {
+  for (const bomb of sortedBombs(state)) {
     if (bomb.shell?.gun) continue;
     if (
       square(bomb.x - x) + square(bomb.y - y) <
@@ -2049,7 +2145,7 @@ function collectPickups(
         state.tick + NITRO_DURATION_TICKS,
       );
     } else if (pickup.type === "snail") {
-      for (const player of state.players.values()) {
+      for (const player of sortedPlayers(state)) {
         if (player.alive && player.id !== collector.id)
           addSpeedEffect(
             player.snailUntilTicks,
@@ -2057,7 +2153,7 @@ function collectPickups(
           );
       }
     } else if (pickup.type === "ink") {
-      for (const player of state.players.values()) {
+      for (const player of sortedPlayers(state)) {
         if (player.alive && player.id !== collector.id)
           player.inkUntilTick = Math.max(
             player.inkUntilTick,
@@ -2065,7 +2161,7 @@ function collectPickups(
           );
       }
     } else if (pickup.type === "beer") {
-      for (const player of state.players.values()) {
+      for (const player of sortedPlayers(state)) {
         if (player.alive && player.id !== collector.id) {
           if (player.drunkUntilTick <= state.tick)
             player.drunkStartedTick = state.tick;
@@ -2200,7 +2296,7 @@ function isSafePortalPosition(
   deaths: ReadonlyMap<PlayerId, EliminationCause> = new Map(),
   transits: ReadonlyMap<PlayerId, PortalTransit> = new Map(),
 ): boolean {
-  for (const player of state.players.values()) {
+  for (const player of sortedPlayers(state)) {
     const movement = movements.get(player.id);
     const transit = transits.get(player.id);
     if (
@@ -2251,7 +2347,7 @@ function isSafePortalPosition(
   )
     return false;
   // Reserve both current flight location and landing site of live projectiles.
-  for (const bomb of state.bombs.values()) {
+  for (const bomb of sortedBombs(state)) {
     if (bomb.shell?.gun) continue;
     const flight =
       bomb.flightPath[
@@ -2379,23 +2475,13 @@ function reflectAtBoundary(state: GameState, movement: Movement): boolean {
  * shielded rider, and without it a shield would only buy the ticks of grace it takes to die inside the same obstacle.
  */
 function reflectAtObstacle(
-  state: GameState,
+  hit: ObstacleHitbox,
   movement: Movement,
   contactTime: number,
 ): boolean {
   movement.x = movement.oldX + (movement.x - movement.oldX) * contactTime;
   movement.y = movement.oldY + (movement.y - movement.oldY) * contactTime;
-  let hit: Obstacle | undefined;
-  let nearest = Infinity;
-  for (const obstacle of state.obstacles) {
-    const distance = obstacleDistanceSquared(obstacle, movement.x, movement.y);
-    if (distance < nearest) {
-      nearest = distance;
-      hit = obstacle;
-    }
-  }
-  if (!hit) return false;
-  const { nx, ny } = obstacleBounceNormal(hit, movement.x, movement.y);
+  const { nx, ny } = hitboxBounceNormal(hit, movement.x, movement.y);
   const heading = { x: cos(movement.angle), y: sin(movement.angle) };
   const approach = heading.x * nx + heading.y * ny;
   if (approach >= 0) return false; // already turned away from the face by this tick's steering
@@ -2444,7 +2530,7 @@ function applyBombActions(
       continue;
     }
     if (action === "press") {
-      const ownsBomb = [...state.bombs.values()].some(
+      const ownsBomb = sortedBombs(state).some(
         (bomb) => bomb.ownerId === player.id && !bomb.shell,
       );
       if (
@@ -2467,7 +2553,7 @@ function applyBombActions(
     player.bombChargeStartedTick = undefined;
     player.bombTarget = undefined;
     if (chargeStartedTick === undefined) continue;
-    const ownsBomb = [...state.bombs.values()].some(
+    const ownsBomb = sortedBombs(state).some(
       (bomb) => bomb.ownerId === player.id && !bomb.shell,
     );
     if (ownsBomb || player.bombReadyAtTick > state.tick) continue;
@@ -2724,7 +2810,7 @@ function resolveGunShots(
   const impacts: { x: number; y: number }[] = [];
   // Snapshot first: a ray that crosses a gate adds tracers for the segments past it, and those are
   // already resolved — re-reading them here would cast the same bullet twice.
-  for (const bomb of [...state.bombs.values()].sort((a, b) => a.id - b.id)) {
+  for (const bomb of sortedBombs(state)) {
     if (!bomb.shell?.gun || bomb.launchedTick !== state.tick) continue;
     const { vx, vy } = bomb.shell;
     let segment = bomb;
@@ -2820,7 +2906,8 @@ function resolveGunShots(
       }
       // Scenery stops a bullet without taking damage from it: only a blast clears an obstacle. Whatever stood
       // behind it was never in this ray's line, so an earlier obstacle contact also drops the rider it found.
-      for (const obstacle of state.obstacles) {
+      // Id order: each bisection starts from the contact before it, so the order decides its low bits.
+      for (const obstacle of sortedObstacles(state)) {
         const touches = (t: number): boolean =>
           segmentObstacleDistanceSquared(
             obstacle,
@@ -2990,7 +3077,7 @@ function openBlackHoles(
 function resolveExplosions(state: GameState, events: GameEvent[]): NewBlast[] {
   // #166: with chaining off a bomb only ever answers to its own fuse, neither to a blast already on the field nor to one opened this tick.
   const chain = state.settings?.chainReaction ?? true;
-  const queue = [...state.bombs.values()]
+  const queue = sortedBombs(state)
     .filter(
       (bomb) =>
         !bomb.shell &&
@@ -3072,9 +3159,7 @@ function resolveExplosions(state: GameState, events: GameEvent[]): NewBlast[] {
     events.push({ type: "explosion", bombId: id });
 
     if (chain)
-      for (const candidate of [...state.bombs.values()].sort(
-        (a, b) => a.id - b.id,
-      )) {
+      for (const candidate of sortedBombs(state)) {
         if (exploded.has(candidate.id) || queued.has(candidate.id)) continue;
         if (candidate.shell || candidate.landsAtTick > state.tick) continue;
         if (
@@ -3112,7 +3197,7 @@ function resolveRound(
   const winnerId = winner?.id;
   const placements = state.roundScored
     ? undefined
-    : rankRound([...state.roundParticipants.values()]);
+    : rankRound(seatedParticipants(state));
   const scores = new Map(
     placements?.map((placement) => [placement.playerId, placement.scoreUnits]),
   );
@@ -3146,7 +3231,7 @@ function resolveRound(
   const pause = roundHasMoment(state) ? REPLAY_PAUSE_TICKS : 0;
   // Nothing in this round can kill any more; bombs still in the air are cleared by the next round's start.
   const inFlight = new Set(
-    [...state.bombs.values()].flatMap((bomb) =>
+    sortedBombs(state).flatMap((bomb) =>
       bomb.shot === undefined || bomb.shell?.gun ? [] : [bomb.shot],
     ),
   );
@@ -3157,13 +3242,25 @@ function resolveRound(
     state.shots,
     inFlight,
   );
+  state.decidedRound.rating = {
+    finishers: [...state.roundParticipants.keys()]
+      .filter(
+        (id) => state.players.get(id)?.connected && !id.startsWith("bot:"),
+      )
+      .sort(),
+    standings: state.roundPlacements.map((placement) => {
+      const identity = state.matchStats.get(placement.playerId)!;
+      return { ...placement, slot: identity.slot, color: identity.color };
+    }),
+  };
   if (matchWinnerId !== undefined || fixedEnd) {
     state.matchFinishers = [...state.players.values()]
       .filter((player) => player.connected && state.matchStats.has(player.id))
       .map((player) => player.id)
       .sort();
     state.phase = "matchOver";
-    state.phaseEndsAtTick = state.tick + 60 + pause;
+    state.phaseEndsAtTick =
+      state.tick + ROUND_OVER_TICKS + pause + MATCH_WINNER_TICKS;
     events.push({
       type: "matchEnded",
       ...(matchWinnerId ? { winnerId: matchWinnerId } : {}),
@@ -3172,6 +3269,22 @@ function resolveRound(
   }
   state.phase = "roundOver";
   state.phaseEndsAtTick = state.tick + ROUND_OVER_TICKS + pause;
+}
+
+/**
+ * The round's riders in seat order, the order `prepareRound` entered them in. `rankRound` lists riders that share a
+ * place in the order it is given, and the placements are state peers compare, so that order cannot be left to how a
+ * restored Map happened to be built. Nobody is unseated while a round is in play; the id keeps the sort total anyway.
+ */
+function seatedParticipants(state: GameState): RoundParticipant[] {
+  const seats = new Map(
+    sortedPlayers(state).map((player, seat) => [player.id, seat]),
+  );
+  return [...state.roundParticipants.values()].sort(
+    (a, b) =>
+      (seats.get(a.id) ?? MAX_PLAYERS) - (seats.get(b.id) ?? MAX_PLAYERS) ||
+      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
 }
 
 const roundElapsed = (state: GameState): number =>
@@ -3262,7 +3375,7 @@ function creditMatchWin(state: GameState, matchWinnerId: PlayerId): void {
 }
 
 function requireEnoughPlayers(state: GameState): void {
-  const connected = [...state.players.values()].filter(
+  const connected = sortedPlayers(state).filter(
     (player) => player.connected,
   ).length;
   if (connected < MIN_PLAYERS || connected > MAX_PLAYERS) {
@@ -3285,9 +3398,11 @@ function assertPhase(
     throw new Error(`${command} is invalid during ${state.phase}`);
 }
 
-function sortedPlayers(state: GameState): PlayerState[] {
+export function sortedPlayers(
+  state: Pick<GameState, "players">,
+): PlayerState[] {
   return [...state.players.values()].sort(
-    (a, b) => a.slot - b.slot || a.id.localeCompare(b.id),
+    (a, b) => a.slot - b.slot || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   );
 }
 
@@ -3449,3 +3564,14 @@ const NEUTRAL_INPUT: InputIntent = Object.freeze({
   right: false,
   bomb: false,
 });
+
+export function sortedBombs(state: Readonly<GameState>): BombState[] {
+  return [...state.bombs.values()].sort((a, b) => a.id - b.id);
+}
+
+/** Scenery in id order, which is the order it was generated in: contact bisection and exact ties read it in order. */
+export function sortedObstacles(
+  state: Pick<GameState, "obstacles">,
+): Obstacle[] {
+  return [...state.obstacles].sort((a, b) => a.id - b.id);
+}

@@ -1,0 +1,134 @@
+/* Global player actions keep the same hierarchy on the landing page and in a room. */
+.online-app .game-top-menu {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+  min-width: 0;
+}
+.online-app :is(.landing-top, .online-header) .game-top-menu button,
+.online-app .game-top-menu .audio-controls > summary,
+.online-app > .player-account {
+  flex: 0 0 auto;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.625rem;
+  font-family: inherit;
+  font-size: 0.625rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.0625rem;
+  white-space: nowrap;
+  color: #a8bad2;
+  background: #040b19e6;
+  border: 0.0625rem solid #43536b;
+  border-radius: 0;
+}
+.online-app :is(.landing-top, .online-header) .game-top-menu button:hover,
+.online-app
+  :is(.landing-top, .online-header)
+  .game-top-menu
+  button:focus-visible {
+  color: #eefaff;
+  border-color: #00dfff;
+}
+.online-app
+  :is(.landing-top, .online-header)
+  .game-top-menu
+  button[data-muted="true"] {
+  color: #ffa6c9;
+  border-color: #ff72b3;
+}
+.online-app
+  :is(.landing-top, .online-header)
+  .game-top-menu
+  button[data-signed-in="true"],
+.online-app > .player-account[data-signed-in="true"] {
+  color: #9ff5ff;
+  border-color: #16e7ff;
+}
+.online-app .online-header .room-brand {
+  flex: 0 0 auto;
+  gap: 0.625rem;
+  font:
+    1rem "Press Start 2P",
+    monospace;
+  letter-spacing: 0;
+}
+.online-app .online-header .room-brand span {
+  flex: 0 0 auto;
+}
+.online-app .online-header > .online-status {
+  flex: 0 1 auto;
+  font-size: 0.625rem;
+}
+.online-app .online-header > .game-top-menu {
+  order: 1;
+}
+.online-app.desktop-game .game-top-menu {
+  gap: 0.375rem;
+}
+.online-app.desktop-game .game-top-menu button {
+  min-height: 2.25rem;
+}
+.online-app .landing-top {
+  flex-wrap: wrap;
+}
+@media (max-width: 1100px) {
+  .online-app .landing-tag {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .online-app .game-top-menu {
+    justify-content: flex-start;
+    width: 100%;
+    gap: 0.375rem;
+  }
+  .online-app .online-header .room-brand {
+    font-size: 0.75rem;
+  }
+  .online-app :is(.landing-top, .online-header) .game-top-menu button {
+    flex: 1 0 auto;
+  }
+}
+.online-app .game-top-menu .audio-controls {
+  font-family: inherit;
+}
+/* In live phone play the account stays beside MENU, above the touch controls. */
+.online-app.mobile-play > .player-account {
+  display: block;
+  position: fixed;
+  top: max(0.5rem, env(safe-area-inset-top));
+  right: max(5.5rem, calc(env(safe-area-inset-right) + 5rem));
+  z-index: 70;
+  min-height: 2.5rem;
+  max-width: 28vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: auto;
+}
+.online-app.mobile-play.mobile-tools-open .game-top-menu {
+  display: contents;
+}
+
+.online-app
+  :is(.landing-top, .online-header)
+  .game-top-menu
+  button[data-signed-in="true"],
+.online-app > .player-account[data-signed-in="true"] {
+  white-space: pre-line;
+  text-align: center;
+}
+
+/* Reserve the account and MENU space instead of covering the live rider HUD. */
+.online-app.mobile-play > .mobile-hud:not([hidden]) {
+  box-sizing: border-box;
+  max-width: calc(
+    72vw - 7rem - env(safe-area-inset-left) - env(safe-area-inset-right)
+  );
+}
+.online-app.mobile-play .online-notice {
+  top: max(3.5rem, calc(env(safe-area-inset-top) + 3rem));
+}
