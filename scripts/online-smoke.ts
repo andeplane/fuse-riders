@@ -68,10 +68,14 @@ const joinAs = async (page: Page, name: string, url: string) => {
     .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
     .click();
 };
+// Rider names only: the same lists also carry the HOST badge and the status lines, and a name is what these steps mean.
+const RIDER_NAME = ":is(.room-rider strong, .online-score-name)";
 const rosterHas = (page: Page, name: string) =>
   page
     .locator(":is(.online-roster,.room-riders):visible")
-    .getByText(name, { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: name })
+    .first()
     .waitFor();
 try {
   const a = await browser.newContext({
@@ -453,7 +457,9 @@ try {
   await guest.locator(".mobile-tools-toggle").click();
   await guest
     .locator(".online-roster:visible")
-    .getByText("Guest", { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: "Guest" })
+    .first()
     .waitFor();
   const afterGuest = await latest(guest);
   assert.equal(
@@ -469,7 +475,9 @@ try {
   await host.reload();
   await host
     .locator(":is(.online-roster,.room-riders):visible")
-    .getByText("Guest", { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: "Guest" })
+    .first()
     .waitFor();
   await host.waitForFunction(
     () => {
@@ -516,7 +524,9 @@ try {
   );
   await guest
     .locator(".room-riders")
-    .getByText("Guest", { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: "Guest" })
+    .first()
     .waitFor();
   console.log("Settings/reset confirmed");
   await guest.reload();
@@ -532,13 +542,17 @@ try {
     .click();
   await guest
     .locator(".phone-lobby .room-riders")
-    .getByText("Guest", { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: "Guest" })
+    .first()
     .waitFor(); // The rejoined phone lands on the lobby screen (#134).
   console.log("Guest lobby reload confirmed");
   await host.reload();
   await host
     .locator(":is(.online-roster,.room-riders):visible")
-    .getByText("Guest", { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: "Guest" })
+    .first()
     .waitFor();
   await host
     .getByRole("button", { name: "START RACE", exact: true })
@@ -607,7 +621,9 @@ try {
   await display.goto(url + "&display=1&benchmark=1");
   await display
     .locator(":is(.online-roster,.room-riders):visible")
-    .getByText("Host", { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: "Host" })
+    .first()
     .waitFor();
   assert.equal(
     await display

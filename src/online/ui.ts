@@ -558,6 +558,10 @@ export async function startOnline(): Promise<void> {
   kickedNote.hidden = true;
   kickedNote.setAttribute("role", "status");
   joinForm.element.prepend(kickedNote);
+  // The removal message reaches this page a little before the entry that frees the seat does, so the note cannot be
+  // cleared by "still seated": it stands until this device is back in the room.
+  let kickedFromRoom = false,
+    wasInRoom = false;
   if (role !== "joiner") booting.append(bootNote);
   // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
   const bootAt = performance.now();
@@ -1299,6 +1303,7 @@ export async function startOnline(): Promise<void> {
       });
     },
     kicked: () => {
+      kickedFromRoom = true;
       kickedNote.hidden = false;
     },
     // The change guard compares raw wordings, not the displayed one: three flattened states would log a "change" for every distinct runtime message and hide the one that actually changed.
@@ -1462,10 +1467,12 @@ export async function startOnline(): Promise<void> {
       if (!recapIsReady && dialog.open && recapOpen) dialog.close();
       if (state.phase === "lobby") lastRecap = "";
       joined = Boolean(player);
-      if (joined) kickedNote.hidden = true;
       // A watcher is in the room, not queuing at its door: it gets the arena and the lists, never the join card or the controls.
       const watcher = state.spectators.find((seat) => seat.id === id);
       watching = Boolean(watcher);
+      if ((joined || watching) && !wasInRoom) kickedFromRoom = false;
+      wasInRoom = joined || watching;
+      kickedNote.hidden = !kickedFromRoom;
       // The screen, once per frame: every class and every arena/lobby visibility below follows from it.
       showScreen(roomScreen(screenInput()));
       const view = presentRoom({
@@ -1815,7 +1822,7 @@ export async function startOnline(): Promise<void> {
     end.hidden = !canEnd;
     end.title = "Close the room for everyone in it";
     stay.onclick = () => dialog.close();
-    choices.append(stay, end, leave);
+    choices.append(stay, leave, end);
     const exit = async (ending: boolean) => {
       leave.disabled = stay.disabled = end.disabled = true;
       (ending ? end : leave).textContent = ending ? "ENDING…" : "LEAVING…";

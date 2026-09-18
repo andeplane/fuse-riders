@@ -1,8 +1,8 @@
 import { BotController } from "../engine/bot-controller.js";
 import {
-  actingCreator,
   applyTick,
   hashRoomState,
+  roomManager,
   successionOrder,
   type RoomState,
   type StreamEntries,
@@ -105,7 +105,7 @@ export class World {
       ...toView(state.game),
       matchId: state.game.matchId,
       logTick: state.tick,
-      managerId: actingCreator(state, this.creatorId) ?? this.creatorId,
+      managerId: roomManager(state, this.creatorId),
       spectators: [...state.spectators]
         .map(([id, watcher]) => ({
           id,

@@ -128,6 +128,52 @@ try {
   await host.screenshot({ path: "artifacts/spectator-lobby.png" });
   await watcher.screenshot({ path: "artifacts/spectator-lobby-watcher.png" });
 
+  // Who runs the room says so on one row, on every page, and it is not the watcher's.
+  for (const [label, page] of [
+    ["host", host],
+    ["rider", rider],
+    ["watcher", watcher],
+  ] as const) {
+    const badges = page.locator(".room-riders .host-badge:visible");
+    await badges.first().waitFor();
+    assert.equal(await badges.count(), 1, `${label} names one host`);
+    assert.equal(
+      await page
+        .locator(".room-watcher .host-badge")
+        .first()
+        .isVisible()
+        .catch(() => false),
+      false,
+      `${label} does not put the badge on the watcher`,
+    );
+  }
+  assert.equal(
+    await watcher.locator(".room-watcher > button").isVisible(),
+    false,
+    "a watcher holds no remove button",
+  );
+  // The host sends the watcher home. A person's row asks twice, so one tap only arms the button.
+  const removeWatcher = host.locator(".room-watcher > button");
+  await removeWatcher.click();
+  await host.locator(".room-watcher > button.arming").waitFor();
+  await removeWatcher.click();
+  await watcher.locator(".join-kicked").waitFor({ state: "visible" });
+  for (const [label, page] of [
+    ["host", host],
+    ["rider", rider],
+  ] as const)
+    assert.equal(
+      await page.locator(".room-watcher").count(),
+      0,
+      `${label} sees the watching list empty again`,
+    );
+  // A kick is not a ban: the same page walks back in.
+  await watchButton.waitFor({ state: "visible" });
+  await watcher.getByPlaceholder("Your name").fill("Watcher");
+  await watchButton.click();
+  await host.locator(".room-watchers .room-watcher").waitFor();
+  await watcher.locator(".join-kicked").waitFor({ state: "hidden" });
+
   // The race runs, and the watcher is in it as an audience: same phase, same tick, still no controls.
   await host.getByRole("button", { name: "START RACE", exact: true }).click();
   await waitPhase(watcher, ["countdown", "playing"]);

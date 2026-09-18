@@ -22,6 +22,7 @@ import {
   MAX_SPECTATORS,
   RULES,
   actingCreator,
+  roomManager,
   createRoomState,
   memberConnected,
   reclaimable,
@@ -330,6 +331,18 @@ export class RoomRuntime {
         actingCreator(this.world.state, this.hostId) === this.id)
     );
   }
+  /**
+   * Whether this device runs the room for the players: the crown, not the log duties. The creator's own page always
+   * does; anyone else does while the fold names it (`roomManager`), which is one member, never the two `manager`
+   * deliberately allows beside an unseated creator.
+   */
+  private get managing(): boolean {
+    return (
+      this.creator ||
+      (this.world !== undefined &&
+        roomManager(this.world.state, this.hostId) === this.id)
+    );
+  }
   /** Where a joiner sends its join: the creator, or whoever manages while the creator is absent. */
   private managerId(): string {
     return (
@@ -556,7 +569,7 @@ export class RoomRuntime {
         return;
       // Only from whoever manages the room, and only about this device: a peer cannot talk anyone else out of its seat.
       case "kicked":
-        if (id !== this.managerId()) return;
+        if (id !== this.hostId && id !== this.managerId()) return;
         this.pendingJoin = undefined;
         this.status.notice("The host removed you from the room");
         this.deliver("kicked", () => this.callbacks.kicked?.());
@@ -1157,8 +1170,8 @@ export class RoomRuntime {
       this.sendPackets(this.deps.now());
       return true;
     }
-    // Whoever manages the room right now: the creator, or the delegate holding it while the creator is away (#B.2).
-    if (!this.manager) {
+    // Whoever runs the room right now: the creator, or the delegate holding it while the creator is away.
+    if (!this.managing) {
       this.status.notice("Only the host can manage the room");
       return false;
     }

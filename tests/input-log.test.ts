@@ -32,6 +32,7 @@ import {
   hashText,
   memberConnected,
   permitted,
+  roomManager,
   successionOrder,
   type RoomState,
   type StreamEntries,
@@ -867,5 +868,58 @@ test("the watching list hashes by member id, never by the order the joins arrive
     hashRoomState(alone),
     hashRoomState(forwards),
     "who is watching is part of the state every replica agrees on",
+  );
+});
+
+test("the crown names one member: it follows the log for a seated creator and stays with a host that never took a seat", () => {
+  const r = playing();
+  assert.equal(roomManager(r.state, "creator"), "creator");
+  r.tick(
+    streams(["creator", [r.at("creator", PRESENCE, "creator", false, 1)]]),
+  );
+  assert.equal(
+    roomManager(r.state, "creator"),
+    "guest",
+    "a seated creator that goes absent hands the room on",
+  );
+  r.tick(streams(["guest", [r.at("guest", PRESENCE, "creator", true, 1)]]));
+  assert.equal(roomManager(r.state, "creator"), "creator", "and takes it back");
+  // A room whose creator drives a shared screen from a page that took no seat: the log cannot tell it from one that
+  // left, the room can see it on the TV, and `actingCreator` still names the guest for the log duties.
+  const tv = room();
+  tv.tick(
+    streams([
+      "creator",
+      [tv.at("creator", JOIN, "guest", "Guest", 0, "cat", 1)],
+    ]),
+  );
+  assert.equal(
+    actingCreator(tv.state, "creator"),
+    "guest",
+    "the log duties move",
+  );
+  assert.equal(
+    roomManager(tv.state, "creator"),
+    "creator",
+    "the crown does not",
+  );
+  // Once that creator has held a seat the leaderboard remembers it, so losing the seat moves the crown for good.
+  tv.tick(
+    streams([
+      "creator",
+      [tv.at("creator", JOIN, "creator", "Host", 1, "fox", 1)],
+    ]),
+  );
+  assert.equal(roomManager(tv.state, "creator"), "creator");
+  tv.tick(streams(["creator", [tv.at("creator", LEAVE, "creator")]]));
+  assert.equal(
+    tv.state.game.players.has("creator"),
+    false,
+    "the seat is freed",
+  );
+  assert.equal(
+    roomManager(tv.state, "creator"),
+    "guest",
+    "a creator the room has seated once does not get the crown back by vanishing",
   );
 });

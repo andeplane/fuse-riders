@@ -168,6 +168,22 @@ export function permitted(
   return actingCreator(state, creatorId) === manager;
 }
 
+/**
+ * Who runs the room for the players: the one name the screens show as HOST and the one device whose room commands the
+ * others expect. The creator holds it while the room counts it present — seated or watching — and also while the room
+ * has never seen it in either, which is a host driving a shared screen from a page that took no seat; the log cannot
+ * tell that host from one that left, and the rest of the room can see it on the TV. Otherwise it passes to whoever the
+ * log hands the duties to. That is narrower than `actingCreator`, which answers for the log duties alone and
+ * deliberately names a second manager beside an unseated creator so joins and presence keep flowing.
+ */
+export function roomManager(state: RoomState, creatorId: string): string {
+  // The session leaderboard remembers every id that has held a seat, through rounds and lobby resets, so it is what
+  // separates a creator that lost its seat from one that never took a seat.
+  const known =
+    state.game.leaderboard.has(creatorId) || state.spectators.has(creatorId);
+  return known ? (actingCreator(state, creatorId) ?? creatorId) : creatorId;
+}
+
 function pruneDisconnected(state: RoomState): void {
   for (const player of sortedPlayers(state.game))
     if (!player.connected) {

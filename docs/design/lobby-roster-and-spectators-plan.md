@@ -1,6 +1,13 @@
 # Lobby roster, ready check, spectators and colours — implementation plan
 
-> Planning document, not a completed feature. Written 2026-09-18 against `main` at `71528c7` (rules `fuse-p2p-32`).
+> Planning document. Written 2026-09-18 against `main` at `71528c7` (rules `fuse-p2p-32`); the module paths below predate
+> the `src/shared/` → `src/engine/` split, so read `src/shared/apply-tick.ts` as `src/engine/apply-tick.ts`.
+>
+> **Status.** Phase G (spectators) landed in #351 under rules `fuse-p2p-41`. Phase B (host badge and handover) and
+> Phase D (kick) landed under rules `fuse-p2p-42`, with two departures from the plan below, both noted where they
+> occur: the badge is the word HOST rather than a crown, because the crown already marks the round leader in the
+> standings; and the crown names exactly one member, so a creator the room has never seen in a seat or in the watching
+> list keeps it rather than handing it to the first rider (`roomManager`). Phases A, C, E and F are still open.
 > Covers ten requested lobby and feel changes: host crown, kick, host handover, ready check, ten colours, unique
 > avatars, spectators, ready check between rounds with a countdown sound, a lobby map picker, and a slower bomb range
 > sweep. Each sub-phase is sized for one agent owning it end to end on a `codex/` branch, opening one pull request in
@@ -91,6 +98,9 @@ feel it. Report the felt result and offer 10/12/14 ticks as the knob.
   Phase G, a connected spectator), otherwise `actingCreator`. The frame the UI consumes gains `managerId`.
 - Rider rows (lobby list, in-round roster cards, phone lobby) draw a small neon crown badge over the top-left of the
   avatar portrait and prefix the status line: `HOST · READY`. Keep the word: the crown alone is ambiguous on a phone.
+  _As built:_ the word alone, as a `HOST` pill in the rider's own colour at the end of the row, and no crown at all —
+  `.online-score-card.leader::before` already puts 👑 on the round leader, so a second crown would read as a second
+  kind of lead. The status line keeps saying `READY` / `OFFLINE` / `WATCHING` on its own.
 - The join card's own-row copy ("Waiting for the host to start") names the host.
 
 ### B.2 The acting creator manages — M

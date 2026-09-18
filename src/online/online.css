@@ -1440,9 +1440,10 @@
   border-color: #ffd166;
   background: rgb(255 209 102 / 14%);
 }
-/* The seat did not vanish: the host took it back, and the card says so above the name field. */
+/* The seat did not vanish: the host took it back, and the card says so across the top of the join form. */
 .join-kicked {
-  margin: 0 0 0.625rem;
+  grid-column: 1/-1;
+  margin: 0;
   color: #ffd166;
   font-size: 0.6875rem;
   line-height: 1.5;
@@ -2897,6 +2898,15 @@
 .exit-choices .exit-confirm {
   border-color: #ff2d8a;
   color: #ffd6e8;
+}
+/* Ending the room is the creator's rarer, heavier choice: under the everyday pair, and quieter than both. */
+.exit-choices .exit-end {
+  grid-column: 1/-1;
+  min-height: 2.25rem;
+  background: transparent;
+  border-color: #334567;
+  color: #8ba3c0;
+  font-size: 0.6875rem;
 }
 .session-board {
   display: grid;
