@@ -1,7 +1,7 @@
 /**
  * The engine's public API: the deterministic simulation, its tick driver, the input log it folds, room settings, the
- * bots, and the codec that validates a state at the checkpoint boundary. The engine imports nothing outside
- * `src/engine/` except wire type names from `src/shared/protocol.ts` (through `state.ts`; issue #254 moves them in).
+ * bots, and the codec that validates a state at the checkpoint boundary. View types live inside the engine; shared
+ * avatar and duration vocabulary remain in `src/shared/`.
  *
  * App and net code should come through here; tests may deep-import. What rendering may read is a narrower contract,
  * `view.ts` and `view-kit.ts` (docs/design/render-boundary.md), not this file. App and net importers still reach into

@@ -40,7 +40,11 @@ export { segmentDistanceSquared } from "./geometry.js";
 export { PICKUP_TYPES, type PickupType } from "./pickup-types.js";
 export { pickupPacing } from "./power-progression.js";
 // `createGame` takes them, so whoever can build a game can name what it is played under.
-export { defaultRoomSettings, type RoomSettings } from "./room-settings.js";
+export {
+  classicSettings,
+  defaultRoomSettings,
+  type RoomSettings,
+} from "./room-settings.js";
 
 export * from "./state.js";
 export { toView } from "./view.js";
