@@ -50,6 +50,9 @@ import {
   type InputIntent,
 } from "../src/engine/game.ts";
 import { classicSettings } from "./fixtures/classic-settings.ts";
+import { setArmed, setDeadlines, setEffect } from "./fixtures/rider-state.ts";
+import { effectSince, effectUntil } from "../src/engine/effects.ts";
+import { isArmed } from "../src/engine/weapons.ts";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 const fixedFlightPath = (x: number, y: number) =>
@@ -190,7 +193,6 @@ test("a due blast removes an intersecting segment before trail collision", () =>
     launchY: 350,
     x: 700,
     y: 350,
-    placedTick: state.tick - BOMB_FUSE_TICKS,
     launchedTick: state.tick - BOMB_FUSE_TICKS,
     landsAtTick: state.tick - BOMB_FUSE_TICKS + BOMB_FLIGHT_TICKS,
     flightPath: fixedFlightPath(700, 350),
@@ -323,8 +325,12 @@ test("following riders survive when their swept paths are close but their bodies
           y: 350,
           angle: 0,
           trail: [],
-          nitroUntilTicks: boosted ? [state.tick + 10] : [],
         });
+        setDeadlines(
+          state.players.get(id)!,
+          "nitro",
+          boosted ? [state.tick + 10] : [],
+        );
       }
       const result = step(state, new Map());
       assert.ok([...state.players.values()].every((player) => player.alive));
@@ -654,7 +660,6 @@ test("bomb input charges, launches on release, caps one live bomb, chains once, 
     launchY: firstBomb.y,
     x: firstBomb.x + BOMB_BLAST_RANGE / 2,
     y: firstBomb.y,
-    placedTick: state.tick,
     launchedTick: state.tick,
     landsAtTick: state.tick,
     flightPath: fixedFlightPath(
@@ -859,7 +864,6 @@ test("a flying bomb cannot explode or chain-trigger before landing", () => {
     launchY: 450,
     x: 600,
     y: 450,
-    placedTick: state.tick,
     launchedTick: state.tick,
     landsAtTick: state.tick + 5,
     explodeAtTick: state.tick + 1,
@@ -873,7 +877,6 @@ test("a flying bomb cannot explode or chain-trigger before landing", () => {
     launchY: 450,
     x: 500,
     y: 450,
-    placedTick: 0,
     launchedTick: 0,
     landsAtTick: 0,
     explodeAtTick: state.tick + 1,
@@ -897,7 +900,7 @@ test("Triple Shot releases one deterministic straight three-bomb volley", () => 
   owner.x = 500;
   owner.y = 450;
   owner.angle = 0;
-  owner.tripleShotArmed = true;
+  setArmed(owner, "triple", true);
   state.players.get("p1")!.x = 850;
   state.players.get("p1")!.y = 600;
   state.players.get("p2")!.x = 1300;
@@ -920,7 +923,7 @@ test("Triple Shot releases one deterministic straight three-bomb volley", () => 
   );
   assert.ok(bombs.every((bomb) => bomb.flightPath.length === 7));
   assert.notEqual(bombs[0]!.flightPath[1]!.y, bombs[2]!.flightPath[1]!.y);
-  assert.equal(owner.tripleShotArmed, false);
+  assert.equal(isArmed(owner, "triple"), false);
   assert.equal(state.matchStats.get("p0")!.bombsPlaced, 3);
   assert.equal(owner.bombReadyAtTick, state.tick + BOMB_COOLDOWN_TICKS);
   const snapshot = toView(state).bombs;
@@ -932,7 +935,7 @@ test("invalid release and cancellation preserve launch modifiers", () => {
   const state = gameWithPlayers();
   enterPlaying(state);
   const owner = state.players.get("p0")!;
-  owner.tripleShotArmed = true;
+  setArmed(owner, "triple", true);
   step(
     state,
     inputs(["p0", { bomb: false, bombCommands: [{ action: "release" }] }]),
@@ -946,7 +949,7 @@ test("invalid release and cancellation preserve launch modifiers", () => {
     inputs(["p0", { bomb: false, bombCommands: [{ action: "cancel" }] }]),
   );
   assert.equal(state.bombs.size, 0);
-  assert.equal(owner.tripleShotArmed, true);
+  assert.equal(isArmed(owner, "triple"), true);
 });
 
 test("points score once, five rounds end the default match, and rematch resets match points and scope", () => {
@@ -1141,7 +1144,6 @@ test("wall and explosion causes are authoritative, clipped, and blast visuals ex
     launchY: 350,
     x: 30,
     y: 350,
-    placedTick: 0,
     launchedTick: 0,
     landsAtTick: 0,
     explodeAtTick: explosion.tick + 1,
@@ -1234,9 +1236,7 @@ test("first Power pickup applies both weapon upgrades on the collection tick", (
   const player = state.players.get("p0")!;
   Object.assign(player, { x: 500, y: 450, angle: 0, powerPickups: 0 });
   Object.assign(state.players.get("p1")!, { x: 1200, y: 700 });
-  state.pickups = [
-    { id: 1, type: "power", x: 503, y: 450, expiresAtTick: state.tick + 100 },
-  ];
+  state.pickups = [{ id: 1, type: "power", x: 503, y: 450 }];
   step(
     state,
     inputs([
@@ -1276,7 +1276,6 @@ test("a star collected on the swept path rescues and reflects a wall hit, then e
       type: "star",
       x: player.x,
       y: player.y,
-      expiresAtTick: state.tick + 100,
     },
   ];
   step(state, new Map());
@@ -1284,13 +1283,13 @@ test("a star collected on the swept path rescues and reflects a wall hit, then e
   assert.equal(state.roundParticipants.get("p0")!.eliminatedAtTick, undefined);
   assert.equal(player.x, state.boundaryInset + 7);
   assert.ok(Math.abs(player.angle) < 1e-8);
-  assert.equal(player.invulnerableUntilTick, state.tick + STAR_DURATION_TICKS);
+  assert.equal(effectUntil(player, "star"), state.tick + STAR_DURATION_TICKS);
   assert.equal(state.matchStats.get("p0")!.starPickups, 1);
   assert.equal(state.matchStats.get("p0")!.pickupsCollected, 1);
   assert.equal(state.matchStats.get("p0")!.invulnerableTicks, 1);
   assert.equal(state.matchStats.get("p0")!.wallBounces, 1);
 
-  player.invulnerableUntilTick = state.tick + 1;
+  setEffect(player, "star", state.tick + 1);
   other.trail = [
     {
       x1: player.x + 3,
@@ -1317,7 +1316,7 @@ test("star head contact kills only a normal rider while two stars pass through",
   star.x = 500;
   star.y = 450;
   star.angle = 0;
-  star.invulnerableUntilTick = asymmetric.tick + 2;
+  setEffect(star, "star", asymmetric.tick + 2);
   normal.x = 520;
   normal.y = 450;
   normal.angle = Math.PI;
@@ -1332,11 +1331,11 @@ test("star head contact kills only a normal rider while two stars pass through",
   first.x = 500;
   first.y = 450;
   first.angle = 0;
-  first.invulnerableUntilTick = both.tick + 2;
+  setEffect(first, "star", both.tick + 2);
   second.x = 520;
   second.y = 450;
   second.angle = Math.PI;
-  second.invulnerableUntilTick = both.tick + 2;
+  setEffect(second, "star", both.tick + 2);
   step(both, new Map());
   assert.equal(first.alive, true);
   assert.equal(second.alive, true);
@@ -1350,7 +1349,6 @@ test("persistent pickups respect the active cap and impossible safe interior sta
     type: "power" as const,
     x: 700 + index * 40,
     y: 450,
-    expiresAtTick: Number.MAX_SAFE_INTEGER,
   }));
   state.nextPickupSpawnTick = state.tick + 1;
   step(state, new Map());
@@ -1385,38 +1383,36 @@ test("beer pickup debuffs every other living rider, refreshes, and keeps the col
   collector.x = 500;
   collector.y = 450;
   collector.angle = 0;
-  collector.drunkUntilTick = state.tick + 12;
+  setEffect(collector, "drunk", state.tick + 12);
   target.x = 900;
   target.y = 300;
   target.angle = 0;
-  target.drunkUntilTick = state.tick + 5;
+  setEffect(target, "drunk", state.tick + 5);
   other.x = 1100;
   other.y = 700;
   other.angle = 0;
-  state.pickups = [
-    { id: 1, type: "beer", x: 503, y: 450, expiresAtTick: state.tick + 100 },
-  ];
+  state.pickups = [{ id: 1, type: "beer", x: 503, y: 450 }];
 
   step(state, new Map());
   assert.equal(
-    collector.drunkUntilTick,
+    effectUntil(collector, "drunk"),
     state.tick + 11,
     "collection does not cure or replace the collector existing debuff",
   );
-  assert.equal(target.drunkUntilTick, state.tick + DRUNK_DURATION_TICKS);
-  assert.equal(other.drunkUntilTick, state.tick + DRUNK_DURATION_TICKS);
+  assert.equal(effectUntil(target, "drunk"), state.tick + DRUNK_DURATION_TICKS);
+  assert.equal(effectUntil(other, "drunk"), state.tick + DRUNK_DURATION_TICKS);
   assert.equal(state.matchStats.get("p0")!.beerPickups, 1);
   assert.equal(state.matchStats.get("p0")!.pickupsCollected, 1);
 
-  const startedTick = target.drunkStartedTick;
+  const startedTick = effectSince(target, "drunk");
   const angleBefore = target.angle;
   const expectedNoise =
     drunkHeadingOffset(
       state.seed,
       target.id,
       state.tick + 1,
-      target.drunkStartedTick,
-      target.drunkUntilTick,
+      effectSince(target, "drunk"),
+      effectUntil(target, "drunk"),
     ) - target.drunkHeadingOffset;
   const { turn } = riderMotionStep(
     target,
@@ -1438,17 +1434,16 @@ test("beer pickup debuffs every other living rider, refreshes, and keeps the col
       type: "beer",
       x: collector.x + 3,
       y: collector.y,
-      expiresAtTick: state.tick + 100,
     },
   ];
   step(state, new Map());
   assert.equal(
-    target.drunkUntilTick,
+    effectUntil(target, "drunk"),
     state.tick + DRUNK_DURATION_TICKS,
     "a second beer refreshes without stacking",
   );
   assert.equal(
-    target.drunkStartedTick,
+    effectSince(target, "drunk"),
     startedTick,
     "refresh preserves the sway phase",
   );
@@ -1463,20 +1458,20 @@ test("drunk wobble expires at the strict tick boundary and resets between rounds
   player.x = 500;
   player.y = 450;
   player.angle = 0;
-  player.drunkUntilTick = state.tick + 1;
+  setEffect(player, "drunk", state.tick + 1);
   step(state, new Map());
   assert.equal(
     player.angle,
     0,
     "drunkUntilTick equal to the current tick is expired",
   );
-  player.drunkUntilTick = state.tick + 50;
+  setEffect(player, "drunk", state.tick + 50);
   eliminatePlayer(state, "p1");
   step(state, new Map());
   state.tick = state.phaseEndsAtTick!;
   startNextRound(state);
-  assert.equal(player.drunkUntilTick, 0);
-  assert.equal(player.drunkStartedTick, 0);
+  assert.equal(effectUntil(player, "drunk"), 0);
+  assert.equal(effectSince(player, "drunk"), 0);
   assert.equal(player.drunkHeadingOffset, 0);
   assert.equal(
     toView(state).players.find((candidate) => candidate.id === player.id)!
@@ -1502,7 +1497,7 @@ test("modifier pickups arm one use, refresh without stacking, and reset between 
     expiresAtTick: state.tick + 100,
   }));
   step(state, new Map());
-  assert.equal(player.tripleShotArmed, true);
+  assert.equal(isArmed(player, "triple"), true);
   assert.equal(player.shielded, true);
   assert.deepEqual(
     [
@@ -1517,19 +1512,18 @@ test("modifier pickups arm one use, refresh without stacking, and reset between 
       type: "triple",
       x: player.x + 2,
       y: player.y,
-      expiresAtTick: state.tick + 10,
     },
   ];
   step(state, new Map());
-  assert.equal(player.tripleShotArmed, true);
+  assert.equal(isArmed(player, "triple"), true);
 
   eliminatePlayer(state, "p1");
   step(state, new Map());
   state.tick = state.phaseEndsAtTick!;
   startNextRound(state);
-  assert.equal(player.tripleShotArmed, false);
+  assert.equal(isArmed(player, "triple"), false);
   assert.equal(player.shielded, false);
-  assert.equal(player.shieldGraceUntilTick, 0);
+  assert.equal(effectUntil(player, "shieldGrace"), 0);
 });
 
 test("orbit shields absorb a whole clustered hazard tick and grace protects until strict expiry", () => {
@@ -1554,7 +1548,6 @@ test("orbit shields absorb a whole clustered hazard tick and grace protects unti
     launchY: 450,
     x: 500,
     y: 450,
-    placedTick: 0,
     launchedTick: 0,
     landsAtTick: 0,
     explodeAtTick: state.tick + 1,
@@ -1564,7 +1557,7 @@ test("orbit shields absorb a whole clustered hazard tick and grace protects unti
   step(state, new Map());
   assert.equal(shield.alive, true);
   assert.equal(shield.shielded, false);
-  assert.equal(shield.shieldGraceUntilTick, state.tick + 10);
+  assert.equal(effectUntil(shield, "shieldGrace"), state.tick + 10);
 
   collider.trail = [
     {
@@ -1582,7 +1575,7 @@ test("orbit shields absorb a whole clustered hazard tick and grace protects unti
     true,
     "grace blocks the trail after the clustered break tick",
   );
-  shield.shieldGraceUntilTick = state.tick + 1;
+  setEffect(shield, "shieldGrace", state.tick + 1);
   step(state, new Map());
   assert.equal(
     shield.alive,
@@ -1618,7 +1611,7 @@ test("two shields both break on contact while Star preserves its stored shield",
   protectedPlayer.y = 450;
   protectedPlayer.angle = 0;
   protectedPlayer.shielded = true;
-  protectedPlayer.invulnerableUntilTick = star.tick + 2;
+  setEffect(protectedPlayer, "star", star.tick + 2);
   normal.x = 520;
   normal.y = 450;
   normal.angle = Math.PI;
@@ -1713,7 +1706,6 @@ test("overlapping blast owners receive no speculative elimination credit", () =>
       launchY: 450,
       x: 500,
       y: 450,
-      placedTick: 0,
       launchedTick: 0,
       landsAtTick: 0,
       explodeAtTick: state.tick + 1,
@@ -1776,7 +1768,6 @@ test("Five Shot survives Triple collection and cancellation, then launches five 
         type,
         x: player.x + 2,
         y: player.y,
-        expiresAtTick: state.tick + 50,
       },
     ];
     step(state, new Map());
@@ -1797,7 +1788,7 @@ test("Five Shot survives Triple collection and cancellation, then launches five 
       },
     ]),
   );
-  assert.equal(player.fiveShotArmed, true);
+  assert.equal(isArmed(player, "five"), true);
   assert.equal(state.bombs.size, 0);
   step(
     state,
@@ -1823,9 +1814,9 @@ test("Five Shot survives Triple collection and cancellation, then launches five 
     ),
   );
   assert.equal(player.bombReadyAtTick, state.tick + BOMB_COOLDOWN_TICKS);
-  assert.equal(player.fiveShotArmed, false);
-  assert.equal(player.tripleShotArmed, false);
-  player.fiveShotArmed = true;
+  assert.equal(isArmed(player, "five"), false);
+  assert.equal(isArmed(player, "triple"), false);
+  setArmed(player, "five", true);
   step(
     state,
     inputs([
@@ -1837,12 +1828,12 @@ test("Five Shot survives Triple collection and cancellation, then launches five 
     ]),
   );
   assert.equal(state.bombs.size, 5);
-  assert.equal(player.fiveShotArmed, true);
+  assert.equal(isArmed(player, "five"), true);
   eliminatePlayer(state, "p1");
   step(state, new Map());
   state.tick = state.phaseEndsAtTick!;
   startNextRound(state);
-  assert.equal(player.fiveShotArmed, false);
+  assert.equal(isArmed(player, "five"), false);
 });
 
 test("radial blast hits diagonal riders, clears diagonal trails and chains diagonal bombs", () => {
@@ -1872,7 +1863,6 @@ test("radial blast hits diagonal riders, clears diagonal trails and chains diago
       launchY: y,
       x,
       y,
-      placedTick: 0,
       launchedTick: 0,
       landsAtTick: 0,
       explodeAtTick: id === 1 ? state.tick + 1 : state.tick + 100,
@@ -1901,7 +1891,7 @@ test("bomb landing hits a rider before detonation, respecting star and shield", 
     victim.x = 1055;
     victim.y = 450;
     victim.angle = 0;
-    victim.invulnerableUntilTick = protection === "star" ? state.tick + 20 : 0;
+    setEffect(victim, "star", protection === "star" ? state.tick + 20 : 0);
     victim.shielded = protection === "shield";
     const owner = state.players.get("p0")!;
     owner.x = 500;
@@ -1916,7 +1906,6 @@ test("bomb landing hits a rider before detonation, respecting star and shield", 
       launchY: 450,
       x: 1100,
       y: 450,
-      placedTick: state.tick,
       launchedTick: state.tick,
       landsAtTick: state.tick + 6,
       explodeAtTick: state.tick + 40,
@@ -1962,7 +1951,6 @@ test("a bomb landing inside an active blast chains immediately", () => {
     launchY: 450,
     x: 800,
     y: 450,
-    placedTick: state.tick,
     launchedTick: state.tick,
     landsAtTick: state.tick + 1,
     explodeAtTick: state.tick + 40,
@@ -1994,7 +1982,6 @@ test("blast preview is harmless before the fuse, both in flight and after landin
       launchY: 450,
       x: 600,
       y: 450,
-      placedTick: state.tick,
       launchedTick: state.tick,
       landsAtTick: state.tick + (airborne ? 6 : 0),
       explodeAtTick: state.tick + 40,
@@ -2040,7 +2027,6 @@ test("bomb skips riders along flight and only snipes at its landing position", (
     launchY: 450,
     x: 600,
     y: 450,
-    placedTick: state.tick,
     launchedTick: state.tick,
     landsAtTick: state.tick + 6,
     explodeAtTick: state.tick + 40,
@@ -2091,7 +2077,6 @@ test("landing step never uses blast radius for contact damage", () => {
       launchY: 450,
       x: 600,
       y: 450,
-      placedTick: state.tick - 5,
       launchedTick: state.tick - 5,
       landsAtTick: state.tick + 1,
       explodeAtTick: state.tick + 35,
@@ -2125,12 +2110,11 @@ test("shell persists beyond five seconds and permits another shot after cooldown
       type: "shell",
       x: owner.x,
       y: owner.y,
-      expiresAtTick: state.tick + 50,
     },
   ];
   step(state, new Map());
-  assert.equal(owner.shellArmed, true);
-  owner.fiveShotArmed = true;
+  assert.equal(isArmed(owner, "shell"), true);
+  setArmed(owner, "five", true);
   step(
     state,
     inputs(["p0", { bomb: true, bombCommands: [{ action: "press" }] }]),
@@ -2147,8 +2131,8 @@ test("shell persists beyond five seconds and permits another shot after cooldown
   const shell = [...state.bombs.values()][0]!;
   assert.ok(shell.shell);
   assert.equal(shell.explodeAtTick, Number.MAX_SAFE_INTEGER);
-  assert.equal(owner.shellArmed, false);
-  assert.equal(owner.fiveShotArmed, false);
+  assert.equal(isArmed(owner, "shell"), false);
+  assert.equal(isArmed(owner, "five"), false);
   const snap = toView(state).bombs[0]!;
   assert.equal(snap.shell!.vx, 450);
   snap.shell!.vx = -2;
@@ -2196,7 +2180,6 @@ test("shell body hits once, shield absorbs it, and no blast radius is produced",
       launchY: 450,
       x: 500,
       y: 450,
-      placedTick: state.tick,
       launchedTick: state.tick - 1,
       landsAtTick: state.tick + 100,
       explodeAtTick: state.tick + 100,
@@ -2230,7 +2213,6 @@ test("power changes only future shots, preserves fuse timing and resets next rou
     launchX: 700,
     launchY: 200,
     launchedTick: state.tick,
-    placedTick: state.tick,
     landsAtTick: state.tick,
     explodeAtTick: deadline,
     blastRange: BOMB_BLAST_RANGE,
@@ -2243,7 +2225,6 @@ test("power changes only future shots, preserves fuse timing and resets next rou
         type: "power",
         x: owner.x,
         y: owner.y,
-        expiresAtTick: state.tick + 50,
       },
     ];
     step(state, new Map());
@@ -2261,7 +2242,7 @@ test("power changes only future shots, preserves fuse timing and resets next rou
   }
   state.bombs.clear();
   owner.bombReadyAtTick = state.tick;
-  owner.tripleShotArmed = true;
+  setArmed(owner, "triple", true);
   step(
     state,
     inputs(
@@ -2332,7 +2313,6 @@ test("live shell bounces off a rider trail without damage or resetting its lifet
     launchX: 500,
     launchY: 450,
     launchedTick: state.tick - 10,
-    placedTick: state.tick - 10,
     landsAtTick: expires,
     explodeAtTick: expires,
     blastRange: 0,
@@ -2384,7 +2364,6 @@ test("a landed bomb blast clears nearby trails", () => {
   state.bombs.set(99, {
     id: 99,
     ownerId: "p0",
-    placedTick: state.tick,
     flightPath: [],
     x: 900,
     y: 450,

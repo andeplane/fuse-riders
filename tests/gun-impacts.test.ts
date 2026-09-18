@@ -17,6 +17,7 @@ import {
   COUNTDOWN_TICKS,
   SLOT_COLORS,
 } from "../src/engine/game.js";
+import { setArmed } from "./fixtures/rider-state.ts";
 
 function scene(kind: "trail" | "head" | "wall", wrap = false) {
   const game = createGame("gun-art", classicSettings(), 42);
@@ -35,7 +36,8 @@ function scene(kind: "trail" | "head" | "wall", wrap = false) {
   const players = [...game.players.values()];
   for (const [i, p] of players.entries())
     Object.assign(p, { x: 300 + i * 250, y: 700, angle: 0, trail: [] });
-  Object.assign(players[0]!, { x: 200, y: 450, gunArmed: true });
+  Object.assign(players[0]!, { x: 200, y: 450 });
+  setArmed(players[0]!, "gun", true);
   if (kind === "head") Object.assign(players[1]!, { x: 800, y: 450, angle: 0 });
   if (kind === "trail")
     players[1]!.trail = [

@@ -10,6 +10,7 @@ import {
   trailTip,
 } from "../src/render/phaser/trails.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setDeadlines } from "./fixtures/rider-state.ts";
 
 /** The fade reads the view's rules, as the scene does. */
 const RULES = toView(createGame("trail-rules", classicSettings(), 1)).rules;
@@ -231,7 +232,7 @@ test("a Snail that ends on the next tick no longer clips the tip: the cap is the
   const game = createGame("trail-tip-snail", classicSettings(), 42);
   addPlayer(game, { id: "p", name: "Player", slot: 0, color: "#22d3ee" });
   const state = game.players.get("p")!;
-  state.snailUntilTicks = [game.tick + 1];
+  setDeadlines(state, "snail", [game.tick + 1]);
   const player = {
     ...toView(game).players[0]!,
     alive: true,

@@ -32,6 +32,7 @@ import {
   type GameState,
 } from "../src/engine/game.ts";
 import { classicSettings } from "./fixtures/classic-settings.ts";
+import { setArmed, setEffect } from "./fixtures/rider-state.ts";
 
 const fixedFlightPath = (x: number, y: number) =>
   Array.from({ length: BOMB_FLIGHT_TICKS + 1 }, () => ({ x, y, angle: 0 }));
@@ -91,7 +92,6 @@ function dueBomb(
     launchY: y,
     x,
     y,
-    placedTick: state.tick - 20,
     launchedTick: state.tick - 20,
     landsAtTick: state.tick,
     explodeAtTick: state.tick + 1,
@@ -115,7 +115,6 @@ function shell(
     launchY: y,
     x,
     y,
-    placedTick: state.tick + 1 - age,
     launchedTick: state.tick + 1 - age,
     landsAtTick: Number.MAX_SAFE_INTEGER,
     explodeAtTick: Number.MAX_SAFE_INTEGER,
@@ -140,7 +139,7 @@ test("a bomb that lands on a head is a direct hit, unless the head was starred o
     const state = scene();
     place(state, "p1", 1080, 450);
     const victim = state.players.get("p1")!;
-    victim.invulnerableUntilTick = protection === "star" ? state.tick + 20 : 0;
+    setEffect(victim, "star", protection === "star" ? state.tick + 20 : 0);
     victim.shielded = protection === "shield";
     place(state, "p0", 500, 450);
     state.bombs.set(99, {
@@ -150,7 +149,6 @@ test("a bomb that lands on a head is a direct hit, unless the head was starred o
       launchY: 450,
       x: 1100,
       y: 450,
-      placedTick: state.tick,
       launchedTick: state.tick,
       landsAtTick: state.tick + 1,
       explodeAtTick: state.tick + 40,
@@ -227,8 +225,8 @@ test("a shell that bounced before hitting is a trick shot; a fresh, stray or gun
     x: 600,
     y: 450,
     angle: Math.PI,
-    gunArmed: true,
   });
+  setArmed(gun.players.get("p0")!, "gun", true);
   step(
     gun,
     new Map([
@@ -339,7 +337,7 @@ test("a rider that travelled far but got nowhere before dying on a trail was box
         expiresAtTick: state.tick + 200,
       },
     ];
-    if (drunk) victim.drunkUntilTick = state.tick + 50;
+    if (drunk) setEffect(victim, "drunk", state.tick + 50);
     step(state, new Map());
     assert.equal(victim.alive, false);
     return state;
@@ -478,7 +476,7 @@ test("leaving a blast zone in the last half second is a dodge; owners, immune ri
           expiresAtTick: state.tick + 200,
         },
       ];
-    if (options.immune) dodger.invulnerableUntilTick = state.tick + 50;
+    if (options.immune) setEffect(dodger, "star", state.tick + 50);
     dueBomb(state, options.owner ?? "p0", 400, 350);
     step(state, new Map());
     assert.equal(dodger.alive, true);
@@ -523,7 +521,8 @@ test("a Gun volley resolved in the tick it is fired feeds the same detector", ()
   const state = scene(3, 3);
   const shooter = state.players.get("p0")!;
   place(state, "p0", 900, 450, Math.PI);
-  Object.assign(shooter, { gunArmed: true, tripleShotArmed: true });
+  setArmed(shooter, "gun", true);
+  setArmed(shooter, "triple", true);
   const [, middle, outer] = volleyAngles(shooter.angle, 3);
   place(
     state,

@@ -1,4 +1,5 @@
 import { hypot2 } from "./deterministic-math.js";
+import { hasEffect } from "./effects.js";
 import type { EliminationCause, GameState, PlayerId } from "./state.js";
 
 /**
@@ -154,7 +155,7 @@ export function detectMoments(
       const victim = state.players.get(death.victimId);
       // Beer weaving looks exactly like being cornered, so a drunk victim is never boxed in.
       const origin =
-        victim && victim.drunkUntilTick <= tick
+        victim && !hasEffect(victim, "drunk", tick)
           ? victim.trail.find(
               (segment) =>
                 segment.createdTick === tick - BOXED_IN_LOOKBACK_TICKS,

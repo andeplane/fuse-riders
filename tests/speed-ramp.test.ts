@@ -24,6 +24,7 @@ import {
 } from "../src/engine/codec/checkpoint.js";
 import { presentWorld } from "../src/render/time/present.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setDeadlines, setEffect } from "./fixtures/rider-state.ts";
 
 function playing(seed = 31, pickups = false): GameState {
   const game = createGame("speed-ramp", classicSettings(), seed);
@@ -101,7 +102,7 @@ test("riders travel faster as the round goes on, with turning circles kept the s
 test("a Nitro stacks on top of the full ramp", () => {
   const game = playing();
   game.roundStartedTick = game.tick - OVERTIME_START_TICK;
-  game.players.get("p0")!.nitroUntilTicks = [game.tick + 10];
+  setDeadlines(game.players.get("p0")!, "nitro", [game.tick + 10]);
   const boosted = measure(game);
   assert.ok(
     Math.abs(
@@ -158,7 +159,7 @@ test("a checkpoint restored mid-ramp replays the original world tick for tick", 
   const game = playing(31, true);
   // Invulnerable riders keep the round going, so the comparison covers hundreds of ticks of changing speed.
   for (const player of game.players.values())
-    player.invulnerableUntilTick = 100_000;
+    setEffect(player, "star", 100_000);
   const weave = (tick: number) =>
     new Map([
       ["p0", { left: tick % 40 < 20, right: false, bomb: false }],

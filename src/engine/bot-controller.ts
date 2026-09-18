@@ -23,7 +23,6 @@ import {
   bombLaunchDistance,
   BOMB_MIN_LAUNCH_DISTANCE,
   bombMaxLaunchDistance,
-  MAX_RANGE_LEVEL,
 } from "./bomb-launch.js";
 import { advanceRiderPose } from "./rider-motion.js";
 import { GUN_AIM_STEP, isAimingGun } from "./gun.js";
@@ -33,7 +32,9 @@ import {
   obstacleDistanceSquared,
 } from "./arena-map.js";
 import { wrapCoordinate, wrapDelta, wrapImages } from "./wrap.js";
-import { drunkHeadingOffset } from "./drunk.js";
+import { hasEffect, headingOffset } from "./effects.js";
+import { canCollect } from "./pickups.js";
+import { armedProjectile } from "./weapons.js";
 import type { TrailSegment } from "./primitives.js";
 
 export const BOT_ID_PREFIX = "bot:";
@@ -217,13 +218,7 @@ function chooseSteering(
           NEUTRAL,
           {
             ...motion,
-            drunkHeadingOffset: drunkHeadingOffset(
-              game.seed,
-              enemy.id,
-              tick,
-              enemy.drunkStartedTick,
-              enemy.drunkUntilTick,
-            ),
+            drunkHeadingOffset: headingOffset(game.seed, enemy, tick),
           },
         );
         // Each predicted step is kept where it ends up on the board, as one unbroken segment.
@@ -243,7 +238,7 @@ function chooseSteering(
       return {
         path,
         straight:
-          enemy.drunkUntilTick <= game.tick &&
+          !hasEffect(enemy, "drunk", game.tick) &&
           enemy.drunkHeadingOffset === 0 &&
           fields.length === 0,
       };
@@ -257,7 +252,7 @@ function chooseSteering(
       ),
     ),
   ];
-  const bombs = sortedBombs(game).filter((bomb) => !bomb.shell?.gun);
+  const bombs = sortedBombs(game);
   // Scenery is lethal on contact like a trail, and unlike a trail it never expires: only the ones within reach
   // of this plan are worth testing each step. Over open edges a piece is also met where the far side puts it, so
   // each image of it that comes within reach is a piece of its own.
@@ -285,13 +280,7 @@ function chooseSteering(
   );
   // The sway ahead is the same whichever way the bot steers, so every plan reads one forecast of it.
   const sway = Array.from({ length: lookahead }, (_, future) =>
-    drunkHeadingOffset(
-      game.seed,
-      player.id,
-      game.tick + future + 1,
-      player.drunkStartedTick,
-      player.drunkUntilTick,
-    ),
+    headingOffset(game.seed, player, game.tick + future + 1),
   );
   let chosen = 0,
     bestSurvived = -1,
@@ -543,11 +532,7 @@ export class BotController {
     );
     const pickup = [...game.pickups]
       .sort((a, b) => a.id - b.id)
-      .filter((candidate) => candidate.type !== "grip" || !player.grip)
-      .filter(
-        (candidate) =>
-          candidate.type !== "range" || player.rangeLevel < MAX_RANGE_LEVEL,
-      )
+      .filter((candidate) => canCollect(candidate.type, player))
       .reduce<GameState["pickups"][number] | undefined>(
         (best, candidate) =>
           !best ||
@@ -617,7 +602,7 @@ export class BotController {
       tier.aimError;
     const maxChargeTicks = game.settings.bombChargeTicks;
     let wantedCharge =
-      player.gunArmed || player.shellArmed
+      armedProjectile(player) !== undefined
         ? 1
         : Math.max(
             1,
@@ -651,7 +636,7 @@ export class BotController {
           }
         : { left: off < 0, right: off > 0, bomb: true };
     }
-    if (game.settings.aimBounce && !player.gunArmed && !player.shellArmed) {
+    if (game.settings.aimBounce && armedProjectile(player) === undefined) {
       // The eased curve is nonlinear. Pick the closest attainable first-swing distance.
       let error = Infinity;
       for (let ticks = 1; ticks <= maxChargeTicks; ticks++) {

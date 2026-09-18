@@ -47,7 +47,6 @@ function drop(game: GameState, playerId = "p0") {
     type: "grip",
     x: player.x + 3,
     y: player.y,
-    expiresAtTick: game.tick + 100,
   });
   return id;
 }
@@ -67,8 +66,7 @@ test("GRIP increases left/right steering by 75% from the next tick without chang
     assert.equal(p.grip, true);
     const plain = riderMotionStep(
       {
-        nitroUntilTicks: [],
-        snailUntilTicks: [],
+        effects: [],
         grip: false,
         aimSlowTicks: 0,
         aimSlowSpentTicks: 0,
@@ -85,8 +83,7 @@ test("GRIP increases left/right steering by 75% from the next tick without chang
     step(game, input);
     const ungripped = riderMotionStep(
       {
-        nitroUntilTicks: [],
-        snailUntilTicks: [],
+        effects: [],
         grip: false,
         aimSlowTicks: 0,
         aimSlowSpentTicks: 0,

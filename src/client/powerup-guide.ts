@@ -12,7 +12,7 @@ import {
   type PickupType,
 } from "../engine/game.js";
 import { DRUNK_DURATION_TICKS } from "../engine/drunk.js";
-import { PICKUP_WEIGHTS } from "../engine/pickup-weights.js";
+import { PICKUP_WEIGHTS } from "../engine/pickups.js";
 import { POWER_TUNING } from "../engine/power-progression.js";
 
 export interface PowerupGuideEntry {

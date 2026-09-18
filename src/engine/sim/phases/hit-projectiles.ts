@@ -1,7 +1,7 @@
 import type { Movement, TickContext } from "../context.js";
 import { PROJECTILE_OWNER_GRACE_TICKS, RIDER_RADIUS } from "../../tuning.js";
 import { SHELL_RADIUS } from "../../shell.js";
-import { isHazardImmune } from "../riders.js";
+import { isHazardImmune } from "../../effects.js";
 import { markCause, markShot } from "../marks.js";
 import { nearestDelta } from "../field.js";
 import { sortedBombs } from "../../state.js";
@@ -26,7 +26,6 @@ export function hitProjectiles(ctx: TickContext): void {
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of sortedBombs(state)) {
     if (
-      bomb.shell?.gun ||
       bomb.launchedTick >= state.tick ||
       (!bomb.shell && bomb.landsAtTick < state.tick)
     )

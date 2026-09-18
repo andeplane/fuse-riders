@@ -1,7 +1,7 @@
 import type { TickContext } from "../context.js";
 import { RIDER_RADIUS } from "../../tuning.js";
 import { hypot2 } from "../../deterministic-math.js";
-import { isHazardImmune } from "../riders.js";
+import { isHazardImmune } from "../../effects.js";
 import { sortedPlayers } from "../../state.js";
 import { square } from "../../geometry.js";
 

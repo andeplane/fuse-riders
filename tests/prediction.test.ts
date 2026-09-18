@@ -111,10 +111,8 @@ test("presentation leads the local rider by its held controls and marks its pres
   const expected = advanceRiderPose(
     { x: base.x, y: base.y, angle: base.angle, drunkHeadingOffset: 0 },
     { left: true, right: false },
-    {
-      ...riderMotionStep(base, newer.tick + 1, newer.roundStartedTick),
-      drunkHeadingOffset: 0,
-    },
+    // The view states the step the rules give this rider on the next tick (`riderMotionStep`, in `toView`).
+    { distance: base.speed, turn: base.turn, drunkHeadingOffset: 0 },
   );
   assert.deepEqual(
     { x: rider.x, y: rider.y, angle: rider.angle },

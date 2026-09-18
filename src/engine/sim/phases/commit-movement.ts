@@ -2,6 +2,7 @@ import type { TickContext } from "../context.js";
 import { boundTrail } from "../../trail-lifecycle.js";
 import { layTrail } from "../field.js";
 import { wrapCoordinate } from "../../wrap.js";
+import { applyEffect } from "../../effects.js";
 
 /**
  * Every step becomes the rider's new place, and lays its trail. A survivor lands where its step ended, or at the far
@@ -87,8 +88,18 @@ export function commitMovement(ctx: TickContext): void {
       transit?.exitPoint.y ??
       (open ? wrapCoordinate(movement.y, state.height) : movement.y);
     if (transit) {
-      movement.player.portalCooldownUntilTick = transit.cooldownUntilTick;
-      movement.player.portalGraceUntilTick = transit.graceUntilTick;
+      applyEffect(
+        movement.player,
+        "portalCooldown",
+        state.tick,
+        transit.cooldownUntilTick,
+      );
+      applyEffect(
+        movement.player,
+        "portalGrace",
+        state.tick,
+        transit.graceUntilTick,
+      );
       facts.push({ kind: "portalCrossed", playerId: movement.player.id });
     }
     movement.player.angle = movement.angle;

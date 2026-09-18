@@ -32,6 +32,8 @@ export type { AvatarId } from "../shared/protocol.js";
 export type { GameEvent } from "./view.js";
 export type { FlightPoint } from "./launch-modifiers.js";
 import type { RoomSettings } from "./room-settings.js";
+import type { ActiveEffect } from "./effects.js";
+import type { WeaponKind } from "./weapons.js";
 import type { DecidedRound, RoundShot } from "./shot-log.js";
 
 export type GamePhase =
@@ -65,36 +67,28 @@ export interface PlayerState extends Required<PlayerIdentity> {
   /** Eased aiming slowdown, 0 to AIM_SLOW_RAMP_TICKS, and the budget it has used, 0 to AIM_SLOW_MAX_TICKS: see `nextAimSlow`. */
   aimSlowTicks: number;
   aimSlowSpentTicks: number;
-  gunArmed?: boolean;
   /** The held Gun sight, in radians off the heading. Present only while a Gun's trigger is held. */
   gunAim?: number;
-  shellArmed?: boolean;
+  /** Weapons a pickup armed and no pull has spent yet, each at most once, in `WEAPON_KINDS` (priority) order. */
+  armed: WeaponKind[];
   /** Permanent ordinary-shot bonus for this round, bounded by MAX_EXTRA_BOMBS. */
   extraBombs: number;
   fuseLevel: number;
   powerPickups: number;
   /** Captured at launch so collecting a level never distorts an active reload ring. */
   reloadDurationTicks: number;
-  invulnerableUntilTick: number;
-  /** One absolute deadline per Nitro collected, unexpired ones only: each doubles speed, so they stack (#240). */
-  nitroUntilTicks: number[];
-  /** One absolute deadline per rival Snail, unexpired ones only: each halves speed, cancelling a Nitro one for one (#240). */
-  snailUntilTicks: number[];
+  /**
+   * Timed effects (Star, Nitro, Snail, Beer, Ink, shield and portal grace, portal cooldown), in `EFFECT_KINDS` order and
+   * by deadline within a kind: see `effects.ts` for how each stacks and what it does.
+   */
+  effects: ActiveEffect[];
   /** Round-long maximum bomb reach upgrade, capped at MAX_RANGE_LEVEL. */
   rangeLevel: number;
   /** Once-per-round steering upgrade; also marks this rider ineligible for further GRIP drops. */
   grip: boolean;
-  drunkUntilTick: number;
-  inkUntilTick: number;
-  drunkStartedTick: number;
+  /** The heading offset the rider's last step carried (the Beer's stagger); a wall or a rock turns it over with the rider. */
   drunkHeadingOffset: number;
-  tripleShotArmed: boolean;
-  fiveShotArmed: boolean;
-
   shielded: boolean;
-  shieldGraceUntilTick: number;
-  portalCooldownUntilTick: number;
-  portalGraceUntilTick: number;
   trail: TrailSegment[];
 }
 
@@ -108,11 +102,10 @@ export interface BombState {
   launchedTick: number;
   landsAtTick: number;
   flightPath: FlightPoint[];
-  placedTick: number;
   explodeAtTick: number;
-  /** `bounces` counts a shell's wall and trail reflections since launch; a gun bullet never bounces and never carries it. */
   blastRange: number;
-  shell?: { vx: number; vy: number; gun?: boolean; bounces?: number };
+  /** A shell's velocity; `bounces` counts its wall and trail reflections since launch. */
+  shell?: { vx: number; vy: number; bounces?: number };
   /** A shell's own portal re-entry cooldown, so a gate pair it is aimed down cannot hold it in a loop. */
   portalCooldownUntilTick?: number;
   /**
@@ -120,6 +113,26 @@ export interface BombState {
    * Statistics only: nothing in the simulation reads it, and it never reaches a public snapshot. Optional as defence
    * in depth at the checkpoint boundary: a bomb that arrives without one kills without being logged against a shot.
    */
+  shot?: number;
+}
+
+/**
+ * One leg of a Gun bullet, drawn for a few ticks from where it left to where it stopped. The shot is resolved the tick
+ * it is fired (`fireGuns`); a tracer is only its trace, harmless, and never a bomb. Tracers take their ids from
+ * `nextBombId`, like bombs, so a pull's bullets and its shot id stay in one sequence.
+ */
+export interface TracerState {
+  id: number;
+  ownerId: PlayerId;
+  launchX: number;
+  launchY: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  launchedTick: number;
+  expiresAtTick: number;
+  /** The trigger pull it belongs to (statistics only, as for a bomb). */
   shot?: number;
 }
 
@@ -143,8 +156,6 @@ export interface PickupState {
   type: PickupType;
   x: number;
   y: number;
-  /** Round-long: MAX_SAFE_INTEGER keeps snapshots finite and pickup sprites fully visible. */
-  expiresAtTick: number;
 }
 
 export interface GameState {
@@ -169,6 +180,8 @@ export interface GameState {
   obstacles: Obstacle[];
   players: Map<PlayerId, PlayerState>;
   bombs: Map<number, BombState>;
+  /** Gun bullet traces, in id order. */
+  tracers: TracerState[];
   blasts: BlastState[];
   pickups: PickupState[];
   portalPairs: PortalPair[];

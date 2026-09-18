@@ -78,6 +78,7 @@ export function createGame(
     obstacles: [],
     players: new Map(),
     bombs: new Map(),
+    tracers: [],
     blasts: [],
     pickups: [],
     portalPairs: [],
@@ -121,32 +122,9 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     x: state.width / 2,
     y: state.height / 2,
     angle: 0,
-    alive: false,
     roundWins: 0,
-    bombReadyAtTick: 0,
-    aimSlowTicks: 0,
-    aimSlowSpentTicks: 0,
-    extraBombs: 0,
-    fuseLevel: 0,
-    powerPickups: 0,
-    reloadDurationTicks: BOMB_COOLDOWN_TICKS,
-    invulnerableUntilTick: 0,
-    nitroUntilTicks: [],
-    snailUntilTicks: [],
-    rangeLevel: 0,
-    grip: false,
-    drunkUntilTick: 0,
-    inkUntilTick: 0,
-    tripleShotArmed: false,
-    fiveShotArmed: false,
-    drunkStartedTick: 0,
-    drunkHeadingOffset: 0,
-
-    shielded: false,
-    shieldGraceUntilTick: 0,
-    portalCooldownUntilTick: 0,
-    portalGraceUntilTick: 0,
-    trail: [],
+    // Ready from tick 0: a lobby rider has nothing to reload, and `prepareRound` starts the clock at the round.
+    ...freshRoundPlayerState(0),
   });
   const historical = state.leaderboard.get(identity.id);
   if (historical) historical.name = identity.name;
@@ -159,6 +137,35 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
       roundWins: 0,
       matchWins: 0,
     });
+}
+
+/**
+ * Everything a rider starts a round with, and holds in the lobby before its first: no trail, no charge, no upgrades,
+ * no effects, nothing armed, reload ready at `readyAtTick`. The one list of per-round defaults: `addPlayer` seats a
+ * rider with it and `prepareRound` resets every rider to it.
+ */
+export function freshRoundPlayerState(
+  readyAtTick: number,
+): Omit<PlayerState, keyof PlayerIdentity | "x" | "y" | "angle" | "roundWins"> {
+  return {
+    alive: false,
+    trail: [],
+    bombChargeStartedTick: undefined,
+    gunAim: undefined,
+    aimSlowTicks: 0,
+    aimSlowSpentTicks: 0,
+    bombReadyAtTick: readyAtTick,
+    extraBombs: 0,
+    fuseLevel: 0,
+    powerPickups: 0,
+    reloadDurationTicks: BOMB_COOLDOWN_TICKS,
+    effects: [],
+    armed: [],
+    rangeLevel: 0,
+    grip: false,
+    drunkHeadingOffset: 0,
+    shielded: false,
+  };
 }
 
 export function removePlayer(state: GameState, playerId: PlayerId): void {
@@ -281,6 +288,7 @@ function prepareRound(state: GameState): void {
   state.roundStartedTick = undefined;
   state.boundaryInset = INITIAL_BOUNDARY_INSET;
   state.bombs.clear();
+  state.tracers = [];
   state.blasts = [];
   state.pickups = [];
   state.portalPairs = [];
@@ -307,36 +315,9 @@ function prepareRound(state: GameState): void {
   for (const player of participants)
     beginMatchParticipant(state.matchStats, player);
 
-  for (const player of sortedPlayers(state)) {
-    player.alive = false;
-    player.trail = [];
-    player.bombChargeStartedTick = undefined;
-    player.gunAim = undefined;
-    player.aimSlowTicks = 0;
-    player.aimSlowSpentTicks = 0;
-    player.bombReadyAtTick = state.tick;
-    player.extraBombs = 0;
-    player.fuseLevel = 0;
-    player.powerPickups = 0;
-    player.reloadDurationTicks = BOMB_COOLDOWN_TICKS;
-    player.invulnerableUntilTick = 0;
-    player.nitroUntilTicks = [];
-    player.snailUntilTicks = [];
-    player.rangeLevel = 0;
-    player.grip = false;
-    player.drunkUntilTick = 0;
-    player.drunkStartedTick = 0;
-    player.drunkHeadingOffset = 0;
-    player.inkUntilTick = 0;
-    player.gunArmed = false;
-    player.shellArmed = false;
-    player.tripleShotArmed = false;
-    player.fiveShotArmed = false;
-    player.shielded = false;
-    player.shieldGraceUntilTick = 0;
-    player.portalCooldownUntilTick = 0;
-    player.portalGraceUntilTick = 0;
-  }
+  for (const player of sortedPlayers(state))
+    Object.assign(player, freshRoundPlayerState(state.tick));
+
   const radius = 0.28 * Math.min(state.width, state.height);
   participants.forEach((player, index) => {
     const spawnAngle =

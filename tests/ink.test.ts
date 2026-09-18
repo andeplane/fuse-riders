@@ -11,6 +11,8 @@ import {
   startNextRound,
 } from "../src/engine/game.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setEffect } from "./fixtures/rider-state.ts";
+import { effectUntil } from "../src/engine/effects.ts";
 
 function playing() {
   const game = createGame("ink", classicSettings(), 42);
@@ -34,7 +36,7 @@ test("Ink affects only other living riders, refreshes three seconds and snapshot
   const game = playing();
   const control = playing();
   const collector = game.players.get("p0")!;
-  collector.inkUntilTick = game.tick + 8;
+  setEffect(collector, "ink", game.tick + 8);
   game.players.get("p3")!.alive = false;
   control.players.get("p3")!.alive = false;
   game.pickups.push({
@@ -42,30 +44,29 @@ test("Ink affects only other living riders, refreshes three seconds and snapshot
     type: "ink",
     x: collector.x + 3,
     y: collector.y,
-    expiresAtTick: game.tick + 100,
   });
   const inputs = new Map([["p1", { left: true, right: false, bomb: false }]]);
-  const priorDeadline = collector.inkUntilTick;
+  const priorDeadline = effectUntil(collector, "ink");
   step(game, inputs);
   step(control, inputs);
   assert.equal(INK_DURATION_TICKS, 60);
   assert.equal(
-    collector.inkUntilTick,
+    effectUntil(collector, "ink"),
     priorDeadline,
     "own pickup does not cure an existing effect",
   );
-  assert.equal(game.players.get("p3")!.inkUntilTick, 0);
+  assert.equal(effectUntil(game.players.get("p3")!, "ink"), 0);
   for (const id of ["p1", "p2"]) {
     const player = game.players.get(id)!;
     const ordinary = control.players.get(id)!;
-    assert.equal(player.inkUntilTick, game.tick + 60);
+    assert.equal(effectUntil(player, "ink"), game.tick + 60);
     assert.deepEqual(
       [player.x, player.y, player.angle, player.alive],
       [ordinary.x, ordinary.y, ordinary.angle, ordinary.alive],
     );
     assert.equal(
       toView(game).players.find((entry) => entry.id === id)!.inkUntilTick,
-      player.inkUntilTick,
+      effectUntil(player, "ink"),
     );
   }
   assert.equal(game.matchStats.get("p0")!.inkPickups, 1);
@@ -74,18 +75,17 @@ test("Ink affects only other living riders, refreshes three seconds and snapshot
     type: "ink",
     x: collector.x + 3,
     y: collector.y,
-    expiresAtTick: game.tick + 100,
   });
   step(game, new Map());
   assert.equal(
-    game.players.get("p1")!.inkUntilTick,
+    effectUntil(game.players.get("p1")!, "ink"),
     game.tick + 60,
     "refresh never stacks duration",
   );
-  const deadline = game.players.get("p1")!.inkUntilTick;
+  const deadline = effectUntil(game.players.get("p1")!, "ink");
   while (game.tick < deadline) step(game, new Map());
   assert.equal(
-    game.players.get("p1")!.inkUntilTick > game.tick,
+    effectUntil(game.players.get("p1")!, "ink") > game.tick,
     false,
     "deadline is exclusive",
   );
@@ -93,7 +93,7 @@ test("Ink affects only other living riders, refreshes three seconds and snapshot
 
 test("Ink clears at the next round", () => {
   const game = playing();
-  game.players.get("p0")!.inkUntilTick = game.tick + 60;
+  setEffect(game.players.get("p0")!, "ink", game.tick + 60);
   for (const id of ["p1", "p2", "p3"]) eliminatePlayer(game, id);
   step(game, new Map());
   game.tick = game.phaseEndsAtTick!;

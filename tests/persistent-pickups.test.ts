@@ -48,7 +48,7 @@ function pickup(
   type: PickupType = "power",
 ): number {
   const id = game.nextPickupId++;
-  game.pickups.push({ id, type, x, y, expiresAtTick: Number.MAX_SAFE_INTEGER });
+  game.pickups.push({ id, type, x, y });
   return id;
 }
 
@@ -68,7 +68,6 @@ function bomb(
     launchX: x,
     launchY: y,
     launchedTick: game.tick,
-    placedTick: game.tick,
     landsAtTick: game.tick,
     explodeAtTick: game.tick + delay,
     blastRange: radius,
@@ -82,7 +81,10 @@ test("spawned pickups survive the old timeout and late round, then reset with th
   step(game, new Map());
   const spawned = game.pickups[0]!;
   assert.ok(spawned);
-  assert.equal(spawned.expiresAtTick, Number.MAX_SAFE_INTEGER);
+  assert.equal(
+    toView(game).pickups.find((p) => p.id === spawned.id)!.expiresAtTick,
+    Number.MAX_SAFE_INTEGER,
+  );
   game.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER;
   for (const elapsed of [301, ROUND_DRAW_TICK - 1]) {
     game.tick = game.roundStartedTick! + elapsed - 1;

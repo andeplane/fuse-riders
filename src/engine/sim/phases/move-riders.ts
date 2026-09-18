@@ -1,34 +1,23 @@
 import type { TickContext } from "../context.js";
-import {
-  type InputIntent,
-  type PlayerState,
-  sortedPlayers,
-} from "../../state.js";
+import { type InputIntent, sortedPlayers } from "../../state.js";
 import { advanceRiderPose } from "../../rider-motion.js";
-import { drunkHeadingOffset } from "../../drunk.js";
+import { expireEffects, headingOffset } from "../../effects.js";
 import { gravityBend } from "../../gravity.js";
 import { riderMotionStep } from "../../tuning.js";
 import { sweepGunAim } from "../../gun.js";
 
 /**
  * Every living rider's step for this tick is worked out and held in the context; nobody is moved yet.
- * Spent speed effects are dropped first, so the step is taken at the speed the state now carries.
+ * Spent effects are dropped first, so the step is taken at the speed the state now carries.
  */
 export function moveRiders(ctx: TickContext): void {
   const { state, inputs, movements } = ctx;
-  for (const player of sortedPlayers(state))
-    expireSpeedEffects(player, state.tick);
+  for (const player of sortedPlayers(state)) expireEffects(player, state.tick);
   for (const player of sortedPlayers(state).filter(
     (candidate) => candidate.alive,
   )) {
     const input = inputs.get(player.id) ?? NEUTRAL_INPUT;
-    const offset = drunkHeadingOffset(
-      state.seed,
-      player.id,
-      state.tick,
-      player.drunkStartedTick,
-      player.drunkUntilTick,
-    );
+    const offset = headingOffset(state.seed, player, state.tick);
     const { distance, turn, aimSlowTicks, aimSlowSpentTicks } = riderMotionStep(
       player,
       state.tick,
@@ -65,19 +54,6 @@ export function moveRiders(ctx: TickContext): void {
       angle: pose.angle,
     });
   }
-}
-
-/** Drops spent deadlines before movement, so state carries only the effects still in force. */
-function expireSpeedEffects(player: PlayerState, tick: number): void {
-  const spent = (until: number) => until <= tick;
-  if (player.nitroUntilTicks.some(spent))
-    player.nitroUntilTicks = player.nitroUntilTicks.filter(
-      (until) => !spent(until),
-    );
-  if (player.snailUntilTicks.some(spent))
-    player.snailUntilTicks = player.snailUntilTicks.filter(
-      (until) => !spent(until),
-    );
 }
 
 const NEUTRAL_INPUT: InputIntent = Object.freeze({

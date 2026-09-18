@@ -16,6 +16,7 @@ import {
 } from "../src/engine/game.ts";
 import type { TrailSegment } from "../src/shared/protocol.ts";
 import { classicSettings } from "./fixtures/classic-settings.ts";
+import { setEffect } from "./fixtures/rider-state.ts";
 
 const bounds = { minX: 10, minY: 20, maxX: 90, maxY: 80 };
 const segment = (
@@ -142,9 +143,9 @@ test("star, shield and portal grace bounce trails cannot start outside the newly
     const state = overtimeArena();
     const player = state.players.get("p0")!;
     Object.assign(player, { x: 20, y: 400, angle: Math.PI });
-    if (defense === "star") player.invulnerableUntilTick = state.tick + 10;
+    if (defense === "star") setEffect(player, "star", state.tick + 10);
     if (defense === "shield") player.shielded = true;
-    if (defense === "portal") player.portalGraceUntilTick = state.tick + 10;
+    if (defense === "portal") setEffect(player, "portalGrace", state.tick + 10);
     step(state, new Map());
     assert.equal(player.alive, true, defense);
     assert.equal(player.x, state.boundaryInset + RIDER_RADIUS, defense);
