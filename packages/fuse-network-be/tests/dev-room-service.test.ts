@@ -150,6 +150,8 @@ async function fixture() {
   await mkdir(path.join(dist, "assets"), { recursive: true });
   await writeFile(path.join(dist, "index.html"), "<main>app shell</main>");
   await writeFile(path.join(dist, "assets", "app.js"), "export {};");
+  await mkdir(path.join(dist, "dice"));
+  await writeFile(path.join(dist, "dice", "index.html"), "<main>dice</main>");
   await writeFile(path.join(root, "secret.txt"), "outside the build");
   const service = createDevRoomService({
     staticDirectory: dist,
@@ -365,6 +367,17 @@ test("dev room service serves the build with app-shell fallback and never outsid
       (await f.call("/display")).body,
       "<main>app shell</main>",
       "navigations fall back to the app shell",
+    );
+    for (const page of ["/dice/", "/dice", "/dice/?room=AB42"])
+      assert.equal(
+        (await f.call(page)).body,
+        "<main>dice</main>",
+        `${page}: a directory serves its own page`,
+      );
+    assert.equal(
+      (await f.call("/assets")).body,
+      "<main>app shell</main>",
+      "a directory without a page is a navigation",
     );
     const asset = await f.call("/assets/app.js");
     assert.equal(asset.body, "export {};");
