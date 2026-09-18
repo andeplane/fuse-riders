@@ -622,7 +622,7 @@ try {
             let savedMode: unknown;
             try {
               savedMode = JSON.parse(
-                localStorage.getItem("fuse-riders-room-settings-v1") ?? "{}",
+                localStorage.getItem("fuse-riders-room-settings-v2") ?? "{}",
               ).mode;
             } catch {}
             return {

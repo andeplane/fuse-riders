@@ -400,7 +400,7 @@ for (const [browserName, type] of [
               await page.evaluate(
                 () =>
                   JSON.parse(
-                    localStorage.getItem("fuse-riders-room-settings-v1")!,
+                    localStorage.getItem("fuse-riders-room-settings-v2")!,
                   ).bombChargeTicks,
               ),
               24,
