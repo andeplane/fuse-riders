@@ -1,6 +1,7 @@
 /** Balance constants and the pure functions of them that the simulation, the bots and the presentation all read. */
 import { POWER_TUNING } from "./power-progression.js";
 import { sortedPlayers, type GameState } from "./state.js";
+import { type SpeedHolder, speedMultiplier } from "./effects.js";
 
 export const TICK_HZ = 20;
 export const MAX_PLAYERS = 5;
@@ -81,11 +82,8 @@ export const PICKUP_SEPARATION = 28;
  * Only distance changes, so a fast rider turns wide and a slowed one turns tight.
  */
 export const NITRO_DURATION_TICKS = 100;
-export const NITRO_SPEED = 2;
 export const SNAIL_DURATION_TICKS = 100;
-export const SNAIL_SPEED = 0.5;
-/** Deadlines a rider can hold per effect: a bound for checkpoints. A 33rd collection inside one window is dropped, at a speed nobody survives anyway. */
-export const MAX_SPEED_EFFECT_STACK = 32;
+export { MAX_SPEED_EFFECT_STACK, NITRO_SPEED, SNAIL_SPEED } from "./effects.js";
 export const STAR_DURATION_TICKS = 100;
 export const SHIELD_GRACE_TICKS = 10;
 
@@ -145,22 +143,12 @@ export function stepsPerTick(
   // A room with no human rider at all is a showcase, not a wait: it keeps its pace.
   return humans > 0 && botsAlive > 0 ? BOTS_ONLY_STEPS_PER_TICK : 1;
 }
-export interface SpeedEffects {
-  nitroUntilTicks: ReadonlyArray<number>;
-  snailUntilTicks: ReadonlyArray<number>;
-}
 /** Every speed pickup in force on `tick`, multiplied together: one factor per unexpired Nitro or Snail deadline. */
 export function riderSpeedMultiplier(
-  player: SpeedEffects,
+  player: Readonly<SpeedHolder>,
   tick: number,
 ): number {
-  let multiplier = 1;
-  // Powers of two are exact, so the order of these products never matters to replicas.
-  for (const until of player.nitroUntilTicks)
-    if (until > tick) multiplier *= NITRO_SPEED;
-  for (const until of player.snailUntilTicks)
-    if (until > tick) multiplier *= SNAIL_SPEED;
-  return multiplier;
+  return speedMultiplier(player, tick);
 }
 /**
  * Holding the bomb button slows the rider to steady the aim. The slowdown eases in over AIM_SLOW_RAMP_TICKS and eases
@@ -214,7 +202,7 @@ export function aimSlowMultiplier(aimSlowTicks: number): number {
  * enough for a forecast: it is never more than AIM_SLOW_RAMP_TICKS steps from the truth.
  */
 export function riderMotionStep(
-  player: SpeedEffects & AimSlow & { grip: boolean },
+  player: Readonly<SpeedHolder> & AimSlow & { grip: boolean },
   tick: number,
   roundStartedTick: number | undefined,
 ): {

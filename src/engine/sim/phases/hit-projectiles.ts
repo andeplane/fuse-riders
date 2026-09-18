@@ -1,7 +1,7 @@
 import type { Movement, TickContext } from "../context.js";
 import { PROJECTILE_OWNER_GRACE_TICKS, RIDER_RADIUS } from "../../tuning.js";
 import { SHELL_RADIUS } from "../../shell.js";
-import { isHazardImmune } from "../riders.js";
+import { isHazardImmune } from "../../effects.js";
 import { markCause, markShot } from "../marks.js";
 import { nearestDelta } from "../field.js";
 import { sortedBombs } from "../../state.js";

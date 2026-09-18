@@ -14,6 +14,7 @@ import {
   riderMotionStep,
 } from "./tuning.js";
 import { edgesOpen } from "./arena-map.js";
+import { effectDeadlines, effectUntil } from "./effects.js";
 import { GUN_HEADSHOT_RADIUS, GUN_HOLE_RADIUS, GUN_RADIUS } from "./gun.js";
 import { PORTAL_WALL_HALF_WIDTH } from "./portal.js";
 import { TRAIL_DECAY_PAUSE_TICKS } from "./trail-lifecycle.js";
@@ -278,22 +279,22 @@ export function toView(state: GameState): WorldView {
       fuseLevel: player.fuseLevel,
       powerPickups: player.powerPickups,
       reloadDurationTicks: player.reloadDurationTicks,
-      invulnerableUntilTick: player.invulnerableUntilTick,
-      nitroUntilTicks: [...player.nitroUntilTicks],
-      snailUntilTicks: [...player.snailUntilTicks],
+      invulnerableUntilTick: effectUntil(player, "star"),
+      nitroUntilTicks: [...effectDeadlines(player, "nitro")],
+      snailUntilTicks: [...effectDeadlines(player, "snail")],
       rangeLevel: player.rangeLevel,
       grip: player.grip,
-      drunkUntilTick: player.drunkUntilTick,
-      inkUntilTick: player.inkUntilTick,
+      drunkUntilTick: effectUntil(player, "drunk"),
+      inkUntilTick: effectUntil(player, "ink"),
       gunArmed: player.gunArmed,
       ...(player.gunAim === undefined ? {} : { gunAim: player.gunAim }),
       shellArmed: player.shellArmed,
       tripleShotArmed: player.tripleShotArmed,
       fiveShotArmed: player.fiveShotArmed,
       shielded: player.shielded,
-      shieldGraceUntilTick: player.shieldGraceUntilTick,
-      portalCooldownUntilTick: player.portalCooldownUntilTick,
-      portalGraceUntilTick: player.portalGraceUntilTick,
+      shieldGraceUntilTick: effectUntil(player, "shieldGrace"),
+      portalCooldownUntilTick: effectUntil(player, "portalCooldown"),
+      portalGraceUntilTick: effectUntil(player, "portalGrace"),
       trail: player.trail.map((segment) => ({ ...segment })),
       ...nextStep(player, state),
       nextVolleyAngles: volleyAngles(

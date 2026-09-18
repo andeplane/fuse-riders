@@ -3,6 +3,7 @@ import { RIDER_RADIUS } from "../../tuning.js";
 import { findPortalTransit } from "../../portal.js";
 import { isClearOfPortalWalls, isSafePortalPosition } from "../portals.js";
 import { portalBounds } from "../field.js";
+import { effectUntil } from "../../effects.js";
 
 /**
  * A surviving rider whose step crosses a gate is given a transit to the paired gate, if the exit is safe. Riders are
@@ -18,7 +19,7 @@ export function portalTransit(ctx: TickContext): void {
       from: { x: movement.oldX, y: movement.oldY },
       to: movement,
       heading: movement.angle,
-      cooldownUntilTick: movement.player.portalCooldownUntilTick,
+      cooldownUntilTick: effectUntil(movement.player, "portalCooldown"),
       bounds: portalBounds(state),
       riderRadius: RIDER_RADIUS,
       isSafeExit: (point, radius, pairId) =>

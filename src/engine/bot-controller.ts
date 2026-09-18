@@ -32,7 +32,7 @@ import {
   obstacleDistanceSquared,
 } from "./arena-map.js";
 import { wrapCoordinate, wrapDelta, wrapImages } from "./wrap.js";
-import { drunkHeadingOffset } from "./drunk.js";
+import { hasEffect, headingOffset } from "./effects.js";
 import { canCollect } from "./pickups.js";
 import type { TrailSegment } from "./primitives.js";
 
@@ -217,13 +217,7 @@ function chooseSteering(
           NEUTRAL,
           {
             ...motion,
-            drunkHeadingOffset: drunkHeadingOffset(
-              game.seed,
-              enemy.id,
-              tick,
-              enemy.drunkStartedTick,
-              enemy.drunkUntilTick,
-            ),
+            drunkHeadingOffset: headingOffset(game.seed, enemy, tick),
           },
         );
         // Each predicted step is kept where it ends up on the board, as one unbroken segment.
@@ -243,7 +237,7 @@ function chooseSteering(
       return {
         path,
         straight:
-          enemy.drunkUntilTick <= game.tick &&
+          !hasEffect(enemy, "drunk", game.tick) &&
           enemy.drunkHeadingOffset === 0 &&
           fields.length === 0,
       };
@@ -266,13 +260,7 @@ function chooseSteering(
   );
   // The sway ahead is the same whichever way the bot steers, so every plan reads one forecast of it.
   const sway = Array.from({ length: lookahead }, (_, future) =>
-    drunkHeadingOffset(
-      game.seed,
-      player.id,
-      game.tick + future + 1,
-      player.drunkStartedTick,
-      player.drunkUntilTick,
-    ),
+    headingOffset(game.seed, player, game.tick + future + 1),
   );
   let chosen = 0,
     bestSurvived = -1,

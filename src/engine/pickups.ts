@@ -7,6 +7,7 @@ import type { Movement } from "./sim/context.js";
 import type { MatchPlayerStats } from "./match-stats.js";
 import { PICKUP_TYPES, type PickupType } from "./pickup-types.js";
 import { DRUNK_DURATION_TICKS } from "./drunk.js";
+import { type EffectKind, applyEffect } from "./effects.js";
 import { cos, hypot2, sin } from "./deterministic-math.js";
 import {
   GRAVITY_CORE_SPAWN_CLEARANCE,
@@ -16,7 +17,6 @@ import {
   GRAVITY_MIN_RADIUS,
   INK_DURATION_TICKS,
   MAX_GRAVITY_FIELDS,
-  MAX_SPEED_EFFECT_STACK,
   NITRO_DURATION_TICKS,
   RIDER_RADIUS,
   SNAIL_DURATION_TICKS,
@@ -79,19 +79,25 @@ export interface PickupRule {
   collect: (collection: Collection) => boolean | void;
 }
 
-/** Everyone else still riding, in seat order: who a rival pickup (Snail, Ink, Beer) lands on. */
-function rivals({ state, collector }: Collection): PlayerState[] {
-  return sortedPlayers(state).filter(
-    (player) => player.alive && player.id !== collector.id,
-  );
+/** A timed effect on whoever took it (Star, Nitro). */
+function onSelf(
+  kind: EffectKind,
+  durationTicks: number,
+): PickupRule["collect"] {
+  return ({ state, collector }) =>
+    applyEffect(collector, kind, state.tick, state.tick + durationTicks);
 }
 
-/** Deadlines stay sorted, so the earliest to expire is always first and replicas hold identical lists. */
-function addSpeedEffect(deadlines: number[], untilTick: number): void {
-  if (deadlines.length >= MAX_SPEED_EFFECT_STACK) return;
-  let index = deadlines.length;
-  while (index > 0 && deadlines[index - 1]! > untilTick) index -= 1;
-  deadlines.splice(index, 0, untilTick);
+/** A timed effect on everyone else still riding, in seat order (Snail, Ink, Beer). */
+function onRivals(
+  kind: EffectKind,
+  durationTicks: number,
+): PickupRule["collect"] {
+  return ({ state, collector }) => {
+    for (const player of sortedPlayers(state))
+      if (player.alive && player.id !== collector.id)
+        applyEffect(player, kind, state.tick, state.tick + durationTicks);
+  };
 }
 
 export const PICKUPS: Readonly<Record<PickupType, PickupRule>> = {
@@ -146,39 +152,17 @@ export const PICKUPS: Readonly<Record<PickupType, PickupRule>> = {
   star: {
     weight: 160,
     stat: "starPickups",
-    collect: ({ state, collector }) => {
-      collector.invulnerableUntilTick = Math.max(
-        collector.invulnerableUntilTick,
-        state.tick + STAR_DURATION_TICKS,
-      );
-    },
+    collect: onSelf("star", STAR_DURATION_TICKS),
   },
   beer: {
     weight: 160,
     stat: "beerPickups",
-    collect: (collection) => {
-      const { state } = collection;
-      for (const player of rivals(collection)) {
-        if (player.drunkUntilTick <= state.tick)
-          player.drunkStartedTick = state.tick;
-        player.drunkUntilTick = Math.max(
-          player.drunkUntilTick,
-          state.tick + DRUNK_DURATION_TICKS,
-        );
-      }
-    },
+    collect: onRivals("drunk", DRUNK_DURATION_TICKS),
   },
   ink: {
     weight: 160,
     stat: "inkPickups",
-    collect: (collection) => {
-      const { state } = collection;
-      for (const player of rivals(collection))
-        player.inkUntilTick = Math.max(
-          player.inkUntilTick,
-          state.tick + INK_DURATION_TICKS,
-        );
-    },
+    collect: onRivals("ink", INK_DURATION_TICKS),
   },
   triple: {
     weight: 540,
@@ -254,23 +238,12 @@ export const PICKUPS: Readonly<Record<PickupType, PickupRule>> = {
   nitro: {
     weight: 160,
     stat: null,
-    collect: ({ state, collector }) => {
-      addSpeedEffect(
-        collector.nitroUntilTicks,
-        state.tick + NITRO_DURATION_TICKS,
-      );
-    },
+    collect: onSelf("nitro", NITRO_DURATION_TICKS),
   },
   snail: {
     weight: 160,
     stat: null,
-    collect: (collection) => {
-      for (const player of rivals(collection))
-        addSpeedEffect(
-          player.snailUntilTicks,
-          collection.state.tick + SNAIL_DURATION_TICKS,
-        );
-    },
+    collect: onRivals("snail", SNAIL_DURATION_TICKS),
   },
 };
 

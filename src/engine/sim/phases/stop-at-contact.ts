@@ -1,6 +1,6 @@
 import type { TickContext } from "../context.js";
 import { hypot2 } from "../../deterministic-math.js";
-import { isInvulnerable } from "../riders.js";
+import { isInvulnerable } from "../../effects.js";
 
 /**
  * A rider stopped by a trail, another rider or scenery goes no further than the point of contact. The distance every

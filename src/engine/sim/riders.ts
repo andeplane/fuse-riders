@@ -9,19 +9,7 @@ import { atan2, cos, sin } from "../deterministic-math.js";
 import { normalizeAngle } from "../geometry.js";
 import { wallReach } from "./field.js";
 import { detachTrail } from "../trail-lifecycle.js";
-/** What a rider is proof against this tick, and how a wall or a piece of scenery turns one back. */
-
-export function isInvulnerable(player: PlayerState, tick: number): boolean {
-  return player.invulnerableUntilTick > tick;
-}
-
-export function isHazardImmune(player: PlayerState, tick: number): boolean {
-  return (
-    isInvulnerable(player, tick) ||
-    player.shieldGraceUntilTick > tick ||
-    player.portalGraceUntilTick > tick
-  );
-}
+/** How a wall or a piece of scenery turns a rider back. What a rider is proof against is in `effects.ts`. */
 
 export function reflectAtBoundary(
   state: GameState,

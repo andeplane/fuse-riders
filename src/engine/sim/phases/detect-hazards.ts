@@ -15,7 +15,7 @@ import {
   gravityCoreRadius,
 } from "../../tuning.js";
 import { hitboxBlocksPath, obstacleHitbox } from "../../arena-map.js";
-import { isHazardImmune } from "../riders.js";
+import { isHazardImmune } from "../../effects.js";
 import { markCause, markShot } from "../marks.js";
 import { movementImages, wallReach } from "../field.js";
 import { segmentIntersectsDisk } from "../../blast-geometry.js";
