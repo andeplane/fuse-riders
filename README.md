@@ -305,7 +305,8 @@ Gameplay is peer-to-peer, so the gateway never sees a match. Every device comput
    binds the verified account to that seat and to no other. Nothing in the request body can name an account.
 3. A result is stored under a key derived from its own content (and the room's incarnation). It becomes **confirmed**
    once a **majority of the human riders who stayed to the end** have reported exactly that result
-   ([`history.ts`](src/service/history.ts)). Bots do not vote, and neither does a rider the stats say quit mid-match —
+   ([`fuse-platform`](packages/fuse-platform/README.md), the backend every game shares; Fuse Riders' stats are
+   registered in [`history.ts`](src/service/history.ts)). Bots do not vote, and neither does a rider the stats say quit mid-match —
    they are gone before the recap and would otherwise leave the match pending forever. A rider alone with bots
    confirms alone.
 4. On confirmation, each signed-in rider's totals are incremented in the same transaction. A rider who reports after
@@ -350,11 +351,13 @@ history (none is, today).
 The personal data stored is the Firebase `uid`, the username, the rider names matches were played under and the
 avatar. **No email address or profile photo reaches the gateway or the database.** The Google display name is shown in
 the player's own browser only, with one exception the player can see and undo: an account with no username and no
-earlier rider name starts with the _first word_ of it as its username. To erase a player, delete their Authentication user, their `fuse-production-users` document, and
-remove their `uid` from `uidByPlayer`/`participantUids` of their matches; there is no self-service delete yet.
+earlier rider name starts with the _first word_ of it as its username. To erase a player, delete their Authentication user, their `fuse-production-users` document, their
+`fuse-production-ratings` documents (`<gameId>:<uid>`, once another game exists), and remove their `uid` from
+`uidByPlayer`/`participantUids` of their matches; there is no self-service delete yet.
 
 [`firestore.indexes.json`](firestore.indexes.json) holds the history query's composite index
-(`participantUids` array-contains + `endedAt` desc), the `cleanupAt` TTL policies for rooms, creation limits and
+(`participantUids` array-contains + `endedAt` desc, and the same after `gameId` for games other than Fuse Riders), the
+per-game rating indexes on `fuse-production-ratings` (`gameId`, `ranked`, `elo`), the `cleanupAt` TTL policies for rooms, creation limits and
 matches, and an index exemption for the bulky `result` map. It lists the pre-existing TTL policies on purpose: the file
 is the whole truth for the database, so leaving one out invites the next deploy to remove it.
 
@@ -380,7 +383,7 @@ browser ──Authorization: Bearer <ID token>──▶ Cloud Run gateway ──
 - **Browsers never talk to Firestore.** Accounts and match history are read and written only by the gateway, which
   authenticates with IAM and bypasses security rules. [`firestore.rules`](firestore.rules) is therefore deny-all and
   must stay that way: the web API key is public, so anything the rules allow is allowed to the whole internet.
-- **The gateway needs no Firebase credentials.** [`identity.ts`](src/service/identity.ts) verifies ID tokens with
+- **The gateway needs no Firebase credentials.** [`identity.ts`](packages/fuse-platform/src/identity.ts) verifies ID tokens with
   `jose` against Google's public keys
   (`https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com`), so the runtime service
   account keeps exactly its current roles (`roles/datastore.user` conditioned on the `fuse-riders` database, plus the
@@ -523,7 +526,7 @@ Findings and accepted risks:
 
 How the implementation holds the line:
 
-- **Tokens.** [`identity.ts`](src/service/identity.ts) pins `RS256` and requires
+- **Tokens.** [`identity.ts`](packages/fuse-platform/src/identity.ts) pins `RS256` and requires
   `iss == https://securetoken.google.com/andershaf-87`, `aud == andershaf-87`, an unexpired `exp`, a past `auth_time`,
   a `sub` that is a safe document id, and `firebase.sign_in_provider == 'google.com'`. Every failure — including Google's
   keys being unreachable — yields a guest, never an error that blocks play and never an accepted token. Revocation is
