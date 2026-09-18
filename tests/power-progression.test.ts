@@ -29,6 +29,7 @@ import {
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { reloadRemaining } from "../src/render/reload-ring.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setEffect } from "./fixtures/rider-state.ts";
 
 function playing() {
   const game = createGame("power-test", classicSettings(), 725);
@@ -91,7 +92,7 @@ test("a saturated trail grows immediately with each collected diamond and expire
   const game = playing(),
     player = game.players.get("p0")!;
   for (const rider of game.players.values())
-    rider.invulnerableUntilTick = game.tick + 300;
+    setEffect(rider, "star", game.tick + 300);
   for (let i = 0; i < 160; i++) step(game, new Map());
   assert.equal(player.trail.length, 160);
   const expired = player.trail[0]!,
@@ -104,7 +105,6 @@ test("a saturated trail grows immediately with each collected diamond and expire
         type: "power",
         x: player.x,
         y: player.y,
-        expiresAtTick: game.tick + 100,
       },
     ];
     step(game, new Map());
@@ -158,7 +158,6 @@ test("an extended trail remains a collision obstacle past its old expiry", () =>
       type: "power",
       x: player.x,
       y: player.y,
-      expiresAtTick: game.tick + 100,
     },
   ];
   step(game, new Map());
@@ -166,9 +165,9 @@ test("an extended trail remains a collision obstacle past its old expiry", () =>
     x: 950,
     y: 487,
     angle: Math.PI / 2,
-    invulnerableUntilTick: 0,
     trail: [],
   });
+  setEffect(other, "star", 0);
   const result = step(game, new Map());
   assert.equal(other.alive, false);
   assert.ok(
@@ -189,7 +188,6 @@ test("trail growth resets with the round and does not extend an eliminated rider
     type: "power" as const,
     x: player.x,
     y: player.y,
-    expiresAtTick: game.tick + 100,
   }));
   step(game, new Map());
   assert.equal(player.trail.at(-1)!.expiresAtTick, game.tick + 280);
@@ -209,7 +207,7 @@ test("maximum progression keeps a long-running trail within the checkpoint budge
   const game = playing(),
     player = game.players.get("p0")!;
   for (const rider of game.players.values())
-    rider.invulnerableUntilTick = game.tick + 1600;
+    setEffect(rider, "star", game.tick + 1600);
   player.powerPickups = MAX_POWER_PICKUPS;
   for (let i = 0; i < tuning.maxTrailLifetimeTicks + 5; i++)
     step(game, new Map());
@@ -222,7 +220,6 @@ test("maximum progression keeps a long-running trail within the checkpoint budge
       type: "power",
       x: player.x,
       y: player.y,
-      expiresAtTick: game.tick + 100,
     },
   ];
   step(game, new Map());
@@ -315,7 +312,7 @@ test("each pickup improves a shot; shortened fuses allow firing at the upgraded 
     const game = playing(),
       player = game.players.get("p0")!;
     for (const rider of game.players.values())
-      rider.invulnerableUntilTick = game.tick + 100;
+      setEffect(rider, "star", game.tick + 100);
     player.powerPickups = count;
     player.fuseLevel = 2;
     step(game, fire);
@@ -353,7 +350,6 @@ test("power and a running reload restore and replay exactly; the ring uses the l
       type: "power",
       x: player.x,
       y: player.y,
-      expiresAtTick: game.tick + 100,
     },
   ];
   step(game, new Map());
@@ -379,7 +375,6 @@ test("checkpoint accepts a full board and rejects malformed progression", () => 
     type: "power",
     x: 100 + i * 30,
     y: 100,
-    expiresAtTick: game.tick + 100,
   }));
   game.nextPickupId = MAX_BOARD_PICKUPS + 2;
   assert.ok(decodeGameState(encodeGameState(game)));
@@ -388,7 +383,6 @@ test("checkpoint accepts a full board and rejects malformed progression", () => 
     type: "power",
     x: 100,
     y: 200,
-    expiresAtTick: game.tick + 100,
   });
   assert.equal(decodeGameState(encodeGameState(game)), undefined);
   game.pickups = [];
@@ -433,7 +427,6 @@ test("several pickups collected together all improve a shot on the same tick", (
     type: "power",
     x: player.x,
     y: player.y,
-    expiresAtTick: game.tick + 100,
   }));
   step(game, fire);
   assert.equal(player.powerPickups, count);

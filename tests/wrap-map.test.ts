@@ -351,7 +351,7 @@ test("a bomb thrown at an open edge lands on the far side, and its blast reaches
 
 test("a shell flies through an open edge instead of bouncing, and still bounces off a trail waiting beyond it", () => {
   const fire = (game: GameState): void => {
-    place(game, "p0", { x: 1500, y: 400, angle: 0, shellArmed: true });
+    place(game, "p0", { x: 1500, y: 400, angle: 0, armed: ["shell"] });
     place(game, "p1", { x: 800, y: 800, angle: 0 });
     step(game, new Map([["p0", press]]));
     step(game, new Map([["p0", release]]));
@@ -360,9 +360,7 @@ test("a shell flies through an open edge instead of bouncing, and still bounces 
   fire(through);
   place(through, "p0", { x: 800, y: 100, angle: 0 });
   run(through, 6);
-  const shell = [...through.bombs.values()].find(
-    (bomb) => bomb.shell && !bomb.shell.gun,
-  )!;
+  const shell = [...through.bombs.values()].find((bomb) => bomb.shell)!;
   assert.ok(shell.shell!.vx > 0, "never reflected");
   assert.ok(shell.x < 200, `and carried on from the left at ${shell.x}`);
 
@@ -380,16 +378,14 @@ test("a shell flies through an open edge instead of bouncing, and still bounces 
     },
   ];
   run(blocked, 6);
-  const bounced = [...blocked.bombs.values()].find(
-    (bomb) => bomb.shell && !bomb.shell.gun,
-  )!;
+  const bounced = [...blocked.bombs.values()].find((bomb) => bomb.shell)!;
   assert.ok(bounced.shell!.vx < 0, "the trail past the edge turned it round");
   assert.ok(bounced.x > 1400, `back on the side it came from, at ${bounced.x}`);
 });
 
 test("a bullet carries on through an open edge and hits a rider beyond it, within one board of range", () => {
   const game = scene();
-  place(game, "p0", { x: 1500, y: 400, angle: 0, gunArmed: true });
+  place(game, "p0", { x: 1500, y: 400, angle: 0, armed: ["gun"] });
   place(game, "p1", { x: 100, y: 400, angle: Math.PI / 2 });
   const events = step(game, new Map([["p0", tap]])).events;
   assert.ok(
@@ -400,7 +396,7 @@ test("a bullet carries on through an open edge and hits a rider beyond it, withi
         event.cause === "explosion",
     ),
   );
-  const tracers = [...game.bombs.values()].filter((bomb) => bomb.shell?.gun);
+  const tracers = game.tracers;
   assert.deepEqual(
     tracers.map((tracer) => [Math.round(tracer.launchX), Math.round(tracer.x)]),
     [
@@ -411,10 +407,10 @@ test("a bullet carries on through an open edge and hits a rider beyond it, withi
   );
 
   const empty = scene();
-  place(empty, "p0", { x: 800, y: 100, angle: 0, gunArmed: true });
+  place(empty, "p0", { x: 800, y: 100, angle: 0, armed: ["gun"] });
   place(empty, "p1", { x: 800, y: 800, angle: 0 });
   step(empty, new Map([["p0", tap]]));
-  const legs = [...empty.bombs.values()].filter((bomb) => bomb.shell?.gun);
+  const legs = empty.tracers;
   const travelled = legs.reduce(
     (sum, leg) => sum + Math.abs(leg.x - leg.launchX),
     0,
@@ -614,7 +610,6 @@ test("a blast whose rim stops just short of an open edge still reaches a rider o
       launchedTick: game.tick - 10,
       landsAtTick: game.tick - 4,
       flightPath: [],
-      placedTick: game.tick - 10,
       explodeAtTick: game.tick + 1,
       blastRange: 100,
     });
@@ -636,7 +631,7 @@ test("a blast whose rim stops just short of an open edge still reaches a rider o
 test("a bullet fired along an open edge hits a rider overhanging that edge from the far side", () => {
   const shotAt = (victimX: number): boolean => {
     const game = scene();
-    place(game, "p0", { x: 1596, y: 100, angle: Math.PI / 2, gunArmed: true });
+    place(game, "p0", { x: 1596, y: 100, angle: Math.PI / 2, armed: ["gun"] });
     place(game, "p1", { x: victimX, y: 500, angle: Math.PI / 2 });
     return step(game, new Map([["p0", tap]])).events.some(
       (event) => event.type === "playerEliminated" && event.playerId === "p1",

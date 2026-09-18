@@ -29,6 +29,7 @@ import {
   roomPickup,
 } from "../src/engine/room-settings.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setEffect } from "./fixtures/rider-state.ts";
 
 function playing() {
   const game = createGame("shorter-fuse", classicSettings(), 725);
@@ -46,15 +47,15 @@ function playing() {
     y: 400,
     angle: 0,
     trail: [],
-    invulnerableUntilTick: 10000,
   });
+  setEffect(game.players.get("p0")!, "star", 10000);
   Object.assign(game.players.get("p1")!, {
     x: 1200,
     y: 700,
     angle: Math.PI,
     trail: [],
-    invulnerableUntilTick: 10000,
   });
+  setEffect(game.players.get("p1")!, "star", 10000);
   game.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER;
   return game;
 }
@@ -156,9 +157,10 @@ test("Shell and Gun retain their projectile/tracer lifetimes", () => {
     collect(game, "stopwatch", "stopwatch", special);
     step(game, fire);
     assert.equal(rider.fuseLevel, 2);
-    const bomb = [...game.bombs.values()][0]!;
     assert.equal(
-      bomb.explodeAtTick,
+      special === "shell"
+        ? [...game.bombs.values()][0]!.explodeAtTick
+        : game.tracers[0]!.expiresAtTick,
       special === "shell"
         ? Number.MAX_SAFE_INTEGER
         : game.tick + GUN_TRACER_TICKS,

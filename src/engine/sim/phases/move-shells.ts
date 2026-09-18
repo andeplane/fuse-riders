@@ -31,15 +31,15 @@ import { sortedPlayers } from "../../state.js";
  */
 export function moveShells(ctx: TickContext): void {
   const { state, open, shellPaths } = ctx;
+  // Gun damage was resolved on firing; tracers are stationary and harmless, and only drawn for a few ticks.
+  if (state.tracers.some((tracer) => state.tick >= tracer.expiresAtTick))
+    state.tracers = state.tracers.filter(
+      (tracer) => state.tick < tracer.expiresAtTick,
+    );
   // One run per portal hop. The gap between runs is travel the shell never made, so the sweep below
   // must not read across it: a rider standing between two gates is not in the way of a teleport.
   for (const bomb of sortedBombs(state)) {
     if (!bomb.shell) continue;
-    // Gun damage was resolved on firing; these are stationary, harmless tracers.
-    if (bomb.shell.gun) {
-      if (state.tick >= bomb.explodeAtTick) state.bombs.delete(bomb.id);
-      continue;
-    }
     // Open edges have nothing to bounce off: the bounds sit a whole board away, further than any tick can reach.
     const shellBounds = open
       ? {
@@ -159,7 +159,6 @@ function findShellPortalEntry(
       tick: state.tick,
       from,
       to,
-      heading: 0, // Echoed back by findPortalTransit and read by no caller.
       cooldownUntilTick: bomb.portalCooldownUntilTick ?? 0,
       bounds: portalBounds(state),
       riderRadius: SHELL_RADIUS,

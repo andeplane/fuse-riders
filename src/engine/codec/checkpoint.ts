@@ -31,7 +31,15 @@ import {
   type BombState,
   type BlastState,
   type PickupState,
+  type TracerState,
 } from "../game.js";
+import {
+  EFFECTS,
+  EFFECT_KINDS,
+  type ActiveEffect,
+  type EffectKind,
+} from "../effects.js";
+import { WEAPON_KINDS } from "../weapons.js";
 import { isAvatarId } from "../../shared/avatars.js";
 import { GUN_AIM_MAX } from "../gun.js";
 import { MAX_PORTAL_PAIRS } from "../portal.js";
@@ -124,6 +132,25 @@ const trail: Guard = (v) =>
   })(v) &&
   record(v) &&
   (v.expiresAtTick as number) > (v.createdTick as number);
+/** One entry per timed effect application; the ordering and per-kind bounds are checked with the game (`effectsInvariant`). */
+const activeEffects: Guard = array(
+  shape({
+    kind: (v) =>
+      typeof v === "string" && (EFFECT_KINDS as readonly string[]).includes(v),
+    sinceTick: integer,
+    untilTick: integer,
+  } satisfies Record<keyof ActiveEffect, Guard>),
+  EFFECT_KINDS.length * MAX_SPEED_EFFECT_STACK,
+);
+/** Each weapon at most once, in `WEAPON_KINDS` order, which is the order arming keeps. */
+const armedWeapons: Guard = (v) =>
+  Array.isArray(v) &&
+  v.every(
+    (kind, index) =>
+      (WEAPON_KINDS as readonly unknown[]).includes(kind) &&
+      (index === 0 ||
+        WEAPON_KINDS.indexOf(v[index - 1]) < WEAPON_KINDS.indexOf(kind)),
+  );
 const playerFields = {
   id: text,
   name,
@@ -138,32 +165,21 @@ const playerFields = {
   roundWins: integer,
   bombReadyAtTick: integer,
   bombChargeStartedTick: optional(integer),
-  gunArmed: optional(boolean),
   gunAim: optional(range(-GUN_AIM_MAX, GUN_AIM_MAX)),
-  shellArmed: optional(boolean),
+  armed: armedWeapons,
   extraBombs: count(MAX_EXTRA_BOMBS),
   fuseLevel: count(2),
   powerPickups: count(MAX_POWER_PICKUPS),
   reloadDurationTicks: (v) =>
     integer(v) &&
     range(POWER_TUNING.minReloadTicks, POWER_TUNING.baseReloadTicks)(v),
-  invulnerableUntilTick: integer,
   aimSlowTicks: count(AIM_SLOW_RAMP_TICKS),
   aimSlowSpentTicks: count(AIM_SLOW_MAX_TICKS),
-  nitroUntilTicks: array(integer, MAX_SPEED_EFFECT_STACK),
-  snailUntilTicks: array(integer, MAX_SPEED_EFFECT_STACK),
+  effects: activeEffects,
   rangeLevel: count(MAX_RANGE_LEVEL),
   grip: boolean,
-  drunkUntilTick: integer,
-  inkUntilTick: integer,
-  drunkStartedTick: integer,
   drunkHeadingOffset: range(-Math.PI, Math.PI),
-  tripleShotArmed: boolean,
-  fiveShotArmed: boolean,
   shielded: boolean,
-  shieldGraceUntilTick: integer,
-  portalCooldownUntilTick: integer,
-  portalGraceUntilTick: integer,
   trail: array(trail, MAX_CHECKPOINT_TRAILS),
 } satisfies Record<keyof PlayerState, Guard>;
 const player = shape(playerFields);
@@ -176,7 +192,6 @@ const bombFields = {
   y: position,
   launchedTick: integer,
   landsAtTick: integer,
-  placedTick: integer,
   explodeAtTick: integer,
   blastRange: range(0, 1000),
   flightPath: array(shape({ x: position, y: position, angle: number }), 32),
@@ -186,12 +201,25 @@ const bombFields = {
     shape({
       vx: range(-1000, 1000),
       vy: range(-1000, 1000),
-      gun: optional(boolean),
       bounces: optional((v) => count(1_000_000)(v) && v !== 0),
     }),
   ),
 } satisfies Record<keyof BombState, Guard>;
 const bomb = shape(bombFields);
+/** A bullet's direction is a unit vector; the bullet itself was resolved the tick it was fired. */
+const tracer = shape({
+  id: integer,
+  ownerId: text,
+  launchX: position,
+  launchY: position,
+  x: position,
+  y: position,
+  vx: range(-1, 1),
+  vy: range(-1, 1),
+  launchedTick: integer,
+  expiresAtTick: integer,
+  shot: optional((v) => integer(v) && v !== 0),
+} satisfies Record<keyof TracerState, Guard>);
 const blast = shape({
   bombId: integer,
   ownerId: text,
@@ -204,7 +232,6 @@ const pickup = shape({
     typeof v === "string" && (PICKUP_TYPES as readonly string[]).includes(v),
   x: position,
   y: position,
-  expiresAtTick: integer,
 } satisfies Record<keyof PickupState, Guard>);
 const statsFields = {
   combat: optional((v) => parseCombat(v) !== undefined),
@@ -319,6 +346,7 @@ const gameShape = shape({
   obstacles: array(obstacle, MAX_OBSTACLES),
   players: map(text, player, 5),
   bombs: map(integer, bomb, 256),
+  tracers: array(tracer, 256),
   blasts: array(blast, 256),
   pickups: array(pickup, MAX_BOARD_PICKUPS),
   portalPairs: array(portalPair, MAX_PORTAL_PAIRS),
@@ -428,14 +456,50 @@ function decodeTree(value: unknown, depth = 0, budget = { nodes: 0 }): unknown {
   return result;
 }
 
-const speedDeadlines = (
-  deadlines: readonly number[],
-  latest: number,
-): boolean =>
-  deadlines.every(
-    (until, index) =>
-      until <= latest && (index === 0 || until >= deadlines[index - 1]!),
-  );
+/**
+ * The longest a stacked effect can reach past the tick it was taken on: stacked deadlines are appended in tick order
+ * and never further out than one duration, so a list the rules could not have produced is refused rather than left to
+ * expire on a schedule no other replica shares.
+ */
+const STACK_DURATIONS: Record<"nitro" | "snail", number> = {
+  nitro: NITRO_DURATION_TICKS,
+  snail: SNAIL_DURATION_TICKS,
+};
+/**
+ * Effects as the rules hold them (`effects.ts`): in `EFFECT_KINDS` order and by deadline within a kind, one entry per
+ * kind that does not stack, at most MAX_SPEED_EFFECT_STACK of one that does, none begun in the future.
+ */
+function effectsInvariant(
+  effects: readonly ActiveEffect[],
+  tick: number,
+): boolean {
+  const counts = new Map<EffectKind, number>();
+  for (let index = 0; index < effects.length; index++) {
+    const effect = effects[index]!,
+      previous = effects[index - 1];
+    const rule = EFFECTS[effect.kind];
+    const kept = (counts.get(effect.kind) ?? 0) + 1;
+    counts.set(effect.kind, kept);
+    if (
+      effect.sinceTick > tick ||
+      kept > (rule.stacking === "stack" ? MAX_SPEED_EFFECT_STACK : 1)
+    )
+      return false;
+    if (
+      rule.stacking === "stack" &&
+      effect.untilTick >
+        tick + STACK_DURATIONS[effect.kind as keyof typeof STACK_DURATIONS]
+    )
+      return false;
+    if (previous) {
+      const order =
+        EFFECT_KINDS.indexOf(previous.kind) - EFFECT_KINDS.indexOf(effect.kind);
+      if (order > 0 || (order === 0 && previous.untilTick > effect.untilTick))
+        return false;
+    }
+  }
+  return true;
+}
 function gameInvariants(game: GameState): boolean {
   const slots = new Set<number>();
   const pieceIds = new Set<number>();
@@ -465,15 +529,8 @@ function gameInvariants(game: GameState): boolean {
     )
       return false;
     if (
-      p.drunkStartedTick > game.tick ||
+      !effectsInvariant(p.effects, game.tick) ||
       p.trail.some((t) => t.createdTick > game.tick)
-    )
-      return false;
-    // Speed deadlines are appended in tick order and never further out than one duration, so a list the rules could
-    // not have produced is refused rather than left to expire on a schedule no other replica shares.
-    if (
-      !speedDeadlines(p.nitroUntilTicks, game.tick + NITRO_DURATION_TICKS) ||
-      !speedDeadlines(p.snailUntilTicks, game.tick + SNAIL_DURATION_TICKS)
     )
       return false;
     let active = false;
@@ -572,7 +629,6 @@ function gameInvariants(game: GameState): boolean {
       id >= game.nextBombId ||
       !game.matchStats.has(b.ownerId) ||
       b.launchedTick > game.tick ||
-      b.placedTick > game.tick ||
       b.landsAtTick < b.launchedTick ||
       b.explodeAtTick < b.launchedTick
     )
@@ -580,6 +636,20 @@ function gameInvariants(game: GameState): boolean {
     if (!b.shell && b.flightPath.length === 0) return false;
     // A pull's shot id is its first bomb's id, so no bomb names a shot issued after it.
     if (b.shot !== undefined && b.shot > id) return false;
+  }
+  const tracerIds = new Set<number>();
+  for (const t of game.tracers) {
+    if (
+      game.bombs.has(t.id) ||
+      tracerIds.has(t.id) ||
+      t.id >= game.nextBombId ||
+      !game.matchStats.has(t.ownerId) ||
+      t.launchedTick > game.tick ||
+      t.expiresAtTick < t.launchedTick ||
+      (t.shot !== undefined && t.shot > t.id)
+    )
+      return false;
+    tracerIds.add(t.id);
   }
   for (const b of game.blasts)
     if (b.bombId >= game.nextBombId || !game.matchStats.has(b.ownerId))

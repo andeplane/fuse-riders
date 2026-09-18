@@ -26,7 +26,6 @@ export function hitProjectiles(ctx: TickContext): void {
   // Bombs only hit on landing; shells sweep their path to avoid tunnelling.
   for (const bomb of sortedBombs(state)) {
     if (
-      bomb.shell?.gun ||
       bomb.launchedTick >= state.tick ||
       (!bomb.shell && bomb.landsAtTick < state.tick)
     )

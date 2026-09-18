@@ -26,6 +26,8 @@ import {
 } from "../src/engine/room-settings.js";
 import { roundShotEvents } from "../src/online/analytics.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setArmed } from "./fixtures/rider-state.ts";
+import { isArmed } from "../src/engine/weapons.ts";
 
 /**
  * The round's shot log: every trigger pull, labelled with the powerup it spent, and every rider it killed. Shots are
@@ -113,7 +115,6 @@ function dueBomb(
     launchY: y,
     x,
     y,
-    placedTick: game.tick,
     launchedTick: game.tick - 1,
     landsAtTick: landing ? game.tick + 1 : game.tick - 1,
     explodeAtTick: landing ? game.tick + 99 : game.tick + 1,
@@ -146,18 +147,18 @@ test("every launch logs one shot under the powerup it spent, and its bombs name 
   // Armed state, the weapon the pull is reported as, and how many bombs it puts in the air.
   const cases: [Partial<PlayerState>, Weapon, number][] = [
     [{}, "bomb", 1],
-    [{ tripleShotArmed: true }, "triple", 3],
-    [{ fiveShotArmed: true }, "five", 5],
+    [{ armed: ["triple"] }, "triple", 3],
+    [{ armed: ["five"] }, "five", 5],
     // Five wins where both are armed, because that is the volley the launch actually fires.
-    [{ tripleShotArmed: true, fiveShotArmed: true }, "five", 5],
-    [{ gunArmed: true }, "gun", 1],
-    [{ shellArmed: true }, "shell", 1],
-    [{ gunArmed: true, shellArmed: true }, "gun", 1],
+    [{ armed: ["five", "triple"] }, "five", 5],
+    [{ armed: ["gun"] }, "gun", 1],
+    [{ armed: ["shell"] }, "shell", 1],
+    [{ armed: ["gun", "shell"] }, "gun", 1],
     // Triple, Five and Extra Bomb fan Gun and Shell out too; the pull is still labelled by the projectile.
-    [{ gunArmed: true, tripleShotArmed: true }, "gun", 3],
-    [{ gunArmed: true, fiveShotArmed: true }, "gun", 5],
-    [{ shellArmed: true, tripleShotArmed: true }, "shell", 3],
-    [{ shellArmed: true, fiveShotArmed: true, extraBombs: 1 }, "shell", 6],
+    [{ armed: ["gun", "triple"] }, "gun", 3],
+    [{ armed: ["gun", "five"] }, "gun", 5],
+    [{ armed: ["shell", "triple"] }, "shell", 3],
+    [{ armed: ["shell", "five"], extraBombs: 1 }, "shell", 6],
   ];
   for (const [armed, weapon, launched] of cases) {
     const { game, player, input } = fixture();
@@ -176,7 +177,17 @@ test("every launch logs one shot under the powerup it spent, and its bombs name 
       launched,
       "bombsPlaced still counts bombs, not pulls",
     );
-    const bombs = [...game.bombs.values()];
+    // A Gun's bullets are resolved at once and leave tracers; everything else is a bomb in flight.
+    const bombs = [
+      ...[...game.bombs.values()].map((bomb) => ({
+        ...bomb,
+        heading: Math.atan2(bomb.shell?.vy ?? 0, bomb.shell?.vx ?? 0),
+      })),
+      ...game.tracers.map((tracer) => ({
+        ...tracer,
+        heading: Math.atan2(tracer.vy, tracer.vx),
+      })),
+    ];
     assert.equal(bombs.length, launched);
     for (const bomb of bombs)
       assert.equal(
@@ -197,18 +208,16 @@ test("every launch logs one shot under the powerup it spent, and its bombs name 
     if (weapon === "gun" || weapon === "shell") {
       // Whatever the pull did not spend is still armed, so no later shot goes uncounted.
       assert.equal(
-        player.shellArmed === true,
-        weapon === "gun" && armed.shellArmed === true,
+        isArmed(player, "shell") === true,
+        weapon === "gun" && armed.armed?.includes("shell") === true,
         "a Gun pull leaves a held Shell armed for the next pull",
       );
       assert.equal(
-        player.tripleShotArmed || player.fiveShotArmed,
+        isArmed(player, "triple") || isArmed(player, "five"),
         false,
         "a projectile pull spends Triple and Five",
       );
-      const headings = bombs.map((bomb) =>
-        Math.atan2(bomb.shell!.vy, bomb.shell!.vx),
-      );
+      const headings = bombs.map((bomb) => bomb.heading);
       assert.equal(
         new Set(headings.map((h) => h.toFixed(6))).size,
         launched,
@@ -220,7 +229,7 @@ test("every launch logs one shot under the powerup it spent, and its bombs name 
 
 test("an instant headshot is one shot and one kill for the gun, end to end", () => {
   const { game, player, victim, input } = fixture();
-  player.gunArmed = true;
+  setArmed(player, "gun", true);
   // Head on, so the rider is between the bullet and its own trail: the bullet reaches the rider first.
   Object.assign(victim, { x: 700, y: 450, angle: Math.PI, trail: [] });
   input({ bomb: true, bombCommands: [{ action: "press" }] });
@@ -234,7 +243,7 @@ test("an instant headshot is one shot and one kill for the gun, end to end", () 
 
 test("a shell that sweeps into a rider is one shot and one kill for the shell, end to end", () => {
   const { game, player, victim, input } = fixture();
-  player.shellArmed = true;
+  setArmed(player, "shell", true);
   // Head on again: a shell reflects off trails, so it must meet the rider before the rider's own trail.
   Object.assign(victim, { x: 700, y: 450, angle: Math.PI, trail: [] });
   input({ bomb: true, bombCommands: [{ action: "press" }] });
@@ -392,7 +401,7 @@ test("a decided round keeps its log until the next is decided, through a rematch
     input({ bomb: true, bombCommands: [{ action: "press" }] });
     input({ bombCommands: [{ action: "release" }] });
     player.bombReadyAtTick = game.tick;
-    player.gunArmed = true;
+    setArmed(player, "gun", true);
     game.bombs.forEach((bomb) => {
       bomb.ownerId = "p0";
       bomb.shell = { vx: 0, vy: 0 };
@@ -496,7 +505,7 @@ test("a decided round becomes one Kill per kill and one Miss per miss, from the 
   assert.equal(game.bombs.size, 0, "it went off");
   assert.equal(game.matchStats.get("p0")!.bombsExploded, 1);
   player.bombReadyAtTick = game.tick;
-  player.gunArmed = true;
+  setArmed(player, "gun", true);
   // Upgrades held at this pull, which must be what the Kill reports even though they change afterwards.
   Object.assign(player, {
     powerPickups: 3,
@@ -523,7 +532,7 @@ test("a decided round becomes one Kill per kill and one Miss per miss, from the 
     rangeLevel: 0,
     grip: false,
   });
-  third.gunArmed = true;
+  setArmed(third, "gun", true);
   Object.assign(third, { x: 1200, y: 100, angle: 0 });
   step(
     game,

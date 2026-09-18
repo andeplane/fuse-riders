@@ -36,6 +36,7 @@ import {
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setArmed, setEffect } from "./fixtures/rider-state.ts";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
 const press: InputIntent = {
@@ -205,7 +206,7 @@ test("a rider steering past scenery is unharmed, and the same line with the rock
 
 test("invulnerable riders ride straight through scenery", () => {
   const game = scene();
-  rider(game).invulnerableUntilTick = game.tick + 200;
+  setEffect(rider(game), "star", game.tick + 200);
   assert.equal(ticksToDeath(game, 70), 70, "a star rider is unharmed");
   assert.ok(
     rider(game).x > 700 + 60,
@@ -332,7 +333,6 @@ test("a shield absorbing a blast still stands the rider against the scenery it h
     x: 620,
     y: 478,
     launchedTick: game.tick - 10,
-    placedTick: game.tick - 10,
     landsAtTick: Number.MAX_SAFE_INTEGER,
     explodeAtTick: Number.MAX_SAFE_INTEGER,
     blastRange: 0,
@@ -385,7 +385,7 @@ test("a blast clears the scenery it covers and leaves the rest standing", () => 
     explodeAtTick: game.tick + 1,
     blastRange: 120,
   });
-  shooter.invulnerableUntilTick = game.tick + 20; // the shooter's own survival is not what this measures
+  setEffect(shooter, "star", game.tick + 20); // the shooter's own survival is not what this measures
   step(game, new Map());
   assert.deepEqual(
     game.obstacles.map((obstacle) => obstacle.id),
@@ -415,7 +415,6 @@ test("the scenery a blast just cleared cannot still kill the rider driving throu
         x: 760,
         y: 450,
         launchedTick: game.tick - BOMB_FLIGHT_TICKS,
-        placedTick: game.tick - BOMB_FLIGHT_TICKS,
         landsAtTick: game.tick,
         explodeAtTick: game.tick + 1,
         blastRange: 60,
@@ -441,7 +440,8 @@ test("the scenery a blast just cleared cannot still kill the rider driving throu
 test("a shell bounces off scenery instead of passing through it", () => {
   const game = scene([boulder({ x: 900, halfWidth: 80, halfHeight: 200 })]);
   const shooter = rider(game);
-  Object.assign(shooter, { x: 300, y: 450, angle: 0, shellArmed: true });
+  Object.assign(shooter, { x: 300, y: 450, angle: 0 });
+  setArmed(shooter, "shell", true);
   step(game, new Map([["p0", press]]));
   step(
     game,
@@ -472,7 +472,8 @@ test("a gun ray stops at scenery and cannot shoot through it", () => {
     [boulder({ x: 700, halfWidth: 40, halfHeight: 200 })],
     2,
   );
-  Object.assign(rider(covered), { x: 300, y: 450, angle: 0, gunArmed: true });
+  Object.assign(rider(covered), { x: 300, y: 450, angle: 0 });
+  setArmed(rider(covered), "gun", true);
   Object.assign(rider(covered, "p1"), {
     x: 1100,
     y: 450,
@@ -481,14 +482,15 @@ test("a gun ray stops at scenery and cannot shoot through it", () => {
   });
   step(covered, new Map([["p0", tap]]));
   assert.equal(rider(covered, "p1").alive, true, "the rock took the bullet");
-  const tracer = [...covered.bombs.values()].find((bomb) => bomb.shell?.gun)!;
+  const tracer = covered.tracers[0]!;
   assert.ok(
     tracer.x <= 700 - 40 + 1e-6 && tracer.x > 600,
     `the tracer ends at the rock, at ${tracer.x}`,
   );
 
   const open = scene([], 2);
-  Object.assign(rider(open), { x: 300, y: 450, angle: 0, gunArmed: true });
+  Object.assign(rider(open), { x: 300, y: 450, angle: 0 });
+  setArmed(rider(open), "gun", true);
   Object.assign(rider(open, "p1"), {
     x: 1100,
     y: 450,
@@ -514,8 +516,8 @@ test("pickups never drop against scenery", () => {
       y: 90,
       angle: 0,
       trail: [],
-      invulnerableUntilTick: Number.MAX_SAFE_INTEGER,
     });
+    setEffect(player, "star", Number.MAX_SAFE_INTEGER);
   }
   let dropped = 0;
   for (let attempt = 0; attempt < 400; attempt += 1) {
@@ -555,15 +557,14 @@ test("portal gates are never laid across scenery", () => {
       x: 200,
       y: 200,
       angle: 0,
-      invulnerableUntilTick: game.tick + 50,
     });
+    setEffect(collector, "star", game.tick + 50);
     game.pickups = [
       {
         id: 1,
         type: "portal",
         x: 205,
         y: 200,
-        expiresAtTick: Number.MAX_SAFE_INTEGER,
       },
     ];
     step(game, new Map());
@@ -593,7 +594,7 @@ test("the closing overtime walls crush the scenery they reach", () => {
     boulder({ id: 2 }),
   ]);
   for (const player of game.players.values())
-    player.invulnerableUntilTick = Number.MAX_SAFE_INTEGER;
+    setEffect(player, "star", Number.MAX_SAFE_INTEGER);
   game.roundStartedTick = game.tick - OVERTIME_START_TICK;
   for (let tick = 0; tick < 100; tick += 1) step(game, new Map());
   assert.deepEqual(
@@ -802,7 +803,7 @@ test("bots ride around scenery instead of into it", () => {
 
 test("a rider whose immunity lapses inside scenery is let out of it instead of dying on the spot", () => {
   const game = scene([boulder({ halfWidth: 100 })]);
-  rider(game).invulnerableUntilTick = game.tick + 45; // runs out with the rider deep inside the rock
+  setEffect(rider(game), "star", game.tick + 45); // runs out with the rider deep inside the rock
   const survived = ticksToDeath(game, 90);
   assert.equal(survived, 90, "it rides out the far side");
   assert.ok(rider(game).x > 800);
@@ -810,7 +811,7 @@ test("a rider whose immunity lapses inside scenery is let out of it instead of d
     boulder({ halfWidth: 100 }),
     boulder({ id: 2, x: 1000 }),
   ]);
-  rider(other).invulnerableUntilTick = other.tick + 45;
+  setEffect(rider(other), "star", other.tick + 45);
   assert.ok(
     ticksToDeath(other, 120) < 120,
     "and the next rock along is as solid as ever",
@@ -843,18 +844,16 @@ test("a shell fired from inside scenery flies out of it rather than rattling bet
   Object.assign(rider(game), {
     x: 700,
     y: 450,
-    shellArmed: true,
-    invulnerableUntilTick: game.tick + 200,
   });
+  setArmed(rider(game), "shell", true);
+  setEffect(rider(game), "star", game.tick + 200);
   step(game, new Map([["p0", press]]));
   step(
     game,
     new Map([["p0", { ...neutral, bombCommands: [{ action: "release" }] }]]),
   );
   for (let tick = 0; tick < 10; tick += 1) step(game, new Map());
-  const shell = [...game.bombs.values()].find(
-    (bomb) => bomb.shell && !bomb.shell.gun,
-  )!;
+  const shell = [...game.bombs.values()].find((bomb) => bomb.shell)!;
   assert.ok(shell.x > 800, `left the rock behind: ${shell.x}`);
   assert.equal(shell.shell!.bounces ?? 0, 0);
 });

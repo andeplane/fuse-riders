@@ -24,6 +24,7 @@ import {
 import type { Obstacle } from "../src/engine/arena-map.js";
 import { streamReader, type Recording } from "./fixtures/replay-log.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setArmed } from "./fixtures/rider-state.ts";
 
 test("every weighted pickup interval is independent of object insertion order", () => {
   const weights = Object.fromEntries(
@@ -183,7 +184,7 @@ test("a gun ray stops at the same point whichever order the scenery in its line 
   ];
   const tracers = [rocks, [...rocks].reverse()].map((obstacles) => {
     const game = lane(obstacles);
-    game.players.get("p0")!.gunArmed = true;
+    setArmed(game.players.get("p0")!, "gun", true);
     step(
       game,
       new Map([
@@ -198,7 +199,7 @@ test("a gun ray stops at the same point whichever order the scenery in its line 
         ],
       ]),
     );
-    const tracer = [...game.bombs.values()].find((bomb) => bomb.shell?.gun)!;
+    const tracer = game.tracers[0]!;
     return { x: tracer.x, y: tracer.y };
   });
   assert.ok(tracers[0]!.x > 600 && tracers[0]!.x < 703.1 - 41.3 + 1e-6);
@@ -289,7 +290,6 @@ test("a shell against two pieces of scenery at once reflects the same way whiche
       x: 588,
       y: 506,
       launchedTick: game.tick - 5,
-      placedTick: game.tick - 5,
       landsAtTick: Number.MAX_SAFE_INTEGER,
       explodeAtTick: Number.MAX_SAFE_INTEGER,
       blastRange: 0,

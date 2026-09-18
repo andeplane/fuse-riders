@@ -37,6 +37,8 @@ import {
   validRiderName,
 } from "../src/engine/rider-name.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setArmed, setDeadlines, setEffect } from "./fixtures/rider-state.ts";
+import { isArmed } from "../src/engine/weapons.ts";
 function fixture() {
   const game = createGame("bot-fixture", classicSettings());
   addPlayer(game, { id: "bot:1", name: "AI", slot: 0, color: SLOT_COLORS[0] });
@@ -153,8 +155,8 @@ function steeringFixture() {
     x: 1200,
     y: 650,
     angle: 0,
-    invulnerableUntilTick: game.tick + 300,
   });
+  setEffect(game.players.get("human")!, "star", game.tick + 300);
   return game;
 }
 
@@ -219,7 +221,7 @@ test("AI avoids the trail a crossing rider will leave, including as a Nitro expi
     });
     if (boostTicks)
       for (const player of game.players.values())
-        player.nitroUntilTicks = [game.tick + boostTicks];
+        setDeadlines(player, "nitro", [game.tick + boostTicks]);
     // The expiring Nitro covers the crossing and the speed transition; sustained Nitro has its own test below.
     steerFor(game, boostTicks === 4 ? 40 : 120);
   }
@@ -229,13 +231,13 @@ test("AI survives its own stacked Nitro and a crossing rider on Nitro, and keeps
   // On Nitro the turning circle doubles, so the crossing rider starts further out than in the boost case; the bot's
   // lookahead must reach the trails it can now hit within it.
   const fast = steeringFixture();
-  fast.players.get("bot:1")!.nitroUntilTicks = [fast.tick + 240];
+  setDeadlines(fast.players.get("bot:1")!, "nitro", [fast.tick + 240]);
   Object.assign(fast.players.get("human")!, {
     x: 700,
     y: 400,
     angle: Math.PI / 2,
-    nitroUntilTicks: [fast.tick + 240],
   });
+  setDeadlines(fast.players.get("human")!, "nitro", [fast.tick + 240]);
   steerFor(fast, 120);
   // Two Nitros are four times speed: a rival's wall 600 units ahead is inside the lookahead, and the bot must plan for
   // it from here. With the horizon sized for boost speed, as before Nitro, this bot dies into the wall on tick 89.
@@ -244,8 +246,11 @@ test("AI survives its own stacked Nitro and a crossing rider on Nitro, and keeps
     x: 200,
     y: 450,
     angle: 0,
-    nitroUntilTicks: [stacked.tick + 240, stacked.tick + 240],
   });
+  setDeadlines(stacked.players.get("bot:1")!, "nitro", [
+    stacked.tick + 240,
+    stacked.tick + 240,
+  ]);
   Object.assign(stacked.players.get("human")!, {
     x: 1200,
     y: 850,
@@ -263,7 +268,7 @@ test("AI survives its own stacked Nitro and a crossing rider on Nitro, and keeps
   steerFor(stacked, 120);
   // A Snail expiring mid-lookahead doubles the stride part way through the plan; the bot must plan for the faster half.
   const slowed = steeringFixture();
-  slowed.players.get("bot:1")!.snailUntilTicks = [slowed.tick + 6];
+  setDeadlines(slowed.players.get("bot:1")!, "snail", [slowed.tick + 6]);
   Object.assign(slowed.players.get("human")!, {
     x: 500,
     y: 400,
@@ -300,7 +305,7 @@ test("AI considers expired and recent own trails, pickups, blasts, shells and dr
       expiresAtTick: game.tick + 160,
     },
   ];
-  game.pickups = [{ id: 1, type: "shell", x: 500, y: 550, expiresAtTick: 999 }];
+  game.pickups = [{ id: 1, type: "shell", x: 500, y: 550 }];
   game.blasts = [
     {
       bombId: 1,
@@ -316,7 +321,6 @@ test("AI considers expired and recent own trails, pickups, blasts, shells and dr
     y: 480,
     launchX: 490,
     launchY: 480,
-    placedTick: 60,
     launchedTick: 60,
     landsAtTick: 999,
     explodeAtTick: 999,
@@ -324,8 +328,7 @@ test("AI considers expired and recent own trails, pickups, blasts, shells and dr
     blastRange: 0,
     shell: { vx: -450, vy: 0 },
   });
-  player.drunkStartedTick = game.tick - 5;
-  player.drunkUntilTick = game.tick + 50;
+  setEffect(player, "drunk", game.tick + 50, game.tick - 5);
   const before = structuredClone(game);
   assert.equal(typeof bot.input(game, player.id).left, "boolean");
   assert.deepEqual(game, before);
@@ -416,16 +419,16 @@ test("AI chooses hold times from the room's eased distance curve", () => {
 });
 
 test("AI gun/shell shots use normal input actions", () => {
-  for (const powerup of ["gunArmed", "shellArmed"] as const) {
+  for (const powerup of ["gun", "shell"] as const) {
     const game = fixture(),
       bot = new BotController(),
       player = game.players.get("bot:1")!;
     game.players.get("human")!.x = 600;
-    player[powerup] = true;
+    setArmed(player, powerup, true);
     const press = bot.input(game, player.id);
     assert.equal(press.bombCommands?.[0]?.action, "press");
     step(game, new Map([[player.id, press]]));
-    if (powerup === "gunArmed") {
+    if (powerup === "gun") {
       assert.equal(game.shots.length, 0, "a Gun holds fire until release");
       // The hold is brief: a few ticks of swinging the sight, then an ordinary release.
       let release = bot.input(game, player.id);
@@ -435,7 +438,7 @@ test("AI gun/shell shots use normal input actions", () => {
       }
       assert.equal(release.bombCommands?.[0]?.action, "release");
       step(game, new Map([[player.id, release]]));
-      assert.equal(player.gunArmed, false);
+      assert.equal(isArmed(player, "gun"), false);
       assert.equal(game.shots[0]!.weapon, "gun");
       continue;
     }
@@ -443,7 +446,7 @@ test("AI gun/shell shots use normal input actions", () => {
     const release = bot.input(game, player.id);
     assert.equal(release.bombCommands?.[0]?.action, "release");
     step(game, new Map([[player.id, release]]));
-    assert.equal(player[powerup], false);
+    assert.equal(isArmed(player, powerup), false);
   }
 });
 
@@ -458,7 +461,7 @@ test("an AI rider swings a held Gun's sight toward a rival off its heading, brie
     y: player.y + Math.sin(0.3) * 300,
     angle: 0,
   });
-  player.gunArmed = true;
+  setArmed(player, "gun", true);
   let held = 0,
     bearing = 0;
   for (let tick = 0; tick < 8 && !game.shots.length; tick++) {
@@ -472,7 +475,7 @@ test("an AI rider swings a held Gun's sight toward a rival off its heading, brie
   }
   assert.equal(game.shots[0]?.weapon, "gun");
   assert.ok(held >= 2 && held <= 5, `held ${held} ticks`);
-  const tracer = [...game.bombs.values()][0]!;
+  const tracer = game.tracers[0]!;
   const fired = Math.atan2(
     tracer.y - tracer.launchY,
     tracer.x - tracer.launchX,
@@ -642,7 +645,7 @@ test("an upgraded bot ignores nearby GRIP drops and continues toward useful pick
     player = game.players.get("bot:1")!;
   player.grip = true;
   const bot = new BotController({ random: () => 0.25 });
-  game.pickups = [{ id: 1, type: "power", x: 460, y: 550, expiresAtTick: 999 }];
+  game.pickups = [{ id: 1, type: "power", x: 460, y: 550 }];
   const useful = bot.input(game, player.id);
   assert.equal(useful.right, true, "the useful pickup lies to the right");
   game.pickups.push({
@@ -650,7 +653,6 @@ test("an upgraded bot ignores nearby GRIP drops and continues toward useful pick
     type: "grip",
     x: 430,
     y: 420,
-    expiresAtTick: 999,
   });
   assert.deepEqual(
     bot.input(game, player.id),
@@ -670,7 +672,7 @@ test("an upgraded bot ignores nearby Range drops and continues toward useful pic
     player = game.players.get("bot:1")!;
   player.rangeLevel = 3;
   const bot = new BotController({ random: () => 0.25 });
-  game.pickups = [{ id: 1, type: "power", x: 460, y: 550, expiresAtTick: 999 }];
+  game.pickups = [{ id: 1, type: "power", x: 460, y: 550 }];
   const useful = bot.input(game, player.id);
   assert.equal(useful.right, true, "the useful pickup lies to the right");
   game.pickups.push({
@@ -678,7 +680,6 @@ test("an upgraded bot ignores nearby Range drops and continues toward useful pic
     type: "range",
     x: 430,
     y: 420,
-    expiresAtTick: 999,
   });
   assert.deepEqual(
     bot.input(game, player.id),
@@ -697,20 +698,17 @@ test("AI ignores harmless gun tracers when choosing a route", () => {
   const game = fixture(),
     player = game.players.get("bot:1")!;
   const without = new BotController().input(game, player.id);
-  game.bombs.set(1, {
+  game.tracers.push({
     id: 1,
     ownerId: "human",
     x: player.x + 10,
     y: player.y,
     launchX: 100,
     launchY: player.y,
-    placedTick: game.tick,
     launchedTick: game.tick,
-    landsAtTick: game.tick + 3,
-    explodeAtTick: game.tick + 3,
-    flightPath: [],
-    blastRange: 0,
-    shell: { vx: 1, vy: 0, gun: true },
+    expiresAtTick: game.tick + 3,
+    vx: 1,
+    vy: 0,
   });
   assert.deepEqual(new BotController().input(game, player.id), without);
 });
@@ -725,10 +723,10 @@ test("an AI rider fires a held Gun at once when riding straight on would die soo
     y: 450,
     angle: 0,
     trail: [],
-    gunArmed: true,
     gunAim: 0,
     bombChargeStartedTick: game.tick,
   });
+  setArmed(player, "gun", true);
   const input = bot.input(game, player.id);
   assert.deepEqual(input.bombCommands, [{ action: "release" }]);
   step(game, new Map([[player.id, input]]));

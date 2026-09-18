@@ -24,7 +24,6 @@ const transit = (overrides: Partial<PortalTransitOptions> = {}) =>
     tick: 30,
     from: { x: 150, y: 200 },
     to: { x: 250, y: 200 },
-    heading: 0.75,
     cooldownUntilTick: 0,
     bounds,
     riderRadius: 7,
@@ -139,7 +138,6 @@ test("swept wall entry preserves heading and relative linked height", () => {
     entryGateIndex: 0,
     entryPoint: { x: 189, y: 200 },
     exitPoint: { x: 1012, y: 600 },
-    heading: 0.75,
     cooldownUntilTick: 45,
     graceUntilTick: 40,
   });
@@ -281,7 +279,6 @@ test("several live pairs each keep their own partner, whichever wall the step me
       entryGateIndex: 0,
       entryPoint: { x: 189, y: 200 },
       exitPoint: { x: 1012, y: 600 },
-      heading: 0.75,
       cooldownUntilTick: 45,
       graceUntilTick: 40,
     },

@@ -28,6 +28,8 @@ import {
 import { PICKUP_WEIGHTS } from "../src/engine/pickups.js";
 import { powerLabel } from "../src/render/power-indicator.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { isArmed } from "../src/engine/weapons.ts";
+import { setEffect } from "./fixtures/rider-state.ts";
 
 function playing() {
   const game = createGame("extra-bomb", classicSettings(), 725);
@@ -45,15 +47,15 @@ function playing() {
     y: 400,
     angle: 0,
     trail: [],
-    invulnerableUntilTick: 10000,
   });
+  setEffect(game.players.get("p0")!, "star", 10000);
   Object.assign(game.players.get("p1")!, {
     x: 1200,
     y: 700,
     angle: Math.PI,
     trail: [],
-    invulnerableUntilTick: 10000,
   });
+  setEffect(game.players.get("p1")!, "star", 10000);
   game.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER;
   return game;
 }
@@ -162,8 +164,8 @@ test("Triple/Five add their temporary bonus; Power applies to upgraded volleys",
     assert.equal(bombs.length, temporary === "triple" ? 5 : 7);
     assert.ok(bombs.every((bomb) => bomb.blastRange === powerBlastRadius(1)));
     assert.equal(rider.reloadDurationTicks, powerReloadTicks(1));
-    assert.equal(rider.tripleShotArmed, false);
-    assert.equal(rider.fiveShotArmed, false);
+    assert.equal(isArmed(rider, "triple"), false);
+    assert.equal(isArmed(rider, "five"), false);
     assert.equal(rider.extraBombs, 2);
   }
 });
@@ -179,7 +181,7 @@ test("Shell and Gun fan out with the volley and spend it", () => {
       5,
     );
     assert.equal(rider.extraBombs, 2);
-    assert.equal(rider.tripleShotArmed, false);
+    assert.equal(isArmed(rider, "triple"), false);
     // Shells deliberately remain in flight and do not block the next ordinary shot.
     while (game.tick < rider.bombReadyAtTick) step(game, new Map());
     const followup = step(game, fire);

@@ -18,7 +18,6 @@ export function portalTransit(ctx: TickContext): void {
       tick: state.tick,
       from: { x: movement.oldX, y: movement.oldY },
       to: movement,
-      heading: movement.angle,
       cooldownUntilTick: effectUntil(movement.player, "portalCooldown"),
       bounds: portalBounds(state),
       riderRadius: RIDER_RADIUS,

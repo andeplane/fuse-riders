@@ -11,6 +11,8 @@ import {
 } from "../src/engine/game.js";
 import { drunkHeadingOffset } from "../src/engine/drunk.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { effectSince, effectUntil } from "../src/engine/effects.ts";
+import { setEffect } from "./fixtures/rider-state.ts";
 test("pure rider kernel exactly matches authoritative turns including drunk offsets", () => {
   const game = createGame("motion-kernel", classicSettings());
   for (let i = 0; i < 2; i++)
@@ -26,10 +28,9 @@ test("pure rider kernel exactly matches authoritative turns including drunk offs
   Object.assign(p, {
     x: 800,
     y: 450,
-    invulnerableUntilTick: 10000,
-    drunkStartedTick: game.tick,
-    drunkUntilTick: game.tick + 80,
   });
+  setEffect(p, "star", 10000);
+  setEffect(p, "drunk", game.tick + 80, game.tick);
   const controls = { left: true, right: false, bomb: false };
   for (let i = 0; i < 80; i++) {
     const previous = {
@@ -44,8 +45,8 @@ test("pure rider kernel exactly matches authoritative turns including drunk offs
         game.seed,
         p.id,
         game.tick + 1,
-        p.drunkStartedTick,
-        p.drunkUntilTick,
+        effectSince(p, "drunk"),
+        effectUntil(p, "drunk"),
       ),
     });
     step(game, new Map([[p.id, controls]]));

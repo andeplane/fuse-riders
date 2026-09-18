@@ -1,7 +1,7 @@
 /** Balance constants and the pure functions of them that the simulation, the bots and the presentation all read. */
 import { POWER_TUNING } from "./power-progression.js";
 import { sortedPlayers, type GameState } from "./state.js";
-import { type SpeedHolder, speedMultiplier } from "./effects.js";
+import { type HasEffects, speedMultiplier } from "./effects.js";
 
 export const TICK_HZ = 20;
 export const MAX_PLAYERS = 5;
@@ -145,7 +145,7 @@ export function stepsPerTick(
 }
 /** Every speed pickup in force on `tick`, multiplied together: one factor per unexpired Nitro or Snail deadline. */
 export function riderSpeedMultiplier(
-  player: Readonly<SpeedHolder>,
+  player: Readonly<HasEffects>,
   tick: number,
 ): number {
   return speedMultiplier(player, tick);
@@ -202,7 +202,7 @@ export function aimSlowMultiplier(aimSlowTicks: number): number {
  * enough for a forecast: it is never more than AIM_SLOW_RAMP_TICKS steps from the truth.
  */
 export function riderMotionStep(
-  player: Readonly<SpeedHolder> & AimSlow & { grip: boolean },
+  player: Readonly<HasEffects> & AimSlow & { grip: boolean },
   tick: number,
   roundStartedTick: number | undefined,
 ): {

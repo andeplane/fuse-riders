@@ -1,0 +1,38 @@
+# Effect, pickup and weapon registries (issue #253, stage A4)
+
+Findings C5 and C9 of the architecture review: adding a pickup meant about ten hand edits across `game.ts`, the collect chain, the launch ladder, the view and the checkpoint, with only the checkpoint guard checked by the compiler. After this stage, a timed or armed pickup is a table row, and a weapon is a table row plus its launch hook.
+
+## The three tables
+
+**`PICKUPS`** (`src/engine/pickups.ts`), one row per `PickupType`: `weight` (its default drop weight; `PICKUP_WEIGHTS` is derived from the column in `PICKUP_TYPES` order and seeds `defaultRoomSettings`), `stat` (the stored match-statistics counter it bumps, or `null`), optional `eligible` (who may take it: GRIP once per round, Range below its cap; bots read the same check), and `collect` (what taking it does). `collectPickups` keeps deciding who reaches a pickup and in what order; a `collect` that returns `false` (a portal with nowhere safe to open) leaves the pickup on the board. Rows are written with three helpers: `onSelf(kind, duration)`, `onRivals(kind, duration)` and `armWeapon`.
+
+**`EFFECTS`** (`src/engine/effects.ts`), one row per `EffectKind`: star, nitro, snail, drunk (Beer), ink, shield grace, portal grace, portal cooldown. A row states its `stacking` and the flags phases read: `speed` (a pace factor per deadline in force), `immune` (no hazard harms the rider and the boundary turns it back), `invulnerable` (counted as invulnerable riding), `defensiveGrace` (a rider contact harms neither rider) and `heading` (an absolute heading offset from the spell's own start and end). The rider holds `effects: ActiveEffect[]` (`{ kind, sinceTick, untilTick }`), in `EFFECT_KINDS` order and by deadline within a kind. Every reader and writer (`applyEffect`, `expireEffects`, `hasEffect`, `effectUntil`, `effectSince`, `effectDeadlines`, `isHazardImmune`, `isInvulnerable`, `hasDefensiveGrace`, `speedMultiplier`, `headingOffset`) is built by `effectTable(kinds, rules)` from the table, so none of them names a kind; `tests/registries.test.ts` builds one with three kinds the game does not have and runs them through the same readers.
+
+Stacking:
+
+- `stack` (Nitro, Snail): every application is its own deadline, up to `MAX_SPEED_EFFECT_STACK`; a passed deadline leaves the rider in `expireEffects`, the one expiry loop, which `moveRiders` runs for every rider before movement (where the speed-effect filter ran before).
+- `extend` (Star, Beer, Ink): one entry; a new application pushes the deadline out to the later of the two, and restarts `sinceTick` only if the old one had run out (the Beer's sway phase depends on it).
+- `replace` (shield grace, portal grace, portal cooldown): one entry, set to the new deadline.
+
+An `extend` or `replace` entry is kept after its deadline passes, as the record of when it ended. Two readers need that record. The view publishes these deadlines as it always has (`invulnerableUntilTick` stays at its last value, not 0), and presentation (`src/render/time/present.ts`) reads a change in `portalCooldownUntilTick` as the rider having gone through a gate. If the entry were dropped, the deadline would change to 0 on the tick it expired, and that frame would not be interpolated.
+
+**`WEAPONS`** (`src/engine/weapons.ts`), one row per `WeaponKind`. `WEAPON_KINDS` is the priority order: Gun, Shell, Five, Triple. A row gives the shot-log `label`, a `volley` (the bombs it adds to a pull), or a `projectile` (`aims`, whether the held sight turns it and pressing raises the sight, and `launch`, the hook that puts the pull's projectiles on the board). For a trigger pull, the first armed projectile fires instead of the lob and is spent. The first armed volley widens the lob or the projectile's fan. Every armed volley is spent. The pull takes the label of the first of those, or `bomb`. The rider holds `armed: WeaponKind[]`, with each weapon at most once, in table order. `launchWeapons` has no branch per weapon.
+
+Hooks: `onCollect` is a pickup row's `armWeapon`. The plan also named `onFatal` and `onExplode`. They were written for Target Bomb, which #294 removed, and no weapon left in the game would use them. A hook that nothing calls is dead code, so they are not added. The first weapon that needs one adds it next to `launch`.
+
+## Gun tracers and the dead fields
+
+A Gun bullet is resolved on the tick it is fired. What stays behind is a harmless trace, so it lives in `GameState.tracers` (`TracerState`: launch point, stop point, unit direction, expiry, shot). It is no longer a `BombState` with `blastRange: 0` and `shell.gun`. This removes the six `shell?.gun` exclusions (hit test, portal safety, pickup spacing, round-end in-flight shots, bot threat list, shell flight) and the `gun` flag. Tracers still take their ids from `nextBombId`, and `toView` still publishes them among the bombs, in id order and in the same shape. `moveShells` drops expired tracers at the same point in the tick as before.
+
+Removed as dead: `BombState.placedTick` (written, never read), `PickupState.expiresAtTick` (always `MAX_SAFE_INTEGER`; the view still publishes it), `PortalTransit.heading` and `PortalTransitOptions.heading` (echoed back, never read). `InputIntent.bomb` stays: since #293 it is how a held Gun trigger is read.
+
+`freshRoundPlayerState(readyAtTick)` (`game.ts`) is the one list of per-round rider defaults. `addPlayer` seats a rider with it (ready from tick 0), and `prepareRound` resets every rider to it. The only visible consequence is that a rider added in the lobby now carries `gunArmed: false` / `shellArmed: false` in the view, where `addPlayer` used to leave them unset. No reader tells the two apart.
+
+## Not done, and why
+
+- **Per-type counters for every pickup.** `recordPickup` reads the `stat` column, and every type counts in `pickupsCollected`. Extra Bomb, Stopwatch, Gun, Shell, Gravity, GRIP, Range, Nitro and Snail have `stat: null` because the stored match results have no counter for them. Those results are validated field by field (`src/service/history.ts`, `snapshotMatchStats`, the recap and analytics). Adding counters changes a stored and wire schema, which this stage keeps stable. After that schema change, each type is one column value.
+- **Bot difficulty as a field.** The difficulty is still read from the display-name suffix (`botDifficulty`). The suffix is set once, when the `BOT` log entry seats the rider. To make it a field, either the log entry has to carry the tier or `RoomState.bots` has to become a map with its own checkpoint guard. Both are log or wire changes, outside a stage that keeps the wire and the view stable.
+
+## Behaviour and evidence
+
+The stage changes the shape of the hashed state, and nothing else. That shape change is `RULES` 42 (`[rules 41→42]`); every other commit is `[hash-identical]`. `scripts/engine-differential.ts` folds the same inputs through this checkout's engine and a worktree of main. The inputs are the golden recording plus fresh recordings made by main's own recorder. On every tick it compares the events and the `toView` bytes. The only accepted difference is the lobby flag above. After the bump, `--record` wrote the same input recording as before ("recording unchanged"). The scripted riders react to what they see, so an identical recording is independent evidence that the rules did not change.

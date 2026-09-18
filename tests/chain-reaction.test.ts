@@ -42,7 +42,6 @@ function twoBombs(chainReaction: boolean, fuse = 500): GameState {
   const common = {
     launchX: 500,
     launchY: 450,
-    placedTick: 0,
     launchedTick: 0,
     landsAtTick: 0,
     blastRange: 150,

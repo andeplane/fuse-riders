@@ -24,6 +24,7 @@ import {
   type GameState,
 } from "../src/engine/game.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setEffect } from "./fixtures/rider-state.ts";
 
 function playing(seed = 5): GameState {
   const state = createGame("gravity", classicSettings(), seed);
@@ -61,7 +62,6 @@ const collect = (state: GameState, id = "p0") => {
     type: "gravity",
     x: rider.x + 3,
     y: rider.y,
-    expiresAtTick: state.tick + 100,
   });
   step(state, new Map());
 };
@@ -288,7 +288,7 @@ test("a rider that falls into the core dies an ownerless wall death; skimming th
 test("a Star rides through the core", () => {
   const state = playing();
   const rider = state.players.get("p0")!;
-  rider.invulnerableUntilTick = state.tick + STAR_DURATION_TICKS;
+  setEffect(rider, "star", state.tick + STAR_DURATION_TICKS);
   hole(state, rider.x + 10, rider.y, 200);
   step(state, new Map());
   assert.equal(rider.alive, true);

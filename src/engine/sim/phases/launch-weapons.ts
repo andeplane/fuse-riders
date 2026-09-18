@@ -164,7 +164,6 @@ function applyBombActions(
         // The flight path stays unwrapped, so it is still one straight throw to whoever draws it.
         x: open ? wrapCoordinate(landing.x, state.width) : landing.x,
         y: open ? wrapCoordinate(landing.y, state.height) : landing.y,
-        placedTick: state.tick,
         launchedTick: state.tick,
         landsAtTick: state.tick + BOMB_FLIGHT_TICKS,
         explodeAtTick: state.tick + bombFuseTicks(player.fuseLevel),

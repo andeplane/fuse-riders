@@ -46,90 +46,69 @@ export interface WeaponRule {
 export const WEAPONS: Readonly<Record<WeaponKind, WeaponRule>> = {
   gun: {
     label: "gun",
-    projectile: {
-      aims: true,
-      launch: (pull) =>
-        launchProjectiles(
-          pull,
-          1,
-          pull.ctx.state.tick + GUN_TRACER_TICKS,
-          true,
-        ),
-    },
+    projectile: { aims: true, launch: launchBullets },
   },
   shell: {
     label: "shell",
-    projectile: {
-      launch: (pull) =>
-        launchProjectiles(pull, SHELL_SPEED, Number.MAX_SAFE_INTEGER, false),
-    },
+    projectile: { launch: launchShells },
   },
   five: { label: "five", volley: 4 },
   triple: { label: "triple", volley: 2 },
 };
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Storage. Until the state carries `armed`, each weapon lives in the flag it always had.
+// Storage: `PlayerState.armed`, each weapon at most once, in `WEAPON_KINDS` order.
 
-/** The per-weapon flags a rider carries. */
 export interface ArmedHolder {
-  gunArmed?: boolean;
-  shellArmed?: boolean;
-  fiveShotArmed: boolean;
-  tripleShotArmed: boolean;
+  armed: WeaponKind[];
 }
-const FLAG: Record<WeaponKind, keyof ArmedHolder> = {
-  gun: "gunArmed",
-  shell: "shellArmed",
-  five: "fiveShotArmed",
-  triple: "tripleShotArmed",
-};
+/** What every reader below takes: anything carrying weapons, read-only. */
+export interface HoldsWeapons {
+  readonly armed: readonly WeaponKind[];
+}
 
-export function isArmed(
-  player: Readonly<ArmedHolder>,
-  kind: WeaponKind,
-): boolean {
-  return player[FLAG[kind]] === true;
+export function isArmed(player: HoldsWeapons, kind: WeaponKind): boolean {
+  return player.armed.includes(kind);
 }
 
 /** A pickup's weapon joins what the rider holds; holding it twice is holding it once. */
 export function armWeapon(player: ArmedHolder, kind: WeaponKind): void {
-  player[FLAG[kind]] = true;
+  if (isArmed(player, kind)) return;
+  player.armed = WEAPON_KINDS.filter(
+    (candidate) => candidate === kind || player.armed.includes(candidate),
+  );
 }
 
 function disarmWeapon(player: ArmedHolder, kind: WeaponKind): void {
-  player[FLAG[kind]] = false;
+  if (isArmed(player, kind))
+    player.armed = player.armed.filter((candidate) => candidate !== kind);
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The pull, from the table.
 
 /** The projectile weapon a pull would fire now: the first armed one with a `projectile`. */
-export function armedProjectile(
-  player: Readonly<ArmedHolder>,
-): WeaponKind | undefined {
+export function armedProjectile(player: HoldsWeapons): WeaponKind | undefined {
   return WEAPON_KINDS.find(
     (kind) => WEAPONS[kind].projectile && isArmed(player, kind),
   );
 }
 
 /** The volley weapon that widens a pull now: the first armed one with a `volley`. */
-export function armedVolley(
-  player: Readonly<ArmedHolder>,
-): WeaponKind | undefined {
+export function armedVolley(player: HoldsWeapons): WeaponKind | undefined {
   return WEAPON_KINDS.find(
     (kind) => WEAPONS[kind].volley !== undefined && isArmed(player, kind),
   );
 }
 
 /** Bombs the armed volley adds to the next pull. */
-export function volleyBombs(player: Readonly<ArmedHolder>): number {
+export function volleyBombs(player: HoldsWeapons): number {
   const volley = armedVolley(player);
   return volley === undefined ? 0 : WEAPONS[volley].volley!;
 }
 
 /** The pull's label: the projectile it fires, else the volley that widens it, else the plain lob. */
-export function pullLabel(player: Readonly<ArmedHolder>): Weapon {
+export function pullLabel(player: HoldsWeapons): Weapon {
   const decided = armedProjectile(player) ?? armedVolley(player);
   return decided === undefined ? "bomb" : WEAPONS[decided].label;
 }
@@ -144,13 +123,45 @@ export function spendPull(
     if (WEAPONS[kind].volley !== undefined) disarmWeapon(player, kind);
 }
 
-/** A projectile per heading, flying at `speed` until `deadline`; a Gun's bullets are marked as tracers. */
-function launchProjectiles(
-  { ctx: { state, events, facts }, player, angles, shot }: ProjectilePull,
-  speed: number,
-  deadline: number,
-  gun: boolean,
-): void {
+/** A Gun bullet per heading, resolved this tick by `fireGuns`; each leaves a tracer for GUN_TRACER_TICKS. */
+function launchBullets({
+  ctx: { state, events, facts },
+  player,
+  angles,
+  shot,
+}: ProjectilePull): void {
+  for (const angle of angles) {
+    const id = state.nextBombId++;
+    state.tracers.push({
+      id,
+      ownerId: player.id,
+      launchX: player.x,
+      launchY: player.y,
+      x: player.x,
+      y: player.y,
+      vx: cos(angle),
+      vy: sin(angle),
+      launchedTick: state.tick,
+      expiresAtTick: state.tick + GUN_TRACER_TICKS,
+      shot,
+    });
+    facts.push({ kind: "bombPlaced", playerId: player.id });
+    events.push({
+      type: "bombPlaced",
+      bombId: id,
+      playerId: player.id,
+      gun: true,
+    });
+  }
+}
+
+/** A shell per heading, flying at SHELL_SPEED until it hits someone (`hitProjectiles`). */
+function launchShells({
+  ctx: { state, events, facts },
+  player,
+  angles,
+  shot,
+}: ProjectilePull): void {
   for (const angle of angles) {
     const id = state.nextBombId++;
     state.bombs.set(id, {
@@ -161,24 +172,14 @@ function launchProjectiles(
       x: player.x,
       y: player.y,
       launchedTick: state.tick,
-      placedTick: state.tick,
-      landsAtTick: deadline,
-      explodeAtTick: deadline,
+      landsAtTick: Number.MAX_SAFE_INTEGER,
+      explodeAtTick: Number.MAX_SAFE_INTEGER,
       blastRange: 0,
       flightPath: [],
       shot,
-      shell: {
-        vx: cos(angle) * speed,
-        vy: sin(angle) * speed,
-        ...(gun ? { gun: true } : {}),
-      },
+      shell: { vx: cos(angle) * SHELL_SPEED, vy: sin(angle) * SHELL_SPEED },
     });
     facts.push({ kind: "bombPlaced", playerId: player.id });
-    events.push({
-      type: "bombPlaced",
-      bombId: id,
-      playerId: player.id,
-      ...(gun ? { gun: true } : {}),
-    });
+    events.push({ type: "bombPlaced", bombId: id, playerId: player.id });
   }
 }

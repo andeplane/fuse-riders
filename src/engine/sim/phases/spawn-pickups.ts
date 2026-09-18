@@ -45,7 +45,6 @@ function maybeSpawnPickup(state: GameState, cap: number): void {
       type,
       x,
       y,
-      expiresAtTick: Number.MAX_SAFE_INTEGER,
     });
     return;
   }
@@ -74,7 +73,6 @@ function isSafePickupPosition(state: GameState, x: number, y: number): boolean {
     }
   }
   for (const bomb of sortedBombs(state)) {
-    if (bomb.shell?.gun) continue;
     if (
       square(bomb.x - x) + square(bomb.y - y) <
       square(PICKUP_RIDER_BOMB_CLEARANCE)

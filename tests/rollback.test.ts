@@ -475,6 +475,8 @@ test("six replicas on a deterministic lossy, reordering network agree on every r
 
 import { COUNTDOWN_TICKS as COUNTDOWN } from "../src/engine/game.js";
 import { PRESENCE as PRESENCE_KIND } from "../src/engine/input-log.js";
+import { setEffect } from "./fixtures/rider-state.ts";
+import { effectDeadlines } from "../src/engine/effects.ts";
 test("a rider's replaced stream keeps its history: a rollback across the replacement replays the old generation's inputs", () => {
   const build = (lateFirst: boolean) => {
     const w = new World(
@@ -543,7 +545,6 @@ test("Extra Bomb collection and volley converge after dropped, reordered and dup
       type: "extraBomb",
       x: rider.x,
       y: rider.y,
-      expiresAtTick: end + 10,
     },
   ];
   const entries: Entry[] = [
@@ -583,7 +584,6 @@ test("Shorter Fuse collection and volley converge after dropped, reordered and d
       type: "stopwatch",
       x: rider.x,
       y: rider.y,
-      expiresAtTick: end + 10,
     },
   ];
   rider.extraBombs = 1;
@@ -633,7 +633,6 @@ test("late reordered inputs converge through GRIP collection and do not consume 
     type: "grip",
     x: 505,
     y: 350,
-    expiresAtTick: fixture.tick + 100,
   }));
   const start = fixture.tick,
     end = start + 12;
@@ -681,7 +680,6 @@ test("late reordered inputs converge through Range collection and do not consume
     type: "range",
     x: 505,
     y: 350,
-    expiresAtTick: fixture.tick + 100,
   }));
   const start = fixture.tick,
     end = start + 12;
@@ -724,7 +722,7 @@ test("late duplicated and reordered bomb releases converge through debris decay 
     game = fixture.state.game;
   for (const p of game.players.values()) {
     p.trail = [];
-    p.invulnerableUntilTick = end + 100;
+    setEffect(p, "star", end + 100);
   }
   const victim = game.players.get("c")!;
   victim.trail = Array.from({ length: 40 }, (_, i) => ({
@@ -903,16 +901,16 @@ test("late reordered inputs converge through Nitro and Snail collection, and a d
   assert.ok(repair.rollbackTicks > 0);
   assert.equal(hashRoomState(delayed.state), hashRoomState(reference.state));
   assert.equal(
-    guest(delayed).nitroUntilTicks.length,
+    effectDeadlines(guest(delayed), "nitro").length,
     2,
     "both Nitros landed as their own deadlines",
   );
   assert.equal(
-    delayed.state.game.players.get("creator")!.snailUntilTicks.length,
+    effectDeadlines(delayed.state.game.players.get("creator")!, "snail").length,
     1,
     "the guest's Snail slowed the creator",
   );
-  assert.deepEqual(guest(delayed).snailUntilTicks, []);
+  assert.deepEqual(effectDeadlines(guest(delayed), "snail"), []);
   assert.equal(delayed.state.game.pickups.length, 0);
   const duplicate = delayed.receive("b", entries, 2, end, end);
   assert.deepEqual(duplicate.events, []);

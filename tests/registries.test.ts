@@ -10,6 +10,7 @@ import {
 import {
   EFFECTS,
   EFFECT_KINDS,
+  type EffectHolder,
   applyEffect,
   effectDeadlines,
   expireEffects,
@@ -17,6 +18,7 @@ import {
   hasEffect,
   isHazardImmune,
   isInvulnerable,
+  effectTable,
   speedMultiplier,
 } from "../src/engine/effects.ts";
 import { addPlayer, classicSettings, createGame } from "../src/engine/game.ts";
@@ -136,4 +138,46 @@ test("the weapon table is the priority ladder: Gun, Shell, Five, Triple, then th
       held.join("+"),
     );
   }
+});
+
+test("a new timed effect is only a row: a table with a kind the game lacks works through the same readers", () => {
+  // Haste stacks and triples pace; Ward extends and makes its rider immune; Daze sways the heading.
+  const kinds = [...EFFECT_KINDS, "haste", "ward", "daze"] as const;
+  type Kind = (typeof kinds)[number];
+  const table = effectTable<Kind>(kinds, {
+    ...EFFECTS,
+    haste: { stacking: "stack", speed: 3 },
+    ward: { stacking: "extend", immune: true },
+    daze: { stacking: "extend", heading: () => 0.25 },
+  });
+  const rider: EffectHolder<Kind> & { id: string } = { id: "a", effects: [] };
+  table.applyEffect(rider, "haste", 10, 30);
+  table.applyEffect(rider, "haste", 12, 20);
+  table.applyEffect(rider, "nitro", 10, 25);
+  table.applyEffect(rider, "ward", 10, 15);
+  table.applyEffect(rider, "ward", 11, 18);
+  // Held in table order, and within a kind by deadline.
+  assert.deepEqual(
+    rider.effects.map((effect) => [effect.kind, effect.untilTick]),
+    [
+      ["nitro", 25],
+      ["haste", 20],
+      ["haste", 30],
+      ["ward", 18],
+    ],
+  );
+  assert.equal(table.speedMultiplier(rider, 12), 2 * 3 * 3);
+  assert.equal(table.isHazardImmune(rider, 17), true);
+  assert.equal(table.isHazardImmune(rider, 18), false);
+  assert.equal(
+    table.effectSince(rider, "ward"),
+    10,
+    "extending keeps the start",
+  );
+  table.expireEffects(rider, 20);
+  assert.deepEqual(table.effectDeadlines(rider, "haste"), [30]);
+  assert.equal(table.speedMultiplier(rider, 20), 2 * 3);
+  assert.equal(table.headingOffset(0, rider, 20), 0.25);
+  // The engine's own table is untouched by any of it.
+  assert.deepEqual(Object.keys(EFFECTS).sort(), [...EFFECT_KINDS].sort());
 });

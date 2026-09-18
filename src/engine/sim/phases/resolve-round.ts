@@ -75,7 +75,7 @@ export function resolveRound(ctx: TickContext): void {
   // Nothing in this round can kill any more; bombs still in the air are cleared by the next round's start.
   const inFlight = new Set(
     sortedBombs(state).flatMap((bomb) =>
-      bomb.shot === undefined || bomb.shell?.gun ? [] : [bomb.shot],
+      bomb.shot === undefined ? [] : [bomb.shot],
     ),
   );
   state.decidedRound = decideRound(

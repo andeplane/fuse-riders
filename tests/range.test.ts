@@ -44,7 +44,6 @@ function drop(game: GameState, count = 1) {
       type: "range",
       x: p.x + 3,
       y: p.y,
-      expiresAtTick: game.tick + 100,
     });
 }
 const command = (action: "press" | "release" | "cancel") =>

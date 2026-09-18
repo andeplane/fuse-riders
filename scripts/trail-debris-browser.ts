@@ -87,7 +87,6 @@ try {
         launchY: 450,
         x: 730,
         y: 450,
-        placedTick: 195,
         launchedTick: 195,
         landsAtTick: 196,
         explodeAtTick: 201,

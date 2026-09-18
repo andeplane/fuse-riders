@@ -24,6 +24,7 @@ import { bombsPerShot, volleyAngles } from "../src/engine/launch-modifiers.js";
 import { toView, type WorldView } from "../src/engine/view.js";
 import { legacySnapshot } from "./fixtures/legacy-snapshot.js";
 import { streamReader, type Recording } from "./fixtures/replay-log.js";
+import { effectUntil } from "../src/engine/effects.ts";
 
 const recording: Recording = JSON.parse(
   readFileSync(
@@ -137,7 +138,7 @@ test("a rider's published speed is the step the simulation then takes", () => {
       if (
         !rider.alive ||
         !after?.alive ||
-        after.portalCooldownUntilTick !== rider.portalCooldownUntilTick
+        effectUntil(after, "portalCooldown") !== rider.portalCooldownUntilTick
       )
         continue;
       const moved = Math.hypot(after.x - rider.x, after.y - rider.y);

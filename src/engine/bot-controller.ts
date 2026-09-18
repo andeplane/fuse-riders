@@ -252,7 +252,7 @@ function chooseSteering(
       ),
     ),
   ];
-  const bombs = sortedBombs(game).filter((bomb) => !bomb.shell?.gun);
+  const bombs = sortedBombs(game);
   // Scenery is lethal on contact like a trail, and unlike a trail it never expires: only the ones within reach
   // of this plan are worth testing each step.
   const obstacles = game.obstacles.filter(

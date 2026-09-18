@@ -17,6 +17,7 @@ import {
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setEffect } from "./fixtures/rider-state.ts";
 
 function playing(count: number) {
   const game = createGame("pickup-pacing", classicSettings(), 8192);
@@ -37,8 +38,8 @@ function playing(count: number) {
       y: 600,
       angle: 0,
       trail: [],
-      invulnerableUntilTick: 10000,
     });
+  for (const player of game.players.values()) setEffect(player, "star", 10000);
   const inputs = new Map<string, InputIntent>(
     [...game.players.keys()].map((id) => [
       id,
@@ -109,7 +110,6 @@ test("elimination lowers the rate and cap without removing existing drops; spawn
     type: "power",
     x: 100 + i * 65,
     y: 100,
-    expiresAtTick: Number.MAX_SAFE_INTEGER,
   }));
   const ids = game.pickups.map((p) => p.id);
   for (const id of [...game.players.keys()].slice(2)) eliminatePlayer(game, id);

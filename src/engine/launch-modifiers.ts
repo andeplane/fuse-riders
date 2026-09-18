@@ -1,5 +1,5 @@
 import { sin, cos } from "./deterministic-math.js";
-import { type ArmedHolder, volleyBombs } from "./weapons.js";
+import { type HoldsWeapons, volleyBombs } from "./weapons.js";
 export const FIVE_SHOT_ANGLES = [-0.44, -0.22, 0, 0.22, 0.44] as const;
 export const TRIPLE_SHOT_ANGLES = [-0.22, 0, 0.22] as const;
 /** Round upgrade stops at nine ordinary bombs; Five can add four temporary bombs. */
@@ -7,7 +7,7 @@ export const MAX_EXTRA_BOMBS = 8;
 export const MAX_VOLLEY_BOMBS = 1 + MAX_EXTRA_BOMBS + 4;
 /** Bombs in the next pull: one, every Extra Bomb, and whatever the armed volley weapon adds (`weapons.ts`). */
 export function bombsPerShot(
-  player: { extraBombs: number } & Readonly<ArmedHolder>,
+  player: { extraBombs: number } & HoldsWeapons,
 ): number {
   return 1 + player.extraBombs + volleyBombs(player);
 }

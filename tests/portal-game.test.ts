@@ -14,6 +14,8 @@ import {
 } from "../src/engine/game.ts";
 import { MAX_PORTAL_PAIRS } from "../src/engine/portal.ts";
 import { classicSettings } from "./fixtures/classic-settings.ts";
+import { setEffect } from "./fixtures/rider-state.ts";
+import { effectUntil } from "../src/engine/effects.ts";
 
 function arena() {
   const state = createGame("portal", classicSettings(), 123);
@@ -47,8 +49,7 @@ function arena() {
 const stride = (state: GameState) =>
   riderMotionStep(
     {
-      nitroUntilTicks: [],
-      snailUntilTicks: [],
+      effects: [],
       grip: false,
       aimSlowTicks: 0,
       aimSlowSpentTicks: 0,
@@ -67,8 +68,8 @@ test("portal transits survivors, breaks trail, preserves heading/charge, counts 
   assert.equal(player.y, 300);
   assert.equal(player.angle, 0);
   assert.equal(player.trail.at(-1)!.x2, 189);
-  assert.equal(player.portalCooldownUntilTick, state.tick + 15);
-  assert.equal(player.portalGraceUntilTick, state.tick + 10);
+  assert.equal(effectUntil(player, "portalCooldown"), state.tick + 15);
+  assert.equal(effectUntil(player, "portalGrace"), state.tick + 10);
   assert.equal(state.matchStats.get("p0")!.portalTransits, 1);
   assert.equal(state.matchStats.get("p0")!.distanceUnits - beforeDistance, 4);
   assert.equal(player.bombChargeStartedTick, state.tick - 1);
@@ -131,7 +132,6 @@ test("unsafe exit defers teleport for rider, pending trail, trail, bomb and blas
         launchY: 300,
         launchedTick: state.tick,
         landsAtTick: state.tick + 6,
-        placedTick: state.tick,
         explodeAtTick: 500,
         blastRange: 150,
         flightPath: [{ x: 1000, y: 300, angle: 0 }],
@@ -154,7 +154,7 @@ test("portal grace is defensive for both riders, protects trails/walls and does 
   const player = state.players.get("p0")!;
   const other = state.players.get("p1")!;
   state.portalPairs = [];
-  player.portalGraceUntilTick = state.tick + 10;
+  setEffect(player, "portalGrace", state.tick + 10);
   player.shielded = true;
   Object.assign(other, { x: 180, y: 200, angle: Math.PI });
   step(state, new Map());
@@ -176,12 +176,12 @@ test("portal expiry, snapshot copying, compact geometry omission and round reset
   step(state, new Map());
   assert.deepEqual(state.portalPairs, []);
   const player = state.players.get("p0")!;
-  player.portalCooldownUntilTick = 900;
-  player.portalGraceUntilTick = 900;
+  setEffect(player, "portalCooldown", 900);
+  setEffect(player, "portalGrace", 900);
   state.phase = "roundOver";
   startNextRound(state);
-  assert.equal(player.portalCooldownUntilTick, 0);
-  assert.equal(player.portalGraceUntilTick, 0);
+  assert.equal(effectUntil(player, "portalCooldown"), 0);
+  assert.equal(effectUntil(player, "portalGrace"), 0);
   assert.deepEqual(state.portalPairs, []);
 });
 
@@ -189,13 +189,12 @@ test("portal pickup adds a deterministic pair, records stats, keeps the old pair
   const states = [arena(), arena()];
   for (const state of states) {
     const player = state.players.get("p0")!;
-    player.portalCooldownUntilTick = 200;
+    setEffect(player, "portalCooldown", 200);
     state.pickups.push({
       id: 50,
       type: "portal",
       x: 170,
       y: 200,
-      expiresAtTick: 500,
     });
     step(state, new Map());
     assert.equal(state.pickups.length, 0);
@@ -206,7 +205,7 @@ test("portal pickup adds a deterministic pair, records stats, keeps the old pair
     );
     assert.equal(state.portalPairs[0]!.id, "pair");
     assert.notEqual(state.portalPairs[1]!.id, "pair");
-    assert.equal(player.portalCooldownUntilTick, 200);
+    assert.equal(effectUntil(player, "portalCooldown"), 200);
     assert.equal(state.matchStats.get("p0")!.portalPickups, 1);
     state.phase = "matchOver";
     assert.equal(toView(state).matchStats[0]!.portalPickups, 1);
@@ -223,7 +222,6 @@ test("impossible placement leaves pickup and old pair unconsumed", () => {
     type: "portal",
     x: 170,
     y: 200,
-    expiresAtTick: 500,
   });
   step(state, new Map());
   assert.equal(state.pickups.length, 1);
@@ -237,8 +235,8 @@ test("reverse transit respects cooldown at its exact deadline through any gate",
   Object.assign(player, {
     x: 985,
     y: 300,
-    portalCooldownUntilTick: state.tick + 2,
   });
+  setEffect(player, "portalCooldown", state.tick + 2);
   state.portalPairs[0]!.id = "second";
   step(state, new Map());
   assert.equal(player.x, 985 + stride(state));
@@ -255,7 +253,7 @@ test("portal defensive grace expires exactly at the authoritative tick", () => {
     const state = arena();
     const player = state.players.get("p0")!;
     state.portalPairs = [];
-    player.portalGraceUntilTick = state.tick + remaining;
+    setEffect(player, "portalGrace", state.tick + remaining);
     state.players.get("p1")!.trail.push({
       x1: 188,
       y1: 100,
@@ -303,8 +301,8 @@ test("wall placement remains useful on an occupied five-rider field across seeds
         x,
         y,
         angle: 0,
-        invulnerableUntilTick: state.tick + 10,
       });
+      setEffect(player, "star", state.tick + 10);
       player.trail = Array.from({ length: 30 }, (_, index) => ({
         x1: x - 150 + index * 5,
         y1: y + Math.sin(index / 5) * 35,
@@ -314,9 +312,7 @@ test("wall placement remains useful on an occupied five-rider field across seeds
         expiresAtTick: 9999,
       }));
     }
-    state.pickups = [
-      { id: 1, type: "portal", x: 200, y: 260, expiresAtTick: 9999 },
-    ];
+    state.pickups = [{ id: 1, type: "portal", x: 200, y: 260 }];
     step(state, new Map());
     if (state.portalPairs.length) placed++;
   }
@@ -436,7 +432,6 @@ test("a new pair is never laid over the walls of a live one", () => {
       type: "portal",
       x: 170,
       y: 200,
-      expiresAtTick: 500,
     });
     step(state, new Map());
     if (state.pickups.length) continue;
@@ -515,7 +510,6 @@ test("at the cap the oldest pair retires, before the riders still aiming at it c
       type: "portal",
       x: 170,
       y: 200,
-      expiresAtTick: 500,
     });
     step(state, new Map());
     assert.ok(

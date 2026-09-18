@@ -26,6 +26,7 @@ import {
   decodeGameState,
 } from "../src/engine/codec/checkpoint.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
+import { setArmed } from "./fixtures/rider-state.ts";
 
 const press: InputIntent = {
   left: false,
@@ -99,7 +100,6 @@ function launchShell(
     x: 270,
     y: 450,
     launchedTick: game.tick,
-    placedTick: game.tick,
     landsAtTick: Number.MAX_SAFE_INTEGER,
     explodeAtTick: Number.MAX_SAFE_INTEGER,
     blastRange: 0,
@@ -394,7 +394,7 @@ test("a shell ignores a gate whose exit would fall outside the field", () => {
 
 test("a gun ray comes out of the partner gate and kills there, one tracer per segment", () => {
   const { game, shooter, victim, bystander } = scene();
-  Object.assign(shooter, { gunArmed: true });
+  setArmed(shooter, "gun", true);
   Object.assign(victim, { x: 1100, y: 450, angle: Math.PI });
   // Between the gates: behind the entry wall, not in front of the bullet.
   Object.assign(bystander, { x: 600, y: 450, angle: Math.PI });
@@ -405,7 +405,7 @@ test("a gun ray comes out of the partner gate and kills there, one tracer per se
     true,
     "nothing between the gates was ever in the way",
   );
-  const tracers = [...game.bombs.values()];
+  const tracers = game.tracers;
   assert.equal(
     tracers.length,
     2,
@@ -422,8 +422,8 @@ test("a gun ray comes out of the partner gate and kills there, one tracer per se
     `stopped at the head it found: ${tracers[1]!.x}`,
   );
   assert.equal(
-    tracers[0]!.explodeAtTick,
-    tracers[1]!.explodeAtTick,
+    tracers[0]!.expiresAtTick,
+    tracers[1]!.expiresAtTick,
     "both fade together",
   );
   assert.equal(game.shots.length, 1, "still one trigger pull");
@@ -440,7 +440,7 @@ test("a gun ray comes out of the partner gate and kills there, one tracer per se
 
 test("a body in front of a gate takes the shot instead of the gate", () => {
   const { game, shooter, victim, bystander } = scene();
-  Object.assign(shooter, { gunArmed: true });
+  setArmed(shooter, "gun", true);
   // Standing short of the entry gate, so the bullet never reaches it.
   Object.assign(bystander, { x: 250, y: 450, angle: Math.PI });
   Object.assign(victim, { x: 1100, y: 450, angle: Math.PI });
@@ -451,20 +451,20 @@ test("a body in front of a gate takes the shot instead of the gate", () => {
     true,
     "and the ray never left through the partner gate",
   );
-  assert.equal(game.bombs.size, 1, "no continuation tracer");
+  assert.equal(game.tracers.length, 1, "no continuation tracer");
 
   // The same shot with nobody in front of the gate does reach the far rider, so the gate is live.
   const control = scene();
-  Object.assign(control.shooter, { gunArmed: true });
+  setArmed(control.shooter, "gun", true);
   Object.assign(control.victim, { x: 1100, y: 450, angle: Math.PI });
   step(control.game, new Map([["p0", tap]]));
   assert.equal(control.victim.alive, false);
-  assert.equal(control.game.bombs.size, 2);
+  assert.equal(control.game.tracers.length, 2);
 });
 
 test("a gun ray cuts its hole past the gate, not between the gates", () => {
   const { game, shooter, victim, bystander } = scene();
-  Object.assign(shooter, { gunArmed: true });
+  setArmed(shooter, "gun", true);
   Object.assign(bystander, {
     x: 1400,
     y: 300,
@@ -496,7 +496,7 @@ test("a gun ray cuts its hole past the gate, not between the gates", () => {
 
 test("a cycle of gates cannot hold a gun ray", () => {
   const { game, shooter } = scene();
-  Object.assign(shooter, { gunArmed: true });
+  setArmed(shooter, "gun", true);
   // B throws the ray back to the left of A, so without spending a pair per ray this never ends.
   game.portalPairs = [
     pair({
@@ -516,7 +516,7 @@ test("a cycle of gates cannot hold a gun ray", () => {
   ];
   step(game, new Map([["p0", tap]]));
   assert.equal(
-    game.bombs.size,
+    game.tracers.length,
     3,
     "one segment up to A, one from A to B, one from B to the wall",
   );
@@ -530,12 +530,13 @@ test("a cycle of gates cannot hold a gun ray", () => {
 
 test("a projectile transit is nobody's portal jump, and a continuation tracer is nobody's bomb", () => {
   const { game, shooter, victim } = scene();
-  Object.assign(shooter, { gunArmed: true });
+  setArmed(shooter, "gun", true);
   Object.assign(victim, { x: 1100, y: 450, angle: Math.PI });
   const was = { ...game.matchStats.get("p0")! };
   launchShell(game);
   step(game, new Map([["p0", tap]]));
-  assert.equal(game.bombs.size, 3, "the shell plus both gun segments");
+  assert.equal(game.bombs.size, 1, "the shell");
+  assert.equal(game.tracers.length, 2, "and both gun segments");
   const owner = game.matchStats.get("p0")!;
   assert.equal(
     owner.portalTransits,
@@ -551,7 +552,7 @@ test("a projectile transit is nobody's portal jump, and a continuation tracer is
 
 test("a hopping ray folds the same from a checkpoint decoded in another map order", () => {
   const { game, shooter, victim } = scene();
-  Object.assign(shooter, { gunArmed: true });
+  setArmed(shooter, "gun", true);
   Object.assign(victim, { x: 1100, y: 450, angle: Math.PI });
   const shell = launchShell(game);
   step(game, new Map([["p0", tap]]));
