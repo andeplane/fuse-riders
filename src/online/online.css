@@ -2778,3 +2778,18 @@
 .voice-toggle {
   white-space: nowrap;
 }
+
+/* The same chevron marks an armed rider and its fire control, including the phone HUD. */
+.online-controls button.gun-armed::before,
+.hud-fire.gun-armed::before {
+  content: "›";
+  display: inline-block;
+  margin-right: 0.45em;
+  color: #fff;
+  text-shadow: 0 0 8px var(--player-color, #65fff2);
+}
+.online-controls button.gun-armed {
+  border-color: var(--player-color, #65fff2);
+  box-shadow: inset 0 0 14px
+    color-mix(in srgb, var(--player-color, #65fff2) 20%, transparent);
+}

@@ -121,6 +121,17 @@ try {
         const reset = paint(100);
         if (!fresh.every((v, i) => v === reset[i]))
           throw Error("Reset changed Gun presentation");
+        arena.render(
+          { ...base, bombs: [], players: [{ ...player, gunArmed: true }] },
+          1000,
+          theme,
+          "gun-browser",
+        );
+        const armed = read();
+        arena.render({ ...base, bombs: [] }, 1000, theme, "gun-browser");
+        const unarmed = read();
+        if (armed.every((v, i) => v === unarmed[i]))
+          throw Error("Armed rider has no marker");
         // A real-shaped authoritative trail cut leaves sparks after its tracer is gone.
         const target = {
           ...player,
@@ -183,6 +194,25 @@ try {
         paint(100);
         results.push({ theme: theme.id, renderer: arena.metrics().renderer });
       }
+      const controls = document.createElement("div");
+      controls.className = "online-controls";
+      const fire = document.createElement("button");
+      fire.className = "gun-armed";
+      fire.textContent = "TAP TO FIRE GUN";
+      controls.append(fire);
+      document.body.append(controls);
+      const hud = document.createElement("span");
+      hud.className = "hud-fire gun-armed";
+      document.body.append(hud);
+      for (const element of [fire, hud]) {
+        if (!getComputedStyle(element, "::before").content.includes("›"))
+          throw Error("Armed control lacks chevron");
+        element.classList.remove("gun-armed");
+        if (getComputedStyle(element, "::before").content.includes("›"))
+          throw Error("Unarmed control retains chevron");
+      }
+      controls.remove();
+      hud.remove();
       Reflect.set(window, "disposeGun", () => arena.destroy());
       return results;
     }, mode);

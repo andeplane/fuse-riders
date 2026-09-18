@@ -1610,6 +1610,13 @@ export async function startOnline(): Promise<void> {
       powerStatus.textContent = player
         ? powerLabel(player.powerPickups, player.extraBombs, player.grip)
         : "";
+      const gunReady =
+        !!player?.alive && !!player.gunArmed && state.phase === "playing";
+      fireButton.classList.toggle("gun-armed", gunReady);
+      hudFire.classList.toggle("gun-armed", gunReady);
+      fireButton.title = gunReady
+        ? "Tap to fire Gun (Space)"
+        : "Hold to charge, release to fire (Space)";
       if (player) {
         app.style.setProperty("--player-color", player.color);
         const remaining = Math.max(0, player.bombReadyAtTick - state.tick);

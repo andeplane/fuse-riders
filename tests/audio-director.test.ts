@@ -783,3 +783,27 @@ test("replay stings play only after the unlock and never while effects are silen
   f.director.replayCue("out");
   assert.ok(f.notes.length > before);
 });
+
+test("Gun pickup racks once after the pickup cue, while joins and hidden transitions stay silent", async () => {
+  const f = fixture();
+  await f.director.unlock();
+  f.director.message(f.snapshot(10));
+  const player = f.game.players.get("p")!;
+  player.gunArmed = true;
+  f.director.message(f.snapshot(11));
+  assert.equal(f.notes.length, 2);
+  assert.ok(f.notes.every(({ note }) => note.delay! >= 0.32));
+  f.director.message(f.snapshot(11));
+  assert.equal(f.notes.length, 2);
+  f.director.disconnect();
+  f.director.message(f.snapshot(12));
+  assert.equal(f.notes.length, 2, "rejoining armed stays silent");
+  player.gunArmed = false;
+  f.director.message(f.snapshot(13));
+  f.director.setEffectsSilenced(true);
+  player.gunArmed = true;
+  f.director.message(f.snapshot(14));
+  f.director.setEffectsSilenced(false);
+  f.director.message(f.snapshot(15));
+  assert.equal(f.notes.length, 2, "hidden pickup is not replayed");
+});

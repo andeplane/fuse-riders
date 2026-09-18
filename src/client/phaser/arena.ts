@@ -1183,6 +1183,28 @@ class ArenaScene extends Phaser.Scene {
           p.x + dx * 16 - dy * 5,
           p.y + dy * 16 + dx * 5,
         );
+        if (p.gunArmed && (s.phase === "playing" || s.phase === "countdown")) {
+          // A compact luminous barrel/chevron, aligned with the next shot.
+          f.lineStyle(6, tint, 0.25).lineBetween(
+            p.x + dx * 20,
+            p.y + dy * 20,
+            p.x + dx * 33,
+            p.y + dy * 33,
+          );
+          f.lineStyle(2, 0xffffff, 0.95)
+            .lineBetween(
+              p.x + dx * 23 + dy * 5,
+              p.y + dy * 23 - dx * 5,
+              p.x + dx * 30,
+              p.y + dy * 30,
+            )
+            .lineBetween(
+              p.x + dx * 30,
+              p.y + dy * 30,
+              p.x + dx * 23 - dy * 5,
+              p.y + dy * 23 + dx * 5,
+            );
+        }
         const labelY = p.y - (self ? 30 : 27);
         if (self)
           f.lineStyle(2, tint, 0.55 + Math.sin(now / 180) * 0.25).strokeCircle(

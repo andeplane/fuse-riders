@@ -54,6 +54,7 @@ export interface GameSynth {
 export class AudioDirector {
   private unlocked = false;
   private gunImpacts = new GunImpacts();
+  private armedGuns = new Map<string, boolean>();
   private scope = "";
   private matchId = "";
   private round = -1;
@@ -244,6 +245,7 @@ export class AudioDirector {
     this.save();
     this.scope = "";
     this.gunImpacts.reset();
+    this.armedGuns.clear();
     this.seen.clear();
     this.stingFor = "";
     this.playing = false;
@@ -259,11 +261,18 @@ export class AudioDirector {
       this.matchId = message.matchId;
       this.round = message.round;
       if (scope !== this.scope) {
+        this.armedGuns.clear();
         this.scope = scope;
         this.baselineTick = message.tick;
         this.seen.clear();
         this.stingFor = "";
       } else if (message.tick < this.latestTick) return;
+      for (const player of message.state.players)
+        if (player.gunArmed && this.armedGuns.get(player.id) === false)
+          this.cue("gun-armed");
+      this.armedGuns = new Map(
+        message.state.players.map((player) => [player.id, !!player.gunArmed]),
+      );
       for (const impact of this.gunImpacts.accept(
         { ...message.state, tick: message.tick, round: message.round },
         message.matchId,
@@ -412,6 +421,10 @@ export class AudioDirector {
         note(1500 * pitch, 480 * pitch, 0.16, "sawtooth", 0.025, 0.045);
         break;
       }
+      case "gun-armed":
+        note(620, 300, 0.035, "square", 0.32, 0.12);
+        note(1350, 850, 0.045, "square", 0.38, 0.16);
+        break;
       case "gun-solid":
         note(1900, 800, 0.045, "square", 0, 0.075);
         note(2700, 1800, 0.065, "triangle", 0.01, 0.05);
