@@ -31,6 +31,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run format:check
+      - run: npm run lint
       - run: npm run config:check
       - run: npm run typecheck
       - run: npm run test:coverage

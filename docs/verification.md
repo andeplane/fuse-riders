@@ -8,11 +8,14 @@ The `verify` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) inst
 
 ```sh
 npm run format:check
+npm run lint
 npm run config:check
 npm run typecheck
 npm run test:coverage
 npm run build
 ```
+
+`npm run lint` is ESLint with a deliberately small type-aware rule set ([eslint.config.js](../eslint.config.js)): no floating or misused promises, and no empty block — a `catch` that swallows on purpose says why in a comment. Prettier owns formatting.
 
 `npm test` runs the same unit-test file globs without coverage instrumentation: `tests/*.test.ts` and `packages/*/tests/*.test.ts`. Use focused tests during iteration and the broader checks at integration milestones. Add a regression for a confirmed bug; test the observable contract and failure/recovery boundaries rather than copying implementation logic.
 
@@ -24,7 +27,7 @@ Do not freeze a test count or coverage percentage in this document. Obtain them 
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Simulation                      | `tests/game.test.ts` plus motion, geometry, pickups, weapons, portals, trail lifecycle, statistics and moment suites   |
 | Replay and network coordination | Input-log, stream, packet, snapshot, checkpoint, rollback, generation-replay and room-runtime tests                    |
-| LAN authority and controls      | Server, server-review, client and controller tests with serialized WebSocket boundaries and injected time              |
+| Controls and presentation input | Client and controller tests (input state, keyboard, pointers, targeting) with typed fakes and injected time            |
 | Networking libraries            | `packages/*/tests/`, including room service/gateway, admission, authority and transport-policy tests                   |
 | Audio and presentation helpers  | Audio-director, radio, replay, viewport, effects and trail-cache tests; this does not cover all DOM/Phaser integration |
 
@@ -45,7 +48,7 @@ ONLY=keyboard PORT=8801 scripts/ci-local.sh
 
 [scripts/ci-manifest.json](../scripts/ci-manifest.json) is the only list of CI steps: the workflow builds its browser matrix from it (one parallel job per smoke, summed up by the `e2e` job) and `scripts/ci-local.sh` runs the same entries through the same runner, `scripts/ci-run.ts`. `tests/ci-manifest.test.ts` fails when the workflow, the local mirror, a smoke's browser list or the README's step names stop agreeing with it. Add or change a smoke in the manifest, nowhere else. `npx tsx scripts/ci-run.ts --smoke <id>` runs one smoke exactly as its CI job does, including the single retry that CI reports as a flake; the local mirror does not retry.
 
-`npx tsx scripts/determinism-replay.ts` compares a seeded input recording in Node, Chromium and WebKit. It is cross-engine evidence for that workload, not proof that all mechanics or arbitrary inputs were exercised. Phaser lifecycle, LAN rounds, online WebRTC, keyboard, touch-layout and recap flows each have separate smokes. Browser emulation is not physical-phone evidence; application-message impairment is not real IP packet loss.
+`npx tsx scripts/determinism-replay.ts` compares a seeded input recording in Node, Chromium and WebKit. It is cross-engine evidence for that workload, not proof that all mechanics or arbitrary inputs were exercised. Phaser lifecycle, online WebRTC rooms, the shared-screen lobby, keyboard, touch-layout and recap flows each have separate smokes. Browser emulation is not physical-phone evidence; application-message impairment is not real IP packet loss.
 
 ## Release and performance claims
 

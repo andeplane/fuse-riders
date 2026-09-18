@@ -2,6 +2,7 @@
   "about": "Every CI step, once. .github/workflows/ci.yml builds its browser matrix from `smokes` (one job per entry) and scripts/ci-local.sh runs `verify` then `smokes`, both through scripts/ci-run.ts. The `verify` job's steps are written out in ci.yml so they keep their names there; tests/ci-manifest.test.ts fails when the two lists differ. Fields are documented in scripts/lib/ci-manifest.ts.",
   "verify": [
     { "id": "format", "command": "npm run format:check" },
+    { "id": "lint", "command": "npm run lint" },
     { "id": "config", "command": "npm run config:check" },
     { "id": "typecheck", "command": "npm run typecheck" },
     { "id": "coverage", "command": "npm run test:coverage" },

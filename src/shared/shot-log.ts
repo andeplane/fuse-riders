@@ -48,6 +48,7 @@ export interface RoundShot {
   power: number;
   extraBombs: number;
   fuseLevel: number;
+  rangeLevel: number;
   grip: boolean;
   /** Empty for a miss. A rider dies once per round, so one pull can kill at most every other rider. */
   kills: ShotKill[];
