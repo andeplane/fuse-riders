@@ -4,6 +4,32 @@ export const GUN_RADIUS = 2;
 export const GUN_HOLE_RADIUS = 14;
 export const GUN_HEADSHOT_RADIUS = 18;
 export const GUN_TRACER_TICKS = 3;
+/** Radians the sight swings per tick while the trigger is held: slower than steering, so a sweep can be timed. */
+export const GUN_AIM_STEP = 0.1;
+/** The sight reaches straight behind the rider on either side and stops there. */
+export const GUN_AIM_MAX = Math.PI;
+/**
+ * A Gun whose trigger is held: the rider runs straight and steering sweeps the sight instead. Only a press made with
+ * the Gun armed raises the sight, so a Gun collected in the middle of an ordinary charge never takes the steering away.
+ */
+export function isAimingGun(player: { gunAim?: number }): boolean {
+  return player.gunAim !== undefined;
+}
+/** One tick (or a rendered fraction of one) of sweeping the held sight; left and right together hold it still. */
+export function sweepGunAim(
+  aim: number,
+  controls: Readonly<{ left: boolean; right: boolean }>,
+  ticks = 1,
+): number {
+  return Math.max(
+    -GUN_AIM_MAX,
+    Math.min(
+      GUN_AIM_MAX,
+      aim +
+        (Number(controls.right) - Number(controls.left)) * GUN_AIM_STEP * ticks,
+    ),
+  );
+}
 /** Keep the portions outside the impact disk, retaining expiry and ownership metadata. */
 export function cutTrailHole(
   trail: TrailSegment,

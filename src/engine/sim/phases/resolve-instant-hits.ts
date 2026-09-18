@@ -11,7 +11,7 @@ import {
 } from "./commit-deaths.js";
 
 /**
- * Pressed Guns and released Target Bombs take effect in the tick they are fired, after every rider has launched — and so
+ * Fired Guns and released Target Bombs take effect in the tick they are fired, after every rider has launched — and so
  * after the sweep. A rider that crashed into scenery earlier in this tick died against a board that was still standing
  * when it got there, and a Target Bomb landing afterwards then clears that same rock: chronological within the tick,
  * and the same order in which a pickup collected this tick survives a blast opened by it. Ordinary fuses run before

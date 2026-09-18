@@ -237,7 +237,7 @@ test("a shell that bounced before hitting is a trick shot; a fresh, stray or gun
           left: false,
           right: false,
           bomb: true,
-          bombCommands: [{ action: "press" }],
+          bombCommands: [{ action: "press" }, { action: "release" }],
         },
       ],
     ]),

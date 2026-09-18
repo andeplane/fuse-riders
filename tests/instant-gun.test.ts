@@ -5,6 +5,7 @@ import {
   createGame,
   startMatch,
   step,
+  toView,
   COUNTDOWN_TICKS,
   SLOT_COLORS,
   type InputIntent,
@@ -12,7 +13,11 @@ import {
 import { canonicalRoomState } from "../src/engine/apply-tick.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import type { GameState } from "../src/engine/game.js";
-import { GUN_TRACER_TICKS } from "../src/engine/gun.js";
+import {
+  GUN_AIM_MAX,
+  GUN_AIM_STEP,
+  GUN_TRACER_TICKS,
+} from "../src/engine/gun.js";
 import {
   encodeGameState,
   decodeGameState,
@@ -31,6 +36,15 @@ const press: InputIntent = {
   ...neutral,
   bomb: true,
   bombCommands: [{ action: "press" }],
+};
+/** A tap: the press and its release reach the simulation in one tick, and the Gun fires straight ahead. */
+const tap: InputIntent = {
+  ...neutral,
+  bombCommands: [{ action: "press" }, { action: "release" }],
+};
+const release: InputIntent = {
+  ...neutral,
+  bombCommands: [{ action: "release" }],
 };
 function scene() {
   const game = createGame("gun-regression", classicSettings(), 42);
@@ -57,7 +71,7 @@ function scene() {
   // An open board: every ray in these tests is cast against riders and trails placed at exact coordinates.
   game.obstacles = [];
   game.nextPickupSpawnTick = game.tick + 1000;
-  const fire = (input = press) => step(game, new Map([["p0", input]]));
+  const fire = (input = tap) => step(game, new Map([["p0", input]]));
   const body = (x: number, y1 = 300, y2 = 600) => ({
     x1: x,
     y1,
@@ -77,7 +91,7 @@ function scene() {
   };
 }
 
-test("pickup fires on press across the arena, stops at the first head and credits one instant kill", () => {
+test("pickup fires on a tap across the arena, stops at the first head and credits one instant kill", () => {
   const { game, shooter, target, behind, fire } = scene();
   shooter.gunArmed = false;
   game.pickups = [
@@ -175,7 +189,7 @@ test("a dead trail blocks the shot, takes a hole and cannot earn another kill", 
 test("shots follow this tick’s facing after turning, without homing, and clip to the wall", () => {
   const { game, shooter, target, behind, fire } = scene();
   Object.assign(target, { x: 900, y: 450, angle: 0 });
-  fire({ ...press, right: true });
+  fire({ ...tap, right: true });
   const tracer = [...game.bombs.values()][0]!;
   assert.equal(target.alive, true);
   assert.equal(behind.alive, true);
@@ -219,10 +233,10 @@ test("headshots consume shields, respect immunity and still stop before the next
   }
 });
 
-test("release, cancel, duplicate press and held input do not repeat the shot or undo it", () => {
+test("a shot is spent once: duplicate releases, presses and held input cannot repeat it", () => {
   for (const action of ["release", "cancel", "press"] as const) {
     const { game, shooter, fire } = scene();
-    fire({ ...press, bombCommands: [{ action: "press" }, { action }] });
+    fire({ ...tap, bombCommands: [...tap.bombCommands!, { action }] });
     assert.equal(game.shots.length, 1);
     assert.equal(shooter.bombChargeStartedTick, undefined);
     fire({ ...neutral, bomb: true });
@@ -234,17 +248,184 @@ test("release, cancel, duplicate press and held input do not repeat the shot or 
   }
 });
 
-test("cooldown blocks press without spending Gun, and release alone cannot shoot", () => {
+test("cooldown blocks the press without spending Gun, and release alone cannot shoot", () => {
   const { game, shooter, fire } = scene();
   shooter.bombReadyAtTick = game.tick + 10;
   fire();
   assert.equal(shooter.gunArmed, true);
   assert.equal(game.shots.length, 0);
   shooter.bombReadyAtTick = game.tick;
-  fire({ ...neutral, bombCommands: [{ action: "release" }] });
+  fire(release);
   assert.equal(game.shots.length, 0);
   fire();
   assert.equal(game.shots.length, 1);
+});
+
+test("holding the trigger locks the heading and steers the sight; release fires along it", () => {
+  const { game, shooter, target, behind, fire } = scene();
+  fire(press);
+  assert.equal(game.shots.length, 0, "a press alone holds fire");
+  assert.equal(shooter.gunAim, 0);
+  assert.equal(toView(game).players[0]!.gunAim, 0);
+  const held: InputIntent = { ...neutral, bomb: true, right: true };
+  for (let tick = 0; tick < 5; tick++) fire(held);
+  assert.equal(shooter.angle, 0, "steering went to the sight, not the rider");
+  assert.equal(shooter.y, 450);
+  assert.ok(Math.abs(shooter.gunAim! - 5 * GUN_AIM_STEP) < 1e-9);
+  assert.equal(game.shots.length, 0);
+  // The release tick's steering moves the sight once more before the shot. Both riders run along +x at one speed,
+  // so a rival placed on that line now is still on it when the shot resolves.
+  const line = 6 * GUN_AIM_STEP;
+  Object.assign(target, {
+    x: shooter.x + Math.cos(line) * 400,
+    y: shooter.y + Math.sin(line) * 400,
+    angle: 0,
+  });
+  fire({ ...release, right: true });
+  assert.equal(
+    target.alive,
+    false,
+    "the swung sight finds a rider off the heading",
+  );
+  assert.equal(behind.alive, true, "nothing flew straight ahead");
+  const tracer = [...game.bombs.values()][0]!;
+  assert.ok(
+    Math.abs(
+      Math.atan2(tracer.y - tracer.launchY, tracer.x - tracer.launchX) - line,
+    ) < 1e-6,
+  );
+  assert.equal(shooter.gunAim, undefined);
+  assert.equal(shooter.gunArmed, false);
+  assert.equal(toView(game).players[0]!.gunAim, undefined);
+  fire({ ...neutral, right: true });
+  assert.ok(shooter.angle > 0, "steering returns with the shot");
+});
+
+test("the sight stops straight behind, holds still under both keys, and a cancel keeps the Gun", () => {
+  const { game, shooter, fire } = scene();
+  Object.assign(shooter, { x: 100, y: 450 });
+  fire(press);
+  for (let tick = 0; tick < 40; tick++)
+    fire({ ...neutral, bomb: true, left: true });
+  assert.equal(shooter.gunAim, -GUN_AIM_MAX);
+  fire({ ...neutral, bomb: true, left: true, right: true });
+  assert.equal(shooter.gunAim, -GUN_AIM_MAX);
+  fire({ ...neutral, bombCommands: [{ action: "cancel" }] });
+  assert.equal(game.shots.length, 0);
+  assert.equal(shooter.gunArmed, true);
+  assert.equal(shooter.gunAim, undefined);
+  assert.equal(shooter.bombChargeStartedTick, undefined);
+  fire();
+  assert.equal(game.shots.length, 1, "the kept Gun still fires");
+});
+
+test("a held sight survives a checkpoint and replays identically", () => {
+  const { game, shooter, fire } = scene();
+  fire(press);
+  fire({ ...neutral, bomb: true, right: true });
+  const restored = decodeGameState(encodeGameState(game));
+  assert.ok(restored);
+  assert.equal(restored.players.get("p0")!.gunAim, shooter.gunAim);
+  for (const input of [{ ...neutral, bomb: true, right: true }, release]) {
+    const inputs = new Map([["p0", input]]);
+    assert.deepEqual(step(restored, inputs), step(game, inputs));
+    assert.equal(canonical(restored), canonical(game));
+  }
+  assert.equal(game.shots.length, 1);
+});
+
+test("a checkpoint with a sight beyond its stops is rejected", () => {
+  const { game, shooter, fire } = scene();
+  fire(press);
+  shooter.gunAim = GUN_AIM_MAX + 0.01;
+  assert.equal(decodeGameState(encodeGameState(game)), undefined);
+  shooter.gunAim = GUN_AIM_MAX;
+  assert.ok(decodeGameState(encodeGameState(game)));
+});
+
+test("a sight on a rider with no charge, or a dead one, is not a valid checkpoint", () => {
+  const { game, shooter, fire } = scene();
+  fire(press);
+  assert.ok(decodeGameState(encodeGameState(game)));
+  shooter.bombChargeStartedTick = undefined;
+  assert.equal(decodeGameState(encodeGameState(game)), undefined);
+  shooter.bombChargeStartedTick = game.tick;
+  shooter.alive = false;
+  assert.equal(decodeGameState(encodeGameState(game)), undefined);
+});
+
+test("a Triple Shot fans its rays around the held sight, not the heading", () => {
+  const { game, shooter, fire } = scene();
+  shooter.tripleShotArmed = true;
+  fire(press);
+  for (let tick = 0; tick < 4; tick++)
+    fire({ ...neutral, bomb: true, left: true });
+  fire(release);
+  const sight = -4 * GUN_AIM_STEP;
+  const rays = [...game.bombs.values()]
+    .filter((bomb) => bomb.shell?.gun)
+    .map((bomb) => Math.atan2(bomb.y - bomb.launchY, bomb.x - bomb.launchX))
+    .sort((a, b) => a - b);
+  assert.equal(rays.length, 3);
+  for (const [index, ray] of rays.entries())
+    assert.ok(
+      Math.abs(ray - (sight + (index - 1) * 0.22)) < 1e-6,
+      `ray ${index} at ${ray}`,
+    );
+  assert.equal(shooter.tripleShotArmed, false, "the pull spent the Triple");
+});
+
+test("a hold whose release never arrives ends with the Gun kept and the steering back", () => {
+  const { game, shooter, fire } = scene();
+  fire(press);
+  for (let tick = 0; tick < 3; tick++)
+    fire({ ...neutral, bomb: true, right: true });
+  assert.ok(shooter.gunAim! > 0);
+  // What a connection flap leaves: the held controls reset to neutral, and the old gesture's release folds to nothing.
+  fire({ ...neutral, right: true });
+  assert.equal(shooter.gunAim, undefined);
+  assert.equal(shooter.bombChargeStartedTick, undefined);
+  assert.equal(shooter.gunArmed, true);
+  assert.equal(game.shots.length, 0);
+  assert.ok(shooter.angle > 0, "the rider steers again that same tick");
+  fire(release);
+  assert.equal(game.shots.length, 0, "a late release fires nothing");
+  fire();
+  assert.equal(game.shots.length, 1, "and the next tap fires straight");
+});
+
+test("a Gun collected during an ordinary charge never takes the steering; its release fires straight", () => {
+  const { game, shooter, fire } = scene();
+  shooter.gunArmed = false;
+  fire(press);
+  game.pickups = [
+    { id: 1, type: "gun", x: shooter.x + 7, y: shooter.y, expiresAtTick: 1e6 },
+  ];
+  fire({ ...neutral, bomb: true });
+  assert.equal(shooter.gunArmed, true);
+  fire({ ...neutral, bomb: true, right: true });
+  assert.ok(shooter.angle > 0, "still steering");
+  assert.equal(shooter.gunAim, undefined);
+  assert.equal(toView(game).players[0]!.gunAim, undefined);
+  fire(release);
+  assert.equal(game.shots[0]!.weapon, "gun");
+  const tracer = [...game.bombs.values()][0]!;
+  assert.ok(
+    Math.abs(
+      Math.atan2(tracer.y - tracer.launchY, tracer.x - tracer.launchX) -
+        shooter.angle,
+    ) < 1e-9,
+  );
+});
+
+test("dying mid-aim drops the sight", () => {
+  const { game, shooter, fire, body, target } = scene();
+  fire(press);
+  target.trail = [body(shooter.x + 10)];
+  fire({ ...neutral, bomb: true });
+  assert.equal(shooter.alive, false);
+  assert.equal(shooter.gunAim, undefined);
+  assert.equal(game.shots.length, 0);
 });
 
 test("simultaneous opponents fire before deaths and checkpoint replay agrees with reversed map order", () => {
@@ -255,8 +436,8 @@ test("simultaneous opponents fire before deaths and checkpoint replay agrees wit
   assert.ok(restored);
   restored.players = new Map([...restored.players].reverse());
   const inputs = new Map([
-    ["p0", press],
-    ["p1", press],
+    ["p0", tap],
+    ["p1", tap],
   ]);
   assert.deepEqual(step(restored, inputs), step(game, inputs));
   assert.equal(game.players.get("p0")!.alive, false);
@@ -302,7 +483,7 @@ test("one hole cutting multiple owners allocates detached ids in stable slot ord
   const restored = decodeGameState(encodeGameState(game));
   assert.ok(restored);
   restored.players = new Map([...restored.players].reverse());
-  const inputs = new Map([["p0", press]]);
+  const inputs = new Map([["p0", tap]]);
   assert.deepEqual(step(restored, inputs), step(game, inputs));
   assert.equal(canonical(restored), canonical(game));
   assert.ok(target.trail[0]!.detached);

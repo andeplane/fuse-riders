@@ -340,7 +340,7 @@ export function makeRecording(
       game.tick >= player.bombReadyAtTick &&
       !held.gesture
     ) {
-      // A bullet is cast on the tick of the press; a shell leaves on the release, a tick later.
+      // Both leave on the release, a tick after the press: a bullet along its held sight, a shell along the heading.
       const lined = player.gunArmed
         ? linedUp(game, player, Infinity, 1, GUN_SIGHT, 8) ||
           (isObstacleMap(game.map) &&
