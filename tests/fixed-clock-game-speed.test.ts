@@ -23,9 +23,18 @@ import {
   decodeSnapshot,
   encodeSnapshot,
 } from "../src/online/snapshot.js";
-import { packMessage, unpackMessage } from "../src/online/packet.js";
-import { ACTION, BOT, JOIN } from "../src/engine/input-log.js";
-import type { RoomRuntime } from "../src/online/room-runtime.js";
+import {
+  encodePacket,
+  packMessage,
+  roomHash,
+  unpackMessage,
+} from "../src/online/packet.js";
+import { ACTION, BOT, JOIN, STEER } from "../src/engine/input-log.js";
+import {
+  BEHIND_STEPS,
+  CATCHUP_STEPS,
+  type RoomRuntime,
+} from "../src/online/room-runtime.js";
 
 /**
  * #258 N2: game speed is simulation steps per log tick, decided from folded state, and the shared clock never changes
@@ -350,7 +359,7 @@ test("a snapshot carries both counters, and the guard refuses a game clock the l
     "more steps than the log ticks could run",
   );
   assert.equal(withTick(game + 1), undefined, "fewer steps than log ticks");
-  assert.equal(RULES, "fuse-p2p-40");
+  assert.equal(RULES, "fuse-p2p-41");
   assert.equal(MAX_STEPS_PER_TICK, BOTS_ONLY_STEPS_PER_TICK);
 });
 
@@ -405,4 +414,404 @@ test("the confirmed tick handed to reports is in game time, so a decided round a
   assert.equal(w.completeTick(), at);
   assert.ok(w.confirmedGameTick() > at);
   assert.ok(w.confirmedGameTick() < w.state.game.tick);
+});
+
+// ---- Pacing by steps: a fast log tick costs three steps, so catch-up and rollback re-runs are budgeted in steps ----
+
+/** Host and guest who never steer and two bots on a clean network, run until only the bots race. */
+function fastPhase(): FakeNetwork {
+  const net = new FakeNetwork(
+    "host",
+    { loss: 0, baseMs: 20, jitterMs: 0, reliableMs: 20 },
+    7,
+  );
+  for (const id of HUMANS) {
+    const runtime = net.add(id, classicSettings(), { humanName: id });
+    runtime.start();
+    runtime.command({ type: "join", name: id });
+    net.step(1500);
+  }
+  const host = net.runtimes.get("host")!;
+  for (let bot = 0; bot < 2; bot++)
+    host.command({ type: "bot", action: "add" });
+  net.step(1500);
+  assert.ok(host.command({ type: "action", action: "start" }));
+  for (let i = 0; i < 4000 && !botsOnly(net); i++) net.step(10);
+  assert.ok(botsOnly(net), "the humans crashed and a bot races on");
+  return net;
+}
+function botsOnly(net: FakeNetwork): boolean {
+  const frame = net.frame("host");
+  return (
+    frame?.phase === "playing" &&
+    frame.players.every((p) => p.id.startsWith("bot:") || !p.alive) &&
+    frame.players.some((p) => p.id.startsWith("bot:") && p.alive)
+  );
+}
+/** Hide the guest until its clock is `gap` log ticks past its frozen world, still in the fast phase. */
+function hideFor(net: FakeNetwork, gap: number): RoomRuntime {
+  const guest = net.runtimes.get("guest")!;
+  net.setHidden("guest", true);
+  while (Math.floor(guest.metrics().clockTick) - guest.metrics().tick < gap)
+    net.step(10);
+  assert.ok(botsOnly(net), "the bots still race while the guest is hidden");
+  return guest;
+}
+const snapshotAsks = (net: FakeNetwork, since: number) =>
+  net.reliableLog.filter(
+    (m) => m.from === "guest" && m.type === "snapshotRequest" && m.at >= since,
+  ).length;
+
+test("a replica far behind in the fast phase catches up at no more than CATCHUP_STEPS steps per loop interval and converges", () => {
+  const net = fastPhase();
+  try {
+    // 120 fast log ticks are 360 steps: under BEHIND_STEPS, so the guest catches up rather than fetching a snapshot.
+    const guest = hideFor(net, 120);
+    const shownAt = net.now,
+      from = guest.metrics();
+    net.setHidden("guest", false);
+    const perInterval: number[] = [];
+    while (guest.metrics().tick < Math.floor(guest.metrics().clockTick) - 1) {
+      const before = guest.metrics().steps;
+      net.step(10); // Packets delivered in this interval, then the guest's loop pass: one budget window.
+      perInterval.push(guest.metrics().steps - before);
+      assert.ok(perInterval.length < 1000, "the guest caught up");
+    }
+    const caughtUp = guest.metrics();
+    assert.equal(snapshotAsks(net, shownAt), 0, "caught up, no snapshot");
+    assert.ok(
+      caughtUp.steps - from.steps >= 3 * 120,
+      `the backlog was fast: ${caughtUp.steps - from.steps} steps for ${caughtUp.tick - from.tick} log ticks`,
+    );
+    assert.ok(
+      Math.max(...perInterval) <= CATCHUP_STEPS,
+      `no interval ran more than ${CATCHUP_STEPS} steps: ${Math.max(...perInterval)}`,
+    );
+    assert.ok(
+      perInterval.length >= Math.ceil(360 / CATCHUP_STEPS),
+      "the catch-up spread over many passes",
+    );
+    // Converged: the same state hash at every tick both replicas reported past the guest's frozen world.
+    net.step(4000);
+    const common = [...(net.reportedHashes.get("host")?.keys() ?? [])].filter(
+      (tick) => tick > from.tick && net.reportedHashes.get("guest")?.has(tick),
+    );
+    assert.ok(common.length >= 3, "several confirmed ticks shared");
+    for (const tick of common)
+      assert.equal(
+        net.reportedHashes.get("guest")!.get(tick),
+        net.reportedHashes.get("host")!.get(tick),
+        `replicas disagree at log tick ${tick}`,
+      );
+    assert.equal(guest.metrics().mismatches, 0);
+  } finally {
+    for (const runtime of net.runtimes.values()) runtime.stop();
+  }
+});
+
+test("the snapshot threshold is BEHIND_STEPS estimated steps: a fast backlog past a third of BEHIND_STEPS log ticks resyncs", () => {
+  const threshold = BEHIND_STEPS / BOTS_ONLY_STEPS_PER_TICK; // 133⅓ fast log ticks
+  for (const [gap, resyncs] of [
+    [Math.floor(threshold) - 6, false],
+    [Math.ceil(threshold) + 6, true],
+  ] as const) {
+    const net = fastPhase();
+    try {
+      const guest = hideFor(net, gap);
+      const shownAt = net.now;
+      net.setHidden("guest", false);
+      net.step(10);
+      assert.equal(
+        snapshotAsks(net, shownAt) > 0,
+        resyncs,
+        `${gap} fast log ticks (${gap * BOTS_ONLY_STEPS_PER_TICK} steps) ${resyncs ? "fetch" : "do not fetch"} a snapshot`,
+      );
+      // Under the log-tick rule both gaps were far below 400 and neither would have.
+      assert.ok(gap < 400);
+      for (let i = 0; i < 400; i++) {
+        net.step(10);
+        const m = guest.metrics();
+        if (m.tick >= Math.floor(m.clockTick) - 1) break;
+      }
+      assert.ok(
+        guest.metrics().tick >= Math.floor(guest.metrics().clockTick) - 1,
+        "either way the guest is current again",
+      );
+    } finally {
+      for (const runtime of net.runtimes.values()) runtime.stop();
+    }
+  }
+});
+
+test("a deep rollback in the fast phase re-runs within the step budget, keeps the shown frames until it is done, and ends on the unbudgeted state", () => {
+  const build = () => {
+    const w = new World(
+      createRoomState("m", classicSettings()),
+      "creator",
+      "creator",
+    );
+    const creator = w.stream("creator", 1),
+      b = w.stream("b", 1);
+    creator.append(1, [JOIN, "b", "B", 0, "fox", 1]);
+    creator.append(1, [BOT, "add", "bot:1", "AI Hopper", 1]);
+    creator.append(1, [BOT, "add", "bot:2", "AI Nova", 2]);
+    creator.append(2, [ACTION, "start", "m"]);
+    const to = (tick: number) => {
+      creator.through = b.through = tick;
+      w.advance(tick);
+    };
+    to(COUNTDOWN_TICKS + 2);
+    eliminatePlayer(w.state.game, "b");
+    to(w.tick + 60);
+    assert.equal(w.state.game.phase, "playing", "the bots still race");
+    return { w, b };
+  };
+  const late = (w: World, b: { through: number }) =>
+    w.receive("b", [[1, w.tick - 38, STEER, 1]], 1, b.through, w.tick);
+
+  const reference = build();
+  const straight = late(reference.w, reference.b);
+  assert.ok(straight.rollbackTicks >= 38);
+
+  const { w, b } = build();
+  const at = w.tick,
+    shown = w.view()[0]!,
+    before = w.steps;
+  w.refill(CATCHUP_STEPS);
+  const result = late(w, b);
+  assert.equal(result.rollbackTicks, straight.rollbackTicks);
+  assert.ok(w.steps - before <= CATCHUP_STEPS, "the receive ran one budget");
+  assert.ok(!w.settled, "the rest of the re-run is owed");
+  let passes = 0;
+  while (!w.settled) {
+    assert.equal(w.tick, at, "the world's tick never goes back");
+    assert.equal(w.view()[0], shown, "the old frames stay until it is done");
+    w.refill(CATCHUP_STEPS);
+    const start = w.steps;
+    w.advance(at);
+    assert.ok(w.steps - start <= CATCHUP_STEPS);
+    passes++;
+  }
+  assert.ok(
+    passes >= (straight.rollbackTicks * 3) / CATCHUP_STEPS - 2,
+    `${straight.rollbackTicks} fast log ticks took ${passes} more passes`,
+  );
+  assert.equal(w.tick, at);
+  assert.notEqual(w.view()[0], shown, "the re-run's frames replace them");
+  assert.equal(w.view()[0]!.logTick, at);
+  assert.equal(hashRoomState(w.state), hashRoomState(reference.w.state));
+  assert.deepEqual(w.view()[0], reference.w.view()[0]);
+});
+
+/**
+ * Host, "able" and guest; able's fast packets reach the guest 1.7 s (34 ticks) late. One steering flip by able, sent a
+ * few ticks before something happens to the guest's own seat, reaches the guest after it and rolls it back to before
+ * that seat change, and the first budget window's re-run stops short of it: the owed re-run has the seat as it was.
+ */
+function lateRollback(): { net: FakeNetwork; flip: () => void } {
+  const net = new FakeNetwork(
+    "host",
+    {
+      loss: 0,
+      baseMs: 20,
+      jitterMs: 0,
+      reliableMs: 20,
+      oneWayMs: (from, to) => (from === "able" && to === "guest" ? 1700 : 20),
+    },
+    3,
+  );
+  for (const id of ["host", "able", "guest"]) {
+    net.add(id, classicSettings(), { humanName: id }).start();
+    net.step(1500);
+  }
+  for (const id of ["host", "able"])
+    net.runtimes.get(id)!.command({ type: "join", name: id });
+  net.step(1500);
+  let left = false,
+    seq = 0;
+  const flip = () => {
+    left = !left;
+    assert.ok(
+      net.runtimes.get("able")!.command({
+        type: "input",
+        seq: ++seq,
+        left,
+        right: false,
+        bomb: false,
+      }),
+    );
+  };
+  return { net, flip };
+}
+const bomb = (bombAction: "press" | "release", seq: number) =>
+  ({
+    type: "input",
+    seq,
+    left: false,
+    right: false,
+    bomb: bombAction === "press",
+    bombAction,
+  }) as const;
+/** Step until the guest owes a re-run: able's late flip has just rolled it back. */
+function untilOwed(net: FakeNetwork): void {
+  const guest = net.runtimes.get("guest")!,
+    rollbacks = guest.metrics().rollbacks;
+  for (let i = 0; i < 400; i++) {
+    net.step(10);
+    if (guest.metrics().rollbacks > rollbacks) {
+      assert.ok(!guest.metrics().settled, "the re-run is owed");
+      return;
+    }
+  }
+  assert.fail("the late flip never rolled the guest back");
+}
+/** Whether the guest's own newest frame shows it seated (and connected, or not). */
+const seated = (net: FakeNetwork, connected = true) =>
+  net
+    .frame("guest")
+    ?.players.some((p) => p.id === "guest" && p.connected === connected) ===
+  true;
+
+test("a release during a re-run that reaches back past this rider's own join is still logged: controls read the world's newest state, never the re-run", () => {
+  const { net, flip } = lateRollback();
+  try {
+    const guest = net.runtimes.get("guest")!;
+    flip();
+    net.step(400);
+    guest.command({ type: "join", name: "guest" });
+    for (let i = 0; i < 100 && !seated(net); i++) net.step(10);
+    assert.ok(seated(net));
+    assert.ok(guest.command(bomb("press", 1)), "the press is taken");
+    untilOwed(net);
+    const before = guest.metrics().streams.guest!.lastSeq;
+    assert.ok(guest.command(bomb("release", 2)), "the release is taken");
+    assert.equal(
+      guest.metrics().streams.guest!.lastSeq,
+      before + 1,
+      "and logged: the gesture ends",
+    );
+    net.step(1000);
+    assert.ok(guest.metrics().settled);
+    assert.ok(seated(net));
+  } finally {
+    for (const runtime of net.runtimes.values()) runtime.stop();
+  }
+});
+
+test("the tick loop's own check fetches a snapshot for a backlog past BEHIND_STEPS: a stall that clears all at once", () => {
+  // The guest hears the host 25 s late, so it stalls forty ticks past what it last heard; when the delay ends, the
+  // stall rule lets it reach its clock at once, 460 lobby ticks (one step each) ahead. The tab was never hidden.
+  let delayMs = 20;
+  const net = new FakeNetwork(
+    "host",
+    {
+      loss: 0,
+      baseMs: 20,
+      jitterMs: 0,
+      reliableMs: 20,
+      oneWayMs: (from, to) =>
+        from === "host" && to === "guest" ? delayMs : 20,
+    },
+    5,
+  );
+  try {
+    for (const id of ["host", "able", "guest"]) {
+      const runtime = net.add(id, classicSettings(), { humanName: id });
+      runtime.start();
+      runtime.command({ type: "join", name: id });
+      net.step(1500);
+    }
+    const guest = net.runtimes.get("guest")!,
+      delayedAt = net.now;
+    delayMs = 25_000;
+    net.step(25_000);
+    const stalled = guest.metrics();
+    assert.ok(
+      Math.floor(stalled.clockTick) - stalled.tick > BEHIND_STEPS,
+      `stalled ${Math.floor(stalled.clockTick) - stalled.tick} ticks behind its clock`,
+    );
+    assert.equal(snapshotAsks(net, delayedAt), 0, "no snapshot while stalled");
+    delayMs = 20;
+    const at = net.now;
+    net.step(200);
+    assert.ok(
+      snapshotAsks(net, at) > 0,
+      "the backlog is fetched, not replayed",
+    );
+    net.step(3000);
+    const m = guest.metrics();
+    assert.ok(m.tick >= Math.floor(m.clockTick) - 1, "current again");
+    assert.equal(m.mismatches, 0);
+  } finally {
+    for (const runtime of net.runtimes.values()) runtime.stop();
+  }
+});
+
+test("a loop pass that throws after advancing still opens the next step budget: the world keeps advancing, and the throw still escapes the pass", () => {
+  const net = new FakeNetwork(
+    "host",
+    { loss: 0, baseMs: 20, jitterMs: 0, reliableMs: 20 },
+    9,
+  );
+  try {
+    // The host manages without a seat, so a gap in its stream stalls nobody: only the guest rides, with two bots.
+    for (const id of ["host", "guest"]) {
+      net.add(id, classicSettings(), { humanName: id }).start();
+      net.step(1500);
+    }
+    const host = net.runtimes.get("host")!,
+      guest = net.runtimes.get("guest")!;
+    guest.command({ type: "join", name: "guest" });
+    for (let bot = 0; bot < 2; bot++)
+      host.command({ type: "bot", action: "add" });
+    net.step(1500);
+    assert.ok(host.command({ type: "action", action: "start" }));
+    net.step(500);
+    // A packet from the host skipping one entry opens a gap on the guest, whose loop then asks the transport about
+    // the host after it has advanced, on every pass until the gap closes; the transport throws there.
+    const clock = Math.floor(guest.metrics().clockTick),
+      after = guest.metrics().streams.host!.contiguous + 2;
+    net.transports.get("guest")!.events.fast(
+      "host",
+      encodePacket({
+        room: roomHash("AB42:host"),
+        from: "host",
+        generation: 1,
+        through: clock,
+        lastSeq: after,
+        entries: [[after, clock + 20, STEER, 0]],
+        sentAt: 0,
+        echoSentAt: 0,
+        echoHeld: 0,
+        clockTick: clock,
+        hash: null,
+      }),
+    );
+    assert.ok(guest.metrics().streams.host!.gap, "the gap is open");
+    // Silence the host's own packets, which would otherwise answer the gap from the receive path first.
+    net.muted.add("host");
+    net.transports.get("guest")!.failing.add("host");
+    const pass = net.ticks.get("guest")!;
+    let thrown = 0;
+    net.ticks.set("guest", () => {
+      try {
+        pass();
+      } catch {
+        thrown++;
+      }
+    });
+    const from = guest.metrics();
+    net.step(1000);
+    const to = guest.metrics();
+    assert.ok(
+      thrown >= 90,
+      `nearly every pass threw, and the throw escaped it: ${thrown}`,
+    );
+    assert.ok(
+      to.tick >= Math.floor(to.clockTick) - 1 && to.tick - from.tick >= 19,
+      `the world kept pace with its clock: ${from.tick} → ${to.tick}, clock ${to.clockTick.toFixed(1)}`,
+    );
+  } finally {
+    for (const runtime of net.runtimes.values()) runtime.stop();
+  }
 });

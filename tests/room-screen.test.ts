@@ -56,6 +56,7 @@ const input = (over: Partial<RoomScreenInput>): RoomScreenInput => ({
   role: "host",
   booted: true,
   joined: false,
+  watching: false,
   phase: "lobby",
   recapReady: false,
   shared: false,
@@ -767,4 +768,44 @@ test("every combination of role, seat, phase, recap, mode and device matches wha
             }
   // 4 roles × 2 seats × 6 phase/recap states × 2 modes × 7 devices, less the seated TVs.
   assert.equal(checked, 4 * 2 * 6 * 2 * 7 - 6 * 2 * 7);
+});
+
+test("a watcher is in the room, so an invited page that watches stops being a join card", () => {
+  const joiner = input({ role: "joiner", joined: false });
+  assert.equal(roomScreen(joiner).kind, "join");
+  const watcher = roomScreen({ ...joiner, watching: true });
+  assert.equal(
+    watcher.kind,
+    "lobby",
+    "it gets the lobby card like anyone in the room",
+  );
+  assert.equal(watcher.joining, false);
+  assert.deepEqual(
+    roomScreen({ ...joiner, watching: true, phase: "playing" }).kind,
+    "arena",
+    "and the arena once the race starts",
+  );
+  const phone = roomScreen({
+    ...joiner,
+    watching: true,
+    phase: "playing",
+    device: PHONE_LANDSCAPE,
+  });
+  assert.equal(
+    phone.mobile.active,
+    false,
+    "a watching phone is never the thirds controller: it holds no seat",
+  );
+  assert.equal(phone.arenaHidden, false, "it watches the arena instead");
+  const sharedWatcher = roomScreen({
+    ...joiner,
+    watching: true,
+    shared: true,
+    phase: "playing",
+  });
+  assert.equal(
+    sharedWatcher.controllerOnly,
+    false,
+    "and in a shared-TV room it watches rather than becoming a controller",
+  );
 });

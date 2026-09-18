@@ -49,7 +49,7 @@ The target is `engine` (pure rules), `net` (simulation coordination), `render` (
 
 ## Online data flow and recovery
 
-1. The browser creates or joins a short-code room through the room service. A member token identifies its seat; the creator capability authorizes room termination. Public room codes are rendezvous identifiers, not secrets.
+1. The browser creates or joins a short-code room through the room service. A member token identifies its seat; the creator capability authorizes room termination. Public room codes are rendezvous identifiers, not secrets. A member may take a seat or a place in the room's watching list (five each, plus a TV display); a spectator is a folded, listed member with no seat and no inputs ([design note](design/spectators.md)).
 2. The service admits members, publishes roster changes and forwards validated SDP/ICE signalling. WebRTC carries reliable control/snapshot messages and unreliable per-tick input packets directly between peers. There is no gameplay relay or TURN fallback.
 3. Each member records its own ordered input stream. `applyTick` applies permitted management entries, folds player inputs and bot inputs, then calls `driveGameTick`, which executes the simulation and round progression. Generation and sequence identify reconnects and ordering; a successful send does not prove application by another replica.
 4. `StreamLog` tracks retained entries, gaps and completeness. The runtime requests missing entries or rotates retained data. `World` retains rollback state and replays late inputs within its bounded history.

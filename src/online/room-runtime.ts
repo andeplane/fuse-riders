@@ -1,7 +1,8 @@
 import { StatusNotices } from "./status-notices.js";
 import { TICK_MS, TickClock } from "./clock.js";
-import { World, type Frame } from "./rollback.js";
+import { World, type Frame, type WorldEvent } from "./rollback.js";
 import { STALL_TICKS } from "./rollback.js";
+import { stepsPerTick } from "../engine/game.js";
 import { PACKET_ENTRIES } from "./stream.js";
 import {
   decodePacket,
@@ -19,9 +20,11 @@ import {
 } from "./snapshot.js";
 import {
   BOT_NAMES,
+  MAX_SPECTATORS,
   RULES,
   actingCreator,
   createRoomState,
+  memberConnected,
   reclaimable,
   successionOrder,
 } from "../engine/apply-tick.js";
@@ -36,6 +39,7 @@ import {
   PRESS,
   RELEASE,
   SETTINGS,
+  SPECTATOR,
   STEER,
 } from "../engine/input-log.js";
 import { isAvatarId, type AvatarId } from "../shared/avatars.js";
@@ -51,6 +55,8 @@ import type { RoomTransport, TransportEvents } from "fuse-network-fe";
 
 export type RoomCommand =
   | { type: "join"; name: string; avatarId?: AvatarId }
+  /** Take a place in the watching list instead of a seat: no inputs, no colour, no score. */
+  | { type: "spectate"; name: string }
   | {
       type: "input";
       seq: number;
@@ -99,6 +105,10 @@ export interface RuntimeMetrics {
   clockTick: number;
   rollbacks: number;
   rollbackTicks: number;
+  /** Simulation steps the current world has run (`World.steps`): catch-up, rollback re-runs and fast log ticks included. */
+  steps: number;
+  /** No rollback re-run is owed (`World.settled`). */
+  settled: boolean;
   rtt: Record<string, number>;
   heard: Record<string, number>;
   clock: ReturnType<TickClock["diagnostics"]>;
@@ -201,8 +211,10 @@ export const SNAPSHOT_BUFFER_LIMIT = 4_000_000,
   SNAPSHOT_SERVE_MS = 500;
 export const HASH_INTERVAL = 20,
   HASH_LAG = 40,
-  CATCHUP_TICKS = 8,
-  BEHIND_TICKS = 400,
+  /** Simulation steps per 10 ms loop interval, catch-up and rollback re-runs together (`World.refill`). */
+  CATCHUP_STEPS = 8,
+  /** Estimated steps of backlog past which a member fetches a snapshot instead of catching up (`RoomRuntime.behind`). */
+  BEHIND_STEPS = 400,
   NACK_INTERVAL_MS = 100,
   DIVERGENCE_WINDOW_MS = 60_000,
   DIVERGENCE_LIMIT = 3,
@@ -253,8 +265,15 @@ export class RoomRuntime {
   };
   private lastOwnTick = 0;
   private lastPacketTick = -1;
-  private lastFrameTick = -1;
-  private pendingJoin?: { name: string; avatarId?: AvatarId; sentAt: number };
+  /** The frame last handed to `state`: a rollback's re-run replaces the frames with new ones at the same tick. */
+  private lastFrame: Frame | undefined;
+  private pendingJoin?: {
+    name: string;
+    avatarId?: AvatarId;
+    /** Whether this asks for the watching list rather than a seat. */
+    spectator: boolean;
+    sentAt: number;
+  };
   private snapshotRequest?: { to: string; at: number; failures: number };
   private assembler?: SnapshotAssembler;
   private mismatches: number[] = [];
@@ -343,6 +362,7 @@ export class RoomRuntime {
       for (let index = 0; index < 4; index++)
         this.command({ type: "bot", action: "add" });
       this.command({ type: "action", action: "start" });
+      this.world!.refill(Infinity);
       this.world!.advance(this.lastOwnTick); // The first frame already seats everyone; the clock catches up within a tick.
       this.publish();
     }
@@ -410,15 +430,23 @@ export class RoomRuntime {
     this.noWorld.delete(id);
     if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
     const state = this.world?.state,
-      player = state?.game.players.get(id);
-    if (!this.manager || !player) return;
+      player = state?.game.players.get(id),
+      watcher = state?.spectators.get(id);
+    if (!this.manager || (!player && !watcher)) return;
+    // A watcher holds no seat, so the lobby frees its place outright and a live match keeps it listed but absent, as for a rider.
+    if (watcher) {
+      if (state!.game.phase === "lobby") this.append(SPECTATOR, "leave", id);
+      else if (watcher.connected)
+        this.append(PRESENCE, id, false, watcher.generation);
+      return;
+    }
     // A reload reaches here too: the service retires the old socket before it admits the new page. In the lobby that
     // frees the seat, and the page confirms its name on the join card. Mid-match it is absence, not departure: `LEAVE`
     // frees a seat at once in `roundOver` and `matchOver`, so a reload that landed just after the round ended lost the
     // seat inside that round. Absent riders are pruned when the next round starts, which leaves the page the whole
     // pause to come back, and they are logged present again once heard (`creatorDuties`).
     if (state!.game.phase === "lobby") this.append(LEAVE, id);
-    else if (player.connected)
+    else if (player!.connected)
       this.append(PRESENCE, id, false, state!.folds.get(id)?.generation ?? 0);
   }
   /** A link opening is only a hint: the transport admits sends once its own probes confirm the path, so the tick loop retries. */
@@ -452,6 +480,7 @@ export class RoomRuntime {
       avatarId?: unknown;
       error?: unknown;
       world?: unknown;
+      role?: unknown;
     };
     const member = this.members.get(id);
     if (!member) return;
@@ -498,11 +527,14 @@ export class RoomRuntime {
         return;
       case "join":
         if (this.manager && typeof data.name === "string") {
-          const error = this.join(
-            id,
-            data.name,
-            isAvatarId(data.avatarId) ? data.avatarId : undefined,
-          );
+          const error =
+            data.role === "spectator"
+              ? this.spectate(id, data.name)
+              : this.join(
+                  id,
+                  data.name,
+                  isAvatarId(data.avatarId) ? data.avatarId : undefined,
+                );
           if (error) this.transport!.send(id, { type: "error", error });
         }
         return;
@@ -596,16 +628,7 @@ export class RoomRuntime {
         member.lastPacketAt = heardAt;
       return;
     }
-    if (result.rollbackTicks > 0) this.lastFrameTick = -1;
-    for (const event of result.events)
-      this.deliver("event", () =>
-        this.callbacks.event(
-          event.event,
-          event.matchId,
-          event.round,
-          event.tick,
-        ),
-      );
+    this.deliverEvents(result.events);
     const stream = this.world.streams.get(id);
     if (stream?.gap && now - member.nackAt >= NACK_INTERVAL_MS) {
       member.nackAt = now;
@@ -621,6 +644,17 @@ export class RoomRuntime {
     if (packet.hash && id === this.authority())
       this.compareHash(packet.hash[0], packet.hash[1], now);
     if (result.rollbackTicks > 0) this.publish();
+  }
+  private deliverEvents(events: readonly WorldEvent[]): void {
+    for (const event of events)
+      this.deliver("event", () =>
+        this.callbacks.event(
+          event.event,
+          event.matchId,
+          event.round,
+          event.tick,
+        ),
+      );
   }
   private bump(id: string, member: Member, generation: number): void {
     if (generation > member.generation) member.generation = generation;
@@ -648,6 +682,7 @@ export class RoomRuntime {
       this.hostId,
       this.id,
     );
+    this.world.refill(CATCHUP_STEPS);
     this.world.stream(this.id, this.generation);
     // Nobody is seated in a fresh world, and a seat needs a link (`join` travels over it): the anchor is set for one
     // invariant — "since the first world" — not because anything here could be misjudged.
@@ -743,6 +778,7 @@ export class RoomRuntime {
     if (this.world) this.world.install(decoded.state);
     else {
       this.world = new World(decoded.state, this.hostId, this.id);
+      this.world.refill(CATCHUP_STEPS);
       // Not on a resync: a replica that already judged its members keeps the waits it started.
       this.judgingSince = this.deps.now();
     }
@@ -791,7 +827,7 @@ export class RoomRuntime {
     for (const [id, member] of this.members) this.ensureStream(id, member);
     this.lastOwnTick = Math.max(tick + 1, this.lastOwnTick);
     if (!carried.length) this.resetHeld();
-    this.lastFrameTick = -1;
+    this.lastFrame = undefined;
     this.lastPacketTick = -1;
     // A clock with no samples yet (the returning creator, whose clock nobody else corrects) joins the room's running
     // clock: the freshest peer clock reading, projected to now, else the snapshot tick plus half the request round trip.
@@ -860,6 +896,8 @@ export class RoomRuntime {
       member = from === this.id ? undefined : this.members.get(from);
     const generation = from === this.id ? this.generation : member?.generation;
     if (generation === undefined) return "Reconnect before joining";
+    if (this.world.state.spectators.has(from))
+      return "Stop watching before taking a seat";
     if (game.players.has(from)) {
       if (from === this.id) this.ensurePresence(from, this.selfMember());
       else this.ensurePresence(from, member!);
@@ -871,17 +909,45 @@ export class RoomRuntime {
     this.append(JOIN, from, name, slot, avatarId ?? "fox", generation);
     return;
   }
+  /**
+   * The other half of `join`: a place in the watching list rather than a seat. A watcher is a named member of the room —
+   * it is folded, it survives a reload and it ranks in the succession order — but it steers nothing, so nothing waits on
+   * its stream and it never reaches `step`.
+   */
+  private spectate(from: string, rawName: string): string | undefined {
+    if (!this.world) return "The room is still loading";
+    const name = seatRiderName(rawName);
+    if (!name) return `Choose a name (1–${MAX_RIDER_NAME} characters)`;
+    const state = this.world.state,
+      member = from === this.id ? undefined : this.members.get(from);
+    const generation = from === this.id ? this.generation : member?.generation;
+    if (generation === undefined) return "Reconnect before joining";
+    if (state.game.players.has(from)) return "Leave your seat before watching";
+    if (state.spectators.has(from)) {
+      this.ensurePresence(from, from === this.id ? this.selfMember() : member!);
+      return;
+    }
+    const pending = this.pending();
+    if (pending.ids.has(from)) return;
+    if (state.spectators.size + pending.watchers >= MAX_SPECTATORS)
+      return `Room is full (${MAX_SPECTATORS} spectators watching)`;
+    this.append(SPECTATOR, "join", from, name, generation);
+    return;
+  }
   /** Own management entries logged but not yet applied: seats they will take or free when their tick arrives. */
   private pending(): {
     slots: Set<number>;
     freed: Set<string>;
     ids: Set<string>;
     seats: number;
+    /** Net watchers this replica has logged but not yet folded, so a sixth is refused before the fifth applies. */
+    watchers: number;
   } {
     const slots = new Set<number>(),
       freed = new Set<string>(),
       ids = new Set<string>();
-    let seats = 0;
+    let seats = 0,
+      watchers = 0;
     for (const entry of this.own().entries.values()) {
       if (entry[1] <= this.world!.tick) continue;
       if (entry[2] === JOIN && !this.world!.state.game.players.has(entry[3])) {
@@ -895,9 +961,14 @@ export class RoomRuntime {
       } else if (entry[2] === LEAVE) {
         freed.add(entry[3]);
         seats--;
+      } else if (entry[2] === SPECTATOR) {
+        if (entry[3] === "join") {
+          ids.add(entry[4]);
+          watchers++;
+        } else watchers--;
       }
     }
-    return { slots, freed, ids, seats };
+    return { slots, freed, ids, seats, watchers };
   }
   /** A free seat, freeing a disconnected rider's seat between rounds first. */
   private claimSlot(): number {
@@ -937,9 +1008,17 @@ export class RoomRuntime {
     };
   }
   private ensurePresence(id: string, member: Member): void {
-    const player = this.world?.state.game.players.get(id);
-    if (!player || (member.generation === 0 && id !== this.id)) return;
-    const fold = this.world!.state.folds.get(id);
+    const state = this.world?.state;
+    if (!state || (member.generation === 0 && id !== this.id)) return;
+    const watcher = state.spectators.get(id);
+    if (watcher) {
+      if (watcher.connected && watcher.generation === member.generation) return;
+      this.logPresence(id, member, true);
+      return;
+    }
+    const player = state.game.players.get(id);
+    if (!player) return;
+    const fold = state.folds.get(id);
     if (player.connected && fold?.generation === member.generation) return;
     this.logPresence(id, member, true);
   }
@@ -973,25 +1052,22 @@ export class RoomRuntime {
       : now - from > ms;
   }
   private creatorDuties(now: number): void {
-    const game = this.world!.state.game,
+    const state = this.world!.state,
       stalled = now - this.lastLoopAt > DISCONNECT_MS / 2;
+    const listed = (id: string) =>
+      state.game.players.has(id) || state.spectators.has(id);
     for (const [id, member] of this.members) {
-      const player = game.players.get(id);
-      if (!player) continue;
+      if (!listed(id)) continue;
+      const connected = memberConnected(state, id);
       // Present again only on a packet; absent only on silence this runtime could have heard. In between — a link
       // just up and no packet yet — nothing is logged either way.
       const heard = now - member.lastPacketAt <= DISCONNECT_MS;
       // A creator whose own loop just stalled cannot tell silence from its own absence.
-      if (
-        player.connected &&
-        !stalled &&
-        this.silent(member, now, DISCONNECT_MS)
-      )
+      if (connected && !stalled && this.silent(member, now, DISCONNECT_MS))
         this.logPresence(id, member, false);
-      else if (!player.connected && heard) this.ensurePresence(id, member);
+      else if (!connected && heard) this.ensurePresence(id, member);
     }
-    const self = game.players.get(this.id);
-    if (self && !self.connected)
+    if (listed(this.id) && !memberConnected(state, this.id))
       this.ensurePresence(this.id, this.selfMember());
   }
   /**
@@ -1016,7 +1092,7 @@ export class RoomRuntime {
         now - this.members.get(id)!.lastPacketAt <= DISCONNECT_MS);
     if (order.slice(1).find(heard) !== this.id) return;
     for (const id of order.slice(0, mine)) {
-      if (!state.game.players.get(id)?.connected || !silent(id)) continue;
+      if (!memberConnected(state, id) || !silent(id)) continue;
       this.logPresence(id, this.members.get(id) ?? this.selfMember(), false);
     }
   }
@@ -1060,11 +1136,12 @@ export class RoomRuntime {
   }
   command(command: RoomCommand): boolean {
     if (!command || typeof command !== "object") return false;
-    if (command.type === "join") {
+    if (command.type === "join" || command.type === "spectate") {
       if (this.options.displayOnly) return false;
       this.pendingJoin = {
         name: command.name,
-        avatarId: command.avatarId,
+        avatarId: command.type === "join" ? command.avatarId : undefined,
+        spectator: command.type === "spectate",
         sentAt: -Infinity,
       };
       if (this.creator || this.solo) return this.sendJoin();
@@ -1165,7 +1242,9 @@ export class RoomRuntime {
     join.sentAt = this.deps.now();
     if (this.creator || this.solo) {
       if (!this.world) return true;
-      const error = this.join(this.id, join.name, join.avatarId);
+      const error = join.spectator
+        ? this.spectate(this.id, join.name)
+        : this.join(this.id, join.name, join.avatarId);
       if (error) {
         this.status.notice(error);
         this.pendingJoin = undefined;
@@ -1179,6 +1258,7 @@ export class RoomRuntime {
       type: "join",
       name: join.name,
       avatarId: join.avatarId,
+      ...(join.spectator ? { role: "spectator" } : {}),
     });
   }
   /** Edge-filtered: an unchanged frame produces no entry; each press is a new gesture in the log. */
@@ -1235,6 +1315,8 @@ export class RoomRuntime {
       }
       // Solo freezes the clock, so the released controls are folded in now rather than when the tab returns.
       if (this.solo && this.world) {
+        // Solo has no peers to roll back for and is at most a tick behind: this fold is not paced.
+        this.world.refill(Infinity);
         this.world.advance(this.lastOwnTick);
         this.clock.pause();
         this.publish();
@@ -1242,14 +1324,34 @@ export class RoomRuntime {
       return;
     }
     if (this.solo) this.clock.resume();
-    else if (
-      this.world &&
-      Math.floor(this.clock.tick()) - this.world.tick > BEHIND_TICKS
-    )
+    else if (this.world && this.behind(Math.floor(this.clock.tick())))
       this.requestSnapshot();
   }
+  /**
+   * Whether catching up to log tick `to` would cost more than `BEHIND_STEPS` steps: the gap in log ticks past the
+   * world's tick times the step count its state runs at now. It is an estimate (a gap can cross a phase change),
+   * and it keeps the snapshot path at the CPU cost it had when every log tick was one step. A rollback's owed re-run
+   * does not count: it is at most the rollback window, and a late entry alone must not turn into a resync, which it
+   * never did when the re-run finished inside `receive`.
+   */
+  private behind(to: number): boolean {
+    const world = this.world!;
+    return (
+      (to - world.tick) * stepsPerTick(world.state.game, world.state.bots) >
+      BEHIND_STEPS
+    );
+  }
   private lastLoopAt = -Infinity;
+  /** One loop pass, then a fresh step budget for the next 10 ms: rollbacks in packet handlers until then draw on it too. */
   private tickLoop(): void {
+    // A pass that throws after advancing must still open the next window, or the world would never step again.
+    try {
+      this.tickPass();
+    } finally {
+      this.world?.refill(CATCHUP_STEPS);
+    }
+  }
+  private tickPass(): void {
     const now = this.deps.now();
     this.status.refresh();
     if (this.transport && this.id === "") return;
@@ -1321,29 +1423,19 @@ export class RoomRuntime {
     )
       this.retrySnapshot();
     this.own().through = Math.max(this.own().through, tick);
-    if (!this.hiddenState && tick > world.tick) {
+    if (this.hiddenState && !world.settled)
+      // A hidden world does not advance, but a rollback's re-run is history it already reached: it finishes.
+      this.deliverEvents(world.advance(world.tick).events);
+    else if (!this.hiddenState && (tick > world.tick || !world.settled)) {
       // Only ticks the stall rule lets us reach count as a backlog: a world waiting on a rider is not behind, and a
       // long stall must end by catching up, never by fetching a snapshot from a peer that waited just as long.
       const reachable = Math.min(tick, world.stallBound().tick);
-      if (
-        this.transport &&
-        reachable - world.tick > BEHIND_TICKS &&
-        this.members.size > 0
-      ) {
+      if (this.transport && this.behind(reachable) && this.members.size > 0) {
         if (!this.snapshotRequest) this.requestSnapshot();
       } else {
-        const result = world.advance(
-          Math.min(tick, world.tick + CATCHUP_TICKS),
-        );
-        for (const event of result.events)
-          this.deliver("event", () =>
-            this.callbacks.event(
-              event.event,
-              event.matchId,
-              event.round,
-              event.tick,
-            ),
-          );
+        // The budget window (`CATCHUP_STEPS`, refilled after every pass) paces how far this pass gets.
+        const result = world.advance(tick);
+        this.deliverEvents(result.events);
         if (result.waitingFor !== undefined) {
           this.status.recurring(`Waiting for ${result.waitingFor}`);
         } else if (!this.outOfSync)
@@ -1360,7 +1452,10 @@ export class RoomRuntime {
       if (player && !player.connected && this.held.flags !== -1)
         this.resetHeld();
       if (this.pendingJoin) {
-        if (player?.connected) this.pendingJoin = undefined;
+        const admitted = this.pendingJoin.spectator
+          ? world.state.spectators.get(this.id)?.connected === true
+          : player?.connected === true;
+        if (admitted) this.pendingJoin = undefined;
         else if (now - this.pendingJoin.sentAt > JOIN_RETRY_MS) this.sendJoin();
       }
       const full =
@@ -1510,13 +1605,13 @@ export class RoomRuntime {
   }
   private publish(): void {
     const frame = this.world?.view()[0];
-    if (!frame || frame.tick === this.lastFrameTick) return;
+    if (!frame || frame === this.lastFrame) return;
     if (
       this.deliver("state", () =>
         this.callbacks.state(frame, this.world!.state.settings),
       )
     )
-      this.lastFrameTick = frame.tick;
+      this.lastFrame = frame;
   }
   /**
    * What to draw now, for presentation to place in time (`presentWorld` in `src/render/time/`): the two newest
@@ -1593,6 +1688,8 @@ export class RoomRuntime {
       clockTick: this.clock.tick(),
       rollbacks: this.world?.rollbacks ?? 0,
       rollbackTicks: this.world?.rollbackTicks ?? 0,
+      steps: this.world?.steps ?? 0,
+      settled: this.world?.settled ?? true,
       rtt: Object.fromEntries(
         [...this.members]
           .filter(([, member]) => member.rttMs !== undefined)

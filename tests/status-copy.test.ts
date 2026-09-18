@@ -68,11 +68,14 @@ test("a status that tells the player what to do is shown verbatim", () => {
     },
   );
   // The room service's refusal of a sixth guest: terminal for the page, so the player gets the way to try again.
-  assert.deepEqual(plainStatus("Room full (five players and TV)"), {
-    tone: "bad",
-    text: "Room full (five players and TV)",
-    retry: true,
-  });
+  assert.deepEqual(
+    plainStatus("Room full (five players, five spectators and TV)"),
+    {
+      tone: "bad",
+      text: "Room full (five players, five spectators and TV)",
+      retry: true,
+    },
+  );
   assert.deepEqual(plainStatus("Simulation out of sync — reload this page"), {
     tone: "bad",
     text: "Simulation out of sync — reload this page",

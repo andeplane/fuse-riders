@@ -132,7 +132,7 @@ const TRANSPORT_COPY = {
   linking: "Connected · linking riders",
   protocolChanged: "Game protocol changed — reload this page",
   roomEnded: "Room ended — return to menu to start again",
-  roomFull: "Room full (five players and TV)",
+  roomFull: "Room full (five players, five spectators and TV)",
   hostAbsent: "the creator is not in the room yet",
 };
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
@@ -398,6 +398,8 @@ export async function startOnline(): Promise<void> {
   let id = "",
     isHost = false,
     joined = false,
+    // This device has a place in the room's watching list: in the room, with no seat and no controls.
+    watching = false,
     settings = loadRoomSettings(storage),
     snapshot: WorldView | undefined;
   startAnalytics({ role, mode: settings.mode, solo });
@@ -467,6 +469,10 @@ export async function startOnline(): Promise<void> {
     (playerName, avatarId) =>
       runtime.command({ type: "join", name: playerName, avatarId }),
     accountUsername(),
+    // Solo is one rider and four AI on this device: there is no room to watch.
+    solo
+      ? undefined
+      : (playerName) => runtime.command({ type: "spectate", name: playerName }),
   );
   // Signed in on this browser but never opened MY GAMES here (an invite link on a new phone): learn the username while the form is still up.
   if (!solo && remembersSignIn() && !accountUsername())
@@ -708,7 +714,23 @@ export async function startOnline(): Promise<void> {
   const lobbyFooter = node("footer", "", "room-lobby-footer"),
     lobbyCount = node("span", "Waiting for riders");
   lobbyFooter.append(lobbyCount);
+  // The watching list: the rider row's height in neutral grey, no colour, no avatar and no READY, so the five seats stay
+  // the thing being read. It lives inside the rider column (the lobby grid has one cell per column) and CSS `order` keeps it last.
+  const lobbyWatchers = node("div", "", "room-watchers");
+  lobbyWatchers.hidden = true;
+  lobbyWatchers.setAttribute("aria-label", "Watching");
+  lobbyWatchers.append(node("p", "WATCHING", "room-watchers-title"));
+  lobbyRiders.append(lobbyWatchers);
   sharedLobby.append(lobbyCopy, qrCard, lobbyRiders, lobbyFooter);
+  const watcherEntries = new Map<
+    string,
+    {
+      entry: HTMLElement;
+      name: HTMLElement;
+      status: HTMLElement;
+      shown: string;
+    }
+  >();
   // Pointer and keyboard input bind to these buttons through ControllerPointerBindings, not the row's own handlers.
   const {
     element: controls,
@@ -882,6 +904,8 @@ export async function startOnline(): Promise<void> {
           joinForm.element.append(joinForm.submitButton);
           lobbyRiders.prepend(joinPanel);
         }
+        // Both ways in stay together wherever the seat invitation lands.
+        joinForm.submitButton.after(joinForm.spectateButton);
       }
     }
     const { desktop, sideStandings: side } = screen;
@@ -926,6 +950,7 @@ export async function startOnline(): Promise<void> {
     role,
     booted,
     joined,
+    watching,
     phase: snapshot?.phase ?? "lobby",
     recapReady: recapIsReady,
     shared: settings.mode === "shared",
@@ -1286,10 +1311,14 @@ export async function startOnline(): Promise<void> {
       if (!recapIsReady && dialog.open && recapOpen) dialog.close();
       if (state.phase === "lobby") lastRecap = "";
       joined = Boolean(player);
+      // A watcher is in the room, not queuing at its door: it gets the arena and the lists, never the join card or the controls.
+      const watcher = state.spectators.find((seat) => seat.id === id);
+      watching = Boolean(watcher);
       // The screen, once per frame: every class and every arena/lobby visibility below follows from it.
       showScreen(roomScreen(screenInput()));
       const view = presentRoom({
         state,
+        spectators: state.spectators,
         playerId: id,
         host: isHost,
         replacedHost,
@@ -1313,6 +1342,7 @@ export async function startOnline(): Promise<void> {
         dialog.close();
       controls.hidden = view.controlsHidden;
       // A rider the room still lists as offline (page reload mid-round) reconnects by itself; anyone absent goes through the join card.
+      // A watcher the room still lists does the same, asking for its place in the watching list back rather than for a seat.
       if (player && !player.connected && !displayOnly) {
         if (!rejoinPending) {
           rejoinPending = true;
@@ -1321,6 +1351,11 @@ export async function startOnline(): Promise<void> {
             name: player.name,
             avatarId: player.avatarId,
           });
+        }
+      } else if (watcher && !watcher.connected && !displayOnly) {
+        if (!rejoinPending) {
+          rejoinPending = true;
+          runtime.command({ type: "spectate", name: watcher.name });
         }
       } else rejoinPending = false;
       lobbyCount.textContent = view.lobby.count;
@@ -1333,6 +1368,36 @@ export async function startOnline(): Promise<void> {
           avatar: p.avatarId,
         })),
       );
+      lobbyWatchers.hidden = view.lobby.watchersHidden;
+      for (const [watcherId, row] of watcherEntries)
+        if (!view.lobby.watchers.some((seat) => seat.id === watcherId)) {
+          row.entry.remove();
+          watcherEntries.delete(watcherId);
+        }
+      for (const seat of view.lobby.watchers) {
+        let row = watcherEntries.get(seat.id);
+        if (!row) {
+          const entry = node("div", "", "room-rider room-watcher"),
+            glyph = node("span", "👁", "watcher-glyph"),
+            watcherName = node("strong"),
+            watcherStatus = node("small"),
+            info = node("div");
+          glyph.setAttribute("aria-hidden", "true");
+          info.append(watcherName, watcherStatus);
+          entry.append(glyph, info);
+          row = {
+            entry,
+            name: watcherName,
+            status: watcherStatus,
+            shown: "",
+          };
+          watcherEntries.set(seat.id, row);
+          lobbyWatchers.append(entry);
+        }
+        if (row.shown !== seat.name)
+          row.name.textContent = row.shown = seat.name;
+        row.status.textContent = seat.status;
+      }
       if (!screen.arenaHidden)
         replay.observe(state, state.matchId, performance.now());
       if (

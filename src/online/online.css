@@ -1362,6 +1362,46 @@
   padding: 1.25rem;
   border: 0.0625rem dashed #334567;
 }
+/* The watching list keeps the rider row's shape in neutral grey: in the room, plainly, without competing with the five seats. */
+.room-watchers {
+  order: 2;
+  display: grid;
+  gap: 0.5625rem;
+  min-width: 0;
+  width: 100%;
+  margin-top: 0.3125rem;
+  padding-top: 0.75rem;
+  border-top: 0.0625rem solid #24364f;
+}
+.room-watchers-title {
+  margin: 0;
+  color: #8ba3c0;
+  font-size: 0.625rem;
+  font-weight: bold;
+  letter-spacing: 0.1875rem;
+}
+.room-watcher {
+  border-color: #24364f;
+  background: #020815;
+}
+.room-watcher .watcher-glyph {
+  width: 2.625rem;
+  height: 2.625rem;
+  flex: 0 0 2.625rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius);
+  border: 0.0625rem solid #334567;
+  font-size: 1.125rem;
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+.room-watcher strong {
+  color: #b9d2e8;
+}
+.room-watcher small {
+  color: #8ba3c0;
+}
 .room-lobby-footer {
   grid-column: 1/-1;
   display: flex;
@@ -2151,11 +2191,27 @@
   font-weight: bold;
   letter-spacing: 0.08em;
 }
-.room-riders .online-join > button:not(.avatar-current) {
+.room-riders .online-join > button:not(.avatar-current):not(.join-spectate) {
   min-height: 2.75rem;
   background: var(--fui-cyan-deep);
   color: #061126;
   font-weight: bold;
+}
+/* The second way in sits under JOIN AS PLAYER as an outline button with no glow, so the seat stays the obvious choice. */
+.online-join .join-spectate {
+  grid-column: 1/-1;
+  min-height: 2.25rem;
+  background: transparent;
+  border: 0.0625rem solid #334567;
+  color: #8ba3c0;
+  font-size: 0.6875rem;
+  font-weight: normal;
+  letter-spacing: 0.08em;
+  box-shadow: none;
+}
+.online-join .join-spectate:hover:not(:disabled) {
+  border-color: #16e7ff;
+  color: #cfe8ff;
 }
 @media (max-width: 600px) {
   .room-lobby .room-riders:has(.online-join:not([hidden])) {
