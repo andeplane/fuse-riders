@@ -108,17 +108,17 @@ up at the step budget instead of fetching again.
 one way. The 150 s case runs a minute at 1 Hz, then the once-a-minute cadence (brought forward from Chrome's five minutes to keep
 the test cheap in CI; an earlier six-minute run with the five-minute onset gave 104–120 flips before and 0 after). "Before" is `origin/main` `428fe12` with only the seam; "after" is this change.
 
-| Scenario                                                                 | Before (main 428fe12)                                    | After                                   |
-| ------------------------------------------------------------------------ | -------------------------------------------------------- | --------------------------------------- |
-| Rider hidden 3 s / 30 s / 150 s in the lobby                             | presence flips 2 / 14 / 25                               | 0 flips, seat kept, converges, one hash |
-| Rider hidden 3 s / 30 s / 150 s from the countdown                       | flips 2 / 15 / 29                                        | 0, kept, converges                      |
-| Rider hidden 3 s / 30 s / 150 s in play                                  | 0 (by chance) / 14 / 31                                  | 0, kept, converges                      |
-| Rider hidden 3 s / 30 s / 150 s in the bots-only fast phase              | flips 4 / 12 / 27                                        | 0, kept, converges                      |
-| Creator hides, then the acting creator (joiner admitted meanwhile)       | passed                                                   | passes                                  |
-| Two riders hidden at once for 30 s                                       | flips 16 and 12                                          | 0 and 0, both back in their seats       |
-| Sole hidden world holder, the other rider reloads, holder returns        | no world while hidden; after return wedged at 113 vs 129 | no frozen world; recovers on return     |
-| Hidden rider rides on, dies, and is placed in the next round             | passed                                                   | passes                                  |
-| Existing hidden-guest tests in `room-runtime.test.ts` with the 1 Hz seam | pass (the old 3× catch-up no longer reproduces)          | pass                                    |
+| Scenario                                                                 | Before (main 428fe12)                                                     | After                                   |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------- |
+| Rider hidden 3 s / 30 s / 150 s in the lobby                             | presence flips 2 / 14 / 25                                                | 0 flips, seat kept, converges, one hash |
+| Rider hidden 3 s / 30 s / 150 s from the countdown                       | flips 2 / 15 / 29                                                         | 0, kept, converges                      |
+| Rider hidden 3 s / 30 s / 150 s in play                                  | 0 (by chance) / 14 / 31                                                   | 0, kept, converges                      |
+| Riders hidden 3 s and 150 s at once from the bots-only fast phase        | flips 2 and 23 (an earlier one-rider run: 4 / 12 / 27 for 3 / 30 / 150 s) | 0 and 0, kept, converges                |
+| Creator hides, then the acting creator (joiner admitted meanwhile)       | passed                                                                    | passes                                  |
+| Two riders hidden at once for 30 s                                       | flips 16 and 12                                                           | 0 and 0, both back in their seats       |
+| Sole hidden world holder, the other rider reloads, holder returns        | no world while hidden; after return wedged at 113 vs 129                  | no frozen world; recovers on return     |
+| Hidden rider rides on, dies, and is placed in the next round             | passed                                                                    | passes                                  |
+| Existing hidden-guest tests in `room-runtime.test.ts` with the 1 Hz seam | pass (the old 3× catch-up no longer reproduces)                           | pass                                    |
 
 Desktop fake timing is not physical-phone evidence. The browser check in the pull request covers headless Chromium's
 `visibilitychange` and page lifecycle freeze on one machine.

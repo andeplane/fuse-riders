@@ -149,7 +149,8 @@ function enter(r: Room, phase: Phase) {
 
 // The long case spends a minute at 1 Hz and then over a minute at the once-a-minute cadence.
 const DURATIONS = [3000, 30_000, 150_000] as const;
-const PHASES: Phase[] = ["lobby", "countdown", "playing", "fast"];
+// The fast phase takes a room of bots and a long ride into the walls to reach, so its durations share one room (below).
+const PHASES: Phase[] = ["lobby", "countdown", "playing"];
 for (const phase of PHASES)
   for (const hiddenMs of DURATIONS)
     test(`a rider hidden ${hiddenMs / 1000} s from the ${phase} keeps a steady seat, the room plays on, and it converges on return`, () => {
@@ -175,6 +176,41 @@ for (const phase of PHASES)
       assert.ok(back?.connected, "back and present");
       for (const runtime of r.runtimes.values()) runtime.stop();
     });
+
+test("riders hidden 3 s and 150 s from the bots-only fast phase keep steady seats, the room plays on, and they converge on return", () => {
+  // One room for both (reaching the fast phase is the expensive part); the long hide passes the 30 s mark as well.
+  const r = room(3, 2);
+  enter(r, "fast");
+  const hiders: [string, number][] = [
+    [GUESTS[0]!, 3000],
+    [GUESTS[1]!, 150_000],
+  ];
+  for (const [id] of hiders) r.net.setHidden(id, true);
+  const flips = new Map(hiders.map(([id]) => [id, 0]));
+  const last = new Map(
+    hiders.map(([id]) => [id, seated(r, HOST, id)?.connected]),
+  );
+  const from = frame(r, HOST).logTick;
+  for (let elapsed = 0; elapsed < 150_000; elapsed += 50) {
+    r.net.step(50);
+    for (const [id, ms] of hiders) {
+      const seat = seated(r, HOST, id);
+      assert.ok(seat, `${id} keeps its seat`);
+      if (seat.connected !== last.get(id)) flips.set(id, flips.get(id)! + 1);
+      last.set(id, seat.connected);
+      if (elapsed + 50 === ms) r.net.setHidden(id, false);
+    }
+  }
+  assert.deepEqual([...flips.values()], [0, 0], "no presence flaps");
+  assert.ok(
+    frame(r, HOST).logTick - from >= 150_000 / TICK_MS - 20,
+    "the room played on",
+  );
+  converge(r, [HOST, ...GUESTS.slice(0, 2)]);
+  for (const [id] of hiders)
+    assert.ok(seated(r, HOST, id)?.connected, `${id} back and present`);
+  for (const runtime of r.runtimes.values()) runtime.stop();
+});
 
 test("the creator hides, then the acting creator: management moves down the order, and both come back to their seats", () => {
   const r = room(3);
