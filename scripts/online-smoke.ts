@@ -531,8 +531,18 @@ try {
     .getByRole("button", { name: "SAVE SETTINGS", exact: true })
     .click();
   const phones = [guest, ...riders].slice(0, 2);
-  for (const page of phones)
-    await page.locator(".online-arena").waitFor({ state: "hidden" });
+  // Shared-TV phones keep the blurred arena behind the lobby; it hides once the race starts.
+  for (const page of phones) {
+    await page.locator(".online-arena").waitFor({ state: "visible" });
+    assert.ok(
+      await page
+        .locator(".online-arena")
+        .evaluate((element) =>
+          getComputedStyle(element).filter.includes("blur"),
+        ),
+      "phone lobby retains the blurred scene",
+    );
+  }
   const displayContext = await browser.newContext();
   displayContext.setDefaultTimeout(smokeTimeout(30000));
   const display = await displayContext.newPage();
@@ -557,6 +567,8 @@ try {
   await host.getByRole("button", { name: "START RACE", exact: true }).click();
   await display.locator(".shared-lobby").waitFor({ state: "hidden" });
   await display.locator(".online-arena").waitFor({ state: "visible" });
+  for (const page of phones)
+    await page.locator(".online-arena").waitFor({ state: "hidden" });
   // Controller phones steer riders the TV simulates: a held left third turns each rider on the display.
   await waitPhase(display, ["playing"], 40000);
   for (const [index, page] of phones.entries()) {
