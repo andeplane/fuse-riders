@@ -7,11 +7,13 @@ import {
   MAX_ROUNDS,
   MAX_TURN_TICKS,
   MAX_WATCHERS,
+  MIN_TURN_TICKS,
   WINS_NEEDED,
   isAvatar,
   parseSettings,
   playerKey,
   players,
+  validMatchId,
   validName,
   type DiceRoom,
   type PlayerStats,
@@ -29,7 +31,15 @@ const MAX_BOT_DELAY = 20;
 
 export function encodeRoom(room: DiceRoom): unknown[] {
   return [
-    [room.matchId, room.round, room.stage, room.rng, room.turnNo, room.rolls],
+    [
+      room.matchId,
+      room.round,
+      room.stage,
+      room.rng,
+      room.turnNo,
+      room.rolls,
+      room.turnTicks,
+    ],
     players(room)
       .concat([...room.seats.values()].filter((seat) => seat.watcher))
       .map((seat) => [
@@ -67,6 +77,8 @@ export function encodeRoom(room: DiceRoom): unknown[] {
         record.winnerId,
         record.scores,
         record.tick,
+        record.present,
+        record.finishers,
       ]),
       Object.entries(room.stats).map(([id, stats]) => [
         id,
@@ -128,6 +140,25 @@ function counts(
   return Object.fromEntries(entries) as Record<string, number>;
 }
 
+/** A sorted list of distinct known players, at most a room's seats: who was present when a round was decided. */
+function idList(
+  raw: unknown,
+  known: ReadonlySet<string>,
+): string[] | undefined {
+  if (
+    !Array.isArray(raw) ||
+    raw.length > CAPACITY ||
+    !raw.every(
+      (id, index) =>
+        typeof id === "string" &&
+        known.has(id) &&
+        (index === 0 || (raw[index - 1] as string) < id),
+    )
+  )
+    return;
+  return [...(raw as string[])];
+}
+
 export function decodeRoom(
   fields: readonly unknown[],
   tick: number,
@@ -136,7 +167,7 @@ export function decodeRoom(
   const [header, rawSeats, rawSettings, rawTurn, tallies] = fields;
   if (
     !Array.isArray(header) ||
-    header.length !== 6 ||
+    header.length !== 7 ||
     !Array.isArray(rawSeats) ||
     rawSeats.length > CAPACITY + MAX_WATCHERS ||
     !Array.isArray(rawTurn) ||
@@ -145,11 +176,10 @@ export function decodeRoom(
     tallies.length !== 6
   )
     return;
-  const [matchId, round, stage, rng, turnNo, rolls] = header;
+  const [matchId, round, stage, rng, turnNo, rolls, turnTicks] = header;
   const settings = parseSettings(rawSettings);
   if (
-    typeof matchId !== "string" ||
-    !/^[\x21-\x7e]{1,64}$/.test(matchId) ||
+    !validMatchId(matchId) ||
     !uint32(round) ||
     round < 1 ||
     round > MAX_ROUNDS ||
@@ -157,6 +187,9 @@ export function decodeRoom(
     !uint32(rng) ||
     !uint32(turnNo) ||
     !uint32(rolls) ||
+    !uint32(turnTicks) ||
+    turnTicks < MIN_TURN_TICKS ||
+    turnTicks > MAX_TURN_TICKS ||
     !settings
   )
     return;
@@ -206,10 +239,16 @@ export function decodeRoom(
   if (!scores || !wins || !played) return;
   const history: RoundRecord[] = [];
   for (const raw of rawHistory) {
-    if (!Array.isArray(raw) || raw.length !== 4) return;
-    const [at, winnerId, roundScores, decidedAt] = raw;
-    const decided = counts(roundScores, known, MAX_POINTS);
+    if (!Array.isArray(raw) || raw.length !== 6) return;
+    const [at, winnerId, roundScores, decidedAt, rawPresent, rawFinishers] =
+      raw;
+    const decided = counts(roundScores, known, MAX_POINTS),
+      present = idList(rawPresent, known),
+      finishers = idList(rawFinishers, known);
     if (
+      !present ||
+      !finishers ||
+      !finishers.every((id) => present.includes(id)) ||
       !uint32(at) ||
       at < 1 ||
       at > round ||
@@ -227,6 +266,8 @@ export function decodeRoom(
       winnerId: winnerId as string,
       tick: decidedAt,
       scores: decided,
+      present,
+      finishers,
     });
   }
   // Anyone who took a turn: seated now, or remembered from a round.
@@ -279,10 +320,13 @@ export function decodeRoom(
     !optionalId(roundWinner) ||
     (roundWinner !== "" && !known.has(roundWinner)) ||
     !optionalId(winner) ||
-    // A winner exactly when the match is over, and only one with the round wins for it.
-    (stage === "over") !==
-      (winner !== "" && (wins[winner] ?? 0) >= WINS_NEEDED) ||
-    (winner !== "" && stage !== "over") ||
+    // A winner exactly when the match is over: one with the round wins for it, or the leader of a match that ran to
+    // `MAX_ROUNDS` (`leader` in the rules).
+    (stage === "over") !== (winner !== "") ||
+    (winner !== "" &&
+      (!known.has(winner) ||
+        ((wins[winner] ?? 0) < WINS_NEEDED &&
+          history.length !== MAX_ROUNDS))) ||
     !uint32(resumeAt) ||
     resumeAt > tick + BETWEEN_TICKS ||
     (turn !== "" && turnNo === 0) ||
@@ -299,6 +343,7 @@ export function decodeRoom(
     stage: stage as Stage,
     seats,
     settings,
+    turnTicks,
     rng,
     turnNo,
     rolls,

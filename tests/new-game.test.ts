@@ -4,7 +4,13 @@ import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { camelCase, newGame, pascalCase, rename } from "../scripts/new-game.js";
+import {
+  camelCase,
+  newGame,
+  pascalCase,
+  rename,
+  takenNames,
+} from "../scripts/new-game.js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -68,11 +74,37 @@ test("new-game copies the dice template to a renamed game whose own tests pass",
 
     assert.throws(() => newGame("snake-eyes", dir), /already exists/);
     assert.throws(() => newGame("dice", dir), /taken/);
+    // Workspace directories and package names, the root package and its dependencies.
+    for (const name of [
+      "fuse-ui",
+      "fuse-netcode",
+      "fuse-riders",
+      "vite",
+      "ws",
+      "jose",
+      "tsx",
+    ])
+      assert.throws(() => newGame(name, dir), /taken/, name);
     for (const bad of ["Snake", "1up", "a_b", "a--b", "a-", "", "x".repeat(33)])
       assert.throws(() => newGame(bad, dir), /not a game id/, bad);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("taken names come from the root manifest and every workspace", () => {
+  const taken = takenNames(root);
+  for (const name of [
+    "fuse-riders",
+    "fuse-ui",
+    "fuse-network-be",
+    "dice",
+    "vite",
+    "ws",
+    "phaser",
+  ])
+    assert.ok(taken.has(name), name);
+  assert.equal(taken.has("snake-eyes"), false);
 });
 
 test("the copied game module is the template under its new id", async () => {

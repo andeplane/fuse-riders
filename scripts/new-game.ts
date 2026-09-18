@@ -17,6 +17,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const TEMPLATE = "dice";
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 /** A game id as the room service and the platform accept it: lowercase, starting with a letter, at most 32 characters. */
 export const GAME_ID = /^[a-z][a-z0-9-]{0,31}$/;
 
@@ -50,17 +51,63 @@ function files(root: string): string[] {
   });
 }
 
+interface Manifest {
+  name?: string;
+  workspaces?: string[];
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+}
+const manifest = (path: string): Manifest =>
+  JSON.parse(readFileSync(path, "utf8")) as Manifest;
+
 /**
- * Copies `<gamesDir>/dice` to `<gamesDir>/<id>`. Refuses an id the platform would refuse, the template's own id, and
- * a game that already exists. Returns the files written, relative to the new game.
+ * Names a new workspace must not take in the repo at `root`: the root package's name, every dependency it declares
+ * (a workspace named `vite` would shadow the real one), and each workspace's directory and package name.
  */
-export function newGame(id: string, gamesDir: string): string[] {
+export function takenNames(root: string): Set<string> {
+  const top = manifest(join(root, "package.json"));
+  const taken = new Set<string>([
+    ...(top.name ? [top.name] : []),
+    ...Object.keys(top.dependencies ?? {}),
+    ...Object.keys(top.devDependencies ?? {}),
+    ...Object.keys(top.peerDependencies ?? {}),
+    ...Object.keys(top.optionalDependencies ?? {}),
+  ]);
+  for (const pattern of top.workspaces ?? []) {
+    const dirs = pattern.endsWith("/*")
+      ? readdirSync(join(root, pattern.slice(0, -2)))
+          .map((name) => join(root, pattern.slice(0, -2), name))
+          .filter((path) => statSync(path).isDirectory())
+      : [join(root, pattern)];
+    for (const dir of dirs) {
+      taken.add(relative(dirname(dir), dir));
+      const file = join(dir, "package.json");
+      const name = existsSync(file) ? manifest(file).name : undefined;
+      if (name) taken.add(name);
+    }
+  }
+  return taken;
+}
+
+/**
+ * Copies `<gamesDir>/dice` to `<gamesDir>/<id>`. Refuses an id the platform would refuse, a name the repo at `root`
+ * already uses (`takenNames`), and a game that already exists. Returns the files written, relative to the new game.
+ */
+export function newGame(
+  id: string,
+  gamesDir: string,
+  root: string = ROOT,
+): string[] {
   if (!GAME_ID.test(id) || id.endsWith("-") || id.includes("--"))
     throw new Error(
       `"${id}" is not a game id: lowercase letters, digits and single hyphens, starting with a letter, at most 32 characters`,
     );
-  if (id === TEMPLATE || id === "fuse-riders")
-    throw new Error(`"${id}" is taken`);
+  if (id === TEMPLATE || takenNames(root).has(id))
+    throw new Error(
+      `"${id}" is taken: a workspace or a dependency of the root package.json already has that name`,
+    );
   const from = join(gamesDir, TEMPLATE),
     to = join(gamesDir, id);
   if (!existsSync(from)) throw new Error(`no template at ${from}`);

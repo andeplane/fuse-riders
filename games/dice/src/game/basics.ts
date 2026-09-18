@@ -6,7 +6,11 @@ export const TARGET = 50;
 export const WINS_NEEDED = 2;
 /** Seats per room: 2–5 players, bots included. */
 export const CAPACITY = 5;
-/** A round every seat but one can win before someone reaches `WINS_NEEDED`, plus the deciding one. */
+/**
+ * The most rounds a match plays. With a fixed roster someone reaches `WINS_NEEDED` by then (every seat but one wins
+ * `WINS_NEEDED - 1`, then the deciding round); with seats coming and going it could run on, so the round that reaches
+ * this bound ends the match, won by the leader (`leader` in the rules).
+ */
 export const MAX_ROUNDS = CAPACITY * (WINS_NEEDED - 1) + 1;
 /** The most one turn or one round's bank can hold; far past anything a legal game reaches. */
 export const MAX_POINTS = 10_000;
