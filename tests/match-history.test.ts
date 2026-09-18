@@ -21,7 +21,7 @@ import {
 } from "../src/service/history.js";
 import { MemoryRoomDatabase } from "fuse-network-be";
 import { MemoryHistoryDatabase } from "../src/service/memory-history.js";
-import { RoomStore, digest, peerId } from "fuse-network-be";
+import { RoomStore, authFrame, digest, peerId } from "fuse-network-be";
 
 const PROJECT = "fuse-test-project";
 const COLORS = ["#22d3ee", "#ff4fa3", "#a3e635", "#fb923c", "#a78bfa"];
@@ -727,10 +727,11 @@ test("the HTTP surface: a report needs a seat, history needs a sign-in, and a ba
   const join = (code: string, value: string) =>
     new Promise<void>((resolve, reject) => {
       const socket = new WebSocket(
-        `ws://127.0.0.1:${port}/api/rooms/${code}/ws?token=${value}`,
+        `ws://127.0.0.1:${port}/api/rooms/${code}/ws`,
         { origin },
       );
       sockets.push(socket);
+      socket.once("open", () => socket.send(authFrame(value)));
       socket.once("message", () => resolve());
       socket.once("error", reject);
     });

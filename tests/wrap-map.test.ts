@@ -526,13 +526,18 @@ test("a wrap round survives a checkpoint, and replays to the same state afterwar
   assert.deepEqual(toView(restored!), toView(game));
 });
 
-test("rotation still visits only the maps with scenery", () => {
+test("rotation visits the walled maps and neither wrap nor cross", () => {
   const visited = new Set(
     Array.from({ length: 12 }, (_, round) =>
       chooseArenaMap("rotate", 5, round + 1),
     ),
   );
-  assert.deepEqual([...visited].sort(), ["city", "desert", "forest"]);
+  assert.deepEqual([...visited].sort(), [
+    "city",
+    "classic",
+    "desert",
+    "forest",
+  ]);
 });
 
 test("presentation follows a rider through the edge instead of sweeping it back across the board", () => {

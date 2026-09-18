@@ -155,6 +155,7 @@ const TRANSPORT_COPY = {
   linking: "Connected · linking riders",
   protocolChanged: "Game protocol changed — reload this page",
   roomEnded: "Room ended — return to menu to start again",
+  roomFull: "Room full (five players and TV)",
   hostAbsent: "the creator is not in the room yet",
 };
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
