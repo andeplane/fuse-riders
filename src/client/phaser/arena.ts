@@ -70,6 +70,8 @@ export interface ArenaMetrics {
   renderMs: number;
   automaticLoopRunning: boolean;
   trailHistoryBuilds: number;
+  /** False when Phaser's texture READY listeners changed shape and the #127 guard could not install. */
+  defaultTextureGuard: boolean;
 }
 export interface PhaserArena {
   ready: Promise<void>;
@@ -89,11 +91,11 @@ export interface PhaserArena {
 
 /**
  * A navigation can abort the embedded default images Phaser decodes at boot. Its texture manager still emits READY,
- * and the WebGL renderer then reads `__DEFAULT` and throws (#127). Take over the two READY listeners Phaser 3.90
+ * and the WebGL renderer then reads `__DEFAULT` and throws (#127). Take over the two READY listeners Phaser
  * registers (renderer boot, then game start) and run them, in that order, only when the default textures exist.
  * A Phaser whose boot does not match is left untouched.
  */
-function guardDefaultTextures(game: Phaser.Game, failed: () => void): void {
+function guardDefaultTextures(game: Phaser.Game, failed: () => void): boolean {
   const textures = game.textures;
   const READY = Phaser.Textures.Events.READY;
   const renderer = game.renderer as unknown as { boot?: () => void } | null;
@@ -105,7 +107,7 @@ function guardDefaultTextures(game: Phaser.Game, failed: () => void): void {
     listeners[0] !== renderer.boot ||
     listeners[1] !== internal.texturesReady
   )
-    return;
+    return false;
   textures.off(READY);
   textures.once(READY, () => {
     if (
@@ -122,6 +124,7 @@ function guardDefaultTextures(game: Phaser.Game, failed: () => void): void {
     renderer.boot!.call(renderer);
     internal.texturesReady!.call(game);
   });
+  return true;
 }
 
 /** One external presentation clock; Phaser physics and input are deliberately disabled. */
@@ -173,7 +176,7 @@ export function createPhaserArena(
     fps: { target: 60, smoothStep: false },
     scene,
   });
-  guardDefaultTextures(game, () => {
+  const defaultTextureGuard = guardDefaultTextures(game, () => {
     if (!destroyed) rejectReady(new Error("Default textures did not load"));
   });
   const onLost = (event: Event) => {
@@ -286,6 +289,7 @@ export function createPhaserArena(
       renderMs,
       automaticLoopRunning: game.loop.running,
       trailHistoryBuilds: scene.trailHistoryBuilds,
+      defaultTextureGuard,
     }),
   };
 }
@@ -303,7 +307,7 @@ class ArenaScene extends Phaser.Scene {
   private gunImpacts = new GunImpacts();
   private sparks!: Phaser.GameObjects.Particles.ParticleEmitter;
   private world!: Phaser.GameObjects.Layer;
-  private maskShape!: Phaser.GameObjects.Graphics;
+  private maskShape?: Phaser.GameObjects.Graphics;
   private ink!: Phaser.Textures.CanvasTexture;
   private inkImage!: Phaser.GameObjects.Image;
   private images: Phaser.GameObjects.Image[] = [];
@@ -327,14 +331,13 @@ class ArenaScene extends Phaser.Scene {
   cancelPreload(): void {
     const loader = this.load;
     if (!loader?.inflight) return;
-    loader.inflight.iterate((file: Phaser.Loader.File) => {
+    for (const file of loader.inflight) {
       file.resetXHR();
       if (file.xhrLoader) {
         file.xhrLoader.ontimeout = null;
         file.xhrLoader.abort();
       }
-      return true;
-    });
+    }
     loader.reset();
   }
   preload(): void {
@@ -392,12 +395,14 @@ class ArenaScene extends Phaser.Scene {
     this.trailTips = this.add.graphics().setDepth(1);
     this.dynamic = this.add.graphics().setDepth(2);
     this.front = this.add.graphics().setDepth(5);
-    this.maskShape = this.make.graphics({ x: 0, y: 0 });
-    const mask = this.maskShape.createGeometryMask();
     this.world = this.add
       .layer([this.trails, this.trailTips, this.dynamic, this.front])
-      .setDepth(1)
-      .setMask(mask);
+      .setDepth(1);
+    // Geometry masks are Canvas-only in Phaser 4. The WebGL context has no stencil buffer, so WebGL never clipped here.
+    if (this.game.renderer.type === Phaser.CANVAS) {
+      this.maskShape = this.make.graphics({ x: 0, y: 0 });
+      this.world.setMask(this.maskShape.createGeometryMask());
+    }
     if (this.game.renderer.type === Phaser.WEBGL) {
       this.beveledTrails = new BeveledTrails(this, TRAIL_WIDTH).setDepth(1);
       this.world.add(this.beveledTrails);
@@ -802,7 +807,7 @@ class ArenaScene extends Phaser.Scene {
       // After the boundary band: an obstacle the closing walls have reached is already gone from the state.
       this.drawObstacles(s.obstacles, s.map);
       this.maskShape
-        .clear()
+        ?.clear()
         .fillStyle(0xffffff)
         .fillRect(b, b, w - 2 * b, h - 2 * b);
     }
