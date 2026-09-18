@@ -13,3 +13,5 @@
 !games/
 !games/*/
 !games/*/package.json
+!games/*/src/
+!games/*/src/**

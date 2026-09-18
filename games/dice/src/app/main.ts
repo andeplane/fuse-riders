@@ -457,7 +457,14 @@ function room(solo: boolean): void {
     reload: () => location.reload(),
   });
   document.addEventListener("keydown", (event) => {
-    if (event.target instanceof HTMLInputElement || event.repeat) return;
+    // A focused control answers its own keys: Enter or Space on ROLL must not also HOLD, and Space must still press
+    // START or REMATCH.
+    if (
+      event.target instanceof HTMLInputElement ||
+      event.target instanceof HTMLButtonElement ||
+      event.repeat
+    )
+      return;
     const key = event.key.toLowerCase();
     if (key === " " || key === "r") {
       event.preventDefault();

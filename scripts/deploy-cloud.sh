@@ -54,6 +54,9 @@ for (const origin of (process.env.ALLOWED_ORIGINS ?? '').split(',')) {
   if (parsed.protocol!=='https:' || parsed.origin!==origin) throw new Error('Production ALLOWED_ORIGINS must contain exact HTTPS origins');
 }
 NODE
+# The shape check above cannot tell a typo from a game: ask the service's own registry, before a ten-minute image build
+# produces a revision that refuses to start.
+npx tsx --eval 'import { extraGameIds } from "./src/service/history.ts"; extraGameIds(process.env.EXTRA_GAME_IDS);'
 [[ "$CLOUD_RUN_SERVICE" =~ ^[a-z][a-z0-9-]{1,48}$ ]] || { echo 'Invalid service name' >&2; exit 1; }
 [[ "$ARTIFACT_REPOSITORY" =~ ^[a-z][a-z0-9-]{1,62}$ ]] || { echo 'Invalid artifact repository' >&2; exit 1; }
 [[ "$ARTIFACT_LOCATION" =~ ^[a-z][a-z0-9-]{1,62}$ ]] || { echo 'Invalid artifact location' >&2; exit 1; }
