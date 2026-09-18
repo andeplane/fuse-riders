@@ -11,6 +11,7 @@ import {
   decodeGameState,
   encodeGameState,
 } from "../engine/codec/checkpoint.js";
+import { stepsCover } from "../engine/tick-driver.js";
 import { packMessage, unpackMessage } from "./packet.js";
 import type { World } from "./rollback.js";
 
@@ -199,7 +200,7 @@ export function decodeSnapshot(
   if (
     !game ||
     !settings ||
-    game.tick !== tick ||
+    !stepsCover(tick, game.tick) ||
     !Array.isArray(rawFolds) ||
     !Array.isArray(rawBots) ||
     !Array.isArray(rawStreams) ||
@@ -247,7 +248,7 @@ export function decodeSnapshot(
   }
   for (const player of game.players.values())
     if (!bots.has(player.id) && !folds.has(player.id)) return;
-  const state: RoomState = { game, settings, folds, bots };
+  const state: RoomState = { tick, game, settings, folds, bots };
   if (hashRoomState(state) !== hash) return;
   const streams: SnapshotStream[] = [],
     seen = new Set<string>();

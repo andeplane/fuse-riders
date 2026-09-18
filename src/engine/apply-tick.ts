@@ -11,6 +11,7 @@ import {
   type GameState,
   type InputIntent,
   type Phase,
+  stepsPerTick,
 } from "./game.js";
 import { BotController, BOT_ID_PREFIX } from "./bot-controller.js";
 import { parseRoomSettings, type RoomSettings } from "./room-settings.js";
@@ -33,7 +34,7 @@ import type { GameEvent } from "./state.js";
 import { driveGameTick } from "./tick-driver.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-38"; // 38: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
+export const RULES = "fuse-p2p-39"; // 39: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
 
@@ -42,6 +43,12 @@ export interface Fold extends HeldControls {
 }
 /** State at tick T is a pure fold of the seed and every entry with tick ≤ T. */
 export interface RoomState {
+  /**
+   * The log tick this state has folded through: the tick of the last `applyTick`, and what entries, snapshots,
+   * rollback, the stall rule and the shared clock count in. The game's own clock, `game.tick`, counts simulation steps
+   * and is the one every rule inside the game reads (phase ends, fuses, the round timer, statistics).
+   */
+  tick: number;
   game: GameState;
   settings: RoomSettings;
   folds: Map<string, Fold>;
@@ -59,7 +66,7 @@ export function createRoomState(
   settings: RoomSettings,
 ): RoomState {
   const game = createGame(matchId, settings);
-  return { game, settings, folds: new Map(), bots: new Set() };
+  return { tick: game.tick, game, settings, folds: new Map(), bots: new Set() };
 }
 export const reclaimable = (game: GameState): boolean =>
   (RECLAIMABLE_PHASES as readonly string[]).includes(game.phase);
@@ -242,7 +249,28 @@ function applyManagement(state: RoomState, entry: Entry): void {
 }
 
 /**
- * Advance the room by one tick from the entries stamped with that tick. Management entries apply first, then each
+ * The inputs of a step after the first in one log tick: a rider holds what its fold holds, without the tick's bomb
+ * commands (a press is one press), and a bot is asked again about the game as it now stands.
+ */
+function laterInputs(
+  state: RoomState,
+  game: Readonly<GameState>,
+  first: ReadonlyMap<string, InputIntent>,
+  bots: BotController,
+): Map<string, InputIntent> {
+  const inputs = new Map<string, InputIntent>();
+  for (const id of first.keys()) {
+    if (state.bots.has(id)) inputs.set(id, bots.input(game, id));
+    else {
+      const fold = state.folds.get(id);
+      if (fold) inputs.set(id, intentOf(fold));
+    }
+  }
+  return inputs;
+}
+
+/**
+ * Advance the room by one log tick, `state.tick + 1`, from the entries stamped with that tick. Management entries apply first, then each
  * player's entries fold into its held controls, then `driveGameTick`: the shared `step` and automatic round
  * progression. What is the room's and not the game's (folds, bot seats) follows what the driver reports.
  *
@@ -258,7 +286,9 @@ export function applyTick(
   phases?: readonly Phase[],
 ): GameEvent[] {
   const game = state.game,
-    tick = game.tick + 1;
+    tick = state.tick + 1,
+    // Decided on the state the previous tick left, before this tick's entries: the same count on every replica.
+    steps = stepsPerTick(game, state.bots);
   for (const manager of successionOrder(state, creatorId)) {
     const stream = streams.get(manager);
     if (!stream) continue;
@@ -303,19 +333,26 @@ export function applyTick(
       if (entry[2] === AVATAR) player.avatarId = entry[3];
     inputs.set(player.id, foldPlayerEntries(fold, entries));
   }
-  const driven = driveGameTick(game, inputs, state.settings, phases);
+  const driven = driveGameTick(game, inputs, state.settings, phases, {
+    count: steps,
+    later: (current) => laterInputs(state, current, inputs, bots),
+  });
   for (const id of driven.removed) {
     state.folds.delete(id);
     state.bots.delete(id);
   }
   if (driven.roundStarted) resetGestures(state);
+  state.tick = tick;
   return driven.events;
 }
 
 /** Canonical JSON of the whole room state: Map entries and object keys sorted, so insertion order never matters. */
-export function canonicalRoomState(state: RoomState): string {
+export function canonicalRoomState(
+  state: Omit<RoomState, "tick"> & { tick?: number },
+): string {
   return JSON.stringify(
     {
+      tick: state.tick,
       game: state.game,
       settings: state.settings,
       folds: state.folds,
@@ -336,7 +373,9 @@ export function canonicalRoomState(state: RoomState): string {
   );
 }
 /** Diagnostic only: two 32-bit FNV-1a lanes over the canonical text, as 16 hex characters. */
-export function hashRoomState(state: RoomState): string {
+export function hashRoomState(
+  state: Omit<RoomState, "tick"> & { tick?: number },
+): string {
   return hashText(canonicalRoomState(state));
 }
 export function hashText(text: string): string {

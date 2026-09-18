@@ -99,9 +99,15 @@ export function presentWorld(
   presentationTick: number,
   local?: LocalRider,
 ): WorldView {
+  // Two frames are one log tick apart, which is several game ticks when a bots-only endgame runs extra steps per tick.
   const shown =
     older && presentationTick < newer.tick
-      ? interpolateWorld(older, newer, presentationTick - older.tick)
+      ? interpolateWorld(
+          older,
+          newer,
+          (presentationTick - older.tick) /
+            Math.max(1, newer.tick - older.tick),
+        )
       : newer;
   const rider =
     local && newer.phase === "playing"

@@ -120,11 +120,16 @@ export function roundSpeedMultiplier(elapsedTicks: number): number {
   );
 }
 /**
- * Once every human rider is out, the rest of the round is bots racing each other: the clock that drives the
- * simulation runs this many times faster until the round ends. Tick rules are untouched, so outcomes are the same.
+ * Once every human rider is out, the rest of the round is bots racing each other, and each shared tick steps the
+ * simulation this many times (`driveGameTick`) until the round ends. The clock keeps its rate; the game runs faster.
  */
-export const BOTS_ONLY_TIME_SCALE = 3;
-export function simulationTimeScale(
+export const BOTS_ONLY_STEPS_PER_TICK = 3;
+/**
+ * How many steps the next log tick runs, from the state before it: `BOTS_ONLY_STEPS_PER_TICK` while a round is
+ * playing, at least one human rider is seated, none is alive and a bot is; otherwise one. A pure function of folded
+ * state, so every replica takes the same count, and a rollback that changes it replays the ticks after it with theirs.
+ */
+export function stepsPerTick(
   state: Pick<GameState, "phase" | "players">,
   bots: ReadonlySet<string>,
 ): number {
@@ -138,7 +143,7 @@ export function simulationTimeScale(
     } else if (player.alive) botsAlive++;
   }
   // A room with no human rider at all is a showcase, not a wait: it keeps its pace.
-  return humans > 0 && botsAlive > 0 ? BOTS_ONLY_TIME_SCALE : 1;
+  return humans > 0 && botsAlive > 0 ? BOTS_ONLY_STEPS_PER_TICK : 1;
 }
 export interface SpeedEffects {
   nitroUntilTicks: ReadonlyArray<number>;
