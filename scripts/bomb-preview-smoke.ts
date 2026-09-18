@@ -1,19 +1,12 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
-import { createServer } from "vite";
-import { chromium, webkit } from "playwright";
+import { launchSelected } from "./lib/browser.js";
+import { startViteServer } from "./lib/server.js";
 
 // Read actual marker pixels using supplied frame times in an isolated renderer.
 // This checks presentation wiring, not real network latency or physical-phone performance.
-const server = await createServer({
-  server: { port: 0, host: "127.0.0.1", hmr: false },
-});
-await server.listen();
-const address = server.httpServer!.address();
-if (!address || typeof address === "string") throw Error("No server");
-const browser = await (process.env.BROWSER === "webkit"
-  ? webkit.launch()
-  : chromium.launch({ channel: "chrome" }));
+const server = await startViteServer();
+const browser = await launchSelected("chrome");
 try {
   const page = await browser.newPage({
     viewport: { width: 1600, height: 1000 },
@@ -22,7 +15,7 @@ try {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript("window.__name = value => value");
-  await page.goto(`http://127.0.0.1:${address.port}/`);
+  await page.goto(`${server.url}?mute`);
   const results = await page.evaluate(async () => {
     const { createPhaserArena } = (await import(
       String("/src/client/phaser/arena.ts")
@@ -348,5 +341,5 @@ try {
   );
 } finally {
   await browser.close();
-  await server.close();
+  await server.stop();
 }
