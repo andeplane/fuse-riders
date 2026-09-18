@@ -1,4 +1,5 @@
-import { chromium, webkit, type Page, type Locator } from "playwright";
+import type { Page, Locator } from "playwright";
+import { browserKind, launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
@@ -10,7 +11,9 @@ import { smokeTimeout } from "./smoke-timeout.js";
  * viewport and on a phone-landscape viewport. BROWSER=webkit selects WebKit; HOME_URL the served app.
  */
 const base = process.env.HOME_URL ?? "http://127.0.0.1:4188/";
-const browserName = process.env.BROWSER === "webkit" ? "webkit" : "chrome";
+// Reports and screenshots have always called the bundled Chromium "chrome".
+const kind = browserKind("chromium");
+const browserName = kind === "webkit" ? "webkit" : "chrome";
 interface RecapSnapshot {
   phase: string;
   tick: number;
@@ -176,9 +179,7 @@ async function assertRecapLayout(page: Page): Promise<{
   return { champions, awards, totals, rows, comparisonScrolls };
 }
 
-const browser = await (browserName === "webkit" ? webkit : chromium).launch({
-  headless: true,
-});
+const browser = await launchBrowser(kind, { headless: true });
 try {
   for (const viewport of [
     { width: 1280, height: 800 },

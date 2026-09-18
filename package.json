@@ -46,7 +46,7 @@
     "google-auth-library": "^11.0.2",
     "linkedom": "^0.18.13",
     "mixpanel-browser": "^2.83.0",
-    "phaser": "3.90.0",
+    "phaser": "4.2.1",
     "playwright": "^1.55.0",
     "prettier": "3.9.7",
     "qrcode": "^1.5.4",

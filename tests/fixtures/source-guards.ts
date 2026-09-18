@@ -102,29 +102,13 @@ const network = new Set([
   "endpoints",
   "net-stats",
   "packet",
-  "prediction",
   "rollback",
   "room-runtime",
   "snapshot",
   "stream",
   "telemetry",
 ]);
-const rendering = new Set([
-  "arena-maps",
-  "arena-views",
-  "arena-wall",
-  "blast-animation",
-  "bomb-preview",
-  "ink-renderer",
-  "portal-palettes",
-  "reload-ring",
-  "render-snapshot",
-  "self-locator",
-  "themes",
-  "trail-debris",
-]);
-
-/** Ownership by directory, with the app-side files that are really net or render code listed by name. */
+/** Ownership by directory, with the files under `src/online/` that are netcode rather than app listed by name. */
 export function layer(file: string): Layer {
   if (/^fuse-network-(fe|be|protocol)(\/|$)/.test(file)) return "net";
   const base = path.basename(file, path.extname(file));
@@ -136,18 +120,10 @@ export function layer(file: string): Layer {
   if (
     file.startsWith("src/net/") ||
     (file.startsWith("src/online/") && network.has(base)) ||
-    ["src/client/socket-client.ts", "src/client/snapshot-stream.ts"].includes(
-      file,
-    ) ||
     file.startsWith("packages/")
   )
     return "net";
-  if (
-    file.startsWith("src/render/") ||
-    file.startsWith("src/client/phaser/") ||
-    (file.startsWith("src/client/") && rendering.has(base))
-  )
-    return "render";
+  if (file.startsWith("src/render/")) return "render";
   if (file.startsWith("src/")) return "app";
   return "external";
 }
@@ -211,6 +187,63 @@ export function forbiddenEdge(
             !/^src\/engine\/view(?:-kit)?\.ts$/.test(target)
           : false;
   return violation ? `${source} -> ${target}` : undefined;
+}
+
+/**
+ * `src/render/` may take VALUES only from `engine/view-kit.ts`; from `engine/view.ts` it takes types. A value import of
+ * the view (`toView`) would pull the tuning and the rules in behind the contract, so every import or re-export of
+ * `engine/view.ts` from a render file must be type-only, and a dynamic import of it is refused outright.
+ */
+export function renderValueImportsOfView(file: ts.SourceFile): string[] {
+  const source = file.fileName;
+  if (!source.startsWith("src/render/")) return [];
+  const isView = (specifier: string): boolean =>
+    specifier.startsWith(".") &&
+    path.posix
+      .normalize(path.posix.join(path.posix.dirname(source), specifier))
+      .replace(/\.js$/, ".ts") === "src/engine/view.ts";
+  const found: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      isView(node.moduleSpecifier.text)
+    ) {
+      const clause = node.importClause;
+      const typeOnly =
+        !!clause &&
+        (clause.isTypeOnly ||
+          (!clause.name &&
+            !!clause.namedBindings &&
+            ts.isNamedImports(clause.namedBindings) &&
+            clause.namedBindings.elements.every((e) => e.isTypeOnly)));
+      if (!typeOnly) found.push(`${source}: ${node.getText(file)}`);
+    }
+    if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      isView(node.moduleSpecifier.text)
+    ) {
+      const typeOnly =
+        node.isTypeOnly ||
+        (!!node.exportClause &&
+          ts.isNamedExports(node.exportClause) &&
+          node.exportClause.elements.every((e) => e.isTypeOnly));
+      if (!typeOnly) found.push(`${source}: ${node.getText(file)}`);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments[0] &&
+      ts.isStringLiteralLike(node.arguments[0]) &&
+      isView(node.arguments[0].text)
+    )
+      found.push(`${source}: ${node.getText(file)}`);
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return found;
 }
 
 export function layerViolations(): string[] {

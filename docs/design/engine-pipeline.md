@@ -11,7 +11,7 @@ Adding a mechanic is now a new file in `src/engine/sim/phases/` and one row in `
 | `src/engine/index.ts`                                                                       | The public API: world and commands, `step`, `PHASES`, `applyTick` and the `driveGameTick` it calls (stage A3), `RULES`, the input log, room settings, bots, the checkpoint codec    |
 | `src/engine/game.ts`                                                                        | The commands that change a world between ticks (`createGame` … `resetMatch`, `prepareRound`) and `step`, which is the early-out and the loop. Re-exports what it used to define     |
 | `src/engine/state.ts`                                                                       | The state records — plain data, so rollback can `structuredClone` them and the checkpoint guards can name every field — and the ordered readers `sortedPlayers`/`Bombs`/`Obstacles` |
-| `src/engine/tuning.ts`, `geometry.ts`, `rng.ts`, `pickup-types.ts`, `gravity.ts`, `view.ts` | Balance constants and the pure functions of them; plane geometry; the seeded stream (its position lives in the state); the pickup list; `gravityBend`; `toSnapshot`                 |
+| `src/engine/tuning.ts`, `geometry.ts`, `rng.ts`, `pickup-types.ts`, `gravity.ts`, `view.ts` | Balance constants and the pure functions of them; plane geometry; the seeded stream (its position lives in the state); the pickup list; `gravityBend`; `toView`                     |
 | `src/engine/sim/context.ts`                                                                 | `TickContext`, `Movement`, `DeathFact`, `TickFact`                                                                                                                                  |
 | `src/engine/sim/pipeline.ts`                                                                | `Phase`, `PHASES`, `TickFault`                                                                                                                                                      |
 | `src/engine/sim/phases/*.ts`                                                                | One phase per file (`explode.ts` has two entry points for one rule run twice)                                                                                                       |
@@ -95,7 +95,7 @@ Splitting the commit loop moved death facts after that tick's `portalCrossed` fa
 
 ## `step` returns events only (C7)
 
-`applyTick`, and so every re-simulated tick of a rollback, paid for a public snapshot it threw away. `step` now returns `{ events }`; a caller that wants a snapshot calls `toSnapshot(state)`, as `World.frame` already did.
+`applyTick`, and so every re-simulated tick of a rollback, paid for a public snapshot it threw away. `step` now returns `{ events }`; a caller that wants a snapshot calls `toView(state)`, as `World.frame` already did.
 
 Reproduce with `npx tsx scripts/benchmark-golden-replay.ts 5` (the script resolves the engine path at run time, so it can be copied onto an older revision). Workload: `tests/fixtures/mechanics-recording.json`, 12,779 ticks, match `replay`, two scripted humans and three bots, recorded by `makeRecording(20260918, 30000, true)`. Node v22.20.0, Apple silicon, other sessions running on the machine; three interleaved rounds of five runs each, minimum and median per round:
 

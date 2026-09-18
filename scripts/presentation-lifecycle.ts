@@ -1,10 +1,10 @@
 import {
   mountArenaPresentation,
   type PresentationDependencies,
-} from "../src/client/phaser/presentation.js";
-import type { ArenaOptions, PhaserArena } from "../src/client/phaser/arena.js";
-import { visualFixture } from "../src/client/phaser/benchmark-fixture.js";
-import { defaultTheme } from "../src/client/themes.js";
+} from "../src/render/phaser/presentation.js";
+import type { ArenaOptions, PhaserArena } from "../src/render/phaser/arena.js";
+import { visualFixture } from "./lib/benchmark-fixture.js";
+import { defaultTheme } from "../src/render/themes.js";
 
 function check(value: unknown, message: string): asserts value {
   if (!value) throw Error(message);
@@ -80,6 +80,7 @@ export async function checkPresentationLifecycle(): Promise<void> {
             renderMs: 0,
             automaticLoopRunning: false,
             trailHistoryBuilds: 0,
+            defaultTextureGuard: true,
           }),
         };
         return arena;

@@ -1,6 +1,6 @@
 import { legendSrc } from "./legend-src.js";
 import type { PowerupGuideEntry } from "./powerup-guide.js";
-import type { ThemeId } from "./themes.js";
+import type { ThemeId } from "../render/themes.js";
 
 export interface PowerupGuideOptions {
   className: string;

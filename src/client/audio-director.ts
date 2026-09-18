@@ -1,4 +1,4 @@
-import { GunImpacts } from "./phaser/gun-impacts.js";
+import { GunImpacts } from "../render/phaser/gun-impacts.js";
 import type { ServerMessage } from "../shared/protocol.js";
 import { showsRoundResult } from "./arena-announcer.js";
 import {

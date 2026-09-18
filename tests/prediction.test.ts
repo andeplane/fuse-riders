@@ -1,13 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { interpolateWorld, presentWorld } from "../src/online/prediction.js";
+import { interpolateWorld, presentWorld } from "../src/render/time/present.js";
 import { World } from "../src/online/rollback.js";
 import { ACTION, JOIN } from "../src/engine/input-log.js";
 import { createRoomState } from "../src/engine/apply-tick.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { COUNTDOWN_TICKS, riderMotionStep } from "../src/engine/game.js";
 import { advanceRiderPose } from "../src/engine/rider-motion.js";
-import { bombPreviewDistance } from "../src/client/bomb-preview.js";
+import { bombPreviewDistance } from "../src/render/bomb-preview.js";
 
 function frames() {
   const world = new World(
@@ -143,8 +143,9 @@ test("presentation leads the local rider by its held controls and marks its pres
   assert.equal(
     bombPreviewDistance(
       preview.presentationTick! - preview.bombChargeStartedTick!,
+      charging.bombChargeTicks,
     ),
-    bombPreviewDistance(3.5),
+    bombPreviewDistance(3.5, charging.bombChargeTicks),
   );
   assert.equal(
     presentWorld(older, newer, newer.tick, {

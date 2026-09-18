@@ -6,10 +6,9 @@ import {
   type RoomState,
   type StreamEntries,
 } from "../engine/apply-tick.js";
-import { TickFault, toSnapshot, type Phase } from "../engine/game.js";
+import { TickFault, toView, type Phase } from "../engine/game.js";
 import { LEAVE, PRESENCE } from "../engine/input-log.js";
-import type { GameEvent } from "../shared/protocol.js";
-import type { ViewSnapshot } from "../client/snapshot-stream.js";
+import type { GameEvent, WorldView } from "../engine/view.js";
 import { ROLLBACK_TICKS, StreamLog, type ReceiveResult } from "./stream.js";
 
 export const SNAPSHOT_INTERVAL = 4,
@@ -44,7 +43,7 @@ export interface WorldReceive extends ReceiveResult {
   rollbackTicks: number;
   fault?: WorldFault;
 }
-export interface Frame extends ViewSnapshot {
+export interface Frame extends WorldView {
   matchId: string;
 }
 
@@ -101,9 +100,7 @@ export class World {
   }
   private frame(state: RoomState): Frame {
     return {
-      ...toSnapshot(state.game),
-      tick: state.game.tick,
-      round: state.game.round,
+      ...toView(state.game),
       matchId: state.game.matchId,
     };
   }

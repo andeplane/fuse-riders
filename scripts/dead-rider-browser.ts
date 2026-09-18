@@ -26,14 +26,14 @@ try {
   for (const mode of ["webgl", "phaser-canvas"] as const) {
     const results = await page.evaluate(async (mode) => {
       const { createPhaserArena } = (await import(
-        String("/src/client/phaser/arena.ts")
-      )) as typeof import("../src/client/phaser/arena.js");
+        String("/src/render/phaser/arena.ts")
+      )) as typeof import("../src/render/phaser/arena.js");
       const { visualFixture } = (await import(
-        String("/src/client/phaser/benchmark-fixture.ts")
-      )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+        String("/scripts/lib/benchmark-fixture.ts")
+      )) as typeof import("./lib/benchmark-fixture.js");
       const { themes } = (await import(
-        String("/src/client/themes.ts")
-      )) as typeof import("../src/client/themes.js");
+        String("/src/render/themes.ts")
+      )) as typeof import("../src/render/themes.js");
       const { advanceTrail } = (await import(
         String("/src/engine/trail-lifecycle.ts")
       )) as typeof import("../src/engine/trail-lifecycle.js");
