@@ -21,9 +21,10 @@ import {
 } from "../src/engine/input-log.js";
 
 // N4 (#258): hidden tabs under browser timer throttling. Every test here runs the hidden member's tick loop once a second
-// (Chrome and Firefox for a background tab), and after five minutes hidden once a minute (Chrome's intensive throttling);
-// its own link health lapses 600 ms after it hides, as `PeerTransport` does. Packets and visibility events stay
-// event-driven. Desktop fake timing, not physical-phone evidence.
+// (Chrome and Firefox for a background tab), and after a minute hidden once a minute: Chrome's intensive throttling,
+// which Chrome starts after five minutes, brought forward so the long case stays cheap (the policy does not depend on
+// when it starts). The hidden page's own link health lapses 600 ms after it hides, as `PeerTransport` does. Packets
+// and visibility events stay event-driven. Desktop fake timing, not physical-phone evidence.
 const settings = { ...defaultRoomSettings(), map: "classic" as const };
 const THROTTLED: NetworkOptions = {
   loss: 0.01,
@@ -31,7 +32,7 @@ const THROTTLED: NetworkOptions = {
   jitterMs: 40,
   reliableMs: 30,
   hiddenTickMs: 1000,
-  intensiveAfterMs: 5 * 60_000,
+  intensiveAfterMs: 60_000,
   intensiveTickMs: 60_000,
 };
 const HOST = "a-host",
@@ -142,7 +143,8 @@ function enter(r: Room, phase: Phase) {
   assert.ok(fast(), "the room reached the bots-only fast phase");
 }
 
-const DURATIONS = [3000, 30_000, 6 * 60_000] as const;
+// The long case spends a minute at 1 Hz and then over a minute at the once-a-minute cadence.
+const DURATIONS = [3000, 30_000, 150_000] as const;
 const PHASES: Phase[] = ["lobby", "countdown", "playing", "fast"];
 for (const phase of PHASES)
   for (const hiddenMs of DURATIONS)

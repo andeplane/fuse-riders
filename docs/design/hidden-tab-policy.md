@@ -12,7 +12,7 @@ once a phone freezes the page. Before this change a hidden member kept its seat 
 room judged it like one:
 
 - **Presence flapped.** At one pass a second its packets sit on `DISCONNECT_MS` = 1000 ms. The manager logged it absent,
-  heard the next packet, logged it present, and so on — 14 flips in 30 s and over 100 in six minutes on the tests below.
+  heard the next packet, logged it present, and so on — 14 flips in 30 s, and 104–120 in six minutes with once-a-minute timers after the fifth, on the tests below.
   A `PRESENCE false` that happened to be in force when a `roundOver` ended removed the rider from the game
   (`driveGameTick`), so a player who glanced at another tab lost the seat at random.
 - **A sole hidden world holder wedged recovery.** A hidden page's world does not advance, and its reliable sends lapse
@@ -103,16 +103,17 @@ up at the step budget instead of fetching again.
 
 ## Evidence
 
-`tests/hidden-tabs.test.ts`, on `FakeNetwork` with `hiddenTickMs: 1000`, `intensiveAfterMs: 300_000`,
+`tests/hidden-tabs.test.ts`, on `FakeNetwork` with `hiddenTickMs: 1000`, `intensiveAfterMs: 60_000`,
 `intensiveTickMs: 60_000` and the hidden side's link health lapsing after 600 ms (`LINK_LAPSE_MS`), 1 % loss, 20–60 ms
-one way. "Before" is `origin/main` `428fe12` with only the seam; "after" is this change.
+one way. The 150 s case runs a minute at 1 Hz, then the once-a-minute cadence (brought forward from Chrome's five minutes to keep
+the test cheap in CI; an earlier six-minute run with the five-minute onset gave 104–120 flips before and 0 after). "Before" is `origin/main` `428fe12` with only the seam; "after" is this change.
 
 | Scenario                                                                 | Before (main 428fe12)                                    | After                                   |
 | ------------------------------------------------------------------------ | -------------------------------------------------------- | --------------------------------------- |
-| Rider hidden 3 s / 30 s / 6 min in the lobby                             | presence flips 2 / 14 / 116                              | 0 flips, seat kept, converges, one hash |
-| Rider hidden 3 s / 30 s / 6 min from the countdown                       | flips 2 / 15 / 104                                       | 0, kept, converges                      |
-| Rider hidden 3 s / 30 s / 6 min in play                                  | 0 (by chance) / 14 / 114                                 | 0, kept, converges                      |
-| Rider hidden 3 s / 30 s / 6 min in the bots-only fast phase              | flips 4 / 12 / 120                                       | 0, kept, converges                      |
+| Rider hidden 3 s / 30 s / 150 s in the lobby                             | presence flips 2 / 14 / 25                               | 0 flips, seat kept, converges, one hash |
+| Rider hidden 3 s / 30 s / 150 s from the countdown                       | flips 2 / 15 / 29                                        | 0, kept, converges                      |
+| Rider hidden 3 s / 30 s / 150 s in play                                  | 0 (by chance) / 14 / 31                                  | 0, kept, converges                      |
+| Rider hidden 3 s / 30 s / 150 s in the bots-only fast phase              | flips 4 / 12 / 27                                        | 0, kept, converges                      |
 | Creator hides, then the acting creator (joiner admitted meanwhile)       | passed                                                   | passes                                  |
 | Two riders hidden at once for 30 s                                       | flips 16 and 12                                          | 0 and 0, both back in their seats       |
 | Sole hidden world holder, the other rider reloads, holder returns        | no world while hidden; after return wedged at 113 vs 129 | no frozen world; recovers on return     |

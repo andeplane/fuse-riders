@@ -152,7 +152,7 @@ In the transport, `PeerTransport.checkLinks` returns early while `document.hidde
 
 On `pagehide` the runtime stops; a page restored from the back/forward cache reloads instead of reviving (`packages/fuse-network-fe/src/room-lifecycle.ts` `installRoomLifecycle`).
 
-`tests/fixtures/fake-room.ts` models throttling when a test asks for it: `hiddenTickMs` runs a hidden member's tick loop at that interval, `intensiveAfterMs`/`intensiveTickMs` slow it further after that long hidden, and the hidden side's link health lapses `LINK_LAPSE_MS` = 600 ms after it hides. Packet delivery and visibility events stay event-driven. `tests/hidden-tabs.test.ts` hides riders for 3 s, 30 s and six minutes in the lobby, countdown, play and fast phase, the creator and then the acting creator, two riders at once, and a sole world holder.
+`tests/fixtures/fake-room.ts` models throttling when a test asks for it: `hiddenTickMs` runs a hidden member's tick loop at that interval, `intensiveAfterMs`/`intensiveTickMs` slow it further after that long hidden, and the hidden side's link health lapses `LINK_LAPSE_MS` = 600 ms after it hides. Packet delivery and visibility events stay event-driven. `tests/hidden-tabs.test.ts` hides riders for 3 s, 30 s and 150 s (a minute at 1 Hz, then once a minute) in the lobby, countdown, play and fast phase, the creator and then the acting creator, two riders at once, and a sole world holder.
 
 ### 13. Transport
 
