@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PICKUP_TYPES, pickupPacing } from "../src/engine/game.ts";
-import { PICKUP_WEIGHTS } from "../src/engine/pickup-weights.ts";
+import { PICKUP_WEIGHTS } from "../src/engine/pickups.ts";
 import {
   defaultRoomSettings,
   roomPickup,

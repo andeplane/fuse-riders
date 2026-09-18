@@ -25,7 +25,7 @@ import {
   decodeGameState,
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
-import { PICKUP_WEIGHTS } from "../src/engine/pickup-weights.js";
+import { PICKUP_WEIGHTS } from "../src/engine/pickups.js";
 import { powerLabel } from "../src/render/power-indicator.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
 

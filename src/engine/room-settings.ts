@@ -1,4 +1,4 @@
-import { PICKUP_WEIGHTS } from "./pickup-weights.js";
+import { PICKUP_WEIGHTS } from "./pickups.js";
 import { ARENA_MAP_CHOICES, type ArenaMapChoice } from "./arena-map.js";
 import { BOMB_MAX_CHARGE_TICKS, isBombChargeTicks } from "./bomb-launch.js";
 import { PICKUP_TYPES, type PickupType } from "./pickup-types.js";

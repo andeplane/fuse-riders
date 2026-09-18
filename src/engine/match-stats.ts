@@ -5,6 +5,7 @@ import {
 } from "./combat-stats.js";
 import type { RoundPlacement } from "./leaderboard.js";
 import type { PickupType } from "./pickup-types.js";
+import { PICKUPS } from "./pickups.js";
 
 export type MatchDeathCause = "wall" | "trail" | "explosion" | "rider";
 
@@ -163,14 +164,8 @@ export function recordPickup(
   const entry = stats.get(playerId);
   if (!entry) return;
   entry.pickupsCollected += 1;
-  if (type === "power") entry.powerPickups += 1;
-  else if (type === "star") entry.starPickups += 1;
-  else if (type === "ink") entry.inkPickups += 1;
-  else if (type === "beer") entry.beerPickups += 1;
-  else if (type === "five") entry.fivePickups += 1;
-  else if (type === "triple") entry.triplePickups += 1;
-  else if (type === "orbitShield") entry.shieldPickups += 1;
-  else if (type === "portal") entry.portalPickups += 1;
+  const stat = PICKUPS[type].stat;
+  if (stat) entry[stat] += 1;
 }
 
 export function recordPortalTransit(

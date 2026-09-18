@@ -23,7 +23,6 @@ import {
   bombLaunchDistance,
   BOMB_MIN_LAUNCH_DISTANCE,
   bombMaxLaunchDistance,
-  MAX_RANGE_LEVEL,
 } from "./bomb-launch.js";
 import { advanceRiderPose } from "./rider-motion.js";
 import { GUN_AIM_STEP, isAimingGun } from "./gun.js";
@@ -34,6 +33,7 @@ import {
 } from "./arena-map.js";
 import { wrapCoordinate, wrapDelta, wrapImages } from "./wrap.js";
 import { drunkHeadingOffset } from "./drunk.js";
+import { canCollect } from "./pickups.js";
 import type { TrailSegment } from "./primitives.js";
 
 export const BOT_ID_PREFIX = "bot:";
@@ -524,11 +524,7 @@ export class BotController {
     );
     const pickup = [...game.pickups]
       .sort((a, b) => a.id - b.id)
-      .filter((candidate) => candidate.type !== "grip" || !player.grip)
-      .filter(
-        (candidate) =>
-          candidate.type !== "range" || player.rangeLevel < MAX_RANGE_LEVEL,
-      )
+      .filter((candidate) => canCollect(candidate.type, player))
       .reduce<GameState["pickups"][number] | undefined>(
         (best, candidate) =>
           !best ||
