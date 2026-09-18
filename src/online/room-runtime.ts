@@ -288,6 +288,8 @@ export class RoomRuntime {
     retried: boolean;
     confirmedAt?: number;
     evidence: boolean;
+    /** When the world was last seen healed but not yet past the tick: that time does not count towards the deadline. */
+    clearedAt?: number;
   };
   /** Terminal. Set once; nothing clears it but a reload. */
   private stopped = false;
@@ -444,6 +446,8 @@ export class RoomRuntime {
     this.members.delete(id);
     this.noWorld.delete(id);
     if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
+    // A stopped page logs nothing more.
+    if (this.stopped) return;
     const state = this.world?.state,
       player = state?.game.players.get(id);
     if (!this.manager || !player) return;
@@ -532,7 +536,7 @@ export class RoomRuntime {
         if (data.world === true) this.noWorld.delete(id);
         return;
       case "join":
-        if (this.manager && typeof data.name === "string") {
+        if (this.manager && !this.stopped && typeof data.name === "string") {
           const error = this.join(
             id,
             data.name,
@@ -546,11 +550,13 @@ export class RoomRuntime {
         // A faulted world is a stand-in: entries that arrived after it stood down were logged and never applied, so its
         // state is not the fold of the log it would ship with. Say nothing — not `noWorld`, which a returning creator
         // counts towards opening a fresh room — and the requester's retry moves on to another peer.
-        if (this.stopped || this.world?.fault) return;
+        if (!this.stopped && this.world?.fault) return;
         const now = this.deps.now();
         if (now - member.snapshotServedAt < SNAPSHOT_SERVE_MS) return;
         member.snapshotServedAt = now;
-        if (this.world) {
+        // A stopped page has no world to give, ever: saying so lets a reloaded page open a fresh room when every
+        // replica stopped, instead of asking this closed tab forever. A healthy peer still answers with its world.
+        if (this.world && !this.stopped) {
           for (const chunk of encodeSnapshot(this.world, this.room))
             if (!this.transport!.send(id, chunk, SNAPSHOT_BUFFER_LIMIT)) break;
         } else this.transport!.send(id, { type: "noWorld" });
@@ -955,9 +961,16 @@ export class RoomRuntime {
     const world = this.world,
       watch = this.faultWatch;
     if (!world || !watch || this.stopped) return;
-    if (!world.fault && world.tick >= watch.tick) {
-      this.faultWatch = undefined;
+    if (!world.fault) {
+      if (world.tick >= watch.tick) this.faultWatch = undefined;
+      // Healed but not yet past the tick — a hidden tab or an ordinary stall holds the world still. That is not a
+      // fault, so it does not run the deadline down; a throw at the same tick picks the deadline up where it left off.
+      else watch.clearedAt ??= now;
       return;
+    }
+    if (watch.clearedAt !== undefined) {
+      watch.startedAt += now - watch.clearedAt;
+      watch.clearedAt = undefined;
     }
     // A departed input owner or an undeliverable snapshot must not keep this page faulted forever.
     // Evidence and snapshot installation do not reset the deadline; only actually passing the tick does.
@@ -965,7 +978,6 @@ export class RoomRuntime {
       this.stopSimulation();
       return;
     }
-    if (!world.fault) return;
     if (watch.confirmedAt === undefined) {
       if (!world.faultConfirmed()) return;
       if (!watch.retried) {
@@ -974,9 +986,10 @@ export class RoomRuntime {
         return;
       }
       watch.confirmedAt = now;
+      // Only a peer on the same rules can vouch: a refused peer's packets, and so its hashes, are dropped.
       const peers =
         this.transport !== undefined &&
-        [...this.members.keys()].some((id) => this.transport!.linked(id));
+        this.compatible().some((id) => this.transport!.linked(id));
       if (!peers) this.stopSimulation();
       else this.status.notice("Simulation fault · checking the other riders");
       return;
@@ -1014,9 +1027,10 @@ export class RoomRuntime {
     this.requestSnapshot(id);
   }
   /**
-   * Terminal for this page. It stops simulating (the world stays faulted), asking, accepting and serving snapshots,
-   * logging what it is sent and sending packets, so peers see a closed tab: presence and authority move on through the
-   * paths a closed tab already takes, and nothing here grows or repeats. Only a reload undoes it.
+   * Terminal for this page. It stops simulating (the world is left where it stands, faulted or not), asking for and
+   * accepting snapshots, logging what it is sent and sending packets, so peers see a closed tab: presence and authority
+   * move on through the paths a closed tab already takes, and nothing here grows or repeats. It answers a snapshot
+   * request with `noWorld`, so a reloaded page is not kept waiting on it. Only a reload undoes it.
    */
   private stopSimulation(): void {
     this.stopped = true;
@@ -1446,6 +1460,8 @@ export class RoomRuntime {
     const hidden = this.deps.hidden();
     if (hidden === this.hiddenState) return;
     this.hiddenState = hidden;
+    // A stopped page neither logs nor simulates, hidden or not.
+    if (this.stopped) return;
     this.paceClock(this.deps.now());
     if (hidden) {
       if (this.world && this.player()) {

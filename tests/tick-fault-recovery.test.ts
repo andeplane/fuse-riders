@@ -24,6 +24,7 @@ import {
 import {
   DIVERGENCE_LIMIT,
   FAULT_EVIDENCE_MS,
+  FAULT_RECOVERY_MS,
   RoomRuntime,
 } from "../src/online/room-runtime.js";
 import { FakeNetwork, type NetworkOptions } from "./fixtures/fake-room.js";
@@ -581,7 +582,7 @@ test("fault evidence followed by lost snapshots has a bounded terminal outcome",
   }
 });
 
-test("a speculative fault stops when the missing input owner leaves before correction", () => {
+test("a speculative fault whose missing input owner leaves is confirmed by the departure and recovers from a peer", () => {
   let failing = Infinity;
   const { net, runtimes, faults } = mesh(
     ["host", "rider", "third"],
@@ -621,9 +622,85 @@ test("a speculative fault stops when the missing input owner leaves before corre
     rider.stop();
     net.disconnect("rider");
     net.step(20_000);
-    assert.equal(runtimes[0]!.metrics().stopped, true);
-    assert.equal(net.recorded.get("host")!.statuses.at(-1), STOPPED);
+    // The departure makes the log final for the rider, so the fault is confirmed rather than left to the deadline:
+    // one retry, then the third replica's hash shows it got past the tick, and the host is replaced from it.
+    const host = runtimes[0]!.metrics();
+    assert.equal(host.stopped, false);
+    assert.ok(host.tick > failing + 60, "the host rides on");
+    assert.ok(host.mismatches <= 1, "at most the one strike for the resync");
   } finally {
     for (const runtime of runtimes) runtime.stop();
+  }
+});
+
+/** Review of 9ee7bd6, finding 1: the deadline covers a fault, not a world that has healed and is merely held still. */
+test("a healed fault does not stop a tab that is hidden past the recovery deadline", () => {
+  let failing = Infinity;
+  const ids = ["host", "rider", "third"];
+  const { net, runtimes, faults } = mesh(
+    ids,
+    () =>
+      failingWhen(
+        ({ state, inputs }) =>
+          state.tick === failing && inputs.get("rider")?.left === true,
+      ),
+    { ...QUIET, baseMs: 300 },
+  );
+  try {
+    const rider = runtimes[1]!;
+    rider.command({
+      type: "input",
+      seq: 1,
+      left: true,
+      right: false,
+      bomb: false,
+    });
+    net.step(4000);
+    rider.command({
+      type: "input",
+      seq: 2,
+      left: false,
+      right: false,
+      bomb: false,
+    });
+    failing = Math.floor(rider.metrics().clockTick) + 3;
+    net.step(200);
+    assert.ok(faults.get("host")!.length > 0, "the host threw speculatively");
+    net.setHidden("host", true);
+    net.setHidden("third", true);
+    net.step(FAULT_RECOVERY_MS + 6000);
+    net.setHidden("host", false);
+    net.setHidden("third", false);
+    net.step(6000);
+    for (const [index, runtime] of runtimes.entries()) {
+      const metrics = runtime.metrics();
+      assert.equal(metrics.stopped, false, `${ids[index]} did not stop`);
+      assert.ok(metrics.tick > failing + 60, `${ids[index]} rides on`);
+    }
+  } finally {
+    for (const runtime of runtimes) runtime.stop();
+  }
+});
+
+/** Review of 9ee7bd6, finding 2: "reload this page" must work even while other stopped tabs stay open. */
+test("after every replica stops, a reloaded page opens a fresh room instead of waiting on the stopped tabs", () => {
+  const failing = COUNTDOWN_TICKS + 60;
+  const ids = ["host", "rider", "third"];
+  const { net, runtimes } = mesh(ids, (id) =>
+    failingAt((tick) => tick === failing),
+  );
+  let reloaded: RoomRuntime | undefined;
+  try {
+    net.step(FAULT_EVIDENCE_MS + 10_000);
+    for (const runtime of runtimes)
+      assert.equal(runtime.metrics().stopped, true);
+    reloaded = net.reload("host", defaultRoomSettings(), { humanName: "host" });
+    net.step(15_000);
+    const metrics = reloaded.metrics();
+    assert.equal(metrics.stopped, false);
+    assert.ok(metrics.tick > 0, "the reloaded creator has a world again");
+  } finally {
+    for (const runtime of runtimes) runtime.stop();
+    reloaded?.stop();
   }
 });

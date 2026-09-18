@@ -313,9 +313,24 @@ export class World {
     if (!this.frames.length) this.frames = [this.frame(state)];
     return undefined;
   }
-  /** Whether the tick that threw was simulated from a complete log: every connected rider's stream confirmed past it. */
+  /**
+   * Whether the tick that threw was simulated from a log that will not change for it: every connected rider's stream
+   * is confirmed past it, or, as the stall rule counts it, a disconnect entry for that rider is logged at or past it.
+   * A rider who left sends nothing more, so waiting on their stream would only run out the recovery deadline.
+   */
   faultConfirmed(): boolean {
-    return this.fault !== undefined && this.completeTick() >= this.fault.tick;
+    const fault = this.fault;
+    if (!fault) return false;
+    for (const player of this.state.game.players.values()) {
+      if (!player.connected || this.state.bots.has(player.id)) continue;
+      const stream = this.streams.get(player.id);
+      const through = Math.max(
+        stream ? stream.confirmedThrough() : -1,
+        this.pendingDisconnect(player.id) ?? -1,
+      );
+      if (through < fault.tick) return false;
+    }
+    return true;
   }
   /** Clear the fault so the next `advance` simulates the tick again, from the whole snapshot the world stands on. */
   retry(): void {
