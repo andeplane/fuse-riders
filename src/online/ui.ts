@@ -75,7 +75,7 @@ import { presentRoom, presentStatus, recapReady } from "./room-presenter.js";
 import { connectHint } from "./connect-hint.js";
 import { createJoinCard, createJoinForm } from "./join-form.js";
 import { safeStorage } from "../client/safe-storage.js";
-import { startAnalytics, track } from "./analytics.js";
+import { reportGraphics, startAnalytics, track } from "./analytics.js";
 import { createAnalyticsSetting } from "./analytics-setting.js";
 import { connectStatus } from "./analytics-text.js";
 import { createFunnel } from "./funnel.js";
@@ -152,6 +152,7 @@ const TRANSPORT_COPY = {
   linking: "Connected · linking riders",
   protocolChanged: "Game protocol changed — reload this page",
   roomEnded: "Room ended — return to menu to start again",
+  roomFull: "Room full (five players and TV)",
   hostAbsent: "the creator is not in the room yet",
 };
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
@@ -581,9 +582,13 @@ export async function startOnline(): Promise<void> {
   app.replaceChildren(header, role === "joiner" ? joinPanel : booting);
   let canvas = node("canvas", "", "online-arena");
   let renderScope = code;
-  const presentation = mountArenaPresentation(canvas, (replacement) => {
-    canvas = replacement;
-  });
+  const presentation = mountArenaPresentation(
+    canvas,
+    (replacement) => {
+      canvas = replacement;
+    },
+    reportGraphics,
+  );
   let theme: ThemeDefinition = selectedTheme();
   // Both styles' textures are preloaded by the Phaser arena and every palette is read per frame, so switching needs no reload.
   applyThemeProperties(theme);

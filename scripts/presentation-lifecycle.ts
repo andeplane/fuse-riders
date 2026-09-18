@@ -1,5 +1,6 @@
 import {
   mountArenaPresentation,
+  type GraphicsReport,
   type PresentationDependencies,
 } from "../src/render/phaser/presentation.js";
 import type { ArenaOptions, PhaserArena } from "../src/render/phaser/arena.js";
@@ -25,9 +26,12 @@ export async function checkPresentationLifecycle(): Promise<void> {
     for (let i = 0; i < 8; i++) await Promise.resolve();
   };
   const fixture = visualFixture(40);
+  const same = (actual: GraphicsReport[], expected: GraphicsReport[]) =>
+    JSON.stringify(actual) === JSON.stringify(expected);
   function harness() {
     let canvas = document.createElement("canvas");
     document.body.append(canvas);
+    const reports: GraphicsReport[] = [];
     const loads: ReturnType<
       typeof deferred<
         Awaited<ReturnType<PresentationDependencies["loadArena"]>>
@@ -91,6 +95,7 @@ export async function checkPresentationLifecycle(): Promise<void> {
       (replacement) => {
         canvas = replacement;
       },
+      (event) => reports.push(event),
       {
         loadArena: () => {
           const load = deferred<typeof module>();
@@ -108,6 +113,7 @@ export async function checkPresentationLifecycle(): Promise<void> {
     );
     return {
       presentation,
+      reports,
       loads,
       arenas,
       timers,
@@ -160,6 +166,10 @@ export async function checkPresentationLifecycle(): Promise<void> {
       h.canvas().dataset.rendererStatus === "failed",
       "Module download had no deadline",
     );
+    check(
+      same(h.reports, [{ kind: "failed", stage: "startup" }]),
+      "Download timeout was not reported as a startup failure",
+    );
     h.retry();
     h.loads[1]!.resolve(h.module);
     await flush();
@@ -176,6 +186,13 @@ export async function checkPresentationLifecycle(): Promise<void> {
     check(
       draws === 1,
       "Retry did not repaint stored snapshot without another frame",
+    );
+    check(
+      same(h.reports, [
+        { kind: "failed", stage: "startup" },
+        { kind: "ready", renderer: "canvas" },
+      ]),
+      "Retry readiness was not reported once, after the stale failure",
     );
     h.destroy();
   }
@@ -207,6 +224,10 @@ export async function checkPresentationLifecycle(): Promise<void> {
       `${failure} failure did not offer retry`,
     );
     check(h.timers.size === 0, `${failure} failure leaked timers`);
+    check(
+      same(h.reports, [{ kind: "failed", stage: "startup" }]),
+      `${failure} failure was not reported once as startup`,
+    );
     h.destroy();
   }
   {
@@ -239,6 +260,10 @@ export async function checkPresentationLifecycle(): Promise<void> {
     check(
       h.arenas[1]!.draws === 0,
       "Stale readiness painted the unready replacement",
+    );
+    check(
+      !h.reports.some((report) => report.kind === "ready"),
+      "Stale readiness was reported",
     );
     h.render("new-match", "local-rider");
     h.arenas[1]!.ready.resolve();
@@ -274,6 +299,35 @@ export async function checkPresentationLifecycle(): Promise<void> {
     );
     h.render();
     check(arena.destroys === 1, "Failed frames repeatedly destroyed arena");
+    check(
+      same(h.reports, [
+        { kind: "ready", renderer: "canvas" },
+        { kind: "failed", stage: "render" },
+      ]),
+      "Paint failure was not reported once as a render failure",
+    );
+    h.destroy();
+  }
+  {
+    const h = harness();
+    h.render();
+    h.loads[0]!.resolve(h.module);
+    await flush();
+    h.arenas[0]!.ready.resolve();
+    await flush();
+    h.arenas[0]!.status?.("context-lost");
+    h.expire(2000);
+    check(
+      h.canvas().dataset.rendererStatus === "failed",
+      "Unrestored context did not offer retry",
+    );
+    check(
+      same(h.reports, [
+        { kind: "ready", renderer: "canvas" },
+        { kind: "failed", stage: "context" },
+      ]),
+      "Unrestored context was not reported as a context failure",
+    );
     h.destroy();
   }
   {

@@ -19,15 +19,23 @@ export const ARENA_MAPS = [
 ] as const;
 export type ArenaMapId = (typeof ARENA_MAPS)[number];
 /**
- * `rotate` cycles the obstacle maps; `classic` is the obstacle-free arena, and so is how a room turns maps off.
+ * `rotate` cycles `ROTATION_MAPS`: the obstacle maps and `classic`, the obstacle-free arena, so a match has open
+ * rounds among the cluttered ones. Naming `classic` is how a room turns obstacles off altogether.
  *
  * Two maps change the board's edges rather than what stands on it. `wrap` has none until overtime: riders, shells,
  * bullets, thrown bombs and blasts all carry through one side and out of the other (see `wrap.ts`). `cross` is the
  * classic arena under exactly the classic rules, and differs only in how it is drawn — shifted by half a board, so
- * the outer wall meets in a cross at the middle of the screen and the screen's own edges are open.
+ * the outer wall meets in a cross at the middle of the screen and the screen's own edges are open. Neither is in the
+ * rotation: one changes the rules of the edges and the other only how hard the board is to read, so a room opts in.
  */
 export type ArenaMapChoice = ArenaMapId | "rotate";
 export const ARENA_MAP_CHOICES = ["rotate", ...ARENA_MAPS] as const;
+export const ROTATION_MAPS = [
+  "classic",
+  "desert",
+  "forest",
+  "city",
+] as const satisfies readonly ArenaMapId[];
 
 export const OBSTACLE_KINDS = [
   "rock",
@@ -296,19 +304,18 @@ export function generateObstacles(options: ObstacleLayoutOptions): Obstacle[] {
   return placed;
 }
 
-/** Rotation is by round rather than by roll, so a match visits every obstacle map before it repeats one. */
+/** Rotation is by round rather than by roll, so a match visits every map in the rotation before it repeats one. */
 export function chooseArenaMap(
   choice: ArenaMapChoice,
   seed: number,
   round: number,
 ): ArenaMapId {
   if (choice !== "rotate") return choice;
-  const rotation = ARENA_MAPS.filter(
-    (map) => ARENA_MAP_RECIPES[map].species.length > 0,
-  );
-  const offset = (seed >>> 0) % rotation.length;
+  const offset = (seed >>> 0) % ROTATION_MAPS.length;
   // `round` starts at 1 and only ever grows within a match.
-  return rotation[(offset + Math.max(0, round - 1)) % rotation.length]!;
+  return ROTATION_MAPS[
+    (offset + Math.max(0, round - 1)) % ROTATION_MAPS.length
+  ]!;
 }
 
 /** The four walls of an obstacle, for projectiles that bounce off solid geometry rather than die on it. */

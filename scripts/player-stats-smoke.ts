@@ -6,7 +6,7 @@ import { createServer } from "vite";
 import { chromium, webkit } from "playwright";
 import { WebSocket } from "ws";
 import { createDevRoomService } from "../src/service/dev.js";
-import { peerId } from "fuse-network-be";
+import { authFrame, peerId } from "fuse-network-be";
 import {
   beginMatchParticipant,
   recordDeath,
@@ -43,10 +43,12 @@ try {
   for (const token of tokens)
     await new Promise<void>((resolve, reject) => {
       const socket = new WebSocket(
-        `${api.replace("http", "ws")}/api/rooms/${created.code}/ws?token=${token}`,
+        `${api.replace("http", "ws")}/api/rooms/${created.code}/ws`,
         { origin: api },
       );
       sockets.push(socket);
+      // The token is the socket's first frame and never part of its URL (docs/online/TOKEN-TRANSPORT.md).
+      socket.once("open", () => socket.send(authFrame(token)));
       socket.once("message", () => resolve());
       socket.once("error", reject);
     });
