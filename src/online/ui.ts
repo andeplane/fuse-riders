@@ -1,3 +1,4 @@
+import { VoiceChat } from "./voice-chat.js";
 import { powerLabel } from "../client/power-indicator.js";
 import { uuid } from "../shared/uuid.js";
 import { showRoomSettings } from "./room-settings-menu.js";
@@ -10,10 +11,14 @@ import { createAccountPanel } from "./account-panel.js";
 import {
   accountUsername,
   fetchUsername,
-  identityToken,
+  signedInToken,
   remembersSignIn,
 } from "./account.js";
-import { buildMatchReport, sendMatchReport } from "./match-report.js";
+import {
+  buildMatchReport,
+  buildRoundReport,
+  sendMatchReport,
+} from "./match-report.js";
 import { ControllerInputState } from "../client/controller-state.js";
 import { ControllerKeyboardBindings } from "../client/controller-keyboard.js";
 import { ControllerPointerBindings } from "../client/controller-pointers.js";
@@ -39,17 +44,7 @@ import {
 } from "../shared/room-settings.js";
 import type { PickupType } from "../shared/game.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
-import type { MatchPlayerStats } from "../shared/match-stats.js";
-import type { Moment } from "../shared/moments.js";
-import {
-  COMPARISON_COLUMNS,
-  COMPARISON_KEY,
-  HIGHLIGHTS_TITLE,
-  RECAP_EMPTY_MESSAGE,
-  RECAP_KICKER,
-  RECAP_TITLE,
-  buildMatchRecap,
-} from "../shared/match-recap.js";
+import { renderMatchRecap } from "./match-recap-view.js";
 import { ReplayDirector, describeClip } from "../client/replay.js";
 import { createReplayOverlay } from "../client/replay-overlay.js";
 import { RoomRuntime, type Callbacks } from "./room-runtime.js";
@@ -67,6 +62,7 @@ import { Telemetry, telemetryEndpoint } from "./telemetry.js";
 import type { AvatarId } from "../shared/avatars.js";
 import QRCode from "qrcode";
 import "./online.css";
+import "./top-menu.css";
 import { formatNetStats } from "./net-stats.js";
 import { installMobilePlayLayout } from "./mobile-play-layout.js";
 import { connectHint } from "./connect-hint.js";
@@ -84,7 +80,10 @@ import { createPowerupGuide } from "../client/powerup-guide-view.js";
 import {
   announcementFor,
   eliminationLine,
+  matchWinnerName,
   roundClock,
+  roundWinnerName,
+  showsRoundResult,
 } from "../client/arena-announcer.js";
 import { plainStatus } from "./status-copy.js";
 const LAST_ROOM_KEY = "fuse-last-room";
@@ -144,6 +143,7 @@ const labels: Record<PickupType, string> = {
   portal: "Portal",
   star: "Star",
   grip: "Grip",
+  range: "Range",
   nitro: "Nitro",
   snail: "Snail",
   gravity: "Gravity",
@@ -174,6 +174,19 @@ const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 let pageAudio: GameAudio | undefined, radioToggle: (() => void) | undefined;
 // One wording for both views, since the same instance now serves whichever one is up: a room entered from the landing
 // page would otherwise keep the label the landing page created it with.
+const createPlayerAccountPanel = () =>
+  createAccountPanel({
+    historyUrl: (before) =>
+      apiUrl(
+        `/api/me/matches${before === undefined ? "" : `?before=${before}`}`,
+      ),
+    profileUrl: apiUrl("/api/me"),
+    leaderboardUrl: apiUrl("/api/leaderboard"),
+    localName: () => read("fuse-riders-player-name"),
+    fetch: (input, init) => fetch(input, init),
+    track,
+  });
+
 const sharedAudio = (): GameAudio =>
   (pageAudio ??= createGameAudio("Game", {
     background: true,
@@ -191,7 +204,7 @@ export async function startOnline(): Promise<void> {
     track("App Opened");
     const card = node("main", "", "landing");
     card.innerHTML = `<canvas class="landing-arena" aria-hidden="true"></canvas><div class="landing-shade"></div>
-      <header class="landing-top"><a class="landing-brand" href="${appUrl()}">FUSE<span>RIDERS</span></a><div class="landing-top-end"><span class="landing-tag">TINY RIDERS. BIG TROUBLE.</span><button class="landing-audio" type="button">♫ MUSIC ON</button><button class="landing-mute" type="button">🔊 SOUND ON</button></div></header>
+      <header class="landing-top"><a class="landing-brand" href="${appUrl()}">FUSE<span>RIDERS</span></a><div class="landing-top-end game-top-menu"><span class="landing-tag">TINY RIDERS. BIG TROUBLE.</span><button class="landing-audio" type="button">♫ MUSIC ON</button><button class="landing-mute" type="button">🔊 SOUND ON</button></div></header>
       <section class="landing-content"><p class="landing-eyebrow"><span></span> A NEON ARENA PARTY GAME</p>
       <h1>LEAVE A TRAIL.<br>MAKE A <em>MESS.</em></h1>
       <p class="landing-intro">Outrun your friends. Blow up their plans.<br>One arena. Five riders. Absolutely no brakes.</p>
@@ -207,11 +220,14 @@ export async function startOnline(): Promise<void> {
     guide.setAttribute("aria-labelledby", guideTitle.id);
     guide.append(
       guideTitle,
-      createPowerupGuide(POWERUP_GUIDE, {
-        className: "landing-powerups",
-        themeId: selectedTheme().id,
-        offByDefaultNote: "(off by default, enable in room settings)",
-      }).element,
+      createPowerupGuide(
+        POWERUP_GUIDE.filter((entry) => entry.type !== "target"),
+        {
+          className: "landing-powerups",
+          themeId: selectedTheme().id,
+          offByDefaultNote: "(off by default, enable in room settings)",
+        },
+      ).element,
     );
     card.querySelector(".landing-content")!.append(guide);
     const mode = node("fieldset", "", "landing-mode");
@@ -292,6 +308,7 @@ export async function startOnline(): Promise<void> {
     const enter = (query: string) => {
       ended = true;
       cleanup?.();
+      accountPanel.dispose();
       window.addEventListener("popstate", () => location.reload(), {
         once: true,
       });
@@ -336,7 +353,7 @@ export async function startOnline(): Promise<void> {
       });
     // Settings before a game exists (#168): the same room settings CREATE ROOM and PLAY SOLO read from storage. The screen layout
     // stays disabled here because the radio buttons below choose it for the room being created.
-    const landingSettings = node("button", "⚙ SETTINGS", "landing-settings");
+    const landingSettings = node("button", "SETTINGS", "landing-settings");
     landingSettings.type = "button";
     const landingDialog = node("dialog", "", "game-dialog");
     landingDialog.setAttribute("aria-label", "Settings");
@@ -394,17 +411,7 @@ export async function startOnline(): Promise<void> {
     card.querySelector(".landing-top-end")!.append(landingSettings);
     card.append(landingDialog);
     // Optional sign-in and match history. A guest who never opens it never downloads the sign-in SDK.
-    const accountPanel = createAccountPanel({
-      historyUrl: (before) =>
-        apiUrl(
-          `/api/me/matches${before === undefined ? "" : `?before=${before}`}`,
-        ),
-      profileUrl: apiUrl("/api/me"),
-      leaderboardUrl: apiUrl("/api/leaderboard"),
-      localName: () => read("fuse-riders-player-name"),
-      fetch: (input, init) => fetch(input, init),
-      track,
-    });
+    const accountPanel = createPlayerAccountPanel();
     card
       .querySelector(".landing-top-end")!
       .append(accountPanel.leaderboardButton, accountPanel.button);
@@ -464,6 +471,7 @@ export async function startOnline(): Promise<void> {
   const inputTimes: number[] = [];
   let previousFrame = performance.now(),
     inputAt = 0;
+  let lastRatedRound = "";
   let lastRecap = "",
     rejoinPending = false;
   const benchmark = url.searchParams.get("benchmark") === "1";
@@ -540,6 +548,8 @@ export async function startOnline(): Promise<void> {
     role === "joiner"
       ? createJoinCard(code, joinForm.element, bootNote)
       : joinForm.element;
+  if (role !== "joiner")
+    joinForm.element.prepend(node("p", "JOIN THE RACE", "lobby-join-title"));
   if (role !== "joiner") booting.append(bootNote);
   // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
   const bootAt = performance.now();
@@ -674,7 +684,9 @@ export async function startOnline(): Promise<void> {
       announceSmall.textContent = "";
       announceBig.textContent = announcement.text;
     } else if (announcement.kind === "round") {
-      announceSmall.textContent = `ROUND ${announcement.round}`;
+      announceSmall.textContent = announcement.last
+        ? `FINAL ROUND · ROUND ${announcement.round}`
+        : `ROUND ${announcement.round}`;
       announceBig.textContent = announcement.title;
       for (const line of announcement.placements)
         announceRows.append(node("span", line));
@@ -818,23 +830,49 @@ export async function startOnline(): Promise<void> {
   header.append(avatarButton, prefsButton, menu, help);
   const dialog = node("dialog", "", "game-dialog");
   dialog.setAttribute("aria-label", "Game menu");
-  const close = node("button", "✕  CLOSE");
+  const close = node("button", "✕  CLOSE", "dialog-close");
   close.type = "button";
   close.setAttribute("aria-label", "CLOSE");
   close.onclick = () => dialog.close();
   const rematch = node("button", "REMATCH");
   rematch.type = "button";
+  rematch.setAttribute("aria-label", "REMATCH");
   rematch.hidden = true;
   rematch.title = "Play the same match again";
   const dialogActions = node("span", "", "dialog-actions");
   dialogActions.append(rematch, close);
   const dialogBar = node("header", "", "dialog-bar"),
     dialogTitle = node("strong", "GAME MENU");
-  dialogBar.append(dialogTitle, dialogActions);
+  const fullStats = node("button", "View full stats ↗", "recap-stats-toggle");
+  fullStats.type = "button";
+  fullStats.hidden = true;
+  fullStats.setAttribute("aria-controls", "match-full-stats");
+  fullStats.onclick = () => {
+    const details = dialogBody.querySelector<HTMLElement>(".recap-details");
+    if (!details) return;
+    details.hidden = !details.hidden;
+    fullStats.setAttribute("aria-expanded", String(!details.hidden));
+    fullStats.textContent = details.hidden
+      ? "View full stats ↗"
+      : "Hide full stats ↗";
+    if (!details.hidden) details.scrollIntoView({ block: "start" });
+    else dialogBody.scrollTop = 0;
+  };
+  const recapLobby = node("button", "Back to lobby", "recap-lobby");
+  recapLobby.type = "button";
+  recapLobby.hidden = true;
+  recapLobby.onclick = () => {
+    dialog.close();
+    reset.click();
+  };
+  dialogActions.prepend(recapLobby);
+  dialogBar.append(dialogTitle, fullStats, dialogActions);
   const dialogBody = node("div", "", "dialog-body");
   dialog.append(dialogBar, dialogBody);
   dialog.addEventListener("close", () => {
     rematch.hidden = true;
+    fullStats.hidden = recapLobby.hidden = true;
+    close.hidden = false;
     close.textContent = "✕  CLOSE";
     close.setAttribute("aria-label", "CLOSE");
     dialog.classList.remove("recap-dialog");
@@ -914,6 +952,20 @@ export async function startOnline(): Promise<void> {
     "(min-width: 1000px) and (hover: hover) and (pointer: fine)",
   );
   const updateDesktopLayout = () => {
+    // Keep the creator's seat invitation beside the riders while the lobby is
+    // visible. Outside the lobby it must remain reachable for mid-game joins.
+    if (role !== "joiner") {
+      const joinParent = sharedLobby.hidden ? app : lobbyRiders;
+      if (joinPanel.parentElement !== joinParent) {
+        if (joinParent === app) {
+          joinForm.element.querySelector("input")!.after(joinForm.submitButton);
+          scoreboard.after(joinPanel);
+        } else {
+          joinForm.element.append(joinForm.submitButton);
+          lobbyRiders.prepend(joinPanel);
+        }
+      }
+    }
     const desktop =
       desktopQuery.matches &&
       !app.classList.contains("mobile-play") &&
@@ -921,17 +973,22 @@ export async function startOnline(): Promise<void> {
       !app.classList.contains("joining") &&
       sharedLobby.hidden;
     app.classList.toggle("desktop-game", desktop);
+    // Keep the same account control visible beside MENU during full-screen phone play.
+    const accountParent = app.classList.contains("mobile-play") ? app : topMenu;
+    if (roomAccount.button.parentElement !== accountParent)
+      accountParent.append(roomAccount.button);
     // Desktop play keeps the standings in a fixed column right of the arena (its width lives in online.css), so the game bar holds actions only.
     const side =
       desktop &&
       !canvas.hidden &&
+      !app.classList.contains("scene-background") &&
       !app.classList.contains("booting") &&
       !app.classList.contains("room-over");
     app.classList.toggle("side-standings", side);
     const rosterParent = side ? app : desktop ? header : scoreboard;
     if (roster.parentElement !== rosterParent) {
       if (side) app.append(roster);
-      else if (desktop) header.insertBefore(roster, results);
+      else if (desktop) header.insertBefore(roster, topMenu);
       else scoreboard.append(roster);
     }
     const actionsParent = !sharedLobby.hidden
@@ -940,7 +997,7 @@ export async function startOnline(): Promise<void> {
         ? header
         : footer;
     if (hostControls.parentElement !== actionsParent) {
-      if (desktop) header.insertBefore(hostControls, results);
+      if (desktop) header.insertBefore(hostControls, topMenu);
       else actionsParent.append(hostControls);
     }
     const noticeParent = desktop ? header : scoreboard;
@@ -964,7 +1021,43 @@ export async function startOnline(): Promise<void> {
     dialogBody.replaceChildren(node("h2", "Fuse Riders Radio"), audio.controls);
     if (!dialog.open) dialog.showModal();
   };
+  const roomAccount = createPlayerAccountPanel();
+  roomAccount.button.classList.add("player-account");
+  app.append(roomAccount.dialog);
+  const topMenu = node("nav", "", "game-top-menu");
+  topMenu.setAttribute("aria-label", "Player menu");
+  const topRadio = node("button", "♫ RADIO"),
+    topMusic = node("button"),
+    topMute = node("button");
+  topRadio.type = topMusic.type = topMute.type = "button";
+  topRadio.onclick = () => openRadio();
+  topMenu.append(
+    topRadio,
+    topMusic,
+    topMute,
+    prefsButton,
+    roomAccount.leaderboardButton,
+    roomAccount.button,
+  );
+  header.append(topMenu);
+  topMenu.append(results, avatarButton, menu, help);
+  const refreshAccount = () => {
+    if (!document.hidden) roomAccount.refresh();
+  };
+  window.addEventListener("focus", refreshAccount);
+  document.addEventListener("visibilitychange", refreshAccount);
+  window.addEventListener(
+    "pagehide",
+    () => {
+      roomAccount.dispose();
+      window.removeEventListener("focus", refreshAccount);
+      document.removeEventListener("visibilitychange", refreshAccount);
+    },
+    { once: true },
+  );
   const audio = sharedAudio();
+  audio.bindMusicToggle(topMusic);
+  audio.bindMuteToggle(topMute);
   radioToggle = () => {
     if (!dialog.open) openRadio();
     else if (dialogBody.contains(audio.controls))
@@ -1004,139 +1097,58 @@ export async function startOnline(): Promise<void> {
     styleRow,
     fullscreen,
   );
+  const voice = solo ? undefined : new VoiceChat();
+  if (voice) {
+    prefs.prepend(node("h3", "GAME AUDIO", "settings-group"));
+    muteButton.title =
+      "Music and effects only; use DEAFEN in voice chat to silence voice.";
+    prefs.append(voice.controls);
+    topMenu.insertBefore(voice.button, prefsButton);
+    voice.button.onclick = () => {
+      dialogTitle.textContent = "VOICE CHAT";
+      dialog.setAttribute("aria-label", "Voice chat");
+      dialogBody.replaceChildren(voice.controls);
+      if (!dialog.open) dialog.showModal();
+    };
+    voice.setChanged(() => {
+      for (const [playerId, row] of rosterEntries)
+        row.entry.dataset.voice = voice.indicator(playerId);
+      for (const [playerId, row] of lobbyEntries)
+        row.entry.dataset.voice = voice.indicator(playerId);
+    });
+  }
   prefsButton.onclick = () => {
+    if (voice) prefs.append(voice.controls);
     dialogTitle.textContent = "SETTINGS";
     dialog.setAttribute("aria-label", "Settings");
     dialogBody.replaceChildren(prefs);
     dialog.showModal();
   };
-  /** Podium, totals, highlight reel, awards and rider comparison built from the authoritative match statistics and moments. */
-  const renderRecap = (
-    stats: ReadonlyArray<MatchPlayerStats>,
-    moments: ReadonlyArray<Moment>,
-  ) => {
-    const recap = buildMatchRecap(stats, moments);
-    const root = node("section", "", "match-recap-report");
-    const heading = node("header", "", "recap-heading"),
-      copy = node("div");
-    copy.append(node("p", RECAP_KICKER, "kicker"), node("h2", RECAP_TITLE));
-    heading.append(copy);
-    root.append(heading);
-    if (!recap.comparison.length) {
-      root.append(node("p", RECAP_EMPTY_MESSAGE, "recap-empty"));
-      return root;
-    }
-    const podium = node("div", "", "recap-podium");
-    for (const entry of recap.podium) {
-      const card = node(
-        "article",
-        "",
-        `podium-card podium-place-${entry.placement}${entry.playerId === id ? " is-you" : ""}`,
-      );
-      card.style.setProperty("--player-color", entry.color);
-      card.append(
-        node("span", entry.placeLabel, "podium-place"),
-        node("strong", entry.name),
-        node("small", entry.winsLabel),
-      );
-      podium.append(card);
-    }
-    const totals = node("div", "", "recap-totals");
-    for (const total of recap.totals) {
-      const cell = node("div", "", "recap-total");
-      cell.append(node("strong", total.value), node("small", total.label));
-      totals.append(cell);
-    }
-    const reel = node("div", "", "recap-highlights");
-    reel.append(node("p", HIGHLIGHTS_TITLE, "reel-title"));
-    for (const entry of recap.highlights) {
-      const card = node("article", "", "award-card highlight-card");
-      card.style.setProperty("--player-color", entry.color);
-      card.append(
-        node("span", entry.icon, "award-icon"),
-        node("small", entry.when),
-        node("strong", entry.title),
-        node("em", entry.copy),
-      );
-      const clip = replay.recorder.clip(entry.key);
-      if (clip && !canvas.hidden) {
-        const watch = node("button", "▶ WATCH", "watch-again");
-        watch.type = "button";
-        watch.title = "Replay this moment";
-        watch.onclick = () => {
+  const openRecap = () => {
+    if (!snapshot) return;
+    dialogBody.replaceChildren(
+      renderMatchRecap(snapshot.matchStats, snapshot.moments, {
+        playerId: id,
+        canWatch: (key) => !canvas.hidden && !!replay.recorder.clip(key),
+        watch: (key) => {
+          const clip = replay.recorder.clip(key);
+          if (!clip) return;
           audio.unlock();
           reopenRecap = true;
           dialog.close();
           replay.play(clip, performance.now());
-        };
-        card.append(watch);
-      }
-      reel.append(card);
-    }
-    const awards = node("div", "", "recap-awards");
-    for (const award of recap.awards) {
-      const card = node("article", "", "award-card");
-      card.append(
-        node("span", award.icon, "award-icon"),
-        node("small", award.title),
-        node("strong", award.winnerText),
-        node("em", award.detail),
-      );
-      awards.append(card);
-    }
-    const comparison = node("div", "", "recap-comparison");
-    comparison.append(node("p", COMPARISON_KEY, "comparison-key"));
-    const columns = node("div", "", "comparison-row comparison-header");
-    for (const label of [
-      "RIDER",
-      ...COMPARISON_COLUMNS.map((column) => column.label),
-    ])
-      columns.append(node("span", label));
-    comparison.append(columns);
-    for (const entry of recap.comparison) {
-      const row = node(
-        "div",
-        "",
-        `comparison-row${entry.playerId === id ? " is-you" : ""}`,
-      );
-      row.style.setProperty("--player-color", entry.color);
-      const rider = node("span", "", "comparison-rider"),
-        riderCopy = node("span");
-      riderCopy.append(
-        node("b", entry.riderLabel),
-        node("small", entry.riderNote),
-      );
-      rider.append(node("i"), riderCopy);
-      row.append(rider);
-      for (const column of COMPARISON_COLUMNS)
-        row.append(
-          node(
-            column.key === "wins" ? "strong" : "span",
-            entry[column.key],
-            column.key === "pickups"
-              ? "pickup-counts"
-              : column.key === "deaths"
-                ? "death-counts"
-                : "",
-          ),
-        );
-      comparison.append(row);
-    }
-    root.append(podium, totals);
-    if (recap.highlights.length) root.append(reel);
-    if (recap.awards.length) root.append(awards);
-    root.append(comparison);
-    return root;
-  };
-  const openRecap = () => {
-    if (!snapshot) return;
-    dialogBody.replaceChildren(
-      renderRecap(snapshot.matchStats, snapshot.moments),
+        },
+      }),
     );
     dialogTitle.textContent = "MATCH RESULTS";
     dialog.setAttribute("aria-label", "Match results");
     dialog.classList.add("recap-dialog");
     rematch.hidden = !isHost;
+    recapLobby.hidden = !isHost;
+    close.textContent = "✕";
+    fullStats.hidden = !snapshot.matchStats.length;
+    fullStats.textContent = "View full stats ↗";
+    fullStats.setAttribute("aria-expanded", "false");
     dialog.showModal();
     dialogBody.scrollTop = 0;
   };
@@ -1271,6 +1283,31 @@ export async function startOnline(): Promise<void> {
           host: isHost,
         });
       }
+      const roundReport =
+        solo && !remembersSignIn()
+          ? undefined
+          : buildRoundReport(state.decidedRound, id, runtime.confirmedTick());
+      const ratingKey = roundReport
+        ? JSON.stringify([
+            roundReport.result.matchId,
+            roundReport.result.round,
+            id,
+          ])
+        : "";
+      if (roundReport && ratingKey !== lastRatedRound) {
+        lastRatedRound = ratingKey;
+        void sendMatchReport(
+          apiUrl(
+            solo ? "/api/me/round-results" : `/api/rooms/${code}/round-results`,
+          ),
+          roundReport,
+          {
+            fetch: (input, init) => fetch(input, init),
+            roomToken: token,
+            identityToken: signedInToken,
+          },
+        ).then(() => roomAccount.refresh());
+      }
       const shotReport = decidedRoundReport(
         state.decidedRound,
         id,
@@ -1334,6 +1371,13 @@ export async function startOnline(): Promise<void> {
         state.phase === "matchOver" &&
         state.tick >= (state.phaseEndsAtTick ?? 0);
       results.hidden = !recapReady;
+      // Every device dismisses the report when the shared state moves on, including peers that did not click REMATCH.
+      if (
+        !recapReady &&
+        dialog.open &&
+        dialog.classList.contains("recap-dialog")
+      )
+        dialog.close();
       if (state.phase === "lobby") lastRecap = "";
       joined = Boolean(player);
       if (player && !seatTracked) {
@@ -1424,11 +1468,15 @@ export async function startOnline(): Promise<void> {
       const controllerOnly =
         settings.mode === "shared" && !displayOnly && joined && !phoneLobby;
       app.classList.toggle("controller-only", controllerOnly);
-      canvas.hidden = !sharedLobby.hidden || controllerOnly || joining;
+      // The same arena stays behind the lobby and results; only its presentation changes.
+      // Shared-screen phones still skip arena rendering during active controller play.
+      const sceneBackground = state.phase === "lobby" || recapReady;
+      app.classList.toggle("scene-background", sceneBackground);
+      canvas.hidden = (controllerOnly && !sceneBackground) || joining;
       if (!canvas.hidden)
         replay.observe(state, state.matchId, performance.now());
       styleHeading.hidden = styleRow.hidden = controllerOnly;
-      /* A shared-TV rider's phone never draws an arena. */ updateDesktopLayout();
+      updateDesktopLayout();
       if (
         state.phase === "countdown" &&
         joined &&
@@ -1477,7 +1525,7 @@ export async function startOnline(): Promise<void> {
           void sendMatchReport(apiUrl(`/api/rooms/${code}/results`), report, {
             fetch: (input, init) => fetch(input, init),
             roomToken: token,
-            identityToken,
+            identityToken: signedInToken,
           });
       }
       inputState.configureTargetAim(
@@ -1490,8 +1538,20 @@ export async function startOnline(): Promise<void> {
         displayOnly ||
         !["playing", "countdown"].includes(state.phase);
       powerStatus.textContent = player
-        ? powerLabel(player.powerPickups, player.extraBombs, player.grip)
+        ? powerLabel(
+            player.powerPickups,
+            player.extraBombs,
+            player.grip,
+            player.rangeLevel,
+          )
         : "";
+      const gunReady =
+        !!player?.alive && !!player.gunArmed && state.phase === "playing";
+      fireButton.classList.toggle("gun-armed", gunReady);
+      hudFire.classList.toggle("gun-armed", gunReady);
+      fireButton.title = gunReady
+        ? "Tap to fire Gun (Space)"
+        : "Hold to charge, release to fire (Space)";
       if (player) {
         app.style.setProperty("--player-color", player.color);
         const remaining = Math.max(0, player.bombReadyAtTick - state.tick);
@@ -1514,12 +1574,19 @@ export async function startOnline(): Promise<void> {
             : "Join your friends, then start the race"
           : state.phase === "countdown"
             ? `READY · ${Math.max(0, Math.ceil(((state.phaseEndsAtTick ?? state.tick) - state.tick) / 20))}`
-            : state.phase === "roundOver"
+            : showsRoundResult(state)
               ? state.roundWinnerId === id
                 ? "You win this round"
-                : `${state.players.find((p) => p.id === state.roundWinnerId)?.name ?? "Nobody"} wins this round`
+                : `${roundWinnerName(state) ?? "Nobody"} wins this round`
               : state.phase === "matchOver"
-                ? `${state.matchStats.find((p) => p.playerId === state.matchWinnerId)?.name ?? "Shared victory"} · MATCH COMPLETE`
+                ? // The notice is narrow on a phone: the result alone while its beat lasts, then the old short form the smokes wait for.
+                  recapReady
+                  ? `${matchWinnerName(state) ?? "Shared victory"} · MATCH COMPLETE`
+                  : matchWinnerName(state) === undefined
+                    ? "Shared victory"
+                    : state.matchWinnerId === id
+                      ? "You win the match"
+                      : `${matchWinnerName(state)} wins the match`
                 : player?.waitingForNextRound
                   ? "You’re in — joining next round"
                   : !player?.alive && joined
@@ -1602,13 +1669,20 @@ export async function startOnline(): Promise<void> {
       addAI.disabled = state.players.length >= 5;
       const startLabel = state.phase === "matchOver" ? "REMATCH" : "START RACE";
       if (start.textContent !== startLabel) start.textContent = startLabel;
+      // A rematch during the final pause would skip the match result, the recap and the match report that opens with it.
       start.disabled =
         state.players.filter((p) => p.connected).length < 2 ||
-        !["lobby", "matchOver"].includes(state.phase);
+        !["lobby", "matchOver"].includes(state.phase) ||
+        (state.phase === "matchOver" && !recapReady);
       hostControls.hidden = !isHost || replacedHost;
       reset.disabled = state.phase === "lobby";
       reset.hidden = phoneLobby;
       share.hidden = solo || phoneLobby; // BACK TO LOBBY means nothing in the lobby and a phone is never the TV; the phone screen has no room for dead buttons. Solo has no room to show either.
+      voice?.setRoster(id, state.players);
+      for (const [playerId, row] of rosterEntries)
+        if (voice) row.entry.dataset.voice = voice.indicator(playerId);
+      for (const [playerId, row] of lobbyEntries)
+        if (voice) row.entry.dataset.voice = voice.indicator(playerId);
       const clock = roundClock(state);
       roundChip.textContent = clock;
       roundChip.hidden = !clock || !sharedLobby.hidden;
@@ -1644,9 +1718,9 @@ export async function startOnline(): Promise<void> {
       : {
           transport: (events) =>
             new PeerTransport(code, token, events, {
+              extension: voice,
               apiUrl,
               maxFastBytes: MAX_PACKET_BYTES,
-              disableDirect: new URLSearchParams(location.search).has("relay"),
               copy: TRANSPORT_COPY,
             }),
           displayOnly,
@@ -1667,7 +1741,6 @@ export async function startOnline(): Promise<void> {
   app.append(statsPanel);
   reset.onclick = () => runtime.command({ type: "action", action: "lobby" });
   rematch.onclick = () => {
-    dialog.close();
     start.click();
   };
   menu.onclick = () => {
@@ -1866,46 +1939,59 @@ export async function startOnline(): Promise<void> {
       )
     )
       return;
-    if (dialog.open || roomEnded || !(isHost || solo)) return;
+    if (
+      dialog.open ||
+      roomAccount.dialog.open ||
+      roomEnded ||
+      !(isHost || solo)
+    )
+      return;
     event.preventDefault();
     openSettings("powerups");
   });
-  const inputState = new ControllerInputState({
-    send: (message) => {
-      if (roomEnded) return false;
-      const controlsKey = `${message.left}:${message.right}:${message.bomb}`,
-        changed = controlsKey !== lastControls;
-      if (changed) {
-        inputAt = performance.now();
-        benchmarkInput = { seq: message.seq, at: inputAt };
-        lastControls = controlsKey;
-      }
-      const sent = runtime.command(message);
-      if (benchmark)
-        sample({
-          kind: "input",
-          at: performance.now(),
-          seq: message.seq,
-          left: message.left,
-          right: message.right,
-          bomb: message.bomb,
-          bombAction: message.bombAction,
-          sent,
-          tick: runtime.tick,
-        });
-      if (changed || message.bombAction)
-        telemetry.log("input", {
-          seq: message.seq,
-          left: message.left,
-          right: message.right,
-          bomb: message.bomb,
-          bombAction: message.bombAction,
-          sent,
-          tick: runtime.tick,
-        });
-      return sent;
+  const inputState = new ControllerInputState(
+    {
+      send: (message) => {
+        if (roomEnded) return false;
+        const controlsKey = `${message.left}:${message.right}:${message.bomb}`,
+          changed = controlsKey !== lastControls;
+        if (changed) {
+          inputAt = performance.now();
+          benchmarkInput = { seq: message.seq, at: inputAt };
+          lastControls = controlsKey;
+        }
+        const sent = runtime.command(message);
+        if (benchmark)
+          sample({
+            kind: "input",
+            at: performance.now(),
+            seq: message.seq,
+            left: message.left,
+            right: message.right,
+            bomb: message.bomb,
+            bombAction: message.bombAction,
+            sent,
+            tick: runtime.tick,
+          });
+        if (changed || message.bombAction)
+          telemetry.log("input", {
+            seq: message.seq,
+            left: message.left,
+            right: message.right,
+            bomb: message.bomb,
+            bombAction: message.bombAction,
+            sent,
+            tick: runtime.tick,
+          });
+        return sent;
+      },
     },
-  });
+    undefined,
+    () =>
+      !canvas.hidden &&
+      !app.classList.contains("controller-only") &&
+      canvas.dataset.arenaOrientation === "portrait",
+  );
   const bindings = new ControllerPointerBindings(
     inputState,
     [
@@ -1930,6 +2016,7 @@ export async function startOnline(): Promise<void> {
       !roomEnded &&
       !mobileLayout.blocked() &&
       !dialog.open &&
+      !roomAccount.dialog.open &&
       !document.hidden &&
       !leftButton.disabled &&
       !Boolean(
@@ -1959,6 +2046,7 @@ export async function startOnline(): Promise<void> {
     if (document.hidden) clearControls();
   });
   dialog.addEventListener("focusin", clearControls);
+  roomAccount.dialog.addEventListener("focusin", clearControls);
   document.addEventListener("focusin", () => {
     if (
       document.activeElement?.closest(
@@ -1967,9 +2055,14 @@ export async function startOnline(): Promise<void> {
     )
       keyboard.clear();
   });
-  new MutationObserver(() => {
-    if (dialog.open) clearControls();
-  }).observe(dialog, { attributes: true, attributeFilter: ["open"] });
+  const dialogsObserver = new MutationObserver(() => {
+    if (dialog.open || roomAccount.dialog.open) clearControls();
+  });
+  for (const modal of [dialog, roomAccount.dialog])
+    dialogsObserver.observe(modal, {
+      attributes: true,
+      attributeFilter: ["open"],
+    });
   window.addEventListener("pagehide", clearControls);
   setInterval(() => {
     if (joined && !roomEnded) inputState.resend();
@@ -2089,10 +2182,7 @@ export async function startOnline(): Promise<void> {
       requestAnimationFrame(frame);
       return;
     }
-    if (
-      predicted &&
-      (!canvas.hidden || (!sharedLobby.hidden && !canvas.dataset.renderer))
-    ) {
+    if (predicted && !canvas.hidden) {
       presentation.render(predicted, now, theme, renderScope, id);
       if (benchmark && (benchmarkInput || now - lastBenchmarkRender >= 100)) {
         const p = predicted.players.find((p) => p.id === id);

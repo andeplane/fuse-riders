@@ -16,26 +16,6 @@ export function installMobilePlayLayout(
   compact.className = "mobile-tools-toggle";
   compact.textContent = "☰ MENU";
   compact.setAttribute("aria-expanded", "false");
-  const gate = document.createElement("section");
-  gate.className = "mobile-rotate-gate";
-  gate.setAttribute("role", "status");
-  const heading = document.createElement("h2");
-  heading.textContent = "Rotate your phone";
-  const description = document.createElement("p");
-  description.textContent =
-    "Play in landscape. Turn your phone sideways to see the whole arena.";
-  const fullscreen = document.createElement("button");
-  fullscreen.textContent = "TRY FULLSCREEN";
-  fullscreen.hidden = !document.fullscreenEnabled; // iPhone Safari: no element fullscreen, so only the rotate guidance (#142).
-  fullscreen.onclick = () => {
-    // Both calls start within this user gesture; unsupported iOS APIs simply leave the rotate guidance visible.
-    void document.documentElement.requestFullscreen?.().catch(() => {});
-    const orientation = screen.orientation as ScreenOrientation & {
-      lock?: (mode: string) => Promise<void>;
-    };
-    void orientation?.lock?.("landscape").catch(() => {});
-  };
-  gate.append(heading, description, fullscreen);
   // Labels render from attributes via CSS generated content: no text node exists for iOS long-press selection or Copy/Look Up callouts.
   const hints = document.createElement("div");
   hints.className = "mobile-control-hints";
@@ -48,7 +28,7 @@ export function installMobilePlayLayout(
     hint.dataset.hint = text;
     hints.append(hint);
   }
-  app.append(gate, hints, compact);
+  app.append(hints, compact);
   for (const type of ["selectstart", "contextmenu"])
     app.addEventListener(type, (event) => {
       const target = event.target as Node;
@@ -75,14 +55,14 @@ export function installMobilePlayLayout(
   };
   const update = () => {
     const previous = app.classList.contains("mobile-play"),
-      blocked = app.classList.contains("mobile-portrait");
+      portrait = app.classList.contains("mobile-portrait");
     const next = mobilePlayPolicy(
       state,
       navigator.maxTouchPoints > 0 || matchMedia("(pointer: coarse)").matches,
       innerWidth,
       innerHeight,
     ); // Rotating cancels held input, but only closes the tools overlay while a round is live: a host reviewing results keeps it open (#134).
-    if (previous !== next.active || blocked !== next.blocked) {
+    if (previous !== next.active || portrait !== next.portrait) {
       clearControls();
       if (
         previous !== next.active ||
@@ -91,7 +71,7 @@ export function installMobilePlayLayout(
         closeTools();
     }
     app.classList.toggle("mobile-play", next.active);
-    app.classList.toggle("mobile-portrait", next.blocked);
+    app.classList.toggle("mobile-portrait", next.portrait);
     app.classList.toggle("mobile-lobby", state.phase === "lobby");
     app.classList.toggle("phone-lobby", next.lobby);
   };
@@ -102,26 +82,27 @@ export function installMobilePlayLayout(
     if (["countdown", "playing"].includes(state.phase)) closeTools();
   });
   // Phase transitions: entering countdown/play closes the tools overlay and restarts the hint fade (re-appending restarts the CSS animation);
-  // entering matchOver opens the overlay so the roster and (for the host) REMATCH are in view. The lobby is its own phone screen (#134), never the controller.
+  // the recap opening ends the match for this screen, and opens the overlay so the roster and (for the host) REMATCH are in view. The pause before
+  // it keeps the overlay shut: it hides the announcer, which is showing the final round's result and then the match winner. The lobby is its own phone screen (#134), never the controller.
   const enter = () => {
     if (["countdown", "playing"].includes(state.phase)) {
       closeTools();
       hints.remove();
       app.append(hints);
-    } else if (state.phase === "matchOver") openTools();
+    } else if (state.phase === "matchOver" && state.recapReady) openTools();
   };
   return {
     update(next: MobilePlayState) {
       const entered =
-        next.phase !== state.phase || !app.classList.contains("mobile-play");
+        next.phase !== state.phase ||
+        Boolean(next.recapReady) !== Boolean(state.recapReady) ||
+        !app.classList.contains("mobile-play");
       state = next;
       update();
       if (entered && app.classList.contains("mobile-play")) enter();
     },
     active: () => app.classList.contains("mobile-play"),
     lobby: () => app.classList.contains("phone-lobby"),
-    blocked: () =>
-      app.classList.contains("mobile-portrait") ||
-      app.classList.contains("mobile-tools-open"),
+    blocked: () => app.classList.contains("mobile-tools-open"),
   };
 }

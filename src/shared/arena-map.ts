@@ -79,6 +79,81 @@ export interface ObstacleSegment {
   y2: number;
 }
 
+/**
+ * What a rider dies against. A flat-faced piece is its whole footprint: the face drawn is the face hit. A crown is
+ * drawn as an ellipse, so it kills as one, and the corners of its footprint are floor; it and the cactus, which is
+ * mostly the air between its arms, also give up a little of their extent, so a brush past one is a brush.
+ * Projectiles, blasts and placement still use the whole footprint: only the rider's own death is judged this way.
+ */
+export const OBSTACLE_HIT_SHAPES: Record<
+  ObstacleKind,
+  { round: boolean; scale: number }
+> = {
+  rock: { round: false, scale: 1 },
+  crate: { round: false, scale: 1 },
+  building: { round: false, scale: 1 },
+  cactus: { round: false, scale: 0.85 },
+  tree: { round: true, scale: 0.9 },
+  bush: { round: true, scale: 0.9 },
+};
+
+/** An obstacle's footprint scaled about its centre, read as the ellipse inside it when `round`. */
+export interface ObstacleHitbox extends Obstacle {
+  round: boolean;
+}
+
+export function obstacleHitbox(obstacle: Obstacle): ObstacleHitbox {
+  const { round, scale } = OBSTACLE_HIT_SHAPES[obstacle.kind];
+  return {
+    ...obstacle,
+    halfWidth: obstacle.halfWidth * scale,
+    halfHeight: obstacle.halfHeight * scale,
+    round,
+  };
+}
+
+/**
+ * Whether a swept rider of the given radius touches the hitbox anywhere along the step. A round one is tested in the
+ * space where the ellipse, grown by the radius on each axis, is the unit circle: not the exact offset curve of an
+ * ellipse, but within a fraction of a unit of it for crowns this close to round, and plain arithmetic throughout.
+ */
+export function hitboxBlocksPath(
+  hitbox: ObstacleHitbox,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  radius: number,
+): boolean {
+  if (!hitbox.round) return obstacleBlocksPath(hitbox, x1, y1, x2, y2, radius);
+  const rx = hitbox.halfWidth + radius,
+    ry = hitbox.halfHeight + radius;
+  return (
+    pointSegmentDistanceSquared(
+      0,
+      0,
+      (x1 - hitbox.x) / rx,
+      (y1 - hitbox.y) / ry,
+      (x2 - hitbox.x) / rx,
+      (y2 - hitbox.y) / ry,
+    ) <= 1
+  );
+}
+
+/** Outward unit normal of the hitbox's surface nearest a point: what a shielded rider is turned away along. */
+export function hitboxBounceNormal(
+  hitbox: ObstacleHitbox,
+  x: number,
+  y: number,
+): { nx: number; ny: number } {
+  if (!hitbox.round) return obstacleBounceNormal(hitbox, x, y);
+  // The gradient of the ellipse's own equation, which is its normal at every point on it.
+  const gx = (x - hitbox.x) / (hitbox.halfWidth * hitbox.halfWidth),
+    gy = (y - hitbox.y) / (hitbox.halfHeight * hitbox.halfHeight);
+  const length = Math.sqrt(gx * gx + gy * gy);
+  return length > 0 ? { nx: gx / length, ny: gy / length } : { nx: 1, ny: 0 };
+}
+
 /** A whole board's worth. Also the checkpoint's array bound, so a hostile layout cannot grow the state. */
 export const MAX_OBSTACLES = 40;
 /** Obstacles keep clear of the boundary wall, so a rider can always ride the perimeter. */

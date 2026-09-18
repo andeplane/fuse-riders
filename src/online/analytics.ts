@@ -226,6 +226,7 @@ export function roundShotEvents(
       power: shot.power,
       extraBombs: shot.extraBombs,
       fuseLevel: shot.fuseLevel,
+      rangeLevel: shot.rangeLevel,
       grip: shot.grip,
       riders,
       bots,
