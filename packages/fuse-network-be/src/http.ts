@@ -63,6 +63,8 @@ export interface RoomHttpOptions {
   legacyQueryToken?: boolean;
   /** Local development only: serve this built frontend with single-page fallback. Production serves no files. */
   staticDirectory?: string;
+  /** The deployed source revision, reported by the health route so a frontend release can wait for the backend it needs. */
+  revision?: string;
 }
 
 const ROOM_ROUTE = /^\/api\/rooms\/([A-Z]{2}[0-9]{2})\/(end|ice|ws)$/;
@@ -185,7 +187,10 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
     try {
       const url = new URL(req.url ?? "/", "http://gateway");
       if (url.pathname === "/api/health" || url.pathname === "/healthz") {
-        json({ ok: true });
+        json({
+          ok: true,
+          ...(options.revision ? { revision: options.revision } : {}),
+        });
         return;
       }
       if (url.pathname === "/api/ready" || url.pathname === "/readyz") {

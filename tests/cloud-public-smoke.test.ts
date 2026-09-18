@@ -52,7 +52,7 @@ async function fixture(brokenCors = false) {
     if (url.pathname.endsWith("/end")) {
       try {
         await store.end(
-          url.pathname.split("/")[3],
+          url.pathname.split("/")[3]!,
           req.headers.authorization?.replace(/^Bearer /, "") ?? "",
         );
         res.end('{"ok":true}');
@@ -93,7 +93,7 @@ async function fixture(brokenCors = false) {
           }
           authenticated = true;
           void gateway
-            .connect(url.pathname.split("/")[3], token, ws)
+            .connect(url.pathname.split("/")[3]!, token, ws)
             .then((value) => {
               id = value;
               for (const frame of pending) void gateway.receive(id, frame);
