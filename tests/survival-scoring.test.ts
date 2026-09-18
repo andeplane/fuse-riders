@@ -9,7 +9,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   COUNTDOWN_TICKS,
   SLOT_COLORS,
   type GameState,
@@ -76,7 +76,7 @@ test("consistent survival beats more round wins, ignores session history, and re
   assert.equal(game.phase, "matchOver");
   assert.equal(game.matchWinnerId, "p0");
   assert.deepEqual(
-    toSnapshot(game).matchStats.map((entry) => [
+    toView(game).matchStats.map((entry) => [
       entry.playerId,
       entry.matchScoreUnits / POINT_UNIT,
       entry.roundWins,
@@ -90,16 +90,22 @@ test("consistent survival beats more round wins, ignores session history, and re
     ],
   );
   assert.equal(game.leaderboard.get("p0")!.matchWins, 1);
-  const frozen = toSnapshot(game);
+  // The clock still runs after the match, and with it the view's tick and the pace it states for a next step; nothing else may move.
+  const timeless = (view: ReturnType<typeof toView>) => ({
+    ...view,
+    tick: 0,
+    players: view.players.map((player) => ({ ...player, speed: 0, turn: 0 })),
+  });
+  const frozen = timeless(toView(game));
   step(game, new Map());
   assert.deepEqual(
-    toSnapshot(game),
+    timeless(toView(game)),
     frozen,
     "post-match ticks never add more points",
   );
   resetMatch(game, "new-match");
   assert.ok(
-    toSnapshot(game).players.every(
+    toView(game).players.every(
       (player) => player.matchScoreUnits === 0 && player.roundScoreUnits === 0,
     ),
   );
@@ -112,7 +118,7 @@ test("a departed points leader stays in the match standings and late joiners get
   removePlayer(game, "p0");
   addPlayer(game, { id: "late", name: "Late", slot: 0, color: SLOT_COLORS[0] });
   assert.equal(
-    toSnapshot(game).players.find((player) => player.id === "late")!
+    toView(game).players.find((player) => player.id === "late")!
       .matchScoreUnits,
     0,
   );
@@ -123,7 +129,7 @@ test("a departed points leader stays in the match standings and late joiners get
   step(game, new Map());
   assert.equal(game.matchWinnerId, "p0");
   assert.equal(game.leaderboard.get("p0")!.matchWins, 1);
-  assert.equal(toSnapshot(game).matchStats[0]!.name, "P0");
+  assert.equal(toView(game).matchStats[0]!.name, "P0");
   assert.equal(game.matchStats.get("late")!.roundsPlayed, 1);
 });
 
@@ -242,7 +248,7 @@ test("the match winner and recap agree when points tie and round wins decide", (
   assert.equal(game.matchWinnerId, "p0");
   assert.equal(game.roundWinnerId, "p3");
   assert.deepEqual(
-    toSnapshot(game)
+    toView(game)
       .matchStats.slice(0, 2)
       .map((entry) => [
         entry.playerId,

@@ -1,74 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  SocketClient,
-  type WebSocketLike,
-} from "../src/client/socket-client.js";
 import { RoomRuntime, type Callbacks } from "../src/online/room-runtime.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { presentFrames } from "../src/render/time/present.js";
 import { FakeNetwork, FakeTransport } from "./fixtures/fake-room.js";
-
-/** Synchronous delivery exposes what a browser event boundary reports as an uncaught error. */
-class Socket implements WebSocketLike {
-  readyState = 0;
-  message?: (event: MessageEvent) => void;
-  send(): void {}
-  close(): void {}
-  addEventListener(type: "open", listener: (event: Event) => void): void;
-  addEventListener(
-    type: "message",
-    listener: (event: MessageEvent) => void,
-  ): void;
-  addEventListener(type: "close", listener: (event: CloseEvent) => void): void;
-  addEventListener(type: "error", listener: (event: Event) => void): void;
-  addEventListener(
-    type: string,
-    listener:
-      | ((event: Event) => void)
-      | ((event: MessageEvent) => void)
-      | ((event: CloseEvent) => void),
-  ): void {
-    if (type === "message")
-      this.message = listener as (event: MessageEvent) => void;
-  }
-  receive(data: string): void {
-    this.message?.(new MessageEvent("message", { data }));
-  }
-}
-
-test("LAN ignores malformed JSON but exposes UI and RTT errors; later frames still deliver", () => {
-  const socket = new Socket();
-  const failure = new Error("UI failed"),
-    rttFailure = new Error("RTT failed");
-  let calls = 0;
-  const client = new SocketClient(
-    () => undefined,
-    () => {
-      if (++calls === 1) throw failure;
-    },
-    () => {},
-    () => {
-      throw rttFailure;
-    },
-    () => socket,
-  );
-  client.connect();
-  try {
-    assert.doesNotThrow(() => socket.receive("{"));
-    assert.throws(
-      () => socket.receive('{"type":"status"}'),
-      (error) => error === failure,
-    );
-    assert.throws(
-      () => socket.receive('{"type":"pong","sentAt":0}'),
-      (error) => error === rttFailure,
-    );
-    assert.doesNotThrow(() => socket.receive('{"type":"status"}'));
-    assert.equal(calls, 2);
-  } finally {
-    client.close();
-  }
-});
 
 function solo(callbacks: Callbacks) {
   const net = new FakeNetwork("solo", {
@@ -224,8 +159,8 @@ test("online consumer exceptions do not interrupt peer input delivery or converg
     assert.equal(guest.metrics().mismatches, 0);
     assert.equal(guest.metrics().streams.host!.gap, false);
     assert.deepEqual(
-      host.view(),
-      guest.view(),
+      presentFrames(host.presentation()!),
+      presentFrames(guest.presentation()!),
       "replicas converge despite every host presentation callback failing",
     );
   } finally {

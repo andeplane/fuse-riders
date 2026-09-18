@@ -17,7 +17,7 @@ test("the engine's public API drives a room from an empty log to a played tick",
   for (let tick = 0; tick <= engine.COUNTDOWN_TICKS; tick++)
     engine.applyTick(room, "nobody", new Map(), bots);
   assert.equal(room.game.phase, "playing");
-  assert.equal(engine.toSnapshot(room.game).players.length, 2);
+  assert.equal(engine.toView(room.game).players.length, 2);
   assert.match(engine.RULES, /^fuse-p2p-\d+$/);
   assert.equal(engine.PHASES.at(-1)!.name, "resolveRound");
   const restored = engine.decodeGameState(engine.encodeGameState(room.game));

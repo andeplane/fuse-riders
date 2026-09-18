@@ -5,7 +5,7 @@ import {
   createGame,
   startMatch,
   step,
-  toSnapshot,
+  toView,
   ARENA_HEIGHT,
   ARENA_WIDTH,
   BOMB_FUSE_TICKS,
@@ -34,14 +34,13 @@ import {
   decodeGameState,
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
-import { renderedSnapshot } from "../src/client/render-snapshot.js";
-import { interpolateWorld } from "../src/online/prediction.js";
-import { trailPaths } from "../src/client/phaser/trails.js";
+import { interpolateWorld } from "../src/render/time/present.js";
+import { trailPaths } from "../src/render/phaser/trails.js";
 import {
   crossScreenPoint,
   crossViews,
   edgeGhosts,
-} from "../src/client/arena-views.js";
+} from "../src/render/arena-views.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
 
 const neutral: InputIntent = { left: false, right: false, bomb: false };
@@ -227,7 +226,7 @@ test("cross is the classic arena move for move: only the drawing differs", () =>
           [...game.players.keys()].map((id) => [id, bots.input(game, id)]),
         ),
       );
-    const { map: _map, ...rest } = toSnapshot(game);
+    const { map: _map, ...rest } = toView(game);
     return rest;
   };
   assert.deepEqual(play("cross"), play("classic"));
@@ -517,7 +516,7 @@ test("a wrap round survives a checkpoint, and replays to the same state afterwar
   assert.ok(restored, "the checkpoint is accepted");
   drive(game, 100);
   drive(restored!, 100);
-  assert.deepEqual(toSnapshot(restored!), toSnapshot(game));
+  assert.deepEqual(toView(restored!), toView(game));
 });
 
 test("rotation still visits only the maps with scenery", () => {
@@ -532,9 +531,9 @@ test("rotation still visits only the maps with scenery", () => {
 test("presentation follows a rider through the edge instead of sweeping it back across the board", () => {
   const game = scene();
   place(game, "p0", { x: 1597, y: 400, angle: 0 });
-  const older = { ...toSnapshot(game), tick: game.tick, round: game.round };
+  const older = { ...toView(game), tick: game.tick, round: game.round };
   step(game, new Map());
-  const newer = { ...toSnapshot(game), tick: game.tick, round: game.round };
+  const newer = { ...toView(game), tick: game.tick, round: game.round };
   assert.ok(
     newer.players[0]!.x < 20,
     "the rider crossed between the two ticks",
@@ -543,17 +542,6 @@ test("presentation follows a rider through the edge instead of sweeping it back 
   assert.ok(
     half.x > 1597 && half.x < 1605,
     `half way is half a step on, not mid-board: ${half.x}`,
-  );
-  const projected = renderedSnapshot(
-    [
-      { snapshot: older, matchId: "m", round: 1, receivedAt: 0 },
-      { snapshot: newer, matchId: "m", round: 1, receivedAt: 50 },
-    ],
-    75,
-  )!.players[0]!;
-  assert.ok(
-    projected.x > newer.players[0]!.x && projected.x < newer.players[0]!.x + 10,
-    `projected forwards by part of a step: ${projected.x}`,
   );
 });
 

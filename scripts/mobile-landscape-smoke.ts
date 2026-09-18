@@ -1,4 +1,5 @@
-import { chromium, webkit, type Page } from "playwright";
+import type { Page } from "playwright";
+import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
@@ -30,11 +31,8 @@ const press = async (page: Page, x: number, y: number) => {
   }
   assert.fail("the left third never registered a press");
 };
-for (const [name, type] of [
-  ["chrome", chromium],
-  ["webkit", webkit],
-] as const) {
-  const browser = await type.launch({ headless: true });
+for (const { name, kind } of BOTH_ENGINES) {
+  const browser = await launchBrowser(kind, { headless: true });
   const context = await browser.newContext({
     viewport: { width: 390, height: 844 },
     isMobile: true,

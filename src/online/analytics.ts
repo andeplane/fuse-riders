@@ -19,7 +19,7 @@ import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import type { MatchPlayerStats } from "../engine/match-stats.js";
 import type { DecidedRound, RoundShot } from "../engine/shot-log.js";
 import { safeStorage, type SafeStorage } from "../client/safe-storage.js";
-import type { GraphicsReport } from "../client/phaser/presentation.js";
+import type { GraphicsReport } from "../render/phaser/presentation.js";
 import { bootFailedProps, sanitizeProperties } from "./analytics-text.js";
 
 type MixpanelConfig = import("mixpanel-browser").Config;

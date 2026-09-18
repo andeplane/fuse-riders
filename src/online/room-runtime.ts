@@ -17,7 +17,6 @@ import {
   decodeSnapshot,
   encodeSnapshot,
 } from "./snapshot.js";
-import { presentWorld } from "./prediction.js";
 import {
   BOT_NAMES,
   RULES,
@@ -49,8 +48,8 @@ import {
 import { botDisplayName, BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { MAX_RIDER_NAME, seatRiderName } from "../engine/rider-name.js";
 import { BOTS_ONLY_TIME_SCALE, simulationTimeScale } from "../engine/game.js";
-import type { AimPoint, GameEvent } from "../shared/protocol.js";
-import type { ViewSnapshot } from "../client/snapshot-stream.js";
+import type { AimPoint } from "../engine/primitives.js";
+import type { GameEvent } from "../engine/view.js";
 import { uuid } from "../shared/uuid.js";
 import type { RoomTransport, TransportEvents } from "fuse-network-fe";
 
@@ -84,6 +83,20 @@ export interface Callbacks {
   status(text: string): void;
   ready(id: string, host: boolean): void;
   ended?(): void;
+}
+/** What `presentation()` hands the screen: frames and times, not a finished picture. */
+export interface PresentationFrames {
+  /** The tick before `newer`, when there is one to interpolate from. */
+  older?: Frame;
+  newer: Frame;
+  /** The fractional tick to show, between the two frames. */
+  tick: number;
+  /** Present while this device steers a rider: lead it `lead` ticks (0 to 1) past `tick` with the held controls. */
+  local?: {
+    id: string;
+    controls: { left: boolean; right: boolean };
+    lead: number;
+  };
 }
 /** What the runtime can report about its own health: per link, per stream and for the fold as a whole. */
 export interface RuntimeMetrics {
@@ -1601,8 +1614,12 @@ export class RoomRuntime {
     )
       this.lastFrameTick = frame.tick;
   }
-  /** The frame to draw now: one tick behind the clock, the local rider led by its held controls. */
-  view(): ViewSnapshot | undefined {
+  /**
+   * What to draw now, for presentation to place in time (`presentWorld` in `src/render/time/`): the two newest
+   * simulated ticks, the fractional tick to show (one tick behind the clock) and how far to lead the local rider
+   * with the controls it holds. The runtime says when; it does not interpolate or predict.
+   */
+  presentation(): PresentationFrames | undefined {
     const frames = this.world?.view();
     const newer = frames?.[0];
     if (!newer) return undefined;
@@ -1617,18 +1634,20 @@ export class RoomRuntime {
         left: (this.held.flags & 1) === 1,
         right: (this.held.flags & 2) === 2,
       };
-    return presentWorld(
-      older,
+    return {
+      ...(older ? { older } : {}),
       newer,
-      presentation,
-      player && this.held.flags >= 0
+      tick: presentation,
+      ...(player && this.held.flags >= 0
         ? {
-            id: this.id,
-            controls,
-            lead: Math.max(0, Math.min(1, clock - presentation)),
+            local: {
+              id: this.id,
+              controls,
+              lead: Math.max(0, Math.min(1, clock - presentation)),
+            },
           }
-        : undefined,
-    );
+        : {}),
+    };
   }
   /** Every connected rider's input is confirmed through this tick, so no rollback can change state up to it. */
   confirmedTick(): number {

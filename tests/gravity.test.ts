@@ -20,7 +20,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   type GameState,
 } from "../src/engine/game.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
@@ -93,7 +93,7 @@ test("the pickup opens one to three black holes of bounded size inside the walls
       assert.equal(field.expiresAtTick, state.tick + GRAVITY_FIELD_TICKS);
     }
     assert.equal(
-      toSnapshot(state).gravityFields.length,
+      toView(state).gravityFields.length,
       fields.length,
       "the holes reach the snapshot",
     );

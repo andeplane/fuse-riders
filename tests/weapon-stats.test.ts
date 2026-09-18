@@ -11,7 +11,7 @@ import {
   startMatch,
   startNextRound,
   step,
-  toSnapshot,
+  toView,
   type BombState,
   type GameState,
   type InputIntent,
@@ -408,7 +408,7 @@ test("a decided round keeps its log until the next is decided, through a rematch
     length: 2,
   });
   const phase = () => String(game.phase);
-  const decided = () => toSnapshot(game).decidedRound;
+  const decided = () => toView(game).decidedRound;
   const strike = () => {
     Object.assign(player, { x: 400, y: 450, angle: 0, trail: [] });
     Object.assign(victim, { x: 900, y: 450, angle: 0, trail: [] });
@@ -587,7 +587,7 @@ test("a decided round becomes one Kill per kill and one Miss per miss, from the 
   eliminatePlayer(game, "p2");
   step(game, new Map());
   assert.equal(game.phase, "matchOver");
-  const published = toSnapshot(game).decidedRound!.shots;
+  const published = toView(game).decidedRound!.shots;
 
   const room = { round: game.round, riders: 3, bots: 0 };
   const mine = roundShotEvents(published, "p0", room);
