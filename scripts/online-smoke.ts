@@ -2,7 +2,7 @@ import { chromium, webkit, type Page } from "playwright";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
-// Online gate: create, joins through the join card, start, three rounds on the shared log, guest and creator refresh
+// Online gate: create, joins through the join card, start, three rounds on the shared log, rematch dismisses every recap, guest and creator refresh
 // mid-round, settings and the phone lobby, a lobby reload that re-confirms the seat, an AI rider, and shared-TV mode
 // with controller phones steering riders the TV simulates — in Chromium and WebKit.
 interface Snapshot {
@@ -332,6 +332,26 @@ try {
   console.log(
     "Three rounds played on the shared log; completed rounds reported independently",
   );
+  // Leave the results open on every device: only the host clicks REMATCH, but nobody should have to dismiss the old report to play.
+  await waitPhase(host, ["matchOver"], 90000);
+  const matchPages = [host, guest, ...riders];
+  await Promise.all(
+    matchPages.map((page) =>
+      page
+        .getByRole("dialog", { name: "Match results", exact: true })
+        .waitFor(),
+    ),
+  );
+  await host
+    .getByRole("dialog", { name: "Match results", exact: true })
+    .getByRole("button", { name: "REMATCH", exact: true })
+    .click();
+  for (const page of matchPages) {
+    await waitPhase(page, ["countdown", "playing"]);
+    await page.locator("dialog.game-dialog[open]").waitFor({ state: "hidden" });
+    assert.notEqual((await latest(page))!.matchId, hostRound.matchId);
+  }
+  console.log("Rematch dismissed the results on every device");
   // The first match may have ended by now: the results dialog opens on its own and must be closed before the room actions.
   const closeRecap = async (page: Page) => {
     if (await page.locator("dialog[open]").count())
@@ -604,7 +624,7 @@ try {
   await display.locator(".shared-lobby").waitFor({ state: "visible" });
   assert.deepEqual(pageErrors, []);
   console.log(
-    "Online smoke passed: room creation, joins, start, three rounds, guest and creator refresh mid-round, settings, phone lobby, lobby reloads, AI rider, shared TV with controller phones.",
+    "Online smoke passed: room creation, joins, start, three rounds, rematch dismisses every recap, guest and creator refresh mid-round, settings, phone lobby, lobby reloads, AI rider, shared TV with controller phones.",
   );
 } catch (error) {
   for (const [index, context] of browser.contexts().entries())
