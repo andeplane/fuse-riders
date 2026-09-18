@@ -50,10 +50,6 @@ export function installMobilePlayLayout(
     clearControls();
     setTools(!toolsOpen);
   };
-  // Closing a dialog returns to the live thirds mid-round; in lobby/results the roster and actions stay open.
-  app.querySelector("dialog")?.addEventListener("close", () => {
-    if (["countdown", "playing"].includes(phase)) closeTools();
-  });
   // Phase transitions: entering countdown/play closes the tools overlay and restarts the hint fade (re-appending restarts the CSS animation);
   // the recap opening ends the match for this screen, and opens the overlay so the roster and (for the host) REMATCH are in view. The pause before
   // it keeps the overlay shut: it hides the announcer, which is showing the final round's result and then the match winner. The lobby is its own phone screen (#134), never the controller.
@@ -86,6 +82,10 @@ export function installMobilePlayLayout(
       active = next.active;
       portrait = next.portrait;
       if (entered && active && !resized) enter();
+    },
+    /** The last open dialog closed. Mid-round that returns to the live thirds; in lobby/results the roster and actions stay open. */
+    dialogClosed() {
+      if (["countdown", "playing"].includes(phase)) closeTools();
     },
     /** The ☰ MENU tools overlay is open over the controller: keys do not steer. */
     blocked: () => toolsOpen,
