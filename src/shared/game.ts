@@ -115,6 +115,7 @@ import {
 import { DRUNK_DURATION_TICKS, drunkHeadingOffset } from "./drunk.js";
 import {
   BOMB_FLIGHT_TICKS,
+  MAX_RANGE_LEVEL,
   BOMB_MAX_CHARGE_TICKS,
   bombLandingPoint,
   bombLaunchDistance,
@@ -397,6 +398,7 @@ export const PICKUP_TYPES = [
   "portal",
   "gravity",
   "grip",
+  "range",
   "nitro",
   "snail",
 ] as const;
@@ -445,6 +447,8 @@ export interface PlayerState extends Required<PlayerIdentity> {
   nitroUntilTicks: number[];
   /** One absolute deadline per rival Snail, unexpired ones only: each halves speed, cancelling a Nitro one for one (#240). */
   snailUntilTicks: number[];
+  /** Round-long maximum bomb reach upgrade, capped at MAX_RANGE_LEVEL. */
+  rangeLevel: number;
   /** Once-per-round steering upgrade; also marks this rider ineligible for further GRIP drops. */
   grip: boolean;
   drunkUntilTick: number;
@@ -655,6 +659,7 @@ export function addPlayer(state: GameState, identity: PlayerIdentity): void {
     invulnerableUntilTick: 0,
     nitroUntilTicks: [],
     snailUntilTicks: [],
+    rangeLevel: 0,
     grip: false,
     drunkUntilTick: 0,
     inkUntilTick: 0,
@@ -1791,6 +1796,7 @@ export function toSnapshot(state: GameState): GameSnapshot {
       invulnerableUntilTick: player.invulnerableUntilTick,
       nitroUntilTicks: [...player.nitroUntilTicks],
       snailUntilTicks: [...player.snailUntilTicks],
+      rangeLevel: player.rangeLevel,
       grip: player.grip,
       drunkUntilTick: player.drunkUntilTick,
       inkUntilTick: player.inkUntilTick,
@@ -1922,6 +1928,7 @@ function prepareRound(state: GameState): void {
     player.invulnerableUntilTick = 0;
     player.nitroUntilTicks = [];
     player.snailUntilTicks = [];
+    player.rangeLevel = 0;
     player.grip = false;
     player.drunkUntilTick = 0;
     player.drunkStartedTick = 0;
@@ -2060,6 +2067,10 @@ function collectPickups(
   for (const pickup of [...state.pickups].sort((a, b) => a.id - b.id)) {
     const collectors = [...movements.values()]
       .filter(({ player }) => pickup.type !== "grip" || !player.grip)
+      .filter(
+        ({ player }) =>
+          pickup.type !== "range" || player.rangeLevel < MAX_RANGE_LEVEL,
+      )
       .map((movement) => ({
         movement,
         distance: pointSegmentDistanceSquared(
@@ -2136,6 +2147,11 @@ function collectPickups(
       collector.invulnerableUntilTick = Math.max(
         collector.invulnerableUntilTick,
         state.tick + STAR_DURATION_TICKS,
+      );
+    } else if (pickup.type === "range") {
+      collector.rangeLevel = Math.min(
+        MAX_RANGE_LEVEL,
+        collector.rangeLevel + 1,
       );
     } else if (pickup.type === "grip") {
       collector.grip = true;
@@ -2610,6 +2626,7 @@ function applyBombActions(
       state.tick - chargeStartedTick,
       state.settings?.bombChargeTicks,
       state.settings?.aimBounce ?? false,
+      player.rangeLevel,
     );
     // Over open edges a lob is never cut short: it flies on past the edge and comes down on the far side.
     const open = edgesOpen(state);
@@ -3308,6 +3325,7 @@ function logShot(
     power: shooter.powerPickups,
     extraBombs: shooter.extraBombs,
     fuseLevel: shooter.fuseLevel,
+    rangeLevel: shooter.rangeLevel,
     grip: shooter.grip,
     kills: [],
   });

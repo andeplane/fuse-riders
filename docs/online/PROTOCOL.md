@@ -235,3 +235,7 @@ Rules advance from 31 to 32, the current rules; everything rules 25 to 31 introd
 ## Optional voice media
 
 Voice uses an audio transceiver on the existing direct peer connection and validated, connection-scoped status messages outside the simulation log. See [voice chat](VOICE-CHAT.md) for negotiation, consent and lifecycle details.
+
+## Range pickup
+
+Fold rules `fuse-p2p-36` add the round-long Range pickup. Players, LAN snapshots and shot records carry `rangeLevel`, an integer from 0 to 3; checkpoints reject missing, fractional or out-of-range levels. Collection increases the level and excludes capped riders before distance/slot arbitration. Round reset clears it. Maximum ordinary bomb launch distance becomes 1.5×, 1.75× or 2×; minimum distance, charge timing, special weapons and physics timing are unchanged. Simulation, bot charge selection and presentation share the range curve. State hashing and rollback include the level. Rule equality rejects older peers and snapshots: refresh peers together and use fresh rooms after rollback. Transport and room-service envelopes are unchanged.

@@ -152,6 +152,40 @@ try {
             }
             results.push({ backend, timing, bombChargeTicks, centers });
           }
+        // Full-charge Range markers must match the authoritative 600/700/800-unit reach.
+        for (const theme of Object.values(themes))
+          for (const [rangeLevel, reach] of [
+            [1, 600],
+            [2, 700],
+            [3, 800],
+          ]) {
+            arena.render(
+              {
+                ...snapshot,
+                tick: 48,
+                bombChargeTicks: 8,
+                players: snapshot.players.map((player) => ({
+                  ...player,
+                  rangeLevel,
+                })),
+                pickups: [
+                  { id: 1, type: "range", x: 500, y: 500, expiresAtTick: 200 },
+                ],
+              },
+              1600,
+              theme,
+              "range",
+            );
+            const center = markerCenter(200 + reach! - 40);
+            if (
+              !Number.isFinite(center) ||
+              Math.abs(center - (200 + reach!)) > 1.5
+            )
+              throw Error(
+                `${backend}/${theme.id}/range ${rangeLevel}: ${center}`,
+              );
+            results.push({ backend, theme: theme.id, rangeLevel, center });
+          }
         // Check the eased approach and return against fixed reference positions, alongside linear clamped aim.
         for (const timing of ["local", "world"] as const) {
           for (const aimBounce of [true, false] as const) {

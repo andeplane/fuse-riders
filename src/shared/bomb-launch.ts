@@ -1,6 +1,13 @@
 import { sin, cos } from "./deterministic-math.js";
 export const BOMB_MIN_LAUNCH_DISTANCE = 100;
 export const BOMB_MAX_LAUNCH_DISTANCE = 400;
+export const MAX_RANGE_LEVEL = 3;
+export function bombRangeMultiplier(rangeLevel: number): number {
+  return [1, 1.5, 1.75, 2][rangeLevel] ?? 1;
+}
+export function bombMaxLaunchDistance(rangeLevel = 0): number {
+  return BOMB_MAX_LAUNCH_DISTANCE * bombRangeMultiplier(rangeLevel);
+}
 export const BOMB_MAX_CHARGE_TICKS = 8; // Full reach in 0.4 seconds at 20 Hz.
 export const BOMB_MAX_AIM_HOLD_TICKS = 2; // Pause at full reach for 100 ms at 20 Hz.
 export const BOMB_MIN_CHARGE_TICKS = 2;
@@ -62,8 +69,14 @@ export function bombLaunchDistance(
   chargeTicks: number,
   maxChargeTicks = BOMB_MAX_CHARGE_TICKS,
   bounce = false,
+  rangeLevel = 0,
 ): number {
-  return bombAimDistance(Math.floor(chargeTicks), maxChargeTicks, bounce);
+  return bombAimDistance(
+    Math.floor(chargeTicks),
+    maxChargeTicks,
+    bounce,
+    rangeLevel,
+  );
 }
 
 /** Continuous aim curve; authoritative releases sample it only at whole ticks. */
@@ -71,10 +84,11 @@ export function bombAimDistance(
   chargeTicks: number,
   maxChargeTicks = BOMB_MAX_CHARGE_TICKS,
   bounce = false,
+  rangeLevel = 0,
 ): number {
   return (
     BOMB_MIN_LAUNCH_DISTANCE +
-    ((BOMB_MAX_LAUNCH_DISTANCE - BOMB_MIN_LAUNCH_DISTANCE) *
+    ((bombMaxLaunchDistance(rangeLevel) - BOMB_MIN_LAUNCH_DISTANCE) *
       chargeRamp(chargeTicks, maxChargeTicks, bounce)) /
       maxChargeTicks
   );

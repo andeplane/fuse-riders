@@ -1726,6 +1726,7 @@ test("overlapping blast owners receive no speculative elimination credit", () =>
       power: 0,
       extraBombs: 0,
       fuseLevel: 0,
+      rangeLevel: 0,
       grip: false,
       kills: [],
     });
