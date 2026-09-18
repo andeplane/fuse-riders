@@ -94,23 +94,18 @@ const shared = new Set([
   "game-id",
   "duration-text",
   "protocol",
-  "uuid",
   "firebase-config",
 ]);
 const network = new Set([
-  "clock",
   "endpoints",
+  "fuse-game",
   "net-stats",
-  "packet",
-  "rollback",
   "room-runtime",
-  "snapshot",
-  "stream",
   "telemetry",
 ]);
 /** Ownership by directory, with the files under `src/online/` that are netcode rather than app listed by name. */
 export function layer(file: string): Layer {
-  if (/^fuse-network-(fe|be|protocol)(\/|$)/.test(file)) return "net";
+  if (/^fuse-(network-(fe|be|protocol)|netcode)(\/|$)/.test(file)) return "net";
   const base = path.basename(file, path.extname(file));
   if (file.startsWith("src/engine/")) return "engine";
   // `src/shared/` keeps only what is not simulation. Anything else that turns up there is held to the engine's rules

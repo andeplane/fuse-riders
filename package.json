@@ -43,6 +43,7 @@
     "esbuild": "0.28.2",
     "eslint": "10.10.0",
     "firebase": "^12.19.0",
+    "fuse-netcode": "0.1.0",
     "fuse-network-fe": "0.1.0",
     "google-auth-library": "^11.0.2",
     "linkedom": "^0.18.13",

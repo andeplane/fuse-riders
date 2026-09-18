@@ -1,5 +1,5 @@
 import { VoiceChat } from "./voice-chat.js";
-import { uuid } from "../shared/uuid.js";
+import { uuid } from "fuse-netcode";
 import { showRoomSettings } from "./room-settings-menu.js";
 import { keyboardShortcuts } from "./keyboard-shortcuts.js";
 import { startAttract } from "./attract.js";
@@ -55,7 +55,7 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES } from "./packet.js";
+import { MAX_PACKET_BYTES } from "fuse-netcode";
 import { NetStats } from "./net-stats.js";
 import { Telemetry, telemetryEndpoint } from "./telemetry.js";
 import type { AvatarId } from "../shared/avatars.js";

@@ -38,6 +38,7 @@ export function detectHazards(ctx: TickContext): void {
     obstacleContactTimes,
     obstaclesReached,
     trailHits,
+    sceneryBefore,
   } = ctx;
   const newBlasts = ctx.fuseBlasts;
   // Id order: each contact bisection starts from the one before it, and the last to shorten it is what a shield
@@ -106,27 +107,55 @@ export function detectHazards(ctx: TickContext): void {
     // through untouched rather than bouncing: there is a far side to arrive at, unlike the arena wall.
     // Only the contact time is recorded here; the cause is decided below, once the trail and rider contacts of
     // this tick are known and can be compared against it.
+    // A step that reaches past an open edge also meets the scenery just beyond it, which the state holds on the far
+    // side: each piece is tested where the step's own frame puts it, and that image is what a shield turns away from.
+    const sceneryImages = open
+      ? movementImages(state, movement, RIDER_OBSTACLE_RADIUS)
+      : NO_WRAP;
     for (const obstacle of obstacleHitboxes) {
       if (isHazardImmune(movement.player, state.tick)) break;
-      const touches = (time: number): boolean =>
-        hitboxBlocksPath(
-          obstacle,
-          movement.oldX,
-          movement.oldY,
-          movement.oldX + (movement.x - movement.oldX) * time,
-          movement.oldY + (movement.y - movement.oldY) * time,
-          RIDER_OBSTACLE_RADIUS,
+      for (const { dx, dy } of sceneryImages) {
+        const piece =
+          dx === 0 && dy === 0
+            ? obstacle
+            : { ...obstacle, x: obstacle.x - dx, y: obstacle.y - dy };
+        const touches = (time: number): boolean =>
+          hitboxBlocksPath(
+            piece,
+            movement.oldX,
+            movement.oldY,
+            movement.oldX + (movement.x - movement.oldX) * time,
+            movement.oldY + (movement.y - movement.oldY) * time,
+            RIDER_OBSTACLE_RADIUS,
+          );
+        const previous = obstacleContactTimes.get(movement.player.id) ?? 1;
+        // Only immunity — a Star, shield grace, portal grace — can carry a rider into scenery, and it can lapse in
+        // there. A rider that starts its step already overlapping an obstacle is let out of that one rather than
+        // killed on the spot by a rock it had every right to be inside; any other obstacle is as solid as ever.
+        // Scenery that moved this tick is judged where it stood before its step: a train that has just rolled onto
+        // where the rider stands is not something the rider was ever inside of.
+        const before = sceneryBefore.get(obstacle.id);
+        const stoodIn = before
+          ? { ...piece, x: before.x - dx, y: before.y - dy }
+          : piece;
+        if (
+          !touches(previous) ||
+          hitboxBlocksPath(
+            stoodIn,
+            movement.oldX,
+            movement.oldY,
+            movement.oldX,
+            movement.oldY,
+            RIDER_OBSTACLE_RADIUS,
+          )
+        )
+          continue;
+        obstacleContactTimes.set(
+          movement.player.id,
+          firstContactTime(touches, previous),
         );
-      const previous = obstacleContactTimes.get(movement.player.id) ?? 1;
-      // Only immunity — a Star, shield grace, portal grace — can carry a rider into scenery, and it can lapse in
-      // there. A rider that starts its step already overlapping an obstacle is let out of that one rather than
-      // killed on the spot by a rock it had every right to be inside; any other obstacle is as solid as ever.
-      if (!touches(previous) || touches(0)) continue;
-      obstacleContactTimes.set(
-        movement.player.id,
-        firstContactTime(touches, previous),
-      );
-      obstaclesReached.set(movement.player.id, obstacle);
+        obstaclesReached.set(movement.player.id, piece);
+      }
     }
 
     // A step that reaches past an open edge is also tested from the far side, where the trails it is about to meet are.

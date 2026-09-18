@@ -544,8 +544,8 @@ test("ground decoration is stable, bounded and absent on classic edge variants",
       draw(),
       "texture must not shimmer on regeneration",
     );
-    if (map === "classic" || map === "wrap" || map === "cross") {
-      assert.equal(commands.length, 0);
+    if (!OBSTACLE_MAPS.includes(map)) {
+      assert.equal(commands.length, 0, `${map} stands on the classic floor`);
     } else {
       assert.deepEqual(commands[0], ["save"]);
       assert.deepEqual(commands.at(-1), ["restore"]);

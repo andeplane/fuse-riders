@@ -4,13 +4,17 @@ import { FakeNetwork, type NetworkOptions } from "./fixtures/fake-room.js";
 import { ScriptedPeer } from "./fixtures/scripted-peer.js";
 import {
   DISCONNECT_MS,
-  RULES_MISMATCH,
   STALLED_GAP_MS,
   WINDOW_GRACE_MS,
+  encodeNack,
+  roomHash,
+  ROLLBACK_TICKS,
+  SEQ_AHEAD,
+} from "fuse-netcode";
+import {
+  RULES_MISMATCH,
   type RoomRuntime,
 } from "../src/online/room-runtime.js";
-import { encodeNack, roomHash } from "../src/online/packet.js";
-import { ROLLBACK_TICKS, SEQ_AHEAD } from "../src/online/stream.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { COUNTDOWN_TICKS } from "../src/engine/game.js";
 import { ACTION, PRESENCE, STEER } from "../src/engine/input-log.js";

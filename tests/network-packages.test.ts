@@ -8,6 +8,7 @@ const ALLOWED: Record<string, RegExp> = {
   "fuse-network-fe": /^(\.|fuse-network-protocol$)/,
   "fuse-network-be":
     /^(\.|node:|ws$|fuse-network-protocol$|@google-cloud\/|google-auth-library$)/,
+  "fuse-netcode": /^(\.|@msgpack\/msgpack$|fuse-network-fe$)/,
   "fuse-platform":
     /^(\.|node:|fuse-network-be$|jose$|@google-cloud\/firestore$)/,
 };

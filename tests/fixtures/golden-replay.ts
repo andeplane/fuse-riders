@@ -115,7 +115,16 @@ export function replayGolden(recording: Recording): {
         "a round is played on an obstacle map",
         coverage.maps.some(isObstacleMap),
       ),
-      ...["desert", "forest", "city", "wrap", "classic", "cross"].map((map) =>
+      ...[
+        "desert",
+        "forest",
+        "city",
+        "wrap",
+        "classic",
+        "cross",
+        "drift",
+        "trains",
+      ].map((map) =>
         claim(
           `map:${map}:played`,
           `a round is played on ${map}`,

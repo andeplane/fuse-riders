@@ -8,8 +8,8 @@ import {
   DISCONNECT_MS,
   LINK_WAIT_MS,
   WINDOW_GRACE_MS,
-} from "../src/online/room-runtime.js";
-import { SEQ_AHEAD } from "../src/online/stream.js";
+  SEQ_AHEAD,
+} from "fuse-netcode";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { COUNTDOWN_TICKS, ROUND_OVER_TICKS } from "../src/engine/game.js";
 

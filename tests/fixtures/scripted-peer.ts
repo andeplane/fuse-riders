@@ -5,7 +5,8 @@ import {
   roomHash,
   wrapMs,
   type Packet,
-} from "../../src/online/packet.js";
+} from "fuse-netcode";
+import { fuseGame } from "../../src/online/fuse-game.js";
 import { RULES } from "../../src/engine/apply-tick.js";
 import type { Entry } from "../../src/engine/input-log.js";
 
@@ -60,7 +61,7 @@ export class ScriptedPeer {
           ...(this.heardFast.get(from) ?? []),
           net.now,
         ]);
-        const decoded = decodePacket(bytes);
+        const decoded = decodePacket(fuseGame, bytes);
         if (!decoded) this.undecodable++;
         else if ("nack" in decoded) this.nacks++;
         if (decoded && "packet" in decoded && from === net.hostId)

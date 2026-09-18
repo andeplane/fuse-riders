@@ -8,23 +8,24 @@ import {
   ROLLBACK_TICKS,
   SEQ_AHEAD,
   StreamLog,
-} from "../src/online/stream.js";
+} from "fuse-netcode";
+import { fuseGame } from "../src/online/fuse-game.js";
 import { PRESS, RELEASE, STEER, type Entry } from "../src/engine/input-log.js";
 
 const e = (seq: number, tick: number, ...body: unknown[]): Entry =>
   [seq, tick, ...body] as Entry;
 
 test("own stream appends contiguous entries with increasing gestures and rejects order violations", () => {
-  const own = new StreamLog(1);
+  const own = new StreamLog(fuseGame, 1);
   assert.deepEqual(own.append(5, [STEER, 1]), [1, 5, STEER, 1]);
   own.append(5, [PRESS, 1]);
   own.append(7, [RELEASE, 1]);
   assert.equal(own.lastSeq, 3);
   assert.equal(own.contiguous, 3);
   assert.equal(own.latestTick(), 7);
-  assert.equal(own.latestGesture(), 1);
+  assert.equal(own.latestOrdinal(), 1);
   assert.throws(() => own.append(6, [STEER, 0]), /Invalid own entry/);
-  assert.throws(() => own.append(7, [PRESS, 1]), /Reused gesture/);
+  assert.throws(() => own.append(7, [PRESS, 1]), /Reused ordinal/);
   assert.throws(() => own.append(7, [STEER, 9]), /Invalid own entry/);
   assert.deepEqual(
     own.entriesAt(5).map((entry) => entry[0]),
@@ -35,7 +36,7 @@ test("own stream appends contiguous entries with increasing gestures and rejects
 });
 
 test("remote stream applies in seq order, buffers gaps, reports the first missing seq and rolls back to a late tick", () => {
-  const remote = new StreamLog(1);
+  const remote = new StreamLog(fuseGame, 1);
   assert.deepEqual(remote.receive([e(2, 12, STEER, 2)], 2, 12, 20, 20), {
     status: "accepted",
     added: [],
@@ -76,7 +77,7 @@ test("remote stream applies in seq order, buffers gaps, reports the first missin
 });
 
 test("a whole packet is rejected on any invalid entry and nothing changes", () => {
-  const remote = new StreamLog(1);
+  const remote = new StreamLog(fuseGame, 1);
   remote.receive([e(1, 10, STEER, 1), e(2, 11, PRESS, 3)], 2, 11, 12, 12);
   const before = JSON.stringify([...remote.entries]);
   const bad: [unknown[], number, number][] = [
@@ -118,7 +119,7 @@ test("a whole packet is rejected on any invalid entry and nothing changes", () =
       .status,
     "invalid",
   );
-  const flood = new StreamLog(1);
+  const flood = new StreamLog(fuseGame, 1);
   let seq = 2,
     status = "accepted";
   let refusal: string | undefined;
@@ -133,12 +134,12 @@ test("a whole packet is rejected on any invalid entry and nothing changes", () =
 });
 
 test("entries behind the rollback window or the snapshot base are unrepairable and leave the stream waiting for a snapshot", () => {
-  const remote = new StreamLog(1);
+  const remote = new StreamLog(fuseGame, 1);
   assert.equal(
     remote.receive([e(1, 5, STEER, 1)], 1, 5, 100, 100).status,
     "unrepairable",
   );
-  const based = new StreamLog(3, { seq: 4, tick: 50, gesture: 2 });
+  const based = new StreamLog(fuseGame, 3, { seq: 4, tick: 50, ordinal: 2 });
   assert.equal(
     based.receive([e(5, 49, STEER, 1)], 5, 50, 60, 60).status,
     "unrepairable",
@@ -159,7 +160,7 @@ test("entries behind the rollback window or the snapshot base are unrepairable a
     "the stale entry is not committed; only a fresh snapshot resolves it",
   );
   assert.equal(based.firstMissing(), 5);
-  const fresh = new StreamLog(3, { seq: 4, tick: 50, gesture: 2 });
+  const fresh = new StreamLog(fuseGame, 3, { seq: 4, tick: 50, ordinal: 2 });
   assert.equal(
     fresh.receive([e(5, 51, PRESS, 2)], 5, 51, 60, 60).status,
     "invalid",
@@ -170,15 +171,15 @@ test("entries behind the rollback window or the snapshot base are unrepairable a
     added: [e(5, 51, PRESS, 3)],
     rollbackTo: 51,
   });
-  assert.equal(fresh.latestGesture(), 3);
+  assert.equal(fresh.latestOrdinal(), 3);
   assert.equal(
-    new StreamLog(3, { seq: 4, tick: 50 }).entriesAfter(4, 50).length,
+    new StreamLog(fuseGame, 3, { seq: 4, tick: 50 }).entriesAfter(4, 50).length,
     0,
   );
 });
 
 test("retention keeps the newest 64 or two seconds, rotates every entry through packets and answers nacks", () => {
-  const own = new StreamLog(1);
+  const own = new StreamLog(fuseGame, 1);
   for (let seq = 1; seq <= 100; seq++) own.append(seq, [STEER, seq % 4]);
   own.through = 100;
   assert.equal(own.retained().length, ROLLBACK_TICKS, "two seconds of ticks");
@@ -211,7 +212,7 @@ test("retention keeps the newest 64 or two seconds, rotates every entry through 
   );
   own.prune(100);
   assert.equal(own.entries.size, 0);
-  const small = new StreamLog(1);
+  const small = new StreamLog(fuseGame, 1);
   small.append(1, [STEER, 1]);
   small.append(2, [STEER, 0]);
   assert.deepEqual(
@@ -221,7 +222,7 @@ test("retention keeps the newest 64 or two seconds, rotates every entry through 
 });
 
 test("snapshot bases exclude entries after the snapshot tick and replay everything after the base", () => {
-  const remote = new StreamLog(2);
+  const remote = new StreamLog(fuseGame, 2);
   remote.receive(
     [
       e(1, 10, PRESS, 1),
@@ -234,32 +235,32 @@ test("snapshot bases exclude entries after the snapshot tick and replay everythi
     20,
     20,
   );
-  assert.deepEqual(remote.baseAt(13), { seq: 2, tick: 13, gesture: 1 });
+  assert.deepEqual(remote.baseAt(13), { seq: 2, tick: 13, ordinal: 1 });
   assert.deepEqual(
     remote.entriesAfter(2).map((entry) => entry[0]),
     [3, 5],
   );
   remote.prune(12);
-  assert.deepEqual(remote.baseAt(13), { seq: 2, tick: 13, gesture: 1 });
+  assert.deepEqual(remote.baseAt(13), { seq: 2, tick: 13, ordinal: 1 });
   assert.deepEqual(
     remote.baseAt(20),
-    { seq: 5, tick: 20, gesture: 2 },
+    { seq: 5, tick: 20, ordinal: 2 },
     "a base past the gap folds the waiting entry by absence: the served world never applied seq 4 or 5",
   );
 });
 
 test("a snapshot base at an earlier tick excludes presses appended for later ticks, and pruned presses raise it", () => {
-  const own = new StreamLog(1);
+  const own = new StreamLog(fuseGame, 1);
   own.append(60, [STEER, 1]);
   own.append(76, [PRESS, 1]);
   own.append(77, [RELEASE, 1]);
   assert.deepEqual(
     own.baseAt(64),
-    { seq: 1, tick: 64, gesture: 0 },
+    { seq: 1, tick: 64, ordinal: 0 },
     "the press at 76 is after the base",
   );
-  assert.equal(own.baseAt(76).gesture, 1);
-  const replica = new StreamLog(1, own.baseAt(64));
+  assert.equal(own.baseAt(76).ordinal, 1);
+  const replica = new StreamLog(fuseGame, 1, own.baseAt(64));
   assert.equal(
     replica.receive(own.entriesAfter(1, 64), 3, 80, 80, 64).status,
     "accepted",
@@ -268,14 +269,14 @@ test("a snapshot base at an earlier tick excludes presses appended for later tic
   own.through = 80;
   own.prune(76);
   assert.equal(
-    own.baseAt(78).gesture,
+    own.baseAt(78).ordinal,
     1,
     "a pruned press still counts for later bases",
   );
 });
 
 test("confirmed completeness stops at the last contiguous entry when a gap hides where the missing entry belongs", () => {
-  const remote = new StreamLog(1);
+  const remote = new StreamLog(fuseGame, 1);
   assert.equal(
     remote.receive([e(1, 50, STEER, 1)], 1, 60, 60, 60).status,
     "accepted",
@@ -294,7 +295,7 @@ test("confirmed completeness stops at the last contiguous entry when a gap hides
     60,
     "but only what the gap-free packet confirmed is final: seq 2 may sit anywhere from 61 to 80",
   );
-  const sameTick = new StreamLog(1);
+  const sameTick = new StreamLog(fuseGame, 1);
   sameTick.receive([e(1, 72, STEER, 1), e(3, 80, STEER, 0)], 3, 90, 90, 90);
   assert.equal(
     sameTick.confirmedThrough(),
@@ -309,7 +310,7 @@ test("confirmed completeness stops at the last contiguous entry when a gap hides
 });
 
 test("a declared through is a promise about every later seq: a new entry at or below it is refused, a repeat is not", () => {
-  const remote = new StreamLog(1);
+  const remote = new StreamLog(fuseGame, 1);
   // The entry rides with the packet that declares it: `through` may already have reached its tick.
   assert.equal(
     remote.receive([e(1, 10, STEER, 1)], 1, 10, 10, 10).status,
@@ -341,7 +342,7 @@ test("a declared through is a promise about every later seq: a new entry at or b
 });
 
 test("promises survive reordering: a later packet may overtake the one carrying entries below its through", () => {
-  const remote = new StreamLog(1);
+  const remote = new StreamLog(fuseGame, 1);
   // Sent first: seq 1–2 up to tick 12. Sent second: seq 3 at tick 20, through 25. They arrive the other way round.
   assert.equal(
     remote.receive([e(3, 20, STEER, 0)], 3, 25, 25, 25).status,
@@ -361,7 +362,7 @@ test("promises survive reordering: a later packet may overtake the one carrying 
     "once the prefix reaches seq 3 the promise binds everything after it",
   );
   // A promise made past a gap binds only the seqs after the one it names.
-  const gapped = new StreamLog(1);
+  const gapped = new StreamLog(fuseGame, 1);
   gapped.receive([e(1, 10, STEER, 1)], 1, 10, 10, 10);
   assert.equal(gapped.receive([], 3, 40, 40, 40).status, "accepted");
   assert.equal(
@@ -385,7 +386,7 @@ test("promises survive reordering: a later packet may overtake the one carrying 
 });
 
 test("a lastSeq further ahead than any repair could close is refused and opens no gap", () => {
-  const remote = new StreamLog(1);
+  const remote = new StreamLog(fuseGame, 1);
   remote.receive([e(1, 10, STEER, 1)], 1, 10, 10, 10);
   assert.equal(remote.ahead, false);
   assert.deepEqual(remote.receive([], 1 + SEQ_AHEAD + 1, 11, 11, 11), {
@@ -426,8 +427,8 @@ function lossyStream(seed: number, lookahead: number) {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 0x1_0000_0000;
   };
-  const own = new StreamLog(1),
-    remote = new StreamLog(1);
+  const own = new StreamLog(fuseGame, 1),
+    remote = new StreamLog(fuseGame, 1);
   interface Delivery {
     at: number;
     entries: Entry[];

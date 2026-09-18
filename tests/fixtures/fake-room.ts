@@ -1,14 +1,13 @@
 import {
-  RoomRuntime,
-  type Callbacks,
   type RoomTransport,
   type RuntimeDependencies,
   type TransportEvents,
-} from "../../src/online/room-runtime.js";
+  decodePacket,
+} from "fuse-netcode";
+import { RoomRuntime, type Callbacks } from "../../src/online/room-runtime.js";
+import { fuseGame, type Frame } from "../../src/online/fuse-game.js";
 import type { RoomSettings } from "../../src/engine/room-settings.js";
-import type { Frame } from "../../src/online/rollback.js";
 import type { GameEvent } from "../../src/shared/protocol.js";
-import { decodePacket } from "../../src/online/packet.js";
 
 export interface NetworkOptions {
   loss: number;
@@ -94,7 +93,7 @@ export class FakeNetwork {
     if (!target?.online || !this.transports.get(from)?.online) return false;
     this.sentFast++;
     this.bytesFast += bytes.byteLength;
-    const decoded = decodePacket(bytes);
+    const decoded = decodePacket(fuseGame, bytes);
     const packet = decoded && "packet" in decoded ? decoded.packet : undefined;
     if (packet?.hash) {
       let hashes = this.reportedHashes.get(from);

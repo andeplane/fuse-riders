@@ -17,7 +17,7 @@ import {
   showsRoundResult,
 } from "../client/arena-announcer.js";
 import { plainStatus, type StatusTone } from "./status-copy.js";
-import type { SpectatorView } from "./rollback.js";
+import type { SpectatorView } from "./fuse-game.js";
 
 /** Match score units per point. */
 const UNITS = 60;
