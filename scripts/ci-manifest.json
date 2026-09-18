@@ -210,6 +210,29 @@
       "serviceUrlEnv": "ONLINE_URL",
       "timeoutMinutes": 25,
       "retries": 1
+    },
+    {
+      "id": "dice-chrome",
+      "group": "dice",
+      "name": "Pig dice room, refresh recovery and shared screen",
+      "why": "The template game's whole stack in a browser: create and join by code, turns to a round result, recovery from a peer, and the TV with a phone controller.",
+      "command": "npx tsx scripts/dice-smoke.ts",
+      "browsers": ["chromium"],
+      "env": {},
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 20,
+      "retries": 1
+    },
+    {
+      "id": "dice-webkit",
+      "group": "dice",
+      "name": "Pig in WebKit",
+      "command": "npx tsx scripts/dice-smoke.ts",
+      "browsers": ["webkit"],
+      "env": { "BROWSER": "webkit" },
+      "serviceUrlEnv": "ONLINE_URL",
+      "timeoutMinutes": 20,
+      "retries": 1
     }
   ]
 }
