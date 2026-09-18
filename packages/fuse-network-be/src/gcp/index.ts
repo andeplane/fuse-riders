@@ -6,6 +6,7 @@ import type { AuthClient } from "google-auth-library";
 import { RoomStore } from "../room-store.js";
 import { RoomGateway } from "../gateway.js";
 import { createRoomServer, type HttpExtension } from "../http.js";
+import { rateLimitAddress } from "../client-address.js";
 import { FirestoreRoomDatabase } from "./firestore-store.js";
 import { PubSubRoomBus } from "./pubsub-bus.js";
 export { FirestoreRoomDatabase } from "./firestore-store.js";
@@ -90,19 +91,24 @@ export function startGcpRoomService(options: GcpRoomServiceOptions): Server {
     store,
     gateway,
     extension: options.httpExtension?.({ store, firestore, prefix, projectId }),
+    // LEGACY-QUERY-TOKEN: DEPRECATED rollout window (#256 S3, docs/online/TOKEN-TRANSPORT.md): pages built before the first-frame
+    // handshake still send `?token=`. Delete this line and `legacyQueryToken` once the
+    // `deprecated-query-token` log line has been absent for a week.
+    legacyQueryToken: true,
     allowOrigin: (origin) => origins.has(origin),
     ...(/^[a-f0-9]{40}$/.test(process.env.BUILD_REVISION ?? "")
       ? { revision: process.env.BUILD_REVISION }
       : {}),
     // Cloud Run supplies the external forwarding chain; use the final address, not arbitrary leading entries.
+    // Limits are kept per IPv4 address or per IPv6 /64: one IPv6 host owns a whole /64 of addresses.
     clientAddress: (req) => {
       const forwarded = req.headers["x-forwarded-for"];
-      return (
+      return rateLimitAddress(
         (typeof forwarded === "string"
           ? forwarded.split(",").at(-1)?.trim()
           : undefined) ??
-        req.socket.remoteAddress ??
-        "unknown"
+          req.socket.remoteAddress ??
+          "unknown",
       );
     },
   });

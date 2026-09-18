@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { WebSocket } from "ws";
+import { authFrame } from "fuse-network-protocol";
 import { createDevRoomService } from "../src/dev.js";
 import { RoomGateway } from "../src/gateway.js";
 import { createRoomServer } from "../src/http.js";
@@ -209,9 +210,10 @@ async function fixture() {
     new Promise<{ socket: WebSocket; welcome: Record<string, unknown> }>(
       (resolve, reject) => {
         const socket = new WebSocket(
-          `ws://127.0.0.1:${port}/api/rooms/${code}/ws?token=${token}`,
+          `ws://127.0.0.1:${port}/api/rooms/${code}/ws`,
           { origin: pageOrigin },
         );
+        socket.once("open", () => socket.send(authFrame(token)));
         socket.once("message", (raw) =>
           resolve({ socket, welcome: JSON.parse(raw.toString()) }),
         );
@@ -287,19 +289,40 @@ test("dev room service creates rooms and admits sockets only for same-origin loo
     const { socket, welcome } = await f.connect(code, token);
     assert.equal(welcome.type, "welcome");
     assert.equal(welcome.protocol, 2);
-    const ice = await f.call(`/api/rooms/${code}/ice?token=${token}`, {
+    const ice = await f.call(`/api/rooms/${code}/ice`, {
       origin: f.origin,
+      authorization: `Bearer ${token}`,
     });
     assert.equal(ice.status, 200);
     assert.equal(JSON.parse(ice.body).relayConfigured, false);
     assert.equal(
       (
-        await f.call(`/api/rooms/${code}/ice?token=${"c".repeat(64)}`, {
+        await f.call(`/api/rooms/${code}/ice`, {
           origin: f.origin,
+          authorization: `Bearer ${"c".repeat(64)}`,
         })
       ).status,
       403,
       "ICE needs membership",
+    );
+    assert.equal(
+      (
+        await f.call(`/api/rooms/${code}/ice?token=${token}`, {
+          origin: f.origin,
+        })
+      ).status,
+      401,
+      "a member token in the query string is not a credential",
+    );
+    assert.equal(
+      (
+        await f.call(`/api/rooms/${code}/end?token=${token}`, {
+          method: "POST",
+          origin: f.origin,
+        })
+      ).status,
+      401,
+      "nor is the host token",
     );
     assert.equal(
       (
@@ -421,7 +444,7 @@ test(
     const { code, token } = await f.create();
     const { head, socket } = await rawExchange(
       f.port,
-      upgrade(f.port, `/api/rooms/${code}/ws?token=${token}`),
+      upgrade(f.port, `/api/rooms/${code}/ws`),
       true,
     );
     try {
@@ -439,10 +462,10 @@ test("WebSocket admission failures are throttled before upgrade without spending
   try {
     const attempt = () =>
       new Promise<number>((resolve, reject) => {
-        const ws = new WebSocket(
-          `ws://127.0.0.1:${f.port}/api/rooms/ZZ99/ws?token=${"a".repeat(64)}`,
-          { origin: f.origin },
-        );
+        const ws = new WebSocket(`ws://127.0.0.1:${f.port}/api/rooms/ZZ99/ws`, {
+          origin: f.origin,
+        });
+        ws.once("open", () => ws.send(authFrame("a".repeat(64))));
         ws.on("error", reject);
         ws.once("close", (code) => resolve(code));
         ws.once("unexpected-response", (_req, response) => {
@@ -468,7 +491,7 @@ test("rejected WebSocket handshakes release their pending admission slots", asyn
     for (let i = 0; i < 6; i++) {
       const reply = await rawExchange(
         f.port,
-        `GET /api/rooms/${code}/ws?token=${token} HTTP/1.1\r\nHost: 127.0.0.1:${f.port}\r\nOrigin: ${f.origin}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\n\r\n`,
+        `GET /api/rooms/${code}/ws HTTP/1.1\r\nHost: 127.0.0.1:${f.port}\r\nOrigin: ${f.origin}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\n\r\n`,
       );
       assert.match(reply.head, /^HTTP\/1.1 400 /);
     }

@@ -39,6 +39,8 @@ test("a status that already says what to do wins over the network guess", () => 
     "Game protocol changed — reload this page",
     "This host tab was replaced — use the newer tab",
     "Saved game is incompatible or damaged — a fresh lobby is ready",
+    // Terminal: the transport has stopped retrying, so "different network" would send the player the wrong way.
+    "Room full (five players and TV)",
   ])
     assert.equal(connectHint(status, 60000), status);
 });
