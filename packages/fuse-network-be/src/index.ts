@@ -18,6 +18,8 @@ export {
   authFrame,
   generateRoomCode,
   validRoomCode,
+  LEGACY_GAME_ID,
+  validGameId,
   isAuthorityGrant,
   type AuthorityGrant,
   type GrantIdentity,

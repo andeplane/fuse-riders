@@ -22,13 +22,14 @@ import type { RoomGateway } from "./gateway.js";
 import {
   AUTH_DEADLINE_MS,
   REFUSED_CLOSE_GRACE_MS,
-  authToken,
+  readAuthFrame,
 } from "./socket-auth.js";
 import {
   CLOSE_ROOM_ENDED,
   CLOSE_ROOM_FULL,
   CLOSE_UNAUTHENTICATED,
   DEFAULT_ICE_SERVERS,
+  validGameId,
 } from "fuse-network-protocol";
 
 /** Optional game-owned HTTP routes, behind the common Origin and error boundaries. */
@@ -215,8 +216,15 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
           json({ error: "Room creation limit; try later" }, 429);
           return;
         }
+        // The game rides in the query, not a body, so creation stays a simple request with no CORS preflight.
+        // Absent means `LEGACY_GAME_ID`: a page from before rooms carried a game.
+        const gameId = url.searchParams.get("gameId") ?? undefined;
+        if (gameId !== undefined && !validGameId(gameId)) {
+          json({ error: "Unknown game" }, 400);
+          return;
+        }
         const token = randomBytes(32).toString("hex"),
-          code = await store.createAvailable(token);
+          code = await store.createAvailable(token, undefined, gameId);
         json({ code, token }, 201);
         return;
       }
@@ -377,11 +385,11 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
                 cancelDeadline?.();
                 reject(error);
               };
-              const admit = (token: string) => {
+              const admit = (token: string, gameId?: string) => {
                 phase = "admitted";
                 cancelDeadline?.();
                 void gateway
-                  .connect(code, token, ws)
+                  .connect(code, token, ws, gameId)
                   .then((id) => {
                     connectionId = id;
                     if (closed) {
@@ -404,11 +412,11 @@ export function createRoomServer(options: RoomHttpOptions): RoomServer {
                 if (phase === "rejected") return;
                 if (phase === "auth") {
                   // Whatever arrives first is the authentication attempt; it is never handed to the gateway.
-                  const token = authToken(raw.toString(), binary);
-                  if (token === undefined)
+                  const frame = readAuthFrame(raw.toString(), binary);
+                  if (frame === undefined)
                     // Nothing about the frame is echoed or logged.
                     refuse(new RoomError(401, "Authentication required"));
-                  else admit(token);
+                  else admit(frame.token, frame.gameId);
                   return;
                 }
                 if (binary) {

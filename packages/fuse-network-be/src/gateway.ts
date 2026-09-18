@@ -181,10 +181,12 @@ export class RoomGateway {
     });
     return result;
   }
+  /** `gameId` is the game the member's page plays; absent means `LEGACY_GAME_ID` (see `RoomStore.admit`). */
   async connect(
     code: string,
     token: string,
     socket: GatewaySocket,
+    gameId?: string,
   ): Promise<string> {
     if (this.stopping) throw new RoomError(503, "Service restarting");
     return this.inRoom(code, async () => {
@@ -206,7 +208,7 @@ export class RoomGateway {
         return this.busGeneration;
       });
       const priorIncarnation = this.views.get(code)?.room.incarnation;
-      const admission = await this.store.admit(code, token, this.id);
+      const admission = await this.store.admit(code, token, this.id, gameId);
       if (generation !== this.busGeneration || this.stateValue !== "ready") {
         await this.store.leave(code, admission.member);
         throw new RoomError(503, "Room relay restarting");

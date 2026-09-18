@@ -6,6 +6,7 @@ import { startAttract } from "./attract.js";
 import { mountArenaPresentation } from "../render/phaser/presentation.js";
 import { presentFrames } from "../render/time/present.js";
 import { apiUrl, appUrl } from "./endpoints.js";
+import { GAME_ID } from "../shared/game-id.js";
 import { createAccountPanel } from "./account-panel.js";
 import {
   accountUsername,
@@ -246,7 +247,7 @@ export async function startOnline(): Promise<void> {
     create.onclick = async () => {
       create.disabled = true;
       try {
-        const body = await createRoom(apiUrl);
+        const body = await createRoom(apiUrl, fetch, GAME_ID);
         save(`fuse-room-${body.code}`, body.token);
         const settings = loadRoomSettings(storage);
         settings.mode = selectedMode;
@@ -1581,6 +1582,7 @@ export async function startOnline(): Promise<void> {
             new PeerTransport(code, token, events, {
               extension: voice,
               apiUrl,
+              gameId: GAME_ID,
               maxFastBytes: MAX_PACKET_BYTES,
               copy: TRANSPORT_COPY,
             }),

@@ -2,7 +2,7 @@
   "name": "fuse-network-protocol",
   "version": "0.1.0",
   "private": true,
-  "description": "Wire contract shared by fuse-network-fe and fuse-network-be: room codes, authority leases, ICE defaults, close codes.",
+  "description": "Wire contract shared by fuse-network-fe and fuse-network-be: room codes, game ids, authority leases, ICE defaults, close codes.",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"

@@ -55,6 +55,8 @@ export interface PeerTransportExtension {
 export interface PeerTransportOptions {
   /** Resolves a room service path (`/api/rooms/…`) to an absolute URL; see `createEndpoints`. */
   apiUrl: (path: string) => string;
+  /** The game this page plays, sent when the room socket authenticates. Absent means `LEGACY_GAME_ID`. */
+  gameId?: string;
   /** Largest `sendFast` payload, sent or accepted. */
   maxFastBytes?: number;
   copy?: Partial<TransportCopy>;
@@ -166,6 +168,7 @@ export class PeerTransport implements RoomTransport {
   private readonly backoff: ReconnectBackoff;
   private ice = new IceConfig();
   private readonly apiUrl: (path: string) => string;
+  private readonly gameId: string | undefined;
   private readonly maxFastBytes: number;
   private readonly copy: TransportCopy;
   private readonly extension?: PeerTransportExtension;
@@ -178,6 +181,7 @@ export class PeerTransport implements RoomTransport {
   ) {
     this.extension = options.extension;
     this.apiUrl = options.apiUrl;
+    this.gameId = options.gameId;
     this.maxFastBytes = options.maxFastBytes ?? DEFAULT_MAX_FAST_BYTES;
     this.copy = { ...DEFAULT_TRANSPORT_COPY, ...options.copy };
     this.backoff = new ReconnectBackoff(options.random ?? Math.random);
@@ -199,6 +203,7 @@ export class PeerTransport implements RoomTransport {
       this.code,
       this.token,
       (url) => new WebSocket(url),
+      this.gameId,
     );
     this.socket = ws;
     ws.onmessage = async (event) => {
