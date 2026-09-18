@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   addPlayer,
   createGame,
+  aimSlowMultiplier,
   riderMotionStep,
   startMatch,
   startNextRound,
@@ -44,7 +45,13 @@ function arena() {
 /** A plain rider's travel on the tick just stepped; riders speed up through the round. */
 const stride = (state: GameState) =>
   riderMotionStep(
-    { nitroUntilTicks: [], snailUntilTicks: [], grip: false },
+    {
+      nitroUntilTicks: [],
+      snailUntilTicks: [],
+      grip: false,
+      aimSlowTicks: 0,
+      aimSlowSpentTicks: 0,
+    },
     state.tick,
     state.roundStartedTick,
   ).distance;
@@ -66,7 +73,8 @@ test("portal transits survivors, breaks trail, preserves heading/charge, counts 
   assert.equal(player.bombChargeStartedTick, state.tick - 1);
   step(state, new Map());
   assert.equal(player.trail.at(-1)!.x1, 1012);
-  assert.equal(player.x, 1012 + stride(state));
+  // Two ticks into the held charge, the rider is two steps into the aiming slowdown.
+  assert.equal(player.x, 1012 + stride(state) * aimSlowMultiplier(2));
 });
 
 test("entry collision is resolved before transit, and shield remains independent", () => {

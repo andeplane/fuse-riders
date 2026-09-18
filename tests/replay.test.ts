@@ -62,6 +62,8 @@ function world(
       matchScoreUnits: 0,
       roundScoreUnits: 0,
       bombReadyAtTick: 0,
+      aimSlowTicks: 0,
+      aimSlowSpentTicks: 0,
       trail: [],
       extraBombs: 0,
       fuseLevel: 0,
