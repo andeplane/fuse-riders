@@ -23,7 +23,7 @@ Do not freeze a test count or coverage percentage in this document. Obtain them 
 | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | Simulation                      | `tests/game.test.ts` plus motion, geometry, pickups, weapons, portals, trail lifecycle, statistics and moment suites   |
 | Replay and network coordination | Input-log, stream, packet, snapshot, checkpoint, rollback, generation-replay and room-runtime tests                    |
-| LAN authority and controls      | Server, server-review, client and controller tests with serialized WebSocket boundaries and injected time              |
+| Controls and presentation input | Client and controller tests (input state, keyboard, pointers, targeting) with typed fakes and injected time            |
 | Networking libraries            | `packages/*/tests/`, including room service/gateway, admission, authority and transport-policy tests                   |
 | Audio and presentation helpers  | Audio-director, radio, replay, viewport, effects and trail-cache tests; this does not cover all DOM/Phaser integration |
 
@@ -42,7 +42,7 @@ ONLY=keyboard PORT=8801 scripts/ci-local.sh
 
 `core` includes formatting, typecheck, coverage and build. Room-service browser checks serve `dist/`, so build first. Install the required Playwright browsers before running them. The local mirror still has tracked drift and script consolidation work in #257; consult the workflow for the authoritative matrix.
 
-`npx tsx scripts/determinism-replay.ts` compares a seeded input recording in Node, Chromium and WebKit. It is cross-engine evidence for that workload, not proof that all mechanics or arbitrary inputs were exercised. Phaser lifecycle, LAN rounds, online WebRTC, keyboard, touch-layout and recap flows each have separate smokes. Browser emulation is not physical-phone evidence; application-message impairment is not real IP packet loss.
+`npx tsx scripts/determinism-replay.ts` compares a seeded input recording in Node, Chromium and WebKit. It is cross-engine evidence for that workload, not proof that all mechanics or arbitrary inputs were exercised. Phaser lifecycle, online WebRTC rooms, the shared-screen lobby, keyboard, touch-layout and recap flows each have separate smokes. Browser emulation is not physical-phone evidence; application-message impairment is not real IP packet loss.
 
 ## Release and performance claims
 
