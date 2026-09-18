@@ -62,6 +62,21 @@ export class MemoryHistoryDatabase implements HistoryDatabase {
     return work;
   }
 
+  async recentMatches(
+    before: number | undefined,
+    limit: number,
+  ): Promise<MatchRecord[]> {
+    return [...this.matches.values()]
+      .filter(
+        (match) =>
+          match.feedAt !== undefined &&
+          (before === undefined || match.feedAt < before),
+      )
+      .sort((a, b) => b.feedAt! - a.feedAt!)
+      .slice(0, limit)
+      .map((match) => structuredClone(match));
+  }
+
   async matchesFor(
     uid: string,
     before: number | undefined,

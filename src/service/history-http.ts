@@ -32,6 +32,14 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
   }
 }
 
+/** `?before=` pages backwards from an `endedAt`; null is a malformed cursor. */
+function pageCursor(url: URL): number | undefined | null {
+  const before = url.searchParams.get("before");
+  if (before === null) return undefined;
+  const cursor = Number(before);
+  return Number.isSafeInteger(cursor) && cursor >= 0 ? cursor : null;
+}
+
 /** Game-owned routes mounted behind the networking service's Origin and error boundaries. */
 export function createHistoryHttp(
   history: HistoryStore,
@@ -88,6 +96,17 @@ export function createHistoryHttp(
         json(await history.submitSolo(reporter, await readJson(req), uid));
         return true;
       }
+      if (url.pathname === "/api/matches" && req.method === "GET") {
+        const cursor = pageCursor(url);
+        if (cursor === null) {
+          json({ error: "Invalid cursor" }, 400);
+          return true;
+        }
+        const token = bearer(req),
+          uid = token ? await identity(token) : undefined;
+        json(await history.feed(clientAddress, uid, cursor));
+        return true;
+      }
       if (url.pathname === "/api/leaderboard" && req.method === "GET") {
         const token = bearer(req),
           uid = token ? await identity(token) : undefined;
@@ -116,12 +135,8 @@ export function createHistoryHttp(
           json({ error: "Sign in first" }, 401);
           return true;
         }
-        const before = url.searchParams.get("before"),
-          cursor = before === null ? undefined : Number(before);
-        if (
-          cursor !== undefined &&
-          (!Number.isSafeInteger(cursor) || cursor < 0)
-        ) {
+        const cursor = pageCursor(url);
+        if (cursor === null) {
           json({ error: "Invalid cursor" }, 400);
           return true;
         }

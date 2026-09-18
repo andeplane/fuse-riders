@@ -97,6 +97,11 @@ try {
         await page.route(`${api}/api/me/matches*`, (route) =>
           route.fulfill({ json: { matches: [] } }),
         );
+        let feedRequests = 0;
+        await page.route(`${api}/api/matches*`, (route) => {
+          feedRequests++;
+          return route.fulfill({ json: { matches: [] } });
+        });
         await page.route(`${api}/api/leaderboard*`, (route) =>
           route.fulfill({ json: { players: [] } }),
         );
@@ -142,6 +147,7 @@ try {
           /♫ MUSIC (ON|OFF)/,
           /🔊 SOUND (ON|OFF)/,
           "SETTINGS",
+          "MATCHES",
           "#3 · LEADERBOARD",
           rating,
         ])
@@ -190,6 +196,16 @@ try {
         });
         await page.getByRole("button", { name: rating, exact: true }).click();
         await page.locator(".stats-dialog[open]").waitFor();
+        // An empty feed is read once, not refetched on every redraw.
+        await page
+          .locator(".stats-tabs")
+          .getByRole("button", { name: "MATCHES", exact: true })
+          .click();
+        await page
+          .getByText("No finished games yet", { exact: false })
+          .waitFor();
+        await page.waitForTimeout(500);
+        assert.equal(feedRequests, 1, "An empty match feed is fetched once");
         await page.getByRole("button", { name: "CLOSE", exact: true }).click();
         if (phone) {
           await page
@@ -218,6 +234,7 @@ try {
               profileUrl: "/profile",
               leaderboardUrl: "/board",
               historyUrl: () => "/history",
+              matchesUrl: () => "/matches",
               localName: () => "Test",
               track: () => {},
               fetch: async () => {

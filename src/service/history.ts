@@ -73,6 +73,8 @@ export interface MatchRecord {
   participantUids: string[];
   createdAt: number;
   endedAt?: number;
+  /** When a whole game was confirmed: what orders the public match feed. Round receipts and pending results have none. */
+  feedAt?: number;
   /** Absent once a confirmed match belongs to an account: that is the history nothing cleans up. */
   expiresAt?: number;
 }
@@ -113,6 +115,11 @@ export interface HistoryDatabase {
     id: string,
     operation: (current: MatchRecord | undefined) => HistoryMutation<T>,
   ): Promise<T>;
+  /** Confirmed whole games of every rider, newest first, strictly before `before`. */
+  recentMatches(
+    before: number | undefined,
+    limit: number,
+  ): Promise<MatchRecord[]>;
   /** Confirmed matches of an account, newest first. */
   matchesFor(
     uid: string,
@@ -388,7 +395,11 @@ export function parseMatchRecord(raw: unknown): MatchRecord | undefined {
     !result ||
     !counterLike(raw.createdAt) ||
     (raw.endedAt !== undefined && !counterLike(raw.endedAt)) ||
-    (raw.expiresAt !== undefined && !counterLike(raw.expiresAt))
+    (raw.expiresAt !== undefined && !counterLike(raw.expiresAt)) ||
+    (raw.feedAt !== undefined &&
+      (!counterLike(raw.feedAt) ||
+        raw.status !== "confirmed" ||
+        result.round !== undefined))
   )
     return;
   if ((raw.status === "confirmed") !== (raw.endedAt !== undefined)) return;
@@ -468,6 +479,7 @@ export function parseMatchRecord(raw: unknown): MatchRecord | undefined {
     participantUids: [...raw.participantUids] as string[],
     createdAt: raw.createdAt,
     ...(raw.endedAt === undefined ? {} : { endedAt: raw.endedAt }),
+    ...(raw.feedAt === undefined ? {} : { feedAt: raw.feedAt }),
     ...(raw.expiresAt === undefined ? {} : { expiresAt: raw.expiresAt }),
   };
 }
@@ -523,6 +535,14 @@ export type SubmitOutcome = {
   needed: number;
   linked: boolean;
 };
+/** What anyone may see of a confirmed game: every rider's stats, and which seat was the caller's own. No room code, no accounts. */
+export interface FeedEntry {
+  id: string;
+  endedAt: number;
+  you?: string;
+  avatars: Record<string, AvatarId>;
+  result: MatchResult;
+}
 /** What an account may see of a match: every rider's stats, and which seat was its own; never another rider's account. */
 export interface HistoryEntry {
   rating?: RatingPoint;
@@ -730,8 +750,12 @@ export class HistoryStore {
       if (match.status === "confirmed") {
         match.participantUids = [...new Set(Object.values(match.uidByPlayer))];
         const hasAccounts = match.participantUids.length > 0;
-        // Round receipts remain durable and idempotent, but do not appear as career games.
+        // Round receipts remain durable and idempotent, but do not appear as career games or in the public feed.
         if (result.round !== undefined) match.participantUids = [];
+        // A lone guest confirms their own game, so it is public only once a second rider vouches or an account (whose
+        // links are rate limited) owns a seat: otherwise free room tokens could fill everyone's feed with inventions.
+        else if (hasAccounts || match.attesters.length >= 2)
+          match.feedAt ??= match.endedAt;
         if (hasAccounts) delete match.expiresAt;
         else match.expiresAt = (match.endedAt ?? now) + GUEST_MATCH_TTL_MS;
       }
@@ -781,6 +805,44 @@ export class HistoryStore {
       throw new RoomError(429, "Too many changes; try later");
     await this.database.setUsername(uid, body.username, this.now());
     return { username: body.username };
+  }
+
+  /** Everyone's recent games. Public like the leaderboard, so limited by address; a signed-in caller also learns which seat was theirs. */
+  async feed(
+    address: string,
+    uid: string | undefined,
+    before: number | undefined,
+  ): Promise<{ matches: FeedEntry[] }> {
+    if (
+      !(await this.rooms.database.allowance(
+        digest(`feed:${address}`),
+        this.now(),
+        READS_PER_HOUR,
+      ))
+    )
+      throw new RoomError(429, "Too many requests; try later");
+    const records = await this.database.recentMatches(before, HISTORY_PAGE);
+    return {
+      matches: records.flatMap((record) => {
+        if (record.feedAt === undefined || record.result.round !== undefined)
+          return [];
+        const you =
+          uid === undefined
+            ? undefined
+            : Object.entries(record.uidByPlayer).find(
+                ([, account]) => account === uid,
+              )?.[0];
+        return [
+          {
+            id: record.id,
+            endedAt: record.feedAt,
+            ...(you ? { you } : {}),
+            avatars: record.avatars,
+            result: record.result,
+          },
+        ];
+      }),
+    };
   }
 
   async leaderboard(

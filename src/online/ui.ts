@@ -169,6 +169,8 @@ const createPlayerAccountPanel = () =>
       apiUrl(
         `/api/me/matches${before === undefined ? "" : `?before=${before}`}`,
       ),
+    matchesUrl: (before) =>
+      apiUrl(`/api/matches${before === undefined ? "" : `?before=${before}`}`),
     profileUrl: apiUrl("/api/me"),
     leaderboardUrl: apiUrl("/api/leaderboard"),
     localName: () => read("fuse-riders-player-name"),
@@ -406,7 +408,11 @@ export async function startOnline(): Promise<void> {
     const accountPanel = createPlayerAccountPanel();
     card
       .querySelector(".landing-top-end")!
-      .append(accountPanel.leaderboardButton, accountPanel.button);
+      .append(
+        accountPanel.matchesButton,
+        accountPanel.leaderboardButton,
+        accountPanel.button,
+      );
     card.append(accountPanel.dialog);
     window.addEventListener("pagehide", accountPanel.dispose, { once: true });
     void startAttract(
@@ -1024,6 +1030,7 @@ export async function startOnline(): Promise<void> {
     topMusic,
     topMute,
     prefsButton,
+    roomAccount.matchesButton,
     roomAccount.leaderboardButton,
     roomAccount.button,
   );
