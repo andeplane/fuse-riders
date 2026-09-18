@@ -173,9 +173,8 @@ export const TRAIL_WIDTH = 6;
 /** Trail heads collide at their visible width; portraits and heading arrows are cosmetic. */
 export const RIDER_CONTACT_RADIUS = TRAIL_WIDTH / 2;
 /**
- * Scenery is met at the head's visible width too, and against the obstacle's hitbox (`obstacleHitbox`) rather than
- * always its whole footprint: a portrait that overlapped a rock, or a rider that crossed the empty corner of a
- * crown's footprint, did not crash.
+ * Scenery is met at the head's visible width, against its full rectangle or circle. A cosmetic portrait
+ * overlapping a rock, or a head passing its empty bounding-box corner, does not crash.
  */
 export const RIDER_OBSTACLE_RADIUS = RIDER_CONTACT_RADIUS;
 export const TRAIL_LIFETIME_TICKS = POWER_TUNING.baseTrailLifetimeTicks;
@@ -953,6 +952,7 @@ export function step(
           dx === 0 && dy === 0
             ? solid
             : solid.map((trail) => ({
+                ...trail,
                 x1: trail.x1 - dx,
                 y1: trail.y1 - dy,
                 x2: trail.x2 - dx,

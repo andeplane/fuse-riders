@@ -252,7 +252,7 @@
           items.push({ meta, image, canvas, stage });
         }
         render();
-        status.textContent = `${items.length} props loaded. Hitboxes are proposed metadata for future integration.`;
+        status.textContent = `${items.length} props loaded. Hitboxes match the integrated shared variant catalog.`;
         document.body.dataset.ready = "true";
       } catch (error) {
         status.textContent = `Unable to load gallery: ${error.message}. Serve this folder over HTTP; see README.`;

@@ -73,3 +73,24 @@ test("diagonal tails and exposed endpoints reflect instead of tunnelling", () =>
   advanceShell(end, bounds, [{ x1: 60, y1: 60, x2: 60, y2: 90 }]);
   assert.ok(end.vy < 0, "round endpoint deflects the shell");
 });
+
+test("solid surfaces use their own radius, not trail width, for circle and rectangle contact", () => {
+  const arena = { left: 0, right: 1000, top: 0, bottom: 1000 };
+  const rock = { x1: 500, y1: 500, x2: 500, y2: 500, radius: 50 };
+  const shell = { x: 430, y: 500, vx: 450, vy: 0, bounces: 0 };
+  const path = advanceShell(shell, arena, [rock], 100);
+  assert.ok(
+    Math.abs(path[1]!.x - 436) < 1e-9,
+    "rock radius 50 plus shell radius 14",
+  );
+  assert.equal(shell.bounces, 1);
+  assert.equal(shell.vx, -450);
+  const corner = { x: 540, y: 550, vx: 450, vy: 0, bounces: 0 };
+  advanceShell(corner, arena, [rock]);
+  assert.equal(corner.bounces, 0, "the square corner around a rock is empty");
+  const wall = { x1: 500, y1: 400, x2: 500, y2: 600, radius: 0 };
+  const shot = { x: 480, y: 500, vx: 450, vy: 0, bounces: 0 };
+  const contact = advanceShell(shot, arena, [wall], 100);
+  assert.equal(contact[1]!.x, 486, "a solid wall has no trail thickness");
+  assert.equal(shot.bounces, 1);
+});

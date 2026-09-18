@@ -138,7 +138,7 @@ export function showRoomSettings(
     body.append(
       element(
         "p",
-        "Desert, Forest and City put rocks, trees and buildings on the board. Crashing into one is fatal; a bomb blast clears it away.",
+        "Desert, Forest and City put rocks, buildings, crates and pyramids on the board. Crashing into one is fatal; a bomb blast clears it away.",
       ),
       element(
         "p",

@@ -60,7 +60,7 @@ test("scenery cleared from the board puffs once, and a fresh board is not all ru
       },
       {
         id: 2,
-        kind: "tree" as const,
+        kind: "pyramid" as const,
         x: 800,
         y: 400,
         halfWidth: 20,

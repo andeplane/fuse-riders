@@ -29,7 +29,13 @@ import {
   type TrailPoint,
 } from "./trails.js";
 import { arenaWall, trailStuds } from "../arena-wall.js";
-import { mapGround, obstacleParts, paintMapGround } from "../arena-maps.js";
+import {
+  mapGround,
+  obstacleArtwork,
+  obstacleArtSources,
+  obstacleTextureKey,
+  paintMapGround,
+} from "../arena-maps.js";
 import {
   crossViews,
   quarterTurnView,
@@ -293,6 +299,7 @@ export function createPhaserArena(
 class ArenaScene extends Phaser.Scene {
   rotated = false;
   private floor!: Phaser.GameObjects.Graphics;
+  private scenery: Phaser.GameObjects.Image[] = [];
   private floorTexture!: Phaser.Textures.CanvasTexture;
   private floorImage!: Phaser.GameObjects.Image;
   private trails!: Phaser.GameObjects.Graphics;
@@ -339,6 +346,8 @@ class ArenaScene extends Phaser.Scene {
   }
   preload(): void {
     this.load.image("avatars", assetUrl(AVATAR_ATLAS_URL));
+    for (const art of obstacleArtSources())
+      this.load.image(obstacleTextureKey(art), assetUrl(art.file));
     for (const theme of Object.values(themes)) {
       this.load.svg(`${theme.id}:rider`, assetUrl(theme.sprites.rider), {
         width: 64,
@@ -557,33 +566,45 @@ class ArenaScene extends Phaser.Scene {
         .fillRect(stud.x + 2, stud.y + 2, 3, 3);
     }
   }
-  /** Scenery is static until a blast clears it, so it is baked into the floor pass rather than redrawn each frame. */
+  /** Scenery images share the floor invalidation pass and remain below trails on both backends. */
   private drawObstacles(
     obstacles: ViewSnapshot["obstacles"],
     map: ViewSnapshot["map"],
   ): void {
-    for (const obstacle of obstacles)
-      for (const part of obstacleParts(obstacle, map)) {
-        this.floor.fillStyle(color(part.color), part.alpha ?? 1);
-        if (part.shape === "ellipse")
-          this.floor.fillEllipse(
-            part.x,
-            part.y,
-            part.radiusX * 2,
-            part.radiusY * 2,
+    let count = 0;
+    for (const obstacle of obstacles) {
+      const art = obstacleArtwork(obstacle, map);
+      const key = obstacleTextureKey(art);
+      if (!this.textures.exists(key)) {
+        // A failed download must never create an invisible collider.
+        this.floor.fillStyle(0x9d876d);
+        if (obstacle.kind === "rock")
+          this.floor.fillCircle(obstacle.x, obstacle.y, obstacle.halfWidth);
+        else
+          this.floor.fillRect(
+            obstacle.x - obstacle.halfWidth,
+            obstacle.y - obstacle.halfHeight,
+            obstacle.halfWidth * 2,
+            obstacle.halfHeight * 2,
           );
-        else if (part.shape === "triangle")
-          this.floor.fillTriangle(
-            part.x1,
-            part.y1,
-            part.x2,
-            part.y2,
-            part.x3,
-            part.y3,
-          );
-        else this.floor.fillRect(part.x, part.y, part.width, part.height);
+        continue;
       }
+      let image = this.scenery[count++];
+      if (!image) {
+        image = this.add.image(0, 0, key).setDepth(0.5);
+        this.scenery.push(image);
+      }
+      image
+        .setTexture(key)
+        .setPosition(obstacle.x, obstacle.y)
+        .setOrigin(art.anchorX / art.pixelWidth, art.anchorY / art.pixelHeight)
+        .setScale(art.unitsPerPixel)
+        .setVisible(true);
+    }
+    for (const image of this.scenery.slice(count)) image.setVisible(false);
+    while (this.scenery.length > count + 16) this.scenery.pop()!.destroy();
   }
+
   private sprite(
     texture: string,
     x: number,
@@ -696,7 +717,12 @@ class ArenaScene extends Phaser.Scene {
       this.floorTexture.setFilter(Phaser.Textures.FilterMode.LINEAR);
       this.floorImage.setDisplaySize(w, h);
     }
-    // Obstacles are only ever removed within a round, so their count identifies the standing set.
+    // Include identity and geometry: rollback/checkpoint replacement can change a set without changing its count.
+    const sceneryKey = s.obstacles
+      .map(
+        (o) => `${o.id},${o.kind},${o.x},${o.y},${o.halfWidth},${o.halfHeight}`,
+      )
+      .join(";");
     // Black holes pull the grid toward their cores. The ease is quantised, so the floor only redraws while a hole opens or closes.
     const wells = s.gravityFields
       .map((field) => {
@@ -716,7 +742,7 @@ class ArenaScene extends Phaser.Scene {
         };
       })
       .filter((well) => well.pull > 0);
-    const floorKey = `${backgroundKey}:${b}:${matchId}:${s.round}:${s.obstacles.length}:${wells.map((well) => `${Math.round(well.x)},${Math.round(well.y)},${Math.round(well.radius)},${well.pull}`).join(";")}`;
+    const floorKey = `${backgroundKey}:${b}:${matchId}:${s.round}:${sceneryKey}:${wells.map((well) => `${Math.round(well.x)},${Math.round(well.y)},${Math.round(well.radius)},${well.pull}`).join(";")}`;
     if (floorKey !== this.floorKey) {
       this.floorKey = floorKey;
       // Boundary motion must not redraw/upload the full background texture each tick.

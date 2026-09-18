@@ -26,6 +26,7 @@ import {
   obstacleBlocksPath,
   obstacleDistanceSquared,
   obstacleHitbox,
+  obstacleVariant,
   obstacleTouchesCircle,
   type Obstacle,
 } from "../src/shared/arena-map.js";
@@ -130,7 +131,7 @@ test("a rider that rides into scenery dies against its face, not inside it", () 
   );
 });
 
-test("a crown kills as the ellipse it is drawn as, and a rock as the whole block it is", () => {
+test("a circular rock leaves its corner clear while a building fills the rectangle", () => {
   // A diagonal across the corner of the footprint, 23 units in on both axes: inside the rectangle, outside the
   // ellipse standing in it. Under a crown that corner is floor; on a flat-faced piece it is the piece.
   const across = (kind: Obstacle["kind"]): number => {
@@ -138,17 +139,17 @@ test("a crown kills as the ellipse it is drawn as, and a rock as the whole block
     Object.assign(rider(game), { x: 600, y: 504, angle: -Math.PI / 4 });
     return ticksToDeath(game);
   };
-  assert.equal(across("tree"), 70, "past the crown, through its footprint");
-  assert.ok(across("rock") < 70, "but a rock's corner is a rock's corner");
+  assert.equal(across("rock"), 70, "past the crown, through its footprint");
+  assert.ok(across("building") < 70, "but a rock's corner is a rock's corner");
   const tree = scene([
-    boulder({ kind: "tree", halfWidth: 28, halfHeight: 28 }),
+    boulder({ kind: "rock", halfWidth: 28, halfHeight: 28 }),
   ]);
   assert.ok(ticksToDeath(tree) < 70, "and the middle of a crown is solid");
 });
 
-test("a shielded rider is turned away from a crown along the crown's own normal", () => {
+test("a shielded rider is turned away from a round rock along its normal", () => {
   const game = scene([
-    boulder({ kind: "tree", halfWidth: 28, halfHeight: 28 }),
+    boulder({ kind: "rock", halfWidth: 28, halfHeight: 28 }),
   ]);
   const survivor = rider(game);
   survivor.shielded = true;
@@ -166,15 +167,13 @@ test("a shielded rider is turned away from a crown along the crown's own normal"
   );
 });
 
-test("flat-faced scenery is hit where it is drawn, and only the rest gives a little", () => {
+test("rocks use full circles and all other scenery uses full rectangles", () => {
   for (const kind of OBSTACLE_KINDS) {
-    const { round, scale } = OBSTACLE_HIT_SHAPES[kind];
-    assert.ok(scale > 0.8 && scale <= 1, `${kind} kills with ${scale}`);
-    if (["rock", "crate", "building"].includes(kind))
-      assert.deepEqual({ round, scale }, { round: false, scale: 1 }, kind);
+    assert.deepEqual(OBSTACLE_HIT_SHAPES[kind], {
+      round: kind === "rock",
+      scale: 1,
+    });
   }
-  for (const kind of ["tree", "bush"] as const)
-    assert.equal(OBSTACLE_HIT_SHAPES[kind].round, true, kind);
 });
 
 test("a rider steering past scenery is unharmed, and the same line with the rock is fatal", () => {
@@ -675,7 +674,17 @@ test("the room setting picks the board, and rotate gives each round a different 
 });
 
 test("the board travels in snapshots and checkpoints, and a controller is not sent one", () => {
-  const game = scene([boulder(), boulder({ id: 2, x: 1200, y: 300 })]);
+  const pieces = [boulder(), boulder({ id: 2, x: 1200, y: 300 })].map(
+    (piece) => {
+      const variant = obstacleVariant(piece);
+      return {
+        ...piece,
+        halfWidth: variant.width / 2,
+        halfHeight: variant.height / 2,
+      };
+    },
+  );
+  const game = scene(pieces);
   const snapshot = toSnapshot(game);
   assert.equal(snapshot.map, game.map);
   assert.deepEqual(
@@ -718,6 +727,22 @@ test("the board travels in snapshots and checkpoints, and a controller is not se
     }),
     undefined,
     "an unknown kind is rejected",
+  );
+  for (const field of ["halfWidth", "halfHeight"] as const) {
+    assert.equal(
+      corrupt((obstacles) => {
+        obstacles[0]![field] = 80;
+      }),
+      undefined,
+      "stretched/catalog-mismatched shapes are rejected",
+    );
+  }
+  assert.equal(
+    corrupt((obstacles) => {
+      obstacles[0]!.kind = "tree";
+    }),
+    undefined,
+    "removed vegetation is rejected",
   );
   assert.equal(
     corrupt((obstacles) => {
