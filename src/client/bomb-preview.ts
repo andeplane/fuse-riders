@@ -8,6 +8,7 @@ export function bombPreviewDistance(
   chargeTicks: number,
   maxChargeTicks = BOMB_MAX_CHARGE_TICKS,
   bounce = false,
+  rangeLevel = 0,
 ): number {
-  return bombAimDistance(chargeTicks, maxChargeTicks, bounce);
+  return bombAimDistance(chargeTicks, maxChargeTicks, bounce, rangeLevel);
 }
