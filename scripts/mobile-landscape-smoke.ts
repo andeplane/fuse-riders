@@ -47,9 +47,9 @@ for (const [name, type] of [
   try {
     /* The rider is left riding while the touch zones are probed: the classic board has nothing for it to crash into. */ await page.addInitScript(
       () => {
-        if (!localStorage.getItem("fuse-riders-room-settings-v1"))
+        if (!localStorage.getItem("fuse-riders-room-settings-v2"))
           localStorage.setItem(
-            "fuse-riders-room-settings-v1",
+            "fuse-riders-room-settings-v2",
             JSON.stringify({
               version: 1,
               mode: "devices",

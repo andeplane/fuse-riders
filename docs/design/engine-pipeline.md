@@ -1,6 +1,6 @@
 # Engine pipeline (issue #253, stage A2)
 
-`step()` was one function of about 970 lines whose sections talked to each other through some twenty locals. It is now a loop over an ordered list, `PHASES` in `src/engine/sim/pipeline.ts`. Every commit of the stage is `[hash-identical]`: `RULES` stays `fuse-p2p-32` and `tests/fixtures/golden-hashes.json` is untouched. Nothing a player, a peer or a checkpoint can see has changed.
+`step()` was one function of about 970 lines whose sections talked to each other through some twenty locals. It is now a loop over an ordered list, `PHASES` in `src/engine/sim/pipeline.ts`. Every commit of the stage is `[hash-identical]`: `RULES` is left as `main` has it (`fuse-p2p-32` when the stage was written, `fuse-p2p-33` since the refresh onto main's Target Bomb default) and `tests/fixtures/golden-hashes.json` is only ever main's own recording. Nothing a player, a peer or a checkpoint can see has changed.
 
 Adding a mechanic is now a new file in `src/engine/sim/phases/` and one row in `PHASES`. The order of that list is part of the rules: moving a phase changes outcomes and needs a `RULES` bump like any other behaviour change. `tests/pipeline.test.ts` writes the order down a second time on purpose, so it cannot move by accident.
 

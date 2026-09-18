@@ -26,7 +26,7 @@ test("weighted table gives Five one third Triple probability with deterministic 
     counts.set(type, (counts.get(type) ?? 0) + 1);
   }
   for (const row of PICKUP_WEIGHTS)
-    assert.equal(counts.get(row.type), row.weight);
+    assert.equal(counts.get(row.type) ?? 0, row.weight);
   assert.equal(counts.get("triple"), counts.get("five")! * 3);
   assert.equal(pickupTypeForRoll(0), "power");
   assert.equal(pickupTypeForRoll(1 - Number.EPSILON), "snail");
@@ -42,6 +42,12 @@ test("Power is abundant while special drops remain optional", () => {
     PICKUP_WEIGHTS.some((row) => row.type === "star"),
     false,
   );
+});
+
+test("Target Bomb is disabled by default but remains configurable", () => {
+  const defaults = defaultRoomSettings();
+  assert.equal(defaults.weights.target, 0);
+  assert.equal(roomPickup(0.5, { target: 1 }), "target");
 });
 
 test("pickup pacing scales with living riders and stays bounded", () => {
