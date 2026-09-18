@@ -14,6 +14,12 @@ WebGL trails now use a continuous triangle ribbon and a Phaser `SinglePipeline` 
 
 Run `npx tsx scripts/beveled-trails-browser.ts` (also with `BROWSER=webkit`) for the isolated color/bend/cut showcase at `artifacts/beveled-trails-*.png` and pixel checks for directional shading, joined segments, cleared trails and explosion gaps. `tests/trail-ribbon.test.ts` covers topology, degenerate points, bounded joins, fractional tips, cache invalidation, death and erosion. The existing dead-rider and Phaser lifecycle browser checks cover erosion, resizing and context restoration.
 
+## Portrait arena view
+
+Solo/online canvases opt into `rotateToFit`: the renderer compares the full-board scale in both orientations and applies a clockwise quarter-turn only when it increases that scale. The backing canvas swaps dimensions, keeping the existing pixel budget. Camera viewports and scroll origins rotate together, including the crossed map's four views; world snapshots, obstacle footprints, clocks, input and network state do not change. LAN presentation and fixed-world renderer fixtures retain their original orientation.
+
+Sprites and text counter-rotate, with rider name/power rows and pickup/status labels positioned using screen-relative offsets. Scenery rotates with its collision footprint. Resize restores the ordinary cameras and upright object rotations when landscape fits better. `scripts/portrait-arena-browser.ts` checks actual WebGL/Canvas pixels for trail placement and upright avatars/labels across both themes and all maps, portrait-to-landscape-to-portrait input cancellation, menus and offline solo play on touch and mouse viewports. Screenshots go to `artifacts/portrait-*.png`; this is desktop browser emulation, not physical-phone qualification.
+
 ## Map scenery
 
 Desert uses a warm copper floor with sand ripples, stepped pyramids with shaded faces and stairs, and flowering cacti. Forest uses a cool jade floor with grass/moss marks, clustered tree crowns, berry bushes and fallen trunks with growth rings, moss and flowers. City uses a plum floor with inset paving and buildings viewed from above: parapets, roof access hatches, fan housings and service conduits replace facade-style window grids. Small timber crates remain in the city. These low-contrast ground marks are decorative; the existing grid, rider colors and collision silhouettes remain unchanged.

@@ -152,9 +152,10 @@ quality.
 3. Rotate to landscape and back: the same lobby screen both times, nothing
    hidden. JOIN AS PLAYER, then add an AI opponent and set a short match
    length so a match can complete quickly.
-4. Start the race; screenshot during **countdown**. In portrait the rotate
-   gate shows; in landscape the three full-screen thirds plus the ☰ MENU
-   pill, hint labels visible and fading per the design (compare against
+4. Start the race; screenshot during **countdown**. Portrait shows the complete
+   arena rotated 90°, with upright avatars/labels and bottom touch thirds;
+   landscape keeps full-screen thirds. The ☰ MENU pill stays accessible in
+   both, with hint labels visible and fading per the design (compare against
    [#14](#14--long-press-text-selection) hint-fade note below).
 5. Screenshot during **playing**. Confirm identical positions/sizes to the
    countdown screenshot (same thirds, same pill).
