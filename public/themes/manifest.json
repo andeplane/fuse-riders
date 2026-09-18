@@ -144,6 +144,13 @@
       "baseAngle": 0,
       "tint": false,
       "description": "Gold-shelled snail: rivals crawl at half speed for five seconds, stacking per pickup."
+    },
+    "pickup-range": {
+      "file": "pickup-range.svg",
+      "anchor": [16, 16],
+      "baseAngle": 0,
+      "tint": false,
+      "description": "Cyan distance arrows and ruler ticks for round-long maximum bomb reach."
     }
   }
 }

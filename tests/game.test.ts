@@ -472,7 +472,7 @@ test("fatal trail ends at the nearest contact regardless of trail array order", 
         y2: 350,
         createdTick: state.tick,
         expiresAtTick: state.tick + TRAIL_LIFETIME_TICKS,
-        detached: { id: 1, decayStartTick: state.tick + 20 },
+        detached: { id: 1, decayStartTick: state.tick + 60 },
       },
     ]);
   }
@@ -761,17 +761,20 @@ test("quick bomb action bursts launch at minimum range and cancel paths never la
 });
 
 test("bomb uses the configured aim time while steering and follows the release heading", () => {
-  for (const [bombChargeTicks, distance] of [
+  for (const [bombChargeTicks, distance, aimBounce = false, holdTicks = 8] of [
     [undefined, 400],
     [24, 200],
     [2, 400],
+    [8, 156.25, true, 2],
+    [8, 156.25, true, 16],
+    [8, 400, true, 9],
   ] as const) {
     const state = gameWithPlayers();
     if (bombChargeTicks !== undefined)
       state.settings = {
         ...defaultRoomSettings(),
         bombChargeTicks,
-        aimBounce: false,
+        aimBounce,
       };
     enterPlaying(state);
     const owner = state.players.get("p0")!;
@@ -785,7 +788,7 @@ test("bomb uses the configured aim time while steering and follows the release h
       inputs(["p0", { bomb: true, bombCommands: [{ action: "press" }] }]),
     );
     const startedTick = state.tick;
-    for (let tick = 1; tick < 8; tick++) {
+    for (let tick = 1; tick < holdTicks; tick++) {
       step(state, inputs(["p0", { right: true, bomb: true }]));
       assert.equal(
         state.bombs.size,
@@ -798,7 +801,7 @@ test("bomb uses the configured aim time while steering and follows the release h
       inputs(["p0", { right: true, bombCommands: [{ action: "release" }] }]),
     );
     const bomb = [...state.bombs.values()][0]!;
-    assert.equal(state.tick - startedTick, 8);
+    assert.equal(state.tick - startedTick, holdTicks);
     assert.ok(owner.angle > 0, "rider keeps steering throughout the charge");
     assert.ok(
       Math.abs(
@@ -1723,6 +1726,7 @@ test("overlapping blast owners receive no speculative elimination credit", () =>
       power: 0,
       extraBombs: 0,
       fuseLevel: 0,
+      rangeLevel: 0,
       grip: false,
       kills: [],
     });

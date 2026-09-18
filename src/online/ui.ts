@@ -44,17 +44,7 @@ import {
 } from "../shared/room-settings.js";
 import type { PickupType } from "../shared/game.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
-import type { MatchPlayerStats } from "../shared/match-stats.js";
-import type { Moment } from "../shared/moments.js";
-import {
-  COMPARISON_COLUMNS,
-  COMPARISON_KEY,
-  HIGHLIGHTS_TITLE,
-  RECAP_EMPTY_MESSAGE,
-  RECAP_KICKER,
-  RECAP_TITLE,
-  buildMatchRecap,
-} from "../shared/match-recap.js";
+import { renderMatchRecap } from "./match-recap-view.js";
 import { ReplayDirector, describeClip } from "../client/replay.js";
 import { createReplayOverlay } from "../client/replay-overlay.js";
 import { RoomRuntime, type Callbacks } from "./room-runtime.js";
@@ -90,7 +80,10 @@ import { createPowerupGuide } from "../client/powerup-guide-view.js";
 import {
   announcementFor,
   eliminationLine,
+  matchWinnerName,
   roundClock,
+  roundWinnerName,
+  showsRoundResult,
 } from "../client/arena-announcer.js";
 import { plainStatus } from "./status-copy.js";
 const LAST_ROOM_KEY = "fuse-last-room";
@@ -149,6 +142,7 @@ const labels: Record<PickupType, string> = {
   portal: "Portal",
   star: "Star",
   grip: "Grip",
+  range: "Range",
   nitro: "Nitro",
   snail: "Snail",
   gravity: "Gravity",
@@ -686,7 +680,9 @@ export async function startOnline(): Promise<void> {
       announceSmall.textContent = "";
       announceBig.textContent = announcement.text;
     } else if (announcement.kind === "round") {
-      announceSmall.textContent = `ROUND ${announcement.round}`;
+      announceSmall.textContent = announcement.last
+        ? `FINAL ROUND · ROUND ${announcement.round}`
+        : `ROUND ${announcement.round}`;
       announceBig.textContent = announcement.title;
       for (const line of announcement.placements)
         announceRows.append(node("span", line));
@@ -830,23 +826,49 @@ export async function startOnline(): Promise<void> {
   header.append(avatarButton, prefsButton, menu, help);
   const dialog = node("dialog", "", "game-dialog");
   dialog.setAttribute("aria-label", "Game menu");
-  const close = node("button", "✕  CLOSE");
+  const close = node("button", "✕  CLOSE", "dialog-close");
   close.type = "button";
   close.setAttribute("aria-label", "CLOSE");
   close.onclick = () => dialog.close();
   const rematch = node("button", "REMATCH");
   rematch.type = "button";
+  rematch.setAttribute("aria-label", "REMATCH");
   rematch.hidden = true;
   rematch.title = "Play the same match again";
   const dialogActions = node("span", "", "dialog-actions");
   dialogActions.append(rematch, close);
   const dialogBar = node("header", "", "dialog-bar"),
     dialogTitle = node("strong", "GAME MENU");
-  dialogBar.append(dialogTitle, dialogActions);
+  const fullStats = node("button", "View full stats ↗", "recap-stats-toggle");
+  fullStats.type = "button";
+  fullStats.hidden = true;
+  fullStats.setAttribute("aria-controls", "match-full-stats");
+  fullStats.onclick = () => {
+    const details = dialogBody.querySelector<HTMLElement>(".recap-details");
+    if (!details) return;
+    details.hidden = !details.hidden;
+    fullStats.setAttribute("aria-expanded", String(!details.hidden));
+    fullStats.textContent = details.hidden
+      ? "View full stats ↗"
+      : "Hide full stats ↗";
+    if (!details.hidden) details.scrollIntoView({ block: "start" });
+    else dialogBody.scrollTop = 0;
+  };
+  const recapLobby = node("button", "Back to lobby", "recap-lobby");
+  recapLobby.type = "button";
+  recapLobby.hidden = true;
+  recapLobby.onclick = () => {
+    dialog.close();
+    reset.click();
+  };
+  dialogActions.prepend(recapLobby);
+  dialogBar.append(dialogTitle, fullStats, dialogActions);
   const dialogBody = node("div", "", "dialog-body");
   dialog.append(dialogBar, dialogBody);
   dialog.addEventListener("close", () => {
     rematch.hidden = true;
+    fullStats.hidden = recapLobby.hidden = true;
+    close.hidden = false;
     close.textContent = "✕  CLOSE";
     close.setAttribute("aria-label", "CLOSE");
     dialog.classList.remove("recap-dialog");
@@ -955,6 +977,7 @@ export async function startOnline(): Promise<void> {
     const side =
       desktop &&
       !canvas.hidden &&
+      !app.classList.contains("scene-background") &&
       !app.classList.contains("booting") &&
       !app.classList.contains("room-over");
     app.classList.toggle("side-standings", side);
@@ -1097,133 +1120,31 @@ export async function startOnline(): Promise<void> {
     dialogBody.replaceChildren(prefs);
     dialog.showModal();
   };
-  /** Podium, totals, highlight reel, awards and rider comparison built from the authoritative match statistics and moments. */
-  const renderRecap = (
-    stats: ReadonlyArray<MatchPlayerStats>,
-    moments: ReadonlyArray<Moment>,
-  ) => {
-    const recap = buildMatchRecap(stats, moments);
-    const root = node("section", "", "match-recap-report");
-    const heading = node("header", "", "recap-heading"),
-      copy = node("div");
-    copy.append(node("p", RECAP_KICKER, "kicker"), node("h2", RECAP_TITLE));
-    heading.append(copy);
-    root.append(heading);
-    if (!recap.comparison.length) {
-      root.append(node("p", RECAP_EMPTY_MESSAGE, "recap-empty"));
-      return root;
-    }
-    const podium = node("div", "", "recap-podium");
-    for (const entry of recap.podium) {
-      const card = node(
-        "article",
-        "",
-        `podium-card podium-place-${entry.placement}${entry.playerId === id ? " is-you" : ""}`,
-      );
-      card.style.setProperty("--player-color", entry.color);
-      card.append(
-        node("span", entry.placeLabel, "podium-place"),
-        node("strong", entry.name),
-        node("small", entry.winsLabel),
-      );
-      podium.append(card);
-    }
-    const totals = node("div", "", "recap-totals");
-    for (const total of recap.totals) {
-      const cell = node("div", "", "recap-total");
-      cell.append(node("strong", total.value), node("small", total.label));
-      totals.append(cell);
-    }
-    const reel = node("div", "", "recap-highlights");
-    reel.append(node("p", HIGHLIGHTS_TITLE, "reel-title"));
-    for (const entry of recap.highlights) {
-      const card = node("article", "", "award-card highlight-card");
-      card.style.setProperty("--player-color", entry.color);
-      card.append(
-        node("span", entry.icon, "award-icon"),
-        node("small", entry.when),
-        node("strong", entry.title),
-        node("em", entry.copy),
-      );
-      const clip = replay.recorder.clip(entry.key);
-      if (clip && !canvas.hidden) {
-        const watch = node("button", "▶ WATCH", "watch-again");
-        watch.type = "button";
-        watch.title = "Replay this moment";
-        watch.onclick = () => {
+  const openRecap = () => {
+    if (!snapshot) return;
+    dialogBody.replaceChildren(
+      renderMatchRecap(snapshot.matchStats, snapshot.moments, {
+        playerId: id,
+        canWatch: (key) => !canvas.hidden && !!replay.recorder.clip(key),
+        watch: (key) => {
+          const clip = replay.recorder.clip(key);
+          if (!clip) return;
           audio.unlock();
           reopenRecap = true;
           dialog.close();
           replay.play(clip, performance.now());
-        };
-        card.append(watch);
-      }
-      reel.append(card);
-    }
-    const awards = node("div", "", "recap-awards");
-    for (const award of recap.awards) {
-      const card = node("article", "", "award-card");
-      card.append(
-        node("span", award.icon, "award-icon"),
-        node("small", award.title),
-        node("strong", award.winnerText),
-        node("em", award.detail),
-      );
-      awards.append(card);
-    }
-    const comparison = node("div", "", "recap-comparison");
-    comparison.append(node("p", COMPARISON_KEY, "comparison-key"));
-    const columns = node("div", "", "comparison-row comparison-header");
-    for (const label of [
-      "RIDER",
-      ...COMPARISON_COLUMNS.map((column) => column.label),
-    ])
-      columns.append(node("span", label));
-    comparison.append(columns);
-    for (const entry of recap.comparison) {
-      const row = node(
-        "div",
-        "",
-        `comparison-row${entry.playerId === id ? " is-you" : ""}`,
-      );
-      row.style.setProperty("--player-color", entry.color);
-      const rider = node("span", "", "comparison-rider"),
-        riderCopy = node("span");
-      riderCopy.append(
-        node("b", entry.riderLabel),
-        node("small", entry.riderNote),
-      );
-      rider.append(node("i"), riderCopy);
-      row.append(rider);
-      for (const column of COMPARISON_COLUMNS)
-        row.append(
-          node(
-            column.key === "wins" ? "strong" : "span",
-            entry[column.key],
-            column.key === "pickups"
-              ? "pickup-counts"
-              : column.key === "deaths"
-                ? "death-counts"
-                : "",
-          ),
-        );
-      comparison.append(row);
-    }
-    root.append(podium, totals);
-    if (recap.highlights.length) root.append(reel);
-    if (recap.awards.length) root.append(awards);
-    root.append(comparison);
-    return root;
-  };
-  const openRecap = () => {
-    if (!snapshot) return;
-    dialogBody.replaceChildren(
-      renderRecap(snapshot.matchStats, snapshot.moments),
+        },
+      }),
     );
     dialogTitle.textContent = "MATCH RESULTS";
     dialog.setAttribute("aria-label", "Match results");
     dialog.classList.add("recap-dialog");
     rematch.hidden = !isHost;
+    recapLobby.hidden = !isHost;
+    close.textContent = "✕";
+    fullStats.hidden = !snapshot.matchStats.length;
+    fullStats.textContent = "View full stats ↗";
+    fullStats.setAttribute("aria-expanded", "false");
     dialog.showModal();
     dialogBody.scrollTop = 0;
   };
@@ -1446,6 +1367,13 @@ export async function startOnline(): Promise<void> {
         state.phase === "matchOver" &&
         state.tick >= (state.phaseEndsAtTick ?? 0);
       results.hidden = !recapReady;
+      // Every device dismisses the report when the shared state moves on, including peers that did not click REMATCH.
+      if (
+        !recapReady &&
+        dialog.open &&
+        dialog.classList.contains("recap-dialog")
+      )
+        dialog.close();
       if (state.phase === "lobby") lastRecap = "";
       joined = Boolean(player);
       if (player && !seatTracked) {
@@ -1536,11 +1464,15 @@ export async function startOnline(): Promise<void> {
       const controllerOnly =
         settings.mode === "shared" && !displayOnly && joined && !phoneLobby;
       app.classList.toggle("controller-only", controllerOnly);
-      canvas.hidden = !sharedLobby.hidden || controllerOnly || joining;
+      // The same arena stays behind the lobby and results; only its presentation changes.
+      // Shared-screen phones still skip arena rendering during active controller play.
+      const sceneBackground = state.phase === "lobby" || recapReady;
+      app.classList.toggle("scene-background", sceneBackground);
+      canvas.hidden = (controllerOnly && !sceneBackground) || joining;
       if (!canvas.hidden)
         replay.observe(state, state.matchId, performance.now());
       styleHeading.hidden = styleRow.hidden = controllerOnly;
-      /* A shared-TV rider's phone never draws an arena. */ updateDesktopLayout();
+      updateDesktopLayout();
       if (
         state.phase === "countdown" &&
         joined &&
@@ -1597,8 +1529,20 @@ export async function startOnline(): Promise<void> {
         displayOnly ||
         !["playing", "countdown"].includes(state.phase);
       powerStatus.textContent = player
-        ? powerLabel(player.powerPickups, player.extraBombs, player.grip)
+        ? powerLabel(
+            player.powerPickups,
+            player.extraBombs,
+            player.grip,
+            player.rangeLevel,
+          )
         : "";
+      const gunReady =
+        !!player?.alive && !!player.gunArmed && state.phase === "playing";
+      fireButton.classList.toggle("gun-armed", gunReady);
+      hudFire.classList.toggle("gun-armed", gunReady);
+      fireButton.title = gunReady
+        ? "Tap to fire Gun (Space)"
+        : "Hold to charge, release to fire (Space)";
       if (player) {
         app.style.setProperty("--player-color", player.color);
         const remaining = Math.max(0, player.bombReadyAtTick - state.tick);
@@ -1619,12 +1563,19 @@ export async function startOnline(): Promise<void> {
             : "Join your friends, then start the race"
           : state.phase === "countdown"
             ? `READY · ${Math.max(0, Math.ceil(((state.phaseEndsAtTick ?? state.tick) - state.tick) / 20))}`
-            : state.phase === "roundOver"
+            : showsRoundResult(state)
               ? state.roundWinnerId === id
                 ? "You win this round"
-                : `${state.players.find((p) => p.id === state.roundWinnerId)?.name ?? "Nobody"} wins this round`
+                : `${roundWinnerName(state) ?? "Nobody"} wins this round`
               : state.phase === "matchOver"
-                ? `${state.matchStats.find((p) => p.playerId === state.matchWinnerId)?.name ?? "Shared victory"} · MATCH COMPLETE`
+                ? // The notice is narrow on a phone: the result alone while its beat lasts, then the old short form the smokes wait for.
+                  recapReady
+                  ? `${matchWinnerName(state) ?? "Shared victory"} · MATCH COMPLETE`
+                  : matchWinnerName(state) === undefined
+                    ? "Shared victory"
+                    : state.matchWinnerId === id
+                      ? "You win the match"
+                      : `${matchWinnerName(state)} wins the match`
                 : player?.waitingForNextRound
                   ? "You’re in — joining next round"
                   : !player?.alive && joined
@@ -1707,9 +1658,11 @@ export async function startOnline(): Promise<void> {
       addAI.disabled = state.players.length >= 5;
       const startLabel = state.phase === "matchOver" ? "REMATCH" : "START RACE";
       if (start.textContent !== startLabel) start.textContent = startLabel;
+      // A rematch during the final pause would skip the match result, the recap and the match report that opens with it.
       start.disabled =
         state.players.filter((p) => p.connected).length < 2 ||
-        !["lobby", "matchOver"].includes(state.phase);
+        !["lobby", "matchOver"].includes(state.phase) ||
+        (state.phase === "matchOver" && !recapReady);
       hostControls.hidden = !isHost || replacedHost;
       reset.disabled = state.phase === "lobby";
       reset.hidden = phoneLobby;
@@ -1777,7 +1730,6 @@ export async function startOnline(): Promise<void> {
   app.append(statsPanel);
   reset.onclick = () => runtime.command({ type: "action", action: "lobby" });
   rematch.onclick = () => {
-    dialog.close();
     start.click();
   };
   menu.onclick = () => {
@@ -2212,10 +2164,7 @@ export async function startOnline(): Promise<void> {
       requestAnimationFrame(frame);
       return;
     }
-    if (
-      predicted &&
-      (!canvas.hidden || (!sharedLobby.hidden && !canvas.dataset.renderer))
-    ) {
+    if (predicted && !canvas.hidden) {
       presentation.render(predicted, now, theme, renderScope, id);
       if (benchmark && (benchmarkInput || now - lastBenchmarkRender >= 100)) {
         const p = predicted.players.find((p) => p.id === id);

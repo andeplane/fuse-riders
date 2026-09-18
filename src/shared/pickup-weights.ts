@@ -15,11 +15,12 @@ export const PICKUP_WEIGHTS: ReadonlyArray<
   { type: "triple", weight: 540 },
   { type: "five", weight: 180 },
   { type: "orbitShield", weight: 160 },
+  { type: "portal", weight: 160 },
   { type: "gravity", weight: 120 },
   { type: "grip", weight: 160 },
+  { type: "range", weight: 160 },
   { type: "nitro", weight: 160 },
   { type: "snail", weight: 160 },
-  { type: "portal", weight: 160 },
 ];
 export function pickupTypeForRoll(roll: number): PickupType {
   if (!Number.isFinite(roll) || roll < 0 || roll >= 1)

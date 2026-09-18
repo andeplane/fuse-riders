@@ -1,6 +1,8 @@
 import { hypot2, sin, cos, atan2 } from "./deterministic-math.js";
 import {
   RIDER_RADIUS,
+  sortedPlayers,
+  sortedBombs,
   RIDER_SPEED,
   gravityBend,
   gravityCoreRadius,
@@ -19,8 +21,10 @@ import {
 } from "./game.js";
 import {
   BOMB_MAX_CHARGE_TICKS,
+  bombLaunchDistance,
   BOMB_MIN_LAUNCH_DISTANCE,
-  BOMB_MAX_LAUNCH_DISTANCE,
+  bombMaxLaunchDistance,
+  MAX_RANGE_LEVEL,
 } from "./bomb-launch.js";
 import { advanceRiderPose } from "./rider-motion.js";
 import {
@@ -156,7 +160,7 @@ function chooseSteering(
         player.y + reach,
       )
     : [{ dx: 0, dy: 0 }];
-  const trails = [...game.players.values()]
+  const trails = sortedPlayers(game)
     .flatMap((owner) =>
       owner.trail.map((trail) => ({
         trail,
@@ -246,7 +250,7 @@ function chooseSteering(
       ),
     ),
   ];
-  const bombs = [...game.bombs.values()].filter((bomb) => !bomb.shell?.gun);
+  const bombs = sortedBombs(game).filter((bomb) => !bomb.shell?.gun);
   // Scenery is lethal on contact like a trail, and unlike a trail it never expires: only the ones within reach
   // of this plan are worth testing each step.
   const obstacles = game.obstacles.filter(
@@ -494,7 +498,7 @@ export class BotController {
     const player = game.players.get(id);
     if (game.phase !== "playing" || !player?.alive || !player.connected)
       return { ...NEUTRAL };
-    const enemies = [...game.players.values()].filter(
+    const enemies = sortedPlayers(game).filter(
       (candidate) => candidate.id !== id && candidate.alive,
     );
     const nearest = enemies.reduce<PlayerState | undefined>(
@@ -506,8 +510,13 @@ export class BotController {
           : best,
       undefined,
     );
-    const pickup = game.pickups
+    const pickup = [...game.pickups]
+      .sort((a, b) => a.id - b.id)
       .filter((candidate) => candidate.type !== "grip" || !player.grip)
+      .filter(
+        (candidate) =>
+          candidate.type !== "range" || player.rangeLevel < MAX_RANGE_LEVEL,
+      )
       .reduce<GameState["pickups"][number] | undefined>(
         (best, candidate) =>
           !best ||
@@ -560,7 +569,7 @@ export class BotController {
     const bearing = atan2(towardY, towardX);
     const maxChargeTicks =
       game.settings?.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS;
-    const wantedCharge =
+    let wantedCharge =
       player.gunArmed || player.shellArmed
         ? 1
         : Math.max(
@@ -569,11 +578,26 @@ export class BotController {
               maxChargeTicks,
               Math.round(
                 ((distance - BOMB_MIN_LAUNCH_DISTANCE) /
-                  (BOMB_MAX_LAUNCH_DISTANCE - BOMB_MIN_LAUNCH_DISTANCE)) *
+                  (bombMaxLaunchDistance(player.rangeLevel) -
+                    BOMB_MIN_LAUNCH_DISTANCE)) *
                   maxChargeTicks,
               ),
             ),
           );
+    if (game.settings?.aimBounce && !player.gunArmed && !player.shellArmed) {
+      // The eased curve is nonlinear. Pick the closest attainable first-swing distance.
+      let error = Infinity;
+      for (let ticks = 1; ticks <= maxChargeTicks; ticks++) {
+        const candidate = Math.abs(
+          bombLaunchDistance(ticks, maxChargeTicks, true, player.rangeLevel) -
+            distance,
+        );
+        if (candidate <= error) {
+          wantedCharge = ticks;
+          error = candidate;
+        }
+      }
+    }
     if (player.bombChargeStartedTick !== undefined) {
       const release = game.tick - player.bombChargeStartedTick >= wantedCharge;
       return {
@@ -583,7 +607,7 @@ export class BotController {
       };
     }
     if (
-      distance < 500 &&
+      distance < bombMaxLaunchDistance(player.rangeLevel) + 100 &&
       Math.abs(angleDifference(bearing, player.angle)) < 0.6
     ) {
       return {

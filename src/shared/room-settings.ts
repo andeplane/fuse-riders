@@ -16,7 +16,9 @@ export interface RoomSettings {
   map: ArenaMapChoice;
   weights: Partial<Record<PickupType, number>>;
 }
-export const SETTINGS_KEY = "fuse-riders-room-settings-v1";
+// Reset browser preferences once so older saves cannot silently disable newer pickups such as Nitro.
+// This storage generation is independent of the RoomSettings wire schema version.
+export const SETTINGS_KEY = "fuse-riders-room-settings-v2";
 export function defaultRoomSettings(): RoomSettings {
   return {
     version: 1,
@@ -135,7 +137,9 @@ export function roomPickup(
   roll: number,
   weights: RoomSettings["weights"],
 ): PickupType | undefined {
-  const entries = Object.entries(weights) as [PickupType, number][];
+  const entries = PICKUP_TYPES.map(
+    (type) => [type, weights[type] ?? 0] as const,
+  );
   const total = entries.reduce((sum, [, weight]) => sum + weight, 0);
   if (!total) return;
   let remaining = roll * total;

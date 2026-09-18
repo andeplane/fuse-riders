@@ -72,16 +72,16 @@ lobbed bomb every rider has, the baseline), `triple`, `five`, `gun` or `shell`.
 
 The point is histograms, so both events carry every dimension an outcome might be broken down by:
 
-| Property                                   | On     | Meaning                                                                                                 |
-| ------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------- |
-| `weapon`                                   | both   | what the pull fired                                                                                     |
-| `bombs`                                    | both   | bombs the pull put in the air — more than 1 for a volley or with Extra Bomb (Gun and Shell fan out too) |
-| `power`, `extraBombs`, `fuseLevel`, `grip` | both   | the shooter's round-long upgrades at the moment of the pull, not at the round's end                     |
-| `round`, `secondsIntoRound`                | both   | when the trigger was pulled, to a tenth of a second                                                     |
-| `riders`, `bots`                           | both   | the room when the round was reported                                                                    |
-| `victimBot`                                | `Kill` | whether the rider killed was an AI                                                                      |
-| `secondsToKill`                            | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Gun                        |
-| `shotKills`, `firstKillOfShot`             | `Kill` | how many riders the pull killed, and one `true` per pull                                                |
+| Property                                                 | On     | Meaning                                                                                                 |
+| -------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| `weapon`                                                 | both   | what the pull fired                                                                                     |
+| `bombs`                                                  | both   | bombs the pull put in the air — more than 1 for a volley or with Extra Bomb (Gun and Shell fan out too) |
+| `power`, `extraBombs`, `fuseLevel`, `rangeLevel`, `grip` | both   | the shooter's round-long upgrades at the moment of the pull, not at the round's end                     |
+| `round`, `secondsIntoRound`                              | both   | when the trigger was pulled, to a tenth of a second                                                     |
+| `riders`, `bots`                                         | both   | the room when the round was reported                                                                    |
+| `victimBot`                                              | `Kill` | whether the rider killed was an AI                                                                      |
+| `secondsToKill`                                          | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Gun                        |
+| `shotKills`, `firstKillOfShot`                           | `Kill` | how many riders the pull killed, and one `true` per pull                                                |
 
 | Reading                       | Mixpanel                                                       |
 | ----------------------------- | -------------------------------------------------------------- |
@@ -122,9 +122,9 @@ with the first of these that it spent:
 `gun` → `shell` → `five` → `triple` → `bomb`
 
 Gun and Shell come first because they launch on a path of their own; a Triple or Five they fan out is spent
-under their label. Rules before `fuse-p2p-30` also reported `target`, for the Target Bomb, and rules before
+under their label. Rules before `fuse-p2p-39` also reported `target`, for the Target Bomb, and rules before
 `fuse-p2p-24` reported `gravity`, for the Singularity bomb that Gravity used to arm. The
-round-long upgrades are never a `weapon`: Power, Extra Bomb, Shorter Fuse and GRIP sharpen every pull rather than
+round-long upgrades are never a `weapon`: Power, Extra Bomb, Shorter Fuse, Range and GRIP sharpen every pull rather than
 being spent by one.
 
 A **kill** is exactly an elimination credited to an explosion, as the recap's `eliminations` counts it: a wall, a

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
 import { createServer } from "vite";
 import { chromium, webkit } from "playwright";
 
@@ -62,6 +63,7 @@ try {
       })),
     };
     const results = [];
+    const pictures: { name: string; data: string }[] = [];
     for (const backend of ["auto", "canvas"] as const) {
       const canvas = document.createElement("canvas");
       canvas.width = 1600;
@@ -71,12 +73,17 @@ try {
       const arena = createPhaserArena(canvas, { renderer: backend });
       await arena.ready;
       try {
-        // The marker is a cyan square; read a strip across its top edge and return its centre column. Taking the
+        const expectedRenderer = backend === "auto" ? "webgl" : "canvas";
+        if (arena.metrics().renderer !== expectedRenderer)
+          throw Error(
+            `Expected ${expectedRenderer}, got ${arena.metrics().renderer}`,
+          );
+        // Read the white landing dot and return its centre column. Taking the
         // window as an argument is what lets the bouncing cases below look where their marker actually lands.
         const markerCenter = (left: number) => {
-          const y = 286,
+          const y = 298,
             width = 80,
-            height = 9;
+            height = 4;
           const pixels = new Uint8Array(width * height * 4);
           if (backend === "auto") {
             const gl = canvas.getContext("webgl")!;
@@ -98,9 +105,9 @@ try {
             maximum = -Infinity;
           for (let i = 0; i < pixels.length; i += 4) {
             if (
-              pixels[i]! < 100 &&
-              pixels[i + 1]! > 140 &&
-              pixels[i + 2]! > 140
+              pixels[i]! > 220 &&
+              pixels[i + 1]! > 220 &&
+              pixels[i + 2]! > 220
             ) {
               const column = left + ((i / 4) % width);
               minimum = Math.min(minimum, column);
@@ -144,17 +151,50 @@ try {
             }
             results.push({ backend, timing, bombChargeTicks, centers });
           }
-        // A new room bounces by default (#175), and the fold is the only place the two ramps disagree: below the
-        // peak they are identical, which is every frame the cases above render. At a window of 8 the rider sits at
-        // x=200, so ages 7.5 → 9 walk the bouncing marker out to full reach and back, 581.25 → 600 → 581.25 →
-        // 562.5, while the clamped ramp climbs the same way to 600 and then stays there. They agree at 7.5 and 8
-        // and part company after the peak, so the control is what proves the flag moved the marker.
+        // Full-charge Range markers must match the authoritative 600/700/800-unit reach.
+        for (const theme of Object.values(themes))
+          for (const [rangeLevel, reach] of [
+            [1, 600],
+            [2, 700],
+            [3, 800],
+          ]) {
+            arena.render(
+              {
+                ...snapshot,
+                tick: 48,
+                bombChargeTicks: 8,
+                players: snapshot.players.map((player) => ({
+                  ...player,
+                  rangeLevel,
+                })),
+                pickups: [
+                  { id: 1, type: "range", x: 500, y: 500, expiresAtTick: 200 },
+                ],
+              },
+              1600,
+              theme,
+              "range",
+            );
+            const center = markerCenter(200 + reach! - 40);
+            if (
+              !Number.isFinite(center) ||
+              Math.abs(center - (200 + reach!)) > 1.5
+            )
+              throw Error(
+                `${backend}/${theme.id}/range ${rangeLevel}: ${center}`,
+              );
+            results.push({ backend, theme: theme.id, rangeLevel, center });
+          }
+        // Check the eased approach and return against fixed reference positions, alongside linear clamped aim.
         for (const timing of ["local", "world"] as const) {
           for (const aimBounce of [true, false] as const) {
             const expected = aimBounce
-              ? [581.25, 600, 581.25, 562.5]
-              : [581.25, 600, 600, 600];
-            const ages = [7.5, 8, 8.5, 9],
+              ? [
+                  598.0688095092773, 600, 600, 600, 598.0688095092773,
+                  587.4114990234375,
+                ]
+              : [581.25, 600, 600, 600, 600, 600];
+            const ages = [7.5, 8, 9, 10, 10.5, 11],
               centers = [];
             for (let index = 0; index < ages.length; index++) {
               const tick = 40 + ages[index]!;
@@ -196,17 +236,105 @@ try {
             });
           }
         }
+        for (const override of [
+          { bombChargeStartedTick: undefined },
+          { shellArmed: true },
+          { gunArmed: true },
+        ]) {
+          arena.render(snapshot, 2900, themes["neon-pixel"], "aim-cleared");
+          if (
+            Math.abs(markerCenter(280) - 300) > 1.5 ||
+            !Number.isFinite(markerCenter(280))
+          )
+            throw Error(`${backend}: missing active aim before clear`);
+          arena.render(
+            {
+              ...snapshot,
+              players: snapshot.players.map((p) => ({ ...p, ...override })),
+            },
+            2900,
+            themes["neon-pixel"],
+            "aim-cleared",
+          );
+          if (Number.isFinite(markerCenter(280)))
+            throw Error(
+              `${backend}: stale bomb aim after ${JSON.stringify(override)}`,
+            );
+        }
+        const sheet = document.createElement("canvas");
+        sheet.width = 1280;
+        sheet.height = 3 * 350;
+        const ctx = sheet.getContext("2d")!;
+        const cases = [
+          { name: "Single / gold", angle: 0.16, color: "#ffdd55" },
+          { name: "Five-shot / cyan", fiveShotArmed: true },
+          {
+            name: "Wall-clamped / violet",
+            x: 60,
+            angle: Math.PI,
+            color: "#b79aff",
+          },
+        ];
+        for (const [column, theme] of Object.values(themes).entries()) {
+          for (const [row, { name, ...player }] of cases.entries()) {
+            arena.render(
+              {
+                ...snapshot,
+                tick: 48,
+                bombChargeTicks: 8,
+                players: snapshot.players.map((p) => ({ ...p, ...player })),
+              },
+              3000,
+              theme,
+              "aim-showcase",
+            );
+            ctx.fillStyle = "#080e1c";
+            ctx.fillRect(column * 640, row * 350, 640, 350);
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "14px monospace";
+            ctx.fillText(
+              `${name} / ${theme.id}`,
+              column * 640 + 12,
+              row * 350 + 21,
+            );
+            ctx.drawImage(
+              canvas,
+              0,
+              100,
+              800,
+              400,
+              column * 640,
+              row * 350 + 30,
+              640,
+              320,
+            );
+          }
+        }
+        pictures.push({
+          name: `bomb-aim-${backend}`,
+          data: sheet.toDataURL("image/png"),
+        });
       } finally {
         arena.destroy();
         canvas.remove();
       }
     }
-    return results;
+    return { results, pictures };
   });
   assert.deepEqual(errors, []);
+  await mkdir("artifacts", { recursive: true });
+  for (const picture of results.pictures)
+    await writeFile(
+      `artifacts/${picture.name}-${process.env.BROWSER ?? "chrome"}.png`,
+      Buffer.from(picture.data.split(",")[1]!, "base64"),
+    );
   console.log(
     JSON.stringify(
-      { browser: process.env.BROWSER ?? "chrome", results, errors },
+      {
+        browser: process.env.BROWSER ?? "chrome",
+        results: results.results,
+        errors,
+      },
       null,
       2,
     ),

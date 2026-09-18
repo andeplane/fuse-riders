@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { pickupPacing } from "../src/shared/game.ts";
+import { PICKUP_TYPES, pickupPacing } from "../src/shared/game.ts";
 import {
   PICKUP_WEIGHTS,
   pickupTypeForRoll,
@@ -10,6 +10,12 @@ import {
   roomPickup,
 } from "../src/shared/room-settings.ts";
 test("weighted table gives Five one third Triple probability with deterministic intervals", () => {
+  assert.deepEqual(
+    PICKUP_WEIGHTS.map((row) => row.type),
+    PICKUP_TYPES.filter((type) =>
+      PICKUP_WEIGHTS.some((row) => row.type === type),
+    ),
+  );
   const total = PICKUP_WEIGHTS.reduce((sum, row) => sum + row.weight, 0);
   const counts = new Map<string, number>();
   const defaults = defaultRoomSettings();
@@ -20,10 +26,10 @@ test("weighted table gives Five one third Triple probability with deterministic 
     counts.set(type, (counts.get(type) ?? 0) + 1);
   }
   for (const row of PICKUP_WEIGHTS)
-    assert.equal(counts.get(row.type), row.weight);
+    assert.equal(counts.get(row.type) ?? 0, row.weight);
   assert.equal(counts.get("triple"), counts.get("five")! * 3);
   assert.equal(pickupTypeForRoll(0), "power");
-  assert.equal(pickupTypeForRoll(1 - Number.EPSILON), "portal");
+  assert.equal(pickupTypeForRoll(1 - Number.EPSILON), "snail");
   for (const invalid of [-1, 1, NaN, Infinity])
     assert.throws(() => pickupTypeForRoll(invalid));
 });
