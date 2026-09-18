@@ -41,6 +41,15 @@ try {
         (await import(
           String("/src/engine/game.ts")
         )) as typeof import("../src/engine/game.js");
+      const { defaultRoomSettings } = (await import(
+        String("/src/engine/room-settings.ts")
+      )) as typeof import("../src/engine/room-settings.js");
+      // The open arena these shots were framed on, said explicitly now that a game has no settings fallback.
+      const classic = {
+        ...defaultRoomSettings(),
+        map: "classic" as const,
+        aimBounce: false,
+      };
       document.body.replaceChildren();
       document.body.style.cssText = "margin:0;background:#020715";
       const canvas = document.createElement("canvas");
@@ -128,7 +137,7 @@ try {
         if (livingTrail <= 0) throw Error("Live trail missing");
         if (regionDifference(alive, empty, 750, 395, 100, 110) === 0)
           throw Error("Live avatar missing");
-        const game = createGame("decaying-trail");
+        const game = createGame("decaying-trail", classic);
         game.tick = 100;
         addPlayer(game, {
           id: player.id,

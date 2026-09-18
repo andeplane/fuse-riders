@@ -28,9 +28,10 @@ import {
 } from "../src/engine/codec/checkpoint.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { reloadRemaining } from "../src/client/reload-ring.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing() {
-  const game = createGame("power-test", 725);
+  const game = createGame("power-test", classicSettings(), 725);
   for (let slot = 0; slot < 2; slot++)
     addPlayer(game, {
       id: `p${slot}`,
@@ -412,7 +413,7 @@ test("abundant spawning still respects a room with all drops disabled", () => {
 });
 
 test("a newly joined lobby rider can be restored before any round initializes it", () => {
-  const game = createGame("power-lobby");
+  const game = createGame("power-lobby", classicSettings());
   addPlayer(game, { id: "p0", name: "P0", slot: 0, color: SLOT_COLORS[0]! });
   assert.equal(
     game.players.get("p0")!.reloadDurationTicks,

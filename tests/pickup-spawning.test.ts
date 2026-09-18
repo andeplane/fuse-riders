@@ -16,9 +16,10 @@ import {
   decodeGameState,
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing(count: number) {
-  const game = createGame("pickup-pacing", 8192);
+  const game = createGame("pickup-pacing", classicSettings(), 8192);
   // Mixed humans/bots use the same spawning rules. No bot controller runs in this scheduling fixture.
   for (let i = 0; i < count; i++)
     addPlayer(game, {

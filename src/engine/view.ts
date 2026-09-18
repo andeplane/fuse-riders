@@ -1,4 +1,3 @@
-import { BOMB_MAX_CHARGE_TICKS } from "./bomb-launch.js";
 import {
   type GameSnapshot,
   type GameState,
@@ -10,9 +9,9 @@ import { sortedLeaderboard } from "./leaderboard.js";
 /** What a screen is given of the state: the public snapshot. Read-only over `GameState`; callers ask for it when they need one. */
 export function toSnapshot(state: GameState): GameSnapshot {
   return {
-    matchLength: state.settings?.length ?? 5,
-    bombChargeTicks: state.settings?.bombChargeTicks ?? BOMB_MAX_CHARGE_TICKS,
-    aimBounce: state.settings?.aimBounce ?? false,
+    matchLength: state.settings.length,
+    bombChargeTicks: state.settings.bombChargeTicks,
+    aimBounce: state.settings.aimBounce,
     phase: state.phase,
     ...(state.phaseEndsAtTick === undefined
       ? {}

@@ -23,9 +23,10 @@ import {
   encodeGameState,
 } from "../src/engine/codec/checkpoint.js";
 import { presentWorld } from "../src/online/prediction.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 function playing(seed = 31, pickups = false): GameState {
-  const game = createGame("speed-ramp", seed);
+  const game = createGame("speed-ramp", classicSettings(), seed);
   for (let slot = 0; slot < 2; slot++)
     addPlayer(game, {
       id: `p${slot}`,

@@ -13,9 +13,10 @@ import {
   type GameState,
 } from "../src/engine/game.ts";
 import { MAX_PORTAL_PAIRS } from "../src/engine/portal.ts";
+import { classicSettings } from "./fixtures/classic-settings.ts";
 
 function arena() {
-  const state = createGame("portal", 123);
+  const state = createGame("portal", classicSettings(), 123);
   for (let slot = 0; slot < 3; slot++)
     addPlayer(state, { id: `p${slot}`, name: `P${slot}`, slot, color: "#fff" });
   startMatch(state);
@@ -284,7 +285,7 @@ test("concurrent riders preserve separate entry heights at the linked wall", () 
 test("wall placement remains useful on an occupied five-rider field across seeds", () => {
   let placed = 0;
   for (let seed = 1; seed <= 50; seed++) {
-    const state = createGame("occupied-walls", seed);
+    const state = createGame("occupied-walls", classicSettings(), seed);
     for (let slot = 0; slot < 5; slot++)
       addPlayer(state, {
         id: `p${slot}`,

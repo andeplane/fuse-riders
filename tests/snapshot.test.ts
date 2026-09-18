@@ -35,6 +35,7 @@ import {
   step,
   SLOT_COLORS,
 } from "../src/engine/game.js";
+import { classicSettings } from "./fixtures/classic-settings.js";
 
 const ROOM = 42;
 function playingWorld(): World {
@@ -389,7 +390,7 @@ test("snapshot validation rejects foreign rules and rooms, corrupt state, incons
 });
 
 test("replica game-state encoding preserves negative zero, maps and connection flags and rejects corruption", () => {
-  const game = createGame("codec");
+  const game = createGame("codec", classicSettings());
   addPlayer(game, {
     id: "p0",
     name: "P0",

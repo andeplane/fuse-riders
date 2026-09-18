@@ -24,6 +24,7 @@ import {
   SPAWN_CORRIDOR_LENGTH,
   SPAWN_CORRIDOR_RADIUS,
 } from "./tuning.js";
+import type { RoomSettings } from "./room-settings.js";
 import {
   type GameEvent,
   type GamePhase,
@@ -38,6 +39,8 @@ import { takeOutOfRound } from "./sim/riders.js";
 export { segmentDistanceSquared } from "./geometry.js";
 export { PICKUP_TYPES, type PickupType } from "./pickup-types.js";
 export { pickupPacing } from "./power-progression.js";
+// `createGame` takes them, so whoever can build a game can name what it is played under.
+export { defaultRoomSettings, type RoomSettings } from "./room-settings.js";
 
 export * from "./state.js";
 export { toSnapshot } from "./view.js";
@@ -49,12 +52,15 @@ export interface TickResult {
   events: GameEvent[];
 }
 
+/** A lobby under `settings`. There is no default: whoever builds a game says what it is played under. */
 export function createGame(
   matchId: string,
+  settings: RoomSettings,
   seed = hashSeed(matchId),
 ): GameState {
   if (!matchId) throw new Error("matchId is required");
   return {
+    settings,
     matchId,
     round: 1,
     tick: 0,
@@ -195,9 +201,8 @@ export function startNextRound(state: GameState): void {
 
 /** Aborts unfinished play without scoring and retains the party's session totals. */
 export function returnToLobby(state: GameState, newMatchId: string): void {
-  const fresh = createGame(newMatchId);
+  const fresh = createGame(newMatchId, state.settings);
   fresh.leaderboard = state.leaderboard;
-  fresh.settings = state.settings;
   for (const player of sortedPlayers(state)) {
     if (player.connected)
       addPlayer(fresh, {
@@ -339,13 +344,7 @@ function prepareRound(state: GameState): void {
   });
   // The layout is laid around riders already standing on the board, so nobody starts inside a rock or facing one
   // with no room to turn. Drawn from the round's own stream, after every participant has a pose.
-  // A game with no room settings — LAN play, which has no settings screen — keeps the arena it has always had, like
-  // every other settings fallback. `rotate` is the default of a room that has settings, and so a way to turn it off.
-  state.map = chooseArenaMap(
-    state.settings?.map ?? "classic",
-    state.seed,
-    state.round,
-  );
+  state.map = chooseArenaMap(state.settings.map, state.seed, state.round);
   state.boundaryInset = initialBoundaryInset(state.map, INITIAL_BOUNDARY_INSET);
   const keepClear: ClearCapsule[] = participants.map((player) => ({
     x1: player.x,
