@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { blastFrame } from "../src/client/blast-animation.js";
-import { BLAST_VISIBLE_TICKS } from "../src/shared/game.js";
+import { BLAST_VISIBLE_TICKS } from "../src/engine/game.js";
 
 const blast = {
   bombId: 42,

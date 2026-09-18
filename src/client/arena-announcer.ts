@@ -4,8 +4,8 @@ import {
   OVERTIME_START_TICK,
   ROUND_DRAW_TICK,
   TICK_HZ,
-} from "../shared/game.js";
-import { ARENA_MAP_RECIPES } from "../shared/arena-map.js";
+} from "../engine/game.js";
+import { ARENA_MAP_RECIPES } from "../engine/arena-map.js";
 import type { ArenaMapId, GameEvent } from "../shared/protocol.js";
 import type { ViewSnapshot } from "./snapshot-stream.js";
 

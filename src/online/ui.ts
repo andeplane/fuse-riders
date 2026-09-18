@@ -4,7 +4,7 @@ import { uuid } from "../shared/uuid.js";
 import { showRoomSettings } from "./room-settings-menu.js";
 import { keyboardShortcuts } from "./keyboard-shortcuts.js";
 import { startAttract } from "./attract.js";
-import { BOT_ID_PREFIX } from "../shared/bot-controller.js";
+import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { mountArenaPresentation } from "../client/phaser/presentation.js";
 import { apiUrl, appUrl } from "./endpoints.js";
 import { createAccountPanel } from "./account-panel.js";
@@ -41,8 +41,8 @@ import {
   parseRoomSettings,
   SETTINGS_KEY,
   type RoomSettings,
-} from "../shared/room-settings.js";
-import type { PickupType } from "../shared/game.js";
+} from "../engine/room-settings.js";
+import type { PickupType } from "../engine/game.js";
 import type { ViewSnapshot } from "../client/snapshot-stream.js";
 import { renderMatchRecap } from "./match-recap-view.js";
 import { ReplayDirector, describeClip } from "../client/replay.js";
@@ -65,6 +65,7 @@ import "./online.css";
 import "./top-menu.css";
 import { formatNetStats } from "./net-stats.js";
 import { installMobilePlayLayout } from "./mobile-play-layout.js";
+import { arenaView } from "./mobile-play-policy.js";
 import { connectHint } from "./connect-hint.js";
 import { createJoinCard, createJoinForm } from "./join-form.js";
 import { safeStorage } from "../client/safe-storage.js";
@@ -83,6 +84,8 @@ import {
   showsRoundResult,
 } from "../client/arena-announcer.js";
 import { plainStatus } from "./status-copy.js";
+/** The blurred scene behind the lobby and results redraws at 10 fps. */
+const BACKDROP_FRAME_MS = 100;
 const LAST_ROOM_KEY = "fuse-last-room";
 const reducedMotion = () =>
   matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -461,6 +464,7 @@ export async function startOnline(): Promise<void> {
   const benchmark = url.searchParams.get("benchmark") === "1";
   let benchmarkInput: { seq: number; at: number } | undefined,
     lastBenchmarkRender = 0,
+    lastBackdropRender = 0,
     lastControls = "";
   const sample = (detail: object) => {
     if (benchmark)
@@ -1371,13 +1375,20 @@ export async function startOnline(): Promise<void> {
       // Once the recap is ready the room is back in the same lobby it started from: closing the results lands on QR, riders and REMATCH / BACK TO LOBBY.
       // Solo and a joined shared-screen rider have no lobby card (their pre-start screen is the arena or the controller), so their button stays CLOSE.
       const phoneLobby = mobileLayout.lobby();
+      // The same arena stays behind the lobby and results; only its presentation changes.
+      // A shared-TV controller (phone or desktop) never shows or renders it: the TV does.
+      const arena = arenaView({
+        shared: settings.mode === "shared",
+        displayOnly,
+        joined,
+        joining,
+        phase: state.phase,
+        recapReady,
+      });
       sharedLobby.hidden =
         !(state.phase === "lobby" || recapReady) ||
         joining ||
-        (!phoneLobby &&
-          (solo ||
-            (settings.mode === "shared" && joined && !displayOnly) ||
-            mobileLayout.active()));
+        (!phoneLobby && (solo || arena.controller || mobileLayout.active()));
       app.classList.toggle("room-waiting", !sharedLobby.hidden);
       const readyCount = state.players.filter((p) => p.connected).length;
       lobbyCount.textContent =
@@ -1415,17 +1426,14 @@ export async function startOnline(): Promise<void> {
         row.status.textContent = p.connected ? "READY" : "OFFLINE";
       }
       roster.hidden = !sharedLobby.hidden;
-      const controllerOnly =
-        settings.mode === "shared" && !displayOnly && joined && !phoneLobby;
+      const controllerOnly = arena.controller && !phoneLobby;
       app.classList.toggle("controller-only", controllerOnly);
-      // The same arena stays behind the lobby and results; only its presentation changes.
-      // Shared-screen phones still skip arena rendering during active controller play.
-      const sceneBackground = state.phase === "lobby" || recapReady;
-      app.classList.toggle("scene-background", sceneBackground);
-      canvas.hidden = (controllerOnly && !sceneBackground) || joining;
+      app.classList.toggle("scene-background", arena.sceneBackground);
+      canvas.hidden = arena.hidden;
       if (!canvas.hidden)
         replay.observe(state, state.matchId, performance.now());
-      styleHeading.hidden = styleRow.hidden = controllerOnly;
+      // VISUAL STYLE only changes the arena, which a shared-TV controller never draws, lobby included.
+      styleHeading.hidden = styleRow.hidden = arena.controller;
       updateDesktopLayout();
       if (
         state.phase === "countdown" &&
@@ -2120,7 +2128,16 @@ export async function startOnline(): Promise<void> {
       requestAnimationFrame(frame);
       return;
     }
-    if (predicted && !canvas.hidden) {
+    // Behind the lobby and results the scene is blurred and dimmed, so ten frames a second are enough. This saves power
+    // on lobby screens and load on crowded CI runners. It is not a startup fix: the TV draws nothing until Phaser is
+    // ready, and the shared-room smoke passes without it in default headless Chromium (#333's controller fix is what counts).
+    const backdrop = app.classList.contains("scene-background");
+    if (
+      predicted &&
+      !canvas.hidden &&
+      !(backdrop && now - lastBackdropRender < BACKDROP_FRAME_MS)
+    ) {
+      if (backdrop) lastBackdropRender = now;
       presentation.render(predicted, now, theme, renderScope, id);
       if (benchmark && (benchmarkInput || now - lastBenchmarkRender >= 100)) {
         const p = predicted.players.find((p) => p.id === id);

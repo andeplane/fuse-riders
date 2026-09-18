@@ -1,7 +1,7 @@
 import {
   BOMB_MAX_CHARGE_TICKS,
   bombAimDistance,
-} from "../shared/bomb-launch.js";
+} from "../engine/bomb-launch.js";
 
 /** Sample the shared curve each frame; actual releases still use whole ticks. */
 export function bombPreviewDistance(

@@ -14,7 +14,7 @@ import {
   type GatewaySocket,
 } from "../packages/fuse-network-be/src/gateway.js";
 import { FakeNetwork } from "./fixtures/fake-room.js";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+import { defaultRoomSettings } from "../src/engine/room-settings.js";
 
 const HOST = "a".repeat(64),
   GUEST = "b".repeat(64),

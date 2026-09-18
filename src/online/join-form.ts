@@ -4,6 +4,7 @@ import {
 } from "../client/avatar-heads.js";
 import type { SafeStorage } from "../client/safe-storage.js";
 import { AVATARS, type AvatarId } from "../shared/avatars.js";
+import { MAX_LOGGED_NAME_UNITS, seatRiderName } from "../engine/rider-name.js";
 const NAME_KEY = "fuse-riders-player-name";
 type Storage = Pick<SafeStorage, "getItem" | "setItem">;
 /**
@@ -20,7 +21,8 @@ export function createJoinForm(
   form.className = "online-join";
   const name = document.createElement("input");
   name.placeholder = "Your name";
-  name.maxLength = 20;
+  // In UTF-16 units, like the attribute: nothing longer can be seated. The room cuts what is typed to the rider-name rule.
+  name.maxLength = MAX_LOGGED_NAME_UNITS;
   name.setAttribute("aria-required", "true");
   name.setAttribute("autocomplete", "nickname");
   name.setAttribute("aria-label", "Your name");
@@ -90,13 +92,15 @@ export function createJoinForm(
   });
   form.onsubmit = (event) => {
     event.preventDefault();
-    const value = name.value.trim();
+    // What the room would seat, so the field, the remembered name and the seat are the same text.
+    const value = seatRiderName(name.value);
     if (!value) {
       hint.hidden = false;
       name.setAttribute("aria-invalid", "true");
       name.focus();
       return;
     }
+    name.value = value;
     if (!accountName) storage.setItem(NAME_KEY, value);
     onJoin(value, picker.selected());
   };

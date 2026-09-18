@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   GoldenRefusal,
   goldenFailure,
   RECORD_COMMAND,
+  RULES_FILE,
   validateGoldenCoverage,
   validateGoldenUpdate,
 } from "../scripts/lib/golden-update.js";
@@ -98,7 +100,7 @@ test("a golden failure says which case it is, where it starts and what to run", 
     /behaviour changed and RULES did not \(still rules-1\)/,
   );
   assert.match(unbumped, /First diverging tick: 7 of 20\./);
-  assert.match(unbumped, /INTENDED: bump RULES in src\/shared\/apply-tick\.ts/);
+  assert.ok(unbumped.includes(`INTENDED: bump RULES in ${RULES_FILE}`));
   assert.ok(unbumped.includes(RECORD_COMMAND));
   assert.match(
     unbumped,
@@ -129,4 +131,12 @@ test("a golden failure says which case it is, where it starts and what to run", 
   );
   for (const message of [unbumped, stale, unnoticed, outOfStep])
     assert.match(message, /engine-safety-net\.md, 'When the golden fails'/);
+});
+
+test("the file the golden guidance sends a developer to declares RULES, and the docs name the same file", () => {
+  const read = (path: string): string =>
+    readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
+  assert.match(read(RULES_FILE), /^export const RULES = "/m);
+  for (const doc of ["AGENTS.md", "docs/design/engine-safety-net.md"])
+    assert.ok(read(doc).includes(`\`${RULES_FILE}\``), `${doc} names it`);
 });
