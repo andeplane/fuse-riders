@@ -576,6 +576,7 @@ test("a hopping ray folds the same from a checkpoint decoded in another map orde
       settings: defaultRoomSettings(),
       folds: new Map(),
       bots: new Set(),
+      spectators: new Map(),
     });
   };
   assert.deepEqual(

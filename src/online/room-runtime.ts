@@ -19,9 +19,11 @@ import {
 } from "./snapshot.js";
 import {
   BOT_NAMES,
+  MAX_SPECTATORS,
   RULES,
   actingCreator,
   createRoomState,
+  memberConnected,
   reclaimable,
   successionOrder,
 } from "../engine/apply-tick.js";
@@ -36,6 +38,7 @@ import {
   PRESS,
   RELEASE,
   SETTINGS,
+  SPECTATOR,
   STEER,
 } from "../engine/input-log.js";
 import { isAvatarId, type AvatarId } from "../shared/avatars.js";
@@ -51,6 +54,8 @@ import type { RoomTransport, TransportEvents } from "fuse-network-fe";
 
 export type RoomCommand =
   | { type: "join"; name: string; avatarId?: AvatarId }
+  /** Take a place in the watching list instead of a seat: no inputs, no colour, no score. */
+  | { type: "spectate"; name: string }
   | {
       type: "input";
       seq: number;
@@ -254,7 +259,13 @@ export class RoomRuntime {
   private lastOwnTick = 0;
   private lastPacketTick = -1;
   private lastFrameTick = -1;
-  private pendingJoin?: { name: string; avatarId?: AvatarId; sentAt: number };
+  private pendingJoin?: {
+    name: string;
+    avatarId?: AvatarId;
+    /** Whether this asks for the watching list rather than a seat. */
+    spectator: boolean;
+    sentAt: number;
+  };
   private snapshotRequest?: { to: string; at: number; failures: number };
   private assembler?: SnapshotAssembler;
   private mismatches: number[] = [];
@@ -410,15 +421,23 @@ export class RoomRuntime {
     this.noWorld.delete(id);
     if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
     const state = this.world?.state,
-      player = state?.game.players.get(id);
-    if (!this.manager || !player) return;
+      player = state?.game.players.get(id),
+      watcher = state?.spectators.get(id);
+    if (!this.manager || (!player && !watcher)) return;
+    // A watcher holds no seat, so the lobby frees its place outright and a live match keeps it listed but absent, as for a rider.
+    if (watcher) {
+      if (state!.game.phase === "lobby") this.append(SPECTATOR, "leave", id);
+      else if (watcher.connected)
+        this.append(PRESENCE, id, false, watcher.generation);
+      return;
+    }
     // A reload reaches here too: the service retires the old socket before it admits the new page. In the lobby that
     // frees the seat, and the page confirms its name on the join card. Mid-match it is absence, not departure: `LEAVE`
     // frees a seat at once in `roundOver` and `matchOver`, so a reload that landed just after the round ended lost the
     // seat inside that round. Absent riders are pruned when the next round starts, which leaves the page the whole
     // pause to come back, and they are logged present again once heard (`creatorDuties`).
     if (state!.game.phase === "lobby") this.append(LEAVE, id);
-    else if (player.connected)
+    else if (player!.connected)
       this.append(PRESENCE, id, false, state!.folds.get(id)?.generation ?? 0);
   }
   /** A link opening is only a hint: the transport admits sends once its own probes confirm the path, so the tick loop retries. */
@@ -452,6 +471,7 @@ export class RoomRuntime {
       avatarId?: unknown;
       error?: unknown;
       world?: unknown;
+      role?: unknown;
     };
     const member = this.members.get(id);
     if (!member) return;
@@ -498,11 +518,14 @@ export class RoomRuntime {
         return;
       case "join":
         if (this.manager && typeof data.name === "string") {
-          const error = this.join(
-            id,
-            data.name,
-            isAvatarId(data.avatarId) ? data.avatarId : undefined,
-          );
+          const error =
+            data.role === "spectator"
+              ? this.spectate(id, data.name)
+              : this.join(
+                  id,
+                  data.name,
+                  isAvatarId(data.avatarId) ? data.avatarId : undefined,
+                );
           if (error) this.transport!.send(id, { type: "error", error });
         }
         return;
@@ -860,6 +883,8 @@ export class RoomRuntime {
       member = from === this.id ? undefined : this.members.get(from);
     const generation = from === this.id ? this.generation : member?.generation;
     if (generation === undefined) return "Reconnect before joining";
+    if (this.world.state.spectators.has(from))
+      return "Stop watching before taking a seat";
     if (game.players.has(from)) {
       if (from === this.id) this.ensurePresence(from, this.selfMember());
       else this.ensurePresence(from, member!);
@@ -871,17 +896,45 @@ export class RoomRuntime {
     this.append(JOIN, from, name, slot, avatarId ?? "fox", generation);
     return;
   }
+  /**
+   * The other half of `join`: a place in the watching list rather than a seat. A watcher is a named member of the room —
+   * it is folded, it survives a reload and it ranks in the succession order — but it steers nothing, so nothing waits on
+   * its stream and it never reaches `step`.
+   */
+  private spectate(from: string, rawName: string): string | undefined {
+    if (!this.world) return "The room is still loading";
+    const name = seatRiderName(rawName);
+    if (!name) return `Choose a name (1–${MAX_RIDER_NAME} characters)`;
+    const state = this.world.state,
+      member = from === this.id ? undefined : this.members.get(from);
+    const generation = from === this.id ? this.generation : member?.generation;
+    if (generation === undefined) return "Reconnect before joining";
+    if (state.game.players.has(from)) return "Leave your seat before watching";
+    if (state.spectators.has(from)) {
+      this.ensurePresence(from, from === this.id ? this.selfMember() : member!);
+      return;
+    }
+    const pending = this.pending();
+    if (pending.ids.has(from)) return;
+    if (state.spectators.size + pending.watchers >= MAX_SPECTATORS)
+      return `Room is full (${MAX_SPECTATORS} spectators watching)`;
+    this.append(SPECTATOR, "join", from, name, generation);
+    return;
+  }
   /** Own management entries logged but not yet applied: seats they will take or free when their tick arrives. */
   private pending(): {
     slots: Set<number>;
     freed: Set<string>;
     ids: Set<string>;
     seats: number;
+    /** Net watchers this replica has logged but not yet folded, so a sixth is refused before the fifth applies. */
+    watchers: number;
   } {
     const slots = new Set<number>(),
       freed = new Set<string>(),
       ids = new Set<string>();
-    let seats = 0;
+    let seats = 0,
+      watchers = 0;
     for (const entry of this.own().entries.values()) {
       if (entry[1] <= this.world!.tick) continue;
       if (entry[2] === JOIN && !this.world!.state.game.players.has(entry[3])) {
@@ -895,9 +948,14 @@ export class RoomRuntime {
       } else if (entry[2] === LEAVE) {
         freed.add(entry[3]);
         seats--;
+      } else if (entry[2] === SPECTATOR) {
+        if (entry[3] === "join") {
+          ids.add(entry[4]);
+          watchers++;
+        } else watchers--;
       }
     }
-    return { slots, freed, ids, seats };
+    return { slots, freed, ids, seats, watchers };
   }
   /** A free seat, freeing a disconnected rider's seat between rounds first. */
   private claimSlot(): number {
@@ -937,9 +995,17 @@ export class RoomRuntime {
     };
   }
   private ensurePresence(id: string, member: Member): void {
-    const player = this.world?.state.game.players.get(id);
-    if (!player || (member.generation === 0 && id !== this.id)) return;
-    const fold = this.world!.state.folds.get(id);
+    const state = this.world?.state;
+    if (!state || (member.generation === 0 && id !== this.id)) return;
+    const watcher = state.spectators.get(id);
+    if (watcher) {
+      if (watcher.connected && watcher.generation === member.generation) return;
+      this.logPresence(id, member, true);
+      return;
+    }
+    const player = state.game.players.get(id);
+    if (!player) return;
+    const fold = state.folds.get(id);
     if (player.connected && fold?.generation === member.generation) return;
     this.logPresence(id, member, true);
   }
@@ -973,25 +1039,22 @@ export class RoomRuntime {
       : now - from > ms;
   }
   private creatorDuties(now: number): void {
-    const game = this.world!.state.game,
+    const state = this.world!.state,
       stalled = now - this.lastLoopAt > DISCONNECT_MS / 2;
+    const listed = (id: string) =>
+      state.game.players.has(id) || state.spectators.has(id);
     for (const [id, member] of this.members) {
-      const player = game.players.get(id);
-      if (!player) continue;
+      if (!listed(id)) continue;
+      const connected = memberConnected(state, id);
       // Present again only on a packet; absent only on silence this runtime could have heard. In between — a link
       // just up and no packet yet — nothing is logged either way.
       const heard = now - member.lastPacketAt <= DISCONNECT_MS;
       // A creator whose own loop just stalled cannot tell silence from its own absence.
-      if (
-        player.connected &&
-        !stalled &&
-        this.silent(member, now, DISCONNECT_MS)
-      )
+      if (connected && !stalled && this.silent(member, now, DISCONNECT_MS))
         this.logPresence(id, member, false);
-      else if (!player.connected && heard) this.ensurePresence(id, member);
+      else if (!connected && heard) this.ensurePresence(id, member);
     }
-    const self = game.players.get(this.id);
-    if (self && !self.connected)
+    if (listed(this.id) && !memberConnected(state, this.id))
       this.ensurePresence(this.id, this.selfMember());
   }
   /**
@@ -1016,7 +1079,7 @@ export class RoomRuntime {
         now - this.members.get(id)!.lastPacketAt <= DISCONNECT_MS);
     if (order.slice(1).find(heard) !== this.id) return;
     for (const id of order.slice(0, mine)) {
-      if (!state.game.players.get(id)?.connected || !silent(id)) continue;
+      if (!memberConnected(state, id) || !silent(id)) continue;
       this.logPresence(id, this.members.get(id) ?? this.selfMember(), false);
     }
   }
@@ -1060,11 +1123,12 @@ export class RoomRuntime {
   }
   command(command: RoomCommand): boolean {
     if (!command || typeof command !== "object") return false;
-    if (command.type === "join") {
+    if (command.type === "join" || command.type === "spectate") {
       if (this.options.displayOnly) return false;
       this.pendingJoin = {
         name: command.name,
-        avatarId: command.avatarId,
+        avatarId: command.type === "join" ? command.avatarId : undefined,
+        spectator: command.type === "spectate",
         sentAt: -Infinity,
       };
       if (this.creator || this.solo) return this.sendJoin();
@@ -1165,7 +1229,9 @@ export class RoomRuntime {
     join.sentAt = this.deps.now();
     if (this.creator || this.solo) {
       if (!this.world) return true;
-      const error = this.join(this.id, join.name, join.avatarId);
+      const error = join.spectator
+        ? this.spectate(this.id, join.name)
+        : this.join(this.id, join.name, join.avatarId);
       if (error) {
         this.status.notice(error);
         this.pendingJoin = undefined;
@@ -1179,6 +1245,7 @@ export class RoomRuntime {
       type: "join",
       name: join.name,
       avatarId: join.avatarId,
+      ...(join.spectator ? { role: "spectator" } : {}),
     });
   }
   /** Edge-filtered: an unchanged frame produces no entry; each press is a new gesture in the log. */
@@ -1360,7 +1427,10 @@ export class RoomRuntime {
       if (player && !player.connected && this.held.flags !== -1)
         this.resetHeld();
       if (this.pendingJoin) {
-        if (player?.connected) this.pendingJoin = undefined;
+        const admitted = this.pendingJoin.spectator
+          ? world.state.spectators.get(this.id)?.connected === true
+          : player?.connected === true;
+        if (admitted) this.pendingJoin = undefined;
         else if (now - this.pendingJoin.sentAt > JOIN_RETRY_MS) this.sendJoin();
       }
       const full =
