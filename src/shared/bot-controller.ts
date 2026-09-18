@@ -23,7 +23,8 @@ import {
   BOMB_MAX_CHARGE_TICKS,
   bombLaunchDistance,
   BOMB_MIN_LAUNCH_DISTANCE,
-  BOMB_MAX_LAUNCH_DISTANCE,
+  bombMaxLaunchDistance,
+  MAX_RANGE_LEVEL,
 } from "./bomb-launch.js";
 import { advanceRiderPose } from "./rider-motion.js";
 import {
@@ -514,6 +515,10 @@ export class BotController {
     const pickup = [...game.pickups]
       .sort((a, b) => a.id - b.id)
       .filter((candidate) => candidate.type !== "grip" || !player.grip)
+      .filter(
+        (candidate) =>
+          candidate.type !== "range" || player.rangeLevel < MAX_RANGE_LEVEL,
+      )
       .reduce<GameState["pickups"][number] | undefined>(
         (best, candidate) =>
           !best ||
@@ -605,7 +610,8 @@ export class BotController {
               maxChargeTicks,
               Math.round(
                 ((distance - BOMB_MIN_LAUNCH_DISTANCE) /
-                  (BOMB_MAX_LAUNCH_DISTANCE - BOMB_MIN_LAUNCH_DISTANCE)) *
+                  (bombMaxLaunchDistance(player.rangeLevel) -
+                    BOMB_MIN_LAUNCH_DISTANCE)) *
                   maxChargeTicks,
               ),
             ),
@@ -620,7 +626,8 @@ export class BotController {
       let error = Infinity;
       for (let ticks = 1; ticks <= maxChargeTicks; ticks++) {
         const candidate = Math.abs(
-          bombLaunchDistance(ticks, maxChargeTicks, true) - distance,
+          bombLaunchDistance(ticks, maxChargeTicks, true, player.rangeLevel) -
+            distance,
         );
         if (candidate <= error) {
           wantedCharge = ticks;
@@ -641,7 +648,8 @@ export class BotController {
     }
     if (
       aimed ||
-      (distance < 500 && Math.abs(angleDifference(bearing, player.angle)) < 0.6)
+      (distance < bombMaxLaunchDistance(player.rangeLevel) + 100 &&
+        Math.abs(angleDifference(bearing, player.angle)) < 0.6)
     ) {
       return {
         ...intent,

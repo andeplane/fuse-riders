@@ -1303,7 +1303,7 @@ class ArenaScene extends Phaser.Scene {
           self ? 12 : 10,
         );
         const power = this.label(
-          powerCountText(p.powerPickups, p.extraBombs, p.grip),
+          powerCountText(p.powerPickups, p.extraBombs, p.grip, p.rangeLevel),
           p.x,
           labelY,
           POWER_COLOR,
@@ -1407,6 +1407,7 @@ class ArenaScene extends Phaser.Scene {
             (p.presentationTick ?? s.tick) - p.bombChargeStartedTick,
             s.bombChargeTicks,
             s.aimBounce,
+            p.rangeLevel,
           );
           for (const a of volleyAngles(p.angle, bombsPerShot(p))) {
             const x = open

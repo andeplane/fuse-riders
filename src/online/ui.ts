@@ -143,6 +143,7 @@ const labels: Record<PickupType, string> = {
   portal: "Portal",
   star: "Star",
   grip: "Grip",
+  range: "Range",
   nitro: "Nitro",
   snail: "Snail",
   gravity: "Gravity",
@@ -1537,7 +1538,12 @@ export async function startOnline(): Promise<void> {
         displayOnly ||
         !["playing", "countdown"].includes(state.phase);
       powerStatus.textContent = player
-        ? powerLabel(player.powerPickups, player.extraBombs, player.grip)
+        ? powerLabel(
+            player.powerPickups,
+            player.extraBombs,
+            player.grip,
+            player.rangeLevel,
+          )
         : "";
       const gunReady =
         !!player?.alive && !!player.gunArmed && state.phase === "playing";
