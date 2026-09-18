@@ -851,3 +851,56 @@ test("a game without room settings, as on the LAN, keeps the classic arena", () 
   assert.equal(game.map, "classic");
   assert.deepEqual(game.obstacles, []);
 });
+
+test("rotated pyramids crash at the visible tip and replay identically after checkpoint recovery", () => {
+  const obstacle = boulder({ rotation: Math.PI / 4 });
+  const game = scene([obstacle]);
+  game.map = "desert";
+  const copy = decodeGameState(encodeGameState(game))!;
+  assert.ok(copy);
+  assert.equal(toSnapshot(game).obstacles[0]!.rotation, Math.PI / 4);
+  for (let tick = 0; tick < 70 && rider(game).alive; tick++) {
+    const inputs = new Map([
+      ["p0", neutral],
+      ["p1", neutral],
+    ]);
+    assert.deepEqual(step(game, inputs), step(copy, inputs));
+    assert.deepEqual(
+      JSON.parse(encodeGameState(game)),
+      JSON.parse(encodeGameState(copy)),
+    );
+  }
+  assert.equal(rider(game).alive, false);
+  const contact =
+    obstacle.x - obstacle.halfWidth * Math.SQRT2 - RIDER_OBSTACLE_RADIUS;
+  assert.ok(
+    Math.abs(rider(game).x - contact) < 1e-6,
+    "crashes at rotated tip instead of unrotated face",
+  );
+});
+
+test("checkpoints reject invalid rotations, non-pyramid rotations and protruding rotated corners", () => {
+  const game = scene([boulder({ rotation: Math.PI / 4 })]);
+  game.map = "desert";
+  const encoded = encodeGameState(game);
+  const invalid = (change: Record<string, unknown>, map = "desert") => {
+    const data = JSON.parse(encoded) as {
+      map: string;
+      obstacles: Record<string, unknown>[];
+    };
+    data.map = map;
+    Object.assign(data.obstacles[0]!, change);
+    assert.equal(decodeGameState(JSON.stringify(data)), undefined);
+  };
+  for (const rotation of [null, "0.2", 4, -4, 1e200]) invalid({ rotation });
+  invalid({ halfHeight: 50 });
+  invalid({ halfHeight: 50, rotation: undefined });
+  invalid({ kind: "tree" });
+  invalid({}, "forest");
+  invalid({ x: 61 }); // unrotated bounds fit, rotated corner does not
+  assert.equal(
+    encodeGameState(game),
+    encoded,
+    "rejections leave the healthy world untouched",
+  );
+});

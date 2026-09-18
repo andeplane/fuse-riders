@@ -1,3 +1,5 @@
+import { cos, sin } from "./deterministic-math.js";
+
 /**
  * Arena maps: the ground a round is played on and the solid obstacles standing on it.
  *
@@ -39,7 +41,7 @@ export const OBSTACLE_KINDS = [
 ] as const;
 export type ObstacleKind = (typeof OBSTACLE_KINDS)[number];
 
-/** Axis-aligned and centred, so every test below is a clamp rather than a rotation. */
+/** Centred local rectangle; rotation is clockwise radians, absent for axis-aligned scenery. */
 export interface Obstacle {
   id: number;
   kind: ObstacleKind;
@@ -47,6 +49,8 @@ export interface Obstacle {
   y: number;
   halfWidth: number;
   halfHeight: number;
+  /** Only square desert rocks (pyramids) have a rotation. */
+  rotation?: number;
 }
 
 /** Bounds the whole obstacle rectangle must sit inside, already inset by the boundary. */
@@ -175,7 +179,7 @@ export const ARENA_MAP_RECIPES: Record<ArenaMapId, ArenaMapRecipe> = {
   desert: {
     spacing: 76,
     species: [
-      { kind: "rock", min: 7, max: 10, width: [64, 124], height: [44, 86] },
+      { kind: "rock", min: 7, max: 10, width: [64, 124], height: [64, 124] },
       { kind: "cactus", min: 5, max: 8, width: [26, 38], height: [44, 72] },
     ],
   },
@@ -253,15 +257,30 @@ export function generateObstacles(options: ObstacleLayoutOptions): Obstacle[] {
           (species.width[0] +
             random() * (species.width[1] - species.width[0])) /
           2;
-        const halfHeight =
-          (species.height[0] +
-            random() * (species.height[1] - species.height[0])) /
-          2;
-        const spanX = bounds.maxX - bounds.minX - 2 * halfWidth;
-        const spanY = bounds.maxY - bounds.minY - 2 * halfHeight;
+        // Reuse the height sample for orientation: other maps keep their RNG stream unchanged.
+        const heightRoll = random();
+        const pyramid = options.map === "desert" && species.kind === "rock";
+        const halfHeight = pyramid
+          ? halfWidth
+          : (species.height[0] +
+              heightRoll * (species.height[1] - species.height[0])) /
+            2;
+        const rotation = pyramid
+          ? [0, 0, Math.PI / 12, -Math.PI / 9, Math.PI / 4, -Math.PI / 6][
+              Math.floor(heightRoll * 6)
+            ]!
+          : 0;
+        const extentX =
+          Math.abs(cos(rotation)) * halfWidth +
+          Math.abs(sin(rotation)) * halfHeight;
+        const extentY =
+          Math.abs(sin(rotation)) * halfWidth +
+          Math.abs(cos(rotation)) * halfHeight;
+        const spanX = bounds.maxX - bounds.minX - 2 * extentX;
+        const spanY = bounds.maxY - bounds.minY - 2 * extentY;
         // Two samples are drawn either way, so a board too small for this species does not shift every later roll.
-        const x = bounds.minX + halfWidth + random() * Math.max(0, spanX);
-        const y = bounds.minY + halfHeight + random() * Math.max(0, spanY);
+        const x = bounds.minX + extentX + random() * Math.max(0, spanX);
+        const y = bounds.minY + extentY + random() * Math.max(0, spanY);
         if (spanX < 0 || spanY < 0) break;
         const candidate: Obstacle = {
           id: placed.length + 1,
@@ -270,6 +289,7 @@ export function generateObstacles(options: ObstacleLayoutOptions): Obstacle[] {
           y,
           halfWidth,
           halfHeight,
+          ...(pyramid ? { rotation } : {}),
         };
         if (
           keepClear.some((capsule) =>
@@ -311,8 +331,56 @@ export function chooseArenaMap(
   return rotation[(offset + Math.max(0, round - 1)) % rotation.length]!;
 }
 
+/** Rotate a local vector to world coordinates using the shared deterministic math. */
+function worldVector(
+  obstacle: Obstacle,
+  x: number,
+  y: number,
+): { x: number; y: number } {
+  const c = cos(obstacle.rotation ?? 0),
+    s = sin(obstacle.rotation ?? 0);
+  return { x: x * c - y * s, y: x * s + y * c };
+}
+function localPoint(
+  obstacle: Obstacle,
+  x: number,
+  y: number,
+): { x: number; y: number } {
+  return worldVector(
+    { ...obstacle, rotation: -(obstacle.rotation ?? 0) },
+    x - obstacle.x,
+    y - obstacle.y,
+  );
+}
+function unrotated(obstacle: Obstacle): Obstacle {
+  return { ...obstacle, x: 0, y: 0, rotation: 0 };
+}
+/** Conservative world bounds for placement clearance and overtime walls. */
+export function obstacleExtents(obstacle: Obstacle): {
+  halfWidth: number;
+  halfHeight: number;
+} {
+  const c = Math.abs(cos(obstacle.rotation ?? 0)),
+    s = Math.abs(sin(obstacle.rotation ?? 0));
+  return {
+    halfWidth: c * obstacle.halfWidth + s * obstacle.halfHeight,
+    halfHeight: s * obstacle.halfWidth + c * obstacle.halfHeight,
+  };
+}
+
 /** The four walls of an obstacle, for projectiles that bounce off solid geometry rather than die on it. */
 export function obstacleEdges(obstacle: Obstacle): ObstacleSegment[] {
+  if (obstacle.rotation)
+    return obstacleEdges(unrotated(obstacle)).map((edge) => {
+      const a = worldVector(obstacle, edge.x1, edge.y1),
+        b = worldVector(obstacle, edge.x2, edge.y2);
+      return {
+        x1: obstacle.x + a.x,
+        y1: obstacle.y + a.y,
+        x2: obstacle.x + b.x,
+        y2: obstacle.y + b.y,
+      };
+    });
   const minX = obstacle.x - obstacle.halfWidth,
     maxX = obstacle.x + obstacle.halfWidth;
   const minY = obstacle.y - obstacle.halfHeight,
@@ -358,6 +426,12 @@ export function obstacleBounceNormal(
   x: number,
   y: number,
 ): { nx: number; ny: number } {
+  if (obstacle.rotation) {
+    const p = localPoint(obstacle, x, y);
+    const n = obstacleBounceNormal(unrotated(obstacle), p.x, p.y);
+    const world = worldVector(obstacle, n.nx, n.ny);
+    return { nx: world.x, ny: world.y };
+  }
   const dx = x - obstacle.x,
     dy = y - obstacle.y;
   const outX = Math.abs(dx) - obstacle.halfWidth,
@@ -379,6 +453,10 @@ export function obstacleDistanceSquared(
   x: number,
   y: number,
 ): number {
+  if (obstacle.rotation) {
+    const p = localPoint(obstacle, x, y);
+    return obstacleDistanceSquared(unrotated(obstacle), p.x, p.y);
+  }
   const dx = Math.max(Math.abs(x - obstacle.x) - obstacle.halfWidth, 0);
   const dy = Math.max(Math.abs(y - obstacle.y) - obstacle.halfHeight, 0);
   return dx * dx + dy * dy;
@@ -389,18 +467,21 @@ export function obstacleInsideBounds(
   obstacle: Obstacle,
   bounds: ObstacleBounds,
 ): boolean {
+  const { halfWidth, halfHeight } = obstacleExtents(obstacle);
   return (
-    obstacle.x - obstacle.halfWidth >= bounds.minX &&
-    obstacle.x + obstacle.halfWidth <= bounds.maxX &&
-    obstacle.y - obstacle.halfHeight >= bounds.minY &&
-    obstacle.y + obstacle.halfHeight <= bounds.maxY
+    obstacle.x - halfWidth >= bounds.minX &&
+    obstacle.x + halfWidth <= bounds.maxX &&
+    obstacle.y - halfHeight >= bounds.minY &&
+    obstacle.y + halfHeight <= bounds.maxY
   );
 }
 
-/** Shortest distance between two obstacles, zero when they overlap. */
+/** Conservative clearance between world bounds; rotated corners never narrow the promised lanes. */
 function obstacleGap(a: Obstacle, b: Obstacle): number {
-  const dx = Math.max(Math.abs(a.x - b.x) - a.halfWidth - b.halfWidth, 0);
-  const dy = Math.max(Math.abs(a.y - b.y) - a.halfHeight - b.halfHeight, 0);
+  const ae = obstacleExtents(a),
+    be = obstacleExtents(b);
+  const dx = Math.max(Math.abs(a.x - b.x) - ae.halfWidth - be.halfWidth, 0);
+  const dy = Math.max(Math.abs(a.y - b.y) - ae.halfHeight - be.halfHeight, 0);
   return Math.sqrt(dx * dx + dy * dy);
 }
 
@@ -415,6 +496,17 @@ export function segmentObstacleDistanceSquared(
   x2: number,
   y2: number,
 ): number {
+  if (obstacle.rotation) {
+    const a = localPoint(obstacle, x1, y1),
+      b = localPoint(obstacle, x2, y2);
+    return segmentObstacleDistanceSquared(
+      unrotated(obstacle),
+      a.x,
+      a.y,
+      b.x,
+      b.y,
+    );
+  }
   if (segmentCrossesObstacle(obstacle, x1, y1, x2, y2)) return 0;
   let best = Math.min(
     obstacleDistanceSquared(obstacle, x1, y1),
