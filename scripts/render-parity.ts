@@ -8,17 +8,92 @@
  *   PARITY_PNG=1 npx tsx scripts/render-parity.ts   # also writes artifacts/render-parity/*.png
  *
  * Paths are resolved at run time so the file can be copied onto an older revision (the renderer lived in
- * `src/client/` and the view was built by `toSnapshot` before issue #254). One frame after `reset()` per moment, so
- * nothing random is drawn (sparks and debris need a previous frame). Same machine and browser only: hashes are not
- * portable across GPUs or Chrome versions.
+ * `src/client/` and the view was built by `toSnapshot` before issue #254). Most moments are one frame after `reset()`.
+ * The "after-*" moments draw the tick before and then the tick itself, so what needs two frames is drawn too: gun
+ * impacts, death sparks, rubble and trail debris. `Math.random` is replaced by one seeded stream for the page (not
+ * reseeded per moment: Phaser names textures with it), so those cosmetics are the same on every run. Every moment is
+ * drawn once before any is hashed, so no frame races a texture or font still loading. Same machine and browser only:
+ * hashes are not portable across
+ * GPUs or Chrome versions.
+ *
+ *   PARITY_REFERENCE=<ref> npx tsx scripts/render-parity.ts   # compare with <ref> in a throwaway worktree
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  symlinkSync,
+} from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { createServer } from "vite";
 import { chromium } from "playwright";
+
+const reference = process.env.PARITY_REFERENCE;
+if (reference) {
+  // Hash this checkout, then <reference> in a throwaway worktree running this same file, and compare frame by frame.
+  const run = (cwd: string) =>
+    JSON.parse(
+      execFileSync("npx", ["tsx", "scripts/render-parity.ts"], {
+        cwd,
+        encoding: "utf8",
+        env: { ...process.env, PARITY_REFERENCE: "" },
+        maxBuffer: 1 << 26,
+      }),
+    ) as {
+      revision: string;
+      frames: {
+        name: string;
+        tick: number;
+        backend: string;
+        theme: string;
+        sha256: string;
+      }[];
+    };
+  const here = run(process.cwd());
+  const dir = join(mkdtempSync(join(tmpdir(), "render-parity-")), "ref");
+  execFileSync("git", ["worktree", "add", "--detach", dir, reference], {
+    stdio: "ignore",
+  });
+  try {
+    symlinkSync(resolve("node_modules"), join(dir, "node_modules"));
+    copyFileSync(
+      "scripts/render-parity.ts",
+      join(dir, "scripts/render-parity.ts"),
+    );
+    const there = run(dir);
+    const key = (f: (typeof here.frames)[number]) =>
+      `${f.backend}/${f.theme}/${f.name}@${f.tick}`;
+    const theirs = new Map(there.frames.map((f) => [key(f), f.sha256]));
+    const differing = here.frames.filter(
+      (f) => theirs.get(key(f)) !== f.sha256,
+    );
+    console.log(
+      JSON.stringify(
+        {
+          candidate: here.revision,
+          reference: there.revision,
+          compared: here.frames.length,
+          referenceFrames: there.frames.length,
+          identical: here.frames.length - differing.length,
+          differing: differing.map(key),
+        },
+        null,
+        2,
+      ),
+    );
+    if (differing.length || here.frames.length !== there.frames.length)
+      process.exitCode = 1;
+  } finally {
+    execFileSync("git", ["worktree", "remove", "--force", dir]);
+  }
+  process.exit();
+}
 
 const engine = (await import(
   String("../src/engine/game.ts")
@@ -111,12 +186,40 @@ const wanted: [string, (view: View) => boolean][] = [
   ],
   ["round-over", (v) => v.phase === "roundOver"],
 ];
-const moments: { name: string; view: View }[] = [];
+const moments: { name: string; view: View; previous?: View }[] = [];
+/** Transitions a single frame cannot show: the first few of each, drawn over the tick before. */
+const transitions: [string, number, (view: View, previous: View) => boolean][] =
+  [
+    [
+      "after-gun",
+      4,
+      (v, p) =>
+        v.bombs.some(
+          (b) => b.shell?.gun && !p.bombs.some((old) => old.id === b.id),
+        ),
+    ],
+    [
+      "after-death",
+      2,
+      (v, p) =>
+        v.players.some(
+          (r) => !r.alive && p.players.some((o) => o.id === r.id && o.alive),
+        ),
+    ],
+    [
+      "after-blast",
+      2,
+      (v, p) =>
+        v.blasts.some((b) => !p.blasts.some((old) => old.bombId === b.bombId)),
+    ],
+  ];
 {
   const state = createRoomState(recording.matchId, defaultRoomSettings()),
     bots = new BotController(),
     streams = streamReader(recording.entries);
   const pending = new Map(wanted);
+  const remaining = new Map(transitions.map(([name, count]) => [name, count]));
+  let previous: View | undefined;
   for (let tick = 1; tick <= recording.ticks; tick++) {
     applyTick(state, recording.creator, streams(tick), bots);
     const view = {
@@ -131,7 +234,25 @@ const moments: { name: string; view: View }[] = [];
       }
     if (tick % 1500 === 0)
       moments.push({ name: `tick-${tick}`, view: structuredClone(view) });
+    if (previous && previous.round === view.round)
+      for (const [name, , found] of transitions) {
+        const left = remaining.get(name)!;
+        if (left > 0 && found(view, previous)) {
+          moments.push({
+            name: `${name}-${left}`,
+            view: structuredClone(view),
+            previous,
+          });
+          remaining.set(name, left - 1);
+        }
+      }
+    previous = structuredClone(view);
   }
+  assert.deepEqual(
+    [...remaining.values()].every((left) => left === 0),
+    true,
+    "the recording reaches every transition",
+  );
   assert.deepEqual(
     [...pending.keys()],
     [],
@@ -147,13 +268,15 @@ const themesPath = existsSync("src/render/themes.ts")
   : "/src/client/themes.ts";
 const server = await createServer({
   server: { port: 0, host: "127.0.0.1", hmr: false },
+  logLevel: "error",
 });
 await server.listen();
 const address = server.httpServer!.address();
 if (!address || typeof address === "string") throw Error("No server");
 const browser = await chromium.launch({
   channel: "chrome",
-  args: ["--mute-audio"],
+  // Chrome's GPU-rasterised 2D canvas is not bit-stable from run to run; the software one is.
+  args: ["--mute-audio", "--disable-accelerated-2d-canvas"],
 });
 try {
   const page = await browser.newPage({
@@ -162,7 +285,17 @@ try {
   });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.addInitScript("window.__name = value => value");
+  await page.addInitScript(`
+    window.__name = value => value;
+    let seed = 1;
+    Math.random = () => {
+      seed = (seed + 0x6d2b79f5) >>> 0;
+      let t = seed;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  `);
   await page.goto(`http://127.0.0.1:${address.port}/?room=INVALID`);
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   const frames: {
@@ -192,6 +325,15 @@ try {
         });
         await arena.ready;
         const pictures: { name: string; theme: string; data: string }[] = [];
+        // Warm-up: a theme's sprites and fonts load on first use, so draw everything once before hashing anything.
+        for (const theme of Object.values(themes))
+          for (const moment of moments) {
+            arena.reset();
+            const view = moment.view as Parameters<typeof arena.render>[0];
+            arena.render(view, 100_000, theme, "parity", view.players[1]?.id);
+          }
+        await document.fonts.ready;
+        await new Promise((done) => setTimeout(done, 500));
         for (const theme of Object.values(themes))
           for (const [index, moment] of moments.entries()) {
             arena.reset();
@@ -199,6 +341,14 @@ try {
             const now = 100_000 + index * 137;
             // The second rider's own screen, so the self ring and (in a countdown) the locator are drawn too.
             const view = moment.view as Parameters<typeof arena.render>[0];
+            if (moment.previous)
+              arena.render(
+                moment.previous as typeof view,
+                now - 50,
+                theme,
+                "parity",
+                view.players[1]?.id,
+              );
             arena.render(view, now, theme, "parity", view.players[1]?.id);
             pictures.push({
               name: moment.name,
@@ -219,6 +369,7 @@ try {
         moments: JSON.parse(JSON.stringify(moments)) as {
           name: string;
           view: object;
+          previous?: object;
         }[],
       },
     );
