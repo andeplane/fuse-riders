@@ -15,7 +15,8 @@ COPY packages/fuse-network-be/package.json ./packages/fuse-network-be/
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY --chown=node:node src ./src
 COPY --chown=node:node packages ./packages
-ENV NODE_ENV=production PORT=8080
+# The running service reports this on /api/health; the Pages release publishes only the revision the backend serves.
+ENV NODE_ENV=production PORT=8080 BUILD_REVISION=$BUILD_REVISION
 USER node
 EXPOSE 8080
 CMD ["node", "--import", "tsx", "src/service/index.ts"]

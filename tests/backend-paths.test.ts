@@ -122,9 +122,6 @@ test("the release inputs are backend paths and documentation or browser tooling 
     "scripts/online-smoke.ts",
     "scripts/ci-manifest.json",
     ".github/workflows/ci.yml",
-    ".github/workflows/pages.yml",
-    "public/music/track.mp3",
-    "index.html",
     "srcs/not-src.ts",
   ])
     assert.ok(!affectsBackend(file), file);
@@ -139,6 +136,17 @@ test("a push that changed no backend path since the served commit is skipped", (
   assert.equal(decision.deploy, false);
   assert.match(decision.reason, /none of the 3 file/);
   assert.equal(decideDeploy({ commit: HEAD }, HEAD, git([])).deploy, false);
+});
+
+test("frontend-only releases advance the backend revision used by Pages", () => {
+  for (const file of [
+    "public/music/track.mp3",
+    "index.html",
+    "vite.config.ts",
+    ".github/workflows/pages.yml",
+  ]) {
+    assert.equal(decideDeploy(served, HEAD, git([file])).deploy, true, file);
+  }
 });
 
 test("a backend change anywhere since the served commit deploys", () => {

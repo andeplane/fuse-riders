@@ -1,6 +1,6 @@
 /**
- * What a Cloud Run deployment is built from, so .github/workflows/backend.yml can skip a main push
- * that touched none of it. An entry ending in `/` is a directory; any other entry is one file.
+ * Release inputs that require advancing the live Cloud Run revision, so backend.yml can skip
+ * a main push that touched none of them. Pages publishes that same live revision. An entry ending in `/` is a directory; any other entry is one file.
  *
  * Conservative on purpose: Dockerfile.cloud copies all of `src/` and `packages/` into the image, so
  * all of both stay here (a client-only change still redeploys) until the image copies less.
@@ -15,6 +15,12 @@ export const BACKEND_PATHS: readonly string[] = [
   "package-lock.json",
   "src/",
   "packages/",
+  // Pages publishes the live backend revision. Advance it for frontend-only release changes too,
+  // otherwise a successful skipped backend run would republish the old assets forever.
+  "public/",
+  "index.html",
+  "vite.config.ts",
+  ".github/workflows/pages.yml",
   // The release: scripts/deploy-cloud.sh, the build it submits and the configuration it applies first.
   "scripts/deploy-cloud.sh",
   "scripts/cloudbuild.yaml",

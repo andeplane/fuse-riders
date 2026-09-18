@@ -151,7 +151,7 @@ try {
             [1, 600],
             [2, 700],
             [3, 800],
-          ]) {
+          ] as const) {
             arena.render(
               {
                 ...snapshot,

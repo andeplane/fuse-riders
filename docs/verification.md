@@ -17,6 +17,8 @@ npm run build
 
 `npm run lint` is ESLint with a deliberately small type-aware rule set ([eslint.config.js](../eslint.config.js)): no floating or misused promises, and no empty block — a `catch` that swallows on purpose says why in a comment. Prettier owns formatting.
 
+`npm run typecheck` enables `noUncheckedIndexedAccess` for source, tests and scripts. Array and index-signature reads may be `undefined`: use tuples for fixed shapes and guards for optional entries. Non-null assertions require an established loop bound or fixture invariant; they do not validate incoming data.
+
 `npm test` runs the same unit-test file globs without coverage instrumentation: `tests/*.test.ts` and `packages/*/tests/*.test.ts`. Use focused tests during iteration and the broader checks at integration milestones. Add a regression for a confirmed bug; test the observable contract and failure/recovery boundaries rather than copying implementation logic.
 
 Do not freeze a test count or coverage percentage in this document. Obtain them from the exact revision's command output and `coverage/coverage-summary.json`. [.c8rc.json](../.c8rc.json) includes all game and networking source by default, with exact-file exemptions documented in [coverage exclusions](coverage-exclusions.md). New source modules automatically join the gate. Thresholds remain 95% lines/statements/functions and 85% branches. Substantial UI, rendering and production-adapter code remains exempt; passing the gate is not 95% coverage of the entire product. Removing those exemptions needs focused tests and remains tracked in [#257](https://github.com/andeplane/fuse-riders/issues/257).

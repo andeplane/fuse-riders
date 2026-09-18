@@ -210,7 +210,13 @@ for (const { name, kind } of BOTH_ENGINES) {
       if (frame === guest.mainFrame()) guestNavigations++;
     });
     await host.goto(base);
-    await host.getByRole("radio", { name: "Shared TV", exact: true }).check();
+    // The landing radios are visually hidden inside filled labels (#325), so pick the mode the way a rider does: tap the label.
+    const sharedMode = host.getByRole("radio", {
+      name: "Shared TV",
+      exact: true,
+    });
+    await host.locator(".landing-mode label", { has: sharedMode }).click();
+    assert.equal(await sharedMode.isChecked(), true, "Shared TV is selected");
     await host
       .getByRole("button", { name: "CREATE ROOM", exact: true })
       .click();
