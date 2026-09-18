@@ -752,7 +752,7 @@ export class RoomRuntime {
       this.assembler = new SnapshotAssembler(this.room);
       return;
     }
-    const tick = decoded.state.game.tick,
+    const tick = decoded.state.tick,
       previous = this.world?.streams.get(this.id);
     if (this.world) this.world.install(decoded.state);
     else {
@@ -1616,8 +1616,13 @@ export class RoomRuntime {
   }
   /**
    * What to draw now, for presentation to place in time (`presentWorld` in `src/render/time/`): the two newest
-   * simulated ticks, the fractional tick to show (one tick behind the clock) and how far to lead the local rider
+   * simulated ticks, the fractional tick to show (one log tick behind the clock) and how far to lead the local rider
    * with the controls it holds. The runtime says when; it does not interpolate or predict.
+   *
+   * The clock counts log ticks and the frames' `tick` is the game's clock, which a log tick can advance by several
+   * steps (`driveGameTick`). The fraction of the way from the older frame's log tick to the newer one's is the
+   * same fraction of the way between their game ticks, so a game running several steps per log tick is drawn that
+   * many times faster while the clock keeps its one rate.
    */
   presentation(): PresentationFrames | undefined {
     const frames = this.world?.view();
@@ -1625,10 +1630,16 @@ export class RoomRuntime {
     if (!newer) return undefined;
     const older = frames[1],
       clock = this.clock.tick(),
-      presentation = Math.max(
-        older?.tick ?? newer.tick,
-        Math.min(newer.tick, clock - 1),
-      );
+      at = Math.max(
+        older?.logTick ?? newer.logTick,
+        Math.min(newer.logTick, clock - 1),
+      ),
+      span = older ? newer.logTick - older.logTick : 0,
+      presentation =
+        older && span > 0
+          ? older.tick +
+            ((at - older.logTick) / span) * (newer.tick - older.tick)
+          : newer.tick;
     const player = this.player(),
       controls = {
         left: (this.held.flags & 1) === 1,
@@ -1643,7 +1654,7 @@ export class RoomRuntime {
             local: {
               id: this.id,
               controls,
-              lead: Math.max(0, Math.min(1, clock - presentation)),
+              lead: Math.max(0, Math.min(1, clock - at)),
             },
           }
         : {}),

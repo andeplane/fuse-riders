@@ -321,7 +321,7 @@ test("retention drops old snapshots, applied entries and event keys while a fres
   );
   assert.equal(b.contiguous, 1);
   const state = createRoomState("fresh", settings);
-  state.game.tick = 999;
+  state.tick = state.game.tick = 999;
   w.install(state);
   assert.equal(w.tick, 999);
   assert.equal(w.streams.size, 0);

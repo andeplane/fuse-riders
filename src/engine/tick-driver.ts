@@ -20,6 +20,14 @@ import type { GameEvent } from "./state.js";
  */
 export const STEPS_PER_TICK = 1;
 
+/**
+ * Whether a game clock can belong to a room at `logTick`: every log tick steps the game at least once and at most
+ * `STEPS_PER_TICK` times, and nothing else moves the game's clock. The snapshot guard refuses any other pair.
+ */
+export function stepsCover(logTick: number, gameTick: number): boolean {
+  return gameTick >= logTick && gameTick <= logTick * STEPS_PER_TICK;
+}
+
 /** What one driven tick did to the game that the room around it has to follow. */
 export interface DrivenTick {
   events: GameEvent[];

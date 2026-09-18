@@ -42,6 +42,12 @@ export interface Fold extends HeldControls {
 }
 /** State at tick T is a pure fold of the seed and every entry with tick ≤ T. */
 export interface RoomState {
+  /**
+   * The log tick this state has folded through: the tick of the last `applyTick`, and what entries, snapshots,
+   * rollback, the stall rule and the shared clock count in. The game's own clock, `game.tick`, counts simulation steps
+   * and is the one every rule inside the game reads (phase ends, fuses, the round timer, statistics).
+   */
+  tick: number;
   game: GameState;
   settings: RoomSettings;
   folds: Map<string, Fold>;
@@ -59,7 +65,7 @@ export function createRoomState(
   settings: RoomSettings,
 ): RoomState {
   const game = createGame(matchId, settings);
-  return { game, settings, folds: new Map(), bots: new Set() };
+  return { tick: game.tick, game, settings, folds: new Map(), bots: new Set() };
 }
 export const reclaimable = (game: GameState): boolean =>
   (RECLAIMABLE_PHASES as readonly string[]).includes(game.phase);
@@ -242,7 +248,7 @@ function applyManagement(state: RoomState, entry: Entry): void {
 }
 
 /**
- * Advance the room by one tick from the entries stamped with that tick. Management entries apply first, then each
+ * Advance the room by one log tick, `state.tick + 1`, from the entries stamped with that tick. Management entries apply first, then each
  * player's entries fold into its held controls, then `driveGameTick`: the shared `step` and automatic round
  * progression. What is the room's and not the game's (folds, bot seats) follows what the driver reports.
  *
@@ -258,7 +264,7 @@ export function applyTick(
   phases?: readonly Phase[],
 ): GameEvent[] {
   const game = state.game,
-    tick = game.tick + 1;
+    tick = state.tick + 1;
   for (const manager of successionOrder(state, creatorId)) {
     const stream = streams.get(manager);
     if (!stream) continue;
@@ -309,11 +315,14 @@ export function applyTick(
     state.bots.delete(id);
   }
   if (driven.roundStarted) resetGestures(state);
+  state.tick = tick;
   return driven.events;
 }
 
 /** Canonical JSON of the whole room state: Map entries and object keys sorted, so insertion order never matters. */
-export function canonicalRoomState(state: RoomState): string {
+export function canonicalRoomState(
+  state: Omit<RoomState, "tick"> & { tick?: number },
+): string {
   return JSON.stringify(
     {
       game: state.game,
@@ -336,7 +345,9 @@ export function canonicalRoomState(state: RoomState): string {
   );
 }
 /** Diagnostic only: two 32-bit FNV-1a lanes over the canonical text, as 16 hex characters. */
-export function hashRoomState(state: RoomState): string {
+export function hashRoomState(
+  state: Omit<RoomState, "tick"> & { tick?: number },
+): string {
   return hashText(canonicalRoomState(state));
 }
 export function hashText(text: string): string {

@@ -15,6 +15,7 @@ export const SNAPSHOT_INTERVAL = 4,
   SNAPSHOTS_RETAINED = 12,
   STALL_TICKS = ROLLBACK_TICKS;
 export interface WorldEvent {
+  /** The game's clock after the log tick that produced the event (`GameState.tick`, as the frames carry it). */
   tick: number;
   round: number;
   matchId: string;
@@ -30,6 +31,8 @@ export interface WorldReceive extends ReceiveResult {
 }
 export interface Frame extends WorldView {
   matchId: string;
+  /** The log tick this frame was simulated at. `tick` is the game's own clock, which a log tick can advance by more than one. */
+  logTick: number;
 }
 
 /**
@@ -51,11 +54,12 @@ export class World {
     readonly creatorId: string,
     readonly selfId: string,
   ) {
-    this.snapshots.set(state.game.tick, structuredClone(state));
+    this.snapshots.set(state.tick, structuredClone(state));
     this.frames = [this.frame(state)];
   }
+  /** The log tick the world has folded through (`RoomState.tick`), not the game's clock. */
   get tick(): number {
-    return this.state.game.tick;
+    return this.state.tick;
   }
   /** Newest first: the two most recent simulated ticks, for fractional presentation. */
   view(): readonly Frame[] {
@@ -83,6 +87,7 @@ export class World {
     return {
       ...toView(state.game),
       matchId: state.game.matchId,
+      logTick: state.tick,
     };
   }
   /** Each member's entries at `tick` from its current stream and from any retired generation still replayable; the reducer picks by fold generation. */
@@ -225,8 +230,8 @@ export class World {
     target: number,
     events: WorldEvent[],
   ): void {
-    while (state.game.tick < target) {
-      const tick = state.game.tick + 1,
+    while (state.tick < target) {
+      const tick = state.tick + 1,
         matchId = state.game.matchId,
         round = state.game.round;
       const produced = applyTick(
@@ -235,11 +240,13 @@ export class World {
         this.entriesAt(tick),
         this.bots,
       );
+      // Keyed by log tick, which is what retention counts in; stamped with the game's clock, which is what every
+      // consumer compares against the frames it is shown.
       produced.forEach((event, index) => {
         const key = `${matchId}:${round}:${tick}:${index}`;
         if (this.emitted.has(key)) return;
         this.emitted.add(key);
-        events.push({ tick, round, matchId, event });
+        events.push({ tick: state.game.tick, round, matchId, event });
       });
       if (tick % SNAPSHOT_INTERVAL === 0)
         this.snapshots.set(tick, structuredClone(state));
@@ -304,7 +311,7 @@ export class World {
   /** Replace the world wholesale from a validated snapshot; the caller re-creates streams from its metadata. */
   install(state: RoomState): void {
     this.state = state;
-    this.snapshots = new Map([[state.game.tick, structuredClone(state)]]);
+    this.snapshots = new Map([[state.tick, structuredClone(state)]]);
     this.frames = [this.frame(state)];
     this.emitted.clear();
     this.streams.clear();
