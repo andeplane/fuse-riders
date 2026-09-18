@@ -194,7 +194,7 @@ for (const seed of [11, 20260918])
     }
   });
 
-test("a late human input that keeps the last human alive flips the fast-mode decision back on every replica, and they converge", () => {
+test("a late human input that keeps the last human alive flips the fast-mode decision back on the replica that speculated past it, and every replica converges", () => {
   // A probe run finds who dies last and when. The same seed then replays identically up to the one input that differs:
   // the last human starts turning away a few ticks before its crash. Its packets reach the other human 800 ms late, so
   // that replica has already simulated the crash and the fast steps after it when the turn arrives, rolls back across
@@ -370,4 +370,39 @@ test("fast steps stop at the round's end: the pause after it runs at one step pe
   w.advance(w.tick + 1);
   assert.equal(w.state.game.phase, "roundOver");
   assert.equal(w.state.game.tick, before + 1);
+});
+
+test("the confirmed tick handed to reports is in game time, so a decided round after a fast endgame still counts as final", () => {
+  const w = new World(
+    createRoomState("m", classicSettings()),
+    "creator",
+    "creator",
+  );
+  const creator = w.stream("creator", 1);
+  creator.append(1, [JOIN, "creator", "Creator", 0, "fox", 1]);
+  creator.append(1, [BOT, "add", "bot:1", "AI Hopper", 1]);
+  creator.append(1, [BOT, "add", "bot:2", "AI Nova", 2]);
+  creator.append(2, [ACTION, "start", "m"]);
+  creator.through = COUNTDOWN_TICKS + 5;
+  w.advance(COUNTDOWN_TICKS + 5);
+  eliminatePlayer(w.state.game, "creator");
+  creator.through = 5000;
+  for (let i = 0; i < 4000 && w.state.game.phase === "playing"; i++)
+    w.advance(w.tick + 1);
+  assert.equal(w.state.game.phase, "roundOver");
+  creator.through = w.tick;
+  const decided = w.state.game.decidedRound!;
+  assert.ok(decided, "the round was decided");
+  assert.ok(
+    decided.tick > w.completeTick(),
+    "in log ticks the decision looks unconfirmed: the two clocks must not be compared",
+  );
+  assert.equal(w.confirmedGameTick(), w.state.game.tick);
+  assert.ok(decided.tick <= w.confirmedGameTick());
+  // Partly confirmed: the game clock at that log tick, not the log tick itself.
+  const at = w.tick - 3;
+  creator.through = at;
+  assert.equal(w.completeTick(), at);
+  assert.ok(w.confirmedGameTick() > at);
+  assert.ok(w.confirmedGameTick() < w.state.game.tick);
 });

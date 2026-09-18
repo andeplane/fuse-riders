@@ -1588,9 +1588,12 @@ export class RoomRuntime {
         : {}),
     };
   }
-  /** Every connected rider's input is confirmed through this tick, so no rollback can change state up to it. */
+  /**
+   * The game's clock (`GameState.tick`, what `DecidedRound.tick` and the frames carry) at the newest log tick every
+   * connected rider's input is confirmed through, so no rollback can change state up to it.
+   */
   confirmedTick(): number {
-    return this.world ? this.world.completeTick() : -1;
+    return this.world ? this.world.confirmedGameTick() : -1;
   }
   metrics(): RuntimeMetrics {
     const streams = Object.fromEntries(

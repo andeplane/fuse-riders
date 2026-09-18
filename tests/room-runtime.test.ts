@@ -1126,7 +1126,7 @@ function botsOnlyRoom(options?: NetworkOptions) {
 const apart = (a: RoomRuntime, b: RoomRuntime) =>
   Math.abs(a.metrics().clockTick - b.metrics().clockTick);
 
-test("a guest hidden before the last human dies does not hold the room back, and nothing measures its pace", () => {
+test("a guest hidden before the last human dies does not hold the room back, and its clock stays with the authority's", () => {
   const f = botsOnlyRoom();
   f.net.step(300);
   f.net.setHidden(GUESTS[0]!, true);

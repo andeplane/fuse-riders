@@ -44,6 +44,8 @@ export class World {
   /** Streams a newer generation replaced: their entries still apply to folds of their generation when a rollback replays those ticks. */
   private retired = new Map<string, StreamLog[]>();
   private snapshots = new Map<number, RoomState>();
+  /** The game's clock after each log tick still replayable, so a log tick can be told in game time (`confirmedGameTick`). */
+  private gameTicks = new Map<number, number>();
   private frames: Frame[] = [];
   private emitted = new Set<string>();
   private readonly bots = new BotController();
@@ -55,6 +57,7 @@ export class World {
     readonly selfId: string,
   ) {
     this.snapshots.set(state.tick, structuredClone(state));
+    this.gameTicks.set(state.tick, state.game.tick);
     this.frames = [this.frame(state)];
   }
   /** The log tick the world has folded through (`RoomState.tick`), not the game's clock. */
@@ -248,6 +251,7 @@ export class World {
         this.emitted.add(key);
         events.push({ tick: state.game.tick, round, matchId, event });
       });
+      this.gameTicks.set(tick, state.game.tick);
       if (tick % SNAPSHOT_INTERVAL === 0)
         this.snapshots.set(tick, structuredClone(state));
       if (target - tick <= 1) {
@@ -272,6 +276,8 @@ export class World {
     }
     for (const key of this.emitted)
       if (Number(key.split(":").at(-2)) <= oldest) this.emitted.delete(key);
+    for (const tick of this.gameTicks.keys())
+      if (tick < oldest) this.gameTicks.delete(tick);
   }
   get oldestSnapshotTick(): number {
     return Math.min(...this.snapshots.keys());
@@ -285,6 +291,18 @@ export class World {
       complete = Math.min(complete, stream ? stream.confirmedThrough() : -1);
     }
     return complete;
+  }
+  /**
+   * `completeTick()` in game time: the game's clock after the newest log tick every connected rider has confirmed, for
+   * comparing with what the game stamps (`DecidedRound.tick`). A log tick can step the game several times, so the two
+   * clocks drift apart for good once a bots-only endgame has run. -1 while nothing is confirmed.
+   */
+  confirmedGameTick(): number {
+    const complete = this.completeTick();
+    if (complete >= this.tick) return this.state.game.tick;
+    if (complete < 0) return -1;
+    // Older than anything retained: the log tick itself is a lower bound, since every log tick steps at least once.
+    return this.gameTicks.get(complete) ?? complete;
   }
   /**
    * The state to serve a joiner: the newest retained snapshot no later than the complete tick, so nothing any rider has
@@ -312,6 +330,7 @@ export class World {
   install(state: RoomState): void {
     this.state = state;
     this.snapshots = new Map([[state.tick, structuredClone(state)]]);
+    this.gameTicks = new Map([[state.tick, state.game.tick]]);
     this.frames = [this.frame(state)];
     this.emitted.clear();
     this.streams.clear();
