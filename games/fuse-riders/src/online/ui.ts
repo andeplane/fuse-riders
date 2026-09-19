@@ -1769,8 +1769,8 @@ export async function startOnline(): Promise<void> {
       rematch.setAttribute("aria-pressed", String(view.actions.ready.pressed));
       rematch.hidden =
         !recapOpen || (solo ? !isHost : view.actions.ready.hidden);
-      settingsButton.hidden = !isHost || replacedHost;
-      addAI.hidden = !isHost || replacedHost;
+      settingsButton.hidden = !manages;
+      addAI.hidden = !manages;
       hostControls.hidden = view.actions.hidden;
       // The crown can move while the results are up: REMATCH appears for whoever holds it without reopening the card.
       if (recapOpen) {
@@ -1778,7 +1778,8 @@ export async function startOnline(): Promise<void> {
         recapLobby.hidden = !manages;
       }
       reset.disabled = view.actions.reset.disabled;
-      reset.hidden = !isHost || replacedHost || view.actions.reset.hidden;
+      reset.hidden = !manages || view.actions.reset.hidden;
+      // The invite is the creator's: it carries the room code its device owns.
       share.hidden = !isHost || replacedHost || view.actions.shareHidden;
       voice?.setRoster(id, state.players);
       for (const [playerId, row] of rosterEntries)
