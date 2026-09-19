@@ -106,14 +106,14 @@ const LAST_ROOM_KEY = "fuse-last-room";
 const reducedMotion = () =>
   matchMedia("(prefers-reduced-motion: reduce)").matches;
 const storage = safeStorage(() => localStorage);
-/** Fuse Riders' class names for the shared dialog shell; online.css styles them. */
+/** The shared dialog shell: fuse-ui's classes (components.css) plus Fuse Riders' own, which online.css adds to. */
 const FUSE_DIALOG_CLASSES = {
-  root: "game-dialog",
-  bar: "dialog-bar",
-  title: "",
-  actions: "dialog-actions",
+  root: "fui-dialog game-dialog",
+  bar: "fui-dialog-bar dialog-bar",
+  title: "fui-dialog-title",
+  actions: "fui-dialog-actions dialog-actions",
   close: "",
-  body: "dialog-body",
+  body: "fui-dialog-body dialog-body",
 };
 const labels: Record<PickupType, string> = {
   stopwatch: "Shorter fuse",

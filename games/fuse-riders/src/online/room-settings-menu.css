@@ -4,7 +4,7 @@
   padding: 0;
   min-width: 0;
   display: grid;
-  gap: 0.5rem;
+  gap: var(--fui-space-2);
 }
 .room-choice legend {
   padding: 0 0 0.625rem;
@@ -15,7 +15,7 @@
 }
 .online-app .game-dialog .room-choice label {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--fui-space-3);
   margin: 0;
   padding: 0.875rem;
   border: var(--fui-border);
@@ -50,7 +50,7 @@
   display: flex;
   gap: 0.375rem;
   flex-wrap: wrap;
-  margin: 0.5rem 0 0.75rem;
+  margin: var(--fui-space-2) 0 var(--fui-space-3);
 }
 .online-app .powerup-presets button {
   flex: 1 1 auto;
@@ -60,21 +60,21 @@
 }
 .powerup-row {
   border-bottom: 0.0625rem solid #1a2b48;
-  padding: 0.25rem 0 0.5rem;
+  padding: var(--fui-space-1) 0 var(--fui-space-2);
 }
 .online-app .powerup-row label {
-  margin: 0.25rem 0;
+  margin: var(--fui-space-1) 0;
 }
 .powerup-rarity {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.25rem;
+  gap: var(--fui-space-1);
 }
 .online-app .powerup-rarity button {
   min-height: 2rem;
   font-size: 0.625rem;
   letter-spacing: 0.0625rem;
-  padding: 0.25rem;
+  padding: var(--fui-space-1);
   border-color: var(--fui-line);
   color: #a3b9cb;
 }

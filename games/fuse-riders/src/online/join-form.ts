@@ -55,7 +55,7 @@ export function createJoinForm(
     },
     extra: [picker.summary!, picker.element],
     classes: {
-      root: "online-join",
+      root: "fui-name-entry online-join",
       input: "",
       submit: "",
       secondary: "join-spectate",

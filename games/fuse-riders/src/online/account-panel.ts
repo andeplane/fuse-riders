@@ -179,12 +179,12 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
       error: "account-error",
     },
     dialogClasses: {
-      root: "game-dialog stats-dialog",
-      bar: "dialog-bar",
-      title: "",
-      actions: "dialog-actions",
+      root: "fui-dialog game-dialog stats-dialog",
+      bar: "fui-dialog-bar dialog-bar",
+      title: "fui-dialog-title",
+      actions: "fui-dialog-actions dialog-actions",
       close: "",
-      body: "dialog-body account-panel",
+      body: "fui-dialog-body dialog-body account-panel",
     },
   });
 }
