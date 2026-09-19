@@ -1113,3 +1113,50 @@ test("mid re-run, hashes and the served state come only from the re-run, and an 
   w.refill(CATCHUP_STEPS);
   assert.deepEqual(w.advance(at).events, [], "and its held events");
 });
+
+test("a timed budget window starts no tick once its steps have taken its time, always runs its first, and a paced re-run still converges", () => {
+  const reference = pacedWorld(),
+    at = reference.tick;
+  lateBomb(reference, at);
+  // Each clock read is 2 ms later and a step reads it twice, as if every step took 2 ms: a 5 ms window starts three
+  // steps, not eight.
+  let clock = 0;
+  const now = () => (clock += 2);
+  const w = pacedWorld();
+  w.refill(CATCHUP_STEPS, { now, ms: 5 });
+  const before = w.steps;
+  lateBomb(w, at);
+  assert.equal(w.steps - before, 3);
+  assert.ok(!w.settled);
+  let passes = 0;
+  while (!w.settled && passes < 100) {
+    // Even a window whose time is gone on arrival runs one step, so a slow device still makes progress.
+    w.refill(CATCHUP_STEPS, { now, ms: 0 });
+    const start = w.steps;
+    w.advance(at);
+    assert.equal(w.steps - start, 1);
+    passes++;
+  }
+  assert.ok(w.settled);
+  assert.equal(hashRoomState(w.state), hashRoomState(reference.state));
+  assert.deepEqual(w.view(), reference.view());
+});
+
+test("the wait between a packet handler's re-run and the next loop pass does not spend the window's time", () => {
+  let clock = 0;
+  const w = pacedWorld(),
+    at = w.tick;
+  // Steps are the only limit that could stop this window early; they are plentiful, so time decides.
+  w.refill(1000, { now: () => clock, ms: 6 });
+  // A late entry's re-run runs in the window, instantly by this clock; then the page idles until the loop pass.
+  const received = lateBomb(w, at);
+  assert.ok(received.rollbackTicks > 0);
+  assert.ok(w.settled);
+  clock += 100;
+  w.advance(at + 5);
+  assert.equal(
+    w.tick,
+    at + 5,
+    "the loop pass still runs: idle time is not work",
+  );
+});

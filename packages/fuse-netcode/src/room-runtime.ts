@@ -1,6 +1,11 @@
 import { StatusNotices } from "./status-notices.js";
 import { TICK_MS, TickClock } from "./clock.js";
-import { World, type Frame, type WorldEvent } from "./rollback.js";
+import {
+  World,
+  type Frame,
+  type WindowTime,
+  type WorldEvent,
+} from "./rollback.js";
 import { STALL_TICKS } from "./rollback.js";
 import { PACKET_ENTRIES, type StreamLog } from "./stream.js";
 import {
@@ -198,6 +203,8 @@ export const HASH_INTERVAL = 20,
   HASH_LAG = 40,
   /** Simulation steps per 10 ms loop interval, catch-up and rollback re-runs together (`World.refill`). */
   CATCHUP_STEPS = 8,
+  /** Milliseconds a loop interval's window may keep starting steps: a slow device paints between passes (`World.refill`). */
+  CATCHUP_MS = 6,
   /** Estimated steps of backlog past which a member fetches a snapshot instead of catching up (`RoomRuntime.behind`). */
   BEHIND_STEPS = 400,
   NACK_INTERVAL_MS = 100,
@@ -688,7 +695,7 @@ export class RoomRuntime<
       this.hostId,
       this.id,
     );
-    this.world.refill(CATCHUP_STEPS);
+    this.world.refill(CATCHUP_STEPS, this.windowTime);
     this.world.stream(this.id, this.generation);
     // Nobody is seated in a fresh world, and a seat needs a link (`join` travels over it): the anchor is set for one
     // invariant — "since the first world" — not because anything here could be misjudged.
@@ -781,7 +788,7 @@ export class RoomRuntime<
     if (this.world) this.world.install(decoded.state);
     else {
       this.world = new World(this.game, decoded.state, this.hostId, this.id);
-      this.world.refill(CATCHUP_STEPS);
+      this.world.refill(CATCHUP_STEPS, this.windowTime);
       // Not on a resync: a replica that already judged its members keeps the waits it started.
       this.judgingSince = this.deps.now();
     }
@@ -1345,6 +1352,10 @@ export class RoomRuntime<
     const world = this.world!;
     return (to - world.tick) * this.game.steps(world.state) > BEHIND_STEPS;
   }
+  private readonly windowTime: WindowTime = {
+    now: () => this.deps.now(),
+    ms: CATCHUP_MS,
+  };
   private lastLoopAt = -Infinity;
   /** One loop pass, then a fresh step budget for the next 10 ms: rollbacks in packet handlers until then draw on it too. */
   private tickLoop(): void {
@@ -1352,7 +1363,7 @@ export class RoomRuntime<
     try {
       this.tickPass();
     } finally {
-      this.world?.refill(CATCHUP_STEPS);
+      this.world?.refill(CATCHUP_STEPS, this.windowTime);
     }
   }
   private tickPass(): void {
