@@ -18,6 +18,17 @@ Fuse Riders is a small TypeScript game for 2–5 friends under active developmen
 - Size work in agent sessions or hours, not developer days or weeks. This project ships at agent speed.
 - Dev servers pick a free port when theirs is taken (`listenFree`); never let `EADDRINUSE` reach the user. End with the URL to open on its own line.
 
+## Context and token use
+
+Every call re-reads the whole conversation, so cost is context size times calls. `.claude/settings.json` auto-compacts at a 200k window; keep the thread well under it.
+
+- The main thread coordinates. Hand broad searches (more than a couple of `rg` calls) to an `Explore` subagent and keep its conclusion, not the file dumps. Start from `docs/architecture.md`; use `rg -l` before printing matches and `Read` with `offset`/`limit` for large files.
+- Keep command output short: pipe tests, builds and logs through `tail`/`grep` for the failure, and never print whole CI logs or diffs you do not need.
+- Edit with the Edit/Write tools rather than `sed -i` or Python heredocs; the format hook only runs on them.
+- Give each subagent one bounded job with file paths, not pasted content. An implementation agent stops at its opened pull request; follow-up fixes go to a fresh agent with a short brief rather than a long-lived one. Review agents get the diff and run on `model: "sonnet"`.
+- Iterate on the focused test file. Run the full `npm test` (about 80 s, mostly the golden and order-independence replays) once before pushing, not after every edit.
+- Never poll CI with `sleep` loops or repeated `gh pr checks`. Start one `gh pr checks --watch` with `run_in_background` and act when it finishes.
+
 These workflow rules replace older process requirements in ADRs, review notes and other repo documents. Those documents remain useful technical context; their historical approval and reporting requirements do not create new gates. Preserve relevant correctness requirements and explain material changes to technical contracts.
 
 ## Code and gameplay
@@ -58,7 +69,7 @@ npm run build
 - Open a pull request whenever the work is finished and you believe it is ready. Pushing a branch is not delivery: finish the change, run the checks the change deserves, then open the pull request describing what changed and what was verified. Do not wait to be asked.
 - Before opening, merge the latest `origin/main`; main moves fast, and green CI from before a rebase is stale. When a check fails, see whether it already fails on main before blaming the change.
 - Before asking for review, check the feature itself: a user can reach it from the menus; empty, loading and failed-fetch states render, with a retry where a fetch can fail; no effect can refetch or re-render in a loop. For UI changes, include a browser screenshot of the real flow, not a staged fixture.
-- While waiting on CI, watch it with one blocking command (`gh pr checks --watch`) and report only state changes: green, failed with the failing log tail, or main moved and needs a merge.
+- While waiting on CI, watch it with one background command (`gh pr checks --watch` with `run_in_background`) and report only state changes: green, failed with the failing log tail, or main moved and needs a merge.
 - Review every pull request with subagents before asking for a merge. Dispatch them on the diff — correctness and simulation/protocol risk, then tests and documentation as the change warrants — and act on what they find: fix it, or say in the pull request why it stands. A review that produced no pushed fix and no written answer did not happen.
 - Stop by default at a reviewed pull request with a concise verification report. Do not merge, enable auto-merge or deploy unless the user explicitly authorizes that action for the current change. Requests to implement, try, test, commit, push or open a pull request are not merge or deployment authorization. Continue implementation, fixes and verification autonomously; do not ask for permission at every step.
 - For gameplay, controls, sound, effects and visual changes, provide a runnable preview or clear playtesting instructions and leave the pull request open for the user to try. Automated checks and agent review establish technical readiness, not the user's acceptance of the feel or appearance. Requests such as "try this", "prototype" or "in stages" do not authorize shipping the experiment. The user may explicitly waive playtesting or authorize a merge.
