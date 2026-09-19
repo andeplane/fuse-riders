@@ -3,7 +3,7 @@ import { browserKind, launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
-import { defaultRoomSettings } from "../src/engine/room-settings.js";
+import { defaultRoomSettings } from "../games/fuse-riders/src/engine/room-settings.js";
 import { smokeTimeout } from "./smoke-timeout.js";
 /**
  * End-of-match recap evidence: a solo match plays to completion, the report opens only after the

@@ -9,7 +9,7 @@ Fuse Riders combines continuous movement and fading trails with timed bombs, cha
 
 ## Decision
 
-Implement the rules as a pure TypeScript simulation in `src/shared/game.ts`. The server advances it at a fixed 20 Hz timestep, consuming only the latest validated left/right/bomb intent for each player. State transitions use simulation ticks, not wall-clock frame counts. The client interpolates between received snapshots for smooth rendering but never predicts authoritative outcomes.
+Implement the rules as a pure TypeScript simulation in `games/fuse-riders/src/shared/game.ts`. The server advances it at a fixed 20 Hz timestep, consuming only the latest validated left/right/bomb intent for each player. State transitions use simulation ticks, not wall-clock frame counts. The client interpolates between received snapshots for smooth rendering but never predicts authoritative outcomes.
 
 Players move at constant speed and steer by a bounded turn rate. Trails are independent timestamped line segments and expire after eight seconds. Collision uses swept movement segments so a rider cannot tunnel through a trail or rider between ticks. Bombs have a two-second fuse and four-second placement cooldown, with at most one live bomb per player. Their continuous horizontal/vertical blast rectangles clear every intersected trail segment, test swept riders, and enqueue intersected bombs exactly once for chain detonation. Bombs do not block riders.
 

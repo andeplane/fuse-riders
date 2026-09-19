@@ -2,10 +2,13 @@ import {
   mountArenaPresentation,
   type GraphicsReport,
   type PresentationDependencies,
-} from "../src/render/phaser/presentation.js";
-import type { ArenaOptions, PhaserArena } from "../src/render/phaser/arena.js";
+} from "../games/fuse-riders/src/render/phaser/presentation.js";
+import type {
+  ArenaOptions,
+  PhaserArena,
+} from "../games/fuse-riders/src/render/phaser/arena.js";
 import { visualFixture } from "./lib/benchmark-fixture.js";
-import { defaultTheme } from "../src/render/themes.js";
+import { defaultTheme } from "../games/fuse-riders/src/render/themes.js";
 
 function check(value: unknown, message: string): asserts value {
   if (!value) throw Error(message);

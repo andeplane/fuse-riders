@@ -84,47 +84,43 @@ export function deterministicViolations(file: ts.SourceFile): string[] {
 }
 
 type Layer = "engine" | "net" | "render" | "app" | "shared" | "external";
-// `career-stats`, `elo` and `rating` are the history service's settlement and the account panel's reading of it:
-// one authority computes them after a match, no replica folds them, and nothing the simulation owns imports them.
+// `career-stats` is the history service's settlement and the account panel's reading of it (Elo and ratings moved to
+// packages/fuse-platform): one authority computes it after a match, no replica folds it, and nothing the simulation
+// owns imports it. `game-id` names Fuse Riders on the shared backend.
 // `combat-stats` is not here: match statistics carry it through every tick, so it stays engine-owned and guarded.
 const shared = new Set([
   "avatars",
   "career-stats",
-  "elo",
-  "rating",
+  "game-id",
   "duration-text",
   "protocol",
-  "uuid",
   "firebase-config",
 ]);
 const network = new Set([
-  "clock",
   "endpoints",
+  "fuse-game",
   "net-stats",
-  "packet",
-  "rollback",
   "room-runtime",
-  "snapshot",
-  "stream",
   "telemetry",
 ]);
-/** Ownership by directory, with the files under `src/online/` that are netcode rather than app listed by name. */
+/** Ownership by directory, with the files under `games/fuse-riders/src/online/` that are netcode rather than app listed by name. */
 export function layer(file: string): Layer {
-  if (/^fuse-network-(fe|be|protocol)(\/|$)/.test(file)) return "net";
+  if (/^fuse-(network-(fe|be|protocol)|netcode)(\/|$)/.test(file)) return "net";
   const base = path.basename(file, path.extname(file));
-  if (file.startsWith("src/engine/")) return "engine";
-  // `src/shared/` keeps only what is not simulation. Anything else that turns up there is held to the engine's rules
+  if (file.startsWith("games/fuse-riders/src/engine/")) return "engine";
+  // `games/fuse-riders/src/shared/` keeps only what is not simulation. Anything else that turns up there is held to the engine's rules
   // until it is listed above, so a simulation file cannot dodge the guards by being put in the wrong directory.
-  if (file.startsWith("src/shared/"))
+  if (file.startsWith("games/fuse-riders/src/shared/"))
     return shared.has(base) ? "shared" : "engine";
   if (
-    file.startsWith("src/net/") ||
-    (file.startsWith("src/online/") && network.has(base)) ||
+    file.startsWith("games/fuse-riders/src/net/") ||
+    (file.startsWith("games/fuse-riders/src/online/") && network.has(base)) ||
     file.startsWith("packages/")
   )
     return "net";
-  if (file.startsWith("src/render/")) return "render";
-  if (file.startsWith("src/")) return "app";
+  if (file.startsWith("games/fuse-riders/src/render/")) return "render";
+  if (file.startsWith("games/fuse-riders/src/") || file.startsWith("service/"))
+    return "app";
   return "external";
 }
 
@@ -168,7 +164,13 @@ export function forbiddenEdge(
     : specifier;
   const from = layer(source),
     to = layer(target);
-  if (source.startsWith("packages/") && target.startsWith("src/"))
+  if (
+    source.startsWith("packages/") &&
+    (target.startsWith("games/") || target.startsWith("service/"))
+  )
+    return `${source} -> ${target}`;
+  // The service composes the games; a game never reaches back into it (its registration is its own `platform.ts`).
+  if (source.startsWith("games/") && target.startsWith("service/"))
     return `${source} -> ${target}`;
   const violation =
     from === "engine"
@@ -184,24 +186,24 @@ export function forbiddenEdge(
         : from === "render"
           ? to !== "render" &&
             to !== "external" &&
-            !/^src\/engine\/view(?:-kit)?\.ts$/.test(target)
+            !/^games\/fuse-riders\/src\/engine\/view(?:-kit)?\.ts$/.test(target)
           : false;
   return violation ? `${source} -> ${target}` : undefined;
 }
 
 /**
- * `src/render/` may take VALUES only from `engine/view-kit.ts`; from `engine/view.ts` it takes types. A value import of
+ * `games/fuse-riders/src/render/` may take VALUES only from `engine/view-kit.ts`; from `engine/view.ts` it takes types. A value import of
  * the view (`toView`) would pull the tuning and the rules in behind the contract, so every import or re-export of
  * `engine/view.ts` from a render file must be type-only, and a dynamic import of it is refused outright.
  */
 export function renderValueImportsOfView(file: ts.SourceFile): string[] {
   const source = file.fileName;
-  if (!source.startsWith("src/render/")) return [];
+  if (!source.startsWith("games/fuse-riders/src/render/")) return [];
   const isView = (specifier: string): boolean =>
     specifier.startsWith(".") &&
     path.posix
       .normalize(path.posix.join(path.posix.dirname(source), specifier))
-      .replace(/\.js$/, ".ts") === "src/engine/view.ts";
+      .replace(/\.js$/, ".ts") === "games/fuse-riders/src/engine/view.ts";
   const found: string[] = [];
   const visit = (node: ts.Node): void => {
     if (
@@ -249,7 +251,12 @@ export function renderValueImportsOfView(file: ts.SourceFile): string[] {
 export function layerViolations(): string[] {
   return [
     ...new Set(
-      [...sourceFiles("src"), ...sourceFiles("packages")].flatMap((file) =>
+      [
+        ...sourceFiles("games/fuse-riders/src"),
+        ...sourceFiles("games/dice/src"),
+        ...sourceFiles("service"),
+        ...sourceFiles("packages"),
+      ].flatMap((file) =>
         imports(syntax(file)).flatMap(
           (specifier) => forbiddenEdge(file, specifier) ?? [],
         ),

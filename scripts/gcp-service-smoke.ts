@@ -42,7 +42,7 @@ const revision = execFileSync("git", ["rev-parse", "HEAD"], {
   encoding: "utf8",
 }).trim();
 const sourcePaths = [
-  "src/service/index.ts",
+  "service/index.ts",
   "packages/fuse-network-be/src/gcp/index.ts",
   "packages/fuse-network-be/src/gateway.ts",
   "packages/fuse-network-be/src/room-store.ts",
@@ -107,7 +107,7 @@ async function gateway(): Promise<string> {
     [
       "--import",
       "tsx",
-      activeCliAuth ? "scripts/gcp-service-child.ts" : "src/service/index.ts",
+      activeCliAuth ? "scripts/gcp-service-child.ts" : "service/index.ts",
     ],
     {
       cwd: process.cwd(),

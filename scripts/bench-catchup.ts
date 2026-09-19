@@ -15,13 +15,22 @@
  * Wall times are this machine's; step counts are exact.
  */
 import { performance } from "node:perf_hooks";
-import { FakeNetwork } from "../tests/fixtures/fake-room.js";
-import { classicSettings } from "../src/engine/room-settings.js";
-import { createRoomState } from "../src/engine/apply-tick.js";
-import { COUNTDOWN_TICKS, eliminatePlayer } from "../src/engine/game.js";
-import { ACTION, BOT, JOIN, STEER } from "../src/engine/input-log.js";
-import { World } from "../src/online/rollback.js";
-import * as runtimeModule from "../src/online/room-runtime.js";
+import { FakeNetwork } from "../games/fuse-riders/tests/fixtures/fake-room.js";
+import { classicSettings } from "../games/fuse-riders/src/engine/room-settings.js";
+import { createRoomState } from "../games/fuse-riders/src/engine/apply-tick.js";
+import {
+  COUNTDOWN_TICKS,
+  eliminatePlayer,
+} from "../games/fuse-riders/src/engine/game.js";
+import {
+  ACTION,
+  BOT,
+  JOIN,
+  STEER,
+} from "../games/fuse-riders/src/engine/input-log.js";
+import { World } from "fuse-netcode";
+import { fuseGame } from "../games/fuse-riders/src/online/fuse-game.js";
+import * as runtimeModule from "../games/fuse-riders/src/online/room-runtime.js";
 
 const hiddenMs = Number(process.argv[2] ?? 6000),
   depth = Number(process.argv[3] ?? 38);
@@ -113,6 +122,7 @@ function catchUp(): void {
 
 function rollback(): void {
   const w = new World(
+    fuseGame,
     createRoomState("room", classicSettings()),
     "creator",
     "creator",

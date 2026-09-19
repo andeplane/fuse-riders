@@ -1,3 +1,4 @@
+import { readyRoom } from "./lib/ready-room.js";
 import type { Browser, Page } from "playwright";
 import { launchSelected } from "./lib/browser.js";
 import assert from "node:assert/strict";
@@ -107,7 +108,7 @@ try {
   }
   assert.match(
     await host.locator(".room-lobby-footer span").innerText(),
-    /2 riders ready · 1 watching/,
+    /2 riders · 1 watching/,
     "the lobby footer counts the riders and the watchers apart",
   );
   assert.match(
@@ -184,7 +185,7 @@ try {
   await watcher.locator(".join-kicked").waitFor({ state: "hidden" });
 
   // The race runs, and the watcher is in it as an audience: same phase, same tick, still no controls.
-  await host.getByRole("button", { name: "START RACE", exact: true }).click();
+  await readyRoom(host);
   await waitPhase(watcher, ["countdown", "playing"]);
   await waitPhase(rider, ["playing"]);
   await waitPhase(watcher, ["playing"]);

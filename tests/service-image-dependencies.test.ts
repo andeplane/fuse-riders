@@ -9,7 +9,7 @@ interface Lockfile {
 }
 
 /**
- * Dockerfile.cloud installs with `npm ci --omit=dev` and starts `node --import tsx src/service/index.ts`,
+ * Dockerfile.cloud installs with `npm ci --omit=dev` and starts `node --import tsx service/index.ts`,
  * so a package the service reaches must not be dev-only in the lockfile. A violation here would
  * otherwise first show up as a Cloud Run revision that cannot start.
  *
@@ -29,14 +29,25 @@ test("the Cloud Run entry and its tsx loader resolve from production dependencie
     "utf8",
   );
   assert.match(dockerfile, /npm ci --omit=dev/);
+  // npm ci links a workspace package only if its manifest is in the image before the install; a missing one
+  // would leave fuse-platform or fuse-network-be unresolvable when the revision starts.
+  const workspaces = Object.keys(lock.packages).filter((key) =>
+    /^packages\/[^/]+$/.test(key),
+  );
+  assert.ok(workspaces.includes("packages/fuse-platform"));
+  for (const workspace of workspaces)
+    assert.ok(
+      dockerfile.includes(`COPY ${workspace}/package.json ./${workspace}/`),
+      `Dockerfile.cloud copies ${workspace}/package.json before npm ci`,
+    );
   assert.match(
     dockerfile,
-    /CMD \["node", "--import", "tsx", "src\/service\/index\.ts"\]/,
+    /CMD \["node", "--import", "tsx", "service\/index\.ts"\]/,
   );
 
   // Bundling is only a way to walk the static import graph; nothing is written.
   const result = await build({
-    entryPoints: ["src/service/index.ts"],
+    entryPoints: ["service/index.ts"],
     absWorkingDir: fileURLToPath(new URL("..", import.meta.url)),
     bundle: true,
     write: false,
@@ -58,8 +69,9 @@ test("the Cloud Run entry and its tsx loader resolve from production dependencie
     "the walk reached the service's third-party imports",
   );
   assert.ok(
-    firstParty.includes("src/service/index.ts") &&
-      firstParty.some((file) => file.startsWith("packages/fuse-network-be/")),
+    firstParty.includes("service/index.ts") &&
+      firstParty.some((file) => file.startsWith("packages/fuse-network-be/")) &&
+      firstParty.some((file) => file.startsWith("packages/fuse-platform/")),
     "the walk reached the service's own source, including its workspace packages",
   );
   // Resolution the walk above cannot follow. `import(` followed by anything but a quote is a computed

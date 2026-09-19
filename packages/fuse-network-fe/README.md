@@ -49,7 +49,7 @@ the creator's authority lease against duplicate tabs (`AuthorityClock`), and red
 `PeerTransportOptions.copy` replaces the few player-facing strings the transport emits.
 
 What it does not do: simulate, order or repair application messages. Fuse Riders' rollback runtime lives in the
-game (`src/online/`) on top of this transport.
+game (`games/fuse-riders/src/online/`) on top of this transport.
 
 ## Optional media extension
 

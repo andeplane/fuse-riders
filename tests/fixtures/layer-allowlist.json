@@ -1,10 +1,8 @@
 [
-  "src/engine/codec/checkpoint.ts -> src/shared/avatars.ts",
-  "src/engine/game.ts -> src/shared/avatars.ts",
-  "src/engine/input-log.ts -> src/shared/avatars.ts",
-  "src/engine/match-recap.ts -> src/shared/duration-text.ts",
-  "src/engine/state.ts -> src/shared/protocol.ts",
-  "src/online/room-runtime.ts -> src/online/status-notices.ts",
-  "src/online/room-runtime.ts -> src/shared/avatars.ts",
-  "src/online/room-runtime.ts -> src/shared/uuid.ts"
+  "games/fuse-riders/src/engine/codec/checkpoint.ts -> games/fuse-riders/src/shared/avatars.ts",
+  "games/fuse-riders/src/engine/game.ts -> games/fuse-riders/src/shared/avatars.ts",
+  "games/fuse-riders/src/engine/input-log.ts -> games/fuse-riders/src/shared/avatars.ts",
+  "games/fuse-riders/src/engine/match-recap.ts -> games/fuse-riders/src/shared/duration-text.ts",
+  "games/fuse-riders/src/engine/state.ts -> games/fuse-riders/src/shared/protocol.ts",
+  "games/fuse-riders/src/online/fuse-game.ts -> games/fuse-riders/src/shared/avatars.ts"
 ]

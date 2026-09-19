@@ -6,7 +6,7 @@ Status: implemented on `claude/phaser-4-refactor-eval-ae6882`.
 
 Move the arena presentation from Phaser 3.90.0 to Phaser 4.2.1 with **no visible change**: the same pixels (within antialiasing noise), frame budget and lifecycle behaviour on both Phaser backends. We are moving to a maintained release line. New Phaser 4 features (Filters, lighting, `SpriteGPULayer`) are out of scope and can follow in separate changes.
 
-Unchanged: `src/shared/`, `src/online/`, the snapshot/frame-clock contract, the single manual `game.step` per caller frame, the RULES version and the golden hashes. Nothing outside `src/client/phaser/` should need to change except docs and possibly browser scripts.
+Unchanged: `games/fuse-riders/src/shared/`, `games/fuse-riders/src/online/`, the snapshot/frame-clock contract, the single manual `game.step` per caller frame, the RULES version and the golden hashes. Nothing outside `games/fuse-riders/src/client/phaser/` should need to change except docs and possibly browser scripts.
 
 ## What breaks
 

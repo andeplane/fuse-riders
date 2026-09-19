@@ -12,6 +12,8 @@ export const AUTH_FRAME_MAX_BYTES = 256;
 /**
  * The first frame of every room socket. A browser cannot set headers on `new WebSocket`, and a URL is recorded by
  * access logs, so the member token travels here and nowhere in the request. See `docs/online/TOKEN-TRANSPORT.md`.
+ * `gameId` names the game the page plays; a room of another game refuses it. Absent means `LEGACY_GAME_ID`, which a
+ * service from before games ignores, so the frame is compatible in both directions.
  */
-export const authFrame = (token: string): string =>
-  JSON.stringify({ type: "auth", token });
+export const authFrame = (token: string, gameId?: string): string =>
+  JSON.stringify({ type: "auth", token, ...(gameId ? { gameId } : {}) });

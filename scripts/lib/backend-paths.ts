@@ -2,8 +2,8 @@
  * Release inputs that require advancing the live Cloud Run revision, so backend.yml can skip
  * a main push that touched none of them. Pages publishes that same live revision. An entry ending in `/` is a directory; any other entry is one file.
  *
- * Conservative on purpose: Dockerfile.cloud copies all of `src/` and `packages/` into the image, so
- * all of both stay here (a client-only change still redeploys) until the image copies less.
+ * Conservative on purpose: Dockerfile.cloud copies all of `service/`, `packages/` and `games/` into the image,
+ * so all of them stay here (a client-only change still redeploys) until the image copies less.
  * tests/backend-paths.test.ts fails when Dockerfile.cloud or .dockerignore lets in a path this list
  * does not cover.
  */
@@ -13,8 +13,10 @@ export const BACKEND_PATHS: readonly string[] = [
   ".dockerignore",
   "package.json",
   "package-lock.json",
-  "src/",
+  "service/",
   "packages/",
+  // Game workspace manifests: npm ci in the image needs every workspace the lockfile lists.
+  "games/",
   // Pages publishes the live backend revision. Advance it for frontend-only release changes too,
   // otherwise a successful skipped backend run would republish the old assets forever.
   "public/",

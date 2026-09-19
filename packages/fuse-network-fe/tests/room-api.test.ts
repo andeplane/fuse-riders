@@ -190,6 +190,35 @@ test("an ICE request the service refuses is a refusal, not an empty list", async
     (error) => error instanceof IceRefusedError && error.status === 401,
   );
 });
+test("a room is created and joined for one game, named in the query and the auth frame", async () => {
+  const calls: Call[] = [];
+  await createRoom(
+    apiUrl,
+    fetcher(
+      calls,
+      Response.json({ code: "AB42", token: "t" }, { status: 201 }),
+    ),
+    "dice",
+  );
+  assert.deepEqual(
+    calls.map((call) => [call.url, call.init?.method, call.init?.body]),
+    [["https://rooms.test/api/rooms?gameId=dice", "POST", undefined]],
+    "a simple request: no body, so no CORS preflight",
+  );
+  const token = memberToken();
+  const socket = openRoomSocket(
+    apiUrl,
+    "AB42",
+    token,
+    (url) => new FakeSocket(url),
+    "dice",
+  );
+  assert.equal(new URL(socket.url).search, "");
+  socket.open();
+  assert.deepEqual(socket.sent, [
+    JSON.stringify({ type: "auth", token, gameId: "dice" }),
+  ]);
+});
 test("the room socket authenticates with its first frame, never its URL", () => {
   const token = memberToken(),
     created: FakeSocket[] = [];

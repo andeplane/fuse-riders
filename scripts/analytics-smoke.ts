@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import {
   defaultRoomSettings,
   SETTINGS_KEY,
-} from "../src/engine/room-settings.js";
+} from "../games/fuse-riders/src/engine/room-settings.js";
 /**
  * Analytics evidence: a one-round solo match plays to completion with Mixpanel intercepted, and the events it
  * reported are checked against what they are supposed to carry.
