@@ -85,3 +85,13 @@ export {
   type PhoneScreen,
   type PhoneStage,
 } from "./phone-layout.js";
+export {
+  createAccountDialog,
+  type AccountAuth,
+  type AccountDialog,
+  type AccountDialogOptions,
+  type AccountPage,
+  type AccountPart,
+  type AccountProfile,
+  type AccountText,
+} from "./account.js";
