@@ -1,4 +1,4 @@
-import { el } from "fuse-ui";
+import { createDialog, el } from "fuse-ui";
 import { createAvatarPortrait } from "../client/avatar-heads.js";
 import "./account-panel.css";
 import {
@@ -137,18 +137,18 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
   leaderboardButton.type = "button";
   const button = el("button", "SIGN IN", "landing-account");
   button.type = "button";
-  const dialog = el("dialog", "", "game-dialog stats-dialog");
-  dialog.setAttribute("aria-label", "Account");
-  const bar = el("header", "", "dialog-bar"),
-    close = el("button", "✕  CLOSE"),
-    actions = el("span", "", "dialog-actions"),
-    body = el("div", "", "dialog-body account-panel");
-  close.type = "button";
-  close.setAttribute("aria-label", "CLOSE");
-  close.onclick = () => dialog.close();
-  actions.append(close);
-  bar.append(el("strong", "RIDER STATS"), actions);
-  dialog.append(bar, body);
+  const { dialog, body } = createDialog({
+    title: "RIDER STATS",
+    label: "Account",
+    classes: {
+      root: "game-dialog stats-dialog",
+      bar: "dialog-bar",
+      title: "",
+      actions: "dialog-actions",
+      close: "",
+      body: "dialog-body account-panel",
+    },
+  });
   let account: Account | undefined,
     generation = 0,
     view: "stats" | "leaderboard" = "stats";
@@ -475,17 +475,6 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
   };
   dialog.addEventListener("close", () => {
     generation++;
-  });
-  dialog.addEventListener("click", (event) => {
-    if (event.target !== dialog) return;
-    const r = dialog.getBoundingClientRect();
-    if (
-      event.clientX < r.left ||
-      event.clientX > r.right ||
-      event.clientY < r.top ||
-      event.clientY > r.bottom
-    )
-      dialog.close();
   });
   return {
     button,

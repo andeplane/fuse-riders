@@ -34,6 +34,20 @@ export interface DialogShell {
   close: HTMLButtonElement;
   /** Where the game puts the dialog's content. */
   body: HTMLElement;
+  /**
+   * Show one view in the shell: set the title and accessible name, replace the body with `content`, and open the
+   * dialog if it is not open yet. One dialog can serve several menus this way; on close the title and name go back to
+   * the ones the shell was created with.
+   */
+  show(view: DialogView): void;
+}
+
+export interface DialogView {
+  title: string;
+  /** The accessible name; defaults to the title. */
+  label?: string;
+  /** Replaces the body. Omit to keep what the body holds (a game that fills it itself). */
+  content?: readonly Node[];
 }
 
 /**
@@ -58,7 +72,25 @@ export function createDialog(options: DialogOptions): DialogShell {
   const body = el("div", "", c("body"), doc);
   dialog.append(bar, body);
   if (options.closeOnBackdrop ?? true) closeOnBackdrop(dialog);
-  return { dialog, bar, title, actions, close, body };
+  const label = options.label ?? options.title;
+  dialog.addEventListener("close", () => {
+    title.textContent = options.title;
+    dialog.setAttribute("aria-label", label);
+  });
+  return {
+    dialog,
+    bar,
+    title,
+    actions,
+    close,
+    body,
+    show(view) {
+      title.textContent = view.title;
+      dialog.setAttribute("aria-label", view.label ?? view.title);
+      if (view.content) body.replaceChildren(...view.content);
+      if (!dialog.open) dialog.showModal();
+    },
+  };
 }
 
 /**

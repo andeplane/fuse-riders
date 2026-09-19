@@ -66,8 +66,10 @@ import type { AvatarId } from "../shared/avatars.js";
 import QRCode from "qrcode";
 import {
   el as node,
+  createConfirm,
   createControllerRow,
   createDialog,
+  createKeyList,
   createInviteCard,
   createJoinByCode,
   createRoster,
@@ -815,6 +817,7 @@ export async function startOnline(): Promise<void> {
     actions: dialogActions,
     close,
     body: dialogBody,
+    show: showDialog,
   } = createDialog({
     title: "GAME MENU",
     label: "Game menu",
@@ -866,8 +869,6 @@ export async function startOnline(): Promise<void> {
     close.setAttribute("aria-label", "CLOSE");
     recapOpen = false;
     dialog.classList.remove("recap-dialog");
-    dialogTitle.textContent = "GAME MENU";
-    dialog.setAttribute("aria-label", "Game menu");
   });
   // Desktop hides the on-screen controls entirely, so a first-timer has only the ? button. One fading reminder on the first countdown of the session.
   const keyHint = node("div", "", "key-hint");
@@ -908,23 +909,18 @@ export async function startOnline(): Promise<void> {
     );
   app.append(powerStatus);
   const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-  help.onclick = () => {
-    dialogTitle.textContent = "SHORTCUTS";
-    dialog.setAttribute("aria-label", "Keyboard shortcuts"); // the close handler resets both
-    dialogBody.replaceChildren(node("h2", "Keyboard shortcuts"));
-    for (const group of keyboardShortcuts({
-      mac,
-      canConfigure: isHost || solo,
-      solo,
-    })) {
-      const list = node("dl", "", "shortcut-list");
-      for (const [keys, action] of group.entries) {
-        list.append(node("dt", keys), node("dd", action));
-      }
-      dialogBody.append(node("h3", group.title, "shortcut-group"), list);
-    }
-    dialog.showModal();
-  };
+  help.onclick = () =>
+    showDialog({
+      title: "SHORTCUTS",
+      label: "Keyboard shortcuts",
+      content: [
+        node("h2", "Keyboard shortcuts"),
+        ...createKeyList(
+          keyboardShortcuts({ mac, canConfigure: isHost || solo, solo }),
+          { classes: { group: "shortcut-group", list: "shortcut-list" } },
+        ),
+      ],
+    });
   // Move the existing actions, keeping their handlers and mobile/lobby destinations intact.
   const desktopQuery = matchMedia(
     "(min-width: 1000px) and (hover: hover) and (pointer: fine)",
@@ -1037,10 +1033,11 @@ export async function startOnline(): Promise<void> {
   const openRadio = () => {
     audio.unlock();
     audio.controls.setAttribute("open", "");
-    dialogTitle.textContent = "RADIO";
-    dialog.setAttribute("aria-label", "Radio");
-    dialogBody.replaceChildren(node("h2", "Fuse Riders Radio"), audio.controls);
-    if (!dialog.open) dialog.showModal();
+    showDialog({
+      title: "RADIO",
+      label: "Radio",
+      content: [node("h2", "Fuse Riders Radio"), audio.controls],
+    });
   };
   const roomAccount = createPlayerAccountPanel();
   roomAccount.button.classList.add("player-account");
@@ -1136,12 +1133,12 @@ export async function startOnline(): Promise<void> {
       "Music and effects only; use DEAFEN in voice chat to silence voice.";
     prefs.append(voice.controls);
     topMenu.insertBefore(voice.button, prefsButton);
-    voice.button.onclick = () => {
-      dialogTitle.textContent = "VOICE CHAT";
-      dialog.setAttribute("aria-label", "Voice chat");
-      dialogBody.replaceChildren(voice.controls);
-      if (!dialog.open) dialog.showModal();
-    };
+    voice.button.onclick = () =>
+      showDialog({
+        title: "VOICE CHAT",
+        label: "Voice chat",
+        content: [voice.controls],
+      });
     voice.setChanged(() => {
       for (const [playerId, row] of rosterEntries)
         row.entry.dataset.voice = voice.indicator(playerId);
@@ -1152,29 +1149,22 @@ export async function startOnline(): Promise<void> {
   prefsButton.onclick = () => {
     privacy.render();
     if (voice) prefs.append(voice.controls);
-    dialogTitle.textContent = "SETTINGS";
-    dialog.setAttribute("aria-label", "Settings");
-    dialogBody.replaceChildren(prefs);
-    dialog.showModal();
+    showDialog({ title: "SETTINGS", label: "Settings", content: [prefs] });
   };
   const openRecap = () => {
     if (!snapshot) return;
-    dialogBody.replaceChildren(
-      renderMatchRecap(snapshot.matchStats, snapshot.moments, {
-        playerId: id,
-        canWatch: (key) => !screen.arenaHidden && !!replay.recorder.clip(key),
-        watch: (key) => {
-          const clip = replay.recorder.clip(key);
-          if (!clip) return;
-          audio.unlock();
-          reopenRecap = true;
-          dialog.close();
-          replay.play(clip, performance.now());
-        },
-      }),
-    );
-    dialogTitle.textContent = "MATCH RESULTS";
-    dialog.setAttribute("aria-label", "Match results");
+    const recap = renderMatchRecap(snapshot.matchStats, snapshot.moments, {
+      playerId: id,
+      canWatch: (key) => !screen.arenaHidden && !!replay.recorder.clip(key),
+      watch: (key) => {
+        const clip = replay.recorder.clip(key);
+        if (!clip) return;
+        audio.unlock();
+        reopenRecap = true;
+        dialog.close();
+        replay.play(clip, performance.now());
+      },
+    });
     recapOpen = true;
     dialog.classList.add("recap-dialog");
     rematch.hidden = solo ? !isHost : !joined || displayOnly;
@@ -1183,7 +1173,12 @@ export async function startOnline(): Promise<void> {
     fullStats.hidden = !snapshot.matchStats.length;
     fullStats.textContent = "View full stats ↗";
     fullStats.setAttribute("aria-expanded", "false");
-    dialog.showModal();
+    // Opened last, once the buttons it shows are settled: the modal focuses the first one that is visible.
+    showDialog({
+      title: "MATCH RESULTS",
+      label: "Match results",
+      content: [recap],
+    });
     dialogBody.scrollTop = 0;
   };
   results.onclick = () => {
@@ -1677,28 +1672,30 @@ export async function startOnline(): Promise<void> {
     else readyButton.click();
   };
   menu.onclick = () => {
-    dialogTitle.textContent = solo ? "EXIT" : "ROOM";
-    dialog.setAttribute("aria-label", solo ? "Exit" : "Room");
-    dialogBody.replaceChildren(
-      node(
-        "p",
-        solo
-          ? "End this solo run and go back to the menu?"
-          : isHost
-            ? "End this room for everyone?"
-            : "Leave this room?",
-      ),
-    );
-    const leave = node(
-        "button",
-        solo ? "END RUN" : isHost ? "END ROOM" : "LEAVE ROOM",
-        "exit-confirm",
-      ),
-      stay = node("button", solo ? "KEEP PLAYING" : "STAY"),
-      choices = node("div", "", "exit-choices");
-    stay.onclick = () => dialog.close();
-    choices.append(stay, leave);
-    leave.onclick = async () => {
+    const {
+      question,
+      choices,
+      confirm: leave,
+      cancel: stay,
+    } = createConfirm({
+      question: solo
+        ? "End this solo run and go back to the menu?"
+        : isHost
+          ? "End this room for everyone?"
+          : "Leave this room?",
+      confirmText: solo ? "END RUN" : isHost ? "END ROOM" : "LEAVE ROOM",
+      cancelText: solo ? "KEEP PLAYING" : "STAY",
+      onCancel: () => dialog.close(),
+      onConfirm: () => endOrLeave(),
+      classes: {
+        question: "",
+        choices: "exit-choices",
+        confirm: "exit-confirm",
+        cancel: "",
+      },
+    });
+    const menuBody: Node[] = [question, choices];
+    const endOrLeave = async () => {
       leave.disabled = stay.disabled = true;
       leave.textContent = "LEAVING…";
       runtime.stop();
@@ -1720,7 +1717,6 @@ export async function startOnline(): Promise<void> {
       if (read(LAST_ROOM_KEY) === code) storage.removeItem(LAST_ROOM_KEY);
       location.href = appUrl();
     };
-    dialogBody.append(choices);
     const standings = [...(snapshot?.leaderboard ?? [])].sort(
       (a, b) =>
         b.totalScoreUnits - a.totalScoreUnits ||
@@ -1759,7 +1755,7 @@ export async function startOnline(): Promise<void> {
           "session-key",
         ),
       );
-      dialogBody.append(list);
+      menuBody.push(list);
     }
     if (!solo) {
       const diagnostics = node("pre", "", "link-diagnostics");
@@ -1773,7 +1769,7 @@ export async function startOnline(): Promise<void> {
         statsPanel.hidden = !statsPanel.hidden;
         dialog.close();
       };
-      dialogBody.append(
+      menuBody.push(
         statsToggle,
         node(
           "p",
@@ -1790,12 +1786,13 @@ export async function startOnline(): Promise<void> {
           app.dataset.linkDiagnostics ?? diagnostics.textContent;
       }, 1000);
     }
-    dialog.showModal();
+    showDialog({
+      title: solo ? "EXIT" : "ROOM",
+      label: solo ? "Exit" : "Room",
+      content: menuBody,
+    });
   };
   avatarButton.onclick = () => {
-    dialogTitle.textContent = "AVATAR";
-    dialog.setAttribute("aria-label", "Avatar");
-    dialogBody.replaceChildren(node("h2", "Your avatar"));
     const picker = createAvatarPicker(storage, (chosen) => {
       joinForm.picker.sync(chosen);
       if (joined) runtime.command({ type: "avatar", avatarId: chosen });
@@ -1812,8 +1809,11 @@ export async function startOnline(): Promise<void> {
         option.title = owner ? `${owner.name} has this one` : "";
       });
     avatarPicker = picker.element;
-    dialogBody.append(picker.element);
-    dialog.showModal();
+    showDialog({
+      title: "AVATAR",
+      label: "Avatar",
+      content: [node("h2", "Your avatar"), picker.element],
+    });
   };
   // The lobby card already carries the QR and the copyable link, so this opens the shared-screen display directly instead of a dialog that repeats them.
   share.title = "Open this room on a shared screen";

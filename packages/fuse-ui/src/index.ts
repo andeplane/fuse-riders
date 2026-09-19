@@ -13,6 +13,7 @@ export {
   type DialogOptions,
   type DialogPart,
   type DialogShell,
+  type DialogView,
 } from "./dialog.js";
 export {
   createJoinByCode,
@@ -63,3 +64,12 @@ export {
   type PickerOptions,
   type PickerPart,
 } from "./picker.js";
+export {
+  createConfirm,
+  createKeyList,
+  type Confirm,
+  type ConfirmOptions,
+  type ConfirmPart,
+  type KeyGroup,
+  type KeyListPart,
+} from "./content.js";
