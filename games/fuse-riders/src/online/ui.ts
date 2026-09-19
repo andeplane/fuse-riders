@@ -1772,11 +1772,9 @@ export async function startOnline(): Promise<void> {
       settingsButton.hidden = !manages;
       addAI.hidden = !manages;
       hostControls.hidden = view.actions.hidden;
-      // The crown can move while the results are up: REMATCH appears for whoever holds it without reopening the card.
-      if (recapOpen) {
-        rematch.hidden = !manages;
-        recapLobby.hidden = !manages;
-      }
+      // The crown can move while the results are up: BACK TO LOBBY follows whoever holds it without reopening the card.
+      // READY is not its to hold — every rider votes for itself, so `rematch` keeps the visibility set just above.
+      if (recapOpen) recapLobby.hidden = !manages;
       reset.disabled = view.actions.reset.disabled;
       reset.hidden = !manages || view.actions.reset.hidden;
       // The invite is the creator's: it carries the room code its device owns.
