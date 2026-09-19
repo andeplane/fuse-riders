@@ -166,6 +166,16 @@ export interface RuntimeText {
   fullWithBots: string;
   botNotFound: string;
   botBetweenRounds: string;
+  /** A kick naming a member the room no longer lists. */
+  kickGone: string;
+  /** A kick naming an AI player, which has its own button. */
+  kickBot: string;
+  /** A kick of a seated player while a round runs, which the fold would only mark absent. */
+  kickBetweenRounds: string;
+  /** A kick whose entry landed inside a round after all: the fold kept the seat, so it is worth another try. */
+  kickInRound: string;
+  /** What the removed device is told. */
+  kicked: string;
   stillLoading: string;
   chooseName: string;
   reconnectFirst: string;

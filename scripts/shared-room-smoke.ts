@@ -431,6 +431,9 @@ for (const { name, kind } of BOTH_ENGINES) {
         1,
         "one menu button in the lobby",
       );
+      // The creator here drives the shared screen from a page that has taken no seat, so the room's own succession
+      // hands its controls to the first rider as well as to that page (ADR 047 §9). The race still starts on the
+      // ready votes rather than on either of them, so what the guest reads is the call to ready up.
       assert.match(
         (await guest.locator(".online-notice").textContent()) ?? "",
         /^Ready up/,

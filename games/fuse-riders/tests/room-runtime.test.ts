@@ -1262,3 +1262,254 @@ test("a name carrying a control character is refused at the join and the rider i
   for (const runtime of net.runtimes.values()) runtime.stop();
   host.stop();
 });
+
+test("the crown moves to the next seat while the creator is away, and back the moment it returns", () => {
+  const { net, join } = room();
+  const host = join(HOST, "Host");
+  net.step(200);
+  const first = join(GUESTS[0]!, "First");
+  net.step(300);
+  const second = join(GUESTS[1]!, "Second");
+  net.step(900);
+  assert.equal(net.frame(GUESTS[1]!)!.managerId, HOST);
+  assert.equal(
+    first.command({ type: "action", action: "start" }),
+    false,
+    "a guest manages nothing while the creator is here",
+  );
+  assert.equal(host.command({ type: "action", action: "start" }), true);
+  net.step(COUNTDOWN_TICKS * 50 + 400);
+  assert.equal(net.frame(GUESTS[0]!)!.phase, "playing");
+  // The host's link drops mid-round: its tab is still open, but nothing it sends reaches the room.
+  net.disconnect(HOST);
+  net.step(CREATOR_SILENCE_MS + 2000);
+  // Every replica that can hear the room folds the same log, so every screen in it names the same host.
+  for (const id of [GUESTS[0]!, GUESTS[1]!])
+    assert.equal(
+      net.frame(id)!.managerId,
+      GUESTS[0]!,
+      `${id} names the rider in the next seat as host`,
+    );
+  assert.equal(
+    second.command({ type: "settings", settings: { ...settings, length: 9 } }),
+    false,
+    "only the delegate, not every rider behind it",
+  );
+  assert.equal(
+    first.command({ type: "settings", settings: { ...settings, length: 9 } }),
+    true,
+    "the delegate runs the room the absent creator cannot",
+  );
+  net.step(600);
+  assert.equal(world(second).state.settings.length, 9);
+  // The creator comes back. Its seat was freed at the round boundary it missed, as any absent rider's is, so it
+  // takes one again — and the room is its own the moment it does, because its token still owns the room code.
+  net.connect(HOST);
+  net.step(6000);
+  host.command({ type: "join", name: "Host" });
+  net.step(2000);
+  for (const id of [HOST, GUESTS[0]!, GUESTS[1]!])
+    assert.equal(
+      net.frame(id)!.managerId,
+      HOST,
+      `the creator's token still owns the room: ${id} gives the crown back`,
+    );
+  assert.equal(
+    first.command({ type: "settings", settings: { ...settings, length: 7 } }),
+    false,
+    "and the delegate runs nothing again",
+  );
+  assert.equal(hashes(net, [HOST, GUESTS[0]!, GUESTS[1]!]).size, 1);
+  host.stop();
+  first.stop();
+  second.stop();
+});
+
+test("a match whose host never comes back can still be taken back to the lobby by the next rider", () => {
+  const { net, join } = room();
+  const host = join(HOST, "Host");
+  net.step(200);
+  const first = join(GUESTS[0]!, "First");
+  net.step(300);
+  const second = join(GUESTS[1]!, "Second");
+  net.step(900);
+  assert.equal(host.command({ type: "action", action: "start" }), true);
+  net.step(COUNTDOWN_TICKS * 50 + 400);
+  assert.equal(net.frame(GUESTS[0]!)!.phase, "playing");
+  // The host closes its tab mid-match. The room keeps running while riders stay in it (#262).
+  host.stop();
+  net.muted.add(HOST);
+  net.step(CREATOR_SILENCE_MS + 2000);
+  assert.equal(net.frame(GUESTS[0]!)!.managerId, GUESTS[0]!);
+  assert.equal(
+    first.command({ type: "action", action: "lobby" }),
+    true,
+    "the room does not need its creator to move on",
+  );
+  net.step(600);
+  assert.equal(net.frame(GUESTS[1]!)!.phase, "lobby");
+  assert.equal(
+    first.command({ type: "action", action: "start" }),
+    true,
+    "and the next match is the delegate's to start",
+  );
+  net.step(300);
+  assert.equal(net.frame(GUESTS[1]!)!.phase, "countdown");
+  assert.equal(hashes(net, [GUESTS[0]!, GUESTS[1]!]).size, 1);
+  first.stop();
+  second.stop();
+});
+
+test("kick: the manager frees a human seat between rounds, the target is told, and it may come back", () => {
+  const { net, join } = room();
+  const host = join(HOST, "Host");
+  net.step(200);
+  const guest = join(GUESTS[0]!, "Guest");
+  net.step(900);
+  assert.equal(
+    guest.command({ type: "kick", id: HOST }),
+    false,
+    "a guest cannot kick the host",
+  );
+  assert.equal(
+    host.command({ type: "kick", id: HOST }),
+    false,
+    "and nobody kicks themselves",
+  );
+  assert.ok(host.command({ type: "bot", action: "add" }));
+  net.step(300);
+  const botId = net
+    .frame(HOST)!
+    .players.find((player) => player.id.startsWith("bot:"))!.id;
+  assert.equal(
+    host.command({ type: "kick", id: botId }),
+    false,
+    "an AI rider goes through its own button",
+  );
+  assert.equal(host.command({ type: "kick", id: GUESTS[0]! }), true);
+  assert.equal(
+    net.recorded.get(GUESTS[0]!)!.kicked,
+    0,
+    "the target is told once the seat is actually gone, not when the entry is written",
+  );
+  net.step(600);
+  for (const id of [HOST, GUESTS[0]!])
+    assert.deepEqual(
+      net
+        .frame(id)!
+        .players.filter((player) => !player.id.startsWith("bot:"))
+        .map((player) => player.id),
+      [HOST],
+      `${id} sees the seat freed outright, not merely offline`,
+    );
+  assert.equal(
+    net.recorded.get(GUESTS[0]!)!.kicked,
+    1,
+    "the target's own screen is told why its seat went",
+  );
+  assert.ok(
+    net.recorded
+      .get(GUESTS[0]!)!
+      .statuses.includes("The host removed you from the room"),
+  );
+  // Re-entry is allowed: a kick is a nudge out of this match, not a ban.
+  guest.command({ type: "join", name: "Guest" });
+  net.step(900);
+  assert.ok(
+    net.frame(HOST)!.players.some((player) => player.id === GUESTS[0]!),
+    "the kicked rider may take a seat again",
+  );
+  host.stop();
+  guest.stop();
+});
+
+test("kick: refused mid-round, allowed by the delegate, and it reaches a watcher in any phase", () => {
+  const { net, join } = room();
+  const host = join(HOST, "Host");
+  net.step(200);
+  const first = join(GUESTS[0]!, "First");
+  net.step(300);
+  const second = join(GUESTS[1]!, "Second");
+  net.step(300);
+  const watcher = net.add(TV, settings, { humanName: "Watcher" });
+  watcher.start();
+  watcher.command({ type: "spectate", name: "Watcher" });
+  net.step(900);
+  assert.deepEqual(
+    net.frame(HOST)!.spectators.map((seat) => seat.id),
+    [TV],
+  );
+  assert.equal(host.command({ type: "action", action: "start" }), true);
+  net.step(COUNTDOWN_TICKS * 50 + 400);
+  assert.equal(net.frame(HOST)!.phase, "playing");
+  assert.equal(
+    host.command({ type: "kick", id: GUESTS[1]! }),
+    false,
+    "mid-round a LEAVE only marks a rider absent, and its own page would rejoin",
+  );
+  assert.ok(
+    net.recorded
+      .get(HOST)!
+      .statuses.includes("Remove riders between rounds or return to menu"),
+  );
+  // A watcher holds no seat and no simulation state, so it goes in any phase.
+  assert.equal(host.command({ type: "kick", id: TV }), true);
+  net.step(600);
+  assert.deepEqual(net.frame(GUESTS[0]!)!.spectators, []);
+  assert.equal(net.recorded.get(TV)!.kicked, 1);
+  // With the creator gone the delegate holds the same escape hatch.
+  host.stop();
+  net.muted.add(HOST);
+  net.step(CREATOR_SILENCE_MS + 2000);
+  assert.equal(net.frame(GUESTS[0]!)!.managerId, GUESTS[0]!);
+  assert.equal(first.command({ type: "action", action: "lobby" }), true);
+  net.step(600);
+  assert.equal(first.command({ type: "kick", id: GUESTS[1]! }), true);
+  net.step(600);
+  assert.deepEqual(
+    net.frame(GUESTS[0]!)!.players.map((player) => player.id),
+    [GUESTS[0]!],
+  );
+  assert.equal(net.recorded.get(GUESTS[1]!)!.kicked, 1);
+  first.stop();
+  second.stop();
+  watcher.stop();
+});
+
+test("succession is read off the seats: the rider below the host takes over, not the lowest id", () => {
+  const { net, join } = room();
+  const host = join(HOST, "Host");
+  net.step(200);
+  // Seats go in join order, so the rider with the higher id sits directly under the host. By id the other one would
+  // be the delegate; by seat it is this one, which is what the lobby list shows.
+  const below = join(GUESTS[2]!, "Below");
+  net.step(300);
+  const lower = join(GUESTS[1]!, "Lower");
+  net.step(900);
+  assert.deepEqual(
+    net.frame(HOST)!.players.map((player) => [player.id, player.slot]),
+    [
+      [HOST, 0],
+      [GUESTS[2]!, 1],
+      [GUESTS[1]!, 2],
+    ],
+  );
+  assert.ok(GUESTS[1]! < GUESTS[2]!, "and it is not the lowest id");
+  net.disconnect(HOST);
+  net.step(CREATOR_SILENCE_MS + 2000);
+  for (const id of [GUESTS[1]!, GUESTS[2]!])
+    assert.equal(net.frame(id)!.managerId, GUESTS[2]!, `${id} agrees`);
+  assert.equal(
+    lower.command({ type: "settings", settings: { ...settings, length: 9 } }),
+    false,
+  );
+  assert.equal(
+    below.command({ type: "settings", settings: { ...settings, length: 9 } }),
+    true,
+  );
+  net.step(600);
+  assert.equal(world(lower).state.settings.length, 9);
+  host.stop();
+  below.stop();
+  lower.stop();
+});

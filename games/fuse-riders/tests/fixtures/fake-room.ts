@@ -30,6 +30,8 @@ export interface Recorded {
   events: { event: GameEvent; matchId: string; round: number; tick: number }[];
   statuses: string[];
   ready: [string, boolean][];
+  /** How many times the manager told this member it had been removed from the room. */
+  kicked: number;
   ended: number;
 }
 
@@ -206,6 +208,7 @@ export class FakeNetwork {
       events: [],
       statuses: [],
       ready: [],
+      kicked: 0,
       ended: 0,
     };
     this.recorded.set(id, recorded);
@@ -220,6 +223,7 @@ export class FakeNetwork {
         if (recorded.statuses.at(-1) !== text) recorded.statuses.push(text);
       },
       ready: (peer, host) => recorded.ready.push([peer, host]),
+      kicked: () => recorded.kicked++,
       ended: () => recorded.ended++,
     };
     const runtime = new RoomRuntime("AB42", settings, callbacks, {

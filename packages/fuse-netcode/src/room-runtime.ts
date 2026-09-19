@@ -27,6 +27,7 @@ import {
   SETTINGS,
   SPECTATOR,
   actingCreator,
+  roomManager,
   successionOrder,
   type ManagementEntry,
   type RoomAction,
@@ -48,7 +49,9 @@ export type RoomCommand<Settings = unknown, Avatar extends string = string> =
   | { type: "spectate"; name: string }
   | { type: "action"; action: RoomAction }
   | { type: "settings"; settings: Settings }
-  | { type: "bot"; action: "add" | "remove"; id?: string };
+  | { type: "bot"; action: "add" | "remove"; id?: string }
+  /** Remove a human player or a watcher: the manager's escape hatch for an absent friend, between rounds like AI removal. */
+  | { type: "kick"; id: string };
 export type { RoomTransport, TransportEvents };
 export interface RuntimeDependencies {
   now(): number;
@@ -67,6 +70,8 @@ export interface Callbacks<
   event(event: Event, matchId: string, round: number, tick: number): void;
   status(text: string): void;
   ready(id: string, host: boolean): void;
+  /** The manager removed this device from the room. The seat is already gone from the fold; the screen says why. */
+  kicked?(): void;
   ended?(): void;
 }
 /** What `frameTiming()` hands the screen: frames and times, not a finished picture. */
@@ -181,7 +186,9 @@ export const DISCONNECT_MS = 1000,
   LAG_INDICATOR_MS = 250,
   SNAPSHOT_RETRY_MS = 2000,
   SNAPSHOT_FAILURES = 3,
-  JOIN_RETRY_MS = 1000;
+  JOIN_RETRY_MS = 1000,
+  /** Tick-loop passes the courtesy "you were removed" message is retried for while the target's link comes up. */
+  KICK_NOTICE_ATTEMPTS = 100;
 export const SNAPSHOT_BUFFER_LIMIT = 4_000_000,
   STALLED_GAP_MS = 1500,
   /** How long a member whose packets all fall outside this replica's window still counts as heard, and is resynced for: several snapshot attempts. */
@@ -254,6 +261,8 @@ export class RoomRuntime<
     spectator: boolean;
     sentAt: number;
   };
+  /** A kick appended but not yet folded: what it actually did is read back from the fold, never assumed (`settleKick`). */
+  private pendingKick?: { id: string; tick: number; attempts: number };
   private snapshotRequest?: { to: string; at: number; failures: number };
   private assembler?: SnapshotAssembler;
   private mismatches: number[] = [];
@@ -312,6 +321,19 @@ export class RoomRuntime<
       this.creator ||
       (this.world !== undefined &&
         actingCreator(this.game.members(this.world.state), this.hostId) ===
+          this.id)
+    );
+  }
+  /**
+   * Whether this device runs the room for the players: the crown, not the log duties. The creator's own page always
+   * does; anyone else does while the fold names it (`roomManager`), which is one member, never the two `manager`
+   * deliberately allows beside an unseated creator.
+   */
+  private get managing(): boolean {
+    return (
+      this.creator ||
+      (this.world !== undefined &&
+        roomManager(this.game.members(this.world.state), this.hostId) ===
           this.id)
     );
   }
@@ -534,6 +556,13 @@ export class RoomRuntime<
         return;
       case "snapshot":
         this.acceptSnapshotChunk(id, raw);
+        return;
+      // Only from whoever manages the room, and only about this device: a peer cannot talk anyone else out of its seat.
+      case "kicked":
+        if (id !== this.hostId && id !== this.managerId()) return;
+        this.pendingJoin = undefined;
+        this.status.notice(this.text.kicked);
+        this.deliver("kicked", () => this.callbacks.kicked?.());
         return;
       case "error":
         if (typeof data.error === "string")
@@ -1131,7 +1160,8 @@ export class RoomRuntime<
       this.status.notice(this.text.loading);
       return false;
     }
-    if (!this.creator) {
+    // Whoever runs the room right now: the creator, or the delegate holding it while the creator is away.
+    if (!this.managing) {
       this.status.notice(this.text.hostOnly);
       return false;
     }
@@ -1194,7 +1224,58 @@ export class RoomRuntime<
       this.append(BOT, "remove", command.id);
       return true;
     }
+    if (command.type === "kick") return this.kick(command.id);
     return false;
+  }
+  /**
+   * Remove a human member the manager names. A rider goes between rounds only (`reclaimable`), the same rule as AI
+   * removal and for a sharper reason: outside those phases `LEAVE` only marks a rider absent, and the manager's own
+   * presence duties log it present again the moment they hear it (`creatorDuties`, `ensurePresence`), so the kick would
+   * undo itself. A watcher holds no seat, so `LEAVE` frees it in any phase.
+   *
+   * The check is against the phase this replica has folded, while the entry is stamped a tick or more ahead, so a kick
+   * issued in the last moments of a pause can still land in the round that follows. The outcome is therefore read back
+   * from the fold (`settleKick`) rather than assumed: the target is told it was removed only once it is gone, and a kick
+   * that did not take says so instead of failing silently.
+   */
+  private kick(id: string): boolean {
+    if (typeof id !== "string" || id === this.id) return false;
+    const room = this.world!.state,
+      seat = this.game.seat(room, id);
+    if (!seat) {
+      this.status.notice(this.text.kickGone);
+      return false;
+    }
+    if (seat.bot) {
+      this.status.notice(this.text.kickBot);
+      return false;
+    }
+    if (!seat.watcher && this.game.stage(room) === "running") {
+      this.status.notice(this.text.kickBetweenRounds);
+      return false;
+    }
+    this.pendingKick = { id, tick: this.append(LEAVE, id), attempts: 0 };
+    return true;
+  }
+  /**
+   * Once the kick's own tick has folded, say what it did. Gone: tell the target, so its join card says why its seat
+   * went instead of leaving it to guess. Still listed: the entry landed inside a round and only marked the member
+   * absent, which the presence duties will undo, so the manager is told to try again rather than believing it worked.
+   * The message is a courtesy over an unreliable link — it is retried while the link comes up, and then given up on.
+   */
+  private settleKick(): void {
+    const pending = this.pendingKick;
+    if (!pending || !this.world || this.world.tick < pending.tick) return;
+    if (this.game.seat(this.world.state, pending.id)) {
+      this.pendingKick = undefined;
+      this.status.notice(this.text.kickInRound);
+      return;
+    }
+    if (
+      this.transport?.send(pending.id, { type: "kicked" }) ||
+      ++pending.attempts >= KICK_NOTICE_ATTEMPTS
+    )
+      this.pendingKick = undefined;
   }
   private sendJoin(): boolean {
     const join = this.pendingJoin;
@@ -1377,6 +1458,7 @@ export class RoomRuntime<
     if (this.transport) {
       if (this.manager) this.creatorDuties(now);
       if (!this.creator) this.actingCreatorDuties(now);
+      this.settleKick();
       this.lastLoopAt = now;
       const player = this.player();
       if (player && !player.connected) this.absentControls();

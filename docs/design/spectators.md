@@ -49,7 +49,7 @@ world back the same way a late entry from an unseated creator always has.
 
 ## Succession, and the host who watches
 
-`successionOrder` is now the creator, then the connected human riders by id, then the connected spectators by id.
+`successionOrder` is now the creator, then the connected human riders (by id under rules `fuse-p2p-41`; in seat order from `fuse-p2p-42`), then the connected spectators by id.
 Watchers rank last because a room with a seat left in it should be managed from that seat — but they do rank, so a room
 whose riders have all dropped is still run by whoever is left watching.
 

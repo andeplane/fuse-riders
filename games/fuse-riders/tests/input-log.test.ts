@@ -32,6 +32,7 @@ import {
   hashText,
   memberConnected,
   permitted,
+  roomManager,
   successionOrder,
   type RoomState,
   type StreamEntries,
@@ -514,7 +515,7 @@ test("bots are simulated on every replica and the same log always folds to the s
   );
   assert.match(hashText("x"), /^[0-9a-f]{16}$/);
   assert.notEqual(hashText("a"), hashText("b"));
-  assert.equal(RULES, "fuse-p2p-45");
+  assert.equal(RULES, "fuse-p2p-46");
   const reordered = createRoomState("room", settings);
   reordered.game.players = new Map([...a.game.players].reverse());
   reordered.game.tick = a.game.tick;
@@ -588,6 +589,39 @@ test("succession: a rider may record the absence of anyone ahead of it, and mana
     true,
     "an absent rider manages nothing",
   );
+});
+
+test("succession follows the seats, not the member ids: the room passes to the rider in the next seat down", () => {
+  const r = playing();
+  // `aaa` sits below `guest` but sorts before it: by id it would be the delegate, by seat it is not.
+  r.tick(
+    streams(["creator", [r.at("creator", JOIN, "aaa", "Aaa", 2, "fox", 3)]]),
+  );
+  assert.deepEqual(successionOrder(r.state, "creator"), [
+    "creator",
+    "guest",
+    "aaa",
+  ]);
+  r.tick(
+    streams(["creator", [r.at("creator", PRESENCE, "creator", false, 1)]]),
+  );
+  assert.equal(
+    actingCreator(r.state, "creator"),
+    "guest",
+    "seat 1 takes over, not the lowest id",
+  );
+  r.tick(streams(["guest", [r.at("guest", PRESENCE, "guest", false, 2)]]));
+  assert.equal(actingCreator(r.state, "creator"), "aaa", "and then seat 2");
+  // A watcher still ranks behind every seated rider, and its id cannot buy it a place: `aa` sorts before the seated
+  // `aaa`, so a single merged sort by id would put it first.
+  r.tick(
+    streams(["aaa", [r.at("aaa", SPECTATOR, "join", "aa", "Watcher", 9)]]),
+  );
+  assert.deepEqual(successionOrder(r.state, "creator"), [
+    "creator",
+    "aaa",
+    "aa",
+  ]);
 });
 
 test("a lobby reset keeps only the folds and bots of riders it still seats, so the state stays snapshot-clean", () => {
@@ -836,4 +870,58 @@ test("the watching list hashes by member id, never by the order the joins arrive
     hashRoomState(forwards),
     "who is watching is part of the state every replica agrees on",
   );
+});
+
+test("the crown names one member, and it is the log's own answer", () => {
+  const r = playing();
+  assert.equal(roomManager(r.state, "creator"), "creator");
+  r.tick(
+    streams(["creator", [r.at("creator", PRESENCE, "creator", false, 1)]]),
+  );
+  assert.equal(
+    roomManager(r.state, "creator"),
+    "guest",
+    "a creator that goes absent hands the room on",
+  );
+  r.tick(streams(["guest", [r.at("guest", PRESENCE, "creator", true, 1)]]));
+  assert.equal(roomManager(r.state, "creator"), "creator", "and takes it back");
+  // A creator that only ever watched is a member like any other: it holds the crown while it is present and hands it
+  // on when it goes, and the watching record being dropped at the next pause does not take the crown with it.
+  const w = room();
+  w.tick(
+    streams([
+      "creator",
+      [
+        w.at("creator", JOIN, "guest", "Guest", 0, "cat", 1),
+        w.at("creator", SPECTATOR, "join", "creator", "Host", 1),
+      ],
+    ]),
+  );
+  assert.equal(roomManager(w.state, "creator"), "creator");
+  w.tick(
+    streams(["creator", [w.at("creator", PRESENCE, "creator", false, 1)]]),
+  );
+  assert.equal(roomManager(w.state, "creator"), "guest");
+  w.tick(streams(["guest", [w.at("guest", ACTION, "lobby", "match-2")]]));
+  assert.equal(
+    w.state.spectators.has("creator"),
+    false,
+    "the absent watcher's place is freed by the lobby reset",
+  );
+  assert.equal(
+    roomManager(w.state, "creator"),
+    "guest",
+    "and the crown stays with the member that is still here",
+  );
+  // A creator the room has no record of at all — a host driving a shared screen from a page that took no seat — is the
+  // one case the log cannot answer, and it answers the same way: the first seat holds the crown beside that page.
+  const tv = room();
+  tv.tick(
+    streams([
+      "creator",
+      [tv.at("creator", JOIN, "guest", "Guest", 0, "cat", 1)],
+    ]),
+  );
+  assert.equal(actingCreator(tv.state, "creator"), "guest");
+  assert.equal(roomManager(tv.state, "creator"), "guest");
 });

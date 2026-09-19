@@ -56,7 +56,8 @@ const present = (
   presentRoom({
     state,
     playerId: "me",
-    host: true,
+    manages: true,
+    managerId: "me",
     replacedHost: false,
     solo: false,
     displayOnly: false,
@@ -113,14 +114,14 @@ test("lobby: who is ready, what the host may do, and what a guest waits for", ()
   });
   assert.equal(host.power.hidden, true);
 
-  const guest = present(lobby, { playerId: "ada", host: false });
+  const guest = present(lobby, { playerId: "ada", manages: false });
   assert.equal(
     guest.notice,
     "Ready up — the race starts when everyone is ready",
   );
   assert.equal(guest.actions.hidden, false);
 
-  const unseated = present(lobby, { playerId: "new", host: false });
+  const unseated = present(lobby, { playerId: "new", manages: false });
   assert.equal(unseated.joined, false);
   assert.equal(unseated.notice, "Join your friends, then start the race");
   assert.equal(unseated.avatarHidden, true);
@@ -285,11 +286,27 @@ test("standings: ranked by match score, round points breaking ties, the leader m
     disabled: false,
     title: "Remove AI rider",
     label: "Remove AI Bo",
+    confirms: false,
   });
-  assert.equal(scored.standings[0]!.remove.hidden, true, "only AI riders");
+  assert.deepEqual(
+    scored.standings[1]!.remove,
+    {
+      hidden: false,
+      disabled: false,
+      title: "Remove Ada from the room",
+      label: "Remove Ada from the room",
+      confirms: true,
+    },
+    "a friend goes the same way as an AI rider, but is asked about twice",
+  );
   assert.equal(
-    present(frame({ phase: "roundOver" }), { host: false }).standings[2]!.remove
-      .hidden,
+    scored.standings[0]!.remove.hidden,
+    true,
+    "never the manager's own row",
+  );
+  assert.equal(
+    present(frame({ phase: "roundOver" }), { manages: false }).standings[2]!
+      .remove.hidden,
     true,
     "only the host",
   );
@@ -359,7 +376,7 @@ test("match over: the winner's beat, then MATCH COMPLETE and REMATCH once the re
 test("a TV has no seat, no controls and no power chip", () => {
   const view = present(frame(), {
     playerId: "",
-    host: false,
+    manages: false,
     displayOnly: true,
   });
   assert.equal(view.joinPanelHidden, true);
@@ -411,13 +428,21 @@ test("the watching list is its own block: no colour, no READY, and a footer that
   const view = present(lobby, {
     spectators: watchers,
     playerId: "ada",
-    host: false,
+    manages: false,
   });
   assert.equal(view.lobby.watchersHidden, false);
-  assert.deepEqual(view.lobby.watchers, [
-    { id: "w1", name: "Watcher", status: "WATCHING" },
-    { id: "w2", name: "Away", status: "OFFLINE" },
-  ]);
+  assert.deepEqual(
+    view.lobby.watchers.map((seat) => [seat.id, seat.name, seat.status]),
+    [
+      ["w1", "Watcher", "WATCHING"],
+      ["w2", "Away", "OFFLINE"],
+    ],
+  );
+  assert.deepEqual(
+    view.lobby.watchers.map((seat) => seat.remove.hidden),
+    [true, true],
+    "a guest cannot send a watcher home",
+  );
   assert.equal(
     view.lobby.count,
     "3 riders · 1 watching",
@@ -442,7 +467,7 @@ test("a watcher is in the room: no join card, no controls, no avatar and its own
   const lobby = frame({ phase: "lobby", tick: 0 });
   const watcher = present(lobby, {
     playerId: "w1",
-    host: false,
+    manages: false,
     spectators: [{ id: "w1", name: "Watcher", connected: true }],
   });
   assert.equal(watcher.joined, false);
@@ -465,23 +490,101 @@ test("a watcher is in the room: no join card, no controls, no avatar and its own
   assert.deepEqual(
     present(lobby, {
       playerId: "w1",
-      host: true,
+      manages: true,
+      managerId: "w1",
       spectators: [{ id: "w1", name: "Watcher", connected: true }],
-    }).lobby.watchers.map((seat) => seat.status),
-    ["HOST · WATCHING"],
-    "and says so when this device runs the room from the list",
+    }).lobby.watchers.map((seat) => [
+      seat.status,
+      seat.host,
+      seat.remove.hidden,
+    ]),
+    [["YOU · WATCHING", true, true]],
+    "a host watching from the list wears the badge and cannot remove itself",
+  );
+  assert.deepEqual(
+    present(lobby, {
+      playerId: "me",
+      manages: true,
+      managerId: "me",
+      spectators: [{ id: "w1", name: "Watcher", connected: true }],
+    }).lobby.watchers.map((seat) => seat.remove),
+    [
+      {
+        hidden: false,
+        disabled: false,
+        title: "Remove Watcher from the room",
+        label: "Remove Watcher from the room",
+        confirms: true,
+      },
+    ],
+    "and a watcher holds no seat, so the manager may send it home in any phase",
   );
   assert.equal(
-    present(lobby, { playerId: "ada", host: false }).notice,
+    present(lobby, { playerId: "ada", manages: false }).notice,
     "Ready up — the race starts when everyone is ready",
     "a seated rider's notice is unchanged",
+  );
+});
+
+test("the host badge follows the fold, and the delegate gets the host's controls", () => {
+  const lobby = frame({ phase: "lobby" });
+  // On the host's own screen and on everyone else's: one row wears the badge, and it is the same row.
+  for (const playerId of ["me", "ada", "new"])
+    assert.deepEqual(
+      present(lobby, {
+        playerId,
+        manages: playerId === "me",
+        managerId: "me",
+      }).lobby.riders.map((rider) => rider.host),
+      [true, false, false],
+      `${playerId} sees the badge on the host's row`,
+    );
+  // The creator dropped: the fold hands the room to the rider in the next seat, and its controls with it.
+  const delegate = present(lobby, {
+    playerId: "ada",
+    manages: true,
+    managerId: "ada",
+  });
+  assert.deepEqual(
+    delegate.lobby.riders.map((rider) => rider.host),
+    [false, true, false],
+  );
+  assert.equal(delegate.actions.hidden, false);
+  assert.deepEqual(
+    delegate.standings.map((p) => p.remove.hidden),
+    [false, true, false],
+    "and holds the remove buttons the creator held, except over its own seat",
+  );
+  // The creator is back on the page but the fold still names Ada: its controls are Ada's until the crown moves back.
+  const guest = present(lobby, {
+    playerId: "me",
+    manages: false,
+    managerId: "ada",
+  });
+  assert.deepEqual(
+    guest.lobby.riders.map((rider) => rider.host),
+    [false, true, false],
+  );
+  assert.deepEqual(
+    guest.standings.map((p) => p.remove.hidden),
+    [true, true, true],
+    "and holds no remove button either",
+  );
+});
+
+test("a tab replaced as host keeps neither its controls nor its remove buttons", () => {
+  const view = present(frame({ phase: "lobby" }), { replacedHost: true });
+  assert.equal(view.actions.hidden, true);
+  assert.deepEqual(
+    view.standings.map((p) => p.remove.hidden),
+    [true, true, true],
   );
 });
 
 test("ready controls belong to riders, including guests; votes are reflected and spectators cannot vote", () => {
   const lobby = frame({ phase: "lobby" });
   assert.deepEqual(
-    present(lobby, { host: false, readyPlayers: ["me"] }).actions.ready,
+    present(lobby, { manages: false, readyPlayers: ["me"] }).actions.ready,
     { hidden: false, pressed: true, label: "NOT READY" },
   );
   assert.equal(
@@ -500,7 +603,7 @@ test("ready controls belong to riders, including guests; votes are reflected and
   );
   assert.deepEqual(
     present(frame({ phase: "matchOver", tick: 2, phaseEndsAtTick: 2 }), {
-      host: false,
+      manages: false,
     }).actions.ready,
     { hidden: false, pressed: false, label: "READY FOR REMATCH" },
   );

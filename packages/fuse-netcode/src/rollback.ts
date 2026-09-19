@@ -5,7 +5,7 @@ import type {
   StreamEntries,
   Ticker,
 } from "./game.js";
-import { disconnects, successionOrder } from "./management.js";
+import { disconnects, roomManager, successionOrder } from "./management.js";
 import {
   ROLLBACK_TICKS,
   StreamLog,
@@ -38,6 +38,11 @@ export type Frame<View extends { tick: number } = { tick: number }> = View & {
   matchId: string;
   /** The log tick this frame was simulated at. `tick` is the game's own clock, which a log tick can advance by more than one. */
   logTick: number;
+  /**
+   * Who manages the room as this frame folded: the creator while it is present, otherwise the next member in the
+   * succession order. Derived from the same fold on every replica, so every screen names the same host.
+   */
+  managerId: string;
 };
 
 /**
@@ -141,6 +146,7 @@ export class World<
       ...this.game.view(state),
       matchId: this.game.scope(state).matchId,
       logTick: state.tick,
+      managerId: roomManager(this.game.members(state), this.creatorId),
     };
   }
   /** Each member's entries at `tick` from its current stream and from any retired generation still replayable; the reducer picks by fold generation. */

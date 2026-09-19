@@ -150,20 +150,44 @@ export function isManagementEntry<Settings>(
 }
 
 /**
- * Who manages the room when those before them are absent: the creator, then the connected seated humans by id, then the
- * connected watchers by id. Watchers rank last because a room with a seat left in it should be managed from that seat,
- * but they do rank: a room whose players all dropped is still run by whoever is left watching.
+ * Who manages the room when those before them are absent: the creator, then the connected seated humans in seat order,
+ * then the connected watchers by id. Seat order is what a player reads off the lobby list, so the room passes to the
+ * player in the next seat down rather than to whoever holds the lowest member id; `members()` may yield seats in any
+ * order, so the rank is taken from `slot` here rather than trusted from the caller. Watchers rank last because a room
+ * with a seat left in it should be managed from that seat, but they do rank: a room whose players all dropped is still
+ * run by whoever is left watching.
  */
 export function successionOrder(
   seats: Iterable<Seat>,
   creatorId: string,
 ): string[] {
-  const players: string[] = [],
+  const players: Seat[] = [],
     watchers: string[] = [];
   for (const seat of seats)
     if (seat.connected && !seat.bot && seat.id !== creatorId)
-      (seat.watcher ? watchers : players).push(seat.id);
-  return [creatorId, ...players.sort(), ...watchers.sort()];
+      if (seat.watcher) watchers.push(seat.id);
+      else players.push(seat);
+  players.sort(
+    (a, b) => a.slot - b.slot || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
+  return [creatorId, ...players.map((seat) => seat.id), ...watchers.sort()];
+}
+/**
+ * Who runs the room for the players: the one name the screens show as HOST, and the one the room commands are gated on.
+ * It is the log's own answer — the creator while the room counts it present, otherwise whoever the duties fall to — so
+ * every replica names the same member from the same fold.
+ *
+ * It does not try to be cleverer than the log about a creator the room has no record of, which is a host driving a
+ * shared screen from a page that took no seat. There the crown goes to the player in the first seat, beside the
+ * creator's own page, which keeps its controls because it knows it is the creator (`RoomRuntime.managing`). That is
+ * what the log has always permitted there (`permitted` accepts every management kind from that player, ADR 047 §9),
+ * and the alternative is worse: any rule that keeps the crown on an unrecorded creator also keeps it on one that has
+ * left, and a room whose crown sits on a member no device answers for cannot be started, rematched or emptied by
+ * anyone. A creator that means to hand the room over for good is ADR 047 N5.
+ */
+export function roomManager(seats: Iterable<Seat>, creatorId: string): string {
+  const all = [...seats];
+  return actingCreator(all, creatorId) ?? creatorId;
 }
 /**
  * Which non-creator stream may carry management entries right now: the delegate, only while the creator is disconnected.

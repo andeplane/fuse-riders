@@ -36,7 +36,7 @@ import type { GameEvent } from "./state.js";
 import { driveGameTick } from "./tick-driver.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-45"; // 45: generation- and match-scoped ready votes start games and rematches deterministically. 44 reserved by the hidden-tab policy PR.
+export const RULES = "fuse-p2p-46"; // 46: the room passes to the rider in the next seat, not the lowest member id: succession ranks connected human riders by seat. 45: generation- and match-scoped ready votes start games and rematches deterministically. 44 reserved by the hidden-tab policy PR.
 // 43: the state takes the registries' shape (timed effects as `effects[]`, weapons as `armed[]`, Gun tracers in `tracers` rather than `bombs`, one fresh-round rider, no dead pickup, bomb or transit fields); every event and every view is unchanged. 42: the `drift` map (the wrapping board with a cross of walls on it that wanders like a screensaver logo) and the `trains` map (classic walls, trains round two loops of track): an obstacle may carry a `motion`, advanced by the `moveScenery` phase after `fitField`; `wall` and `train` obstacles stand through blasts and the overtime walls; scenery is met across open edges by riders and bullets, as trails are. 41: spectators are room members in the fold: SPECTATOR entries seat and free them, PRESENCE and LEAVE reach them, and they rank last in the succession order. 40: Target Bomb and the aim input are gone; Star drops by default. 39: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
@@ -98,9 +98,11 @@ export function freeSlot(game: GameState): number {
 }
 
 /**
- * Who manages the room when those before them are absent: the creator, then the connected human riders by id, then the
- * connected spectators by id. Watchers rank last because a room with a seat left in it should be managed from that seat,
- * but they do rank: a room whose riders all dropped is still run by whoever is left watching.
+ * Who manages the room when those before them are absent: the creator, then the connected human riders in seat order,
+ * then the connected spectators by id. Seat order is what a player reads off the lobby list, so the room passes to the
+ * rider in the next seat down rather than to whoever holds the lowest member id. Watchers rank last because a room with
+ * a seat left in it should be managed from that seat, but they do rank: a room whose riders all dropped is still run by
+ * whoever is left watching.
  */
 export function successionOrder(state: RoomState, creatorId: string): string[] {
   return [
@@ -112,8 +114,7 @@ export function successionOrder(state: RoomState, creatorId: string): string[] {
           !state.bots.has(player.id) &&
           player.id !== creatorId,
       )
-      .map((player) => player.id)
-      .sort(),
+      .map((player) => player.id),
     ...[...state.spectators]
       .filter(([id, spectator]) => spectator.connected && id !== creatorId)
       .map(([id]) => id)
@@ -168,6 +169,23 @@ export function permitted(
     if (target >= 0 && target < rank) return true;
   }
   return actingCreator(state, creatorId) === manager;
+}
+
+/**
+ * Who runs the room for the players: the one name the screens show as HOST, and the one the room commands are gated on.
+ * It is the log's own answer — the creator while the room counts it present, otherwise whoever the duties fall to — so
+ * every replica names the same member from the same fold.
+ *
+ * It does not try to be cleverer than the log about a creator the room has no record of, which is a host driving a
+ * shared screen from a page that took no seat. There the crown goes to the rider in the first seat, beside the
+ * creator's own page, which keeps its controls because it knows it is the creator (`RoomRuntime.managing`). That is
+ * what the log has always permitted there (`permitted` accepts every management kind from that rider, ADR 047 §9), and
+ * the alternative is worse: any rule that keeps the crown on an unrecorded creator also keeps it on one that has left,
+ * and a room whose crown sits on a member no device answers for cannot be started, rematched or emptied by anyone.
+ * A creator that means to hand the room over for good is ADR 047 N5.
+ */
+export function roomManager(state: RoomState, creatorId: string): string {
+  return actingCreator(state, creatorId) ?? creatorId;
 }
 
 function pruneDisconnected(state: RoomState): void {
