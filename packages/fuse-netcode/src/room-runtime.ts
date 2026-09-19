@@ -457,7 +457,15 @@ export class RoomRuntime<
     const state = this.world?.state,
       player = state && this.game.seat(state, id);
     // A hidden page's world is frozen: what it would log is judged from stale seats, so it leaves that to the others.
-    if (!this.manager || !player || this.hiddenState) return;
+    // Nor does a manager whose own seat is still away log departures: the entry would be discarded by every reducer
+    // while the stall rule read it, so the room would stop waiting for a member nobody disconnected.
+    if (
+      !this.manager ||
+      !player ||
+      this.hiddenState ||
+      this.game.seat(state!, this.id)?.away === true
+    )
+      return;
     // A reload reaches here too: the service retires the old socket before it admits the new page. In the lobby that
     // frees the seat, and the page confirms its name on the join card. Mid-match it is absence, not departure: `LEAVE`
     // frees a seat at once in `roundOver` and `matchOver`, so a reload that landed just after the round ended lost the
@@ -1187,10 +1195,17 @@ export class RoomRuntime<
     };
     // Only a silent creator opens the succession: while it is heard, it alone marks riders absent, on its one-second rule.
     if (mine < 0 || !silent(this.hostId)) return;
-    const heard = (id: string) =>
-      id === this.id ||
-      (this.members.has(id) &&
-        now - this.members.get(id)!.lastPacketAt <= DISCONNECT_MS);
+    // A hidden page's packets arrive about once a second, right on the `DISCONNECT_MS` boundary, so it would win this
+    // election every other pass and then do nothing (its duties are for visible pages): it is not counted as heard.
+    const heard = (id: string) => {
+      const member = this.members.get(id);
+      return (
+        id === this.id ||
+        (member !== undefined &&
+          !member.hidden &&
+          now - member.lastPacketAt <= DISCONNECT_MS)
+      );
+    };
     if (order.slice(1).find(heard) !== this.id) return;
     for (const id of order.slice(0, mine)) {
       if (!this.game.seat(state, id)?.connected || !silent(id)) continue;

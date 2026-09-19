@@ -5,7 +5,12 @@ import type {
   StreamEntries,
   Ticker,
 } from "./game.js";
-import { disconnects, roomManager, successionOrder } from "./management.js";
+import {
+  disconnects,
+  permitted,
+  roomManager,
+  successionOrder,
+} from "./management.js";
 import {
   ROLLBACK_TICKS,
   StreamLog,
@@ -186,21 +191,25 @@ export class World<
       olds.map((stream) => ({ id, stream })),
     );
   }
-  /** Entries in the applicable log that disconnect `id` after the current tick: the stall rule may not wait past them. */
+  /**
+   * Entries in the applicable log that disconnect `id` after the current tick: the stall rule may not wait past them.
+   * Only entries the reducer will actually apply count (`permitted`): one it refuses — a `LEAVE` from a member that may
+   * log nothing but an absence ahead of it, an away member's among them — would otherwise stop the room waiting for a
+   * member it never disconnects, and a crafted stream could do that on purpose. Away members are scanned because
+   * `permitted` does let them record the absence of someone ahead of them.
+   */
   private pendingDisconnect(id: string): number | undefined {
     let earliest: number | undefined;
-    // Away members rank here too: `permitted` lets them record the absence of someone ahead of them, and the stall
-    // rule must not wait past an entry it would apply.
-    for (const manager of successionOrder(
-      this.game.members(this.state),
-      this.creatorId,
-      true,
-    )) {
+    const members = this.game.members(this.state);
+    for (const manager of successionOrder(members, this.creatorId, true)) {
       const stream = this.streams.get(manager);
       if (!stream) continue;
       for (const entry of stream.entries.values()) {
         if (entry[0] > stream.contiguous || entry[1] <= this.tick) continue;
-        if (disconnects(entry) === id)
+        if (
+          disconnects(entry) === id &&
+          permitted(members, this.creatorId, manager, entry)
+        )
           earliest = Math.min(earliest ?? Infinity, entry[1]);
       }
     }

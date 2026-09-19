@@ -603,3 +603,26 @@ test("an away member whose last peer dies unlogged records that death, comes bac
   );
   r.runtimes.get(guest)!.stop();
 });
+
+test("a creator back but not yet folded back logs no departure for a peer the service drops", () => {
+  const r = room(3);
+  const third = GUESTS[1]!;
+  enter(r, "playing");
+  r.net.setHidden(HOST, true);
+  r.net.step(3000);
+  // Back, but its return is logged by the delegate and has not folded yet: the service reports the third rider gone in
+  // that window. A `LEAVE`/`PRESENCE false` from the away creator is refused by every reducer, so it must not be logged
+  // at all — read by the stall rule, it would write off a rider whose inputs are still owed.
+  r.net.setHidden(HOST, false);
+  r.runtimes.get(third)!.stop();
+  r.net.disconnect(third);
+  r.net.step(15_000);
+  assert.equal(
+    seated(r, GUESTS[0]!, third)?.connected ?? false,
+    false,
+    "the delegate records the departure once it is managing",
+  );
+  converge(r, [HOST, GUESTS[0]!]);
+  assert.ok(seated(r, GUESTS[0]!, HOST)?.connected, "the creator is back");
+  for (const runtime of r.runtimes.values()) runtime.stop();
+});
