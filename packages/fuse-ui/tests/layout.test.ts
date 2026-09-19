@@ -163,3 +163,42 @@ test("phone layout: MENU opens the tools, a round closes them and replays the hi
     "outside play the page behaves normally",
   );
 });
+
+test("roster: an unchanged member is written to the DOM once, not every update", () => {
+  const { document } = page();
+  const roster = createRoster({ document, emptyText: "Nobody yet" });
+  const member = {
+    id: "a",
+    name: "Bo",
+    status: "READY",
+    host: true,
+    ready: true,
+  };
+  roster.update([member]);
+  const row = roster.row("a")!;
+  const status = row.querySelector("small")!,
+    name = row.querySelector("strong")!;
+  let writes = 0;
+  // Counting the assignments the update makes: the DOM's own mutation records are the browser's, not linkedom's.
+  for (const [element, key] of [
+    [status, "textContent"],
+    [name, "textContent"],
+  ] as const) {
+    let value = element[key];
+    Object.defineProperty(element, key, {
+      get: () => value,
+      set: (next) => {
+        writes++;
+        value = next;
+      },
+    });
+  }
+  roster.update([member]);
+  roster.update([{ ...member }]);
+  assert.equal(writes, 0, "same values, no writes");
+  assert.equal(roster.empty!.hidden, true);
+  roster.update([{ ...member, status: "OFFLINE", name: "Cy" }]);
+  assert.equal(writes, 2);
+  assert.equal(status.textContent, "OFFLINE");
+  assert.equal(name.textContent, "Cy");
+});

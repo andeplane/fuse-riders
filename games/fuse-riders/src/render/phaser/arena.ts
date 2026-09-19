@@ -250,9 +250,10 @@ export function createPhaserArena(
     // The crossed map is the same world seen through four cameras, each showing one quarter in the opposite corner
     // of the screen. Nothing that is drawn knows: every object is clipped at a seam and picked up past it for free.
     scene.rotated = backing.rotated;
-    canvas.dataset.arenaOrientation = backing.rotated
-      ? "portrait"
-      : "landscape";
+    // The smokes read this; writing it every frame mutates the DOM 60 times a second for nothing.
+    const orientation = backing.rotated ? "portrait" : "landscape";
+    if (canvas.dataset.arenaOrientation !== orientation)
+      canvas.dataset.arenaOrientation = orientation;
     const screenWidth = backing.rotated ? backing.height : backing.width;
     const screenHeight = backing.rotated ? backing.width : backing.height;
     const zoomX = screenWidth / width,
