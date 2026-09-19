@@ -217,15 +217,21 @@ export function createRoster(options: RosterOptions = {}): Roster {
           row.entry.style.setProperty("--rider-color", member.color);
         if (row.shown !== member.name)
           row.name.textContent = row.shown = member.name;
-        row.status.textContent = member.status ?? "";
+        // A roster is diffed every frame; writing a value the DOM already holds still mutates it.
+        const status = member.status ?? "";
+        if (row.status.textContent !== status) row.status.textContent = status;
         if (member.host) {
-          row.host.hidden = false;
+          if (row.host.hidden) row.host.hidden = false;
           if (!row.host.parentElement) row.name.after(row.host);
-        } else row.host.hidden = true;
-        if (member.ready === undefined) delete row.entry.dataset.ready;
-        else row.entry.dataset.ready = String(member.ready);
+        } else if (!row.host.hidden) row.host.hidden = true;
+        const ready =
+          member.ready === undefined ? undefined : String(member.ready);
+        if (row.entry.dataset.ready !== ready) {
+          if (ready === undefined) delete row.entry.dataset.ready;
+          else row.entry.dataset.ready = ready;
+        }
       }
-      if (empty) empty.hidden = rows.size > 0;
+      if (empty && empty.hidden !== rows.size > 0) empty.hidden = rows.size > 0;
     },
   };
 }
