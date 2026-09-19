@@ -20,7 +20,7 @@ import {
 export const GAMES = [fuseRiders, diceRegistration] as const;
 
 /**
- * The games named by `EXTRA_fuseRiders.idS` (comma-separated), beside Fuse Riders. Cloud Run serves only Fuse Riders until
+ * The games named by `EXTRA_GAME_IDS` (comma-separated), beside Fuse Riders. Cloud Run serves only Fuse Riders until
  * the operator sets it (docs/online/GCP-DEPLOY.md: a second game goes live after the match-record backfill). An id
  * this repo has no registration for is a configuration error, not a game to skip.
  */
@@ -36,7 +36,7 @@ export function extraGameIds(value: string | undefined): string[] {
   for (const id of ids)
     if (id === fuseRiders.id || !GAMES.some((game) => game.id === id))
       throw new Error(
-        `EXTRA_fuseRiders.idS names ${JSON.stringify(id)}, which is not an extra game`,
+        `EXTRA_GAME_IDS names ${JSON.stringify(id)}, which is not an extra game`,
       );
   return ids;
 }
