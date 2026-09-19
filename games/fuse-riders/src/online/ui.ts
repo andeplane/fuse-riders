@@ -65,8 +65,10 @@ import { Telemetry, telemetryEndpoint } from "./telemetry.js";
 import type { AvatarId } from "../shared/avatars.js";
 import QRCode from "qrcode";
 import {
+  button,
   el as node,
   createConfirm,
+  createRadioGroup,
   createControllerRow,
   createDialog,
   createKeyList,
@@ -179,17 +181,89 @@ export async function startOnline(): Promise<void> {
     startAnalytics({ role: "landing" });
     track("App Opened");
     const card = node("main", "", "landing");
-    card.innerHTML = `<canvas class="landing-arena" aria-hidden="true"></canvas><div class="landing-shade"></div>
-      <header class="landing-top"><a class="landing-brand" href="${appUrl()}">FUSE<span>RIDERS</span></a><div class="landing-top-end game-top-menu"><span class="landing-tag">TINY RIDERS. BIG TROUBLE.</span><button class="landing-audio" type="button">♫ MUSIC ON</button><button class="landing-mute" type="button">🔊 SOUND ON</button></div></header>
-      <section class="landing-content"><p class="landing-eyebrow"><span></span> A NEON ARENA PARTY GAME</p>
-      <h1>LEAVE A TRAIL.<br>MAKE A <em>MESS.</em></h1>
-      <p class="landing-intro">Outrun your friends. Blow up their plans.<br>One arena. Five riders. Absolutely no brakes.</p>
-      <a class="solo-cta" href="${appUrl("?solo=1")}"><span>▶ &nbsp; PLAY SOLO</span><small>YOU VS. FOUR AI RIVALS</small></a>
-      <div class="landing-multiplayer"><p class="landing-section-label">OR BRING YOUR FRIENDS</p></div>
-      <p class="landing-hint">Phones are your controllers. A TV can be your arena.<br>On the same Wi-Fi? Even better.</p><a class="landing-more" href="${appUrl()}dice/">MORE GAMES: PIG ›</a></section>
-      <aside class="landing-live"><span class="live-dot"></span> LIVE AI FREE-FOR-ALL <small>Real riders. Real explosions.</small></aside>
-      <footer class="landing-footer"><span>STEER. CHARGE. RELEASE. SURVIVE.</span><button class="attract-toggle" type="button">Ⅱ PAUSE BACKGROUND</button></footer>`;
-    const form = card.querySelector<HTMLElement>(".landing-multiplayer")!;
+    const link = (href: string, className: string, ...content: Node[]) => {
+      const anchor = node("a", "", className);
+      anchor.href = href;
+      anchor.append(...content);
+      return anchor;
+    };
+    const arena = node("canvas", "", "landing-arena");
+    arena.setAttribute("aria-hidden", "true");
+    const brand = link(appUrl(), "landing-brand");
+    brand.append("FUSE", node("span", "RIDERS"));
+    const musicButton = button("♫ MUSIC ON", "landing-audio"),
+      muteButton = button("🔊 SOUND ON", "landing-mute"),
+      topEnd = node("div", "", "landing-top-end game-top-menu");
+    topEnd.append(
+      node("span", "TINY RIDERS. BIG TROUBLE.", "landing-tag"),
+      musicButton,
+      muteButton,
+    );
+    const top = node("header", "", "landing-top");
+    top.append(brand, topEnd);
+    const eyebrow = node("p", "", "landing-eyebrow");
+    eyebrow.append(node("span"), " A NEON ARENA PARTY GAME");
+    const headline = node("h1");
+    headline.append(
+      "LEAVE A TRAIL.",
+      node("br"),
+      "MAKE A ",
+      node("em", "MESS."),
+    );
+    const intro = node("p", "", "landing-intro");
+    intro.append(
+      "Outrun your friends. Blow up their plans.",
+      node("br"),
+      "One arena. Five riders. Absolutely no brakes.",
+    );
+    const soloLink = link(
+      appUrl("?solo=1"),
+      "solo-cta",
+      node("span", "▶ \u00a0 PLAY SOLO"),
+      node("small", "YOU VS. FOUR AI RIVALS"),
+    );
+    const form = node("div", "", "landing-multiplayer");
+    form.append(node("p", "OR BRING YOUR FRIENDS", "landing-section-label"));
+    const hint = node("p", "", "landing-hint");
+    hint.append(
+      "Phones are your controllers. A TV can be your arena.",
+      node("br"),
+      "On the same Wi-Fi? Even better.",
+    );
+    const content = node("section", "", "landing-content");
+    content.append(
+      eyebrow,
+      headline,
+      intro,
+      soloLink,
+      form,
+      hint,
+      link(
+        `${appUrl()}dice/`,
+        "landing-more",
+        document.createTextNode("MORE GAMES: PIG ›"),
+      ),
+    );
+    const live = node("aside", "", "landing-live");
+    live.append(
+      node("span", "", "live-dot"),
+      " LIVE AI FREE-FOR-ALL ",
+      node("small", "Real riders. Real explosions."),
+    );
+    const attractToggle = button("Ⅱ PAUSE BACKGROUND", "attract-toggle");
+    const footerBar = node("footer", "", "landing-footer");
+    footerBar.append(
+      node("span", "STEER. CHARGE. RELEASE. SURVIVE."),
+      attractToggle,
+    );
+    card.append(
+      arena,
+      node("div", "", "landing-shade"),
+      top,
+      content,
+      live,
+      footerBar,
+    );
     const guide = node("section", "", "landing-guide"),
       guideTitle = node("h2", "POWER-UPS", "landing-section-label");
     guideTitle.id = "landing-guide-title";
@@ -202,27 +276,17 @@ export async function startOnline(): Promise<void> {
         offByDefaultNote: "(off by default, enable in room settings)",
       }).element,
     );
-    card.querySelector(".landing-content")!.append(guide);
-    const mode = node("fieldset", "", "landing-mode");
-    mode.setAttribute("aria-label", "Where will you play?");
-    mode.append(node("legend", "Where will you play?"));
-    let selectedMode = loadRoomSettings(storage).mode;
-    for (const [value, label] of [
-      ["devices", "Each device"],
-      ["shared", "Shared TV"],
-    ] as const) {
-      const option = node("label"),
-        radio = node("input");
-      radio.type = "radio";
-      radio.name = "landing-mode";
-      radio.value = value;
-      radio.checked = selectedMode === value;
-      radio.onchange = () => {
-        selectedMode = value;
-      };
-      option.append(radio, node("span", label));
-      mode.append(option);
-    }
+    content.append(guide);
+    const { element: mode, value: chosenMode } = createRadioGroup({
+      legend: "Where will you play?",
+      name: "landing-mode",
+      options: [
+        { value: "devices", label: "Each device" },
+        { value: "shared", label: "Shared TV" },
+      ],
+      selected: loadRoomSettings(storage).mode,
+      className: "landing-mode",
+    });
     const create = node("button", "CREATE ROOM");
     const error = node("p");
     // `enter` keeps the document, so Room Created no longer needs a send-before-unload flush: nothing unloads out from
@@ -233,37 +297,44 @@ export async function startOnline(): Promise<void> {
         const body = await createRoom(apiUrl, fetch, GAME_ID);
         save(`fuse-room-${body.code}`, body.token);
         const settings = loadRoomSettings(storage);
-        settings.mode = selectedMode;
+        settings.mode = chosenMode();
         save(SETTINGS_KEY, JSON.stringify(settings));
-        track("Room Created", { mode: selectedMode });
+        track("Room Created", { mode: settings.mode });
         enter(`?room=${body.code}`);
       } catch (e) {
         error.textContent = String(e);
         create.disabled = false;
       }
     };
-    mode.setAttribute("aria-label", "Where will you play?");
     error.setAttribute("role", "alert");
     const createRow = node("div", "", "landing-create");
     createRow.append(mode, create);
+    // The last room this browser was in is one tap away; a closed room still lands on its ROOM CLOSED card, which forgets it.
+    const lastRoom = read(LAST_ROOM_KEY);
     const { row: joinRow } = createJoinByCode({
       valid: validRoomCode,
       onJoin: (value) => enter(`?room=${value}`),
       onInvalid: (message) => {
         error.textContent = message;
       },
-      classes: { root: "landing-join", input: "", button: "" },
+      ...(lastRoom && validRoomCode(lastRoom)
+        ? {
+            rejoin: {
+              code: lastRoom,
+              title: "Return to the room you were in last",
+              onRejoin: (room: string) => {
+                location.href = appUrl(`?room=${room}`);
+              },
+            },
+          }
+        : {}),
+      classes: {
+        root: "landing-join",
+        input: "",
+        button: "",
+        rejoin: "landing-rejoin",
+      },
     });
-    // The last room this browser was in is one tap away; a closed room still lands on its ROOM CLOSED card, which forgets it.
-    const lastRoom = read(LAST_ROOM_KEY);
-    if (lastRoom && validRoomCode(lastRoom)) {
-      const rejoin = node("button", `REJOIN ${lastRoom}`, "landing-rejoin");
-      rejoin.title = "Return to the room you were in last";
-      rejoin.onclick = () => {
-        location.href = appUrl(`?room=${lastRoom}`);
-      };
-      joinRow.append(rejoin);
-    }
     form.append(createRow, joinRow, error);
     app.replaceChildren(card);
     let cleanup: (() => void) | undefined,
@@ -293,29 +364,23 @@ export async function startOnline(): Promise<void> {
     });
     // The landing page has no room and no snapshots, so its music is background music the toggle owns outright.
     const landingAudio = sharedAudio();
-    landingAudio.bindMusicToggle(
-      card.querySelector<HTMLButtonElement>(".landing-audio")!,
-    );
-    landingAudio.bindMuteToggle(
-      card.querySelector<HTMLButtonElement>(".landing-mute")!,
-    );
-    card.querySelector(".landing-audio")!.before(landingAudio.controls);
+    landingAudio.bindMusicToggle(musicButton);
+    landingAudio.bindMuteToggle(muteButton);
+    musicButton.before(landingAudio.controls);
     radioToggle = () => landingAudio.controls.toggleAttribute("open");
     // PLAY SOLO is a real link for a new tab or a bookmark; a plain click takes the in-place route with the music.
-    card
-      .querySelector<HTMLAnchorElement>(".solo-cta")!
-      .addEventListener("click", (event) => {
-        if (
-          event.button ||
-          event.metaKey ||
-          event.ctrlKey ||
-          event.shiftKey ||
-          event.altKey
-        )
-          return;
-        event.preventDefault();
-        enter("?solo=1");
-      });
+    soloLink.addEventListener("click", (event) => {
+      if (
+        event.button ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      )
+        return;
+      event.preventDefault();
+      enter("?solo=1");
+    });
     // Settings before a game exists (#168): the same room settings CREATE ROOM and PLAY SOLO read from storage. The screen layout
     // stays disabled here because the radio buttons below choose it for the room being created.
     const landingSettings = node("button", "SETTINGS", "landing-settings");
@@ -358,25 +423,21 @@ export async function startOnline(): Promise<void> {
       );
       landingDialog.showModal();
     };
-    card.querySelector(".landing-top-end")!.append(landingSettings);
+    topEnd.append(landingSettings);
     card.append(landingDialog);
     // Optional sign-in and match history. A guest who never opens it never downloads the sign-in SDK.
     const accountPanel = createPlayerAccountPanel();
-    card
-      .querySelector(".landing-top-end")!
-      .append(accountPanel.leaderboardButton, accountPanel.button);
+    topEnd.append(accountPanel.leaderboardButton, accountPanel.button);
     card.append(accountPanel.dialog);
     window.addEventListener("pagehide", accountPanel.dispose, { once: true });
-    void startAttract(
-      card.querySelector("canvas")!,
-      card.querySelector(".attract-toggle")!,
-    )
+    // The attract loop stays Fuse Riders' own: it runs the game's engine and renderer behind the landing page.
+    void startAttract(arena, attractToggle)
       .then((stop) => {
         if (ended) stop();
         else cleanup = stop;
       })
       .catch(() => {
-        card.querySelector(".landing-live")?.remove();
+        live.remove();
       });
     return;
   }

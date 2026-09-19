@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createNameEntry, createPicker } from "fuse-ui";
+import {
+  createJoinByCode,
+  createNameEntry,
+  createPicker,
+  createRadioGroup,
+} from "fuse-ui";
 import { HOSTILE, event, page } from "./dom-fixture.js";
 
 test("name entry: a second way in, a lockable name with its note, a slot, and part classes", () => {
@@ -198,4 +203,71 @@ test("picker: folded behind a summary that opens it and closes on a pick", () =>
     document,
   });
   assert.match(generated.element.id, /^fui-picker-\d+$/);
+});
+
+test("radio group: a labelled fieldset whose value follows the checked radio", () => {
+  const { document, window } = page();
+  const changes: string[] = [];
+  const group = createRadioGroup({
+    legend: "Where will you play?",
+    name: "mode",
+    options: [
+      { value: "devices", label: HOSTILE },
+      { value: "shared", label: "Shared TV" },
+    ],
+    selected: "shared",
+    onChange: (value) => changes.push(value),
+    className: "landing-mode",
+    document,
+  });
+  assert.equal(group.element.className, "landing-mode");
+  assert.equal(
+    group.element.getAttribute("aria-label"),
+    "Where will you play?",
+  );
+  assert.equal(group.element.firstElementChild!.tagName, "LEGEND");
+  const [devices, shared] = group.inputs;
+  assert.equal(devices!.type, "radio");
+  assert.equal(devices!.name, "mode");
+  assert.equal(devices!.checked, false);
+  assert.equal(shared!.checked, true);
+  assert.equal(devices!.parentElement!.textContent, HOSTILE);
+  assert.equal(devices!.parentElement!.querySelector("img"), null);
+  assert.equal(group.value(), "shared");
+  devices!.checked = true;
+  devices!.dispatchEvent(event(window, "change"));
+  assert.equal(group.value(), "devices");
+  assert.deepEqual(changes, ["devices"]);
+});
+
+test("join by code: REJOIN the last room after JOIN", () => {
+  const { document } = page();
+  const rejoined: string[] = [];
+  const join = createJoinByCode({
+    valid: () => true,
+    onJoin: () => {},
+    onInvalid: () => {},
+    rejoin: {
+      code: "AB42",
+      title: "Return to the room you were in last",
+      onRejoin: (code) => rejoined.push(code),
+    },
+    classes: { rejoin: "landing-rejoin" },
+    document,
+  });
+  const rejoin = join.rejoin!;
+  assert.deepEqual([...join.row.children], [join.input, join.button, rejoin]);
+  assert.equal(rejoin.textContent, "REJOIN AB42");
+  assert.equal(rejoin.className, "landing-rejoin");
+  assert.equal(rejoin.title, "Return to the room you were in last");
+  rejoin.click();
+  assert.deepEqual(rejoined, ["AB42"]);
+  const fresh = createJoinByCode({
+    valid: () => true,
+    onJoin: () => {},
+    onInvalid: () => {},
+    document,
+  });
+  assert.equal(fresh.rejoin, undefined);
+  assert.equal(fresh.row.children.length, 2);
 });

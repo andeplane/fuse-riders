@@ -63,7 +63,10 @@ export {
 } from "./controller.js";
 export {
   createPicker,
+  createRadioGroup,
   type Picker,
+  type RadioGroup,
+  type RadioGroupOptions,
   type PickerChoice,
   type PickerOptions,
   type PickerPart,

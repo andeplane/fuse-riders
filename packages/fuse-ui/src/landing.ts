@@ -1,11 +1,12 @@
 import { el, partClass, type PartClasses } from "./dom.js";
 
-export type JoinByCodePart = "root" | "input" | "button";
+export type JoinByCodePart = "root" | "input" | "button" | "rejoin";
 
 const JOIN_BY_CODE_CLASSES: Record<JoinByCodePart, string> = {
   root: "fui-join-code",
   input: "fui-join-code-input",
   button: "fui-join-code-button",
+  rejoin: "fui-join-code-rejoin",
 };
 
 export interface JoinByCodeOptions {
@@ -19,6 +20,8 @@ export interface JoinByCodeOptions {
   placeholder?: string;
   invalidMessage?: string;
   maxLength?: number;
+  /** The last room this browser was in, one tap away (REJOIN AB42) after JOIN. Omit when there is none. */
+  rejoin?: { code: string; onRejoin(code: string): void; title?: string };
   classes?: PartClasses<JoinByCodePart>;
   document?: Document;
 }
@@ -27,6 +30,7 @@ export interface JoinByCode {
   row: HTMLElement;
   input: HTMLInputElement;
   button: HTMLButtonElement;
+  rejoin: HTMLButtonElement | undefined;
 }
 
 /** A room-code field and JOIN. Enter in the field presses JOIN. The code is trimmed and upper-cased before checks. */
@@ -53,7 +57,15 @@ export function createJoinByCode(options: JoinByCodeOptions): JoinByCode {
     if (event.key === "Enter") button.click();
   };
   row.append(input, button);
-  return { row, input, button };
+  let rejoin: HTMLButtonElement | undefined;
+  if (options.rejoin) {
+    const last = options.rejoin;
+    rejoin = el("button", `REJOIN ${last.code}`, c("rejoin"), doc);
+    if (last.title) rejoin.title = last.title;
+    rejoin.onclick = () => last.onRejoin(last.code);
+    row.append(rejoin);
+  }
+  return { row, input, button, rejoin };
 }
 
 export interface LandingOptions {

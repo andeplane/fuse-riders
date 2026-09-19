@@ -141,3 +141,48 @@ export function createPicker<Id extends string>(
     unfold,
   };
 }
+
+export interface RadioGroupOptions<Value extends string> {
+  /** The fieldset's legend and accessible name. */
+  legend: string;
+  /** The radios' shared `name`. */
+  name: string;
+  options: readonly { value: Value; label: string }[];
+  selected: Value;
+  onChange?: (value: Value) => void;
+  className?: string;
+  document?: Document;
+}
+
+export interface RadioGroup<Value extends string> {
+  element: HTMLFieldSetElement;
+  inputs: HTMLInputElement[];
+  value(): Value;
+}
+
+/** A labelled set of radio buttons in a fieldset, for a choice made once on a form (e.g. where the game is played). */
+export function createRadioGroup<Value extends string>(
+  options: RadioGroupOptions<Value>,
+): RadioGroup<Value> {
+  const doc = options.document ?? document;
+  const element = el("fieldset", "", options.className ?? "fui-radios", doc);
+  element.setAttribute("aria-label", options.legend);
+  element.append(el("legend", options.legend, "", doc));
+  let value = options.selected;
+  const inputs = options.options.map((option) => {
+    const label = el("label", "", "", doc),
+      radio = el("input", "", "", doc);
+    radio.type = "radio";
+    radio.name = options.name;
+    radio.value = option.value;
+    radio.checked = value === option.value;
+    radio.onchange = () => {
+      value = option.value;
+      options.onChange?.(value);
+    };
+    label.append(radio, el("span", option.label, "", doc));
+    element.append(label);
+    return radio;
+  });
+  return { element, inputs, value: () => value };
+}
