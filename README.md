@@ -315,7 +315,7 @@ Gameplay is peer-to-peer, so the gateway never sees a match. Every device comput
 3. A result is stored under a key derived from its own content (and the room's incarnation). It becomes **confirmed**
    once a **majority of the human riders who stayed to the end** have reported exactly that result
    ([`fuse-platform`](packages/fuse-platform/README.md), the backend every game shares; Fuse Riders' stats are
-   registered in [`history.ts`](service/history.ts)). Bots do not vote, and neither does a rider the stats say quit mid-match —
+   registered in [`platform.ts`](games/fuse-riders/src/platform.ts)). Bots do not vote, and neither does a rider the stats say quit mid-match —
    they are gone before the recap and would otherwise leave the match pending forever. A rider alone with bots
    confirms alone.
 4. On confirmation, each signed-in rider's totals are incremented in the same transaction. A rider who reports after
@@ -366,7 +366,7 @@ both (Firestore does not delete a subcollection with its parent), and remove the
 `uidByPlayer`/`participantUids` of their matches; there is no self-service delete yet.
 
 [`firestore.indexes.json`](firestore.indexes.json) holds the history query's composite index
-(`participantUids` array-contains + `endedAt` desc, and the same after `gameId` for games other than Fuse Riders), the
+(`gameId`, `participantUids` array-contains, `endedAt` desc, for every game; the same without `gameId` only for rolling back to a revision from before Fuse Riders filtered on it), the
 per-game rating indexes on `fuse-production-ratings` (`gameId`, `ranked`, `elo`), the `cleanupAt` TTL policies for rooms, creation limits and
 matches, and an index exemption for the bulky `result` map. It lists the pre-existing TTL policies on purpose: the file
 is the whole truth for the database, so leaving one out invites the next deploy to remove it.

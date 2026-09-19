@@ -15,7 +15,6 @@ import {
   splitProfile,
 } from "./profile.js";
 import type { LeaderboardEntry, Rival, Rivalries } from "./rating.js";
-import { collectHistory } from "./pages.js";
 import { parseMatchRecord, type MatchRecord } from "./result.js";
 import {
   ACCOUNT_KEYS,
@@ -29,9 +28,10 @@ import {
  * Match history, accounts and ratings of every game. Only this service reaches these collections: firestore.rules
  * denies every browser.
  *
- * - `${prefix}-matches`: every game's match records, each with its `gameId` (none on records from before games:
- *   those are the legacy game's). A match that still has an `expiresAt` carries `cleanupAt` for the TTL policy; a
- *   match an account owns has neither.
+ * - `${prefix}-matches`: every game's match records, each with its `gameId`, which history queries filter on. A
+ *   record without one (written before games) still parses as the legacy game's, but no query finds it: production's
+ *   were backfilled (scripts/backfill-match-game-id.ts). A match that still has an `expiresAt` carries `cleanupAt`
+ *   for the TTL policy; a match an account owns has neither.
  * - `${prefix}-users`: one document per account, shared by every game (username, name, avatar), plus the legacy
  *   game's rating and totals exactly as before games existed, and its `rivals` subcollection.
  * - `${prefix}-ratings`: every other game's rating and totals, one document per `gameId:uid`, with its own `rivals`.
@@ -166,30 +166,19 @@ export class FirestoreHistoryDatabase implements HistoryDatabase {
     before: number | undefined,
     limit: number,
   ): Promise<MatchRecord[]> {
-    const page = async (cursor: number | undefined) => {
-      let query = this.matches().where(
-        "participantUids",
-        "array-contains",
-        uid,
-      );
-      // Records from before games carry no gameId, and a query cannot match a missing field: the legacy game reads
-      // every game's page and keeps its own. Every other game's records always carry one.
-      if (!userDocumentGame(gameId))
-        query = query.where("gameId", "==", gameId);
-      // Strictly older, exactly as MemoryHistoryDatabase pages.
-      if (cursor !== undefined) query = query.where("endedAt", "<", cursor);
-      return (await query.orderBy("endedAt", "desc").limit(limit).get()).docs;
-    };
-    return collectHistory(
-      async (cursor) =>
-        (await page(cursor)).map((doc) => ({
-          record: parseMatchRecord(this.platform, doc.data()),
-          endedAt: doc.get("endedAt") as unknown,
-        })),
-      gameId,
-      before,
-      limit,
-    );
+    // Every game's records carry their gameId: records from before games were backfilled (docs/online/GCP-DEPLOY.md).
+    let query = this.matches()
+      .where("gameId", "==", gameId)
+      .where("participantUids", "array-contains", uid);
+    // Strictly older, exactly as MemoryHistoryDatabase pages.
+    if (before !== undefined) query = query.where("endedAt", "<", before);
+    const docs = (await query.orderBy("endedAt", "desc").limit(limit).get())
+      .docs;
+    // One unreadable record must not hide the rest of the page.
+    return docs.flatMap((doc) => {
+      const match = parseMatchRecord(this.platform, doc.data());
+      return match?.gameId === gameId ? [match] : [];
+    });
   }
   async profile(gameId: string, uid: string): Promise<Profile | undefined> {
     const [user, standing] = await Promise.all([

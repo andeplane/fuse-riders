@@ -8,6 +8,7 @@
     "node": ">=22.13.0"
   },
   "exports": {
-    ".": "./src/engine/index.ts"
+    ".": "./src/engine/index.ts",
+    "./platform": "./src/platform.ts"
   }
 }

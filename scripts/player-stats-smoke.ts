@@ -13,7 +13,7 @@ import {
   snapshotMatchStats,
   type MatchStatsState,
 } from "../games/fuse-riders/src/engine/match-stats.js";
-import type { MatchResult } from "../service/history.js";
+import type { MatchResult } from "../games/fuse-riders/src/platform.js";
 
 const vite = await createServer({
   server: { host: "127.0.0.1", port: 0 },

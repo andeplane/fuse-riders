@@ -169,6 +169,9 @@ export function forbiddenEdge(
     (target.startsWith("games/") || target.startsWith("service/"))
   )
     return `${source} -> ${target}`;
+  // The service composes the games; a game never reaches back into it (its registration is its own `platform.ts`).
+  if (source.startsWith("games/") && target.startsWith("service/"))
+    return `${source} -> ${target}`;
   const violation =
     from === "engine"
       ? to !== "engine" &&
@@ -250,6 +253,7 @@ export function layerViolations(): string[] {
     ...new Set(
       [
         ...sourceFiles("games/fuse-riders/src"),
+        ...sourceFiles("games/dice/src"),
         ...sourceFiles("service"),
         ...sourceFiles("packages"),
       ].flatMap((file) =>

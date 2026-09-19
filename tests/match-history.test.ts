@@ -14,14 +14,15 @@ import {
   HistoryStore,
   PENDING_TTL_MS,
   matchRecordId,
-  parseMatchRecord,
+} from "fuse-platform";
+import {
   parseMatchResult,
   type MatchRecord,
   type MatchResult,
   type StoredPlayer,
   fuseRiders,
-  platform,
-} from "../service/history.js";
+} from "../games/fuse-riders/src/platform.js";
+import { parseMatchRecord, platform } from "../service/history.js";
 import { MemoryRoomDatabase } from "fuse-network-be";
 import { MemoryHistoryDatabase } from "fuse-platform";
 import { RoomStore, authFrame, digest, peerId } from "fuse-network-be";
@@ -329,6 +330,9 @@ test("a stored record is re-validated and sheds storage-only fields", () => {
     parseMatchRecord({ ...record, cleanupAt: { seconds: 1 } }),
     record,
   );
+  // A record from before games has no gameId; dev and preview databases may still hold one, and it reads as Fuse Riders'.
+  const { gameId: _, ...legacy } = record;
+  assert.deepEqual(parseMatchRecord(legacy), record);
   for (const [label, change] of Object.entries<
     Partial<Record<keyof MatchRecord, unknown>>
   >({
