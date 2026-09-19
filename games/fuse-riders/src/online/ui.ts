@@ -1959,7 +1959,7 @@ export async function startOnline(): Promise<void> {
     keyboard.clear();
     bindings.clear(true, true);
   };
-  const mobileLayout = installMobilePlayLayout(app, clearControls);
+  const mobileLayout = installMobilePlayLayout(app, clearControls, [dialog]);
   showScreen(screen); // A phone booting a room is already on the lobby screen (#134): the header takes its lobby shape before the first snapshot.
   window.addEventListener("blur", clearControls);
   document.addEventListener("visibilitychange", () => {

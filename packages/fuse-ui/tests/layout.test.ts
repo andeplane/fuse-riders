@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createLobbyShell, createRoster } from "fuse-ui";
-import { HOSTILE, page } from "./dom-fixture.js";
+import { createLobbyShell, createPhoneLayout, createRoster } from "fuse-ui";
+import { HOSTILE, event, page } from "./dom-fixture.js";
 
 test("lobby shell: intro, invitation, roster and footer in order, with part classes", () => {
   const { document } = page();
@@ -60,4 +60,106 @@ test("roster title: a heading before the rows and the empty line, kept by update
   assert.equal(roster.element.children.length, 2);
   const untitled = createRoster({ document });
   assert.equal(untitled.element.children.length, 0);
+});
+
+test("phone layout: MENU opens the tools, a round closes them and replays the hints, results open them", () => {
+  const { document, window } = page();
+  const root = document.createElement("main"),
+    dialog = document.createElement("dialog");
+  root.append(dialog);
+  let cleared = 0;
+  const layout = createPhoneLayout({
+    root,
+    clearControls: () => cleared++,
+    hints: ["LEFT", HOSTILE],
+    dialogs: [dialog],
+    classes: { open: "tools-open" },
+  });
+  assert.equal(layout.toggle.className, "fui-tools-toggle");
+  assert.equal(layout.toggle.textContent, "☰ MENU");
+  assert.equal(layout.toggle.getAttribute("aria-expanded"), "false");
+  assert.deepEqual(
+    [...layout.hints.children].map((hint) => hint.getAttribute("data-hint")),
+    ["LEFT", HOSTILE],
+  );
+  assert.equal(layout.hints.textContent, "", "hints carry no text nodes");
+  assert.deepEqual([...root.children], [dialog, layout.hints, layout.toggle]);
+
+  const phone = { active: true, portrait: true };
+  layout.update(phone, { phase: "lobby", live: false, results: false });
+  layout.toggle.click();
+  assert.equal(layout.blocked(), true);
+  assert.ok(root.classList.contains("tools-open"));
+  assert.equal(layout.toggle.getAttribute("aria-expanded"), "true");
+  const before = cleared;
+  dialog.dispatchEvent(event(window, "close"));
+  assert.equal(layout.blocked(), true, "an own-screen lobby keeps its tools");
+
+  layout.update(phone, { phase: "playing", live: true, results: false });
+  assert.equal(layout.blocked(), false, "a round closes the tools");
+  assert.equal(root.lastElementChild, layout.hints, "hints re-appended");
+  layout.toggle.click();
+  dialog.dispatchEvent(event(window, "close"));
+  assert.equal(layout.blocked(), false, "live play returns to the pads");
+
+  layout.update(
+    { active: true, portrait: false },
+    { phase: "playing", live: true, results: false },
+    true,
+  );
+  assert.ok(cleared > before, "a rotation cancels held input");
+
+  layout.update(phone, { phase: "over", live: false, results: true });
+  assert.equal(
+    layout.blocked(),
+    true,
+    "results open an own-screen phone's tools",
+  );
+  layout.update(
+    phone,
+    { phase: "over", live: false, results: true },
+    false,
+    true,
+  );
+  assert.equal(
+    layout.blocked(),
+    true,
+    "the same screen again is no transition",
+  );
+  layout.update(
+    phone,
+    { phase: "playing", live: true, results: false },
+    false,
+    true,
+  );
+  layout.update(
+    phone,
+    { phase: "over", live: false, results: true },
+    false,
+    true,
+  );
+  assert.equal(layout.blocked(), false, "a controller gets its rematch screen");
+  layout.toggle.click();
+  dialog.dispatchEvent(event(window, "close"));
+  assert.equal(layout.blocked(), false, "a controller returns to its pads");
+
+  const text = document.createTextNode("x");
+  root.append(text);
+  const press = event(window, "contextmenu");
+  text.dispatchEvent(press);
+  assert.ok(press.defaultPrevented, "no callout on the controls in play");
+  const inDialog = event(window, "selectstart");
+  dialog.dispatchEvent(inDialog);
+  assert.equal(inDialog.defaultPrevented, false, "dialogs keep selection");
+  layout.update(
+    { active: false, portrait: true },
+    { phase: "lobby", live: false, results: false },
+  );
+  const idle = event(window, "contextmenu");
+  text.dispatchEvent(idle);
+  assert.equal(
+    idle.defaultPrevented,
+    false,
+    "outside play the page behaves normally",
+  );
 });

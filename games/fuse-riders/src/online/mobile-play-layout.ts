@@ -1,102 +1,43 @@
+import { createPhoneLayout } from "fuse-ui";
 import type { MobileScreen } from "./room-screen.js";
-/** The phone layout's own behaviour: the ☰ MENU tools overlay, the control hints, and what a change of screen does to
- *  held input. Whether the phone is the controller, upright or on its lobby screen is decided by `roomScreen`, and its
- *  classes are set with the rest of the screen's; this module keeps its own record of them and reads none back. */
+/** Fuse Riders' phone layout on fuse-ui's: the ☰ MENU tools overlay over the three control zones, their hints, and
+ *  what a change of screen does to held input. Whether the phone is the controller, upright or on its lobby screen is
+ *  decided by `roomScreen`, and its classes are set with the rest of the screen's. */
 export function installMobilePlayLayout(
   app: HTMLElement,
   clearControls: () => void,
+  dialogs: readonly HTMLDialogElement[],
 ) {
-  let phase = "lobby",
-    recapReady = false,
-    active = false,
-    portrait = false,
-    toolsOpen = false,
-    controllerOnly = false;
-  const document = app.ownerDocument;
-  const compact = document.createElement("button");
-  compact.className = "mobile-tools-toggle";
-  compact.textContent = "☰ MENU";
-  compact.setAttribute("aria-expanded", "false");
-  // Labels render from attributes via CSS generated content: no text node exists for iOS long-press selection or Copy/Look Up callouts.
-  const hints = document.createElement("div");
-  hints.className = "mobile-control-hints";
-  for (const text of [
-    "HOLD LEFT",
-    "HOLD TO FIRE · RELEASE TO LAUNCH",
-    "HOLD RIGHT",
-  ]) {
-    const hint = document.createElement("span");
-    hint.dataset.hint = text;
-    hints.append(hint);
-  }
-  app.append(hints, compact);
-  for (const type of ["selectstart", "contextmenu"])
-    app.addEventListener(type, (event) => {
-      const target = event.target as Node;
-      const element = target instanceof Element ? target : target.parentElement;
-      if (active && !element?.closest("dialog,input,textarea,select"))
-        event.preventDefault();
-    });
-  const setTools = (open: boolean) => {
-    toolsOpen = open;
-    app.classList.toggle("mobile-tools-open", open);
-    compact.setAttribute("aria-expanded", String(open));
-  };
-  const closeTools = () => setTools(false);
-  const openTools = () => {
-    clearControls();
-    setTools(true);
-  };
-  compact.onclick = () => {
-    clearControls();
-    setTools(!toolsOpen);
-  };
-  // A controller returns to its pads after a dialog; own-screen phones keep tools open in lobby/results.
-  app.querySelector("dialog")?.addEventListener("close", () => {
-    if (controllerOnly || ["countdown", "playing"].includes(phase))
-      closeTools();
+  const layout = createPhoneLayout({
+    root: app,
+    clearControls,
+    hints: ["HOLD LEFT", "HOLD TO FIRE · RELEASE TO LAUNCH", "HOLD RIGHT"],
+    dialogs,
+    classes: {
+      toggle: "mobile-tools-toggle",
+      hints: "mobile-control-hints",
+      open: "mobile-tools-open",
+    },
   });
-  // Phase transitions: entering countdown/play closes the tools overlay and restarts the hint fade (re-appending restarts the CSS animation);
-  // Own-screen phones open the results tools; shared-TV phones show their dedicated rematch button with tools closed. The pause before
-  // it keeps the overlay shut: it hides the announcer, which is showing the final round's result and then the match winner. The lobby is its own phone screen (#134), never the controller.
-  const enter = () => {
-    if (["countdown", "playing"].includes(phase)) {
-      closeTools();
-      hints.remove();
-      app.append(hints);
-    } else if (phase === "matchOver" && recapReady) {
-      if (controllerOnly) {
-        clearControls();
-        closeTools();
-      } else openTools();
-    }
-  };
   return {
-    /** A new screen: a frame, the room ending, or (`resized`) the viewport changing. A resize cancels held input and may
-     *  close the tools, but is not a phase transition: the hints do not restart and the results do not open the tools. */
     update(
       next: MobileScreen,
-      nextPhase: string,
-      nextRecapReady: boolean,
+      phase: string,
+      recapReady: boolean,
       resized = false,
-      nextControllerOnly = false,
+      controllerOnly = false,
     ) {
-      controllerOnly = nextControllerOnly;
-      const entered =
-        nextPhase !== phase || nextRecapReady !== recapReady || !active;
-      phase = nextPhase;
-      recapReady = nextRecapReady;
-      // Rotating cancels held input, but only closes the tools overlay while a round is live: a host reviewing results keeps it open (#134).
-      if (active !== next.active || portrait !== next.portrait) {
-        clearControls();
-        if (active !== next.active || ["countdown", "playing"].includes(phase))
-          closeTools();
-      }
-      active = next.active;
-      portrait = next.portrait;
-      if (entered && active && !resized) enter();
+      layout.update(
+        next,
+        {
+          phase,
+          live: phase === "countdown" || phase === "playing",
+          results: phase === "matchOver" && recapReady,
+        },
+        resized,
+        controllerOnly,
+      );
     },
-    /** The ☰ MENU tools overlay is open over the controller: keys do not steer. */
-    blocked: () => toolsOpen,
+    blocked: layout.blocked,
   };
 }

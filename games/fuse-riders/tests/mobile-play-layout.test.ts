@@ -180,7 +180,7 @@ test("shared-TV controllers expose readiness after results, and settings remain 
   let cancels = 0;
   const layout = installMobilePlayLayout(app, () => {
     cancels++;
-  });
+  }, [app.querySelector("dialog")!]);
   const screen = {
     phone: true,
     active: true,
