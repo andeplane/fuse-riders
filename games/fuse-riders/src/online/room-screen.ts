@@ -22,6 +22,7 @@
  * is drawn differently by different devices (a `recap` is a lobby card on the creator's laptop and a controller
  * on a shared-TV rider's phone, where results stay on the TV), and because each flag is exactly one class or one `hidden` on the page.
  */
+import type { WorldView } from "../engine/view.js";
 import {
   arenaView,
   mobilePlayPolicy,
@@ -49,7 +50,7 @@ export interface RoomScreenInput {
   /** This device has a place in the room's watching list: it is in the room, so it is not at its door. */
   watching: boolean;
   /** The last frame's phase; `"lobby"` before the first frame. */
-  phase: string;
+  phase: WorldView["phase"];
   /** `matchOver` whose closing pause has run out: the match report is ready. */
   recapReady: boolean;
   /** The room plays on a shared TV (`settings.mode === "shared"`). */

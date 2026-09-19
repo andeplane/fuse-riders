@@ -226,9 +226,9 @@ try {
             tick: detail.tick,
             pauseEndsAt: detail.phaseEndsAtTick,
             dialogOpen: Boolean(
-              document.querySelector<HTMLDialogElement>(
-                "dialog.game-dialog:not(.stats-dialog)",
-              )?.open,
+              document.querySelector(
+                "dialog.game-dialog[open]:not(.stats-dialog)",
+              ),
             ),
             alive: detail.players.find((player) => player.id === "solo")?.alive,
             banner: (() => {
@@ -430,14 +430,20 @@ try {
       await page.screenshot({ path: screenshots[1]! });
       await page.getByRole("button", { name: "CLOSE", exact: true }).click();
       await page.getByRole("dialog").waitFor({ state: "hidden" });
-      // `close` is fired from a queued task, so the ordinary width/title/name are restored just after the dialog stops rendering.
+      // Every menu is its own dialog (#255): none is left open, and the wide results variant is the results dialog's alone.
       await page.waitForFunction(() => {
-        const element = document.querySelector(
-          "dialog.game-dialog:not(.stats-dialog)",
-        )!;
+        const dialogs = [
+          ...document.querySelectorAll<HTMLDialogElement>(
+            "dialog.game-dialog:not(.stats-dialog)",
+          ),
+        ];
+        const wide = dialogs.filter((element) =>
+          element.classList.contains("recap-dialog"),
+        );
         return (
-          !element.classList.contains("recap-dialog") &&
-          element.getAttribute("aria-label") === "Game menu"
+          !dialogs.some((element) => element.open) &&
+          wide.length === 1 &&
+          wide[0]!.getAttribute("aria-label") === "Match results"
         );
       });
       // A joined phone stays the landscape thirds controller in matchOver, so the header (and RESULTS) sits behind the ☰ MENU overlay.
