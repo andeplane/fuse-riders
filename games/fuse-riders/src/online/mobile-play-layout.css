@@ -378,8 +378,11 @@
   font-size: 0.75rem;
 }
 
-/* Portrait play keeps the arena tall, with readable HUD and comfortable bottom touch thirds. */
-.mobile-play.mobile-portrait:not(.controller-only) .online-controls,
+/* Portrait controls keep the full-screen invisible thirds; only their brief hints sit at the bottom. */
+.mobile-play.mobile-portrait:not(.controller-only) .online-controls > button {
+  /* Weapon readiness stays in the HUD, including when the fire control is gun-armed. */
+  box-shadow: none;
+}
 .mobile-play.mobile-portrait:not(.controller-only) > .mobile-control-hints {
   top: auto;
   height: max(7rem, 20dvh);
