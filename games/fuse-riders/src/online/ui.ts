@@ -65,9 +65,14 @@ import { Telemetry, telemetryEndpoint } from "./telemetry.js";
 import type { AvatarId } from "../shared/avatars.js";
 import QRCode from "qrcode";
 import {
+  button,
   el as node,
+  createConfirm,
+  createRadioGroup,
   createControllerRow,
   createDialog,
+  createKeyList,
+  createLobbyShell,
   createInviteCard,
   createJoinByCode,
   createRoster,
@@ -101,14 +106,14 @@ const LAST_ROOM_KEY = "fuse-last-room";
 const reducedMotion = () =>
   matchMedia("(prefers-reduced-motion: reduce)").matches;
 const storage = safeStorage(() => localStorage);
-/** Fuse Riders' class names for the shared dialog shell; online.css styles them. */
+/** The shared dialog shell: fuse-ui's classes (components.css) plus Fuse Riders' own, which online.css adds to. */
 const FUSE_DIALOG_CLASSES = {
-  root: "game-dialog",
-  bar: "dialog-bar",
-  title: "",
-  actions: "dialog-actions",
+  root: "fui-dialog game-dialog",
+  bar: "fui-dialog-bar dialog-bar",
+  title: "fui-dialog-title",
+  actions: "fui-dialog-actions dialog-actions",
   close: "",
-  body: "dialog-body",
+  body: "fui-dialog-body dialog-body",
 };
 const labels: Record<PickupType, string> = {
   stopwatch: "Shorter fuse",
@@ -176,17 +181,89 @@ export async function startOnline(): Promise<void> {
     startAnalytics({ role: "landing" });
     track("App Opened");
     const card = node("main", "", "landing");
-    card.innerHTML = `<canvas class="landing-arena" aria-hidden="true"></canvas><div class="landing-shade"></div>
-      <header class="landing-top"><a class="landing-brand" href="${appUrl()}">FUSE<span>RIDERS</span></a><div class="landing-top-end game-top-menu"><span class="landing-tag">TINY RIDERS. BIG TROUBLE.</span><button class="landing-audio" type="button">♫ MUSIC ON</button><button class="landing-mute" type="button">🔊 SOUND ON</button></div></header>
-      <section class="landing-content"><p class="landing-eyebrow"><span></span> A NEON ARENA PARTY GAME</p>
-      <h1>LEAVE A TRAIL.<br>MAKE A <em>MESS.</em></h1>
-      <p class="landing-intro">Outrun your friends. Blow up their plans.<br>One arena. Five riders. Absolutely no brakes.</p>
-      <a class="solo-cta" href="${appUrl("?solo=1")}"><span>▶ &nbsp; PLAY SOLO</span><small>YOU VS. FOUR AI RIVALS</small></a>
-      <div class="landing-multiplayer"><p class="landing-section-label">OR BRING YOUR FRIENDS</p></div>
-      <p class="landing-hint">Phones are your controllers. A TV can be your arena.<br>On the same Wi-Fi? Even better.</p><a class="landing-more" href="${appUrl()}dice/">MORE GAMES: PIG ›</a></section>
-      <aside class="landing-live"><span class="live-dot"></span> LIVE AI FREE-FOR-ALL <small>Real riders. Real explosions.</small></aside>
-      <footer class="landing-footer"><span>STEER. CHARGE. RELEASE. SURVIVE.</span><button class="attract-toggle" type="button">Ⅱ PAUSE BACKGROUND</button></footer>`;
-    const form = card.querySelector<HTMLElement>(".landing-multiplayer")!;
+    const link = (href: string, className: string, ...content: Node[]) => {
+      const anchor = node("a", "", className);
+      anchor.href = href;
+      anchor.append(...content);
+      return anchor;
+    };
+    const arena = node("canvas", "", "landing-arena");
+    arena.setAttribute("aria-hidden", "true");
+    const brand = link(appUrl(), "landing-brand");
+    brand.append("FUSE", node("span", "RIDERS"));
+    const musicButton = button("♫ MUSIC ON", "landing-audio"),
+      muteButton = button("🔊 SOUND ON", "landing-mute"),
+      topEnd = node("div", "", "landing-top-end game-top-menu");
+    topEnd.append(
+      node("span", "TINY RIDERS. BIG TROUBLE.", "landing-tag"),
+      musicButton,
+      muteButton,
+    );
+    const top = node("header", "", "landing-top");
+    top.append(brand, topEnd);
+    const eyebrow = node("p", "", "landing-eyebrow");
+    eyebrow.append(node("span"), " A NEON ARENA PARTY GAME");
+    const headline = node("h1");
+    headline.append(
+      "LEAVE A TRAIL.",
+      node("br"),
+      "MAKE A ",
+      node("em", "MESS."),
+    );
+    const intro = node("p", "", "landing-intro");
+    intro.append(
+      "Outrun your friends. Blow up their plans.",
+      node("br"),
+      "One arena. Five riders. Absolutely no brakes.",
+    );
+    const soloLink = link(
+      appUrl("?solo=1"),
+      "solo-cta",
+      node("span", "▶ \u00a0 PLAY SOLO"),
+      node("small", "YOU VS. FOUR AI RIVALS"),
+    );
+    const form = node("div", "", "landing-multiplayer");
+    form.append(node("p", "OR BRING YOUR FRIENDS", "landing-section-label"));
+    const hint = node("p", "", "landing-hint");
+    hint.append(
+      "Phones are your controllers. A TV can be your arena.",
+      node("br"),
+      "On the same Wi-Fi? Even better.",
+    );
+    const content = node("section", "", "landing-content");
+    content.append(
+      eyebrow,
+      headline,
+      intro,
+      soloLink,
+      form,
+      hint,
+      link(
+        `${appUrl()}dice/`,
+        "landing-more",
+        document.createTextNode("MORE GAMES: PIG ›"),
+      ),
+    );
+    const live = node("aside", "", "landing-live");
+    live.append(
+      node("span", "", "live-dot"),
+      " LIVE AI FREE-FOR-ALL ",
+      node("small", "Real riders. Real explosions."),
+    );
+    const attractToggle = button("Ⅱ PAUSE BACKGROUND", "attract-toggle");
+    const footerBar = node("footer", "", "landing-footer");
+    footerBar.append(
+      node("span", "STEER. CHARGE. RELEASE. SURVIVE."),
+      attractToggle,
+    );
+    card.append(
+      arena,
+      node("div", "", "landing-shade"),
+      top,
+      content,
+      live,
+      footerBar,
+    );
     const guide = node("section", "", "landing-guide"),
       guideTitle = node("h2", "POWER-UPS", "landing-section-label");
     guideTitle.id = "landing-guide-title";
@@ -199,27 +276,17 @@ export async function startOnline(): Promise<void> {
         offByDefaultNote: "(off by default, enable in room settings)",
       }).element,
     );
-    card.querySelector(".landing-content")!.append(guide);
-    const mode = node("fieldset", "", "landing-mode");
-    mode.setAttribute("aria-label", "Where will you play?");
-    mode.append(node("legend", "Where will you play?"));
-    let selectedMode = loadRoomSettings(storage).mode;
-    for (const [value, label] of [
-      ["devices", "Each device"],
-      ["shared", "Shared TV"],
-    ] as const) {
-      const option = node("label"),
-        radio = node("input");
-      radio.type = "radio";
-      radio.name = "landing-mode";
-      radio.value = value;
-      radio.checked = selectedMode === value;
-      radio.onchange = () => {
-        selectedMode = value;
-      };
-      option.append(radio, node("span", label));
-      mode.append(option);
-    }
+    content.append(guide);
+    const { element: mode, value: chosenMode } = createRadioGroup({
+      legend: "Where will you play?",
+      name: "landing-mode",
+      options: [
+        { value: "devices", label: "Each device" },
+        { value: "shared", label: "Shared TV" },
+      ],
+      selected: loadRoomSettings(storage).mode,
+      className: "landing-mode",
+    });
     const create = node("button", "CREATE ROOM");
     const error = node("p");
     // `enter` keeps the document, so Room Created no longer needs a send-before-unload flush: nothing unloads out from
@@ -230,37 +297,44 @@ export async function startOnline(): Promise<void> {
         const body = await createRoom(apiUrl, fetch, GAME_ID);
         save(`fuse-room-${body.code}`, body.token);
         const settings = loadRoomSettings(storage);
-        settings.mode = selectedMode;
+        settings.mode = chosenMode();
         save(SETTINGS_KEY, JSON.stringify(settings));
-        track("Room Created", { mode: selectedMode });
+        track("Room Created", { mode: settings.mode });
         enter(`?room=${body.code}`);
       } catch (e) {
         error.textContent = String(e);
         create.disabled = false;
       }
     };
-    mode.setAttribute("aria-label", "Where will you play?");
     error.setAttribute("role", "alert");
     const createRow = node("div", "", "landing-create");
     createRow.append(mode, create);
+    // The last room this browser was in is one tap away; a closed room still lands on its ROOM CLOSED card, which forgets it.
+    const lastRoom = read(LAST_ROOM_KEY);
     const { row: joinRow } = createJoinByCode({
       valid: validRoomCode,
       onJoin: (value) => enter(`?room=${value}`),
       onInvalid: (message) => {
         error.textContent = message;
       },
-      classes: { root: "landing-join", input: "", button: "" },
+      ...(lastRoom && validRoomCode(lastRoom)
+        ? {
+            rejoin: {
+              code: lastRoom,
+              title: "Return to the room you were in last",
+              onRejoin: (room: string) => {
+                location.href = appUrl(`?room=${room}`);
+              },
+            },
+          }
+        : {}),
+      classes: {
+        root: "landing-join",
+        input: "",
+        button: "",
+        rejoin: "landing-rejoin",
+      },
     });
-    // The last room this browser was in is one tap away; a closed room still lands on its ROOM CLOSED card, which forgets it.
-    const lastRoom = read(LAST_ROOM_KEY);
-    if (lastRoom && validRoomCode(lastRoom)) {
-      const rejoin = node("button", `REJOIN ${lastRoom}`, "landing-rejoin");
-      rejoin.title = "Return to the room you were in last";
-      rejoin.onclick = () => {
-        location.href = appUrl(`?room=${lastRoom}`);
-      };
-      joinRow.append(rejoin);
-    }
     form.append(createRow, joinRow, error);
     app.replaceChildren(card);
     let cleanup: (() => void) | undefined,
@@ -290,29 +364,23 @@ export async function startOnline(): Promise<void> {
     });
     // The landing page has no room and no snapshots, so its music is background music the toggle owns outright.
     const landingAudio = sharedAudio();
-    landingAudio.bindMusicToggle(
-      card.querySelector<HTMLButtonElement>(".landing-audio")!,
-    );
-    landingAudio.bindMuteToggle(
-      card.querySelector<HTMLButtonElement>(".landing-mute")!,
-    );
-    card.querySelector(".landing-audio")!.before(landingAudio.controls);
+    landingAudio.bindMusicToggle(musicButton);
+    landingAudio.bindMuteToggle(muteButton);
+    musicButton.before(landingAudio.controls);
     radioToggle = () => landingAudio.controls.toggleAttribute("open");
     // PLAY SOLO is a real link for a new tab or a bookmark; a plain click takes the in-place route with the music.
-    card
-      .querySelector<HTMLAnchorElement>(".solo-cta")!
-      .addEventListener("click", (event) => {
-        if (
-          event.button ||
-          event.metaKey ||
-          event.ctrlKey ||
-          event.shiftKey ||
-          event.altKey
-        )
-          return;
-        event.preventDefault();
-        enter("?solo=1");
-      });
+    soloLink.addEventListener("click", (event) => {
+      if (
+        event.button ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      )
+        return;
+      event.preventDefault();
+      enter("?solo=1");
+    });
     // Settings before a game exists (#168): the same room settings CREATE ROOM and PLAY SOLO read from storage. The screen layout
     // stays disabled here because the radio buttons below choose it for the room being created.
     const landingSettings = node("button", "SETTINGS", "landing-settings");
@@ -355,25 +423,21 @@ export async function startOnline(): Promise<void> {
       );
       landingDialog.showModal();
     };
-    card.querySelector(".landing-top-end")!.append(landingSettings);
+    topEnd.append(landingSettings);
     card.append(landingDialog);
     // Optional sign-in and match history. A guest who never opens it never downloads the sign-in SDK.
     const accountPanel = createPlayerAccountPanel();
-    card
-      .querySelector(".landing-top-end")!
-      .append(accountPanel.leaderboardButton, accountPanel.button);
+    topEnd.append(accountPanel.leaderboardButton, accountPanel.button);
     card.append(accountPanel.dialog);
     window.addEventListener("pagehide", accountPanel.dispose, { once: true });
-    void startAttract(
-      card.querySelector("canvas")!,
-      card.querySelector(".attract-toggle")!,
-    )
+    // The attract loop stays Fuse Riders' own: it runs the game's engine and renderer behind the landing page.
+    void startAttract(arena, attractToggle)
       .then((stop) => {
         if (ended) stop();
         else cleanup = stop;
       })
       .catch(() => {
-        card.querySelector(".landing-live")?.remove();
+        live.remove();
       });
     return;
   }
@@ -671,21 +735,8 @@ export async function startOnline(): Promise<void> {
       { duration: 220 },
     );
   };
-  const sharedLobby = node("section", "", "shared-lobby room-lobby");
-  sharedLobby.hidden = true;
-  const lobbyCopy = node("div", "", "room-lobby-copy");
   const lobbyHeading = node("h1");
-  lobbyHeading.innerHTML = "SCAN.<br>STEER.<br>SURVIVE.";
-  lobbyCopy.append(
-    node("p", "PHONE PARTY // 2–5 RIDERS", "room-eyebrow"),
-    lobbyHeading,
-    node(
-      "p",
-      "Pick your avatar. Grab your phone. Carve neon trails and blow up your friends’ plans.",
-      "room-intro",
-    ),
-    node("p", "STEER  ◀ ▶     HOLD · AIM · RELEASE", "room-howto"),
-  );
+  lobbyHeading.append("SCAN.", node("br"), "STEER.", node("br"), "SURVIVE.");
   const joinLink = new URL(appUrl(`?room=${code}`), location.origin).href;
   // The link lives next to the QR so a rider who cannot scan can still be handed the room: one tap copies it, and the label reports back.
   const { element: qrCard } = createInviteCard({
@@ -717,26 +768,52 @@ export async function startOnline(): Promise<void> {
     },
   });
   const lobbyRiders = lobbyRoster.element;
-  const lobbyFooter = node("footer", "", "room-lobby-footer"),
-    lobbyCount = node("span", "Waiting for riders");
-  lobbyFooter.append(lobbyCount);
+  const lobbyCount = node("span", "Waiting for riders");
   // The watching list: the rider row's height in neutral grey, no colour, no avatar and no READY, so the five seats stay
   // the thing being read. It lives inside the rider column (the lobby grid has one cell per column) and CSS `order` keeps it last.
-  const lobbyWatchers = node("div", "", "room-watchers");
+  const watchers = createRoster({
+    title: "WATCHING",
+    avatar: () => {
+      const glyph = node("span", "👁", "watcher-glyph");
+      glyph.setAttribute("aria-hidden", "true");
+      return glyph;
+    },
+    classes: {
+      root: "room-watchers",
+      title: "room-watchers-title",
+      row: "room-rider room-watcher",
+      info: "",
+      name: "",
+      status: "",
+    },
+  });
+  const lobbyWatchers = watchers.element;
   lobbyWatchers.hidden = true;
   lobbyWatchers.setAttribute("aria-label", "Watching");
-  lobbyWatchers.append(node("p", "WATCHING", "room-watchers-title"));
   lobbyRiders.append(lobbyWatchers);
-  sharedLobby.append(lobbyCopy, qrCard, lobbyRiders, lobbyFooter);
-  const watcherEntries = new Map<
-    string,
-    {
-      entry: HTMLElement;
-      name: HTMLElement;
-      status: HTMLElement;
-      shown: string;
-    }
-  >();
+  const lobbyShell = createLobbyShell({
+    intro: [
+      node("p", "PHONE PARTY // 2–5 RIDERS", "room-eyebrow"),
+      lobbyHeading,
+      node(
+        "p",
+        "Pick your avatar. Grab your phone. Carve neon trails and blow up your friends’ plans.",
+        "room-intro",
+      ),
+      node("p", "STEER  ◀ ▶     HOLD · AIM · RELEASE", "room-howto"),
+    ],
+    invite: qrCard,
+    roster: lobbyRiders,
+    footer: [lobbyCount],
+    classes: {
+      root: "shared-lobby room-lobby",
+      intro: "room-lobby-copy",
+      footer: "room-lobby-footer",
+    },
+  });
+  const sharedLobby = lobbyShell.element,
+    lobbyFooter = lobbyShell.footer!;
+  sharedLobby.hidden = true;
   // Pointer and keyboard input bind to these buttons through ControllerPointerBindings, not the row's own handlers.
   const {
     element: controls,
@@ -815,6 +892,7 @@ export async function startOnline(): Promise<void> {
     actions: dialogActions,
     close,
     body: dialogBody,
+    show: showDialog,
   } = createDialog({
     title: "GAME MENU",
     label: "Game menu",
@@ -866,8 +944,6 @@ export async function startOnline(): Promise<void> {
     close.setAttribute("aria-label", "CLOSE");
     recapOpen = false;
     dialog.classList.remove("recap-dialog");
-    dialogTitle.textContent = "GAME MENU";
-    dialog.setAttribute("aria-label", "Game menu");
   });
   // Desktop hides the on-screen controls entirely, so a first-timer has only the ? button. One fading reminder on the first countdown of the session.
   const keyHint = node("div", "", "key-hint");
@@ -908,23 +984,18 @@ export async function startOnline(): Promise<void> {
     );
   app.append(powerStatus);
   const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
-  help.onclick = () => {
-    dialogTitle.textContent = "SHORTCUTS";
-    dialog.setAttribute("aria-label", "Keyboard shortcuts"); // the close handler resets both
-    dialogBody.replaceChildren(node("h2", "Keyboard shortcuts"));
-    for (const group of keyboardShortcuts({
-      mac,
-      canConfigure: isHost || solo,
-      solo,
-    })) {
-      const list = node("dl", "", "shortcut-list");
-      for (const [keys, action] of group.entries) {
-        list.append(node("dt", keys), node("dd", action));
-      }
-      dialogBody.append(node("h3", group.title, "shortcut-group"), list);
-    }
-    dialog.showModal();
-  };
+  help.onclick = () =>
+    showDialog({
+      title: "SHORTCUTS",
+      label: "Keyboard shortcuts",
+      content: [
+        node("h2", "Keyboard shortcuts"),
+        ...createKeyList(
+          keyboardShortcuts({ mac, canConfigure: isHost || solo, solo }),
+          { classes: { group: "shortcut-group", list: "shortcut-list" } },
+        ),
+      ],
+    });
   // Move the existing actions, keeping their handlers and mobile/lobby destinations intact.
   const desktopQuery = matchMedia(
     "(min-width: 1000px) and (hover: hover) and (pointer: fine)",
@@ -1037,10 +1108,11 @@ export async function startOnline(): Promise<void> {
   const openRadio = () => {
     audio.unlock();
     audio.controls.setAttribute("open", "");
-    dialogTitle.textContent = "RADIO";
-    dialog.setAttribute("aria-label", "Radio");
-    dialogBody.replaceChildren(node("h2", "Fuse Riders Radio"), audio.controls);
-    if (!dialog.open) dialog.showModal();
+    showDialog({
+      title: "RADIO",
+      label: "Radio",
+      content: [node("h2", "Fuse Riders Radio"), audio.controls],
+    });
   };
   const roomAccount = createPlayerAccountPanel();
   roomAccount.button.classList.add("player-account");
@@ -1136,12 +1208,12 @@ export async function startOnline(): Promise<void> {
       "Music and effects only; use DEAFEN in voice chat to silence voice.";
     prefs.append(voice.controls);
     topMenu.insertBefore(voice.button, prefsButton);
-    voice.button.onclick = () => {
-      dialogTitle.textContent = "VOICE CHAT";
-      dialog.setAttribute("aria-label", "Voice chat");
-      dialogBody.replaceChildren(voice.controls);
-      if (!dialog.open) dialog.showModal();
-    };
+    voice.button.onclick = () =>
+      showDialog({
+        title: "VOICE CHAT",
+        label: "Voice chat",
+        content: [voice.controls],
+      });
     voice.setChanged(() => {
       for (const [playerId, row] of rosterEntries)
         row.entry.dataset.voice = voice.indicator(playerId);
@@ -1152,29 +1224,22 @@ export async function startOnline(): Promise<void> {
   prefsButton.onclick = () => {
     privacy.render();
     if (voice) prefs.append(voice.controls);
-    dialogTitle.textContent = "SETTINGS";
-    dialog.setAttribute("aria-label", "Settings");
-    dialogBody.replaceChildren(prefs);
-    dialog.showModal();
+    showDialog({ title: "SETTINGS", label: "Settings", content: [prefs] });
   };
   const openRecap = () => {
     if (!snapshot) return;
-    dialogBody.replaceChildren(
-      renderMatchRecap(snapshot.matchStats, snapshot.moments, {
-        playerId: id,
-        canWatch: (key) => !screen.arenaHidden && !!replay.recorder.clip(key),
-        watch: (key) => {
-          const clip = replay.recorder.clip(key);
-          if (!clip) return;
-          audio.unlock();
-          reopenRecap = true;
-          dialog.close();
-          replay.play(clip, performance.now());
-        },
-      }),
-    );
-    dialogTitle.textContent = "MATCH RESULTS";
-    dialog.setAttribute("aria-label", "Match results");
+    const recap = renderMatchRecap(snapshot.matchStats, snapshot.moments, {
+      playerId: id,
+      canWatch: (key) => !screen.arenaHidden && !!replay.recorder.clip(key),
+      watch: (key) => {
+        const clip = replay.recorder.clip(key);
+        if (!clip) return;
+        audio.unlock();
+        reopenRecap = true;
+        dialog.close();
+        replay.play(clip, performance.now());
+      },
+    });
     recapOpen = true;
     dialog.classList.add("recap-dialog");
     rematch.hidden = solo ? !isHost : !joined || displayOnly;
@@ -1183,7 +1248,12 @@ export async function startOnline(): Promise<void> {
     fullStats.hidden = !snapshot.matchStats.length;
     fullStats.textContent = "View full stats ↗";
     fullStats.setAttribute("aria-expanded", "false");
-    dialog.showModal();
+    // Opened last, once the buttons it shows are settled: the modal focuses the first one that is visible.
+    showDialog({
+      title: "MATCH RESULTS",
+      label: "Match results",
+      content: [recap],
+    });
     dialogBody.scrollTop = 0;
   };
   results.onclick = () => {
@@ -1431,35 +1501,14 @@ export async function startOnline(): Promise<void> {
         })),
       );
       lobbyWatchers.hidden = view.lobby.watchersHidden;
-      for (const [watcherId, row] of watcherEntries)
-        if (!view.lobby.watchers.some((seat) => seat.id === watcherId)) {
-          row.entry.remove();
-          watcherEntries.delete(watcherId);
-        }
-      for (const seat of view.lobby.watchers) {
-        let row = watcherEntries.get(seat.id);
-        if (!row) {
-          const entry = node("div", "", "room-rider room-watcher"),
-            glyph = node("span", "👁", "watcher-glyph"),
-            watcherName = node("strong"),
-            watcherStatus = node("small"),
-            info = node("div");
-          glyph.setAttribute("aria-hidden", "true");
-          info.append(watcherName, watcherStatus);
-          entry.append(glyph, info);
-          row = {
-            entry,
-            name: watcherName,
-            status: watcherStatus,
-            shown: "",
-          };
-          watcherEntries.set(seat.id, row);
-          lobbyWatchers.append(entry);
-        }
-        if (row.shown !== seat.name)
-          row.name.textContent = row.shown = seat.name;
-        row.status.textContent = seat.status;
-      }
+      watchers.update(
+        view.lobby.watchers.map((seat) => ({
+          id: seat.id,
+          name: seat.name,
+          status: seat.status,
+          avatar: "watcher",
+        })),
+      );
       if (!screen.arenaHidden)
         replay.observe(state, state.matchId, performance.now());
       if (
@@ -1677,28 +1726,30 @@ export async function startOnline(): Promise<void> {
     else readyButton.click();
   };
   menu.onclick = () => {
-    dialogTitle.textContent = solo ? "EXIT" : "ROOM";
-    dialog.setAttribute("aria-label", solo ? "Exit" : "Room");
-    dialogBody.replaceChildren(
-      node(
-        "p",
-        solo
-          ? "End this solo run and go back to the menu?"
-          : isHost
-            ? "End this room for everyone?"
-            : "Leave this room?",
-      ),
-    );
-    const leave = node(
-        "button",
-        solo ? "END RUN" : isHost ? "END ROOM" : "LEAVE ROOM",
-        "exit-confirm",
-      ),
-      stay = node("button", solo ? "KEEP PLAYING" : "STAY"),
-      choices = node("div", "", "exit-choices");
-    stay.onclick = () => dialog.close();
-    choices.append(stay, leave);
-    leave.onclick = async () => {
+    const {
+      question,
+      choices,
+      confirm: leave,
+      cancel: stay,
+    } = createConfirm({
+      question: solo
+        ? "End this solo run and go back to the menu?"
+        : isHost
+          ? "End this room for everyone?"
+          : "Leave this room?",
+      confirmText: solo ? "END RUN" : isHost ? "END ROOM" : "LEAVE ROOM",
+      cancelText: solo ? "KEEP PLAYING" : "STAY",
+      onCancel: () => dialog.close(),
+      onConfirm: () => endOrLeave(),
+      classes: {
+        question: "",
+        choices: "exit-choices",
+        confirm: "exit-confirm",
+        cancel: "",
+      },
+    });
+    const menuBody: Node[] = [question, choices];
+    const endOrLeave = async () => {
       leave.disabled = stay.disabled = true;
       leave.textContent = "LEAVING…";
       runtime.stop();
@@ -1720,7 +1771,6 @@ export async function startOnline(): Promise<void> {
       if (read(LAST_ROOM_KEY) === code) storage.removeItem(LAST_ROOM_KEY);
       location.href = appUrl();
     };
-    dialogBody.append(choices);
     const standings = [...(snapshot?.leaderboard ?? [])].sort(
       (a, b) =>
         b.totalScoreUnits - a.totalScoreUnits ||
@@ -1759,7 +1809,7 @@ export async function startOnline(): Promise<void> {
           "session-key",
         ),
       );
-      dialogBody.append(list);
+      menuBody.push(list);
     }
     if (!solo) {
       const diagnostics = node("pre", "", "link-diagnostics");
@@ -1773,7 +1823,7 @@ export async function startOnline(): Promise<void> {
         statsPanel.hidden = !statsPanel.hidden;
         dialog.close();
       };
-      dialogBody.append(
+      menuBody.push(
         statsToggle,
         node(
           "p",
@@ -1790,12 +1840,13 @@ export async function startOnline(): Promise<void> {
           app.dataset.linkDiagnostics ?? diagnostics.textContent;
       }, 1000);
     }
-    dialog.showModal();
+    showDialog({
+      title: solo ? "EXIT" : "ROOM",
+      label: solo ? "Exit" : "Room",
+      content: menuBody,
+    });
   };
   avatarButton.onclick = () => {
-    dialogTitle.textContent = "AVATAR";
-    dialog.setAttribute("aria-label", "Avatar");
-    dialogBody.replaceChildren(node("h2", "Your avatar"));
     const picker = createAvatarPicker(storage, (chosen) => {
       joinForm.picker.sync(chosen);
       if (joined) runtime.command({ type: "avatar", avatarId: chosen });
@@ -1812,8 +1863,11 @@ export async function startOnline(): Promise<void> {
         option.title = owner ? `${owner.name} has this one` : "";
       });
     avatarPicker = picker.element;
-    dialogBody.append(picker.element);
-    dialog.showModal();
+    showDialog({
+      title: "AVATAR",
+      label: "Avatar",
+      content: [node("h2", "Your avatar"), picker.element],
+    });
   };
   // The lobby card already carries the QR and the copyable link, so this opens the shared-screen display directly instead of a dialog that repeats them.
   share.title = "Open this room on a shared screen";
@@ -1966,7 +2020,7 @@ export async function startOnline(): Promise<void> {
     keyboard.clear();
     bindings.clear(true, true);
   };
-  const mobileLayout = installMobilePlayLayout(app, clearControls);
+  const mobileLayout = installMobilePlayLayout(app, clearControls, [dialog]);
   showScreen(screen); // A phone booting a room is already on the lobby screen (#134): the header takes its lobby shape before the first snapshot.
   window.addEventListener("blur", clearControls);
   document.addEventListener("visibilitychange", () => {

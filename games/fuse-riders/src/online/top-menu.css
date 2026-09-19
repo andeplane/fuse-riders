@@ -4,7 +4,7 @@
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: var(--fui-space-2);
   margin-left: auto;
   min-width: 0;
 }
@@ -13,7 +13,7 @@
 .online-app > .player-account {
   flex: 0 0 auto;
   min-height: 2.75rem;
-  padding: 0.5rem 0.625rem;
+  padding: var(--fui-space-2) 0.625rem;
   font-family: inherit;
   font-size: 0.625rem;
   font-weight: 700;

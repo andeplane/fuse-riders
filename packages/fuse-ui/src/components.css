@@ -5,8 +5,8 @@
  *   import "fuse-ui/tokens.css";
  *   import "fuse-ui/components.css";
  *
- * Put `fui-app` on the page's root element for the base page, button and field styles. Fuse Riders does not load this
- * file yet: it passes its own class names to the components and keeps styling them in online.css.
+ * Put `fui-app` on the page's root element for the base page, button and field styles. Fuse Riders loads this file
+ * without `fui-app`: its dialogs and join form carry these classes beside its own, and its stylesheets add to them.
  */
 .fui-app {
   min-height: 100dvh;
