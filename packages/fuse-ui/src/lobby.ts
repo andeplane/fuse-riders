@@ -94,10 +94,11 @@ export function createInviteCard(options: InviteOptions): InviteCard {
 }
 
 export type RosterPart =
-  "root" | "empty" | "row" | "info" | "name" | "status" | "host";
+  "root" | "title" | "empty" | "row" | "info" | "name" | "status" | "host";
 
 const ROSTER_CLASSES: Record<RosterPart, string> = {
   root: "fui-roster",
+  title: "fui-roster-title",
   empty: "fui-roster-empty",
   row: "fui-roster-row",
   info: "fui-roster-info",
@@ -120,6 +121,8 @@ export interface RosterMember {
 }
 
 export interface RosterOptions {
+  /** A heading inside the list, before the rows (e.g. WATCHING). Omit for none. */
+  title?: string;
   /** Shown while nobody is seated. Omit for none. */
   emptyText?: string;
   /** Draws an avatar for a member's `avatar` key. Omit for rows without avatars. */
@@ -156,6 +159,7 @@ export function createRoster(options: RosterOptions = {}): Roster {
   const c = (part: RosterPart) =>
     partClass(ROSTER_CLASSES, options.classes, part);
   const element = el("div", "", c("root"), doc);
+  if (options.title) element.append(el("p", options.title, c("title"), doc));
   const empty = options.emptyText
     ? el("p", options.emptyText, c("empty"), doc)
     : undefined;
@@ -296,4 +300,58 @@ export function createLobby(options: LobbyOptions): Lobby {
       start.disabled = !state.canStart;
     },
   };
+}
+
+export type LobbyShellPart = "root" | "intro" | "footer";
+
+const LOBBY_SHELL_CLASSES: Record<LobbyShellPart, string> = {
+  root: "fui-lobby",
+  intro: "fui-lobby-intro",
+  footer: "fui-lobby-footer",
+};
+
+export interface LobbyShellOptions {
+  /** The game's pitch beside the invitation: a heading, how to play. Omit for no intro block. */
+  intro?: readonly Node[];
+  /** The invitation, e.g. `createInviteCard(...).element`. */
+  invite?: HTMLElement;
+  /** Who is in the room, e.g. `createRoster(...).element`. */
+  roster?: HTMLElement;
+  /** The line under everything: a count, the host's actions. Omit for no footer. */
+  footer?: readonly Node[];
+  label?: string;
+  classes?: PartClasses<LobbyShellPart>;
+  document?: Document;
+}
+
+export interface LobbyShell {
+  element: HTMLElement;
+  intro: HTMLElement | undefined;
+  footer: HTMLElement | undefined;
+}
+
+/**
+ * A room's waiting screen as a layout of the game's own parts: intro, invitation, roster and footer, in that order.
+ * `createLobby` is the ready-made version; this one is for a game that owns its copy and actions.
+ */
+export function createLobbyShell(options: LobbyShellOptions): LobbyShell {
+  const doc = options.document ?? document;
+  const c = (part: LobbyShellPart) =>
+    partClass(LOBBY_SHELL_CLASSES, options.classes, part);
+  const element = el("section", "", c("root"), doc);
+  if (options.label) element.setAttribute("aria-label", options.label);
+  let intro: HTMLElement | undefined, footer: HTMLElement | undefined;
+  if (options.intro) {
+    intro = el("div", "", c("intro"), doc);
+    intro.append(...options.intro);
+    element.append(intro);
+  }
+  if (options.invite) element.append(options.invite);
+  if (options.roster) element.append(options.roster);
+  if (options.footer) {
+    footer = el("footer", "", c("footer"), doc);
+    footer.append(...options.footer);
+    element.append(footer);
+  }
+  return { element, intro, footer };
 }

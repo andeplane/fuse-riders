@@ -70,6 +70,7 @@ import {
   createControllerRow,
   createDialog,
   createKeyList,
+  createLobbyShell,
   createInviteCard,
   createJoinByCode,
   createRoster,
@@ -673,21 +674,8 @@ export async function startOnline(): Promise<void> {
       { duration: 220 },
     );
   };
-  const sharedLobby = node("section", "", "shared-lobby room-lobby");
-  sharedLobby.hidden = true;
-  const lobbyCopy = node("div", "", "room-lobby-copy");
   const lobbyHeading = node("h1");
-  lobbyHeading.innerHTML = "SCAN.<br>STEER.<br>SURVIVE.";
-  lobbyCopy.append(
-    node("p", "PHONE PARTY // 2–5 RIDERS", "room-eyebrow"),
-    lobbyHeading,
-    node(
-      "p",
-      "Pick your avatar. Grab your phone. Carve neon trails and blow up your friends’ plans.",
-      "room-intro",
-    ),
-    node("p", "STEER  ◀ ▶     HOLD · AIM · RELEASE", "room-howto"),
-  );
+  lobbyHeading.append("SCAN.", node("br"), "STEER.", node("br"), "SURVIVE.");
   const joinLink = new URL(appUrl(`?room=${code}`), location.origin).href;
   // The link lives next to the QR so a rider who cannot scan can still be handed the room: one tap copies it, and the label reports back.
   const { element: qrCard } = createInviteCard({
@@ -719,26 +707,52 @@ export async function startOnline(): Promise<void> {
     },
   });
   const lobbyRiders = lobbyRoster.element;
-  const lobbyFooter = node("footer", "", "room-lobby-footer"),
-    lobbyCount = node("span", "Waiting for riders");
-  lobbyFooter.append(lobbyCount);
+  const lobbyCount = node("span", "Waiting for riders");
   // The watching list: the rider row's height in neutral grey, no colour, no avatar and no READY, so the five seats stay
   // the thing being read. It lives inside the rider column (the lobby grid has one cell per column) and CSS `order` keeps it last.
-  const lobbyWatchers = node("div", "", "room-watchers");
+  const watchers = createRoster({
+    title: "WATCHING",
+    avatar: () => {
+      const glyph = node("span", "👁", "watcher-glyph");
+      glyph.setAttribute("aria-hidden", "true");
+      return glyph;
+    },
+    classes: {
+      root: "room-watchers",
+      title: "room-watchers-title",
+      row: "room-rider room-watcher",
+      info: "",
+      name: "",
+      status: "",
+    },
+  });
+  const lobbyWatchers = watchers.element;
   lobbyWatchers.hidden = true;
   lobbyWatchers.setAttribute("aria-label", "Watching");
-  lobbyWatchers.append(node("p", "WATCHING", "room-watchers-title"));
   lobbyRiders.append(lobbyWatchers);
-  sharedLobby.append(lobbyCopy, qrCard, lobbyRiders, lobbyFooter);
-  const watcherEntries = new Map<
-    string,
-    {
-      entry: HTMLElement;
-      name: HTMLElement;
-      status: HTMLElement;
-      shown: string;
-    }
-  >();
+  const lobbyShell = createLobbyShell({
+    intro: [
+      node("p", "PHONE PARTY // 2–5 RIDERS", "room-eyebrow"),
+      lobbyHeading,
+      node(
+        "p",
+        "Pick your avatar. Grab your phone. Carve neon trails and blow up your friends’ plans.",
+        "room-intro",
+      ),
+      node("p", "STEER  ◀ ▶     HOLD · AIM · RELEASE", "room-howto"),
+    ],
+    invite: qrCard,
+    roster: lobbyRiders,
+    footer: [lobbyCount],
+    classes: {
+      root: "shared-lobby room-lobby",
+      intro: "room-lobby-copy",
+      footer: "room-lobby-footer",
+    },
+  });
+  const sharedLobby = lobbyShell.element,
+    lobbyFooter = lobbyShell.footer!;
+  sharedLobby.hidden = true;
   // Pointer and keyboard input bind to these buttons through ControllerPointerBindings, not the row's own handlers.
   const {
     element: controls,
@@ -1426,35 +1440,14 @@ export async function startOnline(): Promise<void> {
         })),
       );
       lobbyWatchers.hidden = view.lobby.watchersHidden;
-      for (const [watcherId, row] of watcherEntries)
-        if (!view.lobby.watchers.some((seat) => seat.id === watcherId)) {
-          row.entry.remove();
-          watcherEntries.delete(watcherId);
-        }
-      for (const seat of view.lobby.watchers) {
-        let row = watcherEntries.get(seat.id);
-        if (!row) {
-          const entry = node("div", "", "room-rider room-watcher"),
-            glyph = node("span", "👁", "watcher-glyph"),
-            watcherName = node("strong"),
-            watcherStatus = node("small"),
-            info = node("div");
-          glyph.setAttribute("aria-hidden", "true");
-          info.append(watcherName, watcherStatus);
-          entry.append(glyph, info);
-          row = {
-            entry,
-            name: watcherName,
-            status: watcherStatus,
-            shown: "",
-          };
-          watcherEntries.set(seat.id, row);
-          lobbyWatchers.append(entry);
-        }
-        if (row.shown !== seat.name)
-          row.name.textContent = row.shown = seat.name;
-        row.status.textContent = seat.status;
-      }
+      watchers.update(
+        view.lobby.watchers.map((seat) => ({
+          id: seat.id,
+          name: seat.name,
+          status: seat.status,
+          avatar: "watcher",
+        })),
+      );
       if (!screen.arenaHidden)
         replay.observe(state, state.matchId, performance.now());
       if (
