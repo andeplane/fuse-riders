@@ -92,6 +92,15 @@ test("the boundary guard covers target directories, re-exports, type imports and
   );
   assert.ok(
     forbiddenEdge(
+      "games/fuse-riders/src/online/player-stats.ts",
+      "../../../../service/history.js",
+    ),
+  );
+  assert.ok(
+    forbiddenEdge("games/dice/src/platform.ts", "../../../service/history.js"),
+  );
+  assert.ok(
+    forbiddenEdge(
       "packages/fuse-netcode/src/rollback.ts",
       "../../../games/fuse-riders/src/engine/apply-tick.js",
     ),

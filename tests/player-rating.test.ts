@@ -34,13 +34,15 @@ import {
   mergeCareer,
   parseBuckets,
 } from "../games/fuse-riders/src/shared/career-stats.js";
+import { HistoryStore } from "fuse-platform";
 import {
-  HistoryStore,
-  parseMatchRecord,
   parseMatchResult,
-  parseProfile,
   type MatchResult,
   fuseRiders,
+} from "../games/fuse-riders/src/platform.js";
+import {
+  parseMatchRecord,
+  parseProfile,
   platform,
 } from "../service/history.js";
 import { MemoryHistoryDatabase } from "fuse-platform";

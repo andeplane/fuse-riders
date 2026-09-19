@@ -27,11 +27,9 @@ import {
   HistoryStore,
   MAX_MATCH_PARTICIPANTS,
   matchRecordId,
-  parseMatchResult,
-  parseTotals,
-  fuseRiders,
-  platform,
-} from "../../../service/history.js";
+} from "fuse-platform";
+import { parseMatchResult, parseTotals, fuseRiders } from "../src/platform.js";
+import { platform } from "../../../service/history.js";
 import { MemoryRoomDatabase } from "fuse-network-be";
 import { MemoryHistoryDatabase } from "fuse-platform";
 import { RoomStore, peerId } from "fuse-network-be";

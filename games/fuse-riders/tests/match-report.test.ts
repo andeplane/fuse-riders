@@ -22,7 +22,7 @@ import {
   sendMatchReport,
   type FinishedMatch,
 } from "../src/online/match-report.js";
-import { parseMatchResult } from "../../../service/history.js";
+import { parseMatchResult } from "../src/platform.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
 
 const RIDER = "a".repeat(24),

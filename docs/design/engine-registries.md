@@ -30,7 +30,7 @@ Removed as dead: `BombState.placedTick` (written, never read), `PickupState.expi
 
 ## Not done, and why
 
-- **Per-type counters for every pickup.** `recordPickup` reads the `stat` column, and every type counts in `pickupsCollected`. Extra Bomb, Stopwatch, Gun, Shell, Gravity, GRIP, Range, Nitro and Snail have `stat: null` because the stored match results have no counter for them. Those results are validated field by field (`service/history.ts`, `snapshotMatchStats`, the recap and analytics). Adding counters changes a stored and wire schema, which this stage keeps stable. After that schema change, each type is one column value.
+- **Per-type counters for every pickup.** `recordPickup` reads the `stat` column, and every type counts in `pickupsCollected`. Extra Bomb, Stopwatch, Gun, Shell, Gravity, GRIP, Range, Nitro and Snail have `stat: null` because the stored match results have no counter for them. Those results are validated field by field (`games/fuse-riders/src/platform.ts`, `snapshotMatchStats`, the recap and analytics). Adding counters changes a stored and wire schema, which this stage keeps stable. After that schema change, each type is one column value.
 - **Bot difficulty as a field.** The difficulty is still read from the display-name suffix (`botDifficulty`). The suffix is set once, when the `BOT` log entry seats the rider. To make it a field, either the log entry has to carry the tier or `RoomState.bots` has to become a map with its own checkpoint guard. Both are log or wire changes, outside a stage that keeps the wire and the view stable.
 
 ## Behaviour and evidence

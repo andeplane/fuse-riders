@@ -14,7 +14,6 @@ import {
   LEGACY_GAME_ID,
   MemoryHistoryDatabase,
   Platform,
-  collectHistory,
   createHistoryHttp,
   gameRoute,
   matchRecordId,
@@ -758,45 +757,53 @@ test("rank fields follow the rating: absent without one, unranked before a game,
   });
 });
 
-test("legacy history paging keeps the game's own records, skips unreadable ones and stops within its bound", async () => {
-  const record = (gameId: string, endedAt: number) =>
-    ({ gameId, endedAt }) as unknown as MatchRecord;
-  // Newest first: a page of the legacy game's query holds every game's records.
-  const all = Array.from({ length: 30 }, (_, i) => {
-    const endedAt = 1000 - i;
-    return {
-      record:
-        i === 3
-          ? undefined
-          : record(i % 3 === 0 ? LEGACY_GAME_ID : "dice", endedAt),
-      endedAt,
-    };
+test("a game's history filters on its gameId: another game's newer matches never shorten a page", async () => {
+  const f = await fixture();
+  const whole = (ids: string[], matchId: string) => ({
+    matchId,
+    length: 1,
+    finishers: ids,
+    winnerId: ids[0],
+    players: ids.map((id, slot) => seat(id, slot, slot + 1)),
   });
-  const cursors: (number | undefined)[] = [];
-  const page = async (cursor: number | undefined) => {
-    cursors.push(cursor);
-    return all
-      .filter((doc) => cursor === undefined || doc.endedAt < cursor)
-      .slice(0, 4);
-  };
-  const found = await collectHistory(page, LEGACY_GAME_ID, undefined, 4);
-  assert.deepEqual(
-    found.map((m) => m.endedAt),
-    [1000, 994, 991, 988],
-    "four of the game's records, the unreadable one skipped",
+  const arena = await f.room(undefined, 1),
+    table = await f.room("dice", 3);
+  for (const matchId of ["arena-1", "arena-2", "arena-3"]) {
+    f.advance(1000);
+    await f.play(LEGACY_GAME_ID, arena, whole(arena.ids, matchId), [
+      "alice",
+      "bob",
+    ]);
+  }
+  // Newer than every legacy match, and more of them than a page holds.
+  for (let i = 1; i <= 5; i++) {
+    f.advance(1000);
+    await f.play("dice", table, whole(table.ids, `dice-${i}`), [
+      "alice",
+      "bob",
+    ]);
+  }
+  const ids = (records: MatchRecord[]) => records.map((m) => m.result.matchId);
+  const first = await f.database.matchesFor(
+    LEGACY_GAME_ID,
+    "alice",
+    undefined,
+    2,
   );
-  assert.deepEqual(cursors, [undefined, 997, 993, 989]);
-  // The bound: with one pass, a page crowded by other games comes back short.
-  cursors.length = 0;
+  assert.deepEqual(ids(first), ["arena-3", "arena-2"]);
   assert.deepEqual(
-    (await collectHistory(page, LEGACY_GAME_ID, undefined, 4, 1)).map(
-      (m) => m.endedAt,
+    ids(
+      await f.database.matchesFor(
+        LEGACY_GAME_ID,
+        "alice",
+        first.at(-1)!.endedAt,
+        2,
+      ),
     ),
-    [1000],
+    ["arena-1"],
   );
-  assert.deepEqual(cursors, [undefined]);
-  // The query ran out: stop without another read.
-  cursors.length = 0;
-  assert.deepEqual(await collectHistory(page, LEGACY_GAME_ID, 973, 4), []);
-  assert.deepEqual(cursors, [973]);
+  assert.deepEqual(
+    ids(await f.database.matchesFor("dice", "alice", undefined, 2)),
+    ["dice-5", "dice-4"],
+  );
 });
