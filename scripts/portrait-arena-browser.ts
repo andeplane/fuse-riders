@@ -208,7 +208,7 @@ try {
     });
     const solo = await context.newPage();
     solo.on("pageerror", (error) => errors.push(error.message));
-    await solo.goto(`${base}?solo=1`);
+    await solo.goto(`${base}?solo=1&mute`);
     await solo.locator(".mobile-play.mobile-portrait").waitFor();
     await solo.waitForFunction(
       () =>
@@ -247,10 +247,56 @@ try {
     await solo.screenshot({
       path: `artifacts/portrait-solo-${browserName}-${hasTouch ? "touch" : "mouse"}.png`,
     });
-    const zone = await left.boundingBox();
-    assert.ok(
-      zone && zone.y > 600 && zone.height >= 112,
-      "portrait steering has a large bottom hit area",
+    const buttons = solo.locator(".online-controls > button");
+    for (let column = 0; column < 3; column++) {
+      const button = buttons.nth(column);
+      const box = await button.boundingBox();
+      assert.deepEqual(
+        box,
+        { x: column * 130, y: 0, width: 130, height: 844 },
+        "each portrait control covers one full-height third",
+      );
+      for (const y of [1, 100, 422, 843]) {
+        const x = column * 130 + 65;
+        assert.ok(
+          await button.evaluate(
+            (element, { x, y }) => {
+              const target = document.elementFromPoint(x, y);
+              return target === element || element.contains(target);
+            },
+            { x, y },
+          ),
+          "HUD, arena and hints let touches reach the control beneath",
+        );
+        await solo.mouse.move(x, y);
+        await solo.mouse.down();
+        assert.match((await button.getAttribute("class")) ?? "", /active/);
+        assert.equal(
+          await button.evaluate(
+            (element) => getComputedStyle(element).backgroundColor,
+          ),
+          "rgba(0, 0, 0, 0)",
+          "held touch zones stay invisible",
+        );
+        await solo.mouse.up();
+        assert.doesNotMatch(
+          (await button.getAttribute("class")) ?? "",
+          /active/,
+        );
+      }
+    }
+    const zone = (await left.boundingBox())!;
+    const armedFireShadow = await buttons.nth(1).evaluate((button) => {
+      const wasArmed = button.classList.contains("gun-armed");
+      button.classList.add("gun-armed");
+      const shadow = getComputedStyle(button).boxShadow;
+      button.classList.toggle("gun-armed", wasArmed);
+      return shadow;
+    });
+    assert.equal(
+      armedFireShadow,
+      "none",
+      "an armed weapon does not outline the invisible bomb zone",
     );
     await solo.mouse.move(zone.x + zone.width / 2, zone.y + zone.height / 2);
     await solo.mouse.down();
