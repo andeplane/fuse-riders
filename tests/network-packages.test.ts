@@ -9,6 +9,8 @@ const ALLOWED: Record<string, RegExp> = {
   "fuse-network-be":
     /^(\.|node:|ws$|fuse-network-protocol$|@google-cloud\/|google-auth-library$)/,
   "fuse-netcode": /^(\.|@msgpack\/msgpack$|fuse-network-fe$)/,
+  "fuse-platform":
+    /^(\.|node:|fuse-network-be$|jose$|@google-cloud\/firestore$)/,
 };
 const sources = (directory: string): string[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) =>
@@ -91,7 +93,7 @@ test("the import scan reads every form a module can name another in, and nothing
     assert.equal(opaqueImports(source).length, count, form);
 });
 
-test("the networking libraries stay game-agnostic: no import reaches the game or an undeclared package", () => {
+test("the shared libraries stay game-agnostic: no import reaches the game or an undeclared package", () => {
   for (const [name, allowed] of Object.entries(ALLOWED)) {
     const root = path.resolve("packages", name, "src");
     let imports = 0;

@@ -5,15 +5,15 @@ import type { AddressInfo } from "node:net";
 import { createServer } from "vite";
 import { chromium, webkit } from "playwright";
 import { WebSocket } from "ws";
-import { createDevRoomService } from "../src/service/dev.js";
+import { createDevRoomService } from "../service/dev.js";
 import { authFrame, peerId } from "fuse-network-be";
 import {
   beginMatchParticipant,
   recordDeath,
   snapshotMatchStats,
   type MatchStatsState,
-} from "../src/engine/match-stats.js";
-import type { MatchResult } from "../src/service/history.js";
+} from "../games/fuse-riders/src/engine/match-stats.js";
+import type { MatchResult } from "../games/fuse-riders/src/platform.js";
 
 const vite = await createServer({
   server: { host: "127.0.0.1", port: 0 },
@@ -162,10 +162,10 @@ try {
         await page.locator(".online-app").waitFor();
         await page.evaluate(
           async ({ api }) => {
-            const path = "/src/online/account-panel.ts";
+            const path = "/games/fuse-riders/src/online/account-panel.ts";
             const { createAccountPanel } = (await import(
               path
-            )) as typeof import("../src/online/account-panel.js");
+            )) as typeof import("../games/fuse-riders/src/online/account-panel.js");
             let listener:
               ((account: { name: string } | undefined) => void) | undefined;
             const panel = createAccountPanel({

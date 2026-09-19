@@ -29,6 +29,8 @@ jobs:
       ROOM_COLLECTION_PREFIX: fuse-production
       PUBSUB_TOPIC: fuse-riders-signalling
       ALLOWED_ORIGINS: https://andeplane.github.io
+      # Games served beside Fuse Riders (comma-separated, e.g. dice). Empty until the steps in GCP-DEPLOY.md are done.
+      EXTRA_GAME_IDS: ${{ vars.EXTRA_GAME_IDS }}
       CLOUD_RUN_SERVICE: fuse-riders-gateway
       ARTIFACT_REPOSITORY: fuse-riders
       BUILD_SOURCE_BUCKET: andershaf-87-fuse-riders-build

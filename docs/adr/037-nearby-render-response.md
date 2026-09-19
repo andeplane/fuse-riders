@@ -1,6 +1,6 @@
 # ADR 037: faster publication and conservative nearby presentation delay
 
-Status: **superseded** by [docs/online/P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md): there is no host publication or remote world buffer; every device simulates locally and presents one tick behind its own clock with the local rider led by its held controls (`src/online/prediction.ts`). Originally: implemented and independently reviewed. The measured candidate was accepted on 2026-09-14 after the fixed response batch; final CI and public release checks remain required.
+Status: **superseded** by [docs/online/P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md): there is no host publication or remote world buffer; every device simulates locally and presents one tick behind its own clock with the local rider led by its held controls (`games/fuse-riders/src/online/prediction.ts`). Originally: implemented and independently reviewed. The measured candidate was accepted on 2026-09-14 after the fixed response batch; final CI and public release checks remain required.
 
 ## Problem and evidence
 

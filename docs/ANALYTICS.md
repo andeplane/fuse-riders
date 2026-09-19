@@ -1,9 +1,9 @@
 # Product analytics
 
-[`src/online/analytics.ts`](../src/online/analytics.ts) reports twelve product events to Mixpanel. It answers two
+[`games/fuse-riders/src/online/analytics.ts`](../games/fuse-riders/src/online/analytics.ts) reports twelve product events to Mixpanel. It answers two
 questions — do riders get from the landing page into a match and what happened when they did, and which powerups
 kill and how often they miss — and nothing else.
-It is unrelated to [`src/online/telemetry.ts`](../src/online/telemetry.ts), which posts raw runtime diagnostics
+It is unrelated to [`games/fuse-riders/src/online/telemetry.ts`](../games/fuse-riders/src/online/telemetry.ts), which posts raw runtime diagnostics
 (inputs, packets, repairs, rewinds) to `/telemetry` on whatever origin served the page. It too is on only for a ported address or `?telemetry=1`,
 but the receiver lived in the LAN server removed by #271, so nothing records those posts today.
 
@@ -93,7 +93,7 @@ by the SDK or by the game.
 
 ### What Mixpanel is initialised with
 
-`MIXPANEL_CONFIG` in `analytics.ts`, checked by `tests/analytics.test.ts`:
+`MIXPANEL_CONFIG` in `analytics.ts`, checked by `games/fuse-riders/tests/analytics.test.ts`:
 
 | Option                   | Value                                            | Why                                                                                                                                                                                           |
 | ------------------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -144,8 +144,8 @@ such as a shared-TV rider's phone, reports neither. This shows how many players 
 | `Signed In`        | a Google sign-in from the landing page's account dialog succeeded                                 | —                                                                                                                                                                                                                                                                                                                                                              |
 
 When `Match Started`, `Kill` / `Miss`, `Seat Taken` and `Match Ended` fire is
-[`src/online/funnel.ts`](../src/online/funnel.ts): the room UI hands it every snapshot it renders and the funnel
-does the once-only bookkeeping, outside the render callback and under test (`tests/funnel.test.ts`). A frame it
+[`games/fuse-riders/src/online/funnel.ts`](../games/fuse-riders/src/online/funnel.ts): the room UI hands it every snapshot it renders and the funnel
+does the once-only bookkeeping, outside the render callback and under test (`games/fuse-riders/tests/funnel.test.ts`). A frame it
 cannot process never throws into the render callback; the first such failure is reported once with
 `console.warn` (there is no diagnostic event), and an event whose properties could not be built is not consumed —
 it fires on the next frame that can build it.
@@ -269,7 +269,7 @@ reported as `matchLength` for exactly this reason.
 - **Location.** `ip: false` at `init`: Mixpanel is told not to geolocate the request, so no event carries a city,
   region or country.
 - **Free text.** Every string property of every event and super property passes through `sanitizeText`
-  ([`analytics-text.ts`](../src/online/analytics-text.ts)) inside `track`, so a call site cannot forget to: one
+  ([`analytics-text.ts`](../games/fuse-riders/src/online/analytics-text.ts)) inside `track`, so a call site cannot forget to: one
   line, at most 200 characters, with URLs (`[url]`), query strings (`[query]`), `room=` / `token=` style pairs,
   e-mail addresses, JWTs, UUIDs and any long hex or base64 run (`[token]` — the `fuse-peer-*` and `fuse-room-*`
   tokens are 64 hex characters) removed, and this page's own room code removed wherever it appears. Today that

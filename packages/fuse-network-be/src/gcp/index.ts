@@ -27,6 +27,8 @@ export interface GcpRoomServiceOptions {
   authClient?: AuthClient;
   maxGuests?: number;
   fullMessage?: string;
+  /** The games this service hosts; see `RoomStoreDependencies.gameIds`. */
+  gameIds?: readonly string[];
 }
 /**
  * The Cloud Run room service: Firestore holds room metadata, Pub/Sub routes signalling between instances.
@@ -73,6 +75,7 @@ export function startGcpRoomService(options: GcpRoomServiceOptions): Server {
     id: randomUUID,
     maxGuests: options.maxGuests,
     fullMessage: options.fullMessage,
+    gameIds: options.gameIds,
   });
   const bus = new PubSubRoomBus(pubsub, topic, gatewayId, prefix);
   // Never log requests, query strings, room tokens or raw transport frames.

@@ -31,21 +31,22 @@ try {
   for (const mode of ["webgl", "phaser-canvas"] as const) {
     const results = await page.evaluate(async (mode) => {
       const { createPhaserArena } = (await import(
-        String("/src/render/phaser/arena.ts")
-      )) as typeof import("../src/render/phaser/arena.js");
+        String("/games/fuse-riders/src/render/phaser/arena.ts")
+      )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
       const { visualFixture } = (await import(
         String("/scripts/lib/benchmark-fixture.ts")
       )) as typeof import("./lib/benchmark-fixture.js");
       const { themes } = (await import(
-        String("/src/render/themes.ts")
-      )) as typeof import("../src/render/themes.js");
+        String("/games/fuse-riders/src/render/themes.ts")
+      )) as typeof import("../games/fuse-riders/src/render/themes.js");
       const { BOMB_COOLDOWN_TICKS } = (await import(
-        String("/src/engine/game.ts")
-      )) as typeof import("../src/engine/game.js");
+        String("/games/fuse-riders/src/engine/game.ts")
+      )) as typeof import("../games/fuse-riders/src/engine/game.js");
       const { RELOAD_RING_RADIUS } = (await import(
-        String("/src/render/reload-ring.ts")
-      )) as typeof import("../src/render/reload-ring.js");
-      type Snapshot = import("../src/engine/view.js").WorldView;
+        String("/games/fuse-riders/src/render/reload-ring.ts")
+      )) as typeof import("../games/fuse-riders/src/render/reload-ring.js");
+      type Snapshot =
+        import("../games/fuse-riders/src/engine/view.js").WorldView;
       document.body.replaceChildren();
       document.body.style.cssText = "margin:0;background:#020715";
       const canvas = document.createElement("canvas");

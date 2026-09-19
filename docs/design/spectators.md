@@ -25,7 +25,7 @@ snapshot, exactly like the seats.
 ## The model
 
 - `RoomState.spectators: Map<id, { name, connected, generation }>`, at most `MAX_SPECTATORS` = 5
-  (`src/engine/apply-tick.ts`).
+  (`games/fuse-riders/src/engine/apply-tick.ts`).
 - One new management entry, `SPECTATOR` (kind 16), in two shapes: `join` with a member id, name and generation, and
   `leave` with a member id. `isManagementKind` spans 10–16, so it is a manager's to write and refused from anyone else.
 - `PRESENCE` and `LEAVE` look a member up in the watching list as well as in the seats.
@@ -49,7 +49,7 @@ world back the same way a late entry from an unseated creator always has.
 
 ## Succession, and the host who watches
 
-`successionOrder` is now the creator, then the connected human riders by id, then the connected spectators by id.
+`successionOrder` is now the creator, then the connected human riders (by id under rules `fuse-p2p-41`; in seat order from `fuse-p2p-42`), then the connected spectators by id.
 Watchers rank last because a room with a seat left in it should be managed from that seat — but they do rank, so a room
 whose riders have all dropped is still run by whoever is left watching.
 
@@ -64,7 +64,7 @@ a TV host on an unjoined page — still gets the old two-manager behaviour, unch
 `ROOM_LIMITS.maxGuests` moves from 5 to 10, so a room admits eleven sockets: the creator, four more riders, five
 spectators and a TV display. That is the game's setting, passed into the signalling package, whose own
 `DEFAULT_MAX_GUESTS` stays 5; it is a capacity change and not a wire-protocol version change, so every service instance
-takes it without a protocol bump. `tests/spectators.test.ts` pins the arithmetic against `MAX_PLAYERS` and
+takes it without a protocol bump. `games/fuse-riders/tests/spectators.test.ts` pins the arithmetic against `MAX_PLAYERS` and
 `MAX_SPECTATORS` so the three numbers cannot drift apart.
 
 The cost is the mesh. Eleven members is 55 links, against 15 for six. A phone sends one packet per tick to every other

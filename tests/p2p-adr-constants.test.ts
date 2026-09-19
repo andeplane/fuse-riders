@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { BOTS_ONLY_STEPS_PER_TICK, TICK_HZ } from "../src/engine/game.js";
-import { MAX_STEPS_PER_TICK } from "../src/engine/tick-driver.js";
+import {
+  BOTS_ONLY_STEPS_PER_TICK,
+  TICK_HZ,
+} from "../games/fuse-riders/src/engine/game.js";
+import { MAX_STEPS_PER_TICK } from "../games/fuse-riders/src/engine/tick-driver.js";
 import {
   TickClock,
   SNAP_TICKS,

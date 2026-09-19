@@ -1,7 +1,7 @@
 /**
  * The contract between a game and the netcode. The netcode owns streams, their order and repair, the shared clock,
  * rollback, event deduplication, snapshot transfer and the desync hash; the game owns its whole room state and folds
- * one log tick of entries into it. Every member is derived from what `src/online/` read from Fuse Riders' engine
+ * one log tick of entries into it. Every member is derived from what `games/fuse-riders/src/online/` read from Fuse Riders' engine
  * before the extraction (see `docs/design/multi-game.md`).
  */
 
@@ -166,6 +166,16 @@ export interface RuntimeText {
   fullWithBots: string;
   botNotFound: string;
   botBetweenRounds: string;
+  /** A kick naming a member the room no longer lists. */
+  kickGone: string;
+  /** A kick naming an AI player, which has its own button. */
+  kickBot: string;
+  /** A kick of a seated player while a round runs, which the fold would only mark absent. */
+  kickBetweenRounds: string;
+  /** A kick whose entry landed inside a round after all: the fold kept the seat, so it is worth another try. */
+  kickInRound: string;
+  /** What the removed device is told. */
+  kicked: string;
   stillLoading: string;
   chooseName: string;
   reconnectFirst: string;

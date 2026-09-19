@@ -15,6 +15,24 @@
       ]
     },
     {
+      "collectionGroup": "fuse-production-matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gameId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "participantUids",
+          "arrayConfig": "CONTAINS"
+        },
+        {
+          "fieldPath": "endedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "fuse-production-users",
       "queryScope": "COLLECTION",
       "fields": [
@@ -32,6 +50,42 @@
       "collectionGroup": "fuse-production-users",
       "queryScope": "COLLECTION",
       "fields": [
+        {
+          "fieldPath": "ranked",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "elo",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "fuse-production-ratings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gameId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "ranked",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "elo",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "fuse-production-ratings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gameId",
+          "order": "ASCENDING"
+        },
         {
           "fieldPath": "ranked",
           "order": "ASCENDING"
@@ -124,6 +178,11 @@
     {
       "collectionGroup": "fuse-production-matches",
       "fieldPath": "rivalryPairs",
+      "indexes": []
+    },
+    {
+      "collectionGroup": "fuse-production-ratings",
+      "fieldPath": "rating",
       "indexes": []
     }
   ]

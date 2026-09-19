@@ -26,6 +26,8 @@ export interface DevRoomServiceOptions {
   /** Room capacity and its refusal text; see `RoomStoreDependencies`. */
   maxGuests?: number;
   fullMessage?: string;
+  /** The games this service hosts; see `RoomStoreDependencies.gameIds`. */
+  gameIds?: readonly string[];
 }
 export interface DevRoomService {
   server: RoomServer;
@@ -64,6 +66,7 @@ export function createDevRoomService(
     id: randomUUID,
     maxGuests: options.maxGuests,
     fullMessage: options.fullMessage,
+    gameIds: options.gameIds,
   });
   const gateway = new RoomGateway(
     `local-${randomUUID()}`,
