@@ -128,6 +128,71 @@ interface SteeringPlan {
 const TURN_DURATIONS = [2, 4, 8, 12, 16, 24, BOT_LOOKAHEAD_TICKS] as const;
 const SAFETY_MARGIN = 2;
 const TRAIL_CLEARANCE = RIDER_RADIUS + TRAIL_WIDTH / 2 + SAFETY_MARGIN;
+/** Clearance beyond this earns a plan nothing more. */
+const SCORE_CLEARANCE_CAP = 60;
+/** How far from a predicted step a trail can still decide it: a hit needs `TRAIL_CLEARANCE` plus the step, a score this. */
+const TRAIL_SCORE_REACH = SCORE_CLEARANCE_CAP + RIDER_RADIUS + TRAIL_WIDTH / 2;
+/** Covers rounding in the grid's bounds, so a trail is only passed over when it could not have mattered. */
+const PRUNE_SLACK = 1;
+/** Side of a cell of the trail grid a plan reads its nearby trails from, in world units. */
+const TRAIL_CELL = 64;
+
+interface TrailCandidate {
+  trail: TrailSegment;
+  own: boolean;
+  distance: number;
+}
+/**
+ * The candidate trails bucketed by the cell of their midpoint, so a predicted step reads only the cells near it instead
+ * of every trail in reach. `near` visits a superset of the candidates with a point within `radius` of (x, y); cells
+ * clamp to the board, which keeps that true for anything just off it.
+ */
+class TrailGrid {
+  private readonly cells: (TrailCandidate[] | undefined)[];
+  private readonly columns: number;
+  private readonly rows: number;
+  private halfX = 0;
+  private halfY = 0;
+  constructor(width: number, height: number, candidates: TrailCandidate[]) {
+    this.columns = Math.max(1, Math.ceil(width / TRAIL_CELL));
+    this.rows = Math.max(1, Math.ceil(height / TRAIL_CELL));
+    this.cells = new Array(this.columns * this.rows);
+    for (const candidate of candidates) {
+      const { x1, y1, x2, y2 } = candidate.trail;
+      this.halfX = Math.max(this.halfX, Math.abs(x2 - x1) / 2);
+      this.halfY = Math.max(this.halfY, Math.abs(y2 - y1) / 2);
+      const cell =
+        this.row((y1 + y2) / 2) * this.columns + this.column((x1 + x2) / 2);
+      (this.cells[cell] ??= []).push(candidate);
+    }
+  }
+  private column(x: number): number {
+    return Math.min(this.columns - 1, Math.max(0, Math.floor(x / TRAIL_CELL)));
+  }
+  private row(y: number): number {
+    return Math.min(this.rows - 1, Math.max(0, Math.floor(y / TRAIL_CELL)));
+  }
+  /** Stops and answers true as soon as `visit` does. */
+  near(
+    x: number,
+    y: number,
+    radius: number,
+    visit: (candidate: TrailCandidate) => boolean,
+  ): boolean {
+    const reachX = radius + this.halfX + PRUNE_SLACK,
+      reachY = radius + this.halfY + PRUNE_SLACK;
+    const lastRow = this.row(y + reachY),
+      firstColumn = this.column(x - reachX),
+      lastColumn = this.column(x + reachX);
+    for (let row = this.row(y - reachY); row <= lastRow; row++)
+      for (let column = firstColumn; column <= lastColumn; column++) {
+        const cell = this.cells[row * this.columns + column];
+        if (cell)
+          for (const candidate of cell) if (visit(candidate)) return true;
+      }
+    return false;
+  }
+}
 
 /**
  * Replan every tick, but evaluate short turns followed by straight escape paths. `straightSafe` says whether riding
@@ -168,26 +233,30 @@ function chooseSteering(
         player.y + reach,
       )
     : [{ dx: 0, dy: 0 }];
-  const trails = sortedPlayers(game)
-    .flatMap((owner) =>
-      owner.trail.map((trail) => ({
-        trail,
-        own: owner.id === player.id,
-        distance: Math.min(
-          ...vantage.map(({ dx, dy }) =>
-            distanceToSegmentSquared(player.x + dx, player.y + dy, trail),
-          ),
-        ),
-      })),
-    )
-    .filter(
-      (candidate) =>
-        (candidate.trail.detached ||
-          candidate.trail.expiresAtTick > game.tick) &&
-        candidate.distance < reach * reach,
-    )
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, BOT_MAX_NEARBY_TRAILS);
+  // Live trails within reach. Every segment on the board passes through here every tick for every bot,
+  // so the loop allocates only for the candidates it keeps.
+  const reachSquared = reach * reach;
+  const trails: TrailCandidate[] = [];
+  for (const owner of sortedPlayers(game)) {
+    const own = owner.id === player.id;
+    for (const trail of owner.trail) {
+      if (!trail.detached && trail.expiresAtTick <= game.tick) continue;
+      let distance = Infinity;
+      for (const { dx, dy } of vantage)
+        distance = Math.min(
+          distance,
+          distanceToSegmentSquared(player.x + dx, player.y + dy, trail),
+        );
+      if (distance < reachSquared) trails.push({ trail, own, distance });
+    }
+  }
+  // Plans read the trails through the grid, where order never matters, so sorting only picks the nearest when there
+  // are too many.
+  if (trails.length > BOT_MAX_NEARBY_TRAILS) {
+    trails.sort((a, b) => a.distance - b.distance);
+    trails.length = BOT_MAX_NEARBY_TRAILS;
+  }
+  const grid = new TrailGrid(game.width, game.height, trails);
   // Assume visible opponents continue straight; never inspect their queued inputs.
   // Their predicted trail remains dangerous after their head has passed a crossing.
   // Holes that close inside the lookahead are planned as if they stayed: a bot expects the curve a moment too long, never too short.
@@ -282,6 +351,10 @@ function chooseSteering(
   const sway = Array.from({ length: lookahead }, (_, future) =>
     headingOffset(game.seed, player, game.tick + future + 1),
   );
+  // So is the rider's own motion: speed and turn rate depend on the tick, never on the plan.
+  const motion = Array.from({ length: lookahead }, (_, future) =>
+    riderMotionStep(player, game.tick + future + 1, game.roundStartedTick),
+  );
   let chosen = 0,
     bestSurvived = -1,
     bestScore = -Infinity,
@@ -298,11 +371,7 @@ function chooseSteering(
     const ownPath: TrailSegment[] = [];
     for (let future = 1; future <= lookahead; future++) {
       const tick = game.tick + future;
-      const { distance, turn } = riderMotionStep(
-        player,
-        tick,
-        game.roundStartedTick,
-      );
+      const { distance, turn } = motion[future - 1]!;
       const next = advanceRiderPose(
         { ...pose, angle: pose.angle + gravityBend(fields, pose, turn) },
         {
@@ -358,8 +427,13 @@ function chooseSteering(
           ) <= squared(TRAIL_CLEARANCE)
         );
       };
+      // A trail further from this step than a hit or a scored clearance reaches cannot decide it, so the step reads
+      // only the grid cells within that distance.
       if (
-        trails.some(
+        grid.near(
+          x,
+          y,
+          Math.max(TRAIL_CLEARANCE + distance, TRAIL_SCORE_REACH),
           ({ trail, own }) =>
             (trail.detached || trail.expiresAtTick > tick) &&
             !(own && trail.createdTick > tick - SELF_TRAIL_GRACE_TICKS) &&
@@ -475,7 +549,7 @@ function chooseSteering(
         clearance,
         Math.sqrt(trailDistanceSquared) - RIDER_RADIUS - TRAIL_WIDTH / 2,
       );
-      score += Math.min(60, clearance) * 0.05;
+      score += Math.min(SCORE_CLEARANCE_CAP, clearance) * 0.05;
       survived++;
       ownPath.push({
         x1: previous.x,

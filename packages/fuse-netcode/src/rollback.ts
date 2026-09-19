@@ -27,6 +27,11 @@ export interface AdvanceResult<Event = unknown> {
   events: WorldEvent<Event>[];
   waitingFor?: string;
 }
+/** A budget window's time limit (`World.refill`): the clock it is read on, and the milliseconds a window may run. */
+export interface WindowTime {
+  now: () => number;
+  ms: number;
+}
 export interface WorldReceive<
   Entry extends LogEntry = LogEntry,
   Event = unknown,
@@ -82,6 +87,9 @@ export class World<
   /** Steps the current budget window allows, and has spent (`refill`). */
   private budget = Infinity;
   private spent = 0;
+  /** The window's time limit, and the time its steps have taken so far (`refill`). */
+  private time: WindowTime | undefined;
+  private worked = 0;
   rollbacks = 0;
   rollbackTicks = 0;
   /** Simulation steps run since this world was created: a log tick runs one, or several in a fast phase. */
@@ -114,10 +122,17 @@ export class World<
    * Each log tick runs whole: one is started only if its step count (`RollbackGame.steps`, read off the state as its
    * fold reads it) still fits, except the first of a window, so a window never runs more than `max(steps, maxSteps)`.
    * A world never refilled has no budget, and every call runs to its target as before.
+   *
+   * With `time`, the window also starts no new tick once its steps have taken `time.ms` between them: on a device too
+   * slow for the step count, a pass hands the main thread back to rendering instead of running every step it may. Only
+   * time inside steps counts, so a rollback re-run in a packet handler does not use up the next loop pass's time by
+   * the idle wait that follows it.
    */
-  refill(steps: number): void {
+  refill(steps: number, time?: WindowTime): void {
     this.budget = steps;
     this.spent = 0;
+    this.time = time;
+    this.worked = 0;
   }
   /** Newest first: the two most recent simulated ticks, for fractional presentation. */
   view(): readonly Frame<View>[] {
@@ -337,8 +352,13 @@ export class World<
   private step(events: WorldEvent<Event>[], last: number): boolean {
     const state = this.work,
       replaying = !this.settled;
-    if (this.spent > 0 && this.spent + this.game.steps(state) > this.budget)
+    if (
+      this.spent > 0 &&
+      (this.spent + this.game.steps(state) > this.budget ||
+        (this.time && this.worked >= this.time.ms))
+    )
       return false;
+    const startedAt = this.time?.now();
     const tick = state.tick + 1,
       { matchId, round } = this.game.scope(state),
       before = this.game.clock(state);
@@ -346,6 +366,7 @@ export class World<
       after = this.game.clock(state);
     this.spent += after - before;
     this.steps += after - before;
+    if (this.time) this.worked += this.time.now() - startedAt!;
     // Keyed by log tick, which is what retention counts in; stamped with the game's clock, which is what every
     // consumer compares against the frames it is shown.
     produced.forEach((event, index) => {
