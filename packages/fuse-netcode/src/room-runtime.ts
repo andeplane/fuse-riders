@@ -558,6 +558,9 @@ export class RoomRuntime<
         if (
           this.manager &&
           !this.hiddenState &&
+          // A manager whose own seat is away seats nobody: the `JOIN` would be discarded and the joiner left waiting.
+          (this.world === undefined ||
+            this.game.seat(this.world.state, this.id)?.away !== true) &&
           typeof data.name === "string"
         ) {
           const error =
@@ -1131,7 +1134,11 @@ export class RoomRuntime<
   }
   private creatorDuties(now: number): void {
     const room = this.world!.state,
+      // Its own seat away (the return is logged but not folded yet): every entry it appended would be discarded, and
+      // the bookkeeping would suppress the valid one that follows. It waits for its return to fold.
+      own = this.game.seat(room, this.id),
       stalled = now - this.lastLoopAt > DISCONNECT_MS / 2;
+    if (own?.away) return;
     for (const [id, member] of this.members) {
       const player = this.game.seat(room, id);
       if (!player) continue;
@@ -1169,7 +1176,9 @@ export class RoomRuntime<
    */
   private actingCreatorDuties(now: number): void {
     const state = this.world!.state,
-      order = successionOrder(this.game.members(state), this.hostId),
+      // Away members rank here too (`permitted` ranks them the same for this one entry): a member whose last peer died
+      // unlogged while it was away must be able to record that, or it can never return and the room has no manager.
+      order = successionOrder(this.game.members(state), this.hostId, true),
       mine = order.indexOf(this.id);
     // No record at all: the service says that member is offline. A record not heard yet gets the same fair chance as above.
     const silent = (id: string) => {

@@ -151,8 +151,11 @@ function decodeRoom(
     if (
       !memberId(id) ||
       !game.players.has(id) ||
+      // Away and ready together is a fold no reducer can reach: a step away clears the vote.
       (raw.length === 7 &&
-        (away !== 1 || game.players.get(id)!.connected !== true)) ||
+        (away !== 1 ||
+          ready === true ||
+          game.players.get(id)!.connected !== true)) ||
       bots.has(id) ||
       folds.has(id) ||
       !uint32(generation) ||

@@ -160,11 +160,17 @@ export function isManagementEntry<Settings>(
 export function successionOrder(
   seats: Iterable<Seat>,
   creatorId: string,
+  /** Rank away members too, as if present: the order in which absence may be recorded (`permitted`). */
+  withAway = false,
 ): string[] {
   const players: Seat[] = [],
     watchers: string[] = [];
   for (const seat of seats)
-    if (seat.connected && !seat.bot && seat.id !== creatorId)
+    if (
+      (seat.connected || (withAway && seat.away)) &&
+      !seat.bot &&
+      seat.id !== creatorId
+    )
       if (seat.watcher) watchers.push(seat.id);
       else players.push(seat);
   players.sort(
@@ -223,8 +229,15 @@ export function permitted(
     if (entry[4] === false) return own !== undefined && !own.bot && !own.away;
     if (own?.away) return true;
   }
-  // An away member steps back in before anything else it logs applies, the creator included.
-  if (own?.away) return false;
+  // An away member steps back in before anything else it logs applies, the creator included — except the one entry
+  // §9 gives every ranked member: the absence of someone ahead of it. Without it, a member whose last peer died
+  // unlogged while it was away could neither record that death nor return, and the room stood still (#361 review).
+  if (own?.away)
+    return (
+      entry[2] === PRESENCE &&
+      entry[4] === false &&
+      ahead(all, creatorId, manager, entry[3] as string)
+    );
   if (manager === creatorId) return true;
   const order = successionOrder(all, creatorId),
     rank = order.indexOf(manager);
@@ -234,6 +247,18 @@ export function permitted(
     if (target >= 0 && target < rank) return true;
   }
   return actingCreator(all, creatorId) === manager;
+}
+/** Whether `manager` ranks behind `target` in the order that ranks away members as if present. */
+function ahead(
+  seats: readonly Seat[],
+  creatorId: string,
+  manager: string,
+  target: string,
+): boolean {
+  const order = successionOrder(seats, creatorId, true),
+    rank = order.indexOf(manager),
+    at = order.indexOf(target);
+  return rank > 0 && at >= 0 && at < rank;
 }
 /** The member a management entry disconnects, if it does: the stall rule may not wait for that member past its tick. */
 export function disconnects(entry: LogEntry): string | undefined {

@@ -189,9 +189,12 @@ export class World<
   /** Entries in the applicable log that disconnect `id` after the current tick: the stall rule may not wait past them. */
   private pendingDisconnect(id: string): number | undefined {
     let earliest: number | undefined;
+    // Away members rank here too: `permitted` lets them record the absence of someone ahead of them, and the stall
+    // rule must not wait past an entry it would apply.
     for (const manager of successionOrder(
       this.game.members(this.state),
       this.creatorId,
+      true,
     )) {
       const stream = this.streams.get(manager);
       if (!stream) continue;

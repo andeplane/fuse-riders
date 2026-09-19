@@ -112,22 +112,35 @@ export function freeSlot(game: GameState): number {
  * a seat left in it should be managed from that seat, but they do rank: a room whose riders all dropped is still run by
  * whoever is left watching.
  */
-export function successionOrder(state: RoomState, creatorId: string): string[] {
+export function successionOrder(
+  state: RoomState,
+  creatorId: string,
+  /** Rank away members too, as if present: the order in which absence may be recorded (`permitted`). */
+  withAway = false,
+): string[] {
+  const ranked = (present: boolean, away: boolean) =>
+    present || (withAway && away);
   return [
     creatorId,
     ...sortedPlayers(state.game)
       .filter(
         (player) =>
-          player.connected &&
           !state.bots.has(player.id) &&
           player.id !== creatorId &&
-          state.folds.get(player.id)?.away !== true,
+          ranked(
+            player.connected && state.folds.get(player.id)?.away !== true,
+            state.folds.get(player.id)?.away === true,
+          ),
       )
       .map((player) => player.id),
     ...[...state.spectators]
       .filter(
         ([id, spectator]) =>
-          spectator.connected && !spectator.away && id !== creatorId,
+          id !== creatorId &&
+          ranked(
+            spectator.connected && spectator.away !== true,
+            spectator.away === true,
+          ),
       )
       .map(([id]) => id)
       .sort(),
@@ -197,8 +210,16 @@ export function permitted(
       return memberListed(state, manager) && !memberAway(state, manager);
     if (memberAway(state, manager)) return true;
   }
-  // An away member steps back in before anything else it logs applies, the creator included.
-  if (memberAway(state, manager)) return false;
+  // An away member steps back in before anything else it logs applies, the creator included — except the one entry §9
+  // gives every ranked member: the absence of someone ahead of it. Without it, a member whose last peer died unlogged
+  // while it was away could neither record that death nor return, and the room stood still (#361 review).
+  if (memberAway(state, manager)) {
+    if (entry[2] !== PRESENCE || entry[4] !== false) return false;
+    const judging = successionOrder(state, creatorId, true),
+      rank = judging.indexOf(manager),
+      target = judging.indexOf(entry[3]);
+    return rank > 0 && target >= 0 && target < rank;
+  }
   if (manager === creatorId) return true;
   const order = successionOrder(state, creatorId),
     rank = order.indexOf(manager);

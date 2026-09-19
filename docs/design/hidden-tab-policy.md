@@ -109,9 +109,17 @@ up at the step budget instead of fetching again.
   a service-side limit this change does not address.
 - **The screen does not say "away".** The game view shows an away rider as connected; a label is a presentation change
   for later.
-- **How long a seat is held.** An away seat is kept until the room needs it: outside a running round, when the room is
-  full and a joiner asks for a place, the manager frees an away seat after any truly absent one (`claimSlot`). So a
-  hidden tab holds a seat for as long as nobody else wants it, and never at the cost of a waiting player.
+- **The seat's bound is demand, not time.** An away seat is kept until the room needs it: outside a running round —
+  `lobby`, `roundOver` and `matchOver` count — a joiner that finds the room full takes an away seat once no truly
+  absent one is left (`claimSlot`). There is no maximum away time: a tab hidden for two seconds can lose its seat the
+  moment someone asks for a place, and one hidden for an hour keeps it while nobody does.
+- **An away member still records a death ahead of it.** Nothing else it logs applies, but the §9 escape — any ranked
+  member may record the absence of someone ahead of it — stays open to it, ranked as if it were present. Without that
+  a member whose last peer's page closed while it was away could neither log that peer gone nor return (it is not the
+  manager, and its own return is refused while anyone else is present), and its room stood still.
+- **Interleaving.** A `PRESENCE true` the manager logged from packets heard just before the away entry folded undoes
+  the step away; the hidden page repeats its away entry every `AWAY_REPEAT_MS`, so it heals within five seconds, and
+  every replica resolves the tick the same way (management applies in succession order, away members after it).
 - **A hidden page is no authority.** With the creator hidden, the time and hash authority falls to the next member the
   usual way (`RoomRuntime.authority`), because a page whose timers fire once a second is a poor clock to follow. The
   creator takes it back when it returns.

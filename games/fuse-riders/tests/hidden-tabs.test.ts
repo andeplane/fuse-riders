@@ -562,3 +562,44 @@ test("a member the manager logged absent may still step away, and its seat is ke
     "present to the game again: away is not absence",
   );
 });
+
+test("an away member whose last peer dies unlogged records that death, comes back and runs the room", () => {
+  const r = room(2);
+  const host = r.runtimes.get(HOST)!;
+  const guest = GUESTS[0]!;
+  r.net.setHidden(guest, true);
+  r.net.step(3000);
+  // The creator's page is gone for good: the runtime stops and the service reports it offline, with nobody present to
+  // log either — the away guest is the room.
+  host.stop();
+  r.net.disconnect(HOST);
+  r.net.step(2000);
+  r.net.setHidden(guest, false);
+  for (
+    let elapsed = 0;
+    elapsed < 30_000 && seated(r, guest, HOST)?.connected !== false;
+    elapsed += 50
+  )
+    r.net.step(50);
+  assert.equal(
+    seated(r, guest, HOST)?.connected,
+    false,
+    "the dead creator is recorded absent by the member that was away",
+  );
+  // Back and managing: a bot only joins on a manager's entry, and only a present member manages. The return is logged
+  // on the first pass after the creator's absence folds, so the command is offered until it takes.
+  for (
+    let i = 0;
+    i < 100 && !frame(r, guest).players.some((p) => p.id.startsWith("bot:"));
+    i++
+  ) {
+    r.runtimes.get(guest)!.command({ type: "bot", action: "add" });
+    r.net.step(100);
+  }
+  assert.equal(
+    frame(r, guest).players.filter((p) => p.id.startsWith("bot:")).length,
+    1,
+    "the rider is back in its seat and the room has a manager again",
+  );
+  r.runtimes.get(guest)!.stop();
+});
