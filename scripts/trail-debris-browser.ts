@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { createServer } from "vite";
 import { chromium, webkit } from "playwright";
-import type { WorldView } from "../src/engine/view.js";
+import type { WorldView } from "../games/fuse-riders/src/engine/view.js";
 
 const server = await createServer({
   server: { port: 0, host: "127.0.0.1", hmr: false },
@@ -28,17 +28,17 @@ try {
     await page.getByText("Invalid room code", { exact: true }).waitFor();
     const removed = await page.evaluate(async (mode) => {
       const { createPhaserArena } = (await import(
-        String("/src/render/phaser/arena.ts")
-      )) as typeof import("../src/render/phaser/arena.js");
+        String("/games/fuse-riders/src/render/phaser/arena.ts")
+      )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
       const { themes } = (await import(
-        String("/src/render/themes.ts")
-      )) as typeof import("../src/render/themes.js");
+        String("/games/fuse-riders/src/render/themes.ts")
+      )) as typeof import("../games/fuse-riders/src/render/themes.js");
       const { createGame, addPlayer, startMatch, toView, step } = (await import(
-        String("/src/engine/game.ts")
-      )) as typeof import("../src/engine/game.js");
+        String("/games/fuse-riders/src/engine/game.ts")
+      )) as typeof import("../games/fuse-riders/src/engine/game.js");
       const { defaultRoomSettings } = (await import(
-        String("/src/engine/room-settings.ts")
-      )) as typeof import("../src/engine/room-settings.js");
+        String("/games/fuse-riders/src/engine/room-settings.ts")
+      )) as typeof import("../games/fuse-riders/src/engine/room-settings.js");
       // The open arena these shots were framed on, said explicitly now that a game has no settings fallback.
       const classic = {
         ...defaultRoomSettings(),

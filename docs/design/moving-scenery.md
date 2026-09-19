@@ -10,7 +10,7 @@ Two maps put moving solids on the board. This note records the shape of the chan
 
 ## Design
 
-A mover is an ordinary `Obstacle` with a `motion` (`src/engine/scenery-motion.ts`). Reusing the obstacle machinery means every existing interaction — rider death and the shield bounce, shell reflection, bullets stopping, pickups and gates keeping clear, bots planning around — works unchanged; the change is a step per tick and a few rules about what a mover is exempt from.
+A mover is an ordinary `Obstacle` with a `motion` (`games/fuse-riders/src/engine/scenery-motion.ts`). Reusing the obstacle machinery means every existing interaction — rider death and the shield bounce, shell reflection, bullets stopping, pickups and gates keeping clear, bots planning around — works unchanged; the change is a step per tick and a few rules about what a mover is exempt from.
 
 - **State, not derivation.** A mover's position and its `motion` (velocity, or distance round the loop) are state. A checkpoint restores a train where it was and every replica advances it with the same arithmetic (`+`, `-`, `*`, `/`, `Math.sqrt`; no time-based recomputation, no trigonometry). The tracks are map data, keyed by map id, and reach a screen as `view.tracks`.
 - **One phase.** `moveScenery` runs after `fitField` and before anything rides, so the whole tick is judged against where scenery stands at the end of the tick. Per-tick displacement (at most 4 units) is small against a car's 32, so nothing tunnels; a rider crossing just behind a car is spared, which is the generous side.

@@ -1,6 +1,6 @@
 # Hidden-member policy: a hidden page steps away
 
-Status: implemented in `fuse-p2p-44` (#258 N4, part of #259). ADR-047 §12 is the normative text; this note records the
+Status: implemented in `fuse-p2p-47` (#258 N4, part of #259). ADR-047 §12 is the normative text; this note records the
 decision, the evidence and the trade-offs.
 
 ## The problem
@@ -44,16 +44,25 @@ removes a rider at the end of `roundOver`, excludes it from the next round (`pre
 log, which already stops the waiting — but logged by the member itself, and folded as a mark on a present seat rather
 than an absence, which is (a)'s semantics:
 
-- On `visibilitychange` to hidden, a member present in the room (a rider or a watcher) appends `STEER 0`/`CANCEL` as
-  before, then its own `PRESENCE false`, and sends a packet at once while the page still runs (`RoomRuntime.stepAway`).
-  It re-sends its hello with `hidden: true`.
+- On `visibilitychange` to hidden, a member with a seat or a place in the watching list — present, or already logged
+  absent — appends `STEER 0`/`CANCEL` as before, then its own `PRESENCE false`, and sends a packet at once while the
+  page still runs (`RoomRuntime.stepAway`). It re-sends its hello with `hidden: true`, and repeats the entry every
+  `AWAY_REPEAT_MS` = 5 s while hidden: a manager that logged it absent a moment before the away entry folded would
+  otherwise keep flapping the seat on its throttled packets, which is the bug this note is about.
 - Every replica folds a member's own `PRESENCE false` as **away** (`Fold.away` / `Spectator.away`): the game still has
   the rider (`player.connected` stays true), so it keeps its seat through round and match boundaries and a return to the
   lobby, is placed in the next round, and counts in the rating like anyone present. Its controls are neutral and its
   entries unread (`applyTick`). To the netcode it is not connected (`Seat.connected` false, `Seat.away` true): the stall
   rule and `completeTick` do not wait on it, it leaves the succession order (so management passes to the acting
-  creator), and no manager judges its silence or logs it present from its throttled packets (`creatorDuties`).
-- On return the member logs its own `PRESENCE true` (`stepBack`); `permitted` accepts it only while the member is away.
+  creator), and no manager judges its silence or logs it present from its throttled packets (`creatorDuties`). Nothing
+  else an away member logs applies — the creator's entries included, so an away creator does not manage the room beside
+  the delegate that now holds it.
+- On return the member re-greets with `hidden: false`, and the **manager** logs `PRESENCE true` for it as soon as it
+  hears the member's packets, and again on every loop pass until the seat is present, so a lost entry costs a pass
+  rather than the rider's controls. The member logs its own return only when the room has nobody present to log it —
+  every other member away or gone (`RoomRuntime.ownReturn`); `permitted` accepts that entry only while it is away. The
+  member's own return would otherwise travel on a stream nobody waits for: lost, or refused as outside the window, it
+  would leave that replica the only one that thinks the rider is back, and the hash would then chase the divergence.
 - A service offline event for an away member is still a departure: the manager logs `PRESENCE false` about it (or
   `LEAVE` in the lobby), which clears the mark, and the seat goes as any absent seat does.
 - A hidden page never serves a world (it answers `noWorld`), is never chosen as a snapshot source by a peer that knows
@@ -63,7 +72,7 @@ than an absence, which is (a)'s semantics:
 
 The log-visible part is one rule: a member may log its own presence. It needs no new entry kind or field, and a room
 nobody stepped away from folds to the same canonical state as before (the golden hashes did not change; `RULES` moved to
-`fuse-p2p-44` because a self `PRESENCE false` now applies where `fuse-p2p-43` ignored it).
+`fuse-p2p-47` (44 was held for it while 45 and 46 landed) because a self `PRESENCE false` now applies where earlier rules ignored it).
 
 Two runtime fixes came with it, neither log-visible: snapshot retries now go round every holder in order (the authority
 first), and a member whose resync brought nothing newer, or who has no source that could serve one, catches its backlog
@@ -100,6 +109,15 @@ up at the step budget instead of fetching again.
   a service-side limit this change does not address.
 - **The screen does not say "away".** The game view shows an away rider as connected; a label is a presentation change
   for later.
+- **How long a seat is held.** An away seat is kept until the room needs it: outside a running round, when the room is
+  full and a joiner asks for a place, the manager frees an away seat after any truly absent one (`claimSlot`). So a
+  hidden tab holds a seat for as long as nobody else wants it, and never at the cost of a waiting player.
+- **A hidden page is no authority.** With the creator hidden, the time and hash authority falls to the next member the
+  usual way (`RoomRuntime.authority`), because a page whose timers fire once a second is a poor clock to follow. The
+  creator takes it back when it returns.
+- **A resync that brings nothing newer** holds off further fetches for `CATCH_UP_HOLD_MS` = 10 s, or until a peer's
+  hello announces a world — the replica catches up at the step budget instead of asking again. Bounding it matters:
+  without the hold a room behind everywhere fetched in a loop; without the bound a replica would never fetch again.
 
 ## Evidence
 

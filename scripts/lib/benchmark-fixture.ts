@@ -4,9 +4,9 @@ import {
   addPlayer,
   toView,
   SLOT_COLORS,
-} from "../../src/engine/game.js";
-import { AVATARS } from "../../src/shared/avatars.js";
-import type { WorldView } from "../../src/engine/view.js";
+} from "../../games/fuse-riders/src/engine/game.js";
+import { AVATARS } from "../../games/fuse-riders/src/shared/avatars.js";
+import type { WorldView } from "../../games/fuse-riders/src/engine/view.js";
 /** Synthetic reproducible visual stress, not a physics or network benchmark. */
 export function visualFixture(tick: number): WorldView {
   // The classic board with a parked aim: what this fixture rendered before settings became required (#311).

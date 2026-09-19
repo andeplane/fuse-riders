@@ -85,12 +85,15 @@ test("a second game gets rooms, seats, host succession and rematch from the pack
   assert.equal(room(guest!).stage, "running");
   assert.deepEqual(room(guest!).totals, {});
 
-  // The host's page goes away: after the silence rule the guest succeeds it and logs the host absent. Commands stay the creator's.
+  // The host's page goes away: after the silence rule the guest succeeds it and logs the host absent. The room's
+  // commands go with the duties, so the party is not stuck waiting for a device that is not coming back.
   mesh.leave("host");
   mesh.run(7000);
   assert.equal(room(guest!).seats.get("host")?.connected, false);
-  assert.equal(guest!.command({ type: "action", action: "lobby" }), false);
-  assert.equal(guest!.command({ type: "bot", action: "add" }), false);
+  assert.equal(guest!.command({ type: "action", action: "lobby" }), true);
+  mesh.run(300);
+  assert.equal(room(guest!).stage, "lobby");
+  assert.equal(guest!.command({ type: "bot", action: "add" }), true);
   assert.equal(
     guest!.creator,
     false,

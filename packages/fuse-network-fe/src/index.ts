@@ -17,6 +17,8 @@ export {
   AuthorityClock,
   isAuthorityGrant,
   validRoomCode,
+  validGameId,
+  LEGACY_GAME_ID,
   ROOM_PROTOCOL_VERSION,
   CLOSE_AUTHORITY_REPLACED,
   CLOSE_ROOM_ENDED,

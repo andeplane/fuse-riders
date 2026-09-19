@@ -5,7 +5,7 @@ import { memberId, uint32 } from "./wire.js";
  * Management entries: the room's seats, presence, settings and match lifecycle, in one wire format every game shares.
  * The creator logs them (or, while it is absent, whoever succeeds it); every replica applies them in succession order
  * at their tick, and only those `permitted` for the stream that carries them. Kinds 10–16; a game's own entries use
- * other kinds. Fuse Riders' engine applies these kinds with its own reducer (`src/engine/apply-tick.ts`, which cannot
+ * other kinds. Fuse Riders' engine applies these kinds with its own reducer (`games/fuse-riders/src/engine/apply-tick.ts`, which cannot
  * import this package); a new game can apply them with `applyManagementTick` below.
  */
 export const JOIN = 10,
@@ -150,20 +150,44 @@ export function isManagementEntry<Settings>(
 }
 
 /**
- * Who manages the room when those before them are absent: the creator, then the connected seated humans by id, then the
- * connected watchers by id. Watchers rank last because a room with a seat left in it should be managed from that seat,
- * but they do rank: a room whose players all dropped is still run by whoever is left watching.
+ * Who manages the room when those before them are absent: the creator, then the connected seated humans in seat order,
+ * then the connected watchers by id. Seat order is what a player reads off the lobby list, so the room passes to the
+ * player in the next seat down rather than to whoever holds the lowest member id; `members()` may yield seats in any
+ * order, so the rank is taken from `slot` here rather than trusted from the caller. Watchers rank last because a room
+ * with a seat left in it should be managed from that seat, but they do rank: a room whose players all dropped is still
+ * run by whoever is left watching.
  */
 export function successionOrder(
   seats: Iterable<Seat>,
   creatorId: string,
 ): string[] {
-  const players: string[] = [],
+  const players: Seat[] = [],
     watchers: string[] = [];
   for (const seat of seats)
     if (seat.connected && !seat.bot && seat.id !== creatorId)
-      (seat.watcher ? watchers : players).push(seat.id);
-  return [creatorId, ...players.sort(), ...watchers.sort()];
+      if (seat.watcher) watchers.push(seat.id);
+      else players.push(seat);
+  players.sort(
+    (a, b) => a.slot - b.slot || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
+  return [creatorId, ...players.map((seat) => seat.id), ...watchers.sort()];
+}
+/**
+ * Who runs the room for the players: the one name the screens show as HOST, and the one the room commands are gated on.
+ * It is the log's own answer — the creator while the room counts it present, otherwise whoever the duties fall to — so
+ * every replica names the same member from the same fold.
+ *
+ * It does not try to be cleverer than the log about a creator the room has no record of, which is a host driving a
+ * shared screen from a page that took no seat. There the crown goes to the player in the first seat, beside the
+ * creator's own page, which keeps its controls because it knows it is the creator (`RoomRuntime.managing`). That is
+ * what the log has always permitted there (`permitted` accepts every management kind from that player, ADR 047 §9),
+ * and the alternative is worse: any rule that keeps the crown on an unrecorded creator also keeps it on one that has
+ * left, and a room whose crown sits on a member no device answers for cannot be started, rematched or emptied by
+ * anyone. A creator that means to hand the room over for good is ADR 047 N5.
+ */
+export function roomManager(seats: Iterable<Seat>, creatorId: string): string {
+  const all = [...seats];
+  return actingCreator(all, creatorId) ?? creatorId;
 }
 /**
  * Which non-creator stream may carry management entries right now: the delegate, only while the creator is disconnected.
@@ -192,14 +216,17 @@ export function permitted(
   manager: string,
   entry: LogEntry,
 ): boolean {
+  const all = [...seats],
+    own = all.find((seat) => seat.id === manager);
   if (entry[2] === PRESENCE && entry[3] === manager) {
-    const own = [...seats].find((seat) => seat.id === manager);
-    if (entry[4] === false) return own?.connected === true;
+    // Stepping away needs a place in the room, not presence: see the Fuse Riders reducer.
+    if (entry[4] === false) return own !== undefined && !own.bot && !own.away;
     if (own?.away) return true;
   }
+  // An away member steps back in before anything else it logs applies, the creator included.
+  if (own?.away) return false;
   if (manager === creatorId) return true;
-  const all = [...seats],
-    order = successionOrder(all, creatorId),
+  const order = successionOrder(all, creatorId),
     rank = order.indexOf(manager);
   if (rank < 0) return false;
   if (entry[2] === PRESENCE && entry[4] === false) {
@@ -269,12 +296,13 @@ export function applyManagementTick<
 ): void {
   const seats = () => [...room.seats.values()].map(seatView);
   const order = successionOrder(seats(), creatorId);
-  // Away members are read after the order, for the one entry they may log: their own return (`permitted`).
-  const away = seats()
-    .filter((seat) => seat.away && !order.includes(seat.id))
+  // Everyone else seated or listed is read after the order, for the entries only they may log about themselves: an away
+  // member's return, and an absent member's step away (`permitted`).
+  const others = seats()
+    .filter((seat) => !seat.bot && !order.includes(seat.id))
     .map((seat) => seat.id)
     .sort();
-  for (const manager of [...order, ...away]) {
+  for (const manager of [...order, ...others]) {
     const stream = streams.get(manager);
     if (!stream) continue;
     // Not gated by generation: a returning creator's new stream must be able to log its own presence.

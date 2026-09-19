@@ -70,7 +70,8 @@ for (const [name, type] of [
       .getByText("Public guest", { exact: false })
       .waitFor();
     result.guestJoined = true;
-    await host.getByRole("button", { name: "START RACE", exact: true }).click();
+    await host.getByRole("button", { name: "READY", exact: true }).click();
+    await guest.getByRole("button", { name: "READY", exact: true }).click();
     await guest.waitForFunction(() =>
       document.querySelector(".online-notice")?.textContent?.includes("READY"),
     );
@@ -208,7 +209,8 @@ for (const [name, type] of [
       return image?.complete && image.naturalWidth > 0;
     });
     result.separateTvQrVisible = true;
-    await host.getByRole("button", { name: "START RACE", exact: true }).click();
+    await host.getByRole("button", { name: "READY", exact: true }).click();
+    await guest.getByRole("button", { name: "READY", exact: true }).click();
     await display
       .locator(".online-notice")
       .filter({ hasText: /READY/ })

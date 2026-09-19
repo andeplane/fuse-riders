@@ -23,7 +23,7 @@ const bundle = await build({
     contents: `
 import { PeerTransport } from 'fuse-network-fe';
 import { encodePacket, decodePacket, roomHash } from 'fuse-netcode';
-import { fuseGame } from './src/online/fuse-game.ts';
+import { fuseGame } from './games/fuse-riders/src/online/fuse-game.ts';
 globalThis.startMesh = (code, token) => {
   let linkDrops = 0; const peers = new Set(), links = new Set(), received = new Map(), messages = [], errors = [], statuses = [];
   let dropFast = false; const originalSend = RTCDataChannel.prototype.send;

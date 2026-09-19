@@ -148,7 +148,7 @@ A lapsed member lease is **not** a relink. Read from source:
    `peer … online:false`.
 3. On the managing device `RoomRuntime.peer` (`packages/fuse-netcode/src/room-runtime.ts`) appends `LEAVE`
    for a rider that is in the world.
-4. `applyManagement`, `case LEAVE` (`src/engine/apply-tick.ts`): in a reclaimable phase
+4. `applyManagement`, `case LEAVE` (`games/fuse-riders/src/engine/apply-tick.ts`): in a reclaimable phase
    (`RECLAIMABLE_PHASES`: lobby, round over, match over) `removePlayer` takes the rider
    **off the roster** — they have to join again through the join card. Mid-round the rider
    stays but is marked disconnected and their controls go neutral.

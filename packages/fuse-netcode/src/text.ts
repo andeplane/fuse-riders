@@ -1,6 +1,6 @@
 import type { RuntimeText } from "./game.js";
 
-/** Neutral wording for a new game; Fuse Riders supplies its own (`src/online/fuse-game.ts`). */
+/** Neutral wording for a new game; Fuse Riders supplies its own (`games/fuse-riders/src/online/fuse-game.ts`). */
 export const defaultText: RuntimeText = {
   solo: "Solo · you and the AI",
   connected: "Connected · direct game link",
@@ -23,6 +23,11 @@ export const defaultText: RuntimeText = {
   fullWithBots: "Room is full (AI included)",
   botNotFound: "AI player not found",
   botBetweenRounds: "Remove AI between rounds or return to menu",
+  kickGone: "That player has already left",
+  kickBot: "Remove AI players with their own button",
+  kickBetweenRounds: "Remove players between rounds or return to menu",
+  kickInRound: "That player is in the round — try again at the pause",
+  kicked: "The host removed you from the room",
   stillLoading: "The room is still loading",
   chooseName: "Choose a name",
   reconnectFirst: "Reconnect before joining",

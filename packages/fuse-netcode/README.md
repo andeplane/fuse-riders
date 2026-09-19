@@ -44,4 +44,4 @@ runtime.command({ type: "join", name: "Ada" });
 ```
 
 `tests/fixtures/counter-game.ts` is a complete small game on the contract; the package tests drive it through
-rollback, lossy and reordering links, snapshot recovery and succession. The package must not import `src/`.
+rollback, lossy and reordering links, snapshot recovery and succession. The package must not import `games/` or `service/`.

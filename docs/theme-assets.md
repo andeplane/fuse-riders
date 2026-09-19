@@ -2,7 +2,7 @@
 
 The baseline follows the [neon/pixel gameplay reference](gameplay-concepts/06-neon-pixel-hybrid.png): a dark navy arena, crisp silhouettes, cyan/magenta/orange accents, and bright blast sparks. Assets live in `public/themes/`; both `neon-pixel` and `clean-neon` provide all twenty-one SVG files below. Bombs, flames and all eighteen pickups use smooth rounded artwork with shaded surfaces and bright edge highlights to match the interface. That artwork is intentionally shared by both themes (only the dark body shading tint differs slightly); rider, trail and arena styling remain theme-specific.
 
-The runtime registry is `src/render/themes.ts`. Each typed `ThemeDefinition` supplies palette, rendering settings, and core sprite paths. [The manifest](../public/themes/manifest.json) records the asset inventory and source geometry; it does not discover themes automatically. Pickup artwork loads by theme ID and pickup type in `src/render/phaser/arena.ts`.
+The runtime registry is `games/fuse-riders/src/render/themes.ts`. Each typed `ThemeDefinition` supplies palette, rendering settings, and core sprite paths. [The manifest](../public/themes/manifest.json) records the asset inventory and source geometry; it does not discover themes automatically. Pickup artwork loads by theme ID and pickup type in `games/fuse-riders/src/render/phaser/arena.ts`.
 
 | Files                                                        | Purpose                                                                                                                         |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |

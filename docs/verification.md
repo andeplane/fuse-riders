@@ -25,13 +25,13 @@ Do not freeze a test count or coverage percentage in this document. Obtain them 
 
 ## What the suites establish
 
-| Area                            | Evidence                                                                                                               |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Simulation                      | `tests/game.test.ts` plus motion, geometry, pickups, weapons, portals, trail lifecycle, statistics and moment suites   |
-| Replay and network coordination | Input-log, stream, packet, snapshot, checkpoint, rollback, generation-replay and room-runtime tests                    |
-| Controls and presentation input | Client and controller tests (input state, keyboard, pointers, targeting) with typed fakes and injected time            |
-| Networking libraries            | `packages/*/tests/`, including room service/gateway, admission, authority and transport-policy tests                   |
-| Audio and presentation helpers  | Audio-director, radio, replay, viewport, effects and trail-cache tests; this does not cover all DOM/Phaser integration |
+| Area                            | Evidence                                                                                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Simulation                      | `games/fuse-riders/tests/game.test.ts` plus motion, geometry, pickups, weapons, portals, trail lifecycle, statistics and moment suites |
+| Replay and network coordination | Input-log, stream, packet, snapshot, checkpoint, rollback, generation-replay and room-runtime tests                                    |
+| Controls and presentation input | Client and controller tests (input state, keyboard, pointers, targeting) with typed fakes and injected time                            |
+| Networking libraries            | `packages/*/tests/`, including room service/gateway, admission, authority and transport-policy tests                                   |
+| Audio and presentation helpers  | Audio-director, radio, replay, viewport, effects and trail-cache tests; this does not cover all DOM/Phaser integration                 |
 
 Use typed fakes for clocks, scheduling, transport, storage and browser surfaces. Malformed data must leave healthy state intact. For changed networking behavior, exercise the relevant dropped, duplicated, reordered, cancelled and stale-generation paths, as well as successful recovery. The current fixture scheduler does not by itself prove realistic hidden-phone timer behavior.
 
