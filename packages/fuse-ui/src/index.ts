@@ -42,6 +42,7 @@ export {
   createNameEntry,
   type NameEntry,
   type NameEntryOptions,
+  type NameEntryPart,
 } from "./name-entry.js";
 export {
   createNotice,
@@ -55,3 +56,10 @@ export {
   type ControllerRow,
   type ControllerRowOptions,
 } from "./controller.js";
+export {
+  createPicker,
+  type Picker,
+  type PickerChoice,
+  type PickerOptions,
+  type PickerPart,
+} from "./picker.js";
