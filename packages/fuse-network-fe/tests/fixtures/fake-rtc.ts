@@ -327,8 +327,10 @@ export class FakePeerConnection
   getSenders(): RTCRtpSender[] {
     return [];
   }
+  /** What `getStats()` answers; `stats()` and `diagnostics()` read the selected candidate pair from it. */
+  stats: RTCStatsReport = new Map();
   getStats(): Promise<RTCStatsReport> {
-    return Promise.resolve(new Map());
+    return Promise.resolve(this.stats);
   }
   getTransceivers(): RTCRtpTransceiver[] {
     return [];

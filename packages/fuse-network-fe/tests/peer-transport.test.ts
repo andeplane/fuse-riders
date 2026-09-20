@@ -1,6 +1,11 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
-import { CLOSE_ROOM_ENDED, authFrame } from "fuse-network-protocol";
+import {
+  CLOSE_ROOM_ENDED,
+  ROOM_PROTOCOL_VERSION,
+  authFrame,
+} from "fuse-network-protocol";
+import { browserTransportDependencies } from "../src/index.js";
 import { FakeDataChannel, TransportHarness } from "./fixtures/fake-rtc.js";
 
 /**
@@ -429,4 +434,106 @@ test("an inbound fast packet is delivered only within the size bounds", async ()
     [[1, 2, 3]],
   );
   harness.transport.close();
+});
+
+/** A `getStats()` report with one succeeded candidate pair of the given local and remote candidate types. */
+function pairReport(local: string, remote: string): RTCStatsReport {
+  return new Map<string, Record<string, unknown>>([
+    [
+      "local",
+      { type: "local-candidate", candidateType: local, protocol: "udp" },
+    ],
+    ["remote", { type: "remote-candidate", candidateType: remote }],
+    [
+      "pair",
+      {
+        type: "candidate-pair",
+        state: "succeeded",
+        nominated: true,
+        localCandidateId: "local",
+        remoteCandidateId: "remote",
+      },
+    ],
+    ["transport", { type: "transport", dtlsState: "connected" }],
+  ]);
+}
+
+test("explain says which side of the handshake is missing", async () => {
+  const harness = new TransportHarness();
+  assert.equal(
+    harness.transport.explain("b"),
+    "room service connection down — reconnecting",
+  );
+
+  harness.transport.connect();
+  harness.socket.open();
+  assert.equal(harness.transport.explain("b"), "waiting for room admission");
+
+  await harness.socket.deliver({
+    type: "welcome",
+    protocol: ROOM_PROTOCOL_VERSION,
+    id: "z",
+    hostId: "z",
+    connectionId: "c-z",
+    peers: [],
+  });
+  // A member the room service has not announced is not a link problem at all.
+  assert.equal(
+    harness.transport.explain("b"),
+    "the host is not in the room yet",
+  );
+  harness.transport.close();
+});
+
+test("diagnostics and stats report the selected candidate pair per link", async () => {
+  const harness = new TransportHarness();
+  await harness.admit("a", ["b", "c"], "a");
+  const direct = harness.connections[0]!;
+  const relayed = harness.connections[1]!;
+  direct.stats = pairReport("host", "srflx");
+  relayed.stats = pairReport("relay", "srflx");
+  openCreatedGame(harness, 0);
+  openCreatedGame(harness, 1);
+
+  assert.deepEqual(await harness.transport.stats(), {
+    direct: 1,
+    relayed: 1,
+    buffered: 0,
+  });
+
+  const report = await harness.transport.diagnostics();
+  assert.equal(report.socket, "open");
+  assert.ok(report.ice.servers > 0);
+  assert.equal(report.links.length, 2);
+  assert.deepEqual(report.links[0]!.selected, {
+    local: "host",
+    remote: "srflx",
+    protocol: "udp",
+  });
+  assert.equal(report.links[0]!.dtls, "connected");
+  assert.equal(report.links[0]!.connection, "connected");
+  assert.equal(report.links[0]!.healthy, false);
+  harness.transport.close();
+});
+
+test("the default dependencies wire the real timers", async () => {
+  const deps = browserTransportDependencies();
+  assert.equal(typeof deps.now(), "number");
+
+  // Both timer helpers return a cancel, and cancelling really stops the timer.
+  let ticks = 0;
+  const stopInterval = deps.schedule(() => ticks++, 1);
+  let fired = false;
+  deps.delay(() => (fired = true), 1)();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  stopInterval();
+  assert.equal(fired, false);
+  assert.ok(ticks > 0);
+  const settled = ticks;
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(ticks, settled);
+
+  // `defer` is deliberately not called here. Its `MessageChannel` is never closed — as the transport's own
+  // deferral port never was before this seam — so the port would keep Node's event loop alive and `pnpm test`
+  // would never exit. The transport's use of `defer` is covered through the injected one instead.
 });
