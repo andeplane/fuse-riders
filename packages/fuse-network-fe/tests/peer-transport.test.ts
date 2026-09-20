@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import {
+  CLOSE_AUTHORITY_REPLACED,
   CLOSE_ROOM_ENDED,
   ROOM_PROTOCOL_VERSION,
   authFrame,
@@ -536,4 +537,37 @@ test("the default dependencies wire the real timers", async () => {
   // `defer` is deliberately not called here. Its `MessageChannel` is never closed — as the transport's own
   // deferral port never was before this seam — so the port would keep Node's event loop alive and `pnpm test`
   // would never exit. The transport's use of `defer` is covered through the injected one instead.
+});
+
+test("a creator tab whose lease is held elsewhere closes its own socket", async () => {
+  const harness = new TransportHarness();
+  await harness.admit("a", [], "a");
+  const serviceTime = 1_000_000;
+  const grant = {
+    incarnation: "room-1",
+    epoch: 2,
+    holder: "c-other",
+    grantId: "grant-1",
+    validFrom: serviceTime - 1000,
+    expiresAt: serviceTime + 10_000,
+  };
+
+  await harness.socket.deliver({ type: "authority", grant });
+  // The host renews the lease it holds on every service-time probe.
+  await harness.run(2000);
+  assert.deepEqual(harness.socket.frames("time").at(-1)!.renew, grant);
+
+  const probe = harness.socket.frames("time").at(-1)!;
+  await harness.socket.deliver({
+    type: "time",
+    id: probe.id,
+    sentAt: probe.sentAt,
+    serviceTime,
+  });
+
+  // The lease is valid and another connection holds it, so this tab stands down rather than fighting for the room.
+  assert.equal(harness.socket.closed?.code, CLOSE_AUTHORITY_REPLACED);
+  harness.socket.drop(CLOSE_AUTHORITY_REPLACED);
+  assert.equal(harness.recorded.revoked, 1);
+  harness.transport.close();
 });
