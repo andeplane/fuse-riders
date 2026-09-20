@@ -59,6 +59,8 @@ const present = (
     manages: true,
     managerId: "me",
     replacedHost: false,
+    creator: true,
+    hostPresent: true,
     solo: false,
     displayOnly: false,
     lobbyCard: false,
@@ -647,4 +649,129 @@ test("the head and colour buttons leave when this rider says READY, and come bac
   );
   // And un-readying opens them again: a gate, not a one-way door.
   assert.equal(present(lobby, { readyPlayers: ["ada"] }).avatarHidden, false);
+});
+
+test("changing sides is offered on this device's own row only, and says why when it cannot", () => {
+  const lobby = frame({ phase: "lobby", tick: 0 });
+  const watchers = [
+    { id: "w1", name: "Watcher", connected: true },
+    { id: "w2", name: "Other", connected: true },
+  ];
+  const mine = present(lobby, { spectators: watchers });
+  assert.deepEqual(
+    mine.lobby.riders.map((rider) => [rider.id, rider.switchSide.hidden]),
+    [
+      ["me", false],
+      ["ada", true],
+      ["bot:1", true],
+    ],
+    "only this device's seat carries WATCH; an AI rider has no device to watch from",
+  );
+  assert.deepEqual(
+    mine.lobby.riders.find((rider) => rider.id === "me")!.switchSide,
+    {
+      hidden: false,
+      disabled: false,
+      label: "WATCH",
+      title: "Give your seat up and watch instead",
+    },
+  );
+  assert.deepEqual(
+    mine.lobby.watchers.map((seat) => seat.switchSide.hidden),
+    [true, true],
+    "and none of the watchers is this device",
+  );
+
+  const watching = present(lobby, { spectators: watchers, playerId: "w1" });
+  assert.deepEqual(
+    watching.lobby.watchers.map((seat) => [seat.id, seat.switchSide.hidden]),
+    [
+      ["w1", false],
+      ["w2", true],
+    ],
+  );
+  assert.equal(
+    watching.lobby.watchers[0]!.switchSide.label,
+    "TAKE A SEAT",
+    "the watcher's own row takes the other direction",
+  );
+
+  // Mid-round both directions say when to try again rather than going away.
+  const running = present(frame({ phase: "playing" }), {
+    spectators: watchers,
+    playerId: "w1",
+  });
+  assert.deepEqual(
+    [
+      running.lobby.watchers[0]!.switchSide.disabled,
+      running.lobby.watchers[0]!.switchSide.title,
+    ],
+    [true, "Take a seat between rounds — try again at the pause"],
+  );
+  assert.equal(
+    present(frame({ phase: "playing" })).lobby.riders[0]!.switchSide.title,
+    "Start watching between rounds — try again at the pause",
+  );
+
+  // A manager that did not open the room hands the pair to the creator's page, so it changes sides like anyone else
+  // while that page is here — which is every shared-screen room, where the first rider wears the crown throughout.
+  assert.equal(
+    present(lobby, { spectators: watchers, managerId: "me", creator: false })
+      .lobby.riders[0]!.switchSide.disabled,
+    false,
+    "a stand-in host with the creator's page in the room still switches",
+  );
+  const standIn = present(lobby, {
+    spectators: watchers,
+    managerId: "me",
+    creator: false,
+    hostPresent: false,
+  });
+  assert.deepEqual(
+    [
+      standIn.lobby.riders[0]!.switchSide.disabled,
+      standIn.lobby.riders[0]!.switchSide.title,
+    ],
+    [true, "You are standing in as host — switch sides once the host is back"],
+    "only a room whose creator's page has gone has nobody left to write the pair",
+  );
+
+  // A full watching list and a full room are the runtime's own refusals, said before the tap.
+  const full = present(lobby, {
+    spectators: ["w1", "w2", "w3", "w4", "w5"].map((id) => ({
+      id,
+      name: id,
+      connected: true,
+    })),
+  });
+  assert.equal(
+    full.lobby.riders[0]!.switchSide.title,
+    "Room is full (5 spectators watching)",
+  );
+  const fullRoom = present(
+    frame({
+      phase: "lobby",
+      tick: 0,
+      players: [0, 1, 2, 3, 4].map((slot) => ({
+        ...frame().players[0]!,
+        id: `p${slot}`,
+        slot,
+      })),
+    }),
+    { spectators: watchers, playerId: "w1" },
+  );
+  assert.equal(
+    fullRoom.lobby.watchers[0]!.switchSide.title,
+    "Room is full (5 players)",
+  );
+
+  // Solo is one device and four AI, and a display is not a member: neither has a side to change.
+  assert.equal(
+    present(lobby, { solo: true }).lobby.riders[0]!.switchSide.hidden,
+    true,
+  );
+  assert.equal(
+    present(lobby, { displayOnly: true }).lobby.riders[0]!.switchSide.hidden,
+    true,
+  );
 });
