@@ -2,20 +2,19 @@
  * The fuseDrivers game's constants and id rules, with no imports: the room service's registration (`../platform.ts`) reads
  * them without loading the netcode.
  */
-export const TARGET = 50;
-export const WINS_NEEDED = 2;
+/** Laps in a race, and the most a corrupt report may claim. */
+export const LAPS = 4;
+export const MAX_LAPS = 64;
 /** Seats per room: 2–5 players, bots included. */
 export const CAPACITY = 5;
 /** Watchers hold no grid slot and nothing waits on their stream. */
 export const MAX_WATCHERS = 8;
-/**
- * The most rounds a match plays. With a fixed roster someone reaches `WINS_NEEDED` by then (every seat but one wins
- * `WINS_NEEDED - 1`, then the deciding round); with seats coming and going it could run on, so the round that reaches
- * this bound ends the match, won by the leader (`leader` in the rules).
- */
-export const MAX_ROUNDS = CAPACITY * (WINS_NEEDED - 1) + 1;
-/** The most one turn or one round's bank can hold; far past anything a legal game reaches. */
-export const MAX_POINTS = 10_000;
+/** A race is one round today; a series of them is the next feature. */
+export const MAX_ROUNDS = 8;
+/** Progress is laps and checkpoints in hundredths, so this is far past anything a legal race reaches. */
+export const MAX_PROGRESS_UNITS = 100_000;
+/** Weapons and wrecks are bounded by how long a race can run. */
+export const MAX_EVENTS = 1_000;
 export const MAX_NAME = 18;
 
 const CONTROL = /[\u0000-\u001f\u007f]/;

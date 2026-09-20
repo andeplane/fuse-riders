@@ -1,88 +1,65 @@
 import { defaultText, type RollbackGame, type Stage } from "fuse-netcode";
+import { BOT_PREFIX, CAPACITY, MAX_WATCHERS } from "./basics.js";
 import { decodeRoom, encodeRoom, hashRoom } from "./checkpoint.js";
 import {
-  BOT_PREFIX,
-  CAPACITY,
-  MAX_WATCHERS,
-  TARGET,
-  WINS_NEEDED,
+  DEFAULT_SETTINGS,
   createRoom,
   foldTick,
   isAvatar,
   isFuseDriversEntry,
-  noStats,
   parseSettings,
   players,
   seatName,
+  stepsForTick,
   type FuseDriversEntry,
   type FuseDriversEvent,
   type FuseDriversRoom,
   type FuseDriversSettings,
 } from "./rules.js";
+import type { RaceState } from "./sim/race.js";
 
-export interface FuseDriversPlayerView {
+export interface FuseDriversDriverView {
   id: string;
   name: string;
   slot: number;
   avatarId: string;
   bot: boolean;
   connected: boolean;
-  /** Banked this round. */
-  score: number;
-  roundWins: number;
-  /** Their play this match. */
-  rolls: number;
-  busts: number;
-  bestTurn: number;
+  /** Which truck this seat drives, or -1 before the grid is formed. */
+  truck: number;
 }
-/** What the fuseDrivers UI renders. Outcomes are read from here, not from events, so a rollback's correction shows. */
+
+/**
+ * What the arena renders. Outcomes are read from here rather than from events, because a rollback
+ * corrects history without emitting the events again.
+ */
 export interface FuseDriversView {
-  /** The game clock: the log tick. */
+  /** The log tick, which is this game's clock. */
   tick: number;
   phase: Stage;
   round: number;
-  target: number;
-  winsNeeded: number;
-  /** Seated players in turn (slot) order. */
-  players: FuseDriversPlayerView[];
+  track: string;
+  drivers: FuseDriversDriverView[];
   watchers: { id: string; name: string; connected: boolean }[];
-  /** Whose turn it is, and the turn number a ROLL or HOLD must name. */
-  currentId?: string;
-  turn: number;
-  turnTotal: number;
-  /** The newest roll; `n` counts rolls in the match, so two equal rolls in a row read as two. */
-  lastRoll?: { id: string; value: number; n: number };
-  /** Log ticks until the turn holds by itself, and the full turn. */
-  timerTicks: number;
-  turnTicks: number;
-  roundWinnerId?: string;
-  winnerId?: string;
+  /** The race as of this tick, or undefined in the lobby. */
+  race?: RaceState;
 }
 
 export function fuseDriversView(room: FuseDriversRoom): FuseDriversView {
-  const running = room.stage === "running" && room.turn !== "";
   return {
     tick: room.tick,
     phase: room.stage,
     round: room.round,
-    target: TARGET,
-    winsNeeded: WINS_NEEDED,
-    players: players(room).map((seat) => {
-      const { rolls, busts, bestTurn } = room.stats[seat.id] ?? noStats();
-      return {
-        id: seat.id,
-        name: seat.name,
-        slot: seat.slot,
-        avatarId: seat.avatarId,
-        bot: seat.bot,
-        connected: seat.connected,
-        score: room.scores[seat.id] ?? 0,
-        roundWins: room.wins[seat.id] ?? 0,
-        rolls,
-        busts,
-        bestTurn,
-      };
-    }),
+    track: room.settings.track,
+    drivers: players(room).map((seat) => ({
+      id: seat.id,
+      name: seat.name,
+      slot: seat.slot,
+      avatarId: seat.avatarId,
+      bot: seat.bot,
+      connected: seat.connected,
+      truck: room.grid.indexOf(seat.id),
+    })),
     watchers: [...room.seats.values()]
       .filter((seat) => seat.watcher)
       .map((seat) => ({
@@ -91,22 +68,9 @@ export function fuseDriversView(room: FuseDriversRoom): FuseDriversView {
         connected: seat.connected,
       }))
       .sort((a, b) => (a.id < b.id ? -1 : 1)),
-    ...(running ? { currentId: room.turn } : {}),
-    turn: room.turnNo,
-    turnTotal: room.turnTotal,
-    ...(room.lastRoll
-      ? {
-          lastRoll: {
-            id: room.lastRoller,
-            value: room.lastRoll,
-            n: room.rolls,
-          },
-        }
-      : {}),
-    timerTicks: running ? Math.max(0, room.deadline - room.tick) : 0,
-    turnTicks: room.turnTicks,
-    ...(room.roundWinner ? { roundWinnerId: room.roundWinner } : {}),
-    ...(room.winner ? { winnerId: room.winner } : {}),
+    // The race is replaced wholesale by each simulation step and never mutated in place, so handing the
+    // retained frame this reference is as safe as copying it, and far cheaper at twenty frames a second.
+    ...(room.race ? { race: room.race } : {}),
   };
 }
 
@@ -124,13 +88,14 @@ export const fuseDriversGame: RollbackGame<
   createTicker: () => foldTick,
   scope: (room) => ({ matchId: room.matchId, round: room.round }),
   clock: (room) => room.tick,
-  steps: () => 1,
-  maxSteps: 1,
+  // The next tick's step count, so the runtime paces the same cadence the fold will run.
+  steps: (room) => stepsForTick(room.tick + 1),
+  maxSteps: 2,
   view: fuseDriversView,
   hash: hashRoom,
-  checkpoint: { leading: 5, encode: encodeRoom, decode: decodeRoom },
-  // Slot then id: an order that depends only on the room, so a device that recovered it from a checkpoint (which
-  // lists seats by slot) names members exactly as the devices that folded it.
+  checkpoint: { leading: 4, encode: encodeRoom, decode: decodeRoom },
+  // Slot then id: an order that depends only on the room, so a device that recovered it from a checkpoint
+  // names members exactly as the devices that folded it.
   members: (room) =>
     [...room.seats.values()].sort(
       (a, b) => a.slot - b.slot || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
@@ -145,18 +110,21 @@ export const fuseDriversGame: RollbackGame<
     isAvatar,
     defaultAvatar: "robot",
     parseSettings,
+    // Nobody else is watching a solo race, so it never runs as a shared screen.
     soloSettings: (settings) => ({ ...settings, display: false }),
     sharedScreen: (settings) => settings.display,
     botId(room, pending) {
       // Never an id this match remembers, so a new bot does not inherit a departed one's tallies.
       let number = 1;
-      const taken = (id: string) =>
-        room.seats.has(id) || pending.has(id) || Object.hasOwn(room.roster, id);
+      const taken = (id: string) => room.seats.has(id) || pending.has(id);
       while (taken(`${BOT_PREFIX}${number}`)) number++;
       return `${BOT_PREFIX}${number}`;
     },
-    botName: (slot) => `Bot ${slot + 1}`,
-    solo: { name: "You", bots: 1 },
+    botName: (slot) => `CPU ${slot + 1}`,
+    // A full grid against the computer, which is how the arcade original is played.
+    solo: { name: "You", bots: 4 },
   },
   text: defaultText,
 };
+
+export { DEFAULT_SETTINGS };

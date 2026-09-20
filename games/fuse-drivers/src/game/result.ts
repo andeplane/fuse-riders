@@ -1,101 +1,72 @@
 import type { MatchResult } from "fuse-platform";
+import { players, type FuseDriversRoom } from "./rules.js";
 import type { FuseDriversStats } from "../platform.js";
-import { noStats, type FuseDriversRoom } from "./rules.js";
 
 /**
- * One player's result as `fuse-platform` stores it (`parseFuseDriversStats` is its boundary): the fields it reads itself,
- * the points they banked over the rounds reported, and their play in the match. A round receipt carries its points
- * and no play (all zero): it rates, and never credits totals.
- */
-export type FuseDriversPlayerResult = FuseDriversStats;
-
-/** 1 plus the number of players strictly ahead; ties share a place. */
-function placements<T>(items: T[], better: (a: T, b: T) => boolean): number[] {
-  return items.map(
-    (item) => 1 + items.filter((other) => better(other, item)).length,
-  );
-}
-
-/**
- * The finished match as every replica computes it, or undefined before the match is over. Placement is by round wins,
- * then points; `matchScoreUnits` is the round wins. A player no longer seated (or absent) when the deciding round was
- * decided left early. Who finished and who left are read from that round's record, frozen at the tick it was decided,
- * so every device writes the same receipt however seats change afterwards.
+ * A race's receipt, computed identically on every peer from the finished race alone.
+ *
+ * Nothing a player can still change afterwards may enter it, so the numbers come from the race state at
+ * the tick it finished, not from the lobby a player may since have left or renamed themselves in.
  */
 export function matchResult(
   room: FuseDriversRoom,
-): MatchResult<FuseDriversPlayerResult> | undefined {
-  const decided = room.history.at(-1);
-  if (room.stage !== "over" || !room.winner || !decided) return;
-  const seated = new Set(decided.present);
-  const rows = Object.entries(room.roster)
-    .map(([id, entry]) => ({
-      id,
-      ...entry,
-      wins: room.wins[id] ?? 0,
-      points: room.history.reduce(
-        (sum, record) => sum + (record.scores[id] ?? 0),
-        0,
-      ),
-    }))
-    .sort((a, b) => a.slot - b.slot || (a.id < b.id ? -1 : 1));
-  const places = placements(
-    rows,
-    (a, b) => a.wins > b.wins || (a.wins === b.wins && a.points > b.points),
-  );
+): MatchResult<FuseDriversStats> | undefined {
+  const race = room.race;
+  if (!race || room.stage !== "over") return;
+
+  const seats = players(room);
+  const byId = new Map(seats.map((seat) => [seat.id, seat]));
+  const stats: FuseDriversStats[] = [];
+
+  for (const [truck, id] of room.grid.entries()) {
+    const seat = byId.get(id);
+    const car = race.trucks[truck];
+    if (!seat || !car) continue;
+    const placement = race.placements.indexOf(truck) + 1;
+    stats.push({
+      playerId: id,
+      name: seat.name,
+      slot: seat.slot,
+      roundsPlayed: 1,
+      // One race, so a win is first place across the line.
+      roundWins: placement === 1 ? 1 : 0,
+      matchScoreUnits: Math.max(0, Math.round(car.progress * 100)),
+      matchPlacement: placement > 0 ? placement : room.grid.length,
+      earlyExits: seat.connected ? 0 : 1,
+      laps: car.laps,
+      kills: car.kills,
+      deaths: car.deaths,
+      lapsLed: car.lapsLed,
+      nitrosUsed: car.nitrosUsed,
+    });
+  }
+  if (stats.length === 0) return;
+
+  // One order for every peer, so equal results serialize to equal bytes.
+  stats.sort((a, b) => a.slot - b.slot || (a.playerId < b.playerId ? -1 : 1));
+  const finishers = [...stats]
+    .sort((a, b) => a.matchPlacement - b.matchPlacement)
+    .map((player) => player.playerId);
+  const winner = stats.find((player) => player.matchPlacement === 1);
+
   return {
     matchId: room.matchId,
-    length: room.history.length,
-    winnerId: room.winner,
-    finishers: decided.finishers,
-    players: rows.map((row, index) => ({
-      playerId: row.id,
-      name: row.name,
-      slot: row.slot,
-      roundsPlayed: room.played[row.id] ?? 0,
-      roundWins: row.wins,
-      matchScoreUnits: row.wins,
-      matchPlacement: places[index]!,
-      earlyExits: seated.has(row.id) ? 0 : 1,
-      points: row.points,
-      ...(room.stats[row.id] ?? noStats()),
-    })),
+    length: 1,
+    ...(winner ? { winnerId: winner.playerId } : {}),
+    finishers,
+    players: stats,
   };
 }
 
 /**
- * One decided round as a rating receipt (`round` set, `length` 1): its players are those who played it, placed by the
- * points they had banked when it was decided. Undefined for a round not decided in this match.
+ * A rating receipt for one race of a series. A race is the whole match today, so the round receipt is the
+ * match result carrying its round number; it rates without crediting career totals twice.
  */
 export function roundResult(
   room: FuseDriversRoom,
   round: number,
-): MatchResult<FuseDriversPlayerResult> | undefined {
-  const record = room.history.find((entry) => entry.round === round);
-  if (!record) return;
-  const rows = Object.entries(record.scores)
-    .map(([id, points]) => ({ id, points, ...room.roster[id]! }))
-    .sort((a, b) => a.slot - b.slot || (a.id < b.id ? -1 : 1));
-  const places = placements(rows, (a, b) => a.points > b.points);
-  return {
-    matchId: room.matchId,
-    round,
-    length: 1,
-    winnerId: record.winnerId,
-    finishers: record.finishers.filter((id) =>
-      Object.hasOwn(record.scores, id),
-    ),
-    players: rows.map((row, index) => ({
-      playerId: row.id,
-      name: row.name,
-      slot: row.slot,
-      roundsPlayed: 1,
-      roundWins: row.id === record.winnerId ? 1 : 0,
-      matchScoreUnits: row.points,
-      matchPlacement: places[index]!,
-      earlyExits: 0,
-      points: row.points,
-      ...noStats(),
-    })),
-  };
+): MatchResult<FuseDriversStats> | undefined {
+  if (round !== room.round) return;
+  const result = matchResult(room);
+  return result ? { ...result, round } : undefined;
 }

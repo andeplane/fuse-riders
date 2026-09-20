@@ -5,7 +5,9 @@ import {
 } from "fuse-platform";
 import {
   CAPACITY,
-  MAX_POINTS,
+  MAX_EVENTS,
+  MAX_LAPS,
+  MAX_PROGRESS_UNITS,
   MAX_ROUNDS,
   isBotId,
   validName,
@@ -20,30 +22,32 @@ import {
 
 /** One player's result as the platform stores it; `FuseDriversPlayerResult` in `game/result.ts` is the same shape. */
 export interface FuseDriversStats extends PlayerResult {
-  points: number;
-  rolls: number;
-  holds: number;
-  busts: number;
-  bestTurn: number;
+  laps: number;
+  kills: number;
+  deaths: number;
+  /** Laps this driver crossed the line in front. */
+  lapsLed: number;
+  nitrosUsed: number;
 }
 export const TOTAL_KEYS = [
   "matches",
   "wins",
   "roundWins",
-  "points",
-  "rolls",
-  "holds",
-  "busts",
-  "bestTurn",
+  "laps",
+  "kills",
+  "deaths",
+  "lapsLed",
+  "nitrosUsed",
 ] as const;
-export type FuseDriversTotalsRecord = Record<(typeof TOTAL_KEYS)[number], number>;
+export type FuseDriversTotalsRecord = Record<
+  (typeof TOTAL_KEYS)[number],
+  number
+>;
 /** An account's standing in the fuseDrivers game beside its rating. */
 export interface FuseDriversTotals {
   totals: FuseDriversTotalsRecord;
 }
 
-/** A forged report can only inflate the reporter's own totals, and by at most this much per match. */
-const MAX_EVENTS = 20_000;
 const KEYS = [
   "playerId",
   "name",
@@ -53,11 +57,11 @@ const KEYS = [
   "matchScoreUnits",
   "matchPlacement",
   "earlyExits",
-  "points",
-  "rolls",
-  "holds",
-  "busts",
-  "bestTurn",
+  "laps",
+  "kills",
+  "deaths",
+  "lapsLed",
+  "nitrosUsed",
 ] as const satisfies readonly (keyof FuseDriversStats)[];
 type Counter = Exclude<(typeof KEYS)[number], "playerId" | "name">;
 const COUNTERS = KEYS.slice(2) as readonly Counter[];
@@ -92,26 +96,28 @@ export function parseFuseDriversStats(
     slot: CAPACITY - 1,
     roundsPlayed: rounds,
     roundWins: rounds,
-    // Round wins for a match; the points banked for a round receipt.
-    matchScoreUnits: MAX_POINTS * MAX_ROUNDS,
+    // How far round the track the driver got, in hundredths of a checkpoint.
+    matchScoreUnits: MAX_PROGRESS_UNITS * MAX_ROUNDS,
     matchPlacement: MAX_MATCH_PARTICIPANTS,
     earlyExits: 1,
-    points: MAX_POINTS * MAX_ROUNDS,
-    rolls: MAX_EVENTS,
-    holds: MAX_EVENTS,
-    busts: MAX_EVENTS,
-    bestTurn: MAX_POINTS,
+    laps: MAX_LAPS,
+    kills: MAX_EVENTS,
+    deaths: MAX_EVENTS,
+    lapsLed: MAX_LAPS,
+    nitrosUsed: MAX_EVENTS,
   };
   if (!COUNTERS.every((key) => count(raw[key], most[key]))) return;
   if ((raw.matchPlacement as number) < 1) return;
-  if ((raw.busts as number) > (raw.rolls as number)) return;
+  if ((raw.lapsLed as number) > (raw.laps as number)) return;
   const player: Record<string, unknown> = {};
   for (const key of KEYS) player[key] = raw[key];
   return player as unknown as FuseDriversStats;
 }
 
 export const emptyFuseDriversTotals = (): FuseDriversTotalsRecord =>
-  Object.fromEntries(TOTAL_KEYS.map((key) => [key, 0])) as FuseDriversTotalsRecord;
+  Object.fromEntries(
+    TOTAL_KEYS.map((key) => [key, 0]),
+  ) as FuseDriversTotalsRecord;
 
 export const fuseDriversRegistration: GameRegistration<
   FuseDriversStats,
@@ -126,21 +132,18 @@ export const fuseDriversRegistration: GameRegistration<
     matches: 1,
     wins: player.matchPlacement === 1 ? 1 : 0,
     roundWins: player.roundWins,
-    points: player.points,
-    rolls: player.rolls,
-    holds: player.holds,
-    busts: player.busts,
-    bestTurn: player.bestTurn,
+    laps: player.laps,
+    kills: player.kills,
+    deaths: player.deaths,
+    lapsLed: player.lapsLed,
+    nitrosUsed: player.nitrosUsed,
   }),
   addTotals(standing, credit) {
-    for (const key of TOTAL_KEYS)
-      standing.totals[key] =
-        key === "bestTurn"
-          ? Math.max(standing.totals[key], credit[key])
-          : standing.totals[key] + credit[key];
+    for (const key of TOTAL_KEYS) standing.totals[key] += credit[key];
   },
   parseTotals(document) {
-    if (document.totals === undefined) return { totals: emptyFuseDriversTotals() };
+    if (document.totals === undefined)
+      return { totals: emptyFuseDriversTotals() };
     const stored = document.totals;
     if (
       !plain(stored) ||
