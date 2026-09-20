@@ -28,6 +28,11 @@ import {
   createAvatarPortrait,
 } from "../client/avatar-heads.js";
 import {
+  createColorPicker,
+  riderColorIndex,
+  type RiderColorId,
+} from "../client/rider-colors.js";
+import {
   applyThemeProperties,
   themes,
   type ThemeDefinition,
@@ -52,6 +57,10 @@ import {
 } from "./landing-route.js";
 import { PICKUP_LABELS } from "./pickup-labels.js";
 import { createAvatarDialog } from "./dialogs/avatar.js";
+import {
+  createColorDialog,
+  type ColorDialogOptions,
+} from "./dialogs/rider-color.js";
 import { createMenuDialog } from "./dialogs/menu.js";
 import { createRadioDialog } from "./dialogs/radio.js";
 import { createRecapDialog } from "./dialogs/recap.js";
@@ -204,6 +213,8 @@ export async function startOnline(): Promise<void> {
   let lastRecap = "",
     rejoinPending = false,
     recapIsReady = false;
+  /** A colour asked for in the join form, sent once the room has seated this rider; the fold decides whether it sticks. */
+  let wantedColor: number | undefined;
   const benchmark = url.searchParams.get("benchmark") === "1";
   let benchmarkInput: { seq: number; at: number } | undefined,
     lastBenchmarkRender = 0,
@@ -256,8 +267,13 @@ export async function startOnline(): Promise<void> {
   header.append(title, status, statusAction, roundChip, results);
   const joinForm = createJoinForm(
     storage,
-    (playerName, avatarId) =>
-      runtime.command({ type: "join", name: playerName, avatarId }),
+    (playerName, avatarId, colorIndex) => {
+      // The seat comes from the room's generic join, which carries no colour; the colour the rider asked for follows
+      // as its own entry the moment the room seats it (`wantedColor` below). Asking for one it cannot have is safe:
+      // the fold refuses it and the rider keeps the free colour the join gave it.
+      wantedColor = colorIndex;
+      return runtime.command({ type: "join", name: playerName, avatarId });
+    },
     accountUsername(),
     // Solo is one rider and four AI on this device: there is no room to watch.
     solo
@@ -664,7 +680,10 @@ export async function startOnline(): Promise<void> {
   help.title = "Keyboard controls";
   const avatarButton = node("button", "AVATAR");
   avatarButton.hidden = true;
-  header.append(avatarButton, prefsButton, menu, help);
+  // Colour sits beside the avatar and follows the same rule: a lobby choice, gone once the round starts.
+  const colorButton = node("button", "COLOUR");
+  colorButton.hidden = true;
+  header.append(avatarButton, colorButton, prefsButton, menu, help);
   // Every menu is its own dialog (dialogs/*), and which one is open is the registry's state: never read from a
   // dialog's title, classes or contents. They sit where the one shared dialog used to, right after the phone HUD.
   const dialogs = createDialogRegistry<RoomDialogId>();
@@ -843,7 +862,7 @@ export async function startOnline(): Promise<void> {
     roomAccount.button,
   );
   header.append(topMenu);
-  topMenu.append(results, avatarButton, menu, help);
+  topMenu.append(results, avatarButton, colorButton, menu, help);
   for (const extra of [
     topRadio,
     topMusic,
@@ -1156,6 +1175,18 @@ export async function startOnline(): Promise<void> {
       if (!recapIsReady) dialogs.close("recap");
       if (state.phase === "lobby") lastRecap = "";
       joined = Boolean(player);
+      // Seated at last: ask for the colour the join form chose, once. The join gave this rider the lowest free colour,
+      // so it already has one; this is the preference on top, and a single attempt is right because the fold's answer
+      // is final — a colour someone else holds stays theirs rather than being retried every frame.
+      if (player && wantedColor !== undefined) {
+        const asked = wantedColor;
+        wantedColor = undefined;
+        if (riderColorIndex(player.color) !== asked)
+          runtime.command({ type: "color", colorIndex: asked });
+      }
+      // What this rider actually wears is what the browser remembers, so the next room opens on the colour it wore
+      // rather than on one it asked for and did not get.
+      if (player) joinForm.colors.sync(player.color as RiderColorId);
       // A watcher is in the room, not queuing at its door: it gets the arena and the lists, never the join card or the controls.
       const watcher = state.spectators.find((seat) => seat.id === id);
       watching = Boolean(watcher);
@@ -1185,6 +1216,8 @@ export async function startOnline(): Promise<void> {
       // Avatars are a lobby choice: before a seat the join form carries it, the button leaves with the lobby, and a picker left open closes when the round starts.
       setIfChanged(avatarButton, "hidden", view.avatarHidden);
       if (view.avatarHidden) dialogs.close("avatar");
+      setIfChanged(colorButton, "hidden", view.avatarHidden);
+      if (view.avatarHidden) dialogs.close("riderColor");
       setIfChanged(controls, "hidden", view.controlsHidden);
       // A rider the room still lists as offline (page reload mid-round) reconnects by itself; anyone absent goes through the join card.
       // A watcher the room still lists does the same, asking for its place in the watching list back rather than for a seat.
@@ -1526,15 +1559,35 @@ export async function startOnline(): Promise<void> {
   const avatarDialog = createAvatarDialog(dialogs, {
     storage,
     picker: createAvatarPicker,
-    wornBy: (avatarId) =>
-      snapshot?.players.find((p) => p.id !== id && p.avatarId === avatarId)
-        ?.name,
+    wornBy: (avatarId) => {
+      const owner = snapshot?.players.find(
+        (p) => p.id !== id && p.avatarId === avatarId,
+      );
+      return owner && { name: owner.name, color: owner.color };
+    },
     chosen: (chosen) => {
       joinForm.picker.sync(chosen);
       if (joined) runtime.command({ type: "avatar", avatarId: chosen });
     },
   });
   avatarButton.onclick = avatarDialog.open;
+  const colorDialog = createColorDialog(dialogs, {
+    storage,
+    picker: createColorPicker as ColorDialogOptions["picker"],
+    portrait: (avatarId) => createAvatarPortrait(avatarId as AvatarId),
+    wornBy: (color) => {
+      const owner = snapshot?.players.find(
+        (p) => p.id !== id && p.color === color,
+      );
+      return owner && { name: owner.name, avatarId: owner.avatarId };
+    },
+    chosen: (chosen) => {
+      joinForm.colors.sync(chosen as RiderColorId);
+      if (joined)
+        runtime.command({ type: "color", colorIndex: riderColorIndex(chosen) });
+    },
+  });
+  colorButton.onclick = colorDialog.open;
   // The lobby card already carries the QR and the copyable link, so this opens the shared-screen display directly instead of a dialog that repeats them.
   share.title = "Open this room on a shared screen";
   share.onclick = () => {

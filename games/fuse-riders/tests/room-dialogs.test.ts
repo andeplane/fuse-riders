@@ -363,12 +363,13 @@ test("the results bar: READY, Back to lobby for whoever runs the room, and the f
   assert.equal(toggle.getAttribute("aria-expanded"), "false");
 });
 
-test("the avatar picker marks what other riders wear and closes on a choice", () => {
+test("the avatar picker blocks what other riders wear and closes on a choice", () => {
   const { document, dialogs, flush } = modules();
   const chosen: string[] = [];
   const avatar = createAvatarDialog(dialogs, {
     storage: { getItem: () => null, setItem: () => {} },
-    wornBy: (avatarId) => (avatarId === "fox" ? "Bo" : undefined),
+    wornBy: (avatarId) =>
+      avatarId === "fox" ? { name: "Bo", color: "#ff4fa3" } : undefined,
     chosen: (id) => chosen.push(id),
     document,
     picker: (_storage, onChange) => {
@@ -392,7 +393,9 @@ test("the avatar picker marks what other riders wear and closes on a choice", ()
     ...body.querySelectorAll<HTMLButtonElement>(".avatar-option"),
   ];
   assert.equal(fox!.classList.contains("taken"), true);
-  assert.equal(fox!.title, "Bo has this one");
+  assert.equal(fox!.disabled, true);
+  assert.equal(fox!.title, "Taken by Bo");
+  assert.equal(fox!.style.getPropertyValue("--owner-color"), "#ff4fa3");
   assert.equal(owl!.classList.contains("taken"), false);
   assert.equal(owl!.title, "");
   press(owl!);
