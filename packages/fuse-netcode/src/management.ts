@@ -160,11 +160,17 @@ export function isManagementEntry<Settings>(
 export function successionOrder(
   seats: Iterable<Seat>,
   creatorId: string,
+  /** Rank away members too, as if present: the order in which absence may be recorded (`permitted`). */
+  withAway = false,
 ): string[] {
   const players: Seat[] = [],
     watchers: string[] = [];
   for (const seat of seats)
-    if (seat.connected && !seat.bot && seat.id !== creatorId)
+    if (
+      (seat.connected || (withAway && seat.away)) &&
+      !seat.bot &&
+      seat.id !== creatorId
+    )
       if (seat.watcher) watchers.push(seat.id);
       else players.push(seat);
   players.sort(
@@ -206,7 +212,9 @@ export function actingCreator(
 /**
  * Whether a management entry from `manager` applies: the creator always; the delegate while the creator is absent; and
  * any connected human may record the absence of someone ahead of it in the succession order, so a creator and a
- * delegate that drop together are both marked absent by the next member rather than leaving the room stalled.
+ * delegate that drop together are both marked absent by the next member rather than leaving the room stalled. Any
+ * member may log its own presence: `PRESENCE false` about itself while connected steps it away (`Seat.away`), and
+ * `PRESENCE true` about itself while away brings it back; nothing else from an away member applies.
  */
 export function permitted(
   seats: Iterable<Seat>,
@@ -214,9 +222,24 @@ export function permitted(
   manager: string,
   entry: LogEntry,
 ): boolean {
-  if (manager === creatorId) return true;
   const all = [...seats],
-    order = successionOrder(all, creatorId),
+    own = all.find((seat) => seat.id === manager);
+  if (entry[2] === PRESENCE && entry[3] === manager) {
+    // Stepping away needs a place in the room, not presence: see the Fuse Riders reducer.
+    if (entry[4] === false) return own !== undefined && !own.bot && !own.away;
+    if (own?.away) return true;
+  }
+  // An away member steps back in before anything else it logs applies, the creator included — except the one entry
+  // §9 gives every ranked member: the absence of someone ahead of it. Without it, a member whose last peer died
+  // unlogged while it was away could neither record that death nor return, and the room stood still (#361 review).
+  if (own?.away)
+    return (
+      entry[2] === PRESENCE &&
+      entry[4] === false &&
+      ahead(all, creatorId, manager, entry[3] as string)
+    );
+  if (manager === creatorId) return true;
+  const order = successionOrder(all, creatorId),
     rank = order.indexOf(manager);
   if (rank < 0) return false;
   if (entry[2] === PRESENCE && entry[4] === false) {
@@ -224,6 +247,18 @@ export function permitted(
     if (target >= 0 && target < rank) return true;
   }
   return actingCreator(all, creatorId) === manager;
+}
+/** Whether `manager` ranks behind `target` in the order that ranks away members as if present. */
+function ahead(
+  seats: readonly Seat[],
+  creatorId: string,
+  manager: string,
+  target: string,
+): boolean {
+  const order = successionOrder(seats, creatorId, true),
+    rank = order.indexOf(manager),
+    at = order.indexOf(target);
+  return rank > 0 && at >= 0 && at < rank;
 }
 /** The member a management entry disconnects, if it does: the stall rule may not wait for that member past its tick. */
 export function disconnects(entry: LogEntry): string | undefined {
@@ -244,6 +279,8 @@ export interface SeatRecord {
   watcher?: boolean;
   /** The stream generation this seat's own entries are read from; absent for a bot. */
   generation?: number;
+  /** Logged itself away: `connected` is false, but the seat is kept wherever an absent one would be dropped. */
+  away?: boolean;
 }
 /** The part of a room `applyManagementTick` manages. */
 export interface ManagedRoom<Settings> {
@@ -283,7 +320,14 @@ export function applyManagementTick<
   hooks: LifecycleHooks<Room, Settings>,
 ): void {
   const seats = () => [...room.seats.values()].map(seatView);
-  for (const manager of successionOrder(seats(), creatorId)) {
+  const order = successionOrder(seats(), creatorId);
+  // Everyone else seated or listed is read after the order, for the entries only they may log about themselves: an away
+  // member's return, and an absent member's step away (`permitted`).
+  const others = seats()
+    .filter((seat) => !seat.bot && !order.includes(seat.id))
+    .map((seat) => seat.id)
+    .sort();
+  for (const manager of [...order, ...others]) {
     const stream = streams.get(manager);
     if (!stream) continue;
     // Not gated by generation: a returning creator's new stream must be able to log its own presence.
@@ -294,7 +338,12 @@ export function applyManagementTick<
       if (entry[1] !== tick || !isManagementKind(entry[2])) continue;
       // Re-evaluated per entry: the creator's own return revokes the acting creator mid-tick.
       if (!permitted(seats(), creatorId, manager, entry)) continue;
-      applyManagementEntry(room, entry as ManagementEntry<Settings>, hooks);
+      applyManagementEntry(
+        room,
+        entry as ManagementEntry<Settings>,
+        hooks,
+        manager,
+      );
     }
   }
 }
@@ -306,6 +355,8 @@ export function applyManagementEntry<
   room: Room,
   entry: ManagementEntry<Settings>,
   hooks: LifecycleHooks<Room, Settings>,
+  /** The member whose stream carried the entry: its own `PRESENCE false` is a step away, not a departure. */
+  author?: string,
 ): void {
   const reclaimable = hooks.stage(room) !== "running",
     all = () => [...room.seats.values()],
@@ -313,7 +364,7 @@ export function applyManagementEntry<
       all().some((seat) => !seat.watcher && seat.slot === slot),
     dropAbsent = (watchersOnly: boolean) => {
       for (const seat of all())
-        if (!seat.connected && (seat.watcher || !watchersOnly))
+        if (!seat.connected && !seat.away && (seat.watcher || !watchersOnly))
           room.seats.delete(seat.id);
     };
   switch (entry[2]) {
@@ -325,6 +376,7 @@ export function applyManagementEntry<
       if (existing) {
         existing.connected = true;
         existing.generation = generation;
+        delete existing.away;
         return;
       }
       if (slotTaken(slot)) return;
@@ -344,7 +396,10 @@ export function applyManagementEntry<
       if (!seat) return;
       // A watcher holds no seat, so leaving frees its place outright in every stage.
       if (reclaimable || seat.watcher) room.seats.delete(seat.id);
-      else seat.connected = false;
+      else {
+        seat.connected = false;
+        delete seat.away;
+      }
       return;
     }
     case PRESENCE: {
@@ -353,6 +408,8 @@ export function applyManagementEntry<
       if (!seat || seat.bot) return;
       seat.connected = connected;
       seat.generation = generation;
+      if (id === author && !connected) seat.away = true;
+      else delete seat.away;
       return;
     }
     case SPECTATOR: {
@@ -373,6 +430,7 @@ export function applyManagementEntry<
       if (existing?.watcher) {
         existing.connected = true;
         existing.generation = generation;
+        delete existing.away;
         return;
       }
       if (

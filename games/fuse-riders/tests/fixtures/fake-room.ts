@@ -19,7 +19,19 @@ export interface NetworkOptions {
   duplicate?: number;
   /** Extra time before the link between two members opens, as when ICE to one peer takes longer than to another. Unset: none. */
   linkMs?: (a: string, b: string) => number;
+  /**
+   * Browser timer throttling for hidden pages (N4): a hidden member's tick loop runs once per `hiddenTickMs` instead of
+   * every 10 ms, and after `intensiveAfterMs` hidden (Chrome's intensive throttling, five minutes) once per
+   * `intensiveTickMs`. Packet delivery and visibility callbacks stay event-driven, as they are in a browser. The hidden
+   * page's own link health also lapses `LINK_LAPSE_MS` after it hides (it sends no probes), so its reliable sends are
+   * refused, as `PeerTransport` does. Unset: every runtime ticks every 10 ms, hidden or not, and links never lapse.
+   */
+  hiddenTickMs?: number;
+  intensiveAfterMs?: number;
+  intensiveTickMs?: number;
 }
+/** How long after hiding a page's own link health lapses: the probe acknowledgement window (`LinkHealth`). */
+export const LINK_LAPSE_MS = 600;
 interface Delivery {
   at: number;
   order: number;
@@ -48,6 +60,11 @@ export class FakeNetwork {
   readonly hidden = new Map<string, boolean>();
   readonly generations = new Map<string, number>();
   readonly visibility = new Map<string, () => void>();
+  /** When each member last hid, while it stays hidden. */
+  readonly hiddenSince = new Map<string, number>();
+  private readonly lastTickAt = new Map<string, number>();
+  /** Tick-loop passes run per member while it was hidden: what a test reads to see the throttle took effect. */
+  readonly hiddenPasses = new Map<string, number>();
   private random: () => number;
   sentFast = 0;
   droppedFast = 0;
@@ -163,8 +180,34 @@ export class FakeNetwork {
         .sort((a, b) => a.at - b.at || a.order - b.order);
       this.queue = this.queue.filter((item) => item.at > this.now);
       for (const item of due) item.deliver();
-      for (const tick of this.ticks.values()) tick();
+      for (const [id, tick] of [...this.ticks]) {
+        const interval = this.tickInterval(id);
+        if (this.now - (this.lastTickAt.get(id) ?? -Infinity) < interval)
+          continue;
+        this.lastTickAt.set(id, this.now);
+        if (this.hidden.get(id))
+          this.hiddenPasses.set(id, (this.hiddenPasses.get(id) ?? 0) + 1);
+        tick();
+      }
     }
+  }
+  /** The member's timer interval now: 10 ms visible, throttled while hidden when the options ask for it. */
+  private tickInterval(id: string): number {
+    const since = this.hiddenSince.get(id);
+    if (since === undefined || this.options.hiddenTickMs === undefined)
+      return 10;
+    return this.now - since >= (this.options.intensiveAfterMs ?? Infinity)
+      ? (this.options.intensiveTickMs ?? 60_000)
+      : this.options.hiddenTickMs;
+  }
+  /** Whether this member's own link health has lapsed: hidden past the probe window, with throttling modelled. */
+  lapsed(id: string): boolean {
+    const since = this.hiddenSince.get(id);
+    return (
+      this.options.hiddenTickMs !== undefined &&
+      since !== undefined &&
+      this.now - since >= LINK_LAPSE_MS
+    );
   }
   dependencies(id: string): RuntimeDependencies {
     let tokens = 0;
@@ -177,6 +220,7 @@ export class FakeNetwork {
         this.ticks.set(id, callback);
         return () => {
           this.ticks.delete(id);
+          this.lastTickAt.delete(id);
         };
       },
       onVisibilityChange: (callback) => {
@@ -189,6 +233,9 @@ export class FakeNetwork {
   }
   setHidden(id: string, hidden: boolean): void {
     this.hidden.set(id, hidden);
+    if (hidden) {
+      if (!this.hiddenSince.has(id)) this.hiddenSince.set(id, this.now);
+    } else this.hiddenSince.delete(id);
     this.visibility.get(id)?.();
   }
   /** Create (or re-create with a new generation) a member's runtime and transport. */
@@ -335,6 +382,8 @@ export class FakeTransport implements RoomTransport {
     this.network.disconnect(this.id);
   }
   send(id: string, data: unknown, _bufferLimit?: number): boolean {
+    // A hidden page's own link health has lapsed: `PeerTransport.send` refuses reliable messages then.
+    if (this.network.lapsed(this.id)) return false;
     const sent = this.network.sendReliable(this.id, id, data);
     if (sent) {
       this.sentBytes += JSON.stringify(data).length;
@@ -356,7 +405,11 @@ export class FakeTransport implements RoomTransport {
   readonly failing = new Set<string>();
   linked(id: string): boolean {
     if (this.failing.has(id)) throw new Error(`link state for ${id} failed`);
-    return this.links.has(id) && !this.unhealthy.has(id);
+    return (
+      this.links.has(id) &&
+      !this.unhealthy.has(id) &&
+      !this.network.lapsed(this.id)
+    );
   }
   linkedWith(id: string): boolean {
     return this.links.has(id);

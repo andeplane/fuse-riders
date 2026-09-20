@@ -146,6 +146,35 @@ test("the stall rule keeps speculation inside the rollback window, and a member'
   assert.equal(leaving.stallBound().tick, 12 + STALL_TICKS);
 });
 
+test("only a disconnect the reducer would apply lifts the wait: one `permitted` refuses does not", () => {
+  // `c` is seated behind `b` and steps itself away, so the one entry it may log is an absence ahead of it. A `LEAVE`
+  // for `b` from that stream is refused by every reducer, and the stall rule must not read it either: before this,
+  // any entry in a scanned stream moved the bound, so a member whose inputs were still owed was written off — which a
+  // crafted stream could do to every replica on purpose.
+  const world = running();
+  const a = world.streams.get("a")!;
+  const c = world.stream("c", 1);
+  a.append(3, [JOIN, "c", "C", 2, "fox", 1]);
+  a.through = 200;
+  world.advance(3);
+  c.append(10, [PRESENCE, "c", false, 1]);
+  c.through = 200;
+  world.advance(12);
+  assert.equal(world.state.seats.get("c")?.away, true, "c stepped away");
+  heard(world, "b", 20);
+  const waiting = world.stallBound();
+  assert.equal(waiting.tick, 20 + STALL_TICKS);
+  c.append(30, [LEAVE, "b"]);
+  assert.equal(
+    world.stallBound().tick,
+    waiting.tick,
+    "a refused departure leaves the wait where it was",
+  );
+  // The absence of a member ahead of it is the entry it may log, and that one does lift the wait.
+  c.append(31, [PRESENCE, "b", false, 1]);
+  assert.equal(world.stallBound().tick, 31 + STALL_TICKS);
+});
+
 test("streams refuse gaps past their window, repair by nack, ignore duplicates and refuse a conflicting duplicate", () => {
   const own = new StreamLog(counterGame, 1);
   for (let tick = 1; tick <= 8; tick++) own.append(tick, [ADD, 1]);

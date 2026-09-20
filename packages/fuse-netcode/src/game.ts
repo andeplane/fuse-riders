@@ -31,6 +31,11 @@ export interface Seat {
   watcher?: boolean;
   /** The stream generation the seat's controls follow (Fuse Riders: `folds`); absent for a bot or a seat without one. */
   generation?: number;
+  /**
+   * The member logged itself away (its page is hidden): it keeps its seat and, in the game, its place, but `connected` is
+   * false, so nothing waits on its stream, nobody judges its silence and it manages nothing until it logs its return.
+   */
+  away?: boolean;
 }
 
 /**

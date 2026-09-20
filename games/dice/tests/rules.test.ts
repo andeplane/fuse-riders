@@ -297,8 +297,9 @@ test("an absent player's turn runs out on the timer, and later turns skip them",
   // b leaving mid-match keeps its seat (seats are held while running) but b never takes a turn.
   fold(room, { a: [[LEAVE, "b"]] });
   assert.equal(room.seats.get("b")?.connected, false);
-  // An absent player whose turn it is: their entries are ignored and the timer passes the turn.
-  fold(room, { a: [[PRESENCE, "a", false, 1]] });
+  // An absent player whose turn it is: their entries are ignored and the timer passes the turn. Logged by the player
+  // behind it, because a member's own `PRESENCE false` steps it away (it keeps its place and manages nothing).
+  fold(room, { c: [[PRESENCE, "a", false, 1]] });
   fold(room, { a: [[ROLL, 3]] });
   assert.equal(room.rolls, 0);
   runTo(room, room.deadline);
