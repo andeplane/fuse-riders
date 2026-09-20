@@ -19,6 +19,7 @@ import {
   type MenuDialogOptions,
 } from "../src/online/dialogs/menu.js";
 import { createAvatarDialog } from "../src/online/dialogs/avatar.js";
+import { createColorDialog } from "../src/online/dialogs/rider-color.js";
 
 /** A button's click handler, as a click runs it. */
 const press = (button: HTMLElement) =>
@@ -363,12 +364,13 @@ test("the results bar: READY, Back to lobby for whoever runs the room, and the f
   assert.equal(toggle.getAttribute("aria-expanded"), "false");
 });
 
-test("the avatar picker marks what other riders wear and closes on a choice", () => {
+test("the avatar picker blocks what other riders wear and closes on a choice", () => {
   const { document, dialogs, flush } = modules();
   const chosen: string[] = [];
   const avatar = createAvatarDialog(dialogs, {
     storage: { getItem: () => null, setItem: () => {} },
-    wornBy: (avatarId) => (avatarId === "fox" ? "Bo" : undefined),
+    wornBy: (avatarId) =>
+      avatarId === "fox" ? { name: "Bo", color: "#ff4fa3" } : undefined,
     chosen: (id) => chosen.push(id),
     document,
     picker: (_storage, onChange) => {
@@ -392,7 +394,9 @@ test("the avatar picker marks what other riders wear and closes on a choice", ()
     ...body.querySelectorAll<HTMLButtonElement>(".avatar-option"),
   ];
   assert.equal(fox!.classList.contains("taken"), true);
-  assert.equal(fox!.title, "Bo has this one");
+  assert.equal(fox!.disabled, true);
+  assert.equal(fox!.title, "Taken by Bo");
+  assert.equal(fox!.style.getPropertyValue("--owner-color"), "#ff4fa3");
   assert.equal(owl!.classList.contains("taken"), false);
   assert.equal(owl!.title, "");
   press(owl!);
@@ -615,4 +619,104 @@ test("session standings sort by points, then match wins, then name", () => {
     ["Di", "Bo", "Al", "Cy"],
   );
   assert.equal(rows[0]!.name, "Cy", "the input is not reordered");
+});
+
+test("the colour picker blocks what other riders wear and badges it with their head", () => {
+  const { document, dialogs, flush } = modules();
+  const chosen: string[] = [];
+  const PINK = "#ff4fa3",
+    AMBER = "#facc15";
+  const color = createColorDialog(dialogs, {
+    storage: { getItem: () => null, setItem: () => {} },
+    wornBy: (value) =>
+      value === PINK ? { name: "Nova", avatarId: "owl" } : undefined,
+    chosen: (value) => chosen.push(value),
+    // The owner's head as the page builds it: a span the dialog re-badges. It must survive the class swap.
+    portrait: (avatarId) => {
+      const head = document.createElement("span");
+      head.className = "avatar-portrait";
+      head.dataset.avatarId = avatarId;
+      return head;
+    },
+    document,
+    picker: (_storage, onChange) => {
+      const element = document.createElement("fieldset");
+      element.className = "color-picker";
+      for (const value of [PINK, AMBER]) {
+        const option = document.createElement("button");
+        option.className = "color-option";
+        option.dataset.riderColor = value;
+        option.onclick = () => onChange(value);
+        element.append(option);
+      }
+      return { element };
+    },
+  });
+  color.open();
+  assert.equal(dialogs.current(), "riderColor");
+  const body = color.element.querySelector(".dialog-body")!;
+  assert.equal(body.querySelector("h2")?.textContent, "Your colour");
+  const [pink, amber] = [
+    ...body.querySelectorAll<HTMLButtonElement>(".color-option"),
+  ];
+  assert.equal(pink!.classList.contains("taken"), true);
+  assert.equal(pink!.disabled, true);
+  assert.equal(pink!.title, "Taken by Nova");
+  const badge = pink!.querySelector(".owner-head")!;
+  assert.equal(badge.getAttribute("data-avatar-id"), "owl");
+  assert.equal(
+    badge.classList.contains("avatar-portrait"),
+    false,
+    "the badge is not sized as a full portrait",
+  );
+  assert.equal(amber!.classList.contains("taken"), false);
+  assert.equal(amber!.disabled, false);
+  assert.equal(amber!.title, "");
+  assert.equal(amber!.querySelector(".owner-head"), null);
+  press(amber!);
+  flush();
+  assert.deepEqual(chosen, [AMBER]);
+  assert.equal(dialogs.current(), undefined);
+});
+
+test("reopening the colour picker does not stack owner badges", () => {
+  const { document, dialogs } = modules();
+  const PINK = "#ff4fa3";
+  let wornBy: (
+    value: string | undefined,
+  ) => { name: string; avatarId: string } | undefined = (value) =>
+    value === PINK ? { name: "Nova", avatarId: "owl" } : undefined;
+  // One picker element across both opens, as the page's real picker factory would return for a repeated open.
+  const element = document.createElement("fieldset");
+  element.className = "color-picker";
+  const option = document.createElement("button");
+  option.className = "color-option";
+  option.dataset.riderColor = PINK;
+  element.append(option);
+  const color = createColorDialog(dialogs, {
+    storage: { getItem: () => null, setItem: () => {} },
+    wornBy: (value) => wornBy(value),
+    chosen: () => {},
+    portrait: () => {
+      const head = document.createElement("span");
+      head.className = "avatar-portrait";
+      return head;
+    },
+    document,
+    picker: () => ({ element }),
+  });
+  color.open();
+  assert.equal(option.querySelectorAll(".owner-head").length, 1);
+  color.open();
+  assert.equal(
+    option.querySelectorAll(".owner-head").length,
+    1,
+    "the previous badge is removed rather than added to",
+  );
+  // Nova leaves: the option is offered again, with no badge left behind.
+  wornBy = () => undefined;
+  color.open();
+  assert.equal(option.querySelectorAll(".owner-head").length, 0);
+  assert.equal(option.disabled, false);
+  assert.equal(option.classList.contains("taken"), false);
 });

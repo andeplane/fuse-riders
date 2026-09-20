@@ -30,7 +30,7 @@ import {
   OVERTIME_START_TICK,
   ROUND_DRAW_TICK,
   SELF_TRAIL_GRACE_TICKS,
-  SLOT_COLORS,
+  RIDER_COLORS,
   STAR_DURATION_TICKS,
   TRAIL_LIFETIME_TICKS,
   addPlayer,
@@ -69,7 +69,7 @@ function gameWithPlayers(
       id: `p${slot}`,
       name: `Player ${slot + 1}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   }
   return state;
@@ -1071,14 +1071,14 @@ test("lifecycle commands enforce phase, capacity, identity, and connected-player
   assert.throws(() => createGame("", classicSettings()), /matchId/);
   const state = createGame("guards", classicSettings());
   assert.throws(() => startMatch(state), /requires 2-5/);
-  addPlayer(state, { id: "a", name: "A", slot: 0, color: SLOT_COLORS[0] });
+  addPlayer(state, { id: "a", name: "A", slot: 0, color: RIDER_COLORS[0] });
   assert.throws(
     () =>
       addPlayer(state, {
         id: "a",
         name: "again",
         slot: 1,
-        color: SLOT_COLORS[1],
+        color: RIDER_COLORS[1],
       }),
     /duplicate/,
   );
@@ -1091,7 +1091,7 @@ test("lifecycle commands enforce phase, capacity, identity, and connected-player
       addPlayer(state, { id: "same-slot", name: "bad", slot: 0, color: "red" }),
     /occupied/,
   );
-  addPlayer(state, { id: "b", name: "B", slot: 1, color: SLOT_COLORS[1] });
+  addPlayer(state, { id: "b", name: "B", slot: 1, color: RIDER_COLORS[1] });
   setPlayerConnected(state, "b", false);
   assert.equal(
     toView(state).players.find((player) => player.id === "b")!.connected,
@@ -1186,13 +1186,13 @@ test("a finished match can replace every seat and start a clean rematch without 
     id: "new-a",
     name: "New A",
     slot: 0,
-    color: SLOT_COLORS[0],
+    color: RIDER_COLORS[0],
   });
   addPlayer(state, {
     id: "new-b",
     name: "New B",
     slot: 1,
-    color: SLOT_COLORS[1],
+    color: RIDER_COLORS[1],
   });
   resetMatch(state, "replacement-match");
 
@@ -1669,7 +1669,7 @@ test("countdown leave is stamped, scored once, and a later join receives no prio
     id: "late",
     name: "Late",
     slot: 2,
-    color: SLOT_COLORS[2],
+    color: RIDER_COLORS[2],
   });
   assert.equal(state.leaderboard.get("late")!.roundsPlayed, 0);
   assert.ok(

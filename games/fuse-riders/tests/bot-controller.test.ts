@@ -13,7 +13,7 @@ import {
   addPlayer,
   startMatch,
   step,
-  SLOT_COLORS,
+  RIDER_COLORS,
   OVERTIME_START_TICK,
   type GameState,
 } from "../src/engine/game.js";
@@ -41,12 +41,12 @@ import { setArmed, setDeadlines, setEffect } from "./fixtures/rider-state.ts";
 import { isArmed } from "../src/engine/weapons.ts";
 function fixture() {
   const game = createGame("bot-fixture", classicSettings());
-  addPlayer(game, { id: "bot:1", name: "AI", slot: 0, color: SLOT_COLORS[0] });
+  addPlayer(game, { id: "bot:1", name: "AI", slot: 0, color: RIDER_COLORS[0] });
   addPlayer(game, {
     id: "human",
     name: "Player",
     slot: 1,
-    color: SLOT_COLORS[1],
+    color: RIDER_COLORS[1],
   });
   startMatch(game);
   for (let i = 0; i < 60; i++) step(game, new Map());

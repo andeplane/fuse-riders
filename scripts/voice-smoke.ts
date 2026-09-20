@@ -117,12 +117,13 @@ async function voice(page: Page) {
 async function close(page: Page) {
   await page.getByRole("button", { name: "CLOSE", exact: true }).click();
 }
+/** An invited device seats itself on arrival, under the name this browser remembers. */
 async function join(page: Page, name: string, url: string) {
+  await page.addInitScript(
+    (rider) => localStorage.setItem("fuse-riders-player-name", rider),
+    name,
+  );
   await page.goto(url);
-  await page.getByPlaceholder("Your name").fill(name);
-  await page
-    .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-    .click();
 }
 try {
   const a = await browser.newContext({

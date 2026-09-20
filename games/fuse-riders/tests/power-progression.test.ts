@@ -11,7 +11,7 @@ import {
 import {
   BOMB_FUSE_TICKS,
   COUNTDOWN_TICKS,
-  SLOT_COLORS,
+  RIDER_COLORS,
   addPlayer,
   createGame,
   eliminatePlayer,
@@ -38,7 +38,7 @@ function playing() {
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   for (let i = 0; i < COUNTDOWN_TICKS; i++) step(game, new Map());
@@ -408,7 +408,7 @@ test("abundant spawning still respects a room with all drops disabled", () => {
 
 test("a newly joined lobby rider can be restored before any round initializes it", () => {
   const game = createGame("power-lobby", classicSettings());
-  addPlayer(game, { id: "p0", name: "P0", slot: 0, color: SLOT_COLORS[0]! });
+  addPlayer(game, { id: "p0", name: "P0", slot: 0, color: RIDER_COLORS[0]! });
   assert.equal(
     game.players.get("p0")!.reloadDurationTicks,
     tuning.baseReloadTicks,

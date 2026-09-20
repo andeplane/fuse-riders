@@ -15,7 +15,7 @@ import { RoomRuntime } from "../src/online/room-runtime.js";
 import assert from "node:assert/strict";
 import { FakeNetwork, type NetworkOptions } from "./fixtures/fake-room.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
-import { COUNTDOWN_TICKS } from "../src/engine/game.js";
+import { COUNTDOWN_TICKS, RIDER_COLORS } from "../src/engine/game.js";
 import { validRiderName } from "../src/engine/rider-name.js";
 import { presentFrames } from "../src/render/time/present.js";
 import type { WorldView } from "../src/engine/view.js";
@@ -604,9 +604,24 @@ test("solo runs a room with no peers: one human, four AI, a paused clock while h
     false,
     "five seats are taken",
   );
+  // The command is accepted — the entry is this rider's to write — but the fold refuses the head, because the four AI
+  // riders in this solo room wear `robot` and a human that wore it too could not be told from them (rules 48).
   assert.equal(runtime.command({ type: "avatar", avatarId: "robot" }), true);
   net.step(60);
-  assert.equal(frame!.players[0]!.avatarId, "robot");
+  assert.notEqual(frame!.players[0]!.avatarId, "robot");
+  // A head no rider wears still applies, so the rule blocks the clash and not the choice.
+  assert.equal(runtime.command({ type: "avatar", avatarId: "dragon" }), true);
+  net.step(60);
+  assert.equal(frame!.players[0]!.avatarId, "dragon");
+  // Colour is the same bargain: a free one is taken, and the AI riders already hold the four below it.
+  assert.equal(runtime.command({ type: "color", colorIndex: 6 }), true);
+  net.step(60);
+  assert.equal(frame!.players[0]!.color, RIDER_COLORS[6]);
+  assert.equal(
+    new Set(frame!.players.map((player) => player.color)).size,
+    frame!.players.length,
+    "every rider in the room wears a different colour",
+  );
   runtime.stop();
   runtime.stop();
   assert.equal(

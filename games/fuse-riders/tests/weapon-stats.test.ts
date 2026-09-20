@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   BOMB_BLAST_RANGE,
   eliminatePlayer,
-  SLOT_COLORS,
+  RIDER_COLORS,
   addPlayer,
   createGame,
   resetMatch,
@@ -49,7 +49,7 @@ function fixture(
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   while (game.phase === "countdown") step(game, new Map());

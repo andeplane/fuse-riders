@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   COUNTDOWN_TICKS,
-  SLOT_COLORS,
+  RIDER_COLORS,
   addPlayer,
   createGame,
   startMatch,
@@ -38,7 +38,7 @@ function playing() {
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   for (let i = 0; i < COUNTDOWN_TICKS; i++) step(game, new Map());
