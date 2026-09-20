@@ -34,7 +34,11 @@ export { segmentIntersectsDisk } from "./blast-geometry.js";
 
 // A gun impact is cosmetic evidence at an endpoint the simulation already resolved: the screen asks whether that
 // endpoint touches a piece of scenery, with the same rectangle distance the simulation used.
-export { obstacleDistanceSquared } from "./arena-map.js";
+//
+// A piece's artwork is chosen by the same variant lookup the layout placed it with, so the sprite a screen draws can
+// never be a different shape from the collider the simulation kills against.
+export { obstacleDistanceSquared, obstacleVariant } from "./arena-map.js";
+export type { ObstacleVariant } from "./arena-map.js";
 
 // A train's rails are drawn from the same loop its cars are advanced along, and a car's lights face the way the
 // rails run where it stands: the one kernel, so the drawing cannot put a train beside its track.

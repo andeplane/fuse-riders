@@ -1,8 +1,12 @@
 # ADR 020: Original synthesized TV audio
 
-Status: Historical, amended by the dated updates below. The original synthesized soundtrack and TV-only policy are superseded: current music uses recorded tracks through `HTMLAudioElement`, while effects remain synthesized. See `games/fuse-riders/src/client/game-audio.ts`, `audio-director.ts` and `radio.ts` for the current implementation.
+Status: **Historical, amended by the dated updates below.** Three things the opening paragraphs decide are superseded, and a reader who stops at them will get all three wrong:
 
-The opening paragraphs preserve the original decision; later dated updates take precedence.
+- **The synthesized soundtrack.** Music is recorded tracks in `public/music/`, listed in `MUSIC_TRACKS` and played through an `HTMLAudioElement`. Effects are still synthesized on the Web Audio graph.
+- **"TV-only", "no audio on phone controllers".** Every page has the soundtrack, the landing page included, and the same **♫ MUSIC ON / OFF** and **♫ RADIO** controls.
+- **Advancing the playlist on each new active round.** Nothing in the game state changes the track; only a finished track or the listener does.
+
+Current implementation: `games/fuse-riders/src/client/game-audio.ts`, `audio-director.ts`, `radio.ts` and `radio-media-session.ts`, with the player-facing behaviour in the [README](../../README.md#tests-and-evidence). The opening paragraphs preserve the original decision; later dated updates take precedence.
 
 Use a TV-only Web Audio synthesizer for an original looping arcade melody, bass and percussion. All notes are composed in source; no licensed recordings or external audio requests. Separate music/effects mute controls and volumes remain accessible beside TV controls. Audio starts only after an explicit host gesture; unsupported or blocked audio never blocks play.
 

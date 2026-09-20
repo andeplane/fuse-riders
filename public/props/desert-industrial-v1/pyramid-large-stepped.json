@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "pyramid-large-stepped",
+  "category": "pyramid",
+  "sizeClass": "large",
+  "description": "Large wide stepped sandstone pyramid with concentric rectangular tiers.",
+  "image": {
+    "file": "pyramid-large-stepped.png",
+    "width": 1536,
+    "height": 1024,
+    "sha256": "ec307059e0e16e656bee3d39222d370dcad2705f7b59d52ec08c35acb6ad14cd"
+  },
+  "anchorPixels": {
+    "x": 767.5,
+    "y": 514.5
+  },
+  "hitboxPixels": {
+    "shape": "rectangle",
+    "centerX": 767.5,
+    "centerY": 514.5,
+    "width": 1277,
+    "height": 747
+  },
+  "recommendedWorld": {
+    "unitsPerPixel": 0.11276429130775255,
+    "rotationDegrees": 0,
+    "hitbox": {
+      "shape": "rectangle",
+      "centerX": 0,
+      "centerY": 0,
+      "width": 144.0,
+      "height": 84.23492560689115
+    }
+  },
+  "collisionFit": {
+    "method": "alpha-128-bounds",
+    "silhouetteIoU": 0.997812
+  }
+}

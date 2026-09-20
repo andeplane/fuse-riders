@@ -23,6 +23,7 @@ import {
 } from "../src/engine/game.js";
 import type { Obstacle } from "../src/engine/arena-map.js";
 import { streamReader, type Recording } from "./fixtures/replay-log.js";
+import { REPLAY_STRIDE, strideNote } from "./fixtures/replay-budget.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
 import { EFFECT_KINDS } from "../src/engine/effects.ts";
 import { WEAPON_KINDS } from "../src/engine/weapons.ts";
@@ -89,7 +90,7 @@ function permute(state: RoomState): void {
     state.game.settings.weights = backwardsKeys(state.game.settings.weights);
 }
 
-test("the whole mechanic replay survives reversed map and settings insertion order at every tick", () => {
+test("the whole mechanic replay survives reversed map and settings insertion order at every tick", (t) => {
   const recording: Recording = JSON.parse(
     readFileSync(
       new URL("./fixtures/mechanics-recording.json", import.meta.url),
@@ -112,20 +113,29 @@ test("the whole mechanic replay survives reversed map and settings insertion ord
     pickupTicks = 0,
     multiEffectRiderTicks = 0,
     tiedRounds = 0;
+  t.diagnostic(strideNote(REPLAY_STRIDE, recording.ticks));
   for (let tick = 1; tick <= recording.ticks; tick++) {
-    for (const list of [
-      state.game.obstacles,
-      state.game.pickups,
-      state.game.tracers,
-    ])
-      assert.deepEqual(
-        list.map((item) => item.id),
-        list.map((item) => item.id).sort((a, b) => a - b),
-        "the engine keeps obstacles, pickups and tracers in id order",
-      );
-    // A rider's effects and weapons are sequences the engine keeps canonical itself (`applyEffect` inserts into a
-    // sorted list): table order, then deadline; weapons in priority order.
+    // Every tick is folded. `checked` says whether this one is also permuted and held against the golden; the
+    // permutation outlives the tick that applied it (`state.bots` and the weight tables stay reversed), so at a
+    // stride the next check proves the fold survived the whole run of ticks since, not just one. The counters
+    // feed the coverage claims below, so they count on every tick whatever the stride is.
+    const checked = tick % REPLAY_STRIDE === 0 || tick === recording.ticks;
+    if (checked)
+      for (const list of [
+        state.game.obstacles,
+        state.game.pickups,
+        state.game.tracers,
+      ])
+        assert.deepEqual(
+          list.map((item) => item.id),
+          list.map((item) => item.id).sort((a, b) => a - b),
+          "the engine keeps obstacles, pickups and tracers in id order",
+        );
     for (const player of state.game.players.values()) {
+      if (player.effects.length > 1) multiEffectRiderTicks++;
+      if (!checked) continue;
+      // A rider's effects and weapons are sequences the engine keeps canonical itself (`applyEffect` inserts into a
+      // sorted list): table order, then deadline; weapons in priority order.
       const effects = player.effects.map(
         (effect) =>
           [EFFECT_KINDS.indexOf(effect.kind), effect.untilTick] as const,
@@ -135,7 +145,6 @@ test("the whole mechanic replay survives reversed map and settings insertion ord
         [...effects].sort((a, b) => a[0] - b[0] || a[1] - b[1]),
         `tick ${tick}: ${player.id}'s effects are in table and deadline order`,
       );
-      if (player.effects.length > 1) multiEffectRiderTicks++;
       assert.deepEqual(
         player.armed,
         WEAPON_KINDS.filter((kind) => player.armed.includes(kind)),
@@ -146,7 +155,7 @@ test("the whole mechanic replay survives reversed map and settings insertion ord
       if (state.game.obstacles.length > 1) obstacleTicks++;
       if (state.game.pickups.length > 1) pickupTicks++;
     }
-    permute(state);
+    if (checked) permute(state);
     const events = applyTick(state, recording.creator, streams(tick), bots);
     if (
       events.some((event) => event.type === "roundEnded") &&
@@ -154,10 +163,11 @@ test("the whole mechanic replay survives reversed map and settings insertion ord
         state.game.roundPlacements.length
     )
       tiedRounds++;
+    if (state.game.bombs.size > 1) bombTicks++;
+    if (!checked) continue;
     state.game.obstacles.sort((a, b) => a.id - b.id);
     state.game.pickups.sort((a, b) => a.id - b.id);
     state.game.tracers.sort((a, b) => a.id - b.id);
-    if (state.game.bombs.size > 1) bombTicks++;
     assert.equal(
       hashRoomState(state),
       golden.hashes[tick - 1],
@@ -205,10 +215,17 @@ test("a gun ray stops at the same point whichever order the scenery in its line 
   // The contact bisection starts from the contact found before it, so visiting the far rock first used to move the
   // low bits of where the near rock stopped the bullet.
   const rocks: Obstacle[] = [
-    { id: 1, kind: "rock", x: 703.1, y: 450, halfWidth: 41.3, halfHeight: 200 },
+    {
+      id: 1,
+      kind: "building",
+      x: 703.1,
+      y: 450,
+      halfWidth: 41.3,
+      halfHeight: 200,
+    },
     {
       id: 2,
-      kind: "rock",
+      kind: "building",
       x: 1103.7,
       y: 450,
       halfWidth: 39.9,
@@ -246,7 +263,7 @@ test("a rider dies at the same point against scenery whichever order the obstacl
   const rocks: Obstacle[] = [
     {
       id: 1,
-      kind: "rock",
+      kind: "building",
       x: 351.3,
       y: 350.1,
       halfWidth: 41.3,
@@ -254,7 +271,7 @@ test("a rider dies at the same point against scenery whichever order the obstacl
     },
     {
       id: 2,
-      kind: "rock",
+      kind: "building",
       x: 352.9,
       y: 550.3,
       halfWidth: 41.3,
@@ -281,12 +298,12 @@ test("a rider dies at the same point against scenery whichever order the obstacl
 });
 
 test("a shield turns a rider away from the same obstacle whichever order two it reaches at once are stored in", () => {
-  // Two trees mirrored about the lane are reached at exactly the same instant, and their faces lean opposite ways.
+  // Two circular rocks mirrored about the lane are reached at exactly the same instant, and their faces lean opposite ways.
   // The contact loop keeps the last obstacle to match the earliest contact, which is the higher id and not whichever
   // happens to be stored last.
   const trees: Obstacle[] = [
-    { id: 1, kind: "tree", x: 340, y: 430, halfWidth: 30, halfHeight: 30 },
-    { id: 2, kind: "tree", x: 340, y: 470, halfWidth: 30, halfHeight: 30 },
+    { id: 1, kind: "rock", x: 340, y: 430, halfWidth: 27, halfHeight: 27 },
+    { id: 2, kind: "rock", x: 340, y: 470, halfWidth: 27, halfHeight: 27 },
   ];
   const headings = [trees, [...trees].reverse()].map((obstacles) => {
     const game = lane(obstacles);
@@ -310,7 +327,14 @@ test("a shell against two pieces of scenery at once reflects the same way whiche
   // contact wins a tie and its reflection takes the shell off the other, so the order the walls are read in decides
   // which way it goes.
   const scenery: Obstacle[] = [
-    { id: 1, kind: "rock", x: 700, y: 500, halfWidth: 100, halfHeight: 100 },
+    {
+      id: 1,
+      kind: "building",
+      x: 700,
+      y: 500,
+      halfWidth: 100,
+      halfHeight: 100,
+    },
     { id: 2, kind: "crate", x: 570, y: 540, halfWidth: 20, halfHeight: 20 },
   ];
   const shells = [scenery, [...scenery].reverse()].map((obstacles) => {

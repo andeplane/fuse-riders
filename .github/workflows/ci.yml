@@ -18,9 +18,18 @@ concurrency:
   # success conclusion, so cancelling main's run silently withholds that commit's deployment.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
-  # The gate a pull request waits on: type checks, unit coverage and the build, about a
-  # minute. Everything that needs a browser is in `e2e` below.
-  verify:
+  # The pull-request gate is `checks` and the `unit` shards, side by side, with `verify` below as the one
+  # check name to wait on. It used to be a single job running the same steps in series, which took about
+  # seven minutes; three quarters of that was `test:coverage`, so coverage moved to `coverage` (main only)
+  # and the tests were split into shards. scripts/ci-manifest.json says which step belongs to which job, and
+  # tests/ci-manifest.test.ts fails when these jobs stop matching it.
+  #
+  # Five jobs, not six: this account gets five concurrent runners, and on the first run of this shape a sixth
+  # job sat queued for 38 s waiting for a slot — longer than most of the jobs took. Keeping the gate at five
+  # is worth more than splitting it further, which is also why `build` shares a job rather than having one.
+  #
+  # `pnpm build` is `tsc --noEmit && vite build`, so it is the type check; there is no separate step for it.
+  checks:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -34,9 +43,60 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm config:check
-      - run: pnpm typecheck
-      - run: pnpm test:coverage
       - run: pnpm build
+
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      # Every shard reports, so one run shows everything that is broken rather than the first thing.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      # `node --test` splits the files; `pnpm test` with no TEST_SHARD is still the whole suite.
+      TEST_SHARD: ${{ matrix.shard }}/4
+      # The two whole-recording replays fold all 15,776 ticks either way; on a pull request they check one tick
+      # in ten instead of every one, which is a quarter of the time. A main push and the release suite leave
+      # this at 1 and check every tick. See games/fuse-riders/tests/fixtures/replay-budget.ts.
+      FUSE_REPLAY_STRIDE: ${{ github.event_name == 'pull_request' && '10' || '1' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+  # One stable check name for the whole gate: green only when every job above passed. A branch rule waits on
+  # this, never on the shards, so the matrix can be resized without touching the rule.
+  verify:
+    needs: [checks, unit]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every gate passed
+        run: test "${{ needs.checks.result }} ${{ needs.unit.result }}" = "success success"
+
+  # The coverage gate: the same tests again with every module instrumented, which costs about 60% on top of
+  # them. A pull request does not wait for it; a main push does, before anything deploys, and so does the
+  # release suite in AGENTS.md. The thresholds are in .c8rc.json and are not relaxed here.
+  coverage:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:coverage
       - name: Save coverage
         if: always()
         uses: actions/upload-artifact@v4
