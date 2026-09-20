@@ -108,6 +108,12 @@ test("lobby: who is ready, what the host may do, and what a guest waits for", ()
   assert.equal(host.announcerVisible, false);
   assert.deepEqual(host.actions, {
     hidden: false,
+    switchSide: {
+      hidden: false,
+      disabled: false,
+      label: "SWAP TO SPECTATOR",
+      title: "Give your seat up and watch instead",
+    },
     ready: { hidden: false, pressed: false, label: "READY" },
     start: { label: "START RACE", disabled: false },
     reset: { disabled: true, hidden: false },
@@ -651,7 +657,7 @@ test("the head and colour buttons leave when this rider says READY, and come bac
   assert.equal(present(lobby, { readyPlayers: ["ada"] }).avatarHidden, false);
 });
 
-test("changing sides is offered on this device's own row only, and says why when it cannot", () => {
+test("changing sides is one button about this device, beside READY, and says why when it cannot", () => {
   const lobby = frame({ phase: "lobby", tick: 0 });
   const watchers = [
     { id: "w1", name: "Watcher", connected: true },
@@ -659,41 +665,35 @@ test("changing sides is offered on this device's own row only, and says why when
   ];
   const mine = present(lobby, { spectators: watchers });
   assert.deepEqual(
-    mine.lobby.riders.map((rider) => [rider.id, rider.switchSide.hidden]),
-    [
-      ["me", false],
-      ["ada", true],
-      ["bot:1", true],
-    ],
-    "only this device's seat carries WATCH; an AI rider has no device to watch from",
-  );
-  assert.deepEqual(
-    mine.lobby.riders.find((rider) => rider.id === "me")!.switchSide,
+    mine.actions.switchSide,
     {
       hidden: false,
       disabled: false,
-      label: "WATCH",
+      label: "SWAP TO SPECTATOR",
       title: "Give your seat up and watch instead",
     },
+    "a seated device is offered the watching list",
   );
-  assert.deepEqual(
-    mine.lobby.watchers.map((seat) => seat.switchSide.hidden),
-    [true, true],
-    "and none of the watchers is this device",
+  // The roster rows carry no switch at all now: the button is about this device, not about the row it is drawn on,
+  // and there is exactly one of it whatever the room lists.
+  assert.equal(
+    JSON.stringify(mine.lobby).includes("switchSide"),
+    false,
+    "no rider or watcher row carries a change-sides button",
   );
 
   const watching = present(lobby, { spectators: watchers, playerId: "w1" });
   assert.deepEqual(
-    watching.lobby.watchers.map((seat) => [seat.id, seat.switchSide.hidden]),
-    [
-      ["w1", false],
-      ["w2", true],
-    ],
+    [watching.actions.switchSide.hidden, watching.actions.switchSide.label],
+    [false, "SWAP TO PLAYER"],
+    "a watcher is offered the other direction",
   );
+
+  // A device the room lists on neither side is still being seated (or was refused): the join card is what offers it
+  // a side, so the bar has nothing to say yet.
   assert.equal(
-    watching.lobby.watchers[0]!.switchSide.label,
-    "TAKE A SEAT",
-    "the watcher's own row takes the other direction",
+    present(lobby, { playerId: "nobody" }).actions.switchSide.hidden,
+    true,
   );
 
   // Mid-round both directions say when to try again rather than going away.
@@ -702,14 +702,11 @@ test("changing sides is offered on this device's own row only, and says why when
     playerId: "w1",
   });
   assert.deepEqual(
-    [
-      running.lobby.watchers[0]!.switchSide.disabled,
-      running.lobby.watchers[0]!.switchSide.title,
-    ],
+    [running.actions.switchSide.disabled, running.actions.switchSide.title],
     [true, "Take a seat between rounds — try again at the pause"],
   );
   assert.equal(
-    present(frame({ phase: "playing" })).lobby.riders[0]!.switchSide.title,
+    present(frame({ phase: "playing" })).actions.switchSide.title,
     "Start watching between rounds — try again at the pause",
   );
 
@@ -717,7 +714,7 @@ test("changing sides is offered on this device's own row only, and says why when
   // while that page is here — which is every shared-screen room, where the first rider wears the crown throughout.
   assert.equal(
     present(lobby, { spectators: watchers, managerId: "me", creator: false })
-      .lobby.riders[0]!.switchSide.disabled,
+      .actions.switchSide.disabled,
     false,
     "a stand-in host with the creator's page in the room still switches",
   );
@@ -728,15 +725,13 @@ test("changing sides is offered on this device's own row only, and says why when
     hostPresent: false,
   });
   assert.deepEqual(
-    [
-      standIn.lobby.riders[0]!.switchSide.disabled,
-      standIn.lobby.riders[0]!.switchSide.title,
-    ],
+    [standIn.actions.switchSide.disabled, standIn.actions.switchSide.title],
     [true, "You are standing in as host — switch sides once the host is back"],
     "only a room whose creator's page has gone has nobody left to write the pair",
   );
 
-  // A full watching list and a full room are the runtime's own refusals, said before the tap.
+  // A full watching list and a full room are the runtime's own refusals, said before the tap. Each side reads the
+  // fullness of the side it would move to, which is the opposite of the one it is on.
   const full = present(lobby, {
     spectators: ["w1", "w2", "w3", "w4", "w5"].map((id) => ({
       id,
@@ -745,7 +740,7 @@ test("changing sides is offered on this device's own row only, and says why when
     })),
   });
   assert.equal(
-    full.lobby.riders[0]!.switchSide.title,
+    full.actions.switchSide.title,
     "Room is full (5 spectators watching)",
   );
   const fullRoom = present(
@@ -760,18 +755,41 @@ test("changing sides is offered on this device's own row only, and says why when
     }),
     { spectators: watchers, playerId: "w1" },
   );
-  assert.equal(
-    fullRoom.lobby.watchers[0]!.switchSide.title,
-    "Room is full (5 players)",
-  );
+  assert.equal(fullRoom.actions.switchSide.title, "Room is full (5 players)");
 
   // Solo is one device and four AI, and a display is not a member: neither has a side to change.
+  assert.equal(present(lobby, { solo: true }).actions.switchSide.hidden, true);
   assert.equal(
-    present(lobby, { solo: true }).lobby.riders[0]!.switchSide.hidden,
+    present(lobby, { displayOnly: true }).actions.switchSide.hidden,
     true,
   );
+});
+
+test("a watcher gets the action bar for its way back to a seat, and nothing else in it", () => {
+  const lobby = frame({ phase: "lobby", tick: 0 });
+  const watcher = present(lobby, {
+    spectators: [{ id: "w1", name: "Watcher", connected: true }],
+    playerId: "w1",
+    manages: false,
+    managerId: "me",
+  });
   assert.equal(
-    present(lobby, { displayOnly: true }).lobby.riders[0]!.switchSide.hidden,
+    watcher.actions.hidden,
+    false,
+    "the bar is where a watcher's way back to a seat lives",
+  );
+  assert.deepEqual(
+    [watcher.actions.switchSide.hidden, watcher.actions.ready.hidden],
+    [false, true],
+    "one button: the swap. READY belongs to a rider, and a watcher holds no seat to ready",
+  );
+  // The head and colour pickers stay away: a watcher wears neither on the board.
+  assert.equal(watcher.avatarHidden, true);
+
+  // A device that is neither seated nor watching is at the room's door, and the bar has nothing for it.
+  assert.equal(
+    present(lobby, { playerId: "nobody", manages: false, managerId: "ada" })
+      .actions.hidden,
     true,
   );
 });

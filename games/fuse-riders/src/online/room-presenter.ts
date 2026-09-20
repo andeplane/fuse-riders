@@ -80,8 +80,6 @@ export interface LobbyRiderView {
   status: "READY" | "NOT READY" | "OFFLINE";
   /** This rider runs the room: the row wears the HOST badge. The crown is the round leader's, over in the standings. */
   host: boolean;
-  /** On this device's own row: give the seat up and watch instead. */
-  switchSide: SwitchView;
 }
 
 export interface WatcherView {
@@ -93,19 +91,22 @@ export interface WatcherView {
   host: boolean;
   /** The manager's button for sending this watcher home. */
   remove: RemoveView;
-  /** On this device's own row: take one of the room's free seats and ride. */
-  switchSide: SwitchView;
 }
 
 /**
- * This device's own button for changing sides without leaving the room: WATCH on its rider row, TAKE A SEAT on its
- * watcher row. It is the ordinary join and spectate commands sent again by a member the room already lists, so the
- * reasons it is disabled are the runtime's own refusals, said before the tap rather than after it.
+ * This device's own button for changing sides without leaving the room. It sits with READY rather than at the end of
+ * a roster row: which side this device is on is something it decides about itself, like READY and like its name,
+ * head and colour, whereas a small button on a row reads as something done *to* that rider (the row's other button
+ * kicks them). One button, not one per row — the room lists this device exactly once, so only one direction of the
+ * swap can ever apply.
+ *
+ * It is the ordinary join and spectate commands sent again by a member the room already lists, so the reasons it is
+ * disabled are the runtime's own refusals, said before the tap rather than after it.
  */
 export interface SwitchView {
   hidden: boolean;
   disabled: boolean;
-  label: "WATCH" | "TAKE A SEAT";
+  label: "SWAP TO SPECTATOR" | "SWAP TO PLAYER";
   /** Tooltip and accessible name: what the button does, or why it cannot right now. */
   title: string;
 }
@@ -173,6 +174,8 @@ export interface RoomView {
   standings: StandingView[];
   actions: {
     hidden: boolean;
+    /** This device's own side of the room, beside READY. */
+    switchSide: SwitchView;
     start: { label: "START RACE" | "REMATCH"; disabled: boolean };
     ready: { hidden: boolean; pressed: boolean; label: string };
     reset: { disabled: boolean; hidden: boolean };
@@ -333,12 +336,13 @@ function removeView(input: {
 }
 
 /**
- * The change-sides button on this device's own lobby row. The refusal lines are the runtime's own, so a disabled
- * button and a refused tap say the same thing; the button is simply the one that says it first.
+ * This device's change-sides button, beside READY. The refusal lines are the runtime's own, so a disabled button and
+ * a refused tap say the same thing; the button is simply the one that says it first.
  */
 function switchView(input: {
-  own: boolean;
-  /** Towards a seat (a watcher's TAKE A SEAT) rather than towards the watching list (a rider's WATCH). */
+  /** This device is in the room at all: a rider or a watcher. Anything else has no side to change.  */
+  inRoom: boolean;
+  /** Towards a seat (a watcher's SWAP TO PLAYER) rather than towards the watching list (a rider's SWAP TO SPECTATOR). */
   toSeat: boolean;
   solo: boolean;
   displayOnly: boolean;
@@ -361,10 +365,11 @@ function switchView(input: {
           : text.watchersFull
         : undefined;
   return {
-    // Solo is one device and four AI, and a display is not a member: neither has a side to change.
-    hidden: !input.own || input.solo || input.displayOnly,
+    // Solo is one device and four AI, and a display is not a member: neither has a side to change. Nor has a device
+    // the room does not list yet — it is still being seated, and the join card is what offers it the other side.
+    hidden: !input.inRoom || input.solo || input.displayOnly,
     disabled: reason !== undefined,
-    label: input.toSeat ? "TAKE A SEAT" : "WATCH",
+    label: input.toSeat ? "SWAP TO PLAYER" : "SWAP TO SPECTATOR",
     title:
       reason ??
       (input.toSeat
@@ -444,13 +449,6 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
             ? "READY"
             : "NOT READY",
         host: p.id === managerId,
-        // An AI rider has no device to watch from: only this device's own row carries the button.
-        switchSide: switchView({
-          ...side,
-          own: p.id === playerId,
-          toSeat: false,
-          full: watchingFull,
-        }),
       })),
       watchers: input.spectators.map((seat) => ({
         id: seat.id,
@@ -465,18 +463,27 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
           bot: false,
           name: seat.name,
         }),
-        switchSide: switchView({
-          ...side,
-          own: seat.id === playerId,
-          toSeat: true,
-          full: seatsFull,
-        }),
       })),
       watchersHidden: input.spectators.length === 0,
     },
     standings: standings({ ...input, manages }),
     actions: {
-      hidden: (!manages && (!joined || solo)) || input.replacedHost,
+      // A watcher holds no seat and runs nothing, but the action bar is where its way back to a seat lives now, so
+      // being in the room at all is enough to show the bar. Everything else in it stays behind its own rule, so a
+      // watcher that manages nothing sees exactly one button.
+      hidden:
+        (!manages && ((!joined && !watching) || solo)) || input.replacedHost,
+      /**
+       * Which side of the room this device is on. A rider swaps to the watching list, a watcher swaps back to a
+       * seat, and the room keeps both of them: neither leaves. Riding is the common case, so a device that is
+       * neither yet (still being seated, or refused) gets no button here — the join card is what offers it a side.
+       */
+      switchSide: switchView({
+        ...side,
+        inRoom: joined || watching,
+        toSeat: watching,
+        full: watching ? seatsFull : watchingFull,
+      }),
       ready: {
         hidden:
           solo || !joined || displayOnly || !(state.phase === "lobby" || ready),
