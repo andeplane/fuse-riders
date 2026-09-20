@@ -196,9 +196,23 @@ try {
     false,
     "a device the room can seat never sees the join card",
   );
-  // Head and colour are chosen in the room now, and only until this rider is ready.
+  // Head and colour are chosen in the room now, and only until this rider is ready. The head the host wears is
+  // offered as theirs rather than as a choice, since no two riders share one (rules `fuse-p2p-48`) — the host took
+  // the default fox, so the guest was seated in another head and cannot reach for that one.
   await guest.getByRole("button", { name: "AVATAR", exact: true }).click();
-  await guest.getByRole("button", { name: "Fox", exact: true }).click();
+  const takenHead = guest.getByRole("button", { name: "Fox", exact: true });
+  await takenHead.waitFor();
+  assert.equal(
+    await takenHead.isDisabled(),
+    true,
+    "a head another rider wears is shown as theirs, not offered",
+  );
+  assert.match(
+    (await takenHead.getAttribute("title")) ?? "",
+    /^Taken by /,
+    "and says whose it is",
+  );
+  await guest.getByRole("button", { name: "Owl", exact: true }).click();
   await guest.getByRole("button", { name: "COLOUR", exact: true }).waitFor();
   await rosterHas(host, "Guest");
   await host

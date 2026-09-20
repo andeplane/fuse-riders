@@ -318,7 +318,7 @@ export async function startOnline(): Promise<void> {
   );
   // Every role now waits on the boot card, so the connect hint belongs to it rather than to the join card: an invited
   // phone whose host is on another network must still be told that, and told it where it is looking.
-  const joinNote = node("p", "", "room-boot-note");
+  const joinNote = node("p", "", "room-join-note");
   joinNote.hidden = true;
   const joinPanel =
     role === "joiner"
