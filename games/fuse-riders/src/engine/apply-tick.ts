@@ -1,6 +1,6 @@
+import { AVATAR_IDS } from "./avatar-id.js";
 import {
   addPlayer,
-  AVATARS,
   createGame,
   removePlayer,
   resetMatch,
@@ -122,7 +122,7 @@ export function freeColor(game: Readonly<GameState>): string | undefined {
 }
 /**
  * The head a rider asking for `wanted` gets: its own choice while no other rider wears it, otherwise the next free one
- * in `AVATARS` order. Bots are counted as wearing theirs — `robot` reads as taken while an AI sits — but are not
+ * in `AVATAR_IDS` order. Bots are counted as wearing theirs — `robot` reads as taken while an AI sits — but are not
  * subject to the rule themselves, so several AI riders share the one head they are drawn with (ADR 027).
  */
 export function repairedAvatar(
@@ -131,7 +131,7 @@ export function repairedAvatar(
 ): AvatarId {
   const taken = new Set(sortedPlayers(game).map((player) => player.avatarId));
   if (!taken.has(wanted)) return wanted;
-  return AVATARS.find((avatar) => !taken.has(avatar.id))?.id ?? wanted;
+  return AVATAR_IDS.find((id) => !taken.has(id)) ?? wanted;
 }
 
 /**

@@ -151,7 +151,8 @@ test("entry validation accepts every kind and rejects malformed shapes, bounds a
   assert.equal(isManagementKind(STEER), false);
 });
 
-test("the gesture fold mirrors the LAN bomb buffer: press, replacement, matching release, cancel, mismatch", () => {
+// These are the cases the retired LAN buffer was held to before it was deleted: every replica's bomb semantics.
+test("the gesture fold: press, replacement, matching release, cancel, mismatch", () => {
   const held = neutralControls();
   assert.deepEqual(foldPlayerEntries(held, [entry(1, 1, STEER, 1)]), {
     left: true,

@@ -1,10 +1,7 @@
 import { cos, sin } from "./deterministic-math.js";
 import { normalizeAngle } from "./geometry.js";
 import { hashSeed, nextRandom, normalizeSeed } from "./rng.js";
-import { DEFAULT_AVATAR } from "../shared/avatars.js";
-// The head list is the order a taken head is repaired in (`repairedAvatar`), so the fold needs it. It travels through
-// the edge this module already has rather than opening a second engine → shared one, which #254 is closing.
-export { AVATARS } from "../shared/avatars.js";
+import { DEFAULT_AVATAR } from "./avatar-id.js";
 import {
   type ClearCapsule,
   MAX_OBSTACLES,

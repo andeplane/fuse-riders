@@ -1,5 +1,5 @@
 import { createAccountDialog, el } from "fuse-ui";
-import type { AvatarId } from "../shared/avatars.js";
+import type { AvatarId } from "../engine/avatar-id.js";
 import { createAvatarPortrait } from "../client/avatar-heads.js";
 import "./account-panel.css";
 import {
