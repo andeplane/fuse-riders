@@ -1,5 +1,7 @@
 import {
   mountArenaPresentation,
+  LOADING_STALL_MS,
+  STARTUP_DEADLINE_MS,
   type GraphicsReport,
   type PresentationDependencies,
 } from "../games/fuse-riders/src/render/phaser/presentation.js";
@@ -44,6 +46,7 @@ export async function checkPresentationLifecycle(): Promise<void> {
     const arenas: {
       ready: ReturnType<typeof deferred<void>>;
       status: ArenaOptions["onStatus"];
+      progress: ArenaOptions["onProgress"];
       draws: number;
       destroys: number;
       failPaint: boolean;
@@ -58,6 +61,7 @@ export async function checkPresentationLifecycle(): Promise<void> {
         const record = {
           ready: deferred<void>(),
           status: options?.onStatus,
+          progress: options?.onProgress,
           draws: 0,
           destroys: 0,
           failPaint: false,
@@ -133,6 +137,22 @@ export async function checkPresentationLifecycle(): Promise<void> {
         timers.delete(timer);
         timer.callback();
       },
+      bar: () => {
+        const node = document.querySelector<HTMLElement>(
+          ".graphics-status:not([hidden]) .graphics-progress:not([hidden])",
+        );
+        if (!node) return undefined;
+        const fill = node.querySelector<HTMLElement>(".graphics-progress-fill");
+        return {
+          value: node.getAttribute("aria-valuenow"),
+          indeterminate: node.classList.contains("is-indeterminate"),
+          width: fill?.style.width ?? "",
+          text:
+            document.querySelector<HTMLElement>(
+              ".graphics-status:not([hidden]) span",
+            )?.textContent ?? "",
+        };
+      },
       retry: () => {
         const button = document.querySelector<HTMLButtonElement>(
           ".graphics-status:not([hidden]) button",
@@ -164,7 +184,7 @@ export async function checkPresentationLifecycle(): Promise<void> {
   {
     const h = harness();
     h.render();
-    h.expire(10000);
+    h.expire(STARTUP_DEADLINE_MS);
     check(
       h.canvas().dataset.rendererStatus === "failed",
       "Module download had no deadline",
@@ -202,7 +222,7 @@ export async function checkPresentationLifecycle(): Promise<void> {
   {
     const h = harness();
     h.render();
-    h.expire(10000);
+    h.expire(STARTUP_DEADLINE_MS);
     h.retry();
     h.loads[0]!.resolve(h.module);
     await flush();
@@ -240,7 +260,7 @@ export async function checkPresentationLifecycle(): Promise<void> {
     await flush();
     const old = h.arenas[0]!;
     old.rejectOnDestroy = false;
-    h.expire(10000);
+    h.expire(STARTUP_DEADLINE_MS);
     check(old.destroys === 1, "Startup timeout did not dispose arena");
     h.retry();
     h.loads[1]!.resolve(h.module);
@@ -257,7 +277,7 @@ export async function checkPresentationLifecycle(): Promise<void> {
       "Stale readiness published a renderer",
     );
     check(
-      [...h.timers].some((timer) => timer.delay === 10000),
+      [...h.timers].some((timer) => timer.delay === STARTUP_DEADLINE_MS),
       "Stale readiness cancelled retry startup deadline",
     );
     check(
@@ -344,5 +364,83 @@ export async function checkPresentationLifecycle(): Promise<void> {
     check(arena.destroys === 1, "Pending startup disposal was not idempotent");
     arena.status?.("context-lost");
     check(h.timers.size === 0, "Disposed context event scheduled recovery");
+  }
+
+  // A loading bar, and a deadline that a load still making progress does not trip.
+  {
+    const h = harness();
+    h.render();
+    const waiting = h.bar();
+    check(
+      waiting?.indeterminate === true && waiting.value === null,
+      "No indeterminate bar while the module downloads",
+    );
+    h.loads[0]!.resolve(h.module);
+    await flush();
+    const arena = h.arenas[0]!;
+    arena.progress?.(0.25);
+    const quarter = h.bar();
+    check(
+      quarter?.value === "25" &&
+        quarter.width === "25%" &&
+        !quarter.indeterminate &&
+        quarter.text === "Loading graphics 25%",
+      `Loader progress did not reach the bar: ${JSON.stringify(quarter)}`,
+    );
+    // Both deadlines are the same length, so the timer itself is the evidence: each step forward must replace the
+    // pending one rather than leave it running down, and never leave two armed at once.
+    for (const step of [0.5, 0.75, 0.9]) {
+      const pending = [...h.timers];
+      check(pending.length === 1, `Loading armed ${pending.length} deadlines`);
+      arena.progress?.(step);
+      const replaced = [...h.timers];
+      check(
+        replaced.length === 1 && replaced[0] !== pending[0],
+        "Progress did not push the deadline back",
+      );
+    }
+    check(
+      h.bar()?.value === "90" &&
+        h.canvas().dataset.rendererStatus === "starting" &&
+        h.reports.length === 0,
+      "A load that kept progressing was failed anyway",
+    );
+    // Progress that repeats itself is not progress: the loader has stopped where it stands.
+    const standing = [...h.timers];
+    arena.progress?.(0.9);
+    check(
+      [...h.timers][0] === standing[0],
+      "A repeated figure bought the loader more time",
+    );
+    // A stalled load still fails, rather than hanging forever behind a bar that never moves.
+    h.expire(LOADING_STALL_MS);
+    check(
+      h.canvas().dataset.rendererStatus === "failed" &&
+        same(h.reports, [{ kind: "failed", stage: "startup" }]),
+      "A stalled load was not failed",
+    );
+    check(!h.bar(), "The loading bar outlived a failed load");
+    h.destroy();
+    arena.ready.reject(Error("Disposed"));
+    await flush();
+  }
+  // Readiness clears the bar and leaves no deadline behind.
+  {
+    const h = harness();
+    h.render();
+    h.loads[0]!.resolve(h.module);
+    await flush();
+    const arena = h.arenas[0]!;
+    arena.progress?.(0.5);
+    arena.progress?.(1);
+    arena.ready.resolve();
+    await flush();
+    check(!h.bar(), "The loading bar outlived a ready arena");
+    check(h.timers.size === 0, "Readiness left a loading deadline armed");
+    check(
+      same(h.reports, [{ kind: "ready", renderer: "canvas" }]),
+      "A load that showed progress did not report ready",
+    );
+    h.destroy();
   }
 }
