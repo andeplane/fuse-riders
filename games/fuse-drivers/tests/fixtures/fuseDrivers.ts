@@ -1,26 +1,30 @@
-import { ACTION, BOT, JOIN, type StreamEntries } from "fuse-netcode";
+import { ACTION, BOT, JOIN, PRESENCE, type StreamEntries } from "fuse-netcode";
 import {
-  foldTick,
+  CONTROLS,
+  DEFAULT_SETTINGS,
   createRoom,
-  nextRandom,
+  foldTick,
+  packControls,
   type FuseDriversEntry,
   type FuseDriversEvent,
   type FuseDriversRoom,
   type FuseDriversSettings,
 } from "../../src/game/index.js";
+import { NEUTRAL_INPUT, type TruckInput } from "../../src/game/sim/input.js";
 
-export const FAST: FuseDriversSettings = { turnTicks: 40, display: false };
+export const SETTINGS: FuseDriversSettings = DEFAULT_SETTINGS;
 
 /** Entry bodies (everything after seq and tick) each member logs at the next tick. */
 export type Bodies = Record<string, readonly unknown[][]>;
+
 let seq = 0;
 /** Folds one log tick of `bodies`, every stream at generation 1. */
 export function fold(
   room: FuseDriversRoom,
   bodies: Bodies = {},
 ): FuseDriversEvent[] {
-  const tick = room.tick + 1,
-    streams = new Map<string, StreamEntries<FuseDriversEntry>>();
+  const tick = room.tick + 1;
+  const streams = new Map<string, StreamEntries<FuseDriversEntry>>();
   for (const [id, list] of Object.entries(bodies))
     streams.set(id, {
       generation: 1,
@@ -28,6 +32,7 @@ export function fold(
     });
   return foldTick(room, "a", streams);
 }
+
 /** Folds empty ticks until `tick` has been folded, collecting events. */
 export function runTo(room: FuseDriversRoom, tick: number): FuseDriversEvent[] {
   const events: FuseDriversEvent[] = [];
@@ -35,9 +40,9 @@ export function runTo(room: FuseDriversRoom, tick: number): FuseDriversEvent[] {
   return events;
 }
 
-/** A room where `a` (slot 0) and `b` (slot 1) sit and the match `m1` has started: `a` opens round 1 at tick 2. */
+/** A room where `a` (slot 0) and `b` (slot 1) are seated, connected, and racing match `m1`. */
 export function started(
-  settings: FuseDriversSettings = FAST,
+  settings: FuseDriversSettings = SETTINGS,
   extra: readonly unknown[][] = [],
 ): FuseDriversRoom {
   const room = createRoom("m0", settings);
@@ -48,24 +53,26 @@ export function started(
       ...extra,
     ],
   });
+  fold(room, {
+    a: [
+      [PRESENCE, "a", true, 1],
+      [PRESENCE, "b", true, 1],
+    ],
+  });
   fold(room, { a: [[ACTION, "start", "m1"]] });
   return room;
 }
+
 export const addBot = (id: string, slot: number): unknown[] => [
   BOT,
   "add",
   id,
-  `Bot ${slot + 1}`,
+  `CPU ${String(slot + 1)}`,
   slot,
 ];
 
-/** A generator state whose next die is `die`: how a test decides what the room rolls next. */
-export function stateFor(die: number): number {
-  for (let state = 0; ; state++)
-    if (1 + Math.floor((nextRandom(state).value / 0x1_0000_0000) * 6) === die)
-      return state;
-}
-/** Makes the room's next roll `die`. */
-export function rig(room: FuseDriversRoom, die: number): void {
-  room.rng = stateFor(die);
-}
+/** The body of a controls entry, for a driver holding `input`. */
+export const drive = (input: Partial<TruckInput>): unknown[] => [
+  CONTROLS,
+  packControls({ ...NEUTRAL_INPUT, ...input }),
+];
