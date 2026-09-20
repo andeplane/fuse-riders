@@ -322,6 +322,13 @@ export class RoomRuntime<
   get creator(): boolean {
     return this.id !== "" && this.id === this.hostId;
   }
+  /**
+   * Whether the page that opened the room is here: this one, or a member the room service still lists. A stand-in host
+   * needs it to change its own side, since it cannot write its own pair (`switchWriter`), so the screen asks too.
+   */
+  get hostPresent(): boolean {
+    return this.creator || this.members.has(this.hostId);
+  }
   /** Whether this replica's management entries apply right now: the creator, or the delegate while the creator is logged absent. */
   private get manager(): boolean {
     return (
@@ -469,7 +476,9 @@ export class RoomRuntime<
     });
     if (!member.helloed) return;
     if (this.needsWorld() && !this.snapshotRequest) this.requestSnapshot(id);
-    if (this.pendingJoin && id === this.managerId()) this.sendJoin();
+    // The creator too: a member already in the room sends a side switch to its page rather than to the manager.
+    if (this.pendingJoin && (id === this.managerId() || id === this.hostId))
+      this.sendJoin();
   }
   private message(id: string, raw: unknown): void {
     if (!raw || typeof raw !== "object") return;
@@ -574,6 +583,15 @@ export class RoomRuntime<
       case "error":
         if (typeof data.error === "string")
           this.status.notice(data.error.slice(0, 120));
+        // An arrival keeps asking: a seat or a place on the list frees and it is in. A side switch is a deliberate tap
+        // by a member that already has a place, so a refusal ends it — left queued, the retry pinned the refusal in the
+        // status line for a whole round and then moved the member at a pause nobody asked for.
+        if (
+          this.pendingJoin &&
+          (id === this.hostId || id === this.managerId()) &&
+          this.switchingSides(this.pendingJoin.spectator)
+        )
+          this.pendingJoin = undefined;
         return;
       default:
         return;
@@ -998,12 +1016,32 @@ export class RoomRuntime<
    */
   private switchable(from: string, inRound: string): string | undefined {
     if (this.game.stage(this.world!.state) === "running") return inRound;
-    // Whoever the request reaches writes the pair. Only the writer can vanish between its own two entries, so a member
-    // asking for the other side is refused exactly when it is the one that would write them and did not open the room.
-    const writer = this.managerId();
-    if (from === writer && writer !== this.hostId)
-      return this.text.switchAsStandIn;
-    return;
+    // A manager writing about somebody else is never the member that vanishes, and the creator is waved through
+    // unranked: only this device asking about itself, without having opened the room, needs somewhere to send it.
+    if (from !== this.id || this.creator) return;
+    return this.switchWriter() === this.id
+      ? this.text.switchAsStandIn
+      : undefined;
+  }
+  /**
+   * Who writes the pair when this device asks to change its own side. Normally whoever manages the room. When that is
+   * this device it cannot be, so the request goes to the creator's page instead, whose management entries `permitted`
+   * accepts whatever the succession order says at the time.
+   *
+   * That second case is not rare: a creator driving a shared screen from a page that took no seat has no record in the
+   * fold, so the crown sits on the rider in the first seat for as long as the room lasts. Without this that rider could
+   * never change sides. What is left is a room whose creator's page has actually gone — then there is nobody who can
+   * write the pair, and `switchable` says so.
+   */
+  private switchWriter(): string {
+    const manager = this.managerId();
+    if (manager !== this.id) return manager;
+    return this.members.has(this.hostId) ? this.hostId : this.id;
+  }
+  /** Whether this device is in the room already and asking for the other side, rather than arriving. */
+  private switchingSides(spectator: boolean): boolean {
+    const own = this.world && this.game.seat(this.world.state, this.id);
+    return own !== undefined && (own.watcher === true) !== spectator;
   }
   /**
    * Own management entries logged but not yet applied: seats they will take or free when their tick arrives.
@@ -1221,11 +1259,10 @@ export class RoomRuntime<
     if (command.type === "join" || command.type === "spectate") {
       if (this.options.displayOnly) return false;
       // A member the room already lists, asking for the other side, is switching rather than arriving. Whether it may
-      // is answered here as well as at the manager, because the one case the manager cannot answer is a stand-in host
-      // switching itself: its request is addressed to itself, so nothing would come back and the page would retry in
-      // silence. Everything else is re-checked at the manager, which holds the fold the entries are written against.
-      const own = this.world && this.game.seat(this.world.state, this.id);
-      if (own && (own.watcher === true) !== (command.type === "spectate")) {
+      // is answered here as well as at the writer, because the one refusal no writer can deliver is the one about
+      // having nobody to write it: that request would be addressed to this device itself and answered by nobody.
+      // Everything else is re-checked where the entries are written, against the fold they are written on.
+      if (this.switchingSides(command.type === "spectate")) {
         const refusal = this.switchable(
           this.id,
           command.type === "spectate"
@@ -1384,9 +1421,20 @@ export class RoomRuntime<
       }
       return true;
     }
+    // A member already in the room asking for the other side goes to whoever may write its pair, which is not always
+    // whoever a joiner would ask (`switchWriter`). An arrival keeps asking the manager, whose id is "" until the room
+    // says otherwise — the send fails and the join timer tries again, as it always has.
+    const switching = this.switchingSides(join.spectator);
+    const to = switching ? this.switchWriter() : this.managerId();
+    if (switching && to === this.id) {
+      // Nobody left who could write it. Say so rather than posting the request into our own inbox forever.
+      this.status.notice(this.text.switchAsStandIn);
+      this.pendingJoin = undefined;
+      return false;
+    }
     // A manager refused for its rules would only answer with an error this replica drops: the status says what to do.
-    if (this.members.get(this.managerId())?.refused) return false;
-    return this.transport!.send(this.managerId(), {
+    if (this.members.get(to)?.refused) return false;
+    return this.transport!.send(to, {
       type: "join",
       name: join.name,
       avatarId: join.avatarId,

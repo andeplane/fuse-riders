@@ -60,6 +60,7 @@ const present = (
     managerId: "me",
     replacedHost: false,
     creator: true,
+    hostPresent: true,
     solo: false,
     displayOnly: false,
     lobbyCard: false,
@@ -693,11 +694,19 @@ test("changing sides is offered on this device's own row only, and says why when
     "Start watching between rounds — try again at the pause",
   );
 
-  // A stand-in host writes the entries itself, so it is the one member that cannot move between them.
+  // A manager that did not open the room hands the pair to the creator's page, so it changes sides like anyone else
+  // while that page is here — which is every shared-screen room, where the first rider wears the crown throughout.
+  assert.equal(
+    present(lobby, { spectators: watchers, managerId: "me", creator: false })
+      .lobby.riders[0]!.switchSide.disabled,
+    false,
+    "a stand-in host with the creator's page in the room still switches",
+  );
   const standIn = present(lobby, {
     spectators: watchers,
     managerId: "me",
     creator: false,
+    hostPresent: false,
   });
   assert.deepEqual(
     [
@@ -705,6 +714,7 @@ test("changing sides is offered on this device's own row only, and says why when
       standIn.lobby.riders[0]!.switchSide.title,
     ],
     [true, "You are standing in as host — switch sides once the host is back"],
+    "only a room whose creator's page has gone has nobody left to write the pair",
   );
 
   // A full watching list and a full room are the runtime's own refusals, said before the tap.

@@ -47,11 +47,14 @@ export interface RoomPresenterInput {
   managerId: string;
   /** Another tab took hosting over: this one's host actions are gone. */
   replacedHost: boolean;
-  /**
-   * This device opened the room. A manager that did not is standing in while the creator is away, and a stand-in may
-   * not change its own side: the paired entries are written from its stream, and the fold would drop the second.
-   */
+  /** This device opened the room. */
   creator: boolean;
+  /**
+   * The page that opened the room is here — this one, or a member the service still lists. A manager that is not the
+   * creator cannot write its own side switch (the fold would drop the second of the pair), so it hands that one job
+   * back to the creator's page; with none here there is nobody left who could write it.
+   */
+  hostPresent: boolean;
   solo: boolean;
   displayOnly: boolean;
   /** From the room screen: the lobby card is up. */
@@ -340,7 +343,7 @@ function switchView(input: {
   solo: boolean;
   displayOnly: boolean;
   phase: RoomPhase;
-  /** This device runs the room without having opened it, so it may not move itself (`switchable`). */
+  /** This device runs the room, did not open it, and has no creator's page to hand the pair to (`switchWriter`). */
   standIn: boolean;
   /** The side being moved to has no room left. */
   full: boolean;
@@ -391,7 +394,9 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
     state.players.length >= MAX_RIDERS &&
     state.players.every((p) => p.connected);
   const watchingFull = input.spectators.length >= fuseGame.seating.maxWatchers;
-  const standIn = manages && !input.creator;
+  // A shared screen's first rider manages the room for as long as it lasts, and switches sides perfectly well: the
+  // creator's own page writes the pair for it. Only a room whose creator's page has gone has nobody who can.
+  const standIn = manages && !input.creator && !input.hostPresent;
   const side = { solo, displayOnly, phase: state.phase, standIn };
   return {
     joined,

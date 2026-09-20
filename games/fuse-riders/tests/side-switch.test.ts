@@ -1,17 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { FakeNetwork, type NetworkOptions } from "./fixtures/fake-room.js";
 import { CREATOR_SILENCE_MS } from "fuse-netcode";
 import { type RoomRuntime } from "../src/online/room-runtime.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import {
   MAX_SPECTATORS,
-  RULES,
   actingCreator,
+  applyTick,
+  createRoomState,
+  hashRoomState,
   roomManager,
   type RoomState,
 } from "../src/engine/apply-tick.js";
+import { BotController } from "../src/engine/bot-controller.js";
 import { MAX_PLAYERS } from "../src/engine/game.js";
 import {
   JOIN,
@@ -178,53 +180,103 @@ test("the pair is two entries that already existed, written at one tick", () => 
       isEntry(entry),
       `the manager logged a valid wire entry: ${entry}`,
     );
-  // No new kind: a switch is spelled with JOIN, LEAVE and SPECTATOR, which the fold has folded since #351.
-  const kinds = new Set(
-    logged.filter((entry) => isManagementKind(entry[2])).map((e) => e[2]),
-  );
+  // `SPECTATOR` carries the member id in the same slot whichever way it goes, so the action is matched, not the id:
+  // the watcher's own arrival is a `SPECTATOR join` about the same member.
+  const about = (subject: string) =>
+    logged
+      .filter(
+        (entry) =>
+          isManagementKind(entry[2]) &&
+          (entry[2] === SPECTATOR ? entry[4] : entry[3]) === subject,
+      )
+      .map((entry) => [entry[0], entry[1], entry[2], entry[3]] as const);
+
+  // The tail, because the stream prunes what the fold has finished with: what a switch wrote is the last thing said
+  // about that member, and it is two entries.
+  const pair = (subject: string) => about(subject).slice(-2);
+  const take = pair(WATCHERS[0]!);
   assert.deepEqual(
-    [...kinds].filter((kind) => kind > SPECTATOR),
-    [],
-    "no management kind beyond the ones the fold already knows",
+    take.map((e) => [e[2], e[3]]),
+    [
+      [SPECTATOR, "leave"],
+      [JOIN, WATCHERS[0]],
+    ],
+    "taking a seat is a SPECTATOR leave and a JOIN, in that order: JOIN returns early while the id is still listed",
   );
-  const at = (kind: number, subject: string) =>
-    logged.find(
-      (entry) =>
-        entry[2] === kind &&
-        (kind === SPECTATOR ? entry[4] : entry[3]) === subject,
-    );
-  const takeLeave = at(SPECTATOR, WATCHERS[0]!),
-    takeJoin = at(JOIN, WATCHERS[0]!);
-  assert.ok(takeLeave && takeJoin, "the watcher's pair was logged");
+  assert.equal(take[0]![1], take[1]![1], "the pair shares one tick");
+  assert.ok(take[0]![0] < take[1]![0], "and one seq follows the other");
+
+  const startWatching = pair(RIDERS[0]!);
+  assert.deepEqual(
+    startWatching.map((e) => [e[2], e[3]]),
+    [
+      [LEAVE, RIDERS[0]],
+      [SPECTATOR, "join"],
+    ],
+    "and starting to watch is a LEAVE and a SPECTATOR join: the seat goes first, since SPECTATOR join refuses a seated id",
+  );
   assert.equal(
-    takeLeave![1],
-    takeJoin![1],
-    "SPECTATOR leave and JOIN share one tick",
+    startWatching[0]![1],
+    startWatching[1]![1],
+    "that pair shares one tick too",
   );
-  assert.ok(
-    takeLeave![0] < takeJoin![0],
-    "and the leave is logged first, since JOIN returns early while the id is still watching",
-  );
-  const watchLeave = at(LEAVE, RIDERS[0]!),
-    watchJoin = logged.find(
-      (entry) => entry[2] === SPECTATOR && entry[4] === RIDERS[0]!,
-    );
-  assert.ok(watchLeave && watchJoin, "the rider's pair was logged");
-  assert.equal(watchLeave![1], watchJoin![1], "LEAVE and SPECTATOR join too");
-  assert.ok(watchLeave![0] < watchJoin![0], "seat first, watching list second");
+  assert.ok(startWatching[0]![0] < startWatching[1]![0]);
+  // And nothing outside the three kinds the fold already had was written about either of them.
+  for (const subject of [WATCHERS[0]!, RIDERS[0]!])
+    for (const entry of about(subject))
+      assert.ok(
+        [JOIN, LEAVE, SPECTATOR].includes(entry[2]),
+        `a switch is spelled with entries that already existed, not kind ${entry[2]}`,
+      );
 });
 
-test("the golden is the one this branch found: the fold did not move", () => {
-  const golden: { rules: string; hashes: string[] } = JSON.parse(
-    readFileSync(
-      new URL("./fixtures/golden-hashes.json", import.meta.url),
-      "utf8",
-    ),
+test("a switch folds to exactly what leaving and rejoining folds to", () => {
+  // The claim behind the whole change: the pair is not a new rule, it is the two entries the fold already had. Written
+  // at one tick and written a tick apart, they must leave the same room behind — hash, seat, fold and all.
+  const fold = (together: boolean) => {
+    const state = createRoomState("switch", settings),
+      bots = new BotController();
+    const ticks: Entry[][] = together
+      ? [
+          [
+            [1, 1, JOIN, "a-host", "Host", 0, "fox", 0],
+            [2, 1, SPECTATOR, "join", "p-watch", "Watcher", 0],
+          ],
+          [
+            [3, 2, SPECTATOR, "leave", "p-watch"],
+            [4, 2, JOIN, "p-watch", "Watcher", 1, "fox", 0],
+          ],
+          [],
+        ]
+      : [
+          [
+            [1, 1, JOIN, "a-host", "Host", 0, "fox", 0],
+            [2, 1, SPECTATOR, "join", "p-watch", "Watcher", 0],
+          ],
+          [[3, 2, SPECTATOR, "leave", "p-watch"]],
+          [[4, 3, JOIN, "p-watch", "Watcher", 1, "fox", 0]],
+        ];
+    for (const entries of ticks)
+      applyTick(
+        state,
+        "a-host",
+        new Map([["a-host", { generation: 0, entries }]]),
+        bots,
+      );
+    return { hash: hashRoomState(state), state };
+  };
+  const together = fold(true),
+    apart = fold(false);
+  assert.deepEqual(
+    [...together.state.game.players.keys()],
+    ["a-host", "p-watch"],
+    "the watcher ended up in a seat",
   );
+  assert.equal(together.state.spectators.size, 0);
   assert.equal(
-    RULES,
-    golden.rules,
-    "switching sides adds no entry kind and changes no fold, so RULES stays where it is and the golden is not re-recorded",
+    together.hash,
+    apart.hash,
+    "one tick or two, the fold is the same: a switch is leave-then-join and nothing else",
   );
 });
 
@@ -267,6 +319,77 @@ test("a switch mid-round is refused on both sides, and says when to try again", 
     /Start watching between rounds/,
     `and so was the rider: ${statuses(net, RIDERS[0]!)}`,
   );
+});
+
+test("between the rounds of a live match, both directions go through", () => {
+  const { net, join, watch } = room();
+  const host = join(HOST, "Host");
+  net.step(200);
+  const rider = join(RIDERS[0]!, "Rider");
+  const watcher = watch(WATCHERS[0]!, "Watcher");
+  net.step(1200);
+  host.command({ type: "action", action: "start" });
+  // Up to the first pause and no further: `roundOver` is the phase the feature is named for, and a match of idle
+  // riders runs through all of its rounds if it is simply left to.
+  for (let waited = 0; waited < 120_000; waited += 250) {
+    net.step(250);
+    if (net.frame(HOST)!.phase === "roundOver") break;
+  }
+  assert.equal(
+    net.frame(HOST)!.phase,
+    "roundOver",
+    `the match reached a pause between rounds (phase ${net.frame(HOST)!.phase})`,
+  );
+  const round = net.frame(HOST)!.round;
+
+  assert.equal(watcher.command({ type: "join", name: "Watcher" }), true);
+  assert.equal(rider.command({ type: "spectate", name: "Rider" }), true);
+  net.step(2000);
+
+  for (const id of [HOST, RIDERS[0]!, WATCHERS[0]!]) {
+    assert.ok(
+      riders(net, id).includes("Watcher"),
+      `${id} seated the watcher at the pause`,
+    );
+    assert.equal(
+      riders(net, id).includes("Rider"),
+      false,
+      `${id} freed the rider's seat at the pause`,
+    );
+    assert.deepEqual(watching(net, id), ["Rider"], `${id} agrees who watches`);
+  }
+  assert.equal(
+    net.frame(HOST)!.round,
+    round,
+    "and the match is the same one, still between the same two rounds",
+  );
+});
+
+test("a watcher takes the seat of a rider the room lists absent", () => {
+  const { net, join, watch } = room();
+  join(HOST, "Host");
+  net.step(200);
+  for (const [index, id] of RIDERS.slice(0, MAX_PLAYERS - 1).entries())
+    join(id, `Rider ${index + 1}`);
+  const watcher = watch(WATCHERS[0]!, "Watcher");
+  net.step(2500);
+  assert.equal(riders(net, HOST).length, MAX_PLAYERS, "every seat is taken");
+
+  // One rider's page goes. Its seat is reclaimable in the lobby, exactly as it is for a fresh joiner.
+  net.runtimes.get(RIDERS[3]!)!.stop();
+  net.disconnect(RIDERS[3]!);
+  net.step(2000);
+
+  watcher.command({ type: "join", name: "Watcher" });
+  net.step(2000);
+  for (const id of [HOST, RIDERS[0]!, WATCHERS[0]!]) {
+    assert.ok(
+      riders(net, id).includes("Watcher"),
+      `${id} gave the watcher the seat that was standing empty`,
+    );
+    assert.deepEqual(watching(net, id), [], `${id} empties the watching list`);
+    assert.equal(riders(net, id).length, MAX_PLAYERS, `${id} is full again`);
+  }
 });
 
 test("a watcher is refused a seat while the room has five riders, and keeps its place", () => {
@@ -352,6 +475,55 @@ test("a page that reloads after switching comes back on the side it switched to"
     riders(net, HOST),
     ["Host"],
     "and the seat it gave up did not come back with it",
+  );
+});
+
+test("a shared screen's first rider changes sides, though the crown never leaves it", () => {
+  // A creator driving a TV from a page that took no seat has no record in the fold, so `actingCreator` names the first
+  // rider for as long as the room lasts. That rider cannot write its own pair — and does not have to: the creator's
+  // page can, whatever the succession order says, so the request goes there instead (`switchWriter`).
+  const net = new FakeNetwork(HOST, {
+    loss: 0,
+    baseMs: 20,
+    jitterMs: 0,
+    reliableMs: 30,
+  });
+  const tv = net.add(HOST, settings, { displayOnly: true });
+  tv.start();
+  net.step(300);
+  for (const [index, id] of RIDERS.slice(0, 2).entries()) {
+    const runtime = net.add(id, settings, { humanName: `Rider ${index + 1}` });
+    runtime.start();
+    runtime.command({ type: "join", name: `Rider ${index + 1}` });
+  }
+  net.step(2500);
+  assert.equal(
+    actingCreator(world(net.runtimes.get(RIDERS[0]!)!).state, HOST),
+    RIDERS[0],
+    "the first rider runs the room beside the unseated creator",
+  );
+
+  assert.equal(
+    net.runtimes
+      .get(RIDERS[0]!)!
+      .command({ type: "spectate", name: "Rider 1" }),
+    true,
+    "and its own page does not refuse the switch",
+  );
+  net.step(2500);
+
+  for (const id of [HOST, RIDERS[0]!, RIDERS[1]!]) {
+    assert.deepEqual(
+      watching(net, id),
+      ["Rider 1"],
+      `${id} lists the switched rider as watching`,
+    );
+    assert.deepEqual(riders(net, id), ["Rider 2"], `${id} freed its seat`);
+  }
+  assert.equal(
+    actingCreator(world(net.runtimes.get(RIDERS[1]!)!).state, HOST),
+    RIDERS[1],
+    "the crown moves to the rider still seated, as it always did",
   );
 });
 
@@ -503,15 +675,21 @@ test("a link that drops, duplicates and reorders packets still folds the pair th
     })),
     `every replica folded the same swap: ${JSON.stringify(seen)}`,
   );
-  // The fold is what the log says it is, hash included: a duplicated or reordered half cannot have been applied twice.
-  const hashes = new Set(
-    [HOST, RIDERS[0]!, WATCHERS[0]!].map((id) =>
-      JSON.stringify([
-        world(net.runtimes.get(id)!).state.game.players.size,
-        world(net.runtimes.get(id)!).state.spectators.size,
-        world(net.runtimes.get(id)!).state.folds.size,
-      ]),
-    ),
+  assert.ok(
+    net.droppedFast > 0 && net.duplicatedFast > 0 && net.reorderedFast > 0,
+    `the link really was impaired: dropped ${net.droppedFast}, duplicated ${net.duplicatedFast}, reordered ${net.reorderedFast}`,
   );
-  assert.equal(hashes.size, 1, `one shape on every replica: ${[...hashes]}`);
+  // Each replica's own confirmed full-state hash, which is the whole room and not a summary of it: a half applied
+  // twice, or one half folded without the other, would show up here as a disagreement.
+  const ids = [HOST, RIDERS[0]!, WATCHERS[0]!];
+  const common = [...(net.reportedHashes.get(HOST)?.keys() ?? [])].filter(
+    (tick) => ids.every((id) => net.reportedHashes.get(id)?.has(tick)),
+  );
+  assert.ok(common.length >= 3, `shared confirmed ticks: ${common.length}`);
+  for (const tick of common)
+    assert.equal(
+      new Set(ids.map((id) => net.reportedHashes.get(id)!.get(tick))).size,
+      1,
+      `replicas disagree at ${tick}`,
+    );
 });

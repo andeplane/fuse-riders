@@ -96,36 +96,48 @@ halves — a `JOIN` over a listed watcher as a seat taken, a `SPECTATOR leave` a
 flight is counted correctly by the capacity checks, and a seat one member gives up is a seat another can take in the
 same tick.
 
-A receiver never sees half of a pair. `StreamLog.append` numbers the two entries consecutively, `entriesAt` replays a
-tick's entries in seq order, and `completeThrough` caps a stream at the tick before its first entry behind a gap — so a
-replica that lost one half does not fold that tick at all until the nack repairs it. A rollback re-runs the same two
-entries in the same order, and a snapshot is taken at a tick boundary, so the pair is either folded into it or entirely
-after it.
+A receiver may speculate on half a pair, but it can never confirm one. `StreamLog.append` numbers the two entries
+consecutively and `entriesAt` replays a tick's entries in seq order, so the order survives the wire; `confirmedThrough`
+holds a stream's tick unconfirmed while it shows a gap, so a replica missing one half cannot finalise, hash or snapshot
+that tick, and the rollback re-runs both entries in seq order once the nack repairs it. A snapshot is taken at a
+confirmed tick, so the pair is either folded into it or entirely after it.
 
 Three rules, all outside the fold:
 
 - **Between rounds only**, the same gate a kick uses. Outside the reclaimable phases `LEAVE` leaves a rider in the
   game's players, so the `SPECTATOR join` behind it would be dropped and the member would be seated and absent at once.
-  The page refuses its own mid-round switch before it asks anyone; a request that a starting round overtakes is
-  refused by the manager, retried on the join timer and lands at the pause.
+  The page refuses its own mid-round switch before it asks anyone, and a request a starting round overtakes is refused
+  where the entries would be written. A refused switch ends there rather than queueing: it is a deliberate tap by a
+  member that already has a place, and left queued its refusal pinned the status line and then moved the member at a
+  pause nobody asked for. An arrival still queues, as it always did.
 - **Capacity is the runtime's**, and the button repeats its wording: `Room is full (5 players)` for a seat,
   `Room is full (5 spectators watching)` for the watching list. A seat a rider the room lists absent is holding is
   reclaimed for the switch exactly as it is for a fresh join.
-- **A stand-in host may not switch itself.** `permitted` is re-evaluated per entry, and between the pair the member is
-  in neither map, so `successionOrder` cannot rank it and the second entry would be refused everywhere. The creator is
-  exempt (`permitted` answers for it without ranking it) and everyone else asks the manager, which is never the
-  subject. A stand-in's request would in any case be addressed to itself; it is refused with a line that says so.
+- **A member never writes its own pair.** `permitted` is re-evaluated per entry, and between the pair the member is in
+  neither map, so `successionOrder` cannot rank it and the second entry would be refused everywhere. The creator is
+  exempt, since `permitted` answers for it without ranking it, so a manager that is not the creator hands this one job
+  back to the creator's page (`switchWriter`) — which is what a shared screen needs, because a creator that took no
+  seat leaves the crown on the first rider for as long as the room lasts and that rider would otherwise be stuck.
+  What is left is a room whose creator's page has actually gone: nobody can write the pair, and the line says so.
 
-`games/fuse-riders/tests/side-switch.test.ts` covers both directions on every replica, the freed seat, the three
-refusals, a reload after a switch, the creator keeping the room across one, and two members swapping in one tick.
+A pair is written against one manager's own fold and its own `pending()`, which cannot see a second manager's entries
+at the same tick. A room whose creator took no seat has two managers (ADR 047 §9), so an `ADD AI` from the shared
+screen landing at the same tick as a switch from the delegate can take the slot the switch claimed; `addPlayer` then
+refuses the `JOIN` and the member is left in neither list. Its page keeps asking (the request is an arrival again by
+then) and is seated or listed as soon as there is room, and the join card is there meanwhile. Narrow, recoverable and
+noted rather than guarded, because guarding it means a fold change.
+
+`games/fuse-riders/tests/side-switch.test.ts` covers both directions on every replica, the freed seat and the seat
+reclaimed from an absent rider, a switch at the pause between rounds, the three refusals, a reload after a switch, a
+shared screen's first rider switching, the creator keeping the room across one, two members swapping in one tick, and
+a link that drops, duplicates and reorders. `scripts/spectator-smoke.ts` round-trips both buttons in the browser.
 
 ## What is deliberately not here
 
-- **No kick for spectators.** The manager cannot remove a watcher yet, because the kick command itself is phase D of
-  the plan and has not landed. `LEAVE` already frees a watcher in the fold, so kick will reach them for free.
-- **No host crown in the list.** A watcher's row says `HOST · WATCHING` only on the host's own device, because that is
-  the only device that knows today. The crown that every device can draw is phase B.
-- **No ready check.** The footer counts `N riders ready · N watching`; readiness itself is phase E.
+This list was written when this phase landed; three of its entries have since been filled in by the phases that owned
+them. Kick reaches a watcher through `LEAVE` as predicted (phase D), the crown is drawn from the fold on every device
+(phase B) and the ready check counts riders only (phase E).
+
 - **No voice.** `voice.setRoster` is still the seated riders.
 - **No spectator camera and no cheaper spectator packets:** plan §10 O8 and O5. (Switching sides, §10 O4, has since
   landed — see "Changing sides" above.)

@@ -1203,6 +1203,7 @@ export async function startOnline(): Promise<void> {
         managerId,
         replacedHost,
         creator: isHost,
+        hostPresent: runtime.hostPresent,
         solo,
         displayOnly,
         lobbyCard: screen.lobbyCard,
@@ -1275,7 +1276,8 @@ export async function startOnline(): Promise<void> {
         if (!row) continue;
         let remove = watcherRemoves.get(seat.id);
         if (!remove) {
-          const button = node("button", "×"),
+          // A row can now carry two buttons, so each says which it is rather than being "the button in the row".
+          const button = node("button", "×", "room-remove"),
             watcherId = seat.id;
           button.onclick = () =>
             removeTapped(button, true, () =>
@@ -1382,7 +1384,7 @@ export async function startOnline(): Promise<void> {
           const entry = node("span", "", "online-score-card"),
             label = node("span"),
             head = createAvatarPortrait(p.avatarId),
-            remove = node("button", "×"),
+            remove = node("button", "×", "room-remove"),
             memberId = p.id;
           entry.append(head, label, remove);
           // The same button frees an AI seat and sends a friend home; which command it is follows from who sits there.
