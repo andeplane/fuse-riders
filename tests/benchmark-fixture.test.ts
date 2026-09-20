@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { visualFixture } from "../scripts/lib/benchmark-fixture.js";
 import {
-  TrailHistoryCache,
   trailPaths,
   trailTip,
 } from "../games/fuse-riders/src/render/phaser/trails.js";
+import { TrailHistory } from "../games/fuse-riders/src/render/phaser/trail-history.js";
 import type { TrailSegment } from "../games/fuse-riders/src/engine/view.js";
 
 const LIFETIME = 160;
@@ -115,7 +115,7 @@ test("the tip is drawn between ticks and not on one", () => {
 });
 
 test("the moving tip does not disturb the established history a cache holds", () => {
-  const cache = new TrailHistoryCache();
+  const cache = new TrailHistory();
   const rules = visualFixture(0).rules;
   let builds = 0;
   // Three frames a tick, each with the tip somewhere else: what 60 Hz of rendering does to a 20 Hz world.
