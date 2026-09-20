@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { createServer } from "vite";
 import { chromium, webkit } from "playwright";
-import type { ViewSnapshot } from "../src/client/snapshot-stream.js";
+import type { WorldView } from "../games/fuse-riders/src/engine/view.js";
 
 const server = await createServer({
   server: { port: 0, host: "127.0.0.1", hmr: false },
@@ -28,16 +28,24 @@ try {
     await page.getByText("Invalid room code", { exact: true }).waitFor();
     const removed = await page.evaluate(async (mode) => {
       const { createPhaserArena } = (await import(
-        String("/src/client/phaser/arena.ts")
-      )) as typeof import("../src/client/phaser/arena.js");
+        String("/games/fuse-riders/src/render/phaser/arena.ts")
+      )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
       const { themes } = (await import(
-        String("/src/client/themes.ts")
-      )) as typeof import("../src/client/themes.js");
-      const { createGame, addPlayer, startMatch, toSnapshot, step } =
-        (await import(
-          String("/src/shared/game.ts")
-        )) as typeof import("../src/shared/game.js");
-      const game = createGame("trail-debris-browser", 42);
+        String("/games/fuse-riders/src/render/themes.ts")
+      )) as typeof import("../games/fuse-riders/src/render/themes.js");
+      const { createGame, addPlayer, startMatch, toView, step } = (await import(
+        String("/games/fuse-riders/src/engine/game.ts")
+      )) as typeof import("../games/fuse-riders/src/engine/game.js");
+      const { defaultRoomSettings } = (await import(
+        String("/games/fuse-riders/src/engine/room-settings.ts")
+      )) as typeof import("../games/fuse-riders/src/engine/room-settings.js");
+      // The open arena these shots were framed on, said explicitly now that a game has no settings fallback.
+      const classic = {
+        ...defaultRoomSettings(),
+        map: "classic" as const,
+        aimBounce: false,
+      };
+      const game = createGame("trail-debris-browser", classic, 42);
       for (let p = 0; p < 3; p++) {
         addPlayer(game, {
           id: `p${p}`,
@@ -79,7 +87,6 @@ try {
         launchY: 450,
         x: 730,
         y: 450,
-        placedTick: 195,
         launchedTick: 195,
         landsAtTick: 196,
         explodeAtTick: 201,
@@ -87,14 +94,14 @@ try {
         flightPath: [],
       });
       const before = {
-        ...toSnapshot(game),
+        ...toView(game),
         tick: game.tick,
         round: game.round,
         bombs: [],
       };
       step(game, new Map());
       const after = {
-        ...toSnapshot(game),
+        ...toView(game),
         tick: game.tick,
         round: game.round,
         pickups: [],
@@ -113,7 +120,7 @@ try {
         resolution: "world",
       });
       await arena.ready;
-      const paint = (snapshot: ViewSnapshot, now: number) => {
+      const paint = (snapshot: WorldView, now: number) => {
         arena.render(snapshot, now, themes["neon-pixel"], "debris");
       };
       paint(before, 1000);

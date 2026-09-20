@@ -5,7 +5,7 @@
 Design reviewed and approved independently by root before implementation, 2026-09-14. Run only against an isolated authorized fixture with a build containing `responseBenchmark=1` diagnostics:
 
 ```sh
-ONLINE_URL=http://localhost:8787/ BENCH_SECONDS=60 npx tsx scripts/benchmark-response.ts
+ONLINE_URL=http://localhost:8787/ BENCH_SECONDS=60 pnpm exec tsx scripts/benchmark-response.ts
 ```
 
 The script creates a room with all powerups disabled, a hidden host renderer, a visible phone-sized guest (390×844) and visible TV (1280×720). Real trusted pointer events press alternating turn buttons. Every attempted press is retained, including dead-player/round-transition attempts and timeouts. A valid sample requires at least 150 ms of stable pre-press heading in each view, an alive unaffected actor, identical render scope, and heading departure in the commanded direction. Hook data is emitted only after a ready Phaser renderer receives and draws the snapshot. No physics, networking rate or interpolation settings change.

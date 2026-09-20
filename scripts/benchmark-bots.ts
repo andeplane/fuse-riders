@@ -2,17 +2,18 @@ import { performance } from "node:perf_hooks";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { BotController } from "../src/shared/bot-controller.js";
+import { BotController } from "../games/fuse-riders/src/engine/bot-controller.js";
 import {
   createGame,
   addPlayer,
   startMatch,
   step,
   SLOT_COLORS,
-} from "../src/shared/game.js";
+} from "../games/fuse-riders/src/engine/game.js";
+import { classicSettings } from "../games/fuse-riders/src/engine/room-settings.js";
 const results = [];
 for (const trailsPerRider of [0, 160, 800]) {
-  const game = createGame("bot-benchmark");
+  const game = createGame("bot-benchmark", classicSettings());
   for (let slot = 0; slot < 5; slot++)
     addPlayer(game, {
       id: slot ? "bot:" + slot : "human",
@@ -62,7 +63,10 @@ const report = {
   controllerSha256: createHash("sha256")
     .update(
       await readFile(
-        new URL("../src/shared/bot-controller.ts", import.meta.url),
+        new URL(
+          "../games/fuse-riders/src/engine/bot-controller.ts",
+          import.meta.url,
+        ),
       ),
     )
     .digest("hex"),

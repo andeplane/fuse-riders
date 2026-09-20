@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { AdmissionGate } from "../src/admission-gate.js";
 import { MemoryRoomDatabase } from "../src/memory-database.js";
-import { RoomError } from "../src/room-store.js";
+import { RoomError, RoomFullError } from "../src/room-store.js";
 
 const limited = (error: unknown) =>
   error instanceof RoomError && error.status === 429;
@@ -83,6 +83,18 @@ test("operational failures do not consume the caller's failure budget", async ()
         throw new Error("offline");
       }),
       /offline/,
+    );
+  await gate.run("one", async () => {});
+});
+
+test("a full room does not consume the failure budget: the code was right", async () => {
+  const gate = new AdmissionGate(new MemoryRoomDatabase(), () => 1000);
+  for (let i = 0; i < 40; i++)
+    await assert.rejects(
+      gate.run("one", async () => {
+        throw new RoomFullError("Room full");
+      }),
+      (error) => limited(error) && (error as Error).message === "Room full",
     );
   await gate.run("one", async () => {});
 });

@@ -1,8 +1,9 @@
-import { chromium, webkit, type Page, type Locator } from "playwright";
+import type { Page, Locator } from "playwright";
+import { browserKind, launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
-import { defaultRoomSettings } from "../src/shared/room-settings.js";
+import { defaultRoomSettings } from "../games/fuse-riders/src/engine/room-settings.js";
 import { smokeTimeout } from "./smoke-timeout.js";
 /**
  * End-of-match recap evidence: a solo match plays to completion, the report opens only after the
@@ -10,7 +11,9 @@ import { smokeTimeout } from "./smoke-timeout.js";
  * viewport and on a phone-landscape viewport. BROWSER=webkit selects WebKit; HOME_URL the served app.
  */
 const base = process.env.HOME_URL ?? "http://127.0.0.1:4188/";
-const browserName = process.env.BROWSER === "webkit" ? "webkit" : "chrome";
+// Reports and screenshots have always called the bundled Chromium "chrome".
+const kind = browserKind("chromium");
+const browserName = kind === "webkit" ? "webkit" : "chrome";
 interface RecapSnapshot {
   phase: string;
   tick: number;
@@ -176,9 +179,7 @@ async function assertRecapLayout(page: Page): Promise<{
   return { champions, awards, totals, rows, comparisonScrolls };
 }
 
-const browser = await (browserName === "webkit" ? webkit : chromium).launch({
-  headless: true,
-});
+const browser = await launchBrowser(kind, { headless: true });
 try {
   for (const viewport of [
     { width: 1280, height: 800 },
@@ -225,9 +226,9 @@ try {
             tick: detail.tick,
             pauseEndsAt: detail.phaseEndsAtTick,
             dialogOpen: Boolean(
-              document.querySelector<HTMLDialogElement>(
-                "dialog.game-dialog:not(.stats-dialog)",
-              )?.open,
+              document.querySelector(
+                "dialog.game-dialog[open]:not(.stats-dialog)",
+              ),
             ),
             alive: detail.players.find((player) => player.id === "solo")?.alive,
             banner: (() => {
@@ -266,7 +267,7 @@ try {
       }
     };
     try {
-      await page.goto(new URL("?solo=1&benchmark=1", base).href);
+      await page.goto(new URL("?solo=1&benchmark=1&mute", base).href);
       await page.waitForFunction(() =>
         document
           .querySelector("canvas")
@@ -359,13 +360,11 @@ try {
             : [],
         ),
         firstFinal = banners.findIndex((banner) => banner.kind === "final");
-      // Portrait phones show the rotation gate instead of arena announcements.
-      if (viewport.height > viewport.width) assert.equal(banners.length, 0);
-      else
-        assert.ok(
-          firstFinal > 0,
-          `the round result comes before the match result: ${JSON.stringify(banners.map((banner) => banner.kind))}`,
-        );
+      // Portrait devices now render the rotated arena, so every orientation must show both beats.
+      assert.ok(
+        firstFinal > 0,
+        `the round result comes before the match result: ${JSON.stringify(banners.map((banner) => banner.kind))}`,
+      );
       for (const [index, banner] of banners.entries())
         if (index < firstFinal) {
           assert.equal(banner.kind, "round", JSON.stringify(banner));
@@ -431,14 +430,20 @@ try {
       await page.screenshot({ path: screenshots[1]! });
       await page.getByRole("button", { name: "CLOSE", exact: true }).click();
       await page.getByRole("dialog").waitFor({ state: "hidden" });
-      // `close` is fired from a queued task, so the ordinary width/title/name are restored just after the dialog stops rendering.
+      // Every menu is its own dialog (#255): none is left open, and the wide results variant is the results dialog's alone.
       await page.waitForFunction(() => {
-        const element = document.querySelector(
-          "dialog.game-dialog:not(.stats-dialog)",
-        )!;
+        const dialogs = [
+          ...document.querySelectorAll<HTMLDialogElement>(
+            "dialog.game-dialog:not(.stats-dialog)",
+          ),
+        ];
+        const wide = dialogs.filter((element) =>
+          element.classList.contains("recap-dialog"),
+        );
         return (
-          !element.classList.contains("recap-dialog") &&
-          element.getAttribute("aria-label") === "Game menu"
+          !dialogs.some((element) => element.open) &&
+          wide.length === 1 &&
+          wide[0]!.getAttribute("aria-label") === "Match results"
         );
       });
       // A joined phone stays the landscape thirds controller in matchOver, so the header (and RESULTS) sits behind the ☰ MENU overlay.

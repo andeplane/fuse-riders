@@ -27,16 +27,16 @@ Read [AGENTS.md](../../AGENTS.md), [README](../../README.md), [roadmap](../onlin
 
 ## What is established, and what is only a hypothesis
 
-| Observation                                                                                                                           | Evidence                                                                                                                                              | Interpretation and limitation                                                                                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Phaser 3.90 already selects WebGL, with Canvas fallback                                                                               | [arena.ts](../../src/client/phaser/arena.ts), [presentation.ts](../../src/client/phaser/presentation.ts)                                              | Three.js is not needed to obtain GPU acceleration. Verify the actual backend on an affected device.                            |
-| Original Canvas render CPU p95 was 0.6–1 ms; Phaser was about 4–5 ms                                                                  | [Recorded renderer measurements](../PHASER.md)                                                                                                        | Different visual implementations on an M4 Max. This is not an equal-quality engine comparison or a phone measurement.          |
-| The mobile-sized board retained a 1600×900 backing while displayed at about 390×219 CSS pixels                                        | [Mobile-sized evidence](../PHASER.md#mobile-sized-viewport-evidence)                                                                                  | Resolution scaling could reduce pixel work. Its benefit and acceptable sharpness are unmeasured.                               |
-| Trail cache includes `s.tick`, and interpolation supplies fractional ticks; local prediction can create a new trail array             | [arena.ts](../../src/client/phaser/arena.ts), [prediction.ts](../../src/online/prediction.ts)                                                         | Cache invalidation can happen every rendered frame. Cost attributable to this needs profiling.                                 |
-| Ink redraws a Canvas texture and calls `refresh()` each active frame                                                                  | [arena.ts](../../src/client/phaser/arena.ts)                                                                                                          | Full-surface drawing/upload is a candidate cost, not a confirmed bottleneck.                                                   |
-| Transport serializes an envelope for byte accounting and again for sending; encoding repeats per recipient                            | [peer-transport.ts](../../src/online/peer-transport.ts), [runtime.ts](../../src/online/runtime.ts), [world-codec.ts](../../src/online/world-codec.ts) | Avoidable work exists; impact on the host's frame/tick scheduling is unmeasured.                                               |
-| Fixed response batch: local p95 27.6 ms, TV p95 88.2 ms; longer capture had 3.41% repeated TV tick intervals and hold maximum 51.2 ms | [Response report](../online/RESPONSE-BENCHMARK.md)                                                                                                    | Desktop submitted-heading measurements, not scanout or physical touch-to-photon. Motion holds can persist with fast rendering. |
-| Four bot decisions measured p95 about 0.44 ms at 4,000 trails                                                                         | [AI report](../online/AI-RIDERS.md)                                                                                                                   | Historical Node measurement of controller work only; evidence for lower initial priority, not a mobile guarantee.              |
+| Observation                                                                                                                                       | Evidence                                                                                                                                                                                                    | Interpretation and limitation                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Phaser already selects WebGL, with Canvas fallback (3.90 when this was written; now 4.2.1, see [migration note](../design/phaser-4-migration.md)) | [arena.ts](../../games/fuse-riders/src/client/phaser/arena.ts), [presentation.ts](../../games/fuse-riders/src/client/phaser/presentation.ts)                                                                | Three.js is not needed to obtain GPU acceleration. Verify the actual backend on an affected device.                            |
+| Original Canvas render CPU p95 was 0.6–1 ms; Phaser was about 4–5 ms                                                                              | [Recorded renderer measurements](../PHASER.md)                                                                                                                                                              | Different visual implementations on an M4 Max. This is not an equal-quality engine comparison or a phone measurement.          |
+| The mobile-sized board retained a 1600×900 backing while displayed at about 390×219 CSS pixels                                                    | [Mobile-sized evidence](../PHASER.md#mobile-sized-viewport-evidence)                                                                                                                                        | Resolution scaling could reduce pixel work. Its benefit and acceptable sharpness are unmeasured.                               |
+| Trail cache includes `s.tick`, and interpolation supplies fractional ticks; local prediction can create a new trail array                         | [arena.ts](../../games/fuse-riders/src/client/phaser/arena.ts), [prediction.ts](../../games/fuse-riders/src/online/prediction.ts)                                                                           | Cache invalidation can happen every rendered frame. Cost attributable to this needs profiling.                                 |
+| Ink redraws a Canvas texture and calls `refresh()` each active frame                                                                              | [arena.ts](../../games/fuse-riders/src/client/phaser/arena.ts)                                                                                                                                              | Full-surface drawing/upload is a candidate cost, not a confirmed bottleneck.                                                   |
+| Transport serializes an envelope for byte accounting and again for sending; encoding repeats per recipient                                        | [peer-transport.ts](../../games/fuse-riders/src/online/peer-transport.ts), [runtime.ts](../../games/fuse-riders/src/online/runtime.ts), [world-codec.ts](../../games/fuse-riders/src/online/world-codec.ts) | Avoidable work exists; impact on the host's frame/tick scheduling is unmeasured.                                               |
+| Fixed response batch: local p95 27.6 ms, TV p95 88.2 ms; longer capture had 3.41% repeated TV tick intervals and hold maximum 51.2 ms             | [Response report](../online/RESPONSE-BENCHMARK.md)                                                                                                                                                          | Desktop submitted-heading measurements, not scanout or physical touch-to-photon. Motion holds can persist with fast rendering. |
+| Four bot decisions measured p95 about 0.44 ms at 4,000 trails                                                                                     | [AI report](../online/AI-RIDERS.md)                                                                                                                                                                         | Historical Node measurement of controller work only; evidence for lower initial priority, not a mobile guarantee.              |
 
 ## Agent organization and execution order
 
@@ -141,7 +141,7 @@ Inspect `arena.ts`'s `trailKey`, `previousTrails` and three stroke passes, and `
 
 **Paths to compare independently:** (D1) cached sprites/textures for rings and repeated decorations, retaining animation via transforms/alpha; (D2) optional reduced glow/particle layers while preserving gameplay cues; (D3) ink implemented using a GPU render texture/mask or a smaller correctly mapped Canvas texture. A shader or alternate compositing approach needs a precise visual-equivalence specification first.
 
-Inspect `arena.ts`'s dynamic/front Graphics layers, additive sprites, world sorting and active ink refresh, together with [ink drawing](../../src/client/ink-renderer.ts). Measure batch changes and draw costs instead of assuming all Graphics calls are slow. Several textures and pools already exist; reuse them.
+Inspect `arena.ts`'s dynamic/front Graphics layers, additive sprites, world sorting and active ink refresh, together with [ink drawing](../../games/fuse-riders/src/client/ink-renderer.ts). Measure batch changes and draw costs instead of assuming all Graphics calls are slow. Several textures and pools already exist; reuse them.
 
 **Correctness cases:** ink clear-space semantics, overlapping clouds and visibility boundaries; explosions/deaths emitted once per scoped event; expiry, reset, context restore and bounded texture/object lifetime. Do not simplify authoritative blast size or conceal charge/target/portal cues. A lower ink refresh cadence can visibly stutter and must be a separate quality tradeoff, not silently called equivalent.
 
@@ -202,17 +202,17 @@ These are current entry points, not a complete new experiment implementation. Ru
 
 ```sh
 # Renderer microbenchmarks: source-served, fixed 1600×900 backing, 1s warmup.
-DURATION_MS=30000 BENCH_TAG=baseline npx tsx scripts/phaser-benchmark.ts
-BROWSER=webkit DURATION_MS=30000 BENCH_TAG=baseline npx tsx scripts/phaser-benchmark.ts
-VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TAG=mobile-baseline DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
+DURATION_MS=30000 BENCH_TAG=baseline pnpm exec tsx scripts/phaser-benchmark.ts
+BROWSER=webkit DURATION_MS=30000 BENCH_TAG=baseline pnpm exec tsx scripts/phaser-benchmark.ts
+VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TAG=mobile-baseline DURATION_MS=30000 pnpm exec tsx scripts/phaser-benchmark.ts
 
 # Renderer lifecycle and correctness, separate from timing runs.
-npx tsx scripts/phaser-browser.ts
-BROWSER=webkit npx tsx scripts/phaser-browser.ts
-npx tsx scripts/benchmark-bots.ts
+pnpm exec tsx scripts/phaser-browser.ts
+BROWSER=webkit pnpm exec tsx scripts/phaser-browser.ts
+pnpm exec tsx scripts/benchmark-bots.ts
 
 # Peer-to-peer runtime (2026-09-16): wire bytes, rollbacks and input-to-state latencies, locally and under injected impairment.
-ONLINE_URL=http://localhost:8787/ npx tsx scripts/p2p-measure.ts
+ONLINE_URL=http://localhost:8787/ pnpm exec tsx scripts/p2p-measure.ts
 # (benchmark-response.ts and online-network-benchmark.ts were removed with the host-star runtime.)
 ```
 
@@ -243,16 +243,16 @@ After selecting candidates, test their combined implementation on the same basel
 Run checks appropriate to every candidate. Before deployment, run the complete release suite and the relevant Chrome/WebKit LAN/online, AI, renderer lifecycle and Pages base-path checks described in README and the roadmap:
 
 ```sh
-npm run typecheck
-npm test
-npm run test:coverage
-npm run build
+pnpm typecheck
+pnpm test
+pnpm test:coverage
+pnpm build
 ```
 
 Keep [.c8rc.json](../../.c8rc.json) thresholds unchanged and identify excluded browser/renderer surfaces. Independent implementation review, exact-artifact preview, compatibility/rollback review and actual destination verification remain release requirements under [GCP deployment instructions](../online/GCP-DEPLOY.md). ADR 032's partially evidenced proposed budgets retain their documented status; this brief neither certifies them nor waives them.
 
 ## External technical references
 
-- [Phaser Graphics documentation](https://docs.phaser.io/api-documentation/class/gameobjects-graphics): caching mostly static Graphics as textures can reduce repeated work; verify APIs against pinned Phaser 3.90.
+- [Phaser Graphics documentation](https://docs.phaser.io/api-documentation/class/gameobjects-graphics): caching mostly static Graphics as textures can reduce repeated work; verify APIs against the pinned Phaser version (4.2.1; see [migration note](../design/phaser-4-migration.md)).
 - [Phaser render textures](https://docs.phaser.io/phaser/concepts/gameobjects/render-texture): candidate mechanism for GPU-resident composition, subject to visual and lifecycle checks.
 - [Three.js responsive rendering](https://threejs.org/manual/en/responsive.html): drawing-buffer resolution and display size are separate, with a pixel-work tradeoff. The same principle applies to a Phaser sizing experiment.

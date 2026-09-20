@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { NOTICE_HOLD_MS, StatusNotices } from "../src/online/status-notices.js";
+import { NOTICE_HOLD_MS, StatusNotices } from "fuse-netcode";
 
 const CONNECTED = "Connected · direct game link";
 /** The room runtime's real cadence: a 10 ms tick refresh plus an accepted world frame every 50 ms. */

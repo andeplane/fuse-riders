@@ -1,0 +1,3396 @@
+.online-app {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-3);
+  box-sizing: border-box;
+  --player-color: var(--fui-cyan-deep);
+  overflow: hidden;
+}
+.online-app button,
+.online-app input,
+.online-app select {
+  font: inherit;
+  font-size: 1rem;
+  min-height: 2.75rem;
+  color: var(--fui-text);
+  background: var(--ui-surface);
+  border: var(--fui-border);
+  border-radius: var(--ui-radius);
+  padding: var(--fui-space-2);
+}
+.online-app button {
+  cursor: pointer;
+  border-color: color-mix(in srgb, var(--player-color) 40%, var(--fui-line));
+  background: var(--ui-button-fill);
+  box-shadow: var(--ui-edge);
+}
+.online-app button:enabled:hover {
+  filter: brightness(1.15);
+}
+.online-app button:focus-visible,
+.online-app input:focus-visible,
+.online-app select:focus-visible,
+.online-app summary:focus-visible {
+  outline: 0.1875rem solid #b4f7ff;
+  outline-offset: 0.1875rem;
+}
+.online-app button:disabled {
+  opacity: 0.4;
+}
+.online-home {
+  margin: auto;
+  max-width: 30rem;
+  display: grid;
+  gap: 1.125rem;
+  width: 100%;
+}
+.online-home h1 {
+  color: var(--fui-cyan-deep);
+  font-family: "Press Start 2P";
+  font-size: 1.75rem;
+}
+.online-header {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-2);
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+}
+.online-header span {
+  flex: 1;
+  color: #a3b9cb;
+}
+.online-arena {
+  width: 100%;
+  min-height: 0;
+  flex: 1;
+  object-fit: contain;
+  border: 0;
+  background: var(--fui-ink);
+}
+.online-notice {
+  text-align: center;
+  color: #ffdf56;
+  min-height: 1.25rem;
+}
+.online-roster {
+  display: flex;
+  justify-content: center;
+  gap: var(--fui-space-3);
+  font-size: 0.75rem;
+}
+.online-host {
+  display: flex;
+  gap: var(--fui-space-2);
+  justify-content: center;
+}
+.online-controls {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr 1fr;
+  gap: var(--fui-space-3);
+  min-height: 6.25rem;
+  touch-action: none;
+  user-select: none;
+}
+.online-controls button {
+  font-size: 1.375rem;
+  background: color-mix(in srgb, var(--player-color) 18%, #061023);
+  border: 0.125rem solid var(--player-color);
+  touch-action: none;
+}
+.online-controls button.active {
+  background: var(--player-color);
+  color: var(--fui-ink);
+}
+.online-app [hidden] {
+  display: none !important;
+}
+.online-app dialog {
+  background: #08152b;
+  color: var(--fui-text);
+  border: 0.0625rem solid var(--fui-cyan-deep);
+  max-height: 85dvh;
+  width: min(30rem, 85vw);
+  overflow: auto;
+}
+.online-app dialog label {
+  display: grid;
+  grid-template-columns: 1fr 6.25rem 4.0625rem;
+  align-items: center;
+  gap: var(--fui-space-2);
+  margin: var(--fui-space-2) 0;
+}
+.online-app dialog img {
+  display: block;
+  max-width: 15rem;
+  margin: 0.9375rem auto;
+}
+.online-app dialog select {
+  width: 100%;
+  margin: var(--fui-space-2) 0;
+}
+.online-app dialog a {
+  color: var(--fui-cyan-deep);
+}
+@media (orientation: landscape) and (max-height: 550px) {
+  .online-app {
+    gap: 0.1875rem;
+    padding: var(--fui-space-1);
+  }
+  .online-controls {
+    min-height: 4rem;
+  }
+  .online-header {
+    font-size: 0.625rem;
+  }
+  .online-header button,
+  .online-host button {
+    min-height: 1.875rem;
+    font-size: 0.75rem;
+    padding: var(--fui-space-1);
+  }
+  .online-notice {
+    min-height: 0.875rem;
+    font-size: 0.75rem;
+  }
+  .online-roster {
+    font-size: 0.625rem;
+  }
+}
+
+.online-host,
+.online-roster {
+  flex-wrap: wrap;
+}
+.online-roster > span {
+  display: inline-flex;
+  gap: var(--fui-space-1);
+  align-items: center;
+}
+.online-roster button {
+  min-width: 2.25rem;
+  padding: 0.125rem var(--fui-space-2);
+}
+.online-footer,
+.online-scoreboard {
+  display: contents;
+}
+.online-roster .online-score-card {
+  border-radius: var(--ui-radius);
+  min-width: 0;
+  gap: var(--fui-space-2);
+  padding: 0.375rem var(--fui-space-2);
+  border: 0.0625rem solid color-mix(in srgb, var(--rider-color) 65%, #13213a);
+  background: linear-gradient(180deg, #071630, #030a1e);
+}
+.online-score-card > span:not(.avatar-portrait) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+}
+.online-score-card .avatar-portrait {
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 1.75rem;
+}
+.online-score-card.out {
+  opacity: 0.5;
+}
+.online-score-label {
+  display: inline-flex;
+  gap: var(--fui-space-1);
+  align-items: center;
+}
+.online-score-label .online-score-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.online-score-label .online-score-points {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.controller-only .online-score-card {
+  padding: 0.125rem var(--fui-space-1);
+  border: 0;
+  background: none;
+}
+.controller-only .online-score-card .avatar-portrait {
+  display: none;
+}
+/* The desktop arena gets everything below one compact game bar. The renderer
+   fits the fixed world aspect inside this box; no world geometry is changed. */
+.desktop-help {
+  display: none;
+}
+.online-app.desktop-game {
+  padding: var(--fui-space-1);
+  gap: var(--fui-space-1);
+}
+.desktop-game > .online-header {
+  position: relative;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  padding: 0.125rem var(--fui-space-1) 0.375rem;
+  border-bottom: 0.0625rem solid #18305a;
+  z-index: var(--fui-z-bar);
+}
+.desktop-game .room-brand {
+  font-size: clamp(0.75rem, 1.2vw, 1.25rem);
+  gap: var(--fui-space-2);
+  margin-right: auto;
+}
+.desktop-game .online-header button {
+  min-height: 1.875rem;
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  padding: var(--fui-space-1) 0.4375rem;
+  white-space: nowrap;
+}
+.desktop-game .desktop-help {
+  display: block;
+  min-width: 1.875rem;
+}
+.desktop-game .online-roster {
+  flex: 0 1 auto;
+  justify-content: center;
+  gap: 0.3125rem;
+  flex-wrap: nowrap;
+  min-width: 0;
+  margin: 0 auto;
+}
+.desktop-game .online-score-card {
+  flex: 0 0 auto;
+  padding: 0.1875rem 0.3125rem;
+  gap: var(--fui-space-1);
+  min-width: 0;
+}
+.desktop-game .online-score-card > span:not(.avatar-portrait) {
+  font-size: 0.625rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 8.75rem;
+}
+.desktop-game .online-score-card .avatar-portrait {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-basis: 1.25rem;
+}
+.desktop-game .online-score-card button {
+  min-width: 1.375rem;
+  min-height: 1.375rem;
+  padding: 0 0.1875rem;
+}
+.desktop-game .online-score-card button:disabled {
+  display: none;
+}
+.desktop-game .online-host {
+  gap: 0.3125rem;
+  flex-wrap: nowrap;
+}
+.desktop-game .online-host button:disabled {
+  display: none;
+}
+.desktop-game .online-controls,
+.desktop-game > .online-footer {
+  display: none;
+}
+.desktop-game > .online-arena {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.desktop-game .online-notice {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 50%;
+  width: max-content;
+  box-sizing: border-box;
+  min-height: 0;
+  padding: 0.375rem 0.875rem;
+  background: #030d1fe8;
+  border: 0.0625rem solid #1b708b;
+  font-size: 0.8125rem;
+  pointer-events: none;
+}
+.desktop-game .online-notice:empty {
+  display: none;
+}
+/* Connection/authority notices remain readable without taking a permanent row. */
+.desktop-game .online-header > .online-status {
+  position: absolute;
+  top: calc(100% + 0.75rem);
+  left: 0.5rem;
+  max-width: 23%;
+  font-size: 0.625rem;
+  line-height: 1.5;
+  padding: 0.1875rem 0.375rem;
+  background: #030d1fcc;
+  pointer-events: none;
+}
+.desktop-game .online-header > .online-status:empty {
+  display: none;
+}
+.online-shot-error {
+  position: fixed;
+  z-index: var(--fui-z-alert);
+  top: 4.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 2rem);
+  width: max-content;
+  padding: var(--fui-space-3) var(--fui-space-4);
+  margin: 0;
+  background: #321222;
+  border: 0.125rem solid #ff5c91;
+  color: #fff;
+  font-size: 0.875rem;
+  text-align: center;
+  pointer-events: none;
+  box-shadow: 0 0 1rem #ff2d7533;
+}
+
+/* Attract screen: the live arena is scenery, the menu remains the foreground. */
+.online-app.landing-app {
+  padding: 0;
+  overflow: auto;
+  display: block;
+  background: #030817;
+}
+.landing {
+  min-height: 100dvh;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  color: #f3fbff;
+}
+.landing-arena {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: -3;
+  opacity: 0.88;
+  pointer-events: none;
+}
+.landing-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    linear-gradient(
+      90deg,
+      #040a18f5 0%,
+      #040a18dd 28%,
+      #040a1866 60%,
+      #040a1822 100%
+    ),
+    linear-gradient(0deg, #030817 0%, transparent 30%, #03081766 100%);
+  pointer-events: none;
+}
+.landing-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.75rem 5vw;
+  gap: 1.25rem;
+}
+.landing-top-end {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+.landing-top .landing-settings,
+.landing-top .landing-audio,
+.landing-top .landing-mute {
+  font-size: 0.625rem;
+  letter-spacing: 0.0625rem;
+  color: #a8bad2;
+  border: 0.0625rem solid #43536b;
+  background: #040b19b0;
+  white-space: nowrap;
+}
+.landing-top .landing-audio[data-muted="true"],
+.landing-top .landing-mute[data-muted="true"] {
+  color: #ffa6c9;
+  border-color: var(--fui-pink-soft);
+}
+.landing-brand {
+  font:
+    1rem "Press Start 2P",
+    monospace;
+  text-decoration: none;
+  color: #00dfff;
+  text-shadow: 0 0 1.25rem #00dfff55;
+}
+.landing-brand span {
+  color: #ff318e;
+  margin-left: 0.625rem;
+}
+.landing-tag {
+  font-size: 0.6875rem;
+  letter-spacing: 0.125rem;
+  color: #adbed4;
+}
+.landing-content {
+  width: min(39.375rem, 85vw);
+  margin: 7vh 0 6.25rem 8vw;
+}
+.landing-eyebrow {
+  font-size: 0.6875rem;
+  letter-spacing: 0.125rem;
+  color: #83eaff;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+.landing-eyebrow span,
+.live-dot {
+  display: inline-block;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  background: var(--fui-lime);
+  box-shadow: 0 0 0.875rem var(--fui-lime);
+}
+.landing h1 {
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(1.75rem, 3vw, 2.75rem);
+  line-height: 1.5;
+  letter-spacing: -0.125rem;
+  margin: 1.5625rem 0;
+  text-shadow: 0.3125rem 0.3125rem #172743;
+}
+.landing h1 em {
+  font-style: normal;
+  color: #ff459d;
+  text-shadow:
+    0.3125rem 0.3125rem #521346,
+    0 0 2.375rem #ff138344;
+}
+.landing-intro {
+  font-size: 1.125rem;
+  line-height: 1.65;
+  color: #bbcce1;
+  margin: 0 0 1.75rem;
+}
+.solo-cta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 1.375rem var(--fui-space-5);
+  background: var(--ui-cyan-fill);
+  color: #03253d;
+  border-radius: var(--ui-panel-radius);
+  text-decoration: none;
+  box-shadow:
+    var(--ui-edge),
+    0 0.375rem 1.5rem #00d9ff33;
+  border: 0.125rem solid var(--fui-cyan);
+  transition: transform 0.15s;
+  max-width: 33.125rem;
+  box-sizing: border-box;
+}
+.solo-cta span {
+  font-weight: 900;
+  font-size: 1.3125rem;
+  letter-spacing: 0.0625rem;
+}
+.solo-cta small {
+  border-left: 0.0625rem solid #03253d33;
+  padding-left: var(--fui-space-4);
+  font-size: 0.625rem;
+  letter-spacing: 0.0625rem;
+}
+.solo-cta:hover {
+  transform: translateY(-0.1875rem);
+  background: linear-gradient(180deg, #7cffff, #16deed);
+}
+.solo-cta:focus-visible,
+.landing button:focus-visible,
+.landing input:focus-visible,
+.landing select:focus-visible {
+  outline: 0.1875rem solid #fff;
+  outline-offset: 0.3125rem;
+}
+.landing-multiplayer {
+  max-width: 33.125rem;
+  margin-top: 1.875rem;
+}
+.landing-section-label {
+  font-size: 0.625rem;
+  letter-spacing: 0.125rem;
+  color: #93a6c1;
+  margin-bottom: var(--fui-space-3);
+}
+.landing-create,
+.landing-join {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9.6875rem;
+  gap: 0.625rem;
+  margin: 0.625rem 0;
+}
+.landing-create select,
+.landing-join input {
+  width: 100%;
+  min-width: 0;
+}
+.landing-create button,
+.landing-join button {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.0625rem;
+}
+.landing-create button {
+  background: linear-gradient(180deg, #075779, #03384f);
+  border-color: #1289ad;
+}
+.landing-join button {
+  background: var(--ui-button-fill);
+  border-color: #5278ac;
+}
+.landing input,
+.landing select {
+  background: var(--ui-surface);
+  border-color: #435575;
+}
+.landing-hint {
+  font-size: 0.75rem;
+  color: #90a5bc;
+  line-height: 1.7;
+}
+.landing-multiplayer [role="alert"]:empty {
+  display: none;
+}
+.landing-multiplayer [role="alert"] {
+  color: #ffa6c9;
+  font-size: 0.8125rem;
+}
+.landing-live {
+  position: absolute;
+  right: 6vw;
+  bottom: 20vh;
+  padding: 0.9375rem 1.25rem;
+  border: var(--fui-border);
+  border-radius: var(--ui-panel-radius);
+  background: var(--ui-surface);
+  box-shadow:
+    var(--ui-edge),
+    0 0.5rem 1.5rem #0003;
+  font-size: 0.6875rem;
+  letter-spacing: 0.125rem;
+  backdrop-filter: blur(0.5rem);
+}
+.landing-live .live-dot {
+  margin-right: 0.625rem;
+}
+.landing-live small {
+  display: block;
+  color: #93aac6;
+  font-size: 0.6875rem;
+  letter-spacing: 0;
+  margin-top: 0.5625rem;
+  margin-left: 1.125rem;
+}
+.landing-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fui-space-4);
+  padding: 1.375rem 5vw;
+  color: #8b9ab4;
+  font-size: 0.625rem;
+  letter-spacing: 0.125rem;
+  border-top: 0.0625rem solid #8ebcff20;
+}
+.landing-footer button {
+  font-size: 0.625rem;
+  letter-spacing: 0.0625rem;
+  color: #a8bad2;
+  border: 0.0625rem solid #43536b;
+  background: #040b19b0;
+}
+/* The other games on this site: one quiet text link, not a second call to action. */
+.landing-more {
+  display: inline-block;
+  margin-top: var(--fui-space-3);
+  color: var(--fui-cyan);
+  font-size: 0.625rem;
+  letter-spacing: 0.125rem;
+}
+.landing-guide {
+  max-width: 33.125rem;
+  margin-top: 2.125rem;
+}
+.landing-guide h2 {
+  margin: 0 0 0.875rem;
+  font-weight: 400;
+}
+.landing-powerups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem 1.25rem;
+}
+.landing-powerups li {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  column-gap: 0.625rem;
+  align-items: center;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #a9bbd2;
+}
+.landing-powerups img {
+  grid-row: span 2;
+  width: 1.5rem;
+  height: 1.5rem;
+  image-rendering: auto;
+  filter: drop-shadow(0 0 0.3125rem #16e7ff66);
+}
+.landing-powerups b {
+  font-size: 0.625rem;
+  letter-spacing: 0.0625rem;
+  color: #fff0a0;
+}
+.landing-powerups small {
+  grid-column: 2;
+  font-size: 0.6875rem;
+  color: #8599b3;
+}
+/* The guide makes .landing taller than one screen: keep the live badge on the first screen, and off narrow or short screens where it would cover the content column. */
+.landing-live {
+  bottom: auto;
+  top: calc(80dvh - 4.5rem);
+}
+@media (max-width: 1100px), (max-height: 500px) {
+  .landing-live {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .landing-powerups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .landing-top {
+    padding: 1.4375rem 1.375rem;
+  }
+  .landing-brand {
+    font-size: 0.75rem;
+  }
+  .landing-tag {
+    display: none;
+  }
+  .landing-content {
+    margin: 13vh auto 6.25rem;
+    width: calc(100% - 2.75rem);
+    max-width: 33.125rem;
+  }
+  .landing h1 {
+    font-size: clamp(1.5rem, 6vw, 2.375rem);
+    letter-spacing: -0.0625rem;
+  }
+  .landing-shade {
+    background: linear-gradient(
+      0deg,
+      #030817 0%,
+      #030817e8 40%,
+      #03081755 100%
+    );
+  }
+  .landing-intro {
+    font-size: 0.9375rem;
+  }
+  .solo-cta {
+    padding: 1.1875rem 1.0625rem;
+  }
+  .solo-cta span {
+    font-size: 1.125rem;
+  }
+  .solo-cta small {
+    padding-left: var(--fui-space-2);
+    font-size: 0.5rem;
+    max-width: 5rem;
+    text-align: right;
+  }
+  .landing-create,
+  .landing-join {
+    grid-template-columns: minmax(0, 1fr) 8.125rem;
+  }
+  .landing-live {
+    display: none;
+  }
+  .landing-footer {
+    padding: 0.9375rem 1.375rem;
+    letter-spacing: 0;
+  }
+  .landing-footer > span {
+    max-width: 7.5rem;
+    line-height: 1.5;
+  }
+  .landing-multiplayer {
+    margin-top: 1.5625rem;
+  }
+  .landing-arena {
+    object-position: 65% center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .solo-cta {
+    transition: none;
+  }
+}
+
+/* Every modal keeps its exit outside the scrolling content, including short phones. */
+.online-app dialog.game-dialog {
+  width: min(32.5rem, calc(100vw - 1.5rem));
+  max-width: none;
+  max-height: calc(
+    100dvh - 1.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom)
+  );
+  padding: 0;
+  border: 0.0625rem solid #53def7;
+  border-radius: var(--ui-panel-radius);
+  box-sizing: border-box;
+  overflow: hidden;
+  box-shadow: 0 1.5rem 6.25rem #000c;
+}
+.online-app dialog.game-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+/* Keyboard shortcut list in the ? dialog (#168): keys in one column, what they do in the other. */
+.dialog-body .shortcut-group {
+  margin: 1.125rem 0 0.375rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.0625rem;
+  color: var(--fui-cyan);
+  text-transform: uppercase;
+}
+.dialog-body .shortcut-group:first-of-type {
+  margin-top: 0;
+}
+.dialog-body .shortcut-list {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  gap: 0.375rem 0.875rem;
+  margin: 0;
+}
+.dialog-body .shortcut-list dt {
+  color: var(--fui-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+}
+.dialog-body .shortcut-list dd {
+  margin: 0;
+  color: var(--fui-text-muted);
+  font-size: 0.8125rem;
+}
+@media (max-width: 400px) {
+  .dialog-body .shortcut-list {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.125rem;
+  }
+  .dialog-body .shortcut-list dd {
+    margin: 0 0 var(--fui-space-2);
+  }
+}
+/* The dialog shell's backdrop, bar, title, actions and body are fuse-ui's (components.css); these are Fuse's additions. */
+.dialog-bar {
+  flex-shrink: 0;
+}
+.online-app .dialog-bar button {
+  min-width: 6.25rem;
+  min-height: 2.875rem;
+  font-size: 0.9375rem;
+  border-color: var(--fui-pink-soft);
+  background: #3b1734;
+}
+.dialog-body {
+  -webkit-overflow-scrolling: touch;
+}
+.dialog-body h2 {
+  font-size: 1.375rem;
+  margin: 0 0 1.25rem;
+}
+.online-app .dialog-body label {
+  grid-template-columns: minmax(0, 1fr) 4.875rem 3.375rem;
+  font-size: 0.875rem;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-2) 0;
+  border-bottom: 0.0625rem solid #33496555;
+}
+.dialog-body input {
+  min-width: 0;
+  box-sizing: border-box;
+}
+.dialog-body > button {
+  width: 100%;
+  margin-top: var(--fui-space-4);
+}
+.dialog-body > p {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.dialog-body .link-diagnostics {
+  font:
+    0.6875rem/1.5 ui-monospace,
+    Menlo,
+    monospace;
+  color: #a3c5dc;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: var(--fui-space-2) 0 0;
+  padding: 0.625rem;
+  border: 0.0625rem solid #334965;
+  border-radius: 0.5rem;
+  background: #0a1426;
+}
+.online-app .dialog-body > input[type="number"] {
+  width: 100%;
+}
+.game-dialog .audio-controls {
+  position: static;
+  font: inherit;
+  z-index: auto;
+}
+.game-dialog .audio-controls > summary {
+  display: none;
+}
+.game-dialog .audio-panel {
+  position: static;
+  width: auto;
+  padding: 0;
+  box-shadow: none;
+  border: 0;
+  background: none;
+  gap: 0.875rem;
+}
+.online-app .game-dialog .audio-panel label {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--fui-space-2);
+  font-size: 1rem;
+  padding: var(--fui-space-2) 0;
+}
+.online-app .audio-panel button {
+  font: inherit;
+  font-size: 1rem;
+  min-height: 3rem;
+  white-space: normal;
+}
+.game-dialog .audio-panel small {
+  color: #a3b9ce;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+.game-dialog .audio-panel input[type="range"] {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0;
+  accent-color: var(--fui-cyan-deep);
+  touch-action: pan-y;
+}
+.game-dialog .audio-panel button[aria-pressed="true"] {
+  background: #4d2041;
+  border-color: var(--fui-pink-soft);
+}
+@media (max-width: 400px) {
+  .dialog-body {
+    padding: 0.875rem;
+  }
+  .dialog-bar {
+    padding: 0.625rem 0.875rem;
+  }
+  .online-app .dialog-body label {
+    font-size: 0.8125rem;
+    grid-template-columns: minmax(0, 1fr) 4.25rem 3rem;
+  }
+}
+
+.online-app .dialog-body input[type="number"] {
+  appearance: textfield;
+  text-align: right;
+}
+.online-app .dialog-body input[type="number"]::-webkit-inner-spin-button,
+.online-app .dialog-body input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.online-app .game-dialog .avatar-options {
+  grid-template-columns: repeat(auto-fit, minmax(3.875rem, 1fr));
+  gap: var(--fui-space-2);
+}
+.online-app .game-dialog .avatar-option {
+  min-width: 0;
+  padding: var(--fui-space-2) 0.1875rem;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  min-height: 5.375rem;
+}
+.game-dialog .avatar-portrait {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+}
+.game-dialog .avatar-picker {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.shared-lobby {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.5rem;
+  padding: var(--fui-space-5);
+  border: 0.0625rem solid #31556e;
+  background: radial-gradient(ellipse at center, #11284c, #040b1a);
+  border-radius: 0.75rem;
+}
+.shared-lobby img {
+  width: min(30vw, 16.25rem);
+  height: auto;
+  background: white;
+  border: 0.5rem solid white;
+  box-shadow: 0 0 2.5rem #00d9ff33;
+}
+.shared-room-code {
+  display: block;
+  font:
+    clamp(1.5rem, 5vw, 4rem) "Press Start 2P",
+    monospace;
+  color: var(--fui-cyan-deep);
+}
+.shared-lobby p {
+  max-width: 16.25rem;
+  line-height: 1.6;
+  color: var(--fui-text-muted);
+  font-size: 0.875rem;
+}
+@media (max-width: 700px) {
+  .shared-lobby {
+    gap: var(--fui-space-4);
+    padding: 0.875rem;
+  }
+  .shared-lobby img {
+    width: 7rem;
+    border-width: 0.3125rem;
+  }
+  .shared-lobby p {
+    font-size: 0.75rem;
+  }
+  .shared-lobby .landing-section-label {
+    font-size: 0.5625rem;
+  }
+  .shared-room-code {
+    font-size: 1.375rem;
+  }
+}
+
+/* Shared-screen phones devote their remaining viewport to thumb controls. */
+.online-app.controller-only {
+  padding: max(0.5rem, env(safe-area-inset-top))
+    max(0.5rem, env(safe-area-inset-right))
+    max(0.5rem, env(safe-area-inset-bottom))
+    max(0.5rem, env(safe-area-inset-left));
+  gap: var(--fui-space-2);
+}
+.controller-only .online-header {
+  flex: 0 0 auto;
+  gap: 0.375rem;
+}
+.controller-only .online-header strong {
+  font-size: 0.6875rem;
+}
+.controller-only .online-header > span {
+  font-size: 0.6875rem;
+  min-width: 0;
+}
+.controller-only .online-header button {
+  min-height: 2.75rem;
+  font-size: 0.8125rem;
+}
+.controller-only .online-notice {
+  flex: 0 0 auto;
+  font-size: 0.75rem;
+  min-height: 1rem;
+}
+.controller-only .online-roster {
+  flex: 0 0 auto;
+  max-height: 2rem;
+  overflow: auto;
+  font-size: 0.6875rem;
+  gap: var(--fui-space-1) 0.625rem;
+}
+.controller-only .online-controls {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.625rem;
+}
+.controller-only .online-controls button {
+  min-width: 0;
+  min-height: 0;
+  padding: var(--fui-space-3);
+  font-size: clamp(1.625rem, 6vw, 3rem);
+  border-width: 0.1875rem;
+  border-radius: var(--ui-radius);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  -webkit-touch-callout: none;
+}
+.controller-only .online-controls button:nth-child(1) {
+  grid-column: 1;
+  grid-row: 1;
+}
+.controller-only .online-controls button:nth-child(3) {
+  grid-column: 2;
+  grid-row: 1;
+}
+.controller-only .online-controls button:nth-child(2) {
+  grid-column: 1/-1;
+  grid-row: 2;
+  font-size: clamp(1.375rem, 5vw, 2.25rem);
+}
+.controller-only .online-host {
+  flex: 0 0 auto;
+}
+.controller-only .online-host button {
+  min-height: 2.5rem;
+  font-size: 0.75rem;
+}
+@media (orientation: landscape) {
+  .controller-only .online-controls {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  .controller-only .online-controls button:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .controller-only .online-controls button:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .controller-only .online-controls button:nth-child(3) {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
+.controller-only .online-header > strong {
+  flex: 1 0 100%;
+}
+.controller-only .online-header > span {
+  flex: 1 0 100%;
+  order: 2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.controller-only .online-header > button {
+  order: 1;
+}
+@media (orientation: landscape) {
+  .controller-only .online-header > strong {
+    flex: 0 0 auto;
+  }
+  .controller-only .online-header > span {
+    flex: 1 1 6.25rem;
+    order: 0;
+  }
+  .controller-only .online-header > button {
+    order: 0;
+  }
+}
+.online-controls,
+.online-controls button {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* The room uses the same neon arcade lobby as the shared-screen game. */
+.room-brand {
+  display: flex;
+  gap: var(--fui-space-3);
+  align-items: center;
+  font:
+    clamp(0.8125rem, 2vw, 1.5625rem) "Press Start 2P",
+    monospace;
+  white-space: nowrap;
+  font-style: italic;
+  letter-spacing: -0.06em;
+  text-shadow: 0 0 0.9375rem #00a9ff;
+}
+.room-brand span:first-child {
+  color: var(--fui-cyan-deep);
+}
+.room-brand span:last-child {
+  color: #ff318e;
+  text-shadow: 0 0 1.125rem #ff318e77;
+}
+.room-brand[role="link"] {
+  cursor: pointer;
+}
+.room-brand[role="link"]:focus-visible {
+  outline: 0.125rem solid #fff;
+  outline-offset: 0.25rem;
+}
+.online-app.room-waiting {
+  background: radial-gradient(ellipse at center, #0b1b36, #030817);
+  overflow: auto;
+}
+.room-waiting .online-notice {
+  display: none;
+}
+.room-waiting .online-controls {
+  display: none;
+}
+.room-waiting .online-header {
+  padding: 0.625rem var(--fui-space-2) 1.125rem;
+  border-bottom: 0.0625rem solid #1d5267;
+}
+.room-waiting .online-join {
+  flex-shrink: 0;
+  padding: 0.375rem;
+}
+.room-waiting .online-join input {
+  min-width: 0;
+}
+.room-lobby {
+  display: grid;
+  grid-template-columns: minmax(12.5rem, 1.2fr) minmax(11.25rem, 0.8fr) minmax(
+      11.25rem,
+      1fr
+    );
+  grid-template-rows: 1fr auto;
+  gap: var(--fui-space-6);
+  padding: clamp(1.5rem, 4vw, 4rem);
+  margin: 1.125rem auto 0;
+  width: min(72.5rem, 100%);
+  box-sizing: border-box;
+  min-height: 28.75rem;
+  border: 0.125rem solid var(--fui-violet);
+  border-radius: var(--ui-panel-radius);
+  background: linear-gradient(135deg, #091531, #040919);
+  box-shadow: 0 0 1.625rem #4035ca26;
+  align-items: center;
+}
+.room-lobby .room-eyebrow {
+  color: var(--fui-cyan);
+  font-size: 0.6875rem;
+  font-weight: bold;
+  letter-spacing: 0.125rem;
+}
+.room-lobby h1 {
+  font:
+    clamp(1.5rem, 3.5vw, 3rem)/1.35 "Press Start 2P",
+    monospace;
+  letter-spacing: -0.0625rem;
+  color: var(--fui-text);
+  text-shadow: 0.3125rem 0.3125rem #192755;
+  margin: var(--fui-space-4) 0 var(--fui-space-5);
+}
+.room-lobby .room-intro {
+  max-width: 19.375rem;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+.room-lobby .room-howto {
+  font-size: 0.625rem;
+  letter-spacing: 0.0625rem;
+  color: #f8d35c;
+  margin-top: var(--fui-space-5);
+}
+.room-qr-card {
+  background: #eefbff;
+  border: 0.25rem solid var(--fui-cyan-deep);
+  box-shadow: 0 0 1.875rem #00d9ff55;
+  padding: 0.875rem;
+  text-align: center;
+  justify-self: center;
+  max-width: 15rem;
+  box-sizing: border-box;
+  width: 100%;
+}
+.room-qr-card img {
+  display: block;
+  width: 100%;
+  max-width: 13.75rem;
+  border: 0;
+  box-shadow: none;
+  image-rendering: pixelated;
+}
+.room-lobby .room-qr-card p {
+  color: #08142b;
+  font-size: 0.75rem;
+  letter-spacing: 0.1875rem;
+  font-weight: 900;
+  margin: var(--fui-space-3) 0;
+}
+.room-qr-card .shared-room-code {
+  font:
+    1.375rem "Press Start 2P",
+    monospace;
+  color: var(--fui-deep);
+  letter-spacing: 0.1875rem;
+}
+.room-qr-link {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--fui-space-2);
+  margin-top: var(--fui-space-3);
+  border-top: 0.0625rem dashed #9cd6e8;
+  padding-top: 0.625rem;
+}
+.room-qr-url {
+  font:
+    0.6875rem ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+  color: var(--fui-deep);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.room-qr-card .room-qr-copy {
+  min-height: 0;
+  padding: var(--fui-space-2) 0.625rem;
+  font-size: 0.625rem;
+  letter-spacing: 0.125rem;
+  font-weight: 900;
+  border: 0.125rem solid var(--fui-deep);
+  border-radius: var(--ui-radius);
+  background: var(--fui-deep);
+  color: #eefbff;
+  cursor: pointer;
+}
+.room-qr-card .room-qr-copy:hover {
+  background: var(--fui-cyan-deep);
+  color: var(--fui-deep);
+}
+.room-qr-card .room-qr-copy.copied {
+  background: var(--fui-cyan-deep);
+  color: var(--fui-deep);
+}
+.room-riders {
+  display: grid;
+  gap: 0.5625rem;
+  min-width: 0;
+  width: 100%;
+}
+.room-rider {
+  border-radius: var(--ui-radius);
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-3);
+  border: 0.0625rem solid #334567;
+  background: #030b1c;
+  padding: 0.625rem;
+  min-width: 0;
+}
+.room-rider .avatar-portrait {
+  width: 2.625rem;
+  height: 2.625rem;
+  flex: 0 0 2.625rem;
+  border: 0.0625rem solid var(--rider-color);
+  box-shadow: 0 0 0.875rem
+    color-mix(in srgb, var(--rider-color) 20%, transparent);
+}
+.room-rider > div {
+  min-width: 0;
+}
+.room-rider strong {
+  display: block;
+  font-size: 0.9375rem;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  color: var(--fui-text);
+}
+.room-rider small {
+  display: block;
+  color: var(--rider-color);
+  font-size: 0.5625rem;
+  letter-spacing: 0.125rem;
+  margin-top: 0.3125rem;
+}
+.room-empty {
+  padding: 1.25rem;
+  border: 0.0625rem dashed #334567;
+}
+/* The watching list keeps the rider row's shape in neutral grey: in the room, plainly, without competing with the five seats. */
+.room-watchers {
+  order: 2;
+  display: grid;
+  gap: 0.5625rem;
+  min-width: 0;
+  width: 100%;
+  margin-top: 0.3125rem;
+  padding-top: var(--fui-space-3);
+  border-top: 0.0625rem solid #24364f;
+}
+.room-watchers-title {
+  margin: 0;
+  color: #8ba3c0;
+  font-size: 0.625rem;
+  font-weight: bold;
+  letter-spacing: 0.1875rem;
+}
+.room-watcher {
+  border-color: #24364f;
+  background: #020815;
+}
+.room-watcher .watcher-glyph {
+  width: 2.625rem;
+  height: 2.625rem;
+  flex: 0 0 2.625rem;
+  display: grid;
+  place-items: center;
+  border-radius: var(--ui-radius);
+  border: 0.0625rem solid #334567;
+  font-size: 1.125rem;
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+.room-watcher strong {
+  color: #b9d2e8;
+}
+.room-watcher small {
+  color: #8ba3c0;
+}
+/* Who runs the room. A word rather than a crown: the crown already means the round leader over in the standings. */
+.host-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  align-self: center;
+  font-size: 0.5rem;
+  font-weight: bold;
+  letter-spacing: 0.1875rem;
+  padding: 0.1875rem 0.4375rem;
+  border-radius: 0.6875rem;
+  border: 0.0625rem solid var(--rider-color, #8ba3c0);
+  color: var(--rider-color, #b9d2e8);
+  background: color-mix(in srgb, var(--rider-color, #8ba3c0) 14%, transparent);
+  text-shadow: 0 0 0.5rem
+    color-mix(in srgb, var(--rider-color, #8ba3c0) 60%, transparent);
+}
+/* A watcher row carries no rider colour, so its remove button takes the list's neutral grey. */
+.room-watcher > button {
+  color: #b9d2e8;
+  border-color: #334567;
+}
+.room-watcher .host-badge {
+  border-color: #8ba3c0;
+  color: #cfe2f5;
+  background: rgb(139 163 192 / 14%);
+  text-shadow: none;
+}
+/* A remove button that has been tapped once and is waiting for the second tap. */
+.room-rider > button.arming,
+.online-score-card > button.arming {
+  width: auto;
+  padding: 0.25rem 0.4375rem;
+  font-size: 0.5rem;
+  letter-spacing: 0.0625rem;
+  color: #ffd166;
+  border-color: #ffd166;
+  background: rgb(255 209 102 / 14%);
+}
+/* The seat did not vanish: the host took it back, and the card says so across the top of the join form. */
+.join-kicked {
+  grid-column: 1/-1;
+  margin: 0;
+  color: #ffd166;
+  font-size: 0.6875rem;
+  line-height: 1.5;
+}
+.room-lobby-footer {
+  grid-column: 1/-1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.125rem;
+  border-top: 0.0625rem solid #24364f;
+  padding-top: 1.25rem;
+  font-size: 0.75rem;
+  color: #8ba3c0;
+}
+.room-lobby-footer .online-host {
+  justify-content: flex-end;
+}
+.room-lobby-footer button {
+  font-size: 0.6875rem;
+  border-radius: var(--ui-radius);
+  padding: 0.625rem var(--fui-space-3);
+}
+.room-lobby-footer button:first-child {
+  font-weight: 900;
+  letter-spacing: 0.0625rem;
+  box-shadow: 0 0 0.9375rem #00d9ff25;
+  border-width: 0.125rem;
+}
+.landing-mode {
+  display: flex;
+  gap: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.landing-mode legend {
+  font-size: 0.6875rem;
+  color: #93a6c1;
+  margin-bottom: var(--fui-space-2);
+}
+.landing-mode label {
+  position: relative;
+  flex: 1 1 auto;
+  justify-content: center;
+  border-radius: var(--ui-radius);
+  display: flex;
+  gap: 0.4375rem;
+  align-items: center;
+  padding: var(--fui-space-2);
+  border: var(--fui-border);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  background: var(--ui-surface);
+}
+.landing-mode label:has(input:checked) {
+  border-color: var(--fui-cyan);
+  background: var(--ui-cyan-fill);
+  color: #03253d;
+  font-weight: 700;
+  box-shadow: 0 0 0.875rem #16e7ff33;
+}
+.landing-mode label:has(input:focus-visible) {
+  outline: 0.1875rem solid #fff;
+  outline-offset: 0.1875rem;
+  z-index: 1;
+}
+/* Keep native radio semantics and arrow-key navigation in the filled selector. */
+.landing-mode input[type="radio"] {
+  position: absolute;
+  min-height: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  clip-path: inset(50%);
+  overflow: hidden;
+}
+@media (max-width: 800px) {
+  .room-lobby {
+    grid-template-columns: 1fr 1fr;
+    padding: var(--fui-space-5);
+    gap: var(--fui-space-5);
+    min-height: 0;
+  }
+  .room-lobby-copy {
+    grid-column: 1/-1;
+  }
+  .room-lobby h1 {
+    font-size: 1.5625rem;
+    margin: var(--fui-space-3) 0;
+  }
+  .room-lobby .room-intro {
+    max-width: 100%;
+    margin: 0;
+    font-size: 0.8125rem;
+  }
+  .room-lobby .room-howto {
+    margin-top: var(--fui-space-3);
+  }
+  .room-lobby-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .room-lobby-footer .online-host {
+    justify-content: flex-start;
+  }
+  .room-lobby .room-qr-card {
+    max-width: 11.875rem;
+  }
+  .room-lobby .room-qr-card img {
+    width: 100%;
+  }
+  .room-waiting .online-header {
+    padding: var(--fui-space-1) 0 0.625rem;
+  }
+  .room-waiting .online-header > span {
+    flex-basis: 100%;
+    order: 2;
+  }
+  .room-waiting .online-header button {
+    font-size: 0.75rem;
+  }
+  .room-waiting .room-brand {
+    flex-basis: 100%;
+    font-size: 1.0625rem;
+  }
+  .room-rider {
+    padding: 0.4375rem;
+    gap: 0.4375rem;
+  }
+  .room-rider .avatar-portrait {
+    width: 1.875rem;
+    height: 1.875rem;
+    flex-basis: 1.875rem;
+  }
+  .room-rider strong {
+    font-size: 0.75rem;
+  }
+}
+@media (max-width: 400px) {
+  .room-lobby {
+    padding: 1.125rem;
+    gap: 0.875rem;
+  }
+  .room-lobby h1 {
+    font-size: 1.375rem;
+  }
+  .room-qr-card {
+    padding: 0.4375rem;
+  }
+  .room-qr-card .shared-room-code {
+    font-size: 1rem;
+  }
+  .room-qr-url {
+    font-size: 0.625rem;
+  }
+  .room-qr-card .room-qr-copy {
+    font-size: 0.5625rem;
+    padding: 0.4375rem var(--fui-space-2);
+  }
+  .room-lobby .room-qr-card p {
+    font-size: 0.5625rem;
+    letter-spacing: 0.0625rem;
+  }
+  .room-lobby .room-eyebrow {
+    font-size: 0.5625rem;
+  }
+  .room-rider {
+    gap: 0.3125rem;
+  }
+  .room-rider .avatar-portrait {
+    width: 1.5625rem;
+    height: 1.5625rem;
+    flex-basis: 1.5625rem;
+  }
+}
+
+.room-rider > button {
+  margin-left: auto;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  padding: var(--fui-space-1);
+  color: var(--rider-color);
+  border-color: var(--rider-color);
+  flex-shrink: 0;
+}
+
+/* Post-match summary, with the detailed report available from the persistent footer. */
+.online-app dialog.game-dialog.recap-dialog {
+  width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  max-width: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: #eef0ff;
+  background: transparent;
+  isolation: isolate;
+}
+.recap-dialog::backdrop {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* The existing Phaser canvas is the continuous room scene, including lobby/results. */
+.online-app.scene-background {
+  isolation: isolate;
+}
+.online-app.scene-background > .online-arena {
+  position: fixed;
+  inset: -24px;
+  width: calc(100vw + 48px) !important;
+  height: calc(100dvh + 48px) !important;
+  max-width: none !important;
+  max-height: none !important;
+  object-fit: cover;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  filter: blur(10px) brightness(0.45);
+  pointer-events: none;
+  z-index: var(--fui-z-scene);
+}
+.online-app.scene-background .shared-lobby {
+  background: transparent;
+  border: 0;
+}
+/* Results float over the arena alone; room controls return when the dialog closes. */
+.online-app:has(.recap-dialog[open]) > :not(.online-arena):not(dialog) {
+  visibility: hidden;
+}
+/* WATCH temporarily brings the same scene forward, sharp and uncropped. */
+.online-app.scene-background.replaying > .online-arena {
+  inset: 0;
+  width: 100vw !important;
+  height: 100dvh !important;
+  object-fit: contain;
+  filter: none;
+}
+.online-app.scene-background.replaying > :not(.online-arena):not(dialog) {
+  visibility: hidden;
+}
+.recap-dialog .dialog-body {
+  flex: 1;
+  padding: max(2.5rem, env(safe-area-inset-top))
+    max(2rem, env(safe-area-inset-right)) 2rem
+    max(2rem, env(safe-area-inset-left));
+}
+.match-recap-report {
+  width: min(100%, 72rem);
+  margin: 0 auto;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.recap-masthead {
+  padding-right: var(--fui-space-6);
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: var(--fui-space-5);
+}
+.recap-brand {
+  color: #f4f0ff;
+  font:
+    clamp(0.75rem, 1.5vw, 1.25rem)/1.5 "Press Start 2P",
+    monospace;
+  text-shadow: 0 0 1rem #9b63ff70;
+}
+.recap-context {
+  display: grid;
+  gap: var(--fui-space-2);
+  text-align: right;
+  color: #a6bee7;
+}
+.recap-context > span {
+  font-size: 0.875rem;
+  letter-spacing: 0.24em;
+}
+.recap-context small {
+  font-size: 0.75rem;
+}
+.recap-victory {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 1.25rem;
+  padding: 1.75rem 0 3.5rem;
+}
+.recap-crown {
+  width: 3.5rem;
+  height: 2.75rem;
+  background: var(--winner-color);
+  clip-path: polygon(
+    0 20%,
+    14% 20%,
+    14% 40%,
+    28% 40%,
+    28% 20%,
+    42% 20%,
+    42% 0,
+    58% 0,
+    58% 20%,
+    72% 20%,
+    72% 40%,
+    86% 40%,
+    86% 20%,
+    100% 20%,
+    100% 60%,
+    90% 60%,
+    90% 82%,
+    10% 82%,
+    10% 60%,
+    0 60%
+  );
+  filter: drop-shadow(0 0 0.7rem var(--winner-color));
+}
+.recap-dialog .dialog-body .recap-victory h2 {
+  max-width: 100%;
+  margin: 0;
+  font:
+    clamp(1.3rem, 3.8vw, 3.5rem)/1.5 "Press Start 2P",
+    monospace;
+  color: #f7f4ff;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+  text-shadow:
+    0 0 0.2rem var(--winner-color),
+    0 0 2rem color-mix(in srgb, var(--winner-color) 45%, transparent);
+}
+.recap-victory p {
+  margin: 0;
+  color: #c5c4d9;
+  font-size: clamp(0.85rem, 1.5vw, 1.25rem);
+  overflow-wrap: anywhere;
+}
+.recap-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr);
+  gap: 2.5rem;
+}
+.match-recap-report h3 {
+  margin: 0 0 1.125rem;
+  color: #afc9ff;
+  font-size: 1rem;
+  letter-spacing: 0.19em;
+  line-height: 1.5;
+}
+.recap-standings table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 1rem;
+}
+.recap-standings th,
+.recap-standings td {
+  padding: 0.95rem var(--fui-space-3);
+  text-align: center;
+}
+.recap-standings thead th {
+  color: #92a6cb;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+.recap-standings th:first-child {
+  width: 3.5rem;
+}
+.recap-standings th:nth-child(2) {
+  width: auto;
+  text-align: left;
+}
+.recap-standings th:nth-child(n + 3) {
+  width: 5rem;
+}
+.recap-standings tbody tr {
+  border-bottom: 1px solid #24365c;
+}
+.recap-standings tbody td:first-child {
+  color: #9bb7e7;
+}
+.recap-standings .is-champion {
+  background: color-mix(in srgb, var(--player-color) 13%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--player-color) 50%, transparent);
+  outline-offset: -1px;
+}
+.recap-standings .is-you {
+  background: color-mix(in srgb, var(--player-color) 12%, transparent);
+  box-shadow:
+    inset 0 1px color-mix(in srgb, var(--player-color) 50%, transparent),
+    inset 0 -1px color-mix(in srgb, var(--player-color) 50%, transparent);
+}
+.recap-rider-name {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  text-align: left;
+  text-transform: uppercase;
+}
+.recap-rider-name > span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.recap-rider-name i {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: 0 0 0.85rem;
+  transform: rotate(45deg);
+  background: var(--player-color);
+  box-shadow: 0 0 1rem color-mix(in srgb, var(--player-color) 50%, transparent);
+}
+.recap-rider-name small {
+  font-size: 0.6rem;
+  color: var(--player-color);
+}
+.recap-standings .is-you .recap-rider-name {
+  color: var(--player-color);
+}
+.recap-tie-note {
+  margin: 1.25rem 0 0;
+  color: #94aacf;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.recap-featured {
+  border-left: 1px solid #253554;
+  padding-left: 2.5rem;
+  min-width: 0;
+}
+.recap-feature {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--fui-space-5);
+  margin: 2.5rem 0;
+}
+.recap-feature-icon {
+  font-size: 3.5rem;
+  text-shadow: 0 0 1.5rem currentColor;
+  text-align: center;
+  line-height: 1;
+}
+.recap-feature h4 {
+  margin: 0 0 var(--fui-space-2);
+  font-size: 1rem;
+  letter-spacing: 0.04em;
+}
+.recap-feature-names {
+  margin: 0 0 var(--fui-space-2);
+  font-size: 1rem;
+}
+.recap-feature small {
+  color: #94aacf;
+  font-size: 0.75rem;
+  line-height: 1.7;
+}
+.recap-feature > div {
+  overflow-wrap: anywhere;
+}
+.recap-details:not([hidden]) {
+  display: grid;
+  gap: var(--fui-space-4);
+  padding-top: 3rem;
+}
+.recap-details {
+  scroll-margin-top: 1rem;
+}
+.online-app .recap-dialog .dialog-bar {
+  order: 2;
+  margin: 0 max(2rem, env(safe-area-inset-right)) 0
+    max(2rem, env(safe-area-inset-left));
+  padding: 1.25rem 0 max(1.5rem, env(safe-area-inset-bottom));
+  border: 0;
+  border-top: 1px solid #2c3d61;
+  background: transparent;
+}
+.recap-dialog .dialog-bar > strong {
+  display: none;
+}
+.recap-dialog .dialog-actions {
+  margin-left: auto;
+  align-items: center;
+  gap: var(--fui-space-5);
+}
+.online-app .recap-dialog .dialog-bar button {
+  min-height: 3rem;
+  color: #a7bfe9;
+  border-color: transparent;
+  background: transparent;
+  font:
+    0.875rem/1.4 ui-monospace,
+    monospace;
+  padding: var(--fui-space-2) var(--fui-space-1);
+}
+.online-app .recap-dialog .dialog-bar .recap-stats-toggle {
+  text-decoration: underline;
+  text-underline-offset: 0.35rem;
+  text-align: left;
+}
+.online-app
+  .recap-dialog
+  .dialog-actions
+  button[title="Play the same match again"] {
+  order: 2;
+  padding: var(--fui-space-3) var(--fui-space-6);
+  min-width: 11rem;
+  border: 1px solid #79efff;
+  border-radius: 0.25rem;
+  color: #79efff;
+  background: #53d7ef12;
+  box-shadow:
+    inset 0 0 0 3px #070c1d,
+    0 0 1.5rem #53d7ef0a;
+  font-size: 1.125rem;
+  letter-spacing: 0.05em;
+}
+.online-app
+  .recap-dialog
+  .dialog-actions
+  button[title="Play the same match again"]::after {
+  content: " →";
+}
+.online-app .recap-dialog .dialog-bar button:hover {
+  color: #fff;
+  background-color: #92c7ff12;
+}
+.online-app .recap-dialog button:focus-visible {
+  outline: 2px solid #79efff;
+  outline-offset: 3px;
+}
+.online-app .recap-dialog .dialog-bar .dialog-close {
+  position: absolute;
+  top: max(0.25rem, env(safe-area-inset-top));
+  right: max(0.25rem, env(safe-area-inset-right));
+  z-index: 2;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: var(--fui-space-2);
+}
+.match-recap-report .recap-empty {
+  text-align: center;
+  padding: 4rem 0;
+  color: #94aacf;
+}
+.match-recap-report .recap-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6rem, 1fr));
+  gap: 0.375rem;
+}
+.match-recap-report .recap-total {
+  display: grid;
+  gap: 0.3125rem;
+  padding: var(--fui-space-2) 0.375rem;
+  border: 0.0625rem solid #20365f;
+  background: #040d24;
+  text-align: center;
+  min-width: 0;
+}
+.match-recap-report .recap-total strong {
+  color: #ffe55e;
+  font:
+    0.75rem/1.2 "Press Start 2P",
+    ui-monospace,
+    monospace;
+  text-shadow: 0 0 0.625rem #ffe55e55;
+  overflow-wrap: anywhere;
+}
+.match-recap-report .recap-total small {
+  color: var(--fui-text-dim);
+  font-size: 0.625rem;
+  letter-spacing: 0.0625rem;
+}
+.match-recap-report .recap-awards {
+  grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+}
+.match-recap-report .recap-highlights {
+  grid-template-columns: repeat(auto-fit, minmax(13.75rem, 1fr));
+}
+.match-recap-report .recap-comparison {
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+}
+.match-recap-report .comparison-row {
+  min-width: 51.25rem;
+  grid-template-columns:
+    minmax(9.375rem, 1.55fr) repeat(7, minmax(3.25rem, 1fr))
+    minmax(14.375rem, 2.4fr) repeat(2, minmax(3.25rem, 1fr));
+}
+
+@media (max-width: 700px) {
+  .recap-dialog .dialog-body {
+    padding: max(1.25rem, env(safe-area-inset-top)) 1rem 1.5rem;
+  }
+  .recap-context > span {
+    font-size: 0.625rem;
+    letter-spacing: 0.12em;
+  }
+  .recap-context small {
+    font-size: 0.625rem;
+  }
+  .recap-victory {
+    padding: var(--fui-space-6) 0;
+    gap: var(--fui-space-4);
+  }
+  .recap-overview {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--fui-space-6);
+  }
+  .recap-featured {
+    padding: var(--fui-space-5) 0 0;
+    border-left: 0;
+    border-top: 1px solid #253554;
+  }
+  .recap-feature {
+    margin: var(--fui-space-5) 0;
+  }
+  .recap-standings th,
+  .recap-standings td {
+    padding: 0.9rem 0.375rem;
+    font-size: 0.8125rem;
+  }
+  .recap-standings th:first-child {
+    width: 2rem;
+  }
+  .recap-standings th:nth-child(n + 3) {
+    width: 3.5rem;
+  }
+  .recap-rider-name {
+    gap: var(--fui-space-3);
+    flex-wrap: wrap;
+  }
+  .recap-rider-name > span {
+    flex: 1;
+  }
+  .recap-rider-name small {
+    flex-basis: 100%;
+  }
+  .recap-rider-name i {
+    width: 0.625rem;
+    height: 0.625rem;
+    flex-basis: 0.625rem;
+  }
+  .online-app .recap-dialog .dialog-bar {
+    margin: 0 var(--fui-space-4);
+    flex-wrap: wrap;
+    gap: var(--fui-space-3);
+    padding-top: var(--fui-space-3);
+  }
+  .recap-dialog .dialog-actions {
+    gap: var(--fui-space-4);
+  }
+  .online-app
+    .recap-dialog
+    .dialog-actions
+    button[title="Play the same match again"] {
+    min-width: auto;
+    padding: 0.65rem var(--fui-space-4);
+    font-size: 0.875rem;
+  }
+  .online-app .recap-dialog .dialog-bar button {
+    font-size: 0.75rem;
+  }
+  .match-recap-report .recap-totals {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .match-recap-report .recap-highlights {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (orientation: landscape) and (max-height: 550px) {
+  .recap-dialog .dialog-body {
+    padding-top: var(--fui-space-4);
+  }
+  .recap-victory {
+    padding: var(--fui-space-4) 0 var(--fui-space-5);
+    gap: var(--fui-space-3);
+  }
+  .recap-crown {
+    width: 2rem;
+    height: 1.5rem;
+  }
+  .recap-dialog .dialog-body .recap-victory h2 {
+    font-size: 1.5rem;
+  }
+  .recap-featured {
+    padding-left: var(--fui-space-5);
+  }
+  .recap-feature {
+    gap: var(--fui-space-4);
+    margin: var(--fui-space-5) 0;
+  }
+  .online-app .recap-dialog .dialog-bar {
+    padding-top: var(--fui-space-2);
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+}
+.room-boot {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fui-space-4);
+  text-align: center;
+  color: var(--fui-text-muted);
+}
+.room-boot-title {
+  font:
+    0.75rem/1 "Press Start 2P",
+    monospace;
+  letter-spacing: 0.1875rem;
+  color: var(--fui-cyan-deep);
+}
+.room-boot-note {
+  font-size: 0.8125rem;
+  animation: room-boot-pulse 1.4s ease-in-out infinite;
+}
+@keyframes room-boot-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.online-app.booting .online-arena,
+.online-app.booting .online-scoreboard,
+.online-app.booting .online-join,
+.online-app.booting .online-footer,
+.online-app.booting .online-header > span,
+.online-app.room-over .online-arena,
+.online-app.room-over .online-scoreboard,
+.online-app.room-over .online-join,
+.online-app.room-over .online-footer {
+  display: none;
+}
+.room-over-card .room-boot-note {
+  animation: none;
+  color: #ffdf56;
+  max-width: 32ch;
+}
+.room-over-home {
+  display: inline-block;
+  padding: 0.625rem var(--fui-space-4);
+  border: 0.125rem solid var(--fui-cyan-deep);
+  color: var(--fui-cyan-deep);
+  text-decoration: none;
+  font-size: 0.75rem;
+  letter-spacing: 0.125rem;
+}
+.online-header > span {
+  max-height: 2.8em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* Joiner path: a phone or laptop that did not create the room gets name + avatar + JOIN and nothing of the host's boot card or QR lobby. */
+/* The form's grid is fuse-ui's name entry (components.css). */
+.online-join .join-hint {
+  grid-column: 1/-1;
+  margin: 0;
+  color: #ff9bc4;
+  font-size: 0.8125rem;
+}
+.online-join > input {
+  min-width: 0;
+}
+.lobby-join-title {
+  display: none;
+}
+.room-riders .online-join {
+  grid-template-columns: minmax(0, 1fr);
+  padding: 0.875rem;
+  border: 0.125rem solid var(--fui-cyan-deep);
+  background: #091b32;
+  box-shadow: 0 0 1.25rem #00d9ff20;
+}
+.room-riders .lobby-join-title {
+  display: block;
+  margin: 0 0 var(--fui-space-1);
+  color: var(--fui-cyan);
+  font-size: 0.8125rem;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+}
+.room-riders .online-join > button:not(.avatar-current):not(.join-spectate) {
+  min-height: 2.75rem;
+  background: var(--fui-cyan-deep);
+  color: #061126;
+  font-weight: bold;
+}
+/* The second way in sits under JOIN AS PLAYER as an outline button with no glow, so the seat stays the obvious choice. */
+.online-join .join-spectate {
+  grid-column: 1/-1;
+  min-height: 2.25rem;
+  background: transparent;
+  border: 0.0625rem solid #334567;
+  color: #8ba3c0;
+  font-size: 0.6875rem;
+  font-weight: normal;
+  letter-spacing: 0.08em;
+  box-shadow: none;
+}
+.online-join .join-spectate:hover:not(:disabled) {
+  border-color: #16e7ff;
+  color: #cfe8ff;
+}
+@media (max-width: 600px) {
+  .room-lobby .room-riders:has(.online-join:not([hidden])) {
+    grid-column: 1 / -1;
+  }
+}
+.online-join .avatar-picker {
+  grid-column: 1/-1;
+  padding: 0;
+}
+.online-join .avatar-current {
+  grid-column: 1/-1;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 2.75rem;
+  padding: var(--fui-space-1) 0.625rem;
+  text-align: left;
+  border-color: var(--fui-line);
+  font-size: 0.8125rem;
+}
+.online-join .avatar-current .avatar-portrait {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+}
+.online-join .avatar-change {
+  margin-left: auto;
+  padding: var(--fui-space-1) var(--fui-space-2);
+  border: 0.0625rem solid var(--fui-cyan);
+  color: var(--fui-cyan);
+  font-size: 0.6875rem;
+  letter-spacing: 0.0625rem;
+}
+.online-join .avatar-option {
+  min-width: 0;
+  min-height: 0;
+  padding: 0.375rem 0.125rem;
+  font-size: 0.625rem;
+  border-radius: 0.5rem;
+  border-width: 0.125rem;
+}
+.online-join .avatar-portrait {
+  width: 2.125rem;
+  height: 2.125rem;
+}
+.online-app.joining .online-arena,
+.online-app.joining .online-scoreboard,
+.online-app.joining .online-footer {
+  display: none;
+}
+.room-join {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fui-space-3);
+  padding: var(--fui-space-4);
+  text-align: center;
+  color: var(--fui-text-muted);
+}
+.room-join .online-join {
+  width: min(27.5rem, 100%);
+  text-align: left;
+}
+.room-join .room-eyebrow {
+  color: var(--fui-cyan);
+  font-size: 0.6875rem;
+  font-weight: bold;
+  letter-spacing: 0.125rem;
+  margin: 0;
+}
+.room-join .shared-room-code {
+  font-size: clamp(1.375rem, 5vw, 2.5rem);
+}
+/* The lobby grows to its content instead of shrinking under the form: the page scrolls rather than painting the footer's actions beneath the join form. */
+.online-app > .room-lobby {
+  flex: 1 0 auto;
+}
+.online-join .avatar-options {
+  grid-template-columns: repeat(auto-fit, minmax(4rem, 1fr));
+}
+.room-join .avatar-options {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.net-stats {
+  position: fixed;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  z-index: var(--fui-z-panel);
+  margin: 0;
+  padding: 0.375rem var(--fui-space-2);
+  font: 0.6875rem/1.45 monospace;
+  white-space: pre;
+  color: #cfe6ff;
+  background: rgba(2, 6, 20, 0.75);
+  border: 0.0625rem solid rgba(120, 180, 255, 0.35);
+  pointer-events: none;
+}
+/* Phone lobby (#134): a phone in the lobby is a scrolling screen, not the TV lobby and not the thirds controller. It is the desktop lobby stacked: brand row, headline, QR card, riders, actions — no card around the whole page. */
+.online-app.phone-lobby {
+  padding: max(0.5rem, env(safe-area-inset-top))
+    max(0.875rem, env(safe-area-inset-right))
+    max(0.875rem, env(safe-area-inset-bottom))
+    max(0.875rem, env(safe-area-inset-left));
+  gap: 0.875rem;
+  overflow: auto;
+}
+.online-app.phone-lobby > .online-header {
+  order: -3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0 0 0.625rem;
+  border-bottom: 0.0625rem solid #1d5267;
+}
+/* Row one is the brand with the link status beside it; the buttons share the row beneath, so none of them ends up a lone box. */
+.online-app.phone-lobby .online-header .room-brand {
+  flex: 0 0 auto;
+  font-size: 0.875rem;
+  gap: var(--fui-space-2);
+}
+.online-app.phone-lobby .online-header .room-brand span {
+  flex: 0 0 auto;
+}
+.online-app.phone-lobby .online-header > .online-status {
+  flex: 1 1 7.5rem;
+  order: 0;
+  min-width: 0;
+  font-size: 0.625rem;
+  letter-spacing: 0.0625rem;
+  color: #6f8aa8;
+  text-align: right;
+  overflow: hidden;
+  max-height: none;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.online-app.phone-lobby.booting .online-header > .online-status,
+.online-app.phone-lobby .online-header > .online-status:empty {
+  display: none;
+}
+.online-app.phone-lobby .online-header button {
+  order: 1;
+  flex: 1 1 auto;
+  min-height: 2.25rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.0625rem;
+  padding: 0.375rem 0.625rem;
+  white-space: nowrap;
+}
+.online-app.phone-lobby .online-header .desktop-help {
+  display: none;
+}
+.online-app.phone-lobby > .online-join {
+  order: -2;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-3);
+  border: 0.0625rem solid #31556e;
+  background: #061329;
+}
+/* Nothing in the scrolling phone column may shrink below its content: a squeezed notice painted behind the QR card (#142). */
+.online-app.phone-lobby > * {
+  flex-shrink: 0;
+}
+/* The scoreboard is display:contents, so the notice itself takes the flex order (and is not a direct child, so it needs its own no-shrink): it reads above the lobby. */
+.online-app.phone-lobby .online-notice {
+  order: -1;
+  display: block;
+  flex: 0 0 auto;
+  min-height: 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.0625rem;
+  line-height: 1.4;
+  color: #f8d35c;
+  text-align: center;
+  padding: 0;
+}
+.online-app.phone-lobby > .room-lobby {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 0;
+  margin: 0;
+  width: auto;
+  min-height: 0;
+  flex: 0 0 auto;
+  align-items: stretch;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+.online-app.phone-lobby .room-lobby h1 {
+  font-size: 1.375rem;
+  line-height: 1.3;
+  margin: var(--fui-space-2) 0 0;
+  text-shadow: 0.1875rem 0.1875rem #192755;
+}
+.online-app.phone-lobby .room-lobby .room-intro,
+.online-app.phone-lobby .room-lobby .room-howto {
+  display: none;
+}
+.online-app.phone-lobby .room-qr-card {
+  max-width: none;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 6.75rem minmax(0, 1fr);
+  column-gap: 0.875rem;
+  align-items: center;
+  text-align: left;
+  padding: var(--fui-space-3);
+  justify-self: stretch;
+}
+.online-app.phone-lobby .room-qr-card img {
+  grid-row: 1/4;
+  width: 6.75rem;
+  max-width: none;
+}
+.online-app.phone-lobby .room-lobby .room-qr-card p {
+  margin: 0;
+  font-size: 0.5625rem;
+  letter-spacing: 0.125rem;
+}
+.online-app.phone-lobby .room-qr-card .shared-room-code {
+  font-size: 1.5rem;
+  letter-spacing: 0.125rem;
+  margin: 0.125rem 0;
+}
+.online-app.phone-lobby .room-qr-link {
+  margin-top: 0.375rem;
+  padding-top: var(--fui-space-2);
+  flex-direction: row;
+  align-items: center;
+  gap: var(--fui-space-2);
+}
+/* A phone has no room for a readable URL beside the button, so it copies the link without showing a truncated one (#142). */
+.online-app.phone-lobby .room-qr-url {
+  display: none;
+}
+.online-app.phone-lobby .room-qr-card .room-qr-copy {
+  flex: 1 1 auto;
+  min-height: 2.5rem;
+  padding: 0.375rem 0.625rem;
+}
+.online-app.phone-lobby .room-riders {
+  gap: var(--fui-space-2);
+}
+.online-app.phone-lobby .room-rider {
+  padding: var(--fui-space-2) var(--fui-space-3);
+  gap: var(--fui-space-3);
+  border: 0;
+  border-left: 0.1875rem solid var(--rider-color);
+  background: #071125;
+}
+.online-app.phone-lobby .room-rider .avatar-portrait {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-basis: 2.25rem;
+}
+.online-app.phone-lobby .room-rider strong {
+  font-size: 0.8125rem;
+}
+.online-app.phone-lobby .room-empty {
+  padding: 0.875rem 0;
+  font-size: 0.75rem;
+  border: 0;
+  color: var(--fui-text-dim);
+  text-align: center;
+}
+.online-app.phone-lobby .room-lobby-footer {
+  grid-column: auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.625rem;
+  padding-top: 0.875rem;
+  font-size: 0.6875rem;
+  letter-spacing: 0.0625rem;
+}
+.online-app.phone-lobby .room-lobby-footer .online-host {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--fui-space-2);
+  justify-content: stretch;
+}
+.online-app.phone-lobby .room-lobby-footer .online-host button {
+  min-height: 2.875rem;
+  font-size: 0.75rem;
+  padding: var(--fui-space-2);
+}
+.online-app.phone-lobby .room-lobby-footer .online-host button:first-child {
+  grid-column: 1/-1;
+  min-height: 3.375rem;
+  font-size: 0.9375rem;
+  background: var(--fui-cyan-deep);
+  color: var(--fui-ink);
+  border-color: var(--fui-cyan-deep);
+}
+.online-app.phone-lobby
+  .room-lobby-footer
+  .online-host
+  button:first-child:disabled {
+  background: #08152b;
+  color: var(--fui-text);
+}
+.online-app.phone-lobby .room-lobby-footer .online-host button[hidden] {
+  display: none;
+}
+@media (orientation: landscape) {
+  .online-app.phone-lobby > .room-lobby {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: start;
+    column-gap: var(--fui-space-4);
+  }
+  .online-app.phone-lobby .room-lobby-copy {
+    display: none;
+  }
+  .online-app.phone-lobby .room-qr-card {
+    grid-column: 1;
+    grid-row: 1/3;
+  }
+  .online-app.phone-lobby .room-riders {
+    grid-column: 2;
+  }
+  .online-app.phone-lobby .room-lobby-footer {
+    grid-column: 2;
+  }
+  .online-app.phone-lobby .room-qr-card[hidden] ~ .room-riders {
+    grid-column: 1;
+  }
+  .online-app.phone-lobby .room-qr-card[hidden] ~ .room-lobby-footer {
+    grid-column: 2;
+    grid-row: 1/3;
+  }
+}
+
+/* --- AAA pass: in-arena announcements, elimination feed, link status tones, header hierarchy, phone HUD. --- */
+.online-announce {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: var(--fui-z-announce);
+  display: grid;
+  gap: var(--fui-space-2);
+  justify-items: center;
+  text-align: center;
+  padding: 1.125rem 2.125rem;
+  max-width: min(92vw, 45rem);
+  box-sizing: border-box;
+  background: #020715db;
+  border: 0.1875rem solid var(--fui-pink);
+  box-shadow: 0 0 2.5rem #ff2e9d61;
+  pointer-events: none;
+}
+.online-announce[hidden] {
+  display: none !important;
+}
+.online-announce .announce-small {
+  color: var(--fui-cyan-deep);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  font-size: 0.75rem;
+}
+.online-announce strong {
+  display: block;
+  font-family: var(--fui-font-pixel);
+  font-size: clamp(1.375rem, 4.5vw, 3.5rem);
+  line-height: 1.2;
+  color: #fff;
+  text-shadow:
+    0.3125rem 0.3125rem 0 #842562,
+    0 0 1.375rem var(--fui-pink);
+  overflow-wrap: anywhere;
+}
+.online-announce.countdown strong {
+  font-size: clamp(3.5rem, 14vw, 7.5rem);
+}
+/* Riders spawn under this card, and the countdown is when each one looks for theirs: keep it see-through. */
+.online-announce.countdown {
+  background: #02071557;
+}
+.online-announce.countdown .announce-small,
+.online-announce.countdown .announce-hint {
+  text-shadow:
+    0 0 0.25rem var(--fui-navy),
+    0 0 0.5rem var(--fui-navy),
+    0 0.0625rem 0 var(--fui-navy);
+}
+.online-announce .announce-rows {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--fui-space-1) var(--fui-space-4);
+  color: #b9cae6;
+  font-size: 0.8125rem;
+}
+.online-announce .announce-rows span {
+  white-space: nowrap;
+}
+.online-announce .announce-hint {
+  margin: 0;
+  color: var(--fui-yellow);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  max-width: 32.5rem;
+}
+.online-announce .announce-hint:empty {
+  display: none;
+}
+.online-announce.overtime {
+  top: max(3.625rem, 8vh);
+  transform: translateX(-50%);
+  padding: 0.375rem 0.875rem;
+  border-color: #ff8b22;
+  box-shadow: 0 0 1.5rem #ff8b2255;
+}
+.online-announce.overtime strong {
+  font-size: 0.8125rem;
+  color: #ffb85a;
+  text-shadow: none;
+}
+/* The match result follows the final round's own card in the same spot: gold, and a keyframe name of its own so the
+   card pops a second time rather than only changing its words. */
+.online-announce.final {
+  border-color: var(--fui-yellow);
+  box-shadow: 0 0 3rem #ffe46b7a;
+  animation: announce-crown 0.5s ease-out;
+}
+.online-announce.final .announce-small {
+  color: var(--fui-yellow);
+}
+.online-announce.final strong {
+  text-shadow:
+    0.3125rem 0.3125rem 0 #8a6a12,
+    0 0 1.375rem var(--fui-yellow);
+}
+.online-announce.round {
+  animation: announce-pop 0.3s ease-out;
+}
+.online-app .online-announce .announce-action {
+  pointer-events: auto;
+  min-width: 12.5rem;
+  min-height: 3rem;
+  font-weight: 900;
+  letter-spacing: 0.0625rem;
+  background: var(--player-color);
+  color: var(--fui-ink);
+  border-color: #fff;
+  box-shadow: 0 0 1.125rem
+    color-mix(in srgb, var(--player-color) 60%, transparent);
+}
+@keyframes announce-crown {
+  from {
+    transform: translate(-50%, -50%) scale(1.25);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+@keyframes announce-pop {
+  from {
+    transform: translate(-50%, -50%) scale(0.85);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .online-announce {
+    animation: none !important;
+  }
+}
+.online-app.announcing .online-notice {
+  visibility: hidden;
+}
+.online-feed {
+  position: fixed;
+  left: 50%;
+  top: max(6rem, 14vh);
+  transform: translateX(-50%);
+  z-index: var(--fui-z-feed);
+  display: grid;
+  gap: var(--fui-space-1);
+  justify-items: center;
+  pointer-events: none;
+}
+.online-feed span {
+  padding: var(--fui-space-1) var(--fui-space-3);
+  background: #071428d9;
+  border: 0.0625rem solid #ffffff2e;
+  color: #ffe8f4;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  animation: feed-in 0.2s ease-out;
+  white-space: nowrap;
+}
+.online-feed:empty {
+  display: none;
+}
+@keyframes feed-in {
+  from {
+    transform: translateY(-0.5rem);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+.online-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.online-status::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #ffd25a;
+  box-shadow: 0 0 0.5rem #ffd25a;
+  flex: 0 0 auto;
+  animation: status-pulse 1.2s infinite;
+}
+.online-status[data-tone="ok"]::before {
+  background: #6dff9a;
+  box-shadow: 0 0 0.5rem #6dff9a;
+  animation: none;
+}
+.online-status[data-tone="bad"]::before {
+  background: #ff5a7a;
+  box-shadow: 0 0 0.5rem #ff5a7a;
+  animation: none;
+}
+.online-status[data-tone="bad"] {
+  color: #ffb3c2;
+}
+.online-status:empty::before {
+  display: none;
+}
+@keyframes status-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.online-app .online-status-action {
+  border-color: #ff5a7a;
+  color: #ffd6de;
+  font-size: 0.75rem;
+  min-height: 2.125rem;
+  padding: var(--fui-space-1) 0.625rem;
+}
+.online-round {
+  padding: var(--fui-space-1) 0.625rem;
+  border: 0.0625rem solid #1b708b;
+  background: #030d1fcc;
+  color: #bdeeff;
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  flex: 0 0 auto !important;
+}
+.online-round[hidden] {
+  display: none !important;
+}
+/* Header hierarchy on desktop: brand and actions on one steady row, the roster on its own row, one filled primary action (START / REMATCH). */
+.desktop-game > .online-header {
+  flex-wrap: wrap;
+  row-gap: var(--fui-space-1);
+}
+.desktop-game .online-roster {
+  order: 3;
+  flex: 0 1 auto;
+  justify-content: center;
+  margin: 0 auto;
+}
+.desktop-game .online-host {
+  order: 2;
+}
+.desktop-game .online-header > button,
+.desktop-game .online-header > .online-round {
+  order: 4;
+}
+.desktop-game .online-header > .online-status {
+  position: static;
+  max-width: 30%;
+  padding: 0 0.375rem;
+  font-size: 0.6875rem;
+  background: none;
+}
+.desktop-game .online-host button:first-child:not(:disabled) {
+  background: var(--player-color);
+  color: var(--fui-ink);
+  font-weight: 900;
+  letter-spacing: 0.0625rem;
+  border-color: #fff;
+}
+.desktop-game .online-header > .desktop-help,
+.desktop-game .online-notice {
+  top: calc(100% + 0.5rem);
+}
+.online-app .landing-rejoin {
+  border-color: var(--fui-lime);
+  color: #e6ffc6;
+  white-space: nowrap;
+}
+/* Recap and standings: the local rider is outlined so a table of five reads at a glance. */
+.match-recap-report .podium-card.is-you {
+  outline: 0.125rem solid #fff;
+  outline-offset: 0.1875rem;
+}
+.match-recap-report .comparison-row.is-you {
+  background: #ffffff12;
+  box-shadow: inset 0.1875rem 0 0 #fff;
+}
+.exit-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+  margin: 0 0 var(--fui-space-4);
+}
+.exit-choices button {
+  width: 100%;
+}
+.exit-choices .exit-confirm {
+  border-color: #ff2d8a;
+  color: #ffd6e8;
+}
+/* Ending the room is the creator's rarer, heavier choice: under the everyday pair, and quieter than both. */
+.exit-choices .exit-end {
+  grid-column: 1/-1;
+  min-height: 2.25rem;
+  background: transparent;
+  border-color: #334567;
+  color: #8ba3c0;
+  font-size: 0.6875rem;
+}
+.session-board {
+  display: grid;
+  gap: 0.375rem;
+  margin-bottom: 0.875rem;
+}
+.session-board h2 {
+  margin: 0 0 var(--fui-space-1);
+  font-size: 0.9375rem;
+}
+.session-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--fui-space-1) 0.625rem;
+  align-items: center;
+  padding: 0.375rem var(--fui-space-2);
+  border: 0.0625rem solid #20365f;
+  background: #040d24;
+  font-size: 0.8125rem;
+}
+.session-row.is-you {
+  border-color: #fff;
+}
+.session-row > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.session-row b {
+  color: var(--fui-yellow);
+}
+.session-row strong {
+  color: #fff;
+}
+.session-row small {
+  grid-column: 2/-1;
+  color: var(--fui-text-dim);
+  font-size: 0.625rem;
+  letter-spacing: 0.0625rem;
+}
+.session-key {
+  margin: 0;
+  color: var(--fui-text-dim);
+  font-size: 0.6875rem;
+}
+/* Avatar dialog: labels never split mid-word; avatars other riders wear are marked. */
+.online-app .game-dialog .avatar-options {
+  grid-template-columns: repeat(auto-fill, minmax(4.875rem, 1fr));
+}
+.online-app .game-dialog .avatar-option {
+  overflow-wrap: normal;
+  white-space: nowrap;
+  font-size: 0.6875rem;
+  position: relative;
+}
+.online-app .game-dialog .avatar-option.taken {
+  opacity: 0.55;
+}
+.online-app .game-dialog .avatar-option.taken::after {
+  content: "TAKEN";
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  font-size: 0.5rem;
+  letter-spacing: 0.0625rem;
+  color: #ffb3c2;
+  background: #3b1734;
+  padding: 0.0625rem var(--fui-space-1);
+}
+.mobile-hud {
+  display: none;
+}
+.online-announce.round ~ .online-feed,
+.online-announce.final ~ .online-feed {
+  display: none;
+}
+/* One-shot keyboard reminder over the arena: fades itself out, never takes clicks.
+   Hidden until shown by the `hidden` attribute via `.online-app [hidden]{display:none!important}` above.
+   The countdown is 3.0s (COUNTDOWN_TICKS/TPS), so the fade is well under way before riders move. */
+.key-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 7%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.375rem 1.25rem;
+  padding: 0.625rem 1.125rem;
+  background: #030d1fe8;
+  border: 0.0625rem solid var(--player-color);
+  color: var(--fui-text);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-align: center;
+  pointer-events: none;
+  z-index: var(--fui-z-hint);
+  animation: key-hint-fade 3.5s ease-out forwards;
+}
+@keyframes key-hint-fade {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.match-recap-report .watch-again {
+  min-height: 1.875rem;
+  justify-self: start;
+  padding: var(--fui-space-1) 0.5625rem;
+  font:
+    0.6875rem "Press Start 2P",
+    ui-monospace,
+    monospace;
+  color: #051228;
+  background: var(--player-color);
+  border: 0;
+}
+
+/* Compact personal progression; arena labels carry opponents' levels. */
+.online-power-status {
+  position: fixed;
+  z-index: var(--fui-z-overlay);
+  left: 50%;
+  bottom: max(0.625rem, env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  padding: var(--fui-space-2) var(--fui-space-3);
+  border: 0.0625rem solid #ffdf55;
+  background: #071022e8;
+  color: #ffdf55;
+  font:
+    0.625rem/1.4 "Press Start 2P",
+    monospace;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.online-power-status[hidden] {
+  display: none;
+}
+.settings-list {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.settings-list > button {
+  width: 100%;
+  min-height: 2.75rem;
+}
+.settings-list > button[data-muted="true"] {
+  color: #8ba3c0;
+  border-color: var(--fui-line);
+}
+.settings-list .settings-group {
+  margin: 0.625rem 0 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.0625rem;
+  color: var(--fui-cyan);
+}
+.settings-style {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--fui-space-2);
+}
+.settings-style button[aria-pressed="true"] {
+  color: #02131a;
+  background: var(--fui-cyan);
+  border-color: #a6f7ff;
+}
+/* PRIVACY: this device's analytics choice. A section of the room's SETTINGS list; on the landing page a one-line
+   disclosure under the settings draft, outside its scrolling body. */
+.settings-privacy {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.settings-privacy .settings-group {
+  margin: 0.625rem 0 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.0625rem;
+  color: var(--fui-cyan);
+}
+.settings-privacy > button {
+  width: 100%;
+  min-height: 2.75rem;
+}
+.settings-privacy > button[data-muted="true"] {
+  color: #8ba3c0;
+  border-color: var(--fui-line);
+}
+.settings-privacy > button:disabled {
+  cursor: not-allowed;
+}
+.settings-note {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--fui-text-muted);
+}
+/* Two lines reserved, so switching on and off never moves the button above it. */
+.settings-reason {
+  min-height: 3em;
+  color: #8ba3c0;
+}
+/* A <details> lays its content out itself: block flow and margins, not the section's grid. */
+.settings-privacy.dialog-foot {
+  display: block;
+  flex-shrink: 0;
+  max-height: 50dvh;
+  overflow: auto;
+  padding: 0.625rem 1.125rem;
+  border-top: 0.0625rem solid #334965;
+  background: #0b1628;
+}
+.settings-privacy.dialog-foot > * + * {
+  margin-top: var(--fui-space-2);
+}
+.settings-privacy.dialog-foot > summary {
+  margin: 0;
+  min-height: 1.75rem;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.settings-privacy.dialog-foot > summary::before {
+  content: "▸";
+  margin-right: var(--fui-space-2);
+}
+.settings-privacy.dialog-foot[open] > summary::before {
+  content: "▾";
+}
+.settings-privacy.dialog-foot > summary::-webkit-details-marker {
+  display: none;
+}
+.settings-privacy.dialog-foot > summary:focus-visible {
+  outline: 0.125rem solid var(--fui-cyan);
+  outline-offset: 0.125rem;
+}
+
+/* Standings: every score card carries its rank, and the leader wears gold. */
+.online-score-card {
+  position: relative;
+}
+.online-score-card::before {
+  content: attr(data-rank);
+  font:
+    0.5rem/1 "Press Start 2P",
+    ui-monospace,
+    monospace;
+  color: var(--fui-text-dim);
+  flex: 0 0 auto;
+}
+.online-score-card.leader::before {
+  content: "👑";
+  font-size: 0.75rem;
+}
+.online-roster .online-score-card.leader {
+  border-color: var(--fui-yellow);
+  box-shadow:
+    0 0 0.75rem #ffe46b55,
+    inset 0 0 0.75rem #ffe46b1f;
+}
+.controller-only .online-score-card::before {
+  display: none;
+}
+/* Desktop play: the standings stack in their own column right of the arena instead of crowding the game bar. Each card's underline shows its score against the leader's. */
+.online-app.desktop-game {
+  position: relative;
+  --standings-width: 12rem;
+}
+/* The renderer sets the canvas to width:100% inline, so the column is carved out with max-width. */
+.desktop-game.side-standings > .online-arena {
+  max-width: calc(100% - var(--standings-width));
+  align-self: flex-start;
+}
+.side-standings > .online-roster {
+  position: absolute;
+  right: 0;
+  top: calc(var(--standings-top) + 0.75rem);
+  width: var(--standings-width);
+  box-sizing: border-box;
+  padding: 0 var(--fui-space-3);
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: var(--fui-space-2);
+  z-index: 5;
+}
+.side-standings > .online-roster::before {
+  content: "STANDINGS";
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  color: var(--fui-cyan);
+  font-weight: 900;
+  order: 0;
+  padding: 0 0 var(--fui-space-1);
+  border-bottom: 0.0625rem solid #18305a;
+}
+.side-standings > .online-roster .online-score-card {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-2) 0.625rem 0.6875rem;
+  transition: transform 0.2s;
+}
+.side-standings > .online-roster .online-score-card::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 0.1875rem;
+  width: calc(var(--lead, 0) * 100%);
+  background: var(--rider-color);
+  box-shadow: 0 0 0.5rem var(--rider-color);
+  transition: width 0.4s;
+}
+.side-standings > .online-roster .online-score-card.leader {
+  transform: scale(1.03);
+}
+.side-standings > .online-roster .online-score-card .avatar-portrait {
+  width: 1.75rem;
+  height: 1.75rem;
+  flex-basis: 1.75rem;
+}
+.side-standings
+  > .online-roster
+  .online-score-card
+  > span:not(.avatar-portrait) {
+  flex: 1 1 auto;
+  max-width: none;
+  font-size: 0.6875rem;
+}
+.side-standings > .online-roster .online-score-label {
+  display: grid;
+  gap: 0.125rem;
+}
+.side-standings > .online-roster .online-score-points {
+  color: var(--fui-text);
+  font-size: 0.625rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  .side-standings > .online-roster .online-score-card,
+  .side-standings > .online-roster .online-score-card::after {
+    transition: none;
+  }
+}
+.side-standings > .online-roster .online-score-card button {
+  min-width: 1.25rem;
+  min-height: 1.25rem;
+  padding: 0 0.1875rem;
+  font-size: 0.6875rem;
+  flex: 0 0 auto;
+}
+.side-standings > .online-roster {
+  padding: 0 var(--fui-space-2);
+}
+.side-standings > .online-roster .online-score-card {
+  gap: 0.375rem;
+  padding-inline: var(--fui-space-2);
+}
+.online-roster:empty::before {
+  display: none;
+}
+/* The column is opaque to the bottom so a replay zoom cannot bleed under it, names keep their ellipsis, and everything centred over the arena follows the arena rather than the window. */
+.side-standings > .online-roster {
+  bottom: 0;
+  background: var(--fui-ink);
+  overflow: auto;
+}
+.side-standings > .online-roster .online-score-label {
+  grid-template-columns: minmax(0, 1fr);
+}
+.side-standings .online-announce,
+.side-standings .online-feed,
+.side-standings .key-hint,
+.side-standings .online-power-status {
+  left: calc(50% - var(--standings-width) / 2);
+}
+
+/* Voice belongs to each device; indicators never change rider identity or arena geometry. */
+.voice-settings {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--fui-line);
+  padding-top: 12px;
+  min-width: 0;
+}
+.voice-settings h3,
+.voice-settings p {
+  margin: 0;
+}
+.voice-settings p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #a3b9cb;
+}
+.voice-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.online-app dialog .voice-settings label {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  margin: 0;
+}
+.voice-settings select {
+  min-width: 0;
+}
+.voice-participants {
+  display: grid;
+  gap: 8px;
+}
+.voice-participants > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.voice-participants span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.voice-participants button {
+  flex-shrink: 0;
+}
+.room-rider[data-voice]:not([data-voice=""])::after,
+.online-score-card[data-voice]:not([data-voice=""])::after {
+  content: attr(data-voice);
+  font-size: 8px;
+  color: #a3b9cb;
+}
+.room-rider[data-voice="SPEAKING"]::after,
+.online-score-card[data-voice="SPEAKING"]::after {
+  color: #8dffb5;
+}
+.voice-toggle {
+  white-space: nowrap;
+}
+
+/* The same chevron marks an armed rider and its fire control, including the phone HUD. */
+.online-controls button.gun-armed::before,
+.hud-fire.gun-armed::before {
+  content: "›";
+  display: inline-block;
+  margin-right: 0.45em;
+  color: #fff;
+  text-shadow: 0 0 8px var(--player-color, #65fff2);
+}
+.online-controls button.gun-armed {
+  border-color: var(--player-color, #65fff2);
+  box-shadow: inset 0 0 14px
+    color-mix(in srgb, var(--player-color, #65fff2) 20%, transparent);
+}
+
+/* The same cyan call to action in the lobby and on the phone's rematch screen. */
+.online-app .room-ready-button {
+  min-height: 3.375rem;
+  padding: var(--fui-space-3) var(--fui-space-4);
+  border: 0.125rem solid var(--fui-cyan-deep);
+  border-radius: var(--ui-radius);
+  background: var(--fui-cyan-deep);
+  color: var(--fui-ink);
+  font-size: 0.9375rem;
+  font-weight: 900;
+  letter-spacing: 0.0625rem;
+  box-shadow: 0 0 0.9375rem #00d9ff25;
+}
+.controller-rematch:not([hidden]) {
+  position: fixed;
+  inset: var(--pad-top, 4.75rem) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fui-space-4);
+  text-align: center;
+  z-index: 10;
+}
+.controller-rematch h2 {
+  margin: 0;
+  color: var(--fui-cyan-deep);
+  font-size: clamp(0.875rem, 3vw, 1.25rem);
+  line-height: 1.5;
+}
+.controller-ready-count {
+  margin: 0;
+  color: #8ba3c0;
+  font-size: 0.75rem;
+}
+.controller-rematch .room-ready-button {
+  width: min(100%, 28rem);
+  flex-shrink: 0;
+}
+.online-app.controller-only[data-screen="recap"] .online-controls {
+  display: none !important;
+}

@@ -1,4 +1,4 @@
-import { chromium, webkit } from "playwright";
+import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
@@ -51,11 +51,8 @@ const identity = {
   date: new Date().toISOString(),
   base,
 };
-for (const [name, type] of [
-  ["chrome", chromium],
-  ["webkit", webkit],
-] as const) {
-  const browser = await type.launch({ headless: true });
+for (const { name, kind } of BOTH_ENGINES) {
+  const browser = await launchBrowser(kind, { headless: true });
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
   });

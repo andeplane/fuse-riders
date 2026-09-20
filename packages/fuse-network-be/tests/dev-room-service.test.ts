@@ -7,9 +7,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { WebSocket } from "ws";
+import { authFrame } from "fuse-network-protocol";
 import { createDevRoomService } from "../src/dev.js";
+import { RoomGateway } from "../src/gateway.js";
+import { createRoomServer } from "../src/http.js";
 import { LocalRoomBus, MemoryRoomDatabase } from "../src/memory-database.js";
-import type { RoomRecord } from "../src/room-store.js";
+import { RoomStore, type RoomRecord } from "../src/room-store.js";
 import type { RoutedMessage } from "../src/room-bus.js";
 
 const room = (revision: number): RoomRecord => ({
@@ -147,6 +150,8 @@ async function fixture() {
   await mkdir(path.join(dist, "assets"), { recursive: true });
   await writeFile(path.join(dist, "index.html"), "<main>app shell</main>");
   await writeFile(path.join(dist, "assets", "app.js"), "export {};");
+  await mkdir(path.join(dist, "dice"));
+  await writeFile(path.join(dist, "dice", "index.html"), "<main>dice</main>");
   await writeFile(path.join(root, "secret.txt"), "outside the build");
   const service = createDevRoomService({
     staticDirectory: dist,
@@ -207,9 +212,10 @@ async function fixture() {
     new Promise<{ socket: WebSocket; welcome: Record<string, unknown> }>(
       (resolve, reject) => {
         const socket = new WebSocket(
-          `ws://127.0.0.1:${port}/api/rooms/${code}/ws?token=${token}`,
+          `ws://127.0.0.1:${port}/api/rooms/${code}/ws`,
           { origin: pageOrigin },
         );
+        socket.once("open", () => socket.send(authFrame(token)));
         socket.once("message", (raw) =>
           resolve({ socket, welcome: JSON.parse(raw.toString()) }),
         );
@@ -285,19 +291,40 @@ test("dev room service creates rooms and admits sockets only for same-origin loo
     const { socket, welcome } = await f.connect(code, token);
     assert.equal(welcome.type, "welcome");
     assert.equal(welcome.protocol, 2);
-    const ice = await f.call(`/api/rooms/${code}/ice?token=${token}`, {
+    const ice = await f.call(`/api/rooms/${code}/ice`, {
       origin: f.origin,
+      authorization: `Bearer ${token}`,
     });
     assert.equal(ice.status, 200);
     assert.equal(JSON.parse(ice.body).relayConfigured, false);
     assert.equal(
       (
-        await f.call(`/api/rooms/${code}/ice?token=${"c".repeat(64)}`, {
+        await f.call(`/api/rooms/${code}/ice`, {
           origin: f.origin,
+          authorization: `Bearer ${"c".repeat(64)}`,
         })
       ).status,
       403,
       "ICE needs membership",
+    );
+    assert.equal(
+      (
+        await f.call(`/api/rooms/${code}/ice?token=${token}`, {
+          origin: f.origin,
+        })
+      ).status,
+      401,
+      "a member token in the query string is not a credential",
+    );
+    assert.equal(
+      (
+        await f.call(`/api/rooms/${code}/end?token=${token}`, {
+          method: "POST",
+          origin: f.origin,
+        })
+      ).status,
+      401,
+      "nor is the host token",
     );
     assert.equal(
       (
@@ -340,6 +367,17 @@ test("dev room service serves the build with app-shell fallback and never outsid
       (await f.call("/display")).body,
       "<main>app shell</main>",
       "navigations fall back to the app shell",
+    );
+    for (const page of ["/dice/", "/dice", "/dice/?room=AB42"])
+      assert.equal(
+        (await f.call(page)).body,
+        "<main>dice</main>",
+        `${page}: a directory serves its own page`,
+      );
+    assert.equal(
+      (await f.call("/assets")).body,
+      "<main>app shell</main>",
+      "a directory without a page is a navigation",
     );
     const asset = await f.call("/assets/app.js");
     assert.equal(asset.body, "export {};");
@@ -419,7 +457,7 @@ test(
     const { code, token } = await f.create();
     const { head, socket } = await rawExchange(
       f.port,
-      upgrade(f.port, `/api/rooms/${code}/ws?token=${token}`),
+      upgrade(f.port, `/api/rooms/${code}/ws`),
       true,
     );
     try {
@@ -437,10 +475,10 @@ test("WebSocket admission failures are throttled before upgrade without spending
   try {
     const attempt = () =>
       new Promise<number>((resolve, reject) => {
-        const ws = new WebSocket(
-          `ws://127.0.0.1:${f.port}/api/rooms/ZZ99/ws?token=${"a".repeat(64)}`,
-          { origin: f.origin },
-        );
+        const ws = new WebSocket(`ws://127.0.0.1:${f.port}/api/rooms/ZZ99/ws`, {
+          origin: f.origin,
+        });
+        ws.once("open", () => ws.send(authFrame("a".repeat(64))));
         ws.on("error", reject);
         ws.once("close", (code) => resolve(code));
         ws.once("unexpected-response", (_req, response) => {
@@ -466,7 +504,7 @@ test("rejected WebSocket handshakes release their pending admission slots", asyn
     for (let i = 0; i < 6; i++) {
       const reply = await rawExchange(
         f.port,
-        `GET /api/rooms/${code}/ws?token=${token} HTTP/1.1\r\nHost: 127.0.0.1:${f.port}\r\nOrigin: ${f.origin}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\n\r\n`,
+        `GET /api/rooms/${code}/ws HTTP/1.1\r\nHost: 127.0.0.1:${f.port}\r\nOrigin: ${f.origin}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\n\r\n`,
       );
       assert.match(reply.head, /^HTTP\/1.1 400 /);
     }
@@ -474,5 +512,75 @@ test("rejected WebSocket handshakes release their pending admission slots", asyn
     socket.close();
   } finally {
     await f.close();
+  }
+});
+
+test("a route that fails after its response started drops that connection and the service keeps serving", async () => {
+  const service = createDevRoomService({
+    httpExtension: () => ({
+      handle: async (req, res) => {
+        if (req.url !== "/api/broken") return false;
+        // The error boundary can no longer answer with a status once headers are committed.
+        res.writeHead(200, { "Content-Type": "text/plain" });
+        throw new Error("failed after the response started");
+      },
+    }),
+  });
+  await new Promise<void>((resolve) =>
+    service.server.listen(0, "127.0.0.1", resolve),
+  );
+  const origin = `http://127.0.0.1:${(service.server.address() as AddressInfo).port}`;
+  try {
+    await assert.rejects(
+      fetch(`${origin}/api/broken`),
+      "the unanswerable request is dropped instead of hanging",
+    );
+    const health = await fetch(`${origin}/api/health`);
+    assert.equal(health.status, 200);
+    assert.deepEqual(await health.json(), { ok: true });
+  } finally {
+    await service.close();
+  }
+});
+
+test("a request that fails before its response started is answered 500 without the error, and the service keeps serving", async () => {
+  const now = () => 1_000;
+  const store = new RoomStore(new MemoryRoomDatabase(), {
+    now,
+    id: () => "id",
+  });
+  const gateway = new RoomGateway("test", store, new LocalRoomBus(), {
+    now,
+    id: () => "id",
+    error: () => undefined,
+  });
+  // The Origin decision runs ahead of the handler's own error boundary.
+  const server = createRoomServer({
+    store,
+    gateway,
+    now,
+    allowOrigin: (origin) => {
+      if (origin === "http://throws.example")
+        throw new Error("secret origin failure detail");
+      return true;
+    },
+    clientAddress: () => "test",
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    const failed = await fetch(`${base}/api/health?token=secret-query`, {
+      headers: { Origin: "http://throws.example" },
+    });
+    assert.equal(failed.status, 500);
+    const body = await failed.text();
+    assert.deepEqual(JSON.parse(body), { error: "Room service unavailable" });
+    assert.doesNotMatch(body, /secret/);
+    const health = await fetch(`${base}/api/health`);
+    assert.equal(health.status, 200);
+  } finally {
+    await gateway.stop();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 });

@@ -20,6 +20,11 @@ const artwork: Record<string, string> = {
     <circle cx="32" cy="32" r="8" fill="#0a0618" stroke="#e6d4ff" stroke-width="2"/>
     <path d="M13 20c5 3 8 6 10 10M51 44c-5-3-8-6-10-10" fill="none" stroke="#d7b6ff" stroke-width="2.5" stroke-linecap="round" opacity=".85"/>
   `,
+  "pickup-range": `
+    <circle cx="32" cy="32" r="24" fill="url(#body)" stroke="#73f3ff" stroke-width="2.5"/>
+    <path d="M13 32h38m-9-9 9 9-9 9M22 23l-9 9 9 9" stroke="#d9ffff" stroke-width="4"/>
+    <path d="M24 44v5m8-5v5m8-5v5" stroke="#73f3ff" stroke-width="2"/>
+  `,
   "pickup-grip": `
     <circle cx="32" cy="32" r="24" fill="url(#body)" stroke="#88ffad" stroke-width="2.5"/>
     <path d="M46 49V27a14 14 0 0 0-28 0v15" fill="none" stroke="#a3ffb0" stroke-width="7"/>
@@ -69,11 +74,6 @@ const artwork: Record<string, string> = {
     <path d="m32 14-10 8 3 14h14l3-14-10-8Zm-10 8-11 2m14 12-9 10m23-10 9 10m-6-24 11 2" fill="none" stroke="#13775a" stroke-width="2.5"/>
     <path d="M12 39c9 7 31 7 40 0l4 6c-7 15-41 15-48 0Z" fill="url(#metal)" stroke="#edffdf" stroke-width="2"/>
     <path d="M18 45c8 4 20 4 28 0" fill="none" stroke="#fff" stroke-width="2"/>`,
-  "pickup-target": `
-    <circle cx="32" cy="32" r="22" fill="url(#body)" stroke="#6af9d7" stroke-width="2.5"/>
-    <circle cx="32" cy="32" r="13" fill="none" stroke="#4ccfb7" stroke-width="1.5"/>
-    <path d="M32 5v15m0 24v15M5 32h15m24 0h15" stroke="#d3fff4" stroke-width="3.5"/>
-    <circle cx="32" cy="32" r="4" fill="#adffe6"/>`,
   "pickup-ink": `
     <path d="M23 14h18v8l9 9a9 9 0 0 1 3 7v12a7 7 0 0 1-7 7H18a7 7 0 0 1-7-7V38a9 9 0 0 1 3-7l9-9Z" fill="url(#body)" stroke="#d29aff" stroke-width="2.5"/>
     <rect x="21" y="7" width="22" height="10" rx="3" fill="url(#violet)" stroke="#efd2ff" stroke-width="1.5"/>
@@ -99,7 +99,7 @@ const artwork: Record<string, string> = {
 };
 
 function volley(count: 3 | 5): string {
-  const points =
+  const points: [number, number][] =
     count === 3
       ? [
           [14, 36],

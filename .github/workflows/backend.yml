@@ -15,7 +15,7 @@ concurrency:
 jobs:
   deploy:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
@@ -29,6 +29,8 @@ jobs:
       ROOM_COLLECTION_PREFIX: fuse-production
       PUBSUB_TOPIC: fuse-riders-signalling
       ALLOWED_ORIGINS: https://andeplane.github.io
+      # Games served beside Fuse Riders (comma-separated, e.g. dice). Empty until the steps in GCP-DEPLOY.md are done.
+      EXTRA_GAME_IDS: ${{ vars.EXTRA_GAME_IDS }}
       CLOUD_RUN_SERVICE: fuse-riders-gateway
       ARTIFACT_REPOSITORY: fuse-riders
       BUILD_SOURCE_BUCKET: andershaf-87-fuse-riders-build
@@ -66,39 +68,42 @@ jobs:
         with:
           ref: ${{ steps.target.outputs.sha }}
           persist-credentials: false
+          # The path filter below diffs against the commit Cloud Run serves, however far back that is.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm ci
-      - run: npm ci --prefix tools/firebase
+      - run: pnpm install --frozen-lockfile
       # Keyless federation: no service-account key is stored in this repository.
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/867594018708/locations/global/workloadIdentityPools/github/providers/fuse-riders
           service_account: fuse-riders-deployer@andershaf-87.iam.gserviceaccount.com
       - uses: google-github-actions/setup-gcloud@v2
-      # Several CI runs can resolve to the same target, and an explicit local deployment can already be ahead
-      # of CI. Neither is a failure: there is simply nothing newer to roll out. A manual dispatch always deploys.
-      - name: Skip a target that is already live or older than the live revision
-        id: live
-        if: github.event_name == 'workflow_run'
+      # Path filter: a main push that changed nothing the backend is built from (documentation, CI,
+      # browser scripts, tests) does not rebuild and roll Cloud Run. The list is
+      # scripts/lib/backend-paths.ts; the comparison is with the commit Cloud Run really serves. The
+      # service's `commit` label alone is not that (a rollout that never became ready has already
+      # written it), so the label counts only when the last created revision is the ready one and
+      # carries all of the traffic; then a change whose own run failed or was replaced is deployed by
+      # the next run. Any doubt about what is served deploys, except one: when the revision that
+      # carries all of the traffic was built from a commit strictly newer than this target (a stale
+      # run after a local deploy and a failed rollout, or a pin), deploying would roll production
+      # back, so the run skips. A manual dispatch always deploys, so an intended rollback still works.
+      - name: Did anything the backend is built from change?
+        id: changes
+        run: pnpm exec tsx scripts/backend-changed.ts
         env:
-          TARGET: ${{ steps.target.outputs.sha }}
-        run: |
-          live="$(gcloud run services describe "$CLOUD_RUN_SERVICE" --project=andershaf-87 --region="$GCP_REGION" --format='value(metadata.labels.commit)' || true)"
-          action=deploy
-          if [[ "$live" =~ ^[a-f0-9]{40}$ ]]; then
-            status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$TARGET...$live" --jq .status || true)"
-            if [[ "$status" == identical || "$status" == ahead ]]; then action=skip; fi
-          fi
-          echo "Live revision ${live:-unknown}, target $TARGET: $action" | tee -a "$GITHUB_STEP_SUMMARY"
-          echo "action=$action" >> "$GITHUB_OUTPUT"
+          FORCE_DEPLOY: ${{ github.event_name == 'workflow_dispatch' }}
+      - if: steps.changes.outputs.deploy == 'true'
+        run: npm ci --prefix tools/firebase
       # The script re-checks that this revision is still on main and that its CI run passed,
       # builds the committed source and deploys the resulting immutable digest.
-      - if: steps.live.outputs.action != 'skip'
+      - if: steps.changes.outputs.deploy == 'true'
         run: ./scripts/deploy-cloud.sh
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.changes.outputs.deploy == 'true'
         with:
           name: cloud-release-evidence-${{ steps.target.outputs.sha || github.sha }}
           path: |

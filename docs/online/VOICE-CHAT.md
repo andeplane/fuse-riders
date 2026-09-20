@@ -10,7 +10,7 @@ On a shared screen use one device for voice, or headphones on the participating 
 
 The existing full mesh carries one audio track per peer alongside gameplay's data channels. No media traverses the room service and no TURN/SFU or paid service is added. Upload bandwidth grows with the number of connected devices, including displays. Existing STUN-only connectivity limits still apply.
 
-The networking package exposes an optional `PeerTransportExtension` for application-owned media. It calls connection lifecycle hooks and delivers validated connection-scoped envelopes to the extension before gameplay. `VoiceChat` stays in `src/online` and owns microphone, playback and voice-status validation; `fuse-network-fe` never imports game code. This preserves the extracted network boundary while sharing the existing connection and bounded control channel.
+The networking package exposes an optional `PeerTransportExtension` for application-owned media. It calls connection lifecycle hooks and delivers validated connection-scoped envelopes to the extension before gameplay. `VoiceChat` stays in `games/fuse-riders/src/online` and owns microphone, playback and voice-status validation; `fuse-network-fe` never imports game code. This preserves the extracted network boundary while sharing the existing connection and bounded control channel.
 
 The established offerer reserves one `sendrecv` audio transceiver before its initial offer. The answerer adopts that transceiver after applying the offer. Joining voice, microphone replacement and leaving use `replaceTrack`; mute/deafen use the capture track's `enabled` property. This avoids routine renegotiation racing gameplay's ICE recovery. Recreated links attach the current capture; stale capture requests and detached sender completions cannot resurrect a microphone after leave. Voice sender errors are shown in voice controls, separate from gameplay status.
 
@@ -20,7 +20,7 @@ Microphone permission denial leaves listen-only available. Playback rejection ex
 
 ## Verification
 
-- `node --import tsx --test tests/voice-session.test.ts`: typed capture/sender fakes exercise opt-in, mute/deafen, late permissions, cancellation, out-of-order device selection, missing devices, reconnect attachment and safe sender failures.
+- `node --import tsx --test games/fuse-riders/tests/voice-session.test.ts`: typed capture/sender fakes exercise opt-in, mute/deafen, late permissions, cancellation, out-of-order device selection, missing devices, reconnect attachment and safe sender failures.
 - `ONLINE_URL=http://localhost:8787/ node --import tsx scripts/voice-smoke.ts`: Chromium synthetic microphone through real SDP/RTP; bidirectional received audio energy, speaking indicators, mute/deafen, local silence/volume, device switching (including back to System default), injected permission denial, listen-only display, phone panel fit, silence preserved across recreated links, gameplay and terminal microphone cleanup.
 - Existing online-room smokes exercise gameplay with audio slots negotiated but voice off, including WebKit.
 

@@ -1,0 +1,76 @@
+/*
+ * Fuse UI design tokens: the neon/pixel look every game in the repo shares.
+ *
+ * Values are taken from what Fuse Riders already draws (games/fuse-riders/src/client/style.css, games/fuse-riders/src/online/online.css,
+ * top-menu.css, room-settings-menu.css), so a game that adopts a token looks the same pixel for pixel.
+ * Import this file once, before any stylesheet that reads the tokens:
+ *
+ *   import "fuse-ui/tokens.css";
+ *
+ * Tokens only: this file sets no element styles. The component styles are in components.css.
+ */
+:root {
+  /* Palette */
+  --fui-cyan: #16e7ff;
+  --fui-cyan-deep: #00d9ff;
+  --fui-pink: #ff2e9d;
+  --fui-pink-soft: #ff72b3;
+  --fui-yellow: #ffe46b;
+  --fui-lime: #b6ff4d;
+  --fui-violet: #6544c2;
+  --fui-navy: #020715;
+  --fui-ink: #030919;
+  --fui-deep: #0b1933;
+  --fui-line: #365477;
+  --fui-text: #eefaff;
+  --fui-text-bright: #effcff;
+  --fui-text-muted: #b6cce3;
+  --fui-text-dim: #7c93b8;
+  --fui-white: #fff;
+  --fui-panel: rgba(5, 14, 37, 0.93);
+  --fui-surface: linear-gradient(180deg, #142640, #081327);
+  --fui-button-fill: linear-gradient(180deg, #2b4b78, #1b3154);
+  --fui-cyan-fill: linear-gradient(180deg, #51f5fa, #00c9df);
+
+  /* Type */
+  --fui-font-pixel: "Press Start 2P", ui-monospace, monospace;
+  --fui-font-body:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+  --fui-font-sans: ui-sans-serif, system-ui, sans-serif;
+
+  /* Spacing (rem, so it scales with the root size like the rest of the UI) */
+  --fui-space-1: 0.25rem;
+  --fui-space-2: 0.5rem;
+  --fui-space-3: 0.75rem;
+  --fui-space-4: 1rem;
+  --fui-space-5: 1.5rem;
+  --fui-space-6: 2rem;
+
+  /* Borders, radii and glow */
+  --fui-hairline: 0.0625rem;
+  --fui-stroke: 0.125rem;
+  --fui-border: 0.0625rem solid #365477;
+  --fui-radius-small: 0.5rem;
+  --fui-radius: 0.875rem;
+  --fui-radius-panel: 1.125rem;
+  --fui-edge: inset 0 0.0625rem 0 #ffffff14;
+  --fui-glow-text: 0 0 0.625rem currentColor;
+  --fui-glow-cyan: 0 0 1rem #16e7ff66;
+  --fui-glow-pink: 0 0 1rem #ff2e9d66;
+
+  /* Stacking: one named layer per role, lowest first. Local stacking inside a component uses 1 and 2. */
+  --fui-z-scene: -1;
+  --fui-z-raised: 1;
+  --fui-z-overlay: 8;
+  --fui-z-bar: 20;
+  --fui-z-hint: 25;
+  --fui-z-audio: 30;
+  --fui-z-feed: 39;
+  --fui-z-announce: 40;
+  --fui-z-alert: 50;
+  --fui-z-panel: 60;
+  --fui-z-menu: 70;
+  --fui-z-dialog: 100;
+  --fui-z-status: 1000;
+}

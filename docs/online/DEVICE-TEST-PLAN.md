@@ -20,7 +20,8 @@ In scope: the six issues above, tested against the deployed public release at
 a fresh room each time. Out of scope: writing new code or scripts (docs
 only — if a defect is found, file a new issue with reproduction steps and
 link it from the recorded results; do not fix it as part of running this
-plan), Cloudflare/local-Worker testing (covered by existing LAN docs),
+plan), Cloudflare/local-Worker testing (its LAN docs went with the LAN
+server in #271),
 five-player sustained soak content already covered by
 [NETWORK-HARNESS.md](NETWORK-HARNESS.md) and
 [RESPONSE-BENCHMARK.md](RESPONSE-BENCHMARK.md) on desktop browsers.
@@ -50,8 +51,8 @@ five-player sustained soak content already covered by
   network** (e.g. a neighbor's or a mobile hotspot, not the host's own SSID).
   Record which of (a)/(b)/(c) each run used; several sections below specify
   which configuration applies.
-- Keep the LAN game itself untouched; none of this exercises `/display` or
-  `/controller`.
+- The LAN game this item once protected (`/display`, `/controller`) was removed
+  in #271; every run here is an online room.
 
 ## Recording location
 
@@ -74,7 +75,7 @@ every trial rather than only the latest.
 
 ## #15 — Dropped touch inputs
 
-> `scripts/input-drop-probe.ts` was removed with the host-star runtime. In the peer-to-peer runtime an input is a log entry the phone itself folds on the next tick; run `scripts/p2p-measure.ts` for scripted input-to-state latencies and read a physical phone's `artifacts/telemetry/<ROOM>.ndjson` (posted while `npm run dev` serves the room) with `scripts/telemetry-report.ts`.
+> `scripts/input-drop-probe.ts` was removed with the host-star runtime. In the peer-to-peer runtime an input is a log entry the phone itself folds on the next tick; run `scripts/p2p-measure.ts` for scripted input-to-state latencies and read a physical phone's `artifacts/telemetry/<ROOM>.ndjson` (posted while `pnpm dev` serves the room) with `scripts/telemetry-report.ts`.
 
 Fixed in #38 for the synthetic case: `scripts/input-drop-probe.ts` measured
 98.1% of playing-phase inputs rejected locally before the fix and 0.98% after
@@ -91,10 +92,13 @@ phone as guest instead, laptop as host.
 
 1. Host a fresh room from the phone at the public URL (or join as guest for
    the repeat run). Note the room code.
-2. Serve the room from the laptop with `npm run dev` (the dev server records
-   every device's telemetry) and join from the phone over the LAN address, or
-   open the deployed URL with `?telemetry=1` on the phone. Start the race
-   once the laptop's guest has joined.
+2. Join from the phone at the deployed URL and start the race once the
+   laptop's guest has joined. **Not currently runnable as first written:**
+   this step served the room from the laptop with `pnpm dev`, joined from
+   the phone over the LAN address and let the dev server record every
+   device's telemetry. Since #271 the dev service is loopback-only, so a
+   phone cannot reach it, and no `/telemetry` receiver exists on the dev
+   service or the deployed site, so `?telemetry=1` posts are not recorded.
 3. For about 60 s, physically operate the phone: hold
    left/right steer continuously across direction changes, fire repeatedly
    including while steering, and charge-and-release a bomb a few times. Count
@@ -102,9 +106,10 @@ phone as guest instead, laptop as host.
    (steering change, shot fired, bomb notice) — do this for at least 50
    discrete presses total.
 4. Save `artifacts/telemetry/<ROOM>.ndjson` and the output of
-   `npx tsx scripts/telemetry-report.ts artifacts/telemetry/<ROOM>.ndjson`
+   `pnpm exec tsx scripts/telemetry-report.ts artifacts/telemetry/<ROOM>.ndjson`
    into the evidence folder: inputs, rollbacks, gaps and status changes per
-   device.
+   device. **Not currently runnable:** nothing writes that file since #271
+   (see step 2); record the manual tally and the probe JSON instead.
 
 **Capture**: revision, both device models/OS/browser versions, the saved
 probe JSON (laptop-guest-side local-rejection percentage and fire-edge
@@ -165,7 +170,7 @@ quality.
    control surface, the ☰ MENU overlay auto-opened for the phone host with
    REMATCH, BACK TO LOBBY, ROOM SETTINGS, TV VIEW and ADD AI all readable (none
    clipped), and that rotating keeps the overlay open.
-7. BACK TO LOBBY returns to the lobby screen of step 2. Leaving the room entirely is ROOM → END ROOM — behind ☰ MENU while the phone is the controller, in the header on the lobby screen.
+7. BACK TO LOBBY returns to the lobby screen of step 2. Leaving the room entirely is ROOM → LEAVE ROOM — behind ☰ MENU while the phone is the controller, in the header on the lobby screen. The room keeps running for whoever stays, and the rider in the next seat takes over as host; END ROOM, under it and only on the creator's device, closes the room for everyone.
 
 **Capture**: revision, device/OS/browser, one screenshot per phase (lobby
 portrait + landscape, countdown, playing, matchOver), and a short note of
@@ -195,7 +200,7 @@ The smoke records the hold result inside the page and retries only when a
 benchmark snapshot proves the round phase changed during the attempt. It
 requires a complete 650 ms hold within one playing phase for every third;
 a lost hold in a stable phase or any selected text remains a failure.
-Run `MOBILE_HOLD_PHASE_RACE=1 HOME_URL=http://localhost:8787/ npx tsx scripts/mobile-landscape-smoke.ts`
+Run `MOBILE_HOLD_PHASE_RACE=1 HOME_URL=http://localhost:8787/ pnpm exec tsx scripts/mobile-landscape-smoke.ts`
 to force the first gesture to span a real round transition and verify that
 it is retried before a complete hold passes in both engines.
 

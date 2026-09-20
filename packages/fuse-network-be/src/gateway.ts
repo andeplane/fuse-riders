@@ -33,9 +33,79 @@ interface Client {
   bytes: number;
   chain: Promise<void>;
   pending: number;
-  signalTokens: number;
-  signalAt: number;
+  pendingBytes: number;
+  /** One signalling bucket per target member; "" is shared by every frame that names no current connection. */
+  signals: Map<string, Bucket>;
+  /** `time` frames: each is a database transaction. */
+  times: Bucket;
+  /** Spent by each refused frame; running out is what a flood looks like. */
+  refusals: Bucket;
+  refused: number;
+  noticeAt: number;
+  /** This member was closed for flooding moments ago: its links start without the negotiation burst. */
+  flagged: boolean;
+  closed: boolean;
 }
+interface Bucket {
+  tokens: number;
+  at: number;
+}
+function take(
+  bucket: Bucket,
+  now: number,
+  burst: number,
+  perSecond: number,
+  cost = 1,
+): boolean {
+  bucket.tokens = Math.min(
+    burst,
+    bucket.tokens + (Math.max(0, now - bucket.at) * perSecond) / 1000,
+  );
+  bucket.at = now;
+  if (bucket.tokens < cost) return false;
+  bucket.tokens -= cost;
+  return true;
+}
+// docs/design/signalling-abuse-isolation.md carries the arithmetic behind these.
+/**
+ * Frames and bytes one connection may send per second, of any kind: above the largest honest mesh negotiation
+ * (5 links × 67 frames, about 110 kB). Every member links to as many peers as the creator, and gameplay never
+ * transits the service, so the creator has no larger allowance.
+ */
+const FRAMES_PER_SECOND = 400,
+  BYTES_PER_SECOND = 256_000;
+/** Frames and bytes one connection may have waiting on the database or the bus: the memory the old 64 × 32 kB cap allowed. */
+const PENDING_FRAMES = 400,
+  PENDING_BYTES = 2_000_000;
+/** One link's negotiation: a description, the 64 candidates `RemoteSignal` will hold, end markers, and a restart offer on top. */
+const LINK_BURST = 80;
+/** Refills a whole negotiation within the 8 s ICE restart interval. */
+const LINK_PER_SECOND = 10;
+/**
+ * Frames that name no current connection (an unknown member, or a connection id the gateway's view has replaced) are
+ * never relayed and each costs a database read, so they share one small bucket. An honest page sends a handful, in the
+ * moment between a peer's reload and hearing of it.
+ */
+const STRANGER_BURST = 16,
+  STRANGER_PER_SECOND = 1;
+/** The heartbeat is one `time` frame every 2 s, with a few more around a welcome or a lease change. */
+const TIME_BURST = 8,
+  TIME_PER_SECOND = 2;
+/**
+ * What one room may publish to one other gateway, in billed kilobytes (a frame counts as at least one): the receiving
+ * dedupe window, 512 ids per 10 s, seen from the side that pays for the publish. Anything above it would be dropped on
+ * arrival anyway. Kept per gateway, not per connection or view, so reconnecting or minting a token buys nothing.
+ */
+const PUBLISH_BURST = 512,
+  PUBLISH_PER_SECOND = 51.2,
+  PUBLISH_ROOMS = 4096;
+/** Refused frames tolerated before the connection counts as a flood, and how fast that tolerance returns. */
+const FLOOD_BURST = 400,
+  FLOOD_PER_SECOND = 50;
+const NOTICE_INTERVAL_MS = 1000;
+/** How long, and for how many members, a gateway remembers whom it closed for flooding. */
+const FLAG_MS = 60_000,
+  FLAGS = 1024;
 interface View {
   room: RoomRecord;
   stop: () => void;
@@ -54,6 +124,8 @@ export class RoomGateway {
   private activeOperations = 0;
   private busGeneration = 0;
   private stopping = false;
+  private flags = new Map<string, number>();
+  private publishes = new Map<string, Bucket>();
   constructor(
     readonly id: string,
     readonly store: RoomStore,
@@ -65,6 +137,12 @@ export class RoomGateway {
   }
   get connections(): number {
     return this.clients.size;
+  }
+  /** Rate-limiter entries held right now: signalling buckets of every connection, publish buckets, flood flags. */
+  get limiterEntries(): number {
+    let entries = this.flags.size + this.publishes.size;
+    for (const client of this.clients.values()) entries += client.signals.size;
+    return entries;
   }
   private serial<T>(operation: () => Promise<T>): Promise<T> {
     const result = this.lifecycle.then(operation, operation);
@@ -103,10 +181,12 @@ export class RoomGateway {
     });
     return result;
   }
+  /** `gameId` is the game the member's page plays; absent means `LEGACY_GAME_ID` (see `RoomStore.admit`). */
   async connect(
     code: string,
     token: string,
     socket: GatewaySocket,
+    gameId?: string,
   ): Promise<string> {
     if (this.stopping) throw new RoomError(503, "Service restarting");
     return this.inRoom(code, async () => {
@@ -128,7 +208,7 @@ export class RoomGateway {
         return this.busGeneration;
       });
       const priorIncarnation = this.views.get(code)?.room.incarnation;
-      const admission = await this.store.admit(code, token, this.id);
+      const admission = await this.store.admit(code, token, this.id, gameId);
       if (generation !== this.busGeneration || this.stateValue !== "ready") {
         await this.store.leave(code, admission.member);
         throw new RoomError(503, "Room relay restarting");
@@ -152,8 +232,15 @@ export class RoomGateway {
           bytes: 0,
           chain: Promise.resolve(),
           pending: 0,
-          signalTokens: 32,
-          signalAt: this.deps.now(),
+          pendingBytes: 0,
+          signals: new Map(),
+          times: { tokens: TIME_BURST, at: this.deps.now() },
+          refusals: { tokens: FLOOD_BURST, at: this.deps.now() },
+          refused: 0,
+          noticeAt: -Infinity,
+          flagged:
+            (this.flags.get(`${code}:${member.id}`) ?? 0) > this.deps.now(),
+          closed: false,
         };
       this.clients.set(member.connectionId, client);
       this.send(client, {
@@ -183,7 +270,7 @@ export class RoomGateway {
   }
   receive(connectionId: string, raw: string): Promise<void> {
     const client = this.clients.get(connectionId);
-    if (!client) return Promise.resolve();
+    if (!client || client.closed) return Promise.resolve();
     const bytes = Buffer.byteLength(raw);
     if (bytes > 32_000) {
       client.socket.close(1009, "Message too large");
@@ -196,15 +283,17 @@ export class RoomGateway {
       client.bytes = 0;
     }
     if (
-      ++client.count > (client.member.host ? 400 : 100) ||
-      (client.bytes += bytes) > (client.member.host ? 2_000_000 : 256_000) ||
-      ++client.pending > 64
+      ++client.count > FRAMES_PER_SECOND ||
+      (client.bytes += bytes) > BYTES_PER_SECOND ||
+      client.pending >= PENDING_FRAMES ||
+      client.pendingBytes + bytes > PENDING_BYTES
     ) {
-      client.socket.close(1008, "Rate limit");
-      void this.disconnect(connectionId);
+      this.refuse(client, now);
       return Promise.resolve();
     }
-    const result = client.chain.then(() => this.handle(client, raw));
+    client.pending++;
+    client.pendingBytes += bytes;
+    const result = client.chain.then(() => this.handle(client, raw, bytes));
     client.chain = result
       .catch((error) => {
         this.deps.error("message", error);
@@ -220,12 +309,114 @@ export class RoomGateway {
       })
       .finally(() => {
         client.pending--;
+        client.pendingBytes -= bytes;
       });
     return client.chain;
   }
-  private async handle(client: Client, raw: string): Promise<void> {
+  /**
+   * Every limit drops the frame it refuses and leaves the socket open: a close makes the page reconnect, and a
+   * reconnect tears down every link and negotiates the whole mesh again, which is the largest burst there is. Trickle
+   * ICE survives a lost candidate; a lost description is offered again by the link's restart policy. The sender is
+   * told at most once a second. Only a flood of refused frames ends the connection, and the member it belonged to
+   * then reconnects without the negotiation burst.
+   */
+  private refuse(client: Client, now: number): void {
+    client.refused++;
+    if (!take(client.refusals, now, FLOOD_BURST, FLOOD_PER_SECOND)) {
+      client.closed = true;
+      // Re-inserting keeps the map in expiry order, so the sweep stops at the first entry still in force.
+      const flag = `${client.room}:${client.member.id}`;
+      this.flags.delete(flag);
+      for (const [key, until] of this.flags)
+        if (until <= now || this.flags.size >= FLAGS) this.flags.delete(key);
+        else break;
+      this.flags.set(flag, now + FLAG_MS);
+      client.socket.close(1008, "Signalling flood");
+      void this.disconnect(client.member.connectionId);
+      return;
+    }
+    if (now - client.noticeAt < NOTICE_INTERVAL_MS) return;
+    client.noticeAt = now;
+    this.send(client, {
+      type: "notice",
+      notice: "signal-throttled",
+      dropped: client.refused,
+    });
+    client.refused = 0;
+  }
+  /**
+   * A target's current connection has its own bucket. Everything else shares the strangers' bucket: an unknown member,
+   * or a connection id this gateway's view has replaced. Those frames are never relayed and each costs a database
+   * read, so naming strangers or stale connections mints neither allowance nor reads.
+   */
+  private takeSignal(
+    client: Client,
+    room: RoomRecord,
+    to: string,
+    targetConnectionId: unknown,
+    now: number,
+  ): boolean {
+    const current =
+      Object.hasOwn(room.members, to) &&
+      (targetConnectionId === undefined ||
+        room.members[to]!.connectionId === targetConnectionId);
+    const bucket = this.signalBucket(client, room, current ? to : "");
+    return current
+      ? take(bucket, now, LINK_BURST, LINK_PER_SECOND)
+      : take(bucket, now, STRANGER_BURST, STRANGER_PER_SECOND);
+  }
+  private signalBucket(client: Client, room: RoomRecord, key: string): Bucket {
+    let bucket = client.signals.get(key);
+    if (!bucket) {
+      // A long-lived connection keeps a bucket per current member and one for strangers, never one per member it ever saw.
+      for (const id of client.signals.keys())
+        if (id && !Object.hasOwn(room.members, id)) client.signals.delete(id);
+      bucket = {
+        tokens: !key
+          ? STRANGER_BURST
+          : client.flagged
+            ? LINK_PER_SECOND
+            : LINK_BURST,
+        at: this.deps.now(),
+      };
+      client.signals.set(key, bucket);
+    }
+    return bucket;
+  }
+  /** Charged only when a frame is about to be published; same-gateway relays cost nothing and are not counted. */
+  private takePublish(
+    code: string,
+    destination: string,
+    bytes: number,
+    now: number,
+  ): boolean {
+    const key = `${code}:${destination}`;
+    let bucket = this.publishes.get(key);
+    // Re-inserting keeps the map oldest-first; a bucket idle for a whole refill is full again, so forgetting it changes nothing.
+    this.publishes.delete(key);
+    for (const [other, idle] of this.publishes)
+      if (now - idle.at >= (PUBLISH_BURST / PUBLISH_PER_SECOND) * 1000)
+        this.publishes.delete(other);
+      else break;
+    if (!bucket && this.publishes.size >= PUBLISH_ROOMS) return false;
+    bucket ??= { tokens: PUBLISH_BURST, at: now };
+    this.publishes.set(key, bucket);
+    return take(
+      bucket,
+      now,
+      PUBLISH_BURST,
+      PUBLISH_PER_SECOND,
+      Math.max(1, bytes / 1000),
+    );
+  }
+  private async handle(
+    client: Client,
+    raw: string,
+    bytes: number,
+  ): Promise<void> {
     if (
       this.stateValue !== "ready" ||
+      client.closed ||
       !this.clients.has(client.member.connectionId)
     )
       return;
@@ -240,13 +431,18 @@ export class RoomGateway {
     const room = this.views.get(client.room)?.room;
     if (!room || room.expiresAt <= this.deps.now())
       throw new RoomError(404, "Room expired");
-    if (
-      room.members[client.member.id]?.connectionId !==
-        client.member.connectionId ||
-      room.members[client.member.id].expiresAt <= this.deps.now()
-    )
+    const seat = room.members[client.member.id];
+    // A seat that lapsed or was pruned is not a replacement: the socket closes retryable and the device re-admits,
+    // where "replaced" would tell it, wrongly and terminally, that a newer tab holds its seat.
+    if (seat && seat.connectionId !== client.member.connectionId)
       throw new RoomError(409, "Connection replaced");
+    if (!seat || seat.expiresAt <= this.deps.now())
+      throw new RoomError(410, "Connection lease expired");
     if (m.type === "time") {
+      if (!take(client.times, this.deps.now(), TIME_BURST, TIME_PER_SECOND)) {
+        this.refuse(client, this.deps.now());
+        return;
+      }
       if (
         !(
           (typeof m.id === "string" && m.id.length > 0 && m.id.length <= 64) ||
@@ -257,10 +453,12 @@ export class RoomGateway {
         m.sentAt < 0
       )
         return;
+      // The watched view lets the store answer without a transaction while nothing is due for renewal.
       const current = await this.store.time(
         client.room,
         client.member,
         isGrantIdentity(m.renew) ? m.renew : undefined,
+        room,
       );
       if (
         this.clients.get(client.member.connectionId) !== client ||
@@ -285,25 +483,20 @@ export class RoomGateway {
       });
       return;
     }
-    if (m.type !== "signal" || typeof m.to !== "string") return;
+    const to = m.to;
+    if (m.type !== "signal" || typeof to !== "string") return;
     if (!validSignal(m.data)) return;
-    // ICE candidates arrive in bursts across several peers. Bound sustained signalling
-    // without rejecting the initial mesh negotiation (32-frame burst, five per second).
+    // Charged before the target is resolved, so a refused frame never costs a database read or a bus publish.
+    // A rejoin negotiates every link at once: each target has its own allowance rather than a share of one.
     const now = this.deps.now();
-    client.signalTokens = Math.min(
-      32,
-      client.signalTokens + (Math.max(0, now - client.signalAt) * 5) / 1000,
-    );
-    client.signalAt = now;
-    if (client.signalTokens < 1) {
-      client.socket.close(1008, "Signalling rate limit");
-      void this.disconnect(client.member.connectionId);
+    if (!this.takeSignal(client, room, to, m.targetConnectionId, now)) {
+      this.refuse(client, now);
       return;
     }
-    client.signalTokens--;
-
+    const member = (from: RoomRecord): Member | undefined =>
+      Object.hasOwn(from.members, to) ? from.members[to] : undefined;
     let current = room,
-      target = current.members[m.to];
+      target = member(current);
     // Only a connection transition needs an authoritative metadata refresh; no database read per input.
     if (
       !target ||
@@ -318,7 +511,7 @@ export class RoomGateway {
       )
         return;
       this.observe(client.room, current);
-      target = current.members[m.to];
+      target = member(current);
     }
     // Any two current members may signal: the gameplay mesh links every pair directly.
     if (
@@ -347,7 +540,11 @@ export class RoomGateway {
       },
     };
     if (target.gatewayId === this.id) await this.route(routed, false);
-    else await this.bus.publish(routed);
+    else if (
+      this.takePublish(client.room, target.gatewayId, bytes, this.deps.now())
+    )
+      await this.bus.publish(routed);
+    else this.refuse(client, this.deps.now());
   }
   private observe(code: string, room: RoomRecord | undefined): void {
     let view = this.views.get(code);
@@ -378,11 +575,19 @@ export class RoomGateway {
           room.members[client.member.id]?.connectionId !==
             client.member.connectionId
         ) {
+          const ended = !room || room.expiresAt <= this.deps.now(),
+            // Pruned by another admission after its lease lapsed: retryable, unlike a seat taken by a newer connection.
+            lapsed =
+              !ended &&
+              room.incarnation === client.incarnation &&
+              !room.members[client.member.id];
           client.socket.close(
-            !room || room.expiresAt <= this.deps.now() ? 4004 : 4001,
-            !room || room.expiresAt <= this.deps.now()
+            ended ? 4004 : lapsed ? 4000 : 4001,
+            ended
               ? "Room ended or expired"
-              : "Reconnected elsewhere",
+              : lapsed
+                ? "Connection lease expired"
+                : "Reconnected elsewhere",
           );
           void this.disconnect(client.member.connectionId);
           continue;

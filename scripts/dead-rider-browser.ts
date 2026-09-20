@@ -26,21 +26,30 @@ try {
   for (const mode of ["webgl", "phaser-canvas"] as const) {
     const results = await page.evaluate(async (mode) => {
       const { createPhaserArena } = (await import(
-        String("/src/client/phaser/arena.ts")
-      )) as typeof import("../src/client/phaser/arena.js");
+        String("/games/fuse-riders/src/render/phaser/arena.ts")
+      )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
       const { visualFixture } = (await import(
-        String("/src/client/phaser/benchmark-fixture.ts")
-      )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+        String("/scripts/lib/benchmark-fixture.ts")
+      )) as typeof import("./lib/benchmark-fixture.js");
       const { themes } = (await import(
-        String("/src/client/themes.ts")
-      )) as typeof import("../src/client/themes.js");
+        String("/games/fuse-riders/src/render/themes.ts")
+      )) as typeof import("../games/fuse-riders/src/render/themes.js");
       const { advanceTrail } = (await import(
-        String("/src/shared/trail-lifecycle.ts")
-      )) as typeof import("../src/shared/trail-lifecycle.js");
+        String("/games/fuse-riders/src/engine/trail-lifecycle.ts")
+      )) as typeof import("../games/fuse-riders/src/engine/trail-lifecycle.js");
       const { createGame, addPlayer, startMatch, eliminatePlayer } =
         (await import(
-          String("/src/shared/game.ts")
-        )) as typeof import("../src/shared/game.js");
+          String("/games/fuse-riders/src/engine/game.ts")
+        )) as typeof import("../games/fuse-riders/src/engine/game.js");
+      const { defaultRoomSettings } = (await import(
+        String("/games/fuse-riders/src/engine/room-settings.ts")
+      )) as typeof import("../games/fuse-riders/src/engine/room-settings.js");
+      // The open arena these shots were framed on, said explicitly now that a game has no settings fallback.
+      const classic = {
+        ...defaultRoomSettings(),
+        map: "classic" as const,
+        aimBounce: false,
+      };
       document.body.replaceChildren();
       document.body.style.cssText = "margin:0;background:#020715";
       const canvas = document.createElement("canvas");
@@ -128,7 +137,7 @@ try {
         if (livingTrail <= 0) throw Error("Live trail missing");
         if (regionDifference(alive, empty, 750, 395, 100, 110) === 0)
           throw Error("Live avatar missing");
-        const game = createGame("decaying-trail");
+        const game = createGame("decaying-trail", classic);
         game.tick = 100;
         addPlayer(game, {
           id: player.id,

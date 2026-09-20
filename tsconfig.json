@@ -5,10 +5,18 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
+    "noUncheckedIndexedAccess": true,
     "noEmit": true,
     "skipLibCheck": true,
     "types": ["node"],
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "tests", "scripts", "packages", "vite.config.ts"]
+  "include": [
+    "service",
+    "tests",
+    "scripts",
+    "packages",
+    "games",
+    "vite.config.ts"
+  ]
 }

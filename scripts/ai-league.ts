@@ -1,12 +1,12 @@
 // Headless AI league: plays whole matches with no rendering, network or clock, so tiers can be compared by evidence.
-// Usage: npx tsx scripts/ai-league.ts [matchesPerPairing]
+// Usage: pnpm exec tsx scripts/ai-league.ts [matchesPerPairing]
 import {
   BotController,
   botDisplayName,
   botRandom,
   BOT_DIFFICULTIES,
   type BotDifficulty,
-} from "../src/shared/bot-controller.js";
+} from "../games/fuse-riders/src/engine/bot-controller.js";
 import {
   createGame,
   addPlayer,
@@ -14,7 +14,8 @@ import {
   step,
   SLOT_COLORS,
   ROUND_DRAW_TICK,
-} from "../src/shared/game.js";
+} from "../games/fuse-riders/src/engine/game.js";
+import { classicSettings } from "../games/fuse-riders/src/engine/room-settings.js";
 
 /** Identical deterministic brains on symmetric spawns mirror each other into a simultaneous crash, which measures
  *  the arena's symmetry rather than the riders' skill. A seeded nudge off the spawn marks breaks it. */
@@ -32,7 +33,10 @@ function round(
   field: readonly BotDifficulty[],
   controller: BotController,
 ) {
-  const game = createGame(`league-${seed}-${field.join("-")}`);
+  const game = createGame(
+    `league-${seed}-${field.join("-")}`,
+    classicSettings(),
+  );
   field.forEach((difficulty, slot) =>
     addPlayer(game, {
       id: `bot:${slot}`,
