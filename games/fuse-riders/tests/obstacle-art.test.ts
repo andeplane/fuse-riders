@@ -6,6 +6,7 @@ import {
   OBSTACLE_VARIANTS,
   obstacleVariant,
   generateObstacles,
+  isPropObstacleKind,
   validObstacleDimensions,
   type Obstacle,
   type PropObstacleKind,
@@ -144,4 +145,61 @@ test("all scenery maps reuse the native catalog and a surviving id keeps its art
     }
   }
   assert.equal(seen.size, 16);
+});
+
+/**
+ * A rock is met as a circle on its `halfWidth` alone, so a variant whose height differed would kill along a boundary
+ * nothing drew. Nothing in the types says a rock must be square; this does.
+ */
+test("every rock variant is square, which is what lets one radius stand for its whole footprint", () => {
+  for (const variant of OBSTACLE_VARIANTS.rock)
+    assert.equal(
+      variant.width,
+      variant.height,
+      `${variant.id} is ${variant.width}x${variant.height}`,
+    );
+});
+
+/**
+ * The movers a map lays are shaped by that map, not by the catalog. They must take the no-variant path all the way
+ * through — no artwork, and no dimension check that would reject a wall for not being a catalog size.
+ */
+test("a mover has no catalog variant and no artwork, and still validates at its map's own size", () => {
+  const wall: Obstacle = {
+    id: 1,
+    kind: "wall",
+    x: 800,
+    y: 12,
+    halfWidth: 800,
+    halfHeight: 12,
+  };
+  const car: Obstacle = {
+    id: 2,
+    kind: "train",
+    x: 400,
+    y: 300,
+    halfWidth: 14,
+    halfHeight: 14,
+  };
+  for (const mover of [wall, car]) {
+    assert.equal(isPropObstacleKind(mover.kind), false);
+    assert.equal(obstacleVariant(mover), null);
+    assert.equal(obstacleArtwork(mover, "drift"), null);
+    assert.equal(obstacleArtwork(mover, "trains"), null);
+    // Its map's size stands, where a catalog size would not.
+    assert.ok(validObstacleDimensions(mover));
+  }
+  // A degenerate mover is still refused: a zero-thickness wall is nothing to crash into.
+  assert.equal(validObstacleDimensions({ ...wall, halfHeight: 0 }), false);
+  // A prop, by contrast, is pinned to its variant and rejected at any other size.
+  const rock: Obstacle = {
+    id: 1,
+    kind: "rock",
+    x: 400,
+    y: 400,
+    halfWidth: 28,
+    halfHeight: 28,
+  };
+  assert.ok(validObstacleDimensions(rock));
+  assert.equal(validObstacleDimensions({ ...rock, halfWidth: 29 }), false);
 });

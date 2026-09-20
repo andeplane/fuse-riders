@@ -185,10 +185,7 @@ test("a shielded rider is turned away from a round rock along its normal", () =>
 
 test("rocks use full circles and all other scenery uses full rectangles", () => {
   for (const kind of OBSTACLE_KINDS) {
-    assert.deepEqual(OBSTACLE_HIT_SHAPES[kind], {
-      round: kind === "rock",
-      scale: 1,
-    });
+    assert.deepEqual(OBSTACLE_HIT_SHAPES[kind], { round: kind === "rock" });
   }
 });
 

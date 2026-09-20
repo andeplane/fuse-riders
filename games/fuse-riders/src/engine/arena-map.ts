@@ -178,17 +178,17 @@ export interface ObstacleSegment {
   radius: number;
 }
 
-/** Every collision path uses the same complete rectangle or circle footprint. */
-export const OBSTACLE_HIT_SHAPES: Record<
-  ObstacleKind,
-  { round: boolean; scale: number }
-> = {
-  rock: { round: true, scale: 1 },
-  crate: { round: false, scale: 1 },
-  building: { round: false, scale: 1 },
-  pyramid: { round: false, scale: 1 },
-  wall: { round: false, scale: 1 },
-  train: { round: false, scale: 1 },
+/**
+ * Every collision path uses the same complete rectangle or circle footprint. There is no shrink factor: the kinds that
+ * once stood inside a smaller hitbox than they drew (cactus, tree, bush) are gone, and a piece is now met where it is.
+ */
+export const OBSTACLE_HIT_SHAPES: Record<ObstacleKind, { round: boolean }> = {
+  rock: { round: true },
+  crate: { round: false },
+  building: { round: false },
+  pyramid: { round: false },
+  wall: { round: false },
+  train: { round: false },
 };
 export interface ObstacleHitbox extends Obstacle {
   round: boolean;

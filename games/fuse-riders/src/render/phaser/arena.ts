@@ -905,12 +905,11 @@ class ArenaScene extends Phaser.Scene {
     const { s, theme, matchId, w, h, b, ground, open, backgroundKey } = frame;
     // Scenery that moves is not baked here: `drawMovers` draws it every frame.
     const standing = s.obstacles.filter((obstacle) => !obstacle.motion);
-    // Identity and geometry, not a count: rollback or a checkpoint can replace a standing set with one the same size,
-    // and each piece's variant — the artwork drawn for it — follows from its id and kind.
+    // Identity and place, not a count: rollback or a checkpoint can replace a standing set with one the same size.
+    // The half extents are left out because they say nothing a piece's kind and id do not: the artwork drawn for it is
+    // its catalog variant, which those two select, and `validObstacleDimensions` pins it to that variant's size.
     const sceneryKey = standing
-      .map(
-        (o) => `${o.id},${o.kind},${o.x},${o.y},${o.halfWidth},${o.halfHeight}`,
-      )
+      .map((o) => `${o.id},${o.kind},${o.x},${o.y}`)
       .join(";");
     // Black holes pull the grid toward their cores. The ease is quantised, so the floor only redraws while a hole opens or closes.
     const wells = s.gravityFields
