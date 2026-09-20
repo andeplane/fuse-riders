@@ -40,7 +40,7 @@ import type { GameEvent } from "./state.js";
 import { driveGameTick } from "./tick-driver.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-49"; // 49: a rider renames itself over the seat it holds: a `JOIN` for a rider the room already seats now takes the name it carries instead of ignoring it, which is what lets the room be the join screen and the join card go (`docs/design/room-is-the-join-screen.md`). Names are not kept unique; colour and head are what tell riders apart. 48: a rider's colour and head are its own and unique in the room: ten `RIDER_COLORS` instead of five seat colours, a `COLOR` entry beside `AVATAR`, both refused when another rider already wears the choice, and a join that takes the lowest free colour and repairs a taken head. 46: the room passes to the rider in the next seat, not the lowest member id: succession ranks connected human riders by seat. 45: generation- and match-scoped ready votes start games and rematches deterministically. 44 and 47 are reserved by the hidden-tab policy PR (#361).
+export const RULES = "fuse-p2p-49"; // 49: a rider renames itself over the seat it holds: a `JOIN` for a rider the room already seats now takes the name it carries instead of ignoring it, which is what lets the room be the join screen and the join card go (`docs/design/room-is-the-join-screen.md`). Names are not kept unique; colour and head are what tell riders apart. 48: a rider's colour and head are its own and unique in the room: ten `RIDER_COLORS` instead of five seat colours, a `COLOR` entry beside `AVATAR`, both refused when another rider already wears the choice, and a join that takes the lowest free colour and repairs a taken head. 47: a member may log its own presence: `PRESENCE false` about itself steps it away (its page is hidden) — its seat, round place and rating stay, its controls are neutral and its own entries unread, and it drops out of the succession order — and `PRESENCE true` about itself brings it back; folds and watchers carry the `away` mark. 46: the room passes to the rider in the next seat, not the lowest member id: succession ranks connected human riders by seat. 45: generation- and match-scoped ready votes start games and rematches deterministically.
 // 43: the state takes the registries' shape (timed effects as `effects[]`, weapons as `armed[]`, Gun tracers in `tracers` rather than `bombs`, one fresh-round rider, no dead pickup, bomb or transit fields); every event and every view is unchanged. 42: the `drift` map (the wrapping board with a cross of walls on it that wanders like a screensaver logo) and the `trains` map (classic walls, trains round two loops of track): an obstacle may carry a `motion`, advanced by the `moveScenery` phase after `fitField`; `wall` and `train` obstacles stand through blasts and the overtime walls; scenery is met across open edges by riders and bullets, as trails are. 41: spectators are room members in the fold: SPECTATOR entries seat and free them, PRESENCE and LEAVE reach them, and they rank last in the succession order. 40: Target Bomb and the aim input are gone; Star drops by default. 39: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
@@ -50,12 +50,20 @@ export const MAX_SPECTATORS = 5;
 export interface Fold extends HeldControls {
   generation: number;
   ready?: true;
+  /**
+   * The rider logged itself away (its page is hidden, ADR-047 §12): it keeps its seat and its place in every round, but
+   * its controls stay neutral and its own entries are not read until it logs its return. Absent unless set, so the
+   * canonical state of a room nobody stepped away from is what it was.
+   */
+  away?: true;
 }
 /** A member that watches: named and listed like a rider, but with no seat, no colour, no inputs and no place in the game. */
 export interface Spectator {
   name: string;
   connected: boolean;
   generation: number;
+  /** Logged itself away, as a rider can (`Fold.away`): still listed and never dropped as absent, but it manages nothing. */
+  away?: true;
 }
 /** State at tick T is a pure fold of the seed and every entry with tick ≤ T. */
 export interface RoomState {
@@ -133,28 +141,61 @@ export function repairedAvatar(
  * a seat left in it should be managed from that seat, but they do rank: a room whose riders all dropped is still run by
  * whoever is left watching.
  */
-export function successionOrder(state: RoomState, creatorId: string): string[] {
+export function successionOrder(
+  state: RoomState,
+  creatorId: string,
+  /** Rank away members too, as if present: the order in which absence may be recorded (`permitted`). */
+  withAway = false,
+): string[] {
+  const ranked = (present: boolean, away: boolean) =>
+    present || (withAway && away);
   return [
     creatorId,
     ...sortedPlayers(state.game)
       .filter(
         (player) =>
-          player.connected &&
           !state.bots.has(player.id) &&
-          player.id !== creatorId,
+          player.id !== creatorId &&
+          ranked(
+            player.connected && state.folds.get(player.id)?.away !== true,
+            state.folds.get(player.id)?.away === true,
+          ),
       )
       .map((player) => player.id),
     ...[...state.spectators]
-      .filter(([id, spectator]) => spectator.connected && id !== creatorId)
+      .filter(
+        ([id, spectator]) =>
+          id !== creatorId &&
+          ranked(
+            spectator.connected && spectator.away !== true,
+            spectator.away === true,
+          ),
+      )
       .map(([id]) => id)
       .sort(),
   ];
 }
-/** Whether the room lists this member as present, in a seat or in the watching list. */
+/** Whether the room lists this member as present, in a seat or in the watching list, and not away (`Fold.away`). */
 export function memberConnected(state: RoomState, id: string): boolean {
   return (
-    state.game.players.get(id)?.connected === true ||
-    state.spectators.get(id)?.connected === true
+    (state.game.players.get(id)?.connected === true &&
+      state.folds.get(id)?.away !== true) ||
+    (state.spectators.get(id)?.connected === true &&
+      state.spectators.get(id)?.away !== true)
+  );
+}
+/** Whether this member holds a seat (not a bot's) or a place in the watching list, present or not. */
+export function memberListed(state: RoomState, id: string): boolean {
+  return (
+    (state.game.players.has(id) && !state.bots.has(id)) ||
+    state.spectators.has(id)
+  );
+}
+/** Whether this member logged itself away and has not logged its return. */
+export function memberAway(state: RoomState, id: string): boolean {
+  return (
+    state.folds.get(id)?.away === true ||
+    state.spectators.get(id)?.away === true
   );
 }
 /** The lowest connected human other than the creator: it manages the room while the creator is absent. */
@@ -181,7 +222,9 @@ export function actingCreator(
 /**
  * Whether a management entry from `manager` applies: the creator always; the delegate while the creator is absent; and any
  * connected human may record the absence of someone ahead of it in the succession order, so a creator and a delegate that
- * drop together are both marked absent by the next rider rather than leaving the room stalled.
+ * drop together are both marked absent by the next rider rather than leaving the room stalled. Any member may log its own
+ * presence: `PRESENCE false` about itself while present steps it away (`Fold.away`), and `PRESENCE true` about itself
+ * while away brings it back. Nothing else from an away member applies.
  */
 export function permitted(
   state: RoomState,
@@ -189,6 +232,23 @@ export function permitted(
   manager: string,
   entry: Entry,
 ): boolean {
+  if (entry[2] === PRESENCE && entry[3] === manager) {
+    // Stepping away needs a place in the room, not presence: a member the manager logged absent a moment before its
+    // own away entry folds is still stepping away, or its throttled packets would have the manager flap it again.
+    if (entry[4] === false)
+      return memberListed(state, manager) && !memberAway(state, manager);
+    if (memberAway(state, manager)) return true;
+  }
+  // An away member steps back in before anything else it logs applies, the creator included — except the one entry §9
+  // gives every ranked member: the absence of someone ahead of it. Without it, a member whose last peer died unlogged
+  // while it was away could neither record that death nor return, and the room stood still (#361 review).
+  if (memberAway(state, manager)) {
+    if (entry[2] !== PRESENCE || entry[4] !== false) return false;
+    const judging = successionOrder(state, creatorId, true),
+      rank = judging.indexOf(manager),
+      target = judging.indexOf(entry[3]);
+    return rank > 0 && target >= 0 && target < rank;
+  }
   if (manager === creatorId) return true;
   const order = successionOrder(state, creatorId),
     rank = order.indexOf(manager);
@@ -243,7 +303,7 @@ function resetGestures(state: RoomState): void {
 }
 
 /** Every management entry is applied defensively: an inapplicable entry is a no-op on every replica alike. */
-function applyManagement(state: RoomState, entry: Entry): void {
+function applyManagement(state: RoomState, entry: Entry, author: string): void {
   const game = state.game;
   try {
     switch (entry[2]) {
@@ -298,6 +358,7 @@ function applyManagement(state: RoomState, entry: Entry): void {
           const fold = state.folds.get(id);
           if (fold) {
             Object.assign(fold, neutralControls());
+            delete fold.away;
             delete fold.ready;
           }
         }
@@ -305,15 +366,27 @@ function applyManagement(state: RoomState, entry: Entry): void {
       }
       case PRESENCE: {
         const [, , , id, connected, generation] = entry;
+        // Its own absence (`permitted`) is a step away: it stays in the room and in the game, present to both.
+        const away = id === author && !connected;
         const spectator = state.spectators.get(id);
         if (spectator) {
-          spectator.connected = connected;
+          if (away) {
+            spectator.connected = true;
+            spectator.away = true;
+          } else {
+            spectator.connected = connected;
+            delete spectator.away;
+          }
           spectator.generation = generation;
           return;
         }
         if (!game.players.has(id) || state.bots.has(id)) return;
-        setPlayerConnected(game, id, connected);
-        state.folds.set(id, { ...neutralControls(), generation });
+        setPlayerConnected(game, id, away || connected);
+        state.folds.set(id, {
+          ...neutralControls(),
+          generation,
+          ...(away ? { away: true as const } : {}),
+        });
         return;
       }
       case SPECTATOR: {
@@ -326,6 +399,7 @@ function applyManagement(state: RoomState, entry: Entry): void {
         if (existing) {
           existing.connected = true;
           existing.generation = generation;
+          delete existing.away;
           return;
         }
         // A seat and the watching list are exclusive, and the list is capped: both are refused here so every replica refuses alike.
@@ -453,7 +527,13 @@ export function applyTick(
     tick = state.tick + 1,
     // Decided on the state the previous tick left, before this tick's entries: the same count on every replica.
     steps = stepsPerTick(game, state.bots);
-  for (const manager of successionOrder(state, creatorId)) {
+  const order = successionOrder(state, creatorId);
+  // Everyone else listed is read after the order, for the entries only they may log about themselves: an away member's
+  // return, and an absent member's step away (`permitted`).
+  const others = [...state.game.players.keys(), ...state.spectators.keys()]
+    .filter((id) => memberListed(state, id) && !order.includes(id))
+    .sort();
+  for (const manager of [...order, ...others]) {
     const stream = streams.get(manager);
     if (!stream) continue;
     // Management entries are not gated by generation: a returning creator's new stream must be able to log its own presence.
@@ -464,7 +544,7 @@ export function applyTick(
       if (entry[1] !== tick || !isManagementKind(entry[2])) continue;
       // Delegation is re-evaluated per entry: the creator's own return revokes the acting creator mid-tick.
       if (!permitted(state, creatorId, manager, entry)) continue;
-      applyManagement(state, entry);
+      applyManagement(state, entry, manager);
     }
   }
   /** Whether no rider but this one wears `value`: the uniqueness rule behind the `AVATAR` and `COLOR` entries. */
@@ -484,7 +564,8 @@ export function applyTick(
     }
     const fold = state.folds.get(player.id);
     if (!fold) continue;
-    if (!player.connected) {
+    // Absent or away: neutral controls, and nothing the member logs is read.
+    if (!player.connected || fold.away) {
       delete fold.ready;
       Object.assign(fold, neutralControls());
       inputs.set(player.id, intentOf(fold));
@@ -527,20 +608,28 @@ export function applyTick(
     inputs.set(player.id, foldPlayerEntries(fold, entries));
   }
   const connected = sortedPlayers(game).filter((player) => player.connected);
-  const humans = connected.filter((player) => !state.bots.has(player.id));
+  // An away rider cannot vote (nothing it logs is read) and nothing waits on it: the others' votes decide.
+  const humans = connected.filter(
+    (player) =>
+      !state.bots.has(player.id) && state.folds.get(player.id)?.away !== true,
+  );
   if (
     readyPhase(game) &&
     connected.length >= 2 &&
     humans.length > 0 &&
     humans.every((player) => state.folds.get(player.id)?.ready)
   ) {
-    applyManagement(state, [
-      1,
-      tick,
-      ACTION,
-      game.phase === "lobby" ? "start" : "rematch",
-      `ready-${hashText(`${game.matchId}:${tick}`)}`,
-    ]);
+    applyManagement(
+      state,
+      [
+        1,
+        tick,
+        ACTION,
+        game.phase === "lobby" ? "start" : "rematch",
+        `ready-${hashText(`${game.matchId}:${tick}`)}`,
+      ],
+      creatorId,
+    );
   }
   const driven = driveGameTick(game, inputs, state.settings, phases, {
     count: steps,

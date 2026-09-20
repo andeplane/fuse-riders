@@ -268,3 +268,43 @@ test("a rename is refused once this rider is ready, and once the round has start
   assert.equal(nameOf(GUESTS[0]!), "In Time");
   for (const runtime of net.runtimes.values()) runtime.stop();
 });
+
+test("a rename the manager never heard is retried, rather than quietly snapping back", () => {
+  // A rename changes a name the seat already has, so "this device is seated" cannot say whether the request landed.
+  // If the send is lost, nothing about the seat looks wrong and only the retry can repair it.
+  const { net, join } = room();
+  join(HOST, "Host");
+  net.step(200);
+  const guest = join(GUESTS[0]!, "Guest");
+  net.step(900);
+  const nameOf = (viewer: string) =>
+    net.frame(viewer)!.players.find((player) => player.id === GUESTS[0])?.name;
+  assert.equal(nameOf(HOST), "Guest");
+
+  const joins = () =>
+    net.reliableLog.filter(
+      (message) => message.from === GUESTS[0] && message.type === "join",
+    ).length;
+  const before = joins();
+  net.dropReliable.add("join");
+  assert.equal(guest.command({ type: "join", name: "Rider Bo" }), true);
+  net.step(600);
+  assert.equal(nameOf(HOST), "Guest", "the request never reached the manager");
+  net.step(1200);
+  assert.ok(
+    joins() > before + 1,
+    `the rename is asked for again (${joins() - before} sends)`,
+  );
+
+  // The link carries again: the next retry is the one that lands.
+  net.dropReliable.delete("join");
+  net.step(2000);
+  for (const viewer of [HOST, GUESTS[0]!])
+    assert.equal(nameOf(viewer), "Rider Bo", `${viewer} sees the new name`);
+  // And once it has landed the request stops: no further sends.
+  const settled = joins();
+  net.step(3000);
+  assert.equal(joins(), settled, "the rename is not asked for forever");
+  assert.equal(hashes(net, [HOST, GUESTS[0]!]).size, 1);
+  for (const runtime of net.runtimes.values()) runtime.stop();
+});

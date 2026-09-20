@@ -78,23 +78,29 @@ export type FuseView = WorldView & {
   readyPlayers: string[];
 };
 
-const seatOf = (state: RoomState, player: PlayerState): Seat => ({
-  id: player.id,
-  name: player.name,
-  slot: player.slot,
-  avatarId: player.avatarId,
-  connected: player.connected === true,
-  bot: state.bots.has(player.id),
-  generation: state.folds.get(player.id)?.generation,
-});
+/** An away member (`Fold.away`) is present to the game but not to the netcode: nothing waits on it and nobody judges its silence. */
+const seatOf = (state: RoomState, player: PlayerState): Seat => {
+  const fold = state.folds.get(player.id);
+  return {
+    id: player.id,
+    name: player.name,
+    slot: player.slot,
+    avatarId: player.avatarId,
+    connected: player.connected === true && fold?.away !== true,
+    bot: state.bots.has(player.id),
+    generation: fold?.generation,
+    ...(fold?.away ? { away: true } : {}),
+  };
+};
 const watcherOf = (id: string, spectator: Spectator): Seat => ({
   id,
   name: spectator.name,
   slot: -1,
-  connected: spectator.connected,
+  connected: spectator.connected && spectator.away !== true,
   bot: false,
   watcher: true,
   generation: spectator.generation,
+  ...(spectator.away ? { away: true } : {}),
 });
 /** Riders in the game's order, then the watchers. */
 const members = (state: RoomState): Seat[] => [
@@ -151,11 +157,18 @@ function decodeRoom(
   }
   const folds = new Map<string, Fold>();
   for (const raw of rawFolds) {
-    if (!Array.isArray(raw) || (raw.length !== 5 && raw.length !== 6)) return;
-    const [id, generation, flags, active, latest, ready] = raw;
+    // A sixth field is the ready vote; a seventh the away mark (`Fold.away`), written only when set, after a `false`
+    // vote if there is none, and only for a rider the game has present.
+    if (!Array.isArray(raw) || raw.length < 5 || raw.length > 7) return;
+    const [id, generation, flags, active, latest, ready, away] = raw;
     if (
       !memberId(id) ||
       !game.players.has(id) ||
+      // Away and ready together is a fold no reducer can reach: a step away clears the vote.
+      (raw.length === 7 &&
+        (away !== 1 ||
+          ready === true ||
+          game.players.get(id)!.connected !== true)) ||
       bots.has(id) ||
       folds.has(id) ||
       !uint32(generation) ||
@@ -164,6 +177,7 @@ function decodeRoom(
       !uint32(active) ||
       !uint32(latest) ||
       (raw.length === 6 && ready !== true) ||
+      (raw.length === 7 && typeof ready !== "boolean") ||
       (ready === true &&
         (!game.players.get(id)?.connected || !readyPhase(game))) ||
       (active !== 0 && active !== latest)
@@ -174,15 +188,17 @@ function decodeRoom(
       flags,
       activeGesture: active,
       latestGesture: latest,
-      ...(ready ? { ready: true as const } : {}),
+      ...(ready === true ? { ready: true as const } : {}),
+      ...(away === 1 ? { away: true as const } : {}),
     });
   }
   for (const player of game.players.values())
     if (!bots.has(player.id) && !folds.has(player.id)) return;
   const spectators = new Map<string, Spectator>();
   for (const raw of rawSpectators) {
-    if (!Array.isArray(raw) || raw.length !== 4) return;
-    const [id, watcherName, connected, generation] = raw;
+    // A fifth field is the away mark, as for a rider's fold, and only on a watcher listed present.
+    if (!Array.isArray(raw) || (raw.length !== 4 && raw.length !== 5)) return;
+    const [id, watcherName, connected, generation, away] = raw;
     // A member is a rider or a watcher, never both, and the fold never lists one twice.
     if (
       !memberId(id) ||
@@ -191,10 +207,16 @@ function decodeRoom(
       !loggedRiderName(watcherName) ||
       watcherName.trim() !== watcherName ||
       typeof connected !== "boolean" ||
-      !uint32(generation)
+      !uint32(generation) ||
+      (raw.length === 5 && (away !== 1 || !connected))
     )
       return;
-    spectators.set(id, { name: watcherName, connected, generation });
+    spectators.set(id, {
+      name: watcherName,
+      connected,
+      generation,
+      ...(away === 1 ? { away: true as const } : {}),
+    });
   }
   return { tick, game, settings, folds, bots, spectators };
 }
@@ -247,7 +269,8 @@ export const fuseGame: RollbackGame<
         fold.flags,
         fold.activeGesture,
         fold.latestGesture,
-        ...(fold.ready ? [true] : []),
+        ...(fold.ready || fold.away ? [fold.ready === true] : []),
+        ...(fold.away ? [1] : []),
       ]),
       [...state.bots],
       [...state.spectators].map(([id, watcher]) => [
@@ -255,6 +278,7 @@ export const fuseGame: RollbackGame<
         watcher.name,
         watcher.connected,
         watcher.generation,
+        ...(watcher.away ? [1] : []),
       ]),
     ],
     decode: decodeRoom,

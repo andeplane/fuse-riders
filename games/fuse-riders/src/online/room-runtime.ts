@@ -154,14 +154,19 @@ export class RoomRuntime extends NetRuntime<
           !Number.isInteger(command.colorIndex) ||
           command.colorIndex < 0 ||
           command.colorIndex >= RIDER_COLORS.length ||
-          !this.player()
+          !this.player() ||
+          this.hiddenState
         )
           return false;
         this.append(COLOR, command.colorIndex);
         this.sendPackets(this.deps.now());
         return true;
       }
-      if (!this.game.seating.isAvatar(command.avatarId) || !this.player())
+      if (
+        !this.game.seating.isAvatar(command.avatarId) ||
+        !this.player() ||
+        this.hiddenState
+      )
         return false;
       this.append(AVATAR, command.avatarId);
       this.sendPackets(this.deps.now());
