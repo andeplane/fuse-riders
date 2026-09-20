@@ -128,13 +128,15 @@ function mobileScreen(
 export function roomScreen(input: RoomScreenInput): RoomScreen {
   const displayOnly = input.role === "display";
   if (!input.booted) {
-    // Before the first frame only the boot or join card is decided: the arena and the lobby card keep their initial
-    // state, and a phone booting a room already takes the lobby shape (#134).
-    const joining = input.role === "joiner";
+    // Before the first frame only the boot card is decided: the arena and the lobby card keep their initial state,
+    // and a phone booting a room already takes the lobby shape (#134). An invited device waits here too rather than
+    // on the join card, because it takes its own seat the moment the room arrives
+    // (`docs/design/room-is-the-join-screen.md`). The card is the exception screen now — for a device the room will
+    // not seat — so opening on it would be a gate that lifts a second later for everybody who can be seated.
     return {
-      kind: joining ? "join" : "boot",
-      booting: !joining,
-      joining,
+      kind: "boot",
+      booting: true,
+      joining: false,
       ended: false,
       lobbyCard: false,
       controllerOnly: false,

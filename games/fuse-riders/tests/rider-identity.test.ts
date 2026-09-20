@@ -231,3 +231,39 @@ test("a restored room in which two humans wear one head is refused", () => {
   assert.equal(state.game.players.get("bot:2")?.avatarId, "robot");
   assert.ok(fuseGame.checkpoint.decode(snapshot(), state.tick));
 });
+
+test("a join for a rider the room already seats renames it, and moves nothing else", () => {
+  const { state, tick, join, colorOf, headOf } = fixture();
+  tick({ host: [join(1, "a", "Ada", 0, "fox"), join(2, "b", "Bo", 1, "owl")] });
+  tick({ a: [[2, 0, COLOR, 6]] });
+  const before = {
+    slot: state.game.players.get("a")!.slot,
+    color: colorOf("a"),
+    head: headOf("a"),
+  };
+  // The same entry that used to be a plain reconnection now carries the name the rider means to wear.
+  tick({ host: [[3, 0, JOIN, "a", "Ada Lovelace", 0, "fox", 0]] });
+  const after = state.game.players.get("a")!;
+  assert.equal(after.name, "Ada Lovelace");
+  assert.deepEqual(
+    { slot: after.slot, color: after.color, head: after.avatarId },
+    before,
+    "the seat, colour and head it already held are untouched",
+  );
+  // The leaderboard follows the name, so a rider that renames mid-match is named the same in the standings.
+  assert.equal(state.game.leaderboard.get("a")?.name, "Ada Lovelace");
+  // Names are not kept unique: two friends called Bo are two riders called Bo, told apart by colour and head.
+  tick({ host: [[4, 0, JOIN, "a", "Bo", 0, "fox", 0]] });
+  assert.equal(state.game.players.get("a")?.name, "Bo");
+  assert.equal(state.game.players.get("b")?.name, "Bo");
+  assert.notEqual(colorOf("a"), colorOf("b"));
+  assert.notEqual(headOf("a"), headOf("b"));
+});
+
+test("a join that carries no usable name leaves the rider named as it was", () => {
+  const { state, tick, join } = fixture();
+  tick({ host: [join(1, "a", "Ada", 0)] });
+  // Whitespace trims away to nothing, which is a reconnection and not a rename: a rider is never left nameless.
+  tick({ host: [[2, 0, JOIN, "a", "   ", 0, "robot", 0]] });
+  assert.equal(state.game.players.get("a")?.name, "Ada");
+});

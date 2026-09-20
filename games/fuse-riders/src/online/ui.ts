@@ -61,6 +61,7 @@ import {
   createColorDialog,
   type ColorDialogOptions,
 } from "./dialogs/rider-color.js";
+import { createNameDialog } from "./dialogs/rider-name.js";
 import { createMenuDialog } from "./dialogs/menu.js";
 import { createRadioDialog } from "./dialogs/radio.js";
 import { createRecapDialog } from "./dialogs/recap.js";
@@ -110,6 +111,8 @@ import {
 } from "./room-presenter.js";
 import { connectHint } from "./connect-hint.js";
 import { createJoinCard, createJoinForm } from "./join-form.js";
+import { createNameEntry } from "fuse-ui";
+import { MAX_LOGGED_NAME_UNITS, seatRiderName } from "../engine/rider-name.js";
 import { safeStorage } from "../client/safe-storage.js";
 import { reportGraphics, startAnalytics, track } from "./analytics.js";
 import { createAnalyticsSetting } from "./analytics-setting.js";
@@ -214,8 +217,19 @@ export async function startOnline(): Promise<void> {
   let lastRecap = "",
     rejoinPending = false,
     recapIsReady = false;
+  /** The room's watching list from the last frame: the side-switch buttons read a name from it when pressed. */
+  let latestWatchers: readonly { id: string; name: string }[] = [];
   /** A colour asked for in the join form, sent once the room has seated this rider; the fold decides whether it sticks. */
   let wantedColor: number | undefined;
+  /**
+   * The name this device takes its seat under, without asking: its account's, the one it last played under on this
+   * browser, or a plain one for a browser that has never played. None of them is a commitment — the room is where a
+   * rider settles its name now, and NAME on its own row changes it until it is ready.
+   */
+  const openingName = (seated: number): string =>
+    accountUsername() ??
+    read("fuse-riders-player-name") ??
+    `Rider ${seated + 1}`;
   const benchmark = url.searchParams.get("benchmark") === "1";
   let benchmarkInput: { seq: number; at: number } | undefined,
     lastBenchmarkRender = 0,
@@ -363,7 +377,10 @@ export async function startOnline(): Promise<void> {
     overNote,
     overHome,
   );
-  app.replaceChildren(header, role === "joiner" ? joinPanel : booting);
+  // Every role opens on the boot card now: an invited device takes its own seat as soon as the room arrives, and the
+  // join card is what it falls back to when the room will not seat it (kicked, or full).
+  app.replaceChildren(header, booting, joinPanel);
+  joinPanel.hidden = true;
   let canvas = node("canvas", "", "online-arena");
   let renderScope = code;
   const presentation = mountArenaPresentation(
@@ -720,7 +737,10 @@ export async function startOnline(): Promise<void> {
   // Colour sits beside the avatar and follows the same rule: a lobby choice, gone once the round starts.
   const colorButton = node("button", "COLOUR");
   colorButton.hidden = true;
-  header.append(avatarButton, colorButton, prefsButton, menu, help);
+  // And the name, which nothing asks for before the seat any more: the room is where a rider settles all three.
+  const nameButton = node("button", "NAME");
+  nameButton.hidden = true;
+  header.append(nameButton, avatarButton, colorButton, prefsButton, menu, help);
   // Every menu is its own dialog (dialogs/*), and which one is open is the registry's state: never read from a
   // dialog's title, classes or contents. They sit where the one shared dialog used to, right after the phone HUD.
   const dialogs = createDialogRegistry<RoomDialogId>();
@@ -899,7 +919,7 @@ export async function startOnline(): Promise<void> {
     roomAccount.button,
   );
   header.append(topMenu);
-  topMenu.append(results, avatarButton, colorButton, menu, help);
+  topMenu.append(results, nameButton, avatarButton, colorButton, menu, help);
   for (const extra of [
     topRadio,
     topMusic,
@@ -1255,11 +1275,16 @@ export async function startOnline(): Promise<void> {
       });
       // Every write below goes through setIfChanged: the view is rewritten each frame, and an unchanged value must not touch the DOM.
       setIfChanged(joinPanel, "hidden", view.joinPanelHidden);
-      // Avatars are a lobby choice: before a seat the join form carries it, the button leaves with the lobby, and a picker left open closes when the round starts.
+      // Name, head and colour are one choice in three parts: all three are offered while this rider is in the lobby
+      // and not yet ready, all three leave together, and a picker left open closes when the round starts.
       setIfChanged(avatarButton, "hidden", view.avatarHidden);
-      if (view.avatarHidden) dialogs.close("avatar");
       setIfChanged(colorButton, "hidden", view.avatarHidden);
-      if (view.avatarHidden) dialogs.close("riderColor");
+      setIfChanged(nameButton, "hidden", view.avatarHidden);
+      if (view.avatarHidden) {
+        dialogs.close("avatar");
+        dialogs.close("riderColor");
+        dialogs.close("riderName");
+      }
       setIfChanged(controls, "hidden", view.controlsHidden);
       // A rider the room still lists as offline (page reload mid-round) reconnects by itself; anyone absent goes through the join card.
       // A watcher the room still lists does the same, asking for its place in the watching list back rather than for a seat.
@@ -1276,6 +1301,27 @@ export async function startOnline(): Promise<void> {
         if (!rejoinPending) {
           rejoinPending = true;
           runtime.command({ type: "spectate", name: watcher.name });
+        }
+      } else if (
+        // The room is the join screen: an invited device the room does not list yet takes a seat by itself, wearing
+        // whatever it wore last, and settles its name, head, colour and side in the room rather than in a form in
+        // front of it (`docs/design/room-is-the-join-screen.md`). Not after a kick — the host's decision stands until
+        // this device asks to come back — and not for a TV, which takes no seat at all.
+        role === "joiner" &&
+        !joined &&
+        !watching &&
+        !displayOnly &&
+        !kickedFromRoom &&
+        !roomEnded
+      ) {
+        if (!rejoinPending) {
+          rejoinPending = true;
+          wantedColor = riderColorIndex(joinForm.colors.selected());
+          runtime.command({
+            type: "join",
+            name: openingName(state.players.length),
+            avatarId: joinForm.picker.selected(),
+          });
         }
       } else rejoinPending = false;
       setIfChanged(lobbyCount, "textContent", view.lobby.count);
@@ -1296,14 +1342,22 @@ export async function startOnline(): Promise<void> {
         const row = lobbyRoster.row(rider.id);
         if (!row) continue;
         const key = `rider:${rider.id}`,
-          riderName = rider.name;
+          riderId = rider.id,
+          fallback = rider.name;
+        // The name is read when the button is pressed, not when its row was first drawn: a rider may rename itself
+        // while it sits there, and carrying the name it had at boot into the watching list would undo that.
         const button = sideSwitch(key, () =>
-          runtime.command({ type: "spectate", name: riderName }),
+          runtime.command({
+            type: "spectate",
+            name:
+              snapshot?.players.find((p) => p.id === riderId)?.name ?? fallback,
+          }),
         );
         liveSwitches.add(key);
         if (button.parentElement !== row) row.append(button);
         showSwitch(button, rider.switchSide);
       }
+      latestWatchers = view.lobby.watchers;
       setIfChanged(lobbyWatchers, "hidden", view.lobby.watchersHidden);
       watchers.update(
         view.lobby.watchers.map((seat) => ({
@@ -1331,13 +1385,17 @@ export async function startOnline(): Promise<void> {
         if (remove.parentElement !== row) row.append(remove);
         showRemove(remove, seat.remove);
         const key = `watcher:${seat.id}`,
-          watcherName = seat.name;
-        // The avatar the join form remembers, since the watching list carries none: the seat is taken as this device
-        // always rides.
+          watcherId = seat.id,
+          fallbackName = seat.name;
+        // The remembered avatar, since the watching list carries none: the seat is taken as this device always rides.
+        // The name is read on the press for the same reason the rider's is: it may have changed since this row was
+        // drawn, and the seat should be taken under the name the room shows now.
         const take = sideSwitch(key, () =>
           runtime.command({
             type: "join",
-            name: watcherName,
+            name:
+              latestWatchers.find((w) => w.id === watcherId)?.name ??
+              fallbackName,
             avatarId: joinForm.picker.selected(),
           }),
         );
@@ -1669,6 +1727,28 @@ export async function startOnline(): Promise<void> {
     },
   });
   colorButton.onclick = colorDialog.open;
+  const nameDialog = createNameDialog(dialogs, {
+    current: () => snapshot?.players.find((p) => p.id === id)?.name ?? "",
+    fixed: () => accountUsername() ?? undefined,
+    // A rename is the ordinary join command sent again with a different name: the runtime turns it into a `JOIN` over
+    // the seat this rider already holds, and says why when it will not (ready, or the round has started).
+    chosen: (chosen) => {
+      storage.setItem("fuse-riders-player-name", chosen);
+      runtime.command({ type: "join", name: chosen });
+    },
+    entry: ({ initial, onSubmit, document: doc }) =>
+      createNameEntry({
+        normalize: (raw) => seatRiderName(raw) ?? "",
+        maxLength: MAX_LOGGED_NAME_UNITS,
+        initial,
+        buttonText: "SAVE",
+        missingText: "Enter a name",
+        onSubmit,
+        document: doc,
+        classes: { root: "fui-name-entry room-rename" },
+      }),
+  });
+  nameButton.onclick = nameDialog.open;
   // The lobby card already carries the QR and the copyable link, so this opens the shared-screen display directly instead of a dialog that repeats them.
   share.title = "Open this room on a shared screen";
   share.onclick = () => {
@@ -1712,6 +1792,7 @@ export async function startOnline(): Promise<void> {
     menuDialog.element,
     avatarDialog.element,
     colorDialog.element,
+    nameDialog.element,
     roomSettingsDialog.element,
     recapDialog.element,
   ];

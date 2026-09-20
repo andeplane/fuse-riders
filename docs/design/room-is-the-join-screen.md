@@ -11,12 +11,12 @@ last — or the nearest free ones when someone already has them. There is no scr
 Everything the join card used to settle is settled **in the room instead**, on the device's own rider row, and stays
 changeable until that rider presses READY:
 
-| Choice           | How it is made now                                                                 |
-| ---------------- | ---------------------------------------------------------------------------------- |
-| Name             | Editable on your own row (`NAME` on the row, or the header button on a narrow page) |
-| Head             | `AVATAR`, as Phase F built it                                                       |
-| Colour           | `COLOUR`, as Phase F built it                                                       |
-| Player / watcher | `WATCH` and `TAKE A SEAT`, as O4 built them                                         |
+| Choice           | How it is made now                             |
+| ---------------- | ---------------------------------------------- |
+| Name             | `NAME` in the header, beside AVATAR and COLOUR |
+| Head             | `AVATAR`, as Phase F built it                  |
+| Colour           | `COLOUR`, as Phase F built it                  |
+| Player / watcher | `WATCH` and `TAKE A SEAT`, as O4 built them    |
 
 READY is the line. After it the room is only waiting on everyone else, so a rider still editing itself is a rider not
 yet ready; un-readying opens all four again.
@@ -24,8 +24,7 @@ yet ready; un-readying opens all four again.
 ## Why the card could go
 
 It had four jobs and three of them moved out from under it. Phase F put the head and colour pickers in the room; O4 put
-the side switch there. What was left was a name field that also gated three things the room now does better — and a
-whole screen kind (`join`), a role branch (`joiner`) and a chunk of `room-screen.ts` to support it.
+the side switch there. What was left was a name field that also gated three things the room now does better.
 
 The card also cost a decision at the worst moment. A player arriving at a party holds a phone with a QR code on it and
 wants to be in the game; asking them to confirm a name they set last week, in a form, before they can see who else is
@@ -52,9 +51,9 @@ chosen. Updating the name in place is one line and changes nothing else about th
 
 ## A name for a browser that has never played
 
-The card's remembered name (`fuse-riders-player-name`) and a signed-in account's username both still work and are what
-most devices arrive with. A device with neither is seated as `Rider N` for its seat, and its own row opens with the
-name selected so the first keystroke replaces it. Nobody is blocked, and nobody is stuck with it.
+The remembered name (`fuse-riders-player-name`) and a signed-in account's username both still work and are what most
+devices arrive with. A device with neither is seated as `Rider N` for the seat it takes, and NAME opens with that name
+selected, so the first keystroke replaces it. Nobody is blocked, and nobody is stuck with it.
 
 ## What is refused, and where
 
@@ -63,8 +62,18 @@ Renaming is a room command like the others, so the runtime refuses it before the
 second of those is the runtime's alone: a rename that slipped past it would still fold identically on every replica,
 so it is a rule about when a player may choose rather than one the fold has to enforce to stay consistent.
 
+## The join card stays, as the exception screen
+
+It is not deleted, because it still has a job. A device the room will not seat needs somewhere to be: one the host has
+kicked (auto-joining would undo the kick the moment it landed), and one that arrived at a full room. Both land on the
+card, which says why and offers the way back in. What changed is that it is no longer a gate everybody passes through
+— an invited device now waits on the boot card and is seated the moment the room arrives, so a player who can be
+seated never sees it at all.
+
 ## Not in this change
 
-- The creator's own page still boots through the PREPARING ROOM card; only the invited device's join card goes.
+- The creator's own page is unchanged: it boots, then takes a seat from the form in its own lobby. Only the invited
+  device's journey changes here.
+- Renaming from the phone lobby uses the same header button; there is no per-row name control yet.
 - A `?display=1` TV is unchanged: it is an unlisted viewer, it takes no seat, and it never had the join card.
 - Names are not unique across rooms or accounts; the rule is per-room, like colour and head.

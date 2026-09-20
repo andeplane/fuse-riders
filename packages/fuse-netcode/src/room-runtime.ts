@@ -1425,7 +1425,7 @@ export class RoomRuntime<
     const join = this.pendingJoin;
     if (!join) return false;
     join.sentAt = this.deps.now();
-    if (this.creator || this.solo) {
+    const write = (): boolean => {
       if (!this.world) return true;
       const error = join.spectator
         ? this.spectate(this.id, join.name)
@@ -1436,7 +1436,8 @@ export class RoomRuntime<
         return false;
       }
       return true;
-    }
+    };
+    if (this.creator || this.solo) return write();
     // A member already in the room asking for the other side goes to whoever may write its pair, which is not always
     // whoever a joiner would ask (`switchWriter`). An arrival keeps asking the manager, whose id is "" until the room
     // says otherwise — the send fails and the join timer tries again, as it always has.
@@ -1448,6 +1449,10 @@ export class RoomRuntime<
       this.pendingJoin = undefined;
       return false;
     }
+    // This device manages the room and is asking about itself — a rename, or a reconnection it can log on its own
+    // stream. Writing it here rather than addressing a request to our own inbox, where nobody would answer it. A side
+    // switch never reaches this: it is refused above, because the entry pair needs a writer that is not the subject.
+    if (to === this.id) return write();
     // A manager refused for its rules would only answer with an error this replica drops: the status says what to do.
     if (this.members.get(to)?.refused) return false;
     return this.transport!.send(to, {

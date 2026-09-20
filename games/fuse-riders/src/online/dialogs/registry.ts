@@ -17,6 +17,7 @@ export type RoomDialogId =
   | "menu"
   | "avatar"
   | "riderColor"
+  | "riderName"
   | "roomSettings"
   | "recap";
 

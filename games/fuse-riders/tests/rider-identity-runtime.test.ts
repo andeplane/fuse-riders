@@ -181,3 +181,90 @@ test("a colour command is refused for an index off the palette, a fraction, or a
   assert.equal(colorOf(net, HOST, HOST), RIDER_COLORS[0]);
   for (const runtime of net.runtimes.values()) runtime.stop();
 });
+
+test("a rider renames itself over the seat it holds, and every replica follows", () => {
+  const { net, join } = room();
+  join(HOST, "Host");
+  net.step(200);
+  const guest = join(GUESTS[0]!, "Guest");
+  net.step(900);
+  assert.equal(guest.command({ type: "color", colorIndex: 5 }), true);
+  net.step(300);
+  const before = net
+    .frame(HOST)!
+    .players.find((player) => player.id === GUESTS[0]);
+  // The ordinary join command, sent again with a different name: the runtime turns it into a JOIN over the seat the
+  // rider already holds.
+  assert.equal(guest.command({ type: "join", name: "Rider Bo" }), true);
+  net.step(600);
+  for (const viewer of [HOST, GUESTS[0]!]) {
+    const seen = net
+      .frame(viewer)!
+      .players.find((player) => player.id === GUESTS[0]);
+    assert.equal(seen?.name, "Rider Bo", `${viewer} sees the new name`);
+    assert.equal(seen?.slot, before?.slot, "the seat is unchanged");
+    assert.equal(seen?.color, RIDER_COLORS[5], "and so is the colour it chose");
+    assert.equal(seen?.avatarId, before?.avatarId);
+  }
+  assert.equal(hashes(net, [HOST, GUESTS[0]!]).size, 1);
+  for (const runtime of net.runtimes.values()) runtime.stop();
+});
+
+test("the room's own manager can rename itself, rather than posting the request to its own inbox", () => {
+  // A creator that took no seat leaves the crown on the rider in the first seat — every shared-screen room is like
+  // this. That rider is its own manager, so its rename has to be written where it is asked for.
+  const net = new FakeNetwork(
+    HOST,
+    { loss: 0, baseMs: 20, jitterMs: 0, reliableMs: 30 },
+    5,
+  );
+  const display = net.add(HOST, settings, { displayOnly: true });
+  display.start();
+  net.step(300);
+  const rider = net.add(GUESTS[0]!, settings, { humanName: "Guest" });
+  rider.start();
+  rider.command({ type: "join", name: "Guest" });
+  net.step(1200);
+  assert.equal(
+    net.frame(GUESTS[0]!)!.players.find((p) => p.id === GUESTS[0])?.name,
+    "Guest",
+  );
+  assert.equal(rider.command({ type: "join", name: "Renamed" }), true);
+  net.step(800);
+  assert.equal(
+    net.frame(GUESTS[0]!)!.players.find((p) => p.id === GUESTS[0])?.name,
+    "Renamed",
+    "the manager wrote its own rename",
+  );
+  for (const runtime of net.runtimes.values()) runtime.stop();
+});
+
+test("a rename is refused once this rider is ready, and once the round has started", () => {
+  const { net, join } = room();
+  const host = join(HOST, "Host");
+  net.step(200);
+  const guest = join(GUESTS[0]!, "Guest");
+  net.step(900);
+  const nameOf = (id: string) =>
+    net.frame(HOST)!.players.find((player) => player.id === id)?.name;
+  // Ready settles this rider's identity for the round.
+  assert.equal(guest.command({ type: "ready", ready: true }), true);
+  net.step(300);
+  assert.equal(guest.command({ type: "join", name: "Too Late" }), true);
+  net.step(400);
+  assert.equal(nameOf(GUESTS[0]!), "Guest", "the rename was refused");
+  // Un-readying opens it again: a gate, not a one-way door.
+  assert.equal(guest.command({ type: "ready", ready: false }), true);
+  net.step(300);
+  assert.equal(guest.command({ type: "join", name: "In Time" }), true);
+  net.step(500);
+  assert.equal(nameOf(GUESTS[0]!), "In Time");
+  // Once the round is running, nobody renames: the arena is already drawn with these names on it.
+  assert.equal(host.command({ type: "action", action: "start" }), true);
+  net.step(COUNTDOWN_TICKS * 50 + 600);
+  assert.equal(net.frame(HOST)!.phase, "playing");
+  guest.command({ type: "join", name: "Mid Round" });
+  net.step(500);
+  assert.equal(nameOf(GUESTS[0]!), "In Time");
+  for (const runtime of net.runtimes.values()) runtime.stop();
+});
