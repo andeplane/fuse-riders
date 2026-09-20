@@ -217,6 +217,27 @@ const transitions: [string, number, (view: View, previous: View) => boolean][] =
         v.blasts.some((b) => !p.blasts.some((old) => old.bombId === b.bombId)),
     ],
   ];
+/**
+ * Parity of a *run*, not of a single frame. Retained trail history only shows up when frames follow each
+ * other without a `reset()`, so each run is a window of consecutive ticks around something that changes
+ * the trails, drawn in order from one reset, with its last frames hashed.
+ */
+const RUN_FRAMES = 12;
+const RUN_CAPTURES = 3;
+const runs: { name: string; views: View[] }[] = [];
+const detached = (view: View): boolean =>
+  view.players.some((p) => p.trail.some((s) => s.detached));
+const runTriggers: [string, (view: View, previous: View) => boolean][] = [
+  ["run-detach", (v, p) => detached(v) && !detached(p)],
+  [
+    "run-death",
+    (v, p) =>
+      v.players.some(
+        (r) => !r.alive && p.players.some((o) => o.id === r.id && o.alive),
+      ),
+  ],
+  ["run-round", (v, p) => v.round !== p.round],
+];
 {
   const state = createRoomState(recording.matchId, defaultRoomSettings()),
     bots = new BotController(),
@@ -250,8 +271,23 @@ const transitions: [string, number, (view: View, previous: View) => boolean][] =
           remaining.set(name, left - 1);
         }
       }
+    for (const run of runs)
+      if (run.views.length < RUN_FRAMES) run.views.push(structuredClone(view));
+    if (previous)
+      for (const [name, started] of runTriggers)
+        if (!runs.some((run) => run.name === name) && started(view, previous))
+          // The tick before the trigger gives the cache something to retain before the change lands.
+          runs.push({
+            name,
+            views: [structuredClone(previous), structuredClone(view)],
+          });
     previous = structuredClone(view);
   }
+  assert.deepEqual(
+    runs.map((run) => `${run.name}:${run.views.length}`).sort(),
+    runTriggers.map(([name]) => `${name}:${RUN_FRAMES}`).sort(),
+    "the recording reaches a full run of each kind",
+  );
   assert.deepEqual(
     [...remaining.values()].every((left) => left === 0),
     true,
@@ -276,6 +312,24 @@ const transitions: [string, number, (view: View, previous: View) => boolean][] =
     });
   }
 }
+
+/** Everything to draw, as ordered frames from one `reset()`. Only the flagged frames are hashed. */
+const scenes: { name: string; frames: { view: View; capture: boolean }[] }[] = [
+  ...moments.map((moment) => ({
+    name: moment.name,
+    frames: [
+      ...(moment.previous ? [{ view: moment.previous, capture: false }] : []),
+      { view: moment.view, capture: true },
+    ],
+  })),
+  ...runs.map((run) => ({
+    name: run.name,
+    frames: run.views.map((view, index) => ({
+      view,
+      capture: index >= run.views.length - RUN_CAPTURES,
+    })),
+  })),
+];
 
 const arenaPath = existsSync(`${game}src/render/phaser/arena.ts`)
   ? `/${game}src/render/phaser/arena.ts`
@@ -325,7 +379,7 @@ try {
   // "portrait" is WebGL on a tall 450x800 box with rotateToFit, as a phone held upright sees the arena (#326).
   for (const backend of ["auto", "canvas", "portrait"] as const) {
     const pictures = await page.evaluate(
-      async ({ arenaPath, themesPath, backend, moments }) => {
+      async ({ arenaPath, themesPath, backend, scenes }) => {
         const portrait = backend === "portrait";
         const { createPhaserArena } = (await import(
           arenaPath
@@ -350,41 +404,49 @@ try {
         await arena.ready;
         const pictures: {
           name: string;
+          tick: number;
           theme: string;
           data: string;
           orientation: string;
         }[] = [];
+        type Frame = Parameters<typeof arena.render>[0];
         // Warm-up: a theme's sprites and fonts load on first use, so draw everything once before hashing anything.
         for (const theme of Object.values(themes))
-          for (const moment of moments) {
+          for (const scene of scenes) {
             arena.reset();
-            const view = moment.view as Parameters<typeof arena.render>[0];
+            const view = scene.frames[scene.frames.length - 1]!.view as Frame;
             arena.render(view, 100_000, theme, "parity", view.players[1]?.id);
           }
         await document.fonts.ready;
         await new Promise((done) => setTimeout(done, 500));
         for (const theme of Object.values(themes))
-          for (const [index, moment] of moments.entries()) {
+          for (const [index, scene] of scenes.entries()) {
+            // One reset per scene: within it the frames follow each other, as they do on a real screen.
             arena.reset();
-            // A fixed clock per moment: pulses, dashes and rings are functions of `now`.
+            // A fixed clock per scene: pulses, dashes and rings are functions of `now`.
             const now = 100_000 + index * 137;
-            // The second rider's own screen, so the self ring and (in a countdown) the locator are drawn too.
-            const view = moment.view as Parameters<typeof arena.render>[0];
-            if (moment.previous)
+            const captures = scene.frames.filter(
+              (frame) => frame.capture,
+            ).length;
+            for (const [step, frame] of scene.frames.entries()) {
+              // The second rider's own screen, so the self ring and (in a countdown) the locator are drawn too.
+              const view = frame.view as Frame;
               arena.render(
-                moment.previous as typeof view,
-                now - 50,
+                view,
+                now - (scene.frames.length - 1 - step) * 50,
                 theme,
                 "parity",
                 view.players[1]?.id,
               );
-            arena.render(view, now, theme, "parity", view.players[1]?.id);
-            pictures.push({
-              name: moment.name,
-              theme: theme.id,
-              data: canvas.toDataURL("image/png"),
-              orientation: canvas.dataset.arenaOrientation ?? "",
-            });
+              if (!frame.capture) continue;
+              pictures.push({
+                name: captures > 1 ? `${scene.name}@${step}` : scene.name,
+                tick: view.tick,
+                theme: theme.id,
+                data: canvas.toDataURL("image/png"),
+                orientation: canvas.dataset.arenaOrientation ?? "",
+              });
+            }
           }
         const renderer = arena.metrics().renderer;
         arena.destroy();
@@ -400,10 +462,9 @@ try {
         themesPath,
         backend,
         // Plain data either way; the page gives it back its type.
-        moments: JSON.parse(JSON.stringify(moments)) as {
+        scenes: JSON.parse(JSON.stringify(scenes)) as {
           name: string;
-          view: object;
-          previous?: object;
+          frames: { view: object; capture: boolean }[];
         }[],
       },
     );
@@ -424,7 +485,7 @@ try {
       const bytes = Buffer.from(picture.data.split(",")[1]!, "base64");
       frames.push({
         name: picture.name,
-        tick: moments.find((moment) => moment.name === picture.name)!.view.tick,
+        tick: picture.tick,
         backend: pictures.renderer,
         theme: picture.theme,
         sha256: createHash("sha256").update(bytes).digest("hex").slice(0, 16),

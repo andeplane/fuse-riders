@@ -86,9 +86,8 @@ export class TrailDebris {
         );
         if (!rider) continue;
         // A partially clipped/corrected segment is not a fully removed piece of trail.
-        const retained = new Set(
-          rider.trail.map((segment) => segment.createdTick),
-        );
+        const retained = new Set<number>();
+        for (const segment of rider.trail) retained.add(segment.createdTick);
         for (const segment of advanceTrail(
           previous.trail,
           Math.floor(snapshot.tick),
@@ -183,14 +182,22 @@ export class TrailDebris {
       Math.floor(snapshot.tick) !== Math.floor(this.tick) ||
       fresh.length
     ) {
-      this.trails = snapshot.players.map((player) => ({
-        id: player.id,
-        color: player.color,
-        trail: player.trail
-          .filter((segment) => segment.createdTick <= Math.floor(snapshot.tick))
-          .slice(-HISTORY_PER_RIDER)
-          .map((segment) => ({ ...segment })),
-      }));
+      // A view's segments are already this renderer's own copies (`toView`) and nothing here writes to
+      // them, so the bounded window keeps references: no per-segment clone per rider per tick.
+      this.trails = snapshot.players.map((player) => {
+        const trail: TrailSegment[] = [];
+        for (const segment of player.trail)
+          if (segment.createdTick <= Math.floor(snapshot.tick))
+            trail.push(segment);
+        return {
+          id: player.id,
+          color: player.color,
+          trail:
+            trail.length > HISTORY_PER_RIDER
+              ? trail.slice(-HISTORY_PER_RIDER)
+              : trail,
+        };
+      });
       this.blasts = new Set(snapshot.blasts.map((blast) => blast.bombId));
     }
     this.scope = scope;
