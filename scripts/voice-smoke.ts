@@ -17,6 +17,7 @@ interface Capture {
 const browser = await launchBrowser("chromium", {
   headless: true,
   args: [
+    "--mute-audio",
     "--use-fake-device-for-media-stream",
     "--use-fake-ui-for-media-stream",
   ],
@@ -393,13 +394,9 @@ try {
   assert.equal((await data(guest)).requests, 4);
   await close(guest);
   await readyRoom(host);
-  await host.waitForFunction(() =>
-    document.querySelector(".online-round")?.textContent?.includes("ROUND"),
-  );
-  await guest.waitForFunction(
-    () =>
-      document.querySelector(".online-arena")?.getAttribute("hidden") === null,
-  );
+  // The round chip is a clock now; gameplay visibility proves both riders entered the round.
+  await host.locator(".online-arena").waitFor({ state: "visible" });
+  await guest.locator(".online-arena").waitFor({ state: "visible" });
   await mkdir("artifacts", { recursive: true });
   await voice(host);
   await host.screenshot({ path: "artifacts/voice-chat.png" });
