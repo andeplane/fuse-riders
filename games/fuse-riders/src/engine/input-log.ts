@@ -9,6 +9,7 @@ import {
 } from "./bomb-gesture.js";
 import type { InputIntent } from "./state.js";
 import { loggedRiderName } from "./rider-name.js";
+import { RIDER_COLORS } from "./tuning.js";
 
 /**
  * Entry kinds. Player kinds come from any member's own stream; management kinds only from the creator's.
@@ -19,7 +20,8 @@ export const STEER = 0,
   RELEASE = 3,
   CANCEL = 4,
   AVATAR = 5,
-  READY = 6;
+  READY = 6,
+  COLOR = 7;
 export const JOIN = 10,
   LEAVE = 11,
   PRESENCE = 12,
@@ -43,6 +45,7 @@ export type Entry =
       matchId: string,
       phase: "lobby" | "matchOver",
     ]
+  | [seq: number, tick: number, kind: 7, colorIndex: number]
   | [
       seq: number,
       tick: number,
@@ -135,6 +138,8 @@ export function isEntry(raw: unknown): raw is Entry {
         matchId(raw[4]) &&
         (raw[5] === "lobby" || raw[5] === "matchOver")
       );
+    case COLOR:
+      return raw.length === 4 && uint32(raw[3]) && raw[3] < RIDER_COLORS.length;
     case JOIN:
       return (
         raw.length === 8 &&

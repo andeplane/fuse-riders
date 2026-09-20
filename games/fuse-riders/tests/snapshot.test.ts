@@ -36,7 +36,7 @@ import {
   createGame,
   startMatch,
   step,
-  SLOT_COLORS,
+  RIDER_COLORS,
 } from "../src/engine/game.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
 
@@ -394,14 +394,14 @@ test("replica game-state encoding preserves negative zero, maps and connection f
     id: "p0",
     name: "P0",
     slot: 0,
-    color: SLOT_COLORS[0]!,
+    color: RIDER_COLORS[0]!,
     connected: false,
   });
   addPlayer(game, {
     id: "p1",
     name: "P1",
     slot: 1,
-    color: SLOT_COLORS[1]!,
+    color: RIDER_COLORS[1]!,
     connected: true,
   });
   game.players.get("p0")!.connected = true;

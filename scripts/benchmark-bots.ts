@@ -8,7 +8,7 @@ import {
   addPlayer,
   startMatch,
   step,
-  SLOT_COLORS,
+  RIDER_COLORS,
 } from "../games/fuse-riders/src/engine/game.js";
 import { classicSettings } from "../games/fuse-riders/src/engine/room-settings.js";
 const results = [];
@@ -19,7 +19,7 @@ for (const trailsPerRider of [0, 160, 800]) {
       id: slot ? "bot:" + slot : "human",
       name: "Rider " + slot,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   for (let tick = 0; tick < 60; tick++) step(game, new Map());

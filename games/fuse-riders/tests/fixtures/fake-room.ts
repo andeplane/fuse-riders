@@ -107,6 +107,11 @@ export class FakeNetwork {
   private readonly unannounced = new Set<string>();
   /** Members whose fast packets are dropped outright, as if their links were not yet carrying traffic. */
   readonly muted = new Set<string>();
+  /**
+   * Reliable message types thrown away after they are logged, so a request that its writer never hears can be told
+   * apart from one it refused. The send still reports success, as a data channel's does.
+   */
+  readonly dropReliable = new Set<string>();
   sendFast(from: string, to: string, bytes: Uint8Array): boolean {
     const target = this.transports.get(to);
     if (!target?.online || !this.transports.get(from)?.online) return false;
@@ -157,6 +162,8 @@ export class FakeNetwork {
       type: String((data as { type?: unknown })?.type),
       at: this.now,
     });
+    if (this.dropReliable.has(String((data as { type?: unknown })?.type)))
+      return true;
     const key = `${from}>${to}`,
       at = Math.max(
         this.now + this.options.reliableMs,

@@ -7,7 +7,7 @@ import {
   step,
   COUNTDOWN_TICKS,
   RIDER_RADIUS,
-  SLOT_COLORS,
+  RIDER_COLORS,
   type BombState,
   type GameState,
   type InputIntent,
@@ -65,7 +65,7 @@ function scene() {
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick++) step(game, new Map());

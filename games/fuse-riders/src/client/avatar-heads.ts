@@ -1,10 +1,11 @@
 import { assetUrl } from "../render/asset-url.js";
+import { isAvatarId, type AvatarId } from "../engine/avatar-id.js";
 import {
-  DEFAULT_AVATAR,
-  isAvatarId,
-  type AvatarId,
-} from "../engine/avatar-id.js";
-import { AVATARS, AVATAR_ATLAS_URL, avatarCell } from "../shared/avatars.js";
+  AVATARS,
+  AVATAR_ATLAS_URL,
+  HUMAN_DEFAULT_AVATAR,
+  avatarCell,
+} from "../shared/avatars.js";
 import { createPicker, el, type Picker } from "fuse-ui";
 import "./avatar-heads.css";
 
@@ -47,7 +48,7 @@ export function createAvatarPicker(
   fold?: { id: string },
 ): Picker<AvatarId> {
   const stored = storage.getItem(AVATAR_KEY);
-  const selected: AvatarId = isAvatarId(stored) ? stored : DEFAULT_AVATAR;
+  const selected: AvatarId = isAvatarId(stored) ? stored : HUMAN_DEFAULT_AVATAR;
   const picker = createPicker<AvatarId>({
     legend: "Choose your avatar",
     choices: AVATARS,

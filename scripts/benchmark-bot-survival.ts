@@ -10,7 +10,7 @@ import {
   addPlayer,
   startMatch,
   step,
-  SLOT_COLORS,
+  RIDER_COLORS,
   TICK_HZ,
   type InputIntent,
 } from "../games/fuse-riders/src/engine/game.js";
@@ -34,7 +34,7 @@ for (const [riders, combat] of [
         id: `bot:${slot}`,
         name: `AI ${slot}`,
         slot,
-        color: SLOT_COLORS[slot]!,
+        color: RIDER_COLORS[slot]!,
       });
     startMatch(game);
     while (game.phase === "countdown") step(game, new Map());

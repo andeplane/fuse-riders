@@ -11,7 +11,7 @@ import {
   GRAVITY_MIN_RADIUS,
   INITIAL_BOUNDARY_INSET,
   MAX_GRAVITY_FIELDS,
-  SLOT_COLORS,
+  RIDER_COLORS,
   addPlayer,
   createGame,
   eliminatePlayer,
@@ -33,7 +33,7 @@ function playing(seed = 5): GameState {
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(state);
   while (state.phase === "countdown") step(state, new Map());
