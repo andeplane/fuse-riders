@@ -1,5 +1,5 @@
 import { preview } from "vite";
-import { AVATAR_ATLAS_URL } from "../games/fuse-riders/src/engine/avatar-id.js";
+import { AVATAR_ATLAS_URL } from "../games/fuse-riders/src/shared/avatars.js";
 import {
   defaultTheme,
   themes,

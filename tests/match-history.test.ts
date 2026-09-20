@@ -5,7 +5,7 @@ import type { AddressInfo } from "node:net";
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from "jose";
 import { WebSocket } from "ws";
 import { SOLO_RATING_PLAYER_ID, type Rating } from "fuse-platform/rating";
-import { AVATARS } from "../games/fuse-riders/src/engine/avatar-id.js";
+import { AVATARS } from "../games/fuse-riders/src/shared/avatars.js";
 import { createDevRoomService } from "../service/dev.js";
 import { createIdentityVerifier } from "fuse-platform";
 import { GAME_ID } from "../games/fuse-riders/src/shared/game-id.js";

@@ -88,7 +88,10 @@ type Layer = "engine" | "net" | "render" | "app" | "shared" | "external";
 // packages/fuse-platform): one authority computes it after a match, no replica folds it, and nothing the simulation
 // owns imports it. `game-id` names Fuse Riders on the shared backend.
 // `combat-stats` is not here: match statistics carry it through every tick, so it stays engine-owned and guarded.
+// `avatars` is the labels and the sprite-sheet cells only; the ids the simulation validates are
+// `engine/avatar-id.ts`, and this file takes its order from them.
 const shared = new Set([
+  "avatars",
   "career-stats",
   "game-id",
   "protocol",

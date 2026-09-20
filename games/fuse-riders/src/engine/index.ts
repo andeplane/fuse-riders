@@ -1,7 +1,9 @@
 /**
  * The engine's public API: the deterministic simulation, its tick driver, the input log it folds, room settings, the
- * bots, and the codec that validates a state at the checkpoint boundary. View types live inside the engine; shared
- * avatar and duration vocabulary remain in `games/fuse-riders/src/shared/`.
+ * bots, and the codec that validates a state at the checkpoint boundary. View types live inside the engine, and since
+ * #254 so do the avatar ids the log and the checkpoint guard validate and the duration formatter the recap reads.
+ * `games/fuse-riders/src/shared/` keeps what is not simulation: the wire vocabulary, avatar labels and cells, the
+ * game id and the account and career types.
  *
  * App and net code should come through here; tests may deep-import. What rendering may read is a narrower contract,
  * `view.ts` and `view-kit.ts` (docs/design/render-boundary.md), not this file. App and net importers still reach into
@@ -17,6 +19,8 @@ export * from "./tick-driver.js";
 // Log entries and their validation, and the fold of a rider's entries into held controls.
 export * from "./input-log.js";
 export * from "./room-settings.js";
+// The avatar ids a rider may carry; `AvatarId` comes through `state.js` with the world above.
+export { AVATAR_IDS, DEFAULT_AVATAR, isAvatarId } from "./avatar-id.js";
 export { BotController, BOT_ID_PREFIX } from "./bot-controller.js";
 export {
   decodeGameState,

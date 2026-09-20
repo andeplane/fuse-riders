@@ -5,7 +5,7 @@ import {
   toView,
   SLOT_COLORS,
 } from "../../games/fuse-riders/src/engine/game.js";
-import { AVATARS } from "../../games/fuse-riders/src/engine/avatar-id.js";
+import { AVATARS } from "../../games/fuse-riders/src/shared/avatars.js";
 import type { WorldView } from "../../games/fuse-riders/src/engine/view.js";
 /** Synthetic reproducible visual stress, not a physics or network benchmark. */
 export function visualFixture(tick: number): WorldView {

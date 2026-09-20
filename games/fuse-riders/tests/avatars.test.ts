@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AVATARS, avatarCell, isAvatarId } from "../src/engine/avatar-id.ts";
+import { AVATARS, avatarCell } from "../src/shared/avatars.ts";
+import { isAvatarId } from "../src/engine/avatar-id.ts";
 import { parseClientMessage } from "../src/shared/protocol.ts";
 import { addPlayer, createGame, toView } from "../src/engine/game.ts";
 import { classicSettings } from "./fixtures/classic-settings.ts";

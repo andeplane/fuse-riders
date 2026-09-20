@@ -1,12 +1,10 @@
 import { assetUrl } from "../render/asset-url.js";
 import {
-  AVATARS,
-  AVATAR_ATLAS_URL,
   DEFAULT_AVATAR,
-  avatarCell,
   isAvatarId,
   type AvatarId,
 } from "../engine/avatar-id.js";
+import { AVATARS, AVATAR_ATLAS_URL, avatarCell } from "../shared/avatars.js";
 import { createPicker, el, type Picker } from "fuse-ui";
 import "./avatar-heads.css";
 
