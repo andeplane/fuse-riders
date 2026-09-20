@@ -8,7 +8,7 @@
 import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { isAimingGun } from "../engine/gun.js";
 import type { WorldView } from "../engine/view.js";
-import type { AvatarId } from "../shared/avatars.js";
+import type { AvatarId } from "../engine/avatar-id.js";
 import { powerLabel } from "../render/power-indicator.js";
 import {
   matchWinnerName,

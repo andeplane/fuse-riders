@@ -39,7 +39,7 @@ import {
   type ActiveEffect,
 } from "../effects.js";
 import { WEAPON_KINDS } from "../weapons.js";
-import { isAvatarId } from "../../shared/avatars.js";
+import { isAvatarId } from "../avatar-id.js";
 import { GUN_AIM_MAX } from "../gun.js";
 import { MAX_PORTAL_PAIRS } from "../portal.js";
 import {

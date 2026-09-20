@@ -1,5 +1,5 @@
 import { POINT_UNIT } from "./leaderboard.js";
-import { durationText } from "../shared/duration-text.js";
+import { durationText } from "./duration-text.js";
 import type { MatchPlayerStats } from "./match-stats.js";
 import {
   CUT_OFF_MAX_AGE_TICKS,
@@ -12,8 +12,9 @@ import {
 /**
  * Pure end-of-match presentation model shared by the LAN TV and the online UI.
  * It only reads authoritative `MatchPlayerStats`; it never invents or rescores data.
- * Durations use the formatter added by #55, relocated from `games/fuse-riders/src/client/` to `games/fuse-riders/src/shared/` so this
- * module — which `games/fuse-riders/src/online/` renders too — keeps one implementation without importing client code.
+ * Durations use the formatter added by #55, which moved from `games/fuse-riders/src/client/` to `shared/` and then, in
+ * #254, to `engine/duration-text.ts` beside `clockText` and `distanceText`: the recap is the only reader, so the
+ * formatter belongs to the recap's own layer rather than making the engine reach up into `shared/`.
  */
 export { durationText };
 export const RECAP_KICKER = "MATCH COMPLETE // AFTER ACTION REPORT";
