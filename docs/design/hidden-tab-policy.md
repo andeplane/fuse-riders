@@ -53,10 +53,18 @@ than an absence, which is (a)'s semantics:
   the rider (`player.connected` stays true), so it keeps its seat through round and match boundaries and a return to the
   lobby, is placed in the next round, and counts in the rating like anyone present. Its controls are neutral and its
   entries unread (`applyTick`). To the netcode it is not connected (`Seat.connected` false, `Seat.away` true): the stall
-  rule and `completeTick` do not wait on it, it leaves the succession order (so management passes to the acting
+  rule and `completeTick` do not wait on it, it leaves the succession order (so the **log duties** pass to the acting
   creator), and no manager judges its silence or logs it present from its throttled packets (`creatorDuties`). Nothing
-  else an away member logs applies — the creator's entries included, so an away creator does not manage the room beside
-  the delegate that now holds it.
+  else an away member logs applies — the creator's entries included, so an away creator does not write management
+  entries beside the delegate that now carries them.
+- **The crown does not move with them.** Who the screens name as HOST, and whose page may issue room commands, is
+  `roomManager`, and it keeps a creator that is merely away (`Seat.away`). The two are deliberately different
+  questions: the log duties are about a _page_ — a hidden one's world is frozen, so it cannot seat a joiner or log a
+  departure and something else must — while the crown is about a _person_, and looking at another window says nothing
+  about whose room this is. Before this split, alt-tabbing for a second moved the HOST badge to the next rider and
+  gave that rider's page ROOM SETTINGS, ADD AI and START RACE while the host still had them: two devices both running
+  one room, and the badge flicking back the moment the host returned. A creator that is genuinely gone still hands the
+  crown on, because `away` is the member's own mark and the departure below clears it.
 - On return the member re-greets with `hidden: false`, and the **manager** logs `PRESENCE true` for it as soon as it
   hears the member's packets, and again on every loop pass until the seat is present, so a lost entry costs a pass
   rather than the rider's controls. The member logs its own return only when the room has nobody present to log it —
