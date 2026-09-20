@@ -18,7 +18,7 @@ import {
   defaultRoomSettings,
   parseRoomSettings,
 } from "../src/engine/room-settings.js";
-import { isAvatarId } from "../src/shared/avatars.js";
+import { isAvatarId } from "../src/engine/avatar-id.js";
 import { fuseGame } from "../src/online/fuse-game.js";
 
 /**

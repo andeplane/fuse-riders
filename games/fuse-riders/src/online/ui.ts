@@ -72,7 +72,7 @@ import {
 import { MAX_PACKET_BYTES } from "fuse-netcode";
 import { NetStats } from "./net-stats.js";
 import { Telemetry, telemetryEndpoint } from "./telemetry.js";
-import type { AvatarId } from "../shared/avatars.js";
+import type { AvatarId } from "../engine/avatar-id.js";
 import QRCode from "qrcode";
 import {
   createControllerRow,

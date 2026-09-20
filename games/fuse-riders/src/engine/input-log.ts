@@ -1,4 +1,4 @@
-import { isAvatarId, type AvatarId } from "../shared/avatars.js";
+import { isAvatarId, type AvatarId } from "./avatar-id.js";
 import { parseRoomSettings, type RoomSettings } from "./room-settings.js";
 import type { BombActionCommand } from "./primitives.js";
 import {

@@ -1,5 +1,5 @@
 import { node } from "../dom.js";
-import type { AvatarId } from "../../shared/avatars.js";
+import type { AvatarId } from "../../engine/avatar-id.js";
 import type { DialogRegistry, RoomDialogId } from "./registry.js";
 import { createDialogShell } from "./shell.js";
 

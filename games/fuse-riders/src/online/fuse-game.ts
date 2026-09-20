@@ -44,7 +44,7 @@ import { stepsPerTick } from "../engine/game.js";
 import { MAX_STEPS_PER_TICK, stepsCover } from "../engine/tick-driver.js";
 import { toView, type GameEvent, type WorldView } from "../engine/view.js";
 import type { PlayerState } from "../engine/state.js";
-import { isAvatarId } from "../shared/avatars.js";
+import { isAvatarId } from "../engine/avatar-id.js";
 
 /**
  * What a rules mismatch tells each side. Reloading only helps the page that is behind, so only its lines say "reload this

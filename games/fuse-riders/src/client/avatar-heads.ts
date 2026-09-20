@@ -6,7 +6,7 @@ import {
   avatarCell,
   isAvatarId,
   type AvatarId,
-} from "../shared/avatars.js";
+} from "../engine/avatar-id.js";
 import { createPicker, el, type Picker } from "fuse-ui";
 import "./avatar-heads.css";
 

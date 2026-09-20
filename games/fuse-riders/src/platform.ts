@@ -9,7 +9,7 @@ import {
   type GameGroup,
 } from "./shared/career-stats.js";
 import { parseCombat } from "./engine/combat-stats.js";
-import { isAvatarId, type AvatarId } from "./shared/avatars.js";
+import { isAvatarId, type AvatarId } from "./engine/avatar-id.js";
 import { BOT_ID_PREFIX } from "./engine/bot-controller.js";
 import type {
   MatchDeathCounts,

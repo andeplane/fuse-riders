@@ -5,7 +5,7 @@ import {
   AVATARS,
   AVATAR_ATLAS_URL,
   avatarCell,
-} from "../src/shared/avatars.js";
+} from "../src/engine/avatar-id.js";
 
 test("the scene's avatar sheet names every avatar the game accepts, in the image's order", () => {
   assert.deepEqual(
