@@ -17,8 +17,6 @@ import {
  * formatter belongs to the recap's own layer rather than making the engine reach up into `shared/`.
  */
 export { durationText };
-export const RECAP_KICKER = "MATCH COMPLETE // AFTER ACTION REPORT";
-export const RECAP_TITLE = "Grid legends";
 export const RECAP_EMPTY_MESSAGE = "Compiling the after action report…";
 export const COMPARISON_KEY =
   "BOMBS = EXPLODED / PLACED   ·   DISTANCE IN ARENA UNITS   ·   — = NONE";
