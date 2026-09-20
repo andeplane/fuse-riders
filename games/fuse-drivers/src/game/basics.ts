@@ -6,6 +6,8 @@ export const TARGET = 50;
 export const WINS_NEEDED = 2;
 /** Seats per room: 2–5 players, bots included. */
 export const CAPACITY = 5;
+/** Watchers hold no grid slot and nothing waits on their stream. */
+export const MAX_WATCHERS = 8;
 /**
  * The most rounds a match plays. With a fixed roster someone reaches `WINS_NEEDED` by then (every seat but one wins
  * `WINS_NEEDED - 1`, then the deciding round); with seats coming and going it could run on, so the round that reaches
