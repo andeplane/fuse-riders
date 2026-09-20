@@ -246,6 +246,100 @@ test("a rewind or a corrected segment falls back to a full rebuild", () => {
   );
 });
 
+test("a rollback that reconverges is still rebuilt, not stitched together", () => {
+  const history = new TrailHistory();
+  // Same length, same head, same tail, same endpoints in between — a genuinely different path through
+  // them. Reusing the retained window here would draw a trail the world never had.
+  const head = [segment(9, 0, 0, 10, 0), segment(10, 10, 0, 20, 0)];
+  const tail = [segment(14, 50, 0, 60, 0), segment(15, 60, 0, 70, 0)];
+  const straight = withTrail([
+    ...head,
+    segment(11, 20, 0, 30, 0),
+    segment(12, 30, 0, 40, 0),
+    segment(13, 40, 0, 50, 0),
+    ...tail,
+  ]);
+  const detour = withTrail([
+    ...head,
+    segment(11, 20, 0, 25, 10),
+    segment(12, 25, 10, 35, 10),
+    segment(13, 35, 10, 50, 0),
+    ...tail,
+  ]);
+  history.update([straight], "match:1", 0, RULES);
+  const replayed = history.update([detour], "match:1", 0, RULES);
+  assert.equal(replayed.changed, true);
+  assert.equal(replayed.built, 6, "the whole rider is rebuilt, not extended");
+  assert.deepEqual(
+    replayed.strokes,
+    establishedTrailStrokes([detour], 0, RULES),
+  );
+  // The replayed path really is the one that was drawn, not the one the cache held.
+  assert.ok(
+    replayed.strokes[0]!.paths.some((path) => path.some((p) => p.y === 10)),
+    "the detour is drawn",
+  );
+  // And back again: reconvergence in the other direction is no more reusable.
+  const undone = history.update([straight], "match:1", 0, RULES);
+  assert.equal(undone.built, 6);
+  assert.deepEqual(
+    undone.strokes,
+    establishedTrailStrokes([straight], 0, RULES),
+  );
+});
+
+test("time running backwards restores the colour a fading piece had then", () => {
+  const history = new TrailHistory();
+  const player = {
+    ...rider(),
+    alive: false,
+    trail: [
+      { ...segment(9, 0, 0, 10, 0), detached: { id: 1, decayStartTick: 70 } },
+      { ...segment(10, 10, 0, 20, 0), detached: { id: 1, decayStartTick: 70 } },
+    ],
+  };
+  const fresh = history.update([player], "match:1", 10, RULES);
+  const gray = history.update([player], "match:1", 70, RULES);
+  assert.notEqual(gray.strokes[0]!.color, fresh.strokes[0]!.color);
+  assert.deepEqual(gray.strokes, establishedTrailStrokes([player], 70, RULES));
+  // A rollback rewinds the clock the fade is a function of; the colour has to come back with it.
+  const restored = history.update([player], "match:1", 10, RULES);
+  assert.equal(restored.changed, true);
+  assert.equal(restored.built, 0, "geometry is untouched, only the colour");
+  assert.deepEqual(restored.strokes[0]!.color, fresh.strokes[0]!.color);
+  assert.deepEqual(
+    restored.strokes,
+    establishedTrailStrokes([player], 10, RULES),
+  );
+});
+
+test("a corrected decay schedule invalidates a segment that has not moved", () => {
+  const history = new TrailHistory();
+  const piece = (decayStartTick: number) => ({
+    ...rider(),
+    alive: false,
+    trail: [
+      { ...segment(9, 0, 0, 10, 0), detached: { id: 1, decayStartTick } },
+      { ...segment(10, 10, 0, 20, 0), detached: { id: 1, decayStartTick } },
+    ],
+  });
+  history.update([piece(70)], "match:1", 20, RULES);
+  // Same length, same coordinates, same detachment id: only when the fade starts is corrected. The cached
+  // segment is what the colour is computed from, so a window match here would keep the stale schedule.
+  const corrected = piece(40);
+  const frame = history.update([corrected], "match:1", 20, RULES);
+  assert.equal(frame.changed, true);
+  assert.ok(frame.built > 0, "the retained window is not reused");
+  assert.deepEqual(
+    frame.strokes,
+    establishedTrailStrokes([corrected], 20, RULES),
+  );
+  assert.notEqual(
+    frame.strokes[0]!.color,
+    establishedTrailStrokes([piece(70)], 20, RULES)[0]!.color,
+  );
+});
+
 test("a trail repaints when it detaches and again on every tick it fades", () => {
   const history = new TrailHistory();
   const trail = [
