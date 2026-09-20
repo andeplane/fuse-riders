@@ -8,8 +8,10 @@ import {
 } from "../src/engine/game.js";
 import {
   trailRibbon as buildRibbon,
+  TrailRibbonBuilder,
   TrailRibbonCache,
 } from "../src/render/phaser/trail-ribbon.js";
+import type { TrailPoint } from "../src/render/phaser/trails.js";
 import type { TrailSegment } from "../src/shared/protocol.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
 import type { WorldView as ViewSnapshot } from "../src/engine/view.js";
@@ -169,4 +171,74 @@ test("death, detachment, erosion and rider color are reflected without mutating 
   );
   state.players[0]!.color = "invalid";
   assert(update(cache, state).every((r) => r.color === 0xffffff));
+});
+
+test("the incremental builder is identical to a full rebuild, however the path changes", () => {
+  // A seeded walk: growth at the tip, erosion at the head, repeated points, reversals and rollbacks.
+  let seed = 7;
+  const random = () => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return seed / 2147483648;
+  };
+  const builder = new TrailRibbonBuilder(TRAIL_WIDTH / 2);
+  let path: TrailPoint[] = [];
+  const check = (why: string) => {
+    const built = builder.update(path);
+    assert.deepEqual(built.vertices, trailRibbon(path), why);
+    // A path handed in unchanged must cost nothing and report nothing.
+    const again = builder.update([...path]);
+    assert.equal(again.changed, false, `${why} (unchanged)`);
+    assert.equal(again.vertices, built.vertices);
+  };
+  check("empty");
+  for (let step = 0; step < 400; step++) {
+    const roll = random();
+    if (roll < 0.55 || path.length < 2) {
+      // Grow at the tip, sometimes repeating the previous point exactly.
+      const last = path.at(-1) ?? { x: 0, y: 0 };
+      path = [
+        ...path,
+        random() < 0.1
+          ? { ...last }
+          : {
+              x: last.x + (random() - 0.5) * 40,
+              y: last.y + (random() - 0.5) * 40,
+            },
+      ];
+    } else if (roll < 0.7) {
+      // The fractional tip moves within the same frame: replace the last point.
+      path = [
+        ...path.slice(0, -1),
+        { x: path.at(-1)!.x + (random() - 0.5) * 4, y: path.at(-1)!.y },
+      ];
+    } else if (roll < 0.82) {
+      path = path.slice(1); // Expiry off the head.
+    } else if (roll < 0.92) {
+      path = path.slice(0, Math.max(0, (path.length - 1 - random() * 3) | 0)); // Rollback.
+    } else {
+      // Erosion moves the first point without changing the length.
+      path = [{ x: path[0]!.x + 2, y: path[0]!.y - 1 }, ...path.slice(1)];
+    }
+    check(`step ${step} (${path.length} points)`);
+  }
+});
+
+test("a path that only grows keeps the vertices already built for it", () => {
+  const builder = new TrailRibbonBuilder(TRAIL_WIDTH / 2);
+  const path: TrailPoint[] = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 20, y: 5 },
+    { x: 30, y: 5 },
+  ];
+  const before = builder.update(path).vertices;
+  const grown = [...path, { x: 34, y: 7 }];
+  const after = builder.update(grown).vertices;
+  assert.deepEqual(after, trailRibbon(grown));
+  // Everything behind the last cross section is the same vertex object, not an equal copy.
+  const shared = before.filter((vertex) => after.includes(vertex));
+  assert.ok(
+    shared.length >= 6 * (path.length - 2),
+    `kept ${shared.length} vertices`,
+  );
 });
