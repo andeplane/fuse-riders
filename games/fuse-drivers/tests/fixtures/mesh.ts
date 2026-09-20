@@ -74,7 +74,11 @@ export class FuseDriversMesh {
   join(id: string): TestFuseDriversRuntime {
     const emitted: FuseDriversEvent[] = [];
     this.emitted.set(id, emitted);
-    const callbacks: Callbacks<FuseDriversView, FuseDriversEvent, FuseDriversSettings> = {
+    const callbacks: Callbacks<
+      FuseDriversView,
+      FuseDriversEvent,
+      FuseDriversSettings
+    > = {
       state: () => {},
       event: (event) => emitted.push(event),
       status: () => {},

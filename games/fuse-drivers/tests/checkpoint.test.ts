@@ -21,7 +21,14 @@ import {
   parseSettings,
   type FuseDriversRoom,
 } from "../src/game/index.js";
-import { FAST, addBot, fold, rig, runTo, started } from "./fixtures/fuseDrivers.js";
+import {
+  FAST,
+  addBot,
+  fold,
+  rig,
+  runTo,
+  started,
+} from "./fixtures/fuseDrivers.js";
 
 const { encode, decode } = fuseDriversGame.checkpoint;
 /** Encoded as a snapshot carries it: through MessagePack and back. */
@@ -57,11 +64,23 @@ test("every stage of a room survives the checkpoint whole: the same hash, and it
   for (const [stage, room] of Object.entries(rooms())) {
     const decoded = roundTrip(room);
     assert.ok(decoded, `${stage} decodes`);
-    assert.equal(fuseDriversGame.hash(decoded), fuseDriversGame.hash(room), stage);
-    assert.deepEqual(fuseDriversGame.view(decoded), fuseDriversGame.view(room), stage);
+    assert.equal(
+      fuseDriversGame.hash(decoded),
+      fuseDriversGame.hash(room),
+      stage,
+    );
+    assert.deepEqual(
+      fuseDriversGame.view(decoded),
+      fuseDriversGame.view(room),
+      stage,
+    );
     runTo(decoded, room.tick + 100);
     runTo(room, room.tick + 100);
-    assert.equal(fuseDriversGame.hash(decoded), fuseDriversGame.hash(room), `${stage} later`);
+    assert.equal(
+      fuseDriversGame.hash(decoded),
+      fuseDriversGame.hash(room),
+      `${stage} later`,
+    );
   }
   assert.equal(rooms().over.stage, "over");
   assert.equal(rooms().between.stage, "between");

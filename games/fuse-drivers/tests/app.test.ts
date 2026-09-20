@@ -21,7 +21,14 @@ import {
   sessionFor,
   type Store,
 } from "../src/app/session.js";
-import { FAST, addBot, fold, rig, runTo, started } from "./fixtures/fuseDrivers.js";
+import {
+  FAST,
+  addBot,
+  fold,
+  rig,
+  runTo,
+  started,
+} from "./fixtures/fuseDrivers.js";
 
 const viewer = (patch: Partial<Viewer> = {}): Viewer => ({
   me: "a",

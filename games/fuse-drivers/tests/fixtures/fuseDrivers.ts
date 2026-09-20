@@ -15,7 +15,10 @@ export const FAST: FuseDriversSettings = { turnTicks: 40, display: false };
 export type Bodies = Record<string, readonly unknown[][]>;
 let seq = 0;
 /** Folds one log tick of `bodies`, every stream at generation 1. */
-export function fold(room: FuseDriversRoom, bodies: Bodies = {}): FuseDriversEvent[] {
+export function fold(
+  room: FuseDriversRoom,
+  bodies: Bodies = {},
+): FuseDriversEvent[] {
   const tick = room.tick + 1,
     streams = new Map<string, StreamEntries<FuseDriversEntry>>();
   for (const [id, list] of Object.entries(bodies))

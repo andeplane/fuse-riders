@@ -18,7 +18,14 @@ import {
   seatName,
   type FuseDriversRoom,
 } from "../src/game/index.js";
-import { FAST, addBot, fold, rig, runTo, started } from "./fixtures/fuseDrivers.js";
+import {
+  FAST,
+  addBot,
+  fold,
+  rig,
+  runTo,
+  started,
+} from "./fixtures/fuseDrivers.js";
 
 test("a match starts with the first seat's turn, a timer and zeroed scores", () => {
   const room = started();
@@ -387,7 +394,10 @@ test("two bots play a whole match to a winner, the same way every time", () => {
 test("settings, bot ids and names go through the shared management entries and helpers", () => {
   const room = started();
   fold(room, { a: [[SETTINGS, { turnTicks: 100, display: true }]] });
-  assert.deepEqual(fuseDriversGame.settings(room), { turnTicks: 100, display: true });
+  assert.deepEqual(fuseDriversGame.settings(room), {
+    turnTicks: 100,
+    display: true,
+  });
   assert.equal(fuseDriversGame.seating.sharedScreen(room.settings), true);
   assert.deepEqual(fuseDriversGame.seating.soloSettings(room.settings), {
     turnTicks: 100,
@@ -399,7 +409,10 @@ test("settings, bot ids and names go through the shared management entries and h
   // A new bot never takes the id of one the match remembers.
   room.roster["bot:1"] = { name: "Bot 3", slot: 2 };
   assert.equal(fuseDriversGame.seating.botId(room, new Set()), "bot:2");
-  assert.equal(fuseDriversGame.seating.botId(room, new Set(["bot:2"])), "bot:3");
+  assert.equal(
+    fuseDriversGame.seating.botId(room, new Set(["bot:2"])),
+    "bot:3",
+  );
   assert.equal(fuseDriversGame.seating.botName(2), "Bot 3");
   assert.equal(seatName("  Ada  "), "Ada");
   assert.equal(seatName("x".repeat(30)), "x".repeat(18));

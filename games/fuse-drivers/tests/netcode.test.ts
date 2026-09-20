@@ -22,9 +22,18 @@ import {
   type FuseDriversView,
 } from "../src/game/index.js";
 import { FAST } from "./fixtures/fuseDrivers.js";
-import { FuseDriversMesh, type TestFuseDriversRuntime } from "./fixtures/mesh.js";
+import {
+  FuseDriversMesh,
+  type TestFuseDriversRuntime,
+} from "./fixtures/mesh.js";
 
-type FuseDriversWorld = World<FuseDriversRoom, FuseDriversEntry, FuseDriversView, FuseDriversEvent, FuseDriversSettings>;
+type FuseDriversWorld = World<
+  FuseDriversRoom,
+  FuseDriversEntry,
+  FuseDriversView,
+  FuseDriversEvent,
+  FuseDriversSettings
+>;
 
 /** A seeded generator, so a lossy mesh is the same mesh on every run. */
 function seeded(seed: number): () => number {
@@ -71,7 +80,10 @@ test("the same log folds to the same room and hash on every replica, however the
   }
   trickled.receive("b", [], 3, 300, 300);
   trickled.advance(300);
-  assert.equal(fuseDriversGame.hash(whole.state), fuseDriversGame.hash(trickled.state));
+  assert.equal(
+    fuseDriversGame.hash(whole.state),
+    fuseDriversGame.hash(trickled.state),
+  );
   assert.equal(whole.hashAt(296), trickled.hashAt(296));
   assert.deepEqual(whole.view()[0], trickled.view()[0]);
   assert.ok(whole.state.rolls >= 2, "b rolled and the bot played on");
@@ -85,7 +97,10 @@ test("the same log folds to the same room and hash on every replica, however the
   log.through = 400;
   other.receive("b", entries, 3, 300, 300);
   other.advance(300);
-  assert.notEqual(fuseDriversGame.hash(other.state), fuseDriversGame.hash(whole.state));
+  assert.notEqual(
+    fuseDriversGame.hash(other.state),
+    fuseDriversGame.hash(whole.state),
+  );
 });
 
 test("a late HOLD stamped before the timer ran out undoes a replica's speculative auto-hold and the bot's next roll", () => {
@@ -115,7 +130,10 @@ test("a late HOLD stamped before the timer ran out undoes a replica's speculativ
     speculated.some((event) => event.type === "roll" && event.id === "bot:1"),
     "and the bot took its turn after the auto-hold",
   );
-  assert.notEqual(fuseDriversGame.hash(late.state), fuseDriversGame.hash(onTime.state));
+  assert.notEqual(
+    fuseDriversGame.hash(late.state),
+    fuseDriversGame.hash(onTime.state),
+  );
 
   const corrected = late.receive("b", [roll, hold], 2, 120, 120);
   assert.equal(corrected.status, "accepted");
@@ -126,7 +144,10 @@ test("a late HOLD stamped before the timer ran out undoes a replica's speculativ
     "the corrected hold is b's own",
   );
   late.advance(120);
-  assert.equal(fuseDriversGame.hash(late.state), fuseDriversGame.hash(onTime.state));
+  assert.equal(
+    fuseDriversGame.hash(late.state),
+    fuseDriversGame.hash(onTime.state),
+  );
   assert.equal(late.hashAt(116), onTime.hashAt(116));
   assert.deepEqual(
     late.view()[0],
@@ -161,7 +182,10 @@ test("dropped, duplicated and reordered entries converge on the on-time room", (
   lossy.receive("b", [entries[3]!, entries[3]!], 4, 200, 200);
   lossy.receive("b", entries, 4, 200, 200);
   lossy.advance(200);
-  assert.equal(fuseDriversGame.hash(lossy.state), fuseDriversGame.hash(onTime.state));
+  assert.equal(
+    fuseDriversGame.hash(lossy.state),
+    fuseDriversGame.hash(onTime.state),
+  );
   assert.equal(lossy.state.history.length, onTime.state.history.length);
   assert.equal(lossy.state.rolls, onTime.state.rolls);
 });
@@ -185,7 +209,10 @@ test("a room snapshot carries the fuseDrivers room whole, and a tampered one is 
   // A replica that installs it folds on to the same room.
   const joiner = replica();
   joiner.install(decoded.state);
-  assert.deepEqual(fuseDriversGame.view(joiner.state), fuseDriversGame.view(decoded.state));
+  assert.deepEqual(
+    fuseDriversGame.view(joiner.state),
+    fuseDriversGame.view(decoded.state),
+  );
   const flipped = complete.bytes.slice();
   const at = flipped.length - 3;
   flipped[at] = flipped[at]! ^ 0xff;
