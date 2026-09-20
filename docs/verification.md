@@ -4,20 +4,23 @@ This document explains how to verify the current source. It is not a claim that 
 
 ## Pull-request checks
 
-The `verify` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) installs locked dependencies, then runs:
+`verify` in [.github/workflows/ci.yml](../.github/workflows/ci.yml) is not a job that runs steps: it is the **aggregate** a branch rule waits on, green only when the jobs beside it are. Those jobs run side by side, so the gate costs the slowest of them rather than their sum, and the matrix can be resized without touching the branch rule. [scripts/ci-manifest.json](../scripts/ci-manifest.json) is the list, and each step names the job that runs it:
 
-```sh
-pnpm format:check
-pnpm lint
-pnpm config:check
-pnpm typecheck
-pnpm test:coverage
-pnpm build
-```
+| Job      | Steps                                                               |
+| -------- | ------------------------------------------------------------------- |
+| `checks` | `pnpm format:check`, `pnpm lint`, `pnpm config:check`, `pnpm build` |
+| `unit`   | `pnpm test`, in four shards (`TEST_SHARD=n/4`)                      |
+
+Two things follow that a reader of the old single-job gate would get wrong:
+
+- **There is no separate `pnpm typecheck` step.** `pnpm build` is `tsc --noEmit && vite build`, so the build _is_ the type check.
+- **Coverage is not on the pull-request gate.** `coverage` (`pnpm test:coverage`) is `if: github.event_name != 'pull_request'`: it runs on a main push before anything deploys, and in the release suite. A pull request does not wait for it. The manifest keeps it under `release` rather than `verify` for the same reason.
+
+A pull request also folds the two whole-recording replays on a stride: `FUSE_REPLAY_STRIDE` is `10` on a pull request and `1` on a main push and in the release suite, so a PR checks one tick in ten while main checks every one ([`replay-budget.ts`](../games/fuse-riders/tests/fixtures/replay-budget.ts)). Both fold all the ticks either way; only the comparison is strided.
 
 `pnpm lint` is ESLint with a deliberately small type-aware rule set ([eslint.config.js](../eslint.config.js)): no floating or misused promises, and no empty block — a `catch` that swallows on purpose says why in a comment. Prettier owns formatting.
 
-`pnpm typecheck` enables `noUncheckedIndexedAccess` for source, tests and scripts. Array and index-signature reads may be `undefined`: use tuples for fixed shapes and guards for optional entries. Non-null assertions require an established loop bound or fixture invariant; they do not validate incoming data.
+`pnpm typecheck` (`tsc --noEmit`, the first half of `pnpm build`) enables `noUncheckedIndexedAccess` for source, tests and scripts. Array and index-signature reads may be `undefined`: use tuples for fixed shapes and guards for optional entries. Non-null assertions require an established loop bound or fixture invariant; they do not validate incoming data.
 
 `pnpm test` runs the same unit-test file globs without coverage instrumentation: `tests/*.test.ts`, `packages/*/tests/*.test.ts` and `games/*/tests/*.test.ts` — the last of which holds Fuse Riders' simulation suites and the golden hash, so a run that omits it proves nothing about the engine. Use focused tests during iteration and the broader checks at integration milestones. Add a regression for a confirmed bug; test the observable contract and failure/recovery boundaries rather than copying implementation logic.
 
@@ -48,7 +51,7 @@ ONLY=core PORT=8801 scripts/ci-local.sh
 ONLY=keyboard PORT=8801 scripts/ci-local.sh
 ```
 
-`core` is every `verify` step. Room-service browser checks serve `dist/`, so build first. Install the required Playwright browsers before running them.
+`core` is every `verify` step and `release` the coverage gate, so `ONLY=core` mirrors what a pull request waits on and `ONLY=core,release` what a main push does. Room-service browser checks serve `dist/`, so build first. Install the required Playwright browsers before running them.
 
 [scripts/ci-manifest.json](../scripts/ci-manifest.json) is the only list of CI steps: the workflow builds its browser matrix from it (one parallel job per smoke, summed up by the `e2e` job) and `scripts/ci-local.sh` runs the same entries through the same runner, `scripts/ci-run.ts`. `tests/ci-manifest.test.ts` fails when the workflow, the local mirror, a smoke's browser list or the README's step names stop agreeing with it. Add or change a smoke in the manifest, nowhere else. `pnpm exec tsx scripts/ci-run.ts --smoke <id>` runs one smoke exactly as its CI job does, including the single retry that CI reports as a flake; the local mirror does not retry.
 
