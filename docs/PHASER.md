@@ -107,6 +107,8 @@ pnpm exec vite build --base /fuse-riders/ --outDir artifacts/phaser-pages-dist
 pnpm exec tsx scripts/phaser-pages-smoke.ts
 ```
 
+**Every benchmark figure recorded before 2026-09-20 predates a change to the synthetic workload and is not comparable with a run made after it.** `scripts/lib/benchmark-fixture.ts` used to rebuild each rider's whole trail from the tick number, so every established segment moved on every tick — no real trail does that, and no renderer could reuse anything between ticks. It now lays one segment a tick at the tail, expires one off the head and leaves the rest alone, and the benchmark draws at a fractional tick so the moving tip is exercised too. Riders lap at the rider speed the view reports, so a trail now carries about four times the ink it did. The tables below, the JSON under `docs/performance/` and any artifact kept elsewhere all describe the old workload. A run's `sourceHashes` names `scripts/lib/benchmark-fixture.ts`, so old and new reports can be told apart mechanically; the `method` string says so in words as well.
+
 The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
 
 Design and review context: [ADR 033](adr/033-phaser-renderer.md). Online authority and release acceptance remain governed by the online ADRs and roadmap; this rendering work does not close those gates.
