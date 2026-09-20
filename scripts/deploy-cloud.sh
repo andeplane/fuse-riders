@@ -48,11 +48,15 @@ for (const key of ['GCP_REGION','PUBSUB_TOPIC','ROOM_COLLECTION_PREFIX']) {
   if (!/^[a-z][a-z0-9-]{1,62}$/.test(process.env[key] ?? '')) throw new Error(`Invalid ${key}`);
 }
 if (!/^(\(default\)|[a-z][a-z0-9-]{1,62})$/.test(process.env.FIRESTORE_DATABASE_ID ?? '')) throw new Error('Invalid FIRESTORE_DATABASE_ID');
+if (!/^([a-z][a-z0-9-]{0,31}(,[a-z][a-z0-9-]{0,31})*)?$/.test(process.env.EXTRA_GAME_IDS ?? '')) throw new Error('Invalid EXTRA_GAME_IDS');
 for (const origin of (process.env.ALLOWED_ORIGINS ?? '').split(',')) {
   const parsed=new URL(origin);
   if (parsed.protocol!=='https:' || parsed.origin!==origin) throw new Error('Production ALLOWED_ORIGINS must contain exact HTTPS origins');
 }
 NODE
+# The shape check above cannot tell a typo from a game: ask the service's own registry, before a ten-minute image build
+# produces a revision that refuses to start.
+pnpm exec tsx --eval 'import { extraGameIds } from "./service/history.ts"; extraGameIds(process.env.EXTRA_GAME_IDS);'
 [[ "$CLOUD_RUN_SERVICE" =~ ^[a-z][a-z0-9-]{1,48}$ ]] || { echo 'Invalid service name' >&2; exit 1; }
 [[ "$ARTIFACT_REPOSITORY" =~ ^[a-z][a-z0-9-]{1,62}$ ]] || { echo 'Invalid artifact repository' >&2; exit 1; }
 [[ "$ARTIFACT_LOCATION" =~ ^[a-z][a-z0-9-]{1,62}$ ]] || { echo 'Invalid artifact location' >&2; exit 1; }
@@ -67,7 +71,7 @@ gcloud artifacts repositories describe "$ARTIFACT_REPOSITORY" --location="$ARTIF
 
 # Apply the versioned named-database/Auth/key configuration only after the source gate passed.
 # This waits for required indexes/TTLs and refuses an unregistered OAuth redirect before any gateway rollout.
-npx tsx scripts/deploy-configuration.ts --apply --revision "$revision"
+pnpm exec tsx scripts/deploy-configuration.ts --apply --revision "$revision"
 
 build_dir="$(mktemp -d "${TMPDIR:-/tmp}/fuse-cloud.XXXXXX")"
 trap 'rm -rf "$build_dir"' EXIT
@@ -95,6 +99,8 @@ node --input-type=module - "$env_file" <<'NODE'
 import {writeFileSync} from 'node:fs';
 const values={NODE_ENV:'production',GOOGLE_CLOUD_PROJECT:'andershaf-87'};
 for(const key of ['GCP_REGION','FIRESTORE_DATABASE_ID','PUBSUB_TOPIC','ROOM_COLLECTION_PREFIX','ALLOWED_ORIGINS'])values[key]=process.env[key];
+// Games beside Fuse Riders; absent serves Fuse Riders alone (docs/online/GCP-DEPLOY.md).
+if(process.env.EXTRA_GAME_IDS)values.EXTRA_GAME_IDS=process.env.EXTRA_GAME_IDS;
 writeFileSync(process.argv[2],JSON.stringify(values,null,2));
 NODE
 

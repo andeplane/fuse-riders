@@ -26,6 +26,18 @@ past the budget check can exceed the hourly failure limit by the bounded local
 in-flight count on each active gateway. This is an abuse limit, not authentication:
 room codes and the trusted-member mesh model are unchanged.
 
+Since the token moved out of the socket URL (#256 S3,
+[token transport](../online/TOKEN-TRANSPORT.md)), a pending admission also covers
+the wait for the socket's first (`auth`) frame. The same four-per-IP and 128-total
+bounds therefore cap unauthenticated sockets, and a missing, late, malformed or
+oversized `auth` frame spends the failure budget like a wrong room code. A socket
+that leaves before authenticating does not, and neither does a full room: the
+budget prices wrong guesses, and a full room is a right one, which was never
+charged when it led to a seat. "Per IP" means per IPv4 address or per IPv6 /64.
+The failure budget does not bound slot holding — a held slot that then
+authenticates is free — the four-per-IP and 128-total counts do, and in production
+Cloud Run's concurrency (80 × 2 instances) binds before them.
+
 The protocol envelopes and database room records do not change. Existing room
 creation limits retain their keys and accounting. The Firestore allowance
 collection retains its existing name; admission uses distinct hashed keys.
@@ -46,9 +58,10 @@ waiting on the database or bus, both closing `1008`.
 
 ### What an honest page sends
 
-- A full room is the creator and five guests (`ROOM_LIMITS.maxGuests`), so a
-  member has **L = 5** links, and a reload or a socket reconnect negotiates all
-  of them at once.
+- A full room is the creator and ten guests (`ROOM_LIMITS.maxGuests`), so a
+  member has **L = 10** links, and a reload or a socket reconnect negotiates all
+  of them at once. Everything below was measured and sized when `maxGuests` was
+  5 and L was 5; spectators raised it (see "What eleven members cost").
 - The client sends one frame per description and one per trickled candidate;
   `validSignal` admits exactly one of either per frame, so there is no batch
   shape to use. The `null` end-of-candidates event is not sent; Firefox's
@@ -152,6 +165,33 @@ a database read, a database transaction, bytes) has its own smaller bound.
   members' cross-gateway frames are refused too, descriptions included. That is
   the same room the hostile member could already spoil; other rooms have their
   own allowance.
+
+### What eleven members cost
+
+Spectators raised `ROOM_LIMITS.maxGuests` from 5 to 10, so a full room is eleven
+sockets and L is 10 ([design note](spectators.md)). The rule's own buckets were
+not changed with it, and they do not all scale the same way:
+
+- **Per sender and target member (80, 10/s): unaffected.** It is per link, so
+  twice the links means twice the buckets, each sized as before.
+- **Per room and destination gateway (512 billed kB, 51.2/s): no longer has the
+  margin it was sized for.** It is a room-level allowance, so a full room now
+  draws about twice as much on it. The rich whole-room renegotiation above
+  (~250 kB) roughly doubles to ~500 kB, which is inside 512 but with nothing
+  left; at the 64-candidate ceiling it was already over, and is now well over.
+- **Flood tolerance (400 refused frames, 50/s): the margin is gone.** "No honest
+  workload reaches it" rested on a whole rejoin being at most 335 refused
+  frames. At L = 10 a rejoin at the ceiling is about 670, so an honest member
+  rejoining into a room whose publish allowance is already spent could now be
+  closed as a flood rather than merely throttled.
+
+None of this is a correctness bound: a refused signalling frame costs a late
+link, which `LinkRestartPolicy` retries, not a torn mesh, and it only bites in a
+room that is both full and renegotiating at once. It was not re-derived or
+re-measured when the capacity changed, and it should be before rooms routinely
+run to eleven — either by scaling the room-level publish allowance and the flood
+tolerance with the room's membership, or by re-measuring what an eleven-member
+gateway restart actually sends.
 
 ### What abuse is bounded to
 

@@ -20,17 +20,21 @@ try {
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   const pictures = await page.evaluate(async () => {
     const { createPhaserArena } = (await import(
-      String("/src/client/phaser/arena.ts")
-    )) as typeof import("../src/client/phaser/arena.js");
+      String("/games/fuse-riders/src/render/phaser/arena.ts")
+    )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
     const { visualFixture } = (await import(
-      String("/src/client/phaser/benchmark-fixture.ts")
-    )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+      String("/scripts/lib/benchmark-fixture.ts")
+    )) as typeof import("./lib/benchmark-fixture.js");
     const { themes } = (await import(
-      String("/src/client/themes.ts")
-    )) as typeof import("../src/client/themes.js");
-    const { generateObstacles } = (await import(
-      String("/src/engine/arena-map.ts")
-    )) as typeof import("../src/engine/arena-map.js");
+      String("/games/fuse-riders/src/render/themes.ts")
+    )) as typeof import("../games/fuse-riders/src/render/themes.js");
+    const { generateObstacles, ARENA_MAP_RECIPES } = (await import(
+      String("/games/fuse-riders/src/engine/arena-map.ts")
+    )) as typeof import("../games/fuse-riders/src/engine/arena-map.js");
+    const { fixedScenery, mapTracks, advanceScenery } = (await import(
+      String("/games/fuse-riders/src/engine/scenery-motion.ts")
+    )) as typeof import("../games/fuse-riders/src/engine/scenery-motion.js");
+    const maps = ["desert", "forest", "city", "drift", "trains"] as const;
     const pictures: { name: string; data: string }[] = [];
     for (const backend of ["auto", "canvas"] as const) {
       const canvas = document.createElement("canvas");
@@ -48,28 +52,36 @@ try {
       for (const theme of Object.values(themes)) {
         const sheet = document.createElement("canvas");
         sheet.width = 960;
-        sheet.height = 3 * 570;
+        sheet.height = maps.length * 570;
         const ctx = sheet.getContext("2d")!;
-        for (const [index, map] of (
-          ["desert", "forest", "city"] as const
-        ).entries()) {
+        for (const [index, map] of maps.entries()) {
           let seed = 292;
           const random = () => {
             seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
             return seed / 0x1_0000_0000;
           };
+          const sampled = ARENA_MAP_RECIPES[map].species.length > 0;
           const snapshot = {
             ...visualFixture(40),
             map,
             bombs: [],
             blasts: [],
             pickups: [],
-            obstacles: generateObstacles({
-              map,
-              random,
-              keepClear: [],
-              bounds: { minX: 60, minY: 60, maxX: 1540, maxY: 840 },
-            }),
+            // The movers a map lays, advanced a little so the trains have left their sidings and the cross has drifted in.
+            obstacles: sampled
+              ? generateObstacles({
+                  map,
+                  random,
+                  keepClear: [],
+                  bounds: { minX: 60, minY: 60, maxX: 1540, maxY: 840 },
+                })
+              : fixedScenery(map, 1600, 900, 1).map((piece) => {
+                  for (let tick = 0; tick < 160; tick += 1)
+                    advanceScenery(piece, 1600, 900, mapTracks(map));
+                  return piece;
+                }),
+            tracks: mapTracks(map),
+            ...(map === "drift" ? { openEdges: true, boundaryInset: 0 } : {}),
           };
           arena.reset();
           arena.render(snapshot, performance.now(), theme, "map-art");

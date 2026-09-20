@@ -3,7 +3,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { GoogleAuth } from "google-auth-library";
-import { FIREBASE_WEB_CONFIG } from "../src/shared/firebase-config.js";
+import { FIREBASE_WEB_CONFIG } from "../games/fuse-riders/src/shared/firebase-config.js";
 import {
   applyConfiguration,
   desiredConfiguration,

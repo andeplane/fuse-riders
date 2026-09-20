@@ -5,9 +5,9 @@ export interface GoldenHashes {
 
 /** The one command that refreshes the golden after an intended rules change. About a minute, deterministic. */
 /** Where `RULES` is declared. The one place the path is written: the messages below, their test and the docs check all read it. */
-export const RULES_FILE = "src/engine/apply-tick.ts";
+export const RULES_FILE = "games/fuse-riders/src/engine/apply-tick.ts";
 export const RECORD_COMMAND =
-  "npx tsx scripts/update-golden-hashes.ts --record";
+  "pnpm exec tsx scripts/update-golden-hashes.ts --record";
 const WORKFLOW = "docs/design/engine-safety-net.md, 'When the golden fails'";
 
 /** The updater declining to write: an answer for whoever ran it, not a crash. */
@@ -44,14 +44,14 @@ export function validateGoldenCoverage(
   const list = `${lost.length} coverage requirement${lost.length === 1 ? "" : "s"} (${lost.join(", ")})`;
   if (recorded)
     throw new GoldenRefusal(
-      `Refusing to pin ${next.rules}: the fresh recording does not reach ${list}, so tests/golden-hash.test.ts would fail. The recorder (tests/fixtures/replay-recorder.ts) has to play for them; see ${WORKFLOW}. Nothing was written.`,
+      `Refusing to pin ${next.rules}: the fresh recording does not reach ${list}, so games/fuse-riders/tests/golden-hash.test.ts would fail. The recorder (games/fuse-riders/tests/fixtures/replay-recorder.ts) has to play for them; see ${WORKFLOW}. Nothing was written.`,
     );
   if (previous.rules === next.rules)
     throw new GoldenRefusal(
-      `The stored recording does not reach ${list} under unchanged RULES (${next.rules}): tests/fixtures/replay-coverage.ts asks for something these inputs never did. A new workload is a rules change: bump RULES in ${RULES_FILE} and run \`${RECORD_COMMAND}\`. Nothing was written.`,
+      `The stored recording does not reach ${list} under unchanged RULES (${next.rules}): games/fuse-riders/tests/fixtures/replay-coverage.ts asks for something these inputs never did. A new workload is a rules change: bump RULES in ${RULES_FILE} and run \`${RECORD_COMMAND}\`. Nothing was written.`,
     );
   throw new GoldenRefusal(
-    `Refusing to pin ${next.rules}: replayed under the new rules (was ${previous.rules}), the stored inputs no longer reach ${list}, so tests/golden-hash.test.ts would fail. Run \`${RECORD_COMMAND}\` instead (about a minute): it plays a fresh workload under the new rules. Nothing was written.`,
+    `Refusing to pin ${next.rules}: replayed under the new rules (was ${previous.rules}), the stored inputs no longer reach ${list}, so games/fuse-riders/tests/golden-hash.test.ts would fail. Run \`${RECORD_COMMAND}\` instead (about a minute): it plays a fresh workload under the new rules. Nothing was written.`,
   );
 }
 
@@ -72,8 +72,8 @@ export function goldenFailure(
       ? `The recording runs ${ticks} ticks and the golden pins ${goldenTicks}: the two fixtures are out of step.`
       : "";
   const refresh = [
-    `run \`${RECORD_COMMAND}\` (about a minute, deterministic), and commit tests/fixtures/golden-hashes.json and`,
-    `tests/fixtures/mechanics-recording.json together with the change, in one commit tagged [rules N→N+1].`,
+    `run \`${RECORD_COMMAND}\` (about a minute, deterministic), and commit games/fuse-riders/tests/fixtures/golden-hashes.json and`,
+    `games/fuse-riders/tests/fixtures/mechanics-recording.json together with the change, in one commit tagged [rules N→N+1].`,
   ];
   if (rules !== goldenRules)
     return [

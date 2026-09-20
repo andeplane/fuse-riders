@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { format } from "prettier";
-import { RULES } from "../src/engine/apply-tick.js";
+import { RULES } from "../games/fuse-riders/src/engine/apply-tick.js";
 import {
   GoldenRefusal,
   validateGoldenCoverage,
@@ -11,11 +11,11 @@ import {
   GOLDEN_SEED,
   GOLDEN_TICK_BUDGET,
   replayGolden,
-} from "../tests/fixtures/golden-replay.js";
-import type { Recording } from "../tests/fixtures/replay-log.js";
-import { makeRecording } from "../tests/fixtures/replay-recorder.js";
+} from "../games/fuse-riders/tests/fixtures/golden-replay.js";
+import type { Recording } from "../games/fuse-riders/tests/fixtures/replay-log.js";
+import { makeRecording } from "../games/fuse-riders/tests/fixtures/replay-recorder.js";
 
-const path = new URL("../tests/fixtures/", import.meta.url);
+const path = new URL("../games/fuse-riders/tests/fixtures/", import.meta.url);
 const previous: GoldenHashes = JSON.parse(
   readFileSync(new URL("golden-hashes.json", path), "utf8"),
 );
@@ -27,7 +27,7 @@ try {
   // `--record` is the ordinary way to follow a rules change: the scripted players react to what they see, so almost
   // any change in behaviour plays the stored inputs into different rounds that no longer reach the coverage the
   // golden test asserts. It plays a fresh workload under the new rules, seeded and deterministic, until every
-  // requirement in tests/fixtures/replay-coverage.ts is met. Without it the stored inputs are replayed as they
+  // requirement in games/fuse-riders/tests/fixtures/replay-coverage.ts is met. Without it the stored inputs are replayed as they
   // are, which is only enough for a rules change they do not notice; that is checked below, never assumed.
   const recording: Recording = record
     ? makeRecording(GOLDEN_SEED, GOLDEN_TICK_BUDGET, true)

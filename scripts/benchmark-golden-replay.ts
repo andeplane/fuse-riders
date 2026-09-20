@@ -1,19 +1,22 @@
 /**
- * Times the golden mechanic recording (tests/fixtures/mechanics-recording.json) through `applyTick`, with and without
+ * Times the golden mechanic recording (games/fuse-riders/tests/fixtures/mechanics-recording.json) through `applyTick`, with and without
  * the per-tick canonical hash. This is the C7 evidence for issue #253: what a re-simulated tick costs a rollback.
  *
- *   npx tsx scripts/benchmark-golden-replay.ts [runs=5]
+ *   pnpm exec tsx scripts/benchmark-golden-replay.ts [runs=5]
  *
  * The engine path is resolved at run time so the same file can be copied onto a revision from before the move to
- * `src/engine/` and produce the comparable "before" number.
+ * `src/engine/` (or to `games/fuse-riders/`) and produce the comparable "before" number.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 
 const root = new URL("../", import.meta.url);
-const engine = existsSync(new URL("src/engine/apply-tick.ts", root))
-  ? "src/engine"
-  : "src/shared";
+const game = existsSync(new URL("games/fuse-riders/src", root))
+  ? "games/fuse-riders/"
+  : "";
+const engine = existsSync(new URL(`${game}src/engine/apply-tick.ts`, root))
+  ? `${game}src/engine`
+  : `${game}src/shared`;
 const { applyTick, createRoomState, hashRoomState, RULES } = await import(
   new URL(`${engine}/apply-tick.ts`, root).href
 );
@@ -24,12 +27,12 @@ const { defaultRoomSettings } = await import(
   new URL(`${engine}/room-settings.ts`, root).href
 );
 const { streamReader } = await import(
-  new URL("tests/fixtures/replay-log.ts", root).href
+  new URL(`${game}tests/fixtures/replay-log.ts`, root).href
 );
 
 const recording = JSON.parse(
   readFileSync(
-    new URL("tests/fixtures/mechanics-recording.json", root),
+    new URL(`${game}tests/fixtures/mechanics-recording.json`, root),
     "utf8",
   ),
 );
@@ -67,7 +70,7 @@ console.log(
   `revision ${revision}, rules ${RULES}, engine at ${engine}, node ${process.version}`,
 );
 console.log(
-  `workload: ${recording.ticks} ticks, match ${recording.matchId}, tests/fixtures/mechanics-recording.json`,
+  `workload: ${recording.ticks} ticks, match ${recording.matchId}, ${game}tests/fixtures/mechanics-recording.json`,
 );
 replay(false); // warm the JIT before anything is measured
 const plain: number[] = [],

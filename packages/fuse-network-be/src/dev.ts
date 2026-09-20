@@ -4,10 +4,12 @@ import {
   createRoomServer,
   type RoomServer,
   type HttpExtension,
+  type RoomHttpOptions,
 } from "./http.js";
 import { LocalRoomBus, MemoryRoomDatabase } from "./memory-database.js";
 import { RoomGateway } from "./gateway.js";
 import { RoomStore } from "./room-store.js";
+import { rateLimitAddress } from "./client-address.js";
 
 export interface DevRoomServiceOptions {
   httpExtension?: (store: RoomStore) => HttpExtension;
@@ -16,9 +18,16 @@ export interface DevRoomServiceOptions {
   /** Extra page origins allowed besides same-origin loopback pages. */
   allowedOrigins?: readonly string[];
   now?: () => number;
+  /** Socket authentication deadline scheduler and operational log; see `RoomHttpOptions`. */
+  schedule?: RoomHttpOptions["schedule"];
+  log?: RoomHttpOptions["log"];
+  /** LEGACY-QUERY-TOKEN: the deprecated `?token=` window, passed through for its tests; see `RoomHttpOptions`. */
+  legacyQueryToken?: boolean;
   /** Room capacity and its refusal text; see `RoomStoreDependencies`. */
   maxGuests?: number;
   fullMessage?: string;
+  /** The games this service hosts; see `RoomStoreDependencies.gameIds`. */
+  gameIds?: readonly string[];
 }
 export interface DevRoomService {
   server: RoomServer;
@@ -46,7 +55,7 @@ function sameLoopbackOrigin(origin: string, req: IncomingMessage): boolean {
 
 /**
  * The production room protocol (RoomStore + RoomGateway) over in-memory metadata and a single-process bus.
- * Serves `npm run dev`, `npm run dev:online` and the browser smokes; rooms disappear when the process exits.
+ * Serves `pnpm dev`, `pnpm dev:online` and the browser smokes; rooms disappear when the process exits.
  */
 export function createDevRoomService(
   options: DevRoomServiceOptions = {},
@@ -57,6 +66,7 @@ export function createDevRoomService(
     id: randomUUID,
     maxGuests: options.maxGuests,
     fullMessage: options.fullMessage,
+    gameIds: options.gameIds,
   });
   const gateway = new RoomGateway(
     `local-${randomUUID()}`,
@@ -81,10 +91,15 @@ export function createDevRoomService(
     store,
     gateway,
     now,
+    ...(options.schedule ? { schedule: options.schedule } : {}),
+    ...(options.log ? { log: options.log } : {}),
+    // LEGACY-QUERY-TOKEN: delete with the option.
+    ...(options.legacyQueryToken ? { legacyQueryToken: true } : {}),
     extension: options.httpExtension?.(store),
     allowOrigin: (origin, req) =>
       extra.has(origin) || sameLoopbackOrigin(origin, req),
-    clientAddress: (req) => req.socket.remoteAddress ?? "local",
+    clientAddress: (req) =>
+      rateLimitAddress(req.socket.remoteAddress ?? "local"),
     ...(options.staticDirectory
       ? { staticDirectory: options.staticDirectory }
       : {}),

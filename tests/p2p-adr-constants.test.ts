@@ -1,24 +1,27 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { BOTS_ONLY_TIME_SCALE, TICK_HZ } from "../src/engine/game.js";
-import { SNAP_TICKS, TICK_MS } from "../src/online/clock.js";
 import {
+  BOTS_ONLY_STEPS_PER_TICK,
+  TICK_HZ,
+} from "../games/fuse-riders/src/engine/game.js";
+import { MAX_STEPS_PER_TICK } from "../games/fuse-riders/src/engine/tick-driver.js";
+import {
+  TickClock,
+  SNAP_TICKS,
+  TICK_MS,
   BUFFERED_ENTRIES,
   FUTURE_TICKS,
   PACKET_ENTRIES,
   RETAINED_ENTRIES,
   ROLLBACK_TICKS,
   SEQ_AHEAD,
-} from "../src/online/stream.js";
-import {
   SNAPSHOT_INTERVAL,
   SNAPSHOTS_RETAINED,
   STALL_TICKS,
-} from "../src/online/rollback.js";
-import { MAX_PACKET_BYTES, MAX_PACKET_ENTRIES } from "../src/online/packet.js";
-import { MAX_SNAPSHOT_BYTES } from "../src/online/snapshot.js";
-import {
+  MAX_PACKET_BYTES,
+  MAX_PACKET_ENTRIES,
+  MAX_SNAPSHOT_BYTES,
   DISCONNECT_MS,
   HASH_INTERVAL,
   HASH_LAG,
@@ -26,7 +29,7 @@ import {
   SNAPSHOT_RETRY_MS,
   STALLED_GAP_MS,
   WINDOW_GRACE_MS,
-} from "../src/online/room-runtime.js";
+} from "fuse-netcode";
 import { DEFAULT_MAX_FAST_BYTES } from "fuse-network-fe";
 import { ROOM_RECONNECT_GRACE_MS } from "fuse-network-protocol";
 import { ROOM_TTL_MS } from "fuse-network-be";
@@ -34,12 +37,12 @@ import { ROOM_TTL_MS } from "fuse-network-be";
 const ADR = "docs/adr/047-p2p-input-log-lockstep-rollback.md";
 /** Every numeric constant these modules export must have a row: a new magic number is documented or CI says so. */
 const COMPLETE = [
-  "src/online/stream.ts",
-  "src/online/rollback.ts",
-  "src/online/clock.ts",
-  "src/online/packet.ts",
-  "src/online/snapshot.ts",
-  "src/online/room-runtime.ts",
+  "packages/fuse-netcode/src/stream.ts",
+  "packages/fuse-netcode/src/rollback.ts",
+  "packages/fuse-netcode/src/clock.ts",
+  "packages/fuse-netcode/src/packet.ts",
+  "packages/fuse-netcode/src/snapshot.ts",
+  "packages/fuse-netcode/src/room-runtime.ts",
 ];
 
 interface Row {
@@ -131,9 +134,13 @@ test("the couplings ADR 047 marks as checked hold", () => {
   // C4: one cap under three names.
   assert.equal(MAX_PACKET_ENTRIES, PACKET_ENTRIES);
   assert.equal(DEFAULT_MAX_FAST_BYTES, MAX_PACKET_BYTES);
-  // C5: the clock's tick length is the simulation's.
+  // C5: the clock's tick length is the simulation's, and it has one rate: game speed is steps per log tick, so a tick
+  // bound is the same wall time in every phase and nobody stalls on a silent rider before it can be logged absent.
   assert.equal(TICK_MS * TICK_HZ, 1000);
-  assert.ok(BOTS_ONLY_TIME_SCALE > 1);
+  assert.ok(BOTS_ONLY_STEPS_PER_TICK > 1);
+  assert.equal(MAX_STEPS_PER_TICK, BOTS_ONLY_STEPS_PER_TICK);
+  assert.equal("rate" in TickClock.prototype, false);
+  assert.ok(DISCONNECT_MS < STALL_TICKS * TICK_MS);
   // C6: an honest out-of-reach stream gets a stalled-gap wait and a snapshot retry in before its owner stops counting as heard.
   assert.ok(WINDOW_GRACE_MS >= STALLED_GAP_MS + SNAPSHOT_RETRY_MS);
   // C6: a link just up holds off an absence for one DISCONNECT_MS, which nobody stalls on at 1×.

@@ -29,17 +29,17 @@ try {
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   const results = await page.evaluate(async () => {
     const { createPhaserArena } = (await import(
-      String("/src/client/phaser/arena.ts")
-    )) as typeof import("../src/client/phaser/arena.js");
+      String("/games/fuse-riders/src/render/phaser/arena.ts")
+    )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
     const { visualFixture } = (await import(
-      String("/src/client/phaser/benchmark-fixture.ts")
-    )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+      String("/scripts/lib/benchmark-fixture.ts")
+    )) as typeof import("./lib/benchmark-fixture.js");
     const { themes } = (await import(
-      String("/src/client/themes.ts")
-    )) as typeof import("../src/client/themes.js");
+      String("/games/fuse-riders/src/render/themes.ts")
+    )) as typeof import("../games/fuse-riders/src/render/themes.js");
     const { crossScreenPoint } = (await import(
-      String("/src/client/arena-views.ts")
-    )) as typeof import("../src/client/arena-views.js");
+      String("/games/fuse-riders/src/render/arena-views.ts")
+    )) as typeof import("../games/fuse-riders/src/render/arena-views.js");
     document.body.replaceChildren();
     const results = [];
     for (const backend of ["auto", "canvas"] as const) {
@@ -208,7 +208,7 @@ try {
     });
     const solo = await context.newPage();
     solo.on("pageerror", (error) => errors.push(error.message));
-    await solo.goto(`${base}?solo=1`);
+    await solo.goto(`${base}?solo=1&mute`);
     await solo.locator(".mobile-play.mobile-portrait").waitFor();
     await solo.waitForFunction(
       () =>
@@ -247,10 +247,56 @@ try {
     await solo.screenshot({
       path: `artifacts/portrait-solo-${browserName}-${hasTouch ? "touch" : "mouse"}.png`,
     });
-    const zone = await left.boundingBox();
-    assert.ok(
-      zone && zone.y > 600 && zone.height >= 112,
-      "portrait steering has a large bottom hit area",
+    const buttons = solo.locator(".online-controls > button");
+    for (let column = 0; column < 3; column++) {
+      const button = buttons.nth(column);
+      const box = await button.boundingBox();
+      assert.deepEqual(
+        box,
+        { x: column * 130, y: 0, width: 130, height: 844 },
+        "each portrait control covers one full-height third",
+      );
+      for (const y of [1, 100, 422, 843]) {
+        const x = column * 130 + 65;
+        assert.ok(
+          await button.evaluate(
+            (element, { x, y }) => {
+              const target = document.elementFromPoint(x, y);
+              return target === element || element.contains(target);
+            },
+            { x, y },
+          ),
+          "HUD, arena and hints let touches reach the control beneath",
+        );
+        await solo.mouse.move(x, y);
+        await solo.mouse.down();
+        assert.match((await button.getAttribute("class")) ?? "", /active/);
+        assert.equal(
+          await button.evaluate(
+            (element) => getComputedStyle(element).backgroundColor,
+          ),
+          "rgba(0, 0, 0, 0)",
+          "held touch zones stay invisible",
+        );
+        await solo.mouse.up();
+        assert.doesNotMatch(
+          (await button.getAttribute("class")) ?? "",
+          /active/,
+        );
+      }
+    }
+    const zone = (await left.boundingBox())!;
+    const armedFireShadow = await buttons.nth(1).evaluate((button) => {
+      const wasArmed = button.classList.contains("gun-armed");
+      button.classList.add("gun-armed");
+      const shadow = getComputedStyle(button).boxShadow;
+      button.classList.toggle("gun-armed", wasArmed);
+      return shadow;
+    });
+    assert.equal(
+      armedFireShadow,
+      "none",
+      "an armed weapon does not outline the invisible bomb zone",
     );
     await solo.mouse.move(zone.x + zone.width / 2, zone.y + zone.height / 2);
     await solo.mouse.down();

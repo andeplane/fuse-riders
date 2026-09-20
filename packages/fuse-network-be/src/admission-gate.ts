@@ -1,4 +1,9 @@
-import { RoomError, digest, type RoomDatabase } from "./room-store.js";
+import {
+  RoomError,
+  RoomFullError,
+  digest,
+  type RoomDatabase,
+} from "./room-store.js";
 
 const HOUR_MS = 3_600_000;
 const FAILURE_LIMIT = 30;
@@ -59,9 +64,12 @@ export class AdmissionGate {
       try {
         return await admit();
       } catch (error) {
-        // Operational failures are not the caller's fault and do not spend their budget.
+        // Operational failures are not the caller's fault and do not spend their budget. Neither does a full
+        // room: the budget prices wrong guesses (a wrong code is a 404), and a full room is a right one. Finding
+        // a live code is never charged — an admission that succeeds confirms it just as well.
         if (
           error instanceof RoomError &&
+          !(error instanceof RoomFullError) &&
           error.status >= 400 &&
           error.status < 500
         ) {

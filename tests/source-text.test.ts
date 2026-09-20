@@ -15,12 +15,14 @@ const files = (directory: string): string[] =>
           : [],
   );
 const roots = [
-  "src",
+  "service",
   "tests",
   "scripts",
   ...readdirSync("packages", { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => path.join("packages", entry.name, "src")),
+  path.join("games", "fuse-riders", "src"),
+  path.join("games", "fuse-riders", "tests"),
 ].filter((root) => existsSync(root));
 const TAB = 0x09,
   NEWLINE = 0x0a,

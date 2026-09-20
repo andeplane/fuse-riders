@@ -1,0 +1,94 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import {
+  BombInputBuffer,
+  MAX_PENDING_BOMB_ACTIONS,
+} from "../src/engine/bomb-input.js";
+
+// The buffer is the gesture core (`games/fuse-riders/src/engine/bomb-gesture.ts`) behind a device's frames. Its semantics are the log
+// fold's, which `games/fuse-riders/tests/bomb-input-differential.test.ts` holds it to stream by stream; these are the cases by hand.
+// Until #253 A3 it was the LAN server's own state machine: it ignored a press over a held button, cancelled on an
+// unheld frame, wiped its queue on a cancel and wanted a neutral frame after an interruption. The log never did.
+
+test("ordered bomb edges survive a between-tick tap; frames without an edge add nothing", () => {
+  const buffer = new BombInputBuffer();
+  buffer.accept("press");
+  buffer.accept();
+  buffer.accept();
+  buffer.accept("release");
+  buffer.accept("release");
+  assert.deepEqual(buffer.drain(), ["press", "release"]);
+  assert.deepEqual(buffer.drain(), []);
+});
+
+test("a press over a held gesture abandons it first, as every replica folds it", () => {
+  const buffer = new BombInputBuffer();
+  buffer.accept("press");
+  buffer.accept("press");
+  assert.deepEqual(buffer.drain(), ["press", "cancel", "press"]);
+  buffer.accept("release");
+  assert.deepEqual(buffer.drain(), ["release"]);
+});
+
+test("an interruption abandons the held gesture and nothing else; an idle cancel or release is nothing", () => {
+  const buffer = new BombInputBuffer();
+  buffer.accept("press");
+  buffer.accept("release");
+  buffer.cancel();
+  assert.deepEqual(
+    buffer.drain(),
+    ["press", "release"],
+    "the launch already happened; there is nothing left to abandon",
+  );
+  buffer.accept("press");
+  buffer.cancel();
+  buffer.accept("release");
+  assert.deepEqual(
+    buffer.drain(),
+    ["press", "cancel"],
+    "an abandoned charge cannot launch",
+  );
+  buffer.accept("cancel");
+  buffer.accept("release");
+  assert.deepEqual(buffer.drain(), []);
+  buffer.accept("press");
+  assert.deepEqual(buffer.drain(), ["press"], "no handshake is owed");
+});
+
+test("overflow drops the tick's queue for one cancel and a later fresh press recovers", () => {
+  const buffer = new BombInputBuffer();
+  for (let index = 0; index < MAX_PENDING_BOMB_ACTIONS / 2; index++) {
+    buffer.accept("press");
+    buffer.accept("release");
+  }
+  assert.equal(buffer.drain().length, MAX_PENDING_BOMB_ACTIONS, "at the bound");
+  for (let index = 0; index < MAX_PENDING_BOMB_ACTIONS / 2; index++) {
+    buffer.accept("press");
+    buffer.accept("release");
+  }
+  buffer.accept("press");
+  assert.deepEqual(buffer.drain(), ["cancel"]);
+  buffer.accept("release");
+  assert.deepEqual(buffer.drain(), []);
+  buffer.accept("press");
+  assert.deepEqual(buffer.drain(), ["press"]);
+});
+
+test("commands drain as bare actions in order across frames without an edge", () => {
+  const buffer = new BombInputBuffer();
+  buffer.accept("press");
+  buffer.accept();
+  buffer.accept("release");
+  buffer.accept("press");
+  assert.deepEqual(buffer.drainCommands(), [
+    { action: "press" },
+    { action: "release" },
+    { action: "press" },
+  ]);
+  buffer.accept("release");
+  assert.deepEqual(buffer.drainCommands(), [{ action: "release" }]);
+  buffer.accept("press");
+  assert.deepEqual(buffer.drainCommands(), [{ action: "press" }]);
+  buffer.cancel();
+  assert.deepEqual(buffer.drainCommands(), [{ action: "cancel" }]);
+});

@@ -1,4 +1,6 @@
-import { chromium, webkit, type Page } from "playwright";
+import { readyRoom } from "./lib/ready-room.js";
+import type { Page } from "playwright";
+import { launchSelected } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
@@ -16,9 +18,7 @@ interface Snapshot {
   players: Array<{ id: string; alive: boolean; angle: number }>;
 }
 await mkdir("artifacts", { recursive: true });
-const browser = await (
-  process.env.BROWSER === "webkit" ? webkit : chromium
-).launch({ headless: true });
+const browser = await launchSelected("chromium", { headless: true });
 const base = process.env.ONLINE_URL ?? "http://localhost:8787/";
 const phone = {
   viewport: { width: 844, height: 390 },
@@ -69,10 +69,16 @@ const joinAs = async (page: Page, name: string, url: string) => {
     .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
     .click();
 };
+// A member's own name: these lists also carry the HOST badge and the status lines, and `getByText` is not case
+// sensitive, so "Host" would match the badge too. The watching list is nested in `.room-riders`, so this matches a
+// watcher's name as well as a rider's — no spectator takes part in this smoke.
+const RIDER_NAME = ":is(.room-rider strong, .online-score-name)";
 const rosterHas = (page: Page, name: string) =>
   page
     .locator(":is(.online-roster,.room-riders):visible")
-    .getByText(name, { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: name })
+    .first()
     .waitFor();
 try {
   const a = await browser.newContext({
@@ -245,13 +251,7 @@ try {
     riders.push(page);
   }
   console.log(`${riderCount} riders joined`);
-  const startButton = host.getByRole("button", {
-    name: "START RACE",
-    exact: true,
-  });
-  // The shared menu may wrap and push the lobby footer below the viewport.
-  // Use a real held click with actionability/scrolling, not raw viewport coordinates.
-  await startButton.click({ delay: 180 });
+  await readyRoom(host);
   await guest.waitForFunction(() =>
     document.querySelector(".online-notice")?.textContent?.includes("READY"),
   );
@@ -332,7 +332,7 @@ try {
   console.log(
     "Three rounds played on the shared log; completed rounds reported independently",
   );
-  // Leave the results open on every device: only the host clicks REMATCH, but nobody should have to dismiss the old report to play.
+  // Every rider readies in the results; starting closes the report on every device.
   await waitPhase(host, ["matchOver"], 90000);
   const matchPages = [host, guest, ...riders];
   await Promise.all(
@@ -342,10 +342,7 @@ try {
         .waitFor(),
     ),
   );
-  await host
-    .getByRole("dialog", { name: "Match results", exact: true })
-    .getByRole("button", { name: "REMATCH", exact: true })
-    .click();
+  await readyRoom(host);
   for (const page of matchPages) {
     await waitPhase(page, ["countdown", "playing"]);
     await page.locator("dialog.game-dialog[open]").waitFor({ state: "hidden" });
@@ -360,25 +357,11 @@ try {
   // A rematch keeps the refresh checks inside a running match whichever rider won three rounds first.
   const ensurePlaying = async () => {
     if ((await latest(host))!.phase === "matchOver") {
-      // The recap opens by itself a moment into matchOver and carries its own REMATCH (close, then the room's button):
-      // press whichever is in front, since the recap can open over the room's button between the look and the click.
-      for (let tries = 0; ; tries++) {
-        const recap = host
-          .locator("dialog[open]")
-          .getByRole("button", { name: "REMATCH", exact: true });
-        try {
-          await (
-            (await recap.count())
-              ? recap
-              : host.locator("button:not(dialog button)", {
-                  hasText: /^REMATCH$/,
-                })
-          ).click({ timeout: 2000 });
-          break;
-        } catch (error) {
-          if (tries >= 10) throw error;
-        }
-      }
+      await host
+        .getByRole("button", { name: "READY FOR REMATCH", exact: true })
+        .first()
+        .waitFor();
+      await readyRoom(host);
     }
     await waitPhase(host, ["playing"], 60000);
   };
@@ -454,7 +437,9 @@ try {
   await guest.locator(".mobile-tools-toggle").click();
   await guest
     .locator(".online-roster:visible")
-    .getByText("Guest", { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: "Guest" })
+    .first()
     .waitFor();
   const afterGuest = await latest(guest);
   assert.equal(
@@ -470,7 +455,9 @@ try {
   await host.reload();
   await host
     .locator(":is(.online-roster,.room-riders):visible")
-    .getByText("Guest", { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: "Guest" })
+    .first()
     .waitFor();
   await host.waitForFunction(
     () => {
@@ -507,7 +494,7 @@ try {
   await guest.waitForFunction(() =>
     document
       .querySelector(".online-notice")
-      ?.textContent?.startsWith("Waiting for the host"),
+      ?.textContent?.startsWith("Ready up"),
   );
   await guest.locator(".phone-lobby").waitFor();
   assert.equal(
@@ -517,7 +504,9 @@ try {
   );
   await guest
     .locator(".room-riders")
-    .getByText("Guest", { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: "Guest" })
+    .first()
     .waitFor();
   console.log("Settings/reset confirmed");
   await guest.reload();
@@ -533,16 +522,20 @@ try {
     .click();
   await guest
     .locator(".phone-lobby .room-riders")
-    .getByText("Guest", { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: "Guest" })
+    .first()
     .waitFor(); // The rejoined phone lands on the lobby screen (#134).
   console.log("Guest lobby reload confirmed");
   await host.reload();
   await host
     .locator(":is(.online-roster,.room-riders):visible")
-    .getByText("Guest", { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: "Guest" })
+    .first()
     .waitFor();
   await host
-    .getByRole("button", { name: "START RACE", exact: true })
+    .getByRole("button", { name: "ROOM SETTINGS", exact: true })
     .waitFor({ state: "visible" });
   console.log("Creator lobby reload confirmed");
   // One rider leaves so an AI rider can take the seat; a match with a bot runs on every replica alike.
@@ -566,7 +559,7 @@ try {
     /^Remove AI \w+$/,
     "AI roster names omit difficulty",
   );
-  await host.getByRole("button", { name: "START RACE", exact: true }).click();
+  await readyRoom(host);
   await waitPhase(host, ["countdown", "playing"]);
   await waitPhase(guest, ["countdown", "playing"]);
   await waitRound(host, 2, 60000);
@@ -583,10 +576,10 @@ try {
   await guest.waitForFunction(() =>
     document
       .querySelector(".online-notice")
-      ?.textContent?.startsWith("Waiting for the host"),
+      ?.textContent?.startsWith("Ready up"),
   );
   await host
-    .getByRole("button", { name: "START RACE", exact: true })
+    .getByRole("button", { name: "ROOM SETTINGS", exact: true })
     .waitFor({ state: "visible" });
   await host
     .getByRole("button", { name: "ROOM SETTINGS", exact: true })
@@ -608,7 +601,9 @@ try {
   await display.goto(url + "&display=1&benchmark=1");
   await display
     .locator(":is(.online-roster,.room-riders):visible")
-    .getByText("Host", { exact: false })
+    .locator(RIDER_NAME)
+    .filter({ hasText: "Host" })
+    .first()
     .waitFor();
   assert.equal(
     await display
@@ -621,7 +616,7 @@ try {
     const image = document.querySelector<HTMLImageElement>(".shared-lobby img");
     return image?.complete && image.naturalWidth > 0;
   });
-  await host.getByRole("button", { name: "START RACE", exact: true }).click();
+  await readyRoom(host);
   await display.locator(".shared-lobby").waitFor({ state: "hidden" });
   await display.locator(".online-arena").waitFor({ state: "visible" });
   // Controller phones steer riders the TV simulates: a held left third turns each rider on the display.
@@ -707,7 +702,7 @@ try {
             const canvas =
               document.querySelector<HTMLCanvasElement>(".online-arena");
             const start = [...document.querySelectorAll("button")].find(
-              (button) => button.textContent === "START RACE",
+              (button) => button.textContent === "ROOM SETTINGS",
             );
             const startBox = start?.getBoundingClientRect();
             let savedMode: unknown;
