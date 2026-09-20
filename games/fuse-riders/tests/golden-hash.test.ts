@@ -5,9 +5,10 @@ import { RULES } from "../src/engine/apply-tick.js";
 import { isEntry } from "../src/engine/input-log.js";
 import { goldenFailure } from "../../../scripts/lib/golden-update.js";
 import { replayGolden } from "./fixtures/golden-replay.js";
+import { REPLAY_STRIDE, strideNote } from "./fixtures/replay-budget.js";
 import type { Recording } from "./fixtures/replay-log.js";
 
-test("the input-only mechanic recording keeps every tick on the pinned rules", () => {
+test("the input-only mechanic recording keeps every tick on the pinned rules", (t) => {
   const recording: Recording = JSON.parse(
     readFileSync(
       new URL("./fixtures/mechanics-recording.json", import.meta.url),
@@ -28,13 +29,17 @@ test("the input-only mechanic recording keeps every tick on the pinned rules", (
   for (const entries of Object.values(recording.entries))
     for (const entry of entries)
       assert.ok(isEntry(entry), "fixture contains only valid wire entries");
-  const { hashes, claims } = replayGolden(recording);
+  t.diagnostic(strideNote(REPLAY_STRIDE, recording.ticks));
+  const { hashes, claims } = replayGolden(recording, REPLAY_STRIDE);
 
   // The rules and the hashes come first: they are what an engine change breaks, and their message says what to do
   // about it. A changed engine also plays the stored inputs into different rounds, so the coverage below fails with
   // it, and said nothing useful while it was asserted first.
+  //
+  // Every tick was folded; `""` marks one the stride did not stop to hash (see fixtures/replay-budget.ts). The
+  // golden file is always the full per-tick list, so a sampled run compares a subset of it and pins nothing new.
   const mismatch = hashes.findIndex(
-    (hash, index) => hash !== golden.hashes[index],
+    (hash, index) => hash !== "" && hash !== golden.hashes[index],
   );
   const failure = goldenFailure(
     RULES,

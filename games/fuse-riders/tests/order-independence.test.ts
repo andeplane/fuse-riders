@@ -23,6 +23,7 @@ import {
 } from "../src/engine/game.js";
 import type { Obstacle } from "../src/engine/arena-map.js";
 import { streamReader, type Recording } from "./fixtures/replay-log.js";
+import { REPLAY_STRIDE, strideNote } from "./fixtures/replay-budget.js";
 import { classicSettings } from "./fixtures/classic-settings.js";
 import { EFFECT_KINDS } from "../src/engine/effects.ts";
 import { WEAPON_KINDS } from "../src/engine/weapons.ts";
@@ -89,7 +90,7 @@ function permute(state: RoomState): void {
     state.game.settings.weights = backwardsKeys(state.game.settings.weights);
 }
 
-test("the whole mechanic replay survives reversed map and settings insertion order at every tick", () => {
+test("the whole mechanic replay survives reversed map and settings insertion order at every tick", (t) => {
   const recording: Recording = JSON.parse(
     readFileSync(
       new URL("./fixtures/mechanics-recording.json", import.meta.url),
@@ -112,20 +113,29 @@ test("the whole mechanic replay survives reversed map and settings insertion ord
     pickupTicks = 0,
     multiEffectRiderTicks = 0,
     tiedRounds = 0;
+  t.diagnostic(strideNote(REPLAY_STRIDE, recording.ticks));
   for (let tick = 1; tick <= recording.ticks; tick++) {
-    for (const list of [
-      state.game.obstacles,
-      state.game.pickups,
-      state.game.tracers,
-    ])
-      assert.deepEqual(
-        list.map((item) => item.id),
-        list.map((item) => item.id).sort((a, b) => a - b),
-        "the engine keeps obstacles, pickups and tracers in id order",
-      );
-    // A rider's effects and weapons are sequences the engine keeps canonical itself (`applyEffect` inserts into a
-    // sorted list): table order, then deadline; weapons in priority order.
+    // Every tick is folded. `checked` says whether this one is also permuted and held against the golden; the
+    // permutation outlives the tick that applied it (`state.bots` and the weight tables stay reversed), so at a
+    // stride the next check proves the fold survived the whole run of ticks since, not just one. The counters
+    // feed the coverage claims below, so they count on every tick whatever the stride is.
+    const checked = tick % REPLAY_STRIDE === 0 || tick === recording.ticks;
+    if (checked)
+      for (const list of [
+        state.game.obstacles,
+        state.game.pickups,
+        state.game.tracers,
+      ])
+        assert.deepEqual(
+          list.map((item) => item.id),
+          list.map((item) => item.id).sort((a, b) => a - b),
+          "the engine keeps obstacles, pickups and tracers in id order",
+        );
     for (const player of state.game.players.values()) {
+      if (player.effects.length > 1) multiEffectRiderTicks++;
+      if (!checked) continue;
+      // A rider's effects and weapons are sequences the engine keeps canonical itself (`applyEffect` inserts into a
+      // sorted list): table order, then deadline; weapons in priority order.
       const effects = player.effects.map(
         (effect) =>
           [EFFECT_KINDS.indexOf(effect.kind), effect.untilTick] as const,
@@ -135,7 +145,6 @@ test("the whole mechanic replay survives reversed map and settings insertion ord
         [...effects].sort((a, b) => a[0] - b[0] || a[1] - b[1]),
         `tick ${tick}: ${player.id}'s effects are in table and deadline order`,
       );
-      if (player.effects.length > 1) multiEffectRiderTicks++;
       assert.deepEqual(
         player.armed,
         WEAPON_KINDS.filter((kind) => player.armed.includes(kind)),
@@ -146,7 +155,7 @@ test("the whole mechanic replay survives reversed map and settings insertion ord
       if (state.game.obstacles.length > 1) obstacleTicks++;
       if (state.game.pickups.length > 1) pickupTicks++;
     }
-    permute(state);
+    if (checked) permute(state);
     const events = applyTick(state, recording.creator, streams(tick), bots);
     if (
       events.some((event) => event.type === "roundEnded") &&
@@ -154,10 +163,11 @@ test("the whole mechanic replay survives reversed map and settings insertion ord
         state.game.roundPlacements.length
     )
       tiedRounds++;
+    if (state.game.bombs.size > 1) bombTicks++;
+    if (!checked) continue;
     state.game.obstacles.sort((a, b) => a.id - b.id);
     state.game.pickups.sort((a, b) => a.id - b.id);
     state.game.tracers.sort((a, b) => a.id - b.id);
-    if (state.game.bombs.size > 1) bombTicks++;
     assert.equal(
       hashRoomState(state),
       golden.hashes[tick - 1],

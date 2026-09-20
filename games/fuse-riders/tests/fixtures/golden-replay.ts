@@ -24,8 +24,14 @@ export interface CoverageClaim {
  * Replays a recording once, for its per-tick hashes and for everything the golden test claims the recording
  * exercises. The test asserts every claim and the updater refuses to pin a replay that fails one, from this one
  * list, so the updater cannot write a golden its own test rejects.
+ *
+ * `stride` is passed straight to `replayHashes`: it thins the hashes, never the fold, so the coverage claims
+ * below are read from the whole recording whatever it is set to. The updater always records at stride 1.
  */
-export function replayGolden(recording: Recording): {
+export function replayGolden(
+  recording: Recording,
+  stride = 1,
+): {
   hashes: string[];
   claims: CoverageClaim[];
 } {
@@ -39,29 +45,33 @@ export function replayGolden(recording: Recording): {
   const rosterFault = (fault: string) => {
     if (roster.length < 3) roster.push(`tick ${tick}: ${fault}`);
   };
-  const hashes = replayHashes(recording, (state) => {
-    tick++;
-    if (state.game.phase === "playing") {
-      if (state.bots.size + state.folds.size !== state.game.players.size)
-        rosterFault(
-          `${state.bots.size} bots and ${state.folds.size} human streams for ${state.game.players.size} riders`,
-        );
-      // The bots are sent home for the duels; with any of them seated the room is full.
-      const seats = state.bots.size ? 5 : 2;
-      if (state.game.players.size !== seats)
-        rosterFault(
-          `${state.game.players.size} riders seated with ${state.bots.size} bots, expected ${seats}`,
-        );
-      if (
-        state.bots.size === 3 &&
-        state.folds.size === 2 &&
-        state.game.roundParticipants.size === 5
-      )
-        fiveRiderTicks++;
-      if (state.game.roundParticipants.size === 2) duelTicks++;
-    }
-    return observeCoverage(state);
-  });
+  const hashes = replayHashes(
+    recording,
+    (state) => {
+      tick++;
+      if (state.game.phase === "playing") {
+        if (state.bots.size + state.folds.size !== state.game.players.size)
+          rosterFault(
+            `${state.bots.size} bots and ${state.folds.size} human streams for ${state.game.players.size} riders`,
+          );
+        // The bots are sent home for the duels; with any of them seated the room is full.
+        const seats = state.bots.size ? 5 : 2;
+        if (state.game.players.size !== seats)
+          rosterFault(
+            `${state.game.players.size} riders seated with ${state.bots.size} bots, expected ${seats}`,
+          );
+        if (
+          state.bots.size === 3 &&
+          state.folds.size === 2 &&
+          state.game.roundParticipants.size === 5
+        )
+          fiveRiderTicks++;
+        if (state.game.roundParticipants.size === 2) duelTicks++;
+      }
+      return observeCoverage(state);
+    },
+    stride,
+  );
   const missingPickups = PICKUP_TYPES.filter(
     (type) => !coverage.collected.includes(type),
   );
