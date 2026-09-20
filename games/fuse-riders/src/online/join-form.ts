@@ -25,7 +25,7 @@ export function createJoinForm(
     id: `avatar-picker-${Math.random().toString(36).slice(2)}`,
   });
   // Colour is the avatar row's twin, folded the same way: both are settled before the seat is claimed. Neither is a
-  // promise — the room keeps both unique, so a rider whose choice is already worn is seated in the nearest free one.
+  // promise â€” the room keeps both unique, so a rider whose choice is already worn is seated in the nearest free one.
   const colors = createColorPicker(storage, undefined, {
     id: `color-picker-${Math.random().toString(36).slice(2)}`,
   });

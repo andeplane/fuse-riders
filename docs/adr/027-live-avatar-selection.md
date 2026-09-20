@@ -13,7 +13,7 @@ already wears that head, and a join repairs a taken head to the next free one in
 friends never has two foxes on it — the earlier "duplicates are allowed, the picker only marks them" rule is reversed.
 Ten heads and five seats leave room for everyone. The AI riders are the one exemption: they all wear `robot`, which is
 how an AI rider is read at a glance, and `robot` shows as taken to the humans in the room while one of them sits. A
-human that already wears it when the host adds an AI keeps it; nothing in the fold takes a head back once it is worn.
+human that deliberately picked it before the host added an AI keeps it; nothing in the fold takes a head back once it is worn, and its own picker still offers it to that rider. A browser that has never chosen starts on `HUMAN_DEFAULT_AVATAR` (the fox) rather than the robot, so the ordinary solo room is one fox and four robots rather than five robots.
 
 The picker now disables a taken head rather than merely marking it, because the fold would refuse the pick. A taken
 head wears a ring in its owner's colour, and the colour picker's twin badge puts that owner's head on their colour, so

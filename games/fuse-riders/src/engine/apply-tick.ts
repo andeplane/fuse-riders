@@ -40,7 +40,7 @@ import type { GameEvent } from "./state.js";
 import { driveGameTick } from "./tick-driver.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-48"; // 48: a rider's colour and head are its own and unique in the room: ten `RIDER_COLORS` instead of five seat colours, a `COLOR` entry beside `AVATAR`, both refused when another rider already wears the choice, and a join that takes the lowest free colour and repairs a taken head. 47 reserved by the hidden-tab policy PR. 46: the room passes to the rider in the next seat, not the lowest member id: succession ranks connected human riders by seat. 45: generation- and match-scoped ready votes start games and rematches deterministically. 44 reserved by the hidden-tab policy PR.
+export const RULES = "fuse-p2p-48"; // 48: a rider's colour and head are its own and unique in the room: ten `RIDER_COLORS` instead of five seat colours, a `COLOR` entry beside `AVATAR`, both refused when another rider already wears the choice, and a join that takes the lowest free colour and repairs a taken head. 46: the room passes to the rider in the next seat, not the lowest member id: succession ranks connected human riders by seat. 45: generation- and match-scoped ready votes start games and rematches deterministically. 44 and 47 are reserved by the hidden-tab policy PR (#361).
 // 43: the state takes the registries' shape (timed effects as `effects[]`, weapons as `armed[]`, Gun tracers in `tracers` rather than `bombs`, one fresh-round rider, no dead pickup, bomb or transit fields); every event and every view is unchanged. 42: the `drift` map (the wrapping board with a cross of walls on it that wanders like a screensaver logo) and the `trains` map (classic walls, trains round two loops of track): an obstacle may carry a `motion`, advanced by the `moveScenery` phase after `fitField`; `wall` and `train` obstacles stand through blasts and the overtime walls; scenery is met across open edges by riders and bullets, as trails are. 41: spectators are room members in the fold: SPECTATOR entries seat and free them, PRESENCE and LEAVE reach them, and they rank last in the succession order. 40: Target Bomb and the aim input are gone; Star drops by default. 39: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
@@ -108,15 +108,8 @@ export function freeSlot(game: GameState): number {
  * rider with no colour. Riders claim seats lowest-first, so a room nobody recolours wears exactly the seat colours it
  * always did, in the same order.
  */
-export function freeColor(
-  game: Readonly<GameState>,
-  except?: string,
-): string | undefined {
-  const taken = new Set(
-    sortedPlayers(game)
-      .filter((player) => player.id !== except)
-      .map((player) => player.color),
-  );
+export function freeColor(game: Readonly<GameState>): string | undefined {
+  const taken = new Set(sortedPlayers(game).map((player) => player.color));
   return RIDER_COLORS.find((color) => !taken.has(color));
 }
 /**
@@ -127,13 +120,8 @@ export function freeColor(
 export function repairedAvatar(
   game: Readonly<GameState>,
   wanted: AvatarId,
-  except?: string,
 ): AvatarId {
-  const taken = new Set(
-    sortedPlayers(game)
-      .filter((player) => player.id !== except)
-      .map((player) => player.avatarId),
-  );
+  const taken = new Set(sortedPlayers(game).map((player) => player.avatarId));
   if (!taken.has(wanted)) return wanted;
   return AVATARS.find((avatar) => !taken.has(avatar.id))?.id ?? wanted;
 }

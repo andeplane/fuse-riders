@@ -604,7 +604,7 @@ test("solo runs a room with no peers: one human, four AI, a paused clock while h
     false,
     "five seats are taken",
   );
-  // The command is accepted — the entry is this rider's to write — but the fold refuses the head, because the four AI
+  // The command is accepted â€” the entry is this rider's to write â€” but the fold refuses the head, because the four AI
   // riders in this solo room wear `robot` and a human that wore it too could not be told from them (rules 48).
   assert.equal(runtime.command({ type: "avatar", avatarId: "robot" }), true);
   net.step(60);

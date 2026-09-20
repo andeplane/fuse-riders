@@ -10,11 +10,10 @@
 > rider wears the badge as well as the creator's own page — every rule that would avoid that also strands a room whose
 > unseated host has left (ADR 047 §9, `roomManager`).
 >
-> Phase F (ten colours, unique colours and avatars) landed under rules `fuse-p2p-48`, with one departure noted in §7:
-> the `JOIN` entry keeps its shape, because it is the netcode's and shared with every game, so a joiner's colour is not
-> carried on the join but follows as its own `COLOR` entry the moment the room seats it. The fold gives every join the
-> lowest free colour, so the repair the plan asked for is where it should be and nobody is ever seated without one.
-> Phases A, C and E are still open.
+> Phase F (ten colours, unique colours and avatars) landed under rules `fuse-p2p-48`. The uniqueness rules are as
+> written; the entry carrying the choice, four of the five new colours, and where the pickers sit are not — all four
+> departures are listed at the head of §7. Phases A, C and E are still open. **§0 and §1 below describe how colour and
+> avatars worked before this phase and are left as the plan wrote them; §7 is the built behaviour.**
 > Covers ten requested lobby and feel changes: host crown, kick, host handover, ready check, ten colours, unique
 > avatars, spectators, ready check between rounds with a countdown sound, a lobby map picker, and a slower bomb range
 > sweep. Each sub-phase is sized for one agent owning it end to end on a `codex/` branch, opening one pull request in
@@ -38,7 +37,7 @@
   `src/shared/apply-tick.ts` already hand management to the next connected human while the creator is away. Only
   `RoomRuntime.command` still refuses room commands from anyone but the creator, and the UI has no idea who is
   managing. Kick is one missing command over an existing entry (`LEAVE`).
-- **Colour is currently the seat.** `SLOT_COLORS[slot]` is assigned at join, and the checkpoint validator insists
+- **Colour was the seat** (before Phase F; see §7 for what was built). `SLOT_COLORS[slot]` is assigned at join, and the checkpoint validator insists
   `color === SLOT_COLORS[slot]`. Selectable colours mean colour becomes its own field in the join entry with its own
   uniqueness rule in the fold; the seat (`slot`) keeps ordering riders, naming bots and seeding the ink wobble.
 - **Spectators are the one genuinely new concept.** They need a place in `RoomState`, presence handling, a rank in the
@@ -59,8 +58,8 @@
 | Room commands | `src/online/room-runtime.ts` `command`, `join`, `claimSlot`                                                                                                                                                                        | `join` seats a rider on the lowest free seat (0–4). `command` gates settings, start/rematch/lobby and AI changes on `this.creator`, although `this.manager` (creator or acting creator) already exists.                                                                                  |
 | Succession    | `apply-tick.ts` `successionOrder`, `actingCreator`, `permitted`; `room-runtime.ts` `actingCreatorDuties`, `managerId`                                                                                                              | Creator first, then connected human riders by id. A creator with no player record (TV host, and later a spectating host) makes two members managers at once.                                                                                                                             |
 | Lobby UI      | `src/online/ui.ts` (~2,260 lines): `lobbyEntries`, `rosterEntries`, `hostControls`, `joinForm`, `avatarButton`; `src/online/join-form.ts`; `src/online/mobile-play-layout.ts`; `src/online/online.css` `.room-rider`, `.ai-remove` | Rider rows carry `--rider-color`, an avatar portrait, name and a status line (`READY` today means connected). The AI remove button is already parented into the lobby row or the roster card depending on phase. The UI learns "am I host" from the `ready(peerId, host)` callback only. |
-| Avatars       | `src/shared/avatars.ts`, `src/client/avatar-heads.ts`, ADR 027                                                                                                                                                                     | Ten avatars, picker marks taken ones (`.taken`) but allows duplicates. `AVATAR` entry (kind 5) applies unconditionally.                                                                                                                                                                  |
-| Colours       | `src/shared/game.ts` `SLOT_COLORS`; `checkpoint.ts` lines 138 and 441                                                                                                                                                              | Five colours indexed by seat; renderer, trails and CSS all read `player.color` (hex string), nothing else assumes five.                                                                                                                                                                  |
+| Avatars       | `src/shared/avatars.ts`, `src/client/avatar-heads.ts`, ADR 027                                                                                                                                                                     | Before Phase F: ten avatars, picker marks taken ones (`.taken`) but allows duplicates, and `AVATAR` (kind 5) applies unconditionally. Phase F reverses all three.                                                                                                                        |
+| Colours       | `src/shared/game.ts` `SLOT_COLORS`; `checkpoint.ts` lines 138 and 441                                                                                                                                                              | Before Phase F: five colours indexed by seat. The renderer, trails and CSS all read `player.color` (a hex string) and nothing else assumes five, which is why the palette could grow to ten. Now `engine/tuning.ts` `RIDER_COLORS`.                                                      |
 | Bomb range    | `src/shared/bomb-launch.ts` `chargeRamp`; `src/client/bomb-preview.ts`; room setting `bombChargeTicks` (default 8 ticks = 0.4 s), `aimBounce`                                                                                      | One ramp definition shared by simulation and preview. Sweep speed is the room setting itself.                                                                                                                                                                                            |
 | Maps          | `src/shared/arena-map.ts` `ARENA_MAP_CHOICES` (`rotate` + six maps), `chooseArenaMap`; `room-settings-menu.ts`                                                                                                                     | Map is a room setting written by a `SETTINGS` entry. `rotate` exists; `random` does not.                                                                                                                                                                                                 |
 | Audio         | `src/client/audio-director.ts` `message`, `cue`                                                                                                                                                                                    | Cues fire from `GameEvent`s. The countdown is a phase (`COUNTDOWN_TICKS` = 60), not an event, so a countdown sound derives from snapshot ticks.                                                                                                                                          |
@@ -248,10 +247,23 @@ short design note `docs/design/ready-check.md` (what is gated, what is not, why 
 
 ## 7. Phase F — Ten colours, unique colours and avatars (requests 5 and 6)
 
-_Landed under rules `fuse-p2p-48`. Built as written except for F.1's colour on the `JOIN` entry: that entry is the
-netcode's, shared by every game in `packages/fuse-netcode`, and a colour index in it would push a Fuse Riders concept
-into a game-agnostic wire format. The fold gives each join the lowest free colour instead, and the joiner's preference
-follows as the `COLOR` entry of F.2 once it is seated — so the repair is unchanged and a rider always has a colour._
+_Landed under rules `fuse-p2p-48`. The uniqueness rules, the repairs and the "taken" pattern are as written below.
+Four things are not:_
+
+1. _**Neither `JOIN` nor `BOT add` carries a colour index** (F.1). Both entry shapes are the netcode's, shared by every
+   game in `packages/fuse-netcode`, and a colour index in them would push a Fuse Riders concept into a game-agnostic
+   wire format. The fold gives each join and each bot the lowest free colour instead, and a joiner's preference follows
+   as the `COLOR` entry of F.2 once it is seated — so the repair is unchanged and a rider always has a colour._
+2. _**Four of the five proposed colours changed** (F.1). Shipped: amber `#facc15` (as proposed), red `#ef4444`,
+   emerald `#34d399`, blue `#60a5fa`, fuchsia `#e879f9`. Coral red `#f43f5e` sat 17° from the existing pink and mint
+   `#2dd4bf` 16° from the existing cyan; near-white ice `#e2e8f0` was dropped because it reads as the boundary and the
+   overtime walls. The shipped ten are ≥20° apart at the tightest (orange 27° → amber 48°)._
+3. _**The seated picker is a `COLOUR` header button** beside `AVATAR`, not a tap on the row's swatch (F.4), and the
+   phone lobby has no 28 px row circle. The button follows `AVATAR`'s existing lobby-only visibility, which is the
+   pattern already in the page; a per-row control is still worth doing and is not here._
+4. _**The contact sheet is its own script**, `scripts/rider-colors-sheet.ts`, rather than an addition to
+   `scripts/map-styles-smoke.ts`, and it draws the three grounds a rider actually plays on rather than both visual
+   styles._
 
 ### F.1 Colour leaves the seat — M
 

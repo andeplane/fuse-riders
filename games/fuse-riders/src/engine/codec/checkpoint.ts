@@ -24,7 +24,7 @@ import {
   MAX_SPEED_EFFECT_STACK,
   NITRO_DURATION_TICKS,
   PICKUP_TYPES,
-  RIDER_COLORS,
+  isRiderColor,
   SNAIL_DURATION_TICKS,
   type GameState,
   type PlayerState,
@@ -160,7 +160,7 @@ const playerFields = {
   id: text,
   name,
   slot: count(4),
-  color: (v) => RIDER_COLORS.includes(v as (typeof RIDER_COLORS)[number]),
+  color: isRiderColor,
   avatarId: isAvatarId,
   connected: boolean,
   x: position,
@@ -499,7 +499,7 @@ function gameInvariants(game: GameState): boolean {
       id !== p.id ||
       slots.has(p.slot) ||
       colors.has(p.color) ||
-      !(RIDER_COLORS as readonly string[]).includes(p.color) ||
+      !isRiderColor(p.color) ||
       !game.leaderboard.has(id)
     )
       return false;

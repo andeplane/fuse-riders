@@ -271,8 +271,15 @@ export async function startOnline(): Promise<void> {
       // The seat comes from the room's generic join, which carries no colour; the colour the rider asked for follows
       // as its own entry the moment the room seats it (`wantedColor` below). Asking for one it cannot have is safe:
       // the fold refuses it and the rider keeps the free colour the join gave it.
-      wantedColor = colorIndex;
-      return runtime.command({ type: "join", name: playerName, avatarId });
+      // Only held for a join the runtime accepted. A refused one (room full, still loading) leaves nothing behind to
+      // recolour a seat this device might take minutes later for another reason.
+      const sent = runtime.command({
+        type: "join",
+        name: playerName,
+        avatarId,
+      });
+      wantedColor = sent ? colorIndex : undefined;
+      return sent;
     },
     accountUsername(),
     // Solo is one rider and four AI on this device: there is no room to watch.
@@ -1186,7 +1193,10 @@ export async function startOnline(): Promise<void> {
       }
       // What this rider actually wears is what the browser remembers, so the next room opens on the colour it wore
       // rather than on one it asked for and did not get.
-      if (player) joinForm.colors.sync(player.color as RiderColorId);
+      if (player) {
+        joinForm.colors.sync(player.color as RiderColorId);
+        joinForm.picker.sync(player.avatarId);
+      }
       // A watcher is in the room, not queuing at its door: it gets the arena and the lists, never the join card or the controls.
       const watcher = state.spectators.find((seat) => seat.id === id);
       watching = Boolean(watcher);
@@ -1559,15 +1569,21 @@ export async function startOnline(): Promise<void> {
   const avatarDialog = createAvatarDialog(dialogs, {
     storage,
     picker: createAvatarPicker,
+    // What this rider already wears is never "taken": an AI rider shares `robot` with a human that had it first, and
+    // marking your own head as someone else's would disable the option you are standing on.
     wornBy: (avatarId) => {
+      if (snapshot?.players.find((p) => p.id === id)?.avatarId === avatarId)
+        return undefined;
       const owner = snapshot?.players.find(
         (p) => p.id !== id && p.avatarId === avatarId,
       );
       return owner && { name: owner.name, color: owner.color };
     },
+    // Seated, the fold is what decides, and the frame loop syncs the form to its answer; syncing optimistically here
+    // too would show the pick, then the old head for a frame, then the pick again. Unseated there is no fold to ask.
     chosen: (chosen) => {
-      joinForm.picker.sync(chosen);
       if (joined) runtime.command({ type: "avatar", avatarId: chosen });
+      else joinForm.picker.sync(chosen);
     },
   });
   avatarButton.onclick = avatarDialog.open;
@@ -1576,15 +1592,17 @@ export async function startOnline(): Promise<void> {
     picker: createColorPicker as ColorDialogOptions["picker"],
     portrait: (avatarId) => createAvatarPortrait(avatarId as AvatarId),
     wornBy: (color) => {
+      if (snapshot?.players.find((p) => p.id === id)?.color === color)
+        return undefined;
       const owner = snapshot?.players.find(
         (p) => p.id !== id && p.color === color,
       );
       return owner && { name: owner.name, avatarId: owner.avatarId };
     },
     chosen: (chosen) => {
-      joinForm.colors.sync(chosen as RiderColorId);
       if (joined)
         runtime.command({ type: "color", colorIndex: riderColorIndex(chosen) });
+      else joinForm.colors.sync(chosen as RiderColorId);
     },
   });
   colorButton.onclick = colorDialog.open;

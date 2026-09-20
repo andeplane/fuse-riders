@@ -1,10 +1,16 @@
-import { RIDER_COLORS, RIDER_COLOR_LABELS } from "../engine/tuning.js";
+import {
+  RIDER_COLORS,
+  RIDER_COLOR_LABELS,
+  isRiderColor,
+  type RiderColor,
+} from "../engine/tuning.js";
 import { createPicker, el, type Picker } from "fuse-ui";
 import "./rider-colors.css";
 
 const COLOR_KEY = "fuse-riders-color";
 
-export type RiderColorId = (typeof RIDER_COLORS)[number];
+/** The engine's palette type under the name the page uses; the guard is the engine's too, so there is one of each. */
+export type RiderColorId = RiderColor;
 
 /** The palette as the picker's choices: the colour itself is the option's id, which is what a rider's `color` holds. */
 export function riderColorChoices(): { id: RiderColorId; label: string }[] {
@@ -18,8 +24,7 @@ export const riderColorIndex = (color: string): number =>
   (RIDER_COLORS as readonly string[]).indexOf(color);
 export const riderColorLabel = (color: string): string =>
   RIDER_COLOR_LABELS[riderColorIndex(color)] ?? "Colour";
-export const isRiderColorId = (value: unknown): value is RiderColorId =>
-  typeof value === "string" && riderColorIndex(value) >= 0;
+export const isRiderColorId = isRiderColor;
 
 /** A filled disc of one colour: the option's picture in the grid, and the swatch on a rider's row. */
 export function createColorSwatch(color: string): HTMLSpanElement {
@@ -40,7 +45,7 @@ export function createColorPicker(
   fold?: { id: string },
 ): Picker<RiderColorId> {
   const stored = storage.getItem(COLOR_KEY);
-  const selected: RiderColorId = isRiderColorId(stored)
+  const selected: RiderColorId = isRiderColor(stored)
     ? stored
     : RIDER_COLORS[0];
   const picker = createPicker<RiderColorId>({
