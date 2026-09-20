@@ -43,11 +43,19 @@ About **743 lines**, deleted in this pull request. First trial-deleted in a thro
 then re-verified on the merged tree: `tsc --noEmit` clean, `golden-hash.test.ts` green (so no
 engine behaviour change and **no `RULES` bump needed**), and no new suite failures.
 
-Two prose references went with the code: `bomb-gesture.ts`'s docstring, which still named
-`BombInputBuffer` as a second caller, and the "One bomb-input core" section of
+No regression guard was lost with the two deleted test files. `games/fuse-riders/tests/input-log.test.ts`
+already exercises every case the differential test modelled — press over a held gesture, a resent or
+stale press, a matching release, a stale release, a matching cancel, a mismatched cancel — directly
+against `foldPlayerEntries`, which is the implementation that ships. What went was the comparison
+against the dead wrapper, not the coverage of the semantics.
+
+Three prose references went with the code: `bomb-gesture.ts`'s docstring, which still named
+`BombInputBuffer` as a second caller; that test's name, which described itself as mirroring the LAN
+buffer; and the "One bomb-input core" section of
 [engine-tick-driver.md](design/engine-tick-driver.md), which now records the removal. The drift
 table there is kept — it is the record of architecture-review finding C2, not a description of
-live code.
+live code. The buffer is also named in `docs/reviews/`, `docs/adr/041-*.md` and
+`docs/online/ROLLBACK-PLAN.md`; those are historical records and were deliberately left alone.
 
 | What                                                                                                                     |         Lines | Why it is dead                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------------------------------------------------------ | ------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
