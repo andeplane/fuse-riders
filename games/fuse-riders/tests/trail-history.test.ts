@@ -319,6 +319,12 @@ test("nothing established changed means the same strokes array, untouched input"
     false,
   );
   assert.deepEqual(player, original, "presentation must not mutate the view");
+  // What the scene reads after `complete()`, which returns strokes rather than a frame.
+  assert.equal(history.changedLastFrame(), false);
+  assert.equal(history.builtLastFrame(), 0);
+  history.complete([rider()], "epoch:match:round2", 10.5, "playing", RULES);
+  assert.equal(history.changedLastFrame(), true);
+  assert.equal(history.builtLastFrame(), 1);
 });
 
 test("a new round, a new match, a rider leaving and a reset clear the cache", () => {
