@@ -36,6 +36,22 @@ export const RIDER_COLORS = [
 export type RiderColor = (typeof RIDER_COLORS)[number];
 export const isRiderColor = (value: unknown): value is RiderColor =>
   (RIDER_COLORS as readonly string[]).includes(value as string);
+/**
+ * What each colour is called, in the palette's own order. It sits beside the hex it names so the two cannot drift, the
+ * way `AVATARS` pairs a head's id with its label; the picker and the contact sheet both read it from here.
+ */
+export const RIDER_COLOR_LABELS = [
+  "Cyan",
+  "Pink",
+  "Lime",
+  "Orange",
+  "Violet",
+  "Amber",
+  "Red",
+  "Emerald",
+  "Blue",
+  "Fuchsia",
+] as const;
 
 export const RIDER_SPEED = 150;
 /** Ticks after launch during which a Shell ignores its shooter's trail and body. */

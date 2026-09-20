@@ -1630,6 +1630,7 @@ export async function startOnline(): Promise<void> {
     ...(voiceDialog ? [voiceDialog.element] : []),
     menuDialog.element,
     avatarDialog.element,
+    colorDialog.element,
     roomSettingsDialog.element,
     recapDialog.element,
   ];

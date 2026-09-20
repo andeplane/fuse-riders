@@ -2218,7 +2218,9 @@
   font-weight: bold;
   letter-spacing: 0.08em;
 }
-.room-riders .online-join > button:not(.avatar-current):not(.join-spectate) {
+.room-riders .online-join > button:not(.avatar-current):not(.color-current):not(
+    .join-spectate
+  ) {
   min-height: 2.75rem;
   background: var(--fui-cyan-deep);
   color: #061126;
@@ -2245,11 +2247,13 @@
     grid-column: 1 / -1;
   }
 }
-.online-join .avatar-picker {
+.online-join .avatar-picker,
+.online-join .color-picker {
   grid-column: 1/-1;
   padding: 0;
 }
-.online-join .avatar-current {
+.online-join .avatar-current,
+.online-join .color-current {
   grid-column: 1/-1;
   display: flex;
   align-items: center;
@@ -2260,12 +2264,14 @@
   border-color: var(--fui-line);
   font-size: 0.8125rem;
 }
-.online-join .avatar-current .avatar-portrait {
+.online-join .avatar-current .avatar-portrait,
+.online-join .color-current .color-swatch {
   width: 2rem;
   height: 2rem;
   flex: 0 0 2rem;
 }
-.online-join .avatar-change {
+.online-join .avatar-change,
+.online-join .color-change {
   margin-left: auto;
   padding: var(--fui-space-1) var(--fui-space-2);
   border: 0.0625rem solid var(--fui-cyan);
@@ -2273,7 +2279,8 @@
   font-size: 0.6875rem;
   letter-spacing: 0.0625rem;
 }
-.online-join .avatar-option {
+.online-join .avatar-option,
+.online-join .color-option {
   min-width: 0;
   min-height: 0;
   padding: 0.375rem 0.125rem;

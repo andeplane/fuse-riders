@@ -1,26 +1,8 @@
-import { RIDER_COLORS } from "../engine/tuning.js";
+import { RIDER_COLORS, RIDER_COLOR_LABELS } from "../engine/tuning.js";
 import { createPicker, el, type Picker } from "fuse-ui";
 import "./rider-colors.css";
 
 const COLOR_KEY = "fuse-riders-color";
-
-/**
- * What each of `RIDER_COLORS` is called on screen, in the same order. Kept beside the picker rather than in the engine,
- * which has no business naming things for a player, and pinned to the palette's length by `riderColorChoices` so a
- * colour added without a name is caught rather than drawn nameless.
- */
-export const RIDER_COLOR_LABELS = [
-  "Cyan",
-  "Pink",
-  "Lime",
-  "Orange",
-  "Violet",
-  "Amber",
-  "Red",
-  "Emerald",
-  "Blue",
-  "Fuchsia",
-] as const;
 
 export type RiderColorId = (typeof RIDER_COLORS)[number];
 
