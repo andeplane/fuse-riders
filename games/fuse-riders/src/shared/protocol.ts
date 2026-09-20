@@ -1,8 +1,8 @@
-import { isAvatarId, type AvatarId } from "./avatars.js";
+import { isAvatarId, type AvatarId } from "../engine/avatar-id.js";
 import type { GameEvent, WorldView } from "../engine/view.js";
 import { trimmedRiderName } from "../engine/rider-name.js";
 
-export type { AvatarId } from "./avatars.js";
+export type { AvatarId } from "../engine/avatar-id.js";
 // The engine publishes what a screen sees and what a tick reports; the LAN wire only names them.
 export type { GameEvent, WorldView } from "../engine/view.js";
 export type {

@@ -48,13 +48,19 @@ const errors: string[] = [];
 let browser: Browser | undefined;
 try {
   browser = await launchSelected("chromium", { headless: true });
-  const open = async (label: string, url: string) => {
+  /** `rider` seeds the name this browser remembers, which is what an arriving device is seated under. */
+  const open = async (label: string, url: string, rider?: string) => {
     const page = await browser!.newContext().then((c) => c.newPage());
     page.setDefaultTimeout(smokeTimeout(30000));
     page.on("pageerror", (error) =>
       errors.push(`${label}: ${error.stack ?? error.message}`),
     );
     await recording(page);
+    if (rider !== undefined)
+      await page.addInitScript(
+        (name) => localStorage.setItem("fuse-riders-player-name", name),
+        rider,
+      );
     await page.goto(url);
     return page;
   };
@@ -70,21 +76,20 @@ try {
     .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
     .click();
 
-  const rider = await open("rider", roomUrl);
-  await rider.getByPlaceholder("Your name").fill("Rider");
-  await rider
-    .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-    .click();
+  // An invited device is seated by the room itself (`docs/design/room-is-the-join-screen.md`).
+  const rider = await open("rider", roomUrl, "Rider");
 
-  // The third page takes the ghost button under it instead.
-  const watcher = await open("watcher", roomUrl);
+  // The third page is seated the same way and then gives its seat up: with no card to choose from on the way in,
+  // WATCH on its own row is how a device ends up in the watching list.
+  const watcher = await open("watcher", roomUrl, "Watcher");
+  // The join card is still the way back in after a kick, so its button is kept for that below.
   const watchButton = watcher.getByRole("button", {
     name: "JOIN AS SPECTATOR",
     exact: true,
   });
-  await watchButton.waitFor({ state: "visible" });
-  await watcher.getByPlaceholder("Your name").fill("Watcher");
-  await watchButton.click();
+  await watcher
+    .getByRole("button", { name: "Give your seat up and watch instead" })
+    .click();
 
   // Every page lists the watcher, under the riders and outside them.
   for (const [label, page] of [
@@ -148,16 +153,73 @@ try {
     );
   }
   assert.equal(
-    await watcher.locator(".room-watcher > button").isVisible(),
+    await watcher.locator(".room-watcher > button.room-remove").isVisible(),
     false,
     "a watcher holds no remove button",
   );
+
+  // Changing sides, both ways, in the browser: the watcher takes a free seat and gives it straight back. The room ends
+  // where it started, so what follows is unaffected.
+  const seats = (page: Page) =>
+    page.locator(".room-riders > .room-rider:not(.room-watcher)").count();
+  const watchers = (page: Page) => page.locator(".room-watcher").count();
+  const takeSeat = watcher.locator(".room-watcher > button.room-switch");
+  assert.equal(
+    (await takeSeat.innerText()).trim(),
+    "TAKE A SEAT",
+    "the watcher's own row offers the seat",
+  );
+  assert.equal(
+    await host.locator(".room-watcher > button.room-switch").isVisible(),
+    false,
+    "and nobody else's page offers it on that row",
+  );
+  await takeSeat.click();
+  for (const [label, page] of [
+    ["host", host],
+    ["rider", rider],
+    ["watcher", watcher],
+  ] as const) {
+    await page.waitForFunction(
+      () =>
+        document.querySelectorAll(
+          ".room-riders > .room-rider:not(.room-watcher)",
+        ).length === 3 &&
+        document.querySelectorAll(".room-watcher").length === 0,
+      undefined,
+      { timeout: smokeTimeout(20000) },
+    );
+    assert.equal(await seats(page), 3, `${label} seats the watcher that sat`);
+    assert.equal(await watchers(page), 0, `${label} empties the list`);
+  }
+  await watcher.screenshot({ path: "artifacts/spectator-took-a-seat.png" });
+
+  // And back, from the rider row it now has. Every row carries the button and hides all but this device's own, so the
+  // visible one is the row that belongs to this page.
+  await watcher.locator(".room-rider > button.room-switch:visible").click();
+  for (const [label, page] of [
+    ["host", host],
+    ["rider", rider],
+    ["watcher", watcher],
+  ] as const) {
+    await page.waitForFunction(
+      () =>
+        document.querySelectorAll(
+          ".room-riders > .room-rider:not(.room-watcher)",
+        ).length === 2 &&
+        document.querySelectorAll(".room-watcher").length === 1,
+      undefined,
+      { timeout: smokeTimeout(20000) },
+    );
+    assert.equal(await seats(page), 2, `${label} freed the seat again`);
+    assert.equal(await watchers(page), 1, `${label} lists it watching again`);
+  }
   // The host sends the watcher home. A person's row asks twice, so one tap only arms the button — and the armed state
   // lapses after two seconds, so a loaded machine that misses the window arms it again rather than failing the smoke.
-  const removeWatcher = host.locator(".room-watcher > button");
+  const removeWatcher = host.locator(".room-watcher > button.room-remove");
   const watching = () => host.locator(".room-watcher").count();
   await removeWatcher.click();
-  await host.locator(".room-watcher > button.arming").waitFor();
+  await host.locator(".room-watcher > button.room-remove.arming").waitFor();
   assert.equal(await watching(), 1, "one tap asks; it does not remove anyone");
   // The armed state lapses after two seconds. On a loaded machine a tap can land after that, in which case it arms the
   // button again rather than confirming, so the tap is repeated until the row goes.
@@ -177,7 +239,9 @@ try {
       0,
       `${label} sees the watching list empty again`,
     );
-  // A kick is not a ban: the same page walks back in.
+  // A kick is not a ban: the same page walks back in. This is also what the join card is for now — a device the room
+  // took out does not seat itself again, so the card comes up with the reason and both ways back in on it.
+  await watcher.locator(".join-kicked").waitFor({ state: "visible" });
   await watchButton.waitFor({ state: "visible" });
   await watcher.getByPlaceholder("Your name").fill("Watcher");
   await watchButton.click();

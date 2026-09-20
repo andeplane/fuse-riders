@@ -6,7 +6,7 @@ import {
   addPlayer,
   startMatch,
   step,
-  SLOT_COLORS,
+  RIDER_COLORS,
   riderMotionStep,
 } from "../src/engine/game.js";
 import { drunkHeadingOffset } from "../src/engine/drunk.js";
@@ -20,7 +20,7 @@ test("pure rider kernel exactly matches authoritative turns including drunk offs
       id: `p${i}`,
       name: `P${i}`,
       slot: i,
-      color: SLOT_COLORS[i]!,
+      color: RIDER_COLORS[i]!,
     });
   startMatch(game);
   for (let t = 0; t < 60; t++) step(game, new Map());

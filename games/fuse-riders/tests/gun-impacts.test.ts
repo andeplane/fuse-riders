@@ -15,7 +15,7 @@ import {
   step,
   toView,
   COUNTDOWN_TICKS,
-  SLOT_COLORS,
+  RIDER_COLORS,
 } from "../src/engine/game.js";
 import { setArmed } from "./fixtures/rider-state.ts";
 
@@ -26,7 +26,7 @@ function scene(kind: "trail" | "head" | "wall", wrap = false) {
       id: `p${i}`,
       name: `Rider ${i}`,
       slot: i,
-      color: SLOT_COLORS[i]!,
+      color: RIDER_COLORS[i]!,
     });
   if (wrap) game.settings = { ...defaultRoomSettings(), map: "wrap" };
   startMatch(game);

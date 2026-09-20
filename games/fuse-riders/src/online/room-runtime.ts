@@ -7,8 +7,10 @@ import {
   type RuntimeOptions,
 } from "fuse-netcode";
 import { RULES, readyPhase, type RoomState } from "../engine/apply-tick.js";
+import { RIDER_COLORS } from "../engine/tuning.js";
 import {
   AVATAR,
+  COLOR,
   READY,
   CANCEL,
   PRESS,
@@ -41,6 +43,7 @@ export type RoomCommand =
       bombAction?: "press" | "release" | "cancel";
     }
   | { type: "avatar"; avatarId: AvatarId }
+  | { type: "color"; colorIndex: number }
   | { type: "ready"; ready: boolean };
 export type Callbacks = NetCallbacks<FuseView, GameEvent, RoomSettings>;
 /** What `presentation()` hands the screen: frames and times, not a finished picture. */
@@ -135,13 +138,30 @@ export class RoomRuntime extends NetRuntime<
     if (
       command &&
       typeof command === "object" &&
-      (command.type === "input" || command.type === "avatar")
+      (command.type === "input" ||
+        command.type === "avatar" ||
+        command.type === "color")
     ) {
       if (!this.world) {
         this.status.notice(this.text.loading);
         return false;
       }
       if (command.type === "input") return this.input(command);
+      // A head and a colour are the rider's own entries on its own stream. Whether the choice sticks is the fold's
+      // answer, not this device's: an entry for one another rider already wears is a no-op on every replica alike.
+      if (command.type === "color") {
+        if (
+          !Number.isInteger(command.colorIndex) ||
+          command.colorIndex < 0 ||
+          command.colorIndex >= RIDER_COLORS.length ||
+          !this.player() ||
+          this.hiddenState
+        )
+          return false;
+        this.append(COLOR, command.colorIndex);
+        this.sendPackets(this.deps.now());
+        return true;
+      }
       if (
         !this.game.seating.isAvatar(command.avatarId) ||
         !this.player() ||
