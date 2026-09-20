@@ -143,9 +143,10 @@ test("the cache reproduces a full rebuild on every frame of a replayed match", (
   assert.ok(rounds.size > 1, "the slice crosses a round boundary");
   assert.ok(detached > 0, "the slice detaches trails");
   assert.ok(deaths > 0, "the slice kills riders");
-  // The point of the change: most established segments are never re-derived.
+  // The point of the change: most established segments are never re-derived. The exact share moves with
+  // the balance — a detached piece is rebuilt on every tick it fades — so this is a floor, not a target.
   assert.ok(
-    built < segments / 10,
+    built < segments / 4,
     `built ${built} of ${segments} established segments`,
   );
 });

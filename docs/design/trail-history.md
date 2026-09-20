@@ -54,13 +54,16 @@ for both. Trails are not appended into a `Graphics`, and that is deliberate.
 ## Cost
 
 `pnpm exec tsx scripts/trail-cost.ts` (3000 ticks of the pinned recording, three frames per tick, one
-rider led ahead), on `505609f9`:
+rider led ahead), on `4d7f69fe`:
 
 | Per frame             | Full rebuild | Retained |
 | --------------------- | ------------ | -------- |
-| Path points derived   | 347.6        | 41.9     |
-| Ribbon vertices drawn | 2565.6       | 2565.6   |
-| Trail pipeline        | 0.583 ms     | 0.170 ms |
+| Path points derived   | 399.1        | 55.9     |
+| Ribbon vertices drawn | 2963.8       | 2963.8   |
+| Trail pipeline        | 0.148 ms     | 0.039 ms |
+
+The share that is rebuilt moves with the balance, because a detached piece is rebuilt on every tick it
+fades: measured over a different slice of the same recording it sits between an eighth and a fifth.
 
 `scripts/phaser-benchmark.ts` shows no change (WebGL `cpu` p50 6.0 ms → 5.8 ms, Canvas 1.2 ms → 1.2 ms),
 and cannot: its fixture rebuilds every rider's whole trail from the tick number, so no established segment
