@@ -122,8 +122,9 @@ export function freeColor(game: Readonly<GameState>): string | undefined {
 }
 /**
  * The head a rider asking for `wanted` gets: its own choice while no other rider wears it, otherwise the next free one
- * in `AVATAR_IDS` order. Bots are counted as wearing theirs — `robot` reads as taken while an AI sits — but are not
- * subject to the rule themselves, so several AI riders share the one head they are drawn with (ADR 027).
+ * in `RIDER_AVATAR_IDS` order — every id but the AI's, so the robot is never handed to a person however early they
+ * arrived (rules `fuse-p2p-51`). Bots are counted as wearing theirs, so `robot` also reads as taken while an AI sits,
+ * but they are not subject to the rule themselves: several AI riders share the one head they are drawn with (ADR 027).
  */
 export function repairedAvatar(
   game: Readonly<GameState>,

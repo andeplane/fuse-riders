@@ -44,7 +44,7 @@ import { stepsPerTick } from "../engine/game.js";
 import { MAX_STEPS_PER_TICK, stepsCover } from "../engine/tick-driver.js";
 import { toView, type GameEvent, type WorldView } from "../engine/view.js";
 import type { PlayerState } from "../engine/state.js";
-import { isAvatarId } from "../engine/avatar-id.js";
+import { isAvatarId, isRiderAvatarId } from "../engine/avatar-id.js";
 
 /**
  * What a rules mismatch tells each side. Reloading only helps the page that is behind, so only its lines say "reload this
@@ -146,12 +146,16 @@ function decodeRoom(
       return;
     bots.add(id);
   }
-  // Heads are unique among the humans in the room (`repairedAvatar`), which is the rule a restored room must satisfy
-  // too. The AI riders are exempt and all wear `robot`, so they are counted out here rather than checked: `decodeRoom`
-  // is the one place that knows which seats are theirs. Colours need no such exemption and are checked in `gameInvariants`.
+  // Heads are unique among the humans in the room, and none of them is the AI's (`repairedAvatar`, `isRiderAvatarId`):
+  // both are rules a restored room must satisfy too. The AI riders are exempt and all wear `robot`, so they are counted
+  // out here rather than checked — `decodeRoom` is the one place that knows which seats are theirs. A world where a
+  // person wears the robot cannot be reached by rules 51's own fold, and a peer on rules 50 is never heard at all, so
+  // this refuses nothing that can arrive today; it is here because a boundary that knows the rule should apply it, not
+  // trust that nothing upstream will ever hand it one. Colours are checked in `gameInvariants`.
   const heads = new Set<string>();
   for (const player of game.players.values()) {
     if (bots.has(player.id)) continue;
+    if (!isRiderAvatarId(player.avatarId)) return;
     if (heads.has(player.avatarId)) return;
     heads.add(player.avatarId);
   }

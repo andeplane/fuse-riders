@@ -255,6 +255,12 @@ test("a restored room in which two humans wear one head is refused", () => {
   assert.equal(state.game.players.get("bot:1")?.avatarId, "robot");
   assert.equal(state.game.players.get("bot:2")?.avatarId, "robot");
   assert.ok(fuseGame.checkpoint.decode(snapshot(), state.tick));
+
+  // And a *person* wearing the AI's head is refused there too, alone rather than as a clash. Rules 51's own fold can
+  // never produce one and a peer on older rules is never heard at all, so nothing that arrives today is turned away by
+  // this — it is checked because the boundary knows the rule, not because something upstream is expected to break it.
+  state.game.players.get("b")!.avatarId = "robot";
+  assert.equal(fuseGame.checkpoint.decode(snapshot(), state.tick), undefined);
 });
 
 test("a join for a rider the room already seats renames it, and moves nothing else", () => {
