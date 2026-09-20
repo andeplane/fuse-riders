@@ -100,9 +100,20 @@ export class WorldSync<
   }
 
   // ---- transitions --------------------------------------------------------------------------------------------------
-  /** A world opened locally, with nobody to fetch one from. Only from `NoWorld`: nothing else has one to replace. */
+  /**
+   * A world opened locally, with nobody to fetch one from. Only from `NoWorld`: nothing else has one to replace.
+   *
+   * Throwing rather than returning quietly is deliberate. Both callers provably arrive in `NoWorld` — `createWorld`
+   * only runs under `needsWorld()`, which is false while a world exists — so this cannot fire today. If a future
+   * caller ever arrives holding one, a silent return would leave the old world in place while the rest of
+   * `createWorld` (`world.refill`, `world.stream`, `recorder.restart()`, `clock.start(0)`, `resetControls()`) ran
+   * against it: a half-reset replica that keeps folding and sending. That is worse than a crash and far harder to find.
+   */
   open(world: World<Room, Entry, View, Event, Settings>): void {
-    if (this.sync.at !== "NoWorld") return;
+    if (this.sync.at !== "NoWorld")
+      throw new Error(
+        `${this.gameId}: a world was opened while the sync state was ${this.sync.at}`,
+      );
     this.sync = { at: "Live", world };
   }
   /** Ask `to` for the world. From a state that already holds one this is a resync; from one that does not, the first fetch. */
