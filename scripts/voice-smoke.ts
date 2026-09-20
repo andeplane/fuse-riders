@@ -391,9 +391,30 @@ try {
   assert.equal((await data(guest)).requests, 4);
   await close(guest);
   await readyRoom(host);
-  await host.waitForFunction(() =>
-    document.querySelector(".online-round")?.textContent?.includes("ROUND"),
-  );
+  await host
+    .waitForFunction(() =>
+      document.querySelector(".online-round")?.textContent?.includes("ROUND"),
+    )
+    .catch(async (error) => {
+      // A start gate that never opens says nothing by itself; the three rooms' own text says who is missing.
+      for (const [label, page] of [
+        ["host", host],
+        ["guest", guest],
+        ["display", display],
+      ] as const) {
+        console.log(
+          `READY GATE ${label}:`,
+          JSON.stringify(
+            await page
+              .locator(".online-app")
+              .innerText()
+              .catch(() => "(no room)"),
+          ),
+        );
+        await page.screenshot({ path: `artifacts/voice-ready-${label}.png` });
+      }
+      throw error;
+    });
   await guest.waitForFunction(
     () =>
       document.querySelector(".online-arena")?.getAttribute("hidden") === null,
