@@ -46,6 +46,7 @@ import type {
 } from "./game.js";
 import { uuid } from "./uuid.js";
 import { Membership, rulesAge, type Member } from "./membership.js";
+import { WorldSync } from "./world-sync.js";
 import type { RoomTransport, TransportEvents } from "fuse-network-fe";
 
 /** The room commands every game has; a game adds its own input commands in a subclass. */
@@ -165,8 +166,6 @@ export const HASH_INTERVAL = 20,
   /** Estimated steps of backlog past which a member fetches a snapshot instead of catching up (`RoomRuntime.behind`). */
   BEHIND_STEPS = 400,
   NACK_INTERVAL_MS = 100,
-  DIVERGENCE_WINDOW_MS = 60_000,
-  DIVERGENCE_LIMIT = 3,
   FRESH_WORLD_WAIT_MS = 3000;
 /** A page's generation: 100 ms units since 2020-09-13, so two loads of the same page never share one (the previous whole-second value collided on quick reloads); wraps in 2034. */
 export const pageGeneration = (nowMs = Date.now()): number =>
@@ -204,14 +203,13 @@ export class RoomRuntime<
   protected readonly clock: TickClock;
   private readonly members: Membership;
   protected readonly generation: number;
-  protected world?: World<Room, Entry, View, Event, Settings>;
+  /** Where this replica stands with the shared world: the lifecycle state, the snapshot fetch and the divergence count. */
+  readonly sync: WorldSync<Room, Entry, View, Event, Settings>;
   protected readonly text: RuntimeText;
   protected id = "";
   private hostId = "";
   private room = 0;
   private welcomeAt = -Infinity;
-  /** Peers that answered a snapshot request with `noWorld`, and when: an answer older than the retry interval is asked again. */
-  private noWorld = new Map<string, number>();
   private lastOwnTick = 0;
   protected lastPacketTick = -1;
   /** The frame last handed to `state`: a rollback's re-run replaces the frames with new ones at the same tick. */
@@ -227,11 +225,6 @@ export class RoomRuntime<
   };
   /** A kick appended but not yet folded: what it actually did is read back from the fold, never assumed (`settleKick`). */
   private pendingKick?: { id: string; tick: number; attempts: number };
-  private snapshotRequest?: { to: string; at: number; failures: number };
-  private assembler?: SnapshotAssembler;
-  private mismatches: number[] = [];
-  private hashChecks = 0;
-  private outOfSync = false;
   private full = true;
   protected hiddenState = false;
   /**
@@ -242,8 +235,6 @@ export class RoomRuntime<
   /** When this member last logged its own away entry, and when it last logged its own return (both are repeated, §12). */
   private awayAt = -Infinity;
   private returnAt = -Infinity;
-  /** Until when a resync that brought no newer world keeps this replica catching up rather than fetching again. */
-  private catchUpUntil = -Infinity;
   private cancelTick?: () => void;
   private cancelVisibility?: () => void;
   constructor(
@@ -256,6 +247,7 @@ export class RoomRuntime<
     this.text = game.text;
     this.deps = options.dependencies ?? browserDependencies;
     this.members = new Membership(() => this.deps.now());
+    this.sync = new WorldSync(game.id);
     this.status = new StatusNotices(
       () => this.deps.now(),
       (text) => this.deliver("status", () => callbacks.status(text)),
@@ -283,6 +275,10 @@ export class RoomRuntime<
           this.status.terminal(text);
         },
       });
+  }
+  /** The world this replica folds the log into, once it has one: `WorldSync` owns when that is and how it changes. */
+  protected get world(): World<Room, Entry, View, Event, Settings> | undefined {
+    return this.sync.world;
   }
   get solo(): boolean {
     return !this.transport;
@@ -373,7 +369,7 @@ export class RoomRuntime<
     this.hostId = hostId;
     this.room = roomHash(`${this.code}:${hostId}`);
     this.welcomeAt = this.deps.now();
-    this.noWorld.clear();
+    this.sync.clearNoWorld();
     if (!this.world)
       this.status.recurring(
         id === hostId ? this.text.preparing : this.text.waitingForGame,
@@ -386,8 +382,8 @@ export class RoomRuntime<
       return;
     }
     this.members.forget(id);
-    this.noWorld.delete(id);
-    if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
+    this.sync.forgetNoWorld(id);
+    if (this.sync.request?.to === id) this.sync.abandonRequest();
     const state = this.world?.state,
       player = state && this.game.seat(state, id);
     // A hidden page's world is frozen: what it would log is judged from stale seats, so it leaves that to the others.
@@ -430,7 +426,7 @@ export class RoomRuntime<
       hidden: this.hiddenState,
     });
     if (!member.helloed) return;
-    if (this.needsWorld() && !this.snapshotRequest) this.requestSnapshot(id);
+    if (this.needsWorld() && !this.sync.requesting) this.requestSnapshot(id);
     // The creator too: a member already in the room sends a side switch to its page rather than to the manager.
     if (this.pendingJoin && (id === this.managerId() || id === this.hostId))
       this.sendJoin();
@@ -474,10 +470,7 @@ export class RoomRuntime<
           member.refused = true;
           member.rules =
             typeof data.rules === "string" ? data.rules : undefined;
-          if (this.snapshotRequest?.to === id) {
-            this.snapshotRequest = undefined;
-            this.assembler = undefined;
-          }
+          if (this.sync.request?.to === id) this.sync.abandonRequest();
           this.status.notice(this.mismatchStatus());
           return;
         }
@@ -493,9 +486,9 @@ export class RoomRuntime<
         member.hidden = data.hidden === true;
         // A peer announcing a world is worth asking again, whatever it answered before.
         if (data.world === true) {
-          this.noWorld.delete(id);
+          this.sync.forgetNoWorld(id);
           // A source that may hold a newer world: worth one fetch again, whatever the last resync brought.
-          if (!member.hidden) this.catchUpUntil = -Infinity;
+          if (!member.hidden) this.sync.releaseCatchUp();
         }
         return;
       case "join":
@@ -533,11 +526,8 @@ export class RoomRuntime<
         return;
       }
       case "noWorld":
-        this.noWorld.set(id, this.deps.now());
-        if (this.snapshotRequest?.to === id) {
-          this.snapshotRequest = undefined;
-          this.assembler = undefined;
-        }
+        this.sync.noteNoWorld(id, this.deps.now());
+        if (this.sync.request?.to === id) this.sync.abandonRequest();
         return;
       case "snapshot":
         this.acceptSnapshotChunk(id, raw);
@@ -677,14 +667,15 @@ export class RoomRuntime<
     return !this.world && this.id !== "";
   }
   private createWorld(settings: Settings): void {
-    this.world = new World(
+    const world = new World(
       this.game,
       this.game.createRoom(this.deps.token(), settings),
       this.hostId,
       this.id,
     );
-    this.world.refill(CATCHUP_STEPS, this.windowTime);
-    this.world.stream(this.id, this.generation);
+    this.sync.open(world);
+    world.refill(CATCHUP_STEPS, this.windowTime);
+    world.stream(this.id, this.generation);
     // Nobody is seated in a fresh world, and a seat needs a link (`join` travels over it): the anchor is set for one
     // invariant — "since the first world" — not because anything here could be misjudged.
     this.members.judgingSince = this.deps.now();
@@ -713,9 +704,12 @@ export class RoomRuntime<
         : mismatch.unknown;
   }
   private saidNoWorld(id: string): boolean {
-    return (
-      this.deps.now() - (this.noWorld.get(id) ?? -Infinity) < SNAPSHOT_RETRY_MS
-    );
+    return this.sync.saidNoWorld(id, this.deps.now(), SNAPSHOT_RETRY_MS);
+  }
+  /** A fetch that has gone unanswered for the retry interval: the tick loop asks the next holder. */
+  private staleRequest(now: number): boolean {
+    const request = this.sync.request;
+    return request !== undefined && now - request.at > SNAPSHOT_RETRY_MS;
   }
   /** A member whose page is hidden, by its hello or by its away seat in this replica's world: its world is frozen. */
   private hiddenMember(id: string): boolean {
@@ -739,7 +733,7 @@ export class RoomRuntime<
     const linked = holders.length ? holders : all;
     if (!linked.length) return;
     const authority = this.authority();
-    const previous = this.snapshotRequest?.to,
+    const previous = this.sync.request?.to,
       next = linked[(linked.indexOf(previous ?? "") + 1) % linked.length]!;
     // The authority first, then round the others in order on each retry: preferring the authority on every retry
     // alternated between it and the member after it, so a third holder was never asked while those two could not answer
@@ -752,52 +746,51 @@ export class RoomRuntime<
             previous === undefined
           ? authority
           : next;
-    this.snapshotRequest = {
+    this.sync.requestFrom(
       to,
-      at: this.deps.now(),
-      failures: this.snapshotRequest?.failures ?? 0,
-    };
-    this.assembler = new SnapshotAssembler(this.game, this.room);
+      this.deps.now(),
+      new SnapshotAssembler(this.game, this.room),
+    );
     this.transport.send(to, { type: "snapshotRequest" });
   }
   private acceptSnapshotChunk(id: string, raw: unknown): void {
-    if (
-      !this.snapshotRequest ||
-      this.snapshotRequest.to !== id ||
-      !this.assembler
-    )
-      return;
-    const complete = this.assembler.accept(raw);
+    const request = this.sync.request;
+    if (!request || request.to !== id) return;
+    const complete = request.assembler.accept(raw);
     if (!complete) return;
     const decoded = decodeSnapshot(this.game, complete.bytes, this.room);
     // A snapshot that fails validation is retried on the timer, rotating peers; asking again at once would storm a peer that keeps serving the same bad state.
     if (!decoded) {
-      this.snapshotRequest.failures++;
-      this.snapshotRequest.at = this.deps.now();
-      this.assembler = new SnapshotAssembler(this.game, this.room);
+      this.sync.restartAssembly(
+        this.deps.now(),
+        new SnapshotAssembler(this.game, this.room),
+      );
       return;
     }
     const tick = decoded.state.tick,
-      previous = this.world?.streams.get(this.id);
+      existing = this.sync.world,
+      previous = existing?.streams.get(this.id);
     // A resync that is not ahead of this world says nobody is: the room is behind everywhere (a returning hidden page
     // that was the only world holder, for one), so the backlog is caught up at the step budget instead of fetched again.
-    this.catchUpUntil =
-      this.world !== undefined && tick <= this.world.tick
-        ? this.deps.now() + CATCH_UP_HOLD_MS
-        : -Infinity;
-    if (this.world) this.world.install(decoded.state);
+    if (existing !== undefined && tick <= existing.tick)
+      this.sync.holdCatchUp(this.deps.now() + CATCH_UP_HOLD_MS);
+    else this.sync.releaseCatchUp();
+    let world = existing;
+    if (world) world.install(decoded.state);
     else {
-      this.world = new World(this.game, decoded.state, this.hostId, this.id);
-      this.world.refill(CATCHUP_STEPS, this.windowTime);
+      world = new World(this.game, decoded.state, this.hostId, this.id);
+      world.refill(CATCHUP_STEPS, this.windowTime);
       // Not on a resync: a replica that already judged its members keeps the waits it started.
       this.members.judgingSince = this.deps.now();
     }
+    // Live (or still Diverged) from here: the fetch is over, and the streams below are rebuilt in the installed world.
+    this.sync.installed(world);
     for (const stream of decoded.streams) {
       // My own current stream is rebuilt below with its continuity; my retired generations (the previous page's entries before
       // its presence switched) install like anyone else's, and the own-stream creation then retires them in order.
       if (stream.id === this.id && stream.generation >= this.generation)
         continue;
-      const log = this.world.stream(stream.id, stream.generation, {
+      const log = world.stream(stream.id, stream.generation, {
         seq: stream.seq,
         tick,
         ordinal: stream.ordinal,
@@ -820,7 +813,7 @@ export class RoomRuntime<
       previous?.generation === this.generation
         ? previous.baseAt(tick)
         : { seq: 0, tick, ordinal: 0 };
-    const own = this.world.stream(this.id, this.generation, {
+    const own = world.stream(this.id, this.generation, {
       seq: base.seq,
       tick,
       ordinal: base.ordinal,
@@ -856,35 +849,19 @@ export class RoomRuntime<
       this.clock.start(
         readings.length
           ? Math.max(...readings)
-          : tick + (now - this.snapshotRequest.at) / 2 / TICK_MS,
+          : tick + (now - request.at) / 2 / TICK_MS,
       );
     }
-    this.snapshotRequest = undefined;
-    this.assembler = undefined;
-    this.noWorld.clear();
+    this.sync.clearNoWorld();
     this.status.recurring(this.text.connected);
     if (this.pendingJoin) this.sendJoin();
     this.publish();
   }
+  /** What the authority's hash for `tick` said about this replica's own fold, and the status and resync that follow. */
   private compareHash(tick: number, hash: string, now: number): void {
-    if (
-      !this.world ||
-      tick > this.world.completeTick() ||
-      [...this.world.streams.values()].some((stream) => stream.gap)
-    )
-      return;
-    const mine = this.world.hashAt(tick);
-    if (mine !== undefined) this.hashChecks++;
-    if (mine === undefined || mine === hash) return;
-    console.warn(
-      `${this.game.id}: simulation diverged at tick ${tick}: local ${mine}, authority ${hash}`,
-    );
-    this.mismatches = this.mismatches.filter(
-      (at) => now - at <= DIVERGENCE_WINDOW_MS,
-    );
-    this.mismatches.push(now);
-    if (this.mismatches.length >= DIVERGENCE_LIMIT) {
-      this.outOfSync = true;
+    const verdict = this.sync.compareHash(tick, hash, now);
+    if (verdict === "unknown" || verdict === "match") return;
+    if (verdict === "diverged") {
       this.status.notice(this.text.outOfSync);
       return;
     }
@@ -1566,16 +1543,10 @@ export class RoomRuntime<
       this.greet(id, member);
     }
   }
-  /**
-   * Whether catching up to log tick `to` would cost more than `BEHIND_STEPS` steps: the gap in log ticks past the
-   * world's tick times the step count its state runs at now. It is an estimate (a gap can cross a phase change),
-   * and it keeps the snapshot path at the CPU cost it had when every log tick was one step. A rollback's owed re-run
-   * does not count: it is at most the rollback window, and a late entry alone must not turn into a resync, which it
-   * never did when the re-run finished inside `receive`.
-   */
+  /** See `WorldSync.behind`: whether catching up to log tick `to` would cost more than `BEHIND_STEPS` steps. */
   private behind(to: number): boolean {
     const world = this.world!;
-    return (to - world.tick) * this.game.steps(world.state) > BEHIND_STEPS;
+    return this.sync.behind(to, this.game.steps(world.state), BEHIND_STEPS);
   }
   private readonly windowTime: WindowTime = {
     now: () => this.deps.now(),
@@ -1605,13 +1576,13 @@ export class RoomRuntime<
       // Creator included: a room whose members all connected together has no world anywhere until every linked peer has said so.
       const candidates = this.members.compatible();
       if (
-        !this.snapshotRequest &&
+        !this.sync.requesting &&
         candidates.some(
           (id) => this.transport!.linked(id) && !this.saidNoWorld(id),
         )
       )
         this.requestSnapshot();
-      if (this.creator && this.transport && !this.snapshotRequest) {
+      if (this.creator && this.transport && !this.sync.requesting) {
         // A fresh world is opened only when nobody can have one: the room is empty, or every linked member answered
         // that it holds none. A returning creator with peers waits for their snapshot however long the links take;
         // opening a lobby on a timer would let the authority serve that lobby over the match its peers are playing.
@@ -1632,13 +1603,9 @@ export class RoomRuntime<
             }),
           );
       }
-      if (
-        this.snapshotRequest &&
-        now - this.snapshotRequest.at > SNAPSHOT_RETRY_MS
-      )
-        this.retrySnapshot();
+      if (this.staleRequest(now)) this.retrySnapshot();
       else if (
-        !this.snapshotRequest &&
+        !this.sync.requesting &&
         !this.creator &&
         now - this.welcomeAt > SNAPSHOT_RETRY_MS
       ) {
@@ -1664,11 +1631,7 @@ export class RoomRuntime<
     }
     const world = this.world!;
     const tick = Math.floor(this.clock.tick());
-    if (
-      this.snapshotRequest &&
-      now - this.snapshotRequest.at > SNAPSHOT_RETRY_MS
-    )
-      this.retrySnapshot();
+    if (this.staleRequest(now)) this.retrySnapshot();
     this.own().through = Math.max(this.own().through, tick);
     if (this.hiddenState && !world.settled)
       // A hidden world does not advance, but a rollback's re-run is history it already reached: it finishes.
@@ -1678,16 +1641,16 @@ export class RoomRuntime<
       // long stall must end by catching up, never by fetching a snapshot from a peer that waited just as long.
       const reachable = Math.min(tick, world.stallBound().tick),
         behind = this.behind(reachable);
-      if (!behind) this.catchUpUntil = -Infinity;
+      if (!behind) this.sync.releaseCatchUp();
       // Fetched only from someone who can have a newer world: with every source hidden or without one, or after a
       // resync that brought nothing newer, the backlog is caught up here at the step budget.
       if (
         this.transport &&
         behind &&
-        now >= this.catchUpUntil &&
+        this.sync.mayFetchBacklog(now) &&
         this.sources().some((id) => !this.saidNoWorld(id))
       ) {
-        if (!this.snapshotRequest) this.requestSnapshot();
+        if (!this.sync.requesting) this.requestSnapshot();
       } else {
         // The budget window (`CATCHUP_STEPS`, refilled after every pass) paces how far this pass gets.
         const result = world.advance(tick);
@@ -1696,7 +1659,7 @@ export class RoomRuntime<
           this.status.recurring(
             fill(this.text.waitingFor, { name: result.waitingFor }),
           );
-        } else if (!this.outOfSync)
+        } else if (!this.sync.diverged)
           this.status.recurring(this.solo ? this.text.solo : this.lagging(now));
       }
     }
@@ -1762,10 +1725,10 @@ export class RoomRuntime<
         if (member.gapSince === -Infinity) member.gapSince = now;
         // Nack repairs a gap within a round trip. One that outlives the owner's retained window (an entry logged
         // before that peer's links could carry packets) can only be closed by a snapshot from a peer that has it.
-        else if (now - member.gapSince > pace && !this.snapshotRequest) {
+        else if (now - member.gapSince > pace && !this.sync.requesting) {
           this.requestSnapshot();
           // Only a request that went out uses up the wait: with no link fit to carry one, the next tick tries again.
-          if (this.snapshotRequest) member.gapSince = now;
+          if (this.sync.requesting) member.gapSince = now;
           continue;
         }
         if (
@@ -1815,7 +1778,7 @@ export class RoomRuntime<
     return this.text.connected;
   }
   private retrySnapshot(): void {
-    const request = this.snapshotRequest!;
+    const request = this.sync.request!;
     request.failures++;
     if (request.failures >= SNAPSHOT_FAILURES)
       this.status.notice(this.text.couldNotLoad);
@@ -1970,9 +1933,9 @@ export class RoomRuntime<
       ),
       clock: this.clock.diagnostics(),
       sentBytes: this.transport?.sentBytes ?? 0,
-      snapshotRequest: this.snapshotRequest !== undefined,
-      mismatches: this.mismatches.length,
-      hashChecks: this.hashChecks,
+      snapshotRequest: this.sync.requesting,
+      mismatches: this.sync.mismatchCount,
+      hashChecks: this.sync.hashChecks,
       refused: [...this.members]
         .filter(([, member]) => member.refused)
         .map(([id]) => id)
