@@ -215,10 +215,13 @@ try {
   await guest.getByRole("button", { name: "Owl", exact: true }).click();
   await guest.getByRole("button", { name: "COLOUR", exact: true }).waitFor();
   await rosterHas(host, "Guest");
+  // The head the guest chose in the room reaches the host's screen, on the guest's own row. Scoped to that row: the
+  // host wears the default fox itself now, so a page-wide search for one head would find the host's.
   await host
-    .locator(
-      ":is(.online-roster,.room-riders):visible .avatar-portrait[data-avatar-id=fox]",
-    )
+    .locator(".room-rider")
+    .filter({ hasText: "Guest" })
+    .locator(".avatar-portrait[data-avatar-id=owl]")
+    .first()
     .waitFor();
   console.log("Guest roster confirmed");
   // A browser carrying a guest identity under the old host key (previous builds saved every visitor there) must land on the joiner page with that identity kept, not on the host shell.
