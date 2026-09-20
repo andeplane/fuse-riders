@@ -1,107 +1,160 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 import {
   ACTION,
   BOT,
   JOIN,
-  LEAVE,
-  PRESENCE,
-  SETTINGS,
   SPECTATOR,
   packMessage,
   unpackMessage,
+  type StreamEntries,
 } from "fuse-netcode";
+import { decodeRoom, encodeRoom, hashRoom } from "../src/game/checkpoint.js";
 import {
-  HOLD,
-  ROLL,
-  TARGET,
+  BRAKE,
+  CONTROLS,
+  DEFAULT_SETTINGS,
+  ITEM,
+  LEFT,
+  NITRO,
+  RIGHT,
   createRoom,
-  fuseDriversGame,
-  isFuseDriversEntry,
-  parseSettings,
+  foldTick,
+  type FuseDriversEntry,
   type FuseDriversRoom,
-} from "../src/game/index.js";
-import {
-  FAST,
-  addBot,
-  fold,
-  rig,
-  runTo,
-  started,
-} from "./fixtures/fuseDrivers.js";
+} from "../src/game/rules.js";
+import { defined } from "./fixtures/defined.js";
 
-const { encode, decode } = fuseDriversGame.checkpoint;
-/** Encoded as a snapshot carries it: through MessagePack and back. */
-const wire = (room: FuseDriversRoom): unknown[] =>
-  unpackMessage(packMessage(encode(room))) as unknown[];
-const roundTrip = (room: FuseDriversRoom) => decode(wire(room), room.tick);
+/** Entry bodies (everything after seq and tick) each member logs at the next tick. */
+type Bodies = Record<string, readonly unknown[][]>;
+let seq = 0;
+/** Folds one log tick of `bodies`, every stream at generation 1. */
+function fold(room: FuseDriversRoom, bodies: Bodies = {}): void {
+  const tick = room.tick + 1,
+    streams = new Map<string, StreamEntries<FuseDriversEntry>>();
+  for (const [id, list] of Object.entries(bodies))
+    streams.set(id, {
+      generation: 1,
+      entries: list.map((body) => [++seq, tick, ...body] as FuseDriversEntry),
+    });
+  foldTick(room, "a", streams);
+}
+const runTo = (room: FuseDriversRoom, tick: number): void => {
+  while (room.tick < tick) fold(room);
+};
 
-/** Rooms in every stage, with a watcher, a bot, a departed player and decided rounds. */
-function rooms() {
-  const lobby = createRoom("m0", FAST);
-  fold(lobby, { a: [[JOIN, "a", "Ada", 0, "fox", 1]] });
-  const running = started(FAST, [
-    addBot("bot:1", 2),
-    [SPECTATOR, "join", "w", "Wat", 1],
-  ]);
-  rig(running, 5);
-  fold(running, { a: [[ROLL, 1]] });
-  const between = started();
-  between.scores.a = TARGET;
-  fold(between, { a: [[HOLD, 1]] });
-  const over = structuredClone(between);
-  runTo(over, over.resumeAt);
-  over.scores.b = TARGET;
-  fold(over, { b: [[HOLD, over.turnNo]] });
-  runTo(over, over.resumeAt);
-  fold(over, { a: [[LEAVE, "b"]] });
-  over.scores.a = TARGET;
-  fold(over, { a: [[HOLD, over.turnNo]] });
-  return { lobby, running, between, over };
+/** A lobby with one seat in it: no race, no grid, no controls and no bot memory. */
+function lobby(): FuseDriversRoom {
+  const room = createRoom("m0", DEFAULT_SETTINGS);
+  fold(room, { a: [[JOIN, "a", "Ada", 0, "fox", 1]] });
+  return room;
 }
 
-test("every stage of a room survives the checkpoint whole: the same hash, and it folds on identically", () => {
-  for (const [stage, room] of Object.entries(rooms())) {
-    const decoded = roundTrip(room);
-    assert.ok(decoded, `${stage} decodes`);
-    assert.equal(
-      fuseDriversGame.hash(decoded),
-      fuseDriversGame.hash(room),
-      stage,
-    );
-    assert.deepEqual(
-      fuseDriversGame.view(decoded),
-      fuseDriversGame.view(room),
-      stage,
-    );
-    runTo(decoded, room.tick + 100);
-    runTo(room, room.tick + 100);
-    assert.equal(
-      fuseDriversGame.hash(decoded),
-      fuseDriversGame.hash(room),
-      `${stage} later`,
+/**
+ * Two drivers, a bot and a watcher, driving long enough that the lights have gone out: past the countdown the
+ * trucks are moving, the bots have steered and the item boxes have been armed.
+ */
+function racing(ticks = 80): FuseDriversRoom {
+  const room = createRoom("m0", DEFAULT_SETTINGS);
+  fold(room, {
+    a: [
+      [JOIN, "a", "Ada", 0, "fox", 1],
+      [JOIN, "b", "Bo", 1, "cat", 1],
+      [BOT, "add", "bot:1", "CPU 3", 2],
+      [SPECTATOR, "join", "w", "Wat", 1],
+    ],
+  });
+  fold(room, { a: [[ACTION, "start", "m1"]] });
+  for (let step = 0; step < ticks; step++) {
+    const at = room.tick + 1;
+    fold(
+      room,
+      at % 5 === 0
+        ? {
+            a: [[CONTROLS, at % 10 === 0 ? LEFT | NITRO : RIGHT]],
+            b: [[CONTROLS, at % 15 === 0 ? BRAKE : ITEM]],
+          }
+        : {},
     );
   }
-  assert.equal(rooms().over.stage, "over");
-  assert.equal(rooms().between.stage, "between");
+  return room;
+}
+
+/** The same race once it has been decided, as the fold leaves it: the room is over when the race is finished. */
+function over(): FuseDriversRoom {
+  const room = racing();
+  room.race = { ...defined(room.race, "race"), phase: "finished" };
+  room.stage = "over";
+  return room;
+}
+
+/** Encoded as a snapshot carries it: through MessagePack and back. */
+const wire = (room: FuseDriversRoom): unknown[] =>
+  unpackMessage(packMessage(encodeRoom(room))) as unknown[];
+const roundTrip = (room: FuseDriversRoom) => decodeRoom(wire(room), room.tick);
+const at = (fields: unknown[], ...path: number[]): unknown[] =>
+  path.reduce<unknown[]>((value, index) => value[index] as unknown[], fields);
+
+test("the four leading fields are the ones the snapshot puts before the streams", () => {
+  const fields = encodeRoom(racing(3));
+  assert.equal(
+    fields.length,
+    7,
+    "scalars, seats, settings, grid, then the rest",
+  );
+  assert.deepEqual(
+    at(fields, 0),
+    ["m1", 1, "running"],
+    "the scalars, less the tick",
+  );
+  assert.ok(Array.isArray(fields[1]), "the seats");
+  assert.deepEqual(fields[2], DEFAULT_SETTINGS, "the settings");
+  assert.deepEqual(fields[3], ["a", "b", "bot:1"], "the grid");
+});
+
+test("a room in every stage survives the checkpoint whole: the same hash, and it folds on identically", () => {
+  for (const [stage, room] of Object.entries({
+    lobby: lobby(),
+    racing: racing(),
+    over: over(),
+  })) {
+    const decoded = roundTrip(room);
+    assert.ok(decoded, `${stage} decodes`);
+    assert.equal(hashRoom(decoded), hashRoom(room), stage);
+    assert.deepEqual(decoded, room, `${stage} is rebuilt field for field`);
+    runTo(decoded, room.tick + 40);
+    runTo(room, room.tick + 40);
+    assert.equal(hashRoom(decoded), hashRoom(room), `${stage} forty ticks on`);
+  }
+  const started = racing();
+  assert.equal(started.stage, "running");
+  assert.ok(
+    defined(started.race, "race").tick >
+      defined(started.race, "race").countdownEndTick,
+    "the lights went out",
+  );
+  assert.equal(defined(started.race, "race").trucks.length, 3);
+  assert.ok(
+    Object.keys(started.bots).length === 1,
+    "the bot remembers its steering",
+  );
+
   // The decoded room shares nothing with the fields it came from.
-  const room = rooms().running,
-    fields = wire(room),
-    decoded = decode(fields, room.tick)!;
-  decoded.scores.a = 49;
-  decoded.seats.get("a")!.name = "Changed";
-  assert.deepEqual(decode(fields, room.tick), roundTrip(room));
+  const fields = wire(started),
+    decoded = defined(decodeRoom(fields, started.tick), "decoded");
+  decoded.grid[0] = "zed";
+  defined(decoded.race, "race").trucks[0]!.x = 1;
+  defined(decoded.seats.get("a"), "seat").name = "Changed";
+  assert.deepEqual(decodeRoom(fields, started.tick), roundTrip(started));
 });
 
 /** Rewrites one encoded field of a running room; the result must be refused. */
 function tampered(change: (fields: unknown[]) => void, tick?: number) {
-  const room = rooms().running,
+  const room = racing(),
     fields = wire(room);
   change(fields);
-  return decode(fields, tick ?? room.tick);
+  return decodeRoom(fields, tick ?? room.tick);
 }
-const at = (fields: unknown[], ...path: number[]): unknown[] =>
-  path.reduce<unknown[]>((value, index) => value[index] as unknown[], fields);
 
 test("a corrupt or hostile checkpoint is refused whole", () => {
   assert.ok(
@@ -114,171 +167,146 @@ test("a corrupt or hostile checkpoint is refused whole", () => {
     ["a match id with spaces", (f) => (at(f, 0)[0] = "a b")],
     ["round 0", (f) => (at(f, 0)[1] = 0)],
     ["an unknown stage", (f) => (at(f, 0)[2] = "paused")],
-    ["a negative generator", (f) => (at(f, 0)[3] = -1)],
-    ["a fractional turn number", (f) => (at(f, 0)[4] = 1.5)],
-    ["a match timer out of bounds", (f) => (at(f, 0)[6] = 1)],
+    ["a stage with no race of its own", (f) => (at(f, 0)[2] = "between")],
+    [
+      "settings naming an unknown track",
+      (f) => (f[2] = { track: "moon", display: false }),
+    ],
     ["seats that are not a list", (f) => (f[1] = {})],
-    ["a seat with a bad id", (f) => (at(f, 1, 0)[0] = "no spaces")],
     ["a seat named __proto__", (f) => (at(f, 1, 0)[0] = "__proto__")],
-    ["a seat with an empty name", (f) => (at(f, 1, 0)[1] = "")],
     ["a seat past capacity", (f) => (at(f, 1, 0)[2] = 5)],
-    ["an unknown avatar", (f) => (at(f, 1, 0)[3] = "unicorn")],
-    ["a human without a generation", (f) => (at(f, 1, 0)[6] = null)],
-    ["a bot with a generation", (f) => (at(f, 1, 2)[6] = 1)],
-    ["a watcher with a slot", (f) => (at(f, 1, 3)[2] = 3)],
     ["two seats in one slot", (f) => (at(f, 1, 1)[2] = 0)],
+    ["a watcher holding a slot", (f) => (at(f, 1, 3)[2] = 3)],
+    ["a bot carrying a stream generation", (f) => (at(f, 1, 2)[6] = 1)],
+    ["a grid naming nobody in the room", (f) => (at(f, 3)[0] = "zed")],
+    ["a grid naming one seat twice", (f) => (at(f, 3)[0] = "b")],
     [
-      "one seat twice",
-      (f) => (f[1] as unknown[]).push([...(at(f, 1, 0) as unknown[])]),
+      "a grid id that is a prototype name",
+      (f) => (at(f, 3)[0] = "constructor"),
+    ],
+    ["controls with an unknown bit", (f) => (at(f, 4, 0)[1] = 64)],
+    ["controls keyed by __proto__", (f) => (at(f, 4, 0)[0] = "__proto__")],
+    [
+      "the same seat's controls twice",
+      (f) => (f[4] as unknown[]).push(at(f, 4, 0)),
+    ],
+    ["bot memory for a seat off the grid", (f) => (at(f, 5, 0)[0] = "w")],
+    ["bot memory for a human", (f) => (at(f, 5, 0)[0] = "a")],
+    [
+      "a bot steering queue past any delay",
+      (f) => (at(f, 5, 0)[1] = Array(65).fill(0)),
+    ],
+    ["a race in a room with no grid", (f) => (f[3] = [])],
+    ["no race while the room is running", (f) => (f[6] = null)],
+    ["a race that is not a list", (f) => (f[6] = "vroom")],
+    ["a race on a track nobody has", (f) => (at(f, 6)[3] = "moon")],
+    ["a race further ahead than the log", (f) => (at(f, 6)[0] = 100_000)],
+    ["a finished race in a running room", (f) => (at(f, 6)[1] = "finished")],
+    ["a countdown that is already over", (f) => (at(f, 6)[1] = "countdown")],
+    [
+      "fewer trucks than the grid",
+      (f) => (at(f, 6)[7] = at(f, 6, 7).slice(0, 2)),
+    ],
+    ["more trucks than the grid", (f) => at(f, 6, 7).push(at(f, 6, 7)[0])],
+    ["a truck claiming another slot", (f) => (at(f, 6, 7, 1)[0] = 0)],
+    ["a truck at an infinite position", (f) => (at(f, 6, 7, 0)[1] = Infinity)],
+    ["a truck at no position at all", (f) => (at(f, 6, 7, 0)[2] = NaN)],
+    ["a truck at negative zero", (f) => (at(f, 6, 7, 0)[1] = -0)],
+    ["a truck off the edge of the world", (f) => (at(f, 6, 7, 0)[1] = 1e9)],
+    ["armor past the truck's own maximum", (f) => (at(f, 6, 7, 0)[6] = 99)],
+    ["an item nobody stocks", (f) => (at(f, 6, 7, 0)[8] = "banana")],
+    ["a steering direction of two", (f) => (at(f, 6, 7, 0)[9] = 2)],
+    [
+      "a timer armed past any effect",
+      (f) => (at(f, 6, 7, 0, 15)[0] = 1_000_000),
+    ],
+    ["a lap counted with a fraction", (f) => (at(f, 6, 7, 0, 16)[1] = 1.5)],
+    [
+      "stats that are not numbers",
+      (f) => (at(f, 6, 7, 0)[5] = ["fast", 1, 1, 1, 1, 1, 1]),
+    ],
+    ["placements that rank one slot twice", (f) => (at(f, 6)[8] = [0, 0, 1])],
+    ["placements naming a slot off the grid", (f) => (at(f, 6)[8] = [0, 1, 9])],
+    ["an item-held flag per nobody", (f) => (at(f, 6)[9] = [true, false])],
+    [
+      "a box cooldown grid of the wrong size",
+      (f) => (at(f, 6)[10] = [0, 0, 0]),
     ],
     [
-      "settings out of bounds",
-      (f) => (f[2] = { turnTicks: 1, display: false }),
+      "more mines than a race could ever hold",
+      (f) =>
+        (at(f, 6)[12] = Array.from({ length: 2000 }, () => [
+          1,
+          0,
+          0,
+          0,
+          0,
+          false,
+        ])),
     ],
-    ["turn fields missing", (f) => at(f, 3).pop()],
-    ["the turn of an unknown seat", (f) => (at(f, 3)[0] = "zed")],
-    ["the turn of a watcher", (f) => (at(f, 3)[0] = "w")],
-    ["a negative turn total", (f) => (at(f, 3)[1] = -5)],
-    ["a deadline past any timer", (f) => (at(f, 3)[2] = 1_000_000)],
-    ["a bot waiting too long", (f) => (at(f, 3)[3] = 1_000_000)],
-    ["a die showing 7", (f) => (at(f, 3)[4] = 7)],
-    ["a roll with nobody rolling", (f) => (at(f, 3)[5] = "")],
-    ["a round winner nobody knows", (f) => (at(f, 3)[6] = "zed")],
-    ["a winner while running", (f) => (at(f, 3)[7] = "a")],
-    ["a break past its length", (f) => (at(f, 3)[8] = 1_000_000)],
-    ["scores for a stranger", (f) => (at(f, 4)[0] = { zed: 3 })],
     [
-      "scores with a __proto__ key",
-      (f) => (at(f, 4)[0] = JSON.parse('{"__proto__": 3}') as unknown),
+      "a missile with an id the race never issued",
+      (f) => (at(f, 6)[11] = [[999_999, 0, 10, 10, 0, 1, null, false]]),
     ],
-    ["scores past any game", (f) => (at(f, 4)[0] = { a: 1_000_000 })],
-    ["a round win nobody played for", (f) => (at(f, 4)[1] = { a: 1 })],
-    ["roster entries twice", (f) => at(f, 4, 3).push(at(f, 4, 3)[0])],
-    ["a roster entry without a name", (f) => (at(f, 4, 3, 0)[1] = 7)],
-    ["history that is not a list", (f) => (at(f, 4)[4] = {})],
     [
-      "a decided round in the future",
-      (f) => (at(f, 4)[4] = [[5, "a", { a: 50 }, 3, ["a"], ["a"]]]),
+      "a missile owned by nobody on the grid",
+      (f) => (at(f, 6)[11] = [[1, 9, 10, 10, 0, 1, null, false]]),
+    ],
+    [
+      "two projectiles sharing one id",
+      (f) => {
+        at(f, 6)[11] = [[1, 0, 10, 10, 0, 1, null, false]];
+        at(f, 6)[12] = [[1, 0, 10, 10, 1, false]];
+        at(f, 6)[6] = 9;
+      },
+    ],
+    [
+      "a drone that remembers zaps for trucks that are not racing",
+      (f) => (at(f, 6)[14] = [[1, 0, 1, 0, [0, 0, 0, 0, 0]]]),
     ],
     ["a tick that is not a tick", () => {}, -1],
   ];
   for (const [what, change, tick] of refused)
     assert.equal(tampered(change, tick), undefined, what);
 
-  // Stage and winners must agree.
-  const over = rooms().over,
-    fields = wire(over);
-  at(fields, 3)[7] = "";
-  assert.equal(decode(fields, over.tick), undefined, "over without a winner");
-  const between = rooms().between,
-    history = wire(between);
-  at(history, 4)[4] = [];
-  assert.equal(
-    decode(history, between.tick),
-    undefined,
-    "a round win with no decided round",
+  // The projectiles the refusals above bend out of shape: in shape, they are carried through.
+  assert.ok(
+    tampered((f) => {
+      at(f, 6)[6] = 5;
+      at(f, 6)[11] = [[1, 0, 100, 120, 0.5, 4, 2, false]];
+      at(f, 6)[12] = [[2, 1, 110, 130, 6, true]];
+      at(f, 6)[13] = [[3, 2, 120, 140, 8]];
+      at(f, 6)[14] = [[4, 0, 9, 1, [0, 0, 7]]];
+    }),
+    "a race under fire decodes",
   );
-  const doubled = wire(between);
-  at(doubled, 4)[4] = [
-    [1, "a", { a: 50, b: 0 }, 3, ["a", "b"], ["a", "b"]],
-    [1, "a", { a: 50, b: 0 }, 3, ["a", "b"], ["a", "b"]],
-  ];
-  at(doubled, 4)[1] = { a: 2 };
-  assert.equal(decode(doubled, between.tick), undefined, "one round twice");
-  const future = wire(between);
-  at(future, 4, 4, 0)[3] = between.tick + 1;
-  assert.equal(
-    decode(future, between.tick),
-    undefined,
-    "a round decided after the room's tick",
-  );
-  const stats: [string, (row: unknown[]) => void][] = [
-    ["more busts than rolls", (row) => (row[3] = 99)],
-    ["a stranger's stats", (row) => (row[0] = "z")],
-    ["a negative roll count", (row) => (row[1] = -1)],
-    ["a best turn past the bank", (row) => (row[4] = 20_000)],
-    ["a short row", (row) => row.pop()],
-  ];
-  for (const [name, change] of stats) {
-    const fields = wire(between);
-    change(at(fields, 4, 5, 0));
-    assert.equal(decode(fields, between.tick), undefined, name);
-  }
-  const twice = wire(between);
-  at(twice, 4)[5] = [at(twice, 4, 5, 0), at(twice, 4, 5, 0)];
-  assert.equal(decode(twice, between.tick), undefined, "one player twice");
-  const record = (present: unknown, finishers: unknown) => {
-    const fields = wire(between);
-    const decided = at(fields, 4, 4, 0);
-    decided[4] = present;
-    decided[5] = finishers;
-    return decode(fields, between.tick);
-  };
-  assert.ok(record(["a", "b"], ["a"]), "a well-formed record decodes");
-  assert.equal(record(["b", "a"], []), undefined, "present out of order");
-  assert.equal(record(["a", "a"], []), undefined, "present twice");
-  assert.equal(record(["a", "zed"], []), undefined, "a stranger present");
-  assert.equal(record(["a"], ["b"]), undefined, "a finisher not present");
-});
 
-test("the entry parser accepts ROLL and HOLD naming a turn, and the shared management entries, and nothing else", () => {
-  const accepted: unknown[] = [
-    [1, 1, ROLL, 1],
-    [4_294_967_295, 4_294_967_295, HOLD, 4_294_967_295],
-    [1, 1, JOIN, "a", "Ada", 0, "fox", 1],
-    [1, 1, JOIN, "a", "constructor", 4, "robot", 0],
-    [1, 1, LEAVE, "a"],
-    [1, 1, PRESENCE, "a", false, 2],
-    [1, 1, SETTINGS, { turnTicks: 40, display: true }],
-    [1, 1, ACTION, "start", "m1"],
-    [1, 1, BOT, "add", "bot:1", "Bot 1", 1],
-    [1, 1, BOT, "remove", "bot:1"],
-    [1, 1, SPECTATOR, "join", "w", "Wat", 1],
-    [1, 1, SPECTATOR, "leave", "w"],
-  ];
-  for (const entry of accepted)
-    assert.equal(isFuseDriversEntry(entry), true, JSON.stringify(entry));
-  const refused: unknown[] = [
-    undefined,
-    null,
-    "roll",
-    {},
-    [],
-    [1, 1, ROLL],
-    [1, 1, ROLL, 1, 1],
-    [0, 1, ROLL, 1],
-    [1, 0, ROLL, 1],
-    [1, 1, ROLL, 0],
-    [1, 1, 2, 1],
-    [1, 1, "0", 1],
-    [1.5, 1, ROLL, 1],
-    [1, -1, HOLD, 1],
-    [1, 1, HOLD, 4_294_967_296],
-    [1, 1, HOLD, "1"],
-    [-0, 1, HOLD, 1],
-    [1, 1, JOIN, "a", "Ada", 5, "fox", 1],
-    [1, 1, JOIN, "a", "", 0, "fox", 1],
-    [1, 1, JOIN, "a", " Ada", 0, "fox", 1],
-    [1, 1, JOIN, "a", "x".repeat(19), 0, "fox", 1],
-    [1, 1, JOIN, "a", "Ada", 0, "unicorn", 1],
-    [1, 1, JOIN, "__proto__", "Ada", 0, "fox", 1],
-    [1, 1, LEAVE, "constructor"],
-    [1, 1, PRESENCE, "toString", true, 1],
-    [1, 1, BOT, "add", "__proto__", "Bot", 1],
-    [1, 1, SPECTATOR, "join", "hasOwnProperty", "Wat", 1],
-    [1, 1, SETTINGS, { turnTicks: 39, display: false }],
-    [1, 1, SETTINGS, { turnTicks: 40 }],
-    [1, 1, SETTINGS, { turnTicks: 40, display: false, extra: 1 }],
-    [1, 1, ACTION, "explode", "m1"],
-  ];
-  for (const entry of refused)
-    assert.equal(isFuseDriversEntry(entry), false, JSON.stringify(entry));
+  // A lobby carries no race, and nothing that only a race can fill.
+  const empty = lobby(),
+    fields = wire(empty);
+  assert.ok(decodeRoom(fields, empty.tick), "the lobby decodes");
+  at(fields, 3).push("a");
   assert.equal(
-    parseSettings({ turnTicks: 1200, display: false })?.turnTicks,
-    1200,
+    decodeRoom(fields, empty.tick),
+    undefined,
+    "a grid with no race",
   );
-  assert.equal(parseSettings({ turnTicks: 1201, display: false }), undefined);
-  assert.equal(parseSettings([40, false]), undefined);
-  assert.equal(parseSettings(null), undefined);
-  assert.equal(parseSettings({ turnTicks: 40, display: "yes" }), undefined);
+  const withRace = wire(empty);
+  withRace[6] = wire(racing())[6];
+  assert.equal(
+    decodeRoom(withRace, empty.tick),
+    undefined,
+    "a race in the lobby",
+  );
+
+  // Over and finished are one fact, stated twice: they may not disagree.
+  const decided = over(),
+    ended = wire(decided);
+  assert.ok(decodeRoom(ended, decided.tick), "the finished race decodes");
+  at(ended, 6)[1] = "racing";
+  assert.equal(
+    decodeRoom(ended, decided.tick),
+    undefined,
+    "a room over while its race runs on",
+  );
 });
