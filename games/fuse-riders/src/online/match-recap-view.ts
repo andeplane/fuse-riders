@@ -17,6 +17,10 @@ export function renderMatchRecap(
     playerId: string;
     canWatch(key: string): boolean;
     watch(key: string): void;
+    /** Replaces "MATCH COMPLETE", e.g. when and where a past match was played. */
+    kicker?: string;
+    /** Open with the full stats showing, for a view that has no toggle of its own. */
+    expanded?: boolean;
   },
   document: Document = window.document,
 ): HTMLElement {
@@ -28,7 +32,7 @@ export function renderMatchRecap(
   const context = node("div", "", "recap-context");
   const rounds = Math.max(0, ...stats.map((entry) => entry.roundsPlayed));
   context.append(
-    node("span", "MATCH COMPLETE"),
+    node("span", options.kicker ?? "MATCH COMPLETE"),
     node(
       "small",
       `${rounds} ${rounds === 1 ? "round" : "rounds"} / ${stats.length} ${stats.length === 1 ? "rider" : "riders"}`,
@@ -163,7 +167,7 @@ export function renderMatchRecap(
   root.append(overview);
   const details = node("section", "", "recap-details");
   details.id = "match-full-stats";
-  details.hidden = true;
+  details.hidden = !options.expanded;
   details.append(node("h3", "FULL MATCH STATS"));
   const totals = node("div", "", "recap-totals");
   for (const total of recap.totals) {

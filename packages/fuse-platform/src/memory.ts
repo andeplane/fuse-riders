@@ -87,6 +87,24 @@ export class MemoryHistoryDatabase implements HistoryDatabase {
     return work;
   }
 
+  async recentMatches(
+    gameId: string,
+    before: number | undefined,
+    limit: number,
+  ): Promise<MatchRecord[]> {
+    return [...this.matches.values()]
+      .filter(
+        (match) =>
+          match.gameId === gameId &&
+          match.feedAt !== undefined &&
+          // Strictly older, exactly as FirestoreHistoryDatabase pages.
+          (before === undefined || match.feedAt < before),
+      )
+      .sort((a, b) => b.feedAt! - a.feedAt!)
+      .slice(0, limit)
+      .map((match) => structuredClone(match));
+  }
+
   async matchesFor(
     gameId: string,
     uid: string,
