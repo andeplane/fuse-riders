@@ -20,13 +20,13 @@ Fuse Riders is a small TypeScript game for 2–5 friends under active developmen
 
 ## Context and token use
 
-Every call re-reads the whole conversation, so cost is context size times calls. `.claude/settings.json` auto-compacts at a 200k window; keep the thread well under it.
+Every call re-reads the whole conversation, so cost is context size times calls. Nothing here caps that for you — Claude Code auto-compacts only when the context is actually full, and the threshold is not configurable — so keeping a thread small is a habit, not a setting.
 
 - The main thread coordinates. Hand broad searches (more than a couple of `rg` calls) to an `Explore` subagent and keep its conclusion, not the file dumps. Start from `docs/architecture.md`; use `rg -l` before printing matches and `Read` with `offset`/`limit` for large files.
 - Keep command output short: pipe tests, builds and logs through `tail`/`grep` for the failure, and never print whole CI logs or diffs you do not need.
 - Edit with the Edit/Write tools rather than `sed -i` or Python heredocs; the format hook only runs on them.
 - Give each subagent one bounded job with file paths, not pasted content. An implementation agent stops at its opened pull request; follow-up fixes go to a fresh agent with a short brief rather than a long-lived one. Review agents get the diff and run on `model: "sonnet"`.
-- Iterate on the focused test file. Run the full `npm test` (about 80 s, mostly the golden and order-independence replays) once before pushing, not after every edit.
+- Iterate on the focused test file. Run the full `npm test` (a couple of minutes, mostly the golden and order-independence replays) once before pushing, not after every edit.
 - Never poll CI with `sleep` loops or repeated `gh pr checks`. Start one `gh pr checks --watch` with `run_in_background` and act when it finishes.
 
 These workflow rules replace older process requirements in ADRs, review notes and other repo documents. Those documents remain useful technical context; their historical approval and reporting requirements do not create new gates. Preserve relevant correctness requirements and explain material changes to technical contracts.
