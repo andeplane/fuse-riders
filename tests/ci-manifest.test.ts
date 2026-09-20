@@ -2,11 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import {
+  jobSteps,
   loadManifest,
   parseManifest,
   select,
   smokeEnv,
   stepNames,
+  verifyJobs,
   type CiManifest,
 } from "../scripts/lib/ci-manifest.js";
 import { browserKind } from "../scripts/lib/browser.js";
@@ -14,7 +16,8 @@ import { roomServiceUrl } from "../scripts/lib/server.js";
 import { devBanner } from "../service/dev.js";
 
 // scripts/ci-manifest.json is the only list of CI steps. These tests fail when .github/workflows/ci.yml or
-// scripts/ci-local.sh stops reading it, or when the one hand-written copy (the `verify` job) differs from it.
+// scripts/ci-local.sh stops reading it, or when the hand-written copies (the gate jobs and `coverage`, which
+// keep their step names in the GitHub UI) differ from it.
 const manifest = loadManifest();
 const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
 const local = readFileSync("scripts/ci-local.sh", "utf8");
@@ -44,14 +47,77 @@ const scriptsIn = (text: string) => [
   ...new Set(withoutComments(text).match(/scripts\/[\w./-]+/g) ?? []),
 ];
 
-test("the verify job runs exactly the manifest's verify steps, in order", () => {
-  const runs = runsIn(job("verify"));
-  assert.deepEqual(runs, [
+test("each gate job runs exactly the manifest's steps for it, in order", () => {
+  for (const name of verifyJobs(manifest)) {
+    assert.deepEqual(
+      runsIn(job(name)),
+      [
+        "pnpm install --frozen-lockfile",
+        ...jobSteps(manifest, name).map((step) => step.command),
+      ],
+      `the ${name} job`,
+    );
+    // A gate job waits for nothing and is never skipped: every pull request runs all of them.
+    assert.doesNotMatch(job(name), /^ {4}(needs|if):/m, `the ${name} job`);
+  }
+});
+
+test("verify is the one check name, and it reports every gate job", () => {
+  const verify = job("verify");
+  assert.ok(
+    verify.includes(`    needs: [${verifyJobs(manifest).join(", ")}]\n`),
+    "verify must need exactly the gate jobs",
+  );
+  // Without `always()` a failed gate job would leave verify skipped, which a branch rule reads as not-failed.
+  assert.ok(verify.includes("    if: always()\n"));
+  for (const name of verifyJobs(manifest))
+    assert.match(
+      verify,
+      new RegExp(`needs\\.${name}\\.result`),
+      `verify does not look at the ${name} job's result`,
+    );
+  assert.equal(
+    runsIn(verify).length,
+    1,
+    "verify runs one check and nothing else",
+  );
+});
+
+test("the unit shards cover the whole suite, and only a pull request thins the replay check", () => {
+  const unit = job("unit");
+  const list = / {8}shard: \[([\d, ]+)\]/.exec(unit)?.[1];
+  const divisor = / {6}TEST_SHARD: \$\{\{ matrix\.shard \}\}\/(\d+)/.exec(
+    unit,
+  )?.[1];
+  assert.ok(list && divisor, "the unit job must shard the suite");
+  // Drift between the two silently drops part of the suite: shard 4/3 runs nothing, and [1,2,3] of 4 skips a quarter.
+  assert.deepEqual(
+    list.split(",").map((item) => Number(item.trim())),
+    Array.from({ length: Number(divisor) }, (_, index) => index + 1),
+    "the shard list and the TEST_SHARD divisor must agree",
+  );
+  // A sampled replay budget is the pull request's alone; anything else (a push, a dispatch) checks every tick.
+  assert.match(
+    unit,
+    /FUSE_REPLAY_STRIDE: \$\{\{ github\.event_name == 'pull_request' && '\d+' \|\| '1' \}\}/,
+    "the replay stride must fall back to 1",
+  );
+});
+
+test("the coverage gate runs the release steps and no pull request waits on it", () => {
+  assert.deepEqual(runsIn(job("coverage")), [
     "pnpm install --frozen-lockfile",
-    ...manifest.verify.map((step) => step.command),
+    ...manifest.release.map((step) => step.command),
   ]);
-  // The pull-request gate is this job alone: it waits for nothing and is never skipped.
-  assert.doesNotMatch(job("verify"), /^ {4}(needs|if):/m);
+  assert.ok(
+    job("coverage").includes("    if: github.event_name != 'pull_request'\n"),
+  );
+  // Comments stripped: the block a job split yields carries the next job's leading comment.
+  assert.doesNotMatch(
+    withoutComments(job("verify")),
+    /coverage/,
+    "the pull-request gate must not wait on coverage",
+  );
 });
 
 test("a named or multi-line step in a job is seen, not only `- run:` steps", () => {
@@ -196,12 +262,22 @@ test("README lists the step names ONLY accepts", () => {
 test("ONLY selects verify steps, groups, single smokes and core", () => {
   const ids = (only: string) => {
     const chosen = select(manifest, only);
-    return [...chosen.verify, ...chosen.smokes].map((step) => step.id);
+    return [...chosen.verify, ...chosen.release, ...chosen.smokes].map(
+      (step) => step.id,
+    );
   };
-  assert.equal(ids("").length, manifest.verify.length + manifest.smokes.length);
+  // Empty is everything, which is what a main push runs: the gate, the coverage gate and every smoke.
+  assert.equal(
+    ids("").length,
+    manifest.verify.length + manifest.release.length + manifest.smokes.length,
+  );
   assert.deepEqual(
     ids("core"),
     manifest.verify.map((step) => step.id),
+  );
+  assert.deepEqual(
+    ids("release"),
+    manifest.release.map((step) => step.id),
   );
   assert.deepEqual(ids("online"), [
     "online-chrome",
@@ -270,6 +346,14 @@ test("a manifest the workflow or the runner would misread is rejected", () => {
   assert.throws(
     broken((copy) => (copy.verify[0]!.id = "core")),
     /reserved/,
+  );
+  assert.throws(
+    broken((copy) => delete copy.verify[0]!.job),
+    /job must name a ci.yml job/,
+  );
+  assert.throws(
+    broken((copy) => (copy.release[0]!.job = "unit")),
+    /release step has no job/,
   );
   assert.throws(
     broken((copy) => (copy.smokes[0]!.group = "online-chrome")),

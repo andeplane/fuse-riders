@@ -42,6 +42,11 @@ export interface MatchRecord<P extends PlayerResult = PlayerResult> {
   participantUids: string[];
   createdAt: number;
   endedAt?: number;
+  /**
+   * When a whole game was confirmed as public: what orders the public match feed. Round receipts and pending results
+   * never have one, and a game only gets one once a second player attested it or an account owns a seat.
+   */
+  feedAt?: number;
   /** Absent once a confirmed match belongs to an account: that is the history nothing cleans up. */
   expiresAt?: number;
 }
@@ -206,7 +211,12 @@ export function parseMatchRecord(
     !result ||
     !counterLike(raw.createdAt) ||
     (raw.endedAt !== undefined && !counterLike(raw.endedAt)) ||
-    (raw.expiresAt !== undefined && !counterLike(raw.expiresAt))
+    (raw.expiresAt !== undefined && !counterLike(raw.expiresAt)) ||
+    // Only a confirmed whole game may be in the public feed, whatever a stored record claims.
+    (raw.feedAt !== undefined &&
+      (!counterLike(raw.feedAt) ||
+        raw.status !== "confirmed" ||
+        result.round !== undefined))
   )
     return;
   if ((raw.status === "confirmed") !== (raw.endedAt !== undefined)) return;
@@ -287,6 +297,7 @@ export function parseMatchRecord(
     participantUids: [...raw.participantUids] as string[],
     createdAt: raw.createdAt,
     ...(raw.endedAt === undefined ? {} : { endedAt: raw.endedAt }),
+    ...(raw.feedAt === undefined ? {} : { feedAt: raw.feedAt }),
     ...(raw.expiresAt === undefined ? {} : { expiresAt: raw.expiresAt }),
   };
 }

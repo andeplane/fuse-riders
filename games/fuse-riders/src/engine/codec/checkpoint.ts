@@ -46,6 +46,7 @@ import {
   ARENA_MAPS,
   MAX_OBSTACLES,
   OBSTACLE_KINDS,
+  validObstacleDimensions,
   type Obstacle,
 } from "../arena-map.js";
 import { parseRoomSettings, type RoomSettings } from "../room-settings.js";
@@ -659,11 +660,12 @@ function gameInvariants(game: GameState): boolean {
     if (portalIds.has(pair.id) || pair.expiresAtTick <= game.tick) return false;
     portalIds.add(pair.id);
   }
-  // Obstacles are addressed by id by nothing but the renderer's rubble diff, which a duplicate would confuse into
-  // reporting a standing obstacle as destroyed; they are also never anywhere but inside the arena.
+  // IDs select fixed catalog variants and identify destroyed pieces for the renderer.
+  // Validate their dimensions and keep every obstacle inside the arena.
   const obstacleIds = new Set<number>();
   for (const piece of game.obstacles) {
-    if (obstacleIds.has(piece.id)) return false;
+    if (obstacleIds.has(piece.id) || !validObstacleDimensions(piece))
+      return false;
     obstacleIds.add(piece.id);
     if (
       piece.x - piece.halfWidth < 0 ||

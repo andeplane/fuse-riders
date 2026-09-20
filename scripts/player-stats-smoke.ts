@@ -158,7 +158,7 @@ try {
         page.on("pageerror", (error) => errors.push(error.message));
         // tsx keepNames helper for functions serialized into page.evaluate; no game API is patched.
         await page.addInitScript("window.__name = value => value");
-        await page.goto(origin);
+        await page.goto(new URL("?mute", origin).href);
         await page.locator(".online-app").waitFor();
         await page.evaluate(
           async ({ api }) => {
@@ -173,6 +173,8 @@ try {
               leaderboardUrl: `${api}/api/leaderboard`,
               historyUrl: (before) =>
                 `${api}/api/me/matches${before === undefined ? "" : `?before=${before}`}`,
+              matchesUrl: (before) =>
+                `${api}/api/matches${before === undefined ? "" : `?before=${before}`}`,
               localName: () => "Neon Rider",
               fetch: (input, init) => fetch(input, init),
               track: () => {},
@@ -200,7 +202,11 @@ try {
               control.remove();
             for (const dialog of app.querySelectorAll(".stats-dialog"))
               dialog.remove();
-            landing.append(panel.leaderboardButton, panel.button);
+            landing.append(
+              panel.matchesButton,
+              panel.leaderboardButton,
+              panel.button,
+            );
             app.append(panel.dialog);
           },
           { api },
@@ -276,8 +282,78 @@ try {
         await page.screenshot({
           path: `artifacts/player-stats-${name}-${viewport.width}.png`,
         });
+        // Recent matches: everyone's by default, your own one tap away, and each opens into its full results.
+        // The first page fails once, and TRY AGAIN recovers it without reopening the dialog.
+        let failFeed = true;
+        await page.route(`${api}/api/matches*`, (route) => {
+          if (!failFeed) return route.fallback();
+          failFeed = false;
+          return route.fulfill({ status: 503, json: {} });
+        });
         await page
-          .getByRole("button", { name: "GLOBAL LEADERBOARD", exact: true })
+          .locator(".stats-tabs")
+          .getByRole("button", { name: "MATCHES", exact: true })
+          .click();
+        await page
+          .getByRole("button", { name: "TRY AGAIN", exact: true })
+          .click();
+        await page.locator(".account-match").first().waitFor();
+        assert.equal(await page.locator(".account-match").count(), 8);
+        assert.equal(
+          await page.locator(".account-day h3").first().textContent(),
+          "TODAY",
+        );
+        assert.equal(
+          await page
+            .locator(".stats-dialog .dialog-body")
+            .evaluate((e) => e.scrollWidth > e.clientWidth + 1),
+          false,
+          "match list fits",
+        );
+        await page.screenshot({
+          path: `artifacts/player-matches-${name}-${viewport.width}.png`,
+        });
+        await page.getByRole("button", { name: "YOURS", exact: true }).click();
+        await page.locator(".account-match").first().waitFor();
+        assert.equal(await page.locator(".account-match").count(), 8);
+        await page.locator(".account-match-open").first().click();
+        await page.locator(".match-recap-report").waitFor();
+        assert.match(
+          await page.locator(".recap-standings").innerText(),
+          /YOU/,
+          "your seat is marked in an opened match",
+        );
+        assert.equal(await page.locator(".recap-details").isVisible(), true);
+        assert.equal(
+          await page
+            .locator(".stats-dialog .dialog-body")
+            .evaluate((e) => e.scrollWidth > e.clientWidth + 1),
+          false,
+          "opened match fits",
+        );
+        await page.screenshot({
+          path: `artifacts/player-match-${name}-${viewport.width}.png`,
+        });
+        await page
+          .getByRole("button", { name: "‹ MATCHES", exact: true })
+          .click();
+        await page.locator(".account-match").first().waitFor();
+        assert.equal(
+          await page.evaluate(() =>
+            document.activeElement?.classList.contains("account-match-open"),
+          ),
+          true,
+          "back returns focus to the opened match",
+        );
+        await page
+          .locator(".stats-tabs")
+          .getByRole("button", { name: "STATS", exact: true })
+          .click();
+        await page.locator(".stats-finish").first().click();
+        await page.locator(".match-recap-report").waitFor();
+        await page
+          .locator(".stats-tabs")
+          .getByRole("button", { name: "LEADERBOARD", exact: true })
           .click();
         await page.locator(".stats-leaderboard").waitFor();
         assert.match(
@@ -290,7 +366,8 @@ try {
           path: `artifacts/player-leaderboard-${name}-${viewport.width}.png`,
         });
         await page
-          .getByRole("button", { name: "MY STATS", exact: true })
+          .locator(".stats-tabs")
+          .getByRole("button", { name: "STATS", exact: true })
           .click();
         await page.locator(".rating-chart").waitFor();
         await page.getByText("Account settings", { exact: true }).click();
@@ -313,7 +390,9 @@ try {
         assert.equal(await page.locator(".rating-chart").count(), 0);
         assert.deepEqual(errors, []);
         await page.close();
-        console.log(`PASS stats + leaderboard ${name} ${viewport.width}px`);
+        console.log(
+          `PASS stats + matches + leaderboard ${name} ${viewport.width}px`,
+        );
       }
     } finally {
       await browser.close();

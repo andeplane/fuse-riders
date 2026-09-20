@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "building-small-workshop",
+  "category": "building",
+  "sizeClass": "small",
+  "description": "Small wide concrete workshop with two roof grilles and an amber doorway.",
+  "image": {
+    "file": "building-small-workshop.png",
+    "width": 1659,
+    "height": 948,
+    "sha256": "61b9d72afdb0190de5822573b8206fa9e1c556fa30a5b8f8ce088b81cdcafb68"
+  },
+  "anchorPixels": {
+    "x": 830.0,
+    "y": 462.0
+  },
+  "hitboxPixels": {
+    "shape": "rectangle",
+    "centerX": 830.0,
+    "centerY": 462.0,
+    "width": 1234,
+    "height": 546
+  },
+  "recommendedWorld": {
+    "unitsPerPixel": 0.09076175040518639,
+    "rotationDegrees": 0,
+    "hitbox": {
+      "shape": "rectangle",
+      "centerX": 0,
+      "centerY": 0,
+      "width": 112.0,
+      "height": 49.55591572123177
+    }
+  },
+  "collisionFit": {
+    "method": "alpha-128-bounds",
+    "silhouetteIoU": 0.986397
+  }
+}
