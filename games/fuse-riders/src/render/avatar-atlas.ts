@@ -6,7 +6,7 @@
 export const AVATAR_ATLAS = {
   url: "/avatars/neon-heads.png",
   columns: 5,
-  rows: 2,
+  rows: 3,
   frames: [
     "robot",
     "cat",
@@ -18,5 +18,6 @@ export const AVATAR_ATLAS = {
     "dragon",
     "owl",
     "slime",
+    "mushroom",
   ],
 } as const;

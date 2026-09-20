@@ -134,15 +134,40 @@ test("a join repairs a head another rider already wears, and keeps a free one", 
   tick({
     host: [
       join(1, "a", "Ada", 0, "fox"),
-      // Bo asks for the fox Ada wears and is seated in the next free head in AVATARS order.
+      // Bo asks for the fox Ada wears and is seated in the next free head a rider may have. That is the `cat` rather
+      // than the `robot` in front of it: the robot is the AI's, and handing it to whoever joined first is what put a
+      // person and an AI in the same head (rules `fuse-p2p-51`).
       join(2, "b", "Bo", 1, "fox"),
       join(3, "c", "Cy", 2, "owl"),
     ],
   });
   assert.equal(headOf("a"), "fox");
-  assert.equal(headOf("b"), "robot");
+  assert.equal(headOf("b"), "cat");
   assert.equal(headOf("c"), "owl");
   assert.equal(new Set(["a", "b", "c"].map(headOf)).size, 3);
+});
+
+test("the robot is never given to a rider, and never taken by one", () => {
+  const { tick, join, headOf } = fixture();
+  // Asking for it outright: refused, and the rider is seated in the first head it may have instead.
+  tick({ host: [join(1, "a", "Ada", 0, "robot")] });
+  assert.equal(headOf("a"), "cat");
+  // Reaching for it once seated: refused too, even with no AI in the room to be confused with yet.
+  tick({ a: [[2, 0, AVATAR, "robot"]] });
+  assert.equal(headOf("a"), "cat");
+  // The rest of the grid still applies, so this is the one head withheld rather than the feature blocked.
+  tick({ a: [[3, 0, AVATAR, "mushroom"]] });
+  assert.equal(headOf("a"), "mushroom");
+  // Filling every seat never reaches it either: five riders take five of the ten a rider may wear.
+  const { tick: t2, join: j2, headOf: h2 } = fixture();
+  t2({
+    host: [0, 1, 2, 3, 4].map((slot) =>
+      j2(slot + 1, `p${slot}`, `P${slot}`, slot, "fox"),
+    ),
+  });
+  const heads = [0, 1, 2, 3, 4].map((slot) => h2(`p${slot}`));
+  assert.equal(new Set(heads).size, 5, "five riders, five heads");
+  assert.equal(heads.includes("robot"), false, "and none of them the AI's");
 });
 
 test("an AVATAR entry for a head another rider wears is a no-op", () => {
