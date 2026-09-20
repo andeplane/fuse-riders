@@ -367,3 +367,49 @@ test("a watcher is listed without a seat, steers nothing, is not waited on, and 
   );
   assertConverged([a!, b2]);
 });
+
+test("a watcher's kick frees no seat, so a start in the same tick window is not refused", () => {
+  const mesh = new FakeMesh("a", { target: 1000 });
+  const [a, b] = seated(mesh, ["a", "b"]);
+  const w = mesh.join("w");
+  mesh.run(3000);
+  assert.equal(w.command({ type: "spectate", name: "Watcher" }), true);
+  mesh.run(1000);
+  assert.equal(room(a!).seats.get("w")?.watcher, true);
+
+  // A watcher is removed with the same `LEAVE` a rider is, and the entry is stamped a tick or more ahead, so the
+  // start below is decided while the kick is still pending. A watcher holds no seat: two riders are still two riders.
+  const noticed = mesh.recorded.get("a")!.statuses.length;
+  assert.equal(a!.command({ type: "kick", id: "w" }), true);
+  assert.equal(
+    a!.command({ type: "action", action: "start" }),
+    true,
+    "the pending kick of a watcher does not make the room look a rider short",
+  );
+  assert.ok(
+    !mesh.recorded
+      .get("a")!
+      .statuses.slice(noticed)
+      .includes(defaultText.needTwo),
+  );
+  mesh.run(1000);
+  assert.equal(room(b!).stage, "running");
+  assert.equal(room(b!).seats.has("w"), false, "and the kick still took");
+  assertConverged([a!, b!]);
+
+  // The seat a rider's kick does free is still counted: the same window now refuses the start it should.
+  assert.equal(a!.command({ type: "action", action: "lobby" }), true);
+  mesh.run(500);
+  const before = mesh.recorded.get("a")!.statuses.length;
+  assert.equal(a!.command({ type: "kick", id: "b" }), true);
+  assert.equal(a!.command({ type: "action", action: "start" }), false);
+  assert.ok(
+    mesh.recorded
+      .get("a")!
+      .statuses.slice(before)
+      .includes(defaultText.needTwo),
+  );
+  mesh.run(1000);
+  assert.equal(room(a!).seats.has("b"), false);
+  assert.equal(room(a!).stage, "lobby");
+});

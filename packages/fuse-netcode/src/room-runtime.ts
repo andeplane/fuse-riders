@@ -1045,8 +1045,13 @@ export class RoomRuntime<
         ids.add(entry[4]);
         seats++;
       } else if (entry[2] === LEAVE) {
-        freed.add(entry[3]);
-        seats--;
+        // `LEAVE` is also how a watcher is removed (`kick`), and a watcher holds no seat. Only a member the fold
+        // still seats as a rider frees one, for the count here and for the slot `claimSlot` may reclaim.
+        const leaving = this.game.seat(this.world!.state, entry[3]);
+        if (leaving && !leaving.watcher) {
+          freed.add(entry[3]);
+          seats--;
+        }
       } else if (entry[2] === SPECTATOR) {
         if (entry[3] === "join") {
           ids.add(entry[4]);

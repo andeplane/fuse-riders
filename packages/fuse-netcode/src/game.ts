@@ -111,6 +111,7 @@ export interface RollbackGame<
   };
   /** Seats in the game's own order: the stall rule names the first member it waits for in this order. */
   members(room: Room): Iterable<Seat>;
+  /** The seat `members` lists for `id`, watcher and all: a member is a rider or a watcher in both, never both at once. */
   seat(room: Room, id: string): Seat | undefined;
   stage(room: Room): Stage;
   /** The room's settings: what the next match starts with, and what `Callbacks.state` hands the screen. */
