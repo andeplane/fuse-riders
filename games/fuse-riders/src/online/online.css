@@ -2218,9 +2218,9 @@
   font-weight: bold;
   letter-spacing: 0.08em;
 }
-.room-riders .online-join > button:not(.avatar-current):not(.color-current):not(
-    .join-spectate
-  ) {
+.room-riders
+  .online-join
+  > button:not(.avatar-current):not(.color-current):not(.join-spectate) {
   min-height: 2.75rem;
   background: var(--fui-cyan-deep);
   color: #061126;

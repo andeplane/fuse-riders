@@ -116,7 +116,12 @@ test("a departed points leader stays in the match standings and late joiners get
   const game = match(3, 2);
   finish(game, ["p2", "p1"]);
   removePlayer(game, "p0");
-  addPlayer(game, { id: "late", name: "Late", slot: 0, color: RIDER_COLORS[0] });
+  addPlayer(game, {
+    id: "late",
+    name: "Late",
+    slot: 0,
+    color: RIDER_COLORS[0],
+  });
   assert.equal(
     toView(game).players.find((player) => player.id === "late")!
       .matchScoreUnits,

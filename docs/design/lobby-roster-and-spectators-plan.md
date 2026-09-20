@@ -8,7 +8,13 @@
 > occur: the badge is the word HOST rather than a crown, because the crown already marks the round leader in the
 > standings; and delegation is left exactly as the log defines it, so beside a creator that took no seat the first
 > rider wears the badge as well as the creator's own page — every rule that would avoid that also strands a room whose
-> unseated host has left (ADR 047 §9, `roomManager`). Phases A, C, E and F are still open.
+> unseated host has left (ADR 047 §9, `roomManager`).
+>
+> Phase F (ten colours, unique colours and avatars) landed under rules `fuse-p2p-48`, with one departure noted in §7:
+> the `JOIN` entry keeps its shape, because it is the netcode's and shared with every game, so a joiner's colour is not
+> carried on the join but follows as its own `COLOR` entry the moment the room seats it. The fold gives every join the
+> lowest free colour, so the repair the plan asked for is where it should be and nobody is ever seated without one.
+> Phases A, C and E are still open.
 > Covers ten requested lobby and feel changes: host crown, kick, host handover, ready check, ten colours, unique
 > avatars, spectators, ready check between rounds with a countdown sound, a lobby map picker, and a slower bomb range
 > sweep. Each sub-phase is sized for one agent owning it end to end on a `codex/` branch, opening one pull request in
@@ -241,6 +247,11 @@ short design note `docs/design/ready-check.md` (what is gated, what is not, why 
 ---
 
 ## 7. Phase F — Ten colours, unique colours and avatars (requests 5 and 6)
+
+_Landed under rules `fuse-p2p-48`. Built as written except for F.1's colour on the `JOIN` entry: that entry is the
+netcode's, shared by every game in `packages/fuse-netcode`, and a colour index in it would push a Fuse Riders concept
+into a game-agnostic wire format. The fold gives each join the lowest free colour instead, and the joiner's preference
+follows as the `COLOR` entry of F.2 once it is seated — so the repair is unchanged and a rider always has a colour._
 
 ### F.1 Colour leaves the seat — M
 
