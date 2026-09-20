@@ -326,8 +326,14 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
     joined,
     recapReady: ready,
     resultsHidden: !ready,
-    // Avatars are a lobby choice: before a seat the join form carries it, and the button leaves with the lobby.
-    avatarHidden: !joined || state.phase !== "lobby",
+    // A lobby choice, and one this rider has not finished making: the head and colour buttons leave with the lobby,
+    // and they leave the moment this rider says READY. READY is what settles an identity for the round — after it the
+    // room is only waiting on everyone else, and a rider still recolouring is a rider not yet ready. Un-readying
+    // brings both back, so this is a gate rather than a one-way door.
+    avatarHidden:
+      !joined ||
+      state.phase !== "lobby" ||
+      (input.readyPlayers?.includes(input.playerId) ?? false),
     joinPanelHidden: joined || watching || displayOnly,
     controlsHidden: !joined || displayOnly,
     roundClock: clock,

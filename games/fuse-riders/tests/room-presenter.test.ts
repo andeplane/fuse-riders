@@ -629,3 +629,22 @@ test("controller artwork follows the local rider’s next weapon and resets afte
   assert.equal(icon(), "bomb");
   assert.equal(present(frame(), { playerId: "missing" }).fire.weapon, "bomb");
 });
+
+test("the head and colour buttons leave when this rider says READY, and come back when it un-readies", () => {
+  const lobby = frame({ phase: "lobby" });
+  // Still choosing: both buttons are offered.
+  assert.equal(present(lobby, { readyPlayers: [] }).avatarHidden, false);
+  // Somebody else being ready changes nothing for this rider.
+  assert.equal(
+    present(lobby, { readyPlayers: ["ada"] }).avatarHidden,
+    false,
+    "another rider's READY is not this rider's",
+  );
+  // Its own READY settles its identity for the round.
+  assert.equal(
+    present(lobby, { readyPlayers: ["me", "ada"] }).avatarHidden,
+    true,
+  );
+  // And un-readying opens them again: a gate, not a one-way door.
+  assert.equal(present(lobby, { readyPlayers: ["ada"] }).avatarHidden, false);
+});
