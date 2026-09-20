@@ -33,6 +33,14 @@ async function readJson(req: IncomingMessage): Promise<unknown> {
   }
 }
 
+/** `?before=` pages backwards from a listed `endedAt`; null is a malformed cursor. */
+function pageCursor(url: URL): number | undefined | null {
+  const before = url.searchParams.get("before");
+  if (before === null) return undefined;
+  const cursor = Number(before);
+  return Number.isSafeInteger(cursor) && cursor >= 0 ? cursor : null;
+}
+
 /**
  * `/api/games/{gameId}/…` addresses one game; the same routes without the prefix are the legacy game's, as they were
  * before there were games. Returns the game and the route as it reads without the prefix.
@@ -45,7 +53,7 @@ export function gameRoute(pathname: string): { gameId: string; path: string } {
     : { gameId: LEGACY_GAME_ID, path: pathname };
 }
 const HISTORY_ROUTE =
-  /^\/api\/(?:rooms\/[A-Z]{2}[0-9]{2}\/(?:results|round-results)|me\/round-results|leaderboard|me|me\/matches)$/;
+  /^\/api\/(?:rooms\/[A-Z]{2}[0-9]{2}\/(?:results|round-results)|me\/round-results|leaderboard|matches|me|me\/matches)$/;
 
 /**
  * Match history, accounts and ratings, mounted behind the networking service's Origin and error boundaries. The
@@ -111,6 +119,18 @@ export function createHistoryHttp(
         json(await history.submitSolo(reporter, await readJson(req), uid));
         return true;
       }
+      // Public like the leaderboard: no sign-in, and an optional one only names the caller's own seat.
+      if (pathname === "/api/matches" && req.method === "GET") {
+        const cursor = pageCursor(url);
+        if (cursor === null) {
+          json({ error: "Invalid cursor" }, 400);
+          return true;
+        }
+        const token = bearer(req),
+          uid = token ? await identity(token) : undefined;
+        json(await history.feed(clientAddress, uid, cursor));
+        return true;
+      }
       if (pathname === "/api/leaderboard" && req.method === "GET") {
         const token = bearer(req),
           uid = token ? await identity(token) : undefined;
@@ -139,12 +159,8 @@ export function createHistoryHttp(
           json({ error: "Sign in first" }, 401);
           return true;
         }
-        const before = url.searchParams.get("before"),
-          cursor = before === null ? undefined : Number(before);
-        if (
-          cursor !== undefined &&
-          (!Number.isSafeInteger(cursor) || cursor < 0)
-        ) {
+        const cursor = pageCursor(url);
+        if (cursor === null) {
           json({ error: "Invalid cursor" }, 400);
           return true;
         }

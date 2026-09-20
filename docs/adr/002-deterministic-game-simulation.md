@@ -1,6 +1,10 @@
 # ADR-002: Fixed-step deterministic Fuse Riders simulation
 
-- Status: Historical; deterministic fixed-step foundation retained, original gameplay and server-only model superseded. See [current architecture](../architecture.md), [radial blasts](017-radial-blasts-and-five-shot.md), and the current source definitions.
+- Status: **Partly current.** What survives is the premise: the rules are a pure fixed-step 20 Hz simulation over ticks, not frames, with swept collision and a seeded RNG. Everything about where it runs and what it computes has been replaced.
+  - **The server-authoritative model is superseded by [ADR 047](047-p2p-input-log-lockstep-rollback.md).** No server advances the simulation and no client interpolates between received snapshots: every device folds the same input log locally and rolls back late entries. The LAN server went in [#271](https://github.com/andeplane/fuse-riders/pull/271).
+  - **The module is superseded.** `games/fuse-riders/src/shared/game.ts` no longer exists. The rules live in `games/fuse-riders/src/engine/`, and a tick is the ordered `PHASES` list in `games/fuse-riders/src/engine/sim/pipeline.ts` — which is now the single statement of the tick ordering this ADR describes in prose ([engine pipeline](../design/engine-pipeline.md)).
+  - **The gameplay numbers are superseded** by the pickups, weapons and match rules added since ([ADR 017](017-radial-blasts-and-five-shot.md) onwards). Take dimensions, tolerances, fuses and win conditions from `games/fuse-riders/src/engine/tuning.ts`, `pickups.ts`, `weapons.ts` and the round rules, never from this ADR.
+  - The references below to limits "frozen in `docs/architecture.md`" are stale: that document is the system map and deliberately does not copy balance tables. `RULES` in `games/fuse-riders/src/engine/apply-tick.ts` and `games/fuse-riders/tests/golden-hash.test.ts` are what actually freeze behaviour now ([engine safety net](../design/engine-safety-net.md)).
 - Date: 2026-09-13
 
 ## Context

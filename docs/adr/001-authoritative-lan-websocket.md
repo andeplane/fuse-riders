@@ -1,6 +1,6 @@
 # ADR-001: Authoritative LAN server with WebSocket controllers
 
-- Status: Accepted
+- Status: **Historical — the subsystem this ADR decided no longer exists.** [#271](https://github.com/andeplane/fuse-riders/pull/271) deleted `src/server/`, with its `/display` and `/controller` routes, the WebSocket snapshot broadcast and the per-seat reconnect tokens. Nothing in the tree is server-authoritative: every game, including solo play and a shared TV with phone controllers, is an online room in which every device simulates the same input log ([ADR 047](047-p2p-input-log-lockstep-rollback.md)). The shared-screen mode survives as `?room=CODE&display=1`, not as a LAN route ([ADR-003](003-display-controller-session-boundary.md)). The text below is the original decision, kept as history; `docs/architecture.md` no longer holds the limits and lifecycles it refers to.
 - Date: 2026-09-13
 
 ## Context

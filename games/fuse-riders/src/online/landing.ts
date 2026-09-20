@@ -49,6 +49,7 @@ export interface LandingHost {
   /** Sign-in, match history and the leaderboard (`createAccountPanel` with the page's endpoints). */
   accountPanel: () => {
     button: HTMLElement;
+    matchesButton: HTMLElement;
     leaderboardButton: HTMLElement;
     dialog: HTMLDialogElement;
     dispose: () => void;
@@ -298,7 +299,11 @@ export function showLanding(host: LandingHost): void {
   card.append(landingDialog);
   // Optional sign-in and match history. A guest who never opens it never downloads the sign-in SDK.
   const accountPanel = host.accountPanel();
-  topEnd.append(accountPanel.leaderboardButton, accountPanel.button);
+  topEnd.append(
+    accountPanel.matchesButton,
+    accountPanel.leaderboardButton,
+    accountPanel.button,
+  );
   card.append(accountPanel.dialog);
   window.addEventListener("pagehide", accountPanel.dispose, { once: true });
   // The attract loop stays Fuse Riders' own: it runs the game's engine and renderer behind the landing page.

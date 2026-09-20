@@ -2,10 +2,11 @@
  * Runs CI steps from scripts/ci-manifest.json. There is no second list of smokes anywhere:
  *
  *   pnpm exec tsx scripts/ci-run.ts --smoke <id>   one smoke exactly as its CI job runs it (ci.yml's `smoke` matrix)
- *   pnpm exec tsx scripts/ci-run.ts                verify steps, then every smoke (scripts/ci-local.sh)
+ *   pnpm exec tsx scripts/ci-run.ts                everything a main push runs: verify, release, then every smoke
  *   pnpm exec tsx scripts/ci-run.ts --list         the names ONLY accepts
  *
- * ONLY=core,keyboard selects steps; PORT is where the room service's port search starts (default: a free port).
+ * ONLY=core selects the pull-request gate alone, ONLY=core,keyboard adds a smoke, ONLY=release the coverage
+ * gate; PORT is where the room service's port search starts (default: a free port).
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -116,7 +117,7 @@ async function runSmoke(smoke: Smoke, retry: boolean): Promise<number> {
 
 async function main(): Promise<number> {
   if (values.list) {
-    console.log([...stepNames(manifest), "core"].join(" "));
+    console.log([...stepNames(manifest), "core", "release"].join(" "));
     return 0;
   }
   if (values.smoke !== undefined) {
@@ -131,7 +132,7 @@ async function main(): Promise<number> {
 
   const selection = select(manifest, values.only ?? process.env.ONLY ?? "");
   const steps = [
-    ...selection.verify.map((step) => ({
+    ...[...selection.verify, ...selection.release].map((step) => ({
       label: step.id,
       text: step.command,
       start: () => run(step.command.split(" "), process.env),

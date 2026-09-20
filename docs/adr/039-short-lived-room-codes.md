@@ -1,6 +1,13 @@
 # ADR 039: short codes and host-session room lifetime
 
-Status: Partially current, partially historical. Short-code allocation and creator capability fencing remain. Worker-specific implementation notes are superseded by the extracted Cloud Run room service. The creator-only lifetime below is superseded by [member-kept room lifetime](../design/member-kept-room-lifetime.md): any admitted member can renew the room, while explicit end remains creator-authorized. The remaining text preserves the original decision. See [current architecture](../architecture.md).
+Status: **Partly current.**
+
+- **Still in force:** the `AB42` code shape and its uniform, rejection-sampled allocation with injected randomness; codes as enumerable rendezvous identifiers rather than passwords; the creator capability, incarnation fencing and `POST /api/rooms/:code/end`; and the rule that logical room lifetime, not Firestore TTL, is the user-visible guarantee.
+- **Superseded — room lifetime.** The creator-only lifetime below is replaced by [member-kept room lifetime](../design/member-kept-room-lifetime.md): any admitted member's admission or valid heartbeat renews the room, so a remaining connected rider keeps it alive after the creator leaves. Explicit end stays creator-authorized, and guest renewal does not renew the creator's authority grant.
+- **Superseded — the Worker.** Every mention below of a Worker, its alarm and its local storage is archaeology: there is no Cloudflare Worker in this repository. Room metadata and signalling are `packages/fuse-network-be/` behind `service/`, on Firestore and Pub/Sub in production ([ADR 034](034-gcp-pages-deployment.md)) and in-memory adapters in `service/dev.ts` locally and in CI. Where the text says "the service and the Worker agree", read "the service".
+- **Superseded — "host".** The role this ADR calls the host is the room's **creator**; which member may act for it is derived from the folded log, not from the service ([ADR 047 §9](047-p2p-input-log-lockstep-rollback.md#9-membership-seats-presence-and-succession)).
+
+The remaining text preserves the original decision. See the [current architecture](../architecture.md) and, for the service's own contract, [PROTOCOL.md](../online/PROTOCOL.md).
 
 ## User intent and default semantics
 
