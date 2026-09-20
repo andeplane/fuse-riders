@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Desert / Industrial — Prop Gallery</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: system-ui, sans-serif;
+        background: #151922;
+        color: #efe9df;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 28px;
+        max-width: 1440px;
+        margin-inline: auto;
+      }
+      h1 {
+        font-size: 28px;
+        margin: 0 0 8px;
+      }
+      p {
+        color: #b9b6b0;
+        line-height: 1.5;
+      }
+      a {
+        color: #f3c779;
+      }
+      header {
+        margin-bottom: 24px;
+      }
+      .controls {
+        display: flex;
+        gap: 22px;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 20px;
+      }
+      select {
+        font: inherit;
+        padding: 7px 12px;
+        background: #252b36;
+        border: 1px solid #4e5460;
+        border-radius: 6px;
+      }
+      label {
+        display: flex;
+        gap: 9px;
+        align-items: center;
+      }
+      input {
+        accent-color: #f1bc54;
+      }
+      #gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 18px;
+      }
+      .card {
+        border: 1px solid #373b43;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #1c202a;
+      }
+      .stage {
+        height: 260px;
+        display: grid;
+        place-items: center;
+        background-color: var(--ground, #593b20);
+        background-image:
+          linear-gradient(#ffffff06 1px, transparent 1px),
+          linear-gradient(90deg, #ffffff06 1px, transparent 1px);
+        background-size: 32px 32px;
+      }
+      .stage.checker {
+        background: conic-gradient(#ddd 25%, #fff 0 50%, #ddd 0 75%, #fff 0);
+        background-size: 24px 24px;
+      }
+      canvas {
+        width: 260px;
+        height: 260px;
+      }
+      .info {
+        padding: 14px;
+      }
+      h2 {
+        font-size: 14px;
+        margin: 0 0 7px;
+        overflow-wrap: anywhere;
+      }
+      .info p {
+        font-size: 12px;
+        margin: 5px 0;
+      }
+      .links {
+        display: flex;
+        gap: 15px;
+        margin-top: 10px;
+        font-size: 13px;
+      }
+      #status {
+        font-size: 13px;
+      }
+      .error {
+        color: #ffb3a7;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Desert / Industrial</h1>
+      <p>
+        16 independent props · near-overhead view · rectangle and circle
+        footprints<br />Suggested game sizes use one uniform scale per sprite.
+      </p>
+      <div class="controls">
+        <label><input id="hitboxes" type="checkbox" /> Show hitboxes</label>
+        <label
+          >Size
+          <select id="scale">
+            <option value="world">Suggested game size (1 unit = 1 px)</option>
+            <option value="detail">Enlarged detail</option>
+          </select></label
+        >
+        <label
+          >Ground
+          <select id="ground">
+            <option value="sand">Sand</option>
+            <option value="navy">Dark navy</option>
+            <option value="checker">Transparency checker</option>
+          </select></label
+        >
+        <a href="README.md">Integration notes</a>
+      </div>
+      <p id="status" role="status">Loading props…</p>
+    </header>
+    <main id="gallery" aria-label="Prop gallery"></main>
+    <script type="module">
+      const gallery = document.querySelector("#gallery");
+      const status = document.querySelector("#status");
+      const hitboxes = document.querySelector("#hitboxes");
+      const scaleChoice = document.querySelector("#scale");
+      const ground = document.querySelector("#ground");
+      const items = [];
+      async function json(path) {
+        const response = await fetch(path);
+        if (!response.ok) throw new Error(`${path}: ${response.status}`);
+        return response.json();
+      }
+      function dimensions(hit) {
+        return hit.shape === "circle"
+          ? [hit.radius * 2, hit.radius * 2]
+          : [hit.width, hit.height];
+      }
+      function render() {
+        for (const { meta, image, canvas, stage } of items) {
+          stage.classList.toggle("checker", ground.value === "checker");
+          stage.style.setProperty(
+            "--ground",
+            ground.value === "navy" ? "#101b2d" : "#593b20",
+          );
+          const ctx = canvas.getContext("2d");
+          const dpr = window.devicePixelRatio || 1;
+          canvas.width = Math.round(260 * dpr);
+          canvas.height = Math.round(260 * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          const [width, height] = dimensions(meta.hitboxPixels);
+          const s =
+            scaleChoice.value === "world"
+              ? meta.recommendedWorld.unitsPerPixel
+              : 218 / Math.max(width, height);
+          const left = 130 - meta.anchorPixels.x * s,
+            top = 130 - meta.anchorPixels.y * s;
+          ctx.drawImage(
+            image,
+            left,
+            top,
+            meta.image.width * s,
+            meta.image.height * s,
+          );
+          if (hitboxes.checked) {
+            const hit = meta.hitboxPixels;
+            const cx = left + hit.centerX * s,
+              cy = top + hit.centerY * s;
+            ctx.strokeStyle = "#40fff1";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            if (hit.shape === "circle")
+              ctx.arc(cx, cy, hit.radius * s, 0, Math.PI * 2);
+            else
+              ctx.rect(
+                cx - (hit.width * s) / 2,
+                cy - (hit.height * s) / 2,
+                hit.width * s,
+                hit.height * s,
+              );
+            ctx.stroke();
+          }
+        }
+      }
+      try {
+        const manifest = await json("manifest.json");
+        const loaded = await Promise.all(
+          manifest.assets.map(async (entry) => {
+            const meta = await json(entry.metadata);
+            const image = new Image();
+            image.src = meta.image.file;
+            await image.decode();
+            if (
+              image.naturalWidth !== meta.image.width ||
+              image.naturalHeight !== meta.image.height
+            )
+              throw new Error(`PNG size mismatch: ${meta.id}`);
+            return { meta, image, entry };
+          }),
+        );
+        for (const { meta, image, entry } of loaded) {
+          const card = document.createElement("article");
+          card.className = "card";
+          const stage = document.createElement("div");
+          stage.className = "stage";
+          const canvas = document.createElement("canvas");
+          canvas.setAttribute("role", "img");
+          canvas.setAttribute("aria-label", meta.id.replaceAll("-", " "));
+          stage.append(canvas);
+          const info = document.createElement("div");
+          info.className = "info";
+          const title = document.createElement("h2");
+          title.textContent = meta.id;
+          const detail = document.createElement("p");
+          const [w, h] = dimensions(meta.recommendedWorld.hitbox);
+          detail.textContent = `${meta.sizeClass} · ${meta.hitboxPixels.shape} · ${w.toFixed(1)} × ${h.toFixed(1)} units`;
+          const links = document.createElement("div");
+          links.className = "links";
+          for (const [text, path] of [
+            ["PNG", meta.image.file],
+            ["JSON", entry.metadata],
+          ]) {
+            const link = document.createElement("a");
+            link.textContent = text;
+            link.href = path;
+            links.append(link);
+          }
+          info.append(title, detail, links);
+          card.append(stage, info);
+          gallery.append(card);
+          items.push({ meta, image, canvas, stage });
+        }
+        render();
+        status.textContent = `${items.length} props loaded. Hitboxes match the integrated shared variant catalog.`;
+        document.body.dataset.ready = "true";
+      } catch (error) {
+        status.textContent = `Unable to load gallery: ${error.message}. Serve this folder over HTTP; see README.`;
+        status.className = "error";
+      }
+      for (const control of [hitboxes, scaleChoice, ground])
+        control.addEventListener("change", render);
+      window.addEventListener("resize", render);
+    </script>
+  </body>
+</html>

@@ -205,10 +205,17 @@ test("a gun ray stops at the same point whichever order the scenery in its line 
   // The contact bisection starts from the contact found before it, so visiting the far rock first used to move the
   // low bits of where the near rock stopped the bullet.
   const rocks: Obstacle[] = [
-    { id: 1, kind: "rock", x: 703.1, y: 450, halfWidth: 41.3, halfHeight: 200 },
+    {
+      id: 1,
+      kind: "building",
+      x: 703.1,
+      y: 450,
+      halfWidth: 41.3,
+      halfHeight: 200,
+    },
     {
       id: 2,
-      kind: "rock",
+      kind: "building",
       x: 1103.7,
       y: 450,
       halfWidth: 39.9,
@@ -246,7 +253,7 @@ test("a rider dies at the same point against scenery whichever order the obstacl
   const rocks: Obstacle[] = [
     {
       id: 1,
-      kind: "rock",
+      kind: "building",
       x: 351.3,
       y: 350.1,
       halfWidth: 41.3,
@@ -254,7 +261,7 @@ test("a rider dies at the same point against scenery whichever order the obstacl
     },
     {
       id: 2,
-      kind: "rock",
+      kind: "building",
       x: 352.9,
       y: 550.3,
       halfWidth: 41.3,
@@ -281,12 +288,12 @@ test("a rider dies at the same point against scenery whichever order the obstacl
 });
 
 test("a shield turns a rider away from the same obstacle whichever order two it reaches at once are stored in", () => {
-  // Two trees mirrored about the lane are reached at exactly the same instant, and their faces lean opposite ways.
+  // Two circular rocks mirrored about the lane are reached at exactly the same instant, and their faces lean opposite ways.
   // The contact loop keeps the last obstacle to match the earliest contact, which is the higher id and not whichever
   // happens to be stored last.
   const trees: Obstacle[] = [
-    { id: 1, kind: "tree", x: 340, y: 430, halfWidth: 30, halfHeight: 30 },
-    { id: 2, kind: "tree", x: 340, y: 470, halfWidth: 30, halfHeight: 30 },
+    { id: 1, kind: "rock", x: 340, y: 430, halfWidth: 27, halfHeight: 27 },
+    { id: 2, kind: "rock", x: 340, y: 470, halfWidth: 27, halfHeight: 27 },
   ];
   const headings = [trees, [...trees].reverse()].map((obstacles) => {
     const game = lane(obstacles);
@@ -310,7 +317,14 @@ test("a shell against two pieces of scenery at once reflects the same way whiche
   // contact wins a tie and its reflection takes the shell off the other, so the order the walls are read in decides
   // which way it goes.
   const scenery: Obstacle[] = [
-    { id: 1, kind: "rock", x: 700, y: 500, halfWidth: 100, halfHeight: 100 },
+    {
+      id: 1,
+      kind: "building",
+      x: 700,
+      y: 500,
+      halfWidth: 100,
+      halfHeight: 100,
+    },
     { id: 2, kind: "crate", x: 570, y: 540, halfWidth: 20, halfHeight: 20 },
   ];
   const shells = [scenery, [...scenery].reverse()].map((obstacles) => {

@@ -13,6 +13,8 @@ export interface ShellPoint {
   t: number;
 }
 export interface ShellTrail {
+  /** Explicit solid-surface radius; absent means a trail with trailWidth / 2 thickness. */
+  radius?: number;
   x1: number;
   y1: number;
   x2: number;
@@ -64,7 +66,7 @@ export function advanceShell(
         dy,
         Math.min(endTime - t, tx, ty),
         trail,
-        SHELL_RADIUS + trailWidth / 2,
+        SHELL_RADIUS + (trail.radius ?? trailWidth / 2),
       );
       if (candidate && (!hit || candidate.time < hit.time)) hit = candidate;
     }

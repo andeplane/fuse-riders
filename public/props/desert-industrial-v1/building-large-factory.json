@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "building-large-factory",
+  "category": "building",
+  "sizeClass": "large",
+  "description": "Large tall slate factory with two circular fans and several roof vents.",
+  "image": {
+    "file": "building-large-factory.png",
+    "width": 1013,
+    "height": 1553,
+    "sha256": "4f358465d521eb180ec2d89cd54f40e8622d36ebdacfb8f4e185fa3241276b78"
+  },
+  "anchorPixels": {
+    "x": 507.0,
+    "y": 774.0
+  },
+  "hitboxPixels": {
+    "shape": "rectangle",
+    "centerX": 507.0,
+    "centerY": 774.0,
+    "width": 742,
+    "height": 1304
+  },
+  "recommendedWorld": {
+    "unitsPerPixel": 0.1411042944785276,
+    "rotationDegrees": 0,
+    "hitbox": {
+      "shape": "rectangle",
+      "centerX": 0,
+      "centerY": 0,
+      "width": 104.69938650306747,
+      "height": 184.0
+    }
+  },
+  "collisionFit": {
+    "method": "alpha-128-bounds",
+    "silhouetteIoU": 0.978323
+  }
+}

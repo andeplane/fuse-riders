@@ -48,7 +48,7 @@ No player-facing path ran without settings, so removing the fallbacks changes no
 
 `games/fuse-riders/src/engine/bomb-gesture.ts` is the only place a rider's button becomes the ordered `press` / `release` / `cancel` commands `step` reads: `pressGesture`, `releaseGesture`, `cancelGesture`, `aimGesture` over `{ aim, activeGesture, latestGesture }`. `foldPlayerEntries` calls it with the gesture ids the log carries. Its four cases moved verbatim, so what replicas agree on is unchanged.
 
-`BombInputBuffer` (`games/fuse-riders/src/engine/bomb-input.ts`) was the LAN server's per-connection buffer and had its own state machine. Nothing in the app uses it (the client's input capture is `RoomRuntime.input`, which writes log entries, and the local rider is predicted by folding those entries through `applyTick` like everyone else's); two test files do. It is now the same core behind a device's frames: it numbers gestures itself and queues commands until drained. Its API lost the LAN `held` flag: `accept(action?, aim?)`, `cancel()`.
+`BombInputBuffer` (`games/fuse-riders/src/engine/bomb-input.ts`) was the LAN server's per-connection buffer and had its own state machine. Nothing in the app used it (the client's input capture is `RoomRuntime.input`, which writes log entries, and the local rider is predicted by folding those entries through `applyTick` like everyone else's); only two test files did. This stage put it on the shared core, and a later dead-code audit removed it and its two tests: once both sides ran one core the differential test asserted only that two wrappers over one implementation agree, and no shipping caller was left to keep the wrapper for. `foldPlayerEntries` is now the core's only caller. The findings below are kept as the record of C2.
 
 Before unifying, a differential test (`games/fuse-riders/tests/bomb-input-differential.test.ts`, first version in commit `769a2fb`) drove both from one model of a device and recorded where they parted on #309's head:
 
@@ -64,7 +64,7 @@ Before unifying, a differential test (`games/fuse-riders/tests/bomb-input-differ
 
 One act per tick, over 400 seeded streams of 60 acts, the first disagreement was always 1, 2 or 3; with those three acts removed the two agreed on every stream. 4 to 7 need several acts in a tick or state the log cannot express, and were written out by hand.
 
-The shared core has the fold's semantics in every case, because that is what online play does and the golden must not move. The buffer keeps one rule of its own, the bound on its queue (past eight, the tick's commands are dropped for one `cancel` and the held gesture is abandoned), now without the neutral-frame handshake. The differential test stays as a regression: 500 seeded streams with up to four acts a tick must agree command for command, and the seven findings are kept as named cases with their one answer.
+The shared core has the fold's semantics in every case, because that is what online play does and the golden must not move. While the buffer existed it kept one rule of its own, the bound on its queue (past eight, the tick's commands were dropped for one `cancel` and the held gesture abandoned), without the neutral-frame handshake. The differential test outlived the drift it was written for and went with the buffer; `bomb-gesture.ts` remains the single core, and the golden holds the fold's semantics.
 
 Nothing here is observable online, so there is no rules change.
 

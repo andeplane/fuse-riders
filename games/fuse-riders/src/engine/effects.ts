@@ -40,13 +40,10 @@ export type EffectKind = (typeof EFFECT_KINDS)[number];
  * A `stack` deadline leaves the rider once it has passed (`expireEffects`). An `extend` or `replace` effect keeps its
  * last deadline after it has passed, as a record of when it ended: the view projects it, and presentation reads a new
  * portal cooldown deadline as the rider having gone through a gate.
- */
-export type EffectStacking = "stack" | "extend" | "replace";
-
-/**
- * How an effect stacks. A stacking effect also states the longest one application lasts, `maxDurationTicks`: its
- * deadlines are never further out than that from the tick they were taken on, and a checkpoint holding one that is
- * refuses it (`isCanonical`). The type makes it part of the row, so a new stacking kind cannot forget it.
+ *
+ * A stacking effect also states the longest one application lasts, `maxDurationTicks`: its deadlines are never
+ * further out than that from the tick they were taken on, and a checkpoint holding one that is refuses it
+ * (`isCanonical`). The type makes it part of the row, so a new stacking kind cannot forget it.
  */
 export type EffectStackingRule =
   | { stacking: "stack"; maxDurationTicks: number }

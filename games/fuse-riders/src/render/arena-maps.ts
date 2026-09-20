@@ -4,7 +4,7 @@ import type {
   ObstacleKind,
   Track,
 } from "../engine/view.js";
-import { trackLength, trackPose } from "../engine/view-kit.js";
+import { obstacleVariant, trackLength, trackPose } from "../engine/view-kit.js";
 import type { ThemeDefinition } from "./themes.js";
 
 /**
@@ -109,52 +109,14 @@ interface ObstacleStyle {
   top: string;
   shade: string;
   detail: string;
-  build: "block" | "tree" | "cactus" | "tower" | "wall" | "train";
+  build: "wall" | "train";
 }
 
-export const OBSTACLE_STYLES: Record<ObstacleKind, ObstacleStyle> = {
-  rock: {
-    body: "#ae7154",
-    top: "#e8ac79",
-    shade: "#513d3b",
-    detail: "#805449",
-    build: "block",
-  },
-  crate: {
-    body: "#8a6534",
-    top: "#bd8c4c",
-    shade: "#3c2a12",
-    detail: "#d8a45c",
-    build: "block",
-  },
-  cactus: {
-    body: "#2f8f4f",
-    top: "#55d47f",
-    shade: "#123a20",
-    detail: "#8fffb4",
-    build: "cactus",
-  },
-  tree: {
-    body: "#1f7a3a",
-    top: "#3fc966",
-    shade: "#0a2b14",
-    detail: "#5a3a1e",
-    build: "tree",
-  },
-  bush: {
-    body: "#276b34",
-    top: "#4ab35c",
-    shade: "#0b2513",
-    detail: "#8ce89c",
-    build: "tree",
-  },
-  building: {
-    body: "#414462",
-    top: "#8b82b0",
-    shade: "#12162a",
-    detail: "#67e6dc",
-    build: "tower",
-  },
+/**
+ * Only the movers are painted from primitives. Standing scenery is the shared prop catalog, drawn as its own
+ * artwork (`DEFAULT_OBSTACLE_ART`), so a rock or a crate has no style here.
+ */
+export const OBSTACLE_STYLES: Record<MoverObstacleKind, ObstacleStyle> = {
   // The drifting cross is drawn as the pixel style draws the boundary: a violet run with warning studs along it.
   wall: {
     body: "#593dba",
@@ -203,419 +165,201 @@ function noise(seed: number, step: number): number {
   return ((mixed ^ (mixed >>> 15)) >>> 0) / 0x1_0000_0000;
 }
 
+export interface ObstacleArtwork {
+  file: string;
+  anchorX: number;
+  anchorY: number;
+  unitsPerPixel: number;
+  pixelWidth: number;
+  pixelHeight: number;
+}
+/** Original source PNG coordinates; dimensions and scales are checked against the sidecars. */
+export const DEFAULT_OBSTACLE_ART: Readonly<Record<string, ObstacleArtwork>> = {
+  "building-small-sandstone": {
+    file: "/props/desert-industrial-v1/building-small-sandstone.png",
+    anchorX: 628.5,
+    anchorY: 613.5,
+    unitsPerPixel: 0.10158730158730159,
+    pixelWidth: 1254,
+    pixelHeight: 1254,
+  },
+  "building-small-vent": {
+    file: "/props/desert-industrial-v1/building-small-vent.png",
+    anchorX: 627.5,
+    anchorY: 613.0,
+    unitsPerPixel: 0.0994263862332696,
+    pixelWidth: 1254,
+    pixelHeight: 1254,
+  },
+  "building-small-workshop": {
+    file: "/props/desert-industrial-v1/building-small-workshop.png",
+    anchorX: 830.0,
+    anchorY: 462.0,
+    unitsPerPixel: 0.09076175040518639,
+    pixelWidth: 1659,
+    pixelHeight: 948,
+  },
+  "building-large-warehouse": {
+    file: "/props/desert-industrial-v1/building-large-warehouse.png",
+    anchorX: 887.0,
+    anchorY: 446.0,
+    unitsPerPixel: 0.1343669250645995,
+    pixelWidth: 1774,
+    pixelHeight: 887,
+  },
+  "building-large-factory": {
+    file: "/props/desert-industrial-v1/building-large-factory.png",
+    anchorX: 507.0,
+    anchorY: 774.0,
+    unitsPerPixel: 0.1411042944785276,
+    pixelWidth: 1013,
+    pixelHeight: 1553,
+  },
+  "building-large-sandstone": {
+    file: "/props/desert-industrial-v1/building-large-sandstone.png",
+    anchorX: 661.0,
+    anchorY: 596.0,
+    unitsPerPixel: 0.1629327902240326,
+    pixelWidth: 1322,
+    pixelHeight: 1190,
+  },
+  "crate-small-wood": {
+    file: "/props/desert-industrial-v1/crate-small-wood.png",
+    anchorX: 626.5,
+    anchorY: 628.5,
+    unitsPerPixel: 0.03858520900321544,
+    pixelWidth: 1254,
+    pixelHeight: 1254,
+  },
+  "crate-long-wood": {
+    file: "/props/desert-industrial-v1/crate-long-wood.png",
+    anchorX: 627.0,
+    anchorY: 649.0,
+    unitsPerPixel: 0.0711743772241993,
+    pixelWidth: 1254,
+    pixelHeight: 1254,
+  },
+  "crate-tall-metal": {
+    file: "/props/desert-industrial-v1/crate-tall-metal.png",
+    anchorX: 467.5,
+    anchorY: 866.0,
+    unitsPerPixel: 0.053811659192825115,
+    pixelWidth: 934,
+    pixelHeight: 1684,
+  },
+  "crate-wide-amber": {
+    file: "/props/desert-industrial-v1/crate-wide-amber.png",
+    anchorX: 768.5,
+    anchorY: 501.0,
+    unitsPerPixel: 0.0477326968973747,
+    pixelWidth: 1536,
+    pixelHeight: 1024,
+  },
+  "rock-small-faceted": {
+    file: "/props/desert-industrial-v1/rock-small-faceted.png",
+    anchorX: 627.0,
+    anchorY: 624.0,
+    unitsPerPixel: 0.06755126658624849,
+    pixelWidth: 1254,
+    pixelHeight: 1254,
+  },
+  "rock-large-cracked": {
+    file: "/props/desert-industrial-v1/rock-large-cracked.png",
+    anchorX: 627.0,
+    anchorY: 623.0,
+    unitsPerPixel: 0.11363636363636363,
+    pixelWidth: 1254,
+    pixelHeight: 1254,
+  },
+  "rock-medium-fused": {
+    file: "/props/desert-industrial-v1/rock-medium-fused.png",
+    anchorX: 627.0,
+    anchorY: 630.0,
+    unitsPerPixel: 0.09112709832134293,
+    pixelWidth: 1254,
+    pixelHeight: 1254,
+  },
+  "pyramid-small-sandstone": {
+    file: "/props/desert-industrial-v1/pyramid-small-sandstone.png",
+    anchorX: 627.0,
+    anchorY: 631.5,
+    unitsPerPixel: 0.08294930875576037,
+    pixelWidth: 1254,
+    pixelHeight: 1254,
+  },
+  "pyramid-large-stepped": {
+    file: "/props/desert-industrial-v1/pyramid-large-stepped.png",
+    anchorX: 767.5,
+    anchorY: 514.5,
+    unitsPerPixel: 0.11276429130775255,
+    pixelWidth: 1536,
+    pixelHeight: 1024,
+  },
+  "pyramid-tall-obsidian": {
+    file: "/props/desert-industrial-v1/pyramid-tall-obsidian.png",
+    anchorX: 627.5,
+    anchorY: 613.5,
+    unitsPerPixel: 0.11416921508664628,
+    pixelWidth: 1254,
+    pixelHeight: 1254,
+  },
+};
+/** Add map-specific replacements by stable variant id; absent variants always use the shared pack. */
+export type MapObstacleArt = Partial<
+  Record<ArenaMapId, Readonly<Record<string, ObstacleArtwork>>>
+>;
+export const MAP_OBSTACLE_ART: MapObstacleArt = {};
 /**
- * Map-specific landmarks use normalized artwork inside the existing footprint.
- * These are skins for wire-level rock/building kinds, never new collision geometry.
+ * A piece's artwork: the map's own replacement for that variant when it has one, else the shared pack. A mover carries
+ * no artwork — it is painted from primitives (`obstacleParts`) — so it has none.
  */
-function landmarkParts(
+export function obstacleArtwork(
   obstacle: Obstacle,
   map: ArenaMapId,
-): ObstaclePart[] | null {
-  if (obstacle.kind !== "rock" && obstacle.kind !== "building") return null;
-  const { x, y, halfWidth: hw, halfHeight: hh } = obstacle;
-  const left = x - hw,
-    top = y - hh,
-    w = hw * 2,
-    h = hh * 2;
-  const parts: ObstaclePart[] = [
-    {
-      shape: "rect",
-      x: left + 4,
-      y: top + 6,
-      width: w,
-      height: h,
-      color: "#000000",
-      alpha: 0.35,
-    },
+  skins: MapObstacleArt = MAP_OBSTACLE_ART,
+): ObstacleArtwork | null {
+  const variant = obstacleVariant(obstacle);
+  if (!variant) return null;
+  return skins[map]?.[variant.id] ?? DEFAULT_OBSTACLE_ART[variant.id]!;
+}
+export function obstacleTextureKey(art: ObstacleArtwork): string {
+  return `obstacle:${art.file}`;
+}
+export function obstacleArtSources(
+  skins: MapObstacleArt = MAP_OBSTACLE_ART,
+): ObstacleArtwork[] {
+  return [
+    ...new Map(
+      [
+        ...Object.values(DEFAULT_OBSTACLE_ART),
+        ...Object.values(skins).flatMap((skin) => Object.values(skin)),
+      ].map((art) => [art.file, art]),
+    ).values(),
   ];
-  const rect = (
-    u: number,
-    v: number,
-    width: number,
-    height: number,
-    color: string,
-  ) =>
-    parts.push({
-      shape: "rect",
-      x: left + u * w,
-      y: top + v * h,
-      width: width * w,
-      height: height * h,
-      color,
-    });
-  const ellipse = (
-    u: number,
-    v: number,
-    rx: number,
-    ry: number,
-    color: string,
-  ) =>
-    parts.push({
-      shape: "ellipse",
-      x: left + u * w,
-      y: top + v * h,
-      radiusX: rx * w,
-      radiusY: ry * h,
-      color,
-    });
-  const triangle = (
-    u1: number,
-    v1: number,
-    u2: number,
-    v2: number,
-    u3: number,
-    v3: number,
-    color: string,
-  ) =>
-    parts.push({
-      shape: "triangle",
-      x1: left + u1 * w,
-      y1: top + v1 * h,
-      x2: left + u2 * w,
-      y2: top + v2 * h,
-      x3: left + u3 * w,
-      y3: top + v3 * h,
-      color,
-    });
-  if (obstacle.kind === "building") {
-    // Parapet around a flat roof: equipment and service access, no facade windows.
-    rect(0, 0, 1, 1, "#171d30");
-    rect(0.02, 0.02, 0.96, 0.96, "#9c9aae");
-    rect(0.04, 0.05, 0.92, 0.91, "#565b73");
-    rect(0.07, 0.09, 0.86, 0.82, obstacle.id % 2 ? "#343e50" : "#444257");
-    rect(0.07, 0.09, 0.86, 0.035, "#262c40");
-    rect(0.07, 0.09, 0.025, 0.82, "#262c40");
-    // Raised stairwell with a shaded side and a small roof access hatch.
-    rect(0.16, 0.2, 0.29, 0.36, "#202b3d");
-    rect(0.13, 0.16, 0.29, 0.34, "#afb3b6");
-    rect(0.15, 0.19, 0.25, 0.27, "#7c8997");
-    rect(0.2, 0.28, 0.12, 0.14, "#3c485e");
-    rect(0.29, 0.34, 0.015, 0.025, "#ebd6a3");
-    // Two fan housings, with cross-blades rather than glowing panes.
-    for (const v of [0.21, 0.53]) {
-      rect(0.6, v + 0.03, 0.25, 0.25, "#232b3c");
-      rect(0.57, v, 0.25, 0.25, "#8d9da6");
-      ellipse(0.695, v + 0.125, 0.085, 0.085, "#303e4f");
-      ellipse(0.695, v + 0.125, 0.057, 0.057, "#526475");
-      rect(0.685, v + 0.054, 0.02, 0.142, "#a8bac0");
-      rect(0.624, v + 0.115, 0.142, 0.02, "#a8bac0");
-    }
-    // Conduit from the stairwell to the air handlers and a striped service zone.
-    rect(0.22, 0.55, 0.025, 0.27, "#829493");
-    rect(0.22, 0.795, 0.46, 0.025, "#829493");
-    for (let stripe = 0; stripe < 4; stripe++)
-      rect(0.31 + stripe * 0.048, 0.64, 0.024, 0.08, "#d6b875");
-  } else if (map === "forest") {
-    // A fallen trunk: bark fills the solid rectangle, with a cut end, growth rings and moss.
-    rect(0, 0, 1, 1, "#38291f");
-    rect(0.04, 0.03, 0.96, 0.91, "#755039");
-    rect(0.08, 0.12, 0.92, 0.14, "#ad7b4e");
-    rect(0.08, 0.78, 0.92, 0.16, "#4e382d");
-    for (let groove = 0; groove < 5; groove++) {
-      const start = 0.22 + noise(obstacle.id, groove) * 0.18;
-      rect(start, 0.2 + groove * 0.135, 0.94 - start, 0.025, "#46332a");
-    }
-    ellipse(0.15, 0.5, 0.15, 0.48, "#d5ac71");
-    ellipse(0.15, 0.5, 0.115, 0.39, "#855b38");
-    ellipse(0.15, 0.5, 0.085, 0.31, "#d5ac71");
-    ellipse(0.15, 0.5, 0.054, 0.22, "#a67646");
-    ellipse(0.15, 0.5, 0.025, 0.11, "#e3bd80");
-    for (let moss = 0; moss < 5; moss++) {
-      const u = 0.42 + moss * 0.1;
-      ellipse(u, 0.17 + (moss % 2) * 0.05, 0.075, 0.11, "#426c3c");
-      ellipse(u, 0.15 + (moss % 2) * 0.05, 0.043, 0.055, "#76924a");
-    }
-    // Small flowers rooted in the moss.
-    for (const u of [0.48, 0.78]) {
-      ellipse(u - 0.025, 0.23, 0.025, 0.04, "#efbadb");
-      ellipse(u + 0.025, 0.23, 0.025, 0.04, "#efbadb");
-      ellipse(u, 0.19, 0.025, 0.04, "#fce0e7");
-      ellipse(u, 0.27, 0.025, 0.04, "#fce0e7");
-      ellipse(u, 0.23, 0.015, 0.025, "#ffd477");
-    }
-  } else {
-    // Four sunlit/shaded faces meeting at an apex; nested courses read as a stepped pyramid.
-    rect(0, 0, 1, 1, "#947047");
-    for (let level = 0; level < 5; level++) {
-      const a = 0.025 + level * 0.075,
-        b = 1 - a;
-      triangle(a, a, b, a, 0.5, 0.5, level % 2 ? "#ead095" : "#dfbe7e");
-      triangle(a, a, 0.5, 0.5, a, b, level % 2 ? "#c39a5c" : "#ceaa69");
-      triangle(b, a, b, b, 0.5, 0.5, level % 2 ? "#a27b49" : "#b28a50");
-      triangle(a, b, 0.5, 0.5, b, b, level % 2 ? "#86613e" : "#957147");
-    }
-    // Central stair descending the south face.
-    rect(0.455, 0.53, 0.09, 0.445, "#d1aa6c");
-    for (let step = 0; step < 6; step++)
-      rect(0.455, 0.57 + step * 0.067, 0.09, 0.015, "#8e693e");
-    rect(0.45, 0.45, 0.1, 0.1, "#f3dca1");
-  }
-  return parts;
 }
 
-/** Everything the renderer draws for one obstacle, back to front, in world units. */
+/** The kinds drawn from primitives: a map's movers, which carry no artwork of their own. */
+export type MoverObstacleKind = Extract<ObstacleKind, "wall" | "train">;
+export function isMoverObstacleKind(
+  kind: ObstacleKind,
+): kind is MoverObstacleKind {
+  return kind === "wall" || kind === "train";
+}
+
+/**
+ * A mover's primitives. Standing scenery is drawn from its catalog artwork instead, so this returns nothing for
+ * it: a caller that paints every obstacle would otherwise draw a rock twice.
+ */
 export function obstacleParts(
   obstacle: Obstacle,
-  map: ArenaMapId,
+  _map: ArenaMapId,
   mover?: MoverPose,
 ): ObstaclePart[] {
-  const landmark = landmarkParts(obstacle, map);
-  if (landmark) return landmark;
+  if (!isMoverObstacleKind(obstacle.kind)) return [];
   const style = OBSTACLE_STYLES[obstacle.kind];
-  const { x, y, halfWidth: hw, halfHeight: hh } = obstacle;
-  const left = x - hw,
-    top = y - hh,
-    width = hw * 2,
-    height = hh * 2;
-  if (style.build === "wall") return wallParts(obstacle, style);
-  if (style.build === "train") return trainCarParts(obstacle, mover);
-  // The ground shadow anchors a piece to the floor, and takes the silhouette of what stands on it: a rectangle
-  // under a tree would advertise a footprint the crown does not fill.
-  const parts: ObstaclePart[] = [];
-  if (style.build === "tree") {
-    // The crown is an ellipse on the footprint's own half extents, not a circle on the smaller of them: riders die
-    // against that same ellipse, a little shrunk (`obstacleHitbox`), so a crown drawn any smaller would kill riders
-    // that touched nothing drawn. Tree and bush sizes are rolled per axis, so they are rarely square.
-    parts.push({
-      shape: "ellipse",
-      x: x + 4,
-      y: y + 6,
-      radiusX: hw,
-      radiusY: hh,
-      color: "#000000",
-      alpha: 0.35,
-    });
-    parts.push({
-      shape: "ellipse",
-      x,
-      y,
-      radiusX: hw,
-      radiusY: hh,
-      color: style.shade,
-    });
-    parts.push({
-      shape: "ellipse",
-      x: x - hw * 0.12,
-      y: y - hh * 0.1,
-      radiusX: hw * 0.78,
-      radiusY: hh * 0.78,
-      color: style.body,
-    });
-    parts.push({
-      shape: "ellipse",
-      x: x + hw * 0.2,
-      y: y + hh * 0.18,
-      radiusX: hw * 0.5,
-      radiusY: hh * 0.5,
-      color: style.body,
-    });
-    parts.push({
-      shape: "ellipse",
-      x: x - hw * 0.22,
-      y: y - hh * 0.28,
-      radiusX: hw * 0.3,
-      radiusY: hh * 0.3,
-      color: style.top,
-    });
-    // Inset leaf clusters keep the full elliptical crown legible at collision edges.
-    for (let leaf = 0; leaf < 9; leaf++) {
-      const angle = (leaf / 9) * Math.PI * 2;
-      parts.push({
-        shape: "ellipse",
-        x: x + Math.cos(angle) * hw * 0.48,
-        y: y + Math.sin(angle) * hh * 0.48,
-        radiusX: hw * (obstacle.kind === "bush" ? 0.18 : 0.25),
-        radiusY: hh * 0.2,
-        color: leaf % 3 === 0 ? style.top : style.body,
-      });
-    }
-    if (obstacle.kind === "bush") {
-      for (let berry = 0; berry < 5; berry++) {
-        parts.push({
-          shape: "rect",
-          x: x - hw * 0.4 + noise(obstacle.id, berry) * hw * 0.8,
-          y: y - hh * 0.4 + noise(obstacle.id, berry + 9) * hh * 0.8,
-          width: 3,
-          height: 3,
-          color: "#f1b887",
-        });
-      }
-      return parts;
-    }
-    // The trunk base, peeking out at the foot of the crown, is what tells a tree from a rock at a glance.
-    const trunkWidth = Math.max(6, width * 0.18);
-    parts.push({
-      shape: "rect",
-      x: x - trunkWidth / 2,
-      y: y + hh * 0.55,
-      width: trunkWidth,
-      height: hh * 0.45,
-      color: style.detail,
-    });
-    return parts;
-  }
-  parts.push({
-    shape: "rect",
-    x: left + 4,
-    y: top + 6,
-    width,
-    height,
-    color: "#000000",
-    alpha: 0.35,
-  });
-  if (style.build === "cactus") {
-    const stem = Math.max(8, width * 0.42);
-    parts.push({
-      shape: "rect",
-      x: x - stem / 2,
-      y: top,
-      width: stem,
-      height,
-      color: style.body,
-    });
-    parts.push({
-      shape: "rect",
-      x: x - stem / 2,
-      y: top,
-      width: Math.max(2, stem * 0.3),
-      height,
-      color: style.top,
-    });
-    // One arm each side, the lower one shorter, so a cactus reads as a cactus at any size.
-    const armThickness = Math.max(5, stem * 0.55);
-    parts.push({
-      shape: "rect",
-      x: left,
-      y: y - hh * 0.25,
-      width: hw,
-      height: armThickness,
-      color: style.body,
-    });
-    parts.push({
-      shape: "rect",
-      x: left,
-      y: y - hh * 0.25 - hh * 0.35,
-      width: armThickness,
-      height: hh * 0.4,
-      color: style.body,
-    });
-    parts.push({
-      shape: "rect",
-      x: x + stem / 2,
-      y: y + hh * 0.1,
-      width: hw - stem / 2,
-      height: armThickness,
-      color: style.body,
-    });
-    parts.push({
-      shape: "rect",
-      x: x + hw - armThickness,
-      y: y - hh * 0.25,
-      width: armThickness,
-      height: hh * 0.4,
-      color: style.body,
-    });
-    parts.push({
-      shape: "rect",
-      x: x - stem * 0.22,
-      y: top + 2,
-      width: stem * 0.44,
-      height: Math.min(5, hh * 0.2),
-      color: "#ffadba",
-    });
-    for (let rib = 1; rib < 4; rib += 1) {
-      parts.push({
-        shape: "rect",
-        x: x - stem / 2 + 2,
-        y: top + (height * rib) / 4,
-        width: stem - 4,
-        height: 1.5,
-        color: style.shade,
-        alpha: 0.6,
-      });
-    }
-    return parts;
-  }
-  parts.push({
-    shape: "rect",
-    x: left,
-    y: top,
-    width,
-    height,
-    color: style.shade,
-  });
-  parts.push({
-    shape: "rect",
-    x: left + 2,
-    y: top + 2,
-    width: width - 4,
-    height: height - 4,
-    color: style.body,
-  });
-  parts.push({
-    shape: "rect",
-    x: left + 3,
-    y: top + 3,
-    width: width - 6,
-    height: Math.min(6, height * 0.18),
-    color: style.top,
-  });
-  parts.push({
-    shape: "rect",
-    x: left + 3,
-    y: top + height - 5,
-    width: width - 6,
-    height: 3,
-    color: style.shade,
-    alpha: 0.8,
-  });
-  if (obstacle.kind === "crate") {
-    // Metal binding and corner rivets around timber slats.
-    for (const fraction of [0.28, 0.66]) {
-      parts.push({
-        shape: "rect",
-        x: left + width * fraction,
-        y: top + 3,
-        width: 3,
-        height: height - 6,
-        color: "#e0af73",
-      });
-    }
-    for (const fraction of [0.28, 0.55, 0.78]) {
-      parts.push({
-        shape: "rect",
-        x: left + 4,
-        y: top + height * fraction,
-        width: width - 8,
-        height: 2,
-        color: style.shade,
-        alpha: 0.55,
-      });
-    }
-    for (const dx of [4, width - 7])
-      for (const dy of [4, height - 7])
-        parts.push({
-          shape: "rect",
-          x: left + dx,
-          y: top + dy,
-          width: 3,
-          height: 3,
-          color: "#ffe1a5",
-        });
-  }
-  // Crates get one deterministic chip each, the same trick the pixel wall uses to break up a flat face.
-  const chipWidth = Math.max(4, width * 0.2),
-    chipHeight = Math.max(3, height * 0.16);
-  parts.push({
-    shape: "rect",
-    x: left + 5 + noise(obstacle.id, 1) * Math.max(0, width - chipWidth - 10),
-    y: top + 8 + noise(obstacle.id, 2) * Math.max(0, height - chipHeight - 12),
-    width: chipWidth,
-    height: chipHeight,
-    color: style.detail,
-    alpha: 0.75,
-  });
-  return parts;
+  return style.build === "wall"
+    ? wallParts(obstacle, style)
+    : trainCarParts(obstacle, mover);
 }
 
 /**

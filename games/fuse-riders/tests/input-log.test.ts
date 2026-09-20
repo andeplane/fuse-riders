@@ -151,7 +151,8 @@ test("entry validation accepts every kind and rejects malformed shapes, bounds a
   assert.equal(isManagementKind(STEER), false);
 });
 
-test("the gesture fold mirrors the LAN bomb buffer: press, replacement, matching release, cancel, mismatch", () => {
+// These are the cases the retired LAN buffer was held to before it was deleted: every replica's bomb semantics.
+test("the gesture fold: press, replacement, matching release, cancel, mismatch", () => {
   const held = neutralControls();
   assert.deepEqual(foldPlayerEntries(held, [entry(1, 1, STEER, 1)]), {
     left: true,
@@ -515,7 +516,7 @@ test("bots are simulated on every replica and the same log always folds to the s
   );
   assert.match(hashText("x"), /^[0-9a-f]{16}$/);
   assert.notEqual(hashText("a"), hashText("b"));
-  assert.equal(RULES, "fuse-p2p-49");
+  assert.equal(RULES, "fuse-p2p-50");
   const reordered = createRoomState("room", settings);
   reordered.game.players = new Map([...a.game.players].reverse());
   reordered.game.tick = a.game.tick;
