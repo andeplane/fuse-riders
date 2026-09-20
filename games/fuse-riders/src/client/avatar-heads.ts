@@ -1,10 +1,11 @@
 import { assetUrl } from "../render/asset-url.js";
-import { isAvatarId, type AvatarId } from "../engine/avatar-id.js";
+import { isRiderAvatarId, type AvatarId } from "../engine/avatar-id.js";
 import {
   AVATARS,
   AVATAR_ATLAS_URL,
   HUMAN_DEFAULT_AVATAR,
-  avatarCell,
+  avatarCellPosition,
+  RIDER_AVATARS,
 } from "../shared/avatars.js";
 import { createPicker, el, type Picker } from "fuse-ui";
 import "./avatar-heads.css";
@@ -20,8 +21,7 @@ export function createAvatarPortrait(id: AvatarId): HTMLSpanElement {
     "aria-label",
     `${AVATARS.find((avatar) => avatar.id === id)?.label ?? "Robot"} avatar`,
   );
-  const { column, row } = avatarCell(id);
-  portrait.style.backgroundPosition = `${column * 25}% ${row * 100}%`;
+  portrait.style.backgroundPosition = avatarCellPosition(id);
   return portrait;
 }
 
@@ -30,8 +30,7 @@ function optionPortrait(id: AvatarId): HTMLSpanElement {
   const portrait = el("span", "", "avatar-portrait");
   portrait.style.backgroundImage = `url("${assetUrl(AVATAR_ATLAS_URL)}")`;
   portrait.setAttribute("aria-hidden", "true");
-  const { column, row } = avatarCell(id);
-  portrait.style.backgroundPosition = `${column * 25}% ${row * 100}%`;
+  portrait.style.backgroundPosition = avatarCellPosition(id);
   return portrait;
 }
 
@@ -48,10 +47,13 @@ export function createAvatarPicker(
   fold?: { id: string },
 ): Picker<AvatarId> {
   const stored = storage.getItem(AVATAR_KEY);
-  const selected: AvatarId = isAvatarId(stored) ? stored : HUMAN_DEFAULT_AVATAR;
+  // A browser that remembers the robot from before it was the AI's alone starts on the default instead.
+  const selected: AvatarId = isRiderAvatarId(stored)
+    ? stored
+    : HUMAN_DEFAULT_AVATAR;
   const picker = createPicker<AvatarId>({
     legend: "Choose your avatar",
-    choices: AVATARS,
+    choices: RIDER_AVATARS,
     selected,
     art: optionPortrait,
     dataKey: "avatarId",

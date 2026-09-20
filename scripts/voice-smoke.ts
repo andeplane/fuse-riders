@@ -1,9 +1,10 @@
-import { readyRoom } from "./lib/ready-room.js";
 import type { Page } from "playwright";
+import { readyRoom } from "./lib/ready-room.js";
 import { launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { smokeTimeout } from "./smoke-timeout.js";
 import { mkdir } from "node:fs/promises";
+import { HASH_LAG, type RuntimeMetrics } from "fuse-netcode";
 
 // Chromium's synthetic microphone exercises real RTP. The harness observes peer connections and capture tracks,
 // and deliberately closes one link for recovery; it does not fake audio delivery, SDP, or gameplay.
@@ -17,6 +18,7 @@ interface Capture {
 const browser = await launchBrowser("chromium", {
   headless: true,
   args: [
+    "--mute-audio",
     "--use-fake-device-for-media-stream",
     "--use-fake-ui-for-media-stream",
   ],
@@ -132,16 +134,17 @@ try {
   });
   const host = await a.newPage();
   await instrument(host);
+  // The room is the join screen for its creator too: it is seated on arrival, under the remembered name.
+  await host.addInitScript(() =>
+    localStorage.setItem("fuse-riders-player-name", "Host"),
+  );
   await host.goto(base);
   console.log("Home loaded");
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
   console.log("Room created");
   const url = `${host.url()}&renderer=phaser-canvas`;
-  await host.getByPlaceholder("Your name").fill("Host");
-  await host
-    .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-    .click();
+  await host.locator(".room-riders > .room-rider").first().waitFor();
   assert.equal((await data(host)).requests, 0, "joining a room never captures");
   await voice(host);
   await host.getByRole("button", { name: "JOIN VOICE", exact: true }).click();
@@ -391,14 +394,50 @@ try {
   await guest.getByRole("button", { name: "LISTEN ONLY", exact: true }).click();
   assert.equal((await data(guest)).requests, 4);
   await close(guest);
-  await readyRoom(host);
-  await host.waitForFunction(() =>
-    document.querySelector(".online-round")?.textContent?.includes("ROUND"),
-  );
+  // RTP can resume while the gameplay world is still being repaired. A READY vote during that repair can be
+  // cleared by the returning rider's PRESENCE or snapshot. Wait for confirmed post-recovery agreement first.
+  const recoveryTick = await guest
+    .locator(".online-app")
+    .evaluate(
+      (app: HTMLElement) =>
+        (JSON.parse(app.dataset.metrics!) as RuntimeMetrics).tick,
+    );
   await guest.waitForFunction(
-    () =>
-      document.querySelector(".online-arena")?.getAttribute("hidden") === null,
+    (barrier) => {
+      const raw =
+        document.querySelector<HTMLElement>(".online-app")?.dataset.metrics;
+      if (!raw) return false;
+      const metrics = JSON.parse(raw) as RuntimeMetrics;
+      const eligible =
+        metrics.tick > barrier.afterTick &&
+        (metrics.streams[barrier.authority]?.through ?? 0) >
+          barrier.afterTick &&
+        metrics.settled &&
+        !metrics.snapshotRequest &&
+        Object.values(metrics.streams).every((stream) => !stream.gap);
+      // Hashes lag the simulation. Once the world and authority stream have crossed the recovery tick plus
+      // that lag, require another comparison with no new mismatch. An observed resync resets this observation.
+      const matched =
+        eligible &&
+        barrier.checks >= 0 &&
+        metrics.hashChecks > barrier.checks &&
+        metrics.mismatches === barrier.mismatches;
+      barrier.checks = eligible ? metrics.hashChecks : -1;
+      barrier.mismatches = metrics.mismatches;
+      return matched;
+    },
+    {
+      afterTick: recoveryTick + HASH_LAG,
+      authority: hostPeerId,
+      checks: -1,
+      mismatches: -1,
+    },
+    { timeout: smokeTimeout(30000) },
   );
+  await readyRoom(host);
+  await host.locator(".online-round").waitFor({ state: "visible" });
+  await guest.locator(".online-round").waitFor({ state: "visible" });
+  await guest.locator(".online-arena").waitFor({ state: "visible" });
   await mkdir("artifacts", { recursive: true });
   await voice(host);
   await host.screenshot({ path: "artifacts/voice-chat.png" });

@@ -37,6 +37,15 @@ for (const [name, type] of [
       });
     };
     for (const page of [host, guest]) observe(page);
+    // Nobody types a name on the way into a room any more, so each page brings the one its browser remembers.
+    for (const [page, name] of [
+      [host, "Public host"],
+      [guest, "Public guest"],
+    ])
+      await page.addInitScript(
+        (value) => localStorage.setItem("fuse-riders-player-name", value),
+        name,
+      );
     const release = await hostContext.request.get(
       "https://andeplane.github.io/fuse-riders/release.json",
     );
@@ -49,10 +58,8 @@ for (const [name, type] of [
     await host.waitForURL(/room=/);
     const invite = host.url();
     result.created = true;
-    await host.getByPlaceholder("Your name").fill("Public host");
-    await host
-      .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-      .click();
+    // Both pages are seated by the room on arrival, under the name the browser remembers, with no form in between
+    // (`docs/design/room-is-the-join-screen.md`) — the creator's page included.
     await host
       .locator(":is(.online-roster,.room-riders):visible")
       .getByText("Public host", { exact: false })
@@ -61,10 +68,6 @@ for (const [name, type] of [
     await host.getByRole("button", { name: /Remove AI/ }).waitFor();
     result.aiAdded = true;
     await guest.goto(`${invite}&analytics=0`);
-    await guest.getByPlaceholder("Your name").fill("Public guest");
-    await guest
-      .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-      .click();
     await host
       .locator(":is(.online-roster,.room-riders):visible")
       .getByText("Public guest", { exact: false })

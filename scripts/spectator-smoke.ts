@@ -65,28 +65,54 @@ try {
     return page;
   };
 
-  // The host creates the room and takes a seat.
-  const host = await open("host", `${base}?mute=1&benchmark=1`);
+  // The host creates the room and is seated in it, under the name this browser remembers, with nothing in between.
+  const host = await open("host", `${base}?mute=1&benchmark=1`, "Hosty");
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
   const code = new URL(host.url()).searchParams.get("room")!;
   const roomUrl = `${base}?room=${code}&mute=1&benchmark=1`;
-  await host.getByPlaceholder("Your name").fill("Hosty");
-  await host
-    .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-    .click();
+  await host.locator(".room-riders > .room-rider").first().waitFor();
 
   // An invited device is seated by the room itself (`docs/design/room-is-the-join-screen.md`).
   const rider = await open("rider", roomUrl, "Rider");
 
   // The third page is seated the same way and then gives its seat up: with no card to choose from on the way in,
-  // WATCH on its own row is how a device ends up in the watching list.
+  // SWAP TO SPECTATOR beside READY is how a device ends up in the watching list.
   const watcher = await open("watcher", roomUrl, "Watcher");
   // The join card is still the way back in after a kick, so its button is kept for that below.
   const watchButton = watcher.getByRole("button", {
     name: "JOIN AS SPECTATOR",
     exact: true,
   });
+  // Before giving the seat up, wear a colour the room would not hand out again. Three riders hold the first three
+  // colours, so Fuchsia — the last of the ten — is one no free-colour rule could arrive at by itself: when this page
+  // comes back to a seat further down, the lowest free colour is the one it is vacating here, not this. That is what
+  // makes the colour assertion after the round trip mean "it asked for what it was wearing" rather than "it happened
+  // to be given the same one back".
+  await watcher.getByRole("button", { name: "COLOUR", exact: true }).click();
+  await watcher.getByRole("button", { name: "Fuchsia", exact: true }).click();
+  const FUCHSIA = "#e879f9";
+  /**
+   * Waits for the watcher's own seat to wear `wanted`. A colour is never part of the join that takes the seat — it
+   * is a separate entry that folds a tick or two later — so reading the row the moment the seat appears is a race,
+   * and one that passes about as often as it fails.
+   */
+  const wearsColor = (page: Page, wanted: string) =>
+    page.waitForFunction(
+      (color) =>
+        [
+          ...document.querySelectorAll<HTMLElement>(
+            ".room-riders > .room-rider:not(.room-watcher)",
+          ),
+        ].some(
+          (row) =>
+            row.textContent?.toLowerCase().includes("watcher") &&
+            row.style.getPropertyValue("--rider-color") === color,
+        ),
+      wanted,
+      { timeout: smokeTimeout(20000) },
+    );
+  await wearsColor(watcher, FUCHSIA);
   await watcher
     .getByRole("button", { name: "Give your seat up and watch instead" })
     .click();
@@ -163,16 +189,25 @@ try {
   const seats = (page: Page) =>
     page.locator(".room-riders > .room-rider:not(.room-watcher)").count();
   const watchers = (page: Page) => page.locator(".room-watcher").count();
-  const takeSeat = watcher.locator(".room-watcher > button.room-switch");
+  // One button, beside READY, about this device rather than about a row: a watcher's page offers the seat, and the
+  // pages watching it offer their own direction instead.
+  const takeSeat = watcher.locator(".online-host > button.room-switch");
   assert.equal(
     (await takeSeat.innerText()).trim(),
-    "TAKE A SEAT",
-    "the watcher's own row offers the seat",
+    "SWAP TO PLAYER",
+    "the watcher is offered a seat",
   );
   assert.equal(
-    await host.locator(".room-watcher > button.room-switch").isVisible(),
-    false,
-    "and nobody else's page offers it on that row",
+    (
+      await host.locator(".online-host > button.room-switch").innerText()
+    ).trim(),
+    "SWAP TO SPECTATOR",
+    "while a seated page is offered the watching list, not somebody else's seat",
+  );
+  assert.equal(
+    await host.locator(".room-watcher > button.room-switch").count(),
+    0,
+    "and no roster row carries a change-sides button at all any more",
   );
   await takeSeat.click();
   for (const [label, page] of [
@@ -192,11 +227,30 @@ try {
     assert.equal(await seats(page), 3, `${label} seats the watcher that sat`);
     assert.equal(await watchers(page), 0, `${label} empties the list`);
   }
+  // The seat comes back in the colour this device was wearing when it left, not in whatever the room had free — the
+  // lowest free colour here is the one it vacated, so this can only be the follow-up it asked for. Every page agrees,
+  // because the fold is what decided it.
+  for (const [label, page] of [
+    ["the watcher's own page", watcher],
+    ["the host's", host],
+  ] as const)
+    await wearsColor(page, FUCHSIA).catch(() => {
+      assert.fail(
+        `${label} must show the colour it wore before it stepped out, not the lowest free one`,
+      );
+    });
   await watcher.screenshot({ path: "artifacts/spectator-took-a-seat.png" });
 
-  // And back, from the rider row it now has. Every row carries the button and hides all but this device's own, so the
-  // visible one is the row that belongs to this page.
-  await watcher.locator(".room-rider > button.room-switch:visible").click();
+  // And back. The same one button, now pointing the other way: it follows the side this page is on, not the row the
+  // pointer is over.
+  assert.equal(
+    (
+      await watcher.locator(".online-host > button.room-switch").innerText()
+    ).trim(),
+    "SWAP TO SPECTATOR",
+    "seated again, the button turns round",
+  );
+  await watcher.locator(".online-host > button.room-switch").click();
   for (const [label, page] of [
     ["host", host],
     ["rider", rider],
@@ -313,10 +367,20 @@ try {
     "RIDER",
     "and it is the rider that is still here",
   );
+  // The watcher's own action bar is up — SWAP TO PLAYER lives in it — so ask for the host's controls by name rather
+  // than for the bar that holds them.
+  for (const action of ["ROOM SETTINGS", "ADD AI", "BACK TO LOBBY"])
+    assert.equal(
+      await watcher
+        .getByRole("button", { name: action, exact: true })
+        .isVisible(),
+      false,
+      `a watcher does not inherit the room while a rider is in it: no ${action}`,
+    );
   assert.equal(
-    await watcher.locator(".online-host").isVisible(),
-    false,
-    "a watcher does not inherit the room while a rider is in it",
+    await watcher.locator(".online-host > button.room-switch").isVisible(),
+    true,
+    "what it does get in that bar is its own way back to a seat",
   );
 
   assert.deepEqual(errors, [], "no page errors");
