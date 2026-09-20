@@ -242,3 +242,40 @@ test("a path that only grows keeps the vertices already built for it", () => {
     `kept ${shared.length} vertices`,
   );
 });
+
+test("two paths that start at the same point never borrow each other's triangles", () => {
+  const cache = new TrailRibbonCache(TRAIL_WIDTH);
+  const shared = { x: 300, y: 300 };
+  const strokes = (steps: number) => [
+    {
+      color: "#22d3ee",
+      alive: true,
+      paths: [
+        [shared, { x: 340, y: 300 }, { x: 340 + steps * 4, y: 300 }],
+      ] as TrailPoint[][],
+    },
+    {
+      // A second rider crossing exactly where the first one started.
+      color: "#f472b6",
+      alive: true,
+      paths: [
+        [shared, { x: 300, y: 340 }, { x: 300, y: 340 + steps * 4 }],
+      ] as TrailPoint[][],
+    },
+  ];
+  for (const steps of [1, 2, 3, 2, 7]) {
+    const ribbons = cache.update(strokes(steps));
+    assert.equal(ribbons.length, 2);
+    for (const [index, ribbon] of ribbons.entries())
+      assert.deepEqual(
+        ribbon.vertices,
+        trailRibbon(strokes(steps)[index]!.paths[0]!),
+        `rider ${index} at ${steps} steps`,
+      );
+  }
+  // The same two paths in the other order still draw themselves, not each other.
+  const swapped = strokes(7).reverse();
+  const ribbons = cache.update(swapped);
+  for (const [index, ribbon] of ribbons.entries())
+    assert.deepEqual(ribbon.vertices, trailRibbon(swapped[index]!.paths[0]!));
+});

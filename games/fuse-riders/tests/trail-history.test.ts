@@ -351,6 +351,21 @@ test("a new round, a new match, a rider leaving and a reset clear the cache", ()
   );
   assert.equal(replaced.changed, true);
   assert.equal(replaced.built, 1);
+  // A rider that changes its colour or dies repaints its whole trail, not just what arrived since.
+  for (const changed of [
+    { ...player, color: "#ff0000" },
+    { ...player, alive: false },
+  ]) {
+    history.update([player], "match:4", 0, RULES);
+    const frame = history.update([changed], "match:4", 0, RULES);
+    assert.equal(frame.changed, true);
+    assert.equal(frame.built, 1);
+    assert.deepEqual(
+      frame.strokes,
+      establishedTrailStrokes([changed], 0, RULES),
+    );
+    history.reset();
+  }
 });
 
 test("the complete strokes fold the volatile last segment and the tip into the same path", () => {
