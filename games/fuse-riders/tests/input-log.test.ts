@@ -336,11 +336,11 @@ test("player entries steer and fire only for connected seats of the current gene
   assert.equal(r.state.game.bombs.size, 1);
   r.tick(
     streams(
-      ["guest", [r.at("guest", AVATAR, "robot")]],
+      ["guest", [r.at("guest", AVATAR, "mushroom")]],
       ["stranger", [entry(1, r.state.game.tick + 1, STEER, 3)]],
     ),
   );
-  assert.equal(guest.avatarId, "robot");
+  assert.equal(guest.avatarId, "mushroom");
   r.tick(streams(["creator", [r.at("creator", PRESENCE, "guest", false, 1)]]));
   assert.equal(guest.connected, false);
   const heading = guest.angle;
@@ -516,7 +516,7 @@ test("bots are simulated on every replica and the same log always folds to the s
   );
   assert.match(hashText("x"), /^[0-9a-f]{16}$/);
   assert.notEqual(hashText("a"), hashText("b"));
-  assert.equal(RULES, "fuse-p2p-50");
+  assert.equal(RULES, "fuse-p2p-52");
   const reordered = createRoomState("room", settings);
   reordered.game.players = new Map([...a.game.players].reverse());
   reordered.game.tick = a.game.tick;

@@ -80,8 +80,6 @@ export interface LobbyRiderView {
   status: "READY" | "NOT READY" | "OFFLINE";
   /** This rider runs the room: the row wears the HOST badge. The crown is the round leader's, over in the standings. */
   host: boolean;
-  /** On this device's own row: give the seat up and watch instead. */
-  switchSide: SwitchView;
 }
 
 export interface WatcherView {
@@ -93,19 +91,22 @@ export interface WatcherView {
   host: boolean;
   /** The manager's button for sending this watcher home. */
   remove: RemoveView;
-  /** On this device's own row: take one of the room's free seats and ride. */
-  switchSide: SwitchView;
 }
 
 /**
- * This device's own button for changing sides without leaving the room: WATCH on its rider row, TAKE A SEAT on its
- * watcher row. It is the ordinary join and spectate commands sent again by a member the room already lists, so the
- * reasons it is disabled are the runtime's own refusals, said before the tap rather than after it.
+ * This device's own button for changing sides without leaving the room. It sits with READY rather than at the end of
+ * a roster row: which side this device is on is something it decides about itself, like READY and like its name,
+ * head and colour, whereas a small button on a row reads as something done *to* that rider (the row's other button
+ * kicks them). One button, not one per row — the room lists this device exactly once, so only one direction of the
+ * swap can ever apply.
+ *
+ * It is the ordinary join and spectate commands sent again by a member the room already lists, so the reasons it is
+ * disabled are the runtime's own refusals, said before the tap rather than after it.
  */
 export interface SwitchView {
   hidden: boolean;
   disabled: boolean;
-  label: "WATCH" | "TAKE A SEAT";
+  label: "SWAP TO SPECTATOR" | "SWAP TO PLAYER";
   /** Tooltip and accessible name: what the button does, or why it cannot right now. */
   title: string;
 }
@@ -173,7 +174,15 @@ export interface RoomView {
   standings: StandingView[];
   actions: {
     hidden: boolean;
+    /** This device's own side of the room, beside READY. */
+    switchSide: SwitchView;
     start: { label: "START RACE" | "REMATCH"; disabled: boolean };
+    /**
+     * Why a rematch cannot start from the results screen, or `undefined` while it can. Set only at `matchOver`, and
+     * only when the room is short of riders; the results screen shows it where the ready count would be, and the
+     * vote goes with it.
+     */
+    rematchBlocked: string | undefined;
     ready: { hidden: boolean; pressed: boolean; label: string };
     reset: { disabled: boolean; hidden: boolean };
     shareHidden: boolean;
@@ -333,12 +342,13 @@ function removeView(input: {
 }
 
 /**
- * The change-sides button on this device's own lobby row. The refusal lines are the runtime's own, so a disabled
- * button and a refused tap say the same thing; the button is simply the one that says it first.
+ * This device's change-sides button, beside READY. The refusal lines are the runtime's own, so a disabled button and
+ * a refused tap say the same thing; the button is simply the one that says it first.
  */
 function switchView(input: {
-  own: boolean;
-  /** Towards a seat (a watcher's TAKE A SEAT) rather than towards the watching list (a rider's WATCH). */
+  /** This device is in the room at all: a rider or a watcher. Anything else has no side to change.  */
+  inRoom: boolean;
+  /** Towards a seat (a watcher's SWAP TO PLAYER) rather than towards the watching list (a rider's SWAP TO SPECTATOR). */
   toSeat: boolean;
   solo: boolean;
   displayOnly: boolean;
@@ -361,10 +371,11 @@ function switchView(input: {
           : text.watchersFull
         : undefined;
   return {
-    // Solo is one device and four AI, and a display is not a member: neither has a side to change.
-    hidden: !input.own || input.solo || input.displayOnly,
+    // Solo is one device and four AI, and a display is not a member: neither has a side to change. Nor has a device
+    // the room does not list yet — it is still being seated, and the join card is what offers it the other side.
+    hidden: !input.inRoom || input.solo || input.displayOnly,
     disabled: reason !== undefined,
-    label: input.toSeat ? "TAKE A SEAT" : "WATCH",
+    label: input.toSeat ? "SWAP TO PLAYER" : "SWAP TO SPECTATOR",
     title:
       reason ??
       (input.toSeat
@@ -388,6 +399,19 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
     (seat) => seat.connected,
   ).length;
   const fireView = fire(state, player, input.bombHeld);
+  /**
+   * Why the room cannot race again from the results screen, when it cannot: a match needs two riders and this one is
+   * down to fewer. It happens the moment a rider leaves a two-player room mid-match — the commonest way a room ends up
+   * here — and the way out is the lobby, where the invite and ADD AI are. So the screen says this instead of offering
+   * a vote that can never carry, and BACK TO LOBBY (below, and in the results dialog) is what is left to press.
+   *
+   * Bots count: one human and one AI can rematch all evening. Only the lobby's own "waiting" line shares the wording,
+   * deliberately — it is the same sentence about the same shortage, and a player meets it in both places.
+   */
+  const rematchBlocked =
+    state.phase === "matchOver" && connected < 2
+      ? "Waiting for at least 2 riders"
+      : undefined;
   // What each side has room for, read the way the runtime reads it: a seat can be reclaimed from a rider the room
   // lists absent (`claimSlot`), and the watching list counts everyone on it, here or not (`spectate`).
   const seatsFull =
@@ -402,13 +426,19 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
     joined,
     recapReady: ready,
     resultsHidden: !ready,
-    // A lobby choice, and one this rider has not finished making: the head and colour buttons leave with the lobby,
-    // and they leave the moment this rider says READY. READY is what settles an identity for the round — after it the
-    // room is only waiting on everyone else, and a rider still recolouring is a rider not yet ready. Un-readying
-    // brings both back, so this is a gate rather than a one-way door.
+    // A lobby choice, and one this rider has not finished making: the name, head and colour buttons leave with the
+    // lobby, and they leave the moment this rider says READY. READY is what settles an identity for the round —
+    // after it the room is only waiting on everyone else, and a rider still recolouring is a rider not yet ready.
+    // Un-readying brings all three back, so this is a gate rather than a one-way door.
+    //
+    // A tab another one replaced as host is done whatever its seat says: it lost READY with the rest of the action
+    // bar long before this, and settling an identity it can no longer ready up is nothing. Said here rather than
+    // left to the bar's own `hidden`, so that the open picker is closed too — the page closes them on this flag, and
+    // a group hidden only by an ancestor would leave a dialog up over a dead tab with a live button in it.
     avatarHidden:
       !joined ||
       state.phase !== "lobby" ||
+      input.replacedHost ||
       (input.readyPlayers?.includes(input.playerId) ?? false),
     joinPanelHidden: joined || watching || displayOnly,
     controlsHidden: !joined || displayOnly,
@@ -444,13 +474,6 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
             ? "READY"
             : "NOT READY",
         host: p.id === managerId,
-        // An AI rider has no device to watch from: only this device's own row carries the button.
-        switchSide: switchView({
-          ...side,
-          own: p.id === playerId,
-          toSeat: false,
-          full: watchingFull,
-        }),
       })),
       watchers: input.spectators.map((seat) => ({
         id: seat.id,
@@ -465,21 +488,38 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
           bot: false,
           name: seat.name,
         }),
-        switchSide: switchView({
-          ...side,
-          own: seat.id === playerId,
-          toSeat: true,
-          full: seatsFull,
-        }),
       })),
       watchersHidden: input.spectators.length === 0,
     },
     standings: standings({ ...input, manages }),
     actions: {
-      hidden: (!manages && (!joined || solo)) || input.replacedHost,
+      // A watcher holds no seat and runs nothing, but the action bar is where its way back to a seat lives now, so
+      // being in the room at all is enough to show the bar. Everything else in it stays behind its own rule, so a
+      // watcher that manages nothing sees exactly one button.
+      hidden:
+        (!manages && ((!joined && !watching) || solo)) || input.replacedHost,
+      /**
+       * Which side of the room this device is on. A rider swaps to the watching list, a watcher swaps back to a
+       * seat, and the room keeps both of them: neither leaves. Riding is the common case, so a device that is
+       * neither yet (still being seated, or refused) gets no button here — the join card is what offers it a side.
+       */
+      switchSide: switchView({
+        ...side,
+        inRoom: joined || watching,
+        toSeat: watching,
+        full: watching ? seatsFull : watchingFull,
+      }),
+      rematchBlocked,
       ready: {
+        // A vote nothing can act on is not offered. Once the match is over and the room is a rider short, READY FOR
+        // REMATCH cannot start anything however many times it is pressed — `start.disabled` has said so all along, but
+        // only the manager ever saw that button, so the last rider left pressed a dead one and the room looked hung.
         hidden:
-          solo || !joined || displayOnly || !(state.phase === "lobby" || ready),
+          solo ||
+          !joined ||
+          displayOnly ||
+          rematchBlocked !== undefined ||
+          !(state.phase === "lobby" || ready),
         pressed: input.readyPlayers?.includes(playerId) ?? false,
         label: input.readyPlayers?.includes(playerId)
           ? "NOT READY"

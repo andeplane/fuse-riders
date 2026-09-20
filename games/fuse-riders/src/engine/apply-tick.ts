@@ -1,4 +1,4 @@
-import { AVATAR_IDS } from "./avatar-id.js";
+import { AVATAR_IDS, RIDER_AVATAR_IDS, isRiderAvatarId } from "./avatar-id.js";
 import {
   addPlayer,
   createGame,
@@ -40,7 +40,7 @@ import type { GameEvent } from "./state.js";
 import { driveGameTick } from "./tick-driver.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-50"; // 50: fixed catalog obstacle variants on every scenery map; circular rocks across collision paths, radius-zero shell walls. 49: a rider renames itself over the seat it holds: a `JOIN` for a rider the room already seats now takes the name it carries instead of ignoring it, which is what lets the room be the join screen and the join card go (`docs/design/room-is-the-join-screen.md`). Names are not kept unique; colour and head are what tell riders apart. 48: a rider's colour and head are its own and unique in the room: ten `RIDER_COLORS` instead of five seat colours, a `COLOR` entry beside `AVATAR`, both refused when another rider already wears the choice, and a join that takes the lowest free colour and repairs a taken head. 47: a member may log its own presence: `PRESENCE false` about itself steps it away (its page is hidden) — its seat, round place and rating stay, its controls are neutral and its own entries unread, and it drops out of the succession order — and `PRESENCE true` about itself brings it back; folds and watchers carry the `away` mark. 46: the room passes to the rider in the next seat, not the lowest member id: succession ranks connected human riders by seat. 45: generation- and match-scoped ready votes start games and rematches deterministically.
+export const RULES = "fuse-p2p-52"; // 52: seeded spawn shuffle each round. 51: the robot is the AI riders' head and no human wears it: `AVATAR_IDS` gains `mushroom` in its place, a head a rider is given or asks for comes from `RIDER_AVATAR_IDS`, and an `AVATAR` entry naming the robot is refused like a taken one. Before this a human seated before the host added an AI took the robot — it was first in the order — and then shared it with every AI that joined. 50: fixed catalog obstacle variants on every scenery map; circular rocks across collision paths, radius-zero shell walls. 49: a rider renames itself over the seat it holds: a `JOIN` for a rider the room already seats now takes the name it carries instead of ignoring it, which is what lets the room be the join screen and the join card go (`docs/design/room-is-the-join-screen.md`). Names are not kept unique; colour and head are what tell riders apart. 48: a rider's colour and head are its own and unique in the room: ten `RIDER_COLORS` instead of five seat colours, a `COLOR` entry beside `AVATAR`, both refused when another rider already wears the choice, and a join that takes the lowest free colour and repairs a taken head. 47: a member may log its own presence: `PRESENCE false` about itself steps it away (its page is hidden) — its seat, round place and rating stay, its controls are neutral and its own entries unread, and it drops out of the succession order — and `PRESENCE true` about itself brings it back; folds and watchers carry the `away` mark. 46: the room passes to the rider in the next seat, not the lowest member id: succession ranks connected human riders by seat. 45: generation- and match-scoped ready votes start games and rematches deterministically.
 // 43: the state takes the registries' shape (timed effects as `effects[]`, weapons as `armed[]`, Gun tracers in `tracers` rather than `bombs`, one fresh-round rider, no dead pickup, bomb or transit fields); every event and every view is unchanged. 42: the `drift` map (the wrapping board with a cross of walls on it that wanders like a screensaver logo) and the `trains` map (classic walls, trains round two loops of track): an obstacle may carry a `motion`, advanced by the `moveScenery` phase after `fitField`; `wall` and `train` obstacles stand through blasts and the overtime walls; scenery is met across open edges by riders and bullets, as trails are. 41: spectators are room members in the fold: SPECTATOR entries seat and free them, PRESENCE and LEAVE reach them, and they rank last in the succession order. 40: Target Bomb and the aim input are gone; Star drops by default. 39: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
@@ -122,16 +122,22 @@ export function freeColor(game: Readonly<GameState>): string | undefined {
 }
 /**
  * The head a rider asking for `wanted` gets: its own choice while no other rider wears it, otherwise the next free one
- * in `AVATAR_IDS` order. Bots are counted as wearing theirs — `robot` reads as taken while an AI sits — but are not
- * subject to the rule themselves, so several AI riders share the one head they are drawn with (ADR 027).
+ * in `RIDER_AVATAR_IDS` order — every id but the AI's, so the robot is never handed to a person however early they
+ * arrived (rules `fuse-p2p-51`). Bots are counted as wearing theirs, so `robot` also reads as taken while an AI sits,
+ * but they are not subject to the rule themselves: several AI riders share the one head they are drawn with (ADR 027).
  */
 export function repairedAvatar(
   game: Readonly<GameState>,
   wanted: AvatarId,
 ): AvatarId {
   const taken = new Set(sortedPlayers(game).map((player) => player.avatarId));
-  if (!taken.has(wanted)) return wanted;
-  return AVATAR_IDS.find((id) => !taken.has(id)) ?? wanted;
+  // The AI's head is never given to a human, whether it was asked for or is merely the first one free: an AI wears it
+  // and they all share it, so a rider in it is indistinguishable from one the moment the host adds an opponent.
+  if (isRiderAvatarId(wanted) && !taken.has(wanted)) return wanted;
+  return (
+    RIDER_AVATAR_IDS.find((id) => !taken.has(id)) ??
+    (isRiderAvatarId(wanted) ? wanted : RIDER_AVATAR_IDS[0]!)
+  );
 }
 
 /**
@@ -588,7 +594,12 @@ export function applyTick(
       // A head and a colour are the room's to keep unique, so a choice another rider already wears is a no-op rather
       // than a clash. Riders fold in seat order, so two riders reaching for the same one in a tick resolve the same
       // way on every replica: the rider in the lower seat takes it and the other keeps what it had.
-      if (entry[2] === AVATAR && free(player, "avatarId", entry[3]))
+      // The AI's head is not one a rider may ask for, so a request for it is refused exactly as a taken one is.
+      if (
+        entry[2] === AVATAR &&
+        isRiderAvatarId(entry[3]) &&
+        free(player, "avatarId", entry[3])
+      )
         player.avatarId = entry[3];
       if (entry[2] === COLOR) {
         const wanted = RIDER_COLORS[entry[3]];

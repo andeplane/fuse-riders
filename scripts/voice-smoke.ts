@@ -132,16 +132,17 @@ try {
   });
   const host = await a.newPage();
   await instrument(host);
+  // The room is the join screen for its creator too: it is seated on arrival, under the remembered name.
+  await host.addInitScript(() =>
+    localStorage.setItem("fuse-riders-player-name", "Host"),
+  );
   await host.goto(base);
   console.log("Home loaded");
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await host.waitForURL(/room=/);
   console.log("Room created");
   const url = `${host.url()}&renderer=phaser-canvas`;
-  await host.getByPlaceholder("Your name").fill("Host");
-  await host
-    .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-    .click();
+  await host.locator(".room-riders > .room-rider").first().waitFor();
   assert.equal((await data(host)).requests, 0, "joining a room never captures");
   await voice(host);
   await host.getByRole("button", { name: "JOIN VOICE", exact: true }).click();
