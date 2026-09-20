@@ -43,9 +43,10 @@ export function createTopMenuToggle(
 
   button.onclick = () => set(header.dataset.menuOpen !== "true");
   // Choosing an action is the end of the menu: the button's own handler still runs, this only puts the sheet away.
-  menu.addEventListener("click", (event) => {
+  const onChoice = (event: Event) => {
     if ((event.target as Element | null)?.closest("button")) close();
-  });
+  };
+  menu.addEventListener("click", onChoice);
   // A sheet that covers the page has to be dismissable without choosing anything.
   const onKey = (event: KeyboardEvent) => {
     if (event.key === "Escape" && header.dataset.menuOpen === "true") close();
@@ -64,7 +65,11 @@ export function createTopMenuToggle(
   return {
     button,
     close,
+    // Every listener this took, including the sheet's own: a half-disposed toggle would still answer for a page
+    // that is going away. `AbortSignal` would say it in one line, but linkedom ignores it, so a unit test cannot
+    // tell a working `dispose` from a forgotten one — these removals it can.
     dispose() {
+      menu.removeEventListener("click", onChoice);
       doc.removeEventListener("keydown", onKey);
       doc.removeEventListener("pointerdown", onPointer);
       doc.defaultView?.removeEventListener("resize", onResize);

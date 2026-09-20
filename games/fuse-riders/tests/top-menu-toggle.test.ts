@@ -93,6 +93,7 @@ test("a disposed toggle leaves no listener on the document behind it", () => {
   f.press("Escape");
   f.pointerAt(f.document.querySelector("canvas")!);
   f.window.dispatchEvent(new f.window.Event("resize"));
+  f.settings.click();
   // The state is exactly what the button last set.
   assert.equal(f.open(), true);
   f.toggle.close();
