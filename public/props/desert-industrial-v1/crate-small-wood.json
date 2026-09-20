@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "crate-small-wood",
+  "category": "crate",
+  "sizeClass": "small",
+  "description": "Small wooden crate with X-braced top and inset corner bolts.",
+  "image": {
+    "file": "crate-small-wood.png",
+    "width": 1254,
+    "height": 1254,
+    "sha256": "8fc12d4c1ef3ff440800e72247bd4ea3caff24a3f5272f080af5fb5703396913"
+  },
+  "anchorPixels": {
+    "x": 626.5,
+    "y": 628.5
+  },
+  "hitboxPixels": {
+    "shape": "rectangle",
+    "centerX": 626.5,
+    "centerY": 628.5,
+    "width": 933,
+    "height": 901
+  },
+  "recommendedWorld": {
+    "unitsPerPixel": 0.03858520900321544,
+    "rotationDegrees": 0,
+    "hitbox": {
+      "shape": "rectangle",
+      "centerX": 0,
+      "centerY": 0,
+      "width": 36.0,
+      "height": 34.76527331189711
+    }
+  },
+  "collisionFit": {
+    "method": "alpha-128-bounds",
+    "silhouetteIoU": 0.996631
+  }
+}

@@ -85,6 +85,7 @@ export function moveShells(ctx: TickContext): void {
           dx === 0 && dy === 0
             ? solid
             : solid.map((trail) => ({
+                ...trail,
                 x1: trail.x1 - dx,
                 y1: trail.y1 - dy,
                 x2: trail.x2 - dx,

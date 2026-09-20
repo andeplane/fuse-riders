@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "crate-wide-amber",
+  "category": "crate",
+  "sizeClass": "medium",
+  "description": "Wide charcoal metal crate with recessed amber panel and reinforced corners.",
+  "image": {
+    "file": "crate-wide-amber.png",
+    "width": 1536,
+    "height": 1024,
+    "sha256": "22f5d03ed5688e2043d5dd18d32cb14a98be750669d71a5e10373db3c2902daa"
+  },
+  "anchorPixels": {
+    "x": 768.5,
+    "y": 501.0
+  },
+  "hitboxPixels": {
+    "shape": "rectangle",
+    "centerX": 768.5,
+    "centerY": 501.0,
+    "width": 1257,
+    "height": 738
+  },
+  "recommendedWorld": {
+    "unitsPerPixel": 0.0477326968973747,
+    "rotationDegrees": 0,
+    "hitbox": {
+      "shape": "rectangle",
+      "centerX": 0,
+      "centerY": 0,
+      "width": 60.0,
+      "height": 35.22673031026253
+    }
+  },
+  "collisionFit": {
+    "method": "alpha-128-bounds",
+    "silhouetteIoU": 0.94876
+  }
+}

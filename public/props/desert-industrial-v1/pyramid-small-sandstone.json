@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "pyramid-small-sandstone",
+  "category": "pyramid",
+  "sizeClass": "small",
+  "description": "Small sandstone pyramid with four faces and a screen-aligned base.",
+  "image": {
+    "file": "pyramid-small-sandstone.png",
+    "width": 1254,
+    "height": 1254,
+    "sha256": "88abfff6580dae89af309ceca6f1d6f566617001d0115e29f640e9a4517e014f"
+  },
+  "anchorPixels": {
+    "x": 627.0,
+    "y": 631.5
+  },
+  "hitboxPixels": {
+    "shape": "rectangle",
+    "centerX": 627.0,
+    "centerY": 631.5,
+    "width": 868,
+    "height": 847
+  },
+  "recommendedWorld": {
+    "unitsPerPixel": 0.08294930875576037,
+    "rotationDegrees": 0,
+    "hitbox": {
+      "shape": "rectangle",
+      "centerX": 0,
+      "centerY": 0,
+      "width": 72.0,
+      "height": 70.25806451612904
+    }
+  },
+  "collisionFit": {
+    "method": "alpha-128-bounds",
+    "silhouetteIoU": 0.998181
+  }
+}

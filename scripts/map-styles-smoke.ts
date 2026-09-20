@@ -28,9 +28,10 @@ try {
     const { themes } = (await import(
       String("/games/fuse-riders/src/render/themes.ts")
     )) as typeof import("../games/fuse-riders/src/render/themes.js");
-    const { generateObstacles, ARENA_MAP_RECIPES } = (await import(
-      String("/games/fuse-riders/src/engine/arena-map.ts")
-    )) as typeof import("../games/fuse-riders/src/engine/arena-map.js");
+    const { generateObstacles, obstacleVariant, ARENA_MAP_RECIPES } =
+      (await import(
+        String("/games/fuse-riders/src/engine/arena-map.ts")
+      )) as typeof import("../games/fuse-riders/src/engine/arena-map.js");
     const { fixedScenery, mapTracks, advanceScenery } = (await import(
       String("/games/fuse-riders/src/engine/scenery-motion.ts")
     )) as typeof import("../games/fuse-riders/src/engine/scenery-motion.js");
@@ -42,13 +43,63 @@ try {
       canvas.height = 900;
       canvas.style.cssText = "width:1600px;height:900px";
       document.body.append(canvas);
-      const arena = createPhaserArena(canvas, { renderer: backend });
+      const arena = createPhaserArena(canvas, {
+        renderer: backend,
+        resolution: "world",
+      });
       await arena.ready;
       const expectedRenderer = backend === "auto" ? "webgl" : "canvas";
       if (arena.metrics().renderer !== expectedRenderer)
         throw Error(
           `Expected ${expectedRenderer}, got ${arena.metrics().renderer}`,
         );
+      // Same-count checkpoint/rollback replacement must repaint the former location.
+      const variant = obstacleVariant({ id: 1, kind: "rock" })!;
+      const probe = {
+        ...visualFixture(40),
+        players: [],
+        bombs: [],
+        blasts: [],
+        pickups: [],
+        gravityFields: [],
+        obstacles: [],
+        map: "desert" as const,
+      };
+      const crop = () => {
+        const sample = document.createElement("canvas");
+        sample.width = 120;
+        sample.height = 120;
+        sample
+          .getContext("2d")!
+          .drawImage(canvas, 340, 340, 120, 120, 0, 0, 120, 120);
+        return sample.toDataURL();
+      };
+      arena.render(probe, 1000, themes["neon-pixel"], "replacement-probe");
+      const empty = crop();
+      const piece = {
+        id: 1,
+        kind: "rock" as const,
+        x: 400,
+        y: 400,
+        halfWidth: variant.width / 2,
+        halfHeight: variant.height / 2,
+      };
+      arena.render(
+        { ...probe, obstacles: [piece] },
+        1000,
+        themes["neon-pixel"],
+        "replacement-probe",
+      );
+      if (crop() === empty) throw Error("Obstacle sprite was invisible");
+      arena.render(
+        { ...probe, obstacles: [{ ...piece, x: 650 }] },
+        1000,
+        themes["neon-pixel"],
+        "replacement-probe",
+      );
+      if (crop() !== empty)
+        throw Error("Same-count replacement retained the old scenery");
+      arena.reset();
       for (const theme of Object.values(themes)) {
         const sheet = document.createElement("canvas");
         sheet.width = 960;
@@ -113,6 +164,72 @@ try {
     }
     return pictures;
   });
+  // Exercise the real loader-failure path: the collider must still be visibly solid.
+  await page.route(
+    "**/props/desert-industrial-v1/rock-small-faceted.png",
+    (route) => route.abort(),
+  );
+  await page.evaluate(async () => {
+    const { createPhaserArena } = (await import(
+      String("/games/fuse-riders/src/render/phaser/arena.ts")
+    )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
+    const { visualFixture } = (await import(
+      String("/scripts/lib/benchmark-fixture.ts")
+    )) as typeof import("./lib/benchmark-fixture.js");
+    const { themes } = (await import(
+      String("/games/fuse-riders/src/render/themes.ts")
+    )) as typeof import("../games/fuse-riders/src/render/themes.js");
+    for (const renderer of ["auto", "canvas"] as const) {
+      const canvas = document.createElement("canvas");
+      document.body.append(canvas);
+      const arena = createPhaserArena(canvas, {
+        renderer,
+        resolution: "world",
+      });
+      await arena.ready;
+      arena.render(
+        {
+          ...visualFixture(40),
+          players: [],
+          bombs: [],
+          blasts: [],
+          pickups: [],
+          gravityFields: [],
+          map: "desert",
+          obstacles: [
+            {
+              id: 1,
+              kind: "rock",
+              x: 400,
+              y: 400,
+              halfWidth: 28,
+              halfHeight: 28,
+            },
+          ],
+        },
+        1000,
+        themes["neon-pixel"],
+        "failed-texture",
+      );
+      const sample = document.createElement("canvas");
+      sample.width = 1;
+      sample.height = 1;
+      const ctx = sample.getContext("2d")!;
+      ctx.drawImage(canvas, 400, 400, 1, 1, 0, 0, 1, 1);
+      const pixel = ctx.getImageData(0, 0, 1, 1).data;
+      if (
+        pixel[0] !== 157 ||
+        pixel[1] !== 135 ||
+        pixel[2] !== 109 ||
+        pixel[3] !== 255
+      )
+        throw Error(
+          `Missing texture must draw the solid collider on ${renderer}: ${[...pixel]}`,
+        );
+      arena.destroy();
+      canvas.remove();
+    }
+  });
   assert.deepEqual(errors, []);
   await mkdir("artifacts", { recursive: true });
   for (const picture of pictures) {
@@ -124,7 +241,7 @@ try {
     );
   }
   console.log(
-    "Map styles rendered on WebGL and Canvas in both themes; screenshots in artifacts/map-styles-*.png",
+    "Map styles and missing-texture fallback passed on WebGL and Canvas in both themes; screenshots in artifacts/map-styles-*.png",
   );
 } finally {
   await browser.close();
