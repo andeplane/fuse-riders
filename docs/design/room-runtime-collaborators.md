@@ -11,15 +11,36 @@ golden hash is unchanged.
 
 ## What moved where
 
-| File                | Owns                                                                                         |
-| ------------------- | -------------------------------------------------------------------------------------------- |
-| `membership.ts`     | The member table and the `Member` record; the never-heard silence rule; `rulesAge`.          |
-| `world-sync.ts`     | The world lifecycle state, the snapshot fetch, `noWorld` answers, catch-up hold, divergence. |
-| `input-recorder.ts` | This device's own log entries: their tick stamps, and when the next packet is owed.          |
-| `room-runtime.ts`   | Wiring: transport events, the tick loop, management duties, packets, status copy, metrics.   |
+| File                | Owns                                                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `membership.ts`     | The member table and the `Member` record; the never-heard silence rule; `rulesAge`. `LINK_WAIT_MS`.                |
+| `world-sync.ts`     | The world lifecycle state, the snapshot fetch, `noWorld` answers, catch-up hold, divergence. `DIVERGENCE_*`.       |
+| `input-recorder.ts` | This device's own log entries: their tick stamps, and when the next packet is owed.                                |
+| `room-manager.ts`   | Seating, presence and succession — who may write a management entry and what it says. `DISCONNECT_MS` and friends. |
+| `room-runtime.ts`   | Wiring: transport events, handshake, the tick loop, packets and NACKs, visibility, status copy, metrics.           |
+
+`room-runtime.ts` went from 2,097 lines to about 1,580.
 
 `Pacer` from the issue's suggested split no longer applies: #349 deleted the pacing machinery when the clock stopped
 changing rate.
+
+## `RoomManager`: who may write a management entry
+
+Management is the only part of the runtime whose entries are about _other members_ — seats, watching places, presence,
+removals — and the only part whose authority moves: normally the creator's page, and the delegate the fold names
+(`actingCreator`) while the creator is logged absent. `RoomManager` holds that predicate (`manager`, `managing`,
+`managerId`) next to the duties that depend on it, so "may I write this?" and "what do I write?" are in one place:
+
+- **Seating** — `join`, `spectate`, `claimSlot`, `kick`/`settleKick`, and the side switch that pairs two entries at one
+  `InputRecorder.next()` tick so it lands whole or not at all.
+- **Presence** — `creatorDuties` and `ensurePresence`/`logPresence`: present again only on a packet, absent only on
+  silence this replica could have heard (`Membership.silent`).
+- **Succession** — `actingCreatorDuties`: the lowest connected member still heard marks absent everyone ahead of it
+  once the creator has been silent for `CREATOR_SILENCE_MS`.
+
+It takes a `RoomManagerHost` port — the fold, who this device is, and the two side effects management has (an entry on
+this device's own stream, a line on the screen). It holds no transport and no clock, so a test can drive it with plain
+values.
 
 ## `WorldSync`: one state instead of three flags
 
