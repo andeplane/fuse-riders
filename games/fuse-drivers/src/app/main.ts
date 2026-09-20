@@ -199,6 +199,11 @@ function room(solo: boolean): void {
   race.append(pad.element);
 
   const main = el("main", "", "fd-room");
+  // Until the first view arrives there is nothing to show but the lobby: a room with no host yet would
+  // otherwise show an empty arena and an empty results table at the same time.
+  race.hidden = true;
+  results.hidden = true;
+  start.hidden = true;
   main.append(nameEntry.form, lobby, race, results);
   app.replaceChildren(header(), status.element, main);
 

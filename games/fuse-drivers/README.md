@@ -26,8 +26,8 @@ Two details are specific to a racing game on a 50 ms log:
 ## Tracks
 
 `tracks/*.tmj` are Tiled maps, with mirrored and reversed variants generated beside each. The fold may
-not read files, so `node scripts-build-tracks.mjs` bakes them into `src/game/tracks-data.ts`; run it
-after editing a map.
+not read files, so `node scripts/fuse-drivers-tracks.mjs` bakes them into `src/game/tracks-data.ts`; run it
+after editing a map. `npx tsx scripts/fuse-drivers-tick-cost.ts` reports what a log tick costs.
 
 ## Checks
 
