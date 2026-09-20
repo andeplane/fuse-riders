@@ -63,6 +63,9 @@ export const RULES_MISMATCH = {
   replyToUnknown: "This room runs a different game version — reload this page",
 } as const satisfies RulesMismatchText;
 
+/** Said when a rename comes too late: the rider is ready, or the round has started. Shared with `text` below. */
+const RENAME_SETTLED = "Change your name before you are ready";
+
 /** A watcher as a screen sees it: named and present or not, with no seat, colour or score of its own. */
 export interface SpectatorView {
   id: string;
@@ -79,6 +82,7 @@ const seatOf = (state: RoomState, player: PlayerState): Seat => ({
   id: player.id,
   name: player.name,
   slot: player.slot,
+  avatarId: player.avatarId,
   connected: player.connected === true,
   bot: state.bots.has(player.id),
   generation: state.folds.get(player.id)?.generation,
@@ -269,6 +273,15 @@ export const fuseGame: RollbackGame<
     capacity: 5,
     maxWatchers: MAX_SPECTATORS,
     seatName: seatRiderName,
+    /**
+     * A rider may rename itself while it is still deciding: in the lobby, and before its own READY. READY is what
+     * settles an identity for the round, and it is the same line the head and colour buttons leave on, so a rider
+     * either has all of its choices or none of them. Un-readying opens them again.
+     */
+    renameable: (state, id) =>
+      state.game.phase !== "lobby" || state.folds.get(id)?.ready
+        ? RENAME_SETTLED
+        : undefined,
     isAvatar: isAvatarId,
     defaultAvatar: "fox",
     parseSettings: parseRoomSettings,
@@ -321,6 +334,7 @@ export const fuseGame: RollbackGame<
     chooseName: `Choose a name (1–${MAX_RIDER_NAME} characters)`,
     reconnectFirst: "Reconnect before joining",
     takeSeatInRound: "Take a seat between rounds — try again at the pause",
+    renameSettled: RENAME_SETTLED,
     watchInRound: "Start watching between rounds — try again at the pause",
     switchAsStandIn:
       "You are standing in as host — switch sides once the host is back",

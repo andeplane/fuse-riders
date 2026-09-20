@@ -32,6 +32,7 @@ export const defaultText: RuntimeText = {
   chooseName: "Choose a name",
   reconnectFirst: "Reconnect before joining",
   takeSeatInRound: "Take a seat between rounds — try again at the pause",
+  renameSettled: "Change your name before you are ready",
   watchInRound: "Start watching between rounds — try again at the pause",
   switchAsStandIn:
     "You are standing in as host — switch sides once the host is back",

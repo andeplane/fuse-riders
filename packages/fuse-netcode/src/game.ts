@@ -27,6 +27,8 @@ export interface Seat {
   slot: number;
   connected: boolean;
   bot: boolean;
+  /** What the member is drawn as, when the game has such a thing: a rename re-logs it rather than resetting it. */
+  avatarId?: string;
   /** A member that watches from the room's list: it ranks last in succession, holds no slot and nothing waits on its stream. */
   watcher?: boolean;
   /** The stream generation the seat's controls follow (Fuse Riders: `folds`); absent for a bot or a seat without one. */
@@ -125,6 +127,12 @@ export interface Seating<Room, Settings> {
   maxWatchers: number;
   /** The one normaliser for a requested name: what is logged in a join, or undefined to refuse it. */
   seatName(raw: string): string | undefined;
+  /**
+   * Whether the member `id` may change the name it plays under right now, and the line to say when it may not. A game
+   * that leaves this out never renames anyone: a join from a member it already seats stays the plain reconnection it
+   * has always been. The fold has the last word either way; this is only what the runtime can say before writing.
+   */
+  renameable?(room: Room, id: string): string | undefined;
   isAvatar(value: unknown): value is string;
   defaultAvatar: string;
   parseSettings(raw: unknown): Settings | undefined;
@@ -181,6 +189,8 @@ export interface RuntimeText {
   reconnectFirst: string;
   /** A watcher asking for a seat while a round runs: sides change at the pause, not in the middle. */
   takeSeatInRound: string;
+  /** A rename refused: this rider has said READY, or the round has started. */
+  renameSettled: string;
   /** A seated member asking to watch while a round runs, which the fold would only mark it absent for. */
   watchInRound: string;
   /** A stand-in host asking to switch its own side, which the fold would drop halfway (`switchSides`). */

@@ -362,7 +362,7 @@ test("a snapshot carries both counters, and the guard refuses a game clock the l
     "more steps than the log ticks could run",
   );
   assert.equal(withTick(game + 1), undefined, "fewer steps than log ticks");
-  assert.equal(RULES, "fuse-p2p-48");
+  assert.equal(RULES, "fuse-p2p-49");
   assert.equal(MAX_STEPS_PER_TICK, BOTS_ONLY_STEPS_PER_TICK);
 });
 

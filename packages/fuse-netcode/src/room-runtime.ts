@@ -928,6 +928,22 @@ export class RoomRuntime<
     if (this.pending().ids.has(from)) return;
     const seated = this.game.seat(this.world.state, from);
     if (seated && !seated.watcher) {
+      // A join from a member the room already seats is its reconnection — unless the name differs, which makes it a
+      // rename. The fold takes the name from this same entry and keeps it unique, so the whole of a rename is one
+      // ordinary `JOIN` over the seat the member already holds: no new kind, and no seat, colour or head disturbed.
+      if (name !== seated.name && this.game.seating.renameable) {
+        const refusal = this.game.seating.renameable(this.world.state, from);
+        if (refusal) return refusal;
+        this.append(
+          JOIN,
+          from,
+          name,
+          seated.slot,
+          seated.avatarId ?? this.game.seating.defaultAvatar,
+          generation,
+        );
+        return;
+      }
       if (from === this.id) this.ensurePresence(from, this.selfMember());
       else this.ensurePresence(from, member!);
       return;
