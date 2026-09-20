@@ -45,6 +45,7 @@ import type {
   Seat,
 } from "./game.js";
 import { uuid } from "./uuid.js";
+import { Membership, rulesAge, type Member } from "./membership.js";
 import type { RoomTransport, TransportEvents } from "fuse-network-fe";
 
 /** The room commands every game has; a game adds its own input commands in a subclass. */
@@ -132,55 +133,6 @@ export interface RuntimeOptions {
   humanName?: string;
   dependencies?: RuntimeDependencies;
 }
-interface Member {
-  generation: number;
-  snapshotServedAt: number;
-  lastPacketAt: number;
-  lastSentAt: number;
-  lastSentReceivedAt: number;
-  rttMs?: number;
-  full: boolean;
-  nackAt: number;
-  helloed: boolean;
-  clockTick?: number;
-  gapSince: number;
-  rejected: number;
-  /** The peer's hello announced different `RULES`: its stream, joins and snapshots are refused until a matching hello. */
-  refused: boolean;
-  /** The rules a refused peer announced, so the status can say which side is out of date. */
-  rules?: string;
-  /** Since when every packet from this member has fallen outside this replica's window; -Infinity once one is taken. */
-  windowSince: number;
-  /** When this runtime learned of the member's current connection: the start of the wait for a link that never comes up. */
-  since: number;
-  /** When the link to the member's current connection was first seen usable, so its packets could arrive; -Infinity until then. */
-  linkedAt: number;
-  presence?: { connected: boolean; tick: number; at: number };
-  /** The member's last hello said its page is hidden: its world is frozen and it cannot serve one (§12). */
-  hidden: boolean;
-}
-const rulesNumber = (
-  rules: unknown,
-): { prefix: string; number: number } | undefined => {
-  const match = typeof rules === "string" && /^(.+)-(\d+)$/.exec(rules);
-  return match ? { prefix: match[1]!, number: Number(match[2]) } : undefined;
-};
-/** Whether a peer announcing `theirs` is ahead of `mine`, behind it, or not comparable (another game, or no `<prefix>-<n>` form). */
-export function rulesAge(
-  mine: string,
-  theirs: unknown,
-): "newer" | "older" | "unknown" {
-  const own = rulesNumber(mine),
-    other = rulesNumber(theirs);
-  if (
-    own === undefined ||
-    other === undefined ||
-    own.prefix !== other.prefix ||
-    own.number === other.number
-  )
-    return "unknown";
-  return other.number > own.number ? "newer" : "older";
-}
 const fill = (text: string, values: Record<string, string | number>): string =>
   text.replace(/\{(\w+)\}/g, (whole, key: string) =>
     key in values ? String(values[key]) : whole,
@@ -188,8 +140,6 @@ const fill = (text: string, values: Record<string, string | number>): string =>
 
 export const DISCONNECT_MS = 1000,
   CREATOR_SILENCE_MS = 5000,
-  /** How long a member this runtime has never heard is given for its link to come up before that counts as silence. */
-  LINK_WAIT_MS = 5000,
   LAG_INDICATOR_MS = 250,
   SNAPSHOT_RETRY_MS = 2000,
   SNAPSHOT_FAILURES = 3,
@@ -252,12 +202,10 @@ export class RoomRuntime<
   protected readonly deps: RuntimeDependencies;
   protected readonly status: StatusNotices;
   protected readonly clock: TickClock;
-  private readonly members = new Map<string, Member>();
+  private readonly members: Membership;
   protected readonly generation: number;
   protected world?: World<Room, Entry, View, Event, Settings>;
   protected readonly text: RuntimeText;
-  /** When this runtime first held a world: before that it could judge nobody, so no wait for a link starts earlier. */
-  private judgingSince = -Infinity;
   protected id = "";
   private hostId = "";
   private room = 0;
@@ -307,6 +255,7 @@ export class RoomRuntime<
   ) {
     this.text = game.text;
     this.deps = options.dependencies ?? browserDependencies;
+    this.members = new Membership(() => this.deps.now());
     this.status = new StatusNotices(
       () => this.deps.now(),
       (text) => this.deliver("status", () => callbacks.status(text)),
@@ -433,34 +382,10 @@ export class RoomRuntime<
   }
   private peer(id: string, online: boolean): void {
     if (online) {
-      const known = this.members.get(id);
-      // The same member on a new connection (a reload the service saw before the old socket closed): the transport has
-      // dropped the old link, and the new page cannot be heard before its own link is up. A member never heard gets
-      // the whole link wait again, for the connection that can now link.
-      if (known) {
-        known.linkedAt = -Infinity;
-        known.since = this.deps.now();
-      } else
-        this.members.set(id, {
-          generation: 0,
-          snapshotServedAt: -Infinity,
-          lastPacketAt: -Infinity,
-          lastSentAt: 0,
-          lastSentReceivedAt: 0,
-          full: true,
-          nackAt: -Infinity,
-          helloed: false,
-          gapSince: -Infinity,
-          rejected: 0,
-          refused: false,
-          windowSince: -Infinity,
-          since: this.deps.now(),
-          linkedAt: -Infinity,
-          hidden: false,
-        });
+      this.members.connect(id);
       return;
     }
-    this.members.delete(id);
+    this.members.forget(id);
     this.noWorld.delete(id);
     if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
     const state = this.world?.state,
@@ -762,13 +687,13 @@ export class RoomRuntime<
     this.world.stream(this.id, this.generation);
     // Nobody is seated in a fresh world, and a seat needs a link (`join` travels over it): the anchor is set for one
     // invariant — "since the first world" — not because anything here could be misjudged.
-    this.judgingSince = this.deps.now();
+    this.members.judgingSince = this.deps.now();
     this.clock.start(0);
     this.lastOwnTick = 0;
     this.resetControls();
     this.status.recurring(this.solo ? this.text.solo : this.text.connected);
     // Peers that asked while there was nothing to serve re-hear a hello that now announces a world.
-    for (const member of this.members.values()) member.helloed = false;
+    this.members.regreetAll();
     if (this.pendingJoin) this.sendJoin();
   }
   /**
@@ -777,11 +702,7 @@ export class RoomRuntime<
    * do not compare. `waiting`: this page has no world and nobody compatible to get one from, so the older members are the room.
    */
   private mismatchStatus(waiting = false): string {
-    const ages = new Set(
-      [...this.members.values()]
-        .filter((member) => member.refused)
-        .map((member) => rulesAge(this.game.rules, member.rules)),
-    );
+    const ages = this.members.refusedAges(this.game.rules);
     const mismatch = this.text.mismatch;
     return ages.has("newer")
       ? mismatch.stale
@@ -790,12 +711,6 @@ export class RoomRuntime<
           ? mismatch.staleRoom
           : mismatch.staleRider
         : mismatch.unknown;
-  }
-  /** Members whose world could be this one: everyone but those refused for announcing different rules. */
-  private compatible(): string[] {
-    return [...this.members]
-      .filter(([, member]) => !member.refused)
-      .map(([id]) => id);
   }
   private saidNoWorld(id: string): boolean {
     return (
@@ -812,7 +727,8 @@ export class RoomRuntime<
   }
   /** Members a snapshot may come from: compatible, linked and not hidden. */
   private sources(): string[] {
-    return this.compatible()
+    return this.members
+      .compatible()
       .filter((id) => this.transport!.linked(id) && !this.hiddenMember(id))
       .sort();
   }
@@ -874,7 +790,7 @@ export class RoomRuntime<
       this.world = new World(this.game, decoded.state, this.hostId, this.id);
       this.world.refill(CATCHUP_STEPS, this.windowTime);
       // Not on a resync: a replica that already judged its members keeps the waits it started.
-      this.judgingSince = this.deps.now();
+      this.members.judgingSince = this.deps.now();
     }
     for (const stream of decoded.streams) {
       // My own current stream is rebuilt below with its continuity; my retired generations (the previous page's entries before
@@ -1209,23 +1125,7 @@ export class RoomRuntime<
     return seat.slot;
   }
   private selfMember(): Member {
-    return {
-      generation: this.generation,
-      snapshotServedAt: -Infinity,
-      lastPacketAt: this.deps.now(),
-      lastSentAt: 0,
-      lastSentReceivedAt: 0,
-      full: this.full,
-      nackAt: 0,
-      helloed: true,
-      gapSince: -Infinity,
-      rejected: 0,
-      refused: false,
-      windowSince: -Infinity,
-      since: -Infinity,
-      linkedAt: -Infinity,
-      hidden: this.hiddenState,
-    };
+    return this.members.self(this.generation, this.full, this.hiddenState);
   }
   private ensurePresence(id: string, member: Member): void {
     const player = this.world && this.game.seat(this.world.state, id);
@@ -1245,22 +1145,9 @@ export class RoomRuntime<
     const tick = this.append(PRESENCE, id, connected, member.generation);
     member.presence = { connected, tick, at: now };
   }
-  /**
-   * Whether `member` has been silent for `ms`, counting only time in which this runtime could have heard it: since its
-   * last packet, or since the link to its current connection became usable if that is later. A page that has just
-   * loaded has heard nobody, and a page that has just loaded cannot be heard — neither is silence. A member never heard
-   * whose link never comes up is given `LINK_WAIT_MS`, counted from when this runtime learned of its connection or from
-   * when it first held a world, whichever is later: a page whose own first link or snapshot took five seconds has
-   * only then begun to wait for the others. Without this a reloaded creator logged every member it had not heard YET as
-   * absent in its second pass, and a round boundary or lobby reset inside that window took a healthy member's seat. The
-   * link counts once per connection, so a flapping link cannot stand in for packets.
-   */
+  /** See `Membership.silent`: silence counted only over time in which this runtime could have heard the member. */
   private silent(member: Member, now: number, ms: number): boolean {
-    const from = Math.max(member.lastPacketAt, member.linkedAt);
-    return from === -Infinity
-      ? now - Math.max(member.since, this.judgingSince) >
-          Math.max(ms, LINK_WAIT_MS)
-      : now - from > ms;
+    return this.members.silent(member, now, ms);
   }
   private creatorDuties(now: number): void {
     const room = this.world!.state,
@@ -1716,7 +1603,7 @@ export class RoomRuntime<
     }
     if (this.needsWorld()) {
       // Creator included: a room whose members all connected together has no world anywhere until every linked peer has said so.
-      const candidates = this.compatible();
+      const candidates = this.members.compatible();
       if (
         !this.snapshotRequest &&
         candidates.some(

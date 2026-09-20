@@ -9,4 +9,5 @@ export * from "./packet.js";
 export * from "./stream.js";
 export * from "./rollback.js";
 export * from "./snapshot.js";
+export * from "./membership.js";
 export * from "./room-runtime.js";
