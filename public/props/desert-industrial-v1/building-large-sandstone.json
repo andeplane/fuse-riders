@@ -6,23 +6,23 @@
   "description": "Large sandstone building with stepped roof tiers and four amber roof accents.",
   "image": {
     "file": "building-large-sandstone.png",
-    "width": 1322,
-    "height": 1190,
-    "sha256": "89cb65211a1d88d63732ccfb410115c224e0d4ad3012886a18758aef37f28210"
+    "width": 646,
+    "height": 581,
+    "sha256": "ef079a7b8d57b7f7394308c488db4bb1788100a6acc544283d419f7150790067"
   },
   "anchorPixels": {
-    "x": 661.0,
-    "y": 596.0
+    "x": 323.0,
+    "y": 291.2375189107413
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 661.0,
-    "centerY": 596.0,
-    "width": 982,
-    "height": 830
+    "centerX": 323.0,
+    "centerY": 291.2375189107413,
+    "width": 479.85779122541607,
+    "height": 405.5824508320726
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.1629327902240326,
+    "unitsPerPixel": 0.33343211869376327,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.997092
+  },
+  "source": {
+    "width": 1322,
+    "height": 1190,
+    "sha256": "89cb65211a1d88d63732ccfb410115c224e0d4ad3012886a18758aef37f28210",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

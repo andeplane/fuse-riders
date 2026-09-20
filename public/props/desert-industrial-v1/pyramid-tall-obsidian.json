@@ -6,23 +6,23 @@
   "description": "Tall dark stone pyramid with thin amber seams and a screen-aligned rectangular base.",
   "image": {
     "file": "pyramid-tall-obsidian.png",
-    "width": 1254,
-    "height": 1254,
-    "sha256": "1d377798f1a7902783d752bddf36abf82a8399a7db36df5716912e70e32c93a8"
+    "width": 430,
+    "height": 430,
+    "sha256": "c7dc8b6f12b594be17e56d9695c786547ac8e00a6debc4ecd8d251561bfc7f85"
   },
   "anchorPixels": {
-    "x": 627.5,
-    "y": 613.5
+    "x": 215.17145135566187,
+    "y": 210.37081339712918
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 627.5,
-    "centerY": 613.5,
-    "width": 679,
-    "height": 981
+    "centerX": 215.17145135566187,
+    "centerY": 210.37081339712918,
+    "width": 232.8309409888357,
+    "height": 336.3875598086124
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.11416921508664628,
+    "unitsPerPixel": 0.3329492923689638,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.99752
+  },
+  "source": {
+    "width": 1254,
+    "height": 1254,
+    "sha256": "1d377798f1a7902783d752bddf36abf82a8399a7db36df5716912e70e32c93a8",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

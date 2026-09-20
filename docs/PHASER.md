@@ -34,7 +34,7 @@ Desert, forest and city use the shared [prop pack](../public/props/desert-indust
 
 Scenery that moves (`obstacle.motion`: the drifting cross's walls, the trains' cars) carries no artwork of its own and is painted from primitives instead (`obstacleParts`); nor is it baked: `drawMovers` paints it on the dynamic layer every frame at the interpolated view position (`interpolateWorld` slides a mover between its two ticks like a shell), with a ghost across any open edge its footprint overhangs. A car's headlight and tail light face the way its rails run (`trackPose` from the view kit); the map's tracks (`view.tracks`) are baked into the floor pass as gravel, sleepers and mitred rails (`trackDecoration`). Ground detail is baked into the existing background texture only when map, size or visual style changes. Triangle faces, ellipses and rectangles use the same primitives on both backends. Both Canvas and WebGL use the same art, with no extra textures, animation timers or simulation state. Classic, wrap-around, crossed, drifting-cross and trains maps retain their visual style's original floor.
 
-Run `pnpm exec tsx scripts/map-styles-smoke.ts` for reproducible contact sheets in both visual styles on Canvas and WebGL (`artifacts/map-styles-*.png`), covering every scenery map and including a same-count replacement pixel regression. Original PNGs currently add about 17 MB to initial arena asset loads; downscaled delivery assets remain a future optimization.
+Run `pnpm exec tsx scripts/map-styles-smoke.ts` for reproducible contact sheets in both visual styles on Canvas and WebGL (`artifacts/map-styles-*.png`), covering every scenery map and including a same-count replacement pixel regression. The prop pack adds about 1.6 MB to initial arena asset loads, resized to three device pixels per world unit against the 2.4 the backing buffer is capped at; an atlas remains a future optimization.
 
 ## Themed arena boundary
 
@@ -106,6 +106,8 @@ pnpm exec vite build --outDir artifacts/phaser-dist
 pnpm exec vite build --base /fuse-riders/ --outDir artifacts/phaser-pages-dist
 pnpm exec tsx scripts/phaser-pages-smoke.ts
 ```
+
+**Every benchmark figure recorded before 2026-09-20 predates a change to the synthetic workload and is not comparable with a run made after it.** `scripts/lib/benchmark-fixture.ts` used to rebuild each rider's whole trail from the tick number, so every established segment moved on every tick — no real trail does that, and no renderer could reuse anything between ticks. It now lays one segment a tick at the tail, expires one off the head and leaves the rest alone, and the benchmark draws at a fractional tick so the moving tip is exercised too. Riders lap at the rider speed the view reports, so a trail now carries about four times the ink it did. The tables below, the JSON under `docs/performance/` and any artifact kept elsewhere all describe the old workload. A run's `sourceHashes` names `scripts/lib/benchmark-fixture.ts`, so old and new reports can be told apart mechanically; the `method` string says so in words as well.
 
 The benchmark writes raw reports to `artifacts/`; preserve a reviewed copy with build identity when recording new evidence. Renderer-specific tests do not imply full source coverage; the repository coverage manifest names its included modules.
 
