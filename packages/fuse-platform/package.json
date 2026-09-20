@@ -13,7 +13,7 @@
     "./firestore": "./src/firestore.ts"
   },
   "dependencies": {
-    "fuse-network-be": "0.1.0",
+    "fuse-network-be": "workspace:*",
     "jose": "^6.2.12"
   },
   "peerDependencies": {

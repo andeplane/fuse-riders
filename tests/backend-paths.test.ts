@@ -103,7 +103,8 @@ test("the release inputs are backend paths and documentation or browser tooling 
     "games/fuse-riders/src/shared/game.ts",
     "packages/fuse-network-be/src/gateway.ts",
     "packages/fuse-network-protocol/package.json",
-    "package-lock.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
     "Dockerfile.cloud",
     "scripts/deploy-cloud.sh",
     "scripts/cloudbuild.yaml",
@@ -338,7 +339,7 @@ test("backend.yml asks the filter before it installs or deploys, and a dispatch 
   assert.ok(workflow.includes("          fetch-depth: 0\n"));
   assert.ok(
     workflow.includes(
-      "        id: changes\n        run: npx tsx scripts/backend-changed.ts\n        env:\n          FORCE_DEPLOY: ${{ github.event_name == 'workflow_dispatch' }}\n",
+      "        id: changes\n        run: pnpm exec tsx scripts/backend-changed.ts\n        env:\n          FORCE_DEPLOY: ${{ github.event_name == 'workflow_dispatch' }}\n",
     ),
   );
   assert.ok(

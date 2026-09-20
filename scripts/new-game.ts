@@ -1,9 +1,9 @@
 /**
- * Starts a new game from the template: `npx tsx scripts/new-game.ts <id>` copies `games/dice` to `games/<id>` with
+ * Starts a new game from the template: `pnpm exec tsx scripts/new-game.ts <id>` copies `games/dice` to `games/<id>` with
  * its ids and names renamed (`"dice"` → `"<id>"`, `dice-1` rules → `<id>-1`, `Dice…`/`dice…` identifiers and file
  * names → the id in PascalCase/camelCase). The copy is Pig under a new name, with its tests; change the rules from
- * there. Afterwards run `npm install` (the root workspaces include `games/*`) and add the new manifest to
- * Dockerfile.cloud beside `games/dice/package.json`, since `npm ci` in the service image needs every workspace.
+ * there. Afterwards run `pnpm install` (the root workspaces include `games/*`) and add the new manifest to
+ * Dockerfile.cloud beside `games/dice/package.json`, since `pnpm install --frozen-lockfile` in the service image needs every workspace.
  */
 import {
   existsSync,
@@ -126,7 +126,7 @@ export function newGame(
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const id = process.argv[2];
   if (!id) {
-    console.error("usage: npx tsx scripts/new-game.ts <id>");
+    console.error("usage: pnpm exec tsx scripts/new-game.ts <id>");
     process.exit(1);
   }
   try {
@@ -134,7 +134,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const written = newGame(id, gamesDir);
     console.log(`games/${id}: ${written.length} files`);
     console.log(
-      `Next: npm install, then add games/${id}/package.json to Dockerfile.cloud beside games/dice/package.json.`,
+      `Next: pnpm install, then add games/${id}/package.json to Dockerfile.cloud beside games/dice/package.json.`,
     );
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);

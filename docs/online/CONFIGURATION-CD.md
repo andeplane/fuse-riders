@@ -28,9 +28,9 @@ New fields and indexes should precede dependent code; remove obsolete configurat
 Edit `firestore.rules`, `firestore.indexes.json` or `deploy/firebase-config.json` in a pull request. Run:
 
 ```sh
-npm ci
-npm run config:check
-npm run config:plan -- --account YOUR_AUTHORIZED_GOOGLE_ACCOUNT
+pnpm install --frozen-lockfile
+pnpm config:check
+pnpm config:plan -- --account YOUR_AUTHORIZED_GOOGLE_ACCOUNT
 ```
 
 The check is offline; the plan reads the real project and checks the Google redirect without signing anyone in.

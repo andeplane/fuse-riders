@@ -22,7 +22,7 @@ export interface Smoke {
   why?: string;
   /** No shell: split on spaces and executed directly. */
   command: string;
-  /** Every `npx playwright install` target the command launches with this `env`. */
+  /** Every `pnpm exec playwright install` target the command launches with this `env`. */
   browsers: BrowserKind[];
   env: Record<string, string>;
   /** Set when the smoke needs the local room service: the variable that receives its URL. */

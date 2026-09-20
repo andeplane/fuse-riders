@@ -7,7 +7,7 @@ export interface GoldenHashes {
 /** Where `RULES` is declared. The one place the path is written: the messages below, their test and the docs check all read it. */
 export const RULES_FILE = "games/fuse-riders/src/engine/apply-tick.ts";
 export const RECORD_COMMAND =
-  "npx tsx scripts/update-golden-hashes.ts --record";
+  "pnpm exec tsx scripts/update-golden-hashes.ts --record";
 const WORKFLOW = "docs/design/engine-safety-net.md, 'When the golden fails'";
 
 /** The updater declining to write: an answer for whoever ran it, not a crash. */

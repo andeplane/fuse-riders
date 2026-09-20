@@ -1,5 +1,5 @@
 // Posts a summary of the last 24h of merged PRs to Slack. Run via .github/workflows/daily-slack-update.yml
-// Local test: OPENAI_API_KEY=... SLACK_BOT_TOKEN=... SLACK_CHANNEL_ID=... GITHUB_TOKEN=... npx tsx scripts/daily-slack-update.ts
+// Local test: OPENAI_API_KEY=... SLACK_BOT_TOKEN=... SLACK_CHANNEL_ID=... GITHUB_TOKEN=... pnpm exec tsx scripts/daily-slack-update.ts
 export {};
 
 const DRY_RUN = process.env.DRY_RUN === "1";

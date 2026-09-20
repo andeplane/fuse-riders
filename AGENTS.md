@@ -18,6 +18,17 @@ Fuse Riders is a small TypeScript game for 2–5 friends under active developmen
 - Size work in agent sessions or hours, not developer days or weeks. This project ships at agent speed.
 - Dev servers pick a free port when theirs is taken (`listenFree`); never let `EADDRINUSE` reach the user. End with the URL to open on its own line.
 
+## Context and token use
+
+Every call re-reads the whole conversation, so cost is context size times calls. Nothing here caps that for you — Claude Code auto-compacts only when the context is actually full, and the threshold is not configurable — so keeping a thread small is a habit, not a setting.
+
+- The main thread coordinates. Hand broad searches (more than a couple of `rg` calls) to an `Explore` subagent and keep its conclusion, not the file dumps. Start from `docs/architecture.md`; use `rg -l` before printing matches and `Read` with `offset`/`limit` for large files.
+- Keep command output short: pipe tests, builds and logs through `tail`/`grep` for the failure, and never print whole CI logs or diffs you do not need.
+- Edit with the Edit/Write tools rather than `sed -i` or Python heredocs; the format hook only runs on them.
+- Give each subagent one bounded job with file paths, not pasted content. An implementation agent stops at its opened pull request; follow-up fixes go to a fresh agent with a short brief rather than a long-lived one. Review agents get the diff and run on `model: "sonnet"`.
+- Iterate on the focused test file. Run the full `pnpm test` (a couple of minutes, mostly the golden and order-independence replays) once before pushing, not after every edit.
+- Never poll CI with `sleep` loops or repeated `gh pr checks`. Start one `gh pr checks --watch` with `run_in_background` and act when it finishes.
+
 These workflow rules replace older process requirements in ADRs, review notes and other repo documents. Those documents remain useful technical context; their historical approval and reporting requirements do not create new gates. Preserve relevant correctness requirements and explain material changes to technical contracts.
 
 ## Code and gameplay
@@ -26,7 +37,7 @@ These workflow rules replace older process requirements in ADRs, review notes an
 - Fuse Riders lives in `games/fuse-riders/` (`src/` and `tests/`; its page is the root `index.html`). In `games/fuse-riders/src/`: `engine/` owns deterministic rules and simulation and must not import app, net or render code; its few remaining imports of `shared/` are pinned exactly in `tests/fixtures/layer-allowlist.json` and shrink in #254 (`shared/` keeps what is not simulation: wire types, avatars, ids, the game id; the rider-name rule is `engine/rider-name.ts` because the log and the checkpoint guard apply it); `online/` owns the app and Fuse Riders' side of the netcode (`fuse-game.ts`: the game behind `RollbackGame`; `room-runtime.ts`: the rider's controls); `render/` owns presentation and imports only the engine's view contract (`engine/view.ts` and `view-kit.ts`; rule values it needs travel as data in the `WorldView`, see `docs/design/render-boundary.md`); `client/` owns audio, controls and the rest of the app-side UI. `packages/` holds the game-agnostic libraries (`fuse-netcode`: input log, rollback, snapshots, clock and room runtime behind the `RollbackGame` contract; `fuse-network-fe`: WebRTC mesh and room client, `fuse-network-be`: room signalling service, one game per room, `fuse-network-protocol`: their shared wire contract, `fuse-platform`: accounts, match history, Elo, ratings and leaderboards for every game, keyed by `gameId`; `fuse-ui`: shared menus, components and neon CSS tokens) and must not import from `service/` or `games/`; the other games (`games/dice`, Pig, the template `scripts/new-game.ts` copies) may import any package but never `service/` or another game; `service/` is the one deployed entry composing `fuse-network-be` and `fuse-platform` with every game's registration (`service/history.ts`; each game's registration is its own `src/platform.ts`; Cloud Run serves games beyond Fuse Riders only when `EXTRA_GAME_IDS` names them) (Cloud Run in production, `service/dev.ts` in-memory locally and in CI).
 - `games/fuse-riders/src/engine/rider-motion.ts` is the shared pure motion kernel. Preserve turn-then-move fixed-step behavior and atomic agreement between applied-tick records and snapshots. Bots in `games/fuse-riders/src/engine/bot-controller.ts` emit ordinary inputs and get no privileged physics.
 - Keep simulation ticks and clocks separate from rendering. Phaser may render fractional snapshot time but must not run authoritative physics, game timers or a competing render loop. Consult `docs/PHASER.md` when changing presentation timing.
-- A change to engine behaviour must bump `RULES` in `games/fuse-riders/src/engine/apply-tick.ts` and refresh the golden with `npx tsx scripts/update-golden-hashes.ts --record` (about a minute) in the same commit. `games/fuse-riders/tests/golden-hash.test.ts` failing without an intended behaviour change is a regression to fix, not a golden to refresh. See "When the golden fails" in `docs/design/engine-safety-net.md`.
+- A change to engine behaviour must bump `RULES` in `games/fuse-riders/src/engine/apply-tick.ts` and refresh the golden with `pnpm exec tsx scripts/update-golden-hashes.ts --record` (about a minute) in the same commit. `games/fuse-riders/tests/golden-hash.test.ts` failing without an intended behaviour change is a regression to fix, not a golden to refresh. See "When the golden fails" in `docs/design/engine-safety-net.md`.
 - Keep ownership and ordering of actions and outcomes explicit. Prediction or rollback must converge on consistent collisions, pickups, scores and results. When changing delivery, account for entry tick and sequence, member generation, gaps and repair, retries and cancellation. A queued send is not proof the receiver applied it.
 - Validate data at room service, WebRTC, checkpoint and storage boundaries; TypeScript types are not runtime validation. Scope actions and events to the room, authority, match and round so old messages cannot affect new play. Restore validated state atomically, leaving healthy state unchanged on rejection. Bound queues, parsers, history and recovery attempts.
 - The room service (Cloud Run in production, `service/dev.ts` locally) coordinates rooms; it does not simulate or relay gameplay. Direct WebRTC failure needs an explicit retry state. A room keeps running while any rider stays; a device that leaves recovers the world from a peer, and nothing is persisted locally. Every member is trusted with the shared log. Do not silently add a gameplay relay or a paid service.
@@ -47,10 +58,10 @@ These workflow rules replace older process requirements in ADRs, review notes an
 Before production deployment, run the release suite plus browser checks relevant to the release:
 
 ```sh
-npm run typecheck
-npm test
-npm run test:coverage
-npm run build
+pnpm typecheck
+pnpm test
+pnpm test:coverage
+pnpm build
 ```
 
 ## Pull requests
@@ -58,7 +69,7 @@ npm run build
 - Open a pull request whenever the work is finished and you believe it is ready. Pushing a branch is not delivery: finish the change, run the checks the change deserves, then open the pull request describing what changed and what was verified. Do not wait to be asked.
 - Before opening, merge the latest `origin/main`; main moves fast, and green CI from before a rebase is stale. When a check fails, see whether it already fails on main before blaming the change.
 - Before asking for review, check the feature itself: a user can reach it from the menus; empty, loading and failed-fetch states render, with a retry where a fetch can fail; no effect can refetch or re-render in a loop. For UI changes, include a browser screenshot of the real flow, not a staged fixture.
-- While waiting on CI, watch it with one blocking command (`gh pr checks --watch`) and report only state changes: green, failed with the failing log tail, or main moved and needs a merge.
+- While waiting on CI, watch it with one background command (`gh pr checks --watch` with `run_in_background`) and report only state changes: green, failed with the failing log tail, or main moved and needs a merge.
 - Review every pull request with subagents before asking for a merge. Dispatch them on the diff — correctness and simulation/protocol risk, then tests and documentation as the change warrants — and act on what they find: fix it, or say in the pull request why it stands. A review that produced no pushed fix and no written answer did not happen.
 - Stop by default at a reviewed pull request with a concise verification report. Do not merge, enable auto-merge or deploy unless the user explicitly authorizes that action for the current change. Requests to implement, try, test, commit, push or open a pull request are not merge or deployment authorization. Continue implementation, fixes and verification autonomously; do not ask for permission at every step.
 - For gameplay, controls, sound, effects and visual changes, provide a runnable preview or clear playtesting instructions and leave the pull request open for the user to try. Automated checks and agent review establish technical readiness, not the user's acceptance of the feel or appearance. Requests such as "try this", "prototype" or "in stages" do not authorize shipping the experiment. The user may explicitly waive playtesting or authorize a merge.

@@ -97,7 +97,7 @@ Splitting the commit loop moved death facts after that tick's `portalCrossed` fa
 
 `applyTick`, and so every re-simulated tick of a rollback, paid for a public snapshot it threw away. `step` now returns `{ events }`; a caller that wants a snapshot calls `toView(state)`, as `World.frame` already did.
 
-Reproduce with `npx tsx scripts/benchmark-golden-replay.ts 5` (the script resolves the engine path at run time, so it can be copied onto an older revision). Workload: `games/fuse-riders/tests/fixtures/mechanics-recording.json`, 12,779 ticks, match `replay`, two scripted humans and three bots, recorded by `makeRecording(20260918, 30000, true)`. Node v22.20.0, Apple silicon, other sessions running on the machine; three interleaved rounds of five runs each, minimum and median per round:
+Reproduce with `pnpm exec tsx scripts/benchmark-golden-replay.ts 5` (the script resolves the engine path at run time, so it can be copied onto an older revision). Workload: `games/fuse-riders/tests/fixtures/mechanics-recording.json`, 12,779 ticks, match `replay`, two scripted humans and three bots, recorded by `makeRecording(20260918, 30000, true)`. Node v22.20.0, Apple silicon, other sessions running on the machine; three interleaved rounds of five runs each, minimum and median per round:
 
 | Revision  | What                                                                  | `applyTick` only, min / median ms (rounds 1, 2, 3) | With the per-tick hash, min / median ms       |
 | --------- | --------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------- |

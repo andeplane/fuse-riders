@@ -12,10 +12,11 @@ export const BACKEND_PATHS: readonly string[] = [
   "Dockerfile.cloud",
   ".dockerignore",
   "package.json",
-  "package-lock.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
   "service/",
   "packages/",
-  // Game workspace manifests: npm ci in the image needs every workspace the lockfile lists.
+  // Game workspace manifests: pnpm install --frozen-lockfile in the image needs every workspace the lockfile lists.
   "games/",
   // Pages publishes the live backend revision. Advance it for frontend-only release changes too,
   // otherwise a successful skipped backend run would republish the old assets forever.
