@@ -4,6 +4,7 @@ import { launchSelected } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
+import { openTopMenu } from "./lib/top-menu.js";
 // Online gate: create, joins through the join card, start, three rounds on the shared log, rematch dismisses every recap, guest and creator refresh
 // mid-round, settings and the phone lobby, a lobby reload that re-confirms the seat, an AI rider, and shared-TV mode
 // with controller phones steering riders the TV simulates — in Chromium and WebKit.
@@ -297,6 +298,7 @@ try {
   // #68 flattened every visual style to one thin rim in both renderers, so the two modes became
   // indistinguishable and the room had no way to switch. Both must stay reachable and distinct.
   {
+    await openTopMenu(host);
     await host.getByRole("button", { name: "SETTINGS", exact: true }).click();
     const styles = host.getByRole("button", { name: /^Visual style: / });
     assert.equal(
