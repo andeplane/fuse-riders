@@ -33,6 +33,20 @@
       ]
     },
     {
+      "collectionGroup": "fuse-production-matches",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "gameId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "feedAt",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "fuse-production-users",
       "queryScope": "COLLECTION",
       "fields": [

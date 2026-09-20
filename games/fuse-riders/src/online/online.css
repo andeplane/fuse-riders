@@ -1772,7 +1772,7 @@
   );
   filter: drop-shadow(0 0 0.7rem var(--winner-color));
 }
-.recap-dialog .dialog-body .recap-victory h2 {
+.match-recap-report .recap-victory h2 {
   max-width: 100%;
   margin: 0;
   font:

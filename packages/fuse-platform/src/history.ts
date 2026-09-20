@@ -52,6 +52,18 @@ export interface HistoryDatabase {
     id: string,
     operation: (current: MatchRecord | undefined) => HistoryMutation<T>,
   ): Promise<T>;
+  /**
+   * Confirmed whole games of one game, every player's, newest first and strictly before `before`.
+   *
+   * `before` is a `feedAt` in milliseconds, so two games confirmed in the same millisecond on a page boundary can
+   * cost one of them its listing. A tie-proof cursor would have to page on `(feedAt, document id)`, which no test
+   * here can exercise against Firestore; see docs/design/PLAYER-STATS.md.
+   */
+  recentMatches(
+    gameId: string,
+    before: number | undefined,
+    limit: number,
+  ): Promise<MatchRecord[]>;
   /** Confirmed matches of an account in one game, newest first. */
   matchesFor(
     gameId: string,
@@ -82,6 +94,17 @@ export interface Reporter {
   code: string;
   rider: string;
   incarnation: string;
+}
+/**
+ * What anyone may see of a confirmed game: every player's stats, and which seat was the caller's own. Never a room
+ * code, never an account id, never a round receipt.
+ */
+export interface FeedEntry<P extends PlayerResult = PlayerResult> {
+  id: string;
+  endedAt: number;
+  you?: string;
+  avatars: Record<string, string>;
+  result: MatchResult<P>;
 }
 export type SubmitOutcome = {
   status: "pending" | "confirmed";
@@ -392,8 +415,12 @@ export class GameHistory<
       if (match.status === "confirmed") {
         match.participantUids = [...new Set(Object.values(match.uidByPlayer))];
         const hasAccounts = match.participantUids.length > 0;
-        // Round receipts remain durable and idempotent, but do not appear as career games.
+        // Round receipts remain durable and idempotent, but do not appear as career games or in the public feed.
         if (result.round !== undefined) match.participantUids = [];
+        // A lone guest confirms their own game, so it is public only once a second player vouches or an account (whose
+        // links are rate limited) owns a seat: otherwise free room tokens could fill everyone's feed with inventions.
+        else if (hasAccounts || match.attesters.length >= 2)
+          match.feedAt ??= match.endedAt;
         if (hasAccounts) delete match.expiresAt;
         else match.expiresAt = (match.endedAt ?? now) + GUEST_MATCH_TTL_MS;
       }
@@ -451,6 +478,53 @@ export class GameHistory<
       throw new RoomError(429, "Too many changes; try later");
     await this.database.setUsername(uid, body.username, this.now());
     return { username: body.username };
+  }
+
+  /**
+   * Everyone's recent games in this game. Public like the leaderboard, so limited by address; a signed-in caller also
+   * learns which seat was theirs. `before` pages backwards from a listed `endedAt`.
+   */
+  async feed(
+    address: string,
+    uid: string | undefined,
+    before: number | undefined,
+  ): Promise<{ matches: FeedEntry<P>[] }> {
+    if (
+      !(await this.rooms.database.allowance(
+        this.limit(`feed:${address}`),
+        this.now(),
+        READS_PER_HOUR,
+      ))
+    )
+      throw new RoomError(429, "Too many requests; try later");
+    const records = await this.database.recentMatches(
+      this.game.id,
+      before,
+      HISTORY_PAGE,
+    );
+    return {
+      matches: records.flatMap((record) => {
+        // A record the storage layer ordered by `feedAt` still has to earn its place here.
+        if (record.feedAt === undefined || record.result.round !== undefined)
+          return [];
+        const you =
+          uid === undefined
+            ? undefined
+            : Object.entries(record.uidByPlayer).find(
+                ([, account]) => account === uid,
+              )?.[0];
+        return [
+          {
+            id: record.id,
+            // When the game ended, not when it became public: `feedAt` orders the feed, `endedAt` dates the row.
+            endedAt: record.endedAt ?? record.createdAt,
+            ...(you ? { you } : {}),
+            avatars: record.avatars,
+            result: record.result as MatchResult<P>,
+          },
+        ];
+      }),
+    };
   }
 
   async leaderboard(
