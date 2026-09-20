@@ -6,23 +6,23 @@
   "description": "Large long warehouse with four roof grilles and individual utility details.",
   "image": {
     "file": "building-large-warehouse.png",
-    "width": 1774,
-    "height": 887,
-    "sha256": "65295f2c87ae80c34b44905ae8d003d42fd385f13c02cb5d565fdd1f1cc1c74f"
+    "width": 715,
+    "height": 358,
+    "sha256": "d7eb3932ba1c2319c2cbb1c91ddc54496bc91e429aa892ea8686a80b37e84e8d"
   },
   "anchorPixels": {
-    "x": 887.0,
-    "y": 446.0
+    "x": 357.5,
+    "y": 179.7576099210823
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 887.0,
-    "centerY": 446.0,
-    "width": 1548,
-    "height": 514
+    "centerX": 357.5,
+    "centerY": 179.7576099210823,
+    "width": 623.91206313416,
+    "height": 207.16459977452084
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.1343669250645995,
+    "unitsPerPixel": 0.33338031477566366,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.985782
+  },
+  "source": {
+    "width": 1774,
+    "height": 887,
+    "sha256": "65295f2c87ae80c34b44905ae8d003d42fd385f13c02cb5d565fdd1f1cc1c74f",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

@@ -6,22 +6,22 @@
   "description": "Medium circular rock with three fused surface lobes.",
   "image": {
     "file": "rock-medium-fused.png",
-    "width": 1254,
-    "height": 1254,
-    "sha256": "799cd51b02f1dcf4e6f897ae6ae627c83bdc67c93bdf8bef918aa9bd4f5a0d12"
+    "width": 343,
+    "height": 343,
+    "sha256": "7b20275742ebd0fbdf39ac93383ea50fac5e475527b8b870413896e7ddf691ae"
   },
   "anchorPixels": {
-    "x": 627.0,
-    "y": 630.0
+    "x": 171.5,
+    "y": 172.32057416267943
   },
   "hitboxPixels": {
     "shape": "circle",
-    "centerX": 627.0,
-    "centerY": 630.0,
-    "radius": 417.0
+    "centerX": 171.5,
+    "centerY": 172.32057416267943,
+    "radius": 114.05980861244018
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.09112709832134293,
+    "unitsPerPixel": 0.3331585460494578,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "circle",
@@ -33,5 +33,11 @@
   "collisionFit": {
     "method": "circle-at-alpha-128-bounds-center-with-mean-diameter",
     "silhouetteIoU": 0.990275
+  },
+  "source": {
+    "width": 1254,
+    "height": 1254,
+    "sha256": "799cd51b02f1dcf4e6f897ae6ae627c83bdc67c93bdf8bef918aa9bd4f5a0d12",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }
