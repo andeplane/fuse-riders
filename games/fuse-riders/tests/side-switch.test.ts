@@ -471,3 +471,47 @@ test("two members swap sides in the same room and both land", () => {
     "and no seat was doubled up",
   );
 });
+
+test("a link that drops, duplicates and reorders packets still folds the pair the same everywhere", () => {
+  // A quarter of the packets lost, a tenth of the rest delivered twice, and jitter wide enough to reorder them: the
+  // pair travels as the two log entries it is, so what repairs it is the repair every entry already has.
+  const { net, join, watch } = room({
+    loss: 0.25,
+    baseMs: 30,
+    jitterMs: 80,
+    reliableMs: 60,
+    duplicate: 0.1,
+  });
+  join(HOST, "Host");
+  net.step(600);
+  const rider = join(RIDERS[0]!, "Rider");
+  watch(WATCHERS[0]!, "Watcher");
+  net.step(4000);
+  assert.deepEqual(riders(net, HOST), ["Host", "Rider"], "the room settled");
+
+  net.runtimes.get(WATCHERS[0]!)!.command({ type: "join", name: "Watcher" });
+  rider.command({ type: "spectate", name: "Rider" });
+  net.step(8000);
+
+  const seen = everywhere(net, [HOST, RIDERS[0]!, WATCHERS[0]!]);
+  assert.deepEqual(
+    seen,
+    [HOST, RIDERS[0]!, WATCHERS[0]!].map((id) => ({
+      id,
+      riders: ["Host", "Watcher"],
+      watching: ["Rider"],
+    })),
+    `every replica folded the same swap: ${JSON.stringify(seen)}`,
+  );
+  // The fold is what the log says it is, hash included: a duplicated or reordered half cannot have been applied twice.
+  const hashes = new Set(
+    [HOST, RIDERS[0]!, WATCHERS[0]!].map((id) =>
+      JSON.stringify([
+        world(net.runtimes.get(id)!).state.game.players.size,
+        world(net.runtimes.get(id)!).state.spectators.size,
+        world(net.runtimes.get(id)!).state.folds.size,
+      ]),
+    ),
+  );
+  assert.equal(hashes.size, 1, `one shape on every replica: ${[...hashes]}`);
+});

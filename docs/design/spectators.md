@@ -96,6 +96,12 @@ halves — a `JOIN` over a listed watcher as a seat taken, a `SPECTATOR leave` a
 flight is counted correctly by the capacity checks, and a seat one member gives up is a seat another can take in the
 same tick.
 
+A receiver never sees half of a pair. `StreamLog.append` numbers the two entries consecutively, `entriesAt` replays a
+tick's entries in seq order, and `completeThrough` caps a stream at the tick before its first entry behind a gap — so a
+replica that lost one half does not fold that tick at all until the nack repairs it. A rollback re-runs the same two
+entries in the same order, and a snapshot is taken at a tick boundary, so the pair is either folded into it or entirely
+after it.
+
 Three rules, all outside the fold:
 
 - **Between rounds only**, the same gate a kick uses. Outside the reclaimable phases `LEAVE` leaves a rider in the
