@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   COUNTDOWN_TICKS,
-  SLOT_COLORS,
+  RIDER_COLORS,
   addPlayer,
   createGame,
   startMatch,
@@ -26,7 +26,7 @@ function twoBombs(chainReaction: boolean, fuse = 500): GameState {
       id: `p${slot}`,
       name: `Player ${slot + 1}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   state.settings = { ...defaultRoomSettings(), chainReaction };
   startMatch(state);

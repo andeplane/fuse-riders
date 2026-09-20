@@ -14,7 +14,7 @@ import {
 } from "../src/engine/room-settings.js";
 import {
   PICKUP_TYPES,
-  SLOT_COLORS,
+  RIDER_COLORS,
   addPlayer,
   createGame,
   startMatch,
@@ -185,7 +185,7 @@ function lane(obstacles: Obstacle[]): GameState {
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   while (game.phase === "countdown") step(game, new Map());

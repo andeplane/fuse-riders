@@ -321,11 +321,15 @@ test("a watcher is listed without a seat, steers nothing, is not waited on, and 
   assert.equal(
     b!.command({ type: "spectate", name: "B" }),
     true,
-    "the command is sent; the creator refuses it",
+    "a seated member asking to watch is changing sides, not arriving",
   );
   mesh.run(500);
-  assert.equal(room(a!).seats.get("b")?.watcher, undefined);
-  // One rider and one watcher short of two riders: a watcher does not count towards a start.
+  assert.equal(
+    room(a!).seats.get("b")?.watcher,
+    true,
+    "the manager freed its seat and put it on the watching list in one tick",
+  );
+  // One rider and two watchers short of two riders: a watcher does not count towards a start.
   mesh.leave("b");
   mesh.run(500);
   assert.equal(room(a!).seats.has("b"), false);
@@ -412,4 +416,27 @@ test("a watcher's kick frees no seat, so a start in the same tick window is not 
   mesh.run(1000);
   assert.equal(room(a!).seats.has("b"), false);
   assert.equal(room(a!).stage, "lobby");
+});
+
+test("a game without `seating.renameable` never renames: a join over a held seat stays a reconnection", () => {
+  // The counter game leaves the hook out, which is the documented default — and the one every other game gets until
+  // it opts in. A join carrying a different name must not disturb the seat it lands on.
+  assert.equal(counterGame.seating.renameable, undefined);
+  const mesh = new FakeMesh("a"),
+    [a, b] = seated(mesh, ["a", "b"]) as [CounterRuntime, CounterRuntime];
+  const self = a.transport!.id;
+  const nameOf = (runtime: CounterRuntime, id: string) =>
+    room(runtime).seats.get(id)?.name;
+  assert.equal(nameOf(a, self), "A");
+  const slot = room(a).seats.get(self)?.slot;
+  a.command({ type: "join", name: "Renamed" });
+  mesh.run(2000);
+  for (const [label, runtime] of [
+    ["its own page", a],
+    ["its peer", b],
+  ] as const) {
+    assert.equal(nameOf(runtime, self), "A", `${label} keeps the seated name`);
+    assert.equal(room(runtime).seats.get(self)?.slot, slot, `${label}: seat`);
+  }
+  assert.equal(room(a).seats.size, 2, "and no second seat was taken");
 });

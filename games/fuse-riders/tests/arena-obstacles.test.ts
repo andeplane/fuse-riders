@@ -11,7 +11,7 @@ import {
   PICKUP_RADIUS,
   RIDER_OBSTACLE_RADIUS,
   RIDER_RADIUS,
-  SLOT_COLORS,
+  RIDER_COLORS,
   TRAIL_WIDTH,
   type GameState,
   type InputIntent,
@@ -81,7 +81,7 @@ function scene(
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   while (game.phase === "countdown") step(game, new Map());
@@ -621,7 +621,7 @@ test("every round lays a board that leaves each rider a clear start", () => {
           id: `p${slot}`,
           name: `P${slot}`,
           slot,
-          color: SLOT_COLORS[slot]!,
+          color: RIDER_COLORS[slot]!,
         });
       startMatch(game);
       while (game.phase === "countdown") step(game, new Map());
@@ -661,7 +661,7 @@ test("the room setting picks the board, and rotate gives each round a different 
         id: `p${slot}`,
         name: `P${slot}`,
         slot,
-        color: SLOT_COLORS[slot]!,
+        color: RIDER_COLORS[slot]!,
       });
     startMatch(game);
     assert.equal(game.map, map);
@@ -683,7 +683,7 @@ test("the room setting picks the board, and rotate gives each round a different 
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   const played = [game.map];
@@ -805,13 +805,13 @@ test("bots ride around scenery instead of into it", () => {
       id: "bot:1",
       name: "AI Rider · Hard",
       slot: 0,
-      color: SLOT_COLORS[0]!,
+      color: RIDER_COLORS[0]!,
     });
     addPlayer(game, {
       id: "bot:2",
       name: "AI Other · Hard",
       slot: 1,
-      color: SLOT_COLORS[1]!,
+      color: RIDER_COLORS[1]!,
     });
     startMatch(game);
     while (game.phase === "countdown") step(game, new Map());
@@ -896,7 +896,7 @@ test("a game set to the classic map keeps the arena free of scenery", () => {
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   assert.equal(game.map, "classic");

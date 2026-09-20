@@ -6,7 +6,7 @@ import {
   startMatch,
   step,
   toView,
-  SLOT_COLORS,
+  RIDER_COLORS,
 } from "../games/fuse-riders/src/engine/game.js";
 import { defaultRoomSettings } from "../games/fuse-riders/src/engine/room-settings.js";
 import { buildRoundReport } from "../games/fuse-riders/src/online/match-report.js";
@@ -577,7 +577,7 @@ test("a real simulation round reaches history settlement before the multi-round 
       id,
       slot,
       name: `Rider ${slot}`,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
       connected: true,
     }),
   );

@@ -63,6 +63,9 @@ export const RULES_MISMATCH = {
   replyToUnknown: "This room runs a different game version — reload this page",
 } as const satisfies RulesMismatchText;
 
+/** Said when a rename comes too late: the rider is ready, or the round has started. Shared with `text` below. */
+const RENAME_SETTLED = "Change your name before you are ready";
+
 /** A watcher as a screen sees it: named and present or not, with no seat, colour or score of its own. */
 export interface SpectatorView {
   id: string;
@@ -82,6 +85,7 @@ const seatOf = (state: RoomState, player: PlayerState): Seat => {
     id: player.id,
     name: player.name,
     slot: player.slot,
+    avatarId: player.avatarId,
     connected: player.connected === true && fold?.away !== true,
     bot: state.bots.has(player.id),
     generation: fold?.generation,
@@ -141,6 +145,15 @@ function decodeRoom(
     )
       return;
     bots.add(id);
+  }
+  // Heads are unique among the humans in the room (`repairedAvatar`), which is the rule a restored room must satisfy
+  // too. The AI riders are exempt and all wear `robot`, so they are counted out here rather than checked: `decodeRoom`
+  // is the one place that knows which seats are theirs. Colours need no such exemption and are checked in `gameInvariants`.
+  const heads = new Set<string>();
+  for (const player of game.players.values()) {
+    if (bots.has(player.id)) continue;
+    if (heads.has(player.avatarId)) return;
+    heads.add(player.avatarId);
   }
   const folds = new Map<string, Fold>();
   for (const raw of rawFolds) {
@@ -284,6 +297,15 @@ export const fuseGame: RollbackGame<
     capacity: 5,
     maxWatchers: MAX_SPECTATORS,
     seatName: seatRiderName,
+    /**
+     * A rider may rename itself while it is still deciding: in the lobby, and before its own READY. READY is what
+     * settles an identity for the round, and it is the same line the head and colour buttons leave on, so a rider
+     * either has all of its choices or none of them. Un-readying opens them again.
+     */
+    renameable: (state, id) =>
+      state.game.phase !== "lobby" || state.folds.get(id)?.ready
+        ? RENAME_SETTLED
+        : undefined,
     isAvatar: isAvatarId,
     defaultAvatar: "fox",
     parseSettings: parseRoomSettings,
@@ -335,8 +357,11 @@ export const fuseGame: RollbackGame<
     stillLoading: "The room is still loading",
     chooseName: `Choose a name (1–${MAX_RIDER_NAME} characters)`,
     reconnectFirst: "Reconnect before joining",
-    stopWatching: "Stop watching before taking a seat",
-    leaveSeat: "Leave your seat before watching",
+    takeSeatInRound: "Take a seat between rounds — try again at the pause",
+    renameSettled: RENAME_SETTLED,
+    watchInRound: "Start watching between rounds — try again at the pause",
+    switchAsStandIn:
+      "You are standing in as host — switch sides once the host is back",
     watchersFull: `Room is full (${MAX_SPECTATORS} spectators watching)`,
     hostReplaced: "This host tab was replaced — use the newer tab",
     couldNotLoad: "Could not load the game — reload this page",

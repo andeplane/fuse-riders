@@ -3,7 +3,7 @@ import {
   classicSettings,
   addPlayer,
   toView,
-  SLOT_COLORS,
+  RIDER_COLORS,
 } from "../../games/fuse-riders/src/engine/game.js";
 import { AVATARS } from "../../games/fuse-riders/src/shared/avatars.js";
 import type { WorldView } from "../../games/fuse-riders/src/engine/view.js";
@@ -17,7 +17,7 @@ export function visualFixture(tick: number): WorldView {
       id: `p${p}`,
       name: `RIDER ${p + 1}`,
       slot: p,
-      color: SLOT_COLORS[p]!,
+      color: RIDER_COLORS[p]!,
       avatarId: AVATARS[p]!.id,
     });
   const state = toView(game);

@@ -22,6 +22,7 @@
     "packages/fuse-platform/src/firestore.ts",
     "packages/fuse-platform/src/index.ts",
     "games/fuse-riders/src/client/avatar-heads.ts",
+    "games/fuse-riders/src/client/rider-colors.ts",
     "games/fuse-riders/src/client/game-audio.ts",
     "games/fuse-riders/src/client/main.ts",
     "games/fuse-riders/src/client/powerup-guide-view.ts",

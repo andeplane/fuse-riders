@@ -273,6 +273,8 @@ export class RoomRuntime<
     avatarId?: string;
     /** Whether this asks for the watching list rather than a seat. */
     spectator: boolean;
+    /** Whether this asks to move the name of a seat this member already holds, which is what it then waits on. */
+    rename: boolean;
     sentAt: number;
   };
   /** A kick appended but not yet folded: what it actually did is read back from the fold, never assumed (`settleKick`). */
@@ -338,6 +340,13 @@ export class RoomRuntime<
   }
   get creator(): boolean {
     return this.id !== "" && this.id === this.hostId;
+  }
+  /**
+   * Whether the page that opened the room is here: this one, or a member the room service still lists. A stand-in host
+   * needs it to change its own side, since it cannot write its own pair (`switchWriter`), so the screen asks too.
+   */
+  get hostPresent(): boolean {
+    return this.creator || this.members.has(this.hostId);
   }
   /** Whether this replica's management entries apply right now: the creator, or the delegate while the creator is logged absent. */
   private get manager(): boolean {
@@ -497,7 +506,9 @@ export class RoomRuntime<
     });
     if (!member.helloed) return;
     if (this.needsWorld() && !this.snapshotRequest) this.requestSnapshot(id);
-    if (this.pendingJoin && id === this.managerId()) this.sendJoin();
+    // The creator too: a member already in the room sends a side switch to its page rather than to the manager.
+    if (this.pendingJoin && (id === this.managerId() || id === this.hostId))
+      this.sendJoin();
   }
   private message(id: string, raw: unknown): void {
     if (!raw || typeof raw !== "object") return;
@@ -616,6 +627,16 @@ export class RoomRuntime<
       case "error":
         if (typeof data.error === "string")
           this.status.notice(data.error.slice(0, 120));
+        // An arrival keeps asking: a seat or a place on the list frees and it is in. A side switch is a deliberate tap
+        // by a member that already has a place, so a refusal ends it — left queued, the retry pinned the refusal in the
+        // status line for a whole round and then moved the member at a pause nobody asked for.
+        if (
+          this.pendingJoin &&
+          (id === this.hostId || id === this.managerId()) &&
+          (this.switchingSides(this.pendingJoin.spectator) ||
+            this.pendingJoin.rename)
+        )
+          this.pendingJoin = undefined;
         return;
       default:
         return;
@@ -968,24 +989,52 @@ export class RoomRuntime<
     const member = from === this.id ? undefined : this.members.get(from);
     const generation = from === this.id ? this.generation : member?.generation;
     if (generation === undefined) return this.text.reconnectFirst;
+    // One transition per member at a time: entries this replica logged and has not folded settle before another is
+    // written, so a retried join (`sendJoin` retries on its own timer) never writes a second switch.
+    if (this.pending().ids.has(from)) return;
     const seated = this.game.seat(this.world.state, from);
-    if (seated?.watcher) return this.text.stopWatching;
-    if (seated) {
+    if (seated && !seated.watcher) {
+      // A join from a member the room already seats is its reconnection — unless the name differs, which makes it a
+      // rename. The fold takes the name from this same entry and keeps it unique, so the whole of a rename is one
+      // ordinary `JOIN` over the seat the member already holds: no new kind, and no seat, colour or head disturbed.
+      if (name !== seated.name && this.game.seating.renameable) {
+        const refusal = this.game.seating.renameable(this.world.state, from);
+        if (refusal) return refusal;
+        this.append(
+          JOIN,
+          from,
+          name,
+          seated.slot,
+          seated.avatarId ?? this.game.seating.defaultAvatar,
+          generation,
+        );
+        return;
+      }
       if (from === this.id) this.ensurePresence(from, this.selfMember());
       else this.ensurePresence(from, member!);
       return;
     }
-    if (this.pending().ids.has(from)) return;
+    // A watcher taking a seat keeps its place in the room: the switch is refused, not the member.
+    if (seated) {
+      const refusal = this.switchable(from, this.text.takeSeatInRound);
+      if (refusal) return refusal;
+    }
+    // Before the pair, so a switch that cannot be seated writes nothing and the member stays where it is. A watcher
+    // holds no seat, so nothing here reads the `SPECTATOR leave` that follows.
     const slot = this.claimSlot();
     if (slot < 0) return this.text.full;
-    this.append(
+    const tick = this.ownTick();
+    // Ordered, at one tick, in the manager's own stream: `applyManagement` runs them in succession then entry order on
+    // every replica, and `JOIN` returns early while the id is still in the watching list, so the leave must come first.
+    if (seated) this.appendAt(tick, [SPECTATOR, "leave", from]);
+    this.appendAt(tick, [
       JOIN,
       from,
       name,
       slot,
       avatarId ?? this.game.seating.defaultAvatar,
       generation,
-    );
+    ]);
     return;
   }
   /**
@@ -1000,23 +1049,91 @@ export class RoomRuntime<
     const member = from === this.id ? undefined : this.members.get(from);
     const generation = from === this.id ? this.generation : member?.generation;
     if (generation === undefined) return this.text.reconnectFirst;
+    const pending = this.pending();
+    if (pending.ids.has(from)) return;
     const seated = this.game.seat(this.world.state, from);
-    if (seated && !seated.watcher) return this.text.leaveSeat;
-    if (seated) {
+    if (seated?.watcher) {
       this.ensurePresence(from, from === this.id ? this.selfMember() : member!);
       return;
     }
-    const pending = this.pending();
-    if (pending.ids.has(from)) return;
+    // A rider starting to watch gives its seat up in the same tick. Outside the reclaimable phases `LEAVE` only marks
+    // the rider absent, it stays in the game's players, and the `SPECTATOR join` behind it would be dropped for that —
+    // leaving the member seated but absent. So this direction waits for the pause, exactly as a kick does.
+    if (seated) {
+      const refusal = this.switchable(from, this.text.watchInRound);
+      if (refusal) return refusal;
+    }
     const watching = [...this.game.members(this.world.state)].filter(
       (seat) => seat.watcher,
     ).length;
     if (watching + pending.watchers >= this.game.seating.maxWatchers)
       return this.text.watchersFull;
-    this.append(SPECTATOR, "join", from, name, generation);
+    const tick = this.ownTick();
+    // `SPECTATOR join` refuses an id the game still seats, so the seat goes first.
+    if (seated) this.appendAt(tick, [LEAVE, from]);
+    this.appendAt(tick, [SPECTATOR, "join", from, name, generation]);
     return;
   }
-  /** Own management entries logged but not yet applied: seats they will take or free when their tick arrives. */
+  /**
+   * Whether this replica may write the pair that moves `from` between the seats and the watching list, or the line that
+   * says why not.
+   *
+   * Two rules, both outside the fold so no entry kind and no `RULES` move with them.
+   *
+   * A round in progress waits. `LEAVE` only marks a seated rider absent outside the reclaimable phases, leaving it in
+   * the game's players, and the `SPECTATOR join` behind it is then dropped for exactly that — a member seated and
+   * absent at once. This is the rule a kick already follows, for the same reason.
+   *
+   * And a member never switches its own side while it is the one writing the entries. `permitted` is re-evaluated per
+   * entry against the state the entry before it left, and between the pair the member is in neither the players nor the
+   * watching list, so `successionOrder` cannot rank it and the second entry is refused on every replica alike. The
+   * creator is exempt: `permitted` answers for it without ranking it. Everyone else asks the manager, which is never
+   * the subject, so the pair is written by a member the order keeps ranking throughout — and a pair that is refused is
+   * refused whole, because nothing between `LEAVE`/`SPECTATOR leave` and what follows can change who the delegate is.
+   * A stand-in host that means to watch waits for the room's own host to come back, or leaves as it always could.
+   *
+   * `command` asks this about its own device before it sends anything — which is where the stand-in rule bites, since
+   * a stand-in's request would otherwise be addressed to itself and answered by nobody — and the manager asks it again
+   * about whoever asked, on the fold the entries are written against.
+   */
+  private switchable(from: string, inRound: string): string | undefined {
+    if (this.game.stage(this.world!.state) === "running") return inRound;
+    // A manager writing about somebody else is never the member that vanishes, and the creator is waved through
+    // unranked: only this device asking about itself, without having opened the room, needs somewhere to send it.
+    if (from !== this.id || this.creator) return;
+    return this.switchWriter() === this.id
+      ? this.text.switchAsStandIn
+      : undefined;
+  }
+  /**
+   * Who writes the pair when this device asks to change its own side. Normally whoever manages the room. When that is
+   * this device it cannot be, so the request goes to the creator's page instead, whose management entries `permitted`
+   * accepts whatever the succession order says at the time.
+   *
+   * That second case is not rare: a creator driving a shared screen from a page that took no seat has no record in the
+   * fold, so the crown sits on the rider in the first seat for as long as the room lasts. Without this that rider could
+   * never change sides. What is left is a room whose creator's page has actually gone — then there is nobody who can
+   * write the pair, and `switchable` says so.
+   */
+  private switchWriter(): string {
+    const manager = this.managerId();
+    if (manager !== this.id) return manager;
+    return this.members.has(this.hostId) ? this.hostId : this.id;
+  }
+  /** Whether this device is in the room already and asking for the other side, rather than arriving. */
+  private switchingSides(spectator: boolean): boolean {
+    const own = this.world && this.game.seat(this.world.state, this.id);
+    return own !== undefined && (own.watcher === true) !== spectator;
+  }
+  /**
+   * Own management entries logged but not yet applied: seats they will take or free when their tick arrives.
+   *
+   * A side switch is two of them and is counted as the one move it is. Taking a seat pairs `SPECTATOR leave` (one
+   * watcher fewer) with a `JOIN` the folded state still sees as a watcher, which the branch below already reads as a
+   * seat being taken; starting to watch pairs `LEAVE` (the seat is freed, and `claimSlot` may hand it to someone else
+   * in the same tick) with `SPECTATOR join` (one watcher more). `ids` holds whoever a logged entry is about to place,
+   * which is what stops a retried request writing a second transition over one still in flight.
+   */
   private pending(): {
     slots: Set<number>;
     freed: Set<string>;
@@ -1230,7 +1347,14 @@ export class RoomRuntime<
     return this.lastOwnTick;
   }
   protected append(...body: unknown[]): number {
-    const tick = this.ownTick();
+    return this.appendAt(this.ownTick(), body);
+  }
+  /**
+   * One of this member's entries at a tick it already chose. A tick carries as many of them as the manager writes, and
+   * the fold applies them in the order they were written (`applyTick`), so a transition that takes two entries — a side
+   * switch, a reclaimed seat — is written at one `ownTick()` and lands whole or not at all.
+   */
+  private appendAt(tick: number, body: unknown[]): number {
     this.own().append(tick, body);
     this.lastPacketTick = -1;
     return tick;
@@ -1250,10 +1374,40 @@ export class RoomRuntime<
     if (!command || typeof command !== "object") return false;
     if (command.type === "join" || command.type === "spectate") {
       if (this.options.displayOnly) return false;
+      // A member the room already lists, asking for the other side, is switching rather than arriving. Whether it may
+      // is answered here as well as at the writer, because the one refusal no writer can deliver is the one about
+      // having nobody to write it: that request would be addressed to this device itself and answered by nobody.
+      // Everything else is re-checked where the entries are written, against the fold they are written on.
+      if (this.switchingSides(command.type === "spectate")) {
+        const refusal = this.switchable(
+          this.id,
+          command.type === "spectate"
+            ? this.text.watchInRound
+            : this.text.takeSeatInRound,
+        );
+        if (refusal) {
+          this.status.notice(refusal);
+          return false;
+        }
+      }
+      // A rename moves something the seat already has, so the "am I seated on the right side?" test that admits an
+      // arrival cannot see whether it landed: a request the manager never heard would never be retried and the name
+      // would quietly snap back. A rename waits on the name itself instead. Only a request that really does move the
+      // name may wait on it — a game that leaves `seating.renameable` out never renames anyone, and a name the
+      // normaliser rejects is never logged, so either would wait for something that is not coming.
+      const seated = this.world && this.game.seat(this.world.state, this.id);
+      const wanted = this.game.seating.seatName(command.name);
       this.pendingJoin = {
         name: command.name,
         avatarId: command.type === "join" ? command.avatarId : undefined,
         spectator: command.type === "spectate",
+        rename:
+          command.type === "join" &&
+          seated !== undefined &&
+          seated.watcher !== true &&
+          this.game.seating.renameable !== undefined &&
+          !!wanted &&
+          wanted !== seated.name,
         sentAt: -Infinity,
       };
       if (this.creator || this.solo) return this.sendJoin();
@@ -1387,7 +1541,7 @@ export class RoomRuntime<
     const join = this.pendingJoin;
     if (!join) return false;
     join.sentAt = this.deps.now();
-    if (this.creator || this.solo) {
+    const write = (): boolean => {
       if (!this.world) return true;
       const error = join.spectator
         ? this.spectate(this.id, join.name)
@@ -1398,10 +1552,26 @@ export class RoomRuntime<
         return false;
       }
       return true;
+    };
+    if (this.creator || this.solo) return write();
+    // A member already in the room asking for the other side goes to whoever may write its pair, which is not always
+    // whoever a joiner would ask (`switchWriter`). An arrival keeps asking the manager, whose id is "" until the room
+    // says otherwise — the send fails and the join timer tries again, as it always has.
+    const switching = this.switchingSides(join.spectator);
+    const to = switching ? this.switchWriter() : this.managerId();
+    if (switching && to === this.id) {
+      // Nobody left who could write it. Say so rather than posting the request into our own inbox forever.
+      this.status.notice(this.text.switchAsStandIn);
+      this.pendingJoin = undefined;
+      return false;
     }
+    // This device manages the room and is asking about itself — a rename, or a reconnection it can log on its own
+    // stream. Writing it here rather than addressing a request to our own inbox, where nobody would answer it. A side
+    // switch never reaches this: it is refused above, because the entry pair needs a writer that is not the subject.
+    if (to === this.id) return write();
     // A manager refused for its rules would only answer with an error this replica drops: the status says what to do.
-    if (this.members.get(this.managerId())?.refused) return false;
-    return this.transport!.send(this.managerId(), {
+    if (this.members.get(to)?.refused) return false;
+    return this.transport!.send(to, {
       type: "join",
       name: join.name,
       avatarId: join.avatarId,
@@ -1670,7 +1840,9 @@ export class RoomRuntime<
         const own = this.game.seat(world.state, this.id),
           admitted =
             own?.connected === true &&
-            (own.watcher === true) === this.pendingJoin.spectator;
+            (own.watcher === true) === this.pendingJoin.spectator &&
+            (!this.pendingJoin.rename ||
+              own.name === this.game.seating.seatName(this.pendingJoin.name));
         if (admitted) this.pendingJoin = undefined;
         else if (now - this.pendingJoin.sentAt > JOIN_RETRY_MS) this.sendJoin();
       }

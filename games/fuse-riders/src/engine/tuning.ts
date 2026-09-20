@@ -10,12 +10,47 @@ export const MIN_PLAYERS = 2;
 export const ARENA_WIDTH = 1600;
 export const ARENA_HEIGHT = 900;
 export const INITIAL_BOUNDARY_INSET = 20;
-export const SLOT_COLORS = [
-  "#22d3ee",
-  "#ff4fa3",
-  "#a3e635",
-  "#fb923c",
-  "#a78bfa",
+/**
+ * The ten colours a rider may wear, and the order a free one is handed out in. Colour is the rider's own, not its
+ * seat's: the fold keeps it unique among the riders in the room (`freeColor`, `COLOR` entries), so two riders never
+ * share a trail colour and nobody has to guess whose line they just crossed.
+ *
+ * The first five are the seat colours every earlier room wore, in the order seats are claimed, so a room nobody
+ * recolours looks exactly as it did. The five after them fill the gaps around the wheel — amber above orange, red
+ * between orange and pink, emerald between lime and cyan, blue between cyan and violet, fuchsia between violet and
+ * pink — each at least 20° of hue from its neighbours, and checked as trails against the dark field and the desert
+ * and forest grounds (`npx tsx scripts/rider-colors-sheet.ts`).
+ */
+export const RIDER_COLORS = [
+  "#22d3ee", // cyan
+  "#ff4fa3", // pink
+  "#a3e635", // lime
+  "#fb923c", // orange
+  "#a78bfa", // violet
+  "#facc15", // amber
+  "#ef4444", // red
+  "#34d399", // emerald
+  "#60a5fa", // blue
+  "#e879f9", // fuchsia
+] as const;
+export type RiderColor = (typeof RIDER_COLORS)[number];
+export const isRiderColor = (value: unknown): value is RiderColor =>
+  (RIDER_COLORS as readonly string[]).includes(value as string);
+/**
+ * What each colour is called, in the palette's own order. It sits beside the hex it names so the two cannot drift, the
+ * way `AVATARS` pairs a head's id with its label; the picker and the contact sheet both read it from here.
+ */
+export const RIDER_COLOR_LABELS = [
+  "Cyan",
+  "Pink",
+  "Lime",
+  "Orange",
+  "Violet",
+  "Amber",
+  "Red",
+  "Emerald",
+  "Blue",
+  "Fuchsia",
 ] as const;
 
 export const RIDER_SPEED = 150;
