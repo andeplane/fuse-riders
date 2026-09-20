@@ -8,7 +8,7 @@
 import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import { isAimingGun } from "../engine/gun.js";
 import type { WorldView } from "../engine/view.js";
-import type { AvatarId } from "../shared/avatars.js";
+import type { AvatarId } from "../engine/avatar-id.js";
 import { powerLabel } from "../render/power-indicator.js";
 import {
   matchWinnerName,
@@ -17,7 +17,7 @@ import {
   showsRoundResult,
 } from "../client/arena-announcer.js";
 import { plainStatus, type StatusTone } from "./status-copy.js";
-import type { SpectatorView } from "./fuse-game.js";
+import { fuseGame, type SpectatorView } from "./fuse-game.js";
 
 /** Match score units per point. */
 const UNITS = 60;
@@ -47,6 +47,14 @@ export interface RoomPresenterInput {
   managerId: string;
   /** Another tab took hosting over: this one's host actions are gone. */
   replacedHost: boolean;
+  /** This device opened the room. */
+  creator: boolean;
+  /**
+   * The page that opened the room is here — this one, or a member the service still lists. A manager that is not the
+   * creator cannot write its own side switch (the fold would drop the second of the pair), so it hands that one job
+   * back to the creator's page; with none here there is nobody left who could write it.
+   */
+  hostPresent: boolean;
   solo: boolean;
   displayOnly: boolean;
   /** From the room screen: the lobby card is up. */
@@ -72,6 +80,8 @@ export interface LobbyRiderView {
   status: "READY" | "NOT READY" | "OFFLINE";
   /** This rider runs the room: the row wears the HOST badge. The crown is the round leader's, over in the standings. */
   host: boolean;
+  /** On this device's own row: give the seat up and watch instead. */
+  switchSide: SwitchView;
 }
 
 export interface WatcherView {
@@ -83,6 +93,21 @@ export interface WatcherView {
   host: boolean;
   /** The manager's button for sending this watcher home. */
   remove: RemoveView;
+  /** On this device's own row: take one of the room's free seats and ride. */
+  switchSide: SwitchView;
+}
+
+/**
+ * This device's own button for changing sides without leaving the room: WATCH on its rider row, TAKE A SEAT on its
+ * watcher row. It is the ordinary join and spectate commands sent again by a member the room already lists, so the
+ * reasons it is disabled are the runtime's own refusals, said before the tap rather than after it.
+ */
+export interface SwitchView {
+  hidden: boolean;
+  disabled: boolean;
+  label: "WATCH" | "TAKE A SEAT";
+  /** Tooltip and accessible name: what the button does, or why it cannot right now. */
+  title: string;
 }
 
 export interface StandingView {
@@ -307,6 +332,47 @@ function removeView(input: {
   };
 }
 
+/**
+ * The change-sides button on this device's own lobby row. The refusal lines are the runtime's own, so a disabled
+ * button and a refused tap say the same thing; the button is simply the one that says it first.
+ */
+function switchView(input: {
+  own: boolean;
+  /** Towards a seat (a watcher's TAKE A SEAT) rather than towards the watching list (a rider's WATCH). */
+  toSeat: boolean;
+  solo: boolean;
+  displayOnly: boolean;
+  phase: RoomPhase;
+  /** This device runs the room, did not open it, and has no creator's page to hand the pair to (`switchWriter`). */
+  standIn: boolean;
+  /** The side being moved to has no room left. */
+  full: boolean;
+}): SwitchView {
+  const text = fuseGame.text;
+  const reason = !BETWEEN_ROUNDS.includes(input.phase)
+    ? input.toSeat
+      ? text.takeSeatInRound
+      : text.watchInRound
+    : input.standIn
+      ? text.switchAsStandIn
+      : input.full
+        ? input.toSeat
+          ? text.full
+          : text.watchersFull
+        : undefined;
+  return {
+    // Solo is one device and four AI, and a display is not a member: neither has a side to change.
+    hidden: !input.own || input.solo || input.displayOnly,
+    disabled: reason !== undefined,
+    label: input.toSeat ? "TAKE A SEAT" : "WATCH",
+    title:
+      reason ??
+      (input.toSeat
+        ? "Take a seat and ride the next round"
+        : "Give your seat up and watch instead"),
+  };
+}
+
 /** The room page's frame, as data. */
 export function presentRoom(input: RoomPresenterInput): RoomView {
   const { state, playerId, managerId, solo, displayOnly } = input;
@@ -322,12 +388,28 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
     (seat) => seat.connected,
   ).length;
   const fireView = fire(state, player, input.bombHeld);
+  // What each side has room for, read the way the runtime reads it: a seat can be reclaimed from a rider the room
+  // lists absent (`claimSlot`), and the watching list counts everyone on it, here or not (`spectate`).
+  const seatsFull =
+    state.players.length >= MAX_RIDERS &&
+    state.players.every((p) => p.connected);
+  const watchingFull = input.spectators.length >= fuseGame.seating.maxWatchers;
+  // A shared screen's first rider manages the room for as long as it lasts, and switches sides perfectly well: the
+  // creator's own page writes the pair for it. Only a room whose creator's page has gone has nobody who can.
+  const standIn = manages && !input.creator && !input.hostPresent;
+  const side = { solo, displayOnly, phase: state.phase, standIn };
   return {
     joined,
     recapReady: ready,
     resultsHidden: !ready,
-    // Avatars are a lobby choice: before a seat the join form carries it, and the button leaves with the lobby.
-    avatarHidden: !joined || state.phase !== "lobby",
+    // A lobby choice, and one this rider has not finished making: the head and colour buttons leave with the lobby,
+    // and they leave the moment this rider says READY. READY is what settles an identity for the round — after it the
+    // room is only waiting on everyone else, and a rider still recolouring is a rider not yet ready. Un-readying
+    // brings both back, so this is a gate rather than a one-way door.
+    avatarHidden:
+      !joined ||
+      state.phase !== "lobby" ||
+      (input.readyPlayers?.includes(input.playerId) ?? false),
     joinPanelHidden: joined || watching || displayOnly,
     controlsHidden: !joined || displayOnly,
     roundClock: clock,
@@ -362,6 +444,13 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
             ? "READY"
             : "NOT READY",
         host: p.id === managerId,
+        // An AI rider has no device to watch from: only this device's own row carries the button.
+        switchSide: switchView({
+          ...side,
+          own: p.id === playerId,
+          toSeat: false,
+          full: watchingFull,
+        }),
       })),
       watchers: input.spectators.map((seat) => ({
         id: seat.id,
@@ -375,6 +464,12 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
           removable: true,
           bot: false,
           name: seat.name,
+        }),
+        switchSide: switchView({
+          ...side,
+          own: seat.id === playerId,
+          toSeat: true,
+          full: seatsFull,
         }),
       })),
       watchersHidden: input.spectators.length === 0,

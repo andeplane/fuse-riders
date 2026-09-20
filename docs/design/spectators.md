@@ -30,7 +30,10 @@ snapshot, exactly like the seats.
   `leave` with a member id. `isManagementKind` spans 10–16, so it is a manager's to write and refused from anyone else.
 - `PRESENCE` and `LEAVE` look a member up in the watching list as well as in the seats.
 - A member is a rider or a watcher, never both: `JOIN` is a no-op for a listed spectator and `SPECTATOR join` for a
-  seated rider. Switching sides is deliberately not in this pass (plan §10 O4); it would be leave-then-join.
+  seated rider. Switching sides (plan §10 O4) is built on exactly that: the manager writes an ordered pair of these
+  entries at one tick — `SPECTATOR leave` then `JOIN`, or `LEAVE` then `SPECTATOR join` — and the fold, which applies
+  one manager's entries in the order they were written, does the rest. No new entry kind and no `RULES` move with it;
+  see "Changing sides" below.
 - A spectator never reaches `step`, the leaderboard, the match report or `toView`. It travels to the screen beside the
   world view, on the runtime's `Frame`, because it is the room's state and not the game's.
 
@@ -82,12 +85,59 @@ bound — a refused signalling frame costs a late link, not a torn mesh — but 
 flood tolerance no longer have the margin they were sized for, and that should be revisited before rooms routinely
 run full.
 
+## Changing sides
+
+A member switches without leaving the room: **WATCH** on its own rider row, **TAKE A SEAT** on its own watcher row.
+Both are the ordinary `join` and `spectate` commands sent again by a member the room already lists, so nothing new
+reaches the wire. `RoomRuntime.join` and `RoomRuntime.spectate` (`packages/fuse-netcode/src/room-runtime.ts`) answer
+them with the ordered pair above, written at one `ownTick()` so the fold sees one transition; `claimSlot` runs first,
+so a switch that cannot be seated writes nothing and the member stays where it was. `pending()` already counted both
+halves — a `JOIN` over a listed watcher as a seat taken, a `SPECTATOR leave` as one watcher fewer — so a switch in
+flight is counted correctly by the capacity checks, and a seat one member gives up is a seat another can take in the
+same tick.
+
+A receiver may speculate on half a pair, but it can never confirm one. `StreamLog.append` numbers the two entries
+consecutively and `entriesAt` replays a tick's entries in seq order, so the order survives the wire; `confirmedThrough`
+holds a stream's tick unconfirmed while it shows a gap, so a replica missing one half cannot finalise, hash or snapshot
+that tick, and the rollback re-runs both entries in seq order once the nack repairs it. A snapshot is taken at a
+confirmed tick, so the pair is either folded into it or entirely after it.
+
+Three rules, all outside the fold:
+
+- **Between rounds only**, the same gate a kick uses. Outside the reclaimable phases `LEAVE` leaves a rider in the
+  game's players, so the `SPECTATOR join` behind it would be dropped and the member would be seated and absent at once.
+  The page refuses its own mid-round switch before it asks anyone, and a request a starting round overtakes is refused
+  where the entries would be written. A refused switch ends there rather than queueing: it is a deliberate tap by a
+  member that already has a place, and left queued its refusal pinned the status line and then moved the member at a
+  pause nobody asked for. An arrival still queues, as it always did.
+- **Capacity is the runtime's**, and the button repeats its wording: `Room is full (5 players)` for a seat,
+  `Room is full (5 spectators watching)` for the watching list. A seat a rider the room lists absent is holding is
+  reclaimed for the switch exactly as it is for a fresh join.
+- **A member never writes its own pair.** `permitted` is re-evaluated per entry, and between the pair the member is in
+  neither map, so `successionOrder` cannot rank it and the second entry would be refused everywhere. The creator is
+  exempt, since `permitted` answers for it without ranking it, so a manager that is not the creator hands this one job
+  back to the creator's page (`switchWriter`) — which is what a shared screen needs, because a creator that took no
+  seat leaves the crown on the first rider for as long as the room lasts and that rider would otherwise be stuck.
+  What is left is a room whose creator's page has actually gone: nobody can write the pair, and the line says so.
+
+A pair is written against one manager's own fold and its own `pending()`, which cannot see a second manager's entries
+at the same tick. A room whose creator took no seat has two managers (ADR 047 §9), so an `ADD AI` from the shared
+screen landing at the same tick as a switch from the delegate can take the slot the switch claimed; `addPlayer` then
+refuses the `JOIN` and the member is left in neither list. Its page keeps asking (the request is an arrival again by
+then) and is seated or listed as soon as there is room, and the join card is there meanwhile. Narrow, recoverable and
+noted rather than guarded, because guarding it means a fold change.
+
+`games/fuse-riders/tests/side-switch.test.ts` covers both directions on every replica, the freed seat and the seat
+reclaimed from an absent rider, a switch at the pause between rounds, the three refusals, a reload after a switch, a
+shared screen's first rider switching, the creator keeping the room across one, two members swapping in one tick, and
+a link that drops, duplicates and reorders. `scripts/spectator-smoke.ts` round-trips both buttons in the browser.
+
 ## What is deliberately not here
 
-- **No kick for spectators.** The manager cannot remove a watcher yet, because the kick command itself is phase D of
-  the plan and has not landed. `LEAVE` already frees a watcher in the fold, so kick will reach them for free.
-- **No host crown in the list.** A watcher's row says `HOST · WATCHING` only on the host's own device, because that is
-  the only device that knows today. The crown that every device can draw is phase B.
-- **No ready check.** The footer counts `N riders ready · N watching`; readiness itself is phase E.
+This list was written when this phase landed; three of its entries have since been filled in by the phases that owned
+them. Kick reaches a watcher through `LEAVE` as predicted (phase D), the crown is drawn from the fold on every device
+(phase B) and the ready check counts riders only (phase E).
+
 - **No voice.** `voice.setRoster` is still the seated riders.
-- **No switching sides mid-room**, no spectator camera, no cheaper spectator packets: plan §10 O4, O8 and O5.
+- **No spectator camera and no cheaper spectator packets:** plan §10 O8 and O5. (Switching sides, §10 O4, has since
+  landed — see "Changing sides" above.)

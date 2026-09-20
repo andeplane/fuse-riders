@@ -26,9 +26,10 @@ export type {
   PlayerId,
   TrailSegment,
 } from "./primitives.js";
-// The one engine module that still names a wire type: the avatar id a rider carries.
-import type { AvatarId } from "../shared/protocol.js";
-export type { AvatarId } from "../shared/protocol.js";
+// The avatar id a rider carries is the engine's own: `avatar-id.ts` owns the vocabulary the log and the
+// checkpoint guard validate against, and the wire vocabulary re-exports it (`shared/protocol.ts`).
+import type { AvatarId } from "./avatar-id.js";
+export type { AvatarId } from "./avatar-id.js";
 export type { GameEvent } from "./view.js";
 export type { FlightPoint } from "./launch-modifiers.js";
 import type { RoomSettings } from "./room-settings.js";

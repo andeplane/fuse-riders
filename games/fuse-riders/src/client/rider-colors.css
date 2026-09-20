@@ -1,0 +1,84 @@
+.color-picker {
+  margin: 0;
+  padding: 0.5rem 0;
+  border: 0;
+  min-width: 0;
+}
+.color-picker legend {
+  color: #bfcbe7;
+  font-size: 0.75rem;
+}
+.color-options {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.3125rem;
+}
+.color-option {
+  position: relative;
+  min-width: 0;
+  padding: 0.3125rem 0 0.1875rem;
+  color: #afbbd8;
+  background: #10142a;
+  border: 0.125rem solid #343858;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.5625rem;
+  display: grid;
+  justify-items: center;
+  gap: 0.1875rem;
+}
+/* The pressed ring is the colour itself, so the grid reads as "this one is mine" without hunting for the label. */
+.color-option[aria-pressed="true"] {
+  border-color: var(--swatch, #22d3ee);
+  background: #18324b;
+  color: white;
+  box-shadow: 0 0 0.5rem #ffffff55;
+}
+.color-swatch {
+  display: block;
+  width: min(2rem, 100%);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--swatch, #22d3ee);
+}
+.color-option[aria-pressed="true"] .color-swatch {
+  box-shadow: 0 0 0.375rem var(--swatch, #22d3ee);
+}
+
+/*
+ * A colour another rider wears: dimmed, not clickable, and badged with that rider's head, so the room reads at a
+ * glance — you can see who took the pink and which head they wear. The avatar grid does the mirror of this, ringing a
+ * taken head in its owner's colour, and the two badges point at each other.
+ */
+.color-option.taken,
+.avatar-option.taken {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.color-option .owner-head {
+  position: absolute;
+  right: 0.125rem;
+  bottom: 0.125rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 50%;
+  border: 0.0625rem solid #0b1024;
+  background-size: 500% 200%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+.avatar-option.taken .avatar-portrait {
+  outline: 0.125rem solid var(--owner-color, #8892b0);
+  outline-offset: -0.125rem;
+  border-radius: 0.25rem;
+}
+
+@media (max-height: 520px) {
+  .color-swatch {
+    width: 1.5rem;
+  }
+  .color-picker {
+    padding: 0.125rem 0;
+  }
+}

@@ -118,10 +118,12 @@ const rows: Row[] = [
     lobbyCard: false,
   },
   {
-    name: "invited phone, before the first frame: the join card",
+    // An invited phone waits on the boot card like every other role and takes its own seat the moment the room
+    // arrives; the join card is only for a device the room will not seat (`docs/design/room-is-the-join-screen.md`).
+    name: "invited phone, before the first frame: the boot card, not a join gate",
     input: { booted: false, role: "joiner", device: PHONE_PORTRAIT },
-    kind: "join",
-    classes: ["joining", "mobile-lobby", "phone-lobby"],
+    kind: "boot",
+    classes: ["booting", "mobile-lobby", "phone-lobby"],
     arenaHidden: false,
     lobbyCard: false,
   },
@@ -133,8 +135,8 @@ const rows: Row[] = [
       phase: "playing",
       device: PHONE_LANDSCAPE,
     },
-    kind: "join",
-    classes: ["joining", "mobile-lobby", "phone-lobby"],
+    kind: "boot",
+    classes: ["booting", "mobile-lobby", "phone-lobby"],
     arenaHidden: false,
     lobbyCard: false,
   },
@@ -556,7 +558,7 @@ test("a creator's desktop: boot, lobby, a match, the recap, a rematch and back t
   );
 });
 
-test("an invited phone in a shared-TV room: join card, phone lobby, controller, recap", () => {
+test("an invited phone in a shared-TV room: boots, is seated, phone lobby, controller, recap", () => {
   assert.deepEqual(
     walk(PHONE_PORTRAIT, [
       { role: "joiner", booted: false, shared: true },
@@ -567,7 +569,7 @@ test("an invited phone in a shared-TV room: join card, phone lobby, controller, 
       { role: "joiner", shared: true, joined: true, ...RECAP },
       { role: "joiner", shared: true, joined: true },
     ]),
-    ["join", "join", "lobby", "controller", "controller", "recap", "lobby"],
+    ["boot", "join", "lobby", "controller", "controller", "recap", "lobby"],
   );
 });
 
@@ -595,7 +597,7 @@ test("a reloaded rider boots again, then lands back on its screen once the room 
       { role: "joiner", phase: "playing" },
       { role: "joiner", ...PLAY },
     ]),
-    ["arena", "join", "join", "arena"],
+    ["arena", "boot", "join", "arena"],
   );
 });
 
@@ -627,12 +629,16 @@ test("a room that closes is frozen as it was, minus the boot card, the controlle
     "boot",
   );
 
-  // An invited device that never took a seat keeps its join card's shape.
-  const join = roomScreen(input({ role: "joiner", booted: false }));
+  // An invited device that never saw a frame was booting like everyone else, so it closes on the boot card's shape.
+  const invited = roomScreen(input({ role: "joiner", booted: false }));
+  assert.deepEqual(on(endedScreen(invited)), ["mobile-lobby", "room-over"]);
+  // One that did see a frame and was not seated was on the join card, and keeps its shape.
+  const join = roomScreen(input({ role: "joiner" }));
   assert.deepEqual(on(endedScreen(join)), [
     "joining",
     "mobile-lobby",
     "room-over",
+    "scene-background",
   ]);
 });
 
@@ -695,4 +701,32 @@ test("a watcher is in the room, so an invited page that watches stops being a jo
     false,
     "and in a shared-TV room it watches rather than becoming a controller",
   );
+});
+
+test("an arrival taking its own seat holds the boot card; one the room will not seat gets the join card", () => {
+  const arriving = roomScreen(input({ role: "joiner", seating: true }));
+  assert.equal(arriving.kind, "boot");
+  assert.equal(arriving.booting, true);
+  assert.equal(arriving.joining, false);
+  assert.equal(
+    arriving.lobbyCard,
+    false,
+    "it has no seat in the lobby it is about to be in",
+  );
+  // The same device once the room lists it: the ordinary lobby, and nothing left of either card.
+  const seated = roomScreen(
+    input({ role: "joiner", seating: true, joined: true }),
+  );
+  assert.equal(seated.kind, "lobby");
+  assert.equal(seated.booting, false);
+  // A device the room will not seat — kicked, or arriving at a full room — is not seating itself, so it lands on the
+  // join card, which is where the reason and the way back in are.
+  const refused = roomScreen(input({ role: "joiner", seating: false }));
+  assert.equal(refused.kind, "join");
+  assert.equal(refused.joining, true);
+  // `seating` is only ever about a device without a place: a watcher is in the room already.
+  const watcher = roomScreen(
+    input({ role: "joiner", seating: true, watching: true }),
+  );
+  assert.equal(watcher.kind, "lobby");
 });

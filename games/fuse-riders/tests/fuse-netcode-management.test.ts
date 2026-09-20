@@ -10,7 +10,7 @@ import {
 import {
   addPlayer,
   setPlayerConnected,
-  SLOT_COLORS,
+  RIDER_COLORS,
 } from "../src/engine/game.js";
 import * as log from "../src/engine/input-log.js";
 import { loggedRiderName } from "../src/engine/rider-name.js";
@@ -18,7 +18,7 @@ import {
   defaultRoomSettings,
   parseRoomSettings,
 } from "../src/engine/room-settings.js";
-import { isAvatarId } from "../src/shared/avatars.js";
+import { isAvatarId } from "../src/engine/avatar-id.js";
 import { fuseGame } from "../src/online/fuse-game.js";
 
 /**
@@ -142,7 +142,7 @@ test("succession and permission over fuseGame.members agree with the engine's re
         id,
         name: id,
         slot,
-        color: SLOT_COLORS[slot]!,
+        color: RIDER_COLORS[slot]!,
         connected: true,
       });
       if (id.startsWith("bot:")) state.bots.add(id);

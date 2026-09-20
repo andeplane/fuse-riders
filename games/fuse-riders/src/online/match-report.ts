@@ -1,4 +1,4 @@
-import type { AvatarId } from "../shared/avatars.js";
+import type { AvatarId } from "../engine/avatar-id.js";
 import { BOT_ID_PREFIX } from "../engine/bot-controller.js";
 import {
   beginMatchParticipant,

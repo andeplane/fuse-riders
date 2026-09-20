@@ -5,7 +5,7 @@ import {
   toView,
   MATCH_WINNER_TICKS,
   ROUND_OVER_TICKS,
-  SLOT_COLORS,
+  RIDER_COLORS,
 } from "../src/engine/game.js";
 import { snapshotMatchStats } from "../src/engine/match-stats.js";
 import { test } from "node:test";
@@ -31,7 +31,7 @@ const view = (overrides: Partial<ScoredView>): ScoredView => {
     [0, "me", "Anders"],
     [1, "ai", "AI Ada"],
   ] as const)
-    addPlayer(game, { id, name, slot, color: SLOT_COLORS[slot] });
+    addPlayer(game, { id, name, slot, color: RIDER_COLORS[slot] });
   startMatch(game);
   return {
     ...toView(game),

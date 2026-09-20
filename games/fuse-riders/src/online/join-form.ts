@@ -1,7 +1,8 @@
 import { createNameEntry, el } from "fuse-ui";
 import { createAvatarPicker } from "../client/avatar-heads.js";
+import { createColorPicker, riderColorIndex } from "../client/rider-colors.js";
 import type { SafeStorage } from "../client/safe-storage.js";
-import type { AvatarId } from "../shared/avatars.js";
+import type { AvatarId } from "../engine/avatar-id.js";
 import { MAX_LOGGED_NAME_UNITS, seatRiderName } from "../engine/rider-name.js";
 const NAME_KEY = "fuse-riders-player-name";
 type Storage = Pick<SafeStorage, "getItem" | "setItem">;
@@ -15,13 +16,18 @@ type Storage = Pick<SafeStorage, "getItem" | "setItem">;
  */
 export function createJoinForm(
   storage: Storage,
-  onJoin: (name: string, avatarId: AvatarId) => void,
+  onJoin: (name: string, avatarId: AvatarId, colorIndex: number) => void,
   accountName?: string,
   onSpectate?: (name: string) => void,
 ) {
   // The ten avatars stay folded away (#142): the rider sees the one they have, and CHANGE opens the grid until a pick closes it.
   const picker = createAvatarPicker(storage, undefined, {
     id: `avatar-picker-${Math.random().toString(36).slice(2)}`,
+  });
+  // Colour is the avatar row's twin, folded the same way: both are settled before the seat is claimed. Neither is a
+  // promise — the room keeps both unique, so a rider whose choice is already worn is seated in the nearest free one.
+  const colors = createColorPicker(storage, undefined, {
+    id: `color-picker-${Math.random().toString(36).slice(2)}`,
   });
   /** What the room would seat, remembered so the field, the stored name and the seat are the same text. */
   const remember = (value: string) => {
@@ -41,7 +47,12 @@ export function createJoinForm(
     onInput: (value) => {
       if (value && !entry.fixed()) storage.setItem(NAME_KEY, value);
     },
-    onSubmit: (value) => onJoin(remember(value), picker.selected()),
+    onSubmit: (value) =>
+      onJoin(
+        remember(value),
+        picker.selected(),
+        riderColorIndex(colors.selected()),
+      ),
     // The quieter second way in: same name, no seat. Solo has no room to watch, so it stays hidden there.
     secondary: {
       text: "JOIN AS SPECTATOR",
@@ -53,7 +64,7 @@ export function createJoinForm(
       id: "join-account-note",
       text: "Your account name. Change it under MY GAMES on the home page.",
     },
-    extra: [picker.summary!, picker.element],
+    extra: [picker.summary!, picker.element, colors.summary!, colors.element],
     classes: {
       root: "fui-name-entry online-join",
       input: "",
@@ -73,6 +84,7 @@ export function createJoinForm(
     submitButton: entry.submit,
     spectateButton: spectate,
     picker,
+    colors,
     ready() {
       entry.setDisabled(false);
     },
