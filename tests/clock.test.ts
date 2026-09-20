@@ -1,10 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  SAMPLE_WINDOW_MS,
-  SNAP_TICKS,
-  TickClock,
-} from "../src/online/clock.js";
+import { SAMPLE_WINDOW_MS, SNAP_TICKS, TICK_MS, TickClock } from "fuse-netcode";
 
 function fixture() {
   let now = 1000;
@@ -123,31 +119,19 @@ test("pausing while hidden removes the paused time on resume", () => {
   assert.equal(idle.tick(), 0);
 });
 
-test("a rate change keeps the ticks already counted and scales only what follows", () => {
+test("the clock has one rate: a tick per TICK_MS, and half a round trip is that many ticks", () => {
   const f = fixture();
   f.clock.start();
   f.advance(1000);
-  assert.equal(f.clock.tick(), 20);
-  f.clock.rate = 3;
-  assert.equal(f.clock.tick(), 20, "no jump at the change");
+  assert.equal(f.clock.tick(), 1000 / TICK_MS);
   f.advance(1000);
-  assert.equal(f.clock.tick(), 80);
-  f.clock.pause();
-  f.advance(500);
-  f.clock.rate = 1;
-  f.clock.resume();
-  assert.equal(f.clock.tick(), 80, "paused time stays out");
-  f.advance(50);
-  assert.equal(f.clock.tick(), 81);
-  f.clock.rate = 0;
-  f.clock.rate = Number.NaN;
-  assert.equal(f.clock.rate, 1, "nonsense rates are ignored");
-  const g = fixture();
-  g.clock.rate = 3;
-  g.clock.sample(500, 100);
+  assert.equal(f.clock.tick(), 2000 / TICK_MS);
   assert.equal(
-    g.clock.tick(),
-    503,
-    "half a round trip is three times as many ticks",
+    "rate" in f.clock,
+    false,
+    "game speed is steps per tick, never a clock rate (#258 N2)",
   );
+  const g = fixture();
+  g.clock.sample(500, 100);
+  assert.equal(g.clock.tick(), 500 + 50 / TICK_MS);
 });

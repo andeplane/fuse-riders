@@ -26,24 +26,24 @@ try {
   for (const mode of ["webgl", "phaser-canvas"] as const) {
     const results = await page.evaluate(async (mode) => {
       const { createPhaserArena } = (await import(
-        String("/src/client/phaser/arena.ts")
-      )) as typeof import("../src/client/phaser/arena.js");
+        String("/games/fuse-riders/src/render/phaser/arena.ts")
+      )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
       const { visualFixture } = (await import(
-        String("/src/client/phaser/benchmark-fixture.ts")
-      )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+        String("/scripts/lib/benchmark-fixture.ts")
+      )) as typeof import("./lib/benchmark-fixture.js");
       const { themes } = (await import(
-        String("/src/client/themes.ts")
-      )) as typeof import("../src/client/themes.js");
+        String("/games/fuse-riders/src/render/themes.ts")
+      )) as typeof import("../games/fuse-riders/src/render/themes.js");
       const { advanceTrail } = (await import(
-        String("/src/engine/trail-lifecycle.ts")
-      )) as typeof import("../src/engine/trail-lifecycle.js");
+        String("/games/fuse-riders/src/engine/trail-lifecycle.ts")
+      )) as typeof import("../games/fuse-riders/src/engine/trail-lifecycle.js");
       const { createGame, addPlayer, startMatch, eliminatePlayer } =
         (await import(
-          String("/src/engine/game.ts")
-        )) as typeof import("../src/engine/game.js");
+          String("/games/fuse-riders/src/engine/game.ts")
+        )) as typeof import("../games/fuse-riders/src/engine/game.js");
       const { defaultRoomSettings } = (await import(
-        String("/src/engine/room-settings.ts")
-      )) as typeof import("../src/engine/room-settings.js");
+        String("/games/fuse-riders/src/engine/room-settings.ts")
+      )) as typeof import("../games/fuse-riders/src/engine/room-settings.js");
       // The open arena these shots were framed on, said explicitly now that a game has no settings fallback.
       const classic = {
         ...defaultRoomSettings(),

@@ -14,9 +14,11 @@ import {
   type AuthorityGrant,
 } from "fuse-network-protocol";
 import { ICE_FETCH_TIMEOUT_MS, IceConfig } from "./ice-config.js";
+import { fetchIceServers, openRoomSocket } from "./room-api.js";
 import { candidateType, sameCertificate } from "./ice-signal.js";
 import { RemoteSignal } from "./remote-signal.js";
 import { LinkRestartPolicy } from "./link-restart.js";
+import { ReconnectBackoff } from "./reconnect-backoff.js";
 import { explainLink, type LinkDiagnostic } from "./link-diagnostics.js";
 import type { RoomTransport, TransportEvents } from "./transport.js";
 export type TransportCallbacks = TransportEvents;
@@ -27,12 +29,15 @@ export interface TransportCopy {
   linking: string;
   protocolChanged: string;
   roomEnded: string;
+  /** Shown when the service closes a full room's socket without a reason of its own. */
+  roomFull: string;
   hostAbsent: string;
 }
 export const DEFAULT_TRANSPORT_COPY: TransportCopy = {
   linking: "Connected · linking peers",
   protocolChanged: "Room protocol changed — reload this page",
   roomEnded: ROOM_ENDED_TEXT,
+  roomFull: "Room full",
   hostAbsent: "the host is not in the room yet",
 };
 /** Optional application-owned media on the same peer connections; no game dependency. */
@@ -50,9 +55,13 @@ export interface PeerTransportExtension {
 export interface PeerTransportOptions {
   /** Resolves a room service path (`/api/rooms/…`) to an absolute URL; see `createEndpoints`. */
   apiUrl: (path: string) => string;
+  /** The game this page plays, sent when the room socket authenticates. Absent means `LEGACY_GAME_ID`. */
+  gameId?: string;
   /** Largest `sendFast` payload, sent or accepted. */
   maxFastBytes?: number;
   copy?: Partial<TransportCopy>;
+  /** Jitter source for the room socket's reconnect backoff, in [0, 1). Defaults to `Math.random`. */
+  random?: () => number;
   extension?: PeerTransportExtension;
 }
 interface Link {
@@ -156,8 +165,10 @@ export class PeerTransport implements RoomTransport {
   private seq = 0;
   private stopped = false;
   private retry?: ReturnType<typeof setTimeout>;
+  private readonly backoff: ReconnectBackoff;
   private ice = new IceConfig();
   private readonly apiUrl: (path: string) => string;
+  private readonly gameId: string | undefined;
   private readonly maxFastBytes: number;
   private readonly copy: TransportCopy;
   private readonly extension?: PeerTransportExtension;
@@ -170,8 +181,10 @@ export class PeerTransport implements RoomTransport {
   ) {
     this.extension = options.extension;
     this.apiUrl = options.apiUrl;
+    this.gameId = options.gameId;
     this.maxFastBytes = options.maxFastBytes ?? DEFAULT_MAX_FAST_BYTES;
     this.copy = { ...DEFAULT_TRANSPORT_COPY, ...options.copy };
+    this.backoff = new ReconnectBackoff(options.random ?? Math.random);
   }
   /** The smaller id offers; the other answers. Symmetric for every pair, so no member needs the creator to link. */
   private initiator(id: string): boolean {
@@ -185,10 +198,13 @@ export class PeerTransport implements RoomTransport {
       this.timeInterval = setInterval(() => this.sampleTime(), 2000);
       document.addEventListener("visibilitychange", this.visibility);
     }
-    const url = new URL(this.apiUrl(`/api/rooms/${this.code}/ws`));
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    url.searchParams.set("token", this.token);
-    const ws = new WebSocket(url);
+    const ws = openRoomSocket(
+      this.apiUrl,
+      this.code,
+      this.token,
+      (url) => new WebSocket(url),
+      this.gameId,
+    );
     this.socket = ws;
     ws.onmessage = async (event) => {
       if (ws !== this.socket) return;
@@ -203,6 +219,7 @@ export class PeerTransport implements RoomTransport {
             this.close();
             return;
           }
+          this.backoff.reset();
           this.received.clear();
           // Peers that left while our socket was down never produce a peer-offline message; reconcile against the roster first.
           const roster = new Set<string>(
@@ -224,10 +241,7 @@ export class PeerTransport implements RoomTransport {
           // Offers and signals can arrive during this fetch; link() awaits the ICE config so no peer connection is built without STUN (#27).
           await this.ice.load(
             (signal) =>
-              fetch(
-                this.apiUrl(`/api/rooms/${this.code}/ice?token=${this.token}`),
-                { signal },
-              ).then((response) => response.json()),
+              fetchIceServers(this.apiUrl, this.code, this.token, signal),
             AbortSignal.timeout(ICE_FETCH_TIMEOUT_MS),
           );
           if (ws !== this.socket) return;
@@ -293,8 +307,14 @@ export class PeerTransport implements RoomTransport {
         ended: () => this.callbacks.ended(),
         status: this.callbacks.status,
         terminated: () => this.terminate(this.copy.roomEnded),
-        retry: () => {
-          this.retry = setTimeout(() => this.connect(), 1500);
+        // The reason is the service's own wording for its capacity; it is shown as text, never parsed.
+        full: () => this.terminate(event.reason || this.copy.roomFull),
+        // A refusal before the upgrade (HTTP 429) reads as a plain drop here; it backs off like one.
+        retry: (refused) => {
+          this.retry = setTimeout(
+            () => this.connect(),
+            this.backoff.next(refused),
+          );
         },
       });
     };

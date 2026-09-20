@@ -1,7 +1,10 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { BotController, botRandom } from "../src/engine/bot-controller.js";
+import {
+  BotController,
+  botRandom,
+} from "../games/fuse-riders/src/engine/bot-controller.js";
 import {
   createGame,
   addPlayer,
@@ -10,8 +13,8 @@ import {
   SLOT_COLORS,
   TICK_HZ,
   type InputIntent,
-} from "../src/engine/game.js";
-import { classicSettings } from "../src/engine/room-settings.js";
+} from "../games/fuse-riders/src/engine/game.js";
+import { classicSettings } from "../games/fuse-riders/src/engine/room-settings.js";
 
 // Same seeds and normal game physics before/after. Steering-only runs remove firing
 // and random pickups to isolate navigation; combat runs retain both.
@@ -89,7 +92,10 @@ const report = {
   controllerSha256: createHash("sha256")
     .update(
       await readFile(
-        new URL("../src/engine/bot-controller.ts", import.meta.url),
+        new URL(
+          "../games/fuse-riders/src/engine/bot-controller.ts",
+          import.meta.url,
+        ),
       ),
     )
     .digest("hex"),

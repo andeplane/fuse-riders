@@ -4,24 +4,28 @@ import { randomBytes } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { SignJWT, createLocalJWKSet, exportJWK, generateKeyPair } from "jose";
 import { WebSocket } from "ws";
-import { SOLO_RATING_PLAYER_ID, type Rating } from "../src/shared/rating.js";
-import { AVATARS } from "../src/shared/avatars.js";
-import { createDevRoomService } from "../src/service/dev.js";
-import { createIdentityVerifier } from "../src/service/identity.js";
+import { SOLO_RATING_PLAYER_ID, type Rating } from "fuse-platform/rating";
+import { AVATARS } from "../games/fuse-riders/src/shared/avatars.js";
+import { createDevRoomService } from "../service/dev.js";
+import { createIdentityVerifier } from "fuse-platform";
+import { GAME_ID } from "../games/fuse-riders/src/shared/game-id.js";
 import {
   GUEST_MATCH_TTL_MS,
   HistoryStore,
   PENDING_TTL_MS,
   matchRecordId,
-  parseMatchRecord,
+} from "fuse-platform";
+import {
   parseMatchResult,
   type MatchRecord,
   type MatchResult,
   type StoredPlayer,
-} from "../src/service/history.js";
+  fuseRiders,
+} from "../games/fuse-riders/src/platform.js";
+import { parseMatchRecord, platform } from "../service/history.js";
 import { MemoryRoomDatabase } from "fuse-network-be";
-import { MemoryHistoryDatabase } from "../src/service/memory-history.js";
-import { RoomStore, digest, peerId } from "fuse-network-be";
+import { MemoryHistoryDatabase } from "fuse-platform";
+import { RoomStore, authFrame, digest, peerId } from "fuse-network-be";
 
 const PROJECT = "fuse-test-project";
 const COLORS = ["#22d3ee", "#ff4fa3", "#a3e635", "#fb923c", "#a78bfa"];
@@ -309,6 +313,7 @@ test("a stored record is re-validated and sheds storage-only fields", () => {
     result = resultOf([a, "bot:1"]),
     id = matchRecordId("room-1", result);
   const record: MatchRecord = {
+    gameId: GAME_ID,
     version: 1,
     id,
     roomCode: "AB42",
@@ -325,6 +330,9 @@ test("a stored record is re-validated and sheds storage-only fields", () => {
     parseMatchRecord({ ...record, cleanupAt: { seconds: 1 } }),
     record,
   );
+  // A record from before games has no gameId; dev and preview databases may still hold one, and it reads as Fuse Riders'.
+  const { gameId: _, ...legacy } = record;
+  assert.deepEqual(parseMatchRecord(legacy), record);
   for (const [label, change] of Object.entries<
     Partial<Record<keyof MatchRecord, unknown>>
   >({
@@ -355,8 +363,10 @@ async function room(riders: number) {
       now: () => now,
       id: () => randomBytes(8).toString("hex"),
     }),
-    matches = new MemoryHistoryDatabase();
-  const history = new HistoryStore(matches, rooms, () => now),
+    matches = new MemoryHistoryDatabase(platform);
+  const history = new HistoryStore(platform, matches, rooms, () => now).game(
+      fuseRiders,
+    ),
     tokens = Array.from({ length: riders }, token),
     code = await rooms.createAvailable(tokens[0]!);
   for (const entry of tokens) await rooms.admit(code, entry, "gateway");
@@ -565,7 +575,7 @@ test("pending and guest-only matches expire; a match an account owns does not", 
       parseMatchResult(result)!,
     );
   const stored = () =>
-    f.matches.transactMatch(id, (current) => ({ result: current }));
+    f.matches.transactMatch(GAME_ID, id, (current) => ({ result: current }));
   await f.report(f.tokens[0]!, { result }, undefined);
   assert.equal((await stored())!.expiresAt, f.now() + PENDING_TTL_MS);
   await f.report(f.tokens[1]!, { result }, undefined);
@@ -724,23 +734,29 @@ test("the HTTP surface: a report needs a seat, history needs a sign-in, and a ba
       ...init,
       headers: { origin, ...init.headers },
     });
-  const join = (code: string, value: string) =>
+  const join = (code: string, value: string, gameId?: string) =>
     new Promise<void>((resolve, reject) => {
       const socket = new WebSocket(
-        `ws://127.0.0.1:${port}/api/rooms/${code}/ws?token=${value}`,
+        `ws://127.0.0.1:${port}/api/rooms/${code}/ws`,
         { origin },
       );
       sockets.push(socket);
+      socket.once("open", () => socket.send(authFrame(value, gameId)));
       socket.once("message", () => resolve());
       socket.once("error", reject);
     });
   try {
+    // The service hosts Fuse Riders and the dice game; an absent gameId is Fuse Riders, as it was for every client before games.
+    assert.equal(
+      (await call("/api/rooms?gameId=chess", { method: "POST" })).status,
+      400,
+    );
     const created = (await (
-        await call("/api/rooms", { method: "POST" })
+        await call(`/api/rooms?gameId=${GAME_ID}`, { method: "POST" })
       ).json()) as { code: string; token: string },
       guest = token();
     await join(created.code, created.token);
-    await join(created.code, guest);
+    await join(created.code, guest, GAME_ID);
     const result = resultOf([peerId(created.token), peerId(guest)]);
     const report = (
       value: string,
@@ -879,6 +895,18 @@ test("the HTTP surface: a report needs a seat, history needs a sign-in, and a ba
       [peerId(guest)]: AVATARS[0]!.id,
     });
     assert.equal(mine.profile.totals.wins, 1);
+    assert.deepEqual(
+      await (
+        await call(`/api/games/${GAME_ID}/me/matches`, {
+          headers: { authorization: "Bearer id:alice" },
+        })
+      ).json(),
+      mine,
+      "the unprefixed routes are Fuse Riders' routes",
+    );
+    const unknown = await call("/api/games/chess/leaderboard");
+    assert.equal(unknown.status, 404);
+    assert.deepEqual(await unknown.json(), { error: "Unknown game" });
     assert.deepEqual(
       await (await call("/api/leaderboard")).json(),
       { players: [] },

@@ -39,15 +39,15 @@ const revision = execFileSync("git", ["rev-parse", "HEAD"], {
 const sourceHashes = Object.fromEntries(
   await Promise.all(
     [
-      "src/client/phaser/arena.ts",
-      "src/client/blast-animation.ts",
-      "src/client/phaser/trails.ts",
-      "src/client/phaser/beveled-trails.ts",
-      "src/client/phaser/trail-ribbon.ts",
-      "src/client/phaser/viewport.ts",
-      "src/client/main.ts",
-      "src/client/themes.ts",
-      "src/client/phaser/benchmark-fixture.ts",
+      "games/fuse-riders/src/render/phaser/arena.ts",
+      "games/fuse-riders/src/render/blast-animation.ts",
+      "games/fuse-riders/src/render/phaser/trails.ts",
+      "games/fuse-riders/src/render/phaser/beveled-trails.ts",
+      "games/fuse-riders/src/render/phaser/trail-ribbon.ts",
+      "games/fuse-riders/src/render/phaser/viewport.ts",
+      "games/fuse-riders/src/client/main.ts",
+      "games/fuse-riders/src/render/themes.ts",
+      "scripts/lib/benchmark-fixture.ts",
       "scripts/phaser-benchmark.ts",
     ].map(async (path) => [
       path,
@@ -94,14 +94,14 @@ try {
       const result = await page.evaluate(
         async ({ config, mode }) => {
           const { createPhaserArena } = (await import(
-            String("/src/client/phaser/arena.ts")
-          )) as typeof import("../src/client/phaser/arena.js");
+            String("/games/fuse-riders/src/render/phaser/arena.ts")
+          )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
           const { visualFixture } = (await import(
-            String("/src/client/phaser/benchmark-fixture.ts")
-          )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+            String("/scripts/lib/benchmark-fixture.ts")
+          )) as typeof import("./lib/benchmark-fixture.js");
           const { defaultTheme } = (await import(
-            String("/src/client/themes.ts")
-          )) as typeof import("../src/client/themes.js");
+            String("/games/fuse-riders/src/render/themes.ts")
+          )) as typeof import("../games/fuse-riders/src/render/themes.js");
           const wrapper = document.createElement("div");
           const fitWidth = Math.min(config.width, (config.height * 16) / 9);
           wrapper.style.cssText = `width:${fitWidth}px;height:${(fitWidth * 9) / 16}px`;

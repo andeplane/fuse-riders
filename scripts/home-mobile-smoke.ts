@@ -1,11 +1,6 @@
-import {
-  chromium,
-  webkit,
-  type Page,
-  type Locator,
-  type Browser,
-} from "playwright";
-import { POWERUP_GUIDE } from "../src/client/powerup-guide.js"; // count the guide against its source, not a literal that rots with the next pickup
+import type { Page, Locator, Browser } from "playwright";
+import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
+import { POWERUP_GUIDE } from "../games/fuse-riders/src/client/powerup-guide.js"; // count the guide against its source, not a literal that rots with the next pickup
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
@@ -111,11 +106,8 @@ async function rapidNavigation(browser: Browser, browserName: string) {
     );
   }
 }
-for (const [browserName, type] of [
-  ["chrome", chromium],
-  ["webkit", webkit],
-] as const) {
-  const browser = await type.launch({ headless: true });
+for (const { name: browserName, kind } of BOTH_ENGINES) {
+  const browser = await launchBrowser(kind, { headless: true });
   try {
     for (const viewport of [
       { width: 320, height: 568 },
@@ -187,12 +179,8 @@ for (const [browserName, type] of [
         const guide = page.getByRole("region", { name: "POWER-UPS" });
         assert.equal(
           await guide.getByRole("listitem").count(),
-          POWERUP_GUIDE.length - 1,
-          "power-up guide lists every pickup except Target Bomb",
-        );
-        assert.equal(
-          await guide.getByText("TARGET", { exact: true }).count(),
-          0,
+          POWERUP_GUIDE.length,
+          "power-up guide lists every pickup",
         );
         await guide.getByText("blocks one crash", { exact: false }).waitFor(); // the landing guide is the only place descriptions render; the TV legend is names alone
         await guide.getByText("STAR", { exact: true }).scrollIntoViewIfNeeded();

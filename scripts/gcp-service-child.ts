@@ -1,6 +1,6 @@
 /** Provider integration helper only. One short-lived token arrives through an anonymous pipe, never argv/env/disk. */
 import { OAuth2Client } from "google-auth-library";
-import { startService } from "../src/service/index.js";
+import { startService } from "../service/index.js";
 let token = "";
 for await (const chunk of process.stdin) {
   token += String(chunk);

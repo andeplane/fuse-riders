@@ -1,9 +1,9 @@
 # Product analytics
 
-[`src/online/analytics.ts`](../src/online/analytics.ts) reports twelve product events to Mixpanel. It answers two
+[`games/fuse-riders/src/online/analytics.ts`](../games/fuse-riders/src/online/analytics.ts) reports twelve product events to Mixpanel. It answers two
 questions — do riders get from the landing page into a match and what happened when they did, and which powerups
 kill and how often they miss — and nothing else.
-It is unrelated to [`src/online/telemetry.ts`](../src/online/telemetry.ts), which posts raw runtime diagnostics
+It is unrelated to [`games/fuse-riders/src/online/telemetry.ts`](../games/fuse-riders/src/online/telemetry.ts), which posts raw runtime diagnostics
 (inputs, packets, repairs, rewinds) to `/telemetry` on whatever origin served the page. It too is on only for a ported address or `?telemetry=1`,
 but the receiver lived in the LAN server removed by #271, so nothing records those posts today.
 
@@ -93,7 +93,7 @@ by the SDK or by the game.
 
 ### What Mixpanel is initialised with
 
-`MIXPANEL_CONFIG` in `analytics.ts`, checked by `tests/analytics.test.ts`:
+`MIXPANEL_CONFIG` in `analytics.ts`, checked by `games/fuse-riders/tests/analytics.test.ts`:
 
 | Option                   | Value                                            | Why                                                                                                                                                                                           |
 | ------------------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -120,6 +120,12 @@ until the project owner decides otherwise: renaming it would split the Mixpanel 
 super property on every event. `mode` and `solo` are registered only on the room path, so the landing page's
 `App Opened` and `Room Created` and the boot path's `Boot Failed` carry `role` alone.
 
+`renderer` (`webgl`, or `canvas` for Phaser's fallback when WebGL is unavailable or `?renderer=phaser-canvas`
+forces it) is registered as a super property once the arena first draws, together with a `Graphics Ready` event.
+Events before that do not carry it: `App Opened`, and in solo usually `Seat Taken` and `Match Started` too, which
+fire while Phaser is still downloading. Count renderers with `Graphics Ready`. The landing page's backdrop and a room's arena each report one, even when CREATE ROOM keeps the same page, and `role` (`landing` or the room role) tells them apart. A device that never draws an arena,
+such as a shared-TV rider's phone, reports neither. This shows how many players still depend on the Canvas fallback.
+
 | Event              | Fires                                                                                             | Key properties                                                                                                                                                                                                                                                                                                                                                 |
 | ------------------ | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `App Opened`       | once per page load                                                                                | `role`                                                                                                                                                                                                                                                                                                                                                         |
@@ -133,11 +139,13 @@ super property on every event. `mode` and `solo` are registered only on the room
 | `Settings Changed` | a draft the runtime accepted                                                                      | `mode`, `match`, `matchLength`, `bombChargeTicks`, `chainReaction`, `aimBounce`, `map`, `powerupTypes`                                                                                                                                                                                                                                                         |
 | `Connect Failed`   | 20s with no link to the host                                                                      | `status` (the status line, `null` if none yet), `secondsWaiting`                                                                                                                                                                                                                                                                                               |
 | `Boot Failed`      | the boot-failure card is shown                                                                    | `name`, `code`, `message`                                                                                                                                                                                                                                                                                                                                      |
+| `Graphics Ready`   | the arena first draws on this page, and again after a successful RETRY GRAPHICS                   | `renderer` (super property)                                                                                                                                                                                                                                                                                                                                    |
+| `Graphics Failed`  | the RETRY GRAPHICS card is shown                                                                  | `stage`: `startup` (download, boot or its 10 s deadline), `context` (lost GPU context not restored in 2 s), `render` (a frame threw)                                                                                                                                                                                                                           |
 | `Signed In`        | a Google sign-in from the landing page's account dialog succeeded                                 | —                                                                                                                                                                                                                                                                                                                                                              |
 
 When `Match Started`, `Kill` / `Miss`, `Seat Taken` and `Match Ended` fire is
-[`src/online/funnel.ts`](../src/online/funnel.ts): the room UI hands it every snapshot it renders and the funnel
-does the once-only bookkeeping, outside the render callback and under test (`tests/funnel.test.ts`). A frame it
+[`games/fuse-riders/src/online/funnel.ts`](../games/fuse-riders/src/online/funnel.ts): the room UI hands it every snapshot it renders and the funnel
+does the once-only bookkeeping, outside the render callback and under test (`games/fuse-riders/tests/funnel.test.ts`). A frame it
 cannot process never throws into the render callback; the first such failure is reported once with
 `console.warn` (there is no diagnostic event), and an event whose properties could not be built is not consumed —
 it fires on the next frame that can build it.
@@ -160,20 +168,20 @@ device that loads into a match already past round 1 reports `Match Ended` but no
 
 `Kill` and `Miss` are the one place analytics reports per occurrence rather than per match: one `Kill` per rider
 killed and one `Miss` per trigger pull that killed nobody. `weapon` is what the pull fired — `bomb` (the ordinary
-lobbed bomb every rider has, the baseline), `triple`, `five`, `target`, `gun` or `shell`.
+lobbed bomb every rider has, the baseline), `triple`, `five`, `gun` or `shell`.
 
 The point is histograms, so both events carry every dimension an outcome might be broken down by:
 
-| Property                                                 | On     | Meaning                                                                                                        |
-| -------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------- |
-| `weapon`                                                 | both   | what the pull fired                                                                                            |
-| `bombs`                                                  | both   | bombs the pull put in the air — 1 for Target, more for a volley or with Extra Bomb (Gun and Shell fan out too) |
-| `power`, `extraBombs`, `fuseLevel`, `rangeLevel`, `grip` | both   | the shooter's round-long upgrades at the moment of the pull, not at the round's end                            |
-| `round`, `secondsIntoRound`                              | both   | when the trigger was pulled, to a tenth of a second                                                            |
-| `riders`, `bots`                                         | both   | the room when the round was reported                                                                           |
-| `victimBot`                                              | `Kill` | whether the rider killed was an AI                                                                             |
-| `secondsToKill`                                          | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Target and Gun                    |
-| `shotKills`, `firstKillOfShot`                           | `Kill` | how many riders the pull killed, and one `true` per pull                                                       |
+| Property                                                 | On     | Meaning                                                                                                 |
+| -------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------- |
+| `weapon`                                                 | both   | what the pull fired                                                                                     |
+| `bombs`                                                  | both   | bombs the pull put in the air — more than 1 for a volley or with Extra Bomb (Gun and Shell fan out too) |
+| `power`, `extraBombs`, `fuseLevel`, `rangeLevel`, `grip` | both   | the shooter's round-long upgrades at the moment of the pull, not at the round's end                     |
+| `round`, `secondsIntoRound`                              | both   | when the trigger was pulled, to a tenth of a second                                                     |
+| `riders`, `bots`                                         | both   | the room when the round was reported                                                                    |
+| `victimBot`                                              | `Kill` | whether the rider killed was an AI                                                                      |
+| `secondsToKill`                                          | `Kill` | from the pull to the death, to a tenth — long for a bouncing shell, zero for Gun                        |
+| `shotKills`, `firstKillOfShot`                           | `Kill` | how many riders the pull killed, and one `true` per pull                                                |
 
 | Reading                       | Mixpanel                                                       |
 | ----------------------------- | -------------------------------------------------------------- |
@@ -201,7 +209,7 @@ the whole next round, a device that catches up past the round-over pause in one 
 resynchronised snapshot) still reports it. What is lost: a round whose shooter's device leaves before it is
 confirmed, and a round a device skips entirely by catching up across two decisions at once.
 
-Gun shots resolve on press: a visible tracer is already a hit or miss.
+Gun shots resolve the tick they are fired (on release): a visible tracer is already a hit or miss.
 
 A pull whose bomb or shell is still in the air when the round ends — and has killed nobody — is **not** a
 `Miss`: the round's end interrupted it. Without that rule, weapons that stay in flight longest (Shell, lobbed
@@ -211,11 +219,11 @@ A **pull** is one trigger press: a volley is one pull however many bombs it puts
 names the pull. A rider can hold several weapons at once and a pull spends only some of them, so it is labelled
 with the first of these that it spent:
 
-`gun` → `shell` → `target` → `five` → `triple` → `bomb`
+`gun` → `shell` → `five` → `triple` → `bomb`
 
 Gun and Shell come first because they launch on a path of their own; a Triple or Five they fan out is spent
-under their label, and a rider holding Target as well keeps it armed for the next pull. Below them Target wins because it is the only one the others cannot
-combine with. Rules before `fuse-p2p-24` also reported `gravity`, for the Singularity bomb that Gravity used to arm. The
+under their label. Rules before `fuse-p2p-40` also reported `target`, for the Target Bomb, and rules before
+`fuse-p2p-24` reported `gravity`, for the Singularity bomb that Gravity used to arm. The
 round-long upgrades are never a `weapon`: Power, Extra Bomb, Shorter Fuse, Range and GRIP sharpen every pull rather than
 being spent by one.
 
@@ -228,7 +236,7 @@ exactly one — which is what turns kills back into pulls for a miss rate.
 
 Two consequences of chain reactions, both inherited from how eliminations have always been credited: a bomb set
 off by someone else's blast still belongs to its owner, so a rider whose Five bomb a rival detonates is credited
-the kill; and where a rider's own older plain bomb chains alongside its Target, the lowest-id rule credits `bomb`.
+the kill; and where a rider's own older plain bomb chains alongside its volley, the lowest-id rule credits `bomb`.
 What cannot be seen at all: a black hole that bends a rider into a wall, or swallows one in its core, is a `wall` death with no owner. And a
 pull whose only effect was uncredited — an own goal, a blast shared with another rider, or setting off someone
 else's bomb — is a `Miss`, because no kill is credited to it.
@@ -261,7 +269,7 @@ reported as `matchLength` for exactly this reason.
 - **Location.** `ip: false` at `init`: Mixpanel is told not to geolocate the request, so no event carries a city,
   region or country.
 - **Free text.** Every string property of every event and super property passes through `sanitizeText`
-  ([`analytics-text.ts`](../src/online/analytics-text.ts)) inside `track`, so a call site cannot forget to: one
+  ([`analytics-text.ts`](../games/fuse-riders/src/online/analytics-text.ts)) inside `track`, so a call site cannot forget to: one
   line, at most 200 characters, with URLs (`[url]`), query strings (`[query]`), `room=` / `token=` style pairs,
   e-mail addresses, JWTs, UUIDs and any long hex or base64 run (`[token]` — the `fuse-peer-*` and `fuse-room-*`
   tokens are 64 hex characters) removed, and this page's own room code removed wherever it appears. Today that
