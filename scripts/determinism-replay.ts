@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { build } from "esbuild";
-import { chromium, webkit } from "playwright";
-import { GOLDEN_SEED } from "../tests/fixtures/golden-replay.ts";
-import { replayHashes, type Recording } from "../tests/fixtures/replay-log.ts";
-import { makeRecording } from "../tests/fixtures/replay-recorder.ts";
+import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
+import { GOLDEN_SEED } from "../games/fuse-riders/tests/fixtures/golden-replay.ts";
+import {
+  replayHashes,
+  type Recording,
+} from "../games/fuse-riders/tests/fixtures/replay-log.ts";
+import { makeRecording } from "../games/fuse-riders/tests/fixtures/replay-recorder.ts";
 
 // Phase 0 gate: the same seeded five-rider log folds to the same state hash on every tick in Node, Chromium and WebKit.
 // By default that log is the pinned golden recording, read from its fixture, and the seed is only reported: it is
@@ -19,7 +22,10 @@ const recording: Recording = custom
   ? makeRecording(seed, Number(process.env.REPLAY_TICKS ?? 3000))
   : JSON.parse(
       await readFile(
-        new URL("../tests/fixtures/mechanics-recording.json", import.meta.url),
+        new URL(
+          "../games/fuse-riders/tests/fixtures/mechanics-recording.json",
+          import.meta.url,
+        ),
         "utf8",
       ),
     );
@@ -30,7 +36,7 @@ console.log(
 );
 const bundle = await build({
   stdin: {
-    contents: `import { replayHashes } from './tests/fixtures/replay-log.ts'; globalThis.replayHashes = replayHashes;`,
+    contents: `import { replayHashes } from './games/fuse-riders/tests/fixtures/replay-log.ts'; globalThis.replayHashes = replayHashes;`,
     resolveDir: process.cwd(),
     loader: "ts",
   },
@@ -44,11 +50,8 @@ const results: Record<
   string,
   { ticks: number; ms: number; firstMismatch?: number }
 > = { node: { ticks, ms: Math.round(performance.now() - started) } };
-for (const [name, engine] of [
-  ["chromium", chromium],
-  ["webkit", webkit],
-] as const) {
-  const browser = await engine.launch({ headless: true });
+for (const { kind: name } of BOTH_ENGINES) {
+  const browser = await launchBrowser(name, { headless: true });
   try {
     const page = await browser.newPage();
     await page.setContent("<!doctype html><title>Determinism replay</title>");

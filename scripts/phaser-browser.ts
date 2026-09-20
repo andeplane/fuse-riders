@@ -1,17 +1,9 @@
 import assert from "node:assert/strict";
-import { createServer } from "vite";
-import { chromium, webkit } from "playwright";
+import { launchSelected } from "./lib/browser.js";
+import { startViteServer } from "./lib/server.js";
 import { smokeTimeout } from "./smoke-timeout.js";
-const server = await createServer({
-  server: { port: 0, host: "127.0.0.1", hmr: false },
-});
-await server.listen();
-const address = server.httpServer!.address();
-if (!address || typeof address === "string") throw Error("No server");
-const browser =
-  process.env.BROWSER === "webkit"
-    ? await webkit.launch()
-    : await chromium.launch({ channel: "chrome" });
+const server = await startViteServer();
+const browser = await launchSelected("chrome");
 const page = await browser.newPage({
   viewport: { width: 1600, height: 1000 },
   deviceScaleFactor: Number(process.env.DPR ?? 2),
@@ -20,18 +12,18 @@ const errors: string[] = [];
 page.on("pageerror", (e) => errors.push(e.stack ?? e.message));
 try {
   await page.addInitScript("window.__name = value => value");
-  await page.goto(`http://127.0.0.1:${address.port}/?mute&room=INVALID`);
+  await page.goto(`${server.url}?mute&room=INVALID`);
   await page.getByText("Invalid room code", { exact: true }).waitFor();
   const result = await page.evaluate(async (recoveryBudgetMs) => {
     const { createPhaserArena } = (await import(
-      String("/src/client/phaser/arena.ts")
-    )) as typeof import("../src/client/phaser/arena.js");
+      String("/games/fuse-riders/src/render/phaser/arena.ts")
+    )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
     const { visualFixture } = (await import(
-      String("/src/client/phaser/benchmark-fixture.ts")
-    )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+      String("/scripts/lib/benchmark-fixture.ts")
+    )) as typeof import("./lib/benchmark-fixture.js");
     const { themes } = (await import(
-      String("/src/client/themes.ts")
-    )) as typeof import("../src/client/themes.js");
+      String("/games/fuse-riders/src/render/themes.ts")
+    )) as typeof import("../games/fuse-riders/src/render/themes.js");
     const results = [];
     // #127: a navigation can abort the embedded default images Phaser decodes at boot. Its texture manager still reports
     // READY, and booting the WebGL renderer without __DEFAULT throws. Failing those images (only they are data PNGs set
@@ -116,6 +108,8 @@ try {
         !canvas.getContext("webgl")?.getContextAttributes()?.antialias
       )
         throw Error("WebGL trail antialiasing is disabled");
+      if (!arena.metrics().defaultTextureGuard)
+        throw Error("Default-texture boot guard (#127) did not install");
       const fixed = visualFixture(40);
       arena.render(fixed, now, themes["neon-pixel"], "cache-test");
       const settle = async () => {
@@ -123,24 +117,10 @@ try {
           requestAnimationFrame(() => requestAnimationFrame(() => r())),
         );
       };
-      for (const [w, h] of [
-        [800, 450],
-        [1200, 675],
-        [400, 225],
-      ] as const) {
-        wrapper.style.width = `${w}px`;
-        wrapper.style.height = `${h}px`;
-        await settle();
-        arena.render(fixed, now, themes["neon-pixel"], "cache-test");
-        if (
-          canvas.width !== w * devicePixelRatio ||
-          canvas.height !== h * devicePixelRatio
-        )
-          throw Error(
-            `DPR sizing failed: ${canvas.width}x${canvas.height} at ${w}x${h} DPR ${devicePixelRatio}`,
-          );
-        // A fixture containing just two bright, far-apart landmarks verifies world-to-pixel mapping
-        // and the boundary mask after every resize, on both actual rendering backends.
+      // A fixture containing just two bright, far-apart landmarks verifies world-to-pixel mapping
+      // on both actual rendering backends; extra segments exercise the trail vertex buffer.
+      type Segment = (typeof fixed.players)[number]["trail"][number];
+      const checkLandmarks = (label: string, extra: Segment[] = []) => {
         const marker = {
           ...fixed,
           players: fixed.players.slice(0, 1).map((p) => ({
@@ -150,6 +130,7 @@ try {
             x: 500,
             y: 400,
             trail: [
+              ...extra,
               {
                 x1: 100,
                 y1: 100,
@@ -195,9 +176,27 @@ try {
             pixel.set(canvas.getContext("2d")!.getImageData(px, py, 1, 1).data);
           if (Math.max(...pixel.slice(0, 3)) < 100)
             throw Error(
-              `World landmark missing after resize at ${x},${y}: ${pixel}`,
+              `World landmark missing ${label} at ${x},${y}: ${pixel}`,
             );
         }
+      };
+      for (const [w, h] of [
+        [800, 450],
+        [1200, 675],
+        [400, 225],
+      ] as const) {
+        wrapper.style.width = `${w}px`;
+        wrapper.style.height = `${h}px`;
+        await settle();
+        arena.render(fixed, now, themes["neon-pixel"], "cache-test");
+        if (
+          canvas.width !== w * devicePixelRatio ||
+          canvas.height !== h * devicePixelRatio
+        )
+          throw Error(
+            `DPR sizing failed: ${canvas.width}x${canvas.height} at ${w}x${h} DPR ${devicePixelRatio}`,
+          );
+        checkLandmarks("after resize");
       }
       arena.render(fixed, now, themes["neon-pixel"], "cache-test");
       const stableHistoryBuilds = arena.metrics().trailHistoryBuilds;
@@ -311,6 +310,19 @@ try {
         gl!.readPixels(200, 200, 1, 1, gl!.RGBA, gl!.UNSIGNED_BYTE, pixel);
         if (pixel[0]! + pixel[1]! + pixel[2]! === 0)
           throw Error("Restored renderer remained blank");
+        // Trails come back after restore, including through a grown vertex buffer.
+        checkLandmarks("after context restore");
+        const zigzag: Segment[] = [];
+        for (let i = 0; i < 1200; i++)
+          zigzag.push({
+            x1: 100 + i,
+            y1: i % 2 ? 600 : 300,
+            x2: 101 + i,
+            y2: i % 2 ? 300 : 600,
+            createdTick: 39,
+            expiresAtTick: 100,
+          });
+        checkLandmarks("with a grown trail buffer", zigzag);
         restored = true;
       }
       results.push({
@@ -324,8 +336,8 @@ try {
       wrapper.remove();
     }
     const { mountArenaPresentation } = (await import(
-      String("/src/client/phaser/presentation.ts")
-    )) as typeof import("../src/client/phaser/presentation.js");
+      String("/games/fuse-riders/src/render/phaser/presentation.ts")
+    )) as typeof import("../games/fuse-riders/src/render/phaser/presentation.js");
     const wrapper = document.createElement("div");
     wrapper.style.cssText = "width:800px;height:450px";
     document.body.append(wrapper);
@@ -431,5 +443,5 @@ try {
 } finally {
   if (errors.length) console.error("Page errors:", errors);
   await browser.close();
-  await server.close();
+  await server.stop();
 }

@@ -1,5 +1,7 @@
 import {
+  LEGACY_GAME_ID,
   ROOM_RECONNECT_GRACE_MS,
+  validGameId,
   validRoomCode,
   reserveRoomCode,
   generateRoomCode,
@@ -24,6 +26,8 @@ export interface Member {
 export interface RoomRecord {
   version: 2;
   code: string;
+  /** The game this room serves. Absent on rooms created before rooms carried a game: those are `LEGACY_GAME_ID`. */
+  gameId?: string;
   incarnation: string;
   hostHash: string;
   hostId: string;
@@ -75,6 +79,8 @@ export interface RoomStoreDependencies {
   maxGuests?: number;
   /** What a member refused for capacity is told. */
   fullMessage?: string;
+  /** The games this service hosts; a room for any other is refused. Defaults to `LEGACY_GAME_ID` alone. */
+  gameIds?: readonly string[];
 }
 export const CONNECTION_TTL_MS = 30_000;
 /** Any admitted member renews the room; an empty room has this long to reconnect. */
@@ -98,12 +104,32 @@ export const peerId = (token: string): string => digest(token).slice(0, 24);
 export const validToken = (token: string): boolean =>
   /^[a-f0-9]{64}$/.test(token);
 export const validCode = validRoomCode;
+/** The game a stored room serves; a room from before rooms carried a game is a `LEGACY_GAME_ID` room. */
+export const roomGameId = (room: Pick<RoomRecord, "gameId">): string =>
+  room.gameId ?? LEGACY_GAME_ID;
+/** Validate configuration once: every id well formed, and at least one. */
+export function roomGameIds(
+  gameIds: readonly string[] = [LEGACY_GAME_ID],
+): ReadonlySet<string> {
+  if (!gameIds.length || !gameIds.every(validGameId))
+    throw new RangeError("gameIds must be one or more valid game ids");
+  return new Set(gameIds);
+}
 export class RoomError extends Error {
   constructor(
     readonly status: number,
     message: string,
   ) {
     super(message);
+  }
+}
+/**
+ * The code and token were fine; the room has no free seat. Not an admission failure: it spends no failure budget,
+ * and the socket closes with `CLOSE_ROOM_FULL` so the client stops retrying instead of hammering a full room.
+ */
+export class RoomFullError extends RoomError {
+  constructor(message: string) {
+    super(429, message);
   }
 }
 const clone = (room: RoomRecord): RoomRecord => structuredClone(room);
@@ -151,19 +177,29 @@ export function renewalDue(
 }
 export class RoomStore {
   private readonly maxGuests: number;
+  readonly gameIds: ReadonlySet<string>;
   constructor(
     readonly database: RoomDatabase,
     private dependencies: RoomStoreDependencies,
   ) {
     this.maxGuests = roomGuestLimit(dependencies.maxGuests);
+    this.gameIds = roomGameIds(dependencies.gameIds);
+  }
+  /** A game this service hosts, or the refusal. Absent means `LEGACY_GAME_ID`, as it did before rooms carried a game. */
+  hostedGame(gameId: string | undefined): string {
+    const game = gameId ?? LEGACY_GAME_ID;
+    if (!this.gameIds.has(game)) throw new RoomError(400, "Unknown game");
+    return game;
   }
   async createAvailable(
     token: string,
     nextCode: () => string = generateRoomCode,
+    gameId?: string,
   ): Promise<string> {
+    const game = this.hostedGame(gameId);
     const code = await reserveRoomCode(async (candidate) => {
       try {
-        await this.create(candidate, token);
+        await this.create(candidate, token, game);
         return true;
       } catch (error) {
         if (error instanceof RoomError && error.status === 409) return false;
@@ -187,9 +223,10 @@ export class RoomStore {
       return { room, result: undefined };
     });
   }
-  async create(code: string, token: string): Promise<void> {
+  async create(code: string, token: string, gameId?: string): Promise<void> {
     if (!validCode(code) || !validToken(token))
       throw new RoomError(400, "Invalid room identity");
+    const game = this.hostedGame(gameId);
     const incarnation = this.dependencies.id();
     await this.database.transact(code, (current) => {
       const now = this.dependencies.now();
@@ -199,6 +236,7 @@ export class RoomStore {
         room: {
           version: 2,
           code,
+          gameId: game,
           incarnation,
           hostHash: digest(token),
           hostId: peerId(token),
@@ -210,25 +248,33 @@ export class RoomStore {
       };
     });
   }
+  /**
+   * Seats a member. `gameId` is the game the member's page plays (absent: `LEGACY_GAME_ID`); a room of another game
+   * refuses it as not found, so a room code never means two games at once and the page stops retrying.
+   */
   async admit(
     code: string,
     token: string,
     gatewayId: string,
+    gameId?: string,
   ): Promise<{ room: RoomRecord; member: Member }> {
     if (!validCode(code) || !validToken(token))
       throw new RoomError(401, "Invalid identity");
+    const game = gameId ?? LEGACY_GAME_ID;
     const connectionId = this.dependencies.id(),
       grantId = this.dependencies.id(),
       id = peerId(token);
     return this.database.transact(code, (current) => {
       const now = this.dependencies.now(),
         room = live(current, now);
+      if (roomGameId(room) !== game)
+        throw new RoomError(404, "Room is for another game");
       prune(room, now);
       const host = digest(token) === room.hostHash,
         guests = this.maxGuests,
         capacity = host || room.members[room.hostId] ? guests + 1 : guests;
       if (Object.keys(room.members).length >= capacity && !room.members[id])
-        throw new RoomError(429, this.dependencies.fullMessage ?? "Room full");
+        throw new RoomFullError(this.dependencies.fullMessage ?? "Room full");
       const member: Member = {
         id,
         connectionId,
@@ -325,6 +371,7 @@ export function parseRoomRecord(
     r.version !== 2 ||
     typeof r.code !== "string" ||
     !validCode(r.code) ||
+    (r.gameId !== undefined && !validGameId(r.gameId)) ||
     typeof r.incarnation !== "string" ||
     r.incarnation.length > 128 ||
     typeof r.hostHash !== "string" ||

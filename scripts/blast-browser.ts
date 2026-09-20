@@ -27,14 +27,14 @@ try {
   for (const mode of ["webgl", "phaser-canvas"] as const) {
     const report = await page.evaluate(async (mode) => {
       const { createPhaserArena } = (await import(
-        String("/src/client/phaser/arena.ts")
-      )) as typeof import("../src/client/phaser/arena.js");
+        String("/games/fuse-riders/src/render/phaser/arena.ts")
+      )) as typeof import("../games/fuse-riders/src/render/phaser/arena.js");
       const { visualFixture } = (await import(
-        String("/src/client/phaser/benchmark-fixture.ts")
-      )) as typeof import("../src/client/phaser/benchmark-fixture.js");
+        String("/scripts/lib/benchmark-fixture.ts")
+      )) as typeof import("./lib/benchmark-fixture.js");
       const { themes } = (await import(
-        String("/src/client/themes.ts")
-      )) as typeof import("../src/client/themes.js");
+        String("/games/fuse-riders/src/render/themes.ts")
+      )) as typeof import("../games/fuse-riders/src/render/themes.js");
       document.body.replaceChildren();
       document.body.style.cssText = "margin:0;background:#020715";
       const canvas = document.createElement("canvas");

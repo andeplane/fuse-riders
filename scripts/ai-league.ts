@@ -6,7 +6,7 @@ import {
   botRandom,
   BOT_DIFFICULTIES,
   type BotDifficulty,
-} from "../src/engine/bot-controller.js";
+} from "../games/fuse-riders/src/engine/bot-controller.js";
 import {
   createGame,
   addPlayer,
@@ -14,8 +14,8 @@ import {
   step,
   SLOT_COLORS,
   ROUND_DRAW_TICK,
-} from "../src/engine/game.js";
-import { classicSettings } from "../src/engine/room-settings.js";
+} from "../games/fuse-riders/src/engine/game.js";
+import { classicSettings } from "../games/fuse-riders/src/engine/room-settings.js";
 
 /** Identical deterministic brains on symmetric spawns mirror each other into a simultaneous crash, which measures
  *  the arena's symmetry rather than the riders' skill. A seeded nudge off the spawn marks breaks it. */

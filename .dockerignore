@@ -4,10 +4,15 @@
 !package.json
 !pnpm-lock.yaml
 !pnpm-workspace.yaml
-!src/
-!src/**
+!service/
+!service/**
 !packages/
 !packages/*/
 !packages/*/package.json
 !packages/*/src/
 !packages/*/src/**
+!games/
+!games/*/
+!games/*/package.json
+!games/*/src/
+!games/*/src/**

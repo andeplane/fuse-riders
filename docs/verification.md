@@ -9,6 +9,7 @@ The `verify` job in [.github/workflows/ci.yml](../.github/workflows/ci.yml) inst
 ```sh
 pnpm format:check
 pnpm lint
+pnpm config:check
 pnpm typecheck
 pnpm test:coverage
 pnpm build
@@ -24,13 +25,13 @@ Do not freeze a test count or coverage percentage in this document. Obtain them 
 
 ## What the suites establish
 
-| Area                            | Evidence                                                                                                               |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Simulation                      | `tests/game.test.ts` plus motion, geometry, pickups, weapons, portals, trail lifecycle, statistics and moment suites   |
-| Replay and network coordination | Input-log, stream, packet, snapshot, checkpoint, rollback, generation-replay and room-runtime tests                    |
-| Controls and presentation input | Client and controller tests (input state, keyboard, pointers, targeting) with typed fakes and injected time            |
-| Networking libraries            | `packages/*/tests/`, including room service/gateway, admission, authority and transport-policy tests                   |
-| Audio and presentation helpers  | Audio-director, radio, replay, viewport, effects and trail-cache tests; this does not cover all DOM/Phaser integration |
+| Area                            | Evidence                                                                                                                               |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Simulation                      | `games/fuse-riders/tests/game.test.ts` plus motion, geometry, pickups, weapons, portals, trail lifecycle, statistics and moment suites |
+| Replay and network coordination | Input-log, stream, packet, snapshot, checkpoint, rollback, generation-replay and room-runtime tests                                    |
+| Controls and presentation input | Client and controller tests (input state, keyboard, pointers, targeting) with typed fakes and injected time                            |
+| Networking libraries            | `packages/*/tests/`, including room service/gateway, admission, authority and transport-policy tests                                   |
+| Audio and presentation helpers  | Audio-director, radio, replay, viewport, effects and trail-cache tests; this does not cover all DOM/Phaser integration                 |
 
 Use typed fakes for clocks, scheduling, transport, storage and browser surfaces. Malformed data must leave healthy state intact. For changed networking behavior, exercise the relevant dropped, duplicated, reordered, cancelled and stale-generation paths, as well as successful recovery. The current fixture scheduler does not by itself prove realistic hidden-phone timer behavior.
 
@@ -45,7 +46,9 @@ ONLY=core PORT=8801 scripts/ci-local.sh
 ONLY=keyboard PORT=8801 scripts/ci-local.sh
 ```
 
-`core` includes formatting, lint, typecheck, coverage and build. Room-service browser checks serve `dist/`, so build first. Install the required Playwright browsers before running them. The local mirror still has tracked drift and script consolidation work in #257; consult the workflow for the authoritative matrix.
+`core` is every `verify` step. Room-service browser checks serve `dist/`, so build first. Install the required Playwright browsers before running them.
+
+[scripts/ci-manifest.json](../scripts/ci-manifest.json) is the only list of CI steps: the workflow builds its browser matrix from it (one parallel job per smoke, summed up by the `e2e` job) and `scripts/ci-local.sh` runs the same entries through the same runner, `scripts/ci-run.ts`. `tests/ci-manifest.test.ts` fails when the workflow, the local mirror, a smoke's browser list or the README's step names stop agreeing with it. Add or change a smoke in the manifest, nowhere else. `pnpm exec tsx scripts/ci-run.ts --smoke <id>` runs one smoke exactly as its CI job does, including the single retry that CI reports as a flake; the local mirror does not retry.
 
 `pnpm exec tsx scripts/determinism-replay.ts` compares a seeded input recording in Node, Chromium and WebKit. It is cross-engine evidence for that workload, not proof that all mechanics or arbitrary inputs were exercised. Phaser lifecycle, online WebRTC rooms, the shared-screen lobby, keyboard, touch-layout and recap flows each have separate smokes. Browser emulation is not physical-phone evidence; application-message impairment is not real IP packet loss.
 

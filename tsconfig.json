@@ -11,5 +11,12 @@
     "types": ["node"],
     "allowImportingTsExtensions": true
   },
-  "include": ["src", "tests", "scripts", "packages", "vite.config.ts"]
+  "include": [
+    "service",
+    "tests",
+    "scripts",
+    "packages",
+    "games",
+    "vite.config.ts"
+  ]
 }

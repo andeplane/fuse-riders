@@ -52,7 +52,7 @@ The harness detects the host's visible MATCH COMPLETE notice, releases controls,
 pnpm exec tsx scripts/ice-gather-probe.ts
 ```
 
-`PROBE_URL` is the page the probe runs in, defaulting to `https://andeplane.github.io/fuse-riders/`; it only supplies a secure browsing context, so a local `dev:online` URL works too. `ICE_SERVERS` is a comma-separated list of URLs replacing `DEFAULT_ICE_SERVERS` from `src/online/ice-config.ts`. `BROWSER=webkit` runs WebKit instead of the default Chromium. Gathering is capped at eight seconds. Run it from the affected network: a result from the office laptop says nothing about the phone that cannot connect.
+`PROBE_URL` is the page the probe runs in, defaulting to `https://andeplane.github.io/fuse-riders/`; it only supplies a secure browsing context, so a local `dev:online` URL works too. `ICE_SERVERS` is a comma-separated list of URLs replacing `DEFAULT_ICE_SERVERS` from `games/fuse-riders/src/online/ice-config.ts`. `BROWSER=webkit` runs WebKit instead of the default Chromium. Gathering is capped at eight seconds. Run it from the affected network: a result from the office laptop says nothing about the phone that cannot connect.
 
 ## Input drop probe
 

@@ -14,13 +14,13 @@ startGcpRoomService({
 });
 ```
 
-| Route                             |                                                                         |
-| --------------------------------- | ----------------------------------------------------------------------- |
-| `POST /api/rooms`                 | new room → `{ code, token }`; the token is the creator's identity       |
-| `GET /api/rooms/:code/ws?token=`  | admission, roster, `signal` forwarding, `time` probes and lease renewal |
-| `GET /api/rooms/:code/ice?token=` | STUN servers, members only                                              |
-| `POST /api/rooms/:code/end`       | creator ends the room (`Authorization: Bearer <token>`)                 |
-| `GET /healthz`                    | gateway state                                                           |
+| Route                       |                                                                                                                               |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `POST /api/rooms`           | new room → `{ code, token }`; the token is the creator's identity; `?gameId=` names the game (see below)                      |
+| `GET /api/rooms/:code/ws`   | first frame `{"type":"auth","token","gameId"?}`, then admission, roster, `signal` forwarding, `time` probes and lease renewal |
+| `GET /api/rooms/:code/ice`  | STUN servers, members only (`Authorization: Bearer <token>`)                                                                  |
+| `POST /api/rooms/:code/end` | creator ends the room (`Authorization: Bearer <token>`)                                                                       |
+| `GET /healthz`              | gateway state                                                                                                                 |
 
 Pieces, for other hosts: `RoomStore` (rules, over a `RoomDatabase`), `RoomGateway` (sockets, over a `RoomBus`),
 `createRoomServer` (HTTP + upgrade). `MemoryRoomDatabase`/`LocalRoomBus` and `FirestoreRoomDatabase`/`PubSubRoomBus`
@@ -28,6 +28,12 @@ are the two provided pairs. `RoomStoreDependencies.maxGuests` and `fullMessage` 
 plus five). When constructing `FirestoreRoomDatabase` directly, pass the same `maxGuests` as its third argument
 so stored metadata validation uses the admission limit; `startGcpRoomService` does this automatically. Limits must
 be non-negative safe integers below `Number.MAX_SAFE_INTEGER`. The Google client libraries are optional peers, needed only for `fuse-network-be/gcp`.
+
+A room serves one game. `RoomStoreDependencies.gameIds` (and the same option on both services) lists the games the
+service hosts, default `LEGACY_GAME_ID` (`fuse-riders`) alone. A room is created for the `gameId` in the creation
+query and stores it; a socket whose `auth` frame names another game is refused as not found (`CLOSE_ROOM_ENDED`), and
+an unhosted game cannot create a room. An absent `gameId` means `LEGACY_GAME_ID` on both sides, so clients and
+services from before rooms carried a game keep working with each other.
 
 Origin checks are not authentication; tokens are. Requests, query strings and frames are never logged.
 

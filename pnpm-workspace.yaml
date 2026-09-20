@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - games/*
 # pnpm 10 skips dependency install scripts unless listed; esbuild's checks its platform binary.
 onlyBuiltDependencies:
   - esbuild

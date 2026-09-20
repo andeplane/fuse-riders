@@ -11,16 +11,24 @@ WORKDIR /app
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable pnpm
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-# The workspace manifests must be present for pnpm to link fuse-network-be and its protocol package.
+# The workspace manifests must be present for pnpm to link the workspace packages the service runs:
+# fuse-network-be with its protocol package, fuse-netcode and fuse-platform (fuse-ui is browser-only but still a workspace).
 COPY packages/fuse-network-protocol/package.json ./packages/fuse-network-protocol/
 COPY packages/fuse-network-fe/package.json ./packages/fuse-network-fe/
 COPY packages/fuse-network-be/package.json ./packages/fuse-network-be/
+COPY packages/fuse-netcode/package.json ./packages/fuse-netcode/
+COPY packages/fuse-platform/package.json ./packages/fuse-platform/
+COPY packages/fuse-ui/package.json ./packages/fuse-ui/
+# Games are workspaces too: pnpm needs every manifest the lockfile lists, and the service registers each game's stats.
+COPY games/dice/package.json ./games/dice/
+COPY games/fuse-riders/package.json ./games/fuse-riders/
 # node_modules hardlinks into the store, so removing the store afterwards keeps the installed files.
 RUN pnpm install --prod --frozen-lockfile && rm -rf "$(pnpm store path)"
-COPY --chown=node:node src ./src
+COPY --chown=node:node service ./service
 COPY --chown=node:node packages ./packages
+COPY --chown=node:node games ./games
 # The running service reports this on /api/health; the Pages release publishes only the revision the backend serves.
 ENV NODE_ENV=production PORT=8080 BUILD_REVISION=$BUILD_REVISION
 USER node
 EXPOSE 8080
-CMD ["node", "--import", "tsx", "src/service/index.ts"]
+CMD ["node", "--import", "tsx", "service/index.ts"]

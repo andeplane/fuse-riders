@@ -84,71 +84,43 @@ export function deterministicViolations(file: ts.SourceFile): string[] {
 }
 
 type Layer = "engine" | "net" | "render" | "app" | "shared" | "external";
-// `career-stats`, `elo` and `rating` are the history service's settlement and the account panel's reading of it:
-// one authority computes them after a match, no replica folds them, and nothing the simulation owns imports them.
+// `career-stats` is the history service's settlement and the account panel's reading of it (Elo and ratings moved to
+// packages/fuse-platform): one authority computes it after a match, no replica folds it, and nothing the simulation
+// owns imports it. `game-id` names Fuse Riders on the shared backend.
 // `combat-stats` is not here: match statistics carry it through every tick, so it stays engine-owned and guarded.
 const shared = new Set([
   "avatars",
   "career-stats",
-  "elo",
-  "rating",
+  "game-id",
   "duration-text",
   "protocol",
-  "uuid",
   "firebase-config",
 ]);
 const network = new Set([
-  "clock",
   "endpoints",
+  "fuse-game",
   "net-stats",
-  "packet",
-  "prediction",
-  "rollback",
   "room-runtime",
-  "snapshot",
-  "stream",
   "telemetry",
 ]);
-const rendering = new Set([
-  "arena-maps",
-  "arena-views",
-  "arena-wall",
-  "blast-animation",
-  "bomb-preview",
-  "ink-renderer",
-  "portal-palettes",
-  "reload-ring",
-  "render-snapshot",
-  "self-locator",
-  "themes",
-  "trail-debris",
-]);
-
-/** Ownership by directory, with the app-side files that are really net or render code listed by name. */
+/** Ownership by directory, with the files under `games/fuse-riders/src/online/` that are netcode rather than app listed by name. */
 export function layer(file: string): Layer {
-  if (/^fuse-network-(fe|be|protocol)(\/|$)/.test(file)) return "net";
+  if (/^fuse-(network-(fe|be|protocol)|netcode)(\/|$)/.test(file)) return "net";
   const base = path.basename(file, path.extname(file));
-  if (file.startsWith("src/engine/")) return "engine";
-  // `src/shared/` keeps only what is not simulation. Anything else that turns up there is held to the engine's rules
+  if (file.startsWith("games/fuse-riders/src/engine/")) return "engine";
+  // `games/fuse-riders/src/shared/` keeps only what is not simulation. Anything else that turns up there is held to the engine's rules
   // until it is listed above, so a simulation file cannot dodge the guards by being put in the wrong directory.
-  if (file.startsWith("src/shared/"))
+  if (file.startsWith("games/fuse-riders/src/shared/"))
     return shared.has(base) ? "shared" : "engine";
   if (
-    file.startsWith("src/net/") ||
-    (file.startsWith("src/online/") && network.has(base)) ||
-    ["src/client/socket-client.ts", "src/client/snapshot-stream.ts"].includes(
-      file,
-    ) ||
+    file.startsWith("games/fuse-riders/src/net/") ||
+    (file.startsWith("games/fuse-riders/src/online/") && network.has(base)) ||
     file.startsWith("packages/")
   )
     return "net";
-  if (
-    file.startsWith("src/render/") ||
-    file.startsWith("src/client/phaser/") ||
-    (file.startsWith("src/client/") && rendering.has(base))
-  )
-    return "render";
-  if (file.startsWith("src/")) return "app";
+  if (file.startsWith("games/fuse-riders/src/render/")) return "render";
+  if (file.startsWith("games/fuse-riders/src/") || file.startsWith("service/"))
+    return "app";
   return "external";
 }
 
@@ -192,7 +164,13 @@ export function forbiddenEdge(
     : specifier;
   const from = layer(source),
     to = layer(target);
-  if (source.startsWith("packages/") && target.startsWith("src/"))
+  if (
+    source.startsWith("packages/") &&
+    (target.startsWith("games/") || target.startsWith("service/"))
+  )
+    return `${source} -> ${target}`;
+  // The service composes the games; a game never reaches back into it (its registration is its own `platform.ts`).
+  if (source.startsWith("games/") && target.startsWith("service/"))
     return `${source} -> ${target}`;
   const violation =
     from === "engine"
@@ -208,15 +186,77 @@ export function forbiddenEdge(
         : from === "render"
           ? to !== "render" &&
             to !== "external" &&
-            !/^src\/engine\/view(?:-kit)?\.ts$/.test(target)
+            !/^games\/fuse-riders\/src\/engine\/view(?:-kit)?\.ts$/.test(target)
           : false;
   return violation ? `${source} -> ${target}` : undefined;
+}
+
+/**
+ * `games/fuse-riders/src/render/` may take VALUES only from `engine/view-kit.ts`; from `engine/view.ts` it takes types. A value import of
+ * the view (`toView`) would pull the tuning and the rules in behind the contract, so every import or re-export of
+ * `engine/view.ts` from a render file must be type-only, and a dynamic import of it is refused outright.
+ */
+export function renderValueImportsOfView(file: ts.SourceFile): string[] {
+  const source = file.fileName;
+  if (!source.startsWith("games/fuse-riders/src/render/")) return [];
+  const isView = (specifier: string): boolean =>
+    specifier.startsWith(".") &&
+    path.posix
+      .normalize(path.posix.join(path.posix.dirname(source), specifier))
+      .replace(/\.js$/, ".ts") === "games/fuse-riders/src/engine/view.ts";
+  const found: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      isView(node.moduleSpecifier.text)
+    ) {
+      const clause = node.importClause;
+      const typeOnly =
+        !!clause &&
+        (clause.isTypeOnly ||
+          (!clause.name &&
+            !!clause.namedBindings &&
+            ts.isNamedImports(clause.namedBindings) &&
+            clause.namedBindings.elements.every((e) => e.isTypeOnly)));
+      if (!typeOnly) found.push(`${source}: ${node.getText(file)}`);
+    }
+    if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      isView(node.moduleSpecifier.text)
+    ) {
+      const typeOnly =
+        node.isTypeOnly ||
+        (!!node.exportClause &&
+          ts.isNamedExports(node.exportClause) &&
+          node.exportClause.elements.every((e) => e.isTypeOnly));
+      if (!typeOnly) found.push(`${source}: ${node.getText(file)}`);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments[0] &&
+      ts.isStringLiteralLike(node.arguments[0]) &&
+      isView(node.arguments[0].text)
+    )
+      found.push(`${source}: ${node.getText(file)}`);
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return found;
 }
 
 export function layerViolations(): string[] {
   return [
     ...new Set(
-      [...sourceFiles("src"), ...sourceFiles("packages")].flatMap((file) =>
+      [
+        ...sourceFiles("games/fuse-riders/src"),
+        ...sourceFiles("games/dice/src"),
+        ...sourceFiles("service"),
+        ...sourceFiles("packages"),
+      ].flatMap((file) =>
         imports(syntax(file)).flatMap(
           (specifier) => forbiddenEdge(file, specifier) ?? [],
         ),

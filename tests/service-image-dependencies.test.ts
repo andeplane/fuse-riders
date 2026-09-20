@@ -66,7 +66,7 @@ function productionPackages(lock: Lockfile): Set<string> {
 }
 
 /**
- * Dockerfile.cloud installs with `pnpm install --prod` and starts `node --import tsx src/service/index.ts`,
+ * Dockerfile.cloud installs with `pnpm install --prod` and starts `node --import tsx service/index.ts`,
  * so a package the service reaches must be a production dependency in the lockfile. A violation here would
  * otherwise first show up as a Cloud Run revision that cannot start.
  *
@@ -87,14 +87,25 @@ test("the Cloud Run entry and its tsx loader resolve from production dependencie
     "utf8",
   );
   assert.match(dockerfile, /pnpm install --prod --frozen-lockfile/);
+  // `--frozen-lockfile` reads every importer's manifest, and a workspace package links only if its
+  // manifest is in the image before the install; a missing one fails the install or leaves
+  // fuse-platform or fuse-network-be unresolvable when the revision starts.
+  const workspaces = Object.keys(lock.importers).filter((key) => key !== ".");
+  assert.ok(workspaces.includes("packages/fuse-platform"));
+  assert.ok(workspaces.includes("games/fuse-riders"));
+  for (const workspace of workspaces)
+    assert.ok(
+      dockerfile.includes(`COPY ${workspace}/package.json ./${workspace}/`),
+      `Dockerfile.cloud copies ${workspace}/package.json before pnpm install`,
+    );
   assert.match(
     dockerfile,
-    /CMD \["node", "--import", "tsx", "src\/service\/index\.ts"\]/,
+    /CMD \["node", "--import", "tsx", "service\/index\.ts"\]/,
   );
 
   // Bundling is only a way to walk the static import graph; nothing is written.
   const result = await build({
-    entryPoints: ["src/service/index.ts"],
+    entryPoints: ["service/index.ts"],
     absWorkingDir: fileURLToPath(new URL("..", import.meta.url)),
     bundle: true,
     write: false,
@@ -140,8 +151,9 @@ test("the Cloud Run entry and its tsx loader resolve from production dependencie
     "the walk reached the service's third-party imports",
   );
   assert.ok(
-    firstParty.includes("src/service/index.ts") &&
-      firstParty.some((file) => file.startsWith("packages/fuse-network-be/")),
+    firstParty.includes("service/index.ts") &&
+      firstParty.some((file) => file.startsWith("packages/fuse-network-be/")) &&
+      firstParty.some((file) => file.startsWith("packages/fuse-platform/")),
     "the walk reached the service's own source, including its workspace packages",
   );
   // pnpm links only a workspace's own declared dependencies, so a package being somewhere in the

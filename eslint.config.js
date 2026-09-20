@@ -26,11 +26,13 @@ export default defineConfig(
   {
     // Everything tsconfig.json includes, so the type-aware rules see the same program as `tsc`.
     files: [
-      "src/**/*.ts",
+      "service/**/*.ts",
       "tests/**/*.ts",
       "scripts/**/*.ts",
       "packages/*/src/**/*.ts",
       "packages/*/tests/**/*.ts",
+      "games/*/src/**/*.ts",
+      "games/*/tests/**/*.ts",
       "vite.config.ts",
     ],
     languageOptions: {

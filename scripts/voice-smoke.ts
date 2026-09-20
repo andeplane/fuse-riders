@@ -1,4 +1,6 @@
-import { chromium, type Page } from "playwright";
+import { readyRoom } from "./lib/ready-room.js";
+import type { Page } from "playwright";
+import { launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { smokeTimeout } from "./smoke-timeout.js";
 import { mkdir } from "node:fs/promises";
@@ -12,7 +14,7 @@ interface Capture {
   requests: number;
   deny: boolean;
 }
-const browser = await chromium.launch({
+const browser = await launchBrowser("chromium", {
   headless: true,
   args: [
     "--use-fake-device-for-media-stream",
@@ -388,7 +390,7 @@ try {
   await guest.getByRole("button", { name: "LISTEN ONLY", exact: true }).click();
   assert.equal((await data(guest)).requests, 4);
   await close(guest);
-  await host.getByRole("button", { name: "START RACE", exact: true }).click();
+  await readyRoom(host);
   await host.waitForFunction(() =>
     document.querySelector(".online-round")?.textContent?.includes("ROUND"),
   );

@@ -5,23 +5,27 @@ import {
   addPlayer,
   startMatch,
   step,
-  toSnapshot,
+  toView,
   SLOT_COLORS,
-} from "../src/engine/game.js";
-import { defaultRoomSettings } from "../src/engine/room-settings.js";
-import { buildRoundReport } from "../src/online/match-report.js";
-import { calculateElo } from "../src/shared/elo.js";
+} from "../games/fuse-riders/src/engine/game.js";
+import { defaultRoomSettings } from "../games/fuse-riders/src/engine/room-settings.js";
+import { buildRoundReport } from "../games/fuse-riders/src/online/match-report.js";
+import { calculateElo } from "fuse-platform";
+import { GAME_ID } from "../games/fuse-riders/src/shared/game-id.js";
 import {
   parseRating,
   newRating,
   SOLO_RATING_PLAYER_ID,
-} from "../src/shared/rating.js";
+} from "fuse-platform/rating";
 import {
   beginMatchParticipant,
   snapshotMatchStats,
   type MatchStatsState,
-} from "../src/engine/match-stats.js";
-import { emptyCombat, parseCombat } from "../src/engine/combat-stats.js";
+} from "../games/fuse-riders/src/engine/match-stats.js";
+import {
+  emptyCombat,
+  parseCombat,
+} from "../games/fuse-riders/src/engine/combat-stats.js";
 import {
   careerFor,
   emptyBuckets,
@@ -29,17 +33,21 @@ import {
   gameGroup,
   mergeCareer,
   parseBuckets,
-} from "../src/shared/career-stats.js";
+} from "../games/fuse-riders/src/shared/career-stats.js";
+import { HistoryStore } from "fuse-platform";
 import {
-  HistoryStore,
-  parseMatchRecord,
   parseMatchResult,
-  parseProfile,
   type MatchResult,
-} from "../src/service/history.js";
-import { MemoryHistoryDatabase } from "../src/service/memory-history.js";
+  fuseRiders,
+} from "../games/fuse-riders/src/platform.js";
+import {
+  parseMatchRecord,
+  parseProfile,
+  platform,
+} from "../service/history.js";
+import { MemoryHistoryDatabase } from "fuse-platform";
 import { MemoryRoomDatabase, RoomStore, peerId, digest } from "fuse-network-be";
-import { classicSettings } from "./fixtures/classic-settings.js";
+import { classicSettings } from "../games/fuse-riders/tests/fixtures/classic-settings.js";
 
 function result(ids: string[], matchId = "match-1"): MatchResult {
   const map: MatchStatsState = new Map();
@@ -71,12 +79,14 @@ function result(ids: string[], matchId = "match-1"): MatchResult {
 }
 async function fixture(count = 2) {
   let now = 1_800_000_000_000;
-  const database = new MemoryHistoryDatabase(() => now),
+  const database = new MemoryHistoryDatabase(platform, () => now),
     rooms = new RoomStore(new MemoryRoomDatabase(), {
       now: () => now,
       id: () => "room-id",
     });
-  const history = new HistoryStore(database, rooms, () => now),
+  const history = new HistoryStore(platform, database, rooms, () => now).game(
+      fuseRiders,
+    ),
     tokens = Array.from({ length: count }, (_, i) =>
       (i + 1).toString(16).padStart(64, "0"),
     );
@@ -160,7 +170,7 @@ test("Elo uses simultaneous, normalized multiplayer comparisons including ties",
       { id: "a", rating: 1000, score: 1, wins: 1 },
     ],
   ])
-    assert.throws(() => calculateElo(field));
+    assert.throws(() => calculateElo(field, fuseRiders.isBot));
 });
 
 test("human Elo settles exactly once, graph and public rank agree, AI positions cannot award points", async () => {
@@ -365,13 +375,14 @@ test("storage rejects corrupt combat/rating data before it can change the ladder
 });
 
 test("rating graphs retain the latest 100 points without resetting current Elo or old receipts", async () => {
-  const database = new MemoryHistoryDatabase(() => 5000);
+  const database = new MemoryHistoryDatabase(platform, () => 5000);
   const ids = ["a".repeat(24), "b".repeat(24)];
   for (let i = 1; i <= 105; i++) {
     const id = i.toString(16).padStart(40, "0"),
       match = result(ids, `retention-${i}`);
-    await database.transactMatch(id, () => ({
+    await database.transactMatch(GAME_ID, id, () => ({
       match: {
+        gameId: GAME_ID,
         version: 1,
         id,
         ratingScope: id,
@@ -388,14 +399,15 @@ test("rating graphs retain the latest 100 points without resetting current Elo o
       result: undefined,
     }));
   }
-  const rating = (await database.profile("a"))!.rating!;
+  const rating = (await database.profile(GAME_ID, "a"))!.rating!;
   assert.equal(rating.games, 105);
   assert.equal(rating.points.length, 100);
   assert.equal(rating.points[0]!.match, "6".padStart(40, "0"));
   assert.equal(rating.points.at(-1)!.after, rating.value);
   assert.deepEqual(parseRating(rating), rating);
   assert.equal(
-    (await database.matchesFor("a", 2, 20))[0]!.ratings![ids[0]!]!.after,
+    (await database.matchesFor(GAME_ID, "a", 2, 20))[0]!.ratings![ids[0]!]!
+      .after,
     1016,
   );
 });
@@ -465,7 +477,7 @@ test("rounds settle separately before game completion; final game credits career
   assert.deepEqual((await f.history.profile("user0"))!.rating, before);
   assert.equal((await f.history.profile("user0"))!.totals.matches, 1);
   assert.equal((await f.history.history("user0", undefined)).matches.length, 1);
-  assert.equal((await f.database.rivals("user0")).prey[0]!.kills, 2);
+  assert.equal((await f.database.rivals(GAME_ID, "user0")).prey[0]!.kills, 2);
   for (const i of [0, 1]) await f.report(i, first);
   assert.deepEqual((await f.history.profile("user0"))!.rating, before);
 });
@@ -474,7 +486,7 @@ test("round numbers and round roster bounds reject malformed reports", async () 
   for (const round of [0, -1, 1.5, 1000001, "1", null]) {
     await assert.rejects(() =>
       f.history.submit(
-        { code: "AB12", rider: f.ids[0]!, incarnation: "r" },
+        { gameId: GAME_ID, code: "AB12", rider: f.ids[0]!, incarnation: "r" },
         { result: { ...result(f.ids), round } },
         "user0",
       ),
@@ -525,10 +537,11 @@ test("account round quota exhaustion cannot register a guest vote and can recove
   const db = new LimitedDatabase();
   const rooms = new RoomStore(db, { now: () => 1000, id: () => "quota-room" });
   const history = new HistoryStore(
-    new MemoryHistoryDatabase(() => 1000),
+    platform,
+    new MemoryHistoryDatabase(platform, () => 1000),
     rooms,
     () => 1000,
-  );
+  ).game(fuseRiders);
   const tokens = ["1".repeat(64), "2".repeat(64), "3".repeat(64)];
   const code = await rooms.createAvailable(tokens[0]!);
   for (const token of tokens) await rooms.admit(code, token, "gateway");
@@ -570,7 +583,7 @@ test("a real simulation round reaches history settlement before the multi-round 
   );
   startMatch(game);
   for (let i = 0; i < 10000 && !game.decidedRound; i++) step(game, new Map());
-  const state = toSnapshot(game);
+  const state = toView(game);
   assert.equal(state.phase, "roundOver", "the full game has not ended");
   assert.equal(
     state.matchStats.length,
