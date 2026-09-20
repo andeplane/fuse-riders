@@ -1,6 +1,6 @@
 # ADR-003: Separate display and controller session surfaces
 
-- Status: Accepted
+- Status: **Partly current.** The decision — a TV surface and a phone controller surface with separate responsibilities — still holds, and the shared-screen mode is how the game is played around a TV. The LAN routes it is written in terms of are gone: [#271](https://github.com/andeplane/fuse-riders/pull/271) removed `/display` and `/controller`, and the TV now opens `?room=CODE&display=1` as a display-only member of an ordinary online room while phones join the same room as controllers ([ADR 047](047-p2p-input-log-lockstep-rollback.md), [ADR-042](042-controller-only-phones.md)). Read route names below as historical.
 - Date: 2026-09-13
 
 ## Context
