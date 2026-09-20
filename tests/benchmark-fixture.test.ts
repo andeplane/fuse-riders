@@ -59,7 +59,8 @@ test("an established segment never moves: a tick appends at the tail and expires
 });
 
 test("a rider never outruns its own speed, so a fractional tip stays legal", () => {
-  for (let tick = 0; tick < 400; tick += 37)
+  // Negative ticks too: the benchmark starts at 0, so the first frames carry a trail laid before it.
+  for (let tick = -400; tick < 400; tick += 37)
     for (const rider of visualFixture(tick).players)
       for (const segment of rider.trail)
         assert.ok(
@@ -71,7 +72,7 @@ test("a rider never outruns its own speed, so a fractional tip stays legal", () 
 
 test("riders lap inside the boundary", () => {
   const { width, height, boundaryInset } = visualFixture(0);
-  for (let tick = 0; tick < 900; tick += 13)
+  for (let tick = -400; tick < 900; tick += 13)
     for (const rider of visualFixture(tick).players)
       for (const { x, y } of rider.trail.flatMap((s) => [
         { x: s.x1, y: s.y1 },
@@ -128,4 +129,57 @@ test("the moving tip does not disturb the established history a cache holds", ()
       builds++;
   }
   assert.equal(builds, 30);
+});
+
+test("the discrete world is the tick it floors to, not the tick being drawn", () => {
+  const on = visualFixture(300),
+    between = visualFixture(300.5),
+    next = visualFixture(301);
+  // Bursts and pickups are the floored tick's outright: nothing expires a fifth of the way into a tick.
+  assert.deepEqual(between.blasts, on.blasts);
+  assert.deepEqual(between.pickups, on.pickups);
+  // And they do move on a real tick, so the equality above is a claim and not an accident.
+  assert.notDeepEqual(next.pickups, on.pickups);
+  for (const [i, bomb] of on.bombs.entries()) {
+    const shown = between.bombs[i]!;
+    for (const field of [
+      "launchedTick",
+      "landsAtTick",
+      "explodeAtTick",
+    ] as const) {
+      assert.equal(shown[field], bomb[field]);
+      assert.ok(Number.isInteger(shown[field]));
+      assert.notEqual(next.bombs[i]![field], bomb[field]);
+    }
+    // A shell in flight does move between ticks, as presentation interpolates one.
+    assert.notEqual(shown.x, bomb.x);
+  }
+});
+
+test("a heading swings the short way round the seam at \u00b1\u03c0", () => {
+  const seam: { tick: number; p: number }[] = [];
+  for (let tick = 0; tick < 400; tick++) {
+    const on = visualFixture(tick),
+      next = visualFixture(tick + 1);
+    for (const [p, rider] of on.players.entries())
+      if (Math.abs(next.players[p]!.angle - rider.angle) > Math.PI)
+        seam.push({ tick, p });
+  }
+  // The fixture must actually cross the seam, or this test proves nothing.
+  assert.ok(seam.length > 0, "no rider heading crossed the seam");
+  for (const { tick, p } of seam) {
+    const before = visualFixture(tick).players[p]!.angle;
+    for (const fraction of [0.25, 0.5, 0.75]) {
+      const shown = visualFixture(tick + fraction).players[p]!.angle;
+      const swung = Math.atan2(
+        Math.sin(shown - before),
+        Math.cos(shown - before),
+      );
+      // One tick of lap, not most of a turn the other way, which is what a raw lerp across the seam gives.
+      assert.ok(
+        Math.abs(swung) < 0.1,
+        `rider ${p} swung ${swung.toFixed(3)} rad at tick ${tick}+${fraction}`,
+      );
+    }
+  }
 });
