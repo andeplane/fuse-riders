@@ -1,10 +1,10 @@
 {
-  "about": "Every CI step, once. .github/workflows/ci.yml builds its browser matrix from `smokes` (one job per entry) and scripts/ci-local.sh runs `verify`, `release` and then `smokes`, all through scripts/ci-run.ts. A verify step's `job` is the ci.yml job that runs it: the three of them run side by side and `verify` is the aggregate a branch rule waits on. `release` is what only a main push and the release suite run. Those jobs' steps are written out in ci.yml so they keep their names there; tests/ci-manifest.test.ts fails when the lists differ. Fields are documented in scripts/lib/ci-manifest.ts.",
+  "about": "Every CI step, once. .github/workflows/ci.yml builds its browser matrix from `smokes` (one job per entry) and scripts/ci-local.sh runs `verify`, `release` and then `smokes`, all through scripts/ci-run.ts. A verify step's `job` is the ci.yml job that runs it: they run side by side and `verify` is the aggregate a branch rule waits on. `release` is what only a main push and the release suite run. Those jobs' steps are written out in ci.yml so they keep their names there; tests/ci-manifest.test.ts fails when the lists differ. Fields are documented in scripts/lib/ci-manifest.ts.",
   "verify": [
-    { "id": "format", "command": "pnpm format:check", "job": "lint" },
-    { "id": "lint", "command": "pnpm lint", "job": "lint" },
-    { "id": "config", "command": "pnpm config:check", "job": "lint" },
-    { "id": "build", "command": "pnpm build", "job": "build" },
+    { "id": "format", "command": "pnpm format:check", "job": "checks" },
+    { "id": "lint", "command": "pnpm lint", "job": "checks" },
+    { "id": "config", "command": "pnpm config:check", "job": "checks" },
+    { "id": "build", "command": "pnpm build", "job": "checks" },
     { "id": "unit", "command": "pnpm test", "job": "unit" }
   ],
   "release": [{ "id": "coverage", "command": "pnpm test:coverage" }],
