@@ -54,13 +54,16 @@ for both. Trails are not appended into a `Graphics`, and that is deliberate.
 ## Cost
 
 `pnpm exec tsx scripts/trail-cost.ts` (3000 ticks of the pinned recording, three frames per tick, one
-rider led ahead), on `4d7f69fe`:
+rider led ahead), on `3f0a7f89`:
 
 | Per frame             | Full rebuild | Retained |
 | --------------------- | ------------ | -------- |
 | Path points derived   | 399.1        | 55.9     |
 | Ribbon vertices drawn | 2963.8       | 2963.8   |
-| Trail pipeline        | 0.148 ms     | 0.039 ms |
+| Trail pipeline        | 0.194 ms     | 0.050 ms |
+
+The counts are exact and reproduce run to run; the milliseconds are one machine's and move by about a
+third between runs, so read the ratio rather than the figures.
 
 The share that is rebuilt moves with the balance, because a detached piece is rebuilt on every tick it
 fades: measured over a different slice of the same recording it sits between an eighth and a fifth.
