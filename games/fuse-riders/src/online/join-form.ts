@@ -2,7 +2,7 @@ import { createNameEntry, el } from "fuse-ui";
 import { createAvatarPicker } from "../client/avatar-heads.js";
 import { createColorPicker, riderColorIndex } from "../client/rider-colors.js";
 import type { SafeStorage } from "../client/safe-storage.js";
-import type { AvatarId } from "../shared/avatars.js";
+import type { AvatarId } from "../engine/avatar-id.js";
 import { MAX_LOGGED_NAME_UNITS, seatRiderName } from "../engine/rider-name.js";
 const NAME_KEY = "fuse-riders-player-name";
 type Storage = Pick<SafeStorage, "getItem" | "setItem">;
