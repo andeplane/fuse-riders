@@ -10,7 +10,7 @@ import {
   ARENA_WIDTH,
   OVERTIME_START_TICK,
   RIDER_SPEED,
-  SLOT_COLORS,
+  RIDER_COLORS,
   SPAWN_CORRIDOR_LENGTH,
   SPAWN_CORRIDOR_RADIUS,
   TICK_HZ,
@@ -76,7 +76,7 @@ function scene(map: ArenaMapId, riders = 2, seed = 11): GameState {
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   while (game.phase === "countdown") step(game, new Map());
@@ -337,8 +337,8 @@ test("during a round the cars advance along their loops every tick, keep their i
   });
   const lobby = createGame("still", classicSettings(), 1);
   lobby.settings = { ...defaultRoomSettings(), map: "trains" };
-  addPlayer(lobby, { id: "p0", name: "P0", slot: 0, color: SLOT_COLORS[0]! });
-  addPlayer(lobby, { id: "p1", name: "P1", slot: 1, color: SLOT_COLORS[1]! });
+  addPlayer(lobby, { id: "p0", name: "P0", slot: 0, color: RIDER_COLORS[0]! });
+  addPlayer(lobby, { id: "p1", name: "P1", slot: 1, color: RIDER_COLORS[1]! });
   startMatch(lobby);
   const parked = movers(lobby).map((car) => car.x + car.y);
   step(lobby, new Map());
@@ -755,13 +755,13 @@ test("bots on the drifting cross see the wall waiting just past the edge and tur
       id: "bot:1",
       name: "AI Rider · Hard",
       slot: 0,
-      color: SLOT_COLORS[0]!,
+      color: RIDER_COLORS[0]!,
     });
     addPlayer(game, {
       id: "bot:2",
       name: "AI Other · Hard",
       slot: 1,
-      color: SLOT_COLORS[1]!,
+      color: RIDER_COLORS[1]!,
     });
     startMatch(game);
     while (game.phase === "countdown") step(game, new Map());

@@ -210,6 +210,11 @@ for (const { name, kind } of BOTH_ENGINES) {
     guest.on("framenavigated", (frame) => {
       if (frame === guest.mainFrame()) guestNavigations++;
     });
+    // The room is the join screen: the guest is seated under the name this browser remembers, so it is seeded rather
+    // than typed into a form that is no longer in the way (`docs/design/room-is-the-join-screen.md`).
+    await guest.addInitScript(() =>
+      localStorage.setItem("fuse-riders-player-name", "QR guest"),
+    );
     await host.goto(base);
     // The landing radios are visually hidden inside filled labels (#325), so pick the mode the way a rider does: tap the label.
     const sharedMode = host.getByRole("radio", {
@@ -329,57 +334,18 @@ for (const { name, kind } of BOTH_ENGINES) {
     } finally {
       clearTimeout(connectionDeadline);
     }
-    const earlyName = guest.getByPlaceholder("Your name");
-    await earlyName.focus();
+    // The room is the join screen, so nothing is typed here any more. The guest waits on the boot card, with its
+    // connect hint, for as long as the signalling route is held, and seats itself the moment the room answers.
+    // #132 — a join that never went out because the form was emptied under it — cannot happen without a form, but the
+    // window it happened in is still the risk, so the held connection stays and the seat is what is asserted.
     await guest.locator(".room-boot-note").waitFor({ state: "visible" });
-    await guest.keyboard.type("QR");
+    assert.equal(
+      await guest.locator(".room-join").isVisible(),
+      false,
+      "an arriving guest waits on the boot card, not at a join gate",
+    );
     releaseConnection();
     await guest.locator(".room-boot-note").waitFor({ state: "hidden" });
-    await guest.keyboard.type(" guest");
-    assert.equal(
-      await guest.evaluate(() =>
-        document.activeElement?.getAttribute("placeholder"),
-      ),
-      "Your name",
-      "guest name field keeps focus through boot",
-    );
-    assert.equal(
-      await earlyName.inputValue(),
-      "QR guest",
-      "a name typed across boot is kept",
-    );
-    // #132: WebKit showed the guest's name field empty after JOIN, so the join never went out. The boot window itself is covered above; here an
-    // emptied field still fails with the navigation count, and a kept name whose tap was lost gets one counted retap.
-    const joinName = guest.getByPlaceholder("Your name"),
-      joinButton = guest.getByRole("button", {
-        name: "JOIN AS PLAYER",
-        exact: true,
-      });
-    await joinName.fill("QR guest");
-    const navigationsBeforeJoin = guestNavigations;
-    await joinButton.click();
-    if (
-      !(await joinName
-        .waitFor({ state: "hidden", timeout: smokeTimeout(6000) })
-        .then(
-          () => true,
-          () => false,
-        ))
-    ) {
-      const field = await joinName.inputValue().catch(() => null);
-      assert.equal(
-        field,
-        "QR guest",
-        `guest name field after JOIN (navigations ${navigationsBeforeJoin} before JOIN, ${guestNavigations} now)`,
-      );
-      if (await joinButton.isVisible()) {
-        joinRetries++;
-        console.warn(
-          `shared room (${name}): join form still up 6 s after JOIN with the name kept; tapping again`,
-        );
-        await joinButton.click({ timeout: smokeTimeout(3000) }).catch(() => {});
-      }
-    }
     await host
       .locator(".room-riders")
       .getByText("QR guest", { exact: true })

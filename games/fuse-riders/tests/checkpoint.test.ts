@@ -11,7 +11,7 @@ import {
   GRAVITY_FIELD_TICKS,
   GRAVITY_MAX_RADIUS,
   MAX_GRAVITY_FIELDS,
-  SLOT_COLORS,
+  RIDER_COLORS,
   addPlayer,
   createGame,
   startMatch,
@@ -31,14 +31,14 @@ function playing(): GameState {
     id: "p0",
     name: "P0",
     slot: 0,
-    color: SLOT_COLORS[0]!,
+    color: RIDER_COLORS[0]!,
     connected: true,
   });
   addPlayer(game, {
     id: "p1",
     name: "P1",
     slot: 1,
-    color: SLOT_COLORS[1]!,
+    color: RIDER_COLORS[1]!,
     connected: true,
   });
   startMatch(game);
@@ -662,7 +662,7 @@ test("highlight moments and shell bounces round-trip, and malformed ones are rej
     id: "p0",
     name: "P0",
     slot: 0,
-    color: SLOT_COLORS[0]!,
+    color: RIDER_COLORS[0]!,
     connected: true,
   });
   assert.ok(decodeGameState(encodeGameState(lobby)));
@@ -854,7 +854,7 @@ test("the round shot log names issued pulls and seated riders, and kills each ri
     id: "p0",
     name: "P0",
     slot: 0,
-    color: SLOT_COLORS[0]!,
+    color: RIDER_COLORS[0]!,
     connected: true,
   });
   assert.ok(
@@ -1062,7 +1062,7 @@ test("five riders at the total segment cap remain within checkpoint byte and par
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   game.tick = 2200;

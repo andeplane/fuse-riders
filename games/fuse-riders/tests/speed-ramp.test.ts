@@ -6,7 +6,7 @@ import {
   OVERTIME_START_TICK,
   RIDER_SPEED,
   RIDER_TURN_RATE,
-  SLOT_COLORS,
+  RIDER_COLORS,
   SPEED_RAMP_MAX,
   TICK_HZ,
   addPlayer,
@@ -33,7 +33,7 @@ function playing(seed = 31, pickups = false): GameState {
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   while (game.phase === "countdown") step(game, new Map());

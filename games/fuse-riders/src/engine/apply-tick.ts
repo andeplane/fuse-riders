@@ -1,3 +1,4 @@
+import { AVATAR_IDS } from "./avatar-id.js";
 import {
   addPlayer,
   createGame,
@@ -5,9 +6,11 @@ import {
   resetMatch,
   returnToLobby,
   setPlayerConnected,
-  SLOT_COLORS,
+  MAX_PLAYERS,
+  RIDER_COLORS,
   startMatch,
   sortedPlayers,
+  type AvatarId,
   type GameState,
   type InputIntent,
   type Phase,
@@ -18,6 +21,7 @@ import { parseRoomSettings, type RoomSettings } from "./room-settings.js";
 import {
   ACTION,
   AVATAR,
+  COLOR,
   READY,
   BOT,
   JOIN,
@@ -36,7 +40,7 @@ import type { GameEvent } from "./state.js";
 import { driveGameTick } from "./tick-driver.js";
 
 /** Bump on any simulation change: peers on different rules never share a world. */
-export const RULES = "fuse-p2p-47"; // 47: a member may log its own presence: `PRESENCE false` about itself steps it away (its page is hidden) — its seat, round place and rating stay, its controls are neutral and its own entries unread, and it drops out of the succession order — and `PRESENCE true` about itself brings it back; folds and watchers carry the `away` mark. 46: the room passes to the rider in the next seat, not the lowest member id: succession ranks connected human riders by seat. 45: generation- and match-scoped ready votes start games and rematches deterministically. 44 was reserved by the hidden-tab policy PR, which ships as 47.
+export const RULES = "fuse-p2p-49"; // 49: a rider renames itself over the seat it holds: a `JOIN` for a rider the room already seats now takes the name it carries instead of ignoring it, which is what lets the room be the join screen and the join card go (`docs/design/room-is-the-join-screen.md`). Names are not kept unique; colour and head are what tell riders apart. 48: a rider's colour and head are its own and unique in the room: ten `RIDER_COLORS` instead of five seat colours, a `COLOR` entry beside `AVATAR`, both refused when another rider already wears the choice, and a join that takes the lowest free colour and repairs a taken head. 47: a member may log its own presence: `PRESENCE false` about itself steps it away (its page is hidden) — its seat, round place and rating stay, its controls are neutral and its own entries unread, and it drops out of the succession order — and `PRESENCE true` about itself brings it back; folds and watchers carry the `away` mark. 46: the room passes to the rider in the next seat, not the lowest member id: succession ranks connected human riders by seat. 45: generation- and match-scoped ready votes start games and rematches deterministically.
 // 43: the state takes the registries' shape (timed effects as `effects[]`, weapons as `armed[]`, Gun tracers in `tracers` rather than `bombs`, one fresh-round rider, no dead pickup, bomb or transit fields); every event and every view is unchanged. 42: the `drift` map (the wrapping board with a cross of walls on it that wanders like a screensaver logo) and the `trains` map (classic walls, trains round two loops of track): an obstacle may carry a `motion`, advanced by the `moveScenery` phase after `fitField`; `wall` and `train` obstacles stand through blasts and the overtime walls; scenery is met across open edges by riders and bullets, as trails are. 41: spectators are room members in the fold: SPECTATOR entries seat and free them, PRESENCE and LEAVE reach them, and they rank last in the succession order. 40: Target Bomb and the aim input are gone; Star drops by default. 39: the Gun fires on release, a held trigger steers its sight instead of the rider, and it drops more often (weight 400). 38: the clock keeps one rate; a bots-only endgame runs three simulation steps per log tick, and the room state counts its log tick apart from the game clock. 37: `rotate` visits the obstacle-free classic arena as well as the obstacle maps. 36: permanent Range pickup raises maximum bomb reach over three levels. 35: bomb aim bounce eases near both endpoints and holds maximum reach for 100 ms; bots target the shared curve. 34: dead and detached trails pause three seconds before shrinking. 33: Target Bomb has zero default spawn weight. 32: stable simulation ordering (slot/id players, id bombs, id pickups and obstacles, seat-ordered round ranking, PICKUP_TYPES weights). 31: holding the bomb button eases the rider down to half speed for up to a second. 30: the final round pauses for its own result, then MATCH_WINNER_TICKS more to name the match winner. 29: frozen round rating standings enter canonical state. 28: drunk stagger and drift (ADR-046). 27: wrap and cross maps.
 export const RECLAIMABLE_PHASES = ["lobby", "roundOver", "matchOver"] as const;
 export const BOT_NAMES = ["Ada", "Turing", "Hopper", "Nova", "Byte"] as const;
@@ -100,9 +104,34 @@ export function createRoomState(
 export const reclaimable = (game: GameState): boolean =>
   (RECLAIMABLE_PHASES as readonly string[]).includes(game.phase);
 export function freeSlot(game: GameState): number {
-  return SLOT_COLORS.findIndex(
-    (_, slot) => !sortedPlayers(game).some((player) => player.slot === slot),
-  );
+  for (let slot = 0; slot < MAX_PLAYERS; slot++)
+    if (!sortedPlayers(game).some((player) => player.slot === slot))
+      return slot;
+  return -1;
+}
+
+/**
+ * The colour a rider joining now gets: the lowest one no rider is wearing. There are twice as many colours as seats,
+ * so a room the game would accept always has one free; the caller still handles the empty answer rather than seating a
+ * rider with no colour. Riders claim seats lowest-first, so a room nobody recolours wears exactly the seat colours it
+ * always did, in the same order.
+ */
+export function freeColor(game: Readonly<GameState>): string | undefined {
+  const taken = new Set(sortedPlayers(game).map((player) => player.color));
+  return RIDER_COLORS.find((color) => !taken.has(color));
+}
+/**
+ * The head a rider asking for `wanted` gets: its own choice while no other rider wears it, otherwise the next free one
+ * in `AVATAR_IDS` order. Bots are counted as wearing theirs — `robot` reads as taken while an AI sits — but are not
+ * subject to the rule themselves, so several AI riders share the one head they are drawn with (ADR 027).
+ */
+export function repairedAvatar(
+  game: Readonly<GameState>,
+  wanted: AvatarId,
+): AvatarId {
+  const taken = new Set(sortedPlayers(game).map((player) => player.avatarId));
+  if (!taken.has(wanted)) return wanted;
+  return AVATAR_IDS.find((id) => !taken.has(id)) ?? wanted;
 }
 
 /**
@@ -284,16 +313,32 @@ function applyManagement(state: RoomState, entry: Entry, author: string): void {
         if (state.spectators.has(id)) return;
         const existing = game.players.get(id);
         if (existing) {
+          // A join for a rider the room already seats is its reconnection, and now also its rename: the name the
+          // entry carries is the one it means to wear, and the seat, colour and head it holds are untouched. Unlike a
+          // colour and a head, a name is not kept unique — two friends called Sam could always both be Sam, and the
+          // colour and head are what tell riders apart. When a rename is allowed at all is `RoomRuntime`'s to say
+          // (`seating.renameable`: the lobby, before this rider's READY); the fold takes whatever it is given.
+          const wanted = playerName.trim();
+          if (wanted) {
+            existing.name = wanted;
+            const historical = game.leaderboard.get(id);
+            if (historical) historical.name = wanted;
+          }
           setPlayerConnected(game, id, true);
           state.folds.set(id, { ...neutralControls(), generation });
           return;
         }
+        // A seat no longer decides a colour or a head: both are the rider's own and unique in the room, so the join
+        // takes the lowest free colour and repairs a head another rider already wears. The device says what it wants
+        // with its own `COLOR` and `AVATAR` entries once it is seated, and those are repaired the same way.
+        const color = freeColor(game);
+        if (color === undefined) return;
         addPlayer(game, {
           id,
           name: playerName.trim(),
           slot,
-          color: SLOT_COLORS[slot]!,
-          avatarId,
+          color,
+          avatarId: repairedAvatar(game, avatarId),
           connected: true,
         });
         state.folds.set(id, { ...neutralControls(), generation });
@@ -406,11 +451,15 @@ function applyManagement(state: RoomState, entry: Entry, author: string): void {
             game.leaderboard.size >= 128
           )
             return;
+          // An AI takes the lowest free colour like anyone else, and always wears the head it is drawn with: several
+          // AI riders share `robot` (ADR 027), and it reads as taken to the humans in the room while one of them sits.
+          const color = freeColor(game);
+          if (color === undefined) return;
           addPlayer(game, {
             id,
             name: botName,
             slot,
-            color: SLOT_COLORS[slot]!,
+            color,
             avatarId: "robot",
             connected: true,
           });
@@ -498,6 +547,15 @@ export function applyTick(
       applyManagement(state, entry, manager);
     }
   }
+  /** Whether no rider but this one wears `value`: the uniqueness rule behind the `AVATAR` and `COLOR` entries. */
+  const free = (
+    player: { id: string },
+    field: "color" | "avatarId",
+    value: string,
+  ): boolean =>
+    !sortedPlayers(game).some(
+      (other) => other.id !== player.id && other[field] === value,
+    );
   const inputs = new Map<string, InputIntent>();
   for (const player of sortedPlayers(game)) {
     if (state.bots.has(player.id)) {
@@ -527,7 +585,16 @@ export function applyTick(
         )
       : [];
     for (const entry of entries) {
-      if (entry[2] === AVATAR) player.avatarId = entry[3];
+      // A head and a colour are the room's to keep unique, so a choice another rider already wears is a no-op rather
+      // than a clash. Riders fold in seat order, so two riders reaching for the same one in a tick resolve the same
+      // way on every replica: the rider in the lower seat takes it and the other keeps what it had.
+      if (entry[2] === AVATAR && free(player, "avatarId", entry[3]))
+        player.avatarId = entry[3];
+      if (entry[2] === COLOR) {
+        const wanted = RIDER_COLORS[entry[3]];
+        if (wanted !== undefined && free(player, "color", wanted))
+          player.color = wanted;
+      }
       if (
         entry[2] === READY &&
         entry[4] === game.matchId &&

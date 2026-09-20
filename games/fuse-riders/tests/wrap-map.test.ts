@@ -11,7 +11,7 @@ import {
   BOMB_FUSE_TICKS,
   INITIAL_BOUNDARY_INSET,
   OVERTIME_START_TICK,
-  SLOT_COLORS,
+  RIDER_COLORS,
   type GameState,
   type InputIntent,
   type PlayerState,
@@ -70,7 +70,7 @@ function scene(map: ArenaMapId = "wrap", riders = 2): GameState {
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   while (game.phase === "countdown") step(game, new Map());
@@ -453,7 +453,7 @@ test("bots ride through open edges rather than turning away from them, and only 
       id: `p${slot}`,
       name: `AI ${slot} · Hard`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   const bots = new BotController();

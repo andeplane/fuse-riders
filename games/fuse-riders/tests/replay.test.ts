@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_AVATAR } from "../src/shared/avatars.ts";
+import { DEFAULT_AVATAR } from "../src/engine/avatar-id.ts";
 import type { Moment } from "../src/engine/moments.ts";
 import { createGame, toView } from "../src/engine/game.ts";
 import type { WorldView } from "../src/engine/view.ts";

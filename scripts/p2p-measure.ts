@@ -126,11 +126,12 @@ async function run(impaired: boolean): Promise<Record<string, unknown>> {
       ).newPage();
       pages.push(page);
       await instrument(page, impaired);
+      // The room is the join screen: each rider seats itself under the name this browser remembers.
+      await page.addInitScript(
+        (rider) => localStorage.setItem("fuse-riders-player-name", rider),
+        `Rider ${index}`,
+      );
       await page.goto(invite);
-      await page.getByPlaceholder("Your name").fill(`Rider ${index}`);
-      await page
-        .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-        .click();
       await host
         .locator(":is(.online-roster,.room-riders):visible")
         .getByText(`Rider ${index}`, { exact: false })

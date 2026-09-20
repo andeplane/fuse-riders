@@ -10,12 +10,20 @@ import {
   syntax,
 } from "./fixtures/source-guards.js";
 
-test("architecture imports match the exact shrinking migration allowlist", () => {
+test("architecture imports match the exact migration allowlist, which is empty", () => {
   const allowed: string[] = JSON.parse(
     readFileSync(
       new URL("./fixtures/layer-allowlist.json", import.meta.url),
       "utf8",
     ),
+  );
+  // #254 emptied it: the engine imports nothing outside itself, and net and render keep to their contracts.
+  // The migration it recorded is over, so the list may not grow again — a cross-layer import is now a design
+  // question (which layer owns the concept?), not an entry. `AGENTS.md` has the rule that answers it.
+  assert.deepEqual(
+    allowed,
+    [],
+    "the migration allowlist is closed: move the concept to the layer that owns it instead of adding an exception",
   );
   assert.deepEqual(
     layerViolations(),

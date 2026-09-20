@@ -7,7 +7,7 @@ import {
   step,
   eliminatePlayer,
   COUNTDOWN_TICKS,
-  SLOT_COLORS,
+  RIDER_COLORS,
   type InputIntent,
 } from "../src/engine/game.js";
 import { BOT_ID_PREFIX } from "../src/engine/bot-controller.js";
@@ -27,7 +27,7 @@ function playing(count: number) {
       id: i === 0 ? "human" : `${BOT_ID_PREFIX}${i}`,
       name: `Rider ${i}`,
       slot: i,
-      color: SLOT_COLORS[i]!,
+      color: RIDER_COLORS[i]!,
     });
   startMatch(game);
   for (let i = 0; i < COUNTDOWN_TICKS; i++) step(game, new Map());
@@ -85,7 +85,7 @@ test("waiting riders do not affect spawning; overdue schedules issue one pickup 
     id: "waiting",
     name: "Waiting",
     slot: 2,
-    color: SLOT_COLORS[2]!,
+    color: RIDER_COLORS[2]!,
   });
   assert.equal(game.players.get("waiting")!.alive, false);
   game.nextPickupSpawnTick = 0;

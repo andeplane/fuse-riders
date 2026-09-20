@@ -5,7 +5,7 @@ import {
   AIM_SLOW_MAX_TICKS,
   AIM_SLOW_RAMP_TICKS,
   AIM_SLOW_SPEED,
-  SLOT_COLORS,
+  RIDER_COLORS,
   SNAIL_SPEED,
   addPlayer,
   aimSlowMultiplier,
@@ -48,7 +48,7 @@ function playing(seed = 7) {
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   while (game.phase === "countdown") step(game, new Map());

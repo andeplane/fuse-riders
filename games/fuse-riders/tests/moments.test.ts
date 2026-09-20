@@ -19,7 +19,7 @@ import {
   COUNTDOWN_TICKS,
   MATCH_WINNER_TICKS,
   ROUND_OVER_TICKS,
-  SLOT_COLORS,
+  RIDER_COLORS,
   addPlayer,
   createGame,
   eliminatePlayer,
@@ -50,7 +50,7 @@ function scene(count = 3, active = 2): GameState {
       id: `p${slot}`,
       name: `Rider ${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(state);
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick += 1) step(state, new Map());
@@ -657,7 +657,7 @@ test("an eliminated rider outside the sweep records nothing and the detector sta
         id: `p${slot}`,
         name: `Rider ${slot}`,
         slot,
-        color: SLOT_COLORS[slot]!,
+        color: RIDER_COLORS[slot]!,
       });
     startMatch(game);
     for (let tick = 0; tick < 400; tick += 1) {
