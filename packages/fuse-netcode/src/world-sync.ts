@@ -107,8 +107,13 @@ export class WorldSync<
   }
   /** Ask `to` for the world. From a state that already holds one this is a resync; from one that does not, the first fetch. */
   requestFrom(to: string, at: number, assembler: SnapshotAssembler): void {
-    const request: SnapshotRequest = { to, at, failures: 0, assembler };
-    request.failures = this.request?.failures ?? 0;
+    // A retry rotating round the holders keeps the count, so `SNAPSHOT_FAILURES` still raises "could not load".
+    const request: SnapshotRequest = {
+      to,
+      at,
+      failures: this.request?.failures ?? 0,
+      assembler,
+    };
     switch (this.sync.at) {
       case "NoWorld":
       case "Requesting":
