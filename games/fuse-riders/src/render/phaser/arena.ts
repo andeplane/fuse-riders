@@ -14,13 +14,8 @@ import { drawBombAim } from "./bomb-aim.js";
 import { drawInkClouds } from "../ink-renderer.js";
 import { portalPalettes } from "../portal-palettes.js";
 import { EffectTransitions, bombPose } from "./effects.js";
-import {
-  completeTrailStrokes,
-  trailColor,
-  TrailHistoryCache,
-  trailTip,
-  type TrailPoint,
-} from "./trails.js";
+import { trailColor, trailTip, type TrailPoint } from "./trails.js";
+import { TrailHistory } from "./trail-history.js";
 import { arenaWall, trailStuds } from "../arena-wall.js";
 import {
   mapGround,
@@ -79,6 +74,8 @@ export interface ArenaMetrics {
   renderMs: number;
   automaticLoopRunning: boolean;
   trailHistoryBuilds: number;
+  /** Established trail segments whose path geometry was built, summed over every frame drawn. */
+  trailSegmentsBuilt: number;
   /** False when Phaser's texture READY listeners changed shape and the #127 guard could not install. */
   defaultTextureGuard: boolean;
 }
@@ -331,6 +328,7 @@ export function createPhaserArena(
       renderMs,
       automaticLoopRunning: game.loop.running,
       trailHistoryBuilds: scene.trailHistoryBuilds,
+      trailSegmentsBuilt: scene.trailSegmentsBuilt,
       defaultTextureGuard,
     }),
   };
@@ -357,8 +355,9 @@ class ArenaScene extends Phaser.Scene {
   private labels: Phaser.GameObjects.Text[] = [];
   private imageIndex = 0;
   private labelIndex = 0;
-  private trailHistory = new TrailHistoryCache();
+  private trailHistory = new TrailHistory();
   trailHistoryBuilds = 0;
+  trailSegmentsBuilt = 0;
   private floorKey = "";
   private backgroundKey = "";
   private transitions = new EffectTransitions();
@@ -1034,23 +1033,14 @@ class ArenaScene extends Phaser.Scene {
             s.decidedRound?.round === s.round
           ? s.decidedRound.tick
           : s.tick;
-    const history = this.trailHistory.update(
-      s.players,
-      `${matchId}:${s.round}:${theme.id}`,
-      trailColorTick,
-      s.rules,
-    );
-    if (history.changed) {
-      this.trailHistoryBuilds++;
-      this.trails.clear();
-      for (const stroke of this.beveledTrails ? [] : history.strokes)
-        this.strokeTrail(this.trails, stroke.paths, color(stroke.color), theme);
-    }
+    const scope = `${matchId}:${s.round}:${theme.id}`;
     this.trailTips.clear();
-    if (this.beveledTrails)
+    if (this.beveledTrails) {
+      // History and moving tip travel in one ribbon here, so the Graphics layers of this backend stay empty.
       this.beveledTrails.updateTrails(
-        completeTrailStrokes(
+        this.trailHistory.complete(
           s.players,
+          scope,
           s.tick,
           s.phase,
           s.rules,
@@ -1058,7 +1048,26 @@ class ArenaScene extends Phaser.Scene {
         ),
         s.rules.trailWidth,
       );
-    for (const player of this.beveledTrails ? [] : s.players)
+      this.trailSegmentsBuilt += this.trailHistory.builtLastFrame();
+      if (this.trailHistory.changedLastFrame()) this.trailHistoryBuilds++;
+      return;
+    }
+    const history = this.trailHistory.update(
+      s.players,
+      scope,
+      trailColorTick,
+      s.rules,
+    );
+    this.trailSegmentsBuilt += history.built;
+    if (history.changed) {
+      this.trailHistoryBuilds++;
+      // Three passes with translucent glow and a cap at each end: stroking only the new segments into the
+      // retained Graphics would blend differently where a trail crosses itself, so a change repaints.
+      this.trails.clear();
+      for (const stroke of history.strokes)
+        this.strokeTrail(this.trails, stroke.paths, color(stroke.color), theme);
+    }
+    for (const player of s.players)
       this.strokeTrail(
         this.trailTips,
         [trailTip(player, s.tick, s.phase)],
