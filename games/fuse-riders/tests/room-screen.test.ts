@@ -730,3 +730,38 @@ test("an arrival taking its own seat holds the boot card; one the room will not 
   );
   assert.equal(watcher.kind, "lobby");
 });
+
+test("the creator takes its own seat the same way, and its exception screen is the lobby's own panel", () => {
+  // The room it just opened is the room it is riding in: the boot card it was already on stays up for the one round
+  // trip its seat takes, rather than the lobby appearing with an empty roster and a form in it.
+  const creating = roomScreen(input({ role: "host", seating: true }));
+  assert.equal(creating.kind, "boot");
+  assert.equal(creating.booting, true);
+  const seated = roomScreen(
+    input({ role: "host", seating: true, joined: true }),
+  );
+  assert.equal(seated.kind, "lobby");
+
+  // The join *card* is the joiner's screen and stays that way: a creator the room will not seat (it reloaded into a
+  // room whose five seats filled while it was away) drops into its own lobby, where the JOIN THE RACE panel is.
+  const refused = roomScreen(input({ role: "host", seating: false }));
+  assert.equal(refused.kind, "lobby");
+  assert.equal(refused.joining, false);
+});
+
+test("the creator of a shared-TV room is why seating itself is not every creator's screen", () => {
+  // `seating` is `ui.ts`'s decision, not this module's, and in a shared-TV room it says no: taking a seat there makes
+  // any member a controller (ADR 042), which is the screen below — no arena, and with it no QR, no room code and no
+  // COPY LINK. On the page that just opened the room, that would leave nobody able to be asked in at all.
+  const seated = roomScreen(
+    input({ role: "host", joined: true, shared: true }),
+  );
+  assert.equal(seated.kind, "controller");
+  assert.equal(seated.lobbyCard, false);
+  assert.equal(seated.arenaHidden, true);
+  // Unseated, which is what that page stays, it is the room's screen: the lobby, over the blurred arena (#321).
+  const screen = roomScreen(input({ role: "host", shared: true }));
+  assert.equal(screen.kind, "lobby");
+  assert.equal(screen.lobbyCard, true);
+  assert.equal(screen.sceneBackground, true);
+});
