@@ -47,11 +47,9 @@ export const ROTATION_MAPS = [
 
 export const OBSTACLE_KINDS = [
   "rock",
-  "cactus",
-  "tree",
-  "bush",
   "building",
   "crate",
+  "pyramid",
   "wall",
   "train",
 ] as const;
@@ -63,6 +61,85 @@ export const PERMANENT_OBSTACLE_KINDS: readonly ObstacleKind[] = Object.freeze([
 ]);
 export function obstacleIsPermanent(obstacle: Pick<Obstacle, "kind">): boolean {
   return PERMANENT_OBSTACLE_KINDS.includes(obstacle.kind);
+}
+
+/**
+ * The kinds a layout samples from the shared prop catalog. The movers are shaped by the map that lays them
+ * (`scenery-motion.ts`) rather than by any artwork, so they have no catalog entry.
+ */
+export type PropObstacleKind = Exclude<ObstacleKind, "wall" | "train">;
+export function isPropObstacleKind(
+  kind: ObstacleKind,
+): kind is PropObstacleKind {
+  return !PERMANENT_OBSTACLE_KINDS.includes(kind);
+}
+
+export interface ObstacleVariant {
+  readonly id: string;
+  readonly width: number;
+  readonly height: number;
+}
+/** Fixed collider sizes from the source art. List order and dimensions are simulation rules. */
+export const OBSTACLE_VARIANTS: Record<
+  PropObstacleKind,
+  readonly ObstacleVariant[]
+> = {
+  rock: [
+    { id: "rock-small-faceted", width: 56.0, height: 56.0 },
+    { id: "rock-large-cracked", width: 100.0, height: 100.0 },
+    { id: "rock-medium-fused", width: 76.0, height: 76.0 },
+  ],
+  building: [
+    { id: "building-small-sandstone", width: 96.0, height: 64.71111111111111 },
+    { id: "building-small-vent", width: 60.55066921606119, height: 104.0 },
+    { id: "building-small-workshop", width: 112.0, height: 49.55591572123177 },
+    { id: "building-large-warehouse", width: 208.0, height: 69.06459948320413 },
+    { id: "building-large-factory", width: 104.69938650306747, height: 184.0 },
+    {
+      id: "building-large-sandstone",
+      width: 160.0,
+      height: 135.23421588594704,
+    },
+  ],
+  crate: [
+    { id: "crate-small-wood", width: 36.0, height: 34.76527331189711 },
+    {
+      id: "crate-long-wood",
+      width: 80.00000000000001,
+      height: 34.87544483985766,
+    },
+    { id: "crate-tall-metal", width: 42.134529147982065, height: 72.0 },
+    { id: "crate-wide-amber", width: 60.0, height: 35.22673031026253 },
+  ],
+  pyramid: [
+    { id: "pyramid-small-sandstone", width: 72.0, height: 70.25806451612904 },
+    { id: "pyramid-large-stepped", width: 144.0, height: 84.23492560689115 },
+    { id: "pyramid-tall-obsidian", width: 77.52089704383282, height: 112.0 },
+  ],
+};
+/**
+ * IDs survive removals and rollback; neither array position nor the map's skin selects geometry. A mover carries no
+ * artwork of its own, so it has no variant.
+ */
+export function obstacleVariant(
+  obstacle: Pick<Obstacle, "id" | "kind">,
+): ObstacleVariant | null {
+  if (!isPropObstacleKind(obstacle.kind)) return null;
+  const variants = OBSTACLE_VARIANTS[obstacle.kind];
+  return variants[(obstacle.id - 1) % variants.length]!;
+}
+
+/**
+ * A prop stands at exactly its catalog collider, so a checkpoint cannot smuggle in a rock of any other size. A mover's
+ * size is its map's; the checkpoint's own map checks decide whether it belongs on this board at all.
+ */
+export function validObstacleDimensions(obstacle: Obstacle): boolean {
+  const variant = obstacleVariant(obstacle);
+  if (!variant) return obstacle.halfWidth > 0 && obstacle.halfHeight > 0;
+  return (
+    obstacle.halfWidth === variant.width / 2 &&
+    obstacle.halfHeight === variant.height / 2
+  );
 }
 
 /** Axis-aligned and centred, so every test below is a clamp rather than a rotation. */
@@ -97,84 +174,30 @@ export interface ObstacleSegment {
   y1: number;
   x2: number;
   y2: number;
+  /** Surface radius: zero for a wall, rock radius for a point circle. */
+  radius: number;
 }
 
 /**
- * What a rider dies against. A flat-faced piece is its whole footprint: the face drawn is the face hit. A crown is
- * drawn as an ellipse, so it kills as one, and the corners of its footprint are floor; it and the cactus, which is
- * mostly the air between its arms, also give up a little of their extent, so a brush past one is a brush.
- * Projectiles, blasts and placement still use the whole footprint: only the rider's own death is judged this way.
+ * Every collision path uses the same complete rectangle or circle footprint. There is no shrink factor: the kinds that
+ * once stood inside a smaller hitbox than they drew (cactus, tree, bush) are gone, and a piece is now met where it is.
  */
-export const OBSTACLE_HIT_SHAPES: Record<
-  ObstacleKind,
-  { round: boolean; scale: number }
-> = {
-  rock: { round: false, scale: 1 },
-  crate: { round: false, scale: 1 },
-  building: { round: false, scale: 1 },
-  cactus: { round: false, scale: 0.85 },
-  tree: { round: true, scale: 0.9 },
-  bush: { round: true, scale: 0.9 },
-  wall: { round: false, scale: 1 },
-  train: { round: false, scale: 1 },
+export const OBSTACLE_HIT_SHAPES: Record<ObstacleKind, { round: boolean }> = {
+  rock: { round: true },
+  crate: { round: false },
+  building: { round: false },
+  pyramid: { round: false },
+  wall: { round: false },
+  train: { round: false },
 };
-
-/** An obstacle's footprint scaled about its centre, read as the ellipse inside it when `round`. */
 export interface ObstacleHitbox extends Obstacle {
   round: boolean;
 }
-
 export function obstacleHitbox(obstacle: Obstacle): ObstacleHitbox {
-  const { round, scale } = OBSTACLE_HIT_SHAPES[obstacle.kind];
-  return {
-    ...obstacle,
-    halfWidth: obstacle.halfWidth * scale,
-    halfHeight: obstacle.halfHeight * scale,
-    round,
-  };
+  return { ...obstacle, round: obstacle.kind === "rock" };
 }
-
-/**
- * Whether a swept rider of the given radius touches the hitbox anywhere along the step. A round one is tested in the
- * space where the ellipse, grown by the radius on each axis, is the unit circle: not the exact offset curve of an
- * ellipse, but within a fraction of a unit of it for crowns this close to round, and plain arithmetic throughout.
- */
-export function hitboxBlocksPath(
-  hitbox: ObstacleHitbox,
-  x1: number,
-  y1: number,
-  x2: number,
-  y2: number,
-  radius: number,
-): boolean {
-  if (!hitbox.round) return obstacleBlocksPath(hitbox, x1, y1, x2, y2, radius);
-  const rx = hitbox.halfWidth + radius,
-    ry = hitbox.halfHeight + radius;
-  return (
-    pointSegmentDistanceSquared(
-      0,
-      0,
-      (x1 - hitbox.x) / rx,
-      (y1 - hitbox.y) / ry,
-      (x2 - hitbox.x) / rx,
-      (y2 - hitbox.y) / ry,
-    ) <= 1
-  );
-}
-
-/** Outward unit normal of the hitbox's surface nearest a point: what a shielded rider is turned away along. */
-export function hitboxBounceNormal(
-  hitbox: ObstacleHitbox,
-  x: number,
-  y: number,
-): { nx: number; ny: number } {
-  if (!hitbox.round) return obstacleBounceNormal(hitbox, x, y);
-  // The gradient of the ellipse's own equation, which is its normal at every point on it.
-  const gx = (x - hitbox.x) / (hitbox.halfWidth * hitbox.halfWidth),
-    gy = (y - hitbox.y) / (hitbox.halfHeight * hitbox.halfHeight);
-  const length = Math.sqrt(gx * gx + gy * gy);
-  return length > 0 ? { nx: gx / length, ny: gy / length } : { nx: 1, ny: 0 };
-}
+export const hitboxBlocksPath = obstacleBlocksPath;
+export const hitboxBounceNormal = obstacleBounceNormal;
 
 /** A whole board's worth. Also the checkpoint's array bound, so a hostile layout cannot grow the state. */
 export const MAX_OBSTACLES = 40;
@@ -183,12 +206,11 @@ export const OBSTACLE_WALL_MARGIN = 26;
 export const OBSTACLE_PLACEMENT_ATTEMPTS = 24;
 
 interface ObstacleSpecies {
-  kind: ObstacleKind;
+  /** Only catalog props are sampled; a map's movers are laid by `scenery-motion.ts`, not by a recipe. */
+  kind: PropObstacleKind;
   /** Inclusive count range; the roll is one RNG sample whatever the outcome. */
   min: number;
   max: number;
-  width: readonly [number, number];
-  height: readonly [number, number];
 }
 interface ArenaMapRecipe {
   species: readonly ObstacleSpecies[];
@@ -205,29 +227,28 @@ export const ARENA_MAP_RECIPES: Record<ArenaMapId, ArenaMapRecipe> = {
   desert: {
     spacing: 76,
     species: [
-      { kind: "rock", min: 7, max: 10, width: [64, 124], height: [44, 86] },
-      { kind: "cactus", min: 5, max: 8, width: [26, 38], height: [44, 72] },
+      { kind: "pyramid", min: 3, max: 4 },
+      { kind: "rock", min: 4, max: 6 },
+      { kind: "building", min: 2, max: 3 },
+      { kind: "crate", min: 3, max: 4 },
     ],
   },
   forest: {
     spacing: 70,
     species: [
-      { kind: "tree", min: 11, max: 15, width: [40, 58], height: [40, 58] },
-      { kind: "bush", min: 4, max: 7, width: [30, 44], height: [26, 38] },
-      { kind: "rock", min: 2, max: 4, width: [70, 120], height: [50, 88] },
+      { kind: "rock", min: 4, max: 6 },
+      { kind: "building", min: 3, max: 4 },
+      { kind: "crate", min: 3, max: 5 },
+      { kind: "pyramid", min: 2, max: 3 },
     ],
   },
   city: {
     spacing: 104,
     species: [
-      {
-        kind: "building",
-        min: 5,
-        max: 7,
-        width: [118, 210],
-        height: [88, 156],
-      },
-      { kind: "crate", min: 5, max: 8, width: [30, 46], height: [30, 46] },
+      { kind: "building", min: 4, max: 6 },
+      { kind: "crate", min: 4, max: 6 },
+      { kind: "pyramid", min: 2, max: 3 },
+      { kind: "rock", min: 2, max: 3 },
     ],
   },
   wrap: { species: [], spacing: 0 },
@@ -295,14 +316,12 @@ export function generateObstacles(options: ObstacleLayoutOptions): Obstacle[] {
         attempt < OBSTACLE_PLACEMENT_ATTEMPTS;
         attempt += 1
       ) {
-        const halfWidth =
-          (species.width[0] +
-            random() * (species.width[1] - species.width[0])) /
-          2;
-        const halfHeight =
-          (species.height[0] +
-            random() * (species.height[1] - species.height[0])) /
-          2;
+        const variant = obstacleVariant({
+          kind: species.kind,
+          id: placed.length + 1,
+        })!;
+        const halfWidth = variant.width / 2;
+        const halfHeight = variant.height / 2;
         const spanX = bounds.maxX - bounds.minX - 2 * halfWidth;
         const spanY = bounds.maxY - bounds.minY - 2 * halfHeight;
         // Two samples are drawn either way, so a board too small for this species does not shift every later roll.
@@ -356,17 +375,27 @@ export function chooseArenaMap(
   ]!;
 }
 
-/** The four walls of an obstacle, for projectiles that bounce off solid geometry rather than die on it. */
+/** Shell surfaces: four radius-zero walls, or a point expanded to the rock radius. */
 export function obstacleEdges(obstacle: Obstacle): ObstacleSegment[] {
+  if (obstacle.kind === "rock")
+    return [
+      {
+        x1: obstacle.x,
+        y1: obstacle.y,
+        x2: obstacle.x,
+        y2: obstacle.y,
+        radius: obstacle.halfWidth,
+      },
+    ];
   const minX = obstacle.x - obstacle.halfWidth,
     maxX = obstacle.x + obstacle.halfWidth;
   const minY = obstacle.y - obstacle.halfHeight,
     maxY = obstacle.y + obstacle.halfHeight;
   return [
-    { x1: minX, y1: minY, x2: maxX, y2: minY },
-    { x1: maxX, y1: minY, x2: maxX, y2: maxY },
-    { x1: maxX, y1: maxY, x2: minX, y2: maxY },
-    { x1: minX, y1: maxY, x2: minX, y2: minY },
+    { x1: minX, y1: minY, x2: maxX, y2: minY, radius: 0 },
+    { x1: maxX, y1: minY, x2: maxX, y2: maxY, radius: 0 },
+    { x1: maxX, y1: maxY, x2: minX, y2: maxY, radius: 0 },
+    { x1: minX, y1: maxY, x2: minX, y2: minY, radius: 0 },
   ];
 }
 
@@ -405,6 +434,10 @@ export function obstacleBounceNormal(
 ): { nx: number; ny: number } {
   const dx = x - obstacle.x,
     dy = y - obstacle.y;
+  if (obstacle.kind === "rock") {
+    const length = Math.sqrt(dx * dx + dy * dy);
+    return length > 0 ? { nx: dx / length, ny: dy / length } : { nx: 1, ny: 0 };
+  }
   const outX = Math.abs(dx) - obstacle.halfWidth,
     outY = Math.abs(dy) - obstacle.halfHeight;
   if (outX > 0 && outY > 0) {
@@ -424,6 +457,12 @@ export function obstacleDistanceSquared(
   x: number,
   y: number,
 ): number {
+  if (obstacle.kind === "rock") {
+    const dx = x - obstacle.x,
+      dy = y - obstacle.y;
+    const gap = Math.max(0, Math.sqrt(dx * dx + dy * dy) - obstacle.halfWidth);
+    return gap * gap;
+  }
   const dx = Math.max(Math.abs(x - obstacle.x) - obstacle.halfWidth, 0);
   const dy = Math.max(Math.abs(y - obstacle.y) - obstacle.halfHeight, 0);
   return dx * dx + dy * dy;
@@ -442,7 +481,7 @@ export function obstacleInsideBounds(
   );
 }
 
-/** Shortest distance between two obstacles, zero when they overlap. */
+/** Conservative bounding-box separation, also used for circular rocks during placement. */
 function obstacleGap(a: Obstacle, b: Obstacle): number {
   const dx = Math.max(Math.abs(a.x - b.x) - a.halfWidth - b.halfWidth, 0);
   const dy = Math.max(Math.abs(a.y - b.y) - a.halfHeight - b.halfHeight, 0);
@@ -460,6 +499,13 @@ export function segmentObstacleDistanceSquared(
   x2: number,
   y2: number,
 ): number {
+  if (obstacle.kind === "rock") {
+    const distance = Math.sqrt(
+      pointSegmentDistanceSquared(obstacle.x, obstacle.y, x1, y1, x2, y2),
+    );
+    const gap = Math.max(0, distance - obstacle.halfWidth);
+    return gap * gap;
+  }
   if (segmentCrossesObstacle(obstacle, x1, y1, x2, y2)) return 0;
   let best = Math.min(
     obstacleDistanceSquared(obstacle, x1, y1),
