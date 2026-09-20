@@ -1452,7 +1452,9 @@
   border-radius: var(--ui-radius);
   padding: 0.625rem var(--fui-space-3);
 }
-.room-lobby-footer button:first-child {
+/* READY, which is the action bar's first button. Scoped to the bar's own children: the bar also holds this rider's
+ * name, head and colour as a group, and the first button inside that group is not the room's call to action. */
+.room-lobby-footer .online-host > button:first-child {
   font-weight: 900;
   letter-spacing: 0.0625rem;
   box-shadow: 0 0 0.9375rem #00d9ff25;
@@ -1619,26 +1621,50 @@
   flex-shrink: 0;
 }
 /*
- * Changing sides without leaving the room: WATCH on this device's own rider row, TAKE A SEAT on its own watcher row.
- * It is the quieter of the two ways out of a row, so it takes the outline treatment JOIN AS SPECTATOR already uses
- * rather than the rider's colour — the seats stay the thing being read.
+ * What this device decides about itself, beside READY: its name, head and colour, and which side of the room it is
+ * on. READY is the bar's call to action and keeps the cyan fill; these are the things that stay changeable right up
+ * until it is pressed, so they take the quieter outline treatment JOIN AS SPECTATOR already uses. The three identity
+ * buttons are one group so they read as one choice, and so the whole of it leaves on READY in a single write.
  */
-.room-rider > button.room-switch {
-  min-width: 0;
-  padding: 0.25rem 0.4375rem;
-  font-size: 0.5rem;
-  letter-spacing: 0.0625rem;
+.room-rider-controls {
+  display: flex;
+  gap: var(--fui-space-2);
+  align-items: stretch;
+}
+.online-host .room-rider-controls > button,
+.online-host > button.room-switch {
   background: transparent;
   border: 0.0625rem solid #334567;
   color: #8ba3c0;
   box-shadow: none;
+  font-weight: 700;
 }
-.room-rider > button.room-switch:hover:not(:disabled) {
+.online-host .room-rider-controls > button:hover:not(:disabled),
+.online-host > button.room-switch:hover:not(:disabled) {
   border-color: #16e7ff;
   color: #cfe8ff;
 }
-.room-rider > button.room-switch:disabled {
+.online-host > button.room-switch:disabled {
   opacity: 0.45;
+}
+/* Three short words that have to share a row with READY, the side switch and the host's own actions: the group takes
+ * the narrower padding so a 1280-wide lobby keeps all of it on one line. */
+.room-lobby-footer .online-host .room-rider-controls > button {
+  padding: 0.625rem var(--fui-space-2);
+}
+/* The phone lobby lays the bar out as a two-column grid; the identity group is one cell of it, split three ways. */
+.online-app.phone-lobby .room-lobby-footer .online-host .room-rider-controls {
+  grid-column: 1/-1;
+}
+.online-app.phone-lobby
+  .room-lobby-footer
+  .online-host
+  .room-rider-controls
+  > button {
+  flex: 1;
+  min-height: 2.875rem;
+  font-size: 0.75rem;
+  padding: var(--fui-space-2);
 }
 
 /* Post-match summary, with the detailed report available from the persistent footer. */
@@ -2564,7 +2590,7 @@
   font-size: 0.75rem;
   padding: var(--fui-space-2);
 }
-.online-app.phone-lobby .room-lobby-footer .online-host button:first-child {
+.online-app.phone-lobby .room-lobby-footer .online-host > button:first-child {
   grid-column: 1/-1;
   min-height: 3.375rem;
   font-size: 0.9375rem;
@@ -2575,7 +2601,7 @@
 .online-app.phone-lobby
   .room-lobby-footer
   .online-host
-  button:first-child:disabled {
+  > button:first-child:disabled {
   background: #08152b;
   color: var(--fui-text);
 }
@@ -2871,7 +2897,7 @@
   font-size: 0.6875rem;
   background: none;
 }
-.desktop-game .online-host button:first-child:not(:disabled) {
+.desktop-game .online-host > button:first-child:not(:disabled) {
   background: var(--player-color);
   color: var(--fui-ink);
   font-weight: 900;
