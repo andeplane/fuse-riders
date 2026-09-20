@@ -48,7 +48,7 @@ export interface StepResult { state: RaceState; events: RaceEvent[] }
 
 export function createRace(track: Track, seed: number, stats: TruckStats[] = [BASE_STATS]): RaceState {
   const trucks = stats.map((s, i) => {
-    const sp = track.spawns[i];
+    const sp = track.spawns[i]!; // The parser demands five spawns and no race has more slots.
     return createTruck(i, sp.x, sp.y, sp.heading, s);
   });
   return {
@@ -99,7 +99,8 @@ function resolveContacts(trucks: Truck[]): Truck[] {
   const r2 = config.truck.radius * 2;
   for (let i = 0; i < out.length; i++) {
     for (let j = i + 1; j < out.length; j++) {
-      const a = out[i], b = out[j];
+      // Both indices run over `out`, and the writes below only replace entries.
+      const a = out[i]!, b = out[j]!;
       if (a.respawnAtTick || b.respawnAtTick || a.finishedTick || b.finishedTick || a.onBridge !== b.onBridge) continue;
       const dx = b.x - a.x, dy = b.y - a.y;
       const d = hypot(dx, dy);
@@ -163,19 +164,21 @@ export function trackDirectionAt(track: Track, p: Point): Point {
   const wp = track.waypoints;
   let best = 0, bestD = Infinity;
   for (let i = 0; i < wp.length; i++) {
-    const c = closestOnSegment(p, { a: wp[i], b: wp[(i + 1) % wp.length] });
+    const c = closestOnSegment(p, { a: wp[i]!, b: wp[(i + 1) % wp.length]! });
     const d = (c.x - p.x) ** 2 + (c.y - p.y) ** 2;
     if (d < bestD) { bestD = d; best = i; }
   }
-  const a = wp[best], b = wp[(best + 1) % wp.length];
+  // `best` is an index into the waypoint ring, which the parser keeps at three points or more.
+  const a = wp[best]!, b = wp[(best + 1) % wp.length]!;
   const len = hypot(b.x - a.x, b.y - a.y) || 1;
   return { x: (b.x - a.x) / len, y: (b.y - a.y) / len };
 }
 
 export function progressOf(t: Truck, track: Track): number {
   const n = track.checkpoints.length;
-  const next = track.checkpoints[t.checkpoint];
-  const last = track.checkpoints[(t.checkpoint - 1 + n) % n];
+  // A truck's checkpoint is always a live index into the ring, and the predecessor is that index modulo n.
+  const next = track.checkpoints[t.checkpoint]!;
+  const last = track.checkpoints[(t.checkpoint - 1 + n) % n]!;
   const span = hypot(next.mid.x - last.mid.x, next.mid.y - last.mid.y) || 1;
   const d = Math.max(0, Math.min(1, hypot(next.mid.x - t.x, next.mid.y - t.y) / span));
   return t.laps * n + t.checkpoint + (1 - d);
@@ -185,7 +188,7 @@ function applyCheckpoints(prev: Truck, t: Truck, track: Track, tick: number, eve
   const n = track.checkpoints.length;
   let n2 = t;
   if (!t.finishedTick) {
-    const cp = track.checkpoints[t.checkpoint];
+    const cp = track.checkpoints[t.checkpoint]!; // The truck's checkpoint indexes the ring.
     if (reaches({ x: prev.x, y: prev.y }, { x: t.x, y: t.y }, cp)) {
       if (t.checkpoint === n - 1) {
         const laps = t.laps + 1;
@@ -207,8 +210,8 @@ function applyCheckpoints(prev: Truck, t: Truck, track: Track, tick: number, eve
 
 export function respawnPose(t: Truck, track: Track): { x: number; y: number; heading: number } {
   const n = track.checkpoints.length;
-  const last = track.checkpoints[(t.checkpoint - 1 + n) % n];
-  const next = track.checkpoints[t.checkpoint];
+  const last = track.checkpoints[(t.checkpoint - 1 + n) % n]!;
+  const next = track.checkpoints[t.checkpoint]!;
   return { x: last.mid.x, y: last.mid.y, heading: atan2(next.mid.y - last.mid.y, next.mid.x - last.mid.x) };
 }
 
@@ -257,33 +260,37 @@ export function step(state: RaceState, inputs: readonly TruckInput[], track: Tra
 
   const parked = (t: Truck) => t.respawnAtTick !== 0 || t.finishedTick !== 0;
   // A respawn is a teleport, not a movement: its chord must not be treated as tunnelling.
-  const from = (t: Truck, i: number): Point => (t.respawnedTick === tick ? t : prev[i]);
+  const from = (t: Truck, i: number): Point => (t.respawnedTick === tick ? t : prev[i]!);
   trucks = trucks.map((t, i) => {
     if (parked(t)) return t;
-    const [resolved, touching] = resolveWalls(t, from(t, i), track, prev[i].wallTicks > 0);
-    if (touching && prev[i].wallTicks === 0) events.push({ tick, type: 'wall', slot: t.slot });
-    return { ...resolved, wallTicks: touching ? prev[i].wallTicks + 1 : 0 };
+    const was = prev[i]!; // `trucks` was mapped from `prev`, so the slots line up.
+    const [resolved, touching] = resolveWalls(t, from(t, i), track, was.wallTicks > 0);
+    if (touching && was.wallTicks === 0) events.push({ tick, type: 'wall', slot: t.slot });
+    return { ...resolved, wallTicks: touching ? was.wallTicks + 1 : 0 };
   });
   trucks = resolveContacts(trucks);
   // Contacts can push a truck into a wall; settle position again without a second speed penalty.
   trucks = trucks.map((t, i) => (parked(t) ? t : { ...resolveWalls(t, from(t, i), track, true)[0], speed: t.speed }));
   // Bridge level is decided from the committed position, so walls resolve with last tick's level (review of ADR 003).
-  trucks = trucks.map((t, i) => (parked(t) ? t : updateBridge(t, prev[i], track)));
+  trucks = trucks.map((t, i) => (parked(t) ? t : updateBridge(t, prev[i]!, track)));
 
   // Step 4: item use on a press edge, then projectiles, then hits in launch order (ADR 005).
   let world = { missiles: state.missiles, mines: state.mines, oils: state.oils.filter((o) => tick - o.droppedTick <= config.items.oil.lifeTicks), drones: state.drones, nextId: state.nextId };
   const itemHeld = trucks.map((t, i) => (inputs[i] ?? NEUTRAL_INPUT).item);
   for (let i = 0; i < trucks.length; i++) {
-    const t = trucks[i];
+    const t = trucks[i]!; // `i` runs over `trucks`.
     if (parked(t) || !itemHeld[i] || state.itemHeld[i] || !t.item) continue;
     const item = t.item;
     const r = useItem(t, (inputs[i] ?? NEUTRAL_INPUT).itemAlt, trucks, world, tick, track);
     world = { missiles: r.missiles, mines: r.mines, oils: r.oils, drones: r.drones, nextId: r.nextId };
     trucks[i] = r.truck;
     events.push({ tick, type: 'fire', slot: t.slot, item });
-    if (r.lockedSlot !== null) trucks[r.lockedSlot] = { ...trucks[r.lockedSlot], lockedUntilTick: tick + config.items.missile.lifeTicks };
+    if (r.lockedSlot !== null) {
+      const locked = trucks[r.lockedSlot]!; // A lock names the slot of a truck in this race.
+      trucks[r.lockedSlot] = { ...locked, lockedUntilTick: tick + config.items.missile.lifeTicks };
+    }
     for (const s of r.stunned) {
-      const o = trucks[s];
+      const o = trucks[s]!; // The EMP stunned the slots of trucks in this race.
       if (tick < o.shieldUntilTick) { trucks[s] = { ...o, shieldUntilTick: 0 }; events.push({ tick, type: 'hit', slot: s, by: t.slot, item: 'emp', absorbed: true }); continue; }
       trucks[s] = { ...o, stunUntilTick: tick + config.items.emp.stunTicks, item: null, driftDir: 0, driftTicks: 0 };
       events.push({ tick, type: 'hit', slot: s, by: t.slot, item: 'emp', absorbed: false });
@@ -295,14 +302,17 @@ export function step(state: RaceState, inputs: readonly TruckInput[], track: Tra
   const missiles = mv.missiles, mines = mn.mines, oils = world.oils, drones = dr.drones, nextId = world.nextId;
   const hits: Hit[] = [...mv.hits, ...mn.hits, ...dr.hits].sort((a, b) => a.id - b.id);
   for (const h of hits) {
-    const before = trucks[h.slot];
+    const before = trucks[h.slot]!; // A hit names the slot of the truck it found.
     if (before.respawnAtTick) continue;
     const r = applyHit(before, tick, h.item);
     trucks[h.slot] = r.truck;
     events.push({ tick, type: 'hit', slot: h.slot, by: h.by, item: h.item, absorbed: r.absorbed });
     if (r.killed) {
       events.push({ tick, type: 'kill', slot: h.slot, by: h.by });
-      if (h.by !== h.slot) trucks[h.by] = { ...trucks[h.by], kills: trucks[h.by].kills + 1 };
+      if (h.by !== h.slot) {
+        const killer = trucks[h.by]!; // Everything that scores a kill was fired by a truck in this race.
+        trucks[h.by] = { ...killer, kills: killer.kills + 1 };
+      }
     }
   }
   // A missile whose target died or was consumed loses its lock display.
@@ -310,7 +320,7 @@ export function step(state: RaceState, inputs: readonly TruckInput[], track: Tra
 
   trucks = trucks.map((t) => (parked(t) ? t : applySurface(t, track, tick, events, oils)));
   // Landing within 28 u of another truck spins that truck out (ADR 004).
-  const landers = trucks.filter((t) => !parked(t) && prev[t.slot].landAtTick === tick);
+  const landers = trucks.filter((t) => !parked(t) && prev[t.slot]!.landAtTick === tick);
   if (landers.length) {
     trucks = trucks.map((o) => {
       if (parked(o) || tick < o.invulnerableUntilTick || tick < o.spinUntilTick) return o;
@@ -326,7 +336,7 @@ export function step(state: RaceState, inputs: readonly TruckInput[], track: Tra
   const slots = trucks.length;
   trucks = trucks.map((t, i) => {
     if (parked(t) || t.item) return t;
-    const b = track.items.findIndex((box, k) => tick >= boxCooldowns[k * slots + i] && hypot(box.x - t.x, box.y - t.y) < config.truck.radius + config.items.boxRadius);
+    const b = track.items.findIndex((box, k) => tick >= boxCooldowns[k * slots + i]! && hypot(box.x - t.x, box.y - t.y) < config.truck.radius + config.items.boxRadius);
     if (b < 0) return t;
     const position = state.placements.indexOf(t.slot) + 1;
     const [item, next] = rollItem(position, slots, rng);
@@ -336,7 +346,7 @@ export function step(state: RaceState, inputs: readonly TruckInput[], track: Tra
     return { ...t, item };
   });
   // A respawn teleport is not a crossing: compare the truck with itself so the chord has zero length.
-  trucks = trucks.map((t, i) => (parked(t) ? t : applyCheckpoints(t.respawnedTick === tick ? t : prev[i], t, track, tick, events, state)));
+  trucks = trucks.map((t, i) => (parked(t) ? t : applyCheckpoints(t.respawnedTick === tick ? t : prev[i]!, t, track, tick, events, state)));
 
   const placements = rank(trucks);
   let raceEndTick = state.raceEndTick;
@@ -349,7 +359,10 @@ export function step(state: RaceState, inputs: readonly TruckInput[], track: Tra
   const allDone = trucks.every((t) => t.finishedTick);
   const phase: Phase = allDone || (raceEndTick && tick >= raceEndTick) ? 'finished' : 'racing';
   const heading = trucks.map((t) => wrapAngle(t.heading));
-  trucks = trucks.map((t, i) => (t.heading === heading[i] ? t : { ...t, heading: heading[i] }));
+  trucks = trucks.map((t, i) => {
+    const h = heading[i]!; // One wrapped heading per truck, in truck order.
+    return t.heading === h ? t : { ...t, heading: h };
+  });
 
   return { state: { ...state, tick, rngState: rng, trucks, placements, raceEndTick, phase, missiles, mines, oils, drones, boxCooldowns, itemHeld, nextId }, events };
 }

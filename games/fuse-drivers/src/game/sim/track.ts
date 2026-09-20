@@ -97,19 +97,22 @@ export function parseTrack(input: unknown, name = 'track'): Track {
     if (!pts || pts.length < 2) throw new Error('track: wall objects must be polylines or polygons');
     const flag = (name: string) => (Array.isArray(o.properties) ? (o.properties as unknown[]) : []).some((p) => isObj(p) && p.name === name && p.value === true) || undefined;
     const under = flag('under'), deck = flag('deck');
-    for (let i = 1; i < pts.length; i++) walls.push({ a: pts[i - 1], b: pts[i], under, deck });
-    if (o.polygon) walls.push({ a: pts[pts.length - 1], b: pts[0], under, deck });
+    const first = pts[0]!; // The length check above guarantees a first point.
+    let prev = first;
+    for (const p of pts.slice(1)) { walls.push({ a: prev, b: p, under, deck }); prev = p; }
+    if (o.polygon) walls.push({ a: prev, b: first, under, deck });
   }
 
-  const checkpoints = objects(input, 'checkpoints', true).map((o, i) => {
+  const checkpoints: Checkpoint[] = objects(input, 'checkpoints', true).map((o, i) => {
     const pts = points(o, 'polyline');
     if (!pts || pts.length !== 2) throw new Error(`track: checkpoint ${i} must be a two-point polyline`);
-    return { a: pts[0], b: pts[1], mid: { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 } };
+    const a = pts[0]!, b = pts[1]!; // Exactly two points, checked above.
+    return { a, b, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
   });
   if (checkpoints.length < 2) throw new Error('track: need at least two checkpoints');
   checkpoints.forEach((c, i) => {
     if (hypot(c.b.x - c.a.x, c.b.y - c.a.y) < 1) throw new Error(`track: checkpoint ${i} is zero-length`);
-    const prev = checkpoints[(i - 1 + checkpoints.length) % checkpoints.length];
+    const prev = checkpoints[(i - 1 + checkpoints.length) % checkpoints.length]!; // An index modulo the length.
     if (hypot(c.mid.x - prev.mid.x, c.mid.y - prev.mid.y) < 1) throw new Error(`track: checkpoints ${i} and its predecessor coincide`);
   });
 
@@ -121,7 +124,7 @@ export function parseTrack(input: unknown, name = 'track'): Track {
 
   const wps = objects(input, 'waypoints', true);
   if (wps.length !== 1) throw new Error('track: waypoints must contain exactly one polygon');
-  const waypoints = points(wps[0], 'polygon');
+  const waypoints = points(wps[0]!, 'polygon'); // Exactly one object, checked above.
   if (!waypoints || waypoints.length < 3) throw new Error('track: waypoints must be one closed polygon');
 
   const items = objects(input, 'items', false).map((o) => ({ x: num(o.x, 'item x'), y: num(o.y, 'item y') }));

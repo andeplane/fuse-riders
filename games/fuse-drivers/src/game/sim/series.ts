@@ -59,7 +59,8 @@ export function createSeries(trackNames: string[], slots: number, seed: number, 
     if (pool.length === 0) pool.push(...trackNames);
     const [r, next] = nextRandom(rng);
     rng = next;
-    tracks.push(pool.splice(Math.floor(r * pool.length), 1)[0]);
+    // Splicing one entry out of a pool the loop above keeps non-empty always yields that entry.
+    tracks.push(pool.splice(Math.floor(r * pool.length), 1)[0]!);
   }
   return { raceIndex: 0, tracks, drivers: Array.from({ length: slots }, (_, slot) => ({ slot, money: 0, earned: 0, points: 0, kills: 0, deaths: 0, lapsLed: 0, nitrosUsed: 0, levels: { ...NO_LEVELS } })) };
 }
@@ -68,7 +69,7 @@ export function createSeries(trackNames: string[], slots: number, seed: number, 
 export function applyRace(series: Series, state: RaceState): Series {
   const drivers = series.drivers.map((d) => {
     const place = state.placements.indexOf(d.slot);
-    const t = state.trucks[d.slot];
+    const t = state.trucks[d.slot]!; // A driver's slot is a truck slot in the race it just ran.
     const prize = (config.prize[place] ?? 0) + t.kills * config.killBonus;
     return { ...d, points: d.points + (config.points[place] ?? 0), money: d.money + prize, earned: d.earned + prize, kills: d.kills + t.kills, deaths: d.deaths + t.deaths, lapsLed: d.lapsLed + t.lapsLed, nitrosUsed: d.nitrosUsed + t.nitrosUsed };
   });
@@ -77,7 +78,8 @@ export function applyRace(series: Series, state: RaceState): Series {
 
 export function cost(d: Driver, kind: UpgradeKind): number | null {
   const u = UPGRADES[kind];
-  return d.levels[kind] >= u.levels ? null : u.costs[d.levels[kind]];
+  // Below the cap, and the cost table has one price per level.
+  return d.levels[kind] >= u.levels ? null : u.costs[d.levels[kind]]!;
 }
 
 /** Returns the driver after buying, or null if unaffordable or maxed. */
@@ -92,8 +94,9 @@ export function botShop(d: Driver): Driver {
   let cur = d;
   for (;;) {
     const options = ORDER.map((k) => ({ k, c: cost(cur, k) })).filter((o): o is { k: UpgradeKind; c: number } => o.c !== null && o.c <= cur.money).sort((a, b) => a.c - b.c);
-    if (!options.length) return cur;
-    cur = buy(cur, options[0].k)!;
+    const [cheapest] = options;
+    if (!cheapest) return cur;
+    cur = buy(cur, cheapest.k)!;
   }
 }
 

@@ -31,13 +31,15 @@ export function createBotMemory(seed: number, slot: number): BotMemory {
   return { queue: [], lateral, anchorX: 0, anchorY: 0, anchorTick: 0, reverseUntilTick: 0 };
 }
 
+// Waypoints form a closed ring of at least three points (the parser enforces it), so every index taken
+// modulo the ring length below names a point that exists.
 /** Nearest waypoint segment among `count` segments from `first`, and the distance along it of the projection. */
 function closestSegment(wp: Point[], p: Point, first: number, count: number): { i: number; along: number } {
   const n = wp.length;
   let best = first % n, bestAlong = 0, bestD = Infinity;
   for (let k = 0; k < count; k++) {
     const i = (first + k) % n;
-    const a = wp[i], b = wp[(i + 1) % n];
+    const a = wp[i]!, b = wp[(i + 1) % n]!;
     const dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy || 1;
     const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
     const d = hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
@@ -46,8 +48,8 @@ function closestSegment(wp: Point[], p: Point, first: number, count: number): { 
   return { i: best, along: bestAlong };
 }
 
-const segmentLength = (wp: Point[], i: number) => { const a = wp[i % wp.length], b = wp[(i + 1) % wp.length]; return hypot(b.x - a.x, b.y - a.y) || 1; };
-const tangentOf = (wp: Point[], i: number) => { const a = wp[i % wp.length], b = wp[(i + 1) % wp.length]; return atan2(b.y - a.y, b.x - a.x); };
+const segmentLength = (wp: Point[], i: number) => { const a = wp[i % wp.length]!, b = wp[(i + 1) % wp.length]!; return hypot(b.x - a.x, b.y - a.y) || 1; };
+const tangentOf = (wp: Point[], i: number) => { const a = wp[i % wp.length]!, b = wp[(i + 1) % wp.length]!; return atan2(b.y - a.y, b.x - a.x); };
 
 /** Walk `distance` units forward along the closed polyline from segment `i`; returns the point and its tangent. */
 function ahead(wp: Point[], i: number, distance: number): { p: Point; tangent: number } {
@@ -56,7 +58,7 @@ function ahead(wp: Point[], i: number, distance: number): { p: Point; tangent: n
   for (let k = 0; k < n; k++) perimeter += segmentLength(wp, k);
   let remaining = distance % perimeter;
   for (let k = 0; k < n; k++) {
-    const a = wp[(i + k) % n], b = wp[(i + k + 1) % n];
+    const a = wp[(i + k) % n]!, b = wp[(i + k + 1) % n]!;
     const len = hypot(b.x - a.x, b.y - a.y) || 1;
     if (remaining <= len) {
       const t = remaining / len;
@@ -64,7 +66,7 @@ function ahead(wp: Point[], i: number, distance: number): { p: Point; tangent: n
     }
     remaining -= len;
   }
-  return { p: wp[i], tangent: tangentOf(wp, i) };
+  return { p: wp[i % n]!, tangent: tangentOf(wp, i) };
 }
 
 /** ADR 007 item rules: missile at a truck ahead in the cone, mine at a truck behind, shield when locked, nitro at once. */
@@ -84,7 +86,7 @@ function wantsItem(state: RaceState, t: Truck): boolean {
 
 /** Ordinary inputs only (ADR 007). Pure: returns the input and the next memory. */
 export function botInput(state: RaceState, slot: number, memory: BotMemory, track: Track, difficulty: Difficulty): [TruckInput, BotMemory] {
-  const t = state.trucks[slot];
+  const t = state.trucks[slot]!; // A bot is wired to a slot that this race has a truck for.
   if (state.phase === 'countdown') {
     return [{ ...NEUTRAL_INPUT, nitro: state.tick >= state.countdownEndTick - config.truck.rocketStartWindow }, memory];
   }
@@ -93,7 +95,7 @@ export function botInput(state: RaceState, slot: number, memory: BotMemory, trac
   // crosses itself (a bridge) the bot never follows the other level's branch through an under or deck wall.
   const cps = track.checkpoints, n = cps.length;
   // Nearest waypoint to a checkpoint's midpoint; a line through a vertex never strictly crosses a segment.
-  const vertexOf = (c: number) => { const m = cps[(c + n) % n].mid; let best = 0; wp.forEach((p, i) => { if (hypot(p.x - m.x, p.y - m.y) < hypot(wp[best].x - m.x, wp[best].y - m.y)) best = i; }); return best; };
+  const vertexOf = (c: number) => { const m = cps[(c + n) % n]!.mid; let best = 0; wp.forEach((p, i) => { if (hypot(p.x - m.x, p.y - m.y) < hypot(wp[best]!.x - m.x, wp[best]!.y - m.y)) best = i; }); return best; };
   const from = vertexOf(t.checkpoint - 1), to = vertexOf(t.checkpoint);
   const { i: segment, along } = closestSegment(wp, t, (from - 1 + wp.length) % wp.length, ((to - from + wp.length) % wp.length) + 2);
   // Shorten the lookahead until the target is visible, so a hairpin never aims through its inside wall.

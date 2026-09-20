@@ -25,7 +25,8 @@ export function rollItem(position: number, count: number, rng: number): [ItemKin
     acc -= w.w;
     if (acc < 0) return [w.kind, next];
   }
-  return [weights[weights.length - 1].kind, next];
+  // config.itemOdds is a non-empty constant, so the weights list has a last entry.
+  return [weights[weights.length - 1]!.kind, next];
 }
 
 function nearestTargetAhead(owner: Truck, trucks: Truck[], tick: number): number | null {
@@ -136,14 +137,14 @@ export function stepDrones(drones: Drone[], trucks: Truck[], tick: number): { dr
   const hits: Hit[] = [];
   const alive: Drone[] = [];
   for (const d of drones) {
-    const owner = trucks[d.owner];
+    const owner = trucks[d.owner]!; // A drone carries the slot of the truck that launched it.
     if (tick - d.launchedTick > c.lifeTicks || d.zaps >= c.maxZaps || owner.respawnAtTick || owner.finishedTick) continue;
     const at = dronePosition(d, owner, tick);
     let zaps = d.zaps;
     const lastZapTick = d.lastZapTick.slice();
     for (const t of trucks) {
       if (zaps >= c.maxZaps) break;
-      if (t.slot === d.owner || t.respawnAtTick || t.finishedTick || tick < t.invulnerableUntilTick || tick - lastZapTick[t.slot] < c.zapIntervalTicks) continue;
+      if (t.slot === d.owner || t.respawnAtTick || t.finishedTick || tick < t.invulnerableUntilTick || tick - lastZapTick[t.slot]! < c.zapIntervalTicks) continue;
       if (hypot(t.x - at.x, t.y - at.y) > c.range) continue;
       hits.push({ id: d.id, slot: t.slot, by: d.owner, item: 'drone' });
       lastZapTick[t.slot] = tick;
