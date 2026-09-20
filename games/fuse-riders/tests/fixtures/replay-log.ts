@@ -39,12 +39,20 @@ export function streamReader(
     );
 }
 
-/** One hash per tick. Any engine that disagrees with another on any tick has diverged. */
+/**
+ * One hash per tick. Any engine that disagrees with another on any tick has diverged.
+ *
+ * `stride` hashes one tick in `stride` (and always the last one), leaving `""` at the ticks it did not hash,
+ * so the array stays the recording's length and every entry still sits at its own tick. Every tick is folded
+ * either way — the stride skips the hash, never the simulation. Callers that compare against a pinned golden
+ * must skip the empty entries; `games/fuse-riders/tests/fixtures/replay-budget.ts` says when that is allowed.
+ */
 export function replayHashes(
   recording: Recording,
   observe?: (
     state: Readonly<RoomState>,
   ) => (events: readonly GameEvent[]) => void,
+  stride = 1,
 ): string[] {
   const state = createRoomState(recording.matchId, defaultRoomSettings()),
     bots = new BotController(),
@@ -54,7 +62,11 @@ export function replayHashes(
     const after = observe?.(state);
     const events = applyTick(state, recording.creator, streams(tick), bots);
     after?.(events);
-    hashes.push(hashRoomState(state));
+    hashes.push(
+      tick % stride === 0 || tick === recording.ticks
+        ? hashRoomState(state)
+        : "",
+    );
   }
   return hashes;
 }

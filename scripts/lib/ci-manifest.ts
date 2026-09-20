@@ -2,12 +2,18 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { BrowserKind } from "./browser.js";
 
-/** A step of the pull-request gate (`verify` in ci.yml, `core` locally). */
+/** A step of the pull-request gate (`core` locally; the `job` below in ci.yml). */
 export interface VerifyStep {
   /** The name `ONLY=` selects locally. */
   id: string;
-  /** Exactly the `run:` line of the matching step in ci.yml's `verify` job. */
+  /** Exactly the `run:` line of the matching step in ci.yml. */
   command: string;
+  /**
+   * The ci.yml job that runs it. The gate is split so its steps run side by side rather than in series, and
+   * `verify` is the aggregate job that turns them back into one check name. Absent on a `release` step, which
+   * has a job of its own.
+   */
+  job?: string;
 }
 
 /** One browser smoke: one job of ci.yml's `smoke` matrix and one step of scripts/ci-local.sh. */
@@ -36,7 +42,22 @@ export interface Smoke {
 export interface CiManifest {
   about: string;
   verify: VerifyStep[];
+  /**
+   * Steps a pull request does not wait on: the coverage gate, which instruments every module and costs about
+   * 60% on top of the same tests. A main push runs it before anything deploys, and so does the release suite.
+   */
+  release: VerifyStep[];
   smokes: Smoke[];
+}
+
+/** The ci.yml jobs the `verify` steps are split across, in manifest order. */
+export function verifyJobs(manifest: CiManifest): string[] {
+  return [...new Set(manifest.verify.map((step) => step.job!))];
+}
+
+/** The steps one ci.yml job runs, in the order that job runs them. */
+export function jobSteps(manifest: CiManifest, job: string): VerifyStep[] {
+  return manifest.verify.filter((step) => step.job === job);
 }
 
 export const MANIFEST_PATH = fileURLToPath(
@@ -56,19 +77,30 @@ function fail(message: string): never {
 export function parseManifest(value: unknown): CiManifest {
   const manifest = value as CiManifest;
   if (!manifest || typeof manifest !== "object") fail("not an object");
-  if (!Array.isArray(manifest.verify) || !Array.isArray(manifest.smokes))
-    fail("verify and smokes must be arrays");
+  if (
+    !Array.isArray(manifest.verify) ||
+    !Array.isArray(manifest.release) ||
+    !Array.isArray(manifest.smokes)
+  )
+    fail("verify, release and smokes must be arrays");
   const ids = new Set<string>();
   const claim = (id: string) => {
     if (typeof id !== "string" || !NAME.test(id)) fail(`bad id ${id}`);
-    if (id === "core" || ids.has(id)) fail(`duplicate or reserved id ${id}`);
+    if (id === "core" || id === "release" || ids.has(id))
+      fail(`duplicate or reserved id ${id}`);
     ids.add(id);
   };
-  for (const step of manifest.verify) {
+  for (const step of [...manifest.verify, ...manifest.release]) {
     claim(step.id);
     if (typeof step.command !== "string" || !PLAIN_COMMAND.test(step.command))
       fail(`${step.id}: command must be plain words`);
   }
+  // A verify step names the ci.yml job that runs it; a release step is the whole of its own job.
+  for (const step of manifest.verify)
+    if (typeof step.job !== "string" || !NAME.test(step.job))
+      fail(`${step.id}: job must name a ci.yml job`);
+  for (const step of manifest.release)
+    if (step.job !== undefined) fail(`${step.id}: a release step has no job`);
   for (const smoke of manifest.smokes) {
     claim(smoke.id);
     const bad = (what: string) => fail(`${smoke.id}: ${what}`);
@@ -116,41 +148,55 @@ export function loadManifest(path = MANIFEST_PATH): CiManifest {
   return parseManifest(JSON.parse(readFileSync(path, "utf8")));
 }
 
-/** Every name `ONLY=` accepts, in run order: verify ids, then smoke groups. `core` is all of verify. */
+/**
+ * Every name `ONLY=` accepts, in run order: verify ids, release ids, then smoke groups. `core` is all of
+ * verify (the pull-request gate) and `release` is all of release.
+ */
 export function stepNames(manifest: CiManifest): string[] {
   return [
     ...manifest.verify.map((step) => step.id),
+    ...manifest.release.map((step) => step.id),
     ...new Set(manifest.smokes.map((smoke) => smoke.group)),
   ];
 }
 
 export interface Selection {
   verify: VerifyStep[];
+  release: VerifyStep[];
   smokes: Smoke[];
 }
 
-/** `only` is a comma-separated list of verify ids, smoke groups, smoke ids or `core`; empty selects everything. */
+/**
+ * `only` is a comma-separated list of step ids, smoke groups, `core` or `release`; empty selects everything,
+ * which is what a main push runs.
+ */
 export function select(manifest: CiManifest, only: string): Selection {
   const wanted = only
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
   if (wanted.length === 0)
-    return { verify: manifest.verify, smokes: manifest.smokes };
+    return {
+      verify: manifest.verify,
+      release: manifest.release,
+      smokes: manifest.smokes,
+    };
   const known = new Set([
     "core",
+    "release",
     ...stepNames(manifest),
     ...manifest.smokes.map((smoke) => smoke.id),
   ]);
   for (const item of wanted)
     if (!known.has(item))
       throw new Error(
-        `Unknown step '${item}' (steps: ${stepNames(manifest).join(", ")}, core)`,
+        `Unknown step '${item}' (steps: ${stepNames(manifest).join(", ")}, core, release)`,
       );
   const has = (...names: string[]) =>
     names.some((name) => wanted.includes(name));
   return {
     verify: manifest.verify.filter((step) => has("core", step.id)),
+    release: manifest.release.filter((step) => has("release", step.id)),
     smokes: manifest.smokes.filter((smoke) => has(smoke.group, smoke.id)),
   };
 }
