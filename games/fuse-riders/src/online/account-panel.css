@@ -54,55 +54,6 @@
     monospace;
   color: #eefaff;
 }
-.account-panel .account-matches {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 8px;
-}
-.account-panel .account-match {
-  padding: 10px 12px;
-  border: 1px solid #2b3a52;
-  border-radius: var(--ui-radius);
-  background: var(--ui-surface);
-  display: grid;
-  gap: 6px;
-}
-.account-panel .account-match[data-won="true"] {
-  border-color: #a3e635;
-}
-.account-panel .account-match header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
-  color: #9cbad4;
-}
-.account-panel .account-match header strong {
-  color: #eefaff;
-}
-.account-panel .account-riders {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  font-size: 13px;
-  color: #b6cce3;
-}
-.account-panel .account-riders li[data-you="true"] {
-  color: #eefaff;
-  font-weight: 700;
-}
-.account-panel .account-riders i {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 6px;
-  border-radius: 50%;
-}
 .account-panel .account-actions {
   display: flex;
   flex-wrap: wrap;
@@ -421,22 +372,6 @@
 .stats-leaderboard th:nth-child(2) {
   width: 40%;
 }
-.account-match summary {
-  cursor: pointer;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 12px;
-  color: #a4bbd2;
-  min-height: 24px;
-}
-.account-match summary strong {
-  color: #edf7ff;
-}
-.account-match .account-riders {
-  margin-top: 12px;
-}
 .landing-top .landing-account {
   max-width: none;
 }
@@ -492,5 +427,211 @@
 @media (max-width: 540px) {
   .stats-dialog .stats-filters select {
     flex: 1 1 42%;
+  }
+}
+
+/* Three sections in the bar, so the dialog's title is also its navigation. */
+.stats-dialog .dialog-bar {
+  padding-block: 0;
+  padding-left: 0.25rem;
+}
+.stats-tabs {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.online-app .stats-dialog .stats-tabs button {
+  min-width: 0;
+  min-height: 3.5rem;
+  padding: 0 0.875rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: #8fa9c4;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  white-space: nowrap;
+}
+.online-app .stats-dialog .stats-tabs button:hover {
+  color: #d9ecfb;
+}
+.online-app .stats-dialog .stats-tabs button[aria-current="page"] {
+  color: #eefaff;
+  border-bottom-color: #16e7ff;
+}
+.online-app .stats-dialog .dialog-bar .dialog-close {
+  min-width: 0;
+  min-height: 2.5rem;
+  margin-block: 0.5rem;
+  font-size: 0.8125rem;
+}
+.account-scope {
+  display: flex;
+  width: max-content;
+  border: 1px solid #365477;
+}
+.online-app .account-scope button {
+  min-height: 2.25rem;
+  padding: 0 1rem;
+  border: 0;
+  background: none;
+  color: #8fa9c4;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+}
+.online-app .account-scope button[aria-pressed="true"] {
+  background: #16324a;
+  color: #eefaff;
+}
+.account-panel > .stats-muted {
+  margin: -4px 0 0;
+}
+.account-matches {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.account-day h3 {
+  margin: 0 0 6px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #8fa9c4;
+}
+.account-day ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid #22344b;
+}
+.account-match {
+  border-bottom: 1px solid #22344b;
+}
+.online-app .account-match-open {
+  width: 100%;
+  min-height: 3.75rem;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) auto 1rem;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 8px 10px 12px;
+  border: 0;
+  border-left: 2px solid transparent;
+  background: none;
+  text-align: left;
+  font-size: 12px;
+  color: #a4bbd2;
+}
+.account-match[data-won="true"] .account-match-open {
+  border-left-color: #a3e635;
+}
+.online-app .account-match-open:hover,
+.online-app .account-match-open:focus-visible {
+  background: #0e1d31;
+}
+.account-match-time {
+  min-width: 3.25rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: #8fa9c4;
+}
+.account-match-summary {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.account-match-summary strong {
+  color: #eefaff;
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.account-riders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  color: #a4bbd2;
+}
+.account-riders span {
+  overflow-wrap: anywhere;
+}
+.account-riders span[data-you="true"] {
+  color: #eefaff;
+  font-weight: 700;
+}
+.account-riders i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  vertical-align: 1px;
+}
+.account-match-place {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.account-match-place strong {
+  font:
+    11px "Press Start 2P",
+    monospace;
+  color: #eefaff;
+}
+.account-match[data-won="true"] .account-match-place strong {
+  color: #d9efa4;
+}
+.account-match-place small {
+  font-size: 10px;
+  color: #8fa9c4;
+}
+.account-match-chevron {
+  font-size: 18px;
+  color: #5d7896;
+}
+.online-app .account-panel .account-back {
+  justify-self: start;
+  width: auto;
+  margin-top: 0;
+  min-height: 2.25rem;
+  padding: 0 0.75rem 0 0.5rem;
+  border-color: #365477;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+/* A past match reuses the post-match report; the dialog's table defaults must not reshape its standings. */
+.stats-dialog .match-recap-report table {
+  font-size: 1rem;
+}
+.stats-dialog .match-recap-report :is(td, th) {
+  overflow-wrap: normal;
+}
+.stats-dialog .match-recap-report .recap-victory h2 {
+  font-size: clamp(1.1rem, 3.2vw, 2rem);
+}
+.online-app button.stats-finish {
+  min-height: 0;
+  border: 0;
+}
+.online-app button.stats-finish:hover {
+  outline: 1px solid #5d7896;
+}
+@media (max-width: 540px) {
+  .online-app .stats-dialog .stats-tabs button {
+    padding: 0 0.625rem;
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+  .online-app .stats-dialog .dialog-bar .dialog-close {
+    padding: 0 0.625rem;
+    font-size: 0.75rem;
+  }
+  .online-app .account-match-open {
+    grid-template-columns: max-content minmax(0, 1fr) auto;
+    gap: 10px;
+    padding-left: 8px;
+  }
+  .account-match-chevron {
+    display: none;
   }
 }

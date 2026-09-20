@@ -6,23 +6,23 @@
   "description": "Large tall slate factory with two circular fans and several roof vents.",
   "image": {
     "file": "building-large-factory.png",
-    "width": 1013,
-    "height": 1553,
-    "sha256": "4f358465d521eb180ec2d89cd54f40e8622d36ebdacfb8f4e185fa3241276b78"
+    "width": 429,
+    "height": 658,
+    "sha256": "6fe9b92bf8f044edd1c934c0eae175f1773525df97999d690d9169a99d9dddf4"
   },
   "anchorPixels": {
-    "x": 507.0,
-    "y": 774.0
+    "x": 214.71174728529124,
+    "y": 327.78479763079963
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 507.0,
-    "centerY": 774.0,
-    "width": 742,
-    "height": 1304
+    "centerX": 214.71174728529124,
+    "centerY": 327.78479763079963,
+    "width": 314.2329713721619,
+    "height": 552.2369200394868
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.1411042944785276,
+    "unitsPerPixel": 0.33319032705535767,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.978323
+  },
+  "source": {
+    "width": 1013,
+    "height": 1553,
+    "sha256": "4f358465d521eb180ec2d89cd54f40e8622d36ebdacfb8f4e185fa3241276b78",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

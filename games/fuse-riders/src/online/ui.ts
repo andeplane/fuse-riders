@@ -148,6 +148,8 @@ const createPlayerAccountPanel = () =>
       apiUrl(
         `/api/me/matches${before === undefined ? "" : `?before=${before}`}`,
       ),
+    matchesUrl: (before) =>
+      apiUrl(`/api/matches${before === undefined ? "" : `?before=${before}`}`),
     profileUrl: apiUrl("/api/me"),
     leaderboardUrl: apiUrl("/api/leaderboard"),
     localName: () => read("fuse-riders-player-name"),
@@ -946,6 +948,7 @@ export async function startOnline(): Promise<void> {
     topMusic,
     topMute,
     prefsButton,
+    roomAccount.matchesButton,
     roomAccount.leaderboardButton,
     roomAccount.button,
   );
@@ -955,6 +958,7 @@ export async function startOnline(): Promise<void> {
     topRadio,
     topMusic,
     topMute,
+    roomAccount.matchesButton,
     roomAccount.leaderboardButton,
     results,
   ])

@@ -160,6 +160,24 @@ export class FirestoreHistoryDatabase implements HistoryDatabase {
       { maxAttempts: 5 },
     );
   }
+  async recentMatches(
+    gameId: string,
+    before: number | undefined,
+    limit: number,
+  ): Promise<MatchRecord[]> {
+    // `(gameId, feedAt desc)` on the matches collection; firestore.indexes.json carries it.
+    let query = this.matches().where("gameId", "==", gameId);
+    // Strictly older, exactly as MemoryHistoryDatabase pages: two games stamped in the same millisecond on a page
+    // boundary can cost one of them its listing (docs/design/PLAYER-STATS.md).
+    if (before !== undefined) query = query.where("feedAt", "<", before);
+    const docs = (await query.orderBy("feedAt", "desc").limit(limit).get())
+      .docs;
+    // One unreadable record must not hide the rest of the page.
+    return docs.flatMap((doc) => {
+      const match = parseMatchRecord(this.platform, doc.data());
+      return match?.gameId === gameId ? [match] : [];
+    });
+  }
   async matchesFor(
     gameId: string,
     uid: string,

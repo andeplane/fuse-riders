@@ -90,11 +90,15 @@ export {
 } from "./phone-layout.js";
 export {
   createAccountDialog,
+  dayLabel,
   type AccountAuth,
   type AccountDialog,
   type AccountDialogOptions,
+  type AccountMatchContext,
   type AccountPage,
   type AccountPart,
   type AccountProfile,
+  type AccountScope,
   type AccountText,
+  type AccountView,
 } from "./account.js";
