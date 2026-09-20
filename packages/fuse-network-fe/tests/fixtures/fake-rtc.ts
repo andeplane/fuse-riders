@@ -232,6 +232,32 @@ export class FakeDataChannel extends EventTarget implements RTCDataChannel {
   }
 }
 
+/** An `RTCIceCandidate` without a browser; the transport reads `.candidate` and calls `toJSON()`. */
+class FakeIceCandidate implements RTCIceCandidate {
+  readonly address = null;
+  readonly component = "rtp" as const;
+  readonly foundation = "1";
+  readonly port = 5000;
+  readonly priority = 1;
+  readonly protocol = "udp" as const;
+  readonly relatedAddress = null;
+  readonly relatedPort = null;
+  readonly sdpMLineIndex = 0;
+  readonly sdpMid = "0";
+  readonly tcpType = null;
+  readonly type = "host" as const;
+  readonly usernameFragment = "ufrag";
+  constructor(readonly candidate: string) {}
+  toJSON(): RTCIceCandidateInit {
+    return {
+      candidate: this.candidate,
+      sdpMid: this.sdpMid,
+      sdpMLineIndex: this.sdpMLineIndex,
+      usernameFragment: this.usernameFragment,
+    };
+  }
+}
+
 let sdpSerial = 0;
 
 /** A peer connection whose negotiation a test resolves and whose states it sets. */
@@ -368,6 +394,15 @@ export class FakePeerConnection
     this.onconnectionstatechange?.call(
       this,
       new Event("connectionstatechange"),
+    );
+  }
+  /** ICE gathered `candidate`, or finished gathering when it is null. */
+  gathered(candidate: string | null): void {
+    this.onicecandidate?.call(
+      this,
+      Object.assign(new Event("icecandidate"), {
+        candidate: candidate === null ? null : new FakeIceCandidate(candidate),
+      }),
     );
   }
   /** ICE moved to `state`. */

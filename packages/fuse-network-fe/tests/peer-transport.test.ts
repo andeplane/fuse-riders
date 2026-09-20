@@ -536,7 +536,8 @@ test("the default dependencies wire the real timers", async () => {
 
   // `defer` is deliberately not called here. Its `MessageChannel` is never closed — as the transport's own
   // deferral port never was before this seam — so the port would keep Node's event loop alive and `pnpm test`
-  // would never exit. The transport's use of `defer` is covered through the injected one instead.
+  // would never exit. What the transport does with a deferral is covered through the injected one, in
+  // "an inbound probe is answered one macrotask later"; this default wiring of it is not.
 });
 
 test("a creator tab whose lease is held elsewhere closes its own socket", async () => {
@@ -569,5 +570,117 @@ test("a creator tab whose lease is held elsewhere closes its own socket", async 
   assert.equal(harness.socket.closed?.code, CLOSE_AUTHORITY_REPLACED);
   harness.socket.drop(CLOSE_AUTHORITY_REPLACED);
   assert.equal(harness.recorded.revoked, 1);
+  harness.transport.close();
+});
+
+test("an inbound probe is answered one macrotask later, and not at all once the link is gone", async () => {
+  const harness = new TransportHarness();
+  await harness.admit("a", ["b"]);
+  const game = openCreatedGame(harness);
+  const sent = game.envelopes().length;
+
+  game.receive(envelope("b", "a", 1, { type: "linkProbe", probeId: 7 }));
+
+  // libwebrtc delivers the probe before the closing state change that follows it, so the pong waits one
+  // macrotask: answering inside this handler would hand it to an already-dead transport.
+  assert.equal(game.envelopes().length, sent);
+  await harness.flush();
+  assert.deepEqual(game.envelopes().at(-1)!.data, {
+    type: "linkPong",
+    probeId: 7,
+  });
+
+  // A probe whose link is retired before the deferral runs is dropped, not sent on the replacement.
+  const after = game.envelopes().length;
+  game.receive(envelope("b", "a", 2, { type: "linkProbe", probeId: 8 }));
+  await harness.socket.deliver({
+    type: "peer",
+    id: "b",
+    connectionId: "c-b",
+    online: false,
+  });
+  await harness.flush();
+  assert.equal(game.envelopes().length, after);
+
+  harness.transport.close();
+});
+
+test("gathered candidates are relayed and the end-of-gathering signal is not", async () => {
+  const harness = new TransportHarness();
+  await harness.admit("a", ["b"]);
+  const pc = harness.connections[0]!;
+
+  pc.gathered("candidate:1 1 udp 1 10.0.0.1 5000 typ host");
+  pc.gathered("candidate:2 1 udp 1 1.2.3.4 5000 typ srflx raddr 10.0.0.1");
+  pc.gathered(null);
+
+  const candidates = harness
+    .signalsTo("b")
+    .filter(
+      (data): data is { candidate: RTCIceCandidateInit } =>
+        typeof data === "object" && data !== null && "candidate" in data,
+    );
+  assert.deepEqual(
+    candidates.map((data) => data.candidate.candidate),
+    [
+      "candidate:1 1 udp 1 10.0.0.1 5000 typ host",
+      "candidate:2 1 udp 1 1.2.3.4 5000 typ srflx raddr 10.0.0.1",
+    ],
+  );
+
+  const report = await harness.transport.diagnostics();
+  assert.deepEqual(report.links[0]!.local, { host: 1, srflx: 1 });
+  harness.transport.close();
+});
+
+test("a failed ICE connection drains the link once", async () => {
+  const harness = new TransportHarness();
+  await harness.admit("a", ["b"]);
+  const pc = harness.connections[0]!;
+  openCreatedGame(harness);
+
+  pc.iceBecomes("failed");
+  assert.equal(harness.transport.linked("b"), false);
+  assert.deepEqual(harness.recorded.links, [
+    ["b", true],
+    ["b", false],
+  ]);
+
+  // The gate is monotonic, so a second terminal signal reports nothing new.
+  pc.iceBecomes("closed");
+  assert.equal(harness.recorded.links.length, 2);
+  harness.transport.close();
+});
+
+test("the answerer wires the channels the offerer opened", async () => {
+  const harness = new TransportHarness();
+  await harness.admit("z", ["b"]);
+  await harness.socket.deliver({
+    type: "signal",
+    from: "b",
+    connectionId: "c-b",
+    data: { description: { type: "offer", sdp: "remote-offer" } },
+  });
+  await harness.flush();
+
+  const pc = harness.connections[0]!;
+  const game = pc.offerChannel("game");
+  const input = pc.offerChannel("input", { ordered: false, maxRetransmits: 0 });
+  pc.connectionBecomes("connected");
+  game.open();
+  input.open();
+
+  assert.deepEqual(harness.recorded.links, [["b", true]]);
+  // Both peer-opened channels are live: the reliable one probes, the unreliable one carries packets.
+  await harness.run(200);
+  assert.equal(
+    (game.envelopes().at(-1)!.data as { type: string }).type,
+    "linkProbe",
+  );
+  input.receive(new Uint8Array([9]).buffer);
+  assert.deepEqual(
+    harness.recorded.fast.map(([, bytes]) => [...bytes]),
+    [[9]],
+  );
   harness.transport.close();
 });
