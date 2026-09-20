@@ -252,7 +252,7 @@ reported as `matchLength` for exactly this reason.
   thousands of these. Its detail rides along on `Match Ended` instead, read from the authoritative `matchStats`
   the recap renders. `Kill` and `Miss` are the deliberate exception, bounded by pulls rather than ticks: a rider
   can pull the trigger at most once per reload, and only its own device reports.
-- **Locally served games.** `npm run dev` serves on a ported loopback address, and analytics is off on any ported
+- **Locally served games.** `pnpm dev` serves on a ported loopback address, and analytics is off on any ported
   address unless `?analytics=1` forces it on. (The LAN `/controller` and `/display` server this item once named
   was removed in #271.)
 - **Bots.** They are counted in `botCount` and never identified as users.

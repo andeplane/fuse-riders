@@ -55,7 +55,7 @@ function sameLoopbackOrigin(origin: string, req: IncomingMessage): boolean {
 
 /**
  * The production room protocol (RoomStore + RoomGateway) over in-memory metadata and a single-process bus.
- * Serves `npm run dev`, `npm run dev:online` and the browser smokes; rooms disappear when the process exits.
+ * Serves `pnpm dev`, `pnpm dev:online` and the browser smokes; rooms disappear when the process exits.
  */
 export function createDevRoomService(
   options: DevRoomServiceOptions = {},

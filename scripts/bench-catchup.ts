@@ -1,7 +1,7 @@
 /**
  * Catch-up and rollback cost in the bots-only fast phase (#258 N2 follow-up). Run from the repo root:
  *
- *   npx tsx scripts/bench-catchup.ts [hiddenMs=6000] [rollbackDepth=38]
+ *   pnpm exec tsx scripts/bench-catchup.ts [hiddenMs=6000] [rollbackDepth=38]
  *
  * 1. Catch-up: two humans who never steer and four bots on the in-memory `FakeNetwork` (no loss, 20 ms links). Once
  *    both humans are dead and a bot still races, the guest's tab is hidden for `hiddenMs` (its world freezes, its clock

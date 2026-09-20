@@ -5,7 +5,7 @@
  *
  * Dry run by default: it counts and prints, and writes nothing. Pass `--apply` to write.
  *
- *   ROOM_COLLECTION_PREFIX=fuse-production npx tsx scripts/backfill-match-game-id.ts [--apply]
+ *   ROOM_COLLECTION_PREFIX=fuse-production pnpm exec tsx scripts/backfill-match-game-id.ts [--apply]
  *
  * Uses Application Default Credentials; GOOGLE_CLOUD_PROJECT and FIRESTORE_DATABASE_ID pick the database.
  */

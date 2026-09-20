@@ -1,5 +1,5 @@
 // Headless AI league: plays whole matches with no rendering, network or clock, so tiers can be compared by evidence.
-// Usage: npx tsx scripts/ai-league.ts [matchesPerPairing]
+// Usage: pnpm exec tsx scripts/ai-league.ts [matchesPerPairing]
 import {
   BotController,
   botDisplayName,

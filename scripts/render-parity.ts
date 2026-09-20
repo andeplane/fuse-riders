@@ -4,8 +4,8 @@
  * the wrapping map, a charging rider, ink, a shield, a countdown), draws each on both Phaser backends at a fixed
  * clock, and prints a SHA-256 of the pixels. Two revisions that print the same hashes draw the same picture.
  *
- *   npx tsx scripts/render-parity.ts            # hashes as JSON on stdout
- *   PARITY_PNG=1 npx tsx scripts/render-parity.ts   # also writes artifacts/render-parity/*.png
+ *   pnpm exec tsx scripts/render-parity.ts            # hashes as JSON on stdout
+ *   PARITY_PNG=1 pnpm exec tsx scripts/render-parity.ts   # also writes artifacts/render-parity/*.png
  *
  * Paths are resolved at run time so the file can be copied onto an older revision (the renderer lived in
  * `games/fuse-riders/src/client/` and the view was built by `toSnapshot` before issue #254). Most moments are one frame after `reset()`.
@@ -16,7 +16,7 @@
  * hashes are not portable across
  * GPUs or Chrome versions.
  *
- *   PARITY_REFERENCE=<ref> npx tsx scripts/render-parity.ts   # compare with <ref> in a throwaway worktree
+ *   PARITY_REFERENCE=<ref> pnpm exec tsx scripts/render-parity.ts   # compare with <ref> in a throwaway worktree
  */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";

@@ -25,17 +25,18 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run format:check
-      - run: npm run lint
-      - run: npm run config:check
-      - run: npm run typecheck
-      - run: npm run test:coverage
-      - run: npm run build
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm config:check
+      - run: pnpm typecheck
+      - run: pnpm test:coverage
+      - run: pnpm build
       - name: Save coverage
         if: always()
         uses: actions/upload-artifact@v4
@@ -104,19 +105,20 @@ jobs:
       SMOKE_TIMEOUT_SCALE: 3
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       # Before the browser downloads, so a revision that does not compile fails in
       # seconds rather than after a minute of Playwright installs. The room service serves dist/.
-      - run: npm run build
-      - run: npx playwright install --with-deps ${{ join(fromJson(needs.plan.outputs.byId)[matrix.id].browsers, ' ') }}
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps ${{ join(fromJson(needs.plan.outputs.byId)[matrix.id].browsers, ' ') }}
       # Starts the local room service on a free port when the smoke needs one (log in
       # artifacts/room-service.log), applies the entry's env and retries once through scripts/ci-smoke.sh.
       - name: ${{ fromJson(needs.plan.outputs.byId)[matrix.id].name }}
-        run: npx tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"
+        run: pnpm exec tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"
       - name: Save browser evidence
         if: always()
         uses: actions/upload-artifact@v4

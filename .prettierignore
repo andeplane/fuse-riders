@@ -4,4 +4,4 @@ coverage/
 artifacts/
 # Retained measurement evidence must keep its original bytes and hashes.
 docs/**/*.json
-package-lock.json
+pnpm-lock.yaml

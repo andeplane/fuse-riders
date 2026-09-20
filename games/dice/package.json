@@ -12,13 +12,13 @@
     "./platform": "./src/platform.ts"
   },
   "dependencies": {
-    "fuse-netcode": "0.1.0",
-    "fuse-platform": "0.1.0"
+    "fuse-netcode": "workspace:*",
+    "fuse-platform": "workspace:*"
   },
   "devDependencies": {
     "@fontsource/press-start-2p": "^5.3.0",
-    "fuse-network-fe": "0.1.0",
-    "fuse-ui": "0.1.0",
+    "fuse-network-fe": "workspace:*",
+    "fuse-ui": "workspace:*",
     "qrcode": "^1.5.4"
   }
 }

@@ -47,7 +47,7 @@ const scriptsIn = (text: string) => [
 test("the verify job runs exactly the manifest's verify steps, in order", () => {
   const runs = runsIn(job("verify"));
   assert.deepEqual(runs, [
-    "npm ci",
+    "pnpm install --frozen-lockfile",
     ...manifest.verify.map((step) => step.command),
   ]);
   // The pull-request gate is this job alone: it waits for nothing and is never skipped.
@@ -93,9 +93,9 @@ test("the browser matrix is built from the manifest, one job per smoke", () => {
     "      fail-fast: false",
     "        id: ${{ fromJson(needs.plan.outputs.ids) }}",
     `    timeout-minutes: \${{ ${entry}.timeoutMinutes }}`,
-    `      - run: npx playwright install --with-deps \${{ join(${entry}.browsers, ' ') }}`,
+    `      - run: pnpm exec playwright install --with-deps \${{ join(${entry}.browsers, ' ') }}`,
     `      - name: \${{ ${entry}.name }}`,
-    '        run: npx tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"',
+    '        run: pnpm exec tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"',
     "          name: browser-evidence-${{ matrix.id }}",
     "      SMOKE_TIMEOUT_SCALE: 3",
   ])
@@ -105,10 +105,10 @@ test("the browser matrix is built from the manifest, one job per smoke", () => {
   // The only commands in these jobs are the ones asserted above.
   assert.deepEqual(runsIn(plan), ["|"]);
   assert.deepEqual(runsIn(smoke), [
-    "npm ci",
-    "npm run build",
-    `npx playwright install --with-deps \${{ join(${entry}.browsers, ' ') }}`,
-    'npx tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"',
+    "pnpm install --frozen-lockfile",
+    "pnpm build",
+    `pnpm exec playwright install --with-deps \${{ join(${entry}.browsers, ' ') }}`,
+    'pnpm exec tsx scripts/ci-run.ts --smoke "${{ matrix.id }}"',
   ]);
   // Evidence is uploaded whether the smoke passed or not.
   assert.match(
@@ -123,8 +123,8 @@ test("no smoke is written out in the workflow or in the local mirror", () => {
     "scripts/ci-run.ts",
   ]);
   assert.deepEqual(scriptsIn(local), ["scripts/ci-run.ts"]);
-  assert.match(local, /^exec npx tsx scripts\/ci-run\.ts "\$@"$/m);
-  assert.doesNotMatch(withoutComments(local), /npm run|playwright/);
+  assert.match(local, /^exec pnpm exec tsx scripts\/ci-run\.ts "\$@"$/m);
+  assert.doesNotMatch(withoutComments(local), /playwright|format:check/);
 });
 
 test("the matrix keeps its triggers and one stable result", () => {
@@ -146,8 +146,8 @@ test("the matrix keeps its triggers and one stable result", () => {
 test("every smoke names a script that exists and the engines it launches", () => {
   for (const smoke of manifest.smokes) {
     const words = smoke.command.split(" ");
-    assert.deepEqual(words.slice(0, 2), ["npx", "tsx"], smoke.id);
-    const script = words[2]!;
+    assert.deepEqual(words.slice(0, 3), ["pnpm", "exec", "tsx"], smoke.id);
+    const script = words[3]!;
     assert.ok(existsSync(script), `${smoke.id}: ${script} does not exist`);
     const source = readFileSync(script, "utf8");
 
@@ -250,7 +250,9 @@ test("a manifest the workflow or the runner would misread is rejected", () => {
     /duplicate/,
   );
   assert.throws(
-    broken((copy) => (copy.smokes[0]!.command = "npx tsx a.ts && rm -rf .")),
+    broken(
+      (copy) => (copy.smokes[0]!.command = "pnpm exec tsx a.ts && rm -rf ."),
+    ),
     /plain words/,
   );
   assert.throws(

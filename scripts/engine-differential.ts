@@ -4,7 +4,7 @@
  * `toView` must serialise to the same bytes. The state hash is deliberately not compared: a change of state shape
  * moves it with no change of behaviour, and this is the evidence that nothing else moved.
  *
- *   npx tsx scripts/engine-differential.ts --base /path/to/main-worktree [--fuzz 4] [--ticks 30000]
+ *   pnpm exec tsx scripts/engine-differential.ts --base /path/to/main-worktree [--fuzz 4] [--ticks 30000]
  *
  * Workloads: the golden mechanic recording (the base's fixture, so it is the one main pins) and `--fuzz` fresh
  * recordings made by the base's own recorder (`makeRecording(seed, ticks, true)`), so their inputs owe nothing to the

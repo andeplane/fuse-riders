@@ -81,4 +81,4 @@ const pad = createControllerRow({
 
 ## Tests
 
-`packages/fuse-ui/tests/` runs in `npm test` on `linkedom`: structure, hostile names rendered as text, and callbacks. It also checks that the package imports nothing outside itself.
+`packages/fuse-ui/tests/` runs in `pnpm test` on `linkedom`: structure, hostile names rendered as text, and callbacks. It also checks that the package imports nothing outside itself.
