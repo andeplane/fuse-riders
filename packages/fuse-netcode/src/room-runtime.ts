@@ -731,7 +731,12 @@ export class RoomRuntime<
       .filter((id) => this.transport!.linked(id) && !this.hiddenMember(id))
       .sort();
   }
-  private requestSnapshot(preferred?: string): void {
+  /**
+   * Fetch the world from a peer: the first one after a welcome, or a resync when this replica's own fold cannot be
+   * repaired. Public because it is a real operation a screen may offer and a test may force, and because `WorldSync`
+   * reports what it did (`sync.state`, `sync.request`) rather than leaving it to be inferred.
+   */
+  requestSnapshot(preferred?: string): void {
     if (!this.transport) return;
     const all = this.sources(),
       holders = all.filter((id) => !this.saidNoWorld(id));
@@ -1540,8 +1545,11 @@ export class RoomRuntime<
     ms: CATCHUP_MS,
   };
   private lastLoopAt = -Infinity;
-  /** One loop pass, then a fresh step budget for the next 10 ms: rollbacks in packet handlers until then draw on it too. */
-  private tickLoop(): void {
+  /**
+   * One loop pass, then a fresh step budget for the next 10 ms: rollbacks in packet handlers until then draw on it too.
+   * `dependencies.schedule` drives this every 10 ms in a page; a deterministic test drives it directly.
+   */
+  tickLoop(): void {
     // A pass that throws after advancing must still open the next window, or the world would never step again.
     try {
       this.tickPass();
