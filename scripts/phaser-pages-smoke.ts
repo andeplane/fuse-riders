@@ -1,4 +1,5 @@
 import { preview } from "vite";
+import { obstacleArtSources } from "../games/fuse-riders/src/render/arena-maps.js";
 import { AVATAR_ATLAS_URL } from "../games/fuse-riders/src/shared/avatars.js";
 import {
   defaultTheme,
@@ -29,7 +30,7 @@ try {
   const assets: string[] = [];
   const failures: string[] = [];
   page.on("response", (r) => {
-    if (/\/themes\/|\/avatars\//.test(r.url())) {
+    if (/\/themes\/|\/avatars\/|\/props\//.test(r.url())) {
       assets.push(new URL(r.url()).pathname);
       if (!r.ok()) failures.push(`${r.status()} ${r.url()}`);
     }
@@ -69,11 +70,12 @@ try {
         ),
       ]),
       AVATAR_ATLAS_URL,
+      ...obstacleArtSources().map((art) => art.file),
     ].map((path) => `/fuse-riders${path}`),
   );
   assert.deepEqual(new Set(assets), expected);
   console.log(
-    `Pages subpath smoke passed: ${new Set(assets).size} theme/avatar assets across ${assets.length} responses, all below /fuse-riders/.`,
+    `Pages subpath smoke passed: ${new Set(assets).size} theme/avatar/obstacle assets across ${assets.length} responses, all below /fuse-riders/.`,
   );
 } finally {
   await browser.close();
