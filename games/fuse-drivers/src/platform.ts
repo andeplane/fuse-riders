@@ -109,6 +109,9 @@ export function parseFuseDriversStats(
   if (!COUNTERS.every((key) => count(raw[key], most[key]))) return;
   if ((raw.matchPlacement as number) < 1) return;
   if ((raw.lapsLed as number) > (raw.laps as number)) return;
+  // Counters are bounded one by one, so nothing else stops a forged report claiming more races won than
+  // raced and crediting itself the difference.
+  if ((raw.roundWins as number) > (raw.roundsPlayed as number)) return;
   const player: Record<string, unknown> = {};
   for (const key of KEYS) player[key] = raw[key];
   return player as unknown as FuseDriversStats;

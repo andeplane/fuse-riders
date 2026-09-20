@@ -278,3 +278,10 @@ test("stored totals are rebuilt in key order, and a malformed document is refuse
   );
   assert.deepEqual(extra.totals, emptyFuseDriversTotals());
 });
+test("a report cannot win more races than it raced", () => {
+  assert.ok(parseFuseDriversStats(stats({ roundsPlayed: 1, roundWins: 1 }), 2));
+  assert.equal(
+    parseFuseDriversStats(stats({ roundsPlayed: 0, roundWins: 1 }), 2),
+    undefined,
+  );
+});
