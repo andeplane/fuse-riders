@@ -19,14 +19,18 @@ The tracks (Tiled `.tmj`) and the built art in `public/assets` move verbatim.
 The log tick is fixed at 50 ms for every game; a faster game runs more simulation steps per log tick
 (`steps(room)`), never a faster log. Fuse Drivers runs at 30 Hz, which does not divide 20 Hz.
 
-**Decision: run the race at 60 Hz, `steps: () => 3`, `maxSteps: 3`.** Sixty is the only clean multiple near the
-original rate, and doubling is mechanical: every value expressed in seconds already holds, and the 22 constants
-expressed in ticks double. The alternative, 40 Hz at two steps, multiplies tick constants by 4/3 and lands them
-on fractions.
+**Decision: keep the race at 30 Hz and alternate the step count.** `steps(room)` may depend on room state, so
+a room that counts log ticks runs two simulation steps on even log ticks and one on odd: three steps per 100 ms
+is exactly 30 Hz, with `maxSteps: 2`.
 
-Cost: three fold steps per log tick, each moving five trucks, their projectiles and pickups. Rollback
-re-simulates up to 40 ticks, so a worst case is 120 steps. Fuse Riders already runs an arcade simulation on this
-netcode, so the budget is known to exist, but the port must measure before it is called done.
+The obvious alternative, running at 60 Hz with three steps per log tick, means doubling the 22 constants
+expressed in ticks, re-tuning the bots that count ticks, and re-recording the replay hash. The parity trick
+keeps every tuned number, every bot and the existing replay test untouched, and costs only that simulation
+steps fall unevenly inside a second, which is invisible because the renderer interpolates between views.
+
+This makes the room hold two clocks: `tick` is the log tick the netcode reads through `clock(room)`, and the
+race state keeps its own simulation tick. The view therefore advances at 20 Hz while the simulation runs at
+30 Hz, which is what the game already did when it streamed snapshots from a server.
 
 ## Shape of the port
 
@@ -60,7 +64,7 @@ new game's `src/game/`.
 ## Order of work
 
 1. Scaffold and register the workspace. **Done.**
-2. Rules: room, entry, fold, checkpoint, hash, result, at 60 Hz. Port the replay test with it.
+2. Rules: room, entry, fold, checkpoint, hash, result. Port the replay test with it.
 3. Page: landing, lobby and results from `fuse-ui`; the arena as a lazy-loaded Phaser 4 renderer driven by the
    page's own frame loop, reading `frameTiming()`.
 4. Platform: racing stats instead of Pig's rolls and busts.
