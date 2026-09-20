@@ -12,4 +12,5 @@ export * from "./snapshot.js";
 export * from "./membership.js";
 export * from "./world-sync.js";
 export * from "./input-recorder.js";
+export * from "./room-manager.js";
 export * from "./room-runtime.js";
