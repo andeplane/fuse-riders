@@ -10,6 +10,7 @@
   "exclude": [
     "**/*.d.ts",
     "games/dice/src/app/main.ts",
+    "games/fuse-drivers/src/app/main.ts",
     "packages/fuse-network-be/src/gcp/firestore-store.ts",
     "packages/fuse-network-be/src/gcp/index.ts",
     "packages/fuse-network-be/src/gcp/pubsub-bus.ts",

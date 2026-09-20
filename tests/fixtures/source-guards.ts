@@ -255,6 +255,7 @@ export function layerViolations(): string[] {
       [
         ...sourceFiles("games/fuse-riders/src"),
         ...sourceFiles("games/dice/src"),
+        ...sourceFiles("games/fuse-drivers/src"),
         ...sourceFiles("service"),
         ...sourceFiles("packages"),
       ].flatMap((file) =>
