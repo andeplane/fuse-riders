@@ -1693,8 +1693,14 @@ export async function startOnline(): Promise<void> {
     }
     // Coming back to a seat asks for the colour this device last wore, exactly as an arriving one does: the join
     // itself carries no colour and hands out the lowest free one, so without this a rider that stepped out to watch
-    // for a round would come back in somebody else's colour. `joinForm.colors` holds what the fold last gave it
-    // (the frame loop syncs it), and `wantedColor` is the same single, refusable follow-up the arrival path uses.
+    // for a round would come back in whatever was free. `joinForm.colors` holds what the fold last gave this device
+    // (the frame loop syncs it, and nothing can change it while watching — the picker is not offered), and
+    // `wantedColor` is the arrival path's own single follow-up, sent once the room lists a seat here.
+    //
+    // `command` answers false only where this device writes the log itself; a guest's join is posted to the manager
+    // and answered true whatever the manager goes on to decide. So this is not a "the join was accepted" guard, and
+    // nothing here needs one: `wantedColor` is only ever spent on this device's own row, in the colour this device
+    // was already wearing, and it is dropped after one attempt whether or not the fold takes it.
     const sent = runtime.command({
       type: "join",
       name,

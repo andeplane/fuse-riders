@@ -655,6 +655,20 @@ test("the head and colour buttons leave when this rider says READY, and come bac
   );
   // And un-readying opens them again: a gate, not a one-way door.
   assert.equal(present(lobby, { readyPlayers: ["ada"] }).avatarHidden, false);
+
+  // A tab another one replaced as host is finished with, whatever its seat still says: it lost READY with the rest
+  // of the action bar, and an identity it cannot ready up settles nothing. The three buttons live in that bar now,
+  // so this is said here as well — the page closes the open picker on this flag, and a group hidden only because an
+  // ancestor is would leave a dialog up over a dead tab with a live button in it.
+  assert.equal(
+    present(lobby, { readyPlayers: [], replacedHost: true }).avatarHidden,
+    true,
+  );
+  assert.equal(
+    present(lobby, { readyPlayers: [], replacedHost: true }).actions.hidden,
+    true,
+    "and the bar holding them is gone for that tab anyway",
+  );
 });
 
 test("changing sides is one button about this device, beside READY, and says why when it cannot", () => {

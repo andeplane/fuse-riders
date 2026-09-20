@@ -407,13 +407,19 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
     joined,
     recapReady: ready,
     resultsHidden: !ready,
-    // A lobby choice, and one this rider has not finished making: the head and colour buttons leave with the lobby,
-    // and they leave the moment this rider says READY. READY is what settles an identity for the round — after it the
-    // room is only waiting on everyone else, and a rider still recolouring is a rider not yet ready. Un-readying
-    // brings both back, so this is a gate rather than a one-way door.
+    // A lobby choice, and one this rider has not finished making: the name, head and colour buttons leave with the
+    // lobby, and they leave the moment this rider says READY. READY is what settles an identity for the round —
+    // after it the room is only waiting on everyone else, and a rider still recolouring is a rider not yet ready.
+    // Un-readying brings all three back, so this is a gate rather than a one-way door.
+    //
+    // A tab another one replaced as host is done whatever its seat says: it lost READY with the rest of the action
+    // bar long before this, and settling an identity it can no longer ready up is nothing. Said here rather than
+    // left to the bar's own `hidden`, so that the open picker is closed too — the page closes them on this flag, and
+    // a group hidden only by an ancestor would leave a dialog up over a dead tab with a live button in it.
     avatarHidden:
       !joined ||
       state.phase !== "lobby" ||
+      input.replacedHost ||
       (input.readyPlayers?.includes(input.playerId) ?? false),
     joinPanelHidden: joined || watching || displayOnly,
     controlsHidden: !joined || displayOnly,
