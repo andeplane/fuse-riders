@@ -6,23 +6,23 @@
   "description": "Wide charcoal metal crate with recessed amber panel and reinforced corners.",
   "image": {
     "file": "crate-wide-amber.png",
-    "width": 1536,
-    "height": 1024,
-    "sha256": "22f5d03ed5688e2043d5dd18d32cb14a98be750669d71a5e10373db3c2902daa"
+    "width": 220,
+    "height": 147,
+    "sha256": "c4abb8a0068b1f4e82c633b966fa31e7670280735d2c5cfbb772a2d0f1b8bcb9"
   },
   "anchorPixels": {
-    "x": 768.5,
-    "y": 501.0
+    "x": 110.07161458333333,
+    "y": 71.7578125
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 768.5,
-    "centerY": 501.0,
-    "width": 1257,
-    "height": 738
+    "centerX": 110.07161458333333,
+    "centerY": 71.7578125,
+    "width": 180.03906250000006,
+    "height": 105.70312500000003
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.0477326968973747,
+    "unitsPerPixel": 0.3332610110653069,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.94876
+  },
+  "source": {
+    "width": 1536,
+    "height": 1024,
+    "sha256": "22f5d03ed5688e2043d5dd18d32cb14a98be750669d71a5e10373db3c2902daa",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

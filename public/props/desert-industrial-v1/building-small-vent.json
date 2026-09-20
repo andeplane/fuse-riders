@@ -6,23 +6,23 @@
   "description": "Small narrow slate service building with one circular roof fan and an electrical box.",
   "image": {
     "file": "building-small-vent.png",
-    "width": 1254,
-    "height": 1254,
-    "sha256": "b6e2d21efd54b174b07952048dc4f5c8f108a174eb78745a9f86f972700c43fa"
+    "width": 374,
+    "height": 374,
+    "sha256": "5188168157a14d9e82eea431189cbe8795e70acf9ba211519b7bcf22041a585e"
   },
   "anchorPixels": {
-    "x": 627.5,
-    "y": 613.0
+    "x": 187.14912280701753,
+    "y": 182.82456140350877
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 627.5,
-    "centerY": 613.0,
-    "width": 609,
-    "height": 1046
+    "centerX": 187.14912280701753,
+    "centerY": 182.82456140350877,
+    "width": 181.63157894736838,
+    "height": 311.9649122807017
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.0994263862332696,
+    "unitsPerPixel": 0.33337082442919813,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.986777
+  },
+  "source": {
+    "width": 1254,
+    "height": 1254,
+    "sha256": "b6e2d21efd54b174b07952048dc4f5c8f108a174eb78745a9f86f972700c43fa",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

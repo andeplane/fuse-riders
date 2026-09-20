@@ -6,23 +6,23 @@
   "description": "Small warm sandstone utility hut with two square roof caps and an amber doorway.",
   "image": {
     "file": "building-small-sandstone.png",
-    "width": 1254,
-    "height": 1254,
-    "sha256": "3069677d00157c6159b05defac5aeb3245e6c584cca148d0b977b30c757bd10a"
+    "width": 382,
+    "height": 382,
+    "sha256": "435a7e9f0d998244284b05310e7147b2a06f1bf24c9336ccf45531657bd6cb9d"
   },
   "anchorPixels": {
-    "x": 628.5,
-    "y": 613.5
+    "x": 191.45693779904306,
+    "y": 186.88755980861245
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 628.5,
-    "centerY": 613.5,
-    "width": 945,
-    "height": 637
+    "centerX": 191.45693779904306,
+    "centerY": 186.88755980861245,
+    "width": 287.8708133971292,
+    "height": 194.04625199362042
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.10158730158730159,
+    "unitsPerPixel": 0.33348292196459733,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.997144
+  },
+  "source": {
+    "width": 1254,
+    "height": 1254,
+    "sha256": "3069677d00157c6159b05defac5aeb3245e6c584cca148d0b977b30c757bd10a",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

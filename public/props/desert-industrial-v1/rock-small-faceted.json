@@ -6,22 +6,22 @@
   "description": "Small round warm-gray boulder with broad stone facets.",
   "image": {
     "file": "rock-small-faceted.png",
-    "width": 1254,
-    "height": 1254,
-    "sha256": "dd1492b0af484940c051cbba42696050721d21cf457e320757207fe7fc6912c1"
+    "width": 254,
+    "height": 254,
+    "sha256": "b522c45dd4098f3843b478476d23cc31276d6a81c919ef576c8b3f32991c496b"
   },
   "anchorPixels": {
-    "x": 627.0,
-    "y": 624.0
+    "x": 127.00000000000001,
+    "y": 126.39234449760767
   },
   "hitboxPixels": {
     "shape": "circle",
-    "centerX": 627.0,
-    "centerY": 624.0,
-    "radius": 414.5
+    "centerX": 127.00000000000001,
+    "centerY": 126.39234449760767,
+    "radius": 83.95773524720894
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.06755126658624849,
+    "unitsPerPixel": 0.33350113503604567,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "circle",
@@ -33,5 +33,11 @@
   "collisionFit": {
     "method": "circle-at-alpha-128-bounds-center-with-mean-diameter",
     "silhouetteIoU": 0.987234
+  },
+  "source": {
+    "width": 1254,
+    "height": 1254,
+    "sha256": "dd1492b0af484940c051cbba42696050721d21cf457e320757207fe7fc6912c1",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }
