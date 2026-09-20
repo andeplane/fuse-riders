@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   addPlayer,
   createGame,
-  SLOT_COLORS,
+  RIDER_COLORS,
   startMatch,
   toView,
   MATCH_WINNER_TICKS,
@@ -30,7 +30,7 @@ const frame = (
     [1, "ada", "Ada"],
     [2, "bot:1", "AI Bo"],
   ] as const)
-    addPlayer(game, { id, name, slot, color: SLOT_COLORS[slot] });
+    addPlayer(game, { id, name, slot, color: RIDER_COLORS[slot] });
   startMatch(game);
   const view = toView(game);
   return {
@@ -388,7 +388,7 @@ test("a TV has no seat, no controls and no power chip", () => {
   assert.equal(seated.joinPanelHidden, true);
   assert.equal(seated.controlsHidden, true);
   assert.equal(seated.power.hidden, true);
-  assert.equal(seated.playerColor, SLOT_COLORS[0]);
+  assert.equal(seated.playerColor, RIDER_COLORS[0]);
 });
 
 test("behind the join card the announcer stays down", () => {

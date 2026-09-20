@@ -136,6 +136,15 @@ function decodeRoom(
       return;
     bots.add(id);
   }
+  // Heads are unique among the humans in the room (`repairedAvatar`), which is the rule a restored room must satisfy
+  // too. The AI riders are exempt and all wear `robot`, so they are counted out here rather than checked: `decodeRoom`
+  // is the one place that knows which seats are theirs. Colours need no such exemption and are checked in `gameInvariants`.
+  const heads = new Set<string>();
+  for (const player of game.players.values()) {
+    if (bots.has(player.id)) continue;
+    if (heads.has(player.avatarId)) return;
+    heads.add(player.avatarId);
+  }
   const folds = new Map<string, Fold>();
   for (const raw of rawFolds) {
     if (!Array.isArray(raw) || (raw.length !== 5 && raw.length !== 6)) return;

@@ -24,7 +24,7 @@ import {
   MAX_SPEED_EFFECT_STACK,
   NITRO_DURATION_TICKS,
   PICKUP_TYPES,
-  SLOT_COLORS,
+  RIDER_COLORS,
   SNAIL_DURATION_TICKS,
   type GameState,
   type PlayerState,
@@ -160,7 +160,7 @@ const playerFields = {
   id: text,
   name,
   slot: count(4),
-  color: (v) => SLOT_COLORS.includes(v as (typeof SLOT_COLORS)[number]),
+  color: (v) => RIDER_COLORS.includes(v as (typeof RIDER_COLORS)[number]),
   avatarId: isAvatarId,
   connected: boolean,
   x: position,
@@ -488,15 +488,22 @@ function decodeTree(value: unknown, depth = 0, budget = { nodes: 0 }): unknown {
 
 function gameInvariants(game: GameState): boolean {
   const slots = new Set<number>();
+  // A colour is the rider's own rather than its seat's, and the fold keeps it unique: a restored room that seats two
+  // riders in one colour never folded from a log this build would produce, so it is refused like any other bad state.
+  // Heads are not checked here, because the rule that keeps them unique exempts the AI riders and a `GameState` alone
+  // cannot tell an AI rider from a human; `decodeRoom` checks them where the room's bot list is in hand.
+  const colors = new Set<string>();
   const pieceIds = new Set<number>();
   for (const [id, p] of game.players) {
     if (
       id !== p.id ||
       slots.has(p.slot) ||
-      p.color !== SLOT_COLORS[p.slot] ||
+      colors.has(p.color) ||
+      !(RIDER_COLORS as readonly string[]).includes(p.color) ||
       !game.leaderboard.has(id)
     )
       return false;
+    colors.add(p.color);
     slots.add(p.slot);
     if (
       p.alive &&

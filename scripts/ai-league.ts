@@ -12,7 +12,7 @@ import {
   addPlayer,
   startMatch,
   step,
-  SLOT_COLORS,
+  RIDER_COLORS,
   ROUND_DRAW_TICK,
 } from "../games/fuse-riders/src/engine/game.js";
 import { classicSettings } from "../games/fuse-riders/src/engine/room-settings.js";
@@ -42,7 +42,7 @@ function round(
       id: `bot:${slot}`,
       name: botDisplayName(`R${slot}`, difficulty),
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
       avatarId: "robot",
     }),
   );

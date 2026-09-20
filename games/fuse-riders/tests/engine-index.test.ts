@@ -9,7 +9,7 @@ test("the engine's public API drives a room from an empty log to a played tick",
       id: `bot:${slot}`,
       name: `Bot ${slot}`,
       slot,
-      color: engine.SLOT_COLORS[slot]!,
+      color: engine.RIDER_COLORS[slot]!,
     });
   room.bots.add("bot:0").add("bot:1");
   engine.startMatch(room.game);

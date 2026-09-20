@@ -11,7 +11,7 @@ import {
   step,
   toView,
   COUNTDOWN_TICKS,
-  SLOT_COLORS,
+  RIDER_COLORS,
   type GameState,
 } from "../src/engine/game.js";
 import {
@@ -40,7 +40,7 @@ function match(count: number, length = 3): GameState {
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   startMatch(game);
   for (let tick = 0; tick < COUNTDOWN_TICKS; tick++) step(game, new Map());
@@ -116,7 +116,7 @@ test("a departed points leader stays in the match standings and late joiners get
   const game = match(3, 2);
   finish(game, ["p2", "p1"]);
   removePlayer(game, "p0");
-  addPlayer(game, { id: "late", name: "Late", slot: 0, color: SLOT_COLORS[0] });
+  addPlayer(game, { id: "late", name: "Late", slot: 0, color: RIDER_COLORS[0] });
   assert.equal(
     toView(game).players.find((player) => player.id === "late")!
       .matchScoreUnits,
@@ -140,7 +140,7 @@ test("points ties break on round wins, while equal points and wins share placeme
       id: `p${slot}`,
       name: `P${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     });
   // Three survival points can come from a win or three second places.
   for (let round = 0; round < 3; round++)

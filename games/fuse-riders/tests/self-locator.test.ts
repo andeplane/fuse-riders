@@ -3,7 +3,7 @@ import {
   addPlayer,
   startMatch,
   toView,
-  SLOT_COLORS,
+  RIDER_COLORS,
   TICK_HZ,
 } from "../src/engine/game.js";
 import { test } from "node:test";
@@ -21,8 +21,8 @@ import { classicSettings } from "./fixtures/classic-settings.js";
 const SELF_LOCATOR_FADE_TICKS = SELF_LOCATOR_FADE_SECONDS * TICK_HZ;
 const view = (overrides: Partial<WorldView>): WorldView => {
   const game = createGame("self-locator", classicSettings());
-  addPlayer(game, { id: "me", name: "Anders", slot: 0, color: SLOT_COLORS[0] });
-  addPlayer(game, { id: "ai", name: "AI Ada", slot: 1, color: SLOT_COLORS[1] });
+  addPlayer(game, { id: "me", name: "Anders", slot: 0, color: RIDER_COLORS[0] });
+  addPlayer(game, { id: "ai", name: "AI Ada", slot: 1, color: RIDER_COLORS[1] });
   startMatch(game);
   return { ...toView(game), tick: game.tick, round: 1, ...overrides };
 };
