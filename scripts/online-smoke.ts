@@ -157,28 +157,37 @@ try {
     );
   }
   // Keep UI room creation coverage. Phaser Canvas in CI avoids six software-GL views competing for one runner; dedicated Phaser gates test the intended renderer.
-  await host.getByPlaceholder("Your name").waitFor();
+  // The creator is seated by the room it just opened, with no screen in between — the same arrival an invited device
+  // makes, under the name this browser remembers (`docs/design/room-is-the-join-screen.md`).
+  await host.addInitScript(() =>
+    localStorage.setItem("fuse-riders-player-name", "Host"),
+  );
   const target = new URL(host.url());
   if (process.env.ROOM_RENDERER === "phaser-canvas")
     target.searchParams.set("renderer", "phaser-canvas");
   target.searchParams.set("benchmark", "1");
   await host.goto(target.href);
   const url = host.url().replace(/&benchmark=1/, "");
-  await host.locator(".room-riders .online-join").waitFor();
-  const lobbyBox = await host.locator(".room-lobby").boundingBox();
-  const joinBox = await host.locator(".room-riders .online-join").boundingBox();
-  assert.ok(lobbyBox && joinBox);
-  assert.ok(
-    joinBox.x >= lobbyBox.x &&
-      joinBox.y >= lobbyBox.y &&
-      joinBox.x + joinBox.width <= lobbyBox.x + lobbyBox.width &&
-      joinBox.y + joinBox.height <= lobbyBox.y + lobbyBox.height,
-    "the creator's join controls belong inside the lobby beside the riders",
+  await rosterHas(host, "Host");
+  assert.equal(
+    await host.locator(".online-join").isVisible(),
+    false,
+    "the creator is seated without being asked: no join form in its lobby",
   );
-  await host.getByPlaceholder("Your name").fill("Host");
-  await host
-    .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-    .click();
+  // Everything the creator used to settle on that form is in the action bar beside READY, and stays there until it
+  // readies up: its name, its head, its colour and which side of the room it is on.
+  const bar = host.locator(".room-lobby-footer .online-host");
+  for (const label of ["NAME", "AVATAR", "COLOUR"])
+    assert.equal(
+      await bar.getByRole("button", { name: label, exact: true }).isVisible(),
+      true,
+      `${label} is offered beside READY`,
+    );
+  assert.equal(
+    await bar.locator("button.room-switch").textContent(),
+    "SWAP TO SPECTATOR",
+    "and the way to the watching list, which is where JOIN AS SPECTATOR went",
+  );
   const b = await browser.newContext(phone);
   b.setDefaultTimeout(smokeTimeout(30000));
   const guest = await b.newPage();

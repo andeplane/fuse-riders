@@ -319,7 +319,16 @@ function prepareRound(state: GameState): void {
     Object.assign(player, freshRoundPlayerState(state.tick));
 
   const radius = 0.28 * Math.min(state.width, state.height);
-  participants.forEach((player, index) => {
+  // Shuffle poses, never player slots/identity. The shared RNG makes replay and rollback agree.
+  const spawnOrder = [...participants];
+  for (let index = spawnOrder.length - 1; index > 0; index -= 1) {
+    const other = Math.floor(nextRandom(state) * (index + 1));
+    [spawnOrder[index], spawnOrder[other]] = [
+      spawnOrder[other]!,
+      spawnOrder[index]!,
+    ];
+  }
+  spawnOrder.forEach((player, index) => {
     const spawnAngle =
       -Math.PI / 2 + (index * 2 * Math.PI) / participants.length;
     player.x = state.width / 2 + cos(spawnAngle) * radius;

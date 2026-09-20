@@ -72,7 +72,7 @@ for (const { name, kind } of BOTH_ENGINES) {
         state.generation++;
       });
     });
-    await page.goto(new URL("?solo=1&benchmark=1", base).href);
+    await page.goto(new URL("?solo=1&benchmark=1&mute", base).href);
     await page.locator(".mobile-play.mobile-portrait").waitFor();
     await page.waitForFunction(
       () =>
@@ -347,18 +347,14 @@ for (const { name, kind } of BOTH_ENGINES) {
         `${name} never became clickable inside the tools overlay`,
       );
     };
-    const avatarHidden = () =>
-      page.evaluate(
-        () =>
-          [
-            ...document.querySelectorAll<HTMLButtonElement>(
-              ".online-header button",
-            ),
-          ].find((b) => b.textContent === "AVATAR")!.hidden,
-      );
+    // Identity controls live beside READY in the lobby, not in the header.
+    const avatarButton = page.getByRole("button", {
+      name: "AVATAR",
+      exact: true,
+    });
     assert.equal(
-      await avatarHidden(),
-      true,
+      await avatarButton.isVisible(),
+      false,
       "avatars are a lobby choice, not a mid-round one",
     );
     await clickInTools("BACK TO LOBBY");
@@ -379,8 +375,8 @@ for (const { name, kind } of BOTH_ENGINES) {
       "no rotate gate in the lobby",
     );
     assert.equal(
-      await avatarHidden(),
-      false,
+      await avatarButton.isVisible(),
+      true,
       "the lobby offers the avatar button again",
     );
     assert.deepEqual(errors, []);

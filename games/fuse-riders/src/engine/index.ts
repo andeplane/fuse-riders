@@ -20,7 +20,14 @@ export * from "./tick-driver.js";
 export * from "./input-log.js";
 export * from "./room-settings.js";
 // The avatar ids a rider may carry; `AvatarId` comes through `state.js` with the world above.
-export { AVATAR_IDS, DEFAULT_AVATAR, isAvatarId } from "./avatar-id.js";
+export {
+  AVATAR_IDS,
+  BOT_AVATAR,
+  DEFAULT_AVATAR,
+  RIDER_AVATAR_IDS,
+  isAvatarId,
+  isRiderAvatarId,
+} from "./avatar-id.js";
 export { BotController, BOT_ID_PREFIX } from "./bot-controller.js";
 export {
   decodeGameState,
