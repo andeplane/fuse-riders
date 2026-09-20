@@ -89,8 +89,11 @@ test("a disposed toggle leaves no listener on the document behind it", () => {
   const f = fixture();
   f.toggle.button.click();
   f.toggle.dispose();
+  // Every listener dispose removes: none of them may still answer for a page that is going away.
   f.press("Escape");
-  // The listeners are gone, so the state is exactly what the button last set.
+  f.pointerAt(f.document.querySelector("canvas")!);
+  f.window.dispatchEvent(new f.window.Event("resize"));
+  // The state is exactly what the button last set.
   assert.equal(f.open(), true);
   f.toggle.close();
   assert.equal(f.open(), false);

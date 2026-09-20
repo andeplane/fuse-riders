@@ -40,8 +40,15 @@ test("the feed backfill stamps exactly the games confirmation would have publish
     { id: "pending", data: whole({ status: "pending", endedAt: undefined }) },
     { id: "unended", data: whole({ endedAt: undefined }) },
     { id: "broken-end", data: whole({ endedAt: "soon" }) },
-    // Already published: left alone, which is what makes a rerun a no-op.
+    // Already published: left alone, which is what makes a rerun a no-op. A feed time the parser would refuse is
+    // still a feed time the backfill did not write, so it is the reader's to judge, not this script's to correct.
     { id: "listed", data: whole({ feedAt: 900 }) },
+    { id: "bad-feed", data: whole({ feedAt: "soon" }) },
+    // Nothing a corrupt record can hold may throw here: one unreadable document must not stop the page.
+    { id: "no-result", data: whole({ result: undefined }) },
+    { id: "odd-result", data: whole({ result: "winner: a" }) },
+    { id: "odd-attesters", data: whole({ attesters: "a, b" }) },
+    { id: "odd-accounts", data: whole({ attesters: ["a"], uidByPlayer: 7 }) },
   ];
   assert.deepEqual(feedlessMatchStamps(page), [
     { id: "attested", feedAt: 1000 },
