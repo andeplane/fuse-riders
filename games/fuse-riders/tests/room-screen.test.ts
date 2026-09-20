@@ -702,3 +702,31 @@ test("a watcher is in the room, so an invited page that watches stops being a jo
     "and in a shared-TV room it watches rather than becoming a controller",
   );
 });
+
+test("an arrival taking its own seat holds the boot card; one the room will not seat gets the join card", () => {
+  const arriving = roomScreen(input({ role: "joiner", seating: true }));
+  assert.equal(arriving.kind, "boot");
+  assert.equal(arriving.booting, true);
+  assert.equal(arriving.joining, false);
+  assert.equal(
+    arriving.lobbyCard,
+    false,
+    "it has no seat in the lobby it is about to be in",
+  );
+  // The same device once the room lists it: the ordinary lobby, and nothing left of either card.
+  const seated = roomScreen(
+    input({ role: "joiner", seating: true, joined: true }),
+  );
+  assert.equal(seated.kind, "lobby");
+  assert.equal(seated.booting, false);
+  // A device the room will not seat — kicked, or arriving at a full room — is not seating itself, so it lands on the
+  // join card, which is where the reason and the way back in are.
+  const refused = roomScreen(input({ role: "joiner", seating: false }));
+  assert.equal(refused.kind, "join");
+  assert.equal(refused.joining, true);
+  // `seating` is only ever about a device without a place: a watcher is in the room already.
+  const watcher = roomScreen(
+    input({ role: "joiner", seating: true, watching: true }),
+  );
+  assert.equal(watcher.kind, "lobby");
+});

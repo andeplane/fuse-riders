@@ -260,10 +260,13 @@ test("a join for a rider the room already seats renames it, and moves nothing el
   assert.notEqual(headOf("a"), headOf("b"));
 });
 
-test("a join that carries no usable name leaves the rider named as it was", () => {
+test("a name that trims away leaves the rider named as it was", () => {
   const { state, tick, join } = fixture();
   tick({ host: [join(1, "a", "Ada", 0)] });
-  // Whitespace trims away to nothing, which is a reconnection and not a rename: a rider is never left nameless.
+  // Defence rather than a live case: `loggedRiderName` refuses a whitespace-only name at `isEntry`, so this entry
+  // cannot arrive over the wire. It pins that the fold leaves a rider named rather than blanking it, whatever reaches
+  // the branch — a rename is the one place a name could be taken away.
+  assert.equal(isEntry([1, 1, JOIN, "a", "   ", 0, "robot", 0]), false);
   tick({ host: [[2, 0, JOIN, "a", "   ", 0, "robot", 0]] });
   assert.equal(state.game.players.get("a")?.name, "Ada");
 });

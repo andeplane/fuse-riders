@@ -371,3 +371,26 @@ test("a watcher is listed without a seat, steers nothing, is not waited on, and 
   );
   assertConverged([a!, b2]);
 });
+
+test("a game without `seating.renameable` never renames: a join over a held seat stays a reconnection", () => {
+  // The counter game leaves the hook out, which is the documented default — and the one every other game gets until
+  // it opts in. A join carrying a different name must not disturb the seat it lands on.
+  assert.equal(counterGame.seating.renameable, undefined);
+  const mesh = new FakeMesh("a"),
+    [a, b] = seated(mesh, ["a", "b"]) as [CounterRuntime, CounterRuntime];
+  const self = a.transport!.id;
+  const nameOf = (runtime: CounterRuntime, id: string) =>
+    room(runtime).seats.get(id)?.name;
+  assert.equal(nameOf(a, self), "A");
+  const slot = room(a).seats.get(self)?.slot;
+  a.command({ type: "join", name: "Renamed" });
+  mesh.run(2000);
+  for (const [label, runtime] of [
+    ["its own page", a],
+    ["its peer", b],
+  ] as const) {
+    assert.equal(nameOf(runtime, self), "A", `${label} keeps the seated name`);
+    assert.equal(room(runtime).seats.get(self)?.slot, slot, `${label}: seat`);
+  }
+  assert.equal(room(a).seats.size, 2, "and no second seat was taken");
+});

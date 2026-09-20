@@ -48,13 +48,19 @@ const errors: string[] = [];
 let browser: Browser | undefined;
 try {
   browser = await launchSelected("chromium", { headless: true });
-  const open = async (label: string, url: string) => {
+  /** `rider` seeds the name this browser remembers, which is what an arriving device is seated under. */
+  const open = async (label: string, url: string, rider?: string) => {
     const page = await browser!.newContext().then((c) => c.newPage());
     page.setDefaultTimeout(smokeTimeout(30000));
     page.on("pageerror", (error) =>
       errors.push(`${label}: ${error.stack ?? error.message}`),
     );
     await recording(page);
+    if (rider !== undefined)
+      await page.addInitScript(
+        (name) => localStorage.setItem("fuse-riders-player-name", name),
+        rider,
+      );
     await page.goto(url);
     return page;
   };
@@ -70,21 +76,20 @@ try {
     .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
     .click();
 
-  const rider = await open("rider", roomUrl);
-  await rider.getByPlaceholder("Your name").fill("Rider");
-  await rider
-    .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-    .click();
+  // An invited device is seated by the room itself (`docs/design/room-is-the-join-screen.md`).
+  const rider = await open("rider", roomUrl, "Rider");
 
-  // The third page takes the ghost button under it instead.
-  const watcher = await open("watcher", roomUrl);
+  // The third page is seated the same way and then gives its seat up: with no card to choose from on the way in,
+  // WATCH on its own row is how a device ends up in the watching list.
+  const watcher = await open("watcher", roomUrl, "Watcher");
+  // The join card is still the way back in after a kick, so its button is kept for that below.
   const watchButton = watcher.getByRole("button", {
     name: "JOIN AS SPECTATOR",
     exact: true,
   });
-  await watchButton.waitFor({ state: "visible" });
-  await watcher.getByPlaceholder("Your name").fill("Watcher");
-  await watchButton.click();
+  await watcher
+    .getByRole("button", { name: "Give your seat up and watch instead" })
+    .click();
 
   // Every page lists the watcher, under the riders and outside them.
   for (const [label, page] of [
@@ -234,7 +239,9 @@ try {
       0,
       `${label} sees the watching list empty again`,
     );
-  // A kick is not a ban: the same page walks back in.
+  // A kick is not a ban: the same page walks back in. This is also what the join card is for now — a device the room
+  // took out does not seat itself again, so the card comes up with the reason and both ways back in on it.
+  await watcher.locator(".join-kicked").waitFor({ state: "visible" });
   await watchButton.waitFor({ state: "visible" });
   await watcher.getByPlaceholder("Your name").fill("Watcher");
   await watchButton.click();

@@ -49,6 +49,13 @@ export interface RoomScreenInput {
   joined: boolean;
   /** This device has a place in the room's watching list: it is in the room, so it is not at its door. */
   watching: boolean;
+  /**
+   * This device is taking its own seat right now and has not been told no: it arrived, the room has not listed it
+   * yet, and the join it sent is still in flight. It keeps the boot card up for that round trip rather than flashing
+   * the join card at somebody who is about to be seated (`docs/design/room-is-the-join-screen.md`). Defaults to
+   * false, which is the old behaviour: a device without a seat is at the room's door.
+   */
+  seating?: boolean;
   /** The last frame's phase; `"lobby"` before the first frame. */
   phase: WorldView["phase"];
   /** `matchOver` whose closing pause has run out: the match report is ready. */
@@ -152,7 +159,13 @@ export function roomScreen(input: RoomScreenInput): RoomScreen {
       }),
     };
   }
-  const joining = input.role === "joiner" && !input.joined && !input.watching;
+  // A device seating itself is not at the room's door: it waits on the boot card until the room lists it, or until
+  // something says it cannot be seated, and only then does the join card come up.
+  const joining =
+    input.role === "joiner" &&
+    !input.joined &&
+    !input.watching &&
+    !input.seating;
   const mobile = mobileScreen(input, {
     joined: input.joined,
     phase: input.phase,
@@ -196,6 +209,17 @@ export function roomScreen(input: RoomScreenInput): RoomScreen {
     mobile,
   };
   if (joining) return { ...flags, kind: "join" };
+  // Seating itself: the room has answered but does not list this device yet, so it holds the boot card for that one
+  // round trip. Neither the join card (it is not waiting for anything from the player) nor the lobby (it has no seat
+  // in it yet) is the truth here.
+  if (input.seating && !input.joined && !input.watching)
+    return {
+      ...flags,
+      kind: "boot",
+      booting: true,
+      lobbyCard: false,
+      controllerOnly: false,
+    };
   if (input.recapReady) return { ...flags, kind: "recap" };
   if (lobbyCard) return { ...flags, kind: "lobby" };
   if (controllerOnly) return { ...flags, kind: "controller" };

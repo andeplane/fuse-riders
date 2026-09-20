@@ -64,6 +64,19 @@ so it is a rule about when a player may choose rather than one the fold has to e
 
 ## The join card stays, as the exception screen
 
+An arrival never sees it: it holds the boot card, with its connect hint, for the one round trip its seat takes
+(`RoomScreenInput.seating`), and is in the lobby after that. Past `SEATING_GRACE_MS` without a seat the room is
+refusing it — full, or a manager that never answered — and the card comes up with the reason and JOIN AS SPECTATOR on
+it.
+
+What keeps a removed device out is `everInRoom`, not the `kicked` message. The message is a courtesy and always loses
+the race: the manager sends it only after folding the `LEAVE`, so it is a network hop behind a fold both replicas
+apply at the same instant, and a guard keyed on it would let the auto-join reach the manager first and undo the kick.
+`everInRoom` latches the moment the room lists this device, so an absence after that is a removal rather than an
+arrival, whatever the network did. It also covers a watcher the room dropped (a phone asleep across a round boundary,
+`dropAbsentSpectators`), which would otherwise come back as a rider it never asked to be. A page reload clears it and
+seats the device again: reloading is asking to come back.
+
 It is not deleted, because it still has a job. A device the room will not seat needs somewhere to be: one the host has
 kicked (auto-joining would undo the kick the moment it landed), and one that arrived at a full room. Both land on the
 card, which says why and offers the way back in. What changed is that it is no longer a gate everybody passes through

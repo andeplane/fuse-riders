@@ -316,10 +316,13 @@ export async function startOnline(): Promise<void> {
     node("p", "PREPARING ROOM", "room-boot-title"),
     node("strong", code, "shared-room-code"),
   );
-  // A joiner never mounts the host's boot card or QR lobby: until it holds a seat its whole page is the join card, with the same connect hint under the form.
+  // Every role now waits on the boot card, so the connect hint belongs to it rather than to the join card: an invited
+  // phone whose host is on another network must still be told that, and told it where it is looking.
+  const joinNote = node("p", "", "room-boot-note");
+  joinNote.hidden = true;
   const joinPanel =
     role === "joiner"
-      ? createJoinCard(code, joinForm.element, bootNote)
+      ? createJoinCard(code, joinForm.element, joinNote)
       : joinForm.element;
   if (role !== "joiner")
     joinForm.element.prepend(node("p", "JOIN THE RACE", "lobby-join-title"));
@@ -335,8 +338,25 @@ export async function startOnline(): Promise<void> {
   // The removal message reaches this page a little before the entry that frees the seat does, so the note cannot be
   // cleared by "still seated": it stands until this device is back in the room.
   let kickedFromRoom = false,
-    wasInRoom = false;
-  if (role !== "joiner") booting.append(bootNote);
+    wasInRoom = false,
+    /**
+     * This page has seen the room list this device at least once. It latches: once the room has held us, an absence
+     * is a removal rather than an arrival, and only an arrival seats itself. Separate from `wasInRoom`, which is the
+     * previous frame's membership and is rewritten every frame.
+     */
+    everInRoom = false,
+    /** When this device first asked for a seat, so an arrival that is never seated stops waiting silently. */
+    seatingSince = 0,
+    /** The account name has been offered to the room once; a refusal is its answer and is not asked again. */
+    accountNameSent = false;
+  /**
+   * How long an arrival holds the boot card while its seat is granted. A seat normally lands in one round trip; past
+   * this the room is refusing it (full, or a manager that never answered) and the join card comes up instead, where
+   * the reason is shown and JOIN AS SPECTATOR is offered. Without it a full room would leave a phone reading
+   * PREPARING ROOM with no way to watch.
+   */
+  const SEATING_GRACE_MS = 8000;
+  booting.append(bootNote);
   // A room that never sends a snapshot must stop claiming progress: the note escalates to the same-network hint once the link stalls or ICE fails.
   const bootAt = performance.now();
   let connectFailed = false,
@@ -760,9 +780,10 @@ export async function startOnline(): Promise<void> {
   scoreboard.append(notice, roster);
   const footer = node("footer", "", "online-footer");
   footer.append(controls, hostControls);
-  // A joiner's card is already on screen and may hold focus with a half-typed name (#132): build the room around it. Detaching a focused
-  // input blurs it, and keystrokes that follow land nowhere, so an early typist lost their name and JOIN sent nothing.
-  // header and joinPanel are app's only children here (line 116, and nothing else attaches before this point).
+  // A joiner's card is built around rather than over. Its original reason has gone — nobody types a name into it on
+  // the way in any more (#132), because an arriving device is seated without one — but it is still the screen a
+  // kicked or refused device lands on, so it keeps its place rather than being rebuilt under one.
+  // `header`, `booting` and `joinPanel` are app's only children here; nothing else attaches before this point.
   if (role === "joiner") {
     header.after(canvas, sharedLobby, scoreboard);
     joinPanel.after(footer, keyHint, announcer, feed, hud);
@@ -853,6 +874,16 @@ export async function startOnline(): Promise<void> {
     booted,
     joined,
     watching,
+    // An arrival on its way to a seat, not a device waiting at the door: the same condition the auto-join fires on,
+    // so the join card comes up only for one the room will not seat.
+    seating:
+      role === "joiner" &&
+      !everInRoom &&
+      !displayOnly &&
+      !kickedFromRoom &&
+      !roomEnded &&
+      (seatingSince === 0 ||
+        performance.now() - seatingSince < SEATING_GRACE_MS),
     phase: snapshot?.phase ?? "lobby",
     recapReady: recapIsReady,
     shared: settings.mode === "shared",
@@ -1241,17 +1272,34 @@ export async function startOnline(): Promise<void> {
         if (riderColorIndex(player.color) !== asked)
           runtime.command({ type: "color", colorIndex: asked });
       }
-      // What this rider actually wears is what the browser remembers, so the next room opens on the colour it wore
-      // rather than on one it asked for and did not get.
+      // What this rider actually wears is what the browser remembers, so the next room opens on the name, colour and
+      // head it wore rather than on ones it asked for and did not get.
       if (player) {
         joinForm.colors.sync(player.color as RiderColorId);
         joinForm.picker.sync(player.avatarId);
+        if (read("fuse-riders-player-name") !== player.name)
+          storage.setItem("fuse-riders-player-name", player.name);
+        // A signed-in rider rides under its account's name. The username can arrive after the seat did (an invite
+        // link on a new phone fetches it), and there is no form left to write it into, so the room is told instead —
+        // once, while this rider is still deciding, because a refusal is the room's answer and not worth repeating.
+        const account = accountUsername();
+        if (
+          account &&
+          account !== player.name &&
+          !accountNameSent &&
+          state.phase === "lobby" &&
+          !readyPlayers.includes(id)
+        ) {
+          accountNameSent = true;
+          runtime.command({ type: "join", name: account });
+        }
       }
       // A watcher is in the room, not queuing at its door: it gets the arena and the lists, never the join card or the controls.
       const watcher = state.spectators.find((seat) => seat.id === id);
       watching = Boolean(watcher);
       if ((joined || watching) && !wasInRoom) kickedFromRoom = false;
       wasInRoom = joined || watching;
+      if (wasInRoom) everInRoom = true;
       setIfChanged(kickedNote, "hidden", !kickedFromRoom);
       // The screen, once per frame: every class and every arena/lobby visibility below follows from it.
       showScreen(roomScreen(screenInput()));
@@ -1305,15 +1353,25 @@ export async function startOnline(): Promise<void> {
       } else if (
         // The room is the join screen: an invited device the room does not list yet takes a seat by itself, wearing
         // whatever it wore last, and settles its name, head, colour and side in the room rather than in a form in
-        // front of it (`docs/design/room-is-the-join-screen.md`). Not after a kick — the host's decision stands until
-        // this device asks to come back — and not for a TV, which takes no seat at all.
+        // front of it (`docs/design/room-is-the-join-screen.md`).
+        //
+        // Only on arrival, which is what `wasInRoom` says: a device this page has already seen listed and no longer
+        // does was taken out of the room, and taking itself straight back in would undo that. A kick is the case that
+        // matters, and the `kicked` message is no use for it — the manager sends it only after folding the `LEAVE`,
+        // so it is a network hop behind the fold that both replicas apply at the same instant, and an auto-join keyed
+        // on the message would already be at the manager before the notice arrived. It is also what keeps a watcher
+        // the room dropped (a phone asleep across a round boundary, `dropAbsentSpectators`) from coming back as a
+        // rider it never asked to be. Both land on the join card instead, which is what that card is for now. A page
+        // reload clears this and seats the device again: reloading is asking to come back.
         role === "joiner" &&
         !joined &&
         !watching &&
+        !everInRoom &&
         !displayOnly &&
         !kickedFromRoom &&
         !roomEnded
       ) {
+        if (seatingSince === 0) seatingSince = performance.now();
         if (!rejoinPending) {
           rejoinPending = true;
           wantedColor = riderColorIndex(joinForm.colors.selected());
@@ -1731,9 +1789,10 @@ export async function startOnline(): Promise<void> {
     current: () => snapshot?.players.find((p) => p.id === id)?.name ?? "",
     fixed: () => accountUsername() ?? undefined,
     // A rename is the ordinary join command sent again with a different name: the runtime turns it into a `JOIN` over
-    // the seat this rider already holds, and says why when it will not (ready, or the round has started).
+    // the seat this rider already holds, and says why when it will not (ready, or the round has started). What this
+    // browser remembers is what the room accepted rather than what was asked for — the frame loop writes it once the
+    // fold has answered, which is the bargain the colour already keeps.
     chosen: (chosen) => {
-      storage.setItem("fuse-riders-player-name", chosen);
       runtime.command({ type: "join", name: chosen });
     },
     entry: ({ initial, onSubmit, document: doc }) =>

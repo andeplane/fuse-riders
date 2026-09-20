@@ -48,11 +48,11 @@ try {
       }
     });
   });
+  // The room is the join screen: the phone seats itself on arrival, under the name this browser remembers.
+  await phone.addInitScript(() =>
+    localStorage.setItem("fuse-riders-player-name", "Arcade Rider"),
+  );
   await phone.goto(invite.href);
-  await phone.getByPlaceholder("Your name").fill("Arcade Rider");
-  await phone
-    .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-    .click();
   await phone.locator(".online-join").waitFor({ state: "hidden" });
   await host.getByRole("button", { name: "ADD AI", exact: true }).click();
   await readyRoom(host);

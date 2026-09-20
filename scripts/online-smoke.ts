@@ -61,13 +61,24 @@ const waitRound = (page: Page, round: number, timeout = 90000) =>
     round,
     { timeout: smokeTimeout(timeout) },
   );
+/**
+ * The room is the join screen: a device that opens a room link seats itself, under the name this browser remembers,
+ * so the smoke seeds that name rather than filling a form that is no longer in the way
+ * (`docs/design/room-is-the-join-screen.md`).
+ */
 const joinAs = async (page: Page, name: string, url: string) => {
   await recording(page);
+  await page.addInitScript(
+    (rider) => localStorage.setItem("fuse-riders-player-name", rider),
+    name,
+  );
   await page.goto(url + "&benchmark=1");
-  await page.getByPlaceholder("Your name").fill(name);
   await page
-    .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-    .click();
+    .locator(".room-riders")
+    .locator(":is(.room-rider strong, .online-score-name)")
+    .filter({ hasText: name })
+    .first()
+    .waitFor();
 };
 // A member's own name: these lists also carry the HOST badge and the status lines, and `getByText` is not case
 // sensitive, so "Host" would match the badge too. The watching list is nested in `.room-riders`, so this matches a
@@ -172,31 +183,23 @@ try {
   b.setDefaultTimeout(smokeTimeout(30000));
   const guest = await b.newPage();
   watch(guest, "guest");
-  // A joiner gets its own page: name + head + JOIN, never the host's PREPARING ROOM card or the QR lobby.
+  // A joiner is seated by the room itself, under the name this browser remembers, with no form in between
+  // (`docs/design/room-is-the-join-screen.md`). It settles its head in the room afterwards instead.
   await recording(guest);
+  await guest.addInitScript(() =>
+    localStorage.setItem("fuse-riders-player-name", "Guest"),
+  );
   await guest.goto(url + "&benchmark=1");
-  await guest.locator(".room-join").waitFor({ state: "visible" });
+  await rosterHas(guest, "Guest");
   assert.equal(
-    await guest.locator(".room-boot").count(),
-    0,
-    "joiner never mounts the boot card",
-  );
-  assert.equal(
-    await guest.locator(".shared-lobby").isVisible(),
+    await guest.locator(".room-join").isVisible(),
     false,
-    "joiner never sees the QR lobby",
+    "a device the room can seat never sees the join card",
   );
-  assert.equal(
-    await guest.locator(".room-join .avatar-option").count(),
-    10,
-    "joiner picks a head before joining",
-  );
-  await guest.getByPlaceholder("Your name").fill("Guest");
-  await guest.getByRole("button", { name: /^Avatar · .*, change$/ }).click();
+  // Head and colour are chosen in the room now, and only until this rider is ready.
+  await guest.getByRole("button", { name: "AVATAR", exact: true }).click();
   await guest.getByRole("button", { name: "Fox", exact: true }).click();
-  await guest
-    .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-    .click();
+  await guest.getByRole("button", { name: "COLOUR", exact: true }).waitFor();
   await rosterHas(host, "Guest");
   await host
     .locator(
@@ -219,10 +222,8 @@ try {
     );
     const page = await c.newPage();
     await page.goto(url);
-    await page.locator(".room-join").waitFor({ state: "visible" });
-    await page
-      .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-      .waitFor();
+    // It arrives as an ordinary joiner and seats itself; the migration is what this checks, not the screen.
+    await page.locator(".room-riders:visible").waitFor();
     assert.deepEqual(
       await page.evaluate(
         (code) => [
@@ -234,7 +235,6 @@ try {
       [null, stale],
       "stale host key migrates to the peer identity",
     );
-    assert.equal(await page.locator(".room-boot").count(), 0);
     await c.close();
     console.log("Stale host key migrated");
   }
@@ -409,13 +409,11 @@ try {
       attempt < 3,
       "three reloads in a row lost the seat: a reload does not keep it",
     );
-    await guest.getByPlaceholder("Your name").fill("Guest");
-    await guest
-      .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-      .click();
+    // A pruned seat is taken again by the device itself: a reload is an arrival, so there is nothing to fill in and
+    // nothing to press — it only has to land.
     await landed(false);
     console.log(
-      `Guest seat pruned at a round boundary (reload ${attempt}); rejoined by the card, reloading again`,
+      `Guest seat pruned at a round boundary (reload ${attempt}); seated itself again, reloading`,
     );
     const rejoined = (await latest(host))!;
     for (const deadline = Date.now() + smokeTimeout(90000); ;) {
@@ -510,22 +508,19 @@ try {
     .waitFor();
   console.log("Settings/reset confirmed");
   await guest.reload();
-  // A lobby reload frees the seat, so the rider confirms the remembered name and head instead of being joined silently.
-  await guest.locator(".room-join").waitFor({ state: "visible" });
-  assert.equal(
-    await guest.getByPlaceholder("Your name").inputValue(),
-    "Guest",
-    "remembered name prefills the join card",
-  );
-  await guest
-    .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-    .click();
+  // A lobby reload frees the seat, and the reloaded page takes one again by itself under the name it remembers —
+  // the reload is an arrival, which is the one case that seats itself (`docs/design/room-is-the-join-screen.md`).
   await guest
     .locator(".phone-lobby .room-riders")
     .locator(RIDER_NAME)
     .filter({ hasText: "Guest" })
     .first()
-    .waitFor(); // The rejoined phone lands on the lobby screen (#134).
+    .waitFor(); // The reseated phone lands on the lobby screen (#134).
+  assert.equal(
+    await guest.locator(".room-join").isVisible(),
+    false,
+    "the remembered name seats it again with no card in the way",
+  );
   console.log("Guest lobby reload confirmed");
   await host.reload();
   await host
