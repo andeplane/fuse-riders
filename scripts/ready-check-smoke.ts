@@ -47,11 +47,12 @@ try {
     [a, "Ada"],
     [b, "Bo"],
   ] as const) {
+    // The room is the join screen: an invited device seats itself under the name this browser remembers.
+    await page.addInitScript(
+      (rider) => localStorage.setItem("fuse-riders-player-name", rider),
+      name,
+    );
     await page.goto(invite.href);
-    await page.getByPlaceholder("Your name").fill(name);
-    await page
-      .getByRole("button", { name: "JOIN AS PLAYER", exact: true })
-      .click();
     await page.getByRole("button", { name: "READY", exact: true }).waitFor();
   }
   assert.equal(

@@ -2,7 +2,7 @@ import { assetUrl } from "../render/asset-url.js";
 import {
   AVATARS,
   AVATAR_ATLAS_URL,
-  DEFAULT_AVATAR,
+  HUMAN_DEFAULT_AVATAR,
   avatarCell,
   isAvatarId,
   type AvatarId,
@@ -49,7 +49,7 @@ export function createAvatarPicker(
   fold?: { id: string },
 ): Picker<AvatarId> {
   const stored = storage.getItem(AVATAR_KEY);
-  const selected: AvatarId = isAvatarId(stored) ? stored : DEFAULT_AVATAR;
+  const selected: AvatarId = isAvatarId(stored) ? stored : HUMAN_DEFAULT_AVATAR;
   const picker = createPicker<AvatarId>({
     legend: "Choose your avatar",
     choices: AVATARS,

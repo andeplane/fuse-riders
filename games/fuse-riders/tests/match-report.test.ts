@@ -14,7 +14,7 @@ import {
   setPlayerConnected,
   startNextRound,
   toView,
-  SLOT_COLORS,
+  RIDER_COLORS,
 } from "../src/engine/game.js";
 import {
   buildMatchReport,
@@ -34,7 +34,7 @@ function finished(): FinishedMatch {
       id,
       name: `Rider ${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
     }),
   );
   return {
@@ -224,7 +224,7 @@ test("round reports use frozen confirmed standings, survive the next round and e
       id,
       name: `Rider ${slot}`,
       slot,
-      color: SLOT_COLORS[slot]!,
+      color: RIDER_COLORS[slot]!,
       connected: true,
     });
   startMatch(game);

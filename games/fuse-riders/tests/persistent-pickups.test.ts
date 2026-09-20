@@ -14,7 +14,7 @@ import {
   toView,
   COUNTDOWN_TICKS,
   ROUND_DRAW_TICK,
-  SLOT_COLORS,
+  RIDER_COLORS,
   type GameState,
   type PickupType,
 } from "../src/engine/game.js";
@@ -27,7 +27,7 @@ function playing(): GameState {
       id: `p${i}`,
       name: `P${i}`,
       slot: i,
-      color: SLOT_COLORS[i]!,
+      color: RIDER_COLORS[i]!,
     });
   startMatch(game);
   for (let i = 0; i < COUNTDOWN_TICKS; i++) step(game, new Map());
