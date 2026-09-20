@@ -177,6 +177,12 @@ export interface RoomView {
     /** This device's own side of the room, beside READY. */
     switchSide: SwitchView;
     start: { label: "START RACE" | "REMATCH"; disabled: boolean };
+    /**
+     * Why a rematch cannot start from the results screen, or `undefined` while it can. Set only at `matchOver`, and
+     * only when the room is short of riders; the results screen shows it where the ready count would be, and the
+     * vote goes with it.
+     */
+    rematchBlocked: string | undefined;
     ready: { hidden: boolean; pressed: boolean; label: string };
     reset: { disabled: boolean; hidden: boolean };
     shareHidden: boolean;
@@ -393,6 +399,19 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
     (seat) => seat.connected,
   ).length;
   const fireView = fire(state, player, input.bombHeld);
+  /**
+   * Why the room cannot race again from the results screen, when it cannot: a match needs two riders and this one is
+   * down to fewer. It happens the moment a rider leaves a two-player room mid-match — the commonest way a room ends up
+   * here — and the way out is the lobby, where the invite and ADD AI are. So the screen says this instead of offering
+   * a vote that can never carry, and BACK TO LOBBY (below, and in the results dialog) is what is left to press.
+   *
+   * Bots count: one human and one AI can rematch all evening. Only the lobby's own "waiting" line shares the wording,
+   * deliberately — it is the same sentence about the same shortage, and a player meets it in both places.
+   */
+  const rematchBlocked =
+    state.phase === "matchOver" && connected < 2
+      ? "Waiting for at least 2 riders"
+      : undefined;
   // What each side has room for, read the way the runtime reads it: a seat can be reclaimed from a rider the room
   // lists absent (`claimSlot`), and the watching list counts everyone on it, here or not (`spectate`).
   const seatsFull =
@@ -490,9 +509,17 @@ export function presentRoom(input: RoomPresenterInput): RoomView {
         toSeat: watching,
         full: watching ? seatsFull : watchingFull,
       }),
+      rematchBlocked,
       ready: {
+        // A vote nothing can act on is not offered. Once the match is over and the room is a rider short, READY FOR
+        // REMATCH cannot start anything however many times it is pressed — `start.disabled` has said so all along, but
+        // only the manager ever saw that button, so the last rider left pressed a dead one and the room looked hung.
         hidden:
-          solo || !joined || displayOnly || !(state.phase === "lobby" || ready),
+          solo ||
+          !joined ||
+          displayOnly ||
+          rematchBlocked !== undefined ||
+          !(state.phase === "lobby" || ready),
         pressed: input.readyPlayers?.includes(playerId) ?? false,
         label: input.readyPlayers?.includes(playerId)
           ? "NOT READY"

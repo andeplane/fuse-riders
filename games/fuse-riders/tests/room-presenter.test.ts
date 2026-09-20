@@ -114,6 +114,7 @@ test("lobby: who is ready, what the host may do, and what a guest waits for", ()
       label: "SWAP TO SPECTATOR",
       title: "Give your seat up and watch instead",
     },
+    rematchBlocked: undefined,
     ready: { hidden: false, pressed: false, label: "READY" },
     start: { label: "START RACE", disabled: false },
     reset: { disabled: true, hidden: false },
@@ -669,6 +670,83 @@ test("the head and colour buttons leave when this rider says READY, and come bac
     true,
     "and the bar holding them is gone for that tab anyway",
   );
+});
+
+test("a room a rider short is not offered a rematch it cannot start, and is told why", () => {
+  // The results screen of a finished match. Everyone is still here, so the vote is the vote.
+  const over = { phase: "matchOver" as const, tick: 100, phaseEndsAtTick: 100 };
+  const full = present(frame(over));
+  assert.equal(full.actions.rematchBlocked, undefined);
+  assert.deepEqual(
+    [full.actions.ready.hidden, full.actions.ready.label],
+    [false, "READY FOR REMATCH"],
+  );
+
+  // A two-player room whose other rider left mid-match: one rider is left, and a match needs two. Pressing READY FOR
+  // REMATCH could never start anything — `start.disabled` already knew, but only the manager ever saw that button, so
+  // the last rider pressed a dead one and the room looked hung on its victory screen.
+  const alone = frame({
+    ...over,
+    players: [frame().players[0]!],
+  });
+  const short = present(alone);
+  assert.equal(short.actions.rematchBlocked, "Waiting for at least 2 riders");
+  assert.equal(
+    short.actions.ready.hidden,
+    true,
+    "so the vote is not offered at all",
+  );
+  assert.equal(
+    short.actions.start.disabled,
+    true,
+    "and the manager's own REMATCH stays refused, as it already was",
+  );
+  // The way out is the lobby, where the invite and ADD AI are, and it is still there to press.
+  assert.equal(short.actions.hidden, false);
+  assert.equal(short.actions.reset.hidden, false);
+
+  // An AI rider is a rider: one human and one bot may rematch all evening. The roster is seat-ordered, so the bot is
+  // the third of them — taking the first two would be two humans, and would prove nothing this test does not already.
+  const roster = frame().players;
+  assert.equal(
+    roster[2]!.id.startsWith("bot:"),
+    true,
+    "this case is only about bots while the third seat is one",
+  );
+  const withBot = present(
+    frame({ ...over, players: [roster[0]!, roster[2]!] }),
+  );
+  assert.equal(
+    withBot.actions.rematchBlocked,
+    undefined,
+    "a human and an AI are two riders",
+  );
+  assert.equal(withBot.actions.ready.hidden, false);
+  assert.equal(
+    withBot.actions.start.disabled,
+    false,
+    "and the fold would start that rematch, which is the count this mirrors",
+  );
+
+  // The rider left behind is not always the one running the room. It is offered no dead vote either, and the reason
+  // is the room's rather than this device's, so every screen in it says the same thing.
+  const guestAlone = present(alone, {
+    playerId: "me",
+    manages: false,
+    managerId: "ada",
+  });
+  assert.equal(
+    guestAlone.actions.rematchBlocked,
+    "Waiting for at least 2 riders",
+  );
+  assert.equal(guestAlone.actions.ready.hidden, true);
+
+  // And none of this applies in the lobby, where a room waits for riders rather than refusing a rematch.
+  const lobby = present(
+    frame({ phase: "lobby", tick: 0, players: [frame().players[0]!] }),
+  );
+  assert.equal(lobby.actions.rematchBlocked, undefined);
+  assert.equal(lobby.actions.ready.hidden, false, "READY still means ready up");
 });
 
 test("changing sides is one button about this device, beside READY, and says why when it cannot", () => {

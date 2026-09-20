@@ -1587,7 +1587,11 @@ export async function startOnline(): Promise<void> {
       const waitingRiders = state.players.filter(
         (p) => p.connected && !p.id.startsWith("bot:"),
       );
-      const readyText = `${waitingRiders.filter((p) => readyPlayers.includes(p.id)).length}/${waitingRiders.length} ready`;
+      // The count, or why counting is beside the point: a room a rider short cannot race again whatever it votes, so
+      // the line that would say "1/1 ready" says what is actually needed instead, and BACK TO LOBBY is what is left.
+      const readyText =
+        view.actions.rematchBlocked ??
+        `${waitingRiders.filter((p) => readyPlayers.includes(p.id)).length}/${waitingRiders.length} ready`;
       const recapOpen = dialogs.current() === "recap";
       // The crown can move while the results are up: BACK TO LOBBY follows whoever holds it without reopening the
       // card. READY is not its to hold — every rider votes for itself.
