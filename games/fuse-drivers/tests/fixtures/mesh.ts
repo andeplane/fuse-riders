@@ -6,17 +6,18 @@ import {
   type TransportEvents,
 } from "fuse-netcode";
 import {
-  HOLD,
-  ROLL,
+  CONTROLS,
   fuseDriversGame,
+  packControls,
   type FuseDriversEntry,
   type FuseDriversEvent,
   type FuseDriversRoom,
   type FuseDriversSettings,
   type FuseDriversView,
 } from "../../src/game/index.js";
+import { NEUTRAL_INPUT, type TruckInput } from "../../src/game/sim/input.js";
 
-/** The fuseDrivers runtime as a test drives it: ROLL and HOLD name the turn the player sees. */
+/** The racing runtime as a test drives it: a driver logs a change of controls and nothing while they hold. */
 export class TestFuseDriversRuntime extends RoomRuntime<
   FuseDriversRoom,
   FuseDriversEntry,
@@ -24,11 +25,15 @@ export class TestFuseDriversRuntime extends RoomRuntime<
   FuseDriversEvent,
   FuseDriversSettings
 > {
-  press(action: typeof ROLL | typeof HOLD): boolean {
+  private held = -1;
+  drive(input: Partial<TruckInput>): boolean {
     const room = this.world?.state;
-    if (!room || !this.player()?.connected || room.turn !== this.id)
+    if (!room || room.stage !== "running" || !this.player()?.connected)
       return false;
-    this.append(action, room.turnNo);
+    const bits = packControls({ ...NEUTRAL_INPUT, ...input });
+    if (bits === this.held) return false;
+    this.held = bits;
+    this.append(CONTROLS, bits);
     return true;
   }
   roomState(): FuseDriversRoom | undefined {
