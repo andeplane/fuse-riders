@@ -11,4 +11,5 @@ export * from "./rollback.js";
 export * from "./snapshot.js";
 export * from "./membership.js";
 export * from "./world-sync.js";
+export * from "./input-recorder.js";
 export * from "./room-runtime.js";

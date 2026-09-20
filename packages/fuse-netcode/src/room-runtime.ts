@@ -47,6 +47,7 @@ import type {
 import { uuid } from "./uuid.js";
 import { Membership, rulesAge, type Member } from "./membership.js";
 import { WorldSync } from "./world-sync.js";
+import { InputRecorder } from "./input-recorder.js";
 import type { RoomTransport, TransportEvents } from "fuse-network-fe";
 
 /** The room commands every game has; a game adds its own input commands in a subclass. */
@@ -210,8 +211,8 @@ export class RoomRuntime<
   private hostId = "";
   private room = 0;
   private welcomeAt = -Infinity;
-  private lastOwnTick = 0;
-  protected lastPacketTick = -1;
+  /** What this device writes into the shared log, and when the next packet is owed. */
+  protected readonly recorder: InputRecorder<Entry>;
   /** The frame last handed to `state`: a rollback's re-run replaces the frames with new ones at the same tick. */
   private lastFrame: Frame<View> | undefined;
   private pendingJoin?: {
@@ -248,6 +249,10 @@ export class RoomRuntime<
     this.deps = options.dependencies ?? browserDependencies;
     this.members = new Membership(() => this.deps.now());
     this.sync = new WorldSync(game.id);
+    this.recorder = new InputRecorder(
+      () => this.own(),
+      () => this.clock.tick(),
+    );
     this.status = new StatusNotices(
       () => this.deps.now(),
       (text) => this.deliver("status", () => callbacks.status(text)),
@@ -343,7 +348,7 @@ export class RoomRuntime<
         this.command({ type: "bot", action: "add" });
       this.command({ type: "action", action: "start" });
       this.world!.refill(Infinity);
-      this.world!.advance(this.lastOwnTick); // The first frame already seats everyone; the clock catches up within a tick.
+      this.world!.advance(this.recorder.tick); // The first frame already seats everyone; the clock catches up within a tick.
       this.publish();
     }
     this.hiddenState = this.deps.hidden();
@@ -680,7 +685,7 @@ export class RoomRuntime<
     // invariant — "since the first world" — not because anything here could be misjudged.
     this.members.judgingSince = this.deps.now();
     this.clock.start(0);
-    this.lastOwnTick = 0;
+    this.recorder.restart();
     this.resetControls();
     this.status.recurring(this.solo ? this.text.solo : this.text.connected);
     // Peers that asked while there was nothing to serve re-hear a hello that now announces a world.
@@ -828,10 +833,9 @@ export class RoomRuntime<
     }
     own.lastSeq = Math.max(own.lastSeq, previous?.lastSeq ?? 0);
     for (const [id, member] of this.members) this.ensureStream(id, member);
-    this.lastOwnTick = Math.max(tick + 1, this.lastOwnTick);
+    this.recorder.resumeAfter(tick);
     if (!carried.length) this.resetControls();
     this.lastFrame = undefined;
-    this.lastPacketTick = -1;
     // A clock with no samples yet (the returning creator, whose clock nobody else corrects) joins the room's running
     // clock: the freshest peer clock reading, projected to now, else the snapshot tick plus half the request round trip.
     if (!this.clock.started) {
@@ -916,11 +920,11 @@ export class RoomRuntime<
     // holds no seat, so nothing here reads the `SPECTATOR leave` that follows.
     const slot = this.claimSlot();
     if (slot < 0) return this.text.full;
-    const tick = this.ownTick();
+    const tick = this.recorder.next();
     // Ordered, at one tick, in the manager's own stream: `applyManagement` runs them in succession then entry order on
     // every replica, and `JOIN` returns early while the id is still in the watching list, so the leave must come first.
-    if (seated) this.appendAt(tick, [SPECTATOR, "leave", from]);
-    this.appendAt(tick, [
+    if (seated) this.recorder.at(tick, [SPECTATOR, "leave", from]);
+    this.recorder.at(tick, [
       JOIN,
       from,
       name,
@@ -961,10 +965,10 @@ export class RoomRuntime<
     ).length;
     if (watching + pending.watchers >= this.game.seating.maxWatchers)
       return this.text.watchersFull;
-    const tick = this.ownTick();
+    const tick = this.recorder.next();
     // `SPECTATOR join` refuses an id the game still seats, so the seat goes first.
-    if (seated) this.appendAt(tick, [LEAVE, from]);
-    this.appendAt(tick, [SPECTATOR, "join", from, name, generation]);
+    if (seated) this.recorder.at(tick, [LEAVE, from]);
+    this.recorder.at(tick, [SPECTATOR, "join", from, name, generation]);
     return;
   }
   /**
@@ -1203,25 +1207,8 @@ export class RoomRuntime<
   protected own(): StreamLog<Entry> {
     return this.world!.streams.get(this.id)!;
   }
-  private ownTick(): number {
-    this.lastOwnTick = Math.max(
-      Math.floor(this.clock.tick()) + 1,
-      this.lastOwnTick,
-    );
-    return this.lastOwnTick;
-  }
   protected append(...body: unknown[]): number {
-    return this.appendAt(this.ownTick(), body);
-  }
-  /**
-   * One of this member's entries at a tick it already chose. A tick carries as many of them as the manager writes, and
-   * the fold applies them in the order they were written (`applyTick`), so a transition that takes two entries — a side
-   * switch, a reclaimed seat — is written at one `ownTick()` and lands whole or not at all.
-   */
-  private appendAt(tick: number, body: unknown[]): number {
-    this.own().append(tick, body);
-    this.lastPacketTick = -1;
-    return tick;
+    return this.recorder.append(body);
   }
   /** A game's held controls go neutral: a fresh world, a resync that carried no own entries. */
   protected resetControls(): void {}
@@ -1471,7 +1458,7 @@ export class RoomRuntime<
       if (this.solo && this.world) {
         // Solo has no peers to roll back for and is at most a tick behind: this fold is not paced.
         this.world.refill(Infinity);
-        this.world.advance(this.lastOwnTick);
+        this.world.advance(this.recorder.tick);
         this.clock.pause();
         this.publish();
       }
@@ -1707,7 +1694,7 @@ export class RoomRuntime<
           this.greet(id, member);
         }
       }
-      if (tick !== this.lastPacketTick) this.sendPackets(now);
+      if (this.recorder.owes(tick)) this.sendPackets(now);
       for (const [id, member] of this.members) {
         const stream = world.streams.get(id);
         // A stream whose owner is out of reach (`ahead`) has no gap to nack, but needs the same snapshot: it takes the
@@ -1787,7 +1774,7 @@ export class RoomRuntime<
   protected sendPackets(now: number): void {
     if (!this.transport || !this.world) return;
     const tick = Math.floor(this.clock.tick());
-    this.lastPacketTick = tick;
+    this.recorder.sent(tick);
     const entries = this.own().packetEntries();
     // Nothing is sent to a member refused for its rules: a build without the refusal would take this replica's clock
     // and entries for its own room's, so it must see silence and carry on by its own succession instead.
