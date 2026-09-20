@@ -92,7 +92,16 @@ test("missile locks only within 600 u and the 45 degree cone; otherwise dumb-fir
 test("missile dies on a wall and cannot hit in its first 10 ticks", () => {
   const wall = {
     ...track,
-    walls: [{ a: { x: 600, y: 400 }, b: { x: 600, y: 600 } }],
+    walls: [
+      {
+        a: { x: 600, y: 400 },
+        b: { x: 600, y: 600 },
+        minX: 600,
+        minY: 400,
+        maxX: 600,
+        maxY: 600,
+      },
+    ],
   };
   const m = {
     id: 1,

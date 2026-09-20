@@ -8,6 +8,13 @@ export interface Point {
 export interface Segment {
   a: Point;
   b: Point;
+}
+/** A wall: a segment that also carries its box, so a truck rejects a distant one in four comparisons. */
+export interface Wall extends Segment {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
   /** Ignored while a truck is on a bridge (ADR 003). */ under?: boolean;
   /** Deck railing: ignored by trucks that are not on the bridge. */ deck?: boolean;
 }
@@ -36,7 +43,7 @@ export interface Track {
   tile: number;
   /** Row-major surface grid; null means off-track infield (treated as dirt). */
   surface: (SurfaceKind | null)[];
-  walls: Segment[];
+  walls: Wall[];
   checkpoints: Checkpoint[];
   spawns: Spawn[];
   waypoints: Point[];
@@ -139,7 +146,7 @@ export function parseTrack(input: unknown, name = "track"): Track {
     return s;
   });
 
-  const walls: Segment[] = [];
+  const walls: Wall[] = [];
   for (const o of objects(input, "walls", true)) {
     const pts = points(o, "polyline") ?? points(o, "polygon");
     if (!pts || pts.length < 2)
@@ -153,10 +160,10 @@ export function parseTrack(input: unknown, name = "track"): Track {
     const first = pts[0]!; // The length check above guarantees a first point.
     let prev = first;
     for (const p of pts.slice(1)) {
-      walls.push({ a: prev, b: p, under, deck });
+      walls.push(wall(prev, p, under, deck));
       prev = p;
     }
-    if (o.polygon) walls.push({ a: prev, b: first, under, deck });
+    if (o.polygon) walls.push(wall(prev, first, under, deck));
   }
 
   const checkpoints: Checkpoint[] = objects(input, "checkpoints", true).map(
@@ -242,6 +249,25 @@ export function parseTrack(input: unknown, name = "track"): Track {
     waypoints,
     items,
     bridges,
+  };
+}
+
+/** A wall segment with the box a truck uses to skip it without measuring the distance. */
+function wall(
+  a: Point,
+  b: Point,
+  under: true | undefined,
+  deck: true | undefined,
+): Wall {
+  return {
+    a,
+    b,
+    minX: Math.min(a.x, b.x),
+    minY: Math.min(a.y, b.y),
+    maxX: Math.max(a.x, b.x),
+    maxY: Math.max(a.y, b.y),
+    ...(under ? { under } : {}),
+    ...(deck ? { deck } : {}),
   };
 }
 

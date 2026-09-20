@@ -115,8 +115,18 @@ function resolveWalls(
   let x = t.x,
     y = t.y,
     touched = false;
+  // A wall far from this tick's path cannot touch the truck, and rejecting it by its box costs four
+  // comparisons instead of a distance and a crossing test. The margin covers the radius and the push a
+  // resolved wall gives on the second pass, so the walls that resolve are the ones a full scan resolves.
+  const margin = r * 4;
+  const boxX0 = Math.min(from.x, x) - margin,
+    boxX1 = Math.max(from.x, x) + margin;
+  const boxY0 = Math.min(from.y, y) - margin,
+    boxY1 = Math.max(from.y, y) + margin;
   for (let pass = 0; pass < 2; pass++) {
     for (const w of track.walls) {
+      if (w.maxX < boxX0 || w.minX > boxX1 || w.maxY < boxY0 || w.minY > boxY1)
+        continue;
       if ((w.under && t.onBridge) || (w.deck && !t.onBridge)) continue;
       const ex = w.b.x - w.a.x,
         ey = w.b.y - w.a.y;
