@@ -8,7 +8,8 @@
 > occur: the badge is the word HOST rather than a crown, because the crown already marks the round leader in the
 > standings; and delegation is left exactly as the log defines it, so beside a creator that took no seat the first
 > rider wears the badge as well as the creator's own page — every rule that would avoid that also strands a room whose
-> unseated host has left (ADR 047 §9, `roomManager`). Phases A, C, E and F are still open.
+> unseated host has left (ADR 047 §9, `roomManager`). Phases A, C, E and F are still open. Of the optional phases,
+> §10 O4 (switching sides) has landed, and needed no fold change: see its entry for what it does instead.
 > Covers ten requested lobby and feel changes: host crown, kick, host handover, ready check, ten colours, unique
 > avatars, spectators, ready check between rounds with a countdown sound, a lobby map picker, and a slower bomb range
 > sweep. Each sub-phase is sized for one agent owning it end to end on a `codex/` branch, opening one pull request in
@@ -332,7 +333,8 @@ heads.
   No colour and no READY; the manager can remove a spectator with the same kick button.
 - Spectators see the arena and results, never the controls, the HUD or the ready button. Footer copy: `3 riders ready
 · 2 watching`. Ready check (E) counts riders only.
-- Switching sides between rounds (`TAKE A SEAT` / `WATCH INSTEAD`) is §10 O4.
+- Switching sides between rounds (`TAKE A SEAT` / `WATCH`) is §10 O4, which has since landed under rules
+  `fuse-p2p-46` without a fold change.
 
 **Tests.** Fixture `fake-room.ts` gains a `spectator` option. Runtime: spectator joins and sees rounds; reload
 recovers the spectator record; sixth spectator refused; creator spectates and starts a match; creator spectates and
@@ -378,8 +380,12 @@ body says why and names the rules move (`RULES moves to fuse-p2p-NN`).
   tokens, an optional join password checked at admission. Protocol version bump. L.
 - **O3 Ready-check knobs.** Room settings: "Ready check between rounds: on/off"; auto-ready after 30 s idle; host
   `START ANYWAY` after 20 s with the unready riders sat out for the round. S/M.
-- **O4 Switching sides.** `TAKE A SEAT` for a spectator and `WATCH INSTEAD` for a rider, between rounds only; the
-  fold treats it as leave-then-join. M.
+- **O4 Switching sides. Landed.** `TAKE A SEAT` on a watcher's own row and `WATCH` on a rider's own row, between
+  rounds only, with the member keeping its place in the room. It needed no fold change after all: the manager writes
+  an ordered pair of existing entries at one tick (`SPECTATOR leave` + `JOIN`, or `LEAVE` + `SPECTATOR join`), which
+  `applyManagement` already handles, so no entry kind was added and `RULES` did not move. The one rule the fold forced
+  from outside: a stand-in host may not switch its own side, because `permitted` ranks it nowhere between the two
+  entries. See [spectators](spectators.md#changing-sides).
 - **O5 Cheaper spectators.** Spectator runtimes send tick packets at a quarter cadence (they carry no inputs), and
   riders skip sending speculative packets to spectators. Measure first (G.3). M.
 - **O6 Map playlists.** A per-round map sequence in room settings (`["desert", "wrap", "random", …]`) shown in the

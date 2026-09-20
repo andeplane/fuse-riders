@@ -97,6 +97,7 @@ import {
   presentStatus,
   recapReady,
   type RemoveView,
+  type SwitchView,
 } from "./room-presenter.js";
 import { connectHint } from "./connect-hint.js";
 import { createJoinCard, createJoinForm } from "./join-form.js";
@@ -659,6 +660,35 @@ export async function startOnline(): Promise<void> {
     // A button that just went away or went dead must not stay armed: the next tap would kick without asking.
     if (view.hidden || view.disabled) disarm(button);
   };
+  /**
+   * This device's own change-sides button, one per row it has ever appeared on. The roster diffs its rows and never
+   * rebuilds them, so the button is built once, parented into the row it belongs to and updated in place.
+   */
+  const sideSwitches = new Map<string, HTMLButtonElement>();
+  const sideSwitch = (key: string, act: () => void): HTMLButtonElement => {
+    let button = sideSwitches.get(key);
+    if (!button) {
+      button = node("button", "", "room-switch");
+      button.onclick = act;
+      sideSwitches.set(key, button);
+    }
+    return button;
+  };
+  const showSwitch = (button: HTMLButtonElement, view: SwitchView) => {
+    setIfChanged(button, "hidden", view.hidden);
+    setIfChanged(button, "disabled", view.disabled);
+    setIfChanged(button, "textContent", view.label);
+    setAttributeIfChanged(button, "aria-label", view.title);
+    setIfChanged(button, "title", view.title);
+  };
+  /** Buttons for rows the lobby no longer lists go with them, so a member that left leaves nothing behind. */
+  const pruneSwitches = (live: ReadonlySet<string>) => {
+    for (const [key, button] of sideSwitches)
+      if (!live.has(key)) {
+        button.remove();
+        sideSwitches.delete(key);
+      }
+  };
   const help = node("button", "?", "desktop-help");
   help.setAttribute("aria-label", "Keyboard controls");
   help.title = "Keyboard controls";
@@ -1172,6 +1202,7 @@ export async function startOnline(): Promise<void> {
         manages,
         managerId,
         replacedHost,
+        creator: isHost,
         solo,
         displayOnly,
         lobbyCard: screen.lobbyCard,
@@ -1214,6 +1245,21 @@ export async function startOnline(): Promise<void> {
           host: p.host,
         })),
       );
+      // The two sides of the room are one command apart: the rider gives its seat up, the watcher takes a free one,
+      // and neither leaves the room to do it. Only this device's own row carries the button (`switchSide.hidden`).
+      const liveSwitches = new Set<string>();
+      for (const rider of view.lobby.riders) {
+        const row = lobbyRoster.row(rider.id);
+        if (!row) continue;
+        const key = `rider:${rider.id}`,
+          riderName = rider.name;
+        const button = sideSwitch(key, () =>
+          runtime.command({ type: "spectate", name: riderName }),
+        );
+        liveSwitches.add(key);
+        if (button.parentElement !== row) row.append(button);
+        showSwitch(button, rider.switchSide);
+      }
       setIfChanged(lobbyWatchers, "hidden", view.lobby.watchersHidden);
       watchers.update(
         view.lobby.watchers.map((seat) => ({
@@ -1239,7 +1285,22 @@ export async function startOnline(): Promise<void> {
         }
         if (remove.parentElement !== row) row.append(remove);
         showRemove(remove, seat.remove);
+        const key = `watcher:${seat.id}`,
+          watcherName = seat.name;
+        // The avatar the join form remembers, since the watching list carries none: the seat is taken as this device
+        // always rides.
+        const take = sideSwitch(key, () =>
+          runtime.command({
+            type: "join",
+            name: watcherName,
+            avatarId: joinForm.picker.selected(),
+          }),
+        );
+        liveSwitches.add(key);
+        if (take.parentElement !== row) row.append(take);
+        showSwitch(take, seat.switchSide);
       }
+      pruneSwitches(liveSwitches);
       for (const [watcherId, button] of watcherRemoves)
         if (!view.lobby.watchers.some((seat) => seat.id === watcherId)) {
           button.remove();

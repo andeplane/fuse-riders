@@ -30,7 +30,10 @@ snapshot, exactly like the seats.
   `leave` with a member id. `isManagementKind` spans 10–16, so it is a manager's to write and refused from anyone else.
 - `PRESENCE` and `LEAVE` look a member up in the watching list as well as in the seats.
 - A member is a rider or a watcher, never both: `JOIN` is a no-op for a listed spectator and `SPECTATOR join` for a
-  seated rider. Switching sides is deliberately not in this pass (plan §10 O4); it would be leave-then-join.
+  seated rider. Switching sides (plan §10 O4) is built on exactly that: the manager writes an ordered pair of these
+  entries at one tick — `SPECTATOR leave` then `JOIN`, or `LEAVE` then `SPECTATOR join` — and the fold, which applies
+  one manager's entries in the order they were written, does the rest. No new entry kind and no `RULES` move with it;
+  see "Changing sides" below.
 - A spectator never reaches `step`, the leaderboard, the match report or `toView`. It travels to the screen beside the
   world view, on the runtime's `Frame`, because it is the room's state and not the game's.
 
@@ -82,6 +85,34 @@ bound — a refused signalling frame costs a late link, not a torn mesh — but 
 flood tolerance no longer have the margin they were sized for, and that should be revisited before rooms routinely
 run full.
 
+## Changing sides
+
+A member switches without leaving the room: **WATCH** on its own rider row, **TAKE A SEAT** on its own watcher row.
+Both are the ordinary `join` and `spectate` commands sent again by a member the room already lists, so nothing new
+reaches the wire. `RoomRuntime.join` and `RoomRuntime.spectate` (`packages/fuse-netcode/src/room-runtime.ts`) answer
+them with the ordered pair above, written at one `ownTick()` so the fold sees one transition; `claimSlot` runs first,
+so a switch that cannot be seated writes nothing and the member stays where it was. `pending()` already counted both
+halves — a `JOIN` over a listed watcher as a seat taken, a `SPECTATOR leave` as one watcher fewer — so a switch in
+flight is counted correctly by the capacity checks, and a seat one member gives up is a seat another can take in the
+same tick.
+
+Three rules, all outside the fold:
+
+- **Between rounds only**, the same gate a kick uses. Outside the reclaimable phases `LEAVE` leaves a rider in the
+  game's players, so the `SPECTATOR join` behind it would be dropped and the member would be seated and absent at once.
+  The page refuses its own mid-round switch before it asks anyone; a request that a starting round overtakes is
+  refused by the manager, retried on the join timer and lands at the pause.
+- **Capacity is the runtime's**, and the button repeats its wording: `Room is full (5 players)` for a seat,
+  `Room is full (5 spectators watching)` for the watching list. A seat a rider the room lists absent is holding is
+  reclaimed for the switch exactly as it is for a fresh join.
+- **A stand-in host may not switch itself.** `permitted` is re-evaluated per entry, and between the pair the member is
+  in neither map, so `successionOrder` cannot rank it and the second entry would be refused everywhere. The creator is
+  exempt (`permitted` answers for it without ranking it) and everyone else asks the manager, which is never the
+  subject. A stand-in's request would in any case be addressed to itself; it is refused with a line that says so.
+
+`games/fuse-riders/tests/side-switch.test.ts` covers both directions on every replica, the freed seat, the three
+refusals, a reload after a switch, the creator keeping the room across one, and two members swapping in one tick.
+
 ## What is deliberately not here
 
 - **No kick for spectators.** The manager cannot remove a watcher yet, because the kick command itself is phase D of
@@ -90,4 +121,5 @@ run full.
   the only device that knows today. The crown that every device can draw is phase B.
 - **No ready check.** The footer counts `N riders ready · N watching`; readiness itself is phase E.
 - **No voice.** `voice.setRoster` is still the seated riders.
-- **No switching sides mid-room**, no spectator camera, no cheaper spectator packets: plan §10 O4, O8 and O5.
+- **No spectator camera and no cheaper spectator packets:** plan §10 O8 and O5. (Switching sides, §10 O4, has since
+  landed — see "Changing sides" above.)

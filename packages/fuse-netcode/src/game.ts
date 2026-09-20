@@ -179,8 +179,12 @@ export interface RuntimeText {
   stillLoading: string;
   chooseName: string;
   reconnectFirst: string;
-  stopWatching: string;
-  leaveSeat: string;
+  /** A watcher asking for a seat while a round runs: sides change at the pause, not in the middle. */
+  takeSeatInRound: string;
+  /** A seated member asking to watch while a round runs, which the fold would only mark it absent for. */
+  watchInRound: string;
+  /** A stand-in host asking to switch its own side, which the fold would drop halfway (`switchSides`). */
+  switchAsStandIn: string;
   watchersFull: string;
   hostReplaced: string;
   couldNotLoad: string;

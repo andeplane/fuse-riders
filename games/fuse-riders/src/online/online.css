@@ -1618,6 +1618,33 @@
   border-color: var(--rider-color);
   flex-shrink: 0;
 }
+/*
+ * Changing sides without leaving the room: WATCH on this device's own rider row, TAKE A SEAT on its own watcher row.
+ * It is the quieter of the two ways out of a row, so it takes the outline treatment JOIN AS SPECTATOR already uses
+ * rather than the rider's colour — the seats stay the thing being read.
+ */
+.room-rider > button.room-switch {
+  min-width: 0;
+  padding: 0.25rem 0.4375rem;
+  font-size: 0.5rem;
+  letter-spacing: 0.0625rem;
+  background: transparent;
+  border: 0.0625rem solid #334567;
+  color: #8ba3c0;
+  box-shadow: none;
+}
+.room-rider > button.room-switch:hover:not(:disabled) {
+  border-color: #16e7ff;
+  color: #cfe8ff;
+}
+.room-rider > button.room-switch:disabled {
+  opacity: 0.45;
+}
+/* The HOST badge already took the row's free space, so the button beside it only needs the gap. */
+.room-rider > .host-badge + button.room-switch,
+.room-rider > button + button.room-switch {
+  margin-left: var(--fui-space-2);
+}
 
 /* Post-match summary, with the detailed report available from the persistent footer. */
 .online-app dialog.game-dialog.recap-dialog {

@@ -311,8 +311,10 @@ export const fuseGame: RollbackGame<
     stillLoading: "The room is still loading",
     chooseName: `Choose a name (1–${MAX_RIDER_NAME} characters)`,
     reconnectFirst: "Reconnect before joining",
-    stopWatching: "Stop watching before taking a seat",
-    leaveSeat: "Leave your seat before watching",
+    takeSeatInRound: "Take a seat between rounds — try again at the pause",
+    watchInRound: "Start watching between rounds — try again at the pause",
+    switchAsStandIn:
+      "You are standing in as host — switch sides once the host is back",
     watchersFull: `Room is full (${MAX_SPECTATORS} spectators watching)`,
     hostReplaced: "This host tab was replaced — use the newer tab",
     couldNotLoad: "Could not load the game — reload this page",

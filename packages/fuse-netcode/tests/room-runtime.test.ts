@@ -321,11 +321,15 @@ test("a watcher is listed without a seat, steers nothing, is not waited on, and 
   assert.equal(
     b!.command({ type: "spectate", name: "B" }),
     true,
-    "the command is sent; the creator refuses it",
+    "a seated member asking to watch is changing sides, not arriving",
   );
   mesh.run(500);
-  assert.equal(room(a!).seats.get("b")?.watcher, undefined);
-  // One rider and one watcher short of two riders: a watcher does not count towards a start.
+  assert.equal(
+    room(a!).seats.get("b")?.watcher,
+    true,
+    "the manager freed its seat and put it on the watching list in one tick",
+  );
+  // One rider and two watchers short of two riders: a watcher does not count towards a start.
   mesh.leave("b");
   mesh.run(500);
   assert.equal(room(a!).seats.has("b"), false);
