@@ -1640,11 +1640,6 @@
 .room-rider > button.room-switch:disabled {
   opacity: 0.45;
 }
-/* The HOST badge already took the row's free space, so the button beside it only needs the gap. */
-.room-rider > .host-badge + button.room-switch,
-.room-rider > button + button.room-switch {
-  margin-left: var(--fui-space-2);
-}
 
 /* Post-match summary, with the detailed report available from the persistent footer. */
 .online-app dialog.game-dialog.recap-dialog {
