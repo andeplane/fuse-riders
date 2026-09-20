@@ -6,23 +6,23 @@
   "description": "Large wide stepped sandstone pyramid with concentric rectangular tiers.",
   "image": {
     "file": "pyramid-large-stepped.png",
-    "width": 1536,
-    "height": 1024,
-    "sha256": "ec307059e0e16e656bee3d39222d370dcad2705f7b59d52ec08c35acb6ad14cd"
+    "width": 520,
+    "height": 347,
+    "sha256": "5f1d5fdac9eaaa669e2324158d399cdcf341b5841c7d8fb34b54df0709392011"
   },
   "anchorPixels": {
-    "x": 767.5,
-    "y": 514.5
+    "x": 259.8307291666667,
+    "y": 174.1796875
   },
   "hitboxPixels": {
     "shape": "rectangle",
-    "centerX": 767.5,
-    "centerY": 514.5,
-    "width": 1277,
-    "height": 747
+    "centerX": 259.8307291666667,
+    "centerY": 174.1796875,
+    "width": 432.31770833333337,
+    "height": 252.89062500000003
   },
   "recommendedWorld": {
-    "unitsPerPixel": 0.11276429130775255,
+    "unitsPerPixel": 0.3330883681705921,
     "rotationDegrees": 0,
     "hitbox": {
       "shape": "rectangle",
@@ -35,5 +35,11 @@
   "collisionFit": {
     "method": "alpha-128-bounds",
     "silhouetteIoU": 0.997812
+  },
+  "source": {
+    "width": 1536,
+    "height": 1024,
+    "sha256": "ec307059e0e16e656bee3d39222d370dcad2705f7b59d52ec08c35acb6ad14cd",
+    "note": "Original generated art; this pack serves a resized copy."
   }
 }

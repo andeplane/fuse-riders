@@ -1,6 +1,6 @@
 # ADR 038: Local solo play and a live attract screen
 
-Status: **partly superseded** by [docs/online/P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md): solo play and the attract screen remain, but both now run the shared `RoomRuntime`/`World` with no transport instead of a `HostSession` adapter. Originally: accepted after independent source review; browser acceptance recorded with the release.
+Status: **partly superseded** by [ADR 047](047-p2p-input-log-lockstep-rollback.md) (history in [docs/online/P2P-INPUT-LOG-BRIEF.md](../online/P2P-INPUT-LOG-BRIEF.md)): solo play and the attract screen remain, but both now run the shared `RoomRuntime`/`World` with no transport instead of a `HostSession` adapter. Originally: accepted after independent source review; browser acceptance recorded with the release.
 
 The home screen should show the game before asking for a room code. Add a silent, local AI battle behind a readable menu and a first-class Play Solo action.
 
