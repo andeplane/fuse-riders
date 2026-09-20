@@ -5,7 +5,7 @@ import { chromium, webkit, type Browser, type LaunchOptions } from "playwright";
  *
  * `chrome` is the installed Google Chrome channel (hardware GL, what the renderer smokes measure),
  * `chromium` is Playwright's bundled build and `webkit` is Playwright's WebKit. They are three different
- * `npx playwright install` targets, which is why `scripts/ci-manifest.json` names them per smoke and
+ * `pnpm exec playwright install` targets, which is why `scripts/ci-manifest.json` names them per smoke and
  * `tests/ci-manifest.test.ts` compares that list with the calls below found in each script.
  */
 export type BrowserKind = "chrome" | "chromium" | "webkit";

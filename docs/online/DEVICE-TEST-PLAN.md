@@ -75,7 +75,7 @@ every trial rather than only the latest.
 
 ## #15 — Dropped touch inputs
 
-> `scripts/input-drop-probe.ts` was removed with the host-star runtime. In the peer-to-peer runtime an input is a log entry the phone itself folds on the next tick; run `scripts/p2p-measure.ts` for scripted input-to-state latencies and read a physical phone's `artifacts/telemetry/<ROOM>.ndjson` (posted while `npm run dev` serves the room) with `scripts/telemetry-report.ts`.
+> `scripts/input-drop-probe.ts` was removed with the host-star runtime. In the peer-to-peer runtime an input is a log entry the phone itself folds on the next tick; run `scripts/p2p-measure.ts` for scripted input-to-state latencies and read a physical phone's `artifacts/telemetry/<ROOM>.ndjson` (posted while `pnpm dev` serves the room) with `scripts/telemetry-report.ts`.
 
 Fixed in #38 for the synthetic case: `scripts/input-drop-probe.ts` measured
 98.1% of playing-phase inputs rejected locally before the fix and 0.98% after
@@ -94,7 +94,7 @@ phone as guest instead, laptop as host.
    the repeat run). Note the room code.
 2. Join from the phone at the deployed URL and start the race once the
    laptop's guest has joined. **Not currently runnable as first written:**
-   this step served the room from the laptop with `npm run dev`, joined from
+   this step served the room from the laptop with `pnpm dev`, joined from
    the phone over the LAN address and let the dev server record every
    device's telemetry. Since #271 the dev service is loopback-only, so a
    phone cannot reach it, and no `/telemetry` receiver exists on the dev
@@ -106,7 +106,7 @@ phone as guest instead, laptop as host.
    (steering change, shot fired, bomb notice) — do this for at least 50
    discrete presses total.
 4. Save `artifacts/telemetry/<ROOM>.ndjson` and the output of
-   `npx tsx scripts/telemetry-report.ts artifacts/telemetry/<ROOM>.ndjson`
+   `pnpm exec tsx scripts/telemetry-report.ts artifacts/telemetry/<ROOM>.ndjson`
    into the evidence folder: inputs, rollbacks, gaps and status changes per
    device. **Not currently runnable:** nothing writes that file since #271
    (see step 2); record the manual tally and the probe JSON instead.
@@ -200,7 +200,7 @@ The smoke records the hold result inside the page and retries only when a
 benchmark snapshot proves the round phase changed during the attempt. It
 requires a complete 650 ms hold within one playing phase for every third;
 a lost hold in a stable phase or any selected text remains a failure.
-Run `MOBILE_HOLD_PHASE_RACE=1 HOME_URL=http://localhost:8787/ npx tsx scripts/mobile-landscape-smoke.ts`
+Run `MOBILE_HOLD_PHASE_RACE=1 HOME_URL=http://localhost:8787/ pnpm exec tsx scripts/mobile-landscape-smoke.ts`
 to force the first gesture to span a real round transition and verify that
 it is retried before a complete hold passes in both engines.
 

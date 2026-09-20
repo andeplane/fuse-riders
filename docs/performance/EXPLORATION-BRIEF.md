@@ -202,17 +202,17 @@ These are current entry points, not a complete new experiment implementation. Ru
 
 ```sh
 # Renderer microbenchmarks: source-served, fixed 1600×900 backing, 1s warmup.
-DURATION_MS=30000 BENCH_TAG=baseline npx tsx scripts/phaser-benchmark.ts
-BROWSER=webkit DURATION_MS=30000 BENCH_TAG=baseline npx tsx scripts/phaser-benchmark.ts
-VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TAG=mobile-baseline DURATION_MS=30000 npx tsx scripts/phaser-benchmark.ts
+DURATION_MS=30000 BENCH_TAG=baseline pnpm exec tsx scripts/phaser-benchmark.ts
+BROWSER=webkit DURATION_MS=30000 BENCH_TAG=baseline pnpm exec tsx scripts/phaser-benchmark.ts
+VIEWPORT_WIDTH=390 VIEWPORT_HEIGHT=844 DPR=2 QUALITY=low BENCH_TAG=mobile-baseline DURATION_MS=30000 pnpm exec tsx scripts/phaser-benchmark.ts
 
 # Renderer lifecycle and correctness, separate from timing runs.
-npx tsx scripts/phaser-browser.ts
-BROWSER=webkit npx tsx scripts/phaser-browser.ts
-npx tsx scripts/benchmark-bots.ts
+pnpm exec tsx scripts/phaser-browser.ts
+BROWSER=webkit pnpm exec tsx scripts/phaser-browser.ts
+pnpm exec tsx scripts/benchmark-bots.ts
 
 # Peer-to-peer runtime (2026-09-16): wire bytes, rollbacks and input-to-state latencies, locally and under injected impairment.
-ONLINE_URL=http://localhost:8787/ npx tsx scripts/p2p-measure.ts
+ONLINE_URL=http://localhost:8787/ pnpm exec tsx scripts/p2p-measure.ts
 # (benchmark-response.ts and online-network-benchmark.ts were removed with the host-star runtime.)
 ```
 
@@ -243,10 +243,10 @@ After selecting candidates, test their combined implementation on the same basel
 Run checks appropriate to every candidate. Before deployment, run the complete release suite and the relevant Chrome/WebKit LAN/online, AI, renderer lifecycle and Pages base-path checks described in README and the roadmap:
 
 ```sh
-npm run typecheck
-npm test
-npm run test:coverage
-npm run build
+pnpm typecheck
+pnpm test
+pnpm test:coverage
+pnpm build
 ```
 
 Keep [.c8rc.json](../../.c8rc.json) thresholds unchanged and identify excluded browser/renderer surfaces. Independent implementation review, exact-artifact preview, compatibility/rollback review and actual destination verification remain release requirements under [GCP deployment instructions](../online/GCP-DEPLOY.md). ADR 032's partially evidenced proposed budgets retain their documented status; this brief neither certifies them nor waives them.

@@ -51,7 +51,7 @@ const sourcePaths = [
   "packages/fuse-network-be/src/gcp/firestore-store.ts",
   "scripts/gcp-service-smoke.ts",
   "scripts/gcp-service-child.ts",
-  "package-lock.json",
+  "pnpm-lock.yaml",
 ];
 const sourceSha256 = Object.fromEntries(
   await Promise.all(

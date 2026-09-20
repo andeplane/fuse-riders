@@ -4,8 +4,8 @@
  * source module through the build's source maps. Throttling slows JavaScript, not the GPU, so it is a proxy for a
  * weak CPU (an Atom-class in-car browser at 4–8×), not device evidence. Build readable first, then run:
  *
- *   npx vite build --minify false --sourcemap
- *   npx tsx scripts/throttled-profile.ts
+ *   pnpm exec vite build --minify false --sourcemap
+ *   pnpm exec tsx scripts/throttled-profile.ts
  *
  * Env: RATES=1,4,6 SECONDS=10 WIDTH=1920 HEIGHT=1200 DPR=1 HEADED=1 RENDERER=phaser-canvas OUT=artifacts.
  * Writes `profile-x<rate>.cpuprofile` (opens in DevTools) and `throttled-profile.json` to OUT.

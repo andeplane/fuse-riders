@@ -6,7 +6,7 @@
  * that element rather than inferred from network traffic. The toggle labels the setting, not the speaker:
  * a page the browser has not let play yet still reads ON, because the first gesture anywhere starts it.
  *
- * Run against a dev server: LANDING_URL=http://127.0.0.1:5173/ npx tsx scripts/landing-music-smoke.ts
+ * Run against a dev server: LANDING_URL=http://127.0.0.1:5173/ pnpm exec tsx scripts/landing-music-smoke.ts
  */
 import { chromium, type Page } from "playwright";
 import assert from "node:assert/strict";

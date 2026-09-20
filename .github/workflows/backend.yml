@@ -70,10 +70,11 @@ jobs:
           persist-credentials: false
           # The path filter below diffs against the commit Cloud Run serves, however far back that is.
           fetch-depth: 0
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
       # Keyless federation: no service-account key is stored in this repository.
       - uses: google-github-actions/auth@v2
         with:
@@ -92,7 +93,7 @@ jobs:
       # back, so the run skips. A manual dispatch always deploys, so an intended rollback still works.
       - name: Did anything the backend is built from change?
         id: changes
-        run: npx tsx scripts/backend-changed.ts
+        run: pnpm exec tsx scripts/backend-changed.ts
         env:
           FORCE_DEPLOY: ${{ github.event_name == 'workflow_dispatch' }}
       - if: steps.changes.outputs.deploy == 'true'

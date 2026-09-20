@@ -1,9 +1,9 @@
 /**
  * Runs CI steps from scripts/ci-manifest.json. There is no second list of smokes anywhere:
  *
- *   npx tsx scripts/ci-run.ts --smoke <id>   one smoke exactly as its CI job runs it (ci.yml's `smoke` matrix)
- *   npx tsx scripts/ci-run.ts                verify steps, then every smoke (scripts/ci-local.sh)
- *   npx tsx scripts/ci-run.ts --list         the names ONLY accepts
+ *   pnpm exec tsx scripts/ci-run.ts --smoke <id>   one smoke exactly as its CI job runs it (ci.yml's `smoke` matrix)
+ *   pnpm exec tsx scripts/ci-run.ts                verify steps, then every smoke (scripts/ci-local.sh)
+ *   pnpm exec tsx scripts/ci-run.ts --list         the names ONLY accepts
  *
  * ONLY=core,keyboard selects steps; PORT is where the room service's port search starts (default: a free port).
  */
