@@ -2,11 +2,14 @@
 
 A whole-repo sweep of every TypeScript file for code nothing ships: modules no entry point
 reaches, exports nothing imports, production code only tests keep alive, and leftovers of
-features already removed. Audit only — no code changed. Findings are grouped by how strong the
-evidence is, strongest first, so the cheap removals are separable from the ones that need a
-decision.
+features already removed. Findings are grouped by how strong the evidence is, strongest first, so
+the cheap removals are separable from the ones that need a decision.
 
-Snapshot: `5b974a0` (main), 532 TypeScript files.
+**Tier 1 is done** — removed in the same pull request as this note. Every other tier is a finding
+only; no code below Tier 1 has been touched.
+
+Snapshot: `5b974a0` (main), 532 TypeScript files. Counts below describe the tree as audited, before
+the Tier 1 removal.
 
 ## Summary
 
@@ -34,11 +37,17 @@ because they are used only inside their own file.
 | Used only by tests                                    |   150 |
 | Referenced nowhere at all                             |    45 |
 
-## Tier 1 — Verified removable
+## Tier 1 — Removed
 
-Trial-deleted together in a throwaway worktree: `tsc --noEmit` clean, `golden-hash.test.ts` green
-(so no engine behaviour change and **no `RULES` bump needed**), and the full suite showed no new
-failures. About **743 lines**.
+About **743 lines**, deleted in this pull request. First trial-deleted in a throwaway worktree,
+then re-verified on the merged tree: `tsc --noEmit` clean, `golden-hash.test.ts` green (so no
+engine behaviour change and **no `RULES` bump needed**), and no new suite failures.
+
+Two prose references went with the code: `bomb-gesture.ts`'s docstring, which still named
+`BombInputBuffer` as a second caller, and the "One bomb-input core" section of
+[engine-tick-driver.md](design/engine-tick-driver.md), which now records the removal. The drift
+table there is kept — it is the record of architecture-review finding C2, not a description of
+live code.
 
 | What                                                                                                                     |         Lines | Why it is dead                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------------------------------------------------------------------------ | ------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
