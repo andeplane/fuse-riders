@@ -408,3 +408,69 @@ body.fuseDrivers-display .fuseDrivers-die {
   font: 0.75rem/1.5 var(--fui-font-pixel);
   white-space: nowrap;
 }
+
+/* The racing page: a top bar, the arena, a HUD line over it and the touch pad under it. */
+.fd-top {
+  display: flex;
+  justify-content: center;
+  padding: var(--fui-space-2);
+}
+.fd-brand {
+  color: var(--fui-yellow);
+  font-family: var(--fui-font-pixel);
+  text-decoration: none;
+}
+.fd-room {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-3);
+  align-items: center;
+  padding: var(--fui-space-2);
+}
+.fd-lobby {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-3);
+  align-items: center;
+  width: min(100%, 44rem);
+}
+.fd-race {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-2);
+  align-items: center;
+  width: 100%;
+}
+/* The arena keeps the simulation's 16:9, and never grows past the viewport it has to share with the pad. */
+.fd-arena {
+  width: min(100%, 90rem);
+  max-height: 70vh;
+  aspect-ratio: 16 / 9;
+  background: #06121f;
+  border: var(--fui-border);
+  image-rendering: pixelated;
+}
+.fd-hud {
+  font-family: var(--fui-font-pixel);
+  color: var(--fui-cyan);
+  margin: 0;
+}
+.fd-pad {
+  width: min(100%, 60rem);
+}
+.fd-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fui-space-2);
+  align-items: center;
+}
+.fd-results-title {
+  font-family: var(--fui-font-pixel);
+  color: var(--fui-yellow);
+}
+.fd-results-row {
+  margin: 0;
+}
+.fd-error {
+  color: var(--fui-pink);
+}

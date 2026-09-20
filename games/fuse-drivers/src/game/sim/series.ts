@@ -1,19 +1,38 @@
-import { BASE_STATS, config, type TruckStats } from './config.js';
-import { nextRandom } from './rng.js';
-import type { RaceState } from './race.js';
+import { BASE_STATS, config, type TruckStats } from "./config.js";
+import { nextRandom } from "./rng.js";
+import type { RaceState } from "./race.js";
 
-export type UpgradeKind = 'topSpeed' | 'accel' | 'tires' | 'shocks' | 'armor' | 'nitro';
+export type UpgradeKind =
+  "topSpeed" | "accel" | "tires" | "shocks" | "armor" | "nitro";
 
 /** Per-level cost tables and effects (ADR 006). */
-export const UPGRADES: Record<UpgradeKind, { levels: number; costs: readonly number[]; label: string }> = {
-  topSpeed: { levels: 5, costs: [600, 900, 1300, 1800, 2400], label: 'TOP SPEED' },
-  accel: { levels: 5, costs: [600, 900, 1300, 1800, 2400], label: 'ACCELERATION' },
-  tires: { levels: 5, costs: [600, 900, 1300, 1800, 2400], label: 'TIRES' },
-  shocks: { levels: 5, costs: [600, 900, 1300, 1800, 2400], label: 'SHOCKS' },
-  armor: { levels: 3, costs: [900, 1500, 2400], label: 'ARMOR' },
-  nitro: { levels: 3, costs: [500, 500, 500], label: 'NITRO' },
+export const UPGRADES: Record<
+  UpgradeKind,
+  { levels: number; costs: readonly number[]; label: string }
+> = {
+  topSpeed: {
+    levels: 5,
+    costs: [600, 900, 1300, 1800, 2400],
+    label: "TOP SPEED",
+  },
+  accel: {
+    levels: 5,
+    costs: [600, 900, 1300, 1800, 2400],
+    label: "ACCELERATION",
+  },
+  tires: { levels: 5, costs: [600, 900, 1300, 1800, 2400], label: "TIRES" },
+  shocks: { levels: 5, costs: [600, 900, 1300, 1800, 2400], label: "SHOCKS" },
+  armor: { levels: 3, costs: [900, 1500, 2400], label: "ARMOR" },
+  nitro: { levels: 3, costs: [500, 500, 500], label: "NITRO" },
 };
-const ORDER: UpgradeKind[] = ['topSpeed', 'accel', 'tires', 'shocks', 'armor', 'nitro'];
+const ORDER: UpgradeKind[] = [
+  "topSpeed",
+  "accel",
+  "tires",
+  "shocks",
+  "armor",
+  "nitro",
+];
 const deg = (d: number) => (d * Math.PI) / 180;
 
 export interface Driver {
@@ -49,9 +68,21 @@ export function statsFor(levels: Record<UpgradeKind, number>): TruckStats {
   };
 }
 
-export const NO_LEVELS: Record<UpgradeKind, number> = { topSpeed: 0, accel: 0, tires: 0, shocks: 0, armor: 0, nitro: 0 };
+export const NO_LEVELS: Record<UpgradeKind, number> = {
+  topSpeed: 0,
+  accel: 0,
+  tires: 0,
+  shocks: 0,
+  armor: 0,
+  nitro: 0,
+};
 
-export function createSeries(trackNames: string[], slots: number, seed: number, races = 5): Series {
+export function createSeries(
+  trackNames: string[],
+  slots: number,
+  seed: number,
+  races = 5,
+): Series {
   let rng = seed >>> 0;
   const pool = trackNames.slice();
   const tracks: string[] = [];
@@ -62,7 +93,21 @@ export function createSeries(trackNames: string[], slots: number, seed: number, 
     // Splicing one entry out of a pool the loop above keeps non-empty always yields that entry.
     tracks.push(pool.splice(Math.floor(r * pool.length), 1)[0]!);
   }
-  return { raceIndex: 0, tracks, drivers: Array.from({ length: slots }, (_, slot) => ({ slot, money: 0, earned: 0, points: 0, kills: 0, deaths: 0, lapsLed: 0, nitrosUsed: 0, levels: { ...NO_LEVELS } })) };
+  return {
+    raceIndex: 0,
+    tracks,
+    drivers: Array.from({ length: slots }, (_, slot) => ({
+      slot,
+      money: 0,
+      earned: 0,
+      points: 0,
+      kills: 0,
+      deaths: 0,
+      lapsLed: 0,
+      nitrosUsed: 0,
+      levels: { ...NO_LEVELS },
+    })),
+  };
 }
 
 /** Prize money and points from a finished race, by placement (ADR 006). */
@@ -71,7 +116,16 @@ export function applyRace(series: Series, state: RaceState): Series {
     const place = state.placements.indexOf(d.slot);
     const t = state.trucks[d.slot]!; // A driver's slot is a truck slot in the race it just ran.
     const prize = (config.prize[place] ?? 0) + t.kills * config.killBonus;
-    return { ...d, points: d.points + (config.points[place] ?? 0), money: d.money + prize, earned: d.earned + prize, kills: d.kills + t.kills, deaths: d.deaths + t.deaths, lapsLed: d.lapsLed + t.lapsLed, nitrosUsed: d.nitrosUsed + t.nitrosUsed };
+    return {
+      ...d,
+      points: d.points + (config.points[place] ?? 0),
+      money: d.money + prize,
+      earned: d.earned + prize,
+      kills: d.kills + t.kills,
+      deaths: d.deaths + t.deaths,
+      lapsLed: d.lapsLed + t.lapsLed,
+      nitrosUsed: d.nitrosUsed + t.nitrosUsed,
+    };
   });
   return { ...series, raceIndex: series.raceIndex + 1, drivers };
 }
@@ -86,14 +140,23 @@ export function cost(d: Driver, kind: UpgradeKind): number | null {
 export function buy(d: Driver, kind: UpgradeKind): Driver | null {
   const c = cost(d, kind);
   if (c === null || c > d.money) return null;
-  return { ...d, money: d.money - c, levels: { ...d.levels, [kind]: d.levels[kind] + 1 } };
+  return {
+    ...d,
+    money: d.money - c,
+    levels: { ...d.levels, [kind]: d.levels[kind] + 1 },
+  };
 }
 
 /** Bots buy the cheapest affordable upgrade, ties in row order, until nothing is affordable (ADR 006). */
 export function botShop(d: Driver): Driver {
   let cur = d;
   for (;;) {
-    const options = ORDER.map((k) => ({ k, c: cost(cur, k) })).filter((o): o is { k: UpgradeKind; c: number } => o.c !== null && o.c <= cur.money).sort((a, b) => a.c - b.c);
+    const options = ORDER.map((k) => ({ k, c: cost(cur, k) }))
+      .filter(
+        (o): o is { k: UpgradeKind; c: number } =>
+          o.c !== null && o.c <= cur.money,
+      )
+      .sort((a, b) => a.c - b.c);
     const [cheapest] = options;
     if (!cheapest) return cur;
     cur = buy(cur, cheapest.k)!;
@@ -102,5 +165,9 @@ export function botShop(d: Driver): Driver {
 
 /** Standings: points desc, then money earned desc, then slot. */
 export function standings(series: Series): Driver[] {
-  return series.drivers.slice().sort((a, b) => b.points - a.points || b.earned - a.earned || a.slot - b.slot);
+  return series.drivers
+    .slice()
+    .sort(
+      (a, b) => b.points - a.points || b.earned - a.earned || a.slot - b.slot,
+    );
 }

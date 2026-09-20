@@ -14,15 +14,23 @@ const TAN_PI_12 = 2 - SQRT3;
 /** Taylor series for |x| <= pi/4: 11 terms leave an error below 1e-19. */
 function sinSmall(x: number): number {
   const x2 = x * x;
-  let term = x, sum = x;
-  for (let n = 1; n <= 10; n++) { term *= -x2 / ((2 * n) * (2 * n + 1)); sum += term; }
+  let term = x,
+    sum = x;
+  for (let n = 1; n <= 10; n++) {
+    term *= -x2 / (2 * n * (2 * n + 1));
+    sum += term;
+  }
   return sum;
 }
 
 function cosSmall(x: number): number {
   const x2 = x * x;
-  let term = 1, sum = 1;
-  for (let n = 1; n <= 10; n++) { term *= -x2 / ((2 * n - 1) * (2 * n)); sum += term; }
+  let term = 1,
+    sum = 1;
+  for (let n = 1; n <= 10; n++) {
+    term *= -x2 / ((2 * n - 1) * (2 * n));
+    sum += term;
+  }
   return sum;
 }
 
@@ -34,12 +42,24 @@ function quadrant(x: number): [number, number] {
 
 export function sin(x: number): number {
   const [q, r] = quadrant(x);
-  return q === 0 ? sinSmall(r) : q === 1 ? cosSmall(r) : q === 2 ? -sinSmall(r) : -cosSmall(r);
+  return q === 0
+    ? sinSmall(r)
+    : q === 1
+      ? cosSmall(r)
+      : q === 2
+        ? -sinSmall(r)
+        : -cosSmall(r);
 }
 
 export function cos(x: number): number {
   const [q, r] = quadrant(x);
-  return q === 0 ? cosSmall(r) : q === 1 ? -sinSmall(r) : q === 2 ? -cosSmall(r) : sinSmall(r);
+  return q === 0
+    ? cosSmall(r)
+    : q === 1
+      ? -sinSmall(r)
+      : q === 2
+        ? -cosSmall(r)
+        : sinSmall(r);
 }
 
 /** atan for t >= 0: fold to t <= 1, then to t <= tan(pi/12), then a series whose 28th term is below 1e-17. */
@@ -47,8 +67,12 @@ function atanPos(t: number): number {
   if (t > 1) return HALF_PI - atanPos(1 / t);
   if (t > TAN_PI_12) return PI / 6 + atanPos((t * SQRT3 - 1) / (t + SQRT3));
   const t2 = t * t;
-  let term = t, sum = t;
-  for (let n = 1; n <= 14; n++) { term *= -t2; sum += term / (2 * n + 1); }
+  let term = t,
+    sum = t;
+  for (let n = 1; n <= 14; n++) {
+    term *= -t2;
+    sum += term / (2 * n + 1);
+  }
   return sum;
 }
 

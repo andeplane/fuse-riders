@@ -10,7 +10,7 @@ import {
   installRoomLifecycle,
   validRoomCode,
 } from "fuse-network-fe";
-import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
+import { MAX_PACKET_BYTES, TICK_MS, uuid } from "fuse-netcode";
 import {
   button,
   createControllerRow,
@@ -229,10 +229,13 @@ function room(solo: boolean): void {
   start.onclick = () => runtime.command({ type: "action", action: "start" });
 
   let latest: Parameters<FuseDriversCallbacks["state"]>[0] | undefined;
+  /** When the newest view arrived, so a frame between two views draws part way between them. */
+  let viewAt = 0;
   const callbacks: FuseDriversCallbacks = {
     state(frame, settings) {
       viewer.shared = settings.display;
       latest = frame;
+      viewAt = performance.now();
       render(presentTable(frame, viewer));
     },
     event() {
@@ -282,8 +285,18 @@ function room(solo: boolean): void {
     if (!arena)
       arena = mountArena(canvas, {
         assetBase: `${import.meta.env.BASE_URL}${GAME}/assets/`,
+        onError: (error: unknown) => {
+          // The race keeps running without a picture; say so rather than leaving a black rectangle.
+          console.error("arena", error);
+          status.show("The arena could not start", "error");
+        },
       });
-    arena.render(latest, performance.now(), runtime.self);
+    // Views arrive one log tick apart; alpha is how far into that gap this frame falls.
+    const alpha = Math.min(
+      1,
+      Math.max(0, (performance.now() - viewAt) / TICK_MS),
+    );
+    arena.render(latest, alpha, runtime.self);
     if (!display)
       runtime.drive({
         left: board.read().left || touch.left,

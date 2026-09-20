@@ -65,10 +65,11 @@ export function createArena(
     booted = true;
     resolveReady();
   };
-  const race = new RaceScene(
-    options.assetBase ?? defaultAssetBase(),
-    sceneReady,
-  );
+  // Phaser starts only the first scene of the config array, so the race scene starts the HUD beside it.
+  const race = new RaceScene(options.assetBase ?? defaultAssetBase(), () => {
+    if (!game.scene.isActive(HudScene.KEY)) game.scene.start(HudScene.KEY);
+    sceneReady();
+  });
   const hud = new HudScene(sceneReady);
   const context =
     options.renderer === "canvas"

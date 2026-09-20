@@ -8,4 +8,11 @@ export interface TruckInput {
   itemAlt: boolean;
 }
 
-export const NEUTRAL_INPUT: TruckInput = { left: false, right: false, brake: false, nitro: false, item: false, itemAlt: false };
+export const NEUTRAL_INPUT: TruckInput = {
+  left: false,
+  right: false,
+  brake: false,
+  nitro: false,
+  item: false,
+  itemAlt: false,
+};

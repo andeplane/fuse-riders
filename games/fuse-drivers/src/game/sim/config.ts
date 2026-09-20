@@ -4,10 +4,24 @@ export const DT = 1 / TICK_RATE;
 export const TICK_MS = 1000 / TICK_RATE;
 const deg = (d: number) => (d * Math.PI) / 180;
 
-export const SURFACE_KINDS = ['dirt', 'tarmac', 'mud', 'water', 'oil', 'boost', 'toxic', 'mogul', 'ramp'] as const;
+export const SURFACE_KINDS = [
+  "dirt",
+  "tarmac",
+  "mud",
+  "water",
+  "oil",
+  "boost",
+  "toxic",
+  "mogul",
+  "ramp",
+] as const;
 export type SurfaceKind = (typeof SURFACE_KINDS)[number];
 
-export interface SurfaceRule { speed: number; turnMul: number; drift: boolean }
+export interface SurfaceRule {
+  speed: number;
+  turnMul: number;
+  drift: boolean;
+}
 
 /** Per-truck stats the shop upgrades (ADR 006). */
 export interface TruckStats {
@@ -31,7 +45,7 @@ export const BASE_STATS: TruckStats = {
 };
 
 /** Bot difficulty for slots 1..4; slot 0 is the human. */
-export const BOT_LEVELS = ['hard', 'normal', 'easy', 'hard'] as const;
+export const BOT_LEVELS = ["hard", "normal", "easy", "hard"] as const;
 
 export const config = {
   /** Simulation world in units (map plus the 4 u strip below it, ADR 003). */
@@ -92,23 +106,44 @@ export const config = {
   items: {
     boxCooldownTicks: 90,
     boxRadius: 18,
-    missile: { speed: 400, turnRate: deg(200), lifeTicks: 120, radius: 6, lockRange: 600, lockCone: deg(45), armTicks: 10 },
-    mine: { dropBehind: 30, lobAhead: 200, armTicks: 15, lifeTicks: 600, radius: 20 },
+    missile: {
+      speed: 400,
+      turnRate: deg(200),
+      lifeTicks: 120,
+      radius: 6,
+      lockRange: 600,
+      lockCone: deg(45),
+      armTicks: 10,
+    },
+    mine: {
+      dropBehind: 30,
+      lobAhead: 200,
+      armTicks: 15,
+      lifeTicks: 600,
+      radius: 20,
+    },
     shieldTicks: 180,
     nitroRefill: 2,
-    drone: { radius: 60, range: 80, lifeTicks: 240, maxZaps: 3, zapIntervalTicks: 30, orbitHz: 0.5 },
+    drone: {
+      radius: 60,
+      range: 80,
+      lifeTicks: 240,
+      maxZaps: 3,
+      zapIntervalTicks: 30,
+      orbitHz: 0.5,
+    },
     emp: { range: 250, stunTicks: 30 },
     oil: { lifeTicks: 450, radius: 48 },
   },
   /** Odds columns: 1st, middle, last (ADR 005). */
   itemOdds: [
-    { kind: 'mine', first: 30, mid: 15, last: 5 },
-    { kind: 'oil', first: 25, mid: 15, last: 5 },
-    { kind: 'nitro', first: 20, mid: 15, last: 10 },
-    { kind: 'shield', first: 15, mid: 20, last: 10 },
-    { kind: 'missile', first: 5, mid: 20, last: 35 },
-    { kind: 'drone', first: 5, mid: 10, last: 20 },
-    { kind: 'emp', first: 0, mid: 5, last: 15 },
+    { kind: "mine", first: 30, mid: 15, last: 5 },
+    { kind: "oil", first: 25, mid: 15, last: 5 },
+    { kind: "nitro", first: 20, mid: 15, last: 10 },
+    { kind: "shield", first: 15, mid: 20, last: 10 },
+    { kind: "missile", first: 5, mid: 20, last: 35 },
+    { kind: "drone", first: 5, mid: 10, last: 20 },
+    { kind: "emp", first: 0, mid: 5, last: 15 },
   ] as const,
   points: [5, 3, 2, 1, 0],
   prize: [1500, 1300, 1100, 900, 700],
