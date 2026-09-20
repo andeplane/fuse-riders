@@ -348,9 +348,9 @@ test("a callback that throws on the room socket is reported as connection recove
   });
 
   // The room socket's frame handler does report what it caught, unlike the datachannel one above.
-  assert.deepEqual(
+  assert.equal(
     harness.recorded.statuses.at(-1),
-    ["Connection recovery: the application blew up"][0],
+    "Connection recovery: the application blew up",
   );
   harness.transport.close();
 });
@@ -363,7 +363,7 @@ test("a channel error drains the link and says so, without throwing", async () =
   assert.doesNotThrow(() => game.err());
 
   assert.equal(harness.transport.linked("b"), false);
-  assert.deepEqual(
+  assert.equal(
     harness.recorded.statuses.at(-1),
     "Direct connection failed · retrying",
   );
