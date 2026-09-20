@@ -1,5 +1,4 @@
 import {
-  RoomRuntime,
   type Callbacks,
   type RoomTransport,
   type RuntimeDependencies,
@@ -7,38 +6,53 @@ import {
 } from "fuse-netcode";
 import {
   CONTROLS,
-  fuseDriversGame,
   packControls,
-  type FuseDriversEntry,
   type FuseDriversEvent,
   type FuseDriversRoom,
   type FuseDriversSettings,
   type FuseDriversView,
 } from "../../src/game/index.js";
+import { FuseDriversRuntime } from "../../src/app/runtime.js";
 import { NEUTRAL_INPUT, type TruckInput } from "../../src/game/sim/input.js";
 
-/** The racing runtime as a test drives it: a driver logs a change of controls and nothing while they hold. */
-export class TestFuseDriversRuntime extends RoomRuntime<
-  FuseDriversRoom,
-  FuseDriversEntry,
-  FuseDriversView,
-  FuseDriversEvent,
-  FuseDriversSettings
-> {
-  private held = -1;
-  drive(input: Partial<TruckInput>): boolean {
-    const room = this.world?.state;
+/**
+ * The runtime the page itself drives, with the reach into it a test needs.
+ *
+ * It subclasses the real `FuseDriversRuntime` rather than restating it, so what this mesh proves about steering is
+ * proved about the class the page ships: a lookalike here would pass while the shipped one drifted.
+ */
+export class TestFuseDriversRuntime extends FuseDriversRuntime {
+  /**
+   * Neutral plus the keys this call names, driven the way a thumb drives: only while this peer is racing, and true
+   * when the change actually reached the log.
+   */
+  steer(input: Partial<TruckInput>): boolean {
+    const room = this.roomState();
     if (!room || room.stage !== "running" || !this.player()?.connected)
       return false;
-    const bits = packControls({ ...NEUTRAL_INPUT, ...input });
-    if (bits === this.held) return false;
-    this.held = bits;
-    this.append(CONTROLS, bits);
-    return true;
+    const before = this.own().entries.size;
+    this.drive({ ...NEUTRAL_INPUT, ...input });
+    return this.own().entries.size > before;
   }
-  roomState(): FuseDriversRoom | undefined {
-    return this.world?.state;
+
+  /** Every controls bitmask this device has logged, in the order it logged them. */
+  loggedControls(): number[] {
+    return [...this.own().entries.values()]
+      .filter((entry) => entry[2] === CONTROLS)
+      .map((entry) => entry[3]);
   }
+
+  /** The three hooks the netcode calls on this device's own lifecycle, which no packet can reach. */
+  hidePage(): void {
+    this.releaseControls();
+  }
+  logAbsent(): void {
+    this.absentControls();
+  }
+  freshWorld(): void {
+    this.resetControls();
+  }
+
   hashAt(tick: number): string | undefined {
     return this.world?.hashAt(tick);
   }
@@ -101,7 +115,6 @@ export class FuseDriversMesh {
       onVisibilityChange: () => () => {},
     };
     const runtime = new TestFuseDriversRuntime(
-      fuseDriversGame,
       "ROOM",
       this.settings,
       callbacks,

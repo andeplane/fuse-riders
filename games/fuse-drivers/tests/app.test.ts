@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { fuseDriversView } from "../src/game/index.js";
 import { presentTable, type Viewer } from "../src/app/presenter.js";
-import { dueReports } from "../src/app/reports.js";
+import { dueReports, sendReport, type DueReport } from "../src/app/reports.js";
 import {
   NOT_OPEN,
   keys,
@@ -243,3 +243,92 @@ test("a service that does not host the game yet says so in the page's words", ()
 });
 
 // ---- runtime ----
+
+/** One receipt to post, with only the fields `sendReport` itself reads. */
+const report = (): DueReport => ({
+  key: "m1",
+  path: "results",
+  result: {
+    matchId: "m1",
+    length: 1,
+    finishers: ["a"],
+    players: [],
+  },
+});
+
+/** A fetch that answers with `status`, remembering the one call it was given. */
+function answering(status: number): {
+  fetch: typeof globalThis.fetch;
+  calls: { url: string; init?: RequestInit }[];
+} {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  const fetcher = (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), ...(init ? { init } : {}) });
+    return Promise.resolve(
+      new Response(null, { status, statusText: String(status) }),
+    );
+  };
+  return { fetch: fetcher as typeof globalThis.fetch, calls };
+}
+
+test("a report the service took is done, and it travels with the room's token", async () => {
+  const { fetch, calls } = answering(204);
+  assert.equal(
+    await sendReport("https://rooms/results", report(), {
+      fetch,
+      roomToken: "t0ken",
+    }),
+    true,
+  );
+  const init = defined(calls[0]?.init, "the request");
+  assert.equal(init.method, "POST");
+  assert.equal(init.keepalive, true);
+  assert.deepEqual(init.headers, {
+    "content-type": "application/json",
+    authorization: "Bearer t0ken",
+  });
+  assert.equal(
+    JSON.parse(String(init.body)).matchId,
+    "m1",
+    "the receipt itself is the body",
+  );
+});
+
+test("a report sent without a room token carries no authorization at all", async () => {
+  const { fetch, calls } = answering(200);
+  await sendReport("https://rooms/results", report(), { fetch });
+  assert.deepEqual(defined(calls[0]?.init, "the request").headers, {
+    "content-type": "application/json",
+  });
+});
+
+test("only a refused or broken service is worth trying again", async () => {
+  const cases: [number, boolean, string][] = [
+    [403, false, "a refused token may be renewed, so the report is kept"],
+    [500, false, "a broken service may come back"],
+    [503, false, "and so may an unavailable one"],
+    [
+      400,
+      true,
+      "a rejected body is this build disagreeing with the service; retrying never starts agreeing",
+    ],
+    [404, true, "and neither does asking a missing route twice"],
+  ];
+  for (const [status, done, why] of cases)
+    assert.equal(
+      await sendReport("https://rooms/results", report(), {
+        fetch: answering(status).fetch,
+      }),
+      done,
+      `${String(status)}: ${why}`,
+    );
+});
+
+test("a network that refuses the report keeps it for the next try", async () => {
+  const fetch = (() =>
+    Promise.reject(new Error("offline"))) as unknown as typeof globalThis.fetch;
+  assert.equal(
+    await sendReport("https://rooms/results", report(), { fetch }),
+    false,
+  );
+});

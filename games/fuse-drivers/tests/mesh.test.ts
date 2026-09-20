@@ -98,7 +98,7 @@ function table(): Table {
         "normal",
       );
       memories.set(id, next);
-      if (runtime.drive(input)) changes++;
+      if (runtime.steer(input)) changes++;
     }
     return changes;
   };
@@ -357,8 +357,8 @@ test("a driver whose page goes away stops steering, and the peers that stay agre
   room.drive(1500);
   // b takes over from its own hands and holds the wheel over, which is one entry and no other.
   const driver = defined(room.peers[1]);
-  driver.drive({});
-  assert.equal(driver.drive({ left: true }), true, "b holds a left turn");
+  driver.steer({});
+  assert.equal(driver.steer({ left: true }), true, "b holds a left turn");
   room.mesh.run(800);
   for (const peer of room.peers)
     assert.equal(

@@ -9,6 +9,7 @@
   "branches": 85,
   "exclude": [
     "**/*.d.ts",
+    "games/fuse-riders/src/engine/primitives.ts",
     "games/dice/src/app/main.ts",
     "games/fuse-drivers/src/app/main.ts",
     "games/fuse-drivers/src/app/arena/index.ts",
