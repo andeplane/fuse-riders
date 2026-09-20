@@ -156,6 +156,8 @@ interface Member {
   /** When the link to the member's current connection was first seen usable, so its packets could arrive; -Infinity until then. */
   linkedAt: number;
   presence?: { connected: boolean; tick: number; at: number };
+  /** The member's last hello said its page is hidden: its world is frozen and it cannot serve one (§12). */
+  hidden: boolean;
 }
 const rulesNumber = (
   rules: unknown,
@@ -199,6 +201,11 @@ export const SNAPSHOT_BUFFER_LIMIT = 4_000_000,
   /** How long a member whose packets all fall outside this replica's window still counts as heard, and is resynced for: several snapshot attempts. */
   WINDOW_GRACE_MS = 10_000,
   SNAPSHOT_SERVE_MS = 500;
+export const AWAY_REPEAT_MS = 5000,
+  /** How often a page back in the foreground logs its own return in a room with nobody present to log it. */
+  RETURN_REPEAT_MS = 1000,
+  /** How long a resync that brought no newer world keeps this replica catching up instead of fetching again. */
+  CATCH_UP_HOLD_MS = 10_000;
 export const HASH_INTERVAL = 20,
   HASH_LAG = 40,
   /** Simulation steps per 10 ms loop interval, catch-up and rollback re-runs together (`World.refill`). */
@@ -277,6 +284,16 @@ export class RoomRuntime<
   private outOfSync = false;
   private full = true;
   protected hiddenState = false;
+  /**
+   * The tick of this member's own `PRESENCE false` while its page is hidden, until it logs its return: the hidden-member
+   * policy (ADR-047 §12). Kept here rather than read from the world, which does not advance while the page is hidden.
+   */
+  private awayTick?: number;
+  /** When this member last logged its own away entry, and when it last logged its own return (both are repeated, §12). */
+  private awayAt = -Infinity;
+  private returnAt = -Infinity;
+  /** Until when a resync that brought no newer world keeps this replica catching up rather than fetching again. */
+  private catchUpUntil = -Infinity;
   private cancelTick?: () => void;
   private cancelVisibility?: () => void;
   constructor(
@@ -430,6 +447,7 @@ export class RoomRuntime<
           windowSince: -Infinity,
           since: this.deps.now(),
           linkedAt: -Infinity,
+          hidden: false,
         });
       return;
     }
@@ -438,7 +456,16 @@ export class RoomRuntime<
     if (this.snapshotRequest?.to === id) this.snapshotRequest = undefined;
     const state = this.world?.state,
       player = state && this.game.seat(state, id);
-    if (!this.manager || !player) return;
+    // A hidden page's world is frozen: what it would log is judged from stale seats, so it leaves that to the others.
+    // Nor does a manager whose own seat is still away log departures: the entry would be discarded by every reducer
+    // while the stall rule read it, so the room would stop waiting for a member nobody disconnected.
+    if (
+      !this.manager ||
+      !player ||
+      this.hiddenState ||
+      this.game.seat(state!, this.id)?.away === true
+    )
+      return;
     // A reload reaches here too: the service retires the old socket before it admits the new page. In the lobby that
     // frees the seat, and the page confirms its name on the join card. Mid-match it is absence, not departure: `LEAVE`
     // frees a seat at once in `roundOver` and `matchOver`, so a reload that landed just after the round ended lost the
@@ -448,7 +475,7 @@ export class RoomRuntime<
     if (this.game.stage(state!) === "lobby")
       if (player.watcher) this.append(SPECTATOR, "leave", id);
       else this.append(LEAVE, id);
-    else if (player.connected)
+    else if (player.connected || player.away)
       this.append(PRESENCE, id, false, player.generation ?? 0);
   }
   /** A link opening is only a hint: the transport admits sends once its own probes confirm the path, so the tick loop retries. */
@@ -466,6 +493,7 @@ export class RoomRuntime<
       full: this.full,
       rules: this.game.rules,
       world: this.world !== undefined,
+      hidden: this.hiddenState,
     });
     if (!member.helloed) return;
     if (this.needsWorld() && !this.snapshotRequest) this.requestSnapshot(id);
@@ -483,6 +511,7 @@ export class RoomRuntime<
       error?: unknown;
       world?: unknown;
       role?: unknown;
+      hidden?: unknown;
     };
     const member = this.members.get(id);
     if (!member) return;
@@ -525,11 +554,23 @@ export class RoomRuntime<
         )
           this.bump(id, member, data.generation);
         member.full = data.full === true;
+        member.hidden = data.hidden === true;
         // A peer announcing a world is worth asking again, whatever it answered before.
-        if (data.world === true) this.noWorld.delete(id);
+        if (data.world === true) {
+          this.noWorld.delete(id);
+          // A source that may hold a newer world: worth one fetch again, whatever the last resync brought.
+          if (!member.hidden) this.catchUpUntil = -Infinity;
+        }
         return;
       case "join":
-        if (this.manager && typeof data.name === "string") {
+        if (
+          this.manager &&
+          !this.hiddenState &&
+          // A manager whose own seat is away seats nobody: the `JOIN` would be discarded and the joiner left waiting.
+          (this.world === undefined ||
+            this.game.seat(this.world.state, this.id)?.away !== true) &&
+          typeof data.name === "string"
+        ) {
           const error =
             data.role === "spectator"
               ? this.spectate(id, data.name)
@@ -548,7 +589,8 @@ export class RoomRuntime<
         const now = this.deps.now();
         if (now - member.snapshotServedAt < SNAPSHOT_SERVE_MS) return;
         member.snapshotServedAt = now;
-        if (this.world) {
+        // A hidden page's world is frozen where it hid: it is no source (and its reliable sends lapse soon after, §12).
+        if (this.world && !this.hiddenState) {
           for (const chunk of encodeSnapshot(this.world, this.room))
             if (!this.transport!.send(id, chunk, SNAPSHOT_BUFFER_LIMIT)) break;
         } else this.transport!.send(id, { type: "noWorld" });
@@ -681,7 +723,7 @@ export class RoomRuntime<
       seq: 0,
       tick: Math.max(0, this.world.tick - STALL_TICKS),
     });
-    if (this.creator) this.ensurePresence(id, member);
+    if (this.creator && !this.hiddenState) this.ensurePresence(id, member);
   }
 
   // ---- world lifecycle --------------------------------------------------------------------------------------------
@@ -739,23 +781,38 @@ export class RoomRuntime<
       this.deps.now() - (this.noWorld.get(id) ?? -Infinity) < SNAPSHOT_RETRY_MS
     );
   }
+  /** A member whose page is hidden, by its hello or by its away seat in this replica's world: its world is frozen. */
+  private hiddenMember(id: string): boolean {
+    if (this.members.get(id)?.hidden) return true;
+    return (
+      this.world !== undefined &&
+      this.game.seat(this.world.state, id)?.away === true
+    );
+  }
+  /** Members a snapshot may come from: compatible, linked and not hidden. */
+  private sources(): string[] {
+    return this.compatible()
+      .filter((id) => this.transport!.linked(id) && !this.hiddenMember(id))
+      .sort();
+  }
   private requestSnapshot(preferred?: string): void {
     if (!this.transport) return;
-    const all = this.compatible()
-        .filter((id) => this.transport!.linked(id))
-        .sort(),
+    const all = this.sources(),
       holders = all.filter((id) => !this.saidNoWorld(id));
     const linked = holders.length ? holders : all;
     if (!linked.length) return;
     const authority = this.authority();
     const previous = this.snapshotRequest?.to,
       next = linked[(linked.indexOf(previous ?? "") + 1) % linked.length]!;
+    // The authority first, then round the others in order on each retry: preferring the authority on every retry
+    // alternated between it and the member after it, so a third holder was never asked while those two could not answer
+    // (a hidden page, whose reliable sends lapse, among them).
     const to =
       preferred && linked.includes(preferred)
         ? preferred
         : authority !== this.id &&
             linked.includes(authority) &&
-            previous !== authority
+            previous === undefined
           ? authority
           : next;
     this.snapshotRequest = {
@@ -785,6 +842,12 @@ export class RoomRuntime<
     }
     const tick = decoded.state.tick,
       previous = this.world?.streams.get(this.id);
+    // A resync that is not ahead of this world says nobody is: the room is behind everywhere (a returning hidden page
+    // that was the only world holder, for one), so the backlog is caught up at the step budget instead of fetched again.
+    this.catchUpUntil =
+      this.world !== undefined && tick <= this.world.tick
+        ? this.deps.now() + CATCH_UP_HOLD_MS
+        : -Infinity;
     if (this.world) this.world.install(decoded.state);
     else {
       this.world = new World(this.game, decoded.state, this.hostId, this.id);
@@ -982,8 +1045,13 @@ export class RoomRuntime<
         ids.add(entry[4]);
         seats++;
       } else if (entry[2] === LEAVE) {
-        freed.add(entry[3]);
-        seats--;
+        // `LEAVE` is also how a watcher is removed (`kick`), and a watcher holds no seat. Only a member the fold
+        // still seats as a rider frees one, for the count here and for the slot `claimSlot` may reclaim.
+        const leaving = this.game.seat(this.world!.state, entry[3]);
+        if (leaving && !leaving.watcher) {
+          freed.add(entry[3]);
+          seats--;
+        }
       } else if (entry[2] === SPECTATOR) {
         if (entry[3] === "join") {
           ids.add(entry[4]);
@@ -1012,9 +1080,13 @@ export class RoomRuntime<
     ).find((slot) => !taken.has(slot));
     if (free !== undefined || this.game.stage(room) === "running")
       return free ?? -1;
-    const seat = seats.find(
-      (player) => !player.connected && !pending.freed.has(player.id),
-    );
+    // An absent seat first, then an away one: a hidden page keeps its seat unless the room is full and a joiner asks
+    // for it outside a running round (§12), which bounds how long one can hold a seat.
+    const reclaimable = (player: Seat) =>
+      !player.connected && !pending.freed.has(player.id);
+    const seat =
+      seats.find((player) => reclaimable(player) && !player.away) ??
+      seats.find(reclaimable);
     if (!seat) return -1;
     this.append(LEAVE, seat.id);
     return seat.slot;
@@ -1035,6 +1107,7 @@ export class RoomRuntime<
       windowSince: -Infinity,
       since: -Infinity,
       linkedAt: -Infinity,
+      hidden: this.hiddenState,
     };
   }
   private ensurePresence(id: string, member: Member): void {
@@ -1074,10 +1147,25 @@ export class RoomRuntime<
   }
   private creatorDuties(now: number): void {
     const room = this.world!.state,
+      // Its own seat away (the return is logged but not folded yet): every entry it appended would be discarded, and
+      // the bookkeeping would suppress the valid one that follows. It waits for its return to fold.
+      own = this.game.seat(room, this.id),
       stalled = now - this.lastLoopAt > DISCONNECT_MS / 2;
+    if (own?.away) return;
     for (const [id, member] of this.members) {
       const player = this.game.seat(room, id);
       if (!player) continue;
+      // An away member is judged by nobody while its page says it is hidden: its silence is expected, and its throttled
+      // packets are not a return (they would flap a seat whose away entry went missing). Once its hello says the page
+      // is visible again and its packets are heard, this is where the return is logged — every loop pass until the seat
+      // is present, so a lost entry is simply logged again. The member's own return would be on a stream nobody waits
+      // for, which is why the manager owns it (§12).
+      if (member.hidden) continue;
+      if (player.away) {
+        if (now - member.lastPacketAt <= DISCONNECT_MS)
+          this.ensurePresence(id, member);
+        continue;
+      }
       // Present again only on a packet; absent only on silence this runtime could have heard. In between — a link
       // just up and no packet yet — nothing is logged either way.
       const heard = now - member.lastPacketAt <= DISCONNECT_MS;
@@ -1091,7 +1179,7 @@ export class RoomRuntime<
       else if (!player.connected && heard) this.ensurePresence(id, member);
     }
     const self = this.game.seat(room, this.id);
-    if (self && !self.connected)
+    if (self && !self.connected && !self.away)
       this.ensurePresence(this.id, this.selfMember());
   }
   /**
@@ -1101,7 +1189,9 @@ export class RoomRuntime<
    */
   private actingCreatorDuties(now: number): void {
     const state = this.world!.state,
-      order = successionOrder(this.game.members(state), this.hostId),
+      // Away members rank here too (`permitted` ranks them the same for this one entry): a member whose last peer died
+      // unlogged while it was away must be able to record that, or it can never return and the room has no manager.
+      order = successionOrder(this.game.members(state), this.hostId, true),
       mine = order.indexOf(this.id);
     // No record at all: the service says that member is offline. A record not heard yet gets the same fair chance as above.
     const silent = (id: string) => {
@@ -1110,10 +1200,17 @@ export class RoomRuntime<
     };
     // Only a silent creator opens the succession: while it is heard, it alone marks riders absent, on its one-second rule.
     if (mine < 0 || !silent(this.hostId)) return;
-    const heard = (id: string) =>
-      id === this.id ||
-      (this.members.has(id) &&
-        now - this.members.get(id)!.lastPacketAt <= DISCONNECT_MS);
+    // A hidden page's packets arrive about once a second, right on the `DISCONNECT_MS` boundary, so it would win this
+    // election every other pass and then do nothing (its duties are for visible pages): it is not counted as heard.
+    const heard = (id: string) => {
+      const member = this.members.get(id);
+      return (
+        id === this.id ||
+        (member !== undefined &&
+          !member.hidden &&
+          now - member.lastPacketAt <= DISCONNECT_MS)
+      );
+    };
     if (order.slice(1).find(heard) !== this.id) return;
     for (const id of order.slice(0, mine)) {
       if (!this.game.seat(state, id)?.connected || !silent(id)) continue;
@@ -1167,6 +1264,8 @@ export class RoomRuntime<
       this.status.notice(this.text.loading);
       return false;
     }
+    // A hidden page's world is frozen where it hid: nothing it would log from it is sound (§12).
+    if (this.hiddenState && this.transport) return false;
     // Whoever runs the room right now: the creator, or the delegate holding it while the creator is away.
     if (!this.managing) {
       this.status.notice(this.text.hostOnly);
@@ -1312,12 +1411,18 @@ export class RoomRuntime<
 
   // ---- cadence ----------------------------------------------------------------------------------------------------
   private authority(): string {
-    if (this.creator || this.members.has(this.hostId)) return this.hostId;
+    // A hidden page's packets come once a second at best: it is no clock or hash authority, creator or not (§12).
+    const host = this.members.get(this.hostId);
+    if (this.creator || (host !== undefined && !host.hidden))
+      return this.hostId;
     const now = this.deps.now();
     return [
       this.id,
       ...[...this.members]
-        .filter(([, member]) => now - member.lastPacketAt <= CREATOR_SILENCE_MS)
+        .filter(
+          ([, member]) =>
+            now - member.lastPacketAt <= CREATOR_SILENCE_MS && !member.hidden,
+        )
         .map(([id]) => id),
     ].sort()[0]!;
   }
@@ -1327,6 +1432,7 @@ export class RoomRuntime<
     this.hiddenState = hidden;
     if (hidden) {
       if (this.world && this.player()) this.releaseControls();
+      if (this.transport) this.stepAway();
       // Solo freezes the clock, so the released controls are folded in now rather than when the tab returns.
       if (this.solo && this.world) {
         // Solo has no peers to roll back for and is at most a tick behind: this fold is not paced.
@@ -1337,9 +1443,71 @@ export class RoomRuntime<
       }
       return;
     }
-    if (this.solo) this.clock.resume();
-    else if (this.world && this.behind(Math.floor(this.clock.tick())))
+    if (this.solo) {
+      this.clock.resume();
+      return;
+    }
+    this.stepBack();
+    if (this.world && this.behind(Math.floor(this.clock.tick())))
       this.requestSnapshot();
+  }
+  /**
+   * The hidden-member policy (ADR-047 §12, `docs/design/hidden-tab-policy.md`). A member that is present in the room logs
+   * its own `PRESENCE false` as its page hides: every replica then keeps its seat and its place in the game, folds neutral
+   * controls for it, stops waiting on its stream and stops judging its silence, so a page whose timers the browser
+   * throttles to once a second, once a minute or not at all neither flaps nor stalls anyone. The entry leaves now, in a
+   * packet of its own, while the page still runs; the hello that follows tells the others not to ask this page for the
+   * world it has stopped advancing.
+   */
+  private stepAway(): void {
+    // A seat or a place in the watching list is enough, present or not: a member the manager logged absent a moment
+    // earlier still steps away, or its throttled packets would flap the seat back and forth.
+    const own = this.world && this.game.seat(this.world.state, this.id);
+    if (own && !own.away && this.awayTick === undefined) {
+      this.awayTick = this.awayEntry();
+      this.sendPackets(this.deps.now());
+    }
+    this.announceVisibility();
+  }
+  /**
+   * Back: the hello says this page is visible and serves its world again, and the manager logs the return from the
+   * packets it hears (`creatorDuties`). The member does not log its own return here: that entry is on a stream nobody
+   * waits for, so a lost one would leave this replica the only one that thinks it is back — a divergence the hash would
+   * then chase. It logs its own only when the room has nobody present to do it (`ownReturn`).
+   */
+  private stepBack(): void {
+    this.awayTick = undefined;
+    this.announceVisibility();
+  }
+  /** This member's own away entry, sent at once: repeated while hidden, because a manager may have logged it absent first. */
+  private awayEntry(): number {
+    this.awayAt = this.deps.now();
+    const tick = this.append(PRESENCE, this.id, false, this.generation);
+    this.sendPackets(this.awayAt);
+    return tick;
+  }
+  /**
+   * The one case the manager cannot cover: this page is back, its seat is still away and the room has nobody present to
+   * log it in — every other member is away or has none. Its own entry cannot diverge from a present replica, because
+   * there is none: the others fold it when they come back.
+   */
+  private ownReturn(now: number): void {
+    const state = this.world!.state;
+    if (
+      [...this.game.members(state)].some(
+        (seat) => seat.connected && !seat.bot && seat.id !== this.id,
+      )
+    )
+      return;
+    this.returnAt = now;
+    this.append(PRESENCE, this.id, true, this.generation);
+    this.sendPackets(now);
+  }
+  private announceVisibility(): void {
+    for (const [id, member] of this.members) {
+      member.helloed = false;
+      this.greet(id, member);
+    }
   }
   /**
    * Whether catching up to log tick `to` would cost more than `BEHIND_STEPS` steps: the gap in log ticks past the
@@ -1451,8 +1619,17 @@ export class RoomRuntime<
     else if (!this.hiddenState && (tick > world.tick || !world.settled)) {
       // Only ticks the stall rule lets us reach count as a backlog: a world waiting on a member is not behind, and a
       // long stall must end by catching up, never by fetching a snapshot from a peer that waited just as long.
-      const reachable = Math.min(tick, world.stallBound().tick);
-      if (this.transport && this.behind(reachable) && this.members.size > 0) {
+      const reachable = Math.min(tick, world.stallBound().tick),
+        behind = this.behind(reachable);
+      if (!behind) this.catchUpUntil = -Infinity;
+      // Fetched only from someone who can have a newer world: with every source hidden or without one, or after a
+      // resync that brought nothing newer, the backlog is caught up here at the step budget.
+      if (
+        this.transport &&
+        behind &&
+        now >= this.catchUpUntil &&
+        this.sources().some((id) => !this.saidNoWorld(id))
+      ) {
         if (!this.snapshotRequest) this.requestSnapshot();
       } else {
         // The budget window (`CATCHUP_STEPS`, refilled after every pass) paces how far this pass gets.
@@ -1467,8 +1644,24 @@ export class RoomRuntime<
       }
     }
     if (this.transport) {
-      if (this.manager) this.creatorDuties(now);
-      if (!this.creator) this.actingCreatorDuties(now);
+      const own = this.game.seat(world.state, this.id);
+      if (
+        this.hiddenState &&
+        this.awayTick !== undefined &&
+        now - this.awayAt >= AWAY_REPEAT_MS
+      )
+        this.awayTick = this.awayEntry();
+      else if (
+        !this.hiddenState &&
+        this.awayTick === undefined &&
+        own?.away === true &&
+        world.settled &&
+        now - this.returnAt >= RETURN_REPEAT_MS
+      )
+        this.ownReturn(now);
+      // A hidden page's world is frozen where it hid: it judges nobody and logs nothing for the room (§12).
+      if (this.manager && !this.hiddenState) this.creatorDuties(now);
+      if (!this.creator && !this.hiddenState) this.actingCreatorDuties(now);
       this.settleKick();
       this.lastLoopAt = now;
       const player = this.player();

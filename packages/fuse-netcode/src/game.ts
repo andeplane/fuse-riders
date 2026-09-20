@@ -31,6 +31,11 @@ export interface Seat {
   watcher?: boolean;
   /** The stream generation the seat's controls follow (Fuse Riders: `folds`); absent for a bot or a seat without one. */
   generation?: number;
+  /**
+   * The member logged itself away (its page is hidden): it keeps its seat and, in the game, its place, but `connected` is
+   * false, so nothing waits on its stream, nobody judges its silence and it manages nothing until it logs its return.
+   */
+  away?: boolean;
 }
 
 /**
@@ -106,6 +111,7 @@ export interface RollbackGame<
   };
   /** Seats in the game's own order: the stall rule names the first member it waits for in this order. */
   members(room: Room): Iterable<Seat>;
+  /** The seat `members` lists for `id`, watcher and all: a member is a rider or a watcher in both, never both at once. */
   seat(room: Room, id: string): Seat | undefined;
   stage(room: Room): Stage;
   /** The room's settings: what the next match starts with, and what `Callbacks.state` hands the screen. */
