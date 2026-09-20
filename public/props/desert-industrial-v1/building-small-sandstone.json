@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "building-small-sandstone",
+  "category": "building",
+  "sizeClass": "small",
+  "description": "Small warm sandstone utility hut with two square roof caps and an amber doorway.",
+  "image": {
+    "file": "building-small-sandstone.png",
+    "width": 1254,
+    "height": 1254,
+    "sha256": "3069677d00157c6159b05defac5aeb3245e6c584cca148d0b977b30c757bd10a"
+  },
+  "anchorPixels": {
+    "x": 628.5,
+    "y": 613.5
+  },
+  "hitboxPixels": {
+    "shape": "rectangle",
+    "centerX": 628.5,
+    "centerY": 613.5,
+    "width": 945,
+    "height": 637
+  },
+  "recommendedWorld": {
+    "unitsPerPixel": 0.10158730158730159,
+    "rotationDegrees": 0,
+    "hitbox": {
+      "shape": "rectangle",
+      "centerX": 0,
+      "centerY": 0,
+      "width": 96.0,
+      "height": 64.71111111111111
+    }
+  },
+  "collisionFit": {
+    "method": "alpha-128-bounds",
+    "silhouetteIoU": 0.997144
+  }
+}

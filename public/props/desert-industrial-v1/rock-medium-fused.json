@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "rock-medium-fused",
+  "category": "rock",
+  "sizeClass": "medium",
+  "description": "Medium circular rock with three fused surface lobes.",
+  "image": {
+    "file": "rock-medium-fused.png",
+    "width": 1254,
+    "height": 1254,
+    "sha256": "799cd51b02f1dcf4e6f897ae6ae627c83bdc67c93bdf8bef918aa9bd4f5a0d12"
+  },
+  "anchorPixels": {
+    "x": 627.0,
+    "y": 630.0
+  },
+  "hitboxPixels": {
+    "shape": "circle",
+    "centerX": 627.0,
+    "centerY": 630.0,
+    "radius": 417.0
+  },
+  "recommendedWorld": {
+    "unitsPerPixel": 0.09112709832134293,
+    "rotationDegrees": 0,
+    "hitbox": {
+      "shape": "circle",
+      "centerX": 0,
+      "centerY": 0,
+      "radius": 38.0
+    }
+  },
+  "collisionFit": {
+    "method": "circle-at-alpha-128-bounds-center-with-mean-diameter",
+    "silhouetteIoU": 0.990275
+  }
+}

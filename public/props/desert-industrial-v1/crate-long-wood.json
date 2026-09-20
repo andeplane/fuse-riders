@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "crate-long-wood",
+  "category": "crate",
+  "sizeClass": "large",
+  "description": "Long wooden shipping crate with distinct planks and two reinforcement bars.",
+  "image": {
+    "file": "crate-long-wood.png",
+    "width": 1254,
+    "height": 1254,
+    "sha256": "280a8ad3ed3f2d685d31514fb91dbcb3ec8414bf31c620a9f106c03bddd1194a"
+  },
+  "anchorPixels": {
+    "x": 627.0,
+    "y": 649.0
+  },
+  "hitboxPixels": {
+    "shape": "rectangle",
+    "centerX": 627.0,
+    "centerY": 649.0,
+    "width": 1124,
+    "height": 490
+  },
+  "recommendedWorld": {
+    "unitsPerPixel": 0.0711743772241993,
+    "rotationDegrees": 0,
+    "hitbox": {
+      "shape": "rectangle",
+      "centerX": 0,
+      "centerY": 0,
+      "width": 80.00000000000001,
+      "height": 34.87544483985766
+    }
+  },
+  "collisionFit": {
+    "method": "alpha-128-bounds",
+    "silhouetteIoU": 0.988897
+  }
+}
