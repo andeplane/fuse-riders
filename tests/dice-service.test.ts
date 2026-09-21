@@ -41,7 +41,7 @@ function playedMatch(a: string, b: string) {
 }
 
 test("the service hosts dice rooms beside Fuse Riders, and a room refuses the other game's pages", async () => {
-  assert.deepEqual(platform.gameIds, [GAME_ID, diceGame.id]);
+  assert.deepEqual(platform.gameIds, [GAME_ID, diceGame.id, "ball-bros"]);
   assert.equal(diceRegistration.id, diceGame.id);
   const service = createDevRoomService({
     identity: async (value) =>
@@ -85,6 +85,10 @@ test("the service hosts dice rooms beside Fuse Riders, and a room refuses the ot
   try {
     const dice = await create("dice"),
       riders = await create(GAME_ID);
+    const ballBros = await create("ball-bros");
+    assert.deepEqual(await open(ballBros.code, ballBros.token, "ball-bros"), {
+      welcomed: true,
+    });
     assert.deepEqual(await open(dice.code, dice.token, "dice"), {
       welcomed: true,
     });
@@ -99,6 +103,8 @@ test("the service hosts dice rooms beside Fuse Riders, and a room refuses the ot
     assert.deepEqual(await open(dice.code, token(), GAME_ID), refused);
     assert.deepEqual(await open(dice.code, token()), refused);
     assert.deepEqual(await open(riders.code, token(), "dice"), refused);
+    assert.deepEqual(await open(ballBros.code, token(), "dice"), refused);
+    assert.deepEqual(await open(dice.code, token(), "ball-bros"), refused);
 
     // Two signed-in players finish a rated dice round and the match.
     const guest = token();

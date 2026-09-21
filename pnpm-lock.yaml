@@ -23,6 +23,9 @@ importers:
       '@stdlib/math-base-special-sin':
         specifier: 0.3.1
         version: 0.3.1
+      ball-bros:
+        specifier: workspace:*
+        version: link:games/ball-bros
       dice:
         specifier: workspace:*
         version: link:games/dice
@@ -120,6 +123,31 @@ importers:
       yaml:
         specifier: ^2.9.1
         version: 2.9.1
+
+  games/ball-bros:
+    dependencies:
+      '@stdlib/math-base-special-atan2':
+        specifier: 0.3.1
+        version: 0.3.1
+      '@stdlib/math-base-special-cos':
+        specifier: 0.3.1
+        version: 0.3.1
+      '@stdlib/math-base-special-sin':
+        specifier: 0.3.1
+        version: 0.3.1
+      fuse-netcode:
+        specifier: workspace:*
+        version: link:../../packages/fuse-netcode
+      fuse-platform:
+        specifier: workspace:*
+        version: link:../../packages/fuse-platform
+    devDependencies:
+      fuse-ui:
+        specifier: workspace:*
+        version: link:../../packages/fuse-ui
+      phaser:
+        specifier: 4.2.1
+        version: 4.2.1
 
   games/dice:
     dependencies:

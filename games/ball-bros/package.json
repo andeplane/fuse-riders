@@ -1,0 +1,21 @@
+{
+  "name": "ball-bros",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/online/game.ts",
+    "./platform": "./src/platform.ts"
+  },
+  "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-platform": "workspace:*",
+    "@stdlib/math-base-special-sin": "0.3.1",
+    "@stdlib/math-base-special-cos": "0.3.1",
+    "@stdlib/math-base-special-atan2": "0.3.1"
+  },
+  "devDependencies": {
+    "fuse-ui": "workspace:*",
+    "phaser": "4.2.1"
+  }
+}

@@ -124,6 +124,10 @@ One service and one Firestore database serve every game, keyed by `gameId`. A ro
 
 Validate admission, signalling and stored records at runtime; bound queues, dedupe maps and recovery. Preserve exact-origin checks, capability authentication, stateless gateways and incarnation fencing. Origin checks are not authentication. The abuse and hosting-cost changes in [#256](https://github.com/andeplane/fuse-riders/issues/256) are pending work, not guarantees made by this map.
 
+## Ball Bros core POC
+
+`games/ball-bros/` is an unranked solo orbital-breakout experiment at `/ball-bros/`, linked from the Fuse Riders landing page. Its pure `engine/` owns swept ball collisions, stationary base-local blocks, orbital paddles and ordinary-input bots. `online/` implements `RollbackGame` and uses the shared `RoomRuntime` even for solo; `render/` consumes the engine view using externally stepped Phaser Canvas; `app/` owns menus, controls and synthesized audio. The service registers `ball-bros` for admission but its platform registration refuses statistics reports. Online joining, shared-screen play, pickups and moving bases remain later work. See [the POC design](design/ball-bros-poc.md) and [game README](../games/ball-bros/README.md).
+
 ## Verification boundaries
 
 [Verification guidance](verification.md) maps unit, browser and release checks to their scope. Tests use typed injected clocks, schedulers, transports and randomness; browser checks exercise the actual presentation and transport seams. Coverage applies only to `.c8rc.json`'s included modules. Neither a passing PR verify job nor desktop browser emulation proves physical-phone or WAN acceptance. Claims about releases require the exact source revision and live external evidence.
