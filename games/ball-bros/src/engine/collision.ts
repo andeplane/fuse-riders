@@ -1,5 +1,13 @@
 import { angleDelta, atan2, cos, length, sin } from "./math.js";
-import { BALL_RADIUS, PADDLE, PADDLE_HALF, PADDLE_THICK } from "./state.js";
+import {
+  ARENA,
+  CENTER,
+  WALLS,
+  BALL_RADIUS,
+  PADDLE,
+  PADDLE_THICK,
+  paddleHalf,
+} from "./state.js";
 
 export interface Motion {
   x: number;
@@ -11,6 +19,20 @@ export interface Contact {
   t: number;
   nx: number;
   ny: number;
+  surfaceNormal?: number;
+}
+
+export function wall(m: Motion, seconds: number): Contact | undefined {
+  let best: Contact | undefined;
+  for (const n of WALLS) {
+    const speed = m.vx * n.x + m.vy * n.y;
+    if (speed <= 0) continue;
+    const distance =
+      ARENA - BALL_RADIUS - ((m.x - CENTER) * n.x + (m.y - CENTER) * n.y);
+    const t = Math.max(0, distance / speed);
+    if (t <= seconds && (!best || t < best.t)) best = { t, nx: -n.x, ny: -n.y };
+  }
+  return best;
 }
 
 /** Moving point against a circle; inside=true is an enclosing arena. */
@@ -77,19 +99,26 @@ export function paddle(
   angle: number,
   omega: number,
   seconds: number,
+  radius = PADDLE,
+  radialSpeed = 0,
 ): Contact | undefined {
-  const bound = length(m.vx, m.vy) + Math.abs(omega) * PADDLE;
+  const bound =
+    length(m.vx, m.vy) +
+    Math.abs(omega) * (radius + Math.abs(radialSpeed) * seconds) +
+    Math.abs(radialSpeed) *
+      (1 + paddleHalf(Math.min(radius, radius + radialSpeed * seconds)));
   if (!bound) return;
   let t = 0;
   for (let iteration = 0; iteration < 64; iteration++) {
     const px = m.x + m.vx * t - x,
       py = m.y + m.vy * t - y;
     const center = angle + omega * t;
+    const r = radius + radialSpeed * t;
+    const half = paddleHalf(r);
     const delta = angleDelta(atan2(py, px), center);
-    const nearest =
-      center + Math.max(-PADDLE_HALF, Math.min(PADDLE_HALF, delta));
-    const qx = cos(nearest) * PADDLE,
-      qy = sin(nearest) * PADDLE;
+    const nearest = center + Math.max(-half, Math.min(half, delta));
+    const qx = cos(nearest) * r,
+      qy = sin(nearest) * r;
     const dx = px - qx,
       dy = py - qy,
       dist = length(dx, dy);
@@ -97,8 +126,15 @@ export function paddle(
       ny = dy / (dist || 1);
     const gap = dist - BALL_RADIUS - PADDLE_THICK;
     if (gap <= 0.0001) {
-      const approach = (m.vx + omega * qy) * nx + (m.vy - omega * qx) * ny;
-      return approach < -0.0001 ? { t, nx, ny } : undefined;
+      const edgeOmega =
+        Math.abs(delta) > half
+          ? omega - (Math.sign(delta) * half * radialSpeed) / r
+          : omega;
+      const surfaceNormal =
+        (-edgeOmega * qy + (radialSpeed * qx) / r) * nx +
+        (edgeOmega * qx + (radialSpeed * qy) / r) * ny;
+      const approach = m.vx * nx + m.vy * ny - surfaceNormal;
+      return approach < -0.0001 ? { t, nx, ny, surfaceNormal } : undefined;
     }
     t += gap / bound;
     if (t > seconds) return;

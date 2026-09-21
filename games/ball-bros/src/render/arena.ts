@@ -84,28 +84,37 @@ export function createRenderer(parent: HTMLElement): ArenaRenderer {
         r = v.rules,
         g = graphics;
       g.clear();
+      const outline = r.vertices.map((p) => new Phaser.Math.Vector2(p.x, p.y));
       g.fillStyle(0x101e32);
-      g.fillCircle(500, 506, r.arena + 10);
+      g.fillPoints(
+        outline.map((p) => new Phaser.Math.Vector2(p.x, p.y + 6)),
+        true,
+      );
       g.fillStyle(0x0b1729);
-      g.fillCircle(500, 500, r.arena);
+      g.fillPoints(outline, true);
       g.lineStyle(12, 0x39cbef, 0.045);
-      g.strokeCircle(500, 500, r.arena);
+      g.strokePoints(outline, true);
       g.lineStyle(2, 0x6db1c8, 0.35);
-      g.strokeCircle(500, 500, r.arena);
+      g.strokePoints(outline, true);
       g.lineStyle(1, 0x578899, 0.08);
       g.strokeCircle(500, 500, 105);
       g.strokeCircle(500, 500, 110);
       for (const b of s.bases) {
         const color = COLORS[b.slot]!;
+        const half = (r.paddleHalf * r.paddle) / b.radius;
         if (!b.alive) {
           g.lineStyle(1, color, 0.12);
           g.strokeCircle(b.x, b.y, r.core + 5);
           continue;
         }
         g.fillStyle(color, 0.035);
-        g.fillCircle(b.x, b.y, 89);
+        g.fillCircle(b.x, b.y, r.paddleMin);
+        // Faint limits show the available reach without cluttering the field.
+        g.lineStyle(1, color, b.bot ? 0.045 : 0.12);
+        g.strokeCircle(b.x, b.y, r.paddleMin);
+        g.strokeCircle(b.x, b.y, r.paddleMax);
         g.lineStyle(1, color, 0.13);
-        g.strokeCircle(b.x, b.y, r.paddle);
+        g.strokeCircle(b.x, b.y, b.radius);
         for (const block of b.blocks) {
           if (!block.alive) continue;
           const x = b.x + block.x,
@@ -126,20 +135,14 @@ export function createRenderer(parent: HTMLElement): ArenaRenderer {
         ] as const) {
           g.lineStyle(width, color, alpha);
           g.beginPath();
-          g.arc(
-            b.x,
-            b.y,
-            r.paddle,
-            b.angle - r.paddleHalf,
-            b.angle + r.paddleHalf,
-          );
+          g.arc(b.x, b.y, b.radius, b.angle - half, b.angle + half);
           g.strokePath();
         }
-        for (const angle of [b.angle - r.paddleHalf, b.angle + r.paddleHalf]) {
+        for (const angle of [b.angle - half, b.angle + half]) {
           g.fillStyle(color);
           g.fillCircle(
-            b.x + Math.cos(angle) * r.paddle,
-            b.y + Math.sin(angle) * r.paddle,
+            b.x + Math.cos(angle) * b.radius,
+            b.y + Math.sin(angle) * b.radius,
             r.paddleThick,
           );
         }

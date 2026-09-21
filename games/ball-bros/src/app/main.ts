@@ -18,7 +18,7 @@ const audio = new Audio(new URLSearchParams(location.search).has("mute"));
 const top = el("header", "", "topbar"),
   home = el("a", "← FUSE ARCADE", "back");
 home.href = new URL("../", location.href).href;
-const badge = el("span", "EXPERIMENT 01 / SOLO + 4 BOTS", "eyebrow");
+const badge = el("span", "EXPERIMENT 02 / SOLO + 4 BOTS", "eyebrow");
 const sound = el(
   "button",
   audio.muted ? "SOUND OFF" : "SOUND ON",
@@ -53,7 +53,10 @@ const canvasHost = el("div", "", "canvas-host");
 canvasHost.setAttribute("aria-label", "Ball Bros arena");
 const overlay = el("div", "", "overlay"),
   overlayTitle = el("h2", "DEFEND YOUR CORE"),
-  overlayText = el("p", "A / D to orbit · W / Space to launch"),
+  overlayText = el(
+    "p",
+    "A / D to orbit · W / S to reach out / pull in · Space to launch",
+  ),
   start = el("button", "PLAY SOLO", "primary");
 overlay.append(
   el("span", "BALL BROS / FIRST CONTACT", "eyebrow"),
@@ -74,7 +77,7 @@ instructions.append(
   el("h3", "Keep the rally alive."),
   el(
     "p",
-    "Orbit your base to intercept incoming balls. A moving paddle adds a little spin to your return.",
+    "Orbit with A / D. Reach out with W for early interceptions; pull in with S for tighter coverage. Combine both to chase a save.",
   ),
   el(
     "p",
@@ -82,7 +85,11 @@ instructions.append(
   ),
 );
 const keys = el("div", "", "key-guide");
-keys.append(el("p", "A / D   ORBIT"), el("p", "W / SPACE   LAUNCH"));
+keys.append(
+  el("p", "A / D   ORBIT"),
+  el("p", "W / S   OUT / IN"),
+  el("p", "SPACE   LAUNCH"),
+);
 const restart = el("button", "RESTART ROUND", "quiet-button");
 restart.hidden = true;
 side.append(
@@ -103,13 +110,15 @@ let runtime: BallRuntime | undefined,
   latest: BallView | undefined,
   frame = 0,
   playing = false;
-const controls = new Controls((steer, launch) => {
+const controls = new Controls((steer, radial, launch) => {
   audio.unlock();
-  runtime?.input(steer, launch);
+  runtime?.input(steer, radial, launch);
 });
 for (const [action, label] of [
   ["left", "↶ LEFT"],
+  ["inward", "IN ↓"],
   ["launch", "LAUNCH"],
+  ["outward", "OUT ↑"],
   ["right", "RIGHT ↷"],
 ] as const) {
   const button = el("button", label, `pad ${action}`);

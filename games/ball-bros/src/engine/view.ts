@@ -1,5 +1,8 @@
 import {
   ARENA,
+  VERTICES,
+  PADDLE_MIN,
+  PADDLE_MAX,
   CORE,
   PADDLE,
   PADDLE_HALF,
@@ -12,6 +15,9 @@ import {
 export type { ArenaState, Impact } from "./state.js";
 export const viewRules = {
   arena: ARENA,
+  vertices: VERTICES,
+  paddleMin: PADDLE_MIN,
+  paddleMax: PADDLE_MAX,
   core: CORE,
   paddle: PADDLE,
   paddleHalf: PADDLE_HALF,

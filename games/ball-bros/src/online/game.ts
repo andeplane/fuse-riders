@@ -47,6 +47,7 @@ export type PlayEntry = [
   kind: 0,
   match: string,
   steer: Steering,
+  radial: Steering,
   launch: boolean,
 ];
 export type BallEntry = PlayEntry | ManagementEntry<Settings>;
@@ -78,7 +79,7 @@ export function isEntry(raw: unknown): raw is BallEntry {
   }
   return (
     Array.isArray(raw) &&
-    raw.length === 6 &&
+    raw.length === 7 &&
     uint32(raw[0]) &&
     raw[0] > 0 &&
     uint32(raw[1]) &&
@@ -86,7 +87,8 @@ export function isEntry(raw: unknown): raw is BallEntry {
     raw[2] === 0 &&
     matchId(raw[3]) &&
     [-1, 0, 1].includes(raw[4]) &&
-    typeof raw[5] === "boolean"
+    [-1, 0, 1].includes(raw[5]) &&
+    typeof raw[6] === "boolean"
   );
 }
 export const seats = (room: BallRoom): SeatRecord[] =>
@@ -140,7 +142,7 @@ export function foldTick(
         continue;
       }
       if (!seat?.connected) {
-        control(arena, base.id, { steer: 0, launch: false });
+        control(arena, base.id, { steer: 0, radial: 0, launch: false });
         continue;
       }
       const stream = streams.get(base.id);
@@ -150,7 +152,11 @@ export function foldTick(
           : stream?.retired?.find((s) => s.generation === seat.generation);
       for (const entry of source?.entries ?? []) {
         if (entry[1] === tick && entry[2] === 0 && entry[3] === room.matchId)
-          control(arena, base.id, { steer: entry[4], launch: entry[5] });
+          control(arena, base.id, {
+            steer: entry[4],
+            radial: entry[5],
+            launch: entry[6],
+          });
       }
     }
     events = step(arena);

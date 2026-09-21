@@ -15,13 +15,13 @@ test("HUD shows countdown, launch, damage, spectating and corrected results from
   assert.equal(hud().toast, "GET READY · 3");
   arena.tick = 60;
   arena.phase = "playing";
-  assert.equal(hud().toast, "W / SPACE TO LAUNCH");
+  assert.equal(hud().toast, "SPACE TO LAUNCH");
   arena.balls[0]!.held = null;
   arena.tick = 100;
   assert.equal(hud().toast, "");
   assert.equal(hud().time, "01:58");
   arena.bases[0]!.blocks[0]!.alive = false;
-  assert.equal(hud().cards[0]!.armor, "23 / 24");
+  assert.equal(hud().cards[0]!.armor, "47 / 48");
   arena.bases[0]!.alive = false;
   assert.equal(hud().cards[0]!.armor, "CORE LOST");
   assert.equal(hud().cards[0]!.label, "SPECTATING");
@@ -39,7 +39,7 @@ test("HUD shows countdown, launch, damage, spectating and corrected results from
   arena.bases[0]!.blocks[0]!.alive = true;
   arena.phase = "playing";
   assert.equal(hud().over, false);
-  assert.equal(hud().cards[0]!.armor, "24 / 24");
+  assert.equal(hud().cards[0]!.armor, "48 / 48");
   arena.bases[0]!.bot = true;
   assert.equal(hud().result, "Your saves: 0 · Enemy blocks broken: 0");
 });

@@ -1,18 +1,15 @@
-import { block, circle, paddle, type Contact } from "./collision.js";
+import { block, circle, paddle, wall, type Contact } from "./collision.js";
 import { cos, length, sin, wrap } from "./math.js";
 import {
-  ARENA,
   AUTO_LAUNCH,
   BALL_RADIUS,
   BALL_SPEED,
-  CENTER,
   CORE,
   COUNTDOWN,
   DT,
   LIMIT,
-  PADDLE,
+  paddleMotion,
   SUBSTEPS,
-  TURN_SPEED,
   type ArenaState,
   type Ball,
   type Base,
@@ -43,13 +40,10 @@ function fly(
       if (c && (!hit || c.t < hit.t - 1e-9))
         hit = { ...c, kind, base, blockIndex };
     };
-    take(
-      circle(ball, CENTER, CENTER, ARENA - BALL_RADIUS, remaining, true),
-      "wall",
-    );
+    take(wall(ball, remaining), "wall");
     for (const base of state.bases) {
       if (!base.alive) continue;
-      const omega = base.steer * TURN_SPEED;
+      const { omega, radialSpeed } = paddleMotion(base);
       take(
         paddle(
           ball,
@@ -58,6 +52,8 @@ function fly(
           base.angle + omega * elapsed,
           omega,
           remaining,
+          base.radius + radialSpeed * elapsed,
+          radialSpeed,
         ),
         "paddle",
         base,
@@ -91,25 +87,31 @@ function fly(
       const attacker = state.bases.find((b) => b.id === ball.owner);
       if (attacker && attacker.id !== h.base.id) attacker.broken++;
     }
-    const dot = ball.vx * h.nx + ball.vy * h.ny;
+    const dot = ball.vx * h.nx + ball.vy * h.ny - (h.surfaceNormal ?? 0);
     ball.vx -= 2 * dot * h.nx;
     ball.vy -= 2 * dot * h.ny;
     if (h.kind === "paddle" && h.base) {
       ball.owner = h.base.id;
       h.base.saves++;
-      // Modest spin; normalize and retain an outward normal component at edge contacts.
+      // Modest spin; contact reflection includes the moving surface's velocity.
       ball.vx += -h.ny * h.base.steer * 55;
       ball.vy += h.nx * h.base.steer * 55;
-      const outward = ball.vx * h.nx + ball.vy * h.ny;
-      if (outward < 80) {
-        ball.vx += h.nx * (80 - outward);
-        ball.vy += h.ny * (80 - outward);
-      }
     }
     const speed = BALL_SPEED,
       magnitude = length(ball.vx, ball.vy) || 1;
     ball.vx = (ball.vx / magnitude) * speed;
     ball.vy = (ball.vy / magnitude) * speed;
+    if (h.kind === "paddle") {
+      // Enforce separation AFTER speed normalization, including radial/tip motion.
+      const minimum = Math.max(80, (h.surfaceNormal ?? 0) + 20);
+      if (ball.vx * h.nx + ball.vy * h.ny < minimum) {
+        const tangent =
+          (Math.sign(-ball.vx * h.ny + ball.vy * h.nx) || 1) *
+          Math.sqrt(speed * speed - minimum * minimum);
+        ball.vx = h.nx * minimum - h.ny * tangent;
+        ball.vy = h.ny * minimum + h.nx * tangent;
+      }
+    }
     ball.x += h.nx * 0.002;
     ball.y += h.ny * 0.002;
     events.push({
@@ -131,8 +133,8 @@ export function step(state: ArenaState): Impact[] {
     for (const ball of state.balls) {
       if (ball.held) {
         const base = state.bases.find((b) => b.id === ball.held)!;
-        ball.x = base.x + cos(base.angle) * (PADDLE + 13);
-        ball.y = base.y + sin(base.angle) * (PADDLE + 13);
+        ball.x = base.x + cos(base.angle) * (base.radius + 13);
+        ball.y = base.y + sin(base.angle) * (base.radius + 13);
         if (
           state.phase === "playing" &&
           (base.launch || state.tick >= COUNTDOWN + AUTO_LAUNCH)
@@ -155,10 +157,14 @@ export function step(state: ArenaState): Impact[] {
       if (pending.has(base.id)) {
         base.alive = false;
         base.steer = 0;
+        base.radial = 0;
         base.blocks.forEach((b) => (b.alive = false));
       }
-      if (base.alive)
-        base.angle = wrap(base.angle + base.steer * TURN_SPEED * DT);
+      if (base.alive) {
+        const motion = paddleMotion(base);
+        base.angle = wrap(base.angle + motion.omega * DT);
+        base.radius = motion.radius;
+      }
     }
     for (const ball of state.balls) {
       if (ball.owner && pending.has(ball.owner)) ball.owner = null;
@@ -166,6 +172,11 @@ export function step(state: ArenaState): Impact[] {
         ball.held = null;
         ball.vx = BALL_SPEED;
         ball.vy = 0;
+      }
+      if (ball.held) {
+        const base = state.bases.find((b) => b.id === ball.held)!;
+        ball.x = base.x + cos(base.angle) * (base.radius + 13);
+        ball.y = base.y + sin(base.angle) * (base.radius + 13);
       }
     }
     const alive = state.bases.filter((b) => b.alive);

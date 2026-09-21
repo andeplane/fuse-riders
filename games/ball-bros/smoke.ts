@@ -20,18 +20,25 @@ try {
   await page.getByText("GET READY · 3", { exact: true }).waitFor();
   assert.equal(await page.locator(".scorecard").count(), 5);
   await page.keyboard.down("KeyD");
+  await page.keyboard.down("KeyW");
   await page.getByText("GET READY · 2", { exact: true }).waitFor();
   await page.keyboard.up("KeyD");
-  await page.getByText("W / SPACE TO LAUNCH", { exact: true }).waitFor();
+  await page.keyboard.up("KeyW");
   await page.getByRole("button", { name: "SOUND OFF", exact: true }).focus();
-  await page.keyboard.press("KeyW");
+  await page.keyboard.down("KeyS");
+  await page.getByText("GET READY · 1", { exact: true }).waitFor();
+  await page.keyboard.up("KeyS");
+  await page.getByText("SPACE TO LAUNCH", { exact: true }).waitFor();
+  // Space on a focused UI button retains native activation. Return focus to the arena first.
+  await page.locator("canvas").click({ position: { x: 20, y: 20 } });
+  await page.keyboard.press("Space");
   await page
-    .getByText("W / SPACE TO LAUNCH", { exact: true })
+    .getByText("SPACE TO LAUNCH", { exact: true })
     .waitFor({ state: "hidden" });
   await page.waitForFunction(
     () =>
       [...document.querySelectorAll(".scorecard strong")].some(
-        (e) => e.textContent !== "24 / 24",
+        (e) => e.textContent !== "48 / 48",
       ),
     undefined,
     { timeout: 125000 },
@@ -49,7 +56,7 @@ try {
   await page.getByText("GET READY · 3", { exact: true }).waitFor();
   assert.ok(
     (await page.locator(".scorecard strong").allTextContents()).every(
-      (t) => t === "24 / 24",
+      (t) => t === "48 / 48",
     ),
   );
   await page
@@ -59,7 +66,7 @@ try {
   await page.getByText("GET READY · 3", { exact: true }).waitFor();
   assert.ok(
     (await page.locator(".scorecard strong").allTextContents()).every(
-      (t) => t === "24 / 24",
+      (t) => t === "48 / 48",
     ),
   );
 
@@ -73,6 +80,9 @@ try {
   await phone.getByRole("button", { name: "PLAY SOLO", exact: true }).click();
   await phone.getByText("GET READY · 2", { exact: true }).waitFor();
   await phone.getByRole("button", { name: "RIGHT ↷" }).tap();
+  await phone.getByRole("button", { name: "OUT ↑" }).tap();
+  await phone.getByRole("button", { name: "IN ↓" }).tap();
+  assert.equal(await phone.locator(".pad").count(), 5);
   assert.ok(
     await phone.evaluate(() => document.documentElement.scrollWidth <= 390),
   );
@@ -82,7 +92,7 @@ try {
   });
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: menu, solo, keyboard launch, damage, restart, full round, rematch, phone layout; muted screenshots saved.",
+    "PASS: menu, solo, combined orbit/reach controls, Space launch, damage, restart, full round, rematch, five-button phone layout; muted screenshots saved.",
   );
 } finally {
   await browser.close();

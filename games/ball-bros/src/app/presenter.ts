@@ -29,7 +29,7 @@ export function present(v: BallView) {
           : !you?.alive
             ? "CORE LOST · WATCH THE FINISH"
             : s.balls.some((b) => b.held === you.id)
-              ? "W / SPACE TO LAUNCH"
+              ? "SPACE TO LAUNCH"
               : "",
     over: s.phase === "over",
     title: s.winner

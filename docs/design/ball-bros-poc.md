@@ -1,6 +1,6 @@
 # Ball Bros: phases 0–1
 
-An unranked solo POC: one human and four bots, one core per base, 24 one-hit blocks, an orbital paddle and one launchable ball per player. A/D rotate, W/Space launch. Bots emit the same steering/launch controls. Last core standing wins; a 120-second limit draws. Rematch creates a fresh match through the shared room log.
+An unranked solo POC: one human and four bots, one core per base, 48 one-hit blocks in three dense rings, an orbital paddle and one launchable ball per player. A/D rotate, W/S reach outward/inward, Space launches. Bots emit the same steering/reach/launch controls. Last core standing wins; a 120-second limit draws. Rematch creates a fresh match through the shared room log.
 
 The engine is independent of app/net/render code. Base-local blocks and paddle angles leave a seam for future base movement, but bases are stationary in this version. Balls sweep against walls, rounded block corners, cores and rotating curved paddles. Five 10 ms substeps run in each fixed 50 ms log tick. Contacts break ties by collider order, balls resolve by stable id, and core eliminations commit together at the end of each substep so simultaneous final losses draw. At the contact iteration limit the ball stops for the remaining substep rather than tunnelling. Ball ownership changes on paddle contact and grants no immunity. Eliminated bases clear and their balls become neutral.
 
@@ -8,4 +8,10 @@ Use the existing RoomRuntime even for solo. All controls and geometry are checkp
 
 Phase 1 includes service registration and a visible game link, but no online admission UI, ranked reporting, power-ups, shared music extraction or moving bases. Production remains gated by EXTRA_GAME_IDS. Phase 2 qualifies multiplayer controls/recovery and shared screens. Phase 3 adds shared avatars/music and power-ups.
 
-Playtest first: can a beginner track the ball, reach an interception and influence the return? Initial tuning is 70° paddle coverage, ~2 s per orbit and 340 units/s balls. Five independent balls and the block ring gaps provide pressure; tuning follows playtests, not a promise of balanced rounds.
+## Second playtest iteration (still phase 1)
+
+The arena is a regular octagon with flat cardinal walls. Bases sit closer to the perimeter, with enough clearance for a full outward orbit and an attached ball. Collision uses the same eight wall planes as the rendered polygon. Three packed block rings replace two sparse rings; the extra armor is intentional, but playtesting should check whether rounds now drag.
+
+W/S changes paddle radius between 88 and 124 units, initially 104, at 90 units/s. It never moves the base. Arc length stays fixed at the initial 70° span: an outward paddle intercepts earlier but covers less angle; an inward paddle protects a wider angle closer to the armor. A/D makes a full orbit in roughly 2–2.6 seconds depending on reach. Both axes may be held together, and are released on cancellation/visibility loss. Angular movement is capped so even a rounded tip moving on both axes stays below 300 units/s; balls retain 340 units/s speed. Collision response separates balls relative to the moving surface after normalizing speed, preventing repeated grazing contacts from trapping a ball. Sweeps include radial motion and rounded moving endpoints, with radius clamped each substep. The checkpoint and input schemas change under `ball-bros-2`; no legacy compatibility is needed for this unranked solo experiment.
+
+Playtest first: does combining orbit and reach make saves deliberate and satisfying? Can players read corner banks, find a gap in armor, and influence the return? This iteration does not advance into multiplayer or power-ups. Tuning follows playtests, not a promise of balanced rounds.

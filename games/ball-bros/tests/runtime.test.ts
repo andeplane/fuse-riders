@@ -62,10 +62,10 @@ test("late, duplicate and reordered controls converge through actual rollback", 
   const onTime = replica(),
     late = replica();
   const entries: BallEntry[] = [
-    [1, 63, 0, "match", 1, false],
-    [2, 65, 0, "match", 0, true],
-    [3, 72, 0, "match", -1, false],
-    [4, 79, 0, "match", 0, false],
+    [1, 63, 0, "match", 1, 1, false],
+    [2, 65, 0, "match", 0, -1, true],
+    [3, 72, 0, "match", -1, 0, false],
+    [4, 79, 0, "match", 0, 0, false],
   ];
   onTime.receive("b", entries, 4, 150, 150);
   onTime.advance(150);
@@ -114,6 +114,24 @@ test("checkpoints validate complete state and reject corrupt geometry, owners, s
       const bases = arena[3] as unknown[][];
       bases[0]![10] = [];
     },
+    (f) => {
+      const a = f[4] as unknown[];
+      (a[3] as unknown[][])[0]![11] = 125;
+    },
+    (f) => {
+      const a = f[4] as unknown[];
+      (a[3] as unknown[][])[0]![11] = 87;
+    },
+    (f) => {
+      const a = f[4] as unknown[];
+      (a[3] as unknown[][])[0]![12] = 2;
+    },
+    (f) => {
+      const a = f[4] as unknown[];
+      const ball = (a[4] as unknown[][])[0]!;
+      ball[1] = 950;
+      ball[2] = 950;
+    },
   ];
   for (const corrupt of corruptions) {
     const f = structuredClone(fields);
@@ -122,9 +140,11 @@ test("checkpoints validate complete state and reject corrupt geometry, owners, s
     assert.equal(hashRoom(world.state), original);
   }
   assert.equal(parseSettings(null), undefined);
-  assert.equal(isEntry([1, 1, 0, "match", 2, true]), false);
+  assert.equal(isEntry([1, 1, 0, "match", 2, 0, true]), false);
+  assert.equal(isEntry([1, 1, 0, "match", 0, 2, true]), false);
+  assert.equal(isEntry([1, 1, 0, "match", 0, true]), false);
   assert.equal(isEntry([1, 1, JOIN, "__proto__", "No", 0, "robot", 1]), false);
-  assert.equal(isEntry([1, 1, 0, "old", 0, false]), true);
+  assert.equal(isEntry([1, 1, 0, "old", 0, 0, false]), true);
 });
 
 class Clock implements RuntimeDependencies {
@@ -162,16 +182,20 @@ test("the shipped runtime starts five seats, releases held controls and resets o
   clock.advance(300);
   assert.equal(current?.arena?.bases.length, 5);
   assert.equal(current?.arena?.bases.filter((b) => b.bot).length, 4);
-  runtime.input(1);
+  assert.equal(runtime.input(0, 1), true);
+  assert.equal(runtime.input(0, 1), false);
+  runtime.input(1, 1);
   clock.advance(250);
   const a = current!.arena!.bases[0]!.angle;
   runtime.cancel();
   clock.advance(150);
   const stopped = current!.arena!.bases[0]!.angle;
+  const stoppedRadius = current!.arena!.bases[0]!.radius;
   clock.advance(250);
   assert.equal(current!.arena!.bases[0]!.angle, stopped);
+  assert.equal(current!.arena!.bases[0]!.radius, stoppedRadius);
   assert.notEqual(a, Math.PI / 2);
-  runtime.input(-1);
+  runtime.input(-1, -1);
   clock.advance(100);
   clock.hiddenValue = true;
   clock.visibility?.();
@@ -180,8 +204,10 @@ test("the shipped runtime starts five seats, releases held controls and resets o
   clock.visibility?.();
   clock.advance(200);
   const resumed = current!.arena!.bases[0]!.angle;
+  const resumedRadius = current!.arena!.bases[0]!.radius;
   clock.advance(200);
   assert.equal(current!.arena!.bases[0]!.angle, resumed);
+  assert.equal(current!.arena!.bases[0]!.radius, resumedRadius);
   runtime.command({ type: "action", action: "lobby" });
   clock.advance(100);
   runtime.command({ type: "action", action: "start" });
@@ -193,27 +219,37 @@ test("the shipped runtime starts five seats, releases held controls and resets o
 
 test("control aggregation preserves other pointers, cancellation never fires and keyboard repeats do not launch", () => {
   assert.equal(gameplayKey("KeyD", false, true), "right");
-  assert.equal(gameplayKey("KeyW", false, true), "launch");
+  assert.equal(gameplayKey("KeyW", false, true), "outward");
   assert.equal(gameplayKey("Space", false, true), undefined);
   assert.equal(gameplayKey("KeyD", true, false), undefined);
-  const sent: [number, boolean][] = [],
-    controls = new Controls((s, l) => sent.push([s, l]));
+  const sent: [number, number, boolean][] = [],
+    controls = new Controls((s, r, l) => sent.push([s, r, l]));
   controls.press("a", "left");
   controls.press("touch", "left");
   controls.release("a");
   assert.equal(controls.steering, -1);
   controls.press("d", "right");
   assert.equal(controls.steering, 0);
-  controls.press("w", "launch");
-  controls.press("w", "launch");
-  assert.equal(sent.filter((s) => s[1]).length, 1);
+  controls.press("w", "outward");
+  controls.press("touch-out", "outward");
+  controls.release("w");
+  assert.equal(controls.radial, 1);
+  controls.press("s", "inward");
+  assert.equal(controls.radial, 0);
+  controls.release("touch-out");
+  assert.equal(controls.radial, -1);
+  controls.press("space", "launch");
+  controls.press("space", "launch");
+  assert.equal(sent.filter((s) => s[2]).length, 1);
   controls.cancel();
-  assert.deepEqual(sent.at(-1), [0, false]);
+  assert.deepEqual(sent.at(-1), [0, 0, false]);
   controls.release("gone");
   assert.equal(keyboardButton("KeyA"), "left");
   assert.equal(keyboardButton("KeyD"), "right");
   assert.equal(keyboardButton("Space"), "launch");
-  assert.equal(keyboardButton("KeyS"), undefined);
+  assert.equal(keyboardButton("KeyS"), "inward");
+  assert.equal(keyboardButton("ArrowUp"), "outward");
+  assert.equal(keyboardButton("ArrowDown"), "inward");
 });
 
 test("presentation never interpolates across a match and unranked registration refuses reports", () => {
@@ -231,6 +267,10 @@ test("presentation never interpolates across a match and unranked registration r
     matchId: "new",
   });
   const before = structuredClone(b);
+  a.arena!.bases[0]!.radius = 88;
+  b.arena!.bases[0]!.radius = 124;
+  assert.equal(interpolate(a, b, 10.5).arena!.bases[0]!.radius, 106);
+  b.arena!.bases[0]!.radius = before.arena!.bases[0]!.radius;
   interpolate(a, b, 10.5);
   assert.deepEqual(b, before);
   assert.equal(ballBrosRegistration.parseStats({}, 1), undefined);

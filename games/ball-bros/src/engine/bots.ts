@@ -4,6 +4,8 @@ import {
   type Base,
   type Control,
   PADDLE,
+  PADDLE_MIN,
+  PADDLE_MAX,
   COUNTDOWN,
 } from "./state.js";
 
@@ -19,14 +21,26 @@ export function botControl(state: ArenaState, base: Base): Control {
     if (!speed2) continue;
     const t = -(dx * ball.vx + dy * ball.vy) / speed2;
     if (t < 0 || t > 1.1 || t >= earliest) continue;
-    if (length(dx + ball.vx * t, dy + ball.vy * t) > PADDLE + 16) continue;
+    if (length(dx + ball.vx * t, dy + ball.vy * t) > PADDLE_MAX + 16) continue;
     earliest = t;
-    const intercept = Math.max(0, t - PADDLE / Math.sqrt(speed2));
+    const intercept = Math.max(0, t - base.radius / Math.sqrt(speed2));
     target = atan2(dy + ball.vy * intercept, dx + ball.vx * intercept);
   }
   const delta = angleDelta(target, base.angle);
+  const desiredRadius =
+    earliest < 0.65
+      ? Math.abs(delta) < 0.35
+        ? PADDLE_MAX
+        : PADDLE_MIN
+      : PADDLE;
   return {
     steer: Math.abs(delta) < 0.09 ? 0 : delta < 0 ? -1 : 1,
+    radial:
+      Math.abs(desiredRadius - base.radius) < 3
+        ? 0
+        : desiredRadius < base.radius
+          ? -1
+          : 1,
     launch: state.tick >= COUNTDOWN + 10 + base.slot * 7,
   };
 }

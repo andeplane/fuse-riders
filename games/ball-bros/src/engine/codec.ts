@@ -3,6 +3,10 @@ import {
   BALL_SPEED,
   COUNTDOWN,
   LIMIT,
+  blockLayout,
+  insideArena,
+  PADDLE_MIN,
+  PADDLE_MAX,
   type ArenaState,
   type Participant,
 } from "./state.js";
@@ -42,6 +46,8 @@ export function encodeArena(s: ArenaState): unknown[] {
       b.saves,
       b.broken,
       b.blocks.map((k) => k.alive),
+      b.radius,
+      b.radial,
     ]),
     s.balls.map((b) => [b.id, b.x, b.y, b.vx, b.vy, b.owner, b.held]),
   ];
@@ -64,7 +70,7 @@ export function decodeArena(raw: unknown): ArenaState | undefined {
   for (const b of bases) {
     if (
       !Array.isArray(b) ||
-      b.length !== 11 ||
+      b.length !== 13 ||
       !validId(b[0]) ||
       !validName(b[1]) ||
       !integer(b[2], 4) ||
@@ -75,11 +81,14 @@ export function decodeArena(raw: unknown): ArenaState | undefined {
       ![-1, 0, 1].includes(b[6]) ||
       typeof b[7] !== "boolean" ||
       !integer(b[8], 100000) ||
-      !integer(b[9], 120) ||
+      !integer(b[9], blockLayout().length * bases.length) ||
       !Array.isArray(b[10]) ||
-      b[10].length !== 24 ||
+      b[10].length !== blockLayout().length ||
       !b[10].every((v: unknown) => typeof v === "boolean") ||
-      (!b[5] && (b[6] !== 0 || b[10].some(Boolean)))
+      !finite(b[11], PADDLE_MAX) ||
+      b[11] < PADDLE_MIN ||
+      ![-1, 0, 1].includes(b[12]) ||
+      (!b[5] && (b[6] !== 0 || b[12] !== 0 || b[10].some(Boolean)))
     )
       return;
     if (participants.some((p) => p.id === b[0] || p.slot >= b[2])) return;
@@ -98,6 +107,8 @@ export function decodeArena(raw: unknown): ArenaState | undefined {
     b.launch = v[7];
     b.saves = v[8];
     b.broken = v[9];
+    b.radius = v[11];
+    b.radial = v[12];
     b.blocks.forEach((k, j) => (k.alive = v[10][j]));
   });
   const alive = s.bases.filter((b) => b.alive);
@@ -121,7 +132,7 @@ export function decodeArena(raw: unknown): ArenaState | undefined {
       b[0] !== i ||
       !finite(b[1], 1000) ||
       !finite(b[2], 1000) ||
-      length(b[1] - 500, b[2] - 500) > 464.01 ||
+      !insideArena(b[1], b[2]) ||
       !finite(b[3], BALL_SPEED + 0.01) ||
       !finite(b[4], BALL_SPEED + 0.01) ||
       (b[5] !== null && !alive.some((p) => p.id === b[5])) ||
