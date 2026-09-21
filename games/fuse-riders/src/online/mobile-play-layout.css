@@ -95,7 +95,10 @@
   inset: 0;
   z-index: 11;
   pointer-events: none;
-  animation: mobile-hints-fade 3s forwards;
+  opacity: 0;
+}
+.mobile-play > .mobile-control-hints[data-phase="countdown"] {
+  opacity: 1;
 }
 .mobile-control-hints span {
   display: grid;
@@ -143,15 +146,6 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-}
-@keyframes mobile-hints-fade {
-  0%,
-  65% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
 }
 .mobile-play.mobile-tools-open .online-controls {
   pointer-events: none;

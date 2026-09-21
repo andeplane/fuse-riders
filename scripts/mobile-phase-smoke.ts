@@ -160,10 +160,17 @@ for (const { name, kind } of BOTH_ENGINES) {
       0,
       "countdown closes the tools overlay",
     );
-    assert.ok((await hintsOpacity()) > 0, "hints visible at countdown start");
+    assert.equal(await hintsOpacity(), 1, "outlines visible during countdown");
+    assert.equal(
+      await page
+        .locator(".mobile-control-hints")
+        .evaluate((element) => getComputedStyle(element).animationName),
+      "none",
+      "outlines remain visible for the whole countdown, without a fade timer",
+    );
     seen.countdown = await capture("countdown");
     await notice(/^$/);
-    assert.ok((await hintsOpacity()) > 0, "hints visible at play start");
+    assert.equal(await hintsOpacity(), 0, "outlines disappear as play starts");
     seen.playing = await capture("playing");
     await notice(/MATCH COMPLETE/, 180000);
     await page.getByRole("button", { name: "CLOSE", exact: true }).click();

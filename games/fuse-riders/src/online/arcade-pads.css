@@ -207,7 +207,7 @@
 .online-app.mobile-play:not(.controller-only) .pad-feedback {
   display: none;
 }
-/* Brief hints follow the touch regions, then fade as before. */
+/* Countdown hints follow the touch regions. */
 .online-app.mobile-play:not(.controller-only) > .mobile-control-hints {
   inset: 0;
   height: auto;

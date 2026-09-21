@@ -187,6 +187,13 @@ for (const { name, kind } of BOTH_ENGINES) {
     await page.waitForFunction(
       () => document.querySelector(".online-notice")?.textContent === "",
     ); // countdown → playing clears held input; press during play
+    assert.equal(
+      await page
+        .locator(".mobile-control-hints")
+        .evaluate((element) => getComputedStyle(element).opacity),
+      "0",
+      "outlines disappear on the first playing frame",
+    );
 
     const zones = page.locator(".online-controls>button");
     const cdp =
