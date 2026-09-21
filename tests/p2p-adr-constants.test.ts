@@ -43,6 +43,10 @@ const COMPLETE = [
   "packages/fuse-netcode/src/packet.ts",
   "packages/fuse-netcode/src/snapshot.ts",
   "packages/fuse-netcode/src/room-runtime.ts",
+  "packages/fuse-netcode/src/membership.ts",
+  "packages/fuse-netcode/src/world-sync.ts",
+  "packages/fuse-netcode/src/room-manager.ts",
+  "packages/fuse-netcode/src/input-recorder.ts",
 ];
 
 interface Row {
