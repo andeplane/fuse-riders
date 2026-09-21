@@ -27,6 +27,9 @@ export function installMobilePlayLayout(
       resized = false,
       controllerOnly = false,
     ) {
+      // Hints follow the round phase, not a timer restarted on entry to play.
+      if (layout.hints.dataset.phase !== phase)
+        layout.hints.dataset.phase = phase;
       layout.update(
         next,
         {

@@ -921,7 +921,11 @@ export async function startOnline(): Promise<void> {
     // VISUAL STYLE only changes the arena, which a shared-TV controller never draws, lobby included.
     setIfChanged(styleHeading, "hidden", next.arenaController);
     setIfChanged(styleRow, "hidden", next.arenaController);
-    setIfChanged(controllerLayoutSetting, "hidden", !next.arenaController);
+    setIfChanged(
+      controllerLayoutSetting,
+      "hidden",
+      !next.arenaController && !next.mobile.active && !next.mobile.lobby,
+    );
     mobileLayout.update(
       next.mobile,
       snapshot?.phase ?? "lobby",
