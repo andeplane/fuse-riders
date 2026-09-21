@@ -15,7 +15,6 @@
     "packages/fuse-network-be/src/gcp/pubsub-bus.ts",
     "packages/fuse-network-be/src/index.ts",
     "packages/fuse-network-fe/src/index.ts",
-    "packages/fuse-network-fe/src/peer-transport.ts",
     "packages/fuse-network-fe/src/transport.ts",
     "packages/fuse-network-protocol/src/index.ts",
     "packages/fuse-network-protocol/src/wire.ts",
