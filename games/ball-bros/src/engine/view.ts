@@ -9,6 +9,8 @@ import {
   PADDLE_THICK,
   BALL_RADIUS,
   COUNTDOWN,
+  FRENZY,
+  FRENZY_WARNING,
   PICKUP_RADIUS,
   LIMIT,
   type ArenaState,
@@ -25,6 +27,8 @@ export const viewRules = {
   paddleThick: PADDLE_THICK,
   ballRadius: BALL_RADIUS,
   countdown: COUNTDOWN,
+  frenzy: FRENZY,
+  frenzyWarning: FRENZY_WARNING,
   pickupRadius: PICKUP_RADIUS,
   limit: LIMIT,
 };

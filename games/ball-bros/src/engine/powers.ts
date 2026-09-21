@@ -3,6 +3,9 @@ import {
   COUNTDOWN,
   EFFECT_TICKS,
   MAX_BALLS,
+  BALL_SPEED,
+  FRENZY,
+  FRENZY_BALL_INTERVAL,
   POWER_KINDS,
   type ArenaState,
   type Ball,
@@ -27,6 +30,33 @@ export function spawnPowers(s: ArenaState): void {
     y: 500 + sin(angle) * 135,
     expires: s.tick + 400,
   });
+}
+
+/** Frenzy adds neutral pressure. The first defending paddle claims each ball. */
+export function spawnFrenzyBall(s: ArenaState): boolean {
+  const elapsed = s.tick - FRENZY;
+  if (
+    s.phase !== "playing" ||
+    elapsed < 0 ||
+    elapsed % FRENZY_BALL_INTERVAL !== 0 ||
+    s.balls.length >= MAX_BALLS
+  )
+    return false;
+  const wave = elapsed / FRENZY_BALL_INTERVAL,
+    angle = (wave + 0.5) * TAU * 0.381966;
+  s.balls.push({
+    id: s.balls.length,
+    x: 500,
+    y: 500,
+    vx: cos(angle) * BALL_SPEED,
+    vy: sin(angle) * BALL_SPEED,
+    owner: null,
+    held: null,
+    heldUntil: 0,
+    bomb: false,
+    splits: 0,
+  });
+  return true;
 }
 
 export function collect(
@@ -107,6 +137,7 @@ export function explode(
   ball: Ball,
   events: Impact[],
   paddle?: Base,
+  centers?: ReadonlyMap<string, { x: number; y: number }>,
 ): void {
   ball.bomb = false;
   if (paddle) paddle.stunUntil = s.tick + 20;
@@ -114,8 +145,9 @@ export function explode(
     for (const base of s.bases)
       if (base.alive)
         base.blocks.forEach((b, i) => {
+          const center = centers?.get(base.id) ?? base;
           if (
-            (base.x + b.x - ball.x) ** 2 + (base.y + b.y - ball.y) ** 2 <=
+            (center.x + b.x - ball.x) ** 2 + (center.y + b.y - ball.y) ** 2 <=
             38 * 38
           )
             breakBlock(s, ball, base, i);

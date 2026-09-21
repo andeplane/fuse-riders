@@ -73,6 +73,18 @@ try {
     ),
   );
   await page
+    .locator(".power-status")
+    .filter({ hasText: "FUSE FRENZY" })
+    .waitFor({ timeout: 70000 });
+  await page.screenshot({
+    path: "artifacts/ball-bros-frenzy.png",
+    fullPage: true,
+  });
+  assert.match(
+    (await page.locator(".power-status").textContent()) ?? "",
+    /FUSE FRENZY · \d+ BALLS/,
+  );
+  await page
     .getByRole("button", { name: "PLAY AGAIN" })
     .waitFor({ timeout: 135000 });
   await page.getByRole("button", { name: "PLAY AGAIN" }).click();

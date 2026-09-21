@@ -1,6 +1,6 @@
 import { cos, sin, TAU, wrap } from "./math.js";
 
-export const RULES = "ball-bros-4";
+export const RULES = "ball-bros-5";
 export const POWER_KINDS = [
   "shrink",
   "bomb",
@@ -35,8 +35,13 @@ export const BALL_RADIUS = 6,
 export const COUNTDOWN = 60,
   AUTO_LAUNCH = 60,
   LIMIT = 2400,
+  FRENZY = COUNTDOWN + 1200,
+  FRENZY_WARNING = 100,
+  FRENZY_BALL_INTERVAL = 200,
   SUBSTEPS = 5,
   DT = 0.01;
+export const FORMATION_START = (FRENZY - 1) * SUBSTEPS,
+  FORMATION_OMEGA = 0.04;
 export type Steering = -1 | 0 | 1;
 export interface Control {
   steer: Steering;
@@ -87,6 +92,7 @@ export interface Ball {
 }
 export interface ArenaState {
   tick: number;
+  formationStep: number;
   phase: "countdown" | "playing" | "over";
   bases: Base[];
   balls: Ball[];
@@ -94,7 +100,15 @@ export interface ArenaState {
   pickups: Pickup[];
 }
 export interface Impact {
-  kind: "paddle" | "block" | "core" | "wall" | "launch" | "pickup" | "bomb";
+  kind:
+    | "paddle"
+    | "block"
+    | "core"
+    | "wall"
+    | "launch"
+    | "pickup"
+    | "bomb"
+    | "frenzy";
   power?: PowerKind;
   x: number;
   y: number;
@@ -128,16 +142,38 @@ export const nextRadius = (base: Base) =>
   );
 /** Keep even a moving rounded tip slower than a ball, so a return can separate
  * without accelerating balls or trapping them in repeated contacts. */
-export function paddleMotion(base: Base) {
+export function paddleMotion(base: Base, translationSpeed = 0) {
   const radius = nextRadius(base);
   const radialSpeed = (radius - base.radius) / DT;
-  const tangential =
-    Math.sqrt(300 * 300 - radialSpeed * radialSpeed) -
-    Math.abs(radialSpeed) * paddleHalf(Math.min(radius, base.radius));
+  const motionBudget = Math.max(100, 300 - translationSpeed),
+    tangential =
+      Math.sqrt(motionBudget * motionBudget - radialSpeed * radialSpeed) -
+      Math.abs(radialSpeed) * paddleHalf(Math.min(radius, base.radius));
   const omega =
     base.steer *
     Math.min(TURN_SPEED, tangential / Math.max(radius, base.radius));
   return { radius, radialSpeed, omega };
+}
+
+/** Centers follow an octagon-inset orbit once Frenzy begins. The same pure
+ * function reconstructs checkpoint geometry without trusting serialized x/y. */
+export function formationPosition(count: number, index: number, step: number) {
+  const offset = Math.max(0, step - FORMATION_START) * FORMATION_OMEGA * DT,
+    angle = -Math.PI / 2 + (TAU * index) / count + offset,
+    dx = cos(angle),
+    dy = sin(angle),
+    distance =
+      (ARENA - PADDLE_MAX - 21) /
+      Math.max(...WALLS.map((n) => n.x * dx + n.y * dy));
+  return { x: CENTER + dx * distance, y: CENTER + dy * distance };
+}
+export function placeFormation(state: ArenaState): void {
+  state.bases.forEach((base, index) =>
+    Object.assign(
+      base,
+      formationPosition(state.bases.length, index, state.formationStep),
+    ),
+  );
 }
 
 export function blockLayout(): Block[] {
@@ -156,19 +192,16 @@ export function createArena(participants: readonly Participant[]): ArenaState {
   const bases = [...participants]
     .sort((a, b) => a.slot - b.slot)
     .map((p, i) => {
-      const a = -Math.PI / 2 + (TAU * i) / participants.length;
-      const distance =
-        (ARENA - PADDLE_MAX - 21) /
-        Math.max(...WALLS.map((n) => n.x * cos(a) + n.y * sin(a)));
+      const position = formationPosition(participants.length, i, 0);
       return {
         id: p.id,
         name: p.name,
         slot: p.slot,
         bot: p.bot,
         avatarId: p.avatarId ?? (p.bot ? "robot" : "fox"),
-        x: CENTER + cos(a) * distance,
-        y: CENTER + sin(a) * distance,
-        angle: wrap(a + Math.PI),
+        x: position.x,
+        y: position.y,
+        angle: wrap(-Math.PI / 2 + (TAU * i) / participants.length + Math.PI),
         radius: PADDLE,
         alive: true,
         blocks: blockLayout(),
@@ -185,6 +218,7 @@ export function createArena(participants: readonly Participant[]): ArenaState {
     });
   return {
     tick: 0,
+    formationStep: 0,
     phase: "countdown",
     bases,
     winner: null,

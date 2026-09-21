@@ -133,6 +133,25 @@ export function createRenderer(
       );
       g.fillStyle(0x0b1729);
       g.fillPoints(outline, true);
+      if (s.tick >= r.frenzy - r.frenzyWarning) {
+        const active = s.tick >= r.frenzy,
+          pulse = 0.5 + Math.sin(now / (active ? 90 : 180)) * 0.5;
+        g.fillStyle(
+          active ? 0x5a164f : 0xffa43d,
+          (active ? 0.055 : 0.025) + pulse * 0.025,
+        );
+        g.fillPoints(outline, true);
+        g.lineStyle(
+          active ? 7 : 4,
+          active ? 0xff429a : 0xffa43d,
+          0.12 + pulse * 0.18,
+        );
+        g.strokePoints(outline, true);
+        if (active) {
+          g.lineStyle(2, 0xff429a, 0.1 + pulse * 0.08);
+          g.strokeCircle(500, 500, 175 + pulse * 8);
+        }
+      }
       g.lineStyle(12, 0x39cbef, 0.045);
       g.strokePoints(outline, true);
       g.lineStyle(2, 0x6db1c8, 0.35);

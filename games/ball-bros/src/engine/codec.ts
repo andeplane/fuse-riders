@@ -9,6 +9,8 @@ import {
   PADDLE_MAX,
   MAX_BALLS,
   POWER_KINDS,
+  SUBSTEPS,
+  placeFormation,
   type ArenaState,
   type Participant,
 } from "./state.js";
@@ -35,6 +37,7 @@ export const matchId = (n: unknown): n is string =>
 export function encodeArena(s: ArenaState): unknown[] {
   return [
     s.tick,
+    s.formationStep,
     s.phase,
     s.winner,
     s.bases.map((b) => [
@@ -74,10 +77,11 @@ export function encodeArena(s: ArenaState): unknown[] {
 }
 /** Fixed-size arrays and derived geometry keep arbitrary checkpoint objects out of the engine. */
 export function decodeArena(raw: unknown): ArenaState | undefined {
-  if (!Array.isArray(raw) || raw.length !== 6) return;
-  const [tick, phase, winner, bases, balls, pickups] = raw;
+  if (!Array.isArray(raw) || raw.length !== 7) return;
+  const [tick, formationStep, phase, winner, bases, balls, pickups] = raw;
   if (
     !integer(tick, COUNTDOWN + LIMIT) ||
+    !integer(formationStep, (COUNTDOWN + LIMIT) * SUBSTEPS) ||
     !["countdown", "playing", "over"].includes(phase) ||
     !Array.isArray(bases) ||
     bases.length < 2 ||
@@ -135,7 +139,9 @@ export function decodeArena(raw: unknown): ArenaState | undefined {
   }
   const s = createArena(participants);
   s.tick = tick;
+  s.formationStep = formationStep;
   s.phase = phase;
+  placeFormation(s);
   if (winner !== null && !participants.some((p) => p.id === winner)) return;
   s.winner = winner;
   s.bases.forEach((b, i) => {
@@ -155,7 +161,12 @@ export function decodeArena(raw: unknown): ArenaState | undefined {
     b.blocks.forEach((k, j) => (k.alive = v[10][j]));
   });
   const alive = s.bases.filter((b) => b.alive);
+  const fullStep = tick * SUBSTEPS;
   if (
+    (phase !== "over" && formationStep !== fullStep) ||
+    (phase === "over" &&
+      (formationStep > fullStep ||
+        formationStep <= Math.max(0, (tick - 1) * SUBSTEPS))) ||
     (phase === "countdown" && tick >= COUNTDOWN) ||
     (phase === "playing" &&
       (tick < COUNTDOWN || tick >= COUNTDOWN + LIMIT || alive.length < 2)) ||
@@ -164,7 +175,9 @@ export function decodeArena(raw: unknown): ArenaState | undefined {
       (tick < COUNTDOWN ||
         (winner !== null
           ? alive.length !== 1 || alive[0]!.id !== winner
-          : alive.length > 0 && tick !== COUNTDOWN + LIMIT)))
+          : alive.length === 1 ||
+            (alive.length >= 2 &&
+              (tick !== COUNTDOWN + LIMIT || formationStep !== fullStep)))))
   )
     return;
   for (let i = 0; i < balls.length; i++) {

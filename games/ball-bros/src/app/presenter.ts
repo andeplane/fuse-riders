@@ -28,7 +28,12 @@ export function present(v: BallView, playerId?: string) {
     Math.max(0, v.rules.limit - Math.max(0, s.tick - v.rules.countdown)) / 20,
   );
   return {
-    effects: you ? effects(you) : "",
+    effects: [
+      s.tick >= v.rules.frenzy ? `FUSE FRENZY · ${s.balls.length} BALLS` : "",
+      you ? effects(you) : "",
+    ]
+      .filter(Boolean)
+      .join(" · "),
     cards: s.bases.map((b) => ({
       slot: b.slot,
       name: `P${b.slot + 1} ${b.name.toUpperCase()}`,
@@ -50,7 +55,12 @@ export function present(v: BallView, playerId?: string) {
             ? "CORE LOST · WATCH THE FINISH"
             : you && s.balls.some((b) => b.held === you.id)
               ? "SPACE TO LAUNCH"
-              : "",
+              : s.tick >= v.rules.frenzy - v.rules.frenzyWarning &&
+                  s.tick < v.rules.frenzy
+                ? `FUSE FRENZY IN ${Math.ceil((v.rules.frenzy - s.tick) / 20)}`
+                : s.tick >= v.rules.frenzy && s.tick < v.rules.frenzy + 60
+                  ? "FUSE FRENZY · BASES ON THE MOVE"
+                  : "",
     over: s.phase === "over",
     title: s.winner
       ? `${s.bases.find((b) => b.id === s.winner)!.name.toUpperCase()} WINS`

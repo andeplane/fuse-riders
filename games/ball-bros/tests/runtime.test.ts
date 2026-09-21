@@ -26,7 +26,7 @@ import { Controls, keyboardButton, gameplayKey } from "../src/app/controls.js";
 import { effectAge, interpolate } from "../src/render/present.js";
 import { ballBrosRegistration } from "../src/platform.js";
 import { Audio } from "../src/app/audio.js";
-import { createArena, COUNTDOWN } from "../src/engine/state.js";
+import { createArena, COUNTDOWN, SUBSTEPS } from "../src/engine/state.js";
 
 test("mute never opens audio and unsupported sound does not block controls", () => {
   let opened = 0;
@@ -98,6 +98,7 @@ test("a connected generation replacement releases old inputs before accepting th
   room.tick = 10;
   room.arena = createArena([...room.seats.values()]);
   room.arena.tick = COUNTDOWN;
+  room.arena.formationStep = COUNTDOWN * SUBSTEPS;
   const base = room.arena.bases[1]!;
   base.steer = 1;
   base.radial = 1;
@@ -203,34 +204,34 @@ test("checkpoints validate complete state and reject corrupt geometry, owners, s
     },
     (f) => {
       const arena = f[4] as unknown[];
-      const balls = arena[4] as unknown[][];
+      const balls = arena[5] as unknown[][];
       balls[0]![1] = NaN;
     },
     (f) => {
       const arena = f[4] as unknown[];
-      const balls = arena[4] as unknown[][];
+      const balls = arena[5] as unknown[][];
       balls[0]![5] = "missing";
     },
     (f) => {
       const arena = f[4] as unknown[];
-      const bases = arena[3] as unknown[][];
+      const bases = arena[4] as unknown[][];
       bases[0]![10] = [];
     },
     (f) => {
       const a = f[4] as unknown[];
-      (a[3] as unknown[][])[0]![11] = 125;
+      (a[4] as unknown[][])[0]![11] = 125;
     },
     (f) => {
       const a = f[4] as unknown[];
-      (a[3] as unknown[][])[0]![11] = 87;
+      (a[4] as unknown[][])[0]![11] = 87;
     },
     (f) => {
       const a = f[4] as unknown[];
-      (a[3] as unknown[][])[0]![12] = 2;
+      (a[4] as unknown[][])[0]![12] = 2;
     },
     (f) => {
       const a = f[4] as unknown[];
-      const ball = (a[4] as unknown[][])[0]!;
+      const ball = (a[5] as unknown[][])[0]!;
       ball[1] = 950;
       ball[2] = 950;
     },
@@ -370,8 +371,13 @@ test("presentation never interpolates across a match and unranked registration r
   });
   const before = structuredClone(b);
   a.arena!.bases[0]!.radius = 88;
+  a.arena!.bases[0]!.x -= 4;
+  a.arena!.bases[0]!.y -= 2;
   b.arena!.bases[0]!.radius = 124;
-  assert.equal(interpolate(a, b, 10.5).arena!.bases[0]!.radius, 106);
+  const middle = interpolate(a, b, 10.5).arena!.bases[0]!;
+  assert.equal(middle.radius, 106);
+  assert.equal(middle.x, (a.arena!.bases[0]!.x + b.arena!.bases[0]!.x) / 2);
+  assert.equal(middle.y, (a.arena!.bases[0]!.y + b.arena!.bases[0]!.y) / 2);
   b.arena!.bases[0]!.radius = before.arena!.bases[0]!.radius;
   interpolate(a, b, 10.5);
   assert.deepEqual(b, before);

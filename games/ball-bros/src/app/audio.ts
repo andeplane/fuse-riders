@@ -34,18 +34,21 @@ export class Audio {
     const oscillator = c.createOscillator(),
       gain = c.createGain();
     const hz =
-      e.kind === "bomb"
-        ? 65
-        : e.kind === "pickup"
-          ? 1100
-          : e.kind === "core"
-            ? 110
-            : e.kind === "paddle"
-              ? 720
-              : e.kind === "launch"
-                ? 440
-                : 260;
-    oscillator.type = e.kind === "core" ? "sawtooth" : "sine";
+      e.kind === "frenzy"
+        ? 82
+        : e.kind === "bomb"
+          ? 65
+          : e.kind === "pickup"
+            ? 1100
+            : e.kind === "core"
+              ? 110
+              : e.kind === "paddle"
+                ? 720
+                : e.kind === "launch"
+                  ? 440
+                  : 260;
+    oscillator.type =
+      e.kind === "core" || e.kind === "frenzy" ? "sawtooth" : "sine";
     oscillator.frequency.setValueAtTime(hz, c.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(
       hz / 3,

@@ -1,12 +1,19 @@
 import { block, circle, paddle, wall, type Contact } from "./collision.js";
 import { cos, length, sin, wrap } from "./math.js";
-import { breakBlock, collect, explode, spawnPowers } from "./powers.js";
+import {
+  breakBlock,
+  collect,
+  explode,
+  spawnFrenzyBall,
+  spawnPowers,
+} from "./powers.js";
 import {
   BALL_RADIUS,
   BALL_SPEED,
   CORE,
   COUNTDOWN,
   DT,
+  formationPosition,
   LIMIT,
   paddleMotion,
   paddleScale,
@@ -25,11 +32,29 @@ interface Hit extends Contact {
   blockIndex?: number;
   pickup?: Pickup;
 }
+interface Translation {
+  vx: number;
+  vy: number;
+}
+const relative = (ball: Ball, move: Translation) => ({
+  ...ball,
+  vx: ball.vx - move.vx,
+  vy: ball.vy - move.vy,
+});
+const moving = (contact: Contact | undefined, move: Translation) =>
+  contact && {
+    ...contact,
+    surfaceNormal:
+      (contact.surfaceNormal ?? 0) +
+      contact.nx * move.vx +
+      contact.ny * move.vy,
+  };
 function fly(
   state: ArenaState,
   ball: Ball,
   pending: Set<string>,
   events: Impact[],
+  translations: ReadonlyMap<string, Translation>,
 ): void {
   let remaining = DT,
     elapsed = 0;
@@ -63,19 +88,27 @@ function fly(
       }
     for (const base of state.bases) {
       if (!base.alive) continue;
-      const { omega, radialSpeed } = paddleMotion(base);
+      const move = translations.get(base.id)!,
+        centerX = base.x + move.vx * elapsed,
+        centerY = base.y + move.vy * elapsed,
+        translatedBall = relative(ball, move),
+        translationSpeed = length(move.vx, move.vy),
+        { omega, radialSpeed } = paddleMotion(base, translationSpeed);
       if (base.stunUntil <= state.tick)
         take(
-          paddle(
-            ball,
-            base.x,
-            base.y,
-            base.angle + omega * elapsed,
-            omega,
-            remaining,
-            base.radius + radialSpeed * elapsed,
-            radialSpeed,
-            paddleScale(base),
+          moving(
+            paddle(
+              translatedBall,
+              centerX,
+              centerY,
+              base.angle + omega * elapsed,
+              omega,
+              remaining,
+              base.radius + radialSpeed * elapsed,
+              radialSpeed,
+              paddleScale(base),
+            ),
+            move,
           ),
           "paddle",
           base,
@@ -83,7 +116,10 @@ function fly(
       base.blocks.forEach((b, i) => {
         if (b.alive)
           take(
-            block(ball, base.x + b.x, base.y + b.y, remaining),
+            moving(
+              block(translatedBall, centerX + b.x, centerY + b.y, remaining),
+              move,
+            ),
             "block",
             base,
             i,
@@ -91,7 +127,16 @@ function fly(
       });
       if (!pending.has(base.id))
         take(
-          circle(ball, base.x, base.y, CORE + BALL_RADIUS, remaining),
+          moving(
+            circle(
+              translatedBall,
+              centerX,
+              centerY,
+              CORE + BALL_RADIUS,
+              remaining,
+            ),
+            move,
+          ),
           "core",
           base,
         );
@@ -108,16 +153,25 @@ function fly(
       continue;
     }
     if (h.kind === "core" && h.base) pending.add(h.base.id);
+    const centers = new Map(
+      state.bases.map((base) => {
+        const move = translations.get(base.id)!;
+        return [
+          base.id,
+          { x: base.x + move.vx * elapsed, y: base.y + move.vy * elapsed },
+        ] as const;
+      }),
+    );
     if (h.kind === "block" && h.base && h.blockIndex !== undefined) {
       breakBlock(state, ball, h.base, h.blockIndex);
-      if (ball.bomb) explode(state, ball, events);
+      if (ball.bomb) explode(state, ball, events, undefined, centers);
     }
     const dot = ball.vx * h.nx + ball.vy * h.ny - (h.surfaceNormal ?? 0);
     ball.vx -= 2 * dot * h.nx;
     ball.vy -= 2 * dot * h.ny;
     if (h.kind === "paddle" && h.base) {
       const bomb = ball.bomb;
-      if (bomb) explode(state, ball, events, h.base);
+      if (bomb) explode(state, ball, events, h.base, centers);
       ball.owner = h.base.id;
       h.base.saves++;
       if (
@@ -172,7 +226,33 @@ export function step(state: ArenaState): Impact[] {
   if (state.tick >= COUNTDOWN) state.phase = "playing";
   spawnPowers(state);
   const events: Impact[] = [];
+  if (spawnFrenzyBall(state))
+    events.push({
+      kind: "frenzy",
+      x: 500,
+      y: 500,
+      slot: -1,
+    });
   for (let sub = 0; sub < SUBSTEPS; sub++) {
+    const translations = new Map<string, Translation>();
+    state.bases.forEach((base, index) => {
+      const start = formationPosition(
+          state.bases.length,
+          index,
+          state.formationStep,
+        ),
+        end = formationPosition(
+          state.bases.length,
+          index,
+          state.formationStep + 1,
+        );
+      base.x = start.x;
+      base.y = start.y;
+      translations.set(base.id, {
+        vx: (end.x - start.x) / DT,
+        vy: (end.y - start.y) / DT,
+      });
+    });
     const pending = new Set<string>();
     for (const ball of [...state.balls]) {
       if (ball.held) {
@@ -195,7 +275,7 @@ export function step(state: ArenaState): Impact[] {
         }
       }
       if (!ball.held && state.phase === "playing")
-        fly(state, ball, pending, events);
+        fly(state, ball, pending, events, translations);
     }
     for (const base of state.bases) {
       if (pending.has(base.id)) {
@@ -205,11 +285,21 @@ export function step(state: ArenaState): Impact[] {
         base.blocks.forEach((b) => (b.alive = false));
       }
       if (base.alive) {
-        const motion = paddleMotion(base);
+        const translation = translations.get(base.id)!,
+          motion = paddleMotion(base, length(translation.vx, translation.vy));
         base.angle = wrap(base.angle + motion.omega * DT);
         base.radius = motion.radius;
       }
+      const index = state.bases.indexOf(base),
+        end = formationPosition(
+          state.bases.length,
+          index,
+          state.formationStep + 1,
+        );
+      base.x = end.x;
+      base.y = end.y;
     }
+    state.formationStep++;
     for (const ball of state.balls) {
       if (ball.owner && pending.has(ball.owner)) ball.owner = null;
       if (ball.held && pending.has(ball.held)) {

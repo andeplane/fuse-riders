@@ -25,6 +25,8 @@ export function interpolate(
       ((b.angle - old.angle + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
     b.angle = old.angle + delta * t;
     b.radius = old.radius + (b.radius - old.radius) * t;
+    b.x = old.x + (b.x - old.x) * t;
+    b.y = old.y + (b.y - old.y) * t;
   }
   for (const b of result.arena!.balls) {
     const old = older.arena.balls.find((o) => o.id === b.id);

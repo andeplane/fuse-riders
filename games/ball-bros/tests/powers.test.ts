@@ -6,6 +6,7 @@ import {
   COUNTDOWN,
   MAX_BALLS,
   paddleScale,
+  SUBSTEPS,
   type Impact,
   type PowerKind,
 } from "../src/engine/state.js";
@@ -56,6 +57,7 @@ function playing() {
     { id: "b", name: "B", slot: 1, bot: false },
   ]);
   s.tick = COUNTDOWN;
+  s.formationStep = COUNTDOWN * SUBSTEPS;
   s.phase = "playing";
   return s;
 }
@@ -276,6 +278,7 @@ test("phase3 checkpoints round-trip and reject malformed power state before inst
   for (const kind of ["shrink", "sticky", "thief", "bomb", "split"] as const)
     grant(s, kind);
   s.tick = 80;
+  s.formationStep = 80 * SUBSTEPS;
   spawnPowers(s);
   assert.deepEqual(decodeArena(encodeArena(s)), s);
   const corruptions: ((state: typeof s) => void)[] = [

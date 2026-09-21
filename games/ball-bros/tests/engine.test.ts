@@ -14,6 +14,7 @@ import {
   insideArena,
   paddleHalf,
   paddleMotion,
+  SUBSTEPS,
   type Steering,
   type ArenaState,
 } from "../src/engine/state.js";
@@ -30,6 +31,7 @@ const players = Array.from({ length: 5 }, (_, slot) => ({
 const playing = (count = 2): ArenaState => {
   const s = createArena(players.slice(0, count));
   s.tick = COUNTDOWN;
+  s.formationStep = COUNTDOWN * SUBSTEPS;
   s.phase = "playing";
   return s;
 };
@@ -323,9 +325,9 @@ test("five ordinary-input bots complete a bounded, deterministic round with reco
   assert.ok(s.tick <= COUNTDOWN + LIMIT);
   assert.ok(s.bases.some((b) => b.saves > 0));
   assert.ok(s.bases.some((b) => !b.alive));
-  // ball-bros-4: powers and complete effect/portrait checkpoints, sampled once per second.
+  // ball-bros-5: Frenzy movement/pressure and complete checkpoints, sampled once per second.
   assert.equal(
     hashes.digest("hex"),
-    "b59030ec3abb9366ae2e96000c93eed6f0319f467a61cd382eec0ad02d821d05",
+    "69eb36c93ab6cb3b7fc52d088bc78b900d3ace5281d11278445fbb0b2e8bf202",
   );
 });
