@@ -1,4 +1,4 @@
-/* Shared-TV phone controls only. Arena touch zones keep their existing layout. */
+/* Shared touch-region geometry; shared-TV phones also draw arcade artwork. */
 .arcade-header {
   display: none;
 }
@@ -71,9 +71,9 @@
   padding: 0.2rem 0.35rem;
   font-size: 0.625rem;
 }
-.online-app.mobile-play.controller-only .online-controls {
-  inset: var(--pad-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-    env(safe-area-inset-left);
+.online-app.mobile-play .online-controls {
+  inset: var(--pad-top, 0) env(safe-area-inset-right)
+    env(safe-area-inset-bottom) env(safe-area-inset-left);
   width: auto;
   height: auto;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -108,13 +108,13 @@
   overflow: hidden;
   text-shadow: none;
 }
-.online-app.mobile-play.controller-only .online-controls > .pad-left {
+.online-app.mobile-play .online-controls > .pad-left {
   grid-area: left !important;
 }
-.online-app.mobile-play.controller-only .online-controls > .pad-right {
+.online-app.mobile-play .online-controls > .pad-right {
   grid-area: right !important;
 }
-.online-app.mobile-play.controller-only .online-controls > .pad-bomb {
+.online-app.mobile-play .online-controls > .pad-bomb {
   --pad-edge: #ff828a;
   --pad-light: #eb102f;
   --pad-dark: #95071c;
@@ -179,13 +179,60 @@
   outline-offset: -6px;
 }
 @media (orientation: landscape) {
-  .online-app.mobile-play.controller-only .online-controls {
+  .online-app.mobile-play .online-controls {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-template-rows: minmax(0, 1fr);
     grid-template-areas: "left right bomb bomb";
   }
-  .online-app.mobile-play.controller-only[data-bomb-side="left"]
-    .online-controls {
+  .online-app.mobile-play[data-bomb-side="left"] .online-controls {
+    grid-template-areas: "bomb bomb left right";
+  }
+}
+
+/* Arena play uses invisible, full-screen touch regions with the same grouping. */
+.online-app.mobile-play:not(.controller-only) .online-controls {
+  inset: 0;
+  padding: 0;
+  gap: 0;
+}
+.online-app.mobile-play:not(.controller-only) .online-controls > button,
+.online-app.mobile-play:not(.controller-only) .online-controls > button.active {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none;
+  filter: none;
+}
+.online-app.mobile-play:not(.controller-only) .online-controls > button::before,
+.online-app.mobile-play:not(.controller-only) .online-controls > button::after,
+.online-app.mobile-play:not(.controller-only) .pad-feedback {
+  display: none;
+}
+/* Brief hints follow the touch regions, then fade as before. */
+.online-app.mobile-play:not(.controller-only) > .mobile-control-hints {
+  inset: 0;
+  height: auto;
+  padding: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-template-areas: "bomb bomb" "left right";
+}
+.mobile-control-hints > :nth-child(1) {
+  grid-area: left;
+}
+.mobile-control-hints > :nth-child(2) {
+  grid-area: bomb;
+}
+.mobile-control-hints > :nth-child(3) {
+  grid-area: right;
+}
+@media (orientation: landscape) {
+  .online-app.mobile-play:not(.controller-only) > .mobile-control-hints {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "left right bomb bomb";
+  }
+  .online-app.mobile-play:not(.controller-only)[data-bomb-side="left"]
+    > .mobile-control-hints {
     grid-template-areas: "bomb bomb left right";
   }
 }
