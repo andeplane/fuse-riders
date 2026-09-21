@@ -133,6 +133,52 @@ for (const { name, kind } of BOTH_ENGINES) {
       assert.equal(r.height, 390);
       assert.ok(r.x >= 0 && r.x + r.width <= 844);
     }
+    const hints = await page
+      .locator(".mobile-control-hints > span")
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const box = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          const icon = getComputedStyle(element, "::before");
+          return {
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+            border: style.borderTopColor,
+            background: style.backgroundColor,
+            content: icon.content,
+            image: icon.backgroundImage,
+          };
+        }),
+      );
+    for (const [index, hint] of hints.entries()) {
+      const region = bounds[index]!;
+      assert.deepEqual(
+        { x: hint.x, y: hint.y, width: hint.width, height: hint.height },
+        {
+          x: region.x + 4,
+          y: region.y + 4,
+          width: region.width - 8,
+          height: region.height - 8,
+        },
+        "white outline follows its actual touch region",
+      );
+      assert.equal(hint.border, "rgb(255, 255, 255)");
+      assert.equal(hint.background, "rgba(0, 0, 0, 0)");
+      assert.equal(hint.content, '""', "hints show icons instead of text");
+      assert.match(hint.image, /data:image\/svg\+xml/);
+    }
+    assert.equal(
+      await page
+        .locator(".online-announce.countdown .announce-hint")
+        .isVisible(),
+      false,
+      "the outlined regions replace the phone's text instructions",
+    );
+    await page.screenshot({
+      path: `artifacts/mobile-control-outlines-${name}.png`,
+    });
     const fit = await page
       .locator(".online-arena")
       .evaluate((canvas) => getComputedStyle(canvas).objectFit);
