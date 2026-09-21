@@ -1,4 +1,4 @@
-# Ball Bros: phases 0–1
+# Ball Bros: phases 0–2
 
 An unranked solo POC: one human and four bots, one core per base, 48 one-hit blocks in three dense rings, an orbital paddle and one launchable ball per player. A/D rotate, W/S reach outward/inward, Space launches. Bots emit the same steering/reach/launch controls. Last core standing wins; a 120-second limit draws. Rematch creates a fresh match through the shared room log.
 
@@ -6,7 +6,17 @@ The engine is independent of app/net/render code. Base-local blocks and paddle a
 
 Use the existing RoomRuntime even for solo. All controls and geometry are checkpointed and hashed; only trails, particles and sound are cosmetic. Phaser owns presentation only, with its loop disabled and one app-owned presentation frame. The engine uses pinned JS trigonometry. A new game-specific rules version/golden records behavioral changes without changing Fuse Riders' rules.
 
-Phase 1 includes service registration and a visible game link, but no online admission UI, ranked reporting, power-ups, shared music extraction or moving bases. Production remains gated by EXTRA_GAME_IDS. Phase 2 qualifies multiplayer controls/recovery and shared screens. Phase 3 adds shared avatars/music and power-ups.
+Phase 1 includes service registration and a visible game link. Phase 2 adds online admission, multiplayer controls/recovery and shared screens. Production remains gated by EXTRA_GAME_IDS. Phase 3 adds shared avatars/music and power-ups; ranked reporting and moving bases remain out of scope.
+
+## Phase 2: room composition and recovery
+
+Reuse the public RoomRuntime and PeerTransport APIs without changing the networking libraries currently under parallel development. The service coordinates game-scoped rooms and signalling; each browser simulates the same input log over direct WebRTC. There is no gameplay relay or always-running game simulation service.
+
+The landing offers solo, create, join and a shared-screen option. A room manager starts/rematches the group and adds/removes bots in the lobby using the existing generic management contract. This POC does not add Fuse Riders' separate unanimous-ready rule. Between two and five occupied seats play; an absent player's current base remains vulnerable with neutral controls, and the normal room lifecycle handles seats between matches. A fresh joiner during play waits until the lobby; an existing member recovers its live seat from peers. The game rejects starts with fewer than two participants.
+
+Ordinary room pages show the arena and controls. In a shared-screen room, seated pages show large colored phone controls and `?room=CODE&display=1` shows the arena without occupying a seat. Public invites contain only the room code. Per-game browser storage holds credentials/preferences, never world state. Same-page navigation preserves the creation credential even if storage is refused; in that case identity lasts only as long as the page. RECONNECT rebuilds the runtime with the same member credential and requests a peer snapshot; explicit failure/status text remains visible above both lobby and arena. LEAVE stops the runtime without ending the room for others. The existing lifecycle handles pagehide/BFCache cleanup and rebuilds the runtime on return.
+
+Both movement axes and launch remain match/generation-scoped log entries. The HUD uses the viewing member's identity; displays have no personal result or gameplay inputs. The UI is factored into injected DOM/renderer/runtime surfaces to test room state transitions and cancellation without browser globals. `ball-bros-3` marks the guarded multiplayer lifecycle; the phase-1 physics replay is unchanged. Validation includes fake-clock peer recovery/impairment tests and real browser room/display/controller flows; physical-phone and cross-network qualification remain separate evidence.
 
 ## Second playtest iteration (still phase 1)
 

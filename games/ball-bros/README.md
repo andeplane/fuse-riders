@@ -1,6 +1,6 @@
-# Ball Bros — core POC
+# Ball Bros — multiplayer POC
 
-An unranked solo experiment: you and four bots defend colored cores with orbital paddles. Break enemy armor, save incoming balls and be the last core standing. Ball ownership changes on a paddle hit, but your own ball can still destroy your core.
+An unranked experiment for two to five players and bots, or solo against four bots. Defend colored cores with orbital paddles, break enemy armor and be the last core standing. Ball ownership changes on a paddle hit, but your own ball can still destroy your core.
 
 Run `pnpm dev`, then open the printed server URL at `/ball-bros/?mute`. The Fuse Riders landing page also links here. `service/dev.ts` chooses a free port if the requested one is occupied.
 
@@ -8,9 +8,19 @@ Run `pnpm dev`, then open the printed server URL at `/ball-bros/?mute`. The Fuse
 - **W / S** or up/down arrows: reach outward / pull inward. Combine with A/D. The paddle stays the same length: reaching out intercepts earlier, pulling in covers a wider angle.
 - **Space**: launch your starting ball after the countdown. Unlaunched balls release automatically after three seconds.
 - Touch: left, in, launch, out and right buttons. Multiple movement buttons can be held while launching.
-- One core hit eliminates a player. Remaining bots finish the round; restart is always available. A two-minute time limit draws. **Play again** resets through the room log.
+- One core hit eliminates a player. Remaining players and bots finish the round. Solo has a restart button; online, the manager can rematch after the result. A two-minute time limit draws. **Play again** resets through the room log.
 
-This implements phases 0–1 of [the design](../../docs/design/ball-bros-poc.md). Online joining, shared-screen play, avatars, music, pickups, moving bases and ranked reporting are later phases. The service registration rejects all statistics reports and production is not enabled automatically.
+This implements phases 0–2 of [the design](../../docs/design/ball-bros-poc.md). Avatars, music, pickups, moving bases and ranked reporting are later phases. The service registration rejects all statistics reports and production rooms are not enabled automatically (`EXTRA_GAME_IDS=ball-bros`).
+
+## Playing together
+
+Choose **CREATE ROOM**, enter your name, and share the room code or QR invite. Friends choose **JOIN ROOM**. The room manager can add/remove bots in the lobby and start with at least two players. Everyone has the full arena on an individual device. A new arrival during a match waits for the lobby; a returning member recovers its existing seat from peers.
+
+For one TV plus phones, check **Shared TV + phone controllers** before creating the room, then choose **OPEN TV SCREEN**. That display takes no player slot. Player devices show large left/right/out/in/launch controls, their color and armor. Keep the display tab visible. The manager uses **PLAY AGAIN** after a result or **BACK TO LOBBY** to change the group. Starts are manager-controlled in this POC.
+
+**RECONNECT** rebuilds the connection and recovers from a peer. **LEAVE** does not end the room for remaining players. A hidden/disconnected player stops moving; their base remains vulnerable. A fast reload clears inputs from the old page's generation. Credentials/preferences are stored per game; live matches are never stored. If browser storage is refused, same-page create/join/reconnect still works, but a full page reload loses that page-only identity.
+
+Use a reachable service URL for other devices: `localhost` invites work only on the same computer. The service signals a direct WebRTC connection and does not relay gameplay; connection failures remain visible with RECONNECT available.
 
 The second playtest iteration uses an octagonal arena, bases near its perimeter, and 48 blocks in three dense rings per core. Bases remain fixed; W/S moves only the paddle's orbit. Faint rings show minimum and maximum reach. Straight walls and corner banks change ricochet angles without adding obstacles.
 
@@ -19,7 +29,7 @@ The second playtest iteration uses an octagonal arena, bases near its perimeter,
 - `src/engine/`: pure state, collision sweeps, bots, rules and validated arena codec.
 - `src/online/`: shared RoomRuntime adapter, generation/match-scoped inputs and complete checkpoint/hash.
 - `src/render/`: Phaser Canvas presentation and cosmetic interpolation. One app frame loop, no Phaser physics.
-- `src/app/`: solo screen, multi-input controls and small synthesized sound effects.
+- `src/app/`: solo and online screens, room lobby, TV/phone controls and small synthesized sound effects.
 
 Five 10 ms physics substeps fit inside each fixed 50 ms network-log tick. Core deaths commit together per substep; ball and collider ordering is stable. Physics is capped at eight contacts per ball/substep, stopping the remaining motion if exhausted. Blocks and paddles are base-relative but bases do not move.
 
@@ -29,6 +39,10 @@ Five 10 ms physics substeps fit inside each fixed 50 ms network-log tick. Core d
 
 `ONLINE_URL=http://localhost:PORT/ pnpm exec tsx games/ball-bros/smoke.ts`
 
+`ONLINE_URL=http://localhost:PORT/ pnpm exec tsx games/ball-bros/online-smoke.ts`
+
 The browser check follows the real menu, starts solo, steers/launches, observes damage, runs to a result, rematches and checks a phone viewport. Screenshots are saved under `artifacts/ball-bros-*.png`. This is browser emulation, not physical-phone evidence. On Windows set `ONLINE_URL` with PowerShell's `$env:ONLINE_URL` syntax.
 
-The `ball-bros-2` golden in `tests/engine.test.ts` records a complete deterministic five-bot match. Change the game rules version and review/refresh its hash for intended physics changes. Fuse Riders' rules and golden remain unchanged.
+The online check covers create retry, real WebRTC peers, bot seating, reload recovery, agreed results/rematch, creator departure, TV/phone layout and blocked-storage creation/reconnect. Unit tests also inject fast-packet loss/duplication/reordering, hidden inputs and corrupt snapshots. These checks do not qualify physical phones or cross-network connectivity.
+
+The `ball-bros-3` golden in `tests/engine.test.ts` records a complete deterministic five-bot match. Phase 2 changes multiplayer lifecycle/input recovery rules, not the physics replay hash. Change the game rules version and review/refresh its hash for intended physics changes. Fuse Riders' rules and golden remain unchanged.

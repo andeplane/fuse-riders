@@ -125,7 +125,7 @@ export function showLanding(host: LandingHost): void {
     link(
       `${appUrl()}ball-bros/`,
       "landing-more",
-      document.createTextNode("BALL BROS · SOLO POC ›"),
+      document.createTextNode("BALL BROS · PLAY ›"),
     ),
   );
   const live = node("aside", "", "landing-live");

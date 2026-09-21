@@ -1,10 +1,12 @@
 import type { BallView } from "../engine/view.js";
 
 /** The HUD is derived from the latest view, including corrected rollback outcomes. */
-export function present(v: BallView) {
+export function present(v: BallView, playerId?: string) {
   const s = v.arena;
   if (!s) return undefined;
-  const you = s.bases.find((b) => !b.bot);
+  const you = s.bases.find((b) =>
+    playerId === undefined ? !b.bot : b.id === playerId,
+  );
   const seconds = Math.floor(
     Math.max(0, v.rules.limit - Math.max(0, s.tick - v.rules.countdown)) / 20,
   );
@@ -26,15 +28,17 @@ export function present(v: BallView) {
         ? `GET READY · ${Math.ceil((v.rules.countdown - s.tick) / 20)}`
         : s.phase === "over"
           ? ""
-          : !you?.alive
+          : you && !you.alive
             ? "CORE LOST · WATCH THE FINISH"
-            : s.balls.some((b) => b.held === you.id)
+            : you && s.balls.some((b) => b.held === you.id)
               ? "SPACE TO LAUNCH"
               : "",
     over: s.phase === "over",
     title: s.winner
       ? `${s.bases.find((b) => b.id === s.winner)!.name.toUpperCase()} WINS`
       : "ROUND DRAW",
-    result: `Your saves: ${you?.saves ?? 0} · Enemy blocks broken: ${you?.broken ?? 0}`,
+    result: you
+      ? `Your saves: ${you.saves} · Enemy blocks broken: ${you.broken}`
+      : "Last core standing wins",
   };
 }

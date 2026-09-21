@@ -5,24 +5,36 @@ import {
   type BallRoom,
   type BallEntry,
   type Settings,
+  type RoomView,
 } from "./game.js";
-import type { BallView, Impact } from "../engine/view.js";
+import type { Impact } from "../engine/view.js";
 import type { Steering } from "../engine/state.js";
 
 export class BallRuntime extends RoomRuntime<
   BallRoom,
   BallEntry,
-  BallView,
+  RoomView,
   Impact,
   Settings
 > {
   private held: Steering = 0;
   private radial: Steering = 0;
   constructor(
-    callbacks: Callbacks<BallView, Impact, Settings>,
+    callbacks: Callbacks<RoomView, Impact, Settings>,
     options: RuntimeOptions = {},
+    code = "solo",
+    settings: Settings = DEFAULT_SETTINGS,
   ) {
-    super(ballGame, "solo", DEFAULT_SETTINGS, callbacks, options);
+    super(ballGame, code, settings, callbacks, options);
+  }
+  get self(): string {
+    return this.id;
+  }
+  get canManage(): boolean {
+    return (
+      this.creator ||
+      (this.id !== "" && this.world?.view().at(-1)?.managerId === this.id)
+    );
   }
   input(steer: Steering, radial: Steering = 0, launch = false): boolean {
     const room = this.world?.state;

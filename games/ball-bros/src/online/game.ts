@@ -41,6 +41,10 @@ export interface BallRoom extends ManagedRoom<Settings> {
   stage: Stage;
   arena: ArenaState | null;
 }
+export interface RoomView extends BallView {
+  stage: Stage;
+  players: SeatRecord[];
+}
 export type PlayEntry = [
   seq: number,
   tick: number,
@@ -106,11 +110,13 @@ export function createRoom(id: string, settings: Settings): BallRoom {
   };
 }
 function start(room: BallRoom, id: string): void {
+  const players = seats(room).filter(
+    (s) => !s.watcher && (s.connected || s.bot),
+  );
+  if (players.length < 2) return;
   room.matchId = id;
   room.stage = "running";
-  room.arena = createArena(
-    seats(room).filter((s) => !s.watcher && (s.connected || s.bot)),
-  );
+  room.arena = createArena(players);
 }
 const lifecycle: LifecycleHooks<BallRoom, Settings> = {
   stage: (r) => r.stage,
@@ -131,12 +137,22 @@ export function foldTick(
   streams: ReadonlyMap<string, StreamEntries<BallEntry>>,
 ): Impact[] {
   const tick = room.tick + 1;
+  const generations = new Map(
+    [...room.seats].map(([id, seat]) => [id, seat.generation]),
+  );
   applyManagementTick(room, tick, creator, streams, lifecycle);
   const arena = room.arena;
   let events: Impact[] = [];
   if (room.stage === "running" && arena) {
     for (const base of arena.bases) {
       const seat = room.seats.get(base.id);
+      // A refresh may replace a member before any disconnected tick. Never inherit
+      // held controls from that member's previous page into its new generation.
+      if (generations.get(base.id) !== seat?.generation) {
+        base.steer = 0;
+        base.radial = 0;
+        base.launch = false;
+      }
       if (base.bot) {
         control(arena, base.id, botControl(arena, base));
         continue;
@@ -264,7 +280,7 @@ export function hashRoom(room: BallRoom): string {
 export const ballGame: RollbackGame<
   BallRoom,
   BallEntry,
-  BallView,
+  RoomView,
   Impact,
   Settings
 > = {
@@ -277,7 +293,11 @@ export const ballGame: RollbackGame<
   clock: (r) => r.tick,
   steps: () => 1,
   maxSteps: 1,
-  view: (r) => view(r.tick, r.matchId, r.arena),
+  view: (r) => ({
+    ...view(r.tick, r.matchId, r.arena),
+    stage: r.stage,
+    players: seats(r).map((s) => ({ ...s })),
+  }),
   hash: hashRoom,
   checkpoint: { leading: 5, encode: encodeRoom, decode: decodeRoom },
   members: seats,

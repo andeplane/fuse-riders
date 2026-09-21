@@ -41,5 +41,5 @@ test("HUD shows countdown, launch, damage, spectating and corrected results from
   assert.equal(hud().over, false);
   assert.equal(hud().cards[0]!.armor, "48 / 48");
   arena.bases[0]!.bot = true;
-  assert.equal(hud().result, "Your saves: 0 · Enemy blocks broken: 0");
+  assert.equal(hud().result, "Last core standing wins");
 });

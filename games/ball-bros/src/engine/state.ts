@@ -1,6 +1,6 @@
 import { cos, sin, TAU, wrap } from "./math.js";
 
-export const RULES = "ball-bros-2";
+export const RULES = "ball-bros-3";
 export const SIZE = 1000,
   CENTER = 500,
   ARENA = 470;

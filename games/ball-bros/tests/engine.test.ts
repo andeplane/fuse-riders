@@ -323,7 +323,7 @@ test("five ordinary-input bots complete a bounded, deterministic round with reco
   assert.ok(s.tick <= COUNTDOWN + LIMIT);
   assert.ok(s.bases.some((b) => b.saves > 0));
   assert.ok(s.bases.some((b) => !b.alive));
-  // ball-bros-2: five-bot full-round replay, sampled once per second and at elimination.
+  // ball-bros-3 retains phase-1 physics: sampled once per second and at elimination.
   assert.equal(
     hashes.digest("hex"),
     "4074133259925203eac8ef77b2d1adab17dd0544f792fb737cca7acdd9214c09",

@@ -142,12 +142,18 @@ importers:
         specifier: workspace:*
         version: link:../../packages/fuse-platform
     devDependencies:
+      fuse-network-fe:
+        specifier: workspace:*
+        version: link:../../packages/fuse-network-fe
       fuse-ui:
         specifier: workspace:*
         version: link:../../packages/fuse-ui
       phaser:
         specifier: 4.2.1
         version: 4.2.1
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
 
   games/dice:
     dependencies:

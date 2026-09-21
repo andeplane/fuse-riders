@@ -4,6 +4,7 @@ import {
   ACTION,
   JOIN,
   BOT,
+  PRESENCE,
   World,
   type RuntimeDependencies,
 } from "fuse-netcode";
@@ -16,6 +17,7 @@ import {
   hashRoom,
   isEntry,
   parseSettings,
+  foldTick,
   type BallEntry,
 } from "../src/online/game.js";
 import { BallRuntime } from "../src/online/runtime.js";
@@ -24,6 +26,7 @@ import { Controls, keyboardButton, gameplayKey } from "../src/app/controls.js";
 import { effectAge, interpolate } from "../src/render/present.js";
 import { ballBrosRegistration } from "../src/platform.js";
 import { Audio } from "../src/app/audio.js";
+import { createArena, COUNTDOWN } from "../src/engine/state.js";
 
 test("mute never opens audio and unsupported sound does not block controls", () => {
   let opened = 0;
@@ -77,6 +80,105 @@ test("late, duplicate and reordered controls converge through actual rollback", 
   assert.ok(late.rollbackTicks > 0);
   assert.equal(hashRoom(late.state), hashRoom(onTime.state));
   assert.deepEqual(late.view(), onTime.view());
+});
+
+test("a connected generation replacement releases old inputs before accepting the new page's inputs", () => {
+  const room = createRoom("match", DEFAULT_SETTINGS);
+  for (const [slot, id] of ["a", "b"].entries())
+    room.seats.set(id, {
+      id,
+      name: id,
+      slot,
+      connected: true,
+      generation: 1,
+      bot: false,
+      avatarId: "robot",
+    });
+  room.stage = "running";
+  room.tick = 10;
+  room.arena = createArena([...room.seats.values()]);
+  room.arena.tick = COUNTDOWN;
+  const base = room.arena.bases[1]!;
+  base.steer = 1;
+  base.radial = 1;
+  const angle = base.angle,
+    radius = base.radius;
+  foldTick(
+    room,
+    "a",
+    new Map([
+      [
+        "a",
+        {
+          generation: 1,
+          entries: [[1, 11, PRESENCE, "b", true, 2] as BallEntry],
+        },
+      ],
+      [
+        "b",
+        {
+          generation: 2,
+          entries: [[1, 11, 0, "old-match", 1, 1, true] as BallEntry],
+          retired: [
+            {
+              generation: 1,
+              entries: [[1, 11, 0, "match", 1, 1, true] as BallEntry],
+            },
+          ],
+        },
+      ],
+    ]),
+  );
+  assert.equal(room.seats.get("b")!.connected, true);
+  assert.equal(room.seats.get("b")!.generation, 2);
+  assert.equal(base.angle, angle);
+  assert.equal(base.radius, radius);
+  assert.equal(base.steer, 0);
+  assert.equal(base.radial, 0);
+  foldTick(
+    room,
+    "a",
+    new Map([
+      [
+        "b",
+        {
+          generation: 2,
+          entries: [[2, 12, 0, "match", -1, -1, false] as BallEntry],
+        },
+      ],
+    ]),
+  );
+  assert.equal(base.steer, -1);
+  assert.equal(base.radial, -1);
+});
+
+test("a logged start cannot create a one-player arena", () => {
+  const room = createRoom("lobby", DEFAULT_SETTINGS);
+  room.seats.set("a", {
+    id: "a",
+    name: "Alice",
+    slot: 0,
+    connected: true,
+    generation: 1,
+    bot: false,
+    avatarId: "robot",
+  });
+  foldTick(
+    room,
+    "a",
+    new Map([
+      [
+        "a",
+        {
+          generation: 1,
+          entries: [[1, 1, ACTION, "start", "bad"] as BallEntry],
+        },
+      ],
+    ]),
+  );
+  assert.equal(room.stage, "lobby");
+  assert.equal(room.arena, null);
+  assert.equal(room.matchId, "lobby");
 });
 
 test("checkpoints validate complete state and reject corrupt geometry, owners, seats and settings atomically", () => {

@@ -50,7 +50,7 @@ Every device in a room simulates the game from one shared input log, so no brows
 
 ## Pig, the second game
 
-**Ball Bros core POC** is also available at `/ball-bros/`, linked from the home page: solo against four bots, orbital paddles, destructible bases and one-hit cores. See [its controls and verification](games/ball-bros/README.md). It is unranked; online joining, power-ups and moving bases are later work.
+**Ball Bros POC** is also available at `/ball-bros/`, linked from the home page: solo against four bots or online rooms for up to five players, with orbital/radial paddles, destructible bases and one-hit cores. Shared-screen rooms offer a TV view and phone controllers. See [its controls and verification](games/ball-bros/README.md). It is unranked; power-ups and moving bases are later work. Production rooms remain gated by `EXTRA_GAME_IDS=ball-bros`.
 
 The same service serves **Pig**, a dice game for 2–5 players and bots, at `/dice/` (locally **http://localhost:8787/dice/**; the Fuse Riders home page links it as **MORE GAMES: PIG**). Roll a die as often as you like, every roll adding to your turn; a 1 loses the turn, **HOLD** banks it. First to 50 wins the round, two rounds win the match. It has solo against bots, rooms with a QR invite, and a shared TV (`?room=CODE&display=1`) with phones as ROLL/HOLD controllers. It is the template for new games: see [games/dice/README.md](games/dice/README.md). Production serves its rooms only once `EXTRA_GAME_IDS=dice` is set ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page offers solo only.
 
