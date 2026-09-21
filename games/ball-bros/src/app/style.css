@@ -534,3 +534,84 @@ h1 {
     padding: 14px 24px;
   }
 }
+.radio {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9px;
+}
+.radio span {
+  max-width: 100px;
+  color: #a9c2db;
+}
+.avatar-choice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 12px 0;
+  font-size: 11px;
+}
+.avatar-choice select {
+  background: #101e32;
+  color: #e7f6ff;
+  border: 1px solid #315675;
+  border-radius: 6px;
+  padding: 8px;
+}
+.power-status {
+  text-align: center;
+  color: #b1ef3c;
+  font-size: 11px;
+  min-height: 16px;
+}
+.card-label {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 850px) {
+  .radio span {
+    display: none;
+  }
+}
+.avatar-preview {
+  width: 36px;
+  height: 36px;
+  display: inline-block;
+  background-size: 500% 300%;
+}
+.room-panel .fui-room-code {
+  color: #eaf6ff;
+}
+.fui-landing {
+  padding: 28px;
+  border: 1px solid #315675;
+  border-radius: 14px;
+  background: #0b1729;
+}
+.fui-landing-title {
+  font:
+    italic 900 42px/1.1 Barlow,
+    system-ui,
+    sans-serif;
+  letter-spacing: -1px;
+}
+.fui-landing button,
+.fui-landing .fui-join-code-input,
+.fui-name-entry input,
+.fui-name-entry button {
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #315675;
+  border-radius: 6px;
+  background: #12283b;
+  color: #eaf6ff;
+  font: inherit;
+  font-size: 12px;
+}
+.fui-landing .fui-button-primary,
+.fui-name-entry button {
+  background: #b1ef3c;
+  color: #102000;
+  border-color: #b1ef3c;
+  font-weight: 800;
+}

@@ -10,7 +10,23 @@ Run `pnpm dev`, then open the printed server URL at `/ball-bros/?mute`. The Fuse
 - Touch: left, in, launch, out and right buttons. Multiple movement buttons can be held while launching.
 - One core hit eliminates a player. Remaining players and bots finish the round. Solo has a restart button; online, the manager can rematch after the result. A two-minute time limit draws. **Play again** resets through the room log.
 
-This implements phases 0–2 of [the design](../../docs/design/ball-bros-poc.md). Avatars, music, pickups, moving bases and ranked reporting are later phases. The service registration rejects all statistics reports and production rooms are not enabled automatically (`EXTRA_GAME_IDS=ball-bros`).
+This implements phases 0–3 of [the design](../../docs/design/ball-bros-poc.md). Moving bases and ranked reporting remain later work. The service registration rejects all statistics reports and production rooms are not enabled automatically (`EXTRA_GAME_IDS=ball-bros`).
+
+## Power-ups and presentation
+
+Your ball collects power-ups for you, even after it travels across the arena. Paddle hits transfer ball ownership. Neutral balls cannot collect powers.
+
+| Pickup | Effect                                                                                                                                                                  |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Shrink | Rivals' paddles shrink to 75% length for eight seconds; stacks twice.                                                                                                   |
+| Bomb   | Arms the collecting ball. Its next block hit blasts nearby armor; a paddle hit stuns that paddle for one second. The ball survives; splash never kills a core directly. |
+| Sticky | For eight seconds, catches one ball at a time. Space / LAUNCH releases it; automatic release after three seconds.                                                       |
+| Thief  | For eight seconds, enemy blocks you destroy repair missing blocks in your base.                                                                                         |
+| Split  | Fans the collecting ball into two at unchanged speed/size, retaining ownership and bomb charge. Up to two splits per lineage, twenty balls total.                       |
+
+Pickups appear in the center every four seconds after the first second of play. Effect timers appear on player cards and phone controllers. Ghosted paddles are stunned; white paddles are sticky; gold rings mark Thief; orange halos mark bomb balls.
+
+Choose **YOUR CORE** before solo or joining for an avatar from the shared Fuse Riders sheet. **RADIO OFF** explicitly enables the shared music catalog; **NEXT ♫** changes tracks. The radio starts off, pauses on leaving/reconnecting, and is hidden on shared phone controllers. Use the TV's radio for shared play. The SOUND toggle controls impact effects separately. Missing portrait/music assets leave the game playable.
 
 ## Playing together
 
@@ -41,8 +57,12 @@ Five 10 ms physics substeps fit inside each fixed 50 ms network-log tick. Core d
 
 `ONLINE_URL=http://localhost:PORT/ pnpm exec tsx games/ball-bros/online-smoke.ts`
 
+`ONLINE_URL=http://localhost:PORT/ pnpm exec tsx games/ball-bros/presentation-smoke.ts`
+
 The browser check follows the real menu, starts solo, steers/launches, observes damage, runs to a result, rematches and checks a phone viewport. Screenshots are saved under `artifacts/ball-bros-*.png`. This is browser emulation, not physical-phone evidence. On Windows set `ONLINE_URL` with PowerShell's `$env:ONLINE_URL` syntax.
 
 The online check covers create retry, real WebRTC peers, bot seating, reload recovery, agreed results/rematch, creator departure, TV/phone layout and blocked-storage creation/reconnect. Unit tests also inject fast-packet loss/duplication/reordering, hidden inputs and corrupt snapshots. These checks do not qualify physical phones or cross-network connectivity.
 
-The `ball-bros-3` golden in `tests/engine.test.ts` records a complete deterministic five-bot match. Phase 2 changes multiplayer lifecycle/input recovery rules, not the physics replay hash. Change the game rules version and review/refresh its hash for intended physics changes. Fuse Riders' rules and golden remain unchanged.
+The presentation check covers core selection and aborts the optional avatar request to verify that gameplay still starts. All browser runs stay muted. Unit tests cover radio playback/rejection/teardown through a typed media player.
+
+The `ball-bros-4` golden in `tests/engine.test.ts` records a complete deterministic five-bot match including powers and avatar/effect checkpoints. Old Ball Bros clients must refresh before joining this version. Change the game rules version and review/refresh its hash for intended physics changes. Fuse Riders' rules and golden remain unchanged.

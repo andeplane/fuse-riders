@@ -9,6 +9,7 @@ import { ballGame, type Settings } from "../online/game.js";
 import { colorCss } from "../render/present.js";
 import { roomModel } from "./room-model.js";
 import { NAME_KEY, type Store } from "./session.js";
+import { avatarChoice, chosenAvatar } from "./avatars.js";
 
 export function roomPanel(
   root: HTMLElement,
@@ -38,9 +39,14 @@ export function roomPanel(
     normalize: (s) => ballGame.seating.seatName(s) ?? "",
     onSubmit(value) {
       options.store.setItem(NAME_KEY, value);
-      options.command({ type: "join", name: value });
+      options.command({
+        type: "join",
+        name: value,
+        avatarId: chosenAvatar(options.store),
+      });
     },
   });
+  name.form.prepend(avatarChoice(document, options.store));
   const add = el("button", "+ ADD BOT", "quiet-button");
   add.onclick = () => options.command({ type: "bot", action: "add" });
   const start = el("button", "START MATCH", "primary");

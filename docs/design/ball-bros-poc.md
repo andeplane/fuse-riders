@@ -1,6 +1,6 @@
-# Ball Bros: phases 0–2
+# Ball Bros: phases 0–3
 
-An unranked solo POC: one human and four bots, one core per base, 48 one-hit blocks in three dense rings, an orbital paddle and one launchable ball per player. A/D rotate, W/S reach outward/inward, Space launches. Bots emit the same steering/reach/launch controls. Last core standing wins; a 120-second limit draws. Rematch creates a fresh match through the shared room log.
+An unranked POC for up to five humans/bots, or one human against four bots: one core per base, 48 one-hit blocks in three dense rings, an orbital paddle and one launchable ball per player. A/D rotate, W/S reach outward/inward, Space launches. Bots emit the same steering/reach/launch controls. Last core standing wins; a 120-second limit draws. Rematch creates a fresh match through the shared room log.
 
 The engine is independent of app/net/render code. Base-local blocks and paddle angles leave a seam for future base movement, but bases are stationary in this version. Balls sweep against walls, rounded block corners, cores and rotating curved paddles. Five 10 ms substeps run in each fixed 50 ms log tick. Contacts break ties by collider order, balls resolve by stable id, and core eliminations commit together at the end of each substep so simultaneous final losses draw. At the contact iteration limit the ball stops for the remaining substep rather than tunnelling. Ball ownership changes on paddle contact and grants no immunity. Eliminated bases clear and their balls become neutral.
 
@@ -8,7 +8,15 @@ Use the existing RoomRuntime even for solo. All controls and geometry are checkp
 
 Phase 1 includes service registration and a visible game link. Phase 2 adds online admission, multiplayer controls/recovery and shared screens. Production remains gated by EXTRA_GAME_IDS. Phase 3 adds shared avatars/music and power-ups; ranked reporting and moving bases remain out of scope.
 
-## Phase 2: room composition and recovery
+## Phase 3: powers, core portraits and radio
+
+Power-ups are engine state, collected by swept ball contact for the ball's current living owner. Neutral balls leave pickups alone. A deterministic rotating deck spawns one every four seconds after the first second of play, in the open center; at most three are visible and each expires after twenty seconds. Collision ordering and bounded ball ids make pickup races replayable. Checkpoints validate effects, pickups, avatars and split balls under `ball-bros-4`; old replicas must refresh.
+
+Shrink reduces opposing paddle lengths to 75%, lasts eight seconds and stacks twice with individual expiry. Sticky catches at most one ball per paddle for up to three seconds during an eight-second window; Space releases it. Thief repairs one missing block per enemy block destroyed for eight seconds. Bomb arms the collecting ball until its next block or paddle hit: armor splash has a 38-unit radius, while a paddle absorbs it, reflects the ball and loses collision for one second. Splash never destroys a core directly. Split fans the ball ±16 degrees from its incoming heading at unchanged speed and size, up to two generations and twenty balls total. Children retain ownership and bomb charge. Newly split children begin moving on the next physics substep. Base movement, new maps and ranked reporting remain later work.
+
+The app shares the existing avatar sheet and music catalog through presentation metadata in `fuse-ui/assets`; engines keep their own accepted avatar ids. Players choose a core portrait before joining/starting; duplicate portraits are permitted because player color/number remains identity. Bots use robots. Core portraits are optional decoration and failed image loading leaves the simple core visible. The radio is explicitly enabled by a click, uses the existing tracks, and is disposed on navigation. Shared phone controllers suppress radio; the TV can play it. Existing synthesized impacts gain distinct pickup/bomb cues.
+
+## Phase 2 implementation details
 
 Reuse the public RoomRuntime and PeerTransport APIs without changing the networking libraries currently under parallel development. The service coordinates game-scoped rooms and signalling; each browser simulates the same input log over direct WebRTC. There is no gameplay relay or always-running game simulation service.
 

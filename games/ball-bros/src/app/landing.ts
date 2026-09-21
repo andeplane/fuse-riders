@@ -1,6 +1,7 @@
 import { createLandingCard, elementsFor } from "fuse-ui";
 import { validRoomCode } from "fuse-network-fe";
 import { rememberRoom, roomFailure, type Store } from "./session.js";
+import { avatarChoice } from "./avatars.js";
 
 export function landing(
   root: HTMLElement,
@@ -38,6 +39,7 @@ export function landing(
     onJoin: (code) => options.navigate(`?room=${code}`),
   });
   card.create.before(choice);
+  choice.before(avatarChoice(root.ownerDocument, options.store));
   const help = el(
     "p",
     "A / D orbit · W / S out / in · Space launch",

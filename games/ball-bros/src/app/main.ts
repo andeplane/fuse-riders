@@ -16,6 +16,8 @@ import { mountGame } from "./game-screen.js";
 import { landing } from "./landing.js";
 import { safeStore, session } from "./session.js";
 import { installLifecycle } from "./lifecycle.js";
+import { chosenAvatar } from "./avatars.js";
+import { createRadio } from "./radio.js";
 
 const root = document.querySelector<HTMLElement>("#app")!;
 const endpoints = createEndpoints(
@@ -64,7 +66,12 @@ function render() {
       store,
       qr: (text) => QRCode.toDataURL(text, { margin: 1, width: 240 }),
       audio: new Audio(muted),
-      renderer: createRenderer,
+      radio: createRadio(
+        document,
+        import.meta.env.BASE_URL,
+        new window.Audio(),
+      ),
+      renderer: (parent) => createRenderer(parent, import.meta.env.BASE_URL),
       runtime: (callbacks) =>
         new BallRuntime(
           callbacks,
@@ -81,6 +88,7 @@ function render() {
             : {},
           online?.code,
           { display: online?.shared ?? false },
+          chosenAvatar(store),
         ),
       now: () => performance.now(),
       frame: (callback) => requestAnimationFrame(callback),

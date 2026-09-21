@@ -20,6 +20,7 @@ import {
   type Steering,
 } from "../engine/state.js";
 import { botControl } from "../engine/bots.js";
+import { isAvatar } from "../engine/avatars.js";
 import { step } from "../engine/step.js";
 import {
   decodeArena,
@@ -71,7 +72,7 @@ export function isEntry(raw: unknown): raw is BallEntry {
   if (
     isManagementEntry(raw, {
       name: validName,
-      avatar: (v) => v === "robot",
+      avatar: isAvatar,
       settings: (v) => !!parseSettings(v),
       capacity: 5,
     })
@@ -194,6 +195,7 @@ export function encodeRoom(room: BallRoom): unknown[] {
       s.connected,
       s.generation ?? null,
       s.away ?? false,
+      s.avatarId,
     ]),
     room.arena ? encodeArena(room.arena) : null,
   ];
@@ -220,7 +222,8 @@ export function decodeRoom(
   for (const s of rawSeats) {
     if (
       !Array.isArray(s) ||
-      s.length !== 7 ||
+      s.length !== 8 ||
+      !isAvatar(s[7]) ||
       !validId(s[0]) ||
       !validName(s[1]) ||
       !integer(s[2], 4) ||
@@ -240,7 +243,7 @@ export function decodeRoom(
       slot: s[2],
       bot: s[3],
       connected: s[4],
-      avatarId: "robot",
+      avatarId: s[7],
       ...(s[5] === null ? {} : { generation: s[5] }),
       ...(s[6] ? { away: true } : {}),
     });
@@ -311,8 +314,8 @@ export const ballGame: RollbackGame<
       const name = Array.from(raw.trim()).slice(0, 24).join("");
       return validName(name) ? name : undefined;
     },
-    isAvatar: (v): v is string => v === "robot",
-    defaultAvatar: "robot",
+    isAvatar,
+    defaultAvatar: "fox",
     parseSettings,
     soloSettings: () => ({ display: false }),
     sharedScreen: (s) => s.display,

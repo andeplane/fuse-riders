@@ -9,6 +9,7 @@ import {
   PADDLE_THICK,
   BALL_RADIUS,
   COUNTDOWN,
+  PICKUP_RADIUS,
   LIMIT,
   type ArenaState,
 } from "./state.js";
@@ -24,6 +25,7 @@ export const viewRules = {
   paddleThick: PADDLE_THICK,
   ballRadius: BALL_RADIUS,
   countdown: COUNTDOWN,
+  pickupRadius: PICKUP_RADIUS,
   limit: LIMIT,
 };
 export interface BallView {

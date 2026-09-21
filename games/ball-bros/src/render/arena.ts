@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import type { BallView, Impact } from "../engine/view.js";
 import { COLORS, effectAge } from "./present.js";
+import { AVATAR_ATLAS } from "fuse-ui/assets";
 
 interface Spark {
   x: number;
@@ -17,8 +18,13 @@ export interface ArenaRenderer {
 }
 
 /** Phaser has no simulation, timers, input or audio; the app supplies one presentation clock. */
-export function createRenderer(parent: HTMLElement): ArenaRenderer {
+export function createRenderer(
+  parent: HTMLElement,
+  baseUrl = "/",
+): ArenaRenderer {
   let graphics: Phaser.GameObjects.Graphics;
+  const portraits: Phaser.GameObjects.Image[] = [],
+    labels: Phaser.GameObjects.Text[] = [];
   let booted = false,
     destroyed = false,
     scope = "",
@@ -40,6 +46,39 @@ export function createRenderer(parent: HTMLElement): ArenaRenderer {
       if (destroyed) return;
       clearTimeout(deadline);
       graphics = this.add.graphics();
+      // Portraits are optional: neither a slow CDN nor a missing sheet delays play.
+      this.load.once("complete", () => {
+        if (destroyed || !this.textures.exists("heads")) return;
+        const texture = this.textures.get("heads"),
+          source = texture.getSourceImage();
+        const w = source.width / AVATAR_ATLAS.columns,
+          h = source.height / AVATAR_ATLAS.rows;
+        AVATAR_ATLAS.frames.forEach((id, i) =>
+          texture.add(id, 0, (i % 5) * w, Math.floor(i / 5) * h, w, h),
+        );
+        for (let i = 0; i < 5; i++)
+          portraits.push(
+            this.add
+              .image(0, 0, "heads", "robot")
+              .setDisplaySize(32, 32)
+              .setVisible(false),
+          );
+      });
+      this.load.image("heads", baseUrl + AVATAR_ATLAS.url.slice(1));
+      this.load.start();
+      for (let i = 0; i < 3; i++)
+        labels.push(
+          this.add
+            .text(0, 0, "", {
+              fontFamily: "monospace",
+              fontSize: "12px",
+              fontStyle: "bold",
+              color: "#ffffff",
+              backgroundColor: "#081525",
+            })
+            .setOrigin(0.5)
+            .setVisible(false),
+        );
       booted = true;
       game.loop.stop();
       resolve();
@@ -68,7 +107,7 @@ export function createRenderer(parent: HTMLElement): ArenaRenderer {
           y: e.y,
           born: now,
           slot: e.slot,
-          core: e.kind === "core",
+          core: e.kind === "core" || e.kind === "bomb" || e.kind === "pickup",
         });
       sparks = sparks.slice(-60);
     },
@@ -84,6 +123,8 @@ export function createRenderer(parent: HTMLElement): ArenaRenderer {
         r = v.rules,
         g = graphics;
       g.clear();
+      portraits.forEach((p) => p.setVisible(false));
+      labels.forEach((p) => p.setVisible(false));
       const outline = r.vertices.map((p) => new Phaser.Math.Vector2(p.x, p.y));
       g.fillStyle(0x101e32);
       g.fillPoints(
@@ -101,7 +142,10 @@ export function createRenderer(parent: HTMLElement): ArenaRenderer {
       g.strokeCircle(500, 500, 110);
       for (const b of s.bases) {
         const color = COLORS[b.slot]!;
-        const half = (r.paddleHalf * r.paddle) / b.radius;
+        const half =
+          ((r.paddleHalf * r.paddle) / b.radius) *
+          Math.pow(0.75, b.shrink.length);
+        const stunned = b.stunUntil > s.tick;
         if (!b.alive) {
           g.lineStyle(1, color, 0.12);
           g.strokeCircle(b.x, b.y, r.core + 5);
@@ -133,13 +177,17 @@ export function createRenderer(parent: HTMLElement): ArenaRenderer {
           [15, 0.17],
           [r.paddleThick * 2, 1],
         ] as const) {
-          g.lineStyle(width, color, alpha);
+          g.lineStyle(
+            width,
+            b.stickyUntil > s.tick ? 0xffffff : color,
+            alpha * (stunned ? 0.12 : 1),
+          );
           g.beginPath();
           g.arc(b.x, b.y, b.radius, b.angle - half, b.angle + half);
           g.strokePath();
         }
         for (const angle of [b.angle - half, b.angle + half]) {
-          g.fillStyle(color);
+          g.fillStyle(color, stunned ? 0.15 : 1);
           g.fillCircle(
             b.x + Math.cos(angle) * b.radius,
             b.y + Math.sin(angle) * b.radius,
@@ -159,6 +207,59 @@ export function createRenderer(parent: HTMLElement): ArenaRenderer {
         g.fillStyle(0xffffff);
         g.fillRect(b.x - 7, b.y - 3, 4, 4);
         g.fillRect(b.x + 3, b.y - 3, 4, 4);
+        portraits[b.slot]
+          ?.setPosition(b.x, b.y)
+          .setFrame(b.avatarId)
+          .setVisible(true);
+        if (b.thiefUntil > s.tick) {
+          g.lineStyle(2, 0xffda66, 0.8);
+          g.strokeCircle(b.x, b.y, r.core + 9);
+        }
+      }
+      const powerColors = {
+        shrink: 0xff429a,
+        bomb: 0xffa43d,
+        sticky: 0x35d9ff,
+        thief: 0xb1ef3c,
+        split: 0xbb79ff,
+      };
+      for (const [i, p] of s.pickups.entries()) {
+        const color = powerColors[p.kind],
+          pulse = 1 + Math.sin(now / 180 + p.id) * 0.08;
+        g.fillStyle(color, 0.07);
+        g.fillCircle(p.x, p.y, 30 * pulse);
+        g.fillStyle(0x081525, 0.95);
+        g.fillCircle(p.x, p.y, r.pickupRadius);
+        g.lineStyle(2, color);
+        g.strokeCircle(p.x, p.y, r.pickupRadius * pulse);
+        // Distinct simple icons remain readable beneath a ball's glow.
+        g.lineStyle(3, color);
+        if (p.kind === "split") {
+          g.strokeCircle(p.x - 6, p.y, 4);
+          g.strokeCircle(p.x + 6, p.y, 4);
+        } else if (p.kind === "bomb") {
+          g.fillStyle(color);
+          g.fillCircle(p.x, p.y + 2, 7);
+          g.lineBetween(p.x + 3, p.y - 5, p.x + 8, p.y - 10);
+        } else if (p.kind === "sticky") {
+          g.beginPath();
+          g.arc(p.x, p.y - 4, 8, 0, Math.PI);
+          g.strokePath();
+          g.lineBetween(p.x - 8, p.y - 4, p.x - 8, p.y - 10);
+          g.lineBetween(p.x + 8, p.y - 4, p.x + 8, p.y - 10);
+        } else if (p.kind === "thief") {
+          g.strokeRect(p.x - 7, p.y - 7, 14, 14);
+          g.lineBetween(p.x - 4, p.y, p.x + 4, p.y);
+          g.lineBetween(p.x, p.y - 4, p.x, p.y + 4);
+        } else {
+          g.lineBetween(p.x - 10, p.y, p.x + 10, p.y);
+          g.lineBetween(p.x - 10, p.y - 5, p.x - 10, p.y + 5);
+          g.lineBetween(p.x + 10, p.y - 5, p.x + 10, p.y + 5);
+        }
+        labels[i]!.setPosition(p.x, p.y + 30)
+          .setText(p.kind.toUpperCase())
+          .setColor(`#${color.toString(16).padStart(6, "0")}`)
+          .setVisible(true);
       }
       for (const b of s.balls) {
         const owner = s.bases.find((p) => p.id === b.owner),
@@ -190,6 +291,10 @@ export function createRenderer(parent: HTMLElement): ArenaRenderer {
         g.fillCircle(b.x, b.y, r.ballRadius);
         g.fillStyle(0xffffff);
         g.fillCircle(b.x - 1, b.y - 1, 3.5);
+        if (b.bomb) {
+          g.lineStyle(2, 0xffae32);
+          g.strokeCircle(b.x, b.y, 10 + Math.sin(now / 60));
+        }
       }
       sparks = sparks.filter((p) => now - p.born < (p.core ? 700 : 320));
       for (const p of sparks) {

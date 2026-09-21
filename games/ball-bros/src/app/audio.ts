@@ -1,5 +1,5 @@
 import type { Impact } from "../engine/view.js";
-/** Small POC synth; music/radio sharing belongs to the presentation phase. */
+/** Disposable impact synth; the shared music catalog is played by the separate radio. */
 export class Audio {
   private context?: AudioContext;
   private last = 0;
@@ -34,13 +34,17 @@ export class Audio {
     const oscillator = c.createOscillator(),
       gain = c.createGain();
     const hz =
-      e.kind === "core"
-        ? 110
-        : e.kind === "paddle"
-          ? 720
-          : e.kind === "launch"
-            ? 440
-            : 260;
+      e.kind === "bomb"
+        ? 65
+        : e.kind === "pickup"
+          ? 1100
+          : e.kind === "core"
+            ? 110
+            : e.kind === "paddle"
+              ? 720
+              : e.kind === "launch"
+                ? 440
+                : 260;
     oscillator.type = e.kind === "core" ? "sawtooth" : "sine";
     oscillator.frequency.setValueAtTime(hz, c.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(

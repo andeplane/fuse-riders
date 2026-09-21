@@ -14,6 +14,8 @@ import { present } from "./presenter.js";
 import { roomPanel } from "./room-panel.js";
 import { roomModel } from "./room-model.js";
 import { NAME_KEY, roomFailure, type Store } from "./session.js";
+import { chosenAvatar } from "./avatars.js";
+import type { Radio } from "./radio.js";
 
 export type Client = Pick<
   BallRuntime,
@@ -37,6 +39,7 @@ export interface ScreenOptions {
   store: Store;
   qr(link: string): Promise<string>;
   audio: Pick<Audio, "muted" | "unlock" | "play" | "destroy">;
+  radio?: Radio;
   renderer(parent: HTMLElement): ArenaRenderer;
   runtime(callbacks: Callbacks<RoomView, Impact, Settings>): Client;
   now(): number;
@@ -75,6 +78,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
     { signal },
   );
   top.append(home, badge, sound);
+  if (options.radio) top.append(options.radio.element);
   const retry = el("button", "RECONNECT", "quiet-button");
   retry.hidden = !options.online;
   retry.onclick = () => {
@@ -154,7 +158,11 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
     instructions,
     keys,
     restart,
-    el("p", "CORE POC · Fixed bases · No power-ups", "footnote"),
+    el(
+      "p",
+      "Your ball collects powers for you. Shrink rivals · Bomb armor / stun paddles · Sticky catches · Thief repairs · Split doubles.",
+      "footnote",
+    ),
   );
   layout.append(arenaBox, side);
   const controlsRow = el("div", "", "touch-controls");
@@ -192,6 +200,9 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
   overlay.append(returnLobby);
   const identity = el("p", "", "controller-identity");
   root.insertBefore(identity, controlsRow);
+  const powers = el("p", "", "power-status");
+  powers.setAttribute("aria-live", "polite");
+  root.insertBefore(powers, controlsRow);
   const controls = new Controls((steer, radial, launch) => {
     audio.unlock();
     runtime?.input(steer, radial, launch);
@@ -286,7 +297,11 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
       const remembered = options.store.getItem(NAME_KEY);
       if (m.askName && remembered && !joined) {
         joined = true;
-        runtime?.command({ type: "join", name: remembered });
+        runtime?.command({
+          type: "join",
+          name: remembered,
+          avatarId: chosenAvatar(options.store),
+        });
       }
       if ((lastMatch && lastMatch !== v.matchId) || (playing && !m.controls))
         cancel();
@@ -297,6 +312,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
       controlsRow.hidden = !m.controls;
       root.classList.toggle("in-match", !m.lobby);
       root.classList.toggle("controller-mode", m.controller);
+      options.radio?.enable(!shared || options.online.display);
       root.classList.toggle("display-mode", options.online.display);
       identity.textContent = m.name;
       identity.style.color = m.slot === undefined ? "" : colorCss(m.slot);
@@ -306,6 +322,8 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
       returnLobby.hidden = !m.over || !m.manage;
       overlay.hidden = !m.over;
       if (m.lobby) {
+        powers.textContent = "";
+        powers.hidden = true;
         previousHud = "";
         return;
       }
@@ -331,6 +349,8 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
       card.classList.toggle("eliminated", !player.alive);
     }
     clock.textContent = model.time;
+    powers.textContent = model.effects;
+    powers.hidden = !model.effects;
     toast.textContent = model.toast;
     if (model.over) {
       playing = false;
@@ -478,6 +498,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
     options.cancelFrame(frame);
     renderer.destroy();
     audio.destroy();
+    options.radio?.destroy();
     abort.abort();
   };
 }

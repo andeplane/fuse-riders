@@ -1,6 +1,24 @@
 import { cos, sin, TAU, wrap } from "./math.js";
 
-export const RULES = "ball-bros-3";
+export const RULES = "ball-bros-4";
+export const POWER_KINDS = [
+  "shrink",
+  "bomb",
+  "sticky",
+  "thief",
+  "split",
+] as const;
+export type PowerKind = (typeof POWER_KINDS)[number];
+export const MAX_BALLS = 20,
+  PICKUP_RADIUS = 18,
+  EFFECT_TICKS = 160;
+export interface Pickup {
+  id: number;
+  kind: PowerKind;
+  x: number;
+  y: number;
+  expires: number;
+}
 export const SIZE = 1000,
   CENTER = 500,
   ARENA = 470;
@@ -30,6 +48,7 @@ export interface Participant {
   name: string;
   slot: number;
   bot: boolean;
+  avatarId?: string;
 }
 export interface Block {
   x: number;
@@ -37,6 +56,7 @@ export interface Block {
   alive: boolean;
 }
 export interface Base extends Participant {
+  avatarId: string;
   x: number;
   y: number;
   angle: number;
@@ -48,6 +68,10 @@ export interface Base extends Participant {
   launch: boolean;
   saves: number;
   broken: number;
+  shrink: number[];
+  stickyUntil: number;
+  thiefUntil: number;
+  stunUntil: number;
 }
 export interface Ball {
   id: number;
@@ -57,6 +81,9 @@ export interface Ball {
   vy: number;
   owner: string | null;
   held: string | null;
+  heldUntil: number;
+  bomb: boolean;
+  splits: number;
 }
 export interface ArenaState {
   tick: number;
@@ -64,9 +91,11 @@ export interface ArenaState {
   bases: Base[];
   balls: Ball[];
   winner: string | null;
+  pickups: Pickup[];
 }
 export interface Impact {
-  kind: "paddle" | "block" | "core" | "wall" | "launch";
+  kind: "paddle" | "block" | "core" | "wall" | "launch" | "pickup" | "bomb";
+  power?: PowerKind;
   x: number;
   y: number;
   slot: number;
@@ -91,6 +120,7 @@ export const insideArena = (x: number, y: number, margin = BALL_RADIUS) =>
   );
 // Keep arc length fixed: reaching out trades coverage for an earlier interception.
 export const paddleHalf = (radius: number) => (PADDLE_HALF * PADDLE) / radius;
+export const paddleScale = (base: Base) => Math.pow(0.75, base.shrink.length);
 export const nextRadius = (base: Base) =>
   Math.max(
     PADDLE_MIN,
@@ -135,6 +165,7 @@ export function createArena(participants: readonly Participant[]): ArenaState {
         name: p.name,
         slot: p.slot,
         bot: p.bot,
+        avatarId: p.avatarId ?? (p.bot ? "robot" : "fox"),
         x: CENTER + cos(a) * distance,
         y: CENTER + sin(a) * distance,
         angle: wrap(a + Math.PI),
@@ -146,6 +177,10 @@ export function createArena(participants: readonly Participant[]): ArenaState {
         launch: false,
         saves: 0,
         broken: 0,
+        shrink: [],
+        stickyUntil: 0,
+        thiefUntil: 0,
+        stunUntil: 0,
       };
     });
   return {
@@ -153,6 +188,7 @@ export function createArena(participants: readonly Participant[]): ArenaState {
     phase: "countdown",
     bases,
     winner: null,
+    pickups: [],
     balls: bases.map((b, id) => ({
       id,
       x: b.x + cos(b.angle) * (b.radius + 13),
@@ -161,6 +197,9 @@ export function createArena(participants: readonly Participant[]): ArenaState {
       vy: 0,
       owner: b.id,
       held: b.id,
+      heldUntil: COUNTDOWN + AUTO_LAUNCH,
+      bomb: false,
+      splits: 0,
     })),
   };
 }

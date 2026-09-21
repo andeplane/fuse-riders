@@ -9,6 +9,7 @@ import {
 } from "./game.js";
 import type { Impact } from "../engine/view.js";
 import type { Steering } from "../engine/state.js";
+import { isAvatar } from "../engine/avatars.js";
 
 export class BallRuntime extends RoomRuntime<
   BallRoom,
@@ -24,8 +25,21 @@ export class BallRuntime extends RoomRuntime<
     options: RuntimeOptions = {},
     code = "solo",
     settings: Settings = DEFAULT_SETTINGS,
+    avatarId = "fox",
   ) {
-    super(ballGame, code, settings, callbacks, options);
+    super(
+      {
+        ...ballGame,
+        seating: {
+          ...ballGame.seating,
+          defaultAvatar: isAvatar(avatarId) ? avatarId : "fox",
+        },
+      },
+      code,
+      settings,
+      callbacks,
+      options,
+    );
   }
   get self(): string {
     return this.id;

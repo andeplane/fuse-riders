@@ -63,6 +63,21 @@ test("every BFCache restoration rebuilds the stopped runtime", () => {
   assert.equal(restores, 3);
 });
 
+test("returning to the lobby clears the previous round's power timers", async () => {
+  const s = screen();
+  await flush();
+  const f = frame("running");
+  f.arena!.bases.find((b) => b.id === s.client.self)!.stickyUntil = 160;
+  s.update(f);
+  const powers = s.root.querySelector<HTMLElement>(".power-status")!;
+  assert.match(powers.textContent!, /STICKY/);
+  assert.equal(powers.hidden, false);
+  s.update(frame());
+  assert.equal(powers.textContent, "");
+  assert.equal(powers.hidden, true);
+  s.destroy();
+});
+
 test("a delayed room creation cannot navigate away from a newer screen", async () => {
   const { root } = dom();
   let complete!: (value: { code: string; token: string }) => void;
@@ -517,10 +532,18 @@ test("name entry, remembered lobby rejoin, renderer failures and solo restart re
   s.root
     .querySelector(".fui-name-entry")!
     .dispatchEvent(new s.window.Event("submit", { cancelable: true }));
-  assert.deepEqual(s.commands.at(-1), { type: "join", name: "Bob" });
+  assert.deepEqual(s.commands.at(-1), {
+    type: "join",
+    name: "Bob",
+    avatarId: "fox",
+  });
   assert.equal(s.store.getItem(NAME_KEY), "Bob");
   s.update(empty);
-  assert.deepEqual(s.commands.at(-1), { type: "join", name: "Bob" });
+  assert.deepEqual(s.commands.at(-1), {
+    type: "join",
+    name: "Bob",
+    avatarId: "fox",
+  });
   s.destroy();
   for (const fault of ["ready", "paint"]) {
     const bad = screen(false, false, false, fault);

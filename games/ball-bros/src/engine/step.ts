@@ -1,7 +1,7 @@
 import { block, circle, paddle, wall, type Contact } from "./collision.js";
 import { cos, length, sin, wrap } from "./math.js";
+import { breakBlock, collect, explode, spawnPowers } from "./powers.js";
 import {
-  AUTO_LAUNCH,
   BALL_RADIUS,
   BALL_SPEED,
   CORE,
@@ -9,17 +9,21 @@ import {
   DT,
   LIMIT,
   paddleMotion,
+  paddleScale,
+  PICKUP_RADIUS,
   SUBSTEPS,
   type ArenaState,
   type Ball,
   type Base,
   type Impact,
+  type Pickup,
 } from "./state.js";
 
 interface Hit extends Contact {
   kind: Impact["kind"];
   base?: Base;
   blockIndex?: number;
+  pickup?: Pickup;
 }
 function fly(
   state: ArenaState,
@@ -41,23 +45,41 @@ function fly(
         hit = { ...c, kind, base, blockIndex };
     };
     take(wall(ball, remaining), "wall");
+    if (ball.owner)
+      for (const pickup of state.pickups) {
+        const c =
+          length(ball.x - pickup.x, ball.y - pickup.y) <=
+          PICKUP_RADIUS + BALL_RADIUS
+            ? { t: 0, nx: 0, ny: 0 }
+            : circle(
+                ball,
+                pickup.x,
+                pickup.y,
+                PICKUP_RADIUS + BALL_RADIUS,
+                remaining,
+              );
+        if (c && (!hit || c.t < hit.t - 1e-9))
+          hit = { ...c, kind: "pickup", pickup };
+      }
     for (const base of state.bases) {
       if (!base.alive) continue;
       const { omega, radialSpeed } = paddleMotion(base);
-      take(
-        paddle(
-          ball,
-          base.x,
-          base.y,
-          base.angle + omega * elapsed,
-          omega,
-          remaining,
-          base.radius + radialSpeed * elapsed,
-          radialSpeed,
-        ),
-        "paddle",
-        base,
-      );
+      if (base.stunUntil <= state.tick)
+        take(
+          paddle(
+            ball,
+            base.x,
+            base.y,
+            base.angle + omega * elapsed,
+            omega,
+            remaining,
+            base.radius + radialSpeed * elapsed,
+            radialSpeed,
+            paddleScale(base),
+          ),
+          "paddle",
+          base,
+        );
       base.blocks.forEach((b, i) => {
         if (b.alive)
           take(
@@ -81,18 +103,39 @@ function fly(
     elapsed += dt;
     if (!hit) break;
     const h: Hit = hit;
+    if (h.pickup) {
+      collect(state, ball, h.pickup, events);
+      continue;
+    }
     if (h.kind === "core" && h.base) pending.add(h.base.id);
     if (h.kind === "block" && h.base && h.blockIndex !== undefined) {
-      h.base.blocks[h.blockIndex]!.alive = false;
-      const attacker = state.bases.find((b) => b.id === ball.owner);
-      if (attacker && attacker.id !== h.base.id) attacker.broken++;
+      breakBlock(state, ball, h.base, h.blockIndex);
+      if (ball.bomb) explode(state, ball, events);
     }
     const dot = ball.vx * h.nx + ball.vy * h.ny - (h.surfaceNormal ?? 0);
     ball.vx -= 2 * dot * h.nx;
     ball.vy -= 2 * dot * h.ny;
     if (h.kind === "paddle" && h.base) {
+      const bomb = ball.bomb;
+      if (bomb) explode(state, ball, events, h.base);
       ball.owner = h.base.id;
       h.base.saves++;
+      if (
+        !bomb &&
+        h.base.stickyUntil > state.tick &&
+        !state.balls.some((b) => b.held === h.base!.id)
+      ) {
+        ball.held = h.base.id;
+        ball.heldUntil = state.tick + 60;
+        ball.vx = ball.vy = 0;
+        events.push({
+          kind: "paddle",
+          x: ball.x,
+          y: ball.y,
+          slot: h.base.slot,
+        });
+        return;
+      }
       // Modest spin; contact reflection includes the moving surface's velocity.
       ball.vx += -h.ny * h.base.steer * 55;
       ball.vy += h.nx * h.base.steer * 55;
@@ -127,17 +170,18 @@ export function step(state: ArenaState): Impact[] {
   if (state.phase === "over") return [];
   state.tick++;
   if (state.tick >= COUNTDOWN) state.phase = "playing";
+  spawnPowers(state);
   const events: Impact[] = [];
   for (let sub = 0; sub < SUBSTEPS; sub++) {
     const pending = new Set<string>();
-    for (const ball of state.balls) {
+    for (const ball of [...state.balls]) {
       if (ball.held) {
         const base = state.bases.find((b) => b.id === ball.held)!;
         ball.x = base.x + cos(base.angle) * (base.radius + 13);
         ball.y = base.y + sin(base.angle) * (base.radius + 13);
         if (
           state.phase === "playing" &&
-          (base.launch || state.tick >= COUNTDOWN + AUTO_LAUNCH)
+          (base.launch || state.tick >= ball.heldUntil)
         ) {
           ball.held = null;
           ball.vx = cos(base.angle) * BALL_SPEED;

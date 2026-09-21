@@ -323,9 +323,9 @@ test("five ordinary-input bots complete a bounded, deterministic round with reco
   assert.ok(s.tick <= COUNTDOWN + LIMIT);
   assert.ok(s.bases.some((b) => b.saves > 0));
   assert.ok(s.bases.some((b) => !b.alive));
-  // ball-bros-3 retains phase-1 physics: sampled once per second and at elimination.
+  // ball-bros-4: powers and complete effect/portrait checkpoints, sampled once per second.
   assert.equal(
     hashes.digest("hex"),
-    "4074133259925203eac8ef77b2d1adab17dd0544f792fb737cca7acdd9214c09",
+    "b59030ec3abb9366ae2e96000c93eed6f0319f467a61cd382eec0ad02d821d05",
   );
 });

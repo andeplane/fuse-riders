@@ -16,9 +16,14 @@ try {
   await page.getByRole("link", { name: "BALL BROS · PLAY ›" }).click();
   // Preserve ephemeral mute when navigating from another game's landing.
   await page.goto(new URL("ball-bros/?mute", origin).href);
+  await page
+    .getByRole("combobox", { name: "Core avatar" })
+    .selectOption("dragon");
   await page.getByRole("button", { name: "PLAY SOLO", exact: true }).click();
   await page.getByText("GET READY · 3", { exact: true }).waitFor();
   assert.equal(await page.locator(".scorecard").count(), 5);
+  await page.getByRole("button", { name: "Next radio track" }).click();
+  await page.getByRole("button", { name: "RADIO OFF", exact: true }).waitFor();
   await page.keyboard.down("KeyD");
   await page.keyboard.down("KeyW");
   await page.getByText("GET READY · 2", { exact: true }).waitFor();
@@ -42,6 +47,14 @@ try {
       ),
     undefined,
     { timeout: 125000 },
+  );
+  await page.waitForFunction(
+    () =>
+      [...document.querySelectorAll(".card-label")].some((e) =>
+        /SHRINK|STICKY|THIEF|BOMB/.test(e.textContent ?? ""),
+      ),
+    undefined,
+    { timeout: 120000 },
   );
   await page.screenshot({
     path: "artifacts/ball-bros-desktop.png",

@@ -101,6 +101,7 @@ export function paddle(
   seconds: number,
   radius = PADDLE,
   radialSpeed = 0,
+  scale = 1,
 ): Contact | undefined {
   const bound =
     length(m.vx, m.vy) +
@@ -114,7 +115,7 @@ export function paddle(
       py = m.y + m.vy * t - y;
     const center = angle + omega * t;
     const r = radius + radialSpeed * t;
-    const half = paddleHalf(r);
+    const half = paddleHalf(r) * scale;
     const delta = angleDelta(atan2(py, px), center);
     const nearest = center + Math.max(-half, Math.min(half, delta));
     const qx = cos(nearest) * r,
