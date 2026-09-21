@@ -20,7 +20,7 @@ import {
 } from "../src/online/game.js";
 import { BallRuntime } from "../src/online/runtime.js";
 import type { BallView } from "../src/engine/view.js";
-import { Controls, keyboardButton } from "../src/app/controls.js";
+import { Controls, keyboardButton, gameplayKey } from "../src/app/controls.js";
 import { effectAge, interpolate } from "../src/render/present.js";
 import { ballBrosRegistration } from "../src/platform.js";
 import { Audio } from "../src/app/audio.js";
@@ -192,6 +192,10 @@ test("the shipped runtime starts five seats, releases held controls and resets o
 });
 
 test("control aggregation preserves other pointers, cancellation never fires and keyboard repeats do not launch", () => {
+  assert.equal(gameplayKey("KeyD", false, true), "right");
+  assert.equal(gameplayKey("KeyW", false, true), "launch");
+  assert.equal(gameplayKey("Space", false, true), undefined);
+  assert.equal(gameplayKey("KeyD", true, false), undefined);
   const sent: [number, boolean][] = [],
     controls = new Controls((s, l) => sent.push([s, l]));
   controls.press("a", "left");

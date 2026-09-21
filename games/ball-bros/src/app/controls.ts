@@ -31,3 +31,14 @@ export function keyboardButton(code: string): Button | undefined {
     return "launch";
   return;
 }
+
+/** Text entry keeps its keys; focused buttons/links retain native Space activation. */
+export function gameplayKey(
+  code: string,
+  editable: boolean,
+  interactive: boolean,
+): Button | undefined {
+  return editable || (interactive && code === "Space")
+    ? undefined
+    : keyboardButton(code);
+}

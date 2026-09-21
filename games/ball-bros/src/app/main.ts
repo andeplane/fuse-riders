@@ -7,7 +7,7 @@ import { colorCss, interpolate } from "../render/present.js";
 import type { BallView } from "../engine/view.js";
 import { view } from "../engine/view.js";
 import { createArena } from "../engine/state.js";
-import { Controls, keyboardButton } from "./controls.js";
+import { Controls, keyboardButton, gameplayKey } from "./controls.js";
 import { Audio } from "./audio.js";
 import { present } from "./presenter.js";
 
@@ -143,13 +143,14 @@ const cancel = () => {
 document.addEventListener(
   "keydown",
   (e) => {
-    if (
-      e.target instanceof HTMLElement &&
-      (e.target.closest("button, input, a, textarea, select") ||
-        e.target.isContentEditable)
-    )
-      return;
-    const action = keyboardButton(e.code);
+    const target = e.target instanceof HTMLElement ? e.target : undefined;
+    const action = gameplayKey(
+      e.code,
+      !!(
+        target?.isContentEditable || target?.closest("input, textarea, select")
+      ),
+      !!target?.closest("button, a"),
+    );
     if (!action || e.repeat || !playing) return;
     e.preventDefault();
     controls.press(e.code, action);
@@ -160,7 +161,6 @@ document.addEventListener(
   "keyup",
   (e) => {
     if (keyboardButton(e.code)) {
-      e.preventDefault();
       controls.release(e.code);
     }
   },

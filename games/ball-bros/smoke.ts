@@ -23,6 +23,7 @@ try {
   await page.getByText("GET READY · 2", { exact: true }).waitFor();
   await page.keyboard.up("KeyD");
   await page.getByText("W / SPACE TO LAUNCH", { exact: true }).waitFor();
+  await page.getByRole("button", { name: "SOUND OFF", exact: true }).focus();
   await page.keyboard.press("KeyW");
   await page
     .getByText("W / SPACE TO LAUNCH", { exact: true })
