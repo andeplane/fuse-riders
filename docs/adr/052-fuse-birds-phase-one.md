@@ -10,6 +10,10 @@ The user defines Phase 1 as a fully playable game with nice graphics, an unlimit
 
 The approved V2 images remain the visual target: small birds on a large detailed battlefield, no grid, neon Riders identity, zoomable phones and full-map shared TV. Their four-slot weapon tray is concept art, not a requirement to implement those extra weapons.
 
+## Correction: slingshot play only (2026-09-23)
+
+The earlier walking/hopping mechanic was an implementation mistake, not a user requirement. Rules 6 removes locomotion actions, movement allowance and movement controls. Birds launch from their positions; gravity, loss of support and blast knockback still apply. All reachability and replay validation must use launch/pass only. This correction supersedes earlier movement-based evidence and historical review notes.
+
 ## Decision and precedence
 
 Phase 1 delivers one complete 2–5-player online game with exactly two usable weapons and one fully finished visual theme. The game remains a headless library; UI, renderer and networking are adapters. ADRs 048–051 define its architecture; this ADR controls which features ship in Phase 1 wherever their broader examples differ. No game implementation, merge or deployment is performed by writing these ADRs.
@@ -49,7 +53,7 @@ Keep the existing bounded cycle-based drop schedule, reachable landing-site vali
 
 - Reachable game entry, create/join room, clear 2–5-player lobby and host start, current player/turn indication, instructions and a working leave/rematch path.
 - Individual-device play and shared TV plus phone controllers through the existing online room system. No always-running physics server, new relay, or production deployment requirement for this delivery.
-- One bird per player, bounded movement/hop, pull/release aiming with cancellation, partial trajectory preview, both weapons, seeded wind, destructible random terrain, damage, falls, eliminations, turn deadlines, finite sudden death, result and rematch. Use single-round matches initially; a best-of-three configuration is later scope.
+- One bird per player with no walking or hopping, pull/release aiming with cancellation, partial trajectory preview, both weapons, seeded wind, destructible random terrain, damage, falls, eliminations, turn deadlines, finite sudden death, result and rematch. Use single-round matches initially; a best-of-three configuration is later scope.
 - Phones can pinch/pan, recenter and inspect the full map. The shared TV always shows the whole playable map. Camera navigation cannot fire or affect physics.
 - Shootable ammo crates, readable inventory counts, complete turn resolution, and healthy recovery or explicit retry on peer failure. Reconnect restores terrain and ammunition from peers rather than resetting the player.
 - A full headless match/replay/checkpoint path through the public library API, with the same rules used by the browser.
@@ -68,7 +72,7 @@ Build one complete rendered shot early, then extend that same implementation int
 ## Implementation sequence
 
 1. **Library and render slice:** bounded headless state/tick/checkpoint, Pebble flight and crater, a real generated terrain view and authored Neon burrow material/sprite pack. Show full-map and phone-close-up rendering of that shot. Establish collider/visual parity and snapshot cost before expanding.
-2. **Complete local rules:** turn lifecycle, movement/settling, Scatter splitting, exact ammo counts, refill crates, range/generation validation, deaths, finite round ending and rematch. Run full headless matches and focused deterministic replay tests.
+2. **Complete local rules:** turn lifecycle, knockback/settling, Scatter splitting, exact ammo counts, refill crates, range/generation validation, deaths, finite round ending and rematch. Run full headless matches and focused deterministic replay tests.
 3. **Online/device integration:** room adapter, game menu/lobby, two device modes, gesture ownership, input dedupe and recovery. Use the same library and renderer; there is no second temporary gameplay implementation.
 4. **Finish and playtest:** sound/effects, loading/error/retry screens, final two-slot HUD, responsive layout, reference-image comparison, real browser tests and a runnable muted preview. Fix scope-relevant defects before declaring completion.
 
@@ -80,7 +84,7 @@ Build one complete rendered shot early, then extend that same implementation int
 | Scatter physics         | Apex split, early collision, exact contact/split tie, stable three children, one-shot accounting, inherited expiry, multiple crate hits and final-fragment double elimination                                                           |
 | Headless boundary       | Complete match through default package import in Node without DOM/Phaser/room service; same action log hashes in supported browsers; checkpoint continuation matches uninterrupted play                                                 |
 | Maps                    | Directed opening hit witnesses for each supported player count/wind, bounded generation/fallback, broad seed corpus and explicit range/launch-pocket counterexamples as required by ADR-050; Pebble cannot be made obsolete by map size |
-| Browser gameplay        | Create/join/start, move, aim, cancel, launch both weapons, collect refill, eliminate, finish and rematch; run the affected flow with real room transport and verify recovered terrain/ammo                                              |
+| Browser gameplay        | Create/join/start, aim, cancel, launch both weapons, collect refill, eliminate, finish and rematch; run the affected flow with real room transport and verify recovered terrain/ammo                                                    |
 | Camera/input            | Shared TV remains full-map while two phones use different camera views; pinch/resize/blur cancel safely; counts remain readable and zoom does not alter a quantized shot                                                                |
 | Graphics                | Captures from the real playable flow against V2 at full-map and phone zoom; multiple generated maps, new crater surfaces, removed decorations, no grid and no placeholder art in ordinary play                                          |
 | Reliability/performance | Relevant focused and integration checks, encoded snapshot below transport bounds, measured generation/frame/upload costs with seed/device/viewport retained; explicitly separate emulated browsers from physical-phone/TV evidence      |

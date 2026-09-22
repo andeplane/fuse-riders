@@ -13,10 +13,10 @@ Phase 1 is now defined by [ADR-052](../adr/052-fuse-birds-phase-one.md): a compl
 ## A turn
 
 1. See whose turn is next, the wind, health, ammo and the current crate opportunities.
-2. Optionally shuffle or hop a short distance using a limited movement allowance. No unrestricted flight; position and height matter.
+2. Aim from the bird's current position. There is no walking or hopping; only blast knockback and gravity can displace birds.
 3. Select a weapon and pull the sling backwards to set direction and power. A short dotted preview explains the initial arc without solving the entire shot.
 4. Release to launch one shot. A phone camera can follow the projectile and its impact; the shared TV stays on the full map. Everyone sees the projectile, explosions, falling birds and crate collection resolve.
-5. When the world settles, advance to the next living player. Unused movement is lost. A cancelled drag never fires. A 25-second decision timer prevents stalling; expiry passes the turn without consuming ammo.
+5. When the world settles, advance to the next living player. A cancelled drag never fires. A 25-second decision timer prevents stalling; expiry passes the turn without consuming ammo.
 
 Wind is visible and constant for a complete cycle of living players, then changes from the seeded stream. Rotate first player between rounds. Apply capped fall damage after settling; falling into water or out of the arena eliminates a bird. If the final explosion eliminates everyone, the round is a draw. After a tunable cycle limit, rising water ends stalemates with a visible warning.
 
@@ -47,7 +47,7 @@ Use a seed and a versioned generator to produce a side-on, bounded destructible 
 
 Generate large landforms first, cut a small number of caves/arches, then choose player perches and crate sites. Initial families: rolling islands, split canyon and archipelago. Water forms a clear lower hazard boundary.
 
-The map must feel substantially larger relative to the birds than in the first five art concepts. Start prototyping at roughly 128 bird body widths across the playable map, matching the small-bird intent of V2, with several distinct landforms and long-range shot opportunities; this is a tuning target, not a locked balance constant. Provide enough vertical space for high arcs. Tune launch range, movement allowance, blast radius and crate reachability together with this scale so that the larger world creates choices rather than unreachable opponents or tedious traversal. Map dimensions are shared world data and never depend on a device's viewport. At full-map scale, use small player badges and active-turn highlights to help locate birds without enlarging their physical bodies or collision shapes.
+The map must feel substantially larger relative to the birds than in the first five art concepts. Start prototyping at roughly 128 bird body widths across the playable map, matching the small-bird intent of V2, with several distinct landforms and long-range shot opportunities; this is a tuning target, not a locked balance constant. Provide enough vertical space for high arcs. Tune launch range, blast radius and crate reachability together with this scale so that the larger world creates choices rather than unreachable opponents or tedious traversal. Map dimensions are shared world data and never depend on a device's viewport. At full-map scale, use small player badges and active-turn highlights to help locate birds without enlarging their physical bodies or collision shapes.
 
 Validate minimum spawn separation, headroom, support thickness, launch clearance, survivable footing and reasonable height spread. Reject sealed spawn pockets and immediate lethal spawn configurations. Use a bounded regeneration count and a known-good fallback layout. A seed alone is not proof of balance: sample many seeds and record the failed constraints. Offer a visible seed and rematch/same-map option; no map editor initially.
 
@@ -85,18 +85,18 @@ Implement a separate `games/fuse-birds/` game using the existing game-independen
 
 The game itself is a library independent of UI and networking. Its default package entry point must support complete matches, map generation, bots, replays and checkpoint recovery in a headless Node process without browser globals, assets or a room connection. Browser rendering and online integration are separate adapters. Callers advance explicit ticks; the library owns all rules and never waits for an animation or UI callback.
 
-Keep terrain, seeded RNG, wind, inventories, turn state, projectile rules, crate eligibility and result resolution in a pure game engine. The renderer consumes a view contract. Use bounded integer/fixed-point physics, a fixed simulation timestep and canonical ordering for simultaneous hits. The shared log carries scoped, validated turn actions (move/launch/pass), with shot parameters quantized before commitment. Visual aim previews need not be authoritative; final launches must be.
+Keep terrain, seeded RNG, wind, inventories, turn state, projectile rules, crate eligibility and result resolution in a pure game engine. The renderer consumes a view contract. Use bounded integer/fixed-point physics, a fixed simulation timestep and canonical ordering for simultaneous hits. The shared log carries scoped, validated turn actions (launch/pass), with shot parameters quantized before commitment. Visual aim previews need not be authoritative; final launches must be.
 
 Reuse the existing peer-to-peer room lifecycle and recovery contract. The signalling service must not simulate or relay gameplay. Do not introduce a second network protocol merely because this game is turn-based: first verify how actions fit the current `RollbackGame` adapter. Presentation can animate a shot continuously while engine advancement remains deterministic. Terrain grids increase checkpoint size; bound dimensions and transfer sizes, and measure before choosing compression.
 
-Validate actor, membership generation, match/round/turn, action sequence, weapon ownership, movement budget and finite bounded shot values. Commit ammo and launch atomically. Duplicate launch packets must not spend ammo twice; old-turn inputs must not fire. Recovery installs a validated checkpoint atomically, including terrain, RNG, active projectiles, inventories and turn state. Rejoining players recover from a peer; do not add local world persistence. Use the existing authority succession mechanism for disconnects and define a logged timeout/pass outcome; local wall clocks must not independently choose the next player.
+Validate actor, membership generation, match/round/turn, action sequence, weapon ownership and finite bounded shot values. Commit ammo and launch atomically. Duplicate launch packets must not spend ammo twice; old-turn inputs must not fire. Recovery installs a validated checkpoint atomically, including terrain, RNG, active projectiles, inventories and turn state. Rejoining players recover from a peer; do not add local world persistence. Use the existing authority succession mechanism for disconnects and define a logged timeout/pass outcome; local wall clocks must not independently choose the next player.
 
 ## Phase 1 delivery
 
 The following are internal milestones of one delivery, not separate phases that lower the finished-game requirement:
 
 1. **Headless library and real art slice:** deterministic Pebble flight/crater, generated terrain and an authored Neon burrow renderer matching V2 at full-map and phone scales.
-2. **Complete rules:** limited Scatter Bombs, inventory/refill behavior, movement, wind, validated maps, eliminations, result, rematch and deterministic replay/checkpoint tests.
+2. **Complete rules:** limited Scatter Bombs, inventory/refill behavior, wind, validated maps, eliminations, result, rematch and deterministic replay/checkpoint tests.
 3. **Online/device integration:** reachable menus and rooms, individual devices, full-map TV plus zoomable phone controls, reconnect recovery and scoped turn actions.
 4. **Finished playable game:** final two-slot UI with ammo counts, polished artwork/effects, basic sound, accessibility, real browser evidence and a preview for user playtesting.
 

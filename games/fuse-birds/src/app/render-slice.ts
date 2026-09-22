@@ -27,10 +27,7 @@ let camera: Camera = { x: 768, y: 384, zoom: 1 },
   aim: Vector | undefined;
 let drag: { x: number; y: number; pointer: number } | undefined;
 type Play =
-  | { type: "launch"; weapon: Weapon; vx: number; vy: number }
-  | { type: "move"; direction: -1 | 1 }
-  | { type: "hop"; direction: -1 | 0 | 1 }
-  | { type: "pass" };
+  { type: "launch"; weapon: Weapon; vx: number; vy: number } | { type: "pass" };
 let pending: Action[] = [];
 const act = (action: Play) => {
   pending.push({
@@ -53,12 +50,6 @@ for (const kind of ["pebble", "scatter"] as const)
       .getElementById("scatter")!
       .setAttribute("aria-pressed", String(kind === "scatter"));
   };
-document.getElementById("left")!.onclick = () =>
-  act({ type: "move", direction: -1 });
-document.getElementById("right")!.onclick = () =>
-  act({ type: "move", direction: 1 });
-document.getElementById("hop")!.onclick = () =>
-  act({ type: "hop", direction: 0 });
 document.getElementById("pass")!.onclick = () => act({ type: "pass" });
 document.getElementById("zoom")!.onclick = () => {
   const p = state.players[state.active]!;

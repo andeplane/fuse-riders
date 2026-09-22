@@ -86,20 +86,12 @@ try {
   await first.screenshot({ path: `${output}/desktop.png` });
   await second.screenshot({ path: `${output}/phone.png` });
   await tv.screenshot({ path: `${output}/tv.png` });
-  await first.getByRole("button", { name: "Move right", exact: true }).click();
-  await first.waitForFunction(
-    () =>
-      document.querySelector(".birds-movement small")?.textContent !==
-      "MOVE 48",
-  );
-  await first.getByRole("button", { name: "HOP", exact: true }).click();
-  await first.waitForFunction(() =>
-    document.querySelector(".birds-hint")?.textContent?.includes("land"),
-  );
-  await first.waitForFunction(() =>
-    document
-      .querySelector(".birds-hint")
-      ?.textContent?.includes("Pull your bird"),
+  assert.equal(
+    await first
+      .getByRole("button", { name: /^(Move left|Move right|HOP)$/ })
+      .count(),
+    0,
+    "Slingshot controls must not offer walking or hopping",
   );
   await first
     .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })

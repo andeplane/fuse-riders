@@ -364,19 +364,15 @@ canvas:focus-visible {
   color: #eaae85;
   text-shadow: 0 0 9px #ff8e33;
 }
-.birds-movement {
+.birds-turn-actions {
   display: flex;
   align-items: center;
   gap: 7px;
 }
-.birds-movement button {
+.birds-turn-actions button {
   min-height: 45px;
   padding: 10px;
   font-size: 10px;
-}
-.birds-movement small {
-  color: #a8c4d4;
-  font-size: 9px;
 }
 .birds-hint {
   font-size: 11px;
@@ -463,10 +459,10 @@ canvas:focus-visible {
     min-width: 130px;
     padding: 7px 10px;
   }
-  .birds-movement {
+  .birds-turn-actions {
     gap: 6px;
   }
-  .birds-movement button {
+  .birds-turn-actions button {
     min-height: 40px;
   }
   .birds-hint {
@@ -540,7 +536,7 @@ canvas:focus-visible {
   .birds-camera {
     bottom: 82px;
   }
-  .birds-movement button {
+  .birds-turn-actions button {
     min-height: 40px;
   }
 }

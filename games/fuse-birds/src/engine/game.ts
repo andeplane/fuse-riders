@@ -31,7 +31,7 @@ import {
   sweep,
   type Contact,
 } from "./physics.js";
-import { boxClear, carve, generateTerrain } from "./terrain.js";
+import { carve, generateTerrain } from "./terrain.js";
 import { prepareLevel } from "./level.js";
 import { scheduleCrate, searchCrate } from "./crate-search.js";
 
@@ -85,7 +85,6 @@ export function createMatch(
     active: (round - 1) % players.length,
     turn: 1,
     deadline: TURN_TICKS,
-    movement: 48 * UNIT,
     water: 705,
     wind: 0,
     cycle: 0,
@@ -117,9 +116,6 @@ export function isAction(raw: unknown): raw is Action {
   )
     return false;
   if (a.type === "pass") return true;
-  if (a.type === "move") return a.direction === -1 || a.direction === 1;
-  if (a.type === "hop")
-    return a.direction === -1 || a.direction === 0 || a.direction === 1;
   return (
     a.type === "launch" &&
     (a.weapon === "pebble" || a.weapon === "scatter") &&
@@ -152,58 +148,6 @@ function applyAction(state: Match, action: Action, facts: Fact[]): void {
       actor: p.id,
       reason: "Wait until your bird lands.",
     });
-    return;
-  }
-  if (action.type === "move") {
-    if (state.movement < 3 * UNIT) return;
-    const x = p.x + action.direction * 3 * UNIT;
-    if (x < BODY_X || x > WIDTH * UNIT - BODY_X) return;
-    for (let lift = 0; lift <= 3; lift++)
-      if (boxClear(state.terrain, x, p.y - lift * UNIT, BODY_X, BODY_Y)) {
-        if (state.movement < (3 + lift) * UNIT) return;
-        if (
-          (lift > 0 &&
-            sweep(
-              state.terrain,
-              p.x,
-              p.y,
-              0,
-              -lift * UNIT,
-              BODY_X - 1,
-              [],
-              [],
-              undefined,
-              BODY_Y - 1,
-            )) ||
-          sweep(
-            state.terrain,
-            p.x,
-            p.y - lift * UNIT,
-            x - p.x,
-            0,
-            BODY_X - 1,
-            [],
-            [],
-            undefined,
-            BODY_Y - 1,
-          )
-        )
-          continue;
-        p.x = x;
-        p.y -= lift * UNIT;
-        state.movement -= (3 + lift) * UNIT;
-        p.grounded = false;
-        return;
-      }
-    return;
-  }
-  if (action.type === "hop") {
-    if (state.movement < 18 * UNIT) return;
-    state.movement -= 18 * UNIT;
-    p.vy = -700;
-    p.vx = action.direction * 210;
-    p.grounded = false;
-    p.fallFrom = p.y;
     return;
   }
   if (action.weapon === "scatter" && p.ammo === 0) {
@@ -470,7 +414,6 @@ function resolveTurn(state: Match, facts: Fact[]): void {
     }
   }
   state.turn++;
-  state.movement = 48 * UNIT;
   state.deadline = state.tick + TURN_TICKS;
   state.phase = "aiming";
   facts.push({ type: "turn", actor: state.players[state.active]!.id });
@@ -490,22 +433,8 @@ export function advance(state: Match, actions: readonly Action[] = []): Fact[] {
   }
   if (state.phase === "aiming" && state.tick >= state.deadline)
     beginSettling(state);
-  let moved = false;
   for (const action of actions.slice(0, 32)) {
-    if (!isAction(action)) continue;
-    const active = state.players[state.active]!;
-    if (
-      (action.type === "move" || action.type === "hop") &&
-      state.phase === "aiming" &&
-      action.actor === active.id &&
-      action.round === state.round &&
-      action.turn === state.turn &&
-      action.ordinal > active.ordinal
-    ) {
-      if (moved) continue;
-      moved = true;
-    }
-    applyAction(state, action, facts);
+    if (isAction(action)) applyAction(state, action, facts);
   }
   for (let i = 0; i < 3; i++) {
     state.step++;

@@ -29,6 +29,27 @@ function tick(
 ): void {
   foldTick(room, "a", new Map([[actor, { generation, entries }]]));
 }
+test("peer entries cannot submit walking or hopping", () => {
+  for (const type of ["move", "hop"]) {
+    assert.equal(
+      isBirdsEntry([
+        1,
+        1,
+        0,
+        "match-1",
+        {
+          actor: "a",
+          round: 1,
+          turn: 1,
+          ordinal: 1,
+          type,
+          direction: 1,
+        },
+      ]),
+      false,
+    );
+  }
+});
 function roomReady(): BirdsRoom {
   const room = birdsGame.createRoom("lobby", { display: false });
   tick(room, [

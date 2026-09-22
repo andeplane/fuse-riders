@@ -10,7 +10,7 @@ import {
   type Action,
   type Match,
 } from "fuse-birds-game";
-/** Verification driver only: ordinary public inputs, no privileged movement or state mutation. */
+/** Verification driver only: ordinary public inputs, only launch/pass, no state mutation. */
 export function nextReplayActions(state: Match): Action[] {
   if (state.phase !== "aiming") return [];
   const player = state.players[state.active]!;
@@ -21,9 +21,6 @@ export function nextReplayActions(state: Match): Action[] {
     turn: state.turn,
     ordinal: player.ordinal + 1,
   };
-  if (player.ordinal === 0)
-    return [{ ...scope, type: "move", direction: player.slot % 2 ? -1 : 1 }];
-  if (player.ordinal === 1) return [{ ...scope, type: "hop", direction: 0 }];
   for (const target of state.players.filter(
     (p) => p.id !== player.id && p.hp > 0,
   )) {

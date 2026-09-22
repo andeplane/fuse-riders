@@ -24,7 +24,6 @@ export interface WorldView {
   timeLeft: number;
   wind: number;
   water: number;
-  movement: number;
   progress: number;
   winner: string | null;
   fault: string | null;
@@ -51,7 +50,6 @@ export function getView(state: Match): WorldView {
     timeLeft: Math.max(0, state.deadline - state.tick) / 20,
     wind: state.wind,
     water: state.water,
-    movement: state.movement,
     progress:
       state.preparation.witnesses.length /
       (state.players.length * (state.players.length - 1) * 5),

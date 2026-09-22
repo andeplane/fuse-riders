@@ -74,7 +74,7 @@ function slab(
     if (before(b, leave)) leave = b;
     if (before(leave, enter)) return;
   }
-  // A body merely touching a face may move away from it. Counting that zero-duration exit as a hit pins a newly spawned bird to the floor when it hops.
+  // A body merely touching a face may move away from it. Counting that zero-duration exit as a hit pins a newly spawned bird to the floor when blast knockback lifts it.
   if (leave.n === 0 && (dx !== 0 || dy !== 0)) return;
   return enter;
 }

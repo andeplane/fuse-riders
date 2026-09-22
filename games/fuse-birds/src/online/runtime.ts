@@ -9,8 +9,6 @@ import {
 import { isAction, type Action, type Fact } from "../engine/index.js";
 export type Play =
   | { type: "launch"; weapon: "pebble" | "scatter"; vx: number; vy: number }
-  | { type: "move"; direction: -1 | 1 }
-  | { type: "hop"; direction: -1 | 0 | 1 }
   | { type: "pass" };
 export class BirdsRuntime extends RoomRuntime<
   BirdsRoom,

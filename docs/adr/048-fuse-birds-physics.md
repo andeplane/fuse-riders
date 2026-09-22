@@ -9,7 +9,7 @@
 
 Fuse Birds is side-on slingshot artillery on destructible terrain. Small birds inhabit a large world; phones zoom in, while a shared TV shows the whole map. Those camera choices cannot affect trajectories or collisions. Every peer must reproduce the same shot, crater, fall and pickup after replay or checkpoint recovery.
 
-The required physics is narrow: ballistic projectiles, simple bodies, explosions, terrain removal and bounded movement. There is no requirement for rotating rigid bodies, piles of debris, rope dynamics or fluid simulation. A general-purpose physics world would introduce additional solver and serialization behavior that this game does not need.
+The required physics is narrow: ballistic projectiles, simple bodies, explosions, terrain removal, knockback and falling. There is no requirement for rotating rigid bodies, piles of debris, rope dynamics or fluid simulation. A general-purpose physics world would introduce additional solver and serialization behavior that this game does not need.
 
 ## Decision
 
@@ -43,7 +43,7 @@ At each physics step, first update velocity from gravity and the current wind, t
 
 Represent birds, crates and projectiles with axis-aligned collision boxes specified by the engine. Circular appearance does not imply a hidden circle collider. This avoids rotation and square-root-dependent contact decisions in the initial kernel. Rendered silhouettes should fit these simple bodies closely enough that hits are understandable.
 
-Sweep against occupied terrain cells and dynamic boxes using expanded axis-aligned bounds and rational entry fractions. Enumerate cells in the swept bounding box; do not test only the endpoint. Select the earliest contact, then break exact ties by collider class (terrain, crate, bird), terrain row/column, numeric crate ID and bird identity slot. A zero-duration contact while moving away from a boundary is not a collision; otherwise a newly spawned bird cannot hop off its floor. A projectile cannot hit a bird through terrain at the same contact fraction. Ignore its owner's box only until it first clears that box; the shot lifetime bounds this phase and the flag belongs in checkpoints. Later returning shots can hit their owner.
+Sweep against occupied terrain cells and dynamic boxes using expanded axis-aligned bounds and rational entry fractions. Enumerate cells in the swept bounding box; do not test only the endpoint. Select the earliest contact, then break exact ties by collider class (terrain, crate, bird), terrain row/column, numeric crate ID and bird identity slot. A zero-duration contact while moving away from a boundary is not a collision; otherwise a grounded bird cannot be knocked away from its floor. A projectile cannot hit a bird through terrain at the same contact fraction. Ignore its owner's box only until it first clears that box; the shot lifetime bounds this phase and the flag belongs in checkpoints. Later returning shots can hit their owner.
 
 For the initial weapons, a direct contact consumes the projectile and produces an impact fact. Scatter children use stable parent/child IDs and a fixed spread table. The later bouncing weapon needs an explicit remaining-travel and maximum-contacts rule; it must not be approximated by unbounded collision retries.
 
@@ -58,7 +58,7 @@ Pin and test caps for world dimensions, velocity, lifetime, active projectiles, 
 5. Apply the union of crater masks once, increment changed terrain chunk revisions and remove consumed projectiles/crates.
 6. Sweep movable birds and crates against the updated terrain, apply bounded displacement and settling, then return fall/hazard facts.
 
-Dynamic body positions are deliberately frozen during the projectile phase, then move during the body phase. This operator order is the collision contract, not a claim of simultaneous continuous rigid-body motion. Bound displacement tightly and test fast falling/knocked birds crossing a projectile path; if that error is unacceptable, replace it with relative swept contacts in a new rule version. During aiming there are no live projectiles, but walking, hopping, gravity and hazard checks still advance. Passing or timing out does not skip settling.
+Dynamic body positions are deliberately frozen during the projectile phase, then move during the body phase. This operator order is the collision contract, not a claim of simultaneous continuous rigid-body motion. Bound displacement tightly and test fast falling/knocked birds crossing a projectile path; if that error is unacceptable, replace it with relative swept contacts in a new rule version. During aiming there are no live projectiles, but gravity and hazard checks still advance. Passing or timing out does not skip settling.
 
 A fragment in this step does not pass through a hole made by another fragment in the same step. It may do so next step. This explicit batch rule prevents array iteration order from changing the result. A round is not over until all effects and settling relevant to its outcome have resolved.
 
@@ -72,9 +72,9 @@ A projectile's directly contacted bird receives at least its weapon's contact da
 
 Crater radius, damage radius and physical hitboxes are engine data published to the view. Glow, foliage, lighting and screen shake cannot enlarge them. A hit crate produces an owner-scoped fact; inventory changes belong to ADR-049.
 
-Birds use simple walking/hopping and gravity, without body stacks or bird-on-bird pushing in the first slice. Birds do not act as platforms for each other. Ground support and fall damage derive from swept contacts, not visual terrain contours. After knockback, cap velocity and apply fixed ground friction. A settling deadline damps remaining horizontal motion deterministically; vertical motion then continues until grounded or below the hazard boundary, within a bound established from map height and velocity caps. Do not advance the turn with an unresolved falling bird.
+Birds have no player-controlled locomotion; they respond only to gravity and blast impulses, without body stacks or bird-on-bird pushing in the first slice. Birds do not act as platforms for each other. Ground support and fall damage derive from swept contacts, not visual terrain contours. After knockback, cap velocity and apply fixed ground friction. A settling deadline damps remaining horizontal motion deterministically; vertical motion then continues until grounded or below the hazard boundary, within a bound established from map height and velocity caps. Do not advance the turn with an unresolved falling bird.
 
-Provide one bounded walking rule rather than expecting a box to climb raster stairs automatically: when grounded horizontal movement meets a low step, try a fixed maximum step-up offset with head clearance, then the desired sweep, then sweep down to support. If clearance fails, stop; never teleport through an overhang. Uphill movement charges actual path distance. Hop initiation requires support and remaining movement budget. Track fall height from the last supported/highest falling position; do not infer damage from render frames. The final values need a focused movement/settling prototype before freezing the rules.
+Track fall height from the last supported/highest falling position; do not infer damage from render frames. No step-up, hop or movement allowance exists.
 
 ## Alternatives considered
 

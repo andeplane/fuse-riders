@@ -5,6 +5,8 @@ import {
   createMatch,
   decodeState,
   encodeState,
+  hashState,
+  isAction,
   UNIT,
   type Action,
   type Match,
@@ -12,7 +14,7 @@ import {
 } from "../src/engine/index.js";
 import { generateTerrain } from "../src/engine/terrain.js";
 
-/** Explicit flat-arena fixture: isolates movement/impact contracts from random map selection. */
+/** Explicit flat-arena fixture: isolates support/impact contracts from random map selection. */
 function arena(): Match {
   const s = createMatch("physics-cases", 1, [
     { id: "a", name: "Alpha" },
@@ -32,8 +34,6 @@ function arena(): Match {
 function command(
   s: Match,
   body:
-    | { type: "move"; direction: -1 | 1 }
-    | { type: "hop"; direction: -1 | 0 | 1 }
     | { type: "pass" }
     | { type: "launch"; weapon: "pebble" | "scatter"; vx: number; vy: number },
 ): Action {
@@ -46,23 +46,6 @@ function command(
     ordinal: p.ordinal + 1,
   };
 }
-test("step-up checks head clearance before committing movement", () => {
-  for (const ceiling of [false, true]) {
-    const state = arena(),
-      bird = state.players[0]!;
-    bird.x = 100 * UNIT;
-    const fill = (x: number, y: number) => {
-      const index = y * 1536 + x;
-      state.terrain.bits[index >>> 3]! |= 1 << (index & 7);
-    };
-    fill(106, 449);
-    if (ceiling) fill(95, 437);
-    const before = state.movement;
-    advance(state, [command(state, { type: "move", direction: 1 })]);
-    assert.equal(bird.x, (ceiling ? 100 : 103) * UNIT);
-    assert.equal(state.movement, ceiling ? before : before - 4 * UNIT);
-  }
-});
 function projectile(s: Match, values: Partial<Projectile> = {}): Projectile {
   return {
     id: s.nextEntity++,
@@ -78,39 +61,27 @@ function projectile(s: Match, values: Partial<Projectile> = {}): Projectile {
     ...values,
   };
 }
-test("movement charges its bounded budget once per tick and cannot walk farther when empty", () => {
-  const s = arena(),
-    p = s.players[0]!,
-    start = p.x;
-  const move = command(s, { type: "move", direction: 1 });
-  advance(s, [move, { ...move, ordinal: 2 }]);
-  assert.equal(p.x, start + 3 * UNIT);
-  assert.equal(s.movement, 45 * UNIT);
-  for (let i = 0; i < 30; i++)
-    advance(s, [command(s, { type: "move", direction: 1 })]);
-  assert.equal(p.x, start + 48 * UNIT);
-  assert.equal(s.movement, 0);
-  advance(s, [command(s, { type: "hop", direction: 1 })]);
-  assert.equal(p.grounded, true);
+test("walking and hopping are rejected without moving a bird or consuming an ordinal", () => {
+  for (const type of ["move", "hop"] as const) {
+    const state = arena(),
+      control = decodeState(encodeState(state))!;
+    const action = { ...command(state, { type: "pass" }), type, direction: 1 };
+    assert.equal(isAction(action), false);
+    // Deliberately bypass static typing to exercise runtime rejection of legacy inputs.
+    // @ts-expect-error Locomotion is not a legal public action.
+    advance(state, [action]);
+    advance(control);
+    assert.equal(hashState(state), hashState(control));
+    assert.equal(state.players[0]!.ordinal, 0);
+  }
 });
-test("stale or foreign movement cannot consume the active bird's movement slot", () => {
+test("falling and pass keep the turn unresolved until landing; airborne launches spend nothing", () => {
   const s = arena(),
     p = s.players[0]!,
-    start = p.x;
-  const move = command(s, { type: "move", direction: 1 });
-  advance(s, [{ ...move, actor: "b" }, { ...move, turn: 2 }, move]);
-  assert.equal(p.x, start + 3 * UNIT);
-  assert.equal(s.movement, 45 * UNIT);
-});
-test("hop and pass keep the turn unresolved until the bird lands; airborne launches spend nothing", () => {
-  const s = arena(),
-    p = s.players[0]!,
-    turn = s.turn,
-    x = p.x;
-  advance(s, [command(s, { type: "hop", direction: 1 })]);
-  assert.equal(s.movement, 30 * UNIT);
-  assert.equal(p.grounded, false);
-  assert.ok(p.x > x);
+    turn = s.turn;
+  p.y = p.fallFrom = 420 * UNIT;
+  p.grounded = false;
+  advance(s);
   const rejected = advance(s, [
     command(s, { type: "launch", weapon: "scatter", vx: 1024, vy: -1024 }),
   ]);

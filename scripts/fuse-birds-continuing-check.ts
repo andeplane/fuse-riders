@@ -60,44 +60,10 @@ function hitWitness(state: Match, targetId: string): Action | undefined {
 function witness(state: Match, targetId: string): Entry[] | undefined {
   const direct = hitWitness(state, targetId);
   if (direct) return [{ tick: state.tick + 1, actions: [direct] }];
-  // Bounded ordinary walking/hop alternatives; failed branches never alter the tested state.
-  for (const direction of [-1, 1] as const)
-    for (const hopping of [false, true]) {
-      const copy = copies(state),
-        entries: Entry[] = [];
-      for (let move = 0; move < 16; move++) {
-        const actor = copy.players[copy.active]!;
-        if (
-          copy.turn !== state.turn ||
-          copy.phase !== "aiming" ||
-          actor.hp <= 0
-        )
-          break;
-        const action: Action = {
-          type: hopping && move === 0 ? "hop" : "move",
-          direction,
-          actor: actor.id,
-          round: copy.round,
-          turn: copy.turn,
-          ordinal: actor.ordinal + 1,
-        };
-        entries.push({ tick: copy.tick + 1, actions: [action] });
-        advance(copy, [action]);
-        for (
-          let tick = 0;
-          tick < 80 && !actor.grounded && copy.turn === state.turn;
-          tick++
-        )
-          advance(copy);
-        const shot = hitWitness(copy, targetId);
-        if (shot) return [...entries, { tick: copy.tick + 1, actions: [shot] }];
-      }
-    }
 }
 const matches: unknown[] = [],
   failures: unknown[] = [];
-let checked = 0,
-  movementWitnesses = 0;
+let checked = 0;
 for (let seed = 1; seed <= 10; seed++)
   for (const count of [2, 3, 4, 5]) {
     const state = createMatch(
@@ -137,7 +103,6 @@ for (let seed = 1; seed <= 10; seed++)
           };
           if (route) {
             witnesses.push(sample);
-            if (route.length > 1) movementWitnesses++;
           } else
             failures.push({
               seed,
@@ -171,10 +136,9 @@ const report = {
   rules: RULES,
   matches,
   checked,
-  movementWitnesses,
   failures,
   limits:
-    "Finite reachable post-destruction corpus: ordinary replay actions, current wind, surviving Pebble hits and bounded walk/hop alternatives. Not exhaustive geometry/launch enumeration; a failed search is a replayable counterexample to investigate, not proof no excavation path exists.",
+    "Finite post-destruction corpus: launch/pass replay actions, current wind and surviving Pebble hits from the current position. No walking or hopping. Not exhaustive geometry/launch enumeration; a failed search is a replayable counterexample to investigate, not proof no excavation path exists.",
 };
 await writeFile(
   "/tmp/fuse-birds-continuing-check.json",
@@ -185,7 +149,6 @@ console.log(
     rules: RULES,
     matches: matches.length,
     checked,
-    movementWitnesses,
     failures: failures.length,
   }),
 );

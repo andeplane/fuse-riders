@@ -132,7 +132,6 @@ export function decodeState(raw: unknown): Match | undefined {
     !number(raw, "active", 0, players.length - 1) ||
     !number(raw, "turn", 1, 1_000_000) ||
     !number(raw, "deadline") ||
-    !number(raw, "movement", 0, 48 * UNIT) ||
     !number(raw, "water", 300, 705) ||
     !number(raw, "wind", -2, 2) ||
     !number(raw, "cycle", 0, 1_000_000) ||
@@ -280,7 +279,6 @@ export function decodeState(raw: unknown): Match | undefined {
     active: Number(raw.active),
     turn: Number(raw.turn),
     deadline: Number(raw.deadline),
-    movement: Number(raw.movement),
     water: Number(raw.water),
     wind: Number(raw.wind),
     cycle: Number(raw.cycle),

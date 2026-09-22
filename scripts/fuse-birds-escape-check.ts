@@ -1,5 +1,4 @@
 import { readFile, writeFile } from "node:fs/promises";
-import assert from "node:assert/strict";
 import {
   advance,
   candidateVector,
@@ -43,7 +42,7 @@ function restore(item: Case): Match {
   if (!state) throw new Error("Invalid counterexample checkpoint");
   return state;
 }
-const results: unknown[] = [];
+const results: { verified?: unknown }[] = [];
 type Entry = { tick: number; actions: Action[] };
 function verifyRoute(initial: Match, targetId: string, entries: Entry[]) {
   const state = decodeState(encodeState(initial))!;
@@ -95,8 +94,6 @@ function verifyRoute(initial: Match, targetId: string, entries: Entry[]) {
         action.turn !== state.turn ||
         action.ordinal !== actor.ordinal + 1 ||
         (action.type !== "pass" &&
-          action.type !== "move" &&
-          action.type !== "hop" &&
           (action.type !== "launch" || action.weapon !== "pebble"))
       )
         throw new Error("Witness contains an invalid or non-Pebble action");
@@ -124,213 +121,7 @@ function verifyRoute(initial: Match, targetId: string, entries: Entry[]) {
     targetHp: target.hp,
   };
 }
-if (process.argv.includes("--late-comparison")) {
-  const saved = JSON.parse(
-    await readFile(
-      new URL(
-        "../games/fuse-birds/tests/fixtures/continuing-play-witnesses.json",
-        import.meta.url,
-      ),
-      "utf8",
-    ),
-  ) as {
-    results: {
-      seed: number;
-      count: number;
-      turn: number;
-      target: string;
-      excavation?: Entry[];
-    }[];
-  };
-  for (const [earlierTurn, lateTurn] of [
-    [20, 32],
-    [21, 33],
-  ]) {
-    const earlier = restore(
-      input.failures.find(
-        (item) =>
-          item.seed === 3 && item.count === 4 && item.turn === earlierTurn,
-      )!,
-    );
-    const late = restore(
-      input.failures.find(
-        (item) => item.seed === 3 && item.count === 4 && item.turn === lateTurn,
-      )!,
-    );
-    const witness = saved.results.find(
-      (item) =>
-        item.seed === 3 && item.count === 4 && item.turn === earlierTurn,
-    )!;
-    assert.deepEqual(late.terrain.bits, earlier.terrain.bits);
-    assert.equal(late.wind, earlier.wind);
-    assert.deepEqual(
-      late.players.map(({ id, x, y, hp }) => ({ id, x, y, hp })),
-      earlier.players.map(({ id, x, y, hp }) => ({ id, x, y, hp })),
-    );
-    const earlierResult = verifyRoute(
-      earlier,
-      witness.target,
-      witness.excavation!,
-    );
-    const beforeHash = hashState(late),
-      startTick = late.tick;
-    let launched = 0;
-    const entries: Entry[] = [];
-    for (const entry of witness.excavation!) {
-      const due = startTick + entry.tick - earlier.tick;
-      while (late.tick < due - 1 && late.phase !== "over") advance(late);
-      if (late.phase === "over") break;
-      const actor = late.players[late.active]!;
-      assert.equal(actor.id, entry.actions[0]!.actor);
-      const actions = entry.actions.map((action): Action => ({
-        ...action,
-        round: late.round,
-        turn: late.turn,
-        ordinal: actor.ordinal + 1,
-      }));
-      launched += actions.filter((action) => action.type === "launch").length;
-      entries.push({ tick: late.tick + 1, actions });
-      advance(late, actions);
-    }
-    for (let ticks = 0; ticks < 400 && late.phase !== "over"; ticks++)
-      advance(late);
-    const lowBird = late.players.find((p) => p.id === "p0")!;
-    assert.equal(late.phase, "over");
-    assert.equal(lowBird.hp, 0);
-    assert.ok(lowBird.y / 256 + 6 >= late.water);
-    assert.equal(
-      launched,
-      1,
-      "water ends the game before the second excavation shot",
-    );
-    const result = {
-      earlierTurn,
-      lateTurn,
-      sameTerrainPositionsHealthWind: true,
-      earlierResult,
-      beforeHash,
-      finalHash: hashState(late),
-      water: late.water,
-      lowBirdFeet: lowBird.y / 256 + 6,
-      launched,
-      entries,
-    };
-    results.push(result);
-    console.log(JSON.stringify(result));
-  }
-  await writeFile(
-    "/tmp/fuse-birds-late-comparison.json",
-    JSON.stringify({ rules: RULES, results }, null, 2),
-  );
-} else if (process.argv.includes("--late-movement")) {
-  for (const item of input.failures.filter(
-    (item) => item.seed === 3 && item.count === 4 && item.turn >= 32,
-  )) {
-    const initial = restore(item),
-      owner = initial.players[initial.active]!.id;
-    const queue = [{ state: initial, route: [] as Entry[] }],
-      seen = new Set<string>();
-    let found: Entry[] | undefined,
-      checked = 0;
-    for (
-      let cursor = 0;
-      cursor < queue.length && cursor < 2000 && !found;
-      cursor++
-    ) {
-      const { state, route } = queue[cursor]!;
-      const actor = state.players[state.active]!,
-        target = state.players.find((p) => p.id === item.target)!;
-      const key = `${actor.x}:${actor.y}:${state.movement}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      checked++;
-      for (let index = 0; index < 281 && !found; index++) {
-        const candidate = candidateVector(actor, target, state.wind, index);
-        if (!candidate) continue;
-        for (const dx of [0, -16, 16, -32, 32])
-          for (const dy of [0, -16, 16, -32, 32]) {
-            const vector = { vx: candidate.vx + dx, vy: candidate.vy + dy };
-            if (
-              !legalVector(vector.vx, vector.vy) ||
-              !traceShot(
-                state.terrain,
-                state.players,
-                actor,
-                vector,
-                state.wind,
-                target.id,
-              ).hit
-            )
-              continue;
-            const shot: Action = {
-              type: "launch",
-              actor: owner,
-              round: state.round,
-              turn: state.turn,
-              ordinal: actor.ordinal + 1,
-              weapon: "pebble",
-              ...vector,
-            };
-            const trial = [...route, { tick: state.tick + 1, actions: [shot] }];
-            try {
-              verifyRoute(initial, target.id, trial);
-              found = trial;
-              break;
-            } catch {
-              /* Candidate may lose to water or self damage during resolution. */
-            }
-          }
-      }
-      if (state.movement < 3 * 256) continue;
-      for (const type of ["move", "hop"] as const)
-        for (const direction of [-1, 1] as const) {
-          const copy = decodeState(encodeState(state))!;
-          const action: Action = {
-            type,
-            direction,
-            actor: owner,
-            round: state.round,
-            turn: state.turn,
-            ordinal: actor.ordinal + 1,
-          };
-          advance(copy, [action]);
-          for (
-            let ticks = 0;
-            ticks < 100 &&
-            !copy.players[copy.active]!.grounded &&
-            copy.turn === initial.turn;
-            ticks++
-          )
-            advance(copy);
-          const bird = copy.players.find((p) => p.id === owner)!;
-          if (
-            copy.turn === initial.turn &&
-            copy.phase === "aiming" &&
-            bird.grounded &&
-            bird.hp > 0 &&
-            copy.movement < state.movement
-          )
-            queue.push({
-              state: copy,
-              route: [...route, { tick: state.tick + 1, actions: [action] }],
-            });
-        }
-    }
-    const result = {
-      turn: item.turn,
-      target: item.target,
-      checked,
-      queued: queue.length,
-      found,
-    };
-    results.push(result);
-    console.log(JSON.stringify(result));
-  }
-  await writeFile(
-    "/tmp/fuse-birds-late-movement.json",
-    JSON.stringify({ rules: RULES, results }, null, 2),
-  );
-} else if (process.argv.includes("--verify-saved")) {
+if (process.argv.includes("--verify-saved")) {
   const saved = JSON.parse(
     await readFile(
       new URL(
@@ -602,9 +393,32 @@ if (process.argv.includes("--late-comparison")) {
       turn: item.turn,
       target: item.target,
       tried,
+      initialHash: hashState(state),
       direct: found,
       excavation: route,
-      verified: route ? verifyRoute(state, target.id, route) : undefined,
+      verified:
+        route || found
+          ? verifyRoute(
+              state,
+              target.id,
+              route ?? [
+                {
+                  tick: state.tick + 1,
+                  actions: [
+                    {
+                      type: "launch",
+                      actor: actor.id,
+                      round: state.round,
+                      turn: state.turn,
+                      ordinal: actor.ordinal + 1,
+                      weapon: "pebble",
+                      ...found!,
+                    },
+                  ],
+                },
+              ],
+            )
+          : undefined,
     };
     results.push(result);
     console.log(JSON.stringify(result));
@@ -613,4 +427,9 @@ if (process.argv.includes("--late-comparison")) {
     "/tmp/fuse-birds-escape-check.json",
     JSON.stringify({ rules: RULES, results }, null, 2),
   );
+  const unresolved = results.filter((result) => !result.verified).length;
+  console.log(
+    JSON.stringify({ verified: results.length - unresolved, unresolved }),
+  );
+  process.exitCode = unresolved ? 1 : 0;
 }

@@ -211,7 +211,7 @@ function room(code: string, display: boolean): void {
   canvas.tabIndex = 0;
   canvas.setAttribute(
     "aria-description",
-    "Keyboard: I/K aim up/down, J/L aim left/right, Shift adjusts faster, Enter fires, Escape cancels. Plus/minus zoom. Arrow keys move; Space hops.",
+    "Keyboard: I/K aim up/down, J/L aim left/right, Shift adjusts faster, Enter fires, Escape cancels. Plus/minus zoom.",
   );
   canvas.title = canvas.getAttribute("aria-description")!;
   const sky = el("div", "", "birds-canvas");
@@ -249,21 +249,15 @@ function room(code: string, display: boolean): void {
     scatterCount,
   );
   weapons.append(pebble, scatter);
-  const movement = el("div", "", "birds-movement"),
-    left = button("←"),
-    right = button("→"),
-    hop = button("HOP"),
-    pass = button("PASS"),
-    movementLabel = el("small");
-  left.setAttribute("aria-label", "Move left");
-  right.setAttribute("aria-label", "Move right");
-  movement.append(left, hop, right, pass, movementLabel);
+  const turnActions = el("div", "", "birds-turn-actions"),
+    pass = button("PASS");
+  turnActions.append(pass);
   const hint = el(
     "p",
     "Pull your bird backwards. Release to fire. Pinch to zoom.",
     "birds-hint",
   );
-  footer.append(weapons, movement, hint);
+  footer.append(weapons, turnActions, hint);
   board.append(scorebar, turn, sky, overlay, cameraBar, footer);
   board.hidden = true;
   page.append(header, lobby, board);
@@ -282,7 +276,6 @@ function room(code: string, display: boolean): void {
     battlefieldReady = false,
     stopped = false,
     frameId = 0;
-  let hold: ReturnType<typeof setInterval> | undefined;
   let keyboardAim: Vector | undefined;
   const arena = createArena(
     canvas,
@@ -303,8 +296,6 @@ function room(code: string, display: boolean): void {
   const cancel = () => {
     keyboardAim = undefined;
     cancelGesture(gestures);
-    if (hold) clearInterval(hold);
-    hold = undefined;
   };
   const canPlay = () =>
     battlefieldReady &&
@@ -421,31 +412,6 @@ function room(code: string, display: boolean): void {
     },
     { passive: false },
   );
-  const holdMove = (control: HTMLButtonElement, direction: -1 | 1) => {
-    control.onpointerdown = (e) => {
-      if (!canPlay()) return;
-      e.preventDefault();
-      control.setPointerCapture(e.pointerId);
-      cancel();
-      play({ type: "move", direction });
-      hold = setInterval(() => {
-        if (canPlay()) play({ type: "move", direction });
-        else cancel();
-      }, 100);
-    };
-    control.onpointerup = cancel;
-    control.onpointercancel = cancel;
-    control.onlostpointercapture = cancel;
-    control.onclick = (e) => {
-      if (e.detail === 0 && canPlay()) play({ type: "move", direction });
-    };
-  };
-  holdMove(left, -1);
-  holdMove(right, 1);
-  hop.onclick = () => {
-    cancel();
-    play({ type: "hop", direction: 0 });
-  };
   pass.onclick = () => {
     cancel();
     play({ type: "pass" });
@@ -563,10 +529,8 @@ function room(code: string, display: boolean): void {
       );
       pebble.disabled = !canPlay();
       scatter.disabled = !canPlay() || player.ammo === 0;
-      for (const b of [left, right, hop, pass]) b.disabled = !canPlay();
-      hop.disabled ||= !player.grounded || view.movement < 18 * UNIT;
-      movementLabel.textContent = `MOVE ${Math.floor(view.movement / UNIT)}`;
-      movement.hidden = display;
+      pass.disabled = !canPlay();
+      turnActions.hidden = display;
       cameraBar.hidden = display;
       hint.textContent = display
         ? "Scan the room QR on your phone to play."
@@ -674,15 +638,6 @@ function room(code: string, display: boolean): void {
       cancel();
       following = true;
       play({ type: "launch", weapon, ...vector });
-    }
-    if (canPlay() && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
-      e.preventDefault();
-      cancel();
-      play({ type: "move", direction: e.key === "ArrowLeft" ? -1 : 1 });
-    } else if (canPlay() && !e.repeat && e.key === " ") {
-      e.preventDefault();
-      cancel();
-      play({ type: "hop", direction: 0 });
     }
   });
   function paint(now: number): void {

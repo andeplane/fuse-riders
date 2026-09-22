@@ -2,15 +2,15 @@
 
 Phase 1 is a 2–5-player turn-based slingshot game: unlimited Pebble, three starting Scatter Bombs, shootable refill crates, destructible seeded terrain and rising-water sudden death. The complete rules live in the UI-free `fuse-birds-game` workspace package. Browser rendering and online rooms are adapters around that same library.
 
-Phase 1 is implemented and ready for playtesting in [PR #407](https://github.com/andeplane/fuse-riders/pull/407). See [ADR-052](../../docs/adr/052-fuse-birds-phase-one.md) for the completion contract and the [evidence note](../../docs/reviews/fuse-birds-implementation-progress.md) for verification and its limits. No merge or deployment is implied.
+The slingshot-only correction is playable in [PR #407](https://github.com/andeplane/fuse-riders/pull/407). See [ADR-052](../../docs/adr/052-fuse-birds-phase-one.md) for the completion contract and the [current evidence note](../../docs/reviews/fuse-birds-stationary-correction.md) for verification and unresolved post-destruction reachability samples. No merge or deployment is implied.
 
 ## Play locally
 
 From the repository root, run `pnpm dev`. Open the URL printed by the server with `/fuse-birds/?mute` appended. The server chooses a free port when necessary. Create a room and join its code on a second device/tab. Start with 2–5 players. Select shared TV when creating a room to get a full-map display link; each phone retains its own map view.
 
-Drag back from your bird and release to shoot. Drag elsewhere to pan; pinch or use the zoom controls to inspect the map. Adding a second finger cancels an uncommitted shot. Move/hop before shooting, or pass. Scatter splits at its apex and costs one bomb; shooting a crate refills one, capped at five. The weapon count belongs to the game state, so recovery and rematch cannot leave a stale local count.
+Drag back from your bird and release to shoot. Drag elsewhere to pan; pinch or use the zoom controls to inspect the map. Adding a second finger cancels an uncommitted shot. Birds cannot walk or hop. Aim from their current position, shoot, or pass; explosions and falling can displace them. Scatter splits at its apex and costs one bomb; shooting a crate refills one, capped at five. The weapon count belongs to the game state, so recovery and rematch cannot leave a stale local count.
 
-Keyboard: focus the battlefield, then use **I/K** to aim up/down and **J/L** to aim left/right. Hold **Shift** for larger adjustments, **Enter** to fire, or **Escape** to cancel. **+/−** zoom, arrow keys move and Space hops. Off-screen bird and ammo labels show their direction while zoomed; the TV always retains the full map.
+Keyboard: focus the battlefield, then use **I/K** to aim up/down and **J/L** to aim left/right. Hold **Shift** for larger adjustments, **Enter** to fire, or **Escape** to cancel. **+/−** zoom. Off-screen bird and ammo labels show their direction while zoomed; the TV always retains the full map.
 
 ## Public headless API
 
@@ -63,7 +63,7 @@ pnpm exec tsx scripts/fuse-birds-headless.ts --seed 123 --players 3 --log /tmp/b
 pnpm exec tsx scripts/fuse-birds-headless.ts --load /tmp/birds-partial.json --log /tmp/birds-actions.json --save /tmp/birds-resumed.json > /tmp/birds-resumed-result.json
 ```
 
-`--mode pass` is the default fast termination driver; `--mode idle` exercises deadlines; `--mode aimed` exercises ordinary movement, hops, both weapons and duplicate releases. A supplied `--log` disables the driver; missing ticks mean no input. `--ticks` limits additional ticks and may intentionally stop mid-match. `--trace PATH` writes per-tick hashes, actions and facts as NDJSON. These drivers are verification infrastructure, not an in-game bot mode.
+`--mode pass` is the default fast termination driver; `--mode idle` exercises deadlines; `--mode aimed` exercises both weapons and duplicate releases. A supplied `--log` disables the driver; missing ticks mean no input. `--ticks` limits additional ticks and may intentionally stop mid-match. `--trace PATH` writes per-tick hashes, actions and facts as NDJSON. These drivers are verification infrastructure, not an in-game bot mode.
 
 Action logs have `{ "rules": "<current RULES>", "entries": [{ "tick": 10, "actions": [...] }] }`. Ticks are absolute, strictly increasing positive integers. Entries contain at most 32 runtime-validated actions; limits are 100,000 entries/ticks and 16 MB input files. A checkpoint includes an independent hash and must pass the full library validator. Corrupt, incompatible or unordered input fails explicitly.
 

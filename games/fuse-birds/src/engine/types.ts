@@ -1,4 +1,4 @@
-export const RULES = "fuse-birds-5";
+export const RULES = "fuse-birds-6";
 export const WIDTH = 1536,
   HEIGHT = 768,
   UNIT = 256,
@@ -96,7 +96,6 @@ export interface Match {
   active: number;
   turn: number;
   deadline: number;
-  movement: number;
   water: number;
   wind: number;
   cycle: number;
@@ -114,10 +113,7 @@ export type Action = {
   turn: number;
   ordinal: number;
 } & (
-  | { type: "launch"; weapon: Weapon; vx: number; vy: number }
-  | { type: "move"; direction: -1 | 1 }
-  | { type: "hop"; direction: -1 | 0 | 1 }
-  | { type: "pass" }
+  { type: "launch"; weapon: Weapon; vx: number; vy: number } | { type: "pass" }
 );
 export type Fact = {
   type:
