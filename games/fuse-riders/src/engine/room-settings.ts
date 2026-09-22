@@ -64,7 +64,7 @@ export function parseRoomSettings(raw: unknown): RoomSettings | undefined {
     value.chainReaction === undefined ? true : value.chainReaction;
   if (typeof chainReaction !== "boolean") return;
   // Matches defaultRoomSettings, so a blob saved before the flag round-trips to what a new room would choose rather than
-  // silently turning the feature off for anyone who has ever pressed SAVE SETTINGS.
+  // silently turning the feature off for anyone who has ever saved room settings.
   const aimBounce = value.aimBounce === undefined ? true : value.aimBounce;
   if (typeof aimBounce !== "boolean") return;
   // Like the flags above: a blob saved before maps existed round-trips to what a new room would choose, rather than

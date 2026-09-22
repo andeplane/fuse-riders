@@ -4,6 +4,7 @@ import { POWERUP_GUIDE } from "../games/fuse-riders/src/client/powerup-guide.js"
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
+import { openTopMenu } from "./lib/top-menu.js";
 const base = process.env.HOME_URL ?? "http://127.0.0.1:4188/";
 // WebKit on the CI runner sometimes reports a same-origin sprite XHR as an access-control failure; Phaser retries and the page is fine.
 const results: object[] = [];
@@ -267,6 +268,9 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
           .click();
         await powerHud.waitFor({ state: "hidden" });
         for (const name of ["ROOM SETTINGS", "SETTINGS", "AVATAR", "EXIT"]) {
+          // SETTINGS and EXIT are the bar's; on a short viewport the bar is one ☰. ROOM SETTINGS and AVATAR are the
+          // lobby's own, and the sheet would cover them, so it stays shut for those.
+          if (name === "SETTINGS" || name === "EXIT") await openTopMenu(page);
           await page.getByRole("button", { name, exact: true }).click();
           const dialog = page.getByRole("dialog");
           await dialog.waitFor({ state: "visible" });
@@ -331,21 +335,30 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
                 exact: true,
               })
               .click();
+            // Settings save on every change, so an invalid value shows its alert at once and leaves storage alone.
+            const stored = () =>
+              page.evaluate(() =>
+                JSON.parse(
+                  localStorage.getItem("fuse-riders-room-settings-v2")!,
+                ),
+              );
             await page.getByLabel("Match length").fill("0");
-            await page
-              .getByRole("button", { name: "SAVE SETTINGS", exact: true })
-              .click();
-            assert.equal(await dialog.isVisible(), true);
             await dialog
               .getByRole("alert")
               .getByText("Choose a match length from 1 to 20.")
               .waitFor();
+            assert.equal(
+              (await stored()).length,
+              7,
+              "match length 0 is not saved",
+            );
             await page.getByLabel("Match length").fill("7");
+            await dialog
+              .getByRole("alert")
+              .getByText("Choose", { exact: false })
+              .waitFor({ state: "hidden" });
             for (const invalid of ["0", "2.05", "0.125"]) {
               await aim.fill(invalid);
-              await page
-                .getByRole("button", { name: "SAVE SETTINGS", exact: true })
-                .click();
               await dialog
                 .getByRole("alert")
                 .getByText(
@@ -369,34 +382,29 @@ for (const { name: browserName, kind } of BOTH_ENGINES) {
               "0.37",
               "off-grid aim text survives submenu navigation",
             );
-            await page
-              .getByRole("button", { name: "SAVE SETTINGS", exact: true })
-              .click();
-            assert.equal(
-              await dialog.isVisible(),
-              true,
-              "off-grid aim time is not saved after submenu navigation",
-            );
+            // A change on the main page while the aim text is off-grid is rejected too, not rounded and saved.
+            await page.getByLabel("Match length").fill("7");
             await dialog
               .getByRole("alert")
               .getByText(
                 "Choose a bomb aim time from 0.1 to 2 seconds in steps of 0.05.",
               )
               .waitFor();
+            assert.equal(
+              (await stored()).bombChargeTicks,
+              24,
+              "off-grid aim time is not saved after submenu navigation",
+            );
             await aim.fill("1.2");
+            await dialog
+              .getByRole("alert")
+              .getByText("Choose", { exact: false })
+              .waitFor({ state: "hidden" });
+            assert.equal((await stored()).bombChargeTicks, 24);
             await page
-              .getByRole("button", { name: "SAVE SETTINGS", exact: true })
+              .getByRole("button", { name: "CLOSE", exact: true })
               .click();
             await dialog.waitFor({ state: "hidden" });
-            assert.equal(
-              await page.evaluate(
-                () =>
-                  JSON.parse(
-                    localStorage.getItem("fuse-riders-room-settings-v2")!,
-                  ).bombChargeTicks,
-              ),
-              24,
-            );
             await page
               .getByRole("button", { name: "ROOM SETTINGS", exact: true })
               .click();

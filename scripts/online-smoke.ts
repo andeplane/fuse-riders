@@ -507,10 +507,8 @@ try {
   await host
     .getByRole("button", { name: "ROOM SETTINGS", exact: true })
     .click();
-  await host.getByLabel("Match length").fill("2");
-  await host
-    .getByRole("button", { name: "SAVE SETTINGS", exact: true })
-    .click();
+  await host.getByLabel("Match length").fill("2"); // saves on input
+  await host.getByRole("button", { name: "CLOSE", exact: true }).click();
   await host
     .getByRole("button", { name: "BACK TO LOBBY", exact: true })
     .click();
@@ -607,10 +605,8 @@ try {
     .click();
   await host
     .getByRole("radio", { name: "Shared TV + phone controls", exact: true })
-    .check();
-  await host
-    .getByRole("button", { name: "SAVE SETTINGS", exact: true })
-    .click();
+    .check(); // saves on change
+  await host.getByRole("button", { name: "CLOSE", exact: true }).click();
   const phones = [guest, ...riders].slice(0, 2);
   for (const page of phones)
     await page.locator(".online-arena").waitFor({ state: "hidden" });

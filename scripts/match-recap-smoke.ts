@@ -296,10 +296,8 @@ try {
           .getByRole("button", { name: "3 ROUNDS · QUICK", exact: true })
           .click();
         assert.equal(await page.getByLabel("Match length").inputValue(), "3");
-        await page.getByLabel("Match length").fill("1");
-        await page
-          .getByRole("button", { name: "SAVE SETTINGS", exact: true })
-          .click();
+        await page.getByLabel("Match length").fill("1"); // saves on input
+        await page.getByRole("button", { name: "CLOSE", exact: true }).click();
         await dialog.waitFor({ state: "hidden" });
         await page
           .getByRole("button", { name: "BACK TO LOBBY", exact: true })
