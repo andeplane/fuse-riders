@@ -24,9 +24,20 @@ jobs:
   # and the tests were split into shards. scripts/ci-manifest.json says which step belongs to which job, and
   # tests/ci-manifest.test.ts fails when these jobs stop matching it.
   #
-  # Five jobs, not six: this account gets five concurrent runners, and on the first run of this shape a sixth
-  # job sat queued for 38 s waiting for a slot — longer than most of the jobs took. Keeping the gate at five
-  # is worth more than splitting it further, which is also why `build` shares a job rather than having one.
+  # How wide to split it is a trade-off, and the runner side of it is not a fixed number. Do not read one
+  # run and conclude anything: within three hours this gate saw a sixth job wait 38 s (which looked like a
+  # five-runner cap and was not), then 17 jobs running at once on a main push, then every job waiting up to
+  # 116 s on a ten-job gate. The pool is shared with every other workflow, so availability swings.
+  #
+  # What is stable is the work. On run 35514185047: slowest `unit` test step 37 s, `checks` 26 s, `build`
+  # 19 s — about 40 s of critical path. Observed wall clock for the same gate ranges 65 s to 169 s, and the
+  # difference is queueing, not tests.
+  #
+  # So more shards cut per-shard work but add jobs that each queue when the pool is busy, and past some
+  # width that trade goes the wrong way. Eight was chosen on work alone (slowest shard at the pull-request
+  # budget, locally on 4 cores: 3 shards 50.3 s, 4 shards 41.8 s, 6 shards 35.5 s, 8 shards 25.4 s — note 3
+  # was worse than 4, because `node --test` splits files round-robin by index rather than by cost). Before
+  # changing the width, measure both halves: the shard balance AND how much queueing the extra jobs draw.
   #
   # `pnpm build` is `tsc --noEmit && vite build`, so it is the type check; there is no separate step for it.
   checks:
@@ -43,6 +54,18 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm config:check
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
   unit:
@@ -52,10 +75,10 @@ jobs:
       # Every shard reports, so one run shows everything that is broken rather than the first thing.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     env:
       # `node --test` splits the files; `pnpm test` with no TEST_SHARD is still the whole suite.
-      TEST_SHARD: ${{ matrix.shard }}/4
+      TEST_SHARD: ${{ matrix.shard }}/8
       # The two whole-recording replays fold all 15,776 ticks either way; on a pull request they check one tick
       # in ten instead of every one, which is a quarter of the time. A main push and the release suite leave
       # this at 1 and check every tick. See games/fuse-riders/tests/fixtures/replay-budget.ts.
@@ -73,13 +96,13 @@ jobs:
   # One stable check name for the whole gate: green only when every job above passed. A branch rule waits on
   # this, never on the shards, so the matrix can be resized without touching the rule.
   verify:
-    needs: [checks, unit]
+    needs: [checks, build, unit]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Every gate passed
-        run: test "${{ needs.checks.result }} ${{ needs.unit.result }}" = "success success"
+        run: test "${{ needs.checks.result }} ${{ needs.build.result }} ${{ needs.unit.result }}" = "success success success"
 
   # The coverage gate: the same tests again with every module instrumented, which costs about 60% on top of
   # them. A pull request does not wait for it; a main push does, before anything deploys, and so does the
