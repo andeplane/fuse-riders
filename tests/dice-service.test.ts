@@ -41,7 +41,7 @@ function playedMatch(a: string, b: string) {
 }
 
 test("the service hosts dice rooms beside Fuse Riders, and a room refuses the other game's pages", async () => {
-  assert.deepEqual(platform.gameIds, [GAME_ID, diceGame.id]);
+  assert.deepEqual(platform.gameIds, [GAME_ID, diceGame.id, "fuse-drivers"]);
   assert.equal(diceRegistration.id, diceGame.id);
   const service = createDevRoomService({
     identity: async (value) =>
