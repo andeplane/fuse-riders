@@ -1,0 +1,54 @@
+import {
+  ARENA,
+  VERTICES,
+  PADDLE_MIN,
+  PADDLE_MAX,
+  CORE,
+  PADDLE,
+  PADDLE_HALF,
+  PADDLE_THICK,
+  BALL_RADIUS,
+  COUNTDOWN,
+  FRENZY,
+  FRENZY_WARNING,
+  PICKUP_RADIUS,
+  LIMIT,
+  type ArenaState,
+} from "./state.js";
+import { ARENA_MAPS } from "./maps.js";
+export type { ArenaState, Impact } from "./state.js";
+export const viewRules = {
+  arena: ARENA,
+  vertices: VERTICES,
+  paddleMin: PADDLE_MIN,
+  paddleMax: PADDLE_MAX,
+  core: CORE,
+  paddle: PADDLE,
+  paddleHalf: PADDLE_HALF,
+  paddleThick: PADDLE_THICK,
+  ballRadius: BALL_RADIUS,
+  countdown: COUNTDOWN,
+  frenzy: FRENZY,
+  frenzyWarning: FRENZY_WARNING,
+  pickupRadius: PICKUP_RADIUS,
+  limit: LIMIT,
+  maps: ARENA_MAPS,
+};
+export interface BallView {
+  tick: number;
+  matchId: string;
+  arena: ArenaState | null;
+  rules: typeof viewRules;
+}
+export function view(
+  tick: number,
+  matchId: string,
+  arena: ArenaState | null,
+): BallView {
+  return {
+    tick,
+    matchId,
+    arena: arena ? structuredClone(arena) : null,
+    rules: viewRules,
+  };
+}

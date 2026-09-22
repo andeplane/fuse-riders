@@ -1,0 +1,245 @@
+import { cos, sin, TAU, wrap } from "./math.js";
+import { ARENA_MAPS, type MapId } from "./maps.js";
+
+export const RULES = "ball-bros-6";
+export const POWER_KINDS = [
+  "shrink",
+  "bomb",
+  "sticky",
+  "thief",
+  "split",
+] as const;
+export type PowerKind = (typeof POWER_KINDS)[number];
+export const MAX_BALLS = 20,
+  PICKUP_RADIUS = 18,
+  EFFECT_TICKS = 160;
+export interface Pickup {
+  id: number;
+  kind: PowerKind;
+  x: number;
+  y: number;
+  expires: number;
+}
+export const SIZE = 1000,
+  CENTER = 500,
+  ARENA = 470;
+export const CORE = 17,
+  PADDLE = 104,
+  PADDLE_MIN = 88,
+  PADDLE_MAX = 124,
+  RADIAL_SPEED = 90,
+  PADDLE_HALF = (35 * Math.PI) / 180,
+  PADDLE_THICK = 5;
+export const BALL_RADIUS = 6,
+  BALL_SPEED = 340,
+  TURN_SPEED = 3.2;
+export const COUNTDOWN = 60,
+  AUTO_LAUNCH = 60,
+  LIMIT = 2400,
+  FRENZY = COUNTDOWN + 1200,
+  FRENZY_WARNING = 100,
+  FRENZY_BALL_INTERVAL = 200,
+  SUBSTEPS = 5,
+  DT = 0.01;
+export const FORMATION_START = (FRENZY - 1) * SUBSTEPS,
+  FORMATION_OMEGA = 0.04;
+export type Steering = -1 | 0 | 1;
+export interface Control {
+  steer: Steering;
+  radial: Steering;
+  launch: boolean;
+}
+export interface Participant {
+  id: string;
+  name: string;
+  slot: number;
+  bot: boolean;
+  avatarId?: string;
+}
+export interface Block {
+  x: number;
+  y: number;
+  alive: boolean;
+}
+export interface Base extends Participant {
+  avatarId: string;
+  x: number;
+  y: number;
+  angle: number;
+  radius: number;
+  alive: boolean;
+  blocks: Block[];
+  steer: Steering;
+  radial: Steering;
+  launch: boolean;
+  saves: number;
+  broken: number;
+  shrink: number[];
+  stickyUntil: number;
+  thiefUntil: number;
+  stunUntil: number;
+}
+export interface Ball {
+  id: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  owner: string | null;
+  held: string | null;
+  heldUntil: number;
+  bomb: boolean;
+  splits: number;
+}
+export interface ArenaState {
+  tick: number;
+  formationStep: number;
+  mapId: MapId;
+  phase: "countdown" | "playing" | "over";
+  bases: Base[];
+  balls: Ball[];
+  winner: string | null;
+  pickups: Pickup[];
+}
+export interface Impact {
+  kind:
+    | "paddle"
+    | "block"
+    | "core"
+    | "wall"
+    | "bumper"
+    | "launch"
+    | "pickup"
+    | "bomb"
+    | "frenzy";
+  power?: PowerKind;
+  x: number;
+  y: number;
+  slot: number;
+}
+
+// Outward unit normals of a regular octagon with flat cardinal walls.
+export const WALLS = Array.from({ length: 8 }, (_, i) => ({
+  x: cos((TAU * i) / 8),
+  y: sin((TAU * i) / 8),
+}));
+export const VERTICES = WALLS.map((n, i) => {
+  const next = WALLS[(i + 1) % WALLS.length]!;
+  const scale = ARENA / (1 + n.x * next.x + n.y * next.y);
+  return {
+    x: CENTER + (n.x + next.x) * scale,
+    y: CENTER + (n.y + next.y) * scale,
+  };
+});
+export const insideArena = (x: number, y: number, margin = BALL_RADIUS) =>
+  WALLS.every(
+    (n) => (x - CENTER) * n.x + (y - CENTER) * n.y <= ARENA - margin + 0.01,
+  );
+// Keep arc length fixed: reaching out trades coverage for an earlier interception.
+export const paddleHalf = (radius: number) => (PADDLE_HALF * PADDLE) / radius;
+export const paddleScale = (base: Base) => Math.pow(0.75, base.shrink.length);
+export const nextRadius = (base: Base) =>
+  Math.max(
+    PADDLE_MIN,
+    Math.min(PADDLE_MAX, base.radius + base.radial * RADIAL_SPEED * DT),
+  );
+/** Keep even a moving rounded tip slower than a ball, so a return can separate
+ * without accelerating balls or trapping them in repeated contacts. */
+export function paddleMotion(base: Base, translationSpeed = 0) {
+  const radius = nextRadius(base);
+  const radialSpeed = (radius - base.radius) / DT;
+  const motionBudget = Math.max(100, 300 - translationSpeed),
+    tangential =
+      Math.sqrt(motionBudget * motionBudget - radialSpeed * radialSpeed) -
+      Math.abs(radialSpeed) * paddleHalf(Math.min(radius, base.radius));
+  const omega =
+    base.steer *
+    Math.min(TURN_SPEED, tangential / Math.max(radius, base.radius));
+  return { radius, radialSpeed, omega };
+}
+
+/** Centers follow an octagon-inset orbit once Frenzy begins. The same pure
+ * function reconstructs checkpoint geometry without trusting serialized x/y. */
+export function formationPosition(count: number, index: number, step: number) {
+  const offset = Math.max(0, step - FORMATION_START) * FORMATION_OMEGA * DT,
+    angle = -Math.PI / 2 + (TAU * index) / count + offset,
+    dx = cos(angle),
+    dy = sin(angle),
+    distance =
+      (ARENA - PADDLE_MAX - 21) /
+      Math.max(...WALLS.map((n) => n.x * dx + n.y * dy));
+  return { x: CENTER + dx * distance, y: CENTER + dy * distance };
+}
+export function placeFormation(state: ArenaState): void {
+  state.bases.forEach((base, index) =>
+    Object.assign(
+      base,
+      formationPosition(state.bases.length, index, state.formationStep),
+    ),
+  );
+}
+
+export function blockLayout(mapId: MapId = "classic"): Block[] {
+  return ARENA_MAPS[mapId].blocks.map((block) => ({ ...block, alive: true }));
+}
+export function createArena(
+  participants: readonly Participant[],
+  mapId: MapId = "classic",
+): ArenaState {
+  const bases = [...participants]
+    .sort((a, b) => a.slot - b.slot)
+    .map((p, i) => {
+      const position = formationPosition(participants.length, i, 0);
+      return {
+        id: p.id,
+        name: p.name,
+        slot: p.slot,
+        bot: p.bot,
+        avatarId: p.avatarId ?? (p.bot ? "robot" : "fox"),
+        x: position.x,
+        y: position.y,
+        angle: wrap(-Math.PI / 2 + (TAU * i) / participants.length + Math.PI),
+        radius: PADDLE,
+        alive: true,
+        blocks: blockLayout(mapId),
+        steer: 0 as Steering,
+        radial: 0 as Steering,
+        launch: false,
+        saves: 0,
+        broken: 0,
+        shrink: [],
+        stickyUntil: 0,
+        thiefUntil: 0,
+        stunUntil: 0,
+      };
+    });
+  return {
+    tick: 0,
+    formationStep: 0,
+    mapId,
+    phase: "countdown",
+    bases,
+    winner: null,
+    pickups: [],
+    balls: bases.map((b, id) => ({
+      id,
+      x: b.x + cos(b.angle) * (b.radius + 13),
+      y: b.y + sin(b.angle) * (b.radius + 13),
+      vx: 0,
+      vy: 0,
+      owner: b.id,
+      held: b.id,
+      heldUntil: COUNTDOWN + AUTO_LAUNCH,
+      bomb: false,
+      splits: 0,
+    })),
+  };
+}
+export function control(state: ArenaState, id: string, input: Control): void {
+  const base = state.bases.find((b) => b.id === id);
+  if (base?.alive && state.phase !== "over") {
+    base.steer = input.steer;
+    base.radial = input.radial;
+    base.launch ||= input.launch;
+  }
+}
