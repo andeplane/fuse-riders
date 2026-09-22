@@ -159,6 +159,19 @@ export function createRenderer(
       g.lineStyle(1, 0x578899, 0.08);
       g.strokeCircle(500, 500, 105);
       g.strokeCircle(500, 500, 110);
+      for (const bumper of r.maps[s.mapId].bumpers) {
+        const pulse = 0.5 + Math.sin(now / 160 + bumper.x) * 0.5;
+        g.fillStyle(0x07111f, 0.95);
+        g.fillCircle(bumper.x, bumper.y, bumper.radius + 5);
+        g.fillStyle(0x6de7ff, 0.08 + pulse * 0.06);
+        g.fillCircle(bumper.x, bumper.y, bumper.radius + 11 + pulse * 3);
+        g.lineStyle(5, 0x6de7ff, 0.18);
+        g.strokeCircle(bumper.x, bumper.y, bumper.radius + 4);
+        g.lineStyle(2, 0xe8fbff, 0.9);
+        g.strokeCircle(bumper.x, bumper.y, bumper.radius);
+        g.fillStyle(0x42cbea, 0.8);
+        g.fillCircle(bumper.x, bumper.y, 4);
+      }
       for (const b of s.bases) {
         const color = COLORS[b.slot]!;
         const half =

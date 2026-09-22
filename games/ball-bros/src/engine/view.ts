@@ -15,6 +15,7 @@ import {
   LIMIT,
   type ArenaState,
 } from "./state.js";
+import { ARENA_MAPS } from "./maps.js";
 export type { ArenaState, Impact } from "./state.js";
 export const viewRules = {
   arena: ARENA,
@@ -31,6 +32,7 @@ export const viewRules = {
   frenzyWarning: FRENZY_WARNING,
   pickupRadius: PICKUP_RADIUS,
   limit: LIMIT,
+  maps: ARENA_MAPS,
 };
 export interface BallView {
   tick: number;

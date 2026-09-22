@@ -42,11 +42,13 @@ export class Audio {
             ? 1100
             : e.kind === "core"
               ? 110
-              : e.kind === "paddle"
-                ? 720
-                : e.kind === "launch"
-                  ? 440
-                  : 260;
+              : e.kind === "bumper"
+                ? 520
+                : e.kind === "paddle"
+                  ? 720
+                  : e.kind === "launch"
+                    ? 440
+                    : 260;
     oscillator.type =
       e.kind === "core" || e.kind === "frenzy" ? "sawtooth" : "sine";
     oscillator.frequency.setValueAtTime(hz, c.currentTime);

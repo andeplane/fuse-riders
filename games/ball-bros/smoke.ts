@@ -19,8 +19,10 @@ try {
   await page
     .getByRole("combobox", { name: "Core avatar" })
     .selectOption("dragon");
+  await page.getByRole("combobox", { name: "ARENA" }).selectOption("ricochet");
   await page.getByRole("button", { name: "PLAY SOLO", exact: true }).click();
   await page.getByText("GET READY · 3", { exact: true }).waitFor();
+  await page.getByText("RICOCHET REACTOR", { exact: true }).waitFor();
   assert.equal(await page.locator(".scorecard").count(), 5);
   await page.getByRole("button", { name: "Next radio track" }).click();
   await page.getByRole("button", { name: "RADIO OFF", exact: true }).waitFor();
@@ -58,6 +60,10 @@ try {
   );
   await page.screenshot({
     path: "artifacts/ball-bros-desktop.png",
+    fullPage: true,
+  });
+  await page.screenshot({
+    path: "artifacts/ball-bros-ricochet.png",
     fullPage: true,
   });
   const pad = await page.getByRole("button", { name: "RIGHT ↷" }).boundingBox();
@@ -117,7 +123,7 @@ try {
   });
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: menu, solo, combined orbit/reach controls, Space launch, damage, restart, full round, rematch, five-button phone layout; muted screenshots saved.",
+    "PASS: menu, Ricochet map, solo controls, Space launch, damage, restart, Frenzy, full round, rematch and phone layout; muted screenshots saved.",
   );
 } finally {
   await browser.close();

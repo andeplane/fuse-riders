@@ -1,6 +1,7 @@
 import { cos, sin, TAU, wrap } from "./math.js";
+import { ARENA_MAPS, type MapId } from "./maps.js";
 
-export const RULES = "ball-bros-5";
+export const RULES = "ball-bros-6";
 export const POWER_KINDS = [
   "shrink",
   "bomb",
@@ -93,6 +94,7 @@ export interface Ball {
 export interface ArenaState {
   tick: number;
   formationStep: number;
+  mapId: MapId;
   phase: "countdown" | "playing" | "over";
   bases: Base[];
   balls: Ball[];
@@ -105,6 +107,7 @@ export interface Impact {
     | "block"
     | "core"
     | "wall"
+    | "bumper"
     | "launch"
     | "pickup"
     | "bomb"
@@ -176,19 +179,13 @@ export function placeFormation(state: ArenaState): void {
   );
 }
 
-export function blockLayout(): Block[] {
-  return [12, 16, 20].flatMap((count, ring) =>
-    Array.from({ length: count }, (_, i) => {
-      const angle = (TAU * (i + ring * 0.5)) / count;
-      return {
-        x: cos(angle) * (34 + ring * 16),
-        y: sin(angle) * (34 + ring * 16),
-        alive: true,
-      };
-    }),
-  );
+export function blockLayout(mapId: MapId = "classic"): Block[] {
+  return ARENA_MAPS[mapId].blocks.map((block) => ({ ...block, alive: true }));
 }
-export function createArena(participants: readonly Participant[]): ArenaState {
+export function createArena(
+  participants: readonly Participant[],
+  mapId: MapId = "classic",
+): ArenaState {
   const bases = [...participants]
     .sort((a, b) => a.slot - b.slot)
     .map((p, i) => {
@@ -204,7 +201,7 @@ export function createArena(participants: readonly Participant[]): ArenaState {
         angle: wrap(-Math.PI / 2 + (TAU * i) / participants.length + Math.PI),
         radius: PADDLE,
         alive: true,
-        blocks: blockLayout(),
+        blocks: blockLayout(mapId),
         steer: 0 as Steering,
         radial: 0 as Steering,
         launch: false,
@@ -219,6 +216,7 @@ export function createArena(participants: readonly Participant[]): ArenaState {
   return {
     tick: 0,
     formationStep: 0,
+    mapId,
     phase: "countdown",
     bases,
     winner: null,

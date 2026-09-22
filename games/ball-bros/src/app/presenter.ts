@@ -28,6 +28,7 @@ export function present(v: BallView, playerId?: string) {
     Math.max(0, v.rules.limit - Math.max(0, s.tick - v.rules.countdown)) / 20,
   );
   return {
+    map: v.rules.maps[s.mapId].label,
     effects: [
       s.tick >= v.rules.frenzy ? `FUSE FRENZY · ${s.balls.length} BALLS` : "",
       you ? effects(you) : "",

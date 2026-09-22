@@ -127,7 +127,7 @@ class Mesh {
         },
       },
       "AB42",
-      { display: true },
+      { display: true, mapId: "classic" },
     );
     runtime.start();
     return runtime;

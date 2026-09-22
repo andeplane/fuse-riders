@@ -1,12 +1,20 @@
-# Ball Bros: phases 0–4
+# Ball Bros: phases 0–5
 
 An unranked POC for up to five humans/bots, or one human against four bots: one core per base, 48 one-hit blocks in three dense rings, an orbital paddle and one launchable ball per player. A/D rotate, W/S reach outward/inward, Space launches. Bots emit the same steering/reach/launch controls. Last core standing wins; a 120-second limit draws. Rematch creates a fresh match through the shared room log.
 
-The engine is independent of app/net/render code. Base-local blocks and paddle angles leave a seam for future base movement, but bases are stationary in this version. Balls sweep against walls, rounded block corners, cores and rotating curved paddles. Five 10 ms substeps run in each fixed 50 ms log tick. Contacts break ties by collider order, balls resolve by stable id, and core eliminations commit together at the end of each substep so simultaneous final losses draw. At the contact iteration limit the ball stops for the remaining substep rather than tunnelling. Ball ownership changes on paddle contact and grants no immunity. Eliminated bases clear and their balls become neutral.
+The engine is independent of app/net/render code. Base-local blocks and paddle angles let the whole formation move during Fuse Frenzy. Balls sweep against walls, map bumpers, rounded block corners, cores and rotating curved paddles. Five 10 ms substeps run in each fixed 50 ms log tick. Contacts break ties by collider order, balls resolve by stable id, and core eliminations commit together at the end of each substep so simultaneous final losses draw. At the contact iteration limit the ball stops for the remaining substep rather than tunnelling. Ball ownership changes on paddle contact and grants no immunity. Eliminated bases clear and their balls become neutral.
 
 Use the existing RoomRuntime even for solo. All controls and geometry are checkpointed and hashed; only trails, particles and sound are cosmetic. Phaser owns presentation only, with its loop disabled and one app-owned presentation frame. The engine uses pinned JS trigonometry. A new game-specific rules version/golden records behavioral changes without changing Fuse Riders' rules.
 
-Phase 1 includes service registration and a visible game link. Phase 2 adds online admission, multiplayer controls/recovery and shared screens. Production remains gated by EXTRA_GAME_IDS. Phase 3 adds shared avatars/music and power-ups. Phase 4 adds a moving late-round formation and neutral pressure balls. New maps and ranked reporting remain out of scope.
+Phase 1 includes service registration and a visible game link. Phase 2 adds online admission, multiplayer controls/recovery and shared screens. Production remains gated by EXTRA_GAME_IDS. Phase 3 adds shared avatars/music and power-ups. Phase 4 adds a moving late-round formation and neutral pressure balls. Phase 5 adds selectable deterministic arenas. Ranked reporting remains out of scope.
+
+## Phase 5: arena variants
+
+The creator chooses an arena before solo play or in the online lobby. **Classic Circuit** preserves the original 48-block defenses and open field. **Crossfire** reduces each base to 32 blocks with four aligned gaps in its outer armor, producing quicker rounds and clearer attack lanes. **Ricochet Reactor** keeps Classic armor and adds five small permanent bumpers around the center. The center itself and the power-up track remain clear.
+
+The room setting selects the next match; the active arena also records its own `mapId`, so a later settings change cannot reinterpret a running checkpoint. Map ids and map-specific armor-mask lengths are validated at settings and checkpoint boundaries. Rematches use the latest authoritative room choice. The manager can change it in the lobby, while guests see the same disabled selector. Solo remembers a validated local preference.
+
+Ricochet bumpers are fixed, neutral reflectors. They preserve speed, ownership, bomb charge and split generation, never grant Thief repairs, and cannot be destroyed by bombs. Their collision order is stable and uses the same swept-circle solver as cores. Renderer geometry comes through the engine view contract. `ball-bros-6` rejects older peers and checkpoints.
 
 ## Phase 4: Fuse Frenzy
 

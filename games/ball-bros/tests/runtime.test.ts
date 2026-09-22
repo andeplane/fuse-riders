@@ -5,6 +5,7 @@ import {
   JOIN,
   BOT,
   PRESENCE,
+  SETTINGS,
   World,
   type RuntimeDependencies,
 } from "fuse-netcode";
@@ -180,6 +181,73 @@ test("a logged start cannot create a one-player arena", () => {
   assert.equal(room.stage, "lobby");
   assert.equal(room.arena, null);
   assert.equal(room.matchId, "lobby");
+});
+
+test("room map settings apply to the next match without rewriting a running arena", () => {
+  const room = createRoom("lobby", DEFAULT_SETTINGS);
+  for (const [slot, id] of ["a", "b"].entries())
+    room.seats.set(id, {
+      id,
+      name: id,
+      slot,
+      connected: true,
+      generation: 1,
+      bot: false,
+      avatarId: "robot",
+    });
+  foldTick(
+    room,
+    "a",
+    new Map([
+      [
+        "a",
+        {
+          generation: 1,
+          entries: [
+            [1, 1, SETTINGS, { display: false, mapId: "ricochet" }],
+            [2, 1, ACTION, "start", "ricochet-match"],
+          ] as BallEntry[],
+        },
+      ],
+    ]),
+  );
+  assert.equal(room.arena?.mapId, "ricochet");
+  foldTick(
+    room,
+    "a",
+    new Map([
+      [
+        "a",
+        {
+          generation: 1,
+          entries: [
+            [3, 2, SETTINGS, { display: false, mapId: "crossfire" }],
+          ] as BallEntry[],
+        },
+      ],
+    ]),
+  );
+  assert.equal(room.settings.mapId, "crossfire");
+  assert.equal(room.arena?.mapId, "ricochet");
+  room.stage = "over";
+  room.arena!.phase = "over";
+  foldTick(
+    room,
+    "a",
+    new Map([
+      [
+        "a",
+        {
+          generation: 1,
+          entries: [
+            [4, 3, ACTION, "rematch", "crossfire-match"],
+          ] as BallEntry[],
+        },
+      ],
+    ]),
+  );
+  assert.equal(room.arena?.mapId, "crossfire");
+  assert.equal(room.arena?.bases[0]?.blocks.length, 32);
 });
 
 test("checkpoints validate complete state and reject corrupt geometry, owners, seats and settings atomically", () => {

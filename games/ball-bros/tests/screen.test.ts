@@ -10,6 +10,7 @@ import {
 import { landing } from "../src/app/landing.js";
 import {
   NAME_KEY,
+  chosenMap,
   rememberRoom,
   roomFailure,
   safeStore,
@@ -98,6 +99,11 @@ test("a delayed room creation cannot navigate away from a newer screen", async (
       active = false;
     },
   });
+  const map = root.querySelector<HTMLSelectElement>(".map-select")!;
+  map.querySelector<HTMLOptionElement>('option[value="crossfire"]')!.selected =
+    true;
+  map.dispatchEvent(new root.ownerDocument.defaultView!.Event("change"));
+  assert.equal(chosenMap(store), "crossfire");
   card.create.click();
   card.solo!.click();
   complete({ code: "AB42", token: "stale" });
@@ -109,7 +115,7 @@ function frame(
   stage: "lobby" | "running" | "over" = "lobby",
   matchId = "match",
 ): Frame<RoomView> {
-  const r = createRoom(matchId, { display: false });
+  const r = createRoom(matchId, { display: false, mapId: "classic" });
   for (const [slot, id] of ["a", "b"].entries())
     r.seats.set(id, {
       id,
@@ -267,7 +273,7 @@ function screen(online = true, display = false, shared = false, fail = "") {
     start() {
       starts++;
       callbacks.ready(client.self, true);
-      callbacks.state(current, { display: shared });
+      callbacks.state(current, { display: shared, mapId: "classic" });
     },
     stop() {
       stopped++;
@@ -296,6 +302,7 @@ function screen(online = true, display = false, shared = false, fail = "") {
         }
       : undefined,
     store,
+    settings: { display: shared, mapId: "classic" },
     qr: async () => "data:image/png;base64,test",
     events,
     audio: {
@@ -349,9 +356,12 @@ function screen(online = true, display = false, shared = false, fail = "") {
     events,
     store,
     destroy,
-    update(v: Frame<RoomView>) {
+    update(
+      v: Frame<RoomView>,
+      settings: Settings = { display: shared, mapId: "classic" },
+    ) {
       current = v;
-      callbacks.state(v, { display: shared });
+      callbacks.state(v, settings);
     },
     key(
       code: string,
@@ -408,11 +418,20 @@ test("room screen follows lobby, own identity, controls, corrected results, rema
   );
   assert.match(s.root.querySelector(".status")!.textContent!, /Reconnect/);
   button(s.root, "+ ADD BOT").click();
+  const map = s.root.querySelector<HTMLSelectElement>(
+    ".room-panel .map-select",
+  )!;
+  map.querySelector<HTMLOptionElement>('option[value="ricochet"]')!.selected =
+    true;
+  map.dispatchEvent(new s.window.Event("change"));
+  assert.deepEqual(s.commands.at(-1), {
+    type: "settings",
+    settings: { display: false, mapId: "ricochet" },
+  });
+  s.update(frame(), { display: false, mapId: "ricochet" });
+  assert.equal(map.value, "ricochet");
   button(s.root, "START MATCH").click();
-  assert.deepEqual(s.commands.slice(-2), [
-    { type: "bot", action: "add" },
-    { type: "action", action: "start" },
-  ]);
+  assert.deepEqual(s.commands.at(-1), { type: "action", action: "start" });
   const lobby = frame();
   lobby.players.push({
     id: "bot-1",
@@ -567,8 +586,17 @@ test("name entry, remembered lobby rejoin, renderer failures and solo restart re
     });
     bad.destroy();
   }
-  const model = roomModel(frame("running"), "late", false, false, false);
+  const model = roomModel(frame("running"), "late", false, false, false, {
+    display: false,
+    mapId: "classic",
+  });
   assert.equal(model.controls, false);
   assert.match(model.note, /lobby/);
-  assert.equal(roomModel(frame(), "late", false, false, false).askName, true);
+  assert.equal(
+    roomModel(frame(), "late", false, false, false, {
+      display: false,
+      mapId: "classic",
+    }).askName,
+    true,
+  );
 });

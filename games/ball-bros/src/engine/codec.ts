@@ -14,6 +14,7 @@ import {
   type ArenaState,
   type Participant,
 } from "./state.js";
+import { ARENA_MAPS, isMapId } from "./maps.js";
 import { length, TAU } from "./math.js";
 import { isAvatar } from "./avatars.js";
 
@@ -73,14 +74,17 @@ export function encodeArena(s: ArenaState): unknown[] {
       b.splits,
     ]),
     s.pickups.map((p) => [p.id, p.kind, p.x, p.y, p.expires]),
+    s.mapId,
   ];
 }
 /** Fixed-size arrays and derived geometry keep arbitrary checkpoint objects out of the engine. */
 export function decodeArena(raw: unknown): ArenaState | undefined {
-  if (!Array.isArray(raw) || raw.length !== 7) return;
-  const [tick, formationStep, phase, winner, bases, balls, pickups] = raw;
+  if (!Array.isArray(raw) || raw.length !== 8) return;
+  const [tick, formationStep, phase, winner, bases, balls, pickups, mapId] =
+    raw;
   if (
     !integer(tick, COUNTDOWN + LIMIT) ||
+    !isMapId(mapId) ||
     !integer(formationStep, (COUNTDOWN + LIMIT) * SUBSTEPS) ||
     !["countdown", "playing", "over"].includes(phase) ||
     !Array.isArray(bases) ||
@@ -111,7 +115,7 @@ export function decodeArena(raw: unknown): ArenaState | undefined {
       !integer(b[8], 100000) ||
       !integer(b[9], 100000) ||
       !Array.isArray(b[10]) ||
-      b[10].length !== blockLayout().length ||
+      b[10].length !== blockLayout(mapId).length ||
       !b[10].every((v: unknown) => typeof v === "boolean") ||
       !finite(b[11], PADDLE_MAX) ||
       b[11] < PADDLE_MIN ||
@@ -137,7 +141,7 @@ export function decodeArena(raw: unknown): ArenaState | undefined {
       avatarId: b[17],
     });
   }
-  const s = createArena(participants);
+  const s = createArena(participants, mapId);
   s.tick = tick;
   s.formationStep = formationStep;
   s.phase = phase;
@@ -189,6 +193,10 @@ export function decodeArena(raw: unknown): ArenaState | undefined {
       !finite(b[1], 1000) ||
       !finite(b[2], 1000) ||
       !insideArena(b[1], b[2]) ||
+      ARENA_MAPS[mapId].bumpers.some(
+        (bumper) =>
+          length(b[1] - bumper.x, b[2] - bumper.y) < bumper.radius + 5.99,
+      ) ||
       !finite(b[3], BALL_SPEED + 0.01) ||
       !finite(b[4], BALL_SPEED + 0.01) ||
       (b[5] !== null && !alive.some((p) => p.id === b[5])) ||
@@ -231,6 +239,10 @@ export function decodeArena(raw: unknown): ArenaState | undefined {
       !finite(p[2], 1000) ||
       !finite(p[3], 1000) ||
       !insideArena(p[2], p[3], 24) ||
+      ARENA_MAPS[mapId].bumpers.some(
+        (bumper) =>
+          length(p[2] - bumper.x, p[3] - bumper.y) < bumper.radius + 23.99,
+      ) ||
       !integer(p[4], tick + 400) ||
       p[4] <= tick ||
       s.pickups.some((k) => k.id >= p[0])

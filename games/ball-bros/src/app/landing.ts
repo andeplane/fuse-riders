@@ -1,7 +1,14 @@
 import { createLandingCard, elementsFor } from "fuse-ui";
 import { validRoomCode } from "fuse-network-fe";
-import { rememberRoom, roomFailure, type Store } from "./session.js";
+import {
+  chosenMap,
+  rememberMap,
+  rememberRoom,
+  roomFailure,
+  type Store,
+} from "./session.js";
 import { avatarChoice } from "./avatars.js";
+import { ARENA_MAPS, MAP_IDS, type MapId } from "../engine/maps.js";
 
 export function landing(
   root: HTMLElement,
@@ -17,6 +24,18 @@ export function landing(
   shared.type = "checkbox";
   const choice = el("label", "", "shared-choice");
   choice.append(shared, el("span", "Shared TV + phone controllers"));
+  const map = el("select", "", "map-select");
+  for (const mapId of MAP_IDS) {
+    const option = el("option", ARENA_MAPS[mapId].label);
+    option.value = mapId;
+    map.append(option);
+  }
+  map.querySelector<HTMLOptionElement>(
+    `option[value="${chosenMap(options.store)}"]`,
+  )!.selected = true;
+  map.onchange = () => rememberMap(options.store, map.value as MapId);
+  const mapChoice = el("label", "", "map-choice");
+  mapChoice.append(el("span", "ARENA"), map);
   const card = createLandingCard({
     document: root.ownerDocument,
     title: "BALL BROS",
@@ -39,7 +58,7 @@ export function landing(
     onJoin: (code) => options.navigate(`?room=${code}`),
   });
   card.create.before(choice);
-  choice.before(avatarChoice(root.ownerDocument, options.store));
+  choice.before(avatarChoice(root.ownerDocument, options.store), mapChoice);
   const help = el(
     "p",
     "A / D orbit · W / S out / in · Space launch",

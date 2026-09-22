@@ -31,11 +31,13 @@ import {
   validName,
 } from "../engine/codec.js";
 import { view, type BallView } from "../engine/view.js";
+import { isMapId, type MapId } from "../engine/maps.js";
 
 export interface Settings {
   display: boolean;
+  mapId: MapId;
 }
-export const DEFAULT_SETTINGS: Settings = { display: false };
+export const DEFAULT_SETTINGS: Settings = { display: false, mapId: "classic" };
 export interface BallRoom extends ManagedRoom<Settings> {
   tick: number;
   matchId: string;
@@ -61,12 +63,14 @@ export function parseSettings(raw: unknown): Settings | undefined {
     !raw ||
     typeof raw !== "object" ||
     Array.isArray(raw) ||
-    Object.keys(raw).length !== 1 ||
+    Object.keys(raw).length !== 2 ||
     !("display" in raw) ||
-    typeof raw.display !== "boolean"
+    typeof raw.display !== "boolean" ||
+    !("mapId" in raw) ||
+    !isMapId(raw.mapId)
   )
     return;
-  return { display: raw.display };
+  return { display: raw.display, mapId: raw.mapId };
 }
 export function isEntry(raw: unknown): raw is BallEntry {
   if (
@@ -117,7 +121,7 @@ function start(room: BallRoom, id: string): void {
   if (players.length < 2) return;
   room.matchId = id;
   room.stage = "running";
-  room.arena = createArena(players);
+  room.arena = createArena(players, room.settings.mapId);
 }
 const lifecycle: LifecycleHooks<BallRoom, Settings> = {
   stage: (r) => r.stage,
@@ -317,7 +321,7 @@ export const ballGame: RollbackGame<
     isAvatar,
     defaultAvatar: "fox",
     parseSettings,
-    soloSettings: () => ({ display: false }),
+    soloSettings: (settings) => ({ ...settings, display: false }),
     sharedScreen: (s) => s.display,
     botId(r, pending) {
       let n = 1;

@@ -1,4 +1,4 @@
-import type { RoomView } from "../online/game.js";
+import type { RoomView, Settings } from "../online/game.js";
 
 export function roomModel(
   v: RoomView,
@@ -6,6 +6,7 @@ export function roomModel(
   manager: boolean,
   display: boolean,
   shared: boolean,
+  settings: Settings,
 ) {
   const seated = v.players.find((p) => p.id === me);
   const base = v.arena?.bases.find((b) => b.id === me);
@@ -23,6 +24,8 @@ export function roomModel(
       manage && v.players.filter((p) => p.connected || p.bot).length >= 2,
     canAdd: manage && lobby && v.players.length < 5,
     manage,
+    mapId: settings.mapId,
+    display: settings.display,
     name: display
       ? "TV DISPLAY"
       : seated

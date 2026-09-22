@@ -325,9 +325,9 @@ test("five ordinary-input bots complete a bounded, deterministic round with reco
   assert.ok(s.tick <= COUNTDOWN + LIMIT);
   assert.ok(s.bases.some((b) => b.saves > 0));
   assert.ok(s.bases.some((b) => !b.alive));
-  // ball-bros-5: Frenzy movement/pressure and complete checkpoints, sampled once per second.
+  // ball-bros-6: authoritative arena map state, sampled once per second.
   assert.equal(
     hashes.digest("hex"),
-    "69eb36c93ab6cb3b7fc52d088bc78b900d3ace5281d11278445fbb0b2e8bf202",
+    "83f62467a23798a0c606a7c046e3ec78f75a9bb13b1db0d8c97c97653afd61bb",
   );
 });

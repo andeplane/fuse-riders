@@ -48,6 +48,7 @@ try {
     { times: 1 },
   );
   await a.goto(url);
+  await a.getByRole("combobox", { name: "ARENA" }).selectOption("ricochet");
   await a.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
   await a.getByText("Try again shortly", { exact: true }).waitFor();
   await a.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
@@ -59,6 +60,18 @@ try {
   await b.getByRole("button", { name: "JOIN ROOM", exact: true }).click();
   await join(b, "Bob");
   await a.locator(".fui-roster-name", { hasText: "Bob" }).waitFor();
+  await a.getByRole("combobox", { name: "ARENA" }).selectOption("crossfire");
+  await b.getByRole("combobox", { name: "ARENA" }).waitFor();
+  assert.equal(
+    await b.getByRole("combobox", { name: "ARENA" }).isDisabled(),
+    true,
+  );
+  await a.getByRole("combobox", { name: "ARENA" }).selectOption("ricochet");
+  await b.waitForFunction(
+    () =>
+      (document.querySelector(".room-panel .map-select") as HTMLSelectElement)
+        ?.value === "ricochet",
+  );
   for (let count = 3; count <= 5; count++) {
     await a.getByRole("button", { name: "+ ADD BOT", exact: true }).click();
     await a.waitForFunction(
@@ -78,6 +91,8 @@ try {
   );
   await a.getByRole("button", { name: "START MATCH", exact: true }).click();
   await Promise.all([phase(a, "running"), phase(b, "running")]);
+  assert.equal(await a.locator(".map-name").innerText(), "RICOCHET REACTOR");
+  assert.equal(await b.locator(".map-name").innerText(), "RICOCHET REACTOR");
   await a.keyboard.down("KeyD");
   await a.keyboard.down("KeyW");
   await b.getByRole("button", { name: "OUT ↑", exact: true }).tap();

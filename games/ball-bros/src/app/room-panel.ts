@@ -10,6 +10,7 @@ import { colorCss } from "../render/present.js";
 import { roomModel } from "./room-model.js";
 import { NAME_KEY, type Store } from "./session.js";
 import { avatarChoice, chosenAvatar } from "./avatars.js";
+import { ARENA_MAPS, MAP_IDS, type MapId } from "../engine/maps.js";
 
 export function roomPanel(
   root: HTMLElement,
@@ -56,6 +57,19 @@ export function roomPanel(
   tv.target = "_blank";
   tv.rel = "noopener";
   const note = el("p", "Connecting to the room…", "room-note");
+  const map = el("select", "", "map-select");
+  for (const mapId of MAP_IDS) {
+    const option = el("option", ARENA_MAPS[mapId].label);
+    option.value = mapId;
+    map.append(option);
+  }
+  const mapChoice = el("label", "", "map-choice");
+  mapChoice.append(el("span", "ARENA"), map);
+  map.onchange = () =>
+    options.command({
+      type: "settings",
+      settings: { display: lastDisplay, mapId: map.value as MapId },
+    });
   const actions = el("div", "", "room-actions");
   actions.append(add, start, tv);
   element.append(
@@ -63,11 +77,13 @@ export function roomPanel(
     el("h2", "PLAYERS"),
     name.form,
     roster.element,
+    mapChoice,
     note,
     actions,
   );
   root.append(element);
   let key = "";
+  let lastDisplay = false;
   name.form.hidden = true;
   actions.hidden = true;
   return {
@@ -77,6 +93,11 @@ export function roomPanel(
       if (next === key) return;
       key = next;
       element.hidden = !model.lobby;
+      lastDisplay = model.display;
+      map.querySelectorAll<HTMLOptionElement>("option").forEach((option) => {
+        option.selected = option.value === model.mapId;
+      });
+      map.disabled = !model.manage;
       name.form.hidden = !model.askName;
       actions.hidden = false;
       add.hidden = !model.canAdd;

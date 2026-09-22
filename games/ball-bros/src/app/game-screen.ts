@@ -37,6 +37,7 @@ export interface ScreenOptions {
     displayLink: string;
   };
   store: Store;
+  settings: Settings;
   qr(link: string): Promise<string>;
   audio: Pick<Audio, "muted" | "unlock" | "play" | "destroy">;
   radio?: Radio;
@@ -128,6 +129,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
   arenaBox.append(canvasHost, toast, overlay);
   const side = el("aside", "", "sidebar");
   const clock = el("div", "02:00", "clock"),
+    mapName = el("p", "CLASSIC CIRCUIT", "map-name"),
     status = el("p", "Loading arena…", "status");
   status.setAttribute("role", "status");
   const instructions = el("div", "", "instructions");
@@ -154,6 +156,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
   side.append(
     el("span", "ROUND TIMER", "eyebrow"),
     clock,
+    mapName,
     status,
     instructions,
     keys,
@@ -174,6 +177,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
     frame = 0,
     playing = false;
   let shared = options.online?.shared ?? false,
+    activeSettings = options.settings,
     lastMatch = "",
     stopped = false,
     joined = false;
@@ -292,6 +296,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
         runtime?.canManage ?? false,
         options.online.display,
         shared,
+        activeSettings,
       );
       panel!.render(m);
       const remembered = options.store.getItem(NAME_KEY);
@@ -349,6 +354,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
       card.classList.toggle("eliminated", !player.alive);
     }
     clock.textContent = model.time;
+    mapName.textContent = model.map;
     powers.textContent = model.effects;
     powers.hidden = !model.effects;
     toast.textContent = model.toast;
@@ -393,6 +399,7 @@ export function mountGame(root: HTMLElement, options: ScreenOptions) {
       runtime = options.runtime({
         ready: () => {},
         state: (f, settings) => {
+          activeSettings = settings;
           shared = settings.display;
           update(f);
         },

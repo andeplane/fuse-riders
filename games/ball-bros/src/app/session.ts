@@ -1,10 +1,12 @@
 import { validRoomCode } from "fuse-network-fe";
+import { isMapId, type MapId } from "../engine/maps.js";
 
 export interface Store {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
 export const NAME_KEY = "ball-bros-name";
+export const MAP_KEY = "ball-bros-map";
 const hostKey = (code: string) => `ball-bros-host-${code}`;
 const peerKey = (code: string) => `ball-bros-peer-${code}`;
 export type Session =
@@ -79,6 +81,12 @@ export function safeStore(open: () => Store): Store {
     },
   };
 }
+export const chosenMap = (store: Store): MapId => {
+  const value = store.getItem(MAP_KEY);
+  return isMapId(value) ? value : "classic";
+};
+export const rememberMap = (store: Store, mapId: MapId): void =>
+  store.setItem(MAP_KEY, mapId);
 export function roomFailure(text: string): string {
   if (/unknown game/i.test(text))
     return "Online rooms are not open for Ball Bros on this server yet. You can still play solo.";

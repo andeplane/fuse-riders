@@ -14,7 +14,7 @@ import { createRenderer } from "../render/arena.js";
 import { Audio } from "./audio.js";
 import { mountGame } from "./game-screen.js";
 import { landing } from "./landing.js";
-import { safeStore, session } from "./session.js";
+import { chosenMap, safeStore, session } from "./session.js";
 import { installLifecycle } from "./lifecycle.js";
 import { chosenAvatar } from "./avatars.js";
 import { createRadio } from "./radio.js";
@@ -57,6 +57,10 @@ function render() {
         "Invalid room code. Check your invite or create a new room.";
   } else {
     const online = mode.kind === "room" ? mode : undefined;
+    const settings = {
+      display: online?.shared ?? false,
+      mapId: chosenMap(store),
+    };
     destroy = mountGame(root, {
       online: online && {
         ...online,
@@ -64,6 +68,7 @@ function render() {
         displayLink: link(`?room=${online.code}&display=1`),
       },
       store,
+      settings,
       qr: (text) => QRCode.toDataURL(text, { margin: 1, width: 240 }),
       audio: new Audio(muted),
       radio: createRadio(
@@ -87,7 +92,7 @@ function render() {
               }
             : {},
           online?.code,
-          { display: online?.shared ?? false },
+          settings,
           chosenAvatar(store),
         ),
       now: () => performance.now(),

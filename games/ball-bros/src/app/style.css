@@ -402,6 +402,33 @@ h1 {
 .controller-mode .sidebar > .eyebrow {
   display: none;
 }
+.map-choice {
+  display: grid;
+  gap: 6px;
+  color: var(--fui-cyan, #63e8ff);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+.map-select {
+  min-width: 210px;
+  border: 1px solid rgba(99, 232, 255, 0.45);
+  border-radius: 4px;
+  padding: 10px 12px;
+  color: #effcff;
+  background: #081525;
+  font: inherit;
+}
+.map-select:disabled {
+  opacity: 0.65;
+}
+.map-name {
+  margin: 0;
+  color: #63e8ff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
 .display-mode .layout {
   grid-template-columns: 1fr;
 }
@@ -432,6 +459,9 @@ h1 {
 }
 .in-match .arena-wrap {
   max-width: min(850px, calc(100dvh - 325px));
+}
+.in-match .sidebar {
+  padding-top: 0;
 }
 @media (min-width: 851px) and (max-height: 850px) {
   .in-match .instructions,

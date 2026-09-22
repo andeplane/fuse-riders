@@ -1,5 +1,6 @@
 import { block, circle, paddle, wall, type Contact } from "./collision.js";
 import { cos, length, sin, wrap } from "./math.js";
+import { ARENA_MAPS } from "./maps.js";
 import {
   breakBlock,
   collect,
@@ -70,6 +71,17 @@ function fly(
         hit = { ...c, kind, base, blockIndex };
     };
     take(wall(ball, remaining), "wall");
+    for (const bumper of ARENA_MAPS[state.mapId].bumpers)
+      take(
+        circle(
+          ball,
+          bumper.x,
+          bumper.y,
+          bumper.radius + BALL_RADIUS,
+          remaining,
+        ),
+        "bumper",
+      );
     if (ball.owner)
       for (const pickup of state.pickups) {
         const c =

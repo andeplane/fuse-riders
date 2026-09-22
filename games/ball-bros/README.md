@@ -10,7 +10,15 @@ Run `pnpm dev`, then open the printed server URL at `/ball-bros/?mute`. The Fuse
 - Touch: left, in, launch, out and right buttons. Multiple movement buttons can be held while launching.
 - One core hit eliminates a player. Remaining players and bots finish the round. Solo has a restart button; online, the manager can rematch after the result. A two-minute time limit draws. **Play again** resets through the room log.
 
-This implements phases 0–4 of [the design](../../docs/design/ball-bros-poc.md). New maps and ranked reporting remain later work. The service registration rejects all statistics reports and production rooms are not enabled automatically (`EXTRA_GAME_IDS=ball-bros`).
+This implements phases 0–5 of [the design](../../docs/design/ball-bros-poc.md). Ranked reporting remains later work. The service registration rejects all statistics reports and production rooms are not enabled automatically (`EXTRA_GAME_IDS=ball-bros`).
+
+## Arenas
+
+Choose an arena before solo play or from the online lobby. The manager's selection applies to the next match and survives rematches and peer recovery.
+
+- **Classic Circuit:** the original clean field and 48-block defenses.
+- **Crossfire:** 32-block defenses with open attack lanes for faster, more exposed rounds.
+- **Ricochet Reactor:** Classic defenses plus five permanent neutral center bumpers. Bumpers redirect balls without changing ownership, speed or armed powers.
 
 ## Fuse Frenzy
 
@@ -42,7 +50,7 @@ For one TV plus phones, check **Shared TV + phone controllers** before creating 
 
 Use a reachable service URL for other devices: `localhost` invites work only on the same computer. The service signals a direct WebRTC connection and does not relay gameplay; connection failures remain visible with RECONNECT available.
 
-The second playtest iteration uses an octagonal arena, bases near its perimeter, and 48 blocks in three dense rings per core. Bases remain fixed; W/S moves only the paddle's orbit. Faint rings show minimum and maximum reach. Straight walls and corner banks change ricochet angles without adding obstacles.
+The octagonal arena keeps bases near its perimeter. W/S moves only the paddle's orbit; Fuse Frenzy moves the full formation. Faint rings show minimum and maximum reach. Straight walls and corner banks shape every map, while Ricochet Reactor adds the first internal obstacles.
 
 ## Ownership
 
@@ -63,10 +71,10 @@ Five 10 ms physics substeps fit inside each fixed 50 ms network-log tick. Core d
 
 `ONLINE_URL=http://localhost:PORT/ pnpm exec tsx games/ball-bros/presentation-smoke.ts`
 
-The browser check follows the real menu, starts solo, steers/launches, observes damage, restarts, reaches Fuse Frenzy, runs to a result, rematches and checks a phone viewport. Screenshots are saved under `artifacts/ball-bros-*.png`. This is browser emulation, not physical-phone evidence. On Windows set `ONLINE_URL` with PowerShell's `$env:ONLINE_URL` syntax.
+The browser check follows the real menu, selects Ricochet Reactor, starts solo, steers/launches, observes damage, restarts, reaches Fuse Frenzy, runs to a result, rematches and checks a phone viewport. Screenshots are saved under `artifacts/ball-bros-*.png`. This is browser emulation, not physical-phone evidence. On Windows set `ONLINE_URL` with PowerShell's `$env:ONLINE_URL` syntax.
 
 The online check covers create retry, real WebRTC peers, bot seating, reload recovery, agreed results/rematch, creator departure, TV/phone layout and blocked-storage creation/reconnect. Unit tests also inject fast-packet loss/duplication/reordering, hidden inputs and corrupt snapshots. These checks do not qualify physical phones or cross-network connectivity.
 
 The presentation check covers core selection and aborts the optional avatar request to verify that gameplay still starts. All browser runs stay muted. Unit tests cover radio playback/rejection/teardown through a typed media player.
 
-The `ball-bros-5` golden in `tests/engine.test.ts` records a complete deterministic five-bot match including powers, Frenzy motion/pressure and complete checkpoints. Old Ball Bros clients must refresh before joining this version. Change the game rules version and review/refresh its hash for intended physics changes. Fuse Riders' rules and golden remain unchanged.
+The `ball-bros-6` golden in `tests/engine.test.ts` records a complete deterministic five-bot match including authoritative map state, powers, Frenzy motion/pressure and complete checkpoints. Old Ball Bros clients must refresh before joining this version. Change the game rules version and review/refresh its hash for intended physics changes. Fuse Riders' rules and golden remain unchanged.
