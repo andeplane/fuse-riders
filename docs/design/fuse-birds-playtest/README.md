@@ -1,6 +1,6 @@
 # Phase 1 playable captures
 
-The [rules-6 slingshot-only capture](stationary-aim.png) is the current control layout: no walking, hopping or movement counter. The captures below are historical visual references; their movement controls are superseded. See the [correction report](../../reviews/fuse-birds-stationary-correction.md).
+The [rules-7 fixed-bird capture](stationary-aim.png) is the current control layout: no walking, hopping or movement counter. The [real impact capture](stationary-impact.png) shows damage and a crater while bird positions remain fixed. The captures below are historical visual references; their movement controls are superseded. See the [correction report](../../reviews/fuse-birds-stationary-correction.md).
 
 These are real Chromium room flows, not concept images or injected game states. They implement the [Neon burrow V2 direction](../fuse-birds-concepts/01-neon-burrow-v2.png) with the two-weapon Phase 1 tray. Captured locally using rules `fuse-birds-4-snapshot2`; no public deployment is implied.
 

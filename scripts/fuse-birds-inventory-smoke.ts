@@ -111,6 +111,32 @@ try {
     await page.mouse.up();
     await turnChanged(first, state.turn);
   }
+  // Exercise an actual damaging pointer shot, then inspect the recovered peer state.
+  const opening = await checkpoint(),
+    shooter = opening.players[opening.active]!,
+    target = opening.players.find((player) => player.id !== shooter.id)!,
+    openingShot = opening.preparation.witnesses.find(
+      (shot) =>
+        shot.from === shooter.id &&
+        shot.to === target.id &&
+        shot.wind === opening.wind,
+    );
+  assert.ok(openingShot);
+  const positions = opening.players.map(({ id, x, y }) => ({ id, x, y }));
+  await fire(first, opening, "pebble", openingShot);
+  const damaged = await checkpoint();
+  assert.deepEqual(
+    damaged.players.map(({ id, x, y }) => ({ id, x, y })),
+    positions,
+    "a real hit and destroyed support must not move stationary birds",
+  );
+  assert.ok(
+    damaged.players.find((player) => player.id === target.id)!.hp < target.hp,
+  );
+  assert.ok(damaged.terrain.version > opening.terrain.version);
+  await first.screenshot({ path: `${output}/stationary-impact.png` });
+  await second.getByRole("button", { name: "PASS", exact: true }).click();
+  await turnChanged(first, damaged.turn);
   // Spend only normal Scatter launches directed away from the island, preserving targets for the refill test.
   for (let ammo = 3; ammo > 0; ammo--) {
     const state = await checkpoint();

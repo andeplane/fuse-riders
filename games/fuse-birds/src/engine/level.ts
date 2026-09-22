@@ -133,9 +133,7 @@ export function prepareLevel(state: Match): void {
     );
     state.terrain = level.terrain;
     for (let i = 0; i < count; i++)
-      Object.assign(state.players[i]!, level.spawns[i], {
-        fallFrom: level.spawns[i]!.y,
-      });
+      Object.assign(state.players[i]!, level.spawns[i]);
   };
   const fail = () => {
     state.phase = "fault";

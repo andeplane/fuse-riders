@@ -1,4 +1,5 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
+import assert from "node:assert/strict";
 import {
   advance,
   candidateVector,
@@ -18,7 +19,7 @@ const copies = (state: Match) => decodeState(encodeState(state))!;
 function hitWitness(state: Match, targetId: string): Action | undefined {
   const actor = state.players[state.active]!,
     target = state.players.find((p) => p.id === targetId)!;
-  if (!actor.grounded || actor.hp <= 0 || state.phase !== "aiming") return;
+  if (actor.hp <= 0 || state.phase !== "aiming") return;
   for (let index = 0; index < 201; index++) {
     const vector = candidateVector(actor, target, state.wind, index);
     if (
@@ -77,6 +78,7 @@ for (let seed = 1; seed <= 10; seed++)
     const actions: Entry[] = [],
       witnesses: unknown[] = [];
     let sampledTurn = -1;
+    let positions: { id: string; x: number; y: number }[] | undefined;
     while (
       state.tick < 10_000 &&
       state.phase !== "over" &&
@@ -85,8 +87,7 @@ for (let seed = 1; seed <= 10; seed++)
       if (
         state.phase === "aiming" &&
         state.terrain.version > 0 &&
-        sampledTurn !== state.turn &&
-        state.players[state.active]!.grounded
+        sampledTurn !== state.turn
       ) {
         sampledTurn = state.turn;
         for (const target of state.players.filter(
@@ -122,7 +123,16 @@ for (let seed = 1; seed <= 10; seed++)
       const next = nextReplayActions(state);
       if (next.length) actions.push({ tick: state.tick + 1, actions: next });
       advance(state, next);
+      if (state.phase !== "preparing") {
+        positions ??= state.players.map(({ id, x, y }) => ({ id, x, y }));
+        assert.deepEqual(
+          state.players.map(({ id, x, y }) => ({ id, x, y })),
+          positions,
+          `bird moved: seed ${seed}, players ${count}, tick ${state.tick}`,
+        );
+      }
     }
+    assert.equal(state.phase, "over", "each corpus match must finish");
     matches.push({
       seed,
       count,
@@ -140,6 +150,26 @@ const report = {
   limits:
     "Finite post-destruction corpus: launch/pass replay actions, current wind and surviving Pebble hits from the current position. No walking or hopping. Not exhaustive geometry/launch enumeration; a failed search is a replayable counterexample to investigate, not proof no excavation path exists.",
 };
+assert.ok(
+  checked > 0,
+  "the corpus must exercise post-destruction reachability",
+);
+if (process.argv.includes("--verify-saved")) {
+  const saved = JSON.parse(
+    await readFile(
+      new URL(
+        "../games/fuse-birds/tests/fixtures/fixed-position-reachability.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(
+    report,
+    saved,
+    "fixed-position action logs and shot witnesses changed",
+  );
+}
 await writeFile(
   "/tmp/fuse-birds-continuing-check.json",
   JSON.stringify(report, null, 2),

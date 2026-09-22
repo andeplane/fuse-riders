@@ -26,7 +26,6 @@ function arena(): Match {
     Object.assign(p, {
       x: (200 + i * 300) * UNIT,
       y: 444 * UNIT,
-      fallFrom: 444 * UNIT,
     }),
   );
   return s;
@@ -75,43 +74,40 @@ test("walking and hopping are rejected without moving a bird or consuming an ord
     assert.equal(state.players[0]!.ordinal, 0);
   }
 });
-test("falling and pass keep the turn unresolved until landing; airborne launches spend nothing", () => {
+test("destroying all support leaves birds fixed and able to shoot or pass", () => {
   const s = arena(),
-    p = s.players[0]!,
-    turn = s.turn;
-  p.y = p.fallFrom = 420 * UNIT;
-  p.grounded = false;
-  advance(s);
-  const rejected = advance(s, [
-    command(s, { type: "launch", weapon: "scatter", vx: 1024, vy: -1024 }),
-  ]);
-  assert.equal(p.ammo, 3);
-  assert.ok(rejected.some((f) => f.type === "rejected"));
+    positions = s.players.map(({ x, y }) => ({ x, y }));
+  s.terrain.bits.fill(0);
+  for (let tick = 0; tick < 100; tick++) advance(s);
+  assert.deepEqual(
+    s.players.map(({ x, y }) => ({ x, y })),
+    positions,
+  );
+  assert.ok(s.players.every((p) => p.hp === 100));
   advance(s, [command(s, { type: "pass" })]);
-  assert.equal(s.turn, turn);
-  for (let i = 0; i < 200 && s.turn === turn; i++) advance(s);
-  assert.equal(s.turn, turn + 1);
-  assert.equal(p.grounded, true);
-  assert.equal(p.hp, 100);
+  assert.equal(s.turn, 2);
+  const facts = advance(s, [
+    command(s, { type: "launch", weapon: "scatter", vx: -1024, vy: -1024 }),
+  ]);
+  assert.ok(facts.some((f) => f.type === "shot"));
+  assert.equal(s.players[1]!.ammo, 2);
+  assert.deepEqual(
+    s.players.map(({ x, y }) => ({ x, y })),
+    positions,
+  );
 });
-test("a long fall damages on landing once, and water resolves a simultaneous draw", () => {
+test("rising water can end the round without changing bird positions", () => {
   const s = arena(),
-    p = s.players[0]!;
-  p.y = p.fallFrom = 300 * UNIT;
-  p.grounded = false;
-  let hits = 0;
-  for (let i = 0; i < 100; i++)
-    hits += advance(s).filter(
-      (f) => f.type === "damage" && f.actor === p.id,
-    ).length;
-  assert.equal(hits, 1);
-  assert.ok(p.hp >= 60 && p.hp < 100);
-  assert.equal(p.grounded, true);
+    positions = s.players.map(({ x, y }) => ({ x, y }));
   s.water = 440;
   const facts = advance(s);
   assert.equal(s.phase, "over");
   assert.equal(s.winner, null);
   assert.equal(facts.filter((f) => f.type === "eliminated").length, 2);
+  assert.deepEqual(
+    s.players.map(({ x, y }) => ({ x, y })),
+    positions,
+  );
 });
 test("a horizontal Scatter splits at its launch position and fragments share the original expiry", () => {
   const s = arena(),
@@ -217,16 +213,19 @@ test("simultaneous final fragments eliminate both birds before deciding the resu
   assert.equal(facts.filter((f) => f.type === "result").length, 1);
   assert.ok(decodeState(encodeState(s)));
 });
-test("a surviving direct hit adds bounded knockback and replays identically from a checkpoint", () => {
+test("a surviving direct hit damages a fixed bird and replays identically from a checkpoint", () => {
   const s = arena();
   s.phase = "flight";
   s.shot = 1;
   s.projectiles = [projectile(s, { x: 493 * UNIT, vx: 768 })];
   const restored = decodeState(encodeState(s));
   assert.ok(restored);
-  const x = s.players[1]!.x;
+  const positions = s.players.map(({ x, y }) => ({ x, y }));
   assert.deepEqual(advance(restored), advance(s));
-  assert.ok(s.players[1]!.x > x);
-  assert.ok(Math.abs(s.players[1]!.vx) <= 900);
+  assert.ok(s.players[1]!.hp > 0 && s.players[1]!.hp < 100);
+  assert.deepEqual(
+    s.players.map(({ x, y }) => ({ x, y })),
+    positions,
+  );
   assert.deepEqual(restored, s);
 });

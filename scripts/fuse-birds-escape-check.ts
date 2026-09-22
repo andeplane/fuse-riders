@@ -145,6 +145,22 @@ if (process.argv.includes("--verify-saved")) {
   };
   if (saved.rules !== RULES)
     throw new Error("Saved witnesses use different rules");
+  const key = (item: {
+    seed: number;
+    count: number;
+    tick: number;
+    target: string;
+  }) => `${item.seed}:${item.count}:${item.tick}:${item.target}`;
+  if (
+    saved.results.length !== input.failures.length ||
+    new Set(saved.results.map(key)).size !== input.failures.length ||
+    input.failures.some(
+      (item) => !saved.results.some((result) => key(result) === key(item)),
+    )
+  )
+    throw new Error(
+      "Saved witnesses must cover every current counterexample exactly once",
+    );
   const verified = saved.results.map((result) => {
     const item = input.failures.find(
       (item) =>

@@ -394,7 +394,7 @@ class BirdsScene extends Phaser.Scene {
       image
         .setTexture(`bird-${bird.slot}`)
         .setPosition(x, y - 1)
-        .setFlipX(bird.vx < 0);
+        .setFlipX(x > view.width / 2);
       if (bird.id === view.players[view.active]?.id) {
         g.lineStyle(0.8, 0xaffff4, 0.7).strokeEllipse(x, y + 7, 20, 4);
       }

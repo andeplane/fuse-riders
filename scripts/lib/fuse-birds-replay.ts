@@ -14,7 +14,6 @@ import {
 export function nextReplayActions(state: Match): Action[] {
   if (state.phase !== "aiming") return [];
   const player = state.players[state.active]!;
-  if (!player.grounded) return [];
   const scope = {
     actor: player.id,
     round: state.round,
@@ -61,6 +60,7 @@ export function replayFixture(seed: number, count: number) {
   );
   const hashes: string[] = [],
     events: Record<string, number> = {};
+  let positions: { id: string; x: number; y: number }[] | undefined;
   for (
     let tick = 0;
     tick < 20_000 && state.phase !== "over" && state.phase !== "fault";
@@ -68,6 +68,20 @@ export function replayFixture(seed: number, count: number) {
   ) {
     for (const event of advance(state, nextReplayActions(state)))
       events[event.type] = (events[event.type] ?? 0) + 1;
+    if (state.phase !== "preparing") {
+      positions ??= state.players.map(({ id, x, y }) => ({ id, x, y }));
+      if (
+        positions.some((position, index) => {
+          const player = state.players[index]!;
+          return (
+            player.id !== position.id ||
+            player.x !== position.x ||
+            player.y !== position.y
+          );
+        })
+      )
+        throw new Error(`A stationary bird moved at tick ${state.tick}`);
+    }
     const hash = hashState(state);
     hashes.push(hash);
     if (tick % 19 === 0) {

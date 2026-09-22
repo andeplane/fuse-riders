@@ -1,5 +1,4 @@
 import {
-  BODY_X,
   BODY_Y,
   GRAVITY,
   HEIGHT,
@@ -71,12 +70,8 @@ export function createMatch(
       ...p,
       slot: p.slot ?? i,
       ...level.spawns[i]!,
-      vx: 0,
-      vy: 0,
       hp: 100,
       ammo: START_AMMO,
-      grounded: true,
-      fallFrom: level.spawns[i]!.y,
       ordinal: 0,
     })),
     projectiles: [],
@@ -91,7 +86,6 @@ export function createMatch(
     remaining: players.map((p) => p.id),
     nextEntity: 1,
     shot: 0,
-    settleUntil: 0,
     preparation: {
       attempt: 0,
       pair: 0,
@@ -124,7 +118,6 @@ export function isAction(raw: unknown): raw is Action {
 }
 function beginSettling(state: Match): void {
   state.phase = "settling";
-  state.settleUntil = state.step + 180;
 }
 function applyAction(state: Match, action: Action, facts: Fact[]): void {
   const p = state.players[state.active]!;
@@ -142,14 +135,7 @@ function applyAction(state: Match, action: Action, facts: Fact[]): void {
     beginSettling(state);
     return;
   }
-  if (!p.grounded || p.hp <= 0) {
-    facts.push({
-      type: "rejected",
-      actor: p.id,
-      reason: "Wait until your bird lands.",
-    });
-    return;
-  }
+  if (p.hp <= 0) return;
   if (action.weapon === "scatter" && p.ammo === 0) {
     facts.push({
       type: "rejected",
@@ -186,8 +172,6 @@ function hurt(p: Player, amount: number, facts: Fact[]): void {
     y: p.y / UNIT,
   });
   if (p.hp === 0) {
-    p.vx = 0;
-    p.vy = 0;
     facts.push({
       type: "eliminated",
       actor: p.id,
@@ -252,7 +236,6 @@ function projectilesStep(state: Match, facts: Fact[]): void {
       a.projectile.id - b.projectile.id,
   );
   const damages = new Map<string, number>(),
-    impulses = new Map<string, { x: number; y: number }>(),
     collected = new Map<number, string>();
   for (const { projectile: p, hit } of impacts) {
     const { radius } = blastProfile(p.kind);
@@ -260,15 +243,6 @@ function projectilesStep(state: Match, facts: Fact[]): void {
       if (bird.hp > 0) {
         const damage = damageAt(state.terrain, hit, bird, p.kind);
         damages.set(bird.id, (damages.get(bird.id) ?? 0) + damage);
-        if (damage > 0) {
-          const dx = bird.x - hit.x,
-            dy = bird.y - hit.y,
-            distance = Math.max(1, Math.abs(dx) + Math.abs(dy));
-          const impulse = impulses.get(bird.id) ?? { x: 0, y: 0 };
-          impulse.x += Math.trunc((dx * damage * 18) / distance);
-          impulse.y += Math.trunc((dy * damage * 18) / distance) - damage * 8;
-          impulses.set(bird.id, impulse);
-        }
       }
     for (const c of state.crates) {
       if (collectsCrate(state.terrain, hit, c, radius))
@@ -277,15 +251,6 @@ function projectilesStep(state: Match, facts: Fact[]): void {
   }
   for (const bird of state.players)
     hurt(bird, damages.get(bird.id) ?? 0, facts);
-  for (const bird of state.players) {
-    const impulse = impulses.get(bird.id);
-    if (bird.hp > 0 && impulse) {
-      bird.vx = Math.max(-900, Math.min(900, bird.vx + impulse.x));
-      bird.vy = Math.max(-1100, Math.min(2200, bird.vy + impulse.y));
-      bird.grounded = false;
-      bird.fallFrom = Math.min(bird.fallFrom, bird.y);
-    }
-  }
   for (const c of [...state.crates].sort((a, b) => a.id - b.id)) {
     const id = collected.get(c.id),
       owner = state.players.find((b) => b.id === id && b.hp > 0);
@@ -320,58 +285,10 @@ function projectilesStep(state: Match, facts: Fact[]): void {
   }
   state.projectiles = next;
 }
-function bodiesStep(state: Match, facts: Fact[]): void {
-  for (const p of state.players) {
-    if (p.hp === 0) continue;
-    if (state.phase === "settling" && state.step >= state.settleUntil) p.vx = 0;
-    p.fallFrom = Math.min(p.fallFrom, p.y);
-    if (p.vx) {
-      const wall = sweep(
-        state.terrain,
-        p.x,
-        p.y,
-        p.vx,
-        0,
-        BODY_X,
-        [],
-        [],
-        undefined,
-        BODY_Y - 1,
-      );
-      if (wall) {
-        p.x = wall.x - Math.sign(p.vx);
-        p.vx = 0;
-      } else p.x += p.vx;
-    }
-    p.vy = Math.min(2200, p.vy + GRAVITY);
-    const ground = sweep(
-      state.terrain,
-      p.x,
-      p.y,
-      0,
-      p.vy,
-      BODY_X - 1,
-      [],
-      [],
-      undefined,
-      BODY_Y,
-    );
-    if (ground) {
-      p.y = ground.y - Math.sign(p.vy);
-      if (p.vy > 0) {
-        const drop = Math.floor((p.y - p.fallFrom) / UNIT);
-        if (!p.grounded && drop > 55)
-          hurt(p, Math.min(40, Math.floor((drop - 55) / 3)), facts);
-        p.grounded = true;
-        p.fallFrom = p.y;
-        p.vx = Math.trunc((p.vx * 3) / 4);
-        if (Math.abs(p.vx) < 10) p.vx = 0;
-      }
-      p.vy = 0;
-    } else ((p.grounded = false), (p.y += p.vy));
-    if (p.y / UNIT + 6 >= state.water || p.x < 0 || p.x > WIDTH * UNIT)
-      hurt(p, 100, facts);
-  }
+function environmentStep(state: Match, facts: Fact[]): void {
+  // Launch positions are fixed for the round, including after terrain destruction.
+  for (const bird of state.players)
+    if (bird.y + BODY_Y >= state.water * UNIT) hurt(bird, 100, facts);
   for (const c of state.crates) {
     c.vy = Math.min(110, c.vy + GRAVITY);
     const ground = sweep(state.terrain, c.x, c.y, 0, c.vy, 5 * UNIT);
@@ -439,16 +356,12 @@ export function advance(state: Match, actions: readonly Action[] = []): Fact[] {
   for (let i = 0; i < 3; i++) {
     state.step++;
     if (state.phase === "flight") projectilesStep(state, facts);
-    bodiesStep(state, facts);
+    environmentStep(state, facts);
     if (state.phase === "flight" && !state.projectiles.length)
       beginSettling(state);
     if (state.phase === "aiming" && state.players[state.active]!.hp === 0)
       beginSettling(state);
-    if (
-      state.phase === "settling" &&
-      state.players.every((p) => p.hp === 0 || (p.grounded && p.vx === 0))
-    )
-      resolveTurn(state, facts);
+    if (state.phase === "settling") resolveTurn(state, facts);
   }
   searchCrate(state);
   return facts;

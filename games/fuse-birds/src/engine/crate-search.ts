@@ -110,7 +110,7 @@ export function searchCrate(state: Match): void {
     const player = state.players[job.player]!,
       target = landing.crate;
     const vector =
-      player.hp > 0 && player.grounded
+      player.hp > 0
         ? candidateVector(player, target, state.wind, job.candidate * 8)
         : undefined;
     if (vector && budget < SHOT_STEPS + 1) return;

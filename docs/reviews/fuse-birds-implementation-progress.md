@@ -1,6 +1,6 @@
 # Fuse Birds Phase 1 implementation evidence
 
-> Historical rules-5 report. The user corrected the locomotion mistake on 2026-09-23: rules 6 removes walking and hopping. Use the [current correction report](fuse-birds-stationary-correction.md) for present verification and unresolved stationary reachability samples. Movement-based claims, old witness counts, late-water comparisons and readiness statements below are superseded; the rules-5 cross-runtime artifact remains historical evidence only.
+> Historical rules-5 report. Rules 7 now keeps birds fully stationary, including after hits and support destruction. Use the [current correction report](fuse-birds-stationary-correction.md) for present verification, including 709 passing post-destruction reachability samples. Movement-based claims, old witness counts, late-water comparisons and readiness statements below are superseded; the rules-5 cross-runtime artifact remains historical evidence only.
 
 Worktree: `codex/fuse-birds-concept`, based on `0386f4af`. PR #407 is open. Engine rules are `fuse-birds-5`, checkpoint format `fuse-birds-5-snapshot2`. Evidence is refreshed for those rules where noted; older browser room captures remain explicitly identified. No merge or deployment.
 

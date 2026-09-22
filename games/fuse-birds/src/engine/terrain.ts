@@ -89,7 +89,7 @@ export function generateTerrain(
       (heights[i]! * (denominator - blend) + heights[i + 1]! * blend) /
         denominator,
     );
-    // Players start on high, open perches; deeper valleys are still part of the knockback, falling and excavation geometry.
+    // Players launch from fixed high, open perches; valleys provide destructible cover.
     // Actual trajectories, rather than this construction heuristic, decide whether a level is admitted.
     for (const perch of perches)
       surface = Math.min(

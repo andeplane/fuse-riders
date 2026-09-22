@@ -49,19 +49,19 @@ Resolution is atomic within `advance`, not a persisted resolving phase or animat
 
 The adapter folds management first, authorizes entries against member identity/generation and advances once. The engine checks deadline expiry before actions; an action at the deadline is too late. Actions carry actor, round, turn and increasing ordinal; room entries additionally carry match ID, sequence and tick. Claimed actor IDs never authorize a peer. Retired-generation actions cannot control a new incarnation.
 
-Only the active living bird may launch or pass. Walking and hopping are not legal actions and must be rejected at the engine and network boundaries. Launch requires grounded posture, legal vector, current scope and ammo. A committed Scatter shot decrements once; fragments, duplicate releases and cancelled gestures do not. Selection and cameras stay local. One accepted launch/pass closes input for that turn.
+Only the active living bird may launch or pass. Walking and hopping are not legal actions and must be rejected at the engine and network boundaries. Launch requires a legal vector, current scope and ammo. A committed Scatter shot decrements once; fragments, duplicate releases and cancelled gestures do not. Selection and cameras stay local. One accepted launch/pass closes input for that turn.
 
-Flight/settling reject new play. Passing airborne still waits for landing/fall damage. Projectiles share a bounded shot expiry. Resolution waits for living birds and all fragments; parachuting crates do not delay it. Zero survivors is a draw, one survivor wins. Deadlines and rising water bound idle games, but do not replace ADR-050's range/escape requirements.
+Flight/resolution reject new play. Projectiles share a bounded shot expiry. Resolution waits for all fragments; stationary birds and parachuting crates do not delay it. Zero survivors is a draw, one survivor wins. Deadlines and rising water bound idle games, but do not replace ADR-050's range/escape requirements.
 
 ## Damage, destruction and crates
 
 For each physics step:
 
-1. Find contacts against the same pre-destruction terrain/entities. Sort equal-time contacts by stable IDs and aggregate damage/knockback.
-2. Apply damage/eliminations, then bounded impulses to survivors.
+1. Find contacts against the same pre-destruction terrain/entities. Sort equal-time contacts by stable IDs and aggregate damage.
+2. Apply damage/eliminations without changing bird coordinates.
 3. Consume each hit crate once. A living shot owner receives one Scatter refill capped at five; eliminated owners receive nothing. Full inventory still consumes the crate and never suppresses its explosion.
-4. Remove crater cells, move bodies/crates, then apply landing/water damage.
-5. Decide the result only after remaining projectiles and bird motion resolve.
+4. Remove crater cells, advance falling crates, then apply water damage.
+5. Decide the result only after remaining projectiles resolve.
 
 Crates are public Scatter supplies. Direct or exposed blast contact collects remotely, including during descent; walking over one does not. Fragments cannot collect a crate twice, and a refill cannot alter flying fragments or grant an extra shot. At most three crates exist. Each completed living-player cycle offers a bounded current-terrain site search; failure skips delivery.
 

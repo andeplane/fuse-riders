@@ -2,13 +2,13 @@
 
 Phase 1 is a 2–5-player turn-based slingshot game: unlimited Pebble, three starting Scatter Bombs, shootable refill crates, destructible seeded terrain and rising-water sudden death. The complete rules live in the UI-free `fuse-birds-game` workspace package. Browser rendering and online rooms are adapters around that same library.
 
-The slingshot-only correction is playable in [PR #407](https://github.com/andeplane/fuse-riders/pull/407). See [ADR-052](../../docs/adr/052-fuse-birds-phase-one.md) for the completion contract and the [current evidence note](../../docs/reviews/fuse-birds-stationary-correction.md) for verification and unresolved post-destruction reachability samples. No merge or deployment is implied.
+The slingshot-only correction is playable in [PR #407](https://github.com/andeplane/fuse-riders/pull/407). See [ADR-052](../../docs/adr/052-fuse-birds-phase-one.md) for the completion contract and the [current evidence note](../../docs/reviews/fuse-birds-stationary-correction.md) for verification of fully fixed birds and post-destruction reachability. No merge or deployment is implied.
 
 ## Play locally
 
 From the repository root, run `pnpm dev`. Open the URL printed by the server with `/fuse-birds/?mute` appended. The server chooses a free port when necessary. Create a room and join its code on a second device/tab. Start with 2–5 players. Select shared TV when creating a room to get a full-map display link; each phone retains its own map view.
 
-Drag back from your bird and release to shoot. Drag elsewhere to pan; pinch or use the zoom controls to inspect the map. Adding a second finger cancels an uncommitted shot. Birds cannot walk or hop. Aim from their current position, shoot, or pass; explosions and falling can displace them. Scatter splits at its apex and costs one bomb; shooting a crate refills one, capped at five. The weapon count belongs to the game state, so recovery and rematch cannot leave a stale local count.
+Drag back from your bird and release to shoot. Drag elsewhere to pan; pinch or use the zoom controls to inspect the map. Adding a second finger cancels an uncommitted shot. Birds cannot walk or hop. Aim from their current position, shoot, or pass; their x/y positions stay fixed for the round, even when explosions destroy terrain beneath them. Scatter splits at its apex and costs one bomb; shooting a crate refills one, capped at five. The weapon count belongs to the game state, so recovery and rematch cannot leave a stale local count.
 
 Keyboard: focus the battlefield, then use **I/K** to aim up/down and **J/L** to aim left/right. Hold **Shift** for larger adjustments, **Enter** to fire, or **Escape** to cancel. **+/−** zoom. Off-screen bird and ammo labels show their direction while zoomed; the TV always retains the full map.
 

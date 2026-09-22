@@ -1,6 +1,4 @@
 import {
-  BODY_X,
-  BODY_Y,
   HEIGHT,
   MAX_AMMO,
   RULES,
@@ -38,11 +36,8 @@ function isPlayer(raw: unknown): raw is Player {
     raw.name.trim().length > 0 &&
     number(raw, "slot", 0, 4) &&
     position(raw) &&
-    velocity(raw) &&
     number(raw, "hp", 0, 100) &&
     number(raw, "ammo", 0, MAX_AMMO) &&
-    typeof raw.grounded === "boolean" &&
-    number(raw, "fallFrom", -BODY_Y, HEIGHT * UNIT) &&
     number(raw, "ordinal")
   );
 }
@@ -135,8 +130,7 @@ export function decodeState(raw: unknown): Match | undefined {
     !number(raw, "water", 300, 705) ||
     !number(raw, "wind", -2, 2) ||
     !number(raw, "cycle", 0, 1_000_000) ||
-    !number(raw, "shot") ||
-    !number(raw, "settleUntil")
+    !number(raw, "shot")
   )
     return;
   if (
@@ -239,12 +233,8 @@ export function decodeState(raw: unknown): Match | undefined {
       slot: p.slot,
       x: p.x,
       y: p.y,
-      vx: p.vx,
-      vy: p.vy,
       hp: p.hp,
       ammo: p.ammo,
-      grounded: p.grounded,
-      fallFrom: p.fallFrom,
       ordinal: p.ordinal,
     })),
     projectiles: raw.projectiles.map((p) => ({
@@ -285,7 +275,6 @@ export function decodeState(raw: unknown): Match | undefined {
     remaining: [...raw.remaining] as string[],
     nextEntity: Number(raw.nextEntity),
     shot: Number(raw.shot),
-    settleUntil: Number(raw.settleUntil),
     preparation: {
       attempt: Number(job.attempt),
       pair: Number(job.pair),

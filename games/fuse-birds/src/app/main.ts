@@ -306,8 +306,7 @@ function room(code: string, display: boolean): void {
     cancel();
     resetGesture(gestures);
   };
-  const canAim = () =>
-    canPlay() && view?.players[view.active]?.grounded === true;
+  const canAim = canPlay;
   const play = (action: Play) => {
     if (!runtime.play(action))
       message.textContent = "Wait for your turn before playing.";
@@ -500,8 +499,6 @@ function room(code: string, display: boolean): void {
         turnKey = key;
       }
       if (!canPlay() || (weapon === "scatter" && player.ammo === 0)) cancel();
-      if (!player.grounded && (gestures.mode === "aim" || keyboardAim))
-        cancel();
       scorebar.replaceChildren(
         ...view.players.map((p) => {
           let card = cards.get(p.id);
@@ -537,9 +534,7 @@ function room(code: string, display: boolean): void {
         : !battlefieldReady
           ? "Preparing the battlefield…"
           : canPlay()
-            ? player.grounded
-              ? "Pull your bird backwards to aim. Release to fire. Drag elsewhere to pan."
-              : "Wait for your bird to land. You can still inspect the map or pass."
+            ? "Pull your bird backwards to aim. Release to fire. Drag elsewhere to pan."
             : `Watch ${player.name}. You can still explore the map.`;
       overlay.hidden = !["preparing", "over", "fault"].includes(view.phase);
       overlayTitle.textContent =

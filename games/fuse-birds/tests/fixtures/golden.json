@@ -1,59 +1,61 @@
 [
   {
-    "rules": "fuse-birds-6",
+    "rules": "fuse-birds-7",
     "seed": 123,
     "count": 2,
     "final": {
-      "hash": "92f565ecc97472f0",
-      "ticks": 52,
+      "hash": "de385a88c707e48c",
+      "ticks": 276,
       "winner": "p0",
-      "terrainVersion": 1,
+      "terrainVersion": 7,
       "generationWork": 2034,
       "events": {
-        "shot": 1,
-        "damage": 2,
-        "blast": 1,
+        "shot": 7,
+        "damage": 7,
+        "blast": 10,
+        "turn": 6,
+        "split": 2,
         "eliminated": 1,
         "result": 1
       }
     }
   },
   {
-    "rules": "fuse-birds-6",
+    "rules": "fuse-birds-7",
     "seed": 914,
     "count": 3,
     "final": {
-      "hash": "ee576a062ec0ba32",
-      "ticks": 239,
-      "winner": "p1",
-      "terrainVersion": 10,
+      "hash": "dc1ee443673070b7",
+      "ticks": 221,
+      "winner": "p2",
+      "terrainVersion": 6,
       "generationWork": 3766,
       "events": {
-        "shot": 6,
-        "damage": 9,
+        "shot": 8,
+        "damage": 7,
         "blast": 10,
-        "turn": 5,
-        "eliminated": 2,
+        "turn": 7,
         "split": 2,
+        "eliminated": 2,
         "result": 1
       }
     }
   },
   {
-    "rules": "fuse-birds-6",
+    "rules": "fuse-birds-7",
     "seed": 987654,
     "count": 5,
     "final": {
-      "hash": "e4e1117197d9e16d",
-      "ticks": 464,
+      "hash": "6ca0aeb73b93d5e3",
+      "ticks": 230,
       "winner": "p3",
-      "terrainVersion": 21,
+      "terrainVersion": 14,
       "generationWork": 13947,
       "events": {
-        "shot": 13,
-        "damage": 17,
-        "blast": 21,
-        "turn": 12,
+        "shot": 14,
+        "damage": 19,
+        "blast": 22,
+        "turn": 13,
         "split": 4,
         "eliminated": 4,
         "result": 1

@@ -13,12 +13,12 @@ Phase 1 is now defined by [ADR-052](../adr/052-fuse-birds-phase-one.md): a compl
 ## A turn
 
 1. See whose turn is next, the wind, health, ammo and the current crate opportunities.
-2. Aim from the bird's current position. There is no walking or hopping; only blast knockback and gravity can displace birds.
+2. Aim from the bird's current position. There is no walking or hopping; birds remain at their generated positions for the whole round, including after explosions.
 3. Select a weapon and pull the sling backwards to set direction and power. A short dotted preview explains the initial arc without solving the entire shot.
-4. Release to launch one shot. A phone camera can follow the projectile and its impact; the shared TV stays on the full map. Everyone sees the projectile, explosions, falling birds and crate collection resolve.
+4. Release to launch one shot. A phone camera can follow the projectile and its impact; the shared TV stays on the full map. Everyone sees the projectile, explosions, damage and crate collection resolve.
 5. When the world settles, advance to the next living player. A cancelled drag never fires. A 25-second decision timer prevents stalling; expiry passes the turn without consuming ammo.
 
-Wind is visible and constant for a complete cycle of living players, then changes from the seeded stream. Rotate first player between rounds. Apply capped fall damage after settling; falling into water or out of the arena eliminates a bird. If the final explosion eliminates everyone, the round is a draw. After a tunable cycle limit, rising water ends stalemates with a visible warning.
+Wind is visible and constant for a complete cycle of living players, then changes from the seeded stream. Rotate first player between rounds. Birds have no knockback or fall damage. Rising water reaching a fixed bird eliminates it. If the final explosion eliminates everyone, the round is a draw. After a tunable cycle limit, rising water ends stalemates with a visible warning.
 
 ## Weapons and powerups
 
@@ -51,7 +51,7 @@ The map must feel substantially larger relative to the birds than in the first f
 
 Validate minimum spawn separation, headroom, support thickness, launch clearance, survivable footing and reasonable height spread. Reject sealed spawn pockets and immediate lethal spawn configurations. Use a bounded regeneration count and a known-good fallback layout. A seed alone is not proof of balance: sample many seeds and record the failed constraints. Offer a visible seed and rematch/same-map option; no map editor initially.
 
-Explosion circles clear terrain cells deterministically. Unsupported birds and crates fall. Floating terrain stays fixed for the first version; loose soil, fluid simulation, debris collision and structural collapse are deliberately outside the first scope. Debris is cosmetic. This keeps the physics readable and affordable while still allowing tactical craters and destroyed bridges.
+Explosion circles clear terrain cells deterministically. Unsupported crates fall; birds remain at their fixed launch positions. Floating terrain stays fixed for the first version; loose soil, fluid simulation, debris collision and structural collapse are deliberately outside the first scope. Debris is cosmetic. This keeps the physics readable and affordable while still allowing tactical craters and destroyed bridges.
 
 ## Controls and presentation
 

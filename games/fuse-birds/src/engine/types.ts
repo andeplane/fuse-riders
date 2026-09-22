@@ -1,4 +1,4 @@
-export const RULES = "fuse-birds-6";
+export const RULES = "fuse-birds-7";
 export const WIDTH = 1536,
   HEIGHT = 768,
   UNIT = 256,
@@ -23,12 +23,8 @@ export interface Player {
   slot: number;
   x: number;
   y: number;
-  vx: number;
-  vy: number;
   hp: number;
   ammo: number;
-  grounded: boolean;
-  fallFrom: number;
   ordinal: number;
 }
 export interface Projectile {
@@ -102,7 +98,6 @@ export interface Match {
   remaining: string[];
   nextEntity: number;
   shot: number;
-  settleUntil: number;
   preparation: Preparation;
   winner: string | null;
   fault: string | null;

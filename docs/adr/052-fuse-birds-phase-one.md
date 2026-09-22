@@ -12,7 +12,7 @@ The approved V2 images remain the visual target: small birds on a large detailed
 
 ## Correction: slingshot play only (2026-09-23)
 
-The earlier walking/hopping mechanic was an implementation mistake, not a user requirement. Rules 6 removes locomotion actions, movement allowance and movement controls. Birds launch from their positions; gravity, loss of support and blast knockback still apply. All reachability and replay validation must use launch/pass only. This correction supersedes earlier movement-based evidence and historical review notes.
+The earlier walking/hopping mechanic was an implementation mistake, not a user requirement. Rules 7 makes birds fully stationary for now: no locomotion, knockback, falling or movement allowance. Each bird keeps its generated x/y position for the round, even when terrain underneath is destroyed. Supply crates and projectiles still move. All reachability and replay validation must use launch/pass only. This correction supersedes earlier movement-based evidence and historical review notes.
 
 ## Decision and precedence
 
@@ -53,7 +53,7 @@ Keep the existing bounded cycle-based drop schedule, reachable landing-site vali
 
 - Reachable game entry, create/join room, clear 2–5-player lobby and host start, current player/turn indication, instructions and a working leave/rematch path.
 - Individual-device play and shared TV plus phone controllers through the existing online room system. No always-running physics server, new relay, or production deployment requirement for this delivery.
-- One bird per player with no walking or hopping, pull/release aiming with cancellation, partial trajectory preview, both weapons, seeded wind, destructible random terrain, damage, falls, eliminations, turn deadlines, finite sudden death, result and rematch. Use single-round matches initially; a best-of-three configuration is later scope.
+- One bird per player with no walking or hopping, pull/release aiming with cancellation, partial trajectory preview, both weapons, seeded wind, destructible random terrain, damage, eliminations, turn deadlines, finite sudden death, result and rematch. Use single-round matches initially; a best-of-three configuration is later scope.
 - Phones can pinch/pan, recenter and inspect the full map. The shared TV always shows the whole playable map. Camera navigation cannot fire or affect physics.
 - Shootable ammo crates, readable inventory counts, complete turn resolution, and healthy recovery or explicit retry on peer failure. Reconnect restores terrain and ammunition from peers rather than resetting the player.
 - A full headless match/replay/checkpoint path through the public library API, with the same rules used by the browser.
@@ -72,7 +72,7 @@ Build one complete rendered shot early, then extend that same implementation int
 ## Implementation sequence
 
 1. **Library and render slice:** bounded headless state/tick/checkpoint, Pebble flight and crater, a real generated terrain view and authored Neon burrow material/sprite pack. Show full-map and phone-close-up rendering of that shot. Establish collider/visual parity and snapshot cost before expanding.
-2. **Complete local rules:** turn lifecycle, knockback/settling, Scatter splitting, exact ammo counts, refill crates, range/generation validation, deaths, finite round ending and rematch. Run full headless matches and focused deterministic replay tests.
+2. **Complete local rules:** turn lifecycle and fixed-position launchers, Scatter splitting, exact ammo counts, refill crates, range/generation validation, deaths, finite round ending and rematch. Run full headless matches and focused deterministic replay tests.
 3. **Online/device integration:** room adapter, game menu/lobby, two device modes, gesture ownership, input dedupe and recovery. Use the same library and renderer; there is no second temporary gameplay implementation.
 4. **Finish and playtest:** sound/effects, loading/error/retry screens, final two-slot HUD, responsive layout, reference-image comparison, real browser tests and a runnable muted preview. Fix scope-relevant defects before declaring completion.
 
