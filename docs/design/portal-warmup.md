@@ -15,7 +15,7 @@ field. Checkpoints reject remaining durations longer than that total. Placement 
 gates, while transit exit safety ignores them. Shared transit detection applies the same timing to
 riders, shells and guns. Rendering receives these durations through `WorldView.rules`.
 
-This changes simulation behavior and requires `fuse-p2p-53` peers; the golden recording is refreshed
+This changes simulation behavior and requires `fuse-p2p-54` peers; the golden recording is refreshed
 with the rule change. The duration is game time and follows the existing acceleration when only AI
 riders remain alive.
 
@@ -23,5 +23,5 @@ Verification: `pnpm exec tsx scripts/portal-browser.ts` checks the forming silho
 bars, full active opacity and expiry on WebGL and Canvas. `BROWSER=webkit` selects WebKit.
 The real solo flow is captured in [this screenshot](../online/ui-evidence/portal-warmup/solo.png).
 To playtest, open solo play, choose ROOM SETTINGS → CONFIGURE POWERUPS → NO POWER-UPS, enable
-PORTAL, save, then BACK TO LOBBY → START RACE. This makes every pickup a portal without changing
+PORTAL, then BACK TO LOBBY → START RACE. Settings save automatically. This makes every pickup a portal without changing
 their placement or timing.
