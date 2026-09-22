@@ -30,7 +30,7 @@
 .mobile-play > .shared-lobby {
   display: none !important;
 }
-/* Phase notice (READY · 3, round winner, MATCH COMPLETE, lobby prompt) floats over the thirds in every phase; the roster and host actions live behind ☰ MENU. */
+/* Phase notice floats over the arena; the roster and host actions live behind MENU. */
 .mobile-play .online-notice {
   position: absolute;
   top: max(0.5rem, env(safe-area-inset-top));
@@ -60,13 +60,10 @@
   width: 100%;
   height: 100%;
   min-height: 0;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: 1fr;
   gap: 0;
   z-index: 10;
 }
 .mobile-play .online-controls > button {
-  grid-row: 1 !important;
   min-height: 0;
   min-width: 0;
   padding: 0;
@@ -79,15 +76,6 @@
   text-shadow: none;
   opacity: 1;
   touch-action: none;
-}
-.mobile-play .online-controls > button:nth-child(1) {
-  grid-column: 1 !important;
-}
-.mobile-play .online-controls > button:nth-child(2) {
-  grid-column: 2 !important;
-}
-.mobile-play .online-controls > button:nth-child(3) {
-  grid-column: 3 !important;
 }
 .mobile-play > .mobile-tools-toggle {
   display: block;
@@ -102,24 +90,41 @@
 .mobile-play > .mobile-control-hints {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: center;
+  align-items: stretch;
   position: absolute;
   inset: 0;
   z-index: 11;
   pointer-events: none;
-  animation: mobile-hints-fade 3s forwards;
+  opacity: 0;
+}
+.mobile-play > .mobile-control-hints[data-phase="countdown"] {
+  opacity: 1;
 }
 .mobile-control-hints span {
-  text-align: center;
-  padding: var(--fui-space-3);
-  color: #fff;
-  font-size: clamp(0.75rem, 2.5vw, 1.25rem);
-  text-shadow: 0 0.125rem 0.25rem #000;
-  background: #07142888;
-  border: 0.0625rem solid #ffffff33;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  margin: 4px;
+  box-sizing: border-box;
+  border: 2px solid #fff;
+  border-radius: 0.5rem;
 }
 .mobile-control-hints span::before {
-  content: attr(data-hint);
+  content: "";
+  width: clamp(3rem, 12vmin, 6rem);
+  height: clamp(3rem, 12vmin, 6rem);
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='white' stroke-width='3' stroke-linejoin='round'%3E%3Cpath d='M8 32 30 10v13h26v18H30v13Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+.mobile-control-hints span:nth-child(2)::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='27' cy='38' r='20'/%3E%3Cpath d='m37 20 5-8 8 5-5 8M46 14c-2-9 6-11 9-7M55 2v3m5 3-3 1m1 6-3-2'/%3E%3C/svg%3E");
+}
+.mobile-control-hints span:nth-child(3)::before {
+  transform: rotate(180deg);
+}
+/* The outlined touch regions provide the phone's countdown instructions. */
+.mobile-play .online-announce.countdown .announce-hint {
+  display: none;
 }
 /* Touch zones, labels and pill are controls, never selectable text: no iOS callout, no selection, no scroll/zoom gestures. */
 .mobile-play .online-controls,
@@ -141,15 +146,6 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-}
-@keyframes mobile-hints-fade {
-  0%,
-  65% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
 }
 .mobile-play.mobile-tools-open .online-controls {
   pointer-events: none;
@@ -258,7 +254,7 @@
   animation: none;
   opacity: 0;
 }
-/* --- AAA pass: a slim HUD over the thirds, the menu overlay no longer covers the roster, announcements sit above the thirds. --- */
+/* A slim HUD and announcements above the arena; the menu leaves the roster accessible. */
 .mobile-play > .mobile-hud:not([hidden]) {
   display: flex;
   position: absolute;
@@ -378,17 +374,7 @@
   font-size: 0.75rem;
 }
 
-/* Portrait controls keep the full-screen invisible thirds; only their brief hints sit at the bottom. */
-.mobile-play.mobile-portrait:not(.controller-only) .online-controls > button {
-  /* Weapon readiness stays in the HUD, including when the fire control is gun-armed. */
-  box-shadow: none;
-}
-.mobile-play.mobile-portrait:not(.controller-only) > .mobile-control-hints {
-  top: auto;
-  height: max(7rem, 20dvh);
-  padding-bottom: env(safe-area-inset-bottom);
-  box-sizing: border-box;
-}
+/* Portrait HUD and notices use the space above the pads. */
 .mobile-play.mobile-portrait .mobile-control-hints span {
   padding: var(--fui-space-3) var(--fui-space-1);
   font-size: 0.625rem;
