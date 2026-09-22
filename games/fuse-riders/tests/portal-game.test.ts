@@ -12,7 +12,12 @@ import {
   COUNTDOWN_TICKS,
   type GameState,
 } from "../src/engine/game.ts";
-import { MAX_PORTAL_PAIRS } from "../src/engine/portal.ts";
+import {
+  MAX_PORTAL_PAIRS,
+  PORTAL_LIFETIME_TICKS,
+  PORTAL_WARMUP_TICKS,
+} from "../src/engine/portal.ts";
+import { isClearOfPortalWalls } from "../src/engine/sim/portals.ts";
 import { classicSettings } from "./fixtures/classic-settings.ts";
 import { setEffect } from "./fixtures/rider-state.ts";
 import { effectUntil } from "../src/engine/effects.ts";
@@ -57,6 +62,18 @@ const stride = (state: GameState) =>
     state.tick,
     state.roundStartedTick,
   ).distance;
+
+test("forming gates neither teleport riders nor block active exits, but reserve placement space", () => {
+  const state = arena();
+  state.portalPairs[0]!.expiresAtTick =
+    state.tick + PORTAL_WARMUP_TICKS + PORTAL_LIFETIME_TICKS;
+  const point = state.portalPairs[0]!.gates[0];
+  assert.equal(isClearOfPortalWalls(state, point, 7), false);
+  assert.equal(isClearOfPortalWalls(state, point, 7, "another-pair"), true);
+  step(state, new Map());
+  assert.equal(state.players.get("p0")!.x, 185 + stride(state));
+  assert.equal(state.matchStats.get("p0")!.portalTransits, 0);
+});
 
 test("portal transits survivors, breaks trail, preserves heading/charge, counts actual movement", () => {
   const state = arena();

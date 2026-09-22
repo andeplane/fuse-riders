@@ -17,6 +17,8 @@ import { SHELL_SPEED } from "../src/engine/shell.js";
 import {
   MAX_PORTAL_PAIRS,
   PORTAL_COOLDOWN_TICKS,
+  PORTAL_LIFETIME_TICKS,
+  PORTAL_WARMUP_TICKS,
   type PortalPair,
 } from "../src/engine/portal.js";
 import { canonicalRoomState } from "../src/engine/apply-tick.js";
@@ -50,7 +52,7 @@ const GUN_EDGE = 4 + GUN_RADIUS;
 /** Gates at x=300 and x=900, both mid-field, so a projectile crossing the first lands beside the second. */
 const pair = (overrides: Partial<PortalPair> = {}): PortalPair => ({
   id: "gates",
-  expiresAtTick: 10_000,
+  expiresAtTick: COUNTDOWN_TICKS + 200,
   gates: [
     { x: 300, y: 450, halfLength: 100 },
     { x: 900, y: 450, halfLength: 100 },
@@ -139,6 +141,37 @@ test("a shell leaves the partner gate carrying its speed and its remaining trave
     shell.portalCooldownUntilTick,
     game.tick + PORTAL_COOLDOWN_TICKS,
   );
+});
+
+test("shells and gun shots cross forming gates without teleporting, including after checkpoint recovery", () => {
+  for (const untilActivation of [PORTAL_WARMUP_TICKS, 2, 1]) {
+    const { game, shooter } = scene();
+    game.portalPairs[0]!.expiresAtTick =
+      game.tick + untilActivation + PORTAL_LIFETIME_TICKS;
+    setArmed(shooter, "gun", true);
+    launchShell(game);
+    const recovered = decodeGameState(encodeGameState(game));
+    assert.ok(recovered);
+    recovered.players = new Map([...recovered.players].reverse());
+    for (const world of [game, recovered]) {
+      step(world, new Map([["p0", tap]]));
+      const shell = [...world.bombs.values()].find((bomb) => bomb.shell)!;
+      assert.equal(
+        typeof shell.portalCooldownUntilTick,
+        untilActivation === 1 ? "number" : "undefined",
+      );
+      assert.equal(world.tracers.length, untilActivation === 1 ? 2 : 1);
+    }
+    const canonical = (world: GameState) =>
+      canonicalRoomState({
+        game: world,
+        settings: defaultRoomSettings(),
+        folds: new Map(),
+        bots: new Set(),
+        spectators: new Map(),
+      });
+    assert.equal(canonical(recovered), canonical(game));
+  }
 });
 
 test("a shell travelling the other way enters the far gate and leaves beside the near one", () => {
