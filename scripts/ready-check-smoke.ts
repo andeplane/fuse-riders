@@ -41,8 +41,8 @@ try {
   invite.searchParams.set("mute", "1");
   invite.searchParams.set("benchmark", "1");
   await tv.getByRole("button", { name: "ROOM SETTINGS", exact: true }).click();
-  await tv.getByLabel("Match length").fill("1");
-  await tv.getByRole("button", { name: "SAVE SETTINGS", exact: true }).click();
+  await tv.getByLabel("Match length").fill("1"); // saves on input
+  await tv.getByRole("button", { name: "CLOSE", exact: true }).click();
   for (const [page, name] of [
     [a, "Ada"],
     [b, "Bo"],

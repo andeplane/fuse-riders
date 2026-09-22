@@ -9,6 +9,7 @@ import { createAccountPanel } from "./account-panel.js";
 import { createFriendsPanel } from "./friends-panel.js";
 import { isRiderAvatarId } from "../engine/avatar-id.js";
 import { validRiderName } from "../engine/rider-name.js";
+import { createTopMenuToggle } from "./top-menu-toggle.js";
 import {
   accountUsername,
   fetchUsername,
@@ -1042,6 +1043,10 @@ export async function startOnline(): Promise<void> {
     roomAccount.button,
   );
   header.append(topMenu);
+  // One ☰ instead of two wrapped rows of buttons where the viewport is too short to spare them; top-menu.css decides
+  // where that is, and the sheet it opens floats over the page so the lobby keeps its height either way.
+  const topMenuToggle = createTopMenuToggle(header, topMenu);
+  header.append(topMenuToggle.button);
   topMenu.append(results, menu, help);
   for (const extra of [
     topRadio,
@@ -1061,6 +1066,7 @@ export async function startOnline(): Promise<void> {
     "pagehide",
     () => {
       roomAccount.dispose();
+      topMenuToggle.dispose();
       window.removeEventListener("focus", refreshAccount);
       document.removeEventListener("visibilitychange", refreshAccount);
     },

@@ -17,7 +17,11 @@ import { edgesOpen } from "./arena-map.js";
 import { effectDeadlines, effectUntil } from "./effects.js";
 import { isArmed } from "./weapons.js";
 import { GUN_HEADSHOT_RADIUS, GUN_HOLE_RADIUS, GUN_RADIUS } from "./gun.js";
-import { PORTAL_WALL_HALF_WIDTH } from "./portal.js";
+import {
+  PORTAL_WALL_HALF_WIDTH,
+  PORTAL_LIFETIME_TICKS,
+  PORTAL_WARMUP_TICKS,
+} from "./portal.js";
 import { TRAIL_DECAY_PAUSE_TICKS } from "./trail-lifecycle.js";
 import {
   MAX_VOLLEY_BOMBS,
@@ -71,6 +75,8 @@ export interface ViewRules {
   gunHeadshotRadius: number;
   /** Half the thickness of a portal gate: a ray stops this far plus its own radius from the gate's line. */
   portalWallHalfWidth: number;
+  portalLifetimeTicks: number;
+  portalWarmupTicks: number;
 }
 
 /** One rider as a screen sees it. */
@@ -236,6 +242,8 @@ const RULES_VIEW: ViewRules = Object.freeze({
   gunHoleRadius: GUN_HOLE_RADIUS,
   gunHeadshotRadius: GUN_HEADSHOT_RADIUS,
   portalWallHalfWidth: PORTAL_WALL_HALF_WIDTH,
+  portalLifetimeTicks: PORTAL_LIFETIME_TICKS,
+  portalWarmupTicks: PORTAL_WARMUP_TICKS,
 });
 
 /** What a screen is given of the state. Read-only over `GameState`; callers ask for it when they need one. */
