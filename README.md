@@ -258,7 +258,7 @@ The public leaderboard exposes rider names, avatars, Elo and individual-round co
   weapon/rivalry data; the page indicates when older career matches lack expanded statistics.
 
 `GET /api/leaderboard` is public (300 requests/address/hour), with optional identity for the caller's highlighted row. `GET /api/matches` is the same kind of public read for the MATCHES tab's
-everyone feed; confirmation stamps a whole game with `feedAt`, and the feed is ordered by the `(gameId, feedAt desc)` index in `firestore.indexes.json`.
+everyone feed; confirmation stamps a whole game with `feedAt`, and the feed is ordered by the `(gameId, feedAt desc)` index in `firestore.indexes.json`. A game confirmed before that field existed carries no `feedAt`, and a Firestore query returns no document lacking the field it orders by, so such a game is missing from EVERYONE while still listed in YOURS; `scripts/backfill-match-feed-at.ts` stamps it (see [GCP-DEPLOY](docs/online/GCP-DEPLOY.md)).
 `GET /api/me` adds rating/rank and career buckets; match history adds per-match rating receipts and the caller's top
 rivalries. Atomic transactions keep profiles, Elo, per-match receipts and rivalry credits together; retries do not
 re-credit them. A room-incarnation/match-id/round claim prevents conflicting round variants from rating twice.
