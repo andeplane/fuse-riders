@@ -1,0 +1,95 @@
+{
+  "rules": "fuse-birds-4",
+  "results": [
+    {
+      "earlierTurn": 20,
+      "lateTurn": 32,
+      "sameTerrainPositionsHealthWind": true,
+      "earlierResult": {
+        "hash": "00a8e651b92ec115",
+        "tick": 776,
+        "ownerHp": 9,
+        "targetHp": 32
+      },
+      "beforeHash": "3df88dbf051ae683",
+      "finalHash": "bb5132f9f5c6bfa5",
+      "water": 481,
+      "lowBirdFeet": 484.99609375,
+      "launched": 1,
+      "entries": [
+        {
+          "tick": 728,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 32,
+              "ordinal": 17,
+              "weapon": "pebble",
+              "vx": 2128,
+              "vy": -2208
+            }
+          ]
+        },
+        {
+          "tick": 729,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p3",
+              "round": 1,
+              "turn": 33,
+              "ordinal": 17
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "earlierTurn": 21,
+      "lateTurn": 33,
+      "sameTerrainPositionsHealthWind": true,
+      "earlierResult": {
+        "hash": "68e94df9f812109d",
+        "tick": 836,
+        "ownerHp": 66,
+        "targetHp": 0
+      },
+      "beforeHash": "1c1da96792f3d9f3",
+      "finalHash": "49dc57cdf42255a9",
+      "water": 481,
+      "lowBirdFeet": 484.99609375,
+      "launched": 1,
+      "entries": [
+        {
+          "tick": 729,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 33,
+              "ordinal": 17,
+              "weapon": "pebble",
+              "vx": -2016,
+              "vy": -2128
+            }
+          ]
+        },
+        {
+          "tick": 790,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 34,
+              "ordinal": 18
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

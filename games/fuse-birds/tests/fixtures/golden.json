@@ -1,0 +1,63 @@
+[
+  {
+    "rules": "fuse-birds-4",
+    "seed": 123,
+    "count": 2,
+    "final": {
+      "hash": "c3c5bf47b7d5da0b",
+      "ticks": 72,
+      "winner": "p0",
+      "terrainVersion": 1,
+      "generationWork": 2034,
+      "events": {
+        "shot": 1,
+        "damage": 2,
+        "blast": 1,
+        "eliminated": 1,
+        "result": 1
+      }
+    }
+  },
+  {
+    "rules": "fuse-birds-4",
+    "seed": 914,
+    "count": 3,
+    "final": {
+      "hash": "5a34f6f733792ffb",
+      "ticks": 432,
+      "winner": "p2",
+      "terrainVersion": 10,
+      "generationWork": 3766,
+      "events": {
+        "shot": 8,
+        "damage": 9,
+        "blast": 10,
+        "turn": 7,
+        "split": 2,
+        "eliminated": 2,
+        "result": 1
+      }
+    }
+  },
+  {
+    "rules": "fuse-birds-4",
+    "seed": 987654,
+    "count": 5,
+    "final": {
+      "hash": "1861af32b5c525be",
+      "ticks": 534,
+      "winner": "p4",
+      "terrainVersion": 19,
+      "generationWork": 13947,
+      "events": {
+        "shot": 12,
+        "damage": 14,
+        "blast": 20,
+        "turn": 11,
+        "split": 4,
+        "eliminated": 4,
+        "result": 1
+      }
+    }
+  }
+]

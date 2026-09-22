@@ -1,0 +1,1657 @@
+{
+  "rules": "fuse-birds-4",
+  "results": [
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 220,
+      "turn": 4,
+      "target": "p0",
+      "excavation": [
+        {
+          "tick": 221,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 4,
+              "ordinal": 1,
+              "weapon": "pebble",
+              "vx": -2128,
+              "vy": -2016
+            }
+          ]
+        },
+        {
+          "tick": 278,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 5,
+              "ordinal": 4
+            }
+          ]
+        },
+        {
+          "tick": 279,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p1",
+              "round": 1,
+              "turn": 6,
+              "ordinal": 4
+            }
+          ]
+        },
+        {
+          "tick": 280,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p2",
+              "round": 1,
+              "turn": 7,
+              "ordinal": 4
+            }
+          ]
+        },
+        {
+          "tick": 281,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 8,
+              "ordinal": 2,
+              "weapon": "pebble",
+              "vx": -1872,
+              "vy": -2192
+            }
+          ]
+        },
+        {
+          "tick": 344,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 9,
+              "ordinal": 5
+            }
+          ]
+        },
+        {
+          "tick": 345,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p1",
+              "round": 1,
+              "turn": 10,
+              "ordinal": 5
+            }
+          ]
+        },
+        {
+          "tick": 346,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p2",
+              "round": 1,
+              "turn": 11,
+              "ordinal": 5
+            }
+          ]
+        },
+        {
+          "tick": 347,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 12,
+              "ordinal": 3,
+              "weapon": "pebble",
+              "vx": -2240,
+              "vy": -1760
+            }
+          ]
+        }
+      ],
+      "initialHash": "e5fb7cd326774e7f",
+      "verified": {
+        "hash": "38bd56f2455cb7be",
+        "tick": 401,
+        "ownerHp": 100,
+        "targetHp": 0
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 220,
+      "turn": 4,
+      "target": "p1",
+      "excavation": [
+        {
+          "tick": 221,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 4,
+              "ordinal": 1,
+              "weapon": "pebble",
+              "vx": -1648,
+              "vy": -1088
+            }
+          ]
+        },
+        {
+          "tick": 254,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 5,
+              "ordinal": 4
+            }
+          ]
+        },
+        {
+          "tick": 255,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p1",
+              "round": 1,
+              "turn": 6,
+              "ordinal": 4
+            }
+          ]
+        },
+        {
+          "tick": 256,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p2",
+              "round": 1,
+              "turn": 7,
+              "ordinal": 4
+            }
+          ]
+        },
+        {
+          "tick": 257,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 8,
+              "ordinal": 2,
+              "weapon": "pebble",
+              "vx": -1584,
+              "vy": -1088
+            }
+          ]
+        },
+        {
+          "tick": 291,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 9,
+              "ordinal": 5
+            }
+          ]
+        },
+        {
+          "tick": 292,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p1",
+              "round": 1,
+              "turn": 10,
+              "ordinal": 5
+            }
+          ]
+        },
+        {
+          "tick": 293,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p2",
+              "round": 1,
+              "turn": 11,
+              "ordinal": 5
+            }
+          ]
+        },
+        {
+          "tick": 294,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 12,
+              "ordinal": 3,
+              "weapon": "pebble",
+              "vx": -1520,
+              "vy": -1088
+            }
+          ]
+        },
+        {
+          "tick": 329,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 13,
+              "ordinal": 6
+            }
+          ]
+        },
+        {
+          "tick": 330,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p1",
+              "round": 1,
+              "turn": 14,
+              "ordinal": 6
+            }
+          ]
+        },
+        {
+          "tick": 331,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p2",
+              "round": 1,
+              "turn": 15,
+              "ordinal": 6
+            }
+          ]
+        },
+        {
+          "tick": 332,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 16,
+              "ordinal": 4,
+              "weapon": "pebble",
+              "vx": -1584,
+              "vy": -1088
+            }
+          ]
+        },
+        {
+          "tick": 368,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 17,
+              "ordinal": 7
+            }
+          ]
+        },
+        {
+          "tick": 369,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p1",
+              "round": 1,
+              "turn": 18,
+              "ordinal": 7
+            }
+          ]
+        },
+        {
+          "tick": 370,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p2",
+              "round": 1,
+              "turn": 19,
+              "ordinal": 7
+            }
+          ]
+        },
+        {
+          "tick": 371,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 20,
+              "ordinal": 5,
+              "weapon": "pebble",
+              "vx": -1584,
+              "vy": -1088
+            }
+          ]
+        },
+        {
+          "tick": 408,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 21,
+              "ordinal": 8
+            }
+          ]
+        },
+        {
+          "tick": 409,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p1",
+              "round": 1,
+              "turn": 22,
+              "ordinal": 8
+            }
+          ]
+        },
+        {
+          "tick": 410,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p2",
+              "round": 1,
+              "turn": 23,
+              "ordinal": 8
+            }
+          ]
+        },
+        {
+          "tick": 411,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 24,
+              "ordinal": 6,
+              "weapon": "pebble",
+              "vx": -1648,
+              "vy": -1088
+            }
+          ]
+        },
+        {
+          "tick": 449,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 25,
+              "ordinal": 9
+            }
+          ]
+        },
+        {
+          "tick": 450,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p1",
+              "round": 1,
+              "turn": 26,
+              "ordinal": 9
+            }
+          ]
+        },
+        {
+          "tick": 451,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p2",
+              "round": 1,
+              "turn": 27,
+              "ordinal": 9
+            }
+          ]
+        },
+        {
+          "tick": 452,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 28,
+              "ordinal": 7,
+              "weapon": "pebble",
+              "vx": -1392,
+              "vy": -1232
+            }
+          ]
+        },
+        {
+          "tick": 494,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 29,
+              "ordinal": 10
+            }
+          ]
+        },
+        {
+          "tick": 495,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p1",
+              "round": 1,
+              "turn": 30,
+              "ordinal": 10
+            }
+          ]
+        },
+        {
+          "tick": 496,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p2",
+              "round": 1,
+              "turn": 31,
+              "ordinal": 10
+            }
+          ]
+        },
+        {
+          "tick": 497,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 32,
+              "ordinal": 8,
+              "weapon": "pebble",
+              "vx": -1760,
+              "vy": -1088
+            }
+          ]
+        },
+        {
+          "tick": 537,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 33,
+              "ordinal": 11
+            }
+          ]
+        },
+        {
+          "tick": 538,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p1",
+              "round": 1,
+              "turn": 34,
+              "ordinal": 11
+            }
+          ]
+        },
+        {
+          "tick": 539,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p2",
+              "round": 1,
+              "turn": 35,
+              "ordinal": 11
+            }
+          ]
+        },
+        {
+          "tick": 540,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 36,
+              "ordinal": 9,
+              "weapon": "pebble",
+              "vx": -1648,
+              "vy": -1088
+            }
+          ]
+        }
+      ],
+      "initialHash": "e5fb7cd326774e7f",
+      "verified": {
+        "hash": "668bbbb3deeaaeb7",
+        "tick": 579,
+        "ownerHp": 100,
+        "targetHp": 0
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 264,
+      "turn": 5,
+      "target": "p3",
+      "excavation": [
+        {
+          "tick": 265,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 5,
+              "ordinal": 4,
+              "weapon": "pebble",
+              "vx": 1920,
+              "vy": -2544
+            }
+          ]
+        },
+        {
+          "tick": 267,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p1",
+              "round": 1,
+              "turn": 6,
+              "ordinal": 4
+            }
+          ]
+        },
+        {
+          "tick": 268,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p2",
+              "round": 1,
+              "turn": 7,
+              "ordinal": 4
+            }
+          ]
+        },
+        {
+          "tick": 269,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p3",
+              "round": 1,
+              "turn": 8,
+              "ordinal": 4
+            }
+          ]
+        },
+        {
+          "tick": 270,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 9,
+              "ordinal": 5,
+              "weapon": "pebble",
+              "vx": 2208,
+              "vy": -2320
+            }
+          ]
+        }
+      ],
+      "initialHash": "a56dba6c3a52faf0",
+      "verified": {
+        "hash": "bf5ca9c84e780b64",
+        "tick": 334,
+        "ownerHp": 43,
+        "targetHp": 66
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 471,
+      "turn": 10,
+      "target": "p3",
+      "excavation": [
+        {
+          "tick": 472,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 10,
+              "ordinal": 6,
+              "weapon": "pebble",
+              "vx": 2160,
+              "vy": -2256
+            }
+          ]
+        },
+        {
+          "tick": 473,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p3",
+              "round": 1,
+              "turn": 11,
+              "ordinal": 6
+            }
+          ]
+        },
+        {
+          "tick": 474,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 12,
+              "ordinal": 7,
+              "weapon": "pebble",
+              "vx": 2112,
+              "vy": -2320
+            }
+          ]
+        }
+      ],
+      "initialHash": "e3d653dba55ca81f",
+      "verified": {
+        "hash": "b90339d9e44fe4ad",
+        "tick": 538,
+        "ownerHp": 43,
+        "targetHp": 66
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 473,
+      "turn": 12,
+      "target": "p3",
+      "excavation": [
+        {
+          "tick": 474,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 12,
+              "ordinal": 7,
+              "weapon": "pebble",
+              "vx": 2160,
+              "vy": -2256
+            }
+          ]
+        },
+        {
+          "tick": 475,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p3",
+              "round": 1,
+              "turn": 13,
+              "ordinal": 7
+            }
+          ]
+        },
+        {
+          "tick": 476,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 14,
+              "ordinal": 8,
+              "weapon": "pebble",
+              "vx": 2016,
+              "vy": -2144
+            }
+          ]
+        }
+      ],
+      "initialHash": "bb24e536f4e9b0fa",
+      "verified": {
+        "hash": "304f9d06f4d692da",
+        "tick": 535,
+        "ownerHp": 43,
+        "targetHp": 66
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 713,
+      "turn": 18,
+      "target": "p3",
+      "excavation": [
+        {
+          "tick": 714,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 18,
+              "ordinal": 10,
+              "weapon": "pebble",
+              "vx": 2112,
+              "vy": -2144
+            }
+          ]
+        },
+        {
+          "tick": 715,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p3",
+              "round": 1,
+              "turn": 19,
+              "ordinal": 10
+            }
+          ]
+        },
+        {
+          "tick": 716,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 20,
+              "ordinal": 11,
+              "weapon": "pebble",
+              "vx": 2128,
+              "vy": -2208
+            }
+          ]
+        }
+      ],
+      "initialHash": "113906684fd1e5b4",
+      "verified": {
+        "hash": "78eac5786548fef4",
+        "tick": 777,
+        "ownerHp": 9,
+        "targetHp": 32
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 714,
+      "turn": 19,
+      "target": "p0",
+      "excavation": [
+        {
+          "tick": 715,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 19,
+              "ordinal": 10,
+              "weapon": "pebble",
+              "vx": -2160,
+              "vy": -2064
+            }
+          ]
+        },
+        {
+          "tick": 774,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 20,
+              "ordinal": 11
+            }
+          ]
+        },
+        {
+          "tick": 775,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 21,
+              "ordinal": 11,
+              "weapon": "pebble",
+              "vx": -2128,
+              "vy": -2000
+            }
+          ]
+        }
+      ],
+      "initialHash": "28779c53890a1e57",
+      "verified": {
+        "hash": "681550c72c6e82cb",
+        "tick": 832,
+        "ownerHp": 66,
+        "targetHp": 0
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 715,
+      "turn": 20,
+      "target": "p3",
+      "excavation": [
+        {
+          "tick": 716,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 20,
+              "ordinal": 11,
+              "weapon": "pebble",
+              "vx": 2128,
+              "vy": -2208
+            }
+          ]
+        },
+        {
+          "tick": 717,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p3",
+              "round": 1,
+              "turn": 21,
+              "ordinal": 11
+            }
+          ]
+        },
+        {
+          "tick": 718,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 22,
+              "ordinal": 12,
+              "weapon": "pebble",
+              "vx": 2032,
+              "vy": -2144
+            }
+          ]
+        }
+      ],
+      "initialHash": "f56b97aee7c84242",
+      "verified": {
+        "hash": "00a8e651b92ec115",
+        "tick": 776,
+        "ownerHp": 9,
+        "targetHp": 32
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 716,
+      "turn": 21,
+      "target": "p0",
+      "excavation": [
+        {
+          "tick": 717,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 21,
+              "ordinal": 11,
+              "weapon": "pebble",
+              "vx": -2016,
+              "vy": -2128
+            }
+          ]
+        },
+        {
+          "tick": 778,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 22,
+              "ordinal": 12
+            }
+          ]
+        },
+        {
+          "tick": 779,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 23,
+              "ordinal": 12,
+              "weapon": "pebble",
+              "vx": -2304,
+              "vy": -2000
+            }
+          ]
+        }
+      ],
+      "initialHash": "c75655fbd7c5708f",
+      "verified": {
+        "hash": "68e94df9f812109d",
+        "tick": 836,
+        "ownerHp": 66,
+        "targetHp": 0
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 717,
+      "turn": 22,
+      "target": "p3",
+      "excavation": [
+        {
+          "tick": 718,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 22,
+              "ordinal": 12,
+              "weapon": "pebble",
+              "vx": 2032,
+              "vy": -2144
+            }
+          ]
+        },
+        {
+          "tick": 719,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p3",
+              "round": 1,
+              "turn": 23,
+              "ordinal": 12
+            }
+          ]
+        },
+        {
+          "tick": 720,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 24,
+              "ordinal": 13,
+              "weapon": "pebble",
+              "vx": 2160,
+              "vy": -2256
+            }
+          ]
+        }
+      ],
+      "initialHash": "30d5d298510fdbfc",
+      "verified": {
+        "hash": "72adb6f47020efd8",
+        "tick": 786,
+        "ownerHp": 9,
+        "targetHp": 32
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 718,
+      "turn": 23,
+      "target": "p0",
+      "excavation": [
+        {
+          "tick": 719,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 23,
+              "ordinal": 12,
+              "weapon": "pebble",
+              "vx": -2304,
+              "vy": -2000
+            }
+          ]
+        },
+        {
+          "tick": 777,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 24,
+              "ordinal": 13
+            }
+          ]
+        },
+        {
+          "tick": 778,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 25,
+              "ordinal": 13,
+              "weapon": "pebble",
+              "vx": -1984,
+              "vy": -2064
+            }
+          ]
+        }
+      ],
+      "initialHash": "e2566e38f5b13894",
+      "verified": {
+        "hash": "c5522403655f31ef",
+        "tick": 837,
+        "ownerHp": 66,
+        "targetHp": 0
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 719,
+      "turn": 24,
+      "target": "p3",
+      "excavation": [
+        {
+          "tick": 720,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 24,
+              "ordinal": 13,
+              "weapon": "pebble",
+              "vx": 2160,
+              "vy": -2256
+            }
+          ]
+        },
+        {
+          "tick": 721,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p3",
+              "round": 1,
+              "turn": 25,
+              "ordinal": 13
+            }
+          ]
+        },
+        {
+          "tick": 722,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 26,
+              "ordinal": 14,
+              "weapon": "pebble",
+              "vx": 2032,
+              "vy": -2144
+            }
+          ]
+        }
+      ],
+      "initialHash": "0cb54356d6c83d3a",
+      "verified": {
+        "hash": "0fadd18d3731b2a1",
+        "tick": 780,
+        "ownerHp": 9,
+        "targetHp": 32
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 720,
+      "turn": 25,
+      "target": "p0",
+      "excavation": [
+        {
+          "tick": 721,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 25,
+              "ordinal": 13,
+              "weapon": "pebble",
+              "vx": -1984,
+              "vy": -2064
+            }
+          ]
+        },
+        {
+          "tick": 781,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 26,
+              "ordinal": 14
+            }
+          ]
+        },
+        {
+          "tick": 782,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 27,
+              "ordinal": 14,
+              "weapon": "pebble",
+              "vx": -2304,
+              "vy": -2000
+            }
+          ]
+        }
+      ],
+      "initialHash": "80c441c2b6e8f4de",
+      "verified": {
+        "hash": "c6b66b599240cd95",
+        "tick": 839,
+        "ownerHp": 66,
+        "targetHp": 0
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 721,
+      "turn": 26,
+      "target": "p3",
+      "excavation": [
+        {
+          "tick": 722,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 26,
+              "ordinal": 14,
+              "weapon": "pebble",
+              "vx": 2032,
+              "vy": -2144
+            }
+          ]
+        },
+        {
+          "tick": 723,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p3",
+              "round": 1,
+              "turn": 27,
+              "ordinal": 14
+            }
+          ]
+        },
+        {
+          "tick": 724,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 28,
+              "ordinal": 15,
+              "weapon": "pebble",
+              "vx": 2208,
+              "vy": -2320
+            }
+          ]
+        }
+      ],
+      "initialHash": "a30aeec47dfd1a08",
+      "verified": {
+        "hash": "8b677775e7cfbe91",
+        "tick": 788,
+        "ownerHp": 9,
+        "targetHp": 32
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 722,
+      "turn": 27,
+      "target": "p0",
+      "excavation": [
+        {
+          "tick": 723,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 27,
+              "ordinal": 14,
+              "weapon": "pebble",
+              "vx": -2304,
+              "vy": -2000
+            }
+          ]
+        },
+        {
+          "tick": 781,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 28,
+              "ordinal": 15
+            }
+          ]
+        },
+        {
+          "tick": 782,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 29,
+              "ordinal": 15,
+              "weapon": "pebble",
+              "vx": -1840,
+              "vy": -2128
+            }
+          ]
+        }
+      ],
+      "initialHash": "05481899db202a25",
+      "verified": {
+        "hash": "9b98ef718cb84fcd",
+        "tick": 843,
+        "ownerHp": 66,
+        "targetHp": 0
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 723,
+      "turn": 28,
+      "target": "p3",
+      "excavation": [
+        {
+          "tick": 724,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 28,
+              "ordinal": 15,
+              "weapon": "pebble",
+              "vx": 2208,
+              "vy": -2320
+            }
+          ]
+        },
+        {
+          "tick": 725,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p3",
+              "round": 1,
+              "turn": 29,
+              "ordinal": 15
+            }
+          ]
+        },
+        {
+          "tick": 726,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 30,
+              "ordinal": 16,
+              "weapon": "pebble",
+              "vx": 2208,
+              "vy": -2320
+            }
+          ]
+        }
+      ],
+      "initialHash": "93938b9dbe4aef49",
+      "verified": {
+        "hash": "02ac7a594ed268e5",
+        "tick": 790,
+        "ownerHp": 9,
+        "targetHp": 32
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 724,
+      "turn": 29,
+      "target": "p0",
+      "excavation": [
+        {
+          "tick": 725,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 29,
+              "ordinal": 15,
+              "weapon": "pebble",
+              "vx": -1840,
+              "vy": -2128
+            }
+          ]
+        },
+        {
+          "tick": 786,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 30,
+              "ordinal": 16
+            }
+          ]
+        },
+        {
+          "tick": 787,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 31,
+              "ordinal": 16,
+              "weapon": "pebble",
+              "vx": -1840,
+              "vy": -2128
+            }
+          ]
+        }
+      ],
+      "initialHash": "a962521fb82621a3",
+      "verified": {
+        "hash": "e8321d8cb1840240",
+        "tick": 848,
+        "ownerHp": 66,
+        "targetHp": 0
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 725,
+      "turn": 30,
+      "target": "p3",
+      "excavation": [
+        {
+          "tick": 726,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 30,
+              "ordinal": 16,
+              "weapon": "pebble",
+              "vx": 2208,
+              "vy": -2320
+            }
+          ]
+        },
+        {
+          "tick": 727,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p3",
+              "round": 1,
+              "turn": 31,
+              "ordinal": 16
+            }
+          ]
+        },
+        {
+          "tick": 728,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p0",
+              "round": 1,
+              "turn": 32,
+              "ordinal": 17,
+              "weapon": "pebble",
+              "vx": 2128,
+              "vy": -2208
+            }
+          ]
+        }
+      ],
+      "initialHash": "d996758970b5b83d",
+      "verified": {
+        "hash": "7fef1ab22397b706",
+        "tick": 789,
+        "ownerHp": 9,
+        "targetHp": 32
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 726,
+      "turn": 31,
+      "target": "p0",
+      "excavation": [
+        {
+          "tick": 727,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 31,
+              "ordinal": 16,
+              "weapon": "pebble",
+              "vx": -1840,
+              "vy": -2128
+            }
+          ]
+        },
+        {
+          "tick": 788,
+          "actions": [
+            {
+              "type": "pass",
+              "actor": "p0",
+              "round": 1,
+              "turn": 32,
+              "ordinal": 17
+            }
+          ]
+        },
+        {
+          "tick": 789,
+          "actions": [
+            {
+              "type": "launch",
+              "actor": "p3",
+              "round": 1,
+              "turn": 33,
+              "ordinal": 17,
+              "weapon": "pebble",
+              "vx": -2128,
+              "vy": -2000
+            }
+          ]
+        }
+      ],
+      "initialHash": "0ecd065b781fce77",
+      "verified": {
+        "hash": "4e87c654cca87288",
+        "tick": 846,
+        "ownerHp": 66,
+        "targetHp": 0
+      }
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 727,
+      "turn": 32,
+      "target": "p3",
+      "initialHash": "3df88dbf051ae683"
+    },
+    {
+      "seed": 3,
+      "count": 4,
+      "tick": 728,
+      "turn": 33,
+      "target": "p0",
+      "initialHash": "1c1da96792f3d9f3"
+    },
+    {
+      "seed": 4,
+      "count": 3,
+      "tick": 268,
+      "turn": 6,
+      "target": "p1",
+      "direct": {
+        "vx": -896,
+        "vy": -1872
+      },
+      "initialHash": "e60e9f3ed8733e3a",
+      "verified": {
+        "hash": "ec3bcc302978e5ac",
+        "tick": 323,
+        "ownerHp": 100,
+        "targetHp": 28
+      }
+    },
+    {
+      "seed": 4,
+      "count": 3,
+      "tick": 276,
+      "turn": 14,
+      "target": "p1",
+      "direct": {
+        "vx": -896,
+        "vy": -1872
+      },
+      "initialHash": "ed548c51feb2d15d",
+      "verified": {
+        "hash": "887107b563f80419",
+        "tick": 331,
+        "ownerHp": 100,
+        "targetHp": 28
+      }
+    },
+    {
+      "seed": 8,
+      "count": 4,
+      "tick": 397,
+      "turn": 8,
+      "target": "p1",
+      "direct": {
+        "vx": -1472,
+        "vy": -1808
+      },
+      "initialHash": "62c66f26a202641a",
+      "verified": {
+        "hash": "81121b2d58070db1",
+        "tick": 450,
+        "ownerHp": 100,
+        "targetHp": 28
+      }
+    }
+  ]
+}

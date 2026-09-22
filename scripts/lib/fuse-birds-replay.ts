@@ -1,0 +1,99 @@
+import {
+  advance,
+  candidateVector,
+  createMatch,
+  decodeState,
+  encodeState,
+  hashState,
+  RULES,
+  traceShot,
+  type Action,
+  type Match,
+} from "fuse-birds-game";
+/** Verification driver only: ordinary public inputs, no privileged movement or state mutation. */
+export function nextReplayActions(state: Match): Action[] {
+  if (state.phase !== "aiming") return [];
+  const player = state.players[state.active]!;
+  if (!player.grounded) return [];
+  const scope = {
+    actor: player.id,
+    round: state.round,
+    turn: state.turn,
+    ordinal: player.ordinal + 1,
+  };
+  if (player.ordinal === 0)
+    return [{ ...scope, type: "move", direction: player.slot % 2 ? -1 : 1 }];
+  if (player.ordinal === 1) return [{ ...scope, type: "hop", direction: 0 }];
+  for (const target of state.players.filter(
+    (p) => p.id !== player.id && p.hp > 0,
+  )) {
+    for (let candidate = 0; candidate < 201; candidate++) {
+      const vector = candidateVector(player, target, state.wind, candidate);
+      if (
+        vector &&
+        traceShot(
+          state.terrain,
+          state.players,
+          player,
+          vector,
+          state.wind,
+          target.id,
+        ).hit
+      ) {
+        const action: Action = {
+          ...scope,
+          type: "launch",
+          weapon:
+            player.ammo > 0 && state.turn % 3 === 0 ? "scatter" : "pebble",
+          ...vector,
+        };
+        return [action, { ...action }]; // A duplicate release is part of the replay contract.
+      }
+    }
+  }
+  return [{ ...scope, type: "pass" }];
+}
+export function replayFixture(seed: number, count: number) {
+  let state = createMatch(
+    "cross-runtime",
+    seed,
+    Array.from({ length: count }, (_, i) => ({
+      id: `p${i}`,
+      name: `Bird ${i}`,
+    })),
+  );
+  const hashes: string[] = [],
+    events: Record<string, number> = {};
+  for (
+    let tick = 0;
+    tick < 20_000 && state.phase !== "over" && state.phase !== "fault";
+    tick++
+  ) {
+    for (const event of advance(state, nextReplayActions(state)))
+      events[event.type] = (events[event.type] ?? 0) + 1;
+    const hash = hashState(state);
+    hashes.push(hash);
+    if (tick % 19 === 0) {
+      const restored = decodeState(encodeState(state));
+      if (!restored || hashState(restored) !== hash)
+        throw new Error(`Checkpoint mismatch at tick ${state.tick}`);
+      state = restored;
+    }
+  }
+  if (state.phase !== "over")
+    throw new Error(`Replay did not finish: ${state.phase} at ${state.tick}`);
+  return {
+    rules: RULES,
+    seed,
+    count,
+    hashes,
+    final: {
+      hash: hashState(state),
+      ticks: state.tick,
+      winner: state.winner,
+      terrainVersion: state.terrain.version,
+      generationWork: state.preparation.work,
+      events,
+    },
+  };
+}
