@@ -1,5 +1,5 @@
 {
-  "rules": "fuse-birds-4",
+  "rules": "fuse-birds-5",
   "results": [
     {
       "seed": 3,
@@ -126,13 +126,13 @@
           ]
         }
       ],
-      "initialHash": "e5fb7cd326774e7f",
       "verified": {
-        "hash": "38bd56f2455cb7be",
+        "hash": "1dd6f20530a81699",
         "tick": 401,
         "ownerHp": 100,
         "targetHp": 0
-      }
+      },
+      "initialHash": "80cfe408fefd36ac"
     },
     {
       "seed": 3,
@@ -565,13 +565,13 @@
           ]
         }
       ],
-      "initialHash": "e5fb7cd326774e7f",
       "verified": {
-        "hash": "668bbbb3deeaaeb7",
+        "hash": "60dd5732c59a52c6",
         "tick": 579,
         "ownerHp": 100,
         "targetHp": 0
-      }
+      },
+      "initialHash": "80cfe408fefd36ac"
     },
     {
       "seed": 3,
@@ -647,13 +647,13 @@
           ]
         }
       ],
-      "initialHash": "a56dba6c3a52faf0",
       "verified": {
-        "hash": "bf5ca9c84e780b64",
+        "hash": "aca344dfaabe23b3",
         "tick": 334,
         "ownerHp": 43,
         "targetHp": 66
-      }
+      },
+      "initialHash": "37ce87f90c8d340d"
     },
     {
       "seed": 3,
@@ -705,13 +705,13 @@
           ]
         }
       ],
-      "initialHash": "e3d653dba55ca81f",
       "verified": {
-        "hash": "b90339d9e44fe4ad",
+        "hash": "0322fad275dce10e",
         "tick": 538,
         "ownerHp": 43,
         "targetHp": 66
-      }
+      },
+      "initialHash": "a0ee9778f29abac4"
     },
     {
       "seed": 3,
@@ -763,13 +763,13 @@
           ]
         }
       ],
-      "initialHash": "bb24e536f4e9b0fa",
       "verified": {
-        "hash": "304f9d06f4d692da",
+        "hash": "9c48dfb73de2cbbb",
         "tick": 535,
         "ownerHp": 43,
         "targetHp": 66
-      }
+      },
+      "initialHash": "aa6c0ced65195969"
     },
     {
       "seed": 3,
@@ -821,13 +821,13 @@
           ]
         }
       ],
-      "initialHash": "113906684fd1e5b4",
       "verified": {
-        "hash": "78eac5786548fef4",
+        "hash": "b67029e995f5fad5",
         "tick": 777,
         "ownerHp": 9,
         "targetHp": 32
-      }
+      },
+      "initialHash": "2ee0def9fe78da85"
     },
     {
       "seed": 3,
@@ -879,13 +879,13 @@
           ]
         }
       ],
-      "initialHash": "28779c53890a1e57",
       "verified": {
-        "hash": "681550c72c6e82cb",
+        "hash": "3b4a96723db85496",
         "tick": 832,
         "ownerHp": 66,
         "targetHp": 0
-      }
+      },
+      "initialHash": "6603e666de63da0a"
     },
     {
       "seed": 3,
@@ -937,13 +937,13 @@
           ]
         }
       ],
-      "initialHash": "f56b97aee7c84242",
       "verified": {
-        "hash": "00a8e651b92ec115",
+        "hash": "294beb042d691ab8",
         "tick": 776,
         "ownerHp": 9,
         "targetHp": 32
-      }
+      },
+      "initialHash": "c0618ad32d799e47"
     },
     {
       "seed": 3,
@@ -995,13 +995,13 @@
           ]
         }
       ],
-      "initialHash": "c75655fbd7c5708f",
       "verified": {
-        "hash": "68e94df9f812109d",
+        "hash": "a7a6c27052d37f54",
         "tick": 836,
         "ownerHp": 66,
         "targetHp": 0
-      }
+      },
+      "initialHash": "8aa2194696536cea"
     },
     {
       "seed": 3,
@@ -1053,13 +1053,13 @@
           ]
         }
       ],
-      "initialHash": "30d5d298510fdbfc",
       "verified": {
-        "hash": "72adb6f47020efd8",
+        "hash": "09590c9f4d27a36b",
         "tick": 786,
         "ownerHp": 9,
         "targetHp": 32
-      }
+      },
+      "initialHash": "4c25f08d0c7dfef1"
     },
     {
       "seed": 3,
@@ -1111,13 +1111,13 @@
           ]
         }
       ],
-      "initialHash": "e2566e38f5b13894",
       "verified": {
-        "hash": "c5522403655f31ef",
+        "hash": "82894870731b8824",
         "tick": 837,
         "ownerHp": 66,
         "targetHp": 0
-      }
+      },
+      "initialHash": "ef10d6098d3f4865"
     },
     {
       "seed": 3,
@@ -1169,13 +1169,13 @@
           ]
         }
       ],
-      "initialHash": "0cb54356d6c83d3a",
       "verified": {
-        "hash": "0fadd18d3731b2a1",
+        "hash": "5f1f2e84ea5232d8",
         "tick": 780,
         "ownerHp": 9,
         "targetHp": 32
-      }
+      },
+      "initialHash": "e55846a1ff6ade9d"
     },
     {
       "seed": 3,
@@ -1227,13 +1227,13 @@
           ]
         }
       ],
-      "initialHash": "80c441c2b6e8f4de",
       "verified": {
-        "hash": "c6b66b599240cd95",
+        "hash": "5b1aae0c2f1e1028",
         "tick": 839,
         "ownerHp": 66,
         "targetHp": 0
-      }
+      },
+      "initialHash": "f01b5ccd34441811"
     },
     {
       "seed": 3,
@@ -1285,13 +1285,13 @@
           ]
         }
       ],
-      "initialHash": "a30aeec47dfd1a08",
       "verified": {
-        "hash": "8b677775e7cfbe91",
+        "hash": "deb3ab4289bb8566",
         "tick": 788,
         "ownerHp": 9,
         "targetHp": 32
-      }
+      },
+      "initialHash": "f1e5f97dc17b8381"
     },
     {
       "seed": 3,
@@ -1343,13 +1343,13 @@
           ]
         }
       ],
-      "initialHash": "05481899db202a25",
       "verified": {
-        "hash": "9b98ef718cb84fcd",
+        "hash": "412da0aef6f85372",
         "tick": 843,
         "ownerHp": 66,
         "targetHp": 0
-      }
+      },
+      "initialHash": "a32757a84296d7c4"
     },
     {
       "seed": 3,
@@ -1401,13 +1401,13 @@
           ]
         }
       ],
-      "initialHash": "93938b9dbe4aef49",
       "verified": {
-        "hash": "02ac7a594ed268e5",
+        "hash": "6f24d4ba1c87f0be",
         "tick": 790,
         "ownerHp": 9,
         "targetHp": 32
-      }
+      },
+      "initialHash": "bb4283b6d56f5ada"
     },
     {
       "seed": 3,
@@ -1459,13 +1459,13 @@
           ]
         }
       ],
-      "initialHash": "a962521fb82621a3",
       "verified": {
-        "hash": "e8321d8cb1840240",
+        "hash": "dec8a04bdc248f27",
         "tick": 848,
         "ownerHp": 66,
         "targetHp": 0
-      }
+      },
+      "initialHash": "b9072f3485d43840"
     },
     {
       "seed": 3,
@@ -1517,13 +1517,13 @@
           ]
         }
       ],
-      "initialHash": "d996758970b5b83d",
       "verified": {
-        "hash": "7fef1ab22397b706",
+        "hash": "0a7a9c2ff3b15e93",
         "tick": 789,
         "ownerHp": 9,
         "targetHp": 32
-      }
+      },
+      "initialHash": "73707682d8a2b8fe"
     },
     {
       "seed": 3,
@@ -1575,13 +1575,13 @@
           ]
         }
       ],
-      "initialHash": "0ecd065b781fce77",
       "verified": {
-        "hash": "4e87c654cca87288",
+        "hash": "ffb25c79536c28cd",
         "tick": 846,
         "ownerHp": 66,
         "targetHp": 0
-      }
+      },
+      "initialHash": "a085077ceec75160"
     },
     {
       "seed": 3,
@@ -1589,7 +1589,7 @@
       "tick": 727,
       "turn": 32,
       "target": "p3",
-      "initialHash": "3df88dbf051ae683"
+      "initialHash": "eb13522a8af36e4e"
     },
     {
       "seed": 3,
@@ -1597,7 +1597,7 @@
       "tick": 728,
       "turn": 33,
       "target": "p0",
-      "initialHash": "1c1da96792f3d9f3"
+      "initialHash": "feb39b0e3f7d531a"
     },
     {
       "seed": 4,
@@ -1609,9 +1609,9 @@
         "vx": -896,
         "vy": -1872
       },
-      "initialHash": "e60e9f3ed8733e3a",
+      "initialHash": "97adfbeb9736ac97",
       "verified": {
-        "hash": "ec3bcc302978e5ac",
+        "hash": "3da5ba0d9eafed29",
         "tick": 323,
         "ownerHp": 100,
         "targetHp": 28
@@ -1627,9 +1627,9 @@
         "vx": -896,
         "vy": -1872
       },
-      "initialHash": "ed548c51feb2d15d",
+      "initialHash": "f77c72b4068a50a0",
       "verified": {
-        "hash": "887107b563f80419",
+        "hash": "8211f26eb215320a",
         "tick": 331,
         "ownerHp": 100,
         "targetHp": 28
@@ -1645,9 +1645,9 @@
         "vx": -1472,
         "vy": -1808
       },
-      "initialHash": "62c66f26a202641a",
+      "initialHash": "349de403e4be1fd7",
       "verified": {
-        "hash": "81121b2d58070db1",
+        "hash": "b31534ba37fbd086",
         "tick": 450,
         "ownerHp": 100,
         "targetHp": 28

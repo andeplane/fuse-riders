@@ -1,6 +1,6 @@
 # ADR-051: Fuse Birds rendering, themes and independent cameras
 
-- Status: Architecture implemented in part; V2 visual direction accepted, final visual acceptance outstanding
+- Status: Phase 1 implemented and reviewed against V2; user playtesting remains before merge
 - Date: 2026-09-22
 - Related: [concept spec](../design/fuse-birds.md), [V2 concept gallery](../design/fuse-birds-concepts/README.md), [physics](048-fuse-birds-physics.md), [game engine](049-fuse-birds-game-engine.md), [generation](050-fuse-birds-level-generation.md)
 
@@ -13,6 +13,8 @@ The repository already uses Phaser for presentation with an external clock and a
 ## Decision
 
 ### Current implementation and remaining acceptance
+
+The Phase 1 [playable captures and visual comparison](../design/fuse-birds-playtest/README.md) now document full-map TV, independent phone zoom, keyboard aiming, ammo refill and results. DPR2 captures and gesture regressions address review findings. Keyboard aiming and zoom use the same launch lattice and camera, and off-screen bird/supply markers retain CSS-pixel size on high-DPI displays. Remaining unimplemented features listed below (additional themes, atlases and high-detail promotion) are future extensions, not Phase 1 delivery gates. User approval of feel/appearance is intentionally reserved for playtesting the open PR.
 
 The browser now uses Phaser 4.2.1 with an externally supplied frame and a stopped Phaser loop. The headless package has no renderer dependency. `render/arena.ts` consumes copied engine views and uses content-hashed 128-cell chunks with two texels per cell and eight-cell gutters. Original sky and rock artwork lives in `public/games/fuse-birds/art/v1/`; birds, ammo crates, sling bands and effects are authored in Canvas/code. These choices implement the hybrid composition below, but do not establish final visual acceptance or physical-phone performance.
 

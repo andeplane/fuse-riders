@@ -1,6 +1,6 @@
 # ADR-050: Seeded destructible levels with verified shot reachability
 
-- Status: Generation implemented; continuing-play qualification remains in progress
+- Status: Implemented; finite range/map corpus verified with documented late sudden-death cases
 - Date: 2026-09-22
 - Related: [concept spec](../design/fuse-birds.md), [physics](048-fuse-birds-physics.md), [game engine](049-fuse-birds-game-engine.md), [rendering](051-fuse-birds-rendering.md)
 

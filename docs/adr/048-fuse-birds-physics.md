@@ -1,6 +1,6 @@
 # ADR-048: Fuse Birds deterministic artillery physics
 
-- Status: Implemented in the worktree; Phase 1 verification in progress
+- Status: Implemented and independently reviewed in PR #407
 - Date: 2026-09-22
 - Scope: Fuse Birds only
 - Related: [concept spec](../design/fuse-birds.md), [game engine](049-fuse-birds-game-engine.md), [level generation](050-fuse-birds-level-generation.md), [rendering](051-fuse-birds-rendering.md)

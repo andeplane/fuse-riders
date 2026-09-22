@@ -1,18 +1,18 @@
 {
-  "rules": "fuse-birds-4",
+  "rules": "fuse-birds-5",
   "results": [
     {
       "earlierTurn": 20,
       "lateTurn": 32,
       "sameTerrainPositionsHealthWind": true,
       "earlierResult": {
-        "hash": "00a8e651b92ec115",
+        "hash": "294beb042d691ab8",
         "tick": 776,
         "ownerHp": 9,
         "targetHp": 32
       },
-      "beforeHash": "3df88dbf051ae683",
-      "finalHash": "bb5132f9f5c6bfa5",
+      "beforeHash": "eb13522a8af36e4e",
+      "finalHash": "cf3101d89a29b6a4",
       "water": 481,
       "lowBirdFeet": 484.99609375,
       "launched": 1,
@@ -51,13 +51,13 @@
       "lateTurn": 33,
       "sameTerrainPositionsHealthWind": true,
       "earlierResult": {
-        "hash": "68e94df9f812109d",
+        "hash": "a7a6c27052d37f54",
         "tick": 836,
         "ownerHp": 66,
         "targetHp": 0
       },
-      "beforeHash": "1c1da96792f3d9f3",
-      "finalHash": "49dc57cdf42255a9",
+      "beforeHash": "feb39b0e3f7d531a",
+      "finalHash": "310b2efc4ac9d628",
       "water": 481,
       "lowBirdFeet": 484.99609375,
       "launched": 1,

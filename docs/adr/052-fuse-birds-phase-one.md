@@ -1,6 +1,6 @@
 # ADR-052: Phase 1 is a complete two-weapon game with finished graphics
 
-- Status: Proposed implementation contract; two-weapon scope and finished-graphics requirement directed by the user
+- Status: Phase 1 implementation contract delivered in open PR #407; user playtesting before merge
 - Date: 2026-09-22
 - Related: [physics](048-fuse-birds-physics.md), [headless game engine](049-fuse-birds-game-engine.md), [generation](050-fuse-birds-level-generation.md), [rendering](051-fuse-birds-rendering.md), [concept](../design/fuse-birds.md)
 

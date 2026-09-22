@@ -1,6 +1,6 @@
 # ADR-049: Headless Fuse Birds library and room adapters
 
-- Status: Implemented in the worktree; acceptance verification in progress
+- Status: Implemented and independently reviewed in PR #407
 - Date: 2026-09-22
 - Related: [Phase 1 contract](052-fuse-birds-phase-one.md), [physics](048-fuse-birds-physics.md), [levels](050-fuse-birds-level-generation.md), [rendering](051-fuse-birds-rendering.md)
 

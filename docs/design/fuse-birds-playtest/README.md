@@ -5,6 +5,7 @@ These are real Chromium room flows, not concept images or injected game states. 
 - [Shared TV](shared-tv.png): the entire map, tiny widely spaced birds, navy scenery, cyan contours and fixed weapon counts.
 - [Keyboard aiming](keyboard-aim.png): the actual quantized shot preview before Enter launches; Escape cancellation also tested without spending ammo.
 - [Phone zoom](phone-zoom.png): 390×844 emulated phone, independent 190% view, fixed-size controls and direction labels for off-screen birds.
+- [High-DPI phone zoom](phone-zoom-dpr2.png): rules-5 review fix, 390×844 CSS pixels at DPR2; marker text and safe margins retain their CSS size.
 - [Ammo refill](refill.png): the exhausted player's next turn visibly shows ×1 after an ordinary Pebble shot collected a naturally spawned crate. This capture predates the new keyboard/edge-label controls; terrain art and inventory behavior are unchanged.
 - [Round result](result.png): completed real match, followed by a verified rematch with fresh ammunition.
 
