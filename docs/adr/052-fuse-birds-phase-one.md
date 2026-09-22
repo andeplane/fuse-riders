@@ -16,6 +16,12 @@ The earlier walking/hopping mechanic was an implementation mistake, not a user r
 
 ## Decision and precedence
 
+### One-player practice (2026-09-23)
+
+The user additionally requests one player to fire on a map. Provide a local **1 PLAYER PRACTICE** entry using the same library, renderer, weapons and controls. One actual stationary bird starts immediately, without a room, bots or dummy opponents. Practice has no decision timer, self-damage or rising-water ending; after each shot the same bird can fire again. Keep the usual unlimited Pebble and three initial Scatter Bombs, shootable refills and a **NEW MAP** action that regenerates terrain and restores ammunition.
+
+Select a distinct practice rules identity for a one-player library match. Do not change multiplayer rule hashes or its 2–5-player online admission. A local fixed-step adapter owns scheduling and pauses hidden pages without catch-up; the engine remains headless. Practice checkpoints must not be accepted by the online room adapter.
+
 Phase 1 delivers one complete 2–5-player online game with exactly two usable weapons and one fully finished visual theme. The game remains a headless library; UI, renderer and networking are adapters. ADRs 048–051 define its architecture; this ADR controls which features ship in Phase 1 wherever their broader examples differ. No game implementation, merge or deployment is performed by writing these ADRs.
 
 Use Neon burrow V2 as the first finished theme. The other four accepted styles remain future skins of the same game; their asset packs do not block Phase 1. Random terrain within the finished theme is required, so this is not a single fixed scene disguised as a game. The material registry and terrain contract allow later themes without different physics.

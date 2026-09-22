@@ -2,6 +2,7 @@ import {
   HEIGHT,
   MAX_AMMO,
   RULES,
+  PRACTICE_RULES,
   UNIT,
   WIDTH,
   integer,
@@ -70,7 +71,7 @@ export function encodeState(state: Match): Match {
 export function decodeState(raw: unknown): Match | undefined {
   if (
     !record(raw) ||
-    raw.rules !== RULES ||
+    (raw.rules !== RULES && raw.rules !== PRACTICE_RULES) ||
     !id(raw.id) ||
     !number(raw, "seed", 0, 0xffffffff) ||
     !number(raw, "rng", 0, 0xffffffff)
@@ -91,12 +92,18 @@ export function decodeState(raw: unknown): Match | undefined {
     return;
   if (
     !Array.isArray(raw.players) ||
-    raw.players.length < 2 ||
+    raw.players.length < 1 ||
     raw.players.length > 5 ||
     !raw.players.every(isPlayer)
   )
     return;
   const players = raw.players;
+  if (raw.rules !== (players.length === 1 ? PRACTICE_RULES : RULES)) return;
+  if (
+    raw.rules === PRACTICE_RULES &&
+    (players[0]!.hp !== 100 || raw.water !== 705 || raw.phase === "over")
+  )
+    return;
   if (
     new Set(players.map((p) => p.id)).size !== players.length ||
     new Set(players.map((p) => p.slot)).size !== players.length
@@ -202,7 +209,8 @@ export function decodeState(raw: unknown): Match | undefined {
   if (
     raw.phase === "aiming" &&
     (players[Number(raw.active)]!.hp <= 0 ||
-      Number(raw.deadline) <= Number(raw.tick))
+      (raw.rules !== PRACTICE_RULES &&
+        Number(raw.deadline) <= Number(raw.tick)))
   )
     return;
   if (
@@ -214,7 +222,7 @@ export function decodeState(raw: unknown): Match | undefined {
   if (raw.phase === "fault" ? raw.fault === null : raw.fault !== null) return;
   // Rebuild whitelisted data, rather than retaining arbitrary checkpoint properties/prototypes.
   return {
-    rules: RULES,
+    rules: raw.rules,
     id: raw.id,
     seed: Number(raw.seed),
     rng: Number(raw.rng),

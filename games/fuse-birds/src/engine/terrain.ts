@@ -75,7 +75,10 @@ export function generateTerrain(
   for (let i = 0; i <= 16; i++)
     heights.push(fallback ? 450 : 335 + (nextRandom(rng) % 285));
   const perches = Array.from({ length: count }, (_, i) => ({
-    x: 70 + Math.round((i * (WIDTH - 140)) / (count - 1)),
+    x:
+      count === 1
+        ? WIDTH / 2
+        : 70 + Math.round((i * (WIDTH - 140)) / (count - 1)),
     y: fallback ? 450 : 350 + (nextRandom(rng) % 60),
   }));
   for (let x = 0; x < WIDTH; x++) {

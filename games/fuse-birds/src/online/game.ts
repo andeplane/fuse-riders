@@ -247,7 +247,13 @@ export function decodeRoom(
   if (head[1] === "lobby") {
     if (match !== null || head[2] !== 0) return;
   } else {
-    if (!match || match.id !== head[0] || match.tick !== tick - head[2]) return;
+    if (
+      !match ||
+      match.rules !== RULES ||
+      match.id !== head[0] ||
+      match.tick !== tick - head[2]
+    )
+      return;
     if (
       head[1] === "running" &&
       match.players.some(

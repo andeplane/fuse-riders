@@ -6,6 +6,8 @@ The slingshot-only correction is playable in [PR #407](https://github.com/andepl
 
 ## Play locally
 
+For one-player shooting, click **1 PLAYER PRACTICE** on the landing screen, or open `/fuse-birds/?practice=1&mute`. It starts immediately with one stationary bird and no room or opponent. Fire Pebbles, try your three Scatter Bombs and shoot refill crates. There is no timer, self-damage or rising water. **NEW MAP** generates fresh terrain and restores ammunition.
+
 From the repository root, run `pnpm dev`. Open the URL printed by the server with `/fuse-birds/?mute` appended. The server chooses a free port when necessary. Create a room and join its code on a second device/tab. Start with 2–5 players. Select shared TV when creating a room to get a full-map display link; each phone retains its own map view.
 
 Drag back from your bird and release to shoot. Drag elsewhere to pan; pinch or use the zoom controls to inspect the map. Adding a second finger cancels an uncommitted shot. Birds cannot walk or hop. Aim from their current position, shoot, or pass; their x/y positions stay fixed for the round, even when explosions destroy terrain beneath them. Scatter splits at its apex and costs one bomb; shooting a crate refills one, capped at five. The weapon count belongs to the game state, so recovery and rematch cannot leave a stale local count.
@@ -82,6 +84,8 @@ pnpm exec tsx scripts/fuse-birds-replay-check.ts http://localhost:5181
 ```
 
 The online smoke uses the built local room service; its default URL is port 8893. Browser emulation does not establish physical-phone/TV performance. The development render and replay HTML harnesses are verification tools, not alternate shipping game implementations.
+
+`pnpm exec tsx scripts/fuse-birds-practice-smoke.ts` checks the one-player entry, both weapons, repeated shots, new map/refill, direct-link reload and absence of room requests. The public headless API selects the separately versioned practice rules when `createMatch` receives exactly one player. Multiplayer still requires 2–5 players and retains its rules and golden outcomes; practice checkpoints cannot be installed in an online room.
 
 `pnpm test:coverage` combines the complete Node suite with actual Chromium execution of the render harness and the two-player/TV room flow, including keyboard launch, cancellation, reload, result and rematch. Install Chromium first (`pnpm exec playwright install chromium`; CI also installs its system dependencies). The command starts and closes its own Vite and in-memory room servers on free ports and retains the existing coverage thresholds and exclusions. A failed Node test, browser flow or final coverage report makes the command fail.
 

@@ -1,4 +1,5 @@
 export const RULES = "fuse-birds-7";
+export const PRACTICE_RULES = "fuse-birds-practice-1";
 export const WIDTH = 1536,
   HEIGHT = 768,
   UNIT = 256,
@@ -76,7 +77,7 @@ export interface CrateSearch {
   work: number;
 }
 export interface Match {
-  rules: typeof RULES;
+  rules: typeof RULES | typeof PRACTICE_RULES;
   id: string;
   seed: number;
   rng: number;

@@ -39,6 +39,7 @@ import {
 } from "./gestures.js";
 import { roomFailure, roomToken, safeStore, storageKeys } from "./session.js";
 import { BirdsAudio } from "./audio.js";
+import { PracticeRuntime } from "./practice.js";
 
 const GAME = "fuse-birds",
   COLORS = ["#6df4ed", "#ff6ec7", "#bded76", "#ffb75e", "#b797ff"];
@@ -70,9 +71,10 @@ function landing(): void {
   const title = el("h1", "SMALL BIRDS.\nBIG TROUBLE."),
     intro = el(
       "p",
-      "A slingshot battle for 2–5 friends. Carve the cliffs, catch supply crates, and be the last bird standing.",
+      "Practice solo, or battle with 2–5 friends. Carve the cliffs, catch supply crates, and be the last bird standing.",
     );
   const create = button("CREATE ROOM", "fui-button-primary"),
+    practice = button("1 PLAYER PRACTICE"),
     join = button("JOIN ROOM"),
     code = el("input");
   code.placeholder = "ROOM CODE";
@@ -97,7 +99,12 @@ function landing(): void {
   back.href = import.meta.env.BASE_URL;
   create.onclick = async () => {
     if (create.disabled) return;
-    create.disabled = join.disabled = code.disabled = shared.disabled = true;
+    create.disabled =
+      practice.disabled =
+      join.disabled =
+      code.disabled =
+      shared.disabled =
+        true;
     message.textContent = "Creating your room…";
     try {
       const result = await createRoom(endpoints.apiUrl, fetch, GAME);
@@ -110,8 +117,22 @@ function landing(): void {
       room(result.code, false);
     } catch (error) {
       message.textContent = `${roomFailure(error)} Try again.`;
-      create.disabled = join.disabled = code.disabled = shared.disabled = false;
+      create.disabled =
+        practice.disabled =
+        join.disabled =
+        code.disabled =
+        shared.disabled =
+          false;
     }
+  };
+  practice.onclick = () => {
+    if (practice.disabled) return;
+    history.pushState(
+      null,
+      "",
+      endpoints.appUrl(`?practice=1${muted ? "&mute" : ""}`),
+    );
+    room("SOLO PRACTICE", false, true);
   };
   joinForm.onsubmit = (e) => {
     e.preventDefault();
@@ -133,6 +154,7 @@ function landing(): void {
     title,
     intro,
     create,
+    practice,
     label,
     joinForm,
     message,
@@ -141,7 +163,7 @@ function landing(): void {
   page.append(brand(), card);
   app.replaceChildren(page);
 }
-function room(code: string, display: boolean): void {
+function room(code: string, display: boolean, practice = false): void {
   const page = el("main", "", "birds-room"),
     header = el("header", "", "birds-top"),
     message = notice("Connecting…");
@@ -411,6 +433,16 @@ function room(code: string, display: boolean): void {
     },
     { passive: false },
   );
+  if (practice) {
+    pass.hidden = true;
+    const newMap = button("NEW MAP");
+    newMap.onclick = () => {
+      cancel();
+      runtime.command({ type: "action", action: "rematch" });
+    };
+    turnActions.append(newMap);
+    retry.hidden = true;
+  }
   pass.onclick = () => {
     cancel();
     play({ type: "pass" });
@@ -510,13 +542,15 @@ function room(code: string, display: boolean): void {
           card.classList.toggle("current", p.id === player.id);
           card.classList.toggle("eliminated", p.hp === 0);
           card.replaceChildren(
-            el("span", `${p.name}${p.id === me ? " · YOU" : ""}`),
+            el("span", `${p.name}${p.id === me && !practice ? " · YOU" : ""}`),
             el("b", p.hp > 0 ? String(p.hp) : "OUT"),
           );
           return card;
         }),
       );
-      turn.textContent = `${player.id === me ? "YOUR TURN" : `${player.name}'S TURN`}  ·  ${view.phase === "aiming" ? `${Math.ceil(view.timeLeft)}s` : view.phase.toUpperCase()}  ·  WIND ${view.wind < 0 ? "←" : view.wind > 0 ? "→" : "—"} ${Math.abs(view.wind)}`;
+      turn.textContent = practice
+        ? `SOLO PRACTICE · WIND ${view.wind}`
+        : `${player.id === me ? "YOUR TURN" : `${player.name}'S TURN`}  ·  ${view.phase === "aiming" ? `${Math.ceil(view.timeLeft)}s` : view.phase.toUpperCase()}  ·  WIND ${view.wind < 0 ? "←" : view.wind > 0 ? "→" : "—"} ${Math.abs(view.wind)}`;
       pebbleCount.textContent = "∞";
       scatterCount.textContent = `×${player.ammo}`;
       pebble.setAttribute("aria-label", "Pebble, unlimited ammunition");
@@ -547,35 +581,43 @@ function room(code: string, display: boolean): void {
               : "DRAW!";
       overlayText.textContent =
         view.phase === "preparing"
-          ? "Checking that every bird has an opening shot…"
+          ? practice
+            ? "Preparing your practice map…"
+            : "Checking that every bird has an opening shot…"
           : (view.fault ?? "New terrain. Fresh ammunition. Another round?");
       rematch.hidden = toLobby.hidden = !host || view.phase === "preparing";
     },
   };
-  const runtime = new BirdsRuntime(
-    code,
-    {
-      ...DEFAULT_SETTINGS,
-      display:
-        !!store.get(storageKeys.host(code)) &&
-        store.get(storageKeys.shared) === "1",
-    },
-    callbacks,
-    {
-      displayOnly: display,
-      transport: (events) =>
-        new PeerTransport(
-          code,
-          roomToken(store, code, display, secret),
-          events,
-          {
-            apiUrl: endpoints.apiUrl,
-            gameId: GAME,
-            maxFastBytes: MAX_PACKET_BYTES,
-          },
-        ),
-    },
-  );
+  const runtime = practice
+    ? new PracticeRuntime(callbacks, {
+        name: seatName(store.get(storageKeys.name) ?? "") ?? "YOU",
+        seed: crypto.getRandomValues(new Uint32Array(1))[0]!,
+        active: () => !document.hidden,
+      })
+    : new BirdsRuntime(
+        code,
+        {
+          ...DEFAULT_SETTINGS,
+          display:
+            !!store.get(storageKeys.host(code)) &&
+            store.get(storageKeys.shared) === "1",
+        },
+        callbacks,
+        {
+          displayOnly: display,
+          transport: (events) =>
+            new PeerTransport(
+              code,
+              roomToken(store, code, display, secret),
+              events,
+              {
+                apiUrl: endpoints.apiUrl,
+                gameId: GAME,
+                maxFastBytes: MAX_PACKET_BYTES,
+              },
+            ),
+        },
+      );
   const stop = () => {
     stopped = true;
     cancel();
@@ -676,5 +718,6 @@ function room(code: string, display: boolean): void {
 const query = new URLSearchParams(location.search),
   code = query.get("room")?.trim().toUpperCase();
 window.addEventListener("popstate", () => location.reload());
-if (code && validRoomCode(code)) room(code, query.get("display") === "1");
+if (query.get("practice") === "1") room("SOLO PRACTICE", false, true);
+else if (code && validRoomCode(code)) room(code, query.get("display") === "1");
 else landing();

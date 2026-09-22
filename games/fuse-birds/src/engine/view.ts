@@ -1,5 +1,6 @@
 import {
   HEIGHT,
+  PRACTICE_RULES,
   WIDTH,
   type Crate,
   type Match,
@@ -47,12 +48,19 @@ export function getView(state: Match): WorldView {
     },
     active: state.active,
     turn: state.turn,
-    timeLeft: Math.max(0, state.deadline - state.tick) / 20,
+    timeLeft:
+      state.rules === PRACTICE_RULES
+        ? 0
+        : Math.max(0, state.deadline - state.tick) / 20,
     wind: state.wind,
     water: state.water,
     progress:
-      state.preparation.witnesses.length /
-      (state.players.length * (state.players.length - 1) * 5),
+      state.rules === PRACTICE_RULES
+        ? state.phase === "preparing"
+          ? 0
+          : 1
+        : state.preparation.witnesses.length /
+          (state.players.length * (state.players.length - 1) * 5),
     winner: state.winner,
     fault: state.fault,
   };

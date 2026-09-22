@@ -4,6 +4,7 @@ import {
   HEIGHT,
   MAX_AMMO,
   RULES,
+  PRACTICE_RULES,
   SHOT_STEPS,
   START_AMMO,
   TURN_TICKS,
@@ -44,7 +45,7 @@ export function createMatch(
     !/^[\w:.-]{1,96}$/.test(id) ||
     !integer(seed, 0, 0xffffffff) ||
     !integer(round, 1, 1_000_000) ||
-    players.length < 2 ||
+    players.length < 1 ||
     players.length > 5 ||
     new Set(players.map((p) => p.id)).size !== players.length ||
     new Set(players.map((p, i) => p.slot ?? i)).size !== players.length ||
@@ -57,7 +58,7 @@ export function createMatch(
     throw new Error("Invalid match configuration");
   const level = generateTerrain(seed, players.length);
   return {
-    rules: RULES,
+    rules: players.length === 1 ? PRACTICE_RULES : RULES,
     id,
     seed,
     rng: (seed ^ 0x736b891d) >>> 0,
@@ -249,8 +250,9 @@ function projectilesStep(state: Match, facts: Fact[]): void {
         if (!collected.has(c.id)) collected.set(c.id, p.owner);
     }
   }
-  for (const bird of state.players)
-    hurt(bird, damages.get(bird.id) ?? 0, facts);
+  if (state.rules !== PRACTICE_RULES)
+    for (const bird of state.players)
+      hurt(bird, damages.get(bird.id) ?? 0, facts);
   for (const c of [...state.crates].sort((a, b) => a.id - b.id)) {
     const id = collected.get(c.id),
       owner = state.players.find((b) => b.id === id && b.hp > 0);
@@ -287,8 +289,9 @@ function projectilesStep(state: Match, facts: Fact[]): void {
 }
 function environmentStep(state: Match, facts: Fact[]): void {
   // Launch positions are fixed for the round, including after terrain destruction.
-  for (const bird of state.players)
-    if (bird.y + BODY_Y >= state.water * UNIT) hurt(bird, 100, facts);
+  if (state.rules !== PRACTICE_RULES)
+    for (const bird of state.players)
+      if (bird.y + BODY_Y >= state.water * UNIT) hurt(bird, 100, facts);
   for (const c of state.crates) {
     c.vy = Math.min(110, c.vy + GRAVITY);
     const ground = sweep(state.terrain, c.x, c.y, 0, c.vy, 5 * UNIT);
@@ -305,7 +308,7 @@ function environmentStep(state: Match, facts: Fact[]): void {
 }
 function resolveTurn(state: Match, facts: Fact[]): void {
   const alive = state.players.filter((p) => p.hp > 0);
-  if (alive.length <= 1) {
+  if (alive.length <= 1 && state.rules !== PRACTICE_RULES) {
     state.phase = "over";
     state.crateSearch = null;
     state.winner = alive[0]?.id ?? null;
@@ -320,7 +323,8 @@ function resolveTurn(state: Match, facts: Fact[]): void {
     state.cycle++;
     state.remaining = alive.map((p) => p.id);
     state.wind = WINDS[nextRandom(state) % WINDS.length]!;
-    if (state.cycle >= 8) state.water = Math.max(300, state.water - 28);
+    if (state.cycle >= 8 && state.rules !== PRACTICE_RULES)
+      state.water = Math.max(300, state.water - 28);
     scheduleCrate(state);
   }
   for (let i = 1; i <= state.players.length; i++) {
@@ -348,7 +352,11 @@ export function advance(state: Match, actions: readonly Action[] = []): Fact[] {
     state.step += 3;
     return facts;
   }
-  if (state.phase === "aiming" && state.tick >= state.deadline)
+  if (
+    state.rules !== PRACTICE_RULES &&
+    state.phase === "aiming" &&
+    state.tick >= state.deadline
+  )
     beginSettling(state);
   for (const action of actions.slice(0, 32)) {
     if (isAction(action)) applyAction(state, action, facts);
