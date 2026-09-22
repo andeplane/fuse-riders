@@ -221,12 +221,14 @@ export class FirestoreHistoryDatabase implements HistoryDatabase {
       ...uids.map((uid) => this.users().doc(uid)),
     );
     for (const snapshot of snapshots) {
-      // Only the account fields, read as the legacy profile is: a malformed document fails the read.
-      const profile = parseProfile(
-        this.platform,
-        LEGACY_GAME_ID,
-        snapshot.data(),
-      );
+      // Only the account fields, read as the legacy profile is. One unreadable document must not hide the rest of
+      // the batch: a player whose stored stats are malformed is simply shown under the fallback name.
+      let profile: Profile | undefined;
+      try {
+        profile = parseProfile(this.platform, LEGACY_GAME_ID, snapshot.data());
+      } catch {
+        continue;
+      }
       if (profile) result.set(snapshot.id, splitProfile(profile).account);
     }
     return result;
@@ -382,7 +384,8 @@ export class FirestoreFriendsDatabase implements FriendsDatabase {
       (!plain(room) ||
         typeof room.code !== "string" ||
         typeof room.memberId !== "string" ||
-        typeof room.gameId !== "string")
+        typeof room.gameId !== "string" ||
+        typeof room.incarnation !== "string")
     )
       throw new Error("Stored presence is incompatible");
     return {
@@ -400,6 +403,7 @@ export class FirestoreFriendsDatabase implements FriendsDatabase {
               code: room.code as string,
               memberId: room.memberId as string,
               gameId: room.gameId as string,
+              incarnation: room.incarnation as string,
             },
           }),
     };
@@ -451,15 +455,29 @@ export class FirestoreFriendsDatabase implements FriendsDatabase {
       (await this.presenceCollection().doc(uid).get()).data(),
     );
   }
+  /** One unreadable record must not hide the rest of a list; a single read still fails closed. */
+  private static readable<T>(
+    parse: (value: unknown) => T | undefined,
+    value: unknown,
+  ): T[] {
+    try {
+      const record = parse(value);
+      return record ? [record] : [];
+    } catch {
+      return [];
+    }
+  }
   async presences(uids: readonly string[]): Promise<PresenceRecord[]> {
     if (!uids.length) return [];
     const snapshots = await this.firestore.getAll(
       ...uids.map((uid) => this.presenceCollection().doc(uid)),
     );
-    return snapshots.flatMap((snapshot) => {
-      const record = FirestoreFriendsDatabase.presenceOf(snapshot.data());
-      return record ? [record] : [];
-    });
+    return snapshots.flatMap((snapshot) =>
+      FirestoreFriendsDatabase.readable(
+        FirestoreFriendsDatabase.presenceOf,
+        snapshot.data(),
+      ),
+    );
   }
   async setPresence(record: PresenceRecord): Promise<void> {
     await this.presenceCollection().doc(record.uid).set(record);
@@ -482,10 +500,12 @@ export class FirestoreFriendsDatabase implements FriendsDatabase {
         .limit(limit)
         .get()
     ).docs;
-    return docs.flatMap((doc) => {
-      const record = FirestoreFriendsDatabase.presenceOf(doc.data());
-      return record ? [record] : [];
-    });
+    return docs.flatMap((doc) =>
+      FirestoreFriendsDatabase.readable(
+        FirestoreFriendsDatabase.presenceOf,
+        doc.data(),
+      ),
+    );
   }
   async edges(uid: string, limit: number): Promise<FriendEdge[]> {
     const docs = (
@@ -494,10 +514,12 @@ export class FirestoreFriendsDatabase implements FriendsDatabase {
         .limit(limit)
         .get()
     ).docs;
-    return docs.flatMap((doc) => {
-      const edge = FirestoreFriendsDatabase.edgeOf(doc.data());
-      return edge ? [edge] : [];
-    });
+    return docs.flatMap((doc) =>
+      FirestoreFriendsDatabase.readable(
+        FirestoreFriendsDatabase.edgeOf,
+        doc.data(),
+      ),
+    );
   }
   async transactEdge<T>(
     id: string,
@@ -523,10 +545,12 @@ export class FirestoreFriendsDatabase implements FriendsDatabase {
     const docs = (
       await this.inviteCollection().where("to", "==", uid).limit(limit).get()
     ).docs;
-    return docs.flatMap((doc) => {
-      const invite = FirestoreFriendsDatabase.inviteOf(doc.data());
-      return invite ? [invite] : [];
-    });
+    return docs.flatMap((doc) =>
+      FirestoreFriendsDatabase.readable(
+        FirestoreFriendsDatabase.inviteOf,
+        doc.data(),
+      ),
+    );
   }
   async invite(id: string): Promise<InviteRecord | undefined> {
     return FirestoreFriendsDatabase.inviteOf(

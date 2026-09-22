@@ -30,8 +30,11 @@ and is online. The presence document is rewritten only when something in it chan
 batch of user documents for names, whatever the number of friends). A page that unloads sends one last keepalive sync without a room, so friends see it leave sooner
 than the window would tell them. Presence documents are kept: they are what a public id resolves through.
 
-A room claim is proven when it changes, not on every poll: the service reads the room once and requires the claimed
-seat to be a live member (403 "Join the room first" otherwise). A seat id is only known inside its room, so a stranger
+A room claim is proven when it changes and again whenever the presence record is due its periodic rewrite, so at
+most about once a minute rather than on every poll: the service reads the room and requires the claimed seat to be a
+live member (403 "Join the room first" otherwise), and stores the room's incarnation with the claim. Room codes are
+reissued once a room ends, so `roomPlayers` lists only seats of the same incarnation, and a device still claiming a
+seat in an ended room is refused at its next proof; its client then drops the claim. A seat id is only known inside its room, so a stranger
 cannot name a room code and read who is in it; the room's own members are trusted with each other's seats, as they are
 with the shared log. `roomPlayers` is how the lobby knows which seat belongs to which account: the room socket
 carries seat ids only, and nothing about accounts crosses the mesh. The client matches a roster row to a public id by the `memberId` the seat's

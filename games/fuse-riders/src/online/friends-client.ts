@@ -62,6 +62,16 @@ export interface FriendsClient {
 
 const MIN_GAP_MS = 1500;
 
+/** A refused request, with the status that says how to treat it. */
+class FriendsError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
 export function createFriendsClient(
   dependencies: FriendsClientDependencies,
 ): FriendsClient {
@@ -98,16 +108,21 @@ export function createFriendsClient(
     const token = await dependencies.token();
     return token ? { Authorization: `Bearer ${token}` } : undefined;
   };
-  const failure = async (response: Response): Promise<string> => {
+  const failure = async (response: Response): Promise<FriendsError> => {
+    let message = "";
     try {
       const body = (await response.json()) as { error?: unknown };
-      if (typeof body.error === "string" && body.error) return body.error;
+      if (typeof body.error === "string" && body.error) message = body.error;
     } catch {
       // The status is the message then.
     }
-    return response.status === 401
-      ? "Sign in first"
-      : `Friends unavailable (${response.status})`;
+    return new FriendsError(
+      message ||
+        (response.status === 401
+          ? "Sign in first"
+          : `Friends unavailable (${response.status})`),
+      response.status,
+    );
   };
   const call = async (
     method: string,
@@ -126,7 +141,7 @@ export function createFriendsClient(
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-    if (!response.ok) throw new Error(await failure(response));
+    if (!response.ok) throw await failure(response);
     return response.json();
   };
   const syncBody = (): FriendsSyncBody => {
@@ -179,6 +194,12 @@ export function createFriendsClient(
             for (const listener of inviteListeners) listener(invite);
       } catch (error) {
         if (disposed || !signedIn) return;
+        // A room the service no longer seats this device in (it ended, or its code was reissued) is not one to
+        // keep claiming: the next poll reports no room, and the page's own room state says what happened.
+        if (error instanceof FriendsError && error.status === 403 && room) {
+          room = undefined;
+          wanted = true;
+        }
         emit({
           loading: false,
           error: error instanceof Error ? error.message : "Friends unavailable",
@@ -270,7 +291,7 @@ export function createFriendsClient(
             body: JSON.stringify({ to: publicIds }),
           },
         );
-        if (!response.ok) throw new Error(await failure(response));
+        if (!response.ok) throw await failure(response);
         sent = ((await response.json()) as { sent: number }).sent;
       });
       return sent;

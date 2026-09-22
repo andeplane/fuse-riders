@@ -78,9 +78,10 @@ class CountingFriendsDatabase extends MemoryFriendsDatabase {
 function fixture() {
   let now = 1_800_000_000_000;
   const roomDatabase = new CountingRoomDatabase();
+  let incarnations = 0;
   const rooms = new RoomStore(roomDatabase, {
     now: () => now,
-    id: () => "room-id",
+    id: () => `incarnation-${incarnations++}`,
     gameIds: platform.gameIds,
   });
   const history = new MemoryHistoryDatabase(platform, () => now);
@@ -400,6 +401,41 @@ test("a room claim is proven by a live seat in that room, once per change", asyn
   // with each other's, as they are with the shared log.
 });
 
+test("a reissued room code is another room: a stale claim sees nobody there and is refused once re-proven", async () => {
+  const f = fixture();
+  const code = await f.room(1);
+  await f.sync("alice", { name: "Alice", room: { code, memberId: member(1) } });
+  // The room ends and its code is handed to a new room with other members.
+  await f.rooms.end(code, token(1));
+  await f.rooms.create(code, token(5));
+  await f.rooms.admit(code, token(5), "gateway");
+  await f.rooms.admit(code, token(6), "gateway");
+  await f.sync("bob", { name: "Bob", room: { code, memberId: member(5) } });
+  // Alice's device still claims its old seat: inside the refresh window nothing is re-read, and it sees only itself.
+  f.tick(1000);
+  assert.deepEqual(
+    (
+      await f.sync("alice", { room: { code, memberId: member(1) } })
+    ).roomPlayers.map((p) => p.name),
+    ["Alice"],
+  );
+  assert.deepEqual(
+    (
+      await f.sync("bob", { room: { code, memberId: member(5) } })
+    ).roomPlayers.map((p) => p.name),
+    ["Bob"],
+  );
+  // Once the record is due a rewrite the claim is proven again, and Alice holds no seat in the room the code names now.
+  f.tick(PRESENCE_REFRESH_MS);
+  await assert.rejects(
+    f.sync("alice", { room: { code, memberId: member(1) } }),
+    /Join the room first/,
+  );
+  // Without the room the poll is fine, and Alice is no longer in any room.
+  const view = await f.sync("alice");
+  assert.deepEqual(view.roomPlayers, []);
+});
+
 test("the room's signed-in members are listed with their relation to the caller", async () => {
   const f = fixture();
   const code = await f.room(1);
@@ -436,7 +472,11 @@ test("the room's signed-in members are listed with their relation to the caller"
     "incoming",
   );
   // A member whose presence went stale is no longer listed; without a room nothing is.
-  f.tick(ONLINE_WINDOW_MS);
+  const bobPresence = (await f.database.presence("bob"))!;
+  await f.database.setPresence({
+    ...bobPresence,
+    at: bobPresence.at - ONLINE_WINDOW_MS,
+  });
   assert.deepEqual(
     (
       await f.sync("alice", { room: { code, memberId: member(1) } })

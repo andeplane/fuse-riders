@@ -215,6 +215,41 @@ test("a failed poll keeps the last view and says why; the next poll clears it", 
   assert.equal(h.client.state().error, undefined);
 });
 
+test("a room the service refuses is dropped from the claim, and the next poll comes soon", async () => {
+  const h = harness();
+  h.client.setSignedIn(true);
+  h.client.setRoom({
+    code: "AB12",
+    memberId: "m1",
+    gameId: "fuse-riders",
+    token: "t",
+  });
+  await h.advance(0);
+  assert.equal(
+    (h.requests.at(-1)!.body as { room: { code: string } }).room.code,
+    "AB12",
+  );
+  h.fail(403, { error: "Join the room first" });
+  await h.advance(20_000);
+  assert.equal(h.client.state().error, "Join the room first");
+  assert.equal(h.client.room(), undefined);
+  h.recover();
+  await h.advance(1500);
+  assert.deepEqual(h.requests.at(-1)!.body, { name: "Me", avatarId: "cat" });
+  assert.equal(h.client.state().error, undefined);
+  // Any other failure keeps the room.
+  h.client.setRoom({
+    code: "AB12",
+    memberId: "m1",
+    gameId: "fuse-riders",
+    token: "t",
+  });
+  await h.advance(1500);
+  h.fail(500);
+  await h.advance(20_000);
+  assert.equal(h.client.room()?.code, "AB12");
+});
+
 test("a guest's poll is a sign-in error, not a request", async () => {
   const h = harness({ token: undefined });
   h.client.setSignedIn(true);

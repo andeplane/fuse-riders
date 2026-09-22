@@ -51,7 +51,13 @@ export interface PresenceRecord {
   at: number;
   name?: string;
   avatarId?: string;
-  room?: { code: string; memberId: string; gameId: string };
+  /** The room the account is in, bound to the room's incarnation: a reissued code is another room. */
+  room?: {
+    code: string;
+    memberId: string;
+    gameId: string;
+    incarnation: string;
+  };
 }
 /** One friendship, requested or accepted; the pair is one record whichever side asked. */
 export interface FriendEdge {
@@ -188,13 +194,36 @@ export class FriendsStore {
     const claim = this.parseSync(body),
       now = this.now();
     const current = await this.database.presence(uid);
-    const room = claim.room
+    const claimed = claim.room
       ? {
           code: claim.room.code,
           memberId: claim.room.memberId,
           gameId: claim.room.gameId ?? LEGACY_GAME_ID,
         }
       : undefined;
+    const stored = current?.room;
+    const sameClaim =
+      stored !== undefined &&
+      claimed !== undefined &&
+      stored.code === claimed.code &&
+      stored.memberId === claimed.memberId &&
+      stored.gameId === claimed.gameId;
+    // A room claim is proven when it changes and again whenever the record is due a rewrite anyway: the seat must be a
+    // live member of the room the code names now, which only a device in that room can know, and the claim is bound
+    // to that room's incarnation, so a reissued code is another room. Otherwise any signed-in account could name a
+    // room code and read who is in it.
+    let room: PresenceRecord["room"];
+    if (claimed) {
+      if (!sameClaim || now - current!.at >= PRESENCE_REFRESH_MS) {
+        const record = await this.rooms
+            .get(claimed.code)
+            .catch(() => undefined),
+          seat = record?.members[claimed.memberId];
+        if (!record || !seat || seat.expiresAt <= now)
+          throw new RoomError(403, "Join the room first");
+        room = { ...claimed, incarnation: record.incarnation };
+      } else room = { ...claimed, incarnation: stored!.incarnation };
+    }
     // A poll that names nothing keeps the name and head the player last showed up with.
     const name = claim.name ?? current?.name,
       avatarId = claim.avatarId ?? current?.avatarId;
@@ -208,14 +237,6 @@ export class FriendsStore {
     };
     const same = (a: unknown, b: unknown) =>
       JSON.stringify(a) === JSON.stringify(b);
-    // A room claim is proven once, when it changes: the seat must be a live member of that room, which only a device
-    // in the room can know. Otherwise any signed-in account could name a room code and read who is in it.
-    if (room && !same(current?.room, room)) {
-      const record = await this.rooms.get(room.code).catch(() => undefined),
-        seat = record?.members[room.memberId];
-      if (!seat || seat.expiresAt <= now)
-        throw new RoomError(403, "Join the room first");
-    }
     if (
       !current ||
       now - current.at >= PRESENCE_REFRESH_MS ||
@@ -302,7 +323,13 @@ export class FriendsStore {
     const roomPlayers: RoomPlayer[] = [];
     if (room) {
       for (const p of seated) {
-        if (!online(p) || !p.room || p.room.code !== room.code) continue;
+        if (
+          !online(p) ||
+          !p.room ||
+          p.room.code !== room.code ||
+          p.room.incarnation !== room.incarnation
+        )
+          continue;
         roomPlayers.push({
           memberId: p.room.memberId,
           publicId: p.publicId,
