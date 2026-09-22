@@ -172,7 +172,7 @@ quality.
    control surface, the ☰ MENU overlay auto-opened for the phone host with
    REMATCH, BACK TO LOBBY, ROOM SETTINGS, TV VIEW and ADD AI all readable (none
    clipped), and that rotating keeps the overlay open.
-7. BACK TO LOBBY returns to the lobby screen of step 2. Leaving the room entirely is ROOM → LEAVE ROOM — behind ☰ MENU while the phone is the controller, in the header on the lobby screen. The room keeps running for whoever stays, and the rider in the next seat takes over as host; END ROOM, under it and only on the creator's device, closes the room for everyone.
+7. BACK TO LOBBY returns to the lobby screen of step 2. Leaving the room entirely is ROOM → LEAVE ROOM — behind ☰ MENU while the phone is the controller, and on the lobby screen either in the header or, where the viewport is too short for the header to spend two rows on buttons (a phone held sideways), behind that screen's own ☰ MENU. The room keeps running for whoever stays, and the rider in the next seat takes over as host; END ROOM, under it and only on the creator's device, closes the room for everyone.
 
 **Capture**: revision, device/OS/browser, one screenshot per phase (lobby
 portrait + landscape, countdown, playing, matchOver), and a short note of

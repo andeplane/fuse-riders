@@ -18,7 +18,11 @@ import {
   GUN_HOLE_RADIUS,
   GUN_RADIUS,
 } from "../src/engine/gun.js";
-import { PORTAL_WALL_HALF_WIDTH } from "../src/engine/portal.js";
+import {
+  PORTAL_WALL_HALF_WIDTH,
+  PORTAL_LIFETIME_TICKS,
+  PORTAL_WARMUP_TICKS,
+} from "../src/engine/portal.js";
 import { TRAIL_DECAY_PAUSE_TICKS } from "../src/engine/trail-lifecycle.js";
 import { bombsPerShot, volleyAngles } from "../src/engine/launch-modifiers.js";
 import { toView, type WorldView } from "../src/engine/view.js";
@@ -88,6 +92,8 @@ test("the view publishes every field it did before #254, unchanged, over the who
       gunHoleRadius: GUN_HOLE_RADIUS,
       gunHeadshotRadius: GUN_HEADSHOT_RADIUS,
       portalWallHalfWidth: PORTAL_WALL_HALF_WIDTH,
+      portalLifetimeTicks: PORTAL_LIFETIME_TICKS,
+      portalWarmupTicks: PORTAL_WARMUP_TICKS,
     });
     assert.equal(view.openEdges, edgesOpen(game));
     if (view.openEdges) open++;

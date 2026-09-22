@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
+  BOTS_ONLY_MAX_STEPS_PER_TICK,
   BOTS_ONLY_STEPS_PER_TICK,
+  botsOnlySteps,
   TICK_HZ,
 } from "../games/fuse-riders/src/engine/game.js";
 import { MAX_STEPS_PER_TICK } from "../games/fuse-riders/src/engine/tick-driver.js";
@@ -138,7 +140,11 @@ test("the couplings ADR 047 marks as checked hold", () => {
   // bound is the same wall time in every phase and nobody stalls on a silent rider before it can be logged absent.
   assert.equal(TICK_MS * TICK_HZ, 1000);
   assert.ok(BOTS_ONLY_STEPS_PER_TICK > 1);
-  assert.equal(MAX_STEPS_PER_TICK, BOTS_ONLY_STEPS_PER_TICK);
+  // The bots-only count climbs with time but never past the cap the snapshot guard and the catch-up budget assume.
+  assert.ok(BOTS_ONLY_MAX_STEPS_PER_TICK >= BOTS_ONLY_STEPS_PER_TICK);
+  assert.equal(MAX_STEPS_PER_TICK, BOTS_ONLY_MAX_STEPS_PER_TICK);
+  assert.equal(botsOnlySteps(0), BOTS_ONLY_STEPS_PER_TICK);
+  assert.equal(botsOnlySteps(Number.MAX_SAFE_INTEGER), MAX_STEPS_PER_TICK);
   assert.equal("rate" in TickClock.prototype, false);
   assert.ok(DISCONNECT_MS < STALL_TICKS * TICK_MS);
   // C6: an honest out-of-reach stream gets a stalled-gap wait and a snapshot retry in before its owner stops counting as heard.

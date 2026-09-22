@@ -291,6 +291,13 @@ test("bombs, black holes and portal pairs must name issued bombs, seated owners,
   rejected(
     withPortals,
     (data) => {
+      object(list(data.portalPairs)[0]).expiresAtTick = withPortals.tick + 231;
+    },
+    "portal lifetime beyond warmup plus active duration",
+  );
+  rejected(
+    withPortals,
+    (data) => {
       object(list(object(list(data.portalPairs)[1]).gates)[0]).halfLength = 999;
     },
     "a gate longer than any wall",
