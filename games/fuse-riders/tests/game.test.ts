@@ -34,7 +34,9 @@ import {
   STAR_DURATION_TICKS,
   TRAIL_LIFETIME_TICKS,
   addPlayer,
+  BOTS_ONLY_MAX_STEPS_PER_TICK,
   BOTS_ONLY_STEPS_PER_TICK,
+  botsOnlySteps,
   stepsPerTick,
   createGame,
   riderMotionStep,
@@ -2707,4 +2709,56 @@ test("a tick runs three steps only while a round is live, a human rode in it and
   step(state, new Map());
   assert.notEqual(state.phase, "playing");
   assert.equal(stepsPerTick(state, bots), 1, "the round is over");
+});
+
+test("a bots-only endgame climbs from three steps per tick to six: three seconds at 3×, then a step more every two seconds", () => {
+  // Each stage spans seconds × TICK_HZ × count game ticks, since the game's clock runs `count` ticks per log tick.
+  const stages: [elapsed: number, count: number][] = [
+    [0, 3],
+    [179, 3],
+    [180, 4],
+    [339, 4],
+    [340, 5],
+    [539, 5],
+    [540, 6],
+    [10_000, 6],
+  ];
+  for (const [elapsed, count] of stages)
+    assert.equal(botsOnlySteps(elapsed), count, `${elapsed} game ticks in`);
+  assert.equal(BOTS_ONLY_MAX_STEPS_PER_TICK, 6);
+
+  const state = createGame("bots-only-ramp", classicSettings()),
+    bots = new Set(["bot:1", "bot:2"]);
+  for (const [id, slot] of [
+    ["human", 0],
+    ["late", 1],
+    ["bot:1", 2],
+    ["bot:2", 3],
+  ] as const)
+    addPlayer(state, { id, name: id, slot, color: "#fff", connected: true });
+  startMatch(state);
+  for (let i = 0; i < COUNTDOWN_TICKS; i++) step(state, new Map());
+  assert.equal(state.phase, "playing");
+  eliminatePlayer(state, "human");
+  state.tick += 200;
+  assert.equal(
+    stepsPerTick(state, bots),
+    1,
+    "one human still rides, whatever the clock says",
+  );
+  eliminatePlayer(state, "late");
+  const out = state.tick;
+  for (const [elapsed, count] of stages) {
+    state.tick = out + elapsed;
+    assert.equal(
+      stepsPerTick(state, bots),
+      count,
+      `${elapsed} game ticks after the last human went out`,
+    );
+  }
+  assert.equal(
+    stepsPerTick(state, new Set(["human", "late", "bot:1", "bot:2"])),
+    1,
+    "an all-bot showcase never speeds up",
+  );
 });
