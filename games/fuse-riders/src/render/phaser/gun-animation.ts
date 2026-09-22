@@ -48,6 +48,11 @@ export function gunPortalPulses(snapshot: ViewSnapshot, tick: number) {
     for (const [index, gate] of pair.gates.entries()) {
       const linked = pair.gates[1 - index]!;
       for (const ray of rays) {
+        if (
+          ray.launchedTick <
+          pair.expiresAtTick - snapshot.rules.portalLifetimeTicks
+        )
+          continue;
         const nearY = Math.max(
           gate.y - gate.halfLength,
           Math.min(gate.y + gate.halfLength, ray.y),
