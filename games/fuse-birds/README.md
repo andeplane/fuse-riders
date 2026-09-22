@@ -2,7 +2,7 @@
 
 Phase 1 is a 2–5-player turn-based slingshot game: unlimited Pebble, three starting Scatter Bombs, shootable refill crates, destructible seeded terrain and rising-water sudden death. The complete rules live in the UI-free `fuse-birds-game` workspace package. Browser rendering and online rooms are adapters around that same library.
 
-Implementation and qualification are in progress. See [ADR-052](../../docs/adr/052-fuse-birds-phase-one.md) for the completion contract and the [evidence note](../../docs/reviews/fuse-birds-implementation-progress.md) for verified scope and remaining work.
+Phase 1 is implemented and ready for playtesting in [PR #407](https://github.com/andeplane/fuse-riders/pull/407). See [ADR-052](../../docs/adr/052-fuse-birds-phase-one.md) for the completion contract and the [evidence note](../../docs/reviews/fuse-birds-implementation-progress.md) for verification and its limits. No merge or deployment is implied.
 
 ## Play locally
 
