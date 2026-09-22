@@ -26,12 +26,15 @@ after every action.
 A friend is online while its last sync is younger than `ONLINE_WINDOW_MS` (120 s), and in a room while it last said so
 and is online. The presence document is rewritten only when something in it changed or it is `PRESENCE_REFRESH_MS`
 (60 s) old, the rule [heartbeat-write-cost.md](heartbeat-write-cost.md) sets for rooms: an idle poll costs reads alone
-(one edges query, one batch of presence documents, one of user documents for names, one invites query, and in a room
-one presence query). A page that unloads sends one last keepalive sync without a room, so friends see it leave sooner
+(one edges query, one invites query, in a room one presence query, then one batch of presence documents and one
+batch of user documents for names, whatever the number of friends). A page that unloads sends one last keepalive sync without a room, so friends see it leave sooner
 than the window would tell them. Presence documents are kept: they are what a public id resolves through.
 
-`roomPlayers` is how the lobby knows which seat belongs to which account: the room socket carries seat ids only, and
-nothing about accounts crosses the mesh. The client matches a roster row to a public id by the `memberId` the seat's
+A room claim is proven when it changes, not on every poll: the service reads the room once and requires the claimed
+seat to be a live member (403 "Join the room first" otherwise). A seat id is only known inside its room, so a stranger
+cannot name a room code and read who is in it; the room's own members are trusted with each other's seats, as they are
+with the shared log. `roomPlayers` is how the lobby knows which seat belongs to which account: the room socket
+carries seat ids only, and nothing about accounts crosses the mesh. The client matches a roster row to a public id by the `memberId` the seat's
 own device reported, so ADD FRIEND on a lobby row, a scoreboard row or the recap needs no protocol change and no
 `RULES` bump.
 
@@ -40,8 +43,10 @@ own device reported, so ADD FRIEND on a lobby row, a scoreboard row or the recap
 A friendship is one document per pair (`${prefix}-friends/{uidA|uidB}`, sorted): `uids`, `requestedBy`, `status`
 `pending` or `accepted`. `POST /api/friends { publicId }` asks, or accepts when the other side already asked; asking
 twice is one request. `DELETE /api/friends/:publicId` removes whatever the pair's record is: unfriend, decline or
-withdraw. Both sides are held to `MAX_FRIENDS` (100), so nobody can be handed more friends than they can hold. The
-request budget is 30 per account per hour.
+withdraw. Both sides are held to `MAX_FRIENDS` (100), so nobody can be handed more friends than they can hold, and to
+`MAX_PENDING` (50) open requests sent or received, so many accounts cannot bury one under requests. The friend count
+is checked before the pair's transaction rather than inside it, so concurrent requests to different players can
+exceed the cap by a few: a soft bound, accepted. The request budget is 30 per account per hour.
 
 ## Invites and notifications
 

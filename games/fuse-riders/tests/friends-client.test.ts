@@ -50,6 +50,8 @@ function harness(options: { token?: string | undefined } = {}) {
     roomPlayers: [],
   };
   let failWith: { status: number; body?: unknown } | undefined;
+  // A gate the test can close, so a poll stays in flight until it is opened.
+  let gate: Promise<void> | undefined, openGate: (() => void) | undefined;
   const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const headers = init?.headers as Record<string, string>;
     requests.push({
@@ -59,6 +61,7 @@ function harness(options: { token?: string | undefined } = {}) {
       body: init?.body ? JSON.parse(init.body as string) : undefined,
       ...(init?.keepalive === undefined ? {} : { keepalive: init.keepalive }),
     });
+    if (gate) await gate;
     if (failWith)
       return new Response(
         failWith.body === undefined ? "" : JSON.stringify(failWith.body),
@@ -98,6 +101,15 @@ function harness(options: { token?: string | undefined } = {}) {
     recover: () => {
       failWith = undefined;
     },
+    hold: () => {
+      gate = new Promise<void>((resolve) => {
+        openGate = () => {
+          gate = undefined;
+          resolve();
+        };
+      });
+    },
+    release: () => openGate?.(),
   };
 }
 
@@ -161,10 +173,24 @@ test("refresh coalesces: many callers, one request, never sooner than the minimu
   assert.equal(h.requests.length, 1);
   await h.advance(500);
   assert.equal(h.requests.length, 2);
-  // While a poll is in flight, refresh asks for nothing more.
+  // A refresh asked for while a poll is in flight starts no second request, but brings the next poll forward.
+  h.hold();
+  await h.advance(20_000);
+  assert.equal(h.requests.length, 3);
+  h.client.refresh();
   h.client.refresh();
   await h.settle();
-  assert.equal(h.requests.length, 2);
+  assert.equal(h.requests.length, 3);
+  h.release();
+  await h.settle();
+  assert.equal(h.requests.length, 3);
+  await h.advance(1500);
+  assert.equal(h.requests.length, 4);
+  // And without one the interval is the full one.
+  await h.advance(1500);
+  assert.equal(h.requests.length, 4);
+  await h.advance(18_500);
+  assert.equal(h.requests.length, 5);
 });
 
 test("a failed poll keeps the last view and says why; the next poll clears it", async () => {

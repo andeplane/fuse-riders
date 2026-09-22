@@ -30,7 +30,12 @@ import {
   type MatchRecord,
   type MatchResult,
 } from "./result.js";
-import type { Credit, HistoryMutation, Profile } from "./settlement.js";
+import type {
+  Account,
+  Credit,
+  HistoryMutation,
+  Profile,
+} from "./settlement.js";
 import { publicIdOf } from "./friends.js";
 
 /**
@@ -73,6 +78,8 @@ export interface HistoryDatabase {
     limit: number,
   ): Promise<MatchRecord[]>;
   profile(gameId: string, uid: string): Promise<Profile | undefined>;
+  /** The shared account of each of `uids` that has one, read in one batch: what a player is called and wears. */
+  accounts(uids: readonly string[]): Promise<Map<string, Account>>;
   leaderboard(gameId: string, uid?: string): Promise<LeaderboardEntry[]>;
   rank(gameId: string, elo: number): Promise<number>;
   rivals(gameId: string, uid: string): Promise<Rivalries>;

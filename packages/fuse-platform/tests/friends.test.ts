@@ -14,6 +14,7 @@ import {
   INVITE_TTL_MS,
   LEGACY_GAME_ID,
   MAX_FRIENDS,
+  MAX_PENDING,
   MemoryFriendsDatabase,
   MemoryHistoryDatabase,
   ONLINE_WINDOW_MS,
@@ -55,6 +56,14 @@ const platform = new Platform(ACCOUNT, [game]);
 const token = (n: number) => n.toString(16).padStart(64, "0");
 const member = (n: number) => peerId(token(n));
 
+/** Counts room reads, so a proven room claim can be shown to cost nothing until it changes. */
+class CountingRoomDatabase extends MemoryRoomDatabase {
+  reads = 0;
+  override read(code: string) {
+    this.reads++;
+    return super.read(code);
+  }
+}
 /** Counts presence writes, so the heartbeat rule can be checked. */
 class CountingFriendsDatabase extends MemoryFriendsDatabase {
   writes = 0;
@@ -68,7 +77,8 @@ class CountingFriendsDatabase extends MemoryFriendsDatabase {
 
 function fixture() {
   let now = 1_800_000_000_000;
-  const rooms = new RoomStore(new MemoryRoomDatabase(), {
+  const roomDatabase = new CountingRoomDatabase();
+  const rooms = new RoomStore(roomDatabase, {
     now: () => now,
     id: () => "room-id",
     gameIds: platform.gameIds,
@@ -99,6 +109,7 @@ function fixture() {
     store,
     http,
     room,
+    roomReads: () => roomDatabase.reads,
     tick: (ms: number) => {
       now += ms;
     },
@@ -260,6 +271,36 @@ test("the friend list is bounded on both sides", async () => {
   );
 });
 
+test("pending requests are bounded in both directions", async () => {
+  const f = fixture();
+  const target = await f.sync("target");
+  for (let i = 0; i < MAX_PENDING; i++) {
+    await f.sync(`asker${i}`);
+    await f.store.add(`asker${i}`, { publicId: target.me.publicId });
+  }
+  const late = await f.sync("late");
+  await assert.rejects(
+    f.store.add("late", { publicId: target.me.publicId }),
+    /Too many pending requests/,
+  );
+  // The target can still answer, and asking again for an existing request is fine.
+  await f.store.add("target", { publicId: publicIdOf("asker0") });
+  await f.store.add("asker1", { publicId: target.me.publicId });
+  // A sender is held to the same number of open requests (over more than one hour's request budget).
+  for (let i = 0; i < MAX_PENDING; i++) {
+    if (i % 25 === 0) f.tick(3_600_000);
+    await f.sync(`asked${i}`);
+    await f.store.add("late", { publicId: publicIdOf(`asked${i}`) });
+  }
+  await f.store.add("late", { publicId: publicIdOf("asked0") });
+  await f.sync("one-more");
+  await assert.rejects(
+    f.store.add("late", { publicId: publicIdOf("one-more") }),
+    /Too many pending requests/,
+  );
+  void late;
+});
+
 test("presence: online inside the window, in a room while it last said so, written only when it changes", async () => {
   const f = fixture();
   const alice = await f.sync("alice"),
@@ -331,6 +372,34 @@ test("a presence claim is validated", async () => {
     await assert.rejects(f.sync("alice", body), /Invalid presence/);
 });
 
+test("a room claim is proven by a live seat in that room, once per change", async () => {
+  const f = fixture();
+  const code = await f.room(1);
+  // Not a room, not a member of one, a seat that is not in this room.
+  await assert.rejects(
+    f.sync("alice", { room: { code: "ZZ99", memberId: member(1) } }),
+    /Join the room first/,
+  );
+  await assert.rejects(
+    f.sync("alice", { room: { code, memberId: member(9) } }),
+    /Join the room first/,
+  );
+  const other = await f.room(3);
+  await assert.rejects(
+    f.sync("alice", { room: { code, memberId: member(3) } }),
+    /Join the room first/,
+  );
+  await f.sync("alice", { room: { code, memberId: member(1) } });
+  // The same claim again reads no room; a changed one is proven again.
+  const reads = f.roomReads();
+  await f.sync("alice", { room: { code, memberId: member(1) } });
+  assert.equal(f.roomReads(), reads);
+  await f.sync("alice", { room: { code: other, memberId: member(3) } });
+  assert.equal(f.roomReads(), reads + 1);
+  // A seat id is only known inside its room, so naming a live one is the proof; the room's own members are trusted
+  // with each other's, as they are with the shared log.
+});
+
 test("the room's signed-in members are listed with their relation to the caller", async () => {
   const f = fixture();
   const code = await f.room(1);
@@ -342,9 +411,10 @@ test("the room's signed-in members are listed with their relation to the caller"
       name: "Bob",
       room: { code, memberId: member(2) },
     });
+  const elsewhere = await f.room(3);
   await f.sync("carol", {
     name: "Carol",
-    room: { code: "ZZ99", memberId: member(3) },
+    room: { code: elsewhere, memberId: member(3) },
   });
   await f.store.add("alice", { publicId: bob.me.publicId });
   const view = await f.sync("alice", {
@@ -619,7 +689,7 @@ test("listed players carry their public id, so a leaderboard row can be added", 
   );
 });
 
-test("every friends call is rate limited per account", async () => {
+test("every friends call is rate limited per account, each route on its own budget", async () => {
   const f = fixture();
   const bob = await f.sync("bob");
   for (let i = 0; i < 30; i++)
@@ -628,6 +698,19 @@ test("every friends call is rate limited per account", async () => {
       .catch(() => undefined);
   await assert.rejects(
     f.store.add("alice", { publicId: bob.me.publicId }),
+    /Too many requests/,
+  );
+  // Alice's request budget is spent; her polls are not, and Bob's requests are not.
+  await f.sync("alice");
+  await f.store.add("bob", { publicId: publicIdOf("alice") });
+  for (let i = 0; i < 400; i++) await f.sync("carol");
+  await assert.rejects(f.sync("carol"), /Too many requests/);
+  await f.sync("bob");
+  const code = await f.room(1);
+  for (let i = 0; i < 60; i++)
+    await f.store.invite(code, token(1), "bob", { to: [] });
+  await assert.rejects(
+    f.store.invite(code, token(1), "bob", { to: [] }),
     /Too many requests/,
   );
 });

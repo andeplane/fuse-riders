@@ -86,6 +86,8 @@ export function createFriendsClient(
     cancelPoll: (() => void) | undefined,
     lastPoll = 0,
     inFlight: Promise<void> | undefined,
+    // A refresh asked for while a poll was in flight: the next poll comes soon, not a whole interval later.
+    wanted = false,
     // Every invite this page has seen, by id and issue time, so a refreshed invite counts as new and a seen one never twice.
     seen = new Map<string, number>();
   const emit = (next: Partial<FriendsState>) => {
@@ -183,13 +185,18 @@ export function createFriendsClient(
         });
       } finally {
         inFlight = undefined;
-        if (signedIn && !disposed) schedule(pollMs);
+        if (signedIn && !disposed) schedule(wanted ? MIN_GAP_MS : pollMs);
+        wanted = false;
       }
     })();
     return inFlight;
   };
   const refresh = () => {
-    if (!signedIn || disposed || inFlight) return;
+    if (!signedIn || disposed) return;
+    if (inFlight) {
+      wanted = true;
+      return;
+    }
     schedule(
       Math.max(0, Math.min(pollMs, MIN_GAP_MS - (clock.now() - lastPoll))),
     );

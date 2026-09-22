@@ -65,3 +65,5 @@ export const INVITE_TTL_MS = 10 * 60_000;
 /** How often a client polls; comfortably inside the online window. */
 export const FRIENDS_POLL_MS = 20_000;
 export const MAX_FRIENDS = 100;
+/** Requests an account may have waiting, sent or received. */
+export const MAX_PENDING = 50;

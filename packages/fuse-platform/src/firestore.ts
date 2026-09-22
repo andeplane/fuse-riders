@@ -5,7 +5,7 @@ import {
   type DocumentReference,
   type DocumentSnapshot,
 } from "@google-cloud/firestore";
-import { userDocumentGame, type Platform } from "./game.js";
+import { LEGACY_GAME_ID, userDocumentGame, type Platform } from "./game.js";
 import {
   publicIdOf,
   type FriendEdge,
@@ -28,6 +28,7 @@ import {
   ACCOUNT_KEYS,
   settleHistory,
   settlementUsers,
+  type Account,
   type HistoryMutation,
   type Profile,
 } from "./settlement.js";
@@ -212,6 +213,23 @@ export class FirestoreHistoryDatabase implements HistoryDatabase {
       userDocumentGame(gameId) ? undefined : this.standing(gameId, uid).get(),
     ]);
     return parseProfile(this.platform, gameId, user.data(), standing?.data());
+  }
+  async accounts(uids: readonly string[]): Promise<Map<string, Account>> {
+    const result = new Map<string, Account>();
+    if (!uids.length) return result;
+    const snapshots = await this.firestore.getAll(
+      ...uids.map((uid) => this.users().doc(uid)),
+    );
+    for (const snapshot of snapshots) {
+      // Only the account fields, read as the legacy profile is: a malformed document fails the read.
+      const profile = parseProfile(
+        this.platform,
+        LEGACY_GAME_ID,
+        snapshot.data(),
+      );
+      if (profile) result.set(snapshot.id, splitProfile(profile).account);
+    }
+    return result;
   }
   private ranked(gameId: string) {
     return userDocumentGame(gameId)

@@ -9,9 +9,11 @@ import {
   type RoomStore,
 } from "fuse-network-be";
 import { LEGACY_GAME_ID, type Platform } from "./game.js";
+import type { Account } from "./settlement.js";
 import {
   INVITE_TTL_MS,
   MAX_FRIENDS,
+  MAX_PENDING,
   ONLINE_WINDOW_MS,
   PRESENCE_REFRESH_MS,
   PUBLIC_ID_LENGTH,
@@ -128,18 +130,18 @@ export class FriendsStore {
   }
 
   /** The name and head other players see: the chosen username first, then the name the player last showed up with. */
-  private async card(
+  private card(
     uid: string,
-    presence?: PresenceRecord,
-  ): Promise<FriendCard> {
-    const profile = await this.history.profile(LEGACY_GAME_ID, uid);
-    const avatarId = profile?.avatarId ?? presence?.avatarId;
+    account: Account | undefined,
+    presence: PresenceRecord | undefined,
+  ): FriendCard {
+    const avatarId = account?.avatarId ?? presence?.avatarId;
     return {
       publicId: publicIdOf(uid),
       name:
-        profile?.username ??
+        account?.username ??
         presence?.name ??
-        profile?.name ??
+        account?.name ??
         this.platform.account.fallbackName,
       ...(avatarId ? { avatarId } : {}),
     };
@@ -206,6 +208,14 @@ export class FriendsStore {
     };
     const same = (a: unknown, b: unknown) =>
       JSON.stringify(a) === JSON.stringify(b);
+    // A room claim is proven once, when it changes: the seat must be a live member of that room, which only a device
+    // in the room can know. Otherwise any signed-in account could name a room code and read who is in it.
+    if (room && !same(current?.room, room)) {
+      const record = await this.rooms.get(room.code).catch(() => undefined),
+        seat = record?.members[room.memberId];
+      if (!seat || seat.expiresAt <= now)
+        throw new RoomError(403, "Join the room first");
+    }
     if (
       !current ||
       now - current.at >= PRESENCE_REFRESH_MS ||
@@ -214,19 +224,38 @@ export class FriendsStore {
       !same(current.room, next.room)
     )
       await this.database.setPresence(next);
-    const edges = await this.database.edges(uid, EDGE_LIMIT);
+    // Three lists, then two batches: one of presence records and one of accounts for everyone they name, so the
+    // poll's cost is a handful of requests however many friends there are.
+    const [edges, pending, seated] = await Promise.all([
+      this.database.edges(uid, EDGE_LIMIT),
+      this.database
+        .invites(uid, INVITE_LIMIT)
+        .then((invites) => invites.filter((i) => i.expiresAt > now)),
+      room
+        ? this.database.roomPresences(room.code, ROOM_PRESENCE_LIMIT)
+        : Promise.resolve([] as PresenceRecord[]),
+    ]);
     const others = edges.map((edge) =>
       edge.uids[0] === uid ? edge.uids[1] : edge.uids[0],
     );
-    const presences = new Map(
-      (await this.database.presences(others)).map((p) => [p.uid, p]),
-    );
+    const presences = new Map<string, PresenceRecord>([[uid, next]]);
+    for (const p of seated) presences.set(p.uid, p);
+    // An invite from someone no longer a friend still names its sender.
+    const wanted = [
+      ...new Set([...others, ...pending.map((invite) => invite.from)]),
+    ].filter((other) => !presences.has(other));
+    for (const p of await this.database.presences(wanted))
+      presences.set(p.uid, p);
+    const accounts = await this.history.accounts([...presences.keys()]);
     const cards = new Map<string, FriendCard>();
-    await Promise.all(
-      others.map(async (other) =>
-        cards.set(other, await this.card(other, presences.get(other))),
-      ),
-    );
+    const cardOf = (who: string): FriendCard => {
+      let card = cards.get(who);
+      if (!card) {
+        card = this.card(who, accounts.get(who), presences.get(who));
+        cards.set(who, card);
+      }
+      return card;
+    };
     const online = (p: PresenceRecord | undefined): p is PresenceRecord =>
       p !== undefined && now - p.at < ONLINE_WINDOW_MS;
     const friends: Friend[] = [],
@@ -235,7 +264,7 @@ export class FriendsStore {
       relations = new Map<string, FriendRelation>([[uid, "you"]]);
     for (const [index, edge] of edges.entries()) {
       const other = others[index]!,
-        card = cards.get(other)!;
+        card = cardOf(other);
       if (edge.status === "accepted") {
         const p = presences.get(other);
         friends.push({
@@ -260,26 +289,10 @@ export class FriendsStore {
     incoming.sort(byName);
     outgoing.sort(byName);
     const invites: FriendInvite[] = [];
-    const pending = (await this.database.invites(uid, INVITE_LIMIT)).filter(
-      (invite) => invite.expiresAt > now,
-    );
-    // An invite from someone no longer a friend still names its sender.
-    const strangers = [
-      ...new Set(
-        pending
-          .map((invite) => invite.from)
-          .filter((from) => !presences.has(from) && from !== uid),
-      ),
-    ];
-    for (const p of await this.database.presences(strangers))
-      presences.set(p.uid, p);
     for (const invite of pending) {
-      const from =
-        cards.get(invite.from) ??
-        (await this.card(invite.from, presences.get(invite.from)));
       invites.push({
         id: invite.id,
-        from,
+        from: cardOf(invite.from),
         code: invite.code,
         gameId: invite.gameId,
         at: invite.at,
@@ -288,25 +301,19 @@ export class FriendsStore {
     invites.sort((a, b) => b.at - a.at);
     const roomPlayers: RoomPlayer[] = [];
     if (room) {
-      const seated = await this.database.roomPresences(
-        room.code,
-        ROOM_PRESENCE_LIMIT,
-      );
       for (const p of seated) {
         if (!online(p) || !p.room || p.room.code !== room.code) continue;
-        const card = cards.get(p.uid) ?? (p.uid === uid ? next : undefined);
-        const name = card?.name ?? (await this.card(p.uid, p)).name;
         roomPlayers.push({
           memberId: p.room.memberId,
           publicId: p.publicId,
-          name,
+          name: cardOf(p.uid).name,
           relation: relations.get(p.uid) ?? "none",
         });
       }
       roomPlayers.sort((a, b) => a.memberId.localeCompare(b.memberId));
     }
     return {
-      me: await this.card(uid, next),
+      me: cardOf(uid),
       friends,
       incoming,
       outgoing,
@@ -345,6 +352,22 @@ export class FriendsStore {
       edges.filter((edge) => edge.status === "accepted").length;
     if (accepted(mine) >= MAX_FRIENDS || accepted(theirs) >= MAX_FRIENDS)
       throw new RoomError(409, "Friend list is full");
+    // Pending requests are bounded too, in both directions, so many accounts cannot bury one under requests.
+    const pendingFrom = (edges: FriendEdge[], who: string) =>
+      edges.filter(
+        (edge) => edge.status === "pending" && edge.requestedBy === who,
+      ).length;
+    const pendingTo = (edges: FriendEdge[], who: string) =>
+      edges.filter(
+        (edge) => edge.status === "pending" && edge.requestedBy !== who,
+      ).length;
+    const existing = mine.find((edge) => edge.uids.includes(other));
+    if (
+      !existing &&
+      (pendingFrom(mine, uid) >= MAX_PENDING ||
+        pendingTo(theirs, other) >= MAX_PENDING)
+    )
+      throw new RoomError(409, "Too many pending requests");
     const now = this.now();
     return this.database.transactEdge(edgeId(uid, other), (current) => {
       if (current?.status === "accepted")

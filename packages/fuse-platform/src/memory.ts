@@ -23,14 +23,14 @@ export class MemoryHistoryDatabase implements HistoryDatabase {
     private now: () => number = Date.now,
   ) {}
   private matches = new Map<string, MatchRecord>();
-  private accounts = new Map<string, Account>();
+  private accountRecords = new Map<string, Account>();
   private standings = new Map<string, Record<string, unknown>>();
   private ratingClaims = new Set<string>();
   private rivalCredits = new Map<string, Map<string, RivalCredit>>();
   private chain: Promise<unknown> = Promise.resolve();
 
   private read(gameId: string, uid: string): Profile | undefined {
-    const account = this.accounts.get(uid),
+    const account = this.accountRecords.get(uid),
       standing = this.standings.get(ratingDocumentId(gameId, uid));
     if (!account && !standing) return;
     return structuredClone({
@@ -65,7 +65,7 @@ export class MemoryHistoryDatabase implements HistoryDatabase {
       if (next.match) this.matches.set(id, structuredClone(next.match));
       for (const [uid, profile] of settled.profiles) {
         const { account, standing } = splitProfile(profile);
-        this.accounts.set(uid, account);
+        this.accountRecords.set(uid, account);
         this.standings.set(ratingDocumentId(gameId, uid), standing);
       }
       if (settled.claimed && scope) this.ratingClaims.add(scope);
@@ -127,6 +127,14 @@ export class MemoryHistoryDatabase implements HistoryDatabase {
 
   async profile(gameId: string, uid: string): Promise<Profile | undefined> {
     return this.read(gameId, uid);
+  }
+  async accounts(uids: readonly string[]): Promise<Map<string, Account>> {
+    const result = new Map<string, Account>();
+    for (const uid of uids) {
+      const account = this.accountRecords.get(uid);
+      if (account) result.set(uid, structuredClone(account));
+    }
+    return result;
   }
 
   /** Every ranked account of one game, as `[uid, rating value]`. */
@@ -190,8 +198,8 @@ export class MemoryHistoryDatabase implements HistoryDatabase {
   }
 
   async setUsername(uid: string, username: string, at: number): Promise<void> {
-    this.accounts.set(uid, {
-      ...(this.accounts.get(uid) ?? {}),
+    this.accountRecords.set(uid, {
+      ...(this.accountRecords.get(uid) ?? {}),
       username,
       updatedAt: at,
     });
