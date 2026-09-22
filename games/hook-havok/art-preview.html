@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hook Havok · Animation study</title>
+    <link rel="stylesheet" href="./preview/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">HOOK HAVOK / ART LAB 01</p>
+        <h1>A little keeper. A long way down.</h1>
+        <p>
+          Belfry atmosphere, more places to land. A sprite-animation study—not a
+          playable game.
+        </p>
+      </header>
+      <section class="toolbar" aria-label="Animation controls">
+        <label
+          >Motion
+          <select id="motion">
+            <option value="idle">Idle</option>
+            <option value="run">Run</option>
+          </select></label
+        >
+        <label
+          >Frames / second
+          <input id="fps" type="range" min="2" max="16" value="2" /><output
+            id="fps-value"
+            >2</output
+          ></label
+        >
+        <label
+          >Actor height
+          <select id="size">
+            <option value="64">64 world units</option>
+            <option value="96">96 world units</option>
+          </select></label
+        >
+        <label><input id="guides" type="checkbox" /> Show baselines</label>
+        <button id="pause" type="button">Pause</button>
+        <button id="step" type="button">Next frame</button>
+        <button id="retry" type="button" hidden>Retry artwork</button>
+      </section>
+      <p id="status" role="status">Loading artwork…</p>
+      <section class="arena" aria-label="Belfry composition">
+        <canvas
+          id="arena"
+          width="1600"
+          height="900"
+          aria-label="Eight fixed platforms and an animated lantern keeper in the belfry"
+        ></canvas>
+        <span class="caption"
+          >Fixed composition · no collision or movement simulation</span
+        >
+      </section>
+      <section class="study">
+        <div>
+          <h2>Inspect the silhouette</h2>
+          <canvas
+            id="detail"
+            width="384"
+            height="256"
+            aria-label="Enlarged animation with a fixed foot baseline"
+          ></canvas>
+        </div>
+        <div>
+          <h2>What we are testing</h2>
+          <p>
+            Does the hood keep its shape? Do the feet stay on the baseline? Does
+            the scarf distract at gameplay size?
+          </p>
+          <p>
+            This is a six-pose production trial: two idle poses and four run
+            poses. It establishes an animation workflow, not final character
+            approval.
+          </p>
+          <p>
+            Keyboard: tab through controls; space activates the focused button.
+            Audio stays off in this study.
+          </p>
+        </div>
+      </section>
+      <section>
+        <h2>Source frames</h2>
+        <div id="frames" class="frames"></div>
+      </section>
+      <section>
+        <h2>Equipment & light</h2>
+        <div class="props">
+          <figure>
+            <img
+              src="./art-source/props/brass-hook-source.png"
+              alt="Separate brass hook source"
+            />
+            <figcaption>Hook · separate from the actor</figcaption>
+          </figure>
+          <figure>
+            <img
+              src="./art-source/props/brass-lantern-source.png"
+              alt="Separate brass lantern source"
+            />
+            <figcaption>Lantern · glow added by the renderer later</figcaption>
+          </figure>
+        </div>
+      </section>
+      <footer>
+        Hook Havok · Source art retained unchanged · No physics, room, or radio
+        running
+      </footer>
+    </main>
+    <script type="module" src="./preview/art-lab.mjs"></script>
+  </body>
+</html>

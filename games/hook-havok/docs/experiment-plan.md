@@ -8,7 +8,7 @@ The first milestone delivers visual concepts, source-asset trials, and this impl
 
 ## Phases
 
-### 0. Visual foundation (current)
+### 0. Visual foundation (delivered)
 
 - Record scope, architecture, fixed arena and initial movement hypotheses.
 - Compare belfry, observatory and overgrown sanctuary compositions with a small original player silhouette.
@@ -18,6 +18,8 @@ The first milestone delivers visual concepts, source-asset trials, and this impl
 Exit: reviewable compositions and an original visual vocabulary. This is not a gameplay screenshot or evidence of runtime performance.
 
 ### 1. Asset-production proof
+
+Current increment: separate character/prop sources and a six-pose browser animation trial are delivered. See [animation trial](animation-trial.md) for the exact assets, alignment method, known visual limits and reproduction commands. This establishes the workflow; final animation polish and user acceptance remain open.
 
 - Establish a side-view reference for one lantern keeper.
 - Generate and inspect a clean background and platform source.

@@ -30,6 +30,8 @@ Requested background size: 2560 × 1440. Accept native generator sizes without d
 
 Target essential runtime art download around 5 MB excluding music. Measure decoded texture memory separately. Use painted glow and sparse particles first; expensive full-screen effects need evidence. Do not infer runtime performance from these source files.
 
-## Animation proof still required
+## Animation proof and remaining work
+
+The first six-pose study is now available in the art lab: two idle and four running poses, a simplified right-facing profile, shared scale and aligned lowest opaque pixels. A's character identity is retained alongside a denser eight-platform composition. See [animation trial](animation-trial.md). This is a workflow proof, not a finished animation set; torso registration, near/far-leg readability, smooth transitions and landing/fire/pull poses still need refinement.
 
 Produce a short idle and 6–8-pose run or jump sequence from an approved character reference. Align size/baseline/pivot and inspect at gameplay scale. If generated costume or silhouette drifts, edit/reuse the approved sprite or separate parts rather than accumulating inconsistent frames. Two unrelated poses are not proof of production-ready animation.

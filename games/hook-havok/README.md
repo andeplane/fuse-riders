@@ -4,13 +4,34 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
-Visual foundation only: compare original art directions and prove a small asset-production workflow before building the playable scene. This directory is not yet a registered game or a playable prototype. No package, entry page, physics, or room service changes are needed for this milestone.
+Asset-production proof: a six-pose animation trial, reusable hook and lantern sources, and a browser art lab at gameplay scale. This is not yet a registered game or a playable prototype. The standalone review page has no physics, room service, music or authoritative game loop.
 
 - [Experiment plan](docs/experiment-plan.md)
 - [Art direction](docs/art-direction.md)
 - [Asset manifest and generation prompts](docs/asset-manifest.md)
+- [Animation trial, exact prompts and verification](docs/animation-trial.md)
 
-The provisional working environment is the Lantern Belfry. Alternative concepts remain available for the user's artistic review; provisional selection is not acceptance of the final appearance.
+The working direction combines **A's belfry/character identity with B's denser platform composition**. The user likes both qualities; this combination is the implementation recommendation, not a claim of final artistic acceptance. The art lab displays all eight platforms from the planned map.
+
+## Open the animation study
+
+From the repository/worktree root:
+
+```sh
+node games/hook-havok/preview/serve.mjs
+```
+
+Open the local URL printed by the command (with `?mute`). The server binds only to loopback and asks the OS for a free port. It serves only this game's review directory. Stop it with Ctrl+C. This is an art-review tool, not a replacement game server.
+
+Compare Idle and Run at 64/96 world units, change playback speed, pause/step and show alignment guides. The larger sample exposes frame inconsistencies. Reduced-motion preference starts paused. The props are separate from the actor for eventual independent aiming and lighting.
+
+Browser check against the printed URL:
+
+```sh
+node games/hook-havok/preview/check.mjs http://127.0.0.1:PORT/?mute
+```
+
+The check defaults to Playwright Chromium; set `BROWSER_CHANNEL=chrome` to use installed Chrome. It saves desktop/mobile screenshots under the ignored root `artifacts/` directory.
 
 ## Review board
 
@@ -28,7 +49,7 @@ The provisional working environment is the Lantern Belfry. Alternative concepts 
 
 Compare silhouette readability, atmosphere and foreground clutter. These generated paintings approximate an arena; they do not represent the specified collision map.
 
-Separate trials: [character reference](art-source/character/lantern-keeper-idle-source.png), [background](art-source/backgrounds/belfry-background-source.png), [ledge](art-source/platforms/belfry-ledge-source.png). The character needs a stricter side view and simpler details before animation. No runtime-ready animation is claimed.
+Separate original trials: [character reference](art-source/character/lantern-keeper-idle-source.png), [background](art-source/backgrounds/belfry-background-source.png), [ledge](art-source/platforms/belfry-ledge-source.png). The newer [six-pose sheet](art-source/character/lantern-keeper-six-pose-source.png) simplifies the profile and proves frame playback. It remains a rough animation study rather than a finished locomotion set.
 
 ## Source assets
 
@@ -40,4 +61,4 @@ These are source assets, not runtime exports. The later scene will use optimized
 
 One character, one fixed arena, running, variable-height jumping, a hook that pulls toward static surfaces, quick respawn, simple effects, and the shared radio. No opponents, balls, progression, procedural maps, or physical rope simulation initially.
 
-The eventual route is `/hook-havok/`. Until the browser milestone is implemented, review the source images directly. No production deployment is included.
+The eventual game route is `/hook-havok/`. The current art lab is local review tooling; it is not included in the production game build. No production deployment is included.
