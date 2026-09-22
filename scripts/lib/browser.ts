@@ -1,14 +1,20 @@
-import { chromium, webkit, type Browser, type LaunchOptions } from "playwright";
+import {
+  chromium,
+  firefox,
+  webkit,
+  type Browser,
+  type LaunchOptions,
+} from "playwright";
 
 /**
  * The one place a browser script chooses its engine.
  *
  * `chrome` is the installed Google Chrome channel (hardware GL, what the renderer smokes measure),
- * `chromium` is Playwright's bundled build and `webkit` is Playwright's WebKit. They are three different
+ * `chromium` is Playwright's bundled build; `firefox` and `webkit` are its other engines. These are different
  * `pnpm exec playwright install` targets, which is why `scripts/ci-manifest.json` names them per smoke and
  * `tests/ci-manifest.test.ts` compares that list with the calls below found in each script.
  */
-export type BrowserKind = "chrome" | "chromium" | "webkit";
+export type BrowserKind = "chrome" | "chromium" | "firefox" | "webkit";
 
 /** `BROWSER=webkit` selects WebKit; anything else keeps the script's own Chromium flavour. */
 export function browserKind(
@@ -23,6 +29,7 @@ export function launchBrowser(
   options: LaunchOptions = {},
 ): Promise<Browser> {
   if (kind === "webkit") return webkit.launch(options);
+  if (kind === "firefox") return firefox.launch(options);
   return chromium.launch({
     ...options,
     ...(kind === "chrome" ? { channel: "chrome" } : {}),

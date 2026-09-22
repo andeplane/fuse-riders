@@ -1,0 +1,22 @@
+{
+  "name": "fuse-birds-game",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fuse Birds: a deterministic headless artillery game with optional browser and room adapters.",
+  "exports": {
+    ".": "./src/engine/index.ts",
+    "./platform": "./src/platform.ts"
+  },
+  "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-platform": "workspace:*"
+  },
+  "devDependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
+    "fuse-ui": "workspace:*",
+    "fuse-network-fe": "workspace:*",
+    "phaser": "4.2.1",
+    "qrcode": "^1.5.4"
+  }
+}

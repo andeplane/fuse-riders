@@ -130,6 +130,11 @@ export function showLanding(host: LandingHost): void {
       "landing-more",
       document.createTextNode("MORE GAMES: PIG ›"),
     ),
+    link(
+      `${appUrl()}fuse-birds/`,
+      "landing-more",
+      document.createTextNode("FUSE BIRDS: SLINGSHOT BATTLES ›"),
+    ),
   );
   const live = node("aside", "", "landing-live");
   live.append(

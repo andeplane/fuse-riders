@@ -1,0 +1,269 @@
+[
+  {
+    "runtime": "Node v22.23.2",
+    "results": [
+      {
+        "rules": "fuse-birds-5",
+        "seed": 123,
+        "count": 2,
+        "final": {
+          "hash": "48c5e6b65d06efba",
+          "ticks": 72,
+          "winner": "p0",
+          "terrainVersion": 1,
+          "generationWork": 2034,
+          "events": {
+            "shot": 1,
+            "damage": 2,
+            "blast": 1,
+            "eliminated": 1,
+            "result": 1
+          }
+        }
+      },
+      {
+        "rules": "fuse-birds-5",
+        "seed": 914,
+        "count": 3,
+        "final": {
+          "hash": "7ba76e90be34864c",
+          "ticks": 432,
+          "winner": "p2",
+          "terrainVersion": 10,
+          "generationWork": 3766,
+          "events": {
+            "shot": 8,
+            "damage": 9,
+            "blast": 10,
+            "turn": 7,
+            "split": 2,
+            "eliminated": 2,
+            "result": 1
+          }
+        }
+      },
+      {
+        "rules": "fuse-birds-5",
+        "seed": 987654,
+        "count": 5,
+        "final": {
+          "hash": "cc850b39cff8b70d",
+          "ticks": 534,
+          "winner": "p4",
+          "terrainVersion": 19,
+          "generationWork": 13947,
+          "events": {
+            "shot": 12,
+            "damage": 14,
+            "blast": 20,
+            "turn": 11,
+            "split": 4,
+            "eliminated": 4,
+            "result": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "runtime": "chromium",
+    "version": "153.0.8010.12",
+    "results": [
+      {
+        "rules": "fuse-birds-5",
+        "seed": 123,
+        "count": 2,
+        "final": {
+          "hash": "48c5e6b65d06efba",
+          "ticks": 72,
+          "winner": "p0",
+          "terrainVersion": 1,
+          "generationWork": 2034,
+          "events": {
+            "shot": 1,
+            "damage": 2,
+            "blast": 1,
+            "eliminated": 1,
+            "result": 1
+          }
+        }
+      },
+      {
+        "rules": "fuse-birds-5",
+        "seed": 914,
+        "count": 3,
+        "final": {
+          "hash": "7ba76e90be34864c",
+          "ticks": 432,
+          "winner": "p2",
+          "terrainVersion": 10,
+          "generationWork": 3766,
+          "events": {
+            "shot": 8,
+            "damage": 9,
+            "blast": 10,
+            "turn": 7,
+            "split": 2,
+            "eliminated": 2,
+            "result": 1
+          }
+        }
+      },
+      {
+        "rules": "fuse-birds-5",
+        "seed": 987654,
+        "count": 5,
+        "final": {
+          "hash": "cc850b39cff8b70d",
+          "ticks": 534,
+          "winner": "p4",
+          "terrainVersion": 19,
+          "generationWork": 13947,
+          "events": {
+            "shot": 12,
+            "damage": 14,
+            "blast": 20,
+            "turn": 11,
+            "split": 4,
+            "eliminated": 4,
+            "result": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "runtime": "firefox",
+    "version": "155.0",
+    "results": [
+      {
+        "rules": "fuse-birds-5",
+        "seed": 123,
+        "count": 2,
+        "final": {
+          "hash": "48c5e6b65d06efba",
+          "ticks": 72,
+          "winner": "p0",
+          "terrainVersion": 1,
+          "generationWork": 2034,
+          "events": {
+            "shot": 1,
+            "damage": 2,
+            "blast": 1,
+            "eliminated": 1,
+            "result": 1
+          }
+        }
+      },
+      {
+        "rules": "fuse-birds-5",
+        "seed": 914,
+        "count": 3,
+        "final": {
+          "hash": "7ba76e90be34864c",
+          "ticks": 432,
+          "winner": "p2",
+          "terrainVersion": 10,
+          "generationWork": 3766,
+          "events": {
+            "shot": 8,
+            "damage": 9,
+            "blast": 10,
+            "turn": 7,
+            "split": 2,
+            "eliminated": 2,
+            "result": 1
+          }
+        }
+      },
+      {
+        "rules": "fuse-birds-5",
+        "seed": 987654,
+        "count": 5,
+        "final": {
+          "hash": "cc850b39cff8b70d",
+          "ticks": 534,
+          "winner": "p4",
+          "terrainVersion": 19,
+          "generationWork": 13947,
+          "events": {
+            "shot": 12,
+            "damage": 14,
+            "blast": 20,
+            "turn": 11,
+            "split": 4,
+            "eliminated": 4,
+            "result": 1
+          }
+        }
+      }
+    ]
+  },
+  {
+    "runtime": "webkit",
+    "version": "26.6",
+    "results": [
+      {
+        "rules": "fuse-birds-5",
+        "seed": 123,
+        "count": 2,
+        "final": {
+          "hash": "48c5e6b65d06efba",
+          "ticks": 72,
+          "winner": "p0",
+          "terrainVersion": 1,
+          "generationWork": 2034,
+          "events": {
+            "shot": 1,
+            "damage": 2,
+            "blast": 1,
+            "eliminated": 1,
+            "result": 1
+          }
+        }
+      },
+      {
+        "rules": "fuse-birds-5",
+        "seed": 914,
+        "count": 3,
+        "final": {
+          "hash": "7ba76e90be34864c",
+          "ticks": 432,
+          "winner": "p2",
+          "terrainVersion": 10,
+          "generationWork": 3766,
+          "events": {
+            "shot": 8,
+            "damage": 9,
+            "blast": 10,
+            "turn": 7,
+            "split": 2,
+            "eliminated": 2,
+            "result": 1
+          }
+        }
+      },
+      {
+        "rules": "fuse-birds-5",
+        "seed": 987654,
+        "count": 5,
+        "final": {
+          "hash": "cc850b39cff8b70d",
+          "ticks": 534,
+          "winner": "p4",
+          "terrainVersion": 19,
+          "generationWork": 13947,
+          "events": {
+            "shot": 12,
+            "damage": 14,
+            "blast": 20,
+            "turn": 11,
+            "split": 4,
+            "eliminated": 4,
+            "result": 1
+          }
+        }
+      }
+    ]
+  }
+]

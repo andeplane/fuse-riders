@@ -26,6 +26,9 @@ importers:
       dice:
         specifier: workspace:*
         version: link:games/dice
+      fuse-birds-game:
+        specifier: workspace:*
+        version: link:games/fuse-birds
       fuse-network-be:
         specifier: workspace:*
         version: link:packages/fuse-network-be
@@ -139,6 +142,31 @@ importers:
       fuse-ui:
         specifier: workspace:*
         version: link:../../packages/fuse-ui
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
+
+  games/fuse-birds:
+    dependencies:
+      fuse-netcode:
+        specifier: workspace:*
+        version: link:../../packages/fuse-netcode
+      fuse-platform:
+        specifier: workspace:*
+        version: link:../../packages/fuse-platform
+    devDependencies:
+      '@fontsource/press-start-2p':
+        specifier: ^5.3.0
+        version: 5.3.0
+      fuse-network-fe:
+        specifier: workspace:*
+        version: link:../../packages/fuse-network-fe
+      fuse-ui:
+        specifier: workspace:*
+        version: link:../../packages/fuse-ui
+      phaser:
+        specifier: 4.2.1
+        version: 4.2.1
       qrcode:
         specifier: ^1.5.4
         version: 1.5.4

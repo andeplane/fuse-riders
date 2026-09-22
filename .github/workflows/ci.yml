@@ -96,6 +96,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:coverage
       - name: Save coverage
         if: always()
@@ -189,6 +190,7 @@ jobs:
             artifacts/room-service.log
             artifacts/flaky/*.log
             artifacts/shared-room-smoke.json
+            artifacts/fuse-birds-cross-runtime.json
             docs/online/*benchmark.json
             docs/online/browser-network.json
           if-no-files-found: ignore

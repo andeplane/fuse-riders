@@ -1,0 +1,548 @@
+:root {
+  color-scheme: dark;
+  --bird-cyan: #6df4ed;
+  --bird-pink: #ff6ec7;
+}
+body.fui-app {
+  padding: 0;
+}
+.birds-menu {
+  position: relative;
+  flex-shrink: 0;
+  z-index: 10;
+}
+.birds-menu summary {
+  cursor: pointer;
+  list-style: none;
+  border: 1px solid #42738a;
+  border-radius: 7px;
+  padding: 10px;
+  color: #baffef;
+  font:
+    9px "Press Start 2P",
+    monospace;
+}
+.birds-menu summary::-webkit-details-marker {
+  display: none;
+}
+.birds-menu-items {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 9px);
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  min-width: 160px;
+  background: #07152af5;
+  border: 1px solid #37637b;
+  border-radius: 9px;
+  box-shadow: 0 10px 30px #0008;
+}
+.birds-controls .birds-weapon {
+  border-radius: 5px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+body {
+  margin: 0;
+  background: #030b1d;
+  color: #e7f9ff;
+  font-family: system-ui, sans-serif;
+}
+button,
+a,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  touch-action: manipulation;
+}
+button:disabled {
+  opacity: 0.4;
+}
+a {
+  color: #82eceb;
+}
+button:focus-visible,
+a:focus-visible,
+canvas:focus-visible {
+  outline: 2px solid #efffaf;
+  outline-offset: 3px;
+}
+.birds-brand {
+  font-family: "Press Start 2P", monospace;
+  font-size: clamp(15px, 2vw, 28px);
+  text-decoration: none;
+  display: flex;
+  gap: 0.7em;
+  white-space: nowrap;
+  filter: drop-shadow(0 0 8px #06b5bd66);
+}
+.birds-brand span:first-child {
+  color: #27def0;
+}
+.birds-brand span:last-child {
+  color: #fa56c0;
+}
+.birds-landing {
+  min-height: 100dvh;
+  padding: clamp(22px, 5vw, 70px);
+  background:
+    linear-gradient(90deg, #030b1df0, #030b1d33),
+    url("/games/fuse-birds/art/v1/neon-sky.png") center/cover;
+}
+.birds-card {
+  border: 1px solid #41657e88;
+  border-radius: 18px;
+  background: linear-gradient(130deg, #10203aee, #080e24f0);
+  box-shadow: 0 20px 80px #0005;
+  padding: clamp(22px, 4vw, 48px);
+}
+.birds-landing .birds-card {
+  margin-top: 8vh;
+  max-width: 580px;
+}
+.birds-eyebrow {
+  color: #83b7c9;
+  letter-spacing: 2px;
+  font-size: 10px;
+}
+.birds-card h1 {
+  font-family: "Press Start 2P", monospace;
+  line-height: 1.65;
+  font-size: clamp(19px, 3vw, 27px);
+  white-space: pre-line;
+}
+.birds-card p {
+  line-height: 1.7;
+  color: #a8bfd4;
+}
+.birds-card button {
+  min-height: 44px;
+}
+.birds-landing .fui-button-primary {
+  width: 100%;
+  margin-top: 12px;
+}
+.birds-shared {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  margin: 20px 0;
+}
+.birds-join {
+  display: flex;
+  gap: 10px;
+}
+.birds-join input {
+  width: 50%;
+  min-width: 0;
+  border: 1px solid #42627b;
+  background: #030e23;
+  border-radius: 7px;
+  color: #d8ffff;
+  padding: 12px;
+  font-family: monospace;
+  text-transform: uppercase;
+}
+.birds-back {
+  font-size: 13px;
+}
+.birds-notice {
+  font-size: 12px;
+  color: #9db4cc;
+  margin: 0;
+  line-height: 1.5;
+}
+.birds-room {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.birds-top {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 12px max(18px, env(safe-area-inset-right)) 12px
+    max(18px, env(safe-area-inset-left));
+  border-bottom: 1px solid #23475b;
+  background: #030b1df5;
+  flex-shrink: 0;
+}
+.birds-top .birds-notice {
+  flex: 1;
+}
+.birds-top button {
+  font-size: 9px;
+  padding: 8px;
+  min-height: 34px;
+}
+.birds-code {
+  color: #8bf5e5;
+  letter-spacing: 2px;
+  font-family: monospace;
+}
+.birds-lobby {
+  overflow: auto;
+  margin: 25px auto;
+  width: min(720px, 95%);
+}
+.birds-lobby h1 {
+  font-size: 18px;
+}
+.birds-roster {
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.birds-roster li {
+  padding: 12px;
+  border: 1px solid currentColor;
+  border-radius: 7px;
+  font-family: monospace;
+}
+.birds-lobby .fui-button {
+  margin: 12px 12px 0 0;
+}
+.birds-lobby .fui-invite {
+  margin-bottom: 18px;
+}
+.birds-board {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.birds-scorebar {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 18px;
+  background: #030b1d;
+  z-index: 2;
+  flex-shrink: 0;
+}
+.birds-player {
+  border: 1px solid color-mix(in srgb, var(--bird), transparent 55%);
+  color: var(--bird);
+  padding: 9px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 105px;
+  max-width: 220px;
+  flex: 1;
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  background: linear-gradient(145deg, #122339, #080d20);
+}
+.birds-player span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: 1.5;
+}
+.birds-player b {
+  font-size: 16px;
+  color: #f2f5ff;
+}
+.birds-player.current {
+  border-color: var(--bird);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--bird), transparent 80%);
+}
+.birds-player.eliminated {
+  opacity: 0.4;
+}
+.birds-turn {
+  text-align: center;
+  color: #9cffff;
+  font-family: "Press Start 2P", monospace;
+  font-size: 9px;
+  line-height: 1.6;
+  padding: 4px 8px 10px;
+  z-index: 2;
+  background: #030b1d;
+  flex-shrink: 0;
+}
+.birds-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.birds-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+.birds-camera {
+  position: absolute;
+  right: 15px;
+  bottom: 135px;
+  display: flex;
+  gap: 5px;
+}
+.birds-camera button {
+  font-size: 9px;
+  min-height: 36px;
+  padding: 8px 12px;
+  background: #07172bd9;
+}
+.birds-zoom {
+  align-self: center;
+  min-width: 36px;
+  text-align: center;
+  font-size: 10px;
+  color: #a7fff8;
+  text-shadow: 0 1px 3px #030b1d;
+}
+.birds-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 12px 20px max(12px, env(safe-area-inset-bottom));
+  background: linear-gradient(#061127, #030919);
+  border-top: 1px solid #203d58;
+  min-height: 114px;
+  z-index: 2;
+  flex-shrink: 0;
+}
+.birds-weapons {
+  display: flex;
+  gap: 12px;
+}
+.birds-weapon {
+  min-width: 130px;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  grid-template-rows: 25px 22px;
+  column-gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid #655b99;
+  border-radius: 4px;
+  background: #060e20;
+  color: #d6effa;
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+}
+.birds-weapon[aria-pressed="true"] {
+  border-color: #77ffed;
+  box-shadow: 0 0 12px #33ead34d;
+  color: #6fffea;
+}
+.birds-weapon b {
+  font-size: 18px;
+  color: #49e8ef;
+  grid-column: 2;
+}
+.birds-pebble-icon,
+.birds-scatter-icon {
+  font-size: 31px;
+  color: #a9b9cd;
+  grid-row: 1/3;
+  text-shadow:
+    -3px -3px #e3eeee,
+    3px 3px #263452;
+}
+.birds-scatter-icon {
+  color: #eaae85;
+  text-shadow: 0 0 9px #ff8e33;
+}
+.birds-turn-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.birds-turn-actions button {
+  min-height: 45px;
+  padding: 10px;
+  font-size: 10px;
+}
+.birds-hint {
+  font-size: 11px;
+  margin: 0;
+  color: #8eacc2;
+  flex-basis: 100%;
+  text-align: center;
+}
+.birds-overlay {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: min(560px, 90%);
+  background: #061226ed;
+  border: 1px solid #56898e;
+  border-radius: 12px;
+  padding: 25px;
+  text-align: center;
+  z-index: 4;
+  box-shadow: 0 15px 60px #0009;
+}
+.birds-overlay h2 {
+  font-family: "Press Start 2P", monospace;
+  font-size: 16px;
+  line-height: 1.7;
+  color: #bffff5;
+}
+.birds-overlay p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #9dbacb;
+}
+.birds-overlay button {
+  margin: 8px;
+}
+.birds-tv .birds-controls {
+  min-height: 100px;
+}
+.birds-tv .birds-camera {
+  display: none;
+}
+@media (max-width: 700px) {
+  .birds-top {
+    gap: 9px;
+    padding: 9px 12px;
+    flex-wrap: wrap;
+  }
+  .birds-brand {
+    font-size: 16px;
+  }
+  .birds-top .birds-notice {
+    order: 5;
+    flex-basis: 100%;
+    font-size: 10px;
+  }
+  .birds-top .birds-code {
+    margin-left: auto;
+  }
+  .birds-top button {
+    font-size: 8px;
+  }
+  .birds-scorebar {
+    gap: 5px;
+    padding: 8px;
+  }
+  .birds-player {
+    min-width: 0;
+    padding: 7px 5px;
+    font-size: 6px;
+    gap: 6px;
+  }
+  .birds-player b {
+    font-size: 12px;
+  }
+  .birds-turn {
+    font-size: 7px;
+  }
+  .birds-controls {
+    gap: 10px;
+    padding: 9px 8px max(10px, env(safe-area-inset-bottom));
+  }
+  .birds-weapon {
+    min-width: 130px;
+    padding: 7px 10px;
+  }
+  .birds-turn-actions {
+    gap: 6px;
+  }
+  .birds-turn-actions button {
+    min-height: 40px;
+  }
+  .birds-hint {
+    font-size: 10px;
+  }
+  .birds-camera {
+    bottom: 185px;
+    right: 8px;
+    gap: 4px;
+  }
+  .birds-camera button {
+    padding: 7px 9px;
+    font-size: 8px;
+  }
+  .birds-lobby {
+    margin: 12px auto;
+  }
+  .birds-lobby h1 {
+    font-size: 14px;
+  }
+}
+@media (max-height: 550px) and (min-width: 600px) {
+  .birds-top {
+    padding: 6px 12px;
+  }
+  .birds-top .birds-brand {
+    font-size: 15px;
+  }
+  .birds-scorebar {
+    position: absolute;
+    top: 5px;
+    left: 0;
+    right: 0;
+    padding: 0 15px;
+    background: transparent;
+    pointer-events: none;
+  }
+  .birds-player {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 6px;
+    max-width: 150px;
+    background: #071329cc;
+  }
+  .birds-player b {
+    font-size: 12px;
+  }
+  .birds-turn {
+    position: absolute;
+    top: 48px;
+    left: 0;
+    right: 0;
+    background: transparent;
+    font-size: 7px;
+    pointer-events: none;
+  }
+  .birds-controls {
+    min-height: 70px;
+    gap: 12px;
+    padding: 7px;
+  }
+  .birds-weapon {
+    grid-template-rows: 20px 18px;
+    padding: 5px 10px;
+    min-width: 125px;
+  }
+  .birds-hint {
+    display: none;
+  }
+  .birds-camera {
+    bottom: 82px;
+  }
+  .birds-turn-actions button {
+    min-height: 40px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
