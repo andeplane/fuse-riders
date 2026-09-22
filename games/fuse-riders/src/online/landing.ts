@@ -47,11 +47,19 @@ export interface LandingHost {
   /** Where Ctrl+A goes while the landing page is up. */
   setRadioToggle: (toggle: () => void) => void;
   /** Sign-in, match history and the leaderboard (`createAccountPanel` with the page's endpoints). */
-  accountPanel: () => {
+  accountPanel: (friendButton: (publicId: string) => HTMLElement) => {
     button: HTMLElement;
     matchesButton: HTMLElement;
     leaderboardButton: HTMLElement;
     dialog: HTMLDialogElement;
+    dispose: () => void;
+  };
+  /** Friends, presence and invites (`createFriendsPanel`); `join` opens an invited room in this document. */
+  friendsPanel: (join: (code: string) => void) => {
+    button: HTMLElement;
+    dialog: HTMLDialogElement;
+    banner: HTMLElement;
+    friendButton: (publicId: string) => HTMLElement;
     dispose: () => void;
   };
   /** Starts the room the URL now names, in this document. */
@@ -224,6 +232,7 @@ export function showLanding(host: LandingHost): void {
     ended = true;
     cleanup?.();
     accountPanel.dispose();
+    friendsPanel.dispose();
     window.addEventListener("popstate", () => location.reload(), {
       once: true,
     });
@@ -297,13 +306,17 @@ export function showLanding(host: LandingHost): void {
   topEnd.append(landingSettings);
   card.append(landingDialog);
   // Optional sign-in and match history. A guest who never opens it never downloads the sign-in SDK.
-  const accountPanel = host.accountPanel();
+  const friendsPanel = host.friendsPanel((code) => enter(roomQuery(code)));
+  const accountPanel = host.accountPanel(friendsPanel.friendButton);
   topEnd.append(
     accountPanel.matchesButton,
     accountPanel.leaderboardButton,
+    friendsPanel.button,
     accountPanel.button,
   );
-  card.append(accountPanel.dialog);
+  friendsPanel.banner.classList.add("friends-invite-banner");
+  card.append(accountPanel.dialog, friendsPanel.dialog);
+  app.append(friendsPanel.banner);
   window.addEventListener("pagehide", accountPanel.dispose, { once: true });
   // The attract loop stays Fuse Riders' own: it runs the game's engine and renderer behind the landing page.
   void startAttract(arena, attractToggle)

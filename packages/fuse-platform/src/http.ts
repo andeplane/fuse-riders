@@ -1,6 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import { RoomError, type HttpExtension } from "fuse-network-be";
 import { LEGACY_GAME_ID } from "./game.js";
+import type { FriendsStore } from "./friends.js";
 import type { HistoryStore } from "./history.js";
 import type { IdentityVerifier } from "./identity.js";
 
@@ -170,4 +171,101 @@ export function createHistoryHttp(
       return false;
     },
   };
+}
+
+const FRIENDS_ROUTE =
+  /^\/api\/(?:friends(?:\/sync|\/invites\/[a-f0-9]{32}|\/[a-f0-9]{20})?|rooms\/[A-Z]{2}[0-9]{2}\/invites)$/;
+
+/**
+ * Friends, presence and invites: account routes, so shared by every game and never under `/api/games/:gameId/`.
+ * Every route needs a sign-in except the room invite, which like a result report is proven by the room token
+ * first and the sign-in second: nobody outside the room can make it read a body.
+ */
+export function createFriendsHttp(
+  store: FriendsStore,
+  identity: IdentityVerifier,
+): HttpExtension {
+  return {
+    methods: ["DELETE"],
+    headers: ["X-Fuse-Identity"],
+    async handle(req, res) {
+      const url = new URL(req.url ?? "/", "http://gateway"),
+        pathname = url.pathname;
+      if (!FRIENDS_ROUTE.test(pathname)) return false;
+      const json = (value: unknown, status = 200) => {
+        res.writeHead(status, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(value));
+      };
+      const invite = pathname.match(
+        /^\/api\/rooms\/([A-Z]{2}[0-9]{2})\/invites$/,
+      );
+      if (invite) {
+        if (req.method !== "POST") return false;
+        const header = req.headers["x-fuse-identity"];
+        const uid =
+          typeof header === "string" && header
+            ? await identity(header)
+            : undefined;
+        if (!uid) throw new RoomError(401, "Sign in first");
+        json(
+          await store.invite(invite[1]!, bearer(req), uid, await readJson(req)),
+        );
+        return true;
+      }
+      const uid = await identity(bearer(req));
+      if (!uid) {
+        json({ error: "Sign in first" }, 401);
+        return true;
+      }
+      if (pathname === "/api/friends/sync" && req.method === "POST") {
+        json(await store.sync(uid, await readJson(req)));
+        return true;
+      }
+      if (pathname === "/api/friends" && req.method === "POST") {
+        json(await store.add(uid, await readJson(req)));
+        return true;
+      }
+      const friend = pathname.match(/^\/api\/friends\/([a-f0-9]{20})$/);
+      if (friend && req.method === "DELETE") {
+        json(await store.remove(uid, friend[1]!));
+        return true;
+      }
+      const dismiss = pathname.match(
+        /^\/api\/friends\/invites\/([a-f0-9]{32})$/,
+      );
+      if (dismiss && req.method === "DELETE") {
+        await store.dismissInvite(uid, dismiss[1]!);
+        json({ dismissed: true });
+        return true;
+      }
+      return false;
+    },
+  };
+}
+
+/** One extension out of several: the first that handles a request answers it; methods and headers are the union. */
+export function composeHttp(
+  ...extensions: readonly HttpExtension[]
+): HttpExtension {
+  return {
+    methods: [...new Set(extensions.flatMap((e) => e.methods ?? []))],
+    headers: [...new Set(extensions.flatMap((e) => e.headers ?? []))],
+    async handle(req, res, clientAddress) {
+      for (const extension of extensions)
+        if (await extension.handle(req, res, clientAddress)) return true;
+      return false;
+    },
+  };
+}
+
+/** Every platform route: history and accounts, then friends. */
+export function createPlatformHttp(options: {
+  history: HistoryStore;
+  friends: FriendsStore;
+  identity: IdentityVerifier;
+}): HttpExtension {
+  return composeHttp(
+    createHistoryHttp(options.history, options.identity),
+    createFriendsHttp(options.friends, options.identity),
+  );
 }
