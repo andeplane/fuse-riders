@@ -1,4 +1,5 @@
 import type { Platform } from "./game.js";
+import { publicIdOf } from "./friends.js";
 import type { HistoryDatabase } from "./history.js";
 import type { LeaderboardEntry, Rivalries } from "./rating.js";
 import type { MatchRecord } from "./result.js";
@@ -160,6 +161,7 @@ export class MemoryHistoryDatabase implements HistoryDatabase {
     return Promise.all(
       entries.map(async ([id, p]) => ({
         rank: await this.rank(gameId, Math.round(p.rating!.value)),
+        publicId: publicIdOf(id),
         name: p.username ?? p.name ?? this.platform.account.fallbackName,
         ...(p.avatarId ? { avatarId: p.avatarId } : {}),
         elo: Math.round(p.rating!.value),

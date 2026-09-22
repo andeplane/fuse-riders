@@ -270,6 +270,8 @@ new games. See [the design and rollout notes](docs/design/PLAYER-STATS.md).
 
 Focused browser verification: `pnpm exec tsx scripts/player-stats-smoke.ts`. It uses the real local history API with injected
 test identity, Chromium and WebKit at desktop/phone widths; it does not exercise Google OAuth or production Firestore.
+`pnpm exec tsx scripts/friends-smoke.ts` does the same for friends: two browsers with injected identities ask, accept,
+invite from a room and are notified through a stubbed `Notification` API ([design](docs/design/friends.md)).
 
 ### Usernames
 
@@ -349,29 +351,45 @@ signs in only after leaving the room.
 | `PUT /api/me`                            | `Authorization: Bearer <ID token>`                                           | Body `{ username }` and nothing else. 20 changes per account per hour                                                                                                                                                                                                                                                                                                                                                                                             |
 | `GET /api/me/matches[?before=<endedAt>]` | `Authorization: Bearer <ID token>`                                           | The caller's profile totals and 20 confirmed matches, newest first; `before` pages back. Shows every rider's stats and which seat was the caller's — never another rider's account id. 300 requests per account per hour                                                                                                                                                                                                                                          |
 | `GET /api/matches[?before=<endedAt>]`    | None; optional `Authorization: Bearer <ID token>`                            | Everyone's 20 most recent confirmed whole games, newest first, guests' included; `before` pages back. Every rider's name, colour, avatar and stats, never a room code or account id; a signed-in caller also gets `you`, their own seat. Round receipts and games confirmed before this route existed are not listed. 300 requests per address per hour                                                                                                           |
+| `POST /api/friends/sync`                 | `Authorization: Bearer <ID token>`                                           | Body `{ name?, avatarId?, room?: { code, memberId, gameId? } }`: where this device is. Answers with the caller's public id, friends (online, and their room), requests both ways, pending invites and the signed-in members of the reported room. Presence is rewritten only when it changed or is a minute old. 400 per account per hour                                                                                                                         |
+| `POST /api/friends`                      | `Authorization: Bearer <ID token>`                                           | Body `{ publicId }`: ask to be friends, or accept. 30 per account per hour; 100 friends per account                                                                                                                                                                                                                                                                                                                                                               |
+| `DELETE /api/friends/<publicId>`         | `Authorization: Bearer <ID token>`                                           | Unfriend, decline or withdraw                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `POST /api/rooms/<CODE>/invites`         | `Authorization: Bearer <room token>`, `X-Fuse-Identity: <ID token>`          | Body `{ to: [publicId…] }`: invite accepted friends to a room the sender is a live member of. Anyone else in the list is skipped. 60 per account per hour; an invite lasts 10 minutes                                                                                                                                                                                                                                                                             |
+| `DELETE /api/friends/invites/<id>`       | `Authorization: Bearer <ID token>`                                           | Dismiss an invite addressed to the caller                                                                                                                                                                                                                                                                                                                                                                                                                         |
+
+Other players are addressed by a **public id**: 20 hex characters derived from the account by the service, shown on
+leaderboard rows (`publicId`), on the seats an account owns in a listed match (`accounts`) and on the signed-in members
+of a room. It identifies the account to other players without being the account: it opens no route on its own and
+cannot be turned back into the uid. See [the friends design](docs/design/friends.md).
 
 Both routes sit behind the gateway's existing `ALLOWED_ORIGINS` check, and both answer 404 on a service started without
 history (none is, today).
 
 ### Data (Firestore database `fuse-riders`)
 
-| Collection                | Document                          | Contents                                                                                                                                                                       |
-| ------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `fuse-production-matches` | hash of room incarnation + result | `status`, `result` (per-rider stats), `attesters`, `uidByPlayer`, `avatars`, `participantUids`, `createdAt`, `endedAt`, and `expiresAt`/`cleanupAt` while it can still expire  |
-| `fuse-production-users`   | Firebase `uid`                    | `username`, the rider `name` of the last credited match, `avatarId`, `updatedAt`, `totals` (matches, wins, round wins, eliminations, bombs, pickups, survival ticks, distance) |
+| Collection                 | Document                          | Contents                                                                                                                                                                                               |
+| -------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `fuse-production-matches`  | hash of room incarnation + result | `status`, `result` (per-rider stats), `attesters`, `uidByPlayer`, `avatars`, `participantUids`, `createdAt`, `endedAt`, and `expiresAt`/`cleanupAt` while it can still expire                          |
+| `fuse-production-users`    | Firebase `uid`                    | `username`, the rider `name` of the last credited match, `avatarId`, `updatedAt`, `totals` (matches, wins, round wins, eliminations, bombs, pickups, survival ticks, distance)                         |
+| `fuse-production-presence` | Firebase `uid`                    | `publicId`, `at` (last sync), the `name` and `avatarId` the player last showed up with, `room` (`code`, `memberId`, `gameId`) while in one. Kept, so a public id resolves; online is derived from `at` |
+| `fuse-production-friends`  | `uidA\|uidB`, sorted              | `uids`, `requestedBy`, `status` (`pending` or `accepted`), `at`: one document per pair whichever side asked                                                                                            |
+| `fuse-production-invites`  | hash of inviter, invitee and room | `from`, `to`, `code`, `gameId`, `at`, `expiresAt`, `cleanupAt` for the TTL policy                                                                                                                      |
 
 The personal data stored is the Firebase `uid`, the username, the rider names matches were played under and the
 avatar. **No email address or profile photo reaches the gateway or the database.** The Google display name is shown in
 the player's own browser only, with one exception the player can see and undo: an account with no username and no
 earlier rider name starts with the _first word_ of it as its username. To erase a player, delete their Authentication user, their `fuse-production-users` document, their
 `fuse-production-ratings` documents (`<gameId>:<uid>`, once another game exists), the `rivals` subcollections of
-both (Firestore does not delete a subcollection with its parent), and remove their `uid` from
-`uidByPlayer`/`participantUids` of their matches; there is no self-service delete yet.
+both (Firestore does not delete a subcollection with its parent), their `fuse-production-presence` document, every
+`fuse-production-friends` document whose `uids` names them and every `fuse-production-invites` document they sent or
+received, and remove their `uid` from `uidByPlayer`/`participantUids` of their matches; there is no self-service delete
+yet. A friendship is personal data of both players; removing one side's documents removes it for both.
 
 [`firestore.indexes.json`](firestore.indexes.json) holds the history query's composite index
 (`gameId`, `participantUids` array-contains, `endedAt` desc, for every game; the same without `gameId` only for rolling back to a revision from before Fuse Riders filtered on it), the
-per-game rating indexes on `fuse-production-ratings` (`gameId`, `ranked`, `elo`), the `cleanupAt` TTL policies for rooms, creation limits and
-matches, and an index exemption for the bulky `result` map. It lists the pre-existing TTL policies on purpose: the file
+per-game rating indexes on `fuse-production-ratings` (`gameId`, `ranked`, `elo`), the `cleanupAt` TTL policies for rooms, creation limits,
+matches and friend invites, and an index exemption for the bulky `result` map. The presence and friends collections
+are queried on one field each (`publicId`, `room.code`, `uids`, `to`), which Firestore indexes by itself. It lists the pre-existing TTL policies on purpose: the file
 is the whole truth for the database, so leaving one out invites the next deploy to remove it.
 
 ### Running it locally

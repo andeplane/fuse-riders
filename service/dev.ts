@@ -7,9 +7,11 @@ import {
 import { ROOM_LIMITS } from "./room-limits.js";
 import { listenFree } from "./listen-free.js";
 import {
+  FriendsStore,
   HistoryStore,
+  MemoryFriendsDatabase,
   MemoryHistoryDatabase,
-  createHistoryHttp,
+  createPlatformHttp,
   createIdentityVerifier,
   type IdentityVerifier,
   type Platform,
@@ -36,16 +38,21 @@ export function createDevRoomService(
     ...ROOM_LIMITS,
     gameIds: games.gameIds,
     ...options,
-    httpExtension: (store) =>
-      createHistoryHttp(
-        new HistoryStore(
+    httpExtension: (store) => {
+      const history = new MemoryHistoryDatabase(games, now);
+      return createPlatformHttp({
+        history: new HistoryStore(games, history, store, now),
+        friends: new FriendsStore(
           games,
-          new MemoryHistoryDatabase(games, now),
+          history,
+          new MemoryFriendsDatabase(),
           store,
           now,
         ),
-        options.identity ?? createIdentityVerifier(FIREBASE_PROJECT_ID),
-      ),
+        identity:
+          options.identity ?? createIdentityVerifier(FIREBASE_PROJECT_ID),
+      });
+    },
   });
 }
 

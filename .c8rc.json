@@ -34,6 +34,7 @@
     "games/fuse-riders/src/online/attract.ts",
     "games/fuse-riders/src/online/connect-hint.ts",
     "games/fuse-riders/src/online/endpoints.ts",
+    "games/fuse-riders/src/online/friends-panel.ts",
     "games/fuse-riders/src/online/join-form.ts",
     "games/fuse-riders/src/online/dialogs/room-settings.ts",
     "games/fuse-riders/src/online/keyboard-shortcuts.ts",

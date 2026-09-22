@@ -6,6 +6,14 @@ import {
   type DocumentSnapshot,
 } from "@google-cloud/firestore";
 import { userDocumentGame, type Platform } from "./game.js";
+import {
+  publicIdOf,
+  type FriendEdge,
+  type FriendsDatabase,
+  type InviteRecord,
+  type PresenceRecord,
+} from "./friends.js";
+import { validPublicId } from "./friends-api.js";
 import type { HistoryDatabase } from "./history.js";
 import { validUid } from "./identity.js";
 import {
@@ -15,7 +23,7 @@ import {
   splitProfile,
 } from "./profile.js";
 import type { LeaderboardEntry, Rival, Rivalries } from "./rating.js";
-import { parseMatchRecord, type MatchRecord } from "./result.js";
+import { parseMatchRecord, plain, type MatchRecord } from "./result.js";
 import {
   ACCOUNT_KEYS,
   settleHistory,
@@ -268,6 +276,7 @@ export class FirestoreHistoryDatabase implements HistoryDatabase {
       return [
         {
           rank,
+          publicId: publicIdOf(owner),
           name:
             profile.username ??
             profile.name ??
@@ -313,5 +322,205 @@ export class FirestoreHistoryDatabase implements HistoryDatabase {
     await this.users()
       .doc(uid)
       .set({ username, updatedAt: at }, { merge: true });
+  }
+}
+
+/**
+ * Friends, presence and invites, beside the history collections and never on the settlement path:
+ *
+ * - `${prefix}-presence`: one document per account that has ever synced (`uid`, `publicId`, `at`, `name`, `avatarId`,
+ *   `room`). `publicId` and `room.code` are queried by equality alone, which Firestore indexes by itself.
+ * - `${prefix}-friends`: one document per pair (`uids`, `requestedBy`, `status`, `at`), found by `uids` array-contains.
+ * - `${prefix}-invites`: one document per (inviter, invitee, room) with `cleanupAt` for the TTL policy in
+ *   firestore.indexes.json, found by `to`.
+ */
+export class FirestoreFriendsDatabase implements FriendsDatabase {
+  constructor(
+    private firestore: Firestore,
+    private prefix: string,
+  ) {}
+  private presenceCollection() {
+    return this.firestore.collection(`${this.prefix}-presence`);
+  }
+  private friends() {
+    return this.firestore.collection(`${this.prefix}-friends`);
+  }
+  private inviteCollection() {
+    return this.firestore.collection(`${this.prefix}-invites`);
+  }
+  private static presenceOf(value: unknown): PresenceRecord | undefined {
+    if (!plain(value)) return;
+    if (
+      !validUid(value.uid) ||
+      !validPublicId(value.publicId) ||
+      !Number.isSafeInteger(value.at) ||
+      (value.name !== undefined && typeof value.name !== "string") ||
+      (value.avatarId !== undefined && typeof value.avatarId !== "string")
+    )
+      throw new Error("Stored presence is incompatible");
+    const room = value.room;
+    if (
+      room !== undefined &&
+      (!plain(room) ||
+        typeof room.code !== "string" ||
+        typeof room.memberId !== "string" ||
+        typeof room.gameId !== "string")
+    )
+      throw new Error("Stored presence is incompatible");
+    return {
+      uid: value.uid,
+      publicId: value.publicId,
+      at: value.at as number,
+      ...(value.name === undefined ? {} : { name: value.name as string }),
+      ...(value.avatarId === undefined
+        ? {}
+        : { avatarId: value.avatarId as string }),
+      ...(room === undefined
+        ? {}
+        : {
+            room: {
+              code: room.code as string,
+              memberId: room.memberId as string,
+              gameId: room.gameId as string,
+            },
+          }),
+    };
+  }
+  private static edgeOf(value: unknown): FriendEdge | undefined {
+    if (!plain(value)) return;
+    if (
+      typeof value.id !== "string" ||
+      !Array.isArray(value.uids) ||
+      value.uids.length !== 2 ||
+      !value.uids.every(validUid) ||
+      !validUid(value.requestedBy) ||
+      (value.status !== "pending" && value.status !== "accepted") ||
+      !Number.isSafeInteger(value.at)
+    )
+      throw new Error("Stored friendship is incompatible");
+    return {
+      id: value.id,
+      uids: [value.uids[0] as string, value.uids[1] as string],
+      requestedBy: value.requestedBy,
+      status: value.status,
+      at: value.at as number,
+    };
+  }
+  private static inviteOf(value: unknown): InviteRecord | undefined {
+    if (!plain(value)) return;
+    if (
+      typeof value.id !== "string" ||
+      !validUid(value.from) ||
+      !validUid(value.to) ||
+      typeof value.code !== "string" ||
+      typeof value.gameId !== "string" ||
+      !Number.isSafeInteger(value.at) ||
+      !Number.isSafeInteger(value.expiresAt)
+    )
+      throw new Error("Stored invite is incompatible");
+    return {
+      id: value.id,
+      from: value.from,
+      to: value.to,
+      code: value.code,
+      gameId: value.gameId,
+      at: value.at as number,
+      expiresAt: value.expiresAt as number,
+    };
+  }
+  async presence(uid: string): Promise<PresenceRecord | undefined> {
+    return FirestoreFriendsDatabase.presenceOf(
+      (await this.presenceCollection().doc(uid).get()).data(),
+    );
+  }
+  async presences(uids: readonly string[]): Promise<PresenceRecord[]> {
+    if (!uids.length) return [];
+    const snapshots = await this.firestore.getAll(
+      ...uids.map((uid) => this.presenceCollection().doc(uid)),
+    );
+    return snapshots.flatMap((snapshot) => {
+      const record = FirestoreFriendsDatabase.presenceOf(snapshot.data());
+      return record ? [record] : [];
+    });
+  }
+  async setPresence(record: PresenceRecord): Promise<void> {
+    await this.presenceCollection().doc(record.uid).set(record);
+  }
+  async resolve(publicId: string): Promise<string | undefined> {
+    const docs = (
+      await this.presenceCollection()
+        .where("publicId", "==", publicId)
+        .limit(1)
+        .get()
+    ).docs;
+    return docs.length
+      ? FirestoreFriendsDatabase.presenceOf(docs[0]!.data())?.uid
+      : undefined;
+  }
+  async roomPresences(code: string, limit: number): Promise<PresenceRecord[]> {
+    const docs = (
+      await this.presenceCollection()
+        .where("room.code", "==", code)
+        .limit(limit)
+        .get()
+    ).docs;
+    return docs.flatMap((doc) => {
+      const record = FirestoreFriendsDatabase.presenceOf(doc.data());
+      return record ? [record] : [];
+    });
+  }
+  async edges(uid: string, limit: number): Promise<FriendEdge[]> {
+    const docs = (
+      await this.friends()
+        .where("uids", "array-contains", uid)
+        .limit(limit)
+        .get()
+    ).docs;
+    return docs.flatMap((doc) => {
+      const edge = FirestoreFriendsDatabase.edgeOf(doc.data());
+      return edge ? [edge] : [];
+    });
+  }
+  async transactEdge<T>(
+    id: string,
+    operation: (current: FriendEdge | undefined) => {
+      edge?: FriendEdge | null;
+      result: T;
+    },
+  ): Promise<T> {
+    const ref = this.friends().doc(id);
+    return this.firestore.runTransaction(
+      async (transaction) => {
+        const next = operation(
+          FirestoreFriendsDatabase.edgeOf((await transaction.get(ref)).data()),
+        );
+        if (next.edge === null) transaction.delete(ref);
+        else if (next.edge) transaction.set(ref, next.edge);
+        return next.result;
+      },
+      { maxAttempts: 5 },
+    );
+  }
+  async invites(uid: string, limit: number): Promise<InviteRecord[]> {
+    const docs = (
+      await this.inviteCollection().where("to", "==", uid).limit(limit).get()
+    ).docs;
+    return docs.flatMap((doc) => {
+      const invite = FirestoreFriendsDatabase.inviteOf(doc.data());
+      return invite ? [invite] : [];
+    });
+  }
+  async invite(id: string): Promise<InviteRecord | undefined> {
+    return FirestoreFriendsDatabase.inviteOf(
+      (await this.inviteCollection().doc(id).get()).data(),
+    );
+  }
+  async setInvite(record: InviteRecord): Promise<void> {
+    await this.inviteCollection()
+      .doc(record.id)
+      .set({ ...record, cleanupAt: Timestamp.fromMillis(record.expiresAt) });
+  }
+  async deleteInvite(id: string): Promise<void> {
+    await this.inviteCollection().doc(id).delete();
   }
 }

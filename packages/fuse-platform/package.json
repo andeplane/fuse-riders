@@ -10,6 +10,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./rating": "./src/rating.ts",
+    "./friends-api": "./src/friends-api.ts",
     "./firestore": "./src/firestore.ts"
   },
   "dependencies": {

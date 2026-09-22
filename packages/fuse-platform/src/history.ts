@@ -31,6 +31,7 @@ import {
   type MatchResult,
 } from "./result.js";
 import type { Credit, HistoryMutation, Profile } from "./settlement.js";
+import { publicIdOf } from "./friends.js";
 
 /**
  * Match history for every game. Gameplay is peer-to-peer, so the service never sees a match: every player's device
@@ -96,14 +97,17 @@ export interface Reporter {
   incarnation: string;
 }
 /**
- * What anyone may see of a confirmed game: every player's stats, and which seat was the caller's own. Never a room
- * code, never an account id, never a round receipt.
+ * What anyone may see of a confirmed game: every player's stats, which seat was the caller's own, and the public id
+ * of every seat an account owns (for adding that player as a friend). Never a room code, never an account id itself,
+ * never a round receipt.
  */
 export interface FeedEntry<P extends PlayerResult = PlayerResult> {
   id: string;
   endedAt: number;
   you?: string;
   avatars: Record<string, string>;
+  /** Seat id to public id, for the seats an account owns. */
+  accounts: Record<string, string>;
   result: MatchResult<P>;
 }
 export type SubmitOutcome = {
@@ -112,7 +116,10 @@ export type SubmitOutcome = {
   needed: number;
   linked: boolean;
 };
-/** What an account may see of a match: every player's stats, and which seat was its own; never another player's account. */
+/**
+ * What an account may see of a match: every player's stats, which seat was its own and the public id of every seat an
+ * account owns; never another player's account itself.
+ */
 export interface HistoryEntry<P extends PlayerResult = PlayerResult> {
   rating?: RatingPoint;
   id: string;
@@ -121,8 +128,18 @@ export interface HistoryEntry<P extends PlayerResult = PlayerResult> {
   you?: string;
   attestations: number;
   avatars: Record<string, string>;
+  accounts: Record<string, string>;
   result: MatchResult<P>;
 }
+
+/** Every seat an account owns, as the public id other players may address. */
+const publicSeats = (record: MatchRecord): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(record.uidByPlayer).map(([seat, owner]) => [
+      seat,
+      publicIdOf(owner),
+    ]),
+  );
 
 /**
  * Solo play has no room, so no incarnation; the account stands in for one. The legacy game keeps the form it always
@@ -520,6 +537,7 @@ export class GameHistory<
             endedAt: record.endedAt ?? record.createdAt,
             ...(you ? { you } : {}),
             avatars: record.avatars,
+            accounts: publicSeats(record),
             result: record.result as MatchResult<P>,
           },
         ];
@@ -580,6 +598,7 @@ export class GameHistory<
           ...(you ? { you } : {}),
           attestations: record.attesters.length,
           avatars: record.avatars,
+          accounts: publicSeats(record),
           result: record.result as MatchResult<P>,
         };
       }),
