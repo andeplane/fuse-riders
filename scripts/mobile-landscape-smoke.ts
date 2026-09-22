@@ -11,7 +11,7 @@ interface HoldPhase {
   generation: number;
 }
 await mkdir("artifacts", { recursive: true });
-// A solo round can end while the hints fade: the recap that ends matchOver opens the tools overlay (pointer-events:none on the thirds) and a phase
+// A solo round can end while the hints fade: the recap that ends matchOver opens the tools overlay (pointer-events:none on the pads) and a phase
 // change clears held input. Close the overlay and retry the press instead of racing the round clock.
 const press = async (page: Page, x: number, y: number) => {
   for (let attempt = 0; attempt < 6; attempt++) {
@@ -29,7 +29,7 @@ const press = async (page: Page, x: number, y: number) => {
     await page.mouse.up();
     await page.waitForTimeout(400);
   }
-  assert.fail("the left third never registered a press");
+  assert.fail("the left pad never registered a press");
 };
 for (const { name, kind } of BOTH_ENGINES) {
   const browser = await launchBrowser(kind, { headless: true });
@@ -110,11 +110,7 @@ for (const { name, kind } of BOTH_ENGINES) {
     await page.waitForFunction(() =>
       document.querySelector("canvas")?.dataset.renderer?.startsWith("phaser-"),
     );
-    const hintsOpacity = () =>
-      page
-        .locator(".mobile-control-hints")
-        .evaluate((e) => Number(getComputedStyle(e).opacity));
-    assert.ok((await hintsOpacity()) > 0, "hints visible during the countdown");
+    assert.equal(await page.locator(".mobile-control-hints").isVisible(), true);
     const bounds = await page
       .locator(".online-controls button")
       .evaluateAll((buttons) =>
@@ -123,12 +119,66 @@ for (const { name, kind } of BOTH_ENGINES) {
           return { x: r.x, y: r.y, width: r.width, height: r.height };
         }),
       );
-    for (const [i, r] of bounds.entries()) {
-      assert.ok(Math.abs(r.x - (i * 844) / 3) < 1);
-      assert.ok(Math.abs(r.width - 844 / 3) < 1);
+    const [left, bomb, right] = bounds;
+    assert.ok(left && bomb && right);
+    assert.ok(left.x < right.x && right.x < bomb.x);
+    assert.ok(Math.abs(bomb.width - left.width * 2) < 5);
+    assert.deepEqual(bounds, [
+      { x: 0, y: 0, width: 211, height: 390 },
+      { x: 422, y: 0, width: 422, height: 390 },
+      { x: 211, y: 0, width: 211, height: 390 },
+    ]);
+    for (const r of bounds) {
       assert.equal(r.y, 0);
       assert.equal(r.height, 390);
+      assert.ok(r.x >= 0 && r.x + r.width <= 844);
     }
+    const hints = await page
+      .locator(".mobile-control-hints > span")
+      .evaluateAll((elements) =>
+        elements.map((element) => {
+          const box = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          const icon = getComputedStyle(element, "::before");
+          return {
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+            border: style.borderTopColor,
+            background: style.backgroundColor,
+            content: icon.content,
+            image: icon.backgroundImage,
+          };
+        }),
+      );
+    for (const [index, hint] of hints.entries()) {
+      const region = bounds[index]!;
+      assert.deepEqual(
+        { x: hint.x, y: hint.y, width: hint.width, height: hint.height },
+        {
+          x: region.x + 4,
+          y: region.y + 4,
+          width: region.width - 8,
+          height: region.height - 8,
+        },
+        "white outline follows its actual touch region",
+      );
+      assert.equal(hint.border, "rgb(255, 255, 255)");
+      assert.equal(hint.background, "rgba(0, 0, 0, 0)");
+      assert.equal(hint.content, '""', "hints show icons instead of text");
+      assert.match(hint.image, /data:image\/svg\+xml/);
+    }
+    assert.equal(
+      await page
+        .locator(".online-announce.countdown .announce-hint")
+        .isVisible(),
+      false,
+      "the outlined regions replace the phone's text instructions",
+    );
+    await page.screenshot({
+      path: `artifacts/mobile-control-outlines-${name}.png`,
+    });
     const fit = await page
       .locator(".online-arena")
       .evaluate((canvas) => getComputedStyle(canvas).objectFit);
@@ -137,17 +187,22 @@ for (const { name, kind } of BOTH_ENGINES) {
     await page.waitForFunction(
       () => document.querySelector(".online-notice")?.textContent === "",
     ); // countdown → playing clears held input; press during play
-    assert.ok(
-      (await hintsOpacity()) > 0,
-      "hint fade restarts when play begins",
+    assert.equal(
+      await page
+        .locator(".mobile-control-hints")
+        .evaluate((element) => getComputedStyle(element).opacity),
+      "0",
+      "outlines disappear on the first playing frame",
     );
+
     const zones = page.locator(".online-controls>button");
     const cdp =
       name === "chrome" ? await context.newCDPSession(page) : undefined;
     let transitionForced = false;
     for (const third of [0, 1, 2]) {
-      const x = 844 / 6 + (third * 844) / 3,
-        y = 195;
+      const box = bounds[third]!;
+      const x = box.x + box.width / 2,
+        y = box.y + box.height / 2;
       let completed = false;
       for (let attempt = 0; attempt < 6 && !completed; attempt++) {
         await page.waitForFunction(
@@ -300,22 +355,15 @@ for (const { name, kind } of BOTH_ENGINES) {
         touchAction: "none",
         touchCallout: "none",
       });
-    // The fade restarts on every entry into countdown and playing, because mobile-play-layout removes and re-appends
-    // the element, so across an ~11s round cycle the opacity is 1 for about two seconds after each restart and
-    // non-zero for over half of it. Sampling once lands wherever the round clock happens to be -- and sleeping longer
-    // makes that worse, not better. Poll for the fade instead: where in the cycle it starts stops mattering, and the
-    // wait fails loudly if the hints never disappear.
     await page.waitForFunction(
       () =>
         getComputedStyle(document.querySelector(".mobile-control-hints")!)
           .opacity === "0",
-      undefined,
-      { timeout: smokeTimeout(10000) },
     );
     await page.screenshot({
       path: `artifacts/mobile-landscape-faded-${name}.png`,
     });
-    await press(page, 100, 200);
+    await press(page, left.x + left.width / 2, left.y + left.height / 2);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator(".mobile-play.mobile-portrait").waitFor();
     await page.waitForFunction(
@@ -347,6 +395,27 @@ for (const { name, kind } of BOTH_ENGINES) {
         `${name} never became clickable inside the tools overlay`,
       );
     };
+    // The shared layout preference is reachable in arena play as well as TV controller mode.
+    await clickInTools("SETTINGS");
+    await page.getByLabel("Landscape bomb side").selectOption("left");
+    await page.getByRole("button", { name: "CLOSE", exact: true }).click();
+    if (await page.locator(".mobile-tools-open").count())
+      await page.locator(".mobile-tools-toggle").click();
+    await page.setViewportSize({ width: 844, height: 390 });
+    const swapped = await page
+      .locator(".online-controls > button")
+      .evaluateAll((buttons) =>
+        buttons.map((button) => button.getBoundingClientRect().x),
+      );
+    assert.ok(swapped[1]! < swapped[0]! && swapped[0]! < swapped[2]!);
+    assert.equal(
+      await page.evaluate(() =>
+        localStorage.getItem("fuse-riders-controller-bomb-side"),
+      ),
+      "left",
+    );
+    await page.screenshot({ path: `artifacts/mobile-pads-left-${name}.png` });
+    await page.setViewportSize({ width: 390, height: 844 });
     // Identity controls live beside READY in the lobby, not in the header.
     const avatarButton = page.getByRole("button", {
       name: "AVATAR",
@@ -384,7 +453,7 @@ for (const { name, kind } of BOTH_ENGINES) {
       browser: name,
       passed: true,
       portraitGate: true,
-      thirds: bounds,
+      pads: bounds,
       objectFit: fit,
       longPressNoSelect: noSelect,
       hintsFaded: true,

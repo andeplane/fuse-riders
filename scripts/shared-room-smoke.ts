@@ -4,6 +4,7 @@ import { BOTH_ENGINES, launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { smokeTimeout } from "./smoke-timeout.js";
+import { openTopMenu } from "./lib/top-menu.js";
 const base = process.env.ONLINE_URL ?? "http://127.0.0.1:8796/";
 await mkdir("artifacts", { recursive: true });
 const results: object[] = [];
@@ -150,6 +151,7 @@ for (const { name, kind } of BOTH_ENGINES) {
             false,
             "no truncated join URL on a phone",
           );
+          await openTopMenu(phone);
           await phone
             .getByRole("button", { name: "SETTINGS", exact: true })
             .click();

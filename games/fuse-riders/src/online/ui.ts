@@ -6,6 +6,7 @@ import { presentFrames } from "../render/time/present.js";
 import { apiUrl, appUrl } from "./endpoints.js";
 import { GAME_ID } from "../shared/game-id.js";
 import { createAccountPanel } from "./account-panel.js";
+import { createTopMenuToggle } from "./top-menu-toggle.js";
 import {
   accountUsername,
   fetchUsername,
@@ -921,7 +922,11 @@ export async function startOnline(): Promise<void> {
     // VISUAL STYLE only changes the arena, which a shared-TV controller never draws, lobby included.
     setIfChanged(styleHeading, "hidden", next.arenaController);
     setIfChanged(styleRow, "hidden", next.arenaController);
-    setIfChanged(controllerLayoutSetting, "hidden", !next.arenaController);
+    setIfChanged(
+      controllerLayoutSetting,
+      "hidden",
+      !next.arenaController && !next.mobile.active && !next.mobile.lobby,
+    );
     mobileLayout.update(
       next.mobile,
       snapshot?.phase ?? "lobby",
@@ -968,6 +973,10 @@ export async function startOnline(): Promise<void> {
     roomAccount.button,
   );
   header.append(topMenu);
+  // One ☰ instead of two wrapped rows of buttons where the viewport is too short to spare them; top-menu.css decides
+  // where that is, and the sheet it opens floats over the page so the lobby keeps its height either way.
+  const topMenuToggle = createTopMenuToggle(header, topMenu);
+  header.append(topMenuToggle.button);
   topMenu.append(results, menu, help);
   for (const extra of [
     topRadio,
@@ -987,6 +996,7 @@ export async function startOnline(): Promise<void> {
     "pagehide",
     () => {
       roomAccount.dispose();
+      topMenuToggle.dispose();
       window.removeEventListener("focus", refreshAccount);
       document.removeEventListener("visibilitychange", refreshAccount);
     },

@@ -291,7 +291,6 @@ export function showLanding(host: LandingHost): void {
         });
         return true;
       },
-      () => landingDialog.close(),
     );
     landingDialog.showModal();
   };

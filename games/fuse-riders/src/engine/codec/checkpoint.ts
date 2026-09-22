@@ -41,7 +41,11 @@ import {
 import { WEAPON_KINDS } from "../weapons.js";
 import { isAvatarId } from "../avatar-id.js";
 import { GUN_AIM_MAX } from "../gun.js";
-import { MAX_PORTAL_PAIRS } from "../portal.js";
+import {
+  MAX_PORTAL_PAIRS,
+  PORTAL_LIFETIME_TICKS,
+  PORTAL_WARMUP_TICKS,
+} from "../portal.js";
 import {
   ARENA_MAPS,
   MAX_OBSTACLES,
@@ -657,7 +661,13 @@ function gameInvariants(game: GameState): boolean {
   // Transit exit safety exempts the pair in use by id, so duplicate ids would exempt a foreign wall.
   const portalIds = new Set<string>();
   for (const pair of game.portalPairs) {
-    if (portalIds.has(pair.id) || pair.expiresAtTick <= game.tick) return false;
+    if (
+      portalIds.has(pair.id) ||
+      pair.expiresAtTick <= game.tick ||
+      pair.expiresAtTick - game.tick >
+        PORTAL_LIFETIME_TICKS + PORTAL_WARMUP_TICKS
+    )
+      return false;
     portalIds.add(pair.id);
   }
   // IDs select fixed catalog variants and identify destroyed pieces for the renderer.
