@@ -1,10 +1,10 @@
 [
   {
-    "rules": "fuse-birds-4",
+    "rules": "fuse-birds-5",
     "seed": 123,
     "count": 2,
     "final": {
-      "hash": "c3c5bf47b7d5da0b",
+      "hash": "48c5e6b65d06efba",
       "ticks": 72,
       "winner": "p0",
       "terrainVersion": 1,
@@ -19,11 +19,11 @@
     }
   },
   {
-    "rules": "fuse-birds-4",
+    "rules": "fuse-birds-5",
     "seed": 914,
     "count": 3,
     "final": {
-      "hash": "5a34f6f733792ffb",
+      "hash": "7ba76e90be34864c",
       "ticks": 432,
       "winner": "p2",
       "terrainVersion": 10,
@@ -40,11 +40,11 @@
     }
   },
   {
-    "rules": "fuse-birds-4",
+    "rules": "fuse-birds-5",
     "seed": 987654,
     "count": 5,
     "final": {
-      "hash": "1861af32b5c525be",
+      "hash": "cc850b39cff8b70d",
       "ticks": 534,
       "winner": "p4",
       "terrainVersion": 19,

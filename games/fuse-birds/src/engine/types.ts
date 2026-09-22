@@ -1,4 +1,4 @@
-export const RULES = "fuse-birds-4";
+export const RULES = "fuse-birds-5";
 export const WIDTH = 1536,
   HEIGHT = 768,
   UNIT = 256,

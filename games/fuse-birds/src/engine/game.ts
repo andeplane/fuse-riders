@@ -161,6 +161,34 @@ function applyAction(state: Match, action: Action, facts: Fact[]): void {
     for (let lift = 0; lift <= 3; lift++)
       if (boxClear(state.terrain, x, p.y - lift * UNIT, BODY_X, BODY_Y)) {
         if (state.movement < (3 + lift) * UNIT) return;
+        if (
+          (lift > 0 &&
+            sweep(
+              state.terrain,
+              p.x,
+              p.y,
+              0,
+              -lift * UNIT,
+              BODY_X - 1,
+              [],
+              [],
+              undefined,
+              BODY_Y - 1,
+            )) ||
+          sweep(
+            state.terrain,
+            p.x,
+            p.y - lift * UNIT,
+            x - p.x,
+            0,
+            BODY_X - 1,
+            [],
+            [],
+            undefined,
+            BODY_Y - 1,
+          )
+        )
+          continue;
         p.x = x;
         p.y -= lift * UNIT;
         state.movement -= (3 + lift) * UNIT;

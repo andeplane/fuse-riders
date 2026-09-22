@@ -46,6 +46,11 @@ export function cancelGesture(state: GestureState): void {
   state.mode = "idle";
   state.cancelled = state.pointers.size > 0;
 }
+/** External focus loss can omit pointerup: abandon that ownership entirely. */
+export function resetGesture(state: GestureState): void {
+  state.pointers.clear();
+  cancelGesture(state);
+}
 const center = (a: Point, b: Point): Point => ({
   x: (a.x + b.x) / 2,
   y: (a.y + b.y) / 2,

@@ -17,24 +17,40 @@ try {
     pages.push(page);
   }
   const [creator, successor, survivor] = pages as [Page, Page, Page];
+  let releaseCreate!: () => void;
+  const createPending = new Promise<void>((resolve) => {
+    releaseCreate = resolve;
+  });
   await creator.route(
     "**/api/rooms?gameId=fuse-birds",
-    (route) =>
-      route.fulfill({
+    async (route) => {
+      await createPending;
+      await route.fulfill({
         status: 503,
         contentType: "application/json",
         body: JSON.stringify({ error: "Room service temporarily unavailable" }),
-      }),
+      });
+    },
     { times: 1 },
   );
   await creator.goto(`${base}/fuse-birds/?mute`);
   await creator.getByRole("button", { name: "CREATE ROOM" }).click();
+  assert.equal(
+    await creator.getByRole("button", { name: "JOIN ROOM" }).isDisabled(),
+    true,
+  );
+  assert.equal(await creator.getByPlaceholder("ROOM CODE").isDisabled(), true);
+  releaseCreate();
   await creator.getByRole("status").filter({ hasText: "Try again" }).waitFor();
   assert.equal(
     await creator.getByRole("button", { name: "CREATE ROOM" }).isEnabled(),
     true,
   );
   await creator.screenshot({ path: `${output}/create-retry.png` });
+  assert.equal(
+    await creator.getByRole("button", { name: "JOIN ROOM" }).isEnabled(),
+    true,
+  );
   await creator.getByRole("button", { name: "CREATE ROOM" }).click();
   await creator.locator(".fui-name-input").fill("SKYE");
   await creator.getByRole("button", { name: "JOIN BATTLE" }).click();

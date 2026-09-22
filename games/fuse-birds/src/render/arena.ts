@@ -105,7 +105,7 @@ export function createArena(
         height = Math.max(1, Math.round(canvas.clientHeight * ratio));
       if (game.scale.width !== width || game.scale.height !== height)
         game.scale.resize(width, height);
-      if (!scene.paint(frame, now)) return false;
+      if (!scene.paint(frame, now, ratio)) return false;
       game.step(now, Math.max(0, Math.min(50, now - previousTime)));
       previousTime = now;
       return true;
@@ -283,9 +283,13 @@ class BirdsScene extends Phaser.Scene {
     c.strokeRect(7, 9, 50, 46);
     tex.refresh();
   }
-  paint(frame: ArenaFrame, now: number): boolean {
+  paint(frame: ArenaFrame, now: number, pixelRatio = 1): boolean {
     const { world: view } = frame,
       viewport = { width: this.scale.width, height: this.scale.height };
+    const cssViewport = {
+      width: viewport.width / pixelRatio,
+      height: viewport.height / pixelRatio,
+    };
     const camera = constrainCamera(frame.camera, view, viewport, frame.shared);
     this.cameras.main
       .setZoom(fitScale(view, viewport) * camera.zoom)
@@ -410,7 +414,7 @@ class BirdsScene extends Phaser.Scene {
       }
       const marker = frame.shared
         ? undefined
-        : edgeMarker({ x, y }, camera, view, viewport);
+        : edgeMarker({ x, y }, camera, view, cssViewport);
       name
         .setColor(COLORS[bird.slot]!)
         .setText(
@@ -418,7 +422,9 @@ class BirdsScene extends Phaser.Scene {
         )
         .setPosition(marker?.x ?? x, marker?.y ?? y - 13)
         .setScale(
-          marker ? 1 / this.cameras.main.zoom : Math.max(0.5, 1 / camera.zoom),
+          marker
+            ? pixelRatio / this.cameras.main.zoom
+            : Math.max(0.5, 1 / camera.zoom),
         );
       g.fillStyle(0x061224).fillRect(x - 7, y - 11, 14, 1.5);
       g.fillStyle(
@@ -441,7 +447,7 @@ class BirdsScene extends Phaser.Scene {
       image.setPosition(x, y);
       const marker = frame.shared
         ? undefined
-        : edgeMarker({ x, y }, camera, view, viewport);
+        : edgeMarker({ x, y }, camera, view, cssViewport);
       let label = this.names.get(key);
       if (marker && !label) {
         label = this.add
@@ -461,7 +467,7 @@ class BirdsScene extends Phaser.Scene {
         label!
           .setText(`${marker.arrow} AMMO`)
           .setPosition(marker.x, marker.y)
-          .setScale(1 / this.cameras.main.zoom);
+          .setScale(pixelRatio / this.cameras.main.zoom);
       if (!crate.grounded) {
         g.lineStyle(0.5, 0xb1e9e5, 0.8)
           .lineBetween(x - 10, y - 23, x - 5, y - 6)

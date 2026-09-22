@@ -18,6 +18,7 @@ try {
       viewport,
       isMobile: viewport.width < 500,
       hasTouch: viewport.width < 500,
+      deviceScaleFactor: viewport.width < 500 ? 2 : 1,
     });
     const page = await context.newPage();
     page.on("pageerror", (error) => errors.push(error.message));
@@ -123,6 +124,13 @@ try {
       .getByRole("button", { name: "Scatter Bomb, 3 shots remaining" })
       .waitFor();
   await first.screenshot({ path: `${output}/landscape-cancelled.png` });
+  // A new gesture must remain usable after external cancellation.
+  await startAim();
+  await first.keyboard.press("Escape");
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
   assert.deepEqual(errors, []);
   console.log(
     `Room ${code}: two independent emulated phone views and full-map TV; pinch, viewport resize and dispatched blur cancel an active aim without spending ammo. ${output}`,

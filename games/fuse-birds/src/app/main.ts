@@ -31,6 +31,7 @@ import { createArena } from "../render/arena.js";
 import { constrainCamera, followShot, zoomAt } from "../render/camera.js";
 import {
   cancelGesture,
+  resetGesture,
   createGestures,
   pointerDown,
   pointerMove,
@@ -95,7 +96,8 @@ function landing(): void {
     back = el("a", "← More Fuse games", "birds-back");
   back.href = import.meta.env.BASE_URL;
   create.onclick = async () => {
-    create.disabled = true;
+    if (create.disabled) return;
+    create.disabled = join.disabled = code.disabled = shared.disabled = true;
     message.textContent = "Creating your room…";
     try {
       const result = await createRoom(endpoints.apiUrl, fetch, GAME);
@@ -108,11 +110,12 @@ function landing(): void {
       room(result.code, false);
     } catch (error) {
       message.textContent = `${roomFailure(error)} Try again.`;
-      create.disabled = false;
+      create.disabled = join.disabled = code.disabled = shared.disabled = false;
     }
   };
   joinForm.onsubmit = (e) => {
     e.preventDefault();
+    if (create.disabled) return;
     const value = code.value.trim().toUpperCase();
     if (!validRoomCode(value)) {
       message.textContent = "Enter a valid room code.";
@@ -308,6 +311,10 @@ function room(code: string, display: boolean): void {
     !display &&
     view?.phase === "aiming" &&
     view.players[view.active]?.id === me;
+  const abandonInput = () => {
+    cancel();
+    resetGesture(gestures);
+  };
   const canAim = () =>
     canPlay() && view?.players[view.active]?.grounded === true;
   const play = (action: Play) => {
@@ -389,6 +396,12 @@ function room(code: string, display: boolean): void {
   canvas.onpointercancel = (e) => {
     cancel();
     pointerUp(gestures, e.pointerId);
+  };
+  canvas.onlostpointercapture = (e) => {
+    if (gestures.pointers.has(e.pointerId)) {
+      cancel();
+      pointerUp(gestures, e.pointerId);
+    }
   };
   canvas.addEventListener(
     "wheel",
@@ -621,10 +634,10 @@ function room(code: string, display: boolean): void {
     destroy: stop,
     reload: () => location.reload(),
   });
-  window.addEventListener("blur", cancel);
+  window.addEventListener("blur", abandonInput);
   window.addEventListener("resize", cancel);
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) cancel();
+    if (document.hidden) abandonInput();
   });
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {

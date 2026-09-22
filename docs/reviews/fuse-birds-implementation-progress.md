@@ -1,6 +1,12 @@
 # Fuse Birds Phase 1 implementation evidence
 
-Worktree: `codex/fuse-birds-concept`, based on `0386f4af`. Engine rules: `fuse-birds-4`; room checkpoint format: `fuse-birds-4-snapshot2`. Local implementation and verification; no merge or deployment.
+Worktree: `codex/fuse-birds-concept`, based on `0386f4af`. PR #407 is open. Review fixes advance engine rules to `fuse-birds-5` and checkpoint format to `fuse-birds-5-snapshot2`; the broader rules-4 evidence below is historical until its refresh completes. No merge or deployment.
+
+## Independent PR review follow-up
+
+Two read-only reviewers inspected commit `24b590a9`. All four actionable findings have local fixes: swept head clearance and horizontal step-up paths; external pointer reset after abandoned touches plus lost-capture cleanup; CSS-pixel marker sizing/insets at DPR2; and serialized create/join navigation during pending creation. The physics change intentionally bumps RULES and regenerates the three replay golden fixtures.
+
+All 59 focused Birds tests and build/typecheck/scoped lint pass. New regressions reproduce the overhang collision and abandoned-pointer cases. Real room LI16 passes the two-phone/TV cancellation flow at DPR2, including a new aim after blur; its image was inspected for label size and margins. Room IL86 verifies disabled join/code while creation is deliberately held, re-enabled controls on failure, retry and ownership succession. The rules-5 continuing-play/replay/coverage refresh remains in progress; PR delivery is not complete yet.
 
 ## Delivered behavior
 

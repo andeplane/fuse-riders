@@ -4,6 +4,7 @@ import { MAX_VX, MAX_VY } from "../src/engine/view-kit.js";
 import {
   createGestures,
   cancelGesture,
+  resetGesture,
   pointerDown,
   pointerMove,
   pointerUp,
@@ -11,6 +12,17 @@ import {
 const map = { width: 1536, height: 768 },
   viewport = { width: 1000, height: 600 },
   bird = { x: 768, y: 384 };
+test("an abandoned touch cannot poison the next aim after external focus loss", () => {
+  const state = createGestures({ x: 768, y: 384, zoom: 1 });
+  pointerDown(state, { id: 1, x: 500, y: 300 }, true, map, viewport, bird);
+  pointerMove(state, { id: 1, x: 400, y: 400 }, map, viewport);
+  resetGesture(state); // No pointerup is delivered for the abandoned contact.
+  assert.equal(state.pointers.size, 0);
+  pointerDown(state, { id: 2, x: 500, y: 300 }, true, map, viewport, bird);
+  pointerMove(state, { id: 2, x: 400, y: 400 }, map, viewport);
+  assert.equal(state.mode, "aim");
+  assert.ok(pointerUp(state, 2));
+});
 test("the slingshot can select the complete engine launch range", () => {
   const state = createGestures({ x: 768, y: 384, zoom: 1 });
   pointerDown(state, { id: 1, x: 500, y: 300 }, true, map, viewport, bird);

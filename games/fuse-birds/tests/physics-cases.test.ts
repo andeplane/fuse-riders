@@ -46,6 +46,23 @@ function command(
     ordinal: p.ordinal + 1,
   };
 }
+test("step-up checks head clearance before committing movement", () => {
+  for (const ceiling of [false, true]) {
+    const state = arena(),
+      bird = state.players[0]!;
+    bird.x = 100 * UNIT;
+    const fill = (x: number, y: number) => {
+      const index = y * 1536 + x;
+      state.terrain.bits[index >>> 3]! |= 1 << (index & 7);
+    };
+    fill(106, 449);
+    if (ceiling) fill(95, 437);
+    const before = state.movement;
+    advance(state, [command(state, { type: "move", direction: 1 })]);
+    assert.equal(bird.x, (ceiling ? 100 : 103) * UNIT);
+    assert.equal(state.movement, ceiling ? before : before - 4 * UNIT);
+  }
+});
 function projectile(s: Match, values: Partial<Projectile> = {}): Projectile {
   return {
     id: s.nextEntity++,
