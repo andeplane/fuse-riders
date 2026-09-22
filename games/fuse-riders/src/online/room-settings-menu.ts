@@ -17,20 +17,19 @@ import {
   BOMB_CHARGE_TICKS_LIMIT,
 } from "../engine/bomb-launch.js";
 import "./room-settings-menu.css";
-/** One draft survives submenu navigation; only Save publishes it. */
+/** One draft survives submenu navigation; every valid change publishes it, so there is no Save button to find. */
 export function showRoomSettings(
   body: HTMLElement,
   settings: RoomSettings,
   solo: boolean,
   labels: Record<PickupType, string>,
   save: (draft: RoomSettings) => boolean,
-  close: () => void,
   start: "main" | "powerups" = "main",
 ): void {
   const draft = structuredClone(settings);
-  // Typed aim text outlives submenu rebuilds so an off-grid value is still rejected on Save instead of being silently rounded.
+  // Typed aim text outlives submenu rebuilds so an off-grid value is still rejected on the next change instead of being silently rounded.
   let aimText = String(draft.bombChargeTicks / TICK_HZ);
-  // Match length lands in the draft on every keystroke, so both SAVE buttons check the draft rather than the inputs of one page (#168).
+  // Match length lands in the draft on every keystroke, so a change on either page checks the draft rather than the inputs of one page (#168).
   const validate = (): string | undefined => {
     if (
       !Number.isInteger(draft.length) ||
@@ -50,6 +49,19 @@ export function showRoomSettings(
       return "Choose a bomb aim time from 0.1 to 2 seconds in steps of 0.05.";
     return undefined;
   };
+  // Every change publishes the whole draft. An invalid draft is kept, not published, and the page's alert says why; a
+  // failed publish keeps the draft too, so the next change retries it. The room gets its own copy: the draft keeps changing.
+  let commit = (): void => {};
+  const publish = (alert: HTMLElement, prefix = "") => {
+    const invalid = validate();
+    if (invalid) {
+      alert.textContent = `${invalid}${prefix}`;
+      return;
+    }
+    alert.textContent = save(structuredClone(draft))
+      ? ""
+      : "Could not save settings. Check the room connection and try again.";
+  };
   const choices = <T extends string>(
     title: string,
     value: T,
@@ -68,7 +80,10 @@ export function showRoomSettings(
       input.name = title;
       input.value = key;
       input.checked = value === key;
-      input.onchange = () => change(key);
+      input.onchange = () => {
+        change(key);
+        commit();
+      };
       label.append(input, element("span", text));
       group.append(label);
     }
@@ -76,6 +91,9 @@ export function showRoomSettings(
   };
   const main = () => {
     body.replaceChildren(element("h2", "Room settings"));
+    const error = element("p");
+    error.setAttribute("role", "alert");
+    commit = () => publish(error);
     body.append(
       choices(
         "Screen layout",
@@ -162,6 +180,7 @@ export function showRoomSettings(
     length.setAttribute("aria-label", "Match length");
     length.oninput = () => {
       draft.length = Number(length.value);
+      commit();
     };
     lengthLabel.append(length);
     body.append(lengthLabel);
@@ -175,6 +194,7 @@ export function showRoomSettings(
       button.onclick = () => {
         draft.length = rounds;
         length.value = String(rounds);
+        commit();
       };
       presets.append(button);
     }
@@ -198,6 +218,7 @@ export function showRoomSettings(
       aimText = aim.value;
       if (aim.checkValidity())
         draft.bombChargeTicks = Math.round(Number(aim.value) * TICK_HZ);
+      commit();
     };
     aimLabel.append(aim);
     body.append(
@@ -213,28 +234,19 @@ export function showRoomSettings(
       configure,
       element(
         "p",
-        "Gameplay changes apply next round. Match length applies next match.",
+        "Changes save as you make them. Gameplay changes apply next round. Match length applies next match.",
       ),
+      error,
     );
-    const error = element("p");
-    error.setAttribute("role", "alert");
-    const apply = element("button", "SAVE SETTINGS");
-    apply.onclick = () => {
-      const invalid = validate();
-      if (invalid) {
-        error.textContent = invalid;
-        return;
-      }
-      if (save(draft)) close();
-      else
-        error.textContent =
-          "Could not save settings. Check the room connection and try again.";
-    };
-    body.append(error, apply);
     body.scrollTop = 0;
   };
   const powerups = () => {
     body.replaceChildren(element("h2", "Configure powerups"));
+    const powerupError = element("p");
+    powerupError.setAttribute("role", "alert");
+    // Ctrl+P opens this page directly (#168), so it publishes here too, through the same validate() as the main page.
+    commit = () =>
+      publish(powerupError, " Go back to room settings to fix it.");
     const back = element("button", "← BACK TO ROOM SETTINGS");
     back.onclick = main;
     body.append(
@@ -277,12 +289,14 @@ export function showRoomSettings(
       if (input) input.value = String(weight);
       recalc();
     };
+    // A preset writes every weight before one publish; a chip or a typed weight publishes on its own.
     for (const [name, weights] of Object.entries(POWERUP_PRESETS)) {
       const button = element("button", name);
       button.type = "button";
       button.onclick = () => {
         for (const type of Object.keys(labels) as PickupType[])
           setWeight(type, weights(type, defaults));
+        commit();
       };
       presetRow.append(button);
     }
@@ -299,11 +313,13 @@ export function showRoomSettings(
         const chip = element("button", rarity.toUpperCase());
         chip.type = "button";
         chip.dataset.rarity = rarity;
-        chip.onclick = () =>
+        chip.onclick = () => {
           setWeight(
             type as PickupType,
             weightFor(type as PickupType, rarity, defaults),
           );
+          commit();
+        };
         buttons.push(chip);
         rarityRow.append(chip);
       }
@@ -321,6 +337,7 @@ export function showRoomSettings(
           Math.min(10000, Math.round(Number(input.value) || 0)),
         );
         recalc();
+        commit();
       };
       label.append(input, percent);
       percentages.set(type, percent);
@@ -328,24 +345,12 @@ export function showRoomSettings(
       row.append(label, rarityRow);
       body.append(row);
     }
+    body.append(
+      element("p", "Changes save as you make them and apply next round."),
+      powerupError,
+    );
     recalc();
     body.scrollTop = 0;
-    const powerupError = element("p");
-    powerupError.setAttribute("role", "alert");
-    const powerupApply = element("button", "SAVE SETTINGS");
-    // Ctrl+P opens this page directly (#168), so it saves here too, through the same validate() as the main page.
-    powerupApply.onclick = () => {
-      const invalid = validate();
-      if (invalid) {
-        powerupError.textContent = `${invalid} Go back to room settings to fix it.`;
-        return;
-      }
-      if (save(draft)) close();
-      else
-        powerupError.textContent =
-          "Could not save settings. Check the room connection and try again.";
-    };
-    body.append(powerupError, powerupApply);
   };
   if (start === "powerups") powerups();
   else main(); // Ctrl+P opens the power-up page directly (#168).
