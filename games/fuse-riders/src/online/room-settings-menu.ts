@@ -54,13 +54,13 @@ export function showRoomSettings(
   let commit = (): void => {};
   const publish = (alert: HTMLElement, prefix = "") => {
     const invalid = validate();
-    if (invalid) {
-      alert.textContent = `${invalid}${prefix}`;
-      return;
-    }
-    alert.textContent = save(structuredClone(draft))
-      ? ""
-      : "Could not save settings. Check the room connection and try again.";
+    alert.textContent = invalid
+      ? `${invalid}${prefix}`
+      : save(structuredClone(draft))
+        ? ""
+        : "Could not save settings. Check the room connection and try again.";
+    // The alert sits under the fields; a change made at the top of a long page must not fail out of sight.
+    if (alert.textContent) alert.scrollIntoView?.({ block: "nearest" });
   };
   const choices = <T extends string>(
     title: string,
