@@ -1,5 +1,22 @@
-import { BODY, HALF, PLATFORMS, S, type World } from "./world.js";
+import {
+  BALL_FIELD,
+  BALL_RADII,
+  BODY,
+  HALF,
+  PLATFORMS,
+  S,
+  type World,
+} from "./world.js";
 export interface WorldView {
+  experiment: World["tuning"]["experiment"];
+  combat: {
+    target: { x: number; feet: number; respawn: number } | null;
+    balls: { id: number; x: number; y: number; radius: number }[];
+    field: readonly [number, number, number, number];
+    hits: number;
+    falls: number;
+    impact: { tick: number; x: number; y: number };
+  };
   tick: number;
   x: number;
   feet: number;
@@ -16,6 +33,30 @@ export interface WorldView {
 }
 export function toView(world: World): WorldView {
   return {
+    experiment: world.tuning.experiment,
+    combat: {
+      target: world.combat.target
+        ? {
+            x: world.combat.target.x / S,
+            feet: world.combat.target.feet / S,
+            respawn: world.combat.target.respawn,
+          }
+        : null,
+      balls: world.combat.balls.map((b) => ({
+        id: b.id,
+        x: b.x / S,
+        y: b.y / S,
+        radius: BALL_RADII[b.tier]!,
+      })),
+      field: BALL_FIELD,
+      hits: world.combat.hits,
+      falls: world.combat.falls,
+      impact: {
+        tick: world.combat.impact.tick,
+        x: world.combat.impact.x / S,
+        y: world.combat.impact.y / S,
+      },
+    },
     tick: world.tick,
     x: world.x / S,
     feet: world.feet / S,

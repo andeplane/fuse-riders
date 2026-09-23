@@ -77,7 +77,10 @@ Technical review complete: ordinary-input traversal/recovery fixture, real brows
 
 ### 6. Later experiments
 
-Separate increments: physical-phone control trial; stationary knockback target; one bounded splitting ball; 2–5 player integration with rollback/reconnect tests; then compare respawning, elimination and score modes. Decide additional maps, procedural generation and bespoke music only after those results.
+- **6A — Solo combat sandbox:** implemented per the user's selected experiment. Switch between movement, a knockback effigy and one bounded splitting ball. Includes first-contact shot resolution, split limits, target falls/return, checkpoint validation, hit feedback/audio and real-room browser checks. See [design and playtesting](combat-sandbox.md). User assessment of aiming and knockback feel remains open.
+- **6B — Controls trial:** physical-phone aiming/jump/hook usability; choose directional aiming versus continuous aim from actual use.
+- **6C — Multiplayer:** 2–5 players with rollback/reconnect tests and explicit hit ownership/order. No multiplayer behavior is implied by the solo dummy.
+- **6D — Rules comparison:** respawning, elimination and score modes; then decide additional maps, procedural generation and bespoke music.
 
 ## Module ownership
 

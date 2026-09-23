@@ -6,6 +6,8 @@ export interface Tone {
   type: OscillatorType;
 }
 export const TONES: Record<Cue, Tone> = {
+  impact: { from: 190, to: 65, duration: 0.12, type: "triangle" },
+  pop: { from: 920, to: 210, duration: 0.13, type: "sine" },
   jump: { from: 180, to: 410, duration: 0.11, type: "sine" },
   land: { from: 110, to: 48, duration: 0.09, type: "triangle" },
   fire: { from: 580, to: 240, duration: 0.07, type: "triangle" },

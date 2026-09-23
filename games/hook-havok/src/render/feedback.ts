@@ -1,6 +1,14 @@
 import type { WorldView } from "../engine/view.js";
 import { idleBreath } from "./showcase-timeline.js";
-export type Cue = "jump" | "land" | "fire" | "attach" | "release" | "respawn";
+export type Cue =
+  | "jump"
+  | "land"
+  | "fire"
+  | "attach"
+  | "release"
+  | "respawn"
+  | "impact"
+  | "pop";
 export interface Burst {
   kind: Cue;
   x: number;
@@ -25,6 +33,12 @@ export class Feedback {
     this.through = view.tick;
     if (!old || view.tick - old.tick > 12) return [];
     const cues: Cue[] = [];
+    if (
+      old.experiment === view.experiment &&
+      view.combat.hits > old.combat.hits &&
+      view.combat.impact.tick > old.tick
+    )
+      cues.push(view.experiment === "ball" ? "pop" : "impact");
     if (old.respawn && !view.respawn) cues.push("respawn");
     else if (
       !view.respawn &&
@@ -45,8 +59,18 @@ export class Feedback {
     for (const kind of cues)
       this.bursts.push({
         kind,
-        x: kind === "attach" ? view.hook.x : view.x,
-        y: kind === "attach" ? view.hook.y : view.feet,
+        x:
+          kind === "impact" || kind === "pop"
+            ? view.combat.impact.x
+            : kind === "attach"
+              ? view.hook.x
+              : view.x,
+        y:
+          kind === "impact" || kind === "pop"
+            ? view.combat.impact.y
+            : kind === "attach"
+              ? view.hook.y
+              : view.feet,
         at: ms,
       });
     this.bursts = this.bursts.slice(-12);

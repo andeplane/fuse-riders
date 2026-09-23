@@ -4,9 +4,11 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
+Phase 6A adds the [solo combat sandbox](docs/combat-sandbox.md): choose **Knockback target** or **Splitting ball** above the scene after entering the belfry. Hold a shot until impact, then release before firing again. R restarts the selected trial. The dummy uses the real platforms; the orb and its descendants bounce within a visible ball-only field. Neither damages the keeper. Movement tuning is unchanged. Phone controls and multiplayer remain later experiments.
+
 Phase 5 technical review is complete. [POC review](docs/poc-review.md) records the successful traversal/recovery route, visual findings, benchmark and movement questions for the next discussion. User playtesting still determines acceptance; no new movement tuning was applied.
 
-Phase 4: the playable solo movement playground now has view-driven airborne poses, landing compression/dust, hook sparks and release/respawn feedback, short synthesized effects and an opt-in shared radio. Run, jump, aim and grapple around eight solid platforms; falls automatically return the keeper. A workshop exposes bounded movement tuning and collision overlays. It uses a real room service connection with one playable seat. Combat and multiplayer controls remain later experiments.
+Phase 4: the playable solo movement playground has view-driven airborne poses, landing compression/dust, hook sparks and release/respawn feedback, short synthesized effects and an opt-in shared radio. Run, jump, aim and grapple around eight solid platforms; falls automatically return the keeper. A workshop exposes bounded movement tuning and collision overlays. It uses a real room service connection with one playable seat.
 
 - [Experiment plan](docs/experiment-plan.md)
 - [Art direction](docs/art-direction.md)
@@ -84,4 +86,4 @@ These are source assets, not runtime exports. The later scene will use optimized
 
 One character, one fixed arena, running, variable-height jumping, a hook that pulls toward static surfaces, quick respawn, simple effects, and the shared radio. No opponents, balls, progression, procedural maps, or physical rope simulation initially.
 
-The `/hook-havok/` route now serves the Phaser art showcase in built output. The previous `art-preview.html` asset inspector remains local review tooling outside the build. No production deployment is included.
+The `/hook-havok/` route serves the playable sandbox in built output; `?showcase=1` opens the authored art showcase. The previous `art-preview.html` asset inspector remains local review tooling outside the build. No production deployment is included.

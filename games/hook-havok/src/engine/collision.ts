@@ -42,7 +42,9 @@ export function sweep(
   }
   return hit;
 }
-export function move(world: World): void {
+export function move(
+  world: Pick<World, "x" | "feet" | "vx" | "vy" | "grounded">,
+): void {
   let dx = world.vx,
     dy = world.vy;
   world.grounded = false;

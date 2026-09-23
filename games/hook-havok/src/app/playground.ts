@@ -13,11 +13,13 @@ import {
 import { TUNING_BOUNDS, parseTuning } from "../engine/codec.js";
 import { toView, type WorldView } from "../engine/view.js";
 import type { ShowcaseHandle } from "../render/scene.js";
+import { interpolate } from "../render/interpolation.js";
 
 document.querySelector("main")!.innerHTML =
-  `<header><a id="home">← BACK TO THE PARTY</a><p class="eyebrow">HOOK HAVOK / MOVEMENT PLAYGROUND</p><h1>Find your next foothold.</h1><p class="intro">A quiet belfry. Eight ledges. One keeper.</p></header>
+  `<header><a id="home">← BACK TO THE PARTY</a><p class="eyebrow">HOOK HAVOK / SOLO SANDBOX</p><h1>Find your next foothold.</h1><p class="intro">A quiet belfry. Eight ledges. One keeper.</p></header>
+<section class="controls"><label>Experiment <select id="experiment" name="experiment" form="tuning" disabled><option value="movement">Movement course</option><option value="target">Knockback target</option><option value="ball">Splitting ball</option></select></label><span id="experiment-help">Explore the eight ledges with jump and grapple.</span></section>
 <section class="stage"><div id="scene" tabindex="0" aria-label="Hook Havok keyboard and mouse playground"></div><div class="stage-caption"><span id="phase">Preparing the belfry…</span><span id="counter">SOLO EXPERIMENT</span></div></section>
-<section class="controls"><button id="start" disabled>Enter the belfry</button><button id="reset" disabled>Return to first ledge</button><label><input id="debug" type="checkbox"> Show collision shapes</label><label><input id="atmosphere" type="checkbox" checked> Atmosphere</label><a id="study">Art showcase</a><button id="retry" hidden>Retry graphics</button></section>
+<section class="controls"><button id="start" disabled>Enter the belfry</button><button id="reset" disabled>Restart experiment</button><label><input id="debug" type="checkbox"> Show collision shapes</label><label><input id="atmosphere" type="checkbox" checked> Atmosphere</label><a id="study">Art showcase</a><button id="retry" hidden>Retry graphics</button></section>
 <p id="status" role="status" data-state="loading">Loading the belfry…</p>
 <p class="intro">A / D or ← / → to move · Space to jump (hold for height) · Mouse to aim · Hold left mouse to hook and pull · Release to let go · R to reset. Click the scene to focus. Desktop controls for this phase.</p>
 <details><summary>Movement workshop</summary><form id="tuning" class="controls"></form><p>Apply restarts the exercise. Settings travel with the room checkpoint. Solid platforms: aim around their edges to climb higher.</p></details>`;
@@ -58,6 +60,13 @@ el<HTMLAnchorElement>("home").href =
   import.meta.env.BASE_URL + (muted ? "?mute" : "");
 el<HTMLAnchorElement>("study").href = `?showcase=1${muted ? "&mute" : ""}`;
 const tuning = el<HTMLFormElement>("tuning");
+const experiment = el<HTMLSelectElement>("experiment");
+const descriptions = {
+  movement: "Explore the eight ledges with jump and grapple.",
+  target:
+    "Aim at the brass effigy on the first ledge. Hold until impact; release to rearm. Knock it off!",
+  ball: "Split the amber orb into seven hits. The outlined field contains balls only: it cannot hold you or your hook.",
+};
 for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS)) {
   const label = document.createElement("label");
   label.textContent = key[0]!.toUpperCase() + key.slice(1);
@@ -103,27 +112,7 @@ function send() {
 function sample(): WorldView {
   const timing = runtime?.frameTiming();
   if (!timing) return latest;
-  const newer = timing.newer,
-    older = timing.older;
-  if (
-    !older ||
-    newer.deaths !== older.deaths ||
-    Math.abs(newer.x - older.x) > 80 ||
-    Math.abs(newer.feet - older.feet) > 80
-  )
-    return newer;
-  const t = Math.max(
-    0,
-    Math.min(
-      1,
-      (timing.tick - older.tick) / Math.max(1, newer.tick - older.tick),
-    ),
-  );
-  return {
-    ...newer,
-    x: older.x + (newer.x - older.x) * t,
-    feet: older.feet + (newer.feet - older.feet) * t,
-  };
+  return interpolate(timing.older, timing.newer, timing.tick);
 }
 function stopRoom() {
   effects.pause();
@@ -137,6 +126,7 @@ function stopRoom() {
   latest = toView(createWorld());
   reset.disabled = true;
   apply.disabled = true;
+  experiment.disabled = true;
 }
 function fail(message: string) {
   stopRoom();
@@ -202,6 +192,11 @@ async function graphics() {
 }
 start.onclick = async () => {
   stopRoom();
+  experiment.value = DEFAULT_TUNING.experiment;
+  for (const key of Object.keys(TUNING_BOUNDS)) {
+    const field = tuning.elements.namedItem(key) as HTMLInputElement;
+    field.value = String(DEFAULT_TUNING[key as keyof typeof DEFAULT_TUNING]);
+  }
   effects.unlock();
   start.disabled = true;
   status.textContent = "Opening your solo room…";
@@ -240,12 +235,22 @@ start.onclick = async () => {
           if (frame.stage === "running") {
             clearTimeout(roomDeadline);
             status.dataset.state = "playing";
-            status.textContent = "Move, jump and find a route upward.";
+            status.textContent =
+              frame.experiment === "ball" && !frame.combat.balls.length
+                ? "Field cleared. Press R to try again."
+                : descriptions[frame.experiment];
             reset.disabled = false;
             apply.disabled = false;
+            experiment.disabled = false;
             start.textContent = "Solo room running";
           }
-          el("counter").textContent = `RETURNS ${latest.deaths}`;
+          el("experiment-help").textContent = descriptions[frame.experiment];
+          el("counter").textContent =
+            frame.experiment === "movement"
+              ? `RETURNS ${latest.deaths}`
+              : frame.experiment === "target"
+                ? `HITS ${frame.combat.hits} · FALLS ${frame.combat.falls}`
+                : `HITS ${frame.combat.hits}/7 · ORBS ${frame.combat.balls.length}`;
         },
         ended: () => fail("The room ended. You can start again."),
         kicked: () => fail("The room closed. You can start again."),
@@ -288,7 +293,10 @@ tuning.onsubmit = (e) => {
   e.preventDefault();
   const settings = parseTuning(
     Object.fromEntries(
-      [...new FormData(tuning)].map(([k, v]) => [k, Number(v)]),
+      [...new FormData(tuning)].map(([k, v]) => [
+        k,
+        k === "experiment" ? v : Number(v),
+      ]),
     ),
   );
   if (settings) {
@@ -298,6 +306,7 @@ tuning.onsubmit = (e) => {
     host.focus();
   }
 };
+experiment.onchange = () => tuning.requestSubmit();
 retry.onclick = () => void graphics();
 el<HTMLInputElement>("atmosphere").checked = !matchMedia(
   "(prefers-reduced-motion: reduce)",

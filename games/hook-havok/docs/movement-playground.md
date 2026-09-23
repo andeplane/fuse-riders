@@ -7,7 +7,7 @@ The belfry is playable with one keeper and the eight fixed ledges. This phase es
 - Click **Enter the belfry**, then keep keyboard focus on the scene.
 - A/D or arrows: accelerate and brake. Space: jump; release early to reduce height. A short grace period after leaving a ledge and a short landing buffer make near-miss presses forgiving.
 - Aim with the mouse. Hold left mouse: fire a hook, attach to the first solid ledge hit, then pull. Release: retract and keep momentum. The hook does not bend around terrain or automatically mantle a ledge.
-- R or **Return to first ledge**: restart position. A fall returns automatically after half a second. Switching focus releases controls.
+- R or **Restart experiment**: restart position and trial. A fall returns automatically after half a second, preserving combat progress. Switching focus releases controls.
 - Workshop: change speed, jump impulse, gravity, air control, pull acceleration or range. Apply restarts the exercise and changes its input scope. Invalid numbers are refused.
 
 Start by walking to the side of the low overhead ledge, jumping around its edge and steering back onto it. Then aim for the central platforms. An underside attachment pulls against the underside; it does not teleport the keeper onto the top. Use **Show collision shapes** to see the solid slab (ornamental supports are not collision surfaces).

@@ -8,6 +8,7 @@ import {
   type World,
 } from "./world.js";
 import { move, sweep } from "./collision.js";
+import { stepCombat, strike } from "./combat.js";
 const approach = (value: number, target: number, change: number) =>
   value < target
     ? Math.min(target, value + change)
@@ -44,7 +45,9 @@ function grapple(world: World): void {
     const dx = Math.round(h.vx * ratio),
       dy = Math.round(h.vy * ratio);
     const hit = sweep(h.x, h.y, dx, dy);
-    if (hit) {
+    if (strike(world, dx, dy, hit?.time)) {
+      // Entity impacts consume this shot. Retraction below still requires a new press.
+    } else if (hit) {
       h.x += Math.round(dx * hit.time) + hit.nx;
       h.y += Math.round(dy * hit.time) + hit.ny;
       h.phase = "attached";
@@ -93,7 +96,11 @@ export function step(world: World): void {
     return;
   }
   if (world.respawn > 0) {
-    if (--world.respawn === 0) resetWorld(world);
+    if (--world.respawn === 0) {
+      const combat = world.combat;
+      resetWorld(world);
+      world.combat = combat;
+    }
     world.previous = { ...world.input };
     return;
   }
@@ -119,6 +126,7 @@ export function step(world: World): void {
   if (!world.input.jump && world.previous.jump && world.vy < 0)
     world.vy = Math.round(world.vy * 0.48);
   grapple(world);
+  stepCombat(world);
   const cap = Math.round((1000 * S) / 60);
   world.vx = Math.max(-cap, Math.min(cap, world.vx));
   world.vy = Math.max(-cap, Math.min(cap, world.vy));

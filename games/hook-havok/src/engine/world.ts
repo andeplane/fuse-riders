@@ -1,5 +1,5 @@
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-1";
+export const RULES = "hook-havok-2";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
@@ -16,6 +16,7 @@ export const PLATFORMS = [
   [670, 120, 300, 28],
 ] as const;
 export interface Tuning {
+  experiment: "movement" | "target" | "ball";
   speed: number;
   jump: number;
   gravity: number;
@@ -24,6 +25,7 @@ export interface Tuning {
   range: number;
 }
 export const DEFAULT_TUNING: Tuning = {
+  experiment: "movement",
   speed: 360,
   jump: 760,
   gravity: 1800,
@@ -58,6 +60,7 @@ export interface Hook {
   platform: number;
 }
 export interface World {
+  combat: Combat;
   tick: number;
   x: number;
   feet: number;
@@ -74,6 +77,53 @@ export interface World {
   hook: Hook;
   tuning: Tuning;
 }
+export interface Target {
+  x: number;
+  feet: number;
+  vx: number;
+  vy: number;
+  grounded: boolean;
+  respawn: number;
+}
+export interface Ball {
+  id: number;
+  tier: number;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+}
+export interface Combat {
+  target: Target | null;
+  balls: Ball[];
+  hits: number;
+  falls: number;
+  impact: { tick: number; x: number; y: number };
+}
+export const BALL_FIELD = [850, 650, 600, 200] as const;
+export const BALL_RADII = [14, 24, 40] as const;
+export function createTarget(): Target {
+  return {
+    x: 450 * S,
+    feet: 810 * S - 1,
+    vx: 0,
+    vy: 0,
+    grounded: true,
+    respawn: 0,
+  };
+}
+export function createCombat(mode: Tuning["experiment"]): Combat {
+  return {
+    target: mode === "target" ? createTarget() : null,
+    balls:
+      mode === "ball"
+        ? [{ id: 1, tier: 2, x: 940 * S, y: 720 * S, vx: 2 * S, vy: 0 }]
+        : [],
+    hits: 0,
+    falls: 0,
+    impact: { tick: 0, x: 0, y: 0 },
+  };
+}
 export function readyHook(): Hook {
   return {
     phase: "ready",
@@ -88,6 +138,7 @@ export function readyHook(): Hook {
 }
 export function createWorld(tuning: Tuning = DEFAULT_TUNING): World {
   return {
+    combat: createCombat(tuning.experiment),
     tick: 0,
     x: 310 * S,
     feet: 810 * S - 1,

@@ -7,6 +7,9 @@ import {
   BODY,
   HEIGHT,
   PLATFORMS,
+  BALL_FIELD,
+  BALL_RADII,
+  type Combat,
   type Input,
   type Tuning,
   type World,
@@ -24,10 +27,17 @@ export const TUNING_BOUNDS = {
   range: [250, 1000],
 } as const;
 export function parseTuning(raw: unknown): Tuning | undefined {
-  if (!plain(raw) || Object.keys(raw).length !== 6) return;
+  if (!plain(raw) || Object.keys(raw).length !== 7) return;
+  if (
+    raw.experiment !== "movement" &&
+    raw.experiment !== "target" &&
+    raw.experiment !== "ball"
+  )
+    return;
   for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS))
     if (!integer(raw[key], min, max)) return;
   return {
+    experiment: raw.experiment,
     speed: raw.speed as number,
     jump: raw.jump as number,
     gravity: raw.gravity as number,
@@ -35,6 +45,103 @@ export function parseTuning(raw: unknown): Tuning | undefined {
     pull: raw.pull as number,
     range: raw.range as number,
   };
+}
+function decodeCombat(
+  raw: unknown,
+  mode: Tuning["experiment"],
+  tick: number,
+): Combat | undefined {
+  if (
+    !plain(raw) ||
+    Object.keys(raw).length !== 5 ||
+    !Array.isArray(raw.balls) ||
+    raw.balls.length > 4 ||
+    !integer(raw.hits, 0, mode === "ball" ? 7 : 0xffffffff) ||
+    !integer(raw.falls, 0, 0xffffffff) ||
+    !plain(raw.impact) ||
+    Object.keys(raw.impact).length !== 3 ||
+    !integer(raw.impact.tick, 0, tick) ||
+    !integer(raw.impact.x, 0, WIDTH * S) ||
+    !integer(raw.impact.y, -2000 * S, 1000 * S)
+  )
+    return;
+  const impact = { tick: raw.impact.tick, x: raw.impact.x, y: raw.impact.y };
+  if (
+    (!raw.hits && (impact.tick || impact.x || impact.y)) ||
+    (raw.hits && !impact.tick)
+  )
+    return;
+  let target: Combat["target"] = null;
+  if (mode === "target") {
+    const t = raw.target;
+    if (
+      !plain(t) ||
+      Object.keys(t).length !== 6 ||
+      !integer(t.x, HALF, WIDTH * S - HALF) ||
+      !integer(t.feet, -2000 * S, 1000 * S) ||
+      !integer(t.vx, -9 * S, 9 * S) ||
+      !integer(t.vy, -10 * S, 16 * S) ||
+      typeof t.grounded !== "boolean" ||
+      !integer(t.respawn, 0, 30) ||
+      (!t.respawn && overlaps(t.x, t.feet)) ||
+      (t.respawn && (t.feet - BODY <= HEIGHT * S || t.vx || t.vy)) ||
+      raw.balls.length ||
+      raw.falls > raw.hits
+    )
+      return;
+    target = {
+      x: t.x,
+      feet: t.feet,
+      vx: t.vx,
+      vy: t.vy,
+      grounded: t.grounded,
+      respawn: t.respawn,
+    };
+  } else if (raw.target !== null || raw.falls) return;
+  const balls: Combat["balls"] = [];
+  for (const b of raw.balls) {
+    if (
+      !plain(b) ||
+      Object.keys(b).length !== 6 ||
+      !integer(b.id, 1, 7) ||
+      !integer(b.tier, 0, 2) ||
+      b.tier !== (b.id === 1 ? 2 : b.id < 4 ? 1 : 0)
+    )
+      return;
+    const radius = BALL_RADII[b.tier]! * S;
+    const id = b.id;
+    if (
+      !integer(
+        b.x,
+        BALL_FIELD[0] * S + radius,
+        (BALL_FIELD[0] + BALL_FIELD[2]) * S - radius,
+      ) ||
+      !integer(
+        b.y,
+        BALL_FIELD[1] * S + radius,
+        (BALL_FIELD[1] + BALL_FIELD[3]) * S - radius,
+      ) ||
+      !integer(b.vx, -4 * S, 4 * S) ||
+      Math.abs(b.vx) !== (4 - b.tier) * S ||
+      !integer(b.vy, -5 * S, 8 * S) ||
+      balls.some(
+        (a) =>
+          a.id >= id ||
+          a.id === Math.floor(id / 2) ||
+          a.id === Math.floor(id / 4),
+      )
+    )
+      return;
+    balls.push({ id: b.id, tier: b.tier, x: b.x, y: b.y, vx: b.vx, vy: b.vy });
+  }
+  if (mode === "ball") {
+    if (
+      raw.hits !==
+      7 - balls.reduce((sum, b) => sum + 2 ** (b.tier + 1) - 1, 0)
+    )
+      return;
+  } else if (balls.length || (mode === "movement" && raw.hits)) return;
+  return { target, balls, hits: raw.hits, falls: raw.falls, impact };
 }
 export function parseInput(raw: unknown): Input | undefined {
   if (
@@ -133,7 +240,10 @@ export function decodeWorld(raw: unknown): World | undefined {
     (raw.feet - BODY <= HEIGHT * S || raw.vx || raw.vy || h.phase !== "ready")
   )
     return;
+  const combat = decodeCombat(raw.combat, tuning.experiment, raw.tick);
+  if (!combat) return;
   return {
+    combat,
     tick: raw.tick,
     x: raw.x,
     feet: raw.feet,

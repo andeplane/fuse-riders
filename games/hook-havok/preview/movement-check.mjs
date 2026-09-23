@@ -48,7 +48,7 @@ try {
     () => Number(document.querySelector("#scene").dataset.feet) < 790,
   );
   await page.keyboard.up("Space");
-  await page.getByRole("button", { name: "Return to first ledge" }).click();
+  await page.getByRole("button", { name: "Restart experiment" }).click();
   await page.waitForFunction(
     () =>
       Math.abs(Number(document.querySelector("#scene").dataset.actorX) - 310) <
@@ -74,7 +74,7 @@ try {
   await page.keyboard.down("d");
   await page.locator("#debug").focus();
   await page.keyboard.up("d");
-  await page.getByRole("button", { name: "Return to first ledge" }).click();
+  await page.getByRole("button", { name: "Restart experiment" }).click();
   await page.waitForFunction(
     () =>
       Math.abs(Number(document.querySelector("#scene").dataset.actorX) - 310) <
@@ -95,7 +95,7 @@ try {
     "focus loss releases movement",
   );
   await page.keyboard.up("d");
-  await page.getByRole("button", { name: "Return to first ledge" }).click();
+  await page.getByRole("button", { name: "Restart experiment" }).click();
   await page.keyboard.down("d");
   await page.waitForFunction(
     () => Number(document.querySelector("#scene").dataset.deaths) > 0,

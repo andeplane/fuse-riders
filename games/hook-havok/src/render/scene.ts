@@ -43,6 +43,7 @@ export function createShowcase(
     private hook?: Phaser.GameObjects.Image;
     private tether?: Phaser.GameObjects.Graphics;
     private effects?: Phaser.GameObjects.Graphics;
+    private combat?: Phaser.GameObjects.Graphics;
     private frames: Crop[] = [];
     private actorScale = 1;
     private fog: Phaser.GameObjects.Image[] = [];
@@ -139,6 +140,7 @@ export function createShowcase(
       this.frames = this.cut("actor", 3, 2);
       this.actorScale = 76 / Math.max(...this.frames.map((r) => r.height));
       this.tether = this.add.graphics();
+      this.combat = this.add.graphics();
       this.actor = this.add.image(310, 810, "actor", "0");
       this.hook = this.add
         .image(0, 0, "hook", "0")
@@ -232,6 +234,63 @@ export function createShowcase(
           .setAlpha(pose.alpha);
       }
       this.effects.clear();
+      this.combat?.clear();
+      if (world && this.combat) {
+        const g = this.combat,
+          target = world.combat.target;
+        if (world.experiment === "ball") {
+          const [x, y, width, height] = world.combat.field;
+          g.fillStyle(0x171d31, 0.25).fillRect(x, y, width, height);
+          g.lineStyle(1, 0xd8b879, 0.38).strokeRect(x, y, width, height);
+          for (const [cx, cy] of [
+            [x, y],
+            [x + width, y],
+            [x, y + height],
+            [x + width, y + height],
+          ])
+            g.lineStyle(2, 0xffd899, 0.8).strokeCircle(cx!, cy!, 5);
+        }
+        if (target && !target.respawn) {
+          const { x, feet } = target;
+          g.lineStyle(6, 0x101420).lineBetween(x, feet - 14, x, feet - 2);
+          g.lineStyle(3, 0xb99a69).lineBetween(x, feet - 14, x, feet - 2);
+          g.fillStyle(0x121827).fillCircle(x, feet - 28, 19);
+          g.fillStyle(0x8c6742).fillCircle(x, feet - 28, 16);
+          g.lineStyle(2, 0xf0d6a0).strokeCircle(x, feet - 28, 13);
+          g.fillStyle(0xffd58b).fillCircle(x, feet - 28, 4);
+          g.lineStyle(3, 0xb99a69).lineBetween(
+            x - 11,
+            feet - 1,
+            x + 11,
+            feet - 1,
+          );
+          if (options.debug?.())
+            g.lineStyle(1, 0x72edd1).strokeRect(x - 16, feet - 52, 32, 52);
+        }
+        for (const b of world.combat.balls) {
+          g.fillStyle(0xffb54f, 0.08).fillCircle(b.x, b.y, b.radius + 9);
+          g.fillStyle(0x101420).fillCircle(b.x, b.y, b.radius + 3);
+          g.fillStyle(0x9a562c, 0.95).fillCircle(b.x, b.y, b.radius);
+          g.lineStyle(2, 0xffd08a).strokeCircle(b.x, b.y, b.radius - 1);
+          g.lineStyle(1, 0xffedc0, 0.7).strokeEllipse(
+            b.x,
+            b.y,
+            b.radius * 0.85,
+            b.radius * 1.8,
+          );
+          g.fillStyle(0xffedc0, 0.8).fillCircle(
+            b.x - b.radius * 0.3,
+            b.y - b.radius * 0.35,
+            b.radius * 0.13,
+          );
+        }
+        host.dataset.experiment = world.experiment;
+        host.dataset.hits = String(world.combat.hits);
+        host.dataset.targetX = String(target?.x ?? "");
+        host.dataset.targetFeet = String(target?.feet ?? "");
+        host.dataset.targetRespawn = String(target?.respawn ?? "");
+        host.dataset.balls = JSON.stringify(world.combat.balls);
+      }
       if (world) {
         for (const burst of feedback.active()) {
           const age = (elapsed - burst.at) / 400,
