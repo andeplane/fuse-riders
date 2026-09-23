@@ -66,6 +66,11 @@ export interface ArenaOptions {
   resolution?: "display" | "world";
   rotateToFit?: boolean;
   onStatus?: (status: "ready" | "context-lost" | "restored") => void;
+  /**
+   * How much of the arena's artwork has arrived, from 0 to 1. Called as the loader advances and once more at 1 when
+   * it finishes, so a screen can show the wait and tell a slow load from a stuck one.
+   */
+  onProgress?: (loaded: number) => void;
 }
 export interface ArenaMetrics {
   renderer: string;
@@ -184,13 +189,21 @@ export function createPhaserArena(
   canvas.style.width = "100%";
   canvas.style.height = "100%";
   const display = observeArenaDisplay(canvas, options.rotateToFit);
-  const scene = new ArenaScene(options.quality === "low" ? 160 : 480, () => {
-    if (destroyed) return;
-    game.loop.stop();
-    booted = true;
-    options.onStatus?.("ready");
-    resolveReady();
-  });
+  const scene = new ArenaScene(
+    options.quality === "low" ? 160 : 480,
+    () => {
+      if (destroyed) return;
+      game.loop.stop();
+      booted = true;
+      // The loader stops short of 1 when the last file completes the queue; a screen showing a bar needs the end.
+      options.onProgress?.(1);
+      options.onStatus?.("ready");
+      resolveReady();
+    },
+    (loaded) => {
+      if (!destroyed && !booted) options.onProgress?.(loaded);
+    },
+  );
   const context =
     options.renderer === "canvas"
       ? null
@@ -365,6 +378,7 @@ class ArenaScene extends Phaser.Scene {
   constructor(
     private readonly particleLimit: number,
     private readonly loaded: () => void,
+    private readonly progressed: (loaded: number) => void = () => {},
   ) {
     super("arena");
     this.debris = new TrailDebris(Math.floor(particleLimit / 2));
@@ -383,6 +397,9 @@ class ArenaScene extends Phaser.Scene {
     loader.reset();
   }
   preload(): void {
+    // The arena's artwork is most of the first load, so its progress is what a waiting screen has to report. The
+    // listener is the scene's own and goes with it; `cancelPreload` resets the loader under it.
+    this.load.on(Phaser.Loader.Events.PROGRESS, this.progressed);
     this.load.image("avatars", assetUrl(AVATAR_ATLAS.url));
     for (const art of obstacleArtSources())
       this.load.image(obstacleTextureKey(art), assetUrl(art.file));
