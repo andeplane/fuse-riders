@@ -4,6 +4,8 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
+Platforms now let players jump through from below and catch them on descent. **S / Down arrow** drops through the current ledge; on touch, slide the left pad down. Release down before dropping again. Dropping releases an attached hook. Hook shots and the dummy retain solid platform collision. These rules apply in free play and competitive rounds; dropping off the bottom can eliminate you or cost points. Refresh every player tab and start a new room after this update (`hook-havok-5`).
+
 Phase 6D adds [rules comparison](docs/rules-comparison.md): **Free play**, **Last keeper standing**, and **Hook score**. Competitive trials wait for two players, count down, lock entrants, and finish with a shared result. Falls eliminate in Last keeper standing; Hook score awards +1 for player hits and −2 for falls with respawns over 60 seconds. Late joins wait for the next round; disconnects forfeit. The manager restarts or switches rules. Balance and physical-phone playtesting remain open.
 
 Phase 6C adds [shared free play](docs/multiplayer.md): create a room, copy its invite, and bring up to five keepers into the same arena. Hooks knock rivals back; falls respawn them. The shared display watches without taking a player seat. The room manager selects experiments and restarts the shared trial. This is a movement/combat test, with no elimination or scored rounds yet.

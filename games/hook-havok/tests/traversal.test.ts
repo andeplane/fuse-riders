@@ -1,16 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { traverse } from "./fixtures/traversal.js";
-import { overlaps } from "../src/engine/collision.js";
+import { supported } from "../src/engine/collision.js";
 import { decodeWorld } from "../src/engine/codec.js";
 import { S } from "../src/engine/world.js";
-test("ordinary inputs traverse the belfry, recover off-edge and reset without terrain penetration", () => {
+test("ordinary inputs traverse one-way ledges, recover off-edge and reset with supported landings", () => {
   const seen: string[] = [];
   const world = traverse((w, mark) => {
     assert.equal(
-      overlaps(w.x, w.feet),
-      false,
-      `terrain penetration at tick ${w.tick}`,
+      !w.grounded || supported(w.x, w.feet),
+      true,
+      `unsupported landing at tick ${w.tick}`,
     );
     if (!mark) return;
     seen.push(mark);

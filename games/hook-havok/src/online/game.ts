@@ -160,9 +160,9 @@ export function foldTick(
             .map((e) => e[5])
         : [];
     let final = { ...keeper.world.input };
-    const pulse = { jump: false, fire: false, reset: false };
+    const pulse = { jump: false, drop: false, fire: false, reset: false };
     for (const input of inputs) {
-      for (const key of ["jump", "fire", "reset"] as const)
+      for (const key of ["jump", "drop", "fire", "reset"] as const)
         pulse[key] ||= input[key] && !final[key];
       final = { ...input };
     }
@@ -175,6 +175,7 @@ export function foldTick(
         ...(i === 0
           ? {
               jump: final.jump || pulse.jump,
+              drop: final.drop || pulse.drop,
               fire: final.fire || pulse.fire,
               reset: final.reset || pulse.reset,
             }

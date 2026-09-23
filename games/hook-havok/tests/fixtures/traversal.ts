@@ -28,14 +28,14 @@ export const TRAVERSAL: readonly {
     mark: "high anchor",
   },
   {
-    ticks: 25,
+    ticks: 16,
     input: { fire: true, jump: true, move: 1, aimX: 1180, aimY: 285 },
   },
   { ticks: 20, input: { move: -1 } },
   { ticks: 15, input: {}, mark: "release and land" },
-  { ticks: 22, input: { move: 1 }, mark: "off edge" },
+  { ticks: 34, input: { move: 1 }, mark: "off edge" },
   {
-    ticks: 90,
+    ticks: 55,
     input: { fire: true, aimX: 1240, aimY: 290 },
     mark: "recovery pull",
   },

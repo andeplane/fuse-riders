@@ -7,7 +7,7 @@ import {
   resetWorld,
   type World,
 } from "./world.js";
-import { move, sweep } from "./collision.js";
+import { movePlayer, supported, sweep } from "./collision.js";
 import { stepCombat, strike, type CombatContext } from "./combat.js";
 const approach = (value: number, target: number, change: number) =>
   value < target
@@ -104,9 +104,21 @@ export function step(world: World, context?: CombatContext): void {
     world.previous = { ...world.input };
     return;
   }
+  const dropping =
+    world.input.drop &&
+    !world.previous.drop &&
+    world.grounded &&
+    supported(world.x, world.feet);
+  if (dropping) {
+    world.feet += 2;
+    world.vy = Math.max(world.vy, 2 * S);
+    world.grounded = false;
+    world.coyote = world.buffer = 0;
+    world.hook = readyHook();
+  }
   world.coyote = world.grounded ? 6 : Math.max(0, world.coyote - 1);
   world.buffer =
-    world.input.jump && !world.previous.jump
+    !dropping && world.input.jump && !world.previous.jump
       ? 6
       : Math.max(0, world.buffer - 1);
   const target = Math.round((world.input.move * world.tuning.speed * S) / 60);
@@ -125,12 +137,12 @@ export function step(world: World, context?: CombatContext): void {
   }
   if (!world.input.jump && world.previous.jump && world.vy < 0)
     world.vy = Math.round(world.vy * 0.48);
-  grapple(world, context);
+  if (!dropping) grapple(world, context);
   if (!context) stepCombat(world);
   const cap = Math.round((1000 * S) / 60);
   world.vx = Math.max(-cap, Math.min(cap, world.vx));
   world.vy = Math.max(-cap, Math.min(cap, world.vy));
-  move(world);
+  movePlayer(world);
   if (world.feet - BODY > HEIGHT * S) {
     world.respawn = 30;
     world.deaths++;

@@ -77,3 +77,31 @@ export function overlaps(x: number, feet: number): boolean {
       feet - BODY < (py + h) * S,
   );
 }
+/** Player bodies only collide with top faces while crossing downward. Hooks and props retain solid sweeps. */
+export function movePlayer(
+  world: Pick<World, "x" | "feet" | "vx" | "vy" | "grounded">,
+): void {
+  let first = Infinity;
+  if (world.vy > 0)
+    for (const [px, py, width] of PLATFORMS) {
+      const time = (py * S - world.feet) / world.vy;
+      if (time < 0 || time > 1 || time >= first) continue;
+      const x = world.x + world.vx * time;
+      if (x + HALF > px * S && x - HALF < (px + width) * S) first = time;
+    }
+  world.x = Math.max(HALF, Math.min(WIDTH * S - HALF, world.x + world.vx));
+  if (world.x === HALF || world.x === WIDTH * S - HALF) world.vx = 0;
+  world.feet += Number.isFinite(first)
+    ? Math.round(world.vy * first) - 1
+    : world.vy;
+  world.grounded = Number.isFinite(first) && supported(world.x, world.feet);
+  if (Number.isFinite(first)) world.vy = 0;
+}
+export function supported(x: number, feet: number): boolean {
+  return PLATFORMS.some(
+    ([px, py, width]) =>
+      Math.abs(feet - py * S) <= 1 &&
+      x + HALF > px * S &&
+      x - HALF < (px + width) * S,
+  );
+}

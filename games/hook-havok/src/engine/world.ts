@@ -1,5 +1,5 @@
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-4";
+export const RULES = "hook-havok-5";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
@@ -36,6 +36,7 @@ export const DEFAULT_TUNING: Tuning = {
   range: 650,
 };
 export interface Input {
+  drop: boolean;
   move: -1 | 0 | 1;
   jump: boolean;
   fire: boolean;
@@ -44,6 +45,7 @@ export interface Input {
   aimY: number;
 }
 export const NEUTRAL: Input = {
+  drop: false,
   move: 0,
   jump: false,
   fire: false,

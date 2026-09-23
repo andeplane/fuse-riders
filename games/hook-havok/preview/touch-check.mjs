@@ -164,6 +164,20 @@ try {
     path: "games/hook-havok/docs/evidence/touch-landscape.png",
     fullPage: true,
   });
+  await page.locator("#reset").click();
+  await page.waitForFunction(
+    () =>
+      Math.abs(Number(document.querySelector("#scene").dataset.feet) - 810) < 1,
+  );
+  await page.locator('[data-pad="move"]').scrollIntoViewIfNeeded();
+  move = await getPad("move");
+  await dispatch("touchStart", [point(12, move)]);
+  await dispatch("touchMove", [point(12, move, 0, 0.8)]);
+  await page.waitForFunction(
+    () => Number(document.querySelector("#scene").dataset.feet) > 835,
+  );
+  await dispatch("touchCancel", []);
+  await assertNeutral();
   await dispatch("touchStart", [point(6, move)]);
   await dispatch("touchMove", [point(6, move, 1, 0)]);
   await page.locator("#touch-toggle").uncheck();

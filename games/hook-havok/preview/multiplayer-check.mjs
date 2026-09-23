@@ -102,6 +102,42 @@ try {
   const hostId = await host.locator("#scene").getAttribute("data-player-id"),
     guestId = await guest.locator("#scene").getAttribute("data-player-id");
   assert.notEqual(hostId, guestId);
+  await host.locator("#scene").focus();
+  await host.keyboard.down("Space");
+  await host.waitForFunction(
+    () => Number(document.querySelector("#scene").dataset.feet) < 665,
+  );
+  await host.waitForFunction(
+    () =>
+      document.querySelector("#scene").dataset.grounded === "true" &&
+      Math.abs(Number(document.querySelector("#scene").dataset.feet) - 670) < 1,
+  );
+  await host.keyboard.up("Space");
+  await guest.waitForFunction(
+    (id) =>
+      Math.abs(
+        JSON.parse(document.querySelector("#scene").dataset.keepers).find(
+          (k) => k.id === id,
+        ).feet - 670,
+      ) < 1,
+    hostId,
+  );
+  await host.keyboard.down("ArrowDown");
+  await host.waitForFunction(
+    () =>
+      document.querySelector("#scene").dataset.grounded === "true" &&
+      Math.abs(Number(document.querySelector("#scene").dataset.feet) - 810) < 1,
+  );
+  await host.keyboard.up("ArrowDown");
+  await guest.waitForFunction(
+    (id) =>
+      Math.abs(
+        JSON.parse(document.querySelector("#scene").dataset.keepers).find(
+          (k) => k.id === id,
+        ).feet - 810,
+      ) < 1,
+    hostId,
+  );
   await guest.locator("#scene").focus();
   await guest.keyboard.down("d");
   await host.waitForFunction(

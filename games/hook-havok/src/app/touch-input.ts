@@ -5,6 +5,7 @@ export type Pad = "move" | "aim";
 export interface TouchState {
   move: Input["move"];
   jump: boolean;
+  drop: boolean;
   fire: boolean;
   direction: { x: number; y: number };
 }
@@ -14,6 +15,7 @@ export class TouchInput {
   private value: TouchState = {
     move: 0,
     jump: false,
+    drop: false,
     fire: false,
     direction: { x: 0, y: -1 },
   };
@@ -39,6 +41,7 @@ export class TouchInput {
     if (pad === "move") {
       this.value.move = x < -0.22 ? -1 : x > 0.22 ? 1 : 0;
       this.value.jump = y < -0.38;
+      this.value.drop = y > 0.38;
     } else if (!this.value.fire && Math.hypot(x, y) >= 0.28) {
       // Aim is captured at launch, exactly like the mouse hook. Release to rearm.
       const angle = Math.atan2(y, x);
@@ -57,6 +60,7 @@ export class TouchInput {
     if (pad === "move") {
       this.value.move = 0;
       this.value.jump = false;
+      this.value.drop = false;
     } else this.value.fire = false;
     return true;
   }
@@ -65,6 +69,7 @@ export class TouchInput {
     this.value = {
       move: 0,
       jump: false,
+      drop: false,
       fire: false,
       direction: this.value.direction,
     };

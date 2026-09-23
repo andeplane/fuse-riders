@@ -1,4 +1,4 @@
-import { overlaps } from "./collision.js";
+import { overlaps, supported } from "./collision.js";
 import {
   createWorld,
   S,
@@ -153,11 +153,12 @@ function decodeCombat(
 export function parseInput(raw: unknown): Input | undefined {
   if (
     !plain(raw) ||
-    Object.keys(raw).length !== 6 ||
+    Object.keys(raw).length !== 7 ||
     !integer(raw.move, -1, 1) ||
     !integer(raw.aimX, 0, WIDTH) ||
     !integer(raw.aimY, 0, HEIGHT) ||
     typeof raw.jump !== "boolean" ||
+    typeof raw.drop !== "boolean" ||
     typeof raw.fire !== "boolean" ||
     typeof raw.reset !== "boolean"
   )
@@ -165,6 +166,7 @@ export function parseInput(raw: unknown): Input | undefined {
   return {
     move: raw.move as Input["move"],
     jump: raw.jump,
+    drop: raw.drop,
     fire: raw.fire,
     reset: raw.reset,
     aimX: raw.aimX,
@@ -217,7 +219,7 @@ export function decodeWorld(raw: unknown): World | undefined {
     !integer(h.platform, -1, PLATFORMS.length - 1)
   )
     return;
-  if (!raw.respawn && overlaps(raw.x, raw.feet)) return;
+  if (!raw.respawn && raw.grounded && !supported(raw.x, raw.feet)) return;
   if (h.phase === "attached") {
     const p = PLATFORMS[h.platform];
     if (!p || h.vx !== 0 || h.vy !== 0) return;

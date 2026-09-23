@@ -209,6 +209,29 @@ test("replay and checkpoint continuation match through movement, grappling and r
     if (t === 80) Object.assign(b, restored);
   }
 });
+test("drop tap survives press and release within one log tick", () => {
+  const r = setup();
+  foldTick(
+    r,
+    host,
+    new Map([
+      [
+        host,
+        {
+          generation: 1,
+          entries: [
+            controls(2, { ...NEUTRAL, drop: true }),
+            [5, 2, 0, "match", 1, { ...NEUTRAL }],
+          ],
+        },
+      ],
+    ]),
+  );
+  const w = r.simulation.keepers[0]!.world;
+  assert.ok(w.feet > 810 * S);
+  assert.equal(w.grounded, false);
+  assert.ok(decode(encode(r), r.tick));
+});
 test("short tap survives log batching; stale scope/generation ignored; disconnect cancels", () => {
   const r = setup();
   foldTick(

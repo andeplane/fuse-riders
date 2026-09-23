@@ -45,6 +45,20 @@ function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
 const rulesPanel = document.createElement("section");
+document
+  .querySelector('[data-pad="move"]')!
+  .setAttribute(
+    "aria-label",
+    "Move pad: sideways to move, up to jump, down to drop through",
+  );
+document.querySelector(".move-control > span")!.textContent =
+  "MOVE · UP JUMP · DOWN DROP";
+el("touch-help").textContent =
+  "Left thumb: sideways to move, up to jump, down to drop through a ledge. Release down before dropping again. Right thumb: drag from center to aim and fire, hold to pull, release to let go.";
+document.querySelector(".desktop-help")!.textContent =
+  "A / D or ← / → to move · Space to jump through ledges · S / ↓ to drop through (one press per ledge) · Mouse to aim · Hold left mouse to hook and pull · Release to let go · R to reset. Click the scene to focus.";
+document.querySelector("details > p")!.textContent =
+  "Apply restarts the exercise. Platforms catch players from above; hooks still attach to every surface. Dropping releases your hook.";
 rulesPanel.className = "controls rules-controls";
 rulesPanel.innerHTML = `<label>Round rules <select id="rules" name="rules" form="tuning" disabled><option value="free">Free play</option><option value="elimination">Last keeper standing</option><option value="score">Hook score</option></select></label><span id="rules-help">Respawn freely and explore.</span><p id="round-status" role="status"></p>`;
 el("experiment").closest("section")!.after(rulesPanel);
@@ -157,6 +171,7 @@ touch = createTouchControls(
     const wasFiring = input.fire;
     input.move = state.move;
     input.jump = state.jump;
+    input.drop = state.drop;
     input.fire = state.fire;
     if (state.fire && !wasFiring)
       Object.assign(
@@ -597,9 +612,16 @@ el<HTMLInputElement>("atmosphere").onchange = (e) =>
   scene?.setAtmosphere((e.target as HTMLInputElement).checked);
 host.addEventListener("keydown", (e) => {
   if (
-    !["KeyA", "KeyD", "ArrowLeft", "ArrowRight", "Space", "KeyR"].includes(
-      e.code,
-    )
+    ![
+      "KeyA",
+      "KeyD",
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowDown",
+      "KeyS",
+      "Space",
+      "KeyR",
+    ].includes(e.code)
   )
     return;
   e.preventDefault();
@@ -608,6 +630,7 @@ host.addEventListener("keydown", (e) => {
   input.move = (Number(keys.has("KeyD") || keys.has("ArrowRight")) -
     Number(keys.has("KeyA") || keys.has("ArrowLeft"))) as Input["move"];
   input.jump = keys.has("Space");
+  input.drop = keys.has("ArrowDown") || keys.has("KeyS");
   input.reset = keys.has("KeyR");
   send();
 });
@@ -617,6 +640,7 @@ host.addEventListener("keyup", (e) => {
   input.move = (Number(keys.has("KeyD") || keys.has("ArrowRight")) -
     Number(keys.has("KeyA") || keys.has("ArrowLeft"))) as Input["move"];
   input.jump = keys.has("Space");
+  input.drop = keys.has("ArrowDown") || keys.has("KeyS");
   input.reset = keys.has("KeyR");
   send();
 });
