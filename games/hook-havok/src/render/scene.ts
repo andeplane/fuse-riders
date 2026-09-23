@@ -196,7 +196,15 @@ export function createShowcase(
               feet: world.feet,
               frame: motion!.frame,
               scaleY: motion!.scaleY,
-              alpha: world.respawn ? 0.25 : 1,
+              alpha:
+                world.respawn ||
+                world.keepers.some(
+                  (k) =>
+                    k.id === (world.localId ?? world.keepers[0]?.id) &&
+                    !k.playing,
+                )
+                  ? 0.25
+                  : 1,
               hook: world.hook.phase !== "ready" ? world.hook : undefined,
               landing: 0,
               spark: 0,
@@ -287,10 +295,12 @@ export function createShowcase(
             .setPosition(body.x, body.feet)
             .setScale(this.actorScale)
             .setFlipX(body.facing === -1)
-            .setAlpha(!keeper.connected || body.respawn ? 0.3 : 1);
+            .setAlpha(
+              !keeper.connected || !keeper.playing || body.respawn ? 0.3 : 1,
+            );
           peer.label
             .setText(
-              `P${keeper.slot + 1}${keeper.id === world.localId ? " · YOU" : ""}${keeper.connected ? "" : " · AWAY"}`,
+              `P${keeper.slot + 1}${keeper.id === world.localId ? " · YOU" : ""}${!keeper.playing ? " · WATCHING" : keeper.connected ? "" : " · AWAY"}`,
             )
             .setColor(`#${color.toString(16)}`)
             .setPosition(body.x, body.feet - 80);

@@ -44,6 +44,10 @@ document.querySelector("main")!.innerHTML =
 function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
+const rulesPanel = document.createElement("section");
+rulesPanel.className = "controls rules-controls";
+rulesPanel.innerHTML = `<label>Round rules <select id="rules" name="rules" form="tuning" disabled><option value="free">Free play</option><option value="elimination">Last keeper standing</option><option value="score">Hook score</option></select></label><span id="rules-help">Respawn freely and explore.</span><p id="round-status" role="status"></p>`;
+el("experiment").closest("section")!.after(rulesPanel);
 const host = el<HTMLDivElement>("scene"),
   status = el<HTMLParagraphElement>("status"),
   start = el<HTMLButtonElement>("start"),
@@ -88,6 +92,8 @@ el<HTMLAnchorElement>("home").href =
 el<HTMLAnchorElement>("study").href = `?showcase=1${muted ? "&mute" : ""}`;
 const tuning = el<HTMLFormElement>("tuning");
 const experiment = el<HTMLSelectElement>("experiment");
+const rulesSelect = el<HTMLSelectElement>("rules");
+let contestPhase = "";
 const descriptions = {
   movement: "Explore the eight ledges with jump and grapple.",
   target:
@@ -200,6 +206,7 @@ function localView(view: WorldView): WorldView {
     ...(local?.body ?? view),
     keepers: view.keepers,
     hit: view.hit,
+    contest: view.contest,
     localId: local?.id,
   };
 }
@@ -216,6 +223,7 @@ function stopRoom() {
   reset.disabled = true;
   apply.disabled = true;
   experiment.disabled = true;
+  rulesSelect.disabled = true;
   touch?.enable(false);
   el<HTMLButtonElement>("restart-room").disabled = true;
   el("invitation").hidden = true;
@@ -291,9 +299,11 @@ async function graphics() {
 const enterRoom = async () => {
   stopRoom();
   round = -1;
+  contestPhase = "";
   selfId = "";
   creatorId = "";
   experiment.value = DEFAULT_TUNING.experiment;
+  rulesSelect.value = DEFAULT_TUNING.rules;
   for (const key of Object.keys(TUNING_BOUNDS)) {
     const field = tuning.elements.namedItem(key) as HTMLInputElement;
     field.value = String(DEFAULT_TUNING[key as keyof typeof DEFAULT_TUNING]);
@@ -349,6 +359,16 @@ const enterRoom = async () => {
         },
         state(frame, settings) {
           latest = localView(frame);
+          const c = frame.contest;
+          const localKeeper = frame.keepers.find((k) => k.id === selfId);
+          const controllable =
+            c.rules === "free" ||
+            (c.phase === "active" && !!localKeeper?.playing);
+          if (contestPhase !== c.phase) {
+            contestPhase = c.phase;
+            clear();
+            scene?.resetFeedback();
+          }
           const local = frame.seats.find((s) => s.id === selfId),
             manager =
               !display &&
@@ -367,6 +387,7 @@ const enterRoom = async () => {
             !display &&
               touchToggle.checked &&
               frame.stage === "running" &&
+              controllable &&
               !!local?.connected,
           );
           if (!display && !joined) {
@@ -392,9 +413,14 @@ const enterRoom = async () => {
               frame.experiment === "ball" && !frame.combat.balls.length
                 ? "Field cleared. Restart the experiment to try again."
                 : descriptions[frame.experiment];
-            reset.disabled = display || !local?.connected;
+            reset.disabled = display || !local?.connected || c.rules !== "free";
+            reset.textContent =
+              c.rules === "free"
+                ? "Restart experiment"
+                : "Reset disabled in rounds";
             apply.disabled = !manager;
             experiment.disabled = !manager;
+            rulesSelect.disabled = !manager;
             el<HTMLButtonElement>("restart-room").disabled = !manager;
             start.textContent = display
               ? "Shared display connected"
@@ -406,12 +432,44 @@ const enterRoom = async () => {
                   : "Joining the keepers…";
           }
           experiment.value = settings.experiment;
+          rulesSelect.value = settings.rules;
+          el("rules-help").textContent =
+            c.rules === "free"
+              ? "Respawn freely and explore."
+              : c.rules === "elimination"
+                ? "A fall puts you out. Last keeper wins · 60-second limit."
+                : "Player hit +1 · fall −2 · respawn · highest score after 60 seconds. Props give no points. Last remaining entrant wins if others forfeit.";
+          const names = (ids: string[]) =>
+            ids
+              .map(
+                (id) =>
+                  `P${(c.entries.find((e) => e.id === id)?.slot ?? 0) + 1} ${frame.keepers.find((k) => k.id === id)?.name ?? "Keeper"}`,
+              )
+              .join(" & ");
+          el("round-status").textContent =
+            c.rules === "free"
+              ? ""
+              : c.phase === "waiting"
+                ? "Waiting for a second keeper…"
+                : c.phase === "countdown"
+                  ? `Get ready · ${c.seconds}`
+                  : c.phase === "over"
+                    ? `${c.winners.length ? `${names(c.winners)} ${c.winners.length > 1 ? "share the win" : "wins"}` : "Draw — no keepers remain"}. Room manager: restart the shared trial to play again.`
+                    : `${c.seconds}s remaining${!display && !localKeeper?.playing ? " · Watching until the next round" : ""}`;
+          host.dataset.contest = JSON.stringify(c);
           el("roster").textContent = frame.keepers
             .map(
               (k) =>
                 `P${k.slot + 1} ${k.name}${k.id === selfId ? " (you)" : ""}${k.connected ? "" : " · away"} · hits ${k.hits} · returns ${k.body.deaths}`,
             )
             .join("  |  ");
+          if (c.rules !== "free" && c.entries.length)
+            el("roster").textContent = c.entries
+              .map(
+                (e) =>
+                  `${names([e.id])} · ${e.out ? "OUT" : c.rules === "score" ? `${e.score} pts` : "IN"}${c.phase === "over" && c.winners.includes(e.id) ? " · WINNER" : ""}`,
+              )
+              .join(" | ");
           host.dataset.playerId = selfId;
           el("experiment-help").textContent = descriptions[frame.experiment];
           el("counter").textContent =
@@ -518,7 +576,7 @@ tuning.onsubmit = (e) => {
     Object.fromEntries(
       [...new FormData(tuning)].map(([k, v]) => [
         k,
-        k === "experiment" ? v : Number(v),
+        k === "experiment" || k === "rules" ? v : Number(v),
       ]),
     ),
   );
@@ -530,6 +588,7 @@ tuning.onsubmit = (e) => {
   }
 };
 experiment.onchange = () => tuning.requestSubmit();
+rulesSelect.onchange = () => tuning.requestSubmit();
 retry.onclick = () => void graphics();
 el<HTMLInputElement>("atmosphere").checked = !matchMedia(
   "(prefers-reduced-motion: reduce)",

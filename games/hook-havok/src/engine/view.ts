@@ -7,7 +7,14 @@ import {
   S,
   type World,
 } from "./world.js";
+import {
+  createContest,
+  COUNTDOWN_TICKS,
+  ROUND_TICKS,
+  type Contest,
+} from "./contest.js";
 export interface WorldView {
+  contest: Contest & { rules: World["tuning"]["rules"]; seconds: number };
   keepers: KeeperView[];
   hit: {
     tick: number;
@@ -41,6 +48,7 @@ export interface WorldView {
   aim: { x: number; y: number };
 }
 export interface KeeperView {
+  playing: boolean;
   id: string;
   slot: number;
   name: string;
@@ -51,6 +59,11 @@ export interface KeeperView {
 }
 export function toView(world: World): WorldView {
   return {
+    contest: {
+      ...createContest(world.tuning.rules),
+      rules: world.tuning.rules,
+      seconds: 0,
+    },
     keepers: [],
     hit: null,
     experiment: world.tuning.experiment,
@@ -90,5 +103,21 @@ export function toView(world: World): WorldView {
     platforms: PLATFORMS,
     body: { half: HALF / S, height: BODY / S },
     aim: { x: world.input.aimX, y: world.input.aimY },
+  };
+}
+export function contestView(
+  contest: Contest,
+  rules: World["tuning"]["rules"],
+): WorldView["contest"] {
+  return {
+    ...structuredClone(contest),
+    rules,
+    seconds: Math.ceil(
+      Math.max(
+        0,
+        (contest.phase === "countdown" ? COUNTDOWN_TICKS : ROUND_TICKS) -
+          contest.elapsed,
+      ) / 60,
+    ),
   };
 }

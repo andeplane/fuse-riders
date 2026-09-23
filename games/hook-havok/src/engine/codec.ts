@@ -27,7 +27,13 @@ export const TUNING_BOUNDS = {
   range: [250, 1000],
 } as const;
 export function parseTuning(raw: unknown): Tuning | undefined {
-  if (!plain(raw) || Object.keys(raw).length !== 7) return;
+  if (!plain(raw) || Object.keys(raw).length !== 8) return;
+  if (
+    raw.rules !== "free" &&
+    raw.rules !== "elimination" &&
+    raw.rules !== "score"
+  )
+    return;
   if (
     raw.experiment !== "movement" &&
     raw.experiment !== "target" &&
@@ -37,6 +43,7 @@ export function parseTuning(raw: unknown): Tuning | undefined {
   for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS))
     if (!integer(raw[key], min, max)) return;
   return {
+    rules: raw.rules,
     experiment: raw.experiment,
     speed: raw.speed as number,
     jump: raw.jump as number,

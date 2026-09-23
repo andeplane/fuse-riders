@@ -4,6 +4,8 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
+Phase 6D adds [rules comparison](docs/rules-comparison.md): **Free play**, **Last keeper standing**, and **Hook score**. Competitive trials wait for two players, count down, lock entrants, and finish with a shared result. Falls eliminate in Last keeper standing; Hook score awards +1 for player hits and −2 for falls with respawns over 60 seconds. Late joins wait for the next round; disconnects forfeit. The manager restarts or switches rules. Balance and physical-phone playtesting remain open.
+
 Phase 6C adds [shared free play](docs/multiplayer.md): create a room, copy its invite, and bring up to five keepers into the same arena. Hooks knock rivals back; falls respawn them. The shared display watches without taking a player seat. The room manager selects experiments and restarts the shared trial. This is a movement/combat test, with no elimination or scored rounds yet.
 
 Phase 6B adds the [phone controls trial](docs/touch-controls.md). Enable **Touch controls** above the arena (automatic on touch devices). Left pad moves and jumps; right pad aims and holds the hook. Compare **8 directions** and **Free aim** in all three experiments. Portrait/landscape layouts keep pads outside the arena. Phones now join the shared room as individual players; dedicated controller-only pairing is later work. Browser multi-touch checks pass; physical-phone usability needs user playtesting.

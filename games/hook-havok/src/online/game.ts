@@ -14,7 +14,6 @@ import {
 } from "fuse-netcode";
 import {
   createWorld,
-  cancel,
   NEUTRAL,
   RULES,
   type Input,
@@ -29,7 +28,12 @@ import {
   type Arena,
 } from "../engine/arena.js";
 import { parseInput, parseTuning, plain, integer } from "../engine/codec.js";
-import { toView, type WorldView, type KeeperView } from "../engine/view.js";
+import {
+  toView,
+  contestView,
+  type WorldView,
+  type KeeperView,
+} from "../engine/view.js";
 export type Entry =
   ManagementEntry<Tuning> | [number, number, 0, string, number, Input];
 export interface Room {
@@ -111,7 +115,7 @@ const lifecycle: LifecycleHooks<Room, Tuning> = {
     r.stage = "lobby";
     r.matchId = id;
     r.round = 0;
-    for (const k of r.simulation.keepers) cancel(k.world);
+    r.simulation = createArena(r.settings, r.simulation.tick);
   },
 };
 export function foldTick(
@@ -314,6 +318,9 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       },
     ),
     keepers: r.simulation.keepers.map((k): KeeperView => ({
+      playing:
+        r.settings.rules === "free" ||
+        r.simulation.contest.entries.some((e) => e.id === k.id && !e.out),
       id: k.id,
       slot: k.slot,
       name: r.seats.get(k.id)!.name,
@@ -327,6 +334,7 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       x: r.simulation.hit.x / 1024,
       y: r.simulation.hit.y / 1024,
     },
+    contest: contestView(r.simulation.contest, r.settings.rules),
     stage: r.stage,
     seated: [...r.seats.values()].some((s) => s.connected),
     seats: [...r.seats.values()].map((s) => ({ ...s })),

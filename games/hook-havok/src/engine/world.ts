@@ -1,5 +1,5 @@
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-3";
+export const RULES = "hook-havok-4";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
@@ -16,6 +16,7 @@ export const PLATFORMS = [
   [670, 120, 300, 28],
 ] as const;
 export interface Tuning {
+  rules: "free" | "elimination" | "score";
   experiment: "movement" | "target" | "ball";
   speed: number;
   jump: number;
@@ -25,6 +26,7 @@ export interface Tuning {
   range: number;
 }
 export const DEFAULT_TUNING: Tuning = {
+  rules: "free",
   experiment: "movement",
   speed: 360,
   jump: 760,

@@ -272,6 +272,35 @@ h2 {
 .touch-trial .desktop-help {
   display: none;
 }
+.rules-controls {
+  margin: 8px 0;
+}
+#round-status {
+  flex-basis: 100%;
+  margin: 0;
+  color: #ffdb97;
+  font:
+    600 16px system-ui,
+    sans-serif;
+}
+#round-status:empty {
+  display: none;
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  .touch-trial #rules-help {
+    display: none;
+  }
+  .touch-trial .rules-controls {
+    font-size: 11px;
+    margin: 4px 0;
+  }
+  .touch-trial #round-status {
+    font-size: 12px;
+  }
+  .touch-trial .stage {
+    max-width: calc((100dvh - 205px) * 16 / 9);
+  }
+}
 .touch-trial main {
   display: flex;
   flex-direction: column;
