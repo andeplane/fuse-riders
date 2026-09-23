@@ -18,10 +18,10 @@ Each pad owns one pointer ID. Extra fingers cannot steal an active pad. Pointer 
 Build in this worktree, then run:
 
 ```powershell
-node node_modules/tsx/dist/cli.mjs service/dev.ts --host 0.0.0.0 --port 0
+node node_modules/tsx/dist/cli.mjs service/dev.ts --host 0.0.0.0 --port 56659 --allow-origin http://192.168.50.27:56659
 ```
 
-On the same network, open `http://<computer-LAN-IPv4>:<printed-port>/hook-havok/?mute` on the phone. `localhost` on the phone means the phone itself. The server serves the existing room API and built game from the same origin. No separate LAN simulation server or relay is introduced. Allow the Node listener on the private network if Windows prompts; this task does not change firewall settings.
+Replace the example IP with your computer's LAN IPv4. On the same network, open `http://<computer-LAN-IPv4>:<printed-port>/hook-havok/?mute` on the phone. The allowed origin must match that address and port exactly; if the server selects a different free port, restart with that port and update `--allow-origin`. `localhost` on the phone means the phone itself. The server serves the existing room API and built game from the same origin. No separate LAN simulation server or relay is introduced. Allow the Node listener on the private network if Windows prompts; this task does not change firewall settings.
 
 Try portrait and landscape, jump while holding a grapple, release the right thumb while continuing to move, switch tabs while holding both pads, and compare the two aiming modes against the dummy and orbs. Record accidental jumps, missed directions, thumb reach and whether the canvas is large enough. Mouse dragging can inspect the controls on desktop, but browser touch emulation cannot establish physical-phone comfort or responsiveness.
 

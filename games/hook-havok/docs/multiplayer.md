@@ -12,7 +12,7 @@ Personal reset returns that keeper; in a solo room it also resets the trial as b
 
 Open `/hook-havok/?mute`, enter the belfry, and copy the invite. Each friend opens that link on their own device or independent browser session. Refreshing the same tab keeps its identity. Open **Shared display** for a seatless TV view. Phones use the existing touch pads and also render their own arena; controller-only pairing is not implemented.
 
-For LAN testing, start the dev service with `--host 0.0.0.0` and use its private LAN address on every device, including the creator. A localhost invite cannot reach another device. Separate service processes have separate rooms. Production deployment is not part of this phase.
+For LAN testing, explicitly allow the exact page origin, for example `node --import tsx service/dev.ts --host 0.0.0.0 --port 56659 --allow-origin http://192.168.50.27:56659` (replace the IP with your computer's LAN address). Binding to all interfaces alone does not allow LAN page requests. If the chosen port is occupied, the service selects another; restart with that port and update the allowed origin to match. Use the same LAN address on every device, including the creator. A localhost invite cannot reach another device. Separate service processes have separate rooms. Production deployment is not part of this phase.
 
 Player rings and labels distinguish the five keepers. Shoot rivals to knock them from ledges; there is half a second of protection after returning. Personal reset affects only you when multiple keepers are present. **Restart shared trial** resets everybody. The next connected manager can change settings when the creator leaves.
 

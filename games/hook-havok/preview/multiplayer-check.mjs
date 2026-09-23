@@ -1,7 +1,11 @@
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
 const base = process.argv[2];
-if (!/^http:\/\/(localhost|127\.0\.0\.1):\d+\/$/.test(base))
+if (
+  !/^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}):\d+\/$/.test(
+    base,
+  )
+)
   throw new Error("Pass local service URL");
 const browser = await chromium.launch({
   channel: process.env.BROWSER_CHANNEL || "chrome",
