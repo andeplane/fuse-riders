@@ -1,4 +1,6 @@
 import "./style.css";
+import { createRadio } from "fuse-ui/radio";
+import { EffectsAudio, browserToneSink } from "./audio.js";
 import { PeerTransport, createRoom, createEndpoints } from "fuse-network-fe";
 import { MAX_PACKET_BYTES } from "fuse-netcode";
 import { HookRuntime } from "../online/runtime.js";
@@ -29,6 +31,29 @@ const host = el<HTMLDivElement>("scene"),
   retry = el<HTMLButtonElement>("retry");
 const query = new URLSearchParams(location.search),
   muted = query.has("mute");
+const effects = new EffectsAudio(muted, browserToneSink);
+const radio = createRadio(
+  document,
+  import.meta.env.BASE_URL,
+  new Audio(),
+  muted,
+);
+const effectLabel = document.createElement("label"),
+  effectVolume = document.createElement("input");
+effectLabel.textContent = "Effects ";
+effectVolume.type = "range";
+effectVolume.min = "0";
+effectVolume.max = "100";
+effectVolume.value = "30";
+effectVolume.disabled = muted;
+effectVolume.setAttribute("aria-label", "Effects volume");
+effectVolume.oninput = () =>
+  effects.setVolume(Number(effectVolume.value) / 100);
+effectLabel.append(effectVolume);
+radio.element.append(effectLabel);
+el("status").after(radio.element);
+document.addEventListener("pointerdown", () => effects.unlock());
+document.addEventListener("keydown", () => effects.unlock());
 el<HTMLAnchorElement>("home").href =
   import.meta.env.BASE_URL + (muted ? "?mute" : "");
 el<HTMLAnchorElement>("study").href = `?showcase=1${muted ? "&mute" : ""}`;
@@ -101,11 +126,15 @@ function sample(): WorldView {
   };
 }
 function stopRoom() {
+  effects.pause();
+  radio.pause();
+  scene?.resetFeedback();
   roomAttempt++;
   clearTimeout(roomDeadline);
   clear();
   runtime?.stop();
   runtime = undefined;
+  latest = toView(createWorld());
   reset.disabled = true;
   apply.disabled = true;
 }
@@ -141,6 +170,7 @@ async function graphics() {
       atmosphere: !matchMedia("(prefers-reduced-motion: reduce)").matches,
       view: sample,
       debug: () => el<HTMLInputElement>("debug").checked,
+      cue: (cue) => effects.cue(cue),
       ready() {
         if (token !== attempt) return;
         clearTimeout(deadline);
@@ -172,6 +202,7 @@ async function graphics() {
 }
 start.onclick = async () => {
   stopRoom();
+  effects.unlock();
   start.disabled = true;
   status.textContent = "Opening your solo room…";
   status.dataset.state = "loading";
@@ -244,6 +275,7 @@ start.onclick = async () => {
   }
 };
 function resetExercise() {
+  scene?.resetFeedback();
   clear();
   input.reset = true;
   send();
@@ -260,6 +292,7 @@ tuning.onsubmit = (e) => {
     ),
   );
   if (settings) {
+    scene?.resetFeedback();
     clear();
     runtime?.command({ type: "settings", settings });
     host.focus();
@@ -328,10 +361,20 @@ host.addEventListener("lostpointercapture", () => {
 });
 host.addEventListener("blur", clear);
 window.addEventListener("blur", clear);
+window.addEventListener("blur", () => {
+  effects.pause();
+  radio.pause();
+});
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) clear();
+  if (document.hidden) {
+    clear();
+    effects.pause();
+    radio.pause();
+  }
 });
 window.addEventListener("pagehide", () => {
+  effects.destroy();
+  radio.destroy();
   disposed = true;
   attempt++;
   roomAttempt++;

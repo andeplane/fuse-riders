@@ -8,6 +8,7 @@
     "./platform": "./src/platform.ts"
   },
   "dependencies": {
+    "fuse-ui": "workspace:*",
     "fuse-netcode": "workspace:*",
     "fuse-network-fe": "workspace:*",
     "fuse-platform": "workspace:*"

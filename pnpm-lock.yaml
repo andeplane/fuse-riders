@@ -159,6 +159,9 @@ importers:
       fuse-platform:
         specifier: workspace:*
         version: link:../../packages/fuse-platform
+      fuse-ui:
+        specifier: workspace:*
+        version: link:../../packages/fuse-ui
     devDependencies:
       phaser:
         specifier: 4.2.1

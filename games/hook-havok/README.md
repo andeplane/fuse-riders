@@ -4,7 +4,7 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
-Phase 3: a playable solo movement playground, reached from **HOOK HAVOK — MOVEMENT PLAYGROUND** on the party landing page. Run, jump, aim and grapple around eight solid platforms; falls automatically return the keeper. A workshop exposes bounded movement tuning and collision overlays. It uses a real room service connection with one playable seat. No combat, multiplayer controls or audio yet.
+Phase 4: the playable solo movement playground now has view-driven airborne poses, landing compression/dust, hook sparks and release/respawn feedback, short synthesized effects and an opt-in shared radio. Run, jump, aim and grapple around eight solid platforms; falls automatically return the keeper. A workshop exposes bounded movement tuning and collision overlays. It uses a real room service connection with one playable seat. Combat and multiplayer controls remain later experiments.
 
 - [Experiment plan](docs/experiment-plan.md)
 - [Art direction](docs/art-direction.md)
@@ -12,6 +12,7 @@ Phase 3: a playable solo movement playground, reached from **HOOK HAVOK — MOVE
 - [Animation trial, exact prompts and verification](docs/animation-trial.md)
 - [Phaser showcase and validation](docs/showcase.md)
 - [Movement architecture, controls and validation](docs/movement-playground.md)
+- [Feedback and audio](docs/feedback-audio.md)
 
 The working direction combines **A's belfry/character identity with B's denser platform composition**. The user likes both qualities; this combination is the implementation recommendation, not a claim of final artistic acceptance. The art lab displays all eight platforms from the planned map.
 
@@ -20,6 +21,8 @@ The working direction combines **A's belfry/character identity with B's denser p
 Build with `pnpm build`, then run `node --import tsx service/dev.ts --port 8787` (or `pnpm dev` in a shell supporting the repository's scripts). The existing server selects a free port if needed. Open `/hook-havok/?mute` on the printed origin, or follow the landing-page link. Click **Enter the belfry**. A/D or arrows move; Space jumps (release early for a shorter jump); mouse aims; hold left mouse to hook/pull, release to detach; R resets. The **Movement workshop** changes settings and restarts the exercise. For Vite source development, the page is `/games/hook-havok/`; built output is `/hook-havok/`.
 
 The **Art showcase** link opens the previous authored study at `?showcase=1&mute`.
+
+To hear the playground, remove `?mute` and interact with the page. Effects unlock on a key or pointer gesture; **Play radio** explicitly starts music. Music/effects have independent volume sliders and pause on focus loss. The muted preview does not change saved preferences.
 
 Use **Planted idle** to inspect the fix: one stable source pose, a 0.9% vertical breath and an unchanged foot baseline. The second generated idle drawing remains in the source sheet but is not played. A later rig can keep boots completely rigid while moving knees/chest/scarf independently.
 

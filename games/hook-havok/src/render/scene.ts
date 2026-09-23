@@ -1,10 +1,11 @@
 import Phaser from "phaser";
 import { ASSETS, crops, type Crop, type AssetKey } from "./assets.js";
 import { showcasePose, PLATFORMS, ANCHOR } from "./showcase-timeline.js";
-import { idleBreath } from "./showcase-timeline.js";
 import type { WorldView } from "../engine/view.js";
+import { Feedback, type Cue } from "./feedback.js";
 
 export interface ShowcaseHandle {
+  resetFeedback(): void;
   destroy(): void;
   setPaused(value: boolean): void;
   replay(): void;
@@ -13,6 +14,7 @@ export interface ShowcaseHandle {
   seek(time: number): void;
 }
 interface Options {
+  cue?(cue: Cue): void;
   view?(): WorldView;
   debug?(): boolean;
   paused: boolean;
@@ -34,6 +36,8 @@ export function createShowcase(
     atmosphere = options.atmosphere;
   let elapsed = 800,
     destroyed = false;
+  const feedback = new Feedback();
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   class Belfry extends Phaser.Scene {
     private actor?: Phaser.GameObjects.Image;
     private hook?: Phaser.GameObjects.Image;
@@ -170,18 +174,18 @@ export function createShowcase(
     private paint(): void {
       if (!this.actor || !this.hook || !this.tether || !this.effects) return;
       const world = options.view?.();
+      if (world)
+        for (const cue of feedback.update(world, elapsed))
+          if (!document.hidden) options.cue?.(cue);
+      const motion = world
+        ? feedback.pose(world, elapsed, reduced.matches)
+        : undefined;
       const pose = world
           ? {
               x: world.x,
               feet: world.feet,
-              frame:
-                world.grounded && Math.abs(world.vx) > 20
-                  ? 2 + (Math.floor(elapsed / 95) % 4)
-                  : 0,
-              scaleY:
-                world.grounded && Math.abs(world.vx) < 20
-                  ? idleBreath(elapsed)
-                  : 1,
+              frame: motion!.frame,
+              scaleY: motion!.scaleY,
               alpha: world.respawn ? 0.25 : 1,
               hook: world.hook.phase !== "ready" ? world.hook : undefined,
               landing: 0,
@@ -200,16 +204,24 @@ export function createShowcase(
         .setFrame(String(pose.frame))
         .setOrigin(frame.pivot, 1)
         .setPosition(pose.x, pose.feet)
-        .setScale(this.actorScale, this.actorScale * pose.scaleY)
+        .setScale(
+          this.actorScale * (motion?.scaleX ?? 1),
+          this.actorScale * pose.scaleY,
+        )
+        .setRotation(motion?.rotation ?? 0)
         .setFlipX(world?.facing === -1)
         .setAlpha(pose.alpha);
       this.tether.clear();
       this.hook.setVisible(!!pose.hook);
       if (pose.hook) {
-        const sx = pose.x + 17,
+        const sx = pose.x + 17 * (world?.facing ?? 1),
           sy = pose.feet - 40;
         this.tether
-          .lineStyle(2.5, 0xd2b580, pose.alpha)
+          .lineStyle(
+            world?.hook.phase === "attached" ? 3 : 2,
+            world?.hook.phase === "attached" ? 0xf4d69a : 0xd2b580,
+            pose.alpha,
+          )
           .beginPath()
           .moveTo(sx, sy)
           .lineTo(pose.hook.x, pose.hook.y)
@@ -220,6 +232,40 @@ export function createShowcase(
           .setAlpha(pose.alpha);
       }
       this.effects.clear();
+      if (world) {
+        for (const burst of feedback.active()) {
+          const age = (elapsed - burst.at) / 400,
+            alpha = 1 - age;
+          if (reduced.matches) {
+            this.effects
+              .lineStyle(2, 0xe6c893, alpha * 0.6)
+              .strokeCircle(burst.x, burst.y - 5, 8);
+            continue;
+          }
+          const count = burst.kind === "land" ? 10 : 6;
+          for (let i = 0; i < count; i++) {
+            const angle = (i * Math.PI * 2) / count;
+            const ground = burst.kind === "land" || burst.kind === "jump";
+            this.effects
+              .fillStyle(ground ? 0xc4b59c : 0xffda8b, alpha * 0.7)
+              .fillCircle(
+                burst.x +
+                  (ground
+                    ? (i - count / 2) * (3 + age * 8)
+                    : Math.cos(angle) * (5 + age * 35)),
+                burst.y -
+                  (ground
+                    ? Math.sin(i + 1) ** 2 * age * 26
+                    : Math.sin(angle) * (5 + age * 35)),
+                ground ? 1 + alpha * 2 : 1 + alpha,
+              );
+          }
+          if (burst.kind === "release" || burst.kind === "respawn")
+            this.effects
+              .lineStyle(2, 0x99dfca, alpha * 0.5)
+              .strokeCircle(burst.x, burst.y - 32, 12 + age * 28);
+        }
+      }
       if (world && options.debug?.()) {
         this.effects.lineStyle(2, 0x72edd1, 0.8);
         for (const [x, y, w, h] of world.platforms)
@@ -284,6 +330,11 @@ export function createShowcase(
       host.dataset.feet = pose.feet.toFixed(3);
       host.dataset.scaleY = pose.scaleY.toFixed(5);
       if (world) {
+        host.dataset.motion = motion!.state;
+        host.dataset.feedback = feedback
+          .active()
+          .map((b) => b.kind)
+          .join(",");
         host.dataset.hook = world.hook.phase;
         host.dataset.tick = String(world.tick);
         host.dataset.deaths = String(world.deaths);
@@ -312,6 +363,9 @@ export function createShowcase(
   };
   game.canvas.addEventListener("webglcontextlost", lost);
   return {
+    resetFeedback() {
+      feedback.reset();
+    },
     setPaused(value) {
       paused = value;
     },

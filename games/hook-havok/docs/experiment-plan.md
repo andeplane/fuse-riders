@@ -55,6 +55,8 @@ Exit: predictable movement without decorative effects, no tunneling or stuck hoo
 
 ### 4. Feel and audio
 
+Implemented: view-derived pose selection and restrained feedback, six synthesized effect cues, separate volume controls, gesture/mute/disposal handling and an opt-in shared radio. Existing movement tuning is unchanged pending the user's later movement discussion. See [feedback and audio](feedback-audio.md).
+
 - Derive idle/run/rise/fall/land/fire/pull animation from engine view; never derive physics from animation frames.
 - Add landing compression, dust, attachment flash, tether tension and release feedback.
 - Inspect and extract the existing game-local radio and music catalog into an appropriate shared module; reuse existing music files. The main-based worktree currently has the radio in `games/fuse-riders/src/client/radio.ts`; the Ball Bros branch has a proposed `fuse-ui/assets` catalog, which must not be assumed to exist on main. Reconcile with the latest main before implementing. No cross-game imports.

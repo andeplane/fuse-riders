@@ -12,10 +12,24 @@ try {
     viewport: { width: 1440, height: 1100 },
   });
   const errors = [];
+  const musicRequests = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/music/")) musicRequests.push(request.url());
+  });
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(base + "?mute");
   await page.getByRole("link", { name: /HOOK HAVOK/ }).click();
   await page.locator('#status[data-state="ready"]').waitFor();
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Play radio", exact: true })
+      .isDisabled(),
+    true,
+  );
+  assert.equal(
+    await page.getByRole("slider", { name: "Effects volume" }).isDisabled(),
+    true,
+  );
   await page.getByRole("button", { name: "Enter the belfry" }).click();
   await page
     .locator('#status[data-state="playing"]')
@@ -49,6 +63,10 @@ try {
   await page.waitForFunction(
     () => document.querySelector("#scene").dataset.hook === "attached",
   );
+  await page.screenshot({
+    path: "games/hook-havok/docs/evidence/feedback-audio-desktop.png",
+    fullPage: true,
+  });
   await page.mouse.up();
   await page.waitForFunction(
     () => document.querySelector("#scene").dataset.hook === "ready",
@@ -98,6 +116,30 @@ try {
   });
   await page.locator("#debug").uncheck();
   assert.deepEqual(errors, []);
+  assert.deepEqual(musicRequests, [], "muted preview does not fetch music");
+  // A replacement room starts at tick zero; its first cues must not wait for the old room's clock.
+  await page
+    .locator("#scene canvas")
+    .evaluate((canvas) =>
+      canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true })),
+    );
+  await page.locator('#status[data-state="error"]').waitFor();
+  await page.locator("#retry").click();
+  await page.locator('#status[data-state="ready"]').waitFor();
+  await page.locator("#start").click();
+  await page.locator('#status[data-state="playing"]').waitFor();
+  const retryBox = await page.locator("#scene canvas").boundingBox();
+  await page.mouse.move(
+    retryBox.x + (310 / 1600) * retryBox.width,
+    retryBox.y + (650 / 900) * retryBox.height,
+  );
+  await page.mouse.down();
+  await page.waitForFunction(
+    () => document.querySelector("#scene").dataset.feedback.includes("attach"),
+    {},
+    { timeout: 3000 },
+  );
+  await page.mouse.up();
   const failed = await browser.newPage();
   await failed.route("**/api/rooms?*", (route) =>
     route.fulfill({ status: 503, body: "Unavailable" }),
