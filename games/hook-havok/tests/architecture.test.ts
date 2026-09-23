@@ -15,6 +15,10 @@ test("Hook Havok source stays inside its game or shared packages; renderer does 
     for (const specifier of imports(syntax(file))) {
       if (!specifier.startsWith(".")) {
         assert.ok(
+          !file.replaceAll("\\", "/").includes("/src/engine/"),
+          `${file}: engine imports a package`,
+        );
+        assert.ok(
           !["dice", "ball-bros", "fuse-riders-game", "fuse-birds"].some(
             (name) => specifier === name || specifier.startsWith(name + "/"),
           ),
@@ -34,6 +38,16 @@ test("Hook Havok source stays inside its game or shared packages; renderer does 
         inside(game) || inside(path.join(repo, "packages")),
         `${file}: import leaves game/shared packages: ${specifier}`,
       );
+      if (file.replaceAll("\\", "/").includes("/src/engine/"))
+        assert.ok(
+          inside(path.join(game, "src/engine")),
+          `${file}: engine leaves its layer`,
+        );
+      if (
+        file.replaceAll("\\", "/").includes("/src/render/") &&
+        inside(path.join(game, "src/engine"))
+      )
+        assert.equal(path.basename(target), "view.js");
       if (file.replaceAll("\\", "/").includes("/src/render/"))
         assert.ok(
           !inside(path.join(game, "src/app")),

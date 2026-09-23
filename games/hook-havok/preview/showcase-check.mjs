@@ -23,10 +23,13 @@ try {
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(new URL("?mute", base).href);
-  const entry = page.getByRole("link", { name: "HOOK HAVOK — ART SHOWCASE ›" });
+  const entry = page.getByRole("link", {
+    name: "HOOK HAVOK — MOVEMENT PLAYGROUND ›",
+  });
   await entry.click();
+  await page.getByRole("link", { name: "Art showcase", exact: true }).click();
   await page.locator('#status[data-state="ready"]').waitFor({ timeout: 20000 });
-  assert.ok(page.url().includes("hook-havok/?mute"));
+  assert.ok(page.url().includes("hook-havok/?showcase=1&mute"));
   assert.equal(await page.locator("#scene canvas").count(), 1);
   assert.equal(await page.locator("#play").textContent(), "Play");
   assert.equal(await page.locator("#atmosphere").isChecked(), false);

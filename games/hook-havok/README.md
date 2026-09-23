@@ -4,19 +4,22 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
-Phase 2: a Phaser belfry showcase with an authored run/jump/hook/pull/land sequence, atmospheric layers, planted idle, pause/replay/scrubbing and graphics retry. It is reachable from the party landing page as **HOOK HAVOK — ART SHOWCASE**. It is not a registered room game or playable platformer yet; no physics, controls or music run here.
+Phase 3: a playable solo movement playground, reached from **HOOK HAVOK — MOVEMENT PLAYGROUND** on the party landing page. Run, jump, aim and grapple around eight solid platforms; falls automatically return the keeper. A workshop exposes bounded movement tuning and collision overlays. It uses a real room service connection with one playable seat. No combat, multiplayer controls or audio yet.
 
 - [Experiment plan](docs/experiment-plan.md)
 - [Art direction](docs/art-direction.md)
 - [Asset manifest and generation prompts](docs/asset-manifest.md)
 - [Animation trial, exact prompts and verification](docs/animation-trial.md)
 - [Phaser showcase and validation](docs/showcase.md)
+- [Movement architecture, controls and validation](docs/movement-playground.md)
 
 The working direction combines **A's belfry/character identity with B's denser platform composition**. The user likes both qualities; this combination is the implementation recommendation, not a claim of final artistic acceptance. The art lab displays all eight platforms from the planned map.
 
-## Open the current Phaser showcase
+## Open the movement playground
 
-Build with `pnpm build`, then run `node --import tsx service/dev.ts --port 8787` (or `pnpm dev` in a shell supporting the repository's scripts). The existing server selects a free port if needed. Open `/hook-havok/?mute` on the printed origin, or follow the landing-page showcase link. For Vite source development, the page is `/games/hook-havok/`; built output is `/hook-havok/`.
+Build with `pnpm build`, then run `node --import tsx service/dev.ts --port 8787` (or `pnpm dev` in a shell supporting the repository's scripts). The existing server selects a free port if needed. Open `/hook-havok/?mute` on the printed origin, or follow the landing-page link. Click **Enter the belfry**. A/D or arrows move; Space jumps (release early for a shorter jump); mouse aims; hold left mouse to hook/pull, release to detach; R resets. The **Movement workshop** changes settings and restarts the exercise. For Vite source development, the page is `/games/hook-havok/`; built output is `/hook-havok/`.
+
+The **Art showcase** link opens the previous authored study at `?showcase=1&mute`.
 
 Use **Planted idle** to inspect the fix: one stable source pose, a 0.9% vertical breath and an unchanged foot baseline. The second generated idle drawing remains in the source sheet but is not played. A later rig can keep boots completely rigid while moving knees/chest/scarf independently.
 

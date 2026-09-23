@@ -3,7 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Hook Havok: experimental illustrated platformer, currently a presentation-only showcase.",
+  "description": "Hook Havok: experimental illustrated platformer.",
+  "exports": {
+    "./platform": "./src/platform.ts"
+  },
+  "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-network-fe": "workspace:*",
+    "fuse-platform": "workspace:*"
+  },
   "devDependencies": {
     "phaser": "4.2.1"
   }

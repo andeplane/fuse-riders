@@ -43,6 +43,8 @@ Exit: convincing motion and readable terrain. Showcase scripting must not become
 
 ### 3. Movement playground
 
+Implemented: solo room admission, deterministic movement/grapple engine, validated checkpoints, keyboard/mouse controls, reset/respawn, tuning and collision overlay. See [movement playground](movement-playground.md) for controls, architecture and verification. User playtesting remains the acceptance check for movement feel.
+
 - Implement engine-owned state, inputs, tuning, static map, collision, character motion, grapple and view contract.
 - Implement validated codec, rules version, replay fixture, and `RollbackGame` adapter for a solo room.
 - Add keyboard/mouse controls, cancellation, respawn, restart and debug overlays.

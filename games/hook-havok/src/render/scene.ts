@@ -1,6 +1,8 @@
 import Phaser from "phaser";
 import { ASSETS, crops, type Crop, type AssetKey } from "./assets.js";
 import { showcasePose, PLATFORMS, ANCHOR } from "./showcase-timeline.js";
+import { idleBreath } from "./showcase-timeline.js";
+import type { WorldView } from "../engine/view.js";
 
 export interface ShowcaseHandle {
   destroy(): void;
@@ -11,6 +13,8 @@ export interface ShowcaseHandle {
   seek(time: number): void;
 }
 interface Options {
+  view?(): WorldView;
+  debug?(): boolean;
   paused: boolean;
   idleOnly: boolean;
   atmosphere: boolean;
@@ -102,7 +106,9 @@ export function createShowcase(
       this.cut("ledge");
       this.cut("hook");
       const lantern = this.cut("lantern")[0]!;
-      for (const [index, [x, y, width, height]] of PLATFORMS.entries()) {
+      for (const [index, [x, y, width, height]] of (
+        options.view?.().platforms ?? PLATFORMS
+      ).entries()) {
         this.add
           .image(x, y, "ledge", "0")
           .setOrigin(0)
@@ -163,13 +169,39 @@ export function createShowcase(
     }
     private paint(): void {
       if (!this.actor || !this.hook || !this.tether || !this.effects) return;
-      const pose = showcasePose(elapsed, idleOnly),
+      const world = options.view?.();
+      const pose = world
+          ? {
+              x: world.x,
+              feet: world.feet,
+              frame:
+                world.grounded && Math.abs(world.vx) > 20
+                  ? 2 + (Math.floor(elapsed / 95) % 4)
+                  : 0,
+              scaleY:
+                world.grounded && Math.abs(world.vx) < 20
+                  ? idleBreath(elapsed)
+                  : 1,
+              alpha: world.respawn ? 0.25 : 1,
+              hook: world.hook.phase !== "ready" ? world.hook : undefined,
+              landing: 0,
+              spark: 0,
+              label: world.respawn
+                ? "Returning to the belfry…"
+                : world.hook.phase === "attached"
+                  ? "Release to keep your momentum"
+                  : world.grounded
+                    ? "Find your next foothold"
+                    : "In the air",
+            }
+          : showcasePose(elapsed, idleOnly),
         frame = this.frames[pose.frame]!;
       this.actor
         .setFrame(String(pose.frame))
         .setOrigin(frame.pivot, 1)
         .setPosition(pose.x, pose.feet)
         .setScale(this.actorScale, this.actorScale * pose.scaleY)
+        .setFlipX(world?.facing === -1)
         .setAlpha(pose.alpha);
       this.tether.clear();
       this.hook.setVisible(!!pose.hook);
@@ -188,6 +220,20 @@ export function createShowcase(
           .setAlpha(pose.alpha);
       }
       this.effects.clear();
+      if (world && options.debug?.()) {
+        this.effects.lineStyle(2, 0x72edd1, 0.8);
+        for (const [x, y, w, h] of world.platforms)
+          this.effects.strokeRect(x, y, w, h);
+        this.effects.strokeRect(
+          world.x - world.body.half,
+          world.feet - world.body.height,
+          world.body.half * 2,
+          world.body.height,
+        );
+        this.effects
+          .lineStyle(1, 0xffffff, 0.6)
+          .strokeCircle(world.aim.x, world.aim.y, 8);
+      }
       if (atmosphere) {
         for (let i = 0; i < 26; i++) {
           const x = (i * 137 + elapsed * (0.006 + (i % 3) * 0.003)) % 1600;
@@ -237,6 +283,12 @@ export function createShowcase(
       host.dataset.actorX = pose.x.toFixed(3);
       host.dataset.feet = pose.feet.toFixed(3);
       host.dataset.scaleY = pose.scaleY.toFixed(5);
+      if (world) {
+        host.dataset.hook = world.hook.phase;
+        host.dataset.tick = String(world.tick);
+        host.dataset.deaths = String(world.deaths);
+        host.dataset.grounded = String(world.grounded);
+      }
     }
   }
   const scene = new Belfry();

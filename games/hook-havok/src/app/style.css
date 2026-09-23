@@ -117,6 +117,28 @@ label {
 input {
   accent-color: #d4af72;
 }
+input[type="number"] {
+  width: 76px;
+  padding: 7px;
+  color: #eee3ce;
+  background: #202433;
+  border: 1px solid #525769;
+  border-radius: 4px;
+}
+details {
+  margin: 24px 0;
+  color: #b3b9cc;
+  font:
+    14px/1.6 system-ui,
+    sans-serif;
+}
+summary {
+  cursor: pointer;
+  color: #e2c490;
+}
+#scene {
+  touch-action: none;
+}
 :focus-visible {
   outline: 2px solid #f0c57c;
   outline-offset: 3px;
