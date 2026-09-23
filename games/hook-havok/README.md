@@ -4,6 +4,8 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
+Phase 5 technical review is complete. [POC review](docs/poc-review.md) records the successful traversal/recovery route, visual findings, benchmark and movement questions for the next discussion. User playtesting still determines acceptance; no new movement tuning was applied.
+
 Phase 4: the playable solo movement playground now has view-driven airborne poses, landing compression/dust, hook sparks and release/respawn feedback, short synthesized effects and an opt-in shared radio. Run, jump, aim and grapple around eight solid platforms; falls automatically return the keeper. A workshop exposes bounded movement tuning and collision overlays. It uses a real room service connection with one playable seat. Combat and multiplayer controls remain later experiments.
 
 - [Experiment plan](docs/experiment-plan.md)

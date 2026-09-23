@@ -63,16 +63,14 @@ h1 {
   height: 100% !important;
 }
 .stage-caption {
-  position: absolute;
-  bottom: 0;
-  left: 0;
   width: 100%;
   display: flex;
   justify-content: space-between;
   gap: 12px;
   padding: 14px 20px;
   pointer-events: none;
-  background: linear-gradient(transparent, #0c101ccc);
+  background: #151a29;
+  border-top: 1px solid #34394b;
   font:
     11px system-ui,
     sans-serif;

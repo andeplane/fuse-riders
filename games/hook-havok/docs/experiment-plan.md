@@ -67,6 +67,8 @@ Exit: feedback clarifies rather than hides movement. Shared consumers retain wor
 
 ### 5. Single-player POC review
 
+Technical review complete: ordinary-input traversal/recovery fixture, real browser route, small-scale/grayscale captures, caption occlusion fix and reproducible headless benchmark. [Review findings and evidence](poc-review.md). User acceptance of movement feel remains pending; jump/grapple tuning is unchanged.
+
 - Playtest a repeatable route: ordinary jump, central gap, high anchor, release-and-land, awkward recovery, fall/reset.
 - Review small-scale readability, grayscale, frame alignment and foreground occlusion.
 - Run focused tests, typecheck/build, affected browser flow, and full unit suite at integration.

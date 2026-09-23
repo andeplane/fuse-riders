@@ -1,0 +1,19 @@
+{
+  "command": "node node_modules/tsx/dist/cli.mjs games/hook-havok/preview/benchmark.ts",
+  "fixtureSha256": "7a968e3a61c8c33309b57fc3d10c9898d4cef7170200fd3c7f91a97258e0e9fa",
+  "harnessSha256": "baba9569e204d7ae5a536f63e1a0c7d274f102b5425f8a5e13d3168b3b85af99",
+  "revision": "cd2667d80dffb5d6b1675d8d2a49e09528516ecc",
+  "node": "v24.14.0",
+  "os": "win32 10.0.26200",
+  "cpu": "AMD Ryzen 9 9950X3D 16-Core Processor          ",
+  "logicalCpus": 32,
+  "workload": "TRAVERSAL v1: fixed ordinary inputs; default tuning; no random seed",
+  "physicsTicksPerRun": 659,
+  "warmupRuns": 100,
+  "measuredRuns": 1000,
+  "totalMs": 88.77120000000009,
+  "medianTraversalMs": 0.08740000000000236,
+  "p95TraversalMs": 0.09450000000001069,
+  "checksum": 318101000,
+  "limits": "Headless engine only, excluding renderer, networking, audio, checkpoint validation and test assertions. Not a device/frame-rate guarantee."
+}
