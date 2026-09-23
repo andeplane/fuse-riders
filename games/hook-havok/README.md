@@ -4,7 +4,9 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
-Phase 6A adds the [solo combat sandbox](docs/combat-sandbox.md): choose **Knockback target** or **Splitting ball** above the scene after entering the belfry. Hold a shot until impact, then release before firing again. R restarts the selected trial. The dummy uses the real platforms; the orb and its descendants bounce within a visible ball-only field. Neither damages the keeper. Movement tuning is unchanged. Phone controls and multiplayer remain later experiments.
+Phase 6B adds the [phone controls trial](docs/touch-controls.md). Enable **Touch controls** above the arena (automatic on touch devices). Left pad moves and jumps; right pad aims and holds the hook. Compare **8 directions** and **Free aim** in all three experiments. Portrait/landscape layouts keep pads outside the arena. This is same-device solo play; TV controller pairing and multiplayer are later work. Browser multi-touch checks pass; physical-phone usability needs user playtesting.
+
+Phase 6A adds the [solo combat sandbox](docs/combat-sandbox.md): choose **Knockback target** or **Splitting ball** above the scene after entering the belfry. Hold a shot until impact, then release before firing again. R restarts the selected trial. The dummy uses the real platforms; the orb and its descendants bounce within a visible ball-only field. Neither damages the keeper. Movement tuning is unchanged.
 
 Phase 5 technical review is complete. [POC review](docs/poc-review.md) records the successful traversal/recovery route, visual findings, benchmark and movement questions for the next discussion. User playtesting still determines acceptance; no new movement tuning was applied.
 

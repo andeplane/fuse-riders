@@ -169,6 +169,149 @@ h2 {
 [hidden] {
   display: none !important;
 }
+.play-surface {
+  margin-top: 12px;
+}
+#touch-deck {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 10px 4px;
+}
+.thumb-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  font:
+    10px system-ui,
+    sans-serif;
+  letter-spacing: 0.06em;
+  color: #e0c18f;
+}
+.thumb-pad {
+  width: 132px;
+  height: 132px;
+  border: 2px solid #bda16e;
+  border-radius: 50%;
+  background: radial-gradient(circle, #32334a, #191e30);
+  position: relative;
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.thumb-pad::before {
+  content: "";
+  width: 38%;
+  height: 38%;
+  border: 1px solid #777282;
+  border-radius: 50%;
+  position: absolute;
+}
+.pad-cross {
+  font-size: 42px;
+  color: #b2b0c0;
+  opacity: 0.6;
+}
+.thumb-knob {
+  width: 26px;
+  height: 26px;
+  border: 1px solid #ffdb97;
+  border-radius: 50%;
+  background: #b99358aa;
+  position: absolute;
+  pointer-events: none;
+}
+.thumb-pad[data-firing="true"] {
+  border-color: #fff0c6;
+  box-shadow: 0 0 16px #e0b56c44;
+}
+#touch-deck[data-enabled="false"] {
+  opacity: 0.4;
+}
+.touch-trial .desktop-help {
+  display: none;
+}
+.touch-trial .stage-caption span:last-child {
+  display: inline;
+}
+.touch-trial header h1,
+.touch-trial header .intro {
+  display: none;
+}
+.touch-trial header {
+  margin-bottom: 8px;
+}
+.touch-trial .eyebrow {
+  margin: 10px 0;
+}
+.touch-trial .controls {
+  margin-top: 10px;
+  gap: 10px;
+}
+.touch-trial .experiment-controls #experiment-help {
+  flex-basis: 100%;
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  .touch-trial main {
+    padding: 8px max(12px, env(safe-area-inset-left)) 12px;
+  }
+  .touch-trial header {
+    display: none;
+  }
+  .touch-trial .experiment-controls {
+    margin: 0;
+    font-size: 11px;
+  }
+  .touch-trial .experiment-controls #experiment-help {
+    display: none;
+  }
+  .touch-trial button,
+  .touch-trial select {
+    padding: 6px 8px;
+  }
+  .touch-trial .play-surface {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr) 112px;
+    gap: 12px;
+    align-items: center;
+  }
+  .touch-trial .stage {
+    grid-column: 2;
+    grid-row: 1;
+    width: min(100%, calc((100dvh - 150px) * 16 / 9));
+    justify-self: center;
+  }
+  .touch-trial #touch-deck {
+    display: contents;
+  }
+  .touch-trial .move-control {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .touch-trial .aim-control {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .touch-trial .thumb-pad {
+    width: 106px;
+    height: 106px;
+  }
+  .touch-trial .thumb-control {
+    font-size: 8px;
+  }
+  .touch-trial #touch-help {
+    font-size: 11px;
+    margin: 6px 0;
+  }
+  .touch-trial .stage-caption {
+    padding: 4px 8px;
+    font-size: 9px;
+  }
+}
 @media (max-width: 700px) {
   main {
     padding: 20px 16px;

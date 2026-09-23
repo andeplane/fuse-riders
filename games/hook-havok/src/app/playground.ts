@@ -14,14 +14,18 @@ import { TUNING_BOUNDS, parseTuning } from "../engine/codec.js";
 import { toView, type WorldView } from "../engine/view.js";
 import type { ShowcaseHandle } from "../render/scene.js";
 import { interpolate } from "../render/interpolation.js";
+import { createTouchControls, type TouchControls } from "./touch-controls.js";
+import { touchAim } from "./touch-input.js";
 
 document.querySelector("main")!.innerHTML =
   `<header><a id="home">← BACK TO THE PARTY</a><p class="eyebrow">HOOK HAVOK / SOLO SANDBOX</p><h1>Find your next foothold.</h1><p class="intro">A quiet belfry. Eight ledges. One keeper.</p></header>
-<section class="controls"><label>Experiment <select id="experiment" name="experiment" form="tuning" disabled><option value="movement">Movement course</option><option value="target">Knockback target</option><option value="ball">Splitting ball</option></select></label><span id="experiment-help">Explore the eight ledges with jump and grapple.</span></section>
-<section class="stage"><div id="scene" tabindex="0" aria-label="Hook Havok keyboard and mouse playground"></div><div class="stage-caption"><span id="phase">Preparing the belfry…</span><span id="counter">SOLO EXPERIMENT</span></div></section>
+<section class="controls experiment-controls"><label>Experiment <select id="experiment" name="experiment" form="tuning" disabled><option value="movement">Movement course</option><option value="target">Knockback target</option><option value="ball">Splitting ball</option></select></label><label><input id="touch-toggle" type="checkbox"> Touch controls</label><label id="aim-label" hidden>Aim <select id="aim-mode"><option value="eight">8 directions</option><option value="free">Free aim</option></select></label><span id="experiment-help">Explore the eight ledges with jump and grapple.</span></section>
+<div class="play-surface"><section class="stage"><div id="scene" tabindex="0" aria-label="Hook Havok playground"></div><div class="stage-caption"><span id="phase">Preparing the belfry…</span><span id="counter">SOLO EXPERIMENT</span></div></section>
+<section id="touch-deck" aria-label="Touch controls" hidden><div class="thumb-control move-control"><div class="thumb-pad" data-pad="move" aria-label="Move pad: slide left or right, slide up to jump"><span class="pad-cross">↔</span><span class="thumb-knob"></span></div><span>MOVE · UP TO JUMP</span></div><div class="thumb-control aim-control"><div class="thumb-pad" data-pad="aim" aria-label="Hook pad: drag from center to aim and fire, release to let go"><span class="pad-cross">✧</span><span class="thumb-knob"></span></div><span>AIM · HOLD TO HOOK</span></div></section></div>
+<p id="touch-help" class="intro" hidden>Left thumb: slide sideways to move, up to jump; hold up for height. Right thumb: start near the center and drag toward your target to fire, keep holding to pull, release to let go. Release and drag again for another shot.</p>
 <section class="controls"><button id="start" disabled>Enter the belfry</button><button id="reset" disabled>Restart experiment</button><label><input id="debug" type="checkbox"> Show collision shapes</label><label><input id="atmosphere" type="checkbox" checked> Atmosphere</label><a id="study">Art showcase</a><button id="retry" hidden>Retry graphics</button></section>
 <p id="status" role="status" data-state="loading">Loading the belfry…</p>
-<p class="intro">A / D or ← / → to move · Space to jump (hold for height) · Mouse to aim · Hold left mouse to hook and pull · Release to let go · R to reset. Click the scene to focus. Desktop controls for this phase.</p>
+<p class="intro desktop-help">A / D or ← / → to move · Space to jump (hold for height) · Mouse to aim · Hold left mouse to hook and pull · Release to let go · R to reset. Click the scene to focus.</p>
 <details><summary>Movement workshop</summary><form id="tuning" class="controls"></form><p>Apply restarts the exercise. Settings travel with the room checkpoint. Solid platforms: aim around their edges to climb higher.</p></details>`;
 function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
@@ -99,9 +103,16 @@ let runtime: HookRuntime | undefined,
   disposed = false,
   roomAttempt = 0;
 let input: Input = { ...NEUTRAL };
+let touch: TouchControls | undefined;
+let mousePointer: number | undefined;
 const keys = new Set<string>();
 let roomDeadline: ReturnType<typeof setTimeout> | undefined;
 function clear() {
+  const captured = mousePointer;
+  mousePointer = undefined;
+  if (captured !== undefined && host.hasPointerCapture(captured))
+    host.releasePointerCapture(captured);
+  touch?.clear();
   keys.clear();
   input = { ...NEUTRAL, aimX: input.aimX, aimY: input.aimY };
   runtime?.clear();
@@ -109,6 +120,48 @@ function clear() {
 function send() {
   runtime?.input(input);
 }
+const touchToggle = el<HTMLInputElement>("touch-toggle"),
+  touchDeck = el("touch-deck");
+touch = createTouchControls(
+  touchDeck,
+  (state) => {
+    const wasFiring = input.fire;
+    input.move = state.move;
+    input.jump = state.jump;
+    input.fire = state.fire;
+    if (state.fire && !wasFiring)
+      Object.assign(
+        input,
+        touchAim(
+          latest.x,
+          latest.feet - latest.body.height * 0.6,
+          state.direction,
+        ),
+      );
+    send();
+  },
+  clear,
+);
+function touchLayout() {
+  clear();
+  const enabled = touchToggle.checked;
+  document.body.classList.toggle("touch-trial", enabled);
+  touchDeck.hidden = !enabled;
+  el("aim-label").hidden = !enabled;
+  el("touch-help").hidden = !enabled;
+  touch?.enable(enabled && status.dataset.state === "playing");
+}
+touchToggle.checked =
+  query.has("touch") || matchMedia("(any-pointer: coarse)").matches;
+touchToggle.onchange = touchLayout;
+el<HTMLSelectElement>("aim-mode").onchange = (event) => {
+  clear();
+  touch?.mode(
+    (event.target as HTMLSelectElement).value === "free" ? "free" : "eight",
+  );
+};
+touchLayout();
+window.addEventListener("resize", clear);
 function sample(): WorldView {
   const timing = runtime?.frameTiming();
   if (!timing) return latest;
@@ -127,6 +180,7 @@ function stopRoom() {
   reset.disabled = true;
   apply.disabled = true;
   experiment.disabled = true;
+  touch?.enable(false);
 }
 function fail(message: string) {
   stopRoom();
@@ -223,6 +277,9 @@ start.onclick = async () => {
         },
         state(frame) {
           latest = frame;
+          touch?.enable(
+            touchToggle.checked && frame.stage === "running" && frame.seated,
+          );
           if (!joined) {
             joined = !!runtime?.command({
               type: "join",
@@ -237,7 +294,7 @@ start.onclick = async () => {
             status.dataset.state = "playing";
             status.textContent =
               frame.experiment === "ball" && !frame.combat.balls.length
-                ? "Field cleared. Press R to try again."
+                ? "Field cleared. Restart the experiment to try again."
                 : descriptions[frame.experiment];
             reset.disabled = false;
             apply.disabled = false;
@@ -321,6 +378,7 @@ host.addEventListener("keydown", (e) => {
   )
     return;
   e.preventDefault();
+  if (touchDeck.dataset.active === "true") clear();
   keys.add(e.code);
   input.move = (Number(keys.has("KeyD") || keys.has("ArrowRight")) -
     Number(keys.has("KeyA") || keys.has("ArrowLeft"))) as Input["move"];
@@ -330,6 +388,7 @@ host.addEventListener("keydown", (e) => {
 });
 host.addEventListener("keyup", (e) => {
   keys.delete(e.code);
+  if (touchDeck.dataset.active === "true") return;
   input.move = (Number(keys.has("KeyD") || keys.has("ArrowRight")) -
     Number(keys.has("KeyA") || keys.has("ArrowLeft"))) as Input["move"];
   input.jump = keys.has("Space");
@@ -347,27 +406,29 @@ function aim(e: PointerEvent) {
   );
 }
 host.addEventListener("pointermove", (e) => {
+  if (e.pointerType !== "mouse") return;
   aim(e);
 });
 host.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0) return;
+  if (e.button !== 0 || e.pointerType !== "mouse") return;
+  if (touchDeck.dataset.active === "true") clear();
   e.preventDefault();
   host.focus();
+  mousePointer = e.pointerId;
   host.setPointerCapture(e.pointerId);
   aim(e);
   input.fire = true;
   send();
 });
-host.addEventListener("pointerup", (e) => {
-  if (e.button !== 0) return;
+function releaseMouse(e: PointerEvent) {
+  if (e.pointerId !== mousePointer) return;
+  mousePointer = undefined;
   input.fire = false;
   send();
-});
-host.addEventListener("pointercancel", clear);
-host.addEventListener("lostpointercapture", () => {
-  input.fire = false;
-  send();
-});
+}
+host.addEventListener("pointerup", releaseMouse);
+host.addEventListener("pointercancel", releaseMouse);
+host.addEventListener("lostpointercapture", releaseMouse);
 host.addEventListener("blur", clear);
 window.addEventListener("blur", clear);
 window.addEventListener("blur", () => {
@@ -388,6 +449,7 @@ window.addEventListener("pagehide", () => {
   attempt++;
   roomAttempt++;
   stopRoom();
+  touch?.destroy();
   scene?.destroy();
 });
 window.addEventListener("pageshow", (e) => {
