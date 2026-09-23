@@ -39,6 +39,14 @@ export function createShowcase(
   const feedback = new Feedback();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   class Belfry extends Phaser.Scene {
+    private peers = new Map<
+      string,
+      {
+        actor: Phaser.GameObjects.Image;
+        tether: Phaser.GameObjects.Graphics;
+        label: Phaser.GameObjects.Text;
+      }
+    >();
     private actor?: Phaser.GameObjects.Image;
     private hook?: Phaser.GameObjects.Image;
     private tether?: Phaser.GameObjects.Graphics;
@@ -234,6 +242,86 @@ export function createShowcase(
           .setAlpha(pose.alpha);
       }
       this.effects.clear();
+      if (world) {
+        const colors = [0xffd58b, 0x80dcff, 0xf29abf, 0xaee89a, 0xc4a4ff];
+        const focused = world.localId ?? world.keepers[0]?.id;
+        for (const [id, peer] of this.peers)
+          if (!world.keepers.some((k) => k.id === id)) {
+            peer.actor.destroy();
+            peer.tether.destroy();
+            peer.label.destroy();
+            this.peers.delete(id);
+          }
+        for (const keeper of world.keepers) {
+          let peer = this.peers.get(keeper.id);
+          if (!peer) {
+            peer = {
+              actor: this.add.image(0, 0, "actor", "0"),
+              tether: this.add.graphics(),
+              label: this.add
+                .text(0, 0, "", {
+                  fontFamily: "sans-serif",
+                  fontSize: "16px",
+                  stroke: "#101420",
+                  strokeThickness: 4,
+                })
+                .setOrigin(0.5, 1),
+            };
+            this.peers.set(keeper.id, peer);
+          }
+          const body = keeper.body,
+            color = colors[keeper.slot]!;
+          const remoteFrame =
+            body.grounded && Math.abs(body.vx) > 20
+              ? 2 + (Math.floor(elapsed / 90) % 4)
+              : body.vy < 0
+                ? 3
+                : body.grounded
+                  ? 0
+                  : 4;
+          const crop = this.frames[remoteFrame]!;
+          peer.actor
+            .setVisible(keeper.id !== focused)
+            .setFrame(String(remoteFrame))
+            .setOrigin(crop.pivot, 1)
+            .setPosition(body.x, body.feet)
+            .setScale(this.actorScale)
+            .setFlipX(body.facing === -1)
+            .setAlpha(!keeper.connected || body.respawn ? 0.3 : 1);
+          peer.label
+            .setText(
+              `P${keeper.slot + 1}${keeper.id === world.localId ? " · YOU" : ""}${keeper.connected ? "" : " · AWAY"}`,
+            )
+            .setColor(`#${color.toString(16)}`)
+            .setPosition(body.x, body.feet - 80);
+          peer.tether
+            .clear()
+            .lineStyle(
+              keeper.shield ? 3 : 2,
+              color,
+              keeper.connected ? 0.9 : 0.3,
+            )
+            .strokeEllipse(body.x, body.feet + 2, 36, 9);
+          if (keeper.id !== focused && body.hook.phase !== "ready")
+            peer.tether
+              .lineStyle(2, color, 0.8)
+              .lineBetween(body.x, body.feet - 40, body.hook.x, body.hook.y)
+              .fillStyle(color)
+              .fillCircle(body.hook.x, body.hook.y, 5);
+        }
+        host.dataset.keepers = JSON.stringify(
+          world.keepers.map((k) => ({
+            id: k.id,
+            slot: k.slot,
+            connected: k.connected,
+            hits: k.hits,
+            x: k.body.x,
+            feet: k.body.feet,
+            hook: k.body.hook.phase,
+            deaths: k.body.deaths,
+          })),
+        );
+      }
       this.combat?.clear();
       if (world && this.combat) {
         const g = this.combat,

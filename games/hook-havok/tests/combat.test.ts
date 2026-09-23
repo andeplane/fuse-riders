@@ -60,7 +60,7 @@ test("experiment selection resets scope and replay/checkpoint hashes agree", () 
     assert.equal(hash(a), hash(b));
     if (tick === 2) {
       assert.equal(a.round, 2);
-      assert.equal(a.simulation.input.fire, false);
+      assert.equal(a.simulation.keepers[0]!.world.input.fire, false);
     }
     if (tick === 50) assert.equal(a.simulation.combat.hits, 1);
     if (tick === 60) {

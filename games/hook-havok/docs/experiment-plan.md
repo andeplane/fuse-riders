@@ -79,7 +79,7 @@ Technical review complete: ordinary-input traversal/recovery fixture, real brows
 
 - **6A — Solo combat sandbox:** implemented per the user's selected experiment. Switch between movement, a knockback effigy and one bounded splitting ball. Includes first-contact shot resolution, split limits, target falls/return, checkpoint validation, hit feedback/audio and real-room browser checks. See [design and playtesting](combat-sandbox.md). User assessment of aiming and knockback feel remains open.
 - **6B — Controls trial:** same-device touch controls implemented, with independent move/jump and aim/hook pads, eight-direction/free aiming comparison and portrait/landscape layouts. Native Chrome multi-touch emulation checks pass. [Physical-phone playtesting](touch-controls.md) remains necessary before choosing the aiming model; TV pairing belongs to the multiplayer increment.
-- **6C — Multiplayer:** 2–5 players with rollback/reconnect tests and explicit hit ownership/order. No multiplayer behavior is implied by the solo dummy.
+- **6C — Multiplayer:** shared free play implemented for 2–5 keepers, with player knockback, independent respawn, invite/join, refresh recovery, seatless display and manager succession. Deterministic replay/impairment tests and real WebRTC browser checks cover the shared runtime. See [design and playtesting](multiplayer.md). Scoring, elimination and dedicated controller-only pairing remain later decisions.
 - **6D — Rules comparison:** respawning, elimination and score modes; then decide additional maps, procedural generation and bespoke music.
 
 ## Module ownership

@@ -37,6 +37,10 @@ export function interpolate(
       : after;
   return {
     ...newer,
+    keepers: newer.keepers.map((k) => {
+      const old = older.keepers.find((p) => p.id === k.id && p.slot === k.slot);
+      return { ...k, body: interpolate(old?.body, k.body, tick) };
+    }),
     x: lerp(older.x, newer.x),
     feet: lerp(older.feet, newer.feet),
     combat: {

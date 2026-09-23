@@ -31,22 +31,41 @@ function contact(
   if (t >= 0 && t <= 1) return t;
 }
 /** Terrain wins exact ties; ascending binary-tree IDs break entity ties. */
+export interface Rival {
+  id: string;
+  x: number;
+  feet: number;
+}
+export interface CombatContext {
+  rivals: readonly Rival[];
+  hit(id: string, vx: number, vy: number, x: number, y: number): void;
+}
 export function strike(
   world: World,
   dx: number,
   dy: number,
   terrainTime = Infinity,
+  context?: CombatContext,
 ): boolean {
   const h = world.hook,
     c = world.combat,
     target = c.target;
   let time = terrainTime,
     id = -1;
+  let rival: string | undefined;
+  for (const player of context?.rivals ?? []) {
+    const t = contact(h.x, h.y, dx, dy, player.x, player.feet - 28 * S, 16 * S);
+    if (t !== undefined && t < time - 1e-9) {
+      time = t;
+      rival = player.id;
+    }
+  }
   if (target && !target.respawn) {
     const t = contact(h.x, h.y, dx, dy, target.x, target.feet - 28 * S, 16 * S);
     if (t !== undefined && t < time - 1e-9) {
       time = t;
       id = 0;
+      rival = undefined;
     }
   }
   for (const ball of c.balls) {
@@ -62,14 +81,28 @@ export function strike(
     if (t !== undefined && t < time - 1e-9) {
       time = t;
       id = ball.id;
+      rival = undefined;
     }
   }
-  if (id < 0) return false;
+  if (id < 0 && rival === undefined) return false;
   h.x += Math.round(dx * time);
   h.y += Math.round(dy * time);
-  c.hits = Math.min(0xffffffff, c.hits + 1);
-  c.impact = { tick: world.tick, x: h.x, y: h.y };
-  if (id === 0 && target) {
+  if (rival !== undefined) {
+    const length = Math.hypot(h.vx, h.vy) || 1;
+    context!.hit(
+      rival,
+      Math.round((h.vx / length) * 9 * S),
+      Math.min(-3 * S, Math.round((h.vy / length) * 7 * S) - 3 * S),
+      h.x,
+      h.y,
+    );
+  } else {
+    c.hits = Math.min(0xffffffff, c.hits + 1);
+    c.impact = { tick: world.tick, x: h.x, y: h.y };
+  }
+  if (rival !== undefined) {
+    // Player impulses are applied together after every keeper has moved.
+  } else if (id === 0 && target) {
     const length = Math.hypot(h.vx, h.vy) || 1;
     target.vx = Math.round((h.vx / length) * 9 * S);
     target.vy = Math.min(-3 * S, Math.round((h.vy / length) * 7 * S) - 3 * S);

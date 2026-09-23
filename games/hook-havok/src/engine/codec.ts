@@ -184,6 +184,7 @@ export function decodeWorld(raw: unknown): World | undefined {
   )
     return;
   if (
+    !integer(raw.slot, 0, 4) ||
     !integer(raw.tick, 0, 0xffffffff * 3) ||
     !integer(raw.x, HALF, WIDTH * S - HALF) ||
     !integer(raw.feet, -2000 * S, (HEIGHT + 100) * S) ||
@@ -244,6 +245,7 @@ export function decodeWorld(raw: unknown): World | undefined {
   if (!combat) return;
   return {
     combat,
+    slot: raw.slot,
     tick: raw.tick,
     x: raw.x,
     feet: raw.feet,

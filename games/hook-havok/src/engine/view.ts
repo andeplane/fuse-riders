@@ -8,6 +8,15 @@ import {
   type World,
 } from "./world.js";
 export interface WorldView {
+  keepers: KeeperView[];
+  hit: {
+    tick: number;
+    by: string;
+    target: string;
+    x: number;
+    y: number;
+  } | null;
+  localId?: string;
   experiment: World["tuning"]["experiment"];
   combat: {
     target: { x: number; feet: number; respawn: number } | null;
@@ -31,8 +40,19 @@ export interface WorldView {
   body: { half: number; height: number };
   aim: { x: number; y: number };
 }
+export interface KeeperView {
+  id: string;
+  slot: number;
+  name: string;
+  connected: boolean;
+  shield: number;
+  hits: number;
+  body: WorldView;
+}
 export function toView(world: World): WorldView {
   return {
+    keepers: [],
+    hit: null,
     experiment: world.tuning.experiment,
     combat: {
       target: world.combat.target

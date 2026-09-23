@@ -196,7 +196,13 @@ test("replay and checkpoint continuation match through movement, grappling and r
     foldTick(a, host, stream(controls(t, input)));
     foldTick(b, host, stream(controls(t, input)));
     assert.equal(hash(a), hash(b));
-    assert.equal(overlaps(a.simulation.x, a.simulation.feet), false);
+    assert.equal(
+      overlaps(
+        a.simulation.keepers[0]!.world.x,
+        a.simulation.keepers[0]!.world.feet,
+      ),
+      false,
+    );
     const restored = decode(encode(a), a.tick);
     assert.ok(restored, `valid checkpoint tick ${t}`);
     assert.equal(hash(restored), hash(a));
@@ -221,17 +227,17 @@ test("short tap survives log batching; stale scope/generation ignored; disconnec
       ],
     ]),
   );
-  assert.ok(r.simulation.vy < 0);
-  const x = r.simulation.x;
+  assert.ok(r.simulation.keepers[0]!.world.vy < 0);
+  const x = r.simulation.keepers[0]!.world.x;
   foldTick(r, host, stream(controls(3, { ...NEUTRAL, move: 1 }, "old")));
-  assert.equal(r.simulation.x, x);
+  assert.equal(r.simulation.keepers[0]!.world.x, x);
   foldTick(r, host, stream(controls(4, { ...NEUTRAL, move: 1 }), 2));
-  assert.equal(r.simulation.x, x);
+  assert.equal(r.simulation.keepers[0]!.world.x, x);
   foldTick(r, host, stream(controls(5, { ...NEUTRAL, move: 1, fire: true })));
-  assert.equal(r.simulation.input.move, 1);
+  assert.equal(r.simulation.keepers[0]!.world.input.move, 1);
   foldTick(r, host, stream([8, 6, PRESENCE, host, false, 1]));
-  assert.deepEqual(r.simulation.input, { ...NEUTRAL });
-  assert.equal(r.simulation.hook.phase, "ready");
+  assert.deepEqual(r.simulation.keepers[0]!.world.input, { ...NEUTRAL });
+  assert.equal(r.simulation.keepers[0]!.world.hook.phase, "ready");
 });
 test("tuning reset is scoped, bounded and checkpointed; corrupt snapshots reject atomically", () => {
   const r = setup();
@@ -244,13 +250,13 @@ test("tuning reset is scoped, bounded and checkpointed; corrupt snapshots reject
   assert.equal(r.simulation.tuning.speed, 400);
   const saved = hash(r);
   const fields = encode(r);
-  fields[5] = {
-    ...r.simulation,
-    hook: { ...r.simulation.hook, phase: ["flying"] },
-  };
+  fields[5] = { ...r.simulation, keepers: [] };
   assert.equal(decode(fields, r.tick), undefined);
   assert.equal(hash(r), saved);
-  assert.equal(decodeWorld({ ...r.simulation, feet: 820 * S }), undefined);
+  assert.equal(
+    decodeWorld({ ...r.simulation.keepers[0]!.world, feet: 820 * S }),
+    undefined,
+  );
   assert.equal(parseInput({ ...NEUTRAL, aimX: Infinity }), undefined);
   assert.equal(parseTuning({ ...DEFAULT_TUNING, pull: -1 }), undefined);
   assert.equal(isEntry([1, 1, 0, "match", 1, { ...NEUTRAL, extra: 1 }]), false);

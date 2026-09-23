@@ -73,6 +73,15 @@ export class Feedback {
               : view.feet,
         at: ms,
       });
+    if (view.hit && view.hit.tick > old.tick) {
+      cues.push("impact");
+      this.bursts.push({
+        kind: "impact",
+        x: view.hit.x,
+        y: view.hit.y,
+        at: ms,
+      });
+    }
     this.bursts = this.bursts.slice(-12);
     return cues;
   }

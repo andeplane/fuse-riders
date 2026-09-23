@@ -4,6 +4,25 @@ import { Feedback } from "../src/render/feedback.js";
 import { createWorld } from "../src/engine/world.js";
 import { toView } from "../src/engine/view.js";
 import { EffectsAudio, type ToneSink } from "../src/app/audio.js";
+test("simultaneous prop and player hits retain independent effect positions", () => {
+  const f = new Feedback(),
+    v = toView(createWorld());
+  v.experiment = "ball";
+  f.update(v, 0);
+  const next = structuredClone(v);
+  next.tick = 3;
+  next.hit = { tick: 2, by: "a", target: "b", x: 170, y: 782 };
+  next.combat.hits = 1;
+  next.combat.impact = { tick: 3, x: 900, y: 700 };
+  assert.deepEqual(f.update(next, 50), ["pop", "impact"]);
+  assert.deepEqual(
+    f.active().map(({ kind, x, y }) => ({ kind, x, y })),
+    [
+      { kind: "pop", x: 900, y: 700 },
+      { kind: "impact", x: 170, y: 782 },
+    ],
+  );
+});
 test("view transitions cue once; rollback/repeated frames do not replay effects", () => {
   const f = new Feedback(),
     v = toView(createWorld());

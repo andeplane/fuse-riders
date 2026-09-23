@@ -1,5 +1,5 @@
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-2";
+export const RULES = "hook-havok-3";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
@@ -60,6 +60,7 @@ export interface Hook {
   platform: number;
 }
 export interface World {
+  slot: number;
   combat: Combat;
   tick: number;
   x: number;
@@ -136,11 +137,12 @@ export function readyHook(): Hook {
     platform: -1,
   };
 }
-export function createWorld(tuning: Tuning = DEFAULT_TUNING): World {
+export function createWorld(tuning: Tuning = DEFAULT_TUNING, slot = 0): World {
   return {
+    slot,
     combat: createCombat(tuning.experiment),
     tick: 0,
-    x: 310 * S,
+    x: [310, 170, 240, 380, 450][slot]! * S,
     feet: 810 * S - 1,
     vx: 0,
     vy: 0,
@@ -157,7 +159,7 @@ export function createWorld(tuning: Tuning = DEFAULT_TUNING): World {
   };
 }
 export function resetWorld(world: World): void {
-  const fresh = createWorld(world.tuning);
+  const fresh = createWorld(world.tuning, world.slot);
   Object.assign(world, fresh, {
     tick: world.tick,
     deaths: world.deaths,

@@ -4,7 +4,9 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
-Phase 6B adds the [phone controls trial](docs/touch-controls.md). Enable **Touch controls** above the arena (automatic on touch devices). Left pad moves and jumps; right pad aims and holds the hook. Compare **8 directions** and **Free aim** in all three experiments. Portrait/landscape layouts keep pads outside the arena. This is same-device solo play; TV controller pairing and multiplayer are later work. Browser multi-touch checks pass; physical-phone usability needs user playtesting.
+Phase 6C adds [shared free play](docs/multiplayer.md): create a room, copy its invite, and bring up to five keepers into the same arena. Hooks knock rivals back; falls respawn them. The shared display watches without taking a player seat. The room manager selects experiments and restarts the shared trial. This is a movement/combat test, with no elimination or scored rounds yet.
+
+Phase 6B adds the [phone controls trial](docs/touch-controls.md). Enable **Touch controls** above the arena (automatic on touch devices). Left pad moves and jumps; right pad aims and holds the hook. Compare **8 directions** and **Free aim** in all three experiments. Portrait/landscape layouts keep pads outside the arena. Phones now join the shared room as individual players; dedicated controller-only pairing is later work. Browser multi-touch checks pass; physical-phone usability needs user playtesting.
 
 Phase 6A adds the [solo combat sandbox](docs/combat-sandbox.md): choose **Knockback target** or **Splitting ball** above the scene after entering the belfry. Hold a shot until impact, then release before firing again. R restarts the selected trial. The dummy uses the real platforms; the orb and its descendants bounce within a visible ball-only field. Neither damages the keeper. Movement tuning is unchanged.
 

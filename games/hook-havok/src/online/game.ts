@@ -19,17 +19,17 @@ import {
   RULES,
   type Input,
   type Tuning,
-  type World,
 } from "../engine/world.js";
-import { step, retune } from "../engine/step.js";
 import {
-  decodeWorld,
-  parseInput,
-  parseTuning,
-  plain,
-  integer,
-} from "../engine/codec.js";
-import { toView, type WorldView } from "../engine/view.js";
+  createArena,
+  stepArena,
+  syncKeepers,
+  encodeArena,
+  decodeArena,
+  type Arena,
+} from "../engine/arena.js";
+import { parseInput, parseTuning, plain, integer } from "../engine/codec.js";
+import { toView, type WorldView, type KeeperView } from "../engine/view.js";
 export type Entry =
   ManagementEntry<Tuning> | [number, number, 0, string, number, Input];
 export interface Room {
@@ -39,12 +39,13 @@ export interface Room {
   stage: "lobby" | "running";
   settings: Tuning;
   seats: Map<string, SeatRecord>;
-  simulation: World;
-  generation: number;
+  simulation: Arena;
 }
 export interface View extends WorldView {
   stage: Room["stage"];
   seated: boolean;
+  seats: SeatRecord[];
+  round: number;
 }
 const name = (v: unknown): v is string =>
   typeof v === "string" &&
@@ -78,7 +79,7 @@ export function isEntry(raw: unknown): raw is Entry {
       name,
       avatar,
       settings: (v) => !!parseTuning(v),
-      capacity: 1,
+      capacity: 5,
     })
   );
 }
@@ -90,8 +91,7 @@ export function createRoom(matchId: string, settings: Tuning): Room {
     stage: "lobby",
     settings: { ...settings },
     seats: new Map(),
-    simulation: createWorld(settings),
-    generation: -1,
+    simulation: createArena(settings),
   };
 }
 const lifecycle: LifecycleHooks<Room, Tuning> = {
@@ -104,14 +104,14 @@ const lifecycle: LifecycleHooks<Room, Tuning> = {
     r.matchId = id;
     r.round = 1;
     r.stage = "running";
-    r.simulation = retune(r.simulation, r.settings);
+    r.simulation = createArena(r.settings, r.simulation.tick);
   },
   rematch() {},
   lobby(r, id) {
     r.stage = "lobby";
     r.matchId = id;
     r.round = 0;
-    cancel(r.simulation);
+    for (const k of r.simulation.keepers) cancel(k.world);
   },
 };
 export function foldTick(
@@ -123,57 +123,60 @@ export function foldTick(
     oldSettings = JSON.stringify(r.settings);
   applyManagementTick(r, tick, creator, streams, lifecycle);
   if (JSON.stringify(r.settings) !== oldSettings) {
-    r.simulation = retune(r.simulation, r.settings);
+    r.simulation = createArena(r.settings, r.simulation.tick);
     r.round++;
   }
-  const seat = [...r.seats.values()][0],
-    generation = seat?.generation ?? -1;
-  if (!seat?.connected || generation !== r.generation) cancel(r.simulation);
-  r.generation = generation;
-  const stream = seat && streams.get(seat.id),
-    source =
+  syncKeepers(
+    r.simulation,
+    [...r.seats.values()].map((s) => ({ ...s, generation: s.generation ?? 0 })),
+  );
+  const controls = r.simulation.keepers.map((keeper) => {
+    const stream = streams.get(keeper.id),
+      generation = keeper.generation;
+    const source =
       stream?.generation === generation
         ? stream
         : stream?.retired?.find((s) => s.generation === generation);
-  const inputs =
-    seat?.connected && r.stage === "running"
-      ? (source?.entries ?? [])
-          .filter(
-            (
-              e,
-            ): e is Extract<
-              Entry,
-              [number, number, 0, string, number, Input]
-            > =>
-              e[1] === tick &&
-              e[2] === 0 &&
-              e[3] === r.matchId &&
-              e[4] === r.round,
-          )
-          .sort((a, b) => a[0] - b[0])
-          .map((e) => e[5])
-      : [];
-  // Preserve a short press/release inside a 50ms log tick: one pulse in its first physics step.
-  let final = { ...r.simulation.input },
-    pulse = { jump: false, fire: false, reset: false };
-  for (const input of inputs) {
-    for (const key of ["jump", "fire", "reset"] as const)
-      pulse[key] ||= input[key] && !final[key];
-    final = { ...input };
-  }
+    const inputs =
+      keeper.connected && r.stage === "running"
+        ? (source?.entries ?? [])
+            .filter(
+              (
+                e,
+              ): e is Extract<
+                Entry,
+                [number, number, 0, string, number, Input]
+              > =>
+                e[1] === tick &&
+                e[2] === 0 &&
+                e[3] === r.matchId &&
+                e[4] === r.round,
+            )
+            .sort((a, b) => a[0] - b[0])
+            .map((e) => e[5])
+        : [];
+    let final = { ...keeper.world.input };
+    const pulse = { jump: false, fire: false, reset: false };
+    for (const input of inputs) {
+      for (const key of ["jump", "fire", "reset"] as const)
+        pulse[key] ||= input[key] && !final[key];
+      final = { ...input };
+    }
+    return { keeper, final, pulse };
+  });
   for (let i = 0; i < 3; i++) {
-    r.simulation.input = {
-      ...final,
-      ...(i === 0
-        ? {
-            jump: final.jump || pulse.jump,
-            fire: final.fire || pulse.fire,
-            reset: final.reset || pulse.reset,
-          }
-        : {}),
-    };
-    if (r.stage === "running" && seat?.connected) step(r.simulation);
-    else r.simulation.tick++;
+    for (const { keeper, final, pulse } of controls)
+      keeper.world.input = {
+        ...final,
+        ...(i === 0
+          ? {
+              jump: final.jump || pulse.jump,
+              fire: final.fire || pulse.fire,
+              reset: final.reset || pulse.reset,
+            }
+          : {}),
+      };
+    stepArena(r.simulation, r.stage === "running");
   }
   r.tick = tick;
   return [];
@@ -184,25 +187,25 @@ export function encode(r: Room): unknown[] {
     r.round,
     r.stage,
     { ...r.settings },
-    [...r.seats.values()].map((s) => ({ ...s })),
-    structuredClone(r.simulation),
-    r.generation,
+    [...r.seats.values()]
+      .sort((a, b) => a.slot - b.slot)
+      .map((s) => ({ ...s })),
+    encodeArena(r.simulation),
   ];
 }
 export function decode(f: readonly unknown[], tick: number): Room | undefined {
   if (
-    f.length !== 7 ||
+    f.length !== 6 ||
     !uint32(tick) ||
     !match(f[0]) ||
     !uint32(f[1]) ||
     (f[2] !== "lobby" && f[2] !== "running") ||
     !Array.isArray(f[4]) ||
-    f[4].length > 1 ||
-    !integer(f[6], -1, 0xffffffff)
+    f[4].length > 5
   )
     return;
   const settings = parseTuning(f[3]),
-    simulation = decodeWorld(f[5]);
+    simulation = decodeArena(f[5]);
   if (
     !settings ||
     !simulation ||
@@ -229,7 +232,9 @@ export function decode(f: readonly unknown[], tick: number): Room | undefined {
       ) ||
       !memberId(s.id) ||
       !name(s.name) ||
-      s.slot !== 0 ||
+      !integer(s.slot, 0, 4) ||
+      seats.has(s.id) ||
+      [...seats.values()].some((old) => old.slot === s.slot) ||
       !avatar(s.avatarId) ||
       typeof s.connected !== "boolean" ||
       s.bot !== false ||
@@ -241,7 +246,7 @@ export function decode(f: readonly unknown[], tick: number): Room | undefined {
     seats.set(s.id, {
       id: s.id,
       name: s.name,
-      slot: 0,
+      slot: s.slot,
       avatarId: s.avatarId,
       connected: s.connected,
       bot: false,
@@ -250,7 +255,16 @@ export function decode(f: readonly unknown[], tick: number): Room | undefined {
     });
   }
   if (
-    f[6] !== ([...seats.values()][0]?.generation ?? -1) ||
+    simulation.keepers.length !== seats.size ||
+    simulation.keepers.some((k) => {
+      const seat = seats.get(k.id);
+      return (
+        !seat ||
+        seat.slot !== k.slot ||
+        seat.generation !== k.generation ||
+        seat.connected !== k.connected
+      );
+    }) ||
     (f[2] === "running" && (!seats.size || !f[1]))
   )
     return;
@@ -262,7 +276,6 @@ export function decode(f: readonly unknown[], tick: number): Room | undefined {
     settings,
     seats,
     simulation,
-    generation: f[6],
   };
 }
 export function hash(r: Room): string {
@@ -293,9 +306,31 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
   steps: () => 3,
   maxSteps: 3,
   view: (r) => ({
-    ...toView(r.simulation),
+    ...toView(
+      r.simulation.keepers[0]?.world ?? {
+        ...createWorld(r.settings),
+        tick: r.simulation.tick,
+        combat: r.simulation.combat,
+      },
+    ),
+    keepers: r.simulation.keepers.map((k): KeeperView => ({
+      id: k.id,
+      slot: k.slot,
+      name: r.seats.get(k.id)!.name,
+      connected: k.connected,
+      shield: k.shield,
+      hits: k.hits,
+      body: toView(k.world),
+    })),
+    hit: r.simulation.hit && {
+      ...r.simulation.hit,
+      x: r.simulation.hit.x / 1024,
+      y: r.simulation.hit.y / 1024,
+    },
     stage: r.stage,
     seated: [...r.seats.values()].some((s) => s.connected),
+    seats: [...r.seats.values()].map((s) => ({ ...s })),
+    round: r.round,
   }),
   hash,
   checkpoint: { leading: 5, encode, decode },
@@ -304,7 +339,7 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
   stage: (r) => r.stage,
   settings: (r) => r.settings,
   seating: {
-    capacity: 1,
+    capacity: 5,
     minPlayers: 1,
     maxWatchers: 0,
     seatName: (v) => (name(v.trim()) ? v.trim() : undefined),

@@ -169,6 +169,43 @@ h2 {
 [hidden] {
   display: none !important;
 }
+.room-entry input,
+#invite-url {
+  max-width: 100%;
+  min-width: 0;
+  background: #202433;
+  border: 1px solid #656071;
+  border-radius: 4px;
+  color: #eee3ce;
+  padding: 8px;
+}
+#room-code {
+  width: 100px;
+  text-transform: uppercase;
+}
+#keeper-name {
+  width: 145px;
+}
+#invite-url {
+  width: 290px;
+}
+#invitation label {
+  max-width: 100%;
+}
+#roster {
+  font:
+    12px/1.6 system-ui,
+    sans-serif;
+  color: #dbcaa9;
+}
+.display-only .room-entry,
+.display-only #touch-deck,
+.display-only #touch-help,
+.display-only .desktop-help,
+.display-only #touch-toggle,
+.display-only #restart-room {
+  display: none !important;
+}
 .play-surface {
   margin-top: 12px;
 }
@@ -234,6 +271,15 @@ h2 {
 }
 .touch-trial .desktop-help {
   display: none;
+}
+.touch-trial main {
+  display: flex;
+  flex-direction: column;
+}
+.touch-trial .room-entry,
+.touch-trial #invitation,
+.touch-trial #roster {
+  order: 2;
 }
 .touch-trial .stage-caption span:last-child {
   display: inline;
