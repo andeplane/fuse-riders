@@ -130,6 +130,11 @@ export function showLanding(host: LandingHost): void {
       "landing-more",
       document.createTextNode("MORE GAMES: PIG ›"),
     ),
+    link(
+      `${appUrl()}hook-havok/${new URLSearchParams(location.search).has("mute") ? "?mute" : ""}`,
+      "landing-more",
+      document.createTextNode("HOOK HAVOK — ART SHOWCASE ›"),
+    ),
   );
   const live = node("aside", "", "landing-live");
   live.append(

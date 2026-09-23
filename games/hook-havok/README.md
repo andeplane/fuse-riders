@@ -4,16 +4,31 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
-Asset-production proof: a six-pose animation trial, reusable hook and lantern sources, and a browser art lab at gameplay scale. This is not yet a registered game or a playable prototype. The standalone review page has no physics, room service, music or authoritative game loop.
+Phase 2: a Phaser belfry showcase with an authored run/jump/hook/pull/land sequence, atmospheric layers, planted idle, pause/replay/scrubbing and graphics retry. It is reachable from the party landing page as **HOOK HAVOK — ART SHOWCASE**. It is not a registered room game or playable platformer yet; no physics, controls or music run here.
 
 - [Experiment plan](docs/experiment-plan.md)
 - [Art direction](docs/art-direction.md)
 - [Asset manifest and generation prompts](docs/asset-manifest.md)
 - [Animation trial, exact prompts and verification](docs/animation-trial.md)
+- [Phaser showcase and validation](docs/showcase.md)
 
 The working direction combines **A's belfry/character identity with B's denser platform composition**. The user likes both qualities; this combination is the implementation recommendation, not a claim of final artistic acceptance. The art lab displays all eight platforms from the planned map.
 
-## Open the animation study
+## Open the current Phaser showcase
+
+Build with `pnpm build`, then run `node --import tsx service/dev.ts --port 8787` (or `pnpm dev` in a shell supporting the repository's scripts). The existing server selects a free port if needed. Open `/hook-havok/?mute` on the printed origin, or follow the landing-page showcase link. For Vite source development, the page is `/games/hook-havok/`; built output is `/hook-havok/`.
+
+Use **Planted idle** to inspect the fix: one stable source pose, a 0.9% vertical breath and an unchanged foot baseline. The second generated idle drawing remains in the source sheet but is not played. A later rig can keep boots completely rigid while moving knees/chest/scarf independently.
+
+Use the sequence slider to inspect attachment, pull and landing. **Atmosphere** toggles moving mist and motes; reduced-motion preference starts paused with these effects off. Audio is intentionally off for this art milestone.
+
+```sh
+node games/hook-havok/preview/showcase-check.mjs http://localhost:PORT/
+```
+
+## Previous source-animation study
+
+The previous Canvas asset inspector remains useful for enlarged frames and source props. It is separate from the Phaser scene and never runs alongside its loop.
 
 From the repository/worktree root:
 
@@ -61,4 +76,4 @@ These are source assets, not runtime exports. The later scene will use optimized
 
 One character, one fixed arena, running, variable-height jumping, a hook that pulls toward static surfaces, quick respawn, simple effects, and the shared radio. No opponents, balls, progression, procedural maps, or physical rope simulation initially.
 
-The eventual game route is `/hook-havok/`. The current art lab is local review tooling; it is not included in the production game build. No production deployment is included.
+The `/hook-havok/` route now serves the Phaser art showcase in built output. The previous `art-preview.html` asset inspector remains local review tooling outside the build. No production deployment is included.

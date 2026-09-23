@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#111520" />
+    <title>Hook Havok · The Lantern Belfry</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a id="home" href="/">← BACK TO THE PARTY</a>
+        <p class="eyebrow">HOOK HAVOK / THE LANTERN BELFRY</p>
+        <h1>Find your next foothold.</h1>
+        <p class="intro">An animated art showcase. Gameplay comes next.</p>
+      </header>
+      <section class="stage" aria-label="Animated belfry showcase">
+        <div
+          id="scene"
+          role="img"
+          aria-label="A lantern keeper runs, jumps and grapples between eight platforms in a moonlit belfry"
+        ></div>
+        <div class="stage-caption">
+          <span id="phase">Preparing the belfry…</span
+          ><span>ART SHOWCASE · NO PLAYER CONTROLS</span>
+        </div>
+      </section>
+      <section class="controls" aria-label="Showcase controls">
+        <button id="play" type="button" disabled>Pause</button
+        ><button id="replay" type="button" disabled>Replay sequence</button>
+        <label
+          >Study
+          <select id="mode" disabled>
+            <option value="sequence">Traversal sequence</option>
+            <option value="idle">Planted idle</option>
+          </select></label
+        >
+        <label
+          ><input id="atmosphere" type="checkbox" checked disabled />
+          Atmosphere</label
+        >
+        <label
+          >Sequence
+          <input
+            id="scrub"
+            type="range"
+            min="0"
+            max="11999"
+            step="1"
+            value="800"
+            disabled
+            aria-label="Sequence time"
+        /></label>
+        <button id="retry" type="button" hidden>Retry graphics</button>
+      </section>
+      <p id="status" role="status" data-state="loading">
+        Loading artwork and renderer…
+      </p>
+      <section class="notes">
+        <div>
+          <h2>Quiet feet. A living silhouette.</h2>
+          <p>
+            The keeper now breathes around a planted baseline. One idle drawing
+            keeps the hood and body from slipping sideways between poses.
+          </p>
+        </div>
+        <div>
+          <h2>A small promise of movement.</h2>
+          <p>
+            Warm lanterns, drifting mist, a taut tether and a soft landing. This
+            sequence is authored animation; it does not test platform physics or
+            grapple rules.
+          </p>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="./src/app/main.ts"></script>
+  </body>
+</html>

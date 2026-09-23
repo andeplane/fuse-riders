@@ -31,6 +31,8 @@ Exit: a consistent small kit and a short animation. Static generated assets alon
 
 ### 2. Browser art showcase
 
+Delivered: a discoverable Phaser page, asset manifest, bounded loading/retry, atmospheric composition and authored sequence with pause/replay/scrubbing. [Showcase details and limits](showcase.md). User feedback led to replacing the sliding two-pose idle with one foot-anchored breathing pose. Actual platform physics and ordinary controls remain Phase 3.
+
 - Create package and page under `games/hook-havok`; verify discovery in build/dev serving.
 - Add asset manifest, loading/error/retry states and scene disposal.
 - Compose background, platforms, actor, tether, effects and edge-only foreground.

@@ -16,6 +16,8 @@ Generated with built-in `image_gen` on 2026-09-23. Dimensions and transparent co
 
 ## Animation contract
 
+Update after user feedback: live idle playback now uses source frame 0 only, with a three-second 0.9% vertical breath anchored at the foot baseline. It no longer alternates the differently registered idle drawings. The original six source cells remain unchanged for inspection; the run retains four frames. The run-FPS slider is disabled during idle because breathing is continuous, not frame switching. The following describes the original sheet layout and preparation.
+
 Six equal 512 × 512 cells: idle A, idle B, run contact A, run passing A, run contact B, run passing B (row-major 3 × 2). The preview inspects alpha > 32 inside each cell, rejects empty cells and boundary-crossing poses, and obtains source rectangles without rewriting the image. The horizontal pivot is the cell center. Each frame's lowest visible pixel defines its foot baseline. All frames share one scale based on the tallest silhouette; no per-frame stretching. Idle starts at 2 fps, run at 8 fps, and the speed slider controls actual playback for both.
 
 This baseline rule is suitable for the stationary art study, not a final contact/airborne animation policy. The eventual engine will own motion and animation will attach to the engine view. Hood/body registration and foot contacts need authored pivots before final locomotion; alpha bounds alone do not establish anatomical consistency.

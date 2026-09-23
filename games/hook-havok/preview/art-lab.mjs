@@ -90,7 +90,7 @@ function bounds(image, columns = 1, rows = 1) {
   return result;
 }
 
-function actor(context, frame, x, baseline, height) {
+function actor(context, frame, x, baseline, height, breath = 1) {
   const scale = height / maxHeight;
   context.drawImage(
     assets.sheet,
@@ -99,9 +99,9 @@ function actor(context, frame, x, baseline, height) {
     frame.width,
     frame.height,
     x + (frame.x - frame.pivotX) * scale,
-    baseline - frame.height * scale,
+    baseline - frame.height * scale * breath,
     frame.width * scale,
-    frame.height * scale,
+    frame.height * scale * breath,
   );
   if ($("guides").checked) {
     context.strokeStyle = "#efc578";
@@ -118,7 +118,12 @@ function actor(context, frame, x, baseline, height) {
 function paint() {
   if (!assets) return;
   const isRun = $("motion").value === "run";
-  const sequence = isRun ? [2, 3, 4, 5] : [0, 1];
+  // Generated idle poses have different torso registration. Keep one source
+  // pose and breathe vertically around its planted foot baseline instead.
+  const sequence = isRun ? [2, 3, 4, 5] : [0];
+  const breath = isRun
+    ? 1
+    : 1 + Math.sin((elapsed * Math.PI * 2) / 3000) * 0.009;
   const fps = Number($("fps").value);
   const frameIndex =
     sequence[Math.floor((elapsed * fps) / 1000) % sequence.length];
@@ -145,9 +150,9 @@ function paint() {
       arena.strokeRect(x, y, width, height);
     }
   }
-  actor(arena, frame, 310, 810, Number($("size").value));
+  actor(arena, frame, 310, 810, Number($("size").value), breath);
   detail.clearRect(0, 0, 384, 256);
-  actor(detail, frame, 192, 226, 180);
+  actor(detail, frame, 192, 226, 180, breath);
   $("arena").dataset.frame = String(frameIndex);
 }
 
@@ -224,7 +229,8 @@ $("fps").oninput = () => {
 };
 $("motion").onchange = () => {
   elapsed = 0;
-  $("fps").value = $("motion").value === "run" ? "8" : "2";
+  $("fps").disabled = $("motion").value !== "run";
+  $("fps").value = "8";
   $("fps-value").value = $("fps").value;
 };
 $("retry").onclick = start;

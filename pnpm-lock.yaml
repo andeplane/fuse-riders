@@ -145,6 +145,12 @@ importers:
 
   games/fuse-riders: {}
 
+  games/hook-havok:
+    devDependencies:
+      phaser:
+        specifier: 4.2.1
+        version: 4.2.1
+
   packages/fuse-netcode:
     dependencies:
       '@msgpack/msgpack':
