@@ -1,6 +1,6 @@
 import { MAPS, type MapId } from "./maps.js";
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-8";
+export const RULES = "hook-havok-9";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
@@ -9,6 +9,7 @@ export const WIDTH = 1600,
 /** Original belfry geometry, retained for its traversal fixtures. Runtime uses tuning.map. */
 export const PLATFORMS = MAPS.belfry.platforms;
 export interface Tuning {
+  powerUps: "off" | "on";
   jumpMode: "single" | "double";
   wire: "tip" | "spiked";
   map: MapId;
@@ -22,6 +23,7 @@ export interface Tuning {
   range: number;
 }
 export const DEFAULT_TUNING: Tuning = {
+  powerUps: "off",
   jumpMode: "single",
   wire: "tip",
   map: "belfry",

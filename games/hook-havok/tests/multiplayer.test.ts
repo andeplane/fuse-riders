@@ -119,6 +119,7 @@ test("real runtime repairs loss/reorder/duplicates, restores a refreshed member 
         map: "crossroads",
         experiment: "surge",
         jumpMode: "double",
+        powerUps: "on",
         wire: "spiked",
       },
     }),

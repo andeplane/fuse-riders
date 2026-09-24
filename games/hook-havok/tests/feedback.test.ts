@@ -4,6 +4,25 @@ import { Feedback } from "../src/render/feedback.js";
 import { createWorld } from "../src/engine/world.js";
 import { toView } from "../src/engine/view.js";
 import { EffectsAudio, type ToneSink } from "../src/app/audio.js";
+test("power feedback belongs to its subject and never replays repeated events", () => {
+  const f = new Feedback();
+  const v = { ...toView(createWorld()), localId: "a" };
+  f.update(v, 0);
+  const pickup = {
+    ...v,
+    tick: 3,
+    pickupEvents: [{ tick: 2, by: "b", kind: "ward" as const, x: 130, y: 782 }],
+  };
+  assert.deepEqual(f.update(pickup, 50), []);
+  const own = {
+    ...pickup,
+    tick: 6,
+    pickupEvents: [{ ...pickup.pickupEvents[0]!, tick: 5, by: "a" }],
+  };
+  assert.deepEqual(f.update(own, 100), ["power"]);
+  assert.deepEqual(f.update(own, 110), []);
+  assert.deepEqual(f.update({ ...own, tick: 9 }, 150), []);
+});
 test("keeper action poses override running and never change the view", () => {
   const f = new Feedback();
   const idle = toView(createWorld());
@@ -159,6 +178,7 @@ test("directional hit reaction belongs only to the victim and does not replay", 
     connected: true,
     playing: true,
     shield: 0,
+    ward: 0,
     hits: 0,
     body: { ...base, vx: id === "b" ? -400 : 0, vy: -200 },
   }));

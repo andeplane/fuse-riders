@@ -128,6 +128,10 @@ Implemented a collapsible room lounge for invitations, match choices and manager
 
 Implemented a lighter fog veil, keeper contact shadows, readable out/away cards and visible keyboard focus. Removed repeated crest drawing, copied pose-history scans and unchanged UI text writes; frozen environmental drawing is cached with map/settings invalidation. Reduced motion now also covers showcase landing/sparks. A reproducible five-player Crossroads/surge workload records browser callback cadence, task time and actual scene activity, with raw before/after evidence and exact source provenance. Existing arena and asset/context-recovery checks pass. See [measurements and limits](cohesion-performance.md): caption mutation dropped, but the short runs do not establish a CPU or frame-rate speedup. The local pass is complete; physical-phone qualification and user acceptance remain open.
 
+### 9A. Shared power-up trial
+
+Implemented optional Lift and Ward pickups on both maps, shared cooldowns, protection feedback and manager-controlled activation in Room & match. Deterministic collection and validated checkpoint state use rules `hook-havok-9`; refresh all clients and create a fresh room. See [rules, playtesting and verification](power-ups.md). User acceptance of balance and feel remains open.
+
 ## Module ownership
 
 `engine/`: state, input, tuning, maps, collision, movement, grapple, step, codec, view. Imports nothing from app/render/network.

@@ -8,6 +8,14 @@ import {
   type Contest,
 } from "./contest.js";
 export interface WorldView {
+  pickups: { kind: "lift" | "ward"; x: number; y: number; cooldown: number }[];
+  pickupEvents: {
+    tick: number;
+    by: string;
+    kind: "lift" | "ward";
+    x: number;
+    y: number;
+  }[];
   airJump: boolean;
   doubleJump: boolean;
   spikedWire: boolean;
@@ -54,6 +62,7 @@ export interface WorldView {
   aim: { x: number; y: number };
 }
 export interface KeeperView {
+  ward: number;
   playing: boolean;
   id: string;
   slot: number;
@@ -66,6 +75,8 @@ export interface KeeperView {
 export function toView(world: World): WorldView {
   const wire = activeWire(world);
   return {
+    pickups: [],
+    pickupEvents: [],
     wire: wire
       ? {
           x: wire.x / S,

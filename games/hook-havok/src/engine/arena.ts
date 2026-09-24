@@ -9,6 +9,12 @@ import {
 } from "./world.js";
 import { step } from "./step.js";
 import { stepCombat } from "./combat.js";
+import {
+  stepPowerUps,
+  POWER_COOLDOWN,
+  WARD_TICKS,
+  type PickupEvent,
+} from "./power-ups.js";
 import { decodeWorld, parseTuning, plain, integer } from "./codec.js";
 import {
   createContest,
@@ -25,6 +31,7 @@ export interface Keeper {
   generation: number;
   connected: boolean;
   shield: number;
+  ward: number;
   hits: number;
   world: World;
 }
@@ -36,6 +43,8 @@ export interface HitEvent {
   y: number;
 }
 export interface Arena {
+  powerCooldowns: number[];
+  pickupEvents: PickupEvent[];
   contest: Contest;
   tick: number;
   tuning: Tuning;
@@ -51,6 +60,8 @@ export interface Member {
 }
 export function createArena(tuning: Tuning, tick = 0): Arena {
   return {
+    powerCooldowns: [0, 0],
+    pickupEvents: [],
     contest: createContest(tuning.rules),
     tick,
     tuning: { ...tuning },
@@ -75,14 +86,16 @@ export function syncKeepers(arena: Arena, members: readonly Member[]): void {
           const entry = arena.contest.entries.find((e) => e.id === member.id);
           if (entry) entry.out = true;
         }
-        if (!member.connected || old.generation !== member.generation)
+        if (!member.connected || old.generation !== member.generation) {
           cancel(old.world);
+          old.ward = 0;
+        }
         return { ...old, ...member };
       }
       const world = createWorld(arena.tuning, member.slot);
       world.tick = arena.tick;
       world.combat = arena.combat;
-      return { ...member, world, shield: 30, hits: 0 };
+      return { ...member, world, shield: 30, ward: 0, hits: 0 };
     });
 }
 /** Stable slot order owns contested props; player impulses use pre-step hurt shapes and commit together. */
@@ -108,11 +121,14 @@ export function stepArena(arena: Arena, running = true): void {
         }));
         arena.combat = createCombat(arena.tuning.experiment, arena.tuning.map);
         arena.hit = null;
+        arena.powerCooldowns = [0, 0];
+        arena.pickupEvents = [];
         for (const k of arena.keepers) {
           k.world = createWorld(arena.tuning, k.slot);
           k.world.tick = arena.tick - 1;
           k.hits = 0;
           k.shield = 30;
+          k.ward = 0;
         }
       }
     }
@@ -128,7 +144,7 @@ export function stepArena(arena: Arena, running = true): void {
       (c.phase === "active" && c.entries.some((e) => e.id === k.id && !e.out)));
   const playing = running && (!competitive || c.phase === "active");
   const victims = arena.keepers
-    .filter((k) => canPlay(k) && !k.world.respawn && !k.shield)
+    .filter((k) => canPlay(k) && !k.world.respawn && !k.shield && !k.ward)
     .map((k) => ({ id: k.id, x: k.world.x, feet: k.world.feet }));
   const pending: {
     by: Keeper;
@@ -155,6 +171,7 @@ export function stepArena(arena: Arena, running = true): void {
         (wasReturning && !w.respawn) || reset
           ? 30
           : Math.max(0, keeper.shield - 1);
+      keeper.ward = reset || w.respawn ? 0 : Math.max(0, keeper.ward - 1);
     } else {
       cancel(w);
       w.tick++;
@@ -172,7 +189,13 @@ export function stepArena(arena: Arena, running = true): void {
   }
   for (const impact of pending) {
     const victim = arena.keepers.find((k) => k.id === impact.target)!;
-    if (victim.world.respawn || victim.shield || !canPlay(victim)) continue;
+    if (
+      victim.world.respawn ||
+      victim.shield ||
+      victim.ward ||
+      !canPlay(victim)
+    )
+      continue;
     const cap = Math.round((1000 * S) / 60);
     victim.world.vx = Math.max(
       -cap,
@@ -204,6 +227,7 @@ export function stepArena(arena: Arena, running = true): void {
       holder,
       arena.keepers.filter(canPlay).map((k) => k.world),
     );
+    stepPowerUps(arena, canPlay);
   }
   for (const k of arena.keepers) k.world.combat = arena.combat;
   if (competitive && playing) {
@@ -219,6 +243,8 @@ export function stepArena(arena: Arena, running = true): void {
 }
 export function encodeArena(arena: Arena): unknown {
   return {
+    powerCooldowns: [...arena.powerCooldowns],
+    pickupEvents: arena.pickupEvents.map((e) => ({ ...e })),
     contest: structuredClone(arena.contest),
     tick: arena.tick,
     tuning: { ...arena.tuning },
@@ -237,6 +263,7 @@ export function encodeArena(arena: Arena): unknown {
         generation: k.generation,
         connected: k.connected,
         shield: k.shield,
+        ward: k.ward,
         hits: k.hits,
         body: structuredClone(body),
       };
@@ -251,7 +278,7 @@ const id = (v: unknown): v is string =>
 export function decodeArena(raw: unknown): Arena | undefined {
   if (
     !plain(raw) ||
-    Object.keys(raw).length !== 6 ||
+    Object.keys(raw).length !== 8 ||
     !integer(raw.tick, 0, 0xffffffff * 3) ||
     !Array.isArray(raw.keepers) ||
     raw.keepers.length > 5
@@ -270,6 +297,34 @@ export function decodeArena(raw: unknown): Arena | undefined {
   if (!contest) return;
   arena.contest = contest;
   arena.combat = probe.combat;
+  if (
+    !Array.isArray(raw.powerCooldowns) ||
+    raw.powerCooldowns.length !== 2 ||
+    raw.powerCooldowns.some((n) => !integer(n, 0, POWER_COOLDOWN)) ||
+    !Array.isArray(raw.pickupEvents) ||
+    raw.pickupEvents.length > 2
+  )
+    return;
+  arena.powerCooldowns = [...raw.powerCooldowns] as number[];
+  for (const e of raw.pickupEvents) {
+    if (
+      !plain(e) ||
+      Object.keys(e).length !== 3 ||
+      !integer(e.tick, 1, arena.tick) ||
+      !id(e.by) ||
+      !integer(e.pad, 0, 1) ||
+      arena.pickupEvents.some(
+        (old) => old.pad >= (e.pad as number) || old.tick !== e.tick,
+      )
+    )
+      return;
+    arena.pickupEvents.push({ tick: e.tick, by: e.by, pad: e.pad });
+  }
+  if (
+    tuning.powerUps === "off" &&
+    (arena.powerCooldowns.some(Boolean) || arena.pickupEvents.length)
+  )
+    return;
   const h = raw.hit;
   if (h !== null) {
     if (
@@ -288,12 +343,14 @@ export function decodeArena(raw: unknown): Arena | undefined {
   for (const k of raw.keepers) {
     if (
       !plain(k) ||
-      Object.keys(k).length !== 7 ||
+      Object.keys(k).length !== 8 ||
       !id(k.id) ||
       !integer(k.slot, 0, 4) ||
       !integer(k.generation, 0, 0xffffffff) ||
       typeof k.connected !== "boolean" ||
       !integer(k.shield, 0, 30) ||
+      !integer(k.ward, 0, tuning.powerUps === "on" ? WARD_TICKS : 0) ||
+      (!k.connected && !!k.ward) ||
       !integer(k.hits, 0, 0xffffffff) ||
       !plain(k.body) ||
       Object.hasOwn(k.body, "tick") ||
@@ -310,7 +367,7 @@ export function decodeArena(raw: unknown): Arena | undefined {
       tuning,
       combat: raw.combat,
     });
-    if (!world || world.slot !== k.slot) return;
+    if (!world || world.slot !== k.slot || (world.respawn && k.ward)) return;
     world.combat = arena.combat;
     arena.keepers.push({
       id: k.id,
@@ -318,6 +375,7 @@ export function decodeArena(raw: unknown): Arena | undefined {
       generation: k.generation,
       connected: k.connected,
       shield: k.shield,
+      ward: k.ward,
       hits: k.hits,
       world,
     });

@@ -118,6 +118,11 @@ export function paintBurst(
   }
   const ground = kind === "land" || kind === "jump";
   const impact = kind === "impact" || kind === "pop";
+  if (kind === "power") {
+    g.lineStyle(3, 0xa1f5d1, alpha).strokeCircle(x, y - 28, 18 + age * 40);
+    g.lineStyle(1, 0xffefbc, alpha).strokeCircle(x, y - 28, 12 + age * 24);
+    return;
+  }
   if (kind === "air-jump") {
     g.lineStyle(3, 0x9de9ff, alpha).strokeEllipse(
       x,

@@ -28,6 +28,7 @@ import {
   type Arena,
 } from "../engine/arena.js";
 import { parseInput, parseTuning, plain, integer } from "../engine/codec.js";
+import { POWER_PADS } from "../engine/power-ups.js";
 import {
   toView,
   contestView,
@@ -319,6 +320,7 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       },
     ),
     keepers: r.simulation.keepers.map((k): KeeperView => ({
+      ward: Math.ceil(k.ward / 60),
       playing:
         r.settings.rules === "free" ||
         r.simulation.contest.entries.some((e) => e.id === k.id && !e.out),
@@ -335,6 +337,18 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       x: r.simulation.hit.x / 1024,
       y: r.simulation.hit.y / 1024,
     },
+    pickups:
+      r.settings.powerUps === "on"
+        ? POWER_PADS[r.settings.map].map((p, i) => ({
+            ...p,
+            cooldown: Math.ceil(r.simulation.powerCooldowns[i]! / 60),
+          }))
+        : [],
+    pickupEvents: r.simulation.pickupEvents.map((e) => ({
+      tick: e.tick,
+      by: e.by,
+      ...POWER_PADS[r.settings.map][e.pad]!,
+    })),
     contest: contestView(r.simulation.contest, r.settings.rules),
     stage: r.stage,
     seated: [...r.seats.values()].some((s) => s.connected),

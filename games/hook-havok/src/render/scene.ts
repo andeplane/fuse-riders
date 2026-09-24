@@ -13,6 +13,7 @@ import {
 } from "./art.js";
 import { createEchoes, paintEchoes } from "./echoes.js";
 import { paintBalls } from "./balls.js";
+import { paintPowerUps } from "./power-ups.js";
 import {
   animateShrine,
   dressShrine,
@@ -92,6 +93,7 @@ export function createShowcase(
     private crestSlot = -1;
     private ambientState = "";
     private phaseLabel = "";
+    private powerLabels: Phaser.GameObjects.Text[] = [];
     constructor() {
       super("belfry");
     }
@@ -474,6 +476,7 @@ export function createShowcase(
               localId: keeper.id,
               keepers: world.keepers,
               contest: world.contest,
+              pickupEvents: world.pickupEvents,
             },
             elapsed,
           );
@@ -522,6 +525,8 @@ export function createShowcase(
               Math.max(85, Math.min(1515, body.x)),
               Math.max(35, body.feet - 94),
             );
+          if (keeper.ward)
+            peer.label.setText(`${peer.label.text} · WARD ${keeper.ward}s`);
           peer.tether.clear();
           if (body.grounded)
             peer.tether
@@ -534,6 +539,17 @@ export function createShowcase(
               keeper.connected ? 0.9 : 0.3,
             )
             .strokeEllipse(body.x, body.feet + 2, 36, 9);
+          if (
+            keeper.ward &&
+            keeper.playing &&
+            keeper.connected &&
+            !body.respawn
+          )
+            peer.tether
+              .fillStyle(0x89d9ff, 0.1)
+              .fillEllipse(body.x, body.feet - 28, 48, 65)
+              .lineStyle(2, 0x89d9ff, 0.8)
+              .strokeEllipse(body.x, body.feet - 28, 48, 65);
           if (keeper.id !== focused && body.hook.phase !== "ready") {
             paintTether(
               peer.tether,
@@ -567,6 +583,7 @@ export function createShowcase(
             deaths: k.body.deaths,
             costume: k.slot,
             shield: k.shield,
+            ward: k.ward,
             atlas: this.peers.get(k.id)?.actor.texture.key,
             frame: this.peers.get(k.id)?.actor.frame.name,
             motion: this.peers.get(k.id)?.motion,
@@ -581,6 +598,31 @@ export function createShowcase(
         );
       }
       this.combat?.clear();
+      this.powerLabels.forEach((label) => label.setVisible(false));
+      if (world && this.combat) {
+        paintPowerUps(this.combat, world.pickups, elapsed, reduced.matches);
+        world.pickups.forEach((p, i) => {
+          const label = (this.powerLabels[i] ??= this.add
+            .text(0, 0, "", {
+              fontFamily: "sans-serif",
+              fontSize: "12px",
+              fontStyle: "bold",
+              backgroundColor: "#111a29",
+              padding: { x: 5, y: 3 },
+            })
+            .setOrigin(0.5, 1)
+            .setDepth(9));
+          label
+            .setVisible(true)
+            .setPosition(p.x, p.y - 22)
+            .setColor(p.kind === "lift" ? "#96f1b9" : "#89d9ff")
+            .setText(
+              `${p.kind.toUpperCase()}${p.cooldown ? ` · ${p.cooldown}s` : ""}`,
+            );
+        });
+        host.dataset.pickups = JSON.stringify(world.pickups);
+        host.dataset.pickupEvents = JSON.stringify(world.pickupEvents);
+      }
       if (world && this.combat) {
         const g = this.combat,
           target = world.combat.target;

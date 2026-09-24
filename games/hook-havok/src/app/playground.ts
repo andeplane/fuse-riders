@@ -109,6 +109,16 @@ trials.append(trialHelp);
 const jumpMode = el<HTMLSelectElement>("jump-mode"),
   wireMode = el<HTMLSelectElement>("wire-mode"),
   keyboardMode = el<HTMLSelectElement>("keyboard-mode");
+const powerLabel = document.createElement("label");
+powerLabel.innerHTML = `Power-ups <select id="power-ups" name="powerUps" form="tuning" disabled><option value="off">Off</option><option value="on">Lift & Ward</option></select>`;
+rulesPanel.append(powerLabel);
+const powerMode = el<HTMLSelectElement>("power-ups");
+const powerHelp = document.createElement("p");
+powerHelp.id = "power-help";
+powerHelp.textContent =
+  "Lift: touch the green rune for an upward burst. Ward: blue rune blocks rival hooks for 5 seconds, not falls. Pads return after 10 seconds of active play. Changing this setting restarts everyone.";
+powerHelp.hidden = true;
+rulesPanel.append(powerHelp);
 const host = el<HTMLDivElement>("scene"),
   status = el<HTMLParagraphElement>("status"),
   start = el<HTMLButtonElement>("start"),
@@ -282,6 +292,8 @@ function localView(view: WorldView): WorldView {
     keepers: view.keepers,
     hit: view.hit,
     contest: view.contest,
+    pickups: view.pickups,
+    pickupEvents: view.pickupEvents,
     localId: local?.id,
   };
 }
@@ -308,6 +320,7 @@ function stopRoom() {
   rulesSelect.disabled = true;
   mapSelect.disabled = true;
   jumpMode.disabled = wireMode.disabled = true;
+  powerMode.disabled = true;
   touch?.enable(false);
   el<HTMLButtonElement>("restart-room").disabled = true;
   el("invitation").hidden = true;
@@ -406,6 +419,7 @@ const enterRoom = async () => {
   mapSelect.value = DEFAULT_TUNING.map;
   jumpMode.value = DEFAULT_TUNING.jumpMode;
   wireMode.value = DEFAULT_TUNING.wire;
+  powerMode.value = DEFAULT_TUNING.powerUps;
   for (const key of Object.keys(TUNING_BOUNDS)) {
     const field = tuning.elements.namedItem(key) as HTMLInputElement;
     field.value = String(DEFAULT_TUNING[key as keyof typeof DEFAULT_TUNING]);
@@ -536,6 +550,7 @@ const enterRoom = async () => {
             rulesSelect.disabled = !manager;
             mapSelect.disabled = !manager;
             jumpMode.disabled = wireMode.disabled = !manager;
+            powerMode.disabled = !manager;
             el<HTMLButtonElement>("restart-room").disabled = !manager;
             setText(
               start,
@@ -554,6 +569,8 @@ const enterRoom = async () => {
           mapSelect.value = settings.map;
           jumpMode.value = settings.jumpMode;
           wireMode.value = settings.wire;
+          powerMode.value = settings.powerUps;
+          powerHelp.hidden = settings.powerUps !== "on";
           setText(
             mapHelp,
             settings.map === "crossroads"
@@ -708,7 +725,9 @@ tuning.onsubmit = (e) => {
     Object.fromEntries(
       [...new FormData(tuning)].map(([k, v]) => [
         k,
-        ["experiment", "rules", "map", "jumpMode", "wire"].includes(k)
+        ["experiment", "rules", "map", "jumpMode", "wire", "powerUps"].includes(
+          k,
+        )
           ? v
           : Number(v),
       ]),
@@ -725,6 +744,7 @@ experiment.onchange = () => tuning.requestSubmit();
 rulesSelect.onchange = () => tuning.requestSubmit();
 mapSelect.onchange = () => tuning.requestSubmit();
 jumpMode.onchange = wireMode.onchange = () => tuning.requestSubmit();
+powerMode.onchange = () => tuning.requestSubmit();
 keyboardMode.onchange = () => {
   clear();
   keyboard.mode = keyboardMode.value === "keyboard" ? "keyboard" : "mouse";

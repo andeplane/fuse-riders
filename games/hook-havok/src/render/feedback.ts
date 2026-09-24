@@ -2,6 +2,7 @@ import type { WorldView } from "../engine/view.js";
 import { idleBreath } from "./showcase-timeline.js";
 import { ballColor } from "./balls.js";
 export type Cue =
+  | "power"
   | "jump"
   | "land"
   | "fire"
@@ -64,6 +65,8 @@ export class Feedback {
         at: ms,
       });
     const cues: Cue[] = [];
+    if (view.pickupEvents.some((e) => e.by === subject && e.tick > old.tick))
+      cues.push("power");
     if (
       old.experiment === view.experiment &&
       view.combat.hits > old.combat.hits &&

@@ -28,9 +28,10 @@ export function createRoster(host: HTMLElement) {
                 ? "IN"
                 : "",
         detail:
-          c.rules === "score" && entrant
+          (c.rules === "score" && entrant
             ? `${entrant.score} pts`
-            : `${k?.hits ?? 0} hits · ${k?.body.deaths ?? 0} returns`,
+            : `${k?.hits ?? 0} hits · ${k?.body.deaths ?? 0} returns`) +
+          (k?.ward ? ` · Ward ${k.ward}s` : ""),
       };
     });
     // Late joiners remain visible as watchers rather than disappearing from the room UI.
