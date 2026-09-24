@@ -145,6 +145,15 @@ importers:
 
   games/fuse-riders: {}
 
+  games/neural-defence:
+    dependencies:
+      fuse-netcode:
+        specifier: workspace:*
+        version: link:../../packages/fuse-netcode
+      fuse-ui:
+        specifier: workspace:*
+        version: link:../../packages/fuse-ui
+
   packages/fuse-netcode:
     dependencies:
       '@msgpack/msgpack':
