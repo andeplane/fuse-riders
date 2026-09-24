@@ -1,4 +1,5 @@
 import "./style.css";
+import "./presentation.css";
 import { createRadio } from "fuse-ui/radio";
 import { EffectsAudio, browserToneSink } from "./audio.js";
 import {
@@ -22,6 +23,7 @@ import type { ShowcaseHandle } from "../render/scene.js";
 import { interpolate } from "../render/interpolation.js";
 import { createTouchControls, type TouchControls } from "./touch-controls.js";
 import { touchAim } from "./touch-input.js";
+import { createRoster } from "./roster.js";
 import {
   sessionStore,
   sessionToken,
@@ -45,6 +47,27 @@ function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
 const rulesPanel = document.createElement("section");
+document.body.classList.add("playground");
+document.querySelector("h1")!.textContent = "Hook Havok";
+const focusButton = document.createElement("button");
+focusButton.id = "arena-focus";
+focusButton.disabled = true;
+focusButton.textContent = "Focus arena";
+focusButton.setAttribute("aria-pressed", "false");
+document.querySelector("header")!.append(focusButton);
+focusButton.onclick = () => {
+  clear();
+  const focused = document.body.classList.toggle("arena-focused");
+  focusButton.textContent = focused ? "Show controls" : "Focus arena";
+  focusButton.setAttribute("aria-pressed", String(focused));
+  host.focus({ preventScroll: true });
+};
+const roster = document.createElement("div");
+roster.id = "roster";
+roster.setAttribute("aria-live", "polite");
+roster.setAttribute("role", "list");
+el("roster").replaceWith(roster);
+const paintRoster = createRoster(roster);
 document
   .querySelector('[data-pad="move"]')!
   .setAttribute(
@@ -98,6 +121,7 @@ effectVolume.oninput = () =>
   effects.setVolume(Number(effectVolume.value) / 100);
 effectLabel.append(effectVolume);
 radio.element.append(effectLabel);
+radio.element.dataset.radio = "";
 el("status").after(radio.element);
 document.addEventListener("pointerdown", () => effects.unlock());
 document.addEventListener("keydown", () => effects.unlock());
@@ -226,6 +250,10 @@ function localView(view: WorldView): WorldView {
   };
 }
 function stopRoom() {
+  document.body.classList.remove("arena-focused");
+  focusButton.textContent = "Focus arena";
+  focusButton.setAttribute("aria-pressed", "false");
+  focusButton.disabled = true;
   effects.pause();
   radio.pause();
   scene?.resetFeedback();
@@ -235,6 +263,7 @@ function stopRoom() {
   runtime?.stop();
   runtime = undefined;
   latest = toView(createWorld());
+  paintRoster(latest, "");
   reset.disabled = true;
   apply.disabled = true;
   experiment.disabled = true;
@@ -421,6 +450,7 @@ const enterRoom = async () => {
             started = !!runtime?.command({ type: "action", action: "start" });
           }
           if (frame.stage === "running") {
+            focusButton.disabled = false;
             clearTimeout(roomDeadline);
             status.dataset.state =
               display || local?.connected ? "playing" : "joining";
@@ -472,19 +502,7 @@ const enterRoom = async () => {
                     ? `${c.winners.length ? `${names(c.winners)} ${c.winners.length > 1 ? "share the win" : "wins"}` : "Draw — no keepers remain"}. Room manager: restart the shared trial to play again.`
                     : `${c.seconds}s remaining${!display && !localKeeper?.playing ? " · Watching until the next round" : ""}`;
           host.dataset.contest = JSON.stringify(c);
-          el("roster").textContent = frame.keepers
-            .map(
-              (k) =>
-                `P${k.slot + 1} ${k.name}${k.id === selfId ? " (you)" : ""}${k.connected ? "" : " · away"} · hits ${k.hits} · returns ${k.body.deaths}`,
-            )
-            .join("  |  ");
-          if (c.rules !== "free" && c.entries.length)
-            el("roster").textContent = c.entries
-              .map(
-                (e) =>
-                  `${names([e.id])} · ${e.out ? "OUT" : c.rules === "score" ? `${e.score} pts` : "IN"}${c.phase === "over" && c.winners.includes(e.id) ? " · WINNER" : ""}`,
-              )
-              .join(" | ");
+          paintRoster(frame, selfId);
           host.dataset.playerId = selfId;
           el("experiment-help").textContent = descriptions[frame.experiment];
           el("counter").textContent =

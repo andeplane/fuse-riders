@@ -82,6 +82,12 @@ Technical review complete: ordinary-input traversal/recovery fixture, real brows
 - **6C — Multiplayer:** shared free play implemented for 2–5 keepers, with player knockback, independent respawn, invite/join, refresh recovery, seatless display and manager succession. Deterministic replay/impairment tests and real WebRTC browser checks cover the shared runtime. See [design and playtesting](multiplayer.md). Scoring, elimination and dedicated controller-only pairing remain later decisions.
 - **6D — Rules comparison:** implemented free play, last-keeper elimination and timed hook scoring, with countdown, locked entrants, late-join waiting, forfeits, shared results and manager restart. See [rules and verification](rules-comparison.md). User comparison should decide which loop to develop next. Additional maps, procedural generation and bespoke music remain undecided.
 
+### 7A. Presentation and readability
+
+Implemented a compact playground header, colour/number player cards, readable in-arena badges, consistent remote/local animation poses and a reversible **Focus arena** view. Focus mode keeps player identity and competitive round status visible while moving setup/workshop controls out of view. Actual-browser verification covers five keepers, literal player names, phone portrait/landscape and a seatless display. See [presentation details](presentation.md).
+
+Map geometry, movement, scoring, generated art sources and audio remain unchanged. Further arena layouts, costume/animation refinement and bespoke music should follow user feedback on the current loop.
+
 ## Module ownership
 
 `engine/`: state, input, tuning, maps, collision, movement, grapple, step, codec, view. Imports nothing from app/render/network.

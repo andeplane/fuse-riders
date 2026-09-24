@@ -164,10 +164,17 @@ try {
     path: "games/hook-havok/docs/evidence/touch-landscape.png",
     fullPage: true,
   });
+  const resetTick = Number(
+    await page.locator("#scene").getAttribute("data-tick"),
+  );
   await page.locator("#reset").click();
+  // The keeper may already be at spawn; wait for the logged reset to advance before the next gesture.
   await page.waitForFunction(
-    () =>
+    (tick) =>
+      Number(document.querySelector("#scene").dataset.tick) > tick + 12 &&
+      document.querySelector("#scene").dataset.grounded === "true" &&
       Math.abs(Number(document.querySelector("#scene").dataset.feet) - 810) < 1,
+    resetTick,
   );
   await page.locator('[data-pad="move"]').scrollIntoViewIfNeeded();
   move = await getPad("move");

@@ -3,6 +3,7 @@ import { ASSETS, crops, type Crop, type AssetKey } from "./assets.js";
 import { showcasePose, PLATFORMS, ANCHOR } from "./showcase-timeline.js";
 import type { WorldView } from "../engine/view.js";
 import { Feedback, type Cue } from "./feedback.js";
+import { KEEPER_COLORS, keeperColor } from "./identity.js";
 
 export interface ShowcaseHandle {
   resetFeedback(): void;
@@ -45,6 +46,7 @@ export function createShowcase(
         actor: Phaser.GameObjects.Image;
         tether: Phaser.GameObjects.Graphics;
         label: Phaser.GameObjects.Text;
+        feedback: Feedback;
       }
     >();
     private actor?: Phaser.GameObjects.Image;
@@ -181,6 +183,9 @@ export function createShowcase(
       if (!paused && !document.hidden) elapsed += Math.min(delta, 50);
       this.paint();
     }
+    resetPeerFeedback(): void {
+      for (const peer of this.peers.values()) peer.feedback.reset();
+    }
     private paint(): void {
       if (!this.actor || !this.hook || !this.tether || !this.effects) return;
       const world = options.view?.();
@@ -251,7 +256,7 @@ export function createShowcase(
       }
       this.effects.clear();
       if (world) {
-        const colors = [0xffd58b, 0x80dcff, 0xf29abf, 0xaee89a, 0xc4a4ff];
+        const colors = KEEPER_COLORS;
         const focused = world.localId ?? world.keepers[0]?.id;
         for (const [id, peer] of this.peers)
           if (!world.keepers.some((k) => k.id === id)) {
@@ -264,12 +269,16 @@ export function createShowcase(
           let peer = this.peers.get(keeper.id);
           if (!peer) {
             peer = {
+              feedback: new Feedback(),
               actor: this.add.image(0, 0, "actor", "0"),
               tether: this.add.graphics(),
               label: this.add
                 .text(0, 0, "", {
                   fontFamily: "sans-serif",
-                  fontSize: "16px",
+                  fontSize: "18px",
+                  fontStyle: "bold",
+                  backgroundColor: "#111520",
+                  padding: { x: 7, y: 4 },
                   stroke: "#101420",
                   strokeThickness: 4,
                 })
@@ -279,21 +288,20 @@ export function createShowcase(
           }
           const body = keeper.body,
             color = colors[keeper.slot]!;
-          const remoteFrame =
-            body.grounded && Math.abs(body.vx) > 20
-              ? 2 + (Math.floor(elapsed / 90) % 4)
-              : body.vy < 0
-                ? 3
-                : body.grounded
-                  ? 0
-                  : 4;
+          peer.feedback.update(body, elapsed);
+          const remotePose = peer.feedback.pose(body, elapsed, reduced.matches);
+          const remoteFrame = remotePose.frame;
           const crop = this.frames[remoteFrame]!;
           peer.actor
             .setVisible(keeper.id !== focused)
             .setFrame(String(remoteFrame))
             .setOrigin(crop.pivot, 1)
             .setPosition(body.x, body.feet)
-            .setScale(this.actorScale)
+            .setScale(
+              this.actorScale * remotePose.scaleX,
+              this.actorScale * remotePose.scaleY,
+            )
+            .setRotation(remotePose.rotation)
             .setFlipX(body.facing === -1)
             .setAlpha(
               !keeper.connected || !keeper.playing || body.respawn ? 0.3 : 1,
@@ -302,8 +310,11 @@ export function createShowcase(
             .setText(
               `P${keeper.slot + 1}${keeper.id === world.localId ? " · YOU" : ""}${!keeper.playing ? " · WATCHING" : keeper.connected ? "" : " · AWAY"}`,
             )
-            .setColor(`#${color.toString(16)}`)
-            .setPosition(body.x, body.feet - 80);
+            .setColor(keeperColor(keeper.slot))
+            .setPosition(
+              Math.max(85, Math.min(1515, body.x)),
+              Math.max(35, body.feet - 82),
+            );
           peer.tether
             .clear()
             .lineStyle(
@@ -522,6 +533,7 @@ export function createShowcase(
   return {
     resetFeedback() {
       feedback.reset();
+      scene.resetPeerFeedback();
     },
     setPaused(value) {
       paused = value;
