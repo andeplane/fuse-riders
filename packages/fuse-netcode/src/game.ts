@@ -127,6 +127,8 @@ export interface RollbackGame<
 }
 
 export interface Seating<Room, Settings> {
+  /** Minimum connected participants for start/rematch. The game fold must enforce the same rule. Defaults to two. */
+  minimumParticipants?(room: Room): number;
   /** Seats per room; slots are 0 to capacity − 1. */
   capacity: number;
   /** Places in the watching list beside the seats. */
@@ -149,7 +151,7 @@ export interface Seating<Room, Settings> {
   /** A new bot's id, unused in `room` (including ids it remembers from departed seats) and not in `pending`. */
   botId(room: Room, pending: ReadonlySet<string>): string;
   botName(slot: number): string;
-  /** A solo room: the fallback seat name and how many bots join before the match starts (at least one: a start needs two seats). */
+  /** A solo room: fallback seat name and bots to add; zero is valid for games permitting one participant. */
   solo: { name: string; bots: number };
 }
 
