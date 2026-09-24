@@ -49,6 +49,9 @@ document.querySelector("main")!.innerHTML =
 function el<T extends HTMLElement>(id: string): T {
   return document.getElementById(id) as T;
 }
+function setText(node: HTMLElement, value: string): void {
+  if (node.textContent !== value) node.textContent = value;
+}
 const rulesPanel = document.createElement("section");
 document.body.classList.add("playground");
 document.querySelector("h1")!.textContent = "Hook Havok";
@@ -514,46 +517,57 @@ const enterRoom = async () => {
             clearTimeout(roomDeadline);
             status.dataset.state =
               display || local?.connected ? "playing" : "joining";
-            status.textContent =
+            setText(
+              status,
               ["ball", "ricochet", "surge"].includes(frame.experiment) &&
-              !frame.combat.balls.length
+                !frame.combat.balls.length
                 ? "Field cleared. Restart the experiment to try again."
-                : descriptions[frame.experiment];
+                : descriptions[frame.experiment],
+            );
             reset.disabled = display || !local?.connected || c.rules !== "free";
-            reset.textContent =
+            setText(
+              reset,
               c.rules === "free"
                 ? "Restart experiment"
-                : "Reset disabled in rounds";
+                : "Reset disabled in rounds",
+            );
             apply.disabled = !manager;
             experiment.disabled = !manager;
             rulesSelect.disabled = !manager;
             mapSelect.disabled = !manager;
             jumpMode.disabled = wireMode.disabled = !manager;
             el<HTMLButtonElement>("restart-room").disabled = !manager;
-            start.textContent = display
-              ? "Shared display connected"
-              : "Room running";
+            setText(
+              start,
+              display ? "Shared display connected" : "Room running",
+            );
             if (!display && !local)
-              status.textContent =
+              setText(
+                status,
                 frame.seats.length >= 5
                   ? "This room has five keepers. Open the shared display to watch, or join another room."
-                  : "Joining the keepers…";
+                  : "Joining the keepers…",
+              );
           }
           experiment.value = settings.experiment;
           rulesSelect.value = settings.rules;
           mapSelect.value = settings.map;
           jumpMode.value = settings.jumpMode;
           wireMode.value = settings.wire;
-          mapHelp.textContent =
+          setText(
+            mapHelp,
             settings.map === "crossroads"
               ? "Crossroads · separated starts, outer climbs and a central grapple route. Changing arena restarts everyone."
-              : "Lantern Belfry · the original climbing course. Changing arena restarts everyone.";
-          el("rules-help").textContent =
+              : "Lantern Belfry · the original climbing course. Changing arena restarts everyone.",
+          );
+          setText(
+            el("rules-help"),
             c.rules === "free"
               ? "Respawn freely and explore."
               : c.rules === "elimination"
                 ? "A fall puts you out. Last keeper wins · 60-second limit."
-                : "Player hit +1 · fall −2 · respawn · highest score after 60 seconds. Props give no points. Last remaining entrant wins if others forfeit.";
+                : "Player hit +1 · fall −2 · respawn · highest score after 60 seconds. Props give no points. Last remaining entrant wins if others forfeit.",
+          );
           const names = (ids: string[]) =>
             ids
               .map(
@@ -561,7 +575,8 @@ const enterRoom = async () => {
                   `P${(c.entries.find((e) => e.id === id)?.slot ?? 0) + 1} ${frame.keepers.find((k) => k.id === id)?.name ?? "Keeper"}`,
               )
               .join(" & ");
-          el("round-status").textContent =
+          setText(
+            el("round-status"),
             c.rules === "free"
               ? ""
               : c.phase === "waiting"
@@ -570,7 +585,8 @@ const enterRoom = async () => {
                   ? `Get ready · ${c.seconds}`
                   : c.phase === "over"
                     ? `${c.winners.length ? `${names(c.winners)} ${c.winners.length > 1 ? "share the win" : "wins"}` : "Draw — no keepers remain"}. ${manager ? "Choose Play again in Results for another round." : "Waiting for the room manager to start another round."}`
-                    : `${c.seconds}s remaining${!display && !localKeeper?.playing ? " · Watching until the next round" : ""}`;
+                    : `${c.seconds}s remaining${!display && !localKeeper?.playing ? " · Watching until the next round" : ""}`,
+          );
           host.dataset.contest = JSON.stringify(c);
           host.dataset.round = String(frame.round);
           paintRoster(frame, selfId);
@@ -583,13 +599,15 @@ const enterRoom = async () => {
             room.code,
           );
           host.dataset.playerId = selfId;
-          el("experiment-help").textContent = descriptions[frame.experiment];
-          el("counter").textContent =
+          setText(el("experiment-help"), descriptions[frame.experiment]);
+          setText(
+            el("counter"),
             frame.experiment === "movement"
               ? `RETURNS ${latest.deaths}`
               : frame.experiment === "target"
                 ? `HITS ${frame.combat.hits} · FALLS ${frame.combat.falls}`
-                : `HITS ${frame.combat.hits}/7 · ORBS ${frame.combat.balls.length}`;
+                : `HITS ${frame.combat.hits}/7 · ORBS ${frame.combat.balls.length}`,
+          );
         },
         ended: () => fail("The room ended. You can start again."),
         kicked: () => fail("The room closed. You can start again."),

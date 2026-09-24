@@ -1,4 +1,21 @@
 /* The room shell shares the arena's slate, ivory and lantern-gold palette. */
+.playground :is(button, summary, select, input, a):focus-visible {
+  outline: 2px solid #91dff4;
+  outline-offset: 3px;
+}
+#match-hud .keeper-card:is([data-state="OUT"], [data-state="AWAY"]) {
+  opacity: 1;
+  border-left-color: #778296;
+  background: #141b29;
+}
+#match-hud
+  .keeper-card:is([data-state="OUT"], [data-state="AWAY"])
+  .keeper-portrait {
+  opacity: 0.45;
+}
+#match-hud .keeper-card:is([data-state="OUT"], [data-state="AWAY"]) small {
+  color: #c0c9d8;
+}
 #room-lounge {
   margin: 0 0 12px;
   border: 1px solid #76604480;

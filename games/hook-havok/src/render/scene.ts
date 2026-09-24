@@ -66,6 +66,7 @@ export function createShowcase(
         feedback: Feedback;
         echoes: Phaser.GameObjects.Image[];
         motion: string;
+        slot: number;
       }
     >();
     private actor?: Phaser.GameObjects.Image;
@@ -88,6 +89,9 @@ export function createShowcase(
     private background?: Phaser.GameObjects.Image;
     private ambient?: Phaser.GameObjects.Graphics;
     private shrineDressing: ShrineDressing[] = [];
+    private crestSlot = -1;
+    private ambientState = "";
+    private phaseLabel = "";
     constructor() {
       super("belfry");
     }
@@ -152,7 +156,8 @@ export function createShowcase(
         this.fog.push(
           this.add
             .image(i * 390, 680 + (i % 2) * 120, "mist")
-            .setDisplaySize(850, 310),
+            .setDisplaySize(850, 310)
+            .setAlpha(0.55),
         );
       this.cut("ledge");
       // The generated source uses unequal cells; preserve pixels and crop its actual packing.
@@ -209,6 +214,7 @@ export function createShowcase(
       this.glows = [];
       this.shrineDressing = [];
       this.terrainMap = world?.map ?? "belfry";
+      this.ambientState = "";
       const cathedral = this.terrainMap === "crossroads";
       this.background
         ?.setTexture(cathedral ? "cathedral" : "background")
@@ -388,7 +394,10 @@ export function createShowcase(
         .setAlpha(pose.alpha);
       paintEchoes(this.echoes, this.actor, world, reduced.matches);
       if (this.crest) {
-        paintCrest(this.crest, slot, color);
+        if (this.crestSlot !== slot) {
+          paintCrest(this.crest, slot, color);
+          this.crestSlot = slot;
+        }
         this.crest
           .setPosition(pose.x, pose.feet)
           .setScale((world?.facing ?? 1) * (motion?.scaleX ?? 1), pose.scaleY)
@@ -437,6 +446,7 @@ export function createShowcase(
               feedback: new Feedback(),
               echoes: createEchoes(this),
               motion: "idle",
+              slot: -1,
               actor: this.add.image(0, 0, "actor", "0").setDepth(12),
               crest: this.add.graphics().setDepth(11),
               tether: this.add.graphics().setDepth(10),
@@ -493,7 +503,10 @@ export function createShowcase(
                 : remotePose.alpha,
             );
           paintEchoes(peer.echoes, peer.actor, body, reduced.matches);
-          paintCrest(peer.crest, keeper.slot, color);
+          if (peer.slot !== keeper.slot) {
+            paintCrest(peer.crest, keeper.slot, color);
+            peer.slot = keeper.slot;
+          }
           peer.crest
             .setVisible(keeper.id !== focused)
             .setPosition(body.x, body.feet)
@@ -509,8 +522,12 @@ export function createShowcase(
               Math.max(85, Math.min(1515, body.x)),
               Math.max(35, body.feet - 94),
             );
+          peer.tether.clear();
+          if (body.grounded)
+            peer.tether
+              .fillStyle(0x080d19, peer.actor.alpha * 0.35)
+              .fillEllipse(body.x, body.feet + 3, 44, 8);
           peer.tether
-            .clear()
             .lineStyle(
               keeper.shield ? 3 : 2,
               color,
@@ -685,7 +702,7 @@ export function createShowcase(
         }
       }
       for (let i = 0; i < 10; i++) {
-        if (pose.landing > 0) {
+        if (pose.landing > 0 && !reduced.matches) {
           const p = 1 - pose.landing;
           this.effects
             .fillStyle(0xd7c3a7, pose.landing * 0.5)
@@ -695,7 +712,7 @@ export function createShowcase(
               1.5 + p * 2,
             );
         }
-        if (pose.spark > 0) {
+        if (pose.spark > 0 && !reduced.matches) {
           const angle = i * Math.PI * 0.2,
             radius = 5 + (1 - pose.spark) * 28;
           this.effects
@@ -709,35 +726,42 @@ export function createShowcase(
       }
       const ambientMotion = atmosphere && !reduced.matches;
       const ambientTime = ambientMotion ? elapsed : 0;
-      if (this.ambient)
-        animateShrine(
-          this.ambient,
-          this.shrineDressing,
-          elapsed,
-          ambientMotion,
+      const ambientState = `${this.terrainMap}:${atmosphere}:${reduced.matches}`;
+      if (ambientMotion || this.ambientState !== ambientState) {
+        this.ambientState = ambientState;
+        if (this.ambient)
+          animateShrine(
+            this.ambient,
+            this.shrineDressing,
+            elapsed,
+            ambientMotion,
+          );
+        this.fog.forEach((fog, i) =>
+          fog
+            .setVisible(atmosphere)
+            .setX(i * 390 + Math.sin(ambientTime / 7000 + i) * 75),
         );
-      this.fog.forEach((fog, i) =>
-        fog
-          .setVisible(atmosphere)
-          .setX(i * 390 + Math.sin(ambientTime / 7000 + i) * 75),
-      );
-      this.glows.forEach((light, i) =>
-        light.setAlpha(
-          ambientMotion ? 0.56 + Math.sin(elapsed / 700 + i * 2) * 0.08 : 0.5,
-        ),
-      );
-      host.dataset.environment = JSON.stringify({
-        moving: ambientMotion,
-        banners: this.shrineDressing.flatMap((part) =>
-          part.banners.map((banner) => banner.rotation),
-        ),
-        candles: this.shrineDressing.flatMap((part) =>
-          part.candles.map(({ glow }) => glow.alpha),
-        ),
-        fog: this.fog.map((fog) => fog.x),
-        lights: this.glows.map((light) => light.alpha),
-      });
-      options.phase(pose.label);
+        this.glows.forEach((light, i) =>
+          light.setAlpha(
+            ambientMotion ? 0.56 + Math.sin(elapsed / 700 + i * 2) * 0.08 : 0.5,
+          ),
+        );
+        host.dataset.environment = JSON.stringify({
+          moving: ambientMotion,
+          banners: this.shrineDressing.flatMap((part) =>
+            part.banners.map((banner) => banner.rotation),
+          ),
+          candles: this.shrineDressing.flatMap((part) =>
+            part.candles.map(({ glow }) => glow.alpha),
+          ),
+          fog: this.fog.map((fog) => fog.x),
+          lights: this.glows.map((light) => light.alpha),
+        });
+      }
+      if (pose.label !== this.phaseLabel) {
+        this.phaseLabel = pose.label;
+        options.phase(pose.label);
+      }
       options.time(elapsed);
       host.dataset.time = String(Math.floor(elapsed));
       host.dataset.frame = String(pose.frame);

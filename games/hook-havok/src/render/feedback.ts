@@ -141,27 +141,41 @@ export class Feedback {
     return this.bursts;
   }
   pose(view: WorldView, ms: number, reduced: boolean) {
-    const landing = [...this.bursts].reverse().find((b) => b.kind === "land");
-    const fired = [...this.bursts].reverse().find((b) => b.kind === "fire");
+    let landing: Burst | undefined,
+      fired: Burst | undefined,
+      jumped: Burst | undefined,
+      released: Burst | undefined,
+      arrived: Burst | undefined,
+      struck: Burst | undefined;
+    // Keep the newest cue of each kind without allocating reversed copies per keeper.
+    for (let i = this.bursts.length - 1; i >= 0; i--) {
+      const burst = this.bursts[i]!;
+      switch (burst.kind) {
+        case "land":
+          landing ??= burst;
+          break;
+        case "fire":
+          fired ??= burst;
+          break;
+        case "jump":
+          jumped ??= burst;
+          break;
+        case "release":
+          released ??= burst;
+          break;
+        case "respawn":
+          arrived ??= burst;
+          break;
+        case "impact":
+          if (burst.target !== undefined && burst.target === this.subject)
+            struck ??= burst;
+          break;
+      }
+    }
     const compression =
       !reduced && landing ? Math.max(0, 1 - (ms - landing.at) / 180) : 0;
     const firing = fired ? Math.max(0, 1 - (ms - fired.at) / 100) : 0;
     const recoil = reduced ? 0 : firing;
-    const jumped = [...this.bursts].reverse().find((b) => b.kind === "jump");
-    const released = [...this.bursts]
-      .reverse()
-      .find((b) => b.kind === "release");
-    const arrived = [...this.bursts]
-      .reverse()
-      .find((b) => b.kind === "respawn");
-    const struck = [...this.bursts]
-      .reverse()
-      .find(
-        (b) =>
-          b.kind === "impact" &&
-          b.target === this.subject &&
-          b.target !== undefined,
-      );
     const entry = arrived ? Math.max(0, 1 - (ms - arrived.at) / 260) : 0;
     const hit = struck ? Math.max(0, 1 - (ms - struck.at) / 200) : 0;
     const release = released ? Math.max(0, 1 - (ms - released.at) / 160) : 0;

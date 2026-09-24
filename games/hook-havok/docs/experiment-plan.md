@@ -124,9 +124,9 @@ Implemented optional spiked-wire ball contact, a second airborne jump (also avai
 
 Implemented a collapsible room lounge for invitations, match choices and manager status; illustrated P1–P5 cards, mode/map/timer HUD, countdown, late-watcher status, winner reveal and manager rematch/free-play actions. Numeric tuning, debug, art showcase and control experiments live in a collapsed Development workshop. Focus mode preserves the HUD and phone touch controls. Identity selection remains the existing pre-entry keeper name with assigned seat/color; this does not add an avatar picker or ready-vote protocol. See [behavior, review fixes and real browser evidence](match-shell.md). Rules remain `hook-havok-8`.
 
-### 8C. Cohesion and performance (planned)
+### 8C. Cohesion and local performance qualification
 
-Tune lighting, effects, animation, sound and transitions together. Validate busy five-player scenes, loading, reduced motion and physical phones; retain reproducible evidence for performance claims. Compare actual gameplay with the references to identify remaining visual gaps.
+Implemented a lighter fog veil, keeper contact shadows, readable out/away cards and visible keyboard focus. Removed repeated crest drawing, copied pose-history scans and unchanged UI text writes; frozen environmental drawing is cached with map/settings invalidation. Reduced motion now also covers showcase landing/sparks. A reproducible five-player Crossroads/surge workload records browser callback cadence, task time and actual scene activity, with raw before/after evidence and exact source provenance. Existing arena and asset/context-recovery checks pass. See [measurements and limits](cohesion-performance.md): caption mutation dropped, but the short runs do not establish a CPU or frame-rate speedup. The local pass is complete; physical-phone qualification and user acceptance remain open.
 
 ## Module ownership
 
