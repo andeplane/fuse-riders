@@ -5,8 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#111520" />
     <title>Hook Havok · The Lantern Belfry</title>
+    <style id="boot-style">
+      body {
+        margin: 0;
+        background: #111520;
+        color: #e6dfd0;
+      }
+      main {
+        visibility: hidden;
+      }
+      #boot-status {
+        padding: 32px;
+        font:
+          16px Georgia,
+          serif;
+      }
+      #boot-status button {
+        margin-left: 16px;
+        padding: 10px 16px;
+      }
+    </style>
   </head>
   <body>
+    <p id="boot-status" role="status">Lighting the belfry…</p>
     <main>
       <header>
         <a id="home" href="/">← BACK TO THE PARTY</a>

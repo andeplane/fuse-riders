@@ -24,6 +24,7 @@ import { interpolate } from "../render/interpolation.js";
 import { createTouchControls, type TouchControls } from "./touch-controls.js";
 import { touchAim } from "./touch-input.js";
 import { createRoster } from "./roster.js";
+import { createEntrance } from "./entrance.js";
 import {
   sessionStore,
   sessionToken,
@@ -105,7 +106,12 @@ let roomCode = query.get("room")?.trim().toUpperCase(),
   creatorId = "",
   round = -1,
   restartRequested = false;
-let autoConnect = !!roomCode && validRoomCode(roomCode);
+if (!roomCode || !validRoomCode(roomCode)) {
+  roomCode = undefined;
+  display = false;
+}
+let autoConnect = !!roomCode;
+let connecting = false;
 document.body.classList.toggle("display-only", display);
 const effects = new EffectsAudio(muted, browserToneSink);
 const radio = createRadio(
@@ -263,6 +269,7 @@ function localView(view: WorldView): WorldView {
   };
 }
 function stopRoom() {
+  connecting = false;
   document.body.classList.remove("arena-focused");
   focusButton.textContent = "Focus arena";
   focusButton.setAttribute("aria-pressed", "false");
@@ -291,7 +298,9 @@ function fail(message: string) {
   status.textContent = message;
   status.dataset.state = "error";
   start.disabled = !graphicsReady;
-  start.textContent = "Retry entering the belfry";
+  start.textContent = "Retry connection";
+  entrance.show();
+  entrance.busy(false, graphicsReady);
 }
 async function graphics() {
   scene?.destroy();
@@ -299,6 +308,8 @@ async function graphics() {
   graphicsReady = false;
   start.disabled = true;
   retry.hidden = true;
+  entrance.show();
+  entrance.busy(true, false);
   const token = ++attempt;
   const deadline = setTimeout(() => {
     if (token === attempt) {
@@ -315,7 +326,7 @@ async function graphics() {
     scene = createShowcase(host, {
       paused: false,
       idleOnly: false,
-      atmosphere: !matchMedia("(prefers-reduced-motion: reduce)").matches,
+      atmosphere: el<HTMLInputElement>("atmosphere").checked,
       view: sample,
       debug: () => el<HTMLInputElement>("debug").checked,
       cue: (cue) => effects.cue(cue),
@@ -328,6 +339,8 @@ async function graphics() {
         el<HTMLButtonElement>("new-room").disabled = false;
         status.textContent = "Ready when you are.";
         status.dataset.state = "ready";
+        start.textContent = roomCode ? "Enter room" : "Create room";
+        entrance.busy(false, true);
         if (autoConnect) {
           autoConnect = false;
           start.click();
@@ -355,7 +368,12 @@ async function graphics() {
   }
 }
 const enterRoom = async () => {
+  if (connecting || !graphicsReady || disposed) return;
   stopRoom();
+  connecting = true;
+  entrance.show();
+  entrance.busy(true, true);
+  el<HTMLButtonElement>("new-room").disabled = true;
   round = -1;
   contestPhase = "";
   selfId = "";
@@ -466,6 +484,10 @@ const enterRoom = async () => {
             started = !!runtime?.command({ type: "action", action: "start" });
           }
           if (frame.stage === "running") {
+            connecting = false;
+            entrance.play();
+            el<HTMLButtonElement>("new-room").disabled = false;
+            el<HTMLButtonElement>("join-room").disabled = false;
             focusButton.disabled = false;
             clearTimeout(roomDeadline);
             status.dataset.state =
@@ -586,8 +608,10 @@ el("join-room").onclick = () => {
   const code = el<HTMLInputElement>("room-code").value.trim().toUpperCase();
   if (!validRoomCode(code)) {
     status.textContent = "Enter a valid room code.";
+    entrance.joinError("Enter a valid room code from your friend's invite.");
     return;
   }
+  entrance.joinError("");
   roomCode = code;
   display = false;
   document.body.classList.remove("display-only");
@@ -743,8 +767,28 @@ window.addEventListener("pagehide", () => {
   stopRoom();
   touch?.destroy();
   scene?.destroy();
+  entrance.destroy();
 });
 window.addEventListener("pageshow", (e) => {
   if (e.persisted) location.reload();
 });
+const entrance = createEntrance({
+  main: document.querySelector("main")!,
+  start,
+  status,
+  retry,
+  name: el<HTMLInputElement>("keeper-name"),
+  code: el<HTMLInputElement>("room-code"),
+  join: el<HTMLButtonElement>("join-room"),
+  radio: radio.element,
+  atmosphere: el<HTMLInputElement>("atmosphere"),
+  touch: touchToggle,
+  fresh() {
+    roomCode = undefined;
+    display = false;
+    document.body.classList.remove("display-only");
+    void enterRoom();
+  },
+});
+start.textContent = "Create room";
 void graphics();

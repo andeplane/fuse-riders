@@ -1,0 +1,438 @@
+.at-entrance > main {
+  position: fixed;
+  left: -200vw;
+  top: 0;
+  width: 100%;
+  visibility: hidden;
+}
+#entrance[hidden] {
+  display: none;
+}
+#entrance {
+  min-height: 100svh;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #101623;
+  color: #eee5d1;
+  padding: 32px clamp(24px, 6vw, 110px) 76px;
+}
+.entrance-art,
+.entrance-shade,
+.entrance-motes {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -1;
+}
+.entrance-art {
+  object-fit: cover;
+  object-position: 65% center;
+}
+.entrance-shade {
+  background:
+    linear-gradient(
+      90deg,
+      #090e18ed 0%,
+      #101521bf 28%,
+      #11172424 63%,
+      #10162308
+    ),
+    linear-gradient(0deg, #080d18d9, transparent 25%);
+}
+.entrance-home {
+  color: #c6c8ce;
+  font:
+    11px system-ui,
+    sans-serif;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.entrance-content {
+  width: min(430px, 100%);
+  padding-top: clamp(30px, 6vh, 86px);
+}
+.entrance-kicker {
+  font:
+    10px system-ui,
+    sans-serif;
+  color: #d4b984;
+  letter-spacing: 0.3em;
+  margin: 0 0 20px;
+}
+#entrance h1 {
+  font-family: Georgia, serif;
+  font-size: clamp(68px, 7.8vw, 120px);
+  line-height: 0.87;
+  letter-spacing: -0.045em;
+  text-transform: uppercase;
+  font-weight: 400;
+  margin: 0 0 24px -5px;
+  text-shadow: 0 4px 24px #0008;
+}
+#entrance h1 span {
+  display: block;
+}
+#entrance h1 span:last-child {
+  color: #e1bc77;
+}
+.entrance-tagline {
+  font-size: 23px;
+  line-height: 1.25;
+  margin: 0 0 15px;
+}
+.entrance-description {
+  font:
+    13px/1.65 system-ui,
+    sans-serif;
+  color: #bdc1ce;
+  margin-bottom: 27px;
+}
+#entrance label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font:
+    12px system-ui,
+    sans-serif;
+  color: #c5bdab;
+}
+#entrance input:not([type="checkbox"]):not([type="range"]) {
+  width: 100%;
+  border: 1px solid #83735577;
+  border-radius: 3px;
+  background: #0d1424bd;
+  color: #eee5d1;
+  min-height: 42px;
+  padding: 10px 14px;
+  font:
+    14px system-ui,
+    sans-serif;
+}
+#entrance button {
+  border: 1px solid #887656;
+  border-radius: 3px;
+  background: #111b2adc;
+  color: #efe4cf;
+  min-height: 48px;
+  padding: 12px 18px;
+  font:
+    14px system-ui,
+    sans-serif;
+  cursor: pointer;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
+}
+#entrance button:hover:not(:disabled) {
+  background: #263144;
+  border-color: #e9ce93;
+}
+#entrance button:disabled {
+  opacity: 0.48;
+  cursor: wait;
+}
+#entrance :focus-visible {
+  outline: 2px solid #fae0a0;
+  outline-offset: 4px;
+}
+.entrance-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.entrance-actions button {
+  width: 100%;
+  text-align: left;
+}
+#entrance #start {
+  background: linear-gradient(110deg, #ebd2a1, #b48a4f);
+  color: #1b1b24;
+  border-color: #efdaa9;
+  font-weight: 700;
+  min-height: 54px;
+}
+#entrance #start:hover:not(:disabled) {
+  background: #f1d8a4;
+}
+#menu-join span {
+  float: right;
+  color: #cfb67e;
+}
+.entrance-secondary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.entrance-secondary button {
+  text-align: center;
+  font-size: 12px !important;
+}
+.entrance-status {
+  min-height: 42px;
+  margin-top: 14px;
+}
+#entrance #status {
+  color: #bdc8d5;
+  font:
+    12px/1.5 system-ui,
+    sans-serif;
+  margin: 0;
+  padding: 0;
+}
+#entrance #status[data-state="error"],
+.join-error {
+  color: #ffc4b0;
+}
+.entrance-art-status {
+  font:
+    11px/1.5 system-ui,
+    sans-serif;
+  color: #c4b497;
+}
+.entrance-footer {
+  display: flex;
+  gap: 14px;
+  position: absolute;
+  bottom: 23px;
+  left: clamp(24px, 6vw, 110px);
+  right: clamp(24px, 6vw, 110px);
+  font:
+    10px system-ui,
+    sans-serif;
+  letter-spacing: 0.24em;
+  color: #aeb6c6;
+}
+.entrance-footer b {
+  color: #b7975c;
+}
+.entrance-footer span {
+  margin-left: auto;
+}
+#entrance dialog {
+  position: fixed;
+  color: #e9dfce;
+  background: linear-gradient(145deg, #202637, #111724);
+  border: 1px solid #9b8255;
+  border-radius: 6px;
+  padding: 38px;
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100svh - 40px);
+  box-shadow: 0 20px 100px #000b;
+}
+#entrance dialog::backdrop {
+  background: #050911c9;
+  backdrop-filter: blur(5px);
+}
+#entrance dialog h2 {
+  font-size: 32px;
+  font-weight: 400;
+  margin: 0 0 20px;
+}
+#entrance dialog p,
+#entrance dialog dd {
+  font:
+    13px/1.6 system-ui,
+    sans-serif;
+  color: #bdc3cf;
+}
+#entrance dialog .dialog-close {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  border: none;
+  background: transparent;
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 24px;
+}
+#entrance dialog dt {
+  color: #e2c58b;
+  margin-top: 20px;
+  font-size: 17px;
+}
+#entrance dialog dd {
+  margin: 6px 0;
+}
+#menu-join-form {
+  display: grid;
+  gap: 18px;
+}
+#menu-join-form button {
+  width: 100%;
+}
+#entrance dialog [data-slot="atmosphere"],
+#entrance dialog [data-slot="touch"] {
+  padding: 12px 0;
+}
+#entrance dialog label:has(input[type="checkbox"]) {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+#entrance dialog [data-radio] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 22px;
+}
+#entrance dialog .entrance-note {
+  border-top: 1px solid #76674b66;
+  margin-top: 25px;
+  padding-top: 18px;
+  font-size: 12px;
+}
+.entrance-motes i {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #e7bd71;
+  box-shadow: 0 0 12px 3px #e1ad5266;
+  top: 70%;
+  left: 65%;
+  animation: entrance-drift 9s ease-in-out infinite alternate;
+}
+.entrance-motes i:nth-child(2) {
+  left: 80%;
+  top: 78%;
+  animation-delay: -3s;
+}
+.entrance-motes i:nth-child(3) {
+  left: 55%;
+  top: 40%;
+  animation-delay: -6s;
+}
+.entrance-motes i:nth-child(4) {
+  left: 90%;
+  top: 55%;
+  animation-delay: -4s;
+}
+.entrance-motes i:nth-child(5) {
+  left: 72%;
+  top: 30%;
+  animation-delay: -1s;
+}
+@keyframes entrance-drift {
+  from {
+    transform: translate(0, 0);
+    opacity: 0.2;
+  }
+  to {
+    transform: translate(10px, -34px);
+    opacity: 0.9;
+  }
+}
+.quiet-entrance .entrance-motes i {
+  animation: none;
+  opacity: 0.3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .entrance-motes i {
+    animation: none;
+    opacity: 0.3;
+  }
+  #entrance button {
+    transition: none;
+  }
+}
+@media (max-width: 650px) {
+  #entrance {
+    padding-top: 22px;
+  }
+  .entrance-art {
+    object-position: 76% center;
+    opacity: 0.52;
+  }
+  .entrance-shade {
+    background:
+      linear-gradient(90deg, #090e18c9, #090e1870),
+      linear-gradient(0deg, #090e18, transparent 85%);
+  }
+  .entrance-content {
+    padding-top: 34px;
+  }
+  #entrance h1 {
+    font-size: 78px;
+  }
+  .entrance-footer {
+    letter-spacing: 0.1em;
+    gap: 8px;
+  }
+  #entrance dialog {
+    padding: 34px 24px 24px;
+  }
+}
+@media (max-height: 600px) and (min-width: 651px) {
+  #entrance {
+    padding-top: 14px;
+    padding-bottom: 46px;
+  }
+  .entrance-content {
+    padding-top: 20px;
+    width: min(900px, 100%);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 38px;
+  }
+  #entrance h1 {
+    font-size: 68px;
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: center;
+  }
+  .entrance-content > .entrance-kicker,
+  .entrance-description {
+    display: none;
+  }
+  .entrance-tagline {
+    grid-column: 1;
+    grid-row: 3;
+    font-size: 18px;
+    margin: 0;
+  }
+  .entrance-content > [data-slot="name"] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .entrance-actions {
+    grid-column: 2;
+    grid-row: 2;
+    gap: 7px;
+    margin-top: 10px;
+  }
+  .entrance-status {
+    grid-column: 2;
+    grid-row: 3;
+    margin-top: 10px;
+    min-height: 20px;
+  }
+  .entrance-content > [data-slot="retry"],
+  #menu-fresh,
+  .entrance-art-status,
+  #retry-entrance-art {
+    grid-column: 2;
+  }
+  #entrance .entrance-actions button {
+    min-height: 40px;
+    padding: 10px 14px;
+  }
+  #entrance #start {
+    min-height: 44px;
+  }
+  .entrance-footer {
+    bottom: 10px;
+  }
+  #entrance .entrance-content label {
+    gap: 4px;
+  }
+  #entrance .entrance-content input {
+    min-height: 38px;
+  }
+  .entrance-art-status:empty {
+    margin: 0;
+  }
+}

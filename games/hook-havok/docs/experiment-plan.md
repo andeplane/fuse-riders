@@ -112,9 +112,9 @@ Implemented a dedicated eight-frame run atlas with scarf motion, speed-driven ca
 
 Implemented gentle and surge arena-wide presets alongside the bounded exercise: solid platform ricochets, different speeds/bounce heights and an explicit ball-only bottom boundary. Luminous split-family colours, animated cores, velocity trails and coloured split bursts remain cosmetic. The family grows from one large orb to at most four small orbs; more initial families and independent tuning sliders remain follow-ups if playtesting supports them. See [rules, tradeoffs and verification](ball-ricochets.md). Rules are `hook-havok-7`; refresh all clients and use a fresh room. User comparison should guide the next ball balance and interaction choices.
 
-### 8A. Splash screen and main menu (planned)
+### 8A. Splash screen and main menu
 
-Original title treatment and animated gothic entrance with Create room, Join room, How to play and Settings. Solo practice uses the existing room architecture. Include loading, connection failure/retry, touch/keyboard navigation and gesture-unlocked audio.
+Implemented an original cathedral entrance painting, live ivory/gold title, subtle drifting embers, Create room, Join room, How to play and Settings. Solo practice uses the same room flow. Native dialogs support keyboard/touch navigation; valid invites, refresh and shared displays enter directly. Loading, connection failures, separate illustration/graphics retries and application-load retry are covered. Existing atmosphere/audio/touch controls move between menu and workshop without duplicated state. See [source, behavior and browser evidence](entrance-menu.md). Rules and gameplay are unchanged; the workshop remains inside the room pending 8B.
 
 ### 8B. Lobby, match HUD and results (planned)
 

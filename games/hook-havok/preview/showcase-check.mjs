@@ -27,6 +27,9 @@ try {
     name: "HOOK HAVOK — MOVEMENT PLAYGROUND ›",
   });
   await entry.click();
+  await page.locator('#status[data-state="ready"]').waitFor();
+  await page.locator("#start").click();
+  await page.locator('#status[data-state="playing"]').waitFor();
   await page.getByRole("link", { name: "Art showcase", exact: true }).click();
   await page.locator('#status[data-state="ready"]').waitFor({ timeout: 20000 });
   assert.ok(page.url().includes("hook-havok/?showcase=1&mute"));
