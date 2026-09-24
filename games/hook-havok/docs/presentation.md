@@ -1,0 +1,9 @@
+# Phase 7A: presentation and readability
+
+The playground now uses a compact header and controls, leaving more room for the arena. Colour-coded P1–P5 cards replace the single roster text line and share a palette with in-arena badges. Numbers remain visible so identity does not rely on colour. Cards show scores/hits, returns, winners, elimination, disconnected players and late-join watchers. Names are inserted as text and the roster only rebuilds when its displayed facts change.
+
+**Focus arena** is available after connecting. It hides setup, audio and workshop controls, keeps the scoreboard and competitive timer/result visible, and fits the arena into the available desktop height. **Show controls** reverses the view. Input is released on a mode switch, and connection failure restores the ordinary controls. Phone pads remain visible; the landscape layout budgets space for five player cards and round status. The seatless display uses the same view without player controls.
+
+Remote characters use the same view-driven breathing, running cadence, landing compression and airborne poses as the local character. Each peer's cosmetic feedback is bounded, cleared when the room/round resets and removed with that peer. No new simulation, animation authority, assets or audio were introduced. Existing art and physics remain unchanged; the protocol is still `hook-havok-5`.
+
+Verification: `preview/presentation-check.mjs` runs a real five-player LAN room, checks literal markup-like names, unique slot colours, focused desktop fit, access back to room controls, competitive status visibility, touch portrait/landscape fit and a seatless display. `preview/touch-check.mjs` exercises native multi-touch input and drop-through after the layout change. Screenshots are `docs/evidence/presentation-focus-desktop.png` and `presentation-focus-phone.png`. Typecheck, lint and build pass. Physical-phone comfort and art acceptance remain user playtests.

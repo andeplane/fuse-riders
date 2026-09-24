@@ -1,0 +1,9 @@
+# Keeper run atlas
+
+Generated using built-in ImageGen, referencing `lantern-keeper-nine-pose-source.png` for the existing character identity. The original source is preserved and the new PNG is copied unchanged. Runtime alpha cropping and registration do not edit source pixels.
+
+Exact prompt:
+
+```text
+Create an eight-frame RUN CYCLE sprite atlas using the attached image as strict keeper IDENTITY reference. SAME small right-facing hooded lantern keeper: pale ivory hood and short scarf, black face with one white oval eye, dark gloves, belt and boots, angular ink outlines, original hand-painted gray neutral costume for runtime tint. Exactly EIGHT equal-sized figures arranged in a precise UNIFORM FOUR COLUMNS by TWO ROWS. Wide landscape transparent PNG, genuine alpha, no painted background. Each figure fits within the central 65 percent of its own cell, huge transparent margins, no cell overlap. All heads and torsos same size and same horizontal root position inside their cells; all ground-contact boots use same baseline. Sequential side-view running phases left to right then second row: 1 near leg forward contact far leg back; 2 near leg weight-bearing down recoil; 3 far leg passing knee forward near leg beneath hip; 4 far leg extended ahead in flight; 5 far leg forward contact near leg back; 6 far leg weight-bearing down recoil; 7 near leg passing knee forward far leg beneath hip; 8 near leg extended ahead in flight. Opposite arm swing coordinated with legs, scarf trails left with a small wave, hood stable, feet travel through a natural running arc. Retain EXACT reference costume proportions, head size, eye, boots and line weight. No added weapons, no effects, no ground, no glow, no shadows, no labels, no grid lines. Flat sprite production art, each pose must be clearly distinct but the SAME character without morphing.
+```

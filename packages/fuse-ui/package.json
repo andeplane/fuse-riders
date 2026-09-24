@@ -8,6 +8,8 @@
     "node": ">=22.12.0"
   },
   "exports": {
+    "./assets": "./src/assets.ts",
+    "./radio": "./src/radio.ts",
     ".": "./src/index.ts",
     "./tokens.css": "./src/tokens.css",
     "./components.css": "./src/components.css"

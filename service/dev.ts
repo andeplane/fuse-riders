@@ -90,7 +90,12 @@ if (
     host = argument("host") ?? "127.0.0.1";
   const staticDirectory =
     argument("static") ?? fileURLToPath(new URL("../dist", import.meta.url));
-  const service = createDevRoomService({ staticDirectory });
+  // LAN pages need an explicit origin; binding to 0.0.0.0 alone does not grant it.
+  const allowedOrigin = argument("allow-origin");
+  const service = createDevRoomService({
+    staticDirectory,
+    ...(allowedOrigin ? { allowedOrigins: [allowedOrigin] } : {}),
+  });
   // The port asked for is where the search starts, not a demand: another worktree's service may already hold it.
   const actual = await listenFree(service.server, port, host);
   const base = `http://${host === "127.0.0.1" || host === "0.0.0.0" ? "localhost" : host}:${actual}`;
