@@ -114,7 +114,13 @@ test("real runtime repairs loss/reorder/duplicates, restores a refreshed member 
   assert.equal(
     a.command({
       type: "settings",
-      settings: { ...DEFAULT_TUNING, map: "crossroads", experiment: "surge" },
+      settings: {
+        ...DEFAULT_TUNING,
+        map: "crossroads",
+        experiment: "surge",
+        jumpMode: "double",
+        wire: "spiked",
+      },
     }),
     true,
   );
@@ -150,6 +156,8 @@ test("real runtime repairs loss/reorder/duplicates, restores a refreshed member 
   mesh.run(2500);
   assert.equal(returning.state()!.seats.size, 2);
   assert.equal(returning.state()!.settings.experiment, "surge");
+  assert.equal(returning.state()!.settings.jumpMode, "double");
+  assert.equal(returning.state()!.settings.wire, "spiked");
   assert.ok(returning.state()!.simulation.combat.balls.length > 0);
   assert.equal(returning.state()!.seats.get("b")!.generation, 2);
   assert.equal(

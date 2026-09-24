@@ -1,6 +1,6 @@
 import { MAPS, type MapId } from "./maps.js";
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-7";
+export const RULES = "hook-havok-8";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
@@ -9,6 +9,8 @@ export const WIDTH = 1600,
 /** Original belfry geometry, retained for its traversal fixtures. Runtime uses tuning.map. */
 export const PLATFORMS = MAPS.belfry.platforms;
 export interface Tuning {
+  jumpMode: "single" | "double";
+  wire: "tip" | "spiked";
   map: MapId;
   rules: "free" | "elimination" | "score";
   experiment: "movement" | "target" | "ball" | "ricochet" | "surge";
@@ -20,6 +22,8 @@ export interface Tuning {
   range: number;
 }
 export const DEFAULT_TUNING: Tuning = {
+  jumpMode: "single",
+  wire: "tip",
   map: "belfry",
   rules: "free",
   experiment: "movement",
@@ -59,6 +63,7 @@ export interface Hook {
   platform: number;
 }
 export interface World {
+  airJump: boolean;
   slot: number;
   combat: Combat;
   tick: number;
@@ -166,6 +171,7 @@ export function createWorld(tuning: Tuning = DEFAULT_TUNING, slot = 0): World {
   const [x, feet] = MAPS[tuning.map].spawns[slot]!;
   return {
     slot,
+    airJump: tuning.jumpMode === "double",
     combat: createCombat(tuning.experiment, tuning.map),
     tick: 0,
     x: x * S,

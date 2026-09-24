@@ -7,11 +7,40 @@ import {
   ballField,
   ballSpeed,
   ballBounce,
+  type Ball,
   type World,
 } from "./world.js";
 import { move } from "./collision.js";
 import { MAPS } from "./maps.js";
 import { ricochet } from "./ball-motion.js";
+import { wireContact } from "./wire-contact.js";
+
+/** One binary family, regardless of whether the tip or a spike consumed it. */
+function splitBall(world: World, ball: Ball): void {
+  const c = world.combat,
+    field = ballField(world.tuning.experiment, world.tuning.map);
+  c.balls = c.balls.filter((b) => b.id !== ball.id);
+  if (!ball.tier) return;
+  const tier = ball.tier - 1,
+    radius = BALL_RADII[tier]! * S;
+  for (const direction of [-1, 1])
+    c.balls.push({
+      id: ball.id * 2 + (direction === 1 ? 1 : 0),
+      tier,
+      x: Math.max(
+        field[0] * S + radius,
+        Math.min(
+          (field[0] + field[2]) * S - radius,
+          ball.x +
+            (world.tuning.experiment === "ball" ? direction * radius : 0),
+        ),
+      ),
+      y: ball.y,
+      vx: direction * ballSpeed(world.tuning.experiment, tier),
+      vy: -ballBounce(world.tuning.experiment),
+    });
+  c.balls.sort((a, b) => a.id - b.id);
+}
 
 /** Point projectile against circular hurt shapes, including a shot starting inside. */
 function contact(
@@ -51,7 +80,6 @@ export function strike(
   terrainTime = Infinity,
   context?: CombatContext,
 ): boolean {
-  const field = ballField(world.tuning.experiment, world.tuning.map);
   const h = world.hook,
     c = world.combat,
     target = c.target;
@@ -114,34 +142,16 @@ export function strike(
     target.grounded = false;
   } else {
     const ball = c.balls.find((b) => b.id === id)!;
-    c.balls = c.balls.filter((b) => b.id !== id);
-    if (ball.tier > 0) {
-      const tier = ball.tier - 1,
-        radius = BALL_RADII[tier]! * S;
-      for (const direction of [-1, 1])
-        c.balls.push({
-          id: id * 2 + (direction === 1 ? 1 : 0),
-          tier,
-          x: Math.max(
-            field[0] * S + radius,
-            Math.min(
-              (field[0] + field[2]) * S - radius,
-              ball.x +
-                (world.tuning.experiment === "ball" ? direction * radius : 0),
-            ),
-          ),
-          y: ball.y,
-          vx: direction * ballSpeed(world.tuning.experiment, tier),
-          vy: -ballBounce(world.tuning.experiment),
-        });
-      c.balls.sort((a, b) => a.id - b.id);
-    }
+    splitBall(world, ball);
   }
   h.phase = "retracting";
   h.life = 6;
   return true;
 }
-export function stepCombat(world: World): void {
+export function stepCombat(
+  world: World,
+  owners: readonly World[] = [world],
+): void {
   const map = MAPS[world.tuning.map],
     field = map.ballField;
   const c = world.combat,
@@ -160,13 +170,47 @@ export function stepCombat(world: World): void {
       }
     }
   }
-  for (const ball of c.balls) {
+  // New children wait until next tick; ascending ball IDs and owner slot order break ties.
+  for (const ball of [...c.balls]) {
+    const intercept = (
+      dx: number,
+      dy: number,
+      terrainTime: number,
+    ): boolean => {
+      let first = terrainTime,
+        owner: World | undefined;
+      for (const candidate of owners) {
+        const t = wireContact(
+          ball.x,
+          ball.y,
+          dx,
+          dy,
+          BALL_RADII[ball.tier]! * S,
+          candidate,
+        );
+        if (t !== undefined && t < first - 1e-9) {
+          first = t;
+          owner = candidate;
+        }
+      }
+      if (!owner) return false;
+      ball.x += Math.round(dx * first);
+      ball.y += Math.round(dy * first);
+      c.hits = Math.min(0xffffffff, c.hits + 1);
+      c.impact = { tick: world.tick, x: ball.x, y: ball.y };
+      splitBall(world, ball);
+      owner.hook.phase = "retracting";
+      owner.hook.life = 6;
+      return true;
+    };
     if (world.tuning.experiment !== "ball") {
-      ricochet(ball, world);
+      ricochet(ball, world, intercept);
       continue;
     }
     const radius = BALL_RADII[ball.tier]! * S;
     ball.vy = Math.min(8 * S, ball.vy + S / 8);
+    const oldX = ball.x,
+      oldY = ball.y;
     ball.x += ball.vx;
     ball.y += ball.vy;
     const left = field[0] * S + radius,
@@ -188,6 +232,14 @@ export function stepCombat(world: World): void {
     if (ball.y > bottom) {
       ball.y = bottom;
       ball.vy = -5 * S;
+    }
+    const dx = ball.x - oldX,
+      dy = ball.y - oldY;
+    ball.x = oldX;
+    ball.y = oldY;
+    if (!intercept(dx, dy, Infinity)) {
+      ball.x += dx;
+      ball.y += dy;
     }
   }
 }

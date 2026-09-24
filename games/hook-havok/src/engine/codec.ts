@@ -30,7 +30,10 @@ export const TUNING_BOUNDS = {
   range: [250, 1000],
 } as const;
 export function parseTuning(raw: unknown): Tuning | undefined {
-  if (!plain(raw) || Object.keys(raw).length !== 9 || !isMapId(raw.map)) return;
+  if (!plain(raw) || Object.keys(raw).length !== 11 || !isMapId(raw.map))
+    return;
+  if (raw.jumpMode !== "single" && raw.jumpMode !== "double") return;
+  if (raw.wire !== "tip" && raw.wire !== "spiked") return;
   if (
     raw.rules !== "free" &&
     raw.rules !== "elimination" &&
@@ -48,6 +51,8 @@ export function parseTuning(raw: unknown): Tuning | undefined {
   for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS))
     if (!integer(raw[key], min, max)) return;
   return {
+    jumpMode: raw.jumpMode,
+    wire: raw.wire,
     map: raw.map,
     rules: raw.rules,
     experiment: raw.experiment,
@@ -177,8 +182,8 @@ export function parseInput(raw: unknown): Input | undefined {
     !plain(raw) ||
     Object.keys(raw).length !== 7 ||
     !integer(raw.move, -1, 1) ||
-    !integer(raw.aimX, 0, WIDTH) ||
-    !integer(raw.aimY, 0, HEIGHT) ||
+    !integer(raw.aimX, -2000, 3600) ||
+    !integer(raw.aimY, -4000, 3000) ||
     typeof raw.jump !== "boolean" ||
     typeof raw.drop !== "boolean" ||
     typeof raw.fire !== "boolean" ||
@@ -222,6 +227,10 @@ export function decodeWorld(raw: unknown): World | undefined {
     !integer(raw.vx, -18000, 18000) ||
     !integer(raw.vy, -18000, 18000) ||
     typeof raw.grounded !== "boolean" ||
+    typeof raw.airJump !== "boolean" ||
+    (tuning.jumpMode === "single" && raw.airJump) ||
+    (raw.respawn && raw.airJump) ||
+    (raw.grounded && tuning.jumpMode === "double" && !raw.airJump) ||
     !integer(raw.coyote, 0, 6) ||
     !integer(raw.buffer, 0, 6) ||
     !integer(raw.respawn, 0, 30) ||
@@ -293,6 +302,7 @@ export function decodeWorld(raw: unknown): World | undefined {
     vx: raw.vx,
     vy: raw.vy,
     grounded: raw.grounded,
+    airJump: raw.airJump,
     coyote: raw.coyote,
     buffer: raw.buffer,
     respawn: raw.respawn,

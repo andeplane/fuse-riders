@@ -1,5 +1,6 @@
 import { BALL_RADII, BODY, HALF, S, ballField, type World } from "./world.js";
 import { MAPS, type MapId } from "./maps.js";
+import { activeWire } from "./wire-contact.js";
 import {
   createContest,
   COUNTDOWN_TICKS,
@@ -7,6 +8,10 @@ import {
   type Contest,
 } from "./contest.js";
 export interface WorldView {
+  airJump: boolean;
+  doubleJump: boolean;
+  spikedWire: boolean;
+  wire: { x: number; y: number; endX: number; endY: number } | null;
   map: MapId;
   contest: Contest & { rules: World["tuning"]["rules"]; seconds: number };
   keepers: KeeperView[];
@@ -59,7 +64,19 @@ export interface KeeperView {
   body: WorldView;
 }
 export function toView(world: World): WorldView {
+  const wire = activeWire(world);
   return {
+    wire: wire
+      ? {
+          x: wire.x / S,
+          y: wire.y / S,
+          endX: wire.endX / S,
+          endY: wire.endY / S,
+        }
+      : null,
+    airJump: world.airJump,
+    doubleJump: world.tuning.jumpMode === "double",
+    spikedWire: world.tuning.wire === "spiked",
     map: world.tuning.map,
     contest: {
       ...createContest(world.tuning.rules),

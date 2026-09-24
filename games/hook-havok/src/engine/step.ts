@@ -149,22 +149,33 @@ export function step(world: World, context?: CombatContext): void {
     world.vy = -Math.round((world.tuning.jump * S) / 60);
     world.buffer = world.coyote = 0;
     world.grounded = false;
+  } else if (
+    !dropping &&
+    world.input.jump &&
+    !world.previous.jump &&
+    world.airJump
+  ) {
+    world.vy = -Math.round((world.tuning.jump * S) / 60);
+    world.airJump = false;
+    world.buffer = world.coyote = 0;
   }
   if (!world.input.jump && world.previous.jump && world.vy < 0)
     world.vy = Math.round(world.vy * 0.48);
   if (!dropping) grapple(world, context);
-  if (!context) stepCombat(world);
   const cap = Math.round((1000 * S) / 60);
   world.vx = Math.max(-cap, Math.min(cap, world.vx));
   world.vy = Math.max(-cap, Math.min(cap, world.vy));
   movePlayer(world, MAPS[world.tuning.map].platforms);
+  if (world.grounded) world.airJump = world.tuning.jumpMode === "double";
   if (world.feet - BODY > HEIGHT * S) {
     world.respawn = 30;
     world.deaths++;
     world.hook = readyHook();
     world.vx = world.vy = 0;
     world.buffer = world.coyote = 0;
+    world.airJump = false;
   }
+  if (!context) stepCombat(world);
   world.previous = { ...world.input };
 }
 export function retune(world: World, tuning: World["tuning"]): World {

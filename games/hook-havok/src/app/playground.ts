@@ -25,6 +25,7 @@ import { createTouchControls, type TouchControls } from "./touch-controls.js";
 import { touchAim } from "./touch-input.js";
 import { createRoster } from "./roster.js";
 import { createEntrance } from "./entrance.js";
+import { KeyboardInput } from "./keyboard-input.js";
 import {
   sessionStore,
   sessionToken,
@@ -79,8 +80,9 @@ document.querySelector(".move-control > span")!.textContent =
   "MOVE · UP JUMP · DOWN DROP";
 el("touch-help").textContent =
   "Left thumb: sideways to move, up to jump, down to drop through a ledge. Release down before dropping again. Right thumb: drag from center to aim and fire, hold to pull, release to let go.";
-document.querySelector(".desktop-help")!.textContent =
+const mouseHelp =
   "A / D or ← / → to move · Space to jump through ledges · S / ↓ to drop through (one press per ledge) · Mouse to aim · Hold left mouse to hook and pull · Release to let go · R to reset. Click the scene to focus.";
+document.querySelector(".desktop-help")!.textContent = mouseHelp;
 document.querySelector("details > p")!.textContent =
   "Apply restarts the exercise. Platforms catch players from above; hooks still attach to every surface. Dropping releases your hook.";
 rulesPanel.className = "controls rules-controls";
@@ -92,6 +94,17 @@ const mapHelp = document.createElement("span");
 mapHelp.id = "map-help";
 mapHelp.textContent = "Changing arena restarts the shared trial.";
 rulesPanel.prepend(mapLabel, mapHelp);
+const trials = document.createElement("section");
+trials.className = "controls experiment-controls";
+trials.innerHTML = `<label>Jump <select id="jump-mode" name="jumpMode" form="tuning" disabled><option value="single">Single jump</option><option value="double">Double jump</option></select></label><label>Tether <select id="wire-mode" name="wire" form="tuning" disabled><option value="tip">Hook tip only</option><option value="spiked">Spiked wire</option></select></label><label>Your controls <select id="keyboard-mode"><option value="mouse">Mouse aim</option><option value="keyboard">Keyboard · J / K</option></select></label><span id="control-help">Mouse aims · Space jumps · S / ↓ drops.</span>`;
+rulesPanel.after(trials);
+const trialHelp = document.createElement("span");
+trialHelp.textContent =
+  "Jump / Tether changes restart the shared trial. Double jump: one extra leap before landing. Spiked wire: balls split on contact and the shot ends; rivals and the brass target still need the tip.";
+trials.append(trialHelp);
+const jumpMode = el<HTMLSelectElement>("jump-mode"),
+  wireMode = el<HTMLSelectElement>("wire-mode"),
+  keyboardMode = el<HTMLSelectElement>("keyboard-mode");
 const host = el<HTMLDivElement>("scene"),
   status = el<HTMLParagraphElement>("status"),
   start = el<HTMLButtonElement>("start"),
@@ -191,7 +204,7 @@ let runtime: HookRuntime | undefined,
 let input: Input = { ...NEUTRAL };
 let touch: TouchControls | undefined;
 let mousePointer: number | undefined;
-const keys = new Set<string>();
+const keyboard = new KeyboardInput();
 let roomDeadline: ReturnType<typeof setTimeout> | undefined;
 function clear() {
   const captured = mousePointer;
@@ -199,7 +212,7 @@ function clear() {
   if (captured !== undefined && host.hasPointerCapture(captured))
     host.releasePointerCapture(captured);
   touch?.clear();
-  keys.clear();
+  keyboard.clear();
   input = { ...NEUTRAL, aimX: input.aimX, aimY: input.aimY };
   runtime?.clear();
 }
@@ -289,6 +302,7 @@ function stopRoom() {
   experiment.disabled = true;
   rulesSelect.disabled = true;
   mapSelect.disabled = true;
+  jumpMode.disabled = wireMode.disabled = true;
   touch?.enable(false);
   el<HTMLButtonElement>("restart-room").disabled = true;
   el("invitation").hidden = true;
@@ -329,6 +343,10 @@ async function graphics() {
       atmosphere: el<HTMLInputElement>("atmosphere").checked,
       view: sample,
       debug: () => el<HTMLInputElement>("debug").checked,
+      keyboardAim: () =>
+        !display && keyboard.mode === "keyboard"
+          ? keyboard.direction
+          : undefined,
       cue: (cue) => effects.cue(cue),
       ready() {
         if (token !== attempt) return;
@@ -381,6 +399,8 @@ const enterRoom = async () => {
   experiment.value = DEFAULT_TUNING.experiment;
   rulesSelect.value = DEFAULT_TUNING.rules;
   mapSelect.value = DEFAULT_TUNING.map;
+  jumpMode.value = DEFAULT_TUNING.jumpMode;
+  wireMode.value = DEFAULT_TUNING.wire;
   for (const key of Object.keys(TUNING_BOUNDS)) {
     const field = tuning.elements.namedItem(key) as HTMLInputElement;
     field.value = String(DEFAULT_TUNING[key as keyof typeof DEFAULT_TUNING]);
@@ -506,6 +526,7 @@ const enterRoom = async () => {
             experiment.disabled = !manager;
             rulesSelect.disabled = !manager;
             mapSelect.disabled = !manager;
+            jumpMode.disabled = wireMode.disabled = !manager;
             el<HTMLButtonElement>("restart-room").disabled = !manager;
             start.textContent = display
               ? "Shared display connected"
@@ -519,6 +540,8 @@ const enterRoom = async () => {
           experiment.value = settings.experiment;
           rulesSelect.value = settings.rules;
           mapSelect.value = settings.map;
+          jumpMode.value = settings.jumpMode;
+          wireMode.value = settings.wire;
           mapHelp.textContent =
             settings.map === "crossroads"
               ? "Crossroads · separated starts, outer climbs and a central grapple route. Changing arena restarts everyone."
@@ -657,7 +680,9 @@ tuning.onsubmit = (e) => {
     Object.fromEntries(
       [...new FormData(tuning)].map(([k, v]) => [
         k,
-        k === "experiment" || k === "rules" || k === "map" ? v : Number(v),
+        ["experiment", "rules", "map", "jumpMode", "wire"].includes(k)
+          ? v
+          : Number(v),
       ]),
     ),
   );
@@ -671,6 +696,21 @@ tuning.onsubmit = (e) => {
 experiment.onchange = () => tuning.requestSubmit();
 rulesSelect.onchange = () => tuning.requestSubmit();
 mapSelect.onchange = () => tuning.requestSubmit();
+jumpMode.onchange = wireMode.onchange = () => tuning.requestSubmit();
+keyboardMode.onchange = () => {
+  clear();
+  keyboard.mode = keyboardMode.value === "keyboard" ? "keyboard" : "mouse";
+  el("control-help").textContent =
+    keyboard.mode === "keyboard"
+      ? "WASD / arrows aim (last direction stays) · J / Space jumps · hold K to hook, release to rearm · Shift+S or Shift+↓ drops."
+      : "Mouse aims · Space jumps · S / ↓ drops.";
+  host.dataset.controls = keyboard.mode;
+  document.querySelector(".desktop-help")!.textContent =
+    keyboard.mode === "keyboard"
+      ? "A / D or ← / → to move · WASD / arrows aim in eight directions · J / Space to jump · Hold K to hook and pull · Release K to rearm · Shift+S or Shift+↓ to drop · R to reset. Click the scene to focus."
+      : mouseHelp;
+  host.focus();
+};
 retry.onclick = () => void graphics();
 el<HTMLInputElement>("atmosphere").checked = !matchMedia(
   "(prefers-reduced-motion: reduce)",
@@ -678,37 +718,25 @@ el<HTMLInputElement>("atmosphere").checked = !matchMedia(
 el<HTMLInputElement>("atmosphere").onchange = (e) =>
   scene?.setAtmosphere((e.target as HTMLInputElement).checked);
 host.addEventListener("keydown", (e) => {
-  if (
-    ![
-      "KeyA",
-      "KeyD",
-      "ArrowLeft",
-      "ArrowRight",
-      "ArrowDown",
-      "KeyS",
-      "Space",
-      "KeyR",
-    ].includes(e.code)
-  )
-    return;
+  if (!keyboard.accepts(e.code)) return;
   e.preventDefault();
+  if (e.repeat) return;
   if (touchDeck.dataset.active === "true") clear();
-  keys.add(e.code);
-  input.move = (Number(keys.has("KeyD") || keys.has("ArrowRight")) -
-    Number(keys.has("KeyA") || keys.has("ArrowLeft"))) as Input["move"];
-  input.jump = keys.has("Space");
-  input.drop = keys.has("ArrowDown") || keys.has("KeyS");
-  input.reset = keys.has("KeyR");
+  keyboard.key(e.code, true);
+  Object.assign(
+    input,
+    keyboard.sample(latest.x, latest.feet - latest.body.height * 0.6),
+  );
   send();
 });
 host.addEventListener("keyup", (e) => {
-  keys.delete(e.code);
+  if (!keyboard.accepts(e.code)) return;
+  keyboard.key(e.code, false);
   if (touchDeck.dataset.active === "true") return;
-  input.move = (Number(keys.has("KeyD") || keys.has("ArrowRight")) -
-    Number(keys.has("KeyA") || keys.has("ArrowLeft"))) as Input["move"];
-  input.jump = keys.has("Space");
-  input.drop = keys.has("ArrowDown") || keys.has("KeyS");
-  input.reset = keys.has("KeyR");
+  Object.assign(
+    input,
+    keyboard.sample(latest.x, latest.feet - latest.body.height * 0.6),
+  );
   send();
 });
 function aim(e: PointerEvent) {
@@ -722,7 +750,7 @@ function aim(e: PointerEvent) {
   );
 }
 host.addEventListener("pointermove", (e) => {
-  if (e.pointerType !== "mouse") return;
+  if (e.pointerType !== "mouse" || keyboard.mode === "keyboard") return;
   aim(e);
 });
 host.addEventListener("pointerdown", (e) => {
@@ -730,6 +758,7 @@ host.addEventListener("pointerdown", (e) => {
   if (touchDeck.dataset.active === "true") clear();
   e.preventDefault();
   host.focus();
+  if (keyboard.mode === "keyboard") return;
   mousePointer = e.pointerId;
   host.setPointerCapture(e.pointerId);
   aim(e);
@@ -783,6 +812,7 @@ const entrance = createEntrance({
   radio: radio.element,
   atmosphere: el<HTMLInputElement>("atmosphere"),
   touch: touchToggle,
+  controls: keyboardMode,
   fresh() {
     roomCode = undefined;
     display = false;

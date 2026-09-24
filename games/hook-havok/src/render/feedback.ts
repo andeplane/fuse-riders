@@ -11,7 +11,7 @@ export type Cue =
   | "impact"
   | "pop";
 export interface Burst {
-  kind: Cue | "vanish";
+  kind: Cue | "vanish" | "air-jump";
   x: number;
   y: number;
   at: number;
@@ -76,6 +76,10 @@ export class Feedback {
       Math.hypot(view.x - old.x, view.feet - old.feet) < 100
     ) {
       if (old.grounded && !view.grounded && view.vy < 0) cues.push("jump");
+      if (old.airJump && !view.airJump && view.vy < 0) {
+        cues.push("jump");
+        this.bursts.push({ kind: "air-jump", x: view.x, y: view.feet, at: ms });
+      }
       if (!old.grounded && view.grounded && old.vy > 60) cues.push("land");
       if (
         old.hook.phase === "ready" &&

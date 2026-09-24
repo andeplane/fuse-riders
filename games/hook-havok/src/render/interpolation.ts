@@ -44,6 +44,13 @@ export function interpolate(
     }),
     x: lerp(older.x, newer.x),
     feet: lerp(older.feet, newer.feet),
+    wire: newer.wire
+      ? {
+          ...newer.wire,
+          x: lerp(older.x, newer.x),
+          y: lerp(older.feet, newer.feet) - newer.body.height * 0.6,
+        }
+      : null,
     combat: {
       ...newer.combat,
       target,

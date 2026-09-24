@@ -116,6 +116,10 @@ Implemented gentle and surge arena-wide presets alongside the bounded exercise: 
 
 Implemented an original cathedral entrance painting, live ivory/gold title, subtle drifting embers, Create room, Join room, How to play and Settings. Solo practice uses the same room flow. Native dialogs support keyboard/touch navigation; valid invites, refresh and shared displays enter directly. Loading, connection failures, separate illustration/graphics retries and application-load retry are covered. Existing atmosphere/audio/touch controls move between menu and workshop without duplicated state. See [source, behavior and browser evidence](entrance-menu.md). Rules and gameplay are unchanged; the workshop remains inside the room pending 8B.
 
+### Control trials after 8A
+
+Implemented optional spiked-wire ball contact, a second airborne jump (also available after dropping), and eight-direction keyboard aiming with J / Space jump and K hook. Shared Jump/Tether settings restart the trial; local keyboard mode preserves mouse mode as a comparison. Defaults retain the original behavior. See [controls, exact rules and verification](control-trials.md). Rules are now `hook-havok-8`; refresh all clients and create a fresh room. Playtesting should determine whether these become defaults.
+
 ### 8B. Lobby, match HUD and results (planned)
 
 Illustrated player cards, identity selection, invitations and host/start status; compact match portraits, scores and timers; countdown, spectator status, winner reveal and rematch. Move workshop controls into an explicit development panel and adapt layouts to desktop, shared display and phones.

@@ -4,7 +4,13 @@ import { showcasePose, PLATFORMS, ANCHOR } from "./showcase-timeline.js";
 import type { WorldView } from "../engine/view.js";
 import { Feedback, type Cue } from "./feedback.js";
 import { KEEPER_COLORS, keeperColor } from "./identity.js";
-import { paintCrest, paintTether, paintBurst, dressPlatform } from "./art.js";
+import {
+  paintCrest,
+  paintTether,
+  paintSpikes,
+  paintBurst,
+  dressPlatform,
+} from "./art.js";
 import { createEchoes, paintEchoes } from "./echoes.js";
 import { paintBalls } from "./balls.js";
 import {
@@ -24,6 +30,7 @@ export interface ShowcaseHandle {
   seek(time: number): void;
 }
 interface Options {
+  keyboardAim?(): { x: number; y: number } | undefined;
   cue?(cue: Cue): void;
   view?(): WorldView;
   debug?(): boolean;
@@ -391,8 +398,8 @@ export function createShowcase(
       this.tether.clear();
       this.hook.setVisible(!!pose.hook);
       if (pose.hook) {
-        const sx = pose.x + 17 * (world?.facing ?? 1),
-          sy = pose.feet - 40;
+        const sx = world ? pose.x : pose.x + 17,
+          sy = world ? pose.feet - world.body.height * 0.6 : pose.feet - 40;
         paintTether(
           this.tether,
           sx,
@@ -405,6 +412,7 @@ export function createShowcase(
             : "attached" in pose.hook && pose.hook.attached,
           pose.alpha,
         );
+        if (world) paintSpikes(this.tether, world.wire, color, pose.alpha);
         this.hook
           .setPosition(pose.hook.x, pose.hook.y)
           .setRotation(Math.atan2(pose.hook.y - sy, pose.hook.x - sx))
@@ -512,14 +520,15 @@ export function createShowcase(
           if (keeper.id !== focused && body.hook.phase !== "ready") {
             paintTether(
               peer.tether,
-              body.x + 17 * body.facing,
-              body.feet - 40,
+              body.x,
+              body.feet - body.body.height * 0.6,
               body.hook.x,
               body.hook.y,
               color,
               body.hook.phase === "attached",
               peer.actor.alpha,
             );
+            paintSpikes(peer.tether, body.wire, color, peer.actor.alpha);
             peer.tether
               .lineStyle(2, 0xffebbd, peer.actor.alpha)
               .strokeCircle(body.hook.x, body.hook.y, 4);
@@ -610,6 +619,44 @@ export function createShowcase(
         host.dataset.balls = JSON.stringify(world.combat.balls);
       }
       if (world) {
+        const aim = options.keyboardAim?.();
+        if (aim && !world.respawn) {
+          const length = Math.hypot(aim.x, aim.y) || 1,
+            dx = aim.x / length,
+            dy = aim.y / length;
+          const sx = world.x,
+            sy = world.feet - world.body.height * 0.6;
+          this.effects
+            .lineStyle(2, 0xffe1a1, 0.9)
+            .lineBetween(
+              sx + dx * 24,
+              sy + dy * 24,
+              sx + dx * 50,
+              sy + dy * 50,
+            );
+          this.effects
+            .lineBetween(
+              sx + dx * 50,
+              sy + dy * 50,
+              sx + dx * 42 - dy * 6,
+              sy + dy * 42 + dx * 6,
+            )
+            .lineBetween(
+              sx + dx * 50,
+              sy + dy * 50,
+              sx + dx * 42 + dy * 6,
+              sy + dy * 42 - dx * 6,
+            );
+        }
+        if (world.doubleJump && world.airJump && !world.respawn)
+          this.effects
+            .lineStyle(2, 0x9de9ff, 0.8)
+            .strokeEllipse(world.x, world.feet + 5, 22, 5);
+        host.dataset.airJump = String(world.airJump);
+        host.dataset.wire = JSON.stringify(world.wire);
+        host.dataset.hookX = String(world.hook.x);
+        host.dataset.hookY = String(world.hook.y);
+        host.dataset.aimDirection = JSON.stringify(aim ?? null);
         for (const burst of feedback.active()) {
           paintBurst(this.effects, burst, elapsed, reduced.matches);
         }

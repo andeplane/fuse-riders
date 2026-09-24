@@ -11,6 +11,7 @@ interface EntranceOptions {
   radio: HTMLElement;
   atmosphere: HTMLInputElement;
   touch: HTMLInputElement;
+  controls: HTMLSelectElement;
   fresh(): void;
 }
 
@@ -30,6 +31,14 @@ export function createEntrance(o: EntranceOptions) {
     <dialog id="entrance-help" aria-labelledby="help-title"><button class="dialog-close" type="button" aria-label="Close how to play">×</button><p class="entrance-kicker">A KEEPER'S FIELD GUIDE</p><h2 id="help-title">Keep your footing.</h2><dl><dt>Move & jump</dt><dd>A / D or arrows to run. Space to jump through ledges; hold for height. S / ↓ drops through one ledge.</dd><dt>Hook & swing</dt><dd>Aim with the mouse. Hold left click to fire and pull toward stone. Release to let go; release before firing again.</dd><dt>Bring a little havoc</dt><dd>Hook rivals to knock them back. Try free play, last keeper standing, or timed hook scoring once inside.</dd><dt>On a phone</dt><dd>Enable Touch controls in Settings. Left pad: move, up to jump, down to drop. Right pad: drag to aim and hook, release to let go.</dd><dt>Try the glowing orbs</dt><dd>Choose a ball experiment inside the room. Hooks split orbs into smaller ones. In this trial balls do not hurt keepers.</dd></dl><p class="entrance-note">Create a room to explore solo, then share its invite whenever you're ready for company.</p></dialog>
     <dialog id="entrance-settings" aria-labelledby="settings-title"><button class="dialog-close" type="button" aria-label="Close settings">×</button><p class="entrance-kicker">SET THE MOOD</p><h2 id="settings-title">Settings</h2><div data-slot="atmosphere"></div><div data-slot="touch"></div><div data-slot="radio"></div><p class="entrance-note">Reduced motion follows your device preference. Music starts only when you press Play radio. These controls also remain available inside the room.</p></dialog>`;
   document.body.prepend(root);
+  const controlSlot = document.createElement("div");
+  controlSlot.dataset.slot = "controls";
+  root.querySelector('[data-slot="touch"]')!.after(controlSlot);
+  const trialHelp = document.createElement("p");
+  trialHelp.className = "entrance-note";
+  trialHelp.textContent =
+    "New control trials: choose Keyboard · J / K in Settings for WASD/arrows aiming, J/Space jump, K hook and Shift+Down drop. Inside the room, the manager can enable Double jump and Spiked wire for everyone. One extra jump recharges on landing; active wire splits balls and ends the shot.";
+  root.querySelector("#entrance-help")!.append(trialHelp);
   root.querySelector<HTMLAnchorElement>(".entrance-home")!.href =
     import.meta.env.BASE_URL +
     (new URLSearchParams(location.search).has("mute") ? "?mute" : "");
@@ -43,6 +52,7 @@ export function createEntrance(o: EntranceOptions) {
     atmosphere: o.atmosphere.closest("label")!,
     touch: o.touch.closest("label")!,
     radio: o.radio,
+    controls: o.controls.closest("label")!,
   }).map(([slot, node]) => {
     const marker = document.createComment(`entrance-${slot}`);
     node.before(marker);

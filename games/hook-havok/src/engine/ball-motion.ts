@@ -10,7 +10,11 @@ import {
 } from "./world.js";
 
 /** Square envelope around each orb. Stable platform order, then walls; four contacts per tick. */
-export function ricochet(ball: Ball, world: World): void {
+export function ricochet(
+  ball: Ball,
+  world: World,
+  intercept?: (dx: number, dy: number, terrainTime: number) => boolean,
+): void {
   const r = BALL_RADII[ball.tier]!;
   const [x, y, w, h] = ballField(world.tuning.experiment, world.tuning.map);
   const solids: Platform[] = [
@@ -26,6 +30,7 @@ export function ricochet(ball: Ball, world: World): void {
     const dx = Math.round(ball.vx * remaining),
       dy = Math.round(ball.vy * remaining);
     const hit = sweep(ball.x, ball.y, dx, dy, false, solids);
+    if (intercept?.(dx, dy, hit?.time ?? Infinity)) return;
     if (!hit) {
       ball.x += dx;
       ball.y += dy;

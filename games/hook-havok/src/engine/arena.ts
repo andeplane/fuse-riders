@@ -200,7 +200,10 @@ export function stepArena(arena: Arena, running = true): void {
   if (playing && arena.keepers.some(canPlay)) {
     const holder = arena.keepers[0]!.world;
     holder.combat = arena.combat;
-    stepCombat(holder);
+    stepCombat(
+      holder,
+      arena.keepers.filter(canPlay).map((k) => k.world),
+    );
   }
   for (const k of arena.keepers) k.world.combat = arena.combat;
   if (competitive && playing) {

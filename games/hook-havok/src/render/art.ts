@@ -1,5 +1,42 @@
 import type Phaser from "phaser";
 import type { Burst } from "./feedback.js";
+import type { WorldView } from "../engine/view.js";
+
+/** The luminous spine and metal teeth cover exactly the collision-visible wire. */
+export function paintSpikes(
+  g: Phaser.GameObjects.Graphics,
+  wire: WorldView["wire"],
+  color: number,
+  alpha: number,
+): void {
+  if (!wire) return;
+  const { x, y, endX, endY } = wire,
+    dx = endX - x,
+    dy = endY - y,
+    length = Math.hypot(dx, dy);
+  if (length < 1) return;
+  g.lineStyle(8, color, alpha * 0.15).lineBetween(x, y, endX, endY);
+  g.lineStyle(2, 0xffefc9, alpha).lineBetween(x, y, endX, endY);
+  const count = Math.min(50, Math.floor(length / 16)),
+    nx = -dy / length,
+    ny = dx / length;
+  for (let i = 1; i <= count; i++) {
+    const t = i / (count + 1),
+      px = x + dx * t,
+      py = y + dy * t;
+    g.lineStyle(2, 0x101521, alpha)
+      .fillStyle(i % 2 ? color : 0xffe5a9, alpha)
+      .fillTriangle(
+        px - (dx / length) * 4,
+        py - (dy / length) * 4,
+        px + nx * 5,
+        py + ny * 5,
+        px + (dx / length) * 4,
+        py + (dy / length) * 4,
+      );
+    g.lineStyle(2, color, alpha).lineBetween(px, py, px - nx * 5, py - ny * 5);
+  }
+}
 
 /** Small costume silhouettes supplement colour and the persistent P1–P5 labels. */
 const CRESTS = [
@@ -81,6 +118,22 @@ export function paintBurst(
   }
   const ground = kind === "land" || kind === "jump";
   const impact = kind === "impact" || kind === "pop";
+  if (kind === "air-jump") {
+    g.lineStyle(3, 0x9de9ff, alpha).strokeEllipse(
+      x,
+      y + 4 + age * 12,
+      28 + age * 46,
+      9 + age * 12,
+    );
+    for (const dx of [-13, 0, 13])
+      g.lineStyle(2, 0xffe5b2, alpha).lineBetween(
+        x + dx,
+        y + 8,
+        x + dx * 1.8,
+        y + 12 + age * 24,
+      );
+    return;
+  }
   if (kind === "vanish" || kind === "respawn") {
     const arriving = kind === "respawn";
     const radius = arriving ? 10 + age * 28 : 12 + age * 18;
