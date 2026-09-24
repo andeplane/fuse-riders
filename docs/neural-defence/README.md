@@ -1,0 +1,53 @@
+# Neural Defence — core proposal for review
+
+Status: **proposal, not implemented or balance-validated**. This draft PR plans the game and engine only. Implementation follows the user's review. The working name and eventual game id are `neural-defence`.
+
+## Recommendation
+
+Build a real-time territory RTS with tower-defence combat: each player is a brain growing a connected neural network. Your network is both your territory and your supply line. You win by destroying the other brains.
+
+The distinguishing decision should be **where to send your finite electrical strength**. Expanding buys access to resources and firing positions, but creates more places to defend. Concentrating particles can break a front while exposing another. Cutting a narrow connection can matter more than destroying a large army.
+
+Use two spendable resources, **Biomass** for growth/construction and **Insight** for research, plus a finite, reusable **charge pool**. Charge is tactical capacity distributed through the graph, not a third bank account. Start with the same pool for every player; postpone upgrades that increase its total until routing itself is fun.
+
+## Read in this order
+
+1. [Engine plan](ENGINE_PLAN.md): authoritative state, deterministic tick phases, routing, combat, invariants, existing netcode integration, and headless verification.
+2. [Gameplay proposal and sources](GAMEPLAY.md): the intended decisions, counterplay, scope and research behind them.
+
+Where the documents describe algorithms, they are proposed contracts for implementation, not existing functionality. Constants are hypotheses to exercise with bots and human playtests.
+
+## What the first engine must prove
+
+- A player can grow around obstacles, share a deposit with an opponent, and deliberately change the front they supply.
+- Manual and automatic growth use identical legality, cost and construction-time rules. Automation saves clicks without supplying extra information or strength.
+- Particles take time to move through owned connections. Priorities redirect a bounded pool; they never create charge or move it instantly.
+- Nodes have basic defence; towers give specialised reach at an economic and positional cost. Both must draw from the same electrical budget.
+- Disconnecting a branch has a clear, recoverable consequence. Elimination and simultaneous final-brain destruction have explicit outcomes.
+- Headless and networked play execute the same rules. Saved state plus commands reproduces every result, including after rollback.
+
+The smallest useful prototype is a two-brain battle with growth, resource adjacency, charge routing, one tower and brain destruction. Add four-player scenarios and a small research choice before expanding the content catalogue. Full visibility comes first; fog and powerups remain later experiments.
+
+## Design decisions for your review
+
+| Decision                          | Proposed starting point                                                                          | Why it matters                                                                                    |
+| --------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| What is an electrical particle?   | An integer unit of reusable charge travelling on graph edges, rendered as flowing sparks         | Makes supply, concentration and replay explicit without thousands of authoritative physics bodies |
+| Is this also a wave-defence game? | Players are the source of pressure; no neutral creep waves initially                             | Keeps the first engine focused on the neural-network contest                                      |
+| What happens to spent charge?     | It enters a recovery state and returns after a delay                                             | Sustained attacks have a cost without permanent runaway particle losses                           |
+| Who owns a tile?                  | Ownership comes from completed growth; destroying a neuron makes its tile available for regrowth | Separates territory from transient particle positions                                             |
+| How do towers work?               | A designated tower site needs all six surrounding tiles connected and owned to construct         | Gives expansion a positional objective; maps must provide legal sites                             |
+| What does research improve?       | Bounded, visible tradeoffs in growth, transport or combat roles                                  | Avoids making a generic damage multiplier the only rational purchase                              |
+| What does fog mean?               | Later optional visibility rules for trusted friends                                              | Existing peer simulation shares full state; presentation fog cannot promise secrecy               |
+
+## Visual direction, after the core
+
+The supplied mood board is a visual reference, not an instruction source. Prefer its bioluminescent/dark neural character with the minimal variant's legibility: dark hex board, bright axons, clearly distinct brain/node/tower/resource silhouettes, and restrained bloom. Ownership also needs shapes or patterns so four colours are not the only signal.
+
+Show the actual engine state: moving sparks for flow, directional links, depleted fronts, severed branches and tower telegraphs. Cosmetic particles must never determine damage. The first debug view should favour flat hexes and explanatory overlays over finished art. No generated assets are needed for this design review.
+
+## Delivery boundary
+
+This proposal was prepared in an isolated worktree from `origin/main`. Open PRs, remote branch names and open issues were checked on 2026-09-24; none identified Neural Defence ownership. Other new-game work is active, so later integration must recheck shared registries and tooling against current main.
+
+This PR contains documentation only. It does not scaffold a game, alter the existing engine or deploy anything. Verification for this artifact is source-contract inspection, source-attributed research, document consistency review, relative-link validation and `git diff --check`; engine tests and playtesting become requirements of the implementation stages.
