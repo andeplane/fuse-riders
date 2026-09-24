@@ -4,6 +4,8 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
+Phase 7D adds the [lantern shrine art section](docs/lantern-shrine.md): new carved stone and ivy variants, brass supports, candle/mushroom clusters and plum shrine banners on the three central Crossroads ledges. Enter a room, choose **Arena → Crossroads**, then **Focus arena**. Compare the central section with the surrounding earlier platforms; try **Splitting ball** to see action against the artwork. This is a local art trial, not a finished arena-wide redesign. Rules remain `hook-havok-6`.
+
 Phase 7C adds the [arena-design trial](docs/arena-trial.md). Enter a room and select **Arena → Crossroads** to compare a symmetric fourteen-platform layout with separated starts and two outer climbing routes. **Lantern Belfry** remains the default. The room manager's selection restarts everyone together; peers and displays recover the selected map on refresh. All clients must refresh and start a fresh room for `hook-havok-6`.
 
 Phase 7B is a playable [art-production trial](docs/art-production.md): a nine-pose keeper sheet, five colour-tinted costumes with distinct hood crests, dedicated launch/pull/rise/fall poses, inked tethers and impact strokes, plus stone lighting and hanging cloth. Enter a room and choose **Focus arena** to compare the five keepers. The existing map and gameplay rules are unchanged; artistic acceptance remains for playtesting.

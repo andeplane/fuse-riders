@@ -96,6 +96,34 @@ Implemented the proposed first art increment: five costume colours and hood cres
 
 Implemented selectable **Crossroads**, a symmetric fourteen-platform competitive layout with five separated starts, two jump-climb routes and central grapple opportunities. **Lantern Belfry** remains the default. Selection uses validated shared settings and resets the trial; physics, props, checkpoints and rendering all use the chosen geometry. See [design, playtesting and browser evidence](arena-trial.md). Rules are `hook-havok-6`; refresh all clients and create a fresh room. Competitive balance and physical-phone feel remain for user comparison.
 
+### 7D. Finished arena section
+
+Implemented a richer slate/iron/plum/amber visual language and a reusable painted environment kit on the three central Crossroads ledges as a lantern shrine. Surrounding ledges remain for comparison. See [art direction, sources and browser evidence](lantern-shrine.md). User assessment at desktop and phone scale should guide expansion.
+
+### 7E. Arena depth and environmental animation (planned)
+
+Extend the approved section with varied architecture, platform dressing, distant depth and restrained candle, cloth, mist and dust animation. Keep quiet space behind action and distinct playable edges.
+
+### 7F. Character animation and combat spectacle (planned)
+
+Improve foot registration and movement cycles, jump/landing transitions, hook anticipation and recoil, cloak motion, directional impacts and respawn/elimination feedback. Animation follows responsive gameplay timing; effects remain bounded and support reduced motion.
+
+### 7G. Freer bouncing-ball experiment (planned)
+
+Compare the current bounded exercise with arena-wide movement, platform ricochets, bounce heights and explicit bottom-boundary rules. Trial luminous colours, animated cores, trails and split bursts independently from new colour-based behaviours. Compare count/speed/size/splitting through playtesting; validate deterministic contact resolution, population bounds, replay and peer recovery.
+
+### 8A. Splash screen and main menu (planned)
+
+Original title treatment and animated gothic entrance with Create room, Join room, How to play and Settings. Solo practice uses the existing room architecture. Include loading, connection failure/retry, touch/keyboard navigation and gesture-unlocked audio.
+
+### 8B. Lobby, match HUD and results (planned)
+
+Illustrated player cards, identity selection, invitations and host/start status; compact match portraits, scores and timers; countdown, spectator status, winner reveal and rematch. Move workshop controls into an explicit development panel and adapt layouts to desktop, shared display and phones.
+
+### 8C. Cohesion and performance (planned)
+
+Tune lighting, effects, animation, sound and transitions together. Validate busy five-player scenes, loading, reduced motion and physical phones; retain reproducible evidence for performance claims. Compare actual gameplay with the references to identify remaining visual gaps.
+
 ## Module ownership
 
 `engine/`: state, input, tuning, maps, collision, movement, grapple, step, codec, view. Imports nothing from app/render/network.

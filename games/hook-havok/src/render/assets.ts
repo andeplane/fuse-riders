@@ -1,4 +1,8 @@
 export const ASSETS = {
+  shrine: new URL(
+    "../../art-source/platforms/lantern-shrine-source.png",
+    import.meta.url,
+  ).href,
   background: new URL(
     "../../art-source/backgrounds/belfry-background-source.png",
     import.meta.url,
@@ -27,7 +31,12 @@ export interface Crop {
   pivot: number;
 }
 /** Source inspection only; preserves PNG pixels and alpha. */
-export function crops(image: HTMLImageElement, columns = 1, rows = 1): Crop[] {
+export function crops(
+  image: HTMLImageElement,
+  columns = 1,
+  rows = 1,
+  divisions?: { x: readonly number[]; y: readonly number[] },
+): Crop[] {
   const canvas = document.createElement("canvas");
   canvas.width = image.width;
   canvas.height = image.height;
@@ -38,10 +47,16 @@ export function crops(image: HTMLImageElement, columns = 1, rows = 1): Crop[] {
   const result: Crop[] = [];
   for (let row = 0; row < rows; row++)
     for (let col = 0; col < columns; col++) {
-      const left = Math.floor((col * image.width) / columns),
-        right = Math.floor(((col + 1) * image.width) / columns);
-      const top = Math.floor((row * image.height) / rows),
-        bottom = Math.floor(((row + 1) * image.height) / rows);
+      const left = Math.floor(
+          (divisions?.x[col] ?? col / columns) * image.width,
+        ),
+        right = Math.floor(
+          (divisions?.x[col + 1] ?? (col + 1) / columns) * image.width,
+        );
+      const top = Math.floor((divisions?.y[row] ?? row / rows) * image.height),
+        bottom = Math.floor(
+          (divisions?.y[row + 1] ?? (row + 1) / rows) * image.height,
+        );
       let x = right,
         y = bottom,
         endX = left,

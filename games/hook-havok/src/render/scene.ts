@@ -5,6 +5,7 @@ import type { WorldView } from "../engine/view.js";
 import { Feedback, type Cue } from "./feedback.js";
 import { KEEPER_COLORS, keeperColor } from "./identity.js";
 import { paintCrest, paintTether, paintBurst, dressPlatform } from "./art.js";
+import { dressShrine, shrineLedge } from "./shrine.js";
 
 export interface ShowcaseHandle {
   resetFeedback(): void;
@@ -64,6 +65,7 @@ export function createShowcase(
     private terrain?: Phaser.GameObjects.Container;
     private terrainMap?: WorldView["map"];
     private lanternCrop?: Crop;
+    private shrineFrames: Crop[] = [];
     constructor() {
       super("belfry");
     }
@@ -86,12 +88,17 @@ export function createShowcase(
         );
       }
     }
-    private cut(key: AssetKey, cols = 1, rows = 1): Crop[] {
+    private cut(
+      key: AssetKey,
+      cols = 1,
+      rows = 1,
+      divisions?: { x: readonly number[]; y: readonly number[] },
+    ): Crop[] {
       const texture = this.textures.get(key),
         source = texture.getSourceImage();
       if (!(source instanceof HTMLImageElement))
         throw new Error(`Cannot read ${key} artwork.`);
-      const rects = crops(source, cols, rows);
+      const rects = crops(source, cols, rows, divisions);
       rects.forEach((r, index) =>
         texture.add(String(index), 0, r.x, r.y, r.width, r.height),
       );
@@ -126,6 +133,11 @@ export function createShowcase(
             .setDisplaySize(850, 310),
         );
       this.cut("ledge");
+      // The generated source uses unequal cells; preserve pixels and crop its actual packing.
+      this.shrineFrames = this.cut("shrine", 2, 2, {
+        x: [0, 0.484375, 1],
+        y: [0, 0.35, 1],
+      });
       this.cut("hook");
       this.lanternCrop = this.cut("lantern")[0]!;
       this.rebuildTerrain(options.view?.());
@@ -174,9 +186,21 @@ export function createShowcase(
       for (const [index, [x, y, width, height]] of (
         world?.platforms ?? PLATFORMS
       ).entries()) {
+        const shrine =
+          this.terrainMap === "crossroads" && [2, 6, 9].includes(index);
+        const variant = index === 6 ? 1 : 0;
+        const stone = shrine
+          ? shrineLedge(
+              this,
+              this.shrineFrames[variant]!,
+              variant,
+              width,
+              height * 2.3,
+            )
+          : "ledge";
         this.terrain.add(
           this.add
-            .image(x + 3, y + 7, "ledge", "0")
+            .image(x + 3, y + 7, stone, shrine ? undefined : "0")
             .setOrigin(0)
             .setDisplaySize(width, height * 2.3)
             .setTint(0x101421)
@@ -184,15 +208,26 @@ export function createShowcase(
         );
         this.terrain.add(
           this.add
-            .image(x, y, "ledge", "0")
+            .image(x, y, stone, shrine ? undefined : "0")
             .setName("platform")
             .setOrigin(0)
             .setDisplaySize(width, height * 2.3)
-            .setTint(0xc6c5d7),
+            .setTint(shrine ? 0xffffff : 0xc6c5d7),
         );
         const dressing = this.add.graphics();
         this.terrain.add(dressing);
-        dressPlatform(dressing, x, y, width, index);
+        if (shrine)
+          dressShrine(
+            this,
+            this.terrain,
+            this.shrineFrames,
+            x,
+            y,
+            width,
+            height * 2.3,
+            index !== 2,
+          );
+        else dressPlatform(dressing, x, y, width, index);
         if (lanternSlots.includes(index)) {
           const lx = x + width - 42,
             ly = y + height * 2.3 + 8;
@@ -218,6 +253,10 @@ export function createShowcase(
         }
       }
       host.dataset.map = this.terrainMap;
+      host.dataset.shrineProps = String(
+        this.terrain.list.filter((child) => child.name.startsWith("shrine-"))
+          .length,
+      );
       host.dataset.terrainGroups = String(
         this.children.list.filter((child) => child.name === "terrain").length,
       );

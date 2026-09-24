@@ -2,6 +2,8 @@ import { chromium } from "playwright";
 import assert from "node:assert/strict";
 
 const base = process.argv[2];
+const evidence =
+  process.argv[3] ?? "games/hook-havok/docs/evidence/arena-crossroads";
 if (!/^http:\/\/(localhost|127\.0\.0\.1):\d+\/$/.test(base))
   throw new Error("Pass local service URL");
 const browser = await chromium.launch({
@@ -89,7 +91,7 @@ try {
   assert.deepEqual(selected[0].slice(0, 3), [80, 810, 200]);
   await host.locator("#arena-focus").click();
   await host.screenshot({
-    path: "games/hook-havok/docs/evidence/arena-crossroads-desktop.png",
+    path: `${evidence}-desktop.png`,
     fullPage: true,
   });
   const center = guests[1];
@@ -111,14 +113,14 @@ try {
   const phone = guests[3];
   await phone.locator("#arena-focus").click();
   await phone.screenshot({
-    path: "games/hook-havok/docs/evidence/arena-crossroads-phone.png",
+    path: `${evidence}-phone.png`,
     fullPage: true,
   });
   await phone.setViewportSize({ width: 844, height: 390 });
   const canvas = await phone.locator("#scene canvas").boundingBox();
   assert.ok(canvas.y + canvas.height <= 390);
   await phone.screenshot({
-    path: "games/hook-havok/docs/evidence/arena-crossroads-landscape.png",
+    path: `${evidence}-landscape.png`,
     fullPage: true,
   });
   await guests[0].reload();
