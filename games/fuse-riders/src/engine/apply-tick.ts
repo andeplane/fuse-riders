@@ -280,6 +280,10 @@ export function permitted(
  * A creator that means to hand the room over for good is ADR 047 N5.
  */
 export function roomManager(state: RoomState, creatorId: string): string {
+  // Stepping away is not leaving: a creator whose page is merely hidden keeps the crown, while the log duties still
+  // pass to the delegate below (ADR 047 §12, and `roomManager` in `packages/fuse-netcode/src/management.ts`, which is
+  // the copy the screens actually read — this one answers the same so the two can be compared).
+  if (memberAway(state, creatorId)) return creatorId;
   return actingCreator(state, creatorId) ?? creatorId;
 }
 

@@ -876,17 +876,42 @@ test("the watching list hashes by member id, never by the order the joins arrive
 test("the crown names one member, and it is the log's own answer", () => {
   const r = playing();
   assert.equal(roomManager(r.state, "creator"), "creator");
-  // Its own entry steps it away (its page hid): away or absent, the room passes on either way.
+  // Its own entry steps it away: its page hid. The crown stays — alt-tabbing is not leaving the room, and the badge
+  // moving would put ROOM SETTINGS and START RACE on another rider's page while the host still had them.
   r.tick(
     streams(["creator", [r.at("creator", PRESENCE, "creator", false, 1)]]),
   );
   assert.equal(
     roomManager(r.state, "creator"),
+    "creator",
+    "a creator whose page is merely hidden keeps the room",
+  );
+  // The log duties are the other half of the same step away, and they do pass on: a hidden page's world is frozen,
+  // so it cannot seat a joiner or log a departure and the delegate must.
+  assert.equal(
+    actingCreator(r.state, "creator"),
     "guest",
-    "a creator that goes absent hands the room on",
+    "while the duties a frozen page cannot do pass to the next rider",
   );
   r.tick(streams(["guest", [r.at("guest", PRESENCE, "creator", true, 1)]]));
   assert.equal(roomManager(r.state, "creator"), "creator", "and takes it back");
+
+  // Absent is not away, and the difference is who wrote the entry. A creator the *room* logged absent — its page
+  // really went, and the manager said so about it — hands the crown on, so a room cannot be stranded on a member no
+  // device answers for. The entry rewrites the fold without the away mark, which is what makes the two cases differ.
+  const gone = playing();
+  gone.tick(
+    streams(["creator", [gone.at("creator", PRESENCE, "creator", false, 1)]]),
+  );
+  assert.equal(roomManager(gone.state, "creator"), "creator", "away, not gone");
+  gone.tick(
+    streams(["guest", [gone.at("guest", PRESENCE, "creator", false, 1)]]),
+  );
+  assert.equal(
+    roomManager(gone.state, "creator"),
+    "guest",
+    "and once the room says it is absent, the crown moves even though it had stepped away first",
+  );
   // A creator that only ever watched is a member like any other: it holds the crown while it is present and hands it
   // on when it goes, and the watching record being dropped at the next pause does not take the crown with it.
   const w = room();
