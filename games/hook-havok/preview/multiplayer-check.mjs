@@ -61,7 +61,7 @@ try {
   await host.locator("#keeper-name").fill("Amber");
   await host.locator("#start").click();
   await host.locator('#status[data-state="playing"]').waitFor();
-  await host.locator("summary").click();
+  await host.locator("#development-workshop > summary").click();
   await host.locator('input[name="speed"]').fill("400");
   await host.locator("#tuning button").click();
   const invite = await host.locator("#invite-url").inputValue();

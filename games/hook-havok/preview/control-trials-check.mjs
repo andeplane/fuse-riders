@@ -31,6 +31,7 @@ try {
       tick + n,
     );
   };
+  await host.locator("#development-workshop > summary").click();
   await host.locator("#jump-mode").selectOption("double");
   await host.waitForFunction(
     () => document.querySelector("#scene").dataset.airJump === "true",

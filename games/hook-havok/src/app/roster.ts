@@ -59,6 +59,9 @@ export function createRoster(host: HTMLElement) {
         const badge = document.createElement("strong");
         badge.className = "keeper-badge";
         badge.textContent = `P${row.slot + 1}`;
+        const portrait = document.createElement("span");
+        portrait.className = "keeper-portrait";
+        portrait.setAttribute("aria-hidden", "true");
         const name = document.createElement("span");
         name.className = "keeper-name";
         name.textContent = `${row.name}${row.you ? " · YOU" : ""}`;
@@ -67,7 +70,7 @@ export function createRoster(host: HTMLElement) {
         detail.textContent = [row.detail, row.status]
           .filter(Boolean)
           .join(" · ");
-        card.append(badge, name, detail);
+        card.append(portrait, badge, name, detail);
         return card;
       }),
     );

@@ -4,7 +4,7 @@ These selectable experiments let players compare the new mechanics with the orig
 
 ## Try it
 
-Create a room, then select **Jump → Double jump**, **Tether → Spiked wire**, and **Your controls → Keyboard · J / K**. Select a ball experiment to try splitting orbs. Jump and Tether are manager-controlled shared settings; changing either restarts the trial. Keyboard mode is local to each device and is also available in the splash Settings dialog.
+Create a room, then open **Development workshop** to select **Jump → Double jump** and **Tether → Spiked wire**. In **Room & match**, select **Your controls → Keyboard · J / K** and a ball experiment to try splitting orbs. Jump and Tether are manager-controlled shared settings; changing either restarts the trial. Keyboard mode is local to each device and is also available in the splash Settings dialog.
 
 | Action               | Keyboard mode                                   |
 | -------------------- | ----------------------------------------------- |

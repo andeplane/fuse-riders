@@ -26,6 +26,7 @@ import { touchAim } from "./touch-input.js";
 import { createRoster } from "./roster.js";
 import { createEntrance } from "./entrance.js";
 import { KeyboardInput } from "./keyboard-input.js";
+import { createMatchShell } from "./match-shell.js";
 import {
   sessionStore,
   sessionToken,
@@ -282,6 +283,7 @@ function localView(view: WorldView): WorldView {
   };
 }
 function stopRoom() {
+  matchShell.reset();
   connecting = false;
   document.body.classList.remove("arena-focused");
   focusButton.textContent = "Focus arena";
@@ -567,11 +569,19 @@ const enterRoom = async () => {
                 : c.phase === "countdown"
                   ? `Get ready · ${c.seconds}`
                   : c.phase === "over"
-                    ? `${c.winners.length ? `${names(c.winners)} ${c.winners.length > 1 ? "share the win" : "wins"}` : "Draw — no keepers remain"}. Room manager: restart the shared trial to play again.`
+                    ? `${c.winners.length ? `${names(c.winners)} ${c.winners.length > 1 ? "share the win" : "wins"}` : "Draw — no keepers remain"}. ${manager ? "Choose Play again in Results for another round." : "Waiting for the room manager to start another round."}`
                     : `${c.seconds}s remaining${!display && !localKeeper?.playing ? " · Watching until the next round" : ""}`;
           host.dataset.contest = JSON.stringify(c);
           host.dataset.round = String(frame.round);
           paintRoster(frame, selfId);
+          matchShell.update(
+            frame,
+            selfId,
+            !!manager,
+            display,
+            frame.round,
+            room.code,
+          );
           host.dataset.playerId = selfId;
           el("experiment-help").textContent = descriptions[frame.experiment];
           el("counter").textContent =
@@ -801,6 +811,7 @@ window.addEventListener("pagehide", () => {
 window.addEventListener("pageshow", (e) => {
   if (e.persisted) location.reload();
 });
+const matchShell = createMatchShell();
 const entrance = createEntrance({
   main: document.querySelector("main")!,
   start,

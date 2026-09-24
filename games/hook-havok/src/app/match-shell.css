@@ -1,0 +1,406 @@
+/* The room shell shares the arena's slate, ivory and lantern-gold palette. */
+#room-lounge {
+  margin: 0 0 12px;
+  border: 1px solid #76604480;
+  border-radius: 8px;
+  background: linear-gradient(120deg, #252438ed, #131c2bed);
+  padding: 12px 16px;
+}
+#room-lounge summary,
+#development-workshop summary {
+  cursor: pointer;
+  color: #efd8ae;
+}
+#lounge-summary {
+  float: right;
+  font:
+    12px system-ui,
+    sans-serif;
+  color: #b8c7d4;
+}
+#room-authority {
+  font:
+    12px/1.6 system-ui,
+    sans-serif;
+  color: #aeb6c9;
+  margin: 10px 0 4px;
+}
+.lounge-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+}
+.lounge-content > * {
+  flex: 1 1 100%;
+}
+.lounge-content .controls {
+  margin: 4px 0;
+}
+.lounge-content #map-help {
+  display: none;
+}
+.lounge-content #rules-help {
+  font:
+    11px/1.5 system-ui,
+    sans-serif;
+  color: #b7c4d4;
+}
+.lounge-content #round-status {
+  margin: 0;
+}
+.lounge-content [data-radio] {
+  font:
+    11px system-ui,
+    sans-serif;
+}
+.lounge-content #invitation {
+  padding-bottom: 8px;
+  border-bottom: 1px solid #75624655;
+}
+.lounge-content #invite-url {
+  width: 240px;
+}
+.personal-controls {
+  font:
+    12px system-ui,
+    sans-serif;
+}
+#development-workshop {
+  margin-top: 20px;
+  padding: 14px;
+  border: 1px dashed #5b5866;
+  border-radius: 6px;
+}
+#development-workshop .controls {
+  margin: 16px 0;
+}
+#development-workshop #start {
+  display: none;
+}
+#development-workshop .room-entry::before {
+  content: "Choose your name before joining another room. Keeper colors follow P1–P5 seats.";
+  flex-basis: 100%;
+  color: #aaaabd;
+  font:
+    12px system-ui,
+    sans-serif;
+}
+#match-hud {
+  margin: 12px 0 8px;
+}
+.playground #match-hud #round-status {
+  font:
+    11px/1.4 system-ui,
+    sans-serif;
+  padding: 4px 8px;
+  margin: 4px 0;
+}
+.arena-focused main {
+  max-width: min(1560px, calc((100dvh - 235px) * 16 / 9));
+}
+.arena-focused.touch-trial .play-surface .stage {
+  width: min(100%, calc((100dvh - 230px) * 16 / 9));
+}
+.match-heading {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 0 4px;
+}
+.match-heading > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+#match-map,
+.match-clock small {
+  font:
+    10px system-ui,
+    sans-serif;
+  letter-spacing: 0.16em;
+  color: #b9a47f;
+}
+#match-mode {
+  font-weight: normal;
+  font-size: 23px;
+}
+#spectator-state {
+  margin-left: auto;
+  color: #b6c9d9;
+  font:
+    11px system-ui,
+    sans-serif;
+}
+.match-clock {
+  text-align: center;
+  min-width: 92px;
+  padding: 7px 14px;
+  border: 1px solid #9e845754;
+  background: #0e1522;
+  clip-path: polygon(
+    8px 0,
+    calc(100% - 8px) 0,
+    100% 8px,
+    100% 100%,
+    0 100%,
+    0 8px
+  );
+}
+.match-clock strong {
+  display: block;
+  font:
+    28px/1.1 Georgia,
+    serif;
+  color: #f5e4c4;
+  font-variant-numeric: tabular-nums;
+}
+.playground #match-hud #roster {
+  margin: 8px 0 0;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+#match-hud .keeper-card {
+  position: relative;
+  grid-template-columns: 44px 1fr;
+  min-height: 65px;
+  padding: 7px 8px;
+  background: linear-gradient(110deg, #273046, #101725);
+  border-top: 1px solid #657181;
+  border-left: 3px solid var(--keeper-color);
+  border-radius: 2px 9px 2px 9px;
+}
+.keeper-portrait {
+  display: block;
+  width: 54px;
+  height: 62px;
+  background-image: url("../../art-source/character/lantern-keeper-nine-pose-source.png");
+  background-size: 330px 330px;
+  background-position: -28px -24px;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 5px var(--keeper-color));
+}
+#match-hud .keeper-portrait {
+  grid-row: span 2;
+  margin: -5px -8px;
+}
+#match-hud .keeper-badge {
+  position: absolute;
+  left: 5px;
+  bottom: 3px;
+  display: block;
+  padding: 0 3px;
+  font-size: 9px;
+  border-radius: 2px;
+}
+#match-hud .keeper-name {
+  align-self: end;
+}
+#match-hud .keeper-card small {
+  font-size: 10px;
+}
+#match-hud .keeper-card[data-state="WINNER"] {
+  box-shadow: inset 0 0 22px #eebc4938;
+}
+#match-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 5;
+}
+#countdown-card {
+  text-align: center;
+  text-shadow: 0 3px 18px #000;
+  color: #fff1cf;
+}
+#countdown-card span {
+  font:
+    12px system-ui,
+    sans-serif;
+  letter-spacing: 0.35em;
+}
+#countdown-number {
+  display: block;
+  font:
+    100px/1.1 Georgia,
+    serif;
+}
+#result-card {
+  pointer-events: auto;
+  width: min(520px, 90%);
+  max-height: 94%;
+  overflow: auto;
+  text-align: center;
+  padding: 24px;
+  border: 1px solid #d3aa63;
+  border-radius: 4px 30px;
+  background: radial-gradient(ellipse at top, #39324bec, #0d1425f5 70%);
+  box-shadow:
+    0 12px 55px #000b,
+    inset 0 0 0 5px #e3b85b12;
+  animation: winner-arrives 0.4s ease-out;
+}
+.result-kicker {
+  color: #dbb776;
+  font:
+    10px system-ui,
+    sans-serif;
+  letter-spacing: 0.25em;
+}
+#result-title {
+  font-size: clamp(20px, 3vw, 34px);
+  margin: 12px 0;
+}
+#winner-portraits {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+#winner-portraits .keeper-portrait {
+  width: 66px;
+  height: 76px;
+  background-size: 400px 400px;
+  background-position: -32px -28px;
+}
+#result-detail {
+  color: #e5cfaa;
+  overflow-wrap: anywhere;
+}
+.result-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#rematch {
+  background: #d6af72;
+  border-color: #f9dcac;
+  color: #201a29;
+}
+#rematch-help {
+  color: #aab5c8;
+  font:
+    11px/1.5 system-ui,
+    sans-serif;
+  margin-bottom: 0;
+}
+.arena-focused #room-lounge {
+  display: none;
+}
+.display-only #room-lounge,
+.display-only #development-workshop,
+.display-only #result-free,
+.display-only #rematch {
+  display: none;
+}
+@keyframes winner-arrives {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #result-card {
+    animation: none;
+  }
+}
+@media (max-width: 700px) {
+  #room-lounge {
+    padding: 10px;
+  }
+  #lounge-summary {
+    float: none;
+    display: block;
+    margin: 6px 0 0 16px;
+  }
+  .match-heading {
+    gap: 7px;
+  }
+  #match-mode {
+    font-size: 18px;
+  }
+  #spectator-state {
+    max-width: 110px;
+    overflow-wrap: anywhere;
+    font-size: 10px;
+  }
+  .match-clock {
+    min-width: 64px;
+    padding: 7px;
+  }
+  .match-clock strong {
+    font-size: 24px;
+  }
+  .playground #match-hud #roster {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 4px;
+  }
+  #match-hud .keeper-card {
+    grid-template-columns: 29px 1fr;
+    padding: 5px;
+    min-height: 54px;
+  }
+  #match-hud .keeper-portrait {
+    transform: scale(0.8);
+    transform-origin: left top;
+    margin: -4px -8px -12px;
+  }
+  #match-hud .keeper-name {
+    font-size: 10px;
+  }
+  #match-hud .keeper-card small {
+    font-size: 9px;
+  }
+  #result-card {
+    padding: 10px;
+  }
+  #result-title {
+    margin: 5px 0;
+  }
+  #winner-portraits {
+    display: none;
+  }
+  .result-kicker {
+    margin: 0;
+    font-size: 8px;
+  }
+  #result-detail {
+    margin: 6px 0;
+    font-size: 12px;
+  }
+  #rematch-help {
+    margin-top: 6px;
+    font-size: 9px;
+  }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  #match-hud .keeper-card {
+    min-height: 42px;
+  }
+  #match-hud .keeper-portrait {
+    display: none;
+  }
+  #match-hud .keeper-card {
+    display: block;
+    padding-left: 28px;
+  }
+  #match-hud .keeper-badge {
+    top: 5px;
+    bottom: auto;
+  }
+  #match-hud .keeper-name {
+    display: block;
+  }
+  #match-hud .keeper-card small {
+    display: block;
+  }
+  #match-hud {
+    margin: 4px 0;
+  }
+  #room-lounge {
+    margin-bottom: 4px;
+  }
+}

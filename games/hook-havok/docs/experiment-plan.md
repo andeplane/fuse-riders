@@ -120,9 +120,9 @@ Implemented an original cathedral entrance painting, live ivory/gold title, subt
 
 Implemented optional spiked-wire ball contact, a second airborne jump (also available after dropping), and eight-direction keyboard aiming with J / Space jump and K hook. Shared Jump/Tether settings restart the trial; local keyboard mode preserves mouse mode as a comparison. Defaults retain the original behavior. See [controls, exact rules and verification](control-trials.md). Rules are now `hook-havok-8`; refresh all clients and create a fresh room. Playtesting should determine whether these become defaults.
 
-### 8B. Lobby, match HUD and results (planned)
+### 8B. Room lounge, match HUD and results
 
-Illustrated player cards, identity selection, invitations and host/start status; compact match portraits, scores and timers; countdown, spectator status, winner reveal and rematch. Move workshop controls into an explicit development panel and adapt layouts to desktop, shared display and phones.
+Implemented a collapsible room lounge for invitations, match choices and manager status; illustrated P1–P5 cards, mode/map/timer HUD, countdown, late-watcher status, winner reveal and manager rematch/free-play actions. Numeric tuning, debug, art showcase and control experiments live in a collapsed Development workshop. Focus mode preserves the HUD and phone touch controls. Identity selection remains the existing pre-entry keeper name with assigned seat/color; this does not add an avatar picker or ready-vote protocol. See [behavior, review fixes and real browser evidence](match-shell.md). Rules remain `hook-havok-8`.
 
 ### 8C. Cohesion and performance (planned)
 
