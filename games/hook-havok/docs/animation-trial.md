@@ -1,5 +1,7 @@
 # Animation and asset-production trial
 
+This document describes the original six-pose source study. The live playground and Phaser showcase now use the [Phase 7B nine-pose atlas](art-production.md); the original source and standalone inspector remain available for comparison.
+
 ## Direction and scope
 
 Continue A's belfry palette and lantern-keeper identity with B's greater platform density. The user expressed a preference for A's character and B's platforms; they did not choose an exclusive background. All eight planned map rectangles are shown. This is a standalone art-review page, not the future Phaser scene and not an offline game mode. No gameplay, networking or audio runs here.

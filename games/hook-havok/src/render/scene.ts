@@ -4,6 +4,7 @@ import { showcasePose, PLATFORMS, ANCHOR } from "./showcase-timeline.js";
 import type { WorldView } from "../engine/view.js";
 import { Feedback, type Cue } from "./feedback.js";
 import { KEEPER_COLORS, keeperColor } from "./identity.js";
+import { paintCrest, paintTether, paintBurst, dressPlatform } from "./art.js";
 
 export interface ShowcaseHandle {
   resetFeedback(): void;
@@ -44,12 +45,14 @@ export function createShowcase(
       string,
       {
         actor: Phaser.GameObjects.Image;
+        crest: Phaser.GameObjects.Graphics;
         tether: Phaser.GameObjects.Graphics;
         label: Phaser.GameObjects.Text;
         feedback: Feedback;
       }
     >();
     private actor?: Phaser.GameObjects.Image;
+    private crest?: Phaser.GameObjects.Graphics;
     private hook?: Phaser.GameObjects.Image;
     private tether?: Phaser.GameObjects.Graphics;
     private effects?: Phaser.GameObjects.Graphics;
@@ -108,10 +111,11 @@ export function createShowcase(
       this.add
         .image(800, 450, "background")
         .setDisplaySize(1600, 900)
-        .setTint(0xb8bdd3);
-      this.add.rectangle(800, 450, 1600, 900, 0x11172e, 0.12);
+        .setTint(0x9da9c9);
+      this.add.rectangle(800, 450, 1600, 900, 0x11172e, 0.19);
       this.glowTexture("mist", "rgba(149,157,196,0.32)");
       this.glowTexture("warm", "rgba(255,174,70,0.5)");
+      this.add.image(370, 140, "mist").setDisplaySize(1000, 650).setAlpha(0.28);
       for (let i = 0; i < 5; i++)
         this.fog.push(
           this.add
@@ -125,9 +129,17 @@ export function createShowcase(
         options.view?.().platforms ?? PLATFORMS
       ).entries()) {
         this.add
+          .image(x + 3, y + 7, "ledge", "0")
+          .setOrigin(0)
+          .setDisplaySize(width, height * 2.3)
+          .setTint(0x101421)
+          .setAlpha(0.55);
+        this.add
           .image(x, y, "ledge", "0")
           .setOrigin(0)
-          .setDisplaySize(width, height * 2.3);
+          .setDisplaySize(width, height * 2.3)
+          .setTint(0xc6c5d7);
+        dressPlatform(this.add.graphics(), x, y, width, index);
         if ([0, 2, 4, 5, 6].includes(index)) {
           const lx = x + width - 42,
             ly = y + height * 2.3 + 8;
@@ -147,16 +159,18 @@ export function createShowcase(
             .setDisplaySize((38 * lantern.width) / lantern.height, 38);
         }
       }
-      this.frames = this.cut("actor", 3, 2);
+      this.frames = this.cut("actor", 3, 3);
       this.actorScale = 76 / Math.max(...this.frames.map((r) => r.height));
-      this.tether = this.add.graphics();
-      this.combat = this.add.graphics();
-      this.actor = this.add.image(310, 810, "actor", "0");
+      this.tether = this.add.graphics().setDepth(10);
+      this.combat = this.add.graphics().setDepth(9);
+      this.crest = this.add.graphics().setDepth(11);
+      this.actor = this.add.image(310, 810, "actor", "0").setDepth(12);
       this.hook = this.add
         .image(0, 0, "hook", "0")
         .setDisplaySize(30, 23)
+        .setDepth(13)
         .setVisible(false);
-      this.effects = this.add.graphics();
+      this.effects = this.add.graphics().setDepth(14);
       // Restrained edge framing, never a playable surface.
       const edge = this.add.graphics().fillStyle(0x101420, 0.72);
       edge
@@ -195,6 +209,9 @@ export function createShowcase(
       const motion = world
         ? feedback.pose(world, elapsed, reduced.matches)
         : undefined;
+      const focused = world?.localId ?? world?.keepers[0]?.id;
+      const slot = world?.keepers.find((k) => k.id === focused)?.slot ?? 0;
+      const color = KEEPER_COLORS[slot] ?? KEEPER_COLORS[0];
       const pose = world
           ? {
               x: world.x,
@@ -233,22 +250,33 @@ export function createShowcase(
         )
         .setRotation(motion?.rotation ?? 0)
         .setFlipX(world?.facing === -1)
+        .setTint(color)
         .setAlpha(pose.alpha);
+      if (this.crest) {
+        paintCrest(this.crest, slot, color);
+        this.crest
+          .setPosition(pose.x, pose.feet)
+          .setScale((world?.facing ?? 1) * (motion?.scaleX ?? 1), pose.scaleY)
+          .setRotation(motion?.rotation ?? 0)
+          .setAlpha(pose.alpha);
+      }
       this.tether.clear();
       this.hook.setVisible(!!pose.hook);
       if (pose.hook) {
         const sx = pose.x + 17 * (world?.facing ?? 1),
           sy = pose.feet - 40;
-        this.tether
-          .lineStyle(
-            world?.hook.phase === "attached" ? 3 : 2,
-            world?.hook.phase === "attached" ? 0xf4d69a : 0xd2b580,
-            pose.alpha,
-          )
-          .beginPath()
-          .moveTo(sx, sy)
-          .lineTo(pose.hook.x, pose.hook.y)
-          .strokePath();
+        paintTether(
+          this.tether,
+          sx,
+          sy,
+          pose.hook.x,
+          pose.hook.y,
+          color,
+          world
+            ? world.hook.phase === "attached"
+            : "attached" in pose.hook && pose.hook.attached,
+          pose.alpha,
+        );
         this.hook
           .setPosition(pose.hook.x, pose.hook.y)
           .setRotation(Math.atan2(pose.hook.y - sy, pose.hook.x - sx))
@@ -257,10 +285,10 @@ export function createShowcase(
       this.effects.clear();
       if (world) {
         const colors = KEEPER_COLORS;
-        const focused = world.localId ?? world.keepers[0]?.id;
         for (const [id, peer] of this.peers)
           if (!world.keepers.some((k) => k.id === id)) {
             peer.actor.destroy();
+            peer.crest.destroy();
             peer.tether.destroy();
             peer.label.destroy();
             this.peers.delete(id);
@@ -270,8 +298,9 @@ export function createShowcase(
           if (!peer) {
             peer = {
               feedback: new Feedback(),
-              actor: this.add.image(0, 0, "actor", "0"),
-              tether: this.add.graphics(),
+              actor: this.add.image(0, 0, "actor", "0").setDepth(12),
+              crest: this.add.graphics().setDepth(11),
+              tether: this.add.graphics().setDepth(10),
               label: this.add
                 .text(0, 0, "", {
                   fontFamily: "sans-serif",
@@ -282,7 +311,8 @@ export function createShowcase(
                   stroke: "#101420",
                   strokeThickness: 4,
                 })
-                .setOrigin(0.5, 1),
+                .setOrigin(0.5, 1)
+                .setDepth(15),
             };
             this.peers.set(keeper.id, peer);
           }
@@ -303,9 +333,17 @@ export function createShowcase(
             )
             .setRotation(remotePose.rotation)
             .setFlipX(body.facing === -1)
+            .setTint(color)
             .setAlpha(
               !keeper.connected || !keeper.playing || body.respawn ? 0.3 : 1,
             );
+          paintCrest(peer.crest, keeper.slot, color);
+          peer.crest
+            .setVisible(keeper.id !== focused)
+            .setPosition(body.x, body.feet)
+            .setScale(body.facing * remotePose.scaleX, remotePose.scaleY)
+            .setRotation(remotePose.rotation)
+            .setAlpha(peer.actor.alpha);
           peer.label
             .setText(
               `P${keeper.slot + 1}${keeper.id === world.localId ? " · YOU" : ""}${!keeper.playing ? " · WATCHING" : keeper.connected ? "" : " · AWAY"}`,
@@ -313,7 +351,7 @@ export function createShowcase(
             .setColor(keeperColor(keeper.slot))
             .setPosition(
               Math.max(85, Math.min(1515, body.x)),
-              Math.max(35, body.feet - 82),
+              Math.max(35, body.feet - 94),
             );
           peer.tether
             .clear()
@@ -323,12 +361,25 @@ export function createShowcase(
               keeper.connected ? 0.9 : 0.3,
             )
             .strokeEllipse(body.x, body.feet + 2, 36, 9);
-          if (keeper.id !== focused && body.hook.phase !== "ready")
+          if (keeper.id !== focused && body.hook.phase !== "ready") {
+            paintTether(
+              peer.tether,
+              body.x + 17 * body.facing,
+              body.feet - 40,
+              body.hook.x,
+              body.hook.y,
+              color,
+              body.hook.phase === "attached",
+              peer.actor.alpha,
+            );
             peer.tether
-              .lineStyle(2, color, 0.8)
-              .lineBetween(body.x, body.feet - 40, body.hook.x, body.hook.y)
-              .fillStyle(color)
-              .fillCircle(body.hook.x, body.hook.y, 5);
+              .lineStyle(2, 0xffebbd, peer.actor.alpha)
+              .strokeCircle(body.hook.x, body.hook.y, 4);
+          }
+          if (keeper.id !== focused)
+            for (const burst of peer.feedback.active())
+              if (burst.kind !== "impact" && burst.kind !== "pop")
+                paintBurst(this.effects, burst, elapsed, reduced.matches);
         }
         host.dataset.keepers = JSON.stringify(
           world.keepers.map((k) => ({
@@ -340,6 +391,7 @@ export function createShowcase(
             feet: k.body.feet,
             hook: k.body.hook.phase,
             deaths: k.body.deaths,
+            costume: k.slot,
           })),
         );
       }
@@ -402,36 +454,7 @@ export function createShowcase(
       }
       if (world) {
         for (const burst of feedback.active()) {
-          const age = (elapsed - burst.at) / 400,
-            alpha = 1 - age;
-          if (reduced.matches) {
-            this.effects
-              .lineStyle(2, 0xe6c893, alpha * 0.6)
-              .strokeCircle(burst.x, burst.y - 5, 8);
-            continue;
-          }
-          const count = burst.kind === "land" ? 10 : 6;
-          for (let i = 0; i < count; i++) {
-            const angle = (i * Math.PI * 2) / count;
-            const ground = burst.kind === "land" || burst.kind === "jump";
-            this.effects
-              .fillStyle(ground ? 0xc4b59c : 0xffda8b, alpha * 0.7)
-              .fillCircle(
-                burst.x +
-                  (ground
-                    ? (i - count / 2) * (3 + age * 8)
-                    : Math.cos(angle) * (5 + age * 35)),
-                burst.y -
-                  (ground
-                    ? Math.sin(i + 1) ** 2 * age * 26
-                    : Math.sin(angle) * (5 + age * 35)),
-                ground ? 1 + alpha * 2 : 1 + alpha,
-              );
-          }
-          if (burst.kind === "release" || burst.kind === "respawn")
-            this.effects
-              .lineStyle(2, 0x99dfca, alpha * 0.5)
-              .strokeCircle(burst.x, burst.y - 32, 12 + age * 28);
+          paintBurst(this.effects, burst, elapsed, reduced.matches);
         }
       }
       if (world && options.debug?.()) {

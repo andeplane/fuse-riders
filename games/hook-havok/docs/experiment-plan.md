@@ -88,6 +88,10 @@ Implemented a compact playground header, colour/number player cards, readable in
 
 Map geometry, movement, scoring, generated art sources and audio remain unchanged. Further arena layouts, costume/animation refinement and bespoke music should follow user feedback on the current loop.
 
+### 7B. Art-production trial
+
+Implemented the proposed first art increment: five costume colours and hood crests, a refined nine-pose keeper atlas with dedicated action silhouettes, outlined tethers and sharper impact effects, and integrated stone lighting/cloth dressing in the existing belfry. [Sources, exact prompts, limits and real-room evidence](art-production.md). Source alpha and cell separation are validated by the live loader. Gameplay rules, geometry and networking remain unchanged. Final animation polish, bespoke costumes and user acceptance are still open.
+
 ## Module ownership
 
 `engine/`: state, input, tuning, maps, collision, movement, grapple, step, codec, view. Imports nothing from app/render/network.

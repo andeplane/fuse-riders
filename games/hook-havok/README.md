@@ -4,6 +4,8 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
+Phase 7B is a playable [art-production trial](docs/art-production.md): a nine-pose keeper sheet, five colour-tinted costumes with distinct hood crests, dedicated launch/pull/rise/fall poses, inked tethers and impact strokes, plus stone lighting and hanging cloth. Enter a room and choose **Focus arena** to compare the five keepers. The existing map and gameplay rules are unchanged; artistic acceptance remains for playtesting.
+
 Phase 7A adds [presentation polish](docs/presentation.md): compact controls, player cards with matching arena colours/numbers, clearer labels, and consistent animation for remote keepers. After entering a room, use **Focus arena** to hide setup controls while retaining the game and round status. **Show controls** restores the workshop and room controls. Physics and rules are unchanged.
 
 Platforms now let players jump through from below and catch them on descent. **S / Down arrow** drops through the current ledge; on touch, slide the left pad down. Release down before dropping again. Dropping releases an attached hook. Hook shots and the dummy retain solid platform collision. These rules apply in free play and competitive rounds; dropping off the bottom can eliminate you or cost points. Refresh every player tab and start a new room after this update (`hook-havok-5`).

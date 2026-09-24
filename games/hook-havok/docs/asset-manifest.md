@@ -2,6 +2,8 @@
 
 This page records the initial six static source trials. The subsequent animation sheet, hook and lantern are recorded with exact prompts and measurements in [animation trial](animation-trial.md). Runtime asset optimization remains a later milestone.
 
+The live keeper now uses the [Phase 7B nine-pose atlas](art-production.md): `character/lantern-keeper-nine-pose-source.png`, 1254 × 1254, 763,989 bytes, genuine alpha. That document records the original reference, both exact generation prompts, grid validation and runtime limits. The earlier sources below remain unchanged.
+
 ## Inspected source metadata
 
 Decoded with `System.Drawing.Bitmap` on 2026-09-23; all six PNGs opened successfully and were visually inspected. Alpha verified from decoded ARGB data and a fully transparent corner on both cutouts. No image was resized or edited after generation.

@@ -4,7 +4,7 @@ export const ASSETS = {
     import.meta.url,
   ).href,
   actor: new URL(
-    "../../art-source/character/lantern-keeper-six-pose-source.png",
+    "../../art-source/character/lantern-keeper-nine-pose-source.png",
     import.meta.url,
   ).href,
   ledge: new URL(

@@ -46,13 +46,13 @@ export function showcasePose(time: number, idleOnly = false): ShowcasePose {
   pose.scaleY = 1;
   if (t < 3000) {
     pose.x = mix(310, 460, (t - 1800) / 1200);
-    pose.frame = 2 + (Math.floor((t - 1800) / 125) % 4);
+    pose.frame = 1 + (Math.floor((t - 1800) / 125) % 4);
     pose.label = "Run · silhouette and cadence";
   } else if (t < 4100) {
     const p = (t - 3000) / 1100;
     pose.x = mix(460, 670, p);
     pose.feet = mix(810, 610, p) - Math.sin(p * Math.PI) * 105;
-    pose.frame = 3;
+    pose.frame = p < 0.6 ? 5 : 6;
     pose.label = "Jump · authored presentation arc";
   } else if (t < 5300) {
     pose.x = 670;
@@ -69,6 +69,7 @@ export function showcasePose(time: number, idleOnly = false): ShowcasePose {
       y: mix(568, ANCHOR.y, p),
       attached: p === 1,
     };
+    pose.frame = 7;
     pose.spark = t >= 5650 ? Math.max(0, 1 - (t - 5650) / 250) : 0;
     pose.label = p < 1 ? "Fire · follow the hook" : "Attach · brass on stone";
   } else if (t < 7500) {
@@ -82,14 +83,14 @@ export function showcasePose(time: number, idleOnly = false): ShowcasePose {
       pose.x = 940;
       pose.feet = mix(460, 280, ease((p - 0.65) / 0.35));
     }
-    pose.frame = 3;
+    pose.frame = 8;
     pose.hook = { ...ANCHOR, attached: true };
     pose.label = "Pull · tension and momentum";
   } else if (t < 8600) {
     const p = (t - 7500) / 1100;
     pose.x = mix(940, 790, p);
     pose.feet = mix(280, 330, p) - Math.sin(p * Math.PI) * 65;
-    pose.frame = 3;
+    pose.frame = p < 0.4 ? 5 : 6;
     pose.label = "Release · drift into the landing";
   } else {
     pose.x = 790;

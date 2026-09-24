@@ -4,6 +4,54 @@ import { Feedback } from "../src/render/feedback.js";
 import { createWorld } from "../src/engine/world.js";
 import { toView } from "../src/engine/view.js";
 import { EffectsAudio, type ToneSink } from "../src/app/audio.js";
+test("keeper action poses override running and never change the view", () => {
+  const f = new Feedback();
+  const idle = toView(createWorld());
+  const running = { ...idle, vx: 240, grounded: true };
+  const before = structuredClone(running);
+  assert.equal(f.pose(idle, 0, false).frame, 0);
+  const runFrames = new Set(
+    Array.from({ length: 40 }, (_, i) => f.pose(running, i * 25, false).frame),
+  );
+  assert.deepEqual([...runFrames].sort(), [1, 2, 3, 4]);
+  assert.equal(
+    f.pose({ ...running, grounded: false, vy: -200 }, 0, false).frame,
+    5,
+  );
+  assert.equal(
+    f.pose({ ...running, grounded: false, vy: 200 }, 0, false).frame,
+    6,
+  );
+  f.update(running, 0);
+  const fired = {
+    ...running,
+    tick: 3,
+    hook: { phase: "flying" as const, x: 330, y: 700 },
+  };
+  f.update(fired, 50);
+  assert.equal(
+    f.pose(fired, 70, false).frame,
+    7,
+    "moving shot shows the launch arm",
+  );
+  assert.equal(
+    f.pose(fired, 70, true).frame,
+    7,
+    "reduced motion keeps the authored action pose",
+  );
+  assert.equal(f.pose(fired, 70, true).rotation, 0);
+  const pulling = {
+    ...fired,
+    hook: { ...fired.hook, phase: "attached" as const },
+  };
+  assert.equal(
+    f.pose(pulling, 200, false).frame,
+    8,
+    "grounded pull is not a run frame",
+  );
+  assert.equal(f.pose(pulling, 200, true).rotation, 0);
+  assert.deepEqual(running, before);
+});
 test("simultaneous prop and player hits retain independent effect positions", () => {
   const f = new Feedback(),
     v = toView(createWorld());

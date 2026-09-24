@@ -93,14 +93,14 @@ export class Feedback {
     const fired = [...this.bursts].reverse().find((b) => b.kind === "fire");
     const compression =
       !reduced && landing ? Math.max(0, 1 - (ms - landing.at) / 180) : 0;
-    const recoil =
-      !reduced && fired ? Math.max(0, 1 - (ms - fired.at) / 100) : 0;
+    const firing = fired ? Math.max(0, 1 - (ms - fired.at) / 100) : 0;
+    const recoil = reduced ? 0 : firing;
     const moving = view.grounded && Math.abs(view.vx) > 20;
     const state = view.respawn
       ? "respawn"
       : compression > 0
         ? "land"
-        : recoil > 0
+        : firing > 0
           ? "fire"
           : view.hook.phase === "attached"
             ? "pull"
@@ -111,13 +111,20 @@ export class Feedback {
               : moving
                 ? "run"
                 : "idle";
-    const frame = moving
-      ? 2 + (Math.floor(ms / Math.max(65, 125 - Math.abs(view.vx) / 10)) % 4)
-      : state === "rise" || state === "pull"
-        ? 3
-        : state === "fall"
-          ? 4
-          : 0;
+    const frame =
+      state === "fire"
+        ? 7
+        : state === "pull"
+          ? 8
+          : state === "rise"
+            ? 5
+            : state === "fall"
+              ? 6
+              : state === "run"
+                ? 1 +
+                  (Math.floor(ms / Math.max(65, 125 - Math.abs(view.vx) / 10)) %
+                    4)
+                : 0;
     const stretch = reduced
       ? 0
       : compression
