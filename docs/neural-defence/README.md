@@ -20,13 +20,15 @@ Where the documents describe algorithms, they are proposed contracts for impleme
 ## What the first engine must prove
 
 - A player can grow around obstacles, share a deposit with an opponent, and deliberately change the front they supply.
-- Manual and automatic growth use identical legality, cost and construction-time rules. Automation saves clicks without supplying extra information or strength.
+- Expansion is explicit neuron construction: choose tiles and queue a route, with visible costs and progress. Automatic expansion is deferred until these decisions are fun.
 - Particles take time to move through owned connections. Priorities redirect a bounded pool; they never create charge or move it instantly.
 - Nodes have basic defence; towers give specialised reach at an economic and positional cost. Both must draw from the same electrical budget.
 - Disconnecting a branch has a clear, recoverable consequence. Elimination and simultaneous final-brain destruction have explicit outcomes.
 - Headless and networked play execute the same rules. Saved state plus commands reproduces every result, including after rollback.
 
-The smallest useful prototype is a two-brain battle with growth, resource adjacency, charge routing, one tower and brain destruction. Add four-player scenarios and a small research choice before expanding the content catalogue. Full visibility comes first; fog and powerups remain later experiments.
+Start on a hand-authored **12 × 12 hex map (144 cells)** stored in a versioned `.json` file, with configurable width and height. A later map editor will use the same format and engine validator. The first playable scenario is a **one-player sandbox with no AI** for testing construction and mining, then charge priorities; it keeps running without declaring the sole brain a winner. Then test two-brain battles, one tower and a small research choice before four-player scenarios. Full visibility comes first; fog and powerups remain later experiments.
+
+The sandbox supports **`?debug`** for instant construction and research, visibly marked and excluded from match statistics. Costs and prerequisites still apply. These are recorded engine settings, so headless runs and replays reproduce the same behaviour; they never depend on a URL inside the simulation. Debug is initially limited to offline solo sandbox play.
 
 ## Design decisions for your review
 
