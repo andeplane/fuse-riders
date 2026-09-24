@@ -8,13 +8,14 @@ Build a real-time territory RTS with tower-defence combat: each player is a brai
 
 The distinguishing decision should be **where to send your finite electrical strength**. Expanding buys access to resources and firing positions, but creates more places to defend. Concentrating particles can break a front while exposing another. Cutting a narrow connection can matter more than destroying a large army.
 
-Use two spendable resources, **Biomass** for growth/construction and **Insight** for research, plus a finite, reusable **charge pool**. Charge is tactical capacity distributed through the graph, not a third bank account. Start with the same pool for every player; postpone upgrades that increase its total until routing itself is fun.
+Use two spendable resources, **Biomass** for growth/construction and **Insight** for research, plus a finite, reusable **particle pool**. A player holds a mixture of distinct particle types at the same time: the initial proposal is assault particles and guard particles, with different attack/protection properties. Composition, research, travel latency and routing together determine strength. This is the core gameplay, not a cosmetic field over another combat system. Start with the same total pool for every player; postpone upgrades that increase its total until routing itself is fun.
 
 ## Read in this order
 
-1. [Phase 0 implementation plan](PHASE_0.md): the next review gate — main menu, JSON maps, solo sandbox, dependency injection, economy, construction and useful research. Implementation has not started.
+1. [Phase 0 implementation plan](PHASE_0.md): the next review gate — main menu, JSON maps, sandbox, dependency injection, economy, construction, research, heterogeneous particle transport and minimal attack/defence. Implementation has not started.
 2. [Engine plan](ENGINE_PLAN.md): longer-term authoritative state, deterministic tick phases, routing, combat, invariants, existing netcode integration, and headless verification.
 3. [Gameplay proposal and sources](GAMEPLAY.md): the intended decisions, counterplay, scope and research behind them.
+4. [RTS design playbook](RTS_PLAYBOOK.md): source-backed principles, proposed strategy counters and experiments that can disprove our balance assumptions.
 
 Where the documents describe algorithms, they are proposed contracts for implementation, not existing functionality. Constants are hypotheses to exercise with bots and human playtests.
 
@@ -27,7 +28,7 @@ Where the documents describe algorithms, they are proposed contracts for impleme
 - Disconnecting a branch has a clear, recoverable consequence. Elimination and simultaneous final-brain destruction have explicit outcomes.
 - Headless and networked play execute the same rules. Saved state plus commands reproduces every result, including after rollback.
 
-Start on a hand-authored **12 × 12 hex map (144 cells)** stored in a versioned `.json` file, with configurable width and height. A later map editor will use the same format and engine validator. Phase 0 is a **one-player sandbox with no AI** for testing construction, mining and Growth Efficiency research; it keeps running without declaring the sole brain a winner. Later test charge priorities, two-brain battles, one tower and combat research before four-player scenarios. Full visibility comes first; fog and powerups remain later experiments.
+Start on a hand-authored **12 × 12 hex map (144 cells)** stored in a versioned `.json` file, with configurable width and height. A later map editor will use the same format and engine validator. Phase 0 includes a **one-player sandbox with no AI** for construction, mining, research, mixed particle flow and priorities; it keeps running without declaring the sole brain a winner. A minimal opposing-network assay and multi-owner headless scenarios must exercise actual particle-powered attack/defence in the same foundation. Towers, broader technologies and multiplayer delivery follow. Full visibility comes first; fog and powerups remain later experiments.
 
 The sandbox supports **`?debug`** for instant construction and research, visibly marked and excluded from career results and competitive balance aggregates. Later local session graphs may include debug runs with an explicit label. Costs and prerequisites still apply. These are recorded engine settings, so headless runs and replays reproduce the same behaviour; they never depend on a URL inside the simulation. Debug is initially limited to offline solo sandbox play.
 
