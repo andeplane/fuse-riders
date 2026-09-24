@@ -1,6 +1,6 @@
 # Phase 0: build, mine and fight through a particle network
 
-Status: **implementation proposal for user review; nothing below is implemented**. This is the bounded first milestone of [ENGINE_PLAN.md](ENGINE_PLAN.md), not permission to begin implementation. The wider game remains in [GAMEPLAY.md](GAMEPLAY.md).
+Status: **implementation proposal for user review; nothing below is implemented**. This is the bounded first milestone of [ENGINE_PLAN.md](ENGINE_PLAN.md), not permission to begin implementation. The wider game remains in [GAMEPLAY.md](GAMEPLAY.md). See [the inventory and architecture](ARCHITECTURE.md), [core data contracts](CORE_TYPES.md) and [object/state asset manifest](ASSET_MANIFEST.md) for the structural foundation. Builder delivery is an explicitly pending proposal there; the current construction timing below does not silently include it.
 
 ## What the player can do
 

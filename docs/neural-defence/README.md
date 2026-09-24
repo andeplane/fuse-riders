@@ -16,6 +16,9 @@ Use two spendable resources, **Biomass** for growth/construction and **Insight**
 2. [Engine plan](ENGINE_PLAN.md): longer-term authoritative state, deterministic tick phases, routing, combat, invariants, existing netcode integration, and headless verification.
 3. [Gameplay proposal and sources](GAMEPLAY.md): the intended decisions, counterplay, scope and research behind them.
 4. [RTS design playbook](RTS_PLAYBOOK.md): source-backed principles, proposed strategy counters and experiments that can disprove our balance assumptions.
+5. [Phase 0 inventory and architecture](ARCHITECTURE.md): every subsystem, dependency diagram, module boundaries and the builder-delivery proposal.
+6. [Core data contracts](CORE_TYPES.md): ownership, jobs, typed particles/actions, checkpoints, views and injected ports.
+7. [Object/state asset manifest](ASSET_MANIFEST.md): the individual sprite inventory, shared overlays and generation/inspection requirements.
 
 Where the documents describe algorithms, they are proposed contracts for implementation, not existing functionality. Constants are hypotheses to exercise with bots and human playtests.
 
