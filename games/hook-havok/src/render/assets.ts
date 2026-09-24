@@ -1,4 +1,8 @@
 export const ASSETS = {
+  cathedral: new URL(
+    "../../art-source/backgrounds/crossroads-cathedral-source.png",
+    import.meta.url,
+  ).href,
   shrine: new URL(
     "../../art-source/platforms/lantern-shrine-source.png",
     import.meta.url,

@@ -5,7 +5,12 @@ import type { WorldView } from "../engine/view.js";
 import { Feedback, type Cue } from "./feedback.js";
 import { KEEPER_COLORS, keeperColor } from "./identity.js";
 import { paintCrest, paintTether, paintBurst, dressPlatform } from "./art.js";
-import { dressShrine, shrineLedge } from "./shrine.js";
+import {
+  animateShrine,
+  dressShrine,
+  shrineLedge,
+  type ShrineDressing,
+} from "./shrine.js";
 
 export interface ShowcaseHandle {
   resetFeedback(): void;
@@ -66,6 +71,9 @@ export function createShowcase(
     private terrainMap?: WorldView["map"];
     private lanternCrop?: Crop;
     private shrineFrames: Crop[] = [];
+    private background?: Phaser.GameObjects.Image;
+    private ambient?: Phaser.GameObjects.Graphics;
+    private shrineDressing: ShrineDressing[] = [];
     constructor() {
       super("belfry");
     }
@@ -118,7 +126,7 @@ export function createShowcase(
       this.textures.addCanvas(key, canvas);
     }
     private build(): void {
-      this.add
+      this.background = this.add
         .image(800, 450, "background")
         .setDisplaySize(1600, 900)
         .setTint(0x9da9c9);
@@ -140,6 +148,7 @@ export function createShowcase(
       });
       this.cut("hook");
       this.lanternCrop = this.cut("lantern")[0]!;
+      this.ambient = this.add.graphics().setDepth(3);
       this.rebuildTerrain(options.view?.());
       this.frames = this.cut("actor", 3, 3);
       this.actorScale = 76 / Math.max(...this.frames.map((r) => r.height));
@@ -179,16 +188,21 @@ export function createShowcase(
       this.terrain?.destroy();
       this.terrain = this.add.container(0, 0).setName("terrain").setDepth(2);
       this.glows = [];
+      this.shrineDressing = [];
       this.terrainMap = world?.map ?? "belfry";
+      const cathedral = this.terrainMap === "crossroads";
+      this.background
+        ?.setTexture(cathedral ? "cathedral" : "background")
+        .setDisplaySize(1600, 900)
+        .setTint(cathedral ? 0xe5e3ed : 0x9da9c9);
       const lantern = this.lanternCrop!;
       const lanternSlots =
         this.terrainMap === "crossroads" ? [5, 7, 8, 10, 13] : [0, 2, 4, 5, 6];
       for (const [index, [x, y, width, height]] of (
         world?.platforms ?? PLATFORMS
       ).entries()) {
-        const shrine =
-          this.terrainMap === "crossroads" && [2, 6, 9].includes(index);
-        const variant = index === 6 ? 1 : 0;
+        const shrine = cathedral;
+        const variant = [0, 4, 6, 8, 10, 11].includes(index) ? 1 : 0;
         const stone = shrine
           ? shrineLedge(
               this,
@@ -217,15 +231,22 @@ export function createShowcase(
         const dressing = this.add.graphics();
         this.terrain.add(dressing);
         if (shrine)
-          dressShrine(
-            this,
-            this.terrain,
-            this.shrineFrames,
-            x,
-            y,
-            width,
-            height * 2.3,
-            index !== 2,
+          this.shrineDressing.push(
+            dressShrine(
+              this,
+              this.terrain,
+              this.shrineFrames,
+              x,
+              y,
+              width,
+              height * 2.3,
+              [5, 6, 7, 9, 11, 12, 13].includes(index),
+              [2, 6, 9].includes(index)
+                ? [27, width - 27]
+                : index % 3 === 0
+                  ? []
+                  : [index % 2 ? 27 : width - 27],
+            ),
           );
         else dressPlatform(dressing, x, y, width, index);
         if (lanternSlots.includes(index)) {
@@ -253,6 +274,15 @@ export function createShowcase(
         }
       }
       host.dataset.map = this.terrainMap;
+      host.dataset.backdrop = this.background?.texture.key ?? "";
+      host.dataset.shrinePlatforms = String(
+        this.terrain.list.filter(
+          (child) =>
+            child instanceof Phaser.GameObjects.Image &&
+            child.name === "platform" &&
+            child.texture.key.startsWith("shrine-"),
+        ).length,
+      );
       host.dataset.shrineProps = String(
         this.terrain.list.filter((child) => child.name.startsWith("shrine-"))
           .length,
@@ -556,7 +586,7 @@ export function createShowcase(
           .lineStyle(1, 0xffffff, 0.6)
           .strokeCircle(world.aim.x, world.aim.y, 8);
       }
-      if (atmosphere) {
+      if (atmosphere && !reduced.matches && this.terrainMap !== "crossroads") {
         for (let i = 0; i < 26; i++) {
           const x = (i * 137 + elapsed * (0.006 + (i % 3) * 0.003)) % 1600;
           const y = (i * 83 + elapsed * 0.008) % 900;
@@ -588,16 +618,36 @@ export function createShowcase(
             );
         }
       }
+      const ambientMotion = atmosphere && !reduced.matches;
+      const ambientTime = ambientMotion ? elapsed : 0;
+      if (this.ambient)
+        animateShrine(
+          this.ambient,
+          this.shrineDressing,
+          elapsed,
+          ambientMotion,
+        );
       this.fog.forEach((fog, i) =>
         fog
           .setVisible(atmosphere)
-          .setX(i * 390 + Math.sin(elapsed / 7000 + i) * 75),
+          .setX(i * 390 + Math.sin(ambientTime / 7000 + i) * 75),
       );
       this.glows.forEach((light, i) =>
         light.setAlpha(
-          atmosphere ? 0.56 + Math.sin(elapsed / 700 + i * 2) * 0.08 : 0.5,
+          ambientMotion ? 0.56 + Math.sin(elapsed / 700 + i * 2) * 0.08 : 0.5,
         ),
       );
+      host.dataset.environment = JSON.stringify({
+        moving: ambientMotion,
+        banners: this.shrineDressing.flatMap((part) =>
+          part.banners.map((banner) => banner.rotation),
+        ),
+        candles: this.shrineDressing.flatMap((part) =>
+          part.candles.map(({ glow }) => glow.alpha),
+        ),
+        fog: this.fog.map((fog) => fog.x),
+        lights: this.glows.map((light) => light.alpha),
+      });
       options.phase(pose.label);
       options.time(elapsed);
       host.dataset.time = String(Math.floor(elapsed));

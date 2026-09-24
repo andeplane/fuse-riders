@@ -2,6 +2,8 @@ import { chromium } from "playwright";
 import assert from "node:assert/strict";
 
 const base = process.argv[2];
+const evidence =
+  process.argv[3] ?? "games/hook-havok/docs/evidence/shrine-ball-desktop.png";
 if (!/^http:\/\/(localhost|127\.0\.0\.1):\d+\/$/.test(base))
   throw new Error("Pass local service URL");
 const browser = await chromium.launch({ channel: "chrome", headless: true });
@@ -55,7 +57,7 @@ try {
     );
     assert.equal(
       await page.locator("#scene").getAttribute("data-shrine-props"),
-      map === "crossroads" ? "8" : "0",
+      map === "crossroads" ? "21" : "0",
     );
     assert.equal(
       await page.locator("#scene").getAttribute("data-terrain-groups"),
@@ -72,7 +74,7 @@ try {
   });
   await page.locator("#arena-focus").click();
   await page.screenshot({
-    path: "games/hook-havok/docs/evidence/shrine-ball-desktop.png",
+    path: evidence,
     fullPage: true,
   });
   await page.emulateMedia({ reducedMotion: "reduce" });

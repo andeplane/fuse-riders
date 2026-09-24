@@ -1,6 +1,11 @@
 import Phaser from "phaser";
 import type { Crop } from "./assets.js";
 
+export interface ShrineDressing {
+  candles: { x: number; y: number; glow: Phaser.GameObjects.Image }[];
+  banners: Phaser.GameObjects.Image[];
+}
+
 /** Assemble stone at a fixed vertical scale; preserve end caps and repeat the middle. */
 export function shrineLedge(
   scene: Phaser.Scene,
@@ -75,9 +80,12 @@ export function dressShrine(
   width: number,
   height: number,
   hanging: boolean,
-): void {
+  candlesAt: readonly number[] = [27, width - 27],
+): ShrineDressing {
+  const result: ShrineDressing = { candles: [], banners: [] };
   const candles = frames[3]!;
-  for (const px of [x + 27, x + width - 27]) {
+  for (const offset of candlesAt) {
+    const px = x + offset;
     terrain.add(
       scene.add
         .image(px, y + 1, "shrine", "3")
@@ -85,26 +93,74 @@ export function dressShrine(
         .setOrigin(0.5, 1)
         .setDisplaySize(40, (40 * candles.height) / candles.width),
     );
-    terrain.add(
-      scene.add
-        .image(px, y - 8, "warm")
-        .setDisplaySize(72, 60)
-        .setAlpha(0.35),
-    );
+    const glow = scene.add
+      .image(px, y - 8, "warm")
+      .setDisplaySize(72, 60)
+      .setAlpha(0.35);
+    terrain.add(glow);
+    result.candles.push({
+      x: px,
+      y: y + 2 - (40 * candles.height) / candles.width,
+      glow,
+    });
   }
   if (hanging) {
     const banner = frames[2]!;
-    terrain.add(
-      scene.add
-        .image(x + width / 2, y + height - 7, "shrine", "2")
-        .setName("shrine-banner")
-        .setOrigin(0.5, 0)
-        .setDisplaySize((65 * banner.width) / banner.height, 65),
-    );
+    const ornament = scene.add
+      .image(x + width / 2, y + height - 7, "shrine", "2")
+      .setName("shrine-banner")
+      .setOrigin(0.5, 0)
+      .setDisplaySize((65 * banner.width) / banner.height, 65);
+    terrain.add(ornament);
+    result.banners.push(ornament);
   }
   const edge = scene.add.graphics();
   edge
     .lineStyle(2, 0xe2d2b3, 0.85)
     .lineBetween(x + 2, y + 1, x + width - 2, y + 1);
   terrain.add(edge);
+  return result;
+}
+
+/** Fixed-size decorative work only, driven by the scene's existing presentation clock. */
+export function animateShrine(
+  graphics: Phaser.GameObjects.Graphics,
+  dressing: readonly ShrineDressing[],
+  ms: number,
+  animate: boolean,
+): void {
+  graphics.clear();
+  const time = animate ? ms : 0;
+  let candleIndex = 0;
+  for (const [index, part] of dressing.entries()) {
+    for (const banner of part.banners)
+      banner.setRotation(
+        animate ? Math.sin(time / 2400 + index * 1.7) * 0.012 : 0,
+      );
+    for (const { x, y, glow } of part.candles) {
+      const phase = candleIndex++ * 2.3;
+      const flicker = animate
+        ? Math.sin(time / 170 + phase) * Math.sin(time / 310 + phase)
+        : 0;
+      glow.setAlpha(0.35 + flicker * 0.065);
+      graphics
+        .fillStyle(0xffedba, 0.65)
+        .fillEllipse(x, y + 2, 1.8, 3 + flicker);
+      if (!animate) continue;
+      // One short ember per cluster, with staggered rests; no accumulated particle state.
+      const age = ((time / 2200 + phase) % 3) / 3;
+      if (age < 0.45)
+        graphics
+          .fillStyle(0xffc879, (1 - age / 0.45) * 0.35)
+          .fillCircle(x + Math.sin(age * 8 + phase) * 4, y - age * 42, 0.9);
+    }
+  }
+  if (animate && dressing.length)
+    for (let i = 0; i < 12; i++) {
+      const x = 45 + ((i * 137) % 1500);
+      const y = (i * 79 + time * 0.012) % 900;
+      graphics
+        .fillStyle(0xa8b2c5, 0.2)
+        .fillCircle(x + Math.sin(time / 3500 + i) * 12, y, 0.8);
+    }
 }

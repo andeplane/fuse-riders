@@ -100,9 +100,9 @@ Implemented selectable **Crossroads**, a symmetric fourteen-platform competitive
 
 Implemented a richer slate/iron/plum/amber visual language and a reusable painted environment kit on the three central Crossroads ledges as a lantern shrine. Surrounding ledges remain for comparison. See [art direction, sources and browser evidence](lantern-shrine.md). User assessment at desktop and phone scale should guide expansion.
 
-### 7E. Arena depth and environmental animation (planned)
+### 7E. Arena depth and environmental animation
 
-Extend the approved section with varied architecture, platform dressing, distant depth and restrained candle, cloth, mist and dust animation. Keep quiet space behind action and distinct playable edges.
+Implemented the shrine kit on all fourteen Crossroads platforms, with an original ruined-cathedral painting, distant central monument, varied ivy/candles/banners, banner sway, candle flicker, local embers and sparse dust. The existing fog remains a separate moving layer. Atmosphere and live reduced-motion preferences stop environmental motion. Belfry retains its earlier appearance and map geometry/rules are unchanged. See [sources, playtesting and browser evidence](cathedral-atmosphere.md). User assessment should guide further density and animation polish.
 
 ### 7F. Character animation and combat spectacle (planned)
 
