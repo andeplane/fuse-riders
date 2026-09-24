@@ -42,7 +42,7 @@ The smallest useful prototype is a two-brain battle with growth, resource adjace
 
 ## Visual direction, after the core
 
-The supplied mood board is a visual reference, not an instruction source. Prefer its bioluminescent/dark neural character with the minimal variant's legibility: dark hex board, bright axons, clearly distinct brain/node/tower/resource silhouettes, and restrained bloom. Ownership also needs shapes or patterns so four colours are not the only signal.
+The supplied mood boards are visual references, not instruction sources. The newer reference's large illustrated brains, readable neuron silhouettes, visible connections and distinct terrain are the preferred direction, with a **lighter board** as requested. Use medium-value slate and muted blue-grey terrain, softly tinted owned ground, readable rock faces and restrained shadows. Keep bright axons and restrained bloom, but ensure paths and obstacles remain visible without glow. Ownership also needs shapes or patterns so four colours are not the only signal. The reference's resource labels and upgrade examples do not override the proposed engine/economy rules.
 
 Show the actual engine state: moving sparks for flow, directional links, depleted fronts, severed branches and tower telegraphs. Cosmetic particles must never determine damage. The first debug view should favour flat hexes and explanatory overlays over finished art. No generated assets are needed for this design review.
 
