@@ -4,11 +4,13 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
+Phase 7C adds the [arena-design trial](docs/arena-trial.md). Enter a room and select **Arena → Crossroads** to compare a symmetric fourteen-platform layout with separated starts and two outer climbing routes. **Lantern Belfry** remains the default. The room manager's selection restarts everyone together; peers and displays recover the selected map on refresh. All clients must refresh and start a fresh room for `hook-havok-6`.
+
 Phase 7B is a playable [art-production trial](docs/art-production.md): a nine-pose keeper sheet, five colour-tinted costumes with distinct hood crests, dedicated launch/pull/rise/fall poses, inked tethers and impact strokes, plus stone lighting and hanging cloth. Enter a room and choose **Focus arena** to compare the five keepers. The existing map and gameplay rules are unchanged; artistic acceptance remains for playtesting.
 
 Phase 7A adds [presentation polish](docs/presentation.md): compact controls, player cards with matching arena colours/numbers, clearer labels, and consistent animation for remote keepers. After entering a room, use **Focus arena** to hide setup controls while retaining the game and round status. **Show controls** restores the workshop and room controls. Physics and rules are unchanged.
 
-Platforms now let players jump through from below and catch them on descent. **S / Down arrow** drops through the current ledge; on touch, slide the left pad down. Release down before dropping again. Dropping releases an attached hook. Hook shots and the dummy retain solid platform collision. These rules apply in free play and competitive rounds; dropping off the bottom can eliminate you or cost points. Refresh every player tab and start a new room after this update (`hook-havok-5`).
+Platforms let players jump through from below and catch them on descent. **S / Down arrow** drops through the current ledge; on touch, slide the left pad down. Release down before dropping again. Dropping releases an attached hook. Hook shots and the dummy retain solid platform collision. These rules apply in free play and competitive rounds; dropping off the bottom can eliminate you or cost points.
 
 Phase 6D adds [rules comparison](docs/rules-comparison.md): **Free play**, **Last keeper standing**, and **Hook score**. Competitive trials wait for two players, count down, lock entrants, and finish with a shared result. Falls eliminate in Last keeper standing; Hook score awards +1 for player hits and −2 for falls with respawns over 60 seconds. Late joins wait for the next round; disconnects forfeit. The manager restarts or switches rules. Balance and physical-phone playtesting remain open.
 

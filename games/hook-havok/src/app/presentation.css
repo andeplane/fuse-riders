@@ -111,6 +111,7 @@
 .arena-focused .experiment-controls,
 .arena-focused .rules-controls > label,
 .arena-focused #rules-help,
+.arena-focused #map-help,
 .arena-focused main > .controls:not(.rules-controls),
 .arena-focused main > .intro,
 .arena-focused #status,

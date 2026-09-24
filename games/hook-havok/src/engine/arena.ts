@@ -54,7 +54,7 @@ export function createArena(tuning: Tuning, tick = 0): Arena {
     contest: createContest(tuning.rules),
     tick,
     tuning: { ...tuning },
-    combat: createCombat(tuning.experiment),
+    combat: createCombat(tuning.experiment, tuning.map),
     keepers: [],
     hit: null,
   };
@@ -106,7 +106,7 @@ export function stepArena(arena: Arena, running = true): void {
           score: 0,
           out: false,
         }));
-        arena.combat = createCombat(arena.tuning.experiment);
+        arena.combat = createCombat(arena.tuning.experiment, arena.tuning.map);
         arena.hit = null;
         for (const k of arena.keepers) {
           k.world = createWorld(arena.tuning, k.slot);

@@ -1,12 +1,5 @@
-import {
-  BALL_FIELD,
-  BALL_RADII,
-  BODY,
-  HALF,
-  PLATFORMS,
-  S,
-  type World,
-} from "./world.js";
+import { BALL_RADII, BODY, HALF, S, type World } from "./world.js";
+import { MAPS, type MapId } from "./maps.js";
 import {
   createContest,
   COUNTDOWN_TICKS,
@@ -14,6 +7,7 @@ import {
   type Contest,
 } from "./contest.js";
 export interface WorldView {
+  map: MapId;
   contest: Contest & { rules: World["tuning"]["rules"]; seconds: number };
   keepers: KeeperView[];
   hit: {
@@ -59,6 +53,7 @@ export interface KeeperView {
 }
 export function toView(world: World): WorldView {
   return {
+    map: world.tuning.map,
     contest: {
       ...createContest(world.tuning.rules),
       rules: world.tuning.rules,
@@ -81,7 +76,7 @@ export function toView(world: World): WorldView {
         y: b.y / S,
         radius: BALL_RADII[b.tier]!,
       })),
-      field: BALL_FIELD,
+      field: MAPS[world.tuning.map].ballField,
       hits: world.combat.hits,
       falls: world.combat.falls,
       impact: {
@@ -100,7 +95,7 @@ export function toView(world: World): WorldView {
     respawn: world.respawn,
     deaths: world.deaths,
     hook: { phase: world.hook.phase, x: world.hook.x / S, y: world.hook.y / S },
-    platforms: PLATFORMS,
+    platforms: MAPS[world.tuning.map].platforms,
     body: { half: HALF / S, height: BODY / S },
     aim: { x: world.input.aimX, y: world.input.aimY },
   };

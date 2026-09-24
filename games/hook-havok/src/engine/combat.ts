@@ -1,5 +1,4 @@
 import {
-  BALL_FIELD,
   BALL_RADII,
   BODY,
   HEIGHT,
@@ -8,6 +7,7 @@ import {
   type World,
 } from "./world.js";
 import { move } from "./collision.js";
+import { MAPS } from "./maps.js";
 
 /** Point projectile against circular hurt shapes, including a shot starting inside. */
 function contact(
@@ -47,6 +47,7 @@ export function strike(
   terrainTime = Infinity,
   context?: CombatContext,
 ): boolean {
+  const field = MAPS[world.tuning.map].ballField;
   const h = world.hook,
     c = world.combat,
     target = c.target;
@@ -118,9 +119,9 @@ export function strike(
           id: id * 2 + (direction === 1 ? 1 : 0),
           tier,
           x: Math.max(
-            BALL_FIELD[0] * S + radius,
+            field[0] * S + radius,
             Math.min(
-              (BALL_FIELD[0] + BALL_FIELD[2]) * S - radius,
+              (field[0] + field[2]) * S - radius,
               ball.x + direction * radius,
             ),
           ),
@@ -136,15 +137,17 @@ export function strike(
   return true;
 }
 export function stepCombat(world: World): void {
+  const map = MAPS[world.tuning.map],
+    field = map.ballField;
   const c = world.combat,
     target = c.target;
   if (target) {
     if (target.respawn) {
-      if (--target.respawn === 0) c.target = createTarget();
+      if (--target.respawn === 0) c.target = createTarget(world.tuning.map);
     } else {
       target.vy = Math.min(16 * S, target.vy + S / 2);
       if (target.grounded) target.vx = Math.round(target.vx * 0.94);
-      move(target);
+      move(target, map.platforms);
       if (target.feet - BODY > HEIGHT * S) {
         target.respawn = 30;
         target.vx = target.vy = 0;
@@ -157,10 +160,10 @@ export function stepCombat(world: World): void {
     ball.vy = Math.min(8 * S, ball.vy + S / 8);
     ball.x += ball.vx;
     ball.y += ball.vy;
-    const left = BALL_FIELD[0] * S + radius,
-      right = (BALL_FIELD[0] + BALL_FIELD[2]) * S - radius;
-    const top = BALL_FIELD[1] * S + radius,
-      bottom = (BALL_FIELD[1] + BALL_FIELD[3]) * S - radius;
+    const left = field[0] * S + radius,
+      right = (field[0] + field[2]) * S - radius;
+    const top = field[1] * S + radius,
+      bottom = (field[1] + field[3]) * S - radius;
     if (ball.x < left) {
       ball.x = left;
       ball.vx = Math.abs(ball.vx);

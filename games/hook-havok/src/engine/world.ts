@@ -1,21 +1,15 @@
+import { MAPS, type MapId } from "./maps.js";
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-5";
+export const RULES = "hook-havok-6";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
   HALF = 16 * S,
   BODY = 52 * S;
-export const PLATFORMS = [
-  [120, 810, 400, 40],
-  [220, 670, 220, 28],
-  [570, 610, 240, 28],
-  [250, 470, 230, 28],
-  [950, 480, 250, 28],
-  [620, 330, 260, 28],
-  [1170, 270, 250, 28],
-  [670, 120, 300, 28],
-] as const;
+/** Original belfry geometry, retained for its traversal fixtures. Runtime uses tuning.map. */
+export const PLATFORMS = MAPS.belfry.platforms;
 export interface Tuning {
+  map: MapId;
   rules: "free" | "elimination" | "score";
   experiment: "movement" | "target" | "ball";
   speed: number;
@@ -26,6 +20,7 @@ export interface Tuning {
   range: number;
 }
 export const DEFAULT_TUNING: Tuning = {
+  map: "belfry",
   rules: "free",
   experiment: "movement",
   speed: 360,
@@ -105,24 +100,37 @@ export interface Combat {
   falls: number;
   impact: { tick: number; x: number; y: number };
 }
-export const BALL_FIELD = [850, 650, 600, 200] as const;
+export const BALL_FIELD = MAPS.belfry.ballField;
 export const BALL_RADII = [14, 24, 40] as const;
-export function createTarget(): Target {
+export function createTarget(map: MapId = "belfry"): Target {
+  const [x, feet] = MAPS[map].target;
   return {
-    x: 450 * S,
-    feet: 810 * S - 1,
+    x: x * S,
+    feet: feet * S - 1,
     vx: 0,
     vy: 0,
     grounded: true,
     respawn: 0,
   };
 }
-export function createCombat(mode: Tuning["experiment"]): Combat {
+export function createCombat(
+  mode: Tuning["experiment"],
+  map: MapId = "belfry",
+): Combat {
   return {
-    target: mode === "target" ? createTarget() : null,
+    target: mode === "target" ? createTarget(map) : null,
     balls:
       mode === "ball"
-        ? [{ id: 1, tier: 2, x: 940 * S, y: 720 * S, vx: 2 * S, vy: 0 }]
+        ? [
+            {
+              id: 1,
+              tier: 2,
+              x: MAPS[map].ballSpawn[0] * S,
+              y: MAPS[map].ballSpawn[1] * S,
+              vx: 2 * S,
+              vy: 0,
+            },
+          ]
         : [],
     hits: 0,
     falls: 0,
@@ -142,12 +150,13 @@ export function readyHook(): Hook {
   };
 }
 export function createWorld(tuning: Tuning = DEFAULT_TUNING, slot = 0): World {
+  const [x, feet] = MAPS[tuning.map].spawns[slot]!;
   return {
     slot,
-    combat: createCombat(tuning.experiment),
+    combat: createCombat(tuning.experiment, tuning.map),
     tick: 0,
-    x: [310, 170, 240, 380, 450][slot]! * S,
-    feet: 810 * S - 1,
+    x: x * S,
+    feet: feet * S - 1,
     vx: 0,
     vy: 0,
     grounded: true,

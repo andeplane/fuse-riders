@@ -9,6 +9,7 @@ import {
 } from "./world.js";
 import { movePlayer, supported, sweep } from "./collision.js";
 import { stepCombat, strike, type CombatContext } from "./combat.js";
+import { MAPS } from "./maps.js";
 const approach = (value: number, target: number, change: number) =>
   value < target
     ? Math.min(target, value + change)
@@ -44,7 +45,14 @@ function grapple(world: World, context?: CombatContext): void {
       ratio = Math.min(1, remaining / speed);
     const dx = Math.round(h.vx * ratio),
       dy = Math.round(h.vy * ratio);
-    const hit = sweep(h.x, h.y, dx, dy);
+    const hit = sweep(
+      h.x,
+      h.y,
+      dx,
+      dy,
+      false,
+      MAPS[world.tuning.map].platforms,
+    );
     if (strike(world, dx, dy, hit?.time, context)) {
       // Entity impacts consume this shot. Retraction below still requires a new press.
     } else if (hit) {
@@ -67,7 +75,14 @@ function grapple(world: World, context?: CombatContext): void {
     const dx = h.x - sx,
       dy = h.y - sy,
       d = length(dx, dy),
-      obstruction = sweep(sx, sy, dx, dy);
+      obstruction = sweep(
+        sx,
+        sy,
+        dx,
+        dy,
+        false,
+        MAPS[world.tuning.map].platforms,
+      );
     if (
       d > world.tuning.range * S + S ||
       (obstruction && obstruction.time < 0.995)
@@ -108,7 +123,7 @@ export function step(world: World, context?: CombatContext): void {
     world.input.drop &&
     !world.previous.drop &&
     world.grounded &&
-    supported(world.x, world.feet);
+    supported(world.x, world.feet, MAPS[world.tuning.map].platforms);
   if (dropping) {
     world.feet += 2;
     world.vy = Math.max(world.vy, 2 * S);
@@ -142,7 +157,7 @@ export function step(world: World, context?: CombatContext): void {
   const cap = Math.round((1000 * S) / 60);
   world.vx = Math.max(-cap, Math.min(cap, world.vx));
   world.vy = Math.max(-cap, Math.min(cap, world.vy));
-  movePlayer(world);
+  movePlayer(world, MAPS[world.tuning.map].platforms);
   if (world.feet - BODY > HEIGHT * S) {
     world.respawn = 30;
     world.deaths++;

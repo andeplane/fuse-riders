@@ -85,6 +85,12 @@ document.querySelector("details > p")!.textContent =
 rulesPanel.className = "controls rules-controls";
 rulesPanel.innerHTML = `<label>Round rules <select id="rules" name="rules" form="tuning" disabled><option value="free">Free play</option><option value="elimination">Last keeper standing</option><option value="score">Hook score</option></select></label><span id="rules-help">Respawn freely and explore.</span><p id="round-status" role="status"></p>`;
 el("experiment").closest("section")!.after(rulesPanel);
+const mapLabel = document.createElement("label");
+mapLabel.innerHTML = `Arena <select id="map" name="map" form="tuning" disabled><option value="belfry">Lantern Belfry</option><option value="crossroads">Crossroads</option></select>`;
+const mapHelp = document.createElement("span");
+mapHelp.id = "map-help";
+mapHelp.textContent = "Changing arena restarts the shared trial.";
+rulesPanel.prepend(mapLabel, mapHelp);
 const host = el<HTMLDivElement>("scene"),
   status = el<HTMLParagraphElement>("status"),
   start = el<HTMLButtonElement>("start"),
@@ -131,11 +137,12 @@ el<HTMLAnchorElement>("study").href = `?showcase=1${muted ? "&mute" : ""}`;
 const tuning = el<HTMLFormElement>("tuning");
 const experiment = el<HTMLSelectElement>("experiment");
 const rulesSelect = el<HTMLSelectElement>("rules");
+const mapSelect = el<HTMLSelectElement>("map");
 let contestPhase = "";
 const descriptions = {
-  movement: "Explore the eight ledges with jump and grapple.",
+  movement: "Explore the arena with jump and grapple.",
   target:
-    "Aim at the brass effigy on the first ledge. Hold until impact; release to rearm. Knock it off!",
+    "Aim at the brass effigy on a lower ledge. Hold until impact; release to rearm. Knock it off!",
   ball: "Split the amber orb into seven hits. The outlined field contains balls only: it cannot hold you or your hook.",
 };
 for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS)) {
@@ -268,6 +275,7 @@ function stopRoom() {
   apply.disabled = true;
   experiment.disabled = true;
   rulesSelect.disabled = true;
+  mapSelect.disabled = true;
   touch?.enable(false);
   el<HTMLButtonElement>("restart-room").disabled = true;
   el("invitation").hidden = true;
@@ -348,6 +356,7 @@ const enterRoom = async () => {
   creatorId = "";
   experiment.value = DEFAULT_TUNING.experiment;
   rulesSelect.value = DEFAULT_TUNING.rules;
+  mapSelect.value = DEFAULT_TUNING.map;
   for (const key of Object.keys(TUNING_BOUNDS)) {
     const field = tuning.elements.namedItem(key) as HTMLInputElement;
     field.value = String(DEFAULT_TUNING[key as keyof typeof DEFAULT_TUNING]);
@@ -466,6 +475,7 @@ const enterRoom = async () => {
             apply.disabled = !manager;
             experiment.disabled = !manager;
             rulesSelect.disabled = !manager;
+            mapSelect.disabled = !manager;
             el<HTMLButtonElement>("restart-room").disabled = !manager;
             start.textContent = display
               ? "Shared display connected"
@@ -478,6 +488,11 @@ const enterRoom = async () => {
           }
           experiment.value = settings.experiment;
           rulesSelect.value = settings.rules;
+          mapSelect.value = settings.map;
+          mapHelp.textContent =
+            settings.map === "crossroads"
+              ? "Crossroads · separated starts, outer climbs and a central grapple route. Changing arena restarts everyone."
+              : "Lantern Belfry · the original climbing course. Changing arena restarts everyone.";
           el("rules-help").textContent =
             c.rules === "free"
               ? "Respawn freely and explore."
@@ -609,7 +624,7 @@ tuning.onsubmit = (e) => {
     Object.fromEntries(
       [...new FormData(tuning)].map(([k, v]) => [
         k,
-        k === "experiment" || k === "rules" ? v : Number(v),
+        k === "experiment" || k === "rules" || k === "map" ? v : Number(v),
       ]),
     ),
   );
@@ -622,6 +637,7 @@ tuning.onsubmit = (e) => {
 };
 experiment.onchange = () => tuning.requestSubmit();
 rulesSelect.onchange = () => tuning.requestSubmit();
+mapSelect.onchange = () => tuning.requestSubmit();
 retry.onclick = () => void graphics();
 el<HTMLInputElement>("atmosphere").checked = !matchMedia(
   "(prefers-reduced-motion: reduce)",

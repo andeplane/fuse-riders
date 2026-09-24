@@ -6,14 +6,13 @@ import {
   WIDTH,
   BODY,
   HEIGHT,
-  PLATFORMS,
-  BALL_FIELD,
   BALL_RADII,
   type Combat,
   type Input,
   type Tuning,
   type World,
 } from "./world.js";
+import { MAPS, isMapId } from "./maps.js";
 export const plain = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 export const integer = (v: unknown, min: number, max: number): v is number =>
@@ -27,7 +26,7 @@ export const TUNING_BOUNDS = {
   range: [250, 1000],
 } as const;
 export function parseTuning(raw: unknown): Tuning | undefined {
-  if (!plain(raw) || Object.keys(raw).length !== 8) return;
+  if (!plain(raw) || Object.keys(raw).length !== 9 || !isMapId(raw.map)) return;
   if (
     raw.rules !== "free" &&
     raw.rules !== "elimination" &&
@@ -43,6 +42,7 @@ export function parseTuning(raw: unknown): Tuning | undefined {
   for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS))
     if (!integer(raw[key], min, max)) return;
   return {
+    map: raw.map,
     rules: raw.rules,
     experiment: raw.experiment,
     speed: raw.speed as number,
@@ -57,7 +57,10 @@ function decodeCombat(
   raw: unknown,
   mode: Tuning["experiment"],
   tick: number,
+  mapId: Tuning["map"],
 ): Combat | undefined {
+  const map = MAPS[mapId],
+    field = map.ballField;
   if (
     !plain(raw) ||
     Object.keys(raw).length !== 5 ||
@@ -90,7 +93,7 @@ function decodeCombat(
       !integer(t.vy, -10 * S, 16 * S) ||
       typeof t.grounded !== "boolean" ||
       !integer(t.respawn, 0, 30) ||
-      (!t.respawn && overlaps(t.x, t.feet)) ||
+      (!t.respawn && overlaps(t.x, t.feet, map.platforms)) ||
       (t.respawn && (t.feet - BODY <= HEIGHT * S || t.vx || t.vy)) ||
       raw.balls.length ||
       raw.falls > raw.hits
@@ -120,13 +123,13 @@ function decodeCombat(
     if (
       !integer(
         b.x,
-        BALL_FIELD[0] * S + radius,
-        (BALL_FIELD[0] + BALL_FIELD[2]) * S - radius,
+        field[0] * S + radius,
+        (field[0] + field[2]) * S - radius,
       ) ||
       !integer(
         b.y,
-        BALL_FIELD[1] * S + radius,
-        (BALL_FIELD[1] + BALL_FIELD[3]) * S - radius,
+        field[1] * S + radius,
+        (field[1] + field[3]) * S - radius,
       ) ||
       !integer(b.vx, -4 * S, 4 * S) ||
       Math.abs(b.vx) !== (4 - b.tier) * S ||
@@ -216,12 +219,17 @@ export function decodeWorld(raw: unknown): World | undefined {
     !integer(h.vy, -20 * S, 20 * S) ||
     !integer(h.life, 0, 60) ||
     !integer(h.distance, 0, tuning.range * S + 2) ||
-    !integer(h.platform, -1, PLATFORMS.length - 1)
+    !integer(h.platform, -1, MAPS[tuning.map].platforms.length - 1)
   )
     return;
-  if (!raw.respawn && raw.grounded && !supported(raw.x, raw.feet)) return;
+  if (
+    !raw.respawn &&
+    raw.grounded &&
+    !supported(raw.x, raw.feet, MAPS[tuning.map].platforms)
+  )
+    return;
   if (h.phase === "attached") {
-    const p = PLATFORMS[h.platform];
+    const p = MAPS[tuning.map].platforms[h.platform];
     if (!p || h.vx !== 0 || h.vy !== 0) return;
     const [x, y, w, height] = p;
     const onX =
@@ -250,7 +258,12 @@ export function decodeWorld(raw: unknown): World | undefined {
     (raw.feet - BODY <= HEIGHT * S || raw.vx || raw.vy || h.phase !== "ready")
   )
     return;
-  const combat = decodeCombat(raw.combat, tuning.experiment, raw.tick);
+  const combat = decodeCombat(
+    raw.combat,
+    tuning.experiment,
+    raw.tick,
+    tuning.map,
+  );
   if (!combat) return;
   return {
     combat,

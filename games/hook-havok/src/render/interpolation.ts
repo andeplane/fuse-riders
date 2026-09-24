@@ -8,6 +8,7 @@ export function interpolate(
 ): WorldView {
   if (
     !older ||
+    older.map !== newer.map ||
     older.experiment !== newer.experiment ||
     newer.combat.hits < older.combat.hits ||
     newer.deaths !== older.deaths ||

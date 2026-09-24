@@ -1,4 +1,5 @@
 import { PLATFORMS, S, HALF, BODY, WIDTH, type World } from "./world.js";
+import type { Platform } from "./maps.js";
 export interface Hit {
   time: number;
   nx: number;
@@ -12,10 +13,11 @@ export function sweep(
   dx: number,
   dy: number,
   body = false,
+  platforms: readonly Platform[] = PLATFORMS,
 ): Hit | null {
   let hit: Hit | null = null;
-  for (let i = 0; i < PLATFORMS.length; i++) {
-    const [px, py, w, h] = PLATFORMS[i]!;
+  for (let i = 0; i < platforms.length; i++) {
+    const [px, py, w, h] = platforms[i]!;
     const left = px * S - (body ? HALF : 0),
       right = (px + w) * S + (body ? HALF : 0);
     const top = py * S,
@@ -44,12 +46,13 @@ export function sweep(
 }
 export function move(
   world: Pick<World, "x" | "feet" | "vx" | "vy" | "grounded">,
+  platforms: readonly Platform[] = PLATFORMS,
 ): void {
   let dx = world.vx,
     dy = world.vy;
   world.grounded = false;
   for (let iteration = 0; iteration < 4 && (dx || dy); iteration++) {
-    const hit = sweep(world.x, world.feet, dx, dy, true);
+    const hit = sweep(world.x, world.feet, dx, dy, true, platforms);
     if (!hit) {
       world.x += dx;
       world.feet += dy;
@@ -68,8 +71,12 @@ export function move(
     world.vx = 0;
   }
 }
-export function overlaps(x: number, feet: number): boolean {
-  return PLATFORMS.some(
+export function overlaps(
+  x: number,
+  feet: number,
+  platforms: readonly Platform[] = PLATFORMS,
+): boolean {
+  return platforms.some(
     ([px, py, w, h]) =>
       x + HALF > px * S &&
       x - HALF < (px + w) * S &&
@@ -80,10 +87,11 @@ export function overlaps(x: number, feet: number): boolean {
 /** Player bodies only collide with top faces while crossing downward. Hooks and props retain solid sweeps. */
 export function movePlayer(
   world: Pick<World, "x" | "feet" | "vx" | "vy" | "grounded">,
+  platforms: readonly Platform[] = PLATFORMS,
 ): void {
   let first = Infinity;
   if (world.vy > 0)
-    for (const [px, py, width] of PLATFORMS) {
+    for (const [px, py, width] of platforms) {
       const time = (py * S - world.feet) / world.vy;
       if (time < 0 || time > 1 || time >= first) continue;
       const x = world.x + world.vx * time;
@@ -94,11 +102,16 @@ export function movePlayer(
   world.feet += Number.isFinite(first)
     ? Math.round(world.vy * first) - 1
     : world.vy;
-  world.grounded = Number.isFinite(first) && supported(world.x, world.feet);
+  world.grounded =
+    Number.isFinite(first) && supported(world.x, world.feet, platforms);
   if (Number.isFinite(first)) world.vy = 0;
 }
-export function supported(x: number, feet: number): boolean {
-  return PLATFORMS.some(
+export function supported(
+  x: number,
+  feet: number,
+  platforms: readonly Platform[] = PLATFORMS,
+): boolean {
+  return platforms.some(
     ([px, py, width]) =>
       Math.abs(feet - py * S) <= 1 &&
       x + HALF > px * S &&

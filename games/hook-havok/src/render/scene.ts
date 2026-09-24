@@ -61,6 +61,9 @@ export function createShowcase(
     private actorScale = 1;
     private fog: Phaser.GameObjects.Image[] = [];
     private glows: Phaser.GameObjects.Image[] = [];
+    private terrain?: Phaser.GameObjects.Container;
+    private terrainMap?: WorldView["map"];
+    private lanternCrop?: Crop;
     constructor() {
       super("belfry");
     }
@@ -124,41 +127,8 @@ export function createShowcase(
         );
       this.cut("ledge");
       this.cut("hook");
-      const lantern = this.cut("lantern")[0]!;
-      for (const [index, [x, y, width, height]] of (
-        options.view?.().platforms ?? PLATFORMS
-      ).entries()) {
-        this.add
-          .image(x + 3, y + 7, "ledge", "0")
-          .setOrigin(0)
-          .setDisplaySize(width, height * 2.3)
-          .setTint(0x101421)
-          .setAlpha(0.55);
-        this.add
-          .image(x, y, "ledge", "0")
-          .setOrigin(0)
-          .setDisplaySize(width, height * 2.3)
-          .setTint(0xc6c5d7);
-        dressPlatform(this.add.graphics(), x, y, width, index);
-        if ([0, 2, 4, 5, 6].includes(index)) {
-          const lx = x + width - 42,
-            ly = y + height * 2.3 + 8;
-          this.add
-            .line(0, 0, lx, y + 10, lx, ly, 0x4b3b30)
-            .setOrigin(0)
-            .setLineWidth(2);
-          this.glows.push(
-            this.add
-              .image(lx, ly + 16, "warm")
-              .setDisplaySize(125, 155)
-              .setAlpha(0.65),
-          );
-          this.add
-            .image(lx, ly, "lantern", "0")
-            .setOrigin(0.5, 0)
-            .setDisplaySize((38 * lantern.width) / lantern.height, 38);
-        }
-      }
+      this.lanternCrop = this.cut("lantern")[0]!;
+      this.rebuildTerrain(options.view?.());
       this.frames = this.cut("actor", 3, 3);
       this.actorScale = 76 / Math.max(...this.frames.map((r) => r.height));
       this.tether = this.add.graphics().setDepth(10);
@@ -193,6 +163,81 @@ export function createShowcase(
         .fillPath();
       this.paint();
     }
+    private rebuildTerrain(world?: WorldView): void {
+      this.terrain?.destroy();
+      this.terrain = this.add.container(0, 0).setName("terrain").setDepth(2);
+      this.glows = [];
+      this.terrainMap = world?.map ?? "belfry";
+      const lantern = this.lanternCrop!;
+      const lanternSlots =
+        this.terrainMap === "crossroads" ? [5, 7, 8, 10, 13] : [0, 2, 4, 5, 6];
+      for (const [index, [x, y, width, height]] of (
+        world?.platforms ?? PLATFORMS
+      ).entries()) {
+        this.terrain.add(
+          this.add
+            .image(x + 3, y + 7, "ledge", "0")
+            .setOrigin(0)
+            .setDisplaySize(width, height * 2.3)
+            .setTint(0x101421)
+            .setAlpha(0.55),
+        );
+        this.terrain.add(
+          this.add
+            .image(x, y, "ledge", "0")
+            .setName("platform")
+            .setOrigin(0)
+            .setDisplaySize(width, height * 2.3)
+            .setTint(0xc6c5d7),
+        );
+        const dressing = this.add.graphics();
+        this.terrain.add(dressing);
+        dressPlatform(dressing, x, y, width, index);
+        if (lanternSlots.includes(index)) {
+          const lx = x + width - 42,
+            ly = y + height * 2.3 + 8;
+          this.terrain.add(
+            this.add
+              .line(0, 0, lx, y + 10, lx, ly, 0x4b3b30)
+              .setOrigin(0)
+              .setLineWidth(2),
+          );
+          this.glows.push(
+            this.add
+              .image(lx, ly + 16, "warm")
+              .setDisplaySize(125, 155)
+              .setAlpha(0.65),
+          );
+          this.terrain.add(this.glows[this.glows.length - 1]!);
+          this.terrain.add(
+            this.add
+              .image(lx, ly, "lantern", "0")
+              .setOrigin(0.5, 0)
+              .setDisplaySize((38 * lantern.width) / lantern.height, 38),
+          );
+        }
+      }
+      host.dataset.map = this.terrainMap;
+      host.dataset.terrainGroups = String(
+        this.children.list.filter((child) => child.name === "terrain").length,
+      );
+      host.dataset.terrain = JSON.stringify(
+        this.terrain.list
+          .filter(
+            (child): child is Phaser.GameObjects.Image =>
+              child instanceof Phaser.GameObjects.Image &&
+              child.name === "platform",
+          )
+          .map((sprite) => [
+            sprite.x,
+            sprite.y,
+            sprite.displayWidth,
+            sprite.displayHeight,
+          ]),
+      );
+      feedback.reset();
+      this.resetPeerFeedback();
+    }
     update(_time: number, delta: number): void {
       if (!paused && !document.hidden) elapsed += Math.min(delta, 50);
       this.paint();
@@ -203,6 +248,7 @@ export function createShowcase(
     private paint(): void {
       if (!this.actor || !this.hook || !this.tether || !this.effects) return;
       const world = options.view?.();
+      if (world && world.map !== this.terrainMap) this.rebuildTerrain(world);
       if (world)
         for (const cue of feedback.update(world, elapsed))
           if (!document.hidden) options.cue?.(cue);

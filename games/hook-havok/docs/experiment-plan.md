@@ -92,6 +92,10 @@ Map geometry, movement, scoring, generated art sources and audio remain unchange
 
 Implemented the proposed first art increment: five costume colours and hood crests, a refined nine-pose keeper atlas with dedicated action silhouettes, outlined tethers and sharper impact effects, and integrated stone lighting/cloth dressing in the existing belfry. [Sources, exact prompts, limits and real-room evidence](art-production.md). Source alpha and cell separation are validated by the live loader. Gameplay rules, geometry and networking remain unchanged. Final animation polish, bespoke costumes and user acceptance are still open.
 
+### 7C. Arena-design trial
+
+Implemented selectable **Crossroads**, a symmetric fourteen-platform competitive layout with five separated starts, two jump-climb routes and central grapple opportunities. **Lantern Belfry** remains the default. Selection uses validated shared settings and resets the trial; physics, props, checkpoints and rendering all use the chosen geometry. See [design, playtesting and browser evidence](arena-trial.md). Rules are `hook-havok-6`; refresh all clients and create a fresh room. Competitive balance and physical-phone feel remain for user comparison.
+
 ## Module ownership
 
 `engine/`: state, input, tuning, maps, collision, movement, grapple, step, codec, view. Imports nothing from app/render/network.
