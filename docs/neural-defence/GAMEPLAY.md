@@ -1,6 +1,6 @@
 # Neural Defence: core gameplay proposal
 
-Status: proposed rules for review; no implementation or balance evidence yet. The first deliverable is the headless engine described in [ENGINE_PLAN.md](ENGINE_PLAN.md). Presentation and online integration follow once its decisions produce interesting matches.
+Status: proposed rules for review; no implementation or balance evidence yet. The [Phase 0 plan](PHASE_0.md) defines the first headless engine and playable solo sandbox, including a main menu and useful economy research. [ENGINE_PLAN.md](ENGINE_PLAN.md) describes the longer-term engine. Multiplayer and combat follow that foundation.
 
 ## The central decision
 
@@ -81,7 +81,7 @@ Preventing endless turtles depends first on these costs: finite shared charge, v
 
 ## First demo and balance questions
 
-The first headless scenario has one brain and no bots: queue a route → construct neurons → reach both deposit types → mine → redirect charge, while confirming the sandbox continues without a victory. Run it with normal and instant job durations. Then exercise the competitive loop: two equal brains → queue growth to opposite sides of one shared deposit → both receive partial income → extend into contact → focus charge and exchange pulses → create an alternate connection → sever and reconnect a branch → destroy a brain. A further fixture builds a legal tower ring and compares an adequately supplied tower against a starved one. Research follows only after this base loop is measurable.
+The Phase 0 scenario has one brain and no bots: queue a route → construct neurons → reach both deposit types → mine → complete economy research → construct with the upgrade, while confirming the sandbox continues without a victory. Run it with normal and instant job durations. Later, add charge routing and exercise the competitive loop: two equal brains → queue growth to opposite sides of one shared deposit → both receive partial income → extend into contact → focus charge and exchange pulses → create an alternate connection → sever and reconnect a branch → destroy a brain. A further fixture builds a legal tower ring and compares an adequately supplied tower against a starved one. The Conduction/Insulation combat research fork follows that measurable combat loop.
 
 Initial tuning hypotheses: meaningful first contact within 60–120 seconds, visible response time of at least a few seconds to major concentration changes, and ordinary matches around 8–12 minutes. Values are targets for experiments, not tested findings. Record first-contact time, income share, branch cuts, charge locations/recovery, decisions per minute, damage and repair, elimination time and capped draws. Change one parameter family at a time; retain seed, configuration, engine version, policy version and commands for replay.
 
@@ -89,7 +89,7 @@ Run economy, rush, defensive and adaptive priority policies against one another 
 
 ## Scope boundary and visual direction
 
-**First foundation:** one versioned JSON map with configurable dimensions starting at 12 × 12, a shared map validator, one-player no-AI sandbox, resource sharing, manually queued neuron construction and connectedness. Instant-duration sandbox settings are part of the engine contract from the start. Keep this milestone small enough to inspect construction and mining before combat exists.
+**First foundation:** follow [PHASE_0.md](PHASE_0.md) for the main menu, one versioned JSON map with configurable dimensions starting at 12 × 12, a shared map validator, one-player no-AI sandbox, resource sharing, manually queued neuron construction, connectedness and one economy research upgrade. Instant construction/research settings are part of the engine contract from the start. Keep this milestone small enough to inspect construction, research and mining before combat exists; the later combat research fork remains separate.
 
 **Next:** conserved charge flow, 2–4 player competitive scenarios, simultaneous combat, defeat/draw, snapshot/replay and headless policies. Add the single tower and research fork before multiplayer web playtesting using the existing room/netcode packages. A future map editor reads and writes the same JSON schema and calls the same validator.
 

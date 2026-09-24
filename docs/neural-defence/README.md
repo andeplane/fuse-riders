@@ -12,8 +12,9 @@ Use two spendable resources, **Biomass** for growth/construction and **Insight**
 
 ## Read in this order
 
-1. [Engine plan](ENGINE_PLAN.md): authoritative state, deterministic tick phases, routing, combat, invariants, existing netcode integration, and headless verification.
-2. [Gameplay proposal and sources](GAMEPLAY.md): the intended decisions, counterplay, scope and research behind them.
+1. [Phase 0 implementation plan](PHASE_0.md): the next review gate — main menu, JSON maps, solo sandbox, dependency injection, economy, construction and useful research. Implementation has not started.
+2. [Engine plan](ENGINE_PLAN.md): longer-term authoritative state, deterministic tick phases, routing, combat, invariants, existing netcode integration, and headless verification.
+3. [Gameplay proposal and sources](GAMEPLAY.md): the intended decisions, counterplay, scope and research behind them.
 
 Where the documents describe algorithms, they are proposed contracts for implementation, not existing functionality. Constants are hypotheses to exercise with bots and human playtests.
 
@@ -26,7 +27,7 @@ Where the documents describe algorithms, they are proposed contracts for impleme
 - Disconnecting a branch has a clear, recoverable consequence. Elimination and simultaneous final-brain destruction have explicit outcomes.
 - Headless and networked play execute the same rules. Saved state plus commands reproduces every result, including after rollback.
 
-Start on a hand-authored **12 × 12 hex map (144 cells)** stored in a versioned `.json` file, with configurable width and height. A later map editor will use the same format and engine validator. The first playable scenario is a **one-player sandbox with no AI** for testing construction and mining, then charge priorities; it keeps running without declaring the sole brain a winner. Then test two-brain battles, one tower and a small research choice before four-player scenarios. Full visibility comes first; fog and powerups remain later experiments.
+Start on a hand-authored **12 × 12 hex map (144 cells)** stored in a versioned `.json` file, with configurable width and height. A later map editor will use the same format and engine validator. Phase 0 is a **one-player sandbox with no AI** for testing construction, mining and Growth Efficiency research; it keeps running without declaring the sole brain a winner. Later test charge priorities, two-brain battles, one tower and combat research before four-player scenarios. Full visibility comes first; fog and powerups remain later experiments.
 
 The sandbox supports **`?debug`** for instant construction and research, visibly marked and excluded from match statistics. Costs and prerequisites still apply. These are recorded engine settings, so headless runs and replays reproduce the same behaviour; they never depend on a URL inside the simulation. Debug is initially limited to offline solo sandbox play.
 

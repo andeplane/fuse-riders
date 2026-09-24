@@ -1,6 +1,6 @@
 # Neural Defence: core engine plan
 
-Status: proposed architecture and acceptance plan. No engine or playable game is implemented by this draft. Gameplay decisions are in [GAMEPLAY.md](GAMEPLAY.md); numeric settings must remain experimental until measured.
+Status: proposed architecture and acceptance plan. No engine or playable game is implemented by this draft. The [Phase 0 plan](PHASE_0.md) defines the next implementation scope for user review and takes precedence over the high-level staging below. Gameplay decisions are in [GAMEPLAY.md](GAMEPLAY.md); numeric settings must remain experimental until measured.
 
 ## Reuse the platform, isolate the rules
 
@@ -110,7 +110,7 @@ Declare and report timeouts as draws/unresolved outcomes, not invisible discarde
 
 ## Implementation stages and acceptance
 
-1. **Small-map sandbox foundation.** One versioned 12 × 12 JSON map, public loader/validator, fixed ticks, one-player zero-bot sandbox, two currencies, manually queued neuron construction, adjacency mining and connectivity. Include normal/instant job settings, later reused by research. Unit/property tests establish map mapping/validation, no automatic solo win, no overspending, no recursive instant expansion, canonical ordering and replay/settings reproducibility. A minimal web sandbox may expose construction and `?debug` before combat; polished art and a map editor wait.
+1. **Phase 0: small-map sandbox foundation.** Follow [PHASE_0.md](PHASE_0.md): main menu, versioned 12 × 12 JSON map, public loader/validator, fixed ticks, one-player zero-bot sandbox, two currencies, manually queued neuron construction, adjacency mining, connectivity and one useful economy research upgrade. Include normal/instant job settings and the minimum offline room adapter to reuse the existing tick runtime. Typed dependency-injected tests establish map mapping/validation, no automatic solo win, no overspending, research effects, no recursive instant expansion and replay/settings reproducibility. Polished art, combat and a map editor wait.
 2. **Supply/combat prototype.** Add 2–4 player competitive scenarios, conflicting construction claims, priorities, bounded aggregate routing, one tower type, local attack/defence, repair, minimal research, simultaneous destruction and brain elimination. Verify instant research retains costs/prerequisites and activates next tick. AI-vs-AI CLI produces reproducible summaries/replays. Show a flank counter to concentration and a topology counter to a defended front before adding content.
 3. **Replay/room adapter.** Implement and test the real `RollbackGame` contract. Replaying uninterrupted versus checkpoint-resumed or late-input rollback yields identical hashes. Cover duplicate/reordered/dropped commands, stale scope and generation, manager departure, reconnect, invalid snapshots, draw and rematch. Verify both peers' applied worlds, not just transport sends.
 4. **Readable web slice.** Real lobby-to-match flow; solo sandbox without AI, pointer/touch node selection, resource and charge feedback, visible supply cuts, settings and results; shared TV plus phones. Browser smoke covers zero-bot start/rematch, normal and debug sandbox with visible debug status and no career settlement, plus actual two-client play and recovery. Capture screenshots and check narrow screens. Keep cosmetics outside authority.
