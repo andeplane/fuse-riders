@@ -1,6 +1,6 @@
 import { MAPS, type MapId } from "./maps.js";
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-6";
+export const RULES = "hook-havok-7";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
@@ -11,7 +11,7 @@ export const PLATFORMS = MAPS.belfry.platforms;
 export interface Tuning {
   map: MapId;
   rules: "free" | "elimination" | "score";
-  experiment: "movement" | "target" | "ball";
+  experiment: "movement" | "target" | "ball" | "ricochet" | "surge";
   speed: number;
   jump: number;
   gravity: number;
@@ -102,6 +102,20 @@ export interface Combat {
 }
 export const BALL_FIELD = MAPS.belfry.ballField;
 export const BALL_RADII = [14, 24, 40] as const;
+export const isBallMode = (mode: Tuning["experiment"]): boolean =>
+  mode === "ball" || mode === "ricochet" || mode === "surge";
+export function ballField(
+  mode: Tuning["experiment"],
+  map: MapId,
+): readonly [number, number, number, number] {
+  return mode === "ball" ? MAPS[map].ballField : [0, 0, WIDTH, 870];
+}
+export function ballSpeed(mode: Tuning["experiment"], tier: number): number {
+  return (4 - tier) * S * (mode === "surge" ? 2 : 1);
+}
+export function ballBounce(mode: Tuning["experiment"]): number {
+  return (mode === "ball" ? 5 : mode === "surge" ? 11 : 8) * S;
+}
 export function createTarget(map: MapId = "belfry"): Target {
   const [x, feet] = MAPS[map].target;
   return {
@@ -119,19 +133,18 @@ export function createCombat(
 ): Combat {
   return {
     target: mode === "target" ? createTarget(map) : null,
-    balls:
-      mode === "ball"
-        ? [
-            {
-              id: 1,
-              tier: 2,
-              x: MAPS[map].ballSpawn[0] * S,
-              y: MAPS[map].ballSpawn[1] * S,
-              vx: 2 * S,
-              vy: 0,
-            },
-          ]
-        : [],
+    balls: isBallMode(mode)
+      ? [
+          {
+            id: 1,
+            tier: 2,
+            x: MAPS[map].ballSpawn[0] * S,
+            y: (mode === "ball" ? MAPS[map].ballSpawn[1] : 740) * S,
+            vx: ballSpeed(mode, 2),
+            vy: 0,
+          },
+        ]
+      : [],
     hits: 0,
     falls: 0,
     impact: { tick: 0, x: 0, y: 0 },

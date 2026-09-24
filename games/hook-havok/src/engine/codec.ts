@@ -7,6 +7,10 @@ import {
   BODY,
   HEIGHT,
   BALL_RADII,
+  isBallMode,
+  ballField,
+  ballSpeed,
+  ballBounce,
   type Combat,
   type Input,
   type Tuning,
@@ -36,7 +40,9 @@ export function parseTuning(raw: unknown): Tuning | undefined {
   if (
     raw.experiment !== "movement" &&
     raw.experiment !== "target" &&
-    raw.experiment !== "ball"
+    raw.experiment !== "ball" &&
+    raw.experiment !== "ricochet" &&
+    raw.experiment !== "surge"
   )
     return;
   for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS))
@@ -60,13 +66,13 @@ function decodeCombat(
   mapId: Tuning["map"],
 ): Combat | undefined {
   const map = MAPS[mapId],
-    field = map.ballField;
+    field = ballField(mode, mapId);
   if (
     !plain(raw) ||
     Object.keys(raw).length !== 5 ||
     !Array.isArray(raw.balls) ||
     raw.balls.length > 4 ||
-    !integer(raw.hits, 0, mode === "ball" ? 7 : 0xffffffff) ||
+    !integer(raw.hits, 0, isBallMode(mode) ? 7 : 0xffffffff) ||
     !integer(raw.falls, 0, 0xffffffff) ||
     !plain(raw.impact) ||
     Object.keys(raw.impact).length !== 3 ||
@@ -131,9 +137,9 @@ function decodeCombat(
         field[1] * S + radius,
         (field[1] + field[3]) * S - radius,
       ) ||
-      !integer(b.vx, -4 * S, 4 * S) ||
-      Math.abs(b.vx) !== (4 - b.tier) * S ||
-      !integer(b.vy, -5 * S, 8 * S) ||
+      !integer(b.vx, -8 * S, 8 * S) ||
+      Math.abs(b.vx) !== ballSpeed(mode, b.tier) ||
+      !integer(b.vy, -ballBounce(mode), (mode === "ball" ? 8 : 12) * S) ||
       balls.some(
         (a) =>
           a.id >= id ||
@@ -142,9 +148,22 @@ function decodeCombat(
       )
     )
       return;
-    balls.push({ id: b.id, tier: b.tier, x: b.x, y: b.y, vx: b.vx, vy: b.vy });
+    const bx = b.x,
+      by = b.y;
+    if (
+      mode !== "ball" &&
+      map.platforms.some(
+        ([x, y, w, h]) =>
+          bx > x * S - radius &&
+          bx < (x + w) * S + radius &&
+          by > y * S - radius &&
+          by < (y + h) * S + radius,
+      )
+    )
+      return;
+    balls.push({ id: b.id, tier: b.tier, x: bx, y: by, vx: b.vx, vy: b.vy });
   }
-  if (mode === "ball") {
+  if (isBallMode(mode)) {
     if (
       raw.hits !==
       7 - balls.reduce((sum, b) => sum + 2 ** (b.tier + 1) - 1, 0)

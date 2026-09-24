@@ -111,6 +111,14 @@ test("real runtime repairs loss/reorder/duplicates, restores a refreshed member 
   assert.equal(a.state()!.seats.size, 2);
   assert.equal(a.command({ type: "action", action: "start" }), true);
   mesh.run(1000);
+  assert.equal(
+    a.command({
+      type: "settings",
+      settings: { ...DEFAULT_TUNING, map: "crossroads", experiment: "surge" },
+    }),
+    true,
+  );
+  mesh.run(500);
   let packet = 0;
   mesh.fast = () => {
     packet++;
@@ -141,6 +149,8 @@ test("real runtime repairs loss/reorder/duplicates, restores a refreshed member 
   const returning = mesh.join("b");
   mesh.run(2500);
   assert.equal(returning.state()!.seats.size, 2);
+  assert.equal(returning.state()!.settings.experiment, "surge");
+  assert.ok(returning.state()!.simulation.combat.balls.length > 0);
   assert.equal(returning.state()!.seats.get("b")!.generation, 2);
   assert.equal(
     returning.state()!.simulation.keepers.find((k) => k.id === "b")!.world.input

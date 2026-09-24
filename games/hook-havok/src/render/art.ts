@@ -72,7 +72,11 @@ export function paintBurst(
   const alpha = 1 - age;
   const { x, y, kind } = burst;
   if (reduced) {
-    g.lineStyle(2, 0xffe5b2, alpha * 0.6).strokeCircle(x, y - 3, 7);
+    g.lineStyle(2, burst.color ?? 0xffe5b2, alpha * 0.6).strokeCircle(
+      x,
+      y - 3,
+      7,
+    );
     return;
   }
   const ground = kind === "land" || kind === "jump";
@@ -111,18 +115,18 @@ export function paintBurst(
   }
   if (impact || kind === "attach") {
     const radius = (impact ? 12 : 6) + age * (impact ? 36 : 18);
-    g.lineStyle(impact ? 3 : 2, 0xffe8ae, alpha * 0.8).strokeCircle(
-      x,
-      y,
-      radius,
-    );
+    g.lineStyle(
+      impact ? 3 : 2,
+      burst.color ?? 0xffe8ae,
+      alpha * 0.8,
+    ).strokeCircle(x, y, radius);
     for (let i = 0; i < 8; i++) {
       const a = (i * Math.PI) / 4 + 0.2;
       const inner = radius * 0.65,
         outer = radius + (i % 2 ? 6 : 13) * alpha;
       g.lineStyle(
         i % 2 ? 2 : 3,
-        i % 2 ? 0xc5e5ee : 0xffd385,
+        i % 2 ? 0xc5e5ee : (burst.color ?? 0xffd385),
         alpha,
       ).lineBetween(
         x + Math.cos(a) * inner,

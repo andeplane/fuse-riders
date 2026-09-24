@@ -1,5 +1,6 @@
 import type { WorldView } from "../engine/view.js";
 import { idleBreath } from "./showcase-timeline.js";
+import { ballColor } from "./balls.js";
 export type Cue =
   | "jump"
   | "land"
@@ -16,6 +17,7 @@ export interface Burst {
   at: number;
   direction?: number;
   target?: string;
+  color?: number;
 }
 /** Cosmetic history only: never feeds inputs or changes the simulation. */
 export class Feedback {
@@ -67,7 +69,7 @@ export class Feedback {
       view.combat.hits > old.combat.hits &&
       view.combat.impact.tick > old.tick
     )
-      cues.push(view.experiment === "ball" ? "pop" : "impact");
+      cues.push(view.experiment === "target" ? "impact" : "pop");
     if (old.respawn && !view.respawn) cues.push("respawn");
     else if (
       !view.respawn &&
@@ -88,6 +90,15 @@ export class Feedback {
     for (const kind of cues)
       this.bursts.push({
         kind,
+        ...(kind === "pop"
+          ? {
+              color: ballColor(
+                old.combat.balls.find(
+                  (b) => !view.combat.balls.some((n) => n.id === b.id),
+                )?.id ?? 1,
+              ),
+            }
+          : {}),
         x:
           kind === "impact" || kind === "pop"
             ? view.combat.impact.x

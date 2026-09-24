@@ -1,4 +1,4 @@
-import { BALL_RADII, BODY, HALF, S, type World } from "./world.js";
+import { BALL_RADII, BODY, HALF, S, ballField, type World } from "./world.js";
 import { MAPS, type MapId } from "./maps.js";
 import {
   createContest,
@@ -21,7 +21,14 @@ export interface WorldView {
   experiment: World["tuning"]["experiment"];
   combat: {
     target: { x: number; feet: number; respawn: number } | null;
-    balls: { id: number; x: number; y: number; radius: number }[];
+    balls: {
+      id: number;
+      x: number;
+      y: number;
+      radius: number;
+      vx: number;
+      vy: number;
+    }[];
     field: readonly [number, number, number, number];
     hits: number;
     falls: number;
@@ -75,8 +82,10 @@ export function toView(world: World): WorldView {
         x: b.x / S,
         y: b.y / S,
         radius: BALL_RADII[b.tier]!,
+        vx: b.vx / S,
+        vy: b.vy / S,
       })),
-      field: MAPS[world.tuning.map].ballField,
+      field: ballField(world.tuning.experiment, world.tuning.map),
       hits: world.combat.hits,
       falls: world.combat.falls,
       impact: {

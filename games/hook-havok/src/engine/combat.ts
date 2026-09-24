@@ -4,10 +4,14 @@ import {
   HEIGHT,
   S,
   createTarget,
+  ballField,
+  ballSpeed,
+  ballBounce,
   type World,
 } from "./world.js";
 import { move } from "./collision.js";
 import { MAPS } from "./maps.js";
+import { ricochet } from "./ball-motion.js";
 
 /** Point projectile against circular hurt shapes, including a shot starting inside. */
 function contact(
@@ -47,7 +51,7 @@ export function strike(
   terrainTime = Infinity,
   context?: CombatContext,
 ): boolean {
-  const field = MAPS[world.tuning.map].ballField;
+  const field = ballField(world.tuning.experiment, world.tuning.map);
   const h = world.hook,
     c = world.combat,
     target = c.target;
@@ -122,12 +126,13 @@ export function strike(
             field[0] * S + radius,
             Math.min(
               (field[0] + field[2]) * S - radius,
-              ball.x + direction * radius,
+              ball.x +
+                (world.tuning.experiment === "ball" ? direction * radius : 0),
             ),
           ),
           y: ball.y,
-          vx: direction * (4 - tier) * S,
-          vy: -5 * S,
+          vx: direction * ballSpeed(world.tuning.experiment, tier),
+          vy: -ballBounce(world.tuning.experiment),
         });
       c.balls.sort((a, b) => a.id - b.id);
     }
@@ -156,6 +161,10 @@ export function stepCombat(world: World): void {
     }
   }
   for (const ball of c.balls) {
+    if (world.tuning.experiment !== "ball") {
+      ricochet(ball, world);
+      continue;
+    }
     const radius = BALL_RADII[ball.tier]! * S;
     ball.vy = Math.min(8 * S, ball.vy + S / 8);
     ball.x += ball.vx;

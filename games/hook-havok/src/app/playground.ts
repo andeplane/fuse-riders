@@ -136,6 +136,8 @@ el<HTMLAnchorElement>("home").href =
 el<HTMLAnchorElement>("study").href = `?showcase=1${muted ? "&mute" : ""}`;
 const tuning = el<HTMLFormElement>("tuning");
 const experiment = el<HTMLSelectElement>("experiment");
+experiment.add(new Option("Arena ricochets · gentle", "ricochet"));
+experiment.add(new Option("Arena ricochets · surge", "surge"));
 const rulesSelect = el<HTMLSelectElement>("rules");
 const mapSelect = el<HTMLSelectElement>("map");
 let contestPhase = "";
@@ -144,6 +146,10 @@ const descriptions = {
   target:
     "Aim at the brass effigy on a lower ledge. Hold until impact; release to rearm. Knock it off!",
   ball: "Split the amber orb into seven hits. The outlined field contains balls only: it cannot hold you or your hook.",
+  ricochet:
+    "Gentle arena ricochets: split orbs into smaller, faster colors. Ledges and walls bounce them; the line above the spikes rebounds balls only. Colors are cosmetic; balls do not hurt keepers.",
+  surge:
+    "Surge: twice the horizontal speed and higher bounces. Seven hits clear the family (up to four small orbs). The bottom line rebounds balls only; keepers still fall. Colors are cosmetic.",
 };
 for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS)) {
   const label = document.createElement("label");
@@ -465,7 +471,8 @@ const enterRoom = async () => {
             status.dataset.state =
               display || local?.connected ? "playing" : "joining";
             status.textContent =
-              frame.experiment === "ball" && !frame.combat.balls.length
+              ["ball", "ricochet", "surge"].includes(frame.experiment) &&
+              !frame.combat.balls.length
                 ? "Field cleared. Restart the experiment to try again."
                 : descriptions[frame.experiment];
             reset.disabled = display || !local?.connected || c.rules !== "free";

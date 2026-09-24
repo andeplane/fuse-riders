@@ -6,6 +6,7 @@ import { Feedback, type Cue } from "./feedback.js";
 import { KEEPER_COLORS, keeperColor } from "./identity.js";
 import { paintCrest, paintTether, paintBurst, dressPlatform } from "./art.js";
 import { createEchoes, paintEchoes } from "./echoes.js";
+import { paintBalls } from "./balls.js";
 import {
   animateShrine,
   dressShrine,
@@ -557,6 +558,20 @@ export function createShowcase(
       if (world && this.combat) {
         const g = this.combat,
           target = world.combat.target;
+        if (world.experiment === "ricochet" || world.experiment === "surge") {
+          const [left, top, width, height] = world.combat.field;
+          const bottom = top + height;
+          g.lineStyle(2, 0x75d8ed, 0.5).lineBetween(
+            left,
+            bottom,
+            left + width,
+            bottom,
+          );
+          for (let x = left + 24; x < left + width; x += 80)
+            g.lineStyle(2, 0x75d8ed, 0.65)
+              .lineBetween(x - 5, bottom - 5, x, bottom - 10)
+              .lineBetween(x, bottom - 10, x + 5, bottom - 5);
+        }
         if (world.experiment === "ball") {
           const [x, y, width, height] = world.combat.field;
           g.fillStyle(0x171d31, 0.25).fillRect(x, y, width, height);
@@ -586,23 +601,7 @@ export function createShowcase(
           if (options.debug?.())
             g.lineStyle(1, 0x72edd1).strokeRect(x - 16, feet - 52, 32, 52);
         }
-        for (const b of world.combat.balls) {
-          g.fillStyle(0xffb54f, 0.08).fillCircle(b.x, b.y, b.radius + 9);
-          g.fillStyle(0x101420).fillCircle(b.x, b.y, b.radius + 3);
-          g.fillStyle(0x9a562c, 0.95).fillCircle(b.x, b.y, b.radius);
-          g.lineStyle(2, 0xffd08a).strokeCircle(b.x, b.y, b.radius - 1);
-          g.lineStyle(1, 0xffedc0, 0.7).strokeEllipse(
-            b.x,
-            b.y,
-            b.radius * 0.85,
-            b.radius * 1.8,
-          );
-          g.fillStyle(0xffedc0, 0.8).fillCircle(
-            b.x - b.radius * 0.3,
-            b.y - b.radius * 0.35,
-            b.radius * 0.13,
-          );
-        }
+        paintBalls(g, world, elapsed, reduced.matches);
         host.dataset.experiment = world.experiment;
         host.dataset.hits = String(world.combat.hits);
         host.dataset.targetX = String(target?.x ?? "");

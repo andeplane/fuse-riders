@@ -108,9 +108,9 @@ Implemented the shrine kit on all fourteen Crossroads platforms, with an origina
 
 Implemented a dedicated eight-frame run atlas with scarf motion, speed-driven cadence, foot registration, takeoff/landing recovery, hook recoil, victim-only impact reaction, directional hit accents, short airborne silhouette echoes and distinct exit/arrival effects. Local/remote keepers share presentation logic; reduced motion suppresses optional movement while retaining action silhouettes. Final elimination feedback survives the results transition. See [sources, limitations and verification](character-polish.md). Input, physics and rules remain unchanged; the generated frame animation still needs user assessment in motion.
 
-### 7G. Freer bouncing-ball experiment (planned)
+### 7G. Freer bouncing-ball experiment
 
-Compare the current bounded exercise with arena-wide movement, platform ricochets, bounce heights and explicit bottom-boundary rules. Trial luminous colours, animated cores, trails and split bursts independently from new colour-based behaviours. Compare count/speed/size/splitting through playtesting; validate deterministic contact resolution, population bounds, replay and peer recovery.
+Implemented gentle and surge arena-wide presets alongside the bounded exercise: solid platform ricochets, different speeds/bounce heights and an explicit ball-only bottom boundary. Luminous split-family colours, animated cores, velocity trails and coloured split bursts remain cosmetic. The family grows from one large orb to at most four small orbs; more initial families and independent tuning sliders remain follow-ups if playtesting supports them. See [rules, tradeoffs and verification](ball-ricochets.md). Rules are `hook-havok-7`; refresh all clients and use a fresh room. User comparison should guide the next ball balance and interaction choices.
 
 ### 8A. Splash screen and main menu (planned)
 
