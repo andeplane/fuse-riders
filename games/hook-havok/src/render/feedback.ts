@@ -10,28 +10,57 @@ export type Cue =
   | "impact"
   | "pop";
 export interface Burst {
-  kind: Cue;
+  kind: Cue | "vanish";
   x: number;
   y: number;
   at: number;
+  direction?: number;
+  target?: string;
 }
 /** Cosmetic history only: never feeds inputs or changes the simulation. */
 export class Feedback {
   private previous?: WorldView;
   private through = -1;
   private bursts: Burst[] = [];
+  private subject?: string;
+  private poseAt?: number;
+  private stride = 0;
+  private running = false;
   reset(): void {
     this.previous = undefined;
     this.through = -1;
     this.bursts = [];
+    this.subject = undefined;
+    this.poseAt = undefined;
+    this.stride = 0;
+    this.running = false;
   }
   update(view: WorldView, ms: number): Cue[] {
+    const subject = view.localId ?? view.keepers[0]?.id;
+    if (this.previous && subject !== this.subject) this.reset();
+    this.subject = subject;
     this.bursts = this.bursts.filter((b) => ms - b.at < 400);
     if (view.tick <= this.through) return [];
     const old = this.previous;
     this.previous = view;
     this.through = view.tick;
-    if (!old || view.tick - old.tick > 12) return [];
+    if (!old) return [];
+    if (view.tick - old.tick > 12) {
+      this.bursts = [];
+      this.stride = 0;
+      this.running = false;
+      this.poseAt = ms;
+      return [];
+    }
+    const wasIn = old.contest.entries.find((entry) => entry.id === subject);
+    const nowOut = view.contest.entries.find((entry) => entry.id === subject);
+    if (view.deaths > old.deaths || (wasIn && !wasIn.out && nowOut?.out))
+      this.bursts.push({
+        kind: "vanish",
+        x: old.x,
+        y: Math.min(870, old.feet),
+        at: ms,
+      });
     const cues: Cue[] = [];
     if (
       old.experiment === view.experiment &&
@@ -75,11 +104,19 @@ export class Feedback {
       });
     if (view.hit && view.hit.tick > old.tick) {
       cues.push("impact");
+      const victim = view.keepers.find(
+        (keeper) => keeper.id === view.hit!.target,
+      );
       this.bursts.push({
         kind: "impact",
         x: view.hit.x,
         y: view.hit.y,
         at: ms,
+        target: view.hit.target,
+        direction: Math.atan2(
+          victim?.body.vy ?? 0,
+          victim?.body.vx || view.facing,
+        ),
       });
     }
     this.bursts = this.bursts.slice(-12);
@@ -95,22 +132,57 @@ export class Feedback {
       !reduced && landing ? Math.max(0, 1 - (ms - landing.at) / 180) : 0;
     const firing = fired ? Math.max(0, 1 - (ms - fired.at) / 100) : 0;
     const recoil = reduced ? 0 : firing;
+    const jumped = [...this.bursts].reverse().find((b) => b.kind === "jump");
+    const released = [...this.bursts]
+      .reverse()
+      .find((b) => b.kind === "release");
+    const arrived = [...this.bursts]
+      .reverse()
+      .find((b) => b.kind === "respawn");
+    const struck = [...this.bursts]
+      .reverse()
+      .find(
+        (b) =>
+          b.kind === "impact" &&
+          b.target === this.subject &&
+          b.target !== undefined,
+      );
+    const entry = arrived ? Math.max(0, 1 - (ms - arrived.at) / 260) : 0;
+    const hit = struck ? Math.max(0, 1 - (ms - struck.at) / 200) : 0;
+    const release = released ? Math.max(0, 1 - (ms - released.at) / 160) : 0;
+    const takeoff = jumped ? Math.max(0, 1 - (ms - jumped.at) / 130) : 0;
     const moving = view.grounded && Math.abs(view.vx) > 20;
     const state = view.respawn
       ? "respawn"
-      : compression > 0
-        ? "land"
+      : hit > 0
+        ? "hit"
         : firing > 0
           ? "fire"
           : view.hook.phase === "attached"
             ? "pull"
-            : !view.grounded
-              ? view.vy < 0
-                ? "rise"
-                : "fall"
-              : moving
-                ? "run"
-                : "idle";
+            : entry > 0
+              ? "arrive"
+              : compression > 0
+                ? "land"
+                : !view.grounded
+                  ? view.vy < 0
+                    ? "rise"
+                    : "fall"
+                  : moving
+                    ? "run"
+                    : "idle";
+    // Integrate only presentation time; idle/action transitions restart at contact.
+    const delta = Math.max(0, Math.min(50, ms - (this.poseAt ?? ms)));
+    this.poseAt = ms;
+    if (state === "run" && !reduced) {
+      this.stride = this.running
+        ? (this.stride + (Math.abs(view.vx) * delta) / 150000) % 1
+        : 0;
+      this.running = true;
+    } else {
+      this.stride = 0;
+      this.running = false;
+    }
     const frame =
       state === "fire"
         ? 7
@@ -118,30 +190,38 @@ export class Feedback {
           ? 8
           : state === "rise"
             ? 5
-            : state === "fall"
+            : state === "fall" || state === "hit"
               ? 6
               : state === "run"
-                ? 1 +
-                  (Math.floor(ms / Math.max(65, 125 - Math.abs(view.vx) / 10)) %
-                    4)
+                ? Math.floor(this.stride * 8)
                 : 0;
     const stretch = reduced
       ? 0
-      : compression
-        ? -0.12 * compression
-        : !view.grounded && view.vy < 0
-          ? 0.035
-          : 0;
+      : hit
+        ? -0.08 * hit
+        : entry
+          ? -0.12 * entry
+          : compression && state === "land"
+            ? -0.12 * compression
+            : !view.grounded && view.vy < 0
+              ? 0.035 + takeoff * 0.055
+              : 0;
     return {
       state,
       frame,
+      texture: state === "run" ? ("run" as const) : ("actor" as const),
+      alpha: reduced ? 1 : 1 - entry * 0.35,
       scaleX: 1 - stretch * 0.45,
       scaleY: state === "idle" && !reduced ? idleBreath(ms) : 1 + stretch,
       rotation: reduced
         ? 0
-        : state === "pull"
-          ? view.facing * 0.065
-          : -view.facing * recoil * 0.055,
+        : hit
+          ? Math.cos(struck!.direction ?? 0) * hit * 0.13
+          : state === "pull"
+            ? view.facing * 0.065
+            : state === "run"
+              ? Math.max(-0.045, Math.min(0.045, view.vx / 8000))
+              : -view.facing * (recoil * 0.055 + release * 0.04),
     };
   }
 }

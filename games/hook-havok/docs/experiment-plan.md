@@ -104,9 +104,9 @@ Implemented a richer slate/iron/plum/amber visual language and a reusable painte
 
 Implemented the shrine kit on all fourteen Crossroads platforms, with an original ruined-cathedral painting, distant central monument, varied ivy/candles/banners, banner sway, candle flicker, local embers and sparse dust. The existing fog remains a separate moving layer. Atmosphere and live reduced-motion preferences stop environmental motion. Belfry retains its earlier appearance and map geometry/rules are unchanged. See [sources, playtesting and browser evidence](cathedral-atmosphere.md). User assessment should guide further density and animation polish.
 
-### 7F. Character animation and combat spectacle (planned)
+### 7F. Character animation and combat spectacle
 
-Improve foot registration and movement cycles, jump/landing transitions, hook anticipation and recoil, cloak motion, directional impacts and respawn/elimination feedback. Animation follows responsive gameplay timing; effects remain bounded and support reduced motion.
+Implemented a dedicated eight-frame run atlas with scarf motion, speed-driven cadence, foot registration, takeoff/landing recovery, hook recoil, victim-only impact reaction, directional hit accents, short airborne silhouette echoes and distinct exit/arrival effects. Local/remote keepers share presentation logic; reduced motion suppresses optional movement while retaining action silhouettes. Final elimination feedback survives the results transition. See [sources, limitations and verification](character-polish.md). Input, physics and rules remain unchanged; the generated frame animation still needs user assessment in motion.
 
 ### 7G. Freer bouncing-ball experiment (planned)
 

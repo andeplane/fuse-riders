@@ -128,19 +128,22 @@ try {
   await mapIs(guests[0], "crossroads", 14);
   await host.locator("#arena-focus").click();
   await host.locator("#rules").selectOption("score");
-  await host.waitForFunction(
-    () =>
-      JSON.parse(document.querySelector("#scene").dataset.contest).phase ===
-      "active",
-  );
+  await host.waitForFunction(() => {
+    const contest = JSON.parse(
+      document.querySelector("#scene").dataset.contest,
+    );
+    return contest.rules === "score" && contest.phase === "active";
+  });
   await host.locator("#map").selectOption("belfry");
+  await host.waitForFunction(() => {
+    const scene = document.querySelector("#scene");
+    return (
+      scene.dataset.map === "belfry" &&
+      JSON.parse(scene.dataset.contest).phase === "countdown"
+    );
+  });
   for (const page of all)
     assert.deepEqual(await mapIs(page, "belfry", 8), original);
-  await host.waitForFunction(
-    () =>
-      JSON.parse(document.querySelector("#scene").dataset.contest).phase ===
-      "countdown",
-  );
   for (const id of ["crossroads", "belfry", "crossroads"]) {
     await host.locator("#map").selectOption(id);
     await mapIs(host, id, id === "belfry" ? 8 : 14);

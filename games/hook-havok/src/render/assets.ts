@@ -1,4 +1,8 @@
 export const ASSETS = {
+  run: new URL(
+    "../../art-source/character/lantern-keeper-run-source.png",
+    import.meta.url,
+  ).href,
   cathedral: new URL(
     "../../art-source/backgrounds/crossroads-cathedral-source.png",
     import.meta.url,

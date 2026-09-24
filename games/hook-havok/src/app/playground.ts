@@ -420,7 +420,8 @@ const enterRoom = async () => {
           if (contestPhase !== c.phase) {
             contestPhase = c.phase;
             clear();
-            scene?.resetFeedback();
+            // Preserve the final hit/exit transition when results arrive.
+            if (c.phase !== "over") scene?.resetFeedback();
           }
           const local = frame.seats.find((s) => s.id === selfId),
             manager =
@@ -517,6 +518,7 @@ const enterRoom = async () => {
                     ? `${c.winners.length ? `${names(c.winners)} ${c.winners.length > 1 ? "share the win" : "wins"}` : "Draw — no keepers remain"}. Room manager: restart the shared trial to play again.`
                     : `${c.seconds}s remaining${!display && !localKeeper?.playing ? " · Watching until the next round" : ""}`;
           host.dataset.contest = JSON.stringify(c);
+          host.dataset.round = String(frame.round);
           paintRoster(frame, selfId);
           host.dataset.playerId = selfId;
           el("experiment-help").textContent = descriptions[frame.experiment];

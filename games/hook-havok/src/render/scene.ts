@@ -5,6 +5,7 @@ import type { WorldView } from "../engine/view.js";
 import { Feedback, type Cue } from "./feedback.js";
 import { KEEPER_COLORS, keeperColor } from "./identity.js";
 import { paintCrest, paintTether, paintBurst, dressPlatform } from "./art.js";
+import { createEchoes, paintEchoes } from "./echoes.js";
 import {
   animateShrine,
   dressShrine,
@@ -55,15 +56,20 @@ export function createShowcase(
         tether: Phaser.GameObjects.Graphics;
         label: Phaser.GameObjects.Text;
         feedback: Feedback;
+        echoes: Phaser.GameObjects.Image[];
+        motion: string;
       }
     >();
     private actor?: Phaser.GameObjects.Image;
+    private echoes: Phaser.GameObjects.Image[] = [];
     private crest?: Phaser.GameObjects.Graphics;
     private hook?: Phaser.GameObjects.Image;
     private tether?: Phaser.GameObjects.Graphics;
     private effects?: Phaser.GameObjects.Graphics;
     private combat?: Phaser.GameObjects.Graphics;
     private frames: Crop[] = [];
+    private runFrames: Crop[] = [];
+    private runScale = 1;
     private actorScale = 1;
     private fog: Phaser.GameObjects.Image[] = [];
     private glows: Phaser.GameObjects.Image[] = [];
@@ -152,6 +158,11 @@ export function createShowcase(
       this.rebuildTerrain(options.view?.());
       this.frames = this.cut("actor", 3, 3);
       this.actorScale = 76 / Math.max(...this.frames.map((r) => r.height));
+      this.runFrames = this.cut("run", 4, 2);
+      this.runScale =
+        (this.actorScale * this.frames[0]!.height) /
+        Math.max(...this.runFrames.map((r) => r.height));
+      this.echoes = createEchoes(this);
       this.tether = this.add.graphics().setDepth(10);
       this.combat = this.add.graphics().setDepth(9);
       this.crest = this.add.graphics().setDepth(11);
@@ -341,7 +352,7 @@ export function createShowcase(
                     !k.playing,
                 )
                   ? 0.25
-                  : 1,
+                  : motion!.alpha,
               hook: world.hook.phase !== "ready" ? world.hook : undefined,
               landing: 0,
               spark: 0,
@@ -354,19 +365,20 @@ export function createShowcase(
                     : "In the air",
             }
           : showcasePose(elapsed, idleOnly),
-        frame = this.frames[pose.frame]!;
+        frame = (motion?.texture === "run" ? this.runFrames : this.frames)[
+          pose.frame
+        ]!,
+        scale = motion?.texture === "run" ? this.runScale : this.actorScale;
       this.actor
-        .setFrame(String(pose.frame))
+        .setTexture(motion?.texture ?? "actor", String(pose.frame))
         .setOrigin(frame.pivot, 1)
         .setPosition(pose.x, pose.feet)
-        .setScale(
-          this.actorScale * (motion?.scaleX ?? 1),
-          this.actorScale * pose.scaleY,
-        )
+        .setScale(scale * (motion?.scaleX ?? 1), scale * pose.scaleY)
         .setRotation(motion?.rotation ?? 0)
         .setFlipX(world?.facing === -1)
         .setTint(color)
         .setAlpha(pose.alpha);
+      paintEchoes(this.echoes, this.actor, world, reduced.matches);
       if (this.crest) {
         paintCrest(this.crest, slot, color);
         this.crest
@@ -406,6 +418,7 @@ export function createShowcase(
             peer.crest.destroy();
             peer.tether.destroy();
             peer.label.destroy();
+            peer.echoes.forEach((echo) => echo.destroy());
             this.peers.delete(id);
           }
         for (const keeper of world.keepers) {
@@ -413,6 +426,8 @@ export function createShowcase(
           if (!peer) {
             peer = {
               feedback: new Feedback(),
+              echoes: createEchoes(this),
+              motion: "idle",
               actor: this.add.image(0, 0, "actor", "0").setDepth(12),
               crest: this.add.graphics().setDepth(11),
               tether: this.add.graphics().setDepth(10),
@@ -433,25 +448,42 @@ export function createShowcase(
           }
           const body = keeper.body,
             color = colors[keeper.slot]!;
-          peer.feedback.update(body, elapsed);
+          peer.feedback.update(
+            {
+              ...body,
+              hit: world.hit,
+              localId: keeper.id,
+              keepers: world.keepers,
+              contest: world.contest,
+            },
+            elapsed,
+          );
           const remotePose = peer.feedback.pose(body, elapsed, reduced.matches);
+          peer.motion = remotePose.state;
           const remoteFrame = remotePose.frame;
-          const crop = this.frames[remoteFrame]!;
+          const crop = (
+            remotePose.texture === "run" ? this.runFrames : this.frames
+          )[remoteFrame]!;
+          const remoteScale =
+            remotePose.texture === "run" ? this.runScale : this.actorScale;
           peer.actor
             .setVisible(keeper.id !== focused)
-            .setFrame(String(remoteFrame))
+            .setTexture(remotePose.texture, String(remoteFrame))
             .setOrigin(crop.pivot, 1)
             .setPosition(body.x, body.feet)
             .setScale(
-              this.actorScale * remotePose.scaleX,
-              this.actorScale * remotePose.scaleY,
+              remoteScale * remotePose.scaleX,
+              remoteScale * remotePose.scaleY,
             )
             .setRotation(remotePose.rotation)
             .setFlipX(body.facing === -1)
             .setTint(color)
             .setAlpha(
-              !keeper.connected || !keeper.playing || body.respawn ? 0.3 : 1,
+              !keeper.connected || !keeper.playing || body.respawn
+                ? 0.3
+                : remotePose.alpha,
             );
+          paintEchoes(peer.echoes, peer.actor, body, reduced.matches);
           paintCrest(peer.crest, keeper.slot, color);
           peer.crest
             .setVisible(keeper.id !== focused)
@@ -507,6 +539,17 @@ export function createShowcase(
             hook: k.body.hook.phase,
             deaths: k.body.deaths,
             costume: k.slot,
+            shield: k.shield,
+            atlas: this.peers.get(k.id)?.actor.texture.key,
+            frame: this.peers.get(k.id)?.actor.frame.name,
+            motion: this.peers.get(k.id)?.motion,
+            rotation: this.peers.get(k.id)?.actor.rotation,
+            feedback: this.peers
+              .get(k.id)
+              ?.feedback.active()
+              .map((burst) => burst.kind),
+            echoes: this.peers.get(k.id)?.echoes.filter((echo) => echo.visible)
+              .length,
           })),
         );
       }
@@ -652,6 +695,11 @@ export function createShowcase(
       options.time(elapsed);
       host.dataset.time = String(Math.floor(elapsed));
       host.dataset.frame = String(pose.frame);
+      host.dataset.atlas = this.actor.texture.key;
+      host.dataset.rotation = String(this.actor.rotation);
+      host.dataset.echoes = String(
+        this.echoes.filter((echo) => echo.visible).length,
+      );
       host.dataset.actorX = pose.x.toFixed(3);
       host.dataset.feet = pose.feet.toFixed(3);
       host.dataset.scaleY = pose.scaleY.toFixed(5);

@@ -4,6 +4,8 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
+Phase 7F adds [keeper animation and combat polish](docs/character-polish.md): an eight-frame speed-driven run cycle, takeoff/landing recovery, hook recoil, victim-only hit reactions, subtle airborne silhouette echoes and distinct fall/elimination/arrival effects. Local, remote and shared-display keepers use the same presentation. Reduced motion keeps action poses while suppressing cycling, deformation and echoes. Try running, jumping, hooking and hitting a friend on either map. Gameplay rules remain `hook-havok-6`.
+
 Phase 7E extends the shrine stonework across all fourteen Crossroads platforms and introduces a [ruined lantern cathedral backdrop and environmental animation](docs/cathedral-atmosphere.md): varied ivy/candle dressing, gently swaying banners, candle flicker, sparse embers/dust and drifting fog. Enter a room, select **Arena → Crossroads**, then **Focus arena**. **Atmosphere** disables environmental motion; live reduced-motion preference changes also stop it. Belfry keeps its earlier appearance. Gameplay rules remain `hook-havok-6`.
 
 Phase 7D adds the [lantern shrine art section](docs/lantern-shrine.md): new carved stone and ivy variants, brass supports, candle/mushroom clusters and plum shrine banners on the three central Crossroads ledges. Enter a room, choose **Arena → Crossroads**, then **Focus arena**. Compare the central section with the surrounding earlier platforms; try **Splitting ball** to see action against the artwork. This is a local art trial, not a finished arena-wide redesign. Rules remain `hook-havok-6`.

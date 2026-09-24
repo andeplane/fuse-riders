@@ -77,6 +77,27 @@ export function paintBurst(
   }
   const ground = kind === "land" || kind === "jump";
   const impact = kind === "impact" || kind === "pop";
+  if (kind === "vanish" || kind === "respawn") {
+    const arriving = kind === "respawn";
+    const radius = arriving ? 10 + age * 28 : 12 + age * 18;
+    g.lineStyle(2, arriving ? 0xaee8e5 : 0xe4c197, alpha * 0.8).strokeEllipse(
+      x,
+      y - 2,
+      radius * 2,
+      radius * 0.45,
+    );
+    for (let i = 0; i < 7; i++) {
+      const px = x + Math.sin(i * 2.4) * radius;
+      const py = y - 12 - age * (22 + i * 5);
+      g.lineStyle(2, arriving ? 0xe0ffef : 0xdac1ff, alpha * 0.65).lineBetween(
+        px,
+        py,
+        px,
+        py + 4 + alpha * 4,
+      );
+    }
+    return;
+  }
   if (ground) {
     for (let i = 0; i < 8; i++) {
       g.fillStyle(i % 2 ? 0xc5bbc1 : 0x777c9b, alpha * 0.55).fillEllipse(
@@ -109,6 +130,19 @@ export function paintBurst(
         x + Math.cos(a) * outer,
         y + Math.sin(a) * outer,
       );
+    }
+    if (burst.direction !== undefined) {
+      const dx = Math.cos(burst.direction),
+        dy = Math.sin(burst.direction);
+      for (let i = -1; i <= 1; i++) {
+        const offset = i * 7;
+        g.lineStyle(i === 0 ? 4 : 2, 0xfff3d1, alpha * 0.9).lineBetween(
+          x - dy * offset + dx * (8 + age * 16),
+          y + dx * offset + dy * (8 + age * 16),
+          x - dy * offset + dx * (22 + age * 40),
+          y + dx * offset + dy * (22 + age * 40),
+        );
+      }
     }
     return;
   }
