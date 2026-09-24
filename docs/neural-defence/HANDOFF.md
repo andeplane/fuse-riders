@@ -25,6 +25,7 @@ Status: **work in progress, explicitly handed off to a cloud agent by the user**
 ## Verified at handoff
 
 - `pnpm typecheck`: passed.
+- `pnpm build`: passed, with a bundle-size warning.
 - `pnpm exec tsx --test games/neural-defence/tests/*.test.ts`: 15 passed (12 engine, 3 runtime/adapter).
 - `pnpm exec tsx --test packages/fuse-netcode/tests/room-runtime.test.ts`: 9 passed.
 - `git diff --check`: passed before handoff documentation.
