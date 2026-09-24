@@ -29,7 +29,9 @@ Where the documents describe algorithms, they are proposed contracts for impleme
 
 Start on a hand-authored **12 × 12 hex map (144 cells)** stored in a versioned `.json` file, with configurable width and height. A later map editor will use the same format and engine validator. Phase 0 is a **one-player sandbox with no AI** for testing construction, mining and Growth Efficiency research; it keeps running without declaring the sole brain a winner. Later test charge priorities, two-brain battles, one tower and combat research before four-player scenarios. Full visibility comes first; fog and powerups remain later experiments.
 
-The sandbox supports **`?debug`** for instant construction and research, visibly marked and excluded from match statistics. Costs and prerequisites still apply. These are recorded engine settings, so headless runs and replays reproduce the same behaviour; they never depend on a URL inside the simulation. Debug is initially limited to offline solo sandbox play.
+The sandbox supports **`?debug`** for instant construction and research, visibly marked and excluded from career results and competitive balance aggregates. Later local session graphs may include debug runs with an explicit label. Costs and prerequisites still apply. These are recorded engine settings, so headless runs and replays reproduce the same behaviour; they never depend on a URL inside the simulation. Debug is initially limited to offline solo sandbox play.
+
+**Four-player readiness is part of Phase 0**, even with a one-player menu: explicit per-player state, stable cell/structure owners, separate connectivity and shared-deposit accounting, and four-player headless tests. The engine must never equate ownership with “me versus the enemy.” Future end-of-match graphs will use per-player tick histories and actual economy/gameplay outcomes; their capture and display are deferred, but stable identities and typed outcomes are part of the foundation.
 
 ## Design decisions for your review
 
