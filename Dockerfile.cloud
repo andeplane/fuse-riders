@@ -22,6 +22,7 @@ COPY packages/fuse-ui/package.json ./packages/fuse-ui/
 # Games are workspaces too: pnpm needs every manifest the lockfile lists, and the service registers each game's stats.
 COPY games/dice/package.json ./games/dice/
 COPY games/fuse-riders/package.json ./games/fuse-riders/
+COPY games/neural-defence/package.json ./games/neural-defence/
 # node_modules hardlinks into the store, so removing the store afterwards keeps the installed files.
 RUN pnpm install --prod --frozen-lockfile && rm -rf "$(pnpm store path)"
 COPY --chown=node:node service ./service
