@@ -75,4 +75,3 @@ Use case: stylized-concept. Input image is reference for luminous biological sha
 ### particle-attack
 
 Use case: stylized-concept. Input image is reference for luminous biological shading ONLY. Generate ONE individual transparent attack signal particle sprite for neural strategy game. A small intense magenta-violet neural impulse, compact pointed spearhead of light with a single tapering energy tail toward left, pointing and moving toward right. More angular and sharply pointed than the round builder droplet. A saturated pink-violet colored core with restrained bright pink edges, no white blob; a simple biological electric impulse with softly sculpted dimensional shading and moderate glow, readable at 12px. Centered in square fills 65%, transparent alpha background with ample padding. No jewelry, metal, ornament, wings, spacecraft, physical weapon, text, UI, board, scenery or tile. Single magenta-violet attack particle.
-

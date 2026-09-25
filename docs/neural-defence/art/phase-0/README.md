@@ -10,16 +10,16 @@ Review-only concept sheets for [Phase 0](../../PHASE_0.md). These images do not 
 
 ## Coverage
 
-| Sheet | Concepts represented |
-| --- | --- |
-| World, row 1 | Two open terrain variants; blocked rock; distinct organic Biomass and crystalline Insight deposits |
-| World, row 2 | Four player brains with circle/diamond/square/triangle identity markers; reserved tower-site marker |
-| World, row 3 | Four owned neurons; construction site |
-| World, row 4 | Damaged, disconnected and destroyed neuron treatments; queued tile; selection |
+| Sheet               | Concepts represented                                                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| World, row 1        | Two open terrain variants; blocked rock; distinct organic Biomass and crystalline Insight deposits                       |
+| World, row 2        | Four player brains with circle/diamond/square/triangle identity markers; reserved tower-site marker                      |
+| World, row 3        | Four owned neurons; construction site                                                                                    |
+| World, row 4        | Damaged, disconnected and destroyed neuron treatments; queued tile; selection                                            |
 | Particles, rows 1–2 | Assault A and Guard B in four ownership colors; Excitation and Insulation appearance variants; attack/absorption effects |
-| Particles, row 3 | Proposed Builder C; construction, research, Growth Efficiency, Excitation and Insulation glyphs |
-| Particles, row 4 | Refit, recovery, mining, priority, selection and queue/cancel controls |
-| Particles, row 5 | Axon connection, mixed transit, congestion, cut, arrival and disconnected indicators |
+| Particles, row 3    | Proposed Builder C; construction, research, Growth Efficiency, Excitation and Insulation glyphs                          |
+| Particles, row 4    | Refit, recovery, mining, priority, selection and queue/cancel controls                                                   |
+| Particles, row 5    | Axon connection, mixed transit, congestion, cut, arrival and disconnected indicators                                     |
 
 ![Particles and controls suggestions](particles-controls-v2.png)
 

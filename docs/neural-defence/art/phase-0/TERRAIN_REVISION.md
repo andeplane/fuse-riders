@@ -8,16 +8,16 @@ The visual reference is the user-provided Neural Defence board: sculpted cool st
 
 All files are 1254 × 1254 pixels. Ground fills the square and must be clipped by the renderer; it contains no baked hexagonal base, border, or selection state.
 
-| File | Channels | Alpha | Inspection |
-| --- | --- | --- | --- |
-| terrain-slate-a-v2.png | RGB | Opaque | Quiet weathered slate; replaces the appearance of the older hex slab without overwriting it |
-| terrain-slate-b.png | RGB | Opaque | Broader shallow slate fractures |
-| terrain-slate-c.png | RGB | Opaque | Rougher broad stone strata |
-| terrain-moss-a.png | RGB | Opaque | Slate with subdued moss and tiny cyan flecks |
-| terrain-soil-a.png | RGB | Opaque | Compacted earth, small stones, shallow erosion |
-| terrain-sand-a.png | RGB | Opaque | Cool beige sand and broad shallow ripples |
-| blocker-rock-cluster-a.png | RGBA | 0–255; 53.94% fully transparent | Compact five-rock silhouette; visible alpha > 128 bounds (98,117)–(1177,1159) |
-| blocker-rock-ridge-a.png | RGBA | 0–255; 66.27% fully transparent | Diagonal broken ridge; visible alpha > 128 bounds (101,69)–(1183,1191) |
+| File                       | Channels | Alpha                           | Inspection                                                                                  |
+| -------------------------- | -------- | ------------------------------- | ------------------------------------------------------------------------------------------- |
+| terrain-slate-a-v2.png     | RGB      | Opaque                          | Quiet weathered slate; replaces the appearance of the older hex slab without overwriting it |
+| terrain-slate-b.png        | RGB      | Opaque                          | Broader shallow slate fractures                                                             |
+| terrain-slate-c.png        | RGB      | Opaque                          | Rougher broad stone strata                                                                  |
+| terrain-moss-a.png         | RGB      | Opaque                          | Slate with subdued moss and tiny cyan flecks                                                |
+| terrain-soil-a.png         | RGB      | Opaque                          | Compacted earth, small stones, shallow erosion                                              |
+| terrain-sand-a.png         | RGB      | Opaque                          | Cool beige sand and broad shallow ripples                                                   |
+| blocker-rock-cluster-a.png | RGBA     | 0–255; 53.94% fully transparent | Compact five-rock silhouette; visible alpha > 128 bounds (98,117)–(1177,1159)               |
+| blocker-rock-ridge-a.png   | RGBA     | 0–255; 66.27% fully transparent | Diagonal broken ridge; visible alpha > 128 bounds (101,69)–(1183,1191)                      |
 
 Validation used Pillow to inspect dimensions, channel mode, alpha extrema, transparent-pixel fraction, and visible silhouette bounds. All eight outputs were visually inspected. No generated pixels were edited after generation.
 
@@ -74,5 +74,3 @@ Use case: stylized-concept. Asset type: ONE isolated rock obstacle sprite for a 
 Source: `/Users/anderhaf/.codex/generated_images/01a0d76b-df38-7543-ba2b-55a6a43e4c29/exec-91a70090-de20-4b0a-b565-b26ec4072e7f.png`
 
 Use case: stylized-concept. Asset type: individual production terrain texture for a polished sci-fi neural RTS web game. Camera: exactly vertical orthographic top-down, no isometric perspective. Style: hand-finished AAA stylized PBR game art, readable broad material shapes with restrained fine detail. Lighting: soft diffuse daylight from upper left, medium brightness, no black shadows, consistent cool slate-blue neutral palette. Composition: seamless square texture filling EVERY pixel edge to edge, opaque ground, NO hex shape, NO tile border, NO frame, NO bevel, no platform, no blank margin, no horizon. This texture will be clipped into hexagons by the game renderer. No text, symbols, UI, units, buildings or mineral pickups. Calm readable ground so colorful neurons can stand out. Subject: flat gently weathered blue-gray slate bedrock with subtle mineral grain, quiet broad irregular patches, two shallow fine natural cracks and only a few very tiny embedded pebbles. Average color muted slate blue-gray around RGB 105 116 132, not pale or nearly black. Same scale and coherent material family as slate B and C. No centralized focal element. Seamless repeatable pattern.
-
-
