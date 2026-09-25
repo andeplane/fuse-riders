@@ -1012,11 +1012,11 @@ select {
 .structure-hp {
   fill: var(--team);
 }
-.charge-halo {
+.supply-footprint {
   fill: none;
   stroke: var(--team);
-  stroke-width: 3;
-  filter: drop-shadow(0 0 8px var(--team));
+  stroke-width: 1.5;
+  pointer-events: none;
 }
 .queue-mark circle {
   fill: #0b193399;

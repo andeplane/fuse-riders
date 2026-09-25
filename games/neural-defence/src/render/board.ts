@@ -125,6 +125,10 @@ export function neuronArtwork(
   const size = 49 + (seed % 7);
   return `<g class="neuron-body" data-phase="${seed}" style="--team:${colors[slot]};transform-origin:${x}px ${y}px"><g style="filter:${teamArtFilter(slot)}" transform="rotate(${(seed % 6) * 60} ${x} ${y})">${image(sprites, structureArt("neuron", cell), x, y, size) || image(sprites, "neuron-v3", x, y, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="12"/>`}</g></g>`;
 }
+const buildingFoot = 36;
+function buildingSize(kind: Exclude<StructureKind, "neuron">): number {
+  return kind === "brain" ? 90 : kind === "relay" ? 96 : 84;
+}
 export function structureArtwork(
   width: number,
   cell: number,
@@ -134,8 +138,8 @@ export function structureArtwork(
 ): string {
   if (kind === "neuron") return neuronArtwork(width, cell, slot, sprites);
   const { x, y } = hexCenter(width, cell);
-  const size = kind === "brain" ? 90 : kind === "relay" ? 96 : 84;
-  return `<g class="building-art" style="filter:${teamArtFilter(slot)}">${image(sprites, structureArt(kind), x, y + 36 - size / 2, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="16"/>`}</g>`;
+  const size = buildingSize(kind);
+  return `<g class="building-art" style="filter:${teamArtFilter(slot)}">${image(sprites, structureArt(kind), x, y + buildingFoot - size / 2, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="16"/>`}</g>`;
 }
 function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
   return [...world.structures]
@@ -150,9 +154,13 @@ function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
           p.cell === s.cell &&
           p.mode === "stationed",
       ).length;
+      const healthY =
+        s.kind === "neuron"
+          ? y - 35
+          : y + buildingFoot - buildingSize(s.kind) - 7;
       const health =
         s.hp < hpMax
-          ? `<rect class="structure-hp-bg" x="${x - 18}" y="${y - 29}" width="36" height="3"/><rect class="structure-hp" x="${x - 18}" y="${y - 29}" width="${36 * Math.max(0, Math.min(1, s.hp / hpMax))}" height="3"/>`
+          ? `<rect class="structure-hp-bg" x="${x - 18}" y="${healthY}" width="36" height="3"/><rect class="structure-hp" x="${x - 18}" y="${healthY}" width="${36 * Math.max(0, Math.min(1, s.hp / hpMax))}" height="3"/>`
           : "";
       const artwork = structureArtwork(
         world.map.width,
@@ -169,7 +177,11 @@ function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
           : s.kind === "brain" || s.kind === "relay"
             ? { rx: 24, ry: 41, offset: -8 }
             : { rx: 24, ry: 33, offset: -3 };
-      return `<g class="structure structure-${s.kind} ${s.connected ? "" : "disconnected"}" data-cell="${s.cell}" style="--team:${colors[slot]}"><ellipse class="contact-shadow" cx="${x + 4}" cy="${y + 19}" rx="${s.kind === "neuron" ? 23 : 34}" ry="16" fill="url(#contact-shadow)"/><circle class="owner-ring" cx="${x}" cy="${y}" r="${s.kind === "brain" ? 27 : 10}"/>${artwork || `<circle class="structure-core" cx="${x}" cy="${y}" r="15"/>`}${stock && s.connected ? `<g class="supply-orbit" style="transform-origin:${x}px ${y}px">${Array.from({ length: Math.min(6, Math.ceil(stock / 8)) }, (_, i) => `<circle cx="${x + Math.cos((i * Math.PI) / 3) * 22}" cy="${y + Math.sin((i * Math.PI) / 3) * 22}" r="2" fill="${colors[slot]}"/>`).join("")}</g>` : ""}${health}<circle class="charge-halo" cx="${x}" cy="${y}" r="10" opacity="${Math.min(0.7, stock / 48)}"/><ellipse class="structure-hit" cx="${x}" cy="${y + hit.offset}" rx="${hit.rx}" ry="${hit.ry}"/></g>`;
+      const supply =
+        stock && s.connected
+          ? `<ellipse class="supply-footprint" cx="${x}" cy="${y + 20}" rx="${s.kind === "neuron" ? 20 : 29}" ry="9" opacity="${Math.min(0.35, stock / 96)}"/>`
+          : "";
+      return `<g class="structure structure-${s.kind} ${s.connected ? "" : "disconnected"}" data-cell="${s.cell}" style="--team:${colors[slot]}"><ellipse class="contact-shadow" cx="${x + 4}" cy="${y + 19}" rx="${s.kind === "neuron" ? 23 : 34}" ry="16" fill="url(#contact-shadow)"/>${supply}<circle class="owner-ring" cx="${x}" cy="${y}" r="${s.kind === "brain" ? 27 : 10}"/>${artwork || `<circle class="structure-core" cx="${x}" cy="${y}" r="15"/>`}${stock && s.connected ? `<g class="supply-orbit" style="transform-origin:${x}px ${y}px">${Array.from({ length: Math.min(6, Math.ceil(stock / 8)) }, (_, i) => `<circle cx="${x + Math.cos((i * Math.PI) / 3) * 22}" cy="${y + Math.sin((i * Math.PI) / 3) * 22}" r="2" fill="${colors[slot]}"/>`).join("")}</g>` : ""}${health}<ellipse class="structure-hit" cx="${x}" cy="${y + hit.offset}" rx="${hit.rx}" ry="${hit.ry}"/></g>`;
     })
     .join("");
 }

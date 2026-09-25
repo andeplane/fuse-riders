@@ -33,3 +33,9 @@ Full suite: **1,682 passed**. Typecheck/build, focused lint and 21 focused prese
 That flow exposed overlapping arrival rings obscuring towers. Arrivals now coalesce per destination and render as brief, faint ground pulses beneath buildings. Regression coverage checks packet coalescing, layer order and reduced-motion cleanup. Independent review found no actionable issues.
 
 Latest full suite: **1,683 passed**. Build and focused ESLint passed; both browser roster runs passed again after the effect correction.
+
+## Building status readability
+
+A second visual audit distinguished persistent supply halos from arrival pulses: those halos still covered the illustrated bodies. Stock now appears as a faint ellipse beneath the building, while moving particles and orbit dots remain. Damage bars use the same building height as the artwork and sit above it instead of crossing tower cores.
+
+Chromium and WebKit passed actual damaged-tower geometry, ground-marker paint order, selection/placement and the normal-time full roster again. Updated desktop/phone roster captures show supplied buildings without body-covering rings. The review caught a Linkedom SVG parsing assumption in the regression test; the test now checks document paint order, supplemented by direct sibling-order assertions in both browsers. No product regression was found. Latest full suite: **1,684 passed**; build and focused lint passed.

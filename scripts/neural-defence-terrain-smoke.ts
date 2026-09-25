@@ -136,6 +136,36 @@ for (const [name, browserType] of [
       3,
       "live network shows three different neuron anatomies",
     );
+    await page.locator(".structure-tower .structure-hp").first().waitFor();
+    const readableHealth = await page
+      .locator(".structure-tower")
+      .evaluateAll((nodes) =>
+        nodes
+          .filter((node) => node.querySelector(".structure-hp"))
+          .every((node) => {
+            const hp = node.querySelector(".structure-hp")!;
+            const art = node.querySelector(".building-art image")!;
+            return (
+              Number(hp.getAttribute("y")) + Number(hp.getAttribute("height")) <
+              Number(art.getAttribute("y"))
+            );
+          }),
+      );
+    assert.ok(readableHealth, "live damaged tower bars clear the artwork");
+    assert.equal(await page.locator(".charge-halo").count(), 0);
+    assert.ok((await page.locator(".supply-footprint").count()) > 0);
+    assert.ok(
+      await page.locator(".supply-footprint").evaluateAll((markers) =>
+        markers.every((marker) => {
+          const siblings = [...marker.parentElement!.children];
+          const art = marker.parentElement!.querySelector(
+            ".building-art, .neuron-body",
+          )!;
+          return siblings.indexOf(marker) < siblings.indexOf(art);
+        }),
+      ),
+      "supplied structures paint their ground marker beneath artwork",
+    );
     await page.screenshot({ path: `/tmp/neural-anatomy-${name}-desktop.png` });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.screenshot({ path: `/tmp/neural-anatomy-${name}-phone.png` });

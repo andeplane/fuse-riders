@@ -9,6 +9,48 @@ import { renderBoard } from "../src/render/board.js";
 import { terrainArt } from "../src/render/terrain-art.js";
 import { constructionQueueAvailability } from "../src/engine/catalog.js";
 
+test("building status leaves artwork clear and unsupplied fragments have no supply marker", () => {
+  const { document } = parseHTML("<html><body><svg></svg></body></html>");
+  const svg = document.querySelector("svg") as unknown as SVGSVGElement;
+  const map = loadMap(
+    JSON.parse(
+      readFileSync(new URL("../maps/sandbox-12.json", import.meta.url), "utf8"),
+    ),
+  );
+  const world = createMatch(map, {}, [{ id: "solo", slot: 0 }]);
+  const structure = world.structures[0]!;
+  const sprites = Object.fromEntries(
+    ["brain-v3", "tower-pulse-v3", "tower-siege-v3", "tower-relay-v3"].map(
+      (name) => [name, `/${name}.png`],
+    ),
+  );
+  for (const kind of ["brain", "tower", "siege", "relay"] as const) {
+    structure.kind = kind;
+    structure.hp = 1;
+    world.tick++;
+    renderBoard(svg, world, structure.cell, false, true, 0, sprites);
+    const group = svg.querySelector(".structure")!;
+    const art = group.querySelector(".building-art")!;
+    const image = art.querySelector("image")!;
+    const health = group.querySelector(".structure-hp")!;
+    assert.ok(
+      Number(health.getAttribute("y")) + Number(health.getAttribute("height")) <
+        Number(image.getAttribute("y")),
+      `${kind} health stays above its artwork`,
+    );
+    const supply = group.querySelector(".supply-footprint")!;
+    assert.ok(supply, `${kind} shows stocked supply`);
+    const painted = [...group.querySelectorAll("*")];
+    assert.ok(painted.indexOf(supply) < painted.indexOf(art));
+    assert.ok(Number(supply.getAttribute("opacity")) <= 0.35);
+    assert.equal(group.querySelector(".charge-halo"), null);
+  }
+  structure.connected = false;
+  world.tick++;
+  renderBoard(svg, world, structure.cell, false, true, 0, sprites);
+  assert.equal(svg.querySelector(".supply-footprint"), null);
+});
+
 test("arrival cues aggregate by destination beneath buildings and stop with reduced motion", () => {
   const { document } = parseHTML("<html><body><svg></svg></body></html>");
   const svg = document.querySelector("svg") as unknown as SVGSVGElement;
