@@ -49,6 +49,131 @@ const command = (
   action: Command["action"],
   playerId = "a",
 ): Command => ({ sequence, action, playerId });
+
+test("auto expansion defaults off, grows through ordinary construction, and stops after disabling", () => {
+  const initial = start();
+  assert.equal(initial.players[0]!.autoExpand, false);
+  assert.equal(run(initial, 100).structures.length, 1);
+  let w = step(initial, [command(0, { type: "setAutoExpand", enabled: true })]);
+  assert.equal(w.players[0]!.queue.length, 1);
+  assert.equal(w.players[0]!.queue[0]!.paid, true);
+  assert.equal(w.players[0]!.biomass, 60_050 - RULES.neuronCost);
+  const active = w.players[0]!.queue[0]!.cell;
+  w = step(w, [command(1, { type: "setAutoExpand", enabled: false })]);
+  w = run(w, 200);
+  assert.ok(w.structures.some((s) => s.cell === active));
+  assert.equal(
+    w.structures.length,
+    2,
+    "disable finishes current work without starting another",
+  );
+  assert.equal(w.players[0]!.queue.length, 0);
+});
+
+test("auto expansion waits for funds, respects manual plans, and resumes after they clear", () => {
+  let w = start();
+  w.players[0]!.biomass = 0;
+  w = step(w, [command(0, { type: "setAutoExpand", enabled: true })]);
+  assert.equal(w.players[0]!.queue.length, 0);
+  const saved = w;
+  const funded = run(saved, 400);
+  assert.equal(funded.players[0]!.autoExpand, true);
+  assert.ok(
+    funded.players[0]!.queue.some((j) => j.paid),
+    "income automatically resumes expansion without a new toggle",
+  );
+  w.players[0]!.biomass = RULES.neuronCost;
+  w = step(w, [
+    command(1, { type: "queueConstruction", kind: "neuron", cell: 63 }),
+  ]);
+  assert.deepEqual(
+    w.players[0]!.queue.map((j) => j.cell),
+    [63],
+    "even a waiting manual plan takes priority",
+  );
+  w = step(w, [command(2, { type: "cancelConstruction", cell: 63 })]);
+  assert.equal(w.players[0]!.queue.length, 1);
+  assert.notEqual(w.players[0]!.queue[0]!.cell, 63);
+  assert.equal(w.players[0]!.queue[0]!.paid, true);
+});
+
+test("auto expansion replays and checkpoints exactly, and validates toggle state", () => {
+  const initial = start(true);
+  const commands = [command(0, { type: "setAutoExpand", enabled: true })];
+  const w = run(step(initial, commands), 160);
+  assert.ok(w.structures.length > 2);
+  assert.equal(hashState(w), hashState(run(step(initial, commands), 160)));
+  assert.equal(
+    hashState(run(w, 50)),
+    hashState(run(decodeState(encodeState(w)), 50)),
+  );
+  assert.equal(isAction({ type: "setAutoExpand", enabled: "yes" }), false);
+  assert.equal(
+    isAction({ type: "setAutoExpand", enabled: true, cell: 9 }),
+    false,
+  );
+  const raw = JSON.parse(encodeState(w));
+  raw.players[0].autoExpand = "yes";
+  assert.throws(() => decodeState(JSON.stringify(raw)), /player/);
+  raw.players[0].autoExpand = true;
+  raw.rulesVersion = 1;
+  assert.throws(() => decodeState(JSON.stringify(raw)), /unsupported/);
+});
+test("contested auto expansion uses rotating slots, not IDs or opponent unpaid plans", () => {
+  const narrow: MapDefinition = {
+    schemaVersion: 1,
+    id: "auto-contest",
+    width: 3,
+    height: 1,
+    layout: "odd-r",
+    cells: [{ terrain: "open" }, { terrain: "open" }, { terrain: "open" }],
+    spawns: [
+      { slot: 0, cellIndex: 0 },
+      { slot: 1, cellIndex: 2 },
+    ],
+  };
+  for (const ids of [
+    ["a", "z"],
+    ["z", "a"],
+  ])
+    for (const delay of [0, 1]) {
+      let w = createMatch(narrow, {}, [
+        { id: ids[0]!, slot: 0 },
+        { id: ids[1]!, slot: 1 },
+      ]);
+      w = run(w, delay);
+      w.players.reverse();
+      w = step(
+        w,
+        ids.map((id) =>
+          command(0, { type: "setAutoExpand", enabled: true }, id!),
+        ),
+      );
+      const winner = w.players.find((p) => p.queue.some((j) => j.paid))!;
+      assert.equal(winner.slot, delay);
+      assert.equal(
+        w.players.find((p) => p.id !== winner.id)!.queue.length,
+        0,
+        "losing auto claims do not leave stale plans",
+      );
+      assert.doesNotThrow(() => decodeState(encodeState(w)));
+    }
+  let w = createMatch(narrow, {}, [
+    { id: "a", slot: 0 },
+    { id: "b", slot: 1 },
+  ]);
+  w.players[1]!.biomass = 0;
+  w = step(w, [
+    command(0, { type: "queueConstruction", kind: "neuron", cell: 1 }, "b"),
+    command(0, { type: "setAutoExpand", enabled: true }, "a"),
+  ]);
+  assert.equal(
+    w.players[0]!.queue[0]!.paid,
+    true,
+    "foreign unpaid ghosts do not block expansion",
+  );
+});
+
 test("map schema and odd-r boundaries are validated", () => {
   assert.deepEqual(neighbors(map(), 0), [1, 8]);
   assert.equal(neighbors(map(), 9).length, 6);

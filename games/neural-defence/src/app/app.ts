@@ -2,13 +2,27 @@ import type { Action, MapDefinition, World, Outcome } from "../engine/types.js";
 import { loadMap, RULES } from "../engine/index.js";
 import { updateContent } from "./dom-update.js";
 import { createAttractScene } from "./attract-scene.js";
-import { renderBoard, type BoardAnimation } from "../render/board.js";
+import {
+  renderBoard,
+  hexPoints,
+  hexCenter,
+  type BoardAnimation,
+} from "../render/board.js";
 import type { BoardCamera, CameraFactory } from "../render/camera.js";
-import { isBuildKind, isResearchKind } from "../engine/catalog.js";
+import {
+  isBuildKind,
+  isResearchKind,
+  constructionAvailability,
+  constructionQueueAvailability,
+  constructionDispatchAvailability,
+  type BuildKind,
+} from "../engine/catalog.js";
 import {
   renderCommands,
   commandPageCount,
   RESEARCH_PRESENTATION,
+  BUILD_PRESENTATION,
+  requirementText,
   type CommandPanel,
 } from "./command-card.js";
 import type {
@@ -64,6 +78,8 @@ export function mountNeuralDefence(
   let mapState: LoadState<MapDefinition> | null = null;
   let selectedSlot = 0;
   let selectedCell: number | null = null;
+  let placement: BuildKind | null = null;
+  let placementCell: number | null = null;
   let pending: "reset" | "leave" | null = null;
   let launchError: string | null = null;
   let launching = false;
@@ -196,6 +212,8 @@ export function mountNeuralDefence(
       disposeSession();
       session = created;
       panel = "inspect";
+      placement = null;
+      placementCell = null;
       selectedCell =
         mapState.value.spawns.find((spawn) => spawn.slot === selectedSlot)
           ?.cellIndex ?? null;
@@ -364,6 +382,7 @@ export function mountNeuralDefence(
       panel,
       commandPage,
       dependencies.sprites,
+      placement,
     );
     const outcomes = notices
       .filter((item) => item.playerId === player.id)
@@ -373,8 +392,20 @@ export function mountNeuralDefence(
           `<li>${escape(item.type)}${item.reason ? ` · ${escape(item.reason)}` : ""}${item.cell !== undefined ? ` at hex ${item.cell}` : ""}</li>`,
       )
       .join("");
-    const contextDetail =
-      panel === "inspect" || panel === "build"
+    const placementRequirements =
+      placement && placementCell !== null
+        ? constructionQueueAvailability(world, player, placement, placementCell)
+        : null;
+    const placementHints =
+      placementRequirements?.allowed && placement && placementCell !== null
+        ? constructionDispatchAvailability(world, player, {
+            kind: placement,
+            cell: placementCell,
+          }).missing
+        : (placementRequirements?.missing ?? []);
+    const contextDetail = placement
+      ? `<div class="placement-instructions" role="status"><strong>Place ${BUILD_PRESENTATION[placement].label}</strong><p>Click or tap open ground · Esc / S to cancel</p><small>${placementHints.map(requirementText).map(escape).join(" ") || "Choose a location on the battlefield."}</small></div>`
+      : panel === "inspect" || panel === "build"
         ? `${detail}<span class="construction-summary">${player.queue.length}/${RULES.queueLimit} queued · builder ${escape(worker.mode)}</span>`
         : panel === "research"
           ? `<div class="command-context"><strong>Research</strong><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · researching` : "Choose an upgrade"}</p><small>${player.research.length ? `Complete: ${player.research.map((r) => researchNames[r]).join(", ")}` : "Hover or focus a command for its requirements."}</small></div>`
@@ -430,6 +461,33 @@ export function mountNeuralDefence(
       dependencies.animationClock(),
       dependencies.sprites,
     );
+    let preview = svg.querySelector<SVGGElement>(".placement-preview");
+    if (!preview) {
+      preview = svg.ownerDocument.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "g",
+      );
+      preview.setAttribute("class", "placement-preview");
+      preview.setAttribute("pointer-events", "none");
+      svg.append(preview);
+    }
+    const owner = world.players.find((p) => p.id === session?.localPlayerId);
+    root.classList.toggle("is-placing", placement !== null);
+    if (placement && placementCell !== null && owner) {
+      const valid = constructionQueueAvailability(
+        world,
+        owner,
+        placement,
+        placementCell,
+      ).allowed;
+      const team = ["blue", "coral", "green", "gold"][owner.slot] ?? "blue";
+      const asset = BUILD_PRESENTATION[placement].sprite(team);
+      const sprite =
+        dependencies.sprites?.[`${asset}-v2`] ?? dependencies.sprites?.[asset];
+      const { x, y } = hexCenter(world.map.width, placementCell);
+      preview.setAttribute("data-valid", String(valid));
+      preview.innerHTML = `<polygon points="${hexPoints(world.map.width, placementCell, 1.5)}"/>${sprite ? `<image href="${escape(sprite)}" x="${x - 30}" y="${y - 30}" width="60" height="60" opacity="0.55"/>` : ""}`;
+    } else preview.replaceChildren();
     const viewport = root.querySelector<HTMLElement>("#nd-viewport");
     if (!camera && viewport && dependencies.createCamera) {
       camera = dependencies.createCamera(svg, viewport);
@@ -501,6 +559,8 @@ export function mountNeuralDefence(
   }
 
   function closePanel() {
+    placement = null;
+    placementCell = null;
     const previous = panel;
     panel = "inspect";
     commandPage = 0;
@@ -518,6 +578,8 @@ export function mountNeuralDefence(
       return;
     }
     if (button?.dataset.action?.startsWith("panel-")) {
+      placement = null;
+      placementCell = null;
       const next = button.dataset.action.slice(6);
       if (
         next === "inspect" ||
@@ -561,10 +623,45 @@ export function mountNeuralDefence(
         const id = mode === "sandbox" ? "sandbox-12" : "combat-lab-12";
         void loadSelectedMap(id);
       } else if (action === "start") launch();
-      else if (action?.startsWith("build-") && selectedCell !== null) {
+      else if (action?.startsWith("build-")) {
         const kind = action.slice(6);
-        if (isBuildKind(kind))
-          dispatch({ type: "queueConstruction", cell: selectedCell, kind });
+        const owner = session
+          ?.view()
+          .players.find((p) => p.id === session?.localPlayerId);
+        if (
+          isBuildKind(kind) &&
+          owner &&
+          constructionAvailability(owner, kind).allowed
+        ) {
+          placement = kind;
+          placementCell = null;
+          renderGame();
+          root
+            .querySelector<SVGSVGElement>("#nd-board")
+            ?.focus?.({ preventScroll: true });
+        }
+      } else if (action === "cancel-placement") {
+        placement = null;
+        placementCell = null;
+        renderGame();
+        root
+          .querySelector<SVGSVGElement>("#nd-board")
+          ?.focus?.({ preventScroll: true });
+      } else if (action === "auto-expand" && session) {
+        const world = session.view();
+        const player = world.players.find(
+          (p) => p.id === session?.localPlayerId,
+        );
+        if (
+          player &&
+          world.structures.some(
+            (s) =>
+              s.cell === selectedCell &&
+              s.kind === "brain" &&
+              s.ownerId === player.id,
+          )
+        )
+          dispatch({ type: "setAutoExpand", enabled: !player.autoExpand });
       } else if (action === "cancel-build" && selectedCell !== null)
         dispatch({ type: "cancelConstruction", cell: selectedCell });
       else if (action?.startsWith("research-")) {
@@ -580,6 +677,8 @@ export function mountNeuralDefence(
         pending = null;
         render();
       } else if (action === "confirm-reset") {
+        placement = null;
+        placementCell = null;
         session?.reset();
         pending = null;
         render();
@@ -590,9 +689,43 @@ export function mountNeuralDefence(
       const tile = target.closest<SVGElement>("[data-cell]");
       if (tile) {
         selectedCell = Number(tile.dataset.cell);
+        if (placement) {
+          placeAt(selectedCell);
+          return;
+        }
         if (panel !== "build") panel = "inspect";
         renderGame();
       }
+    }
+  }
+
+  function placeAt(cell: number) {
+    const world = session?.view();
+    const owner = world?.players.find((p) => p.id === session?.localPlayerId);
+    placementCell = cell;
+    if (
+      placement &&
+      world &&
+      owner &&
+      constructionQueueAvailability(world, owner, placement, cell).allowed
+    ) {
+      const kind = placement;
+      placement = null;
+      placementCell = null;
+      dispatch({ type: "queueConstruction", kind, cell });
+    } else renderGame();
+  }
+
+  function onPointerMove(event: PointerEvent) {
+    if (!placement || pending || event.pointerType === "touch" || event.buttons)
+      return;
+    const tile = (event.target as Element).closest<SVGElement>(
+      "#nd-board [data-cell]",
+    );
+    const cell = tile ? Number(tile.dataset.cell) : null;
+    if (cell !== placementCell) {
+      placementCell = cell;
+      renderGame();
     }
   }
 
@@ -662,6 +795,13 @@ export function mountNeuralDefence(
       }
       return;
     }
+    if (screen === "game" && event.key === "Escape" && placement) {
+      event.preventDefault();
+      placement = null;
+      placementCell = null;
+      renderGame();
+      return;
+    }
     if (screen === "game" && event.key === "Escape" && panel !== "inspect") {
       event.preventDefault();
       closePanel();
@@ -717,6 +857,7 @@ export function mountNeuralDefence(
       const c = Math.max(0, Math.min(width - 1, col + dc)),
         r = Math.max(0, Math.min(world.map.height - 1, row + dr));
       selectedCell = r * width + c;
+      if (placement) placementCell = selectedCell;
       renderGame();
       camera?.ensureCellVisible(width, selectedCell);
     } else if (
@@ -725,15 +866,12 @@ export function mountNeuralDefence(
       world.map.cells[selectedCell]?.terrain === "open"
     ) {
       event.preventDefault();
-      dispatch({
-        type: "queueConstruction",
-        cell: selectedCell,
-        kind: "neuron",
-      });
+      if (placement) placeAt(selectedCell);
     }
   }
 
   root.addEventListener("click", onClick);
+  root.addEventListener("pointermove", onPointerMove);
   root.addEventListener("change", onChange);
   root.addEventListener("keydown", onKeyDown);
   render();
@@ -744,6 +882,7 @@ export function mountNeuralDefence(
       cancelLoads();
       disposeSession();
       root.removeEventListener("click", onClick);
+      root.removeEventListener("pointermove", onPointerMove);
       root.removeEventListener("change", onChange);
       root.removeEventListener("keydown", onKeyDown);
       root.innerHTML = "";

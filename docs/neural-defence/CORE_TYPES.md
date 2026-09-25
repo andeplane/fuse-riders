@@ -14,7 +14,7 @@ type Cell =
   | { terrain: "deposit"; resourceKind: Resource; variant?: string };
 ```
 
-`MapDefinition` carries schema version 1, ID, width, height, `odd-r` layout, row-major cells and explicit `{slot, cellIndex}` spawns. The optional `towerSite` cell flag suggests a test location; it does not restrict tower construction. `RosterEntry` is `{id, slot}`. `World` carries format/rules version 1, match ID, tick, map, settings, players, structures, attack particles, next entity ID, per-tick outcomes and finish/winner state. Currency is integer milli-units. Player and structure owners use stable IDs; local selection is app state, never authority.
+`MapDefinition` carries schema version 1, ID, width, height, `odd-r` layout, row-major cells and explicit `{slot, cellIndex}` spawns. The optional `towerSite` cell flag suggests a test location; it does not restrict tower construction. `RosterEntry` is `{id, slot}`. `World` carries format version 1 and rules version 2, match ID, tick, map, settings, players, structures, attack particles, next entity ID, per-tick outcomes and finish/winner state. Currency is integer milli-units. Player and structure owners use stable IDs; local selection and armed placement are app state, never authority. Version 1 checkpoints are rejected rather than guessing missing auto-expansion state.
 
 Each `Player` owns balances, command sequence, up to 32 construction jobs, **one** `Worker`, completed research, one active research job, attack priorities, mining remainders and statistics. `Worker.mode` is `idle | outbound | building | returning | recovering`; its cell, edge and timing are checkpointed. `Construction` records cell, neuron/tower kind, paid state, progress, latched duration and site HP. `Structure` records ID, cell, owner, kind, HP, brain connectivity and optional firing cursor.
 
@@ -26,6 +26,7 @@ These are the current discriminants and payloads:
 
 ```ts
 type Action =
+  | { type: "setAutoExpand"; enabled: boolean }
   | { type: "queueConstruction"; cell: number; kind: "neuron" | "tower" }
   | { type: "cancelConstruction"; cell: number }
   | { type: "startResearch"; research: Research }

@@ -44,6 +44,7 @@ export interface Player {
   id: string;
   slot: number;
   alive: boolean;
+  autoExpand: boolean;
   biomass: number;
   insight: number;
   sequence: number;
@@ -85,6 +86,7 @@ export interface Particle {
   speed: number;
 }
 export type Action =
+  | { type: "setAutoExpand"; enabled: boolean }
   | { type: "queueConstruction"; cell: number; kind: "neuron" | "tower" }
   | { type: "cancelConstruction"; cell: number }
   | { type: "startResearch"; research: Research }
@@ -119,7 +121,7 @@ export interface Outcome {
 }
 export interface World {
   formatVersion: 1;
-  rulesVersion: 1;
+  rulesVersion: 2;
   matchId: string;
   tick: number;
   map: MapDefinition;
@@ -133,7 +135,7 @@ export interface World {
   finished: boolean;
 }
 export const RULES = Object.freeze({
-  version: 1,
+  version: 2,
   ticksPerSecond: 20,
   particleCount: 128,
   particleSpeed: 4,

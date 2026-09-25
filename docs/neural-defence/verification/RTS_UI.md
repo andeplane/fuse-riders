@@ -38,4 +38,13 @@ Subsequent review of the terrain continuation and icon command-card/hotkey addit
 
 The draft PR remains open for visual/playtesting feedback; this change has not been merged or deployed.
 
+## Auto expand and placement follow-up
+
+Selecting the local brain exposes S Auto expand with a persistent ON/OFF state. Build → type arms placement without dispatching; the hovered tile displays the actual translucent structure sprite and a validity outline. Clicking or tapping places one job; invalid targets stay armed. Esc/S cancels. Tests exercise cancellation followed by a shortcut, invalid targeting, real ghost artwork, desktop placement and phone placement. Long placement explanations stay within the short landscape dock.
+
+Chromium and WebKit passed the actual menu → sandbox flows, including automatic expansion starting and being disabled. All 56 Neural Defence tests passed, including automatic funding resume, manual queue priority, contested frontier rotation, checkpoint validation and late-toggle rollback. Engine and UI follow-up reviews were clear after fixing automatic claim priority, stale losing claims, Cancel keyboard focus and narrow-screen instruction overflow. Physical phones and online rooms were not tested.
+
+- [Ghost placement in WebKit](placement.png)
+- [Brain Auto expand command](auto-expand.png)
+
 The shared-catalog review found no current-rule behavioral regression and independently passed 18 engine tests. Its immutability finding was fixed with readonly definitions and runtime freezing. The command review's Build ARIA label and non-scrollable landscape tooltip findings were fixed. Focused app tests cover live deficits, completed research, prerequisite wording, blocked explanatory clicks and authoritative clock progress.

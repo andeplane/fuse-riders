@@ -290,6 +290,76 @@ test("command clock overlays follow authoritative construction and research prog
   f.app.dispose();
 });
 
+test("auto expand is a persistent toggle only in the local brain commands", async () => {
+  const f = fixture();
+  await f.start();
+  const player = f.world.players.find((p) => p.id === "coral")!;
+  assert.equal(
+    f.root.querySelector('[data-action="auto-expand"]'),
+    null,
+    "enemy brain has no expansion control",
+  );
+  const brain = f.world.structures.find(
+    (s) => s.kind === "brain" && s.ownerId === player.id,
+  )!;
+  f.selectCell(brain.cell);
+  f.press("s");
+  assert.deepEqual(f.actions, [{ type: "setAutoExpand", enabled: true }]);
+  player.autoExpand = true;
+  f.publish();
+  assert.equal(
+    f.root
+      .querySelector('[data-action="auto-expand"]')
+      ?.getAttribute("aria-pressed"),
+    "true",
+  );
+  f.click("auto-expand");
+  assert.deepEqual(f.actions.at(-1), { type: "setAutoExpand", enabled: false });
+  f.selectCell(0);
+  assert.equal(f.root.querySelector('[data-action="auto-expand"]'), null);
+  f.app.dispose();
+});
+
+test("build commands arm placement, reject occupied tiles, place once, and cancel without spending", async () => {
+  const f = fixture();
+  await f.start();
+  f.click("panel-build");
+  f.click("build-neuron");
+  assert.deepEqual(
+    f.actions,
+    [],
+    "choosing a type does not place on the current selection",
+  );
+  assert.ok(f.root.querySelector(".placement-instructions"));
+  f.selectCell(f.world.structures.find((s) => s.kind === "brain")!.cell);
+  assert.deepEqual(f.actions, [], "occupied placement stays armed");
+  assert.equal(
+    f.root.querySelector(".placement-preview")?.getAttribute("data-valid"),
+    "false",
+  );
+  const open = f.world.map.cells.findIndex(
+    (c, i) =>
+      c.terrain === "open" &&
+      !f.world.structures.some((s) => s.cell === i) &&
+      !f.world.players.some((p) => p.queue.some((j) => j.cell === i)),
+  );
+  f.selectCell(open);
+  assert.deepEqual(f.actions, [
+    { type: "queueConstruction", kind: "neuron", cell: open },
+  ]);
+  assert.equal(f.root.querySelector(".placement-instructions"), null);
+  f.selectCell(open);
+  assert.equal(f.actions.length, 1, "later selection does not place again");
+  f.click("build-tower");
+  f.click("cancel-placement");
+  f.selectCell(open);
+  assert.equal(f.actions.length, 1);
+  f.click("build-neuron");
+  f.press("Escape");
+  assert.equal(f.root.querySelector(".placement-instructions"), null);
+  f.app.dispose();
+});
+
 test("menu uses Fuse controls and actual board scenery without starting a simulation or animation loop", () => {
   const f = fixture();
   assert.ok(f.root.classList.contains("fui-app"));

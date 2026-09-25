@@ -1,8 +1,7 @@
 import {
   CONSTRUCTIONS,
   RESEARCH,
-  constructionQueueAvailability,
-  constructionDispatchAvailability,
+  constructionAvailability,
   researchAvailability,
   type BuildKind,
   type Requirement,
@@ -106,6 +105,8 @@ const commandSymbols: Record<string, string> = {
   log: '<path d="M7 3h18v26H7zM11 9h10M11 15h10M11 21h7"/>',
   build: '<path d="m4 26 14-14m-3-7 4-3 10 10-4 4-4-4-3 3-6-6zM3 23l6 6"/>',
   cancel: '<path d="m7 7 18 18M25 7 7 25"/>',
+  expand:
+    '<path d="M11 3H3v8m0-8 10 10M21 3h8v8m0-8L19 13M3 21v8h8M3 29l10-10m16 2v8h-8m8 0L19 19"/>',
 };
 
 export function commandButton(options: {
@@ -118,6 +119,7 @@ export function commandButton(options: {
   cost?: string;
   disabled?: boolean;
   progress?: number;
+  pressed?: boolean;
   hints?: readonly string[];
 }): string {
   const progress =
@@ -129,7 +131,9 @@ export function commandButton(options: {
     ? `<img src="${escape(options.art)}" alt="" draggable="false">`
     : `<svg viewBox="0 0 32 32" aria-hidden="true">${commandSymbols[options.symbol ?? "research"] ?? commandSymbols.research}</svg>`;
   const helpId = `help-${options.action}`;
-  return `<div class="command-slot"><button class="command-button${progress === null ? "" : " is-building"}" data-action="${options.action}" aria-label="${escape(options.label)}${options.cost ? ` · ${escape(options.cost)}` : ""}${percent === null ? "" : ` · ${percent}% complete`}" aria-keyshortcuts="${options.shortcut}" aria-describedby="${helpId}" aria-disabled="${!!options.disabled}"><kbd>${options.shortcut}</kbd>${options.cost ? `<span class="command-cost">${options.cost}</span>` : ""}${art}${progress === null ? "" : `<span class="command-progress" role="progressbar" aria-label="${escape(options.label)} progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" style="--progress-angle:${progress * 360}deg"><span>${percent}%</span></span>`}<span class="command-label">${options.label}</span></button><div id="${helpId}" role="tooltip" class="command-tooltip"><strong>${escape(options.label)}${options.cost ? ` · ${escape(options.cost)}` : ""}</strong><p>${escape(options.description)}</p>${options.hints?.length ? `<ul>${options.hints.map((hint) => `<li>${escape(hint)}</li>`).join("")}</ul>` : ""}</div></div>`;
+  const toggle =
+    options.pressed === undefined ? "" : ` aria-pressed="${options.pressed}"`;
+  return `<div class="command-slot"><button class="command-button${progress === null ? "" : " is-building"}" data-action="${options.action}"${toggle} aria-label="${escape(options.label)}${options.cost ? ` · ${escape(options.cost)}` : ""}${percent === null ? "" : ` · ${percent}% complete`}" aria-keyshortcuts="${options.shortcut}" aria-describedby="${helpId}" aria-disabled="${!!options.disabled}"><kbd>${options.shortcut}</kbd>${options.cost ? `<span class="command-cost">${options.cost}</span>` : ""}${art}${progress === null ? "" : `<span class="command-progress" role="progressbar" aria-label="${escape(options.label)} progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" style="--progress-angle:${progress * 360}deg"><span>${percent}%</span></span>`}<span class="command-label">${options.label}</span></button><div id="${helpId}" role="tooltip" class="command-tooltip"><strong>${escape(options.label)}${options.cost ? ` · ${escape(options.cost)}` : ""}</strong><p>${escape(options.description)}</p>${options.hints?.length ? `<ul>${options.hints.map((hint) => `<li>${escape(hint)}</li>`).join("")}</ul>` : ""}</div></div>`;
 }
 
 export function renderCommands(
@@ -139,6 +143,7 @@ export function renderCommands(
   panel: CommandPanel,
   page: number,
   sprites: Readonly<Record<string, string>> = {},
+  placement: BuildKind | null = null,
 ): string {
   const empty = '<span class="command-empty" aria-hidden="true"></span>';
   const back = commandButton({
@@ -188,19 +193,7 @@ export function renderCommands(
     const commands = kinds.map((kind, index) => {
       const definition = CONSTRUCTIONS[kind],
         presentation = BUILD_PRESENTATION[kind];
-      const availability = constructionQueueAvailability(
-        world,
-        player,
-        kind,
-        selectedCell,
-      );
-      const waiting =
-        availability.allowed && selectedCell !== null
-          ? constructionDispatchAvailability(world, player, {
-              cell: selectedCell,
-              kind,
-            }).missing
-          : [];
+      const availability = constructionAvailability(player, kind);
       const asset = presentation.sprite(team);
       return commandButton({
         action: `build-${kind}`,
@@ -211,13 +204,12 @@ export function renderCommands(
         cost: `${definition.cost / 1000} ◈`,
         disabled: !availability.allowed,
         hints: availability.allowed
-          ? waiting.length
-            ? [
-                "Can queue now. Work starts when:",
-                ...waiting.map(requirementText),
-              ]
-            : ["Ready to build."]
+          ? [
+              "Choose this structure, then click or tap open ground to place it.",
+              "Construction waits for resources, a builder and connected support.",
+            ]
           : availability.missing.map(requirementText),
+        pressed: placement === kind,
         progress: activeBuild?.kind === kind ? buildProgress : undefined,
       });
     });
@@ -225,7 +217,15 @@ export function renderCommands(
       commands.join("") +
       empty.repeat(keys.length - commands.length) +
       back +
-      cancelBuild("S") +
+      (placement
+        ? commandButton({
+            action: "cancel-placement",
+            label: "Cancel",
+            shortcut: "S",
+            symbol: "cancel",
+            description: "Cancel placement without spending resources.",
+          })
+        : cancelBuild("S")) +
       more
     );
   }
@@ -299,6 +299,29 @@ export function renderCommands(
       description: "Recent network activity.",
     }) +
     cancelBuild("A") +
-    empty.repeat(2)
+    (world.structures.some(
+      (s) =>
+        s.cell === selectedCell &&
+        s.kind === "brain" &&
+        s.ownerId === player.id,
+    )
+      ? commandButton({
+          action: "auto-expand",
+          label: "Auto expand",
+          shortcut: "S",
+          symbol: "expand",
+          pressed: player.autoExpand,
+          cost: player.autoExpand ? "ON" : "OFF",
+          description:
+            "Automatically grow neurons outward from your brain. Manual construction takes priority.",
+          hints: [
+            player.autoExpand
+              ? "Enabled. Pauses while the builder, resources or open connected ground are unavailable."
+              : "Enable to spend biomass on automatic expansion.",
+            "Turning off leaves the current construction in progress.",
+          ],
+        })
+      : empty) +
+    empty
   );
 }

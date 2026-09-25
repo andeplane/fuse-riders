@@ -492,31 +492,30 @@ test("checkpoint rejects map, settings, clock and participant corruption", () =>
   });
 });
 test("late input replay converges through the shared rollback world", () => {
-  const make = () =>
-    new RollbackWorld(
-      neuralGame,
-      neuralGame.createRoom("match", settings()),
-      "host",
-      "host",
+  for (const action of [
+    { type: "startResearch", research: "growth" } as const,
+    { type: "setAutoExpand", enabled: true } as const,
+  ]) {
+    const make = () =>
+      new RollbackWorld(
+        neuralGame,
+        neuralGame.createRoom("match", settings()),
+        "host",
+        "host",
+      );
+    const early = make(),
+      late = make();
+    const management: NeuralEntry[] = [join(1, 1, "host", 0), start(2, 2)];
+    const input: NeuralEntry = [3, 5, 1, "new-match", action];
+    for (const world of [early, late]) world.stream("host", 1);
+    assert.equal(
+      early.receive("host", [...management, input], 3, 8, 0).status,
+      "accepted",
     );
-  const early = make(),
-    late = make();
-  const management: NeuralEntry[] = [join(1, 1, "host", 0), start(2, 2)];
-  const input: NeuralEntry = [
-    3,
-    5,
-    1,
-    "new-match",
-    { type: "startResearch", research: "growth" },
-  ];
-  for (const world of [early, late]) world.stream("host", 1);
-  assert.equal(
-    early.receive("host", [...management, input], 3, 8, 0).status,
-    "accepted",
-  );
-  assert.equal(late.receive("host", management, 3, 8, 0).status, "accepted");
-  early.advance(8);
-  late.advance(8);
-  assert.equal(late.receive("host", [input], 3, 8, 8).status, "accepted");
-  assert.equal(neuralGame.hash(late.state), neuralGame.hash(early.state));
+    assert.equal(late.receive("host", management, 3, 8, 0).status, "accepted");
+    early.advance(8);
+    late.advance(8);
+    assert.equal(late.receive("host", [input], 3, 8, 8).status, "accepted");
+    assert.equal(neuralGame.hash(late.state), neuralGame.hash(early.state));
+  }
 });

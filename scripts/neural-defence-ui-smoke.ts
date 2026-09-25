@@ -113,9 +113,39 @@ for (const [name, engine] of [
       .screenshot({ path: `${output}/${name}-hover-hex.png` });
     assert.deepEqual(
       await desktop.locator(".command-card kbd").allTextContents(),
-      ["Q", "W", "E", "A"],
+      ["Q", "W", "E", "A", "S"],
     );
     await desktop.screenshot({ path: `${output}/${name}-desktop.png` });
+    await desktop.locator('[data-action="panel-build"]').click();
+    await desktop.locator('[data-action="build-neuron"]').click();
+    await desktop.locator('.terrain-layer [data-cell="13"]').hover();
+    assert.equal(
+      await desktop.locator(".placement-preview").getAttribute("data-valid"),
+      "false",
+    );
+    await desktop.locator('.terrain-layer [data-cell="13"]').click();
+    assert.equal(
+      await desktop.locator(".placement-instructions").count(),
+      1,
+      "invalid click stays in placement",
+    );
+    await desktop.locator('.terrain-layer [data-cell="14"]').hover();
+    assert.equal(
+      await desktop.locator(".placement-preview").getAttribute("data-valid"),
+      "true",
+    );
+    assert.equal(await desktop.locator(".placement-preview image").count(), 1);
+    await desktop.screenshot({ path: `${output}/${name}-placement.png` });
+    await desktop.locator('[data-action="cancel-placement"]').click();
+    await desktop.keyboard.press("q");
+    assert.equal(
+      await desktop.locator(".placement-instructions").count(),
+      1,
+      "Cancel returns keyboard focus to game",
+    );
+    await desktop.keyboard.press("Escape");
+    assert.equal(await desktop.locator(".placement-preview image").count(), 0);
+    await desktop.keyboard.press("a");
     const initial = await view(desktop);
     await desktop.mouse.move(720, 360);
     await desktop.mouse.wheel(0, -300);
@@ -210,6 +240,7 @@ for (const [name, engine] of [
     await desktop.locator('.terrain-layer [data-cell="14"]').click();
     await desktop.keyboard.press("q");
     await desktop.keyboard.press("q");
+    await desktop.locator('.terrain-layer [data-cell="14"]').click();
     await cancelled(desktop, false);
     await desktop.waitForFunction(
       () =>
@@ -222,6 +253,7 @@ for (const [name, engine] of [
     await desktop.keyboard.press("s");
     await cancelled(desktop, true);
     await desktop.keyboard.press("w");
+    await desktop.locator('.terrain-layer [data-cell="14"]').click();
     await cancelled(desktop, false);
     await desktop.keyboard.press("s");
     await cancelled(desktop, true);
@@ -229,6 +261,25 @@ for (const [name, engine] of [
     await desktop.keyboard.press("e");
     await desktop.locator('.command-card[data-panel="activity"]').waitFor();
     await desktop.keyboard.press("a");
+    await desktop.locator('.terrain-layer [data-cell="13"]').click();
+    await desktop.keyboard.press("s");
+    await desktop.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-action="auto-expand"]')
+          ?.getAttribute("aria-pressed") === "true",
+    );
+    await desktop.waitForFunction(
+      () => document.querySelectorAll(".queue-mark").length > 0,
+    );
+    await desktop.screenshot({ path: `${output}/${name}-auto-expand.png` });
+    await desktop.keyboard.press("s");
+    await desktop.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-action="auto-expand"]')
+          ?.getAttribute("aria-pressed") === "false",
+    );
 
     const context = await browser.newContext({
       viewport: { width: 390, height: 844 },
@@ -317,6 +368,7 @@ for (const [name, engine] of [
       .waitFor({ state: "visible" });
     await geometry(phone);
     await phone.locator('[data-action="build-neuron"]').tap();
+    await phone.locator('.terrain-layer [data-cell="14"]').tap();
     await cancelled(phone, false);
     await phone.waitForFunction(
       () =>
@@ -335,11 +387,9 @@ for (const [name, engine] of [
     await phone.locator('[data-action="build-tower"]').focus();
     const tooltip = phone.locator("#help-build-tower");
     await tooltip.waitFor({ state: "visible" });
-    assert.match(await tooltip.innerText(), /connected friendly neighbors/);
-    assert.equal(
-      await tooltip.evaluate((el) => el.scrollHeight > el.clientHeight),
-      true,
-      "long landscape explanations should scroll",
+    assert.match(await tooltip.innerText(), /connected support/);
+    const scrollable = await tooltip.evaluate(
+      (el) => el.scrollHeight > el.clientHeight,
     );
     const helpBox = (await tooltip.boundingBox())!;
     const beforeHelpScroll = await view(phone);
@@ -349,7 +399,7 @@ for (const [name, engine] of [
     );
     // Playwright mobile WebKit cannot synthesize wheel or swipe scrolling.
     // Chromium checks actual scroll routing; both check the scrollable layout.
-    if (name === "chromium") {
+    if (name === "chromium" && scrollable) {
       await phone.mouse.wheel(0, 180);
       await phone.waitForFunction(
         () => document.querySelector("#help-build-tower")!.scrollTop > 0,
@@ -361,6 +411,20 @@ for (const [name, engine] of [
       "scrolling requirements must not zoom the map",
     );
     await phone.screenshot({ path: `${output}/${name}-landscape-help.png` });
+    await phone.locator('[data-action="build-tower"]').tap();
+    await phone.locator('.terrain-layer [data-cell="26"]').hover();
+    const instructions = (await phone
+      .locator(".placement-instructions")
+      .boundingBox())!;
+    const dock = (await phone.locator(".command-dock").boundingBox())!;
+    assert.ok(
+      instructions.y >= dock.y && instructions.y + instructions.height <= 321,
+      "placement instructions stay inside short dock",
+    );
+    await phone.screenshot({
+      path: `${output}/${name}-landscape-placement.png`,
+    });
+    await phone.locator('[data-action="cancel-placement"]').tap();
     assert.deepEqual(errors, []);
     console.log(
       `${name}: full-width HUD, wheel zoom, drag, modal, panels, phone layout and landscape passed${name === "chromium" ? "; trusted pinch/pan passed" : ""}`,

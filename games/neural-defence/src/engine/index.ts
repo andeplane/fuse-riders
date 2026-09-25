@@ -1,4 +1,5 @@
 import { loadMap, neighbors } from "./map.ts";
+import { autoExpandCell } from "./auto-expand.js";
 import {
   CONSTRUCTIONS,
   RESEARCH,
@@ -79,7 +80,7 @@ export function createMatch(
     throw new Error("settings: invalid");
   const w: World = {
     formatVersion: 1,
-    rulesVersion: 1,
+    rulesVersion: RULES.version,
     matchId: settings.matchId ?? "sandbox",
     tick: 0,
     map,
@@ -97,6 +98,7 @@ export function createMatch(
     w.players.push({
       ...r,
       alive: true,
+      autoExpand: false,
       biomass: 60_000,
       insight: 0,
       sequence: -1,
@@ -187,6 +189,7 @@ export function isAction(raw: unknown): raw is Action {
   const a = raw as Action;
   if (!a || typeof a !== "object") return false;
   const keys: Record<Action["type"], string[]> = {
+    setAutoExpand: ["type", "enabled"],
     queueConstruction: ["type", "cell", "kind"],
     cancelConstruction: ["type", "cell"],
     setPriority: ["type", "cell", "weight"],
@@ -199,6 +202,8 @@ export function isAction(raw: unknown): raw is Action {
   )
     return false;
   switch (a.type) {
+    case "setAutoExpand":
+      return typeof a.enabled === "boolean";
     case "queueConstruction":
       return integer(a.cell) && isBuildKind(a.kind);
     case "cancelConstruction":
@@ -232,7 +237,9 @@ function apply(w: World, c: Command) {
     return;
   }
   const a = c.action;
-  if (a.type === "queueConstruction") {
+  if (a.type === "setAutoExpand") {
+    p.autoExpand = a.enabled;
+  } else if (a.type === "queueConstruction") {
     if (!constructionQueueAvailability(w, p, a.kind, a.cell).allowed) {
       reject("invalid construction cell or full queue");
       return;
@@ -675,6 +682,7 @@ function combat(w: World) {
   for (const p of w.players)
     if (p.alive && !brain(w, p)) {
       p.alive = false;
+      p.autoExpand = false;
       p.queue = [];
       p.researchJob = null;
       p.priorities = {};
@@ -712,7 +720,26 @@ export function step(state: World, commands: readonly Command[] = []): World {
       if (structure(w, Number(cell))?.ownerId !== p.id)
         delete p.priorities[cell];
   const ready = w.players.filter((p) => p.alive && prepareWorker(w, p));
+  const automatic: { player: Player; cell: number }[] = [];
+  for (const p of ready) {
+    const cell = autoExpandCell(w, p);
+    if (cell !== null) {
+      p.queue.push({
+        cell,
+        kind: "neuron",
+        paid: false,
+        progress: 0,
+        duration: 0,
+        hp: 20,
+      });
+      automatic.push({ player: p, cell });
+    }
+  }
   dispatchConstruction(w, ready);
+  // Losing automatic claims are retried from the next authoritative board;
+  // they must not become stale ghost jobs that block this player's expansion.
+  for (const { player, cell } of automatic)
+    player.queue = player.queue.filter((job) => job.cell !== cell || job.paid);
   for (const p of ready) worker(w, p);
   connectivity(w);
   const launches = new Map<string, number>();
@@ -751,7 +778,7 @@ export function decodeState(raw: unknown): World {
   if (
     !record(w) ||
     w.formatVersion !== 1 ||
-    w.rulesVersion !== 1 ||
+    w.rulesVersion !== RULES.version ||
     !integer(w.tick) ||
     !Array.isArray(w.players) ||
     !Array.isArray(w.structures) ||
@@ -829,6 +856,8 @@ export function decodeState(raw: unknown): World {
       typeof p.alive !== "boolean" ||
       !integer(p.biomass, 0, RULES.bankCap) ||
       !integer(p.insight, 0, RULES.bankCap) ||
+      typeof p.autoExpand !== "boolean" ||
+      (!p.alive && p.autoExpand) ||
       !integer(p.sequence, -1) ||
       !Array.isArray(p.queue) ||
       p.queue.length > RULES.queueLimit ||

@@ -22,3 +22,5 @@ Example measured run on macOS arm64, Node v26.4.0, HEAD `9d3886a3ace43c76ddb69ff
 | Completed research                   |                  4 |
 
 Wall-clock throughput will vary by machine, load and runtime. The benchmark is a repeatable local engine workload and determinism check, not evidence that multiplayer transport, browser performance, opponent AI or game balance is solved.
+
+Rules-v2 follow-up with Auto expand/placement changes atop `9fcd00971a81d3d819138c7cb0a2321a26dd501c` (uncommitted), Node v22.20.0, same command/seed/workload: rules hash `134ca7fb6c04953125eb70d7738d9bb217760df686d905ca5f3c6e30ba860048`, final/replay hash `0bc38e80`, 867.3 ms first run and 802.4 ms replay. Event counts and the 512-particle peak are unchanged; this workload leaves auto expansion off. Dedicated engine and rollback tests exercise enabled expansion, funding waits and contested targets. The changed state hash includes the new rules version and explicit player toggle field.

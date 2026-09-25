@@ -128,24 +128,32 @@ function occupied(world: Readonly<World>, cell: number) {
   );
 }
 
+export function constructionAvailability(
+  player: Readonly<Player>,
+  kind: BuildKind,
+): Availability {
+  const missing = [
+    ...living(player),
+    ...researchPrerequisites(player, CONSTRUCTIONS[kind].requires),
+  ];
+  if (player.queue.length >= RULES.queueLimit)
+    missing.push({ kind: "queue-space", limit: RULES.queueLimit });
+  return result(missing);
+}
+
 export function constructionQueueAvailability(
   world: Readonly<World>,
   player: Readonly<Player>,
   kind: BuildKind,
   cell: number | null,
 ): Availability {
-  const missing = [
-    ...living(player),
-    ...researchPrerequisites(player, CONSTRUCTIONS[kind].requires),
-  ];
+  const missing = constructionAvailability(player, kind).missing;
   if (cell === null || world.map.cells[cell]?.terrain !== "open")
     missing.push({ kind: "open-cell" });
   if (cell !== null && occupied(world, cell))
     missing.push({ kind: "unoccupied-cell" });
   if (player.queue.some((j) => j.cell === cell))
     missing.push({ kind: "not-queued" });
-  if (player.queue.length >= RULES.queueLimit)
-    missing.push({ kind: "queue-space", limit: RULES.queueLimit });
   return result(missing);
 }
 
