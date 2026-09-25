@@ -108,6 +108,25 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
     })
     .join("");
 }
+
+/** Decorative ground continues beyond the selectable cells; it has no game state. */
+function backdropMarkup(sprites: Sprites): string {
+  const patches: string[] = [];
+  // Extra rows/columns overlap the pattern boundary so its edges have no gaps.
+  for (let row = -1; row <= 2; row++) {
+    for (let column = -1; column <= 3; column++) {
+      const x = radius + dx * (column + (row & 1) / 2);
+      const y = radius + dy * row;
+      const points = sides.map(([sx, sy]) => `${x + sx},${y + sy}`).join(" ");
+      const id = `ground-${row + 1}-${column + 1}`;
+      const variant = ["a", "b", "c"][(column + 3) % 3];
+      patches.push(
+        `<clipPath id="${id}"><polygon points="${points}"/></clipPath><g class="ground-patch" clip-path="url(#${id})">${image(sprites, `terrain-slate-${variant}`, x, y, 82) || image(sprites, "terrain-slate-a", x, y, 82)}</g>`,
+      );
+    }
+  }
+  return `<defs><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="${dx * 3}" height="${dy * 2}"><rect width="100%" height="100%" fill="#122840"/>${patches.join("")}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
+}
 function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
   return world.structures
     .map((s) => {
@@ -206,6 +225,9 @@ export function renderBoard(
       `0 0 ${Math.ceil(dx * (width - 0.5) + radius * 2)} ${dy * (height - 1) + radius * 2}`,
     );
     svg.setAttribute("role", "img");
+    const backdrop = layer(svg, "backdrop-layer");
+    backdrop.setAttribute("pointer-events", "none");
+    backdrop.innerHTML = backdropMarkup(sprites);
     layer(svg, "terrain-layer").innerHTML = terrainMarkup(world, sprites);
     const territory = layer(svg, "territory-layer");
     const links = layer(svg, "link-layer"),

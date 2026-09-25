@@ -3,6 +3,7 @@ import { loadMap } from "../engine/index.js";
 import { updateContent } from "./dom-update.js";
 import { createAttractScene } from "./attract-scene.js";
 import { renderBoard, type BoardAnimation } from "../render/board.js";
+import type { BoardCamera, CameraFactory } from "../render/camera.js";
 import type {
   GameMode,
   MapRepository,
@@ -33,6 +34,32 @@ function units(value: number): string {
   return (value / 1000).toFixed(1);
 }
 
+const commandSymbols: Record<string, string> = {
+  research:
+    '<path d="M10 3v7L5 20q-1 3 3 3h16q4 0 3-3l-5-10V3M8 3h16M8 17h16"/><path d="M12 13h2m4 7h2"/>',
+  log: '<path d="M7 3h18v26H7zM11 9h10M11 15h10M11 21h7"/>',
+  fit: '<path d="M3 12V3h9m8 0h9v9M3 20v9h9m8 0h9v-9"/><path d="m10 16 6-6 6 6-6 6z"/>',
+  cancel: '<path d="m7 7 18 18M25 7 7 25"/>',
+};
+
+function commandButton(options: {
+  action: string;
+  label: string;
+  shortcut: string;
+  description: string;
+  art?: string;
+  symbol?: string;
+  cost?: string;
+  disabled?: boolean;
+  expanded?: boolean;
+  controls?: string;
+}): string {
+  const art = options.art
+    ? `<img src="${escape(options.art)}" alt="" draggable="false">`
+    : `<svg viewBox="0 0 32 32" aria-hidden="true">${commandSymbols[options.symbol ?? "research"] ?? commandSymbols.research}</svg>`;
+  return `<button class="command-button" data-action="${options.action}" aria-label="${escape(options.label)}${options.cost ? ` · ${escape(options.cost)}` : ""}" aria-keyshortcuts="${options.shortcut}" title="${escape(options.description)} (${options.shortcut})" ${options.disabled ? "disabled" : ""}${options.expanded === undefined ? "" : ` aria-expanded="${options.expanded}" aria-controls="${options.controls}"`}><kbd>${options.shortcut}</kbd>${options.cost ? `<span class="command-cost">${options.cost}</span>` : ""}${art}<span class="command-label">${options.label}</span></button>`;
+}
+
 export interface AppDependencies {
   maps: MapRepository;
   preferences: PreferencesStore;
@@ -42,6 +69,7 @@ export interface AppDependencies {
   requestFrame: (callback: FrameRequestCallback) => number;
   cancelFrame: (handle: number) => void;
   sprites?: Readonly<Record<string, string>>;
+  createCamera?: CameraFactory;
 }
 
 export function mountNeuralDefence(
@@ -63,6 +91,7 @@ export function mountNeuralDefence(
   let aborter: AbortController | null = null;
   let generation = 0;
   let animation: BoardAnimation | null = null;
+  let camera: BoardCamera | null = null;
   let frame: number | null = null;
   let disposed = false;
   let preferences: PresentationPreferences = dependencies.preferences.read();
@@ -93,6 +122,8 @@ export function mountNeuralDefence(
   }
 
   function disposeSession() {
+    camera?.dispose();
+    camera = null;
     stopAnimation();
     unsubscribe?.();
     unsubscribe = null;
@@ -276,13 +307,11 @@ export function mountNeuralDefence(
       catalog?.status === "ready"
         ? catalog.value.find((m) => m.id === selectedId)?.title
         : undefined;
-    return `${header("Living network", mode === "sandbox" ? "solo sandbox" : "combat lab")}
-      <main class="game-layout" ${pending ? "inert" : ""}>
-      <section class="board-shell"><div class="board-topline"><span>${escape(title ?? "Neural field")} <small>· ${mode === "sandbox" ? "1 player / no AI" : "scripted opposition"}</small></span><span id="tick-label">TICK 0</span></div>
-      <div class="board-scroll"><svg id="nd-board" class="nd-board" tabindex="0" aria-label="Hex board. Use arrow keys to move selection."></svg></div>
-      <p class="board-hint">Select a hex · Arrow keys to move · Enter to build</p>
-      <div class="board-tools"><button data-action="zoom-out" aria-label="Zoom out">−</button><button data-action="zoom-fit">Fit map</button><button data-action="zoom-in" aria-label="Zoom in">+</button></div></section>
-      <aside id="game-sidebar" class="game-sidebar"></aside></main>${modal()}`;
+    return `<main class="game-layout" aria-label="${escape(title ?? "Neural field")} battlefield" ${pending ? "inert" : ""}>
+      <section class="board-shell">
+      <div id="nd-viewport" class="board-scroll"><svg id="nd-board" class="nd-board" tabindex="0" aria-label="Hex board. Use arrow keys to move selection."></svg></div>
+      </section>
+      <aside id="game-sidebar" class="game-sidebar"></aside></main><div id="game-modal">${modal()}</div>`;
   }
 
   function sidebarMarkup(world: Readonly<World>): string {
@@ -319,15 +348,28 @@ export function mountNeuralDefence(
               p.mode === "transit",
           );
     const worker = player.worker;
+    const team = ["blue", "coral", "green", "gold"][player.slot] ?? "blue";
+    const sprite = (name: string) =>
+      dependencies.sprites?.[`${name}-v2`] ?? dependencies.sprites?.[name];
+    const portrait = structure
+      ? sprite(
+          structure.kind === "tower"
+            ? "tower-experimental"
+            : `${structure.kind}-${["blue", "coral", "green", "gold"][world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0]}`,
+        )
+      : cell?.terrain === "deposit"
+        ? sprite(`deposit-${cell.resourceKind}`)
+        : sprite(
+            cell?.terrain === "blocked" ? "blocker-boulder" : "terrain-slate-a",
+          );
     const detail =
       selectedCell === null
-        ? "<p>Select a hex to see its role and actions.</p>"
-        : `<div class="tile-heading"><span>HEX ${selectedCell}</span><strong>${structure ? `${structure.kind.toUpperCase()} · ${structure.hp} HP` : cell?.terrain === "deposit" ? `${cell.resourceKind.toUpperCase()} DEPOSIT` : cell?.terrain === "blocked" ? "BLOCKED GROUND" : "OPEN GROUND"}</strong></div>
-        ${structure ? `<p>${structure.connected ? "Connected to brain" : "Disconnected from brain"} · ${count} attack particles stationed · ${incoming.length} incoming${incoming.length ? ` (next arrival tick ${Math.min(...incoming.map((p) => p.arrivesAt))})` : ""}</p>` : ""}
-        ${owned ? `<label class="field-label" for="priority-slider">Attack demand priority · ${priority}/3</label><input id="priority-slider" data-field="priority" type="range" min="0" max="3" step="1" value="${priority}">` : ""}
-        ${!structure && cell?.terrain === "open" && !queued && player.alive ? `<div class="button-row"><button data-action="build-neuron" class="primary">Queue neuron · 20 ◈</button><button data-action="build-tower" class="secondary">Queue test tower · 60 ◈</button></div><p>A neuron needs an adjacent connected node. The test tower needs all six neighbors connected and owned. Queued plans wait for support and resources.</p>` : ""}
-        ${queued ? `<p>Construction ${queued.paid ? `delivering / growing · ${queued.progress}/${queued.duration} ticks` : "queued / awaiting support, builder or resources"}</p><button data-action="cancel-build" class="secondary">Cancel construction</button>` : ""}
-        ${cell?.terrain === "deposit" ? "<p>Connected friendly neighbors mine automatically. Each neighbor earns one sixth of this source; several players may share it.</p>" : ""}`;
+        ? '<div class="selection-summary"><strong>Select a hex</strong><span>Click terrain to build or inspect.</span></div>'
+        : `<div class="selection-summary"><div class="tile-heading"><span>HEX ${selectedCell}</span><strong>${structure ? `${structure.kind.toUpperCase()} · ${structure.hp} HP` : cell?.terrain === "deposit" ? `${cell.resourceKind.toUpperCase()} DEPOSIT` : cell?.terrain === "blocked" ? "BLOCKED GROUND" : "OPEN GROUND"}</strong></div>
+        ${structure ? `<span title="${structure.connected ? "Connected to brain" : "Disconnected from brain"}${incoming.length ? ` · next arrival tick ${Math.min(...incoming.map((p) => p.arrivesAt))}` : ""}">${structure.connected ? "Connected" : "Disconnected"} · ${count} particles · ${incoming.length} incoming</span>` : ""}
+        ${cell?.terrain === "deposit" ? '<span title="Each connected friendly neighbor earns one sixth of this source. Several players may share it.">Expand alongside to mine.</span>' : ""}</div>
+        ${owned ? `<div class="priority-control"><label class="field-label" for="priority-slider">Attack priority · ${priority}/3</label><input id="priority-slider" data-field="priority" type="range" min="0" max="3" step="1" value="${priority}"></div>` : ""}
+        ${queued ? `<span class="construction-progress" title="Queued construction waits for support, builder and resources.">${queued.paid ? `Growing · ${queued.progress}/${queued.duration}` : "Queued"}</span>` : ""}`;
     const researchNames: Record<string, string> = {
       growth: "Growth efficiency",
       excitation: "Excitation",
@@ -341,9 +383,66 @@ export function mountNeuralDefence(
     const research = Object.keys(researchNames)
       .map(
         (key) =>
-          `<button class="research-option" data-action="research-${key}" ${player.research.includes(key as (typeof player.research)[number]) || player.researchJob || player.insight < 10_000 || !player.alive ? "disabled" : ""}><strong>${researchNames[key]}</strong><span>${researchDescription[key]} · 10 ◇</span></button>`,
+          `<button class="research-option" data-action="research-${key}" aria-keyshortcuts="${key === "growth" ? "G" : key === "excitation" ? "E" : "C"}" ${player.research.includes(key as (typeof player.research)[number]) || player.researchJob || player.insight < 10_000 || !player.alive ? "disabled" : ""}><strong>${researchNames[key]} <kbd>${key === "growth" ? "G" : key === "excitation" ? "E" : "C"}</kbd></strong><span>${researchDescription[key]} · 10 ◇</span></button>`,
       )
       .join("");
+    const canBuild =
+      !structure && cell?.terrain === "open" && !queued && player.alive;
+    const commands = [
+      commandButton({
+        action: "build-neuron",
+        label: "Neuron",
+        shortcut: "N",
+        cost: "20 ◈",
+        art: sprite(`neuron-${team}`),
+        description:
+          "Queue a neuron on the selected open hex. Needs a connected neighbor; waits for support and resources.",
+        disabled: !canBuild,
+      }),
+      commandButton({
+        action: "build-tower",
+        label: "Tower",
+        shortcut: "T",
+        cost: "60 ◈",
+        art: sprite("tower-experimental"),
+        description:
+          "Queue a test tower. Needs all six neighbors connected and owned; waits for support and resources.",
+        disabled: !canBuild,
+      }),
+      commandButton({
+        action: "panel-research",
+        label: "Research",
+        shortcut: "R",
+        symbol: "research",
+        description: "Research network upgrades",
+        expanded: panel === "research",
+        controls: "research-panel",
+      }),
+      commandButton({
+        action: "cancel-build",
+        label: "Cancel",
+        shortcut: "X",
+        symbol: "cancel",
+        description: "Cancel the selected construction",
+        disabled: !queued,
+      }),
+      commandButton({
+        action: "panel-activity",
+        label: "Log",
+        shortcut: "L",
+        symbol: "log",
+        description: "Recent network activity",
+        expanded: panel === "activity",
+        controls: "activity-panel",
+      }),
+      commandButton({
+        action: "zoom-fit",
+        label: "Fit map",
+        shortcut: "F",
+        symbol: "fit",
+        description: "Show the entire map",
+      }),
+    ].join("");
     const outcomes = notices
       .filter((item) => item.playerId === player.id)
       .slice(-3)
@@ -352,13 +451,10 @@ export function mountNeuralDefence(
           `<li>${escape(item.type)}${item.reason ? ` · ${escape(item.reason)}` : ""}${item.cell !== undefined ? ` at hex ${item.cell}` : ""}</li>`,
       )
       .join("");
-    return `<div class="nd-panel hud-panel"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div></div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}</div>
-      <nav class="panel-tabs" aria-label="Network tools">${(["inspect", "research", "activity"] as const).map((tab) => `<button data-action="panel-${tab}" aria-pressed="${panel === tab}">${tab === "inspect" ? "Build" : tab === "research" ? "Research" : "Log"}</button>`).join("")}</nav>
-      <div class="context-panels">
-      <section class="nd-panel inspector" ${panel !== "inspect" ? "hidden" : ""}><p class="section-index">SELECTED HEX</p>${detail}<div class="construction-summary"><p class="section-index">CONSTRUCTION</p><p>${player.queue.length} / 32 queued · builder ${escape(worker.mode)}</p>${player.queue.length ? `<ol class="queue-list">${player.queue.map((q) => `<li>Hex ${q.cell} · ${q.kind}${q.paid ? " · building" : " · waiting"}</li>`).join("")}</ol>` : "<p>Select an open neighbor to expand.</p>"}</div></section>
-      <section class="nd-panel research-panel" ${panel !== "research" ? "hidden" : ""}><p class="section-index">RESEARCH</p><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · ends tick ${player.researchJob.completesAt}` : "Choose an upgrade for your network."}${player.research.length ? ` · completed: ${player.research.map((r) => researchNames[r]).join(", ")}` : ""}</p>${player.researchJob ? '<button data-action="cancel-research" class="secondary">Cancel research</button>' : research}</section>
-      <section class="nd-panel activity-panel" ${panel !== "activity" ? "hidden" : ""}><p class="section-index">RECENT ACTIVITY</p><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></section>
-      </div><div class="session-controls"><button data-action="reset" class="secondary">Reset</button><button data-action="leave" class="secondary">Menu</button></div>`;
+    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div></div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls"><button data-action="reset" class="secondary">Reset</button><button data-action="leave" class="secondary">Menu</button></div></div>
+      <div class="command-dock"><section class="inspector" aria-label="Selected hex">${portrait ? `<div class="selection-portrait"><img src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${detail}<span class="construction-summary" title="${escape(player.queue.map((q) => `Hex ${q.cell} · ${q.kind}${q.paid ? " · building" : " · waiting"}`).join("\n"))}">${player.queue.length}/32 queued · builder ${escape(worker.mode)}</span></div></section><nav class="command-card" aria-label="Commands">${commands}</nav></div>
+      <section id="research-panel" class="nd-panel hud-popover research-panel" aria-label="Research" ${panel !== "research" ? "hidden" : ""}><div class="popover-heading"><strong>Research</strong><button data-action="close-panel" aria-label="Close research">×</button></div><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · ends tick ${player.researchJob.completesAt}` : "Choose an upgrade for your network."}${player.research.length ? ` · completed: ${player.research.map((r) => researchNames[r]).join(", ")}` : ""}</p>${player.researchJob ? '<button data-action="cancel-research" class="secondary">Cancel research</button>' : research}</section>
+      <section id="activity-panel" class="nd-panel hud-popover activity-panel" aria-label="Recent activity" ${panel !== "activity" ? "hidden" : ""}><div class="popover-heading"><strong>Recent activity</strong><button data-action="close-panel" aria-label="Close activity">×</button></div><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></section>`;
   }
 
   function renderGame() {
@@ -408,10 +504,35 @@ export function mountNeuralDefence(
       dependencies.animationClock(),
       dependencies.sprites,
     );
+    const viewport = root.querySelector<HTMLElement>("#nd-viewport");
+    if (!camera && viewport && dependencies.createCamera) {
+      camera = dependencies.createCamera(svg, viewport);
+      const player = world.players.find((p) => p.id === session?.localPlayerId);
+      const brain = world.structures.find(
+        (s) => s.ownerId === player?.id && s.kind === "brain",
+      );
+      if (brain) camera.focusCell(world.map.width, brain.cell);
+      svg.focus?.({ preventScroll: true });
+    }
+    camera?.refresh();
   }
 
   function render() {
     if (disposed) return;
+    const battlefield = root.querySelector<HTMLElement>(".game-layout");
+    const modalHost = root.querySelector<HTMLElement>("#game-modal");
+    if (screen === "game" && battlefield && modalHost) {
+      battlefield.toggleAttribute("inert", pending !== null);
+      modalHost.innerHTML = modal();
+      renderGame();
+      if (pending)
+        modalHost
+          .querySelector<HTMLButtonElement>('[data-action="cancel-confirm"]')
+          ?.focus();
+      return;
+    }
+    camera?.dispose();
+    camera = null;
     root.className = `fui-app nd-app screen-${screen}`;
     root.innerHTML =
       screen === "menu"
@@ -453,19 +574,37 @@ export function mountNeuralDefence(
     renderGame();
   }
 
+  function closePanel() {
+    const previous = panel;
+    panel = "inspect";
+    renderGame();
+    root
+      .querySelector<HTMLButtonElement>(`[data-action="panel-${previous}"]`)
+      ?.focus();
+  }
+
   function onClick(event: MouseEvent) {
     const target = event.target as Element;
     const button = target.closest<HTMLElement>("[data-action]");
     if (button?.dataset.action?.startsWith("panel-")) {
       const next = button.dataset.action.slice(6);
       if (next === "inspect" || next === "research" || next === "activity")
-        panel = next;
+        panel = panel === next ? "inspect" : next;
       renderGame();
+      if (panel !== "inspect") {
+        root
+          .querySelector<HTMLButtonElement>(
+            `#${panel}-panel [data-action="close-panel"]`,
+          )
+          ?.focus?.();
+      }
       return;
     }
     if (button) {
       const action = button.dataset.action;
-      if (action === "new-game") {
+      if (action === "close-panel") {
+        closePanel();
+      } else if (action === "new-game") {
         screen = "setup";
         mode = "sandbox";
         selectedId = "sandbox-12";
@@ -473,25 +612,8 @@ export function mountNeuralDefence(
       } else if (action === "settings") {
         screen = "settings";
         render();
-      } else if (
-        action === "zoom-in" ||
-        action === "zoom-out" ||
-        action === "zoom-fit"
-      ) {
-        const board = root.querySelector<SVGSVGElement>("#nd-board");
-        if (board) {
-          const current = Number(board.dataset.zoom ?? 1);
-          const zoom =
-            action === "zoom-fit"
-              ? 1
-              : Math.max(
-                  1,
-                  Math.min(3, current + (action === "zoom-in" ? 0.25 : -0.25)),
-                );
-          board.dataset.zoom = String(zoom);
-          board.style.width = `${zoom * 100}%`;
-          board.style.height = `${zoom * 100}%`;
-        }
+      } else if (action === "zoom-fit") {
+        camera?.fit();
       } else if (action === "back-menu") showMenu();
       else if (action === "retry-catalog") void loadCatalog();
       else if (action === "retry-map" && selectedId)
@@ -611,6 +733,51 @@ export function mountNeuralDefence(
       }
       return;
     }
+    if (screen === "game" && event.key === "Escape" && panel !== "inspect") {
+      event.preventDefault();
+      closePanel();
+      return;
+    }
+    if (
+      screen === "game" &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.repeat
+    ) {
+      const target = event.target as HTMLElement;
+      if (
+        !target.closest('input, select, textarea, [contenteditable="true"]')
+      ) {
+        const action = (
+          {
+            n: "build-neuron",
+            t: "build-tower",
+            r: "panel-research",
+            l: "panel-activity",
+            f: "zoom-fit",
+            x: "cancel-build",
+            ...(panel === "research"
+              ? {
+                  g: "research-growth",
+                  e: "research-excitation",
+                  c: "research-conduction",
+                }
+              : {}),
+          } as Record<string, string>
+        )[event.key.toLowerCase()];
+        if (action) {
+          const command = root.querySelector<HTMLButtonElement>(
+            `[data-action="${action}"]`,
+          );
+          if (command && !command.disabled) {
+            event.preventDefault();
+            command.click();
+          }
+          return;
+        }
+      }
+    }
     if (
       screen !== "game" ||
       pending ||
@@ -636,6 +803,7 @@ export function mountNeuralDefence(
         r = Math.max(0, Math.min(world.map.height - 1, row + dr));
       selectedCell = r * width + c;
       renderGame();
+      camera?.ensureCellVisible(width, selectedCell);
     } else if (
       event.key === "Enter" &&
       selectedCell !== null &&

@@ -61,12 +61,14 @@ test("rendering interpolates actual transit, retains terrain and moving nodes, c
     .getAttribute("transform");
   assert.ok(position?.startsWith("translate("));
   assert.equal(svg.querySelectorAll(".debug-grid polygon").length, 144);
-  for (const name of ["territory", "link", "particle", "effect"])
+  for (const name of ["backdrop", "territory", "link", "particle", "effect"])
     assert.equal(
       svg.querySelector(`.${name}-layer`)?.getAttribute("pointer-events"),
       "none",
       "decorative layers cannot intercept tile selection",
     );
+  assert.equal(svg.querySelectorAll(".backdrop-layer [data-cell]").length, 0);
+  assert.equal(svg.querySelectorAll(".terrain-layer [data-cell]").length, 144);
   const encoded = JSON.stringify(w);
   const animation = renderBoard(svg, w, 14, true, false, 50);
   animation.animate(75);

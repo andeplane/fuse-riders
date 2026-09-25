@@ -4,7 +4,7 @@ import { parseHTML } from "linkedom";
 import { mountNeuralDefence, type AppDependencies } from "../src/app/app.js";
 import { createAttractScene } from "../src/app/attract-scene.js";
 import type { MapRepository, MapSummary } from "../src/app/contracts.js";
-import type { MatchSettings } from "../src/engine/types.js";
+import type { Action, MatchSettings } from "../src/engine/types.js";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -27,6 +27,7 @@ function fixture(maps?: MapRepository) {
     '<html><body><div id="app"></div></body></html>',
   );
   const document = dom as unknown as Document;
+  const EventConstructor = dom.defaultView!.Event;
   const root = document.getElementById("app")!;
   const world = createAttractScene();
   let listener: (() => void) | null = null;
@@ -38,6 +39,7 @@ function fixture(maps?: MapRepository) {
   const frameCallbacks = new Map<number, FrameRequestCallback>();
   let settings: MatchSettings | null = null;
   let createdMapId: string | null = null;
+  const actions: Action[] = [];
   const summary: MapSummary = {
     id: world.map.id,
     title: "Test map",
@@ -66,7 +68,9 @@ function fixture(maps?: MapRepository) {
       return {
         localPlayerId: "coral",
         view: () => world,
-        dispatch() {},
+        dispatch(action) {
+          actions.push(action);
+        },
         subscribe(callback) {
           listener = callback;
           return () => {
@@ -122,8 +126,86 @@ function fixture(maps?: MapRepository) {
     settings: () => settings,
     createdMapId: () => createdMapId,
     summary,
+    actions,
+    selectCell(cell: number) {
+      root
+        .querySelector(`[data-cell="${cell}"]`)!
+        .dispatchEvent(new EventConstructor("click", { bubbles: true }));
+    },
+    press(
+      key: string,
+      selector = "#nd-board",
+      modifiers: {
+        ctrlKey?: boolean;
+        metaKey?: boolean;
+        altKey?: boolean;
+        repeat?: boolean;
+      } = {},
+    ) {
+      class KeyEvent extends EventConstructor {
+        readonly key = key;
+        readonly ctrlKey = modifiers.ctrlKey ?? false;
+        readonly metaKey = modifiers.metaKey ?? false;
+        readonly altKey = modifiers.altKey ?? false;
+        readonly repeat = modifiers.repeat ?? false;
+      }
+      root
+        .querySelector(selector)!
+        .dispatchEvent(
+          new KeyEvent("keydown", { bubbles: true, cancelable: true }),
+        );
+    },
   };
 }
+
+test("command shortcuts respect selection, availability, research context and input focus", async () => {
+  const f = fixture();
+  await f.start();
+  f.press("n");
+  assert.deepEqual(f.actions, [], "building is disabled on an occupied brain");
+  f.press("g");
+  assert.deepEqual(f.actions, [], "research keys require its open panel");
+  const local = f.world.players.find((p) => p.id === "coral")!;
+  local.insight = 10_000;
+  f.selectCell(
+    f.world.structures.find(
+      (s) => s.ownerId === local.id && s.kind === "brain",
+    )!.cell,
+  );
+  f.publish();
+  f.press("r");
+  for (const key of ["g", "e", "c"]) f.press(key);
+  assert.deepEqual(f.actions, [
+    { type: "startResearch", research: "growth" },
+    { type: "startResearch", research: "excitation" },
+    { type: "startResearch", research: "conduction" },
+  ]);
+  for (const modifier of [
+    { ctrlKey: true },
+    { metaKey: true },
+    { altKey: true },
+    { repeat: true },
+  ])
+    f.press("g", "#nd-board", modifier);
+  f.press("g", "#priority-slider");
+  assert.equal(
+    f.actions.length,
+    3,
+    "typing and browser shortcuts are not game commands",
+  );
+  local.insight = 0;
+  f.publish();
+  f.press("g");
+  assert.equal(
+    f.actions.length,
+    3,
+    "unavailable research cannot be triggered by shortcut",
+  );
+  f.click("leave");
+  f.press("g");
+  assert.equal(f.actions.length, 3, "confirmation blocks gameplay shortcuts");
+  f.app.dispose();
+});
 
 test("menu uses Fuse controls and actual board scenery without starting a simulation or animation loop", () => {
   const f = fixture();
@@ -179,7 +261,11 @@ test("context tools remain reachable and stable during updates, using the local 
     f.root.querySelector(".research-panel")?.hasAttribute("hidden"),
     false,
   );
-  f.click("panel-inspect");
+  f.click("panel-research");
+  assert.equal(
+    f.root.querySelector(".research-panel")?.hasAttribute("hidden"),
+    true,
+  );
   assert.equal(
     f.root.querySelector(".inspector")?.hasAttribute("hidden"),
     false,

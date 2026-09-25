@@ -3,6 +3,7 @@ import { createBrowserMapRepository } from "./map-repository.js";
 import { createPreferencesStore } from "./preferences.js";
 import { createSession } from "../online/session.js";
 import { spriteUrls } from "../render/sprites.js";
+import { createCameraFactory } from "../render/camera.js";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -16,6 +17,13 @@ mountNeuralDefence(root, {
   preferences: createPreferencesStore(localStorage),
   createSession,
   sprites: spriteUrls,
+  createCamera: createCameraFactory({
+    observeResize(element, callback) {
+      const observer = new ResizeObserver(callback);
+      observer.observe(element);
+      return () => observer.disconnect();
+    },
+  }),
   debug: new URLSearchParams(location.search).has("debug"),
   animationClock: () => performance.now(),
   requestFrame: (callback) => requestAnimationFrame(callback),

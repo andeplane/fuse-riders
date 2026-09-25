@@ -353,111 +353,93 @@ select {
 .screen-game {
   height: 100dvh;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
-}
-.screen-game .nd-header {
-  min-height: 48px;
-  padding: 0.7rem 1rem;
-}
-.screen-game .brand {
-  font-size: 10px;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .game-layout {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 0.75rem;
-  padding: 0.75rem;
+  --dock-height: 152px;
+  --command-size: 60px;
+  --topbar-height: 44px;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  isolation: isolate;
 }
 .board-shell {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  min-width: 0;
+  position: absolute;
+  inset: 0;
   background: radial-gradient(ellipse at 50% 45%, #102343, var(--fui-ink) 75%);
-  border: 1px solid #36547780;
-  border-radius: var(--fui-radius-small);
   overflow: hidden;
 }
-.board-topline {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.7rem 0.9rem;
-  color: var(--fui-text);
-  font-size: 11px;
-  z-index: 1;
-}
-.board-topline small,
-#tick-label {
-  color: var(--fui-text-dim);
-  font-size: 10px;
-}
 .board-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  display: flex;
-  align-items: flex-start;
+  position: absolute;
+  inset: var(--topbar-height) 0 var(--dock-height);
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.board-scroll.is-panning {
+  cursor: grabbing;
 }
 .nd-board {
   width: 100%;
   height: 100%;
-  flex: 0 0 auto;
   display: block;
-  touch-action: manipulation;
-}
-.board-hint {
-  margin: 0.5rem 0.9rem 0.8rem;
-  padding-right: 145px;
-  color: var(--fui-text-dim);
-  font-size: 10px;
-  line-height: 1.5;
-}
-.board-tools {
-  position: absolute;
-  bottom: 0.5rem;
-  right: 0.5rem;
-  display: flex;
-  gap: 0.3rem;
-}
-.nd-app .board-tools button {
-  min-height: 34px;
-  padding: 0.35rem 0.6rem;
-  font-size: 11px;
-  border-radius: 6px;
+  touch-action: none;
 }
 .game-sidebar {
-  min-height: 0;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
-.game-sidebar .nd-panel {
-  padding: 0.9rem;
+.battle-topbar,
+.command-dock,
+.hud-popover {
+  position: absolute;
+  pointer-events: auto;
+  background: #071020ed;
+  backdrop-filter: blur(12px);
+}
+.battle-topbar {
+  inset: 0 0 auto;
+  height: var(--topbar-height);
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0 0.8rem;
+  border-bottom: 1px solid #52789580;
+}
+.command-dock {
+  inset: auto 0 0;
+  height: var(--dock-height);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 12px 16px;
+  border-top: 2px solid #52789580;
+  box-shadow:
+    inset 0 3px 0 #132c3f,
+    0 -5px 24px #0006;
+  background: linear-gradient(180deg, #102334, #060e1b 35%);
 }
 .resource-row {
   display: flex;
-  justify-content: space-between;
-  gap: 0.7rem;
+  align-items: center;
+  gap: 1.5rem;
 }
 .resource-row > div {
-  display: grid;
-  gap: 0.6rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
 }
 .resource-row small {
   color: var(--fui-text-dim);
-  font-size: 9px;
-  letter-spacing: 0.1em;
+  font-size: 8px;
 }
 .resource-row strong {
   color: var(--fui-lime);
-  font: 13px/1.7 var(--fui-font-pixel);
+  font: 11px/1.7 var(--fui-font-pixel);
   white-space: nowrap;
 }
 .resource-row > div + div strong {
@@ -465,50 +447,160 @@ select {
 }
 .hud-mini,
 .debug-note {
-  font-size: 10px;
-  margin-top: 0.55rem;
+  font-size: 9px;
   color: var(--fui-text-muted);
-  line-height: 1.5;
+  white-space: nowrap;
 }
 .debug-note {
   color: var(--fui-yellow);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.panel-tabs {
+.command-card {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 0.35rem;
+  grid-template-columns: repeat(3, var(--command-size));
+  grid-template-rows: repeat(2, var(--command-size));
+  gap: 5px;
+  flex-shrink: 0;
+  padding-left: 12px;
+  border-left: 1px solid #52789580;
 }
-.nd-app .panel-tabs button {
-  min-height: 40px;
-  padding: 0.35rem;
-  font-size: 11px;
-  border-radius: 6px;
+.nd-app .game-sidebar .command-button {
+  position: relative;
+  width: var(--command-size);
+  height: var(--command-size);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #5b869b;
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 2px #122b3d,
+    inset 0 0 12px #4aaad326;
+  background: radial-gradient(ellipse at 50% 45%, #163950, #07141e);
 }
-.nd-app .panel-tabs button[aria-pressed="true"] {
+.command-button img,
+.command-button svg {
+  position: absolute;
+  width: 70%;
+  height: 70%;
+  left: 15%;
+  top: 10%;
+  object-fit: contain;
+  pointer-events: none;
+}
+.command-button svg {
+  width: 48%;
+  height: 48%;
+  left: 26%;
+  top: 19%;
+  fill: none;
+  stroke: #85ead9;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.command-button:disabled {
+  filter: grayscale(0.8);
+  opacity: 0.42;
+}
+.command-button kbd {
+  position: absolute;
+  right: 3px;
+  top: 2px;
+  z-index: 1;
+  font: 9px/1.2 var(--fui-font-body);
+  color: var(--fui-yellow);
+}
+.command-cost {
+  position: absolute;
+  left: 3px;
+  top: 2px;
+  z-index: 1;
+  font: 8px/1.2 var(--fui-font-body);
+  color: var(--fui-lime);
+}
+.command-label {
+  position: absolute;
+  bottom: 3px;
+  left: 0;
+  width: 100%;
+  font-size: 8px;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 1px 3px #000;
+}
+.research-option kbd {
+  float: right;
+  color: var(--fui-yellow);
+  font: 10px var(--fui-font-body);
+}
+.nd-app .game-sidebar button {
+  min-height: 32px;
+  padding: 0.4rem 0.65rem;
+  font-size: 10px;
+  border-radius: 4px;
+  margin: 0;
+}
+.nd-app .command-card button[aria-expanded="true"] {
   color: var(--fui-cyan);
   border-color: var(--fui-cyan);
   background: #16e7ff16;
 }
-.context-panels {
+.inspector {
   flex: 1;
-  min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
 }
-.context-panels > section {
-  min-height: 100%;
+.selection-portrait {
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+  padding: 6px;
+  border: 1px solid #486879;
+  border-radius: 6px;
+  background: radial-gradient(ellipse, #173d4d, #050c15);
+  box-shadow: inset 0 0 0 3px #0e2333;
+}
+.selection-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.selection-details {
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  min-width: 0;
+}
+.selection-summary {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  min-width: 0;
+}
+.selection-summary > span {
+  color: var(--fui-text-muted);
+  font-size: 10px;
+}
+.priority-control {
+  width: 170px;
+  max-width: 100%;
+  flex-shrink: 0;
+}
+.construction-progress {
+  font-size: 10px;
+  color: var(--fui-text-muted);
 }
 .game-sidebar p {
   font-size: 11px;
-  margin: 0.65rem 0;
+  margin: 0.5rem 0;
   line-height: 1.65;
-}
-.game-sidebar .section-index {
-  margin-top: 0;
-  font-size: 9px;
 }
 .tile-heading {
   display: grid;
-  gap: 0.5rem;
+  gap: 4px;
   color: var(--fui-text-dim);
   font-size: 10px;
 }
@@ -520,20 +612,13 @@ select {
   width: 100%;
 }
 .game-sidebar .field-label {
-  font-size: 11px;
-}
-.game-sidebar .button-row {
-  display: grid;
-}
-.game-sidebar .button-row button {
   font-size: 10px;
 }
 .construction-summary {
-  border-top: var(--fui-border);
-  padding-top: 1rem;
-  margin-top: 1rem;
+  grid-column: 1 / -1;
+  font-size: 10px;
+  color: var(--fui-text-muted);
 }
-.queue-list,
 .event-list {
   padding-left: 1.1rem;
   color: var(--fui-text-muted);
@@ -553,11 +638,27 @@ select {
   line-height: 1.6;
 }
 .session-controls {
+  margin-left: auto;
   display: flex;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
-.session-controls button {
-  flex: 1;
+.hud-popover {
+  bottom: calc(var(--dock-height) + 8px);
+  right: 12px;
+  width: min(360px, calc(100vw - 24px));
+  max-height: calc(100dvh - var(--dock-height) - var(--topbar-height) - 24px);
+  overflow: auto;
+  padding: 14px;
+  box-shadow: 0 8px 32px #0009;
+}
+.popover-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--fui-cyan);
+  font-size: 12px;
 }
 .nd-modal-backdrop {
   position: fixed;
@@ -702,10 +803,11 @@ select {
   filter: drop-shadow(0 0 4px var(--team, var(--fui-cyan)));
 }
 @media (max-width: 900px) {
-  .game-layout {
-    grid-template-columns: minmax(0, 1fr) 265px;
-    gap: 0.5rem;
-    padding: 0.5rem;
+  .inspector {
+    gap: 0.75rem;
+  }
+  .battle-topbar .hud-mini {
+    display: none;
   }
   .header-subtitle {
     display: none;
@@ -713,15 +815,11 @@ select {
   .debug-badge {
     margin-left: auto;
   }
-  .board-topline small {
-    display: none;
-  }
-  .board-hint {
-    padding-right: 0;
-    padding-bottom: 2.1rem;
-  }
 }
 @media (max-width: 650px) {
+  .nd-app .game-sidebar button {
+    min-height: 40px;
+  }
   .brand {
     font-size: 10px;
   }
@@ -763,19 +861,46 @@ select {
     margin: 1.2rem auto;
   }
   .game-layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(220px, 1fr) minmax(190px, 39%);
-    gap: 0.4rem;
+    --dock-height: 148px;
+    --command-size: 48px;
   }
-  .game-sidebar {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto minmax(0, 1fr);
-    gap: 0.4rem;
+  .command-dock {
+    flex-direction: row;
+    gap: 8px;
+    padding: 10px;
   }
-  .game-sidebar .hud-panel {
-    grid-column: 1;
-    padding: 0.65rem;
+  .selection-portrait {
+    display: none;
+  }
+  .selection-details {
+    gap: 5px;
+  }
+  .command-card {
+    gap: 4px;
+    padding-left: 6px;
+  }
+  .selection-summary > span,
+  .construction-summary {
+    font-size: 9px;
+  }
+  .battle-topbar {
+    gap: 8px;
+    padding: 0 8px;
+  }
+  .resource-row {
+    gap: 10px;
+  }
+  .resource-row > div {
+    gap: 4px;
+  }
+  .resource-row small {
+    display: none;
+  }
+  .battle-topbar .debug-note {
+    display: none;
+  }
+  .priority-control {
+    width: 100%;
   }
   .resource-row strong {
     font-size: 10px;
@@ -787,44 +912,11 @@ select {
   .debug-note {
     font-size: 8px;
   }
-  .panel-tabs {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: start;
-  }
-  .nd-app .panel-tabs button {
-    font-size: 10px;
-    padding: 0.2rem;
-    min-height: 38px;
-  }
-  .context-panels {
-    grid-column: 1 / -1;
-    grid-row: 2;
-  }
-  .session-controls {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: end;
-    padding-top: 42px;
-    pointer-events: none;
-  }
   .session-controls button {
     min-height: 32px;
     font-size: 10px;
     pointer-events: auto;
     padding: 0.2rem;
-  }
-  .board-hint {
-    display: none;
-  }
-  .board-tools {
-    bottom: 0.3rem;
-    right: 0.3rem;
-    opacity: 0.9;
-  }
-  .board-topline {
-    padding: 0.45rem 0.65rem;
-    font-size: 10px;
   }
   .setting-row {
     gap: 0.75rem;
@@ -834,15 +926,19 @@ select {
   }
 }
 @media (max-height: 560px) and (min-width: 651px) {
-  .screen-game .nd-header {
-    min-height: 38px;
-    padding: 0.4rem 0.8rem;
-  }
   .game-layout {
-    grid-template-columns: minmax(0, 1fr) 265px;
+    --dock-height: 108px;
+    --command-size: 44px;
   }
-  .game-sidebar .hud-panel {
-    padding: 0.5rem 0.75rem;
+  .command-dock {
+    padding: 6px 12px;
+  }
+  .selection-portrait {
+    width: 72px;
+    height: 72px;
+  }
+  .selection-details {
+    gap: 3px;
   }
   .resource-row {
     gap: 0.5rem;
@@ -877,21 +973,20 @@ select {
 }
 @media (orientation: landscape) and (max-width: 650px) and (max-height: 560px) {
   .game-layout {
-    grid-template-columns: minmax(0, 1fr) 230px;
-    grid-template-rows: minmax(0, 1fr);
+    --dock-height: 108px;
+    --command-size: 44px;
   }
-  .game-sidebar {
-    display: flex;
+  .command-dock {
+    flex-direction: row;
   }
-  .context-panels {
-    flex: 1;
+  .command-dock {
+    padding: 6px 10px;
   }
-  .session-controls {
-    align-self: stretch;
-    padding-top: 0;
+  .inspector {
+    flex-wrap: wrap;
+    gap: 4px;
   }
-  .screen-game .nd-header {
-    min-height: 36px;
-    padding: 0.4rem 0.7rem;
+  .priority-control {
+    max-width: 100%;
   }
 }
