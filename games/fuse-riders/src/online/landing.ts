@@ -110,6 +110,12 @@ export function showLanding(host: LandingHost): void {
     node("small", "YOU VS. FOUR AI RIVALS"),
   );
   const form = node("div", "", "landing-multiplayer");
+  const localLink = link(
+    appUrl("?solo=1&local=1"),
+    "solo-cta local-cta",
+    node("span", "PLAY LOCAL"),
+    node("small", "GAME CONTROLLERS · ONE COMPUTER"),
+  );
   form.append(node("p", "OR BRING YOUR FRIENDS", "landing-section-label"));
   const hint = node("p", "", "landing-hint");
   hint.append(
@@ -123,6 +129,7 @@ export function showLanding(host: LandingHost): void {
     headline,
     intro,
     soloLink,
+    localLink,
     form,
     hint,
     link(
@@ -261,6 +268,11 @@ export function showLanding(host: LandingHost): void {
     if (!plainClick(event)) return;
     event.preventDefault();
     enter(SOLO_QUERY);
+  });
+  localLink.addEventListener("click", (event) => {
+    if (!plainClick(event)) return;
+    event.preventDefault();
+    enter("?solo=1&local=1");
   });
   // Settings before a game exists (#168): the same room settings CREATE ROOM and PLAY SOLO read from storage. The screen layout
   // stays disabled here because the radio buttons below choose it for the room being created.

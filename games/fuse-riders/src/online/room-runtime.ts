@@ -82,6 +82,10 @@ export class RoomRuntime extends NetRuntime<
     active: 0,
     latest: 0,
   };
+  private readonly localHeld = new Map<
+    string,
+    { flags: number; active: number; latest: number }
+  >();
   constructor(
     code: string,
     settings: RoomSettings,
@@ -92,6 +96,7 @@ export class RoomRuntime extends NetRuntime<
   }
   /** Neutral controls, but gesture ids never restart: the own stream refuses a reused id and so would every peer. */
   protected override resetControls(): void {
+    this.localHeld.clear();
     this.held = {
       flags: -1,
       active: 0,
@@ -102,6 +107,12 @@ export class RoomRuntime extends NetRuntime<
     };
   }
   protected override releaseControls(): void {
+    for (const [id, held] of this.localHeld) {
+      this.appendLocal(id, STEER, 0);
+      if (held.active) this.appendLocal(id, CANCEL, held.active);
+      held.flags = 0;
+      held.active = 0;
+    }
     if (this.held.flags > 0) {
       this.append(STEER, 0);
       this.held.flags = 0;
@@ -174,27 +185,50 @@ export class RoomRuntime extends NetRuntime<
     }
     return super.command(command);
   }
-  /** Edge-filtered: an unchanged frame produces no entry; each press is a new gesture in the log. */
-  private input(command: Extract<RoomCommand, { type: "input" }>): boolean {
-    if (!this.player() || this.hiddenState) return false;
-    if (this.held.active === 0)
-      this.held.latest = Math.max(this.held.latest, this.own().latestOrdinal());
+  /** Fixed local seats only. Online callers cannot write another member's input stream. */
+  localInput(
+    id: string,
+    command: Extract<RoomCommand, { type: "input" }>,
+  ): boolean {
+    if (!this.solo || !this.localPlayerIds.includes(id)) return false;
+    return this.input(command, id);
+  }
+  /** Edge-filtered: an unchanged frame produces no entry; each press is a new gesture in its rider's log. */
+  private input(
+    command: Extract<RoomCommand, { type: "input" }>,
+    id = this.id,
+  ): boolean {
+    const player = this.world && this.game.seat(this.world.state, id);
+    if (!player || player.watcher || this.hiddenState) return false;
+    let held = this.held;
+    if (id !== this.id) {
+      if (!this.localHeld.has(id))
+        this.localHeld.set(id, { flags: -1, active: 0, latest: 0 });
+      held = this.localHeld.get(id)!;
+    }
+    const append = (...body: unknown[]) =>
+      id === this.id ? this.append(...body) : this.appendLocal(id, ...body);
+    if (held.active === 0)
+      held.latest = Math.max(
+        held.latest,
+        this.world!.streams.get(id)!.latestOrdinal(),
+      );
     const flags = (command.left ? 1 : 0) | (command.right ? 2 : 0);
-    if (flags !== this.held.flags) {
-      this.append(STEER, flags);
-      this.held.flags = flags;
+    if (flags !== held.flags) {
+      append(STEER, flags);
+      held.flags = flags;
     }
     if (command.bombAction === "press") {
-      this.held.active = ++this.held.latest;
-      this.append(PRESS, this.held.active);
+      held.active = ++held.latest;
+      append(PRESS, held.active);
     }
-    if (command.bombAction === "release" && this.held.active) {
-      this.append(RELEASE, this.held.active);
-      this.held.active = 0;
+    if (command.bombAction === "release" && held.active) {
+      append(RELEASE, held.active);
+      held.active = 0;
     }
-    if (command.bombAction === "cancel" && this.held.active) {
-      this.append(CANCEL, this.held.active);
-      this.held.active = 0;
+    if (command.bombAction === "cancel" && held.active) {
+      append(CANCEL, held.active);
+      held.active = 0;
     }
     if (this.lastPacketTick === -1) this.sendPackets(this.deps.now());
     return true;
@@ -214,7 +248,7 @@ export class RoomRuntime extends NetRuntime<
       };
     return {
       ...shown,
-      ...(player && this.held.flags >= 0
+      ...(player && this.held.flags >= 0 && this.localPlayerIds.length < 2
         ? { local: { id: this.id, controls, lead } }
         : {}),
     };
