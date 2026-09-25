@@ -1,6 +1,6 @@
 # Neural Defence: RTS design and balance playbook
 
-Status: **proposal for review; no implementation or balance evidence**. This supports [GAMEPLAY.md](GAMEPLAY.md), [ENGINE_PLAN.md](ENGINE_PLAN.md) and [PHASE_0.md](PHASE_0.md). Latest Phase 0 scope: **builder particles, one attack particle type and one test tower**. No defence particles, shielding or composition refit yet. This slice proves mechanisms; the broader strategy programme below remains future evaluation rather than a claim of balance.
+Status: strategy and balance hypotheses for a Phase 0 implementation under review; no balance evidence yet. This supports [GAMEPLAY.md](GAMEPLAY.md), [ENGINE_PLAN.md](ENGINE_PLAN.md) and [PHASE_0.md](PHASE_0.md). Phase 0 has **one separate builder per player, one attack particle type and one constructible test tower type**. The broader experiments below are future evaluation, not implemented features or accepted balance.
 
 ## What established design practice gives us
 
@@ -15,11 +15,11 @@ Everything below is our proposed application of those principles, not a result d
 
 ## A small set of decisions with real tradeoffs
 
-Keep one symmetric faction: brain, neuron, two currencies, a finite attack pool and separately bounded reusable builders. Phase 0 supplies queued construction with physical builder delivery, mining, research, attack transport/combat and one test tower in the lab. It does not introduce a tower roster or tower upgrade system.
+Keep one symmetric faction: brain, neuron, two currencies, a finite attack pool and one separate reusable builder per player. Phase 0 supplies queued construction with physical builder delivery, mining, research, attack transport/combat and one constructible test tower type with a lab fixture. It does not introduce a tower roster or tower upgrade system.
 
 Attack particles fight; builders deliver construction capability. Their separate stock accounting prevents a worker from silently counting as military strength. Both have physical transport, owner and lifecycle identity. The first strategy questions concern position, supply and timing, rather than military composition. More combat types can follow only if they create a useful decision that this smaller roster cannot express.
 
-Growth Efficiency tests construction research; a small attack-property upgrade tests whether research changes actual supplied particles. No guard/Insulation branch is required. Later conduction or additional military roles need explicit costs and responses. Speed changes travel time independently of throughput. This first catalogue tests the research foundation, not a finished branching strategy tree or rock-paper-scissors system.
+Growth, Excitation and Conduction are three independent Phase 0 researches sharing one active research slot. Growth changes later neuron work time; Excitation changes attack on later brain departure/recovery; Conduction changes later builder and attack travel time without changing throughput. Additional military roles need explicit costs and responses. This catalogue tests research mechanics, not a finished strategy tree.
 
 Every proposed structure or research must name:
 
@@ -32,9 +32,9 @@ Biomass makes expansion compete with construction and repair. Insight makes rese
 
 ## Flow is gameplay, not decoration
 
-Use bounded deterministic particle transport, integer quantities, finite shared throughput, explicit transit and recovery. Visual particles depict that state. Priorities request redistribution; they cannot teleport stock or alter a packet already in flight. Distant fronts cost time, and committing there weakens another location. Aggregated batches must preserve owner, role, research profile and timing; builders remain distinct from attack supply.
+Use bounded deterministic attack transport, integer quantities, finite bidirectional attack-edge throughput, explicit transit and recovery. Visual particles depict that state. Priorities request redistribution; they cannot teleport stock or alter a packet already in flight. Distant fronts cost time, and committing there weakens another location. The one builder travels on its separate lane and remains distinct from attack supply.
 
-Keep these tuning dimensions separate: attack pool size, builder count, node capacity, link throughput, travel ticks, pulse size/cooldown, attack yield and recovery. A speed upgrade should not silently increase packet quantity or damage. Their combinations can still compound, so test combinations rather than only each scalar. Shield efficiency is not a Phase 0 parameter.
+Keep these tuning dimensions separate: attack pool size, builder count, node capacity, attack-link throughput, travel ticks, pulse size/cooldown, attack yield and recovery. Conduction should not silently increase packet quantity or damage. Their combinations can still compound, so test combinations rather than only each scalar. Shield efficiency is not a Phase 0 parameter.
 
 Give authoritative particle profiles stable typed IDs and explicit gameplay properties; use a small versioned profile catalog rather than arbitrary runtime modifier scripts. Research changes must have specified activation boundaries: resolve travel timing at departure and preserve it in the checkpoint; define combat-property sampling in the Phase 0 assay. Do not reinterpret particles according to whichever technology the renderer currently sees. Preserve owner, type, amount and any required profile/version in every authoritative compartment.
 
@@ -44,18 +44,18 @@ Readable charge buildup, transit and recovery are commitments the opponent can e
 
 This is a territorial RTS with tower-defence elements, rather than a wave-survival game in Phase 0. There are no neutral creep waves, heroes or equipment inventories yet. Particles are the fighting units; neurons are their supply network and firing positions. Every player initially has the same available options. Player identity, spawn and colour are distinct; the design must work for four independent owners without a privileged local-player simulation.
 
-| Element            | Gameplay purpose and limitation                                                       | Availability                                            |
-| ------------------ | ------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Brain | Root of connectivity, income and particle stock; destruction eliminates its owner | Phase 0; HP from rules |
-| Neuron             | Owned territory, mining neighbour, relay and adjacent firing position                 | Phase 0; 60 HP, 32 deployed particles                   |
-| Construction site  | Paid, exclusive, damageable work in progress; cannot mine, relay or fight             | Phase 0; initially 20 HP, damage persists on completion |
-| Attack particle | Only military particle type; attacks structural HP, never absorbs damage | Phase 0 |
-| Builder particle | Travels to ready queued jobs and builds from a connected frontier anchor | Phase 0; separate reusable worker stock |
-| One test tower | Enclosed-site ranged launcher of the same finite attack particles | Phase 0 lab fixture; one experimental type, no tower roster |
-| Biomass deposit    | Neutral construction-income objective shared by connected adjacent owners             | Phase 0; cannot be occupied                             |
-| Insight deposit    | Neutral research-income objective with the same adjacency model                       | Phase 0; cannot be occupied                             |
-| Blocked terrain    | Prevents occupation and shapes routes, chokepoints and contact                        | Phase 0                                                 |
-| Tower site | Designated enclosed location for the one test tower | Phase 0 map/fixture metadata |
+| Element           | Gameplay purpose and limitation                                                                | Availability                                                    |
+| ----------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Brain             | Root of connectivity, income and particle stock; destruction eliminates its owner              | Phase 0; HP from rules                                          |
+| Neuron            | Owned territory, mining neighbour, relay and adjacent firing position                          | Phase 0; 60 HP, 32 deployed particles                           |
+| Construction site | Paid, exclusive, damageable work in progress; cannot mine, relay or fight                      | Phase 0; initially 20 HP, damage persists on completion         |
+| Attack particle   | Only military particle type; attacks structural HP, never absorbs damage                       | Phase 0                                                         |
+| Builder particle  | Travels to ready queued jobs and builds from a connected frontier anchor                       | Phase 0; separate reusable worker stock                         |
+| One test tower    | Ranged launcher of the same finite attack particles; requires six connected friendly neighbors | Phase 0 constructible type and one lab fixture, no tower roster |
+| Biomass deposit   | Neutral construction-income objective shared by connected adjacent owners                      | Phase 0; cannot be occupied                                     |
+| Insight deposit   | Neutral research-income objective with the same adjacency model                                | Phase 0; cannot be occupied                                     |
+| Blocked terrain   | Prevents occupation and shapes routes, chokepoints and contact                                 | Phase 0                                                         |
+| Tower site hint   | Suggested location for a test tower; never exclusive build permission                          | Optional Phase 0 map/editor metadata                            |
 
 Defending means keeping useful firing positions supplied, preserving HP and denying threatening routes. There is no shield or guard absorption. Additional particle types later need a distinct delivery/response interaction, not merely a larger damage number. Their possible future existence must not expand this first slice.
 
@@ -63,11 +63,11 @@ Defending means keeping useful firing positions supplied, preserving HP and deny
 
 The central choice is **where to grow versus where to commit strength**. Growth buys reach and mining access, while a finite particle pool makes each additional front a liability as well as an opportunity. Research strengthens a particular plan but consumes time and Insight that cannot buy another upgrade at the same moment.
 
-| Timescale       | Player decision                                                    | Desired consequence                                                         |
-| --------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| Seconds | Reinforce a junction, change attack priority, respond to a cut | Orders have readable arrival delays and visible opportunity costs |
-| Tens of seconds | Queue a route, deliver builders, finish research | A commitment creates an opportunity and exposes a different weakness |
-| Whole match     | Choose which income to contest and adapt to surviving opponents    | Plans remain revisable; an early purchase does not predetermine every fight |
+| Timescale       | Player decision                                                 | Desired consequence                                                         |
+| --------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Seconds         | Reinforce a junction, change attack priority, respond to a cut  | Orders have readable arrival delays and visible opportunity costs           |
+| Tens of seconds | Queue a route, deliver builders, finish research                | A commitment creates an opportunity and exposes a different weakness        |
+| Whole match     | Choose which income to contest and adapt to surviving opponents | Plans remain revisable; an early purchase does not predetermine every fight |
 
 Early play should establish a readable route and reveal the first commitment. Midgame should create reasons to choose between income, research and competing fronts. Endgame should turn sustained advantage into a credible brain threat without a long helpless cleanup. These are design goals, not invented target match durations: measure first mining, first contact, upgrades, cuts and eliminations before fixing pacing targets.
 
@@ -75,14 +75,15 @@ Early play should establish a readable route and reveal the first commitment. Mi
 
 Biomass buys space; Insight buys research. Attack particles are reusable military capacity, not a third mined resource. Builder stock is reusable work capacity. Initial balances, attack/worker counts and rates are owned by Phase 0; the economy examples below use the starting 60 Biomass, zero Insight and brain income of 1 Biomass/0.5 Insight per second. Deposits encourage expansion without making recovery require permanently retaining a mine.
 
-| Decision                 | Current starting proposal                               | Strategic commitment                                                  |
-| ------------------------ | ------------------------------------------------------- | --------------------------------------------------------------------- |
-| Construct neuron | 20 Biomass, 6 seconds of work after builder arrival, one active job | Money, worker availability and delivery/work time are scarce |
-| Mine Biomass             | 6/second across six sides; 1/second per eligible side   | Additional income requires reachable connected territory              |
-| Mine Insight             | 3/second across six sides; 0.5/second per eligible side | Research routes compete with economic and tactical routes             |
-| Growth Efficiency        | 10 Insight, 20 seconds; later neurons take 4 seconds    | Occupies the research slot instead of an early combat specialization  |
-| Attack-property research | Small attack upgrade; exact definition in Phase 0 | Competes with economy research for the research slot |
-| Builder dispatch | Occurs when a queued job is legal, affordable and a worker is available | Distant construction requires real delivery and return time |
+| Decision         | Current starting proposal                                                      | Strategic commitment                                         |
+| ---------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| Construct neuron | 20 Biomass, 6 seconds of work after builder arrival, one active job            | Money, worker availability and delivery/work time are scarce |
+| Mine Biomass     | 6/second across six sides; 1/second per eligible side                          | Additional income requires reachable connected territory     |
+| Mine Insight     | 3/second across six sides; 0.5/second per eligible side                        | Research routes compete with economic and tactical routes    |
+| Growth           | 10 Insight, 20 seconds; later neurons take 4 seconds                           | Occupies the research slot while another option waits        |
+| Excitation       | 10 Insight, 20 seconds; newly dispatched attack rises from 2 to 3              | Needs supplied particles to matter                           |
+| Conduction       | 10 Insight, 20 seconds; new builder/attack edge travel falls from 4 to 3 ticks | Does not change edge throughput or create stock              |
+| Builder dispatch | Occurs when a queued job is legal, affordable and a worker is available        | Distant construction requires real delivery and return time  |
 
 A three-neuron route costs the starting 60 Biomass and 18 seconds of serial work, **plus builder travel/availability delays**. Income accrues during that time; this is an illustrative commitment, not an exact opening. If only the last tile adds one Biomass side, incremental income of 1/second takes approximately 60 seconds to repay the route's 60 Biomass after mining starts. Other sides and tactical value alter this. Test whether routes pay back before first contact; do not assume expansion is worthwhile.
 
@@ -98,15 +99,15 @@ Construction and research are the two paid job families. **Routing, builder deli
 
 Construction begins with manual route queuing. A destination remains an unpaid intention until legal, affordable and a builder is ready. Acceptance reserves the site, pays once and dispatches the worker through friendly links to a connected node adjacent to the target. The work timer begins on arrival. One active construction job keeps this first version legible; research may run concurrently. Disconnection pauses work, and started work has no refund under the initial contract.
 
-Builder delivery is now part of the requested core, rather than an optional later concept. It makes expansion sensitive to the same distance and congestion as combat. The implementation must expose queued, travelling, building and returning separately and checkpoint every consequential transition.
+Builder delivery is part of the core. It makes expansion sensitive to network distance and cuts. The separate builder lane deliberately prevents attack traffic from starving construction; the UI still needs to expose queued, travelling, building and returning states, and checkpoints retain each consequential transition.
 
-| Builder decision | Required rule or evidence |
-| --- | --- |
-| Destination | A connected adjacent staging neuron; never require the unbuilt target to relay its own builder |
-| Transport | Physical links with explicit latency and shared-capacity arbitration; no worker starvation |
-| Accounting | Separate bounded worker stock, never counted as attack damage or ammunition |
-| Cancellation/cut | Explicit return or delayed recovery policy; no instantaneous replacement or cloning |
-| Activation | Completed neuron becomes operational at the defined next-tick boundary |
+| Builder decision | Required rule or evidence                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| Destination      | A connected adjacent staging neuron; never require the unbuilt target to relay its own builder             |
+| Transport        | Physical friendly links with explicit latency; a separate builder lane prevents attack-capacity starvation |
+| Accounting       | Separate bounded worker stock, never counted as attack damage or ammunition                                |
+| Cancellation/cut | Explicit return or delayed recovery policy; no instantaneous replacement or cloning                        |
+| Activation       | Completed neuron becomes operational at the defined next-tick boundary                                     |
 
 Keep the initial builder count and the one-job slot as independent explicit rules. More workers must not silently enable parallel construction. A common worker/combat pool would change the economy and is outside this scoped separate-stock foundation.
 
@@ -116,20 +117,20 @@ Debug removes construction work duration, not delivery time. The site completes 
 
 ## Research choices and adoption windows
 
-The initial catalogue tests Growth Efficiency and a small attack-property improvement. Research order matters through the shared research slot. There is no guard upgrade, branching military specialization or tower upgrade catalogue in Phase 0. Later branches should follow evidence of missing decisions rather than a desired tree size.
+The initial catalogue is Growth, Excitation and Conduction. They are independent one-tier choices with one active research slot, so order affects timing without excluding later purchases. There is no guard upgrade, military composition branch or tower upgrade catalogue. Later branches should follow evidence of missing decisions rather than a desired tree size.
 
-| Choice                    | Useful situation                                                    | Cost and available response                                                  |
-| ------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| Growth Efficiency         | Many affordable future neurons; earlier route completion matters    | Delays combat specialization; pressure unfinished or undersupplied expansion |
-| Attack-property upgrade | A supplied front can exploit more damage per spent particle | Delays economy research; pressure before upgraded particles arrive or open another front |
-| Faster conduction, later  | Long routes need earlier reinforcement                              | Does not remove capacity bottlenecks or increase the particle pool           |
-| Greater throughput, later | Shared edges constrain sustained supply                             | Does not reduce first-particle latency or create stock                       |
+| Choice                    | Useful situation                                                 | Cost and available response                                               |
+| ------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Growth                    | Many affordable future neurons; earlier route completion matters | Delays the other two research jobs; pressure unfinished expansion         |
+| Excitation                | A supplied front can exploit more damage per spent particle      | Pressure before upgraded particles arrive or open another front           |
+| Conduction                | Long routes need earlier workers or reinforcement                | Does not remove attack-capacity bottlenecks or increase the particle pool |
+| Greater throughput, later | Shared edges constrain sustained supply                          | Does not reduce first-particle latency or create stock                    |
 
-Do not assume both later technologies are necessary. Display the actual property changed, cost, duration, activation tick and effect on existing particles. A vague efficiency multiplier hides too many interactions. Immutable profiles mean old particles can remain unupgraded at a front while newly dispatched ones carry the benefit; the player should see that adoption wave without inspecting individual particles.
+Display the changed property, cost, duration, activation tick and effect on already stationed particles. A vague efficiency multiplier hides too many interactions. Old particles can remain unupgraded at a front while newly dispatched ones carry the benefit; the player should see that adoption wave without inspecting individual particles.
 
 ## Combat examples and control constraints
 
-The assay runs at 20 Hz with explicit per-edge travel and capacity. Congestion and the no-same-tick-forwarding rule add delay. Attack priority requests relative demand, not a guaranteed percentage or instant buff. Builder traffic follows jobs, sharing links through deterministic arbitration. Test saturated attack demand alongside an accepted build so neither rule accidentally deletes or starves the other.
+The assay runs at 20 Hz with explicit attack edge travel and capacity. Congestion and the no-same-tick-forwarding rule add delay. Attack priority requests relative demand, not a guaranteed percentage or instant buff. Builder traffic follows jobs on its separate lane; test saturated attack demand alongside an accepted build to prove construction still progresses.
 
 Connected completed nodes commit available attack particles against hostile structures on the defined cadence. Firing decisions are frozen before simultaneous HP damage, so iteration order cannot grant a first strike. Unspent particles do not shield a node. Reinforcement helps by enabling counterfire and pressure, not by cancelling incoming damage.
 
@@ -161,7 +162,7 @@ These are future adaptable policy experiments, not Phase 0 acceptance requiremen
 3. **Junction defence into counterattack:** protect a fork with supplied firing positions while builders establish another route. Redirect during the enemy recovery window. The response is bypassing or contesting outside income. The first test must work without shields, repair or invented hold-fire controls.
 4. **Research timing attack:** seek Insight and schedule an attack upgrade so new-profile particles reach a contested edge together. The plan needs research, stock and dispatch, not merely a clicked upgrade. Opponents can contest Insight or attack before the benefit arrives; the researcher can retreat to a shorter supply line. Fail if research determines every fight regardless of position or never pays off before elimination.
 5. **Redundant routes and flank:** spend construction time on a second connection around a bottleneck, then approach an undersupplied branch. The cost buys resilience and route geometry rather than immediate income. Opponents can contest the endpoint before completion or maintain split reserves. Fail if recovery bypasses the value of redundancy, or unstable equal-cost routing prevents any reliable flank supply.
-6. **Fortified anchor, later:** secure a tower ring and feed a Pulse Tower from a local reserve. Opponents bypass its range, take exposed deposits or cut upstream supply. Fail if an unavoidable tower lane creates permanent stalemate, or if the ring is never achievable under realistic pressure. Do not set a tower price before the basic particle interaction has evidence.
+6. **Fortified anchor, later:** secure a ring and feed the test tower from local attack supply. Opponents bypass range, take exposed deposits or cut upstream supply. Fail if an unavoidable tower lane creates stalemate, or if the ring is never achievable under pressure. Broader tower content waits for evidence from the current 60-Biomass test type.
 
 For each policy retain a successful replay and another where its advertised response changes the outcome. A counter must be affordable, visible and timely for a player in that situation. A theoretical action that arrives after the brain dies is not a counter.
 
@@ -184,16 +185,16 @@ Two useful human vignettes are a queued frontier job whose builder is two hops a
 
 Later graphs should connect decisions with consequences: income by source against spending; connected/disconnected territory; attack/worker stock and lifecycle; delivery delay and congestion; damage; research completion versus first useful upgraded arrival; cuts and elimination. Stock, interval flow and exact-tick events differ. Balance changes cannot recover simultaneous income/spending. Phase 0 reserves stable IDs and typed outcomes; graph history/UI remain deferred.
 
-| Failure to seek               | Probe and useful evidence                                                                                    |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Non-ending positional stalemate | Symmetric fronts, alternative routes and research; retain unresolved replays |
-| Economic runaway              | Give a small income lead, then let an informed opponent target expansion; inspect actual recovery options    |
-| Free cut/recovery teleport    | Compare normal return against disconnection, destruction and cancellation                                    |
-| Priority/worker cancellation thrashing | Adversarial reversals, job cancellations and shared-edge congestion |
-| Construction denial spam      | Competing claims, queue cancellation order, paid-site losses and action limits                               |
-| Mandatory or useless research | Change order and pressure windows on matched maps; inspect when upgrades first matter                        |
-| Routing starvation/deadlock   | Cycles, full targets, opposed traffic, cuts and reservation release; require progress where legally possible |
-| Excessive attention cost      | Matched bounded-command policies, then phone/shared-TV human tests; count reversals without benefit          |
+| Failure to seek                        | Probe and useful evidence                                                                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Non-ending positional stalemate        | Symmetric fronts, alternative routes and research; retain unresolved replays                                 |
+| Economic runaway                       | Give a small income lead, then let an informed opponent target expansion; inspect actual recovery options    |
+| Free cut/recovery teleport             | Compare normal return against disconnection, destruction and cancellation                                    |
+| Priority/worker cancellation thrashing | Adversarial reversals, job cancellations and shared-edge congestion                                          |
+| Construction denial spam               | Competing claims, queue cancellation order, paid-site losses and action limits                               |
+| Mandatory or useless research          | Change order and pressure windows on matched maps; inspect when upgrades first matter                        |
+| Routing starvation/deadlock            | Cycles, full targets, opposed traffic, cuts and reservation release; require progress where legally possible |
+| Excessive attention cost               | Matched bounded-command policies, then phone/shared-TV human tests; count reversals without benefit          |
 
 Do not hide stalemates with an unplanned sudden-death rule or economic flaws with automatic catch-up bonuses. Identify why the intended response was unavailable. If an endgame rule becomes necessary, propose it explicitly with its own visible incentives and tests.
 

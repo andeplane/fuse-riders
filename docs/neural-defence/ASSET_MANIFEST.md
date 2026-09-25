@@ -1,86 +1,58 @@
-# Phase 0 objects, visual states and individual asset manifest
+# Phase 0 objects and asset inventory
 
-Status: **revised roster for review before further generation**. This replaces the earlier Assault/Guard/tint-only inventory. The first roster is a brain, four cosmetic team neuron variants, builder particles, one attack particle, two resource sources, one experimental tower and varied map terrain. No game implementation is authorized by this art inventory.
-
-Generate each object as its own file, inspect it, then concatenate the saved files into a labelled review sheet. Generated contact sheets do not substitute for individual sprites. Show this revised inventory to the user before further generation.
+Status: **individual sprites delivered and integrated; user visual acceptance is open**. This inventory describes files under `games/neural-defence/src/assets/`, not a promised generation count. The current UI reference is Fuse Riders' actual shared neon/pixel UI. World art follows the supplied luminous biological brain/neuron direction with readable sculpted terrain. The earlier teal dashboard and metallic neuron candidates are superseded.
 
 ## Common visual contract
 
-- Regular pointy-top hex board viewed from above. Shallow sculptural surface shading, generous transparent gutters and no baked floor except terrain. Objects must not obscure neighboring cells or shift their logical footprint.
-- Lighter slate ground, crisp contours, modest glow. Transparent PNGs contain no captions, panels, checkerboard or selection effects.
-- Four neuron files are **real visual variants**, blue, coral, green and gold, with cosmetic surface motifs and independent owner markers. Exact center, scale, six ports and overall silhouette stay consistent. No faction bonuses or simulation differences.
-- Every selectable entity uses one reusable independent selection overlay. Hover, placement, queue, active, damaged and disconnected treatments work across all objects and owners.
-- Team identity is separate from particle type. Builder and attack particles have different silhouettes; both can receive owner tint/markers. Guard and military mix/refit controls are not part of this revised roster.
+- Pointy-top hex board with a top-down camera and shallow sculptural shading. Sprites remain registered to the logical tile center; terrain is clipped to the hex.
+- Blue, coral, green and gold are actual colored brain/neuron files. Neurons have six main ports with consistent geometry. Owner rings and numbers remain separate, and cosmetic variants grant no gameplay differences.
+- Selection, queued construction, HP, connection state, priority and effects are renderer/UI data. Selection is shared across selectable objects, never baked into a single neuron.
+- Builder and attack particles have distinct silhouettes and follow authoritative travel intervals. Cosmetic interpolation, link glow, arrival pulses and resolved attack flashes do not decide combat or move simulation time.
 
-## Map-building set: 12 terrain candidates
+## Delivered current world assets
 
-Variety is visual first. Slate/soil, stone, moss and sand all use the same `open` gameplay terrain. Rock ridge, boulder, water and void all use `blocked` behavior initially. Artwork does not introduce speed bonuses, height rules, mining bonuses, destructibility, bridges or traversal abilities. Any future biome metadata stays separate from canonical terrain rules and must be validated.
+Every filename below exists individually; braces name the explicit color variants listed in the row. The renderer prefers a `-v2` file over its earlier unsuffixed candidate.
 
-| Individual filename stems | Count | Appearance and gameplay |
-| --- | ---: | --- |
-| `terrain-slate-a`, `terrain-slate-b` | 2 | Light slate/soil; alternate subtle grain/cracks; open |
-| `terrain-stone-a`, `terrain-stone-b` | 2 | Pale weathered stone; alternate small pattern; open |
-| `terrain-moss-a`, `terrain-moss-b` | 2 | Muted moss accents and readable boundary; open |
-| `terrain-sand-a`, `terrain-sand-b` | 2 | Warm sand with alternate restrained ripples; open |
-| `blocker-rock-ridge` | 1 | Low connected ridge; blocked isolated object over terrain |
-| `blocker-boulder` | 1 | Rounded heavy rock cluster; blocked isolated object |
-| `blocker-water` | 1 | Clearly bounded water hex; blocked surface tile |
-| `blocker-void` | 1 | Chasm/void hex with readable rim; blocked surface tile |
+| Files                                                                                    | Count | Role                                            |
+| ---------------------------------------------------------------------------------------- | ----: | ----------------------------------------------- |
+| `brain-blue-v2.png`, `brain-coral-v2.png`, `brain-green-v2.png`, `brain-gold-v2.png`     |     4 | Team-colored brain bases                        |
+| `neuron-blue-v2.png`, `neuron-coral-v2.png`, `neuron-green-v2.png`, `neuron-gold-v2.png` |     4 | Team-colored six-port neurons                   |
+| `tower-experimental-v2.png`                                                              |     1 | The single experimental tower type              |
+| `particle-builder-v2.png`                                                                |     1 | Construction delivery particle                  |
+| `particle-attack-v2.png`                                                                 |     1 | Sole Phase 0 combat particle type               |
+| `deposit-biomass.png`, `deposit-insight.png`                                             |     2 | Reused green organic and violet mineral sources |
+| `construction-site.png`                                                                  |     1 | Reused paid construction scaffold               |
 
-This bounded first art pass supports visibly different maps without multiplying gameplay mechanics. Transitions and extra variations follow adjacency/seam review; they do not block engine work.
+The eleven v2 objects are individual **1254×1254 RGBA PNGs** with genuine transparency. All four neurons have six main single-tip dendrites. The particles face right in the source artwork and rotate during travel. Exact prompts and inspection notes: [SPRITE_REVISION_V2.md](art/phase-0/SPRITE_REVISION_V2.md). Review sheet: [sprites-v2-review.png](art/phase-0/sprites-v2-review.png).
 
-## World structures and resources: 9 candidates
+Biomass and Insight are source deposits, not extra mining buildings. A paid site does not conduct or mine until completed. One experimental tower sprite represents one tower type; the combat lab contains exactly one test tower. Growth, Excitation and Conduction currently use ordinary UI rather than separate research illustrations.
 
-| Individual filename stems | Count | Purpose |
-| --- | ---: | --- |
-| `brain` | 1 | Healthy brain crown; separate owner accent/marker and state overlays |
-| `neuron-blue`, `neuron-coral`, `neuron-green`, `neuron-gold` | 4 | Team-specific cosmetic treatments with shared six-port geometry |
-| `deposit-biomass` | 1 | Green organic source; automatic adjacency mining |
-| `deposit-insight` | 1 | Violet faceted source; distinct silhouette/material |
-| `construction-site` | 1 | Incomplete scaffold; cannot mine or conduct before completion |
-| `tower-experimental` | 1 | One experimental attack tower for a controlled lab fixture; no tower family |
+## Delivered map-building assets
 
-“Mines” means these two source deposits, not extra mining buildings or a third resource. Connected neighboring neurons determine mining. Tower art does not settle construction unlocks, costs, range or targeting; these belong in the engine plan before implementation. The experiment contains one tower type only.
+| Files                                                                  | Count | Current use                                                    |
+| ---------------------------------------------------------------------- | ----: | -------------------------------------------------------------- |
+| `terrain-slate-a-v2.png`, `terrain-slate-b.png`, `terrain-slate-c.png` |     3 | Slate ground variants; opaque square textures clipped to hexes |
+| `terrain-soil-a.png`, `terrain-sand-a.png`, `terrain-moss-a.png`       |     3 | Additional open-ground appearances                             |
+| `blocker-rock-cluster-a.png`, `blocker-rock-ridge-a.png`               |     2 | New transparent rock silhouettes                               |
+| `blocker-boulder.png`                                                  |     1 | Reused boulder and fallback for undelivered rock variations    |
+| `blocker-water.png`, `blocker-void.png`                                |     2 | Earlier blocked-surface candidates available to map variants   |
 
-## Particles, links, effects and research: 8 candidates
+The eight new terrain/rock files are **1254×1254**. Ground files are opaque RGB; the new rock cluster and ridge have genuine RGBA transparency. See [TERRAIN_REVISION.md](art/phase-0/TERRAIN_REVISION.md) for exact prompts, bounds and inspection results.
 
-| Individual filename stems | Count | Purpose |
-| --- | ---: | --- |
-| `particle-builder` | 1 | Compact three-lobed seed/cargo silhouette for construction delivery |
-| `particle-attack` | 1 | Sharp directional particle; sole initial combat particle type |
-| `axon-link`, `axon-link-broken` | 2 | Healthy/broken segment aligned to exact ports |
-| `effect-pulse`, `effect-destruction` | 2 | Shared activity/mining/arrival pulse and fragment burst |
-| `research-growth-efficiency`, `research-excitation` | 2 | Construction and attack-property research illustrations |
+Slate, soil, sand and moss all remain `open` gameplay terrain. Rocks, water and void remain `blocked`. They add no movement, height, destructibility or resource bonuses. The renderer selects available map variants and uses a boulder fallback where a proposed rock filename has no asset.
 
-Builder lifecycle/capacity and attack resolution must be specified before implementation. Guard, Insulation, composition conversion and refit are removed from the current art requirements. Future signal-speed research may reuse research UI until it becomes an approved upgrade; no extra image is needed now.
+Ground was prompted for repeatability, but **exact opposite-edge continuity is not certified**. Independent hex-clipped variants do not create a continuous crack network. A future continuous terrain treatment needs a tiled seam preview.
 
-## Shared vector overlays and UI: 10 files
+## Live overlays and animation
 
-| Filename stem | Reuse |
-| --- | --- |
-| `overlay-selection` | Every selected brain, neuron, resource, blocker, site, tower or tile |
-| `overlay-hover` | Pointer/keyboard tile focus |
-| `overlay-build-valid` | Legal construction preview |
-| `overlay-build-invalid` | Illegal preview using shape and color |
-| `overlay-queued` | Queued destination; order number remains live text |
-| `overlay-priority` | Routing focus; weight/type remains live data |
-| `overlay-active` | Shared activity cue, never an authoritative particle count |
-| `overlay-damaged` | Damage cue across all team artwork; HP remains live data |
-| `overlay-disconnected` | Dormant/severed cue independent of owner |
-| `icon-recovery` | Returning/unavailable particles if recovery remains in the rules |
+Shared SVG/CSS rendering supplies selection and focus, tile/queue outlines, team territory, owner markers, links, HP, priority labels, arrival pulses and damage flashes. These are code-generated elements, **not ten delivered SVG files**. Construction order, particle quantities and resource/research progress remain live state. Reduced motion suppresses decorative trails/flashes; debug adds clear hex boundaries.
 
-Separate SVGs, never baked into one selected neuron. HP/resources, construction/research progress, locks, loading/error/debug states and text remain ordinary UI components. Deposits use a mining pulse; destroyed structures leave occupancy with a transient effect, not a persistent corpse sprite.
+No separate guard, shield, insulation, refit, broken-link raster or destruction-sheet asset is required by current Phase 0. Future research icons and effect sheets should be added only when their presentation needs them.
 
-## Quantities and generation sequence
+## Proposed later variety, not delivered files
 
-Target: **29 individual raster candidates and 10 shared vector assets**: 12 terrain + 9 structures/resources + 8 particles/links/effects/research. Reuse suitable existing individual candidates after inspection; do not blindly regenerate all 29.
+- Additional soil, sand and moss variants; alternate rock clusters/ridges and boulders.
+- Optional stone biome and tested adjacent-terrain transitions.
+- Final sprite packing, download-size optimization and a certified continuous texture set if needed.
 
-1. Show the revised inventory before more image calls.
-2. Generate files in parallel, one output per asset. Derive matching variants from a shared base to preserve scale/ports.
-3. Check actual transparency, clipping, port alignment, silhouettes, state clarity and owner readability at play scale.
-4. Concatenate saved files into a labelled contact sheet. Show shared selection applied to several different objects in an additional composed example.
-5. Review before implementation; packing, seams, animation and final scaling remain production tasks.
-
-## Earlier outputs retained as superseded candidates
-
-Original contact sheets are style exploration only. The interrupted individual world pass produced `terrain-open`, `terrain-blocked`, `deposit-biomass`, `deposit-insight`, `brain`, `brain-active`, `brain-damaged`, `neuron`, `neuron-active` and `construction-site` under `art/phase-0/sprites/`. Their PNGs have alpha channels; the neutral neurons do **not** fulfill the revised four-team requirement. Exact prompts are in [INDIVIDUAL_PROMPTS-world.md](art/phase-0/INDIVIDUAL_PROMPTS-world.md). Guard/refit concepts from the previous pass are superseded too. Preserve reusable art without treating old pictures or filenames as rules authority.
+These are extensions, not existing files or new gameplay rules. The neutral `brain.png` and older slab `terrain-slate-a.png` remain in the asset directory as fallbacks. Seven superseded unsuffixed neuron/tower/particle candidates were moved to `art/phase-0/superseded/` so comparison artwork is not bundled with the game. Historical guard concepts remain exploration only. None of these override the current roster or establish finished visual acceptance.

@@ -357,7 +357,7 @@ export function mountNeuralDefence(
       <div class="context-panels">
       <section class="nd-panel inspector" ${panel !== "inspect" ? "hidden" : ""}><p class="section-index">SELECTED HEX</p>${detail}<div class="construction-summary"><p class="section-index">CONSTRUCTION</p><p>${player.queue.length} / 32 queued · builder ${escape(worker.mode)}</p>${player.queue.length ? `<ol class="queue-list">${player.queue.map((q) => `<li>Hex ${q.cell} · ${q.kind}${q.paid ? " · building" : " · waiting"}</li>`).join("")}</ol>` : "<p>Select an open neighbor to expand.</p>"}</div></section>
       <section class="nd-panel research-panel" ${panel !== "research" ? "hidden" : ""}><p class="section-index">RESEARCH</p><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · ends tick ${player.researchJob.completesAt}` : "Choose an upgrade for your network."}${player.research.length ? ` · completed: ${player.research.map((r) => researchNames[r]).join(", ")}` : ""}</p>${player.researchJob ? '<button data-action="cancel-research" class="secondary">Cancel research</button>' : research}</section>
-      <section class="nd-panel activity-panel" ${panel !== "activity" ? "hidden" : ""}><p class="section-index">ACTIVITY</p><ul class="event-list" aria-live="polite">${outcomes || "<li>Awaiting first action.</li>"}</ul></section>
+      <section class="nd-panel activity-panel" ${panel !== "activity" ? "hidden" : ""}><p class="section-index">RECENT ACTIVITY</p><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></section>
       </div><div class="session-controls"><button data-action="reset" class="secondary">Reset</button><button data-action="leave" class="secondary">Menu</button></div>`;
   }
 

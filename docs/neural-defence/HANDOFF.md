@@ -1,44 +1,45 @@
 # Phase 0 implementation handoff
 
-Status: **work in progress, explicitly handed off to a cloud agent by the user**. Continue on `codex/neural-defence-design`, draft PR #409. Do not merge or deploy. User authorized implementation and sprites, requested frequent commits and agent review. Earlier planning-only statements are superseded by that authorization.
+Status: **implemented locally; final verification and player review remain open**. Work continues in `codex/neural-defence-completion`, based on the existing `codex/neural-defence-design` draft [PR #409](https://github.com/andeplane/fuse-riders/pull/409). The continuation is intended for that same PR; this document does not assert that every local change has been pushed. Merge and deployment remain separate decisions.
 
-## Latest user decisions
+## Current decisions
 
-- Menu: New game and Settings. Offline solo without AI, plus a separate scripted combat lab.
-- Builder particle delivers queued construction; one attack particle type. No guard/shield particle or composition refit in Phase 0.
-- One experimental tower type, with one test tower in the lab; no tower roster/tree.
-- Biomass and Insight deposits. Four-player ownership must work in the core now.
-- Repeatable ground variants and varied rocks. Four team-specific neuron designs, rather than white-only tinting. Selection is a shared overlay.
-- `?debug` draws clear tile boundaries; instant research/construction options retain particle travel and resource costs.
-- Headless TypeScript core, existing network runtime, injected side effects and strongly typed test fakes. Preserve statistics for future graphs.
+- Menu: **New game** and **Settings**, using Fuse Riders' shared neon palette, pixel typography, controls and menu hierarchy. The earlier teal dashboard direction is superseded.
+- Solo sandbox without AI, plus a separate scripted combat lab with exactly one experimental tower. Four-owner engine and adapter support exist; browser multiplayer rooms are deferred.
+- One reusable builder per player delivers queued construction through a separate bandwidth lane. Each player has 128 reusable attack particles of one type. No guard, shield or refit system.
+- Biomass and Insight deposits; Growth, Excitation and Conduction research. Tower construction uses any open hex with six connected friendly neighbors; `towerSite` is an optional map/editor suggestion.
+- `?debug` draws clear tile boundaries. Independent instant construction/research options start unchecked and retain costs, prerequisites and travel.
+- Individual colored brain/neuron sprites, sculpted terrain, one tower, distinct builder/attack particles and shared selection overlays. Visual acceptance remains the user's decision.
+- Settings currently contains the working reduced-motion preference. Audio has not been implemented; inert audio controls were removed.
+- Pure headless TypeScript simulation, the existing network runtime, injected side effects, typed test fakes and cumulative statistics for later graphs.
 
-## Implemented so far
+## Implemented and reviewed
 
-`games/neural-defence/src/engine/`: maps, state/types, pure ticking, builder lifecycle, mining, research, finite attack inventory and transport, minimal combat, codecs/hash, focused tests. Money is integer milli-units.
+`games/neural-defence/src/engine/` owns JSON map validation, pure ticking, construction and builder recovery, adjacency mining, independent research, finite attack transport/combat, statistics, codecs and canonical hashing. `src/online/` supplies the RollbackGame adapter, offline RoomRuntime session and scripted combat lab. Solo creates no transport and uses no competing authoritative timer. Shared netcode's optional `seating.minimumParticipants` defaults to two; Neural Defence uses one.
 
-`src/online/`: full initial RollbackGame adapter, offline RoomRuntime session, scripted combat lab. Shared netcode now offers optional `seating.minimumParticipants`, default two; this game uses one. No second authoritative timer and no transport created for solo. Runtime tests cover solo/reset/disposal and basic wire/checkpoint handling.
+Core corrections are in `d80dc94f`, `8dd2a789` and `a9163e81`: stale routing priorities, simultaneous construction claims, severed builder edges, strict checkpoint validation, explicit local-player/spawn selection, all four lab spawn choices, and checkpoint restoration after lobby settings changes or post-match departures. The seven original checkpoint findings are resolved; the [review record](REVIEW-2026-09-25.md) preserves their context rather than an outstanding blocker list.
 
-`src/app/`, `src/render/`, `index.html`, `maps/`: menus, setup, injected map loading/preferences, HUD, SVG board/animation, two JSON maps. Root landing links to the game. The renderer currently uses procedural shapes; generated sprite assets are **not wired into rendering yet**.
+`12a09512` adds the resolved attack origin to presentation events. `36171725` integrates the shared Fuse UI, stable controls during tick updates, real sprite rendering, bounded visual effects and particle travel interpolation from authoritative departure/arrival ticks. Render animation does not advance simulation. The app includes map loading/retry, setup, compact Build/Research/Log panels, keyboard selection, zoom and debug options.
 
-`src/assets/` contains available individual sprite candidates. `docs/neural-defence/art/` preserves previous candidates/prompts and a contact-sheet utility. Old guard/Insulation exploration is superseded, not current gameplay. Finish and inspect the new roster before claiming sprite completion.
+The delivered art inventory is in [ASSET_MANIFEST.md](ASSET_MANIFEST.md): eleven corrected biological sprites and eight new terrain/rock assets, alongside reused deposits, construction site and earlier blocker candidates. Four brains and four six-port neurons have baked team colors. Contact sheets and exact prompts are retained. Additional terrain variants and exact texture seam qualification remain later work.
 
-## Verified at handoff
+## Verification at this checkpoint
 
-- `pnpm typecheck`: passed.
-- `pnpm build`: passed, with a bundle-size warning.
-- `pnpm exec tsx --test games/neural-defence/tests/*.test.ts`: 15 passed (12 engine, 3 runtime/adapter).
-- `pnpm exec tsx --test packages/fuse-netcode/tests/room-runtime.test.ts`: 9 passed.
-- `git diff --check`: passed before handoff documentation.
-- No browser smoke, screenshot, full suite, coverage, performance benchmark or real-network verification yet. See PR for build result.
+- `pnpm typecheck`, `pnpm build` and focused ESLint: passed locally.
+- Neural Defence tests: **44 passed**. These include engine, adapter, presentation and app regressions, with typed map failure/retry, stale response and disposal checks.
+- Final `pnpm test:coverage`: **1,654 passed, zero failures**, 95.81% statements/lines, 94.52% branches and 98.46% functions; unchanged coverage thresholds passed. The earlier Docker manifest failure was fixed. A pre-existing service child-startup timeout under concurrent coverage was recorded in [issue #250](https://github.com/andeplane/fuse-riders/issues/250#issuecomment-5828682726) and moved to the explicit `pnpm test:service-health` smoke, which passed. That smoke is not included in the green CI suite count.
+- Browser: real menu → setup → debug sandbox, neuron construction at cell 14, priority weight 3, selection back to brain cell 13 with slider 0. A second session built cells 26 and 38, raised income from 1.0/0.5 to 2.0/1.5 Biomass/Insight per second, completed Growth research, reset to starting resources/research and returned to the menu. Normal-timing combat lab showed both networks, its one tower and destroyed frontline cells. Generated sprites render in the game. Screenshots are in [verification/](verification/).
+- Chromium geometry checks at **1440×900**, **390×844** and **568×320** found no page overflow or reported console errors in the exercised flows. This is browser emulation, not physical-device evidence.
+- No production deployment, real-network qualification, competitive balance result or user approval of the visual feel is claimed.
 
-## Required continuation
+## Remaining acceptance work
 
-1. Review engine and adapter independently. Harden checkpoint cross-field consistency, settings/map identity, command scope/generation/replay behavior, and bounded state. Add late-input replay convergence, rejection-atomicity and four-player transport/combat tests. Current tests are a starting point, not complete acceptance.
-2. Audit mechanics against latest user decisions and reconcile PHASE_0, CORE_TYPES, ARCHITECTURE and ENGINE_PLAN: they still contain obsolete guard/refit and deferred-tower sections. Do not restore those obsolete mechanics to match stale documents.
-3. Close known gaps: tower support-loss test currently does not actually cut support; LOS is two-hop open-intermediate rather than geometric supercover; builder travel currently uses a separate channel from attack capacity; strict map deposit/fairness validation needs review. Review cell-array bounds, transient capacity reservations, tie ordering and simultaneous deaths.
-4. Test combat-lab setup for every selectable spawn/map. Its initial fixture is programmatic; check exactly one supported test tower and useful fighting positions. The scripted opponent uses ordinary priority actions. This is not AI.
-5. Finish individual sprites/team variants/terrain and wire them into renderer. Preserve genuine alpha and hex registration, assemble an inspected contact sheet. Ensure selection, damage, queued builds and active travel read clearly on all objects.
-6. Run real browser flows: landing → menu → New game, Settings, map errors/retry, sandbox build → mine → research, builder dispatch/return, particle priority/latency, lab combat, reset/back, debug grid, keyboard and narrow screen. Save actual screenshots. Avoid audio (`?mute`).
-7. Run typecheck, focused tests, full tests once at integration, build and applicable coverage. Measure a four-player congested headless workload with seed/rules/revision. Update docs/PR with exact evidence and remaining limitations.
+1. Publish the final local changes and completed suite/coverage result to the draft PR, then record CI separately.
+2. Map failures/retry and stale responses are exercised through injected app tests; simulated browser network failure is not independently exercised. Builder cuts/recovery and all four lab spawn choices are engine/adapter regressions, not physical-device or real-network evidence.
+3. Review the actual menu and game appearance with the user. The shared Fuse UI and new assets are implemented; “AAA” visual quality is not established by tests or generated contact sheets.
+4. [BENCHMARK.md](BENCHMARK.md) retains the seeded, revision-specific four-owner workload: 820 ticks, 60 commands, 512-particle peak, replay hash `6670eaf7`, construction/research/combat assertions. The measured local throughput is not a balance result or AI tournament.
+5. Check the remote planning branch for concurrent changes before updating the same draft PR. Do not merge or deploy without authorization.
 
-Use `pnpm install --frozen-lockfile`, then `pnpm dev` (builds all games and starts the existing service). Game route is `/neural-defence/?mute`; debug is `/neural-defence/?mute&debug`. No development server was left running at handoff.
+## Running locally
+
+Use `pnpm install --frozen-lockfile`, then `pnpm dev` at the repository root. The dev command builds the games and starts the existing service; use the full URL printed by that server. At this checkpoint, the current completion build is previewed at **http://localhost:8787/neural-defence/?mute&debug**. A static preview needs `pnpm build` after source or asset changes. Ports and running processes are transient; verify them before restarting anything.
