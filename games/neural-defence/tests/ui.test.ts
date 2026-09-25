@@ -183,7 +183,7 @@ test("completed matches show a result and offer restart", async () => {
 test("command shortcuts respect selection, availability, research context and input focus", async () => {
   const f = fixture();
   await f.start();
-  f.press("q");
+  f.press("w");
   f.press("q");
   assert.deepEqual(f.actions, [], "building is disabled on an occupied brain");
   f.press("a");
@@ -195,13 +195,13 @@ test("command shortcuts respect selection, availability, research context and in
     )!.cell,
   );
   f.publish();
-  f.press("w", "#priority-slider");
+  f.press("e", "#priority-slider");
   assert.equal(
     f.root.querySelector(".command-card")?.getAttribute("data-panel"),
     "inspect",
     "slider keys must not enter a submenu",
   );
-  f.press("w");
+  f.press("e");
   assert.equal(
     f.root.querySelector(".command-card")?.getAttribute("data-panel"),
     "research",

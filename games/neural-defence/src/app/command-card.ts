@@ -338,9 +338,18 @@ export function renderCommands(
   if (panel === "activity") return empty.repeat(3) + back + empty.repeat(2);
   return (
     commandButton({
+      action: "panel-particles",
+      label: "Particles",
+      shortcut: "Q",
+      symbol: "excitation",
+      description: "Equip your reusable particle pool at the brain.",
+      disabled: !player.alive,
+      hints: player.alive ? [] : [requirementText({ kind: "alive" })],
+    }) +
+    commandButton({
       action: "panel-build",
       label: "Build",
-      shortcut: "Q",
+      shortcut: "W",
       symbol: "build",
       description: "Choose a structure to build.",
       disabled: !player.alive,
@@ -350,19 +359,12 @@ export function renderCommands(
     commandButton({
       action: "panel-research",
       label: "Research",
-      shortcut: "W",
+      shortcut: "E",
       symbol: "research",
       description: "Research network upgrades.",
       disabled: !player.alive,
       hints: player.alive ? [] : [requirementText({ kind: "alive" })],
       progress: researchProgress,
-    }) +
-    commandButton({
-      action: "panel-activity",
-      label: "Log",
-      shortcut: "E",
-      symbol: "log",
-      description: "Recent network activity.",
     }) +
     cancelBuild("A") +
     (world.structures.some(
@@ -395,11 +397,11 @@ export function renderCommands(
         s.ownerId === player.id,
     )
       ? commandButton({
-          action: "panel-particles",
-          label: "Particles",
+          action: "panel-activity",
+          label: "Log",
           shortcut: "D",
-          symbol: "excitation",
-          description: "Choose the particle profile dispatched by your brain.",
+          symbol: "log",
+          description: "Recent network activity.",
         })
       : world.structures.some(
             (s) => s.cell === selectedCell && s.ownerId === player.id,
@@ -415,6 +417,12 @@ export function renderCommands(
               "Concentrate supplied particles here for automatic attacks in range. Press again to clear this order.",
             disabled: !player.alive,
           })
-        : empty)
+        : commandButton({
+            action: "panel-activity",
+            label: "Log",
+            shortcut: "D",
+            symbol: "log",
+            description: "Recent network activity.",
+          }))
   );
 }

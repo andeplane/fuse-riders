@@ -133,6 +133,24 @@ function backdropMarkup(sprites: Sprites): string {
   }
   return `<defs><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="${dx * 3}" height="${dy * 2}"><rect width="100%" height="100%" fill="#122840"/>${patches.join("")}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
 }
+/** Shared live/placement artwork; cell-derived variation does not alter geometry. */
+export function neuronArtwork(
+  width: number,
+  cell: number,
+  slot: number,
+): string {
+  const { x, y } = hexCenter(width, cell);
+  const seed = (cell * 37 + slot * 17) % 97;
+  const points = Array.from({ length: 8 }, (_, i) => {
+    const angle = (i * Math.PI) / 4 + seed;
+    const r = 10 + ((seed + i * 7) % 5);
+    return { x: x + Math.cos(angle) * r, y: y + Math.sin(angle) * r };
+  });
+  const midpoint = (a: (typeof points)[number], b: (typeof points)[number]) =>
+    `${(a.x + b.x) / 2} ${(a.y + b.y) / 2}`;
+  const soma = `M${midpoint(points[7]!, points[0]!)}${points.map((point, i) => `Q${point.x} ${point.y} ${midpoint(point, points[(i + 1) % points.length]!)}`).join("")}Z`;
+  return `<g class="neuron-body" data-phase="${seed}" style="--team:${colors[slot]};transform-origin:${x}px ${y}px"><path class="neuron-membrane" d="${soma}"/><ellipse class="neuron-soma" cx="${x}" cy="${y}" rx="${7 + (seed % 3)}" ry="${8 + (seed % 4)}"/><circle class="neuron-nucleus" cx="${x}" cy="${y}" r="4"/><circle class="neuron-glint" cx="${x - 3}" cy="${y - 4}" r="1.2"/></g>`;
+}
 function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
   return world.structures
     .map((s) => {
@@ -158,14 +176,16 @@ function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
         s.hp < hpMax
           ? `<rect class="structure-hp-bg" x="${x - 18}" y="${y - 29}" width="36" height="3"/><rect class="structure-hp" x="${x - 18}" y="${y - 29}" width="${36 * Math.max(0, Math.min(1, s.hp / hpMax))}" height="3"/>`
           : "";
-      return `<g class="structure structure-${s.kind} ${s.connected ? "" : "disconnected"}" data-cell="${s.cell}" style="--team:${colors[slot]}"><circle class="owner-ring" cx="${x}" cy="${y}" r="${s.kind === "brain" ? 27 : 10}"/>${image(sprites, sprite, x, y, s.kind === "brain" ? 72 : 66) || `<circle class="structure-core" cx="${x}" cy="${y}" r="15"/>`}<path class="owner-notch" d="M${x - 5} ${y + 27}h10"/><text class="owner-number" x="${x}" y="${y + 31}" text-anchor="middle">${slot + 1}</text>${s.kind === "siege" ? `<path class="tower-crown" d="M${x - 12} ${y - 14}L${x} ${y - 34}L${x + 12} ${y - 14}Z"/>` : s.kind === "relay" ? `<path class="tower-crown" d="M${x - 16} ${y - 28}L${x - 6} ${y - 12}L${x + 4} ${y - 28}L${x + 14} ${y - 12}"/>` : ""}${stock && s.connected ? `<g class="supply-orbit" style="transform-origin:${x}px ${y}px">${Array.from({ length: Math.min(6, Math.ceil(stock / 8)) }, (_, i) => `<circle cx="${x + Math.cos((i * Math.PI) / 3) * 22}" cy="${y + Math.sin((i * Math.PI) / 3) * 22}" r="2" fill="${colors[slot]}"/>`).join("")}</g>` : ""}${health}<circle class="charge-halo" cx="${x}" cy="${y}" r="10" opacity="${Math.min(0.7, stock / 48)}"/></g>`;
+      const artwork =
+        s.kind === "neuron"
+          ? neuronArtwork(world.map.width, s.cell, slot)
+          : image(sprites, sprite, x, y, s.kind === "brain" ? 72 : 66);
+      return `<g class="structure structure-${s.kind} ${s.connected ? "" : "disconnected"}" data-cell="${s.cell}" style="--team:${colors[slot]}"><circle class="owner-ring" cx="${x}" cy="${y}" r="${s.kind === "brain" ? 27 : 10}"/>${artwork || `<circle class="structure-core" cx="${x}" cy="${y}" r="15"/>`}<path class="owner-notch" d="M${x - 5} ${y + 27}h10"/><text class="owner-number" x="${x}" y="${y + 31}" text-anchor="middle">${slot + 1}</text>${s.kind === "siege" ? `<path class="tower-crown" d="M${x - 12} ${y - 14}L${x} ${y - 34}L${x + 12} ${y - 14}Z"/>` : s.kind === "relay" ? `<path class="tower-crown" d="M${x - 16} ${y - 28}L${x - 6} ${y - 12}L${x + 4} ${y - 28}L${x + 14} ${y - 12}"/>` : ""}${stock && s.connected ? `<g class="supply-orbit" style="transform-origin:${x}px ${y}px">${Array.from({ length: Math.min(6, Math.ceil(stock / 8)) }, (_, i) => `<circle cx="${x + Math.cos((i * Math.PI) / 3) * 22}" cy="${y + Math.sin((i * Math.PI) / 3) * 22}" r="2" fill="${colors[slot]}"/>`).join("")}</g>` : ""}${health}<circle class="charge-halo" cx="${x}" cy="${y}" r="10" opacity="${Math.min(0.7, stock / 48)}"/></g>`;
     })
     .join("");
 }
 function linkMarkup(world: Readonly<World>): string {
-  const nodes = new Map(
-    world.structures.filter((s) => s.connected).map((s) => [s.cell, s]),
-  );
+  const nodes = new Map(world.structures.map((s) => [s.cell, s]));
   const lines: string[] = [];
   for (const s of nodes.values()) {
     const row = Math.floor(s.cell / world.map.width),
@@ -183,8 +203,11 @@ function linkMarkup(world: Readonly<World>): string {
       const a = hexCenter(world.map.width, s.cell),
         b = hexCenter(world.map.width, peer.cell),
         slot = world.players.find((p) => p.id === s.ownerId)?.slot ?? 0;
+      const connected = s.connected && peer.connected;
+      const bend = (((s.cell + peer.cell) % 3) - 1) * 5;
+      const curve = `M${a.x} ${a.y}Q${(a.x + b.x) / 2 + bend} ${(a.y + b.y) / 2 - bend} ${b.x} ${b.y}`;
       lines.push(
-        `<path class="axon" style="stroke:${colors[slot]}" d="M${a.x} ${a.y}L${b.x} ${b.y}"/>`,
+        `<g class="network-link${connected ? "" : " disconnected-link"}" data-from="${s.cell}" data-to="${peer.cell}" style="--team:${colors[slot]}"><path class="axon-sheath" d="${curve}"/><path class="axon" d="${curve}"/></g>`,
       );
     }
   }
@@ -408,11 +431,21 @@ export function renderBoard(
   const orbits = [
     ...cache.structures.querySelectorAll<SVGGElement>(".supply-orbit"),
   ];
+  const neurons = [
+    ...cache.structures.querySelectorAll<SVGGElement>(
+      ".structure-neuron:not(.disconnected) .neuron-body",
+    ),
+  ];
   const animate = (frameNow: number) => {
     // Absolute presentation time preserves phase when authoritative stock/HP
     // changes rebuild the structure markup. No simulation state is advanced.
     for (const orbit of orbits)
       orbit.style.transform = `rotate(${reducedMotion ? 0 : ((frameNow % 5000) * 360) / 5000}deg)`;
+    for (const neuron of neurons) {
+      const phase = Number(neuron.getAttribute("data-phase"));
+      const breath = reducedMotion ? 0 : Math.sin(frameNow / 650 + phase);
+      neuron.style.transform = `scale(${1 + breath * 0.07}, ${1 - breath * 0.045}) rotate(${breath * 3}deg)`;
+    }
     const visualTick =
       world.tick +
       (reducedMotion ? 0 : Math.max(0, Math.min(1, (frameNow - now) / 50)));

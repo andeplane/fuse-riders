@@ -136,7 +136,10 @@ for (const [name, engine] of [
       await desktop.locator(".placement-preview").getAttribute("data-valid"),
       "true",
     );
-    assert.equal(await desktop.locator(".placement-preview image").count(), 1);
+    assert.equal(
+      await desktop.locator(".placement-preview .neuron-body").count(),
+      1,
+    );
     await desktop.screenshot({ path: `${output}/${name}-placement.png` });
     await desktop.locator('[data-action="cancel-placement"]').click();
     await desktop.keyboard.press("q");
@@ -181,7 +184,7 @@ for (const [name, engine] of [
       "cancel menu must preserve camera",
     );
     await desktop.locator("#nd-board").focus();
-    await desktop.keyboard.press("w");
+    await desktop.keyboard.press("e");
     await desktop.locator('.command-card[data-panel="research"]').waitFor();
     assert.deepEqual(
       await desktop.locator(".command-card kbd").allTextContents(),
@@ -240,7 +243,7 @@ for (const [name, engine] of [
     await zoomOut(desktop);
     await desktop.screenshot({ path: `${output}/${name}-fit.png` });
     await desktop.locator('.terrain-layer [data-cell="14"]').click();
-    await desktop.keyboard.press("q");
+    await desktop.keyboard.press("w");
     await desktop.keyboard.press("q");
     await desktop.locator('.terrain-layer [data-cell="14"]').click();
     await cancelled(desktop, false);
@@ -260,7 +263,7 @@ for (const [name, engine] of [
     await desktop.keyboard.press("s");
     await cancelled(desktop, true);
     await desktop.keyboard.press("a");
-    await desktop.keyboard.press("e");
+    await desktop.keyboard.press("d");
     await desktop.locator('.command-card[data-panel="activity"]').waitFor();
     await desktop.keyboard.press("a");
     await desktop.locator('.terrain-layer [data-cell="13"]').click();
@@ -438,6 +441,23 @@ for (const [name, engine] of [
       await geometry(page);
       assert.equal(await page.locator(".terrain-layer .hex").count(), 480);
       assert.equal(await page.locator(".structure-brain").count(), 2);
+      assert.deepEqual(
+        await page
+          .locator(".command-card .command-button")
+          .evaluateAll((buttons) =>
+            buttons
+              .slice(0, 3)
+              .map((b) => [
+                b.getAttribute("data-action"),
+                b.getAttribute("aria-keyshortcuts"),
+              ]),
+          ),
+        [
+          ["panel-particles", "Q"],
+          ["panel-build", "W"],
+          ["panel-research", "E"],
+        ],
+      );
       await page.locator('[data-action="panel-particles"]').click();
       await page.locator('[data-action="particle-heavy"]').focus();
       assert.match(
@@ -456,6 +476,27 @@ for (const [name, engine] of [
           document.querySelectorAll(".structure-layer .structure").length > 2,
       );
       assert.ok((await page.locator(".supply-orbit").count()) >= 2);
+      assert.ok(
+        (await page.locator(".network-link:not(.disconnected-link)").count()) >
+          0,
+      );
+      const neuron = page.locator(".structure-neuron .neuron-body").first();
+      const breath = await neuron.evaluate(
+        (el) => getComputedStyle(el).transform,
+      );
+      await page.waitForFunction(
+        (before) =>
+          getComputedStyle(
+            document.querySelector(".structure-neuron .neuron-body")!,
+          ).transform !== before,
+        breath,
+      );
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      assert.equal(
+        await neuron.evaluate((el) => getComputedStyle(el).transform),
+        "none",
+      );
+      await page.emulateMedia({ reducedMotion: "no-preference" });
       const rotation = await page
         .locator(".supply-orbit")
         .first()

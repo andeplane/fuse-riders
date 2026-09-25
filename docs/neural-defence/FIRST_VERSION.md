@@ -38,7 +38,7 @@ checkpoint boundaries remain authoritative. Fuse Riders rules are unchanged.
 ## Play and presentation
 
 New game → Player vs AI starts the arena. Build chooses a structure before map
-placement. The brain exposes Auto expand and Particles; a friendly frontline
+placement. The top row offers Q Particles, W Build and E Research. The brain exposes S Auto expand and D Log; a friendly frontline
 structure exposes D / Charge. Arrow/Enter placement, disabled-button explanations,
 clock progress, wheel/drag and phone pinch/pan remain available.
 

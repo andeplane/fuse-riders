@@ -122,6 +122,101 @@ test("rendering interpolates actual transit, retains terrain and moving nodes, c
   assert.equal(svg.querySelector(".particle-trail")?.getAttribute("d"), "");
 });
 
+test("neurons vary, animate without state changes, and show only real friendly links", () => {
+  const { document } = parseHTML("<html><body><svg></svg></body></html>");
+  const svg = document.querySelector("svg") as unknown as SVGSVGElement;
+  const map = loadMap(
+    JSON.parse(
+      readFileSync(new URL("../maps/sandbox-12.json", import.meta.url), "utf8"),
+    ),
+  );
+  const world = createMatch(map, {}, [{ id: "solo", slot: 0 }]);
+  world.structures.push(
+    {
+      id: 1001,
+      cell: 14,
+      ownerId: "solo",
+      kind: "neuron",
+      hp: 60,
+      connected: true,
+    },
+    {
+      id: 1002,
+      cell: 15,
+      ownerId: "solo",
+      kind: "neuron",
+      hp: 60,
+      connected: true,
+    },
+    {
+      id: 1003,
+      cell: 18,
+      ownerId: "solo",
+      kind: "neuron",
+      hp: 60,
+      connected: false,
+    },
+    {
+      id: 1004,
+      cell: 19,
+      ownerId: "solo",
+      kind: "neuron",
+      hp: 60,
+      connected: false,
+    },
+    {
+      id: 1005,
+      cell: 16,
+      ownerId: "enemy",
+      kind: "neuron",
+      hp: 60,
+      connected: true,
+    },
+  );
+  const before = JSON.stringify(world);
+  const animation = renderBoard(svg, world, null, false, false, 1000);
+  const links = [...svg.querySelectorAll(".network-link")].map((l) => [
+    l.getAttribute("data-from"),
+    l.getAttribute("data-to"),
+  ]);
+  assert.deepEqual(links, [
+    ["13", "14"],
+    ["14", "15"],
+    ["18", "19"],
+  ]);
+  assert.equal(svg.querySelectorAll(".disconnected-link").length, 1);
+  const neurons = [...svg.querySelectorAll<SVGGElement>(".neuron-body")];
+  assert.notEqual(neurons[0]!.innerHTML, neurons[1]!.innerHTML);
+  const transform = neurons[0]!.style.transform;
+  animation.animate(1300);
+  assert.notEqual(neurons[0]!.style.transform, transform);
+  assert.equal(
+    neurons[2]!.style.transform,
+    "",
+    "disconnected neurons are dormant",
+  );
+  const phase = neurons[0]!.style.transform;
+  world.structures[1]!.hp--;
+  renderBoard(svg, world, null, false, false, 1300);
+  assert.equal(
+    svg.querySelector<SVGGElement>(".neuron-body")!.style.transform,
+    phase,
+  );
+  world.structures[1]!.hp++;
+  assert.equal(
+    JSON.stringify(world),
+    before,
+    "animation cannot mutate simulation",
+  );
+  const reduced = renderBoard(svg, world, null, false, true, 1300);
+  const still = svg.querySelector<SVGGElement>(".neuron-body")!.style.transform;
+  reduced.animate(1600);
+  assert.equal(
+    svg.querySelector<SVGGElement>(".neuron-body")!.style.transform,
+    still,
+  );
+});
+
 test("attack flashes use authoritative origins, deduplicate ticks and expire", () => {
   const { document } = parseHTML("<html><body><svg></svg></body></html>");
   const svg = document.querySelector("svg") as unknown as SVGSVGElement;

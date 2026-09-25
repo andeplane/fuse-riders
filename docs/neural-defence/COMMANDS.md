@@ -6,7 +6,7 @@ Construction distinguishes **can queue** from **can start**. Unsupported or unaf
 
 Disabled commands remain inspectable: hover/focus reveals requirements on desktop, tapping explains them on touch devices. The displayed requirements and clock overlays derive from the current authoritative world, so spending, construction, cancellation and research completion refresh the same command model. Input handlers refuse unavailable actions; explanatory taps never send a gameplay command.
 
-Submenus replace the same six command slots. Slots use Q/W/E and A/S/D, A returns to the parent, and unused slots remain empty. Build contains Neuron, Pulse, Siege and Relay towers; D pages the catalog. The brain's Particles card selects Pulse, Heavy or Swift. D Charge on a non-brain structure sets or clears maximum attack demand. Progress overlays show actual construction/research progress. Camera state and layout stay independent of these command rules.
+Submenus replace the same six command slots. Slots use Q/W/E and A/S/D, A returns to the parent, and unused slots remain empty. Build contains Neuron, Pulse, Siege and Relay towers; D pages the catalog. The top row is Q Particles, W Build, E Research. Particles selects Pulse, Heavy or Swift without requiring brain selection. Brain selection offers S Auto expand and D Log; empty tiles also offer D Log. D Charge on a non-brain structure sets or clears maximum attack demand. Progress overlays show actual construction/research progress. Camera state and layout stay independent of these command rules.
 
 This is a local catalog and a pure evaluator, not a plugin framework or a new simulation subsystem. Queue semantics are preserved; research prerequisites are data, not special cases in DOM handlers.
 

@@ -6,6 +6,7 @@ import {
   renderBoard,
   hexPoints,
   hexCenter,
+  neuronArtwork,
   type BoardAnimation,
 } from "../render/board.js";
 import type { BoardCamera, CameraFactory } from "../render/camera.js";
@@ -506,7 +507,13 @@ export function mountNeuralDefence(
         dependencies.sprites?.[`${asset}-v2`] ?? dependencies.sprites?.[asset];
       const { x, y } = hexCenter(world.map.width, placementCell);
       preview.setAttribute("data-valid", String(valid));
-      preview.innerHTML = `<polygon points="${hexPoints(world.map.width, placementCell, 1.5)}"/>${sprite ? `<image href="${escape(sprite)}" x="${x - 30}" y="${y - 30}" width="60" height="60" opacity="0.55"/>` : ""}`;
+      const artwork =
+        placement === "neuron"
+          ? `<g opacity="0.55">${neuronArtwork(world.map.width, placementCell, owner.slot)}</g>`
+          : sprite
+            ? `<image href="${escape(sprite)}" x="${x - 30}" y="${y - 30}" width="60" height="60" opacity="0.55"/>`
+            : "";
+      preview.innerHTML = `<polygon points="${hexPoints(world.map.width, placementCell, 1.5)}"/>${artwork}`;
     } else preview.replaceChildren();
     const viewport = root.querySelector<HTMLElement>("#nd-viewport");
     if (!camera && viewport && dependencies.createCamera) {

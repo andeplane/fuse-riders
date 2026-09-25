@@ -769,10 +769,44 @@ select {
 .axon {
   fill: none;
   stroke: var(--team, var(--fui-cyan));
-  stroke-width: 4;
+  stroke-width: 3;
   stroke-linecap: round;
-  opacity: 0.7;
+  opacity: 0.95;
   filter: drop-shadow(0 0 4px var(--team, var(--fui-cyan)));
+}
+.axon-sheath {
+  fill: none;
+  stroke: #071c30;
+  stroke-width: 8;
+  stroke-linecap: round;
+}
+.disconnected-link .axon {
+  stroke: #80909d;
+  stroke-dasharray: 4 6;
+  opacity: 0.45;
+  filter: none;
+}
+.neuron-membrane {
+  fill: #123e65;
+  stroke: var(--team);
+  stroke-width: 3;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px var(--team));
+}
+.neuron-soma {
+  fill: var(--team);
+  fill-opacity: 0.6;
+}
+.neuron-nucleus {
+  fill: #0758a4;
+  stroke: var(--team);
+  stroke-width: 1.5;
+}
+.neuron-glint {
+  fill: #eaffff;
+}
+.structure-neuron > .owner-ring {
+  display: none;
 }
 .owner-ring {
   fill: none;
@@ -865,11 +899,13 @@ select {
 .particle-swift .moving-glyph image {
   filter: brightness(1.8);
 }
-#nd-board[data-reduced-motion="true"] .supply-orbit {
+#nd-board[data-reduced-motion="true"] .supply-orbit,
+#nd-board[data-reduced-motion="true"] .neuron-body {
   transform: none !important;
 }
 @media (prefers-reduced-motion: reduce) {
-  .supply-orbit {
+  .supply-orbit,
+  .neuron-body {
     transform: none !important;
   }
 }
@@ -908,13 +944,13 @@ select {
 .is-placing .hex {
   cursor: crosshair;
 }
-.placement-preview polygon {
+.placement-preview > polygon {
   fill: #16e7ff30;
   stroke: var(--fui-cyan);
   stroke-width: 2.5;
   stroke-dasharray: 5 3;
 }
-.placement-preview[data-valid="false"] polygon {
+.placement-preview[data-valid="false"] > polygon {
   fill: #ff476f30;
   stroke: #ff476f;
 }
