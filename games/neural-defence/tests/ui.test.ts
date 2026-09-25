@@ -3,9 +3,26 @@ import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
 import { mountNeuralDefence, type AppDependencies } from "../src/app/app.js";
 import { createAttractScene } from "../src/app/attract-scene.js";
+import type { MapRepository, MapSummary } from "../src/app/contracts.js";
 import type { MatchSettings } from "../src/engine/types.js";
 
-function fixture() {
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: Error) => void;
+  const promise = new Promise<T>((onResolve, onReject) => {
+    resolve = onResolve;
+    reject = onReject;
+  });
+  return { promise, resolve, reject };
+}
+
+async function settle() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+function fixture(maps?: MapRepository) {
   const { document: dom } = parseHTML(
     '<html><body><div id="app"></div></body></html>',
   );
@@ -15,20 +32,24 @@ function fixture() {
   let listener: (() => void) | null = null;
   let created = 0;
   let requestedFrames = 0;
+  let unsubscribed = 0;
+  let disposedSessions = 0;
+  const cancelledFrames: number[] = [];
+  const frameCallbacks = new Map<number, FrameRequestCallback>();
   let settings: MatchSettings | null = null;
+  let createdMapId: string | null = null;
+  const summary: MapSummary = {
+    id: world.map.id,
+    title: "Test map",
+    description: "",
+    width: 14,
+    height: 10,
+    url: "",
+  };
   const dependencies: AppDependencies = {
-    maps: {
+    maps: maps ?? {
       async list() {
-        return [
-          {
-            id: world.map.id,
-            title: "Test map",
-            description: "",
-            width: 14,
-            height: 10,
-            url: "",
-          },
-        ];
+        return [summary];
       },
       async load() {
         return world.map;
@@ -38,8 +59,9 @@ function fixture() {
       read: () => ({ mute: true, volume: 0.5, reducedMotion: false }),
       write() {},
     },
-    createSession(_map, _slot, _mode, selectedSettings) {
+    createSession(map, _slot, _mode, selectedSettings) {
       created++;
+      createdMapId = map.id;
       settings = selectedSettings;
       return {
         localPlayerId: "coral",
@@ -49,18 +71,25 @@ function fixture() {
           listener = callback;
           return () => {
             listener = null;
+            unsubscribed++;
           };
         },
         reset() {},
-        dispose() {},
+        dispose() {
+          disposedSessions++;
+        },
       };
     },
     debug: true,
     animationClock: () => 0,
-    requestFrame() {
-      return ++requestedFrames;
+    requestFrame(callback) {
+      const handle = ++requestedFrames;
+      frameCallbacks.set(handle, callback);
+      return handle;
     },
-    cancelFrame() {},
+    cancelFrame(handle) {
+      cancelledFrames.push(handle);
+    },
   };
   const app = mountNeuralDefence(root, dependencies);
   function click(action: string) {
@@ -73,9 +102,7 @@ function fixture() {
   async function start() {
     click("new-game");
     // The repository resolves a catalog, then its selected map, in two microtasks.
-    await Promise.resolve();
-    await Promise.resolve();
-    await Promise.resolve();
+    await settle();
     click("start");
   }
   return {
@@ -86,7 +113,15 @@ function fixture() {
     start,
     publish: () => listener?.(),
     counts: () => ({ created, requestedFrames }),
+    lifecycle: () => ({
+      unsubscribed,
+      disposedSessions,
+      cancelledFrames: [...cancelledFrames],
+    }),
+    frameCallback: (handle: number) => frameCallbacks.get(handle),
     settings: () => settings,
+    createdMapId: () => createdMapId,
+    summary,
   };
 }
 
@@ -155,4 +190,133 @@ test("context tools remain reachable and stable during updates, using the local 
   f.click("cancel-confirm");
   assert.equal(f.root.querySelector('[role="alertdialog"]'), null);
   f.app.dispose();
+});
+
+test("catalog and map failures show a retry that can launch after recovery", async () => {
+  let catalogCalls = 0;
+  let mapCalls = 0;
+  const world = createAttractScene();
+  const f = fixture({
+    async list() {
+      if (++catalogCalls === 1) throw new Error("catalog offline");
+      return [
+        {
+          id: world.map.id,
+          title: "Recovered map",
+          description: "",
+          width: 14,
+          height: 10,
+          url: "",
+        },
+      ];
+    },
+    async load() {
+      if (++mapCalls === 1) throw new Error("map offline");
+      return world.map;
+    },
+  });
+  f.click("new-game");
+  await settle();
+  assert.match(
+    f.root.querySelector('[role="alert"]')?.textContent ?? "",
+    /catalog offline/,
+  );
+  assert.equal(
+    f.root.querySelector<HTMLButtonElement>('[data-action="start"]')?.disabled,
+    true,
+  );
+  f.click("retry-catalog");
+  await settle();
+  assert.match(
+    f.root.querySelector('[role="alert"]')?.textContent ?? "",
+    /map offline/,
+  );
+  assert.equal(
+    f.root.querySelector<HTMLButtonElement>('[data-action="start"]')?.disabled,
+    true,
+  );
+  f.click("retry-map");
+  await settle();
+  assert.equal(f.root.querySelector('[role="alert"]'), null);
+  assert.equal(
+    f.root.querySelector<HTMLButtonElement>('[data-action="start"]')?.disabled,
+    false,
+  );
+  f.click("start");
+  assert.equal(f.counts().created, 1);
+  assert.equal(catalogCalls, 2);
+  assert.equal(mapCalls, 2);
+  f.app.dispose();
+});
+
+test("superseded map response is ignored even when its repository ignores abort", async () => {
+  const world = createAttractScene();
+  const first = deferred<unknown>();
+  const second = deferred<unknown>();
+  const requests: Array<{ id: string; signal: AbortSignal }> = [];
+  const f = fixture({
+    async list() {
+      return [
+        {
+          id: world.map.id,
+          title: "First",
+          description: "",
+          width: 14,
+          height: 10,
+          url: "",
+        },
+        {
+          id: "combat-lab-12",
+          title: "Second",
+          description: "",
+          width: 14,
+          height: 10,
+          url: "",
+        },
+      ];
+    },
+    load(id, signal) {
+      requests.push({ id, signal });
+      return id === "combat-lab-12" ? second.promise : first.promise;
+    },
+  });
+  f.click("new-game");
+  await settle();
+  assert.equal(requests[0]?.id, world.map.id);
+  f.click("mode-combat-lab");
+  assert.equal(requests[0]?.signal.aborted, true);
+  second.resolve({ ...world.map, id: "combat-lab-12" });
+  await settle();
+  assert.equal(
+    f.root.querySelector<HTMLButtonElement>('[data-action="start"]')?.disabled,
+    false,
+  );
+  first.resolve(world.map);
+  await settle();
+  assert.equal(
+    f.root.querySelector<HTMLSelectElement>('[data-field="map"]')?.value,
+    "combat-lab-12",
+  );
+  f.click("start");
+  assert.equal(f.createdMapId(), "combat-lab-12");
+  f.app.dispose();
+});
+
+test("dispose unsubscribes and cancels the active frame without scheduling another", async () => {
+  const f = fixture();
+  await f.start();
+  const frame = f.counts().requestedFrames;
+  assert.ok(frame > 0);
+  const callback = f.frameCallback(frame);
+  assert.ok(callback);
+  f.app.dispose();
+  assert.equal(f.lifecycle().unsubscribed, 1);
+  assert.equal(f.lifecycle().disposedSessions, 1);
+  assert.equal(f.lifecycle().cancelledFrames.at(-1), frame);
+  callback(16);
+  f.publish();
+  assert.equal(f.counts().requestedFrames, frame);
+  assert.equal(f.root.innerHTML, "");
+  f.app.dispose();
+  assert.equal(f.lifecycle().unsubscribed, 1);
 });
