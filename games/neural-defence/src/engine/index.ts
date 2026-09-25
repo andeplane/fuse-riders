@@ -676,7 +676,11 @@ function combat(w: World) {
       siteHits.set(key, (siteHits.get(key) ?? 0) + damage);
     } else hits.set(target.id, (hits.get(target.id) ?? 0) + damage);
     p.statistics.damage += damage;
-    emit(w, p, "damage", { cell: target.cell, amount: damage });
+    emit(w, p, "damage", {
+      cell: target.cell,
+      fromCell: s.cell,
+      amount: damage,
+    });
   }
   for (const s of w.structures) s.hp -= hits.get(s.id) ?? 0;
   for (const p of w.players) {
@@ -817,6 +821,8 @@ export function decodeState(raw: unknown): World {
         "eliminated",
       ].includes(o.type) ||
       (o.cell !== undefined && !integer(o.cell, 0, w.map.cells.length - 1)) ||
+      (o.fromCell !== undefined &&
+        !integer(o.fromCell, 0, w.map.cells.length - 1)) ||
       (o.amount !== undefined && !integer(o.amount)) ||
       (o.resource !== undefined &&
         !["biomass", "insight"].includes(o.resource)) ||

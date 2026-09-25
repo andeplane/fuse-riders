@@ -561,6 +561,13 @@ test("four-player construction, research, income and finite attacks replay throu
       return [];
     });
     w = step(w, commands);
+    for (const damage of w.outcomes.filter((o) => o.type === "damage")) {
+      assert.ok(
+        Number.isInteger(damage.fromCell),
+        "damage has an authoritative origin for effects",
+      );
+      assert.ok(damage.cell !== damage.fromCell);
+    }
     replay = step(replay, [...commands].reverse());
     assert.equal(hashState(w), hashState(replay), `replay at tick ${tick}`);
     replay = decodeState(encodeState(replay));

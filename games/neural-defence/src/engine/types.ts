@@ -111,6 +111,8 @@ export interface Outcome {
     | "destroyed"
     | "eliminated";
   cell?: number;
+  /** Origin of a resolved attack; presentation does not infer it from nearby nodes. */
+  fromCell?: number;
   amount?: number;
   resource?: Resource;
   reason?: string;
