@@ -101,8 +101,10 @@ claimed.
   camera, progress and requirements flows pass. Chromium also verifies trusted
   pinch/pan. The actual menu-to-skirmish flow verifies 480 cells, two brains,
   AI construction, locked Heavy requirements and changing supply-orbit transforms.
-- The real normal-time defeat/rematch browser smoke is running as the last check;
-  its screenshots and result will be recorded before completion.
+- The real normal-time defeat/rematch browser smoke passes in Chromium and
+  WebKit: the ordinary AI wins at 5:54, the result stays above the phone landscape
+  dock with reachable buttons, and Play again restores both brains. The WebKit
+  screenshot was visually inspected. See verification/skirmish-defeat-landscape.png.
 - Independent engine review found two prerequisite bypasses; both were fixed
   with corrupt-checkpoint regressions and re-reviewed clear (24 focused tests).
 - Independent UI review found landscape result overlap and orbit resets; both
@@ -112,3 +114,8 @@ claimed.
 Browser emulation is not physical-device or real-network acceptance. The existing
 headless multiplayer adapter and rollback tests remain covered; this first
 version exposes local PvAI rather than a new multiplayer lobby.
+
+Verified implementation revision: `994ce5cb`. The PR's CI `verify` gate passed
+on that revision (run 36120359332); this final evidence update changes only docs
+and screenshots. The PR remains open for human playtesting, with no merge or
+deployment. All requested first-version features and the checks above are complete.
