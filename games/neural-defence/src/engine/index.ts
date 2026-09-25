@@ -13,6 +13,8 @@ import {
 export * from "./types.ts";
 export { loadMap, neighbors } from "./map.ts";
 const clone = <T>(v: T): T => structuredClone(v);
+const record = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
 const integer = (
   n: unknown,
   min = 0,
@@ -52,6 +54,7 @@ export function createMatch(
   )
     throw new Error("roster: invalid players or spawn assignments");
   if (
+    !record(settings) ||
     Object.keys(settings).some(
       (k) => !["instantConstruction", "instantResearch", "matchId"].includes(k),
     ) ||
@@ -255,6 +258,11 @@ function apply(w: World, c: Command) {
       p.worker.mode = "returning";
     } // Delivered work is spent; queued ghosts cost nothing.
   } else if (a.type === "setPriority") {
+    // Clearing an old destination must remain possible after its destruction.
+    if (a.weight === 0) {
+      delete p.priorities[String(a.cell)];
+      return;
+    }
     const s = structure(w, a.cell);
     if (
       !s ||
@@ -266,8 +274,7 @@ function apply(w: World, c: Command) {
       reject("invalid priority destination");
       return;
     }
-    if (a.weight === 0) delete p.priorities[String(a.cell)];
-    else p.priorities[String(a.cell)] = a.weight;
+    p.priorities[String(a.cell)] = a.weight;
   } else if (a.type === "startResearch") {
     if (
       p.researchJob ||
@@ -328,50 +335,83 @@ function economy(w: World, p: Player) {
     amount: p.insight - initialInsight,
   });
 }
-function worker(w: World, p: Player) {
+function prepareWorker(w: World, p: Player): boolean {
   const b = brain(w, p);
-  if (!b) return;
+  if (!b) return false;
   const worker = p.worker;
   const recover = () => {
     worker.mode = "recovering";
     worker.recoverAt = w.tick + RULES.recoveryTicks;
   };
   if (worker.mode === "recovering") {
-    if (w.tick < worker.recoverAt) return;
+    if (w.tick < worker.recoverAt) return false;
     worker.cell = b.cell;
     worker.to = b.cell;
     worker.from = b.cell;
     worker.arrivesAt = w.tick;
     worker.mode = p.queue.some((j) => j.paid) ? "outbound" : "idle";
   }
-  if (worker.arrivesAt > w.tick) return;
+  // Check both endpoints before waiting or arriving: an alternate route to the
+  // destination does not repair the edge on which this builder was travelling.
+  if (worker.to !== worker.cell) {
+    const from = structure(w, worker.from),
+      to = structure(w, worker.to);
+    if (
+      !from?.connected ||
+      !to?.connected ||
+      from.ownerId !== p.id ||
+      to.ownerId !== p.id
+    ) {
+      recover();
+      return false;
+    }
+  }
+  if (worker.arrivesAt > w.tick) return false;
   if (worker.to !== worker.cell) {
     worker.cell = worker.to;
     worker.from = worker.cell;
   }
   if (!path(w, p, worker.cell, b.cell)) {
     recover();
-    return;
+    return false;
   }
-  let job = p.queue.find((j) => j.paid);
-  if (worker.mode === "idle" && !job) {
-    job = p.queue.find(
-      (j) =>
-        !j.paid &&
-        !occupied(w, j.cell) &&
-        neighbors(w.map, j.cell).some(
-          (c) =>
-            structure(w, c)?.ownerId === p.id && structure(w, c)?.connected,
-        ) &&
-        (j.kind !== "tower" ||
-          (neighbors(w.map, j.cell).length === 6 &&
-            neighbors(w.map, j.cell).every(
-              (c) =>
-                structure(w, c)?.ownerId === p.id && structure(w, c)?.connected,
-            ))) &&
-        p.biomass >= (j.kind === "tower" ? RULES.towerCost : RULES.neuronCost),
-    );
-    if (!job) return;
+  return true;
+}
+function dispatchConstruction(w: World, ready: Player[]) {
+  // Collect claims against one shared pre-dispatch board. Rotate spawn-slot
+  // precedence each tick so renaming players cannot buy construction priority.
+  const order = [...w.players].sort((a, b) => a.slot - b.slot);
+  const first = (w.tick - 1) % order.length;
+  const rank = (p: Player) =>
+    (order.indexOf(p) - first + order.length) % order.length;
+  const claims = ready
+    .flatMap((p) => {
+      if (p.worker.mode !== "idle" || p.queue.some((j) => j.paid)) return [];
+      const job = p.queue.find(
+        (j) =>
+          !j.paid &&
+          !occupied(w, j.cell) &&
+          neighbors(w.map, j.cell).some(
+            (c) =>
+              structure(w, c)?.ownerId === p.id && structure(w, c)?.connected,
+          ) &&
+          (j.kind !== "tower" ||
+            (neighbors(w.map, j.cell).length === 6 &&
+              neighbors(w.map, j.cell).every(
+                (c) =>
+                  structure(w, c)?.ownerId === p.id &&
+                  structure(w, c)?.connected,
+              ))) &&
+          p.biomass >=
+            (j.kind === "tower" ? RULES.towerCost : RULES.neuronCost),
+      );
+      return job ? [{ p, job }] : [];
+    })
+    .sort((a, b) => rank(a.p) - rank(b.p));
+  const claimed = new Set<number>();
+  for (const { p, job } of claims) {
+    if (claimed.has(job.cell)) continue;
+    claimed.add(job.cell);
     const cost = job.kind === "tower" ? RULES.towerCost : RULES.neuronCost;
     p.biomass -= cost;
     job.paid = true;
@@ -382,17 +422,23 @@ function worker(w: World, p: Player) {
         : p.research.includes("growth")
           ? 80
           : RULES.constructionTicks;
-    worker.mode = "outbound";
+    p.worker.mode = "outbound";
     emit(w, p, "dispatched", {
       cell: job.cell,
       amount: cost,
       resource: "biomass",
     });
   }
+}
+function worker(w: World, p: Player) {
+  const b = brain(w, p)!;
+  const worker = p.worker;
+  const job = p.queue.find((j) => j.paid);
   const move = (target: number) => {
     const route = path(w, p, worker.cell, target);
     if (!route) {
-      recover();
+      worker.mode = "recovering";
+      worker.recoverAt = w.tick + RULES.recoveryTicks;
       return;
     }
     if (route.length > 1) {
@@ -642,6 +688,7 @@ function combat(w: World) {
   for (const s of w.structures.filter((s) => s.hp <= 0)) {
     const p = w.players.find((p) => p.id === s.ownerId)!;
     p.statistics.lost++;
+    delete p.priorities[String(s.cell)];
     emit(w, p, "destroyed", { cell: s.cell });
   }
   w.structures = w.structures.filter((s) => s.hp > 0);
@@ -650,6 +697,7 @@ function combat(w: World) {
       p.alive = false;
       p.queue = [];
       p.researchJob = null;
+      p.priorities = {};
       w.structures = w.structures.filter((s) => s.ownerId !== p.id);
       w.particles = w.particles.filter((q) => q.ownerId !== p.id);
       emit(w, p, "eliminated");
@@ -679,7 +727,13 @@ export function step(state: World, commands: readonly Command[] = []): World {
   // Damage resolves before completion, so a killed site cannot become a healthy building.
   combat(w);
   connectivity(w);
-  for (const p of w.players) if (p.alive) worker(w, p);
+  for (const p of w.players)
+    for (const cell of Object.keys(p.priorities))
+      if (structure(w, Number(cell))?.ownerId !== p.id)
+        delete p.priorities[cell];
+  const ready = w.players.filter((p) => p.alive && prepareWorker(w, p));
+  dispatchConstruction(w, ready);
+  for (const p of ready) worker(w, p);
   connectivity(w);
   const launches = new Map<string, number>();
   for (const p of w.players) if (p.alive) particles(w, p, launches);
@@ -715,13 +769,14 @@ export function decodeState(raw: unknown): World {
     throw new Error("checkpoint: invalid size");
   const w: World = JSON.parse(raw);
   if (
-    !w ||
+    !record(w) ||
     w.formatVersion !== 1 ||
     w.rulesVersion !== 1 ||
     !integer(w.tick) ||
     !Array.isArray(w.players) ||
     !Array.isArray(w.structures) ||
     !Array.isArray(w.particles) ||
+    !record(w.settings) ||
     w.structures.length > 4096 ||
     w.particles.length > 512
   )
@@ -734,6 +789,7 @@ export function decodeState(raw: unknown): World {
   if (
     typeof w.matchId !== "string" ||
     w.matchId.length > 128 ||
+    w.matchId !== (w.settings.matchId ?? "sandbox") ||
     !integer(w.nextEntityId, 1) ||
     typeof w.finished !== "boolean" ||
     !Array.isArray(w.outcomes) ||
@@ -770,6 +826,7 @@ export function decodeState(raw: unknown): World {
       throw new Error("checkpoint: invalid events");
   for (const s of w.structures) {
     if (
+      !record(s) ||
       !owners.has(s.ownerId) ||
       !integer(s.id, 1) ||
       ids.has(s.id) ||
@@ -798,34 +855,55 @@ export function decodeState(raw: unknown): World {
         (r) => !["growth", "excitation", "conduction"].includes(r),
       ) ||
       new Set(p.research).size !== p.research.length ||
-      !p.worker ||
+      !record(p.worker) ||
       !["idle", "outbound", "building", "returning", "recovering"].includes(
         p.worker.mode,
       ) ||
-      !p.priorities ||
+      !record(p.priorities) ||
       Object.keys(p.priorities).length > 8 ||
-      !p.miningRemainders ||
-      !p.statistics
+      !record(p.miningRemainders) ||
+      !record(p.statistics)
     )
       throw new Error("checkpoint: invalid player");
     for (const [key, value] of Object.entries(p.priorities))
       if (
         !integer(Number(key), 0, w.map.cells.length - 1) ||
-        !integer(value, 1, 3)
+        String(Number(key)) !== key ||
+        !integer(value, 1, 3) ||
+        structure(w, Number(key))?.ownerId !== p.id
       )
         throw new Error("checkpoint: invalid priorities");
-    for (const n of Object.values(p.miningRemainders))
-      if (!integer(n, 0, 119)) throw new Error("checkpoint: invalid remainder");
-    for (const n of Object.values(p.statistics))
-      if (!integer(n)) throw new Error("checkpoint: invalid statistics");
+    for (const [cell, n] of Object.entries(p.miningRemainders))
+      if (
+        String(Number(cell)) !== cell ||
+        w.map.cells[Number(cell)]?.terrain !== "deposit" ||
+        !integer(n, 0, 119)
+      )
+        throw new Error("checkpoint: invalid remainder");
+    for (const key of [
+      "biomassEarned",
+      "insightEarned",
+      "built",
+      "damage",
+      "lost",
+    ] as const)
+      if (!integer(p.statistics[key]))
+        throw new Error("checkpoint: invalid statistics");
     if (
-      p.researchJob &&
-      (!["growth", "excitation", "conduction"].includes(p.researchJob.kind) ||
-        !integer(p.researchJob.completesAt, w.tick))
+      p.researchJob !== null &&
+      (!record(p.researchJob) ||
+        !["growth", "excitation", "conduction"].includes(p.researchJob.kind) ||
+        p.research.includes(p.researchJob.kind) ||
+        !integer(
+          p.researchJob.completesAt,
+          w.tick + 1,
+          w.tick + RULES.researchTicks,
+        ))
     )
       throw new Error("checkpoint: invalid research job");
     for (const j of p.queue) {
       if (
+        !record(j) ||
         !integer(j.cell, 0, w.map.cells.length - 1) ||
         w.map.cells[j.cell]?.terrain !== "open" ||
         !["neuron", "tower"].includes(j.kind) ||
@@ -833,6 +911,15 @@ export function decodeState(raw: unknown): World {
         !integer(j.progress) ||
         !integer(j.duration, 0, 240) ||
         !integer(j.hp, 1, 20) ||
+        (!j.paid && (j.progress !== 0 || j.duration !== 0 || j.hp !== 20)) ||
+        (j.paid &&
+          (j.duration === 0 ? j.progress !== 0 : j.progress >= j.duration)) ||
+        (j.paid && ![0, 80, 120, 240].includes(j.duration)) ||
+        (j.paid &&
+          j.duration !== 0 &&
+          (j.kind === "tower"
+            ? j.duration !== RULES.towerConstructionTicks
+            : j.duration === RULES.towerConstructionTicks)) ||
         (j.paid && occupied.has(j.cell))
       )
         throw new Error("checkpoint: invalid construction");
@@ -844,12 +931,46 @@ export function decodeState(raw: unknown): World {
     for (const key of ["departedAt", "arrivesAt", "recoverAt"] as const)
       if (!integer(p.worker[key]))
         throw new Error("checkpoint: invalid worker timing");
+    const worker = p.worker;
+    const paid = p.queue.some((j) => j.paid);
+    if (
+      p.alive &&
+      (worker.departedAt > w.tick ||
+        (["outbound", "building"].includes(worker.mode) && !paid) ||
+        (["idle", "returning"].includes(worker.mode) && paid) ||
+        (worker.mode === "idle" && worker.cell !== brain(w, p)?.cell) ||
+        (worker.mode === "recovering" &&
+          !integer(worker.recoverAt, w.tick + 1, w.tick + RULES.recoveryTicks)))
+    )
+      throw new Error("checkpoint: inconsistent worker");
+    if (p.alive && worker.mode !== "recovering") {
+      const from = structure(w, worker.cell),
+        to = structure(w, worker.to);
+      if (
+        !from?.connected ||
+        from.ownerId !== p.id ||
+        !to?.connected ||
+        to.ownerId !== p.id ||
+        worker.from !== worker.cell ||
+        (worker.to !== worker.cell &&
+          (!neighbors(w.map, worker.from).includes(worker.to) ||
+            worker.arrivesAt <= w.tick ||
+            ![3, 4].includes(worker.arrivesAt - worker.departedAt))) ||
+        (worker.to === worker.cell && worker.arrivesAt > w.tick)
+      )
+        throw new Error("checkpoint: invalid worker transit");
+    }
     if (
       p.queue.filter((j) => j.paid).length > 1 ||
       new Set(p.queue.map((j) => j.cell)).size !== p.queue.length ||
       w.structures.filter((s) => s.ownerId === p.id && s.kind === "brain")
         .length !== (p.alive ? 1 : 0) ||
       p.alive !== !!brain(w, p) ||
+      (!p.alive &&
+        (p.queue.length > 0 ||
+          p.researchJob !== null ||
+          Object.keys(p.priorities).length > 0 ||
+          w.structures.some((s) => s.ownerId === p.id))) ||
       w.particles.filter((q) => q.ownerId === p.id).length !==
         (p.alive ? 128 : 0)
     )
@@ -857,6 +978,7 @@ export function decodeState(raw: unknown): World {
   }
   for (const q of w.particles) {
     if (
+      !record(q) ||
       !owners.has(q.ownerId) ||
       !integer(q.id, 1) ||
       ids.has(q.id) ||
@@ -875,9 +997,20 @@ export function decodeState(raw: unknown): World {
     if (
       q.mode === "transit" &&
       (!neighbors(w.map, q.from).includes(q.to) ||
-        q.arrivesAt - q.departedAt !== q.speed)
+        q.arrivesAt - q.departedAt !== q.speed ||
+        q.departedAt > w.tick ||
+        q.cell !== q.from ||
+        ![q.from, q.to].every((cell) => {
+          const s = structure(w, cell);
+          return s?.connected && s.ownerId === q.ownerId;
+        }))
     )
       throw new Error("checkpoint: invalid transit");
+    if (
+      q.mode === "recovering" &&
+      !integer(q.recoverAt, w.tick + 1, w.tick + RULES.recoveryTicks + q.speed)
+    )
+      throw new Error("checkpoint: invalid recovery");
   }
   if ([...ids].some((id) => id >= w.nextEntityId))
     throw new Error("checkpoint: invalid identity counter");
@@ -910,6 +1043,7 @@ export function decodeState(raw: unknown): World {
     throw new Error("checkpoint: edge capacity exceeded");
   const alive = w.players.filter((p) => p.alive);
   if (
+    (!w.finished && w.winnerId !== null) ||
     (w.winnerId !== null && !alive.some((p) => p.id === w.winnerId)) ||
     w.finished !== (w.players.length > 1 && alive.length <= 1) ||
     (w.finished && w.winnerId !== (alive[0]?.id ?? null))

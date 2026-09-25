@@ -12,6 +12,7 @@ import {
   type World,
   type MapDefinition,
   type Command,
+  RULES,
 } from "../src/engine/index.ts";
 function map(): MapDefinition {
   return {
@@ -207,7 +208,12 @@ test("combat spends actual particles and simultaneous brain damage can draw", ()
 });
 
 test("allied tower needs its own delivered ammunition and loses power with support", () => {
-  let w = start(true);
+  const m = map();
+  m.spawns[1]!.cellIndex = 20;
+  let w = createMatch(m, { instantConstruction: true }, [
+    { id: "a", slot: 0 },
+    { id: "b", slot: 1 },
+  ]);
   const p = w.players[0]!;
   p.biomass = 200000;
   const center = 18;
@@ -233,6 +239,47 @@ test("allied tower needs its own delivered ammunition and loses power with suppo
       .length,
     32,
   );
+  w = run(w, 60 - w.tick);
+  assert.ok(
+    w.outcomes.some(
+      (o) =>
+        o.playerId === "a" &&
+        o.type === "damage" &&
+        o.cell === 20 &&
+        o.amount === 16,
+    ),
+  );
+  assert.equal(
+    w.particles.filter(
+      (q) =>
+        q.ownerId === "a" &&
+        q.mode === "recovering" &&
+        q.recoverAt === w.tick + RULES.recoveryTicks + q.speed,
+    ).length,
+    8,
+  );
+  w = run(w, 19);
+  w.structures.find((s) => s.cell === 19)!.hp = 1;
+  w = step(w);
+  assert.ok(w.outcomes.some((o) => o.type === "destroyed" && o.cell === 19));
+  const enemyHp = w.structures.find((s) => s.cell === 20)!.hp;
+  w = run(w, 20);
+  assert.equal(w.structures.find((s) => s.cell === center)!.connected, true);
+  assert.ok(
+    w.particles.some(
+      (q) => q.ownerId === "a" && q.cell === center && q.mode === "stationed",
+    ),
+  );
+  assert.equal(w.structures.find((s) => s.cell === 20)!.hp, enemyHp);
+  assert.equal(
+    w.outcomes.some((o) => o.playerId === "a" && o.type === "damage"),
+    false,
+  );
+  assert.equal(
+    w.particles.filter((q) => q.ownerId === "a").length,
+    RULES.particleCount,
+  );
+  assert.doesNotThrow(() => decodeState(encodeState(w)));
 });
 
 test("disconnected particles recover without duplication, and checkpoint survives branch cuts", () => {
@@ -269,4 +316,268 @@ test("research does not mutate properties of already deployed particles", () => 
   assert.ok(
     w.particles.filter((q) => q.cell === 10).every((q) => q.attack === 3),
   );
+});
+
+function addNeuron(w: World, cell: number, ownerId = "a") {
+  w.structures.push({
+    id: w.nextEntityId++,
+    cell,
+    ownerId,
+    kind: "neuron",
+    hp: 60,
+    connected: true,
+  });
+}
+
+test("destroyed priorities release one of eight slots and stale priorities can be cleared", () => {
+  let w = createMatch(map(), {}, [
+    { id: "a", slot: 0 },
+    { id: "b", slot: 1 },
+  ]);
+  for (const cell of [10, 11, 12, 13, 17, 18, 19, 20]) addNeuron(w, cell);
+  w = step(
+    w,
+    [9, 10, 11, 12, 13, 17, 18, 19].map((cell, sequence) =>
+      command(sequence, { type: "setPriority", cell, weight: 1 }),
+    ),
+  );
+  w = run(w, 18);
+  w.structures.find((s) => s.cell === 13)!.hp = 1;
+  w = step(w);
+  assert.ok(w.outcomes.some((o) => o.type === "destroyed" && o.cell === 13));
+  assert.equal(Object.hasOwn(w.players[0]!.priorities, "13"), false);
+  w = step(w, [
+    command(8, { type: "setPriority", cell: 13, weight: 0 }),
+    command(9, { type: "setPriority", cell: 20, weight: 3 }),
+  ]);
+  assert.equal(
+    w.outcomes.some((o) => o.type === "rejected"),
+    false,
+  );
+  assert.equal(w.players[0]!.priorities[20], 3);
+  assert.equal(Object.keys(w.players[0]!.priorities).length, 8);
+});
+
+test("simultaneous construction claims rotate by slot, independent of IDs and input order", () => {
+  const m = map();
+  m.spawns[1]!.cellIndex = 11;
+  for (const ids of [
+    ["a", "z"],
+    ["z", "a"],
+  ]) {
+    for (let delay = 0; delay < 2; delay++) {
+      const initial = run(
+        createMatch(
+          m,
+          {},
+          ids.map((id, slot) => ({ id, slot })),
+        ),
+        delay,
+      );
+      const commands = ids.map((id) =>
+        command(0, { type: "queueConstruction", cell: 10, kind: "neuron" }, id),
+      );
+      const w = step(initial, commands);
+      assert.equal(
+        hashState(w),
+        hashState(step(initial, [...commands].reverse())),
+      );
+      const winner = w.players.find((p) => p.queue[0]?.paid)!;
+      assert.equal(winner.slot, delay);
+      assert.equal(
+        winner.biomass,
+        60_000 + 50 * (delay + 1) - RULES.neuronCost,
+      );
+      const loser = w.players.find((p) => p !== winner)!;
+      assert.equal(loser.queue[0]!.paid, false);
+      assert.equal(loser.biomass, 60_000 + 50 * (delay + 1));
+      assert.doesNotThrow(() => decodeState(encodeState(w)));
+    }
+  }
+});
+
+test("builders recover when either edge endpoint is cut, even on the arrival tick", () => {
+  for (const cut of [10, 11])
+    for (const arrivalTick of [false, true]) {
+      let w = start(true);
+      for (const cell of [10, 11, 18, 19, 20]) addNeuron(w, cell);
+      w = step(w, [
+        command(0, { type: "queueConstruction", cell: 12, kind: "neuron" }),
+      ]);
+      w = run(w, 4);
+      assert.equal(w.players[0]!.worker.from, 10);
+      assert.equal(w.players[0]!.worker.to, 11);
+      if (arrivalTick) w = run(w, 3);
+      w.structures = w.structures.filter((s) => s.cell !== cut);
+      w = step(w);
+      assert.equal(w.players[0]!.worker.mode, "recovering");
+      assert.equal(w.players[0]!.queue[0]!.progress, 0);
+      assert.equal(
+        w.structures.some((s) => s.cell === 12),
+        false,
+      );
+      assert.doesNotThrow(() => decodeState(encodeState(w)));
+      const recoveryEnd = w.players[0]!.worker.recoverAt;
+      w = run(w, recoveryEnd - w.tick + 20);
+      assert.ok(w.structures.some((s) => s.cell === 12));
+      assert.equal(w.players[0]!.statistics.built, 1);
+    }
+});
+
+test("checkpoint requires every numeric field and coherent research, worker and match state", () => {
+  const w = start();
+  const baseline = hashState(w);
+  const reject = (
+    mutate: (
+      value: Record<string, unknown>,
+      player: Record<string, unknown>,
+    ) => void,
+  ) => {
+    const raw: Record<string, unknown> = JSON.parse(encodeState(w));
+    const players = raw.players as Record<string, unknown>[];
+    mutate(raw, players[0]!);
+    assert.throws(
+      () => decodeState(JSON.stringify(raw)),
+      /checkpoint|settings/,
+    );
+    assert.equal(hashState(w), baseline);
+  };
+  reject((raw) => {
+    delete raw.settings;
+  });
+  reject((raw) => {
+    raw.settings = [];
+  });
+  reject((raw, p) => {
+    p.statistics = {};
+  });
+  for (const key of [
+    "biomassEarned",
+    "insightEarned",
+    "built",
+    "damage",
+    "lost",
+  ]) {
+    reject((raw, p) => {
+      delete (p.statistics as Record<string, unknown>)[key];
+    });
+    reject((raw, p) => {
+      (p.statistics as Record<string, unknown>)[key] = null;
+    });
+    reject((raw, p) => {
+      (p.statistics as Record<string, unknown>)[key] = -1;
+    });
+  }
+  reject((raw, p) => {
+    delete p.researchJob;
+  });
+  reject((raw, p) => {
+    p.research = ["growth"];
+    p.researchJob = { kind: "growth", completesAt: 10 };
+  });
+  reject((raw, p) => {
+    p.researchJob = { kind: "growth", completesAt: 0 };
+  });
+  reject((raw, p) => {
+    (p.worker as Record<string, unknown>).mode = "building";
+  });
+  reject((raw, p) => {
+    (p.worker as Record<string, unknown>).to = 10;
+  });
+  reject((raw, p) => {
+    p.miningRemainders = { "9": 0 };
+  });
+  reject((raw) => {
+    raw.winnerId = "a";
+  });
+  reject((raw) => {
+    raw.matchId = "foreign-match";
+  });
+});
+
+test("checkpoint rejects paid-site progress and live transit corruption", () => {
+  const building = step(start(), [
+    command(0, { type: "queueConstruction", cell: 10, kind: "neuron" }),
+  ]);
+  const progress = structuredClone(building);
+  progress.players[0]!.queue[0]!.progress = RULES.constructionTicks;
+  assert.throws(() => decodeState(encodeState(progress)), /construction/);
+  const unpaid = structuredClone(building);
+  unpaid.players[0]!.queue[0]!.paid = false;
+  assert.throws(() => decodeState(encodeState(unpaid)), /construction/);
+  let moving = step(start(true), [
+    command(0, { type: "queueConstruction", cell: 10, kind: "neuron" }),
+  ]);
+  moving = step(moving, [
+    command(1, { type: "setPriority", cell: 10, weight: 3 }),
+  ]);
+  assert.doesNotThrow(() => decodeState(encodeState(moving)));
+  for (const field of ["cell", "departedAt", "arrivesAt"] as const) {
+    const corrupt = structuredClone(moving);
+    corrupt.particles.find((q) => q.mode === "transit")![field] += 1;
+    assert.throws(() => decodeState(encodeState(corrupt)), /transit/);
+  }
+  const missingEndpoint = structuredClone(moving);
+  missingEndpoint.structures = missingEndpoint.structures.filter(
+    (s) => s.cell !== 10,
+  );
+  missingEndpoint.players[0]!.priorities = {};
+  assert.throws(() => decodeState(encodeState(missingEndpoint)), /transit/);
+});
+
+test("four-player construction, research, income and finite attacks replay through every checkpoint", () => {
+  const m = map();
+  m.spawns = [
+    { slot: 0, cellIndex: 9 },
+    { slot: 1, cellIndex: 12 },
+    { slot: 2, cellIndex: 49 },
+    { slot: 3, cellIndex: 52 },
+  ];
+  let w = createMatch(
+    m,
+    {},
+    ["a", "b", "c", "d"].map((id, slot) => ({ id, slot })),
+  );
+  const cells = [10, 11, 50, 51];
+  let replay = decodeState(encodeState(w));
+  for (let tick = 1; tick <= 820; tick++) {
+    const commands = w.players.flatMap((p, i) => {
+      if (tick === 1)
+        return [
+          command(
+            0,
+            { type: "queueConstruction", cell: cells[i]!, kind: "neuron" },
+            p.id,
+          ),
+        ];
+      if (tick === 125)
+        return [
+          command(1, { type: "setPriority", cell: cells[i]!, weight: 3 }, p.id),
+        ];
+      if (tick === 401)
+        return [
+          command(2, { type: "startResearch", research: "excitation" }, p.id),
+        ];
+      return [];
+    });
+    w = step(w, commands);
+    replay = step(replay, [...commands].reverse());
+    assert.equal(hashState(w), hashState(replay), `replay at tick ${tick}`);
+    replay = decodeState(encodeState(replay));
+    for (const p of w.players) {
+      assert.equal(
+        w.particles.filter((q) => q.ownerId === p.id).length,
+        p.alive ? RULES.particleCount : 0,
+      );
+      assert.ok(Number.isSafeInteger(p.statistics.biomassEarned));
+      assert.ok(Number.isSafeInteger(p.statistics.insightEarned));
+    }
+  }
+  for (const p of w.players) {
+    assert.equal(p.statistics.built, 1);
+    assert.ok(p.statistics.damage > 0);
+    assert.ok(p.statistics.lost > 0);
+    assert.deepEqual(p.research, ["excitation"]);
+    assert.equal(p.statistics.insightEarned, 820 * 25);
+  }
 });
