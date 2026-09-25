@@ -4,7 +4,11 @@ See the [current tech tree](TECH_TREE.md) for all research branches, structure a
 
 Neural Defence is a real-time territory RTS: grow a connected network from a brain, mine **Biomass** and **Insight**, research, and direct a fixed pool of attack particles. The first skirmish version is under review in [PR #409](https://github.com/andeplane/fuse-riders/pull/409). It is available in the local preview; it has not been merged or deployed.
 
-Choose **New game → Player vs AI → Start** for the 24 × 20 Synaptic Reach arena. The AI builds, researches and routes particles through ordinary commands, with the same resources and travel rules as you. Destroy its brain to win; losing your brain ends the match. The result offers Play again and Menu. The open sandbox and scripted combat lab remain available. Online multiplayer UI and audio are not part of this version.
+Choose **New game → Start** for the default player-versus-AI match on the 24 × 20 Synaptic Reach arena. The AI builds, researches and routes particles through ordinary commands, with the same resources and travel rules as you. Destroy its brain to win; losing your brain ends the match. Play again restarts directly with the starting camera. The open sandbox and scripted combat lab remain available. Online multiplayer UI is not part of this version.
+
+The tactical minimap shows the actual blocked terrain, deposits, structures and camera view. Click it to move the camera. Ground art is flat and traversable; raised rock and deposit sprites correspond to the same map cells used by building and routing rules. Building silhouettes are distinct across world, ghosts and command buttons.
+
+Settings include sound, volume and reduced motion. Sound starts muted by default; `?mute` forces silence regardless of the saved setting. Short synthesized cues follow resolved building, research, combat and match-result events. They do not drive the simulation.
 
 Each player has one builder and 128 reusable attack particles. Build neurons to expand the network and claim adjacent deposits. Disconnected structures stop mining and firing. Three towers offer different roles:
 

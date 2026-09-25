@@ -6,6 +6,86 @@ import { updateContent } from "../src/app/dom-update.js";
 import { createPreferencesStore } from "../src/app/preferences.js";
 import { createMatch, loadMap } from "../src/engine/index.js";
 import { renderBoard } from "../src/render/board.js";
+import { terrainArt } from "../src/render/terrain-art.js";
+import { constructionQueueAvailability } from "../src/engine/catalog.js";
+
+test("visible terrain follows build restrictions and cannot be overridden by mismatched art", () => {
+  const { document } = parseHTML("<html><body><svg></svg></body></html>");
+  const svg = document.querySelector("svg") as unknown as SVGSVGElement;
+  const map = loadMap(
+    JSON.parse(
+      readFileSync(
+        new URL("../maps/skirmish-24.json", import.meta.url),
+        "utf8",
+      ),
+    ),
+  );
+  const world = createMatch(map, {}, [{ id: "solo", slot: 0 }]);
+  const sprites = Object.fromEntries(
+    [
+      "terrain-walkable-v5",
+      "blocker-rock-cluster-a",
+      "blocker-boulder",
+      "blocker-rock-ridge-a",
+      "deposit-biomass",
+      "deposit-insight",
+    ].map((name) => [name, `/${name}.png`]),
+  );
+  renderBoard(svg, world, null, false, true, 0, sprites);
+  world.map.cells.forEach((cell, index) => {
+    const tile = svg.querySelector(`.terrain-layer [data-cell="${index}"]`)!;
+    const object = tile.querySelector(".terrain-object");
+    const unavailable = constructionQueueAvailability(
+      world,
+      world.players[0]!,
+      "neuron",
+      index,
+    ).missing.some((r) => r.kind === "open-cell");
+    assert.equal(unavailable, cell.terrain !== "open");
+    if (cell.terrain === "open") assert.equal(object, null);
+    else {
+      assert.ok(object);
+      assert.ok(
+        object?.querySelector("image"),
+        `non-open tile ${index} has visible art`,
+      );
+      assert.equal(object.getAttribute("clip-path"), `url(#tile-${index})`);
+      assert.equal(
+        object.querySelector("image")?.getAttribute("href"),
+        sprites[terrainArt(cell, index)!],
+      );
+    }
+  });
+  assert.equal(
+    terrainArt({ terrain: "open", variant: "blocker-boulder" }, 0),
+    null,
+  );
+  assert.equal(
+    terrainArt({ terrain: "blocked", variant: "terrain-walkable-v5" }, 0),
+    "blocker-rock-cluster-a",
+  );
+  assert.equal(
+    terrainArt(
+      {
+        terrain: "deposit",
+        resourceKind: "biomass",
+        variant: "deposit-insight",
+      },
+      0,
+    ),
+    "deposit-biomass",
+  );
+  // Missing images must never make a blocked cell look like empty ground.
+  const fallback = document.createElementNS(
+    "http://www.w3.org/2000/svg",
+    "svg",
+  ) as unknown as SVGSVGElement;
+  renderBoard(fallback, world, null, false, true, 0, {});
+  assert.equal(
+    fallback.querySelectorAll(".terrain-blocked .terrain-object path").length,
+    map.cells.filter((cell) => cell.terrain === "blocked").length,
+  );
+});
 
 test("HUD updates keep existing actionable controls alive across state changes", () => {
   const { document } = parseHTML("<html><body><aside></aside></body></html>");
@@ -175,8 +255,8 @@ test("neurons vary, animate without state changes, and show only real friendly l
   );
   const before = JSON.stringify(world);
   const sprites = {
-    "neuron-blue-v2": "/neuron.png",
-    "terrain-battlefield-v3": "/ground.png",
+    "neuron-v3": "/neuron.png",
+    "terrain-walkable-v5": "/ground.png",
   };
   const animation = renderBoard(svg, world, null, false, false, 1000, sprites);
   assert.equal(
@@ -208,7 +288,8 @@ test("neurons vary, animate without state changes, and show only real friendly l
   animation.animate(1300);
   assert.notEqual(neurons[0]!.style.transform, transform);
   assert.equal(
-    neurons[2]!.style.transform,
+    svg.querySelector<SVGGElement>(".disconnected .neuron-body")!.style
+      .transform,
     "",
     "disconnected neurons are dormant",
   );

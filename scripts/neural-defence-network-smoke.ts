@@ -22,6 +22,7 @@ for (const [name, engine] of [
         page.on("pageerror", (error) => errors.push(error.message));
         await page.goto(url);
         await page.locator('[data-action="new-game"]').click();
+        await page.locator('[data-action="mode-sandbox"]').click();
         await page.locator('[data-action="start"]').click();
         await page.locator('[data-action="auto-expand"]').click();
         await page.waitForFunction(

@@ -1,4 +1,14 @@
-# Phase 0 objects and asset inventory
+# Neural Defence asset inventory
+
+## Current presentation (2026-09-25)
+
+The current renderer uses `brain-v3.png`, `neuron-v3.png`, `tower-pulse-v3.png`, `tower-siege-v3.png`, and `tower-relay-v3.png`. They are individual transparent sculpted sprites, tinted by owner. World buildings, placement ghosts, portraits and build commands share these identities. Selection and status remain separate presentation layers. Completed neurons have stable size/orientation variation and reduced-motion-aware breathing; links represent actual friendly adjacency.
+
+The continuous open floor is **`terrain-walkable-v5.png`**. It depicts only level moss, earth and small grit. The rejected v4 background suggested large rock ridges on open cells and is not used. All raised obstacles and resource deposits come from `world.map.cells`, using the category-restricted [terrain art catalog](../../games/neural-defence/src/render/terrain-art.ts). Art and contact shadows are clipped to their cell. Unknown or mismatched variant names use the category default; a blocked tile remains visible even if its sprite is unavailable. The tactical minimap draws the same complete terrain footprints. No painted background feature adds collision, elevation or pathfinding rules.
+
+Generated using the built-in image generator. Current asset prompts and terrain constraints: [POLISH_ASSETS.md](art/POLISH_ASSETS.md). Earlier assets below are retained as historical source inventory, not a description of current selection.
+
+## Historical Phase 0 inventory
 
 Status: **individual sprites delivered and integrated; user visual acceptance is open**. This inventory describes files under `games/neural-defence/src/assets/`, not a promised generation count. The current UI reference is Fuse Riders' actual shared neon/pixel UI. World art follows the supplied luminous biological brain/neuron direction with readable sculpted terrain. The earlier teal dashboard and metallic neuron candidates are superseded.
 

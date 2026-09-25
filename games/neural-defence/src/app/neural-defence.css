@@ -358,8 +358,8 @@ select {
   user-select: none;
 }
 .game-layout {
-  --dock-height: 152px;
-  --command-size: 60px;
+  --dock-height: 172px;
+  --command-size: 70px;
   --topbar-height: 44px;
   position: relative;
   width: 100%;
@@ -399,6 +399,87 @@ select {
   pointer-events: auto;
   background: #071020ed;
   backdrop-filter: blur(12px);
+}
+.tactical-map {
+  width: 196px;
+  height: 144px;
+  flex: 0 0 auto;
+  border: 1px solid #71949c;
+  padding: 5px;
+  background: linear-gradient(140deg, #34505a, #0c1b26 28%, #192d37);
+  box-shadow:
+    inset 0 0 0 2px #071017,
+    0 2px 5px #0009;
+  clip-path: polygon(
+    8px 0,
+    100% 0,
+    100% calc(100% - 8px),
+    calc(100% - 8px) 100%,
+    0 100%,
+    0 8px
+  );
+}
+.tactical-map-title {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: #a7bdc2;
+  margin-bottom: 4px;
+}
+.tactical-map-title span {
+  color: #9ee394;
+}
+#nd-minimap {
+  width: 100%;
+  height: calc(100% - 15px);
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+}
+.supply-warning {
+  color: #f7d477;
+  max-width: 280px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+.selection-portrait {
+  position: relative;
+}
+.selection-portrait::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-top: 1px solid #b0f3ff30;
+  border-bottom: 1px solid #000b;
+  pointer-events: none;
+}
+@media (max-width: 760px) {
+  .tactical-map {
+    position: absolute;
+    left: 7px;
+    bottom: calc(var(--dock-height) + 7px);
+    width: 84px;
+    height: 70px;
+    padding: 3px;
+    opacity: 0.88;
+  }
+  .tactical-map-title {
+    display: none;
+  }
+  #nd-minimap {
+    height: 100%;
+  }
+  .supply-warning {
+    font-size: 9px;
+    line-height: 1.25;
+  }
+}
+@media (max-height: 450px) {
+  .tactical-map {
+    width: 70px;
+    height: 52px;
+  }
 }
 .battle-topbar {
   inset: 0 0 auto;
@@ -495,10 +576,10 @@ select {
   pointer-events: none;
 }
 .command-button svg {
-  width: 48%;
-  height: 48%;
-  left: 26%;
-  top: 19%;
+  width: 42%;
+  height: 42%;
+  left: 29%;
+  top: 14%;
   fill: none;
   stroke: #85ead9;
   stroke-width: 2;
@@ -646,8 +727,8 @@ select {
   gap: 1.5rem;
 }
 .selection-portrait {
-  width: 96px;
-  height: 96px;
+  width: 116px;
+  height: 116px;
   flex-shrink: 0;
   padding: 6px;
   border: 1px solid #486879;
@@ -674,7 +755,7 @@ select {
 }
 .selection-summary > span {
   color: var(--fui-text-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .priority-control {
   width: 170px;
@@ -698,7 +779,7 @@ select {
 }
 .tile-heading strong {
   color: var(--fui-text);
-  font-size: 12px;
+  font-size: 14px;
 }
 .inspector input[type="range"] {
   width: 100%;
@@ -807,7 +888,36 @@ select {
 }
 .attack-flash {
   stroke-linecap: round;
-  filter: drop-shadow(0 0 4px #ffffff);
+  filter: drop-shadow(0 0 2px #ffffff) drop-shadow(0 0 6px #46d5ff);
+}
+.impact-burst {
+  fill: #efffff;
+  fill-opacity: 0.45;
+  stroke: #88e7ff;
+  stroke-width: 2;
+  filter: drop-shadow(0 0 5px #58d7ff);
+}
+.destruction-burst {
+  fill: #ff9850;
+  fill-opacity: 0.3;
+  stroke: #ffe6a0;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 9px #ff6332);
+}
+.growth-burst {
+  fill: #5ce6cb;
+  fill-opacity: 0.14;
+  stroke: #9cffe7;
+  stroke-width: 2;
+  filter: drop-shadow(0 0 6px #42ddba);
+}
+.queue-mark .site-progress {
+  fill: none;
+  stroke: #93f4da;
+  stroke-width: 3;
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: rotate(-90deg);
 }
 .owner-notch {
   fill: none;
@@ -867,17 +977,6 @@ select {
   .match-result .button-row {
     margin-top: 8px;
   }
-}
-.tower-crown {
-  fill: #172c3d;
-  stroke: var(--team);
-  stroke-width: 3;
-}
-.structure-siege image {
-  filter: sepia(0.4) hue-rotate(325deg);
-}
-.structure-relay image {
-  filter: hue-rotate(55deg);
 }
 .particle-heavy .moving-glyph image {
   width: 22px;

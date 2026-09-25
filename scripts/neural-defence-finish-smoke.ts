@@ -24,6 +24,10 @@ await Promise.all(
       });
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
+      // This offline match must survive the full normal-time run. Disable the
+      // dev server's reload socket so unrelated edits cannot restart the page.
+      // The local skirmish uses no application WebSocket transport.
+      await page.routeWebSocket("**", (socket) => socket.close());
       await page.goto(url);
       await page.locator('[data-action="new-game"]').click();
       await page.locator('[data-action="mode-skirmish"]').click();
@@ -47,7 +51,11 @@ await Promise.all(
       }
       await page.screenshot({ path: `${output}/${name}-defeat-landscape.png` });
       await page.locator('#match-result [data-action="reset"]').click();
-      await page.locator('[data-action="confirm-reset"]').click();
+      assert.equal(
+        await page.locator('[data-action="confirm-reset"]').count(),
+        0,
+        "finished rematches restart immediately",
+      );
       await page.locator("#match-result").waitFor({ state: "hidden" });
       assert.equal(await page.locator(".structure-brain").count(), 2);
       assert.deepEqual(errors, []);

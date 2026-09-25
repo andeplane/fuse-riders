@@ -1,12 +1,13 @@
-import type { World } from "../engine/types.js";
+import type { World, StructureKind } from "../engine/types.js";
 import { STRUCTURES } from "../engine/catalog.js";
+import { structureArt, teamArtFilter } from "./art.js";
+import { terrainArt, WALKABLE_GROUND } from "./terrain-art.js";
 
 const radius = 35,
   dx = Math.sqrt(3) * radius,
   dy = 1.5 * radius;
 const ns = "http://www.w3.org/2000/svg";
 const colors = ["#63cfff", "#ff8e9d", "#9ee394", "#f7d477"];
-const teams = ["blue", "coral", "green", "gold"];
 const sides = Array.from({ length: 6 }, (_, i) => {
   const angle = (Math.PI / 180) * (60 * i - 30);
   return [Math.cos(angle) * radius, Math.sin(angle) * radius] as const;
@@ -22,7 +23,11 @@ type Moving = {
   departedAt: number;
   arrivesAt: number;
 };
-type Pulse = { element: SVGElement; born: number };
+type Pulse = {
+  element: SVGElement;
+  born: number;
+  duration?: number;
+};
 interface BoardCache {
   key: string;
   tick: number;
@@ -80,47 +85,30 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
   return world.map.cells
     .map((cell, index) => {
       const { x, y } = hexCenter(world.map.width, index);
-      const ground =
-        cell.terrain === "open" && cell.variant && sprites[cell.variant]
-          ? cell.variant
-          : null;
+      const art = terrainArt(cell, index);
+      const ground = cell.terrain === "open" ? art : null;
       let object = "";
       if (cell.terrain === "deposit")
         object =
-          image(sprites, `deposit-${cell.resourceKind}`, x, y, 64) ||
+          image(sprites, art!, x, y, 58) ||
           `<text x="${x}" y="${y + 6}" text-anchor="middle">${cell.resourceKind === "biomass" ? "◈" : "◇"}</text>`;
       if (cell.terrain === "blocked") {
-        const variants = [
-          "blocker-rock-cluster-a",
-          "blocker-boulder-a",
-          "blocker-rock-ridge-a",
-          "blocker-rock-cluster-b",
-          "blocker-boulder-b",
-          "blocker-rock-ridge-b",
-        ];
         object =
-          image(
-            sprites,
-            cell.variant ?? variants[index % variants.length]!,
-            x,
-            y,
-            66,
-          ) || image(sprites, "blocker-boulder", x, y, 66);
+          image(sprites, art!, x, y, 60) ||
+          image(sprites, "blocker-boulder", x, y, 60) ||
+          `<path d="M${x - 23} ${y + 13}l5 -29 22 -10 22 23 -4 24Z" fill="#68757a" stroke="#29383d" stroke-width="3"/>`;
       }
       if (cell.terrain === "open" && cell.towerSite)
         object = `<circle class="tower-site" cx="${x}" cy="${y}" r="19"/><text x="${x}" y="${y + 5}" text-anchor="middle">+</text>`;
-      return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${ground ? image(sprites, ground, x, y, 82) : ""}</g>${object}<polygon class="hex-hover-outline" points="${hexPoints(world.map.width, index, 1.5)}"/></g>`;
+      return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${ground ? image(sprites, ground, x, y, 82) : ""}</g>${object ? `<g class="terrain-object" clip-path="url(#tile-${index})" pointer-events="none"><ellipse cx="${x + 3}" cy="${y + 17}" rx="27" ry="12" fill="url(#contact-shadow)"/>${object}</g>` : ""}<polygon class="hex-hover-outline" points="${hexPoints(world.map.width, index, 1.5)}"/></g>`;
     })
     .join("");
 }
 
 /** Decorative ground continues beyond the selectable cells; it has no game state. */
 function backdropMarkup(sprites: Sprites): string {
-  const ground =
-    sprites["terrain-battlefield-v3"] ??
-    sprites["terrain-moss-a"] ??
-    sprites["terrain-slate-a"];
-  return `<defs><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="560" height="560"><rect width="560" height="560" fill="#26322e"/>${ground ? `<image href="${escaped(ground)}" width="560" height="560"/>` : ""}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
+  const ground = sprites[WALKABLE_GROUND];
+  return `<defs><radialGradient id="contact-shadow"><stop offset="0" stop-color="#000" stop-opacity="0.7"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="840" height="560"><rect width="840" height="560" fill="#26322e"/>${ground ? `<image href="${escaped(ground)}" width="840" height="560"/>` : ""}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
 }
 /** Reuse the illustrated tissue for placement and the board, with stable variation. */
 export function neuronArtwork(
@@ -132,22 +120,26 @@ export function neuronArtwork(
   const { x, y } = hexCenter(width, cell);
   const seed = (cell * 37 + slot * 17) % 97;
   const size = 49 + (seed % 7);
-  return `<g class="neuron-body" data-phase="${seed}" style="--team:${colors[slot]};transform-origin:${x}px ${y}px"><g transform="rotate(${(seed % 6) * 60} ${x} ${y})">${image(sprites, `neuron-${teams[slot]}`, x, y, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="12"/>`}</g></g>`;
+  return `<g class="neuron-body" data-phase="${seed}" style="--team:${colors[slot]};transform-origin:${x}px ${y}px"><g style="filter:${teamArtFilter(slot)}" transform="rotate(${(seed % 6) * 60} ${x} ${y})">${image(sprites, "neuron-v3", x, y, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="12"/>`}</g></g>`;
+}
+export function structureArtwork(
+  width: number,
+  cell: number,
+  kind: StructureKind,
+  slot: number,
+  sprites: Sprites = {},
+): string {
+  if (kind === "neuron") return neuronArtwork(width, cell, slot, sprites);
+  const { x, y } = hexCenter(width, cell);
+  const size = kind === "brain" ? 90 : kind === "relay" ? 96 : 84;
+  return `<g class="building-art" style="filter:${teamArtFilter(slot)}">${image(sprites, structureArt(kind), x, y + 36 - size / 2, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="16"/>`}</g>`;
 }
 function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
-  return world.structures
+  return [...world.structures]
+    .sort((a, b) => a.cell - b.cell)
     .map((s) => {
       const { x, y } = hexCenter(world.map.width, s.cell),
         slot = world.players.find((p) => p.id === s.ownerId)?.slot ?? 0;
-      const sprite =
-        s.kind === "brain"
-          ? sprites[`brain-${teams[slot]}-v2`] ||
-            sprites[`brain-${teams[slot]}`]
-            ? `brain-${teams[slot]}`
-            : "brain"
-          : s.kind !== "neuron"
-            ? "tower-experimental"
-            : `neuron-${teams[slot]}`;
       const hpMax = STRUCTURES[s.kind].hp;
       const stock = world.particles.filter(
         (p) =>
@@ -159,11 +151,14 @@ function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
         s.hp < hpMax
           ? `<rect class="structure-hp-bg" x="${x - 18}" y="${y - 29}" width="36" height="3"/><rect class="structure-hp" x="${x - 18}" y="${y - 29}" width="${36 * Math.max(0, Math.min(1, s.hp / hpMax))}" height="3"/>`
           : "";
-      const artwork =
-        s.kind === "neuron"
-          ? neuronArtwork(world.map.width, s.cell, slot, sprites)
-          : image(sprites, sprite, x, y, s.kind === "brain" ? 72 : 66);
-      return `<g class="structure structure-${s.kind} ${s.connected ? "" : "disconnected"}" data-cell="${s.cell}" style="--team:${colors[slot]}"><circle class="owner-ring" cx="${x}" cy="${y}" r="${s.kind === "brain" ? 27 : 10}"/>${artwork || `<circle class="structure-core" cx="${x}" cy="${y}" r="15"/>`}<path class="owner-notch" d="M${x - 5} ${y + 27}h10"/><text class="owner-number" x="${x}" y="${y + 31}" text-anchor="middle">${slot + 1}</text>${s.kind === "siege" ? `<path class="tower-crown" d="M${x - 12} ${y - 14}L${x} ${y - 34}L${x + 12} ${y - 14}Z"/>` : s.kind === "relay" ? `<path class="tower-crown" d="M${x - 16} ${y - 28}L${x - 6} ${y - 12}L${x + 4} ${y - 28}L${x + 14} ${y - 12}"/>` : ""}${stock && s.connected ? `<g class="supply-orbit" style="transform-origin:${x}px ${y}px">${Array.from({ length: Math.min(6, Math.ceil(stock / 8)) }, (_, i) => `<circle cx="${x + Math.cos((i * Math.PI) / 3) * 22}" cy="${y + Math.sin((i * Math.PI) / 3) * 22}" r="2" fill="${colors[slot]}"/>`).join("")}</g>` : ""}${health}<circle class="charge-halo" cx="${x}" cy="${y}" r="10" opacity="${Math.min(0.7, stock / 48)}"/></g>`;
+      const artwork = structureArtwork(
+        world.map.width,
+        s.cell,
+        s.kind,
+        slot,
+        sprites,
+      );
+      return `<g class="structure structure-${s.kind} ${s.connected ? "" : "disconnected"}" data-cell="${s.cell}" style="--team:${colors[slot]}"><ellipse class="contact-shadow" cx="${x + 4}" cy="${y + 19}" rx="${s.kind === "neuron" ? 23 : 34}" ry="16" fill="url(#contact-shadow)"/><circle class="owner-ring" cx="${x}" cy="${y}" r="${s.kind === "brain" ? 27 : 10}"/>${artwork || `<circle class="structure-core" cx="${x}" cy="${y}" r="15"/>`}${stock && s.connected ? `<g class="supply-orbit" style="transform-origin:${x}px ${y}px">${Array.from({ length: Math.min(6, Math.ceil(stock / 8)) }, (_, i) => `<circle cx="${x + Math.cos((i * Math.PI) / 3) * 22}" cy="${y + Math.sin((i * Math.PI) / 3) * 22}" r="2" fill="${colors[slot]}"/>`).join("")}</g>` : ""}${health}<circle class="charge-halo" cx="${x}" cy="${y}" r="10" opacity="${Math.min(0.7, stock / 48)}"/></g>`;
     })
     .join("");
 }
@@ -255,7 +250,8 @@ export function renderBoard(
         .join("");
     const selection = svg.ownerDocument.createElementNS(ns, "polygon");
     selection.setAttribute("class", "selected-hex");
-    svg.append(selection);
+    // Selection belongs on the ground plane, below the building silhouette.
+    svg.insertBefore(selection, structures);
     cached = {
       key,
       tick: world.tick,
@@ -299,7 +295,7 @@ export function renderBoard(
       .flatMap((p) =>
         p.queue.map((q, i) => {
           const { x, y } = hexCenter(width, q.cell);
-          return `<g class="queue-mark" data-cell="${q.cell}" style="--team:${colors[p.slot]}">${q.paid ? image(sprites, "construction-site", x, y, 62) : ""}<circle cx="${x}" cy="${y}" r="24"/><text x="${x}" y="${y + 5}" text-anchor="middle">${i + 1}</text></g>`;
+          return `<g class="queue-mark" data-cell="${q.cell}" style="--team:${colors[p.slot]}">${q.paid ? `<g opacity="${0.25 + (0.55 * q.progress) / Math.max(1, q.duration)}">${structureArtwork(width, q.cell, q.kind, p.slot, sprites)}</g><circle class="site-progress" cx="${x}" cy="${y}" r="24" pathLength="1" stroke-dasharray="${q.progress / Math.max(1, q.duration)} 1"/>` : ""}<circle cx="${x}" cy="${y}" r="24"/><text x="${x}" y="${y + 5}" text-anchor="middle">${i + 1}</text></g>`;
         }),
       )
       .join(""),
@@ -328,6 +324,22 @@ export function renderBoard(
   if (world.tick !== cache.tick && !reducedMotion)
     for (const outcome of world.outcomes) {
       if (
+        outcome.cell !== undefined &&
+        (outcome.type === "constructed" || outcome.type === "destroyed") &&
+        cache.pulses.length < 48
+      ) {
+        const { x, y } = hexCenter(width, outcome.cell);
+        const burst = svg.ownerDocument.createElementNS(ns, "circle");
+        burst.setAttribute("cx", String(x));
+        burst.setAttribute("cy", String(y));
+        burst.setAttribute(
+          "class",
+          outcome.type === "destroyed" ? "destruction-burst" : "growth-burst",
+        );
+        cache.effectLayer.append(burst);
+        cache.pulses.push({ element: burst, born: now, duration: 650 });
+      }
+      if (
         outcome.type !== "damage" ||
         outcome.fromCell === undefined ||
         outcome.cell === undefined ||
@@ -349,6 +361,14 @@ export function renderBoard(
       beam.setAttribute("class", "attack-flash");
       cache.effectLayer.append(beam);
       cache.pulses.push({ element: beam, born: now });
+      if (cache.pulses.length < 48) {
+        const impact = svg.ownerDocument.createElementNS(ns, "circle");
+        impact.setAttribute("cx", String(b.x));
+        impact.setAttribute("cy", String(b.y));
+        impact.setAttribute("class", "impact-burst");
+        cache.effectLayer.append(impact);
+        cache.pulses.push({ element: impact, born: now, duration: 240 });
+      }
     }
   cache.prior = new Map(
     world.particles
@@ -458,7 +478,7 @@ export function renderBoard(
       );
     }
     cache.pulses = cache.pulses.filter((p) => {
-      const t = (frameNow - p.born) / 320;
+      const t = (frameNow - p.born) / (p.duration ?? 320);
       if (t >= 1 || reducedMotion) {
         p.element.remove();
         return false;

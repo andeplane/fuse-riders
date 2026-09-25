@@ -1,12 +1,14 @@
 import type { Action, MapDefinition, World, Outcome } from "../engine/types.js";
 import { loadMap, RULES } from "../engine/index.js";
 import { updateContent } from "./dom-update.js";
+import { minimapMarkup, minimapCell } from "../render/minimap.js";
+import { structureArt, teamArtFilter } from "../render/art.js";
+import type { PresentationAudio } from "./audio.js";
 import { createAttractScene } from "./attract-scene.js";
 import {
   renderBoard,
   hexPoints,
-  hexCenter,
-  neuronArtwork,
+  structureArtwork,
   type BoardAnimation,
 } from "../render/board.js";
 import type { BoardCamera, CameraFactory } from "../render/camera.js";
@@ -66,6 +68,8 @@ export interface AppDependencies {
   cancelFrame: (handle: number) => void;
   sprites?: Readonly<Record<string, string>>;
   createCamera?: CameraFactory;
+  audio?: PresentationAudio;
+  forcedMute?: boolean;
 }
 
 export function mountNeuralDefence(
@@ -73,7 +77,7 @@ export function mountNeuralDefence(
   dependencies: AppDependencies,
 ): { dispose(): void } {
   let screen: Screen = "menu";
-  let mode: GameMode = "sandbox";
+  let mode: GameMode = "skirmish";
   let catalog: LoadState<MapSummary[]> | null = null;
   let selectedId: string | null = null;
   let mapState: LoadState<MapDefinition> | null = null;
@@ -93,6 +97,7 @@ export function mountNeuralDefence(
   let frame: number | null = null;
   let disposed = false;
   let preferences: PresentationPreferences = dependencies.preferences.read();
+  dependencies.audio?.configure(preferences);
   let instantConstruction = false;
   let instantResearch = false;
   let notices: Outcome[] = [];
@@ -111,7 +116,38 @@ export function mountNeuralDefence(
   function animate(now: number) {
     if (disposed || screen !== "game") return;
     animation?.animate(now);
+    updateMinimapView();
     frame = dependencies.requestFrame(animate);
+  }
+
+  function updateMinimapView() {
+    const view = root
+      .querySelector("#nd-board")
+      ?.getAttribute("viewBox")
+      ?.split(" ");
+    const outline = root.querySelector(".minimap-view");
+    if (view && outline)
+      ["x", "y", "width", "height"].forEach((key, i) =>
+        outline.setAttribute(key, view[i]!),
+      );
+  }
+
+  function restart() {
+    camera?.dispose();
+    camera = null;
+    placement = null;
+    placementCell = null;
+    panel = "inspect";
+    commandPage = 0;
+    pending = null;
+    session?.reset();
+    selectedCell =
+      session
+        ?.view()
+        .structures.find(
+          (s) => s.ownerId === session?.localPlayerId && s.kind === "brain",
+        )?.cell ?? null;
+    render();
   }
 
   function cancelLoads() {
@@ -246,11 +282,11 @@ export function mountNeuralDefence(
   }
 
   function menuMarkup(): string {
-    return `<div class="attract-scene" aria-hidden="true"><svg id="nd-attract-board"></svg></div><div class="attract-shade"></div>${header("Neural Defence", "A neural strategy game")}<main class="menu-layout fui-landing"><p class="eyebrow">GROW · CONNECT · DEFEND</p><h1 class="fui-landing-title">NEURAL<br><span>DEFENCE</span></h1><p class="fui-landing-tagline">Build your network.<br>Keep the signal alive.</p><nav class="fui-landing-actions" aria-label="Main menu"><button data-action="new-game" class="fui-button-primary menu-button"><span aria-hidden="true">▶</span> New game</button><button data-action="settings" class="menu-button">Settings</button></nav></main><footer class="menu-footer">A FUSE GAME <span>LOCAL SANDBOX</span></footer>`;
+    return `<div class="attract-scene" aria-hidden="true"><svg id="nd-attract-board"></svg></div><div class="attract-shade"></div>${header("Neural Defence", "A neural strategy game")}<main class="menu-layout fui-landing"><p class="eyebrow">GROW · CONNECT · DEFEND</p><h1 class="fui-landing-title">NEURAL<br><span>DEFENCE</span></h1><p class="fui-landing-tagline">Build your network.<br>Keep the signal alive.</p><nav class="fui-landing-actions" aria-label="Main menu"><button data-action="new-game" class="fui-button-primary menu-button"><span aria-hidden="true">▶</span> New game</button><button data-action="settings" class="menu-button">Settings</button></nav></main><footer class="menu-footer">A FUSE GAME <span>SKIRMISH · PLAYER VS AI</span></footer>`;
   }
 
   function settingsMarkup(): string {
-    return `${header("Settings", "presentation")}<main class="nd-panel settings-panel"><p>Preferences stay on this device.</p><label class="setting-row"><span><strong>Reduced motion</strong><small>Reduce particle animation and flashes</small></span><input type="checkbox" data-setting="reducedMotion" ${preferences.reducedMotion ? "checked" : ""}></label><button data-action="back-menu" class="secondary">← Back</button></main>`;
+    return `${header("Settings", "presentation")}<main class="nd-panel settings-panel"><p>Preferences stay on this device.</p>${dependencies.forcedMute ? '<p class="debug-note">This preview URL forces audio off.</p>' : ""}<label class="setting-row"><span><strong>Mute sound</strong><small>Interface, construction and combat cues</small></span><input type="checkbox" data-setting="mute" ${preferences.mute ? "checked" : ""}></label><label class="setting-row"><span><strong>Volume</strong></span><input type="range" min="0" max="1" step="0.05" data-setting="volume" value="${preferences.volume}"></label><label class="setting-row"><span><strong>Reduced motion</strong><small>Reduce particle animation and flashes</small></span><input type="checkbox" data-setting="reducedMotion" ${preferences.reducedMotion ? "checked" : ""}></label><button data-action="back-menu" class="secondary">← Back</button></main>`;
   }
 
   function setupMarkup(): string {
@@ -297,7 +333,7 @@ export function mountNeuralDefence(
           <label><input type="checkbox" data-debug="construction" ${instantConstruction ? "checked" : ""}> Instant construction after delivery</label>
           <label><input type="checkbox" data-debug="research" ${instantResearch ? "checked" : ""}> Instant research</label>
           <small>Resource costs and prerequisites still apply.</small></fieldset>`
-            : "<p>Normal construction and research timing.</p>"
+            : "<p>Build beside resources. Connect your network. Select frontline nodes and use <strong>Charge</strong> to supply their weapons.</p>"
         }
         ${launchError ? `<div class="error-card" role="alert">${escape(launchError)}<button data-action="start">Retry launch</button></div>` : ""}
         <div class="button-row"><button data-action="back-menu" class="secondary">← Back</button>
@@ -337,7 +373,7 @@ export function mountNeuralDefence(
         ? 0
         : world.particles.filter(
             (p) =>
-              p.ownerId === player.id &&
+              p.ownerId === (structure?.ownerId ?? player.id) &&
               p.cell === selectedCell &&
               p.mode === "stationed",
           ).length;
@@ -346,7 +382,7 @@ export function mountNeuralDefence(
         ? []
         : world.particles.filter(
             (p) =>
-              p.ownerId === player.id &&
+              p.ownerId === (structure?.ownerId ?? player.id) &&
               p.to === selectedCell &&
               p.mode === "transit",
           );
@@ -354,11 +390,7 @@ export function mountNeuralDefence(
     const sprite = (name: string) =>
       dependencies.sprites?.[`${name}-v2`] ?? dependencies.sprites?.[name];
     const portrait = structure
-      ? sprite(
-          structure.kind !== "brain" && structure.kind !== "neuron"
-            ? "tower-experimental"
-            : `${structure.kind}-${["blue", "coral", "green", "gold"][world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0]}`,
-        )
+      ? sprite(structureArt(structure.kind))
       : cell?.terrain === "deposit"
         ? sprite(`deposit-${cell.resourceKind}`)
         : sprite(
@@ -368,10 +400,10 @@ export function mountNeuralDefence(
       selectedCell === null
         ? '<div class="selection-summary"><strong>Select a hex</strong><span>Click terrain to build or inspect.</span></div>'
         : `<div class="selection-summary"><div class="tile-heading"><span>HEX ${selectedCell}</span><strong>${structure ? `${structure.kind.toUpperCase()} · ${structure.hp} HP` : cell?.terrain === "deposit" ? `${cell.resourceKind.toUpperCase()} DEPOSIT` : cell?.terrain === "blocked" ? "BLOCKED GROUND" : "OPEN GROUND"}</strong></div>
-        ${structure ? `<span title="${structure.connected ? "Connected to brain" : "Disconnected from brain"}${incoming.length ? ` · next arrival tick ${Math.min(...incoming.map((p) => p.arrivesAt))}` : ""}">${structure.connected ? "Connected" : "Disconnected"} · ${count} particles · ${incoming.length} incoming</span>` : ""}
-        ${cell?.terrain === "deposit" ? '<span title="Each connected friendly neighbor earns one sixth of this source. Several players may share it.">Expand alongside to mine.</span>' : ""}</div>
-        ${owned ? `<div class="priority-control"><label class="field-label" for="priority-slider">Attack priority · ${priority}/3</label><input id="priority-slider" data-field="priority" type="range" min="0" max="3" step="1" value="${priority}"></div>` : ""}
-        ${queued ? `<span class="construction-progress" title="Queued construction waits for support, builder and resources.">${queued.paid ? `Growing · ${queued.progress}/${queued.duration}` : "Queued"}</span>` : ""}`;
+        ${structure ? `<span title="${structure.connected ? "Connected to brain" : "Disconnected from brain"}${incoming.length ? ` · next arrival in ${Math.ceil((Math.min(...incoming.map((p) => p.arrivesAt)) - world.tick) / RULES.ticksPerSecond)}s` : ""}">${structure.connected ? "Connected" : "Disconnected"} · ${count} particles · ${incoming.length} incoming</span>` : ""}
+        ${cell?.terrain === "deposit" ? '<span title="Connected neighboring structures harvest this deposit. Several players may share it.">Expand alongside to mine.</span>' : ""}</div>
+        ${owned ? `${priority === 0 && structure.kind !== "brain" ? '<span class="supply-warning">No supply assigned — use D / Charge to arm this node.</span>' : ""}<div class="priority-control"><label class="field-label" for="priority-slider">Attack priority · ${priority}/3</label><input id="priority-slider" data-field="priority" type="range" min="0" max="3" step="1" value="${priority}"></div>` : ""}
+        ${queued ? `<span class="construction-progress" title="Queued construction waits for support, builder and resources.">${queued.paid ? `Growing · ${Math.ceil((queued.duration - queued.progress) / RULES.ticksPerSecond)}s remaining` : constructionDispatchAvailability(world, player, queued).missing.map(requirementText).join(" ") || "Ready for construction"}</span>` : ""}`;
     const researchNames = Object.fromEntries(
       Object.entries(RESEARCH_PRESENTATION).map(([id, item]) => [
         id,
@@ -416,12 +448,13 @@ export function mountNeuralDefence(
             ? `<div class="command-context"><strong>Research</strong><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · researching` : "Choose an upgrade"}</p><small>${player.research.length ? `Complete: ${player.research.map((r) => researchNames[r]).join(", ")}` : "Hover or focus a command for its requirements."}</small></div>`
             : `<div class="command-context"><strong>Recent activity</strong><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></div>`;
     return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div></div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls"><button data-action="reset" class="secondary">Reset</button><button data-action="leave" class="secondary">Menu</button></div></div>
-      <div class="command-dock"><section class="inspector" aria-label="${panel === "inspect" || panel === "build" ? "Selected hex" : panel === "research" ? "Research" : "Recent activity"}">${portrait ? `<div class="selection-portrait"><img src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${contextDetail}</div></section><nav class="command-card" data-panel="${panel}" aria-label="${panel === "research" ? "Research commands" : panel === "build" ? "Build commands" : panel === "activity" ? "Activity commands" : "Commands"}">${commands}</nav></div>`;
+      <div class="command-dock">${minimapMarkup(world)}<section class="inspector" aria-label="${panel === "inspect" || panel === "build" ? "Selected hex" : panel === "research" ? "Research" : "Recent activity"}">${portrait ? `<div class="selection-portrait"><img style="filter:${structure ? teamArtFilter(world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0) : "none"}" src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${contextDetail}</div></section><nav class="command-card" data-panel="${panel}" aria-label="${panel === "research" ? "Research commands" : panel === "build" ? "Build commands" : panel === "activity" ? "Activity commands" : "Commands"}">${commands}</nav></div>`;
   }
 
   function renderGame() {
     const world = gameWorld();
     if (!world) return;
+    dependencies.audio?.present(world, session?.localPlayerId ?? "");
     if (world.matchId !== noticeMatch || world.tick < noticeTick) {
       notices = [];
       noticeTick = -1;
@@ -469,7 +502,7 @@ export function mountNeuralDefence(
         20) /
       1000;
     if (rate)
-      rate.textContent = `Tick ${world.tick} · +${income("biomass").toFixed(1)} ◈ / s · +${income("insight").toFixed(1)} ◇ / s`;
+      rate.textContent = `${Math.floor(world.tick / RULES.ticksPerSecond / 60)}:${String(Math.floor(world.tick / RULES.ticksPerSecond) % 60).padStart(2, "0")} · +${income("biomass").toFixed(1)} ◈ / s · +${income("insight").toFixed(1)} ◇ / s`;
     const debugNote = sidebar.querySelector<HTMLElement>(".debug-note");
     if (debugNote)
       debugNote.textContent = `DEBUG · grid${world.settings.instantConstruction ? " · instant build" : ""}${world.settings.instantResearch ? " · instant research" : ""} · normal travel`;
@@ -501,18 +534,8 @@ export function mountNeuralDefence(
         placement,
         placementCell,
       ).allowed;
-      const team = ["blue", "coral", "green", "gold"][owner.slot] ?? "blue";
-      const asset = BUILD_PRESENTATION[placement].sprite(team);
-      const sprite =
-        dependencies.sprites?.[`${asset}-v2`] ?? dependencies.sprites?.[asset];
-      const { x, y } = hexCenter(world.map.width, placementCell);
       preview.setAttribute("data-valid", String(valid));
-      const artwork =
-        placement === "neuron"
-          ? `<g opacity="0.55">${neuronArtwork(world.map.width, placementCell, owner.slot, dependencies.sprites)}</g>`
-          : sprite
-            ? `<image href="${escape(sprite)}" x="${x - 30}" y="${y - 30}" width="60" height="60" opacity="0.55"/>`
-            : "";
+      const artwork = `<g opacity="0.55">${structureArtwork(world.map.width, placementCell, placement, owner.slot, dependencies.sprites)}</g>`;
       preview.innerHTML = `<polygon points="${hexPoints(world.map.width, placementCell, 1.5)}"/>${artwork}`;
     } else preview.replaceChildren();
     const viewport = root.querySelector<HTMLElement>("#nd-viewport");
@@ -598,7 +621,24 @@ export function mountNeuralDefence(
   }
 
   function onClick(event: MouseEvent) {
+    dependencies.audio?.unlock();
     const target = event.target as Element;
+    const tactical = target.closest<SVGSVGElement>("#nd-minimap");
+    if (tactical && !pending) {
+      const world = gameWorld();
+      const box = tactical.getBoundingClientRect();
+      if (world && box.width && box.height)
+        camera?.focusCell(
+          world.map.width,
+          minimapCell(
+            world,
+            (event.clientX - box.left) / box.width,
+            (event.clientY - box.top) / box.height,
+          ),
+        );
+      updateMinimapView();
+      return;
+    }
     const button = target.closest<HTMLElement>("[data-action]");
     if (button?.getAttribute("aria-disabled") === "true") {
       button.focus?.();
@@ -628,6 +668,7 @@ export function mountNeuralDefence(
       return;
     }
     if (button) {
+      dependencies.audio?.play("select");
       const action = button.dataset.action;
       if (action === "close-panel") {
         closePanel();
@@ -636,8 +677,8 @@ export function mountNeuralDefence(
         renderGame();
       } else if (action === "new-game") {
         screen = "setup";
-        mode = "sandbox";
-        selectedId = "sandbox-12";
+        mode = "skirmish";
+        selectedId = "skirmish-24";
         void loadCatalog();
       } else if (action === "settings") {
         screen = "settings";
@@ -733,17 +774,18 @@ export function mountNeuralDefence(
       } else if (action === "cancel-research")
         dispatch({ type: "cancelResearch" });
       else if (action === "reset" || action === "leave") {
+        if (session?.view().finished) {
+          if (action === "reset") restart();
+          else showMenu();
+          return;
+        }
         pending = action;
         render();
       } else if (action === "cancel-confirm") {
         pending = null;
         render();
       } else if (action === "confirm-reset") {
-        placement = null;
-        placementCell = null;
-        session?.reset();
-        pending = null;
-        render();
+        restart();
       } else if (action === "confirm-leave") showMenu();
       return;
     }
@@ -828,6 +870,8 @@ export function mountNeuralDefence(
       else if (setting === "volume")
         preferences = { ...preferences, volume: Number(target.value) };
       dependencies.preferences.write(preferences);
+      dependencies.audio?.configure(preferences);
+      dependencies.audio?.unlock();
       render();
     }
   }
@@ -898,12 +942,22 @@ export function mountNeuralDefence(
     if (
       screen !== "game" ||
       pending ||
-      event.target !== root.querySelector("#nd-board")
+      (event.target !== root.querySelector("#nd-board") &&
+        event.target !== root.querySelector("#nd-minimap"))
     )
       return;
     const world = gameWorld();
     if (!world) return;
     const current = selectedCell ?? 0;
+    if (
+      event.target === root.querySelector("#nd-minimap") &&
+      (event.key === "Enter" || event.key === " ")
+    ) {
+      event.preventDefault();
+      camera?.focusCell(world.map.width, current);
+      updateMinimapView();
+      return;
+    }
     const width = world.map.width;
     const row = Math.floor(current / width),
       col = current % width;
@@ -943,6 +997,7 @@ export function mountNeuralDefence(
       disposed = true;
       cancelLoads();
       disposeSession();
+      dependencies.audio?.dispose();
       root.removeEventListener("click", onClick);
       root.removeEventListener("pointermove", onPointerMove);
       root.removeEventListener("change", onChange);

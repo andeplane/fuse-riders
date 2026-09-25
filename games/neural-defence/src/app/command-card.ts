@@ -54,24 +54,24 @@ export const BUILD_PRESENTATION: Readonly<
   neuron: {
     label: "Neuron",
     description: "Expand your connected network.",
-    sprite: (team) => `neuron-${team}`,
+    sprite: () => "neuron-v3",
   },
   tower: {
     label: "Pulse tower",
     description: "Range 2. Fires eight supplied particles each second.",
-    sprite: () => "tower-experimental",
+    sprite: () => "tower-pulse-v3",
   },
   siege: {
     label: "Siege tower",
     description:
       "Range 3. A twelve-particle volley every two seconds. Fragile, expensive long-range pressure.",
-    sprite: () => "tower-experimental",
+    sprite: () => "tower-siege-v3",
   },
   relay: {
     label: "Relay tower",
     description:
       "Range 2. Fires three supplied particles every half second. Quick, economical frontline support.",
-    sprite: () => "tower-experimental",
+    sprite: () => "tower-relay-v3",
   },
 };
 export const RESEARCH_PRESENTATION: Readonly<
@@ -87,13 +87,16 @@ export const RESEARCH_PRESENTATION: Readonly<
   },
   conduction: {
     label: "Conduction",
-    description: "Faster newly dispatched attack particles.",
+    description: "Faster particle and builder travel. Unlocks Resonance.",
   },
   ballistics: {
     label: "Ballistics",
-    description: "Unlock long-range siege towers.",
+    description: "Unlock long-range Siege towers and Heavy particles.",
   },
-  resonance: { label: "Resonance", description: "Unlock rapid relay towers." },
+  resonance: {
+    label: "Resonance",
+    description: "Unlock rapid Relay towers and Swift particles.",
+  },
 };
 export function requirementText(requirement: Requirement): string {
   switch (requirement.kind) {

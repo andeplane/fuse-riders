@@ -4,6 +4,7 @@ import { createPreferencesStore } from "./preferences.js";
 import { createSession } from "../online/session.js";
 import { spriteUrls } from "../render/sprites.js";
 import { createCameraFactory } from "../render/camera.js";
+import { createBrowserAudio } from "./audio.js";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -16,6 +17,8 @@ mountNeuralDefence(root, {
   maps: createBrowserMapRepository(fetch.bind(globalThis)),
   preferences: createPreferencesStore(localStorage),
   createSession,
+  audio: createBrowserAudio(new URLSearchParams(location.search).has("mute")),
+  forcedMute: new URLSearchParams(location.search).has("mute"),
   sprites: spriteUrls,
   createCamera: createCameraFactory({
     observeResize(element, callback) {

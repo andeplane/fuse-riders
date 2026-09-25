@@ -14,6 +14,7 @@ async function start(page: Page, mode: "sandbox" | "skirmish" = "sandbox") {
   await page.locator('[data-action="new-game"]').click();
   if (mode === "skirmish")
     await page.locator('[data-action="mode-skirmish"]').click();
+  else await page.locator('[data-action="mode-sandbox"]').click();
   await page.locator('[data-action="start"]').click();
   await page.locator(".command-dock").waitFor();
 }
