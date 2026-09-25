@@ -130,6 +130,8 @@ export interface RuntimeOptions {
   transport?: (events: TransportEvents) => RoomTransport;
   displayOnly?: boolean;
   humanName?: string;
+  /** Fixed human roster on this browser, without a transport. The remaining solo seats are AI. */
+  localPlayers?: readonly string[];
   dependencies?: RuntimeDependencies;
 }
 interface Member {
@@ -298,6 +300,7 @@ export class RoomRuntime<
   private catchUpUntil = -Infinity;
   private cancelTick?: () => void;
   private cancelVisibility?: () => void;
+  readonly localPlayerIds: readonly string[];
   constructor(
     readonly game: RollbackGame<Room, Entry, View, Event, Settings>,
     readonly code: string,
@@ -305,6 +308,21 @@ export class RoomRuntime<
     private readonly callbacks: Callbacks<View, Event, Settings>,
     private readonly options: RuntimeOptions = {},
   ) {
+    if (
+      options.localPlayers &&
+      (options.transport ||
+        options.localPlayers.length < 1 ||
+        options.localPlayers.length > game.seating.capacity ||
+        options.localPlayers.some((name) => !game.seating.seatName(name)))
+    )
+      throw new Error(
+        "Local players require 1 to capacity valid names and no transport",
+      );
+    this.localPlayerIds = Object.freeze(
+      options.localPlayers?.map((_, index) =>
+        index === 0 ? "solo" : `local-${index + 1}`,
+      ) ?? [],
+    );
     this.text = game.text;
     this.deps = options.dependencies ?? browserDependencies;
     this.status = new StatusNotices(
@@ -392,9 +410,34 @@ export class RoomRuntime<
       this.deliver("ready", () => this.callbacks.ready("solo", true));
       this.status.recurring(this.text.solo);
       const name =
-        seating.seatName(this.options.humanName ?? "") ?? seating.solo.name;
+        seating.seatName(
+          this.options.localPlayers?.[0] ?? this.options.humanName ?? "",
+        ) ?? seating.solo.name;
       this.join("solo", name, undefined);
-      for (let index = 0; index < seating.solo.bots; index++)
+      if (this.options.localPlayers) {
+        // Each local human is an ordinary seat with its own input stream, sharing this browser's clock.
+        for (let index = 1; index < this.localPlayerIds.length; index++) {
+          const id = this.localPlayerIds[index]!;
+          this.world!.stream(id, this.generation);
+          this.append(
+            JOIN,
+            id,
+            seating.seatName(this.options.localPlayers[index]!)!,
+            index,
+            seating.defaultAvatar,
+            this.generation,
+          );
+        }
+      }
+      for (
+        let index = 0;
+        index <
+        Math.max(
+          0,
+          seating.solo.bots - Math.max(0, this.localPlayerIds.length - 1),
+        );
+        index++
+      )
         this.command({ type: "bot", action: "add" });
       this.command({ type: "action", action: "start" });
       this.world!.refill(Infinity);
@@ -1349,6 +1392,13 @@ export class RoomRuntime<
   protected append(...body: unknown[]): number {
     return this.appendAt(this.ownTick(), body);
   }
+  /** Local-only input stream, using the same next-tick ordering as the owner. Never a network authority bypass. */
+  protected appendLocal(id: string, ...body: unknown[]): boolean {
+    if (this.transport || !this.world || !this.localPlayerIds.includes(id))
+      return false;
+    this.world.streams.get(id)!.append(this.ownTick(), body);
+    return true;
+  }
   /**
    * One of this member's entries at a tick it already chose. A tick carries as many of them as the manager writes, and
    * the fold applies them in the order they were written (`applyTick`), so a transition that takes two entries — a side
@@ -1783,6 +1833,10 @@ export class RoomRuntime<
     )
       this.retrySnapshot();
     this.own().through = Math.max(this.own().through, tick);
+    for (const id of this.localPlayerIds) {
+      const stream = world.streams.get(id)!;
+      stream.through = Math.max(stream.through, tick);
+    }
     if (this.hiddenState && !world.settled)
       // A hidden world does not advance, but a rollback's re-run is history it already reached: it finishes.
       this.deliverEvents(world.advance(world.tick).events);

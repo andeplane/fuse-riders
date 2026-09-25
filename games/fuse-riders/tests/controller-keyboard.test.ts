@@ -4,7 +4,10 @@ import {
   ControllerInputState,
   type ControllerInputMessage,
 } from "../src/client/controller-state.js";
-import { ControllerKeyboardBindings } from "../src/client/controller-keyboard.js";
+import {
+  ControllerKeyboardBindings,
+  LOCAL_KEYBOARD_PRESETS,
+} from "../src/client/controller-keyboard.js";
 function fixture() {
   const messages: ControllerInputMessage[] = [];
   let allowed = true;
@@ -129,4 +132,57 @@ test("A and D aliases retain independent held ownership from arrow keys", () => 
     assert.equal(f.state.isHeld(control), false);
   }
   assert.equal(f.state.hasHeld(), false);
+});
+
+test("two keyboard-mode controllers steer and fire independently with E/F/M and I/G/K", () => {
+  const a = fixture(),
+    b = fixture();
+  const one = new ControllerKeyboardBindings(
+    a.state,
+    () => true,
+    () => {},
+    LOCAL_KEYBOARD_PRESETS[1],
+  );
+  const two = new ControllerKeyboardBindings(
+    b.state,
+    () => true,
+    () => {},
+    LOCAL_KEYBOARD_PRESETS[2],
+  );
+  const down = (code: string, repeat = false) => {
+    one.down(a.event(code, repeat));
+    two.down(b.event(code, repeat));
+  };
+  const up = (code: string) => {
+    one.up(a.event(code));
+    two.up(b.event(code));
+  };
+  down("KeyE");
+  down("KeyG");
+  down("KeyM");
+  down("KeyK");
+  down("KeyK", true);
+  assert.equal(a.state.isHeld("left"), true);
+  assert.equal(a.state.isHeld("right"), false);
+  assert.equal(b.state.isHeld("left"), false);
+  assert.equal(b.state.isHeld("right"), true);
+  up("KeyM");
+  assert.equal(a.state.isHeld("bomb"), false);
+  assert.equal(b.state.isHeld("bomb"), true);
+  one.clear();
+  two.clear();
+  down("KeyK", true);
+  up("KeyK");
+  assert.deepEqual(
+    a.messages.flatMap((m) => (m.bombAction ? [m.bombAction] : [])),
+    ["press", "release"],
+  );
+  assert.deepEqual(
+    b.messages.flatMap((m) => (m.bombAction ? [m.bombAction] : [])),
+    ["press", "cancel"],
+  );
+  down("KeyF");
+  down("KeyI");
+  assert.equal(a.state.isHeld("right"), true);
+  assert.equal(b.state.isHeld("left"), true);
 });
