@@ -25,3 +25,11 @@ Phone evidence is browser emulation, not physical hardware. The reference art qu
 The follow-up replaces rotation-only neuron variation with three distinct illustrated anatomies, shared by live units, ghosts and portraits. It also fixes clicking a tall building's upper body selecting the terrain behind it. Placement still targets terrain. Independent review found no actionable regression.
 
 Full suite: **1,682 passed**. Typecheck/build, focused lint and 21 focused presentation/UI tests passed. Chromium and WebKit passed the body-versus-ground pointer regression, all three image forms in the live combat lab, and normal-time expansion/supply/reduced-motion checks at desktop and phone sizes. [Assets and exact prompts](../art/NEURON_FORMS.md).
+
+## Full roster and supply readability
+
+`scripts/neural-defence-roster-smoke.ts` passed in Chromium and WebKit using normal game time and ordinary commands, without injected resources or world state. It expands to both resources, researches all five technologies, constructs Pulse/Siege/Relay, checks matching ghosts and portraits, selects unlocked particle profiles, and supplies each tower. Desktop and phone captures are saved as `premium/roster-desktop.png` and `premium/roster-phone.png`. The phone capture uses an emulated viewport and camera keyboard navigation; it is not additional touch-device evidence.
+
+That flow exposed overlapping arrival rings obscuring towers. Arrivals now coalesce per destination and render as brief, faint ground pulses beneath buildings. Regression coverage checks packet coalescing, layer order and reduced-motion cleanup. Independent review found no actionable issues.
+
+Latest full suite: **1,683 passed**. Build and focused ESLint passed; both browser roster runs passed again after the effect correction.

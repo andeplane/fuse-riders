@@ -27,12 +27,15 @@ type Pulse = {
   element: SVGElement;
   born: number;
   duration?: number;
+  arrival?: boolean;
 };
 interface BoardCache {
   key: string;
   tick: number;
   particleLayer: SVGGElement;
   effectLayer: SVGGElement;
+  groundEffects: SVGGElement;
+  arrivalAt: Map<number, number>;
   movers: Map<string, SVGGElement>;
   prior: Map<number, number>;
   pulses: Pulse[];
@@ -247,10 +250,17 @@ export function renderBoard(
     const territory = layer(svg, "territory-layer");
     const links = layer(svg, "link-layer"),
       queues = layer(svg, "queue-layer"),
+      groundEffects = layer(svg, "ground-effect-layer"),
       structures = layer(svg, "structure-layer");
     const particleLayer = layer(svg, "particle-layer"),
       effectLayer = layer(svg, "effect-layer");
-    for (const decorative of [territory, links, particleLayer, effectLayer])
+    for (const decorative of [
+      territory,
+      links,
+      groundEffects,
+      particleLayer,
+      effectLayer,
+    ])
       decorative.setAttribute("pointer-events", "none");
     if (debug)
       layer(svg, "debug-grid").innerHTML = world.map.cells
@@ -268,6 +278,8 @@ export function renderBoard(
       structures,
       particleLayer,
       effectLayer,
+      groundEffects,
+      arrivalAt: new Map(),
       selection,
       movers: new Map(),
       prior: new Map(),
@@ -314,6 +326,7 @@ export function renderBoard(
         cache.prior.has(p.id) &&
         p.mode === "stationed" &&
         p.cell === cache.prior.get(p.id) &&
+        now - (cache.arrivalAt.get(p.cell) ?? -Infinity) >= 160 &&
         cache.pulses.length < 48
       ) {
         const circle = svg.ownerDocument.createElementNS(ns, "circle"),
@@ -325,8 +338,14 @@ export function renderBoard(
           "stroke",
           colors[world.players.find((o) => o.id === p.ownerId)?.slot ?? 0]!,
         );
-        cache.effectLayer.append(circle);
-        cache.pulses.push({ element: circle, born: now });
+        cache.arrivalAt.set(p.cell, now);
+        cache.groundEffects.append(circle);
+        cache.pulses.push({
+          element: circle,
+          born: now,
+          duration: 260,
+          arrival: true,
+        });
       }
     }
   if (world.tick !== cache.tick && !reducedMotion)
@@ -491,8 +510,11 @@ export function renderBoard(
         p.element.remove();
         return false;
       }
-      p.element.setAttribute("r", String(10 + t * 21));
-      p.element.setAttribute("opacity", String(1 - t));
+      p.element.setAttribute("r", String(p.arrival ? 8 + t * 13 : 10 + t * 21));
+      p.element.setAttribute(
+        "opacity",
+        String((p.arrival ? 0.35 : 1) * (1 - t)),
+      );
       return true;
     });
   };

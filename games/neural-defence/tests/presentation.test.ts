@@ -9,6 +9,63 @@ import { renderBoard } from "../src/render/board.js";
 import { terrainArt } from "../src/render/terrain-art.js";
 import { constructionQueueAvailability } from "../src/engine/catalog.js";
 
+test("arrival cues aggregate by destination beneath buildings and stop with reduced motion", () => {
+  const { document } = parseHTML("<html><body><svg></svg></body></html>");
+  const svg = document.querySelector("svg") as unknown as SVGSVGElement;
+  const map = loadMap(
+    JSON.parse(
+      readFileSync(new URL("../maps/sandbox-12.json", import.meta.url), "utf8"),
+    ),
+  );
+  const world = createMatch(map, {}, [{ id: "solo", slot: 0 }]);
+  const travelers = world.particles.slice(0, 16);
+  for (const p of travelers)
+    Object.assign(p, {
+      mode: "transit",
+      from: 13,
+      to: 14,
+      departedAt: 0,
+      arrivesAt: 1,
+    });
+  renderBoard(svg, world, 13, false, false, 0);
+  for (const p of travelers) Object.assign(p, { mode: "stationed", cell: 14 });
+  world.tick++;
+  renderBoard(svg, world, 13, false, false, 50);
+  assert.equal(
+    svg.querySelectorAll(".arrival-pulse").length,
+    1,
+    "a packet of sixteen arrivals makes one cue",
+  );
+  const ground = svg.querySelector(".ground-effect-layer")!;
+  assert.equal(ground.querySelectorAll(".arrival-pulse").length, 1);
+  assert.equal(svg.querySelector(".effect-layer .arrival-pulse"), null);
+  const layers = [...svg.children];
+  assert.ok(
+    layers.indexOf(ground) <
+      layers.indexOf(svg.querySelector(".structure-layer")!),
+  );
+  assert.equal(
+    ground.querySelector(".arrival-pulse")?.getAttribute("opacity"),
+    "0.35",
+  );
+  // A following packet cannot stack another ring immediately.
+  for (const p of travelers)
+    Object.assign(p, {
+      mode: "transit",
+      from: 13,
+      to: 14,
+      departedAt: 1,
+      arrivesAt: 2,
+    });
+  renderBoard(svg, world, 13, false, false, 75);
+  for (const p of travelers) Object.assign(p, { mode: "stationed", cell: 14 });
+  world.tick++;
+  renderBoard(svg, world, 13, false, false, 100);
+  assert.equal(svg.querySelectorAll(".arrival-pulse").length, 1);
+  renderBoard(svg, world, 13, false, true, 125);
+  assert.equal(svg.querySelectorAll(".arrival-pulse").length, 0);
+});
+
 test("visible terrain follows build restrictions and cannot be overridden by mismatched art", () => {
   const { document } = parseHTML("<html><body><svg></svg></body></html>");
   const svg = document.querySelector("svg") as unknown as SVGSVGElement;
@@ -153,7 +210,14 @@ test("rendering interpolates actual transit, retains terrain and moving nodes, c
     .getAttribute("transform");
   assert.ok(position?.startsWith("translate("));
   assert.equal(svg.querySelectorAll(".debug-grid polygon").length, 144);
-  for (const name of ["backdrop", "territory", "link", "particle", "effect"])
+  for (const name of [
+    "backdrop",
+    "territory",
+    "link",
+    "ground-effect",
+    "particle",
+    "effect",
+  ])
     assert.equal(
       svg.querySelector(`.${name}-layer`)?.getAttribute("pointer-events"),
       "none",
