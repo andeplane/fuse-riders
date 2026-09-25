@@ -1,6 +1,6 @@
 # Neural Defence architecture
 
-Status: Phase 0 engine, adapter, shared Fuse UI and sprite integration are implemented locally. Focused browser flows and automated tests are verified in [HANDOFF.md](HANDOFF.md); visual acceptance remains with the user. [Phase 0](PHASE_0.md) describes the rules; [core contracts](CORE_TYPES.md) points to exact types. The diagram describes current modules, not public online play.
+Status: the current game provides local player-versus-AI skirmishes, sandbox and combat lab through the shared runtime, with the illustrated responsive RTS interface. [The tech tree](TECH_TREE.md) is the current rules reference; [core contracts](CORE_TYPES.md) points to exact types. [First-version evidence](FIRST_VERSION.md) and [current presentation verification](verification/PREMIUM_TERRAIN.md) distinguish headless, browser and visual evidence. Earlier Phase 0 handoffs are historical. The diagram describes current modules, not public online play.
 
 ```mermaid
 flowchart LR
@@ -12,8 +12,10 @@ flowchart LR
   RUNTIME --> ADAPTER["Neural RollbackGame adapter"]
   ADAPTER --> ENGINE["Headless engine: map, step, codec, hash"]
   LAB["Scripted lab actions"] --> ADAPTER
+  AI["Deterministic AI policy: ordinary commands"] --> ADAPTER
   ENGINE --> VIEW["Immutable world view"]
-  VIEW --> RENDER["Board, sprites and overlays"]
+  VIEW --> RENDER["Board, sprites, minimap and overlays"]
+  VIEW --> AUDIO["Injected presentation audio: resolved event cues"]
   RENDER --> APP
   TEST["Typed headless fixtures and injected runtime fakes"] --> ENGINE
   TEST --> RUNTIME
@@ -26,4 +28,8 @@ Arrows represent data/control. [`src/engine/`](../../games/neural-defence/src/en
 
 [`src/app/`](../../games/neural-defence/src/app/app.ts) owns menu/setup, map loading, preferences, session lifecycle and player controls. `MapRepository`, `SessionFactory`, `PreferencesStore` and `RuntimeDependencies` provide narrow injection seams for deterministic tests. [`src/render/`](../../games/neural-defence/src/render/board.ts) reads the current world and presents hexes, ownership, construction, builder travel, attack supply and sprites. `?debug` affects presentation and exposes two engine settings; neither flag is silently enabled.
 
-The simulation has one 20 Hz clock through `RoomRuntime`: admitted commands, income/research, simultaneous combat, builder dispatch/work, connectivity and attack routing occur inside the engine step. The lab, solo sandbox and four-owner headless tests use that same function. Checkpoints hold per-owner jobs, worker/particle timing, research, priorities and outcomes; paths are derived from validated map and structures. [`REVIEW-2026-09-25.md`](REVIEW-2026-09-25.md) and [`HANDOFF.md`](HANDOFF.md) identify unresolved replay, browser and visual acceptance risks.
+The engine catalog owns costs, prerequisites, upgrades and unit profiles. Command pages derive eligibility and missing requirements from it. Placement is local presentation state until a confirmed command enters the runtime. Queued plans wait for actual connected support, resources and a free builder; their ghosts do not conduct.
+
+The terrain art catalog restricts artwork to the map cell's category. Flat ground is decorative; visible rocks and deposits, their clipped footprints and the minimap come from authoritative map cells. A shared cell-based art resolver keeps neuron anatomy identical in the world, placement ghost and portrait. Raised building hit regions affect selection only and are disabled during placement. Camera/minimap navigation, animation and audio do not mutate simulation state. The audio adapter consumes resolved outcomes, suppresses duplicate/rewound ticks, respects forced mute, and cancels active voices on mute or disposal.
+
+The simulation has one 20 Hz clock through `RoomRuntime`: admitted commands, income/research, simultaneous combat, builder dispatch/work, connectivity and attack routing occur inside the engine step. Skirmish AI uses ordinary validated commands with equal resources and no private simulation clock. The lab, solo sandbox and four-owner headless tests use that same step. Checkpoints hold per-owner jobs, worker/particle timing, research, priorities and outcomes; paths are derived from validated map and structures. Current verification and its limits are linked above; browser emulation does not establish physical-device or public online qualification.
