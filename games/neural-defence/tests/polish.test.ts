@@ -4,8 +4,12 @@ import { readFileSync } from "node:fs";
 import { createMatch, loadMap } from "../src/engine/index.js";
 import { createCueTracker } from "../src/app/audio.js";
 import { minimapCell, minimapMarkup } from "../src/render/minimap.js";
-import { hexCenter } from "../src/render/board.js";
-import { structureArt } from "../src/render/art.js";
+import {
+  hexCenter,
+  neuronArtwork,
+  structureArtwork,
+} from "../src/render/board.js";
+import { structureArt, NEURON_ART } from "../src/render/art.js";
 
 function world() {
   return createMatch(
@@ -46,6 +50,33 @@ test("tower identities are distinct across the shared presentation contract", ()
   );
   assert.equal(structureArt("brain"), "brain-v3");
   assert.equal(structureArt("neuron"), "neuron-v3");
+});
+
+test("neuron anatomy varies with location and remains identical across ghost, world and portrait", () => {
+  const sprites = Object.fromEntries(
+    NEURON_ART.map((name) => [name, `/${name}.png`]),
+  );
+  const used = new Set<string>();
+  for (let cell = 0; cell < 40; cell++) {
+    const name = structureArt("neuron", cell);
+    used.add(name);
+    const worldArt = neuronArtwork(12, cell, 0, sprites);
+    const ghostArt = structureArtwork(12, cell, "neuron", 0, sprites);
+    assert.equal(ghostArt, worldArt);
+    assert.ok(
+      worldArt.includes(`href="/${name}.png"`),
+      "rendered body matches the portrait resolver",
+    );
+    assert.ok(
+      neuronArtwork(12, cell, 1, sprites).includes(`href="/${name}.png"`),
+      "team tint does not change anatomy",
+    );
+  }
+  assert.deepEqual(
+    [...used].sort(),
+    [...NEURON_ART].sort(),
+    "uses genuinely different sprite files, not just transformed copies",
+  );
 });
 
 test("audio cues follow resolved events once, remain bounded and ignore rollback bursts", () => {

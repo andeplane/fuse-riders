@@ -19,3 +19,9 @@ Independent review found that suspending audio on mute preserved scheduled voice
 ## Limits
 
 Phone evidence is browser emulation, not physical hardware. The reference art quality remains a user-facing acceptance question; test success is not proof of visual equivalence. No production deployment or merge is included.
+
+## Anatomy and selection follow-up
+
+The follow-up replaces rotation-only neuron variation with three distinct illustrated anatomies, shared by live units, ghosts and portraits. It also fixes clicking a tall building's upper body selecting the terrain behind it. Placement still targets terrain. Independent review found no actionable regression.
+
+Full suite: **1,682 passed**. Typecheck/build, focused lint and 21 focused presentation/UI tests passed. Chromium and WebKit passed the body-versus-ground pointer regression, all three image forms in the live combat lab, and normal-time expansion/supply/reduced-motion checks at desktop and phone sizes. [Assets and exact prompts](../art/NEURON_FORMS.md).

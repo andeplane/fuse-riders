@@ -28,6 +28,31 @@ for (const [name, browserType] of [
     await page.locator('[data-action="new-game"]').click();
     await page.locator('[data-action="mode-sandbox"]').click();
     await page.locator('[data-action="start"]').click();
+    // The brain projects above its base hex. Selection should pick the body;
+    // placement at the same point should still pick the ground behind it.
+    const head = await page
+      .locator(".structure-brain .building-art image")
+      .first()
+      .evaluate((node) => {
+        const image = node as SVGImageElement;
+        const x =
+          Number(image.getAttribute("x")) +
+          Number(image.getAttribute("width")) / 2;
+        const y =
+          Number(image.getAttribute("y")) +
+          Number(image.getAttribute("height")) * 0.18;
+        const point = new DOMPoint(x, y).matrixTransform(image.getScreenCTM()!);
+        return { x: point.x, y: point.y };
+      });
+    await page.mouse.click(head.x, head.y);
+    assert.match(await page.locator(".tile-heading").innerText(), /brain/i);
+    await page.keyboard.press("w");
+    await page.keyboard.press("q");
+    await page.mouse.move(head.x + 1, head.y);
+    await page.locator('.placement-preview[data-valid="true"]').waitFor();
+    await page.keyboard.press("Escape");
+    // Restore the brain context before the terrain checks below.
+    await page.mouse.click(head.x, head.y);
     const cells = await page
       .locator("#nd-board .terrain-layer .hex")
       .evaluateAll((tiles) =>
@@ -97,8 +122,25 @@ for (const [name, browserType] of [
       "minimap moves camera",
     );
     assert.deepEqual(errors, []);
+    await page.goto(url);
+    await page.locator('[data-action="new-game"]').click();
+    await page.locator('[data-action="mode-combat-lab"]').click();
+    await page.locator('[data-action="start"]').click();
+    const anatomies = await page
+      .locator("#nd-board .neuron-body image")
+      .evaluateAll((images) => [
+        ...new Set(images.map((node) => node.getAttribute("href"))),
+      ]);
+    assert.equal(
+      anatomies.length,
+      3,
+      "live network shows three different neuron anatomies",
+    );
+    await page.screenshot({ path: `/tmp/neural-anatomy-${name}-desktop.png` });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.screenshot({ path: `/tmp/neural-anatomy-${name}-phone.png` });
     console.log(
-      `${name}: terrain matches map data, visible rock rejects placement, minimap pans`,
+      `${name}: raised body selection, ground placement, terrain rejection and minimap navigation passed`,
     );
   } finally {
     await browser.close();

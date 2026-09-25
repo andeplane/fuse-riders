@@ -931,6 +931,14 @@ select {
 .structure.disconnected {
   opacity: 0.4;
 }
+.structure-hit {
+  fill: transparent;
+  pointer-events: all;
+  cursor: pointer;
+}
+.is-placing .structure-layer * {
+  pointer-events: none;
+}
 .supply-orbit {
   pointer-events: none;
 }

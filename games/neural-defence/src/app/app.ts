@@ -390,7 +390,7 @@ export function mountNeuralDefence(
     const sprite = (name: string) =>
       dependencies.sprites?.[`${name}-v2`] ?? dependencies.sprites?.[name];
     const portrait = structure
-      ? sprite(structureArt(structure.kind))
+      ? sprite(structureArt(structure.kind, structure.cell))
       : cell?.terrain === "deposit"
         ? sprite(`deposit-${cell.resourceKind}`)
         : sprite(
