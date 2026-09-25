@@ -69,16 +69,18 @@ export function parseSettings(x: unknown): NeuralSettings | undefined {
 const name = (s: string) => s.trim().slice(0, 32) || undefined;
 const avatar = (x: unknown): x is string => x === "brain";
 function roomHash(room: NeuralRoom): string {
-  const encoded = JSON.stringify({
-    tick: room.tick,
-    matchId: room.matchId,
-    stage: room.stage,
-    settings: room.settings,
-    seats: [...room.seats.values()].sort((a, b) =>
-      a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
-    ),
-    world: encodeState(room.world),
-  });
+  const encoded = JSON.stringify(
+    canonical({
+      tick: room.tick,
+      matchId: room.matchId,
+      stage: room.stage,
+      settings: room.settings,
+      seats: [...room.seats.values()].sort((a, b) =>
+        a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+      ),
+      world: encodeState(room.world),
+    }),
+  );
   let hash = 0xcbf29ce484222325n;
   for (let i = 0; i < encoded.length; i++)
     hash = BigInt.asUintN(
@@ -86,6 +88,16 @@ function roomHash(room: NeuralRoom): string {
       (hash ^ BigInt(encoded.charCodeAt(i))) * 0x100000001b3n,
     );
   return hash.toString(16).padStart(16, "0");
+}
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (record(value))
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([key, item]) => [key, canonical(item)]),
+    );
+  return value;
 }
 export function isEntry(x: unknown): x is NeuralEntry {
   return (
@@ -117,24 +129,54 @@ function start(room: NeuralRoom, matchId: string) {
   const players = [...room.seats.values()]
     .filter((s) => s.connected && !s.watcher)
     .sort((a, b) => a.slot - b.slot);
-  if (!players.length) return;
-  room.matchId = matchId;
-  const roster = players.map((p, i) => ({
-    id: p.id,
-    slot: players.length === 1 ? room.settings.slot : i,
-  }));
-  if (room.settings.mode === "combat-lab" && roster.length === 1) {
-    const spawn = room.settings.map.spawns.find(
-      (s) => s.slot !== roster[0]!.slot,
-    );
-    if (spawn) roster.push({ id: "lab-opponent", slot: spawn.slot });
-  }
-  room.world = createMatch(
-    room.settings.map,
-    { ...room.settings.engine, matchId },
-    roster,
+  if (
+    !players.length ||
+    (room.settings.mode === "combat-lab" &&
+      (players.length !== 1 || players[0]!.bot))
+  )
+    return;
+  const spawnSlots = new Set(
+    room.settings.map.spawns.map((spawn) => spawn.slot),
   );
-  if (room.settings.mode === "combat-lab") prepareCombatLab(room.world);
+  const roster = players.map((p) => ({
+    id: p.id,
+    slot: players.length === 1 ? room.settings.slot : p.slot,
+  }));
+  if (roster.some((player) => !spawnSlots.has(player.slot))) return;
+  if (room.settings.mode === "combat-lab" && room.seats.has("lab-opponent"))
+    return;
+  let world: World | undefined;
+  try {
+    if (room.settings.mode === "sandbox") {
+      world = createMatch(
+        room.settings.map,
+        { ...room.settings.engine, matchId },
+        roster,
+      );
+    } else {
+      for (const spawn of room.settings.map.spawns) {
+        if (spawn.slot === roster[0]!.slot) continue;
+        const candidate = createMatch(
+          room.settings.map,
+          { ...room.settings.engine, matchId },
+          [...roster, { id: "lab-opponent", slot: spawn.slot }],
+        );
+        prepareCombatLab(candidate);
+        if (
+          candidate.structures.filter((structure) => structure.kind === "tower")
+            .length === 1
+        ) {
+          world = candidate;
+          break;
+        }
+      }
+    }
+  } catch {
+    return;
+  }
+  if (!world) return;
+  room.matchId = matchId;
+  room.world = world;
   room.stage = "running";
 }
 export const neuralGame: RollbackGame<
@@ -229,8 +271,10 @@ export const neuralGame: RollbackGame<
         const raw: unknown = JSON.parse(fields[0]);
         if (
           !record(raw) ||
+          !uint32(raw.tick) ||
           raw.tick !== tick ||
           typeof raw.matchId !== "string" ||
+          raw.matchId.length > 128 ||
           !["lobby", "running", "over"].includes(String(raw.stage)) ||
           !Array.isArray(raw.seats) ||
           raw.seats.length > 8 ||
@@ -258,7 +302,12 @@ export const neuralGame: RollbackGame<
             return;
           if (s.watcher !== undefined && typeof s.watcher !== "boolean") return;
           if (s.away !== undefined && typeof s.away !== "boolean") return;
-          if (s.avatarId !== undefined && !avatar(s.avatarId)) return;
+          if (s.watcher === true ? s.avatarId !== "" : !avatar(s.avatarId))
+            return;
+          if (s.bot ? s.generation !== undefined : !uint32(s.generation))
+            return;
+          if (s.watcher === true && s.bot) return;
+          if (s.away === true && s.connected) return;
           if (
             s.watcher
               ? s.slot !== -1
@@ -274,7 +323,7 @@ export const neuralGame: RollbackGame<
             slot: Number(s.slot),
             connected: s.connected,
             bot: s.bot,
-            avatarId: "brain",
+            avatarId: s.watcher === true ? "" : "brain",
             ...(s.watcher === true ? { watcher: true } : {}),
             ...(s.away === true ? { away: true } : {}),
             ...(typeof s.generation === "number"
@@ -283,7 +332,45 @@ export const neuralGame: RollbackGame<
           });
         }
         const world = decodeState(raw.world);
-        if (world.matchId !== raw.matchId) return;
+        if (
+          world.matchId !== raw.matchId ||
+          world.tick > tick ||
+          JSON.stringify(canonical(world.map)) !==
+            JSON.stringify(canonical(settings.map)) ||
+          JSON.stringify(canonical(world.settings)) !==
+            JSON.stringify(
+              canonical({ ...settings.engine, matchId: raw.matchId }),
+            ) ||
+          (raw.stage === "lobby" && (world.tick !== 0 || world.finished)) ||
+          (raw.stage === "running" && world.finished) ||
+          (raw.stage === "over" && !world.finished)
+        )
+          return;
+        if (raw.stage !== "lobby") {
+          const participants = world.players.filter(
+            (p) => p.id !== "lab-opponent",
+          );
+          if (
+            participants.length === 0 ||
+            participants.some((p) => {
+              const seat = seats.get(p.id);
+              return (
+                !seat ||
+                seat.watcher ||
+                (participants.length === 1
+                  ? p.slot !== settings.slot
+                  : seat.slot !== p.slot)
+              );
+            }) ||
+            (settings.mode === "combat-lab" &&
+              (participants.length !== 1 ||
+                world.players.length !== 2 ||
+                !world.players.some((p) => p.id === "lab-opponent"))) ||
+            (settings.mode === "sandbox" &&
+              world.players.some((p) => p.id === "lab-opponent"))
+          )
+            return;
+        }
         return {
           tick,
           matchId: raw.matchId,

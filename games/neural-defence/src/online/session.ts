@@ -59,6 +59,7 @@ export function createSession(
   };
   start();
   return {
+    localPlayerId: "solo",
     view: () => view,
     dispatch: (action) => {
       if (!disposed) runtime.dispatch(action);
