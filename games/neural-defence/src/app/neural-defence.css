@@ -394,8 +394,7 @@ select {
   pointer-events: none;
 }
 .battle-topbar,
-.command-dock,
-.hud-popover {
+.command-dock {
   position: absolute;
   pointer-events: auto;
   background: #071020ed;
@@ -457,6 +456,7 @@ select {
   text-overflow: ellipsis;
 }
 .command-card {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, var(--command-size));
   grid-template-rows: repeat(2, var(--command-size));
@@ -499,9 +499,83 @@ select {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.command-button:disabled {
+.command-button[aria-disabled="true"] {
   filter: grayscale(0.8);
   opacity: 0.42;
+}
+.command-tooltip {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  z-index: 5;
+  width: min(290px, calc(100vw - 24px));
+  padding: 12px;
+  border: 1px solid #54798d;
+  border-radius: 4px;
+  background: #071320f5;
+  box-shadow: 0 5px 20px #0009;
+  color: var(--fui-text);
+  font-size: 11px;
+  line-height: 1.5;
+  pointer-events: auto;
+  max-height: calc(100dvh - var(--dock-height) - 64px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+.command-tooltip strong {
+  color: var(--fui-cyan);
+}
+.command-tooltip ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  color: var(--fui-yellow);
+}
+.command-slot:focus-within .command-tooltip {
+  display: block;
+}
+@media (hover: hover) {
+  .command-slot:hover .command-tooltip {
+    display: block;
+  }
+  .command-card:has(.command-slot:hover)
+    .command-slot:not(:hover)
+    .command-tooltip {
+    display: none;
+  }
+}
+.nd-app .command-button.is-building {
+  opacity: 1;
+  filter: none;
+  border-color: var(--fui-cyan);
+}
+.command-progress {
+  position: absolute;
+  inset: 2px;
+  z-index: 2;
+  pointer-events: none;
+  background: conic-gradient(
+    transparent 0deg var(--progress-angle),
+    #020814c9 var(--progress-angle) 360deg
+  );
+  border-radius: 2px;
+}
+.command-progress > span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 10px;
+  text-shadow:
+    0 1px 3px #000,
+    0 0 4px #000;
+}
+.command-button.is-building kbd,
+.command-button.is-building .command-label,
+.command-button.is-building .command-cost {
+  z-index: 3;
 }
 .command-button kbd {
   position: absolute;
@@ -529,11 +603,6 @@ select {
   text-align: center;
   text-shadow: 0 1px 3px #000;
 }
-.research-option kbd {
-  float: right;
-  color: var(--fui-yellow);
-  font: 10px var(--fui-font-body);
-}
 .nd-app .game-sidebar button {
   min-height: 32px;
   padding: 0.4rem 0.65rem;
@@ -541,10 +610,22 @@ select {
   border-radius: 4px;
   margin: 0;
 }
-.nd-app .command-card button[aria-expanded="true"] {
+.command-empty {
+  border: 1px solid #233b4b;
+  border-radius: 4px;
+  background: #050c1580;
+}
+.command-context {
+  max-height: calc(var(--dock-height) - 24px);
+  overflow: auto;
+  font-size: 11px;
+  color: var(--fui-text-muted);
+}
+.command-context strong {
   color: var(--fui-cyan);
-  border-color: var(--fui-cyan);
-  background: #16e7ff16;
+}
+.command-context small {
+  font-size: 9px;
 }
 .inspector {
   flex: 1;
@@ -625,40 +706,11 @@ select {
   font-size: 11px;
   line-height: 1.8;
 }
-.research-option {
-  width: 100%;
-  display: grid;
-  gap: 0.4rem;
-  text-align: left;
-  margin: 0.6rem 0;
-}
-.research-option span {
-  color: var(--fui-text-muted);
-  font-size: 10px;
-  line-height: 1.6;
-}
 .session-controls {
   margin-left: auto;
   display: flex;
   gap: 0.5rem;
   flex-shrink: 0;
-}
-.hud-popover {
-  bottom: calc(var(--dock-height) + 8px);
-  right: 12px;
-  width: min(360px, calc(100vw - 24px));
-  max-height: calc(100dvh - var(--dock-height) - var(--topbar-height) - 24px);
-  overflow: auto;
-  padding: 14px;
-  box-shadow: 0 8px 32px #0009;
-}
-.popover-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  color: var(--fui-cyan);
-  font-size: 12px;
 }
 .nd-modal-backdrop {
   position: fixed;

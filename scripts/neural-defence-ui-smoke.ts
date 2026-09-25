@@ -22,6 +22,25 @@ async function view(page: Page) {
     .map(Number);
 }
 
+async function zoomOut(page: Page) {
+  for (let i = 0; i < 8; i++)
+    await page.locator("#nd-viewport").dispatchEvent("wheel", {
+      deltaY: 3000,
+      clientX: 150,
+      clientY: 150,
+    });
+}
+
+async function cancelled(page: Page, value: boolean) {
+  await page.waitForFunction(
+    (disabled) =>
+      document
+        .querySelector('[data-action="cancel-build"]')
+        ?.getAttribute("aria-disabled") === String(disabled),
+    value,
+  );
+}
+
 async function geometry(page: Page) {
   const size = page.viewportSize()!;
   const board = (await page.locator("#nd-viewport").boundingBox())!;
@@ -39,12 +58,13 @@ async function geometry(page: Page) {
   assert.ok(dock.y + dock.height <= size.height + 1);
   assert.equal(
     await page
-      .locator('[data-action="zoom-in"], [data-action="zoom-out"]')
+      .locator(
+        '[data-action="zoom-in"], [data-action="zoom-out"], [data-action="zoom-fit"]',
+      )
       .count(),
     0,
   );
-  assert.ok(await page.locator(".research-panel").isHidden());
-  assert.ok(await page.locator(".activity-panel").isHidden());
+  assert.equal(await page.locator(".hud-popover").count(), 0);
   assert.equal(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -80,7 +100,7 @@ for (const [name, engine] of [
     await geometry(desktop);
     assert.deepEqual(
       await desktop.locator(".command-card kbd").allTextContents(),
-      ["N", "T", "R", "X", "L", "F"],
+      ["Q", "W", "E", "A"],
     );
     await desktop.screenshot({ path: `${output}/${name}-desktop.png` });
     const initial = await view(desktop);
@@ -116,11 +136,24 @@ for (const [name, engine] of [
       "cancel menu must preserve camera",
     );
     await desktop.locator("#nd-board").focus();
-    await desktop.keyboard.press("r");
-    assert.ok(await desktop.locator(".research-panel").isVisible());
+    await desktop.keyboard.press("w");
+    await desktop.locator('.command-card[data-panel="research"]').waitFor();
+    assert.deepEqual(
+      await desktop.locator(".command-card kbd").allTextContents(),
+      ["Q", "W", "E", "A", "S"],
+    );
+    await desktop.locator('[data-action="research-growth"]').hover();
+    await desktop
+      .locator("#help-research-growth")
+      .waitFor({ state: "visible" });
+    assert.match(
+      await desktop.locator("#help-research-growth").innerText(),
+      /more insight/,
+    );
+    await desktop.screenshot({ path: `${output}/${name}-research.png` });
     await desktop.keyboard.press("Escape");
-    assert.ok(await desktop.locator(".research-panel").isHidden());
-    await desktop.locator('[data-action="zoom-fit"]').click();
+    await desktop.locator('.command-card[data-panel="inspect"]').waitFor();
+    await zoomOut(desktop);
     await desktop.waitForFunction(
       (width) =>
         Number(
@@ -159,41 +192,30 @@ for (const [name, engine] of [
       (await view(desktop))[2]! < fitted[2]! * 0.95,
       "line-mode wheel must zoom meaningfully",
     );
-    await desktop.locator('[data-action="zoom-fit"]').click();
+    await zoomOut(desktop);
     await desktop.screenshot({ path: `${output}/${name}-fit.png` });
     await desktop.locator('.terrain-layer [data-cell="14"]').click();
-    await desktop.keyboard.press("n");
+    await desktop.keyboard.press("q");
+    await desktop.keyboard.press("q");
+    await cancelled(desktop, false);
     await desktop.waitForFunction(
       () =>
-        !document.querySelector<HTMLButtonElement>(
-          '[data-action="cancel-build"]',
-        )!.disabled,
+        Number(
+          document
+            .querySelector('[data-action="build-neuron"] [role="progressbar"]')
+            ?.getAttribute("aria-valuenow"),
+        ) > 0,
     );
-    await desktop.keyboard.press("x");
-    await desktop.waitForFunction(
-      () =>
-        document.querySelector<HTMLButtonElement>(
-          '[data-action="cancel-build"]',
-        )!.disabled,
-    );
-    await desktop.keyboard.press("t");
-    await desktop.waitForFunction(
-      () =>
-        !document.querySelector<HTMLButtonElement>(
-          '[data-action="cancel-build"]',
-        )!.disabled,
-    );
-    await desktop.keyboard.press("x");
-    await desktop.waitForFunction(
-      () =>
-        document.querySelector<HTMLButtonElement>(
-          '[data-action="cancel-build"]',
-        )!.disabled,
-    );
-    await desktop.keyboard.press("l");
-    await desktop.locator(".activity-panel").waitFor({ state: "visible" });
-    await desktop.keyboard.press("Escape");
-    await desktop.keyboard.press("f");
+    await desktop.keyboard.press("s");
+    await cancelled(desktop, true);
+    await desktop.keyboard.press("w");
+    await cancelled(desktop, false);
+    await desktop.keyboard.press("s");
+    await cancelled(desktop, true);
+    await desktop.keyboard.press("a");
+    await desktop.keyboard.press("e");
+    await desktop.locator('.command-card[data-panel="activity"]').waitFor();
+    await desktop.keyboard.press("a");
 
     const context = await browser.newContext({
       viewport: { width: 390, height: 844 },
@@ -253,31 +275,79 @@ for (const [name, engine] of [
         "touch gestures must not select",
       );
     }
-    await phone.locator('[data-action="zoom-fit"]').tap();
+    await zoomOut(phone);
     await phone.locator('[data-action="panel-research"]').tap();
-    assert.ok(await phone.locator(".research-panel").isVisible());
+    await phone.locator('.command-card[data-panel="research"]').waitFor();
+    await geometry(phone);
+    const grey = (await phone
+      .locator('[data-action="research-growth"]')
+      .boundingBox())!;
+    await phone.touchscreen.tap(
+      grey.x + grey.width / 2,
+      grey.y + grey.height / 2,
+    );
+    await phone.locator("#help-research-growth").waitFor({ state: "visible" });
+    assert.match(
+      await phone.locator("#help-research-growth").innerText(),
+      /more insight/,
+    );
+    await phone.screenshot({ path: `${output}/${name}-phone-research.png` });
     await phone
       .locator('[data-action="close-panel"]')
       .filter({ visible: true })
       .tap();
     await geometry(phone);
     await phone.locator('.terrain-layer [data-cell="14"]').tap();
+    await phone.locator('[data-action="panel-build"]').tap();
     await phone
       .locator('[data-action="build-neuron"]')
       .waitFor({ state: "visible" });
     await geometry(phone);
     await phone.locator('[data-action="build-neuron"]').tap();
+    await cancelled(phone, false);
     await phone.waitForFunction(
       () =>
-        !document.querySelector<HTMLButtonElement>(
-          '[data-action="cancel-build"]',
-        )!.disabled,
+        Number(
+          document
+            .querySelector('[data-action="build-neuron"] [role="progressbar"]')
+            ?.getAttribute("aria-valuenow"),
+        ) > 0,
     );
     await phone.screenshot({ path: `${output}/${name}-build.png` });
     await phone.setViewportSize({ width: 568, height: 320 });
-    await phone.locator('[data-action="zoom-fit"]').tap();
+    await zoomOut(phone);
     await geometry(phone);
     await phone.screenshot({ path: `${output}/${name}-landscape.png` });
+    await phone.locator('.terrain-layer [data-cell="26"]').tap();
+    await phone.locator('[data-action="build-tower"]').focus();
+    const tooltip = phone.locator("#help-build-tower");
+    await tooltip.waitFor({ state: "visible" });
+    assert.match(await tooltip.innerText(), /connected friendly neighbors/);
+    assert.equal(
+      await tooltip.evaluate((el) => el.scrollHeight > el.clientHeight),
+      true,
+      "long landscape explanations should scroll",
+    );
+    const helpBox = (await tooltip.boundingBox())!;
+    const beforeHelpScroll = await view(phone);
+    await phone.mouse.move(
+      helpBox.x + helpBox.width / 2,
+      helpBox.y + helpBox.height / 2,
+    );
+    // Playwright mobile WebKit cannot synthesize wheel or swipe scrolling.
+    // Chromium checks actual scroll routing; both check the scrollable layout.
+    if (name === "chromium") {
+      await phone.mouse.wheel(0, 180);
+      await phone.waitForFunction(
+        () => document.querySelector("#help-build-tower")!.scrollTop > 0,
+      );
+    }
+    assert.deepEqual(
+      await view(phone),
+      beforeHelpScroll,
+      "scrolling requirements must not zoom the map",
+    );
+    await phone.screenshot({ path: `${output}/${name}-landscape-help.png` });
     assert.deepEqual(errors, []);
     console.log(
       `${name}: full-width HUD, wheel zoom, drag, modal, panels, phone layout and landscape passed${name === "chromium" ? "; trusted pinch/pan passed" : ""}`,

@@ -16,7 +16,6 @@ export interface Insets {
 }
 export interface BoardCamera {
   dispose(): void;
-  fit(): void;
   focusCell(width: number, cell: number): void;
   ensureCellVisible(width: number, cell: number): void;
   refresh(): void;
@@ -335,10 +334,6 @@ export function createCameraFactory(
     refresh();
     return {
       refresh,
-      fit() {
-        model.fit();
-        refresh();
-      },
       focusCell(width, cell) {
         model.focus(hexCenter(width, cell));
         refresh();

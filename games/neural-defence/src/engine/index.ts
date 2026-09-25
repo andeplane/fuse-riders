@@ -1,5 +1,16 @@
 import { loadMap, neighbors } from "./map.ts";
 import {
+  CONSTRUCTIONS,
+  RESEARCH,
+  constructionQueueAvailability,
+  constructionDispatchAvailability,
+  constructionDuration,
+  constructionDurations,
+  researchAvailability,
+  isBuildKind,
+  isResearchKind,
+} from "./catalog.js";
+import {
   RULES,
   type Action,
   type Command,
@@ -172,12 +183,6 @@ function path(w: World, p: Player, from: number, to: number): number[] | null {
   }
   return null;
 }
-function occupied(w: World, cell: number) {
-  return (
-    !!structure(w, cell) ||
-    w.players.some((p) => p.queue.some((j) => j.cell === cell && j.paid))
-  );
-}
 export function isAction(raw: unknown): raw is Action {
   const a = raw as Action;
   if (!a || typeof a !== "object") return false;
@@ -195,13 +200,13 @@ export function isAction(raw: unknown): raw is Action {
     return false;
   switch (a.type) {
     case "queueConstruction":
-      return integer(a.cell) && ["neuron", "tower"].includes(a.kind);
+      return integer(a.cell) && isBuildKind(a.kind);
     case "cancelConstruction":
       return integer(a.cell);
     case "setPriority":
       return integer(a.cell) && integer(a.weight, 0, 3);
     case "startResearch":
-      return ["growth", "excitation", "conduction"].includes(a.research);
+      return isResearchKind(a.research);
     case "cancelResearch":
       return true;
     default:
@@ -228,12 +233,7 @@ function apply(w: World, c: Command) {
   }
   const a = c.action;
   if (a.type === "queueConstruction") {
-    if (
-      w.map.cells[a.cell]?.terrain !== "open" ||
-      occupied(w, a.cell) ||
-      p.queue.some((j) => j.cell === a.cell) ||
-      p.queue.length >= RULES.queueLimit
-    ) {
+    if (!constructionQueueAvailability(w, p, a.kind, a.cell).allowed) {
       reject("invalid construction cell or full queue");
       return;
     }
@@ -276,22 +276,19 @@ function apply(w: World, c: Command) {
     }
     p.priorities[String(a.cell)] = a.weight;
   } else if (a.type === "startResearch") {
-    if (
-      p.researchJob ||
-      p.research.includes(a.research) ||
-      p.insight < RULES.researchCost
-    ) {
+    if (!researchAvailability(p, a.research).allowed) {
       reject("research unavailable");
       return;
     }
-    p.insight -= RULES.researchCost;
+    const definition = RESEARCH[a.research];
+    p.insight -= definition.cost;
     p.researchJob = {
       kind: a.research,
       completesAt:
-        w.tick + (w.settings.instantResearch ? 0 : RULES.researchTicks),
+        w.tick + (w.settings.instantResearch ? 0 : definition.duration),
     };
     emit(w, p, "researchStarted", {
-      amount: RULES.researchCost,
+      amount: definition.cost,
       resource: "insight",
     });
   } else if (a.type === "cancelResearch") {
@@ -388,22 +385,7 @@ function dispatchConstruction(w: World, ready: Player[]) {
     .flatMap((p) => {
       if (p.worker.mode !== "idle" || p.queue.some((j) => j.paid)) return [];
       const job = p.queue.find(
-        (j) =>
-          !j.paid &&
-          !occupied(w, j.cell) &&
-          neighbors(w.map, j.cell).some(
-            (c) =>
-              structure(w, c)?.ownerId === p.id && structure(w, c)?.connected,
-          ) &&
-          (j.kind !== "tower" ||
-            (neighbors(w.map, j.cell).length === 6 &&
-              neighbors(w.map, j.cell).every(
-                (c) =>
-                  structure(w, c)?.ownerId === p.id &&
-                  structure(w, c)?.connected,
-              ))) &&
-          p.biomass >=
-            (j.kind === "tower" ? RULES.towerCost : RULES.neuronCost),
+        (j) => !j.paid && constructionDispatchAvailability(w, p, j).allowed,
       );
       return job ? [{ p, job }] : [];
     })
@@ -412,16 +394,10 @@ function dispatchConstruction(w: World, ready: Player[]) {
   for (const { p, job } of claims) {
     if (claimed.has(job.cell)) continue;
     claimed.add(job.cell);
-    const cost = job.kind === "tower" ? RULES.towerCost : RULES.neuronCost;
+    const cost = CONSTRUCTIONS[job.kind].cost;
     p.biomass -= cost;
     job.paid = true;
-    job.duration = w.settings.instantConstruction
-      ? 0
-      : job.kind === "tower"
-        ? RULES.towerConstructionTicks
-        : p.research.includes("growth")
-          ? 80
-          : RULES.constructionTicks;
+    job.duration = constructionDuration(w, p, job.kind);
     p.worker.mode = "outbound";
     emit(w, p, "dispatched", {
       cell: job.cell,
@@ -839,7 +815,7 @@ export function decodeState(raw: unknown): World {
       !integer(s.cell, 0, w.map.cells.length - 1) ||
       w.map.cells[s.cell]?.terrain !== "open" ||
       occupied.has(s.cell) ||
-      !["brain", "neuron", "tower"].includes(s.kind) ||
+      (s.kind !== "brain" && !isBuildKind(s.kind)) ||
       !integer(s.hp, 1, hp(s.kind)) ||
       typeof s.connected !== "boolean" ||
       (s.firingCursor !== undefined && !integer(s.firingCursor))
@@ -855,11 +831,9 @@ export function decodeState(raw: unknown): World {
       !integer(p.insight, 0, RULES.bankCap) ||
       !integer(p.sequence, -1) ||
       !Array.isArray(p.queue) ||
-      p.queue.length > 32 ||
+      p.queue.length > RULES.queueLimit ||
       !Array.isArray(p.research) ||
-      p.research.some(
-        (r) => !["growth", "excitation", "conduction"].includes(r),
-      ) ||
+      p.research.some((r) => !isResearchKind(r)) ||
       new Set(p.research).size !== p.research.length ||
       !record(p.worker) ||
       !["idle", "outbound", "building", "returning", "recovering"].includes(
@@ -898,12 +872,12 @@ export function decodeState(raw: unknown): World {
     if (
       p.researchJob !== null &&
       (!record(p.researchJob) ||
-        !["growth", "excitation", "conduction"].includes(p.researchJob.kind) ||
+        !isResearchKind(p.researchJob.kind) ||
         p.research.includes(p.researchJob.kind) ||
         !integer(
           p.researchJob.completesAt,
           w.tick + 1,
-          w.tick + RULES.researchTicks,
+          w.tick + RESEARCH[p.researchJob.kind].duration,
         ))
     )
       throw new Error("checkpoint: invalid research job");
@@ -912,20 +886,15 @@ export function decodeState(raw: unknown): World {
         !record(j) ||
         !integer(j.cell, 0, w.map.cells.length - 1) ||
         w.map.cells[j.cell]?.terrain !== "open" ||
-        !["neuron", "tower"].includes(j.kind) ||
+        !isBuildKind(j.kind) ||
         typeof j.paid !== "boolean" ||
         !integer(j.progress) ||
-        !integer(j.duration, 0, 240) ||
+        !integer(j.duration) ||
+        !constructionDurations(j.kind).includes(j.duration) ||
         !integer(j.hp, 1, 20) ||
         (!j.paid && (j.progress !== 0 || j.duration !== 0 || j.hp !== 20)) ||
         (j.paid &&
           (j.duration === 0 ? j.progress !== 0 : j.progress >= j.duration)) ||
-        (j.paid && ![0, 80, 120, 240].includes(j.duration)) ||
-        (j.paid &&
-          j.duration !== 0 &&
-          (j.kind === "tower"
-            ? j.duration !== RULES.towerConstructionTicks
-            : j.duration === RULES.towerConstructionTicks)) ||
         (j.paid && occupied.has(j.cell))
       )
         throw new Error("checkpoint: invalid construction");

@@ -5,6 +5,8 @@ import { mountNeuralDefence, type AppDependencies } from "../src/app/app.js";
 import { createAttractScene } from "../src/app/attract-scene.js";
 import type { MapRepository, MapSummary } from "../src/app/contracts.js";
 import type { Action, MatchSettings } from "../src/engine/types.js";
+import { RESEARCH, researchPrerequisites } from "../src/engine/catalog.js";
+import { requirementText } from "../src/app/command-card.js";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -161,10 +163,10 @@ function fixture(maps?: MapRepository) {
 test("command shortcuts respect selection, availability, research context and input focus", async () => {
   const f = fixture();
   await f.start();
-  f.press("n");
+  f.press("q");
+  f.press("q");
   assert.deepEqual(f.actions, [], "building is disabled on an occupied brain");
-  f.press("g");
-  assert.deepEqual(f.actions, [], "research keys require its open panel");
+  f.press("a");
   const local = f.world.players.find((p) => p.id === "coral")!;
   local.insight = 10_000;
   f.selectCell(
@@ -173,8 +175,19 @@ test("command shortcuts respect selection, availability, research context and in
     )!.cell,
   );
   f.publish();
-  f.press("r");
-  for (const key of ["g", "e", "c"]) f.press(key);
+  f.press("w", "#priority-slider");
+  assert.equal(
+    f.root.querySelector(".command-card")?.getAttribute("data-panel"),
+    "inspect",
+    "slider keys must not enter a submenu",
+  );
+  f.press("w");
+  assert.equal(
+    f.root.querySelector(".command-card")?.getAttribute("data-panel"),
+    "research",
+  );
+  assert.equal(f.root.querySelectorAll(".hud-popover").length, 0);
+  for (const key of ["q", "w", "e"]) f.press(key);
   assert.deepEqual(f.actions, [
     { type: "startResearch", research: "growth" },
     { type: "startResearch", research: "excitation" },
@@ -186,8 +199,7 @@ test("command shortcuts respect selection, availability, research context and in
     { altKey: true },
     { repeat: true },
   ])
-    f.press("g", "#nd-board", modifier);
-  f.press("g", "#priority-slider");
+    f.press("q", "#nd-board", modifier);
   assert.equal(
     f.actions.length,
     3,
@@ -195,15 +207,86 @@ test("command shortcuts respect selection, availability, research context and in
   );
   local.insight = 0;
   f.publish();
-  f.press("g");
+  f.press("q");
   assert.equal(
     f.actions.length,
     3,
     "unavailable research cannot be triggered by shortcut",
   );
   f.click("leave");
-  f.press("g");
+  f.press("q");
   assert.equal(f.actions.length, 3, "confirmation blocks gameplay shortcuts");
+  f.app.dispose();
+});
+
+test("unavailable commands explain live rule requirements without dispatching", async () => {
+  const f = fixture();
+  await f.start();
+  const player = f.world.players.find((p) => p.id === "coral")!;
+  player.insight = 0;
+  f.click("panel-research");
+  const button = f.root.querySelector<HTMLButtonElement>(
+    '[data-action="research-growth"]',
+  )!;
+  assert.equal(button.disabled, false, "grey commands remain focusable");
+  assert.equal(button.getAttribute("aria-disabled"), "true");
+  const help = () =>
+    f.root.querySelector("#help-research-growth")!.textContent!;
+  assert.match(help(), /Need 10.0 more insight/);
+  f.click("research-growth");
+  assert.deepEqual(f.actions, []);
+  player.insight = RESEARCH.growth.cost - 1500;
+  f.publish();
+  assert.match(help(), /Need 1.5 more insight/);
+  player.insight = RESEARCH.growth.cost;
+  f.publish();
+  assert.equal(button.getAttribute("aria-disabled"), "false");
+  f.click("research-growth");
+  assert.deepEqual(f.actions, [{ type: "startResearch", research: "growth" }]);
+  assert.deepEqual(
+    researchPrerequisites(player, ["growth"]).map(requirementText),
+    ["Research Growth first."],
+  );
+  player.research.push("growth");
+  assert.deepEqual(researchPrerequisites(player, ["growth"]), []);
+  f.publish();
+  assert.match(help(), /Growth is already researched/);
+  f.app.dispose();
+});
+
+test("command clock overlays follow authoritative construction and research progress", async () => {
+  const f = fixture();
+  await f.start();
+  const player = f.world.players.find((p) => p.id === "coral")!;
+  player.queue = [
+    {
+      cell: 0,
+      kind: "neuron",
+      paid: true,
+      progress: 30,
+      duration: 120,
+      hp: 20,
+    },
+  ];
+  player.researchJob = {
+    kind: "growth",
+    completesAt: f.world.tick + RESEARCH.growth.duration / 2,
+  };
+  f.publish();
+  const progress = (action: string) =>
+    f.root
+      .querySelector(`[data-action="${action}"] [role="progressbar"]`)
+      ?.getAttribute("aria-valuenow");
+  assert.equal(progress("panel-build"), "25");
+  assert.equal(progress("panel-research"), "50");
+  f.click("panel-build");
+  assert.equal(progress("build-neuron"), "25");
+  player.queue[0]!.progress = 90;
+  f.publish();
+  assert.equal(progress("build-neuron"), "75");
+  player.queue = [];
+  f.publish();
+  assert.equal(progress("build-neuron"), undefined);
   f.app.dispose();
 });
 
@@ -242,14 +325,14 @@ test("context tools remain reachable and stable during updates, using the local 
     f.root.querySelector(".resource-row")?.textContent?.includes("99.0"),
   );
   assert.equal(
-    f.root.querySelector(".research-panel")?.hasAttribute("hidden"),
-    true,
+    f.root.querySelector(".command-card")?.getAttribute("data-panel"),
+    "inspect",
   );
   f.click("panel-research");
   const research = f.root.querySelector('[data-action="research-growth"]');
   assert.equal(
-    f.root.querySelector(".research-panel")?.hasAttribute("hidden"),
-    false,
+    f.root.querySelector(".command-card")?.getAttribute("data-panel"),
+    "research",
   );
   f.world.tick++;
   f.publish();
@@ -258,13 +341,13 @@ test("context tools remain reachable and stable during updates, using the local 
     research,
   );
   assert.equal(
-    f.root.querySelector(".research-panel")?.hasAttribute("hidden"),
-    false,
+    f.root.querySelector(".command-card")?.getAttribute("data-panel"),
+    "research",
   );
-  f.click("panel-research");
+  f.press("a");
   assert.equal(
-    f.root.querySelector(".research-panel")?.hasAttribute("hidden"),
-    true,
+    f.root.querySelector(".command-card")?.getAttribute("data-panel"),
+    "inspect",
   );
   assert.equal(
     f.root.querySelector(".inspector")?.hasAttribute("hidden"),

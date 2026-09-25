@@ -1,9 +1,16 @@
 import type { Action, MapDefinition, World, Outcome } from "../engine/types.js";
-import { loadMap } from "../engine/index.js";
+import { loadMap, RULES } from "../engine/index.js";
 import { updateContent } from "./dom-update.js";
 import { createAttractScene } from "./attract-scene.js";
 import { renderBoard, type BoardAnimation } from "../render/board.js";
 import type { BoardCamera, CameraFactory } from "../render/camera.js";
+import { isBuildKind, isResearchKind } from "../engine/catalog.js";
+import {
+  renderCommands,
+  commandPageCount,
+  RESEARCH_PRESENTATION,
+  type CommandPanel,
+} from "./command-card.js";
 import type {
   GameMode,
   MapRepository,
@@ -32,32 +39,6 @@ function escape(value: unknown): string {
 
 function units(value: number): string {
   return (value / 1000).toFixed(1);
-}
-
-const commandSymbols: Record<string, string> = {
-  research:
-    '<path d="M10 3v7L5 20q-1 3 3 3h16q4 0 3-3l-5-10V3M8 3h16M8 17h16"/><path d="M12 13h2m4 7h2"/>',
-  log: '<path d="M7 3h18v26H7zM11 9h10M11 15h10M11 21h7"/>',
-  fit: '<path d="M3 12V3h9m8 0h9v9M3 20v9h9m8 0h9v-9"/><path d="m10 16 6-6 6 6-6 6z"/>',
-  cancel: '<path d="m7 7 18 18M25 7 7 25"/>',
-};
-
-function commandButton(options: {
-  action: string;
-  label: string;
-  shortcut: string;
-  description: string;
-  art?: string;
-  symbol?: string;
-  cost?: string;
-  disabled?: boolean;
-  expanded?: boolean;
-  controls?: string;
-}): string {
-  const art = options.art
-    ? `<img src="${escape(options.art)}" alt="" draggable="false">`
-    : `<svg viewBox="0 0 32 32" aria-hidden="true">${commandSymbols[options.symbol ?? "research"] ?? commandSymbols.research}</svg>`;
-  return `<button class="command-button" data-action="${options.action}" aria-label="${escape(options.label)}${options.cost ? ` · ${escape(options.cost)}` : ""}" aria-keyshortcuts="${options.shortcut}" title="${escape(options.description)} (${options.shortcut})" ${options.disabled ? "disabled" : ""}${options.expanded === undefined ? "" : ` aria-expanded="${options.expanded}" aria-controls="${options.controls}"`}><kbd>${options.shortcut}</kbd>${options.cost ? `<span class="command-cost">${options.cost}</span>` : ""}${art}<span class="command-label">${options.label}</span></button>`;
 }
 
 export interface AppDependencies {
@@ -100,7 +81,8 @@ export function mountNeuralDefence(
   let notices: Outcome[] = [];
   let noticeTick = -1;
   let noticeMatch = "";
-  let panel: "inspect" | "research" | "activity" = "inspect";
+  let panel: CommandPanel = "inspect";
+  let commandPage = 0;
   const attractScene = createAttractScene();
 
   function stopAnimation() {
@@ -348,7 +330,6 @@ export function mountNeuralDefence(
               p.mode === "transit",
           );
     const worker = player.worker;
-    const team = ["blue", "coral", "green", "gold"][player.slot] ?? "blue";
     const sprite = (name: string) =>
       dependencies.sprites?.[`${name}-v2`] ?? dependencies.sprites?.[name];
     const portrait = structure
@@ -370,79 +351,20 @@ export function mountNeuralDefence(
         ${cell?.terrain === "deposit" ? '<span title="Each connected friendly neighbor earns one sixth of this source. Several players may share it.">Expand alongside to mine.</span>' : ""}</div>
         ${owned ? `<div class="priority-control"><label class="field-label" for="priority-slider">Attack priority · ${priority}/3</label><input id="priority-slider" data-field="priority" type="range" min="0" max="3" step="1" value="${priority}"></div>` : ""}
         ${queued ? `<span class="construction-progress" title="Queued construction waits for support, builder and resources.">${queued.paid ? `Growing · ${queued.progress}/${queued.duration}` : "Queued"}</span>` : ""}`;
-    const researchNames: Record<string, string> = {
-      growth: "Growth efficiency",
-      excitation: "Excitation",
-      conduction: "Conduction",
-    };
-    const researchDescription: Record<string, string> = {
-      growth: "Faster future neuron construction",
-      excitation: "Stronger newly dispatched attack particles",
-      conduction: "Faster newly dispatched attack particles",
-    };
-    const research = Object.keys(researchNames)
-      .map(
-        (key) =>
-          `<button class="research-option" data-action="research-${key}" aria-keyshortcuts="${key === "growth" ? "G" : key === "excitation" ? "E" : "C"}" ${player.research.includes(key as (typeof player.research)[number]) || player.researchJob || player.insight < 10_000 || !player.alive ? "disabled" : ""}><strong>${researchNames[key]} <kbd>${key === "growth" ? "G" : key === "excitation" ? "E" : "C"}</kbd></strong><span>${researchDescription[key]} · 10 ◇</span></button>`,
-      )
-      .join("");
-    const canBuild =
-      !structure && cell?.terrain === "open" && !queued && player.alive;
-    const commands = [
-      commandButton({
-        action: "build-neuron",
-        label: "Neuron",
-        shortcut: "N",
-        cost: "20 ◈",
-        art: sprite(`neuron-${team}`),
-        description:
-          "Queue a neuron on the selected open hex. Needs a connected neighbor; waits for support and resources.",
-        disabled: !canBuild,
-      }),
-      commandButton({
-        action: "build-tower",
-        label: "Tower",
-        shortcut: "T",
-        cost: "60 ◈",
-        art: sprite("tower-experimental"),
-        description:
-          "Queue a test tower. Needs all six neighbors connected and owned; waits for support and resources.",
-        disabled: !canBuild,
-      }),
-      commandButton({
-        action: "panel-research",
-        label: "Research",
-        shortcut: "R",
-        symbol: "research",
-        description: "Research network upgrades",
-        expanded: panel === "research",
-        controls: "research-panel",
-      }),
-      commandButton({
-        action: "cancel-build",
-        label: "Cancel",
-        shortcut: "X",
-        symbol: "cancel",
-        description: "Cancel the selected construction",
-        disabled: !queued,
-      }),
-      commandButton({
-        action: "panel-activity",
-        label: "Log",
-        shortcut: "L",
-        symbol: "log",
-        description: "Recent network activity",
-        expanded: panel === "activity",
-        controls: "activity-panel",
-      }),
-      commandButton({
-        action: "zoom-fit",
-        label: "Fit map",
-        shortcut: "F",
-        symbol: "fit",
-        description: "Show the entire map",
-      }),
-    ].join("");
+    const researchNames = Object.fromEntries(
+      Object.entries(RESEARCH_PRESENTATION).map(([id, item]) => [
+        id,
+        item.label,
+      ]),
+    );
+    const commands = renderCommands(
+      world,
+      player,
+      selectedCell,
+      panel,
+      commandPage,
+      dependencies.sprites,
+    );
     const outcomes = notices
       .filter((item) => item.playerId === player.id)
       .slice(-3)
@@ -451,10 +373,14 @@ export function mountNeuralDefence(
           `<li>${escape(item.type)}${item.reason ? ` · ${escape(item.reason)}` : ""}${item.cell !== undefined ? ` at hex ${item.cell}` : ""}</li>`,
       )
       .join("");
+    const contextDetail =
+      panel === "inspect" || panel === "build"
+        ? `${detail}<span class="construction-summary">${player.queue.length}/${RULES.queueLimit} queued · builder ${escape(worker.mode)}</span>`
+        : panel === "research"
+          ? `<div class="command-context"><strong>Research</strong><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · researching` : "Choose an upgrade"}</p><small>${player.research.length ? `Complete: ${player.research.map((r) => researchNames[r]).join(", ")}` : "Hover or focus a command for its requirements."}</small></div>`
+          : `<div class="command-context"><strong>Recent activity</strong><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></div>`;
     return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div></div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls"><button data-action="reset" class="secondary">Reset</button><button data-action="leave" class="secondary">Menu</button></div></div>
-      <div class="command-dock"><section class="inspector" aria-label="Selected hex">${portrait ? `<div class="selection-portrait"><img src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${detail}<span class="construction-summary" title="${escape(player.queue.map((q) => `Hex ${q.cell} · ${q.kind}${q.paid ? " · building" : " · waiting"}`).join("\n"))}">${player.queue.length}/32 queued · builder ${escape(worker.mode)}</span></div></section><nav class="command-card" aria-label="Commands">${commands}</nav></div>
-      <section id="research-panel" class="nd-panel hud-popover research-panel" aria-label="Research" ${panel !== "research" ? "hidden" : ""}><div class="popover-heading"><strong>Research</strong><button data-action="close-panel" aria-label="Close research">×</button></div><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · ends tick ${player.researchJob.completesAt}` : "Choose an upgrade for your network."}${player.research.length ? ` · completed: ${player.research.map((r) => researchNames[r]).join(", ")}` : ""}</p>${player.researchJob ? '<button data-action="cancel-research" class="secondary">Cancel research</button>' : research}</section>
-      <section id="activity-panel" class="nd-panel hud-popover activity-panel" aria-label="Recent activity" ${panel !== "activity" ? "hidden" : ""}><div class="popover-heading"><strong>Recent activity</strong><button data-action="close-panel" aria-label="Close activity">×</button></div><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></section>`;
+      <div class="command-dock"><section class="inspector" aria-label="${panel === "inspect" || panel === "build" ? "Selected hex" : panel === "research" ? "Research" : "Recent activity"}">${portrait ? `<div class="selection-portrait"><img src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${contextDetail}</div></section><nav class="command-card" data-panel="${panel}" aria-label="${panel === "research" ? "Research commands" : panel === "build" ? "Build commands" : panel === "activity" ? "Activity commands" : "Commands"}">${commands}</nav></div>`;
   }
 
   function renderGame() {
@@ -577,24 +503,35 @@ export function mountNeuralDefence(
   function closePanel() {
     const previous = panel;
     panel = "inspect";
+    commandPage = 0;
     renderGame();
     root
       .querySelector<HTMLButtonElement>(`[data-action="panel-${previous}"]`)
-      ?.focus();
+      ?.focus?.();
   }
 
   function onClick(event: MouseEvent) {
     const target = event.target as Element;
     const button = target.closest<HTMLElement>("[data-action]");
+    if (button?.getAttribute("aria-disabled") === "true") {
+      button.focus?.();
+      return;
+    }
     if (button?.dataset.action?.startsWith("panel-")) {
       const next = button.dataset.action.slice(6);
-      if (next === "inspect" || next === "research" || next === "activity")
+      if (
+        next === "inspect" ||
+        next === "build" ||
+        next === "research" ||
+        next === "activity"
+      )
         panel = panel === next ? "inspect" : next;
+      commandPage = 0;
       renderGame();
       if (panel !== "inspect") {
         root
           .querySelector<HTMLButtonElement>(
-            `#${panel}-panel [data-action="close-panel"]`,
+            '.command-card [data-action="close-panel"]',
           )
           ?.focus?.();
       }
@@ -604,6 +541,9 @@ export function mountNeuralDefence(
       const action = button.dataset.action;
       if (action === "close-panel") {
         closePanel();
+      } else if (action === "next-command-page") {
+        commandPage = (commandPage + 1) % commandPageCount(panel);
+        renderGame();
       } else if (action === "new-game") {
         screen = "setup";
         mode = "sandbox";
@@ -612,8 +552,6 @@ export function mountNeuralDefence(
       } else if (action === "settings") {
         screen = "settings";
         render();
-      } else if (action === "zoom-fit") {
-        camera?.fit();
       } else if (action === "back-menu") showMenu();
       else if (action === "retry-catalog") void loadCatalog();
       else if (action === "retry-map" && selectedId)
@@ -623,26 +561,17 @@ export function mountNeuralDefence(
         const id = mode === "sandbox" ? "sandbox-12" : "combat-lab-12";
         void loadSelectedMap(id);
       } else if (action === "start") launch();
-      else if (action === "build-neuron" && selectedCell !== null)
-        dispatch({
-          type: "queueConstruction",
-          cell: selectedCell,
-          kind: "neuron",
-        });
-      else if (action === "build-tower" && selectedCell !== null)
-        dispatch({
-          type: "queueConstruction",
-          cell: selectedCell,
-          kind: "tower",
-        });
-      else if (action === "cancel-build" && selectedCell !== null)
+      else if (action?.startsWith("build-") && selectedCell !== null) {
+        const kind = action.slice(6);
+        if (isBuildKind(kind))
+          dispatch({ type: "queueConstruction", cell: selectedCell, kind });
+      } else if (action === "cancel-build" && selectedCell !== null)
         dispatch({ type: "cancelConstruction", cell: selectedCell });
-      else if (action?.startsWith("research-"))
-        dispatch({
-          type: "startResearch",
-          research: action.slice(9) as "growth" | "excitation" | "conduction",
-        });
-      else if (action === "cancel-research")
+      else if (action?.startsWith("research-")) {
+        const research = action.slice(9);
+        if (isResearchKind(research))
+          dispatch({ type: "startResearch", research });
+      } else if (action === "cancel-research")
         dispatch({ type: "cancelResearch" });
       else if (action === "reset" || action === "leave") {
         pending = action;
@@ -661,7 +590,7 @@ export function mountNeuralDefence(
       const tile = target.closest<SVGElement>("[data-cell]");
       if (tile) {
         selectedCell = Number(tile.dataset.cell);
-        panel = "inspect";
+        if (panel !== "build") panel = "inspect";
         renderGame();
       }
     }
@@ -749,28 +678,14 @@ export function mountNeuralDefence(
       if (
         !target.closest('input, select, textarea, [contenteditable="true"]')
       ) {
-        const action = (
-          {
-            n: "build-neuron",
-            t: "build-tower",
-            r: "panel-research",
-            l: "panel-activity",
-            f: "zoom-fit",
-            x: "cancel-build",
-            ...(panel === "research"
-              ? {
-                  g: "research-growth",
-                  e: "research-excitation",
-                  c: "research-conduction",
-                }
-              : {}),
-          } as Record<string, string>
-        )[event.key.toLowerCase()];
-        if (action) {
+        if (
+          "qweasd".includes(event.key.toLowerCase()) &&
+          event.key.length === 1
+        ) {
           const command = root.querySelector<HTMLButtonElement>(
-            `[data-action="${action}"]`,
+            `.command-card [aria-keyshortcuts="${event.key.toUpperCase()}"]`,
           );
-          if (command && !command.disabled) {
+          if (command) {
             event.preventDefault();
             command.click();
           }
