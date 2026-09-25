@@ -58,6 +58,11 @@ const start = (seq: number, tick: number): NeuralEntry => [
   "start",
   "new-match",
 ];
+const changeSettings = (
+  seq: number,
+  tick: number,
+  next: NeuralSettings,
+): NeuralEntry => [seq, tick, 13, next];
 class Clock implements RuntimeDependencies {
   time = 0;
   serial = 0;
@@ -237,6 +242,107 @@ test("an away watcher remains valid through checkpoint restore", () => {
     viewer: [[1, 3, 12, "viewer", false, 1]],
   });
   assert.equal(room.seats.get("viewer")?.away, true);
+  const restored = neuralGame.checkpoint.decode(
+    neuralGame.checkpoint.encode(room),
+    room.tick,
+  );
+  assert.ok(restored);
+  assert.equal(neuralGame.hash(restored), neuralGame.hash(room));
+});
+test("lobby settings rebuild the placeholder world and apply before a same-tick start", () => {
+  const updated = { ...settings(), engine: { instantResearch: true } };
+  const lobby = fold({
+    host: [join(1, 1, "host", 0), changeSettings(2, 2, updated)],
+  });
+  assert.equal(lobby.stage, "lobby");
+  assert.equal(lobby.world.settings.instantResearch, true);
+  const restored = neuralGame.checkpoint.decode(
+    neuralGame.checkpoint.encode(lobby),
+    lobby.tick,
+  );
+  assert.ok(restored);
+  assert.equal(neuralGame.hash(restored), neuralGame.hash(lobby));
+
+  const started = fold({
+    host: [join(1, 1, "host", 0), changeSettings(2, 2, updated), start(3, 2)],
+  });
+  assert.equal(started.stage, "running");
+  assert.equal(started.world.settings.instantResearch, true);
+  assert.ok(
+    neuralGame.checkpoint.decode(
+      neuralGame.checkpoint.encode(started),
+      started.tick,
+    ),
+  );
+});
+test("settings entries cannot change an active or completed match", () => {
+  const changed = { ...settings(), engine: { instantResearch: true } };
+  const running = fold({
+    host: [
+      join(1, 1, "host", 0),
+      start(2, 2),
+      changeSettings(3, 2, changed),
+      changeSettings(4, 3, changed),
+    ],
+  });
+  assert.equal(running.stage, "running");
+  assert.deepEqual(running.settings.engine, {});
+  assert.deepEqual(running.world.settings, { matchId: "new-match" });
+  assert.ok(
+    neuralGame.checkpoint.decode(
+      neuralGame.checkpoint.encode(running),
+      running.tick,
+    ),
+  );
+});
+test("a completed match keeps its historical roster after a participant leaves", () => {
+  const tiny = loadMap({
+    schemaVersion: 1,
+    id: "close-combat",
+    width: 2,
+    height: 1,
+    layout: "odd-r",
+    cells: [{ terrain: "open" }, { terrain: "open" }],
+    spawns: [
+      { slot: 0, cellIndex: 0 },
+      { slot: 1, cellIndex: 1 },
+    ],
+  });
+  const room = fold(
+    { host: [join(1, 1, "host", 0), join(2, 2, "friend", 1), start(3, 3)] },
+    settings("sandbox", tiny),
+  );
+  const ticker = neuralGame.createTicker();
+  for (let attempt = 0; attempt < 600 && room.stage === "running"; attempt++)
+    ticker(room, "host", new Map());
+  assert.equal(room.stage, "over");
+  assert.equal(room.world.finished, true);
+  const tick = room.tick + 1;
+  ticker(
+    room,
+    "host",
+    new Map([
+      [
+        "host",
+        {
+          generation: 1,
+          entries: [
+            [4, tick, 11, "friend"],
+            changeSettings(5, tick, {
+              ...settings("sandbox", tiny),
+              engine: { instantResearch: true },
+            }),
+          ],
+        },
+      ],
+    ]),
+  );
+  assert.equal(room.seats.has("friend"), false);
+  assert.equal(
+    room.world.players.some((player) => player.id === "friend"),
+    true,
+  );
+  assert.deepEqual(room.settings.engine, {});
   const restored = neuralGame.checkpoint.decode(
     neuralGame.checkpoint.encode(room),
     room.tick,

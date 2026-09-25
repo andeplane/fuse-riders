@@ -199,10 +199,12 @@ export const neuralGame: RollbackGame<
   }),
   createTicker: () => (room, creator, streams) => {
     const tick = room.tick + 1;
+    const previousSettings = room.settings;
     applyManagementTick(room, tick, creator, streams, {
       stage: (r) => r.stage,
       maxWatchers: 4,
-      parseSettings,
+      parseSettings: (value) =>
+        room.stage === "lobby" ? parseSettings(value) : undefined,
       botAvatar: "brain",
       start,
       rematch: start,
@@ -212,6 +214,8 @@ export const neuralGame: RollbackGame<
         r.world = initial(r.settings, id);
       },
     });
+    if (room.stage === "lobby" && room.settings !== previousSettings)
+      room.world = initial(room.settings, room.matchId);
     if (room.stage === "running") {
       const commands: Command[] = [];
       for (const seat of [...room.seats.values()].sort(
@@ -355,11 +359,11 @@ export const neuralGame: RollbackGame<
             participants.some((p) => {
               const seat = seats.get(p.id);
               return (
-                !seat ||
-                seat.watcher ||
-                (participants.length === 1
-                  ? p.slot !== settings.slot
-                  : seat.slot !== p.slot)
+                (participants.length === 1 && p.slot !== settings.slot) ||
+                (raw.stage === "running" &&
+                  (!seat ||
+                    seat.watcher ||
+                    (participants.length > 1 && seat.slot !== p.slot)))
               );
             }) ||
             (settings.mode === "combat-lab" &&
