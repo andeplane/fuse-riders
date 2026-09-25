@@ -32,7 +32,12 @@ export function createCameraModel(
   insets: Insets,
 ) {
   let size = initialSize;
-  let scale = Math.max(size.width / world.width, size.height / world.height);
+  // Begin at a playable unit scale, rather than shrinking large arenas to fit.
+  let scale = Math.max(
+    size.width / world.width,
+    size.height / world.height,
+    Math.min(1.8, Math.max(1.1, size.width / 800)),
+  );
   let fitted = false;
   let view: ViewBox = {
     x: 0,
@@ -91,7 +96,10 @@ export function createCameraModel(
     fitted = false;
     const x = view.x + anchor.x / scale,
       y = view.y + anchor.y / scale;
-    scale = Math.max(fitScale() * 0.75, Math.min(8, scale * factor));
+    scale = Math.max(
+      Math.max(0.8, fitScale() * 0.75),
+      Math.min(8, scale * factor),
+    );
     view.x = x - anchor.x / scale;
     view.y = y - anchor.y / scale;
     clamp();

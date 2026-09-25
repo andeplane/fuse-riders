@@ -174,7 +174,24 @@ test("neurons vary, animate without state changes, and show only real friendly l
     },
   );
   const before = JSON.stringify(world);
-  const animation = renderBoard(svg, world, null, false, false, 1000);
+  const sprites = {
+    "neuron-blue-v2": "/neuron.png",
+    "terrain-battlefield-v3": "/ground.png",
+  };
+  const animation = renderBoard(svg, world, null, false, false, 1000, sprites);
+  assert.equal(
+    svg.querySelector(".neuron-body image")?.getAttribute("href"),
+    "/neuron.png",
+  );
+  assert.equal(
+    svg.querySelector("#ground-continuation image")?.getAttribute("href"),
+    "/ground.png",
+  );
+  assert.equal(
+    svg.querySelectorAll(".ground-patch image").length,
+    0,
+    "ordinary tiles do not repeat textures per hex",
+  );
   const links = [...svg.querySelectorAll(".network-link")].map((l) => [
     l.getAttribute("data-from"),
     l.getAttribute("data-to"),
@@ -197,7 +214,7 @@ test("neurons vary, animate without state changes, and show only real friendly l
   );
   const phase = neurons[0]!.style.transform;
   world.structures[1]!.hp--;
-  renderBoard(svg, world, null, false, false, 1300);
+  renderBoard(svg, world, null, false, false, 1300, sprites);
   assert.equal(
     svg.querySelector<SVGGElement>(".neuron-body")!.style.transform,
     phase,
@@ -208,7 +225,7 @@ test("neurons vary, animate without state changes, and show only real friendly l
     before,
     "animation cannot mutate simulation",
   );
-  const reduced = renderBoard(svg, world, null, false, true, 1300);
+  const reduced = renderBoard(svg, world, null, false, true, 1300, sprites);
   const still = svg.querySelector<SVGGElement>(".neuron-body")!.style.transform;
   reduced.animate(1600);
   assert.equal(

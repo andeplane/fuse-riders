@@ -343,6 +343,7 @@ export function renderCommands(
       shortcut: "Q",
       symbol: "excitation",
       description: "Equip your reusable particle pool at the brain.",
+      art: sprites["particle-attack-v2"] ?? sprites["particle-attack"],
       disabled: !player.alive,
       hints: player.alive ? [] : [requirementText({ kind: "alive" })],
     }) +
@@ -352,6 +353,7 @@ export function renderCommands(
       shortcut: "W",
       symbol: "build",
       description: "Choose a structure to build.",
+      art: sprites["construction-site"],
       disabled: !player.alive,
       hints: player.alive ? [] : [requirementText({ kind: "alive" })],
       progress: buildProgress,
@@ -362,6 +364,7 @@ export function renderCommands(
       shortcut: "E",
       symbol: "research",
       description: "Research network upgrades.",
+      art: sprites["deposit-insight"],
       disabled: !player.alive,
       hints: player.alive ? [] : [requirementText({ kind: "alive" })],
       progress: researchProgress,

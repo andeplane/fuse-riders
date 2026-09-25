@@ -5,6 +5,23 @@ import { createCameraModel } from "../src/render/camera.js";
 const world = { width: 768, height: 648 };
 const insets = { top: 52, right: 12, bottom: 154, left: 12 };
 
+test("large arenas start at readable unit scale on desktop and phones", () => {
+  for (const size of [
+    { width: 1840, height: 1030 },
+    { width: 390, height: 844 },
+  ]) {
+    const camera = createCameraModel(
+      { width: 1500, height: 1100 },
+      size,
+      insets,
+    );
+    const scale = size.width / camera.view().width;
+    assert.ok(scale >= 1.1, "a 72-unit brain must remain at least 79px wide");
+    camera.zoom(0.001);
+    assert.ok(size.width / camera.view().width >= 0.8);
+  }
+});
+
 test("RTS camera fills the viewport by default; Fit reveals the entire map above the dock", () => {
   for (const size of [
     { width: 1440, height: 900 },

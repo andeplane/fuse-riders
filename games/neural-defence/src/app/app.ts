@@ -509,7 +509,7 @@ export function mountNeuralDefence(
       preview.setAttribute("data-valid", String(valid));
       const artwork =
         placement === "neuron"
-          ? `<g opacity="0.55">${neuronArtwork(world.map.width, placementCell, owner.slot)}</g>`
+          ? `<g opacity="0.55">${neuronArtwork(world.map.width, placementCell, owner.slot, dependencies.sprites)}</g>`
           : sprite
             ? `<image href="${escape(sprite)}" x="${x - 30}" y="${y - 30}" width="60" height="60" opacity="0.55"/>`
             : "";

@@ -80,11 +80,10 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
   return world.map.cells
     .map((cell, index) => {
       const { x, y } = hexCenter(world.map.width, index);
-      const variation = ["a", "b", "c"][index % 3];
       const ground =
         cell.terrain === "open" && cell.variant && sprites[cell.variant]
           ? cell.variant
-          : `terrain-slate-${variation}`;
+          : null;
       let object = "";
       if (cell.terrain === "deposit")
         object =
@@ -110,46 +109,30 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
       }
       if (cell.terrain === "open" && cell.towerSite)
         object = `<circle class="tower-site" cx="${x}" cy="${y}" r="19"/><text x="${x}" y="${y + 5}" text-anchor="middle">+</text>`;
-      return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${image(sprites, ground, x, y, 82) || image(sprites, "terrain-slate-a", x, y, 82)}</g>${object}<polygon class="hex-hover-outline" points="${hexPoints(world.map.width, index, 1.5)}"/></g>`;
+      return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${ground ? image(sprites, ground, x, y, 82) : ""}</g>${object}<polygon class="hex-hover-outline" points="${hexPoints(world.map.width, index, 1.5)}"/></g>`;
     })
     .join("");
 }
 
 /** Decorative ground continues beyond the selectable cells; it has no game state. */
 function backdropMarkup(sprites: Sprites): string {
-  const patches: string[] = [];
-  // Extra rows/columns overlap the pattern boundary so its edges have no gaps.
-  for (let row = -1; row <= 2; row++) {
-    for (let column = -1; column <= 3; column++) {
-      const x = radius + dx * (column + (row & 1) / 2);
-      const y = radius + dy * row;
-      const points = sides.map(([sx, sy]) => `${x + sx},${y + sy}`).join(" ");
-      const id = `ground-${row + 1}-${column + 1}`;
-      const variant = ["a", "b", "c"][(column + 3) % 3];
-      patches.push(
-        `<clipPath id="${id}"><polygon points="${points}"/></clipPath><g class="ground-patch" clip-path="url(#${id})">${image(sprites, `terrain-slate-${variant}`, x, y, 82) || image(sprites, "terrain-slate-a", x, y, 82)}</g>`,
-      );
-    }
-  }
-  return `<defs><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="${dx * 3}" height="${dy * 2}"><rect width="100%" height="100%" fill="#122840"/>${patches.join("")}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
+  const ground =
+    sprites["terrain-battlefield-v3"] ??
+    sprites["terrain-moss-a"] ??
+    sprites["terrain-slate-a"];
+  return `<defs><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="560" height="560"><rect width="560" height="560" fill="#26322e"/>${ground ? `<image href="${escaped(ground)}" width="560" height="560"/>` : ""}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
 }
-/** Shared live/placement artwork; cell-derived variation does not alter geometry. */
+/** Reuse the illustrated tissue for placement and the board, with stable variation. */
 export function neuronArtwork(
   width: number,
   cell: number,
   slot: number,
+  sprites: Sprites = {},
 ): string {
   const { x, y } = hexCenter(width, cell);
   const seed = (cell * 37 + slot * 17) % 97;
-  const points = Array.from({ length: 8 }, (_, i) => {
-    const angle = (i * Math.PI) / 4 + seed;
-    const r = 10 + ((seed + i * 7) % 5);
-    return { x: x + Math.cos(angle) * r, y: y + Math.sin(angle) * r };
-  });
-  const midpoint = (a: (typeof points)[number], b: (typeof points)[number]) =>
-    `${(a.x + b.x) / 2} ${(a.y + b.y) / 2}`;
-  const soma = `M${midpoint(points[7]!, points[0]!)}${points.map((point, i) => `Q${point.x} ${point.y} ${midpoint(point, points[(i + 1) % points.length]!)}`).join("")}Z`;
-  return `<g class="neuron-body" data-phase="${seed}" style="--team:${colors[slot]};transform-origin:${x}px ${y}px"><path class="neuron-membrane" d="${soma}"/><ellipse class="neuron-soma" cx="${x}" cy="${y}" rx="${7 + (seed % 3)}" ry="${8 + (seed % 4)}"/><circle class="neuron-nucleus" cx="${x}" cy="${y}" r="4"/><circle class="neuron-glint" cx="${x - 3}" cy="${y - 4}" r="1.2"/></g>`;
+  const size = 49 + (seed % 7);
+  return `<g class="neuron-body" data-phase="${seed}" style="--team:${colors[slot]};transform-origin:${x}px ${y}px"><g transform="rotate(${(seed % 6) * 60} ${x} ${y})">${image(sprites, `neuron-${teams[slot]}`, x, y, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="12"/>`}</g></g>`;
 }
 function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
   return world.structures
@@ -178,7 +161,7 @@ function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
           : "";
       const artwork =
         s.kind === "neuron"
-          ? neuronArtwork(world.map.width, s.cell, slot)
+          ? neuronArtwork(world.map.width, s.cell, slot, sprites)
           : image(sprites, sprite, x, y, s.kind === "brain" ? 72 : 66);
       return `<g class="structure structure-${s.kind} ${s.connected ? "" : "disconnected"}" data-cell="${s.cell}" style="--team:${colors[slot]}"><circle class="owner-ring" cx="${x}" cy="${y}" r="${s.kind === "brain" ? 27 : 10}"/>${artwork || `<circle class="structure-core" cx="${x}" cy="${y}" r="15"/>`}<path class="owner-notch" d="M${x - 5} ${y + 27}h10"/><text class="owner-number" x="${x}" y="${y + 31}" text-anchor="middle">${slot + 1}</text>${s.kind === "siege" ? `<path class="tower-crown" d="M${x - 12} ${y - 14}L${x} ${y - 34}L${x + 12} ${y - 14}Z"/>` : s.kind === "relay" ? `<path class="tower-crown" d="M${x - 16} ${y - 28}L${x - 6} ${y - 12}L${x + 4} ${y - 28}L${x + 14} ${y - 12}"/>` : ""}${stock && s.connected ? `<g class="supply-orbit" style="transform-origin:${x}px ${y}px">${Array.from({ length: Math.min(6, Math.ceil(stock / 8)) }, (_, i) => `<circle cx="${x + Math.cos((i * Math.PI) / 3) * 22}" cy="${y + Math.sin((i * Math.PI) / 3) * 22}" r="2" fill="${colors[slot]}"/>`).join("")}</g>` : ""}${health}<circle class="charge-halo" cx="${x}" cy="${y}" r="10" opacity="${Math.min(0.7, stock / 48)}"/></g>`;
     })
@@ -305,7 +288,7 @@ export function renderBoard(
     world.structures
       .map(
         (s) =>
-          `<polygon points="${hexPoints(width, s.cell)}" fill="${colors[world.players.find((p) => p.id === s.ownerId)?.slot ?? 0]}" opacity="${s.connected ? 0.17 : 0.055}" pointer-events="none"/>`,
+          `<circle cx="${hexCenter(width, s.cell).x}" cy="${hexCenter(width, s.cell).y}" r="25" fill="${colors[world.players.find((p) => p.id === s.ownerId)?.slot ?? 0]}" opacity="${s.connected ? 0.065 : 0.025}" pointer-events="none"/>`,
       )
       .join(""),
   );

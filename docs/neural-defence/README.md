@@ -22,7 +22,7 @@ Select your brain for **S / Auto expand**. It stays enabled while waiting for bi
 
 Clock overlays show construction and research progress. Hover or focus commands for requirements; tap grey commands on phones for the same explanation. Eligibility and missing-research explanations come from the shared rules catalog. Legal queued plans wait for resources or support.
 
-Drag to pan, scroll to zoom, or use one-finger pan and two-finger pinch on phones. There are no Fit map or +/− buttons. Neurons have varied bodies and gentle idle motion. Bright curved links show actual friendly connections; disconnected fragments have dashed links and dormant bodies. Supply orbits, builder/particle journeys, arrival pulses and attack flashes animate presentation only. Reduced motion is available in Settings.
+Drag to pan, scroll to zoom, or use one-finger pan and two-finger pinch on phones. There are no Fit map or +/− buttons. Illustrated neurons have subtle size/orientation variation and gentle idle motion. Continuous mossy basalt ground replaces repeated hex slabs, and matches begin at a closer, readable camera scale. Bright curved links show actual friendly connections; disconnected fragments have dashed links and dormant bodies. Supply orbits, builder/particle journeys, arrival pulses and attack flashes animate presentation only. Reduced motion is available in Settings.
 
 Use `pnpm install --frozen-lockfile` and `pnpm dev` from the repository root, then open the server's printed `/neural-defence/?mute` URL. Vite development uses `/games/neural-defence/?mute`. Add `&debug` for optional instant construction/research; both default off and retain costs and travel. Dev servers choose a free port.
 

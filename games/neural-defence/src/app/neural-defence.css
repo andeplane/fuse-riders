@@ -416,11 +416,17 @@ select {
   align-items: center;
   gap: 1rem;
   padding: 12px 16px;
-  border-top: 2px solid #52789580;
+  border-top: 3px solid #5c7882;
   box-shadow:
     inset 0 3px 0 #132c3f,
     0 -5px 24px #0006;
-  background: linear-gradient(180deg, #102334, #060e1b 35%);
+  background: linear-gradient(
+    180deg,
+    #243743,
+    #101d28 8px,
+    #08121b 38%,
+    #0e1b25
+  );
 }
 .resource-row {
   display: flex;
@@ -471,12 +477,12 @@ select {
   height: var(--command-size);
   padding: 0;
   overflow: hidden;
-  border: 1px solid #5b869b;
+  border: 1px solid #658994;
   border-radius: 4px;
   box-shadow:
     inset 0 0 0 2px #122b3d,
     inset 0 0 12px #4aaad326;
-  background: radial-gradient(ellipse at 50% 45%, #163950, #07141e);
+  background: radial-gradient(ellipse at 50% 40%, #1e3c46, #07141e 75%);
 }
 .command-button img,
 .command-button svg {
@@ -750,8 +756,8 @@ select {
   cursor: pointer;
 }
 .hex > polygon {
-  fill: #122840;
-  stroke: #49668336;
+  fill: transparent;
+  stroke: transparent;
   stroke-width: 0.7;
 }
 .ground-patch image {
@@ -769,15 +775,15 @@ select {
 .axon {
   fill: none;
   stroke: var(--team, var(--fui-cyan));
-  stroke-width: 3;
+  stroke-width: 2;
   stroke-linecap: round;
-  opacity: 0.95;
+  opacity: 0.8;
   filter: drop-shadow(0 0 4px var(--team, var(--fui-cyan)));
 }
 .axon-sheath {
   fill: none;
-  stroke: #071c30;
-  stroke-width: 8;
+  stroke: #127b9277;
+  stroke-width: 5;
   stroke-linecap: round;
 }
 .disconnected-link .axon {
@@ -785,25 +791,6 @@ select {
   stroke-dasharray: 4 6;
   opacity: 0.45;
   filter: none;
-}
-.neuron-membrane {
-  fill: #123e65;
-  stroke: var(--team);
-  stroke-width: 3;
-  stroke-linejoin: round;
-  filter: drop-shadow(0 0 4px var(--team));
-}
-.neuron-soma {
-  fill: var(--team);
-  fill-opacity: 0.6;
-}
-.neuron-nucleus {
-  fill: #0758a4;
-  stroke: var(--team);
-  stroke-width: 1.5;
-}
-.neuron-glint {
-  fill: #eaffff;
 }
 .structure-neuron > .owner-ring {
   display: none;

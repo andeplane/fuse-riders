@@ -386,6 +386,22 @@ for (const [name, engine] of [
     await phone.screenshot({ path: `${output}/${name}-build.png` });
     await phone.setViewportSize({ width: 568, height: 320 });
     await zoomOut(phone);
+    // The readable minimum zoom no longer fits an entire arena into a short
+    // landscape viewport. Pan normally to bring the target into view.
+    const target = (await phone
+      .locator('.terrain-layer [data-cell="26"]')
+      .boundingBox())!;
+    const battlefield = (await phone.locator("#nd-viewport").boundingBox())!;
+    const cx = battlefield.x + battlefield.width / 2;
+    const cy = battlefield.y + battlefield.height / 2;
+    await phone.mouse.move(cx, cy);
+    await phone.mouse.down();
+    await phone.mouse.move(
+      cx + cx - target.x - target.width / 2,
+      cy + cy - target.y - target.height / 2,
+      { steps: 6 },
+    );
+    await phone.mouse.up();
     await geometry(phone);
     await phone.screenshot({ path: `${output}/${name}-landscape.png` });
     await phone.locator('.terrain-layer [data-cell="26"]').tap();

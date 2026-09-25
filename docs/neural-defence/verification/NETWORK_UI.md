@@ -1,5 +1,7 @@
 # Network and command refresh — 2026-09-25
 
+The procedural neuron artwork recorded below was subsequently rejected in playtesting and replaced by the [battlefield art correction](../art/BATTLEFIELD_V3.md). The command layout and connectivity behavior remain.
+
 The main command row is **Q Particles / W Build / E Research**, regardless of selection. Brain selection retains S Auto expand; D shows Log on the brain or empty ground and Charge on other friendly structures. The six-slot submenu layout and placement flow remain unchanged.
 
 Neurons now use shared procedural artwork for the live board and placement preview. Cell-derived shapes vary without changing simulation geometry. Connected neurons breathe with staggered phases driven by presentation time, including across stock/HP updates. Reduced motion stops this idle animation. Actual neighboring friendly structures have visible curved axons; disconnected fragments show muted dashed links and dormant bodies. Existing moving particles show actual network traffic. Queued plans remain distinct dashed markers and never create a supply connection.

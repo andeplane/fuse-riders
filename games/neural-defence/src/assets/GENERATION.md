@@ -1,5 +1,7 @@
 # Sprite and terrain generation checkpoint
 
+The current battlefield uses `terrain-battlefield-v3.png` as continuous ground and the illustrated v2 neuron sprites with runtime animation. See [the art correction and exact texture prompt](../../../../docs/neural-defence/art/BATTLEFIELD_V3.md).
+
 Six reused individual candidates are saved here: brain, construction site, Biomass deposit, Insight deposit, slate ground and boulder. Original generation prompts are preserved in `docs/neural-defence/art/phase-0/INDIVIDUAL_PROMPTS-world.md`.
 
 The corrected biological sprite set is now delivered as `brain-{blue,coral,green,gold}-v2.png`, `neuron-{blue,coral,green,gold}-v2.png`, `tower-experimental-v2.png`, `particle-builder-v2.png`, and `particle-attack-v2.png`. Every file is an individual 1254 × 1254 RGBA image with genuine transparency. All four neurons have six main single-tip dendrites. Their colored tissue is baked into the artwork rather than supplied as a white tint mask. Both particle assets face right before runtime rotation.
