@@ -111,7 +111,7 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
 /** Decorative ground continues beyond the selectable cells; it has no game state. */
 function backdropMarkup(sprites: Sprites): string {
   const ground = sprites[WALKABLE_GROUND];
-  return `<defs><radialGradient id="contact-shadow"><stop offset="0" stop-color="#000" stop-opacity="0.7"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="840" height="560"><rect width="840" height="560" fill="#26322e"/>${ground ? `<image href="${escaped(ground)}" width="840" height="560"/>` : ""}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
+  return `<defs><radialGradient id="contact-shadow"><stop offset="0" stop-color="#000" stop-opacity="0.7"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="840" height="560"><rect width="840" height="560" fill="#26322e"/>${ground ? `<image href="${escaped(ground)}" width="840" height="560" opacity="0.65"/>` : ""}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
 }
 /** Reuse the illustrated tissue for placement and the board, with stable variation. */
 export function neuronArtwork(

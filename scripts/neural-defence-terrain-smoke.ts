@@ -81,7 +81,7 @@ for (const [name, browserType] of [
       (await page
         .locator("#nd-board #ground-continuation image")
         .getAttribute("href"))!,
-      /terrain-walkable-v5/,
+      /terrain-walkable-v6/,
     );
     const viewport = (await page.locator("#nd-viewport").boundingBox())!;
     const rocks = await page.locator("#nd-board .terrain-blocked").all();

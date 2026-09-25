@@ -267,7 +267,7 @@ for (const [name, engine] of [
     await desktop.keyboard.press("d");
     await desktop.locator('.command-card[data-panel="activity"]').waitFor();
     await desktop.keyboard.press("a");
-    await desktop.locator('.terrain-layer [data-cell="13"]').click();
+    await desktop.locator('.structure[data-cell="13"] .structure-hit').click();
     await desktop.keyboard.press("s");
     await desktop.waitForFunction(
       () =>

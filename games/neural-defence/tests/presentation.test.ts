@@ -6,7 +6,7 @@ import { updateContent } from "../src/app/dom-update.js";
 import { createPreferencesStore } from "../src/app/preferences.js";
 import { createMatch, loadMap } from "../src/engine/index.js";
 import { renderBoard } from "../src/render/board.js";
-import { terrainArt } from "../src/render/terrain-art.js";
+import { terrainArt, WALKABLE_GROUND } from "../src/render/terrain-art.js";
 import { constructionQueueAvailability } from "../src/engine/catalog.js";
 
 test("building status leaves artwork clear and unsupplied fragments have no supply marker", () => {
@@ -122,7 +122,7 @@ test("visible terrain follows build restrictions and cannot be overridden by mis
   const world = createMatch(map, {}, [{ id: "solo", slot: 0 }]);
   const sprites = Object.fromEntries(
     [
-      "terrain-walkable-v5",
+      WALKABLE_GROUND,
       "blocker-rock-cluster-a",
       "blocker-boulder",
       "blocker-rock-ridge-a",
@@ -160,7 +160,7 @@ test("visible terrain follows build restrictions and cannot be overridden by mis
     null,
   );
   assert.equal(
-    terrainArt({ terrain: "blocked", variant: "terrain-walkable-v5" }, 0),
+    terrainArt({ terrain: "blocked", variant: WALKABLE_GROUND }, 0),
     "blocker-rock-cluster-a",
   );
   assert.equal(
@@ -362,7 +362,7 @@ test("neurons vary, animate without state changes, and show only real friendly l
   const before = JSON.stringify(world);
   const sprites = {
     "neuron-v3": "/neuron.png",
-    "terrain-walkable-v5": "/ground.png",
+    [WALKABLE_GROUND]: "/ground.png",
   };
   const animation = renderBoard(svg, world, null, false, false, 1000, sprites);
   assert.equal(

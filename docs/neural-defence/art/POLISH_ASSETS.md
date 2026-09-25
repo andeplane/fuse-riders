@@ -4,7 +4,13 @@ Generated with the built-in image generator on 2026-09-25. Assets live in `games
 
 ## Traversable ground
 
-File: `terrain-walkable-v5.png`. Inspected at source size and in the actual browser. Flat moss and earth replace the rejected v4 rock strata. The renderer places all raised blockers independently from map data and clips their art/shadows to the blocked tile. This preserves actual construction and network rules. Seamless edges were requested; perfect edge periodicity is not certified.
+Current file: `terrain-walkable-v6.png`. It replaces the softer v5 floor with clearer flush slate, fine gravel and low moss. The renderer composites it at 65% opacity over the existing dark ground color to keep the fine texture subordinate to structures and actual blockers. Inspected in Chromium and WebKit at desktop and phone sizes; independent review confirmed that raised map blockers remain distinct. Source: `/Users/anderhaf/.codex/generated_images/01a0d798-3d5c-76a3-a900-6c4f8e88c21c/exec-95dd04af-df34-4594-a65d-596da618a9c1.png`.
+
+Exact v6 prompt:
+
+> Use case: stylized-concept. Asset type: production-ready seamless landscape 3:2 ground texture for a polished science-fiction RTS viewed from directly overhead. Primary request: beautiful readable traversable battlefield floor to support detailed blue biomechanical buildings placed separately. Richly authored 3D game environment material, not a noisy photograph. Flat weathered cool charcoal-grey slate paving partially reclaimed by low soft sage and muted emerald moss. Broad organic patches of fine compact gravel, worn smooth stone surfaces, delicate shallow hairline seams and a few tiny embedded grains. Balanced medium-scale variation: quiet open stone areas alternating with irregular soft moss mats; crisp tactile microdetail, restrained contrast so units stand out. All surfaces lie on ONE continuous level plane, all stones are flush in the ground, EVERYTHING is traversable. Diffuse upper-left lighting without directional cast shadows. Edge-to-edge opaque texture, seamless repeat on all sides, consistent scale throughout. Avoid raised rocks, boulders, cliffs, ledges, ridges, holes, water, tree roots, plants taller than moss, buildings, units, objects, large fissures, bright glow, text, interface, hex grids, outlines, vignette, depth perspective, horizon. Never paint an obstacle: real blockers are separate game objects. This must be usable as a ground material, not a complete scene illustration.
+
+Historical file: `terrain-walkable-v5.png`. Flat moss and earth replaced the rejected v4 rock strata. The renderer places all raised blockers independently from map data and clips their art/shadows to the blocked tile. This preserves actual construction and network rules. Seamless edges were requested for both materials; perfect edge periodicity is not certified.
 
 Exact final prompt:
 

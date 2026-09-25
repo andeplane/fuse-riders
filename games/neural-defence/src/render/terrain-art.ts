@@ -2,7 +2,7 @@ import type { Cell } from "../engine/types.js";
 
 /** Art may vary within a terrain category, never change its gameplay meaning. */
 const variants = {
-  open: ["terrain-walkable-v5"],
+  open: ["terrain-walkable-v6"],
   blocked: [
     "blocker-rock-cluster-a",
     "blocker-boulder",
