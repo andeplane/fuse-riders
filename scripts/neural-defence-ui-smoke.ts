@@ -98,6 +98,19 @@ for (const [name, engine] of [
     desktop.on("pageerror", (error) => errors.push(error.message));
     await start(desktop);
     await geometry(desktop);
+    await desktop.locator('.terrain-layer [data-cell="14"]').hover();
+    assert.equal(
+      await desktop
+        .locator('.terrain-layer [data-cell="14"]')
+        .evaluate((tile) =>
+          tile.lastElementChild?.classList.contains("hex-hover-outline"),
+        ),
+      true,
+      "hover outline paints above its texture",
+    );
+    await desktop
+      .locator('.terrain-layer [data-cell="14"]')
+      .screenshot({ path: `${output}/${name}-hover-hex.png` });
     assert.deepEqual(
       await desktop.locator(".command-card kbd").allTextContents(),
       ["Q", "W", "E", "A"],

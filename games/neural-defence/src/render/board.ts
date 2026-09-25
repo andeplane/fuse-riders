@@ -64,10 +64,14 @@ export function hexCenter(
     column = cell % width;
   return { x: radius + dx * (column + (row & 1) / 2), y: radius + dy * row };
 }
-export function hexPoints(width: number, cell: number): string {
+export function hexPoints(width: number, cell: number, inset = 0): string {
   const { x, y } = hexCenter(width, cell);
+  const scale = (radius - inset) / radius;
   return sides
-    .map(([sx, sy]) => `${(x + sx).toFixed(2)},${(y + sy).toFixed(2)}`)
+    .map(
+      ([sx, sy]) =>
+        `${(x + sx * scale).toFixed(2)},${(y + sy * scale).toFixed(2)}`,
+    )
     .join(" ");
 }
 function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
@@ -104,7 +108,7 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
       }
       if (cell.terrain === "open" && cell.towerSite)
         object = `<circle class="tower-site" cx="${x}" cy="${y}" r="19"/><text x="${x}" y="${y + 5}" text-anchor="middle">+</text>`;
-      return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${image(sprites, ground, x, y, 82) || image(sprites, "terrain-slate-a", x, y, 82)}</g>${object}</g>`;
+      return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${image(sprites, ground, x, y, 82) || image(sprites, "terrain-slate-a", x, y, 82)}</g>${object}<polygon class="hex-hover-outline" points="${hexPoints(world.map.width, index, 1.5)}"/></g>`;
     })
     .join("");
 }

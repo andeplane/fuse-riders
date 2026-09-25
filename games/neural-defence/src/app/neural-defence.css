@@ -752,9 +752,14 @@ select {
 .ground-patch image {
   filter: brightness(0.85) saturate(0.8);
 }
-.hex:hover > polygon {
-  stroke: var(--fui-cyan);
+.hex > .hex-hover-outline {
+  fill: none;
+  stroke: transparent;
   stroke-width: 2;
+  pointer-events: none;
+}
+.hex:hover > .hex-hover-outline {
+  stroke: var(--fui-cyan);
 }
 .axon {
   fill: none;

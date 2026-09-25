@@ -69,6 +69,31 @@ test("rendering interpolates actual transit, retains terrain and moving nodes, c
     );
   assert.equal(svg.querySelectorAll(".backdrop-layer [data-cell]").length, 0);
   assert.equal(svg.querySelectorAll(".terrain-layer [data-cell]").length, 144);
+  for (const tile of svg.querySelectorAll(".terrain-layer .hex")) {
+    const outline = tile.querySelector(".hex-hover-outline")!;
+    const points = (node: Element) =>
+      node
+        .getAttribute("points")!
+        .split(" ")
+        .map((point) => point.split(",").map(Number));
+    const outer = points(tile.querySelector("polygon")!);
+    const inner = points(outline);
+    assert.equal(inner.length, 6);
+    const center = outer.reduce(
+      ([x, y], p) => [x! + p[0]! / 6, y! + p[1]! / 6],
+      [0, 0],
+    );
+    for (let i = 0; i < 6; i++) {
+      const radius = Math.hypot(
+        inner[i]![0]! - center[0]!,
+        inner[i]![1]! - center[1]!,
+      );
+      assert.ok(
+        radius < 34,
+        "entire 2px stroke stays inside its hex, clear of adjacent textures",
+      );
+    }
+  }
   const encoded = JSON.stringify(w);
   const animation = renderBoard(svg, w, 14, true, false, 50);
   animation.animate(75);

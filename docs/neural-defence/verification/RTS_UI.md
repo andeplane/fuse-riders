@@ -26,6 +26,9 @@ Final local verification: 1,660 tests passed (50 Neural Defence tests), typechec
 - [Phone battlefield](rts-phone.png)
 - [Short landscape during construction](rts-landscape.png)
 - [Research requirements](rts-research.png)
+- [Complete hover outline, WebKit](hover-hex.png)
+
+Hover outlines paint after each hex texture and sit 1.5 world units inside the edge, keeping the full 2-unit stroke clear of neighboring textures. The selected-hex overlay is unchanged. Chromium/WebKit screenshots verify all six sides; the browser smoke checks paint order and the presentation test checks inset geometry.
 
 ## Review
 
