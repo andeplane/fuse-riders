@@ -492,30 +492,67 @@ test("checkpoint rejects map, settings, clock and participant corruption", () =>
   });
 });
 test("late input replay converges through the shared rollback world", () => {
-  for (const action of [
-    { type: "startResearch", research: "growth" } as const,
-    { type: "setAutoExpand", enabled: true } as const,
-  ]) {
-    const make = () =>
-      new RollbackWorld(
-        neuralGame,
-        neuralGame.createRoom("match", settings()),
-        "host",
-        "host",
+  for (const mode of ["sandbox", "skirmish"] as const) {
+    for (const action of [
+      { type: "startResearch", research: "growth" } as const,
+      { type: "setAutoExpand", enabled: true } as const,
+    ]) {
+      const make = () =>
+        new RollbackWorld(
+          neuralGame,
+          neuralGame.createRoom("match", settings(mode)),
+          "host",
+          "host",
+        );
+      const early = make(),
+        late = make();
+      const management: NeuralEntry[] = [join(1, 1, "host", 0), start(2, 2)];
+      const input: NeuralEntry = [3, 5, 1, "new-match", action];
+      for (const world of [early, late]) world.stream("host", 1);
+      assert.equal(
+        early.receive("host", [...management, input], 3, 8, 0).status,
+        "accepted",
       );
-    const early = make(),
-      late = make();
-    const management: NeuralEntry[] = [join(1, 1, "host", 0), start(2, 2)];
-    const input: NeuralEntry = [3, 5, 1, "new-match", action];
-    for (const world of [early, late]) world.stream("host", 1);
-    assert.equal(
-      early.receive("host", [...management, input], 3, 8, 0).status,
-      "accepted",
-    );
-    assert.equal(late.receive("host", management, 3, 8, 0).status, "accepted");
-    early.advance(8);
-    late.advance(8);
-    assert.equal(late.receive("host", [input], 3, 8, 8).status, "accepted");
-    assert.equal(neuralGame.hash(late.state), neuralGame.hash(early.state));
+      assert.equal(
+        late.receive("host", management, 3, 8, 0).status,
+        "accepted",
+      );
+      early.advance(8);
+      late.advance(8);
+      assert.equal(late.receive("host", [input], 3, 8, 8).status, "accepted");
+      assert.equal(neuralGame.hash(late.state), neuralGame.hash(early.state));
+    }
   }
+});
+
+test("skirmish starts a fair AI opponent and restores its runtime state", () => {
+  for (const spawn of map.spawns) {
+    const room = fold(
+      { host: [join(1, 1, "host", 0), start(2, 2)] },
+      { ...settings("skirmish"), slot: spawn.slot },
+    );
+    assert.equal(room.stage, "running");
+    assert.equal(room.world.players.length, 2);
+    const ai = room.world.players.find((p) => p.id === "ai-opponent")!;
+    assert.notEqual(ai.slot, spawn.slot);
+    assert.equal(
+      ai.statistics.biomassEarned,
+      room.world.players.find((p) => p.id === "host")!.statistics.biomassEarned,
+    );
+    const restored = neuralGame.checkpoint.decode(
+      neuralGame.checkpoint.encode(room),
+      room.tick,
+    );
+    assert.ok(restored);
+    assert.equal(neuralGame.hash(restored), neuralGame.hash(room));
+  }
+  const clock = new Clock();
+  const session = createSession(map, 0, "skirmish", {}, clock);
+  clock.run(10_000);
+  assert.ok(
+    session.view().players.find((p) => p.id === "ai-opponent")!.statistics
+      .built > 0,
+  );
+  session.dispose();
+  assert.equal(clock.loops.size, 0);
 });

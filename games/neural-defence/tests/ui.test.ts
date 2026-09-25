@@ -160,6 +160,26 @@ function fixture(maps?: MapRepository) {
   };
 }
 
+test("completed matches show a result and offer restart", async () => {
+  const f = fixture();
+  await f.start();
+  assert.equal(
+    f.root.querySelector("#match-result")!.hasAttribute("hidden"),
+    true,
+  );
+  f.world.finished = true;
+  f.world.winnerId = "coral";
+  f.publish();
+  const result = f.root.querySelector("#match-result")!;
+  assert.equal(result.hasAttribute("hidden"), false);
+  assert.match(result.textContent!, /Victory/);
+  assert.match(result.textContent!, /Play again/);
+  f.world.winnerId = null;
+  f.publish();
+  assert.match(result.textContent!, /Draw/);
+  f.app.dispose();
+});
+
 test("command shortcuts respect selection, availability, research context and input focus", async () => {
   const f = fixture();
   await f.start();

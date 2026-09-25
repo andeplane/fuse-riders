@@ -6,9 +6,9 @@ Construction distinguishes **can queue** from **can start**. Unsupported or unaf
 
 Disabled commands remain inspectable: hover/focus reveals requirements on desktop, tapping explains them on touch devices. The displayed requirements and clock overlays derive from the current authoritative world, so spending, construction, cancellation and research completion refresh the same command model. Input handlers refuse unavailable actions; explanatory taps never send a gameplay command.
 
-Submenus replace the same six command slots. Slots use Q/W/E and A/S/D, A returns to the parent, and unused slots remain empty. Build contains the current Neuron and test Tower. Progress overlays show actual construction/research progress. Camera state and layout stay independent of these command rules.
+Submenus replace the same six command slots. Slots use Q/W/E and A/S/D, A returns to the parent, and unused slots remain empty. Build contains Neuron, Pulse, Siege and Relay towers; D pages the catalog. The brain's Particles card selects Pulse, Heavy or Swift. D Charge on a non-brain structure sets or clears maximum attack demand. Progress overlays show actual construction/research progress. Camera state and layout stay independent of these command rules.
 
-This is a local catalog and a pure evaluator, not a plugin framework or a new simulation subsystem. Existing rules and queue semantics are preserved; future research prerequisites are data, not special cases in DOM handlers.
+This is a local catalog and a pure evaluator, not a plugin framework or a new simulation subsystem. Queue semantics are preserved; research prerequisites are data, not special cases in DOM handlers.
 
 ## Placement and automatic expansion
 
@@ -16,4 +16,4 @@ Build buttons evaluate player-level eligibility, then arm a local placement tool
 
 The brain's Auto expand toggle is an authoritative `setAutoExpand` command, stored as `Player.autoExpand` (default false). The engine proposes a neuron only with no manual queue, an idle builder, sufficient biomass and a legal connected frontier. Candidates are ordered by hex distance from the brain, then cell index. It waits while unavailable and resumes without user input. Existing rotating-slot construction arbitration resolves competing claims; losing automatic claims are discarded and reconsidered next tick. Foreign unpaid plans do not reserve land. Turning off preserves an already-started job. Elimination clears the toggle.
 
-This changes Neural Defence rules to version 2 and requires explicit boolean checkpoint state. The input log, checkpoints and rollback replay carry the toggle; no UI timers or privileged construction path run the automation. Fuse Riders rules are unchanged.
+Auto expansion first changed Neural Defence rules to version 2 and requires explicit boolean checkpoint state. The input log, checkpoints and rollback replay carry the toggle; no UI timers or privileged construction path run the automation. The skirmish content/profile update advances Neural Defence to version 3. Research jobs, queued and built advanced structures, and individual particles must satisfy owner prerequisites during checkpoint validation. The stateless AI emits ordinary commands from each authoritative world tick, including during rollback. Fuse Riders rules are unchanged.

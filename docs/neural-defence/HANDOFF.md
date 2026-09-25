@@ -1,5 +1,7 @@
 # Phase 0 implementation handoff
 
+> Historical foundation record. The current skirmish roster, AI, controls and verification are documented in [First version](FIRST_VERSION.md) and [README](README.md); older no-AI/one-tower limits below are superseded.
+
 Status: **implemented locally; final verification and player review remain open**. Work continues in `codex/neural-defence-completion`, based on the existing `codex/neural-defence-design` draft [PR #409](https://github.com/andeplane/fuse-riders/pull/409). The continuation is intended for that same PR; this document does not assert that every local change has been pushed. Merge and deployment remain separate decisions.
 
 ## Current decisions

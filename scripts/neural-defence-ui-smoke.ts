@@ -9,9 +9,11 @@ const url =
 const output = process.argv[3] ?? "/tmp/neural-rts-smoke";
 await mkdir(output, { recursive: true });
 
-async function start(page: Page) {
+async function start(page: Page, mode: "sandbox" | "skirmish" = "sandbox") {
   await page.goto(url);
   await page.locator('[data-action="new-game"]').click();
+  if (mode === "skirmish")
+    await page.locator('[data-action="mode-skirmish"]').click();
   await page.locator('[data-action="start"]').click();
   await page.locator(".command-dock").waitFor();
 }
@@ -113,7 +115,7 @@ for (const [name, engine] of [
       .screenshot({ path: `${output}/${name}-hover-hex.png` });
     assert.deepEqual(
       await desktop.locator(".command-card kbd").allTextContents(),
-      ["Q", "W", "E", "A", "S"],
+      ["Q", "W", "E", "A", "S", "D"],
     );
     await desktop.screenshot({ path: `${output}/${name}-desktop.png` });
     await desktop.locator('[data-action="panel-build"]').click();
@@ -183,7 +185,7 @@ for (const [name, engine] of [
     await desktop.locator('.command-card[data-panel="research"]').waitFor();
     assert.deepEqual(
       await desktop.locator(".command-card kbd").allTextContents(),
-      ["Q", "W", "E", "A", "S"],
+      ["Q", "W", "E", "A", "S", "D"],
     );
     await desktop.locator('[data-action="research-growth"]').hover();
     await desktop
@@ -425,6 +427,49 @@ for (const [name, engine] of [
       path: `${output}/${name}-landscape-placement.png`,
     });
     await phone.locator('[data-action="cancel-placement"]').tap();
+    // Actual menu-to-skirmish flow on both desktop and phone; no staged world.
+    for (const [device, page] of [
+      ["desktop", desktop],
+      ["phone", phone],
+    ] as const) {
+      if (device === "phone")
+        await page.setViewportSize({ width: 390, height: 844 });
+      await start(page, "skirmish");
+      await geometry(page);
+      assert.equal(await page.locator(".terrain-layer .hex").count(), 480);
+      assert.equal(await page.locator(".structure-brain").count(), 2);
+      await page.locator('[data-action="panel-particles"]').click();
+      await page.locator('[data-action="particle-heavy"]').focus();
+      assert.match(
+        await page.locator("#help-particle-heavy").innerText(),
+        /Ballistics/,
+      );
+      assert.equal(
+        await page
+          .locator('[data-action="particle-heavy"]')
+          .getAttribute("aria-disabled"),
+        "true",
+      );
+      await page.locator('[data-action="close-panel"]').click();
+      await page.waitForFunction(
+        () =>
+          document.querySelectorAll(".structure-layer .structure").length > 2,
+      );
+      assert.ok((await page.locator(".supply-orbit").count()) >= 2);
+      const rotation = await page
+        .locator(".supply-orbit")
+        .first()
+        .evaluate((el) => getComputedStyle(el).transform);
+      await page.waitForFunction(
+        (before) =>
+          getComputedStyle(document.querySelector(".supply-orbit")!)
+            .transform !== before,
+        rotation,
+      );
+      await page.screenshot({
+        path: `${output}/${name}-skirmish-${device}.png`,
+      });
+    }
     assert.deepEqual(errors, []);
     console.log(
       `${name}: full-width HUD, wheel zoom, drag, modal, panels, phone layout and landscape passed${name === "chromium" ? "; trusted pinch/pan passed" : ""}`,

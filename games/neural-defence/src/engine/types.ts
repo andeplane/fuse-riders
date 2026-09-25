@@ -1,6 +1,9 @@
 export type Resource = "biomass" | "insight";
-export type StructureKind = "brain" | "neuron" | "tower";
-export type Research = "growth" | "excitation" | "conduction";
+export type ParticleKind = "pulse" | "heavy" | "swift";
+export type BuildKind = "neuron" | "tower" | "siege" | "relay";
+export type StructureKind = "brain" | BuildKind;
+export type Research =
+  "growth" | "excitation" | "conduction" | "ballistics" | "resonance";
 export type Cell =
   | { terrain: "open"; towerSite?: boolean; variant?: string }
   | { terrain: "blocked"; variant?: string }
@@ -25,7 +28,7 @@ export interface RosterEntry {
 }
 export interface Construction {
   cell: number;
-  kind: "neuron" | "tower";
+  kind: BuildKind;
   paid: boolean;
   progress: number;
   duration: number;
@@ -45,6 +48,7 @@ export interface Player {
   slot: number;
   alive: boolean;
   autoExpand: boolean;
+  particleKind: ParticleKind;
   biomass: number;
   insight: number;
   sequence: number;
@@ -72,6 +76,7 @@ export interface Structure {
   firingCursor?: number;
 }
 export interface Particle {
+  kind: ParticleKind;
   id: number;
   ownerId: string;
   cell: number;
@@ -86,8 +91,9 @@ export interface Particle {
   speed: number;
 }
 export type Action =
+  | { type: "setParticleKind"; kind: ParticleKind }
   | { type: "setAutoExpand"; enabled: boolean }
-  | { type: "queueConstruction"; cell: number; kind: "neuron" | "tower" }
+  | { type: "queueConstruction"; cell: number; kind: BuildKind }
   | { type: "cancelConstruction"; cell: number }
   | { type: "startResearch"; research: Research }
   | { type: "cancelResearch" }
@@ -121,7 +127,7 @@ export interface Outcome {
 }
 export interface World {
   formatVersion: 1;
-  rulesVersion: 2;
+  rulesVersion: 3;
   matchId: string;
   tick: number;
   map: MapDefinition;
@@ -135,7 +141,7 @@ export interface World {
   finished: boolean;
 }
 export const RULES = Object.freeze({
-  version: 2,
+  version: 3,
   ticksPerSecond: 20,
   particleCount: 128,
   particleSpeed: 4,

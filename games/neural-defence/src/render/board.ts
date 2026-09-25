@@ -1,4 +1,5 @@
 import type { World } from "../engine/types.js";
+import { STRUCTURES } from "../engine/catalog.js";
 
 const radius = 35,
   dx = Math.sqrt(3) * radius,
@@ -12,6 +13,7 @@ const sides = Array.from({ length: 6 }, (_, i) => {
 });
 type Sprites = Readonly<Record<string, string>>;
 type Moving = {
+  kind?: "pulse" | "heavy" | "swift";
   key: string;
   slot: number;
   builder: boolean;
@@ -142,10 +144,10 @@ function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
             sprites[`brain-${teams[slot]}`]
             ? `brain-${teams[slot]}`
             : "brain"
-          : s.kind === "tower"
+          : s.kind !== "neuron"
             ? "tower-experimental"
             : `neuron-${teams[slot]}`;
-      const hpMax = s.kind === "brain" ? 240 : s.kind === "tower" ? 100 : 60;
+      const hpMax = STRUCTURES[s.kind].hp;
       const stock = world.particles.filter(
         (p) =>
           p.ownerId === s.ownerId &&
@@ -156,7 +158,7 @@ function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
         s.hp < hpMax
           ? `<rect class="structure-hp-bg" x="${x - 18}" y="${y - 29}" width="36" height="3"/><rect class="structure-hp" x="${x - 18}" y="${y - 29}" width="${36 * Math.max(0, Math.min(1, s.hp / hpMax))}" height="3"/>`
           : "";
-      return `<g class="structure ${s.connected ? "" : "disconnected"}" data-cell="${s.cell}" style="--team:${colors[slot]}"><circle class="owner-ring" cx="${x}" cy="${y}" r="${s.kind === "brain" ? 27 : 10}"/>${image(sprites, sprite, x, y, s.kind === "brain" ? 72 : 66) || `<circle class="structure-core" cx="${x}" cy="${y}" r="15"/>`}<path class="owner-notch" d="M${x - 5} ${y + 27}h10"/><text class="owner-number" x="${x}" y="${y + 31}" text-anchor="middle">${slot + 1}</text>${health}<circle class="charge-halo" cx="${x}" cy="${y}" r="10" opacity="${Math.min(0.7, stock / 48)}"/></g>`;
+      return `<g class="structure structure-${s.kind} ${s.connected ? "" : "disconnected"}" data-cell="${s.cell}" style="--team:${colors[slot]}"><circle class="owner-ring" cx="${x}" cy="${y}" r="${s.kind === "brain" ? 27 : 10}"/>${image(sprites, sprite, x, y, s.kind === "brain" ? 72 : 66) || `<circle class="structure-core" cx="${x}" cy="${y}" r="15"/>`}<path class="owner-notch" d="M${x - 5} ${y + 27}h10"/><text class="owner-number" x="${x}" y="${y + 31}" text-anchor="middle">${slot + 1}</text>${s.kind === "siege" ? `<path class="tower-crown" d="M${x - 12} ${y - 14}L${x} ${y - 34}L${x + 12} ${y - 14}Z"/>` : s.kind === "relay" ? `<path class="tower-crown" d="M${x - 16} ${y - 28}L${x - 6} ${y - 12}L${x + 4} ${y - 28}L${x + 14} ${y - 12}"/>` : ""}${stock && s.connected ? `<g class="supply-orbit" style="transform-origin:${x}px ${y}px">${Array.from({ length: Math.min(6, Math.ceil(stock / 8)) }, (_, i) => `<circle cx="${x + Math.cos((i * Math.PI) / 3) * 22}" cy="${y + Math.sin((i * Math.PI) / 3) * 22}" r="2" fill="${colors[slot]}"/>`).join("")}</g>` : ""}${health}<circle class="charge-halo" cx="${x}" cy="${y}" r="10" opacity="${Math.min(0.7, stock / 48)}"/></g>`;
     })
     .join("");
 }
@@ -265,6 +267,7 @@ export function renderBoard(
     caches.set(svg, cached);
   }
   const cache = cached;
+  svg.setAttribute("data-reduced-motion", String(reducedMotion));
   svg.setAttribute(
     "aria-label",
     `${width} by ${height} hex map. Selected hex ${selected ?? "none"}.`,
@@ -351,6 +354,7 @@ export function renderBoard(
     .filter((p) => p.mode === "transit")
     .map((p) => ({
       key: `p${p.id}`,
+      kind: p.kind,
       slot: world.players.find((o) => o.id === p.ownerId)?.slot ?? 0,
       builder: false,
       from: p.from,
@@ -385,7 +389,7 @@ export function renderBoard(
       const element = svg.ownerDocument.createElementNS(ns, "g");
       element.setAttribute(
         "class",
-        m.builder ? "builder-particle" : "attack-particle",
+        m.builder ? "builder-particle" : `attack-particle particle-${m.kind}`,
       );
       element.style.setProperty("--team", colors[m.slot]!);
       element.innerHTML = `<path class="particle-trail"/><g class="moving-glyph">${image(sprites, m.builder ? "particle-builder" : "particle-attack", 0, 0, m.builder ? 24 : 16) || `<circle r="${m.builder ? 5 : 3}" fill="${colors[m.slot]}"/>`}</g>`;
@@ -401,7 +405,14 @@ export function renderBoard(
       .get(m.key)!
       .querySelector<SVGPathElement>(".particle-trail")!,
   }));
+  const orbits = [
+    ...cache.structures.querySelectorAll<SVGGElement>(".supply-orbit"),
+  ];
   const animate = (frameNow: number) => {
+    // Absolute presentation time preserves phase when authoritative stock/HP
+    // changes rebuild the structure markup. No simulation state is advanced.
+    for (const orbit of orbits)
+      orbit.style.transform = `rotate(${reducedMotion ? 0 : ((frameNow % 5000) * 360) / 5000}deg)`;
     const visualTick =
       world.tick +
       (reducedMotion ? 0 : Math.max(0, Math.min(1, (frameNow - now) / 50)));

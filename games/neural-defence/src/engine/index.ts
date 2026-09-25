@@ -1,8 +1,13 @@
-import { loadMap, neighbors } from "./map.ts";
+import { loadMap, neighbors, homeCellOrder } from "./map.ts";
 import { autoExpandCell } from "./auto-expand.js";
 import {
   CONSTRUCTIONS,
   RESEARCH,
+  STRUCTURES,
+  PARTICLES,
+  particleProfile,
+  isParticleKind,
+  researchPrerequisites,
   constructionQueueAvailability,
   constructionDispatchAvailability,
   constructionDuration,
@@ -33,8 +38,7 @@ const integer = (
   max = Number.MAX_SAFE_INTEGER,
 ): n is number =>
   typeof n === "number" && Number.isSafeInteger(n) && n >= min && n <= max;
-const hp = (kind: Structure["kind"]) =>
-  kind === "brain" ? 240 : kind === "tower" ? 100 : 60;
+const hp = (kind: Structure["kind"]) => STRUCTURES[kind].hp;
 const structure = (w: World, cell: number) =>
   w.structures.find((s) => s.cell === cell);
 const brain = (w: World, p: Player) =>
@@ -99,6 +103,7 @@ export function createMatch(
       ...r,
       alive: true,
       autoExpand: false,
+      particleKind: "pulse",
       biomass: 60_000,
       insight: 0,
       sequence: -1,
@@ -134,6 +139,7 @@ export function createMatch(
     });
     for (let i = 0; i < RULES.particleCount; i++)
       w.particles.push({
+        kind: "pulse",
         id: w.nextEntityId++,
         ownerId: r.id,
         cell,
@@ -175,7 +181,9 @@ function path(w: World, p: Player, from: number, to: number): number[] | null {
   for (const route of queue) {
     const at = route[route.length - 1]!;
     if (at === to) return route;
-    for (const n of neighbors(w.map, at)) {
+    for (const n of neighbors(w.map, at).sort((a, b) =>
+      homeCellOrder(w.map, p.slot, a, b),
+    )) {
       const s = structure(w, n);
       if (s?.connected && s.ownerId === p.id && !seen.has(n)) {
         seen.add(n);
@@ -189,6 +197,7 @@ export function isAction(raw: unknown): raw is Action {
   const a = raw as Action;
   if (!a || typeof a !== "object") return false;
   const keys: Record<Action["type"], string[]> = {
+    setParticleKind: ["type", "kind"],
     setAutoExpand: ["type", "enabled"],
     queueConstruction: ["type", "cell", "kind"],
     cancelConstruction: ["type", "cell"],
@@ -202,6 +211,8 @@ export function isAction(raw: unknown): raw is Action {
   )
     return false;
   switch (a.type) {
+    case "setParticleKind":
+      return isParticleKind(a.kind);
     case "setAutoExpand":
       return typeof a.enabled === "boolean";
     case "queueConstruction":
@@ -282,6 +293,12 @@ function apply(w: World, c: Command) {
       return;
     }
     p.priorities[String(a.cell)] = a.weight;
+  } else if (a.type === "setParticleKind") {
+    if (researchPrerequisites(p, PARTICLES[a.kind].requires).length) {
+      reject("particle profile unavailable");
+      return;
+    }
+    p.particleKind = a.kind;
   } else if (a.type === "startResearch") {
     if (!researchAvailability(p, a.research).allowed) {
       reject("research unavailable");
@@ -442,7 +459,11 @@ function worker(w: World, p: Player) {
   const anchors = neighbors(w.map, job.cell)
     .map((c) => path(w, p, worker.cell, c))
     .filter((r): r is number[] => r !== null)
-    .sort((a, b) => a.length - b.length || a[a.length - 1]! - b[b.length - 1]!);
+    .sort(
+      (a, b) =>
+        a.length - b.length ||
+        homeCellOrder(w.map, p.slot, a[a.length - 1]!, b[b.length - 1]!),
+    );
   if (!anchors.length) return;
   const target = anchors[0]![anchors[0]!.length - 1]!;
   if (worker.cell !== target) {
@@ -468,7 +489,8 @@ function worker(w: World, p: Player) {
 }
 function recoverParticle(w: World, particle: World["particles"][number]) {
   particle.mode = "recovering";
-  particle.recoverAt = w.tick + RULES.recoveryTicks + particle.speed;
+  particle.recoverAt =
+    w.tick + PARTICLES[particle.kind].recovery + particle.speed;
 }
 function particles(w: World, p: Player, edgeLaunch: Map<string, number>) {
   const b = brain(w, p);
@@ -480,8 +502,7 @@ function particles(w: World, p: Player, edgeLaunch: Map<string, number>) {
       q.cell = b.cell;
       q.mode = "stationed";
       q.destination = b.cell;
-      q.attack = p.research.includes("excitation") ? 3 : 2;
-      q.speed = p.research.includes("conduction") ? 3 : 4;
+      Object.assign(q, particleProfile(p));
     }
     if (q.mode === "transit") {
       const from = structure(w, q.from),
@@ -511,7 +532,7 @@ function particles(w: World, p: Player, edgeLaunch: Map<string, number>) {
         structure(w, d.cell)?.connected &&
         structure(w, d.cell)?.ownerId === p.id,
     )
-    .sort((a, b) => a.cell - b.cell);
+    .sort((a, b) => homeCellOrder(w.map, p.slot, a.cell, b.cell));
   const targets = new Map<number, number>();
   for (let i = 0; i < all.filter((q) => q.mode !== "recovering").length; i++) {
     const options = destinations.filter(
@@ -519,7 +540,8 @@ function particles(w: World, p: Player, edgeLaunch: Map<string, number>) {
     );
     options.sort(
       (a, b) =>
-        (a.count + 1) * b.weight - (b.count + 1) * a.weight || a.cell - b.cell,
+        (a.count + 1) * b.weight - (b.count + 1) * a.weight ||
+        homeCellOrder(w.map, p.slot, a.cell, b.cell),
     );
     const best = options[0];
     if (!best) break;
@@ -560,8 +582,7 @@ function particles(w: World, p: Player, edgeLaunch: Map<string, number>) {
     )
       continue;
     if (q.cell === b.cell) {
-      q.attack = p.research.includes("excitation") ? 3 : 2;
-      q.speed = p.research.includes("conduction") ? 3 : 4;
+      Object.assign(q, particleProfile(p));
     }
     const route = path(w, p, q.cell, q.destination);
     if (!route || route.length < 2) continue;
@@ -592,25 +613,14 @@ function particles(w: World, p: Player, edgeLaunch: Map<string, number>) {
   }
 }
 function combat(w: World) {
-  if (w.tick % 20 !== 0) return;
   const hits = new Map<number, number>();
   const siteHits = new Map<string, number>();
   for (const s of w.structures) {
-    if (!s.connected) continue;
+    const weapon = STRUCTURES[s.kind];
+    if (!s.connected || w.tick % weapon.cadence !== 0) continue;
     const p = w.players.find((p) => p.id === s.ownerId)!;
-    const radius = s.kind === "tower" ? 2 : 1;
-    if (
-      s.kind === "tower" &&
-      (neighbors(w.map, s.cell).length !== 6 ||
-        neighbors(w.map, s.cell).some(
-          (c) =>
-            structure(w, c)?.ownerId !== s.ownerId ||
-            !structure(w, c)?.connected,
-        ))
-    )
-      continue;
     const cells = new Set(neighbors(w.map, s.cell));
-    if (radius === 2)
+    for (let hop = 1; hop < weapon.range; hop++)
       for (const n of [...cells])
         if (w.map.cells[n]?.terrain === "open")
           for (const c of neighbors(w.map, n)) cells.add(c);
@@ -637,7 +647,9 @@ function combat(w: World) {
               site: true,
             })),
         ),
-    ].sort((a, b) => a.hp - b.hp || a.cell - b.cell);
+    ].sort(
+      (a, b) => a.hp - b.hp || homeCellOrder(w.map, p.slot, a.cell, b.cell),
+    );
     const equal = targets.filter((t) => t.hp === targets[0]?.hp);
     const target = equal[(s.firingCursor ?? 0) % equal.length];
     if (!target) continue;
@@ -649,7 +661,7 @@ function combat(w: World) {
           q.cell === s.cell &&
           q.destination === s.cell,
       )
-      .slice(0, s.kind === "tower" ? 8 : 4);
+      .slice(0, weapon.volley);
     const damage = ammo.reduce((sum, q) => sum + q.attack, 0);
     if (!damage) continue;
     s.firingCursor = (s.firingCursor ?? 0) + 1;
@@ -857,6 +869,7 @@ export function decodeState(raw: unknown): World {
       !integer(p.biomass, 0, RULES.bankCap) ||
       !integer(p.insight, 0, RULES.bankCap) ||
       typeof p.autoExpand !== "boolean" ||
+      !isParticleKind(p.particleKind) ||
       (!p.alive && p.autoExpand) ||
       !integer(p.sequence, -1) ||
       !Array.isArray(p.queue) ||
@@ -874,6 +887,13 @@ export function decodeState(raw: unknown): World {
       !record(p.statistics)
     )
       throw new Error("checkpoint: invalid player");
+    if (
+      researchPrerequisites(p, PARTICLES[p.particleKind].requires).length ||
+      p.research.some(
+        (kind) => researchPrerequisites(p, RESEARCH[kind].requires).length,
+      )
+    )
+      throw new Error("checkpoint: unmet research prerequisite");
     for (const [key, value] of Object.entries(p.priorities))
       if (
         !integer(Number(key), 0, w.map.cells.length - 1) ||
@@ -902,6 +922,8 @@ export function decodeState(raw: unknown): World {
       p.researchJob !== null &&
       (!record(p.researchJob) ||
         !isResearchKind(p.researchJob.kind) ||
+        researchPrerequisites(p, RESEARCH[p.researchJob.kind].requires).length >
+          0 ||
         p.research.includes(p.researchJob.kind) ||
         !integer(
           p.researchJob.completesAt,
@@ -916,6 +938,7 @@ export function decodeState(raw: unknown): World {
         !integer(j.cell, 0, w.map.cells.length - 1) ||
         w.map.cells[j.cell]?.terrain !== "open" ||
         !isBuildKind(j.kind) ||
+        researchPrerequisites(p, CONSTRUCTIONS[j.kind].requires).length > 0 ||
         typeof j.paid !== "boolean" ||
         !integer(j.progress) ||
         !integer(j.duration) ||
@@ -980,6 +1003,14 @@ export function decodeState(raw: unknown): World {
     )
       throw new Error("checkpoint: particle conservation or brain mismatch");
   }
+  for (const s of w.structures) {
+    const owner = w.players.find((p) => p.id === s.ownerId)!;
+    if (
+      s.kind !== "brain" &&
+      researchPrerequisites(owner, CONSTRUCTIONS[s.kind].requires).length
+    )
+      throw new Error("checkpoint: structure requires research");
+  }
   for (const q of w.particles) {
     if (
       !record(q) ||
@@ -987,8 +1018,15 @@ export function decodeState(raw: unknown): World {
       !integer(q.id, 1) ||
       ids.has(q.id) ||
       !["stationed", "transit", "recovering"].includes(q.mode) ||
-      !integer(q.attack, 2, 3) ||
-      !integer(q.speed, 3, 4)
+      !isParticleKind(q.kind) ||
+      researchPrerequisites(
+        w.players.find((p) => p.id === q.ownerId)!,
+        PARTICLES[q.kind].requires,
+      ).length > 0 ||
+      ![PARTICLES[q.kind].attack, PARTICLES[q.kind].attack + 1].includes(
+        q.attack,
+      ) ||
+      ![PARTICLES[q.kind].speed, PARTICLES[q.kind].speed - 1].includes(q.speed)
     )
       throw new Error("checkpoint: invalid particle");
     ids.add(q.id);
@@ -1012,7 +1050,11 @@ export function decodeState(raw: unknown): World {
       throw new Error("checkpoint: invalid transit");
     if (
       q.mode === "recovering" &&
-      !integer(q.recoverAt, w.tick + 1, w.tick + RULES.recoveryTicks + q.speed)
+      !integer(
+        q.recoverAt,
+        w.tick + 1,
+        w.tick + PARTICLES[q.kind].recovery + q.speed,
+      )
     )
       throw new Error("checkpoint: invalid recovery");
   }

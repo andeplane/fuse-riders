@@ -44,6 +44,18 @@ test("rendering interpolates actual transit, retains terrain and moving nodes, c
     ),
   );
   const w = createMatch(map, {}, [{ id: "solo", slot: 0 }]);
+  renderBoard(svg, w, 13, false, false, 1000);
+  assert.equal(
+    svg.querySelector<SVGGElement>(".supply-orbit")!.style.transform,
+    "rotate(72deg)",
+  );
+  w.structures[0]!.hp--;
+  renderBoard(svg, w, 13, false, false, 1250);
+  assert.equal(
+    svg.querySelector<SVGGElement>(".supply-orbit")!.style.transform,
+    "rotate(90deg)",
+    "stock/HP markup changes must not restart orbit phase",
+  );
   const particle = w.particles[0]!;
   Object.assign(particle, {
     mode: "transit",

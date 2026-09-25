@@ -5,7 +5,7 @@ import type {
   World,
 } from "../engine/types.js";
 
-export type GameMode = "sandbox" | "combat-lab";
+export type GameMode = "sandbox" | "combat-lab" | "skirmish";
 
 export interface NeuralSession {
   readonly localPlayerId: string;

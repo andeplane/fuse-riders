@@ -22,11 +22,12 @@ import {
   type Command,
 } from "../engine/index.js";
 import { prepareCombatLab, labCommands } from "./combat-lab.js";
+import { aiCommands } from "../engine/ai.js";
 
 export interface NeuralSettings {
   map: MapDefinition;
   slot: number;
-  mode: "sandbox" | "combat-lab";
+  mode: "sandbox" | "combat-lab" | "skirmish";
   engine: MatchSettings;
 }
 export interface NeuralRoom {
@@ -47,7 +48,9 @@ export function parseSettings(x: unknown): NeuralSettings | undefined {
     !Number.isInteger(x.slot) ||
     Number(x.slot) < 0 ||
     Number(x.slot) > 3 ||
-    (x.mode !== "sandbox" && x.mode !== "combat-lab") ||
+    (x.mode !== "sandbox" &&
+      x.mode !== "combat-lab" &&
+      x.mode !== "skirmish") ||
     !record(x.engine)
   )
     return;
@@ -61,6 +64,7 @@ export function parseSettings(x: unknown): NeuralSettings | undefined {
   try {
     const map = loadMap(x.map);
     if (!map.spawns.some((s) => s.slot === x.slot)) return;
+    if (x.mode === "skirmish" && map.spawns.length < 2) return;
     return { map, slot: Number(x.slot), mode: x.mode, engine: { ...x.engine } };
   } catch {
     return;
@@ -131,7 +135,7 @@ function start(room: NeuralRoom, matchId: string) {
     .sort((a, b) => a.slot - b.slot);
   if (
     !players.length ||
-    (room.settings.mode === "combat-lab" &&
+    (room.settings.mode !== "sandbox" &&
       (players.length !== 1 || players[0]!.bot))
   )
     return;
@@ -145,6 +149,8 @@ function start(room: NeuralRoom, matchId: string) {
   if (roster.some((player) => !spawnSlots.has(player.slot))) return;
   if (room.settings.mode === "combat-lab" && room.seats.has("lab-opponent"))
     return;
+  if (room.settings.mode === "skirmish" && room.seats.has("ai-opponent"))
+    return;
   let world: World | undefined;
   try {
     if (room.settings.mode === "sandbox") {
@@ -152,6 +158,31 @@ function start(room: NeuralRoom, matchId: string) {
         room.settings.map,
         { ...room.settings.engine, matchId },
         roster,
+      );
+    } else if (room.settings.mode === "skirmish") {
+      const origin = room.settings.map.spawns.find(
+        (s) => s.slot === roster[0]!.slot,
+      )!;
+      const distance = (cell: number) => {
+        const width = room.settings.map.width;
+        return (
+          Math.abs((cell % width) - (origin.cellIndex % width)) +
+          Math.abs(
+            Math.floor(cell / width) - Math.floor(origin.cellIndex / width),
+          )
+        );
+      };
+      const opponent = [...room.settings.map.spawns]
+        .filter((s) => s.slot !== origin.slot)
+        .sort(
+          (a, b) =>
+            distance(b.cellIndex) - distance(a.cellIndex) || a.slot - b.slot,
+        )[0];
+      if (!opponent) return;
+      world = createMatch(
+        room.settings.map,
+        { ...room.settings.engine, matchId },
+        [...roster, { id: "ai-opponent", slot: opponent.slot }],
       );
     } else {
       for (const spawn of room.settings.map.spawns) {
@@ -187,7 +218,7 @@ export const neuralGame: RollbackGame<
   NeuralSettings
 > = {
   id: "neural-defence",
-  rules: "neural-defence-1",
+  rules: "neural-defence-3-skirmish-1",
   isEntry,
   createRoom: (matchId, settings) => ({
     tick: 0,
@@ -240,6 +271,8 @@ export const neuralGame: RollbackGame<
       }
       if (room.settings.mode === "combat-lab")
         commands.push(...labCommands(room.world));
+      if (room.settings.mode === "skirmish")
+        commands.push(...aiCommands(room.world, "ai-opponent"));
       room.world = step(room.world, commands);
       if (room.world.finished) room.stage = "over";
     }
@@ -352,7 +385,9 @@ export const neuralGame: RollbackGame<
           return;
         if (raw.stage !== "lobby") {
           const participants = world.players.filter(
-            (p) => p.id !== "lab-opponent",
+            (p) =>
+              !(settings.mode === "combat-lab" && p.id === "lab-opponent") &&
+              !(settings.mode === "skirmish" && p.id === "ai-opponent"),
           );
           if (
             participants.length === 0 ||
@@ -370,6 +405,11 @@ export const neuralGame: RollbackGame<
               (participants.length !== 1 ||
                 world.players.length !== 2 ||
                 !world.players.some((p) => p.id === "lab-opponent"))) ||
+            (settings.mode === "skirmish" &&
+              (participants.length !== 1 ||
+                world.players.length !== 2 ||
+                seats.has("ai-opponent") ||
+                !world.players.some((p) => p.id === "ai-opponent"))) ||
             (settings.mode === "sandbox" &&
               world.players.some((p) => p.id === "lab-opponent"))
           )

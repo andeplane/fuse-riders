@@ -1,14 +1,35 @@
 import {
   CONSTRUCTIONS,
   RESEARCH,
+  PARTICLES,
+  researchPrerequisites,
   constructionAvailability,
   researchAvailability,
   type BuildKind,
   type Requirement,
 } from "../engine/catalog.js";
-import type { Player, Research, World } from "../engine/types.js";
+import type { Player, Research, World, ParticleKind } from "../engine/types.js";
 
-export type CommandPanel = "inspect" | "build" | "research" | "activity";
+export type CommandPanel =
+  "inspect" | "build" | "research" | "activity" | "particles";
+export const PARTICLE_PRESENTATION: Record<
+  ParticleKind,
+  { label: string; description: string }
+> = {
+  pulse: {
+    label: "Pulse",
+    description: "Balanced damage and reinforcement speed.",
+  },
+  heavy: {
+    label: "Heavy",
+    description:
+      "Powerful siege charge, with slower reinforcement and recovery.",
+  },
+  swift: {
+    label: "Swift",
+    description: "Rapid reinforcement and recovery, with less damage per shot.",
+  },
+};
 const buildKinds = Object.keys(CONSTRUCTIONS) as BuildKind[];
 const researchKinds = Object.keys(RESEARCH) as Research[];
 const keys = ["Q", "W", "E"];
@@ -36,8 +57,20 @@ export const BUILD_PRESENTATION: Readonly<
     sprite: (team) => `neuron-${team}`,
   },
   tower: {
-    label: "Tower",
-    description: "Build an experimental attack tower.",
+    label: "Pulse tower",
+    description: "Range 2. Fires eight supplied particles each second.",
+    sprite: () => "tower-experimental",
+  },
+  siege: {
+    label: "Siege tower",
+    description:
+      "Range 3. A twelve-particle volley every two seconds. Fragile, expensive long-range pressure.",
+    sprite: () => "tower-experimental",
+  },
+  relay: {
+    label: "Relay tower",
+    description:
+      "Range 2. Fires three supplied particles every half second. Quick, economical frontline support.",
     sprite: () => "tower-experimental",
   },
 };
@@ -56,6 +89,11 @@ export const RESEARCH_PRESENTATION: Readonly<
     label: "Conduction",
     description: "Faster newly dispatched attack particles.",
   },
+  ballistics: {
+    label: "Ballistics",
+    description: "Unlock long-range siege towers.",
+  },
+  resonance: { label: "Resonance", description: "Unlock rapid relay towers." },
 };
 export function requirementText(requirement: Requirement): string {
   switch (requirement.kind) {
@@ -269,6 +307,34 @@ export function renderCommands(
       more
     );
   }
+  if (panel === "particles") {
+    return (
+      (Object.keys(PARTICLES) as ParticleKind[])
+        .map((kind, index) => {
+          const missing = researchPrerequisites(
+            player,
+            PARTICLES[kind].requires,
+          );
+          return commandButton({
+            action: `particle-${kind}`,
+            shortcut: keys[index]!,
+            label: PARTICLE_PRESENTATION[kind].label,
+            description: PARTICLE_PRESENTATION[kind].description,
+            symbol: "excitation",
+            pressed: player.particleKind === kind,
+            disabled: !player.alive || missing.length > 0,
+            hints: [
+              ...missing.map(requirementText),
+              `${PARTICLES[kind].attack} base damage · ${PARTICLES[kind].speed} ticks per link · ${PARTICLES[kind].recovery} ticks to recover.`,
+              "Changes apply at the brain on return or departure. In-flight particles retain their profile. Excitation adds 1 damage; Conduction removes 1 travel tick.",
+            ],
+          });
+        })
+        .join("") +
+      back +
+      empty.repeat(2)
+    );
+  }
   if (panel === "activity") return empty.repeat(3) + back + empty.repeat(2);
   return (
     commandButton({
@@ -322,6 +388,33 @@ export function renderCommands(
           ],
         })
       : empty) +
-    empty
+    (world.structures.some(
+      (s) =>
+        s.cell === selectedCell &&
+        s.kind === "brain" &&
+        s.ownerId === player.id,
+    )
+      ? commandButton({
+          action: "panel-particles",
+          label: "Particles",
+          shortcut: "D",
+          symbol: "excitation",
+          description: "Choose the particle profile dispatched by your brain.",
+        })
+      : world.structures.some(
+            (s) => s.cell === selectedCell && s.ownerId === player.id,
+          )
+        ? commandButton({
+            action: "charge",
+            label: "Charge",
+            shortcut: "D",
+            symbol: "excitation",
+            pressed:
+              selectedCell !== null && player.priorities[selectedCell] === 3,
+            description:
+              "Concentrate supplied particles here for automatic attacks in range. Press again to clear this order.",
+            disabled: !player.alive,
+          })
+        : empty)
   );
 }

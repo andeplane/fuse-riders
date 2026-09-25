@@ -1,5 +1,7 @@
 # Neural Defence: core gameplay proposal
 
+> Historical foundation record. The current skirmish roster, AI, controls and verification are documented in [First version](FIRST_VERSION.md) and [README](README.md); older no-AI/one-tower limits below are superseded.
+
 Status: Phase 0 rules have a local implementation under review, without completed browser or balance evidence. [PHASE_0.md](PHASE_0.md) records the current rule values and acceptance boundary. The slice has **one separate builder per player, one attack particle type and one constructible test tower type**. There are no defence particles or shielding. Multiplayer browser play follows the headless foundation.
 
 ## The central decision

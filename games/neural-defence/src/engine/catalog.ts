@@ -6,9 +6,51 @@ import {
   type Research,
   type Resource,
   type World,
+  type StructureKind,
+  type ParticleKind,
 } from "./types.js";
 
 export type BuildKind = Construction["kind"];
+export const PARTICLES: Readonly<
+  Record<
+    ParticleKind,
+    Readonly<{
+      attack: number;
+      speed: number;
+      recovery: number;
+      requires: readonly Research[];
+    }>
+  >
+> = Object.freeze({
+  pulse: Object.freeze({
+    attack: 2,
+    speed: 4,
+    recovery: 120,
+    requires: Object.freeze([]),
+  }),
+  heavy: Object.freeze({
+    attack: 4,
+    speed: 7,
+    recovery: 240,
+    requires: Object.freeze(["ballistics"] as const),
+  }),
+  swift: Object.freeze({
+    attack: 1,
+    speed: 2,
+    recovery: 60,
+    requires: Object.freeze(["resonance"] as const),
+  }),
+});
+export const isParticleKind = (value: unknown): value is ParticleKind =>
+  typeof value === "string" && Object.hasOwn(PARTICLES, value);
+export function particleProfile(player: Readonly<Player>) {
+  const profile = PARTICLES[player.particleKind];
+  return {
+    kind: player.particleKind,
+    attack: profile.attack + (player.research.includes("excitation") ? 1 : 0),
+    speed: profile.speed - (player.research.includes("conduction") ? 1 : 0),
+  };
+}
 export interface ConstructionDefinition {
   readonly cost: number;
   readonly duration: number;
@@ -38,8 +80,22 @@ export const CONSTRUCTIONS: Readonly<
   tower: {
     cost: RULES.towerCost,
     duration: RULES.towerConstructionTicks,
-    connectedNeighbors: 6,
+    connectedNeighbors: 1,
     requires: [],
+    durationUpgrades: [],
+  },
+  siege: {
+    cost: 80_000,
+    duration: 280,
+    connectedNeighbors: 1,
+    requires: ["ballistics"],
+    durationUpgrades: [],
+  },
+  relay: {
+    cost: 45_000,
+    duration: 160,
+    connectedNeighbors: 1,
+    requires: ["resonance"],
     durationUpgrades: [],
   },
 };
@@ -59,7 +115,22 @@ export const RESEARCH: Readonly<Record<Research, ResearchDefinition>> = {
     duration: RULES.researchTicks,
     requires: [],
   },
+  ballistics: { cost: 20_000, duration: 400, requires: ["excitation"] },
+  resonance: { cost: 20_000, duration: 400, requires: ["conduction"] },
 };
+
+export const STRUCTURES: Readonly<
+  Record<
+    StructureKind,
+    Readonly<{ hp: number; range: number; cadence: number; volley: number }>
+  >
+> = Object.freeze({
+  brain: Object.freeze({ hp: 240, range: 1, cadence: 20, volley: 4 }),
+  neuron: Object.freeze({ hp: 60, range: 1, cadence: 20, volley: 4 }),
+  tower: Object.freeze({ hp: 120, range: 2, cadence: 20, volley: 8 }),
+  siege: Object.freeze({ hp: 80, range: 3, cadence: 40, volley: 12 }),
+  relay: Object.freeze({ hp: 90, range: 2, cadence: 10, volley: 3 }),
+});
 // These rules are shared with presentation, but cannot be changed by it.
 for (const definition of Object.values(CONSTRUCTIONS)) {
   Object.freeze(definition.requires);

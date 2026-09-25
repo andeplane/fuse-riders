@@ -1,5 +1,7 @@
 # Phase 0 headless benchmark
 
+Rules-v3 skirmish follow-up (same workload): source atop `3b56ad242ee92f1c5942c7391f5e3d7d0fa73e9d` with the first-version changes uncommitted at measurement, Node v22.20.0. RULES hash `99558b400224ef8c19778c27d5ff8c52c4e23dc23ab5f2dd54fc027a3c3f0330`; final/replay hash `9219e083`, equal. First run 1,344.4 ms, replay 1,376.2 ms; 820 ticks, 60 commands, peak/cap 512 particles, 14 completed structures and 36 damage events. This run occurred alongside other checks and is not a performance comparison. The changed hash includes the new profile state, rules and spatial ordering. Skirmish and tower-matchup evidence is in [First version](FIRST_VERSION.md).
+
 Run from the repository root:
 
 ```sh

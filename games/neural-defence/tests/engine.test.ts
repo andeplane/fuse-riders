@@ -291,14 +291,15 @@ test("priority routes conserved particles with edge capacity and visible latency
     hashState(run(decodeState(encodeState(w)), 5)),
   );
 });
-test("tower needs six owned neighbors and remains queued otherwise", () => {
+test("frontline tower builds with one connected neighbor", () => {
   let w = start(true);
   w = step(w, [
     command(0, { type: "queueConstruction", cell: 10, kind: "tower" }),
   ]);
   w = run(w, 100);
-  assert.equal(w.structures.length, 1);
-  assert.equal(w.players[0]!.queue[0]!.paid, false);
+  assert.equal(w.structures.length, 2);
+  assert.equal(w.players[0]!.queue.length, 0);
+  assert.equal(w.structures.find((s) => s.cell === 10)!.kind, "tower");
 });
 test("checkpoint rejects conservation, ownership and coordinate corruption atomically", () => {
   const w = start();
@@ -332,7 +333,7 @@ test("combat spends actual particles and simultaneous brain damage can draw", ()
   assert.equal(w.particles.length, 0);
 });
 
-test("allied tower needs its own delivered ammunition and loses power with support", () => {
+test("allied tower uses delivered ammunition and retains fire through a redundant connection", () => {
   const m = map();
   m.spawns[1]!.cellIndex = 20;
   let w = createMatch(m, { instantConstruction: true }, [
@@ -395,10 +396,10 @@ test("allied tower needs its own delivered ammunition and loses power with suppo
       (q) => q.ownerId === "a" && q.cell === center && q.mode === "stationed",
     ),
   );
-  assert.equal(w.structures.find((s) => s.cell === 20)!.hp, enemyHp);
+  assert.ok(w.structures.find((s) => s.cell === 20)!.hp < enemyHp);
   assert.equal(
     w.outcomes.some((o) => o.playerId === "a" && o.type === "damage"),
-    false,
+    true,
   );
   assert.equal(
     w.particles.filter((q) => q.ownerId === "a").length,

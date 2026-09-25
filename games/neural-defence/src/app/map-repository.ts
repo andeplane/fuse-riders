@@ -1,8 +1,18 @@
 import type { MapRepository, MapSummary } from "./contracts.js";
 import sandboxUrl from "../../maps/sandbox-12.json?url";
 import labUrl from "../../maps/combat-lab-12.json?url";
+import skirmishUrl from "../../maps/skirmish-24.json?url";
 
 const catalog: MapSummary[] = [
+  {
+    id: "skirmish-24",
+    title: "Synaptic Reach",
+    description:
+      "A 24 × 20 arena with equal starts and multiple attack routes.",
+    width: 24,
+    height: 20,
+    url: skirmishUrl,
+  },
   {
     id: "sandbox-12",
     title: "Slate Basin",

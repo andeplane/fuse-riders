@@ -1,5 +1,7 @@
 # Neural Defence Phase 0
 
+> Historical foundation record. The current skirmish roster, AI, controls and verification are documented in [First version](FIRST_VERSION.md) and [README](README.md); older no-AI/one-tower limits below are superseded.
+
 Status: **implemented locally; final verification and player review remain open** on draft PR #409. This describes the first playable slice and current rules, not a claim of complete browser, visual, balance or network acceptance. See [HANDOFF.md](HANDOFF.md) for exact checks and remaining work, and the [checkpoint review](REVIEW-2026-09-25.md) for resolved findings.
 
 ## Playable slice

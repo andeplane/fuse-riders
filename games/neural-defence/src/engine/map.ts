@@ -1,4 +1,14 @@
 import type { MapDefinition } from "./types.ts";
+/** Stable local ordering for symmetric choices, viewed from the home spawn. */
+export function homeCellOrder(
+  map: MapDefinition,
+  slot: number,
+  a: number,
+  b: number,
+): number {
+  const home = map.spawns.find((spawn) => spawn.slot === slot)!.cellIndex;
+  return (home < map.cells.length / 2 ? 1 : -1) * (a - b);
+}
 export function neighbors(
   map: Pick<MapDefinition, "width" | "height">,
   cell: number,

@@ -282,12 +282,13 @@ export function mountNeuralDefence(
     return `${header("New game", "setup")}
       <main class="setup-layout"><section class="nd-panel">
         <p class="section-index">01 / SCENARIO</p><div class="choice-grid">
+        <button data-action="mode-skirmish" class="choice ${mode === "skirmish" ? "active" : ""}" aria-pressed="${mode === "skirmish"}"><strong>Player vs AI</strong><span>Grow, research and destroy the rival brain.</span></button>
         <button data-action="mode-sandbox" class="choice ${mode === "sandbox" ? "active" : ""}" aria-pressed="${mode === "sandbox"}"><strong>Open sandbox</strong><span>One player, no AI. Grow at your pace.</span></button>
         <button data-action="mode-combat-lab" class="choice ${mode === "combat-lab" ? "active" : ""}" aria-pressed="${mode === "combat-lab"}"><strong>Combat lab</strong><span>Scripted opposition to test routing and cuts.</span></button>
         </div><p class="section-index">02 / FIELD</p>${catalogBlock}${details}</section>
         <aside class="nd-panel setup-summary"><p class="section-index">SESSION BRIEF</p>
-        <h2>${mode === "sandbox" ? "An open beginning" : "A controlled confrontation"}</h2>
-        <p>One local player · No AI controller${mode === "combat-lab" ? " · Scripted opposing network" : ""}</p>
+        <h2>${mode === "skirmish" ? "Take the field" : mode === "sandbox" ? "An open beginning" : "A controlled confrontation"}</h2>
+        <p>${mode === "skirmish" ? "You versus one AI · Equal resources · Destroy the enemy brain" : `One local player · No AI controller${mode === "combat-lab" ? " · Scripted opposing network" : ""}`}</p>
         ${
           dependencies.debug
             ? `<fieldset class="debug-options"><legend>Debug options</legend>
@@ -310,6 +311,7 @@ export function mountNeuralDefence(
     return `<main class="game-layout" aria-label="${escape(title ?? "Neural field")} battlefield" ${pending ? "inert" : ""}>
       <section class="board-shell">
       <div id="nd-viewport" class="board-scroll"><svg id="nd-board" class="nd-board" tabindex="0" aria-label="Hex board. Use arrow keys to move selection."></svg></div>
+      <div id="match-result" class="match-result" role="status" hidden></div>
       </section>
       <aside id="game-sidebar" class="game-sidebar"></aside></main><div id="game-modal">${modal()}</div>`;
   }
@@ -352,7 +354,7 @@ export function mountNeuralDefence(
       dependencies.sprites?.[`${name}-v2`] ?? dependencies.sprites?.[name];
     const portrait = structure
       ? sprite(
-          structure.kind === "tower"
+          structure.kind !== "brain" && structure.kind !== "neuron"
             ? "tower-experimental"
             : `${structure.kind}-${["blue", "coral", "green", "gold"][world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0]}`,
         )
@@ -407,9 +409,11 @@ export function mountNeuralDefence(
       ? `<div class="placement-instructions" role="status"><strong>Place ${BUILD_PRESENTATION[placement].label}</strong><p>Click or tap open ground · Esc / S to cancel</p><small>${placementHints.map(requirementText).map(escape).join(" ") || "Choose a location on the battlefield."}</small></div>`
       : panel === "inspect" || panel === "build"
         ? `${detail}<span class="construction-summary">${player.queue.length}/${RULES.queueLimit} queued · builder ${escape(worker.mode)}</span>`
-        : panel === "research"
-          ? `<div class="command-context"><strong>Research</strong><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · researching` : "Choose an upgrade"}</p><small>${player.research.length ? `Complete: ${player.research.map((r) => researchNames[r]).join(", ")}` : "Hover or focus a command for its requirements."}</small></div>`
-          : `<div class="command-context"><strong>Recent activity</strong><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></div>`;
+        : panel === "particles"
+          ? `<div class="command-context"><strong>Particle profile · ${escape(player.particleKind)}</strong><p>Refit at the brain</p><small>Existing particles change on return or departure. Your finite pool stays the same size.</small></div>`
+          : panel === "research"
+            ? `<div class="command-context"><strong>Research</strong><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · researching` : "Choose an upgrade"}</p><small>${player.research.length ? `Complete: ${player.research.map((r) => researchNames[r]).join(", ")}` : "Hover or focus a command for its requirements."}</small></div>`
+            : `<div class="command-context"><strong>Recent activity</strong><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></div>`;
     return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div></div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls"><button data-action="reset" class="secondary">Reset</button><button data-action="leave" class="secondary">Menu</button></div></div>
       <div class="command-dock"><section class="inspector" aria-label="${panel === "inspect" || panel === "build" ? "Selected hex" : panel === "research" ? "Research" : "Recent activity"}">${portrait ? `<div class="selection-portrait"><img src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${contextDetail}</div></section><nav class="command-card" data-panel="${panel}" aria-label="${panel === "research" ? "Research commands" : panel === "build" ? "Build commands" : panel === "activity" ? "Activity commands" : "Commands"}">${commands}</nav></div>`;
   }
@@ -433,6 +437,22 @@ export function mountNeuralDefence(
     const sidebar = root.querySelector<HTMLElement>("#game-sidebar");
     const tick = root.querySelector<HTMLElement>("#tick-label");
     if (!svg || !sidebar) return;
+    const result = root.querySelector<HTMLElement>("#match-result");
+    if (result) {
+      result.hidden = !world.finished;
+      if (world.finished) {
+        const title =
+          world.winnerId === null
+            ? "Draw"
+            : world.winnerId === session?.localPlayerId
+              ? "Victory"
+              : "Defeat";
+        updateContent(
+          result,
+          `<strong>${title}</strong><p>${world.winnerId === null ? "Both brains were destroyed." : world.winnerId === session?.localPlayerId ? "The rival brain has been destroyed." : "Your brain has been destroyed."}</p><small>${Math.floor(world.tick / RULES.ticksPerSecond / 60)}:${String(Math.floor(world.tick / RULES.ticksPerSecond) % 60).padStart(2, "0")} elapsed</small><div class="button-row"><button data-action="reset">Play again</button><button data-action="leave" class="secondary">Menu</button></div>`,
+        );
+      }
+    }
     if (tick) tick.textContent = `TICK ${world.tick}`;
     updateContent(sidebar, sidebarMarkup(world));
     const rate = sidebar.querySelector<HTMLElement>(".hud-mini");
@@ -585,7 +605,8 @@ export function mountNeuralDefence(
         next === "inspect" ||
         next === "build" ||
         next === "research" ||
-        next === "activity"
+        next === "activity" ||
+        next === "particles"
       )
         panel = panel === next ? "inspect" : next;
       commandPage = 0;
@@ -618,9 +639,23 @@ export function mountNeuralDefence(
       else if (action === "retry-catalog") void loadCatalog();
       else if (action === "retry-map" && selectedId)
         void loadSelectedMap(selectedId);
-      else if (action === "mode-sandbox" || action === "mode-combat-lab") {
-        mode = action === "mode-sandbox" ? "sandbox" : "combat-lab";
-        const id = mode === "sandbox" ? "sandbox-12" : "combat-lab-12";
+      else if (
+        action === "mode-sandbox" ||
+        action === "mode-combat-lab" ||
+        action === "mode-skirmish"
+      ) {
+        mode =
+          action === "mode-skirmish"
+            ? "skirmish"
+            : action === "mode-sandbox"
+              ? "sandbox"
+              : "combat-lab";
+        const id =
+          mode === "skirmish"
+            ? "skirmish-24"
+            : mode === "sandbox"
+              ? "sandbox-12"
+              : "combat-lab-12";
         void loadSelectedMap(id);
       } else if (action === "start") launch();
       else if (action?.startsWith("build-")) {
@@ -662,9 +697,29 @@ export function mountNeuralDefence(
           )
         )
           dispatch({ type: "setAutoExpand", enabled: !player.autoExpand });
+      } else if (action === "charge" && session && selectedCell !== null) {
+        const world = session.view();
+        const owner = world.players.find(
+          (p) => p.id === session?.localPlayerId,
+        );
+        if (
+          owner &&
+          world.structures.some(
+            (s) => s.cell === selectedCell && s.ownerId === owner.id,
+          )
+        )
+          dispatch({
+            type: "setPriority",
+            cell: selectedCell,
+            weight: owner.priorities[selectedCell] === 3 ? 0 : 3,
+          });
       } else if (action === "cancel-build" && selectedCell !== null)
         dispatch({ type: "cancelConstruction", cell: selectedCell });
-      else if (action?.startsWith("research-")) {
+      else if (action?.startsWith("particle-")) {
+        const kind = action.slice(9);
+        if (kind === "pulse" || kind === "heavy" || kind === "swift")
+          dispatch({ type: "setParticleKind", kind });
+      } else if (action?.startsWith("research-")) {
         const research = action.slice(9);
         if (isResearchKind(research))
           dispatch({ type: "startResearch", research });

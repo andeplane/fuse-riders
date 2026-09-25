@@ -800,6 +800,79 @@ select {
 .structure.disconnected {
   opacity: 0.4;
 }
+.supply-orbit {
+  pointer-events: none;
+}
+.match-result:not([hidden]) {
+  position: absolute;
+  z-index: 8;
+  top: 65px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(360px, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid #63cfff;
+  border-radius: 8px;
+  background: #091523ed;
+  box-shadow: 0 10px 40px #0009;
+  text-align: center;
+  max-height: calc(100dvh - 240px);
+  overflow-y: auto;
+}
+.match-result strong {
+  color: #8ce5ff;
+  font-size: 22px;
+}
+.match-result p {
+  margin: 12px 0;
+}
+.match-result .button-row {
+  justify-content: center;
+  margin-top: 14px;
+}
+@media (max-height: 450px) {
+  .match-result:not([hidden]) {
+    top: 48px;
+    padding: 8px;
+    max-height: calc(100dvh - 170px);
+  }
+  .match-result strong {
+    font-size: 15px;
+    margin-right: 12px;
+  }
+  .match-result p {
+    display: none;
+  }
+  .match-result .button-row {
+    margin-top: 8px;
+  }
+}
+.tower-crown {
+  fill: #172c3d;
+  stroke: var(--team);
+  stroke-width: 3;
+}
+.structure-siege image {
+  filter: sepia(0.4) hue-rotate(325deg);
+}
+.structure-relay image {
+  filter: hue-rotate(55deg);
+}
+.particle-heavy .moving-glyph image {
+  width: 22px;
+  height: 22px;
+}
+.particle-swift .moving-glyph image {
+  filter: brightness(1.8);
+}
+#nd-board[data-reduced-motion="true"] .supply-orbit {
+  transform: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .supply-orbit {
+    transform: none !important;
+  }
+}
 .structure-core {
   fill: var(--team);
 }
