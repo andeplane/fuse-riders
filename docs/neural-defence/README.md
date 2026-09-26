@@ -1,0 +1,33 @@
+# Neural Defence
+
+See the [current tech tree](TECH_TREE.md) for all research branches, structure and particle unlocks, costs, timings, and construction requirements.
+
+Neural Defence is a real-time territory RTS: grow a connected network from a brain, mine **Biomass** and **Insight**, research, and direct a fixed pool of attack particles. The first skirmish version is under review in [PR #409](https://github.com/andeplane/fuse-riders/pull/409). It is available in the local preview; it has not been merged or deployed.
+
+Choose **New game → Start** for the default player-versus-AI match on the 24 × 20 Synaptic Reach arena. The AI builds, researches and routes particles through ordinary commands, with the same resources and travel rules as you. Destroy its brain to win; losing your brain ends the match. Play again restarts directly with the starting camera. The open sandbox and scripted combat lab remain available. Online multiplayer UI is not part of this version.
+
+The tactical minimap shows the actual blocked terrain, deposits, structures and camera view. Click it to move the camera. Ground art is flat and traversable; raised rock and deposit sprites correspond to the same map cells used by building and routing rules. Building silhouettes are distinct across world, ghosts and command buttons.
+
+Settings include sound, volume and reduced motion. Sound starts muted by default; `?mute` forces silence regardless of the saved setting. Short synthesized cues follow resolved building, research, combat and match-result events. They do not drive the simulation.
+
+Each player has one builder and 128 reusable attack particles. Build neurons to expand the network and claim adjacent deposits. Disconnected structures stop mining and firing. Three towers offer different roles:
+
+- **Pulse:** sturdy, strong firepower at medium range.
+- **Siege:** longer reach, but costly, fragile and slower between volleys.
+- **Relay:** cheaper, quicker construction and frequent smaller volleys.
+
+Press **Q / Particles** to choose Pulse, Heavy or Swift profiles. Heavy hits harder but travels and recovers slowly; Swift reinforces and recovers quickly but deals less damage per shot. The choice applies when a particle returns to or departs from the brain; existing frontline and in-flight profiles do not change instantly. Research Growth, Excitation and Conduction, then Ballistics or Resonance to unlock specialist towers and profiles. Exact costs, requirements and timing live in the [engine catalog](../../games/neural-defence/src/engine/catalog.ts).
+
+The full-width battlefield sits between a thin resource bar and a compact bottom command dock. The six command slots mirror **Q W E / A S D**. The top row is **Particles / Build / Research**. Build, Research and Particles replace those slots in place; A goes back and D pages larger catalogs. Choose Build → a structure, then click or tap its location. A translucent ghost follows desktop hover; red marks illegal placement. Esc or S cancels placement. Arrow keys move the target and Enter confirms an armed placement.
+
+Select a friendly frontline structure and press **D / Charge** to give it maximum attack-particle priority; press again to clear the order. The slider permits finer allocation. Particles must travel through connected links before that structure can fire automatically at an enemy in range. Strong positions need supply and redundant connections, not just more towers.
+
+Select your brain for **S / Auto expand**. It stays enabled while waiting for biomass, the builder and valid ground. Manual queues take priority. Turning it off finishes the current construction but starts no further automatic jobs.
+
+Clock overlays show construction and research progress. Hover or focus commands for requirements; tap grey commands on phones for the same explanation. Eligibility and missing-research explanations come from the shared rules catalog. Legal queued plans wait for resources or support.
+
+Drag to pan, scroll to zoom, or use one-finger pan and two-finger pinch on phones. Secondary-click drag (right button or Mac two-finger click-and-drag) and Control-click drag always pan, including while placing a building; they never place or select. The battlefield suppresses the browser context menu. Zoom-out stops at a readable scale that fills both viewport axes, including after resize or rotation; use the minimap for an overview. There are no Fit map or +/− buttons. Illustrated neurons have subtle size/orientation variation and gentle idle motion. Continuous mossy basalt ground replaces repeated hex slabs, and matches begin at a closer, readable camera scale. Bright curved links show actual friendly connections; disconnected fragments have dashed links and dormant bodies. Supply orbits, builder/particle journeys, arrival pulses and attack flashes animate presentation only. Reduced motion is available in Settings.
+
+Use `pnpm install --frozen-lockfile` and `pnpm dev` from the repository root, then open the server's printed `/neural-defence/?mute` URL. Vite development uses `/games/neural-defence/?mute`. Add `&debug` for optional instant construction/research; both default off and retain costs and travel. Dev servers choose a free port.
+
+[First-version design and evidence](FIRST_VERSION.md), [command architecture](COMMANDS.md) and [core contracts](CORE_TYPES.md) describe the current implementation. [Phase 0](PHASE_0.md), [gameplay proposal](GAMEPLAY.md), and earlier reviews record the foundation and historical proposals; their one-tower/no-AI limits are superseded. Automated balance assays test specific policies and matchups, not universal competitive balance or physical-phone acceptance.

@@ -1,0 +1,13 @@
+{
+  "name": "neural-defence",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/engine/index.ts"
+  },
+  "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-ui": "workspace:*"
+  }
+}

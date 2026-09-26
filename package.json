@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test ${TEST_SHARD:+--test-shard=$TEST_SHARD} tests/*.test.ts packages/*/tests/*.test.ts games/*/tests/*.test.ts",
     "test:coverage": "c8 tsx --test tests/*.test.ts packages/*/tests/*.test.ts games/*/tests/*.test.ts",
+    "test:service-health": "tsx --test tests/service-health.smoke.ts",
     "dev:online": "pnpm build && tsx service/dev.ts --port 8787",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

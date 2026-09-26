@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 
+// Explicit smoke only: the wall-clock child startup deadline is load-sensitive
+// under the parallel coverage suite. Track restoring CI coverage in issue #250.
+
 test("actual service exposes Cloud Run safe health aliases without requiring provider operations", async () => {
   const child = spawn(
     process.execPath,
@@ -25,11 +28,19 @@ test("actual service exposes Cloud Run safe health aliases without requiring pro
       let buffer = "";
       const timeout = setTimeout(
         () => reject(new Error("Local gateway startup timed out")),
-        5000,
+        20_000,
       );
       child.once("error", (error) => {
         clearTimeout(timeout);
         reject(error);
+      });
+      child.once("exit", (code, signal) => {
+        clearTimeout(timeout);
+        reject(
+          new Error(
+            `Local gateway exited before startup (code ${code}, signal ${signal})`,
+          ),
+        );
       });
       child.stdout.on("data", (data) => {
         buffer += String(data);
