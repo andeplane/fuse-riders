@@ -38,19 +38,19 @@ export function createCameraModel(
     size.height / world.height,
     Math.min(1.8, Math.max(1.1, size.width / 800)),
   );
-  let fitted = false;
   let view: ViewBox = {
     x: 0,
     y: 0,
     width: size.width / scale,
     height: size.height / scale,
   };
-  const fitScale = () =>
-    Math.min(
-      Math.max(1, size.width - insets.left - insets.right) / world.width,
-      Math.max(1, size.height - insets.top - insets.bottom) / world.height,
-    );
+  // Never shrink the battlefield inside a larger expanse of decorative ground.
+  // The minimap provides the overview; the main view stays readable and fills
+  // both viewport axes, including after a device rotates or window resizes.
+  const minimumScale = () =>
+    Math.max(1.1, size.width / world.width, size.height / world.height);
   function clamp() {
+    scale = Math.max(minimumScale(), scale);
     view.width = size.width / scale;
     view.height = size.height / scale;
     const cx = (world.width - view.width) / 2;
@@ -70,21 +70,6 @@ export function createCameraModel(
       ),
     );
   }
-  function fit() {
-    fitted = true;
-    scale = fitScale();
-    view.x =
-      -insets.left / scale -
-      (Math.max(1, size.width - insets.left - insets.right) / scale -
-        world.width) /
-        2;
-    view.y =
-      -insets.top / scale -
-      (Math.max(1, size.height - insets.top - insets.bottom) / scale -
-        world.height) /
-        2;
-    clamp();
-  }
   function zoom(
     factor: number,
     anchor = {
@@ -93,13 +78,9 @@ export function createCameraModel(
     },
   ) {
     if (!Number.isFinite(factor) || factor <= 0) return;
-    fitted = false;
     const x = view.x + anchor.x / scale,
       y = view.y + anchor.y / scale;
-    scale = Math.max(
-      Math.max(0.8, fitScale() * 0.75),
-      Math.min(8, scale * factor),
-    );
+    scale = Math.max(minimumScale(), Math.min(8, scale * factor));
     view.x = x - anchor.x / scale;
     view.y = y - anchor.y / scale;
     clamp();
@@ -112,11 +93,9 @@ export function createCameraModel(
   clamp();
   return {
     view: (): ViewBox => ({ ...view }),
-    fit,
     zoom,
     focus,
     pan(dx: number, dy: number) {
-      fitted = false;
       view.x -= dx / scale;
       view.y -= dy / scale;
       clamp();
@@ -133,12 +112,10 @@ export function createCameraModel(
         y: view.y + view.height / 2,
       };
       size = next;
-      if (fitted) fit();
-      else {
-        view.x = center.x - size.width / (2 * scale);
-        view.y = center.y - size.height / (2 * scale);
-        clamp();
-      }
+      scale = Math.max(minimumScale(), scale);
+      view.x = center.x - size.width / (2 * scale);
+      view.y = center.y - size.height / (2 * scale);
+      clamp();
     },
     ensureVisible(point: { x: number; y: number }) {
       const margin = 38;
@@ -189,6 +166,7 @@ export function createCameraFactory(
       x: number;
       y: number;
       dragged: boolean;
+      panOnly: boolean;
     } | null = null;
     let suppressClick = false;
     const touches = new Map<number, { x: number; y: number }>();
@@ -218,7 +196,8 @@ export function createCameraFactory(
       }
     }
     function down(event: PointerEvent) {
-      if (event.button !== 0) return;
+      if (event.button !== 0 && event.button !== 2) return;
+      const panOnly = event.button === 2 || event.ctrlKey;
       if (event.pointerType === "touch") {
         touches.set(event.pointerId, { x: event.clientX, y: event.clientY });
         if (touches.size > 1) {
@@ -230,7 +209,7 @@ export function createCameraFactory(
           return;
         }
       } else if (!event.isPrimary) return;
-      suppressClick = false;
+      suppressClick = panOnly;
       gesture = {
         id: event.pointerId,
         startX: event.clientX,
@@ -238,7 +217,12 @@ export function createCameraFactory(
         x: event.clientX,
         y: event.clientY,
         dragged: false,
+        panOnly,
       };
+      if (panOnly) {
+        event.preventDefault();
+        viewport.setPointerCapture(event.pointerId);
+      }
       svg.focus({ preventScroll: true });
     }
     function move(event: PointerEvent) {
@@ -299,23 +283,27 @@ export function createCameraFactory(
             x: point.x,
             y: point.y,
             dragged: true,
+            panOnly: false,
           };
         }
         suppressClick = true;
         return;
       }
       if (!gesture || gesture.id !== event.pointerId) return;
-      suppressClick = gesture.dragged;
+      suppressClick = gesture.dragged || gesture.panOnly;
       gesture = null;
       viewport.classList.remove("is-panning");
       if (viewport.hasPointerCapture(event.pointerId))
         viewport.releasePointerCapture(event.pointerId);
     }
     function click(event: MouseEvent) {
-      if (!suppressClick) return;
+      if (!suppressClick && event.button !== 2 && !event.ctrlKey) return;
       suppressClick = false;
       event.preventDefault();
       event.stopImmediatePropagation();
+    }
+    function contextMenu(event: MouseEvent) {
+      event.preventDefault();
     }
     function wheel(event: WheelEvent) {
       event.preventDefault();
@@ -337,6 +325,8 @@ export function createCameraFactory(
     viewport.addEventListener("pointerup", up);
     viewport.addEventListener("pointercancel", up);
     viewport.addEventListener("click", click, true);
+    viewport.addEventListener("auxclick", click, true);
+    viewport.addEventListener("contextmenu", contextMenu);
     viewport.addEventListener("wheel", wheel, { passive: false });
     const stopResize = dependencies.observeResize(viewport, refresh);
     refresh();
@@ -358,6 +348,8 @@ export function createCameraFactory(
         viewport.removeEventListener("pointerup", up);
         viewport.removeEventListener("pointercancel", up);
         viewport.removeEventListener("click", click, true);
+        viewport.removeEventListener("auxclick", click, true);
+        viewport.removeEventListener("contextmenu", contextMenu);
         viewport.removeEventListener("wheel", wheel);
         if (gesture && viewport.hasPointerCapture(gesture.id))
           viewport.releasePointerCapture(gesture.id);

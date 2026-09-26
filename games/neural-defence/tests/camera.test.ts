@@ -18,11 +18,13 @@ test("large arenas start at readable unit scale on desktop and phones", () => {
     const scale = size.width / camera.view().width;
     assert.ok(scale >= 1.1, "a 72-unit brain must remain at least 79px wide");
     camera.zoom(0.001);
-    assert.ok(size.width / camera.view().width >= 0.8);
+    assert.ok(size.width / camera.view().width >= 1.1 - 1e-9);
+    assert.ok(camera.view().width <= 1500 + 1e-9);
+    assert.ok(camera.view().height <= 1100 + 1e-9);
   }
 });
 
-test("RTS camera fills the viewport by default; Fit reveals the entire map above the dock", () => {
+test("zoom-out and resize keep the battlefield filling desktop and phone viewports", () => {
   for (const size of [
     { width: 1440, height: 900 },
     { width: 900, height: 1100 },
@@ -35,17 +37,20 @@ test("RTS camera fills the viewport by default; Fit reveals the entire map above
       Math.abs(initial.width / initial.height - size.width / size.height) <
         1e-8,
     );
-    camera.fit();
-    const fitted = camera.view();
-    const scale = size.width / fitted.width;
-    assert.ok(-fitted.x * scale >= insets.left - 0.001);
-    assert.ok(-fitted.y * scale >= insets.top - 0.001);
-    assert.ok(
-      (world.width - fitted.x) * scale <= size.width - insets.right + 0.001,
-    );
-    assert.ok(
-      (world.height - fitted.y) * scale <= size.height - insets.bottom + 0.001,
-    );
+    camera.zoom(0.0001);
+    assert.ok(camera.view().width <= world.width + 0.001);
+    assert.ok(camera.view().height <= world.height + 0.001);
+    for (const next of [
+      { width: 390, height: 700 },
+      { width: 1840, height: 800 },
+      { width: 568, height: 180 },
+    ]) {
+      camera.resize(next);
+      camera.zoom(0.0001);
+      assert.ok(camera.view().width <= world.width + 0.001);
+      assert.ok(camera.view().height <= world.height + 0.001);
+      assert.ok(next.width / camera.view().width >= 1.1);
+    }
   }
 });
 
@@ -78,10 +83,11 @@ test("keyboard-selected edge cells remain accessible above the bottom HUD after 
   const scale = 900 / view.width;
   assert.ok((target.x - view.x) * scale < 900 - insets.right);
   assert.ok((target.y - view.y) * scale < 1100 - insets.bottom);
-  camera.fit();
   camera.resize({ width: 1200, height: 800 });
-  const fit = camera.view();
+  camera.ensureVisible(target);
+  const resized = camera.view();
   assert.ok(
-    ((world.height - fit.y) * 1200) / fit.width <= 800 - insets.bottom + 0.001,
+    ((target.y - resized.y) * 1200) / resized.width <=
+      800 - insets.bottom + 0.001,
   );
 });
