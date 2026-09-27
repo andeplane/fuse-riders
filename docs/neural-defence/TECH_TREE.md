@@ -1,6 +1,8 @@
 # Fuse Craft tech tree
 
-Current implemented rules, updated **2026-09-27**, engine **rules version 5**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
+Current implemented rules, updated **2026-09-27**, engine **rules version 6**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
+
+Buildings may be placed on open ground or used to specialize an owned neuron in place. Specialization uses the normal full building price, prerequisites, builder and duration. The neuron remains connected and vulnerable during work; completion preserves its identity and health fraction. Canceling retains the neuron without refunding paid work. Destroying the neuron cancels its upgrade. Brains and existing buildings cannot be replaced. See [specialization behavior](NEURON_UPGRADES.md).
 
 The authoritative definitions are [the engine catalog](../../games/neural-defence/src/engine/catalog.ts), [rule constants](../../games/neural-defence/src/engine/types.ts), and [simulation behavior](../../games/neural-defence/src/engine/index.ts). Display names come from [the command card](../../games/neural-defence/src/app/command-card.ts).
 

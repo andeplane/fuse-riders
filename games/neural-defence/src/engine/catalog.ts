@@ -52,6 +52,7 @@ export function particleProfile(player: Readonly<Player>) {
   };
 }
 export interface ConstructionDefinition {
+  readonly upgradesFrom?: readonly StructureKind[];
   readonly adjacentDeposit?: boolean;
   readonly cost: number;
   readonly duration: number;
@@ -79,6 +80,7 @@ export const CONSTRUCTIONS: Readonly<
     durationUpgrades: [{ research: "growth", duration: 80 }],
   },
   tower: {
+    upgradesFrom: ["neuron"],
     cost: RULES.towerCost,
     duration: RULES.towerConstructionTicks,
     connectedNeighbors: 1,
@@ -86,6 +88,7 @@ export const CONSTRUCTIONS: Readonly<
     durationUpgrades: [],
   },
   siege: {
+    upgradesFrom: ["neuron"],
     cost: 80_000,
     duration: 280,
     connectedNeighbors: 1,
@@ -93,6 +96,7 @@ export const CONSTRUCTIONS: Readonly<
     durationUpgrades: [],
   },
   relay: {
+    upgradesFrom: ["neuron"],
     cost: 45_000,
     duration: 160,
     connectedNeighbors: 1,
@@ -100,6 +104,7 @@ export const CONSTRUCTIONS: Readonly<
     durationUpgrades: [],
   },
   harvester: {
+    upgradesFrom: ["neuron"],
     cost: 60_000,
     duration: 240,
     connectedNeighbors: 1,
@@ -108,6 +113,7 @@ export const CONSTRUCTIONS: Readonly<
     durationUpgrades: [],
   },
   bastion: {
+    upgradesFrom: ["neuron"],
     cost: 70_000,
     duration: 320,
     connectedNeighbors: 1,
@@ -195,6 +201,7 @@ export function constructionSiteRequirements(
 }
 // These rules are shared with presentation, but cannot be changed by it.
 for (const definition of Object.values(CONSTRUCTIONS)) {
+  if (definition.upgradesFrom) Object.freeze(definition.upgradesFrom);
   Object.freeze(definition.requires);
   definition.durationUpgrades.forEach(Object.freeze);
   Object.freeze(definition.durationUpgrades);
@@ -255,9 +262,22 @@ export function researchPrerequisites(
     .filter((id) => !player.research.includes(id))
     .map((research) => ({ kind: "research", research }));
 }
-function occupied(world: Readonly<World>, cell: number) {
+export function constructionUpgradeSource(
+  world: Readonly<World>,
+  player: Readonly<Player>,
+  kind: BuildKind,
+  cell: number,
+) {
+  return world.structures.find(
+    (s) =>
+      s.cell === cell &&
+      s.ownerId === player.id &&
+      CONSTRUCTIONS[kind].upgradesFrom?.includes(s.kind),
+  );
+}
+function occupied(world: Readonly<World>, cell: number, upgradeFrom?: number) {
   return (
-    world.structures.some((s) => s.cell === cell) ||
+    world.structures.some((s) => s.cell === cell && s.id !== upgradeFrom) ||
     world.players.some((p) => p.queue.some((j) => j.cell === cell && j.paid))
   );
 }
@@ -285,7 +305,14 @@ export function constructionQueueAvailability(
   missing.push(...constructionSiteRequirements(world, kind, cell));
   if (cell === null || world.map.cells[cell]?.terrain !== "open")
     missing.push({ kind: "open-cell" });
-  if (cell !== null && occupied(world, cell))
+  if (
+    cell !== null &&
+    occupied(
+      world,
+      cell,
+      constructionUpgradeSource(world, player, kind, cell)?.id,
+    )
+  )
     missing.push({ kind: "unoccupied-cell" });
   if (player.queue.some((j) => j.cell === cell))
     missing.push({ kind: "not-queued" });
@@ -296,7 +323,7 @@ export function constructionQueueAvailability(
 export function constructionDispatchAvailability(
   world: Readonly<World>,
   player: Readonly<Player>,
-  job: Readonly<Pick<Construction, "cell" | "kind">>,
+  job: Readonly<Pick<Construction, "cell" | "kind" | "upgradeFrom">>,
 ): Availability {
   const definition = CONSTRUCTIONS[job.kind];
   const missing = [
@@ -306,7 +333,16 @@ export function constructionDispatchAvailability(
   ];
   if (player.worker.mode !== "idle" || player.queue.some((j) => j.paid))
     missing.push({ kind: "idle-builder" });
-  if (occupied(world, job.cell)) missing.push({ kind: "unoccupied-cell" });
+  const source = constructionUpgradeSource(world, player, job.kind, job.cell);
+  if (
+    occupied(
+      world,
+      job.cell,
+      source?.id === job.upgradeFrom ? source?.id : undefined,
+    ) ||
+    (job.upgradeFrom !== undefined && source?.id !== job.upgradeFrom)
+  )
+    missing.push({ kind: "unoccupied-cell" });
   const connected = neighbors(world.map, job.cell).filter((cell) =>
     world.structures.some(
       (s) => s.cell === cell && s.ownerId === player.id && s.connected,

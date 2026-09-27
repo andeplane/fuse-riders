@@ -24,6 +24,8 @@ import {
   isResearchKind,
   constructionAvailability,
   constructionQueueAvailability,
+  constructionUpgradeSource,
+  CONSTRUCTIONS,
   constructionDispatchAvailability,
   type BuildKind,
 } from "../engine/catalog.js";
@@ -414,7 +416,7 @@ export function mountNeuralDefence(
         ${cell?.terrain === "deposit" ? '<span title="Connected neighboring structures harvest this deposit. Several players may share it.">Expand alongside to mine.</span>' : ""}</div>
         ${owned && canAttack(structure.kind) ? `${priority === 0 && structure.kind !== "brain" ? '<span class="supply-warning">No supply assigned — use D / Charge to arm this node.</span>' : ""}<div class="priority-control"><label class="field-label" for="priority-slider">Attack priority · ${priority}/3</label><input id="priority-slider" data-field="priority" type="range" min="0" max="3" step="1" value="${priority}"></div>` : ""}
         ${structure && STRUCTURES[structure.kind].miningBonus ? `<span class="economic-summary" title="One specialist bonus per deposit per player. Requires a connection to the brain. No attack supply needed.">${structure.connected ? "Extracting" : "Extraction paused"} · +${STRUCTURES[structure.kind].miningBonus} shares/deposit · non-stacking</span>` : ""}
-        ${queued ? `<span class="construction-progress" title="Queued construction waits for support, builder and resources.">${queued.paid ? `Growing · ${Math.ceil((queued.duration - queued.progress) / RULES.ticksPerSecond)}s remaining` : constructionDispatchAvailability(world, player, queued).missing.map(requirementText).join(" ") || "Ready for construction"}</span>` : ""}`;
+        ${queued ? `<span class="construction-progress" title="Queued construction waits for support, builder and resources.">${queued.paid ? `${queued.upgradeFrom !== undefined ? "Specializing" : "Growing"} · ${Math.ceil((queued.duration - queued.progress) / RULES.ticksPerSecond)}s remaining` : constructionDispatchAvailability(world, player, queued).missing.map(requirementText).join(" ") || "Ready for construction"}</span>` : ""}`;
     const researchNames = Object.fromEntries(
       Object.entries(RESEARCH_PRESENTATION).map(([id, item]) => [
         id,
@@ -447,10 +449,20 @@ export function mountNeuralDefence(
         ? constructionDispatchAvailability(world, player, {
             kind: placement,
             cell: placementCell,
+            upgradeFrom: constructionUpgradeSource(
+              world,
+              player,
+              placement,
+              placementCell,
+            )?.id,
           }).missing
         : (placementRequirements?.missing ?? []);
+    const upgrading =
+      placement &&
+      placementCell !== null &&
+      constructionUpgradeSource(world, player, placement, placementCell);
     const contextDetail = placement
-      ? `<div class="placement-instructions" role="status"><strong>Place ${BUILD_PRESENTATION[placement].label}</strong><p>Shift: queue more · Esc / S: cancel</p><small>${placementHints.map(requirementText).map(escape).join(" ") || "Click or tap open ground."}</small></div>`
+      ? `<div class="placement-instructions" role="status"><strong>${upgrading ? "Upgrade neuron to" : "Place"} ${BUILD_PRESENTATION[placement].label}</strong><p>Shift: queue more · Esc / S: cancel</p><small>${placementHints.map(requirementText).map(escape).join(" ") || (upgrading ? "Neuron stays connected during work. Damage carries over." : CONSTRUCTIONS[placement].upgradesFrom?.length ? "Choose open ground or upgrade your neuron." : "Click or tap open ground.")}</small></div>`
       : panel === "inspect" || panel === "build"
         ? `${detail}<span class="construction-summary">${player.queue.length}/${RULES.queueLimit} queued · builder ${escape(worker.mode)}</span>`
         : panel === "particles"
@@ -546,6 +558,12 @@ export function mountNeuralDefence(
         placementCell,
       ).allowed;
       preview.setAttribute("data-valid", String(valid));
+      preview.setAttribute(
+        "data-upgrade",
+        String(
+          !!constructionUpgradeSource(world, owner, placement, placementCell),
+        ),
+      );
       const artwork = `<g opacity="0.55">${structureArtwork(world.map.width, placementCell, placement, owner.slot, dependencies.sprites)}</g>`;
       preview.innerHTML = `<polygon points="${hexPoints(world.map.width, placementCell, 1.5)}"/>${artwork}`;
     } else preview.replaceChildren();

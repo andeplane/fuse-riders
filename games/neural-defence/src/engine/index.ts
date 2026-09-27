@@ -12,6 +12,7 @@ import {
   isParticleKind,
   researchPrerequisites,
   constructionQueueAvailability,
+  constructionUpgradeSource,
   constructionDispatchAvailability,
   constructionDuration,
   constructionDurations,
@@ -267,6 +268,9 @@ function apply(w: World, c: Command) {
       return;
     }
     p.queue.push({
+      ...(constructionUpgradeSource(w, p, a.kind, a.cell)
+        ? { upgradeFrom: constructionUpgradeSource(w, p, a.kind, a.cell)!.id }
+        : {}),
       cell: a.cell,
       kind: a.kind,
       paid: false,
@@ -482,14 +486,25 @@ function worker(w: World, p: Player) {
   worker.mode = "building";
   job.progress++;
   if (job.progress >= job.duration) {
-    w.structures.push({
-      id: w.nextEntityId++,
-      cell: job.cell,
-      ownerId: p.id,
-      kind: job.kind,
-      hp: job.hp,
-      connected: true,
-    });
+    const source =
+      job.upgradeFrom === undefined
+        ? undefined
+        : w.structures.find((s) => s.id === job.upgradeFrom);
+    if (source) {
+      const fraction = source.hp / hp(source.kind);
+      source.kind = job.kind;
+      source.hp = Math.max(1, Math.floor(hp(job.kind) * fraction));
+      delete source.firingCursor;
+      if (!canAttack(source.kind)) delete p.priorities[String(source.cell)];
+    } else
+      w.structures.push({
+        id: w.nextEntityId++,
+        cell: job.cell,
+        ownerId: p.id,
+        kind: job.kind,
+        hp: job.hp,
+        connected: true,
+      });
     p.queue.splice(p.queue.indexOf(job), 1);
     p.statistics.built++;
     emit(w, p, "constructed", { cell: job.cell });
@@ -654,7 +669,9 @@ function combat(w: World) {
         .filter((o) => o.id !== p.id)
         .flatMap((o) =>
           o.queue
-            .filter((j) => j.paid && cells.has(j.cell))
+            .filter(
+              (j) => j.paid && j.upgradeFrom === undefined && cells.has(j.cell),
+            )
             .map((j) => ({
               cell: j.cell,
               hp: j.hp,
@@ -713,6 +730,20 @@ function combat(w: World) {
     emit(w, p, "destroyed", { cell: s.cell });
   }
   w.structures = w.structures.filter((s) => s.hp > 0);
+  for (const p of w.players) {
+    const lostSource = p.queue.some(
+      (j) =>
+        j.upgradeFrom !== undefined &&
+        !w.structures.some((s) => s.id === j.upgradeFrom) &&
+        j.paid,
+    );
+    p.queue = p.queue.filter(
+      (j) =>
+        j.upgradeFrom === undefined ||
+        w.structures.some((s) => s.id === j.upgradeFrom),
+    );
+    if (lostSource) p.worker.mode = "returning";
+  }
   for (const p of w.players)
     if (p.alive && !brain(w, p)) {
       p.alive = false;
@@ -956,6 +987,9 @@ export function decodeState(raw: unknown): World {
     )
       throw new Error("checkpoint: invalid research job");
     for (const j of p.queue) {
+      const source = isBuildKind(j.kind)
+        ? constructionUpgradeSource(w, p, j.kind, j.cell)
+        : undefined;
       if (
         !record(j) ||
         !integer(j.cell, 0, w.map.cells.length - 1) ||
@@ -972,7 +1006,13 @@ export function decodeState(raw: unknown): World {
           (j.progress !== 0 || j.duration !== 0 || j.hp !== hp(j.kind))) ||
         (j.paid &&
           (j.duration === 0 ? j.progress !== 0 : j.progress >= j.duration)) ||
-        (j.paid && occupied.has(j.cell))
+        (j.upgradeFrom !== undefined &&
+          (!integer(j.upgradeFrom) ||
+            source?.id !== j.upgradeFrom ||
+            j.hp !== hp(j.kind))) ||
+        (j.paid &&
+          occupied.has(j.cell) &&
+          (j.upgradeFrom === undefined || source?.id !== j.upgradeFrom))
       )
         throw new Error("checkpoint: invalid construction");
       if (j.paid) occupied.add(j.cell);

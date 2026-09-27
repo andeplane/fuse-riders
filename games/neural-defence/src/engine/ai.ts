@@ -1,6 +1,7 @@
 import {
   constructionDispatchAvailability,
   constructionQueueAvailability,
+  constructionUpgradeSource,
   STRUCTURES,
   canAttack,
   researchAvailability,
@@ -135,7 +136,9 @@ export function aiCommands(
       !neighbors(world.map, job.cell).some((cell) =>
         own.some((s) => s.cell === cell),
       ) ||
-      world.structures.some((s) => s.cell === job.cell)
+      world.structures.some(
+        (s) => s.cell === job.cell && s.id !== job.upgradeFrom,
+      )
     )
       actions.push({ type: "cancelConstruction", cell: job.cell });
 
@@ -188,7 +191,11 @@ export function aiCommands(
     ];
     const eligible = (kind: BuildKind, cell: number) =>
       constructionQueueAvailability(world, player, kind, cell).allowed &&
-      constructionDispatchAvailability(world, player, { kind, cell }).allowed;
+      constructionDispatchAvailability(world, player, {
+        kind,
+        cell,
+        upgradeFrom: constructionUpgradeSource(world, player, kind, cell)?.id,
+      }).allowed;
     const deposits = (cell: number) =>
       neighbors(world.map, cell).filter(
         (n) => world.map.cells[n]?.terrain === "deposit",

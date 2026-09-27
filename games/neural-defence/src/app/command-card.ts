@@ -272,7 +272,9 @@ export function renderCommands(
         disabled: !availability.allowed,
         hints: availability.allowed
           ? [
-              "Choose this structure, then click or tap open ground to place it.",
+              definition.upgradesFrom?.length
+                ? "Place on open ground or upgrade your neuron in place."
+                : "Choose this structure, then click or tap open ground to place it.",
               "Construction waits for resources, a builder and connected support.",
             ]
           : availability.missing.map(requirementText),
