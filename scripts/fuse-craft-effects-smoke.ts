@@ -14,7 +14,7 @@ import {
 const recording = JSON.parse(
   readFileSync(
     process.argv[2] ??
-      "docs/neural-defence/verification/expansion-2026-09-27/close-quarters.replay.json",
+      "docs/neural-defence/verification/upgrades-2026-09-27/close-quarters.replay.json",
     "utf8",
   ),
 ) as {

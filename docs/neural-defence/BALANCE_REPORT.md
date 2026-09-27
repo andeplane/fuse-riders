@@ -2,6 +2,8 @@
 
 This report preserves the original expansion matrix. The subsequent [Defensive opening follow-up](DEFENSIVE_OPENING.md) changes that policy and reports new exact-source trials; its results supersede the statements below about Defensive losing every default-arena matchup.
 
+The current game now uses **rules 6** with [timed neuron specialization](NEURON_UPGRADES.md). Neither historical rules-5 matrix establishes balance under these newer rules; fresh multi-arena trials are required.
+
 ## Delivered changes
 
 - Growth unlocks the **Harvester** (economic conduit, one specialist extraction bonus per deposit) and **Bastion** (durable, supplied, range-one defense). Shared catalogs control prerequisites, placement, costs, timing, durability, weapon capability and extraction. Harvesters cannot receive attack orders.
