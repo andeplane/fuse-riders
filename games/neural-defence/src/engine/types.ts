@@ -79,6 +79,7 @@ export interface Player {
     built: number;
     damage: number;
     lost: number;
+    sitesLost: number;
   };
 }
 export interface Structure {
@@ -143,7 +144,7 @@ export interface Outcome {
 }
 export interface World {
   formatVersion: 1;
-  rulesVersion: 7;
+  rulesVersion: 8;
   matchId: string;
   tick: number;
   map: MapDefinition;
@@ -157,7 +158,7 @@ export interface World {
   finished: boolean;
 }
 export const RULES = Object.freeze({
-  version: 7,
+  version: 8,
   ticksPerSecond: 20,
   particleCount: 128,
   particleSpeed: 4,

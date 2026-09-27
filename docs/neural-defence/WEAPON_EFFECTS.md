@@ -27,6 +27,12 @@ portrait and short-landscape UI flow. These viewport checks emulate phones.
 
 ## Reproduce the captures
 
+These captures and commands record historical **rules 7** behavior at
+`b2077471`. Rules 8 rejects those checkpoints. For current-source effects checks,
+run `pnpm exec tsx scripts/fuse-craft-effects-smoke.ts`; the default is a fresh
+rules-8 recording. Append an output directory and `site` after that recording's
+path to inspect destruction of a paid construction site specifically.
+
 Run the source preview on port 5174, then:
 
 ```sh

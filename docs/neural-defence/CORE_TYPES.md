@@ -17,9 +17,14 @@ type Cell =
   | { terrain: "deposit"; resourceKind: Resource; variant?: string };
 ```
 
-`MapDefinition` carries schema version 1, ID, width, height, `odd-r` layout, row-major cells and explicit `{slot, cellIndex}` spawns. The optional `towerSite` cell flag suggests a test location; it does not restrict tower construction. `RosterEntry` is `{id, slot}`. `World` carries format version 1 and rules version 3, match ID, tick, map, settings, players, structures, attack particles, next entity ID, per-tick outcomes and finish/winner state. Currency is integer milli-units. Player and structure owners use stable IDs; local selection and armed placement are app state, never authority. Version 1 and 2 checkpoints are rejected rather than guessing missing auto-expansion or particle-profile state.
+`MapDefinition` carries schema version 1, ID, width, height, `odd-r` layout, row-major cells and explicit `{slot, cellIndex}` spawns. The optional `towerSite` cell flag suggests a test location; it does not restrict tower construction. `RosterEntry` is `{id, slot}`. `World` carries format version 1 and rules version 8, match ID, tick, map, settings, players, structures, attack particles, next entity ID, per-tick outcomes and finish/winner state. Currency is integer milli-units. Player and structure owners use stable IDs; local selection and armed placement are app state, never authority. Older rules checkpoints are rejected rather than guessing missing state.
 
 Each `Player` owns balances, command sequence, up to 32 construction jobs, **one** `Worker`, completed research, one active research job, attack priorities, mining remainders and statistics. `Worker.mode` is `idle | outbound | building | returning | recovering`; its cell, edge and timing are checkpointed. `Construction` records cell, catalog build kind, paid state, progress, latched duration and site HP. `Structure` records ID, cell, owner, kind, HP, brain connectivity and optional firing cursor.
+
+Statistics distinguish
+completed construction jobs (`built`, including upgrades), finished structures
+destroyed (`lost`) and paid new-construction sites destroyed in combat
+(`sitesLost`). See [construction losses](CONSTRUCTION_LOSSES.md).
 
 `Particle` is an individual reusable **attack** unit with owner, ID, current cell, destination, edge/timing, `stationed | transit | recovering` mode, attack and speed. There are 128 per living player. The builder is stored separately in `Player.worker`; Player.particleKind selects a profile, and each Particle.kind records its latched profile. There is no guard type or timed refit job. Research changes future dispatch/recovery profiles as defined by the engine.
 

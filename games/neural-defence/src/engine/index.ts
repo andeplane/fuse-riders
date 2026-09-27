@@ -140,6 +140,7 @@ export function createMatch(
         built: 0,
         damage: 0,
         lost: 0,
+        sitesLost: 0,
       },
     });
     w.structures.push({
@@ -803,6 +804,12 @@ function combat(w: World) {
   for (const p of w.players) {
     for (const j of p.queue) j.hp -= siteHits.get(`${p.id}:${j.cell}`) ?? 0;
     const destroyed = p.queue.some((j) => j.paid && j.hp <= 0);
+    for (const j of p.queue) {
+      if (j.paid && j.upgradeFrom === undefined && j.hp <= 0) {
+        p.statistics.sitesLost++;
+        emit(w, p, "destroyed", { cell: j.cell });
+      }
+    }
     p.queue = p.queue.filter((j) => j.hp > 0);
     if (destroyed) p.worker.mode = "returning";
   }
@@ -1057,6 +1064,7 @@ export function decodeState(raw: unknown): World {
       "built",
       "damage",
       "lost",
+      "sitesLost",
     ] as const)
       if (!integer(p.statistics[key]))
         throw new Error("checkpoint: invalid statistics");

@@ -26,4 +26,36 @@ Initial diagnostic mirrors with the earlier active-Bastion weighting finished
 at 450 seconds (Twin Pass Pressure), 440.5 seconds (Twin Pass Relay), and 452
 seconds (Close Quarters Pressure). The final candidate restores the original
 ammunition weighting to isolate construction policy. These exploratory results
-are not exact-source tournament evidence; the complete comparison is pending.
+are not exact-source tournament evidence.
+
+## Completed exact-source comparison
+
+Source `0eeff33363d55065b2a825ff8f4801a199e2fb1d` completed all 210 ordinary
+900-second matches: every unordered pair of six strategies, including mirrors,
+in both seat assignments on five maps. Both runs had clean simulation sources.
+The [matrix](verification/attrition-2026-09-27/matrix.jsonl) and split
+[fronts](verification/attrition-2026-09-27/fronts.manifest.json) /
+[other maps](verification/attrition-2026-09-27/other.manifest.json) manifests
+retain commands, map inputs and source identity. This is rules-7, harness-1
+evidence; it predates the rules-8 construction-loss counter.
+
+| Map            | Matches | Timeout at 900 s | Mutual destruction | Winner |
+| -------------- | ------: | ---------------: | -----------------: | -----: |
+| Close Quarters |      42 |                0 |                 12 |     30 |
+| Twin Pass      |      42 |               26 |                 12 |      4 |
+| Synaptic Reach |      42 |               14 |                  4 |     24 |
+| Open Front     |      42 |               18 |                  4 |     20 |
+| Lean Resources |      42 |               12 |                  0 |     30 |
+
+There were no rejected commands. All 105 swapped-seat pairs agree on result,
+duration, first contact and per-player metrics. Compared with source `6cce2958`,
+only eight rows change outcome or duration: Twin Pass Pressure mirrors now end
+in mutual destruction at 442 seconds and Relay mirrors at 438.5 seconds, replacing
+four timeouts. Close Quarters Pressure mirrors take 452 seconds and Relay mirrors
+287 seconds; both still finish in mutual destruction. All other result/duration
+pairs are unchanged. All six strategies have both wins and losses on the default
+Close Quarters map.
+
+The remaining 70 timeouts prevent a claim of balanced, complete multi-map play.
+Timeout means an unfinished game, not a scored draw. The next diagnostic target
+is repeated paid-site destruction; see [construction losses](CONSTRUCTION_LOSSES.md).

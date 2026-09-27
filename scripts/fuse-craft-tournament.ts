@@ -28,7 +28,7 @@ import {
 // injected resources or artificial "winner" when the time budget expires.
 // Bump when match setup, command generation, stepping or result measurement
 // changes. Existing manifests without this field used this same version-1 loop.
-const harnessVersion = 1;
+const harnessVersion = 2;
 const option = (name: string, fallback: string) => {
   const index = process.argv.indexOf(`--${name}`);
   return index < 0 ? fallback : (process.argv[index + 1] ?? fallback);
@@ -196,8 +196,8 @@ for (const map of maps.filter(
           emptyFront: 0,
           disconnected: 0,
           idleBuilder: 0,
-          sitesLost: 0,
-          biomassLostOnSites: 0,
+          unfinishedPaidJobsRemoved: 0,
+          biomassOnRemovedJobs: 0,
           paidCancellations: 0,
           shieldAbsorbed: 0,
         }));
@@ -234,8 +234,10 @@ for (const map of maps.filter(
               )
                 metric.paidCancellations++;
               else {
-                metric.sitesLost++;
-                metric.biomassLostOnSites += CONSTRUCTIONS[job.kind].cost;
+                // This diagnostic includes upgrade-source loss and elimination
+                // cleanup. Actual combat site losses are engine statistics.
+                metric.unfinishedPaidJobsRemoved++;
+                metric.biomassOnRemovedJobs += CONSTRUCTIONS[job.kind].cost;
               }
             }
           });

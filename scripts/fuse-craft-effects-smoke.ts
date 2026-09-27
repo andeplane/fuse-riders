@@ -22,7 +22,7 @@ const eventType = weapon
 const recording = JSON.parse(
   readFileSync(
     process.argv[2] ??
-      "docs/neural-defence/verification/protection-2026-09-27/close-quarters.replay.json",
+      "docs/neural-defence/verification/construction-losses-2026-09-27/combat.replay.json",
     "utf8",
   ),
 ) as {
@@ -43,6 +43,12 @@ while (world.tick < recording.ticks) {
     world.outcomes.some(
       (o) =>
         o.type === eventType &&
+        (process.argv[4] !== "site" ||
+          before.players.some(
+            (p) =>
+              p.id === o.playerId &&
+              p.queue.some((j) => j.paid && j.cell === o.cell),
+          )) &&
         (!weapon ||
           before.structures.some(
             (s) =>

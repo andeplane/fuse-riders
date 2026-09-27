@@ -130,6 +130,8 @@ test("source destruction cancels an upgrade instead of creating a new shield", (
   assert.equal(w.players[0]!.queue[0]!.paid, true);
   w = step(w);
   assert.ok(w.outcomes.some((o) => o.type === "destroyed" && o.cell === 1));
+  assert.equal(w.players[0]!.statistics.sitesLost, 0);
+  assert.equal(w.players[0]!.statistics.lost, 1);
   assert.equal(w.players[0]!.queue.length, 0);
   assert.equal(
     w.structures.some((s) => s.cell === 1),

@@ -215,6 +215,84 @@ for (const upgrade of [false, true])
     assert.ok(decodeState(encodeState(next)));
   });
 
+for (const guns of [1, 2])
+  test(`paid site loss from ${guns} guns is counted once and replayed`, () => {
+    let w = fixture(0);
+    if (guns === 2) {
+      add(w, "b", "neuron", 2);
+      w.players[1]!.priorities[2] = 3;
+      for (const q of w.particles
+        .filter((q) => q.ownerId === "b" && q.cell === 4)
+        .slice(0, 4))
+        Object.assign(q, { cell: 2, destination: 2, from: 2, to: 2 });
+    }
+    w.tick = 0;
+    w.players[0]!.biomass = 100_000;
+    w.structures = w.structures.filter((s) => s.cell !== 1);
+    w = step(w, [
+      {
+        playerId: "a",
+        sequence: 1,
+        action: { type: "queueConstruction", kind: "tower", cell: 1 },
+      },
+    ]);
+    assert.equal(w.players[0]!.queue[0]!.paid, true);
+    while (w.tick < 19) w = step(w);
+    w.players[0]!.queue[0]!.hp = 1;
+    const before = encodeState(w);
+    const next = step(w);
+    assert.equal(next.players[0]!.queue.length, 0);
+    assert.equal(next.players[0]!.statistics.sitesLost, 1);
+    assert.equal(next.players[0]!.statistics.lost, 0);
+    assert.notEqual(next.players[0]!.worker.mode, "building");
+    assert.equal(
+      next.outcomes.filter((o) => o.type === "damage" && o.cell === 1).length,
+      guns,
+    );
+    assert.deepEqual(
+      next.outcomes.filter((o) => o.type === "destroyed"),
+      [{ tick: 20, playerId: "a", type: "destroyed", cell: 1 }],
+    );
+    assert.equal(hashState(step(decodeState(before))), hashState(next));
+    assert.equal(hashState(decodeState(encodeState(next))), hashState(next));
+    assert.equal(step(next).players[0]!.statistics.sitesLost, 1);
+    assert.equal(encodeState(w), before);
+    const cancelled = step(w, [
+      {
+        playerId: "a",
+        sequence: 2,
+        action: { type: "cancelConstruction", cell: 1 },
+      },
+    ]);
+    assert.equal(cancelled.players[0]!.statistics.sitesLost, 0);
+    assert.equal(
+      cancelled.outcomes.some((o) => o.type === "destroyed"),
+      false,
+    );
+  });
+
+test("unpaid plans under fire are not lost construction sites", () => {
+  let w = fixture(0);
+  w.tick = 0;
+  w.players[0]!.biomass = 0;
+  w.structures = w.structures.filter((s) => s.cell !== 1);
+  w = step(w, [
+    {
+      playerId: "a",
+      sequence: 1,
+      action: { type: "queueConstruction", kind: "tower", cell: 1 },
+    },
+  ]);
+  while (w.tick < 20) w = step(w);
+  assert.equal(w.players[0]!.queue[0]!.paid, false);
+  assert.equal(w.players[0]!.statistics.sitesLost, 0);
+  assert.equal(
+    w.outcomes.some((o) => o.type === "destroyed" && o.cell === 1),
+    false,
+  );
+  assert.ok(decodeState(encodeState(w)));
+});
+
 test("Bastion firing spends ammunition before shields, never twice", () => {
   const w = fixture(12);
   w.structures = w.structures.filter((s) => s.cell !== 1);

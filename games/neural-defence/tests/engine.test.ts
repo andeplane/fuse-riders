@@ -118,6 +118,8 @@ test("auto expansion replays and checkpoints exactly, and validates toggle state
   raw.players[0].autoExpand = true;
   raw.rulesVersion = 1;
   assert.throws(() => decodeState(JSON.stringify(raw)), /unsupported/);
+  raw.rulesVersion = 7;
+  assert.throws(() => decodeState(JSON.stringify(raw)), /unsupported/);
 });
 test("contested auto expansion uses rotating slots, not IDs or opponent unpaid plans", () => {
   const narrow: MapDefinition = {
@@ -583,6 +585,7 @@ test("checkpoint requires every numeric field and coherent research, worker and 
     "built",
     "damage",
     "lost",
+    "sitesLost",
   ]) {
     reject((raw, p) => {
       delete (p.statistics as Record<string, unknown>)[key];
@@ -592,6 +595,9 @@ test("checkpoint requires every numeric field and coherent research, worker and 
     });
     reject((raw, p) => {
       (p.statistics as Record<string, unknown>)[key] = -1;
+    });
+    reject((raw, p) => {
+      (p.statistics as Record<string, unknown>)[key] = 0.5;
     });
   }
   reject((raw, p) => {
