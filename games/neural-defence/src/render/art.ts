@@ -20,6 +20,9 @@ export function structureArt(kind: StructureKind, cell?: number): string {
 }
 
 const teamHues = [0, 145, 265, 205] as const;
+export function teamArtHue(slot: number): number {
+  return teamHues[slot] ?? 0;
+}
 export function teamArtFilter(slot: number): string {
   return `hue-rotate(${teamHues[slot] ?? 0}deg)`;
 }

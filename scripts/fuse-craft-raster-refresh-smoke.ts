@@ -25,7 +25,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
       const world = createAttractScene();
       const before = JSON.stringify(world);
       const cache = createBuildingSprites(spriteUrls, createBrowserSpriteRasterizer(document, () => new Image()));
-      const provider = { resolve: scale => cache.resolve(scale * devicePixelRatio) };
+      const provider = { resolve: (scale, slots) => cache.resolve(scale * devicePixelRatio, slots) };
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.style.cssText = 'width:1280px;height:800px;display:block';
       svg.setAttribute('preserveAspectRatio', 'none');

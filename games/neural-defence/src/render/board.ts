@@ -1,5 +1,10 @@
 import type { World, StructureKind } from "../engine/types.js";
-import { refreshSpriteImages, type BuildingSprites } from "./sprite-raster.js";
+import {
+  refreshSpriteImages,
+  teamSpritePaint,
+  type BuildingSprites,
+  type SpritePaint,
+} from "./sprite-raster.js";
 import { STRUCTURES, attackCells } from "../engine/catalog.js";
 import { neighbors } from "../engine/map.js";
 import { structureArt, teamSvgFilter, svgArtFilters } from "./art.js";
@@ -91,10 +96,11 @@ function image(
   x: number,
   y: number,
   size: number,
+  paint?: { key: SpritePaint; filter: string },
 ): string {
   const url = sprites[`${name}-v2`] ?? sprites[name];
   return url
-    ? `<image href="${escaped(url)}" data-sprite="${escaped(name)}" x="${x - size / 2}" y="${y - size / 2}" width="${size}" height="${size}" pointer-events="none"/>`
+    ? `<image href="${escaped(url)}" data-sprite="${escaped(name)}"${paint ? ` data-sprite-paint="${paint.key}" data-sprite-filter="${paint.filter}"` : ""} x="${x - size / 2}" y="${y - size / 2}" width="${size}" height="${size}" pointer-events="none"/>`
     : "";
 }
 function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
@@ -147,7 +153,8 @@ export function neuronArtwork(
   const { x, y } = hexCenter(width, cell);
   const seed = (cell * 37 + slot * 17) % 97;
   const size = 49 + (seed % 7);
-  return `<g class="neuron-body" data-phase="${seed}" style="--team:${colors[slot]};transform-origin:${x}px ${y}px"><g filter="${teamSvgFilter(slot)}" transform="rotate(${(seed % 6) * 60} ${x} ${y})">${image(sprites, structureArt("neuron", cell), x, y, size) || image(sprites, "neuron-v3", x, y, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="12"/>`}</g></g>`;
+  const paint = { key: teamSpritePaint(slot), filter: teamSvgFilter(slot) };
+  return `<g class="neuron-body" data-phase="${seed}" style="--team:${colors[slot]};transform-origin:${x}px ${y}px"><g filter="${teamSvgFilter(slot)}" transform="rotate(${(seed % 6) * 60} ${x} ${y})">${image(sprites, structureArt("neuron", cell), x, y, size, paint) || image(sprites, "neuron-v3", x, y, size, paint) || `<circle class="structure-core" cx="${x}" cy="${y}" r="12"/>`}</g></g>`;
 }
 const buildingFoot = 25;
 function buildingSize(kind: Exclude<StructureKind, "neuron">): number {
@@ -163,7 +170,7 @@ export function structureArtwork(
   if (kind === "neuron") return neuronArtwork(width, cell, slot, sprites);
   const { x, y } = hexCenter(width, cell);
   const size = buildingSize(kind);
-  return `<g class="building-art" filter="${teamSvgFilter(slot)}">${image(sprites, structureArt(kind), x, y + buildingFoot - size / 2, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="16"/>`}</g>`;
+  return `<g class="building-art" filter="${teamSvgFilter(slot)}">${image(sprites, structureArt(kind), x, y + buildingFoot - size / 2, size, { key: teamSpritePaint(slot), filter: teamSvgFilter(slot) }) || `<circle class="structure-core" cx="${x}" cy="${y}" r="16"/>`}</g>`;
 }
 /** Project the sprite silhouette away from a shared upper-left light source. */
 function shadowMarkup(world: Readonly<World>, sprites: Sprites): string {
@@ -173,7 +180,7 @@ function shadowMarkup(world: Readonly<World>, sprites: Sprites): string {
       const { x, y } = hexCenter(world.map.width, s.cell);
       const foot = y + buildingFoot;
       const size = buildingSize(s.kind);
-      return `<g class="building-cast-shadow" transform="matrix(1 0 -0.55 -0.3 ${0.55 * foot} ${1.3 * foot})" filter="url(#nd-art-shadow)" opacity="0.28">${image(sprites, structureArt(s.kind), x, foot - size / 2, size)}</g>`;
+      return `<g class="building-cast-shadow" transform="matrix(1 0 -0.55 -0.3 ${0.55 * foot} ${1.3 * foot})" filter="url(#nd-art-shadow)" opacity="0.28">${image(sprites, structureArt(s.kind), x, foot - size / 2, size, { key: "shadow", filter: "url(#nd-art-shadow)" })}</g>`;
     })
     .join("");
 }
@@ -431,6 +438,7 @@ export function renderBoard(
   if (matrix && buildingSprites)
     sprites = buildingSprites.resolve(
       Math.max(Math.hypot(matrix.a, matrix.b), Math.hypot(matrix.c, matrix.d)),
+      world.players.map((player) => player.slot),
     );
   setMarkup(cache.castShadows, shadowMarkup(world, sprites));
   setMarkup(
@@ -681,6 +689,7 @@ export function renderBoard(
           Math.hypot(matrix.a, matrix.b),
           Math.hypot(matrix.c, matrix.d),
         ),
+        world.players.map((player) => player.slot),
       );
       if (resolved !== displayedSprites) {
         refreshSpriteImages(svg, resolved);

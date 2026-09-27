@@ -5,6 +5,7 @@ import {
   createBuildingSprites,
   spriteRasterSize,
   refreshSpriteImages,
+  paintedSpriteKey,
   type SpriteRasterizer,
 } from "../src/render/sprite-raster.js";
 
@@ -91,4 +92,46 @@ test("failures retain originals without retry loops and arbitrary zoom has bound
     await Promise.resolve();
   }
   assert.equal(calls, 4);
+});
+
+test("paint variants are lazy per team, merge concurrent completions, and restore native filters at close zoom", async () => {
+  const requests: Array<{
+    tint: number | "shadow" | undefined;
+    finish: (url: string) => void;
+  }> = [];
+  const cache = createBuildingSprites(
+    { "brain-v3": "original.png" },
+    {
+      resize: (_url, _size, tint) =>
+        new Promise((finish) => requests.push({ tint, finish })),
+    },
+  );
+  cache.resolve(2, [0, 1, 1]);
+  cache.resolve(2, [0, 1]);
+  assert.deepEqual(
+    requests.map((r) => r.tint),
+    [undefined, 0, 145, "shadow"],
+  );
+  requests[2]!.finish("red.png");
+  requests[3]!.finish("shadow.png");
+  await Promise.resolve();
+  const ready = cache.resolve(2, [0, 1]);
+  assert.equal(ready[paintedSpriteKey("brain-v3", "team-1")], "red.png");
+  assert.equal(ready[paintedSpriteKey("brain-v3", "shadow")], "shadow.png");
+  const { document } = parseHTML(
+    '<svg><g filter="url(#red)"><image href="original.png" data-sprite="brain-v3" data-sprite-paint="team-1" data-sprite-filter="url(#red)"/></g></svg>',
+  );
+  const svg = document.querySelector("svg")!;
+  refreshSpriteImages(svg, ready);
+  assert.equal(svg.querySelector("g")!.getAttribute("filter"), "none");
+  assert.equal(svg.querySelector("image")!.getAttribute("href"), "red.png");
+  refreshSpriteImages(svg, cache.resolve(16, [0, 1]));
+  assert.equal(svg.querySelector("g")!.getAttribute("filter"), "url(#red)");
+  assert.equal(
+    svg.querySelector("image")!.getAttribute("href"),
+    "original.png",
+  );
+  cache.resolve(2, [0, 1, 2, 99]);
+  assert.equal(requests.length, 5);
+  assert.equal(requests[4]!.tint, 265);
 });

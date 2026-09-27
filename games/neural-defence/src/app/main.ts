@@ -30,8 +30,8 @@ mountNeuralDefence(root, {
   forcedMute: new URLSearchParams(location.search).has("mute"),
   sprites: spriteUrls,
   buildingSprites: {
-    resolve: (scale) =>
-      buildingSprites.resolve(scale * window.devicePixelRatio),
+    resolve: (scale, slots) =>
+      buildingSprites.resolve(scale * window.devicePixelRatio, slots),
   },
   createCamera: createCameraFactory({
     observeResize(element, callback) {
