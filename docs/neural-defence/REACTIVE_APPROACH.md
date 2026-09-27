@@ -31,3 +31,22 @@ Exploratory default-map pairings retained all winners and completed every game;
 several formerly stalled wide-map cases finished. These diagnostic single-seat
 trials motivated the implementation, but the full committed-source matched-seat
 comparison remains necessary before claiming multi-map balance.
+
+## Verification milestone
+
+Source `8e702b82` passes all **1,736 repository tests**, typecheck, build and
+focused lint. Chromium and WebKit pass the ordinary desktop, portrait and
+landscape menu/game flow. These checks do not replace full-match balance or
+physical-phone playtesting.
+
+Independent review found no blocking issue. Its requested detour coverage now
+proves that the chosen safe cell is six steps from the brain while an existing
+gun is only five away; blocking that safe cell produces a different legal route.
+Both cases are checked with rotated starts. The counterbattery override is
+deliberate: an existing repair gap threatened by dormant guns can still require
+clearance before expansion.
+
+The full 210-match comparison runs from this clean source with the production
+tournament harness, split into `close-quarters,narrow-front` and
+`skirmish-24,open-front,lean-resources`, each at 900 seconds. Results are pending;
+do not combine the exploratory trials with that exact-source matrix.
