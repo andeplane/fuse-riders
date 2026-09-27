@@ -5,6 +5,10 @@ import { cpus } from "node:os";
 import { chromium, webkit } from "playwright";
 
 const output = process.argv[2] ?? "/tmp/fuse-frame-profile";
+const deviceScaleFactor = Number(process.argv[3] ?? 1);
+const selectedBrowser = process.argv[4] ?? "all";
+assert.ok([1, 2, 3].includes(deviceScaleFactor), "DPR must be 1, 2 or 3");
+assert.ok(["all", "chromium", "webkit"].includes(selectedBrowser));
 mkdirSync(output, { recursive: true });
 const revision = () =>
   execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
@@ -23,12 +27,14 @@ const dirty = () =>
 // Run engines sequentially to avoid profiling two browser workloads together.
 // This observes frame callbacks only; it never drives or accelerates the game.
 for (const [name, engine] of Object.entries({ chromium, webkit })) {
+  if (selectedBrowser !== "all" && selectedBrowser !== name) continue;
   const browser = await engine.launch();
   try {
     const source = revision();
     assert.equal(dirty(), "", "profile a committed game source");
     const page = await browser.newPage({
       viewport: { width: 1280, height: 800 },
+      deviceScaleFactor,
     });
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -68,6 +74,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
     const result = {
       source,
       headless: true,
+      deviceScaleFactor,
       startClock,
       node: process.version,
       cpu: cpus()[0]?.model,

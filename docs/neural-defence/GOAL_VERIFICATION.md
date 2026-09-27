@@ -2,7 +2,8 @@
 
 Objective: complete a more complex game with multiple working strategies,
 AI-vs-AI balance evidence, beautiful animation and particles, and greater visual
-depth. Current game source: `f76bdc5d`; world rules 9, AI policy 5, adapter
+depth. Gameplay verification source: `f76bdc5d`; current renderer: `180251c2`.
+World rules 9, AI policy 5, adapter
 `neural-defence-9-watch-4`. PR #409 remains open; no merge or deployment occurred.
 
 | Requirement                           | Current evidence                                                                                                                                                                                                                                                                                                             | Assessment                                                                                                                                   |
@@ -27,8 +28,12 @@ on source `a63e84f2` improve the measured median/p95 callback interval from
 100/152 ms to 17/27 ms, with no intervals over 50 ms in the retained sample.
 Chromium remains at 16.7/16.7 ms. All 1,806 tests, typecheck, focused lint and
 build pass. These are headless callback measurements, not physical-phone FPS.
+The subsequent [camera-only refresh fix](verification/raster-refresh-2026-09-27/README.md)
+also updates ready artwork after game frames stop. Both browser regressions and
+all 1,807 repository tests pass on that source.
 
-The goal remains open on visual/play-feel acceptance. Green tests,
+The additional DPR-2 desktop WebKit profile is still slow: median/p95 71/79 ms.
+The goal remains open on high-density animation smoothness and visual/play-feel acceptance. Green tests,
 more effects and completed AI matches do not establish AAA quality. The user has
 been asked to try the concrete preview and identify what still falls short.
 No additional architecture rewrite is assumed from an unanswered question.

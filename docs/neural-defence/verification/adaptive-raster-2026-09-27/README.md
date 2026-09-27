@@ -28,7 +28,8 @@ All 1,806 repository tests, typecheck, focused lint and build passed. Cache test
 cover DPR/zoom tiers, immutable inputs, request deduplication, fallback and bounded
 failure behavior. Independent review found no blocking issue. Its minor edge is
 retained explicitly: once a world stops publishing after match completion,
-camera-only zoom can retain a previous raster tier until another UI render.
+camera-only zoom could retain a previous raster tier until another UI render.
+That edge is now fixed on `180251c2`; see the [frozen-world regression](../raster-refresh-2026-09-27/README.md).
 
 `pnpm exec tsx scripts/fuse-craft-raster-smoke.ts /tmp/fuse-raster-smoke`
 also passes the ordinary WebKit Watch flow at DPR 2: normal scale uses a cached
