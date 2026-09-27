@@ -1,8 +1,8 @@
 # Fuse Craft expansion and balance evidence — 2026-09-27
 
-The current game uses **world rules 9 and AI policy 4**, with adapter compatibility
-`neural-defence-9-watch-3`. The [latest complete comparison](verification/brain-finisher-2026-09-27/README.md)
-covers 210 map/opening/seat cases: 206 finish within 900 simulated seconds and four
+The current game uses **world rules 9 and AI policy 5**, with adapter compatibility
+`neural-defence-9-watch-4`. The [latest complete comparison](verification/durable-reconnect-2026-09-27/README.md)
+covers 210 map/opening/seat cases: 208 finish within 900 simulated seconds and two
 reach the cap, with no rejected commands. All six openings win at least one
 different-opening matchup on the default arena. Both Pressure/Relay seat
 continuations finish at 968 seconds; their original 900-second results remain a
@@ -11,8 +11,8 @@ strategy strength.
 
 The [current tech tree](TECH_TREE.md) describes the active rules, and the
 [live battle captures](verification/battle-framing-2026-09-27/README.md) show the
-normal watch UI under its ordinary clock. The remaining Balanced mirror stalemate
-is under investigation; its experimental durable repair is not part of the current policy.
+normal watch UI under its ordinary clock. Durable reconnection resolves the
+Balanced mirror stalemate at 572 seconds in both seat assignments.
 
 Everything below preserves the **historical rules-5 expansion matrix**. Its
 Defensive-opening losses and timeout totals are superseded by later work:
