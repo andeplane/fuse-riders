@@ -1,5 +1,10 @@
 # First playable skirmish
 
+This is the **historical rules-3 milestone**, retained as development evidence.
+Its roster, balance results and rule version are superseded by the current
+[tech tree](TECH_TREE.md), [balance report](BALANCE_REPORT.md) and
+[player guide](README.md).
+
 This version implements player versus AI on a 24 × 20 arena, animated supply and
 combat, three tower roles, three particle profiles, and five researches.
 It supersedes Phase 0's one-tower/no-AI limits. Sandbox, ghost placement, mobile
