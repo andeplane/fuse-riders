@@ -23,10 +23,10 @@ try {
     document
       .querySelector("#nd-board .building-art image")
       ?.getAttribute("href")
-      ?.startsWith("data:"),
+      ?.startsWith("blob:"),
   );
   const normal = await images.first().getAttribute("href");
-  assert.ok(normal?.startsWith("data:"));
+  assert.ok(normal?.startsWith("blob:"));
   await page.screenshot({ path: `${output}/normal-dpr2.png` });
   await page.mouse.move(640, 350);
   for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -400);
@@ -40,18 +40,18 @@ try {
       !svg
         .querySelector(".building-art image")
         ?.getAttribute("href")
-        ?.startsWith("data:")
+        ?.startsWith("blob:")
     );
   });
   const zoomed = await images.first().getAttribute("href");
-  assert.ok(zoomed && !zoomed.startsWith("data:"));
+  assert.ok(zoomed && !zoomed.startsWith("blob:"));
   await page.screenshot({ path: `${output}/close-dpr2.png` });
   for (let i = 0; i < 5; i++) await page.mouse.wheel(0, 400);
   await page.waitForFunction(() =>
     document
       .querySelector("#nd-board .building-art image")
       ?.getAttribute("href")
-      ?.startsWith("data:"),
+      ?.startsWith("blob:"),
   );
   assert.deepEqual(errors, []);
   writeFileSync(

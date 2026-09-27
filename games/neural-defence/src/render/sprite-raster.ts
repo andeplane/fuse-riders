@@ -102,11 +102,12 @@ export function refreshSpriteImages(root: Element, sprites: Sprites): void {
 export function createBrowserSpriteRasterizer(
   document: Document,
   createImage: () => HTMLImageElement,
+  createObjectUrl: (blob: Blob) => string,
 ): SpriteRasterizer {
   const sources = new Map<string, Promise<HTMLImageElement>>();
   const rasters = new Map<
     string,
-    Promise<{ url: string; width: number; height: number }>
+    Promise<{ url: string; embeddedUrl: string; width: number; height: number }>
   >();
   const load = (url: string) =>
     new Promise<HTMLImageElement>((resolve, reject) => {
@@ -114,6 +115,22 @@ export function createBrowserSpriteRasterizer(
       image.onload = () => resolve(image);
       image.onerror = () => reject(new Error("Sprite could not be loaded"));
       image.src = url;
+    });
+  // One URL per cached raster, bounded by the cache and owned by this document.
+  // Keep long PNG strings out of repeatedly rebuilt SVG markup.
+  const publish = (canvas: HTMLCanvasElement) =>
+    new Promise<string>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error("Sprite encoding failed"));
+          return;
+        }
+        try {
+          resolve(createObjectUrl(blob));
+        } catch (error) {
+          reject(error);
+        }
+      }, "image/png");
     });
   return {
     async resize(url, maximumSide, tint) {
@@ -126,7 +143,7 @@ export function createBrowserSpriteRasterizer(
       const key = `${maximumSide}:${url}`;
       let raster = rasters.get(key);
       if (!raster) {
-        raster = Promise.resolve().then(() => {
+        raster = Promise.resolve().then(async () => {
           const scale = Math.min(
             1,
             maximumSide / Math.max(image.naturalWidth, image.naturalHeight),
@@ -140,7 +157,8 @@ export function createBrowserSpriteRasterizer(
           context.imageSmoothingQuality = "high";
           context.drawImage(image, 0, 0, canvas.width, canvas.height);
           return {
-            url: canvas.toDataURL("image/png"),
+            url: await publish(canvas),
+            embeddedUrl: canvas.toDataURL("image/png"),
             width: canvas.width,
             height: canvas.height,
           };
@@ -155,7 +173,7 @@ export function createBrowserSpriteRasterizer(
         tint === "shadow"
           ? '<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"/>'
           : `<feColorMatrix type="hueRotate" values="${tint}"/>`;
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${base.width}" height="${base.height}"><defs><filter id="tint" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">${matrix}</filter></defs><image href="${base.url}" width="${base.width}" height="${base.height}" filter="url(#tint)"/></svg>`;
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${base.width}" height="${base.height}"><defs><filter id="tint" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">${matrix}</filter></defs><image href="${base.embeddedUrl}" width="${base.width}" height="${base.height}" filter="url(#tint)"/></svg>`;
       const painted = await load(
         `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`,
       );
@@ -165,7 +183,7 @@ export function createBrowserSpriteRasterizer(
       const context = canvas.getContext("2d");
       if (!context) throw new Error("Sprite canvas unavailable");
       context.drawImage(painted, 0, 0);
-      return canvas.toDataURL("image/png");
+      return publish(canvas);
     },
   };
 }

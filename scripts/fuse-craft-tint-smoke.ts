@@ -39,7 +39,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
       const root = '/games/neural-defence/src/render/';
       const { createBrowserSpriteRasterizer } = await import(root + 'sprite-raster.ts');
       const { spriteUrls } = await import(root + 'sprites.ts');
-      const raster = createBrowserSpriteRasterizer(document, () => new Image());
+      const raster = createBrowserSpriteRasterizer(document, () => new Image(), blob => URL.createObjectURL(blob));
       const urls = await Promise.all([undefined, 145, 'shadow'].map(tint => raster.resize(spriteUrls['brain-v3'], 512, tint)));
       const data = await Promise.all(urls.map(async url => {
         const image = new Image(); image.src = url; await image.decode();

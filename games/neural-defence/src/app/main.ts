@@ -18,7 +18,11 @@ const root = document.getElementById("app");
 if (!root) throw new Error("Neural Defence mount point is missing");
 const buildingSprites = createBuildingSprites(
   spriteUrls,
-  createBrowserSpriteRasterizer(document, () => new Image()),
+  createBrowserSpriteRasterizer(
+    document,
+    () => new Image(),
+    (blob) => URL.createObjectURL(blob),
+  ),
 );
 
 mountNeuralDefence(root, {

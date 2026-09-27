@@ -24,7 +24,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
       const { createBuildingSprites, createBrowserSpriteRasterizer } = await import(root + 'render/sprite-raster.ts');
       const world = createAttractScene();
       const before = JSON.stringify(world);
-      const cache = createBuildingSprites(spriteUrls, createBrowserSpriteRasterizer(document, () => new Image()));
+      const cache = createBuildingSprites(spriteUrls, createBrowserSpriteRasterizer(document, () => new Image(), blob => URL.createObjectURL(blob)));
       const provider = { resolve: (scale, slots) => cache.resolve(scale * devicePixelRatio, slots) };
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.style.cssText = 'width:1280px;height:800px;display:block';
@@ -43,12 +43,12 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
         throw new Error('Frozen-world artwork did not refresh');
       };
       svg.setAttribute('viewBox', '0 0 1280 800');
-      await waitFor(() => image.getAttribute('href').startsWith('data:'));
+      await waitFor(() => image.getAttribute('href').startsWith('blob:'));
       const normal = image.getAttribute('href');
       svg.setAttribute('viewBox', '0 0 160 100');
-      await waitFor(() => !image.getAttribute('href').startsWith('data:'));
+      await waitFor(() => !image.getAttribute('href').startsWith('blob:'));
       svg.setAttribute('viewBox', '0 0 400 250');
-      await waitFor(() => image.getAttribute('href').startsWith('data:') && image.getAttribute('href') !== normal);
+      await waitFor(() => image.getAttribute('href').startsWith('blob:') && image.getAttribute('href') !== normal);
       svg.setAttribute('viewBox', '0 0 1280 800');
       await waitFor(() => image.getAttribute('href') === normal);
       return {
