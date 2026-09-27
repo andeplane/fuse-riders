@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Feedback } from "../src/render/feedback.js";
-import { createWorld } from "../src/engine/world.js";
+import { CLASSIC_TUNING, createWorld } from "../src/engine/world.js";
 import { toView } from "../src/engine/view.js";
 import { EffectsAudio, type ToneSink } from "../src/app/audio.js";
 test("power feedback belongs to its subject and never replays repeated events", () => {
   const f = new Feedback();
-  const v = { ...toView(createWorld()), localId: "a" };
+  const v = { ...toView(createWorld(CLASSIC_TUNING)), localId: "a" };
   f.update(v, 0);
   const pickup = {
     ...v,
@@ -25,7 +25,7 @@ test("power feedback belongs to its subject and never replays repeated events", 
 });
 test("keeper action poses override running and never change the view", () => {
   const f = new Feedback();
-  const idle = toView(createWorld());
+  const idle = toView(createWorld(CLASSIC_TUNING));
   const running = { ...idle, vx: 240, grounded: true };
   const before = structuredClone(running);
   assert.equal(f.pose(idle, 0, false).frame, 0);
@@ -45,7 +45,7 @@ test("keeper action poses override running and never change the view", () => {
   const fired = {
     ...running,
     tick: 3,
-    hook: { phase: "flying" as const, x: 330, y: 700 },
+    hook: { phase: "flying" as const, x: 330, y: 700, rope: 0 },
   };
   f.update(fired, 50);
   assert.equal(
@@ -73,7 +73,7 @@ test("keeper action poses override running and never change the view", () => {
 });
 test("simultaneous prop and player hits retain independent effect positions", () => {
   const f = new Feedback(),
-    v = toView(createWorld());
+    v = toView(createWorld(CLASSIC_TUNING));
   v.experiment = "ball";
   f.update(v, 0);
   const next = structuredClone(v);
@@ -92,7 +92,7 @@ test("simultaneous prop and player hits retain independent effect positions", ()
 });
 test("view transitions cue once; rollback/repeated frames do not replay effects", () => {
   const f = new Feedback(),
-    v = toView(createWorld());
+    v = toView(createWorld(CLASSIC_TUNING));
   const before = structuredClone(v);
   assert.deepEqual(f.update(v, 0), []);
   const rise = { ...v, tick: 3, grounded: false, vy: -500, feet: 790 };
@@ -112,12 +112,12 @@ test("view transitions cue once; rollback/repeated frames do not replay effects"
 });
 test("attach/release/respawn feedback uses real anchor and expires", () => {
   const f = new Feedback(),
-    v = toView(createWorld());
+    v = toView(createWorld(CLASSIC_TUNING));
   f.update(v, 0);
   const attached = {
     ...v,
     tick: 3,
-    hook: { phase: "attached" as const, x: 300, y: 698 },
+    hook: { phase: "attached" as const, x: 300, y: 698, rope: 60 },
   };
   assert.deepEqual(f.update(attached, 50), ["fire", "attach"]);
   assert.equal(f.active()[1]!.y, 698);
@@ -130,7 +130,11 @@ test("attach/release/respawn feedback uses real anchor and expires", () => {
 test("gait follows speed, restarts at contact and does not advance on paused frames", () => {
   const slow = new Feedback(),
     fast = new Feedback();
-  const view = { ...toView(createWorld()), grounded: true, vx: 150 };
+  const view = {
+    ...toView(createWorld(CLASSIC_TUNING)),
+    grounded: true,
+    vx: 150,
+  };
   assert.equal(slow.pose(view, 9000, false).frame, 0);
   fast.pose({ ...view, vx: 300 }, 9000, false);
   for (let ms = 9025; ms <= 9275; ms += 25) {
@@ -154,13 +158,13 @@ test("gait follows speed, restarts at contact and does not advance on paused fra
 
 test("a landing cannot hide a simultaneous hook launch", () => {
   const f = new Feedback();
-  const v = toView(createWorld());
+  const v = toView(createWorld(CLASSIC_TUNING));
   f.update({ ...v, grounded: false, vy: 300 }, 0);
   const landed = {
     ...v,
     tick: 3,
     grounded: true,
-    hook: { phase: "flying" as const, x: 300, y: 700 },
+    hook: { phase: "flying" as const, x: 300, y: 700, rope: 0 },
   };
   assert.deepEqual(f.update(landed, 50), ["land", "fire"]);
   assert.equal(f.pose(landed, 70, false).state, "fire");
@@ -170,7 +174,7 @@ test("a landing cannot hide a simultaneous hook launch", () => {
 test("directional hit reaction belongs only to the victim and does not replay", () => {
   const victim = new Feedback(),
     attacker = new Feedback();
-  const base = toView(createWorld());
+  const base = toView(createWorld(CLASSIC_TUNING));
   const keepers = ["a", "b"].map((id, slot) => ({
     id,
     slot,
@@ -208,7 +212,7 @@ test("directional hit reaction belongs only to the victim and does not replay", 
 
 test("fall, arrival and elimination transitions are distinct, bounded and resettable", () => {
   const f = new Feedback();
-  const v = { ...toView(createWorld()), localId: "b", feet: 910 };
+  const v = { ...toView(createWorld(CLASSIC_TUNING)), localId: "b", feet: 910 };
   f.update(v, 0);
   const fallen = { ...v, tick: 3, feet: 810, deaths: 1, respawn: 3 };
   f.update(fallen, 50);

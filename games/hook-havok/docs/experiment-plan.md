@@ -132,6 +132,10 @@ Implemented a lighter fog veil, keeper contact shadows, readable out/away cards 
 
 Implemented optional Lift and Ward pickups on both maps, shared cooldowns, protection feedback and manager-controlled activation in Room & match. Deterministic collection and validated checkpoint state use rules `hook-havok-9`; refresh all clients and create a fresh room. See [rules, playtesting and verification](power-ups.md). User acceptance of balance and feel remains open.
 
+### 10A. Hook 2.0 and standard defaults
+
+Replaced the constant pull with a winch rope that catches falling keepers, reels to a hang, pumps with steering and leaves with a rope jump. Other ledges no longer cut the tether. New rooms default to Crossroads, double jump, gentle ricochets and keyboard + mouse controls (Down + Jump drops), and keyboard shots get up to 15° of aim assist. See [rules, measurements and verification](hook-rope.md). Rules are `hook-havok-10`; refresh all clients and create a fresh room. Feel and balance need a playtest.
+
 ## Module ownership
 
 `engine/`: state, input, tuning, maps, collision, movement, grapple, step, codec, view. Imports nothing from app/render/network.

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createWorld,
-  DEFAULT_TUNING,
+  CLASSIC_TUNING,
   NEUTRAL,
   S,
   cancel,
@@ -14,7 +14,7 @@ import { stepCombat } from "../src/engine/combat.js";
 import { activeWire, wireContact } from "../src/engine/wire-contact.js";
 import { KeyboardInput } from "../src/app/keyboard-input.js";
 
-const double = () => createWorld({ ...DEFAULT_TUNING, jumpMode: "double" });
+const double = () => createWorld({ ...CLASSIC_TUNING, jumpMode: "double" });
 test("air jump needs a second press, cannot repeat a third time, and landing replenishes it", () => {
   const w = double();
   w.input.jump = true;
@@ -81,10 +81,13 @@ test("new settings, air allowance and extended directional aim domains are valid
     undefined,
     "grounded double jumper must be recharged",
   );
-  assert.equal(decodeWorld({ ...createWorld(), airJump: true }), undefined);
-  assert.equal(parseTuning({ ...DEFAULT_TUNING, wire: "electric" }), undefined);
   assert.equal(
-    parseTuning({ ...DEFAULT_TUNING, jumpMode: "triple" }),
+    decodeWorld({ ...createWorld(CLASSIC_TUNING), airJump: true }),
+    undefined,
+  );
+  assert.equal(parseTuning({ ...CLASSIC_TUNING, wire: "electric" }), undefined);
+  assert.equal(
+    parseTuning({ ...CLASSIC_TUNING, jumpMode: "triple" }),
     undefined,
   );
   assert.ok(parseInput({ ...NEUTRAL, aimX: -800, aimY: -1100 }));
@@ -137,7 +140,7 @@ test("keyboard gives eight rays, retained aim, J/K hold/release, deliberate drop
 
 function armed(): World {
   const w = createWorld({
-    ...DEFAULT_TUNING,
+    ...CLASSIC_TUNING,
     experiment: "ball",
     wire: "spiked",
   });
@@ -211,7 +214,7 @@ test("two wires have stable owner priority and one family advances once", () => 
 });
 test("air jump and spiked-wire state replay through repeated validated checkpoints", () => {
   const a = createWorld({
-    ...DEFAULT_TUNING,
+    ...CLASSIC_TUNING,
     jumpMode: "double",
     wire: "spiked",
     experiment: "surge",

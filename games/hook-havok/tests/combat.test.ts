@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createWorld,
-  DEFAULT_TUNING,
+  CLASSIC_TUNING,
   NEUTRAL,
   S,
   type World,
@@ -24,10 +24,10 @@ import {
 } from "../src/online/game.js";
 
 const trial = (experiment: "target" | "ball") =>
-  createWorld({ ...DEFAULT_TUNING, experiment });
+  createWorld({ ...CLASSIC_TUNING, experiment });
 test("experiment selection resets scope and replay/checkpoint hashes agree", () => {
-  const a = createRoom("lobby", DEFAULT_TUNING);
-  let b = createRoom("lobby", DEFAULT_TUNING);
+  const a = createRoom("lobby", CLASSIC_TUNING);
+  let b = createRoom("lobby", CLASSIC_TUNING);
   for (let tick = 1; tick <= 100; tick++) {
     const entries: Entry[] =
       tick === 1
@@ -37,7 +37,7 @@ test("experiment selection resets scope and replay/checkpoint hashes agree", () 
           ]
         : tick === 2
           ? [
-              [3, tick, SETTINGS, { ...DEFAULT_TUNING, experiment: "target" }],
+              [3, tick, SETTINGS, { ...CLASSIC_TUNING, experiment: "target" }],
               [4, tick, 0, "match", 1, { ...NEUTRAL, fire: true }],
             ]
           : tick === 3
@@ -52,7 +52,7 @@ test("experiment selection resets scope and replay/checkpoint hashes agree", () 
                 ],
               ]
             : tick === 60
-              ? [[6, tick, SETTINGS, { ...DEFAULT_TUNING, experiment: "ball" }]]
+              ? [[6, tick, SETTINGS, { ...CLASSIC_TUNING, experiment: "ball" }]]
               : [];
     const streams = new Map([["host", { generation: 1, entries }]]);
     foldTick(a, "host", streams);
@@ -229,7 +229,7 @@ test("keeper fall preserves progress, reset clears trial and corrupt combat snap
     undefined,
   );
   assert.equal(
-    parseTuning({ ...DEFAULT_TUNING, experiment: ["ball"] }),
+    parseTuning({ ...CLASSIC_TUNING, experiment: ["ball"] }),
     undefined,
   );
 });

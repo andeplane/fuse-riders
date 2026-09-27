@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createWorld,
-  DEFAULT_TUNING,
+  CLASSIC_TUNING,
   S,
   type World,
 } from "../src/engine/world.js";
@@ -27,7 +27,7 @@ function split(w: World, id: number): void {
 for (const map of ["belfry", "crossroads"] as const)
   for (const experiment of ["ricochet", "surge"] as const)
     test(`${map}/${experiment}: long replay, every-tick checkpoint, split conservation and depletion`, () => {
-      const a = createWorld({ ...DEFAULT_TUNING, map, experiment });
+      const a = createWorld({ ...CLASSIC_TUNING, map, experiment });
       let b = structuredClone(a);
       let minX = Infinity,
         maxX = 0,
@@ -63,7 +63,7 @@ for (const map of ["belfry", "crossroads"] as const)
 
 test("solid top, side, underside and bottom boundary rebound without tunnelling", () => {
   const w = createWorld({
-    ...DEFAULT_TUNING,
+    ...CLASSIC_TUNING,
     map: "crossroads",
     experiment: "surge",
   });
@@ -83,7 +83,7 @@ test("solid top, side, underside and bottom boundary rebound without tunnelling"
 
 test("split at a platform edge fits children; forged geometry, speed, ancestry and hit totals are rejected", () => {
   const w = createWorld({
-    ...DEFAULT_TUNING,
+    ...CLASSIC_TUNING,
     map: "crossroads",
     experiment: "surge",
   });

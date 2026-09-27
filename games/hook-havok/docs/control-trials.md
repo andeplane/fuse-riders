@@ -1,6 +1,6 @@
 # Spiked wire, air jump and keyboard trials
 
-These selectable experiments let players compare the new mechanics with the original controls. Defaults remain single jump, hook-tip contact and mouse aiming. Refresh every client and create a fresh room: the checkpoint contract is now **`hook-havok-8`**.
+These selectable experiments let players compare the new mechanics with the original controls. Since [10A](hook-rope.md), double jump and keyboard + mouse controls are the defaults (dropping in keyboard mode is Down + Jump or Shift + Down); hook-tip contact remains the default tether. Refresh every client and create a fresh room: the checkpoint contract is now **`hook-havok-8`**.
 
 ## Try it
 

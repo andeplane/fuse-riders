@@ -18,8 +18,8 @@ test("ordinary inputs traverse one-way ledges, recover off-edge and reset with s
     const ledge = {
       "low ledge": 670,
       "central gap": 610,
-      "release and land": 480,
-      "recovery landing": 480,
+      "rope jump and land": 270,
+      "recovery landing": 270,
       reset: 810,
     }[mark];
     if (ledge) {
@@ -38,7 +38,7 @@ test("ordinary inputs traverse one-way ledges, recover off-edge and reset with s
     "low ledge",
     "central gap",
     "high anchor",
-    "release and land",
+    "rope jump and land",
     "off edge",
     "recovery pull",
     "recovery landing",

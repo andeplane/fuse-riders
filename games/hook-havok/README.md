@@ -4,6 +4,8 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
+Phase 10A reworks the hook into a [winch rope](docs/hook-rope.md). It catches you instead of letting you sink, reels you up to a hang, swings when you steer and lets go with a rope jump. Passing through other ledges no longer cuts it. New rooms start on Crossroads with double jump, bouncing orbs and keyboard + mouse controls: J / Space jump, WASD / arrows aim, hold K (or click) to hook, Down + Jump drops. Rules are `hook-havok-10`; refresh all clients and create a fresh room.
+
 Phase 7F adds [keeper animation and combat polish](docs/character-polish.md): an eight-frame speed-driven run cycle, takeoff/landing recovery, hook recoil, victim-only hit reactions, subtle airborne silhouette echoes and distinct fall/elimination/arrival effects. Local, remote and shared-display keepers use the same presentation. Reduced motion keeps action poses while suppressing cycling, deformation and echoes. Try running, jumping, hooking and hitting a friend on either map. Gameplay rules remain `hook-havok-6`.
 
 Phase 7E extends the shrine stonework across all fourteen Crossroads platforms and introduces a [ruined lantern cathedral backdrop and environmental animation](docs/cathedral-atmosphere.md): varied ivy/candle dressing, gently swaying banners, candle flicker, sparse embers/dust and drifting fog. Enter a room, select **Arena → Crossroads**, then **Focus arena**. **Atmosphere** disables environmental motion; live reduced-motion preference changes also stop it. Belfry keeps its earlier appearance. Gameplay rules remain `hook-havok-6`.
@@ -42,7 +44,7 @@ The working direction combines **A's belfry/character identity with B's denser p
 
 ## Open the movement playground
 
-Build with `pnpm build`, then run `node --import tsx service/dev.ts --port 8787` (or `pnpm dev` in a shell supporting the repository's scripts). The existing server selects a free port if needed. Open `/hook-havok/?mute` on the printed origin, or follow the landing-page link. Click **Enter the belfry**. A/D or arrows move; Space jumps (release early for a shorter jump); mouse aims; hold left mouse to hook/pull, release to detach; R resets. The **Movement workshop** changes settings and restarts the exercise. For Vite source development, the page is `/games/hook-havok/`; built output is `/hook-havok/`.
+Build with `pnpm build`, then run `node --import tsx service/dev.ts --port 8787` (or `pnpm dev` in a shell supporting the repository's scripts). The existing server selects a free port if needed. Open `/hook-havok/?mute` on the printed origin, or follow the landing-page link. Click **Create room**. A/D or arrows move; J / Space jumps (release early for a shorter jump, press again in the air); WASD / arrows aim and holding K hooks and reels, or hold left mouse to hook where you point; jump while hooked to leap off; Down + Jump drops; R resets. The **Development workshop** changes settings and restarts the exercise. For Vite source development, the page is `/games/hook-havok/`; built output is `/hook-havok/`.
 
 The **Art showcase** link opens the previous authored study at `?showcase=1&mute`.
 

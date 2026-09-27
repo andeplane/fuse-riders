@@ -7,7 +7,7 @@ import {
   encodeArena,
   decodeArena,
 } from "../src/engine/arena.js";
-import { DEFAULT_TUNING, NEUTRAL, S } from "../src/engine/world.js";
+import { CLASSIC_TUNING, NEUTRAL, S } from "../src/engine/world.js";
 import { decode, encode, hash } from "../src/online/game.js";
 import { Mesh } from "./fixtures/mesh.js";
 import {
@@ -18,7 +18,7 @@ import {
 } from "../src/app/session.js";
 
 test("simultaneous opposed hooks hit both keepers, preserve ownership and replay identically", () => {
-  const a = createArena(DEFAULT_TUNING);
+  const a = createArena(CLASSIC_TUNING);
   syncKeepers(a, [
     { id: "b", slot: 1, connected: true, generation: 1 },
     { id: "a", slot: 0, connected: true, generation: 1 },
@@ -46,7 +46,7 @@ test("simultaneous opposed hooks hit both keepers, preserve ownership and replay
   assert.equal(a.hit!.target, "a");
 });
 test("five slots are bounded, share one combat state and checkpoints reject identity corruption", () => {
-  const a = createArena({ ...DEFAULT_TUNING, experiment: "ball" });
+  const a = createArena({ ...CLASSIC_TUNING, experiment: "ball" });
   syncKeepers(
     a,
     Array.from({ length: 5 }, (_, slot) => ({
@@ -77,7 +77,7 @@ test("five slots are bounded, share one combat state and checkpoints reject iden
   assert.equal(a.keepers[2]!.world.input.fire, false);
 });
 test("personal return preserves shared props and disconnected keepers cannot attack", () => {
-  const a = createArena({ ...DEFAULT_TUNING, experiment: "target" });
+  const a = createArena({ ...CLASSIC_TUNING, experiment: "target" });
   syncKeepers(a, [
     { id: "a", slot: 0, generation: 1, connected: true },
     { id: "b", slot: 1, generation: 1, connected: true },
@@ -115,7 +115,7 @@ test("real runtime repairs loss/reorder/duplicates, restores a refreshed member 
     a.command({
       type: "settings",
       settings: {
-        ...DEFAULT_TUNING,
+        ...CLASSIC_TUNING,
         map: "crossroads",
         experiment: "surge",
         jumpMode: "double",
@@ -173,7 +173,7 @@ test("real runtime repairs loss/reorder/duplicates, restores a refreshed member 
   assert.equal(
     returning.command({
       type: "settings",
-      settings: { ...DEFAULT_TUNING, experiment: "ball" },
+      settings: { ...CLASSIC_TUNING, experiment: "ball" },
     }),
     true,
   );

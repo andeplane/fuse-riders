@@ -1,12 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createWorld, NEUTRAL, S } from "../src/engine/world.js";
+import {
+  CLASSIC_TUNING,
+  createWorld,
+  NEUTRAL,
+  S,
+} from "../src/engine/world.js";
 import { step } from "../src/engine/step.js";
 import { decodeWorld } from "../src/engine/codec.js";
 import { movePlayer, sweep } from "../src/engine/collision.js";
 import { TouchInput } from "../src/app/touch-input.js";
 test("a full jump passes through the lower ledge and lands on its top", () => {
-  const w = createWorld();
+  const w = createWorld(CLASSIC_TUNING);
   w.input = { ...NEUTRAL, jump: true };
   let passed = false;
   for (let i = 0; i < 100; i++) {
@@ -19,7 +24,7 @@ test("a full jump passes through the lower ledge and lands on its top", () => {
   assert.ok(Math.abs(w.feet - 670 * S) <= 1);
 });
 test("drop is one press per ledge, lands below, detaches hook and replays from an intersecting checkpoint", () => {
-  const w = createWorld();
+  const w = createWorld(CLASSIC_TUNING);
   w.feet = 670 * S - 1;
   w.hook = {
     phase: "attached",
@@ -53,7 +58,7 @@ test("drop is one press per ledge, lands below, detaches hook and replays from a
   assert.equal(w.deaths, 1);
 });
 test("one-way tops catch fast falls but never sides or rising bodies; hooks retain solid geometry", () => {
-  const w = createWorld();
+  const w = createWorld(CLASSIC_TUNING);
   w.x = 300 * S;
   w.feet = 640 * S;
   w.vy = 100 * S;

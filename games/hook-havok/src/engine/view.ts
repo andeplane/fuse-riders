@@ -56,7 +56,15 @@ export interface WorldView {
   facing: -1 | 1;
   respawn: number;
   deaths: number;
-  hook: { phase: World["hook"]["phase"]; x: number; y: number };
+  /** rope: attached rope length in world units, 0 otherwise. */
+  hook: {
+    phase: World["hook"]["phase"];
+    x: number;
+    y: number;
+    rope: number;
+  };
+  /** Hook range in world units. */
+  range: number;
   platforms: readonly (readonly [number, number, number, number])[];
   body: { half: number; height: number };
   aim: { x: number; y: number };
@@ -131,7 +139,13 @@ export function toView(world: World): WorldView {
     facing: world.facing,
     respawn: world.respawn,
     deaths: world.deaths,
-    hook: { phase: world.hook.phase, x: world.hook.x / S, y: world.hook.y / S },
+    hook: {
+      phase: world.hook.phase,
+      x: world.hook.x / S,
+      y: world.hook.y / S,
+      rope: world.hook.phase === "attached" ? world.hook.distance / S : 0,
+    },
+    range: world.tuning.range,
     platforms: MAPS[world.tuning.map].platforms,
     body: { half: HALF / S, height: BODY / S },
     aim: { x: world.input.aimX, y: world.input.aimY },
