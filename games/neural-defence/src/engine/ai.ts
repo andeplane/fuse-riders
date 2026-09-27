@@ -177,6 +177,37 @@ export function aiCommands(
 
   // Active guns receive ammunition before reserves; economic conduits never do.
   const armed = own.filter((s) => canAttack(s.kind));
+  const isolated = world.structures.filter(
+    (s) => s.ownerId === playerId && !s.connected,
+  );
+  const gaps = new Set(
+    own
+      .flatMap((s) => neighbors(world.map, s.cell))
+      .filter(
+        (cell) =>
+          world.map.cells[cell]?.terrain === "open" &&
+          !world.structures.some((s) => s.cell === cell) &&
+          neighbors(world.map, cell).some((n) =>
+            isolated.some((s) => s.cell === n),
+          ),
+      ),
+  );
+  const dormantRepairGuns = world.structures.filter(
+    (s) =>
+      s.ownerId !== playerId &&
+      !s.connected &&
+      canAttack(s.kind) &&
+      [...gaps].some((cell) => reach.get(s.cell)!.has(cell)),
+  );
+  // Reserve one of the finite supply destinations for clearing a repair gap,
+  // even when four frontline guns are closer to the connected enemy army.
+  const counterbattery = armed
+    .filter(
+      (s) =>
+        s.kind === "siege" &&
+        dormantRepairGuns.some((target) => reach.get(s.cell)!.has(target.cell)),
+    )
+    .sort((a, b) => cellOrder(a.cell, b.cell))[0];
   const fighting = armed.filter(
     (s) =>
       firing(s.cell) ||
@@ -190,6 +221,7 @@ export function aiCommands(
   const targets = (fighting.length ? fighting : armed)
     .sort(
       (a, b) =>
+        Number(b === counterbattery) - Number(a === counterbattery) ||
         distance(a.cell) -
           STRUCTURES[a.kind].range -
           (distance(b.cell) - STRUCTURES[b.kind].range) ||
@@ -264,9 +296,6 @@ export function aiCommands(
         cellOrder(a, b),
     );
     let choice: { kind: BuildKind; cell: number } | undefined;
-    const isolated = world.structures.filter(
-      (s) => s.ownerId === playerId && !s.connected,
-    );
     // A dormant enemy gun can reactivate as soon as its own gap is repaired.
     // Repeatedly reconnecting with a fragile neuron creates a synchronized
     // cut/rebuild loop on narrow fronts; reserve a durable conduit instead.
@@ -302,7 +331,38 @@ export function aiCommands(
         threats(a).length - threats(b).length ||
         cellOrder(a, b),
     );
-    if (repairs[0] !== undefined)
+    // Clear dormant guns from outside their reach before reconnecting an
+    // exposed branch. Durability alone can still produce an endless repair loop.
+    const repairThreats = world.structures.filter(
+      (s) =>
+        s.ownerId !== playerId &&
+        !s.connected &&
+        canAttack(s.kind) &&
+        repairs.some((cell) => reach.get(s.cell)!.has(cell)),
+    );
+    if (repairThreats.length && player.research.includes("ballistics")) {
+      const uncovered = repairThreats.filter(
+        (target) =>
+          !own.some(
+            (s) => s.kind === "siege" && reach.get(s.cell)!.has(target.cell),
+          ),
+      );
+      const artillerySites = sites.filter(
+        (cell) =>
+          eligible("siege", cell) &&
+          !threats(cell).length &&
+          !repairThreats.some((s) => reach.get(s.cell)!.has(cell)) &&
+          uncovered.some((s) =>
+            weaponCells(world.map, cell, STRUCTURES.siege.range).has(s.cell),
+          ),
+      );
+      artillerySites.sort(
+        (a, b) => brainDistance(a) - brainDistance(b) || cellOrder(a, b),
+      );
+      if (artillerySites[0] !== undefined)
+        choice = { kind: "siege", cell: artillerySites[0] };
+    }
+    if (!choice && repairs[0] !== undefined)
       choice = { kind: repairKind(repairs[0]), cell: repairs[0] };
     if (
       !choice &&

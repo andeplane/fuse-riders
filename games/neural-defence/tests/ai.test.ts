@@ -79,6 +79,106 @@ test("AI reconnects an isolated investment before expanding toward the enemy", (
     );
   }
 });
+test("AI clears a dormant gun from outside its range before reconnecting a vulnerable branch", () => {
+  const world = createMatch(
+    {
+      schemaVersion: 1,
+      id: "counterbattery-repair",
+      width: 8,
+      height: 6,
+      layout: "odd-r",
+      cells: Array.from({ length: 48 }, () => ({ terrain: "open" })),
+      spawns: [
+        { slot: 0, cellIndex: 0 },
+        { slot: 1, cellIndex: 40 },
+      ],
+    },
+    {},
+    [
+      { id: "a", slot: 0 },
+      { id: "b", slot: 1 },
+    ],
+  );
+  world.players[0]!.research = ["growth", "excitation", "ballistics"];
+  world.structures.push(
+    {
+      id: world.nextEntityId++,
+      ownerId: "a",
+      cell: 1,
+      kind: "neuron",
+      hp: 60,
+      connected: true,
+    },
+    {
+      id: world.nextEntityId++,
+      ownerId: "a",
+      cell: 3,
+      kind: "tower",
+      hp: 120,
+      connected: false,
+    },
+    {
+      id: world.nextEntityId++,
+      ownerId: "b",
+      cell: 11,
+      kind: "tower",
+      hp: 120,
+      connected: false,
+    },
+  );
+  const commands = aiCommands(world, "a", "pressure");
+  assert.deepEqual(
+    commands.find((c) => c.action.type === "queueConstruction")?.action,
+    { type: "queueConstruction", kind: "siege", cell: 8 },
+  );
+  assert.equal(
+    step(world, commands).outcomes.some((o) => o.type === "rejected"),
+    false,
+  );
+  world.structures.push({
+    id: world.nextEntityId++,
+    ownerId: "a",
+    cell: 8,
+    kind: "siege",
+    hp: 80,
+    connected: true,
+  });
+  const supplied = aiCommands(world, "a", "pressure");
+  assert.ok(
+    supplied.some(
+      (c) =>
+        c.action.type === "setPriority" &&
+        c.action.cell === 8 &&
+        c.action.weight > 0,
+    ),
+  );
+  const nextBuild = supplied.find(
+    (c) => c.action.type === "queueConstruction",
+  )?.action;
+  assert.equal(
+    nextBuild?.type === "queueConstruction" && nextBuild.kind === "siege",
+    false,
+  );
+  for (const cell of [24, 25, 32, 33])
+    world.structures.push({
+      id: world.nextEntityId++,
+      ownerId: "a",
+      cell,
+      kind: "siege",
+      hp: 80,
+      connected: true,
+    });
+  const crowded = aiCommands(world, "a", "pressure");
+  const priorities = crowded.filter(
+    (c) => c.action.type === "setPriority" && c.action.weight > 0,
+  );
+  assert.ok(
+    priorities.some(
+      (c) => c.action.type === "setPriority" && c.action.cell === 8,
+    ),
+  );
+  assert.ok(priorities.length <= 4);
+});
 for (const biomass of [20_000, 100_000])
   test(`defensive opening reserves its anchor at ${biomass} biomass`, () => {
     const world = createMatch(
