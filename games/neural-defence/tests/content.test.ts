@@ -165,7 +165,7 @@ test("an exposed brain takes priority over a weaker completed decoy", () => {
       action: { type: "setPriority", cell: 2, weight: 3 },
     },
   ]);
-  world = advance(world, 39);
+  world = advance(world, STRUCTURES.siege.cadence - 1);
   const attack = world.outcomes.find(
     (e) => e.type === "damage" && e.fromCell === 2,
   );
@@ -203,7 +203,7 @@ test("disconnected weapons cannot distract from connected threats", () => {
       action: { type: "setPriority", cell: 2, weight: 3 },
     },
   ]);
-  world = advance(world, 39);
+  world = advance(world, STRUCTURES.siege.cadence - 1);
   assert.equal(
     world.outcomes.find((e) => e.type === "damage" && e.fromCell === 2)?.cell,
     4,

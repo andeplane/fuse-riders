@@ -65,7 +65,7 @@ export const BUILD_PRESENTATION: Readonly<
   siege: {
     label: "Siege tower",
     description:
-      "Range 3. A twelve-particle volley every two seconds. Fragile, expensive long-range pressure.",
+      "Range 3. A four-particle volley every four seconds. Long-range pressure; vulnerable to a close assault.",
     sprite: () => "tower-siege-v3",
   },
   relay: {

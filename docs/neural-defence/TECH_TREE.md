@@ -1,6 +1,6 @@
 # Fuse Craft tech tree
 
-Current implemented rules, updated **2026-09-27**, engine **rules version 4**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
+Current implemented rules, updated **2026-09-27**, engine **rules version 5**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
 
 The authoritative definitions are [the engine catalog](../../games/neural-defence/src/engine/catalog.ts), [rule constants](../../games/neural-defence/src/engine/types.ts), and [simulation behavior](../../games/neural-defence/src/engine/index.ts). Display names come from [the command card](../../games/neural-defence/src/app/command-card.ts).
 
@@ -61,7 +61,7 @@ Growth determines a construction job's duration when the builder is dispatched; 
 | Brain       | `brain`     | Starting structure; cannot be built |       — |                    — | 240 |     1 |          4 |             1 s |
 | Neuron      | `neuron`    | None                                |      20 | 6 s; 4 s with Growth |  60 |     1 |          4 |             1 s |
 | Pulse tower | `tower`     | None                                |      60 |                 12 s | 120 |     2 |          8 |             1 s |
-| Siege tower | `siege`     | Ballistics                          |      80 |                 14 s |  80 |     3 |         12 |             2 s |
+| Siege tower | `siege`     | Ballistics                          |      80 |                 14 s |  80 |     3 |          4 |             4 s |
 | Relay tower | `relay`     | Resonance                           |      45 |                  8 s |  90 |     2 |          3 |           0.5 s |
 | Harvester   | `harvester` | Growth; adjacent deposit            |      60 |                 12 s |  70 |     0 |          0 |               — |
 | Bastion     | `bastion`   | Growth                              |      70 |                 16 s | 240 |     1 |         12 |             1 s |

@@ -140,7 +140,7 @@ export interface Outcome {
 }
 export interface World {
   formatVersion: 1;
-  rulesVersion: 4;
+  rulesVersion: 5;
   matchId: string;
   tick: number;
   map: MapDefinition;
@@ -154,7 +154,7 @@ export interface World {
   finished: boolean;
 }
 export const RULES = Object.freeze({
-  version: 4,
+  version: 5,
   ticksPerSecond: 20,
   particleCount: 128,
   particleSpeed: 4,

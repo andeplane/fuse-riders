@@ -26,42 +26,28 @@ const option = (name: string, fallback: string) => {
 };
 const output = resolve(option("out", "/tmp/fuse-craft-tournament"));
 mkdirSync(output, { recursive: true });
-const base = loadMap(
-  JSON.parse(
-    readFileSync(
-      new URL("../games/neural-defence/maps/skirmish-24.json", import.meta.url),
-      "utf8",
+const maps: MapDefinition[] = [
+  "skirmish-24",
+  "open-front",
+  "narrow-front",
+  "lean-resources",
+  "close-quarters",
+].map((id) =>
+  loadMap(
+    JSON.parse(
+      readFileSync(
+        new URL(`../games/neural-defence/maps/${id}.json`, import.meta.url),
+        "utf8",
+      ),
     ),
   ),
 );
-const maps: MapDefinition[] = [base];
-for (const id of ["open-front", "narrow-front", "lean-resources"]) {
-  const map = structuredClone(base);
-  map.id = id;
-  if (id === "open-front")
-    map.cells = map.cells.map((c) =>
-      c.terrain === "blocked" ? { terrain: "open" } : c,
-    );
-  if (id === "narrow-front") {
-    // Two mirrored passes in a rock ridge, still one connected open component.
-    for (let col = 0; col < map.width; col++) {
-      if ([6, 7, 16, 17].includes(col)) continue;
-      const cell = 9 * map.width + col;
-      map.cells[cell] = { terrain: "blocked" };
-      map.cells[map.cells.length - 1 - cell] = { terrain: "blocked" };
-    }
-  }
-  if (id === "lean-resources") {
-    // Remove symmetric outer deposits, retaining the contested central ones.
-    map.cells = map.cells.map((c, index) =>
-      c.terrain === "deposit" &&
-      (index < 7 * map.width || index >= 13 * map.width)
-        ? { terrain: "open" }
-        : c,
-    );
-  }
-  maps.push(loadMap(map));
-}
+const selectedMaps = option("maps", "all").split(",");
+if (
+  selectedMaps[0] !== "all" &&
+  selectedMaps.some((id) => !maps.some((map) => map.id === id))
+)
+  throw new Error("Unknown map");
 const names = option("strategies", AI_STRATEGIES.join(",")).split(",");
 if (!names.every((name) => AI_STRATEGIES.includes(name as AiStrategy)))
   throw new Error("Unknown strategy");

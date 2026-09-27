@@ -12,6 +12,8 @@ Settings include sound, volume and reduced motion. Sound starts muted by default
 
 Choose an opponent opening in setup: Balanced, Pressure, Economy, Siege, Relay or Defensive. All use normal commands, resources and timing; they can adapt to enemy artillery.
 
+The map picker also offers **Close Quarters** (earlier contact), **Open Synapse** (open flanks), **Twin Pass** (two passages through a rock ridge), and **Scarce Reach** (fewer safe deposits). These are the same validated maps used by the strategy tournament. Rock and deposit graphics always come from their real tile categories.
+
 Each player has one builder and 128 reusable attack particles. Build neurons to expand the network and claim adjacent deposits. Disconnected structures stop mining and firing. Four towers offer different roles:
 
 - **Pulse:** sturdy, strong firepower at medium range.

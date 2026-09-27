@@ -2,8 +2,21 @@ import type { MapRepository, MapSummary } from "./contracts.js";
 import sandboxUrl from "../../maps/sandbox-12.json?url";
 import labUrl from "../../maps/combat-lab-12.json?url";
 import skirmishUrl from "../../maps/skirmish-24.json?url";
+import openUrl from "../../maps/open-front.json?url";
+import narrowUrl from "../../maps/narrow-front.json?url";
+import leanUrl from "../../maps/lean-resources.json?url";
+import closeUrl from "../../maps/close-quarters.json?url";
 
 const catalog: MapSummary[] = [
+  {
+    id: "close-quarters",
+    title: "Close Quarters",
+    description:
+      "Nearby rival brains. Early pressure matters before the specialist technologies arrive.",
+    width: 24,
+    height: 20,
+    url: closeUrl,
+  },
   {
     id: "skirmish-24",
     title: "Synaptic Reach",
@@ -20,6 +33,33 @@ const catalog: MapSummary[] = [
     width: 12,
     height: 12,
     url: sandboxUrl,
+  },
+  {
+    id: "open-front",
+    title: "Open Synapse",
+    description:
+      "Open approaches and room to flank. Protect your economic branches.",
+    width: 24,
+    height: 20,
+    url: openUrl,
+  },
+  {
+    id: "narrow-front",
+    title: "Twin Pass",
+    description:
+      "Two passes through a central rock ridge. Supply and alternate routes matter.",
+    width: 24,
+    height: 20,
+    url: narrowUrl,
+  },
+  {
+    id: "lean-resources",
+    title: "Scarce Reach",
+    description:
+      "Fewer safe deposits. Contest the middle to fund your network.",
+    width: 24,
+    height: 20,
+    url: leanUrl,
   },
   {
     id: "combat-lab-12",

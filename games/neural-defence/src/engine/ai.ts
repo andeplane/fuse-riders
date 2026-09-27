@@ -85,7 +85,11 @@ export function aiCommands(
   const own = world.structures.filter(
     (s) => s.ownerId === playerId && s.connected,
   );
-  const enemy = world.structures.filter((s) => s.ownerId !== playerId);
+  // Orphaned enemy branches do not fire and should not pull the whole army
+  // away from the brain and its living supply network.
+  const enemy = world.structures.filter(
+    (s) => s.ownerId !== playerId && s.connected,
+  );
   if (!enemy.length) return [];
   const distances = new Map<number, number>();
   const frontier = enemy.map((s) => s.cell).sort(cellOrder);
@@ -99,6 +103,20 @@ export function aiCommands(
     }
   const distance = (cell: number) =>
     distances.get(cell) ?? world.map.cells.length;
+  const brainDistances = new Map<number, number>();
+  const brainFrontier = enemy
+    .filter((s) => s.kind === "brain")
+    .map((s) => s.cell);
+  for (const cell of brainFrontier) brainDistances.set(cell, 0);
+  for (const cell of brainFrontier)
+    for (const next of neighbors(world.map, cell)) {
+      if (world.map.cells[next]?.terrain !== "open" || brainDistances.has(next))
+        continue;
+      brainDistances.set(next, brainDistances.get(cell)! + 1);
+      brainFrontier.push(next);
+    }
+  const brainDistance = (cell: number) =>
+    brainDistances.get(cell) ?? world.map.cells.length;
   const reach = new Map(
     world.structures.map((s) => [
       s.cell,
@@ -195,7 +213,30 @@ export function aiCommands(
         cellOrder(a, b),
     );
     let choice: { kind: BuildKind; cell: number } | undefined;
+    const isolated = world.structures.filter(
+      (s) => s.ownerId === playerId && !s.connected,
+    );
+    const repairs = sites.filter(
+      (cell) =>
+        eligible("neuron", cell) &&
+        threats(cell).length <= 1 &&
+        neighbors(world.map, cell).some((n) =>
+          isolated.some((s) => s.cell === n),
+        ),
+    );
+    const repairValue = (cell: number) =>
+      isolated
+        .filter((s) => neighbors(world.map, cell).includes(s.cell))
+        .reduce((value, s) => value + STRUCTURES[s.kind].hp, 0);
+    repairs.sort(
+      (a, b) =>
+        repairValue(b) - repairValue(a) ||
+        threats(a).length - threats(b).length ||
+        cellOrder(a, b),
+    );
+    if (repairs[0] !== undefined) choice = { kind: "neuron", cell: repairs[0] };
     if (
+      !choice &&
       own.filter((s) => s.kind === "harvester").length < policy.harvesters &&
       specialistSites[0] !== undefined &&
       (forward > 3 || fighting.length > 0)
@@ -221,6 +262,7 @@ export function aiCommands(
     firingSites.sort(
       (a, b) =>
         threats(a).length - threats(b).length ||
+        brainDistance(a) - brainDistance(b) ||
         distance(b) - distance(a) ||
         cellOrder(a, b),
     );
@@ -238,7 +280,9 @@ export function aiCommands(
         (cell) => eligible("neuron", cell) && !threats(cell).length,
       );
       const score = (cell: number) =>
-        distance(cell) * 4 - deposits(cell).length * policy.deposits;
+        distance(cell) * 4 +
+        brainDistance(cell) -
+        deposits(cell).length * policy.deposits;
       candidates.sort((a, b) => score(a) - score(b) || cellOrder(a, b));
       if (candidates[0] !== undefined)
         choice = { kind: "neuron", cell: candidates[0] };

@@ -150,7 +150,7 @@ export const STRUCTURES: Readonly<
   brain: Object.freeze({ hp: 240, range: 1, cadence: 20, volley: 4 }),
   neuron: Object.freeze({ hp: 60, range: 1, cadence: 20, volley: 4 }),
   tower: Object.freeze({ hp: 120, range: 2, cadence: 20, volley: 8 }),
-  siege: Object.freeze({ hp: 80, range: 3, cadence: 40, volley: 12 }),
+  siege: Object.freeze({ hp: 80, range: 3, cadence: 80, volley: 4 }),
   relay: Object.freeze({ hp: 90, range: 2, cadence: 10, volley: 3 }),
   harvester: Object.freeze({
     hp: 70,

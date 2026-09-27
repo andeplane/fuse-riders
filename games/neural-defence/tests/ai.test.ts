@@ -16,6 +16,43 @@ const map = loadMap(
     readFileSync(new URL("../maps/skirmish-24.json", import.meta.url), "utf8"),
   ),
 );
+test("AI reconnects an isolated investment before expanding toward the enemy", () => {
+  const world = createMatch(
+    {
+      schemaVersion: 1,
+      id: "repair",
+      width: 8,
+      height: 4,
+      layout: "odd-r",
+      cells: Array.from({ length: 32 }, () => ({ terrain: "open" })),
+      spawns: [
+        { slot: 0, cellIndex: 0 },
+        { slot: 1, cellIndex: 24 },
+      ],
+    },
+    {},
+    [
+      { id: "a", slot: 0 },
+      { id: "b", slot: 1 },
+    ],
+  );
+  world.structures.push({
+    id: world.nextEntityId++,
+    cell: 2,
+    ownerId: "a",
+    kind: "tower",
+    hp: 120,
+    connected: false,
+  });
+  const build = aiCommands(world, "a").find(
+    (c) => c.action.type === "queueConstruction",
+  );
+  assert.deepEqual(build?.action, {
+    type: "queueConstruction",
+    kind: "neuron",
+    cell: 1,
+  });
+});
 test("skirmish arena is larger, connected and rotationally symmetric", () => {
   assert.equal(map.cells.length, 480);
   for (let cell = 0; cell < map.cells.length; cell++)
@@ -25,6 +62,28 @@ test("skirmish arena is larger, connected and rotationally symmetric", () => {
     map.cells.length - 1,
   );
 });
+for (const id of [
+  "open-front",
+  "narrow-front",
+  "lean-resources",
+  "close-quarters",
+])
+  test(`${id} is connected and gives symmetric starts and terrain`, () => {
+    const scenario = loadMap(
+      JSON.parse(
+        readFileSync(new URL(`../maps/${id}.json`, import.meta.url), "utf8"),
+      ),
+    );
+    for (let cell = 0; cell < scenario.cells.length; cell++)
+      assert.deepEqual(
+        scenario.cells[cell],
+        scenario.cells[scenario.cells.length - 1 - cell],
+      );
+    assert.equal(
+      scenario.spawns[0]!.cellIndex + scenario.spawns[1]!.cellIndex,
+      scenario.cells.length - 1,
+    );
+  });
 test("opposite starts make rotated opening decisions without an absolute-cell preference", () => {
   let left = createMatch(map, {}, [
     { id: "ai", slot: 0 },
