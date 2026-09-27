@@ -9,7 +9,9 @@ are not part of the final policy.
 
 The AI now tries its existing durable repair first. It escalates to a safe Siege
 position only after losing at least three buildings and at least half as many
-buildings as it has completed. The existing public, checkpointed construction
+buildings as completed construction jobs. Jobs include upgrades, so this ratio
+is an attrition heuristic rather than the fraction of buildings destroyed.
+The existing public, checkpointed construction
 and loss statistics drive this decision; there is no map-name exception, hidden
 memory, artificial damage, or extra resource grant. Counterbattery construction
 still requires Ballistics, a legal connected site, and ordinary resources.

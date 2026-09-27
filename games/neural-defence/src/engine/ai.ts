@@ -333,8 +333,9 @@ export function aiCommands(
     );
     // Try durable repairs before escalating a supply cut into an artillery
     // fight. Clear dormant guns only after sustained attrition: at least three
-    // losses and half of completed construction lost. These public, checkpointed
-    // statistics distinguish an isolated cut from a failing repair strategy.
+    // losses and a loss count at least half the completed construction jobs
+    // (including upgrades). This checkpointed attrition heuristic distinguishes
+    // an isolated cut from a failing repair strategy.
     const repairThreats = world.structures.filter(
       (s) =>
         s.ownerId !== playerId &&
