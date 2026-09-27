@@ -90,6 +90,111 @@ test("defensive opening establishes an affordable anchor before contact", () => 
   );
   assert.equal(encodeState(world), before);
 });
+
+test("AI concentrates ammunition on guns that can hit paid construction", () => {
+  const world = createMatch(
+    {
+      schemaVersion: 1,
+      id: "site-supply",
+      width: 8,
+      height: 4,
+      layout: "odd-r",
+      cells: Array.from({ length: 32 }, () => ({ terrain: "open" })),
+      spawns: [
+        { slot: 0, cellIndex: 0 },
+        { slot: 1, cellIndex: 7 },
+      ],
+    },
+    {},
+    [
+      { id: "a", slot: 0 },
+      { id: "b", slot: 1 },
+    ],
+  );
+  world.players[0]!.research = ["excitation", "ballistics"];
+  world.players[0]!.priorities[0] = 3;
+  for (const cell of [1, 2, 3])
+    world.structures.push({
+      id: world.nextEntityId++,
+      cell,
+      ownerId: "a",
+      kind: cell === 3 ? "siege" : "neuron",
+      hp: cell === 3 ? 80 : 60,
+      connected: true,
+    });
+  world.players[1]!.queue.push({
+    cell: 6,
+    kind: "neuron",
+    paid: true,
+    progress: 1,
+    duration: 120,
+    hp: 60,
+  });
+  world.players[1]!.worker.mode = "building";
+  assert.ok(decodeState(encodeState(world)));
+  const commands = aiCommands(world, "a");
+  assert.ok(
+    commands.some(
+      (c) =>
+        c.action.type === "setPriority" &&
+        c.action.cell === 3 &&
+        c.action.weight === 3,
+    ),
+  );
+  assert.ok(
+    commands.some(
+      (c) =>
+        c.action.type === "setPriority" &&
+        c.action.cell === 0 &&
+        c.action.weight === 0,
+    ),
+  );
+  assert.equal(
+    commands.filter(
+      (c) => c.action.type === "setPriority" && c.action.weight > 0,
+    ).length,
+    1,
+  );
+});
+
+test("AI does not sacrifice its builder repeatedly on a threatened repair", () => {
+  const world = createMatch(
+    {
+      schemaVersion: 1,
+      id: "exposed-repair",
+      width: 8,
+      height: 4,
+      layout: "odd-r",
+      cells: Array.from({ length: 32 }, () => ({ terrain: "open" })),
+      spawns: [
+        { slot: 0, cellIndex: 0 },
+        { slot: 1, cellIndex: 9 },
+      ],
+    },
+    {},
+    [
+      { id: "a", slot: 0 },
+      { id: "b", slot: 1 },
+    ],
+  );
+  world.structures.push({
+    id: world.nextEntityId++,
+    cell: 2,
+    ownerId: "a",
+    kind: "tower",
+    hp: 120,
+    connected: false,
+  });
+  assert.equal(
+    aiCommands(world, "a").some(
+      (c) =>
+        c.action.type === "queueConstruction" &&
+        c.action.kind === "neuron" &&
+        c.action.cell === 1,
+    ),
+    false,
+  );
+});
 test("skirmish arena is larger, connected and rotationally symmetric", () => {
   assert.equal(map.cells.length, 480);
   for (let cell = 0; cell < map.cells.length; cell++)

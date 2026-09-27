@@ -128,8 +128,22 @@ export function aiCommands(
     enemy.filter(
       (s) => s.connected && canAttack(s.kind) && reach.get(s.cell)!.has(cell),
     );
+  // Strategic pursuit ignores orphan branches, but guns can still engage them
+  // and paid construction. Match combat's actual targets when allocating ammo.
+  const attackable = [
+    ...world.structures
+      .filter((s) => s.ownerId !== playerId)
+      .map((s) => s.cell),
+    ...world.players
+      .filter((p) => p.id !== playerId)
+      .flatMap((p) =>
+        p.queue
+          .filter((j) => j.paid && j.upgradeFrom === undefined)
+          .map((j) => j.cell),
+      ),
+  ];
   const firing = (cell: number) =>
-    enemy.some((s) => reach.get(cell)?.has(s.cell));
+    attackable.some((target) => reach.get(cell)?.has(target));
   const actions: Action[] = [];
   for (const job of player.queue)
     if (
@@ -226,7 +240,7 @@ export function aiCommands(
     const repairs = sites.filter(
       (cell) =>
         eligible("neuron", cell) &&
-        threats(cell).length <= 1 &&
+        threats(cell).length === 0 &&
         neighbors(world.map, cell).some((n) =>
           isolated.some((s) => s.cell === n),
         ),
