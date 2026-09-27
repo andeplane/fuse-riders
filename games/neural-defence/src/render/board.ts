@@ -4,6 +4,7 @@ import { neighbors } from "../engine/map.js";
 import { structureArt, teamArtFilter } from "./art.js";
 import { terrainArt, WALKABLE_GROUND } from "./terrain-art.js";
 import { combatEffect } from "./combat-effects.js";
+import { damagePlume, damageAnimation } from "./damage-plume.js";
 import { weaponFlightMs } from "./weapon-trail.js";
 import { rockRelief, rockReliefMarkup } from "./terrain-relief.js";
 import {
@@ -186,13 +187,11 @@ function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
         s.hp < hpMax
           ? `<rect class="structure-hp-bg" x="${x - 18}" y="${healthY}" width="36" height="3"/><rect class="structure-hp" x="${x - 18}" y="${healthY}" width="${36 * Math.max(0, Math.min(1, s.hp / hpMax))}" height="3"/>`
           : "";
-      const artwork = structureArtwork(
-        world.map.width,
-        s.cell,
-        s.kind,
-        slot,
-        sprites,
-      );
+      const artwork =
+        structureArtwork(world.map.width, s.cell, s.kind, slot, sprites) +
+        (s.kind === "neuron"
+          ? ""
+          : damagePlume(x + 6, y - 18, s.hp / hpMax, s.id));
       // Select the raised body as well as the ground footprint. These are
       // presentation hit regions only; placement continues to target terrain.
       const hit =
@@ -607,7 +606,12 @@ export function renderBoard(
   const constructionAnimations = [
     ...cache.structures.querySelectorAll<SVGGElement>(".construction-body"),
   ].map(constructionAnimation);
+  const damageAnimations = [
+    ...cache.structures.querySelectorAll<SVGGElement>(".damage-plume"),
+  ].map(damageAnimation);
   const animate = (frameNow: number) => {
+    for (const animateDamage of damageAnimations)
+      animateDamage(frameNow, reducedMotion);
     for (const animateSite of constructionAnimations)
       animateSite(frameNow, reducedMotion);
     for (const [cell, kick] of cache.recoil) {
