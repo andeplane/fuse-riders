@@ -1,5 +1,8 @@
 # Paid construction losses
 
+The counter is now consumed by the [reactive approach policy](REACTIVE_APPROACH.md).
+The policy-4 references below describe this counter's introduction.
+
 Repeated AI Siege attempts on Synaptic Reach exposed a missing contract: combat
 could destroy paid construction without recording a destruction outcome or a
 checkpointed loss. Completed-building `lost` cannot identify that waste.

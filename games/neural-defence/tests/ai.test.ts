@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { aiCommands, AI_STRATEGIES } from "../src/engine/ai.js";
-import { CONSTRUCTIONS } from "../src/engine/catalog.js";
+import { CONSTRUCTIONS, STRUCTURES } from "../src/engine/catalog.js";
+import { weaponCells } from "../src/engine/map.js";
 import {
   createMatch,
   loadMap,
@@ -17,6 +18,169 @@ const map = loadMap(
     readFileSync(new URL("../maps/skirmish-24.json", import.meta.url), "utf8"),
   ),
 );
+
+for (const rotated of [false, true])
+  test(`AI changes an attrition front into a legal safe advance (rotated=${rotated})`, () => {
+    const cellAt = (cell: number) => (rotated ? 47 - cell : cell);
+    const world = createMatch(
+      {
+        schemaVersion: 1,
+        id: "attrition-flank",
+        width: 8,
+        height: 6,
+        layout: "odd-r",
+        cells: Array.from({ length: 48 }, () => ({ terrain: "open" })),
+        spawns: [
+          { slot: 0, cellIndex: cellAt(0) },
+          { slot: 1, cellIndex: cellAt(47) },
+        ],
+      },
+      {},
+      [
+        { id: "a", slot: 0 },
+        { id: "b", slot: 1 },
+      ],
+    );
+    for (const [ownerId, cells] of [
+      ["a", [1, 2, 8, 9, 10, 11, 12, 18]],
+      ["b", [39, 31, 23, 15, 14, 22]],
+    ] as const)
+      for (const cell of cells) {
+        const kind = [11, 12, 18, 15, 14].includes(cell) ? "siege" : "neuron";
+        world.structures.push({
+          id: world.nextEntityId++,
+          cell: cellAt(cell),
+          ownerId,
+          kind,
+          hp: STRUCTURES[kind].hp,
+          connected: true,
+        });
+      }
+    for (const p of world.players) {
+      p.research = [
+        "growth",
+        "excitation",
+        "conduction",
+        "ballistics",
+        "resonance",
+      ];
+      p.biomass = 1_000_000;
+      p.insight = 1_000_000;
+    }
+    for (const [sitesLost, lost, kind] of [
+      [0, 0, "siege"],
+      [1, 7, "siege"],
+      [2, 0, "neuron"],
+      [0, 8, "neuron"],
+    ] as const) {
+      Object.assign(world.players[0]!.statistics, { sitesLost, lost });
+      const before = encodeState(world);
+      const commands = aiCommands(world, "a");
+      assert.deepEqual(
+        commands.find((c) => c.action.type === "queueConstruction")?.action,
+        { type: "queueConstruction", kind, cell: cellAt(19) },
+      );
+      const next = step(world, commands);
+      assert.equal(
+        next.outcomes.some((o) => o.type === "rejected"),
+        false,
+      );
+      assert.equal(
+        hashState(step(decodeState(before), commands)),
+        hashState(next),
+      );
+      assert.equal(encodeState(world), before);
+      const reordered = decodeState(before);
+      reordered.structures.reverse();
+      assert.deepEqual(aiCommands(reordered, "a"), commands);
+    }
+    // The safer step is farther from the brain than our existing forward gun:
+    // a greedy requirement to reduce plain distance would reject it.
+    const withinFive = weaponCells(world.map, cellAt(47), 5);
+    assert.equal(withinFive.has(cellAt(12)), true);
+    assert.equal(withinFive.has(cellAt(19)), false);
+    assert.equal(weaponCells(world.map, cellAt(47), 6).has(cellAt(19)), true);
+    // Blocking that route forces another safe branch, not a plan through rock.
+    world.map.cells[cellAt(19)] = { terrain: "blocked" };
+    const detour = aiCommands(world, "a");
+    assert.deepEqual(
+      detour.find((c) => c.action.type === "queueConstruction")?.action,
+      { type: "queueConstruction", kind: "neuron", cell: cellAt(26) },
+    );
+    assert.equal(
+      step(world, detour).outcomes.some((o) => o.type === "rejected"),
+      false,
+    );
+    assert.ok(decodeState(encodeState(world)));
+  });
+test("AI anchors exposed construction only after repeated site losses, without duplicating protection", () => {
+  const world = createMatch(
+    {
+      schemaVersion: 1,
+      id: "exposed-advance",
+      width: 8,
+      height: 6,
+      layout: "odd-r",
+      cells: Array.from({ length: 48 }, () => ({ terrain: "open" })),
+      spawns: [
+        { slot: 0, cellIndex: 0 },
+        { slot: 1, cellIndex: 47 },
+      ],
+    },
+    {},
+    [
+      { id: "a", slot: 0 },
+      { id: "b", slot: 1 },
+    ],
+  );
+  for (const p of world.players) {
+    p.research = ["growth", "excitation", "ballistics"];
+    p.biomass = 100_000;
+  }
+  for (const [ownerId, cells] of [
+    ["a", [1, 2]],
+    ["b", [39, 31, 23, 15, 14, 13, 12]],
+  ] as const)
+    for (const cell of cells) {
+      const kind = cell === 12 ? "siege" : "neuron";
+      world.structures.push({
+        id: world.nextEntityId++,
+        cell,
+        ownerId,
+        kind,
+        hp: STRUCTURES[kind].hp,
+        connected: true,
+      });
+    }
+  for (const sitesLost of [0, 1, 2]) {
+    world.players[0]!.statistics.sitesLost = sitesLost;
+    const commands = aiCommands(world, "a");
+    assert.deepEqual(
+      commands.find((c) => c.action.type === "queueConstruction")?.action,
+      {
+        type: "queueConstruction",
+        kind: sitesLost === 2 ? "bastion" : "siege",
+        cell: 3,
+      },
+    );
+    assert.equal(
+      step(world, commands).outcomes.some((o) => o.type === "rejected"),
+      false,
+    );
+  }
+  const anchor = world.structures.find(
+    (s) => s.ownerId === "a" && s.cell === 2,
+  )!;
+  anchor.kind = "bastion";
+  anchor.hp = STRUCTURES.bastion.hp;
+  assert.ok(decodeState(encodeState(world)));
+  assert.deepEqual(
+    aiCommands(world, "a").find((c) => c.action.type === "queueConstruction")
+      ?.action,
+    { type: "queueConstruction", kind: "siege", cell: 3 },
+  );
+});
+
 test("AI reconnects an isolated investment before expanding toward the enemy", () => {
   const world = createMatch(
     {

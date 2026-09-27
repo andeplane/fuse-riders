@@ -296,6 +296,57 @@ export function aiCommands(
         cellOrder(a, b),
     );
     let choice: { kind: BuildKind; cell: number } | undefined;
+    // After repeated losses, seek a safer approach instead of indefinitely
+    // adding guns to the same front. A route may start with a sideways step,
+    // so distance to the brain alone cannot choose the next conduit.
+    if (
+      (player.statistics.sitesLost >= 2 || player.statistics.lost >= 8) &&
+      fighting.length >= 2
+    ) {
+      const costs = new Map<number, number>();
+      const pending = new Set<number>();
+      for (const s of enemy.filter((s) => s.kind === "brain")) {
+        costs.set(s.cell, 0);
+        pending.add(s.cell);
+      }
+      while (pending.size) {
+        const cell = [...pending].sort(
+          (a, b) => costs.get(a)! - costs.get(b)! || cellOrder(a, b),
+        )[0]!;
+        pending.delete(cell);
+        // One movement step, six for each covering gun, twelve to clear an
+        // occupied enemy cell. These are planning costs, never game damage.
+        const crossing =
+          1 +
+          threats(cell).length * 6 +
+          (world.structures.some(
+            (s) => s.ownerId !== playerId && s.cell === cell,
+          )
+            ? 12
+            : 0);
+        for (const next of neighbors(world.map, cell)) {
+          if (world.map.cells[next]?.terrain !== "open") continue;
+          const cost = costs.get(cell)! + crossing;
+          if (cost < (costs.get(next) ?? Infinity)) {
+            costs.set(next, cost);
+            pending.add(next);
+          }
+        }
+      }
+      const best = Math.min(...own.map((s) => costs.get(s.cell) ?? Infinity));
+      const flanks = sites.filter(
+        (cell) =>
+          eligible("neuron", cell) &&
+          !threats(cell).length &&
+          (costs.get(cell) ?? Infinity) < best,
+      );
+      flanks.sort(
+        (a, b) =>
+          (costs.get(a) ?? Infinity) - (costs.get(b) ?? Infinity) ||
+          cellOrder(a, b),
+      );
+      if (flanks[0] !== undefined) choice = { kind: "neuron", cell: flanks[0] };
+    }
     // A dormant enemy gun can reactivate as soon as its own gap is repaired.
     // Repeatedly reconnecting with a fragile neuron creates a synchronized
     // cut/rebuild loop on narrow fronts; reserve a durable conduit instead.
@@ -439,7 +490,18 @@ export function aiCommands(
         tower === "siege" ||
         tower === "bastion")
     )
-      choice = { kind: tower, cell: firingSites[0] };
+      choice = {
+        kind:
+          player.statistics.sitesLost >= 2 &&
+          threats(firingSites[0]).length > 0 &&
+          eligible("bastion", firingSites[0]) &&
+          !own.some((s) =>
+            protectionCells(world, s.kind, s.cell).has(firingSites[0]!),
+          )
+            ? "bastion"
+            : tower,
+        cell: firingSites[0],
+      };
     if (!choice) {
       const candidates = sites.filter(
         (cell) => eligible("neuron", cell) && !threats(cell).length,
