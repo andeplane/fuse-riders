@@ -1,10 +1,23 @@
 # Fuse Craft expansion and balance evidence — 2026-09-27
 
-This report preserves the original expansion matrix. The subsequent [Defensive opening follow-up](DEFENSIVE_OPENING.md) changes that policy and reports new exact-source trials; its results supersede the statements below about Defensive losing every default-arena matchup.
+The current game uses **world rules 9 and AI policy 3**, with adapter compatibility
+`neural-defence-9-watch-2`. The [latest complete comparison](verification/established-artillery-2026-09-27/README.md)
+covers 210 map/opening/seat cases: 200 finish within 900 simulated seconds and ten
+reach the cap, with no rejected commands. All six openings win at least one
+different-opening matchup on the default arena. The Pressure/Relay slot-0
+continuation finishes at 1,056 seconds; its original 900-second result remains a
+timeout. These are deterministic policy comparisons, not proof of equal human
+strategy strength.
 
-The current game now uses **rules 6** with [timed neuron specialization](NEURON_UPGRADES.md). Neither historical rules-5 matrix establishes balance under these newer rules; fresh multi-arena trials are required.
+The [current tech tree](TECH_TREE.md) describes the active rules, and the
+[live battle captures](verification/battle-framing-2026-09-27/README.md) show the
+normal watch UI under its ordinary clock. A safe finishing-shot AI experiment is
+under qualification and is not part of the current production policy.
 
-Those trials are now available in the [rules-6 balance baseline](RULES6_BALANCE.md), including its failed counterplay and stalemate findings.
+Everything below preserves the **historical rules-5 expansion matrix**. Its
+Defensive-opening losses and timeout totals are superseded by later work:
+[Defensive opening](DEFENSIVE_OPENING.md), [rules-6 baseline](RULES6_BALANCE.md),
+[flank recovery](FLANK_RECOVERY.md), and the latest comparison linked above.
 
 ## Delivered changes
 
@@ -12,7 +25,7 @@ Those trials are now available in the [rules-6 balance baseline](RULES6_BALANCE.
 - Both have matching transparent sculpted art in the battlefield, placement ghost, command card and portrait. Connected specialist extraction has a resource-colored animation, disabled by reduced-motion preferences. [Asset paths and exact imagegen prompts](art/EXPANSION_SPRITES.md).
 - Paid construction uses its building's durability and retains damage through completion. Weapons prioritize brains and connected retaliating threats over scaffolds. Siege now fires four particles every four seconds: reach is its advantage, not high close-range damage.
 - Six deterministic AI openings use ordinary commands, with equal resources, one builder and the normal 128-particle pool. They prioritize active guns, recognize enemy weapon reach, counter artillery, reconnect isolated investments and pursue the living enemy network instead of orphaned branches.
-- Four additional playable maps cover open approaches, narrow passages, scarce resources and close starts. **Close Quarters is the default**, with all larger arenas still selectable. The [tech tree](TECH_TREE.md) describes current rules 5. UI combat and build-time help reads the catalog rather than duplicating balance numbers.
+- Four additional playable maps cover open approaches, narrow passages, scarce resources and close starts. **Close Quarters is the default**, with all larger arenas still selectable. The [tech tree](TECH_TREE.md) now describes the newer active rules. UI combat and build-time help reads the catalog rather than duplicating balance numbers.
 
 ## Reproduction and scope
 
