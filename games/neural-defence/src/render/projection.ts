@@ -10,12 +10,20 @@ export function hexCenter(width: number, cell: number) {
     y: GROUND.radius + dy * row,
   };
 }
-export function hexPoints(width: number, cell: number, inset = 0): string {
+export function hexVertices(width: number, cell: number, inset = 0) {
   const { x, y } = hexCenter(width, cell);
   return Array.from({ length: 6 }, (_, i) => {
     const angle = (Math.PI / 180) * (60 * i - 30);
-    return `${(x + Math.cos(angle) * (GROUND.radius - inset)).toFixed(2)},${(y + Math.sin(angle) * (GROUND.radius - inset) * GROUND.depth).toFixed(2)}`;
-  }).join(" ");
+    return [
+      x + Math.cos(angle) * (GROUND.radius - inset),
+      y + Math.sin(angle) * (GROUND.radius - inset) * GROUND.depth,
+    ] as const;
+  });
+}
+export function hexPoints(width: number, cell: number, inset = 0): string {
+  return hexVertices(width, cell, inset)
+    .map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`)
+    .join(" ");
 }
 export function boardSize(width: number, height: number) {
   return {

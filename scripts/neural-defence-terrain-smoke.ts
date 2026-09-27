@@ -5,6 +5,7 @@ import { loadMap } from "../games/neural-defence/src/engine/map.js";
 
 const url =
   process.argv[2] ?? "http://127.0.0.1:5174/games/neural-defence/?mute";
+const phone = process.argv.includes("--phone");
 const map = loadMap(
   JSON.parse(
     await readFile(
@@ -20,7 +21,9 @@ for (const [name, browserType] of [
   const browser = await browserType.launch();
   try {
     const page = await browser.newPage({
-      viewport: { width: 1440, height: 900 },
+      viewport: phone
+        ? { width: 390, height: 844 }
+        : { width: 1440, height: 900 },
     });
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
@@ -132,6 +135,8 @@ for (const [name, browserType] of [
       0,
       "clicking a visible rock never queues construction",
     );
+    if (process.argv[4])
+      await page.screenshot({ path: `${process.argv[4]}-${name}.png` });
     await page.keyboard.press("Escape");
     const before = await page.locator("#nd-board").getAttribute("viewBox");
     const minimap = (await page.locator("#nd-minimap").boundingBox())!;

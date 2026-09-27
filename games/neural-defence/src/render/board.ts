@@ -4,6 +4,7 @@ import { neighbors } from "../engine/map.js";
 import { structureArt, teamArtFilter } from "./art.js";
 import { terrainArt, WALKABLE_GROUND } from "./terrain-art.js";
 import { combatEffect } from "./combat-effects.js";
+import { rockRelief, rockReliefMarkup } from "./terrain-relief.js";
 import { hexCenter, hexPoints, boardSize } from "./projection.js";
 export { hexCenter, hexPoints } from "./projection.js";
 const ns = "http://www.w3.org/2000/svg";
@@ -68,6 +69,9 @@ function image(
     : "";
 }
 function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
+  const relief = new Map(
+    rockRelief(world.map).map((rock) => [rock.cell, rock]),
+  );
   return world.map.cells
     .map((cell, index) => {
       const { x, y } = hexCenter(world.map.width, index);
@@ -79,15 +83,17 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
           image(sprites, art!, x, y, 58) ||
           `<text x="${x}" y="${y + 6}" text-anchor="middle">${cell.resourceKind === "biomass" ? "◈" : "◇"}</text>`;
       if (cell.terrain === "blocked") {
+        const rock = relief.get(index);
         object =
-          image(sprites, art!, x, y, 60) ||
+          image(sprites, art!, x, y - (rock?.height ?? 0), rock ? 48 : 60) ||
           image(sprites, "blocker-boulder", x, y, 60) ||
-          `<path d="M${x - 23} ${y + 13}l5 -29 22 -10 22 23 -4 24Z" fill="#68757a" stroke="#29383d" stroke-width="3"/>`;
+          `<path class="terrain-fallback" d="M${x - 23} ${y + 13}l5 -29 22 -10 22 23 -4 24Z" fill="#68757a" stroke="#29383d" stroke-width="3"/>`;
+        if (rock) object = rockReliefMarkup(rock) + object;
       }
       if (cell.terrain === "open" && cell.towerSite)
         object = `<circle class="tower-site" cx="${x}" cy="${y}" r="19"/><text x="${x}" y="${y + 5}" text-anchor="middle">+</text>`;
       if (object && cell.terrain !== "open")
-        object += `<ellipse class="terrain-hit" data-cell="${index}" cx="${x}" cy="${y - 3}" rx="20" ry="25"/>`;
+        object += `<ellipse class="terrain-hit" data-cell="${index}" cx="${x}" cy="${y - 3 - (relief.get(index)?.height ?? 0)}" rx="${relief.has(index) ? 24 : 20}" ry="${relief.has(index) ? 32 : 25}"/>`;
       return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${ground ? image(sprites, ground, x, y, 82) : ""}</g>${object ? `<g class="terrain-object" data-terrain="${cell.terrain}" data-depth="${index}" pointer-events="none"><ellipse cx="${x + 9}" cy="${y + 14}" rx="30" ry="10" fill="url(#contact-shadow)"/>${object}</g>` : ""}<polygon class="hex-hover-outline" points="${hexPoints(world.map.width, index, 1.5)}"/></g>`;
     })
     .join("");
@@ -96,7 +102,8 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
 /** Decorative ground continues beyond the selectable cells; it has no game state. */
 function backdropMarkup(sprites: Sprites): string {
   const ground = sprites[WALKABLE_GROUND];
-  return `<defs><radialGradient id="contact-shadow"><stop offset="0" stop-color="#000" stop-opacity="0.7"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="840" height="560"><rect width="840" height="560" fill="#26322e"/>${ground ? `<image href="${escaped(ground)}" width="840" height="560" opacity="0.65"/>` : ""}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
+  const cliff = sprites["terrain-cliff-material-v1"];
+  return `<defs><pattern id="cliff-material" patternUnits="userSpaceOnUse" width="180" height="180"><rect width="180" height="180" fill="#657078"/>${cliff ? `<image href="${escaped(cliff)}" width="180" height="180"/>` : ""}</pattern><radialGradient id="contact-shadow"><stop offset="0" stop-color="#000" stop-opacity="0.7"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="840" height="560"><rect width="840" height="560" fill="#26322e"/>${ground ? `<image href="${escaped(ground)}" width="840" height="560" opacity="0.65"/>` : ""}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
 }
 /** Reuse the illustrated tissue for placement and the board, with stable variation. */
 export function neuronArtwork(

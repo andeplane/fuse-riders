@@ -190,8 +190,9 @@ test("visible terrain follows build restrictions and cannot be overridden by mis
   ) as unknown as SVGSVGElement;
   renderBoard(fallback, world, null, false, true, 0, {});
   assert.equal(
-    fallback.querySelectorAll('.terrain-object[data-terrain="blocked"] path')
-      .length,
+    fallback.querySelectorAll(
+      '.terrain-object[data-terrain="blocked"] .terrain-fallback',
+    ).length,
     map.cells.filter((cell) => cell.terrain === "blocked").length,
   );
 });
