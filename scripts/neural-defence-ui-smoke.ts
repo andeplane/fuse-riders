@@ -515,10 +515,14 @@ for (const [name, engine] of [
         breath,
       );
       await page.emulateMedia({ reducedMotion: "reduce" });
-      assert.equal(
-        await neuron.evaluate((el) => getComputedStyle(el).transform),
-        "none",
-      );
+      await page.waitForFunction(() => {
+        const current = document.querySelector(
+          ".structure-neuron .neuron-body",
+        );
+        return (
+          current?.isConnected && getComputedStyle(current).transform === "none"
+        );
+      });
       await page.emulateMedia({ reducedMotion: "no-preference" });
       const rotation = await page
         .locator(".supply-orbit")

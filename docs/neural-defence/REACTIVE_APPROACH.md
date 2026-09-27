@@ -87,3 +87,24 @@ Pressure/Economy finish at 752 seconds and preserved all 21 default-map pairing
 results and durations. Balanced/Siege and Economy/Relay still reached the cap.
 These temporary-policy trials are diagnostic evidence; committed-source
 verification is recorded separately.
+
+Source `1e00805e` passes all **1,738 repository tests**, typecheck, build and
+focused lint. Its committed-source Skirmish 24 run uses `--strategies
+pressure,economy --seconds 900`: all six matches finish with no rejected commands.
+Pressure mirrors mutually destroy at 755 seconds, Economy mirrors at 656 seconds,
+and Economy beats Pressure at 752 seconds from either seat. All three swapped-seat
+pairs agree on result, duration, contact and every player metric. The manifest and
+results are in `verification/secure-approach-2026-09-27/`. This targeted check does
+not replace the remaining full policy-6 map comparison.
+
+Review found no blocking issue and requested stronger safe-anchor coverage. That
+case now removes the destination's existing neuron, proving an exposed empty site
+remains the chosen build when its connected adjacent anchor is outside enemy range.
+
+Chromium and WebKit pass the normal desktop, portrait and landscape menu/game
+flow. The first WebKit run exposed a one-shot reduced-motion style assertion
+returning an empty string, consistent with reading a replaced SVG node. The smoke
+now queries the current connected node and waits for the required `none` style;
+both browsers pass the corrected flow. This test race is tracked in issue #250.
+Independent review found no blocking issue in the fix. Physical-device and human
+visual acceptance remain open.
