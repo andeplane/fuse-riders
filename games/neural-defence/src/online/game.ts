@@ -253,7 +253,7 @@ export const neuralGame: RollbackGame<
   NeuralSettings
 > = {
   id: "neural-defence",
-  rules: "neural-defence-9-watch-2",
+  rules: "neural-defence-9-watch-3",
   isEntry,
   createRoom: (matchId, settings) => ({
     tick: 0,

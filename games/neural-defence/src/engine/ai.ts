@@ -297,10 +297,39 @@ export function aiCommands(
         cellOrder(a, b),
     );
     let choice: { kind: BuildKind; cell: number } | undefined;
+    const finishingSites = armed.some(
+      (s) => s.kind !== "brain" && s.kind !== "neuron",
+    )
+      ? sites.filter((cell) => {
+          if (
+            !eligible("siege", cell) ||
+            threats(cell).length > 0 ||
+            !constructionDispatchAvailability(world, player, {
+              kind: "siege",
+              cell,
+              upgradeFrom: constructionUpgradeSource(
+                world,
+                player,
+                "siege",
+                cell,
+              )?.id,
+            }).allowed
+          )
+            return false;
+          const cells = attackCells(world.map, cell, "siege");
+          return enemy.some((s) => s.kind === "brain" && cells.has(s.cell));
+        })
+      : [];
+    finishingSites.sort((a, b) => cellOrder(a, b));
+    if (finishingSites[0] !== undefined)
+      choice = { kind: "siege", cell: finishingSites[0] };
     // After repeated losses, seek a safer approach instead of indefinitely
     // adding guns to the same front. A route may start with a sideways step,
     // so distance to the brain alone cannot choose the next conduit.
-    if (player.statistics.sitesLost >= 2 || player.statistics.lost >= 8) {
+    if (
+      !choice &&
+      (player.statistics.sitesLost >= 2 || player.statistics.lost >= 8)
+    ) {
       const costs = new Map<number, number>();
       const pending = new Set<number>();
       for (const s of enemy.filter((s) => s.kind === "brain")) {
@@ -385,6 +414,8 @@ export function aiCommands(
     // losses and a loss count at least half the completed construction jobs
     // (including upgrades). This checkpointed attrition heuristic distinguishes
     // an isolated cut from a failing repair strategy.
+    // Clearing a dormant gun that blocks a critical supply repair deliberately
+    // takes precedence over the safe finishing shot selected above.
     const repairThreats = world.structures.filter(
       (s) =>
         s.ownerId !== playerId &&
