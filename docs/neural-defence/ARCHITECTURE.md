@@ -1,4 +1,4 @@
-# Neural Defence architecture
+# Fuse Craft architecture
 
 Status: the current game provides local player-versus-AI skirmishes, sandbox and combat lab through the shared runtime, with the illustrated responsive RTS interface. [The tech tree](TECH_TREE.md) is the current rules reference; [core contracts](CORE_TYPES.md) points to exact types. [First-version evidence](FIRST_VERSION.md) and [current presentation verification](verification/PREMIUM_TERRAIN.md) distinguish headless, browser and visual evidence. Earlier Phase 0 handoffs are historical. The diagram describes current modules, not public online play.
 

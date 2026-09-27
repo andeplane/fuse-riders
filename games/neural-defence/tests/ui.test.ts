@@ -129,10 +129,13 @@ function fixture(maps?: MapRepository) {
     createdMapId: () => createdMapId,
     summary,
     actions,
-    selectCell(cell: number) {
+    selectCell(cell: number, shiftKey = false) {
+      class ClickEvent extends EventConstructor {
+        readonly shiftKey = shiftKey;
+      }
       root
         .querySelector(`[data-cell="${cell}"]`)!
-        .dispatchEvent(new EventConstructor("click", { bubbles: true }));
+        .dispatchEvent(new ClickEvent("click", { bubbles: true }));
     },
     press(
       key: string,
@@ -142,6 +145,7 @@ function fixture(maps?: MapRepository) {
         metaKey?: boolean;
         altKey?: boolean;
         repeat?: boolean;
+        shiftKey?: boolean;
       } = {},
     ) {
       class KeyEvent extends EventConstructor {
@@ -150,6 +154,7 @@ function fixture(maps?: MapRepository) {
         readonly metaKey = modifiers.metaKey ?? false;
         readonly altKey = modifiers.altKey ?? false;
         readonly repeat = modifiers.repeat ?? false;
+        readonly shiftKey = modifiers.shiftKey ?? false;
       }
       root
         .querySelector(selector)!
@@ -377,6 +382,48 @@ test("build commands arm placement, reject occupied tiles, place once, and cance
   f.click("build-neuron");
   f.press("Escape");
   assert.equal(f.root.querySelector(".placement-instructions"), null);
+  f.app.dispose();
+});
+
+test("Shift placement queues repeatedly until ordinary placement or cancel", async () => {
+  const f = fixture();
+  await f.start();
+  const open = f.world.map.cells.flatMap((c, i) =>
+    c.terrain === "open" &&
+    !f.world.structures.some((s) => s.cell === i) &&
+    !f.world.players.some((p) => p.queue.some((j) => j.cell === i))
+      ? [i]
+      : [],
+  );
+  f.click("panel-build");
+  f.click("build-neuron");
+  f.selectCell(open[0]!, true);
+  assert.ok(f.root.querySelector(".placement-instructions"));
+  f.selectCell(f.world.structures[0]!.cell, true);
+  assert.equal(
+    f.actions.length,
+    1,
+    "invalid Shift click keeps the type but adds no job",
+  );
+  f.selectCell(open[1]!, true);
+  f.selectCell(open[2]!);
+  assert.deepEqual(
+    f.actions,
+    open
+      .slice(0, 3)
+      .map((cell) => ({ type: "queueConstruction", kind: "neuron", cell })),
+  );
+  assert.equal(f.root.querySelector(".placement-instructions"), null);
+  f.click("build-neuron");
+  f.press("Enter", "#nd-board", { shiftKey: true });
+  assert.ok(
+    f.root.querySelector(".placement-instructions"),
+    "Shift Enter keeps keyboard placement armed",
+  );
+  assert.equal(f.actions.length, 4);
+  f.press("Escape");
+  f.selectCell(open[3]!, true);
+  assert.equal(f.actions.length, 4, "cancel ends repeated placement");
   f.app.dispose();
 });
 

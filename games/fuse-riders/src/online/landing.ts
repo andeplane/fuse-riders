@@ -133,7 +133,7 @@ export function showLanding(host: LandingHost): void {
     link(
       `${appUrl()}neural-defence/`,
       "landing-more",
-      document.createTextNode("NEURAL DEFENCE · SANDBOX ›"),
+      document.createTextNode("FUSE CRAFT ›"),
     ),
   );
   const live = node("aside", "", "landing-live");

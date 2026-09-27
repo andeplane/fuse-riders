@@ -1,8 +1,8 @@
-# Neural Defence
+# Fuse Craft
 
 See the [current tech tree](TECH_TREE.md) for all research branches, structure and particle unlocks, costs, timings, and construction requirements.
 
-Neural Defence is a real-time territory RTS: grow a connected network from a brain, mine **Biomass** and **Insight**, research, and direct a fixed pool of attack particles. The first skirmish version is under review in [PR #409](https://github.com/andeplane/fuse-riders/pull/409). It is available in the local preview; it has not been merged or deployed.
+Fuse Craft (previously Neural Defence) is a real-time territory RTS: grow a connected network from a brain, mine **Biomass** and **Insight**, research, and direct a fixed pool of attack particles. The first skirmish version is under review in [PR #409](https://github.com/andeplane/fuse-riders/pull/409). It is available in the local preview; it has not been merged or deployed. The existing `neural-defence` URLs and internal identifiers remain stable.
 
 Choose **New game → Start** for the default player-versus-AI match on the 24 × 20 Synaptic Reach arena. The AI builds, researches and routes particles through ordinary commands, with the same resources and travel rules as you. Destroy its brain to win; losing your brain ends the match. Play again restarts directly with the starting camera. The open sandbox and scripted combat lab remain available. Online multiplayer UI is not part of this version.
 
@@ -21,6 +21,8 @@ Press **Q / Particles** to choose Pulse, Heavy or Swift profiles. Heavy hits har
 The full-width battlefield sits between a thin resource bar and a compact bottom command dock. The six command slots mirror **Q W E / A S D**. The top row is **Particles / Build / Research**. Build, Research and Particles replace those slots in place; A goes back and D pages larger catalogs. Choose Build → a structure, then click or tap its location. A translucent ghost follows desktop hover; red marks illegal placement. Esc or S cancels placement. Arrow keys move the target and Enter confirms an armed placement.
 
 Select a friendly frontline structure and press **D / Charge** to give it maximum attack-particle priority; press again to clear the order. The slider permits finer allocation. Particles must travel through connected links before that structure can fire automatically at an enemy in range. Strong positions need supply and redundant connections, not just more towers.
+
+Hold **Shift** while clicking build locations to queue several plans of the chosen type. **Shift+Enter** also keeps keyboard placement active. An ordinary click/Enter places one final plan and exits; Esc or S cancels placement without cancelling earlier plans. Invalid or duplicate sites add no job and keep placement active.
 
 Select your brain for **S / Auto expand**. It stays enabled while waiting for biomass, the builder and valid ground. Manual queues take priority. Turning it off finishes the current construction but starts no further automatic jobs.
 

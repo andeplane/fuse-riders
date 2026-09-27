@@ -1,4 +1,4 @@
-# Neural Defence tech tree
+# Fuse Craft tech tree
 
 Current implemented rules, verified **2026-09-25**, engine **rules version 3**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
 

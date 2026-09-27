@@ -278,11 +278,11 @@ export function mountNeuralDefence(
   }
 
   function header(title: string, subtitle: string): string {
-    return `<header class="nd-header"><div class="brand">NEURAL <strong>DEFENCE</strong></div><span class="header-subtitle">${escape(subtitle)}</span>${dependencies.debug ? '<span class="debug-badge">DEBUG</span>' : ""}</header>${screen === "game" || screen === "menu" ? "" : `<div class="screen-heading"><h1>${escape(title)}</h1></div>`}`;
+    return `<header class="nd-header"><div class="brand">FUSE <strong>CRAFT</strong></div><span class="header-subtitle">${escape(subtitle)}</span>${dependencies.debug ? '<span class="debug-badge">DEBUG</span>' : ""}</header>${screen === "game" || screen === "menu" ? "" : `<div class="screen-heading"><h1>${escape(title)}</h1></div>`}`;
   }
 
   function menuMarkup(): string {
-    return `<div class="attract-scene" aria-hidden="true"><svg id="nd-attract-board"></svg></div><div class="attract-shade"></div>${header("Neural Defence", "A neural strategy game")}<main class="menu-layout fui-landing"><p class="eyebrow">GROW · CONNECT · DEFEND</p><h1 class="fui-landing-title">NEURAL<br><span>DEFENCE</span></h1><p class="fui-landing-tagline">Build your network.<br>Keep the signal alive.</p><nav class="fui-landing-actions" aria-label="Main menu"><button data-action="new-game" class="fui-button-primary menu-button"><span aria-hidden="true">▶</span> New game</button><button data-action="settings" class="menu-button">Settings</button></nav></main><footer class="menu-footer">A FUSE GAME <span>SKIRMISH · PLAYER VS AI</span></footer>`;
+    return `<div class="attract-scene" aria-hidden="true"><svg id="nd-attract-board"></svg></div><div class="attract-shade"></div>${header("Fuse Craft", "A neural strategy game")}<main class="menu-layout fui-landing"><p class="eyebrow">GROW · CONNECT · DEFEND</p><h1 class="fui-landing-title">FUSE<br><span>CRAFT</span></h1><p class="fui-landing-tagline">Build your network.<br>Keep the signal alive.</p><nav class="fui-landing-actions" aria-label="Main menu"><button data-action="new-game" class="fui-button-primary menu-button"><span aria-hidden="true">▶</span> New game</button><button data-action="settings" class="menu-button">Settings</button></nav></main><footer class="menu-footer">A FUSE GAME <span>SKIRMISH · PLAYER VS AI</span></footer>`;
   }
 
   function settingsMarkup(): string {
@@ -439,7 +439,7 @@ export function mountNeuralDefence(
           }).missing
         : (placementRequirements?.missing ?? []);
     const contextDetail = placement
-      ? `<div class="placement-instructions" role="status"><strong>Place ${BUILD_PRESENTATION[placement].label}</strong><p>Click or tap open ground · Esc / S to cancel</p><small>${placementHints.map(requirementText).map(escape).join(" ") || "Choose a location on the battlefield."}</small></div>`
+      ? `<div class="placement-instructions" role="status"><strong>Place ${BUILD_PRESENTATION[placement].label}</strong><p>Shift: queue more · Esc / S: cancel</p><small>${placementHints.map(requirementText).map(escape).join(" ") || "Click or tap open ground."}</small></div>`
       : panel === "inspect" || panel === "build"
         ? `${detail}<span class="construction-summary">${player.queue.length}/${RULES.queueLimit} queued · builder ${escape(worker.mode)}</span>`
         : panel === "particles"
@@ -794,7 +794,7 @@ export function mountNeuralDefence(
       if (tile) {
         selectedCell = Number(tile.dataset.cell);
         if (placement) {
-          placeAt(selectedCell);
+          placeAt(selectedCell, event.shiftKey);
           return;
         }
         if (panel !== "build") panel = "inspect";
@@ -803,7 +803,7 @@ export function mountNeuralDefence(
     }
   }
 
-  function placeAt(cell: number) {
+  function placeAt(cell: number, keepPlacing = false) {
     const world = session?.view();
     const owner = world?.players.find((p) => p.id === session?.localPlayerId);
     placementCell = cell;
@@ -814,8 +814,10 @@ export function mountNeuralDefence(
       constructionQueueAvailability(world, owner, placement, cell).allowed
     ) {
       const kind = placement;
-      placement = null;
-      placementCell = null;
+      if (!keepPlacing) {
+        placement = null;
+        placementCell = null;
+      }
       dispatch({ type: "queueConstruction", kind, cell });
     } else renderGame();
   }
@@ -982,7 +984,7 @@ export function mountNeuralDefence(
       world.map.cells[selectedCell]?.terrain === "open"
     ) {
       event.preventDefault();
-      if (placement) placeAt(selectedCell);
+      if (placement) placeAt(selectedCell, event.shiftKey);
     }
   }
 

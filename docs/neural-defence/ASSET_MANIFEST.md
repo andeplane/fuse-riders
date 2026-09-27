@@ -1,4 +1,4 @@
-# Neural Defence asset inventory
+# Fuse Craft asset inventory
 
 ## Current presentation (2026-09-25)
 
