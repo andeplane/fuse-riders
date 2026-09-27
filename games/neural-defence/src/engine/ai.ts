@@ -504,6 +504,28 @@ export function aiCommands(
             : tower,
         cell: firingSites[0],
       };
+    // A short-range army with no admissible firing site must be able to
+    // establish an artillery position outside the opposing weapon's reach.
+    if (
+      !choice &&
+      armed.some((s) => s.kind !== "brain" && s.kind !== "neuron") &&
+      STRUCTURES[tower].range < STRUCTURES.siege.range &&
+      player.research.includes("ballistics")
+    ) {
+      const artillery = sites.filter((cell) => {
+        if (!eligible("siege", cell) || threats(cell).length > 0) return false;
+        const targets = attackCells(world.map, cell, "siege");
+        return enemy.some((s) => targets.has(s.cell));
+      });
+      artillery.sort(
+        (a, b) =>
+          brainDistance(a) - brainDistance(b) ||
+          distance(b) - distance(a) ||
+          cellOrder(a, b),
+      );
+      if (artillery[0] !== undefined)
+        choice = { kind: "siege", cell: artillery[0] };
+    }
     if (!choice) {
       const candidates = sites.filter(
         (cell) => eligible("neuron", cell) && !threats(cell).length,
