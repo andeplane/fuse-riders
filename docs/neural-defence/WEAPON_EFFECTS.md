@@ -28,16 +28,16 @@ portrait and short-landscape UI flow. These viewport checks emulate phones.
 ## Reproduce the captures
 
 These captures and commands record historical **rules 7** behavior at
-`b2077471`. Rules 8 rejects those checkpoints. For current-source effects checks,
+`b2077471`. Rules 9 rejects those checkpoints. For current-source effects checks,
 run `pnpm exec tsx scripts/fuse-craft-effects-smoke.ts`; the default is a fresh
-rules-8 recording. Append an output directory and `site` after that recording's
+rules-9 recording. Append an output directory and `site` after that recording's
 path to inspect destruction of a paid construction site specifically.
 
 Run the source preview on port 5174, then:
 
 ```sh
-pnpm exec tsx scripts/fuse-craft-effects-smoke.ts docs/neural-defence/verification/protection-2026-09-27/close-quarters.replay.json /tmp/fuse-siege siege
-pnpm exec tsx scripts/fuse-craft-effects-smoke.ts docs/neural-defence/verification/weapons-2026-09-27/relay.replay.json /tmp/fuse-relay relay
+pnpm exec tsx scripts/fuse-craft-effects-smoke.ts docs/neural-defence/verification/rules9-2026-09-27/combat.replay.json /tmp/fuse-siege siege
+pnpm exec tsx scripts/fuse-craft-effects-smoke.ts docs/neural-defence/verification/rules9-2026-09-27/relay.replay.json /tmp/fuse-relay relay
 pnpm exec tsx scripts/neural-defence-ui-smoke.ts 'http://127.0.0.1:5174/games/neural-defence/?mute' /tmp/fuse-weapons-ui
 ```
 

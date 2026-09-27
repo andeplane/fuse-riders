@@ -22,7 +22,7 @@ const eventType = weapon
 const recording = JSON.parse(
   readFileSync(
     process.argv[2] ??
-      "docs/neural-defence/verification/construction-losses-2026-09-27/combat.replay.json",
+      "docs/neural-defence/verification/rules9-2026-09-27/combat.replay.json",
     "utf8",
   ),
 ) as {

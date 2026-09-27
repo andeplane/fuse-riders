@@ -33,4 +33,29 @@ The isolated comparisons and rejected alternatives are in
 pairings with every strategy winning and losing; it resolved Narrow Front
 Pressure/Siege from both starting sides, while Balanced/Relay still stalled.
 Those prototype results do not replace committed-source qualification or human
-playtesting. Full production verification is recorded at the next milestone.
+playtesting.
+
+## Committed-source qualification
+
+Source `290c4086add601da89249a79544036a3d499208d` completed 42 Close Quarters
+matches and six Narrow Front Pressure/Siege matches, including mirrors and both
+starting sides, with a 900-second cap. None timed out or rejected a command.
+All 24 swapped-seat pairs agree on outcome, duration and complete player stats.
+On the default map, excluding mirrors and counting each pairing once, records are:
+Balanced 3–2, Pressure 1–4, Economy 3–2, Siege 4–1, Relay 2–3, Defensive 2–3.
+This is evidence of counterplay, not equal strength or full-map balance.
+
+Manifests and results are in `verification/rules9-2026-09-27/`. The fresh
+Balanced/Economy combat replay reproduces `67aef741`; Balanced/Relay reproduces
+`56cb6fa2`. Current visual smoke defaults use the former; historical recordings
+remain unchanged. Chromium and WebKit passed construction progress, destruction,
+Siege/Relay attacks, shields and damaged-building motion checks at desktop and
+phone sizes. The normal menu-to-skirmish browser flow also passed both engines;
+the Siege tooltip screenshot below was visually inspected. These are emulated
+browser checks, not physical-phone or human play-feel acceptance.
+
+All 1,742 repository tests, typecheck, build and focused lint passed. Independent
+reviews found no blocking production or replay-migration findings. Wider-map
+rules-9 qualification remains outstanding.
+
+![Siege range in the ordinary game UI](verification/rules9-2026-09-27/siege-range.png)

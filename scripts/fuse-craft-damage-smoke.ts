@@ -12,7 +12,7 @@ import { STRUCTURES } from "../games/neural-defence/src/engine/catalog.js";
 
 const recording = JSON.parse(
   readFileSync(
-    "docs/neural-defence/verification/construction-losses-2026-09-27/combat.replay.json",
+    "docs/neural-defence/verification/rules9-2026-09-27/combat.replay.json",
     "utf8",
   ),
 ) as {

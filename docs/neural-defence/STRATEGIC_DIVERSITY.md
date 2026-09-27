@@ -5,17 +5,19 @@ do not prove six durable late-game strategies. Research is cumulative. Siege alo
 reaches three hexes, and the AI selects Siege against artillery and in several
 late-front fallbacks. Other weapons need a useful role after artillery arrives.
 
-## Proposed experiment: minimum Siege range
+## Implemented counterplay: minimum Siege range
 
-Test a one-hex blind spot: Siege can attack at distance two or three, while Tower,
-Relay and Bastion retain adjacent fire. This preserves the artillery's range,
-cost, durability and supply demands while giving close approaches and supporting
-short-range weapons a distinct purpose. This is **not implemented or validated**.
-It may still fail to let short-range builders cross the artillery screen.
+Rules 9 implements a two-step blind spot: Siege attacks exactly three traversable
+hex steps away, while Tower, Relay and Bastion retain adjacent fire. The one-step
+variant did not change the diagnostic outcomes. The selected two-step variant
+also gives AI artillery close-range support. See `SIEGE_COUNTERPLAY.md` for the
+current contract and qualification, and `SIEGE_COUNTERPLAY_EXPERIMENT.md` for
+rejected variants. This creates positional counterplay; it does not yet establish
+balanced play across all maps or six durable late-game strategies.
 
-Combat, AI threat assessment and target selection must share the same attack-cell
-contract. Rendering must show the real attackable area. Do not change only combat
-and leave bots or range previews treating adjacent cells as threatened.
+Combat, AI threat assessment and target selection share the same attack-cell
+contract. The command card explains the actual range. There is currently no
+rendered range overlay; any future overlay must use the same contract.
 
 Before promoting the experiment, verify adjacent exclusion, distance-two/three
 fire, short-range retaliation, terrain behavior and swapped-seat replay. Compare

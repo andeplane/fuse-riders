@@ -28,7 +28,7 @@ pnpm exec tsx scripts/neural-defence-ui-smoke.ts 'http://127.0.0.1:5174/games/ne
 pnpm exec tsx scripts/neural-defence-build-queue-smoke.ts
 ```
 
-The first command replays the existing ordinary-command rules-8 recording through
+The first command replays the current ordinary-command rules-9 recording through
 hash `20f8e061`, captures the same surviving Siege construction at 15%, 50% and
 85%, and checks motion, depth, input transparency and state immutability in
 Chromium/WebKit desktop and phone viewports. It renders diagnostic replay states;
