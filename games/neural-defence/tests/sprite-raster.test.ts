@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { parseHTML } from "linkedom";
 import {
   createBuildingSprites,
   spriteRasterSize,
+  refreshSpriteImages,
   type SpriteRasterizer,
 } from "../src/render/sprite-raster.js";
 
@@ -33,11 +35,15 @@ test("pending variants deduplicate, retain art and leave source/terrain/particle
   };
   const cache = createBuildingSprites(sprites, rasterizer);
   assert.deepEqual(cache.resolve(1.8), sprites);
+  const pending = cache.resolve(1.8);
+  assert.equal(cache.resolve(1.8), pending);
   assert.deepEqual(cache.resolve(1.8), sprites);
   assert.equal(requests.length, 1);
   assert.equal(requests[0]!.size, 256);
   requests[0]!.finish("resized.png");
   await Promise.resolve();
+  assert.notEqual(cache.resolve(1.8), pending);
+  assert.equal(pending["brain-v3"], "brain.png");
   assert.deepEqual(cache.resolve(1.8), {
     ...sprites,
     "brain-v3": "resized.png",
@@ -47,6 +53,28 @@ test("pending variants deduplicate, retain art and leave source/terrain/particle
   cache.resolve(8);
   assert.equal(requests[1]!.size, 1024);
   assert.equal(cache.resolve(1.8)["brain-v3"], "resized.png");
+});
+
+test("camera-only sprite refresh preserves live DOM and uses the latest resolved art", () => {
+  const { document } = parseHTML(
+    `<svg><g transform="rotate(17)"><image data-sprite="brain-v3" href="small.png"/><image data-sprite="particle-attack" href="particle.png"/></g></svg>`,
+  );
+  const svg = document.querySelector("svg")!;
+  const group = svg.querySelector("g")!;
+  const image = svg.querySelector("image")!;
+  refreshSpriteImages(svg, {
+    "brain-v3": "original.png",
+    "particle-attack-v2": "particle.png",
+  });
+  assert.equal(svg.querySelector("image"), image);
+  assert.equal(image.getAttribute("href"), "original.png");
+  assert.equal(group.getAttribute("transform"), "rotate(17)");
+  refreshSpriteImages(svg, { "brain-v3": "ready.png" });
+  assert.equal(image.getAttribute("href"), "ready.png");
+  assert.equal(
+    svg.querySelectorAll("image")[1]!.getAttribute("href"),
+    "particle.png",
+  );
 });
 
 test("failures retain originals without retry loops and arbitrary zoom has bounded variants", async () => {

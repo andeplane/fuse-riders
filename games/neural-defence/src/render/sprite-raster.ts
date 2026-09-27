@@ -5,6 +5,7 @@ export interface SpriteRasterizer {
   resize(url: string, maximumSide: number): Promise<string>;
 }
 export interface BuildingSprites {
+  /** Stable identity until this tier's artwork changes. */
   resolve(pixelsPerUnit: number): Sprites;
 }
 
@@ -25,29 +26,39 @@ export function createBuildingSprites(
       ["brain", "tower", "siege", "relay", "bastion", "harvester"] as const
     ).map((kind) => structureArt(kind)),
   ];
-  const variants = new Map<string, string | null>();
+  const tiers = new Map<number, Sprites>();
   return {
     resolve(pixelsPerUnit) {
       const size = spriteRasterSize(pixelsPerUnit);
       if (size === null) return sprites;
+      const cached = tiers.get(size);
+      if (cached) return cached;
       const result = { ...sprites };
+      tiers.set(size, result);
       for (const name of names) {
         const url = sprites[name];
         if (!url) continue;
-        const key = `${name}:${size}`;
-        if (!variants.has(key)) {
-          // Pending and failed requests retain originals and are never retried.
-          variants.set(key, null);
-          void rasterizer.resize(url, size).then(
-            (resized) => variants.set(key, resized),
-            () => {},
-          );
-        }
-        result[name] = variants.get(key) ?? url;
+        // The tier is installed before requests start: pending/failed requests
+        // retain original art without retrying. Ready tiers change atomically.
+        void rasterizer.resize(url, size).then(
+          (resized) =>
+            tiers.set(size, { ...tiers.get(size)!, [name]: resized }),
+          () => {},
+        );
       }
       return result;
     },
   };
+}
+
+/** Refresh only image sources; preserve animated groups and their current phase. */
+export function refreshSpriteImages(root: Element, sprites: Sprites): void {
+  for (const image of root.querySelectorAll("image[data-sprite]")) {
+    const name = image.getAttribute("data-sprite")!;
+    const url = sprites[`${name}-v2`] ?? sprites[name];
+    if (url && image.getAttribute("href") !== url)
+      image.setAttribute("href", url);
+  }
 }
 
 /** Browser capability supplied at the composition root; no gameplay state. */

@@ -1,5 +1,5 @@
 import type { World, StructureKind } from "../engine/types.js";
-import type { BuildingSprites } from "./sprite-raster.js";
+import { refreshSpriteImages, type BuildingSprites } from "./sprite-raster.js";
 import { STRUCTURES, attackCells } from "../engine/catalog.js";
 import { neighbors } from "../engine/map.js";
 import { structureArt, teamSvgFilter, svgArtFilters } from "./art.js";
@@ -94,7 +94,7 @@ function image(
 ): string {
   const url = sprites[`${name}-v2`] ?? sprites[name];
   return url
-    ? `<image href="${escaped(url)}" x="${x - size / 2}" y="${y - size / 2}" width="${size}" height="${size}" pointer-events="none"/>`
+    ? `<image href="${escaped(url)}" data-sprite="${escaped(name)}" x="${x - size / 2}" y="${y - size / 2}" width="${size}" height="${size}" pointer-events="none"/>`
     : "";
 }
 function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
@@ -670,7 +670,23 @@ export function renderBoard(
   const damageAnimations = [
     ...cache.structures.querySelectorAll<SVGGElement>(".damage-plume"),
   ].map(damageAnimation);
+  let displayedSprites: Sprites | null = null;
   const animate = (frameNow: number) => {
+    // Camera/DPR and async raster changes also matter after authoritative
+    // frames stop (for example at the result screen). Use the existing RAF.
+    const matrix = buildingSprites ? svg.getScreenCTM() : null;
+    if (matrix && buildingSprites) {
+      const resolved = buildingSprites.resolve(
+        Math.max(
+          Math.hypot(matrix.a, matrix.b),
+          Math.hypot(matrix.c, matrix.d),
+        ),
+      );
+      if (resolved !== displayedSprites) {
+        refreshSpriteImages(svg, resolved);
+        displayedSprites = resolved;
+      }
+    }
     for (const animateDamage of damageAnimations)
       animateDamage(frameNow, reducedMotion);
     for (const animateSite of constructionAnimations)
