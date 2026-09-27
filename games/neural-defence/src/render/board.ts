@@ -1,4 +1,5 @@
 import type { World, StructureKind } from "../engine/types.js";
+import type { BuildingSprites } from "./sprite-raster.js";
 import { STRUCTURES, attackCells } from "../engine/catalog.js";
 import { neighbors } from "../engine/map.js";
 import { structureArt, teamSvgFilter, svgArtFilters } from "./art.js";
@@ -308,6 +309,7 @@ export function renderBoard(
   reducedMotion: boolean,
   now: number,
   sprites: Sprites = {},
+  buildingSprites?: BuildingSprites,
 ): BoardAnimation {
   const width = world.map.width,
     height = world.map.height;
@@ -425,6 +427,11 @@ export function renderBoard(
       : "",
   );
   setMarkup(cache.links, linkMarkup(world));
+  const matrix = buildingSprites ? svg.getScreenCTM() : null;
+  if (matrix && buildingSprites)
+    sprites = buildingSprites.resolve(
+      Math.max(Math.hypot(matrix.a, matrix.b), Math.hypot(matrix.c, matrix.d)),
+    );
   setMarkup(cache.castShadows, shadowMarkup(world, sprites));
   setMarkup(
     cache.territory,

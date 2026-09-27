@@ -77,6 +77,7 @@ export interface AppDependencies {
   requestFrame: (callback: FrameRequestCallback) => number;
   cancelFrame: (handle: number) => void;
   sprites?: Readonly<Record<string, string>>;
+  buildingSprites?: import("../render/sprite-raster.js").BuildingSprites;
   createCamera?: CameraFactory;
   audio?: PresentationAudio;
   forcedMute?: boolean;
@@ -592,6 +593,7 @@ export function mountNeuralDefence(
       preferences.reducedMotion,
       dependencies.animationClock(),
       dependencies.sprites,
+      dependencies.buildingSprites,
     );
     let preview = svg.querySelector<SVGGElement>(".placement-preview");
     if (!preview) {
@@ -674,6 +676,7 @@ export function mountNeuralDefence(
           true,
           0,
           dependencies.sprites,
+          dependencies.buildingSprites,
         );
     }
     if (screen === "game") {
