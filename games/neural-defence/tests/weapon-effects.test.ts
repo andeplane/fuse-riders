@@ -6,8 +6,84 @@ import { weaponTrail } from "../src/render/weapon-trail.js";
 import { combatEffect } from "../src/render/combat-effects.js";
 import { shieldShell } from "../src/render/shield-shell.js";
 import { siegeImpact } from "../src/render/siege-impact.js";
+import { wreckCollapse } from "../src/render/wreck-collapse.js";
 import { renderBoard } from "../src/render/board.js";
 import { createMatch, loadMap, encodeState } from "../src/engine/index.js";
+
+test("a collapsing silhouette retains its footprint and can seek presentation time", () => {
+  const { document } = parseHTML("<html></html>");
+  const art = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  const wreck = wreckCollapse(document, art, { x: 100, y: 125 }, 1);
+  wreck.animate(-50);
+  const intact = wreck.element.outerHTML;
+  wreck.animate(400);
+  assert.notEqual(wreck.element.outerHTML, intact);
+  assert.equal(wreck.ground.getAttribute("cy"), "125");
+  const saved = wreck.element.outerHTML + wreck.ground.outerHTML;
+  wreck.animate(800);
+  wreck.animate(400);
+  assert.equal(wreck.element.outerHTML + wreck.ground.outerHTML, saved);
+  wreck.animate(850);
+  assert.equal(wreck.element.getAttribute("opacity"), "0");
+  wreck.animate(0);
+  assert.equal(wreck.element.outerHTML, intact);
+});
+
+test("destroyed buildings retain only a cosmetic silhouette until cleanup", () => {
+  const { document } = parseHTML("<html><body><svg></svg></body></html>");
+  const svg = document.querySelector("svg") as unknown as SVGSVGElement;
+  const map = loadMap(
+    JSON.parse(
+      readFileSync(new URL("../maps/sandbox-12.json", import.meta.url), "utf8"),
+    ),
+  );
+  const world = createMatch(map, {}, [{ id: "solo", slot: 0 }]);
+  const brain = world.structures[0]!;
+  const survivor = {
+    ...brain,
+    id: world.nextEntityId++,
+    cell: 13,
+    kind: "tower" as const,
+    hp: 100,
+  };
+  world.structures.push(survivor);
+  renderBoard(svg, world, null, false, false, 0);
+  world.structures = [survivor];
+  world.tick++;
+  world.outcomes = [
+    { tick: world.tick, playerId: "solo", type: "destroyed", cell: brain.cell },
+  ];
+  const before = encodeState(world);
+  const frame = renderBoard(svg, world, null, false, false, 50);
+  assert.equal(svg.querySelectorAll(".combat-wreck").length, 1);
+  assert.equal(svg.querySelectorAll(".structure").length, 1);
+  assert.equal(
+    svg.querySelector(".combat-wreck")?.parentElement?.getAttribute("class"),
+    "structure-layer",
+  );
+  assert.equal(encodeState(world), before);
+  survivor.hp = 50; // Force structure markup replacement while the wreck is active.
+  const refreshed = encodeState(world);
+  renderBoard(svg, world, null, false, false, 100);
+  assert.equal(svg.querySelectorAll(".combat-wreck").length, 1);
+  const depths = [...svg.querySelector(".structure-layer")!.children].map(
+    (node) =>
+      Number(node.getAttribute("data-cell") ?? node.getAttribute("data-depth")),
+  );
+  assert.deepEqual(
+    depths,
+    [...depths].sort((a, b) => a - b),
+  );
+  frame.animate(400);
+  assert.equal(encodeState(world), refreshed);
+  renderBoard(svg, world, null, false, true, 450);
+  assert.equal(svg.querySelector(".combat-wreck"), null);
+  assert.equal(svg.querySelector(".combat-wreck-shadow"), null);
+  // A fresh renderer cannot invent a silhouette from an unobserved history.
+  const fresh = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  renderBoard(fresh, world, null, false, false, 50);
+  assert.equal(fresh.querySelector(".combat-wreck"), null);
+});
 
 test("Siege shell climbs above the ground line and its trail is repeatable at a given age", () => {
   const { document } = parseHTML("<html></html>");

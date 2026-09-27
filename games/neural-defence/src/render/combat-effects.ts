@@ -2,9 +2,11 @@
 import { weaponTrail, type WeaponStyle } from "./weapon-trail.js";
 import { shieldShell } from "./shield-shell.js";
 import { siegeImpact } from "./siege-impact.js";
+import { wreckCollapse } from "./wreck-collapse.js";
 export interface CombatEffect {
   element: SVGGElement;
   ground: SVGGElement;
+  body?: SVGGElement;
   duration: number;
   animate(age: number): void;
 }
@@ -21,6 +23,7 @@ export function combatEffect(
     weapon?: WeaponStyle;
     impactDelay?: number;
     incoming?: Point;
+    wreck?: { artwork: SVGElement; foot: Point };
   } = {},
 ): CombatEffect {
   const { weapon = "pulse", impactDelay, incoming } = options;
@@ -40,6 +43,13 @@ export function combatEffect(
     : undefined;
   const flight = impactDelay ?? trail?.duration ?? 0;
   const artillery = type === "damage" && weapon === "siege";
+  const wreck =
+    destroyed && options.wreck
+      ? wreckCollapse(document, options.wreck.artwork, options.wreck.foot, seed)
+      : undefined;
+  if (wreck) {
+    ground.append(wreck.ground);
+  }
   if (trail) ground.append(trail.shadow);
   const duration =
     (destroyed ? 1050 : type === "constructed" ? 850 : artillery ? 680 : 420) +
@@ -118,11 +128,13 @@ export function combatEffect(
   return {
     element,
     ground,
+    body: wreck?.element,
     duration,
     animate(age) {
       const elapsed = Math.max(0, Math.min(1, age)) * duration;
       trail?.animate(elapsed);
       plume?.animate(elapsed - flight);
+      wreck?.animate(elapsed - flight);
       const t = Math.max(
         0,
         Math.min(1, (elapsed - flight) / (duration - flight)),

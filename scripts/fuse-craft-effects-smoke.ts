@@ -14,6 +14,7 @@ import {
 const weapon = ["siege", "relay"].includes(process.argv[4] ?? "")
   ? process.argv[4]
   : undefined;
+const requireWreck = process.argv[4] === "wreck";
 const eventType = weapon
   ? "damage"
   : process.argv[4] === "shielded"
@@ -43,6 +44,13 @@ while (world.tick < recording.ticks) {
     world.outcomes.some(
       (o) =>
         o.type === eventType &&
+        (!requireWreck ||
+          before.structures.some(
+            (s) =>
+              s.ownerId === o.playerId &&
+              s.cell === o.cell &&
+              s.kind !== "neuron",
+          )) &&
         (process.argv[4] !== "site" ||
           before.players.some(
             (p) =>
@@ -86,8 +94,9 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
           ordered: boolean;
           overflow: boolean;
           plumeVisible: boolean;
+          wreckVisible: boolean;
         } = await page.evaluate(
-          async ({ battle, age, eventType, weapon }) => {
+          async ({ battle, age, eventType, weapon, requireWreck }) => {
             const root = "/games/neural-defence/src/render/";
             const renderer = (await import(
               root + "board.ts"
@@ -125,6 +134,13 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
             const event = battle.after.outcomes.find(
               (o) =>
                 o.type === eventType &&
+                (!requireWreck ||
+                  battle.before.structures.some(
+                    (s) =>
+                      s.ownerId === o.playerId &&
+                      s.cell === o.cell &&
+                      s.kind !== "neuron",
+                  )) &&
                 (!weapon ||
                   battle.before.structures.some(
                     (s) =>
@@ -169,6 +185,9 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
               ),
             );
             return {
+              wreckVisible: [...svg.querySelectorAll(".combat-wreck")].some(
+                (node) => Number(node.getAttribute("opacity")) > 0,
+              ),
               plumeVisible: [
                 ...svg.querySelectorAll(".siege-impact-plume"),
               ].some((node) => Number(node.getAttribute("opacity")) > 0),
@@ -183,9 +202,10 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
               overflow: document.documentElement.scrollWidth > innerWidth,
             };
           },
-          { battle, age, eventType, weapon },
+          { battle, age, eventType, weapon, requireWreck },
         );
         assert.ok(result.effects > 0);
+        if (requireWreck) assert.ok(result.wreckVisible);
         assert.ok(result.ordered);
         assert.equal(result.overflow, false);
         if (weapon === "siege") assert.equal(result.plumeVisible, age >= 180);

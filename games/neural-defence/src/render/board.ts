@@ -32,6 +32,7 @@ type Pulse = {
   duration?: number;
   arrival?: boolean;
   ground?: SVGElement;
+  body?: SVGElement;
   animate?: (age: number) => void;
 };
 interface BoardCache {
@@ -431,19 +432,6 @@ export function renderBoard(
     cache.structures,
     structureMarkup(world, sprites) + constructionBodies(world, sprites),
   );
-  // Rocks, deposits and building bodies share one ground-depth order. Ground
-  // polygons retain hit testing; decorative objects never intercept input.
-  const bodies = [
-    ...cache.structures.querySelectorAll<SVGGElement>(".structure"),
-    ...cache.structures.querySelectorAll<SVGGElement>(".construction-body"),
-    ...cache.terrainObjects,
-  ];
-  bodies.sort(
-    (a, b) =>
-      Number(a.getAttribute("data-cell") ?? a.getAttribute("data-depth")) -
-      Number(b.getAttribute("data-cell") ?? b.getAttribute("data-depth")),
-  );
-  for (const body of bodies) cache.structures.append(body);
   setMarkup(
     cache.queues,
     world.players
@@ -515,6 +503,21 @@ export function renderBoard(
         (a, b) =>
           (b.amount ?? 0) - (a.amount ?? 0) || a.fromCell! - b.fromCell!,
       )[0]?.fromCell;
+      const lostKind =
+        world.tick === cache.tick + 1 && outcome.type === "destroyed"
+          ? cache.weaponKinds.get(`${outcome.playerId}:${outcome.cell}`)
+          : undefined;
+      let wreck: SVGElement | undefined;
+      if (lostKind && lostKind !== "neuron") {
+        wreck = svg.ownerDocument.createElementNS(ns, "g");
+        wreck.innerHTML = structureArtwork(
+          width,
+          outcome.cell,
+          lostKind,
+          world.players.find((p) => p.id === outcome.playerId)?.slot ?? 0,
+          sprites,
+        );
+      }
       const effect = combatEffect(
         svg.ownerDocument,
         outcome.type,
@@ -527,6 +530,9 @@ export function renderBoard(
         world.tick * 31 + outcome.cell,
         from,
         {
+          wreck: wreck
+            ? { artwork: wreck, foot: { x: at.x, y: at.y + buildingFoot } }
+            : undefined,
           weapon: weaponStyle(world, cache, outcome.playerId, outcome.fromCell),
           incoming:
             incoming === undefined ? undefined : hexCenter(width, incoming),
@@ -545,6 +551,7 @@ export function renderBoard(
         },
       );
       cache.effectLayer.append(effect.element);
+      effect.body?.setAttribute("data-depth", String(outcome.cell));
       cache.groundEffects.append(effect.ground);
       cache.pulses.push({ ...effect, born: now });
       if (from && outcome.fromCell !== undefined) {
@@ -556,6 +563,20 @@ export function renderBoard(
         });
       }
     }
+  // Reattach persistent wrecks after structure markup is refreshed. Solid
+  // silhouettes share ground-depth ordering; smoke/sparks remain above it.
+  const bodies = [
+    ...cache.structures.querySelectorAll<SVGGElement>(".structure"),
+    ...cache.structures.querySelectorAll<SVGGElement>(".construction-body"),
+    ...cache.terrainObjects,
+    ...cache.pulses.flatMap((p) => (p.body ? [p.body] : [])),
+  ];
+  bodies.sort(
+    (a, b) =>
+      Number(a.getAttribute("data-cell") ?? a.getAttribute("data-depth")) -
+      Number(b.getAttribute("data-cell") ?? b.getAttribute("data-depth")),
+  );
+  for (const body of bodies) cache.structures.append(body);
   cache.prior = new Map(
     world.particles
       .filter((p) => p.mode === "transit")
@@ -698,6 +719,7 @@ export function renderBoard(
       if (t >= 1 || reducedMotion) {
         p.element.remove();
         p.ground?.remove();
+        p.body?.remove();
         return false;
       }
       if (p.animate) {
