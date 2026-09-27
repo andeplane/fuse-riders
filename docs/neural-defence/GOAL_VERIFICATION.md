@@ -21,12 +21,14 @@ typecheck, focused lint and build pass. The PR's `verify` gate is green for
 Coverage and hosted browser jobs were skipped by this PR workflow; they are not
 claimed as runs. The focused browser evidence linked above was run locally.
 
-Further live profiling found a concrete unresolved animation issue:
-[WebKit callback cadence](verification/frame-profile-2026-09-27/README.md) falls
-far below Chromium during the same early battle. Building-image raster cost is
-under investigation; screenshot/flow checks did not reveal this limitation.
+Further live profiling exposed a WebKit animation issue that screenshot/flow
+checks had missed. [Adaptive building rasters](verification/adaptive-raster-2026-09-27/README.md)
+on source `a63e84f2` improve the measured median/p95 callback interval from
+100/152 ms to 17/27 ms, with no intervals over 50 ms in the retained sample.
+Chromium remains at 16.7/16.7 ms. All 1,806 tests, typecheck, focused lint and
+build pass. These are headless callback measurements, not physical-phone FPS.
 
-The goal remains open on animation smoothness and visual/play-feel acceptance. Green tests,
+The goal remains open on visual/play-feel acceptance. Green tests,
 more effects and completed AI matches do not establish AAA quality. The user has
 been asked to try the concrete preview and identify what still falls short.
 No additional architecture rewrite is assumed from an unanswered question.
