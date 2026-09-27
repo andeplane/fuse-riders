@@ -8,6 +8,11 @@ import { damagePlume, damageAnimation } from "./damage-plume.js";
 import { weaponFlightMs } from "./weapon-trail.js";
 import { rockRelief, rockReliefMarkup } from "./terrain-relief.js";
 import {
+  networkPath,
+  networkPathMarkup,
+  sampleNetworkPath,
+} from "./network-path.js";
+import {
   constructionMarkup,
   constructionAnimation,
 } from "./construction-effects.js";
@@ -240,14 +245,13 @@ function linkMarkup(world: Readonly<World>): string {
         continue;
       const peer = nodes.get(r * world.map.width + c);
       if (!peer || peer.ownerId !== s.ownerId) continue;
-      const a = hexCenter(world.map.width, s.cell),
-        b = hexCenter(world.map.width, peer.cell),
-        slot = world.players.find((p) => p.id === s.ownerId)?.slot ?? 0;
+      const slot = world.players.find((p) => p.id === s.ownerId)?.slot ?? 0;
       const connected = s.connected && peer.connected;
-      const bend = (((s.cell + peer.cell) % 3) - 1) * 5;
-      const curve = `M${a.x} ${a.y}Q${(a.x + b.x) / 2 + bend} ${(a.y + b.y) / 2 - bend} ${b.x} ${b.y}`;
+      const curve = networkPathMarkup(
+        networkPath(world.map.width, s.cell, peer.cell),
+      );
       lines.push(
-        `<g class="network-link${connected ? "" : " disconnected-link"}" data-from="${s.cell}" data-to="${peer.cell}" style="--team:${colors[slot]}"><path class="axon-sheath" d="${curve}"/><path class="axon" d="${curve}"/></g>`,
+        `<g class="network-link${connected ? "" : " disconnected-link"}" data-from="${s.cell}" data-to="${peer.cell}" style="--team:${colors[slot]}"><path class="axon-shadow" d="${curve}"/><path class="axon-sheath" d="${curve}"/><path class="axon-rim" d="${curve}"/><path class="axon" d="${curve}"/></g>`,
       );
     }
   }
@@ -349,9 +353,9 @@ export function renderBoard(
     const links = layer(svg, "link-layer"),
       queues = layer(svg, "queue-layer"),
       groundEffects = layer(svg, "ground-effect-layer"),
+      particleLayer = layer(svg, "particle-layer"),
       structures = layer(svg, "structure-layer");
-    const particleLayer = layer(svg, "particle-layer"),
-      effectLayer = layer(svg, "effect-layer");
+    const effectLayer = layer(svg, "effect-layer");
     for (const decorative of [
       territory,
       firingRange,
@@ -637,6 +641,7 @@ export function renderBoard(
     }
   const elements = moving.map((m) => ({
     m,
+    path: networkPath(width, m.from, m.to),
     glyph: cache.movers
       .get(m.key)!
       .querySelector<SVGGElement>(".moving-glyph")!,
@@ -692,9 +697,7 @@ export function renderBoard(
     const visualTick =
       world.tick +
       (reducedMotion ? 0 : Math.max(0, Math.min(1, (frameNow - now) / 50)));
-    for (const { m, glyph, trail } of elements) {
-      const a = hexCenter(width, m.from),
-        b = hexCenter(width, m.to);
+    for (const { m, glyph, trail, path } of elements) {
       const fraction = Math.max(
         0,
         Math.min(
@@ -702,9 +705,8 @@ export function renderBoard(
           (visualTick - m.departedAt) / Math.max(1, m.arrivesAt - m.departedAt),
         ),
       );
-      const x = a.x + (b.x - a.x) * fraction,
-        y = a.y + (b.y - a.y) * fraction;
-      const direction = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+      const { x, y, dx, dy } = sampleNetworkPath(path, fraction);
+      const direction = (Math.atan2(dy, dx) * 180) / Math.PI;
       glyph.setAttribute(
         "transform",
         `translate(${x} ${y}) rotate(${direction})`,
@@ -712,9 +714,7 @@ export function renderBoard(
       const tail = Math.max(0, fraction - 0.2);
       trail.setAttribute(
         "d",
-        reducedMotion
-          ? ""
-          : `M${a.x + (b.x - a.x) * tail} ${a.y + (b.y - a.y) * tail}L${x} ${y}`,
+        reducedMotion ? "" : networkPathMarkup(path, tail, fraction),
       );
     }
     cache.pulses = cache.pulses.filter((p) => {

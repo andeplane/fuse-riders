@@ -1,0 +1,11 @@
+{
+  "observed": {
+    "samples": 60,
+    "shots": 2,
+    "wrecks": 2,
+    "moving": 90
+  },
+  "players": "Blue · Pressure\nBrain 240 HP\n7 built · 1 lost\nRed · Balanced\nBrain 240 HP\n9 built · 1 lost",
+  "clock": "1:21 · AI vs AI",
+  "errors": []
+}

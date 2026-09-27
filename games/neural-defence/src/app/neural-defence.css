@@ -863,9 +863,25 @@ select {
 }
 .axon-sheath {
   fill: none;
-  stroke: #127b9277;
-  stroke-width: 5;
+  stroke: #163f49;
+  stroke-width: 7;
   stroke-linecap: round;
+}
+.axon-shadow {
+  fill: none;
+  stroke: #020c13;
+  stroke-width: 9;
+  stroke-linecap: round;
+  opacity: 0.5;
+  transform: translate(2px, 3px);
+}
+.axon-rim {
+  fill: none;
+  stroke: #8cb7ba;
+  stroke-width: 4;
+  stroke-linecap: round;
+  opacity: 0.55;
+  transform: translate(0, -1px);
 }
 .disconnected-link .axon {
   stroke: #80909d;
