@@ -1,5 +1,10 @@
 # Strategic diversity: remaining work
 
+Current AI policy 2 removes the active-gun prerequisite from loss-triggered
+flanking. Its complete isolated 210-match comparison has 20 timeouts, down from
+the earlier rules-8 baseline's 52; remaining nonmirror stalls are two Narrow
+Front pairings. See `FLANK_RECOVERY.md` for integration, tradeoffs and limits.
+
 The game has economic, protective and supply choices, but six AI opening policies
 do not prove six durable late-game strategies. Research is cumulative. Siege alone
 reaches three hexes, and the AI selects Siege against artillery and in several

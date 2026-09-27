@@ -300,10 +300,7 @@ export function aiCommands(
     // After repeated losses, seek a safer approach instead of indefinitely
     // adding guns to the same front. A route may start with a sideways step,
     // so distance to the brain alone cannot choose the next conduit.
-    if (
-      (player.statistics.sitesLost >= 2 || player.statistics.lost >= 8) &&
-      fighting.length >= 2
-    ) {
+    if (player.statistics.sitesLost >= 2 || player.statistics.lost >= 8) {
       const costs = new Map<number, number>();
       const pending = new Set<number>();
       for (const s of enemy.filter((s) => s.kind === "brain")) {

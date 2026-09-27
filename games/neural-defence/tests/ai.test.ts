@@ -117,7 +117,7 @@ for (const rotated of [false, true])
     );
     assert.ok(decodeState(encodeState(world)));
   });
-test("AI anchors exposed construction only after repeated site losses, without duplicating protection", () => {
+test("AI flanks exposed construction, or anchors it when no safe route remains", () => {
   const world = createMatch(
     {
       schemaVersion: 1,
@@ -156,6 +156,15 @@ test("AI anchors exposed construction only after repeated site losses, without d
         connected: true,
       });
     }
+  world.players[0]!.statistics.sitesLost = 2;
+  assert.deepEqual(
+    aiCommands(world, "a").find((c) => c.action.type === "queueConstruction")
+      ?.action,
+    { type: "queueConstruction", kind: "neuron", cell: 9 },
+  );
+  // Close the safe side route while preserving the threatened frontal site.
+  for (const cell of [8, 9, 10]) world.map.cells[cell] = { terrain: "blocked" };
+  assert.ok(decodeState(encodeState(world)));
   for (const sitesLost of [0, 1, 2]) {
     world.players[0]!.statistics.sitesLost = sitesLost;
     const commands = aiCommands(world, "a");

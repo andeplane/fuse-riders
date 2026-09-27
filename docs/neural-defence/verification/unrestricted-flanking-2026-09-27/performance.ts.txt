@@ -1,0 +1,33 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { performance } from 'node:perf_hooks';
+import { decodeState, step, encodeState, hashState } from '/Users/anderhaf/projects/personal/slackgame/games/neural-defence/src/engine/index.ts';
+import { aiCommands as production } from '/Users/anderhaf/projects/personal/slackgame/games/neural-defence/src/engine/ai.ts';
+import { aiCommands as candidate } from '/tmp/fuse-rules9-unlocked-flank/engine/ai.ts';
+
+let world = decodeState(readFileSync('/tmp/fuse-rules9-be.world.json', 'utf8'));
+const initialTick = world.tick;
+while (world.tick - initialTick <= 2000) {
+  const alpha = world.players.find(p => p.id === 'alpha')!;
+  if (world.tick % 20 === 0 && alpha.worker.mode === 'idle' && !alpha.queue.length) break;
+  if (world.finished || world.tick - initialTick === 2000) throw new Error('No idle decision within cap');
+  world = step(world, []);
+}
+const encoded = encodeState(world);
+writeFileSync('/tmp/fuse-ai-performance-idle.world.json', encoded);
+const results: Record<string, unknown> = {};
+for (const [label, ai] of [['production', production], ['candidate', candidate]] as const) {
+  const durations: number[] = [];
+  let commands;
+  for (let i = 0; i < 100; i++) {
+    const start = performance.now();
+    commands = ai(world, 'alpha', 'balanced');
+    durations.push(performance.now() - start);
+  }
+  if (encodeState(world) !== encoded) throw new Error(label + ' mutated world');
+  const sorted = [...durations].sort((a,b) => a-b);
+  results[label] = {medianMs:(sorted[49]!+sorted[50]!)/2,p95Ms:sorted[94],maxMs:sorted[99],commands,durationsMs:durations};
+}
+const report = {sourceRevision: execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),requestedBaseline:'290c4086',sourceInput:'/tmp/fuse-rules9-be.world.json',initialTick,decisionTick:world.tick,worldHash:hashState(world),strategy:'balanced',calls:100,method:'Sequential production then candidate; no warmup excluded; ordinary step with no commands to first idle Alpha decision; local CPU timing during concurrent matrix.',results};
+writeFileSync('/tmp/fuse-ai-performance-results.json', JSON.stringify(report,null,2));
+console.log(JSON.stringify({...report,results:Object.fromEntries(Object.entries(results).map(([k,v])=>[k,{...(v as object),durationsMs:undefined}]))},null,2));

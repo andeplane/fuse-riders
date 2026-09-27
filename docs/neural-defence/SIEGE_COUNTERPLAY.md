@@ -18,7 +18,8 @@ use Pulse towers for this support. This preserves artillery at distance while
 allowing mixed close-range defenses, without hidden resources or private AI state.
 
 World/checkpoint rules advance to 9 and online compatibility to
-`neural-defence-9-skirmish-1`. Rules-8 checkpoints are rejected. New visual replay
+`neural-defence-9-skirmish-2` after the follow-up AI correction described in
+`FLANK_RECOVERY.md`. Rules-8 checkpoints are rejected. New visual replay
 evidence must be generated with rules 9; historical recordings retain their
 original versions and hashes.
 
@@ -38,7 +39,7 @@ Pressure/Siege from both starting sides, while Balanced/Relay still stalled.
 Those prototype results do not replace committed-source qualification or human
 playtesting.
 
-## Committed-source qualification
+## Initial committed-source qualification (policy 1)
 
 Source `290c4086add601da89249a79544036a3d499208d` completed 42 Close Quarters
 matches and six Narrow Front Pressure/Siege matches, including mirrors and both
