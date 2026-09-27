@@ -2,6 +2,8 @@
 
 Authorized scope: improve content, balance, graphics and the existing playable local game. Preserve the finite 128-particle pool, one builder, connected supply, normal resource rules, mobile controls and deterministic replay. No merge or deployment is authorized.
 
+Implemented expansion and current limits are recorded in [BALANCE_REPORT.md](BALANCE_REPORT.md). Rules 5 also reduces Siege volley/cadence and improves AI reconnection and strategic targeting. Additional status-effect particles and area-damage towers remain deferred, as scoped below.
+
 ## Baseline — 003efb84
 
 The three current policies were paired on Synaptic Reach in both starting positions. Balanced beats Pressure at 494 seconds and Economy at 632 seconds; Economy beats Pressure at 642 seconds. All mirrors remain unfinished at the 900-second cap. Swapped seats produce matching outcome/time/statistics, and no commands are rejected. Pressure inflicts no damage against Balanced: investigate policy behavior and ranged construction pressure before changing damage numbers. Nine isolated close-range tower assays provide separate mechanical evidence; they do not account for technology, cost or full-match supply.
