@@ -1,5 +1,5 @@
 import type { World, StructureKind } from "../engine/types.js";
-import { STRUCTURES } from "../engine/catalog.js";
+import { STRUCTURES, attackCells } from "../engine/catalog.js";
 import { neighbors } from "../engine/map.js";
 import { structureArt, teamArtFilter } from "./art.js";
 import { terrainArt, WALKABLE_GROUND } from "./terrain-art.js";
@@ -49,6 +49,7 @@ interface BoardCache {
   links: SVGGElement;
   queues: SVGGElement;
   selection: SVGPolygonElement;
+  firingRange: SVGGElement;
   territory: SVGGElement;
   terrainObjects: SVGElement[];
   recoil: Map<number, { born: number; dx: number; dy: number }>;
@@ -335,6 +336,8 @@ export function renderBoard(
       ...terrain.querySelectorAll<SVGElement>(".terrain-object"),
     ];
     const territory = layer(svg, "territory-layer");
+    const firingRange = layer(svg, "firing-range-layer");
+    firingRange.setAttribute("aria-hidden", "true");
     const castShadows = layer(svg, "cast-shadow-layer");
     const links = layer(svg, "link-layer"),
       queues = layer(svg, "queue-layer"),
@@ -344,6 +347,7 @@ export function renderBoard(
       effectLayer = layer(svg, "effect-layer");
     for (const decorative of [
       territory,
+      firingRange,
       castShadows,
       links,
       groundEffects,
@@ -371,6 +375,7 @@ export function renderBoard(
       groundEffects,
       arrivalAt: new Map(),
       selection,
+      firingRange,
       movers: new Map(),
       prior: new Map(),
       pulses: [],
@@ -390,6 +395,23 @@ export function renderBoard(
   cache.selection.setAttribute(
     "points",
     selected === null ? "" : hexPoints(width, selected),
+  );
+  const selectedWeapon = world.structures.find((s) => s.cell === selected);
+  setMarkup(
+    cache.firingRange,
+    selectedWeapon
+      ? [...attackCells(world.map, selectedWeapon.cell, selectedWeapon.kind)]
+          .filter(
+            (cell) =>
+              cell !== selected && world.map.cells[cell]?.terrain === "open",
+          )
+          .sort((a, b) => a - b)
+          .map(
+            (cell) =>
+              `<polygon class="firing-range-cell" data-range-cell="${cell}" points="${hexPoints(width, cell)}"/>`,
+          )
+          .join("")
+      : "",
   );
   setMarkup(cache.links, linkMarkup(world));
   setMarkup(cache.castShadows, shadowMarkup(world, sprites));

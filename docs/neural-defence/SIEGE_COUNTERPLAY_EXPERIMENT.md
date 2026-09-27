@@ -7,8 +7,7 @@ experiments below remain historical evidence, not deployed or full-map results.
 The following experiments ran in isolated
 copies of the engine from `0e0cd8e8`; none of these rule changes is shipped yet.
 After these trials, the completed policy-6 matrix showed a regression (56 versus
-52 timeouts), so production rolled back its fortification heuristic under policy
-7. The selected prototype was then rechecked on that restored policy-5 behavior
+52 timeouts), so production rolled back its fortification heuristic under policy 7. The selected prototype was then rechecked on that restored policy-5 behavior
 from `e7d2ec2e`: all 21 default pairings retain their exact outcomes, durations,
 builds and player statistics. All four paired probes retain their outcomes and
 durations; only the still-stalled Narrow Balanced/Relay statistics change. All
@@ -34,14 +33,14 @@ an inner reachable set must not silently change general `weaponCells` semantics.
 Each row below includes both starting sides. Every pair agrees on outcome,
 duration, build counts and player statistics, with no rejected commands.
 
-| Variant | Close Pressure/Siege | Narrow Pressure/Siege | Close Balanced/Relay | Narrow Balanced/Relay |
-| --- | --- | --- | --- | --- |
-| Policy 6 baseline | Siege 156s | Timeout | Balanced 188s | Timeout |
-| One-step blind spot | Siege 156s | Timeout | Balanced 188s | Timeout |
-| Two-step blind spot only | Siege 160s | Timeout | Balanced 200s | Timeout |
-| Keep Pressure/Relay weapons only | Siege 156s | Siege 688s | Relay 151s | Relay 392.5s |
-| Two-step blind spot + keep weapons | Siege 168s | Pressure 372s | Relay 151s | Relay 345s |
-| Two-step blind spot + adapt at close range | Siege 142s | Pressure 423s | Balanced 186s | Timeout |
+| Variant                                    | Close Pressure/Siege | Narrow Pressure/Siege | Close Balanced/Relay | Narrow Balanced/Relay |
+| ------------------------------------------ | -------------------- | --------------------- | -------------------- | --------------------- |
+| Policy 6 baseline                          | Siege 156s           | Timeout               | Balanced 188s        | Timeout               |
+| One-step blind spot                        | Siege 156s           | Timeout               | Balanced 188s        | Timeout               |
+| Two-step blind spot only                   | Siege 160s           | Timeout               | Balanced 200s        | Timeout               |
+| Keep Pressure/Relay weapons only           | Siege 156s           | Siege 688s            | Relay 151s           | Relay 392.5s          |
+| Two-step blind spot + keep weapons         | Siege 168s           | Pressure 372s         | Relay 151s           | Relay 345s            |
+| Two-step blind spot + adapt at close range | Siege 142s           | Pressure 423s         | Balanced 186s        | Timeout               |
 
 The fixed-weapon combination was rejected after a full 21-pairing single-seat
 Close Quarters run: Balanced lost every mixed pairing and the Pressure mirror

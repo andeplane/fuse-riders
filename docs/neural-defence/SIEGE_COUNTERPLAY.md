@@ -23,7 +23,10 @@ evidence must be generated with rules 9; historical recordings retain their
 original versions and hashes.
 
 The command card explains the exact range and need for close support before
-purchase. Focused tests cover blind distances one/two, firing at three, finite
+purchase. Selecting a structure shows dashed firing cells on the ground using
+the same terrain-aware attack contract, so Siege's blind spot remains empty.
+The overlay shows reach, not ammunition availability or a promise to fire; it
+does not intercept placement or selection. Focused tests cover blind distances one/two, firing at three, finite
 ammunition, retaliation priority, terrain detours, unchanged shielding, source
 immutability, replay and rejection of the previous checkpoint version. Existing
 target-priority and cadence fixtures now use legal Siege firing distances.

@@ -118,13 +118,13 @@ Source `0eea3347` completed all 210 matches with zero rejected commands. All 105
 swapped-seat pairs agree on result, duration, contact and every player metric.
 The manifests and matrix are in `verification/secure-approach-full-2026-09-27/`.
 
-| Map | Policy 5 timeouts | Policy 6 timeouts |
-| --- | ---: | ---: |
-| Close Quarters | 0 | 0 |
-| Narrow Front | 24 | 24 |
-| Skirmish 24 | 8 | 12 |
-| Open Front | 14 | 14 |
-| Lean Resources | 6 | 6 |
+| Map            | Policy 5 timeouts | Policy 6 timeouts |
+| -------------- | ----------------: | ----------------: |
+| Close Quarters |                 0 |                 0 |
+| Narrow Front   |                24 |                24 |
+| Skirmish 24    |                 8 |                12 |
+| Open Front     |                14 |                14 |
+| Lean Resources |                 6 |                 6 |
 
 Policy 6 improves Skirmish 24 Pressure/Economy, but newly stalls Balanced/Economy,
 Balanced/Relay and Pressure/Defensive. Total timeouts rise from 52 to 56. Its

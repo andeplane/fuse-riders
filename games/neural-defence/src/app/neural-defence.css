@@ -1186,6 +1186,13 @@ select {
   pointer-events: none;
   filter: drop-shadow(0 0 5px #16e7ff80);
 }
+.firing-range-cell {
+  fill: #63cfff0d;
+  stroke: #8cddff88;
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  pointer-events: none;
+}
 .is-placing .hex {
   cursor: crosshair;
 }

@@ -16,8 +16,8 @@ rejected variants. This creates positional counterplay; it does not yet establis
 balanced play across all maps or six durable late-game strategies.
 
 Combat, AI threat assessment and target selection share the same attack-cell
-contract. The command card explains the actual range. There is currently no
-rendered range overlay; any future overlay must use the same contract.
+contract. The command card explains the actual range, and selecting a structure
+renders its firing cells on the ground from that same contract.
 
 Before promoting the experiment, verify adjacent exclusion, distance-two/three
 fire, short-range retaliation, terrain behavior and swapped-seat replay. Compare

@@ -119,6 +119,13 @@ for (const [name, engine] of [
       ["Q", "W", "E", "A", "S", "D"],
     );
     await desktop.screenshot({ path: `${output}/${name}-desktop.png` });
+    assert.ok(await desktop.locator(".firing-range-cell").count());
+    assert.equal(
+      await desktop
+        .locator(".firing-range-layer")
+        .getAttribute("pointer-events"),
+      "none",
+    );
     await desktop.locator('[data-action="panel-build"]').click();
     await desktop.locator('[data-action="build-siege"]').focus();
     await desktop.locator('[data-action="build-siege"]').hover();
