@@ -450,6 +450,14 @@ export function aiCommands(
       if (artillerySites[0] !== undefined)
         choice = { kind: "siege", cell: artillerySites[0] };
     }
+    // A flank conduit can also be the reconnection gap. Preserve the durable
+    // repair choice there instead of rebuilding a neuron under dormant guns.
+    if (
+      choice?.kind === "neuron" &&
+      repairs.includes(choice.cell) &&
+      repairKind(choice.cell) !== "neuron"
+    )
+      choice = { kind: repairKind(choice.cell), cell: choice.cell };
     if (!choice && repairs[0] !== undefined)
       choice = { kind: repairKind(repairs[0]), cell: repairs[0] };
     if (
