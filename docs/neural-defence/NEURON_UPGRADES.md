@@ -19,3 +19,5 @@ Chromium and WebKit each performed an ordinary neuron-to-Pulse specialization on
 ![Completed specialization on desktop](verification/upgrades-2026-09-27/desktop-complete.png)
 
 The first Twin Pass trial still stalled. The mechanic provides a usable player choice but does not by itself establish a balance improvement. A separate AI correction allocates ammunition to weapons able to hit paid sites or disconnected structures and avoids making exposed reconnects its first construction choice. Strategic pursuit still follows the living enemy network. Full new-rules results must be reported separately from the older rules-5 matrices.
+
+The [complete rules-6 matrix](RULES6_BALANCE.md) is now recorded: 108/210 finish, with dominant Pressure on the default arena and persistent Twin Pass stalemates. It does not pass the balance goal.

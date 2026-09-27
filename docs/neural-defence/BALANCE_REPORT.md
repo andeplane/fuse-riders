@@ -4,6 +4,8 @@ This report preserves the original expansion matrix. The subsequent [Defensive o
 
 The current game now uses **rules 6** with [timed neuron specialization](NEURON_UPGRADES.md). Neither historical rules-5 matrix establishes balance under these newer rules; fresh multi-arena trials are required.
 
+Those trials are now available in the [rules-6 balance baseline](RULES6_BALANCE.md), including its failed counterplay and stalemate findings.
+
 ## Delivered changes
 
 - Growth unlocks the **Harvester** (economic conduit, one specialist extraction bonus per deposit) and **Bastion** (durable, supplied, range-one defense). Shared catalogs control prerequisites, placement, costs, timing, durability, weapon capability and extraction. Harvesters cannot receive attack orders.

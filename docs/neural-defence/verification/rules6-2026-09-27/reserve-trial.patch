@@ -1,0 +1,69 @@
+diff --git a/games/neural-defence/src/engine/ai.ts b/games/neural-defence/src/engine/ai.ts
+index 6ef7e111..62da341c 100644
+--- a/games/neural-defence/src/engine/ai.ts
++++ b/games/neural-defence/src/engine/ai.ts
+@@ -26,6 +26,7 @@ const openings: Record<
+     harvesters: number;
+     weapon: BuildKind;
+     profile: ParticleKind;
++    reserve?: { kind: BuildKind; count: number; weight: number };
+   }
+ > = {
+   balanced: {
+@@ -64,6 +65,7 @@ const openings: Record<
+     profile: "swift",
+   },
+   defensive: {
++    reserve: { kind: "bastion", count: 2, weight: 1 },
+     research: ["growth", "excitation", "ballistics", "conduction", "resonance"],
+     deposits: 5,
+     harvesters: 0,
+@@ -177,22 +179,38 @@ export function aiCommands(
+   // Active guns receive ammunition before reserves; economic conduits never do.
+   const armed = own.filter((s) => canAttack(s.kind));
+   const fighting = armed.filter((s) => firing(s.cell));
+-  const targets = (fighting.length ? fighting : armed)
++  const reserves = armed
++    .filter((s) => s.kind === policy.reserve?.kind)
+     .sort(
+       (a, b) =>
+-        distance(a.cell) -
+-          STRUCTURES[a.kind].range -
+-          (distance(b.cell) - STRUCTURES[b.kind].range) ||
+-        STRUCTURES[b.kind].volley - STRUCTURES[a.kind].volley ||
+-        cellOrder(a.cell, b.cell),
++        distance(a.cell) - distance(b.cell) || cellOrder(a.cell, b.cell),
+     )
+-    .slice(0, 4);
++    .slice(0, policy.reserve?.count ?? 0);
++  const targets = [
++    ...reserves,
++    ...(fighting.length ? fighting : armed)
++      .filter((s) => !reserves.includes(s))
++      .sort(
++        (a, b) =>
++          distance(a.cell) -
++            STRUCTURES[a.kind].range -
++            (distance(b.cell) - STRUCTURES[b.kind].range) ||
++          STRUCTURES[b.kind].volley - STRUCTURES[a.kind].volley ||
++          cellOrder(a.cell, b.cell),
++      )
++      .slice(0, 4 - reserves.length),
++  ];
+   for (const cell of Object.keys(player.priorities).map(Number))
+     if (!targets.some((s) => s.cell === cell))
+       actions.push({ type: "setPriority", cell, weight: 0 });
+-  for (const target of targets)
+-    if (player.priorities[target.cell] !== 3)
+-      actions.push({ type: "setPriority", cell: target.cell, weight: 3 });
++  for (const target of targets) {
++    const weight =
++      reserves.includes(target) && !fighting.includes(target)
++        ? policy.reserve!.weight
++        : 3;
++    if (player.priorities[target.cell] !== weight)
++      actions.push({ type: "setPriority", cell: target.cell, weight });
++  }
+   const research = policy.research.find(
+     (kind) => !player.research.includes(kind),
+   );
