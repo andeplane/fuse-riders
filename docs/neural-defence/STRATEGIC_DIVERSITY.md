@@ -30,6 +30,13 @@ version and checkpoint/online compatibility update.
 
 ## Current-policy construction diagnosis
 
+For current rules 9, `verification/claim-order-2026-09-27/` proves the first
+Balanced/Defensive seat divergence at simultaneous construction dispatch, and
+`verification/support-selection-2026-09-27/` records a rejected safe-artillery AI
+variant. It improved two Skirmish pairings but introduced a default-map timeout.
+The completed rules-9 Skirmish matrix has 17 timeouts; the full wider run remains
+active. The policy-6 observations below are historical context.
+
 An ordinary Balanced/Siege Skirmish 24 match from policy 6 (`0eea3347`) reaches
 tick 18,000 unfinished. At that point Alpha's rear Bastion 252 has 32 particles
 and protects ten friendly structures, none under active weapon coverage. But no

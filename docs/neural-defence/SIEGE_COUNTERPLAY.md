@@ -59,6 +59,13 @@ browser checks, not physical-phone or human play-feel acceptance.
 
 All 1,742 repository tests, typecheck, build and focused lint passed. Independent
 reviews found no blocking production or replay-migration findings. Wider-map
-rules-9 qualification remains outstanding.
+rules-9 qualification remains in progress. The completed 42-match Skirmish 24
+subset has 17 timeouts versus 8 in the rules-8 policy-5 baseline. This is a
+material regression; default-map success does not qualify the change broadly.
+Its rows and the wider-run source manifest are archived alongside the default
+results. Balanced/Defensive has different outcomes across starting sides because
+both players contest the same construction cell at tick 5,441. The independently
+reproduced first divergence and intentional slot arbitration are documented in
+`verification/claim-order-2026-09-27/`. The other 20 paired results agree.
 
 ![Siege range in the ordinary game UI](verification/rules9-2026-09-27/siege-range.png)
