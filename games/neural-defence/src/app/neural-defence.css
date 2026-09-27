@@ -896,9 +896,34 @@ select {
   stroke-width: 1.5;
 }
 .combat-tracer {
-  fill: #fff9d8;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.weapon-halo {
+  stroke: var(--effect-color);
+  stroke-width: 6;
+  opacity: 0.35;
+}
+.weapon-core {
+  stroke: #f2fbff;
+  stroke-width: 1.5;
+}
+.weapon-siege .weapon-halo {
+  stroke: #ffb767;
+  stroke-width: 8;
+}
+.weapon-siege .weapon-core {
+  stroke: #ffe1a3;
+  stroke-width: 2.5;
+}
+.weapon-head {
+  fill: #fff7da;
   stroke: var(--effect-color);
   stroke-width: 1;
+}
+.weapon-shadow {
+  fill: #080e13;
 }
 .combat-spark {
   fill: #fff8d4;

@@ -1,5 +1,8 @@
 # Battlefield depth and combat presentation
 
+For the newer weapon-specific trajectories and synchronized impacts, see
+[distinct weapon motion](WEAPON_EFFECTS.md).
+
 The continuing goal is a deeper, balanced strategy game with substantially better animation and dimensional presentation. The rules-5 tournament is a baseline, not completion: the defensive opening and long-map stalemates remain unresolved.
 
 This presentation milestone places terrain objects and buildings in the same ground-depth order and replaces flat combat flashes with raised muzzle light, tapered tracers, projected ballistic sparks, debris, smoke and light on the ground. Building recoil moves artwork only. Selection, hit targets, gameplay geometry and authoritative timing remain fixed.

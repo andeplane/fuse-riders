@@ -1,4 +1,5 @@
 /** Cosmetic 3D trajectories projected onto the battlefield; never advances rules. */
+import { weaponTrail, type WeaponStyle } from "./weapon-trail.js";
 export interface CombatEffect {
   element: SVGGElement;
   ground: SVGGElement;
@@ -14,6 +15,8 @@ export function combatEffect(
   color: string,
   seed: number,
   from?: Point,
+  weapon: WeaponStyle = "pulse",
+  impactDelay?: number,
 ): CombatEffect {
   const element = document.createElementNS(ns, "g");
   const ground = document.createElementNS(ns, "g");
@@ -26,7 +29,14 @@ export function combatEffect(
   const destroyed = type === "destroyed";
   const shielded = type === "shielded";
   const glow = `url(#combat-light-${color.slice(1)})`;
-  const duration = destroyed ? 1050 : type === "constructed" ? 850 : 420;
+  const trail = from
+    ? weaponTrail(document, from, at, weapon, seed)
+    : undefined;
+  const flight = impactDelay ?? trail?.duration ?? 0;
+  if (trail) ground.append(trail.shadow);
+  const duration =
+    (destroyed ? 1050 : type === "constructed" ? 850 : 420) +
+    (weapon === "siege" || destroyed || shielded ? flight : 0);
   const count = destroyed ? 10 : type === "constructed" ? 8 : 5;
   const light = document.createElementNS(ns, "ellipse");
   light.setAttribute("cx", String(at.x));
@@ -55,21 +65,9 @@ export function combatEffect(
     arc.setAttribute("stroke-width", "2.5");
     element.append(arc);
   }
-  let tracer: SVGPathElement | undefined;
   let muzzle: SVGCircleElement | undefined;
   if (from) {
-    tracer = document.createElementNS(ns, "path");
-    tracer.setAttribute("class", "combat-tracer");
-    const vx = at.x - from.x,
-      vy = at.y - from.y;
-    const length = Math.max(1, Math.hypot(vx, vy));
-    const px = (-vy / length) * 2,
-      py = (vx / length) * 2;
-    tracer.setAttribute(
-      "d",
-      `M${from.x + px} ${from.y - 19 + py}L${at.x} ${at.y - 10}L${from.x - px} ${from.y - 19 - py}Z`,
-    );
-    element.prepend(tracer);
+    element.prepend(trail!.element);
     muzzle = document.createElementNS(ns, "circle");
     muzzle.setAttribute("class", "combat-muzzle");
     muzzle.setAttribute("cx", String(from.x));
@@ -117,19 +115,24 @@ export function combatEffect(
     ground,
     duration,
     animate(age) {
-      const t = Math.max(0, Math.min(1, age));
-      arc?.setAttribute("opacity", String((1 - t) ** 2));
+      const elapsed = Math.max(0, Math.min(1, age)) * duration;
+      trail?.animate(elapsed);
+      const t = Math.max(
+        0,
+        Math.min(1, (elapsed - flight) / (duration - flight)),
+      );
+      const visible = elapsed >= flight ? 1 : 0;
+      arc?.setAttribute("opacity", String(visible * (1 - t) ** 2));
       light.setAttribute("rx", String(25 + t * 35));
       light.setAttribute("ry", String(13 + t * 17));
-      light.setAttribute("opacity", String(0.65 * (1 - t) ** 2));
+      light.setAttribute("opacity", String(visible * 0.65 * (1 - t) ** 2));
       ring.setAttribute("rx", String(8 + t * 43));
       ring.setAttribute("ry", String(4 + t * 21));
-      ring.setAttribute("opacity", String(0.65 * (1 - t) ** 3));
+      ring.setAttribute("opacity", String(visible * 0.65 * (1 - t) ** 3));
       core.setAttribute("r", String((destroyed ? 32 : 19) * (1 - t) + 2));
-      core.setAttribute("opacity", String((1 - t) ** 3));
-      tracer?.setAttribute("opacity", String(Math.max(0, 1 - t * 4)));
-      muzzle?.setAttribute("r", String(16 * (1 - t)));
-      muzzle?.setAttribute("opacity", String(Math.max(0, 1 - t * 3)));
+      core.setAttribute("opacity", String(visible * (1 - t) ** 3));
+      muzzle?.setAttribute("r", String(16 * Math.max(0, 1 - elapsed / 140)));
+      muzzle?.setAttribute("opacity", String(Math.max(0, 1 - elapsed / 100)));
       for (const { shape, shadow, vx, vy, vz, phase } of fragments) {
         const x = at.x + vx * t;
         const y = at.y + vy * t * 0.5;
@@ -138,10 +141,10 @@ export function combatEffect(
           "transform",
           `translate(${x} ${y - z}) rotate(${phase * 360 + t * 180})`,
         );
-        shape.setAttribute("opacity", String((1 - t) ** 1.2));
+        shape.setAttribute("opacity", String(visible * (1 - t) ** 1.2));
         shadow.setAttribute("cx", String(x));
         shadow.setAttribute("cy", String(y + 12));
-        shadow.setAttribute("opacity", String((1 - t) * 0.3));
+        shadow.setAttribute("opacity", String(visible * (1 - t) * 0.3));
       }
       for (const { puff, i } of smoke) {
         puff.setAttribute("cx", String(at.x + (i - 1) * (7 + t * 10)));

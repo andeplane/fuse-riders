@@ -4,6 +4,7 @@ import { neighbors } from "../engine/map.js";
 import { structureArt, teamArtFilter } from "./art.js";
 import { terrainArt, WALKABLE_GROUND } from "./terrain-art.js";
 import { combatEffect } from "./combat-effects.js";
+import { weaponFlightMs } from "./weapon-trail.js";
 import { rockRelief, rockReliefMarkup } from "./terrain-relief.js";
 import { hexCenter, hexPoints, boardSize } from "./projection.js";
 export { hexCenter, hexPoints } from "./projection.js";
@@ -46,8 +47,23 @@ interface BoardCache {
   territory: SVGGElement;
   terrainObjects: SVGElement[];
   recoil: Map<number, { born: number; dx: number; dy: number }>;
+  weaponKinds: Map<string, StructureKind>;
 }
 const caches = new WeakMap<SVGSVGElement, BoardCache>();
+function weaponStyle(
+  world: Readonly<World>,
+  cache: BoardCache,
+  owner: string,
+  cell: number | undefined,
+): "siege" | "relay" | "pulse" {
+  const kind =
+    world.structures.find((s) => s.ownerId === owner && s.cell === cell)
+      ?.kind ??
+    (world.tick === cache.tick + 1
+      ? cache.weaponKinds.get(`${owner}:${cell}`)
+      : undefined);
+  return kind === "siege" || kind === "relay" ? kind : "pulse";
+}
 const escaped = (text: string) =>
   text.replace(
     /[&<>"']/g,
@@ -331,6 +347,7 @@ export function renderBoard(
       territory,
       terrainObjects,
       recoil: new Map(),
+      weaponKinds: new Map(),
     };
     caches.set(svg, cached);
   }
@@ -440,6 +457,25 @@ export function renderBoard(
             ]!,
         world.tick * 31 + outcome.cell,
         from,
+        weaponStyle(world, cache, outcome.playerId, outcome.fromCell),
+        outcome.type === "destroyed" || outcome.type === "shielded"
+          ? Math.max(
+              0,
+              ...world.outcomes
+                .filter(
+                  (hit) =>
+                    hit.type === "damage" &&
+                    hit.cell === outcome.cell &&
+                    hit.fromCell !== undefined,
+                )
+                .map(
+                  (hit) =>
+                    weaponFlightMs[
+                      weaponStyle(world, cache, hit.playerId, hit.fromCell)
+                    ],
+                ),
+            )
+          : undefined,
       );
       cache.effectLayer.append(effect.element);
       cache.groundEffects.append(effect.ground);
@@ -459,6 +495,9 @@ export function renderBoard(
       .map((p) => [p.id, p.to]),
   );
   cache.tick = world.tick;
+  cache.weaponKinds = new Map(
+    world.structures.map((s) => [`${s.ownerId}:${s.cell}`, s.kind]),
+  );
   const moving: Moving[] = world.particles
     .filter((p) => p.mode === "transit")
     .map((p) => ({
