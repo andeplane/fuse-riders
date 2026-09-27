@@ -1,18 +1,18 @@
 # Fuse Craft expansion and balance evidence — 2026-09-27
 
-The current game uses **world rules 9 and AI policy 3**, with adapter compatibility
-`neural-defence-9-watch-2`. The [latest complete comparison](verification/established-artillery-2026-09-27/README.md)
-covers 210 map/opening/seat cases: 200 finish within 900 simulated seconds and ten
+The current game uses **world rules 9 and AI policy 4**, with adapter compatibility
+`neural-defence-9-watch-3`. The [latest complete comparison](verification/brain-finisher-2026-09-27/README.md)
+covers 210 map/opening/seat cases: 206 finish within 900 simulated seconds and four
 reach the cap, with no rejected commands. All six openings win at least one
-different-opening matchup on the default arena. The Pressure/Relay slot-0
-continuation finishes at 1,056 seconds; its original 900-second result remains a
+different-opening matchup on the default arena. Both Pressure/Relay seat
+continuations finish at 968 seconds; their original 900-second results remain a
 timeout. These are deterministic policy comparisons, not proof of equal human
 strategy strength.
 
 The [current tech tree](TECH_TREE.md) describes the active rules, and the
 [live battle captures](verification/battle-framing-2026-09-27/README.md) show the
-normal watch UI under its ordinary clock. A safe finishing-shot AI experiment is
-under qualification and is not part of the current production policy.
+normal watch UI under its ordinary clock. The remaining Balanced mirror stalemate
+is under investigation; its experimental durable repair is not part of the current policy.
 
 Everything below preserves the **historical rules-5 expansion matrix**. Its
 Defensive-opening losses and timeout totals are superseded by later work:
