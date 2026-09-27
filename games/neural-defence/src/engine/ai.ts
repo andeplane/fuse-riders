@@ -514,6 +514,30 @@ export function aiCommands(
       if (candidates[0] !== undefined)
         choice = { kind: "neuron", cell: candidates[0] };
     }
+    // A gun can survive its build yet lose its only connection before the
+    // builder finishes. After sustained losses, reinforce an exposed approach
+    // before extending it. Any safe existing anchor makes this unnecessary.
+    if (
+      choice &&
+      choice.kind !== "bastion" &&
+      (player.statistics.sitesLost >= 2 || player.statistics.lost >= 8) &&
+      threats(choice.cell).length > 0 &&
+      !own.some((s) => s.cell === choice!.cell)
+    ) {
+      const approach = neighbors(world.map, choice.cell);
+      const anchors = own.filter((s) => approach.includes(s.cell));
+      if (anchors.length && anchors.every((s) => threats(s.cell).length > 0)) {
+        const fortify = anchors
+          .filter((s) => eligible("bastion", s.cell))
+          .sort(
+            (a, b) =>
+              threats(a.cell).length - threats(b.cell).length ||
+              b.hp - a.hp ||
+              cellOrder(a.cell, b.cell),
+          )[0];
+        if (fortify) choice = { kind: "bastion", cell: fortify.cell };
+      }
+    }
     if (choice) actions.push({ type: "queueConstruction", ...choice });
   }
   return actions.map((action, index) => ({

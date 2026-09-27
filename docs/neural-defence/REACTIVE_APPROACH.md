@@ -46,7 +46,44 @@ Both cases are checked with rotated starts. The counterbattery override is
 deliberate: an existing repair gap threatened by dormant guns can still require
 clearance before expansion.
 
-The full 210-match comparison runs from this clean source with the production
+The full 210-match comparison completed from this clean source with the production
 tournament harness, split into `close-quarters,narrow-front` and
-`skirmish-24,open-front,lean-resources`, each at 900 seconds. Results are pending;
-do not combine the exploratory trials with that exact-source matrix.
+`skirmish-24,open-front,lean-resources`, each at 900 seconds. The exact matrix and
+both manifests are retained in `verification/reactive-approach-2026-09-27/`.
+There were no rejected commands. All 105 swapped-seat pairs agree on result,
+duration, first contact and every reported player metric; state hashes differ
+because the seat positions differ.
+
+| Map            | Policy 4 timeouts | Policy 5 timeouts | Policy 5 mutual destruction |
+| -------------- | ----------------: | ----------------: | --------------------------: |
+| Close Quarters |                 0 |                 0 |                          12 |
+| Narrow Front   |                26 |                24 |                          12 |
+| Skirmish 24    |                14 |                 8 |                          12 |
+| Open Front     |                18 |                14 |                           8 |
+| Lean Resources |                12 |                 6 |                           6 |
+
+Each map has 42 matches. Overall timeouts decreased from 70 to 52. A timeout is
+unfinished at the 900-second cap, distinct from both brains being destroyed.
+The aggregate improvement hides three new Skirmish 24 stalled pairings:
+Balanced/Siege, Pressure/Economy and Economy/Relay. This is not complete multi-map
+balance. Policy 4's sampled removed-job counter is not comparable to policy 5's
+authoritative `sitesLost`; the new harness retains the former heuristic under
+`unfinishedPaidJobsRemoved`.
+
+## Securing the approach (policy 6)
+
+A new artillery site can survive enemy fire yet lose its only connection before
+construction finishes. After two paid-site losses or eight completed losses,
+policy `neural-defence-8-skirmish-6` reinforces an existing adjacent anchor with
+a Bastion before extending to an exposed empty destination, if every available
+anchor is threatened. Any safe connected anchor preserves the original build.
+Ordinary research, affordability, protection and construction checks still apply.
+This changes AI commands only; engine rules remain 8.
+
+The regression covers the loss threshold, legal reinforcement, deterministic
+replay, unchanged input state, missing research, existing protection and an
+exposed empty destination with a safe anchor. Exploratory trials restored a
+Pressure/Economy finish at 752 seconds and preserved all 21 default-map pairing
+results and durations. Balanced/Siege and Economy/Relay still reached the cap.
+These temporary-policy trials are diagnostic evidence; committed-source
+verification is recorded separately.
