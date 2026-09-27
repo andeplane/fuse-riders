@@ -689,7 +689,7 @@ export function mountNeuralDefence(
       } else if (action === "new-game") {
         screen = "setup";
         mode = "skirmish";
-        selectedId = "skirmish-24";
+        selectedId = "close-quarters";
         void loadCatalog();
       } else if (action === "settings") {
         screen = "settings";
@@ -711,7 +711,7 @@ export function mountNeuralDefence(
               : "combat-lab";
         const id =
           mode === "skirmish"
-            ? "skirmish-24"
+            ? "close-quarters"
             : mode === "sandbox"
               ? "sandbox-12"
               : "combat-lab-12";

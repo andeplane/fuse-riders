@@ -23,10 +23,25 @@ for (const [name, type] of [
     ]) {
       await page.goto(url);
       await page.locator('[data-action="new-game"]').click();
+      assert.equal(
+        await page.locator("#map-picker").inputValue(),
+        "close-quarters",
+      );
       await page.locator("#strategy-picker").selectOption("relay");
       await page.locator("#map-picker").selectOption(id);
       await page.locator('[data-action="start"]:enabled').click();
       await page.locator("#nd-board .terrain-layer .hex").first().waitFor();
+      if (id === "close-quarters")
+        assert.deepEqual(
+          (
+            await page
+              .locator("#nd-board .structure-brain")
+              .evaluateAll((nodes) =>
+                nodes.map((n) => Number(n.getAttribute("data-cell"))),
+              )
+          ).sort((a, b) => a - b),
+          [175, 304],
+        );
       const map = JSON.parse(
         readFileSync(
           new URL(`../games/neural-defence/maps/${id}.json`, import.meta.url),

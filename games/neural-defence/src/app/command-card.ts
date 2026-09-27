@@ -3,13 +3,21 @@ import {
   RESEARCH,
   PARTICLES,
   canAttack,
+  STRUCTURES,
+  constructionDuration,
   researchPrerequisites,
   constructionAvailability,
   researchAvailability,
   type BuildKind,
   type Requirement,
 } from "../engine/catalog.js";
-import type { Player, Research, World, ParticleKind } from "../engine/types.js";
+import {
+  RULES,
+  type Player,
+  type Research,
+  type World,
+  type ParticleKind,
+} from "../engine/types.js";
 
 export type CommandPanel =
   "inspect" | "build" | "research" | "activity" | "particles";
@@ -59,31 +67,30 @@ export const BUILD_PRESENTATION: Readonly<
   },
   tower: {
     label: "Pulse tower",
-    description: "Range 2. Fires eight supplied particles each second.",
+    description: "Sturdy medium-range fire support.",
     sprite: () => "tower-pulse-v3",
   },
   siege: {
     label: "Siege tower",
-    description:
-      "Range 3. A four-particle volley every four seconds. Long-range pressure; vulnerable to a close assault.",
+    description: "Long-range pressure; vulnerable to a close assault.",
     sprite: () => "tower-siege-v3",
   },
   relay: {
     label: "Relay tower",
     description:
-      "Range 2. Fires three supplied particles every half second. Quick, economical frontline support.",
+      "Quick, economical frontline support with frequent smaller volleys.",
     sprite: () => "tower-relay-v3",
   },
   harvester: {
     label: "Harvester",
     description:
-      "Build beside a deposit. Adds two extraction shares while connected; specialist bonuses do not stack on the same deposit. Cannot attack.",
+      "Build beside a deposit. Economic network conduit; cannot attack. Specialist bonuses do not stack on the same deposit.",
     sprite: () => "harvester-v1",
   },
   bastion: {
     label: "Bastion",
     description:
-      "Durable close-range anchor. Range 1, twelve supplied particles each second. Vulnerable to artillery and severed connections.",
+      "Durable close-range anchor. Vulnerable to artillery and severed connections.",
     sprite: () => "tower-bastion-v1",
   },
 };
@@ -251,11 +258,15 @@ export function renderCommands(
         presentation = BUILD_PRESENTATION[kind];
       const availability = constructionAvailability(player, kind);
       const asset = presentation.sprite(team);
+      const stats = STRUCTURES[kind];
+      const capabilities = canAttack(kind)
+        ? `Range ${stats.range}. Up to ${stats.volley} supplied particles every ${stats.cadence / RULES.ticksPerSecond}s.`
+        : `+${stats.miningBonus ?? 0} extraction shares per adjacent deposit while connected.`;
       return commandButton({
         action: `build-${kind}`,
         label: presentation.label,
         shortcut: keys[index]!,
-        description: presentation.description,
+        description: `${presentation.description} ${stats.hp} HP · ${constructionDuration(world, player, kind) / RULES.ticksPerSecond}s construction, plus travel. ${capabilities}`,
         art: sprites[`${asset}-v2`] ?? sprites[asset],
         cost: `${definition.cost / 1000} ◈`,
         disabled: !availability.allowed,

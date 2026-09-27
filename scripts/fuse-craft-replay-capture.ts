@@ -59,6 +59,15 @@ try {
       document.body.append(title, svg);
       renderer.renderBoard(svg, world, null, false, true, 0, art.spriteUrls);
       svg.setAttribute("viewBox", "220 175 1060 610");
+      // Match the production camera's backdrop sizing after changing viewBox.
+      const backdrop = svg.querySelector(".terrain-backdrop")!;
+      for (const [key, value] of Object.entries({
+        x: 220,
+        y: 175,
+        width: 1060,
+        height: 610,
+      }))
+        backdrop.setAttribute(key, String(value));
       await Promise.all(
         Array.from(svg.querySelectorAll("image")).map(
           (node) =>
