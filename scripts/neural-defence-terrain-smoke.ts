@@ -62,8 +62,11 @@ for (const [name, browserType] of [
             .find((value) => value.startsWith("terrain-"))
             ?.slice(8),
           image:
-            tile.querySelector(".terrain-object image")?.getAttribute("href") ??
-            null,
+            tile.ownerDocument
+              .querySelector(
+                `#nd-board .terrain-object[data-depth="${tile.getAttribute("data-cell")}"] image`,
+              )
+              ?.getAttribute("href") ?? null,
         })),
       );
     assert.equal(cells.length, map.cells.length);

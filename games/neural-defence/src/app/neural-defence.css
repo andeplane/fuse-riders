@@ -890,6 +890,29 @@ select {
   stroke-linecap: round;
   filter: drop-shadow(0 0 2px #ffffff) drop-shadow(0 0 6px #46d5ff);
 }
+.combat-shockwave {
+  fill: none;
+  stroke: var(--effect-color);
+  stroke-width: 1.5;
+}
+.combat-tracer {
+  fill: #fff9d8;
+  stroke: var(--effect-color);
+  stroke-width: 1;
+}
+.combat-spark {
+  fill: #fff8d4;
+  stroke: var(--effect-color);
+  stroke-width: 0.6;
+}
+.combat-debris {
+  fill: #526573;
+  stroke: #f0b77b;
+  stroke-width: 0.7;
+}
+.combat-debris-shadow {
+  fill: #080e13;
+}
 .impact-burst {
   fill: #efffff;
   fill-opacity: 0.45;

@@ -133,7 +133,10 @@ test("visible terrain follows build restrictions and cannot be overridden by mis
   renderBoard(svg, world, null, false, true, 0, sprites);
   world.map.cells.forEach((cell, index) => {
     const tile = svg.querySelector(`.terrain-layer [data-cell="${index}"]`)!;
-    const object = tile.querySelector(".terrain-object");
+    assert.ok(tile, "ground hit target remains present");
+    const object = svg.querySelector(
+      `.structure-layer .terrain-object[data-depth="${index}"]`,
+    );
     const unavailable = constructionQueueAvailability(
       world,
       world.players[0]!,
@@ -181,7 +184,8 @@ test("visible terrain follows build restrictions and cannot be overridden by mis
   ) as unknown as SVGSVGElement;
   renderBoard(fallback, world, null, false, true, 0, {});
   assert.equal(
-    fallback.querySelectorAll(".terrain-blocked .terrain-object path").length,
+    fallback.querySelectorAll('.terrain-object[data-terrain="blocked"] path')
+      .length,
     map.cells.filter((cell) => cell.terrain === "blocked").length,
   );
 });
@@ -443,11 +447,12 @@ test("attack flashes use authoritative origins, deduplicate ticks and expire", (
     },
   ];
   renderBoard(svg, world, null, false, false, 50);
-  assert.equal(svg.querySelectorAll(".attack-flash").length, 1);
+  assert.equal(svg.querySelectorAll(".combat-tracer").length, 1);
   const animation = renderBoard(svg, world, null, false, false, 60);
-  assert.equal(svg.querySelectorAll(".attack-flash").length, 1);
-  animation.animate(400);
-  assert.equal(svg.querySelectorAll(".attack-flash").length, 0);
+  assert.equal(svg.querySelectorAll(".combat-tracer").length, 1);
+  animation.animate(500);
+  assert.equal(svg.querySelectorAll(".combat-tracer").length, 0);
+  assert.equal(svg.querySelectorAll(".combat-ground-light").length, 0);
 });
 
 test("presentation preferences tolerate corrupt data and unavailable storage", () => {
@@ -467,5 +472,68 @@ test("presentation preferences tolerate corrupt data and unavailable storage", (
     createPreferencesStore({ getItem: () => "{broken", setItem() {} }).read()
       .mute,
     true,
+  );
+});
+
+test("battlefield depth, ballistic effects, budget and reduced motion remain presentation only", () => {
+  const { document } = parseHTML("<html><body><svg></svg></body></html>");
+  const svg = document.querySelector("svg") as unknown as SVGSVGElement;
+  const map = loadMap(
+    JSON.parse(
+      readFileSync(
+        new URL("../maps/skirmish-24.json", import.meta.url),
+        "utf8",
+      ),
+    ),
+  );
+  const world = createMatch(map, {}, [{ id: "solo", slot: 0 }]);
+  renderBoard(svg, world, null, false, false, 0);
+  const depth = [...svg.querySelector(".structure-layer")!.children].map((n) =>
+    Number(n.getAttribute("data-cell") ?? n.getAttribute("data-depth")),
+  );
+  assert.deepEqual(
+    depth,
+    [...depth].sort((a, b) => a - b),
+  );
+  const rocks = [...svg.querySelectorAll(".terrain-object")];
+  assert.ok(rocks.length > 0);
+  assert.ok(rocks.every((n) => n.getAttribute("pointer-events") === "none"));
+  world.tick++;
+  world.outcomes = Array.from({ length: 80 }, (_, i) => ({
+    tick: world.tick,
+    playerId: "solo",
+    type: i % 2 ? ("destroyed" as const) : ("damage" as const),
+    cell: 200 + i,
+    fromCell: world.structures[0]!.cell,
+    amount: 1,
+  }));
+  const snapshot = JSON.stringify(world);
+  const frame = renderBoard(svg, world, null, false, false, 50);
+  assert.equal(svg.querySelectorAll(".combat-effect").length, 48);
+  assert.equal(svg.querySelectorAll(".combat-ground-light").length, 48);
+  const spark = svg.querySelector(".combat-spark")!;
+  const start = spark.getAttribute("transform");
+  frame.animate(180);
+  assert.notEqual(spark.getAttribute("transform"), start);
+  assert.ok(svg.querySelector(".combat-smoke"));
+  assert.ok(svg.querySelector(".building-art")?.getAttribute("transform"));
+  assert.equal(JSON.stringify(world), snapshot);
+  renderBoard(svg, world, null, false, true, 190);
+  assert.equal(
+    svg.querySelectorAll(".combat-effect, .combat-ground-light").length,
+    0,
+  );
+  assert.equal(
+    svg.querySelector(".building-art")?.getAttribute("transform"),
+    null,
+  );
+  assert.equal(svg.querySelectorAll(".terrain-object").length, rocks.length);
+  world.tick++;
+  renderBoard(svg, world, null, false, false, 200);
+  world.tick = 0;
+  renderBoard(svg, world, null, false, false, 210);
+  assert.equal(
+    svg.querySelectorAll(".combat-effect, .combat-ground-light").length,
+    0,
   );
 });

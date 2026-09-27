@@ -3,6 +3,7 @@ import { STRUCTURES } from "../engine/catalog.js";
 import { neighbors } from "../engine/map.js";
 import { structureArt, teamArtFilter } from "./art.js";
 import { terrainArt, WALKABLE_GROUND } from "./terrain-art.js";
+import { combatEffect } from "./combat-effects.js";
 
 const radius = 35,
   dx = Math.sqrt(3) * radius,
@@ -29,6 +30,8 @@ type Pulse = {
   born: number;
   duration?: number;
   arrival?: boolean;
+  ground?: SVGElement;
+  animate?: (age: number) => void;
 };
 interface BoardCache {
   key: string;
@@ -45,6 +48,8 @@ interface BoardCache {
   queues: SVGGElement;
   selection: SVGPolygonElement;
   territory: SVGGElement;
+  terrainObjects: SVGElement[];
+  recoil: Map<number, { born: number; dx: number; dy: number }>;
 }
 const caches = new WeakMap<SVGSVGElement, BoardCache>();
 const escaped = (text: string) =>
@@ -104,7 +109,7 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
       }
       if (cell.terrain === "open" && cell.towerSite)
         object = `<circle class="tower-site" cx="${x}" cy="${y}" r="19"/><text x="${x}" y="${y + 5}" text-anchor="middle">+</text>`;
-      return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${ground ? image(sprites, ground, x, y, 82) : ""}</g>${object ? `<g class="terrain-object" clip-path="url(#tile-${index})" pointer-events="none"><ellipse cx="${x + 3}" cy="${y + 17}" rx="27" ry="12" fill="url(#contact-shadow)"/>${object}</g>` : ""}<polygon class="hex-hover-outline" points="${hexPoints(world.map.width, index, 1.5)}"/></g>`;
+      return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${ground ? image(sprites, ground, x, y, 82) : ""}</g>${object ? `<g class="terrain-object" data-terrain="${cell.terrain}" data-depth="${index}" clip-path="url(#tile-${index})" pointer-events="none"><ellipse cx="${x + 3}" cy="${y + 17}" rx="27" ry="12" fill="url(#contact-shadow)"/>${object}</g>` : ""}<polygon class="hex-hover-outline" points="${hexPoints(world.map.width, index, 1.5)}"/></g>`;
     })
     .join("");
 }
@@ -270,7 +275,23 @@ export function renderBoard(
     const backdrop = layer(svg, "backdrop-layer");
     backdrop.setAttribute("pointer-events", "none");
     backdrop.innerHTML = backdropMarkup(sprites);
-    layer(svg, "terrain-layer").innerHTML = terrainMarkup(world, sprites);
+    backdrop
+      .querySelector("defs")!
+      .insertAdjacentHTML(
+        "beforeend",
+        [...colors, "#ffb767"]
+          .map(
+            (color) =>
+              `<radialGradient id="combat-light-${color.slice(1)}"><stop offset="0" stop-color="#fffde5"/><stop offset="0.18" stop-color="${color}" stop-opacity="0.9"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></radialGradient>`,
+          )
+          .join("") +
+          '<radialGradient id="combat-smoke"><stop offset="0" stop-color="#31373d" stop-opacity="0.8"/><stop offset="0.5" stop-color="#555b62" stop-opacity="0.4"/><stop offset="1" stop-color="#60676c" stop-opacity="0"/></radialGradient>',
+      );
+    const terrain = layer(svg, "terrain-layer");
+    terrain.innerHTML = terrainMarkup(world, sprites);
+    const terrainObjects = [
+      ...terrain.querySelectorAll<SVGElement>(".terrain-object"),
+    ];
     const territory = layer(svg, "territory-layer");
     const links = layer(svg, "link-layer"),
       queues = layer(svg, "queue-layer"),
@@ -309,6 +330,8 @@ export function renderBoard(
       prior: new Map(),
       pulses: [],
       territory,
+      terrainObjects,
+      recoil: new Map(),
     };
     caches.set(svg, cached);
   }
@@ -333,6 +356,18 @@ export function renderBoard(
       .join(""),
   );
   setMarkup(cache.structures, structureMarkup(world, sprites));
+  // Rocks, deposits and building bodies share one ground-depth order. Ground
+  // polygons retain hit testing; decorative objects never intercept input.
+  const bodies = [
+    ...cache.structures.querySelectorAll<SVGGElement>(".structure"),
+    ...cache.terrainObjects,
+  ];
+  bodies.sort(
+    (a, b) =>
+      Number(a.getAttribute("data-cell") ?? a.getAttribute("data-depth")) -
+      Number(b.getAttribute("data-cell") ?? b.getAttribute("data-depth")),
+  );
+  for (const body of bodies) cache.structures.append(body);
   setMarkup(
     cache.queues,
     world.players
@@ -375,50 +410,44 @@ export function renderBoard(
   if (world.tick !== cache.tick && !reducedMotion)
     for (const outcome of world.outcomes) {
       if (
-        outcome.cell !== undefined &&
-        (outcome.type === "constructed" || outcome.type === "destroyed") &&
-        cache.pulses.length < 48
-      ) {
-        const { x, y } = hexCenter(width, outcome.cell);
-        const burst = svg.ownerDocument.createElementNS(ns, "circle");
-        burst.setAttribute("cx", String(x));
-        burst.setAttribute("cy", String(y));
-        burst.setAttribute(
-          "class",
-          outcome.type === "destroyed" ? "destruction-burst" : "growth-burst",
-        );
-        cache.effectLayer.append(burst);
-        cache.pulses.push({ element: burst, born: now, duration: 650 });
-      }
-      if (
-        outcome.type !== "damage" ||
-        outcome.fromCell === undefined ||
+        !["damage", "destroyed", "constructed"].includes(outcome.type) ||
         outcome.cell === undefined ||
         cache.pulses.length >= 48
       )
         continue;
-      const a = hexCenter(width, outcome.fromCell),
-        b = hexCenter(width, outcome.cell);
-      const beam = svg.ownerDocument.createElementNS(ns, "path");
-      beam.setAttribute("d", `M${a.x} ${a.y}L${b.x} ${b.y}`);
-      beam.setAttribute(
-        "stroke",
-        colors[
-          world.players.find((p) => p.id === outcome.playerId)?.slot ?? 0
-        ]!,
+      if (
+        outcome.type !== "damage" &&
+        outcome.type !== "destroyed" &&
+        outcome.type !== "constructed"
+      )
+        continue;
+      const at = hexCenter(width, outcome.cell);
+      const from =
+        outcome.type === "damage" && outcome.fromCell !== undefined
+          ? hexCenter(width, outcome.fromCell)
+          : undefined;
+      const effect = combatEffect(
+        svg.ownerDocument,
+        outcome.type,
+        at,
+        outcome.type === "destroyed"
+          ? "#ffb767"
+          : colors[
+              world.players.find((p) => p.id === outcome.playerId)?.slot ?? 0
+            ]!,
+        world.tick * 31 + outcome.cell,
+        from,
       );
-      beam.setAttribute("stroke-width", "4");
-      beam.setAttribute("fill", "none");
-      beam.setAttribute("class", "attack-flash");
-      cache.effectLayer.append(beam);
-      cache.pulses.push({ element: beam, born: now });
-      if (cache.pulses.length < 48) {
-        const impact = svg.ownerDocument.createElementNS(ns, "circle");
-        impact.setAttribute("cx", String(b.x));
-        impact.setAttribute("cy", String(b.y));
-        impact.setAttribute("class", "impact-burst");
-        cache.effectLayer.append(impact);
-        cache.pulses.push({ element: impact, born: now, duration: 240 });
+      cache.effectLayer.append(effect.element);
+      cache.groundEffects.append(effect.ground);
+      cache.pulses.push({ ...effect, born: now });
+      if (from && outcome.fromCell !== undefined) {
+        const length = Math.max(1, Math.hypot(at.x - from.x, at.y - from.y));
+        cache.recoil.set(outcome.fromCell, {
+          born: now,
+          dx: ((from.x - at.x) / length) * 2.5,
+          dy: ((from.y - at.y) / length) * 2.5,
+        });
       }
     }
   cache.prior = new Map(
@@ -491,6 +520,23 @@ export function renderBoard(
     ),
   ];
   const animate = (frameNow: number) => {
+    for (const [cell, kick] of cache.recoil) {
+      const age = (frameNow - kick.born) / 240;
+      const art = cache.structures.querySelector<SVGGElement>(
+        `.structure[data-cell="${cell}"] .building-art`,
+      );
+      if (age >= 1 || reducedMotion) {
+        art?.removeAttribute("transform");
+        cache.recoil.delete(cell);
+      } else {
+        const amount =
+          Math.sin(Math.min(1, Math.max(0, age)) * Math.PI) * (1 - age);
+        art?.setAttribute(
+          "transform",
+          `translate(${kick.dx * amount} ${kick.dy * amount})`,
+        );
+      }
+    }
     // Absolute presentation time preserves phase when authoritative stock/HP
     // changes rebuild the structure markup. No simulation state is advanced.
     for (const orbit of orbits)
@@ -532,7 +578,12 @@ export function renderBoard(
       const t = (frameNow - p.born) / (p.duration ?? 320);
       if (t >= 1 || reducedMotion) {
         p.element.remove();
+        p.ground?.remove();
         return false;
+      }
+      if (p.animate) {
+        p.animate(t);
+        return true;
       }
       p.element.setAttribute("r", String(p.arrival ? 8 + t * 13 : 10 + t * 21));
       p.element.setAttribute(
