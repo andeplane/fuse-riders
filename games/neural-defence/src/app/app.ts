@@ -7,6 +7,7 @@ import {
 import { loadMap, RULES } from "../engine/index.js";
 import { updateContent } from "./dom-update.js";
 import { minimapMarkup, minimapCell } from "../render/minimap.js";
+import { battleFocusCell } from "../render/battle-focus.js";
 import { structureArt, teamArtFilter } from "../render/art.js";
 import type { PresentationAudio } from "./audio.js";
 import { createAttractScene } from "./attract-scene.js";
@@ -410,7 +411,7 @@ export function mountNeuralDefence(
         return `<button class="watch-player" data-watch-player="${escape(p.id)}" style="--team:${["#63cfff", "#ff8e9d", "#9ee394", "#f7d477"][p.slot]}"><strong>${sideName(world, p.id)} · ${escape(opening)}</strong><span>Brain ${brain?.hp ?? 0} HP</span><small>${p.statistics.built} built · ${p.statistics.lost} lost</small></button>`;
       })
       .join("");
-    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls"><button data-action="reset" class="secondary">Restart</button><button data-action="leave" class="secondary">Menu</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div></section><nav class="watch-players" aria-label="AI players">${cards}</nav></div>`;
+    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls"><button data-action="reset" class="secondary">Restart</button><button data-action="leave" class="secondary">Menu</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div><button data-action="find-battle" class="secondary" title="Jump to fighting or the nearest opposing networks">Find battle</button></section><nav class="watch-players" aria-label="AI players">${cards}</nav></div>`;
   }
 
   function sidebarMarkup(world: Readonly<World>): string {
@@ -709,6 +710,21 @@ export function mountNeuralDefence(
     const target = event.target as Element;
     const watchedId = target.closest<HTMLElement>("[data-watch-player]")
       ?.dataset.watchPlayer;
+    if (
+      target.closest('[data-action="find-battle"]') &&
+      session &&
+      !session.canControl &&
+      !pending
+    ) {
+      const world = session.view();
+      const cell = battleFocusCell(world);
+      if (cell !== null) {
+        selectedCell = cell;
+        camera?.focusCell(world.map.width, cell);
+        renderGame();
+      }
+      return;
+    }
     if (watchedId && session && !session.canControl && !pending) {
       const world = session.view();
       const player = world.players.find((p) => p.id === watchedId);

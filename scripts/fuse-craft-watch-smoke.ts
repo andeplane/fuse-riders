@@ -43,6 +43,12 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
       assert.match(await page.locator(".watch-players").innerText(), /relay/i);
       await page.locator('[data-watch-player="ai-opponent"]').click();
       assert.match(await page.locator(".inspector").innerText(), /Red · BRAIN/);
+      const brainView = await page.locator("#nd-board").getAttribute("viewBox");
+      await page.locator('[data-action="find-battle"]').click();
+      assert.notEqual(
+        await page.locator("#nd-board").getAttribute("viewBox"),
+        brainView,
+      );
       assert.equal(
         await page.evaluate(
           () => document.documentElement.scrollWidth > innerWidth,

@@ -123,10 +123,13 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
 }
 
 /** Decorative ground continues beyond the selectable cells; it has no game state. */
-function backdropMarkup(sprites: Sprites): string {
+function backdropMarkup(
+  sprites: Sprites,
+  size: { width: number; height: number },
+): string {
   const ground = sprites[WALKABLE_GROUND];
   const cliff = sprites["terrain-cliff-material-v1"];
-  return `<defs><pattern id="cliff-material" patternUnits="userSpaceOnUse" width="180" height="180"><rect width="180" height="180" fill="#657078"/>${cliff ? `<image href="${escaped(cliff)}" width="180" height="180"/>` : ""}</pattern><radialGradient id="contact-shadow"><stop offset="0" stop-color="#000" stop-opacity="0.7"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="840" height="560"><rect width="840" height="560" fill="#26322e"/>${ground ? `<image href="${escaped(ground)}" width="840" height="560" opacity="0.65"/>` : ""}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
+  return `<defs><pattern id="cliff-material" patternUnits="userSpaceOnUse" width="180" height="180"><rect width="180" height="180" fill="#657078"/>${cliff ? `<image href="${escaped(cliff)}" width="180" height="180"/>` : ""}</pattern><radialGradient id="contact-shadow"><stop offset="0" stop-color="#000" stop-opacity="0.7"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="${size.width * 2}" height="${size.height * 2}"><rect width="${size.width * 2}" height="${size.height * 2}" fill="#172723"/>${ground ? ["", `translate(${size.width * 2} 0) scale(-1 1)`, `translate(0 ${size.height * 2}) scale(1 -1)`, `translate(${size.width * 2} ${size.height * 2}) scale(-1 -1)`].map((transform) => `<image href="${escaped(ground)}" width="${size.width}" height="${size.height}" preserveAspectRatio="none" transform="${transform}" opacity="0.5"/>`).join("") : ""}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
 }
 /** Reuse the illustrated tissue for placement and the board, with stable variation. */
 export function neuronArtwork(
@@ -318,7 +321,7 @@ export function renderBoard(
     svg.setAttribute("role", "img");
     const backdrop = layer(svg, "backdrop-layer");
     backdrop.setAttribute("pointer-events", "none");
-    backdrop.innerHTML = backdropMarkup(sprites);
+    backdrop.innerHTML = backdropMarkup(sprites, size);
     backdrop
       .querySelector("defs")!
       .insertAdjacentHTML(

@@ -206,6 +206,22 @@ test("watch mode shows both openings, inspection and neutral results without gam
   const brain = f.world.structures.find((s) => s.kind === "brain")!;
   f.selectCell(brain.cell);
   assert.match(f.root.querySelector(".inspector")!.textContent!, /BRAIN/);
+  const enemy = f.world.structures.find((s) => s.ownerId !== brain.ownerId)!;
+  f.world.outcomes = [
+    {
+      tick: f.world.tick,
+      type: "damage",
+      playerId: brain.ownerId,
+      cell: enemy.cell,
+      amount: 10,
+    },
+  ];
+  f.click("find-battle");
+  assert.equal(
+    f.root.querySelector("#nd-board")?.getAttribute("aria-label"),
+    `${f.world.map.width} by ${f.world.map.height} hex map. Selected hex ${enemy.cell}.`,
+  );
+  assert.deepEqual(f.actions, []);
   f.world.finished = true;
   f.world.winnerId = brain.ownerId;
   f.publish();

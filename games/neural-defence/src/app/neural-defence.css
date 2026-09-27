@@ -900,6 +900,9 @@ select {
   gap: 8px;
   min-width: 0;
 }
+.watch-dock .inspector button {
+  flex-shrink: 0;
+}
 .watch-player {
   flex: 1;
   min-width: 0;
@@ -1486,6 +1489,8 @@ select {
   }
   .watch-dock .inspector {
     flex: none;
+    gap: 8px;
+    flex-wrap: nowrap;
   }
   .watch-dock .selection-details {
     width: 100%;
