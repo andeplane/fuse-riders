@@ -19,6 +19,26 @@ export function structureArt(kind: StructureKind, cell?: number): string {
   return `tower-${kind === "tower" ? "pulse" : kind}-v3`;
 }
 
+const teamHues = [0, 145, 265, 205] as const;
 export function teamArtFilter(slot: number): string {
-  return `hue-rotate(${[0, 145, 265, 205][slot] ?? 0}deg)`;
+  return `hue-rotate(${teamHues[slot] ?? 0}deg)`;
+}
+
+export function teamSvgFilter(slot: number): string {
+  return `url(#nd-art-hue-${teamHues[slot] ?? 0})`;
+}
+
+/** Native SVG filters also tint groups in WebKit; CSS filter functions do not. */
+export function svgArtFilters(): string {
+  const bounds =
+    'x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB"';
+  return (
+    teamHues
+      .map(
+        (hue) =>
+          `<filter id="nd-art-hue-${hue}" ${bounds}><feColorMatrix type="hueRotate" values="${hue}"/></filter>`,
+      )
+      .join("") +
+    `<filter id="nd-art-shadow" ${bounds}><feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0"/></filter>`
+  );
 }

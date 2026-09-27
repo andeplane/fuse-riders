@@ -1,7 +1,7 @@
 import type { World, StructureKind } from "../engine/types.js";
 import { STRUCTURES, attackCells } from "../engine/catalog.js";
 import { neighbors } from "../engine/map.js";
-import { structureArt, teamArtFilter } from "./art.js";
+import { structureArt, teamSvgFilter, svgArtFilters } from "./art.js";
 import { terrainArt, WALKABLE_GROUND } from "./terrain-art.js";
 import { combatEffect } from "./combat-effects.js";
 import { damagePlume, damageAnimation } from "./damage-plume.js";
@@ -137,7 +137,7 @@ export function neuronArtwork(
   const { x, y } = hexCenter(width, cell);
   const seed = (cell * 37 + slot * 17) % 97;
   const size = 49 + (seed % 7);
-  return `<g class="neuron-body" data-phase="${seed}" style="--team:${colors[slot]};transform-origin:${x}px ${y}px"><g style="filter:${teamArtFilter(slot)}" transform="rotate(${(seed % 6) * 60} ${x} ${y})">${image(sprites, structureArt("neuron", cell), x, y, size) || image(sprites, "neuron-v3", x, y, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="12"/>`}</g></g>`;
+  return `<g class="neuron-body" data-phase="${seed}" style="--team:${colors[slot]};transform-origin:${x}px ${y}px"><g filter="${teamSvgFilter(slot)}" transform="rotate(${(seed % 6) * 60} ${x} ${y})">${image(sprites, structureArt("neuron", cell), x, y, size) || image(sprites, "neuron-v3", x, y, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="12"/>`}</g></g>`;
 }
 const buildingFoot = 25;
 function buildingSize(kind: Exclude<StructureKind, "neuron">): number {
@@ -153,7 +153,7 @@ export function structureArtwork(
   if (kind === "neuron") return neuronArtwork(width, cell, slot, sprites);
   const { x, y } = hexCenter(width, cell);
   const size = buildingSize(kind);
-  return `<g class="building-art" style="filter:${teamArtFilter(slot)}">${image(sprites, structureArt(kind), x, y + buildingFoot - size / 2, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="16"/>`}</g>`;
+  return `<g class="building-art" filter="${teamSvgFilter(slot)}">${image(sprites, structureArt(kind), x, y + buildingFoot - size / 2, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="16"/>`}</g>`;
 }
 /** Project the sprite silhouette away from a shared upper-left light source. */
 function shadowMarkup(world: Readonly<World>, sprites: Sprites): string {
@@ -163,7 +163,7 @@ function shadowMarkup(world: Readonly<World>, sprites: Sprites): string {
       const { x, y } = hexCenter(world.map.width, s.cell);
       const foot = y + buildingFoot;
       const size = buildingSize(s.kind);
-      return `<g class="building-cast-shadow" transform="matrix(1 0 -0.55 -0.3 ${0.55 * foot} ${1.3 * foot})" style="filter:brightness(0);opacity:0.28">${image(sprites, structureArt(s.kind), x, foot - size / 2, size)}</g>`;
+      return `<g class="building-cast-shadow" transform="matrix(1 0 -0.55 -0.3 ${0.55 * foot} ${1.3 * foot})" filter="url(#nd-art-shadow)" opacity="0.28">${image(sprites, structureArt(s.kind), x, foot - size / 2, size)}</g>`;
     })
     .join("");
 }
@@ -322,12 +322,13 @@ export function renderBoard(
       .querySelector("defs")!
       .insertAdjacentHTML(
         "beforeend",
-        [...colors, "#ffb767"]
-          .map(
-            (color) =>
-              `<radialGradient id="combat-light-${color.slice(1)}"><stop offset="0" stop-color="#fffde5"/><stop offset="0.18" stop-color="${color}" stop-opacity="0.9"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></radialGradient>`,
-          )
-          .join("") +
+        svgArtFilters() +
+          [...colors, "#ffb767"]
+            .map(
+              (color) =>
+                `<radialGradient id="combat-light-${color.slice(1)}"><stop offset="0" stop-color="#fffde5"/><stop offset="0.18" stop-color="${color}" stop-opacity="0.9"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></radialGradient>`,
+            )
+            .join("") +
           '<radialGradient id="combat-smoke"><stop offset="0" stop-color="#31373d" stop-opacity="0.8"/><stop offset="0.5" stop-color="#555b62" stop-opacity="0.4"/><stop offset="1" stop-color="#60676c" stop-opacity="0"/></radialGradient>' +
           '<radialGradient id="combat-dust"><stop offset="0" stop-color="#b6a17e" stop-opacity="0.65"/><stop offset="0.5" stop-color="#877e68" stop-opacity="0.35"/><stop offset="1" stop-color="#716b5d" stop-opacity="0"/></radialGradient>' +
           '<radialGradient id="combat-blast-smoke"><stop offset="0" stop-color="#edbd75" stop-opacity="0.8"/><stop offset="0.3" stop-color="#9d8f75" stop-opacity="0.8"/><stop offset="0.7" stop-color="#605b50" stop-opacity="0.5"/><stop offset="1" stop-color="#605b50" stop-opacity="0"/></radialGradient>',

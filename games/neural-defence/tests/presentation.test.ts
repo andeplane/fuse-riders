@@ -432,6 +432,50 @@ test("neurons vary, animate without state changes, and show only real friendly l
   );
 });
 
+test("team artwork and shadows use native SVG filters with resolvable definitions", () => {
+  const { document } = parseHTML("<html><body><svg></svg></body></html>");
+  const svg = document.querySelector("svg") as unknown as SVGSVGElement;
+  const map = loadMap(
+    JSON.parse(
+      readFileSync(
+        new URL("../maps/skirmish-24.json", import.meta.url),
+        "utf8",
+      ),
+    ),
+  );
+  const world = createMatch(map, {}, [
+    { id: "solo", slot: 0 },
+    { id: "opponent", slot: 1 },
+  ]);
+  renderBoard(svg, world, null, false, false, 0);
+  assert.equal(
+    new Set(
+      [...svg.querySelectorAll(".building-art")].map((n) =>
+        n.getAttribute("filter"),
+      ),
+    ).size,
+    2,
+  );
+  for (const art of svg.querySelectorAll(
+    ".building-art, .building-cast-shadow",
+  )) {
+    const reference = art.getAttribute("filter");
+    assert.ok(reference);
+    assert.ok(
+      reference?.startsWith("url(#nd-art-"),
+      "art uses native SVG filtering in WebKit",
+    );
+    const filter = svg.querySelector(reference.slice(4, -1));
+    assert.ok(filter);
+    assert.ok(
+      filter?.querySelector("feColorMatrix"),
+      "referenced filter exists",
+    );
+    assert.equal(filter.getAttribute("color-interpolation-filters"), "sRGB");
+    assert.doesNotMatch(art.getAttribute("style") ?? "", /filter:/);
+  }
+});
+
 test("attack flashes use authoritative origins, deduplicate ticks and expire", () => {
   const { document } = parseHTML("<html><body><svg></svg></body></html>");
   const svg = document.querySelector("svg") as unknown as SVGSVGElement;

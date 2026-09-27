@@ -18,5 +18,6 @@ checks pass. Review found no blocking timing, cleanup or state-mutation issues.
 
 Visual inspection found an existing WebKit issue: CSS filters on SVG groups do
 not tint enemy art or blacken cast shadows. The phone image records that defect;
-it is separate from the plume and requires a native-SVG filter correction.
+it is separate from the plume and is corrected by the subsequent native-SVG
+filter change documented in `../native-svg-filters-2026-09-27/`.
 Human visual acceptance and physical-phone testing remain outstanding.
