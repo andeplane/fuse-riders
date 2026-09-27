@@ -3,12 +3,17 @@ import type {
   MapDefinition,
   MatchSettings,
   World,
+  AiStrategy,
 } from "../engine/types.js";
 
-export type GameMode = "sandbox" | "combat-lab" | "skirmish";
+export type GameMode = "sandbox" | "combat-lab" | "skirmish" | "watch";
+export interface SessionOptions {
+  watchStrategies?: readonly [AiStrategy, AiStrategy];
+}
 
 export interface NeuralSession {
   readonly localPlayerId: string;
+  readonly canControl: boolean;
   view(): Readonly<World>;
   dispatch(action: Action): void;
   subscribe(listener: () => void): () => void;
@@ -21,6 +26,7 @@ export type SessionFactory = (
   slot: number,
   mode: GameMode,
   settings: MatchSettings,
+  options?: SessionOptions,
 ) => NeuralSession;
 
 export interface MapSummary {

@@ -16,7 +16,8 @@ if (!root) throw new Error("Neural Defence mount point is missing");
 mountNeuralDefence(root, {
   maps: createBrowserMapRepository(fetch.bind(globalThis)),
   preferences: createPreferencesStore(localStorage),
-  createSession,
+  createSession: (map, slot, mode, settings, options) =>
+    createSession(map, slot, mode, settings, undefined, options),
   audio: createBrowserAudio(new URLSearchParams(location.search).has("mute")),
   forcedMute: new URLSearchParams(location.search).has("mute"),
   sprites: spriteUrls,

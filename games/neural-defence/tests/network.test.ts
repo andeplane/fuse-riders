@@ -6,11 +6,19 @@ import {
   type RuntimeDependencies,
   type StreamEntries,
 } from "fuse-netcode";
-import { loadMap } from "../src/engine/index.js";
+import {
+  loadMap,
+  step,
+  hashState,
+  decodeState,
+  encodeState,
+} from "../src/engine/index.js";
+import { aiCommands } from "../src/engine/ai.js";
 import { createSession } from "../src/online/session.js";
 import {
   neuralGame,
   isEntry,
+  parseSettings,
   type NeuralSettings,
   type NeuralEntry,
 } from "../src/online/game.js";
@@ -63,6 +71,74 @@ const changeSettings = (
   tick: number,
   next: NeuralSettings,
 ): NeuralEntry => [seq, tick, 13, next];
+
+test("watch settings require two valid openings and a two-sided map", () => {
+  const valid = {
+    ...settings("watch"),
+    watchStrategies: ["pressure", "relay"] as const,
+  };
+  assert.ok(parseSettings(valid));
+  for (const watchStrategies of [
+    undefined,
+    [],
+    ["pressure"],
+    ["pressure", "invalid"],
+    ["pressure", "relay", "siege"],
+  ])
+    assert.equal(parseSettings({ ...valid, watchStrategies }), undefined);
+  assert.equal(parseSettings({ ...valid, mode: "sandbox" }), undefined);
+  assert.equal(
+    parseSettings({
+      ...valid,
+      map: { ...map, spawns: map.spawns.slice(0, 1) },
+    }),
+    undefined,
+  );
+});
+
+test("watch folds both AI decisions from one world, ignores play input and restores checkpoints", () => {
+  const room = fold(
+    { host: [join(1, 1, "host", 0), start(2, 2)] },
+    {
+      ...settings("watch"),
+      watchStrategies: ["pressure", "relay"],
+    },
+  );
+  assert.equal(room.stage, "running");
+  let expected = decodeState(encodeState(room.world));
+  const ticker = neuralGame.createTicker();
+  for (let tick = 3; tick <= 202; tick++) {
+    expected = step(expected, [
+      ...aiCommands(expected, "host", "pressure"),
+      ...aiCommands(expected, "ai-opponent", "relay"),
+    ]);
+    const entry: NeuralEntry = [
+      tick,
+      tick,
+      1,
+      room.matchId,
+      { type: "setParticleKind", kind: "heavy" },
+    ];
+    ticker(
+      room,
+      "host",
+      new Map([["host", { generation: 1, entries: [entry] }]]),
+    );
+    assert.equal(hashState(room.world), hashState(expected));
+  }
+  const restored = neuralGame.checkpoint.decode(
+    neuralGame.checkpoint.encode(room),
+    room.tick,
+  );
+  assert.ok(restored);
+  assert.equal(neuralGame.hash(restored), neuralGame.hash(room));
+  assert.deepEqual(restored.settings.watchStrategies, ["pressure", "relay"]);
+  for (let tick = 203; tick <= 222; tick++) {
+    ticker(room, "host", new Map());
+    ticker(restored, "host", new Map());
+    assert.equal(neuralGame.hash(restored), neuralGame.hash(room));
+  }
+});
 class Clock implements RuntimeDependencies {
   time = 0;
   serial = 0;
@@ -83,6 +159,33 @@ class Clock implements RuntimeDependencies {
     }
   }
 }
+test("watch session controls neither AI and reset retains both openings on the shared clock", () => {
+  const clock = new Clock();
+  const options = { watchStrategies: ["economy", "relay"] as const };
+  const session = createSession(map, 0, "watch", {}, clock, options);
+  assert.equal(session.canControl, false);
+  const before = encodeState(session.view());
+  session.dispatch({ type: "startResearch", research: "growth" });
+  assert.equal(encodeState(session.view()), before);
+  clock.run(20000);
+  assert.equal(session.view().players.length, 2);
+  assert.ok(session.view().players.every((p) => p.statistics.built > 0));
+  const first = decodeState(encodeState(session.view()));
+  session.reset();
+  clock.run(20000);
+  // Restart creates a fresh match scope; compare deterministic gameplay within it.
+  const restarted = session.view();
+  assert.equal(
+    hashState({
+      ...restarted,
+      matchId: first.matchId,
+      settings: { ...restarted.settings, matchId: first.settings.matchId },
+    }),
+    hashState(first),
+  );
+  session.dispose();
+  assert.equal(clock.loops.size, 0);
+});
 test("one human starts without bots, advances through shared runtime, and disposes its clock", () => {
   const clock = new Clock();
   const session = createSession(map, 0, "sandbox", {}, clock);

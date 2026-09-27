@@ -895,6 +895,46 @@ select {
   stroke: var(--effect-color);
   stroke-width: 1.5;
 }
+.watch-players {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+.watch-player {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px;
+  text-align: left;
+  border-color: var(--team);
+}
+.watch-player strong {
+  color: var(--team);
+  text-transform: capitalize;
+}
+.watch-player small {
+  font-size: 10px;
+}
+.watch-topbar .resource-row strong {
+  font-size: 12px;
+}
+.watch-topbar .resource-row strong span {
+  color: #ff76b3;
+}
+@media (max-width: 640px) {
+  .watch-dock .watch-player {
+    padding: 7px;
+    gap: 4px;
+  }
+  .watch-topbar .resource-row {
+    gap: 10px;
+  }
+  .watch-topbar .resource-row strong {
+    font-size: 10px;
+  }
+}
 .combat-tracer {
   fill: none;
   stroke-linecap: round;
@@ -1435,5 +1475,31 @@ select {
   }
   .priority-control {
     max-width: 100%;
+  }
+}
+@media (max-width: 650px) {
+  .command-dock.watch-dock {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 6px;
+  }
+  .watch-dock .inspector {
+    flex: none;
+  }
+  .watch-dock .selection-details {
+    width: 100%;
+    gap: 3px;
+    font-size: 11px;
+  }
+  .watch-dock .selection-details small {
+    display: none;
+  }
+  .watch-dock .watch-players {
+    width: 100%;
+  }
+  .nd-app .watch-dock .watch-player {
+    padding: 6px 8px;
+    gap: 3px;
   }
 }

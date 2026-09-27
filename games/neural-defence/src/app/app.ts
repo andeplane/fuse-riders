@@ -110,6 +110,7 @@ export function mountNeuralDefence(
   let instantConstruction = false;
   let instantResearch = false;
   let aiStrategy: AiStrategy = "balanced";
+  let firstAiStrategy: AiStrategy = "pressure";
   let notices: Outcome[] = [];
   let noticeTick = -1;
   let noticeMatch = "";
@@ -256,6 +257,9 @@ export function mountNeuralDefence(
         selectedSlot,
         mode,
         settings,
+        mode === "watch"
+          ? { watchStrategies: [firstAiStrategy, aiStrategy] }
+          : undefined,
       );
       disposeSession();
       session = created;
@@ -285,7 +289,8 @@ export function mountNeuralDefence(
 
   function modal(): string {
     if (!pending) return "";
-    return `<div class="nd-modal-backdrop"><section class="nd-modal" role="alertdialog" aria-modal="true" aria-labelledby="discard-title"><p class="eyebrow">Progress will be discarded</p><h2 id="discard-title">${pending === "reset" ? "Reset this session?" : "Return to the menu?"}</h2><p>${pending === "reset" ? "The same map and spawn will start from the beginning." : "Your current network and research will be lost."}</p><div class="button-row"><button data-action="cancel-confirm" class="secondary">Keep playing</button><button data-action="confirm-${pending}" class="danger">${pending === "reset" ? "Reset session" : "Leave session"}</button></div></section></div>`;
+    const watching = session?.canControl === false;
+    return `<div class="nd-modal-backdrop"><section class="nd-modal" role="alertdialog" aria-modal="true" aria-labelledby="discard-title"><p class="eyebrow">Progress will be discarded</p><h2 id="discard-title">${pending === "reset" ? "Reset this session?" : "Return to the menu?"}</h2><p>${pending === "reset" ? "The same map and spawn will start from the beginning." : watching ? "This battle will be discarded." : "Your current network and research will be lost."}</p><div class="button-row"><button data-action="cancel-confirm" class="secondary">${watching ? "Keep watching" : "Keep playing"}</button><button data-action="confirm-${pending}" class="danger">${pending === "reset" ? "Reset session" : "Leave session"}</button></div></section></div>`;
   }
 
   function header(title: string, subtitle: string): string {
@@ -331,13 +336,15 @@ export function mountNeuralDefence(
       <main class="setup-layout"><section class="nd-panel">
         <p class="section-index">01 / SCENARIO</p><div class="choice-grid">
         <button data-action="mode-skirmish" class="choice ${mode === "skirmish" ? "active" : ""}" aria-pressed="${mode === "skirmish"}"><strong>Player vs AI</strong><span>Grow, research and destroy the rival brain.</span></button>
+        <button data-action="mode-watch" class="choice ${mode === "watch" ? "active" : ""}" aria-pressed="${mode === "watch"}"><strong>Watch AI vs AI</strong><span>Choose two openings and follow their battle.</span></button>
         <button data-action="mode-sandbox" class="choice ${mode === "sandbox" ? "active" : ""}" aria-pressed="${mode === "sandbox"}"><strong>Open sandbox</strong><span>One player, no AI. Grow at your pace.</span></button>
         <button data-action="mode-combat-lab" class="choice ${mode === "combat-lab" ? "active" : ""}" aria-pressed="${mode === "combat-lab"}"><strong>Combat lab</strong><span>Scripted opposition to test routing and cuts.</span></button>
         </div><p class="section-index">02 / FIELD</p>${catalogBlock}${details}</section>
         <aside class="nd-panel setup-summary"><p class="section-index">SESSION BRIEF</p>
-        <h2>${mode === "skirmish" ? "Take the field" : mode === "sandbox" ? "An open beginning" : "A controlled confrontation"}</h2>
-        <p>${mode === "skirmish" ? "You versus one AI · Equal resources · Destroy the enemy brain" : `One local player · No AI controller${mode === "combat-lab" ? " · Scripted opposing network" : ""}`}</p>
-        ${mode === "skirmish" ? `<label class="field-label" for="strategy-picker">Opponent opening</label><select id="strategy-picker" data-field="strategy">${AI_STRATEGIES.map((kind) => `<option value="${kind}" ${kind === aiStrategy ? "selected" : ""}>${kind[0]!.toUpperCase() + kind.slice(1)}</option>`).join("")}</select><p class="muted">Different openings, equal resources. Opponents can adapt when countered.</p>` : ""}
+        <h2>${mode === "watch" ? "Follow the battle" : mode === "skirmish" ? "Take the field" : mode === "sandbox" ? "An open beginning" : "A controlled confrontation"}</h2>
+        <p>${mode === "watch" ? "Two AI players · Equal resources · Watch, pan and inspect either network" : mode === "skirmish" ? "You versus one AI · Equal resources · Destroy the enemy brain" : `One local player · No AI controller${mode === "combat-lab" ? " · Scripted opposing network" : ""}`}</p>
+        ${mode === "watch" ? `<label class="field-label" for="first-strategy-picker">First AI opening</label><select id="first-strategy-picker" data-field="first-strategy">${AI_STRATEGIES.map((kind) => `<option value="${kind}" ${kind === firstAiStrategy ? "selected" : ""}>${kind[0]!.toUpperCase() + kind.slice(1)}</option>`).join("")}</select>` : ""}
+        ${mode === "skirmish" || mode === "watch" ? `<label class="field-label" for="strategy-picker">${mode === "watch" ? "Second AI opening" : "Opponent opening"}</label><select id="strategy-picker" data-field="strategy">${AI_STRATEGIES.map((kind) => `<option value="${kind}" ${kind === aiStrategy ? "selected" : ""}>${kind[0]!.toUpperCase() + kind.slice(1)}</option>`).join("")}</select><p class="muted">Different openings, equal resources. Opponents can adapt when countered.</p>` : ""}
         ${
           dependencies.debug
             ? `<fieldset class="debug-options"><legend>Debug options</legend>
@@ -345,11 +352,13 @@ export function mountNeuralDefence(
           <label><input type="checkbox" data-debug="construction" ${instantConstruction ? "checked" : ""}> Instant construction after delivery</label>
           <label><input type="checkbox" data-debug="research" ${instantResearch ? "checked" : ""}> Instant research</label>
           <small>Resource costs and prerequisites still apply.</small></fieldset>`
-            : "<p>Build beside resources. Connect your network. Select frontline nodes and use <strong>Charge</strong> to supply their weapons.</p>"
+            : mode === "watch"
+              ? "<p>Select a structure to inspect it. Use the minimap or either player's card to move around the field.</p>"
+              : "<p>Build beside resources. Connect your network. Select frontline nodes and use <strong>Charge</strong> to supply their weapons.</p>"
         }
         ${launchError ? `<div class="error-card" role="alert">${escape(launchError)}<button data-action="start">Retry launch</button></div>` : ""}
         <div class="button-row"><button data-action="back-menu" class="secondary">← Back</button>
-        <button data-action="start" class="primary" ${loaded && !launching ? "" : "disabled"}>${launching ? "Starting…" : "Start →"}</button></div></aside></main>`;
+        <button data-action="start" class="primary" ${loaded && !launching ? "" : "disabled"}>${launching ? "Starting…" : mode === "watch" ? "Watch match →" : "Start →"}</button></div></aside></main>`;
   }
 
   function gameMarkup(): string {
@@ -365,7 +374,47 @@ export function mountNeuralDefence(
       <aside id="game-sidebar" class="game-sidebar"></aside></main><div id="game-modal">${modal()}</div>`;
   }
 
+  function sideName(world: Readonly<World>, id: string): string {
+    return (
+      ["Blue", "Red", "Green", "Gold"][
+        world.players.find((p) => p.id === id)?.slot ?? 0
+      ] ?? "Player"
+    );
+  }
+
+  function watchMarkup(world: Readonly<World>): string {
+    const players = [...world.players].sort(
+      (a, b) =>
+        Number(b.id === session?.localPlayerId) -
+        Number(a.id === session?.localPlayerId),
+    );
+    const structure = world.structures.find((s) => s.cell === selectedCell);
+    const selected = structure
+      ? `${sideName(world, structure.ownerId)} · ${structure.kind.toUpperCase()} · ${structure.hp} HP`
+      : selectedCell === null
+        ? "Select a structure"
+        : `HEX ${selectedCell}`;
+    const resources = players
+      .map(
+        (p) =>
+          `<div><small>${sideName(world, p.id).toUpperCase()}</small><strong>◈ ${units(p.biomass)} <span>◇ ${units(p.insight)}</span></strong></div>`,
+      )
+      .join("");
+    const cards = players
+      .map((p) => {
+        const opening =
+          p.id === session?.localPlayerId ? firstAiStrategy : aiStrategy;
+        const brain = world.structures.find(
+          (s) => s.ownerId === p.id && s.kind === "brain",
+        );
+        return `<button class="watch-player" data-watch-player="${escape(p.id)}" style="--team:${["#63cfff", "#ff8e9d", "#9ee394", "#f7d477"][p.slot]}"><strong>${sideName(world, p.id)} · ${escape(opening)}</strong><span>Brain ${brain?.hp ?? 0} HP</span><small>${p.statistics.built} built · ${p.statistics.lost} lost</small></button>`;
+      })
+      .join("");
+    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls"><button data-action="reset" class="secondary">Restart</button><button data-action="leave" class="secondary">Menu</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div></section><nav class="watch-players" aria-label="AI players">${cards}</nav></div>`;
+  }
+
   function sidebarMarkup(world: Readonly<World>): string {
+    if (session && !session.canControl) return watchMarkup(world);
     const player = world.players.find(
       (item) => item.id === session?.localPlayerId,
     );
@@ -477,7 +526,10 @@ export function mountNeuralDefence(
   function renderGame() {
     const world = gameWorld();
     if (!world) return;
-    dependencies.audio?.present(world, session?.localPlayerId ?? "");
+    dependencies.audio?.present(
+      world,
+      session?.canControl ? session.localPlayerId : "",
+    );
     if (world.matchId !== noticeMatch || world.tick < noticeTick) {
       notices = [];
       noticeTick = -1;
@@ -501,12 +553,14 @@ export function mountNeuralDefence(
         const title =
           world.winnerId === null
             ? "Draw"
-            : world.winnerId === session?.localPlayerId
-              ? "Victory"
-              : "Defeat";
+            : !session?.canControl
+              ? `${sideName(world, world.winnerId)} wins`
+              : world.winnerId === session?.localPlayerId
+                ? "Victory"
+                : "Defeat";
         updateContent(
           result,
-          `<strong>${title}</strong><p>${world.winnerId === null ? "Both brains were destroyed." : world.winnerId === session?.localPlayerId ? "The rival brain has been destroyed." : "Your brain has been destroyed."}</p><small>${Math.floor(world.tick / RULES.ticksPerSecond / 60)}:${String(Math.floor(world.tick / RULES.ticksPerSecond) % 60).padStart(2, "0")} elapsed</small><div class="button-row"><button data-action="reset">Play again</button><button data-action="leave" class="secondary">Menu</button></div>`,
+          `<strong>${title}</strong><p>${world.winnerId === null ? "Both brains were destroyed." : !session?.canControl ? "The opposing brain has been destroyed." : world.winnerId === session?.localPlayerId ? "The rival brain has been destroyed." : "Your brain has been destroyed."}</p><small>${Math.floor(world.tick / RULES.ticksPerSecond / 60)}:${String(Math.floor(world.tick / RULES.ticksPerSecond) % 60).padStart(2, "0")} elapsed</small><div class="button-row"><button data-action="reset">${session?.canControl ? "Play again" : "Watch again"}</button><button data-action="leave" class="secondary">Menu</button></div>`,
         );
       }
     }
@@ -525,7 +579,7 @@ export function mountNeuralDefence(
         20) /
       1000;
     if (rate)
-      rate.textContent = `${Math.floor(world.tick / RULES.ticksPerSecond / 60)}:${String(Math.floor(world.tick / RULES.ticksPerSecond) % 60).padStart(2, "0")} · +${income("biomass").toFixed(1)} ◈ / s · +${income("insight").toFixed(1)} ◇ / s`;
+      rate.textContent = `${Math.floor(world.tick / RULES.ticksPerSecond / 60)}:${String(Math.floor(world.tick / RULES.ticksPerSecond) % 60).padStart(2, "0")}${session?.canControl ? ` · +${income("biomass").toFixed(1)} ◈ / s · +${income("insight").toFixed(1)} ◇ / s` : " · AI vs AI"}`;
     const debugNote = sidebar.querySelector<HTMLElement>(".debug-note");
     if (debugNote)
       debugNote.textContent = `DEBUG · grid${world.settings.instantConstruction ? " · instant build" : ""}${world.settings.instantResearch ? " · instant research" : ""} · normal travel`;
@@ -633,6 +687,7 @@ export function mountNeuralDefence(
   }
 
   function dispatch(action: Action) {
+    if (!session?.canControl) return;
     session?.dispatch(action);
     renderGame();
   }
@@ -652,6 +707,23 @@ export function mountNeuralDefence(
   function onClick(event: MouseEvent) {
     dependencies.audio?.unlock();
     const target = event.target as Element;
+    const watchedId = target.closest<HTMLElement>("[data-watch-player]")
+      ?.dataset.watchPlayer;
+    if (watchedId && session && !session.canControl && !pending) {
+      const world = session.view();
+      const player = world.players.find((p) => p.id === watchedId);
+      const cell =
+        world.structures.find(
+          (s) => s.ownerId === watchedId && s.kind === "brain",
+        )?.cell ??
+        world.map.spawns.find((s) => s.slot === player?.slot)?.cellIndex;
+      if (cell !== undefined) {
+        selectedCell = cell;
+        camera?.focusCell(world.map.width, cell);
+        renderGame();
+      }
+      return;
+    }
     const tactical = target.closest<SVGSVGElement>("#nd-minimap");
     if (tactical && !pending) {
       const world = gameWorld();
@@ -719,16 +791,19 @@ export function mountNeuralDefence(
       else if (
         action === "mode-sandbox" ||
         action === "mode-combat-lab" ||
-        action === "mode-skirmish"
+        action === "mode-skirmish" ||
+        action === "mode-watch"
       ) {
         mode =
-          action === "mode-skirmish"
-            ? "skirmish"
-            : action === "mode-sandbox"
-              ? "sandbox"
-              : "combat-lab";
+          action === "mode-watch"
+            ? "watch"
+            : action === "mode-skirmish"
+              ? "skirmish"
+              : action === "mode-sandbox"
+                ? "sandbox"
+                : "combat-lab";
         const id =
-          mode === "skirmish"
+          mode === "skirmish" || mode === "watch"
             ? "close-quarters"
             : mode === "sandbox"
               ? "sandbox-12"
@@ -874,6 +949,11 @@ export function mountNeuralDefence(
       return;
     }
     if (target.dataset.field === "map") void loadSelectedMap(target.value);
+    else if (
+      target.dataset.field === "first-strategy" &&
+      isAiStrategy(target.value)
+    )
+      firstAiStrategy = target.value;
     else if (
       target.dataset.field === "strategy" &&
       isAiStrategy(target.value)

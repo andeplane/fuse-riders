@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
 import { mountNeuralDefence, type AppDependencies } from "../src/app/app.js";
 import { createAttractScene } from "../src/app/attract-scene.js";
-import type { MapRepository, MapSummary } from "../src/app/contracts.js";
+import type {
+  MapRepository,
+  MapSummary,
+  SessionOptions,
+} from "../src/app/contracts.js";
 import type { Action, MatchSettings } from "../src/engine/types.js";
 import { RESEARCH, researchPrerequisites } from "../src/engine/catalog.js";
 import { requirementText, renderCommands } from "../src/app/command-card.js";
@@ -53,6 +57,7 @@ function fixture(maps?: MapRepository) {
   const cancelledFrames: number[] = [];
   const frameCallbacks = new Map<number, FrameRequestCallback>();
   let settings: MatchSettings | null = null;
+  let sessionOptions: SessionOptions | undefined;
   let createdMapId: string | null = null;
   const actions: Action[] = [];
   const summary: MapSummary = {
@@ -76,12 +81,14 @@ function fixture(maps?: MapRepository) {
       read: () => ({ mute: true, volume: 0.5, reducedMotion: false }),
       write() {},
     },
-    createSession(map, _slot, _mode, selectedSettings) {
+    createSession(map, _slot, _mode, selectedSettings, options) {
       created++;
       createdMapId = map.id;
       settings = selectedSettings;
+      sessionOptions = options;
       return {
         localPlayerId: "coral",
+        canControl: _mode !== "watch",
         view: () => world,
         dispatch(action) {
           actions.push(action);
@@ -139,6 +146,7 @@ function fixture(maps?: MapRepository) {
     }),
     frameCallback: (handle: number) => frameCallbacks.get(handle),
     settings: () => settings,
+    sessionOptions: () => sessionOptions,
     createdMapId: () => createdMapId,
     summary,
     actions,
@@ -177,6 +185,36 @@ function fixture(maps?: MapRepository) {
     },
   };
 }
+
+test("watch mode shows both openings, inspection and neutral results without gameplay controls", async () => {
+  const f = fixture();
+  f.click("new-game");
+  await settle();
+  f.click("mode-watch");
+  await settle();
+  assert.ok(f.root.querySelector("#first-strategy-picker"));
+  assert.ok(f.root.querySelector("#strategy-picker"));
+  f.click("start");
+  assert.deepEqual(f.sessionOptions()?.watchStrategies, [
+    "pressure",
+    "balanced",
+  ]);
+  assert.equal(f.root.querySelectorAll(".watch-player").length, 2);
+  assert.equal(f.root.querySelector(".command-card"), null);
+  for (const key of ["q", "w", "e", "a", "s", "d", "Enter"]) f.press(key);
+  assert.deepEqual(f.actions, []);
+  const brain = f.world.structures.find((s) => s.kind === "brain")!;
+  f.selectCell(brain.cell);
+  assert.match(f.root.querySelector(".inspector")!.textContent!, /BRAIN/);
+  f.world.finished = true;
+  f.world.winnerId = brain.ownerId;
+  f.publish();
+  const result = f.root.querySelector("#match-result")!.textContent!;
+  assert.match(result, /wins/);
+  assert.match(result, /Watch again/);
+  assert.doesNotMatch(result, /Victory|Defeat|Your brain/);
+  f.app.dispose();
+});
 
 test("completed matches show a result and offer restart", async () => {
   const f = fixture();

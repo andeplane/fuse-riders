@@ -6,7 +6,11 @@ import {
   type MapDefinition,
   type MatchSettings,
 } from "../engine/index.js";
-import type { NeuralSession, GameMode } from "../app/contracts.js";
+import type {
+  NeuralSession,
+  GameMode,
+  SessionOptions,
+} from "../app/contracts.js";
 import {
   neuralGame,
   type NeuralRoom,
@@ -34,6 +38,7 @@ export function createSession(
   mode: GameMode,
   settings: MatchSettings,
   dependencies?: RuntimeDependencies,
+  options: SessionOptions = {},
 ): NeuralSession {
   const listeners = new Set<() => void>();
   let view = createMatch(map, settings, [{ id: "solo", slot }]);
@@ -43,7 +48,18 @@ export function createSession(
     runtime = new NeuralRuntime(
       neuralGame,
       "",
-      { map, slot, mode, engine: settings },
+      {
+        map,
+        slot,
+        mode,
+        engine: settings,
+        ...(mode === "watch"
+          ? {
+              watchStrategies:
+                options.watchStrategies ?? (["pressure", "balanced"] as const),
+            }
+          : {}),
+      },
       {
         state(frame) {
           view = frame;
@@ -60,9 +76,10 @@ export function createSession(
   start();
   return {
     localPlayerId: "solo",
+    canControl: mode !== "watch",
     view: () => view,
     dispatch: (action) => {
-      if (!disposed) runtime.dispatch(action);
+      if (!disposed && mode !== "watch") runtime.dispatch(action);
     },
     subscribe: (listener) => {
       listeners.add(listener);

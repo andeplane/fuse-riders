@@ -79,6 +79,21 @@ test("neuron anatomy varies with location and remains identical across ghost, wo
   );
 });
 
+test("spectators hear shared events without personal victory or defeat cues", () => {
+  const w = world(),
+    cues = createCueTracker();
+  assert.deepEqual(cues(w, ""), []);
+  w.tick++;
+  w.outcomes = [
+    { type: "constructed", tick: w.tick, playerId: "other", cell: 1 },
+  ];
+  assert.deepEqual(cues(w, ""), ["build"]);
+  w.tick++;
+  w.finished = true;
+  w.winnerId = "solo";
+  assert.deepEqual(cues(w, ""), []);
+});
+
 test("audio cues follow resolved events once, remain bounded and ignore rollback bursts", () => {
   const w = world();
   const cues = createCueTracker();

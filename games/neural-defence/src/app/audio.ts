@@ -27,7 +27,7 @@ export function createCueTracker() {
     tick = world.tick;
     if (world.finished && !ended) {
       ended = true;
-      return [world.winnerId === local ? "victory" : "defeat"];
+      return local ? [world.winnerId === local ? "victory" : "defeat"] : [];
     }
     const cues: SoundCue[] = [];
     if (world.outcomes.some((e) => e.type === "destroyed"))
@@ -36,13 +36,13 @@ export function createCueTracker() {
       cues.push("attack");
     if (
       world.outcomes.some(
-        (e) => e.playerId === local && e.type === "researched",
+        (e) => (!local || e.playerId === local) && e.type === "researched",
       )
     )
       cues.push("research");
     else if (
       world.outcomes.some(
-        (e) => e.playerId === local && e.type === "constructed",
+        (e) => (!local || e.playerId === local) && e.type === "constructed",
       )
     )
       cues.push("build");
