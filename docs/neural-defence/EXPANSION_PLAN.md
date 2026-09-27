@@ -30,5 +30,4 @@ Catalog definitions own prerequisites, deposit requirements, economic bonus and 
 
 Initial matches exposed 20-HP construction being erased by one Siege volley and the lowest-HP targeting rule repeatedly preferring scaffolds over completed threats. Rules 4 gives paid construction its building's catalog durability, preserves damage through completion, and prioritizes brains and completed threats over scaffolds. Costs, supply pool and travel remain ordinary; there is no invulnerability or construction healing. Subsequent tournament results must be interpreted separately from the initial baseline.
 
-
 Focused rule/guard/UI tests; deterministic replay and seat-symmetry checks; actual normal-time construction and supply in Chromium/WebKit; phone layout and gestures; full repository tests/build/lint before push; independent PR review. Tournament evidence must state its maps, policies, caps and source revision. AI results do not certify human balance or physical-phone behavior. No automatic merging or deployment.

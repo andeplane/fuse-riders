@@ -26,13 +26,13 @@ Raw comparison: [168 rules-4 matches](verification/expansion-2026-09-27/rules4-m
 
 ## Matrix results
 
-| Arena | Rules 4 finished / 42 | Rules 5 decisive wins | Rules 5 actual draws | Rules 5 timeouts |
-| --- | ---: | ---: | ---: | ---: |
-| Synaptic Reach | 8 | 14 | 0 | 28 |
-| Open Synapse | 6 | 14 | 0 | 28 |
-| Twin Pass | 10 | 6 | 0 | 36 |
-| Scarce Reach | 0 | 28 | 0 | 14 |
-| Close Quarters (new) | — | 30 | 8 | 4 |
+| Arena                | Rules 4 finished / 42 | Rules 5 decisive wins | Rules 5 actual draws | Rules 5 timeouts |
+| -------------------- | --------------------: | --------------------: | -------------------: | ---------------: |
+| Synaptic Reach       |                     8 |                    14 |                    0 |               28 |
+| Open Synapse         |                     6 |                    14 |                    0 |               28 |
+| Twin Pass            |                    10 |                     6 |                    0 |               36 |
+| Scarce Reach         |                     0 |                    28 |                    0 |               14 |
+| Close Quarters (new) |                     — |                    30 |                    8 |                4 |
 
 Across the four comparable maps, finished matches increased from **24/168 to 62/168**. Twin Pass regressed from ten finishes to six: the improved durability and positioning do not solve choke-point stalemates. Across all five final maps, **100/210 finish**, with 110 timeouts. No command was rejected in either matrix.
 
@@ -44,14 +44,14 @@ Close Quarters completes **38/42** matches: 30 decisive results, eight actual mu
 
 The same matchup result occurs from both starting positions. The following records show the winning opening once per pair; reversing seats reproduces it.
 
-| Opening | Beats | Loses to |
-| --- | --- | --- |
-| Balanced | Economy, Defensive | Pressure, Siege, Relay |
-| Pressure | Balanced, Economy, Defensive | Siege, Relay |
-| Economy | Siege, Relay, Defensive | Balanced, Pressure |
-| Siege | Balanced, Pressure, Defensive | Economy, Relay |
-| Relay | Balanced, Pressure, Siege, Defensive | Economy |
-| Defensive | None | Every other tested opening |
+| Opening   | Beats                                | Loses to                   |
+| --------- | ------------------------------------ | -------------------------- |
+| Balanced  | Economy, Defensive                   | Pressure, Siege, Relay     |
+| Pressure  | Balanced, Economy, Defensive         | Siege, Relay               |
+| Economy   | Siege, Relay, Defensive              | Balanced, Pressure         |
+| Siege     | Balanced, Pressure, Defensive        | Economy, Relay             |
+| Relay     | Balanced, Pressure, Siege, Defensive | Economy                    |
+| Defensive | None                                 | Every other tested opening |
 
 This is useful counterplay among five openings, not proof of universal competitive balance. **The defensive bot needs a stronger opening** on the fast arena. Do not weaken the Bastion merely to compensate: the separate weapon assay confirms its close-range role, whereas this bot also makes expansion, research and supply decisions.
 
