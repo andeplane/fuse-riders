@@ -61,6 +61,17 @@ export function paintCrest(
 }
 
 /** Bounded ink/metal strokes; endpoints always come directly from the view. */
+/** Stable per-frame wobble in [-1, 1] for hand-drawn line boil. */
+export function boil(frame: number, i: number): number {
+  const v = Math.sin(frame * 12.9898 + i * 78.233) * 43758.5453;
+  return (v - Math.floor(v)) * 2 - 1;
+}
+/**
+ * Inked rope: a tapered brush stroke, thick at the keeper and fine at the
+ * hook. `wave` (0–1) lets a paying-out rope ripple; `frame` drives a slight
+ * line boil at about 12 fps, 0 keeps it still for reduced motion. A spiked
+ * wire passes wave 0 so the drawn line matches its lethal segment.
+ */
 export function paintTether(
   g: Phaser.GameObjects.Graphics,
   sx: number,
@@ -70,33 +81,57 @@ export function paintTether(
   color: number,
   attached: boolean,
   alpha: number,
+  wave = 0,
+  frame = 0,
 ): void {
-  g.lineStyle(attached ? 6 : 4, 0x111521, alpha * 0.8).lineBetween(
-    sx,
-    sy,
-    x,
-    y,
-  );
-  g.lineStyle(attached ? 3 : 2, color, alpha).lineBetween(sx, sy, x, y);
   const dx = x - sx,
     dy = y - sy,
     length = Math.hypot(dx, dy);
-  if (length > 1) {
-    const count = Math.min(36, Math.floor(length / 18));
-    g.lineStyle(1, 0xfff1d1, alpha * 0.7);
-    for (let i = 1; i <= count; i++) {
-      const t = i / (count + 1),
-        px = sx + dx * t,
-        py = sy + dy * t;
-      g.lineBetween(
-        px - (dy / length) * 2,
-        py + (dx / length) * 2,
-        px + (dy / length) * 2 + (dx / length) * 3,
-        py - (dx / length) * 2 + (dy / length) * 3,
-      );
-    }
+  if (length < 1) return;
+  const nx = -dy / length,
+    ny = dx / length,
+    count = Math.max(4, Math.min(24, Math.round(length / 22)));
+  const points: { x: number; y: number }[] = [];
+  for (let i = 0; i <= count; i++) {
+    const t = i / count,
+      envelope = Math.sin(t * Math.PI),
+      ripple = wave * envelope * Math.sin(t * 9 + frame * 0.9) * 7,
+      jitter = frame && i && i < count ? boil(frame, i) * 0.7 : 0;
+    points.push({
+      x: sx + dx * t + nx * (ripple + jitter),
+      y: sy + dy * t + ny * (ripple + jitter),
+    });
   }
-  if (attached) g.lineStyle(2, 0xffe8b5, alpha).strokeCircle(x, y, 7);
+  const heavy = attached ? 1 : 0.75;
+  for (const [ink, width, tint] of [
+    [true, 7, 0x0b0e18],
+    [false, 3.4, color],
+  ] as const)
+    for (let i = 0; i < count; i++) {
+      const t = i / count,
+        a = points[i]!,
+        b = points[i + 1]!;
+      g.lineStyle(
+        width * heavy * (1.15 - t * 0.55),
+        tint,
+        ink ? alpha * 0.85 : alpha,
+      ).lineBetween(a.x, a.y, b.x, b.y);
+    }
+  // Pale highlight strokes along the twist.
+  g.lineStyle(1, 0xfff1d1, alpha * 0.65);
+  for (let i = 1; i < count; i += 2) {
+    const a = points[i]!;
+    g.lineBetween(
+      a.x - nx * 1.6,
+      a.y - ny * 1.6,
+      a.x + nx * 1.6 + (dx / length) * 3,
+      a.y + ny * 1.6 + (dy / length) * 3,
+    );
+  }
+  if (attached) {
+    g.lineStyle(3, 0x0b0e18, alpha * 0.8).strokeCircle(x, y, 8);
+    g.lineStyle(2, 0xffe8b5, alpha).strokeCircle(x, y, 7);
+  }
 }
 
 export function paintBurst(

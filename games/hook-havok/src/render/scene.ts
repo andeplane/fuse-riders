@@ -21,6 +21,7 @@ import { createEchoes, paintEchoes } from "./echoes.js";
 import { paintBalls } from "./balls.js";
 import { paintPowerUps } from "./power-ups.js";
 import { createFrame, type Frame } from "./frame.js";
+import { createLight, keelTexture, type Light } from "./light.js";
 import {
   animateShrine,
   dressShrine,
@@ -114,6 +115,7 @@ export function createShowcase(
     private phaseLabel = "";
     private powerLabels: Phaser.GameObjects.Text[] = [];
     private frame?: Frame;
+    private light?: Light;
     constructor() {
       super("belfry");
     }
@@ -192,6 +194,7 @@ export function createShowcase(
         .setDisplaySize(1600, 900)
         .setTint(0x9da9c9);
       this.add.rectangle(800, 450, 1600, 900, 0x11172e, 0.19);
+      this.light = createLight(this);
       this.glowTexture("mist", "rgba(149,157,196,0.32)");
       this.glowTexture("warm", "rgba(255,174,70,0.5)");
       this.add.image(370, 140, "mist").setDisplaySize(1000, 650).setAlpha(0.28);
@@ -261,6 +264,7 @@ export function createShowcase(
       this.terrainMap = world?.map ?? "belfry";
       this.ambientState = "";
       const cathedral = this.terrainMap === "crossroads";
+      this.light?.setMap(this.terrainMap);
       this.background
         ?.setTexture(cathedral ? "cathedral" : "background")
         .setDisplaySize(1600, 900)
@@ -282,6 +286,13 @@ export function createShowcase(
               height * 2.3,
             )
           : "ledge";
+        const keel = keelTexture(this, x, y, width, height * 2.3, index);
+        this.terrain.add(
+          this.add
+            .image(keel.x, keel.y, keel.key)
+            .setOrigin(0)
+            .setDisplaySize(keel.width, keel.height),
+        );
         this.terrain.add(
           this.add
             .image(x + 3, y + 7, stone, shrine ? undefined : "0")
@@ -331,6 +342,7 @@ export function createShowcase(
           this.glows.push(
             this.add
               .image(lx, ly + 16, "warm")
+              .setBlendMode(Phaser.BlendModes.ADD)
               .setDisplaySize(125, 155)
               .setAlpha(0.65),
           );
@@ -449,6 +461,8 @@ export function createShowcase(
           .setRotation(motion?.rotation ?? 0)
           .setAlpha(pose.alpha);
       }
+      // Hand-drawn line boil at about 12 fps; still under reduced motion.
+      const inkFrame = reduced.matches ? 0 : 1 + Math.floor(elapsed / 83);
       this.tether.clear();
       this.hook.setVisible(!!pose.hook);
       if (pose.hook) {
@@ -465,6 +479,8 @@ export function createShowcase(
             ? world.hook.phase === "attached"
             : "attached" in pose.hook && pose.hook.attached,
           pose.alpha,
+          world?.hook.phase === "flying" && !world.wire ? 1 : 0,
+          inkFrame,
         );
         if (world) paintSpikes(this.tether, world.wire, color, pose.alpha);
         this.hook
@@ -604,6 +620,8 @@ export function createShowcase(
               color,
               body.hook.phase === "attached",
               peer.actor.alpha,
+              body.hook.phase === "flying" && !body.wire ? 1 : 0,
+              inkFrame,
             );
             paintSpikes(peer.tether, body.wire, color, peer.actor.alpha);
             peer.tether
@@ -813,6 +831,21 @@ export function createShowcase(
       }
       const ambientMotion = atmosphere && !reduced.matches;
       this.frame?.update(elapsed, ambientMotion);
+      this.light?.update(
+        elapsed,
+        ambientMotion,
+        world
+          ? world.keepers.map((k) => {
+              const own = k.id === focused;
+              return {
+                x: own ? pose.x : k.body.x,
+                y: (own ? pose.feet : k.body.feet) - 34,
+                color: KEEPER_COLORS[k.slot] ?? color,
+                alpha: k.body.respawn || !k.playing ? 0 : own ? pose.alpha : 1,
+              };
+            })
+          : [{ x: pose.x, y: pose.feet - 34, color, alpha: pose.alpha }],
+      );
       const ambientTime = ambientMotion ? elapsed : 0;
       const ambientState = `${this.terrainMap}:${atmosphere}:${reduced.matches}`;
       if (ambientMotion || this.ambientState !== ambientState) {

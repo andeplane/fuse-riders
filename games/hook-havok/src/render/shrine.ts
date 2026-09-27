@@ -98,6 +98,7 @@ export function dressShrine(
     );
     const glow = scene.add
       .image(px, y - 8, "warm")
+      .setBlendMode(Phaser.BlendModes.ADD)
       .setDisplaySize(72, 60)
       .setAlpha(0.35);
     terrain.add(glow);
