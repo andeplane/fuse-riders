@@ -1,0 +1,185 @@
+{
+  "cap": 18000,
+  "firstCommand": 2880,
+  "firstState": 5661,
+  "hashes": {
+    "a": "1f11493d",
+    "b": "a9227e8a"
+  },
+  "firstDiff": [
+    {
+      "path": ".outcomes.3.amount",
+      "a": 600,
+      "b": 45000
+    },
+    {
+      "path": ".outcomes.3.playerId",
+      "a": "alpha",
+      "b": "beta"
+    },
+    {
+      "path": ".outcomes.3.type",
+      "a": "income",
+      "b": "dispatched"
+    },
+    {
+      "path": ".outcomes.3.cell",
+      "b": 246
+    },
+    {
+      "path": ".outcomes.4.amount",
+      "a": 60000,
+      "b": 600
+    },
+    {
+      "path": ".outcomes.4.cell",
+      "a": 246
+    },
+    {
+      "path": ".outcomes.4.type",
+      "a": "dispatched",
+      "b": "income"
+    },
+    {
+      "path": ".players.0.biomass",
+      "a": 1830400,
+      "b": 1890400
+    },
+    {
+      "path": ".players.0.queue.0.duration",
+      "a": 240,
+      "b": 0
+    },
+    {
+      "path": ".players.0.queue.0.paid",
+      "a": true,
+      "b": false
+    },
+    {
+      "path": ".players.0.worker.arrivesAt",
+      "a": 5664,
+      "b": 5650
+    },
+    {
+      "path": ".players.0.worker.departedAt",
+      "a": 5661,
+      "b": 5647
+    }
+  ],
+  "inputs": {
+    "a": [
+      {
+        "playerId": "alpha",
+        "matchId": "sandbox",
+        "sequence": 106,
+        "action": {
+          "type": "queueConstruction",
+          "kind": "tower",
+          "cell": 246
+        }
+      },
+      {
+        "playerId": "beta",
+        "matchId": "sandbox",
+        "sequence": 119,
+        "action": {
+          "type": "queueConstruction",
+          "kind": "bastion",
+          "cell": 246
+        }
+      }
+    ],
+    "b": [
+      {
+        "playerId": "alpha",
+        "matchId": "sandbox",
+        "sequence": 106,
+        "action": {
+          "type": "queueConstruction",
+          "kind": "tower",
+          "cell": 233
+        }
+      },
+      {
+        "playerId": "beta",
+        "matchId": "sandbox",
+        "sequence": 119,
+        "action": {
+          "type": "queueConstruction",
+          "kind": "bastion",
+          "cell": 233
+        }
+      }
+    ]
+  },
+  "players": [
+    [
+      {
+        "id": "alpha",
+        "slot": 0,
+        "biomass": 1830400,
+        "queue": [
+          {
+            "cell": 246,
+            "kind": "tower",
+            "paid": true,
+            "progress": 0,
+            "duration": 240,
+            "hp": 120
+          }
+        ],
+        "worker": "outbound"
+      },
+      {
+        "id": "beta",
+        "slot": 1,
+        "biomass": 1009150,
+        "queue": [
+          {
+            "cell": 246,
+            "kind": "bastion",
+            "paid": false,
+            "progress": 0,
+            "duration": 0,
+            "hp": 240
+          }
+        ],
+        "worker": "idle"
+      }
+    ],
+    [
+      {
+        "id": "alpha",
+        "slot": 1,
+        "biomass": 1890400,
+        "queue": [
+          {
+            "cell": 233,
+            "kind": "tower",
+            "paid": false,
+            "progress": 0,
+            "duration": 0,
+            "hp": 120
+          }
+        ],
+        "worker": "idle"
+      },
+      {
+        "id": "beta",
+        "slot": 0,
+        "biomass": 964150,
+        "queue": [
+          {
+            "cell": 233,
+            "kind": "bastion",
+            "paid": true,
+            "progress": 0,
+            "duration": 160,
+            "hp": 240
+          }
+        ],
+        "worker": "outbound"
+      }
+    ]
+  ]
+}

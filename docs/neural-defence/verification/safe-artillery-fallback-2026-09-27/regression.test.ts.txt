@@ -1,0 +1,279 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  createMatch,
+  step,
+  encodeState,
+  decodeState,
+  hashState,
+} from "./engine/index.ts";
+import { aiCommands } from "./engine/ai.ts";
+import { STRUCTURES, attackCells } from "./engine/catalog.ts";
+
+function front(rotated: boolean) {
+  const at = (cell: number) => (rotated ? 47 - cell : cell);
+  const world = createMatch(
+    {
+      schemaVersion: 1,
+      id: "artillery-fallback",
+      width: 8,
+      height: 6,
+      layout: "odd-r",
+      cells: Array.from({ length: 48 }, () => ({ terrain: "open" })),
+      spawns: [
+        { slot: 0, cellIndex: at(0) },
+        { slot: 1, cellIndex: at(47) },
+      ],
+    },
+    {},
+    [
+      { id: "a", slot: 0 },
+      { id: "b", slot: 1 },
+    ],
+  );
+  for (const [ownerId, cells] of [
+    ["a", [1, 2, 8, 9, 10, 11, 12, 18]],
+    ["b", [39, 31, 23, 15, 14, 22]],
+  ] as const)
+    for (const cell of cells) {
+      const kind = [2, 15, 14, 22].includes(cell) ? "tower" : "neuron";
+      world.structures.push({
+        id: world.nextEntityId++,
+        cell: at(cell),
+        ownerId,
+        kind,
+        hp: STRUCTURES[kind].hp,
+        connected: true,
+      });
+    }
+  for (const p of world.players) {
+    p.research = [
+      "growth",
+      "excitation",
+      "conduction",
+      "ballistics",
+      "resonance",
+    ];
+    p.biomass = 1_000_000;
+    p.insight = 1_000_000;
+  }
+  return { world, at };
+}
+for (const rotated of [false, true])
+  for (const strategy of ["pressure", "relay"] as const) {
+    test(`${strategy} opens a safe artillery position after short-range admission fails, rotated=${rotated}`, () => {
+      const { world, at } = front(rotated);
+      const enemies = world.structures.filter((s) => s.ownerId === "b");
+      assert.ok(
+        world.structures
+          .filter((s) => s.ownerId === "a")
+          .every((s) =>
+            enemies.every(
+              (enemy) =>
+                !attackCells(world.map, s.cell, s.kind).has(enemy.cell),
+            ),
+          ),
+      );
+      const before = encodeState(world);
+      const commands = aiCommands(world, "a", strategy);
+      assert.deepEqual(
+        commands.find((c) => c.action.type === "queueConstruction")?.action,
+        { type: "queueConstruction", kind: "siege", cell: at(4) },
+      );
+      assert.ok(
+        enemies.some((s) => attackCells(world.map, at(4), "siege").has(s.cell)),
+      );
+      assert.ok(
+        enemies.every(
+          (s) => !attackCells(world.map, s.cell, s.kind).has(at(4)),
+        ),
+      );
+      const next = step(world, commands);
+      assert.ok(
+        next.outcomes.some(
+          (o) =>
+            o.type === "dispatched" && o.playerId === "a" && o.cell === at(4),
+        ),
+      );
+      assert.equal(
+        next.outcomes.some((o) => o.type === "rejected"),
+        false,
+      );
+      assert.equal(
+        hashState(next),
+        hashState(step(decodeState(before), commands)),
+      );
+      assert.equal(encodeState(world), before);
+      const reordered = decodeState(before);
+      reordered.structures.reverse();
+      assert.deepEqual(aiCommands(reordered, "a", strategy), commands);
+    });
+    test(`${strategy} cannot use artillery fallback before research, rotated=${rotated}`, () => {
+      const { world } = front(rotated);
+      world.players[0]!.research = world.players[0]!.research.filter(
+        (r) => r !== "ballistics",
+      );
+      const commands = aiCommands(world, "a", strategy);
+      assert.ok(
+        !commands.some(
+          (c) =>
+            c.action.type === "queueConstruction" && c.action.kind === "siege",
+        ),
+      );
+      assert.equal(
+        step(world, commands).outcomes.some((o) => o.type === "rejected"),
+        false,
+      );
+    });
+    test(`${strategy} keeps an admissible short-range build, rotated=${rotated}`, () => {
+      const { world } = front(rotated);
+      for (const s of world.structures)
+        if (s.ownerId === "b" && s.kind === "tower") {
+          s.kind = "neuron";
+          s.hp = STRUCTURES.neuron.hp;
+        }
+      const construction = aiCommands(world, "a", strategy).find(
+        (c) => c.action.type === "queueConstruction",
+      );
+      assert.ok(construction?.action.type === "queueConstruction");
+      assert.equal(
+        construction.action.kind,
+        strategy === "relay" ? "relay" : "tower",
+      );
+    });
+    test(`${strategy} does not pursue disconnected artillery targets, rotated=${rotated}`, () => {
+      const { world, at } = front(rotated);
+      world.structures = world.structures.filter(
+        (s) => !(s.ownerId === "b" && [at(31), at(39)].includes(s.cell)),
+      );
+      for (const s of world.structures)
+        if (s.ownerId === "b" && s.kind !== "brain") s.connected = false;
+      assert.ok(
+        !aiCommands(world, "a", strategy).some(
+          (c) =>
+            c.action.type === "queueConstruction" && c.action.kind === "siege",
+        ),
+      );
+    });
+  }
+for (const rotated of [false, true])
+  test(`close corridor keeps unusable artillery out of the build queue, rotated=${rotated}`, () => {
+    const at = (cell: number) => (rotated ? 47 - cell : cell);
+    const world = createMatch(
+      {
+        schemaVersion: 1,
+        id: "close-corridor",
+        width: 8,
+        height: 6,
+        layout: "odd-r",
+        cells: Array.from({ length: 48 }, (_, cell) => ({
+          terrain: [0, 1, 2, 3, 4, 5].map(at).includes(cell)
+            ? "open"
+            : "blocked",
+        })),
+        spawns: [
+          { slot: 0, cellIndex: at(0) },
+          { slot: 1, cellIndex: at(5) },
+        ],
+      },
+      {},
+      [
+        { id: "a", slot: 0 },
+        { id: "b", slot: 1 },
+      ],
+    );
+    world.map.cells[at(8)] = { terrain: "deposit", resourceKind: "biomass" };
+    for (const [cell, ownerId, kind] of [
+      [1, "a", "harvester"],
+      [2, "a", "neuron"],
+      [4, "b", "tower"],
+    ] as const)
+      world.structures.push({
+        id: world.nextEntityId++,
+        ownerId,
+        cell: at(cell),
+        kind,
+        hp: STRUCTURES[kind].hp,
+        connected: true,
+      });
+    for (const p of world.players) {
+      p.research = [
+        "growth",
+        "excitation",
+        "conduction",
+        "ballistics",
+        "resonance",
+      ];
+      p.biomass = 1000000;
+      p.insight = 1000000;
+    }
+    assert.equal(attackCells(world.map, at(3), "siege").has(at(4)), false);
+    assert.equal(attackCells(world.map, at(3), "siege").has(at(5)), false);
+    assert.ok(
+      !aiCommands(world, "a", "pressure").some(
+        (c) =>
+          c.action.type === "queueConstruction" && c.action.kind === "siege",
+      ),
+    );
+  });
+for (const rotated of [false, true])
+  test(`artillery fallback rejects a threatened firing position, rotated=${rotated}`, () => {
+    const at = (cell: number) => (rotated ? 47 - cell : cell);
+    const world = createMatch(
+      {
+        schemaVersion: 1,
+        id: "threatened-corridor",
+        width: 8,
+        height: 6,
+        layout: "odd-r",
+        cells: Array.from({ length: 48 }, (_, cell) => ({
+          terrain: [0, 1, 2, 3, 4, 5, 6].map(at).includes(cell)
+            ? "open"
+            : "blocked",
+        })),
+        spawns: [
+          { slot: 0, cellIndex: at(0) },
+          { slot: 1, cellIndex: at(6) },
+        ],
+      },
+      {},
+      [
+        { id: "a", slot: 0 },
+        { id: "b", slot: 1 },
+      ],
+    );
+    world.map.cells[at(8)] = { terrain: "deposit", resourceKind: "biomass" };
+    for (const [cell, ownerId, kind] of [
+      [1, "a", "harvester"],
+      [2, "a", "neuron"],
+      [4, "b", "tower"],
+      [5, "b", "neuron"],
+    ] as const)
+      world.structures.push({
+        id: world.nextEntityId++,
+        ownerId,
+        cell: at(cell),
+        kind,
+        hp: STRUCTURES[kind].hp,
+        connected: true,
+      });
+    for (const p of world.players) {
+      p.research = [
+        "growth",
+        "excitation",
+        "conduction",
+        "ballistics",
+        "resonance",
+      ];
+      p.biomass = 1000000;
+      p.insight = 1000000;
+    }
+    assert.ok(attackCells(world.map, at(3), "siege").has(at(6)));
+    assert.ok(attackCells(world.map, at(4), "tower").has(at(3)));
+    assert.ok(
+      !aiCommands(world, "a", "pressure").some(
+        (c) =>
+          c.action.type === "queueConstruction" && c.action.kind === "siege",
+      ),
+    );
+  });

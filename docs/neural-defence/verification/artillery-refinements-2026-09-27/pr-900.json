@@ -1,0 +1,125 @@
+{
+  "hash": "89ad73cc",
+  "state": [
+    {
+      "id": "alpha",
+      "brainHP": 240,
+      "closest": 14,
+      "stats": {
+        "biomassEarned": 8545850,
+        "insightEarned": 2393475,
+        "built": 59,
+        "damage": 3250,
+        "lost": 28,
+        "sitesLost": 4
+      },
+      "biomass": 5175850,
+      "queue": [],
+      "worker": {
+        "mode": "returning",
+        "cell": 131,
+        "from": 131,
+        "to": 107,
+        "departedAt": 17998,
+        "arrivesAt": 18001,
+        "recoverAt": 17240
+      },
+      "priorities": {
+        "179": 3
+      },
+      "connected": {
+        "brain": 1,
+        "neuron": 12,
+        "tower": 8,
+        "siege": 7,
+        "bastion": 1
+      },
+      "firing": 0,
+      "weapons": [
+        {
+          "c": 179,
+          "k": "bastion",
+          "hp": 240,
+          "priority": 3,
+          "ammo": 30,
+          "targets": []
+        }
+      ]
+    },
+    {
+      "id": "beta",
+      "brainHP": 240,
+      "closest": 9,
+      "stats": {
+        "biomassEarned": 7756550,
+        "insightEarned": 2932800,
+        "built": 70,
+        "damage": 4148,
+        "lost": 24,
+        "sitesLost": 4
+      },
+      "biomass": 4876550,
+      "queue": [
+        {
+          "cell": 13,
+          "kind": "neuron",
+          "paid": true,
+          "progress": 34,
+          "duration": 80,
+          "hp": 60
+        }
+      ],
+      "worker": {
+        "mode": "building",
+        "cell": 37,
+        "from": 37,
+        "to": 37,
+        "departedAt": 17964,
+        "arrivesAt": 17967,
+        "recoverAt": 0
+      },
+      "priorities": {
+        "184": 3
+      },
+      "connected": {
+        "brain": 1,
+        "neuron": 28,
+        "relay": 11,
+        "siege": 3
+      },
+      "firing": 1,
+      "weapons": [
+        {
+          "c": 184,
+          "k": "siege",
+          "hp": 80,
+          "priority": 3,
+          "ammo": 24,
+          "targets": [
+            181
+          ]
+        }
+      ]
+    }
+  ],
+  "last60": [
+    {
+      "id": "alpha",
+      "biomassEarned": 838950,
+      "insightEarned": 240000,
+      "built": 4,
+      "damage": 160,
+      "lost": 2,
+      "sitesLost": 0
+    },
+    {
+      "id": "beta",
+      "biomassEarned": 540000,
+      "insightEarned": 210000,
+      "built": 6,
+      "damage": 300,
+      "lost": 2,
+      "sitesLost": 0
+    }
+  ]
+}

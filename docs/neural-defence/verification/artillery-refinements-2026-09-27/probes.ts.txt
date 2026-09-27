@@ -1,0 +1,12 @@
+import {readFileSync} from 'node:fs';
+import {createMatch,loadMap,step,hashState} from './engine/index.ts';
+import {aiCommands, type AiStrategy} from './engine/ai.ts';
+const shard=Number(process.argv[2]);
+const pairs: [AiStrategy,AiStrategy][]=[['pressure','relay'],['economy','relay'],['siege','relay'],['balanced','defensive']];
+const map=loadMap(JSON.parse(readFileSync('/Users/anderhaf/projects/personal/slackgame/games/neural-defence/maps/narrow-front.json','utf8')));
+for (const [a,b] of pairs) {
+  let world=createMatch(map,{},[{id:'alpha',slot:shard},{id:'beta',slot:1-shard}]);
+  let rejected=0;
+  while(!world.finished&&world.tick<18000){world=step(world,[...aiCommands(world,'alpha',a),...aiCommands(world,'beta',b)]);rejected+=world.outcomes.filter(o=>o.type==='rejected').length;}
+  console.log(JSON.stringify({key:`narrow-front-${a}-${b}-${shard}`,result:world.finished?world.winnerId??'draw':'timeout',seconds:world.tick/20,hash:hashState(world),rejected,players:world.players.map(p=>({id:p.id,...p.statistics}))}));
+}

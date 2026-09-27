@@ -13,5 +13,13 @@
   "qualificationRunner": "qualify.ts",
   "baselineDirectory": "docs/neural-defence/verification/unrestricted-flanking-2026-09-27",
   "tickCap": 18000,
-  "qualification": "All 21 default-map unordered pairings seat0, reusing 3 prior probes; Narrow Front Balanced/Defensive both seats. Narrow Pressure/Relay both seats retained from initial probes."
+  "qualification": "All 21 default-map unordered pairings seat0, reusing 3 prior probes; Narrow Front Balanced/Defensive both seats. Narrow Pressure/Relay both seats retained from initial probes.",
+  "mapFiles": {
+    "close-quarters.json": "f6b8d427fffb344ae531dcd262f68fe3d0475608f396a6b50189b91f7ef2f4be",
+    "skirmish-24.json": "6a3f3e0931886ceff0ffe6fa28dad61877ad68b2b566f54269a0a68a32cf546e",
+    "open-front.json": "c28f3c27b5cecf9e58f30844c76d3c719816188fe51aa907ec66251a851f2ef6",
+    "narrow-front.json": "d70ed97157abbe5d34c550e8292766cb8dd6822cba64a12ad80e45cfa734f6f7",
+    "lean-resources.json": "7a6caeab6a4d723c2e9271689c549800445a4219fedc051ed0b3a1786c67bc68"
+  },
+  "mapVerification": "All map files match baseSource in git; no map changes during candidate runs."
 }
