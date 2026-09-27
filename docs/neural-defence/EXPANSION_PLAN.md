@@ -4,6 +4,15 @@ Authorized scope: improve content, balance, graphics and the existing playable l
 
 Implemented expansion and current limits are recorded in [BALANCE_REPORT.md](BALANCE_REPORT.md). Rules 5 also reduces Siege volley/cadence and improves AI reconnection and strategic targeting. Additional status-effect particles and area-damage towers remain deferred, as scoped below.
 
+## Continuing goal: completion remains unproven
+
+The user explicitly requested more complexity, multiple viable strategies, AI-versus-AI balance evidence and substantially more dimensional, beautiful animation and particle effects. The initial expansion does not close that goal.
+
+- **Strategic breadth:** five openings already show counters on Close Quarters. The new Defensive anchor/artillery opening must retain a useful anti-pressure role without becoming universally dominant. Wider-map stalled fights still require diagnosis and another measured rules/policy iteration.
+- **Further content:** choose the next mechanic from those failures rather than add unconditional damage upgrades. Evaluate a supply-disruption or area-control role against entrenched lines, including counterplay, finite-pool costs, readable previews and shared catalog prerequisites. Nothing in this paragraph is implemented content.
+- **Visual depth:** the [depth/effects milestone](VISUAL_DEPTH.md) adds shared object occlusion and projected combat effects. The battlefield still uses a flat ground projection and illustrated sprites; this does not prove the user's requested AAA appearance. Further composition, directional lighting, dimensional environment treatment and animation inspection remain necessary.
+- **Acceptance:** broaden strategy trials to more layouts and meaningful variations, inspect actual animated battles and ordinary desktop/mobile interaction, and preserve honest limits. Green tests and one attractive screenshot cannot close the goal.
+
 ## Baseline — 003efb84
 
 The three current policies were paired on Synaptic Reach in both starting positions. Balanced beats Pressure at 494 seconds and Economy at 632 seconds; Economy beats Pressure at 642 seconds. All mirrors remain unfinished at the 900-second cap. Swapped seats produce matching outcome/time/statistics, and no commands are rejected. Pressure inflicts no damage against Balanced: investigate policy behavior and ranged construction pressure before changing damage numbers. Nine isolated close-range tower assays provide separate mechanical evidence; they do not account for technology, cost or full-match supply.
