@@ -60,7 +60,11 @@ browser checks, not physical-phone or human play-feel acceptance.
 
 All 1,742 repository tests, typecheck, build and focused lint passed. Independent
 reviews found no blocking production or replay-migration findings. Wider-map
-rules-9 qualification remains in progress. The completed 42-match Skirmish 24
+rules-9 policy-1 qualification is now complete: 61/210 timeouts. The full rows are
+archived in `verification/rules9-2026-09-27/full-results.jsonl`; default matches
+use source`290c4086` and wider matches`8487512e`, with identical engine/map source.
+The subsequent policy-2 correction reduces this to20/210 (`FLANK_RECOVERY.md`).
+The initial 42-match Skirmish 24
 subset has 17 timeouts versus 8 in the rules-8 policy-5 baseline. This is a
 material regression; default-map success does not qualify the change broadly.
 Its rows and the wider-run source manifest are archived alongside the default
