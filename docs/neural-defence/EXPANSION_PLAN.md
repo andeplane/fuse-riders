@@ -10,7 +10,7 @@ The user explicitly requested more complexity, multiple viable strategies, AI-ve
 
 - **Strategic breadth:** five openings already show counters on Close Quarters. The new Defensive anchor/artillery opening must retain a useful anti-pressure role without becoming universally dominant. Wider-map stalled fights still require diagnosis and another measured rules/policy iteration.
 - **Further content:** choose the next mechanic from those failures rather than add unconditional damage upgrades. Evaluate a supply-disruption or area-control role against entrenched lines, including counterplay, finite-pool costs, readable previews and shared catalog prerequisites. Nothing in this paragraph is implemented content.
-- **Visual depth:** the [depth/effects milestone](VISUAL_DEPTH.md) adds shared object occlusion and projected combat effects. The battlefield still uses a flat ground projection and illustrated sprites; this does not prove the user's requested AAA appearance. Further composition, directional lighting, dimensional environment treatment and animation inspection remain necessary.
+- **Visual depth:** the [angled battlefield milestone](OBLIQUE_BATTLEFIELD.md) adds a shared oblique ground projection, upright depth-sorted bodies and directional silhouette shadows, alongside projected combat effects. This illustrated 2.5D treatment does not prove the user's requested AAA appearance. Further environmental composition and animation inspection remain necessary.
 - **Acceptance:** broaden strategy trials to more layouts and meaningful variations, inspect actual animated battles and ordinary desktop/mobile interaction, and preserve honest limits. Green tests and one attractive screenshot cannot close the goal.
 
 ## Baseline — 003efb84

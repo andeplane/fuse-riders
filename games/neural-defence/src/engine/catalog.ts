@@ -1,4 +1,4 @@
-import { neighbors } from "./map.js";
+import { neighbors, weaponCells } from "./map.js";
 import {
   RULES,
   type Construction,
@@ -114,8 +114,8 @@ export const CONSTRUCTIONS: Readonly<
   },
   bastion: {
     upgradesFrom: ["neuron"],
-    cost: 70_000,
-    duration: 320,
+    cost: 45_000,
+    duration: 160,
     connectedNeighbors: 1,
     requires: ["growth"],
     durationUpgrades: [],
@@ -150,6 +150,11 @@ export const STRUCTURES: Readonly<
       cadence: number;
       volley: number;
       miningBonus?: number;
+      protection?: Readonly<{
+        range: number;
+        absorbPercent: number;
+        capacityPerAttack: number;
+      }>;
     }>
   >
 > = Object.freeze({
@@ -165,10 +170,31 @@ export const STRUCTURES: Readonly<
     volley: 0,
     miningBonus: 2,
   }),
-  bastion: Object.freeze({ hp: 240, range: 1, cadence: 20, volley: 12 }),
+  bastion: Object.freeze({
+    hp: 240,
+    range: 1,
+    cadence: 20,
+    volley: 12,
+    protection: Object.freeze({
+      range: 2,
+      absorbPercent: 50,
+      capacityPerAttack: 2,
+    }),
+  }),
 });
 export const canAttack = (kind: StructureKind): boolean =>
   STRUCTURES[kind].volley > 0;
+
+export function protectionCells(
+  world: Readonly<World>,
+  kind: StructureKind,
+  cell: number,
+): ReadonlySet<number> {
+  const field = STRUCTURES[kind].protection;
+  return field
+    ? new Set([cell, ...weaponCells(world.map, cell, field.range)])
+    : new Set();
+}
 
 /** A deposit receives its ordinary adjacent contributions and one best specialist bonus. */
 export function depositContribution(

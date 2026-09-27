@@ -131,6 +131,7 @@ export interface Outcome {
     | "researchStarted"
     | "income"
     | "damage"
+    | "shielded"
     | "destroyed"
     | "eliminated";
   cell?: number;
@@ -142,7 +143,7 @@ export interface Outcome {
 }
 export interface World {
   formatVersion: 1;
-  rulesVersion: 6;
+  rulesVersion: 7;
   matchId: string;
   tick: number;
   map: MapDefinition;
@@ -156,7 +157,7 @@ export interface World {
   finished: boolean;
 }
 export const RULES = Object.freeze({
-  version: 6,
+  version: 7,
   ticksPerSecond: 20,
   particleCount: 128,
   particleSpeed: 4,

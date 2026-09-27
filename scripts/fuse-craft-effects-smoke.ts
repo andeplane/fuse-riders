@@ -11,10 +11,11 @@ import {
 
 // Verified real-command combat snapshots, rendered diagnostically at multiple
 // effect ages. Ordinary UI flows are covered by the separate expansion smoke.
+const eventType = process.argv[4] === "shielded" ? "shielded" : "destroyed";
 const recording = JSON.parse(
   readFileSync(
     process.argv[2] ??
-      "docs/neural-defence/verification/upgrades-2026-09-27/close-quarters.replay.json",
+      "docs/neural-defence/verification/protection-2026-09-27/close-quarters.replay.json",
     "utf8",
   ),
 ) as {
@@ -32,13 +33,13 @@ while (world.tick < recording.ticks) {
   world = step(world, row?.tick === world.tick ? (cursor++, row.commands) : []);
   if (
     !battle &&
-    world.outcomes.some((o) => o.type === "destroyed") &&
+    world.outcomes.some((o) => o.type === eventType) &&
     world.outcomes.some((o) => o.type === "damage")
   )
     battle = { before, after: world };
 }
 assert.equal(hashState(world), recording.hash);
-assert.ok(battle, "recording includes real destruction and damage");
+assert.ok(battle, `recording includes real ${eventType} and damage`);
 const out = process.argv[3] ?? "/tmp/fuse-depth-effects";
 mkdirSync(out, { recursive: true });
 for (const [name, engine] of Object.entries({ chromium, webkit })) {
@@ -52,10 +53,12 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto("http://127.0.0.1:5174/games/neural-defence/?mute");
-      for (const age of [80, 240, 650]) {
+      for (const age of eventType === "shielded"
+        ? [80, 180, 360]
+        : [80, 240, 650]) {
         const result: { effects: number; ordered: boolean; overflow: boolean } =
           await page.evaluate(
-            async ({ battle, age }) => {
+            async ({ battle, age, eventType }) => {
               const root = "/games/neural-defence/src/render/";
               const renderer = (await import(
                 root + "board.ts"
@@ -91,7 +94,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
               );
               animation.animate(50 + age);
               const event = battle.after.outcomes.find(
-                (o) => o.type === "destroyed",
+                (o) => o.type === eventType,
               )!;
               const center = renderer.hexCenter(
                 battle.after.map.width,
@@ -132,12 +135,16 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
                 ),
               );
               return {
-                effects: svg.querySelectorAll(".combat-effect").length,
+                effects: svg.querySelectorAll(
+                  eventType === "shielded"
+                    ? ".combat-shielded"
+                    : ".combat-effect",
+                ).length,
                 ordered: depths.every((v, i) => i === 0 || v >= depths[i - 1]!),
                 overflow: document.documentElement.scrollWidth > innerWidth,
               };
             },
-            { battle, age },
+            { battle, age, eventType },
           );
         assert.ok(result.effects > 0);
         assert.ok(result.ordered);

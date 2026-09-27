@@ -4,6 +4,7 @@ import {
   constructionUpgradeSource,
   STRUCTURES,
   canAttack,
+  protectionCells,
   researchAvailability,
 } from "./catalog.js";
 import { neighbors, homeCellOrder, weaponCells } from "./map.js";
@@ -176,7 +177,16 @@ export function aiCommands(
 
   // Active guns receive ammunition before reserves; economic conduits never do.
   const armed = own.filter((s) => canAttack(s.kind));
-  const fighting = armed.filter((s) => firing(s.cell));
+  const fighting = armed.filter(
+    (s) =>
+      firing(s.cell) ||
+      [...protectionCells(world, s.kind, s.cell)].some(
+        (cell) =>
+          (own.some((target) => target.cell === cell) ||
+            player.queue.some((job) => job.paid && job.cell === cell)) &&
+          threats(cell).length > 0,
+      ),
+  );
   const targets = (fighting.length ? fighting : armed)
     .sort(
       (a, b) =>
@@ -187,12 +197,30 @@ export function aiCommands(
         cellOrder(a.cell, b.cell),
     )
     .slice(0, 4);
+  // A protective anchor must be stocked before the first incoming salvo;
+  // waiting until its neighbor is hit is too late for distant supply lines.
+  const reserve = armed
+    .filter(
+      (s) =>
+        STRUCTURES[s.kind].protection &&
+        !targets.some((t) => t.cell === s.cell),
+    )
+    .sort(
+      (a, b) =>
+        distance(a.cell) - distance(b.cell) || cellOrder(a.cell, b.cell),
+    )[0];
+  if (reserve) {
+    if (targets.length === 4) targets.pop();
+    targets.push(reserve);
+  }
   for (const cell of Object.keys(player.priorities).map(Number))
     if (!targets.some((s) => s.cell === cell))
       actions.push({ type: "setPriority", cell, weight: 0 });
-  for (const target of targets)
-    if (player.priorities[target.cell] !== 3)
-      actions.push({ type: "setPriority", cell: target.cell, weight: 3 });
+  for (const target of targets) {
+    const weight = target === reserve ? 1 : 3;
+    if (player.priorities[target.cell] !== weight)
+      actions.push({ type: "setPriority", cell: target.cell, weight });
+  }
   const research = policy.research.find(
     (kind) => !player.research.includes(kind),
   );
@@ -272,7 +300,7 @@ export function aiCommands(
     if (
       !choice &&
       strategy === "defensive" &&
-      anchors.length < 2 &&
+      anchors.length < 1 &&
       forward <= 5
     ) {
       const fortifications = sites.filter(

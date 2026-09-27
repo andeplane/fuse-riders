@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { aiCommands, AI_STRATEGIES } from "../src/engine/ai.js";
+import { CONSTRUCTIONS } from "../src/engine/catalog.js";
 import {
   createMatch,
   loadMap,
@@ -90,10 +91,17 @@ for (const biomass of [20_000, 100_000])
       false,
     );
     assert.equal(encodeState(world), before);
-    assert.equal(next.players[0]!.queue[0]!.paid, biomass >= 70_000);
-    if (biomass < 70_000) {
+    assert.equal(
+      next.players[0]!.queue[0]!.paid,
+      biomass >= CONSTRUCTIONS.bastion.cost,
+    );
+    if (biomass < CONSTRUCTIONS.bastion.cost) {
       let saving = next;
-      for (let tick = 0; tick < 1400; tick++)
+      for (
+        let tick = 0;
+        tick < 1400 && saving.players[0]!.statistics.built === 0;
+        tick++
+      )
         saving = step(saving, aiCommands(saving, "a", "defensive"));
       assert.ok(
         saving.structures.some(

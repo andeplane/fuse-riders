@@ -9,7 +9,7 @@ const ns = "http://www.w3.org/2000/svg";
 type Point = Readonly<{ x: number; y: number }>;
 export function combatEffect(
   document: Document,
-  type: "damage" | "destroyed" | "constructed",
+  type: "damage" | "shielded" | "destroyed" | "constructed",
   at: Point,
   color: string,
   seed: number,
@@ -24,6 +24,7 @@ export function combatEffect(
     group.style.setProperty("--effect-color", color);
   }
   const destroyed = type === "destroyed";
+  const shielded = type === "shielded";
   const glow = `url(#combat-light-${color.slice(1)})`;
   const duration = destroyed ? 1050 : type === "constructed" ? 850 : 420;
   const count = destroyed ? 10 : type === "constructed" ? 8 : 5;
@@ -43,6 +44,17 @@ export function combatEffect(
   core.setAttribute("cy", String(at.y - 10));
   core.setAttribute("fill", glow);
   element.append(core);
+  const arc = shielded ? document.createElementNS(ns, "path") : undefined;
+  if (arc) {
+    arc.setAttribute(
+      "d",
+      `M${at.x - 30} ${at.y + 10}A30 42 0 0 1 ${at.x + 30} ${at.y + 10}`,
+    );
+    arc.setAttribute("fill", "none");
+    arc.setAttribute("stroke", color);
+    arc.setAttribute("stroke-width", "2.5");
+    element.append(arc);
+  }
   let tracer: SVGPathElement | undefined;
   let muzzle: SVGCircleElement | undefined;
   if (from) {
@@ -106,6 +118,7 @@ export function combatEffect(
     duration,
     animate(age) {
       const t = Math.max(0, Math.min(1, age));
+      arc?.setAttribute("opacity", String((1 - t) ** 2));
       light.setAttribute("rx", String(25 + t * 35));
       light.setAttribute("ry", String(13 + t * 17));
       light.setAttribute("opacity", String(0.65 * (1 - t) ** 2));

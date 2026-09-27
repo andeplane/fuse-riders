@@ -1,6 +1,6 @@
 # Next balance experiment: supplied defensive support
 
-Status: design hypothesis, **not implemented**. The rules-6 default-arena trial gives Pressure a win against every other opening and Defensive no non-mirror wins. Do not present rules 6 as balanced.
+Status: the original hypothesis below is now implemented as a **rules-7 balance candidate**, described in [PROTECTION.md](PROTECTION.md). Broad balance remains unproven. The earlier rules-6 default-arena trial gave Pressure a win against every other opening and Defensive no non-mirror wins.
 
 Bastion currently has only range-one offense while every specialist weapon can attack from farther away. Its intended defensive role needs to contribute when enemies stand outside that range. Increasing all of its damage or range would blur existing weapon roles.
 

@@ -1,6 +1,6 @@
 # Fuse Craft tech tree
 
-Current implemented rules, updated **2026-09-27**, engine **rules version 6**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
+Current implemented rules, updated **2026-09-27**, engine **rules version 7**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
 
 Buildings may be placed on open ground or used to specialize an owned neuron in place. Specialization uses the normal full building price, prerequisites, builder and duration. The neuron remains connected and vulnerable during work; completion preserves its identity and health fraction. Canceling retains the neuron without refunding paid work. Destroying the neuron cancels its upgrade. Brains and existing buildings cannot be replaced. See [specialization behavior](NEURON_UPGRADES.md).
 
@@ -21,7 +21,7 @@ flowchart TD
     Start --> Conduction[Conduction]
     Growth --> Fast[Future neurons build faster]
     Growth --> Harvester[Harvester: deposit extraction]
-    Growth --> Bastion[Bastion: durable close defense]
+    Growth --> Bastion[Bastion: supplied defensive field]
     Excitation --> Damage[All particle profiles: +1 damage]
     Excitation --> Ballistics[Ballistics]
     Ballistics --> Siege[Siege tower]
@@ -66,11 +66,13 @@ Growth determines a construction job's duration when the builder is dispatched; 
 | Siege tower | `siege`     | Ballistics                          |      80 |                 14 s |  80 |     3 |          4 |             4 s |
 | Relay tower | `relay`     | Resonance                           |      45 |                  8 s |  90 |     2 |          3 |           0.5 s |
 | Harvester   | `harvester` | Growth; adjacent deposit            |      60 |                 12 s |  70 |     0 |          0 |               — |
-| Bastion     | `bastion`   | Growth                              |      70 |                 16 s | 240 |     1 |         12 |             1 s |
+| Bastion     | `bastion`   | Growth                              |      45 |                  8 s | 240 |     1 |         12 |             1 s |
 
 Build times exclude builder travel and waiting. Range is measured in hex steps; attacks beyond adjacent tiles need a route through open intermediate tiles. The volley cap is the maximum number of supplied particles fired, **not fixed damage**. Actual damage is the sum of the fired particles' attack values. Armed structures, including brains and neurons, need stationed particles to fire. Harvesters cannot fire or receive attack-priority orders. Disconnected structures cannot mine or fire.
 
 Weapons prioritize an enemy brain in range, then completed weapons able to hit them, then other completed structures, then paid construction. Within a priority, they target the lowest HP and rotate equivalent targets deterministically. A new scaffold cannot indefinitely distract a weapon from a completed threat.
+
+**Bastion protection:** a connected Bastion can absorb up to 50% of incoming damage to itself and friendly structures or paid sites within two hex steps through open intermediate tiles. Protection spends stationed particles assigned to the Bastion: each absorbs up to twice its attack value and enters normal recovery. Unused absorption capacity on that particle is lost. Empty or disconnected Bastions provide none. Overlapping fields share the cost but do not stack the 50% cap. Firing reserves ammunition first, so the same particle cannot fire and protect in one tick. Shared protection prioritizes attacks on brains, then strongest salvos, with home-relative cell ties. Damage statistics count damage after protection. A neuron being specialized is protected once as the source, not again as a scaffold.
 
 Map terrain is authoritative: rocks occupy blocked cells; resource deposits occupy deposit cells. Neither accepts construction or conducts the network. The floor texture depicts traversable ground only; obstacle artwork and the minimap derive from these cell categories. Cosmetic variants cannot change a tile's gameplay category.
 

@@ -90,7 +90,7 @@ export const BUILD_PRESENTATION: Readonly<
   bastion: {
     label: "Bastion",
     description:
-      "Durable close-range anchor. Vulnerable to artillery and severed connections.",
+      "Protects nearby buildings using supplied particles. Its field competes with firing for ammunition; empty or disconnected Bastions cannot shield.",
     sprite: () => "tower-bastion-v1",
   },
 };
@@ -266,7 +266,7 @@ export function renderCommands(
         action: `build-${kind}`,
         label: presentation.label,
         shortcut: keys[index]!,
-        description: `${presentation.description} ${stats.hp} HP · ${constructionDuration(world, player, kind) / RULES.ticksPerSecond}s construction, plus travel. ${capabilities}`,
+        description: `${presentation.description} ${stats.hp} HP · ${constructionDuration(world, player, kind) / RULES.ticksPerSecond}s construction, plus travel. ${capabilities}${stats.protection ? ` Field range ${stats.protection.range}; absorbs up to ${stats.protection.absorbPercent}% damage. Each particle absorbs up to ${stats.protection.capacityPerAttack}× its attack before recovery.` : ""}`,
         art: sprites[`${asset}-v2`] ?? sprites[asset],
         cost: `${definition.cost / 1000} ◈`,
         disabled: !availability.allowed,

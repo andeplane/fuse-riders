@@ -6,6 +6,7 @@ import {
   STRUCTURES,
   PARTICLES,
   canAttack,
+  protectionCells,
   depositContribution,
   constructionSiteRequirements,
   particleProfile,
@@ -639,6 +640,15 @@ function particles(w: World, p: Player, edgeLaunch: Map<string, number>) {
 function combat(w: World) {
   const hits = new Map<number, number>();
   const siteHits = new Map<string, number>();
+  const shots: {
+    player: Player;
+    from: number;
+    cell: number;
+    owner: string;
+    site: boolean;
+    id: number;
+    damage: number;
+  }[] = [];
   for (const s of w.structures) {
     const weapon = STRUCTURES[s.kind];
     if (!s.connected || !canAttack(s.kind) || w.tick % weapon.cadence !== 0)
@@ -705,14 +715,87 @@ function combat(w: World) {
     if (!damage) continue;
     s.firingCursor = (s.firingCursor ?? 0) + 1;
     for (const q of ammo) recoverParticle(w, q);
-    if (target.site) {
-      const key = `${target.owner}:${target.cell}`;
+    shots.push({ player: p, from: s.cell, ...target, damage });
+  }
+  // Resolve protection after every gun reserves its salvo. A particle cannot
+  // fire and shield in the same tick. Protectors and victims remain alive until
+  // simultaneous damage is applied, as with offensive fire.
+  // Spend shared protection on brain attacks first, then strongest salvos.
+  // Home-relative cell ties preserve swapped-seat symmetry and make allocation
+  // independent of structure-array insertion order.
+  shots.sort((a, b) => {
+    if (a.owner !== b.owner) return a.owner < b.owner ? -1 : 1;
+    const slot = w.players.find((p) => p.id === a.owner)!.slot;
+    const priority = (shot: typeof a) =>
+      w.structures.find((s) => s.id === shot.id)?.kind === "brain" ? 0 : 1;
+    return (
+      priority(a) - priority(b) ||
+      b.damage - a.damage ||
+      homeCellOrder(w.map, slot, a.cell, b.cell) ||
+      homeCellOrder(w.map, slot, a.from, b.from)
+    );
+  });
+  for (const shot of shots) {
+    let damage = shot.damage;
+    const owner = w.players.find((p) => p.id === shot.owner)!;
+    const protectors = w.structures
+      .filter(
+        (s) =>
+          s.ownerId === owner.id &&
+          s.connected &&
+          protectionCells(w, s.kind, s.cell).has(shot.cell),
+      )
+      .sort((a, b) => homeCellOrder(w.map, owner.slot, a.cell, b.cell));
+    // Fields do not stack their percentage. Several supplied protectors may
+    // share the finite cost when one runs dry.
+    const limit = Math.floor(
+      (shot.damage *
+        Math.max(
+          0,
+          ...protectors.map(
+            (s) => STRUCTURES[s.kind].protection!.absorbPercent,
+          ),
+        )) /
+        100,
+    );
+    let remaining = limit;
+    for (const protector of protectors) {
+      const definition = STRUCTURES[protector.kind].protection!;
+      let absorbed = 0;
+      for (const q of w.particles) {
+        if (remaining <= 0) break;
+        if (
+          q.ownerId !== owner.id ||
+          q.mode !== "stationed" ||
+          q.cell !== protector.cell ||
+          q.destination !== protector.cell
+        )
+          continue;
+        const amount = Math.min(
+          remaining,
+          q.attack * definition.capacityPerAttack,
+        );
+        remaining -= amount;
+        absorbed += amount;
+        recoverParticle(w, q);
+      }
+      if (absorbed) {
+        damage -= absorbed;
+        emit(w, owner, "shielded", {
+          cell: shot.cell,
+          fromCell: protector.cell,
+          amount: absorbed,
+        });
+      }
+    }
+    if (shot.site) {
+      const key = `${shot.owner}:${shot.cell}`;
       siteHits.set(key, (siteHits.get(key) ?? 0) + damage);
-    } else hits.set(target.id, (hits.get(target.id) ?? 0) + damage);
-    p.statistics.damage += damage;
-    emit(w, p, "damage", {
-      cell: target.cell,
-      fromCell: s.cell,
+    } else hits.set(shot.id, (hits.get(shot.id) ?? 0) + damage);
+    shot.player.statistics.damage += damage;
+    emit(w, shot.player, "damage", {
+      cell: shot.cell,
+      fromCell: shot.from,
       amount: damage,
     });
   }
@@ -885,6 +968,7 @@ export function decodeState(raw: unknown): World {
         "researchStarted",
         "income",
         "damage",
+        "shielded",
         "destroyed",
         "eliminated",
       ].includes(o.type) ||
@@ -892,6 +976,10 @@ export function decodeState(raw: unknown): World {
       (o.fromCell !== undefined &&
         !integer(o.fromCell, 0, w.map.cells.length - 1)) ||
       (o.amount !== undefined && !integer(o.amount)) ||
+      (o.type === "shielded" &&
+        (!integer(o.cell, 0, w.map.cells.length - 1) ||
+          !integer(o.fromCell, 0, w.map.cells.length - 1) ||
+          !integer(o.amount, 1))) ||
       (o.resource !== undefined &&
         !["biomass", "insight"].includes(o.resource)) ||
       (o.reason !== undefined &&

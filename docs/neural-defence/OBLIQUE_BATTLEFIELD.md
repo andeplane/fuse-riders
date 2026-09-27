@@ -12,7 +12,7 @@ The AI now queues its intended specialist when only biomass is missing. Previous
 - Shared projection tests map every minimap tile back to itself. Renderer tests retain fixed authoritative tile restrictions and unclipped upright objects.
 - Chromium and WebKit passed the normal timed neuron-to-tower flow at desktop and 390×844 phone sizes: valid upgrade ghost, visible construction clock, retained neuron and one completed tower. These are emulated phones, not physical devices.
 - Both browsers rendered the real rules-6 combat replay at 80, 240 and 650 ms and reproduced `c412ba31`. Combat images are diagnostic renderer captures; the phone upgrade below is an ordinary UI flow.
-- The focused 20-match, 600-second trial now gives Siege wins against Pressure and Relay, and Relay wins against Pressure. Defensive still loses every non-mirror pairing. Six mirror matches time out. This does not prove balance; the full matrix is still required.
+- The full 210-match saving-policy matrix is now complete: 100 matches finish, 110 time out. Five default-arena openings have counter relationships, but Defensive loses all non-mirrors and wide-map stalemates persist. See [exact-source report and raw data](SAVINGS_BALANCE.md). This is historical rules-6 evidence, not balance evidence for the subsequent rules-7 protection candidate.
 
 An earlier, rejected Bastion range-two experiment on source `0a598485` did not stop Pressure beating Defensive (141 seconds, both seats). Its exact patch and 20-match results are preserved alongside these captures. The range change is **not** in the game. Examination of the battle showed fragile supply connections destroyed before Bastions could contribute, motivating the AI saving correction before adding shield mechanics.
 

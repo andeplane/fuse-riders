@@ -96,6 +96,7 @@ for (const map of maps.filter(
           sitesLost: 0,
           biomassLostOnSites: 0,
           paidCancellations: 0,
+          shieldAbsorbed: 0,
         }));
         const builds: Record<string, Record<string, number>> = {
           alpha: {},
@@ -138,6 +139,12 @@ for (const map of maps.filter(
           for (const event of world.outcomes) {
             if (event.type === "damage") contact ??= world.tick;
             if (event.type === "rejected") rejected++;
+            if (event.type === "shielded") {
+              const index = world.players.findIndex(
+                (p) => p.id === event.playerId,
+              );
+              sampled[index]!.shieldAbsorbed += event.amount ?? 0;
+            }
             if (event.type === "constructed") {
               const kind = world.structures.find(
                 (s) => s.cell === event.cell,

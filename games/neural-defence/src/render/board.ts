@@ -403,13 +403,16 @@ export function renderBoard(
   if (world.tick !== cache.tick && !reducedMotion)
     for (const outcome of world.outcomes) {
       if (
-        !["damage", "destroyed", "constructed"].includes(outcome.type) ||
+        !["damage", "shielded", "destroyed", "constructed"].includes(
+          outcome.type,
+        ) ||
         outcome.cell === undefined ||
         cache.pulses.length >= 48
       )
         continue;
       if (
         outcome.type !== "damage" &&
+        outcome.type !== "shielded" &&
         outcome.type !== "destroyed" &&
         outcome.type !== "constructed"
       )
