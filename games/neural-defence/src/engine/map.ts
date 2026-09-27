@@ -27,6 +27,20 @@ export function neighbors(
     .filter(([x, y]) => x! >= 0 && y! >= 0 && x! < map.width && y! < map.height)
     .map(([x, y]) => y! * map.width + x!);
 }
+/** Combat reach expands through open ground; blocked ground cannot relay a shot. */
+export function weaponCells(
+  map: MapDefinition,
+  cell: number,
+  range: number,
+): Set<number> {
+  const cells = new Set(range > 0 ? neighbors(map, cell) : []);
+  for (let hop = 1; hop < range; hop++)
+    for (const n of [...cells])
+      if (map.cells[n]?.terrain === "open")
+        for (const next of neighbors(map, n)) cells.add(next);
+  return cells;
+}
+
 export function loadMap(raw: unknown): MapDefinition {
   if (!raw || typeof raw !== "object" || Array.isArray(raw))
     throw new Error("map: expected object");

@@ -455,6 +455,7 @@ test("context tools remain reachable and stable during updates, using the local 
   f.world.players[1]!.biomass = 99000;
   await f.start();
   assert.deepEqual(f.settings(), {
+    aiStrategy: "balanced",
     instantConstruction: false,
     instantResearch: false,
   });

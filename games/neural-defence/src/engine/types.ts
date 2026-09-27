@@ -1,6 +1,18 @@
 export type Resource = "biomass" | "insight";
+export const AI_STRATEGIES = [
+  "balanced",
+  "pressure",
+  "economy",
+  "siege",
+  "relay",
+  "defensive",
+] as const;
+export type AiStrategy = (typeof AI_STRATEGIES)[number];
+export const isAiStrategy = (value: unknown): value is AiStrategy =>
+  typeof value === "string" && AI_STRATEGIES.some((kind) => kind === value);
 export type ParticleKind = "pulse" | "heavy" | "swift";
-export type BuildKind = "neuron" | "tower" | "siege" | "relay";
+export type BuildKind =
+  "neuron" | "tower" | "siege" | "relay" | "harvester" | "bastion";
 export type StructureKind = "brain" | BuildKind;
 export type Research =
   "growth" | "excitation" | "conduction" | "ballistics" | "resonance";
@@ -18,6 +30,7 @@ export interface MapDefinition {
   spawns: { slot: number; cellIndex: number }[];
 }
 export interface MatchSettings {
+  aiStrategy?: AiStrategy;
   instantConstruction?: boolean;
   instantResearch?: boolean;
   matchId?: string;
@@ -127,7 +140,7 @@ export interface Outcome {
 }
 export interface World {
   formatVersion: 1;
-  rulesVersion: 3;
+  rulesVersion: 4;
   matchId: string;
   tick: number;
   map: MapDefinition;
@@ -141,7 +154,7 @@ export interface World {
   finished: boolean;
 }
 export const RULES = Object.freeze({
-  version: 3,
+  version: 4,
   ticksPerSecond: 20,
   particleCount: 128,
   particleSpeed: 4,

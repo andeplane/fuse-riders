@@ -1,10 +1,13 @@
-import { loadMap, neighbors, homeCellOrder } from "./map.ts";
+import { loadMap, neighbors, homeCellOrder, weaponCells } from "./map.ts";
 import { autoExpandCell } from "./auto-expand.js";
 import {
   CONSTRUCTIONS,
   RESEARCH,
   STRUCTURES,
   PARTICLES,
+  canAttack,
+  depositContribution,
+  constructionSiteRequirements,
   particleProfile,
   isParticleKind,
   researchPrerequisites,
@@ -18,6 +21,7 @@ import {
 } from "./catalog.js";
 import {
   RULES,
+  isAiStrategy,
   type Action,
   type Command,
   type MatchSettings,
@@ -72,8 +76,15 @@ export function createMatch(
   if (
     !record(settings) ||
     Object.keys(settings).some(
-      (k) => !["instantConstruction", "instantResearch", "matchId"].includes(k),
+      (k) =>
+        ![
+          "instantConstruction",
+          "instantResearch",
+          "matchId",
+          "aiStrategy",
+        ].includes(k),
     ) ||
+    (settings.aiStrategy !== undefined && !isAiStrategy(settings.aiStrategy)) ||
     (settings.instantConstruction !== undefined &&
       typeof settings.instantConstruction !== "boolean") ||
     (settings.instantResearch !== undefined &&
@@ -261,7 +272,7 @@ function apply(w: World, c: Command) {
       paid: false,
       progress: 0,
       duration: 0,
-      hp: 20,
+      hp: hp(a.kind),
     });
     emit(w, p, "queued", { cell: a.cell });
   } else if (a.type === "cancelConstruction") {
@@ -285,6 +296,7 @@ function apply(w: World, c: Command) {
     if (
       !s ||
       s.ownerId !== p.id ||
+      !canAttack(s.kind) ||
       (!Object.hasOwn(p.priorities, String(a.cell)) &&
         Object.keys(p.priorities).length >= 8 &&
         a.weight > 0)
@@ -332,10 +344,7 @@ function economy(w: World, p: Player) {
   add("insight", 25);
   w.map.cells.forEach((cell, index) => {
     if (cell.terrain !== "deposit") return;
-    const n = neighbors(w.map, index).filter((c) => {
-      const s = structure(w, c);
-      return s?.connected && s.ownerId === p.id;
-    }).length;
+    const n = depositContribution(w, p.id, index);
     const numerator =
       (p.miningRemainders[index] ?? 0) +
       (cell.resourceKind === "biomass" ? 6000 : 3000) * n;
@@ -478,7 +487,7 @@ function worker(w: World, p: Player) {
       cell: job.cell,
       ownerId: p.id,
       kind: job.kind,
-      hp: hp(job.kind) - (20 - job.hp),
+      hp: job.hp,
       connected: true,
     });
     p.queue.splice(p.queue.indexOf(job), 1);
@@ -617,13 +626,10 @@ function combat(w: World) {
   const siteHits = new Map<string, number>();
   for (const s of w.structures) {
     const weapon = STRUCTURES[s.kind];
-    if (!s.connected || w.tick % weapon.cadence !== 0) continue;
+    if (!s.connected || !canAttack(s.kind) || w.tick % weapon.cadence !== 0)
+      continue;
     const p = w.players.find((p) => p.id === s.ownerId)!;
-    const cells = new Set(neighbors(w.map, s.cell));
-    for (let hop = 1; hop < weapon.range; hop++)
-      for (const n of [...cells])
-        if (w.map.cells[n]?.terrain === "open")
-          for (const c of neighbors(w.map, n)) cells.add(c);
+    const cells = weaponCells(w.map, s.cell, weapon.range);
     const targets = [
       ...w.structures
         .filter((t) => t.ownerId !== s.ownerId && cells.has(t.cell))
@@ -633,6 +639,16 @@ function combat(w: World) {
           id: t.id,
           owner: t.ownerId,
           site: false,
+          priority:
+            t.kind === "brain"
+              ? 0
+              : t.connected &&
+                  canAttack(t.kind) &&
+                  weaponCells(w.map, t.cell, STRUCTURES[t.kind].range).has(
+                    s.cell,
+                  )
+                ? 1
+                : 2,
         })),
       ...w.players
         .filter((o) => o.id !== p.id)
@@ -645,12 +661,18 @@ function combat(w: World) {
               id: -1,
               owner: o.id,
               site: true,
+              priority: 3,
             })),
         ),
     ].sort(
-      (a, b) => a.hp - b.hp || homeCellOrder(w.map, p.slot, a.cell, b.cell),
+      (a, b) =>
+        a.priority - b.priority ||
+        a.hp - b.hp ||
+        homeCellOrder(w.map, p.slot, a.cell, b.cell),
     );
-    const equal = targets.filter((t) => t.hp === targets[0]?.hp);
+    const equal = targets.filter(
+      (t) => t.priority === targets[0]?.priority && t.hp === targets[0]?.hp,
+    );
     const target = equal[(s.firingCursor ?? 0) % equal.length];
     if (!target) continue;
     const ammo = w.particles
@@ -742,7 +764,7 @@ export function step(state: World, commands: readonly Command[] = []): World {
         paid: false,
         progress: 0,
         duration: 0,
-        hp: 20,
+        hp: hp("neuron"),
       });
       automatic.push({ player: p, cell });
     }
@@ -899,7 +921,8 @@ export function decodeState(raw: unknown): World {
         !integer(Number(key), 0, w.map.cells.length - 1) ||
         String(Number(key)) !== key ||
         !integer(value, 1, 3) ||
-        structure(w, Number(key))?.ownerId !== p.id
+        structure(w, Number(key))?.ownerId !== p.id ||
+        !canAttack(structure(w, Number(key))!.kind)
       )
         throw new Error("checkpoint: invalid priorities");
     for (const [cell, n] of Object.entries(p.miningRemainders))
@@ -938,13 +961,15 @@ export function decodeState(raw: unknown): World {
         !integer(j.cell, 0, w.map.cells.length - 1) ||
         w.map.cells[j.cell]?.terrain !== "open" ||
         !isBuildKind(j.kind) ||
+        constructionSiteRequirements(w, j.kind, j.cell).length > 0 ||
         researchPrerequisites(p, CONSTRUCTIONS[j.kind].requires).length > 0 ||
         typeof j.paid !== "boolean" ||
         !integer(j.progress) ||
         !integer(j.duration) ||
         !constructionDurations(j.kind).includes(j.duration) ||
-        !integer(j.hp, 1, 20) ||
-        (!j.paid && (j.progress !== 0 || j.duration !== 0 || j.hp !== 20)) ||
+        !integer(j.hp, 1, hp(j.kind)) ||
+        (!j.paid &&
+          (j.progress !== 0 || j.duration !== 0 || j.hp !== hp(j.kind))) ||
         (j.paid &&
           (j.duration === 0 ? j.progress !== 0 : j.progress >= j.duration)) ||
         (j.paid && occupied.has(j.cell))
@@ -1007,7 +1032,8 @@ export function decodeState(raw: unknown): World {
     const owner = w.players.find((p) => p.id === s.ownerId)!;
     if (
       s.kind !== "brain" &&
-      researchPrerequisites(owner, CONSTRUCTIONS[s.kind].requires).length
+      (researchPrerequisites(owner, CONSTRUCTIONS[s.kind].requires).length ||
+        constructionSiteRequirements(w, s.kind, s.cell).length)
     )
       throw new Error("checkpoint: structure requires research");
   }

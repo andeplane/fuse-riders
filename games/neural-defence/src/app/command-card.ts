@@ -2,6 +2,7 @@ import {
   CONSTRUCTIONS,
   RESEARCH,
   PARTICLES,
+  canAttack,
   researchPrerequisites,
   constructionAvailability,
   researchAvailability,
@@ -73,13 +74,25 @@ export const BUILD_PRESENTATION: Readonly<
       "Range 2. Fires three supplied particles every half second. Quick, economical frontline support.",
     sprite: () => "tower-relay-v3",
   },
+  harvester: {
+    label: "Harvester",
+    description:
+      "Build beside a deposit. Adds two extraction shares while connected; specialist bonuses do not stack on the same deposit. Cannot attack.",
+    sprite: () => "harvester-v1",
+  },
+  bastion: {
+    label: "Bastion",
+    description:
+      "Durable close-range anchor. Range 1, twelve supplied particles each second. Vulnerable to artillery and severed connections.",
+    sprite: () => "tower-bastion-v1",
+  },
 };
 export const RESEARCH_PRESENTATION: Readonly<
   Record<Research, { label: string; description: string }>
 > = {
   growth: {
     label: "Growth",
-    description: "Faster future neuron construction.",
+    description: "Faster neuron construction. Unlocks Harvesters and Bastions.",
   },
   excitation: {
     label: "Excitation",
@@ -104,6 +117,8 @@ export function requirementText(requirement: Requirement): string {
       return "Your brain has been destroyed.";
     case "open-cell":
       return "Select open ground.";
+    case "adjacent-deposit":
+      return "Requires ground directly beside a Biomass or Insight deposit.";
     case "unoccupied-cell":
       return "This hex is already occupied.";
     case "not-queued":
@@ -410,7 +425,10 @@ export function renderCommands(
           description: "Recent network activity.",
         })
       : world.structures.some(
-            (s) => s.cell === selectedCell && s.ownerId === player.id,
+            (s) =>
+              s.cell === selectedCell &&
+              s.ownerId === player.id &&
+              canAttack(s.kind),
           )
         ? commandButton({
             action: "charge",

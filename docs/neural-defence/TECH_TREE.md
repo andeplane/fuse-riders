@@ -1,6 +1,6 @@
 # Fuse Craft tech tree
 
-Current implemented rules, verified **2026-09-25**, engine **rules version 3**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
+Current implemented rules, updated **2026-09-27**, engine **rules version 4**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
 
 The authoritative definitions are [the engine catalog](../../games/neural-defence/src/engine/catalog.ts), [rule constants](../../games/neural-defence/src/engine/types.ts), and [simulation behavior](../../games/neural-defence/src/engine/index.ts). Display names come from [the command card](../../games/neural-defence/src/app/command-card.ts).
 
@@ -18,6 +18,8 @@ flowchart TD
     Start --> Excitation[Excitation]
     Start --> Conduction[Conduction]
     Growth --> Fast[Future neurons build faster]
+    Growth --> Harvester[Harvester: deposit extraction]
+    Growth --> Bastion[Bastion: durable close defense]
     Excitation --> Damage[All particle profiles: +1 damage]
     Excitation --> Ballistics[Ballistics]
     Ballistics --> Siege[Siege tower]
@@ -36,12 +38,13 @@ All costs below use **displayed resource units**: 1 unit = 1,000 engine units. T
 - Biomass pays for construction; Insight pays for research.
 - Passive income is **1 Biomass/second** and **0.5 Insight/second**.
 - Each completed, brain-connected structure adjacent to a deposit adds **1 Biomass/second** or **0.5 Insight/second**, according to the deposit type. Multiple adjacent structures contribute independently. Build beside deposits, not on them.
+- A connected **Harvester** adds two extra shares per adjacent deposit: **+2 Biomass/second** or **+1 Insight/second**. A deposit gets only one specialist bonus per player, even with several adjacent Harvesters. Its ordinary adjacency share still counts. Losing its brain connection stops both contributions.
 
 ## Research
 
 | Research   | Prerequisite | Insight | Time | Effect / unlocks                                                                                                           |
 | ---------- | ------------ | ------: | ---: | -------------------------------------------------------------------------------------------------------------------------- |
-| Growth     | None         |      10 | 20 s | Reduces future neuron construction from 6 s to 4 s.                                                                        |
+| Growth     | None         |      10 | 20 s | Reduces future neuron construction from 6 s to 4 s; unlocks Harvester and Bastion.                                         |
 | Excitation | None         |      10 | 20 s | Adds 1 damage per particle to every profile; unlocks Ballistics research.                                                  |
 | Conduction | None         |      10 | 20 s | Removes 1 tick from particle travel per link; builder travel falls from 4 to 3 ticks per link. Unlocks Resonance research. |
 | Ballistics | Excitation   |      20 | 20 s | Unlocks Siege towers and Heavy particles.                                                                                  |
@@ -53,15 +56,19 @@ Growth determines a construction job's duration when the builder is dispatched; 
 
 ## Structures
 
-| Structure   | Catalog ID | Prerequisite                        | Biomass |           Build time |  HP | Range | Volley cap | Firing interval |
-| ----------- | ---------- | ----------------------------------- | ------: | -------------------: | --: | ----: | ---------: | --------------: |
-| Brain       | `brain`    | Starting structure; cannot be built |       — |                    — | 240 |     1 |          4 |             1 s |
-| Neuron      | `neuron`   | None                                |      20 | 6 s; 4 s with Growth |  60 |     1 |          4 |             1 s |
-| Pulse tower | `tower`    | None                                |      60 |                 12 s | 120 |     2 |          8 |             1 s |
-| Siege tower | `siege`    | Ballistics                          |      80 |                 14 s |  80 |     3 |         12 |             2 s |
-| Relay tower | `relay`    | Resonance                           |      45 |                  8 s |  90 |     2 |          3 |           0.5 s |
+| Structure   | Catalog ID  | Prerequisite                        | Biomass |           Build time |  HP | Range | Volley cap | Firing interval |
+| ----------- | ----------- | ----------------------------------- | ------: | -------------------: | --: | ----: | ---------: | --------------: |
+| Brain       | `brain`     | Starting structure; cannot be built |       — |                    — | 240 |     1 |          4 |             1 s |
+| Neuron      | `neuron`    | None                                |      20 | 6 s; 4 s with Growth |  60 |     1 |          4 |             1 s |
+| Pulse tower | `tower`     | None                                |      60 |                 12 s | 120 |     2 |          8 |             1 s |
+| Siege tower | `siege`     | Ballistics                          |      80 |                 14 s |  80 |     3 |         12 |             2 s |
+| Relay tower | `relay`     | Resonance                           |      45 |                  8 s |  90 |     2 |          3 |           0.5 s |
+| Harvester   | `harvester` | Growth; adjacent deposit            |      60 |                 12 s |  70 |     0 |          0 |               — |
+| Bastion     | `bastion`   | Growth                              |      70 |                 16 s | 240 |     1 |         12 |             1 s |
 
-Build times exclude builder travel and waiting. Range is measured in hex steps; attacks beyond adjacent tiles need a route through open intermediate tiles. The volley cap is the maximum number of supplied particles fired, **not fixed damage**. Actual damage is the sum of the fired particles' attack values. All structures, including brains and neurons, need stationed particles to fire. Disconnected structures cannot mine or fire.
+Build times exclude builder travel and waiting. Range is measured in hex steps; attacks beyond adjacent tiles need a route through open intermediate tiles. The volley cap is the maximum number of supplied particles fired, **not fixed damage**. Actual damage is the sum of the fired particles' attack values. Armed structures, including brains and neurons, need stationed particles to fire. Harvesters cannot fire or receive attack-priority orders. Disconnected structures cannot mine or fire.
+
+Weapons prioritize an enemy brain in range, then completed weapons able to hit them, then other completed structures, then paid construction. Within a priority, they target the lowest HP and rotate equivalent targets deterministically. A new scaffold cannot indefinitely distract a weapon from a completed threat.
 
 Map terrain is authoritative: rocks occupy blocked cells; resource deposits occupy deposit cells. Neither accepts construction or conducts the network. The floor texture depicts traversable ground only; obstacle artwork and the minimap derive from these cell categories. Cosmetic variants cannot change a tile's gameplay category.
 
@@ -72,6 +79,8 @@ Choose **Build → structure → tile**. A plan requires completed prerequisite 
 **Disconnected plans are allowed.** They remain unpaid ghosts until construction can start. Every buildable structure requires at least **one adjacent completed friendly structure connected back to the brain** before dispatch, plus sufficient Biomass and an idle builder. A queued ghost is not a connection. The builder must physically travel through the network.
 
 The queue dispatches the first currently eligible job, so a distant plan does not block a later connecting plan. Biomass is charged at dispatch. One builder means one active construction job per player.
+
+Paid construction has the catalog HP of its building and can be attacked immediately. Damage persists through completion; construction does not heal it. Unpaid plans cannot be attacked. This makes building durability meaningful during construction as well as afterward. Cancelling paid work gives no refund.
 
 The brain's **Auto expand** toggle requires no research. It proposes neurons when resources, the builder and a valid connected tile are available. It stays enabled while waiting, respects manual queues, and does not automatically research or choose specialist towers. Turning it off does not cancel the active construction.
 

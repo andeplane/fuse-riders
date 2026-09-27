@@ -52,6 +52,7 @@ export function particleProfile(player: Readonly<Player>) {
   };
 }
 export interface ConstructionDefinition {
+  readonly adjacentDeposit?: boolean;
   readonly cost: number;
   readonly duration: number;
   readonly connectedNeighbors: number;
@@ -98,6 +99,21 @@ export const CONSTRUCTIONS: Readonly<
     requires: ["resonance"],
     durationUpgrades: [],
   },
+  harvester: {
+    cost: 60_000,
+    duration: 240,
+    connectedNeighbors: 1,
+    adjacentDeposit: true,
+    requires: ["growth"],
+    durationUpgrades: [],
+  },
+  bastion: {
+    cost: 70_000,
+    duration: 320,
+    connectedNeighbors: 1,
+    requires: ["growth"],
+    durationUpgrades: [],
+  },
 };
 export const RESEARCH: Readonly<Record<Research, ResearchDefinition>> = {
   growth: {
@@ -122,7 +138,13 @@ export const RESEARCH: Readonly<Record<Research, ResearchDefinition>> = {
 export const STRUCTURES: Readonly<
   Record<
     StructureKind,
-    Readonly<{ hp: number; range: number; cadence: number; volley: number }>
+    Readonly<{
+      hp: number;
+      range: number;
+      cadence: number;
+      volley: number;
+      miningBonus?: number;
+    }>
   >
 > = Object.freeze({
   brain: Object.freeze({ hp: 240, range: 1, cadence: 20, volley: 4 }),
@@ -130,7 +152,47 @@ export const STRUCTURES: Readonly<
   tower: Object.freeze({ hp: 120, range: 2, cadence: 20, volley: 8 }),
   siege: Object.freeze({ hp: 80, range: 3, cadence: 40, volley: 12 }),
   relay: Object.freeze({ hp: 90, range: 2, cadence: 10, volley: 3 }),
+  harvester: Object.freeze({
+    hp: 70,
+    range: 0,
+    cadence: 20,
+    volley: 0,
+    miningBonus: 2,
+  }),
+  bastion: Object.freeze({ hp: 240, range: 1, cadence: 20, volley: 12 }),
 });
+export const canAttack = (kind: StructureKind): boolean =>
+  STRUCTURES[kind].volley > 0;
+
+/** A deposit receives its ordinary adjacent contributions and one best specialist bonus. */
+export function depositContribution(
+  world: Readonly<World>,
+  playerId: string,
+  cell: number,
+): number {
+  const adjacent = new Set(neighbors(world.map, cell));
+  const miners = world.structures.filter(
+    (s) => s.connected && s.ownerId === playerId && adjacent.has(s.cell),
+  );
+  return (
+    miners.length +
+    Math.max(0, ...miners.map((s) => STRUCTURES[s.kind].miningBonus ?? 0))
+  );
+}
+
+export function constructionSiteRequirements(
+  world: Readonly<World>,
+  kind: BuildKind,
+  cell: number | null,
+): Requirement[] {
+  return CONSTRUCTIONS[kind].adjacentDeposit &&
+    (cell === null ||
+      !neighbors(world.map, cell).some(
+        (n) => world.map.cells[n]?.terrain === "deposit",
+      ))
+    ? [{ kind: "adjacent-deposit" }]
+    : [];
+}
 // These rules are shared with presentation, but cannot be changed by it.
 for (const definition of Object.values(CONSTRUCTIONS)) {
   Object.freeze(definition.requires);
@@ -159,6 +221,7 @@ export const constructionDurations = (kind: BuildKind): readonly number[] => [
 export type Requirement =
   | { kind: "alive" }
   | { kind: "open-cell" }
+  | { kind: "adjacent-deposit" }
   | { kind: "unoccupied-cell" }
   | { kind: "not-queued" }
   | { kind: "queue-space"; limit: number }
@@ -219,6 +282,7 @@ export function constructionQueueAvailability(
   cell: number | null,
 ): Availability {
   const missing = constructionAvailability(player, kind).missing;
+  missing.push(...constructionSiteRequirements(world, kind, cell));
   if (cell === null || world.map.cells[cell]?.terrain !== "open")
     missing.push({ kind: "open-cell" });
   if (cell !== null && occupied(world, cell))
@@ -238,6 +302,7 @@ export function constructionDispatchAvailability(
   const missing = [
     ...living(player),
     ...researchPrerequisites(player, definition.requires),
+    ...constructionSiteRequirements(world, job.kind, job.cell),
   ];
   if (player.worker.mode !== "idle" || player.queue.some((j) => j.paid))
     missing.push({ kind: "idle-builder" });

@@ -1006,6 +1006,36 @@ select {
 .structure-core {
   fill: var(--team);
 }
+.contact-shadow {
+  pointer-events: none;
+}
+.extraction-flow {
+  fill: none;
+  stroke-width: 2;
+  stroke-dasharray: 3 13;
+  stroke-linecap: round;
+  opacity: 0.65;
+  animation: extraction-flow 1.2s linear infinite;
+}
+.extraction-biomass {
+  stroke: #bce963;
+}
+.extraction-insight {
+  stroke: #d5a0ff;
+}
+@keyframes extraction-flow {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+#nd-board[data-reduced-motion="true"] .extraction-flow {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .extraction-flow {
+    animation: none;
+  }
+}
 .structure-hp-bg {
   fill: #030919;
 }

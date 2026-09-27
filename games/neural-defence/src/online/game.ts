@@ -23,6 +23,7 @@ import {
 } from "../engine/index.js";
 import { prepareCombatLab, labCommands } from "./combat-lab.js";
 import { aiCommands } from "../engine/ai.js";
+import { isAiStrategy } from "../engine/types.js";
 
 export interface NeuralSettings {
   map: MapDefinition;
@@ -56,9 +57,12 @@ export function parseSettings(x: unknown): NeuralSettings | undefined {
     return;
   if (
     Object.keys(x.engine).some(
-      (k) => !["instantConstruction", "instantResearch"].includes(k),
+      (k) =>
+        !["instantConstruction", "instantResearch", "aiStrategy"].includes(k),
     ) ||
-    Object.values(x.engine).some((v) => typeof v !== "boolean")
+    Object.entries(x.engine).some(([key, value]) =>
+      key === "aiStrategy" ? !isAiStrategy(value) : typeof value !== "boolean",
+    )
   )
     return;
   try {
@@ -218,7 +222,7 @@ export const neuralGame: RollbackGame<
   NeuralSettings
 > = {
   id: "neural-defence",
-  rules: "neural-defence-3-skirmish-1",
+  rules: "neural-defence-4-skirmish-1",
   isEntry,
   createRoom: (matchId, settings) => ({
     tick: 0,
@@ -272,7 +276,13 @@ export const neuralGame: RollbackGame<
       if (room.settings.mode === "combat-lab")
         commands.push(...labCommands(room.world));
       if (room.settings.mode === "skirmish")
-        commands.push(...aiCommands(room.world, "ai-opponent"));
+        commands.push(
+          ...aiCommands(
+            room.world,
+            "ai-opponent",
+            room.world.settings.aiStrategy,
+          ),
+        );
       room.world = step(room.world, commands);
       if (room.world.finished) room.stage = "over";
     }

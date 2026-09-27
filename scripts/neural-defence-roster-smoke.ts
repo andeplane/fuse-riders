@@ -86,6 +86,8 @@ await Promise.all(
       await build(page, "neuron", 26); // Mine Insight beside cell 37.
       await build(page, "neuron", 27); // Mine Biomass beside cell 39.
       console.log(`${name}: connected resource expansion completed`);
+      await research(page, "growth");
+      const harvester = await build(page, "harvester", 38);
       await research(page, "excitation");
       await research(page, "ballistics");
       console.log(`${name}: Ballistics unlocked through ordinary research`);
@@ -94,7 +96,8 @@ await Promise.all(
       const siege = await build(page, "siege", 14);
       await research(page, "resonance");
       const relay = await build(page, "relay", 25);
-      assert.equal(new Set([pulse, siege, relay]).size, 3);
+      const bastion = await build(page, "bastion", 24);
+      assert.equal(new Set([pulse, siege, relay, harvester, bastion]).size, 5);
       await root(page);
       await page.locator('[data-action="panel-particles"]').click();
       for (const kind of ["heavy", "swift"]) {
@@ -111,6 +114,7 @@ await Promise.all(
         ["tower", 12, pulse],
         ["siege", 14, siege],
         ["relay", 25, relay],
+        ["bastion", 24, bastion],
       ] as const) {
         const head = await page
           .locator(`.structure-${kind}[data-cell="${cell}"] image`)
@@ -143,6 +147,23 @@ await Promise.all(
           { timeout: 15_000 },
         );
       }
+      const economic = page
+        .locator('.structure-harvester[data-cell="38"] image')
+        .first();
+      const economicHead = await economic.evaluate((node) => {
+        const image = node as SVGImageElement;
+        const point = new DOMPoint(
+          Number(image.getAttribute("x")) +
+            Number(image.getAttribute("width")) / 2,
+          Number(image.getAttribute("y")) +
+            Number(image.getAttribute("height")) * 0.18,
+        ).matrixTransform(image.getScreenCTM()!);
+        return { x: point.x, y: point.y };
+      });
+      await page.mouse.click(economicHead.x, economicHead.y);
+      assert.equal(await page.locator('[data-action="charge"]').count(), 0);
+      assert.equal(await page.locator("#priority-slider").count(), 0);
+      assert.match(await page.locator(".inspector").innerText(), /Extracting/);
       await page.screenshot({ path: `/tmp/neural-roster-${name}-desktop.png` });
       await page.setViewportSize({ width: 390, height: 844 });
       // Use ordinary keyboard navigation to bring the selected base back into

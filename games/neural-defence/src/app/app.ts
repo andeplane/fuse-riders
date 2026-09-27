@@ -1,4 +1,9 @@
 import type { Action, MapDefinition, World, Outcome } from "../engine/types.js";
+import {
+  AI_STRATEGIES,
+  isAiStrategy,
+  type AiStrategy,
+} from "../engine/types.js";
 import { loadMap, RULES } from "../engine/index.js";
 import { updateContent } from "./dom-update.js";
 import { minimapMarkup, minimapCell } from "../render/minimap.js";
@@ -14,6 +19,8 @@ import {
 import type { BoardCamera, CameraFactory } from "../render/camera.js";
 import {
   isBuildKind,
+  canAttack,
+  STRUCTURES,
   isResearchKind,
   constructionAvailability,
   constructionQueueAvailability,
@@ -100,6 +107,7 @@ export function mountNeuralDefence(
   dependencies.audio?.configure(preferences);
   let instantConstruction = false;
   let instantResearch = false;
+  let aiStrategy: AiStrategy = "balanced";
   let notices: Outcome[] = [];
   let noticeTick = -1;
   let noticeMatch = "";
@@ -237,6 +245,7 @@ export function mountNeuralDefence(
     render();
     try {
       const settings = {
+        aiStrategy,
         instantConstruction: dependencies.debug && instantConstruction,
         instantResearch: dependencies.debug && instantResearch,
       };
@@ -326,6 +335,7 @@ export function mountNeuralDefence(
         <aside class="nd-panel setup-summary"><p class="section-index">SESSION BRIEF</p>
         <h2>${mode === "skirmish" ? "Take the field" : mode === "sandbox" ? "An open beginning" : "A controlled confrontation"}</h2>
         <p>${mode === "skirmish" ? "You versus one AI · Equal resources · Destroy the enemy brain" : `One local player · No AI controller${mode === "combat-lab" ? " · Scripted opposing network" : ""}`}</p>
+        ${mode === "skirmish" ? `<label class="field-label" for="strategy-picker">Opponent opening</label><select id="strategy-picker" data-field="strategy">${AI_STRATEGIES.map((kind) => `<option value="${kind}" ${kind === aiStrategy ? "selected" : ""}>${kind[0]!.toUpperCase() + kind.slice(1)}</option>`).join("")}</select><p class="muted">Different openings, equal resources. Opponents can adapt when countered.</p>` : ""}
         ${
           dependencies.debug
             ? `<fieldset class="debug-options"><legend>Debug options</legend>
@@ -402,7 +412,8 @@ export function mountNeuralDefence(
         : `<div class="selection-summary"><div class="tile-heading"><span>HEX ${selectedCell}</span><strong>${structure ? `${structure.kind.toUpperCase()} · ${structure.hp} HP` : cell?.terrain === "deposit" ? `${cell.resourceKind.toUpperCase()} DEPOSIT` : cell?.terrain === "blocked" ? "BLOCKED GROUND" : "OPEN GROUND"}</strong></div>
         ${structure ? `<span title="${structure.connected ? "Connected to brain" : "Disconnected from brain"}${incoming.length ? ` · next arrival in ${Math.ceil((Math.min(...incoming.map((p) => p.arrivesAt)) - world.tick) / RULES.ticksPerSecond)}s` : ""}">${structure.connected ? "Connected" : "Disconnected"} · ${count} particles · ${incoming.length} incoming</span>` : ""}
         ${cell?.terrain === "deposit" ? '<span title="Connected neighboring structures harvest this deposit. Several players may share it.">Expand alongside to mine.</span>' : ""}</div>
-        ${owned ? `${priority === 0 && structure.kind !== "brain" ? '<span class="supply-warning">No supply assigned — use D / Charge to arm this node.</span>' : ""}<div class="priority-control"><label class="field-label" for="priority-slider">Attack priority · ${priority}/3</label><input id="priority-slider" data-field="priority" type="range" min="0" max="3" step="1" value="${priority}"></div>` : ""}
+        ${owned && canAttack(structure.kind) ? `${priority === 0 && structure.kind !== "brain" ? '<span class="supply-warning">No supply assigned — use D / Charge to arm this node.</span>' : ""}<div class="priority-control"><label class="field-label" for="priority-slider">Attack priority · ${priority}/3</label><input id="priority-slider" data-field="priority" type="range" min="0" max="3" step="1" value="${priority}"></div>` : ""}
+        ${structure && STRUCTURES[structure.kind].miningBonus ? `<p>${structure.connected ? "Extracting" : "Disconnected — extraction paused"} · +${STRUCTURES[structure.kind].miningBonus} shares per adjacent deposit. One specialist bonus per deposit; no attack supply needed.</p>` : ""}
         ${queued ? `<span class="construction-progress" title="Queued construction waits for support, builder and resources.">${queued.paid ? `Growing · ${Math.ceil((queued.duration - queued.progress) / RULES.ticksPerSecond)}s remaining` : constructionDispatchAvailability(world, player, queued).missing.map(requirementText).join(" ") || "Ready for construction"}</span>` : ""}`;
     const researchNames = Object.fromEntries(
       Object.entries(RESEARCH_PRESENTATION).map(([id, item]) => [
@@ -845,7 +856,12 @@ export function mountNeuralDefence(
       return;
     }
     if (target.dataset.field === "map") void loadSelectedMap(target.value);
-    else if (target.dataset.field === "spawn") {
+    else if (
+      target.dataset.field === "strategy" &&
+      isAiStrategy(target.value)
+    ) {
+      aiStrategy = target.value;
+    } else if (target.dataset.field === "spawn") {
       selectedSlot = Number(target.value);
       render();
     } else if (target.dataset.field === "priority" && selectedCell !== null) {

@@ -10,11 +10,16 @@ The tactical minimap shows the actual blocked terrain, deposits, structures and 
 
 Settings include sound, volume and reduced motion. Sound starts muted by default; `?mute` forces silence regardless of the saved setting. Short synthesized cues follow resolved building, research, combat and match-result events. They do not drive the simulation.
 
-Each player has one builder and 128 reusable attack particles. Build neurons to expand the network and claim adjacent deposits. Disconnected structures stop mining and firing. Three towers offer different roles:
+Choose an opponent opening in setup: Balanced, Pressure, Economy, Siege, Relay or Defensive. All use normal commands, resources and timing; they can adapt to enemy artillery.
+
+Each player has one builder and 128 reusable attack particles. Build neurons to expand the network and claim adjacent deposits. Disconnected structures stop mining and firing. Four towers offer different roles:
 
 - **Pulse:** sturdy, strong firepower at medium range.
 - **Siege:** longer reach, but costly, fragile and slower between volleys.
 - **Relay:** cheaper, quicker construction and frequent smaller volleys.
+- **Bastion:** durable close-range defense, unlocked by Growth; artillery can outrange it.
+
+Growth also unlocks the **Harvester**. Build it beside deposits for extra extraction; bonuses do not stack on a deposit. It conducts the network but has no weapon or Charge order. Construction uses each building's real durability and retains damage on completion.
 
 Press **Q / Particles** to choose Pulse, Heavy or Swift profiles. Heavy hits harder but travels and recovers slowly; Swift reinforces and recovers quickly but deals less damage per shot. The choice applies when a particle returns to or departs from the brain; existing frontline and in-flight profiles do not change instantly. Research Growth, Excitation and Conduction, then Ballistics or Resonance to unlock specialist towers and profiles. Exact costs, requirements and timing live in the [engine catalog](../../games/neural-defence/src/engine/catalog.ts).
 

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { aiCommands } from "../src/engine/ai.js";
+import { aiCommands, AI_STRATEGIES } from "../src/engine/ai.js";
 import {
   createMatch,
   loadMap,
@@ -56,35 +56,36 @@ test("opposite starts make rotated opening decisions without an absolute-cell pr
     right.players.find((p) => p.id === "ai")!.statistics,
   );
 });
-test("AI grows and researches using valid ordinary commands and replays from checkpoint", () => {
-  let world = createMatch(map, {}, [
-    { id: "human", slot: 0 },
-    { id: "ai", slot: 1 },
-  ]);
-  const before = encodeState(world);
-  aiCommands(world, "ai");
-  assert.equal(encodeState(world), before, "policy must not mutate input");
-  let restored = decodeState(before);
-  for (let tick = 0; tick < 1000; tick++) {
-    world = step(world, aiCommands(world, "ai"));
-    restored = step(restored, aiCommands(restored, "ai"));
-    assert.equal(
-      world.outcomes.some((e) => e.type === "rejected"),
-      false,
+for (const strategy of AI_STRATEGIES)
+  test(`${strategy} AI grows using valid commands and replays from checkpoint`, () => {
+    let world = createMatch(map, {}, [
+      { id: "human", slot: 0 },
+      { id: "ai", slot: 1 },
+    ]);
+    const before = encodeState(world);
+    aiCommands(world, "ai", strategy);
+    assert.equal(encodeState(world), before, "policy must not mutate input");
+    let restored = decodeState(before);
+    for (let tick = 0; tick < 1000; tick++) {
+      world = step(world, aiCommands(world, "ai", strategy));
+      restored = step(restored, aiCommands(restored, "ai", strategy));
+      assert.equal(
+        world.outcomes.some((e) => e.type === "rejected"),
+        false,
+      );
+      if (tick % 100 === 0) restored = decodeState(encodeState(restored));
+    }
+    assert.equal(hashState(world), hashState(restored));
+    const ai = world.players.find((p) => p.id === "ai")!;
+    assert.ok(ai.statistics.built >= 3);
+    assert.ok(ai.research.length > 0 || ai.researchJob);
+    assert.ok(
+      world.particles.some(
+        (p) => p.ownerId === "ai" && p.cell !== map.spawns[1]!.cellIndex,
+      ),
     );
-    if (tick % 100 === 0) restored = decodeState(encodeState(restored));
-  }
-  assert.equal(hashState(world), hashState(restored));
-  const ai = world.players.find((p) => p.id === "ai")!;
-  assert.ok(ai.statistics.built >= 3);
-  assert.ok(ai.research.length > 0 || ai.researchJob);
-  assert.ok(
-    world.particles.some(
-      (p) => p.ownerId === "ai" && p.cell !== map.spawns[1]!.cellIndex,
-    ),
-  );
-  assert.equal(
-    world.players.find((p) => p.id === "human")!.statistics.built,
-    0,
-  );
-});
+    assert.equal(
+      world.players.find((p) => p.id === "human")!.statistics.built,
+      0,
+    );
+  });

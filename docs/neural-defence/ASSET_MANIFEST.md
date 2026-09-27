@@ -1,6 +1,8 @@
 # Fuse Craft asset inventory
 
-## Current presentation (2026-09-25)
+## Current presentation (2026-09-27)
+
+The expansion adds `harvester-v1.png` and `tower-bastion-v1.png`: distinct economic chambers and a broad armored defensive silhouette. [Exact prompts and original paths](art/EXPANSION_SPRITES.md) document built-in image generation. Both share the existing material palette and the same world/ghost/card/portrait art resolver.
 
 The current renderer uses `brain-v3.png`, three neuron forms (`neuron-v3.png`, `neuron-lobed-v4.png`, `neuron-folded-v4.png`), `tower-pulse-v3.png`, `tower-siege-v3.png`, and `tower-relay-v3.png`. They are individual transparent sculpted sprites, tinted by owner. World buildings, placement ghosts and portraits share these identities; the build catalog uses representative forms. Selection and status remain separate presentation layers. Completed neurons have stable anatomical, size and orientation variation and reduced-motion-aware breathing; links represent actual friendly adjacency. [Neuron form prompts and selection verification](art/NEURON_FORMS.md) document the follow-up.
 

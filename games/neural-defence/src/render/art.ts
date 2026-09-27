@@ -9,6 +9,8 @@ export const NEURON_ART = [
 
 export function structureArt(kind: StructureKind, cell?: number): string {
   if (kind === "brain") return "brain-v3";
+  if (kind === "harvester") return "harvester-v1";
+  if (kind === "bastion") return "tower-bastion-v1";
   if (kind === "neuron") {
     if (cell === undefined) return NEURON_ART[0];
     const seed = (Math.imul(cell + 1, 0x45d9f3b) ^ ((cell + 1) >>> 3)) >>> 0;

@@ -1,5 +1,6 @@
 import type { World, StructureKind } from "../engine/types.js";
 import { STRUCTURES } from "../engine/catalog.js";
+import { neighbors } from "../engine/map.js";
 import { structureArt, teamArtFilter } from "./art.js";
 import { terrainArt, WALKABLE_GROUND } from "./terrain-art.js";
 
@@ -189,6 +190,17 @@ function linkMarkup(world: Readonly<World>): string {
   const nodes = new Map(world.structures.map((s) => [s.cell, s]));
   const lines: string[] = [];
   for (const s of nodes.values()) {
+    if (s.connected && STRUCTURES[s.kind].miningBonus) {
+      const to = hexCenter(world.map.width, s.cell);
+      for (const cell of neighbors(world.map, s.cell)) {
+        const deposit = world.map.cells[cell];
+        if (deposit?.terrain !== "deposit") continue;
+        const from = hexCenter(world.map.width, cell);
+        lines.push(
+          `<path class="extraction-flow extraction-${deposit.resourceKind}" d="M${from.x} ${from.y}L${to.x} ${to.y}"/>`,
+        );
+      }
+    }
     const row = Math.floor(s.cell / world.map.width),
       col = s.cell % world.map.width;
     const candidates: readonly (readonly [number, number])[] = [
