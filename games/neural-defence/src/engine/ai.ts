@@ -267,9 +267,26 @@ export function aiCommands(
     const isolated = world.structures.filter(
       (s) => s.ownerId === playerId && !s.connected,
     );
+    // A dormant enemy gun can reactivate as soon as its own gap is repaired.
+    // Repeatedly reconnecting with a fragile neuron creates a synchronized
+    // cut/rebuild loop on narrow fronts; reserve a durable conduit instead.
+    const repairKind = (cell: number): BuildKind => {
+      const dormantThreat = world.structures.some(
+        (s) =>
+          s.ownerId !== playerId &&
+          !s.connected &&
+          canAttack(s.kind) &&
+          reach.get(s.cell)!.has(cell),
+      );
+      if (dormantThreat) {
+        if (eligible("bastion", cell)) return "bastion";
+        if (eligible("tower", cell)) return "tower";
+      }
+      return "neuron";
+    };
     const repairs = sites.filter(
       (cell) =>
-        eligible("neuron", cell) &&
+        eligible(repairKind(cell), cell) &&
         threats(cell).length === 0 &&
         neighbors(world.map, cell).some((n) =>
           isolated.some((s) => s.cell === n),
@@ -285,7 +302,8 @@ export function aiCommands(
         threats(a).length - threats(b).length ||
         cellOrder(a, b),
     );
-    if (repairs[0] !== undefined) choice = { kind: "neuron", cell: repairs[0] };
+    if (repairs[0] !== undefined)
+      choice = { kind: repairKind(repairs[0]), cell: repairs[0] };
     if (
       !choice &&
       own.filter((s) => s.kind === "harvester").length < policy.harvesters &&

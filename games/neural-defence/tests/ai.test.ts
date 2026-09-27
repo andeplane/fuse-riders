@@ -53,6 +53,31 @@ test("AI reconnects an isolated investment before expanding toward the enemy", (
     kind: "neuron",
     cell: 1,
   });
+  // A currently disconnected enemy gun still matters to the durability of a
+  // repaired connection: both networks may reactivate together.
+  world.structures.push({
+    id: world.nextEntityId++,
+    cell: 10,
+    ownerId: "b",
+    kind: "siege",
+    hp: 80,
+    connected: false,
+  });
+  for (const [research, kind] of [
+    [[], "tower"],
+    [["growth"], "bastion"],
+  ] as const) {
+    world.players[0]!.research = [...research];
+    const commands = aiCommands(world, "a");
+    assert.deepEqual(
+      commands.find((c) => c.action.type === "queueConstruction")?.action,
+      { type: "queueConstruction", kind, cell: 1 },
+    );
+    assert.equal(
+      step(world, commands).outcomes.some((o) => o.type === "rejected"),
+      false,
+    );
+  }
 });
 for (const biomass of [20_000, 100_000])
   test(`defensive opening reserves its anchor at ${biomass} biomass`, () => {
