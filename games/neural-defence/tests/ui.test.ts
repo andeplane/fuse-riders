@@ -6,7 +6,20 @@ import { createAttractScene } from "../src/app/attract-scene.js";
 import type { MapRepository, MapSummary } from "../src/app/contracts.js";
 import type { Action, MatchSettings } from "../src/engine/types.js";
 import { RESEARCH, researchPrerequisites } from "../src/engine/catalog.js";
-import { requirementText } from "../src/app/command-card.js";
+import { requirementText, renderCommands } from "../src/app/command-card.js";
+
+test("Siege command help explains its minimum range before purchase", () => {
+  const world = createAttractScene();
+  const { document } = parseHTML(
+    `<html><body>${renderCommands(world, world.players[0]!, null, "build", 0)}</body></html>`,
+  );
+  const help = document.querySelector("#help-build-siege")!.textContent!;
+  assert.match(
+    help,
+    /Fires exactly 3 traversable hex steps away; cannot hit within 2 steps/,
+  );
+  assert.match(help, /Protect it with close-range weapons/);
+});
 
 function deferred<T>() {
   let resolve!: (value: T) => void;

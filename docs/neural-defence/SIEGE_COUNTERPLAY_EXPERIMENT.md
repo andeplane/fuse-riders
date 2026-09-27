@@ -1,5 +1,9 @@
 # Siege counterplay experiment and implementation design
 
+The selected candidate is now implemented as rules 9 on this branch; see
+`SIEGE_COUNTERPLAY.md` for current behavior and production verification. The
+experiments below remain historical evidence, not deployed or full-map results.
+
 The following experiments ran in isolated
 copies of the engine from `0e0cd8e8`; none of these rule changes is shipped yet.
 After these trials, the completed policy-6 matrix showed a regression (56 versus

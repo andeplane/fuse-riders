@@ -1,4 +1,4 @@
-import { loadMap, neighbors, homeCellOrder, weaponCells } from "./map.ts";
+import { loadMap, neighbors, homeCellOrder } from "./map.ts";
 import { autoExpandCell } from "./auto-expand.js";
 import {
   CONSTRUCTIONS,
@@ -6,6 +6,7 @@ import {
   STRUCTURES,
   PARTICLES,
   canAttack,
+  attackCells,
   protectionCells,
   depositContribution,
   constructionSiteRequirements,
@@ -655,7 +656,7 @@ function combat(w: World) {
     if (!s.connected || !canAttack(s.kind) || w.tick % weapon.cadence !== 0)
       continue;
     const p = w.players.find((p) => p.id === s.ownerId)!;
-    const cells = weaponCells(w.map, s.cell, weapon.range);
+    const cells = attackCells(w.map, s.cell, s.kind);
     const targets = [
       ...w.structures
         .filter((t) => t.ownerId !== s.ownerId && cells.has(t.cell))
@@ -670,9 +671,7 @@ function combat(w: World) {
               ? 0
               : t.connected &&
                   canAttack(t.kind) &&
-                  weaponCells(w.map, t.cell, STRUCTURES[t.kind].range).has(
-                    s.cell,
-                  )
+                  attackCells(w.map, t.cell, t.kind).has(s.cell)
                 ? 1
                 : 2,
         })),

@@ -147,6 +147,7 @@ export const STRUCTURES: Readonly<
     Readonly<{
       hp: number;
       range: number;
+      minRange?: number;
       cadence: number;
       volley: number;
       miningBonus?: number;
@@ -161,7 +162,13 @@ export const STRUCTURES: Readonly<
   brain: Object.freeze({ hp: 240, range: 1, cadence: 20, volley: 4 }),
   neuron: Object.freeze({ hp: 60, range: 1, cadence: 20, volley: 4 }),
   tower: Object.freeze({ hp: 120, range: 2, cadence: 20, volley: 8 }),
-  siege: Object.freeze({ hp: 80, range: 3, cadence: 80, volley: 4 }),
+  siege: Object.freeze({
+    hp: 80,
+    range: 3,
+    minRange: 3,
+    cadence: 80,
+    volley: 4,
+  }),
   relay: Object.freeze({ hp: 90, range: 2, cadence: 10, volley: 3 }),
   harvester: Object.freeze({
     hp: 70,
@@ -184,6 +191,21 @@ export const STRUCTURES: Readonly<
 });
 export const canAttack = (kind: StructureKind): boolean =>
   STRUCTURES[kind].volley > 0;
+
+/** Attack range uses traversable hex steps, like the existing maximum reach. */
+export function attackCells(
+  map: World["map"],
+  cell: number,
+  kind: StructureKind,
+): ReadonlySet<number> {
+  const definition = STRUCTURES[kind];
+  const reach = weaponCells(map, cell, definition.range);
+  if (!definition.minRange) return reach;
+  const cells = new Set(reach);
+  for (const near of weaponCells(map, cell, definition.minRange - 1))
+    cells.delete(near);
+  return cells;
+}
 
 export function protectionCells(
   world: Readonly<World>,

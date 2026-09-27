@@ -4,10 +4,11 @@ import {
   constructionUpgradeSource,
   STRUCTURES,
   canAttack,
+  attackCells,
   protectionCells,
   researchAvailability,
 } from "./catalog.js";
-import { neighbors, homeCellOrder, weaponCells } from "./map.js";
+import { neighbors, homeCellOrder } from "./map.js";
 import type {
   Action,
   Command,
@@ -122,7 +123,7 @@ export function aiCommands(
   const reach = new Map(
     world.structures.map((s) => [
       s.cell,
-      weaponCells(world.map, s.cell, STRUCTURES[s.kind].range),
+      attackCells(world.map, s.cell, s.kind),
     ]),
   );
   const threats = (cell: number) =>
@@ -412,7 +413,7 @@ export function aiCommands(
           !threats(cell).length &&
           !repairThreats.some((s) => reach.get(s.cell)!.has(cell)) &&
           uncovered.some((s) =>
-            weaponCells(world.map, cell, STRUCTURES.siege.range).has(s.cell),
+            attackCells(world.map, cell, "siege").has(s.cell),
           ),
       );
       artillerySites.sort(
@@ -470,9 +471,13 @@ export function aiCommands(
       tower = "tower";
     if (tower === "bastion" && !player.research.includes("growth"))
       tower = "tower";
+    // Support artillery with the opening's close-range weapon when the front
+    // has entered its blind spot. Siege/Economy use a Pulse tower for support.
+    if (tower === "siege" && forward < (STRUCTURES.siege.minRange ?? 0))
+      tower = policy.weapon === "siege" ? "tower" : policy.weapon;
     const firingSites = sites.filter((cell) => {
       if (!eligible(tower, cell)) return false;
-      const cells = weaponCells(world.map, cell, STRUCTURES[tower].range);
+      const cells = attackCells(world.map, cell, tower);
       return enemy.some((s) => cells.has(s.cell));
     });
     firingSites.sort(

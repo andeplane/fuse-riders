@@ -46,7 +46,11 @@ for (const rotated of [false, true])
       ["b", [39, 31, 23, 15, 14, 22]],
     ] as const)
       for (const cell of cells) {
-        const kind = [11, 12, 18, 15, 14].includes(cell) ? "siege" : "neuron";
+        const kind = [11, 12, 18].includes(cell)
+          ? "siege"
+          : [15, 14, 22].includes(cell)
+            ? "tower"
+            : "neuron";
         world.structures.push({
           id: world.nextEntityId++,
           cell: cellAt(cell),
@@ -67,18 +71,18 @@ for (const rotated of [false, true])
       p.biomass = 1_000_000;
       p.insight = 1_000_000;
     }
-    for (const [sitesLost, lost, kind] of [
-      [0, 0, "siege"],
-      [1, 7, "siege"],
-      [2, 0, "neuron"],
-      [0, 8, "neuron"],
+    for (const [sitesLost, lost, kind, cell] of [
+      [0, 0, "tower", 20],
+      [1, 7, "tower", 20],
+      [2, 0, "neuron", 19],
+      [0, 8, "neuron", 19],
     ] as const) {
       Object.assign(world.players[0]!.statistics, { sitesLost, lost });
       const before = encodeState(world);
       const commands = aiCommands(world, "a");
       assert.deepEqual(
         commands.find((c) => c.action.type === "queueConstruction")?.action,
-        { type: "queueConstruction", kind, cell: cellAt(19) },
+        { type: "queueConstruction", kind, cell: cellAt(cell) },
       );
       const next = step(world, commands);
       assert.equal(
@@ -139,10 +143,10 @@ test("AI anchors exposed construction only after repeated site losses, without d
   }
   for (const [ownerId, cells] of [
     ["a", [1, 2]],
-    ["b", [39, 31, 23, 15, 14, 13, 12]],
+    ["b", [39, 31, 23, 15, 14, 13]],
   ] as const)
     for (const cell of cells) {
-      const kind = cell === 12 ? "siege" : "neuron";
+      const kind = cell === 13 ? "siege" : "neuron";
       world.structures.push({
         id: world.nextEntityId++,
         cell,
@@ -221,7 +225,7 @@ test("AI reconnects an isolated investment before expanding toward the enemy", (
   // repaired connection: both networks may reactivate together.
   world.structures.push({
     id: world.nextEntityId++,
-    cell: 10,
+    cell: 11,
     ownerId: "b",
     kind: "siege",
     hp: 80,

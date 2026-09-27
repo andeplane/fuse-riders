@@ -143,12 +143,12 @@ test("construction uses catalog durability and preserves damage through completi
   assert.ok(decodeState(encodeState(world)));
 });
 test("an exposed brain takes priority over a weaker completed decoy", () => {
-  let world = fixture(4);
+  let world = fixture(5);
   world.players[0]!.research = ["excitation", "ballistics"];
   for (const [ownerId, cell, kind] of [
     ["a", 1, "neuron"],
     ["a", 2, "siege"],
-    ["b", 3, "neuron"],
+    ["b", 12, "neuron"],
   ] as const)
     world.structures.push({
       id: world.nextEntityId++,
@@ -171,7 +171,7 @@ test("an exposed brain takes priority over a weaker completed decoy", () => {
   );
   assert.equal(
     attack?.cell,
-    4,
+    5,
     "shoot the brain, not the lower-HP neuron beside it",
   );
 });
@@ -183,18 +183,17 @@ test("disconnected weapons cannot distract from connected threats", () => {
   for (const [ownerId, cell, kind] of [
     ["a", 1, "neuron"],
     ["a", 2, "siege"],
-    ["b", 4, "siege"],
-    ["b", 5, "neuron"],
+    ["b", 5, "siege"],
     ["b", 6, "neuron"],
-    ["b", 9, "tower"],
+    ["b", 20, "tower"],
   ] as const)
     world.structures.push({
       id: world.nextEntityId++,
       ownerId,
       cell,
       kind,
-      hp: cell === 9 ? 10 : STRUCTURES[kind].hp,
-      connected: cell !== 9,
+      hp: cell === 20 ? 10 : STRUCTURES[kind].hp,
+      connected: cell !== 20,
     });
   world = step(world, [
     {
@@ -206,7 +205,7 @@ test("disconnected weapons cannot distract from connected threats", () => {
   world = advance(world, STRUCTURES.siege.cadence - 1);
   assert.equal(
     world.outcomes.find((e) => e.type === "damage" && e.fromCell === 2)?.cell,
-    4,
+    5,
   );
 });
 
@@ -285,7 +284,7 @@ test("tower roles consume finite supply at their own range and cadence", () => {
 });
 test("all three towers fire their catalog volley and cadence when equally supplied", () => {
   for (const kind of ["tower", "siege", "relay"] as const) {
-    let w = fixture(4);
+    let w = fixture(kind === "siege" ? 5 : 4);
     w.players[0]!.research = [
       "excitation",
       "ballistics",

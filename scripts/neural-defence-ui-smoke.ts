@@ -120,6 +120,12 @@ for (const [name, engine] of [
     );
     await desktop.screenshot({ path: `${output}/${name}-desktop.png` });
     await desktop.locator('[data-action="panel-build"]').click();
+    await desktop.locator('[data-action="build-siege"]').focus();
+    assert.match(
+      await desktop.locator("#help-build-siege").innerText(),
+      /Fires exactly 3 traversable hex steps away; cannot hit within 2 steps/,
+    );
+    await desktop.screenshot({ path: `${output}/${name}-siege-range.png` });
     await desktop.locator('[data-action="build-neuron"]').click();
     await desktop.locator('.terrain-layer [data-cell="13"]').hover();
     assert.equal(

@@ -118,7 +118,7 @@ test("auto expansion replays and checkpoints exactly, and validates toggle state
   raw.players[0].autoExpand = true;
   raw.rulesVersion = 1;
   assert.throws(() => decodeState(JSON.stringify(raw)), /unsupported/);
-  raw.rulesVersion = 7;
+  raw.rulesVersion = 8;
   assert.throws(() => decodeState(JSON.stringify(raw)), /unsupported/);
 });
 test("contested auto expansion uses rotating slots, not IDs or opponent unpaid plans", () => {

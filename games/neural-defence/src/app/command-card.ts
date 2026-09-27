@@ -72,7 +72,8 @@ export const BUILD_PRESENTATION: Readonly<
   },
   siege: {
     label: "Siege tower",
-    description: "Long-range pressure; vulnerable to a close assault.",
+    description:
+      "Artillery with a two-step blind spot. Protect it with close-range weapons.",
     sprite: () => "tower-siege-v3",
   },
   relay: {
@@ -260,7 +261,7 @@ export function renderCommands(
       const asset = presentation.sprite(team);
       const stats = STRUCTURES[kind];
       const capabilities = canAttack(kind)
-        ? `Range ${stats.range}. Up to ${stats.volley} supplied particles every ${stats.cadence / RULES.ticksPerSecond}s.`
+        ? `${stats.minRange ? `Fires exactly ${stats.range} traversable hex steps away; cannot hit within ${stats.minRange - 1} steps.` : `Range ${stats.range}.`} Up to ${stats.volley} supplied particles every ${stats.cadence / RULES.ticksPerSecond}s.`
         : `+${stats.miningBonus ?? 0} extraction shares per adjacent deposit while connected.`;
       return commandButton({
         action: `build-${kind}`,

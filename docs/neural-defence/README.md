@@ -19,7 +19,7 @@ The map picker also offers **Close Quarters** (earlier contact), **Open Synapse*
 Each player has one builder and 128 reusable attack particles. Build neurons to expand the network and claim adjacent deposits. Disconnected structures stop mining and firing. Four towers offer different roles:
 
 - **Pulse:** sturdy, strong firepower at medium range.
-- **Siege:** longer reach, but costly, fragile and slower between volleys.
+- **Siege:** fires exactly three traversable hex steps away, with a two-step blind spot. Costly, fragile and slower between volleys; support it with close-range weapons.
 - **Relay:** cheaper, quicker construction and frequent smaller volleys.
 - **Bastion:** durable close-range defense, unlocked by Growth; artillery can outrange it.
 

@@ -1,6 +1,6 @@
 # Fuse Craft tech tree
 
-Current implemented rules, updated **2026-09-27**, engine **rules version 8**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
+Current implemented rules, updated **2026-09-27**, engine **rules version 9**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
 
 Buildings may be placed on open ground or used to specialize an owned neuron in place. Specialization uses the normal full building price, prerequisites, builder and duration. The neuron remains connected and vulnerable during work; completion preserves its identity and health fraction. Canceling retains the neuron without refunding paid work. Destroying the neuron cancels its upgrade. Brains and existing buildings cannot be replaced. See [specialization behavior](NEURON_UPGRADES.md).
 
@@ -58,17 +58,23 @@ Growth determines a construction job's duration when the builder is dispatched; 
 
 ## Structures
 
-| Structure   | Catalog ID  | Prerequisite                        | Biomass |           Build time |  HP | Range | Volley cap | Firing interval |
-| ----------- | ----------- | ----------------------------------- | ------: | -------------------: | --: | ----: | ---------: | --------------: |
-| Brain       | `brain`     | Starting structure; cannot be built |       — |                    — | 240 |     1 |          4 |             1 s |
-| Neuron      | `neuron`    | None                                |      20 | 6 s; 4 s with Growth |  60 |     1 |          4 |             1 s |
-| Pulse tower | `tower`     | None                                |      60 |                 12 s | 120 |     2 |          8 |             1 s |
-| Siege tower | `siege`     | Ballistics                          |      80 |                 14 s |  80 |     3 |          4 |             4 s |
-| Relay tower | `relay`     | Resonance                           |      45 |                  8 s |  90 |     2 |          3 |           0.5 s |
-| Harvester   | `harvester` | Growth; adjacent deposit            |      60 |                 12 s |  70 |     0 |          0 |               — |
-| Bastion     | `bastion`   | Growth                              |      45 |                  8 s | 240 |     1 |         12 |             1 s |
+| Structure   | Catalog ID  | Prerequisite                        | Biomass |           Build time |  HP |     Range | Volley cap | Firing interval |
+| ----------- | ----------- | ----------------------------------- | ------: | -------------------: | --: | --------: | ---------: | --------------: |
+| Brain       | `brain`     | Starting structure; cannot be built |       — |                    — | 240 |         1 |          4 |             1 s |
+| Neuron      | `neuron`    | None                                |      20 | 6 s; 4 s with Growth |  60 |         1 |          4 |             1 s |
+| Pulse tower | `tower`     | None                                |      60 |                 12 s | 120 |         2 |          8 |             1 s |
+| Siege tower | `siege`     | Ballistics                          |      80 |                 14 s |  80 | exactly 3 |          4 |             4 s |
+| Relay tower | `relay`     | Resonance                           |      45 |                  8 s |  90 |         2 |          3 |           0.5 s |
+| Harvester   | `harvester` | Growth; adjacent deposit            |      60 |                 12 s |  70 |         0 |          0 |               — |
+| Bastion     | `bastion`   | Growth                              |      45 |                  8 s | 240 |         1 |         12 |             1 s |
 
 Build times exclude builder travel and waiting. Range is measured in hex steps; attacks beyond adjacent tiles need a route through open intermediate tiles. The volley cap is the maximum number of supplied particles fired, **not fixed damage**. Actual damage is the sum of the fired particles' attack values. Armed structures, including brains and neurons, need stationed particles to fire. Harvesters cannot fire or receive attack-priority orders. Disconnected structures cannot mine or fire.
+
+Siege cannot hit within two traversable steps. Protect artillery with Pulse,
+Relay or Bastion structures against a close assault. Both minimum and maximum
+range use terrain-aware reach: an obstacle can make a geometrically nearby
+target three traversable steps away. Other weapons and Bastion protection retain
+their filled-radius reach.
 
 Weapons prioritize an enemy brain in range, then completed weapons able to hit them, then other completed structures, then paid construction. Within a priority, they target the lowest HP and rotate equivalent targets deterministically. A new scaffold cannot indefinitely distract a weapon from a completed threat.
 
