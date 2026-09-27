@@ -126,6 +126,21 @@ test("AI clears a dormant gun from outside its range before reconnecting a vulne
       connected: false,
     },
   );
+  for (const [built, lost] of [
+    [0, 0],
+    [4, 2],
+    [7, 3],
+  ]) {
+    Object.assign(world.players[0]!.statistics, { built, lost });
+    assert.deepEqual(
+      aiCommands(world, "a", "pressure").find(
+        (c) => c.action.type === "queueConstruction",
+      )?.action,
+      { type: "queueConstruction", kind: "bastion", cell: 2 },
+      "an isolated supply cut receives a durable repair before artillery escalation",
+    );
+  }
+  Object.assign(world.players[0]!.statistics, { built: 6, lost: 3 });
   const commands = aiCommands(world, "a", "pressure");
   assert.deepEqual(
     commands.find((c) => c.action.type === "queueConstruction")?.action,

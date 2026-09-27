@@ -331,8 +331,10 @@ export function aiCommands(
         threats(a).length - threats(b).length ||
         cellOrder(a, b),
     );
-    // Clear dormant guns from outside their reach before reconnecting an
-    // exposed branch. Durability alone can still produce an endless repair loop.
+    // Try durable repairs before escalating a supply cut into an artillery
+    // fight. Clear dormant guns only after sustained attrition: at least three
+    // losses and half of completed construction lost. These public, checkpointed
+    // statistics distinguish an isolated cut from a failing repair strategy.
     const repairThreats = world.structures.filter(
       (s) =>
         s.ownerId !== playerId &&
@@ -340,7 +342,12 @@ export function aiCommands(
         canAttack(s.kind) &&
         repairs.some((cell) => reach.get(s.cell)!.has(cell)),
     );
-    if (repairThreats.length && player.research.includes("ballistics")) {
+    if (
+      repairThreats.length &&
+      player.research.includes("ballistics") &&
+      player.statistics.lost >= 3 &&
+      player.statistics.lost * 2 >= player.statistics.built
+    ) {
       const uncovered = repairThreats.filter(
         (target) =>
           !own.some(
