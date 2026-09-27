@@ -4,6 +4,7 @@ import { parseHTML } from "linkedom";
 import { readFileSync } from "node:fs";
 import { weaponTrail } from "../src/render/weapon-trail.js";
 import { combatEffect } from "../src/render/combat-effects.js";
+import { shieldShell } from "../src/render/shield-shell.js";
 import { renderBoard } from "../src/render/board.js";
 import { createMatch, loadMap, encodeState } from "../src/engine/index.js";
 
@@ -73,7 +74,7 @@ test("impact starts at cosmetic arrival; muzzle flashes at launch", () => {
     "#63cfff",
     1,
     { x: 0, y: 100 },
-    "siege",
+    { weapon: "siege" },
   );
   effect.animate(90 / effect.duration);
   assert.equal(
@@ -91,6 +92,35 @@ test("impact starts at cosmetic arrival; muzzle flashes at launch", () => {
       effect.element.querySelector(".combat-core")!.getAttribute("opacity"),
     ) > 0,
   );
+});
+
+test("shield contacts face the incoming attack and its ripple travels down a projected shell", () => {
+  const { document } = parseHTML("<html></html>");
+  const left = shieldShell(document, { x: 100, y: 100 }, "#63cfff", {
+    x: 0,
+    y: 100,
+  });
+  const right = shieldShell(document, { x: 100, y: 100 }, "#63cfff", {
+    x: 200,
+    y: 100,
+  });
+  assert.ok(
+    Number(left.element.querySelector(".shield-contact")!.getAttribute("cx")) <
+      100,
+  );
+  assert.ok(
+    Number(right.element.querySelector(".shield-contact")!.getAttribute("cx")) >
+      100,
+  );
+  const ripple = left.element.querySelector(".shield-ripple")!;
+  left.animate(0);
+  const top = Number(ripple.getAttribute("cy"));
+  const narrow = Number(ripple.getAttribute("rx"));
+  left.animate(0.6);
+  assert.ok(Number(ripple.getAttribute("cy")) > top);
+  assert.ok(Number(ripple.getAttribute("rx")) > narrow);
+  assert.equal(left.element.children.length, 12);
+  assert.doesNotMatch(left.element.outerHTML, /NaN|Infinity/);
 });
 
 test("a Siege gun destroyed in its firing tick retains its weapon effect without changing state", () => {
@@ -136,6 +166,10 @@ test("a Siege gun destroyed in its firing tick retains its weapon effect without
   const frame = renderBoard(svg, world, null, false, false, 50);
   assert.ok(svg.querySelector(".weapon-siege"));
   frame.animate(200);
+  assert.equal(
+    svg.querySelector(".shield-shell")!.getAttribute("opacity"),
+    "0",
+  );
   for (const kind of ["destroyed", "shielded"]) {
     assert.equal(
       svg
@@ -146,6 +180,9 @@ test("a Siege gun destroyed in its firing tick retains its weapon effect without
     );
   }
   frame.animate(250);
+  assert.ok(
+    Number(svg.querySelector(".shield-shell")!.getAttribute("opacity")) > 0,
+  );
   for (const kind of ["destroyed", "shielded"]) {
     assert.ok(
       Number(

@@ -1,5 +1,9 @@
 # Supplied Bastion protection — rules 7 candidate
 
+The implementation evidence below is historical. The newer visual response is
+documented in [projected shield response](WEAPON_EFFECTS.md#projected-shield-response);
+the engine's protection rules are unchanged.
+
 Bastions previously had no useful answer to longer-range fire: even increasing their weapon range failed to stop the defensive opening losing. Rules 7 adds a support role that competes for the same finite ammunition as offense. The current candidate costs 45 Biomass and takes 8 seconds plus builder travel; Growth remains required. Weapon range remains one, with 240 HP and the existing 12-particle volley.
 
 The catalog defines a two-hex field that can absorb at most 50% of incoming damage to friendly structures and paid sites, including itself. Each supplied stationed particle can absorb up to twice its attack value before entering ordinary recovery. Excess capacity on a spent particle is discarded. Empty or disconnected Bastions have no field. Overlapping fields cannot compound the percentage. A specializing neuron is a single target, not a source plus a second shielded scaffold.

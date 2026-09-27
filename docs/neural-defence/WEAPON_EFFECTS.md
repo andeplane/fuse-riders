@@ -20,7 +20,8 @@ that timing, trajectory height, deterministic revisiting of an animation age,
 Relay endpoints, zero-length shots, attacker removal, state immutability and
 expiry. Existing budget and reduced-motion regressions remain in place.
 
-Verification: all 1,729 repository tests, build/typecheck and focused lint pass.
+Verification including the shield update: all 1,730 repository tests,
+build/typecheck and focused lint pass.
 Chromium and WebKit pass the recorded effects checks and ordinary desktop,
 portrait and short-landscape UI flow. These viewport checks emulate phones.
 
@@ -48,3 +49,21 @@ the separate skirmish screenshot comes from the ordinary menu-to-game UI flow.
 
 This improves weapon readability and motion depth. It does not establish AAA
 quality, physical-phone acceptance, or completion of the broader game goal.
+
+## Projected shield response
+
+Protection outcomes now create a translucent hemisphere with meridians, curved
+latitude rings and a moving energy ripple. A contact glow faces the strongest
+recorded incoming damage source for that cell. It is a cosmetic indication of
+the local hit, not a protection-range preview or a new persistent shield.
+The shell contains 12 SVG nodes and inherits the event cap, expiry and
+reduced-motion handling. It appears only after actual absorption and remains
+hidden until the incoming shot's cosmetic arrival.
+
+The focused regression checks opposing impact directions, movement of the
+projected ripple, finite coordinates and delayed onset. Independent review found
+no actionable issues. Chromium and WebKit render the original protection replay
+at 80, 180 and 360 ms in desktop and phone viewports, reproducing `8918c067`.
+Run the same effect command with `shielded` instead of `siege` to reproduce it.
+
+![Shield response at 180 ms](verification/weapons-2026-09-27/shield-phone.png)

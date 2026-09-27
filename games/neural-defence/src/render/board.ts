@@ -446,6 +446,16 @@ export function renderBoard(
         outcome.type === "damage" && outcome.fromCell !== undefined
           ? hexCenter(width, outcome.fromCell)
           : undefined;
+      const hits = world.outcomes.filter(
+        (hit) =>
+          hit.type === "damage" &&
+          hit.cell === outcome.cell &&
+          hit.fromCell !== undefined,
+      );
+      const incoming = hits.sort(
+        (a, b) =>
+          (b.amount ?? 0) - (a.amount ?? 0) || a.fromCell! - b.fromCell!,
+      )[0]?.fromCell;
       const effect = combatEffect(
         svg.ownerDocument,
         outcome.type,
@@ -457,25 +467,23 @@ export function renderBoard(
             ]!,
         world.tick * 31 + outcome.cell,
         from,
-        weaponStyle(world, cache, outcome.playerId, outcome.fromCell),
-        outcome.type === "destroyed" || outcome.type === "shielded"
-          ? Math.max(
-              0,
-              ...world.outcomes
-                .filter(
-                  (hit) =>
-                    hit.type === "damage" &&
-                    hit.cell === outcome.cell &&
-                    hit.fromCell !== undefined,
+        {
+          weapon: weaponStyle(world, cache, outcome.playerId, outcome.fromCell),
+          incoming:
+            incoming === undefined ? undefined : hexCenter(width, incoming),
+          impactDelay:
+            outcome.type === "destroyed" || outcome.type === "shielded"
+              ? Math.max(
+                  0,
+                  ...hits.map(
+                    (hit) =>
+                      weaponFlightMs[
+                        weaponStyle(world, cache, hit.playerId, hit.fromCell)
+                      ],
+                  ),
                 )
-                .map(
-                  (hit) =>
-                    weaponFlightMs[
-                      weaponStyle(world, cache, hit.playerId, hit.fromCell)
-                    ],
-                ),
-            )
-          : undefined,
+              : undefined,
+        },
       );
       cache.effectLayer.append(effect.element);
       cache.groundEffects.append(effect.ground);

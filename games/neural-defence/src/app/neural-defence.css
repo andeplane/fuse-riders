@@ -925,6 +925,28 @@ select {
 .weapon-shadow {
   fill: #080e13;
 }
+.shield-skin {
+  fill-opacity: 0.18;
+  stroke: var(--effect-color);
+  stroke-width: 1.4;
+}
+.shield-grid,
+.shield-rim,
+.shield-ripple {
+  fill: none;
+  stroke: var(--effect-color);
+  stroke-width: 0.7;
+}
+.shield-grid {
+  opacity: 0.3;
+}
+.shield-rim {
+  opacity: 0.65;
+}
+.shield-ripple {
+  stroke: #dbfaff;
+  stroke-width: 1.4;
+}
 .combat-spark {
   fill: #fff8d4;
   stroke: var(--effect-color);

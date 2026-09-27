@@ -1,5 +1,6 @@
 /** Cosmetic 3D trajectories projected onto the battlefield; never advances rules. */
 import { weaponTrail, type WeaponStyle } from "./weapon-trail.js";
+import { shieldShell } from "./shield-shell.js";
 export interface CombatEffect {
   element: SVGGElement;
   ground: SVGGElement;
@@ -15,9 +16,13 @@ export function combatEffect(
   color: string,
   seed: number,
   from?: Point,
-  weapon: WeaponStyle = "pulse",
-  impactDelay?: number,
+  options: {
+    weapon?: WeaponStyle;
+    impactDelay?: number;
+    incoming?: Point;
+  } = {},
 ): CombatEffect {
+  const { weapon = "pulse", impactDelay, incoming } = options;
   const element = document.createElementNS(ns, "g");
   const ground = document.createElementNS(ns, "g");
   element.setAttribute("class", `combat-effect combat-${type}`);
@@ -54,17 +59,10 @@ export function combatEffect(
   core.setAttribute("cy", String(at.y - 10));
   core.setAttribute("fill", glow);
   element.append(core);
-  const arc = shielded ? document.createElementNS(ns, "path") : undefined;
-  if (arc) {
-    arc.setAttribute(
-      "d",
-      `M${at.x - 30} ${at.y + 10}A30 42 0 0 1 ${at.x + 30} ${at.y + 10}`,
-    );
-    arc.setAttribute("fill", "none");
-    arc.setAttribute("stroke", color);
-    arc.setAttribute("stroke-width", "2.5");
-    element.append(arc);
-  }
+  const shell = shielded
+    ? shieldShell(document, at, color, incoming)
+    : undefined;
+  if (shell) element.append(shell.element);
   let muzzle: SVGCircleElement | undefined;
   if (from) {
     element.prepend(trail!.element);
@@ -122,7 +120,8 @@ export function combatEffect(
         Math.min(1, (elapsed - flight) / (duration - flight)),
       );
       const visible = elapsed >= flight ? 1 : 0;
-      arc?.setAttribute("opacity", String(visible * (1 - t) ** 2));
+      shell?.animate(t);
+      shell?.element.setAttribute("opacity", String(visible * (1 - t) ** 1.6));
       light.setAttribute("rx", String(25 + t * 35));
       light.setAttribute("ry", String(13 + t * 17));
       light.setAttribute("opacity", String(visible * 0.65 * (1 - t) ** 2));
