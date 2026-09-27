@@ -1,0 +1,12 @@
+--- games/neural-defence/src/engine/ai.ts	2026-09-27 13:41:26
++++ /tmp/fuse-rules9-unlocked-flank/engine/ai.ts	2026-09-27 14:08:07
+@@ -301,8 +301,7 @@
+     // adding guns to the same front. A route may start with a sideways step,
+     // so distance to the brain alone cannot choose the next conduit.
+     if (
+-      (player.statistics.sitesLost >= 2 || player.statistics.lost >= 8) &&
+-      fighting.length >= 2
++      (player.statistics.sitesLost >= 2 || player.statistics.lost >= 8)
+     ) {
+       const costs = new Map<number, number>();
+       const pending = new Set<number>();

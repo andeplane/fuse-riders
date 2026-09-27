@@ -19,3 +19,13 @@ Skirmish Balanced/Relay and Balanced/Defensive improve to Balanced wins at 512
 and 548 seconds respectively from both seats, but Balanced/Economy and
 Pressure/Siege still time out. The improvements do not justify the default-map
 regression. Exact rows and the unapplied patch are retained here.
+
+## Rejected mixed-support follow-up
+
+A second variant retained safe artillery only when no owned Siege could already
+fire. All 21 default-map pairings finished without rejected commands, but six of
+eight Skirmish probes timed out. It regressed Balanced/Defensive's previously
+finishing second seat to a timeout, while resolving Pressure/Siege to Siege wins
+at 822 seconds. Balanced/Economy and Balanced/Relay still stalled from both
+seats. This variant is also rejected; the same runners produced the
+`mixed-support-*.jsonl` rows. Neither patch is applied to production.

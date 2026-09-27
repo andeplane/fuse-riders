@@ -1,0 +1,17 @@
+--- games/neural-defence/src/engine/ai.ts	2026-09-27 13:41:26
++++ /tmp/fuse-rules9-mixed-support/engine/ai.ts	2026-09-27 14:00:40
+@@ -473,7 +473,13 @@
+       tower = "tower";
+     // Support artillery with the opening's close-range weapon when the front
+     // has entered its blind spot. Siege/Economy use a Pulse tower for support.
+-    if (tower === "siege" && forward < (STRUCTURES.siege.minRange ?? 0))
++    if (
++      tower === "siege" && forward < (STRUCTURES.siege.minRange ?? 0) &&
++      (own.some((s) => s.kind === "siege" && firing(s.cell)) ||
++      !sites.some((cell) => eligible("siege", cell) &&
++        !threats(cell).length &&
++        enemy.some((target) => attackCells(world.map, cell, "siege").has(target.cell))))
++    )
+       tower = policy.weapon === "siege" ? "tower" : policy.weapon;
+     const firingSites = sites.filter((cell) => {
+       if (!eligible(tower, cell)) return false;
