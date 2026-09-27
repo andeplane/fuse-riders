@@ -17,7 +17,9 @@ export function shrineLedge(
   const key = `shrine-${variant}-${width}-${height}`;
   if (scene.textures.exists(key)) return key;
   const source = scene.textures.get("shrine").getSourceImage();
-  if (!(source instanceof HTMLImageElement))
+  if (!(
+    source instanceof HTMLImageElement || source instanceof HTMLCanvasElement
+  ))
     throw new Error("Cannot read shrine artwork.");
   // Two backing pixels per world unit; the original source remains untouched.
   const canvas = document.createElement("canvas");
@@ -25,6 +27,7 @@ export function shrineLedge(
   canvas.height = Math.ceil(height * 2);
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Cannot prepare shrine stonework.");
+  context.imageSmoothingQuality = "high";
   const scale = canvas.height / crop.height;
   const cap = Math.floor(crop.width * 0.2);
   const capWidth = Math.min(canvas.width / 3, cap * scale);

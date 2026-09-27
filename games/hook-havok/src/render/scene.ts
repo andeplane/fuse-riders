@@ -1,5 +1,11 @@
 import Phaser from "phaser";
-import { ASSETS, crops, type Crop, type AssetKey } from "./assets.js";
+import {
+  ASSETS,
+  crops,
+  downscale,
+  type Crop,
+  type AssetKey,
+} from "./assets.js";
 import { showcasePose, PLATFORMS, ANCHOR } from "./showcase-timeline.js";
 import type { WorldView } from "../engine/view.js";
 import { Feedback, type Cue } from "./feedback.js";
@@ -14,6 +20,7 @@ import {
 import { createEchoes, paintEchoes } from "./echoes.js";
 import { paintBalls } from "./balls.js";
 import { paintPowerUps } from "./power-ups.js";
+import { createFrame, type Frame } from "./frame.js";
 import {
   animateShrine,
   dressShrine,
@@ -44,6 +51,17 @@ interface Options {
   time(ms: number): void;
 }
 
+/**
+ * Backing pixels per world unit: the display density up to 2×, so TVs and
+ * high-density laptops draw sharp ink instead of a stretched 1600×900 canvas.
+ * `?res=1` (or 1.5, 2) pins it for comparisons.
+ */
+export function renderScale(): number {
+  const pinned = Number(new URLSearchParams(location.search).get("res"));
+  if (pinned >= 1 && pinned <= 2) return pinned;
+  const pixels = (devicePixelRatio || 1) * Math.min(screen.width || 1600, 3840);
+  return Math.min(2, Math.max(1, Math.round((pixels / 1600) * 4) / 4));
+}
 /** Phaser owns the only presentation loop. No physics plugin or simulation clock. */
 export function createShowcase(
   host: HTMLElement,
@@ -55,6 +73,7 @@ export function createShowcase(
   let elapsed = 800,
     destroyed = false;
   const feedback = new Feedback();
+  const res = renderScale();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   class Belfry extends Phaser.Scene {
     private peers = new Map<
@@ -94,6 +113,7 @@ export function createShowcase(
     private ambientState = "";
     private phaseLabel = "";
     private powerLabels: Phaser.GameObjects.Text[] = [];
+    private frame?: Frame;
     constructor() {
       super("belfry");
     }
@@ -116,17 +136,37 @@ export function createShowcase(
         );
       }
     }
+    /**
+     * `drawn` gives the largest world-units-per-source-pixel any crop is shown
+     * at; oversized sources are reduced once to that at the render scale.
+     */
     private cut(
       key: AssetKey,
       cols = 1,
       rows = 1,
       divisions?: { x: readonly number[]; y: readonly number[] },
+      drawn?: (rects: Crop[]) => number,
+      minScale = res,
     ): Crop[] {
-      const texture = this.textures.get(key),
-        source = texture.getSourceImage();
+      const source = this.textures.get(key).getSourceImage();
       if (!(source instanceof HTMLImageElement))
         throw new Error(`Cannot read ${key} artwork.`);
-      const rects = crops(source, cols, rows, divisions);
+      let rects = crops(source, cols, rows, divisions);
+      const scale = drawn ? drawn(rects) * Math.max(res, minScale) * 1.3 : 1;
+      if (scale < 0.8) {
+        const canvas = downscale(source, scale),
+          k = canvas.width / source.width;
+        this.textures.remove(key);
+        this.textures.addCanvas(key, canvas);
+        rects = rects.map((r) => ({
+          ...r,
+          x: r.x * k,
+          y: r.y * k,
+          width: r.width * k,
+          height: r.height * k,
+        }));
+      }
+      const texture = this.textures.get(key);
       rects.forEach((r, index) =>
         texture.add(String(index), 0, r.x, r.y, r.width, r.height),
       );
@@ -146,6 +186,7 @@ export function createShowcase(
       this.textures.addCanvas(key, canvas);
     }
     private build(): void {
+      this.cameras.main.setZoom(res).centerOn(800, 450);
       this.background = this.add
         .image(800, 450, "background")
         .setDisplaySize(1600, 900)
@@ -161,19 +202,39 @@ export function createShowcase(
             .setDisplaySize(850, 310)
             .setAlpha(0.55),
         );
-      this.cut("ledge");
+      this.cut("ledge", 1, 1, undefined, ([r]) =>
+        Math.max(400 / r!.width, 92 / r!.height),
+      );
       // The generated source uses unequal cells; preserve pixels and crop its actual packing.
-      this.shrineFrames = this.cut("shrine", 2, 2, {
-        x: [0, 0.484375, 1],
-        y: [0, 0.35, 1],
-      });
-      this.cut("hook");
-      this.lanternCrop = this.cut("lantern")[0]!;
+      this.shrineFrames = this.cut(
+        "shrine",
+        2,
+        2,
+        { x: [0, 0.484375, 1], y: [0, 0.35, 1] },
+        // Ledges at 64 units tall, banners 65, candles 40 wide.
+        (r) =>
+          Math.max(
+            64.4 / r[0]!.height,
+            64.4 / r[1]!.height,
+            65 / r[2]!.height,
+            40 / r[3]!.width,
+          ),
+        2, // shrineLedge composes stone at two backing pixels per unit
+      );
+      this.cut("hook", 1, 1, undefined, ([r]) => 30 / r!.width);
+      this.lanternCrop = this.cut(
+        "lantern",
+        1,
+        1,
+        undefined,
+        ([r]) => 38 / r!.height,
+      )[0]!;
       this.ambient = this.add.graphics().setDepth(3);
       this.rebuildTerrain(options.view?.());
-      this.frames = this.cut("actor", 3, 3);
+      const tall = (r: Crop[]) => 80 / Math.max(...r.map((c) => c.height));
+      this.frames = this.cut("actor", 3, 3, undefined, tall);
       this.actorScale = 76 / Math.max(...this.frames.map((r) => r.height));
-      this.runFrames = this.cut("run", 4, 2);
+      this.runFrames = this.cut("run", 4, 2, undefined, tall);
       this.runScale =
         (this.actorScale * this.frames[0]!.height) /
         Math.max(...this.runFrames.map((r) => r.height));
@@ -188,26 +249,8 @@ export function createShowcase(
         .setDepth(13)
         .setVisible(false);
       this.effects = this.add.graphics().setDepth(14);
-      // Restrained edge framing, never a playable surface.
-      const edge = this.add.graphics().fillStyle(0x101420, 0.72);
-      edge
-        .beginPath()
-        .moveTo(0, 0)
-        .lineTo(85, 0)
-        .lineTo(36, 140)
-        .lineTo(17, 480)
-        .lineTo(0, 680)
-        .closePath()
-        .fillPath();
-      edge
-        .beginPath()
-        .moveTo(1600, 0)
-        .lineTo(1520, 0)
-        .lineTo(1570, 190)
-        .lineTo(1580, 600)
-        .lineTo(1600, 740)
-        .closePath()
-        .fillPath();
+      // Inked foreground framing, never a playable surface.
+      this.frame = createFrame(this);
       this.paint();
     }
     private rebuildTerrain(world?: WorldView): void {
@@ -455,6 +498,7 @@ export function createShowcase(
               label: this.add
                 .text(0, 0, "", {
                   fontFamily: "sans-serif",
+                  resolution: res,
                   fontSize: "18px",
                   fontStyle: "bold",
                   backgroundColor: "#111520",
@@ -605,6 +649,7 @@ export function createShowcase(
           const label = (this.powerLabels[i] ??= this.add
             .text(0, 0, "", {
               fontFamily: "sans-serif",
+              resolution: res,
               fontSize: "12px",
               fontStyle: "bold",
               backgroundColor: "#111a29",
@@ -767,6 +812,7 @@ export function createShowcase(
         }
       }
       const ambientMotion = atmosphere && !reduced.matches;
+      this.frame?.update(elapsed, ambientMotion);
       const ambientTime = ambientMotion ? elapsed : 0;
       const ambientState = `${this.terrainMap}:${atmosphere}:${reduced.matches}`;
       if (ambientMotion || this.ambientState !== ambientState) {
@@ -832,8 +878,8 @@ export function createShowcase(
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: host,
-    width: 1600,
-    height: 900,
+    width: 1600 * res,
+    height: 900 * res,
     transparent: false,
     backgroundColor: "#222941",
     banner: false,

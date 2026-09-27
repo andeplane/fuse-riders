@@ -195,3 +195,82 @@
     padding: 4px 8px;
   }
 }
+/*
+ * 10B full-screen arena: on desktop and TV screens the painting fills the
+ * viewport and the match HUD floats in a slim band above the highest ledge.
+ * Touch layouts keep their pads outside the arena, so they are unchanged.
+ */
+@media (min-width: 901px) {
+  .arena-focused:not(.touch-trial) main {
+    max-width: none;
+    padding: 0;
+  }
+  .arena-focused:not(.touch-trial) .play-surface .stage {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: radial-gradient(ellipse at 50% 40%, #1b1d30, #05060a 70%);
+  }
+  .arena-focused:not(.touch-trial) #scene {
+    flex: none;
+    width: min(100vw, calc(100dvh * 16 / 9));
+  }
+  .arena-focused:not(.touch-trial) header {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 3;
+    margin: 0;
+  }
+  .arena-focused:not(.touch-trial) header > :not(#arena-focus) {
+    display: none;
+  }
+  .arena-focused:not(.touch-trial) #match-hud {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin: 0;
+    padding: 10px 170px 34px 20px;
+    background: linear-gradient(#05060ae0, #05060a99 55%, #05060a00);
+    pointer-events: none;
+  }
+  .arena-focused:not(.touch-trial) #match-hud button {
+    pointer-events: auto;
+  }
+  .arena-focused:not(.touch-trial) .match-heading {
+    display: contents;
+  }
+  .arena-focused:not(.touch-trial) .match-clock {
+    order: 3;
+    margin-left: auto;
+  }
+  .arena-focused:not(.touch-trial) #match-hud #roster {
+    order: 2;
+    flex: 1;
+    grid-template-columns: repeat(5, minmax(0, 210px));
+    justify-content: center;
+    margin: 0;
+    zoom: 0.8;
+  }
+  .arena-focused:not(.touch-trial) #round-status {
+    position: absolute;
+    top: 64px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .arena-focused:not(.touch-trial) .keeper-card {
+    padding: 3px 8px;
+    background: #0b0e18c0;
+  }
+}
