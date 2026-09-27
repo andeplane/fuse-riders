@@ -1,0 +1,13 @@
+diff --git a/games/neural-defence/src/engine/catalog.ts b/games/neural-defence/src/engine/catalog.ts
+index 255e02f8..a999ec0f 100644
+--- a/games/neural-defence/src/engine/catalog.ts
++++ b/games/neural-defence/src/engine/catalog.ts
+@@ -165,7 +165,7 @@ export const STRUCTURES: Readonly<
+     volley: 0,
+     miningBonus: 2,
+   }),
+-  bastion: Object.freeze({ hp: 240, range: 1, cadence: 20, volley: 12 }),
++  bastion: Object.freeze({ hp: 240, range: 2, cadence: 20, volley: 12 }),
+ });
+ export const canAttack = (kind: StructureKind): boolean =>
+   STRUCTURES[kind].volley > 0;

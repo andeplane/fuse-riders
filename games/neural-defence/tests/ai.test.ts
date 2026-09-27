@@ -53,43 +53,61 @@ test("AI reconnects an isolated investment before expanding toward the enemy", (
     cell: 1,
   });
 });
-test("defensive opening establishes an affordable anchor before contact", () => {
-  const world = createMatch(
-    {
-      schemaVersion: 1,
-      id: "fortification",
-      width: 8,
-      height: 4,
-      layout: "odd-r",
-      cells: Array.from({ length: 32 }, () => ({ terrain: "open" })),
-      spawns: [
-        { slot: 0, cellIndex: 0 },
-        { slot: 1, cellIndex: 4 },
+for (const biomass of [20_000, 100_000])
+  test(`defensive opening reserves its anchor at ${biomass} biomass`, () => {
+    const world = createMatch(
+      {
+        schemaVersion: 1,
+        id: "fortification",
+        width: 8,
+        height: 4,
+        layout: "odd-r",
+        cells: Array.from({ length: 32 }, () => ({ terrain: "open" })),
+        spawns: [
+          { slot: 0, cellIndex: 0 },
+          { slot: 1, cellIndex: 4 },
+        ],
+      },
+      {},
+      [
+        { id: "a", slot: 0 },
+        { id: "b", slot: 1 },
       ],
-    },
-    {},
-    [
-      { id: "a", slot: 0 },
-      { id: "b", slot: 1 },
-    ],
-  );
-  world.players[0]!.research = ["growth"];
-  world.players[0]!.biomass = 100_000;
-  const before = encodeState(world);
-  const commands = aiCommands(world, "a", "defensive");
-  const build = commands.find((c) => c.action.type === "queueConstruction");
-  assert.deepEqual(build?.action, {
-    type: "queueConstruction",
-    kind: "bastion",
-    cell: 1,
+    );
+    world.players[0]!.research = ["growth"];
+    world.players[0]!.biomass = biomass;
+    const before = encodeState(world);
+    const commands = aiCommands(world, "a", "defensive");
+    const build = commands.find((c) => c.action.type === "queueConstruction");
+    assert.deepEqual(build?.action, {
+      type: "queueConstruction",
+      kind: "bastion",
+      cell: 1,
+    });
+    const next = step(world, commands);
+    assert.equal(
+      next.outcomes.some((o) => o.type === "rejected"),
+      false,
+    );
+    assert.equal(encodeState(world), before);
+    assert.equal(next.players[0]!.queue[0]!.paid, biomass >= 70_000);
+    if (biomass < 70_000) {
+      let saving = next;
+      for (let tick = 0; tick < 1400; tick++)
+        saving = step(saving, aiCommands(saving, "a", "defensive"));
+      assert.ok(
+        saving.structures.some(
+          (s) => s.ownerId === "a" && s.kind === "bastion",
+        ),
+      );
+      assert.equal(
+        saving.players[0]!.statistics.built,
+        1,
+        "the reserved building completes without spending on cheaper alternatives",
+      );
+      assert.ok(decodeState(encodeState(saving)));
+    }
   });
-  const next = step(world, commands);
-  assert.equal(
-    next.outcomes.some((o) => o.type === "rejected"),
-    false,
-  );
-  assert.equal(encodeState(world), before);
-});
 
 test("AI concentrates ammunition on guns that can hit paid construction", () => {
   const world = createMatch(

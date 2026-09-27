@@ -4,16 +4,10 @@ import { neighbors } from "../engine/map.js";
 import { structureArt, teamArtFilter } from "./art.js";
 import { terrainArt, WALKABLE_GROUND } from "./terrain-art.js";
 import { combatEffect } from "./combat-effects.js";
-
-const radius = 35,
-  dx = Math.sqrt(3) * radius,
-  dy = 1.5 * radius;
+import { hexCenter, hexPoints, boardSize } from "./projection.js";
+export { hexCenter, hexPoints } from "./projection.js";
 const ns = "http://www.w3.org/2000/svg";
 const colors = ["#63cfff", "#ff8e9d", "#9ee394", "#f7d477"];
-const sides = Array.from({ length: 6 }, (_, i) => {
-  const angle = (Math.PI / 180) * (60 * i - 30);
-  return [Math.cos(angle) * radius, Math.sin(angle) * radius] as const;
-});
 type Sprites = Readonly<Record<string, string>>;
 type Moving = {
   kind?: "pulse" | "heavy" | "swift";
@@ -44,6 +38,7 @@ interface BoardCache {
   prior: Map<number, number>;
   pulses: Pulse[];
   structures: SVGGElement;
+  castShadows: SVGGElement;
   links: SVGGElement;
   queues: SVGGElement;
   selection: SVGPolygonElement;
@@ -72,24 +67,6 @@ function image(
     ? `<image href="${escaped(url)}" x="${x - size / 2}" y="${y - size / 2}" width="${size}" height="${size}" pointer-events="none"/>`
     : "";
 }
-export function hexCenter(
-  width: number,
-  cell: number,
-): { x: number; y: number } {
-  const row = Math.floor(cell / width),
-    column = cell % width;
-  return { x: radius + dx * (column + (row & 1) / 2), y: radius + dy * row };
-}
-export function hexPoints(width: number, cell: number, inset = 0): string {
-  const { x, y } = hexCenter(width, cell);
-  const scale = (radius - inset) / radius;
-  return sides
-    .map(
-      ([sx, sy]) =>
-        `${(x + sx * scale).toFixed(2)},${(y + sy * scale).toFixed(2)}`,
-    )
-    .join(" ");
-}
 function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
   return world.map.cells
     .map((cell, index) => {
@@ -109,7 +86,9 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
       }
       if (cell.terrain === "open" && cell.towerSite)
         object = `<circle class="tower-site" cx="${x}" cy="${y}" r="19"/><text x="${x}" y="${y + 5}" text-anchor="middle">+</text>`;
-      return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${ground ? image(sprites, ground, x, y, 82) : ""}</g>${object ? `<g class="terrain-object" data-terrain="${cell.terrain}" data-depth="${index}" clip-path="url(#tile-${index})" pointer-events="none"><ellipse cx="${x + 3}" cy="${y + 17}" rx="27" ry="12" fill="url(#contact-shadow)"/>${object}</g>` : ""}<polygon class="hex-hover-outline" points="${hexPoints(world.map.width, index, 1.5)}"/></g>`;
+      if (object && cell.terrain !== "open")
+        object += `<ellipse class="terrain-hit" data-cell="${index}" cx="${x}" cy="${y - 3}" rx="20" ry="25"/>`;
+      return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${ground ? image(sprites, ground, x, y, 82) : ""}</g>${object ? `<g class="terrain-object" data-terrain="${cell.terrain}" data-depth="${index}" pointer-events="none"><ellipse cx="${x + 9}" cy="${y + 14}" rx="30" ry="10" fill="url(#contact-shadow)"/>${object}</g>` : ""}<polygon class="hex-hover-outline" points="${hexPoints(world.map.width, index, 1.5)}"/></g>`;
     })
     .join("");
 }
@@ -131,7 +110,7 @@ export function neuronArtwork(
   const size = 49 + (seed % 7);
   return `<g class="neuron-body" data-phase="${seed}" style="--team:${colors[slot]};transform-origin:${x}px ${y}px"><g style="filter:${teamArtFilter(slot)}" transform="rotate(${(seed % 6) * 60} ${x} ${y})">${image(sprites, structureArt("neuron", cell), x, y, size) || image(sprites, "neuron-v3", x, y, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="12"/>`}</g></g>`;
 }
-const buildingFoot = 36;
+const buildingFoot = 25;
 function buildingSize(kind: Exclude<StructureKind, "neuron">): number {
   return kind === "brain" ? 90 : kind === "relay" ? 96 : 84;
 }
@@ -146,6 +125,18 @@ export function structureArtwork(
   const { x, y } = hexCenter(width, cell);
   const size = buildingSize(kind);
   return `<g class="building-art" style="filter:${teamArtFilter(slot)}">${image(sprites, structureArt(kind), x, y + buildingFoot - size / 2, size) || `<circle class="structure-core" cx="${x}" cy="${y}" r="16"/>`}</g>`;
+}
+/** Project the sprite silhouette away from a shared upper-left light source. */
+function shadowMarkup(world: Readonly<World>, sprites: Sprites): string {
+  return world.structures
+    .map((s) => {
+      if (s.kind === "neuron") return "";
+      const { x, y } = hexCenter(world.map.width, s.cell);
+      const foot = y + buildingFoot;
+      const size = buildingSize(s.kind);
+      return `<g class="building-cast-shadow" transform="matrix(1 0 -0.55 -0.3 ${0.55 * foot} ${1.3 * foot})" style="filter:brightness(0);opacity:0.28">${image(sprites, structureArt(s.kind), x, foot - size / 2, size)}</g>`;
+    })
+    .join("");
 }
 function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
   return [...world.structures]
@@ -181,8 +172,8 @@ function structureMarkup(world: Readonly<World>, sprites: Sprites): string {
         s.kind === "neuron"
           ? { rx: 17, ry: 17, offset: 0 }
           : s.kind === "brain" || s.kind === "relay"
-            ? { rx: 24, ry: 41, offset: -8 }
-            : { rx: 24, ry: 33, offset: -3 };
+            ? { rx: 24, ry: 41, offset: -19 }
+            : { rx: 24, ry: 33, offset: -14 };
       const supply =
         stock && s.connected
           ? `<ellipse class="supply-footprint" cx="${x}" cy="${y + 20}" rx="${s.kind === "neuron" ? 20 : 29}" ry="9" opacity="${Math.min(0.35, stock / 96)}"/>`
@@ -267,10 +258,8 @@ export function renderBoard(
   let cached = caches.get(svg);
   if (!cached || cached.key !== key || world.tick < cached.tick) {
     svg.replaceChildren();
-    svg.setAttribute(
-      "viewBox",
-      `0 0 ${Math.ceil(dx * (width - 0.5) + radius * 2)} ${dy * (height - 1) + radius * 2}`,
-    );
+    const size = boardSize(width, height);
+    svg.setAttribute("viewBox", `0 0 ${size.width} ${size.height}`);
     svg.setAttribute("role", "img");
     const backdrop = layer(svg, "backdrop-layer");
     backdrop.setAttribute("pointer-events", "none");
@@ -293,6 +282,7 @@ export function renderBoard(
       ...terrain.querySelectorAll<SVGElement>(".terrain-object"),
     ];
     const territory = layer(svg, "territory-layer");
+    const castShadows = layer(svg, "cast-shadow-layer");
     const links = layer(svg, "link-layer"),
       queues = layer(svg, "queue-layer"),
       groundEffects = layer(svg, "ground-effect-layer"),
@@ -301,6 +291,7 @@ export function renderBoard(
       effectLayer = layer(svg, "effect-layer");
     for (const decorative of [
       territory,
+      castShadows,
       links,
       groundEffects,
       particleLayer,
@@ -321,6 +312,7 @@ export function renderBoard(
       links,
       queues,
       structures,
+      castShadows,
       particleLayer,
       effectLayer,
       groundEffects,
@@ -346,6 +338,7 @@ export function renderBoard(
     selected === null ? "" : hexPoints(width, selected),
   );
   setMarkup(cache.links, linkMarkup(world));
+  setMarkup(cache.castShadows, shadowMarkup(world, sprites));
   setMarkup(
     cache.territory,
     world.structures

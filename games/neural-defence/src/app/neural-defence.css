@@ -954,7 +954,8 @@ select {
 .structure.disconnected {
   opacity: 0.4;
 }
-.structure-hit {
+.structure-hit,
+.terrain-hit {
   fill: transparent;
   pointer-events: all;
   cursor: pointer;

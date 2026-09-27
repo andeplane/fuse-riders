@@ -205,11 +205,13 @@ export function aiCommands(
     ];
     const eligible = (kind: BuildKind, cell: number) =>
       constructionQueueAvailability(world, player, kind, cell).allowed &&
+      // Queue the intended investment while saving. Falling back to cheap
+      // conduits on every decision otherwise prevents specialists ever starting.
       constructionDispatchAvailability(world, player, {
         kind,
         cell,
         upgradeFrom: constructionUpgradeSource(world, player, kind, cell)?.id,
-      }).allowed;
+      }).missing.every((requirement) => requirement.kind === "resource");
     const deposits = (cell: number) =>
       neighbors(world.map, cell).filter(
         (n) => world.map.cells[n]?.terrain === "deposit",

@@ -89,6 +89,7 @@ for (const [name, browserType] of [
     const viewport = (await page.locator("#nd-viewport").boundingBox())!;
     const rocks = await page.locator("#nd-board .terrain-blocked").all();
     let target: { x: number; y: number } | undefined;
+    let raisedRock: { x: number; y: number } | undefined;
     for (const rock of rocks) {
       const box = (await rock.boundingBox())!;
       if (
@@ -98,10 +99,29 @@ for (const [name, browserType] of [
         box.y + box.height < viewport.y + viewport.height
       ) {
         target = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        const cell = await rock.getAttribute("data-cell");
+        raisedRock = await page
+          .locator(`.terrain-object[data-depth="${cell}"] image`)
+          .evaluate((node) => {
+            const image = node as SVGImageElement;
+            const point = new DOMPoint(
+              Number(image.getAttribute("x")) +
+                Number(image.getAttribute("width")) / 2,
+              Number(image.getAttribute("y")) + 6,
+            ).matrixTransform(image.getScreenCTM()!);
+            return { x: point.x, y: point.y };
+          });
         break;
       }
     }
     assert.ok(target, "at least one actual blocked tile is visible");
+    assert.ok(raisedRock);
+    await page.mouse.click(raisedRock.x, raisedRock.y);
+    assert.match(
+      await page.locator(".tile-heading").innerText(),
+      /blocked ground/i,
+      "raised rock silhouette selects its blocked footprint",
+    );
     await page.keyboard.press("w");
     await page.keyboard.press("q");
     await page.mouse.move(target.x, target.y);

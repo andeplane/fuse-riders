@@ -10,6 +10,7 @@ import {
   structureArtwork,
 } from "../src/render/board.js";
 import { structureArt, NEURON_ART } from "../src/render/art.js";
+import { boardSize } from "../src/render/projection.js";
 
 function world() {
   return createMatch(
@@ -28,8 +29,7 @@ function world() {
 
 test("minimap navigation maps every tile back to itself and clamps outside clicks", () => {
   const w = world();
-  const width = Math.sqrt(3) * 35 * (w.map.width + 0.5) + 35;
-  const height = hexCenter(w.map.width, w.map.cells.length - 1).y + 35;
+  const { width, height } = boardSize(w.map.width, w.map.height);
   w.map.cells.forEach((_, cell) => {
     const p = hexCenter(w.map.width, cell);
     assert.equal(minimapCell(w, p.x / width, p.y / height), cell);

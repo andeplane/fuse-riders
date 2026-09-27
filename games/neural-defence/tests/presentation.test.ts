@@ -151,7 +151,13 @@ test("visible terrain follows build restrictions and cannot be overridden by mis
         object?.querySelector("image"),
         `non-open tile ${index} has visible art`,
       );
-      assert.equal(object.getAttribute("clip-path"), `url(#tile-${index})`);
+      // Upright rocks extend above their ground footprint; only ground art
+      // is clipped. The authoritative tile retains the placement hit target.
+      assert.equal(object.getAttribute("clip-path"), null);
+      assert.equal(
+        tile.querySelector(".ground-patch")?.getAttribute("clip-path"),
+        `url(#tile-${index})`,
+      );
       assert.equal(
         object.querySelector("image")?.getAttribute("href"),
         sprites[terrainArt(cell, index)!],

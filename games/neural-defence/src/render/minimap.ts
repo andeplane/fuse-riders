@@ -1,10 +1,8 @@
 import type { World } from "../engine/types.js";
-import { hexCenter, hexPoints } from "./board.js";
+import { hexCenter, hexPoints, boardSize, groundCell } from "./projection.js";
 
 export function minimapMarkup(world: Readonly<World>): string {
-  const last = hexCenter(world.map.width, world.map.cells.length - 1);
-  const width = Math.sqrt(3) * 35 * (world.map.width + 0.5) + 35;
-  const height = last.y + 35;
+  const { width, height } = boardSize(world.map.width, world.map.height);
   const paths = { blocked: "", biomass: "", insight: "" };
   world.map.cells.forEach((cell, i) => {
     if (cell.terrain === "open") return;
@@ -29,18 +27,6 @@ export function minimapCell(
   nx: number,
   ny: number,
 ): number {
-  const width = Math.sqrt(3) * 35 * (world.map.width + 0.5) + 35;
-  const height = hexCenter(world.map.width, world.map.cells.length - 1).y + 35;
-  const row = Math.max(
-    0,
-    Math.min(world.map.height - 1, Math.round((ny * height - 35) / 52.5)),
-  );
-  const column = Math.max(
-    0,
-    Math.min(
-      world.map.width - 1,
-      Math.round((nx * width - 35) / (Math.sqrt(3) * 35) - (row & 1) / 2),
-    ),
-  );
-  return row * world.map.width + column;
+  const { width, height } = boardSize(world.map.width, world.map.height);
+  return groundCell(world.map.width, world.map.height, nx * width, ny * height);
 }
