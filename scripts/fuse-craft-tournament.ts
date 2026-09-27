@@ -1,4 +1,10 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  renameSync,
+} from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import {
@@ -20,6 +26,9 @@ import {
 
 // Every match uses production rules and ordinary commands. No instant build,
 // injected resources or artificial "winner" when the time budget expires.
+// Bump when match setup, command generation, stepping or result measurement
+// changes. Existing manifests without this field used this same version-1 loop.
+const harnessVersion = 1;
 const option = (name: string, fallback: string) => {
   const index = process.argv.indexOf(`--${name}`);
   return index < 0 ? fallback : (process.argv[index + 1] ?? fallback);
@@ -61,15 +70,108 @@ const source = execFileSync("git", ["rev-parse", "HEAD"], {
 const dirty = execFileSync("git", ["diff", "--stat"], {
   encoding: "utf8",
 }).trim();
-writeFileSync(
-  `${output}/manifest.json`,
-  JSON.stringify(
-    { source, dirty, command: process.argv, seconds, strategies, maps },
-    null,
-    2,
-  ),
-);
 const rows: object[] = [];
+const completed = new Set<string>();
+const manifestPath = `${output}/manifest.json`;
+const resultsPath = `${output}/results.jsonl`;
+const resume = process.argv.includes("--resume");
+const simulationDirty = execFileSync(
+  "git",
+  [
+    "diff",
+    "HEAD",
+    "--stat",
+    "--",
+    "games/neural-defence/src/engine",
+    "games/neural-defence/maps",
+  ],
+  { encoding: "utf8" },
+).trim();
+const run = {
+  harnessVersion,
+  source,
+  dirty,
+  simulationDirty,
+  command: process.argv,
+  seconds,
+  strategies,
+  maps,
+};
+if (resume) {
+  const previous = JSON.parse(readFileSync(manifestPath, "utf8"));
+  const previousMapIndex = previous.command.indexOf("--maps");
+  const previousMaps =
+    previousMapIndex < 0 ? "all" : previous.command[previousMapIndex + 1];
+  if (
+    (previous.harnessVersion ?? 1) !== harnessVersion ||
+    (previous.simulationDirty ?? previous.dirty) ||
+    previous.seconds !== seconds ||
+    JSON.stringify(previous.strategies) !== JSON.stringify(strategies) ||
+    JSON.stringify(previous.maps) !== JSON.stringify(maps) ||
+    previousMaps !== option("maps", "all")
+  )
+    throw new Error(
+      "Cannot resume: original run is dirty or configuration differs",
+    );
+  // Presentation/docs commits do not invalidate a simulation run. Compare the
+  // original engine and map source to the actual working tree, including edits.
+  const changed = execFileSync(
+    "git",
+    [
+      "diff",
+      previous.source,
+      "--",
+      "games/neural-defence/src/engine",
+      "games/neural-defence/maps",
+    ],
+    { encoding: "utf8" },
+  );
+  if (changed) throw new Error("Cannot resume: simulation source differs");
+  const expected = new Set<string>();
+  for (const map of maps.filter(
+    (m) => selectedMaps[0] === "all" || selectedMaps.includes(m.id),
+  ))
+    for (let a = 0; a < strategies.length; a++)
+      for (let b = a; b < strategies.length; b++)
+        for (const slot of [0, 1])
+          expected.add(`${map.id}-${strategies[a]}-${strategies[b]}-${slot}`);
+  if (existsSync(resultsPath)) {
+    for (const line of readFileSync(resultsPath, "utf8")
+      .split("\n")
+      .filter(Boolean)) {
+      const row = JSON.parse(line);
+      if (
+        !expected.has(row.key) ||
+        completed.has(row.key) ||
+        !row.hash ||
+        !row.players ||
+        ![
+          previous.source,
+          ...(previous.resumptions ?? []).map(
+            (r: { source: string }) => r.source,
+          ),
+        ].includes(row.source)
+      )
+        throw new Error("Cannot resume: invalid or duplicate result");
+      completed.add(row.key);
+      rows.push(row);
+    }
+  }
+  writeFileSync(
+    `${manifestPath}.tmp`,
+    JSON.stringify(
+      { ...previous, resumptions: [...(previous.resumptions ?? []), run] },
+      null,
+      2,
+    ),
+  );
+  renameSync(`${manifestPath}.tmp`, manifestPath);
+  console.log(`Resuming ${completed.size} completed matches`);
+} else {
+  if (existsSync(manifestPath) || existsSync(resultsPath))
+    throw new Error("Output already exists; use --resume or a new directory");
+  writeFileSync(manifestPath, JSON.stringify(run, null, 2));
+}
 for (const map of maps.filter(
   (m) =>
     option("maps", "all") === "all" ||
@@ -80,6 +182,7 @@ for (const map of maps.filter(
       for (const slot of [0, 1]) {
         const pair = [strategies[a]!, strategies[b]!] as const;
         const key = `${map.id}-${pair.join("-")}-${slot}`;
+        if (completed.has(key)) continue;
         let world = createMatch(map, {}, [
           { id: "alpha", slot },
           { id: "beta", slot: 1 - slot },
@@ -223,9 +326,10 @@ for (const map of maps.filter(
         };
         rows.push(row);
         writeFileSync(
-          `${output}/results.jsonl`,
+          `${output}/results.jsonl.tmp`,
           rows.map((r) => JSON.stringify(r)).join("\n") + "\n",
         );
+        renameSync(`${output}/results.jsonl.tmp`, resultsPath);
         console.log(JSON.stringify(row));
       }
 }
