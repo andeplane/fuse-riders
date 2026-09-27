@@ -20,9 +20,10 @@ and leave bots or range previews treating adjacent cells as threatened.
 Before promoting the experiment, verify adjacent exclusion, distance-two/three
 fire, short-range retaliation, terrain behavior and swapped-seat replay. Compare
 a close-front and narrow-front matchup first. The committed policy-6 evidence
-currently covers only Pressure/Economy and their mirrors. Finish and archive the
-fresh source-pinned policy-6 matrix before using it for broad qualification; the
-existing full reactive-approach matrix is policy 5. A rules change requires a new engine
+originally covered only Pressure/Economy and their mirrors. The full comparison
+is now archived in `verification/secure-approach-full-2026-09-27/` and caused its
+rollback: 56 timeouts versus policy 5's 52. Policy 7 restores policy-5 behavior.
+The full reactive-approach matrix is policy 5. A rules change requires a new engine
 version and checkpoint/online compatibility update.
 
 ## Current-policy construction diagnosis
@@ -79,6 +80,7 @@ restriction. `rejected-warning.patch` retains the unshipped broad candidate and
 its focused regression against `e6075eaf` for reproduction, not application to
 production. These trials used ordinary simulation and accepted
 commands, but only one seat. The draft production changes and regression were
-removed; the online policy remains 6. Do not mistake the observed construction
+removed; those experiments did not change policy 6. Its later full comparison
+withdrew it under policy 7, as recorded in `REACTIVE_APPROACH.md`. Do not mistake the observed construction
 hazard for evidence that this heuristic is ready to ship. The next experiment
 should examine positional counterplay rather than accumulating more thresholds.

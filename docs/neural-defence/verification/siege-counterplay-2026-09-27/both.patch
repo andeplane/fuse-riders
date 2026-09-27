@@ -1,0 +1,88 @@
+--- a/games/neural-defence/src/engine/catalog.ts
++++ b/games/neural-defence/src/engine/catalog.ts
+@@ -11,6 +11,11 @@
+ } from "./types.js";
+ 
+ export type BuildKind = Construction["kind"];
++export function attackCells(map: World["map"], cell: number, kind: StructureKind): Set<number> {
++  const cells = new Set(weaponCells(map, cell, STRUCTURES[kind].range));
++  if (kind === "siege") for (const close of weaponCells(map, cell, 2)) cells.delete(close);
++  return cells;
++}
+ export const PARTICLES: Readonly<
+   Record<
+     ParticleKind,
+--- a/games/neural-defence/src/engine/index.ts
++++ b/games/neural-defence/src/engine/index.ts
+@@ -6,6 +6,7 @@
+   STRUCTURES,
+   PARTICLES,
+   canAttack,
++  attackCells,
+   protectionCells,
+   depositContribution,
+   constructionSiteRequirements,
+@@ -655,7 +656,7 @@
+     if (!s.connected || !canAttack(s.kind) || w.tick % weapon.cadence !== 0)
+       continue;
+     const p = w.players.find((p) => p.id === s.ownerId)!;
+-    const cells = weaponCells(w.map, s.cell, weapon.range);
++    const cells = attackCells(w.map, s.cell, s.kind);
+     const targets = [
+       ...w.structures
+         .filter((t) => t.ownerId !== s.ownerId && cells.has(t.cell))
+@@ -670,7 +671,7 @@
+               ? 0
+               : t.connected &&
+                   canAttack(t.kind) &&
+-                  weaponCells(w.map, t.cell, STRUCTURES[t.kind].range).has(
++                  attackCells(w.map, t.cell, t.kind).has(
+                     s.cell,
+                   )
+                 ? 1
+--- a/games/neural-defence/src/engine/ai.ts
++++ b/games/neural-defence/src/engine/ai.ts
+@@ -4,6 +4,7 @@
+   constructionUpgradeSource,
+   STRUCTURES,
+   canAttack,
++  attackCells,
+   protectionCells,
+   researchAvailability,
+ } from "./catalog.js";
+@@ -122,7 +123,7 @@
+   const reach = new Map(
+     world.structures.map((s) => [
+       s.cell,
+-      weaponCells(world.map, s.cell, STRUCTURES[s.kind].range),
++      attackCells(world.map, s.cell, s.kind),
+     ]),
+   );
+   const threats = (cell: number) =>
+@@ -412,7 +413,7 @@
+           !threats(cell).length &&
+           !repairThreats.some((s) => reach.get(s.cell)!.has(cell)) &&
+           uncovered.some((s) =>
+-            weaponCells(world.map, cell, STRUCTURES.siege.range).has(s.cell),
++            attackCells(world.map, cell, "siege").has(s.cell),
+           ),
+       );
+       artillerySites.sort(
+@@ -458,7 +459,7 @@
+         choice = { kind: "bastion", cell: fortifications[0] };
+     }
+     if (
+-      (artilleryThreat ||
++      ((artilleryThreat && strategy !== "pressure" && strategy !== "relay") ||
+         (strategy === "balanced" && forward <= 4) ||
+         (strategy === "defensive" && anchors.length > 0)) &&
+       player.research.includes("ballistics")
+@@ -472,7 +473,7 @@
+       tower = "tower";
+     const firingSites = sites.filter((cell) => {
+       if (!eligible(tower, cell)) return false;
+-      const cells = weaponCells(world.map, cell, STRUCTURES[tower].range);
++      const cells = attackCells(world.map, cell, tower);
+       return enemy.some((s) => cells.has(s.cell));
+     });
+     firingSites.sort(

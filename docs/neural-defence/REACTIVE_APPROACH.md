@@ -72,6 +72,9 @@ authoritative `sitesLost`; the new harness retains the former heuristic under
 
 ## Securing the approach (policy 6)
 
+**Withdrawn after the full comparison below.** The targeted result was favorable,
+but did not predict the broader regressions. Policy 7 restores policy-5 decisions.
+
 A new artillery site can survive enemy fire yet lose its only connection before
 construction finishes. After two paid-site losses or eight completed losses,
 policy `neural-defence-8-skirmish-6` reinforces an existing adjacent anchor with
@@ -108,3 +111,25 @@ now queries the current connected node and waits for the required `none` style;
 both browsers pass the corrected flow. This test race is tracked in issue #250.
 Independent review found no blocking issue in the fix. Physical-device and human
 visual acceptance remain open.
+
+## Full policy-6 comparison and rollback
+
+Source `0eea3347` completed all 210 matches with zero rejected commands. All 105
+swapped-seat pairs agree on result, duration, contact and every player metric.
+The manifests and matrix are in `verification/secure-approach-full-2026-09-27/`.
+
+| Map | Policy 5 timeouts | Policy 6 timeouts |
+| --- | ---: | ---: |
+| Close Quarters | 0 | 0 |
+| Narrow Front | 24 | 24 |
+| Skirmish 24 | 8 | 12 |
+| Open Front | 14 | 14 |
+| Lean Resources | 6 | 6 |
+
+Policy 6 improves Skirmish 24 Pressure/Economy, but newly stalls Balanced/Economy,
+Balanced/Relay and Pressure/Defensive. Total timeouts rise from 52 to 56. Its
+connection-fortification block is therefore removed. The engine and maps are
+byte-for-byte identical to the policy-5 source `8e702b82`; the online compatibility
+identifier advances to `neural-defence-8-skirmish-7` to avoid mixing policy-6
+command generation. Later renderer changes remain intact. This restores the
+better measured baseline, not a claim that the remaining 52 stalls are solved.

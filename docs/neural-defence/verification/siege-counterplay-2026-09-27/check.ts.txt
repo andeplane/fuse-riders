@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {createMatch,step,encodeState,decodeState,hashState,type StructureKind} from './engine/index.ts';
+import {STRUCTURES,attackCells} from './engine/catalog.ts';
+const w=createMatch({schemaVersion:1,id:'blindspot',width:8,height:4,layout:'odd-r',cells:Array.from({length:32},()=>({terrain:'open'})),spawns:[{slot:0,cellIndex:0},{slot:1,cellIndex:7}]},{},[{id:'a',slot:0},{id:'b',slot:1}]);
+for(const [owner,cell,kind] of [['a',1,'neuron'],['a',2,'neuron'],['a',3,'siege'],['b',4,'tower'],['b',5,'neuron'],['b',6,'neuron']] as [string,number,StructureKind][]){w.structures.push({id:w.nextEntityId++,ownerId:owner,cell,kind,hp:cell===3?40:STRUCTURES[kind].hp,connected:true});}
+w.tick=79;
+for(const [owner,cell] of [['a',3],['b',4]] as const){const p=w.players.find(p=>p.id===owner)!;p.research=['growth','excitation','ballistics'];p.priorities={[cell]:3};for(const q of w.particles.filter(q=>q.ownerId===owner).slice(0,8))Object.assign(q,{cell,destination:cell,from:cell,to:cell});}
+const before=encodeState(w);assert.ok(decodeState(before));
+const n=step(w), hits=n.outcomes.filter(o=>o.type==='damage');
+assert.ok(hits.some(o=>o.playerId==='a'&&o.fromCell===3&&o.cell===6));
+assert.ok(!hits.some(o=>o.playerId==='a'&&o.cell===5));
+assert.ok(!hits.some(o=>o.playerId==='a'&&o.cell===4));
+assert.ok(hits.some(o=>o.playerId==='b'&&o.fromCell===4&&o.cell===3));
+assert.equal(attackCells(w.map,3,'siege').has(6),true);
+assert.equal(hashState(n),hashState(step(decodeState(before))));
+assert.equal(encodeState(w),before);
+console.log(JSON.stringify({verified:true,hits,hash:hashState(n)}));

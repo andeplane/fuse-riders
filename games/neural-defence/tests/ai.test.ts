@@ -171,52 +171,6 @@ test("AI anchors exposed construction only after repeated site losses, without d
   const anchor = world.structures.find(
     (s) => s.ownerId === "a" && s.cell === 2,
   )!;
-  Object.assign(world.players[0]!.statistics, { sitesLost: 0, lost: 7 });
-  assert.deepEqual(
-    aiCommands(world, "a").find((c) => c.action.type === "queueConstruction")
-      ?.action,
-    { type: "queueConstruction", kind: "siege", cell: 3 },
-  );
-  world.players[0]!.statistics.lost = 8;
-  const before = encodeState(world);
-  const reinforce = aiCommands(world, "a");
-  assert.deepEqual(
-    reinforce.find((c) => c.action.type === "queueConstruction")?.action,
-    { type: "queueConstruction", kind: "bastion", cell: 2 },
-  );
-  const next = step(world, reinforce);
-  assert.equal(
-    next.outcomes.some((o) => o.type === "rejected"),
-    false,
-  );
-  assert.equal(
-    hashState(step(decodeState(before), reinforce)),
-    hashState(next),
-  );
-  assert.equal(encodeState(world), before);
-  world.players[0]!.research = ["excitation", "ballistics"];
-  assert.deepEqual(
-    aiCommands(world, "a").find((c) => c.action.type === "queueConstruction")
-      ?.action,
-    { type: "queueConstruction", kind: "siege", cell: 3 },
-  );
-  world.players[0]!.research = ["growth", "excitation", "ballistics"];
-  world.structures = world.structures.filter((s) => s !== anchor);
-  assert.equal(
-    world.structures.some((s) => s.cell === 2),
-    false,
-  );
-  assert.equal(weaponCells(world.map, 12, STRUCTURES.siege.range).has(2), true);
-  assert.equal(
-    weaponCells(world.map, 12, STRUCTURES.siege.range).has(1),
-    false,
-  );
-  assert.deepEqual(
-    aiCommands(world, "a").find((c) => c.action.type === "queueConstruction")
-      ?.action,
-    { type: "queueConstruction", kind: "siege", cell: 2 },
-  );
-  world.structures.push(anchor);
   anchor.kind = "bastion";
   anchor.hp = STRUCTURES.bastion.hp;
   assert.ok(decodeState(encodeState(world)));
