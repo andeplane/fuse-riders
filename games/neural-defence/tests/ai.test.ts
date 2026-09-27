@@ -53,6 +53,43 @@ test("AI reconnects an isolated investment before expanding toward the enemy", (
     cell: 1,
   });
 });
+test("defensive opening establishes an affordable anchor before contact", () => {
+  const world = createMatch(
+    {
+      schemaVersion: 1,
+      id: "fortification",
+      width: 8,
+      height: 4,
+      layout: "odd-r",
+      cells: Array.from({ length: 32 }, () => ({ terrain: "open" })),
+      spawns: [
+        { slot: 0, cellIndex: 0 },
+        { slot: 1, cellIndex: 4 },
+      ],
+    },
+    {},
+    [
+      { id: "a", slot: 0 },
+      { id: "b", slot: 1 },
+    ],
+  );
+  world.players[0]!.research = ["growth"];
+  world.players[0]!.biomass = 100_000;
+  const before = encodeState(world);
+  const commands = aiCommands(world, "a", "defensive");
+  const build = commands.find((c) => c.action.type === "queueConstruction");
+  assert.deepEqual(build?.action, {
+    type: "queueConstruction",
+    kind: "bastion",
+    cell: 1,
+  });
+  const next = step(world, commands);
+  assert.equal(
+    next.outcomes.some((o) => o.type === "rejected"),
+    false,
+  );
+  assert.equal(encodeState(world), before);
+});
 test("skirmish arena is larger, connected and rotationally symmetric", () => {
   assert.equal(map.cells.length, 480);
   for (let cell = 0; cell < map.cells.length; cell++)

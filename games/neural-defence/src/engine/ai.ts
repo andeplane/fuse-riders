@@ -63,9 +63,9 @@ const openings: Record<
     profile: "swift",
   },
   defensive: {
-    research: ["growth", "excitation", "conduction", "ballistics", "resonance"],
-    deposits: 10,
-    harvesters: 1,
+    research: ["growth", "excitation", "ballistics", "conduction", "resonance"],
+    deposits: 5,
+    harvesters: 0,
     weapon: "bastion",
     profile: "heavy",
   },
@@ -243,8 +243,36 @@ export function aiCommands(
     )
       choice = { kind: "harvester", cell: specialistSites[0] };
     let tower: BuildKind = policy.weapon;
+    // Establish a supplied anchor before the enemy reaches it, then use
+    // artillery behind that line. A range-one bunker cannot advance by itself.
+    const anchors = own.filter((s) => s.kind === "bastion");
     if (
-      (artilleryThreat || (strategy === "balanced" && forward <= 4)) &&
+      !choice &&
+      strategy === "defensive" &&
+      anchors.length < 2 &&
+      forward <= 5
+    ) {
+      const fortifications = sites.filter(
+        (cell) =>
+          eligible("bastion", cell) &&
+          distance(cell) >= 2 &&
+          distance(cell) <= 3 &&
+          !threats(cell).length &&
+          !anchors.some((s) => neighbors(world.map, s.cell).includes(cell)),
+      );
+      fortifications.sort(
+        (a, b) =>
+          distance(a) - distance(b) ||
+          brainDistance(a) - brainDistance(b) ||
+          cellOrder(a, b),
+      );
+      if (fortifications[0] !== undefined)
+        choice = { kind: "bastion", cell: fortifications[0] };
+    }
+    if (
+      (artilleryThreat ||
+        (strategy === "balanced" && forward <= 4) ||
+        (strategy === "defensive" && anchors.length > 0)) &&
       player.research.includes("ballistics")
     )
       tower = "siege";
