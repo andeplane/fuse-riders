@@ -1,0 +1,96 @@
+diff --git a/games/neural-defence/src/engine/ai.ts b/games/neural-defence/src/engine/ai.ts
+index 99b67557..5a37ce47 100644
+--- a/games/neural-defence/src/engine/ai.ts
++++ b/games/neural-defence/src/engine/ai.ts
+@@ -517,16 +517,26 @@ export function aiCommands(
+     // A gun can survive its build yet lose its only connection before the
+     // builder finishes. After sustained losses, reinforce an exposed approach
+     // before extending it. Any safe existing anchor makes this unnecessary.
++    // Paid enemy weapons can complete while our builder is working. Their
++    // visible construction is a warning; unpaid plans are not a threat.
++    const pendingWeapons = world.players
++      .filter((p) => p.id !== playerId && p.alive)
++      .flatMap((p) => p.queue)
++      .filter((q) => q.paid && canAttack(q.kind))
++      .map((q) => weaponCells(world.map, q.cell, STRUCTURES[q.kind].range));
++    const approachThreatened = (cell: number) =>
++      threats(cell).length > 0 ||
++      pendingWeapons.some((cells) => cells.has(cell));
+     if (
+       choice &&
+       choice.kind !== "bastion" &&
+       (player.statistics.sitesLost >= 2 || player.statistics.lost >= 8) &&
+-      threats(choice.cell).length > 0 &&
++      approachThreatened(choice.cell) &&
+       !own.some((s) => s.cell === choice!.cell)
+     ) {
+       const approach = neighbors(world.map, choice.cell);
+       const anchors = own.filter((s) => approach.includes(s.cell));
+-      if (anchors.length && anchors.every((s) => threats(s.cell).length > 0)) {
++      if (anchors.length && anchors.every((s) => approachThreatened(s.cell))) {
+         const fortify = anchors
+           .filter((s) => eligible("bastion", s.cell))
+           .sort(
+diff --git a/games/neural-defence/src/online/game.ts b/games/neural-defence/src/online/game.ts
+index 8c7d3cf0..98e703a3 100644
+--- a/games/neural-defence/src/online/game.ts
++++ b/games/neural-defence/src/online/game.ts
+@@ -222,7 +222,7 @@ export const neuralGame: RollbackGame<
+   NeuralSettings
+ > = {
+   id: "neural-defence",
+-  rules: "neural-defence-8-skirmish-6",
++  rules: "neural-defence-8-skirmish-7",
+   isEntry,
+   createRoom: (matchId, settings) => ({
+     tick: 0,
+diff --git a/games/neural-defence/tests/ai.test.ts b/games/neural-defence/tests/ai.test.ts
+index 89adf87c..df9aea77 100644
+--- a/games/neural-defence/tests/ai.test.ts
++++ b/games/neural-defence/tests/ai.test.ts
+@@ -194,6 +194,45 @@ test("AI anchors exposed construction only after repeated site losses, without d
+     hashState(next),
+   );
+   assert.equal(encodeState(world), before);
++  const pending = decodeState(before);
++  const source = pending.structures.find((s) => s.cell === 12)!;
++  source.kind = "neuron";
++  source.hp = STRUCTURES.neuron.hp;
++  const planned = step(pending, [
++    {
++      playerId: "b",
++      sequence: 1,
++      action: { type: "queueConstruction", kind: "siege", cell: 12 },
++    },
++  ]);
++  assert.equal(
++    planned.outcomes.some((o) => o.type === "rejected"),
++    false,
++  );
++  assert.equal(planned.players[1]!.queue[0]!.paid, true);
++  // Move to the next decision tick using ordinary simulation.
++  let building = planned;
++  while (building.tick % 20 !== 0) building = step(building);
++  assert.deepEqual(
++    aiCommands(building, "a").find((c) => c.action.type === "queueConstruction")
++      ?.action,
++    { type: "queueConstruction", kind: "bastion", cell: 2 },
++  );
++  pending.players[1]!.biomass = 0;
++  let unpaid = step(pending, [
++    {
++      playerId: "b",
++      sequence: 1,
++      action: { type: "queueConstruction", kind: "siege", cell: 12 },
++    },
++  ]);
++  while (unpaid.tick % 20 !== 0) unpaid = step(unpaid);
++  assert.equal(unpaid.players[1]!.queue[0]!.paid, false);
++  assert.deepEqual(
++    aiCommands(unpaid, "a").find((c) => c.action.type === "queueConstruction")
++      ?.action,
++    { type: "queueConstruction", kind: "siege", cell: 3 },
++  );
+   world.players[0]!.research = ["excitation", "ballistics"];
+   assert.deepEqual(
+     aiCommands(world, "a").find((c) => c.action.type === "queueConstruction")
