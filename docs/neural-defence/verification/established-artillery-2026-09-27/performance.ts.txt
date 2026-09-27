@@ -1,0 +1,18 @@
+import { readFileSync } from 'node:fs';
+import { performance } from 'node:perf_hooks';
+import { decodeState, hashState, step } from './engine/index.ts';
+import { aiCommands as candidate } from './engine/ai.ts';
+import { aiCommands as baseline } from '/Users/anderhaf/projects/personal/slackgame/games/neural-defence/src/engine/ai.ts';
+let world = decodeState(readFileSync('/tmp/fuse-narrow-pr.world.json', 'utf8'));
+const startTick=world.tick;
+while ((world.players[0]!.worker.mode !== 'idle' || world.players[0]!.queue.length || world.tick%20 !== 0) && world.tick < startTick+1200)
+  world=step(world,[]);
+if(world.players[0]!.worker.mode !== 'idle' || world.players[0]!.queue.length) throw new Error('No idle construction decision reached');
+for (const [name, ai] of [['baseline',baseline],['candidate',candidate]] as const) {
+  for (let i=0; i<5; i++) ai(world,'alpha','pressure');
+  const timings: number[]=[];
+  for(let i=0;i<50;i++){const start=performance.now();ai(world,'alpha','pressure');timings.push(performance.now()-start);}
+  timings.sort((a,b)=>a-b);
+  console.log(JSON.stringify({name,worldHash:hashState(world),tick:world.tick,calls:50,warmup:5,
+    medianMs:timings[25],p95Ms:timings[47],maxMs:timings[49],commands:ai(world,'alpha','pressure').map(c=>c.action)}));
+}

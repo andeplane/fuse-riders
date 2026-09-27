@@ -4,6 +4,8 @@ See the [current tech tree](TECH_TREE.md) for all research branches, structure a
 
 The [expansion and balance report](BALANCE_REPORT.md) records the strategy tournament, reproducible command replay, browser evidence and remaining balance limits.
 
+The [latest AI adaptation comparison](verification/established-artillery-2026-09-27/README.md) covers 210 map/opening/seat cases: established short-range armies can build safe artillery positions when they cannot advance directly. Ten 900-second timeouts remain, down from twenty under the preceding policy.
+
 Fuse Craft (previously Neural Defence) is a real-time territory RTS: grow a connected network from a brain, mine **Biomass** and **Insight**, research, and direct a fixed pool of attack particles. The first skirmish version is under review in [PR #409](https://github.com/andeplane/fuse-riders/pull/409). It is available in the local preview; it has not been merged or deployed. The existing `neural-defence` URLs and internal identifiers remain stable.
 
 Choose **New game → Start** for the default player-versus-AI match on the 24 × 20 Close Quarters arena, with nearby brains for earlier combat. The AI builds, researches and routes particles through ordinary commands, with the same resources and travel rules as you. Destroy its brain to win; losing your brain ends the match. Play again restarts directly with the starting camera. Synaptic Reach remains available for a longer economic opening, alongside the open sandbox and scripted combat lab. Online multiplayer UI is not part of this version.

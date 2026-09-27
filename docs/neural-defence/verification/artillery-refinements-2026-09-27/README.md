@@ -1,7 +1,8 @@
 # Preserving the opening before adapting to artillery
 
-Both variants are isolated experiments against production policy 2. Neither is
-integrated. Apply the respective patch to the engine at `a5d79796` (engine source
+Both variants were isolated experiments against production policy 2. The
+specialist variant is now integrated; see the [complete qualification](../established-artillery-2026-09-27/README.md).
+Apply the respective patch to the engine at `a5d79796` (engine source
 unchanged from `99c820e1`). Each computes Siege attack cells once per candidate
 site, avoiding repeated traversal for every enemy.
 
@@ -29,8 +30,9 @@ weapon, while allowing a developed army to seek artillery positions.
 
 Eight Narrow Front probes retain the Economy/Relay and Siege/Relay wins above,
 finish Balanced/Defensive with Balanced winning at 737/616 seconds, and leave
-Pressure/Relay unfinished at 900 seconds. The complete comparison is pending;
-these probes alone do not justify promotion.
+Pressure/Relay unfinished at 900 seconds. The complete 210-case comparison
+subsequently reduced timeouts from 20 to 10 without introducing new timeouts;
+the linked qualification records the remaining limitations.
 
 ## Regression and timing evidence
 
