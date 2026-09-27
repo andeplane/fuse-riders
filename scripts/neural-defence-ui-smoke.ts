@@ -261,8 +261,14 @@ for (const [name, engine] of [
     await desktop.keyboard.press("w");
     await desktop.locator('.terrain-layer [data-cell="14"]').click();
     await cancelled(desktop, false);
+    await desktop.locator('.construction-body[data-cell="14"]').waitFor();
+    await desktop.screenshot({ path: `${output}/${name}-construction.png` });
     await desktop.keyboard.press("s");
     await cancelled(desktop, true);
+    assert.equal(
+      await desktop.locator('.construction-body[data-cell="14"]').count(),
+      0,
+    );
     await desktop.keyboard.press("a");
     await desktop.keyboard.press("d");
     await desktop.locator('.command-card[data-panel="activity"]').waitFor();

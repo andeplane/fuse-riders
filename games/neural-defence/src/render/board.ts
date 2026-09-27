@@ -6,6 +6,10 @@ import { terrainArt, WALKABLE_GROUND } from "./terrain-art.js";
 import { combatEffect } from "./combat-effects.js";
 import { weaponFlightMs } from "./weapon-trail.js";
 import { rockRelief, rockReliefMarkup } from "./terrain-relief.js";
+import {
+  constructionMarkup,
+  constructionAnimation,
+} from "./construction-effects.js";
 import { hexCenter, hexPoints, boardSize } from "./projection.js";
 export { hexCenter, hexPoints } from "./projection.js";
 const ns = "http://www.w3.org/2000/svg";
@@ -250,6 +254,33 @@ function setMarkup(element: SVGElement, markup: string): void {
   element.innerHTML = markup;
   element.setAttribute("data-markup", markup);
 }
+function constructionBodies(world: Readonly<World>, sprites: Sprites): string {
+  return world.players
+    .flatMap((p) =>
+      p.queue
+        .filter((q) => q.paid)
+        .map((q) => {
+          const at = hexCenter(world.map.width, q.cell);
+          return constructionMarkup({
+            cell: q.cell,
+            slot: p.slot,
+            ...at,
+            height: q.kind === "neuron" ? 56 : buildingSize(q.kind),
+            progress: q.progress / Math.max(1, q.duration),
+            active: p.worker.mode === "building",
+            color: colors[p.slot]!,
+            artwork: structureArtwork(
+              world.map.width,
+              q.cell,
+              q.kind,
+              p.slot,
+              sprites,
+            ),
+          });
+        }),
+    )
+    .join("");
+}
 function layer(svg: SVGSVGElement, className: string): SVGGElement {
   const element = svg.ownerDocument.createElementNS(ns, "g");
   element.setAttribute("class", className);
@@ -372,11 +403,15 @@ export function renderBoard(
       )
       .join(""),
   );
-  setMarkup(cache.structures, structureMarkup(world, sprites));
+  setMarkup(
+    cache.structures,
+    structureMarkup(world, sprites) + constructionBodies(world, sprites),
+  );
   // Rocks, deposits and building bodies share one ground-depth order. Ground
   // polygons retain hit testing; decorative objects never intercept input.
   const bodies = [
     ...cache.structures.querySelectorAll<SVGGElement>(".structure"),
+    ...cache.structures.querySelectorAll<SVGGElement>(".construction-body"),
     ...cache.terrainObjects,
   ];
   bodies.sort(
@@ -391,7 +426,7 @@ export function renderBoard(
       .flatMap((p) =>
         p.queue.map((q, i) => {
           const { x, y } = hexCenter(width, q.cell);
-          return `<g class="queue-mark" data-cell="${q.cell}" style="--team:${colors[p.slot]}">${q.paid ? `<g opacity="${0.25 + (0.55 * q.progress) / Math.max(1, q.duration)}">${structureArtwork(width, q.cell, q.kind, p.slot, sprites)}</g><circle class="site-progress" cx="${x}" cy="${y}" r="24" pathLength="1" stroke-dasharray="${q.progress / Math.max(1, q.duration)} 1"/>` : ""}<circle cx="${x}" cy="${y}" r="24"/><text x="${x}" y="${y + 5}" text-anchor="middle">${i + 1}</text></g>`;
+          return `<g class="queue-mark" data-cell="${q.cell}" style="--team:${colors[p.slot]}">${q.paid ? `<circle class="site-progress" cx="${x}" cy="${y}" r="24" pathLength="1" stroke-dasharray="${q.progress / Math.max(1, q.duration)} 1"/>` : ""}<circle cx="${x}" cy="${y}" r="24"/><text x="${x}" y="${y + 5}" text-anchor="middle">${i + 1}</text></g>`;
         }),
       )
       .join(""),
@@ -569,7 +604,12 @@ export function renderBoard(
       ".structure-neuron:not(.disconnected) .neuron-body",
     ),
   ];
+  const constructionAnimations = [
+    ...cache.structures.querySelectorAll<SVGGElement>(".construction-body"),
+  ].map(constructionAnimation);
   const animate = (frameNow: number) => {
+    for (const animateSite of constructionAnimations)
+      animateSite(frameNow, reducedMotion);
     for (const [cell, kick] of cache.recoil) {
       const age = (frameNow - kick.born) / 240;
       const art = cache.structures.querySelector<SVGGElement>(
