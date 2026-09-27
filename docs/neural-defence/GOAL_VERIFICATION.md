@@ -21,7 +21,12 @@ typecheck, focused lint and build pass. The PR's `verify` gate is green for
 Coverage and hosted browser jobs were skipped by this PR workflow; they are not
 claimed as runs. The focused browser evidence linked above was run locally.
 
-The goal remains open at the visual/play-feel acceptance question. Green tests,
+Further live profiling found a concrete unresolved animation issue:
+[WebKit callback cadence](verification/frame-profile-2026-09-27/README.md) falls
+far below Chromium during the same early battle. Building-image raster cost is
+under investigation; screenshot/flow checks did not reveal this limitation.
+
+The goal remains open on animation smoothness and visual/play-feel acceptance. Green tests,
 more effects and completed AI matches do not establish AAA quality. The user has
 been asked to try the concrete preview and identify what still falls short.
 No additional architecture rewrite is assumed from an unanswered question.
