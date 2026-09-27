@@ -1,6 +1,7 @@
 /** Cosmetic 3D trajectories projected onto the battlefield; never advances rules. */
 import { weaponTrail, type WeaponStyle } from "./weapon-trail.js";
 import { shieldShell } from "./shield-shell.js";
+import { siegeImpact } from "./siege-impact.js";
 export interface CombatEffect {
   element: SVGGElement;
   ground: SVGGElement;
@@ -38,9 +39,10 @@ export function combatEffect(
     ? weaponTrail(document, from, at, weapon, seed)
     : undefined;
   const flight = impactDelay ?? trail?.duration ?? 0;
+  const artillery = type === "damage" && weapon === "siege";
   if (trail) ground.append(trail.shadow);
   const duration =
-    (destroyed ? 1050 : type === "constructed" ? 850 : 420) +
+    (destroyed ? 1050 : type === "constructed" ? 850 : artillery ? 680 : 420) +
     (weapon === "siege" || destroyed || shielded ? flight : 0);
   const count = destroyed ? 10 : type === "constructed" ? 8 : 5;
   const light = document.createElementNS(ns, "ellipse");
@@ -63,6 +65,11 @@ export function combatEffect(
     ? shieldShell(document, at, color, incoming)
     : undefined;
   if (shell) element.append(shell.element);
+  const plume = artillery ? siegeImpact(document, at, seed) : undefined;
+  if (plume) {
+    element.prepend(plume.element);
+    ground.prepend(plume.ground);
+  }
   let muzzle: SVGCircleElement | undefined;
   if (from) {
     element.prepend(trail!.element);
@@ -115,6 +122,7 @@ export function combatEffect(
     animate(age) {
       const elapsed = Math.max(0, Math.min(1, age)) * duration;
       trail?.animate(elapsed);
+      plume?.animate(elapsed - flight);
       const t = Math.max(
         0,
         Math.min(1, (elapsed - flight) / (duration - flight)),

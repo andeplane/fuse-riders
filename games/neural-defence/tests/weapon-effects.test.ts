@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { weaponTrail } from "../src/render/weapon-trail.js";
 import { combatEffect } from "../src/render/combat-effects.js";
 import { shieldShell } from "../src/render/shield-shell.js";
+import { siegeImpact } from "../src/render/siege-impact.js";
 import { renderBoard } from "../src/render/board.js";
 import { createMatch, loadMap, encodeState } from "../src/engine/index.js";
 
@@ -78,6 +79,16 @@ test("impact starts at cosmetic arrival; muzzle flashes at launch", () => {
   );
   effect.animate(90 / effect.duration);
   assert.equal(
+    effect.element
+      .querySelector(".siege-impact-plume")!
+      .getAttribute("opacity"),
+    "0",
+  );
+  assert.equal(
+    effect.ground.querySelector(".siege-impact-dust")!.getAttribute("opacity"),
+    "0",
+  );
+  assert.equal(
     effect.element.querySelector(".combat-core")!.getAttribute("opacity"),
     "0",
   );
@@ -87,11 +98,50 @@ test("impact starts at cosmetic arrival; muzzle flashes at launch", () => {
     ) > 0,
   );
   effect.animate(200 / effect.duration);
+  assert.equal(
+    effect.element
+      .querySelector(".siege-impact-plume")!
+      .getAttribute("opacity"),
+    "1",
+  );
   assert.ok(
     Number(
       effect.element.querySelector(".combat-core")!.getAttribute("opacity"),
     ) > 0,
   );
+});
+
+test("artillery dust stays on the ground while smoke rises; seeking time preserves bounded nodes", () => {
+  const { document } = parseHTML("<html></html>");
+  const plume = siegeImpact(document, { x: 100, y: 100 }, 17);
+  const smoke = plume.element.querySelector(".siege-impact-smoke")!;
+  plume.animate(100);
+  const firstHeight = Number(smoke.getAttribute("cy"));
+  plume.animate(400);
+  assert.ok(Number(smoke.getAttribute("cy")) < firstHeight);
+  for (const puff of plume.ground.children)
+    assert.ok(Number(puff.getAttribute("cy")) >= 94);
+  const saved = plume.element.outerHTML + plume.ground.outerHTML;
+  for (let frame = 0; frame < 300; frame++) plume.animate(frame * 3);
+  plume.animate(400);
+  assert.equal(plume.element.outerHTML + plume.ground.outerHTML, saved);
+  assert.equal(plume.element.children.length, 7);
+  assert.equal(plume.ground.children.length, 5);
+  plume.animate(680);
+  assert.equal(plume.element.getAttribute("opacity"), "0");
+  assert.equal(plume.ground.getAttribute("opacity"), "0");
+  for (const weapon of ["pulse", "relay"] as const) {
+    const effect = combatEffect(
+      document,
+      "damage",
+      { x: 0, y: 0 },
+      "#63cfff",
+      1,
+      { x: 10, y: 0 },
+      { weapon },
+    );
+    assert.equal(effect.element.querySelector(".siege-impact-plume"), null);
+  }
 });
 
 test("shield contacts face the incoming attack and its ripple travels down a projected shell", () => {
@@ -165,6 +215,8 @@ test("a Siege gun destroyed in its firing tick retains its weapon effect without
   const before = encodeState(world);
   const frame = renderBoard(svg, world, null, false, false, 50);
   assert.ok(svg.querySelector(".weapon-siege"));
+  assert.ok(svg.querySelector("#combat-dust"));
+  assert.ok(svg.querySelector("#combat-blast-smoke"));
   frame.animate(200);
   assert.equal(
     svg.querySelector(".shield-shell")!.getAttribute("opacity"),
@@ -196,4 +248,5 @@ test("a Siege gun destroyed in its firing tick retains its weapon effect without
   frame.animate(1400);
   assert.equal(svg.querySelector(".combat-tracer"), null);
   assert.equal(svg.querySelector(".combat-ground-light"), null);
+  assert.equal(svg.querySelector(".siege-impact-plume"), null);
 });

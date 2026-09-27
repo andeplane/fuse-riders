@@ -328,7 +328,9 @@ export function renderBoard(
               `<radialGradient id="combat-light-${color.slice(1)}"><stop offset="0" stop-color="#fffde5"/><stop offset="0.18" stop-color="${color}" stop-opacity="0.9"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></radialGradient>`,
           )
           .join("") +
-          '<radialGradient id="combat-smoke"><stop offset="0" stop-color="#31373d" stop-opacity="0.8"/><stop offset="0.5" stop-color="#555b62" stop-opacity="0.4"/><stop offset="1" stop-color="#60676c" stop-opacity="0"/></radialGradient>',
+          '<radialGradient id="combat-smoke"><stop offset="0" stop-color="#31373d" stop-opacity="0.8"/><stop offset="0.5" stop-color="#555b62" stop-opacity="0.4"/><stop offset="1" stop-color="#60676c" stop-opacity="0"/></radialGradient>' +
+          '<radialGradient id="combat-dust"><stop offset="0" stop-color="#b6a17e" stop-opacity="0.65"/><stop offset="0.5" stop-color="#877e68" stop-opacity="0.35"/><stop offset="1" stop-color="#716b5d" stop-opacity="0"/></radialGradient>' +
+          '<radialGradient id="combat-blast-smoke"><stop offset="0" stop-color="#edbd75" stop-opacity="0.8"/><stop offset="0.3" stop-color="#9d8f75" stop-opacity="0.8"/><stop offset="0.7" stop-color="#605b50" stop-opacity="0.5"/><stop offset="1" stop-color="#605b50" stop-opacity="0"/></radialGradient>',
       );
     const terrain = layer(svg, "terrain-layer");
     terrain.innerHTML = terrainMarkup(world, sprites);

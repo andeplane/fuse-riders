@@ -81,109 +81,114 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
         : eventType === "shielded"
           ? [80, 180, 360]
           : [80, 240, 650]) {
-        const result: { effects: number; ordered: boolean; overflow: boolean } =
-          await page.evaluate(
-            async ({ battle, age, eventType, weapon }) => {
-              const root = "/games/neural-defence/src/render/";
-              const renderer = (await import(
-                root + "board.ts"
-              )) as typeof import("../games/neural-defence/src/render/board.js");
-              const art = (await import(root + "sprites.ts")) as {
-                spriteUrls: Readonly<Record<string, string>>;
-              };
-              document.body.replaceChildren();
-              const svg = document.createElementNS(
-                "http://www.w3.org/2000/svg",
-                "svg",
-              );
-              svg.id = "nd-board";
-              svg.style.cssText = "width:100vw;height:100vh;display:block";
-              document.body.append(svg);
-              renderer.renderBoard(
-                svg,
-                battle.before,
-                null,
-                false,
-                false,
-                0,
-                art.spriteUrls,
-              );
-              const animation = renderer.renderBoard(
-                svg,
-                battle.after,
-                null,
-                false,
-                false,
-                50,
-                art.spriteUrls,
-              );
-              animation.animate(50 + age);
-              const event = battle.after.outcomes.find(
-                (o) =>
-                  o.type === eventType &&
-                  (!weapon ||
-                    battle.before.structures.some(
-                      (s) =>
-                        s.cell === o.fromCell &&
-                        s.ownerId === o.playerId &&
-                        s.kind === weapon,
-                    )),
-              )!;
-              const center = renderer.hexCenter(
-                battle.after.map.width,
-                event.cell!,
-              );
-              const height = innerWidth < 500 ? 420 : 520;
-              const width = (height * innerWidth) / innerHeight;
-              const box = {
-                x: center.x - width / 2,
-                y: center.y - height / 2,
-                width,
-                height,
-              };
-              svg.setAttribute(
-                "viewBox",
-                `${box.x} ${box.y} ${width} ${height}`,
-              );
-              for (const [key, value] of Object.entries(box))
-                svg
-                  .querySelector(".terrain-backdrop")!
-                  .setAttribute(key, String(value));
-              await Promise.all(
-                [...svg.querySelectorAll("image")].map(
-                  (n) =>
-                    new Promise<void>((resolve) => {
-                      const image = new Image();
-                      image.onload = () => resolve();
-                      image.onerror = () => resolve();
-                      image.src = n.getAttribute("href")!;
-                    }),
-                ),
-              );
-              const depths = [
-                ...svg.querySelector(".structure-layer")!.children,
-              ].map((n) =>
-                Number(
-                  n.getAttribute("data-cell") ?? n.getAttribute("data-depth"),
-                ),
-              );
-              return {
-                effects: svg.querySelectorAll(
-                  weapon
-                    ? `.weapon-${weapon}`
-                    : eventType === "shielded"
-                      ? ".combat-shielded"
-                      : ".combat-effect",
-                ).length,
-                ordered: depths.every((v, i) => i === 0 || v >= depths[i - 1]!),
-                overflow: document.documentElement.scrollWidth > innerWidth,
-              };
-            },
-            { battle, age, eventType, weapon },
-          );
+        const result: {
+          effects: number;
+          ordered: boolean;
+          overflow: boolean;
+          plumeVisible: boolean;
+        } = await page.evaluate(
+          async ({ battle, age, eventType, weapon }) => {
+            const root = "/games/neural-defence/src/render/";
+            const renderer = (await import(
+              root + "board.ts"
+            )) as typeof import("../games/neural-defence/src/render/board.js");
+            const art = (await import(root + "sprites.ts")) as {
+              spriteUrls: Readonly<Record<string, string>>;
+            };
+            document.body.replaceChildren();
+            const svg = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "svg",
+            );
+            svg.id = "nd-board";
+            svg.style.cssText = "width:100vw;height:100vh;display:block";
+            document.body.append(svg);
+            renderer.renderBoard(
+              svg,
+              battle.before,
+              null,
+              false,
+              false,
+              0,
+              art.spriteUrls,
+            );
+            const animation = renderer.renderBoard(
+              svg,
+              battle.after,
+              null,
+              false,
+              false,
+              50,
+              art.spriteUrls,
+            );
+            animation.animate(50 + age);
+            const event = battle.after.outcomes.find(
+              (o) =>
+                o.type === eventType &&
+                (!weapon ||
+                  battle.before.structures.some(
+                    (s) =>
+                      s.cell === o.fromCell &&
+                      s.ownerId === o.playerId &&
+                      s.kind === weapon,
+                  )),
+            )!;
+            const center = renderer.hexCenter(
+              battle.after.map.width,
+              event.cell!,
+            );
+            const height = innerWidth < 500 ? 420 : 520;
+            const width = (height * innerWidth) / innerHeight;
+            const box = {
+              x: center.x - width / 2,
+              y: center.y - height / 2,
+              width,
+              height,
+            };
+            svg.setAttribute("viewBox", `${box.x} ${box.y} ${width} ${height}`);
+            for (const [key, value] of Object.entries(box))
+              svg
+                .querySelector(".terrain-backdrop")!
+                .setAttribute(key, String(value));
+            await Promise.all(
+              [...svg.querySelectorAll("image")].map(
+                (n) =>
+                  new Promise<void>((resolve) => {
+                    const image = new Image();
+                    image.onload = () => resolve();
+                    image.onerror = () => resolve();
+                    image.src = n.getAttribute("href")!;
+                  }),
+              ),
+            );
+            const depths = [
+              ...svg.querySelector(".structure-layer")!.children,
+            ].map((n) =>
+              Number(
+                n.getAttribute("data-cell") ?? n.getAttribute("data-depth"),
+              ),
+            );
+            return {
+              plumeVisible: [
+                ...svg.querySelectorAll(".siege-impact-plume"),
+              ].some((node) => Number(node.getAttribute("opacity")) > 0),
+              effects: svg.querySelectorAll(
+                weapon
+                  ? `.weapon-${weapon}`
+                  : eventType === "shielded"
+                    ? ".combat-shielded"
+                    : ".combat-effect",
+              ).length,
+              ordered: depths.every((v, i) => i === 0 || v >= depths[i - 1]!),
+              overflow: document.documentElement.scrollWidth > innerWidth,
+            };
+          },
+          { battle, age, eventType, weapon },
+        );
         assert.ok(result.effects > 0);
         assert.ok(result.ordered);
         assert.equal(result.overflow, false);
+        if (weapon === "siege") assert.equal(result.plumeVisible, age >= 180);
         await page.screenshot({ path: `${out}/${name}-${size}-${age}.png` });
       }
       assert.deepEqual(errors, []);
