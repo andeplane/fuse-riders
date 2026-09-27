@@ -4,10 +4,13 @@ The following experiments ran in isolated
 copies of the engine from `0e0cd8e8`; none of these rule changes is shipped yet.
 After these trials, the completed policy-6 matrix showed a regression (56 versus
 52 timeouts), so production rolled back its fortification heuristic under policy
-7. The selected prototype must be rechecked on that restored policy-5 behavior
-before promotion. Its favorable tests below include the now-withdrawn heuristic.
+7. The selected prototype was then rechecked on that restored policy-5 behavior
+from `e7d2ec2e`: all 21 default pairings retain their exact outcomes, durations,
+builds and player statistics. All four paired probes retain their outcomes and
+durations; only the still-stalled Narrow Balanced/Relay statistics change. All
+four restored seat pairs agree, and no commands are rejected.
 
-## Candidate pending restored-baseline comparison
+## Selected candidate pending production migration
 
 Siege attacks at exactly three traversable hex steps. Its inner two-step area is
 a blind spot. Tower, Relay and Bastion retain their existing reach. When the AI
@@ -54,7 +57,9 @@ patches against `0e0cd8e8`, the ordinary-command runner and the controlled fixtu
 `runner.ts.txt` runs the four paired probes; `default-runner.ts.txt` runs all 21
 single-seat Close Quarters pairings without editing a case list.
 The `.ts.txt` files are reproduction sources intended to sit beside an isolated
-`engine/` copy. `adaptive.patch` is the selected prototype; it deliberately does
+`engine/` copy. `restored.patch` is the selected prototype against `e7d2ec2e`, with
+`restored-default.jsonl` and `restored-results.jsonl` retaining its recheck.
+The earlier `adaptive.patch` targets the withdrawn policy-6 source. The prototype deliberately does
 not include production version, UI or validation migration and must not be
 applied as a complete release.
 

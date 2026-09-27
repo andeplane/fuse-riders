@@ -133,3 +133,9 @@ byte-for-byte identical to the policy-5 source `8e702b82`; the online compatibil
 identifier advances to `neural-defence-8-skirmish-7` to avoid mixing policy-6
 command generation. Later renderer changes remain intact. This restores the
 better measured baseline, not a claim that the remaining 52 stalls are solved.
+
+Rollback source `e7d2ec2e` passes all 1,739 repository tests, typecheck, build and
+focused lint. Chromium/WebKit pass the ordinary desktop, portrait and landscape
+menu/game flow. Independent review verified source-tree identity, matrix counts,
+seat agreement and the compatibility change; no blocking findings remain for
+the rollback. Broader balance and human visual acceptance remain unfinished.
