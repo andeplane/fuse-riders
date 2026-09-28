@@ -4,6 +4,8 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
+Phases 10B–10D are a [look and feel pass](docs/look-and-feel.md): sharp high-density rendering, a full-screen arena in **Focus arena** with an inked foreground frame, a hand-drawn rope, light shafts and lantern halos, painted stone keels under the ledges, and flashier hits, pops, knockouts and swings. Rules are unchanged from 10A. Add `?res=1` to compare against the old rendering cost.
+
 Phase 10A reworks the hook into a [winch rope](docs/hook-rope.md). It catches you instead of letting you sink, reels you up to a hang, swings when you steer and lets go with a rope jump. Passing through other ledges no longer cuts it. New rooms start on Crossroads with double jump, bouncing orbs and keyboard + mouse controls: J / Space jump, WASD / arrows aim, hold K (or click) to hook, Down + Jump drops. Rules are `hook-havok-10`; refresh all clients and create a fresh room.
 
 Phase 7F adds [keeper animation and combat polish](docs/character-polish.md): an eight-frame speed-driven run cycle, takeoff/landing recovery, hook recoil, victim-only hit reactions, subtle airborne silhouette echoes and distinct fall/elimination/arrival effects. Local, remote and shared-display keepers use the same presentation. Reduced motion keeps action poses while suppressing cycling, deformation and echoes. Try running, jumping, hooking and hitting a friend on either map. Gameplay rules remain `hook-havok-6`.

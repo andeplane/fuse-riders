@@ -22,6 +22,7 @@ import { paintBalls } from "./balls.js";
 import { paintPowerUps } from "./power-ups.js";
 import { createFrame, type Frame } from "./frame.js";
 import { createLight, keelTexture, type Light } from "./light.js";
+import { createJuice, type Juice } from "./juice.js";
 import {
   animateShrine,
   dressShrine,
@@ -62,6 +63,15 @@ export function renderScale(): number {
   if (pinned >= 1 && pinned <= 2) return pinned;
   const pixels = (devicePixelRatio || 1) * Math.min(screen.width || 1600, 3840);
   return Math.min(2, Math.max(1, Math.round((pixels / 1600) * 4) / 4));
+}
+/** A hit victim flashes white for a frame or two, otherwise wears their colour. */
+function tintKeeper(
+  actor: Phaser.GameObjects.Image,
+  color: number,
+  flash: boolean,
+): void {
+  actor.setTint(flash ? 0xffffff : color);
+  actor.tintMode = flash ? Phaser.TintModes.FILL : Phaser.TintModes.MULTIPLY;
 }
 /** Phaser owns the only presentation loop. No physics plugin or simulation clock. */
 export function createShowcase(
@@ -116,6 +126,7 @@ export function createShowcase(
     private powerLabels: Phaser.GameObjects.Text[] = [];
     private frame?: Frame;
     private light?: Light;
+    private juice?: Juice;
     constructor() {
       super("belfry");
     }
@@ -252,6 +263,7 @@ export function createShowcase(
         .setDepth(13)
         .setVisible(false);
       this.effects = this.add.graphics().setDepth(14);
+      this.juice = createJuice(this, res);
       // Inked foreground framing, never a playable surface.
       this.frame = createFrame(this);
       this.paint();
@@ -447,8 +459,12 @@ export function createShowcase(
         .setScale(scale * (motion?.scaleX ?? 1), scale * pose.scaleY)
         .setRotation(motion?.rotation ?? 0)
         .setFlipX(world?.facing === -1)
-        .setTint(color)
         .setAlpha(pose.alpha);
+      tintKeeper(
+        this.actor,
+        color,
+        !!this.juice?.flashing(focused ?? "", elapsed),
+      );
       paintEchoes(this.echoes, this.actor, world, reduced.matches);
       if (this.crest) {
         if (this.crestSlot !== slot) {
@@ -559,12 +575,16 @@ export function createShowcase(
             )
             .setRotation(remotePose.rotation)
             .setFlipX(body.facing === -1)
-            .setTint(color)
             .setAlpha(
               !keeper.connected || !keeper.playing || body.respawn
                 ? 0.3
                 : remotePose.alpha,
             );
+          tintKeeper(
+            peer.actor,
+            color,
+            !!this.juice?.flashing(keeper.id, elapsed),
+          );
           paintEchoes(peer.echoes, peer.actor, body, reduced.matches);
           if (peer.slot !== keeper.slot) {
             paintCrest(peer.crest, keeper.slot, color);
@@ -633,6 +653,43 @@ export function createShowcase(
               if (burst.kind !== "impact" && burst.kind !== "pop")
                 paintBurst(this.effects, burst, elapsed, reduced.matches);
         }
+        const own = color;
+        this.juice?.update(
+          elapsed,
+          [
+            ...feedback.active().map((burst) => ({
+              burst,
+              color: own,
+              local: burst.kind !== "impact" || burst.target === focused,
+            })),
+            ...world.keepers.flatMap((k) =>
+              k.id === focused
+                ? []
+                : (this.peers.get(k.id)?.feedback.active() ?? [])
+                    .filter((b) => b.kind !== "impact" && b.kind !== "pop")
+                    .map((burst) => ({
+                      burst,
+                      color: KEEPER_COLORS[k.slot] ?? own,
+                      local: false,
+                    })),
+            ),
+          ],
+          world.keepers.map((k) => {
+            const mine = k.id === focused,
+              body = mine ? world : k.body;
+            return {
+              id: k.id,
+              x: mine ? pose.x : k.body.x,
+              y: (mine ? pose.feet : k.body.feet) - 31,
+              color: KEEPER_COLORS[k.slot] ?? own,
+              swinging:
+                body.hook.phase === "attached" &&
+                Math.hypot(body.vx, body.vy) > 450,
+              alpha: mine ? pose.alpha : 1,
+            };
+          }),
+          reduced.matches,
+        );
         host.dataset.keepers = JSON.stringify(
           world.keepers.map((k) => ({
             id: k.id,
