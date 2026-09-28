@@ -40,3 +40,8 @@ Reduced motion drops shake, zoom punch, trails, the new sparks, rings, confetti 
 - The existing Hook Havok smokes were rerun against these changes; the pull request lists the results.
 
 These checks show the page renders without errors and the layout holds. They are not a frame-rate claim: rendering at 2× is about four times the fill of the old canvas. `?res=1` restores the old cost if a device struggles, and physical-phone and TV performance still need checking. Artistic acceptance needs a playtest.
+
+![Crossroads in full-screen focus mode on a 2× display](evidence/look-crossroads-focus.png)
+![Belfry in full-screen focus mode](evidence/look-belfry-focus.png)
+![1:1 close-up at 1.75× density: keeper, ledge and keel](evidence/look-closeup-2x.png)
+![A keyboard shot knocks the Belfry target away](evidence/effects-target-hit.png)
