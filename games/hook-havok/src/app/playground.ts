@@ -87,8 +87,7 @@ el("touch-help").textContent =
   "Left thumb: sideways to move, up to jump, down to drop through a ledge. Release down before dropping again. Right thumb: drag from center to aim and fire, hold to pull, release to let go.";
 const mouseHelp =
   "A / D or ← / → to move · Space to jump through ledges · S / ↓ to drop through (one press per ledge) · Mouse to aim · Hold left mouse to hook and pull · Release to let go · R to reset. Click the scene to focus.";
-const KEYS_SHORT =
-  "WASD / arrows aim · J / Space jumps · hold K (or click) to hook and reel · jump while hooked to leap off · ↓ + jump drops.";
+const KEYS_SHORT = "WASD aims · J jumps · K or click hooks · ↓ + J drops.";
 const KEYS_HELP =
   "A / D or ← / → to move · WASD / arrows aim in eight directions · J / Space to jump, twice for an air jump · Hold K to hook and reel in, or click to hook where the mouse points · Steer to swing · Jump while hooked to leap off · Release to let go · ↓ + jump (or Shift+↓) to drop · R to reset. Click the scene to focus.";
 document.querySelector(".desktop-help")!.textContent = KEYS_HELP;
@@ -105,7 +104,7 @@ mapHelp.textContent = "Changing arena restarts the shared trial.";
 rulesPanel.prepend(mapLabel, mapHelp);
 const trials = document.createElement("section");
 trials.className = "controls experiment-controls";
-trials.innerHTML = `<label>Jump <select id="jump-mode" name="jumpMode" form="tuning" disabled><option value="single">Single jump</option><option value="double">Double jump</option></select></label><label>Tether <select id="wire-mode" name="wire" form="tuning" disabled><option value="tip">Hook tip only</option><option value="spiked">Spiked wire</option></select></label><label>Your controls <select id="keyboard-mode"><option value="keyboard">Keyboard + mouse · J / K</option><option value="mouse">Classic mouse · S drops</option></select></label><span id="control-help">${KEYS_SHORT}</span>`;
+trials.innerHTML = `<label>Jump <select id="jump-mode" name="jumpMode" form="tuning" disabled><option value="single">Single jump</option><option value="double">Double jump</option></select></label><label>Tether <select id="wire-mode" name="wire" form="tuning" disabled><option value="tip">Hook tip only</option><option value="spiked">Spiked wire</option></select></label><label>Your controls <select id="keyboard-mode"><option value="keyboard">Keyboard · J / K</option><option value="mouse">Mouse aim</option></select></label><span id="control-help">${KEYS_SHORT}</span>`;
 rulesPanel.after(trials);
 const trialHelp = document.createElement("span");
 trialHelp.textContent =

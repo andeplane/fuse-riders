@@ -36,6 +36,16 @@ try {
   await host.locator('#status[data-state="ready"]').waitFor();
   await host.locator("#start").click();
   await host.locator('#status[data-state="playing"]').waitFor();
+  // Written for the Belfry movement course; since 10A new rooms start on
+  // Crossroads with bouncing orbs, so pick the course explicitly.
+  await host.locator("#map").selectOption("belfry");
+  await host.waitForFunction(
+    () => document.querySelector("#scene").dataset.map === "belfry",
+  );
+  await host.locator("#experiment").selectOption("movement");
+  await host.waitForFunction(
+    () => document.querySelector("#scene").dataset.experiment === "movement",
+  );
   await host.locator("#rules").selectOption("elimination");
   await phase(host, "waiting");
   const invite = await host.locator("#invite-url").inputValue();

@@ -116,10 +116,14 @@ function grapple(world: World, context?: CombatContext): void {
       h.phase = "attached";
       h.platform = hit.platform;
       h.vx = h.vy = 0;
-      // While attached, distance is the rope length.
-      h.distance = Math.min(
-        world.tuning.range * S,
-        Math.round(length(h.x - sx, h.y - sy)),
+      // While attached, distance is the rope length, within the bounds the
+      // checkpoint decoder accepts even if rope() returns early.
+      h.distance = Math.max(
+        ROPE_MIN * S,
+        Math.min(
+          world.tuning.range * S,
+          Math.round(length(h.x - sx, h.y - sy)),
+        ),
       );
     } else {
       h.x += dx;

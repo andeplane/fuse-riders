@@ -73,6 +73,11 @@ test("held hooks catch falling keepers, never stretch, and hold until landing on
           `rope lengthened below the speed cap at trial ${trial}`,
         );
         rope = w.hook.distance;
+        assert.deepEqual(
+          decodeWorld(w),
+          w,
+          `attached checkpoint at trial ${trial}`,
+        );
       }
       if (was === "attached" && w.hook.phase === "retracting") {
         released++;

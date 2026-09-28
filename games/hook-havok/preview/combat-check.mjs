@@ -22,6 +22,16 @@ try {
   await page.locator('#status[data-state="ready"]').waitFor();
   await page.locator("#start").click();
   await page.locator('#status[data-state="playing"]').waitFor();
+  // Written for the Belfry movement course; since 10A new rooms start on
+  // Crossroads with bouncing orbs, so pick the course explicitly.
+  await page.locator("#map").selectOption("belfry");
+  await page.waitForFunction(
+    () => document.querySelector("#scene").dataset.map === "belfry",
+  );
+  await page.locator("#experiment").selectOption("movement");
+  await page.waitForFunction(
+    () => document.querySelector("#scene").dataset.experiment === "movement",
+  );
   const state = () =>
     page.locator("#scene").evaluate((e) => ({ ...e.dataset }));
   const select = async (mode) => {

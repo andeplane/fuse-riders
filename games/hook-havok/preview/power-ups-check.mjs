@@ -20,6 +20,16 @@ try {
   await host.locator('#status[data-state="playing"]').waitFor();
   const guest = await make(await host.locator("#invite-url").inputValue());
   await guest.locator('#status[data-state="playing"]').waitFor();
+  // Written for the Belfry movement course; since 10A new rooms start on
+  // Crossroads with bouncing orbs, so pick the course explicitly.
+  await host.locator("#map").selectOption("belfry");
+  await host.waitForFunction(
+    () => document.querySelector("#scene").dataset.map === "belfry",
+  );
+  await host.locator("#experiment").selectOption("movement");
+  await host.waitForFunction(
+    () => document.querySelector("#scene").dataset.experiment === "movement",
+  );
   if (!(await host.locator("#room-lounge").evaluate((e) => e.open)))
     await host.locator("#room-lounge > summary").click();
   await host.locator("#power-ups").selectOption("on");

@@ -30,6 +30,13 @@ try {
   await page.locator('#status[data-state="ready"]').waitFor();
   await page.locator("#start").click();
   await page.locator('#status[data-state="playing"]').waitFor();
+  if (process.env.MAP) {
+    await page.locator("#map").selectOption(process.env.MAP);
+    await page.waitForFunction(
+      (map) => document.querySelector("#scene").dataset.map === map,
+      process.env.MAP,
+    );
+  }
   await page.locator("#arena-focus").click();
   await page.locator("#scene").focus();
   // A little play: aim up, hook and reel, so the rope and effects are visible.
