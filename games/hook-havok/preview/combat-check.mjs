@@ -42,6 +42,11 @@ try {
     );
   };
   const aim = async (x, y) => {
+    // Since the room lounge and HUD (8B) the arena starts below a 1200 px
+    // viewport, and full-page screenshots reset the scroll: bring it into view.
+    await page.evaluate(() =>
+      document.querySelector("#scene").scrollIntoView({ block: "end" }),
+    );
     const box = await page.locator("#scene canvas").boundingBox();
     await page.mouse.move(
       box.x + (x / 1600) * box.width,

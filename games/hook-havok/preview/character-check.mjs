@@ -41,6 +41,11 @@ try {
       keepers.length === 2 && keepers.every((keeper) => keeper.shield === 0)
     );
   });
+  // Since the room lounge and HUD (8B) the arena starts below a 1200 px
+  // viewport; scroll it fully into view before aiming with the mouse.
+  await host.evaluate(() =>
+    document.querySelector("#scene").scrollIntoView({ block: "end" }),
+  );
   const box = await host.locator("#scene canvas").boundingBox();
   await host.mouse.move(
     box.x + (box.width * 170) / 1600,
@@ -146,6 +151,11 @@ try {
     );
   });
   await host.keyboard.up("r");
+  // Since the room lounge and HUD (8B) the arena starts below a 1200 px
+  // viewport; scroll it fully into view before aiming with the mouse.
+  await host.evaluate(() =>
+    document.querySelector("#scene").scrollIntoView({ block: "end" }),
+  );
   const hookBox = await host.locator("#scene canvas").boundingBox();
   await host.mouse.move(
     hookBox.x + (hookBox.width * 310) / 1600,
