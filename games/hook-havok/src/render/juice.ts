@@ -50,8 +50,12 @@ export function createJuice(scene: Phaser.Scene, zoom: number): Juice {
     hits = new Map<string, number>(),
     trails = new Map<string, { x: number; y: number }[]>();
   let particles: Particle[] = [],
-    punchUntil = 0;
+    punchUntil = 0,
+    still = false;
   const spawn = (p: Omit<Particle, "seed">, count: number) => {
+    // Reduced motion keeps only the static crack decal; paintBurst still
+    // draws each cue's silhouette.
+    if (still && p.kind !== "crack") return;
     for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++)
       particles.push({ ...p, seed: i + (p.at % 997) });
   };
@@ -193,8 +197,10 @@ export function createJuice(scene: Phaser.Scene, zoom: number): Juice {
   };
   return {
     update(ms, bursts, keepers, reduced) {
+      still = reduced;
       for (const { burst, color, local } of bursts) {
-        const key = `${burst.kind}:${burst.at}:${Math.round(burst.x)}:${Math.round(burst.y)}`;
+        // Colour separates two keepers' same-kind cues at one spot and time.
+        const key = `${burst.kind}:${burst.at}:${Math.round(burst.x)}:${Math.round(burst.y)}:${color}`;
         if (seen.has(key)) continue;
         seen.set(key, ms);
         react(burst, color, local, reduced);
@@ -303,7 +309,8 @@ export function createJuice(scene: Phaser.Scene, zoom: number): Juice {
     },
     flashing(id, ms) {
       const at = hits.get(id);
-      return at !== undefined && ms - at >= 0 && ms - at < 70;
+      // No white flash under reduced motion.
+      return !still && at !== undefined && ms - at >= 0 && ms - at < 70;
     },
     destroy() {
       g.destroy();

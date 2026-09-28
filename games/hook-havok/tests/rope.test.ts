@@ -233,7 +233,7 @@ test("down + jump on a ledge drops through it instead of jumping", () => {
   assert.ok(w.feet > 810 * S || w.respawn, "left the starting terrace");
 });
 
-test("keyboard aim assist bends a near miss onto a ledge within 15 degrees only", () => {
+test("keyboard aim assist bends only upward near misses onto a ledge, within 15 degrees", () => {
   const platforms = MAPS.belfry.platforms;
   // From beside ledge 6's right end, straight up misses; a few degrees left hits.
   const bent = assistAim(platforms, 1440, 420, 0, -1, 650);
@@ -246,4 +246,7 @@ test("keyboard aim assist bends a near miss onto a ledge within 15 degrees only"
     y: -1,
   });
   assert.deepEqual(assistAim(platforms, 1560, 850, 1, 0, 650), { x: 1, y: 0 });
+  // A level shot at a rival beside a floor is not bent into the floor.
+  assert.deepEqual(assistAim(platforms, 310, 779, 1, 0, 650), { x: 1, y: 0 });
+  assert.deepEqual(assistAim(platforms, 310, 779, 1, 1, 650), { x: 1, y: 1 });
 });

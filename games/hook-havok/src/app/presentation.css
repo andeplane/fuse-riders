@@ -245,6 +245,14 @@
     background: linear-gradient(#05060ae0, #05060a99 55%, #05060a00);
     pointer-events: none;
   }
+  /*
+   * The countdown/result overlay lives inside the fixed stage's stacking
+   * context, so while it shows, drop the floating HUD beneath the stage.
+   */
+  .arena-focused:not(.touch-trial):has(#match-overlay:not([hidden]))
+    #match-hud {
+    z-index: -1;
+  }
   .arena-focused:not(.touch-trial) #match-hud button {
     pointer-events: auto;
   }

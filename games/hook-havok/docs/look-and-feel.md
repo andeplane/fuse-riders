@@ -31,7 +31,7 @@ Presentation only. Rules, geometry, timing and player identity are unchanged by 
 | Keeper knocked out                         | A light column rising from the fall point, sparks, a shake and (for your own keeper) a 3% zoom punch                                                          |
 | Fast swing (over 450 units/s while hooked) | A tapered additive ribbon trail in the keeper's colour                                                                                                        |
 
-Reduced motion drops shake, zoom punch, trails, line wobble, sway and motes, and keeps the action silhouettes. The **Atmosphere** toggle continues to stop environmental motion.
+Reduced motion drops shake, zoom punch, trails, the new sparks, rings, confetti and knockout column, the white hit flash, line wobble, sway and motes. It keeps the static crack decal and the existing action silhouettes. The **Atmosphere** toggle continues to stop environmental motion. In full-screen focus mode the floating HUD steps behind the arena while a countdown or result card shows.
 
 ## Verification
 

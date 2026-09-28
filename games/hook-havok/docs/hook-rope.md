@@ -32,7 +32,7 @@ New rooms start on **Crossroads** with **double jump** and **gentle arena ricoch
 
 **Keyboard + mouse** is the standard control scheme. J / Space jump. WASD / arrows aim in eight directions, and K hooks along that direction. A left click hooks where the mouse points. Whichever hook button was used last owns the aim. Down alone aims down; **Down + Jump** (or Shift + Down) drops through a ledge. **Classic mouse** keeps S / Down alone as drop.
 
-Keyboard shots have aim assist: when the eight-way ray would miss every ledge in range, the aim bends by up to 15° (5° steps, nearest first) onto the closest ledge. This is local intent computed in the app. The bent aim travels through ordinary replicated input, and the engine is unchanged by it.
+Upward keyboard shots have aim assist: when an eight-way ray aimed up or diagonally up would miss every ledge in range, the aim bends by up to 15° (5° steps, nearest first) onto the closest ledge. Level and downward shots, the ones used against rivals and orbs, fly exactly as aimed. This is local intent computed in the app. The bent aim travels through ordinary replicated input, and the engine is unchanged by it.
 
 ## Verification
 

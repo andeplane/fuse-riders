@@ -405,6 +405,11 @@ export function createShowcase(
       if (!paused && !document.hidden) elapsed += Math.min(delta, 50);
       this.paint();
     }
+    teardown(): void {
+      this.frame?.destroy();
+      this.light?.destroy();
+      this.juice?.destroy();
+    }
     resetPeerFeedback(): void {
       for (const peer of this.peers.values()) peer.feedback.reset();
     }
@@ -1009,6 +1014,7 @@ export function createShowcase(
       if (destroyed) return;
       destroyed = true;
       game.canvas.removeEventListener("webglcontextlost", lost);
+      scene.teardown();
       game.destroy(true);
       host.replaceChildren();
     },

@@ -19,7 +19,9 @@ export function assistAim(
   range: number,
 ): { x: number; y: number } {
   const d = Math.hypot(dx, dy);
-  if (!d) return { x: dx, y: dy };
+  // Only traversal shots (with an upward component) bend. Horizontal and
+  // downward shots are how keepers hit rivals and orbs, so they fly true.
+  if (!d || dy >= 0) return { x: dx, y: dy };
   for (const degrees of OFFSETS) {
     const a = (degrees * Math.PI) / 180,
       ux = (dx * Math.cos(a) - dy * Math.sin(a)) / d,
