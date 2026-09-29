@@ -200,23 +200,19 @@ export function foldTick(
   const bots =
     r.stage === "running" ? planBots(r.simulation) : new Map<string, Input>();
   const controls = r.simulation.keepers.map((keeper) => {
-    const planned = bots.get(keeper.id);
-    if (keeper.mind)
+    if (keeper.mind) {
+      // A bot holds one input for the whole log tick, as a person's
+      // unchanged input does.
+      const planned = bots.get(keeper.id) ?? {
+        ...NEUTRAL,
+        aimX: keeper.world.input.aimX,
+        aimY: keeper.world.input.aimY,
+      };
       return {
         keeper,
-        final: planned ?? {
-          ...NEUTRAL,
-          aimX: keeper.world.input.aimX,
-          aimY: keeper.world.input.aimY,
-        },
-        pulse: {
-          jump: false,
-          drop: false,
-          fire: false,
-          bomb: false,
-          reset: false,
-        },
+        steps: [planned, planned, planned] as [Input, Input, Input],
       };
+    }
     const stream = streams.get(keeper.id),
       generation = keeper.generation;
     const source =
