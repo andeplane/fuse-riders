@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { MAPS, type MapId } from "../src/engine/maps.js";
 import {
   createWorld,
-  DEFAULT_TUNING,
+  CLASSIC_TUNING,
   NEUTRAL,
   S,
   type World,
@@ -32,12 +32,12 @@ import {
 } from "../src/online/game.js";
 import { JOIN, ACTION, SETTINGS, type StreamEntries } from "fuse-netcode";
 
-const tuning = { ...DEFAULT_TUNING, map: "crossroads" as const };
+const tuning = { ...CLASSIC_TUNING, map: "crossroads" as const };
 const ids: MapId[] = ["belfry", "crossroads"];
 
 test("a target crossing a ledge edge remains a valid checkpoint on both maps", () => {
   for (const map of ids) {
-    const world = createWorld({ ...DEFAULT_TUNING, map, experiment: "target" });
+    const world = createWorld({ ...CLASSIC_TUNING, map, experiment: "target" });
     const right = map === "belfry" ? 520 : 900;
     world.tick = 1;
     world.combat.hits = 1;
@@ -68,7 +68,7 @@ test("both maps have supported distinct spawns, stable idle and map-specific pro
   for (const map of ids) {
     const positions = new Set<number>();
     for (let slot = 0; slot < 5; slot++) {
-      const world = createWorld({ ...DEFAULT_TUNING, map }, slot);
+      const world = createWorld({ ...CLASSIC_TUNING, map }, slot);
       const x = world.x,
         feet = world.feet;
       positions.add(x);
@@ -82,7 +82,7 @@ test("both maps have supported distinct spawns, stable idle and map-specific pro
     }
     assert.equal(positions.size, 5);
     const target = createWorld({
-      ...DEFAULT_TUNING,
+      ...CLASSIC_TUNING,
       map,
       experiment: "target",
     });
@@ -95,7 +95,7 @@ test("both maps have supported distinct spawns, stable idle and map-specific pro
     );
     for (let i = 0; i < 120; i++) step(target);
     assert.ok(decodeWorld(target));
-    const ball = createWorld({ ...DEFAULT_TUNING, map, experiment: "ball" });
+    const ball = createWorld({ ...CLASSIC_TUNING, map, experiment: "ball" });
     for (let i = 0; i < 300; i++) {
       step(ball);
       assert.ok(decodeWorld(ball), `${map}: ball bounds at ${i}`);
@@ -242,7 +242,7 @@ test("competitive Crossroads replay and reversed membership order converge throu
 });
 
 test("map switch discards held and old-round inputs atomically and rejects corrupt room maps", () => {
-  const room = createRoom("first", DEFAULT_TUNING);
+  const room = createRoom("first", CLASSIC_TUNING);
   const entries: Entry[] = [
     [1, 1, JOIN, "a", "A", 0, "keeper", 1],
     [2, 1, ACTION, "start", "match"],
@@ -277,7 +277,7 @@ test("map switch discards held and old-round inputs atomically and rejects corru
   const healthy = hash(room);
   assert.equal(decode(raw, room.tick), undefined);
   assert.equal(hash(room), healthy);
-  const before = toView(createWorld());
+  const before = toView(createWorld(CLASSIC_TUNING));
   const after = toView(createWorld(tuning));
   assert.equal(
     interpolate(before, after, 0),
@@ -329,7 +329,7 @@ test("map selection survives loss/reorder/duplicates, peer refresh and manager s
   a.stop();
   mesh.run(1500);
   assert.equal(
-    returning.command({ type: "settings", settings: DEFAULT_TUNING }),
+    returning.command({ type: "settings", settings: CLASSIC_TUNING }),
     true,
   );
   mesh.run(1000);

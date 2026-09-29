@@ -132,6 +132,14 @@ Implemented a lighter fog veil, keeper contact shadows, readable out/away cards 
 
 Implemented optional Lift and Ward pickups on both maps, shared cooldowns, protection feedback and manager-controlled activation in Room & match. Deterministic collection and validated checkpoint state use rules `hook-havok-9`; refresh all clients and create a fresh room. See [rules, playtesting and verification](power-ups.md). User acceptance of balance and feel remains open.
 
+### 10A. Hook 2.0 and standard defaults
+
+Replaced the constant pull with a winch rope that catches falling keepers, reels to a hang, pumps with steering and leaves with a rope jump. Other ledges no longer cut the tether. New rooms default to Crossroads, double jump, gentle ricochets and keyboard + mouse controls (Down + Jump drops), and keyboard shots get up to 15° of aim assist. See [rules, measurements and verification](hook-rope.md). Rules are `hook-havok-10`; refresh all clients and create a fresh room. Feel and balance need a playtest.
+
+### 10B–10D. Look and feel
+
+10B renders at the display density (up to 2×) with oversized artwork reduced at load, fills the screen in desktop focus mode with a floating HUD, and adds an inked foreground frame and vignette. 10C adds a tapered ink rope with line boil, rose-window light shafts, additive lantern glows and keeper halos, paper grain and painted stone keels under every ledge. 10D adds hook-bite sparks and cracks, hit rings, victim flashes, screen shake and zoom punches, swing ribbons, orb confetti and knockout streaks. Reduced motion keeps silhouettes and drops motion effects. See [details and verification](look-and-feel.md). Presentation only: rules stay `hook-havok-10`. Artistic acceptance and TV/phone performance need a playtest.
+
 ## Module ownership
 
 `engine/`: state, input, tuning, maps, collision, movement, grapple, step, codec, view. Imports nothing from app/render/network.

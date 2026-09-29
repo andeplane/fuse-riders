@@ -61,6 +61,16 @@ try {
   await host.locator("#keeper-name").fill("Amber");
   await host.locator("#start").click();
   await host.locator('#status[data-state="playing"]').waitFor();
+  // Written for the Belfry movement course; since 10A new rooms start on
+  // Crossroads with bouncing orbs, so pick the course explicitly.
+  await host.locator("#map").selectOption("belfry");
+  await host.waitForFunction(
+    () => document.querySelector("#scene").dataset.map === "belfry",
+  );
+  await host.locator("#experiment").selectOption("movement");
+  await host.waitForFunction(
+    () => document.querySelector("#scene").dataset.experiment === "movement",
+  );
   await host.locator("#development-workshop > summary").click();
   await host.locator('input[name="speed"]').fill("400");
   await host.locator("#tuning button").click();
@@ -122,12 +132,15 @@ try {
       ) < 1,
     hostId,
   );
+  // Standard controls since 10A: Down aims, Down + Jump drops through.
   await host.keyboard.down("ArrowDown");
+  await host.keyboard.down("Space");
   await host.waitForFunction(
     () =>
       document.querySelector("#scene").dataset.grounded === "true" &&
       Math.abs(Number(document.querySelector("#scene").dataset.feet) - 810) < 1,
   );
+  await host.keyboard.up("Space");
   await host.keyboard.up("ArrowDown");
   await guest.waitForFunction(
     (id) =>

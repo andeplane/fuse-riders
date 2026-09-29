@@ -5,7 +5,7 @@ import {
   S,
   BODY,
   NEUTRAL,
-  DEFAULT_TUNING,
+  CLASSIC_TUNING,
   type Input,
 } from "../src/engine/world.js";
 import { step } from "../src/engine/step.js";
@@ -29,7 +29,7 @@ import {
 } from "fuse-netcode";
 
 test("planted feet stay stable; running accelerates and stops", () => {
-  const w = createWorld();
+  const w = createWorld(CLASSIC_TUNING);
   for (let i = 0; i < 120; i++) step(w);
   assert.equal(w.feet, 810 * S - 1);
   assert.equal(w.x, 310 * S);
@@ -44,7 +44,7 @@ test("planted feet stay stable; running accelerates and stops", () => {
 });
 test("early jump release lowers height, coyote time and buffered landing work", () => {
   const jump = (release: number) => {
-    const w = createWorld();
+    const w = createWorld(CLASSIC_TUNING);
     w.x = 490 * S;
     let top = w.feet;
     for (let i = 0; i < 55; i++) {
@@ -55,14 +55,14 @@ test("early jump release lowers height, coyote time and buffered landing work", 
     return top;
   };
   assert.ok(jump(2) > jump(30) + 40 * S);
-  const w = createWorld();
+  const w = createWorld(CLASSIC_TUNING);
   w.x = 537 * S;
   w.grounded = false;
   w.coyote = 4;
   w.input.jump = true;
   step(w);
   assert.ok(w.vy < 0);
-  const b = createWorld();
+  const b = createWorld(CLASSIC_TUNING);
   b.feet = 805 * S;
   b.grounded = false;
   b.coyote = 0;
@@ -74,7 +74,7 @@ test("early jump release lowers height, coyote time and buffered landing work", 
   assert.ok(b.vy < 0);
 });
 test("swept collision catches high speed landings, underside and wall; corner tie stable", () => {
-  const w = createWorld();
+  const w = createWorld(CLASSIC_TUNING);
   w.feet = 700 * S;
   w.vy = 200 * S;
   move(w);
@@ -96,7 +96,7 @@ test("swept collision catches high speed landings, underside and wall; corner ti
   assert.deepEqual(a, { time: 1, nx: 0, ny: -1, platform: 1 });
 });
 test("hook attaches to first ledge, pulls upward, releases and misses without stuck states", () => {
-  const w = createWorld();
+  const w = createWorld(CLASSIC_TUNING);
   w.input = { ...NEUTRAL, fire: true, aimX: 310, aimY: 100 };
   for (let i = 0; i < 12; i++) step(w);
   assert.equal(w.hook.phase, "attached");
@@ -110,7 +110,7 @@ test("hook attaches to first ledge, pulls upward, releases and misses without st
   assert.equal(w.hook.phase, "ready");
 });
 test("falls respawn once and reset releases an active hook", () => {
-  const w = createWorld();
+  const w = createWorld(CLASSIC_TUNING);
   w.x = 1550 * S;
   w.feet = 960 * S;
   step(w);
@@ -127,9 +127,9 @@ test("falls respawn once and reset releases an active hook", () => {
   assert.equal(w.hook.phase, "ready");
   assert.equal(w.x, 310 * S);
 });
-test("an intervening platform breaks the tether instead of pulling through terrain", () => {
-  const w = createWorld();
-  w.x = 700 * S;
+test("the rope reels a keeper up through an intervening one-way ledge without letting go", () => {
+  const w = createWorld(CLASSIC_TUNING);
+  Object.assign(w, { x: 700 * S, feet: 800 * S, grounded: false, coyote: 0 });
   w.input.fire = true;
   w.previous.fire = true;
   w.hook = {
@@ -139,15 +139,20 @@ test("an intervening platform breaks the tether instead of pulling through terra
     vx: 0,
     vy: 0,
     life: 50,
-    distance: 0,
+    distance: 440 * S,
     platform: 5,
   };
-  step(w);
-  assert.equal(w.hook.phase, "retracting");
+  let crossed = false;
+  for (let t = 0; t < 40; t++) {
+    step(w);
+    assert.equal(w.hook.phase, "attached", `tick ${t}`);
+    if (w.feet < 610 * S) crossed = true;
+  }
+  assert.ok(crossed, "passed up through the lower-middle ledge at y 610");
 });
 const host = "host";
 function setup() {
-  const r = createRoom("lobby", DEFAULT_TUNING);
+  const r = createRoom("lobby", CLASSIC_TUNING);
   foldTick(
     r,
     host,
@@ -267,7 +272,7 @@ test("tuning reset is scoped, bounded and checkpointed; corrupt snapshots reject
   foldTick(
     r,
     host,
-    stream([3, 2, SETTINGS, { ...DEFAULT_TUNING, speed: 400 }]),
+    stream([3, 2, SETTINGS, { ...CLASSIC_TUNING, speed: 400 }]),
   );
   assert.equal(r.round, 2);
   assert.equal(r.simulation.tuning.speed, 400);
@@ -281,6 +286,6 @@ test("tuning reset is scoped, bounded and checkpointed; corrupt snapshots reject
     undefined,
   );
   assert.equal(parseInput({ ...NEUTRAL, aimX: Infinity }), undefined);
-  assert.equal(parseTuning({ ...DEFAULT_TUNING, pull: -1 }), undefined);
+  assert.equal(parseTuning({ ...CLASSIC_TUNING, pull: -1 }), undefined);
   assert.equal(isEntry([1, 1, 0, "match", 1, { ...NEUTRAL, extra: 1 }]), false);
 });

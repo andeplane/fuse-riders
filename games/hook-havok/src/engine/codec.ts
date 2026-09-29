@@ -2,6 +2,8 @@ import { overlaps, supported } from "./collision.js";
 import {
   createWorld,
   S,
+  HOOK_SPEED,
+  ROPE_MIN,
   HALF,
   WIDTH,
   BODY,
@@ -26,7 +28,7 @@ export const TUNING_BOUNDS = {
   jump: [400, 1000],
   gravity: [800, 2600],
   air: [10, 100],
-  pull: [1200, 4000],
+  pull: [300, 1800],
   range: [250, 1000],
 } as const;
 export function parseTuning(raw: unknown): Tuning | undefined {
@@ -245,8 +247,8 @@ export function decodeWorld(raw: unknown): World | undefined {
     !["ready", "flying", "attached", "retracting"].includes(h.phase) ||
     !integer(h.x, -2000 * S, 3000 * S) ||
     !integer(h.y, -3000 * S, 3000 * S) ||
-    !integer(h.vx, -20 * S, 20 * S) ||
-    !integer(h.vy, -20 * S, 20 * S) ||
+    !integer(h.vx, -HOOK_SPEED * S, HOOK_SPEED * S) ||
+    !integer(h.vy, -HOOK_SPEED * S, HOOK_SPEED * S) ||
     !integer(h.life, 0, 60) ||
     !integer(h.distance, 0, tuning.range * S + 2) ||
     !integer(h.platform, -1, MAPS[tuning.map].platforms.length - 1)
@@ -261,6 +263,8 @@ export function decodeWorld(raw: unknown): World | undefined {
   if (h.phase === "attached") {
     const p = MAPS[tuning.map].platforms[h.platform];
     if (!p || h.vx !== 0 || h.vy !== 0) return;
+    // While attached, distance is the rope length.
+    if (h.distance < ROPE_MIN * S || h.distance > tuning.range * S) return;
     const [x, y, w, height] = p;
     const onX =
       (Math.abs(h.x - x * S) <= 1 || Math.abs(h.x - (x + w) * S) <= 1) &&

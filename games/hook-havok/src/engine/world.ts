@@ -1,11 +1,14 @@
 import { MAPS, type MapId } from "./maps.js";
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-9";
+export const RULES = "hook-havok-10";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
   HALF = 16 * S,
   BODY = 52 * S;
+/** Hook flight in world units per tick; the rope never reels shorter than ROPE_MIN units. */
+export const HOOK_SPEED = 32,
+  ROPE_MIN = 40;
 /** Original belfry geometry, retained for its traversal fixtures. Runtime uses tuning.map. */
 export const PLATFORMS = MAPS.belfry.platforms;
 export interface Tuning {
@@ -24,17 +27,25 @@ export interface Tuning {
 }
 export const DEFAULT_TUNING: Tuning = {
   powerUps: "off",
-  jumpMode: "single",
+  jumpMode: "double",
   wire: "tip",
-  map: "belfry",
+  map: "crossroads",
   rules: "free",
-  experiment: "movement",
+  experiment: "ricochet",
   speed: 360,
   jump: 760,
   gravity: 1800,
   air: 55,
-  pull: 2800,
+  /** Rope reel-in speed, units/s, while the hook is held. */
+  pull: 850,
   range: 650,
+};
+/** The pre-10A trial defaults: belfry, no balls, single jump. Fixtures pin it. */
+export const CLASSIC_TUNING: Tuning = {
+  ...DEFAULT_TUNING,
+  jumpMode: "single",
+  map: "belfry",
+  experiment: "movement",
 };
 export interface Input {
   drop: boolean;

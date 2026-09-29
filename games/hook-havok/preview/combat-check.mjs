@@ -22,6 +22,16 @@ try {
   await page.locator('#status[data-state="ready"]').waitFor();
   await page.locator("#start").click();
   await page.locator('#status[data-state="playing"]').waitFor();
+  // Written for the Belfry movement course; since 10A new rooms start on
+  // Crossroads with bouncing orbs, so pick the course explicitly.
+  await page.locator("#map").selectOption("belfry");
+  await page.waitForFunction(
+    () => document.querySelector("#scene").dataset.map === "belfry",
+  );
+  await page.locator("#experiment").selectOption("movement");
+  await page.waitForFunction(
+    () => document.querySelector("#scene").dataset.experiment === "movement",
+  );
   const state = () =>
     page.locator("#scene").evaluate((e) => ({ ...e.dataset }));
   const select = async (mode) => {
@@ -32,6 +42,11 @@ try {
     );
   };
   const aim = async (x, y) => {
+    // Since the room lounge and HUD (8B) the arena starts below a 1200 px
+    // viewport, and full-page screenshots reset the scroll: bring it into view.
+    await page.evaluate(() =>
+      document.querySelector("#scene").scrollIntoView({ block: "end" }),
+    );
     const box = await page.locator("#scene canvas").boundingBox();
     await page.mouse.move(
       box.x + (x / 1600) * box.width,

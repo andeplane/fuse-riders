@@ -1,4 +1,5 @@
 import {
+  CLASSIC_TUNING,
   NEUTRAL,
   createWorld,
   type Input,
@@ -23,23 +24,27 @@ export const TRAVERSAL: readonly {
   { ticks: 27, input: { move: 1 } },
   { ticks: 12, input: {} },
   {
-    ticks: 30,
+    ticks: 70,
     input: { fire: true, aimX: 1180, aimY: 285 },
     mark: "high anchor",
   },
   {
-    ticks: 16,
-    input: { fire: true, jump: true, move: 1, aimX: 1180, aimY: 285 },
+    ticks: 12,
+    input: { fire: true, jump: true, aimX: 1180, aimY: 285 },
   },
-  { ticks: 20, input: { move: -1 } },
-  { ticks: 15, input: {}, mark: "release and land" },
-  { ticks: 34, input: { move: 1 }, mark: "off edge" },
+  { ticks: 20, input: { move: 1 } },
+  { ticks: 15, input: {}, mark: "rope jump and land" },
+  { ticks: 24, input: { move: 1 }, mark: "off edge" },
   {
-    ticks: 55,
-    input: { fire: true, aimX: 1240, aimY: 290 },
+    ticks: 60,
+    input: { fire: true, aimX: 1330, aimY: 292 },
     mark: "recovery pull",
   },
-  { ticks: 30, input: { move: -1 } },
+  {
+    ticks: 12,
+    input: { fire: true, jump: true, aimX: 1330, aimY: 292 },
+  },
+  { ticks: 20, input: { move: -1 } },
   { ticks: 15, input: {}, mark: "recovery landing" },
   { ticks: 180, input: { move: 1 }, mark: "fall" },
   { ticks: 1, input: { reset: true } },
@@ -48,7 +53,7 @@ export const TRAVERSAL: readonly {
 export function traverse(
   inspect?: (world: World, mark?: string) => void,
 ): World {
-  const world = createWorld();
+  const world = createWorld(CLASSIC_TUNING);
   for (const segment of TRAVERSAL) {
     world.input = { ...NEUTRAL, ...segment.input };
     for (let i = 0; i < segment.ticks; i++) {

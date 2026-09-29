@@ -9,7 +9,7 @@ import {
   type Arena,
 } from "../src/engine/arena.js";
 import {
-  DEFAULT_TUNING,
+  CLASSIC_TUNING,
   NEUTRAL,
   S,
   type Tuning,
@@ -35,7 +35,7 @@ test("active rounds can return to lobby, lose a peer and restore on refresh", ()
   mesh.run(1000);
   a.command({
     type: "settings",
-    settings: { ...DEFAULT_TUNING, rules: "score" },
+    settings: { ...CLASSIC_TUNING, rules: "score" },
   });
   mesh.run(500);
   a.command({ type: "action", action: "start" });
@@ -57,7 +57,7 @@ test("active rounds can return to lobby, lose a peer and restore on refresh", ()
   returning.stop();
 });
 function start(rules: Tuning["rules"], n = 2) {
-  const arena = createArena({ ...DEFAULT_TUNING, rules });
+  const arena = createArena({ ...CLASSIC_TUNING, rules });
   syncKeepers(arena, members.slice(0, n));
   for (let i = 0; i < COUNTDOWN_TICKS; i++) stepArena(arena);
   assert.equal(arena.contest.phase, "active");
@@ -70,7 +70,7 @@ function fall(arena: Arena, slot: number) {
   world.grounded = false;
 }
 test("competitive trials wait, count down, lock entrants and ignore personal reset", () => {
-  const a = createArena({ ...DEFAULT_TUNING, rules: "elimination" });
+  const a = createArena({ ...CLASSIC_TUNING, rules: "elimination" });
   syncKeepers(a, members.slice(0, 1));
   stepArena(a);
   assert.equal(a.contest.phase, "waiting");

@@ -98,3 +98,31 @@ export function crops(
     }
   return result;
 }
+/**
+ * High-quality reduction for artwork drawn far below its source size. Phaser
+ * only mipmaps power-of-two textures, so large sources sampled straight down
+ * alias into a crunchy look; halving steps keep ink lines smooth.
+ */
+export function downscale(
+  image: HTMLImageElement | HTMLCanvasElement,
+  scale: number,
+): HTMLCanvasElement {
+  const width = Math.max(1, Math.round(image.width * scale)),
+    height = Math.max(1, Math.round(image.height * scale));
+  let current: HTMLImageElement | HTMLCanvasElement = image;
+  const step = (w: number, h: number) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Cannot prepare artwork in this browser.");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(current, 0, 0, w, h);
+    current = canvas;
+    return canvas;
+  };
+  while (current.width / 2 >= width * 1.5)
+    step(Math.round(current.width / 2), Math.round(current.height / 2));
+  return step(width, height);
+}

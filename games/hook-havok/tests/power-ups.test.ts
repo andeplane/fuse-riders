@@ -7,7 +7,7 @@ import {
   encodeArena,
   decodeArena,
 } from "../src/engine/arena.js";
-import { DEFAULT_TUNING, NEUTRAL, S } from "../src/engine/world.js";
+import { CLASSIC_TUNING, NEUTRAL, S } from "../src/engine/world.js";
 import { POWER_COOLDOWN, WARD_TICKS } from "../src/engine/power-ups.js";
 import { parseTuning } from "../src/engine/codec.js";
 import { COUNTDOWN_TICKS } from "../src/engine/contest.js";
@@ -17,7 +17,7 @@ const members = [
 ];
 function setup() {
   const a = createArena({
-    ...DEFAULT_TUNING,
+    ...CLASSIC_TUNING,
     powerUps: "on",
     jumpMode: "double",
   });
@@ -26,7 +26,7 @@ function setup() {
 }
 test("eliminated keepers and late watchers cannot collect shared pads", () => {
   const a = createArena({
-    ...DEFAULT_TUNING,
+    ...CLASSIC_TUNING,
     powerUps: "on",
     rules: "elimination",
   });
@@ -136,7 +136,7 @@ test("both pads can be claimed on one tick, inactive players cannot claim, and l
   stepArena(b);
   assert.equal(b.powerCooldowns[0], 0);
   const c = createArena({
-    ...DEFAULT_TUNING,
+    ...CLASSIC_TUNING,
     powerUps: "on",
     rules: "elimination",
   });
@@ -170,10 +170,10 @@ test("pickup checkpoints reject malformed timers/events, disabled Ward and alias
   ])
     assert.equal(decodeArena({ ...raw, pickupEvents }), undefined);
   assert.equal(
-    parseTuning({ ...DEFAULT_TUNING, powerUps: "unknown" }),
+    parseTuning({ ...CLASSIC_TUNING, powerUps: "unknown" }),
     undefined,
   );
-  assert.equal(decodeArena({ ...raw, tuning: DEFAULT_TUNING }), undefined);
+  assert.equal(decodeArena({ ...raw, tuning: CLASSIC_TUNING }), undefined);
   const restored = decodeArena(raw)!;
   restored.powerCooldowns[0] = 77;
   assert.notDeepEqual(restored.powerCooldowns, raw.powerCooldowns);
@@ -181,7 +181,7 @@ test("pickup checkpoints reject malformed timers/events, disabled Ward and alias
 test("power-up replay remains identical across periodic restore on both maps", () => {
   for (const map of ["belfry", "crossroads"] as const) {
     const a = createArena({
-      ...DEFAULT_TUNING,
+      ...CLASSIC_TUNING,
       map,
       powerUps: "on",
       jumpMode: "double",

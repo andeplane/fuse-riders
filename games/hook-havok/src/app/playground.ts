@@ -26,6 +26,7 @@ import { touchAim } from "./touch-input.js";
 import { createRoster } from "./roster.js";
 import { createEntrance } from "./entrance.js";
 import { KeyboardInput } from "./keyboard-input.js";
+import { assistAim } from "./aim-assist.js";
 import { createMatchShell } from "./match-shell.js";
 import {
   sessionStore,
@@ -86,7 +87,10 @@ el("touch-help").textContent =
   "Left thumb: sideways to move, up to jump, down to drop through a ledge. Release down before dropping again. Right thumb: drag from center to aim and fire, hold to pull, release to let go.";
 const mouseHelp =
   "A / D or ← / → to move · Space to jump through ledges · S / ↓ to drop through (one press per ledge) · Mouse to aim · Hold left mouse to hook and pull · Release to let go · R to reset. Click the scene to focus.";
-document.querySelector(".desktop-help")!.textContent = mouseHelp;
+const KEYS_SHORT = "WASD aims · J jumps · K or click hooks · ↓ + J drops.";
+const KEYS_HELP =
+  "A / D or ← / → to move · WASD / arrows aim in eight directions · J / Space to jump, twice for an air jump · Hold K to hook and reel in, or click to hook where the mouse points · Steer to swing · Jump while hooked to leap off · Release to let go · ↓ + jump (or Shift+↓) to drop · R to reset. Click the scene to focus.";
+document.querySelector(".desktop-help")!.textContent = KEYS_HELP;
 document.querySelector("details > p")!.textContent =
   "Apply restarts the exercise. Platforms catch players from above; hooks still attach to every surface. Dropping releases your hook.";
 rulesPanel.className = "controls rules-controls";
@@ -100,7 +104,7 @@ mapHelp.textContent = "Changing arena restarts the shared trial.";
 rulesPanel.prepend(mapLabel, mapHelp);
 const trials = document.createElement("section");
 trials.className = "controls experiment-controls";
-trials.innerHTML = `<label>Jump <select id="jump-mode" name="jumpMode" form="tuning" disabled><option value="single">Single jump</option><option value="double">Double jump</option></select></label><label>Tether <select id="wire-mode" name="wire" form="tuning" disabled><option value="tip">Hook tip only</option><option value="spiked">Spiked wire</option></select></label><label>Your controls <select id="keyboard-mode"><option value="mouse">Mouse aim</option><option value="keyboard">Keyboard · J / K</option></select></label><span id="control-help">Mouse aims · Space jumps · S / ↓ drops.</span>`;
+trials.innerHTML = `<label>Jump <select id="jump-mode" name="jumpMode" form="tuning" disabled><option value="single">Single jump</option><option value="double">Double jump</option></select></label><label>Tether <select id="wire-mode" name="wire" form="tuning" disabled><option value="tip">Hook tip only</option><option value="spiked">Spiked wire</option></select></label><label>Your controls <select id="keyboard-mode"><option value="keyboard">Keyboard · J / K</option><option value="mouse">Mouse aim</option></select></label><span id="control-help">${KEYS_SHORT}</span>`;
 rulesPanel.after(trials);
 const trialHelp = document.createElement("span");
 trialHelp.textContent =
@@ -186,7 +190,9 @@ const descriptions = {
 };
 for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS)) {
   const label = document.createElement("label");
-  label.textContent = key[0]!.toUpperCase() + key.slice(1);
+  // `pull` is the rope's reel-in speed since hook-havok-10.
+  label.textContent =
+    key === "pull" ? "Reel" : key[0]!.toUpperCase() + key.slice(1);
   const input = document.createElement("input");
   input.type = "number";
   input.name = key;
@@ -219,6 +225,19 @@ let input: Input = { ...NEUTRAL };
 let touch: TouchControls | undefined;
 let mousePointer: number | undefined;
 const keyboard = new KeyboardInput();
+host.dataset.controls = keyboard.mode;
+let keyFire = false;
+/** Merges keyboard intent; in the standard scheme K and a mouse click both hold the hook. */
+function sampleKeys() {
+  const chest = latest.feet - latest.body.height * 0.6;
+  const sampled = keyboard.sample(latest.x, chest, (dx, dy) =>
+    assistAim(latest.platforms, latest.x, chest, dx, dy, latest.range),
+  );
+  keyFire = sampled.fire ?? false;
+  Object.assign(input, sampled);
+  if (keyboard.mode === "keyboard")
+    input.fire = keyFire || mousePointer !== undefined;
+}
 let roomDeadline: ReturnType<typeof setTimeout> | undefined;
 function clear() {
   const captured = mousePointer;
@@ -362,7 +381,9 @@ async function graphics() {
       view: sample,
       debug: () => el<HTMLInputElement>("debug").checked,
       keyboardAim: () =>
-        !display && keyboard.mode === "keyboard"
+        !display &&
+        keyboard.mode === "keyboard" &&
+        keyboard.aimSource === "keys"
           ? keyboard.direction
           : undefined,
       cue: (cue) => effects.cue(cue),
@@ -750,13 +771,11 @@ keyboardMode.onchange = () => {
   keyboard.mode = keyboardMode.value === "keyboard" ? "keyboard" : "mouse";
   el("control-help").textContent =
     keyboard.mode === "keyboard"
-      ? "WASD / arrows aim (last direction stays) · J / Space jumps · hold K to hook, release to rearm · Shift+S or Shift+↓ drops."
+      ? KEYS_SHORT
       : "Mouse aims · Space jumps · S / ↓ drops.";
   host.dataset.controls = keyboard.mode;
   document.querySelector(".desktop-help")!.textContent =
-    keyboard.mode === "keyboard"
-      ? "A / D or ← / → to move · WASD / arrows aim in eight directions · J / Space to jump · Hold K to hook and pull · Release K to rearm · Shift+S or Shift+↓ to drop · R to reset. Click the scene to focus."
-      : mouseHelp;
+    keyboard.mode === "keyboard" ? KEYS_HELP : mouseHelp;
   host.focus();
 };
 retry.onclick = () => void graphics();
@@ -771,20 +790,14 @@ host.addEventListener("keydown", (e) => {
   if (e.repeat) return;
   if (touchDeck.dataset.active === "true") clear();
   keyboard.key(e.code, true);
-  Object.assign(
-    input,
-    keyboard.sample(latest.x, latest.feet - latest.body.height * 0.6),
-  );
+  sampleKeys();
   send();
 });
 host.addEventListener("keyup", (e) => {
   if (!keyboard.accepts(e.code)) return;
   keyboard.key(e.code, false);
   if (touchDeck.dataset.active === "true") return;
-  Object.assign(
-    input,
-    keyboard.sample(latest.x, latest.feet - latest.body.height * 0.6),
-  );
+  sampleKeys();
   send();
 });
 function aim(e: PointerEvent) {
@@ -798,7 +811,8 @@ function aim(e: PointerEvent) {
   );
 }
 host.addEventListener("pointermove", (e) => {
-  if (e.pointerType !== "mouse" || keyboard.mode === "keyboard") return;
+  if (e.pointerType !== "mouse") return;
+  if (keyboard.mode === "keyboard" && keyboard.aimSource === "keys") return;
   aim(e);
 });
 host.addEventListener("pointerdown", (e) => {
@@ -806,7 +820,7 @@ host.addEventListener("pointerdown", (e) => {
   if (touchDeck.dataset.active === "true") clear();
   e.preventDefault();
   host.focus();
-  if (keyboard.mode === "keyboard") return;
+  keyboard.aimSource = "mouse";
   mousePointer = e.pointerId;
   host.setPointerCapture(e.pointerId);
   aim(e);
@@ -816,7 +830,7 @@ host.addEventListener("pointerdown", (e) => {
 function releaseMouse(e: PointerEvent) {
   if (e.pointerId !== mousePointer) return;
   mousePointer = undefined;
-  input.fire = false;
+  input.fire = keyboard.mode === "keyboard" && keyFire;
   send();
 }
 host.addEventListener("pointerup", releaseMouse);

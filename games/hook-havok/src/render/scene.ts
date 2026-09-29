@@ -1,5 +1,11 @@
 import Phaser from "phaser";
-import { ASSETS, crops, type Crop, type AssetKey } from "./assets.js";
+import {
+  ASSETS,
+  crops,
+  downscale,
+  type Crop,
+  type AssetKey,
+} from "./assets.js";
 import { showcasePose, PLATFORMS, ANCHOR } from "./showcase-timeline.js";
 import type { WorldView } from "../engine/view.js";
 import { Feedback, type Cue } from "./feedback.js";
@@ -14,6 +20,9 @@ import {
 import { createEchoes, paintEchoes } from "./echoes.js";
 import { paintBalls } from "./balls.js";
 import { paintPowerUps } from "./power-ups.js";
+import { createFrame, type Frame } from "./frame.js";
+import { createLight, keelTexture, type Light } from "./light.js";
+import { createJuice, type Juice } from "./juice.js";
 import {
   animateShrine,
   dressShrine,
@@ -44,6 +53,26 @@ interface Options {
   time(ms: number): void;
 }
 
+/**
+ * Backing pixels per world unit: the display density up to 2×, so TVs and
+ * high-density laptops draw sharp ink instead of a stretched 1600×900 canvas.
+ * `?res=1` (or 1.5, 2) pins it for comparisons.
+ */
+export function renderScale(): number {
+  const pinned = Number(new URLSearchParams(location.search).get("res"));
+  if (pinned >= 1 && pinned <= 2) return pinned;
+  const pixels = (devicePixelRatio || 1) * Math.min(screen.width || 1600, 3840);
+  return Math.min(2, Math.max(1, Math.round((pixels / 1600) * 4) / 4));
+}
+/** A hit victim flashes white for a frame or two, otherwise wears their colour. */
+function tintKeeper(
+  actor: Phaser.GameObjects.Image,
+  color: number,
+  flash: boolean,
+): void {
+  actor.setTint(flash ? 0xffffff : color);
+  actor.tintMode = flash ? Phaser.TintModes.FILL : Phaser.TintModes.MULTIPLY;
+}
 /** Phaser owns the only presentation loop. No physics plugin or simulation clock. */
 export function createShowcase(
   host: HTMLElement,
@@ -55,6 +84,7 @@ export function createShowcase(
   let elapsed = 800,
     destroyed = false;
   const feedback = new Feedback();
+  const res = renderScale();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
   class Belfry extends Phaser.Scene {
     private peers = new Map<
@@ -94,6 +124,9 @@ export function createShowcase(
     private ambientState = "";
     private phaseLabel = "";
     private powerLabels: Phaser.GameObjects.Text[] = [];
+    private frame?: Frame;
+    private light?: Light;
+    private juice?: Juice;
     constructor() {
       super("belfry");
     }
@@ -116,17 +149,37 @@ export function createShowcase(
         );
       }
     }
+    /**
+     * `drawn` gives the largest world-units-per-source-pixel any crop is shown
+     * at; oversized sources are reduced once to that at the render scale.
+     */
     private cut(
       key: AssetKey,
       cols = 1,
       rows = 1,
       divisions?: { x: readonly number[]; y: readonly number[] },
+      drawn?: (rects: Crop[]) => number,
+      minScale = res,
     ): Crop[] {
-      const texture = this.textures.get(key),
-        source = texture.getSourceImage();
+      const source = this.textures.get(key).getSourceImage();
       if (!(source instanceof HTMLImageElement))
         throw new Error(`Cannot read ${key} artwork.`);
-      const rects = crops(source, cols, rows, divisions);
+      let rects = crops(source, cols, rows, divisions);
+      const scale = drawn ? drawn(rects) * Math.max(res, minScale) * 1.3 : 1;
+      if (scale < 0.8) {
+        const canvas = downscale(source, scale),
+          k = canvas.width / source.width;
+        this.textures.remove(key);
+        this.textures.addCanvas(key, canvas);
+        rects = rects.map((r) => ({
+          ...r,
+          x: r.x * k,
+          y: r.y * k,
+          width: r.width * k,
+          height: r.height * k,
+        }));
+      }
+      const texture = this.textures.get(key);
       rects.forEach((r, index) =>
         texture.add(String(index), 0, r.x, r.y, r.width, r.height),
       );
@@ -146,11 +199,13 @@ export function createShowcase(
       this.textures.addCanvas(key, canvas);
     }
     private build(): void {
+      this.cameras.main.setZoom(res).centerOn(800, 450);
       this.background = this.add
         .image(800, 450, "background")
         .setDisplaySize(1600, 900)
         .setTint(0x9da9c9);
       this.add.rectangle(800, 450, 1600, 900, 0x11172e, 0.19);
+      this.light = createLight(this);
       this.glowTexture("mist", "rgba(149,157,196,0.32)");
       this.glowTexture("warm", "rgba(255,174,70,0.5)");
       this.add.image(370, 140, "mist").setDisplaySize(1000, 650).setAlpha(0.28);
@@ -161,19 +216,39 @@ export function createShowcase(
             .setDisplaySize(850, 310)
             .setAlpha(0.55),
         );
-      this.cut("ledge");
+      this.cut("ledge", 1, 1, undefined, ([r]) =>
+        Math.max(400 / r!.width, 92 / r!.height),
+      );
       // The generated source uses unequal cells; preserve pixels and crop its actual packing.
-      this.shrineFrames = this.cut("shrine", 2, 2, {
-        x: [0, 0.484375, 1],
-        y: [0, 0.35, 1],
-      });
-      this.cut("hook");
-      this.lanternCrop = this.cut("lantern")[0]!;
+      this.shrineFrames = this.cut(
+        "shrine",
+        2,
+        2,
+        { x: [0, 0.484375, 1], y: [0, 0.35, 1] },
+        // Ledges at 64 units tall, banners 65, candles 40 wide.
+        (r) =>
+          Math.max(
+            64.4 / r[0]!.height,
+            64.4 / r[1]!.height,
+            65 / r[2]!.height,
+            40 / r[3]!.width,
+          ),
+        2, // shrineLedge composes stone at two backing pixels per unit
+      );
+      this.cut("hook", 1, 1, undefined, ([r]) => 30 / r!.width);
+      this.lanternCrop = this.cut(
+        "lantern",
+        1,
+        1,
+        undefined,
+        ([r]) => 38 / r!.height,
+      )[0]!;
       this.ambient = this.add.graphics().setDepth(3);
       this.rebuildTerrain(options.view?.());
-      this.frames = this.cut("actor", 3, 3);
+      const tall = (r: Crop[]) => 80 / Math.max(...r.map((c) => c.height));
+      this.frames = this.cut("actor", 3, 3, undefined, tall);
       this.actorScale = 76 / Math.max(...this.frames.map((r) => r.height));
-      this.runFrames = this.cut("run", 4, 2);
+      this.runFrames = this.cut("run", 4, 2, undefined, tall);
       this.runScale =
         (this.actorScale * this.frames[0]!.height) /
         Math.max(...this.runFrames.map((r) => r.height));
@@ -188,26 +263,9 @@ export function createShowcase(
         .setDepth(13)
         .setVisible(false);
       this.effects = this.add.graphics().setDepth(14);
-      // Restrained edge framing, never a playable surface.
-      const edge = this.add.graphics().fillStyle(0x101420, 0.72);
-      edge
-        .beginPath()
-        .moveTo(0, 0)
-        .lineTo(85, 0)
-        .lineTo(36, 140)
-        .lineTo(17, 480)
-        .lineTo(0, 680)
-        .closePath()
-        .fillPath();
-      edge
-        .beginPath()
-        .moveTo(1600, 0)
-        .lineTo(1520, 0)
-        .lineTo(1570, 190)
-        .lineTo(1580, 600)
-        .lineTo(1600, 740)
-        .closePath()
-        .fillPath();
+      this.juice = createJuice(this, res);
+      // Inked foreground framing, never a playable surface.
+      this.frame = createFrame(this);
       this.paint();
     }
     private rebuildTerrain(world?: WorldView): void {
@@ -218,6 +276,7 @@ export function createShowcase(
       this.terrainMap = world?.map ?? "belfry";
       this.ambientState = "";
       const cathedral = this.terrainMap === "crossroads";
+      this.light?.setMap(this.terrainMap);
       this.background
         ?.setTexture(cathedral ? "cathedral" : "background")
         .setDisplaySize(1600, 900)
@@ -239,6 +298,13 @@ export function createShowcase(
               height * 2.3,
             )
           : "ledge";
+        const keel = keelTexture(this, x, y, width, height * 2.3, index);
+        this.terrain.add(
+          this.add
+            .image(keel.x, keel.y, keel.key)
+            .setOrigin(0)
+            .setDisplaySize(keel.width, keel.height),
+        );
         this.terrain.add(
           this.add
             .image(x + 3, y + 7, stone, shrine ? undefined : "0")
@@ -288,6 +354,7 @@ export function createShowcase(
           this.glows.push(
             this.add
               .image(lx, ly + 16, "warm")
+              .setBlendMode(Phaser.BlendModes.ADD)
               .setDisplaySize(125, 155)
               .setAlpha(0.65),
           );
@@ -337,6 +404,11 @@ export function createShowcase(
     update(_time: number, delta: number): void {
       if (!paused && !document.hidden) elapsed += Math.min(delta, 50);
       this.paint();
+    }
+    teardown(): void {
+      this.frame?.destroy();
+      this.light?.destroy();
+      this.juice?.destroy();
     }
     resetPeerFeedback(): void {
       for (const peer of this.peers.values()) peer.feedback.reset();
@@ -392,8 +464,12 @@ export function createShowcase(
         .setScale(scale * (motion?.scaleX ?? 1), scale * pose.scaleY)
         .setRotation(motion?.rotation ?? 0)
         .setFlipX(world?.facing === -1)
-        .setTint(color)
         .setAlpha(pose.alpha);
+      tintKeeper(
+        this.actor,
+        color,
+        !!this.juice?.flashing(focused ?? "", elapsed),
+      );
       paintEchoes(this.echoes, this.actor, world, reduced.matches);
       if (this.crest) {
         if (this.crestSlot !== slot) {
@@ -406,6 +482,8 @@ export function createShowcase(
           .setRotation(motion?.rotation ?? 0)
           .setAlpha(pose.alpha);
       }
+      // Hand-drawn line boil at about 12 fps; still under reduced motion.
+      const inkFrame = reduced.matches ? 0 : 1 + Math.floor(elapsed / 83);
       this.tether.clear();
       this.hook.setVisible(!!pose.hook);
       if (pose.hook) {
@@ -422,6 +500,8 @@ export function createShowcase(
             ? world.hook.phase === "attached"
             : "attached" in pose.hook && pose.hook.attached,
           pose.alpha,
+          world?.hook.phase === "flying" && !world.wire ? 1 : 0,
+          inkFrame,
         );
         if (world) paintSpikes(this.tether, world.wire, color, pose.alpha);
         this.hook
@@ -455,6 +535,7 @@ export function createShowcase(
               label: this.add
                 .text(0, 0, "", {
                   fontFamily: "sans-serif",
+                  resolution: res,
                   fontSize: "18px",
                   fontStyle: "bold",
                   backgroundColor: "#111520",
@@ -499,12 +580,16 @@ export function createShowcase(
             )
             .setRotation(remotePose.rotation)
             .setFlipX(body.facing === -1)
-            .setTint(color)
             .setAlpha(
               !keeper.connected || !keeper.playing || body.respawn
                 ? 0.3
                 : remotePose.alpha,
             );
+          tintKeeper(
+            peer.actor,
+            color,
+            !!this.juice?.flashing(keeper.id, elapsed),
+          );
           paintEchoes(peer.echoes, peer.actor, body, reduced.matches);
           if (peer.slot !== keeper.slot) {
             paintCrest(peer.crest, keeper.slot, color);
@@ -560,6 +645,8 @@ export function createShowcase(
               color,
               body.hook.phase === "attached",
               peer.actor.alpha,
+              body.hook.phase === "flying" && !body.wire ? 1 : 0,
+              inkFrame,
             );
             paintSpikes(peer.tether, body.wire, color, peer.actor.alpha);
             peer.tether
@@ -571,6 +658,43 @@ export function createShowcase(
               if (burst.kind !== "impact" && burst.kind !== "pop")
                 paintBurst(this.effects, burst, elapsed, reduced.matches);
         }
+        const own = color;
+        this.juice?.update(
+          elapsed,
+          [
+            ...feedback.active().map((burst) => ({
+              burst,
+              color: own,
+              local: burst.kind !== "impact" || burst.target === focused,
+            })),
+            ...world.keepers.flatMap((k) =>
+              k.id === focused
+                ? []
+                : (this.peers.get(k.id)?.feedback.active() ?? [])
+                    .filter((b) => b.kind !== "impact" && b.kind !== "pop")
+                    .map((burst) => ({
+                      burst,
+                      color: KEEPER_COLORS[k.slot] ?? own,
+                      local: false,
+                    })),
+            ),
+          ],
+          world.keepers.map((k) => {
+            const mine = k.id === focused,
+              body = mine ? world : k.body;
+            return {
+              id: k.id,
+              x: mine ? pose.x : k.body.x,
+              y: (mine ? pose.feet : k.body.feet) - 31,
+              color: KEEPER_COLORS[k.slot] ?? own,
+              swinging:
+                body.hook.phase === "attached" &&
+                Math.hypot(body.vx, body.vy) > 450,
+              alpha: mine ? pose.alpha : 1,
+            };
+          }),
+          reduced.matches,
+        );
         host.dataset.keepers = JSON.stringify(
           world.keepers.map((k) => ({
             id: k.id,
@@ -605,6 +729,7 @@ export function createShowcase(
           const label = (this.powerLabels[i] ??= this.add
             .text(0, 0, "", {
               fontFamily: "sans-serif",
+              resolution: res,
               fontSize: "12px",
               fontStyle: "bold",
               backgroundColor: "#111a29",
@@ -767,6 +892,22 @@ export function createShowcase(
         }
       }
       const ambientMotion = atmosphere && !reduced.matches;
+      this.frame?.update(elapsed, ambientMotion);
+      this.light?.update(
+        elapsed,
+        ambientMotion,
+        world
+          ? world.keepers.map((k) => {
+              const own = k.id === focused;
+              return {
+                x: own ? pose.x : k.body.x,
+                y: (own ? pose.feet : k.body.feet) - 34,
+                color: KEEPER_COLORS[k.slot] ?? color,
+                alpha: k.body.respawn || !k.playing ? 0 : own ? pose.alpha : 1,
+              };
+            })
+          : [{ x: pose.x, y: pose.feet - 34, color, alpha: pose.alpha }],
+      );
       const ambientTime = ambientMotion ? elapsed : 0;
       const ambientState = `${this.terrainMap}:${atmosphere}:${reduced.matches}`;
       if (ambientMotion || this.ambientState !== ambientState) {
@@ -832,8 +973,8 @@ export function createShowcase(
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: host,
-    width: 1600,
-    height: 900,
+    width: 1600 * res,
+    height: 900 * res,
     transparent: false,
     backgroundColor: "#222941",
     banner: false,
@@ -873,6 +1014,7 @@ export function createShowcase(
       if (destroyed) return;
       destroyed = true;
       game.canvas.removeEventListener("webglcontextlost", lost);
+      scene.teardown();
       game.destroy(true);
       host.replaceChildren();
     },

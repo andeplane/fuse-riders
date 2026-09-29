@@ -1,6 +1,6 @@
 import type { RoomTransport, TransportEvents } from "fuse-netcode";
 import { HookRuntime } from "../../src/online/runtime.js";
-import { DEFAULT_TUNING } from "../../src/engine/world.js";
+import { CLASSIC_TUNING } from "../../src/engine/world.js";
 
 export class TestRuntime extends HookRuntime {
   state() {
@@ -36,7 +36,7 @@ export class Mesh {
     this.generations.set(id, generation);
     const runtime = new TestRuntime(
       "HOOK",
-      DEFAULT_TUNING,
+      CLASSIC_TUNING,
       { ready() {}, state() {}, event() {}, status() {} },
       {
         dependencies: {
