@@ -783,11 +783,9 @@ function dodge(k: Keeper, ctx: Context, input: Input): Input {
     { level, ph } = ctx,
     reach = (level.margin + BLAST_RADIUS + 64) * S;
   const threats = ctx.threats.filter((t) => {
-    if (
-      t.fuse > level.react ||
-      t.path.length < t.fuse ||
-      k.spawnGuard >= t.fuse
-    )
+    // Spawn guard runs down before bombs go off, so it covers a blast
+    // `fuse` steps away only while it is longer than that.
+    if (t.fuse > level.react || t.path.length < t.fuse || k.spawnGuard > t.fuse)
       return false;
     // Its own bomb it always knows about; a rival's it may miss altogether.
     if (t.owner !== k.id && noise(k.id, t.id, 5) >= level.notice) return false;
@@ -807,19 +805,30 @@ function dodge(k: Keeper, ctx: Context, input: Input): Input {
       : g.vy < 0
         ? g.input.jump
         : (g.airJump || g.bonusJumps > 0) && !g.input.jump;
-  // Holding Dash bump, a jumping escape's air jump dashes up and away.
-  const dashAim = (move: -1 | 0 | 1) =>
-    k.power.kind === "dash"
-      ? {
-          aimX: Math.round(w.x / S) + (move || away) * 120,
-          aimY: Math.round(chestOf(w) / S) - 200,
-        }
-      : { aimX: input.aimX, aimY: input.aimY };
+  // Holding Dash bump, a jumping escape's air jump dashes up and away from
+  // where the body is then. This tick keeps the planned aim unless it can
+  // dash now and releases no bomb, so a throw still goes where it was aimed.
+  const dashing = k.power.kind === "dash",
+    planned = { aimX: input.aimX, aimY: input.aimY },
+    dashAim = (move: -1 | 0 | 1, body: World) => ({
+      aimX: Math.round(body.x / S) + (move || away) * 120,
+      aimY: Math.round(chestOf(body) / S) - 200,
+    }),
+    firstAim = (move: -1 | 0 | 1) =>
+      dashing && !w.grounded && !(w.charge && !input.bomb)
+        ? dashAim(move, w)
+        : planned;
   const make =
     (move: -1 | 0 | 1, jump: boolean, drop = false): Script =>
     (beat, g) => ({
       ...NEUTRAL,
-      ...(jump ? dashAim(move) : { aimX: input.aimX, aimY: input.aimY }),
+      ...(!jump
+        ? planned
+        : beat === 0
+          ? firstAim(move)
+          : dashing
+            ? dashAim(move, g)
+            : planned),
       bomb: input.bomb,
       move,
       jump: jump && jumping(beat, g),
@@ -834,7 +843,7 @@ function dodge(k: Keeper, ctx: Context, input: Input): Input {
     {
       script: make(away, true),
       first: {
-        ...dashAim(away),
+        ...firstAim(away),
         move: away,
         jump: !w.input.jump,
         drop: false,
@@ -844,7 +853,7 @@ function dodge(k: Keeper, ctx: Context, input: Input): Input {
     {
       script: make(-away as -1 | 1, true),
       first: {
-        ...dashAim(-away as -1 | 1),
+        ...firstAim(-away as -1 | 1),
         move: -away as -1 | 1,
         jump: !w.input.jump,
         drop: false,
@@ -854,7 +863,7 @@ function dodge(k: Keeper, ctx: Context, input: Input): Input {
     {
       script: make(0, true),
       first: {
-        ...dashAim(0),
+        ...firstAim(0),
         move: 0,
         jump: !w.input.jump,
         drop: false,

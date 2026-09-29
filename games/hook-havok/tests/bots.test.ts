@@ -22,7 +22,14 @@ import {
   type Entry,
   type Room,
 } from "../src/online/game.js";
-import { inPlay, type Keeper } from "../src/engine/arena.js";
+import {
+  createArena,
+  inPlay,
+  stepArena,
+  syncKeepers,
+  type Keeper,
+} from "../src/engine/arena.js";
+import { bombPath } from "../src/engine/bomb.js";
 import {
   CLASSIC_TUNING,
   DEFAULT_TUNING,
@@ -33,7 +40,12 @@ import {
 } from "../src/engine/world.js";
 import { parseInput, parseTuning } from "../src/engine/codec.js";
 import { MAPS } from "../src/engine/maps.js";
-import { BLAST_RADIUS, COOLDOWN_TICKS } from "../src/engine/bomb-rules.js";
+import {
+  BLAST_RADIUS,
+  BOMBLET_FUSE,
+  COOLDOWN_TICKS,
+  FUSE_TICKS,
+} from "../src/engine/bomb-rules.js";
 import {
   ALL_POWERS,
   POWER_KINDS,
@@ -333,9 +345,10 @@ test("five bots with bombs and every power-up, restored from their own checkpoin
 
 test("planning with every power active writes the bots' minds and nothing else", () => {
   const r = botRoom({ ...DEFAULT_TUNING, botLevel: "hard" }, 5, false);
-  let dodges = 0,
-    moved = 0,
+  let planted = 0,
+    dodges = 0,
     all = bots(r);
+  const dodged = new Set<string>();
   for (let t = 2; t <= 400; t++) {
     idle(r);
     // The fold rebuilds the keeper list every tick.
@@ -364,13 +377,17 @@ test("planning with every power active writes the bots' minds and nothing else",
           fuse: 40,
         });
         a.bombs.sort((p, q) => p.id - q.id);
-        dodges++;
+        planted++;
       }
     });
     const minds = all.map((k) => k.mind && { ...k.mind }),
       before = hash(r),
       state = structuredClone(a),
-      twin = structuredClone(a);
+      twin = structuredClone(a),
+      // The same arena with every fuse too long to react to: only a dodge
+      // can make its plan differ.
+      calm = structuredClone(a);
+    for (const b of calm.bombs) b.fuse = 10_000;
     const inputs = planBots(a);
     // The same state plans the same inputs and the same minds.
     assert.deepEqual(planBots(twin), inputs, `tick ${t}: inputs`);
@@ -379,15 +396,74 @@ test("planning with every power active writes the bots' minds and nothing else",
       a.keepers.map((k) => k.mind),
       `tick ${t}: minds`,
     );
-    if (all.some((k, i) => !isDeepStrictEqual(k.mind, minds[i]))) moved++;
+    const unhurried = planBots(calm);
+    for (const k of all)
+      if (!isDeepStrictEqual(unhurried.get(k.id), inputs.get(k.id))) {
+        dodged.add(k.power.kind);
+        dodges++;
+      }
     // Put the minds back: every other byte must be as it was.
     all.forEach((k, i) => (k.mind = minds[i]!));
     assert.equal(hash(r), before, `tick ${t}: hash`);
     assert.ok(isDeepStrictEqual(a, state), `tick ${t}: state`);
   }
-  assert.ok(dodges > 50 && moved > 100, JSON.stringify({ dodges, moved }));
-  const kinds = new Set(all.map((k) => k.power.kind));
-  assert.ok(kinds.size >= 4, [...kinds].join());
+  const summary = JSON.stringify({ planted, dodges, dodged: [...dodged] });
+  assert.ok(planted > 50 && dodges > 50, summary);
+  assert.equal(dodged.size, 5, `dodges holding every kind: ${summary}`);
+});
+
+test("a cluster bomb splits on the flight bombPath marks as its first contact, and its bomblets blow a bomblet fuse later", () => {
+  // Where bots take a cluster bomb's blast: the split point, BOMBLET_FUSE on.
+  for (const [x, y, vx, vy] of [
+    [600, 100, 4, -3],
+    [300, 600, -2, 1],
+    [1000, 400, 6, -8],
+  ] as const) {
+    const a = createArena(DEFAULT_TUNING, 0, 7);
+    syncKeepers(a, [{ id: "far", slot: 0, connected: true, generation: 1 }]);
+    a.keepers[0]!.bomb.cooldown = COOLDOWN_TICKS;
+    const bomb = {
+      id: 0,
+      owner: "far",
+      kind: "cluster" as const,
+      x: x * S,
+      y: y * S,
+      vx: vx * S,
+      vy: vy * S,
+      fuse: FUSE_TICKS,
+    };
+    a.bombs.push({ ...bomb });
+    const { path, contact } = bombPath(
+      bomb,
+      bomb.fuse,
+      a.tuning.gravity,
+      a.tuning.map,
+    );
+    const label = `from (${x}, ${y})`;
+    assert.ok(contact >= 0 && contact < FUSE_TICKS - 1, label);
+    for (let s = 1; s <= contact; s++) {
+      stepArena(a);
+      assert.deepEqual(
+        { x: a.bombs[0]!.x, y: a.bombs[0]!.y },
+        path[s - 1],
+        `${label}: the flight, step ${s}`,
+      );
+    }
+    stepArena(a);
+    assert.ok(
+      a.bombs.length > 0 && a.bombs.every((b) => b.kind === "bomblet"),
+      `${label}: split on step ${contact + 1}`,
+    );
+    for (const b of a.bombs) assert.equal(b.fuse, BOMBLET_FUSE, label);
+    const split = a.tick;
+    while (a.bombs.length && a.tick < split + BOMBLET_FUSE + 5) stepArena(a);
+    assert.ok(
+      a.blasts.some(
+        (e) => e.kind === "bomblet" && e.tick === split + BOMBLET_FUSE,
+      ),
+      `${label}: bomblets blow ${BOMBLET_FUSE} steps after the split`,
+    );
+  }
 });
 
 test("BOT entries seat bots in free slots; bots never manage, stay through succession and leave only between rounds", () => {
