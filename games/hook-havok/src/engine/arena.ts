@@ -136,12 +136,14 @@ export function createArena(tuning: Tuning, tick = 0, seed = 0): Arena {
  * the fuse), so a live bomb's owner always has at least that much left. A
  * cluster splits on contact with at least one fuse tick left, so the owner has
  * at least 60 left when its bomblets start their 36-tick fuse: a bomblet's
- * owner keeps at least 24 more than its fuse.
+ * owner keeps at least 24 more than its fuse. The id carries the owner's slot
+ * (tick × 32 + slot × 4 + 0–3), which keeps a split's bomblet ids unique.
  */
 const ownedBomb = (arena: Arena, b: Bomb) =>
   arena.keepers.some(
     (k) =>
       k.id === b.owner &&
+      Math.floor(b.id / 4) % 8 === k.slot &&
       k.bomb.cooldown >=
         b.fuse +
           COOLDOWN_TICKS -
@@ -331,9 +333,10 @@ export function stepArena(arena: Arena, running = true): void {
     for (const rival of arena.keepers) {
       if (rival === dasher || !open(rival) || !bodiesTouch(w, rival.world))
         continue;
+      // sqrt of an exact integer sum rounds alike on every engine; hypot need not.
       const dx = rival.world.x - w.x,
         dy = rival.world.feet - w.feet,
-        d = Math.hypot(dx, dy),
+        d = Math.sqrt(dx * dx + dy * dy),
         ux = d ? dx / d : w.facing,
         uy = d ? dy / d : 0;
       pending.push({
@@ -359,12 +362,14 @@ export function stepArena(arena: Arena, running = true): void {
     const victim = arena.keepers.find((k) => k.id === impact.target)!;
     if (victim.world.respawn || victim.spawnGuard || !canPlay(victim)) continue;
     let { vx, vy } = impact;
-    if (impact.pull) {
-      // Toward the hooking keeper instead of away, lifted off the ground.
+    // Toward the hooking keeper instead of away, lifted off the ground. A
+    // hooker who fell out this step is already below the arena, so the rival
+    // gets the ordinary push instead of a pull into the pit.
+    if (impact.pull && !impact.by.world.respawn) {
       const by = impact.by.world,
         dx = by.x - victim.world.x,
         dy = by.feet - victim.world.feet,
-        d = Math.hypot(dx, dy) || 1;
+        d = Math.sqrt(dx * dx + dy * dy) || 1;
       vx = Math.round((dx / d) * HARPOON_PULL * S);
       vy = Math.round((dy / d) * HARPOON_PULL * S) - HARPOON_LIFT * S;
     }
@@ -548,7 +553,10 @@ const bombY = (v: unknown): v is number =>
 const chestY = (v: unknown): v is number => integer(v, -3000 * S, 1000 * S);
 const bombKind = (v: unknown, cluster: boolean): v is Bomb["kind"] =>
   v === "plain" || (cluster && (v === "cluster" || v === "bomblet"));
-/** Ids from tick × 32 + slot × 4 (+ 1–3 for bomblets): unique and ascending. */
+/**
+ * Ids from tick × 32 + slot × 4 (+ 1–3 for bomblets): unique and ascending.
+ * That the slot is the owner's is checked once the keepers decode.
+ */
 function decodeBombs(
   raw: unknown,
   tick: number,

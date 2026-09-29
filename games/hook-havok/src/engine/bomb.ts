@@ -228,7 +228,8 @@ function fly(bomb: Bomb, gravity: number, map: MapId): boolean {
 /**
  * A cluster bomb's first contact: bomblets leave the bounce spread sideways
  * and popping up, as many as the live-bomb cap allows. Their ids follow the
- * owner's slot for this tick, so they stay unique.
+ * owner's slot for this tick, so they stay unique: the parent id's slot part
+ * is its owner's, which a checkpoint must show (`ownedBomb` in arena.ts).
  */
 function split(bomb: Bomb, tick: number, room: number): Bomb[] {
   const cap = MAX_BOMB_SPEED * S,

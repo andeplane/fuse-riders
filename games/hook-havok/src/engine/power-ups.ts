@@ -114,7 +114,10 @@ export function grantPower(
   p.charges = kind === "cluster" ? CLUSTER_CHARGES : 0;
   p.taken = Math.min(0xffffffff, p.taken + 1);
   // Triple jump and Dash bump work at once, even when collected in the air.
+  // In a double-jump room Dash bump's dash is the air jump, so a pickup after
+  // the air jump was spent gives it back; single-jump rooms get a bonus one.
   keeper.world.bonusJumps = bonusRefill(kind, jumpMode);
+  if (kind === "dash" && jumpMode === "double") keeper.world.airJump = true;
 }
 /** One active tick of a held power; it expires at 0. */
 export function tickPower(keeper: Keeper): void {

@@ -21,6 +21,8 @@ const pools = new Map<string, readonly PowerKind[]>();
 /**
  * Kinds a pad can draw: enabled in the setting and useful with this room's
  * bombs. Shield and Cluster bomb need bombs, so bombs off leaves them out.
+ * Every draw on every peer reads the same cached list, and the view hands it
+ * out, so it is frozen: no consumer can change a later draw.
  */
 export function powerPool(
   tuning: Pick<Tuning, "powerUps" | "bomb">,
@@ -28,10 +30,12 @@ export function powerPool(
   const key = `${tuning.powerUps}/${tuning.bomb}`;
   let pool = pools.get(key);
   if (!pool) {
-    pool = POWER_KINDS.filter(
-      (kind, i) =>
-        tuning.powerUps & (1 << i) &&
-        (tuning.bomb !== "off" || (kind !== "shield" && kind !== "cluster")),
+    pool = Object.freeze(
+      POWER_KINDS.filter(
+        (kind, i) =>
+          tuning.powerUps & (1 << i) &&
+          (tuning.bomb !== "off" || (kind !== "shield" && kind !== "cluster")),
+      ),
     );
     pools.set(key, pool);
   }
@@ -67,7 +71,8 @@ export const powerTicks = (kind: PowerKind): number =>
 /**
  * Extra air actions a power restores on landing or a rope jump, on top of the
  * ordinary air jump. Triple jump makes two air jumps in either jump mode; Dash
- * bump turns the air jump into a dash, and gives single-jump rooms one.
+ * bump turns the air jump into a dash, and gives single-jump rooms one. A
+ * pickup grants these at once (`grantPower`), the air jump included.
  */
 export function bonusRefill(
   kind: PowerKind | "",

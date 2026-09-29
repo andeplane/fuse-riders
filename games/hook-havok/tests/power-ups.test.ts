@@ -10,8 +10,11 @@ import {
   type Keeper,
 } from "../src/engine/arena.js";
 import {
+  BODY,
   CLASSIC_TUNING,
   DEFAULT_TUNING,
+  HEIGHT,
+  HOOK_SPEED,
   NEUTRAL,
   S,
   type Input,
@@ -381,6 +384,40 @@ test("Cluster bomb: the next three throws split into three bomblets on first con
     ["bomblet", "bomblet", "bomblet"],
   );
 });
+test("a cluster that splits on its last fuse tick leaves its owner 24 ticks more than its bomblets' fuse, and that checkpoints", () => {
+  const a = arena(2);
+  const amber = a.keepers[0]!;
+  stand(amber, 1000, 480);
+  // Just above the low ledge and falling onto it, on its last fuse tick, with
+  // exactly the cooldown a throw 89 ticks ago leaves.
+  const cluster = plant(a, amber, 330, 799, 1, "cluster");
+  cluster.vy = 5 * S;
+  amber.bomb.cooldown = 1 + COOLDOWN_TICKS - FUSE_TICKS;
+  assert.ok(roundTrip(a), "the tight cluster checkpoints");
+  stepArena(a);
+  const bomblets = a.bombs.filter((b) => b.kind === "bomblet");
+  assert.equal(bomblets.length, 3, "it split instead of going off");
+  assert.equal(amber.bomb.cooldown - BOMBLET_FUSE, 24);
+  assert.ok(roundTrip(a), "the bomblets checkpoint");
+  const raw = encodeArena(a) as {
+    keepers: { bomb: { cooldown: number } }[];
+  };
+  raw.keepers[0]!.bomb.cooldown--;
+  assert.equal(decodeArena(raw), undefined, "one tick less is unreachable");
+  // They burn out before the owner can throw again.
+  press(a, amber, {}, BOMBLET_FUSE);
+  assert.equal(a.bombs.length, 0);
+  assert.equal(amber.bomb.cooldown, 24);
+});
+test("the pool a view hands out is frozen, so no consumer can change a draw", () => {
+  const pool = powerPool(POWERS),
+    before = drawPower(7, 1, 3, pool);
+  assert.ok(Object.isFrozen(pool));
+  assert.throws(() => (pool as PowerKind[]).push("dash"));
+  assert.throws(() => ((pool as PowerKind[])[0] = "dash"));
+  assert.equal(drawPower(7, 1, 3, powerPool(POWERS)), before);
+  assert.equal(powerPool(POWERS), pool, "still the one cached list");
+});
 test("bomblets blast 0.6× as far, hit their thrower, and a split respects the live-bomb cap", () => {
   const a = arena(3);
   const [amber, blue, green] = a.keepers as [Keeper, Keeper, Keeper];
@@ -446,6 +483,38 @@ test("Harpoon pulls a hit rival toward the hook's owner; spawn protection still 
   assert.ok(Math.hypot(pull.vx, pull.vy) <= Math.round((1000 * S) / 60) * 1.5);
   assert.equal(velocity(true, 20).hit, false, "spawn protection");
 });
+test("a Harpoon hit from a keeper who falls out that same step pushes, never pulls into the pit", () => {
+  const a = arena(2);
+  const [victim, attacker] = a.keepers as [Keeper, Keeper];
+  stand(victim, 130);
+  grantPower(attacker, "harpoon", "double");
+  // Over the void left of the low ledge, on the fall line and falling, with
+  // the hook tip just short of the victim's chest.
+  Object.assign(attacker.world, {
+    x: 60 * S,
+    feet: HEIGHT * S + BODY,
+    vx: 0,
+    vy: 5 * S,
+    grounded: false,
+    coyote: 0,
+    airJump: false,
+  });
+  attacker.world.hook = {
+    phase: "flying",
+    x: 100 * S,
+    y: 782 * S,
+    vx: HOOK_SPEED * S,
+    vy: 0,
+    life: 60,
+    distance: 40 * S,
+    platform: -1,
+  };
+  press(a, attacker, { fire: true, aimX: 130, aimY: 782 });
+  assert.equal(attacker.hits, 1, "the tip hit");
+  assert.ok(attacker.world.respawn > 0, "and the hooker fell out");
+  assert.ok(victim.world.vx > 0, "pushed along the hook, away from the pit");
+  assert.ok(victim.world.vy < 0, "and lifted, not dragged down");
+});
 test("Dash bump: the air jump dashes along the aim at a fixed speed for 0.2 s, refilling like the air jump", () => {
   const a = arena(2);
   const [amber, blue] = a.keepers as [Keeper, Keeper];
@@ -489,6 +558,30 @@ test("Dash bump: the air jump dashes along the aim at a fixed speed for 0.2 s, r
   press(single, k, { jump: true, ...aim });
   assert.equal(k.world.dash, DASH_TICKS);
   assert.equal(k.world.bonusJumps, 0);
+});
+test("Dash bump collected in the air after the air jump is spent dashes at once, in either jump mode", () => {
+  for (const jumpMode of ["double", "single"] as const) {
+    const a = arena(1, { ...POWERS, jumpMode }),
+      k = a.keepers[0]!;
+    hover(k, 300, 600);
+    if (jumpMode === "double") {
+      press(a, k, { jump: true });
+      assert.equal(k.world.airJump, false, `${jumpMode}: air jump spent`);
+      press(a, k, {});
+    } else {
+      // A spent Dash bump, then a fresh pickup mid-air.
+      grantPower(k, "dash", jumpMode);
+      press(a, k, { jump: true, aimX: 1000, aimY: 500 });
+      press(a, k, {}, DASH_TICKS + 1);
+      assert.equal(k.world.bonusJumps, 0, `${jumpMode}: bonus spent`);
+    }
+    assert.ok(!k.world.grounded && !k.world.dash, `${jumpMode}: still aloft`);
+    grantPower(k, "dash", jumpMode);
+    assert.ok(roundTrip(a), `${jumpMode}: the pickup checkpoints`);
+    press(a, k, { jump: true, aimX: 1000, aimY: 500 });
+    assert.equal(k.world.dash, DASH_TICKS, `${jumpMode}: dashes at once`);
+    assert.ok(roundTrip(a), `${jumpMode}: mid-dash checkpoints`);
+  }
 });
 test("a dash that touches a rival knocks them away hard, once, and ends; spawn protection stops it", () => {
   const bump = (guard: number) => {
@@ -782,6 +875,7 @@ test("checkpoints reject corrupt or out-of-bounds power-up state and leave the h
   });
   assert.equal(view.keepers[0]!.tally.powerUps, 1);
   assert.deepEqual(view.powers, POWER_KINDS);
+  assert.ok(Object.isFrozen(view.powers), "the room's pool is read-only");
   const edit = (change: (s: Encoded) => void) => {
     const fields = structuredClone(good);
     change(fields[5] as Encoded);
@@ -872,6 +966,25 @@ test("checkpoints reject corrupt or out-of-bounds power-up state and leave the h
     ["fractional seed", (s) => (s.seed = 0.5)],
     ["unknown bomb kind", (s) => (s.bombs[0]!.kind = "sticky")],
     ["bomblet with a throw id", (s) => (s.bombs[0]!.kind = "bomblet")],
+    // The id's slot part must be the owner's, or a split's bomblet ids could
+    // collide with another keeper's.
+    [
+      "a bomb id in another slot",
+      (s) => (s.bombs[0]!.id = (s.bombs[0]!.id as number) + 4),
+    ],
+    [
+      "a bomblet id in another slot",
+      (s) =>
+        Object.assign(s.bombs[0]!, {
+          kind: "bomblet",
+          id: (s.bombs[0]!.id as number) + 5,
+          fuse: 10,
+        }),
+    ],
+    [
+      "a bomb id in no slot",
+      (s) => (s.bombs[0]!.id = (s.bombs[0]!.id as number) + 28),
+    ],
     [
       "bomblet fuse too long",
       (s) =>
