@@ -134,6 +134,39 @@ try {
     "PASS self-knockout, fuse ring, blast, feed and 1 s return with protection",
   );
 
+  // A diagonal charge whose keys lift one at a time still throws diagonally,
+  // up and to the right against the ledge above the terrace.
+  await page.waitForFunction(() => {
+    const d = document.querySelector("#scene").dataset;
+    return (
+      JSON.parse(d.keepers).find((k) => k.id === d.playerId).cooldown === 0 &&
+      !JSON.parse(d.bombs).length
+    );
+  });
+  await page.keyboard.down("w");
+  await page.keyboard.down("d");
+  await page.keyboard.down("k");
+  await page.waitForTimeout(120);
+  await page.keyboard.up("d");
+  await page.waitForTimeout(20);
+  await page.keyboard.up("k");
+  await page.keyboard.up("w");
+  await page.waitForFunction(
+    () => JSON.parse(document.querySelector("#scene").dataset.bombs).length,
+  );
+  const diagonal = JSON.parse((await data()).bombs)[0];
+  // Straight up would carry only half the walk (at most 180 units/s)
+  // sideways; a diagonal keeps over 300 even after a ceiling bounce.
+  assert.ok(diagonal.vx > 250, `diagonal throw, vx ${diagonal.vx}`);
+  await page.waitForFunction(() => {
+    const d = document.querySelector("#scene").dataset;
+    return (
+      !JSON.parse(d.bombs).length &&
+      JSON.parse(d.keepers).find((k) => k.id === d.playerId).respawn === 0
+    );
+  });
+  console.log("PASS a diagonal keeps its aim while its keys are lifted");
+
   // Right click in the classic mouse scheme, with no context menu.
   await page.locator("#keyboard-mode").selectOption("mouse");
   await scene.scrollIntoViewIfNeeded();
@@ -170,6 +203,7 @@ try {
   await page.mouse.down({ button: "right" });
   await ticks(12);
   assert.ok((await me()).charge > 0, "right button charges");
+  assert.equal((await data()).hook, "ready", "a right click never hooks");
   await page.waitForFunction(
     () => Number(document.querySelector("#scene").dataset.charge) >= 1,
   );
@@ -183,7 +217,8 @@ try {
   assert.ok(thrown.vx > 0 && thrown.vy < 0, "thrown toward the pointer");
   await page.waitForTimeout(260);
   await scene.screenshot({ path: evidence("bombs-flight") });
-  assert.equal((await me()).tally.thrown, 4);
+  assert.equal((await data()).hook, "ready");
+  assert.equal((await me()).tally.thrown, 5);
   console.log(
     "PASS right-click bomb toward the pointer, context menu suppressed",
   );
@@ -265,6 +300,68 @@ try {
   assert.equal((await guestMe()).tally.thrown, 1);
   console.log(
     "PASS touch bomb button: hold to charge, release along the aim pad direction",
+  );
+
+  // Narrow and short phones: nothing scrolls sideways, and no control covers
+  // another or the arena, with the room's controls shown or the arena focused.
+  for (const viewport of [
+    { width: 360, height: 740 },
+    { width: 740, height: 360 },
+  ]) {
+    const context = await browser.newContext({
+      viewport,
+      isMobile: true,
+      hasTouch: true,
+      deviceScaleFactor: 1,
+    });
+    const phonePage = await context.newPage();
+    phonePage.on("pageerror", (e) => errors.push(e.message));
+    await phonePage.goto(await page.locator("#invite-url").inputValue());
+    await phonePage.locator('#status[data-state="playing"]').waitFor();
+    for (const focused of [false, true]) {
+      if (focused) await phonePage.locator("#arena-focus").click();
+      await phonePage.waitForTimeout(200);
+      const layout = await phonePage.evaluate(() => {
+        const box = (selector) => {
+          const b = document.querySelector(selector).getBoundingClientRect();
+          return {
+            selector,
+            left: b.left,
+            top: b.top,
+            right: b.right,
+            bottom: b.bottom,
+          };
+        };
+        return {
+          scroll: document.documentElement.scrollWidth,
+          width: innerWidth,
+          boxes: [
+            box("#scene canvas"),
+            box('[data-pad="move"]'),
+            box('[data-pad="bomb"]'),
+            box('[data-pad="aim"]'),
+          ],
+        };
+      });
+      const name = `${viewport.width}×${viewport.height}${focused ? " focused" : ""}`;
+      assert.ok(
+        layout.scroll <= layout.width,
+        `${name}: no sideways scroll (${layout.scroll} > ${layout.width})`,
+      );
+      for (const [i, a] of layout.boxes.entries())
+        for (const b of layout.boxes.slice(i + 1))
+          assert.ok(
+            a.right <= b.left ||
+              b.right <= a.left ||
+              a.bottom <= b.top ||
+              b.bottom <= a.top,
+            `${name}: ${a.selector} overlaps ${b.selector}`,
+          );
+    }
+    await context.close();
+  }
+  console.log(
+    "PASS 360×740 and 740×360: no sideways scroll, pads and arena apart",
   );
   assert.deepEqual(errors, []);
 } finally {
