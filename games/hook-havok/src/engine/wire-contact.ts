@@ -14,8 +14,11 @@ export function activeWire(
     return;
   const sx = owner.x,
     sy = owner.feet - Math.round(BODY * 0.6);
-  // Shorter than one unit the renderer draws no rope either.
-  if (Math.hypot(h.x - sx, h.y - sy) < S) return;
+  // Shorter than one unit the renderer draws no rope either. Integer squares
+  // are exact, so this needs no square root.
+  const ex = h.x - sx,
+    ey = h.y - sy;
+  if (ex * ex + ey * ey < S * S) return;
   return { x: sx, y: sy, endX: h.x, endY: h.y };
 }
 /** Moving ball centre against a closed capsule (wire spine plus its two endpoints). */
@@ -33,7 +36,9 @@ export function wireContact(
     sy = wire.y,
     ex = wire.endX - sx,
     ey = wire.endY - sy;
-  const length = Math.hypot(ex, ey);
+  // Math.hypot and ** are not correctly rounded, so engines may disagree;
+  // sqrt of an exact integer sum is. Every peer rounds this identically.
+  const length = Math.sqrt(ex * ex + ey * ey);
   const ux = ex / length,
     uy = ey / length;
   const along = (x - sx) * ux + (y - sy) * uy;
@@ -42,7 +47,8 @@ export function wireContact(
     vc = -dx * uy + dy * ux;
   const r = radius + 3 * S;
   const nearest = Math.max(0, Math.min(length, along));
-  if ((along - nearest) ** 2 + across ** 2 <= r * r) return 0;
+  const beyond = along - nearest;
+  if (beyond * beyond + across * across <= r * r) return 0;
   let first = Infinity;
   if (vc)
     for (const edge of [-r, r]) {
