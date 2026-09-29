@@ -35,6 +35,9 @@ importers:
       fuse-riders-game:
         specifier: workspace:*
         version: link:games/fuse-riders
+      hook-havok:
+        specifier: workspace:*
+        version: link:games/hook-havok
       jose:
         specifier: ^6.2.12
         version: 6.2.12
@@ -144,6 +147,25 @@ importers:
         version: 1.5.4
 
   games/fuse-riders: {}
+
+  games/hook-havok:
+    dependencies:
+      fuse-netcode:
+        specifier: workspace:*
+        version: link:../../packages/fuse-netcode
+      fuse-network-fe:
+        specifier: workspace:*
+        version: link:../../packages/fuse-network-fe
+      fuse-platform:
+        specifier: workspace:*
+        version: link:../../packages/fuse-platform
+      fuse-ui:
+        specifier: workspace:*
+        version: link:../../packages/fuse-ui
+    devDependencies:
+      phaser:
+        specifier: 4.2.1
+        version: 4.2.1
 
   packages/fuse-netcode:
     dependencies:

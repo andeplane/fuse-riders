@@ -19,9 +19,10 @@ COPY packages/fuse-network-be/package.json ./packages/fuse-network-be/
 COPY packages/fuse-netcode/package.json ./packages/fuse-netcode/
 COPY packages/fuse-platform/package.json ./packages/fuse-platform/
 COPY packages/fuse-ui/package.json ./packages/fuse-ui/
-# Games are workspaces too: pnpm needs every manifest the lockfile lists, and the service registers each game's stats.
+# Games are workspaces too: pnpm needs every manifest the lockfile lists, including browser-only experiments.
 COPY games/dice/package.json ./games/dice/
 COPY games/fuse-riders/package.json ./games/fuse-riders/
+COPY games/hook-havok/package.json ./games/hook-havok/
 # node_modules hardlinks into the store, so removing the store afterwards keeps the installed files.
 RUN pnpm install --prod --frozen-lockfile && rm -rf "$(pnpm store path)"
 COPY --chown=node:node service ./service

@@ -1,0 +1,19 @@
+{
+  "name": "hook-havok",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hook Havok: experimental illustrated platformer.",
+  "exports": {
+    "./platform": "./src/platform.ts"
+  },
+  "dependencies": {
+    "fuse-ui": "workspace:*",
+    "fuse-netcode": "workspace:*",
+    "fuse-network-fe": "workspace:*",
+    "fuse-platform": "workspace:*"
+  },
+  "devDependencies": {
+    "phaser": "4.2.1"
+  }
+}

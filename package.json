@@ -29,6 +29,7 @@
     "@stdlib/math-base-special-cos": "0.3.1",
     "@stdlib/math-base-special-sin": "0.3.1",
     "dice": "workspace:*",
+    "hook-havok": "workspace:*",
     "fuse-network-be": "workspace:*",
     "fuse-platform": "workspace:*",
     "fuse-riders-game": "workspace:*",

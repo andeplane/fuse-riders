@@ -129,6 +129,8 @@ export interface RollbackGame<
 export interface Seating<Room, Settings> {
   /** Seats per room; slots are 0 to capacity − 1. */
   capacity: number;
+  /** Minimum connected seats to start/rematch; defaults to two. */
+  minPlayers?: number;
   /** Places in the watching list beside the seats. */
   maxWatchers: number;
   /** The one normaliser for a requested name: what is logged in a join, or undefined to refuse it. */
@@ -149,7 +151,7 @@ export interface Seating<Room, Settings> {
   /** A new bot's id, unused in `room` (including ids it remembers from departed seats) and not in `pending`. */
   botId(room: Room, pending: ReadonlySet<string>): string;
   botName(slot: number): string;
-  /** A solo room: the fallback seat name and how many bots join before the match starts (at least one: a start needs two seats). */
+  /** A solo room: the fallback seat name and how many bots join before the match starts. */
   solo: { name: string; bots: number };
 }
 
