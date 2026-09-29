@@ -45,7 +45,7 @@ export function stepWorld(
     if (world.step >= T.COUNTDOWN_STEPS) {
       world.phase = "play";
       world.phaseAt = world.step;
-      world.rockAt = world.step + 360;
+      world.rockAt = world.step + 480;
     }
     return;
   }
@@ -171,9 +171,9 @@ function crushZone(world: World): void {
         id: world.nextId++,
         x: world.crushX + px(6),
         y: warning.y,
-        vx: world.scroll + between(world, px(3), px(4.6)),
+        vx: world.scroll + between(world, px(2.4), px(3.6)),
         vy: between(world, -px(1.6), px(0.4)),
-        r: between(world, px(11), px(17)),
+        r: between(world, px(10), px(14)),
         life: T.ROCK_LIFE,
       });
   }

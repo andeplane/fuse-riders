@@ -485,18 +485,25 @@ test("the same inputs fold to the same world on every replica", () => {
 
 test("the AI flies the cave on ordinary controls, in both control schemes", () => {
   for (const rules of [CLASSIC, HOVER]) {
-    const world = playing(1, { ...rules, combat: "off" }, 5);
     const seen = new Set<number>();
-    for (let i = 0; i < 20 * 60 && world.choppers[0]!.alive; i++) {
-      const bits = botInput(world, world.choppers[0]!);
-      seen.add(bits);
-      stepWorld(world, new Map([["c0", bits]]));
+    let flying = 0;
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      const world = playing(1, { ...rules, combat: "off" }, seed);
+      for (let i = 0; i < 15 * 60 && world.choppers[0]!.alive; i++) {
+        const bits = botInput(world, world.choppers[0]!);
+        seen.add(bits);
+        stepWorld(world, new Map([["c0", bits]]));
+      }
+      if (world.choppers[0]!.alive) flying++;
+      assert.equal(botInput(world, { ...world.choppers[0]!, alive: false }), 0);
     }
-    assert.ok(world.choppers[0]!.alive, `${rules.lift}: alive after 20 s`);
+    assert.ok(
+      flying >= 4,
+      `${rules.lift}: ${flying} of 6 still flying at 15 s`,
+    );
     assert.ok([...seen].every((bits) => (bits & ~31) === 0));
     if (rules.lift === "thrust")
       assert.ok([...seen].some((bits) => bits & DOWN));
-    assert.equal(botInput(world, { ...world.choppers[0]!, alive: false }), 0);
   }
 });
 

@@ -17,12 +17,15 @@ import {
 const GOLDEN: { rules: string; hashes: string[] } = {
   rules: "fuse-choppers-1",
   hashes: [
-    "657d473a",
-    "bce69dbc",
-    "b20e0c13",
-    "c7c26dcc",
-    "19d4ac31",
-    "d0794a95",
+    "cf5d92d2",
+    "eac86cbf",
+    "a552a15f",
+    "81b9758a",
+    "dc4f581e",
+    "19afe4c7",
+    "24b9f77f",
+    "a9af956d",
+    "eab65bc5",
   ],
 };
 
