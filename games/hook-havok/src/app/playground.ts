@@ -32,6 +32,7 @@ import { KeyboardInput } from "./keyboard-input.js";
 import { assistAim } from "./aim-assist.js";
 import { createMatchShell } from "./match-shell.js";
 import { createKnockoutFeed } from "./knockout-feed.js";
+import { botsToRemove, chooseBots, removalInterrupts } from "./bot-count.js";
 import {
   sessionStore,
   sessionToken,
@@ -168,6 +169,32 @@ function enablePowers(enabled: boolean) {
   for (const input of powerInputs) input.disabled = !enabled;
 }
 showPowers(DEFAULT_TUNING.powerUps);
+// 11C: AI keepers. The count is seats (BOT entries); the level is a shared setting.
+const botLabel = document.createElement("label");
+botLabel.innerHTML = `Bots <select id="bot-count" disabled>${[0, 1, 2, 3, 4]
+  .map((n) => `<option value="${n}">${n || "None"}</option>`)
+  .join("")}</select>`;
+const levelLabel = document.createElement("label");
+levelLabel.innerHTML = `Bot level <select id="bot-level" name="botLevel" form="tuning" disabled><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option></select>`;
+const botHelp = document.createElement("span");
+botHelp.id = "bot-help";
+botHelp.textContent =
+  "Bots fill free seats and play on every device from the shared state. Adding one is instant; removing one or changing the level restarts the shared trial. Easy bots are slow to aim, notice bombs late and hesitate; hard ones rarely miss.";
+rulesPanel.append(botLabel, levelLabel, botHelp);
+const botCount = el<HTMLSelectElement>("bot-count"),
+  botLevel = el<HTMLSelectElement>("bot-level");
+/** Bot seats the manager wants once the room is back in the lobby (removal waits for it). */
+let botTarget: number | undefined;
+let seatsNow: { id: string; slot: number; bot: boolean }[] = [];
+/** A competitive round is under way, so removing bots asks first. */
+let roundLive = false;
+/** The lower count waiting on the confirm dialog. */
+let pendingBots: number | undefined;
+const botConfirm = document.createElement("dialog");
+botConfirm.id = "bot-confirm";
+botConfirm.setAttribute("aria-labelledby", "bot-confirm-title");
+botConfirm.innerHTML = `<p class="dialog-kicker">ROOM &amp; MATCH</p><h2 id="bot-confirm-title">End this round?</h2><p id="bot-confirm-text"></p><div class="dialog-choices"><button id="bot-confirm-cancel" type="button">Keep playing</button><button id="bot-confirm-yes" type="button">Remove and restart</button></div>`;
+document.body.append(botConfirm);
 const host = el<HTMLDivElement>("scene"),
   status = el<HTMLParagraphElement>("status"),
   start = el<HTMLButtonElement>("start"),
@@ -418,6 +445,9 @@ function stopRoom() {
   clear();
   runtime?.stop();
   runtime = undefined;
+  // A removal asked of this room must not land in the next one.
+  botTarget = undefined;
+  botConfirm.close();
   latest = toView(createWorld());
   paintRoster(latest, "");
   reset.disabled = true;
@@ -631,6 +661,22 @@ const enterRoom = async () => {
             started = false;
             restartRequested = false;
           }
+          seatsNow = frame.seats;
+          roundLive = removalInterrupts(frame.stage, c);
+          const botSeats = frame.seats.filter((s) => s.bot);
+          if (botTarget !== undefined && manager && frame.stage === "lobby") {
+            // Between rounds: remove bots from the last seat down, then start below.
+            for (const id of botsToRemove(frame.seats, botTarget))
+              runtime?.command({ type: "bot", action: "remove", id });
+            botTarget = undefined;
+          }
+          if (botTarget === undefined)
+            botCount.value = String(Math.min(4, botSeats.length));
+          const free = 5 - frame.seats.filter((s) => !s.watcher).length;
+          for (const option of botCount.options)
+            option.disabled =
+              Number(option.value) > botSeats.length + Math.max(0, free);
+          botCount.disabled = botLevel.disabled = !manager;
           if (manager && frame.stage === "lobby" && frame.seated && !started) {
             started = !!runtime?.command({ type: "action", action: "start" });
           }
@@ -686,6 +732,7 @@ const enterRoom = async () => {
           wireMode.value = settings.wire;
           bombMode.value = settings.bomb;
           showPowers(settings.powerUps);
+          botLevel.value = settings.botLevel;
           setText(
             mapHelp,
             settings.map === "crossroads"
@@ -712,7 +759,7 @@ const enterRoom = async () => {
             c.rules === "free"
               ? ""
               : c.phase === "waiting"
-                ? "Waiting for a second keeper…"
+                ? "Waiting for a second keeper… invite a friend or add a bot."
                 : c.phase === "countdown"
                   ? `Get ready · ${c.seconds}`
                   : c.phase === "over"
@@ -841,7 +888,15 @@ tuning.onsubmit = (e) => {
     Object.fromEntries(
       [...new FormData(tuning)].map(([k, v]) => [
         k,
-        ["experiment", "rules", "map", "jumpMode", "wire", "bomb"].includes(k)
+        [
+          "experiment",
+          "rules",
+          "map",
+          "jumpMode",
+          "wire",
+          "bomb",
+          "botLevel",
+        ].includes(k)
           ? v
           : Number(v),
       ]),
@@ -861,6 +916,56 @@ jumpMode.onchange =
   wireMode.onchange =
   bombMode.onchange =
     () => tuning.requestSubmit();
+botLevel.onchange = () => tuning.requestSubmit();
+const seatedBots = () => seatsNow.filter((s) => s.bot).length;
+/** Adding seats a bot at once; removing waits for the lobby, then restarts. */
+const applyBots = (want: number) => {
+  const choice = chooseBots(want, seatedBots());
+  for (let n = 0; n < choice.add; n++)
+    runtime?.command({ type: "bot", action: "add" });
+  botTarget = choice.target;
+  if (choice.lobby) {
+    clear();
+    restartRequested = !!runtime?.command({ type: "action", action: "lobby" });
+    if (!restartRequested) botTarget = undefined;
+  }
+};
+botCount.onchange = () => {
+  const want = Number(botCount.value),
+    have = seatedBots();
+  if (want < have && roundLive) {
+    // The lobby trip ends the round for everyone: ask first.
+    pendingBots = want;
+    el("bot-confirm-text").textContent =
+      `Going down to ${want ? `${want} bot${want > 1 ? "s" : ""}` : "no bots"} ends this round for everyone: the room returns to the lobby, the last bot seats go, and a new round starts.`;
+    clear();
+    botConfirm.showModal();
+    el("bot-confirm-cancel").focus();
+    return;
+  }
+  applyBots(want);
+  host.focus();
+};
+el("bot-confirm-yes").onclick = () => {
+  const want = pendingBots;
+  pendingBots = undefined;
+  botConfirm.close();
+  if (want !== undefined) applyBots(want);
+};
+/** Escape, Keep playing or leaving the room: the count stays as it is. */
+const keepBots = () => {
+  if (pendingBots === undefined) return;
+  pendingBots = undefined;
+  botCount.value = String(Math.min(4, seatedBots()));
+};
+el("bot-confirm-cancel").onclick = () => {
+  keepBots();
+  botConfirm.close();
+};
+botConfirm.addEventListener("close", () => {
+  keepBots();
+  host.focus();
+});
 powerMode.onchange = () => {
   // "Some" only names a mixed pool; the boxes change it.
   if (powerMode.value === "custom") return;

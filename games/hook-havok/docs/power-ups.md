@@ -1,6 +1,6 @@
 # Power-ups v2 (11D)
 
-Rules are **`hook-havok-14`** (11B was `hook-havok-12`; 13 is left for the 11C bots, and whichever of the two merges second takes the next free number). Refresh every client and create a fresh room: older clients cannot read the new settings, keeper state or checkpoints.
+Rules are **`hook-havok-14`** (11B was `hook-havok-12`; 13 went unused). The 11C bots build on this and take `hook-havok-15` ([bots](bots.md)). Refresh every client and create a fresh room: older clients cannot read the new settings, keeper state or checkpoints.
 
 Phase 9A's two fixed pads, Lift and Ward, are gone. Each map now has four pads at spots worth the risk, and each pad shows a random power-up from a pool the room manager picks. The first batch is five power-ups: Triple jump replaces Lift, Shield replaces Ward, and Cluster bomb, Harpoon and Dash bump are new.
 
@@ -60,6 +60,6 @@ Build and start the local service from the repository root (`pnpm build`, then `
 
 ## Limits
 
-- Feel and balance (pad spots, 8 s durations, the dash and harpoon strengths, bomblet spread) need a playtest with several keepers. Bots (11C) will take pads through `padList`.
+- Feel and balance (pad spots, 8 s durations, the dash and harpoon strengths, bomblet spread) need a playtest with several keepers. Bots (11C) take any ready pad through `padList`, and play on while they hold a power without choosing between them ([bots](bots.md#power-ups)).
 - Sticky bomb, Rapid throw, Big blast, Low gravity and Jackpot remain for later.
 - Physical-phone use is untested; the aim pad drives the dash direction on touch.

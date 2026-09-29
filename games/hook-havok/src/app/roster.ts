@@ -2,6 +2,13 @@ import type { PowerKind, WorldView } from "../engine/view.js";
 import { keeperColor } from "../render/identity.js";
 import { POWER_STYLE } from "../render/power-ups.js";
 
+/** The tag an AI keeper wears on its card and in the results (11C). */
+export function botBadge(): HTMLElement {
+  const badge = document.createElement("b");
+  badge.className = "bot-badge";
+  badge.textContent = "BOT";
+  return badge;
+}
 /** Card icons: fixed markup, never built from room data. */
 const ICONS: Record<PowerKind, string> = {
   triple: '<path d="M6 10l6-5 6 5M6 15l6-5 6 5M6 20l6-5 6 5"/>',
@@ -85,6 +92,7 @@ export function createRoster(host: HTMLElement) {
         id: entry.id,
         slot: entry.slot,
         name: k?.name ?? "Keeper",
+        bot: !!k?.bot,
         you: entry.id === selfId,
         winner,
         status: entrant?.out
@@ -110,6 +118,7 @@ export function createRoster(host: HTMLElement) {
           id: k.id,
           slot: k.slot,
           name: k.name,
+          bot: k.bot,
           you: k.id === selfId,
           winner: false,
           status: k.connected ? "WATCHING" : "AWAY",
@@ -140,7 +149,9 @@ export function createRoster(host: HTMLElement) {
         const name = document.createElement("span");
         name.className = "keeper-name";
         name.textContent = `${row.name}${row.you ? " · YOU" : ""}`;
-        name.title = name.textContent;
+        name.title = `${row.bot ? "AI keeper · " : ""}${name.textContent}`;
+        if (row.bot) name.prepend(botBadge());
+        card.dataset.bot = String(row.bot);
         const detail = document.createElement("small");
         detail.textContent = [row.detail, row.status]
           .filter(Boolean)

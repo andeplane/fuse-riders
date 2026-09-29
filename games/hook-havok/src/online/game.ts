@@ -5,6 +5,9 @@ import {
   uint32,
   defaultText,
   BOT,
+  JOIN,
+  LEAVE,
+  PRESENCE,
   SPECTATOR,
   type ManagementEntry,
   type SeatRecord,
@@ -33,6 +36,7 @@ import { parseInput, parseTuning, plain, integer } from "../engine/codec.js";
 import { POWER_PADS, padList } from "../engine/power-ups.js";
 import { powerPool } from "../engine/power-rules.js";
 import { blastRadius } from "../engine/bomb.js";
+import { planBots } from "../engine/bot.js";
 import {
   toView,
   contestView,
@@ -66,6 +70,10 @@ const name = (v: unknown): v is string =>
 const match = (v: unknown): v is string =>
   typeof v === "string" && v.length > 0 && v.length <= 64;
 const avatar = (v: unknown): v is string => v === "keeper";
+/** AI seats are `bot:1`, `bot:2`, …; the room service gives people UUIDs. */
+const BOT_ID = /^bot:[1-9]\d?$/;
+/** AI keepers are named for the belfry's odd residents, one per seat. */
+export const BOT_NAMES = ["Clapper", "Wick", "Rook", "Tallow", "Gargoyle"];
 export function isEntry(raw: unknown): raw is Entry {
   if (
     !Array.isArray(raw) ||
@@ -82,16 +90,24 @@ export function isEntry(raw: unknown): raw is Entry {
       uint32(raw[4]) &&
       !!parseInput(raw[5])
     );
-  return (
-    raw[2] !== BOT &&
-    raw[2] !== SPECTATOR &&
-    isManagementEntry(raw, {
+  if (
+    raw[2] === SPECTATOR ||
+    !isManagementEntry(raw, {
       name,
       avatar,
       settings: (v) => !!parseTuning(v),
       capacity: 5,
     })
-  );
+  )
+    return false;
+  // `bot:N` names an AI seat and nothing else. A BOT entry must use one, or the
+  // fold would seat a bot `decode` cannot restore; a person's JOIN, LEAVE or
+  // PRESENCE may not, or a stray LEAVE would mark a bot absent mid-round (it
+  // would stop playing) and a JOIN would give it a stream generation.
+  if (raw[2] === BOT) return BOT_ID.test(raw[4] as string);
+  if (raw[2] === JOIN || raw[2] === LEAVE || raw[2] === PRESENCE)
+    return !BOT_ID.test(raw[3] as string);
+  return true;
 }
 /** Pad draws differ per match and per restart, identically on every peer. */
 function arenaSeed(matchId: string, tick: number): number {
@@ -120,6 +136,7 @@ export function createRoom(matchId: string, settings: Tuning): Room {
 const lifecycle: LifecycleHooks<Room, Tuning> = {
   stage: (r) => r.stage,
   maxWatchers: 0,
+  botAvatar: "keeper",
   parseSettings: parseTuning,
   start(r, id) {
     if (r.stage !== "lobby" || ![...r.seats.values()].some((s) => s.connected))
@@ -208,7 +225,23 @@ export function foldTick(
     r.simulation,
     [...r.seats.values()].map((s) => ({ ...s, generation: s.generation ?? 0 })),
   );
+  // Bots play from the arena alone, on every peer; no stream carries their input.
+  const bots =
+    r.stage === "running" ? planBots(r.simulation) : new Map<string, Input>();
   const controls = r.simulation.keepers.map((keeper) => {
+    if (keeper.mind) {
+      // A bot holds one input for the whole log tick, as a person's
+      // unchanged input does.
+      const planned = bots.get(keeper.id) ?? {
+        ...NEUTRAL,
+        aimX: keeper.world.input.aimX,
+        aimY: keeper.world.input.aimY,
+      };
+      return {
+        keeper,
+        steps: [planned, planned, planned] as [Input, Input, Input],
+      };
+    }
     const stream = streams.get(keeper.id),
       generation = keeper.generation;
     const source =
@@ -305,22 +338,43 @@ export function decode(f: readonly unknown[], tick: number): Room | undefined {
       [...seats.values()].some((old) => old.slot === s.slot) ||
       !avatar(s.avatarId) ||
       typeof s.connected !== "boolean" ||
-      s.bot !== false ||
-      !uint32(s.generation) ||
-      (s.away !== undefined && s.away !== true) ||
-      (s.away && s.connected)
+      typeof s.bot !== "boolean" ||
+      // A bot seat: a bot id, always connected (`isEntry` refuses a LEAVE,
+      // JOIN or PRESENCE naming one), no stream generation, never away. A
+      // person: any other id, a generation, and away only while absent.
+      (s.bot
+        ? !BOT_ID.test(s.id) ||
+          s.connected !== true ||
+          Object.hasOwn(s, "generation") ||
+          Object.hasOwn(s, "away")
+        : BOT_ID.test(s.id) ||
+          !uint32(s.generation) ||
+          (s.away !== undefined && s.away !== true) ||
+          (s.away && s.connected))
     )
       return;
-    seats.set(s.id, {
-      id: s.id,
-      name: s.name,
-      slot: s.slot,
-      avatarId: s.avatarId,
-      connected: s.connected,
-      bot: false,
-      generation: s.generation,
-      ...(s.away ? { away: true } : {}),
-    });
+    seats.set(
+      s.id,
+      s.bot
+        ? {
+            id: s.id,
+            name: s.name,
+            slot: s.slot,
+            avatarId: s.avatarId,
+            connected: s.connected,
+            bot: true,
+          }
+        : {
+            id: s.id,
+            name: s.name,
+            slot: s.slot,
+            avatarId: s.avatarId,
+            connected: s.connected,
+            bot: false,
+            generation: s.generation as number,
+            ...(s.away ? { away: true } : {}),
+          },
+    );
   }
   if (
     simulation.keepers.length !== seats.size ||
@@ -329,8 +383,9 @@ export function decode(f: readonly unknown[], tick: number): Room | undefined {
       return (
         !seat ||
         seat.slot !== k.slot ||
-        seat.generation !== k.generation ||
-        seat.connected !== k.connected
+        (seat.generation ?? 0) !== k.generation ||
+        seat.connected !== k.connected ||
+        seat.bot !== (k.mind !== null)
       );
     }) ||
     (f[2] === "running" && (!seats.size || !f[1]))
@@ -403,6 +458,7 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       id: k.id,
       slot: k.slot,
       name: r.seats.get(k.id)!.name,
+      bot: k.mind !== null,
       connected: k.connected,
       spawnGuard: k.spawnGuard,
       hits: k.hits,
@@ -472,8 +528,17 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
     parseSettings: parseTuning,
     soloSettings: (s) => ({ ...s }),
     sharedScreen: () => false,
-    botId: () => "unused",
-    botName: () => "unused",
+    botId(room, pending) {
+      const taken = (id: string) =>
+        room.seats.has(id) ||
+        pending.has(id) ||
+        room.simulation.keepers.some((k) => k.id === id) ||
+        room.simulation.contest.entries.some((e) => e.id === id);
+      let n = 1;
+      while (taken(`bot:${n}`)) n++;
+      return `bot:${n}`;
+    },
+    botName: (slot) => BOT_NAMES[slot] ?? "Bell bot",
     solo: { name: "Lantern keeper", bots: 0 },
   },
   text: {

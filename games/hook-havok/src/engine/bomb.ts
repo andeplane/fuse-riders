@@ -246,8 +246,44 @@ function split(bomb: Bomb, tick: number, room: number): Bomb[] {
     fuse: BOMBLET_FUSE,
   }));
 }
+/**
+ * Where a bomb will be after each of the next `ticks` flights, by the same
+ * flight as the fold, without touching it: index i is after i + 1 ticks.
+ * Stops early once it would fizzle below the arena. `contact` is the index of
+ * the first flight that touches stone, where a cluster bomb splits (11D), or
+ * −1. Bots read it (11C).
+ */
+export function bombPath(
+  bomb: Pick<Bomb, "x" | "y" | "vx" | "vy">,
+  ticks: number,
+  gravity: number,
+  map: MapId,
+): { path: { x: number; y: number }[]; contact: number } {
+  const ghost: Bomb = {
+      ...bomb,
+      id: 0,
+      owner: "",
+      kind: "plain",
+      fuse: ticks,
+    },
+    g = Math.round((gravity * S) / 3600),
+    path: { x: number; y: number }[] = [];
+  let contact = -1;
+  for (let t = 0; t < ticks && ghost.y <= BOMB_FLOOR * S; t++) {
+    const touched = fly(ghost, g, map);
+    if (ghost.y > BOMB_FLOOR * S) break;
+    if (touched && contact < 0) contact = path.length;
+    path.push({ x: ghost.x, y: ghost.y });
+  }
+  return { path, contact };
+}
 /** Circle against a keeper's body box. */
-function touches(w: World, x: number, y: number, r: number): boolean {
+export function touches(
+  w: Pick<World, "x" | "feet">,
+  x: number,
+  y: number,
+  r: number,
+): boolean {
   const dx = x - clamp(x, w.x - HALF, w.x + HALF),
     dy = y - clamp(y, w.feet - BODY, w.feet);
   return dx * dx + dy * dy <= r * r;

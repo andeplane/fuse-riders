@@ -4,6 +4,8 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
+Phase 11C adds [playable bots](docs/bots.md). **Room & match → Bots** seats up to four AI keepers in the free seats and **Bot level** makes them easy, normal or hard; only the room manager changes either, and new rooms have none. Bots run the same physics as you inside the shared simulation on every device: they climb with jumps, drops and the hook, chase a rival, take pads, pop orbs, throw bombs at you, hook you off ledges, dodge blasts and hook their way back from a fall, and they keep playing while they hold a power-up. They wear a BOT tag on their cards and in the results, and one person plus a bot is enough for a competitive round. Rules are `hook-havok-15`; refresh all clients and create a fresh room.
+
 Phase 11D adds [power-ups v2](docs/power-ups.md). Four pads per map, on ledge lips, corners and summits, each show a random power-up from the room's pool and return 10 s after pickup with a new one: **Triple jump** (two air jumps), **Shield** (survives one bomb blast, your own included), **Cluster bomb** (your next three bombs split into bomblets), **Harpoon** (your hook pulls a hit rival in) and **Dash bump** (your air jump dashes along your aim and knocks rivals away). You hold one at a time, for 8 s (a Cluster bomb for three throws within 15 s); the icon over your keeper and on your card shows what you hold and the time left. **Development workshop → Power-ups** picks all five (the default), off or any mix. Rules are `hook-havok-14`; refresh all clients and create a fresh room.
 
 Phases 11A–11B add [the spiked wire everywhere and a thrown bomb](docs/bombs.md). The spikes now pop orbs along the whole visible rope, the retract included, and spiked is the default. Controls change: **Space** jumps, **J** (or left click) hooks, **K** (or right click) charges a bomb, **↓ + Space** drops; on touch a bomb button sits beside the aim pad. Hold to charge (full at 0.6 s) and release to throw; after 1.5 s the blast knocks out every keeper in its red ring, you included, then you are back in a second. **Development workshop → Bombs** switches between off, fuse and impact. Rules are `hook-havok-12`; refresh all clients and create a fresh room.
@@ -62,6 +64,12 @@ Use the sequence slider to inspect attachment, pull and landing. **Atmosphere** 
 
 ```sh
 node games/hook-havok/preview/showcase-check.mjs http://localhost:PORT/
+```
+
+The bots smoke plays a real room against four bots (about four minutes: free play at each level, two elimination rounds and a score round) and writes `docs/evidence/bots-*.png`:
+
+```sh
+node games/hook-havok/preview/bots-check.mjs http://localhost:PORT/
 ```
 
 ## Previous source-animation study
