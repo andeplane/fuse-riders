@@ -13,6 +13,7 @@ export const isInput = (value: unknown): value is number =>
   typeof value === "number" &&
   Number.isInteger(value) &&
   value >= 0 &&
+  value <= INPUT_MASK &&
   (value & ~INPUT_MASK) === 0;
 
 /** Scramble swaps left and right. */

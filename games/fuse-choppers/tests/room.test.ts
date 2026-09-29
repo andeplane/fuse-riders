@@ -35,6 +35,7 @@ import {
   UP,
   type Settings,
 } from "../src/engine/index.js";
+import { LIFT } from "../src/engine/tuning.js";
 
 type Bodies = Record<string, readonly unknown[][]>;
 let seq = 0;
@@ -80,6 +81,9 @@ test("entries: play entries name a match and round and carry control bits; manag
   assert.ok(isEntry([1, 5, PLAY, "m1", 1, UP]));
   assert.ok(isEntry([1, 5, PLAY, "m1", 1, 0]));
   assert.ok(!isEntry([1, 5, PLAY, "m1", 1, 64]), "unknown bits");
+  assert.ok(!isEntry([1, 5, PLAY, "m1", 1, 2 ** 40]), "past 32 bits");
+  assert.ok(!isEntry([1, 5, PLAY, "m1", 1, 2 ** 32 + 1]));
+  assert.ok(!isEntry([1, 5, PLAY, "m1", 1, 1.5]));
   assert.ok(!isEntry([1, 5, PLAY, "m1", 1]), "short");
   assert.ok(!isEntry([0, 5, PLAY, "m1", 1, 1]), "seq from 1");
   assert.ok(!isEntry([1, 5, PLAY, "", 1, 1]), "a match id");
@@ -126,24 +130,34 @@ test("start seats every pilot in a world; the countdown runs, then held controls
   assert.equal(room.held.b, undefined);
   fold(room, { b: [[PLAY, "m1", 2, UP]] });
   assert.equal(room.held.b, undefined);
-  // The bot flies itself.
-  run(room, 20);
-  assert.ok(chopper(room, "bot:1").input !== 0 || chopper(room, "bot:1").alive);
+  // The bot flies itself, on bits of its own.
+  let bot = 0;
+  run(room, 20, () => {
+    bot |= chopper(room, "bot:1").input;
+    return {};
+  });
+  assert.notEqual(bot, 0);
+  assert.equal(room.held["bot:1"], undefined, "a bot's bits are not logged");
 });
 
 test("a tap shorter than a tick still lifts, on the tick's first step", () => {
-  const room = started();
-  run(room, Math.ceil(COUNTDOWN_STEPS / STEPS_PER_TICK) + 1);
-  const b = chopper(room, "b"),
-    vy = b.vy;
-  fold(room, {
+  const tapped = started(),
+    control = started();
+  for (const room of [tapped, control]) {
+    run(room, Math.ceil(COUNTDOWN_STEPS / STEPS_PER_TICK) + 1);
+    chopper(room, "b").engaged = true;
+  }
+  fold(tapped, {
     b: [
       [PLAY, "m1", 1, UP],
       [PLAY, "m1", 1, 0],
     ],
   });
-  assert.ok(b.vy < vy + 3 * (0.21 * 256), "the tap took some of the fall off");
-  assert.equal(room.held.b, undefined, "and nothing is held after it");
+  fold(control);
+  const b = chopper(tapped, "b"),
+    untouched = chopper(control, "b");
+  assert.equal(b.vy, untouched.vy - LIFT, "one step of lift, the tick's first");
+  assert.equal(tapped.held.b, undefined, "nothing is held after it");
 });
 
 test("a round ends, the scoreboard shows, the next round starts, and the crowns decide the match", () => {
@@ -384,4 +398,66 @@ test("every replica folds the same flight, however late and batched the controls
   assert.equal(late.tick, 600);
   assert.equal(hash(whole.state), hash(late.state));
   assert.deepEqual(whole.view()[0], late.view()[0]);
+});
+
+test("when every rider leaves between rounds, the room is an empty lobby again, and it still checkpoints", () => {
+  const room = started();
+  run(room, Math.ceil(COUNTDOWN_STEPS / STEPS_PER_TICK) + 1);
+  crashAllBut(room, "a");
+  run(room, Math.ceil(OUTRO_STEPS / STEPS_PER_TICK) + 1);
+  assert.equal(room.stage, "between");
+  fold(room, {
+    a: [
+      [LEAVE, "b"],
+      [BOT, "remove", "bot:1"],
+      [SPECTATOR, "join", "w", "Wes", 1],
+    ],
+  });
+  fold(room, { a: [[LEAVE, "a"]] });
+  run(room, BETWEEN_TICKS);
+  assert.equal(room.stage, "lobby");
+  assert.equal(room.round, 0);
+  assert.deepEqual(room.wins, {});
+  assert.equal(room.world, null);
+  assert.ok(
+    decode(structuredClone(encode(room)), room.tick),
+    "a joiner can still take this room",
+  );
+});
+
+test("the checkpoint refuses a room whose parts disagree", () => {
+  const room = started();
+  run(room, Math.ceil(COUNTDOWN_STEPS / STEPS_PER_TICK) + 1);
+  crashAllBut(room, "a");
+  run(room, Math.ceil(OUTRO_STEPS / STEPS_PER_TICK) + 1);
+  assert.equal(room.stage, "between");
+  const good = encode(room);
+  const broken = (change: (fields: unknown[]) => void) => {
+    const copy = structuredClone(good);
+    change(copy);
+    return decode(copy, room.tick);
+  };
+  assert.ok(broken(() => {}));
+  assert.equal(
+    broken((f) => (f[9] = room.tick + BETWEEN_TICKS + 1)),
+    undefined,
+    "a break that never ends",
+  );
+  assert.equal(
+    broken((f) => (f[9] = room.tick)),
+    undefined,
+    "a break already over",
+  );
+  assert.equal(
+    broken((f) => (f[5] = { ...(f[5] as Settings), lift: "thrust" })),
+    undefined,
+    "a round flown under other rules than its match",
+  );
+  assert.equal(
+    broken(
+      (f) => (((f[11] as unknown[])[14] as unknown[][])[0]![0] = "__proto__"),
+    ),
+    undefined,
+    "a chopper id that is no member id",
+  );
 });

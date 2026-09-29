@@ -55,8 +55,8 @@ export class ChopperRuntime extends RoomRuntime<
   get self(): string {
     return this.id;
   }
+  /** The log was reset (a resync): forget what was logged, not what is held, so `flush` logs the keys still down. */
   protected resetControls(): void {
-    this.bits = 0;
     this.sent = { matchId: "", round: -1, bits: 0 };
   }
   protected releaseControls(): void {

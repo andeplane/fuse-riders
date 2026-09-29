@@ -37,7 +37,7 @@ import { chopperGame, type View } from "../online/game.js";
 import { seatName } from "../online/names.js";
 import { ChopperRuntime, type ChopperCallbacks } from "../online/runtime.js";
 import { blend, fraction } from "../render/interpolate.js";
-import { createScene, VIEW_W } from "../render/scene.js";
+import { createScene, effectKey, VIEW_W } from "../render/scene.js";
 import { PICKUP_COLORS, seatColor } from "../render/palette.js";
 import { createSfx } from "./audio.js";
 import { HeldControls } from "./controls.js";
@@ -70,8 +70,16 @@ const muted = query.has("mute");
 const autopilot = query.has("autopilot");
 const app = document.querySelector<HTMLElement>("#app")!;
 const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
-const withMute = (path: string) =>
-  muted ? `${path}${path.includes("?") ? "&" : "?"}mute` : path;
+/** A link within the game that keeps this page's developer flags: `mute`, `autopilot`, `lift` and `combat`. */
+const DEV_FLAGS = ["mute", "autopilot", "lift", "combat"] as const;
+const withFlags = (path: string) => {
+  const kept = DEV_FLAGS.filter((flag) => query.has(flag)).map((flag) =>
+    query.get(flag) ? `${flag}=${encodeURIComponent(query.get(flag)!)}` : flag,
+  );
+  return kept.length
+    ? `${path}${path.includes("?") ? "&" : "?"}${kept.join("&")}`
+    : path;
+};
 const setText = (node: HTMLElement, value: string) => {
   if (node.textContent !== value) node.textContent = value;
 };
@@ -97,7 +105,7 @@ function devSettings(): Settings {
 
 function logo(): HTMLElement {
   const brand = el("a", "", "fc-brand");
-  brand.href = withMute(endpoints.appUrl());
+  brand.href = withFlags(endpoints.appUrl());
   brand.append(
     el("b", "FUSE", "fc-brand-fuse"),
     el("b", "CHOPPERS", "fc-brand-choppers"),
@@ -116,7 +124,7 @@ function keyHelp(): HTMLElement {
   for (const [keysText, what] of [
     ["SPACE / W / ↑", "Hold to climb, let go to fall"],
     ["A D / ← →", "Fly back and forward"],
-    ["F / J / ENTER / CLICK", "Fire: nudges rivals, downs drones"],
+    ["F / J / K / ENTER / CLICK", "Fire: nudges rivals, downs drones"],
     ["S / ↓", "Dive (W/S thrust trial only)"],
   ])
     list.append(el("dt", keysText), el("dd", what));
@@ -145,14 +153,14 @@ function landing(): void {
         },
       );
       store.setItem(names.host(room.code), room.token);
-      location.href = withMute(endpoints.appUrl(`?room=${room.code}`));
+      location.href = withFlags(endpoints.appUrl(`?room=${room.code}`));
     },
     onSolo: () => {
-      location.href = withMute(endpoints.appUrl("?solo=1"));
+      location.href = withFlags(endpoints.appUrl("?solo=1"));
     },
     valid: validRoomCode,
     onJoin: (code) => {
-      location.href = withMute(endpoints.appUrl(`?room=${code}`));
+      location.href = withFlags(endpoints.appUrl(`?room=${code}`));
     },
   });
   card.create.after(shared);
@@ -199,7 +207,12 @@ function room(solo: boolean): void {
     ? ({ kind: "solo" } as const)
     : sessionFor(location.search, store, GAME, validRoomCode, secret);
   if (session.kind === "invalid" || session.kind === "landing") {
-    app.replaceChildren(header(), el("p", "Invalid room code", "fc-error"));
+    const back = el("a", "← BACK", "fc-back");
+    back.href = withFlags(endpoints.appUrl());
+    app.replaceChildren(
+      header([back]),
+      el("p", "That is not a room code: check it and try again.", "fc-error"),
+    );
     return;
   }
   const code = session.kind === "room" ? session.code : "SOLO",
@@ -214,7 +227,7 @@ function room(solo: boolean): void {
     leave = button(solo ? "EXIT" : "LEAVE", "fc-leave");
   leave.onclick = () => {
     runtime.stop();
-    location.href = withMute(endpoints.appUrl());
+    location.href = withFlags(endpoints.appUrl());
   };
   // The host can go back to the lobby (and its flight rules) mid-match; in solo that is the only way to them.
   const backToLobby = button("LOBBY", "fc-to-lobby");
@@ -256,7 +269,6 @@ function room(solo: boolean): void {
     },
   });
   lobbyMain.append(
-    nameEntry.form,
     el("h2", "PILOTS", "fui-lobby-title"),
     roster.element,
     addBot,
@@ -265,7 +277,7 @@ function room(solo: boolean): void {
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   tvLink.onclick = () =>
     window.open(
-      withMute(endpoints.appUrl(`?room=${code}&display=1`)),
+      withFlags(endpoints.appUrl(`?room=${code}&display=1`)),
       "_blank",
     );
 
@@ -447,12 +459,33 @@ function room(solo: boolean): void {
   controllerBody.append(controllerLeft, controllerRight);
   controller.append(controllerHead, controllerBody);
 
+  // Until the first frame nothing of the room shows, so a room that turns out not to exist never offers its controls.
+  const connecting = el("p", "Connecting to the room…", "fc-connecting"),
+    closed = el("section", "", "fc-closed"),
+    closedBack = el(
+      "a",
+      "BACK TO FUSE CHOPPERS",
+      "fui-button-primary fc-closed-back",
+    );
+  closedBack.href = withFlags(endpoints.appUrl());
+  closed.append(
+    el("h2", "ROOM CLOSED", "fui-lobby-title"),
+    el(
+      "p",
+      "This room has ended, or it never existed. Start a new one, or play solo.",
+    ),
+    closedBack,
+  );
+  closed.hidden = true;
   const main = el("main", "", "fc-room");
-  main.append(lobby, stage, controller);
+  // The name form stands above every screen: a newcomer mid-match picks a name and flies from the next round.
+  main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
+  lobby.hidden = true;
   stage.hidden = true;
   controller.hidden = true;
   nameEntry.form.hidden = true;
+  let over = false;
 
   // ---- drawing ----
   const g = canvas.getContext("2d")!;
@@ -546,7 +579,9 @@ function room(solo: boolean): void {
   };
 
   const render = (next: Model, view: View) => {
+    if (over) return;
     model = next;
+    connecting.hidden = true;
     main.dataset.screen = next.screen;
     main.dataset.stage = view.stage;
     lobby.hidden = next.screen !== "lobby";
@@ -654,7 +689,7 @@ function room(solo: boolean): void {
   };
 
   // ---- sounds ----
-  const heard = new Set<number>();
+  const heard = new Set<string>();
   let lastBanner = "",
     lastSeed = -1;
   const listen = (view: View, next: Model) => {
@@ -663,17 +698,18 @@ function room(solo: boolean): void {
     if (world.seed !== lastSeed) {
       lastSeed = world.seed;
       heard.clear();
-      for (const fx of world.fx) heard.add(fx.id);
+      for (const fx of world.fx) heard.add(effectKey(fx));
     }
+    // Keyed by what happened, not by id: a rollback that renumbers effects does not replay their sounds.
     for (const fx of world.fx)
-      if (!heard.has(fx.id)) {
-        heard.add(fx.id);
+      if (!heard.has(effectKey(fx))) {
+        heard.add(effectKey(fx));
         sfx.play(fx.kind);
       }
     const mySlot = world.choppers.find((c) => c.id === viewer.me)?.slot;
     for (const bullet of world.bullets)
-      if (!heard.has(-bullet.id)) {
-        heard.add(-bullet.id);
+      if (!heard.has(`shot:${bullet.id}`)) {
+        heard.add(`shot:${bullet.id}`);
         if (bullet.slot === mySlot) sfx.play("shot");
       }
     if (heard.size > 2000) heard.clear();
@@ -708,7 +744,6 @@ function room(solo: boolean): void {
       if (room?.world && mine && room.stage === "running")
         controls.hold("autopilot", botInput(room.world, mine));
       runtime.flush();
-      if (!next.flying && controls.bits) controls.clear();
       main.dataset.flying = String(next.flying);
       main.dataset.phase = frame.world?.phase ?? "";
     },
@@ -728,6 +763,11 @@ function room(solo: boolean): void {
     },
     ended() {
       status.show("Room ended", "error");
+      over = true;
+      controls.clear();
+      for (const part of [connecting, nameEntry.form, lobby, stage, controller])
+        part.hidden = true;
+      closed.hidden = false;
       void fetch(endpoints.apiUrl(`/api/games/${GAME}/leaderboard`))
         .then(async (response) => {
           const body = (await response.json()) as { error?: unknown };
@@ -763,20 +803,26 @@ function room(solo: boolean): void {
     reload: () => location.reload(),
   });
 
-  // Keys: ours are swallowed so Space never scrolls or presses a focused button mid-flight.
+  // Keys: while this device flies, ours are swallowed so Space never scrolls or presses a focused button; otherwise a
+  // focused button, field or select keeps its own keys (REMATCH, TAKE OFF and the name form work from the keyboard).
   const typing = (target: EventTarget | null) =>
     target instanceof HTMLInputElement ||
     target instanceof HTMLSelectElement ||
     target instanceof HTMLTextAreaElement ||
-    (target instanceof HTMLButtonElement && model?.screen === "lobby");
+    (target instanceof HTMLButtonElement && !model?.flying);
+  const captured = new Set<string>();
   document.addEventListener("keydown", (event) => {
     sfx.resume();
     if (typing(event.target) || event.metaKey || event.ctrlKey || event.altKey)
       return;
-    if (controls.press(event.code)) event.preventDefault();
+    if (controls.press(event.code)) {
+      captured.add(event.code);
+      event.preventDefault();
+    }
   });
   document.addEventListener("keyup", (event) => {
-    if (controls.release(event.code)) event.preventDefault();
+    controls.release(event.code);
+    if (captured.delete(event.code)) event.preventDefault();
   });
   window.addEventListener("blur", () => controls.clear());
   document.addEventListener("visibilitychange", () => {

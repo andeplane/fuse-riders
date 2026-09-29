@@ -205,7 +205,8 @@ const platformBox = (platform: Platform) => ({
 
 /** A contact that would kill: a shield turns it into a bounce, and grace after that ignores it. True if it died. */
 function hurt(world: World, chopper: Chopper, cause: Cause): boolean {
-  if (chopper.grace > 0) return false;
+  // Once the round is decided the outro is a victory lap: contacts push, nobody dies and the result stands.
+  if (chopper.grace > 0 || world.phase === "outro") return false;
   if (chopper.shield > 0) {
     chopper.shield = 0;
     chopper.grace = T.SHIELD_GRACE;
@@ -466,6 +467,8 @@ function moveBullets(world: World): void {
       return false;
     }
     for (const drone of world.drones) {
+      // A drone downed by an earlier bullet this step takes no more hits (and no more credit).
+      if (drone.hp <= 0) continue;
       if (
         !circleBox(
           bullet.x,

@@ -7,7 +7,8 @@ last chopper flying wins the round (or the first through the **EXIT** gate at th
 match. Online rooms, solo against AI pilots, and a shared TV with phones as controllers, on the same netcode as every
 Fuse game.
 
-Open it at `/fuse-choppers/` on a running service (see below), or from **MORE GAMES** on the Fuse Riders landing page.
+Open it at `/fuse-choppers/` on a running service (see below), or from the **FUSE CHOPPERS — CAVE CHAOS** link on
+the Fuse Riders landing page.
 
 ## Controls
 
@@ -20,9 +21,13 @@ Open it at `/fuse-choppers/` on a running service (see below), or from **MORE GA
 
 Phones get touch pads over the cave (◀ ▶, FIRE, LIFT); in a shared-screen room a phone is a full controller.
 
-**Developer trial: W/S thrust.** The lobby's CONTROLS setting (or `?lift=thrust` on the URL that creates the room)
-swaps the classic mechanic for direct control: W flies up, S flies down, and the chopper hovers when neither is held.
-`?combat=bump|shoot|off` likewise starts a room on another nudge mode.
+**Developer trial: W/S thrust.** The lobby's CONTROLS setting (or `?lift=thrust` on the page that creates the room
+or plays solo) swaps the classic mechanic for direct control: W flies up, S flies down, and the chopper hovers when
+neither is held. `?combat=bump|shoot|off` likewise starts a room on another nudge mode. These flags, `?mute` and
+`?autopilot` carry over from the landing page to the room it opens.
+
+At GO a chopper hovers for up to two seconds until its pilot first touches lift, so nobody falls out of the sky
+before they are ready.
 
 ## Rules at a glance
 
@@ -55,8 +60,9 @@ The source is the rulebook; this is the shape of it.
   entries. The checkpoint validates every field before a world is installed.
 - **Rendering** (`src/render/`): Canvas 2D at a 960×540 logical size, redrawn from the runtime's frame timing and
   interpolated between log ticks. Sprites and backdrop tiles are painted once; particles, trails and wrecks are
-  cosmetic and keyed by effect id, so a rolled-back frame never draws an effect twice. The renderer imports only the
-  engine's `view.ts` and `view-kit.ts`.
+  cosmetic. An effect is keyed by what happened (kind, seat, moment and place) rather than by its id, so a rollback
+  that renumbers effects does not set the same explosion off twice. The renderer imports only the engine's `view.ts`
+  and `view-kit.ts`.
 - **App** (`src/app/`): landing, lobby, invite and roster from fuse-ui; the HUD (logo, pilot cards, timer, legend)
   is DOM over the canvas. `presenter.ts` decides what shows and is unit-tested; `main.ts` is the glue.
 - `src/platform.ts` registers the game with the room service for admission only; it reports no results yet.
@@ -76,8 +82,10 @@ pnpm exec tsx --test games/fuse-choppers/tests/*.test.ts
 node games/fuse-choppers/preview/smoke.mjs http://localhost:8787/ path/to/screenshots
 ```
 
-The smoke plays a solo round, then a real two-browser room (create, join by code, add a bot, take off) and checks
-that both pages agree on the round. It needs Chrome for Playwright and writes screenshots only where told.
+The smoke is run by hand; it is not in CI. It covers a solo round, a two-browser room, a shared TV with a phone
+controller, a phone playing solo, and a room that does not exist. It does not yet cover rematch or the return to the
+lobby. In the room it checks that both pages agree on how the round ended. It needs Chrome for Playwright and writes
+screenshots only where told.
 
 ## Not yet
 

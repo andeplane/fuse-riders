@@ -208,7 +208,27 @@ test("notes for a crashed, escaped, waiting or watching pilot", () => {
   };
   assert.match(present(late, host).note, /next round/);
   assert.equal(present(late, host).cards[0]!.state, "out");
-  assert.equal(present(running, { ...guest, me: "watcher" }).note, "Watching");
+  assert.equal(
+    present(running, { ...guest, me: "newcomer" }).note,
+    "Pick a name to fly from the next round",
+  );
+  assert.ok(present(running, { ...guest, me: "newcomer" }).askName);
+  const watched = {
+    ...running,
+    seats: [
+      ...running.seats,
+      {
+        id: "w",
+        name: "Wes",
+        slot: -1,
+        bot: false,
+        connected: true,
+        away: false,
+        watcher: true,
+      },
+    ],
+  };
+  assert.equal(present(watched, { ...guest, me: "w" }).note, "Watching");
   assert.equal(present(running, tv).note, "");
 });
 

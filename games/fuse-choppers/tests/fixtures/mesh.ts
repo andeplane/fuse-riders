@@ -8,6 +8,13 @@ import type { Settings } from "../../src/engine/index.js";
 import type { View } from "../../src/online/game.js";
 import { ChopperRuntime } from "../../src/online/runtime.js";
 
+/** The chopper runtime as a test drives it: `resync` is what the netcode does to controls when it resets the log. */
+export class TestRuntime extends ChopperRuntime {
+  resync(): void {
+    this.resetControls();
+  }
+}
+
 /** What happens to one fast packet: delivered after `delayMs` (and again after `duplicateMs`), or dropped. */
 export type FastFate =
   { drop: true } | { drop?: false; delayMs: number; duplicateMs?: number };
@@ -30,7 +37,7 @@ export class Mesh {
   private readonly events = new Map<string, TransportEvents>();
   private readonly online = new Set<string>();
   private readonly lastReliable = new Map<string, number>();
-  readonly runtimes = new Map<string, ChopperRuntime>();
+  readonly runtimes = new Map<string, TestRuntime>();
   readonly frames = new Map<string, View[]>();
   fast: (from: string, to: string) => FastFate = () => ({ delayMs: 20 });
   constructor(
@@ -40,7 +47,7 @@ export class Mesh {
   private at(ms: number, run: () => void): void {
     this.queue.push({ at: this.now + ms, order: this.order++, run });
   }
-  join(id: string): ChopperRuntime {
+  join(id: string): TestRuntime {
     const frames: View[] = [];
     this.frames.set(id, frames);
     const callbacks: Callbacks<View, never, Settings> = {
@@ -64,7 +71,7 @@ export class Mesh {
       },
       onVisibilityChange: () => () => {},
     };
-    const runtime = new ChopperRuntime("ROOM", this.settings, callbacks, {
+    const runtime = new TestRuntime("ROOM", this.settings, callbacks, {
       dependencies,
       transport: (events) => {
         this.events.set(id, events);

@@ -65,6 +65,19 @@ interface Particle {
 const MAX_PARTICLES = 700;
 const STEP_S = 1 / 60;
 
+/**
+ * What an effect is, for drawing it once: its kind, seat, moment and place, not its id. A rollback that changes an
+ * earlier outcome renumbers every later effect, and the same explosion must not go off twice for it.
+ */
+export const effectKey = (fx: {
+  kind: string;
+  slot: number;
+  at: number;
+  x: number;
+  y: number;
+}): string =>
+  `${fx.kind}:${fx.slot}:${Math.floor(fx.at / 6)}:${Math.round(fx.x / 16)}:${Math.round(fx.y / 16)}`;
+
 export function createScene(g: Paint, make: MakeSurface) {
   const backdrop = createBackdrop(make);
   const choppers = new Map<number, Sprite>(),
@@ -92,7 +105,7 @@ export function createScene(g: Paint, make: MakeSurface) {
   };
 
   let particles: Particle[] = [];
-  let seen = new Set<number>();
+  let seen = new Set<string>();
   let trails = new Map<string, { x: number; y: number }[]>();
   let seed = -1,
     last = 0,
@@ -151,8 +164,9 @@ export function createScene(g: Paint, make: MakeSurface) {
 
   function spawn(world: WorldView, me: string): void {
     for (const fx of world.fx) {
-      if (seen.has(fx.id)) continue;
-      seen.add(fx.id);
+      const key = effectKey(fx);
+      if (seen.has(key)) continue;
+      seen.add(key);
       // An effect far older than this frame was already on screen before a reload or rejoin: skip it.
       if (world.step - fx.at > 20) continue;
       const color = fx.slot >= 0 ? seatColor(fx.slot) : "#ffffff",
@@ -266,7 +280,7 @@ export function createScene(g: Paint, make: MakeSurface) {
       seed = world.seed;
       particles = [];
       trails = new Map();
-      seen = new Set(world.fx.map((fx) => fx.id));
+      seen = new Set(world.fx.map(effectKey));
     }
     spawn(world, input.me);
     tick(dt);
@@ -476,7 +490,6 @@ export function createScene(g: Paint, make: MakeSurface) {
       g.rotate(landed ? 0.5 * c.face : since * 7 * c.face);
       g.scale(c.face, 1);
       g.globalAlpha = Math.max(0, 1 - Math.max(0, since - 2.5) / 1.5);
-      g.filter = "grayscale(0.7) brightness(0.55)";
       g.drawImage(
         sprite.surface,
         -sprite.ox,

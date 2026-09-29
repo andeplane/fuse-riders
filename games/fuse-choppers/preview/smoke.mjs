@@ -4,9 +4,11 @@
  *   node games/fuse-choppers/preview/smoke.mjs http://localhost:PORT/ [screenshot-dir]
  *
  * 1. Solo: `?solo=1&autopilot` flies a round against three bots; the timer runs and the cave is drawn.
- * 2. Online: one page creates a room, a second joins by its code, the host adds a bot and takes off; both pages
- *    fly on autopilot, see the same pilots and agree on the round's winner.
- * Screenshots go to the directory given, and nowhere else. Every page opens muted.
+ * 2. Online: one page creates a room (its `?autopilot` carries over), a second joins by its code, the host adds a
+ *    bot and takes off; both pages fly on autopilot, see the same pilots and agree on the round's winner.
+ * 3. A shared TV with a phone as the controller, and a phone flying solo on its own screen with touch pads.
+ * 4. A well-formed code for a room that does not exist shows the closed-room card, not live host controls.
+ * Run by hand; not in CI. Screenshots go to the directory given, and nowhere else. Every page opens muted.
  */
 import { chromium } from "playwright";
 import assert from "node:assert/strict";
@@ -81,6 +83,10 @@ try {
   await host.getByRole("button", { name: "CREATE ROOM" }).click();
   await host.waitForURL(/room=[A-Z0-9]+/);
   const code = new URL(host.url()).searchParams.get("room");
+  assert.ok(
+    new URL(host.url()).searchParams.has("autopilot"),
+    "the flags carry into the room",
+  );
   const join = async (page, name) => {
     const input = page.locator(".fui-name-input").first();
     await input.waitFor({ timeout: 15_000 });
@@ -182,6 +188,17 @@ try {
   );
   await snap(handheld, "phone-solo");
   await pocket.close();
+
+  // ---- a room that does not exist ----
+  const nowhere = await open("fuse-choppers/?room=ZZ99&mute");
+  await nowhere.locator(".fc-closed").waitFor({ timeout: 20_000 });
+  assert.equal(
+    await nowhere.getByRole("button", { name: "TAKE OFF" }).isVisible(),
+    false,
+  );
+  await snap(nowhere, "room-closed");
+  console.log("a missing room shows the closed-room card");
+  await nowhere.context().close();
   assert.deepEqual(errors, [], "no page errors");
   console.log("fuse-choppers smoke: ok");
 } finally {

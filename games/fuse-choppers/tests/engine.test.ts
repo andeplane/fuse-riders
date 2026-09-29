@@ -295,6 +295,51 @@ test("a drone charges, fires a bolt that nudges, and three hits bring it down", 
   assert.equal(c.downed, 1);
 });
 
+test("bullets that hit a drone after it is down pass without more credit", () => {
+  const world = quiet(playing(1, HOVER));
+  const c = chopper(world);
+  const drone = {
+    id: world.nextId++,
+    x: c.x + px(300),
+    y: c.y,
+    baseY: c.y,
+    hp: 1,
+    cool: 1000,
+    charge: 0,
+    phase: 0,
+  };
+  world.drones.push(drone);
+  for (let i = 0; i < 3; i++)
+    world.bullets.push({
+      id: world.nextId++,
+      owner: 0,
+      x: drone.x,
+      y: drone.y,
+      vx: 0,
+      vy: 0,
+      life: 10,
+    });
+  stepWorld(world, new Map());
+  assert.equal(world.drones.length, 0);
+  assert.equal(c.downed, 1);
+  assert.equal(world.fx.filter((fx) => fx.kind === 7).length, 1);
+  assert.equal(world.bullets.length, 2, "the others fly on");
+});
+
+test("once the round is decided nobody dies: the winner's lap cannot undo the result", () => {
+  const world = quiet(playing(2, HOVER));
+  world.choppers[1]!.x = world.crushX - px(50);
+  stepWorld(world, new Map());
+  assert.equal(world.winner, "c0");
+  const c = chopper(world);
+  c.y =
+    span(world.seed, c.x - T.CHOPPER_HW, c.x + T.CHOPPER_HW).ceiling +
+    T.CHOPPER_HH;
+  c.vy = -T.THRUST_MAX;
+  steps(world, 5, held({ c0: UP }));
+  assert.ok(c.alive, "the winner bounces off the rock in the outro");
+});
+
 test("the crush zone warns, then throws a rock; a rock kills", () => {
   const world = quiet(playing(2, HOVER));
   world.rockAt = world.step + 1;

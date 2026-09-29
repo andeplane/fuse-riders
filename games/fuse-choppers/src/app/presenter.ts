@@ -158,7 +158,8 @@ export function present(view: View, viewer: Viewer): Model {
   let note = "";
   if (world && view.stage === "running" && viewer.display === false) {
     if (!chopper && seated) note = "You join the next round";
-    else if (!seated) note = "Watching";
+    else if (!seated)
+      note = mine ? "Watching" : "Pick a name to fly from the next round";
     else if (chopper?.state === "crashed")
       note = "Crashed! Watch the rest fight it out";
     else if (chopper?.state === "escaped") note = "You escaped the cave!";

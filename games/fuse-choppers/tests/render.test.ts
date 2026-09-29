@@ -51,6 +51,16 @@ function recorder() {
     },
     texts: () =>
       calls.filter((c) => c[0] === "fillText").map((c) => String(c[1])),
+    /** drawImage calls whose source surface is `width` × `height` device pixels. */
+    blits: (test: (width: number, height: number) => boolean) =>
+      calls.filter((c) => {
+        const source = c[1] as { width?: number; height?: number } | undefined;
+        return (
+          c[0] === "drawImage" &&
+          source?.width !== undefined &&
+          test(source.width, source.height!)
+        );
+      }).length,
   };
 }
 
@@ -163,6 +173,34 @@ test("an effect is drawn once per id, even when a rolled-back frame shows it aga
   assert.ok(texts.includes("!"), "the rock warning");
 });
 
+test("an effect a rollback renumbers is still the same effect, and is not drawn again", () => {
+  const r = recorder(),
+    scene = createScene(r.screen, r.make),
+    world = crowded();
+  scene.draw({
+    world: { ...world, fx: [] },
+    me: "",
+    labels: new Map(),
+    now: 0,
+  });
+  scene.draw({ world, me: "", labels: new Map(), now: 16 });
+  const renumbered = {
+    ...world,
+    fx: world.fx.map((fx) => ({ ...fx, id: fx.id + 1000 })),
+  };
+  r.calls.length = 0;
+  scene.draw({ world: renumbered, me: "", labels: new Map(), now: 32 });
+  assert.equal(r.texts().filter((t) => t === "CRASH!").length, 1);
+  // A different outcome, somewhere else, is a new effect.
+  const elsewhere = {
+    ...renumbered,
+    fx: [{ ...renumbered.fx[0]!, x: renumbered.fx[0]!.x + 200 }],
+  };
+  r.calls.length = 0;
+  scene.draw({ world: elsewhere, me: "", labels: new Map(), now: 48 });
+  assert.equal(r.texts().filter((t) => t === "CRASH!").length, 2);
+});
+
 test("effects from before a page joined are not replayed, and a new round starts clean", () => {
   const r = recorder(),
     scene = createScene(r.screen, r.make),
@@ -261,8 +299,11 @@ test("a crashed chopper's wreck falls, burns out and is gone", () => {
       labels: new Map(),
       now: since * 16,
     });
-    const blits = r.calls.filter((c) => c[0] === "drawImage").length;
-    assert.ok(blits > 0);
+    // A chopper sprite is 84 × 52 logical pixels, painted at twice that.
+    const wrecks = r.blits((w, h) => w === 168 && h === 104);
+    if (since < 240)
+      assert.equal(wrecks, 1, `a wreck ${since} steps after the crash`);
+    else assert.equal(wrecks, 0, "burnt out and gone");
   }
 });
 
@@ -282,7 +323,17 @@ test("platforms carry lit landing pads and saws spin on their mounts", () => {
       labels: new Map(),
       now: s * 100,
     });
-    assert.ok(r.calls.some((c) => c[0] === "arc"));
+    // Saw blades are square surfaces; pickup crates, the only other square ones, are 96 × 96.
+    if (part.saws.length)
+      assert.ok(
+        r.blits((w, h) => w === h && w !== 96) > 0,
+        "a saw blade is drawn",
+      );
+    if (part.platforms.length)
+      assert.ok(
+        r.calls.some((c) => c[0] === "fillRect" && c[4] === 5),
+        "a landing pad's plate",
+      );
     drawn++;
   }
   assert.ok(drawn > 2);

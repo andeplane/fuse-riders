@@ -18,6 +18,7 @@ import {
 import {
   CAPACITY,
   COUNTDOWN_STEPS,
+  INPUT_MASK,
   RULES,
   STEPS_PER_TICK,
   botInput,
@@ -193,9 +194,10 @@ const entrants = (room: Room) =>
 
 function startRound(room: Room): void {
   const seats = entrants(room);
+  // Nobody left to fly (every rider went, watchers stayed): back to an empty lobby, crowns and all cleared.
   if (!seats.length) {
+    resetMatch(room, room.matchId);
     room.stage = "lobby";
-    room.world = null;
     return;
   }
   room.round++;
@@ -351,11 +353,12 @@ export function foldTick(
       else if (seat?.connected) {
         bits = room.held[chopper.id] ?? 0;
         for (const entry of playEntries(room, seat, streams, tick)) {
-          tapped |= entry[5];
-          bits = entry[5];
+          tapped |= entry[5] & INPUT_MASK;
+          bits = entry[5] & INPUT_MASK;
         }
       }
-      if (bits) room.held[chopper.id] = bits;
+      // Only what a seat logged is held: a bot answers afresh every tick.
+      if (bits && !seat?.bot) room.held[chopper.id] = bits;
       else delete room.held[chopper.id];
       held.set(chopper.id, bits);
       first.set(chopper.id, bits | tapped);
@@ -568,7 +571,17 @@ export function decode(
     (stage === "lobby" && world !== null) ||
     ((stage === "running" || stage === "between") && world === null) ||
     (winner !== "" && stage !== "over") ||
-    Object.keys(held).some((id) => !world?.choppers.some((c) => c.id === id))
+    Object.keys(held).some((id) => !world?.choppers.some((c) => c.id === id)) ||
+    // Between rounds, the next one is due within the break; the round's world keeps the match's rules; every
+    // chopper and placing names a member id that is safe as a record key.
+    (stage === "between" &&
+      (resumeAt <= tick || resumeAt > tick + BETWEEN_TICKS)) ||
+    (world &&
+      (world.lift !== play.lift ||
+        world.combat !== play.combat ||
+        world.powerUps !== play.powerUps)) ||
+    world?.choppers.some((c) => !playerKey(c.id)) ||
+    results.some((r) => r.placings.some((p) => !playerKey(p.id)))
   )
     return;
   return {
