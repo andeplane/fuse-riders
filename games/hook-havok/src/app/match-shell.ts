@@ -25,6 +25,7 @@ export function createMatchShell() {
   get("experiment").closest("section")!.append(get("reset"));
   workshop.append(
     get("jump-mode").closest("section")!,
+    get("zone-controls"),
     controls,
     document.querySelector(".room-entry")!,
   );
@@ -32,7 +33,13 @@ export function createMatchShell() {
   preferences.className = "controls personal-controls";
   preferences.setAttribute("aria-label", "Your controls and atmosphere");
   content.append(preferences);
-  for (const id of ["keyboard-mode", "touch-toggle", "aim-mode", "atmosphere"])
+  for (const id of [
+    "keyboard-mode",
+    "touch-toggle",
+    "aim-mode",
+    "atmosphere",
+    "follow-cam",
+  ])
     preferences.append(get(id).closest("label")!);
   preferences.append(get("control-help"));
   content.append(document.querySelector("[data-radio]")!);
@@ -125,7 +132,11 @@ export function createMatchShell() {
           ? "You manage this room. Explore now; choose a round mode to compete. Match choices restart the shared trial."
           : "The room manager chooses the arena and starts the next round. You can explore during free play.";
       get("match-map").textContent =
-        view.map === "crossroads" ? "THE CROSSROADS" : "LANTERN BELFRY";
+        view.map === "crossroads"
+          ? "THE CROSSROADS"
+          : view.map === "spire"
+            ? "NEON SPIRE"
+            : "LANTERN BELFRY";
       get("match-mode").textContent =
         c.rules === "free"
           ? "Free play"
@@ -189,7 +200,11 @@ export function createMatchShell() {
               ? "own bomb"
               : t.fate === "bomb"
                 ? `bombed by ${name(t.by)}`
-                : "";
+                : t.fate === "hazard"
+                  ? t.by
+                    ? `pushed into a hazard by ${name(t.by)}`
+                    : "zapped"
+                  : "";
         get("result-tally").replaceChildren(
           ...c.entries.map((entry) => {
             const k = view.keepers.find((k) => k.id === entry.id);
@@ -214,6 +229,7 @@ export function createMatchShell() {
               facts.push(
                 `${k.tally.falls} falls`,
                 ...(bombs ? [`${k.tally.bombed} bombed`] : []),
+                ...(k.tally.zapped ? [`${k.tally.zapped} zapped`] : []),
                 ...(k.tally.fate ? [`last: ${fate(k.tally)}`] : []),
               );
             const detail = document.createElement("span");

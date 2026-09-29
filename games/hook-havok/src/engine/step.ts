@@ -1,7 +1,6 @@
 import {
   BODY,
   HALF,
-  HEIGHT,
   HOOK_SPEED,
   ROPE_MIN,
   S,
@@ -13,7 +12,8 @@ import {
 } from "./world.js";
 import { movePlayer, supported, sweep } from "./collision.js";
 import { stepCombat, strike, type CombatContext } from "./combat.js";
-import { MAPS } from "./maps.js";
+import { MAPS, blocks, ledges } from "./maps.js";
+import { PAD_VY, field, onPad, pull } from "./zones.js";
 const approach = (value: number, target: number, change: number) =>
   value < target
     ? Math.min(target, value + change)
@@ -157,11 +157,15 @@ export function step(world: World, context?: CombatContext): void {
     world.previous = { ...world.input };
     return;
   }
+  const map = world.tuning.map,
+    entryVy = world.vy;
+  // Only a one-way ledge drops a keeper through; a solid block never does.
   const dropping =
     world.input.drop &&
     !world.previous.drop &&
     world.grounded &&
-    supported(world.x, world.feet, MAPS[world.tuning.map].platforms);
+    supported(world.x, world.feet, ledges(map)) &&
+    !supported(world.x, world.feet, blocks(map));
   if (dropping) {
     world.feet += 2;
     world.vy = Math.max(world.vy, 2 * S);
@@ -192,7 +196,12 @@ export function step(world: World, context?: CombatContext): void {
   )
     world.vx = approach(world.vx, target, acceleration);
   if (world.input.move) world.facing = world.input.move;
-  world.vy += Math.round((world.tuning.gravity * S) / 3600);
+  // Gravity, or a lift beam or the low-gravity wing where the body's centre is (12B).
+  world.vy = pull(
+    world.vy,
+    field(world.tuning, world.x, world.feet - BODY / 2),
+    Math.round((world.tuning.gravity * S) / 3600),
+  );
   const launch = -Math.round((world.tuning.jump * S) / 60),
     fresh = !dropping && world.input.jump && !world.previous.jump;
   if (world.buffer && world.coyote) {
@@ -223,8 +232,10 @@ export function step(world: World, context?: CombatContext): void {
   if (!dropping) grapple(world, context);
   const cap = Math.round((1000 * S) / 60);
   world.vx = Math.max(-cap, Math.min(cap, world.vx));
-  world.vy = Math.max(-cap, Math.min(cap, world.vy));
-  movePlayer(world, MAPS[world.tuning.map].platforms);
+  // A pad launch is the only rise past the cap at a tick boundary; it may
+  // decay under gravity but never grow, so the upward bound follows it down.
+  world.vy = Math.max(Math.min(-cap, entryVy), Math.min(cap, world.vy));
+  movePlayer(world, ledges(map), blocks(map), MAPS[map].width);
   if (world.hook.phase === "attached") {
     // When the speed cap clips the rope's correction, the rope gives rather
     // than yanking the keeper next tick.
@@ -245,8 +256,16 @@ export function step(world: World, context?: CombatContext): void {
     )
       retract(h);
   }
+  if (world.grounded && onPad(world.tuning, world.x, world.feet)) {
+    // Touching a pad's top launches at a fixed speed and refills the air jump.
+    world.vy = PAD_VY;
+    world.grounded = false;
+    world.coyote = world.buffer = 0;
+    world.airJump = world.tuning.jumpMode === "double";
+    if (world.hook.phase === "attached") retract(world.hook);
+  }
   if (world.grounded) world.airJump = world.tuning.jumpMode === "double";
-  if (world.feet - BODY > HEIGHT * S) {
+  if (world.feet - BODY > MAPS[map].height * S) {
     world.respawn = 30;
     world.deaths++;
     world.hook = readyHook();

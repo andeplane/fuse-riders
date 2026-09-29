@@ -197,6 +197,7 @@ test("directional hit reaction belongs only to the victim and does not replay", 
       knockouts: 0,
       selfKnockouts: 0,
       bombed: 0,
+      zapped: 0,
       falls: 0,
       fate: "" as const,
       by: "",
@@ -389,7 +390,16 @@ test("wind-up, throw and blasted: the charge poses, a release follows through, a
     respawn: 60,
     deaths: 1,
     feet: 1000,
-    knockouts: [{ tick: 11, by: "a", target: "b", x: 300, y: 780 }],
+    knockouts: [
+      {
+        tick: 11,
+        by: "a",
+        target: "b",
+        x: 300,
+        y: 780,
+        cause: "bomb" as const,
+      },
+    ],
   };
   f.update(blasted, 450);
   const kinds = f.active().map((b) => b.kind);
@@ -415,7 +425,9 @@ test("wind-up, throw and blasted: the charge poses, a release follows through, a
 test("a remote keeper's feedback sees its own knockout once the room's list travels with it", () => {
   // The peer view scene.ts builds: the peer's body, with the room's lists.
   const body = bombView({ localId: undefined, knockouts: [] });
-  const room = [{ tick: 4, by: "a", target: "b", x: 500, y: 700 }];
+  const room = [
+    { tick: 4, by: "a", target: "b", x: 500, y: 700, cause: "bomb" as const },
+  ];
   const peer = (
     patch: Partial<WorldView>,
     knockouts: WorldView["knockouts"],

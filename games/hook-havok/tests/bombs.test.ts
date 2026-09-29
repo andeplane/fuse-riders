@@ -863,7 +863,11 @@ test("a bomb thrown from inside a ledge starts at its nearest face instead of pa
     assert.ok(bomb.y < 650 * S, `tick ${t}: above the stone at ${bomb.y / S}`);
   }
   // The preview starts where the bomb does.
-  const arc = bombArc(3, 800, 669, 0, 0, 800, 900, 1, 1800, "crossroads");
+  const arc = bombArc(3, 800, 669, 0, 0, 800, 900, 1, 1800, {
+    map: "crossroads",
+    lifts: "off",
+    lowGravity: "off",
+  });
   assert.ok(arc.length && arc.every((p) => p.y <= 650));
 });
 test("a release and re-press inside one log tick still throws; each bomb change gets an engine step", () => {

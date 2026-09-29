@@ -34,9 +34,11 @@ export function finishContest(c: Contest, rules: Tuning["rules"]): void {
   c.phase = "over";
   c.winners = leaders(c, rules);
 }
+/** `gain` is the most a single point can count for (3 with the 12B crown zone). */
 export function decodeContest(
   raw: unknown,
   rules: Tuning["rules"],
+  gain = 1,
 ): Contest | undefined {
   if (
     !plain(raw) ||
@@ -61,7 +63,7 @@ export function decodeContest(
       entry.id.length > 128 ||
       /[\x00-\x1f\x7f]/.test(entry.id) ||
       !integer(entry.slot, 0, 4) ||
-      !integer(entry.score, -2 * c.elapsed, c.elapsed) ||
+      !integer(entry.score, -2 * c.elapsed, gain * c.elapsed) ||
       typeof entry.out !== "boolean" ||
       c.entries.some(
         (e) => e.id === entry.id || e.slot >= (entry.slot as number),

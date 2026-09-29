@@ -63,7 +63,13 @@ export const mouseAims = (k: Pick<KeyboardInput, "mode" | "aimSource">) =>
 export function touchInput(
   input: Input,
   state: TouchState,
-  chest: { x: number; y: number; facing: -1 | 1 },
+  chest: {
+    x: number;
+    y: number;
+    facing: -1 | 1;
+    /** The arena the aim is clipped to (12A); 1600 × 900 when omitted. */
+    size?: { width: number; height: number };
+  },
 ): Input {
   const next: Input = {
     ...input,
@@ -74,11 +80,19 @@ export function touchInput(
     bomb: state.bomb,
   };
   if (state.fire && !input.fire)
-    Object.assign(next, touchAim(chest.x, chest.y, state.direction));
+    Object.assign(
+      next,
+      touchAim(chest.x, chest.y, state.direction, chest.size),
+    );
   if (input.bomb && !state.bomb)
     Object.assign(
       next,
-      touchAim(chest.x, chest.y, bombDirection(state, chest.facing)),
+      touchAim(
+        chest.x,
+        chest.y,
+        bombDirection(state, chest.facing),
+        chest.size,
+      ),
     );
   return next;
 }

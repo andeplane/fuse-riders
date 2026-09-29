@@ -1,7 +1,8 @@
 import { MAPS, type MapId } from "./maps.js";
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-12";
+export const RULES = "hook-havok-15";
 export const S = 1024;
+/** Lantern Belfry's size; every map carries its own (`MAPS[map].width`, `height`). */
 export const WIDTH = 1600,
   HEIGHT = 900,
   HALF = 16 * S,
@@ -11,6 +12,7 @@ export const HOOK_SPEED = 32,
   ROPE_MIN = 40;
 /** Original belfry geometry, retained for its traversal fixtures. Runtime uses tuning.map. */
 export const PLATFORMS = MAPS.belfry.platforms;
+type Switch = "off" | "on";
 export interface Tuning {
   /** Thrown bomb trial (11B): off, a timed fuse, or impact on a rival. */
   bomb: "off" | "fuse" | "impact";
@@ -26,6 +28,13 @@ export interface Tuning {
   air: number;
   pull: number;
   range: number;
+  /** Zones and hazards (12B), each switchable; maps without the zone ignore it. */
+  jumpPads: Switch;
+  lifts: Switch;
+  lowGravity: Switch;
+  electricFloor: Switch;
+  lasers: Switch;
+  bonusZone: Switch;
 }
 export const DEFAULT_TUNING: Tuning = {
   bomb: "fuse",
@@ -42,6 +51,12 @@ export const DEFAULT_TUNING: Tuning = {
   /** Rope reel-in speed, units/s, while the hook is held. */
   pull: 850,
   range: 650,
+  jumpPads: "on",
+  lifts: "on",
+  lowGravity: "on",
+  electricFloor: "on",
+  lasers: "on",
+  bonusZone: "on",
 };
 /** The pre-10A trial defaults: belfry, no balls, single jump, tip-only hook, no bombs. Fixtures pin it. */
 export const CLASSIC_TUNING: Tuning = {
@@ -136,7 +151,8 @@ export function ballField(
   mode: Tuning["experiment"],
   map: MapId,
 ): readonly [number, number, number, number] {
-  return mode === "ball" ? MAPS[map].ballField : [0, 0, WIDTH, 870];
+  const { width, height } = MAPS[map];
+  return mode === "ball" ? MAPS[map].ballField : [0, 0, width, height - 30];
 }
 export function ballSpeed(mode: Tuning["experiment"], tier: number): number {
   return (4 - tier) * S * (mode === "surge" ? 2 : 1);
@@ -166,8 +182,8 @@ export function createCombat(
           {
             id: 1,
             tier: 2,
-            x: MAPS[map].ballSpawn[0] * S,
-            y: (mode === "ball" ? MAPS[map].ballSpawn[1] : 740) * S,
+            x: MAPS[map][mode === "ball" ? "ballSpawn" : "arenaBall"][0] * S,
+            y: MAPS[map][mode === "ball" ? "ballSpawn" : "arenaBall"][1] * S,
             vx: ballSpeed(mode, 2),
             vy: 0,
           },

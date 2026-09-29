@@ -2,21 +2,13 @@ import type { Arena, Keeper } from "./arena.js";
 import { sweep } from "./collision.js";
 import { splitBall } from "./combat.js";
 import { MAPS, type MapId, type Platform } from "./maps.js";
-import {
-  BALL_RADII,
-  BODY,
-  HALF,
-  HEIGHT,
-  S,
-  WIDTH,
-  cancel,
-  readyHook,
-  type World,
-} from "./world.js";
+import { BALL_RADII, BODY, HALF, S, type Tuning, type World } from "./world.js";
+import { knockout } from "./knockout.js";
+import { field, pull } from "./zones.js";
 import {
   BLAST_RADIUS,
   BOMB_CEILING,
-  BOMB_FLOOR,
+  BOMB_DROP,
   BOMB_RADIUS,
   BOUNCE_FRICTION,
   CARRY,
@@ -26,7 +18,6 @@ import {
   EVENT_TICKS,
   FULL_SPEED,
   FUSE_TICKS,
-  KO_RESPAWN,
   MAX_BOMBS,
   MAX_BOMB_SPEED,
   MAX_EVENTS,
@@ -58,21 +49,26 @@ export interface Blast {
 }
 export interface Knockout {
   tick: number;
+  /** The thrower, or the rival credited with a hazard push; "" for nobody. */
   by: string;
   target: string;
-  /** The victim's chest where the blast caught them. */
+  /** The victim's chest where the blast or hazard caught them. */
   x: number;
   y: number;
+  cause: "bomb" | "hazard";
 }
 /** Per keeper supply and round tally; `fate` is how they last went down. */
 export interface BombKit {
   cooldown: number;
   thrown: number;
+  /** Knockouts credited to this keeper: bombs and hazard pushes. */
   knockouts: number;
   selfKnockouts: number;
   bombed: number;
-  fate: "" | "fall" | "bomb" | "self";
-  /** The rival whose bomb it was when fate is "bomb", otherwise "". */
+  /** Times knocked out by a hazard (12B). */
+  zapped: number;
+  fate: "" | "fall" | "bomb" | "self" | "hazard";
+  /** The rival whose bomb it was, or who pushed them into a hazard; otherwise "". */
   by: string;
 }
 export function freshKit(): BombKit {
@@ -82,6 +78,7 @@ export function freshKit(): BombKit {
     knockouts: 0,
     selfKnockouts: 0,
     bombed: 0,
+    zapped: 0,
     fate: "",
     by: "",
   };
@@ -126,12 +123,14 @@ const solidCache = new Map<MapId, Platform[]>();
 function solids(map: MapId): Platform[] {
   let list = solidCache.get(map);
   if (!list) {
-    const r = BOMB_RADIUS;
+    const r = BOMB_RADIUS,
+      { width, height } = MAPS[map],
+      tall = height - BOMB_CEILING + 1100;
     list = [
       ...MAPS[map].platforms,
-      [-100, BOMB_CEILING - 100, 100, 5000],
-      [WIDTH, BOMB_CEILING - 100, 100, 5000],
-      [-100, BOMB_CEILING - 100, WIDTH + 200, 100],
+      [-100, BOMB_CEILING - 100, 100, tall],
+      [width, BOMB_CEILING - 100, 100, tall],
+      [-100, BOMB_CEILING - 100, width + 200, 100],
     ].map(
       ([x, y, w, h]) => [x! - r, y! - r, w! + 2 * r, h! + 2 * r] as Platform,
     );
@@ -139,41 +138,81 @@ function solids(map: MapId): Platform[] {
   }
   return list;
 }
+const holds = ([px, py, w, h]: Platform, x: number, y: number) =>
+  x > px * S && x < (px + w) * S && y > py * S && y < (py + h) * S;
 /**
  * Where a bomb held at (x, y) enters flight, in subunits. A keeper rising
  * through a one-way ledge can hold it inside stone (or within a bomb radius
- * of it), and a sweep ignores a box it starts in, so the bomb starts at that
- * box's nearest face instead, one subunit out like a resting bomb. Ties
- * prefer up, then down, left and right. Inflated boxes never overlap, so one
- * box can hold the point at most.
+ * of it), and a sweep ignores a box it starts in, so the bomb starts one
+ * subunit outside a face instead, like a resting bomb. Inflated boxes overlap
+ * where stone meets stone (Neon Spire's pylons on the crown deck, the core
+ * through the decks beside it, the hurdle on the floor), so a face of one box
+ * can lie inside another: the bomb takes the nearest face of any box holding
+ * it that no box holds, ties going to the earlier box, then up, down, left
+ * and right. Where every such face is held it moves to the nearest and looks
+ * again, at most four times, and then rises straight up out of each box in
+ * turn, which always ends in the open. Where one box holds the point and its
+ * nearest face is open, as everywhere on the 11B maps, this is 11B's rule.
  */
 export function bombSpawn(
   x: number,
   y: number,
   map: MapId,
 ): { x: number; y: number } {
-  for (const [px, py, w, h] of solids(map)) {
-    const left = px * S,
-      right = (px + w) * S,
-      top = py * S,
-      bottom = (py + h) * S;
-    if (x <= left || x >= right || y <= top || y >= bottom) continue;
-    const exits: [number, number, number][] = [
-      [y - top, x, top - 1],
-      [bottom - y, x, bottom + 1],
-      [x - left, left - 1, y],
-      [right - x, right + 1, y],
-    ];
-    let best = exits[0]!;
-    for (const exit of exits) if (exit[0] < best[0]) best = exit;
-    return { x: best[1], y: best[2] };
+  const boxes = solids(map);
+  for (let pass = 0; pass < 4; pass++) {
+    let near: [number, number, number] | undefined,
+      open: [number, number, number] | undefined;
+    for (const box of boxes) {
+      if (!holds(box, x, y)) continue;
+      const [px, py, w, h] = box,
+        left = px * S,
+        right = (px + w) * S,
+        top = py * S,
+        bottom = (py + h) * S;
+      const exits: [number, number, number][] = [
+        [y - top, x, top - 1],
+        [bottom - y, x, bottom + 1],
+        [x - left, left - 1, y],
+        [right - x, right + 1, y],
+      ];
+      for (const exit of exits) {
+        if (!near || exit[0] < near[0]) near = exit;
+        if (
+          (!open || exit[0] < open[0]) &&
+          !boxes.some((b) => holds(b, exit[1], exit[2]))
+        )
+          open = exit;
+      }
+    }
+    if (!near) return { x, y };
+    if (open) return { x: open[1], y: open[2] };
+    x = near[1];
+    y = near[2];
   }
+  // Each rise ends above that box's top and y only falls, so no box holds
+  // the bomb twice: this ends within one step per box.
+  for (
+    let box = boxes.find((b) => holds(b, x, y));
+    box;
+    box = boxes.find((b) => holds(b, x, y))
+  )
+    y = box[1] * S - 1;
   return { x, y };
 }
-/** Gravity, then up to four contacts: bounce, friction, roll and rest. */
-function fly(bomb: Bomb, gravity: number, map: MapId): void {
-  const cap = MAX_BOMB_SPEED * S;
-  bomb.vy = Math.min(cap, bomb.vy + gravity);
+/** Bombs below this line (subunits) fizzle. */
+export const bombFloor = (map: MapId) => (MAPS[map].height + BOMB_DROP) * S;
+/**
+ * Gravity (or a lift beam, or the low-gravity wing), then up to four
+ * contacts: bounce, friction, roll and rest.
+ */
+function fly(bomb: Bomb, gravity: number, tuning: Tuning): void {
+  const cap = MAX_BOMB_SPEED * S,
+    map = tuning.map;
+  bomb.vy = Math.max(
+    -cap,
+    Math.min(cap, pull(bomb.vy, field(tuning, bomb.x, bomb.y), gravity)),
+  );
   let remaining = 1;
   for (let i = 0; i < 4 && remaining > 0; i++) {
     const dx = Math.round(bomb.vx * remaining),
@@ -213,54 +252,6 @@ function touches(w: World, x: number, y: number, r: number): boolean {
     dy = y - clamp(y, w.feet - BODY, w.feet);
   return dx * dx + dy * dy <= r * r;
 }
-function knockout(arena: Arena, victim: Keeper, by: string): void {
-  const w = victim.world,
-    self = victim.id === by;
-  arena.knockouts.push({
-    tick: arena.tick,
-    by,
-    target: victim.id,
-    x: w.x,
-    y: w.feet - BODY / 2,
-  });
-  // Like a fall the body leaves below the arena, so every respawn invariant holds.
-  Object.assign(w, {
-    respawn: KO_RESPAWN,
-    deaths: saturate(w.deaths),
-    feet: HEIGHT * S + BODY + S,
-    vx: 0,
-    vy: 0,
-    buffer: 0,
-    coyote: 0,
-    grounded: false,
-    airJump: false,
-    charge: 0,
-    hook: readyHook(),
-  });
-  victim.ward = 0;
-  const kit = victim.bomb,
-    thrower = arena.keepers.find((k) => k.id === by);
-  if (self) kit.selfKnockouts = saturate(kit.selfKnockouts);
-  else {
-    kit.bombed = saturate(kit.bombed);
-    if (thrower) thrower.bomb.knockouts = saturate(thrower.bomb.knockouts);
-  }
-  kit.fate = self ? "self" : "bomb";
-  kit.by = self ? "" : by;
-  const c = arena.contest;
-  if (arena.tuning.rules === "free" || c.phase !== "active") return;
-  const entry = c.entries.find((e) => e.id === victim.id);
-  if (!entry) return;
-  if (arena.tuning.rules === "elimination") {
-    entry.out = true;
-    cancel(w);
-    return;
-  }
-  // The victim's usual death penalty; the thrower +1, or −1 for their own bomb.
-  entry.score -= 2;
-  const scorer = c.entries.find((e) => e.id === by);
-  if (scorer) scorer.score += self ? -1 : 1;
-}
 function detonate(
   arena: Arena,
   bomb: Bomb,
@@ -283,7 +274,7 @@ function detonate(
       !k.shield &&
       touches(k.world, bomb.x, bomb.y, r)
     )
-      knockout(arena, k, bomb.owner);
+      knockout(arena, k, bomb.owner, "bomb");
   const holder = arena.keepers[0]?.world,
     c = arena.combat;
   if (holder)
@@ -320,11 +311,12 @@ export function stepBombs(arena: Arena, canPlay: (k: Keeper) => boolean): void {
   if (tuning.bomb === "off") return;
   const gravity = Math.round((tuning.gravity * S) / 3600);
   for (const bomb of arena.bombs) {
-    fly(bomb, gravity, tuning.map);
+    fly(bomb, gravity, tuning);
     bomb.fuse--;
   }
   // Out of the bottom of the arena: it fizzles.
-  arena.bombs = arena.bombs.filter((b) => b.y <= BOMB_FLOOR * S);
+  const floor = bombFloor(tuning.map);
+  arena.bombs = arena.bombs.filter((b) => b.y <= floor);
   // Only a rival the blast could knock out sets an impact bomb off, so a
   // spawn-protected keeper is passed by like the thrower.
   if (tuning.bomb === "impact")
@@ -404,8 +396,9 @@ export function pruneBombEvents(arena: Arena): void {
 }
 /**
  * Presentation preview of the throw a release would make now: the same launch
- * and gravity, sampled every other tick until it meets stone, leaves the arena
- * or the fuse would end. Bounces are not predicted. World units.
+ * and pull (gravity, lift beams, the low-gravity wing), sampled every other
+ * tick until it meets stone, leaves the arena or the fuse would end. Bounces
+ * are not predicted. World units.
  */
 export function bombArc(
   charge: number,
@@ -417,8 +410,9 @@ export function bombArc(
   aimY: number,
   facing: -1 | 1,
   gravity: number,
-  map: MapId,
+  zones: Pick<Tuning, "map" | "lifts" | "lowGravity">,
 ): { x: number; y: number }[] {
+  const map = zones.map;
   const v = bombLaunch(
     charge,
     Math.round(x * S),
@@ -437,8 +431,8 @@ export function bombArc(
   const g = Math.round((gravity * S) / 3600),
     cap = MAX_BOMB_SPEED * S,
     points: { x: number; y: number }[] = [];
-  for (let t = 0; t < FUSE_TICKS && py <= BOMB_FLOOR * S; t++) {
-    dy = Math.min(cap, dy + g);
+  for (let t = 0; t < FUSE_TICKS && py <= bombFloor(map); t++) {
+    dy = Math.max(-cap, Math.min(cap, pull(dy, field(zones, px, py), g)));
     const hit = sweep(px, py, dx, dy, false, solids(map));
     if (hit) {
       points.push({ x: (px + dx * hit.time) / S, y: (py + dy * hit.time) / S });

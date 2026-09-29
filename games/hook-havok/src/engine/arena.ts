@@ -3,12 +3,15 @@ import {
   createCombat,
   cancel,
   S,
-  WIDTH,
   type World,
   type Tuning,
   type Combat,
 } from "./world.js";
+import { MAPS } from "./maps.js";
 import { step } from "./step.js";
+import { stepHazards } from "./hazards.js";
+import { bonusLive, gain, hazardsLive } from "./zones.js";
+import { BONUS, PUSH_TICKS } from "./zone-rules.js";
 import { stepCombat } from "./combat.js";
 import {
   stepPowerUps,
@@ -26,6 +29,7 @@ import {
   type Contest,
 } from "./contest.js";
 import {
+  bombFloor,
   freshKit,
   pruneBombEvents,
   stepBombs,
@@ -36,7 +40,6 @@ import {
 } from "./bomb.js";
 import {
   BOMB_CEILING,
-  BOMB_FLOOR,
   COOLDOWN_TICKS,
   EVENT_TICKS,
   FALL_SHIELD,
@@ -57,6 +60,10 @@ export interface Keeper {
   ward: number;
   hits: number;
   bomb: BombKit;
+  /** The rival whose hook tip last hit this keeper, while `pushed` > 0. */
+  pushedBy: string;
+  /** Ticks left to credit `pushedBy` with a hazard knockout (12B). */
+  pushed: number;
   world: World;
 }
 export interface HitEvent {
@@ -144,6 +151,8 @@ export function syncKeepers(arena: Arena, members: readonly Member[]): void {
         ward: 0,
         hits: 0,
         bomb: freshKit(),
+        pushedBy: "",
+        pushed: 0,
       };
     });
   if (!arena.bombs.every((b) => ownedBomb(arena, b)))
@@ -185,6 +194,8 @@ export function stepArena(arena: Arena, running = true): void {
           k.shield = FALL_SHIELD;
           k.ward = 0;
           k.bomb = freshKit();
+          k.pushedBy = "";
+          k.pushed = 0;
         }
       }
     }
@@ -214,6 +225,8 @@ export function stepArena(arena: Arena, running = true): void {
     const w = keeper.world;
     if (competitive) w.input.reset = false;
     w.combat = arena.combat;
+    keeper.pushed = Math.max(0, keeper.pushed - 1);
+    if (!keeper.pushed) keeper.pushedBy = "";
     const oldDeaths = w.deaths;
     const wasReturning = w.respawn > 0,
       reset = w.input.reset && !w.previous.reset;
@@ -224,7 +237,9 @@ export function stepArena(arena: Arena, running = true): void {
           pending.push({ by: keeper, target, vx, vy, x, y }),
       });
       const blasted =
-        keeper.bomb.fate === "bomb" || keeper.bomb.fate === "self";
+        keeper.bomb.fate === "bomb" ||
+        keeper.bomb.fate === "self" ||
+        keeper.bomb.fate === "hazard";
       keeper.shield =
         wasReturning && !w.respawn
           ? blasted
@@ -244,6 +259,9 @@ export function stepArena(arena: Arena, running = true): void {
     if (w.deaths > oldDeaths) {
       keeper.bomb.fate = "fall";
       keeper.bomb.by = "";
+      // A push is never credited across a death.
+      keeper.pushed = 0;
+      keeper.pushedBy = "";
     }
     if (competitive && w.deaths > oldDeaths) {
       const entry = c.entries.find((e) => e.id === keeper.id)!;
@@ -273,9 +291,16 @@ export function stepArena(arena: Arena, running = true): void {
     );
     victim.world.grounded = false;
     victim.world.coyote = 0;
+    victim.pushedBy = impact.by.id;
+    victim.pushed = PUSH_TICKS;
     impact.by.hits = Math.min(0xffffffff, impact.by.hits + 1);
     if (competitive && arena.tuning.rules === "score") {
-      c.entries.find((e) => e.id === impact.by.id)!.score++;
+      // Three times from inside the crown zone (12B).
+      c.entries.find((e) => e.id === impact.by.id)!.score += gain(
+        arena.tuning,
+        impact.by.world.x,
+        impact.by.world.feet,
+      );
       victim.shield = FALL_SHIELD;
     }
     arena.hit = {
@@ -295,6 +320,7 @@ export function stepArena(arena: Arena, running = true): void {
     );
     stepPowerUps(arena, canPlay);
     stepBombs(arena, canPlay);
+    stepHazards(arena, canPlay);
   }
   for (const k of arena.keepers) k.world.combat = arena.combat;
   if (competitive && playing) {
@@ -337,6 +363,8 @@ export function encodeArena(arena: Arena): unknown {
         ward: k.ward,
         hits: k.hits,
         bomb: { ...k.bomb },
+        pushedBy: k.pushedBy,
+        pushed: k.pushed,
         body: structuredClone(body),
       };
     }),
@@ -349,26 +377,36 @@ const id = (v: unknown): v is string =>
   !/[\x00-\x1f\x7f]/.test(v);
 const count = (v: unknown): v is number => integer(v, 0, 0xffffffff);
 function decodeKit(raw: unknown, tuning: Tuning): BombKit | undefined {
+  const bombs = tuning.bomb !== "off",
+    hazards = hazardsLive(tuning);
   if (
     !plain(raw) ||
-    Object.keys(raw).length !== 7 ||
-    !integer(raw.cooldown, 0, tuning.bomb === "off" ? 0 : COOLDOWN_TICKS) ||
+    Object.keys(raw).length !== 8 ||
+    !integer(raw.cooldown, 0, bombs ? COOLDOWN_TICKS : 0) ||
     !count(raw.thrown) ||
     !count(raw.knockouts) ||
     !count(raw.selfKnockouts) ||
     !count(raw.bombed) ||
+    !count(raw.zapped) ||
     (raw.fate !== "" &&
       raw.fate !== "fall" &&
       raw.fate !== "bomb" &&
-      raw.fate !== "self") ||
-    (raw.fate === "bomb" ? !id(raw.by) : raw.by !== "") ||
-    (tuning.bomb === "off" &&
+      raw.fate !== "self" &&
+      raw.fate !== "hazard") ||
+    // A bomb has a thrower; a hazard may credit a pusher; nothing else names anyone.
+    (raw.fate === "bomb"
+      ? !id(raw.by)
+      : raw.fate === "hazard"
+        ? raw.by !== "" && !id(raw.by)
+        : raw.by !== "") ||
+    (!bombs &&
       (raw.thrown ||
-        raw.knockouts ||
         raw.selfKnockouts ||
         raw.bombed ||
         raw.fate === "bomb" ||
-        raw.fate === "self"))
+        raw.fate === "self")) ||
+    (!hazards && (raw.zapped || raw.fate === "hazard")) ||
+    (!bombs && !hazards && raw.knockouts)
   )
     return;
   return {
@@ -377,6 +415,7 @@ function decodeKit(raw: unknown, tuning: Tuning): BombKit | undefined {
     knockouts: raw.knockouts,
     selfKnockouts: raw.selfKnockouts,
     bombed: raw.bombed,
+    zapped: raw.zapped,
     fate: raw.fate,
     by: raw.by as string,
   };
@@ -406,13 +445,17 @@ function decodeEvents<T>(
   }
   return out;
 }
-const bombX = (v: unknown): v is number => integer(v, 0, WIDTH * S);
-const bombY = (v: unknown): v is number =>
-  integer(v, BOMB_CEILING * S, BOMB_FLOOR * S);
-function decodeBombs(raw: unknown, tick: number): Bomb[] | undefined {
+function decodeBombs(
+  raw: unknown,
+  tick: number,
+  map: Tuning["map"],
+): Bomb[] | undefined {
   if (!Array.isArray(raw) || raw.length > MAX_BOMBS) return;
   const bombs: Bomb[] = [],
-    speed = MAX_BOMB_SPEED * S;
+    speed = MAX_BOMB_SPEED * S,
+    bombX = (v: unknown): v is number => integer(v, 0, MAPS[map].width * S),
+    bombY = (v: unknown): v is number =>
+      integer(v, BOMB_CEILING * S, bombFloor(map));
   for (const b of raw) {
     if (
       !plain(b) ||
@@ -456,8 +499,13 @@ export function decodeArena(raw: unknown): Arena | undefined {
     combat: raw.combat,
   });
   if (!probe) return;
-  const arena = createArena(tuning, raw.tick);
-  const contest = decodeContest(raw.contest, tuning.rules);
+  const arena = createArena(tuning, raw.tick),
+    { width, height } = MAPS[tuning.map];
+  const contest = decodeContest(
+    raw.contest,
+    tuning.rules,
+    bonusLive(tuning) ? BONUS : 1,
+  );
   if (!contest) return;
   arena.contest = contest;
   arena.combat = probe.combat;
@@ -498,30 +546,39 @@ export function decodeArena(raw: unknown): Arena | undefined {
       !id(h.by) ||
       !id(h.target) ||
       h.by === h.target ||
-      !integer(h.x, 0, 1600 * S) ||
-      !integer(h.y, -2000 * S, 1000 * S)
+      !integer(h.x, 0, width * S) ||
+      !integer(h.y, -2000 * S, (height + 100) * S)
     )
       return;
     arena.hit = { tick: h.tick, by: h.by, target: h.target, x: h.x, y: h.y };
   }
   const tick = arena.tick,
-    bombs = decodeBombs(raw.bombs, tick),
+    inX = (v: unknown): v is number => integer(v, 0, width * S),
+    bombs = decodeBombs(raw.bombs, tick, tuning.map),
     blasts = decodeEvents(raw.blasts, tick, 5, (e) =>
-      integer(e.id, 0, tick * 8 + 7) && id(e.owner) && bombX(e.x) && bombY(e.y)
+      integer(e.id, 0, tick * 8 + 7) &&
+      id(e.owner) &&
+      inX(e.x) &&
+      integer(e.y, BOMB_CEILING * S, bombFloor(tuning.map))
         ? { tick: e.tick as number, id: e.id, owner: e.owner, x: e.x, y: e.y }
         : undefined,
     ),
-    knockouts = decodeEvents(raw.knockouts, tick, 5, (e) =>
-      id(e.by) &&
+    knockouts = decodeEvents(raw.knockouts, tick, 6, (e) =>
+      (e.cause === "bomb"
+        ? tuning.bomb !== "off" && id(e.by)
+        : e.cause === "hazard" &&
+          hazardsLive(tuning) &&
+          (e.by === "" || (id(e.by) && e.by !== e.target))) &&
       id(e.target) &&
-      integer(e.x, 0, WIDTH * S) &&
-      integer(e.y, -3000 * S, 1000 * S)
+      inX(e.x) &&
+      integer(e.y, -3000 * S, (height + 100) * S)
         ? {
             tick: e.tick as number,
-            by: e.by,
+            by: e.by as string,
             target: e.target,
             x: e.x,
             y: e.y,
+            cause: e.cause as Knockout["cause"],
           }
         : undefined,
     );
@@ -529,8 +586,7 @@ export function decodeArena(raw: unknown): Arena | undefined {
     !bombs ||
     !blasts ||
     !knockouts ||
-    (tuning.bomb === "off" &&
-      (bombs.length || blasts.length || knockouts.length))
+    (tuning.bomb === "off" && (bombs.length || blasts.length))
   )
     return;
   arena.bombs = bombs;
@@ -539,13 +595,22 @@ export function decodeArena(raw: unknown): Arena | undefined {
   for (const k of raw.keepers) {
     if (
       !plain(k) ||
-      Object.keys(k).length !== 9 ||
+      Object.keys(k).length !== 11 ||
       !id(k.id) ||
+      !integer(k.pushed, 0, PUSH_TICKS) ||
+      // A push names another keeper for exactly as long as it lasts. The
+      // pusher may have left since (the push still credits them), so the name
+      // need not be a keeper or, in free play, an entry.
+      (k.pushed ? !id(k.pushedBy) || k.pushedBy === k.id : k.pushedBy !== "") ||
       !integer(k.slot, 0, 4) ||
       !integer(k.generation, 0, 0xffffffff) ||
       typeof k.connected !== "boolean" ||
-      // Only a bomb knockout's return protects for longer than a fall's.
-      !integer(k.shield, 0, tuning.bomb === "off" ? FALL_SHIELD : KO_SHIELD) ||
+      // Only a bomb or hazard knockout's return protects for longer than a fall's.
+      !integer(
+        k.shield,
+        0,
+        tuning.bomb === "off" && !hazardsLive(tuning) ? FALL_SHIELD : KO_SHIELD,
+      ) ||
       !integer(k.ward, 0, tuning.powerUps === "on" ? WARD_TICKS : 0) ||
       (!k.connected && !!k.ward) ||
       !integer(k.hits, 0, 0xffffffff) ||
@@ -572,8 +637,10 @@ export function decodeArena(raw: unknown): Arena | undefined {
       (world.respawn && k.ward) ||
       // Charging needs an armed keeper; tallies and fate follow the deaths.
       (world.charge && kit.cooldown) ||
-      kit.bombed + kit.selfKnockouts > world.deaths ||
-      !world.deaths !== (kit.fate === "")
+      kit.bombed + kit.selfKnockouts + kit.zapped > world.deaths ||
+      !world.deaths !== (kit.fate === "") ||
+      // A push dies with the keeper.
+      (world.respawn && k.pushed)
     )
       return;
     world.combat = arena.combat;
@@ -586,6 +653,8 @@ export function decodeArena(raw: unknown): Arena | undefined {
       ward: k.ward,
       hits: k.hits,
       bomb: kit,
+      pushedBy: k.pushedBy as string,
+      pushed: k.pushed,
       world,
     });
   }

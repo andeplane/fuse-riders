@@ -75,7 +75,7 @@ export class Feedback {
       this.bursts.push({
         kind: "vanish",
         x: old.x,
-        y: Math.min(870, old.feet),
+        y: Math.min(view.size.height - 30, old.feet),
         at: ms,
       });
     if (old.charge > 0 && !view.charge && !view.respawn && !blasted)

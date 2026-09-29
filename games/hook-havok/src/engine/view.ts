@@ -1,5 +1,28 @@
-import { BALL_RADII, BODY, HALF, S, ballField, type World } from "./world.js";
-import { MAPS, type MapId } from "./maps.js";
+import {
+  BALL_RADII,
+  BODY,
+  HALF,
+  S,
+  ballField,
+  type Tuning,
+  type World,
+} from "./world.js";
+import { MAPS, type MapId, type Platform } from "./maps.js";
+import {
+  bonusLive,
+  floorTop,
+  laserPhase,
+  risen,
+  type LaserPhase,
+} from "./zones.js";
+import {
+  BONUS,
+  LASER_LIVE,
+  LASER_PERIOD,
+  LASER_TELEGRAPH,
+  RISE_TICKS,
+  RISE_WARNING,
+} from "./zone-rules.js";
 import { activeWire } from "./wire-contact.js";
 import { bombArc } from "./bomb.js";
 import {
@@ -35,10 +58,12 @@ export interface BlastView {
 }
 export interface KnockoutView {
   tick: number;
+  /** The thrower or credited pusher; "" when a hazard credits nobody. */
   by: string;
   target: string;
   x: number;
   y: number;
+  cause: "bomb" | "hazard";
 }
 /** Bomb rule values presentation draws, in world units and ticks. */
 export const BOMB_VIEW = {
@@ -47,7 +72,99 @@ export const BOMB_VIEW = {
   fuse: FUSE_TICKS,
   cooldown: COOLDOWN_TICKS,
 } as const;
+/** A laser gate as drawn: its start and end lines, phase and progress 0–1. */
+export interface LaserView {
+  axis: "h" | "v";
+  from: readonly [number, number, number, number];
+  to: readonly [number, number, number, number];
+  phase: LaserPhase;
+  progress: number;
+}
+/** The zones in force (12B), in world units; a switched-off zone is absent. */
+export interface ZonesView {
+  /** Pad tops: x, y, width. */
+  pads: readonly (readonly [number, number, number])[];
+  lifts: readonly Platform[];
+  lowGravity: readonly Platform[];
+  floor: {
+    y: number;
+    base: number;
+    cap: number;
+    rising: boolean;
+    /** Whole seconds until the floor starts rising, while warning; else 0. */
+    warning: number;
+  } | null;
+  lasers: LaserView[];
+  bonus: Platform | null;
+  /** What a gain inside the bonus counts for in these rules. */
+  multiplier: number;
+}
+export function zoneView(
+  t: Tuning,
+  tick: number,
+  contest: Pick<Contest, "phase" | "elapsed">,
+): ZonesView {
+  const z = MAPS[t.map].zones,
+    top = floorTop(t, contest),
+    rise = risen(t, contest),
+    ahead = ROUND_TICKS - RISE_TICKS - contest.elapsed;
+  return {
+    pads: t.jumpPads === "on" ? z.pads : [],
+    lifts: t.lifts === "on" ? z.lifts : [],
+    lowGravity: t.lowGravity === "on" ? z.lowGravity : [],
+    floor:
+      z.floor && top !== undefined
+        ? {
+            y: top / S,
+            ...z.floor,
+            rising: rise > 0 && rise < RISE_TICKS,
+            warning:
+              t.rules !== "free" &&
+              contest.phase === "active" &&
+              ahead > 0 &&
+              ahead <= RISE_WARNING
+                ? Math.ceil(ahead / 60)
+                : 0,
+          }
+        : null,
+    lasers:
+      t.lasers === "on"
+        ? z.lasers.map((l) => {
+            const { phase, at } = laserPhase(l, tick),
+              h = l.axis === "h";
+            const line = (d: number) =>
+              (h
+                ? [l.x, l.y + d, l.x + l.length, l.y + d]
+                : [l.x + d, l.y, l.x + d, l.y + l.length]) as [
+                number,
+                number,
+                number,
+                number,
+              ];
+            return {
+              axis: l.axis,
+              from: line(0),
+              to: line(l.travel),
+              phase,
+              progress:
+                phase === "telegraph"
+                  ? at / LASER_TELEGRAPH
+                  : phase === "live"
+                    ? (at + 1) / LASER_LIVE
+                    : at / (LASER_PERIOD - LASER_TELEGRAPH - LASER_LIVE),
+            };
+          })
+        : [],
+    bonus: t.bonusZone === "on" ? z.bonus : null,
+    multiplier: bonusLive(t) ? BONUS : 1,
+  };
+}
 export interface WorldView {
+  /** World size in units (12A). */
+  size: { width: number; height: number };
+  /** Indices into `platforms` that are solid to keepers from every side. */
+  solid: readonly number[];
+  zones: ZonesView;
   bombMode: World["tuning"]["bomb"];
   /** Charge held by this keeper, 0–1 (full at 0.6 s). */
   charge: number;
@@ -124,8 +241,10 @@ export interface KeeperView {
     knockouts: number;
     selfKnockouts: number;
     bombed: number;
+    /** Times knocked out by a hazard. */
+    zapped: number;
     falls: number;
-    fate: "" | "fall" | "bomb" | "self";
+    fate: "" | "fall" | "bomb" | "self" | "hazard";
     by: string;
   };
   ward: number;
@@ -139,8 +258,16 @@ export interface KeeperView {
   body: WorldView;
 }
 export function toView(world: World): WorldView {
-  const wire = activeWire(world);
+  const wire = activeWire(world),
+    map = MAPS[world.tuning.map];
   return {
+    size: { width: map.width, height: map.height },
+    solid: map.solid,
+    zones: zoneView(
+      world.tuning,
+      world.tick,
+      createContest(world.tuning.rules),
+    ),
     bombMode: world.tuning.bomb,
     charge: world.charge / CHARGE_TICKS,
     gravity: world.tuning.gravity,
@@ -247,6 +374,10 @@ export function throwPreview(
     Math.round(aim.y),
     view.facing,
     view.gravity,
-    view.map,
+    {
+      map: view.map,
+      lifts: view.zones.lifts.length ? "on" : "off",
+      lowGravity: view.zones.lowGravity.length ? "on" : "off",
+    },
   );
 }

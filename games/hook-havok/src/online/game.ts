@@ -33,6 +33,7 @@ import { parseInput, parseTuning, plain, integer } from "../engine/codec.js";
 import { POWER_PADS } from "../engine/power-ups.js";
 import {
   toView,
+  zoneView,
   contestView,
   type WorldView,
   type KeeperView,
@@ -372,9 +373,10 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
         knockouts: k.bomb.knockouts,
         selfKnockouts: k.bomb.selfKnockouts,
         bombed: k.bomb.bombed,
+        zapped: k.bomb.zapped,
         falls: Math.max(
           0,
-          k.world.deaths - k.bomb.bombed - k.bomb.selfKnockouts,
+          k.world.deaths - k.bomb.bombed - k.bomb.selfKnockouts - k.bomb.zapped,
         ),
         fate: k.bomb.fate,
         by: k.bomb.by,
@@ -422,6 +424,7 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       ...POWER_PADS[r.settings.map][e.pad]!,
     })),
     contest: contestView(r.simulation.contest, r.settings.rules),
+    zones: zoneView(r.settings, r.simulation.tick, r.simulation.contest),
     stage: r.stage,
     seated: [...r.seats.values()].some((s) => s.connected),
     seats: [...r.seats.values()].map((s) => ({ ...s })),

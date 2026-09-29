@@ -8,6 +8,8 @@ import Phaser from "phaser";
  */
 export interface Frame {
   update(ms: number, animate: boolean): void;
+  /** The painted maps are framed; the neon grey box is not. */
+  setVisible(visible: boolean): void;
   destroy(): void;
 }
 const INK = 0x04050a,
@@ -157,6 +159,11 @@ export function createFrame(scene: Phaser.Scene): Frame {
         [1556, 190, 2.4],
       ] as const)
         chain(swinging, x, length, animate ? Math.sin(t * 0.7 + phase) : 0);
+    },
+    setVisible(visible) {
+      still.setVisible(visible);
+      swinging.setVisible(visible);
+      vignette.setVisible(visible);
     },
     destroy() {
       still.destroy();
