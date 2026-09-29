@@ -4,6 +4,10 @@ import {
   memberId,
   uint32,
   defaultText,
+  BOT,
+  JOIN,
+  LEAVE,
+  PRESENCE,
   SPECTATOR,
   type ManagementEntry,
   type SeatRecord,
@@ -83,15 +87,24 @@ export function isEntry(raw: unknown): raw is Entry {
       uint32(raw[4]) &&
       !!parseInput(raw[5])
     );
-  return (
-    raw[2] !== SPECTATOR &&
-    isManagementEntry(raw, {
+  if (
+    raw[2] === SPECTATOR ||
+    !isManagementEntry(raw, {
       name,
       avatar,
       settings: (v) => !!parseTuning(v),
       capacity: 5,
     })
-  );
+  )
+    return false;
+  // `bot:N` names an AI seat and nothing else. A BOT entry must use one, or the
+  // fold would seat a bot `decode` cannot restore; a person's JOIN, LEAVE or
+  // PRESENCE may not, or a stray LEAVE would mark a bot absent mid-round (it
+  // would stop playing) and a JOIN would give it a stream generation.
+  if (raw[2] === BOT) return BOT_ID.test(raw[4] as string);
+  if (raw[2] === JOIN || raw[2] === LEAVE || raw[2] === PRESENCE)
+    return !BOT_ID.test(raw[3] as string);
+  return true;
 }
 export function createRoom(matchId: string, settings: Tuning): Room {
   return {
@@ -310,12 +323,16 @@ export function decode(f: readonly unknown[], tick: number): Room | undefined {
       !avatar(s.avatarId) ||
       typeof s.connected !== "boolean" ||
       typeof s.bot !== "boolean" ||
-      // A bot seat: a bot id, no stream generation, never away. A person: the reverse.
+      // A bot seat: a bot id, always connected (`isEntry` refuses a LEAVE,
+      // JOIN or PRESENCE naming one), no stream generation, never away. A
+      // person: any other id, a generation, and away only while absent.
       (s.bot
         ? !BOT_ID.test(s.id) ||
+          s.connected !== true ||
           Object.hasOwn(s, "generation") ||
           Object.hasOwn(s, "away")
-        : !uint32(s.generation) ||
+        : BOT_ID.test(s.id) ||
+          !uint32(s.generation) ||
           (s.away !== undefined && s.away !== true) ||
           (s.away && s.connected))
     )

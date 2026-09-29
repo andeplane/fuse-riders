@@ -508,3 +508,48 @@
 #result-tally .bot-badge {
   vertical-align: 2px;
 }
+/* Removing bots during a competitive round asks first (the entrance dialogs' look). */
+#bot-confirm {
+  color: #e9dfce;
+  background: linear-gradient(145deg, #202637, #111724);
+  border: 1px solid #9b8255;
+  border-radius: 6px;
+  padding: 30px;
+  width: min(460px, calc(100vw - 32px));
+  box-shadow: 0 20px 100px #000b;
+}
+#bot-confirm::backdrop {
+  background: #050911c9;
+  backdrop-filter: blur(5px);
+}
+#bot-confirm .dialog-kicker {
+  margin: 0 0 6px;
+  font:
+    700 11px system-ui,
+    sans-serif;
+  letter-spacing: 0.2em;
+  color: #b7975c;
+}
+#bot-confirm h2 {
+  margin: 0 0 14px;
+  font-size: 28px;
+  font-weight: 400;
+}
+#bot-confirm p:not(.dialog-kicker) {
+  font:
+    13px/1.6 system-ui,
+    sans-serif;
+  color: #bdc3cf;
+}
+#bot-confirm .dialog-choices {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 22px;
+}
+#bot-confirm-yes {
+  background: #d6af72;
+  border-color: #f9dcac;
+  color: #201a29;
+}

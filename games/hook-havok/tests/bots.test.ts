@@ -5,6 +5,7 @@ import {
   ACTION,
   BOT,
   JOIN,
+  LEAVE,
   PRESENCE,
   SPECTATOR,
   roomManager,
@@ -35,6 +36,11 @@ import { MAPS } from "../src/engine/maps.js";
 import { BLAST_RADIUS, COOLDOWN_TICKS } from "../src/engine/bomb-rules.js";
 import { navGraph } from "../src/engine/bot-nav.js";
 import { freshMind } from "../src/engine/bot-mind.js";
+import {
+  botsToRemove,
+  chooseBots,
+  removalInterrupts,
+} from "../src/app/bot-count.js";
 import { Mesh } from "./fixtures/mesh.js";
 
 const host = "host";
@@ -101,6 +107,93 @@ test("bot entries pass the wire guard, spectators still do not", () => {
   assert.equal(DEFAULT_TUNING.botLevel, "normal");
 });
 
+test("only canonical bot ids pass the wire guard, and a person's entries may not name one", () => {
+  // Every BOT add the guard lets through seats a bot a joiner can restore.
+  for (const id of ["bot:1", "bot:9", "bot:10", "bot:99"]) {
+    const add: Entry = [1, 1, BOT, "add", id, "Wick", 1];
+    assert.ok(isEntry(add), id);
+    assert.ok(isEntry([2, 1, BOT, "remove", id]), `remove ${id}`);
+    const r = createRoom("lobby", DEFAULT_TUNING);
+    foldTick(r, host, stream([add, [2, 1, ACTION, "start", "match"]]));
+    assert.equal(r.seats.get(id)?.bot, true);
+    assert.ok(decode(encode(r), r.tick), `a room with ${id} restores`);
+  }
+  for (const id of [
+    "stranger",
+    "bot:100",
+    "bot:0",
+    "bot:01",
+    "Bot:3",
+    "bot:",
+  ]) {
+    assert.equal(isEntry([1, 1, BOT, "add", id, "Wick", 1]), false, id);
+    assert.equal(isEntry([2, 1, BOT, "remove", id]), false, `remove ${id}`);
+    // Past the guard, the shared fold would seat it where `decode` refuses it.
+    const r = createRoom("lobby", DEFAULT_TUNING);
+    foldTick(r, host, stream([[1, 1, BOT, "add", id, "Wick", 1]]));
+    assert.equal(r.seats.get(id)?.bot, true);
+    assert.equal(
+      decode(encode(r), r.tick),
+      undefined,
+      `${id} would not restore`,
+    );
+  }
+  // A LEAVE, JOIN or PRESENCE naming a bot: a LEAVE mid-round would otherwise
+  // mark the bot absent, and it would stop playing.
+  assert.equal(isEntry([1, 5, LEAVE, "bot:1"]), false);
+  assert.equal(isEntry([1, 5, JOIN, "bot:1", "Wick", 1, "keeper", 1]), false);
+  assert.equal(isEntry([1, 5, PRESENCE, "bot:1", false, 0]), false);
+  assert.ok(isEntry([1, 5, LEAVE, "guest"]));
+  assert.ok(isEntry([1, 5, JOIN, "guest", "Guest", 1, "keeper", 1]));
+  assert.ok(isEntry([1, 5, PRESENCE, "guest", false, 1]));
+  const r = botRoom(DEFAULT_TUNING, 1);
+  for (let t = 2; t < 5; t++) idle(r);
+  foldTick(r, host, stream([[9, 5, LEAVE, "bot:1"]]));
+  assert.equal(
+    r.seats.get("bot:1")?.connected,
+    false,
+    "past the guard, a LEAVE would stop the bot",
+  );
+  assert.equal(decode(encode(r), r.tick), undefined, "and not restore");
+});
+
+test("the Bots choice: a raised count clears a pending removal, and removal takes the last seats", () => {
+  assert.deepEqual(chooseBots(1, 3), { add: 0, target: 1, lobby: true });
+  // 1 of 3, then 4 before the lobby frame arrives: the room must end at 4.
+  let target = chooseBots(1, 3).target;
+  const raise = chooseBots(4, 3);
+  target = raise.target;
+  assert.deepEqual(raise, { add: 1, target: undefined, lobby: false });
+  assert.equal(target, undefined);
+  assert.deepEqual(chooseBots(3, 3), {
+    add: 0,
+    target: undefined,
+    lobby: false,
+  });
+  assert.deepEqual(chooseBots(0, 2), { add: 0, target: 0, lobby: true });
+  const seats = [
+    { id: "host", slot: 0, bot: false },
+    { id: "bot:2", slot: 3, bot: true },
+    { id: "bot:1", slot: 1, bot: true },
+    { id: "bot:3", slot: 4, bot: true },
+  ];
+  assert.deepEqual(botsToRemove(seats, 1), ["bot:3", "bot:2"]);
+  assert.deepEqual(botsToRemove(seats, 3), []);
+  assert.deepEqual(botsToRemove(seats, 0), ["bot:3", "bot:2", "bot:1"]);
+  // Only a competitive round under way asks before the lobby trip.
+  const live = (
+    rules: string,
+    phase: string,
+    stage: Room["stage"] = "running",
+  ) => removalInterrupts(stage, { rules, phase });
+  assert.equal(live("elimination", "active"), true);
+  assert.equal(live("score", "countdown"), true);
+  assert.equal(live("elimination", "over"), false);
+  assert.equal(live("score", "waiting"), false);
+  assert.equal(live("free", "active"), false);
+  assert.equal(live("elimination", "active", "lobby"), false);
+});
+
 for (const botLevel of ["easy", "normal", "hard"] as const)
   test(`${botLevel} bots replay identically: two folds agree every tick, and clones and checkpoints resume to the same hash`, () => {
     const tuning: Tuning = { ...DEFAULT_TUNING, botLevel };
@@ -133,6 +226,53 @@ for (const botLevel of ["easy", "normal", "hard"] as const)
     assert.equal(all.length, 4);
     assert.ok(all.reduce((n, k) => n + k.bomb.thrown, 0) > 5, "bots throw");
   });
+
+test("five bots restored from their own checkpoint every 7 ticks stay on the hash of a room never restored", () => {
+  const tunings: Tuning[] = [
+    {
+      ...DEFAULT_TUNING,
+      map: "crossroads",
+      rules: "elimination",
+      bomb: "fuse",
+      botLevel: "hard",
+      powerUps: "on",
+      experiment: "ricochet",
+    },
+    {
+      ...DEFAULT_TUNING,
+      map: "belfry",
+      rules: "score",
+      bomb: "impact",
+      botLevel: "easy",
+      powerUps: "on",
+      experiment: "ball",
+    },
+    { ...DEFAULT_TUNING, map: "belfry", rules: "free" },
+  ];
+  for (const tuning of tunings) {
+    const label = `${tuning.map}/${tuning.rules}/${tuning.botLevel}`;
+    const never = botRoom(tuning, 5, false);
+    let twin = botRoom(tuning, 5, false),
+      restores = 0;
+    for (let t = 2; t <= 600; t++) {
+      idle(never);
+      idle(twin);
+      assert.equal(hash(twin), hash(never), `${label}, tick ${t}`);
+      if (t % 7 === 0) {
+        const restored = decode(encode(twin), twin.tick);
+        assert.ok(restored, `${label}: the checkpoint at tick ${t} decodes`);
+        twin = restored;
+        restores++;
+      }
+    }
+    assert.equal(restores, 85);
+    assert.equal(bots(never).length, 5);
+    assert.ok(
+      bots(never).reduce((n, k) => n + k.bomb.thrown, 0) > 5,
+      `${label}: bots throw`,
+    );
+  }
+});
 
 test("BOT entries seat bots in free slots; bots never manage, stay through succession and leave only between rounds", () => {
   const r = createRoom("lobby", DEFAULT_TUNING);
@@ -276,6 +416,20 @@ test("corrupt bot seats and minds are refused and leave the healthy room unchang
   const cases: [string, (s: Seat[], a: Arena, f: unknown[]) => void][] = [
     ["bot seat with a generation", (s) => (s[1]!.generation = 1)],
     ["bot seat away", (s) => (s[1]!.away = true)],
+    [
+      "bot seat absent",
+      (s, a) => {
+        s[1]!.connected = false;
+        (a.keepers[1] as Record<string, unknown>).connected = false;
+      },
+    ],
+    [
+      "a person with a bot's id",
+      (s, a) => {
+        s[0]!.id = "bot:9";
+        a.keepers[0]!.id = "bot:9";
+      },
+    ],
     ["bot flag not a boolean", (s) => (s[1]!.bot = 1)],
     [
       "a bot seat with a person's id",

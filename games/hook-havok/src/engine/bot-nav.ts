@@ -510,6 +510,18 @@ export function navGraph(t: Tuning): NavGraph {
   }
   return graph;
 }
+/**
+ * Builds, ahead of any fold, the graphs a room with this movement tuning can
+ * reach from its menus: every map, with single and double jump. A build takes
+ * 6–24 ms (bots.md), and left to first use it lands inside a fold or a
+ * checkpoint decode. Only the per-peer cache changes: `navGraph` returns the
+ * same graph either way.
+ */
+export function prewarmNav(t: Tuning): void {
+  for (const map of Object.keys(MAPS) as Tuning["map"][])
+    for (const jumpMode of ["single", "double"] as const)
+      navGraph({ ...t, map, jumpMode });
+}
 /** The cheapest edge from ledge `here` at x (subunits) toward `goal`, or −1. */
 export function nextEdge(
   graph: NavGraph,

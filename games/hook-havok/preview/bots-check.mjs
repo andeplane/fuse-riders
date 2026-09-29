@@ -88,6 +88,7 @@ try {
 
   // An elimination round at normal, then a score round at hard.
   const contest = async () => JSON.parse((await data()).contest);
+  let asked = false;
   const playRound = async (rules, level, shot) => {
     const before = await round();
     await page.locator("#bot-level").selectOption(level);
@@ -102,6 +103,20 @@ try {
       undefined,
       { timeout: 10000 },
     );
+    if (rules === "elimination" && !asked) {
+      // Removing bots mid-round asks first; keeping them leaves the round be.
+      asked = true;
+      const live = await round();
+      await page.locator("#bot-count").selectOption("2");
+      await page.locator("#bot-confirm").waitFor();
+      await page.locator("#bot-confirm-cancel").click();
+      await page.locator("#bot-confirm").waitFor({ state: "hidden" });
+      await seconds(1);
+      assert.equal(await page.locator("#bot-count").inputValue(), "4");
+      assert.equal(await round(), live, "keeping the bots keeps the round");
+      assert.equal((await bots()).length, 4);
+      console.log("PASS removing bots mid-round asks; Keep playing keeps them");
+    }
     await page
       .waitForFunction(
         () =>
@@ -163,8 +178,20 @@ try {
   await playRound("score", "hard", "bots-score");
   await page.locator("#dismiss-results").click();
 
-  // Taking two away restarts the room (a new match) with two bots left.
+  // Taking two away during a round, confirmed, restarts the room (a new
+  // match) with two bots left.
+  const beforeRules = await round();
+  await page.locator("#rules").selectOption("elimination");
+  await restarted(beforeRules);
+  await page.waitForFunction(() =>
+    ["countdown", "active"].includes(
+      JSON.parse(document.querySelector("#scene").dataset.contest).phase,
+    ),
+  );
   await page.locator("#bot-count").selectOption("2");
+  await page.locator("#bot-confirm").waitFor();
+  await page.screenshot({ path: evidence("bots-confirm") });
+  await page.locator("#bot-confirm-yes").click();
   await page.waitForFunction(
     () =>
       JSON.parse(document.querySelector("#scene").dataset.keepers || "[]")
