@@ -7,6 +7,18 @@ export interface PresentationDependencies {
   loadArena(): Promise<{ createPhaserArena: typeof createPhaserArena }>;
   schedule(delay: number, callback: () => void): () => void;
 }
+/**
+ * How long the arena may take before any of its artwork has arrived. This covers downloading the lazy module and
+ * booting Phaser, neither of which reports progress, so a fixed deadline is all there is to go on.
+ */
+export const STARTUP_DEADLINE_MS = 10000;
+/**
+ * How long the loader may sit at the same point once it has started reporting. A slow connection keeps advancing and
+ * keeps its deadline pushed back; only a load that has actually stopped is failed. Telling a rider on a train that
+ * graphics are unavailable, while their artwork is still arriving, is a worse answer than making them wait.
+ */
+export const LOADING_STALL_MS = 10000;
+
 const browserDependencies: PresentationDependencies = {
   loadArena: () => import("./arena.js"),
   schedule: (delay, callback) => {
@@ -68,13 +80,42 @@ export function mountArenaPresentation(
   const retry = document.createElement("button");
   retry.type = "button";
   retry.textContent = "RETRY GRAPHICS";
-  status.append(message, retry);
+  // A bar rather than a number: the wait is mostly artwork, and a rider wants to see it moving, not read a percentage.
+  const progress = document.createElement("div");
+  progress.className = "graphics-progress";
+  progress.setAttribute("role", "progressbar");
+  progress.setAttribute("aria-valuemin", "0");
+  progress.setAttribute("aria-valuemax", "100");
+  const progressFill = document.createElement("div");
+  progressFill.className = "graphics-progress-fill";
+  progress.append(progressFill);
+  status.append(message, progress, retry);
 
   const showStatus = (text: string, canRetry = false) => {
     message.textContent = text;
     retry.hidden = !canRetry;
+    progress.hidden = true;
     status.hidden = !text;
     if (text && !status.isConnected) document.body.append(status);
+  };
+  /**
+   * The loading line. `loaded` is undefined until the loader speaks: the module download and Phaser's boot report
+   * nothing, so the bar runs indeterminate rather than claiming a figure it does not have.
+   */
+  const showLoading = (loaded?: number) => {
+    const percent = loaded === undefined ? undefined : Math.round(loaded * 100);
+    message.textContent =
+      percent === undefined
+        ? "Loading graphics"
+        : `Loading graphics ${percent}%`;
+    retry.hidden = true;
+    progress.hidden = false;
+    progress.classList.toggle("is-indeterminate", percent === undefined);
+    progressFill.style.width = percent === undefined ? "" : `${percent}%`;
+    if (percent === undefined) progress.removeAttribute("aria-valuenow");
+    else progress.setAttribute("aria-valuenow", String(percent));
+    status.hidden = false;
+    if (!status.isConnected) document.body.append(status);
   };
   const clearTimers = () => {
     cancelStartup?.();
@@ -131,8 +172,23 @@ export function mountArenaPresentation(
     const attempt = ++generation;
     const current = () => attempt === generation;
     canvas.dataset.rendererStatus = "starting";
-    cancelStartup = dependencies.schedule(10000, () => fail("startup"));
-    // The deadline includes downloading the lazy module, not just Phaser boot.
+    let reported = -1;
+    cancelStartup = dependencies.schedule(STARTUP_DEADLINE_MS, () =>
+      fail("startup"),
+    );
+    showLoading();
+    // Until the loader speaks, the deadline covers downloading the lazy module and booting Phaser, which report
+    // nothing. From its first word the deadline becomes a stall: each step forward buys another `LOADING_STALL_MS`,
+    // so a slow load finishes and only a stopped one fails.
+    const advanced = (loaded: number) => {
+      if (!current() || state !== "starting" || loaded <= reported) return;
+      reported = loaded;
+      showLoading(loaded);
+      cancelStartup?.();
+      cancelStartup = dependencies.schedule(LOADING_STALL_MS, () =>
+        fail("startup"),
+      );
+    };
     void (async () => {
       const module = await dependencies.loadArena();
       if (!current()) return;
@@ -144,6 +200,7 @@ export function mountArenaPresentation(
             ? "canvas"
             : "auto",
         quality: matchMedia("(max-width: 700px)").matches ? "low" : "high",
+        onProgress: advanced,
         onStatus: (value) => {
           if (!current()) return;
           canvas.dataset.rendererStatus = value;
@@ -164,6 +221,7 @@ export function mountArenaPresentation(
       if (!current()) return;
       cancelStartup?.();
       cancelStartup = undefined;
+      showStatus("");
       state = "running";
       const renderer = arena.metrics().renderer;
       canvas.dataset.renderer = `phaser-${renderer}`;

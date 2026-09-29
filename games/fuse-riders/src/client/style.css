@@ -1707,8 +1707,46 @@ details.audio-controls > .audio-panel.radio {
   margin-top: 0.625rem;
   padding: 0.625rem 0.875rem;
 }
+/* The loading bar sits under the line it belongs to, in the same amber the card is drawn in. */
+.graphics-progress {
+  margin-top: 0.625rem;
+  height: 0.5rem;
+  overflow: hidden;
+  border: 0.0625rem solid #ffe680;
+  background: #08152b;
+}
+.graphics-progress-fill {
+  width: 0;
+  height: 100%;
+  background: #ffe680;
+  transition: width 0.2s linear;
+}
+/* Before the loader reports, there is no figure to show: a sweep says "working" without claiming one. */
+.graphics-progress.is-indeterminate .graphics-progress-fill {
+  width: 35%;
+  animation: graphics-progress-sweep 1.2s ease-in-out infinite;
+}
+@keyframes graphics-progress-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .graphics-progress-fill {
+    transition: none;
+  }
+  .graphics-progress.is-indeterminate .graphics-progress-fill {
+    width: 100%;
+    animation: none;
+    opacity: 0.5;
+  }
+}
 .graphics-status[hidden],
-.graphics-status button[hidden] {
+.graphics-status button[hidden],
+.graphics-progress[hidden] {
   display: none;
 }
 
