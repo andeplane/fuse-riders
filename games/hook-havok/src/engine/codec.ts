@@ -33,7 +33,13 @@ export const TUNING_BOUNDS = {
   range: [250, 1000],
 } as const;
 export function parseTuning(raw: unknown): Tuning | undefined {
-  if (!plain(raw) || Object.keys(raw).length !== 13 || !isMapId(raw.map))
+  if (!plain(raw) || Object.keys(raw).length !== 14 || !isMapId(raw.map))
+    return;
+  if (
+    raw.botLevel !== "easy" &&
+    raw.botLevel !== "normal" &&
+    raw.botLevel !== "hard"
+  )
     return;
   if (raw.bomb !== "off" && raw.bomb !== "fuse" && raw.bomb !== "impact")
     return;
@@ -57,6 +63,7 @@ export function parseTuning(raw: unknown): Tuning | undefined {
   for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS))
     if (!integer(raw[key], min, max)) return;
   return {
+    botLevel: raw.botLevel,
     bomb: raw.bomb,
     powerUps: raw.powerUps,
     jumpMode: raw.jumpMode,

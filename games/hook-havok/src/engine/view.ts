@@ -133,6 +133,8 @@ export interface KeeperView {
   id: string;
   slot: number;
   name: string;
+  /** An AI keeper (11C). */
+  bot: boolean;
   connected: boolean;
   shield: number;
   hits: number;

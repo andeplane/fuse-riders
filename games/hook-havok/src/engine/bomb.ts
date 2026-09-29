@@ -169,8 +169,34 @@ function fly(bomb: Bomb, gravity: number, map: MapId): void {
     remaining *= 1 - hit.time;
   }
 }
+/**
+ * Where a bomb will be after each of the next `ticks` flights, by the same
+ * flight as the fold, without touching it: index i is after i + 1 ticks.
+ * Stops early once it would fizzle below the arena. Bots read it (11C).
+ */
+export function bombPath(
+  bomb: Pick<Bomb, "x" | "y" | "vx" | "vy">,
+  ticks: number,
+  gravity: number,
+  map: MapId,
+): { x: number; y: number }[] {
+  const ghost: Bomb = { ...bomb, id: 0, owner: "", fuse: ticks },
+    g = Math.round((gravity * S) / 3600),
+    path: { x: number; y: number }[] = [];
+  for (let t = 0; t < ticks && ghost.y <= BOMB_FLOOR * S; t++) {
+    fly(ghost, g, map);
+    if (ghost.y > BOMB_FLOOR * S) break;
+    path.push({ x: ghost.x, y: ghost.y });
+  }
+  return path;
+}
 /** Circle against a keeper's body box. */
-function touches(w: World, x: number, y: number, r: number): boolean {
+export function touches(
+  w: Pick<World, "x" | "feet">,
+  x: number,
+  y: number,
+  r: number,
+): boolean {
   const dx = x - clamp(x, w.x - HALF, w.x + HALF),
     dy = y - clamp(y, w.feet - BODY, w.feet);
   return dx * dx + dy * dy <= r * r;

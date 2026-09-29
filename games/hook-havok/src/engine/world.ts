@@ -1,6 +1,6 @@
 import { MAPS, type MapId } from "./maps.js";
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-12";
+export const RULES = "hook-havok-13";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
@@ -12,6 +12,8 @@ export const HOOK_SPEED = 32,
 /** Original belfry geometry, retained for its traversal fixtures. Runtime uses tuning.map. */
 export const PLATFORMS = MAPS.belfry.platforms;
 export interface Tuning {
+  /** How well AI keepers play (11C); only rooms with bots feel it. */
+  botLevel: "easy" | "normal" | "hard";
   /** Thrown bomb trial (11B): off, a timed fuse, or impact on a rival. */
   bomb: "off" | "fuse" | "impact";
   powerUps: "off" | "on";
@@ -28,6 +30,7 @@ export interface Tuning {
   range: number;
 }
 export const DEFAULT_TUNING: Tuning = {
+  botLevel: "normal",
   bomb: "fuse",
   powerUps: "off",
   jumpMode: "double",

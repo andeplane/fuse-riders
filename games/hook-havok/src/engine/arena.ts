@@ -46,12 +46,15 @@ import {
   MAX_BOMB_SPEED,
   MAX_EVENTS,
 } from "./bomb-rules.js";
+import { decodeMind, freshMind, type Mind } from "./bot-mind.js";
 
 export interface Keeper {
   id: string;
   slot: number;
   generation: number;
   connected: boolean;
+  /** An AI keeper's memory (11C); null for a person. */
+  mind: Mind | null;
   /** Spawn protection ticks: hooks and blasts pass through. */
   shield: number;
   ward: number;
@@ -84,6 +87,17 @@ export interface Member {
   slot: number;
   generation: number;
   connected: boolean;
+  /** An AI seat: the fold drives it (11C). */
+  bot?: boolean;
+}
+/** Whether a keeper is playing right now: connected, and an entrant still in during a competitive round. */
+export function inPlay(arena: Arena, k: Keeper): boolean {
+  const c = arena.contest;
+  return (
+    k.connected &&
+    (arena.tuning.rules === "free" ||
+      (c.phase === "active" && c.entries.some((e) => e.id === k.id && !e.out)))
+  );
 }
 export function createArena(tuning: Tuning, tick = 0): Arena {
   return {
@@ -108,7 +122,7 @@ const ownedBomb = (arena: Arena, b: Bomb) =>
 export function syncKeepers(arena: Arena, members: readonly Member[]): void {
   arena.keepers = [...members]
     .sort((a, b) => a.slot - b.slot)
-    .map((member) => {
+    .map(({ bot = false, ...member }) => {
       const old = arena.keepers.find(
         (k) => k.id === member.id && k.slot === member.slot,
       );
@@ -125,13 +139,18 @@ export function syncKeepers(arena: Arena, members: readonly Member[]): void {
           cancel(old.world);
           old.ward = 0;
         }
-        return { ...old, ...member };
+        return {
+          ...old,
+          ...member,
+          mind: bot ? (old.mind ?? freshMind()) : null,
+        };
       }
       const world = createWorld(arena.tuning, member.slot);
       world.tick = arena.tick;
       world.combat = arena.combat;
       return {
         ...member,
+        mind: bot ? freshMind() : null,
         world,
         shield: FALL_SHIELD,
         ward: 0,
@@ -178,6 +197,7 @@ export function stepArena(arena: Arena, running = true): void {
           k.shield = FALL_SHIELD;
           k.ward = 0;
           k.bomb = freshKit();
+          if (k.mind) k.mind = freshMind();
         }
       }
     }
@@ -187,10 +207,7 @@ export function stepArena(arena: Arena, running = true): void {
           entry.out = true;
     }
   }
-  const canPlay = (k: Keeper) =>
-    k.connected &&
-    (!competitive ||
-      (c.phase === "active" && c.entries.some((e) => e.id === k.id && !e.out)));
+  const canPlay = (k: Keeper) => inPlay(arena, k);
   const playing = running && (!competitive || c.phase === "active");
   const victims = arena.keepers
     .filter((k) => canPlay(k) && !k.world.respawn && !k.shield && !k.ward)
@@ -330,6 +347,7 @@ export function encodeArena(arena: Arena): unknown {
         ward: k.ward,
         hits: k.hits,
         bomb: { ...k.bomb },
+        mind: k.mind && { ...k.mind },
         body: structuredClone(body),
       };
     }),
@@ -532,7 +550,7 @@ export function decodeArena(raw: unknown): Arena | undefined {
   for (const k of raw.keepers) {
     if (
       !plain(k) ||
-      Object.keys(k).length !== 9 ||
+      Object.keys(k).length !== 10 ||
       !id(k.id) ||
       !integer(k.slot, 0, 4) ||
       !integer(k.generation, 0, 0xffffffff) ||
@@ -551,6 +569,8 @@ export function decodeArena(raw: unknown): Arena | undefined {
     )
       return;
     const kit = decodeKit(k.bomb, tuning);
+    const mind = k.mind === null ? null : decodeMind(k.mind, tuning);
+    if (mind === undefined) return;
     const world = decodeWorld({
       ...k.body,
       tick: raw.tick,
@@ -574,6 +594,7 @@ export function decodeArena(raw: unknown): Arena | undefined {
       slot: k.slot,
       generation: k.generation,
       connected: k.connected,
+      mind,
       shield: k.shield,
       ward: k.ward,
       hits: k.hits,

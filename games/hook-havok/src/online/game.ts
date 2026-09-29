@@ -4,7 +4,6 @@ import {
   memberId,
   uint32,
   defaultText,
-  BOT,
   SPECTATOR,
   type ManagementEntry,
   type SeatRecord,
@@ -31,6 +30,7 @@ import {
 } from "../engine/arena.js";
 import { parseInput, parseTuning, plain, integer } from "../engine/codec.js";
 import { POWER_PADS } from "../engine/power-ups.js";
+import { planBots } from "../engine/bot.js";
 import {
   toView,
   contestView,
@@ -63,6 +63,10 @@ const name = (v: unknown): v is string =>
 const match = (v: unknown): v is string =>
   typeof v === "string" && v.length > 0 && v.length <= 64;
 const avatar = (v: unknown): v is string => v === "keeper";
+/** AI seats are `bot:1`, `bot:2`, …; the room service gives people UUIDs. */
+const BOT_ID = /^bot:[1-9]\d?$/;
+/** AI keepers are named for the belfry's odd residents, one per seat. */
+export const BOT_NAMES = ["Clapper", "Wick", "Rook", "Tallow", "Gargoyle"];
 export function isEntry(raw: unknown): raw is Entry {
   if (
     !Array.isArray(raw) ||
@@ -80,7 +84,6 @@ export function isEntry(raw: unknown): raw is Entry {
       !!parseInput(raw[5])
     );
   return (
-    raw[2] !== BOT &&
     raw[2] !== SPECTATOR &&
     isManagementEntry(raw, {
       name,
@@ -104,6 +107,7 @@ export function createRoom(matchId: string, settings: Tuning): Room {
 const lifecycle: LifecycleHooks<Room, Tuning> = {
   stage: (r) => r.stage,
   maxWatchers: 0,
+  botAvatar: "keeper",
   parseSettings: parseTuning,
   start(r, id) {
     if (r.stage !== "lobby" || ![...r.seats.values()].some((s) => s.connected))
@@ -137,7 +141,27 @@ export function foldTick(
     r.simulation,
     [...r.seats.values()].map((s) => ({ ...s, generation: s.generation ?? 0 })),
   );
+  // Bots play from the arena alone, on every peer; no stream carries their input.
+  const bots =
+    r.stage === "running" ? planBots(r.simulation) : new Map<string, Input>();
   const controls = r.simulation.keepers.map((keeper) => {
+    const planned = bots.get(keeper.id);
+    if (keeper.mind)
+      return {
+        keeper,
+        final: planned ?? {
+          ...NEUTRAL,
+          aimX: keeper.world.input.aimX,
+          aimY: keeper.world.input.aimY,
+        },
+        pulse: {
+          jump: false,
+          drop: false,
+          fire: false,
+          bomb: false,
+          reset: false,
+        },
+      };
     const stream = streams.get(keeper.id),
       generation = keeper.generation;
     const source =
@@ -254,22 +278,39 @@ export function decode(f: readonly unknown[], tick: number): Room | undefined {
       [...seats.values()].some((old) => old.slot === s.slot) ||
       !avatar(s.avatarId) ||
       typeof s.connected !== "boolean" ||
-      s.bot !== false ||
-      !uint32(s.generation) ||
-      (s.away !== undefined && s.away !== true) ||
-      (s.away && s.connected)
+      typeof s.bot !== "boolean" ||
+      // A bot seat: a bot id, no stream generation, never away. A person: the reverse.
+      (s.bot
+        ? !BOT_ID.test(s.id) ||
+          Object.hasOwn(s, "generation") ||
+          Object.hasOwn(s, "away")
+        : !uint32(s.generation) ||
+          (s.away !== undefined && s.away !== true) ||
+          (s.away && s.connected))
     )
       return;
-    seats.set(s.id, {
-      id: s.id,
-      name: s.name,
-      slot: s.slot,
-      avatarId: s.avatarId,
-      connected: s.connected,
-      bot: false,
-      generation: s.generation,
-      ...(s.away ? { away: true } : {}),
-    });
+    seats.set(
+      s.id,
+      s.bot
+        ? {
+            id: s.id,
+            name: s.name,
+            slot: s.slot,
+            avatarId: s.avatarId,
+            connected: s.connected,
+            bot: true,
+          }
+        : {
+            id: s.id,
+            name: s.name,
+            slot: s.slot,
+            avatarId: s.avatarId,
+            connected: s.connected,
+            bot: false,
+            generation: s.generation as number,
+            ...(s.away ? { away: true } : {}),
+          },
+    );
   }
   if (
     simulation.keepers.length !== seats.size ||
@@ -278,8 +319,9 @@ export function decode(f: readonly unknown[], tick: number): Room | undefined {
       return (
         !seat ||
         seat.slot !== k.slot ||
-        seat.generation !== k.generation ||
-        seat.connected !== k.connected
+        (seat.generation ?? 0) !== k.generation ||
+        seat.connected !== k.connected ||
+        seat.bot !== (k.mind !== null)
       );
     }) ||
     (f[2] === "running" && (!seats.size || !f[1]))
@@ -351,6 +393,7 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       id: k.id,
       slot: k.slot,
       name: r.seats.get(k.id)!.name,
+      bot: k.mind !== null,
       connected: k.connected,
       shield: k.shield,
       hits: k.hits,
@@ -408,8 +451,17 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
     parseSettings: parseTuning,
     soloSettings: (s) => ({ ...s }),
     sharedScreen: () => false,
-    botId: () => "unused",
-    botName: () => "unused",
+    botId(room, pending) {
+      const taken = (id: string) =>
+        room.seats.has(id) ||
+        pending.has(id) ||
+        room.simulation.keepers.some((k) => k.id === id) ||
+        room.simulation.contest.entries.some((e) => e.id === id);
+      let n = 1;
+      while (taken(`bot:${n}`)) n++;
+      return `bot:${n}`;
+    },
+    botName: (slot) => BOT_NAMES[slot] ?? "Bell bot",
     solo: { name: "Lantern keeper", bots: 0 },
   },
   text: {
