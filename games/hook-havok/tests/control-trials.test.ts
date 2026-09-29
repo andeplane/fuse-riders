@@ -93,7 +93,7 @@ test("new settings, air allowance and extended directional aim domains are valid
   assert.ok(parseInput({ ...NEUTRAL, aimX: -800, aimY: -1100 }));
   assert.equal(parseInput({ ...NEUTRAL, aimY: -4001 }), undefined);
 });
-test("keyboard gives eight rays, retained aim, J/K hold/release, deliberate drop and clear", () => {
+test("keyboard gives eight rays, retained aim, J hook / K bomb hold and release, Space jump, deliberate drop and clear", () => {
   for (const [keys, dx, dy] of [
     [["KeyW"], 0, -1],
     [["KeyW", "KeyD"], 1, -1],
@@ -107,14 +107,22 @@ test("keyboard gives eight rays, retained aim, J/K hold/release, deliberate drop
     const k = new KeyboardInput();
     k.mode = "keyboard";
     keys.forEach((key) => k.key(key, true));
-    k.key("KeyK", true);
+    k.key("KeyJ", true);
     const input = k.sample(300, -100);
     assert.equal(input.aimX, 300 + dx * 1000);
     assert.equal(input.aimY, -100 + dy * 1000);
     assert.equal(input.fire, true);
+    assert.equal(input.bomb, false);
+    assert.equal(input.jump, false, "J no longer jumps");
     assert.ok(parseInput({ ...NEUTRAL, ...input }));
-    k.key("KeyK", true);
+    k.key("KeyJ", true);
     assert.equal(k.sample(300, 700).fire, true);
+    k.key("KeyK", true);
+    const both = k.sample(300, 700);
+    assert.equal(both.bomb, true, "K charges a bomb along the same aim");
+    assert.equal(both.aimX, 300 + dx * 1000);
+    k.key("KeyK", false);
+    assert.equal(k.sample(300, 700).bomb, false);
     k.clear();
     assert.equal(k.sample(300, 700).fire, false);
     assert.deepEqual(k.direction, { x: dx, y: dy });
@@ -125,17 +133,22 @@ test("keyboard gives eight rays, retained aim, J/K hold/release, deliberate drop
   assert.equal(k.sample(0, 0).drop, false);
   k.key("ShiftLeft", true);
   assert.equal(k.sample(0, 0).drop, true);
-  k.key("KeyJ", true);
+  k.key("ShiftLeft", false);
+  k.key("Space", true);
   assert.equal(k.sample(0, 0).jump, true);
+  assert.equal(k.sample(0, 0).drop, true, "Down + Space drops");
   k.clear();
   assert.equal(k.sample(0, 0).jump, false);
+  k.aimSource = "mouse";
+  k.key("KeyK", true);
+  assert.equal(k.aimSource, "keys", "K takes the aim back from the mouse");
+  k.clear();
   k.mode = "mouse";
   assert.equal(k.accepts("KeyK"), false);
-  assert.equal(
-    k.sample(0, 0).fire,
-    undefined,
-    "mouse fire ownership is untouched",
-  );
+  assert.equal(k.accepts("KeyJ"), false);
+  const mouse = k.sample(0, 0);
+  assert.equal(mouse.fire, undefined, "mouse fire ownership is untouched");
+  assert.equal(mouse.bomb, undefined, "so is the right-click bomb");
 });
 
 function armed(): World {

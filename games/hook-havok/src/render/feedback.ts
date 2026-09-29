@@ -10,9 +10,12 @@ export type Cue =
   | "release"
   | "respawn"
   | "impact"
-  | "pop";
+  | "pop"
+  | "hiss"
+  | "clink"
+  | "boom";
 export interface Burst {
-  kind: Cue | "vanish" | "air-jump";
+  kind: Cue | "vanish" | "air-jump" | "throw" | "blasted";
   x: number;
   y: number;
   at: number;
@@ -57,13 +60,26 @@ export class Feedback {
     }
     const wasIn = old.contest.entries.find((entry) => entry.id === subject);
     const nowOut = view.contest.entries.find((entry) => entry.id === subject);
-    if (view.deaths > old.deaths || (wasIn && !wasIn.out && nowOut?.out))
+    const blasted = view.knockouts.find(
+      (k) => k.target === subject && k.tick > old.tick,
+    );
+    if (blasted)
+      this.bursts.push({
+        kind: "blasted",
+        x: blasted.x,
+        y: blasted.y,
+        at: ms,
+        target: subject,
+      });
+    else if (view.deaths > old.deaths || (wasIn && !wasIn.out && nowOut?.out))
       this.bursts.push({
         kind: "vanish",
         x: old.x,
         y: Math.min(870, old.feet),
         at: ms,
       });
+    if (old.charge > 0 && !view.charge && !view.respawn && !blasted)
+      this.bursts.push({ kind: "throw", x: view.x, y: view.feet, at: ms });
     const cues: Cue[] = [];
     if (view.pickupEvents.some((e) => e.by === subject && e.tick > old.tick))
       cues.push("power");
@@ -149,6 +165,7 @@ export class Feedback {
       jumped: Burst | undefined,
       released: Burst | undefined,
       arrived: Burst | undefined,
+      threw: Burst | undefined,
       struck: Burst | undefined;
     // Keep the newest cue of each kind without allocating reversed copies per keeper.
     for (let i = this.bursts.length - 1; i >= 0; i--) {
@@ -169,6 +186,9 @@ export class Feedback {
         case "respawn":
           arrived ??= burst;
           break;
+        case "throw":
+          threw ??= burst;
+          break;
         case "impact":
           if (burst.target !== undefined && burst.target === this.subject)
             struck ??= burst;
@@ -183,26 +203,31 @@ export class Feedback {
     const hit = struck ? Math.max(0, 1 - (ms - struck.at) / 200) : 0;
     const release = released ? Math.max(0, 1 - (ms - released.at) / 160) : 0;
     const takeoff = jumped ? Math.max(0, 1 - (ms - jumped.at) / 130) : 0;
+    const throwing = threw ? Math.max(0, 1 - (ms - threw.at) / 180) : 0;
     const moving = view.grounded && Math.abs(view.vx) > 20;
     const state = view.respawn
       ? "respawn"
       : hit > 0
         ? "hit"
-        : firing > 0
-          ? "fire"
-          : view.hook.phase === "attached"
-            ? "pull"
-            : entry > 0
-              ? "arrive"
-              : compression > 0
-                ? "land"
-                : !view.grounded
-                  ? view.vy < 0
-                    ? "rise"
-                    : "fall"
-                  : moving
-                    ? "run"
-                    : "idle";
+        : view.charge > 0
+          ? "windup"
+          : throwing > 0
+            ? "throw"
+            : firing > 0
+              ? "fire"
+              : view.hook.phase === "attached"
+                ? "pull"
+                : entry > 0
+                  ? "arrive"
+                  : compression > 0
+                    ? "land"
+                    : !view.grounded
+                      ? view.vy < 0
+                        ? "rise"
+                        : "fall"
+                      : moving
+                        ? "run"
+                        : "idle";
     // Integrate only presentation time; idle/action transitions restart at contact.
     const delta = Math.max(0, Math.min(50, ms - (this.poseAt ?? ms)));
     this.poseAt = ms;
@@ -215,10 +240,11 @@ export class Feedback {
       this.stride = 0;
       this.running = false;
     }
+    // The wind-up holds the bomb on the raised arm; the throw follows through.
     const frame =
-      state === "fire"
+      state === "fire" || state === "throw"
         ? 7
-        : state === "pull"
+        : state === "pull" || state === "windup"
           ? 8
           : state === "rise"
             ? 5
@@ -249,11 +275,15 @@ export class Feedback {
         ? 0
         : hit
           ? Math.cos(struck!.direction ?? 0) * hit * 0.13
-          : state === "pull"
-            ? view.facing * 0.065
-            : state === "run"
-              ? Math.max(-0.045, Math.min(0.045, view.vx / 8000))
-              : -view.facing * (recoil * 0.055 + release * 0.04),
+          : state === "windup"
+            ? -view.facing * (0.04 + view.charge * 0.1)
+            : state === "throw"
+              ? view.facing * 0.12 * throwing
+              : state === "pull"
+                ? view.facing * 0.065
+                : state === "run"
+                  ? Math.max(-0.045, Math.min(0.045, view.vx / 8000))
+                  : -view.facing * (recoil * 0.055 + release * 0.04),
     };
   }
 }

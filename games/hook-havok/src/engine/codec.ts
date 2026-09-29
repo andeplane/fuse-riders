@@ -19,6 +19,7 @@ import {
   type World,
 } from "./world.js";
 import { MAPS, isMapId } from "./maps.js";
+import { CHARGE_TICKS, KO_RESPAWN } from "./bomb-rules.js";
 export const plain = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 export const integer = (v: unknown, min: number, max: number): v is number =>
@@ -32,7 +33,9 @@ export const TUNING_BOUNDS = {
   range: [250, 1000],
 } as const;
 export function parseTuning(raw: unknown): Tuning | undefined {
-  if (!plain(raw) || Object.keys(raw).length !== 12 || !isMapId(raw.map))
+  if (!plain(raw) || Object.keys(raw).length !== 13 || !isMapId(raw.map))
+    return;
+  if (raw.bomb !== "off" && raw.bomb !== "fuse" && raw.bomb !== "impact")
     return;
   if (raw.powerUps !== "off" && raw.powerUps !== "on") return;
   if (raw.jumpMode !== "single" && raw.jumpMode !== "double") return;
@@ -54,6 +57,7 @@ export function parseTuning(raw: unknown): Tuning | undefined {
   for (const [key, [min, max]] of Object.entries(TUNING_BOUNDS))
     if (!integer(raw[key], min, max)) return;
   return {
+    bomb: raw.bomb,
     powerUps: raw.powerUps,
     jumpMode: raw.jumpMode,
     wire: raw.wire,
@@ -184,13 +188,14 @@ function decodeCombat(
 export function parseInput(raw: unknown): Input | undefined {
   if (
     !plain(raw) ||
-    Object.keys(raw).length !== 7 ||
+    Object.keys(raw).length !== 8 ||
     !integer(raw.move, -1, 1) ||
     !integer(raw.aimX, -2000, 3600) ||
     !integer(raw.aimY, -4000, 3000) ||
     typeof raw.jump !== "boolean" ||
     typeof raw.drop !== "boolean" ||
     typeof raw.fire !== "boolean" ||
+    typeof raw.bomb !== "boolean" ||
     typeof raw.reset !== "boolean"
   )
     return;
@@ -199,6 +204,7 @@ export function parseInput(raw: unknown): Input | undefined {
     jump: raw.jump,
     drop: raw.drop,
     fire: raw.fire,
+    bomb: raw.bomb,
     reset: raw.reset,
     aimX: raw.aimX,
     aimY: raw.aimY,
@@ -237,8 +243,11 @@ export function decodeWorld(raw: unknown): World | undefined {
     (raw.grounded && tuning.jumpMode === "double" && !raw.airJump) ||
     !integer(raw.coyote, 0, 6) ||
     !integer(raw.buffer, 0, 6) ||
-    !integer(raw.respawn, 0, 30) ||
+    !integer(raw.respawn, 0, KO_RESPAWN) ||
     !integer(raw.deaths, 0, 0xffffffff) ||
+    !integer(raw.charge, 0, tuning.bomb === "off" ? 0 : CHARGE_TICKS) ||
+    // A charge only grows while the button is held, and dies with the keeper.
+    (raw.charge && (raw.respawn || !input.bomb)) ||
     (raw.facing !== -1 && raw.facing !== 1)
   )
     return;
@@ -313,6 +322,7 @@ export function decodeWorld(raw: unknown): World | undefined {
     buffer: raw.buffer,
     respawn: raw.respawn,
     deaths: raw.deaths,
+    charge: raw.charge,
     facing: raw.facing,
     input,
     previous,

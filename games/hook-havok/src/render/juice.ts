@@ -191,6 +191,26 @@ export function createJuice(scene: Phaser.Scene, zoom: number): Juice {
         );
         kick(260, local ? 0.014 : 0.007, local ? 0.03 : 0);
         break;
+      case "boom":
+        // Every blast shakes the room; one near you punches the zoom too.
+        kick(local ? 320 : 220, local ? 0.02 : 0.009, local ? 0.04 : 0.012);
+        break;
+      case "blasted":
+        hits.set(burst.target ?? "", burst.at);
+        spawn(
+          {
+            kind: "spark",
+            x: burst.x,
+            y: burst.y,
+            vx: 0,
+            vy: 0,
+            at: burst.at,
+            life: 520,
+            color,
+          },
+          18,
+        );
+        break;
       default:
         break;
     }

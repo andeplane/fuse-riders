@@ -6,13 +6,16 @@ These selectable experiments let players compare the new mechanics with the orig
 
 Create a room, then open **Development workshop** to select **Jump → Double jump** and **Tether → Spiked wire**. In **Room & match**, select **Your controls → Keyboard · J / K** and a ball experiment to try splitting orbs. Jump and Tether are manager-controlled shared settings; changing either restarts the trial. Keyboard mode is local to each device and is also available in the splash Settings dialog.
 
+Since [11B](bombs.md#controls) the keyboard scheme is **Keyboard · J hook / K bomb**:
+
 | Action               | Keyboard mode                                   |
 | -------------------- | ----------------------------------------------- |
 | Move                 | A / D or left / right arrows                    |
 | Aim                  | WASD / arrows; combine directions for diagonals |
-| Jump / air jump      | J or Space; release between jumps               |
-| Fire and pull        | Hold K; release to let go and rearm             |
-| Drop through a ledge | Shift+S or Shift+Down                           |
+| Jump / air jump      | Space; release between jumps (J before 11B)     |
+| Fire and pull        | Hold J; release to let go and rearm (K before)  |
+| Bomb                 | Hold K to charge, release to throw              |
+| Drop through a ledge | Down + Space, Shift+S or Shift+Down             |
 
 The last nonzero aim direction remains selected, initially up. A small arrow shows it. Down alone aims downward, so it does not accidentally drop the keeper. Mouse mode retains its existing aiming, Space jump and S/Down drop. This is a keyboard experiment, not a native gamepad integration. Switching modes and losing focus release held input. Touch remains available and can also use the shared double-jump and wire settings.
 

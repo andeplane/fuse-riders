@@ -16,9 +16,11 @@ import {
   createWorld,
   NEUTRAL,
   RULES,
+  S,
   type Input,
   type Tuning,
 } from "../engine/world.js";
+import { COOLDOWN_TICKS } from "../engine/bomb-rules.js";
 import {
   createArena,
   stepArena,
@@ -161,15 +163,23 @@ export function foldTick(
             .map((e) => e[5])
         : [];
     let final = { ...keeper.world.input };
-    const pulse = { jump: false, drop: false, fire: false, reset: false };
+    const pulse = {
+      jump: false,
+      drop: false,
+      fire: false,
+      bomb: false,
+      reset: false,
+    };
     for (const input of inputs) {
-      for (const key of ["jump", "drop", "fire", "reset"] as const)
+      for (const key of ["jump", "drop", "fire", "bomb", "reset"] as const)
         pulse[key] ||= input[key] && !final[key];
       final = { ...input };
     }
     return { keeper, final, pulse };
   });
   for (let i = 0; i < 3; i++) {
+    // A press released inside one log tick still lands: held on the first
+    // engine step, released on the next, so a tapped bomb is still thrown.
     for (const { keeper, final, pulse } of controls)
       keeper.world.input = {
         ...final,
@@ -178,6 +188,7 @@ export function foldTick(
               jump: final.jump || pulse.jump,
               drop: final.drop || pulse.drop,
               fire: final.fire || pulse.fire,
+              bomb: final.bomb || pulse.bomb,
               reset: final.reset || pulse.reset,
             }
           : {}),
@@ -320,6 +331,19 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       },
     ),
     keepers: r.simulation.keepers.map((k): KeeperView => ({
+      cooldown: k.bomb.cooldown / COOLDOWN_TICKS,
+      tally: {
+        thrown: k.bomb.thrown,
+        knockouts: k.bomb.knockouts,
+        selfKnockouts: k.bomb.selfKnockouts,
+        bombed: k.bomb.bombed,
+        falls: Math.max(
+          0,
+          k.world.deaths - k.bomb.bombed - k.bomb.selfKnockouts,
+        ),
+        fate: k.bomb.fate,
+        by: k.bomb.by,
+      },
       ward: Math.ceil(k.ward / 60),
       playing:
         r.settings.rules === "free" ||
@@ -337,6 +361,19 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       x: r.simulation.hit.x / 1024,
       y: r.simulation.hit.y / 1024,
     },
+    bombs: r.simulation.bombs.map((b) => ({
+      ...b,
+      x: b.x / S,
+      y: b.y / S,
+      vx: (b.vx * 60) / S,
+      vy: (b.vy * 60) / S,
+    })),
+    blasts: r.simulation.blasts.map((e) => ({ ...e, x: e.x / S, y: e.y / S })),
+    knockouts: r.simulation.knockouts.map((e) => ({
+      ...e,
+      x: e.x / S,
+      y: e.y / S,
+    })),
     pickups:
       r.settings.powerUps === "on"
         ? POWER_PADS[r.settings.map].map((p, i) => ({

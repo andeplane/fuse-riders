@@ -1,13 +1,60 @@
 import { BALL_RADII, BODY, HALF, S, ballField, type World } from "./world.js";
 import { MAPS, type MapId } from "./maps.js";
 import { activeWire } from "./wire-contact.js";
+import { bombArc } from "./bomb.js";
+import {
+  BLAST_RADIUS,
+  BOMB_RADIUS,
+  CHARGE_TICKS,
+  COOLDOWN_TICKS,
+  FUSE_TICKS,
+} from "./bomb-rules.js";
 import {
   createContest,
   COUNTDOWN_TICKS,
   ROUND_TICKS,
   type Contest,
 } from "./contest.js";
+export interface BombView {
+  id: number;
+  owner: string;
+  x: number;
+  y: number;
+  /** Units per second. */
+  vx: number;
+  vy: number;
+  /** Ticks left on the fuse. */
+  fuse: number;
+}
+export interface BlastView {
+  tick: number;
+  id: number;
+  owner: string;
+  x: number;
+  y: number;
+}
+export interface KnockoutView {
+  tick: number;
+  by: string;
+  target: string;
+  x: number;
+  y: number;
+}
+/** Bomb rule values presentation draws, in world units and ticks. */
+export const BOMB_VIEW = {
+  radius: BOMB_RADIUS,
+  blast: BLAST_RADIUS,
+  fuse: FUSE_TICKS,
+  cooldown: COOLDOWN_TICKS,
+} as const;
 export interface WorldView {
+  bombMode: World["tuning"]["bomb"];
+  /** Charge held by this keeper, 0–1 (full at 0.6 s). */
+  charge: number;
+  gravity: number;
+  bombs: BombView[];
+  blasts: BlastView[];
+  knockouts: KnockoutView[];
   pickups: { kind: "lift" | "ward"; x: number; y: number; cooldown: number }[];
   pickupEvents: {
     tick: number;
@@ -70,6 +117,17 @@ export interface WorldView {
   aim: { x: number; y: number };
 }
 export interface KeeperView {
+  /** Bomb cooldown remaining, 0–1. */
+  cooldown: number;
+  tally: {
+    thrown: number;
+    knockouts: number;
+    selfKnockouts: number;
+    bombed: number;
+    falls: number;
+    fate: "" | "fall" | "bomb" | "self";
+    by: string;
+  };
   ward: number;
   playing: boolean;
   id: string;
@@ -83,6 +141,12 @@ export interface KeeperView {
 export function toView(world: World): WorldView {
   const wire = activeWire(world);
   return {
+    bombMode: world.tuning.bomb,
+    charge: world.charge / CHARGE_TICKS,
+    gravity: world.tuning.gravity,
+    bombs: [],
+    blasts: [],
+    knockouts: [],
     pickups: [],
     pickupEvents: [],
     wire: wire
@@ -166,4 +230,23 @@ export function contestView(
       ) / 60,
     ),
   };
+}
+/** Local presentation: where releasing now would send this keeper's bomb. */
+export function throwPreview(
+  view: WorldView,
+  aim: { x: number; y: number },
+): { x: number; y: number }[] {
+  if (!view.charge || view.respawn || view.bombMode === "off") return [];
+  return bombArc(
+    Math.round(view.charge * CHARGE_TICKS),
+    view.x,
+    view.feet - view.body.height * 0.6,
+    view.vx,
+    view.vy,
+    Math.round(aim.x),
+    Math.round(aim.y),
+    view.facing,
+    view.gravity,
+    view.map,
+  );
 }

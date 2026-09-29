@@ -253,6 +253,7 @@ export function step(world: World, context?: CombatContext): void {
     world.vx = world.vy = 0;
     world.buffer = world.coyote = 0;
     world.airJump = false;
+    world.charge = 0;
   }
   if (!context) stepCombat(world);
   world.previous = { ...world.input };

@@ -1,15 +1,19 @@
 import type { Input } from "../engine/world.js";
 
 export type AimMode = "eight" | "free";
-export type Pad = "move" | "aim";
+export type Pad = "move" | "aim" | "bomb";
 export interface TouchState {
   move: Input["move"];
   jump: boolean;
   drop: boolean;
   fire: boolean;
+  /** The bomb button is held: charging. Its release throws. */
+  bomb: boolean;
   direction: { x: number; y: number };
+  /** True once the aim pad has chosen a direction this session. */
+  aimed: boolean;
 }
-/** Two pointer owners; a cancelled or replaced finger cannot resurrect held input. */
+/** Three pointer owners; a cancelled or replaced finger cannot resurrect held input. */
 export class TouchInput {
   private owners = new Map<Pad, number>();
   private value: TouchState = {
@@ -17,7 +21,9 @@ export class TouchInput {
     jump: false,
     drop: false,
     fire: false,
+    bomb: false,
     direction: { x: 0, y: -1 },
+    aimed: false,
   };
   mode: AimMode = "eight";
   get active(): boolean {
@@ -38,7 +44,8 @@ export class TouchInput {
   update(pad: Pad, id: number, x: number, y: number): boolean {
     if (!this.owns(pad, id) || !Number.isFinite(x) || !Number.isFinite(y))
       return false;
-    if (pad === "move") {
+    if (pad === "bomb") this.value.bomb = true;
+    else if (pad === "move") {
       this.value.move = x < -0.22 ? -1 : x > 0.22 ? 1 : 0;
       this.value.jump = y < -0.38;
       this.value.drop = y > 0.38;
@@ -50,6 +57,7 @@ export class TouchInput {
           ? (Math.round(angle / (Math.PI / 4)) * Math.PI) / 4
           : angle;
       this.value.direction = { x: Math.cos(snapped), y: Math.sin(snapped) };
+      this.value.aimed = true;
       this.value.fire = true;
     }
     return true;
@@ -61,7 +69,8 @@ export class TouchInput {
       this.value.move = 0;
       this.value.jump = false;
       this.value.drop = false;
-    } else this.value.fire = false;
+    } else if (pad === "bomb") this.value.bomb = false;
+    else this.value.fire = false;
     return true;
   }
   clear(): void {
@@ -71,11 +80,26 @@ export class TouchInput {
       jump: false,
       drop: false,
       fire: false,
+      bomb: false,
       direction: this.value.direction,
+      aimed: this.value.aimed,
     };
   }
 }
 
+/**
+ * The bomb button throws along the aim pad's last direction, or, before the
+ * aim pad has been used, forward and up at 45° from the facing direction
+ * (a level throw from the chest barely clears the ledge).
+ */
+export function bombDirection(
+  state: Pick<TouchState, "aimed" | "direction">,
+  facing: -1 | 1,
+): TouchState["direction"] {
+  return state.aimed
+    ? { ...state.direction }
+    : { x: facing * Math.SQRT1_2, y: -Math.SQRT1_2 };
+}
 /** Keep a ray's direction when clipping its endpoint to the input contract. */
 export function touchAim(
   x: number,

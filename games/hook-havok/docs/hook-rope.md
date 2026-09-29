@@ -30,6 +30,8 @@ Both causes were structural. Every ledge is one-way for keepers, yet the tether 
 
 New rooms start on **Crossroads** with **double jump** and **gentle arena ricochets**. `CLASSIC_TUNING` (Belfry, single jump, no balls) keeps the older fixtures pinned.
 
+(Since [11B](bombs.md#controls), Space alone jumps, J hooks and K throws a bomb; Down + Space drops. The paragraph below describes 10A.)
+
 **Keyboard + mouse** is the standard control scheme. J / Space jump. WASD / arrows aim in eight directions, and K hooks along that direction. A left click hooks where the mouse points. Whichever hook button was used last owns the aim. Down alone aims down; **Down + Jump** (or Shift + Down) drops through a ledge. **Classic mouse** keeps S / Down alone as drop.
 
 Upward keyboard shots have aim assist: when an eight-way ray aimed up or diagonally up would miss every ledge in range, the aim bends by up to 15° (5° steps, nearest first) onto the closest ledge. Level and downward shots, the ones used against rivals and orbs, fly exactly as aimed. This is local intent computed in the app. The bent aim travels through ordinary replicated input, and the engine is unchanged by it.

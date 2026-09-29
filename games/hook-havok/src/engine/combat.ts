@@ -16,8 +16,8 @@ import { MAPS } from "./maps.js";
 import { ricochet } from "./ball-motion.js";
 import { wireContact } from "./wire-contact.js";
 
-/** One binary family, regardless of whether the tip or a spike consumed it. */
-function splitBall(world: World, ball: Ball): void {
+/** One binary family, regardless of whether the tip, a spike or a blast consumed it. */
+export function splitBall(world: World, ball: Ball): void {
   const c = world.combat,
     field = ballField(world.tuning.experiment, world.tuning.map);
   c.balls = c.balls.filter((b) => b.id !== ball.id);

@@ -184,6 +184,16 @@ test("directional hit reaction belongs only to the victim and does not replay", 
     shield: 0,
     ward: 0,
     hits: 0,
+    cooldown: 0,
+    tally: {
+      thrown: 0,
+      knockouts: 0,
+      selfKnockouts: 0,
+      bombed: 0,
+      falls: 0,
+      fate: "" as const,
+      by: "",
+    },
     body: { ...base, vx: id === "b" ? -400 : 0, vy: -200 },
   }));
   const v = { ...base, localId: "b", keepers };
@@ -296,4 +306,31 @@ test("effects require gesture resume, obey mute/volume, cancel pending unlock an
   muted.unlock();
   muted.cue("fire");
   assert.equal(created, 1);
+});
+test("bomb cues are rate limited per cue so bounces and chains stay bounded", async () => {
+  let clock = 0;
+  const played: string[] = [];
+  const sink: ToneSink = {
+    resume: () => Promise.resolve(),
+    play: (tone) => played.push(tone.noise ?? tone.type),
+    silence() {},
+    close() {},
+  };
+  const audio = new EffectsAudio(
+    false,
+    () => sink,
+    () => clock,
+  );
+  audio.unlock();
+  await Promise.resolve();
+  await Promise.resolve();
+  audio.cue("clink");
+  audio.cue("clink");
+  clock = 80;
+  audio.cue("clink");
+  audio.cue("boom");
+  audio.cue("boom");
+  audio.cue("jump");
+  audio.cue("jump");
+  assert.deepEqual(played, ["square", "square", "lowpass", "sine", "sine"]);
 });
