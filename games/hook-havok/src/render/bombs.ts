@@ -229,7 +229,12 @@ export function createBombs(scene: Phaser.Scene): Bombs {
           ms - (t.trail[0]?.at ?? 0) > 35
         )
           t.trail.unshift({ x: b.x, y: b.y, at: ms });
-        t.trail = t.trail.filter((p) => ms - p.at < TRAIL_MS).slice(0, 12);
+        // Newest first, so old puffs and the overflow leave from the end.
+        while (
+          t.trail.length > 12 ||
+          (t.trail.length && ms - t.trail.at(-1)!.at >= TRAIL_MS)
+        )
+          t.trail.pop();
         t.x = b.x;
         t.y = b.y;
         for (const p of t.trail) {
@@ -240,10 +245,12 @@ export function createBombs(scene: Phaser.Scene): Bombs {
         }
         const squash =
           reduced || t.squash < 0 ? 0 : Math.max(0, 1 - (ms - t.squash) / 130);
-        // Blink faster over the last half second, with the blast area in red.
+        // Blink faster over the last half second (5 to 15 Hz), with the blast
+        // area in red. Reduced motion holds a steady red instead of flashing.
         const late = b.fuse <= 30,
           period = late ? Math.max(2, Math.round(b.fuse / 5)) : 12,
-          lit = late && Math.floor(b.fuse / period) % 2 === 0 ? 1 : 0;
+          lit =
+            late && (reduced || Math.floor(b.fuse / period) % 2 === 0) ? 1 : 0;
         const tint = color(b.owner);
         const { fx, fy } = paintBomb(
           b.x,

@@ -8,6 +8,8 @@ export interface Tone {
   noise?: "lowpass" | "highpass";
   /** Loudness relative to the other cues (default 1). */
   gain?: number;
+  /** When every voice is busy, stop the oldest instead of dropping this cue. */
+  steal?: boolean;
 }
 export const TONES: Record<Cue, Tone> = {
   power: { from: 420, to: 1120, duration: 0.18, type: "sine" },
@@ -36,6 +38,8 @@ export const TONES: Record<Cue, Tone> = {
     type: "sine",
     noise: "lowpass",
     gain: 2.2,
+    // A blast is never the cue that goes missing in a busy scene.
+    steal: true,
   },
 };
 /** The same cue closer together than this plays once (bounces and chains). */
@@ -44,6 +48,28 @@ const REPEAT_MS: Partial<Record<Cue, number>> = {
   hiss: 120,
   boom: 60,
 };
+/** Simultaneous voices a sink plays; more cues wait for one to end. */
+export const MAX_VOICES = 6;
+/**
+ * Whether a tone may start with these voices playing (oldest first). At the
+ * limit a stealing tone stops the oldest voice and takes its place; any
+ * other tone is dropped.
+ */
+export function claimVoice(
+  voices: Set<{ stop(): void }>,
+  tone: Pick<Tone, "steal">,
+): boolean {
+  if (voices.size < MAX_VOICES) return true;
+  if (!tone.steal) return false;
+  const oldest = voices.values().next().value!;
+  voices.delete(oldest);
+  try {
+    oldest.stop();
+  } catch {
+    /* already ended */
+  }
+  return true;
+}
 export interface ToneSink {
   resume(): Promise<void>;
   play(tone: Tone, volume: number): void;
@@ -157,7 +183,8 @@ export function browserToneSink(): ToneSink {
   return {
     resume: () => context.resume(),
     play(tone, volume) {
-      if (closed || context.state !== "running" || voices.size >= 6) return;
+      if (closed || context.state !== "running" || !claimVoice(voices, tone))
+        return;
       const now = context.currentTime,
         [node, out] = source(tone, now),
         gain = context.createGain();

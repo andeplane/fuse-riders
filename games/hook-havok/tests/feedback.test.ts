@@ -2,8 +2,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Feedback } from "../src/render/feedback.js";
 import { CLASSIC_TUNING, createWorld } from "../src/engine/world.js";
-import { toView } from "../src/engine/view.js";
-import { EffectsAudio, type ToneSink } from "../src/app/audio.js";
+import { toView, type WorldView } from "../src/engine/view.js";
+import {
+  EffectsAudio,
+  MAX_VOICES,
+  TONES,
+  claimVoice,
+  type ToneSink,
+} from "../src/app/audio.js";
+import { KnockoutLog, MAX_ROWS, SHOW_MS } from "../src/app/knockout-feed.js";
 test("power feedback belongs to its subject and never replays repeated events", () => {
   const f = new Feedback();
   const v = { ...toView(createWorld(CLASSIC_TUNING)), localId: "a" };
@@ -333,4 +340,143 @@ test("bomb cues are rate limited per cue so bounces and chains stay bounded", as
   audio.cue("jump");
   audio.cue("jump");
   assert.deepEqual(played, ["square", "square", "lowpass", "sine", "sine"]);
+});
+test("a full voice pool drops ordinary cues but a boom steals the oldest voice", () => {
+  const stopped: number[] = [];
+  const voices = new Set(
+    Array.from({ length: MAX_VOICES }, (_, i) => ({
+      stop: () => stopped.push(i),
+    })),
+  );
+  const [oldest, second] = [...voices];
+  assert.equal(claimVoice(voices, TONES.jump), false, "a jump waits");
+  assert.equal(voices.size, MAX_VOICES);
+  assert.equal(claimVoice(voices, TONES.boom), true, "a boom always plays");
+  assert.deepEqual(stopped, [0], "the oldest voice made room");
+  assert.equal(voices.has(oldest!), false);
+  assert.equal(voices.has(second!), true);
+  voices.clear();
+  assert.equal(claimVoice(voices, TONES.jump), true);
+  assert.deepEqual(stopped, [0]);
+});
+const bombView = (patch: Partial<WorldView> = {}): WorldView => ({
+  ...toView(createWorld({ ...CLASSIC_TUNING, bomb: "fuse" })),
+  localId: "b",
+  keepers: [],
+  ...patch,
+});
+test("wind-up, throw and blasted: the charge poses, a release follows through, a knockout is no throw", () => {
+  const f = new Feedback();
+  const idle = bombView({ grounded: true });
+  f.update(idle, 0);
+  const winding = { ...idle, tick: 3, charge: 0.5 };
+  f.update(winding, 50);
+  assert.equal(f.pose(winding, 60, false).state, "windup");
+  assert.equal(f.pose(winding, 60, false).frame, 8, "the raised arm");
+  const thrown = { ...winding, tick: 6, charge: 0 };
+  f.update(thrown, 100);
+  assert.ok(f.active().some((b) => b.kind === "throw"));
+  assert.equal(f.pose(thrown, 150, false).state, "throw");
+  assert.equal(f.pose(thrown, 150, false).frame, 7);
+  assert.notEqual(f.pose(thrown, 300, false).state, "throw", "180 ms only");
+  // Charging again and blasted mid-charge: flashed, never a throw.
+  const again = { ...thrown, tick: 9, charge: 0.3 };
+  f.update(again, 400);
+  const blasted = {
+    ...again,
+    tick: 12,
+    charge: 0,
+    respawn: 60,
+    deaths: 1,
+    feet: 1000,
+    knockouts: [{ tick: 11, by: "a", target: "b", x: 300, y: 780 }],
+  };
+  f.update(blasted, 450);
+  const kinds = f.active().map((b) => b.kind);
+  assert.equal(kinds.filter((k) => k === "throw").length, 1, "no new throw");
+  assert.ok(kinds.includes("blasted"));
+  assert.ok(!kinds.includes("vanish"), "blasted replaces the fall's vanish");
+  assert.equal(f.pose(blasted, 460, false).state, "respawn");
+  const flash = f.active().find((b) => b.kind === "blasted")!;
+  assert.deepEqual([flash.x, flash.y, flash.target], [300, 780, "b"]);
+  // Somebody else's knockout is not this keeper's.
+  const g = new Feedback();
+  g.update(idle, 0);
+  g.update(
+    {
+      ...idle,
+      tick: 3,
+      knockouts: [{ ...blasted.knockouts[0]!, target: "c" }],
+    },
+    50,
+  );
+  assert.ok(!g.active().some((b) => b.kind === "blasted"));
+});
+test("a remote keeper's feedback sees its own knockout once the room's list travels with it", () => {
+  // The peer view scene.ts builds: the peer's body, with the room's lists.
+  const body = bombView({ localId: undefined, knockouts: [] });
+  const room = [{ tick: 4, by: "a", target: "b", x: 500, y: 700 }];
+  const peer = (
+    patch: Partial<WorldView>,
+    knockouts: WorldView["knockouts"],
+  ) => ({
+    ...body,
+    ...patch,
+    localId: "b",
+    knockouts,
+  });
+  const f = new Feedback();
+  f.update(peer({}, []), 0);
+  f.update(peer({ tick: 6, respawn: 60, deaths: 1, feet: 1000 }, room), 50);
+  assert.ok(f.active().some((b) => b.kind === "blasted"));
+  // Without the room's list the peer only saw a fall.
+  const bare = new Feedback();
+  bare.update(peer({}, []), 0);
+  bare.update(peer({ tick: 6, respawn: 60, deaths: 1, feet: 1000 }, []), 50);
+  assert.deepEqual(
+    bare.active().map((b) => b.kind),
+    ["vanish"],
+  );
+});
+test("the knockout feed names new knockouts only, caps its rows, expires them and resets per round", () => {
+  const log = new KnockoutLog();
+  const ko = (tick: number, by: string, target: string) => ({
+    tick,
+    by,
+    target,
+  });
+  // Already in the state when the round is first seen: history, not news.
+  assert.deepEqual(log.update([ko(5, "a", "b")], 1, 0), []);
+  assert.equal(log.rows.length, 0);
+  const added = log.update([ko(5, "a", "b"), ko(9, "a", "a")], 1, 100);
+  assert.deepEqual(
+    added.map((r) => [r.by, r.target]),
+    [["a", "a"]],
+  );
+  assert.deepEqual(log.update([ko(9, "a", "a")], 1, 150), [], "shown once");
+  // Six at once: the newest four stay, newest first.
+  log.update(
+    [10, 11, 12, 13, 14, 15].map((t) => ko(t, "a", `k${t}`)),
+    1,
+    200,
+  );
+  assert.equal(log.rows.length, MAX_ROWS);
+  assert.deepEqual(
+    log.rows.map((r) => r.target),
+    ["k15", "k14", "k13", "k12"],
+  );
+  // Rows leave after their time on screen.
+  log.update([], 1, 200 + SHOW_MS);
+  assert.equal(log.rows.length, MAX_ROWS);
+  log.update([], 1, 201 + SHOW_MS);
+  assert.equal(log.rows.length, 0);
+  // A new round clears the rows and treats its standing events as history.
+  log.update([ko(20, "a", "b")], 1, 300 + SHOW_MS);
+  assert.equal(log.rows.length, 1);
+  assert.deepEqual(log.update([ko(20, "a", "b")], 2, 400 + SHOW_MS), []);
+  assert.equal(log.rows.length, 0);
+  assert.equal(log.update([ko(21, "b", "a")], 2, 500 + SHOW_MS).length, 1);
+  log.reset();
+  assert.equal(log.rows.length, 0);
+  assert.deepEqual(log.update([ko(21, "b", "a")], 2, 0), [], "history again");
 });
