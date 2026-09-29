@@ -1,5 +1,6 @@
 import { sweep } from "./collision.js";
 import { MAPS, type Platform } from "./maps.js";
+import { field, pull } from "./zones.js";
 import {
   BALL_RADII,
   S,
@@ -24,7 +25,11 @@ export function ricochet(
     [x, y - 100, w, 100],
     [x, y + h, w, 100],
   ].map(([px, py, pw, ph]) => [px! - r, py! - r, pw! + 2 * r, ph! + 2 * r]);
-  ball.vy = Math.min(12 * S, ball.vy + S / 8);
+  // Lift beams and the low-gravity wing pull on orbs too (12B); speed across stays fixed.
+  ball.vy = Math.min(
+    12 * S,
+    pull(ball.vy, field(world.tuning, ball.x, ball.y), S / 8),
+  );
   let remaining = 1;
   for (let i = 0; i < 4 && remaining > 0; i++) {
     const dx = Math.round(ball.vx * remaining),

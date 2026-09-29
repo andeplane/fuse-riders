@@ -16,6 +16,10 @@ export const POWER_PADS: Record<
     { kind: "lift", x: 460, y: 632 },
     { kind: "ward", x: 1140, y: 632 },
   ],
+  spire: [
+    { kind: "lift", x: 1920, y: 392 },
+    { kind: "ward", x: 340, y: 1072 },
+  ],
 };
 export interface PickupEvent {
   tick: number;

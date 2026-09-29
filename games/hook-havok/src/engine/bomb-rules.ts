@@ -39,6 +39,9 @@ export const REST_SPEED = 1.5,
   STILL_SPEED = 0.1;
 /** Terminal speed in units per tick (1800 units/s). */
 export const MAX_BOMB_SPEED = 30;
-/** Bombs this far below the arena fizzle; the ceiling keeps them in bounds. */
-export const BOMB_FLOOR = 940,
+/**
+ * Bombs this far below the arena's bottom fizzle (940 on a 900-tall map);
+ * the ceiling keeps them in bounds.
+ */
+export const BOMB_DROP = 40,
   BOMB_CEILING = -3000;

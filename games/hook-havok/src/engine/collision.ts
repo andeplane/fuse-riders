@@ -47,6 +47,7 @@ export function sweep(
 export function move(
   world: Pick<World, "x" | "feet" | "vx" | "vy" | "grounded">,
   platforms: readonly Platform[] = PLATFORMS,
+  width = WIDTH,
 ): void {
   let dx = world.vx,
     dy = world.vy;
@@ -66,8 +67,8 @@ export function move(
     if (hit.ny) world.vy = 0;
     if (hit.ny === -1) world.grounded = true;
   }
-  if (world.x < HALF || world.x > WIDTH * S - HALF) {
-    world.x = Math.max(HALF, Math.min(WIDTH * S - HALF, world.x));
+  if (world.x < HALF || world.x > width * S - HALF) {
+    world.x = Math.max(HALF, Math.min(width * S - HALF, world.x));
     world.vx = 0;
   }
 }
@@ -84,27 +85,67 @@ export function overlaps(
       feet - BODY < (py + h) * S,
   );
 }
-/** Player bodies only collide with top faces while crossing downward. Hooks and props retain solid sweeps. */
+/**
+ * Keeper movement. One-way ledges (`platforms`) only catch a body crossing
+ * their top face downward; solid blocks (12A: walls, pillars, ceilings) stop
+ * it on every face through the same swept slab test hooks and props use, so
+ * no speed tunnels through a block and a corner resolves to its top or bottom
+ * face. Up to four contacts per tick, earliest first; on a tie the block wins.
+ * Each contact leaves the body one subunit clear, so it never rests inside a
+ * block. With no blocks this is exactly the ledge-only solver of 10A.
+ */
 export function movePlayer(
   world: Pick<World, "x" | "feet" | "vx" | "vy" | "grounded">,
   platforms: readonly Platform[] = PLATFORMS,
+  blocks: readonly Platform[] = [],
+  width = WIDTH,
 ): void {
-  let first = Infinity;
-  if (world.vy > 0)
-    for (const [px, py, width] of platforms) {
-      const time = (py * S - world.feet) / world.vy;
-      if (time < 0 || time > 1 || time >= first) continue;
-      const x = world.x + world.vx * time;
-      if (x + HALF > px * S && x - HALF < (px + width) * S) first = time;
+  let dx = world.vx,
+    dy = world.vy,
+    landed = false;
+  for (let i = 0; i < 4 && (dx || dy); i++) {
+    let ledge = Infinity;
+    if (dy > 0)
+      for (const [px, py, w] of platforms) {
+        const time = (py * S - world.feet) / dy;
+        if (time < 0 || time > 1 || time >= ledge) continue;
+        const x = world.x + dx * time;
+        if (x + HALF > px * S && x - HALF < (px + w) * S) ledge = time;
+      }
+    const hit = blocks.length
+      ? sweep(world.x, world.feet, dx, dy, true, blocks)
+      : null;
+    if (hit && hit.time <= ledge) {
+      world.x += Math.round(dx * hit.time) + hit.nx;
+      world.feet += Math.round(dy * hit.time) + hit.ny;
+      dx = hit.nx ? 0 : Math.round(dx * (1 - hit.time));
+      dy = hit.ny ? 0 : Math.round(dy * (1 - hit.time));
+      if (hit.nx) world.vx = 0;
+      if (hit.ny) world.vy = 0;
+      if (hit.ny === -1) landed = true;
+      continue;
     }
-  world.x = Math.max(HALF, Math.min(WIDTH * S - HALF, world.x + world.vx));
-  if (world.x === HALF || world.x === WIDTH * S - HALF) world.vx = 0;
-  world.feet += Number.isFinite(first)
-    ? Math.round(world.vy * first) - 1
-    : world.vy;
+    if (Number.isFinite(ledge)) {
+      const step = Math.round(dx * ledge);
+      world.x += step;
+      world.feet += Math.round(dy * ledge) - 1;
+      dx -= step;
+      dy = 0;
+      world.vy = 0;
+      landed = true;
+      continue;
+    }
+    world.x += dx;
+    world.feet += dy;
+    break;
+  }
+  world.x = Math.max(HALF, Math.min(width * S - HALF, world.x));
+  if (world.x === HALF || world.x === width * S - HALF) world.vx = 0;
+  // Grounded only if still over a top after the whole tick's slide.
   world.grounded =
-    Number.isFinite(first) && supported(world.x, world.feet, platforms);
-  if (Number.isFinite(first)) world.vy = 0;
+    landed &&
+    (supported(world.x, world.feet, platforms) ||
+      supported(world.x, world.feet, blocks));
 }
 export function supported(
   x: number,

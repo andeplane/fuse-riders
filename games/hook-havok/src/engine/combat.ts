@@ -1,7 +1,6 @@
 import {
   BALL_RADII,
   BODY,
-  HEIGHT,
   S,
   createTarget,
   ballField,
@@ -169,8 +168,8 @@ export function stepCombat(
     } else {
       target.vy = Math.min(16 * S, target.vy + S / 2);
       if (target.grounded) target.vx = Math.round(target.vx * 0.94);
-      move(target, map.platforms);
-      if (target.feet - BODY > HEIGHT * S) {
+      move(target, map.platforms, map.width);
+      if (target.feet - BODY > map.height * S) {
         target.respawn = 30;
         target.vx = target.vy = 0;
         c.falls = Math.min(0xffffffff, c.falls + 1);
