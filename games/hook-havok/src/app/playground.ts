@@ -108,7 +108,7 @@ trials.innerHTML = `<label>Jump <select id="jump-mode" name="jumpMode" form="tun
 rulesPanel.after(trials);
 const trialHelp = document.createElement("span");
 trialHelp.textContent =
-  "Jump / Tether changes restart the shared trial. Double jump: one extra leap before landing. Spiked wire: balls split on contact and the shot ends; rivals and the brass target still need the tip.";
+  "Jump / Tether changes restart the shared trial. Double jump: one extra leap before landing. Spiked wire (default): the whole visible rope pops balls, retract included, and a pop ends the shot; rivals and the brass target still need the tip.";
 trials.append(trialHelp);
 const jumpMode = el<HTMLSelectElement>("jump-mode"),
   wireMode = el<HTMLSelectElement>("wire-mode"),

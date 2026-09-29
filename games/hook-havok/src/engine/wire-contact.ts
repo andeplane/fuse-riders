@@ -1,44 +1,22 @@
-import { sweep } from "./collision.js";
-import { MAPS } from "./maps.js";
 import { BODY, S, type World } from "./world.js";
 
+/**
+ * The lethal wire is the whole visible rope, chest to hook, in every phase
+ * the rope is drawn: flying, attached and retracting. Since 10A the rope
+ * passes through one-way ledges, so stone neither clips nor disables it.
+ * Presentation draws exactly this segment (`paintSpikes`).
+ */
 export function activeWire(
   owner: World,
 ): { x: number; y: number; endX: number; endY: number } | undefined {
   const h = owner.hook;
-  if (
-    owner.tuning.wire !== "spiked" ||
-    owner.respawn ||
-    !owner.input.fire ||
-    (h.phase !== "flying" && h.phase !== "attached")
-  )
+  if (owner.tuning.wire !== "spiked" || owner.respawn || h.phase === "ready")
     return;
   const sx = owner.x,
     sy = owner.feet - Math.round(BODY * 0.6);
-  if (
-    MAPS[owner.tuning.map].platforms.some(
-      ([x, y, w, height]) =>
-        sx > x * S && sx < (x + w) * S && sy > y * S && sy < (y + height) * S,
-    )
-  )
-    return;
-  let ex = h.x - sx,
-    ey = h.y - sy;
-  const obstruction = sweep(
-    sx,
-    sy,
-    ex,
-    ey,
-    false,
-    MAPS[owner.tuning.map].platforms,
-  );
-  if (obstruction) {
-    ex *= obstruction.time;
-    ey *= obstruction.time;
-  }
-  const length = Math.hypot(ex, ey);
-  if (length < S) return;
-  return { x: sx, y: sy, endX: sx + ex, endY: sy + ey };
+  // Shorter than one unit the renderer draws no rope either.
+  if (Math.hypot(h.x - sx, h.y - sy) < S) return;
+  return { x: sx, y: sy, endX: h.x, endY: h.y };
 }
 /** Moving ball centre against a closed capsule (wire spine plus its two endpoints). */
 export function wireContact(

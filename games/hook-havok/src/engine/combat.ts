@@ -7,6 +7,7 @@ import {
   ballField,
   ballSpeed,
   ballBounce,
+  readyHook,
   type Ball,
   type World,
 } from "./world.js";
@@ -143,6 +144,12 @@ export function strike(
   } else {
     const ball = c.balls.find((b) => b.id === id)!;
     splitBall(world, ball);
+    if (world.tuning.wire === "spiked") {
+      // A spiked rope is lethal while it retracts, so a pop ends the shot at
+      // once: the children never meet the same rope and nothing drawn is harmless.
+      Object.assign(h, readyHook());
+      return true;
+    }
   }
   h.phase = "retracting";
   h.life = 6;
@@ -199,8 +206,8 @@ export function stepCombat(
       c.hits = Math.min(0xffffffff, c.hits + 1);
       c.impact = { tick: world.tick, x: ball.x, y: ball.y };
       splitBall(world, ball);
-      owner.hook.phase = "retracting";
-      owner.hook.life = 6;
+      // One shot pops one orb: the rope is gone at once (see strike).
+      Object.assign(owner.hook, readyHook());
       return true;
     };
     if (world.tuning.experiment !== "ball") {

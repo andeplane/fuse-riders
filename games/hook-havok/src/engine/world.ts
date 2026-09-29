@@ -1,6 +1,6 @@
 import { MAPS, type MapId } from "./maps.js";
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-10";
+export const RULES = "hook-havok-11";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
@@ -28,7 +28,7 @@ export interface Tuning {
 export const DEFAULT_TUNING: Tuning = {
   powerUps: "off",
   jumpMode: "double",
-  wire: "tip",
+  wire: "spiked",
   map: "crossroads",
   rules: "free",
   experiment: "ricochet",
@@ -40,9 +40,10 @@ export const DEFAULT_TUNING: Tuning = {
   pull: 850,
   range: 650,
 };
-/** The pre-10A trial defaults: belfry, no balls, single jump. Fixtures pin it. */
+/** The pre-10A trial defaults: belfry, no balls, single jump, tip-only hook. Fixtures pin it. */
 export const CLASSIC_TUNING: Tuning = {
   ...DEFAULT_TUNING,
+  wire: "tip",
   jumpMode: "single",
   map: "belfry",
   experiment: "movement",

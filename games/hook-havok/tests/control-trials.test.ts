@@ -161,7 +161,7 @@ function armed(): World {
   };
   return w;
 }
-test("wire midpoint splits without tip contact, consumes one shot and never cascades to children", () => {
+test("wire midpoint splits without tip contact, a pop ends the shot and never cascades to children", () => {
   const w = armed();
   Object.assign(w.combat.balls[0]!, { x: 910 * S, y: 750 * S });
   assert.ok(Math.abs(w.hook.y - w.combat.balls[0]!.y) > 40 * S);
@@ -171,35 +171,83 @@ test("wire midpoint splits without tip contact, consumes one shot and never casc
     w.combat.balls.map((b) => b.id),
     [2, 3],
   );
-  assert.equal(w.hook.phase, "retracting");
+  // One child spawns 16 units from the rope; the rope is gone, so it survives.
+  assert.equal(w.hook.phase, "ready");
+  assert.equal(activeWire(w), undefined);
   stepCombat(w);
   assert.equal(w.combat.hits, 1);
   assert.ok(decodeWorld(w));
 });
-test("capsule detects crossing even when both endpoints miss, and blocked/inactive wire cannot hit", () => {
+test("the whole visible rope is the wire in every phase: retract, through ledges, hand in stone", () => {
   const w = armed();
   const t = wireContact(900 * S, 740 * S, 100 * S, 0, 14 * S, w);
   assert.ok(t !== undefined && t > 0 && t < 1);
-  for (const phase of ["ready", "retracting"] as const) {
-    w.hook.phase = phase;
-    assert.equal(wireContact(950 * S, 740 * S, 0, 0, 14 * S, w), undefined);
-  }
-  w.hook.phase = "flying";
+  w.hook.phase = "ready";
+  assert.equal(wireContact(950 * S, 740 * S, 0, 0, 14 * S, w), undefined);
+  // A released hook retracts with its spikes still out.
+  Object.assign(w.hook, { phase: "retracting", life: 4 });
   w.input.fire = false;
-  assert.equal(activeWire(w), undefined);
-  w.input.fire = true;
+  assert.deepEqual(activeWire(w), {
+    x: 950 * S,
+    y: w.feet - Math.round(0.6 * 52 * S),
+    endX: w.hook.x,
+    endY: w.hook.y,
+  });
+  assert.equal(wireContact(950 * S, 740 * S, 0, 0, 14 * S, w), 0);
   w.respawn = 1;
   assert.equal(activeWire(w), undefined);
   w.respawn = 0;
+  w.tuning = { ...w.tuning, wire: "tip" };
+  assert.equal(activeWire(w), undefined);
+  w.tuning = { ...w.tuning, wire: "spiked" };
+  // The rope passes through the lower-middle ledge (y 610–638) to the hook.
+  w.hook.phase = "attached";
   w.x = 700 * S;
   w.feet = 700 * S;
   w.hook.x = 700 * S;
   w.hook.y = 400 * S;
-  assert.ok(
-    activeWire(w)!.endY >= 637 * S,
-    "wire stops at underside of lower ledge",
-  );
-  assert.equal(wireContact(700 * S, 500 * S, 0, 0, 14 * S, w), undefined);
+  assert.equal(activeWire(w)!.endY, 400 * S, "not clipped at the ledge");
+  assert.equal(wireContact(700 * S, 500 * S, 0, 0, 14 * S, w), 0);
+  // Chest inside that ledge: the rope is drawn, so it is lethal.
+  w.feet = 620 * S + Math.round(0.6 * 52 * S);
+  assert.equal(activeWire(w)!.y, 620 * S);
+  assert.equal(wireContact(700 * S, 560 * S, 0, 0, 14 * S, w), 0);
+  // Degenerate rope shorter than a unit: nothing drawn, nothing lethal.
+  w.hook.x = w.x;
+  w.hook.y = 620 * S + 500;
+  assert.equal(activeWire(w), undefined);
+});
+test("releasing fire leaves a lethal retracting rope; tip mode keeps it harmless", () => {
+  // The orb spawns 10 units beside the rope.
+  const w = armed();
+  w.input.fire = false;
+  step(w);
+  assert.equal(w.combat.hits, 1, "the retracting rope popped the orb");
+  assert.equal(w.hook.phase, "ready");
+  assert.ok(decodeWorld(w));
+  const tip = armed();
+  tip.tuning = { ...tip.tuning, wire: "tip" };
+  tip.input.fire = false;
+  step(tip);
+  assert.equal(tip.combat.hits, 0);
+  assert.equal(tip.hook.phase, "retracting");
+});
+test("a tip pop ends a spiked shot at once but retracts a tip shot", () => {
+  for (const wire of ["spiked", "tip"] as const) {
+    const w = createWorld({ ...CLASSIC_TUNING, experiment: "ball", wire });
+    w.tick = 1;
+    const ball = w.combat.balls[0]!;
+    // Chest level with the orb, shooting straight at it.
+    w.x = ball.x - 200 * S;
+    w.feet = ball.y + Math.round(0.6 * 52 * S);
+    w.grounded = false;
+    w.input = { ...NEUTRAL, fire: true, aimX: ball.x / S, aimY: ball.y / S };
+    for (let i = 0; i < 12 && !w.combat.hits; i++) step(w);
+    assert.equal(w.combat.hits, 1, wire);
+    assert.equal(w.hook.phase, wire === "spiked" ? "ready" : "retracting");
+    for (let i = 0; i < 8; i++) step(w);
+    assert.equal(w.combat.hits, 1, `${wire}: children survive the shot`);
+  }
 });
 test("two wires have stable owner priority and one family advances once", () => {
   const a = armed(),
@@ -207,10 +255,14 @@ test("two wires have stable owner priority and one family advances once", () => 
   Object.assign(a.combat.balls[0]!, { x: 910 * S, y: 750 * S });
   b.combat = a.combat;
   stepCombat(a, [a, b]);
-  assert.equal(a.hook.phase, "retracting");
+  assert.equal(a.hook.phase, "ready");
   assert.equal(b.hook.phase, "flying");
   assert.equal(a.combat.hits, 1);
   assert.equal(a.combat.balls.length, 2);
+});
+test("spiked is the default tether; the classic fixtures keep the tip", () => {
+  assert.equal(createWorld().tuning.wire, "spiked");
+  assert.equal(CLASSIC_TUNING.wire, "tip");
 });
 test("air jump and spiked-wire state replay through repeated validated checkpoints", () => {
   const a = createWorld({
