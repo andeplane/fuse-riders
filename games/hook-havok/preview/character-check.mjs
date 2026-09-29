@@ -38,7 +38,7 @@ try {
       document.querySelector("#scene").dataset.keepers,
     );
     return (
-      keepers.length === 2 && keepers.every((keeper) => keeper.shield === 0)
+      keepers.length === 2 && keepers.every((keeper) => keeper.spawnGuard === 0)
     );
   });
   // Since the room lounge and HUD (8B) the arena starts below a 1200 px

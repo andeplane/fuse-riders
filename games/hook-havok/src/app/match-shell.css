@@ -91,6 +91,24 @@
 #development-workshop .controls {
   margin: 16px 0;
 }
+/* 11D: the power-up pool, one box per kind in its pad colour. */
+.power-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.power-pool label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  color: var(--power-color);
+  font-weight: 600;
+}
+#power-help {
+  flex-basis: 100%;
+  color: #aaaabd;
+}
 #development-workshop #start {
   display: none;
 }
@@ -446,6 +464,40 @@
 .keeper-card .bomb-ring[data-state="charging"] {
   background: #fff2c4;
   filter: drop-shadow(0 0 6px #fff2c4);
+}
+/* 11D: the active power-up on each keeper card, and the time it has left. */
+.keeper-card .power-chip {
+  position: absolute;
+  top: 3px;
+  right: 26px;
+  width: 20px;
+  color: var(--power-color);
+}
+.keeper-card .power-chip[hidden] {
+  display: none;
+}
+.keeper-card .power-chip svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 4px var(--power-color));
+}
+.keeper-card .power-chip i {
+  display: block;
+  height: 3px;
+  margin-top: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--power-color) calc(var(--power-left, 0) * 100%),
+    #ffffff26 0
+  );
 }
 /* Knockout feed: both keepers of each bomb knockout, briefly. */
 #knockout-feed {

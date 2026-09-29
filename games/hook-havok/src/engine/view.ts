@@ -5,10 +5,18 @@ import { bombArc } from "./bomb.js";
 import {
   BLAST_RADIUS,
   BOMB_RADIUS,
+  BOMBLET_BLAST,
   CHARGE_TICKS,
   COOLDOWN_TICKS,
   FUSE_TICKS,
 } from "./bomb-rules.js";
+import {
+  CLUSTER_CHARGES,
+  POWER_KINDS,
+  powerTicks,
+  type PowerKind,
+} from "./power-rules.js";
+export { POWER_KINDS, type PowerKind };
 import {
   createContest,
   COUNTDOWN_TICKS,
@@ -18,6 +26,7 @@ import {
 export interface BombView {
   id: number;
   owner: string;
+  kind: "plain" | "cluster" | "bomblet";
   x: number;
   y: number;
   /** Units per second. */
@@ -25,13 +34,27 @@ export interface BombView {
   vy: number;
   /** Ticks left on the fuse. */
   fuse: number;
+  /** Blast radius, world units. */
+  blast: number;
 }
 export interface BlastView {
   tick: number;
   id: number;
   owner: string;
+  kind: BombView["kind"];
   x: number;
   y: number;
+  /** World units. */
+  radius: number;
+}
+/** A keeper's active power-up for the HUD; kind "" when none. */
+export interface PowerView {
+  kind: PowerKind | "";
+  /** Time left, 1 at pickup down to 0. */
+  left: number;
+  seconds: number;
+  /** Cluster bomb throws left, 0–3. */
+  charges: number;
 }
 export interface KnockoutView {
   tick: number;
@@ -44,9 +67,26 @@ export interface KnockoutView {
 export const BOMB_VIEW = {
   radius: BOMB_RADIUS,
   blast: BLAST_RADIUS,
+  bomblet: BOMBLET_BLAST,
   fuse: FUSE_TICKS,
   cooldown: COOLDOWN_TICKS,
 } as const;
+/** Power-up rule values presentation draws. */
+export const POWER_VIEW = { clusterCharges: CLUSTER_CHARGES } as const;
+export function powerView(p: {
+  kind: PowerKind | "";
+  ticks: number;
+  charges: number;
+}): PowerView {
+  return p.kind
+    ? {
+        kind: p.kind,
+        left: p.ticks / powerTicks(p.kind),
+        seconds: Math.ceil(p.ticks / 60),
+        charges: p.charges,
+      }
+    : { kind: "", left: 0, seconds: 0, charges: 0 };
+}
 export interface WorldView {
   bombMode: World["tuning"]["bomb"];
   /** Charge held by this keeper, 0–1 (full at 0.6 s). */
@@ -55,15 +95,24 @@ export interface WorldView {
   bombs: BombView[];
   blasts: BlastView[];
   knockouts: KnockoutView[];
-  pickups: { kind: "lift" | "ward"; x: number; y: number; cooldown: number }[];
+  /** Kinds the room's pads can draw; empty when power-ups are off. */
+  powers: readonly PowerKind[];
+  /** Pads; kind is "" while one recharges (cooldown in seconds). */
+  pickups: { kind: PowerKind | ""; x: number; y: number; cooldown: number }[];
   pickupEvents: {
     tick: number;
     by: string;
-    kind: "lift" | "ward";
+    kind: PowerKind;
     x: number;
     y: number;
   }[];
+  /** Shields that absorbed a blast, at the keeper's chest. */
+  shieldPops: { tick: number; target: string; x: number; y: number }[];
   airJump: boolean;
+  /** Power-granted air actions left on top of the air jump. */
+  bonusJumps: number;
+  /** Dash bump ticks left; > 0 mid-dash. */
+  dash: number;
   doubleJump: boolean;
   spikedWire: boolean;
   wire: { x: number; y: number; endX: number; endY: number } | null;
@@ -127,14 +176,17 @@ export interface KeeperView {
     falls: number;
     fate: "" | "fall" | "bomb" | "self";
     by: string;
+    /** Power-ups collected this round. */
+    powerUps: number;
   };
-  ward: number;
+  power: PowerView;
   playing: boolean;
   id: string;
   slot: number;
   name: string;
   connected: boolean;
-  shield: number;
+  /** Spawn protection ticks left. */
+  spawnGuard: number;
   hits: number;
   body: WorldView;
 }
@@ -147,8 +199,12 @@ export function toView(world: World): WorldView {
     bombs: [],
     blasts: [],
     knockouts: [],
+    powers: [],
     pickups: [],
     pickupEvents: [],
+    shieldPops: [],
+    bonusJumps: world.bonusJumps,
+    dash: world.dash,
     wire: wire
       ? {
           x: wire.x / S,

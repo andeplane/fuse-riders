@@ -25,8 +25,19 @@ export const KO_RESPAWN = 60,
 /** Fall returns keep their original timing. */
 export const FALL_RESPAWN = 30,
   FALL_SHIELD = 30;
-/** Hard cap on live bombs: five keepers, one each. */
-export const MAX_BOMBS = 5;
+/**
+ * Hard cap on live bombs: five keepers, three bomblets each. A keeper's
+ * bomblets always burn out before their cooldown lets them throw again, so the
+ * rules never reach it; a split beyond it keeps only the bomblets that fit.
+ */
+export const MAX_BOMBS = 15;
+/** Cluster bomb (11D): three bomblets on the first contact, 0.6× the blast, a 0.6 s fuse. */
+export const BOMBLETS = 3,
+  BOMBLET_BLAST = 48,
+  BOMBLET_FUSE = 36;
+/** Bomblet spread sideways and pop upward from the bounce, units per tick. */
+export const BOMBLET_SPREAD = 3,
+  BOMBLET_POP = 5;
 /** Blast and knockout events stay in the state this long for presentation. */
 export const EVENT_TICKS = 30,
   MAX_EVENTS = 8;

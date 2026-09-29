@@ -57,8 +57,9 @@ export const mouseAims = (k: Pick<KeyboardInput, "mode" | "aimSource">) =>
 /**
  * A touch state applied to the input. The hook's aim is captured on its
  * press, like the mouse hook; the bomb's on its release, because the engine
- * reads a throw's aim on the release tick. Both clip to the aim contract
- * from the keeper's chest.
+ * reads a throw's aim on the release tick, and again on a jump press, which is
+ * when a Dash bump reads it. Both follow the aim pad's last direction and clip
+ * to the aim contract from the keeper's chest.
  */
 export function touchInput(
   input: Input,
@@ -75,7 +76,7 @@ export function touchInput(
   };
   if (state.fire && !input.fire)
     Object.assign(next, touchAim(chest.x, chest.y, state.direction));
-  if (input.bomb && !state.bomb)
+  if ((input.bomb && !state.bomb) || (state.jump && !input.jump))
     Object.assign(
       next,
       touchAim(chest.x, chest.y, bombDirection(state, chest.facing)),

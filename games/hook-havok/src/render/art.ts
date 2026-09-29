@@ -156,8 +156,50 @@ export function paintBurst(
   const ground = kind === "land" || kind === "jump";
   const impact = kind === "impact" || kind === "pop" || kind === "blasted";
   if (kind === "power") {
-    g.lineStyle(3, 0xa1f5d1, alpha).strokeCircle(x, y - 28, 18 + age * 40);
+    const color = burst.color ?? 0xa1f5d1;
+    g.lineStyle(3, color, alpha).strokeCircle(x, y - 28, 18 + age * 40);
     g.lineStyle(1, 0xffefbc, alpha).strokeCircle(x, y - 28, 12 + age * 24);
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3 + 0.4,
+        r = 20 + age * 44;
+      g.fillStyle(color, alpha).fillCircle(
+        x + Math.cos(a) * r,
+        y - 28 + Math.sin(a) * r,
+        2.5,
+      );
+    }
+    return;
+  }
+  if (kind === "expire") {
+    // A power running out: its colour shrinks away.
+    g.lineStyle(2, burst.color ?? 0xb9ded7, alpha * 0.8).strokeCircle(
+      x,
+      y - 76,
+      14 * (1 - age) + 2,
+    );
+    return;
+  }
+  if (kind === "shield") {
+    // The bubble bursts into arcs flung outward.
+    const color = burst.color ?? 0x89d9ff,
+      r = 30 + age * 34;
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3 + age;
+      g.lineStyle(3, color, alpha);
+      g.beginPath();
+      g.arc(x, y - 28, r, a, a + 0.6);
+      g.strokePath();
+    }
+    g.fillStyle(0xffffff, alpha * 0.25).fillCircle(x, y - 28, 30 * (1 - age));
+    return;
+  }
+  if (kind === "dash") {
+    g.lineStyle(3, burst.color ?? 0xffe45c, alpha).strokeEllipse(
+      x,
+      y - 28,
+      30 + age * 50,
+      50 + age * 30,
+    );
     return;
   }
   if (kind === "air-jump") {

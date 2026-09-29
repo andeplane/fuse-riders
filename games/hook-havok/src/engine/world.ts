@@ -1,6 +1,7 @@
 import { MAPS, type MapId } from "./maps.js";
+import { ALL_POWERS, DASH_KEEP } from "./power-rules.js";
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-12";
+export const RULES = "hook-havok-14";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
@@ -14,7 +15,8 @@ export const PLATFORMS = MAPS.belfry.platforms;
 export interface Tuning {
   /** Thrown bomb trial (11B): off, a timed fuse, or impact on a rival. */
   bomb: "off" | "fuse" | "impact";
-  powerUps: "off" | "on";
+  /** Power-up pool (11D): a bit per kind in POWER_KINDS order, 0 off, ALL_POWERS all. */
+  powerUps: number;
   jumpMode: "single" | "double";
   wire: "tip" | "spiked";
   map: MapId;
@@ -29,7 +31,7 @@ export interface Tuning {
 }
 export const DEFAULT_TUNING: Tuning = {
   bomb: "fuse",
-  powerUps: "off",
+  powerUps: ALL_POWERS,
   jumpMode: "double",
   wire: "spiked",
   map: "crossroads",
@@ -43,10 +45,11 @@ export const DEFAULT_TUNING: Tuning = {
   pull: 850,
   range: 650,
 };
-/** The pre-10A trial defaults: belfry, no balls, single jump, tip-only hook, no bombs. Fixtures pin it. */
+/** The pre-10A trial defaults: belfry, no balls, single jump, tip-only hook, no bombs or power-ups. Fixtures pin it. */
 export const CLASSIC_TUNING: Tuning = {
   ...DEFAULT_TUNING,
   bomb: "off",
+  powerUps: 0,
   wire: "tip",
   jumpMode: "single",
   map: "belfry",
@@ -85,6 +88,10 @@ export interface Hook {
 }
 export interface World {
   airJump: boolean;
+  /** Air actions a power adds on top of the air jump (Triple jump, Dash bump). */
+  bonusJumps: number;
+  /** Ticks left in a Dash bump; the dash holds its velocity until 0. */
+  dash: number;
   slot: number;
   combat: Combat;
   tick: number;
@@ -195,6 +202,8 @@ export function createWorld(tuning: Tuning = DEFAULT_TUNING, slot = 0): World {
   return {
     slot,
     airJump: tuning.jumpMode === "double",
+    bonusJumps: 0,
+    dash: 0,
     combat: createCombat(tuning.experiment, tuning.map),
     tick: 0,
     x: x * S,
@@ -230,4 +239,13 @@ export function cancel(world: World): void {
   // A cancelled charge is dropped, never thrown.
   world.charge = 0;
   world.hook = readyHook();
+  world.bonusJumps = 0;
+  endDash(world);
+}
+/** A dash ends keeping part of its speed; nothing happens outside a dash. */
+export function endDash(world: World): void {
+  if (!world.dash) return;
+  world.dash = 0;
+  world.vx = Math.round(world.vx * DASH_KEEP);
+  world.vy = Math.round(world.vy * DASH_KEEP);
 }
