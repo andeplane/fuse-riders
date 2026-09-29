@@ -11,7 +11,9 @@ test("power feedback belongs to its subject and never replays repeated events", 
   const pickup = {
     ...v,
     tick: 3,
-    pickupEvents: [{ tick: 2, by: "b", kind: "ward" as const, x: 130, y: 782 }],
+    pickupEvents: [
+      { tick: 2, by: "b", kind: "shield" as const, x: 130, y: 782 },
+    ],
   };
   assert.deepEqual(f.update(pickup, 50), []);
   const own = {
@@ -22,6 +24,97 @@ test("power feedback belongs to its subject and never replays repeated events", 
   assert.deepEqual(f.update(own, 100), ["power"]);
   assert.deepEqual(f.update(own, 110), []);
   assert.deepEqual(f.update({ ...own, tick: 9 }, 150), []);
+});
+test("power-ups cue their holder once: expiry, a Shield pop at its place, a dash and a bonus air jump", () => {
+  const base = toView(createWorld(CLASSIC_TUNING));
+  const holder = (id: string, kind: "" | "shield" | "triple" | "dash") => ({
+    id,
+    slot: id === "a" ? 0 : 1,
+    name: id,
+    connected: true,
+    playing: true,
+    spawnGuard: 0,
+    power: { kind, left: kind ? 0.5 : 0, seconds: kind ? 4 : 0, charges: 0 },
+    hits: 0,
+    cooldown: 0,
+    tally: {
+      thrown: 0,
+      knockouts: 0,
+      selfKnockouts: 0,
+      bombed: 0,
+      falls: 0,
+      fate: "" as const,
+      by: "",
+      powerUps: 1,
+    },
+    body: base,
+  });
+  const view = (
+    tick: number,
+    a: "" | "shield" | "triple" | "dash",
+    extra = {},
+  ) => ({
+    ...base,
+    tick,
+    localId: "a",
+    keepers: [holder("a", a), holder("b", "shield")],
+    ...extra,
+  });
+  const f = new Feedback();
+  f.update(view(1, "triple"), 0);
+  assert.deepEqual(f.update(view(2, ""), 20), ["expire"], "ran out");
+  assert.deepEqual(f.update(view(3, ""), 40), [], "once");
+  // A rival's pop is theirs; our own pops where it happened, not as an expiry.
+  assert.deepEqual(
+    f.update(
+      view(4, "shield", { shieldPops: [{ tick: 4, target: "b", x: 1, y: 2 }] }),
+      60,
+    ),
+    [],
+    "a rival's pop",
+  );
+  const popped = f.update(
+    view(5, "", { shieldPops: [{ tick: 5, target: "a", x: 300, y: 700 }] }),
+    80,
+  );
+  assert.deepEqual(popped, ["shield"]);
+  assert.ok(
+    f.active().some((b) => b.kind === "shield" && b.x === 300 && b.y === 728),
+  );
+  // Dash bump: a dash, not a jump; Triple jump's bonus air jump is a jump.
+  const d = new Feedback();
+  d.update({ ...view(1, "dash"), grounded: false, airJump: true }, 0);
+  assert.deepEqual(
+    d.update(
+      {
+        ...view(2, "dash"),
+        grounded: false,
+        airJump: false,
+        dash: 12,
+        vy: -300,
+      },
+      20,
+    ),
+    ["dash"],
+  );
+  const t = new Feedback();
+  t.update(
+    { ...view(1, "triple"), grounded: false, airJump: false, bonusJumps: 1 },
+    0,
+  );
+  assert.deepEqual(
+    t.update(
+      {
+        ...view(2, "triple"),
+        grounded: false,
+        airJump: false,
+        bonusJumps: 0,
+        vy: -700,
+      },
+      20,
+    ),
+    ["jump"],
+  );
 });
 test("keeper action poses override running and never change the view", () => {
   const f = new Feedback();
@@ -181,8 +274,8 @@ test("directional hit reaction belongs only to the victim and does not replay", 
     name: id,
     connected: true,
     playing: true,
-    shield: 0,
-    ward: 0,
+    spawnGuard: 0,
+    power: { kind: "" as const, left: 0, seconds: 0, charges: 0 },
     hits: 0,
     cooldown: 0,
     tally: {
@@ -193,6 +286,7 @@ test("directional hit reaction belongs only to the victim and does not replay", 
       falls: 0,
       fate: "" as const,
       by: "",
+      powerUps: 0,
     },
     body: { ...base, vx: id === "b" ? -400 : 0, vy: -200 },
   }));

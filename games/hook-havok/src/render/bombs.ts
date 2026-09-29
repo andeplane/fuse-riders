@@ -52,7 +52,11 @@ interface Fx {
   at: number;
   color: number;
   seed: number;
+  /** Blast radius, world units. */
+  radius: number;
 }
+/** Cluster bomb (11D) orange, for its band of bomblets and their rims. */
+const CLUSTER = 0xffa05a;
 const FLASH = 140,
   WAVE = 420,
   DEBRIS = 800,
@@ -203,6 +207,8 @@ export function createBombs(scene: Phaser.Scene): Bombs {
       for (const b of world.bombs) {
         live.add(b.id);
         let t = tracked.get(b.id);
+        const small = b.kind === "bomblet",
+          radius = BOMB_VIEW.radius * (small ? 0.6 : 1);
         if (!t) {
           t = {
             x: b.x,
@@ -214,9 +220,10 @@ export function createBombs(scene: Phaser.Scene): Bombs {
             trail: [],
           };
           tracked.set(b.id, t);
-          if (primed) cues.push("hiss");
+          // A throw hisses; a split clinks as the bomblets fly apart.
+          if (primed) cues.push(small ? "clink" : "hiss");
         }
-        if (!reduced) t.spin += (b.vx / BOMB_VIEW.radius) * (dt / 1000);
+        if (!reduced) t.spin += (b.vx / radius) * (dt / 1000);
         // A bounce flips a falling bomb upward: squash, and a clink when hard.
         if (t.vy > 120 && b.vy < 0) {
           t.squash = ms;
@@ -241,20 +248,33 @@ export function createBombs(scene: Phaser.Scene): Bombs {
         const squash =
           reduced || t.squash < 0 ? 0 : Math.max(0, 1 - (ms - t.squash) / 130);
         // Blink faster over the last half second, with the blast area in red.
-        const late = b.fuse <= 30,
+        const warn = small ? 18 : 30,
+          late = b.fuse <= warn,
           period = late ? Math.max(2, Math.round(b.fuse / 5)) : 12,
           lit = late && Math.floor(b.fuse / period) % 2 === 0 ? 1 : 0;
-        const tint = color(b.owner);
+        const tint = small ? CLUSTER : color(b.owner);
         const { fx, fy } = paintBomb(
           b.x,
           b.y,
-          BOMB_VIEW.radius,
+          radius,
           t.spin,
           squash,
           tint,
           lit,
           1,
         );
+        if (b.kind === "cluster")
+          // Three bomblets riding the rim: this one splits when it lands.
+          for (let i = 0; i < 3; i++) {
+            const a = t.spin + (i * Math.PI * 2) / 3;
+            body
+              .fillStyle(CLUSTER, 1)
+              .fillCircle(
+                b.x + Math.cos(a) * (radius + 3),
+                b.y + Math.sin(a) * (radius + 3),
+                3,
+              );
+          }
         const spark = reduced
           ? 1
           : 0.7 + boil(Math.floor(ms / 40), b.id % 97) * 0.3;
@@ -273,21 +293,19 @@ export function createBombs(scene: Phaser.Scene): Bombs {
               );
           }
         if (world.bombMode === "impact")
-          body
-            .lineStyle(1.5, 0xffe08a, 0.8)
-            .strokeCircle(b.x, b.y, BOMB_VIEW.radius + 5);
+          body.lineStyle(1.5, 0xffe08a, 0.8).strokeCircle(b.x, b.y, radius + 5);
         if (late) {
-          const strength = 1 - b.fuse / 30;
+          const strength = 1 - b.fuse / warn;
           body
             .lineStyle(
               2 + strength * 2,
               0xff3b30,
               0.35 + 0.45 * lit + strength * 0.2,
             )
-            .strokeCircle(b.x, b.y, BOMB_VIEW.blast);
+            .strokeCircle(b.x, b.y, b.blast);
           body
             .fillStyle(0xff3b30, 0.05 + 0.08 * strength)
-            .fillCircle(b.x, b.y, BOMB_VIEW.blast);
+            .fillCircle(b.x, b.y, b.blast);
         }
       }
       for (const id of tracked.keys()) if (!live.has(id)) tracked.delete(id);
@@ -302,6 +320,7 @@ export function createBombs(scene: Phaser.Scene): Bombs {
           at: ms,
           color: color(e.owner),
           seed: e.id % 997,
+          radius: e.radius,
         };
         blasts.push(fx);
         cues.push("boom");
@@ -348,14 +367,14 @@ export function createBombs(scene: Phaser.Scene): Bombs {
           const f = 1 - age / FLASH;
           glow
             .fillStyle(0xffffff, 0.9 * f)
-            .fillCircle(fx.x, fx.y, BOMB_VIEW.blast * (0.6 + 0.5 * (1 - f)));
+            .fillCircle(fx.x, fx.y, fx.radius * (0.6 + 0.5 * (1 - f)));
           glow
             .fillStyle(0xffb347, 0.6 * f)
-            .fillCircle(fx.x, fx.y, BOMB_VIEW.blast * 1.2);
+            .fillCircle(fx.x, fx.y, fx.radius * 1.2);
         }
         if (age < WAVE) {
           const w = age / WAVE,
-            r = 16 + (BOMB_VIEW.blast + 26) * Math.sqrt(w);
+            r = 16 + (fx.radius + 26) * Math.sqrt(w);
           body
             .lineStyle(7 * (1 - w) + 1.5, 0xfff2d6, 1 - w)
             .strokeCircle(fx.x, fx.y, r);

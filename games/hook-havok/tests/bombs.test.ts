@@ -51,7 +51,7 @@ function arena(n = 1, tuning: Tuning = BOMBS): Arena {
     for (let i = 0; i < COUNTDOWN_TICKS; i++) stepArena(a);
     assert.equal(a.contest.phase, "active");
   }
-  for (const k of a.keepers) k.shield = 0;
+  for (const k of a.keepers) k.spawnGuard = 0;
   return a;
 }
 const keeper = (a: Arena, id: string) => a.keepers.find((k) => k.id === id)!;
@@ -86,7 +86,8 @@ function throwBomb(
 /** A bomb placed by a test, with the owner's cooldown it would have. */
 function plant(a: Arena, owner: Keeper, x: number, y: number, fuse = 1): Bomb {
   const bomb: Bomb = {
-    id: a.tick * 8 + owner.slot,
+    id: a.tick * 32 + owner.slot * 4,
+    kind: "plain",
     owner: owner.id,
     x: Math.round(x * S),
     y: Math.round(y * S),
@@ -226,12 +227,12 @@ test("the fuse runs 1.5 s from the throw; the blast knocks out every body in rea
   // One second out, then one second of protection.
   press(a, blue, {}, KO_RESPAWN);
   assert.equal(blue.world.respawn, 0);
-  assert.equal(blue.shield, KO_SHIELD);
+  assert.equal(blue.spawnGuard, KO_SHIELD);
   assert.equal(blue.world.feet, 810 * S - 1, "back at the spawn");
   // A fall still returns after half a second with half a second of cover.
   Object.assign(green.world, { x: 800 * S, feet: 954 * S, grounded: false });
   press(a, green, {}, 31);
-  assert.equal(green.shield, 30);
+  assert.equal(green.spawnGuard, 30);
   assert.equal(green.bomb.fate, "fall");
 });
 test("spawn protection shields a keeper from a blast", () => {
@@ -239,7 +240,7 @@ test("spawn protection shields a keeper from a blast", () => {
   const [amber, blue] = a.keepers as [Keeper, Keeper];
   stand(amber, 300);
   stand(blue, 330);
-  blue.shield = 5;
+  blue.spawnGuard = 5;
   plant(a, amber, 330, 790);
   stepArena(a);
   assert.equal(amber.world.respawn, KO_RESPAWN);
@@ -288,8 +289,9 @@ test("cooldown: 2.5 s from the release, one bomb out per keeper, and a held butt
   const [amber, blue] = b.keepers as [Keeper, Keeper];
   for (let i = 0; i < MAX_BOMBS; i++)
     b.bombs.push({
-      id: i,
+      id: i * 4,
       owner: `ghost${i}`,
+      kind: "plain",
       x: 800 * S,
       y: 100 * S,
       vx: 0,
@@ -495,7 +497,7 @@ interface Encoded {
   blasts: unknown[];
   knockouts: unknown[];
   keepers: {
-    shield: number;
+    spawnGuard: number;
     bomb?: Record<string, unknown>;
     body: { deaths: number; charge: number; input: Input };
   }[];
@@ -522,17 +524,17 @@ test("checkpoints round-trip bombs and reject corrupt or out-of-bounds bomb stat
     ["below the floor", (s) => (s.bombs[0]!.y = 941 * S)],
     ["too fast", (s) => (s.bombs[0]!.vx = 31 * S)],
     ["unknown owner", (s) => (s.bombs[0]!.owner = "stranger")],
-    ["future id", (s) => (s.bombs[0]!.id = s.tick * 8 + 8)],
+    ["future id", (s) => (s.bombs[0]!.id = s.tick * 32 + 32)],
     [
       "two bombs, one owner",
-      (s) => s.bombs.push({ ...s.bombs[0]!, id: s.bombs[0]!.id + 1 }),
+      (s) => s.bombs.push({ ...s.bombs[0]!, id: s.bombs[0]!.id + 4 }),
     ],
     [
       "too many bombs",
       (s) =>
         (s.bombs = Array.from({ length: MAX_BOMBS + 1 }, (_, i) => ({
           ...s.bombs[0]!,
-          id: i,
+          id: i * 4,
           owner: `k${i}`,
         }))),
     ],
@@ -577,11 +579,18 @@ test("checkpoints round-trip bombs and reject corrupt or out-of-bounds bomb stat
         s.keepers[0]!.body.charge = CHARGE_TICKS + 1;
       },
     ],
-    ["shield too long", (s) => (s.keepers[0]!.shield = KO_SHIELD + 1)],
+    ["shield too long", (s) => (s.keepers[0]!.spawnGuard = KO_SHIELD + 1)],
     [
       "stale blast",
       (s) =>
-        s.blasts.push({ tick: s.tick - 40, id: 0, owner: host, x: 0, y: 0 }),
+        s.blasts.push({
+          tick: s.tick - 40,
+          id: 0,
+          owner: host,
+          kind: "plain",
+          x: 0,
+          y: 0,
+        }),
     ],
     [
       "future knockout",

@@ -18,7 +18,9 @@ import {
   type Input,
 } from "../engine/world.js";
 import { TUNING_BOUNDS, parseTuning } from "../engine/codec.js";
-import { toView, type WorldView } from "../engine/view.js";
+import { toView, POWER_KINDS, type WorldView } from "../engine/view.js";
+import { ALL_POWERS } from "../engine/power-rules.js";
+import { POWER_STYLE } from "../render/power-ups.js";
 import type { ShowcaseHandle } from "../render/scene.js";
 import { interpolate } from "../render/interpolation.js";
 import { createTouchControls, type TouchControls } from "./touch-controls.js";
@@ -116,16 +118,55 @@ const jumpMode = el<HTMLSelectElement>("jump-mode"),
   wireMode = el<HTMLSelectElement>("wire-mode"),
   bombMode = el<HTMLSelectElement>("bomb-mode"),
   keyboardMode = el<HTMLSelectElement>("keyboard-mode");
+// 11D power-up pool: off, all five, or any mix. One hidden field carries the
+// validated bit mask to the settings form; the select and boxes only edit it.
 const powerLabel = document.createElement("label");
-powerLabel.innerHTML = `Power-ups <select id="power-ups" name="powerUps" form="tuning" disabled><option value="off">Off</option><option value="on">Lift & Ward</option></select>`;
-rulesPanel.append(powerLabel);
-const powerMode = el<HTMLSelectElement>("power-ups");
-const powerHelp = document.createElement("p");
+powerLabel.innerHTML = `Power-ups <select id="power-ups" disabled><option value="${ALL_POWERS}">All five</option><option value="0">Off</option><option value="custom" disabled hidden>Some</option></select><input type="hidden" id="power-mask" name="powerUps" form="tuning" value="${DEFAULT_TUNING.powerUps}">`;
+const powerBoxes = document.createElement("span");
+powerBoxes.className = "power-pool";
+powerBoxes.setAttribute("role", "group");
+powerBoxes.setAttribute("aria-label", "Power-ups in the pool");
+for (const [i, kind] of POWER_KINDS.entries()) {
+  const box = document.createElement("label");
+  box.style.setProperty("--power-color", POWER_STYLE[kind].css);
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.id = `power-${kind}`;
+  input.dataset.bit = String(1 << i);
+  input.disabled = true;
+  box.append(input, ` ${POWER_STYLE[kind].name}`);
+  powerBoxes.append(box);
+}
+const powerHelp = document.createElement("span");
 powerHelp.id = "power-help";
 powerHelp.textContent =
-  "Lift: touch the green rune for an upward burst. Ward: blue rune blocks rival hooks for 5 seconds, not falls. Pads return after 10 seconds of active play. Changing this setting restarts everyone.";
-powerHelp.hidden = true;
-rulesPanel.append(powerHelp);
+  "Pads show a random power-up from the pool and return 10 s after pickup with a new one. One at a time; a new pickup replaces yours. Triple jump: two air jumps for 8 s. Shield: survives one bomb blast, your own included (8 s, bombs only). Cluster bomb: your next 3 bombs split into 3 small bomblets when they land. Harpoon: for 8 s your hook pulls a hit rival in. Dash bump: for 8 s your air jump dashes along your aim and knocks rivals away. Shield and Cluster need bombs on. Changing the pool restarts everyone.";
+trials.append(powerLabel, powerBoxes, powerHelp);
+const powerMode = el<HTMLSelectElement>("power-ups"),
+  powerMask = el<HTMLInputElement>("power-mask"),
+  powerInputs = [...powerBoxes.querySelectorAll("input")];
+const somePowers = powerMode.querySelector<HTMLOptionElement>(
+  'option[value="custom"]',
+)!;
+/** The room's pool last shown; boxes a manager clicks stay until it changes. */
+let shownPowers = -1;
+/** Show a pool without submitting it. */
+function showPowers(mask: number) {
+  if (mask === shownPowers) return;
+  shownPowers = mask;
+  powerMask.value = String(mask);
+  const mixed = mask !== 0 && mask !== ALL_POWERS;
+  // "Some" only names a mixed pool; it is not a choice of its own.
+  somePowers.hidden = !mixed;
+  powerMode.value = mixed ? "custom" : String(mask);
+  for (const input of powerInputs)
+    input.checked = (mask & Number(input.dataset.bit)) !== 0;
+}
+function enablePowers(enabled: boolean) {
+  powerMode.disabled = !enabled;
+  for (const input of powerInputs) input.disabled = !enabled;
+}
+showPowers(DEFAULT_TUNING.powerUps);
 const host = el<HTMLDivElement>("scene"),
   status = el<HTMLParagraphElement>("status"),
   start = el<HTMLButtonElement>("start"),
@@ -298,7 +339,8 @@ touch = createTouchControls(
   touchDeck,
   (state) => {
     const wasFiring = input.fire,
-      wasCharging = input.bomb;
+      wasCharging = input.bomb,
+      wasJumping = input.jump;
     touchState = state;
     input.move = state.move;
     input.jump = state.jump;
@@ -307,8 +349,9 @@ touch = createTouchControls(
     input.bomb = state.bomb;
     if (state.fire && !wasFiring)
       Object.assign(input, touchAim(latest.x, chest(), state.direction));
-    // The engine reads a throw's aim on the release tick.
-    if (wasCharging && !state.bomb)
+    // The engine reads a throw's aim on the release tick, and a Dash bump's
+    // on the jump press: both follow the aim pad's last direction.
+    if ((wasCharging && !state.bomb) || (state.jump && !wasJumping))
       Object.assign(
         input,
         touchAim(latest.x, chest(), bombDirection(state, latest.facing)),
@@ -353,8 +396,10 @@ function localView(view: WorldView): WorldView {
     keepers: view.keepers,
     hit: view.hit,
     contest: view.contest,
+    powers: view.powers,
     pickups: view.pickups,
     pickupEvents: view.pickupEvents,
+    shieldPops: view.shieldPops,
     bombs: view.bombs,
     blasts: view.blasts,
     knockouts: view.knockouts,
@@ -385,7 +430,7 @@ function stopRoom() {
   rulesSelect.disabled = true;
   mapSelect.disabled = true;
   jumpMode.disabled = wireMode.disabled = bombMode.disabled = true;
-  powerMode.disabled = true;
+  enablePowers(false);
   touch?.enable(false);
   el<HTMLButtonElement>("restart-room").disabled = true;
   el("invitation").hidden = true;
@@ -488,7 +533,8 @@ const enterRoom = async () => {
   jumpMode.value = DEFAULT_TUNING.jumpMode;
   wireMode.value = DEFAULT_TUNING.wire;
   bombMode.value = DEFAULT_TUNING.bomb;
-  powerMode.value = DEFAULT_TUNING.powerUps;
+  shownPowers = -1;
+  showPowers(DEFAULT_TUNING.powerUps);
   for (const key of Object.keys(TUNING_BOUNDS)) {
     const field = tuning.elements.namedItem(key) as HTMLInputElement;
     field.value = String(DEFAULT_TUNING[key as keyof typeof DEFAULT_TUNING]);
@@ -623,7 +669,7 @@ const enterRoom = async () => {
               wireMode.disabled =
               bombMode.disabled =
                 !manager;
-            powerMode.disabled = !manager;
+            enablePowers(!!manager);
             el<HTMLButtonElement>("restart-room").disabled = !manager;
             setText(
               start,
@@ -643,8 +689,7 @@ const enterRoom = async () => {
           jumpMode.value = settings.jumpMode;
           wireMode.value = settings.wire;
           bombMode.value = settings.bomb;
-          powerMode.value = settings.powerUps;
-          powerHelp.hidden = settings.powerUps !== "on";
+          showPowers(settings.powerUps);
           setText(
             mapHelp,
             settings.map === "crossroads"
@@ -800,15 +845,7 @@ tuning.onsubmit = (e) => {
     Object.fromEntries(
       [...new FormData(tuning)].map(([k, v]) => [
         k,
-        [
-          "experiment",
-          "rules",
-          "map",
-          "jumpMode",
-          "wire",
-          "bomb",
-          "powerUps",
-        ].includes(k)
+        ["experiment", "rules", "map", "jumpMode", "wire", "bomb"].includes(k)
           ? v
           : Number(v),
       ]),
@@ -828,7 +865,22 @@ jumpMode.onchange =
   wireMode.onchange =
   bombMode.onchange =
     () => tuning.requestSubmit();
-powerMode.onchange = () => tuning.requestSubmit();
+powerMode.onchange = () => {
+  // "Some" only names a mixed pool; the boxes change it.
+  if (powerMode.value === "custom") return;
+  powerMask.value = powerMode.value;
+  tuning.requestSubmit();
+};
+for (const input of powerInputs)
+  input.onchange = () => {
+    powerMask.value = String(
+      powerInputs.reduce(
+        (mask, box) => (box.checked ? mask | Number(box.dataset.bit) : mask),
+        0,
+      ),
+    );
+    tuning.requestSubmit();
+  };
 keyboardMode.onchange = () => {
   clear();
   keyboard.mode = keyboardMode.value === "keyboard" ? "keyboard" : "mouse";

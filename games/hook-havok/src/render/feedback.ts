@@ -1,8 +1,12 @@
 import type { WorldView } from "../engine/view.js";
 import { idleBreath } from "./showcase-timeline.js";
 import { ballColor } from "./balls.js";
+import { POWER_STYLE } from "./power-ups.js";
 export type Cue =
   | "power"
+  | "expire"
+  | "shield"
+  | "dash"
   | "jump"
   | "land"
   | "fire"
@@ -81,8 +85,36 @@ export class Feedback {
     if (old.charge > 0 && !view.charge && !view.respawn && !blasted)
       this.bursts.push({ kind: "throw", x: view.x, y: view.feet, at: ms });
     const cues: Cue[] = [];
-    if (view.pickupEvents.some((e) => e.by === subject && e.tick > old.tick))
-      cues.push("power");
+    // Power-ups: a pickup, a Shield that popped, or one that ran out or was spent.
+    const pickup = view.pickupEvents.find(
+        (e) => e.by === subject && e.tick > old.tick,
+      ),
+      popped = view.shieldPops.find(
+        (e) => e.target === subject && e.tick > old.tick,
+      ),
+      was = old.keepers.find((k) => k.id === subject)?.power.kind,
+      now = view.keepers.find((k) => k.id === subject)?.power.kind;
+    const powerColor = (kind: typeof was) =>
+      kind ? POWER_STYLE[kind].color : undefined;
+    if (pickup) cues.push("power");
+    if (popped) {
+      cues.push("shield");
+      this.bursts.push({
+        kind: "shield",
+        x: popped.x,
+        y: popped.y + 28,
+        at: ms,
+        color: POWER_STYLE.shield.color,
+      });
+    } else if (
+      was &&
+      !now &&
+      !pickup &&
+      view.deaths === old.deaths &&
+      !view.respawn
+    )
+      cues.push("expire");
+    if (!old.dash && view.dash > 0) cues.push("dash");
     if (
       old.experiment === view.experiment &&
       view.combat.hits > old.combat.hits &&
@@ -95,7 +127,13 @@ export class Feedback {
       Math.hypot(view.x - old.x, view.feet - old.feet) < 100
     ) {
       if (old.grounded && !view.grounded && view.vy < 0) cues.push("jump");
-      if (old.airJump && !view.airJump && view.vy < 0) {
+      // An air jump, the ordinary one or one a power added; a dash is not a jump.
+      if (
+        !view.dash &&
+        view.vy < 0 &&
+        ((old.airJump && !view.airJump) ||
+          (!!now && view.bonusJumps < old.bonusJumps))
+      ) {
         cues.push("jump");
         this.bursts.push({ kind: "air-jump", x: view.x, y: view.feet, at: ms });
       }
@@ -110,18 +148,26 @@ export class Feedback {
       if (old.hook.phase === "attached" && view.hook.phase !== "attached")
         cues.push("release");
     }
-    for (const kind of cues)
+    for (const kind of cues) {
+      // The Shield's burst is where it popped, pushed above.
+      if (kind === "shield") continue;
+      const color =
+        kind === "pop"
+          ? ballColor(
+              old.combat.balls.find(
+                (b) => !view.combat.balls.some((n) => n.id === b.id),
+              )?.id ?? 1,
+            )
+          : kind === "power"
+            ? powerColor(pickup?.kind)
+            : kind === "expire"
+              ? powerColor(was)
+              : kind === "dash"
+                ? POWER_STYLE.dash.color
+                : undefined;
       this.bursts.push({
         kind,
-        ...(kind === "pop"
-          ? {
-              color: ballColor(
-                old.combat.balls.find(
-                  (b) => !view.combat.balls.some((n) => n.id === b.id),
-                )?.id ?? 1,
-              ),
-            }
-          : {}),
+        ...(color === undefined ? {} : { color }),
         x:
           kind === "impact" || kind === "pop"
             ? view.combat.impact.x
@@ -136,6 +182,7 @@ export class Feedback {
               : view.feet,
         at: ms,
       });
+    }
     if (view.hit && view.hit.tick > old.tick) {
       cues.push("impact");
       const victim = view.keepers.find(

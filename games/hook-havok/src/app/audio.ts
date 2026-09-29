@@ -11,6 +11,25 @@ export interface Tone {
 }
 export const TONES: Record<Cue, Tone> = {
   power: { from: 420, to: 1120, duration: 0.18, type: "sine" },
+  // 11D power-ups: a falling blip when one runs out, a glassy pop when a
+  // Shield absorbs a blast, and a whoosh on a dash.
+  expire: { from: 760, to: 240, duration: 0.16, type: "triangle", gain: 0.7 },
+  shield: {
+    from: 3200,
+    to: 700,
+    duration: 0.2,
+    type: "sine",
+    noise: "highpass",
+    gain: 0.8,
+  },
+  dash: {
+    from: 900,
+    to: 2600,
+    duration: 0.16,
+    type: "sine",
+    noise: "highpass",
+    gain: 0.5,
+  },
   impact: { from: 190, to: 65, duration: 0.12, type: "triangle" },
   pop: { from: 920, to: 210, duration: 0.13, type: "sine" },
   jump: { from: 180, to: 410, duration: 0.11, type: "sine" },
@@ -43,6 +62,10 @@ const REPEAT_MS: Partial<Record<Cue, number>> = {
   clink: 70,
   hiss: 120,
   boom: 60,
+  power: 120,
+  expire: 150,
+  shield: 100,
+  dash: 90,
 };
 export interface ToneSink {
   resume(): Promise<void>;

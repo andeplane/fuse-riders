@@ -195,6 +195,35 @@ export function createJuice(scene: Phaser.Scene, zoom: number): Juice {
         // Every blast shakes the room; one near you punches the zoom too.
         kick(local ? 320 : 220, local ? 0.02 : 0.009, local ? 0.04 : 0.012);
         break;
+      case "shield":
+        // A Shield that absorbed a blast bursts into shards of its bubble.
+        spawn(
+          {
+            kind: "ring",
+            x: burst.x,
+            y: burst.y - 28,
+            vx: 0,
+            vy: 0,
+            at: burst.at,
+            life: 420,
+            color: burst.color ?? color,
+          },
+          1,
+        );
+        spawn(
+          {
+            kind: "spark",
+            x: burst.x,
+            y: burst.y - 28,
+            vx: 0,
+            vy: 0,
+            at: burst.at,
+            life: 520,
+            color: burst.color ?? color,
+          },
+          14,
+        );
+        break;
       case "blasted":
         hits.set(burst.target ?? "", burst.at);
         spawn(
