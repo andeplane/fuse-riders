@@ -1,5 +1,6 @@
 import type { WorldView } from "../engine/view.js";
 import { keeperColor } from "../render/identity.js";
+import { botBadge } from "./roster.js";
 import "./match-shell.css";
 
 /** Presentation of replicated facts. All actions reuse the room's existing controls. */
@@ -98,6 +99,7 @@ export function createMatchShell() {
         view.keepers.map((k) => [
           k.id,
           k.name,
+          k.bot,
           k.slot,
           k.connected,
           k.playing,
@@ -153,7 +155,7 @@ export function createMatchShell() {
         : !local?.connected
           ? "Joining keepers…"
           : c.phase === "waiting"
-            ? "Invite a second keeper to begin"
+            ? "Invite a second keeper, or add a bot, to begin"
             : c.rules !== "free" && c.phase === "active" && !local.playing
               ? "WATCHING · back next round"
               : `P${local.slot + 1} · ${local.name}`;
@@ -177,8 +179,12 @@ export function createMatchShell() {
             : c.winners.length > 1
               ? "A shared victory"
               : "A keeper stands tall";
+        const bot = (id: string) =>
+          !!view.keepers.find((k) => k.id === id)?.bot;
         get("result-detail").textContent = c.winners.length
-          ? c.winners.map(name).join(" & ")
+          ? c.winners
+              .map((id) => `${name(id)}${bot(id) ? " (bot)" : ""}`)
+              .join(" & ")
           : "The round ends in a draw.";
         // Knockouts, self-knockouts, bombs thrown and how each keeper went down.
         const bombs = view.bombMode !== "off";
@@ -218,6 +224,7 @@ export function createMatchShell() {
               );
             const detail = document.createElement("span");
             detail.textContent = facts.join(" · ");
+            if (k?.bot) li.append(botBadge());
             li.append(who, " ", detail);
             return li;
           }),

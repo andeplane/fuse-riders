@@ -126,6 +126,23 @@ powerHelp.textContent =
   "Lift: touch the green rune for an upward burst. Ward: blue rune blocks rival hooks for 5 seconds, not falls. Pads return after 10 seconds of active play. Changing this setting restarts everyone.";
 powerHelp.hidden = true;
 rulesPanel.append(powerHelp);
+// 11C: AI keepers. The count is seats (BOT entries); the level is a shared setting.
+const botLabel = document.createElement("label");
+botLabel.innerHTML = `Bots <select id="bot-count" disabled>${[0, 1, 2, 3, 4]
+  .map((n) => `<option value="${n}">${n || "None"}</option>`)
+  .join("")}</select>`;
+const levelLabel = document.createElement("label");
+levelLabel.innerHTML = `Bot level <select id="bot-level" name="botLevel" form="tuning" disabled><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option></select>`;
+const botHelp = document.createElement("span");
+botHelp.id = "bot-help";
+botHelp.textContent =
+  "Bots fill free seats and play on every device from the shared state. Adding one is instant; removing one or changing the level restarts the shared trial. Easy bots are slow to aim, notice bombs late and hesitate; hard ones rarely miss.";
+rulesPanel.append(botLabel, levelLabel, botHelp);
+const botCount = el<HTMLSelectElement>("bot-count"),
+  botLevel = el<HTMLSelectElement>("bot-level");
+/** Bot seats the manager wants once the room is back in the lobby (removal waits for it). */
+let botTarget: number | undefined;
+let seatsNow: { id: string; slot: number; bot: boolean }[] = [];
 const host = el<HTMLDivElement>("scene"),
   status = el<HTMLParagraphElement>("status"),
   start = el<HTMLButtonElement>("start"),
@@ -589,6 +606,23 @@ const enterRoom = async () => {
             started = false;
             restartRequested = false;
           }
+          seatsNow = frame.seats;
+          const botSeats = frame.seats.filter((s) => s.bot);
+          if (botTarget !== undefined && manager && frame.stage === "lobby") {
+            // Between rounds: remove bots from the last seat down, then start below.
+            for (const seat of [...botSeats]
+              .sort((a, b) => b.slot - a.slot)
+              .slice(0, Math.max(0, botSeats.length - botTarget)))
+              runtime?.command({ type: "bot", action: "remove", id: seat.id });
+            botTarget = undefined;
+          }
+          if (botTarget === undefined)
+            botCount.value = String(Math.min(4, botSeats.length));
+          const free = 5 - frame.seats.filter((s) => !s.watcher).length;
+          for (const option of botCount.options)
+            option.disabled =
+              Number(option.value) > botSeats.length + Math.max(0, free);
+          botCount.disabled = botLevel.disabled = !manager;
           if (manager && frame.stage === "lobby" && frame.seated && !started) {
             started = !!runtime?.command({ type: "action", action: "start" });
           }
@@ -644,6 +678,7 @@ const enterRoom = async () => {
           wireMode.value = settings.wire;
           bombMode.value = settings.bomb;
           powerMode.value = settings.powerUps;
+          botLevel.value = settings.botLevel;
           powerHelp.hidden = settings.powerUps !== "on";
           setText(
             mapHelp,
@@ -671,7 +706,7 @@ const enterRoom = async () => {
             c.rules === "free"
               ? ""
               : c.phase === "waiting"
-                ? "Waiting for a second keeper…"
+                ? "Waiting for a second keeper… invite a friend or add a bot."
                 : c.phase === "countdown"
                   ? `Get ready · ${c.seconds}`
                   : c.phase === "over"
@@ -808,6 +843,7 @@ tuning.onsubmit = (e) => {
           "wire",
           "bomb",
           "powerUps",
+          "botLevel",
         ].includes(k)
           ? v
           : Number(v),
@@ -829,6 +865,21 @@ jumpMode.onchange =
   bombMode.onchange =
     () => tuning.requestSubmit();
 powerMode.onchange = () => tuning.requestSubmit();
+botLevel.onchange = () => tuning.requestSubmit();
+botCount.onchange = () => {
+  const want = Number(botCount.value),
+    have = seatsNow.filter((s) => s.bot).length;
+  // Adding seats a bot at once; removing waits for the lobby, then restarts.
+  for (let n = have; n < want; n++)
+    runtime?.command({ type: "bot", action: "add" });
+  if (want < have) {
+    clear();
+    botTarget = want;
+    restartRequested = !!runtime?.command({ type: "action", action: "lobby" });
+    if (!restartRequested) botTarget = undefined;
+  }
+  host.focus();
+};
 keyboardMode.onchange = () => {
   clear();
   keyboard.mode = keyboardMode.value === "keyboard" ? "keyboard" : "mouse";

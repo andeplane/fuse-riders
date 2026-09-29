@@ -742,6 +742,7 @@ export function createShowcase(
           world.keepers.map((k) => ({
             id: k.id,
             slot: k.slot,
+            bot: k.bot,
             connected: k.connected,
             hits: k.hits,
             x: k.body.x,
