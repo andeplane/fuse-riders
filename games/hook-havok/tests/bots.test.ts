@@ -34,6 +34,13 @@ import {
 import { parseInput, parseTuning } from "../src/engine/codec.js";
 import { MAPS } from "../src/engine/maps.js";
 import { BLAST_RADIUS, COOLDOWN_TICKS } from "../src/engine/bomb-rules.js";
+import {
+  ALL_POWERS,
+  POWER_KINDS,
+  powerPool,
+} from "../src/engine/power-rules.js";
+import { grantPower } from "../src/engine/power-ups.js";
+import { planBots } from "../src/engine/bot.js";
 import { navGraph } from "../src/engine/bot-nav.js";
 import { freshMind } from "../src/engine/bot-mind.js";
 import {
@@ -227,7 +234,7 @@ for (const botLevel of ["easy", "normal", "hard"] as const)
     assert.ok(all.reduce((n, k) => n + k.bomb.thrown, 0) > 5, "bots throw");
   });
 
-test("five bots restored from their own checkpoint every 7 ticks stay on the hash of a room never restored", () => {
+test("five bots with bombs and every power-up, restored from their own checkpoint every 7 ticks and cloned for rollback, stay on the hash of a room never restored", () => {
   const tunings: Tuning[] = [
     {
       ...DEFAULT_TUNING,
@@ -235,7 +242,7 @@ test("five bots restored from their own checkpoint every 7 ticks stay on the has
       rules: "elimination",
       bomb: "fuse",
       botLevel: "hard",
-      powerUps: "on",
+      powerUps: ALL_POWERS,
       experiment: "ricochet",
     },
     {
@@ -244,11 +251,21 @@ test("five bots restored from their own checkpoint every 7 ticks stay on the has
       rules: "score",
       bomb: "impact",
       botLevel: "easy",
-      powerUps: "on",
+      powerUps: ALL_POWERS,
       experiment: "ball",
     },
     { ...DEFAULT_TUNING, map: "belfry", rules: "free" },
+    {
+      ...DEFAULT_TUNING,
+      map: "crossroads",
+      rules: "score",
+      jumpMode: "single",
+      botLevel: "normal",
+    },
   ];
+  const seen = new Set<string>(),
+    held = new Set<string>(),
+    n = { pickups: 0, grants: 0, cluster: 0, bomblets: 0, dashing: 0 };
   for (const tuning of tunings) {
     const label = `${tuning.map}/${tuning.rules}/${tuning.botLevel}`;
     const never = botRoom(tuning, 5, false);
@@ -258,12 +275,47 @@ test("five bots restored from their own checkpoint every 7 ticks stay on the has
       idle(never);
       idle(twin);
       assert.equal(hash(twin), hash(never), `${label}, tick ${t}`);
+      // Bots take pads on their own; now and then one in play also gets what
+      // a pickup grants, the same in both rooms, so every kind is held.
+      if (t % 40 === 0) {
+        const pool = powerPool(tuning),
+          kind = pool[(t / 40) % pool.length]!,
+          k = bots(never).find(
+            (b) =>
+              inPlay(never.simulation, b) &&
+              !b.world.respawn &&
+              b.slot === (t / 40) % 5,
+          );
+        if (k) {
+          for (const room of [never, twin])
+            grantPower(keeper(room, k.id), kind, tuning.jumpMode);
+          n.grants++;
+        }
+      }
+      const a = never.simulation;
+      for (const e of a.pickupEvents)
+        if (!seen.has(`${label}p${e.tick}${e.by}`)) {
+          seen.add(`${label}p${e.tick}${e.by}`);
+          n.pickups++;
+        }
+      for (const b of a.bombs)
+        if (!seen.has(`${label}b${b.id}`)) {
+          seen.add(`${label}b${b.id}`);
+          if (b.kind === "cluster") n.cluster++;
+          if (b.kind === "bomblet") n.bomblets++;
+        }
+      for (const k of bots(never)) {
+        if (k.power.kind) held.add(k.power.kind);
+        if (k.world.dash) n.dashing++;
+      }
       if (t % 7 === 0) {
-        const restored = decode(encode(twin), twin.tick);
+        const saved = encode(twin),
+          restored = decode(saved, twin.tick);
         assert.ok(restored, `${label}: the checkpoint at tick ${t} decodes`);
+        assert.deepEqual(encode(restored), saved, `${label}: and re-encodes`);
         twin = restored;
         restores++;
-      }
+      } else if (t % 5 === 0) twin = structuredClone(twin);
     }
     assert.equal(restores, 85);
     assert.equal(bots(never).length, 5);
@@ -272,6 +324,70 @@ test("five bots restored from their own checkpoint every 7 ticks stay on the has
       `${label}: bots throw`,
     );
   }
+  const summary = JSON.stringify({ ...n, held: [...held] });
+  assert.equal(held.size, 5, `bots held every kind: ${summary}`);
+  assert.ok(n.pickups > 10, `bots collect pads themselves: ${summary}`);
+  assert.ok(n.cluster > 0 && n.bomblets > 0, `bots throw clusters: ${summary}`);
+  assert.ok(n.dashing > 0, `bots dash: ${summary}`);
+});
+
+test("planning with every power active writes the bots' minds and nothing else", () => {
+  const r = botRoom({ ...DEFAULT_TUNING, botLevel: "hard" }, 5, false);
+  let dodges = 0,
+    moved = 0,
+    all = bots(r);
+  for (let t = 2; t <= 400; t++) {
+    idle(r);
+    // The fold rebuilds the keeper list every tick.
+    const a = r.simulation;
+    all = bots(r);
+    // One bot per kind, kept holding it, and now and then each bot's own bomb
+    // at its feet, so dodges fly the planner's ghost with every power.
+    all.forEach((k, i) => {
+      if (!inPlay(a, k) || k.world.respawn) return;
+      const kind = POWER_KINDS[i]!;
+      if (k.power.kind !== kind) grantPower(k, kind, a.tuning.jumpMode);
+      if (
+        t % 25 === i * 3 &&
+        !k.world.charge &&
+        !a.bombs.some((b) => b.owner === k.id)
+      ) {
+        k.bomb.cooldown = COOLDOWN_TICKS;
+        a.bombs.push({
+          id: a.tick * 32 + k.slot * 4,
+          owner: k.id,
+          kind: "plain",
+          x: k.world.x + 20 * S,
+          y: k.world.feet - 11 * S,
+          vx: 0,
+          vy: 0,
+          fuse: 40,
+        });
+        a.bombs.sort((p, q) => p.id - q.id);
+        dodges++;
+      }
+    });
+    const minds = all.map((k) => k.mind && { ...k.mind }),
+      before = hash(r),
+      state = structuredClone(a),
+      twin = structuredClone(a);
+    const inputs = planBots(a);
+    // The same state plans the same inputs and the same minds.
+    assert.deepEqual(planBots(twin), inputs, `tick ${t}: inputs`);
+    assert.deepEqual(
+      twin.keepers.map((k) => k.mind),
+      a.keepers.map((k) => k.mind),
+      `tick ${t}: minds`,
+    );
+    if (all.some((k, i) => !isDeepStrictEqual(k.mind, minds[i]))) moved++;
+    // Put the minds back: every other byte must be as it was.
+    all.forEach((k, i) => (k.mind = minds[i]!));
+    assert.equal(hash(r), before, `tick ${t}: hash`);
+    assert.ok(isDeepStrictEqual(a, state), `tick ${t}: state`);
+  }
+  assert.ok(dodges > 50 && moved > 100, JSON.stringify({ dodges, moved }));
+  const kinds = new Set(all.map((k) => k.power.kind));
+  assert.ok(kinds.size >= 4, [...kinds].join());
 });
 
 test("BOT entries seat bots in free slots; bots never manage, stay through succession and leave only between rounds", () => {
@@ -480,8 +596,9 @@ test("a bot dodges a bomb that would have caught it", () => {
     const owner = keeper(r, host);
     owner.bomb.cooldown = COOLDOWN_TICKS;
     r.simulation.bombs.push({
-      id: r.simulation.tick * 8,
+      id: r.simulation.tick * 32,
       owner: host,
+      kind: "plain",
       x: at.world.x - 30 * S,
       y: at.world.feet - 11 * S,
       vx: 0,
@@ -513,7 +630,8 @@ test("a bot dodges a bomb that would have caught it", () => {
 });
 
 test("a bot's throw lands on a keeper who stands still", () => {
-  const r = botRoom({ ...DEFAULT_TUNING, botLevel: "hard" }, 1);
+  // No pads: a hard bot would take one first and throw from elsewhere.
+  const r = botRoom({ ...DEFAULT_TUNING, botLevel: "hard", powerUps: 0 }, 1);
   const target = keeper(r, host),
     bot = keeper(r, "bot:1");
   stand(r, target, 0, 200);
@@ -585,6 +703,10 @@ function soak(tuning: Tuning, ticks = 2400) {
     stuck: 0,
     invalid: 0,
     checkpoints: 0,
+    pickups: 0,
+    bomblets: 0,
+    shieldPops: 0,
+    dashes: 0,
   };
   let seq = 100;
   for (let t = 2; t <= ticks; t++) {
@@ -617,7 +739,8 @@ function soak(tuning: Tuning, ticks = 2400) {
     for (const b of a.bombs)
       if (!seen.has(`b${b.id}`)) {
         seen.add(`b${b.id}`);
-        n.thrown++;
+        if (b.kind === "bomblet") n.bomblets++;
+        else n.thrown++;
       }
     for (const e of a.knockouts)
       if (!seen.has(`k${e.tick}${e.target}`)) {
@@ -625,7 +748,19 @@ function soak(tuning: Tuning, ticks = 2400) {
         if (e.by === e.target) n.self++;
         else n.knockouts++;
       }
+    for (const e of a.pickupEvents)
+      if (!seen.has(`p${e.tick}${e.by}`)) {
+        seen.add(`p${e.tick}${e.by}`);
+        n.pickups++;
+      }
+    for (const e of a.shieldPops)
+      if (!seen.has(`s${e.tick}${e.target}`)) {
+        seen.add(`s${e.tick}${e.target}`);
+        n.shieldPops++;
+      }
     for (const k of a.keepers) {
+      // A dash lasts 12 steps, four log ticks: count its first.
+      if (k.world.dash > 9) n.dashes++;
       const w = k.world,
         [deaths, blasted, hits] = before.get(k.id) ?? [w.deaths, 0, k.hits];
       n.falls += Math.max(
@@ -650,7 +785,7 @@ function soak(tuning: Tuning, ticks = 2400) {
   return n;
 }
 for (const map of ["crossroads", "belfry"] as const)
-  test(`soak: five bots play two minutes of every rule set on ${map} without getting stuck`, () => {
+  test(`soak: five bots play two minutes of every rule set on ${map}, with and without power-ups, without getting stuck`, () => {
     const runs: [Tuning["rules"], Tuning["botLevel"]][] = [
       ["free", "normal"],
       ["elimination", "normal"],
@@ -658,18 +793,33 @@ for (const map of ["crossroads", "belfry"] as const)
       ["free", "easy"],
       ["free", "hard"],
     ];
-    for (const [rules, botLevel] of runs) {
-      const n = soak({ ...DEFAULT_TUNING, map, rules, botLevel });
-      const label = `${map}/${rules}/${botLevel} ${JSON.stringify(n)}`;
-      assert.equal(n.invalid, 0, `only valid inputs: ${label}`);
-      assert.equal(n.stuck, 0, `no stuck bots: ${label}`);
-      assert.equal(n.checkpoints, 0, `checkpoints round-trip: ${label}`);
-      assert.ok(n.thrown >= 40, `bombs thrown: ${label}`);
-      // Hard bots dodge one another almost always; the knockouts are the other levels'.
-      if (botLevel !== "hard")
-        assert.ok(n.knockouts + n.self > 0, `knockouts: ${label}`);
-      if (rules !== "free") assert.ok(n.rounds >= 1, `rounds finish: ${label}`);
-      if (process.env.BOT_SOAK) console.log(label);
+    for (const powerUps of [ALL_POWERS, 0]) {
+      let knockouts = 0;
+      for (const [rules, botLevel] of runs) {
+        const n = soak({ ...DEFAULT_TUNING, map, rules, botLevel, powerUps });
+        const label = `${map}/${rules}/${botLevel}/${powerUps ? "powers" : "none"} ${JSON.stringify(n)}`;
+        assert.equal(n.invalid, 0, `only valid inputs: ${label}`);
+        assert.equal(n.stuck, 0, `no stuck bots: ${label}`);
+        assert.equal(n.checkpoints, 0, `checkpoints round-trip: ${label}`);
+        assert.ok(n.thrown >= 40, `bombs thrown: ${label}`);
+        if (rules !== "free")
+          assert.ok(n.rounds >= 1, `rounds finish: ${label}`);
+        // Hard bots dodge one another almost always; the knockouts are the other levels'.
+        if (botLevel !== "hard") {
+          knockouts += n.knockouts + n.self;
+          // Pads draw bots off their stand-offs and into hook range of one
+          // another (a score round's hook hit protects the rival), so a
+          // powered run can go without one (bots.md); a run without may not.
+          if (!powerUps)
+            assert.ok(n.knockouts + n.self > 0, `knockouts: ${label}`);
+        }
+        if (powerUps) {
+          assert.ok(n.pickups >= 10, `bots take pads: ${label}`);
+          assert.ok(n.bomblets > 0, `bots throw cluster bombs: ${label}`);
+        } else assert.equal(n.pickups + n.bomblets + n.dashes, 0, label);
+        if (process.env.BOT_SOAK) console.log(label);
+      }
+      assert.ok(knockouts >= 5, `${map}: knockouts across the levels`);
     }
   });
 

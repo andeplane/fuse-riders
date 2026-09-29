@@ -1,5 +1,6 @@
-import type { WorldView } from "../engine/view.js";
+import type { PowerKind, WorldView } from "../engine/view.js";
 import { keeperColor } from "../render/identity.js";
+import { POWER_STYLE } from "../render/power-ups.js";
 
 /** The tag an AI keeper wears on its card and in the results (11C). */
 export function botBadge(): HTMLElement {
@@ -8,13 +9,51 @@ export function botBadge(): HTMLElement {
   badge.textContent = "BOT";
   return badge;
 }
+/** Card icons: fixed markup, never built from room data. */
+const ICONS: Record<PowerKind, string> = {
+  triple: '<path d="M6 10l6-5 6 5M6 15l6-5 6 5M6 20l6-5 6 5"/>',
+  shield: '<path d="M5 4h14l-1.5 9L12 20l-5.5-7z"/>',
+  cluster:
+    '<circle cx="12" cy="14" r="5" fill="currentColor"/><circle cx="5" cy="7" r="2"/><circle cx="12" cy="4" r="2"/><circle cx="19" cy="7" r="2"/>',
+  harpoon: '<path d="M3 12h18M3 12l5-5M3 12l5 5M21 12l-3-3M21 12l-3 3"/>',
+  dash: '<path d="M13 5l7 7-7 7M3 8h7M2 12h9M3 16h7"/>',
+};
 /** Rebuild only when displayed facts change, not on every simulation frame. Names are text, never HTML. */
 export function createRoster(host: HTMLElement) {
   let previous = "";
-  /** Bomb cooldown rings update in place every frame without a rebuild. */
-  const rings = new Map<string, HTMLElement>();
+  /** Bomb cooldown rings and power chips update in place every frame without a rebuild. */
+  const rings = new Map<string, HTMLElement>(),
+    chips = new Map<string, HTMLElement>();
+  const paintChip = (chip: HTMLElement, k: WorldView["keepers"][number]) => {
+    const p = k.power,
+      kind = p.kind && k.playing && k.connected ? p.kind : "";
+    if (chip.dataset.power !== kind) {
+      chip.dataset.power = kind;
+      chip.hidden = !kind;
+      chip.innerHTML = kind
+        ? `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[kind]}</svg><i></i>`
+        : "";
+      chip.style.setProperty(
+        "--power-color",
+        kind ? POWER_STYLE[kind].css : "",
+      );
+    }
+    if (!kind) return;
+    const left = String(Math.ceil(p.left * 48) / 48),
+      title = `${POWER_STYLE[kind].name} · ${kind === "cluster" ? `${p.charges} throws left` : `${p.seconds} s left`}`;
+    if (chip.dataset.left !== left) {
+      chip.dataset.left = left;
+      chip.style.setProperty("--power-left", left);
+    }
+    if (chip.title !== title) {
+      chip.title = title;
+      chip.setAttribute("aria-label", title);
+    }
+  };
   const paintRings = (view: WorldView) => {
     for (const k of view.keepers) {
+      const chip = chips.get(k.id);
+      if (chip) paintChip(chip, k);
       const ring = rings.get(k.id);
       if (!ring) continue;
       const cooldown = String(Math.ceil(k.cooldown * 24) / 24),
@@ -69,8 +108,7 @@ export function createRoster(host: HTMLElement) {
           (c.rules === "score" && entrant
             ? `${entrant.score} pts`
             : `${k?.hits ?? 0} hits · ${k?.body.deaths ?? 0} returns`) +
-          (bombs && k?.tally.knockouts ? ` · ${k.tally.knockouts} KO` : "") +
-          (k?.ward ? ` · Ward ${k.ward}s` : ""),
+          (bombs && k?.tally.knockouts ? ` · ${k.tally.knockouts} KO` : ""),
       };
     });
     // Late joiners remain visible as watchers rather than disappearing from the room UI.
@@ -93,6 +131,7 @@ export function createRoster(host: HTMLElement) {
     }
     previous = signature;
     rings.clear();
+    chips.clear();
     host.replaceChildren(
       ...rows.map((row) => {
         const card = document.createElement("div");
@@ -121,7 +160,12 @@ export function createRoster(host: HTMLElement) {
         ring.className = "bomb-ring";
         ring.setAttribute("aria-hidden", "true");
         rings.set(row.id, ring);
-        card.append(portrait, badge, name, detail, ring);
+        const chip = document.createElement("span");
+        chip.className = "power-chip";
+        chip.setAttribute("role", "img");
+        chip.hidden = true;
+        chips.set(row.id, chip);
+        card.append(portrait, badge, name, detail, ring, chip);
         return card;
       }),
     );

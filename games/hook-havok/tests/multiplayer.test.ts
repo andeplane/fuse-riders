@@ -8,6 +8,7 @@ import {
   decodeArena,
 } from "../src/engine/arena.js";
 import { CLASSIC_TUNING, NEUTRAL, S } from "../src/engine/world.js";
+import { ALL_POWERS } from "../src/engine/power-rules.js";
 import { decode, encode, hash } from "../src/online/game.js";
 import { Mesh } from "./fixtures/mesh.js";
 import {
@@ -119,7 +120,7 @@ test("real runtime repairs loss/reorder/duplicates, restores a refreshed member 
         map: "crossroads",
         experiment: "surge",
         jumpMode: "double",
-        powerUps: "on",
+        powerUps: ALL_POWERS,
         wire: "spiked",
       },
     }),

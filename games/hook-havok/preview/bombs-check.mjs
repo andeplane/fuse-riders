@@ -129,7 +129,7 @@ try {
     return JSON.parse(d.keepers).find((k) => k.id === d.playerId).respawn === 0;
   });
   const back = await me();
-  assert.ok(back.shield > 40, `a second of protection, ${back.shield}`);
+  assert.ok(back.spawnGuard > 40, `a second of protection, ${back.spawnGuard}`);
   console.log(
     "PASS self-knockout, fuse ring, blast, feed and 1 s return with protection",
   );

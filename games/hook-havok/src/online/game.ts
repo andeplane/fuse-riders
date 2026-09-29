@@ -33,11 +33,14 @@ import {
   type Arena,
 } from "../engine/arena.js";
 import { parseInput, parseTuning, plain, integer } from "../engine/codec.js";
-import { POWER_PADS } from "../engine/power-ups.js";
+import { POWER_PADS, padList } from "../engine/power-ups.js";
+import { powerPool } from "../engine/power-rules.js";
+import { blastRadius } from "../engine/bomb.js";
 import { planBots } from "../engine/bot.js";
 import {
   toView,
   contestView,
+  powerView,
   type WorldView,
   type KeeperView,
 } from "../engine/view.js";
@@ -106,6 +109,19 @@ export function isEntry(raw: unknown): raw is Entry {
     return !BOT_ID.test(raw[3] as string);
   return true;
 }
+/** Pad draws differ per match and per restart, identically on every peer. */
+function arenaSeed(matchId: string, tick: number): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < matchId.length; i++)
+    h = Math.imul(h ^ matchId.charCodeAt(i), 0x01000193) >>> 0;
+  return (h ^ Math.imul(tick, 0x9e3779b1)) >>> 0;
+}
+const freshArena = (r: Pick<Room, "matchId" | "settings" | "simulation">) =>
+  createArena(
+    r.settings,
+    r.simulation.tick,
+    arenaSeed(r.matchId, r.simulation.tick),
+  );
 export function createRoom(matchId: string, settings: Tuning): Room {
   return {
     tick: 0,
@@ -114,7 +130,7 @@ export function createRoom(matchId: string, settings: Tuning): Room {
     stage: "lobby",
     settings: { ...settings },
     seats: new Map(),
-    simulation: createArena(settings),
+    simulation: createArena(settings, 0, arenaSeed(matchId, 0)),
   };
 }
 const lifecycle: LifecycleHooks<Room, Tuning> = {
@@ -128,14 +144,14 @@ const lifecycle: LifecycleHooks<Room, Tuning> = {
     r.matchId = id;
     r.round = 1;
     r.stage = "running";
-    r.simulation = createArena(r.settings, r.simulation.tick);
+    r.simulation = freshArena(r);
   },
   rematch() {},
   lobby(r, id) {
     r.stage = "lobby";
     r.matchId = id;
     r.round = 0;
-    r.simulation = createArena(r.settings, r.simulation.tick);
+    r.simulation = freshArena(r);
   },
 };
 /**
@@ -202,7 +218,7 @@ export function foldTick(
     oldSettings = JSON.stringify(r.settings);
   applyManagementTick(r, tick, creator, streams, lifecycle);
   if (JSON.stringify(r.settings) !== oldSettings) {
-    r.simulation = createArena(r.settings, r.simulation.tick);
+    r.simulation = freshArena(r);
     r.round++;
   }
   syncKeepers(
@@ -433,8 +449,9 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
         ),
         fate: k.bomb.fate,
         by: k.bomb.by,
+        powerUps: k.power.taken,
       },
-      ward: Math.ceil(k.ward / 60),
+      power: powerView(k.power),
       playing:
         r.settings.rules === "free" ||
         r.simulation.contest.entries.some((e) => e.id === k.id && !e.out),
@@ -443,7 +460,7 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       name: r.seats.get(k.id)!.name,
       bot: k.mind !== null,
       connected: k.connected,
-      shield: k.shield,
+      spawnGuard: k.spawnGuard,
       hits: k.hits,
       body: toView(k.world),
     })),
@@ -458,24 +475,36 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       y: b.y / S,
       vx: (b.vx * 60) / S,
       vy: (b.vy * 60) / S,
+      blast: blastRadius(b.kind),
     })),
-    blasts: r.simulation.blasts.map((e) => ({ ...e, x: e.x / S, y: e.y / S })),
+    blasts: r.simulation.blasts.map((e) => ({
+      ...e,
+      x: e.x / S,
+      y: e.y / S,
+      radius: blastRadius(e.kind),
+    })),
     knockouts: r.simulation.knockouts.map((e) => ({
       ...e,
       x: e.x / S,
       y: e.y / S,
     })),
-    pickups:
-      r.settings.powerUps === "on"
-        ? POWER_PADS[r.settings.map].map((p, i) => ({
-            ...p,
-            cooldown: Math.ceil(r.simulation.powerCooldowns[i]! / 60),
-          }))
-        : [],
+    powers: powerPool(r.settings),
+    pickups: padList(r.simulation).map((p, i) => ({
+      kind: p.ready ? p.kind : "",
+      x: p.x,
+      y: p.y,
+      cooldown: Math.ceil(r.simulation.pads[i]!.cooldown / 60),
+    })),
     pickupEvents: r.simulation.pickupEvents.map((e) => ({
       tick: e.tick,
       by: e.by,
+      kind: e.kind,
       ...POWER_PADS[r.settings.map][e.pad]!,
+    })),
+    shieldPops: r.simulation.shieldPops.map((e) => ({
+      ...e,
+      x: e.x / S,
+      y: e.y / S,
     })),
     contest: contestView(r.simulation.contest, r.settings.rules),
     stage: r.stage,

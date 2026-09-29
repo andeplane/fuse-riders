@@ -106,6 +106,7 @@ export function createMatchShell() {
           c.phase === "over" ? k.tally : null,
         ]),
         view.bombMode,
+        view.powers.length,
         selfId,
         manager,
         display,
@@ -209,6 +210,10 @@ export function createMatchShell() {
                 `${k.tally.knockouts} KO`,
                 `${k.tally.selfKnockouts} self`,
                 `${k.tally.thrown} bombs`,
+              );
+            if (k && view.powers.length)
+              facts.push(
+                `${k.tally.powerUps} power-up${k.tally.powerUps === 1 ? "" : "s"}`,
               );
             if (c.rules === "elimination")
               facts.push(

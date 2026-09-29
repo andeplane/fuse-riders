@@ -76,6 +76,14 @@ test("touch: the hook aims on its press, the bomb on its release, from the chest
     "thrown along the aim pad from where the keeper is now",
   );
   assert.ok(parseInput(input));
+  // A jump press aims too: a Dash bump reads the aim on that tick.
+  t.begin("move", 4);
+  t.update("move", 4, 0, -0.8);
+  input = touchInput(input, t.state, { ...chest, x: 800 });
+  assert.equal(input.jump, true);
+  assert.deepEqual([input.aimX, input.aimY], [1600, 700], "aimed on the press");
+  input = touchInput(input, t.state, { ...chest, x: 900 });
+  assert.equal(input.aimX, 1600, "holding the jump keeps that aim");
   // Before any aim the throw lobs forward and up from the facing.
   const fresh = new TouchInput();
   fresh.begin("bomb", 3);

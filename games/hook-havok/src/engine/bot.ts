@@ -9,7 +9,7 @@
  * its checkpointed mind, and its chance is noise hashed from its id and the
  * tick. Every peer computes the same inputs; no peer sends them.
  */
-import { inPlay, type Arena, type Keeper } from "./arena.js";
+import { boostOf, inPlay, type Arena, type Keeper } from "./arena.js";
 import {
   BODY,
   HALF,
@@ -24,10 +24,18 @@ import { MAPS, type Platform } from "./maps.js";
 import { step } from "./step.js";
 import { sweep } from "./collision.js";
 import type { CombatContext } from "./combat.js";
-import { bombLaunch, bombPath, touches } from "./bomb.js";
+import {
+  blastRadius,
+  bombLaunch,
+  bombPath,
+  bombSpawn,
+  touches,
+  type Bomb,
+} from "./bomb.js";
 import {
   BLAST_RADIUS,
   BOMB_RADIUS,
+  BOMBLET_FUSE,
   CARRY,
   CHARGE_TICKS,
   FULL_SPEED,
@@ -35,7 +43,7 @@ import {
   MAX_BOMBS,
   TAP_SPEED,
 } from "./bomb-rules.js";
-import { POWER_PADS } from "./power-ups.js";
+import { padList, tickPower } from "./power-ups.js";
 import {
   chestOf,
   drive,
@@ -72,9 +80,43 @@ interface Threat {
   id: number;
   owner: string;
   fuse: number;
+  /** Blast radius, units. */
+  radius: number;
   /** The bomb after each of its remaining flights. */
   path: readonly { x: number; y: number }[];
 }
+/**
+ * A live bomb as a blast to get clear of. A cluster bomb splits on its first
+ * contact and its bomblets go off BOMBLET_FUSE later near there, so its blast
+ * is taken at that point, with a whole bomb's radius for their spread.
+ */
+function threatOf(b: Bomb, t: Arena["tuning"]): Threat {
+  const { path, contact } = bombPath(b, b.fuse, t.gravity, t.map),
+    base = { id: b.id, owner: b.owner, radius: blastRadius(b.kind) };
+  if (b.kind !== "cluster" || contact < 0)
+    return { ...base, fuse: b.fuse, path };
+  const at = path[contact]!,
+    fuse = contact + 1 + BOMBLET_FUSE;
+  return {
+    ...base,
+    fuse,
+    path: Array.from({ length: fuse }, (_, i) =>
+      i <= contact ? path[i]! : at,
+    ),
+  };
+}
+/** Where a throw's blast comes from: the fuse's end, or a cluster bomb's split point. */
+function blastPoint(
+  flight: ReturnType<typeof bombPath>,
+  cluster: boolean,
+): { x: number; y: number } | undefined {
+  const { path, contact } = flight;
+  if (cluster && contact >= 0) return path[contact];
+  return path.length === FUSE_TICKS ? path[FUSE_TICKS - 1] : undefined;
+}
+/** The bomb a release now would throw is a cluster bomb. */
+const throwsCluster = (k: Keeper) =>
+  k.power.kind === "cluster" && k.power.charges > 0;
 interface Context {
   arena: Arena;
   platforms: readonly Platform[];
@@ -100,12 +142,7 @@ export function planBots(arena: Arena): Map<string, Input> {
       graph: navGraph(t),
       ph: physics(t),
       level: BOT_LEVELS[t.botLevel],
-      threats: arena.bombs.map((b) => ({
-        id: b.id,
-        owner: b.owner,
-        fuse: b.fuse,
-        path: bombPath(b, b.fuse, t.gravity, t.map),
-      })),
+      threats: arena.bombs.map((b) => threatOf(b, t)),
       beat: Math.floor(arena.tick / 3),
     };
   for (const k of bots) out.set(k.id, sanitize(think(k, ctx)));
@@ -180,11 +217,13 @@ function ledgeOf(w: World, ctx: Context): number {
   });
   return best;
 }
-/** Power-up pads a bot may walk to: the one place bots read pads. */
+/**
+ * Power-up pads a bot may walk to, the one place bots read pads: every ready
+ * pad, whatever it shows (11D), from the pads' own read.
+ */
 export function botPads(arena: Arena): { x: number; y: number }[] {
-  if (arena.tuning.powerUps !== "on") return [];
-  return POWER_PADS[arena.tuning.map].flatMap((pad, i) =>
-    arena.powerCooldowns[i] ? [] : [{ x: pad.x, y: pad.y }],
+  return padList(arena).flatMap((pad) =>
+    pad.ready ? [{ x: pad.x, y: pad.y }] : [],
   );
 }
 /** The ledge a pad sits on, or −1. */
@@ -313,7 +352,14 @@ function navigate(k: Keeper, ctx: Context): Input {
       if (m.edge < 0) m.goal = -1;
     }
   }
-  const input = drive(w, m, graph.edges, platforms, ph);
+  const input = drive(
+    w,
+    m,
+    graph.edges,
+    platforms,
+    ph,
+    k.power.kind === "dash",
+  );
   if (here >= 0 && here === m.goal && m.task === TASK_NONE) {
     input.move = walk(w, m.goalX * S, ph);
     if (Math.abs(w.x - m.goalX * S) < 24 * S) m.timer = 0;
@@ -382,7 +428,8 @@ function strikeAim(
     }
   if (!best)
     for (const r of rivals(k, arena)) {
-      if (r.shield || r.ward) continue;
+      // Spawn protection lets a hook pass through; a Shield only stops blasts.
+      if (r.spawnGuard) continue;
       const rw = r.world,
         p = lead(rw.x, rw.feet - 28 * S, rw.vx, rw.vy);
       if (p.d > reach || (best && p.d >= best.d)) continue;
@@ -455,10 +502,11 @@ interface Throw {
 /**
  * A throw at `charge` along `arc` whose blast lands on `target`: solved
  * ballistically, flown with the real launch and bomb flight (bounces and all),
- * and corrected twice for where it actually ends up.
+ * and corrected twice for where it actually ends up. A cluster bomb's blast
+ * is taken where it splits.
  */
 function throwAt(
-  w: World,
+  k: Keeper,
   charge: number,
   arc: number,
   target: Keeper,
@@ -466,6 +514,8 @@ function throwAt(
   tries = 3,
 ): Throw | undefined {
   const t = ctx.arena.tuning,
+    w = k.world,
+    cluster = throwsCluster(k),
     sx = w.x,
     sy = chestOf(w),
     rw = target.world,
@@ -493,15 +543,21 @@ function throwAt(
     const aimX = Math.round((sx + dir.x * 400 * S) / S),
       aimY = Math.round((sy + dir.y * 400 * S) / S),
       v = bombLaunch(charge, sx, sy, w.vx, w.vy, aimX, aimY, w.facing),
-      path = bombPath(
-        { x: sx, y: sy, vx: v.vx, vy: v.vy },
+      flight = bombPath(
+        { ...bombSpawn(sx, sy, t.map), vx: v.vx, vy: v.vy },
         FUSE_TICKS,
         t.gravity,
         t.map,
       );
-    let end = path.length === FUSE_TICKS ? path[FUSE_TICKS - 1] : undefined;
-    if (t.bomb === "impact")
-      end = path.find((p) => touches(rw, p.x, p.y, BOMB_RADIUS * S)) ?? end;
+    let end = blastPoint(flight, cluster);
+    if (t.bomb === "impact") {
+      const hit = flight.path.findIndex((p) =>
+        touches(rw, p.x, p.y, BOMB_RADIUS * S),
+      );
+      // A cluster bomb that splits first never reaches the rival whole.
+      if (hit >= 0 && !(cluster && flight.contact >= 0 && flight.contact < hit))
+        end = flight.path[hit];
+    }
     if (!end) break;
     const miss = gap({ x: tx, feet: rw.feet }, end.x, end.y);
     if (!best || miss < best.miss)
@@ -585,7 +641,7 @@ function bombing(k: Keeper, ctx: Context, input: Input): Input {
   let best: { charge: number; arc: number; miss: number } | undefined;
   for (const charge of PLAN_CHARGES)
     for (const arc of [1, 0]) {
-      const plan = throwAt(w, charge, arc, r, ctx, 2);
+      const plan = throwAt(k, charge, arc, r, ctx, 2);
       if (
         plan &&
         (!best || plan.miss < best.miss) &&
@@ -609,8 +665,8 @@ function release(k: Keeper, ctx: Context): { aimX: number; aimY: number } {
   let aim: { aimX: number; aimY: number } | undefined;
   if (r) {
     const plan =
-      throwAt(w, charge, m.arc, r, ctx) ??
-      throwAt(w, charge, 1 - m.arc, r, ctx);
+      throwAt(k, charge, m.arc, r, ctx) ??
+      throwAt(k, charge, 1 - m.arc, r, ctx);
     if (plan && gap(w, plan.x, plan.y) > BLAST_RADIUS * S) aim = plan;
   }
   if (!aim) {
@@ -621,14 +677,17 @@ function release(k: Keeper, ctx: Context): { aimX: number; aimY: number } {
       const aimX = Math.round(sx / S + side * 200),
         aimY = Math.round(sy / S - 346),
         v = bombLaunch(charge, sx, sy, w.vx, w.vy, aimX, aimY, w.facing),
-        path = bombPath(
-          { x: sx, y: sy, vx: v.vx, vy: v.vy },
-          FUSE_TICKS,
-          t.gravity,
-          t.map,
+        end = blastPoint(
+          bombPath(
+            { ...bombSpawn(sx, sy, t.map), vx: v.vx, vy: v.vy },
+            FUSE_TICKS,
+            t.gravity,
+            t.map,
+          ),
+          throwsCluster(k),
         ),
-        end = path[path.length - 1],
-        d = path.length < FUSE_TICKS || !end ? Infinity : gap(w, end.x, end.y);
+        // A bomb that falls out of the arena harms nobody.
+        d = end ? gap(w, end.x, end.y) : Infinity;
       if (d > far) {
         far = d;
         aim = { aimX, aimY };
@@ -647,19 +706,33 @@ function release(k: Keeper, ctx: Context): { aimX: number; aimY: number } {
 }
 
 const QUIET: CombatContext = { rivals: [], hit() {} };
-/** The bot's own body, detached from the room: nothing it does in a trial reaches shared state. */
-function ghost(w: World): World {
+/**
+ * The bot detached from the room for a trial. Every object `step` and the
+ * power's tick write is copied: the body with its inputs and hook, the power
+ * (kind, timer, cluster charges), the bomb kit; scalars such as the dash
+ * timer, bonus jumps and spawn guard are copied by the spread. Its combat is
+ * an empty one and it has no mind. Tuning is only read. Nothing a trial does
+ * reaches shared state.
+ */
+function ghost(k: Keeper): Keeper {
+  const w = k.world;
   return {
-    ...w,
-    input: { ...w.input },
-    previous: { ...w.previous },
-    hook: { ...w.hook },
-    combat: {
-      target: null,
-      balls: [],
-      hits: 0,
-      falls: 0,
-      impact: { tick: 0, x: 0, y: 0 },
+    ...k,
+    mind: null,
+    power: { ...k.power },
+    bomb: { ...k.bomb },
+    world: {
+      ...w,
+      input: { ...w.input },
+      previous: { ...w.previous },
+      hook: { ...w.hook },
+      combat: {
+        target: null,
+        balls: [],
+        hits: 0,
+        falls: 0,
+        impact: { tick: 0, x: 0, y: 0 },
+      },
     },
   };
 }
@@ -667,31 +740,35 @@ type Script = (beat: number, g: World) => Input;
 /**
  * How close the nearest blast comes to the bot if it plays `script` (units of
  * clearance beyond the radius; negative is caught), whether it falls to its
- * death, and whether it ends on or over a ledge.
+ * death, and whether it ends on or over a ledge. The ghost moves as the fold
+ * moves the bot: with its power's boost (Triple jump, Dash bump) until the
+ * power runs out.
  */
 function trial(
-  w: World,
+  k: Keeper,
   script: Script,
   threats: readonly Threat[],
   ctx: Context,
-  ownId: string,
 ): { clearance: number; dead: boolean; safe: boolean } {
-  const g = ghost(w),
+  const gk = ghost(k),
+    g = gk.world,
+    jumpMode = ctx.arena.tuning.jumpMode,
     horizon = Math.max(...threats.map((t) => t.fuse)),
     impact = ctx.arena.tuning.bomb === "impact";
   let clearance = Infinity;
   for (let s = 1; s <= horizon; s++) {
     if ((s - 1) % 3 === 0) g.input = script((s - 1) / 3, g);
-    step(g, QUIET);
+    step(g, QUIET, boostOf(gk, jumpMode));
     if (g.respawn) return { clearance: -Infinity, dead: true, safe: false };
+    tickPower(gk);
     for (const t of threats) {
       if (s > t.fuse) continue;
       const p = t.path[s - 1]!;
       if (s === t.fuse)
-        clearance = Math.min(clearance, gap(g, p.x, p.y) - BLAST_RADIUS * S);
+        clearance = Math.min(clearance, gap(g, p.x, p.y) - t.radius * S);
       else if (
         impact &&
-        t.owner !== ownId &&
+        t.owner !== k.id &&
         touches(g, p.x, p.y, BOMB_RADIUS * S)
       )
         clearance = Math.min(clearance, -BLAST_RADIUS * S);
@@ -706,7 +783,11 @@ function dodge(k: Keeper, ctx: Context, input: Input): Input {
     { level, ph } = ctx,
     reach = (level.margin + BLAST_RADIUS + 64) * S;
   const threats = ctx.threats.filter((t) => {
-    if (t.fuse > level.react || t.path.length < t.fuse || k.shield >= t.fuse)
+    if (
+      t.fuse > level.react ||
+      t.path.length < t.fuse ||
+      k.spawnGuard >= t.fuse
+    )
       return false;
     // Its own bomb it always knows about; a rival's it may miss altogether.
     if (t.owner !== k.id && noise(k.id, t.id, 5) >= level.notice) return false;
@@ -719,19 +800,26 @@ function dodge(k: Keeper, ctx: Context, input: Input): Input {
     blast = first.path[first.fuse - 1]!,
     away = (Math.sign(w.x - blast.x) || w.facing) as -1 | 1;
   const held = { ...input };
-  // A jump that rises, lets go at the top and uses the air jump.
+  // A jump that rises, lets go at the top and uses an air jump (a power's too).
   const jumping = (beat: number, g: World) =>
     beat === 0
       ? !w.input.jump
       : g.vy < 0
         ? g.input.jump
-        : g.airJump && !g.input.jump;
+        : (g.airJump || g.bonusJumps > 0) && !g.input.jump;
+  // Holding Dash bump, a jumping escape's air jump dashes up and away.
+  const dashAim = (move: -1 | 0 | 1) =>
+    k.power.kind === "dash"
+      ? {
+          aimX: Math.round(w.x / S) + (move || away) * 120,
+          aimY: Math.round(chestOf(w) / S) - 200,
+        }
+      : { aimX: input.aimX, aimY: input.aimY };
   const make =
     (move: -1 | 0 | 1, jump: boolean, drop = false): Script =>
     (beat, g) => ({
       ...NEUTRAL,
-      aimX: input.aimX,
-      aimY: input.aimY,
+      ...(jump ? dashAim(move) : { aimX: input.aimX, aimY: input.aimY }),
       bomb: input.bomb,
       move,
       jump: jump && jumping(beat, g),
@@ -745,11 +833,18 @@ function dodge(k: Keeper, ctx: Context, input: Input): Input {
     },
     {
       script: make(away, true),
-      first: { move: away, jump: !w.input.jump, drop: false, fire: false },
+      first: {
+        ...dashAim(away),
+        move: away,
+        jump: !w.input.jump,
+        drop: false,
+        fire: false,
+      },
     },
     {
       script: make(-away as -1 | 1, true),
       first: {
+        ...dashAim(-away as -1 | 1),
         move: -away as -1 | 1,
         jump: !w.input.jump,
         drop: false,
@@ -758,7 +853,13 @@ function dodge(k: Keeper, ctx: Context, input: Input): Input {
     },
     {
       script: make(0, true),
-      first: { move: 0, jump: !w.input.jump, drop: false, fire: false },
+      first: {
+        ...dashAim(0),
+        move: 0,
+        jump: !w.input.jump,
+        drop: false,
+        fire: false,
+      },
     },
     ...(w.grounded
       ? [
@@ -781,7 +882,7 @@ function dodge(k: Keeper, ctx: Context, input: Input): Input {
   let best = options[0]!,
     score = -Infinity;
   for (const option of options) {
-    const r = trial(w, option.script, threats, ctx, k.id);
+    const r = trial(k, option.script, threats, ctx);
     if (!r.dead && r.safe && r.clearance >= margin)
       return { ...input, ...option.first };
     const value = r.dead ? -Infinity : r.clearance + (r.safe ? 0 : -40 * S);

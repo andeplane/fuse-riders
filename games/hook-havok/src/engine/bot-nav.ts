@@ -225,6 +225,7 @@ export function anchor(
  * steer onto its landing ledge in the air (double jumping when a fall comes up
  * short), climb a hooked rope with a rope jump, and hook an anchor above when
  * nothing below can be reached. Mutates `course`; the caller owns arrivals.
+ * `dash`: the keeper holds Dash bump, so an air jump dashes along the aim.
  */
 export function pilot(
   w: World,
@@ -232,6 +233,7 @@ export function pilot(
   edges: readonly Edge[],
   platforms: readonly Platform[],
   ph: Physics,
+  dash = false,
 ): Input {
   const input: Input = { ...NEUTRAL, aimX: w.input.aimX, aimY: w.input.aimY },
     h = w.hook,
@@ -306,12 +308,25 @@ export function pilot(
       return input;
     }
   }
-  // Short of the target, or over the void. With the air jump left: at the top
-  // of the rise, let go and jump again.
-  if (w.airJump) {
+  // Short of the target, or over the void. With an air jump left (a power's
+  // included): at the top of the rise, let go and jump again.
+  if (w.airJump || w.bonusJumps > 0) {
     const aim = target >= 0 ? target : (anchor(w, platforms, ph)?.p ?? -1);
     if (aim >= 0) input.move = toward(w, platforms[aim]!);
-    if (w.vy >= 0) input.jump = press(w.input.jump);
+    if (w.vy >= 0) {
+      input.jump = press(w.input.jump);
+      // A Dash bump's air jump dashes along the aim: up, leaning toward the ledge.
+      if (dash && input.jump) {
+        let lean = 0;
+        if (aim >= 0) {
+          const [px, , width] = platforms[aim]!,
+            tx = clamp(w.x, (px + 36) * S, (px + width - 36) * S);
+          lean = clamp(Math.round((tx - w.x) / S), -140, 140);
+        }
+        input.aimX = Math.round(w.x / S) + lean;
+        input.aimY = Math.round(chestOf(w) / S) - 200;
+      }
+    }
     return input;
   }
   // No jump left: land anywhere that can still be reached.
@@ -343,6 +358,7 @@ export function drive(
   edges: readonly Edge[],
   platforms: readonly Platform[],
   ph: Physics,
+  dash = false,
 ): Input {
   const here = standingOn(w, platforms);
   if (here >= 0) {
@@ -350,7 +366,7 @@ export function drive(
     if (!e || here !== e.from) course.edge = -1;
     course.hop = -1;
   }
-  return pilot(w, course, edges, platforms, ph);
+  return pilot(w, course, edges, platforms, ph, dash);
 }
 
 function trial(
@@ -451,7 +467,7 @@ function build(tuning: Tuning): NavGraph {
       ...tuning,
       experiment: "movement",
       bomb: "off",
-      powerUps: "off",
+      powerUps: 0,
     },
     edges: Edge[] = [];
   for (let a = 0; a < platforms.length; a++)
