@@ -219,3 +219,38 @@ test("session refresh retains credentials, display is separate and public links 
     "fallback",
   );
 });
+test("clearing held input throws a charging bomb along the aim it is given, not the press's", () => {
+  const mesh = new Mesh(),
+    a = mesh.join("a");
+  mesh.run(500);
+  a.command({ type: "join", name: "A" });
+  mesh.run(500);
+  assert.equal(a.command({ type: "action", action: "start" }), true);
+  mesh.run(500);
+  a.command({
+    type: "settings",
+    settings: { ...CLASSIC_TUNING, bomb: "fuse" },
+  });
+  mesh.run(1500);
+  const keeper = () => a.state()!.simulation.keepers[0]!;
+  // Pressed aiming up-left, then the page loses focus mid-charge.
+  a.input({ ...NEUTRAL, bomb: true, aimX: 100, aimY: 100 });
+  mesh.run(300);
+  assert.ok(keeper().world.charge > 0, "charging");
+  a.clear({ aimX: 1500, aimY: 400 });
+  mesh.run(300);
+  const [bomb] = a.state()!.simulation.bombs;
+  assert.ok(bomb && bomb.vx > 0, "thrown toward the aim at the clear");
+  assert.deepEqual(
+    [
+      keeper().world.input.aimX,
+      keeper().world.input.aimY,
+      keeper().world.input.bomb,
+    ],
+    [1500, 400, false],
+  );
+  // Without an aim the last sent one stands.
+  a.clear();
+  mesh.run(100);
+  assert.equal(keeper().world.input.aimX, 1500);
+});

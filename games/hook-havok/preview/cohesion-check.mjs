@@ -72,10 +72,13 @@ try {
   await host.locator("#development-workshop > summary").click();
   await host.locator("#jump-mode").selectOption("double");
   await host.locator("#wire-mode").selectOption("spiked");
+  // Bombs stay off, so the workload is the one the retained samples measured.
+  await host.locator("#bomb-mode").selectOption("off");
   for (const p of pages) {
     await p.waitForFunction(
       () =>
         document.querySelector("#wire-mode").value === "spiked" &&
+        document.querySelector("#bomb-mode").value === "off" &&
         JSON.parse(document.querySelector("#scene").dataset.keepers || "[]")
           .length === 5,
     );
@@ -155,8 +158,9 @@ try {
     const next = pages.map(() => [
       random() % 2 ? "a" : "d",
       "w",
-      ...(random() % 3 ? ["j"] : []),
-      ...(step % 2 === 0 ? ["k"] : []),
+      // Since 11B Space jumps and J hooks; K would throw a bomb.
+      ...(random() % 3 ? ["Space"] : []),
+      ...(step % 2 === 0 ? ["j"] : []),
     ]);
     schedule.push(next);
     await Promise.all(
@@ -204,6 +208,8 @@ try {
       experiment: "surge",
       jump: "double",
       wire: "spiked",
+      bomb: "off",
+      keys: "Space jumps and j hooks (before 11B the schedule named j for jump and k for hook)",
       schedule,
     },
     measurement: {

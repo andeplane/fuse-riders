@@ -18,7 +18,13 @@ import {
   type Input,
   type Tuning,
 } from "../src/engine/world.js";
-import { bombLaunch, type Bomb } from "../src/engine/bomb.js";
+import {
+  bombArc,
+  bombLaunch,
+  bombSpawn,
+  type Bomb,
+} from "../src/engine/bomb.js";
+import { throwPreview, toView } from "../src/engine/view.js";
 import {
   CHAIN_TICKS,
   CHARGE_TICKS,
@@ -28,7 +34,7 @@ import {
   KO_SHIELD,
   MAX_BOMBS,
 } from "../src/engine/bomb-rules.js";
-import { COUNTDOWN_TICKS } from "../src/engine/contest.js";
+import { COUNTDOWN_TICKS, ROUND_TICKS } from "../src/engine/contest.js";
 import { parseInput, parseTuning } from "../src/engine/codec.js";
 import {
   createRoom,
@@ -36,9 +42,23 @@ import {
   encode,
   foldTick,
   hash,
+  hookGame,
+  stepInputs,
   type Entry,
 } from "../src/online/game.js";
-import { ACTION, JOIN, PRESENCE, type StreamEntries } from "fuse-netcode";
+import {
+  ACTION,
+  JOIN,
+  PRESENCE,
+  SnapshotAssembler,
+  World,
+  decodeSnapshot,
+  encodeSnapshot,
+  packMessage,
+  unpackMessage,
+  type StreamEntries,
+} from "fuse-netcode";
+import { canonArena } from "./fixtures/canon.js";
 
 const BOMBS: Tuning = { ...CLASSIC_TUNING, bomb: "fuse" };
 const members = ["amber", "blue", "green", "violet", "rose"].map(
@@ -99,7 +119,13 @@ function plant(a: Arena, owner: Keeper, x: number, y: number, fuse = 1): Bomb {
   a.bombs.sort((p, q) => p.id - q.id);
   return bomb;
 }
-const roundTrip = (a: Arena) => decodeArena(encodeArena(a));
+/** A checkpoint of the arena, through JSON, decodes to exactly the same state. */
+function assertRoundTrip(a: Arena, label?: string): Arena {
+  const restored = decodeArena(JSON.parse(JSON.stringify(encodeArena(a))));
+  assert.ok(restored, label);
+  assert.equal(canonArena(restored), canonArena(a), label);
+  return restored;
+}
 
 test("launch speed follows the charge: 450 at a tap, 950 when full, full stays full", () => {
   const speed = (charge: number) => {
@@ -167,7 +193,7 @@ test("bombs bounce off ledges losing speed, then roll and rest; walls bounce the
       rising = false;
       top = Infinity;
     }
-    assert.ok(roundTrip(a), `tick ${t}`);
+    assertRoundTrip(a, `tick ${t}`);
   }
   assert.ok(bounces >= 2, `bounces ${bounces}`);
   for (let i = 1; i < apexes.length; i++)
@@ -222,7 +248,7 @@ test("the fuse runs 1.5 s from the throw; the blast knocks out every body in rea
     [1, "bomb", "amber"],
   );
   assert.equal(blue.world.deaths, 1);
-  assert.ok(roundTrip(a));
+  assertRoundTrip(a);
   // One second out, then one second of protection.
   press(a, blue, {}, KO_RESPAWN);
   assert.equal(blue.world.respawn, 0);
@@ -261,12 +287,12 @@ test("a blast pops orbs in reach once and sets off nearby bombs after a short de
     "children wait for the next tick",
   );
   assert.equal(second.fuse, CHAIN_TICKS);
-  assert.ok(roundTrip(a));
+  assertRoundTrip(a);
   press(a, amber, {}, CHAIN_TICKS);
   assert.equal(a.blasts.at(-1)!.id, second.id);
   assert.equal(a.blasts.at(-1)!.tick, first + CHAIN_TICKS);
   assert.equal(a.bombs.length, 0);
-  assert.ok(roundTrip(a));
+  assertRoundTrip(a);
 });
 test("cooldown: 2.5 s from the release, one bomb out per keeper, and a held button charges when it ends", () => {
   const a = arena();
@@ -334,7 +360,7 @@ test("a bomb that leaves the bottom fizzles; a departing keeper takes their bomb
   plant(a, blue, 300, 700, FUSE_TICKS);
   syncKeepers(a, members.slice(0, 1));
   assert.equal(a.bombs.length, 0);
-  assert.ok(roundTrip(a));
+  assertRoundTrip(a);
 });
 function competitive(rules: Tuning["rules"], n: number) {
   const a = arena(n, { ...BOMBS, rules });
@@ -356,7 +382,7 @@ test("score rules: a knockout +1 to the thrower and −2 to the victim; a self-k
   stepArena(a);
   assert.equal(score("amber"), 1 - 1 - 2);
   assert.equal(a.contest.phase, "active", "score rounds keep going");
-  assert.ok(roundTrip(a));
+  assertRoundTrip(a);
 });
 test("elimination: a knockout puts the victim out, and one blast can leave nobody standing", () => {
   const a = competitive("elimination", 3);
@@ -366,7 +392,7 @@ test("elimination: a knockout puts the victim out, and one blast can leave nobod
   stepArena(a);
   assert.deepEqual(out(), ["blue"]);
   assert.equal(a.contest.phase, "active");
-  assert.ok(roundTrip(a));
+  assertRoundTrip(a);
   press(a, amber, {}, 2);
   stand(green, 200);
   stand(amber, 160);
@@ -376,7 +402,7 @@ test("elimination: a knockout puts the victim out, and one blast can leave nobod
   assert.equal(a.contest.phase, "over");
   assert.deepEqual(a.contest.winners, []);
   assert.equal(a.bombs.length, 0);
-  assert.ok(roundTrip(a));
+  assertRoundTrip(a);
 });
 test("free play keeps tallies without a contest; the off setting ignores the bomb button", () => {
   const a = arena(2);
@@ -478,8 +504,7 @@ test("deterministic replay through throws, bounces, chains and knockouts, restor
     stepArena(a);
     stepArena(b);
     assert.deepEqual(encodeArena(a), encodeArena(b), `tick ${tick}`);
-    const restored = roundTrip(a);
-    assert.ok(restored, `tick ${tick} checkpoints`);
+    const restored = assertRoundTrip(a, `tick ${tick} checkpoints`);
     if (tick % 17 === 0) b = restored;
   }
   const total = (f: (k: Keeper) => number) =>
@@ -497,22 +522,46 @@ interface Encoded {
   keepers: {
     shield: number;
     bomb?: Record<string, unknown>;
-    body: { deaths: number; charge: number; input: Input };
+    body: { deaths: number; charge: number; respawn: number; input: Input };
   }[];
 }
-test("checkpoints round-trip bombs and reject corrupt or out-of-bounds bomb state atomically", () => {
-  const r = room({ ...BOMBS, experiment: "ricochet" });
-  for (let t = 2; t < 30; t++)
-    foldTick(r, host, stream([at(t, { bomb: t < 20, aimX: 700, aimY: 500 })]));
-  assert.equal(r.simulation.bombs.length, 1);
-  const good = encode(r),
-    saved = hash(r);
-  assert.equal(hash(decode(good, r.tick)!), saved);
-  const corrupt = (edit: (s: Encoded) => void) => {
-    const fields = structuredClone(good);
-    edit(fields[5] as Encoded);
-    return decode(fields, r.tick);
+/** A live room behind the netcode's rollback world, its log appended like a real one. */
+function liveRoom(tuning: Tuning, until: number) {
+  const world = new World(hookGame, createRoom("lobby", tuning), host, host),
+    log = world.stream(host, 1);
+  log.append(1, [JOIN, host, "Keeper", 0, "keeper", 1]);
+  log.append(1, [ACTION, "start", "match"]);
+  let through = 1;
+  const play = (to: number) => {
+    for (let t = through + 1; t <= to; t++)
+      log.append(t, [
+        0,
+        "match",
+        1,
+        { ...NEUTRAL, bomb: t % 40 < 18, aimX: 700, aimY: 500 },
+      ]);
+    log.through = through = to;
+    world.advance(to);
   };
+  play(until);
+  return { world, play };
+}
+test("checkpoints round-trip bombs; a corrupt one is refused whole and the live room is untouched", () => {
+  const tuning: Tuning = { ...BOMBS, experiment: "ricochet" };
+  const live = liveRoom(tuning, 29),
+    twin = liveRoom(tuning, 29);
+  assert.equal(live.world.state.simulation.bombs.length, 1);
+  const saved = hash(live.world.state);
+  // The restore path a joining or resyncing peer runs: snapshot chunks,
+  // reassembly, the adapter's decode and the hash check.
+  const assembler = new SnapshotAssembler(hookGame, 7);
+  let bytes: Uint8Array | undefined;
+  for (const chunk of encodeSnapshot(live.world, 7))
+    bytes = assembler.accept(chunk)?.bytes ?? bytes;
+  assert.ok(bytes);
+  const restored = decodeSnapshot(hookGame, bytes, 7);
+  assert.ok(restored);
+  assert.equal(hash(restored.state), saved);
   const cases: [string, (s: Encoded) => void][] = [
     ["extra bomb key", (s) => (s.bombs[0]!.spin = 1)],
     ["fuse spent", (s) => (s.bombs[0]!.fuse = 0)],
@@ -538,6 +587,12 @@ test("checkpoints round-trip bombs and reject corrupt or out-of-bounds bomb stat
     ],
     ["bombs not an array", (s) => (s.bombs = {} as Encoded["bombs"])],
     ["owner cooled down", (s) => (s.keepers[0]!.bomb!.cooldown = 10)],
+    [
+      "owner cooldown under the fuse's",
+      (s) =>
+        (s.keepers[0]!.bomb!.cooldown =
+          s.bombs[0]!.fuse + COOLDOWN_TICKS - FUSE_TICKS - 1),
+    ],
     [
       "cooldown too long",
       (s) => (s.keepers[0]!.bomb!.cooldown = COOLDOWN_TICKS + 1),
@@ -597,16 +652,386 @@ test("checkpoints round-trip bombs and reject corrupt or out-of-bounds bomb stat
     ["missing blasts", (s) => delete (s as Partial<Encoded>).blasts],
   ];
   for (const [name, edit] of cases) {
-    assert.equal(corrupt(edit), undefined, name);
-    assert.equal(hash(r), saved, `${name}: healthy state unchanged`);
+    // The live room's own encoding, edited in place: an encoder that shared
+    // objects with the room would corrupt the room here.
+    const fields = hookGame.checkpoint.encode(live.world.state);
+    edit(fields[5] as Encoded);
+    assert.equal(
+      hookGame.checkpoint.decode(fields, live.world.state.tick),
+      undefined,
+      name,
+    );
+    assert.equal(hash(live.world.state), saved, `${name}: live room unchanged`);
   }
+  // A snapshot carrying such a checkpoint is refused whole.
+  const packed = unpackMessage(bytes) as unknown[];
+  (packed[10] as Encoded).bombs[0]!.fuse = 0;
+  assert.equal(decodeSnapshot(hookGame, packMessage(packed), 7), undefined);
   // Bomb state under the off setting is rejected by the arena itself.
+  const good = hookGame.checkpoint.encode(live.world.state);
   const off = structuredClone(good[5]) as Encoded;
   off.tuning.bomb = "off";
   assert.equal(decodeArena(off), undefined);
   // Settings and snapshot tuning disagree about bombs: rejected too.
   const fields = structuredClone(good);
   (fields[3] as Tuning).bomb = "impact";
-  assert.equal(decode(fields, r.tick), undefined);
-  assert.equal(hash(r), saved);
+  assert.equal(decode(fields, live.world.state.tick), undefined);
+  // Nothing leaked: the live room folds on exactly like its twin.
+  assert.equal(hash(live.world.state), saved);
+  live.play(110);
+  twin.play(110);
+  assert.equal(hash(live.world.state), hash(twin.world.state));
+  assert.ok(live.world.state.simulation.keepers[0]!.bomb.thrown >= 2);
+});
+test("checkpoint bounds follow what play can reach: fall-length returns without bombs, no bomb state outside play", () => {
+  const rejects = (a: Arena, edit: (s: Encoded) => void, name: string) => {
+    const s = JSON.parse(JSON.stringify(encodeArena(a))) as Encoded;
+    assert.ok(
+      decodeArena(structuredClone(s)),
+      `${name}: the unedited arena decodes`,
+    );
+    edit(s);
+    assert.equal(decodeArena(s), undefined, name);
+  };
+  // Without bombs nothing protects or keeps a keeper out longer than a fall.
+  const off = arena(1, CLASSIC_TUNING),
+    faller = off.keepers[0]!;
+  Object.assign(faller.world, { x: 800 * S, feet: 954 * S, grounded: false });
+  stepArena(off);
+  assert.equal(faller.world.respawn, 30);
+  rejects(
+    off,
+    (s) => (s.keepers[0]!.body.respawn = 31),
+    "respawn beyond a fall's",
+  );
+  press(off, faller, {}, 30);
+  assert.equal(faller.shield, 30);
+  rejects(off, (s) => (s.keepers[0]!.shield = 31), "shield beyond a fall's");
+  // With bombs a knockout's longer return is reachable and accepted.
+  const on = arena(2);
+  const amber = on.keepers[0]!;
+  stand(amber, 300);
+  plant(on, amber, 300, 790);
+  stepArena(on);
+  assert.equal(amber.world.respawn, KO_RESPAWN);
+  assertRoundTrip(on);
+  press(on, amber, {}, KO_RESPAWN);
+  assert.equal(amber.shield, KO_SHIELD);
+  assertRoundTrip(on);
+  // Before a round (one keeper waiting) there is no bomb state at all.
+  const waiting = createArena({ ...BOMBS, rules: "score" });
+  syncKeepers(waiting, members.slice(0, 1));
+  press(waiting, waiting.keepers[0]!, { bomb: true }, 5);
+  assert.equal(waiting.contest.phase, "waiting");
+  assert.equal(waiting.keepers[0]!.world.charge, 0, "no charge before a round");
+  rejects(
+    waiting,
+    (s) => {
+      s.bombs.push({
+        id: 0,
+        owner: "amber",
+        x: 800 * S,
+        y: 100 * S,
+        vx: 0,
+        vy: 0,
+        fuse: 10,
+      });
+      s.keepers[0]!.bomb!.cooldown = COOLDOWN_TICKS;
+    },
+    "a bomb before the round",
+  );
+  rejects(
+    waiting,
+    (s) => s.blasts.push({ tick: s.tick, id: 0, owner: "amber", x: 0, y: 0 }),
+    "a blast before the round",
+  );
+  rejects(
+    waiting,
+    (s) => {
+      s.keepers[0]!.body.input.bomb = true;
+      s.keepers[0]!.body.charge = 3;
+    },
+    "a charge before the round",
+  );
+  // A disconnected keeper's charge was cancelled on the way out.
+  const away = arena(2);
+  syncKeepers(away, [members[0]!, { ...members[1]!, connected: false }]);
+  rejects(
+    away,
+    (s) => {
+      s.keepers[1]!.body.input.bomb = true;
+      s.keepers[1]!.body.charge = 3;
+    },
+    "a charge while disconnected",
+  );
+  // The lobby holds a fresh arena that never runs.
+  const lobby = createRoom("lobby", BOMBS);
+  foldTick(lobby, host, stream([[1, 1, JOIN, host, "Keeper", 0, "keeper", 1]]));
+  for (let t = 2; t < 6; t++) foldTick(lobby, host, stream([]));
+  assert.equal(lobby.stage, "lobby");
+  assert.ok(decode(encode(lobby), lobby.tick));
+  const planted = encode(lobby),
+    fields = planted[5] as Encoded;
+  fields.bombs.push({
+    id: 0,
+    owner: host,
+    x: 800 * S,
+    y: 100 * S,
+    vx: 0,
+    vy: 0,
+    fuse: 10,
+  });
+  fields.keepers[0]!.bomb!.cooldown = COOLDOWN_TICKS;
+  assert.ok(
+    decodeArena(structuredClone(fields)),
+    "free play's arena alone allows it",
+  );
+  assert.equal(decode(planted, lobby.tick), undefined, "a bomb in the lobby");
+});
+test("wall and ceiling bounces keep 0.8 of the tangential speed as well as 0.45 of the normal", () => {
+  const g = Math.round((BOMBS.gravity * S) / 3600);
+  const wall = arena();
+  const side = plant(wall, wall.keepers[0]!, 30, 300, FUSE_TICKS);
+  Object.assign(side, { vx: -20 * S, vy: -10 * S });
+  stepArena(wall);
+  assert.equal(side.vx, Math.round(20 * S * 0.45), "0.45 of the normal");
+  assert.equal(side.vy, Math.round((-10 * S + g) * 0.8), "0.8 along the wall");
+  // Under the belfry's lower-left ledge (stone 670–698, solid to 708).
+  const roof = arena();
+  const up = plant(roof, roof.keepers[0]!, 330, 712, FUSE_TICKS);
+  Object.assign(up, { vx: 5 * S, vy: -10 * S });
+  stepArena(roof);
+  assert.equal(up.vy, -Math.round((-10 * S + g) * 0.45));
+  assert.equal(up.vx, Math.round(5 * S * 0.8), "0.8 along the ceiling");
+  assert.ok(up.y > 708 * S, "still under the ledge");
+});
+test("an impact bomb passes a spawn-protected rival by, as its blast would", () => {
+  const a = arena(2, { ...BOMBS, bomb: "impact" });
+  const [amber, blue] = a.keepers as [Keeper, Keeper];
+  stand(amber, 150);
+  stand(blue, 330);
+  blue.shield = 20;
+  plant(a, amber, 330, 790, FUSE_TICKS); // inside blue's body
+  press(a, amber, {}, 3);
+  assert.equal(a.bombs.length, 1, "no impact on a protected rival");
+  assert.equal(a.blasts.length, 0);
+  blue.shield = 0;
+  stepArena(a);
+  assert.equal(a.bombs.length, 0, "it goes off once they are exposed");
+  assert.equal(blue.bomb.bombed, 1);
+  assert.equal(amber.world.respawn, 0);
+});
+test("a bomb thrown from inside a ledge starts at its nearest face instead of passing through the stone", () => {
+  // Crossroads' middle ledge: stone 690–910 × 660–688, solid to bombs 10 units out.
+  assert.deepEqual(bombSpawn(800 * S, 670 * S, "crossroads"), {
+    x: 800 * S,
+    y: 650 * S - 1,
+  });
+  assert.deepEqual(bombSpawn(800 * S, 695 * S, "crossroads"), {
+    x: 800 * S,
+    y: 698 * S + 1,
+  });
+  assert.deepEqual(bombSpawn(684 * S, 680 * S, "crossroads"), {
+    x: 680 * S - 1,
+    y: 680 * S,
+  });
+  assert.deepEqual(
+    bombSpawn(800 * S, 600 * S, "crossroads"),
+    { x: 800 * S, y: 600 * S },
+    "open air is left alone",
+  );
+  const a = arena(1, { ...BOMBS, map: "crossroads" });
+  const k = a.keepers[0]!;
+  // A keeper rising through that one-way ledge: the chest is in the stone.
+  const inside = () =>
+    Object.assign(k.world, {
+      x: 800 * S,
+      feet: 700 * S,
+      vx: 0,
+      vy: 0,
+      grounded: false,
+    });
+  inside();
+  press(a, k, { bomb: true }, 3);
+  inside();
+  press(a, k, { bomb: false, aimX: 800, aimY: 900 }); // straight down
+  const bomb = a.bombs[0]!;
+  assert.equal(bomb.y, 650 * S - 1, "it enters flight on the top face");
+  assert.ok(bomb.vy > 0);
+  for (let t = 0; t < 40; t++) {
+    stepArena(a);
+    assert.ok(bomb.y < 650 * S, `tick ${t}: above the stone at ${bomb.y / S}`);
+  }
+  // The preview starts where the bomb does.
+  const arc = bombArc(3, 800, 669, 0, 0, 800, 900, 1, 1800, "crossroads");
+  assert.ok(arc.length && arc.every((p) => p.y <= 650));
+});
+test("a release and re-press inside one log tick still throws; each bomb change gets an engine step", () => {
+  const r = room();
+  for (let t = 2; t < 12; t++)
+    foldTick(r, host, stream([at(t, { bomb: true })]));
+  assert.equal(r.simulation.keepers[0]!.world.charge, 30);
+  foldTick(
+    r,
+    host,
+    stream([at(12, { aimX: 900 }), at(12, { bomb: true, aimX: 900 }, 1)]),
+  );
+  assert.equal(r.simulation.bombs.length, 1, "thrown on the release");
+  assert.equal(r.simulation.keepers[0]!.bomb.thrown, 1);
+  const bombs = (from: Partial<Input>, ...held: boolean[]) =>
+    stepInputs(
+      { ...NEUTRAL, ...from },
+      held.map((bomb) => ({ ...NEUTRAL, bomb })),
+    ).map((i) => i.bomb);
+  assert.deepEqual(bombs({ bomb: true }, false, true), [false, true, true]);
+  assert.deepEqual(bombs({}, true, false), [true, false, false], "a tap");
+  assert.deepEqual(bombs({}, true, false, true), [true, false, true]);
+  assert.deepEqual(
+    bombs({ bomb: true }, false, true, false, true),
+    [false, true, true],
+    "more changes than steps: the first two, then the last state",
+  );
+  assert.deepEqual(bombs({ bomb: true }), [true, true, true], "held");
+  // The release step aims where the release did, although a later input in
+  // the tick (W lifted after K) moved the aim.
+  const lifted = stepInputs(
+    { ...NEUTRAL, bomb: true, aimX: 1300, aimY: -300 },
+    [
+      { ...NEUTRAL, aimX: 1300, aimY: -300 },
+      { ...NEUTRAL, aimX: 300, aimY: -300 },
+    ],
+  );
+  assert.deepEqual(
+    lifted.map((i) => [i.bomb, i.aimX]),
+    [
+      [false, 1300],
+      [false, 300],
+      [false, 300],
+    ],
+  );
+  const tapped = stepInputs(NEUTRAL, [
+    { ...NEUTRAL, bomb: true, aimX: 100 },
+    { ...NEUTRAL, aimX: 200 },
+    { ...NEUTRAL, bomb: true, aimX: 300 },
+    { ...NEUTRAL, bomb: true, aimX: 400 },
+  ]);
+  assert.deepEqual(
+    tapped.map((i) => [i.bomb, i.aimX]),
+    [
+      [true, 400],
+      [false, 200],
+      [true, 400],
+    ],
+    "a tap then a new charge: the tap throws along its own release",
+  );
+  const late = stepInputs({ ...NEUTRAL, bomb: true }, [
+    { ...NEUTRAL, aimX: 100 },
+    { ...NEUTRAL, bomb: true, aimX: 200 },
+    { ...NEUTRAL, aimX: 300 },
+    { ...NEUTRAL, aimX: 400 },
+  ]);
+  assert.deepEqual(
+    late.map((i) => [i.bomb, i.aimX]),
+    [
+      [false, 100],
+      [true, 400],
+      [false, 300],
+    ],
+    "the last release, on the last step",
+  );
+  // Other buttons keep press edges only.
+  const hook = stepInputs({ ...NEUTRAL, fire: true }, [
+    { ...NEUTRAL },
+    { ...NEUTRAL, fire: true },
+  ]);
+  assert.deepEqual(
+    hook.map((i) => i.fire),
+    [true, true, true],
+    "a hook released and pressed again inside one tick stays held",
+  );
+  const hop = stepInputs(NEUTRAL, [{ ...NEUTRAL, jump: true }, NEUTRAL]);
+  assert.deepEqual(
+    hop.map((i) => i.jump),
+    [true, false, false],
+  );
+});
+test("elimination: a bomb outlives its thrower's fall and still knocks rivals out; the round resolves", () => {
+  for (const draw of [false, true]) {
+    const a = competitive("elimination", 3);
+    const [amber, blue, green] = a.keepers as [Keeper, Keeper, Keeper];
+    const out = () => a.contest.entries.filter((e) => e.out).map((e) => e.id);
+    if (draw) stand(green, 350);
+    plant(a, amber, 330, 790, 4); // blue stands at 310
+    // The thrower falls out of the arena with the bomb still burning.
+    Object.assign(amber.world, { x: 800 * S, feet: 954 * S, grounded: false });
+    stepArena(a);
+    assert.deepEqual(out(), ["amber"], "the thrower fell");
+    assert.equal(a.bombs.length, 1, "their bomb burns on");
+    assertRoundTrip(a);
+    press(a, blue, {}, 3);
+    assert.equal(a.blasts.at(-1)!.owner, "amber");
+    assert.deepEqual([blue.bomb.fate, blue.bomb.by], ["bomb", "amber"]);
+    assert.equal(amber.bomb.knockouts, draw ? 2 : 1, "credited to the thrower");
+    assert.equal(amber.world.deaths, 1);
+    assert.deepEqual(
+      out().sort(),
+      draw ? ["amber", "blue", "green"] : ["amber", "blue"],
+    );
+    assert.equal(a.contest.phase, "over");
+    assert.deepEqual(a.contest.winners, draw ? [] : ["green"]);
+    assert.equal(a.bombs.length, 0);
+    assertRoundTrip(a);
+  }
+});
+test("the arc preview traces the flight a release would make", () => {
+  const a = arena();
+  const k = a.keepers[0]!;
+  stand(k, 480); // clear of the ledge above the terrace
+  press(a, k, { bomb: true }, 20);
+  const aim = { x: 1200, y: 400 };
+  const preview = throwPreview(toView(k.world), aim);
+  press(a, k, { bomb: false, aimX: aim.x, aimY: aim.y });
+  const bomb = a.bombs[0]!,
+    flight: { x: number; y: number }[] = [];
+  for (let t = 0; t < 2 * preview.length && a.bombs.length; t++) {
+    stepArena(a);
+    flight.push({ x: bomb.x / S, y: bomb.y / S });
+  }
+  assert.ok(preview.length > 5, `${preview.length} dots`);
+  // A dot every other tick: dot i is the bomb after 2i + 2 ticks of flight.
+  // The last dot is where it first meets stone, which bounces are not.
+  preview.slice(0, -1).forEach((dot, i) => {
+    const at = flight[2 * i + 1]!;
+    assert.ok(
+      Math.abs(dot.x - at.x) < 0.01 && Math.abs(dot.y - at.y) < 0.01,
+      `dot ${i}: ${JSON.stringify([dot, at])}`,
+    );
+  });
+});
+test("a charge is dropped, never thrown, when its keeper is eliminated or the round ends", () => {
+  const a = competitive("elimination", 3);
+  const amber = a.keepers[0]!;
+  press(a, amber, { bomb: true }, 10);
+  assert.equal(amber.world.charge, 10);
+  Object.assign(amber.world, { x: 800 * S, feet: 954 * S, grounded: false });
+  press(a, amber, { bomb: true });
+  assert.ok(a.contest.entries.find((e) => e.id === "amber")!.out);
+  assert.equal(amber.world.charge, 0, "the fall drops it");
+  press(a, amber, { bomb: false, aimX: 900, aimY: 500 }, 5);
+  assert.equal(a.bombs.length, 0);
+  assert.equal(amber.bomb.thrown, 0);
+  assertRoundTrip(a);
+  // The end of a score round cancels every charge.
+  const b = competitive("score", 2);
+  const blue = b.keepers[1]!;
+  press(b, blue, {}, ROUND_TICKS - 20);
+  press(b, blue, { bomb: true }, 10);
+  assert.equal(b.contest.phase, "active");
+  assert.equal(blue.world.charge, 10);
+  while (b.contest.phase === "active") press(b, blue, { bomb: true });
+  assert.equal(blue.world.charge, 0, "the round's end drops it");
+  press(b, blue, { bomb: false, aimX: 900, aimY: 500 }, 5);
+  assert.equal(b.bombs.length, 0);
+  assert.equal(blue.bomb.thrown, 0);
+  assertRoundTrip(b);
 });
