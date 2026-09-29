@@ -28,7 +28,7 @@ import {
 import { createFrame, type Frame } from "./frame.js";
 import { createLight, keelTexture, type Light } from "./light.js";
 import { createJuice, type Juice } from "./juice.js";
-import { createBombs, type Bombs } from "./bombs.js";
+import { createBombs, type BombKeeper, type Bombs } from "./bombs.js";
 import {
   animateShrine,
   dressShrine,
@@ -94,6 +94,18 @@ export function createShowcase(
   const feedback = new Feedback();
   const res = renderScale();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  /** Diagnostic lists for the browser checks, written only when they change. */
+  const written = new Map<string, string>();
+  const writeList = (key: string, list: readonly unknown[]) => {
+    const last = written.get(key);
+    if (!list.length && last === "[]") return;
+    const text = list.length ? JSON.stringify(list) : "[]";
+    if (text === last) return;
+    written.set(key, text);
+    host.dataset[key] = text;
+  };
+  /** Reused every frame: the bomb layer's keepers. */
+  const bombKeepers: BombKeeper[] = [];
   class Belfry extends Phaser.Scene {
     private peers = new Map<
       string,
@@ -425,6 +437,29 @@ export function createShowcase(
       for (const peer of this.peers.values()) peer.feedback.reset();
       this.bombs?.reset();
     }
+    /** The bomb layer's keepers, in pooled objects: this runs every frame. */
+    private bombKeepers(
+      world: WorldView,
+      focused: string | undefined,
+      pose: { x: number; feet: number; alpha: number },
+      own: number,
+    ): readonly BombKeeper[] {
+      bombKeepers.length = world.keepers.length;
+      world.keepers.forEach((k, i) => {
+        const mine = k.id === focused,
+          entry = (bombKeepers[i] ??= {} as BombKeeper);
+        entry.id = k.id;
+        entry.x = mine ? pose.x : k.body.x;
+        entry.feet = mine ? pose.feet : k.body.feet;
+        entry.facing = mine ? world.facing : k.body.facing;
+        entry.charge = mine ? world.charge : k.body.charge;
+        entry.color = KEEPER_COLORS[k.slot] ?? own;
+        entry.alpha = mine
+          ? pose.alpha
+          : (this.peers.get(k.id)?.actor.alpha ?? 1);
+      });
+      return bombKeepers;
+    }
     private paint(): void {
       if (!this.actor || !this.hook || !this.tether || !this.effects) return;
       const world = options.view?.();
@@ -575,6 +610,8 @@ export function createShowcase(
               contest: world.contest,
               pickupEvents: world.pickupEvents,
               shieldPops: world.shieldPops,
+              // A peer body's own lists are empty; its "blasted" cue needs the room's.
+              knockouts: world.knockouts,
             },
             elapsed,
           );
@@ -678,20 +715,7 @@ export function createShowcase(
           world,
           elapsed,
           reduced.matches,
-          world.keepers.map((k) => {
-            const mine = k.id === focused;
-            return {
-              id: k.id,
-              x: mine ? pose.x : k.body.x,
-              feet: mine ? pose.feet : k.body.feet,
-              facing: mine ? world.facing : k.body.facing,
-              charge: mine ? world.charge : k.body.charge,
-              color: KEEPER_COLORS[k.slot] ?? own,
-              alpha: mine
-                ? pose.alpha
-                : (this.peers.get(k.id)?.actor.alpha ?? 1),
-            };
-          }),
+          this.bombKeepers(world, focused, pose, own),
           (owner) =>
             KEEPER_COLORS[
               world.keepers.find((k) => k.id === owner)?.slot ?? 0
@@ -894,9 +918,9 @@ export function createShowcase(
         host.dataset.wire = JSON.stringify(world.wire);
         host.dataset.charge = String(world.charge);
         host.dataset.bombMode = world.bombMode;
-        host.dataset.bombs = JSON.stringify(world.bombs);
-        host.dataset.blasts = JSON.stringify(world.blasts);
-        host.dataset.knockouts = JSON.stringify(world.knockouts);
+        writeList("bombs", world.bombs);
+        writeList("blasts", world.blasts);
+        writeList("knockouts", world.knockouts);
         host.dataset.hookX = String(world.hook.x);
         host.dataset.hookY = String(world.hook.y);
         host.dataset.aimDirection = JSON.stringify(aim ?? null);

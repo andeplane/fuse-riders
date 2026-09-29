@@ -130,15 +130,23 @@ export function createArena(tuning: Tuning, tick = 0, seed = 0): Arena {
   };
 }
 /**
- * A bomb outlives neither its owner's seat nor its owner's cooldown. Bomblets
- * burn at most one bomblet fuse past their parent's.
+ * A bomb outlives neither its owner's seat nor its owner's cooldown. The
+ * throw sets the cooldown to the fuse plus 60 ticks and both then count down
+ * together (a keeper out of play keeps their cooldown, a chain only shortens
+ * the fuse), so a live bomb's owner always has at least that much left. A
+ * cluster splits on contact with at least one fuse tick left, so the owner has
+ * at least 60 left when its bomblets start their 36-tick fuse: a bomblet's
+ * owner keeps at least 24 more than its fuse.
  */
 const ownedBomb = (arena: Arena, b: Bomb) =>
   arena.keepers.some(
     (k) =>
       k.id === b.owner &&
-      k.bomb.cooldown >
-        COOLDOWN_TICKS - FUSE_TICKS - (b.kind === "bomblet" ? BOMBLET_FUSE : 0),
+      k.bomb.cooldown >=
+        b.fuse +
+          COOLDOWN_TICKS -
+          FUSE_TICKS -
+          (b.kind === "bomblet" ? BOMBLET_FUSE : 0),
   );
 export function syncKeepers(arena: Arena, members: readonly Member[]): void {
   arena.keepers = [...members]
@@ -719,7 +727,12 @@ export function decodeArena(raw: unknown): Arena | undefined {
       !integer(k.slot, 0, 4) ||
       !integer(k.generation, 0, 0xffffffff) ||
       typeof k.connected !== "boolean" ||
-      !integer(k.spawnGuard, 0, KO_SHIELD) ||
+      // Only a bomb knockout's return protects for longer than a fall's.
+      !integer(
+        k.spawnGuard,
+        0,
+        tuning.bomb === "off" ? FALL_SHIELD : KO_SHIELD,
+      ) ||
       !integer(k.hits, 0, 0xffffffff) ||
       !plain(k.body) ||
       Object.hasOwn(k.body, "tick") ||
@@ -769,6 +782,25 @@ export function decodeArena(raw: unknown): Arena | undefined {
   }
   if (!arena.bombs.every((b) => ownedBomb(arena, b))) return;
   if (arena.contest.elapsed > arena.tick) return;
+  // Bombs fly and charges grow only in play. A round's start clears bomb
+  // state and its end clears bombs and cancels charges, so outside an active
+  // round there are no bombs or charges, and before one no bomb events either
+  // (the last blasts of a round stay briefly for presentation).
+  const competitive = tuning.rules !== "free",
+    phase = arena.contest.phase,
+    inPlay = (k: Keeper) =>
+      k.connected &&
+      (!competitive ||
+        (phase === "active" &&
+          arena.contest.entries.some((e) => e.id === k.id && !e.out)));
+  if (
+    (competitive && phase !== "active" && arena.bombs.length) ||
+    (competitive &&
+      (phase === "waiting" || phase === "countdown") &&
+      (arena.blasts.length || arena.knockouts.length)) ||
+    arena.keepers.some((k) => k.world.charge && !inPlay(k))
+  )
+    return;
   if (
     arena.contest.phase === "active" &&
     tuning.rules !== "free" &&

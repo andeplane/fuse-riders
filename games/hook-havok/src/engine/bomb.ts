@@ -154,6 +154,37 @@ function solids(map: MapId): Platform[] {
   }
   return list;
 }
+/**
+ * Where a bomb held at (x, y) enters flight, in subunits. A keeper rising
+ * through a one-way ledge can hold it inside stone (or within a bomb radius
+ * of it), and a sweep ignores a box it starts in, so the bomb starts at that
+ * box's nearest face instead, one subunit out like a resting bomb. Ties
+ * prefer up, then down, left and right. Inflated boxes never overlap, so one
+ * box can hold the point at most.
+ */
+export function bombSpawn(
+  x: number,
+  y: number,
+  map: MapId,
+): { x: number; y: number } {
+  for (const [px, py, w, h] of solids(map)) {
+    const left = px * S,
+      right = (px + w) * S,
+      top = py * S,
+      bottom = (py + h) * S;
+    if (x <= left || x >= right || y <= top || y >= bottom) continue;
+    const exits: [number, number, number][] = [
+      [y - top, x, top - 1],
+      [bottom - y, x, bottom + 1],
+      [x - left, left - 1, y],
+      [right - x, right + 1, y],
+    ];
+    let best = exits[0]!;
+    for (const exit of exits) if (exit[0] < best[0]) best = exit;
+    return { x: best[1], y: best[2] };
+  }
+  return { x, y };
+}
 /** Gravity, then up to four contacts: bounce, friction, roll and rest. True when it touched stone. */
 function fly(bomb: Bomb, gravity: number, map: MapId): boolean {
   const cap = MAX_BOMB_SPEED * S;
@@ -173,8 +204,12 @@ function fly(bomb: Bomb, gravity: number, map: MapId): boolean {
     touched = true;
     bomb.x += Math.round(dx * hit.time) + hit.nx;
     bomb.y += Math.round(dy * hit.time) + hit.ny;
-    if (hit.nx) bomb.vx = -Math.round(bomb.vx * RESTITUTION);
-    else if (hit.ny < 0) {
+    // Every bounce keeps RESTITUTION of the normal speed and BOUNCE_FRICTION
+    // of the tangential speed; only a floor contact can rest or roll.
+    if (hit.nx) {
+      bomb.vx = -Math.round(bomb.vx * RESTITUTION);
+      bomb.vy = Math.round(bomb.vy * BOUNCE_FRICTION);
+    } else if (hit.ny < 0) {
       const up = Math.round(bomb.vy * RESTITUTION),
         bouncing = up > REST_SPEED * S;
       bomb.vy = bouncing ? -up : 0;
@@ -182,7 +217,10 @@ function fly(bomb: Bomb, gravity: number, map: MapId): boolean {
         bomb.vx * (bouncing ? BOUNCE_FRICTION : ROLL_FRICTION),
       );
       if (Math.abs(bomb.vx) < STILL_SPEED * S) bomb.vx = 0;
-    } else bomb.vy = -Math.round(bomb.vy * RESTITUTION);
+    } else {
+      bomb.vy = -Math.round(bomb.vy * RESTITUTION);
+      bomb.vx = Math.round(bomb.vx * BOUNCE_FRICTION);
+    }
     remaining *= 1 - hit.time;
   }
   return touched;
@@ -355,6 +393,8 @@ export function stepBombs(arena: Arena, canPlay: (k: Keeper) => boolean): void {
   arena.bombs = [...flown, ...born]
     .filter((b) => b.y <= BOMB_FLOOR * S)
     .sort(byId);
+  // Only a rival the blast could reach sets an impact bomb off, so a
+  // spawn-protected keeper is passed by like the thrower.
   if (tuning.bomb === "impact")
     for (const bomb of arena.bombs)
       if (
@@ -363,6 +403,7 @@ export function stepBombs(arena: Arena, canPlay: (k: Keeper) => boolean): void {
             k.id !== bomb.owner &&
             canPlay(k) &&
             !k.world.respawn &&
+            !k.spawnGuard &&
             touches(k.world, bomb.x, bomb.y, BOMB_RADIUS * S),
         )
       )
@@ -398,8 +439,10 @@ export function stepBombs(arena: Arena, canPlay: (k: Keeper) => boolean): void {
     const power = keeper.power,
       cluster = power.kind === "cluster";
     if (cluster && --power.charges <= 0) clearPower(keeper);
+    // Aimed from the chest; it enters flight outside any stone the chest is in.
     const sx = w.x,
       sy = w.feet - Math.round(BODY * 0.6),
+      start = bombSpawn(sx, sy, tuning.map),
       v = bombLaunch(
         charge,
         sx,
@@ -414,8 +457,8 @@ export function stepBombs(arena: Arena, canPlay: (k: Keeper) => boolean): void {
       id: arena.tick * 32 + keeper.slot * 4,
       owner: keeper.id,
       kind: cluster ? "cluster" : "plain",
-      x: sx,
-      y: sy,
+      x: start.x,
+      y: start.y,
       vx: v.vx,
       vy: v.vy,
       fuse: FUSE_TICKS,
@@ -466,8 +509,9 @@ export function bombArc(
     aimY,
     facing,
   );
-  let px = x * S,
-    py = y * S,
+  const start = bombSpawn(x * S, y * S, map);
+  let px = start.x,
+    py = start.y,
     dx = v.vx,
     dy = v.vy;
   const g = Math.round((gravity * S) / 3600),

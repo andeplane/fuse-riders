@@ -19,7 +19,7 @@ import {
   type World,
 } from "./world.js";
 import { MAPS, isMapId } from "./maps.js";
-import { CHARGE_TICKS, KO_RESPAWN } from "./bomb-rules.js";
+import { CHARGE_TICKS, FALL_RESPAWN, KO_RESPAWN } from "./bomb-rules.js";
 import { ALL_POWERS, DASH_TICKS } from "./power-rules.js";
 export const plain = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
@@ -178,10 +178,7 @@ function decodeCombat(
     balls.push({ id: b.id, tier: b.tier, x: bx, y: by, vx: b.vx, vy: b.vy });
   }
   if (isBallMode(mode)) {
-    if (
-      raw.hits !==
-      7 - balls.reduce((sum, b) => sum + 2 ** (b.tier + 1) - 1, 0)
-    )
+    if (raw.hits !== 7 - balls.reduce((sum, b) => sum + (2 << b.tier) - 1, 0))
       return;
   } else if (balls.length || (mode === "movement" && raw.hits)) return;
   return { target, balls, hits: raw.hits, falls: raw.falls, impact };
@@ -249,7 +246,12 @@ export function decodeWorld(raw: unknown): World | undefined {
     (raw.respawn && raw.bonusJumps) ||
     !integer(raw.coyote, 0, 6) ||
     !integer(raw.buffer, 0, 6) ||
-    !integer(raw.respawn, 0, KO_RESPAWN) ||
+    // Only a bomb knockout keeps a keeper out longer than a fall.
+    !integer(
+      raw.respawn,
+      0,
+      tuning.bomb === "off" ? FALL_RESPAWN : KO_RESPAWN,
+    ) ||
     !integer(raw.deaths, 0, 0xffffffff) ||
     !integer(raw.charge, 0, tuning.bomb === "off" ? 0 : CHARGE_TICKS) ||
     // A charge only grows while the button is held, and dies with the keeper.

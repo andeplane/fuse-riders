@@ -226,9 +226,11 @@ h2 {
   letter-spacing: 0.06em;
   color: #e0c18f;
 }
+/* Two pads and the bomb button share a phone's width: the pads shrink below
+   about 470 px so a 360 px portrait screen never scrolls sideways. */
 .thumb-pad {
-  width: 132px;
-  height: 132px;
+  width: min(132px, 28vw);
+  height: min(132px, 28vw);
   border: 2px solid #bda16e;
   border-radius: 50%;
   background: radial-gradient(circle, #32334a, #191e30);
@@ -397,9 +399,11 @@ h2 {
   .touch-trial select {
     padding: 6px 8px;
   }
+  /* The bomb button has a column of its own beside the aim pad, so a short
+     screen never stacks the two over each other. */
   .touch-trial .play-surface {
     display: grid;
-    grid-template-columns: 112px minmax(0, 1fr) 112px;
+    grid-template-columns: 112px minmax(0, 1fr) auto 112px;
     gap: 12px;
     align-items: center;
   }
@@ -417,14 +421,14 @@ h2 {
     grid-row: 1;
   }
   .touch-trial .aim-control {
-    grid-column: 3;
+    grid-column: 4;
     grid-row: 1;
     align-self: end;
   }
   .touch-trial .bomb-control {
     grid-column: 3;
     grid-row: 1;
-    align-self: start;
+    align-self: end;
     margin: 0;
   }
   .touch-trial .bomb-button {
