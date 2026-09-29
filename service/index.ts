@@ -3,11 +3,15 @@ import type { AuthClient } from "google-auth-library";
 import { startGcpRoomService } from "fuse-network-be/gcp";
 import { ROOM_LIMITS } from "./room-limits.js";
 import {
+  FriendsStore,
   HistoryStore,
-  createHistoryHttp,
+  createPlatformHttp,
   createIdentityVerifier,
 } from "fuse-platform";
-import { FirestoreHistoryDatabase } from "fuse-platform/firestore";
+import {
+  FirestoreFriendsDatabase,
+  FirestoreHistoryDatabase,
+} from "fuse-platform/firestore";
 import { extraGameIds, platformFor } from "./history.js";
 
 /**
@@ -25,16 +29,22 @@ export function startService(
     ...ROOM_LIMITS,
     gameIds: platform.gameIds,
     ...(authClient ? { authClient } : {}),
-    httpExtension: ({ store, firestore, prefix, projectId }) =>
-      createHistoryHttp(
-        new HistoryStore(
+    httpExtension: ({ store, firestore, prefix, projectId }) => {
+      const history = new FirestoreHistoryDatabase(platform, firestore, prefix);
+      return createPlatformHttp({
+        history: new HistoryStore(platform, history, store, Date.now),
+        friends: new FriendsStore(
           platform,
-          new FirestoreHistoryDatabase(platform, firestore, prefix),
+          history,
+          new FirestoreFriendsDatabase(firestore, prefix),
           store,
           Date.now,
         ),
-        createIdentityVerifier(process.env.FIREBASE_PROJECT_ID ?? projectId),
-      ),
+        identity: createIdentityVerifier(
+          process.env.FIREBASE_PROJECT_ID ?? projectId,
+        ),
+      });
+    },
   });
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)

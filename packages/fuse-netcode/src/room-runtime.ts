@@ -1445,13 +1445,19 @@ export class RoomRuntime<
         [...this.game.members(room)].filter(
           (player) => player.connected && !player.watcher,
         ).length + this.pending().seats;
-      if (command.action === "start" && (stage !== "lobby" || connected < 2)) {
+      if (
+        command.action === "start" &&
+        (stage !== "lobby" || connected < (this.game.seating.minPlayers ?? 2))
+      ) {
         this.status.notice(
           stage !== "lobby" ? this.text.matchRunning : this.text.needTwo,
         );
         return false;
       }
-      if (command.action === "rematch" && (stage !== "over" || connected < 2)) {
+      if (
+        command.action === "rematch" &&
+        (stage !== "over" || connected < (this.game.seating.minPlayers ?? 2))
+      ) {
         this.status.notice(this.text.rematchLater);
         return false;
       }

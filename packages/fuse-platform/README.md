@@ -46,9 +46,14 @@ bots, what a confirmed match adds to an account (`credit`, `addTotals`, `parseTo
 | `GET /leaderboard`                                             | the game's top 50                                 |
 | `GET /me`, `PUT /me`                                           | the account with this game's rating; the username |
 | `GET /me/matches?before=`                                      | the account's confirmed matches in this game      |
+| `POST /friends/sync`, `POST /friends`, `DELETE /friends/:id`   | presence and the friend list; ask, accept, remove |
+| `POST /rooms/:code/invites`, `DELETE /friends/invites/:id`     | invite friends to a room; dismiss an invite       |
 
 The account (username, name, avatar) is one per sign-in across every game. Storage: `${prefix}-matches` holds every
 game's records (a record without `gameId` is `fuse-riders`), `${prefix}-users` the shared account plus Fuse Riders'
 rating and totals as they were before games, and `${prefix}-ratings` every other game's, one document per
-`gameId:uid`. The package must not import from `service/` or `games/`; see
+`gameId:uid`. Friends, presence and invites are account-level (never under `/games/:gameId/`) and live in
+`${prefix}-presence`, `${prefix}-friends` and `${prefix}-invites` behind `FriendsStore` and `FriendsDatabase`
+(`friends.ts`; wire types in `friends-api.ts`, browser-safe and exported as `fuse-platform/friends-api`); see
+[the friends design](../../docs/design/friends.md). The package must not import from `service/` or `games/`; see
 [the multi-game design](../../docs/design/multi-game.md).

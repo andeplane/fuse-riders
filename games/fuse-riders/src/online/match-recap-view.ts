@@ -21,6 +21,8 @@ export function renderMatchRecap(
     kicker?: string;
     /** Open with the full stats showing, for a view that has no toggle of its own. */
     expanded?: boolean;
+    /** ADD FRIEND beside a rider's name, for the seats whose account is known. */
+    friendButton?: (playerId: string) => HTMLElement | undefined;
   },
   document: Document = window.document,
 ): HTMLElement {
@@ -101,6 +103,8 @@ export function renderMatchRecap(
       entry.name.toUpperCase() !== "YOU"
     )
       name.append(node("small", "YOU"));
+    const add = options.friendButton?.(entry.playerId);
+    if (add) name.append(add);
     rider.append(name);
     row.append(
       node("td", String(entry.placement).padStart(2, "0")),

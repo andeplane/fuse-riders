@@ -40,6 +40,8 @@ interface MatchEntry {
   id: string;
   endedAt: number;
   you?: string;
+  /** Seat id to public id, for the seats an account owns (fuse-platform/friends-api). */
+  accounts?: Record<string, string>;
   result: { length: number; winnerId?: string; players: MatchPlayerStats[] };
 }
 type HistoryPage = StatsPage;
@@ -59,6 +61,8 @@ export interface AccountPanelDependencies {
   };
   /** The rider name this browser already uses, the natural first username. */
   localName: () => string | null;
+  /** ADD FRIEND beside a listed rider, from the page's friends panel. Omit for lists without it. */
+  friendButton?: (publicId: string) => HTMLElement;
   fetch: typeof fetch;
   track: (event: string, props?: Record<string, unknown>) => void;
 }
@@ -162,13 +166,27 @@ function matchRow(
  * An opened match: the same post-match report the game shows, rebuilt from the stored per-rider stats. Highlight
  * moments are not stored, so a past match has no replays and the full stats open straight away.
  */
-function matchDetail(entry: MatchEntry, context: { day: string }): HTMLElement {
+function matchDetail(
+  entry: MatchEntry,
+  context: { day: string },
+  friendButton?: (publicId: string) => HTMLElement,
+): HTMLElement {
   return renderMatchRecap(entry.result.players, [], {
     playerId: entry.you ?? "",
     canWatch: () => false,
     watch: () => {},
     kicker: `${context.day} · ${clock(entry.endedAt)}`,
     expanded: true,
+    ...(friendButton
+      ? {
+          friendButton: (playerId: string) => {
+            const publicId = entry.accounts?.[playerId];
+            return publicId && playerId !== entry.you
+              ? friendButton(publicId)
+              : undefined;
+          },
+        }
+      : {}),
   });
 }
 
@@ -205,8 +223,10 @@ export function createAccountPanel(dependencies: AccountPanelDependencies): {
     totals: (page, handlers) =>
       playerStats(page as HistoryPage, { openMatch: handlers.openMatch }),
     match: matchRow,
-    matchDetail,
-    leaderboard: leaderboardTable,
+    matchDetail: (entry, context) =>
+      matchDetail(entry, context, dependencies.friendButton),
+    leaderboard: (players) =>
+      leaderboardTable(players, dependencies.friendButton),
     avatar: (id) => createAvatarPortrait(id as AvatarId),
     ...(dependencies.refreshClock
       ? { refreshClock: dependencies.refreshClock }

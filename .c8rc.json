@@ -10,6 +10,7 @@
   "exclude": [
     "**/*.d.ts",
     "games/dice/src/app/main.ts",
+    "games/fuse-choppers/src/app/main.ts",
     "packages/fuse-network-be/src/gcp/firestore-store.ts",
     "packages/fuse-network-be/src/gcp/index.ts",
     "packages/fuse-network-be/src/gcp/pubsub-bus.ts",
@@ -34,6 +35,7 @@
     "games/fuse-riders/src/online/attract.ts",
     "games/fuse-riders/src/online/connect-hint.ts",
     "games/fuse-riders/src/online/endpoints.ts",
+    "games/fuse-riders/src/online/friends-panel.ts",
     "games/fuse-riders/src/online/join-form.ts",
     "games/fuse-riders/src/online/dialogs/room-settings.ts",
     "games/fuse-riders/src/online/keyboard-shortcuts.ts",

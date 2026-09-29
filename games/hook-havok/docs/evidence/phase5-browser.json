@@ -1,0 +1,93 @@
+{
+  "browser": "153.0.8010.48",
+  "viewport": [1440, 1100],
+  "deviceScaleFactor": 1,
+  "headless": true,
+  "marks": [
+    {
+      "name": "low ledge",
+      "time": "2640",
+      "frame": "5",
+      "actorX": "403.107",
+      "feet": "669.192",
+      "scaleY": "0.88000",
+      "motion": "land",
+      "feedback": "land",
+      "hook": "ready",
+      "tick": "105",
+      "deaths": "0",
+      "grounded": "true"
+    },
+    {
+      "name": "central gap",
+      "time": "3829",
+      "frame": "5",
+      "actorX": "732.298",
+      "feet": "609.759",
+      "scaleY": "0.90781",
+      "motion": "land",
+      "feedback": "land",
+      "hook": "ready",
+      "tick": "174",
+      "deaths": "0",
+      "grounded": "true"
+    },
+    {
+      "name": "high anchor",
+      "time": "4288",
+      "frame": "5",
+      "actorX": "772.774",
+      "feet": "609.999",
+      "scaleY": "1.00000",
+      "motion": "pull",
+      "feedback": "fire,attach",
+      "hook": "attached",
+      "tick": "204",
+      "deaths": "0",
+      "grounded": "true"
+    },
+    {
+      "name": "release and land",
+      "time": "4976",
+      "frame": "5",
+      "actorX": "1110.507",
+      "feet": "479.675",
+      "scaleY": "0.89855",
+      "motion": "land",
+      "feedback": "release,land",
+      "hook": "ready",
+      "tick": "243",
+      "deaths": "0",
+      "grounded": "true"
+    },
+    {
+      "name": "recovery pull",
+      "time": "6513",
+      "frame": "3",
+      "actorX": "1185.017",
+      "feet": "407.339",
+      "scaleY": "1.03500",
+      "motion": "pull",
+      "feedback": "",
+      "hook": "attached",
+      "tick": "348",
+      "deaths": "0",
+      "grounded": "false"
+    },
+    {
+      "name": "recovery landing",
+      "time": "7229",
+      "frame": "4",
+      "actorX": "1081.833",
+      "feet": "479.999",
+      "scaleY": "0.90781",
+      "motion": "land",
+      "feedback": "land",
+      "hook": "ready",
+      "tick": "390",
+      "deaths": "0",
+      "grounded": "true"
+    }
+  ],
+  "limits": "Real browser keyboard/pointer inputs in solo room. Narrow layout is not a phone playability claim."
+}

@@ -3,6 +3,7 @@ import { readyRoom } from "./lib/ready-room.js";
 import { launchBrowser } from "./lib/browser.js";
 import assert from "node:assert/strict";
 import { smokeTimeout } from "./smoke-timeout.js";
+import { openTopMenu } from "./lib/top-menu.js";
 import { mkdir } from "node:fs/promises";
 import { HASH_LAG, type RuntimeMetrics } from "fuse-netcode";
 
@@ -113,6 +114,8 @@ const audioReceived = (page: Page, count = 1, peer?: string) =>
     { timeout: smokeTimeout(30000) },
   );
 async function voice(page: Page) {
+  // VOICE sits in the room bar, which the 844x390 display collapses behind ☰ MENU (top-menu.css).
+  await openTopMenu(page);
   await page.locator(".voice-toggle").click();
   await page.getByRole("region", { name: "Voice chat" }).waitFor();
 }

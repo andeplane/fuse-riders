@@ -6,6 +6,9 @@ import { presentFrames } from "../render/time/present.js";
 import { apiUrl, appUrl } from "./endpoints.js";
 import { GAME_ID } from "../shared/game-id.js";
 import { createAccountPanel } from "./account-panel.js";
+import { createFriendsPanel } from "./friends-panel.js";
+import { isRiderAvatarId } from "../engine/avatar-id.js";
+import { validRiderName } from "../engine/rider-name.js";
 import { createTopMenuToggle } from "./top-menu-toggle.js";
 import {
   accountUsername,
@@ -55,6 +58,7 @@ import {
   hostTokenKey,
   LAST_ROOM_KEY,
   onlineRoute,
+  roomQuery,
 } from "./landing-route.js";
 import { PICKUP_LABELS } from "./pickup-labels.js";
 import { createAvatarDialog } from "./dialogs/avatar.js";
@@ -143,8 +147,13 @@ const secret = () => uuid().replaceAll("-", "") + uuid().replaceAll("-", "");
 let pageAudio: GameAudio | undefined, radioToggle: (() => void) | undefined;
 // One wording for both views, since the same instance now serves whichever one is up: a room entered from the landing
 // page would otherwise keep the label the landing page created it with.
-const createPlayerAccountPanel = () =>
-  createAccountPanel({
+// The friends dialog's SIGN IN hands off to the account button of whichever view is up, which owns the sign-in popup.
+let openSignIn: (() => void) | undefined;
+const createPlayerAccountPanel = (
+  friendButton?: (publicId: string) => HTMLElement,
+) => {
+  const panel = createAccountPanel({
+    ...(friendButton ? { friendButton } : {}),
     historyUrl: (before) =>
       apiUrl(
         `/api/me/matches${before === undefined ? "" : `?before=${before}`}`,
@@ -155,6 +164,27 @@ const createPlayerAccountPanel = () =>
     leaderboardUrl: apiUrl("/api/leaderboard"),
     localName: () => read("fuse-riders-player-name"),
     fetch: (input, init) => fetch(input, init),
+    track,
+  });
+  openSignIn = () => panel.button.click();
+  return panel;
+};
+/** The friends panel with the page's endpoints; the name and head it reports are the ones this browser rides under. */
+const createPlayerFriendsPanel = (join: (code: string) => void) =>
+  createFriendsPanel({
+    fetch: (input, init) => fetch(input, init),
+    apiUrl,
+    storage,
+    identity: () => {
+      const name = accountUsername() ?? read("fuse-riders-player-name"),
+        avatarId = read("fuse-riders-avatar");
+      return {
+        ...(validRiderName(name) ? { name } : {}),
+        ...(isRiderAvatarId(avatarId) ? { avatarId } : {}),
+      };
+    },
+    join,
+    signIn: () => openSignIn?.(),
     track,
   });
 
@@ -178,6 +208,7 @@ export async function startOnline(): Promise<void> {
         radioToggle = toggle;
       },
       accountPanel: createPlayerAccountPanel,
+      friendsPanel: createPlayerFriendsPanel,
       startRoom: () => void startOnline(),
     });
     return;
@@ -584,6 +615,38 @@ export async function startOnline(): Promise<void> {
   });
   const lobbyRiders = lobbyRoster.element;
   const lobbyCount = node("span", "Waiting for riders");
+  const inviteFriends = node("button", "INVITE FRIENDS", "room-invite-friends");
+  inviteFriends.type = "button";
+  inviteFriends.hidden = solo;
+  /** ADD FRIEND on each lobby row whose seat the service has matched to an account. */
+  const lobbyFriendButtons = new Map<
+    string,
+    { publicId: string; button: HTMLElement }
+  >();
+  const placeFriendButton = (
+    row: HTMLElement,
+    memberId: string,
+    buttons: Map<string, { publicId: string; button: HTMLElement }>,
+  ) => {
+    const publicId = roomFriends.publicIdOfMember(memberId);
+    const current = buttons.get(memberId);
+    if (!publicId || memberId === id) {
+      if (current) {
+        current.button.remove();
+        buttons.delete(memberId);
+      }
+      return;
+    }
+    if (current?.publicId === publicId && current.button.parentElement === row)
+      return;
+    current?.button.remove();
+    const button = roomFriends.friendButton(publicId);
+    // Before the row's × when it has one, so the remove button stays where it was.
+    const remove = row.querySelector(".room-remove");
+    if (remove) remove.before(button);
+    else row.append(button);
+    buttons.set(memberId, { publicId, button });
+  };
   // The watching list: the rider row's height in neutral grey, no colour, no avatar and no READY, so the five seats stay
   // the thing being read. It lives inside the rider column (the lobby grid has one cell per column) and CSS `order` keeps it last.
   const watchers = createRoster({
@@ -622,7 +685,7 @@ export async function startOnline(): Promise<void> {
     ],
     invite: qrCard,
     roster: lobbyRiders,
-    footer: [lobbyCount],
+    footer: [lobbyCount, inviteFriends],
     classes: {
       root: "shared-lobby room-lobby",
       intro: "room-lobby-copy",
@@ -953,9 +1016,15 @@ export async function startOnline(): Promise<void> {
   window.visualViewport?.addEventListener("resize", resizeScreen);
   desktopQuery.addEventListener("change", resizeScreen);
 
-  const roomAccount = createPlayerAccountPanel();
+  // Friends: JOIN from inside a room is a navigation, since this document is this room's.
+  const roomFriends = createPlayerFriendsPanel((target) => {
+    location.href = appUrl(roomQuery(target));
+  });
+  roomFriends.banner.classList.add("friends-invite-banner");
+  const roomAccount = createPlayerAccountPanel(roomFriends.friendButton);
   roomAccount.button.classList.add("player-account");
-  app.append(roomAccount.dialog);
+  app.append(roomAccount.dialog, roomFriends.dialog, roomFriends.banner);
+  inviteFriends.onclick = roomFriends.open;
   const topMenu = node("nav", "", "game-top-menu");
   topMenu.setAttribute("aria-label", "Player menu");
   const topRadio = node("button", "♫ RADIO"),
@@ -970,6 +1039,7 @@ export async function startOnline(): Promise<void> {
     prefsButton,
     roomAccount.matchesButton,
     roomAccount.leaderboardButton,
+    roomFriends.button,
     roomAccount.button,
   );
   header.append(topMenu);
@@ -1080,6 +1150,12 @@ export async function startOnline(): Promise<void> {
     recapDialog.open(
       renderMatchRecap(snapshot.matchStats, snapshot.moments, {
         playerId: id,
+        friendButton: (playerId) => {
+          const publicId = roomFriends.publicIdOfMember(playerId);
+          return publicId && playerId !== id
+            ? roomFriends.friendButton(publicId)
+            : undefined;
+        },
         canWatch: (key) => !screen.arenaHidden && !!replay.recorder.clip(key),
         watch: (key) => {
           const clip = replay.recorder.clip(key);
@@ -1112,6 +1188,9 @@ export async function startOnline(): Promise<void> {
       }
       id = peerId;
       isHost = host;
+      // A display has no account and solo has no room; a rider tells friends where it is, and can invite them.
+      if (!displayOnly && !solo)
+        roomFriends.setRoom({ code, memberId: peerId, gameId: GAME_ID, token });
       joinForm.ready();
       hostControls.hidden = !host;
       telemetry.identify({
@@ -1422,6 +1501,15 @@ export async function startOnline(): Promise<void> {
           host: p.host,
         })),
       );
+      for (const p of view.lobby.riders) {
+        const row = lobbyRoster.row(p.id);
+        if (row) placeFriendButton(row, p.id, lobbyFriendButtons);
+      }
+      for (const [memberId, entry] of lobbyFriendButtons)
+        if (!view.lobby.riders.some((p) => p.id === memberId)) {
+          entry.button.remove();
+          lobbyFriendButtons.delete(memberId);
+        }
       showSwitch(switchButton, view.actions.switchSide);
       latestWatchers = view.lobby.watchers;
       setIfChanged(lobbyWatchers, "hidden", view.lobby.watchersHidden);
