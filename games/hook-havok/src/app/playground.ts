@@ -19,6 +19,7 @@ import {
 } from "../engine/world.js";
 import { TUNING_BOUNDS, parseTuning } from "../engine/codec.js";
 import { toView, type WorldView } from "../engine/view.js";
+import { ZONE_KEYS, type ZoneKey } from "../engine/zones.js";
 import type { ShowcaseHandle } from "../render/scene.js";
 import { interpolate } from "../render/interpolation.js";
 import { createTouchControls, type TouchControls } from "./touch-controls.js";
@@ -99,7 +100,7 @@ rulesPanel.className = "controls rules-controls";
 rulesPanel.innerHTML = `<label>Round rules <select id="rules" name="rules" form="tuning" disabled><option value="free">Free play</option><option value="elimination">Last keeper standing</option><option value="score">Hook score</option></select></label><span id="rules-help">Respawn freely and explore.</span><p id="round-status" role="status"></p>`;
 el("experiment").closest("section")!.after(rulesPanel);
 const mapLabel = document.createElement("label");
-mapLabel.innerHTML = `Arena <select id="map" name="map" form="tuning" disabled><option value="belfry">Lantern Belfry</option><option value="crossroads">Crossroads</option></select>`;
+mapLabel.innerHTML = `Arena <select id="map" name="map" form="tuning" disabled><option value="belfry">Lantern Belfry</option><option value="crossroads">Crossroads</option><option value="spire">Neon Spire</option></select>`;
 const mapHelp = document.createElement("span");
 mapHelp.id = "map-help";
 mapHelp.textContent = "Changing arena restarts the shared trial.";
@@ -116,6 +117,33 @@ const jumpMode = el<HTMLSelectElement>("jump-mode"),
   wireMode = el<HTMLSelectElement>("wire-mode"),
   bombMode = el<HTMLSelectElement>("bomb-mode"),
   keyboardMode = el<HTMLSelectElement>("keyboard-mode");
+// 12B: each zone is a shared setting; only Neon Spire has zones.
+const ZONE_LABELS: Record<ZoneKey, string> = {
+  jumpPads: "Jump pads",
+  lifts: "Lift beams",
+  lowGravity: "Low-gravity wing",
+  electricFloor: "Electrified floor",
+  lasers: "Laser gates",
+  bonusZone: "Crown 3× zone",
+};
+const zonePanel = document.createElement("section");
+zonePanel.id = "zone-controls";
+zonePanel.className = "controls experiment-controls";
+zonePanel.setAttribute("aria-label", "Neon Spire zones");
+zonePanel.innerHTML = `<strong>Neon Spire zones</strong>${ZONE_KEYS.map(
+  (key) =>
+    `<label><input type="checkbox" id="zone-${key}" data-zone="${key}" checked disabled> ${ZONE_LABELS[key]}</label>`,
+).join(
+  "",
+)}<span id="zone-help">Neon Spire only; a change restarts the shared trial. Pads launch 2.5× a jump · lift beams rise at 300 units/s · the right wing keeps 40% gravity · the floor and lasers knock you out, credited to a rival whose hook hit you in the last 2 s · in timed rounds the floor rises over the last 20 s · Hook score gains inside the crown count 3×.</span>`;
+trials.after(zonePanel);
+const zoneBoxes = ZONE_KEYS.map((key) => el<HTMLInputElement>(`zone-${key}`));
+const followLabel = document.createElement("label");
+followLabel.innerHTML = `<input id="follow-cam" type="checkbox"> Follow keepers`;
+followLabel.title =
+  "Zoom to frame the living keepers on a large arena. Local display only.";
+trials.append(followLabel);
+const followCam = el<HTMLInputElement>("follow-cam");
 const powerLabel = document.createElement("label");
 powerLabel.innerHTML = `Power-ups <select id="power-ups" name="powerUps" form="tuning" disabled><option value="off">Off</option><option value="on">Lift & Ward</option></select>`;
 rulesPanel.append(powerLabel);
@@ -256,6 +284,7 @@ function bombAim(): { x: number; y: number } | undefined {
       latest.x,
       chest(),
       bombDirection(touchState, latest.facing),
+      latest.size,
     );
     return { x: aim.aimX, y: aim.aimY };
   }
@@ -306,12 +335,20 @@ touch = createTouchControls(
     input.fire = state.fire;
     input.bomb = state.bomb;
     if (state.fire && !wasFiring)
-      Object.assign(input, touchAim(latest.x, chest(), state.direction));
+      Object.assign(
+        input,
+        touchAim(latest.x, chest(), state.direction, latest.size),
+      );
     // The engine reads a throw's aim on the release tick.
     if (wasCharging && !state.bomb)
       Object.assign(
         input,
-        touchAim(latest.x, chest(), bombDirection(state, latest.facing)),
+        touchAim(
+          latest.x,
+          chest(),
+          bombDirection(state, latest.facing),
+          latest.size,
+        ),
       );
     send();
   },
@@ -358,6 +395,8 @@ function localView(view: WorldView): WorldView {
     bombs: view.bombs,
     blasts: view.blasts,
     knockouts: view.knockouts,
+    // Arena-wide: the rising floor follows the room's contest clock.
+    zones: view.zones,
     localId: local?.id,
   };
 }
@@ -386,6 +425,7 @@ function stopRoom() {
   mapSelect.disabled = true;
   jumpMode.disabled = wireMode.disabled = bombMode.disabled = true;
   powerMode.disabled = true;
+  for (const box of zoneBoxes) box.disabled = true;
   touch?.enable(false);
   el<HTMLButtonElement>("restart-room").disabled = true;
   el("invitation").hidden = true;
@@ -463,6 +503,7 @@ async function graphics() {
       phase: (label) => (el("phase").textContent = label),
       time: () => {},
     });
+    scene.setFollow(followCam.checked);
   } catch {
     clearTimeout(deadline);
     if (token === attempt) {
@@ -489,6 +530,7 @@ const enterRoom = async () => {
   wireMode.value = DEFAULT_TUNING.wire;
   bombMode.value = DEFAULT_TUNING.bomb;
   powerMode.value = DEFAULT_TUNING.powerUps;
+  for (const box of zoneBoxes) box.checked = true;
   for (const key of Object.keys(TUNING_BOUNDS)) {
     const field = tuning.elements.namedItem(key) as HTMLInputElement;
     field.value = String(DEFAULT_TUNING[key as keyof typeof DEFAULT_TUNING]);
@@ -624,6 +666,7 @@ const enterRoom = async () => {
               bombMode.disabled =
                 !manager;
             powerMode.disabled = !manager;
+            for (const box of zoneBoxes) box.disabled = !manager;
             el<HTMLButtonElement>("restart-room").disabled = !manager;
             setText(
               start,
@@ -644,20 +687,24 @@ const enterRoom = async () => {
           wireMode.value = settings.wire;
           bombMode.value = settings.bomb;
           powerMode.value = settings.powerUps;
+          for (const box of zoneBoxes)
+            box.checked = settings[box.dataset.zone as ZoneKey] === "on";
           powerHelp.hidden = settings.powerUps !== "on";
           setText(
             mapHelp,
             settings.map === "crossroads"
               ? "Crossroads · separated starts, outer climbs and a central grapple route. Changing arena restarts everyone."
-              : "Lantern Belfry · the original climbing course. Changing arena restarts everyone.",
+              : settings.map === "spire"
+                ? "Neon Spire · a 1.4× tower: solid walls and ceilings, pads, lifts, a low-gravity wing, lasers, an electrified floor and a 3× crown. Zone switches are in the Development workshop. Changing arena restarts everyone."
+                : "Lantern Belfry · the original climbing course. Changing arena restarts everyone.",
           );
           setText(
             el("rules-help"),
             c.rules === "free"
               ? "Respawn freely and explore."
               : c.rules === "elimination"
-                ? "A fall or a bomb knockout puts you out. Last keeper wins · 60-second limit."
-                : "Hook hit +1 · bomb knockout +1 · own bomb −1 more · fall or knockout −2 · respawn · highest score after 60 seconds. Props give no points. Last remaining entrant wins if others forfeit.",
+                ? "A fall, a bomb or a hazard puts you out. Last keeper wins · 60-second limit."
+                : "Hook hit +1 · bomb knockout +1 · pushing a rival into a hazard +1 · own bomb −1 more · fall or knockout −2 · respawn · highest score after 60 seconds · gains inside Neon Spire's crown count 3×. Props give no points. Last remaining entrant wins if others forfeit.",
           );
           const names = (ids: string[]) =>
             ids
@@ -796,8 +843,8 @@ function resetExercise() {
 reset.onclick = resetExercise;
 tuning.onsubmit = (e) => {
   e.preventDefault();
-  const settings = parseTuning(
-    Object.fromEntries(
+  const settings = parseTuning({
+    ...Object.fromEntries(
       [...new FormData(tuning)].map(([k, v]) => [
         k,
         [
@@ -813,7 +860,10 @@ tuning.onsubmit = (e) => {
           : Number(v),
       ]),
     ),
-  );
+    ...Object.fromEntries(
+      zoneBoxes.map((box) => [box.dataset.zone, box.checked ? "on" : "off"]),
+    ),
+  });
   if (settings) {
     scene?.resetFeedback();
     clear();
@@ -829,6 +879,11 @@ jumpMode.onchange =
   bombMode.onchange =
     () => tuning.requestSubmit();
 powerMode.onchange = () => tuning.requestSubmit();
+for (const box of zoneBoxes) box.onchange = () => tuning.requestSubmit();
+followCam.onchange = () => {
+  scene?.setFollow(followCam.checked);
+  host.focus();
+};
 keyboardMode.onchange = () => {
   clear();
   keyboard.mode = keyboardMode.value === "keyboard" ? "keyboard" : "mouse";
@@ -866,12 +921,15 @@ host.addEventListener("keyup", (e) => {
 function aim(e: PointerEvent) {
   const box = host.querySelector("canvas")?.getBoundingClientRect();
   if (!box) return;
-  input.aimX = Math.round(
-    Math.max(0, Math.min(1600, ((e.clientX - box.left) * 1600) / box.width)),
-  );
-  input.aimY = Math.round(
-    Math.max(0, Math.min(900, ((e.clientY - box.top) * 900) / box.height)),
-  );
+  // Through the camera: a larger arena is fitted, or followed (12A).
+  const u = (e.clientX - box.left) / box.width,
+    v = (e.clientY - box.top) / box.height,
+    point = scene?.toWorld(u, v) ?? {
+      x: u * latest.size.width,
+      y: v * latest.size.height,
+    };
+  input.aimX = Math.round(Math.max(0, Math.min(latest.size.width, point.x)));
+  input.aimY = Math.round(Math.max(0, Math.min(latest.size.height, point.y)));
 }
 host.addEventListener("pointermove", (e) => {
   if (e.pointerType !== "mouse") return;

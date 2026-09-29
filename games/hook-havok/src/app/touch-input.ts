@@ -100,20 +100,25 @@ export function bombDirection(
     ? { ...state.direction }
     : { x: facing * Math.SQRT1_2, y: -Math.SQRT1_2 };
 }
-/** Keep a ray's direction when clipping its endpoint to the input contract. */
+/**
+ * Keep a ray's direction when clipping its endpoint to the arena (the map's
+ * size, 12A) and the input contract.
+ */
 export function touchAim(
   x: number,
   y: number,
   direction: TouchState["direction"],
+  size: { width: number; height: number } = { width: 1600, height: 900 },
 ): Pick<Input, "aimX" | "aimY"> {
-  x = Math.max(0, Math.min(1600, x));
-  y = Math.max(0, Math.min(900, y));
+  const { width, height } = size;
+  x = Math.max(0, Math.min(width, x));
+  y = Math.max(0, Math.min(height, y));
   const dx = direction.x,
     dy = direction.y;
   const distance = Math.min(
     1000,
-    dx > 1e-9 ? (1600 - x) / dx : dx < -1e-9 ? -x / dx : Infinity,
-    dy > 1e-9 ? (900 - y) / dy : dy < -1e-9 ? -y / dy : Infinity,
+    dx > 1e-9 ? (width - x) / dx : dx < -1e-9 ? -x / dx : Infinity,
+    dy > 1e-9 ? (height - y) / dy : dy < -1e-9 ? -y / dy : Infinity,
   );
   return {
     aimX: Math.round(x + dx * distance),
