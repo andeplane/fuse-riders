@@ -598,7 +598,9 @@ export function decodeArena(raw: unknown): Arena | undefined {
       Object.keys(k).length !== 11 ||
       !id(k.id) ||
       !integer(k.pushed, 0, PUSH_TICKS) ||
-      // A push names another keeper for exactly as long as it lasts.
+      // A push names another keeper for exactly as long as it lasts. The
+      // pusher may have left since (the push still credits them), so the name
+      // need not be a keeper or, in free play, an entry.
       (k.pushed ? !id(k.pushedBy) || k.pushedBy === k.id : k.pushedBy !== "") ||
       !integer(k.slot, 0, 4) ||
       !integer(k.generation, 0, 0xffffffff) ||

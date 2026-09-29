@@ -245,8 +245,13 @@ export function decodeWorld(raw: unknown): World | undefined {
     !integer(raw.x, HALF, width * S - HALF) ||
     !integer(raw.feet, -2000 * S, (height + 100) * S) ||
     !integer(raw.vx, -18000, 18000) ||
-    // Only a pad launch rises faster than the speed cap.
-    !integer(raw.vy, padsLive(tuning) ? PAD_VY : -18000, 18000) ||
+    // Only a pad launch rises faster than the speed cap, and it leaves the
+    // ground: every landing zeroes vy and a pad launch clears grounded.
+    !integer(
+      raw.vy,
+      padsLive(tuning) && raw.grounded === false ? PAD_VY : -18000,
+      18000,
+    ) ||
     typeof raw.grounded !== "boolean" ||
     typeof raw.airJump !== "boolean" ||
     (tuning.jumpMode === "single" && raw.airJump) ||

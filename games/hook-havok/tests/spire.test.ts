@@ -27,7 +27,13 @@ import {
   type Keeper,
 } from "../src/engine/arena.js";
 import { COUNTDOWN_TICKS, ROUND_TICKS } from "../src/engine/contest.js";
-import { KO_RESPAWN, KO_SHIELD } from "../src/engine/bomb-rules.js";
+import {
+  BOMB_CEILING,
+  BOMB_RADIUS,
+  KO_RESPAWN,
+  KO_SHIELD,
+} from "../src/engine/bomb-rules.js";
+import { bombSpawn } from "../src/engine/bomb.js";
 import {
   LIFT_VY,
   PAD_VY,
@@ -372,6 +378,44 @@ test("bombs and orbs bounce off walls and ceilings", () => {
   for (let i = 0; i < 40 && ball.vx > 0; i++) stepArena(r);
   assert.ok(ball.vx < 0, "orb bounced off the pillar");
   assert.ok(ball.x + 40 * S <= 1080 * S);
+});
+test("a bomb held where stone meets stone enters flight outside every box, on every map", () => {
+  // Inflated by a bomb radius, the crown deck and its left pylon overlap: the
+  // deck's nearest face at (892, 230) is inside the pylon, where a sweep would
+  // pass straight through it. The bomb takes the pylon's open left face.
+  assert.deepEqual(bombSpawn(892 * S, 232 * S, "spire"), {
+    x: 870 * S - 1,
+    y: 232 * S,
+  });
+  for (const map of Object.keys(MAPS) as MapId[]) {
+    const { width, height, platforms } = MAPS[map],
+      r = BOMB_RADIUS,
+      boxes = [
+        ...platforms,
+        [-100, BOMB_CEILING - 100, 100, height - BOMB_CEILING + 1100],
+        [width, BOMB_CEILING - 100, 100, height - BOMB_CEILING + 1100],
+      ].map(([x, y, w, h]) => [
+        (x! - r) * S,
+        (y! - r) * S,
+        (x! + w! + r) * S,
+        (y! + h! + r) * S,
+      ]);
+    const held: string[] = [];
+    let moved = 0;
+    for (let x = 0; x <= width; x += 2)
+      for (let y = 0; y <= height; y += 2) {
+        const p = bombSpawn(x * S, y * S, map);
+        if (p.x !== x * S || p.y !== y * S) moved++;
+        if (
+          boxes.some(
+            ([l, t, rt, b]) => p.x > l! && p.x < rt! && p.y > t! && p.y < b!,
+          )
+        )
+          held.push(`${x},${y}`);
+      }
+    assert.ok(moved > 10_000, `${map}: the grid meets stone`);
+    assert.deepEqual(held.slice(0, 5), [], `${map}: ${held.length} held`);
+  }
 });
 
 // 12B: zones.
@@ -724,6 +768,20 @@ test("a hazard credits the rival whose hook hit the victim within 2 s, else nobo
     b.contest.entries.map((e) => e.score),
     [1, -2],
   );
+  // A push outlives its pusher's seat, even in free play where no entry
+  // remembers them, so a checkpoint may name a keeper who is not there.
+  const d = arena(2, { ...SPIRE, rules: "free" });
+  const [amber3, blue3] = d.keepers as [Keeper, Keeper];
+  hookHit(d, amber3, blue3, 1200, 780);
+  syncKeepers(d, [members[1]!]);
+  stepArena(d);
+  assert.deepEqual(
+    d.keepers.map((k) => [k.id, k.pushedBy]),
+    [["blue", "amber"]],
+  );
+  assert.ok(roundTrip(d), "a departed pusher checkpoints");
+  zap(d, d.keepers[0]!);
+  assert.equal(d.knockouts.at(-1)!.by, "amber", "and is still credited");
 });
 
 test("zone settings are validated with exact keys and all default on", () => {
@@ -946,15 +1004,30 @@ test("a live Neon Spire room rejects corrupt or out-of-bounds zone state and kee
       airJump: false,
     });
   };
+  /** Back on the spawn ledge. */
+  const standing = (s: Encoded) =>
+    Object.assign(s.keepers[0]!.body, {
+      x: 260 * S,
+      feet: 780 * S - 1,
+      vx: 0,
+      vy: 0,
+      grounded: true,
+      airJump: s.tuning.jumpMode === "double",
+    });
   // Controls: the same edits made valid are accepted.
   for (const [name, edit] of [
+    ["standing", standing],
     [
       "a push by a departed rival",
       (s: Encoded) =>
         Object.assign(s.keepers[0]!, { pushed: 5, pushedBy: "blue" }),
     ],
     ["a hazard fate", zapped],
-    ["a pad launch", (s: Encoded) => (s.keepers[0]!.body.vy = PAD_VY)],
+    [
+      "a pad launch",
+      (s: Encoded) =>
+        Object.assign(s.keepers[0]!.body, { vy: PAD_VY, grounded: false }),
+    ],
   ] as const)
     assert.ok(corrupt(edit), `control: ${name}`);
   const cases: [string, (s: Encoded) => void][] = [
@@ -970,6 +1043,13 @@ test("a live Neon Spire room rejects corrupt or out-of-bounds zone state and kee
         }),
     ],
     ["rising past a pad launch", (s) => (s.keepers[0]!.body.vy = PAD_VY - 1)],
+    [
+      "a pad launch still on the ground",
+      (s) => {
+        standing(s);
+        s.keepers[0]!.body.vy = PAD_VY;
+      },
+    ],
     [
       "a launch with pads off",
       (s) => {

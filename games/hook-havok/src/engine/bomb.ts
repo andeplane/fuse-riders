@@ -138,35 +138,66 @@ function solids(map: MapId): Platform[] {
   }
   return list;
 }
+const holds = ([px, py, w, h]: Platform, x: number, y: number) =>
+  x > px * S && x < (px + w) * S && y > py * S && y < (py + h) * S;
 /**
  * Where a bomb held at (x, y) enters flight, in subunits. A keeper rising
  * through a one-way ledge can hold it inside stone (or within a bomb radius
- * of it), and a sweep ignores a box it starts in, so the bomb starts at that
- * box's nearest face instead, one subunit out like a resting bomb. Ties
- * prefer up, then down, left and right. Inflated boxes never overlap, so one
- * box can hold the point at most.
+ * of it), and a sweep ignores a box it starts in, so the bomb starts one
+ * subunit outside a face instead, like a resting bomb. Inflated boxes overlap
+ * where stone meets stone (Neon Spire's pylons on the crown deck, the core
+ * through the decks beside it, the hurdle on the floor), so a face of one box
+ * can lie inside another: the bomb takes the nearest face of any box holding
+ * it that no box holds, ties going to the earlier box, then up, down, left
+ * and right. Where every such face is held it moves to the nearest and looks
+ * again, at most four times, and then rises straight up out of each box in
+ * turn, which always ends in the open. Where one box holds the point and its
+ * nearest face is open, as everywhere on the 11B maps, this is 11B's rule.
  */
 export function bombSpawn(
   x: number,
   y: number,
   map: MapId,
 ): { x: number; y: number } {
-  for (const [px, py, w, h] of solids(map)) {
-    const left = px * S,
-      right = (px + w) * S,
-      top = py * S,
-      bottom = (py + h) * S;
-    if (x <= left || x >= right || y <= top || y >= bottom) continue;
-    const exits: [number, number, number][] = [
-      [y - top, x, top - 1],
-      [bottom - y, x, bottom + 1],
-      [x - left, left - 1, y],
-      [right - x, right + 1, y],
-    ];
-    let best = exits[0]!;
-    for (const exit of exits) if (exit[0] < best[0]) best = exit;
-    return { x: best[1], y: best[2] };
+  const boxes = solids(map);
+  for (let pass = 0; pass < 4; pass++) {
+    let near: [number, number, number] | undefined,
+      open: [number, number, number] | undefined;
+    for (const box of boxes) {
+      if (!holds(box, x, y)) continue;
+      const [px, py, w, h] = box,
+        left = px * S,
+        right = (px + w) * S,
+        top = py * S,
+        bottom = (py + h) * S;
+      const exits: [number, number, number][] = [
+        [y - top, x, top - 1],
+        [bottom - y, x, bottom + 1],
+        [x - left, left - 1, y],
+        [right - x, right + 1, y],
+      ];
+      for (const exit of exits) {
+        if (!near || exit[0] < near[0]) near = exit;
+        if (
+          (!open || exit[0] < open[0]) &&
+          !boxes.some((b) => holds(b, exit[1], exit[2]))
+        )
+          open = exit;
+      }
+    }
+    if (!near) return { x, y };
+    if (open) return { x: open[1], y: open[2] };
+    x = near[1];
+    y = near[2];
   }
+  // Each rise ends above that box's top and y only falls, so no box holds
+  // the bomb twice: this ends within one step per box.
+  for (
+    let box = boxes.find((b) => holds(b, x, y));
+    box;
+    box = boxes.find((b) => holds(b, x, y))
+  )
+    y = box[1] * S - 1;
   return { x, y };
 }
 /** Bombs below this line (subunits) fizzle. */
