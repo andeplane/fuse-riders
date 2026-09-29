@@ -121,7 +121,7 @@ export function strike(
   h.x += Math.round(dx * time);
   h.y += Math.round(dy * time);
   if (rival !== undefined) {
-    const length = Math.hypot(h.vx, h.vy) || 1;
+    const length = Math.sqrt(h.vx * h.vx + h.vy * h.vy) || 1;
     context!.hit(
       rival,
       Math.round((h.vx / length) * 9 * S),
@@ -136,7 +136,7 @@ export function strike(
   if (rival !== undefined) {
     // Player impulses are applied together after every keeper has moved.
   } else if (id === 0 && target) {
-    const length = Math.hypot(h.vx, h.vy) || 1;
+    const length = Math.sqrt(h.vx * h.vx + h.vy * h.vy) || 1;
     target.vx = Math.round((h.vx / length) * 9 * S);
     target.vy = Math.min(-3 * S, Math.round((h.vy / length) * 7 * S) - 3 * S);
     target.grounded = false;

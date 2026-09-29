@@ -24,6 +24,7 @@ import type { ShowcaseHandle } from "../render/scene.js";
 import { interpolate } from "../render/interpolation.js";
 import { createTouchControls, type TouchControls } from "./touch-controls.js";
 import { bombDirection, touchAim, type TouchState } from "./touch-input.js";
+import { ButtonMerge, mouseAims, touchInput } from "./input-merge.js";
 import { createRoster } from "./roster.js";
 import { createEntrance } from "./entrance.js";
 import { KeyboardInput } from "./keyboard-input.js";
@@ -255,26 +256,27 @@ let runtime: HookRuntime | undefined,
 let input: Input = { ...NEUTRAL };
 let touch: TouchControls | undefined;
 let mousePointer: number | undefined;
-/** Mouse buttons held on the scene: 1 left (hook), 2 right (bomb). */
-let mouseButtons = 0;
+const buttons = new ButtonMerge();
 let touchState: TouchState | undefined;
 const keyboard = new KeyboardInput();
 host.dataset.controls = keyboard.mode;
-let keyFire = false,
-  keyBomb = false;
 const chest = () => latest.feet - latest.body.height * 0.6;
 const sampleKeyboard = () =>
-  keyboard.sample(latest.x, chest(), (dx, dy) =>
-    assistAim(latest.platforms, latest.x, chest(), dx, dy, latest.range),
+  keyboard.sample(
+    latest.x,
+    chest(),
+    (dx, dy) =>
+      assistAim(latest.platforms, latest.x, chest(), dx, dy, latest.range),
+    performance.now(),
   );
 /** Merges keyboard intent; J or a left click holds the hook, K or a right click the bomb. */
 function sampleKeys() {
   const sampled = sampleKeyboard();
-  keyFire = sampled.fire ?? false;
-  keyBomb = sampled.bomb ?? false;
   Object.assign(input, sampled);
-  input.fire = keyFire || (mouseButtons & 1) !== 0;
-  input.bomb = keyBomb || (mouseButtons & 2) !== 0;
+  Object.assign(
+    input,
+    buttons.keys(sampled.fire ?? false, sampled.bomb ?? false),
+  );
 }
 /** Where a bomb released now would be aimed; drives the local arc preview only. */
 function bombAim(): { x: number; y: number } | undefined {
@@ -296,17 +298,22 @@ function bombAim(): { x: number; y: number } | undefined {
   return { x: input.aimX, y: input.aimY };
 }
 let roomDeadline: ReturnType<typeof setTimeout> | undefined;
+/**
+ * Releases everything held. The protocol has no cancel, so a charging bomb is
+ * thrown: along where it is aimed now (keys, touch or the mouse's last
+ * position), not where the press was.
+ */
 function clear() {
+  const aim = bombAim() ?? { x: input.aimX, y: input.aimY };
   const captured = mousePointer;
   mousePointer = undefined;
-  mouseButtons = 0;
-  keyFire = keyBomb = false;
+  buttons.clear();
   if (captured !== undefined && host.hasPointerCapture(captured))
     host.releasePointerCapture(captured);
   touch?.clear();
   keyboard.clear();
-  input = { ...NEUTRAL, aimX: input.aimX, aimY: input.aimY };
-  runtime?.clear();
+  input = { ...NEUTRAL, aimX: aim.x, aimY: aim.y };
+  runtime?.clear(input);
 }
 function send() {
   runtime?.input(input);
@@ -326,30 +333,13 @@ function paintBombButton(view: WorldView) {
 touch = createTouchControls(
   touchDeck,
   (state) => {
-    const wasFiring = input.fire,
-      wasCharging = input.bomb;
     touchState = state;
-    input.move = state.move;
-    input.jump = state.jump;
-    input.drop = state.drop;
-    input.fire = state.fire;
-    input.bomb = state.bomb;
-    if (state.fire && !wasFiring)
-      Object.assign(
-        input,
-        touchAim(latest.x, chest(), state.direction, latest.size),
-      );
-    // The engine reads a throw's aim on the release tick.
-    if (wasCharging && !state.bomb)
-      Object.assign(
-        input,
-        touchAim(
-          latest.x,
-          chest(),
-          bombDirection(state, latest.facing),
-          latest.size,
-        ),
-      );
+    input = touchInput(input, state, {
+      x: latest.x,
+      y: chest(),
+      facing: latest.facing,
+      size: latest.size,
+    });
     send();
   },
   clear,
@@ -373,7 +363,8 @@ el<HTMLSelectElement>("aim-mode").onchange = (event) => {
   );
 };
 touchLayout();
-window.addEventListener("resize", clear);
+// Not on resize: a phone's URL bar and rotation resize mid-charge, and a
+// clear would throw the bomb.
 function sample(): WorldView {
   const timing = runtime?.frameTiming();
   if (!timing) return latest;
@@ -470,7 +461,7 @@ async function graphics() {
         !display &&
         keyboard.mode === "keyboard" &&
         keyboard.aimSource === "keys"
-          ? keyboard.direction
+          ? keyboard.aimDirection(performance.now())
           : undefined,
       bombAim,
       cue: (cue) => effects.cue(cue),
@@ -907,13 +898,13 @@ host.addEventListener("keydown", (e) => {
   e.preventDefault();
   if (e.repeat) return;
   if (touchDeck.dataset.active === "true") clear();
-  keyboard.key(e.code, true);
+  keyboard.key(e.code, true, performance.now());
   sampleKeys();
   send();
 });
 host.addEventListener("keyup", (e) => {
   if (!keyboard.accepts(e.code)) return;
-  keyboard.key(e.code, false);
+  keyboard.key(e.code, false, performance.now());
   if (touchDeck.dataset.active === "true") return;
   sampleKeys();
   send();
@@ -932,23 +923,16 @@ function aim(e: PointerEvent) {
   input.aimY = Math.round(Math.max(0, Math.min(latest.size.height, point.y)));
 }
 host.addEventListener("pointermove", (e) => {
-  if (e.pointerType !== "mouse") return;
-  if (keyboard.mode === "keyboard" && keyboard.aimSource === "keys") return;
-  aim(e);
+  if (e.pointerType === "mouse" && mouseAims(keyboard)) aim(e);
 });
 /**
- * Left holds the hook, right charges a bomb. A second button pressed or
- * released while the first is held arrives as a pointermove, so every mouse
- * event reconciles `buttons`. Aim travels with each change: the hook reads
- * it on the press, the bomb on the release.
+ * Left holds the hook, right charges a bomb (`ButtonMerge`). Aim travels
+ * with each change while the mouse owns it: the hook reads it on the press,
+ * the bomb on the release.
  */
-function mouseButtonsChanged(buttons: number): boolean {
-  buttons &= 3;
-  if (buttons === mouseButtons) return false;
-  mouseButtons = buttons;
-  input.fire = keyFire || (buttons & 1) !== 0;
-  input.bomb = keyBomb || (buttons & 2) !== 0;
-  return true;
+function mouseButtons(mask: number): void {
+  const held = buttons.pointer(mask);
+  if (held) Object.assign(input, held);
 }
 host.addEventListener("contextmenu", (e) => e.preventDefault());
 host.addEventListener("pointerdown", (e) => {
@@ -960,19 +944,22 @@ host.addEventListener("pointerdown", (e) => {
   mousePointer = e.pointerId;
   host.setPointerCapture(e.pointerId);
   aim(e);
-  mouseButtonsChanged(e.buttons || (e.button === 2 ? 2 : 1));
+  mouseButtons(ButtonMerge.pressed(e.button, e.buttons));
   send();
 });
+// A chord: the second button pressed or released while the first is held.
 host.addEventListener("pointermove", (e) => {
-  if (e.pointerId !== mousePointer || !mouseButtonsChanged(e.buttons)) return;
-  aim(e);
+  if (e.pointerId !== mousePointer || (e.buttons & 3) === buttons.buttons)
+    return;
+  if (mouseAims(keyboard)) aim(e);
+  mouseButtons(e.buttons);
   send();
 });
 function releaseMouse(e: PointerEvent) {
   if (e.pointerId !== mousePointer) return;
   mousePointer = undefined;
-  if (e.type === "pointerup" && keyboard.aimSource === "mouse") aim(e);
-  mouseButtonsChanged(0);
+  if (e.type === "pointerup" && mouseAims(keyboard)) aim(e);
+  mouseButtons(0);
   send();
 }
 host.addEventListener("pointerup", releaseMouse);
