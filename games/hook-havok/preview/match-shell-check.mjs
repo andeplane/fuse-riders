@@ -56,7 +56,7 @@ try {
   assert.equal(await host.locator("#rules-help").isVisible(), true);
   assert.match(
     await host.locator("#rules-help").innerText(),
-    /A fall puts you out/,
+    /A fall or a bomb knockout puts you out/,
   );
   assert.match(
     await host.locator("#spectator-state").innerText(),
