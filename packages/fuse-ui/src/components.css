@@ -308,3 +308,106 @@
   color: var(--fui-ink);
   background: var(--fui-cyan-deep);
 }
+
+/* Friends */
+.fui-friends {
+  display: grid;
+  gap: var(--fui-space-3);
+}
+.fui-friends-note {
+  margin: 0;
+  color: var(--fui-text-dim);
+  line-height: 1.5;
+}
+.fui-friends-error {
+  margin: 0;
+  color: var(--fui-pink-soft);
+}
+.fui-friends-section {
+  display: grid;
+  gap: var(--fui-space-2);
+}
+.fui-friends-heading {
+  margin: 0;
+  font: 0.625rem/1.6 var(--fui-font-pixel);
+  letter-spacing: 0.0625rem;
+  color: var(--fui-text-dim);
+}
+.fui-friends-list {
+  display: grid;
+  gap: var(--fui-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fui-friends-row {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-3);
+  padding: var(--fui-space-2) var(--fui-space-3);
+  background: var(--fui-deep);
+  border-left: 0.25rem solid var(--fui-text-dim);
+  border-radius: var(--fui-radius-small);
+}
+.fui-friends-row[data-online="true"] {
+  border-left-color: var(--fui-lime);
+}
+.fui-friends-info {
+  display: grid;
+  gap: var(--fui-space-1);
+  min-width: 0;
+  flex: 1;
+}
+.fui-friends-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--fui-font-pixel);
+  font-size: 0.75rem;
+}
+.fui-friends-status {
+  color: var(--fui-text-dim);
+  font-size: 0.625rem;
+  letter-spacing: 0.0625rem;
+}
+.fui-friends-row[data-online="true"] .fui-friends-status {
+  color: var(--fui-lime);
+}
+.fui-friends-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fui-space-1);
+  justify-content: flex-end;
+}
+.fui-app .fui-friends-action,
+.fui-app .fui-friends-add {
+  padding: var(--fui-space-1) var(--fui-space-2);
+  font-size: 0.5625rem;
+}
+.fui-app .fui-friends-add[data-relation="friend"] {
+  color: var(--fui-lime);
+  border-color: var(--fui-lime);
+  opacity: 1;
+}
+.fui-app .fui-friends-add[data-relation="incoming"] {
+  color: var(--fui-ink);
+  background: var(--fui-lime);
+}
+.fui-friends-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fui-space-2);
+  padding: var(--fui-space-2) var(--fui-space-3);
+  background: var(--fui-deep);
+  border: 1px solid var(--fui-lime);
+  border-radius: var(--fui-radius-small);
+}
+.fui-friends-banner-text {
+  /* Wide enough to read on one line where there is room; on a phone it takes the row and the buttons follow. */
+  flex: 1 1 14rem;
+  min-width: 0;
+  font-family: var(--fui-font-pixel);
+  font-size: 0.625rem;
+  line-height: 1.6;
+}

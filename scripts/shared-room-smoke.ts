@@ -573,9 +573,13 @@ for (const { name, kind } of BOTH_ENGINES) {
       false,
       "ended room must not keep live-looking controls",
     );
+    // ROOM is a bar action, and the ended phone's bar is one ☰ MENU at this height; the sheet is shut again before
+    // the screenshot so the artifact shows the ended screen itself.
+    await openTopMenu(guest);
     await guest
       .getByRole("button", { name: "ROOM", exact: true })
       .waitFor({ state: "visible" });
+    await guest.keyboard.press("Escape");
     await guest.screenshot({
       path: `artifacts/shared-ended-phone-${name}.png`,
     });

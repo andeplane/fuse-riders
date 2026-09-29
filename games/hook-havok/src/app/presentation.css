@@ -1,0 +1,284 @@
+/* Playground-only composition. The authored art showcase keeps its original layout. */
+.playground main {
+  padding: 14px 24px 28px;
+}
+.playground header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 12px;
+}
+.playground header .eyebrow,
+.playground header .intro {
+  display: none;
+}
+.playground header h1 {
+  display: block;
+  font-size: 26px;
+  margin: 0;
+}
+#arena-focus {
+  margin-left: auto;
+  font:
+    12px system-ui,
+    sans-serif;
+}
+.playground .controls {
+  margin-top: 10px;
+  gap: 10px;
+}
+.playground button,
+.playground select {
+  padding: 7px 10px;
+}
+.playground .stage-caption {
+  padding: 8px 12px;
+}
+.playground #roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 12px 0 8px;
+}
+#roster:empty {
+  display: none;
+}
+.keeper-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  column-gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #454556;
+  border-top: 2px solid var(--keeper-color);
+  border-radius: 6px;
+  background: #171d2c;
+}
+.keeper-badge {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  background: var(--keeper-color);
+  color: #141827;
+  border-radius: 4px;
+  font:
+    700 13px system-ui,
+    sans-serif;
+}
+.keeper-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #e7e2d7;
+  font:
+    600 12px system-ui,
+    sans-serif;
+}
+.keeper-card small {
+  color: #adb5c8;
+  font:
+    11px/1.6 system-ui,
+    sans-serif;
+}
+.keeper-card[data-state="WINNER"] {
+  border-color: var(--keeper-color);
+  background: #292737;
+}
+.keeper-card[data-state="OUT"],
+.keeper-card[data-state="AWAY"] {
+  opacity: 0.6;
+}
+.playground #round-status {
+  padding: 7px 10px;
+  background: #202537;
+  border-left: 3px solid #dfb877;
+  border-radius: 3px;
+  font-size: 14px;
+}
+.playground #round-status:empty {
+  display: none;
+}
+/* Keep the game and identity visible; controls remain one button away. */
+.arena-focused main {
+  max-width: min(1560px, calc((100dvh - 155px) * 16 / 9));
+  padding: 8px 12px;
+}
+.arena-focused header {
+  margin: 0 0 4px;
+}
+.arena-focused header #home,
+.arena-focused .room-entry,
+.arena-focused #invitation,
+.arena-focused .experiment-controls,
+.arena-focused .rules-controls > label,
+.arena-focused #rules-help,
+.arena-focused #map-help,
+.arena-focused main > .controls:not(.rules-controls),
+.arena-focused main > .intro,
+.arena-focused #status,
+.arena-focused main > details,
+.arena-focused main > [data-radio] {
+  display: none;
+}
+.arena-focused .rules-controls {
+  margin: 0;
+}
+.arena-focused .play-surface {
+  margin-top: 4px;
+}
+.arena-focused #roster {
+  margin: 4px 0;
+}
+.arena-focused .keeper-card {
+  padding: 5px 8px;
+}
+.arena-focused .stage-caption {
+  display: none;
+}
+@media (max-width: 700px) {
+  .playground main {
+    padding: 10px 12px 20px;
+  }
+  .playground header {
+    gap: 8px;
+  }
+  .playground header h1 {
+    font-size: 21px;
+  }
+  .playground header #home {
+    font-size: 9px;
+  }
+  .playground #roster {
+    grid-template-columns: repeat(auto-fit, minmax(125px, 1fr));
+  }
+}
+@media (orientation: landscape) and (max-height: 600px) {
+  .playground.touch-trial header {
+    display: flex;
+    margin: 0 0 4px;
+  }
+  .touch-trial header h1,
+  .touch-trial header #home {
+    display: none;
+  }
+  .playground.touch-trial .play-surface .stage {
+    width: min(100%, calc((100dvh - 230px) * 16 / 9));
+    max-width: none;
+  }
+  .arena-focused.touch-trial main {
+    max-width: 1560px;
+  }
+  .arena-focused.touch-trial #roster {
+    order: 0;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .arena-focused.touch-trial .keeper-card {
+    display: block;
+    padding: 3px;
+  }
+  .arena-focused.touch-trial .keeper-badge {
+    display: inline-block;
+    padding: 2px 5px;
+  }
+  .arena-focused.touch-trial .keeper-name {
+    display: none;
+  }
+  .arena-focused.touch-trial .keeper-card small {
+    display: block;
+    font-size: 9px;
+  }
+  .arena-focused.touch-trial .play-surface .stage {
+    width: min(100%, calc((100dvh - 175px) * 16 / 9));
+  }
+  .arena-focused.touch-trial #round-status {
+    font-size: 12px;
+    line-height: 1.35;
+    padding: 4px 8px;
+  }
+}
+/*
+ * 10B full-screen arena: on desktop and TV screens the painting fills the
+ * viewport and the match HUD floats in a slim band above the highest ledge.
+ * Touch layouts keep their pads outside the arena, so they are unchanged.
+ */
+@media (min-width: 901px) {
+  .arena-focused:not(.touch-trial) main {
+    max-width: none;
+    padding: 0;
+  }
+  .arena-focused:not(.touch-trial) .play-surface .stage {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: radial-gradient(ellipse at 50% 40%, #1b1d30, #05060a 70%);
+  }
+  .arena-focused:not(.touch-trial) #scene {
+    flex: none;
+    width: min(100vw, calc(100dvh * 16 / 9));
+  }
+  .arena-focused:not(.touch-trial) header {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 3;
+    margin: 0;
+  }
+  .arena-focused:not(.touch-trial) header > :not(#arena-focus) {
+    display: none;
+  }
+  .arena-focused:not(.touch-trial) #match-hud {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 2;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    margin: 0;
+    padding: 10px 170px 34px 20px;
+    background: linear-gradient(#05060ae0, #05060a99 55%, #05060a00);
+    pointer-events: none;
+  }
+  /*
+   * The countdown/result overlay lives inside the fixed stage's stacking
+   * context, so while it shows, drop the floating HUD beneath the stage.
+   */
+  .arena-focused:not(.touch-trial):has(#match-overlay:not([hidden]))
+    #match-hud {
+    z-index: -1;
+  }
+  .arena-focused:not(.touch-trial) #match-hud button {
+    pointer-events: auto;
+  }
+  .arena-focused:not(.touch-trial) .match-heading {
+    display: contents;
+  }
+  .arena-focused:not(.touch-trial) .match-clock {
+    order: 3;
+    margin-left: auto;
+  }
+  .arena-focused:not(.touch-trial) #match-hud #roster {
+    order: 2;
+    flex: 1;
+    grid-template-columns: repeat(5, minmax(0, 210px));
+    justify-content: center;
+    margin: 0;
+    zoom: 0.8;
+  }
+  .arena-focused:not(.touch-trial) #round-status {
+    position: absolute;
+    top: 64px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .arena-focused:not(.touch-trial) .keeper-card {
+    padding: 3px 8px;
+    background: #0b0e18c0;
+  }
+}
