@@ -43,6 +43,14 @@ import { CreepLayer, type CreepSource } from "./creep-layer.js";
 import { organicBurst } from "./organic-burst.js";
 import { buildingRootsMarkup } from "./building-roots.js";
 import {
+  bloodTravel,
+  heartbeat,
+  vesselMarkup,
+  vesselNetwork,
+  vesselPoint,
+  type Vessel,
+} from "./vessels.js";
+import {
   CYTOPLASM,
   EMBERS,
   LightField,
@@ -102,6 +110,12 @@ interface BoardCache {
   fresh: boolean;
   light: LightField;
   spores: readonly Spore[];
+  vessels: readonly Vessel[];
+}
+function hashText(text: string): number {
+  let hash = 2166136261;
+  for (const c of text) hash = Math.imul(hash ^ c.charCodeAt(0), 16777619);
+  return hash >>> 0;
 }
 interface Spore {
   x: number;
@@ -193,7 +207,7 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
         object = `<circle class="tower-site" cx="${x}" cy="${y}" r="19"/><text x="${x}" y="${y + 5}" text-anchor="middle">+</text>`;
       if (object && cell.terrain !== "open")
         object += `<ellipse class="terrain-hit" data-cell="${index}" cx="${x}" cy="${y - 3 - (relief.get(index)?.height ?? 0)}" rx="${relief.has(index) ? 24 : 20}" ry="${relief.has(index) ? 32 : 25}"/>`;
-      return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${ground ? image(sprites, ground, x, y, 82) : ""}</g>${object ? `<g class="terrain-object" data-terrain="${cell.terrain}" data-depth="${index}" pointer-events="none"><ellipse cx="${x + 9}" cy="${y + 14}" rx="30" ry="10" fill="url(#contact-shadow)"/>${object}</g>` : ""}<polygon class="hex-hover-outline" points="${hexPoints(world.map.width, index, 1.5)}"/></g>`;
+      return `<g class="hex terrain-${cell.terrain}" data-cell="${index}"><polygon points="${hexPoints(world.map.width, index)}"/><clipPath id="tile-${index}"><polygon points="${hexPoints(world.map.width, index)}"/></clipPath><g class="ground-patch" clip-path="url(#tile-${index})">${ground ? image(sprites, ground, x, y, 82) : ""}</g>${object ? `<g class="terrain-object" data-terrain="${cell.terrain}"${cell.terrain === "deposit" ? ` data-resource="${cell.resourceKind}" style="--delay:${(-((index * 0.618) % 1) * 3.6).toFixed(2)}s"` : ""} data-depth="${index}" pointer-events="none"><ellipse cx="${x + 9}" cy="${y + 14}" rx="30" ry="10" fill="url(#contact-shadow)"/>${object}</g>` : ""}<polygon class="hex-hover-outline" points="${hexPoints(world.map.width, index, 1.5)}"/></g>`;
     })
     .join("");
 }
@@ -202,10 +216,11 @@ function terrainMarkup(world: Readonly<World>, sprites: Sprites): string {
 function backdropMarkup(
   sprites: Sprites,
   size: { width: number; height: number },
+  vessels: readonly Vessel[],
 ): string {
   const ground = sprites[WALKABLE_GROUND];
   const cliff = sprites["terrain-cliff-material-v1"];
-  return `<defs><pattern id="cliff-material" patternUnits="userSpaceOnUse" width="180" height="180"><rect width="180" height="180" fill="#657078"/>${cliff ? `<image href="${escaped(cliff)}" width="180" height="180"/>` : ""}</pattern><radialGradient id="contact-shadow"><stop offset="0" stop-color="#000" stop-opacity="0.7"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="${size.width * 2}" height="${size.height * 2}"><rect width="${size.width * 2}" height="${size.height * 2}" fill="#172723"/>${ground ? ["", `translate(${size.width * 2} 0) scale(-1 1)`, `translate(0 ${size.height * 2}) scale(1 -1)`, `translate(${size.width * 2} ${size.height * 2}) scale(-1 -1)`].map((transform) => `<image href="${escaped(ground)}" width="${size.width}" height="${size.height}" preserveAspectRatio="none" transform="${transform}" opacity="0.5"/>`).join("") : ""}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>`;
+  return `<defs><pattern id="cliff-material" patternUnits="userSpaceOnUse" width="180" height="180"><rect width="180" height="180" fill="#657078"/>${cliff ? `<image href="${escaped(cliff)}" width="180" height="180"/>` : ""}</pattern><radialGradient id="contact-shadow"><stop offset="0" stop-color="#000" stop-opacity="0.7"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient><pattern id="ground-continuation" patternUnits="userSpaceOnUse" width="${size.width * 2}" height="${size.height * 2}"><rect width="${size.width * 2}" height="${size.height * 2}" fill="#172723"/>${ground ? ["", `translate(${size.width * 2} 0) scale(-1 1)`, `translate(0 ${size.height * 2}) scale(1 -1)`, `translate(${size.width * 2} ${size.height * 2}) scale(-1 -1)`].map((transform) => `<image href="${escaped(ground)}" width="${size.width}" height="${size.height}" preserveAspectRatio="none" transform="${transform}" opacity="0.5"/>`).join("") : ""}</pattern></defs><rect class="terrain-backdrop" width="100%" height="100%" fill="url(#ground-continuation)"/>${vesselMarkup(vessels)}`;
 }
 /** Same-owner structures around a cell, as projected offsets for dendrites to reach toward. */
 function neuronNeighbours(
@@ -459,7 +474,8 @@ export function renderBoard(
     svg.setAttribute("role", "img");
     const backdrop = layer(svg, "backdrop-layer");
     backdrop.setAttribute("pointer-events", "none");
-    backdrop.innerHTML = backdropMarkup(sprites, size);
+    const vessels = vesselNetwork(size, hashText(world.map.id));
+    backdrop.innerHTML = backdropMarkup(sprites, size, vessels);
     backdrop
       .querySelector("defs")!
       .insertAdjacentHTML(
@@ -535,6 +551,7 @@ export function renderBoard(
       fresh: true,
       light: new LightField(),
       spores: sporesFor(size, `${world.matchId}`),
+      vessels,
     };
     caches.set(svg, cached);
   }
@@ -982,6 +999,14 @@ export function renderBoard(
     swing: number;
   };
   const glows: Glow[] = [];
+  const deposits: { x: number; y: number; biomass: boolean; index: number }[] =
+    [];
+  const mining: {
+    from: readonly [number, number];
+    to: readonly [number, number];
+    color: Rgb;
+    phase: number;
+  }[] = [];
   const signals: {
     path: ReturnType<typeof networkPath>;
     color: Rgb;
@@ -1047,6 +1072,19 @@ export function renderBoard(
         phase: index,
         swing: 0.4,
       });
+      deposits.push({ x, y, biomass: cell.resourceKind === "biomass", index });
+      // Every connected neighbour mines this deposit; show the harvest flowing in.
+      for (const n of neighbors(world.map, index)) {
+        const miner = world.structures.find((s) => s.cell === n && s.connected);
+        if (!miner) continue;
+        const to = hexCenter(width, n);
+        mining.push({
+          from: [x, y - 10],
+          to: [to.x, to.y - 6],
+          color: rgb(cell.resourceKind === "biomass" ? "#c8ff6a" : "#d9a8ff"),
+          phase: ((index * 31 + n * 17) % 100) / 100,
+        });
+      }
     });
     for (const p of world.players)
       for (const q of p.queue)
@@ -1258,8 +1296,64 @@ export function renderBoard(
         field.add(x, y, spore.size, spore.color, 0.16 * twinkle, 5);
       }
     }
+    if (!reducedMotion) drawAmbient(field, frameNow);
     field.step(frameNow, reducedMotion);
     light!.draw(field.instances, field.size, view);
+  };
+  /** Blood in the vessels, twinkling crystals, spore puffs and harvest motes. */
+  const drawAmbient = (field: LightField, frameNow: number) => {
+    const beat = heartbeat(frameNow);
+    const travel = bloodTravel(frameNow, 34);
+    const blood: Rgb = [0.8, 0.1, 0.16];
+    cache.vessels.forEach((v, i) => {
+      const length = v.lengths[v.lengths.length - 1]!;
+      const spacing = v.width > 3 ? 28 : 40;
+      const count = Math.floor(length / spacing);
+      const offset = (travel * (v.width > 3 ? 1 : 0.7) + i * 13) % spacing;
+      const size = v.width + 1.2;
+      for (let c = 0; c < count; c++) {
+        const [x, y] = vesselPoint(v, c * spacing + offset);
+        field.add(x, y, size, blood, 0.05 + 0.14 * beat, 3);
+      }
+    });
+    for (const d of deposits) {
+      const t = frameNow / 1000 + d.index * 1.37;
+      if (d.biomass) {
+        // Three spores rise and drift from the pods, each on its own cycle.
+        for (let k = 0; k < 3; k++) {
+          const cycle = (t / 3.1 + k / 3) % 1;
+          const x = d.x + Math.sin(t * 0.9 + k * 2.1) * 10 + (k - 1) * 8;
+          const y = d.y - 16 - cycle * 34;
+          const fade = Math.sin(cycle * Math.PI);
+          field.add(x, y, 2.4, [0.8, 1, 0.45], 0.55 * fade, 6);
+        }
+      } else {
+        // Sparkles blink at the crystal tips.
+        for (let k = 0; k < 4; k++) {
+          const blink = Math.max(0, Math.sin(t * (1.3 + k * 0.37) + k * 1.9));
+          const sharp = blink ** 12;
+          const angle = k * 1.6 + d.index;
+          field.add(
+            d.x + Math.cos(angle) * 12,
+            d.y - 20 + Math.sin(angle) * 7,
+            4.5,
+            [1, 0.9, 1],
+            0.9 * sharp,
+            10,
+          );
+        }
+      }
+    }
+    for (const m of mining) {
+      // A mote every ~0.9 s travels from the deposit into its miner.
+      for (let k = 0; k < 2; k++) {
+        const u = (frameNow / 1800 + m.phase + k / 2) % 1;
+        const lift = Math.sin(u * Math.PI) * 10;
+        const x = m.from[0] + (m.to[0] - m.from[0]) * u,
+          y = m.from[1] + (m.to[1] - m.from[1]) * u - lift;
+        field.add(x, y, 3, m.color, 0.7 * Math.sin(u * Math.PI), 6);
+      }
+    }
   };
   animate(now);
   return { animate };

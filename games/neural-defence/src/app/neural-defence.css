@@ -904,6 +904,65 @@ select {
     animation: none;
   }
 }
+/* Blood vessels beneath the ground; the blood itself flows in the light layer. */
+.vessels {
+  opacity: 0.42;
+}
+.vessel-wall,
+.vessel-blood,
+.vessel-sheen {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.vessel-wall {
+  stroke: #16050a;
+  stroke-opacity: 0.55;
+}
+.vessel-blood {
+  stroke: #45101a;
+  stroke-opacity: 0.85;
+}
+.vessel-sheen {
+  stroke: #b8465a;
+  stroke-opacity: 0.18;
+}
+/* Deposits: biomass pods breathe, insight crystals hover. */
+.terrain-object[data-resource] image {
+  transform-box: fill-box;
+  transform-origin: 50% 85%;
+  animation-delay: var(--delay, 0s);
+}
+.terrain-object[data-resource="biomass"] image {
+  animation-name: pod-breathe;
+  animation-duration: 3.6s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+.terrain-object[data-resource="insight"] image {
+  animation-name: crystal-hover;
+  animation-duration: 4.2s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+@keyframes pod-breathe {
+  50% {
+    transform: scale(1.05, 0.96);
+  }
+}
+@keyframes crystal-hover {
+  50% {
+    transform: translateY(-2px);
+  }
+}
+#nd-board[data-reduced-motion="true"] .terrain-object image {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .terrain-object image {
+    animation: none;
+  }
+}
 /* Creep: a raised slab of living tissue beneath each network. */
 .creep-shadow {
   fill: #000;
