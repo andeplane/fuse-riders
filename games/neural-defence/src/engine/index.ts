@@ -4,6 +4,7 @@ import {
   isPowerupKind,
   POWERUP_RULES,
   powerupPhase,
+  powerupDraw,
 } from "./powerups.js";
 import { territoryPhase } from "./territory.js";
 import { EVENT_TYPES, recordTimeline, TIMELINE } from "./timeline.js";
@@ -446,22 +447,24 @@ function prepareWorker(w: World, p: Player): boolean {
 }
 /**
  * A seat's place in this tick's construction precedence; the lowest wins a
- * contested claim. Each tick shuffles every seat by hashing tick and slot, so
- * any two seats are equally likely to come first, whatever the number of
- * players and however regular their timing (the AI acts every 20 ticks). A
+ * contested claim. Each tick shuffles every seat by hashing the match, tick
+ * and slot, so any two seats are equally likely to come first, whatever the
+ * number of players and however regular their timing (the AI acts every 20
+ * ticks), and matches do not all resolve their first contest the same way. A
  * rotation is not enough: with four players, neighbours in the rotation win
  * three ties in four against each other.
  */
-export function claimPrecedence(tick: number, slot: number): number {
-  let h = Math.imul(tick, 0x9e3779b1) ^ Math.imul(slot + 1, 0x85ebca6b);
-  h = Math.imul(h ^ (h >>> 16), 0x7feb352d);
-  h = Math.imul(h ^ (h >>> 15), 0x846ca68b);
-  return (h ^ (h >>> 16)) >>> 0;
+export function claimPrecedence(
+  matchId: string,
+  tick: number,
+  slot: number,
+): number {
+  return powerupDraw(matchId, tick, 1000 + slot);
 }
 function dispatchConstruction(w: World, ready: Player[]) {
   // Collect claims against one shared pre-dispatch board. Rotate spawn-slot
   // precedence each tick so renaming players cannot buy construction priority.
-  const rank = (p: Player) => claimPrecedence(w.tick, p.slot);
+  const rank = (p: Player) => claimPrecedence(w.matchId, w.tick, p.slot);
   // The builder takes one tower or upgrade at a time; neurons sprout from the
   // network into every free sprout slot.
   const claims = w.players

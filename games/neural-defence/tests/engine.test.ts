@@ -158,7 +158,10 @@ test("contested auto expansion uses rotating slots, not IDs or opponent unpaid p
       const winner = w.players.find((p) => p.queue.some((j) => j.paid))!;
       assert.equal(
         winner.slot,
-        claimPrecedence(w.tick, 0) < claimPrecedence(w.tick, 1) ? 0 : 1,
+        claimPrecedence(w.matchId, w.tick, 0) <
+          claimPrecedence(w.matchId, w.tick, 1)
+          ? 0
+          : 1,
       );
       assert.equal(
         w.players.find((p) => p.id !== winner.id)!.queue.length,
@@ -566,7 +569,10 @@ test("simultaneous construction claims rotate by slot, independent of IDs and in
       const winner = w.players.find((p) => p.queue[0]?.paid)!;
       assert.equal(
         winner.slot,
-        claimPrecedence(w.tick, 0) < claimPrecedence(w.tick, 1) ? 0 : 1,
+        claimPrecedence(w.matchId, w.tick, 0) <
+          claimPrecedence(w.matchId, w.tick, 1)
+          ? 0
+          : 1,
       );
       assert.equal(
         winner.biomass,
@@ -593,13 +599,26 @@ test("claim precedence favours no seat over another, at any cadence", () => {
         const samples = 2000;
         for (let i = 0; i < samples; i++) {
           const tick = offset + i * every;
-          if (claimPrecedence(tick, a) < claimPrecedence(tick, b)) first++;
+          if (claimPrecedence("m", tick, a) < claimPrecedence("m", tick, b))
+            first++;
         }
         assert.ok(
           Math.abs(first - samples / 2) < samples * 0.05,
           `seats ${a}/${b} every ${every}: ${first}/${samples}`,
         );
       }
+});
+
+test("the same tick in different matches resolves contests independently", () => {
+  let first = 0;
+  const samples = 2000;
+  for (let i = 0; i < samples; i++)
+    if (
+      claimPrecedence(`match-${i}`, 1275, 0) <
+      claimPrecedence(`match-${i}`, 1275, 3)
+    )
+      first++;
+  assert.ok(Math.abs(first - samples / 2) < samples * 0.05, `${first}`);
 });
 
 test("builders recover when either edge endpoint is cut, even on the arrival tick", () => {
