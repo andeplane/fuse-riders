@@ -1,3 +1,4 @@
+import { RULES } from "./types.js";
 import type { MapDefinition } from "./types.ts";
 /** Stable local ordering for symmetric choices, viewed from the home spawn. */
 export function homeCellOrder(
@@ -105,8 +106,12 @@ export function loadMap(raw: unknown): MapDefinition {
     )
       throw new Error(`map.cells[${i}]: invalid fields`);
   }
-  if (!Array.isArray(m.spawns) || m.spawns.length < 1 || m.spawns.length > 4)
-    throw new Error("map.spawns: expected 1..4 spawns");
+  if (
+    !Array.isArray(m.spawns) ||
+    m.spawns.length < 1 ||
+    m.spawns.length > RULES.maxPlayers
+  )
+    throw new Error(`map.spawns: expected 1..${RULES.maxPlayers} spawns`);
   const slots = new Set<number>(),
     cells = new Set<number>();
   for (const s of m.spawns) {
@@ -116,7 +121,7 @@ export function loadMap(raw: unknown): MapDefinition {
       Object.keys(s).some((k) => !["slot", "cellIndex"].includes(k)) ||
       !Number.isInteger(s.slot) ||
       s.slot < 0 ||
-      s.slot > 3 ||
+      s.slot >= RULES.maxPlayers ||
       !Number.isInteger(s.cellIndex) ||
       s.cellIndex < 0 ||
       s.cellIndex >= m.cells.length ||

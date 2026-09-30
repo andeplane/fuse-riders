@@ -1,4 +1,5 @@
 import type { Buff, Powerup } from "./powerups.js";
+import type { MatchEvent, TimelineSample } from "./timeline.js";
 export type Resource = "biomass" | "insight";
 export const AI_STRATEGIES = [
   "balanced",
@@ -7,13 +8,14 @@ export const AI_STRATEGIES = [
   "siege",
   "relay",
   "defensive",
+  "swarm",
 ] as const;
 export type AiStrategy = (typeof AI_STRATEGIES)[number];
 export const isAiStrategy = (value: unknown): value is AiStrategy =>
   typeof value === "string" && AI_STRATEGIES.some((kind) => kind === value);
 export type ParticleKind = "pulse" | "heavy" | "swift";
 export type BuildKind =
-  "neuron" | "tower" | "siege" | "relay" | "harvester" | "bastion";
+  "neuron" | "tower" | "siege" | "relay" | "harvester" | "bastion" | "spore";
 export type StructureKind = "brain" | BuildKind;
 export type Research =
   "growth" | "excitation" | "conduction" | "ballistics" | "resonance";
@@ -86,6 +88,10 @@ export interface Player {
   };
   /** Timed effects from claimed powerups, sorted by kind. */
   buffs: Buff[];
+  /** Cells this player's connected network claims (see territory.ts). */
+  territory: number;
+  /** Tick this player's share first reached dominance, or null. */
+  dominanceSince: number | null;
 }
 export interface Structure {
   id: number;
@@ -140,7 +146,9 @@ export interface Outcome {
     | "shielded"
     | "destroyed"
     | "eliminated"
-    | "claimed";
+    | "claimed"
+    | "dominating"
+    | "dominanceBroken";
   cell?: number;
   /** Origin of a resolved attack; presentation does not infer it from nearby nodes. */
   fromCell?: number;
@@ -150,7 +158,7 @@ export interface Outcome {
 }
 export interface World {
   formatVersion: 1;
-  rulesVersion: 10;
+  rulesVersion: 11;
   matchId: string;
   tick: number;
   map: MapDefinition;
@@ -165,9 +173,16 @@ export interface World {
   outcomes: Outcome[];
   winnerId: string | null;
   finished: boolean;
+  /** How the match was won; null while running or after a mutual loss. */
+  victory: "elimination" | "dominance" | null;
+  /** Samples and decisive moments for the statistics screen (timeline.ts). */
+  timeline: TimelineSample[];
+  events: MatchEvent[];
 }
 export const RULES = Object.freeze({
-  version: 10,
+  version: 11,
+  /** Most brains in one match. Maps, seats, colours and bounds all follow it. */
+  maxPlayers: 8,
   ticksPerSecond: 20,
   particleCount: 128,
   particleSpeed: 4,

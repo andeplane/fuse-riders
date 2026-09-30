@@ -195,6 +195,7 @@ export const CREEP_RADIUS = Object.freeze({
   siege: 52,
   relay: 50,
   bastion: 54,
+  spore: 50,
   site: 30,
 });
 
@@ -206,7 +207,7 @@ export interface TeamPalette {
   flesh: string;
   fleshDark: string;
 }
-export const TEAM_PALETTES: readonly TeamPalette[] = [
+export const TEAM_PALETTES: TeamPalette[] = [
   {
     light: "#c8ecff",
     mid: "#3d9fe6",
@@ -240,6 +241,41 @@ export const TEAM_PALETTES: readonly TeamPalette[] = [
     fleshDark: "#14110b",
   },
 ];
+/** Violet, amber, teal and magenta networks for the fifth to eighth players. */
+TEAM_PALETTES.push(
+  {
+    light: "#eadcff",
+    mid: "#9a6dff",
+    dark: "#2e1760",
+    glow: "#b99bff",
+    flesh: "#2c2440",
+    fleshDark: "#110b1e",
+  },
+  {
+    light: "#ffe6cc",
+    mid: "#f08a2c",
+    dark: "#5a2c07",
+    glow: "#ffb266",
+    flesh: "#3c2c20",
+    fleshDark: "#170f08",
+  },
+  {
+    light: "#d2fff5",
+    mid: "#2fcfb0",
+    dark: "#0b4a3f",
+    glow: "#6ff2d6",
+    flesh: "#1d3632",
+    fleshDark: "#081512",
+  },
+  {
+    light: "#ffd9f6",
+    mid: "#e04dc0",
+    dark: "#56103f",
+    glow: "#ff8ae3",
+    flesh: "#3a2034",
+    fleshDark: "#170b14",
+  },
+);
 export const palette = (slot: number): TeamPalette =>
   TEAM_PALETTES[slot] ?? TEAM_PALETTES[0]!;
 

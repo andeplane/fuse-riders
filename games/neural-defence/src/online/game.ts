@@ -23,7 +23,7 @@ import {
 } from "../engine/index.js";
 import { prepareCombatLab, labCommands } from "./combat-lab.js";
 import { aiCommands } from "../engine/ai.js";
-import { isAiStrategy, type AiStrategy } from "../engine/types.js";
+import { isAiStrategy, RULES, type AiStrategy } from "../engine/types.js";
 import { bundledMap } from "./maps.js";
 
 export type NeuralMode =
@@ -67,7 +67,7 @@ export function parseSettings(x: unknown): NeuralSettings | undefined {
     !record(x) ||
     !Number.isInteger(x.slot) ||
     Number(x.slot) < 0 ||
-    Number(x.slot) > 3 ||
+    Number(x.slot) >= RULES.maxPlayers ||
     (x.mode !== "sandbox" &&
       x.mode !== "combat-lab" &&
       x.mode !== "skirmish" &&
@@ -169,7 +169,7 @@ function canonical(value: unknown): unknown {
 export function isEntry(x: unknown): x is NeuralEntry {
   return (
     isManagementEntry(x, {
-      capacity: 4,
+      capacity: RULES.maxPlayers,
       name: (value) => typeof value === "string" && name(value) === value,
       avatar,
       settings: (value) => parseSettings(value) !== undefined,
@@ -309,7 +309,7 @@ export const neuralGame: RollbackGame<
   NeuralSettings
 > = {
   id: "neural-defence",
-  rules: "neural-defence-10-watch-5",
+  rules: "neural-defence-11-watch-6",
   isEntry,
   createRoom: (matchId, settings) => ({
     tick: 0,
@@ -467,7 +467,7 @@ export const neuralGame: RollbackGame<
             s.watcher
               ? s.slot !== -1
               : Number(s.slot) < 0 ||
-                Number(s.slot) > 3 ||
+                Number(s.slot) >= RULES.maxPlayers ||
                 slots.has(Number(s.slot))
           )
             return;
@@ -567,7 +567,7 @@ export const neuralGame: RollbackGame<
   stage: (r) => r.stage,
   settings: (r) => r.settings,
   seating: {
-    capacity: 4,
+    capacity: RULES.maxPlayers,
     maxWatchers: 4,
     minPlayers: 1,
     seatName: name,

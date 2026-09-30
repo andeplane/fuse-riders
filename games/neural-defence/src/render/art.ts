@@ -9,7 +9,8 @@ export function structureArt(kind: StructureKind): string {
   return `tower-${kind === "tower" ? "pulse" : kind}-v3`;
 }
 
-const teamHues = [0, 145, 265, 205] as const;
+/** Hue rotations of the blue painted art, one per team (see TEAM_PALETTES). */
+const teamHues = [0, 145, 265, 205, 55, 180, 305, 95] as const;
 export function teamArtHue(slot: number): number {
   return teamHues[slot] ?? 0;
 }

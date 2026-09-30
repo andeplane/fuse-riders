@@ -42,6 +42,7 @@ import {
 } from "./creep.js";
 import { CreepLayer, type CreepSource } from "./creep-layer.js";
 import { organicBurst } from "./organic-burst.js";
+import { SPORE_POD, sporeMarkup } from "./spore-art.js";
 import { buildingRoots, buildingRootsMarkup } from "./building-roots.js";
 import {
   claimLabelMarkup,
@@ -71,7 +72,7 @@ import {
 } from "./light-field.js";
 export { hexCenter, hexPoints } from "./projection.js";
 const ns = "http://www.w3.org/2000/svg";
-const colors = ["#63cfff", "#ff8e9d", "#9ee394", "#f7d477"];
+const colors = TEAM_PALETTES.map((p) => p.glow);
 type Sprites = Readonly<Record<string, string>>;
 type Moving = {
   kind?: "pulse" | "heavy" | "swift";
@@ -283,6 +284,10 @@ export function structureArtwork(
   sprites: Sprites = {},
 ): string {
   if (kind === "neuron") return neuronArtwork(width, cell, slot);
+  if (kind === "spore") {
+    const at = hexCenter(width, cell);
+    return sporeMarkup(at.x, at.y, slot);
+  }
   const { x, y } = hexCenter(width, cell);
   const size = buildingSize(kind);
   return `<g class="building-art" filter="${teamSvgFilter(slot)}">${image(sprites, structureArt(kind), x, y + buildingFoot - size / 2, size, { key: teamSpritePaint(slot), filter: teamSvgFilter(slot) }) || `<circle class="structure-core" cx="${x}" cy="${y}" r="16"/>`}</g>`;
@@ -291,7 +296,7 @@ export function structureArtwork(
 function shadowMarkup(world: Readonly<World>, sprites: Sprites): string {
   return world.structures
     .map((s) => {
-      if (s.kind === "neuron") return "";
+      if (s.kind === "neuron" || s.kind === "spore") return "";
       const { x, y } = hexCenter(world.map.width, s.cell);
       const foot = y + buildingFoot;
       const size = buildingSize(s.kind);
@@ -1159,14 +1164,14 @@ export function renderBoard(
       else
         glows.push({
           x,
-          y: y - 30,
-          size: 30,
+          y: s.kind === "spore" ? y + SPORE_POD.dy : y - 30,
+          size: s.kind === "spore" ? 26 : 30,
           color: rgb(p.glow),
-          alpha: 0.32 * dim,
+          alpha: (s.kind === "spore" ? 0.4 : 0.32) * dim,
           sharpness: 2.5,
-          period: 1100,
+          period: s.kind === "spore" ? 520 : 1100,
           phase,
-          swing: 0.25,
+          swing: s.kind === "spore" ? 0.45 : 0.25,
         });
     }
     for (const p of world.powerups) {

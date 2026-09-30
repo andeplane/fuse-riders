@@ -19,6 +19,7 @@ import {
   type ParticleKind,
 } from "../engine/types.js";
 import { neuronIconUrl } from "../render/neuron-art.js";
+import { sporeIconUrl } from "../render/spore-art.js";
 
 export type CommandPanel =
   "inspect" | "build" | "research" | "activity" | "particles";
@@ -94,6 +95,12 @@ export const BUILD_PRESENTATION: Readonly<
     description:
       "Protects nearby buildings using supplied particles. Its field competes with firing for ammunition; empty or disconnected Bastions cannot shield.",
     sprite: () => "tower-bastion-v1",
+  },
+  spore: {
+    label: "Spore tower",
+    description:
+      "Bursts on impact: every enemy structure beside the target takes 60% of the hit. The answer to dense neuron spreads.",
+    sprite: () => "tower-spore",
   },
 };
 export const RESEARCH_PRESENTATION: Readonly<
@@ -272,7 +279,9 @@ export function renderCommands(
         art:
           kind === "neuron"
             ? neuronIconUrl(player.slot)
-            : (sprites[`${asset}-v2`] ?? sprites[asset]),
+            : kind === "spore"
+              ? sporeIconUrl(player.slot)
+              : (sprites[`${asset}-v2`] ?? sprites[asset]),
         cost: `${definition.cost / 1000} ◈`,
         disabled: !availability.allowed,
         hints: availability.allowed

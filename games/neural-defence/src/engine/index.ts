@@ -5,6 +5,8 @@ import {
   POWERUP_RULES,
   powerupPhase,
 } from "./powerups.js";
+import { territoryPhase } from "./territory.js";
+import { EVENT_TYPES, recordTimeline, TIMELINE } from "./timeline.js";
 import { loadMap, neighbors, homeCellOrder } from "./map.ts";
 import { autoExpandCell } from "./auto-expand.js";
 import {
@@ -44,6 +46,8 @@ import {
 export * from "./types.ts";
 export { loadMap, neighbors } from "./map.ts";
 export * from "./powerups.js";
+export * from "./territory.js";
+export * from "./timeline.js";
 const clone = <T>(v: T): T => structuredClone(v);
 const record = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
@@ -74,7 +78,7 @@ export function createMatch(
   const map = loadMap(raw);
   if (
     roster.length < 1 ||
-    roster.length > 4 ||
+    roster.length > RULES.maxPlayers ||
     new Set(roster.map((p) => p.id)).size !== roster.length ||
     new Set(roster.map((p) => p.slot)).size !== roster.length ||
     roster.some(
@@ -121,6 +125,9 @@ export function createMatch(
     powerups: [],
     powerupSerial: 0,
     outcomes: [],
+    victory: null,
+    timeline: [],
+    events: [],
     winnerId: null,
     finished: false,
   };
@@ -157,6 +164,8 @@ export function createMatch(
         sitesLost: 0,
       },
       buffs: [],
+      territory: 0,
+      dominanceSince: null,
     });
     w.structures.push({
       id: w.nextEntityId++,
@@ -374,8 +383,8 @@ function economy(w: World, p: Player) {
   });
   if (p.researchJob && p.researchJob.completesAt <= w.tick) {
     p.research.push(p.researchJob.kind);
+    emit(w, p, "researched", { reason: p.researchJob.kind });
     p.researchJob = null;
-    emit(w, p, "researched");
   }
   emit(w, p, "income", {
     resource: "biomass",
@@ -734,6 +743,24 @@ function combat(w: World) {
     s.firingCursor = (s.firingCursor ?? 0) + 1;
     for (const q of ammo) recoverParticle(w, q);
     shots.push({ player: p, from: s.cell, ...target, damage });
+    // Spores burst on impact: every enemy structure beside the target is hit too.
+    const splash = Math.floor((damage * (weapon.splashPercent ?? 0)) / 100);
+    if (splash > 0)
+      for (const cell of neighbors(w.map, target.cell)) {
+        const t = w.structures.find(
+          (t) => t.cell === cell && t.ownerId !== s.ownerId,
+        );
+        if (t)
+          shots.push({
+            player: p,
+            from: s.cell,
+            cell: t.cell,
+            owner: t.ownerId,
+            site: false,
+            id: t.id,
+            damage: splash,
+          });
+      }
   }
   // Resolve protection after every gun reserves its salvo. A particle cannot
   // fire and shield in the same tick. Protectors and victims remain alive until
@@ -866,6 +893,7 @@ function combat(w: World) {
   if (w.players.length > 1 && alive.length <= 1) {
     w.finished = true;
     w.winnerId = alive[0]?.id ?? null;
+    w.victory = alive.length ? "elimination" : null;
   }
 }
 export function step(state: World, commands: readonly Command[] = []): World {
@@ -915,8 +943,23 @@ export function step(state: World, commands: readonly Command[] = []): World {
   for (const p of ready) worker(w, p);
   connectivity(w);
   powerupPhase(w);
+  if (!w.finished) {
+    const dominant = territoryPhase(w, (id, type) =>
+      emit(
+        w,
+        w.players.find((p) => p.id === id)!,
+        type,
+      ),
+    );
+    if (dominant) {
+      w.finished = true;
+      w.winnerId = dominant;
+      w.victory = "dominance";
+    }
+  }
   const launches = new Map<string, number>();
   for (const p of w.players) if (p.alive) particles(w, p, launches);
+  recordTimeline(w, w.outcomes);
   return w;
 }
 export function observe(world: World): Readonly<World> {
@@ -958,7 +1001,7 @@ export function decodeState(raw: unknown): World {
     !Array.isArray(w.particles) ||
     !record(w.settings) ||
     w.structures.length > 4096 ||
-    w.particles.length > 512
+    w.particles.length > RULES.particleCount * RULES.maxPlayers
   )
     throw new Error("checkpoint: unsupported or malformed");
   createMatch(
@@ -997,6 +1040,8 @@ export function decodeState(raw: unknown): World {
         "destroyed",
         "eliminated",
         "claimed",
+        "dominating",
+        "dominanceBroken",
       ].includes(o.type) ||
       (o.cell !== undefined && !integer(o.cell, 0, w.map.cells.length - 1)) ||
       (o.fromCell !== undefined &&
@@ -1052,6 +1097,9 @@ export function decodeState(raw: unknown): World {
       Object.keys(p.priorities).length > 8 ||
       !record(p.miningRemainders) ||
       !record(p.statistics) ||
+      !integer(p.territory, 0, w.map.cells.length) ||
+      (p.dominanceSince !== null && !integer(p.dominanceSince, 0, w.tick)) ||
+      (!p.alive && (p.territory !== 0 || p.dominanceSince !== null)) ||
       !Array.isArray(p.buffs) ||
       p.buffs.length > 2 ||
       p.buffs.some(
@@ -1299,12 +1347,58 @@ export function decodeState(raw: unknown): World {
   if ([...edges.values()].some((n) => n > RULES.edgeTransitCapacity))
     throw new Error("checkpoint: edge capacity exceeded");
   const alive = w.players.filter((p) => p.alive);
+  const eliminated = w.players.length > 1 && alive.length <= 1;
   if (
-    (!w.finished && w.winnerId !== null) ||
+    !["elimination", "dominance", null].includes(w.victory) ||
+    (!w.finished && (w.winnerId !== null || w.victory !== null)) ||
     (w.winnerId !== null && !alive.some((p) => p.id === w.winnerId)) ||
-    w.finished !== (w.players.length > 1 && alive.length <= 1) ||
-    (w.finished && w.winnerId !== (alive[0]?.id ?? null))
+    (w.victory === "dominance"
+      ? !w.finished || w.winnerId === null || eliminated
+      : w.finished !== eliminated ||
+        (w.finished && w.winnerId !== (alive[0]?.id ?? null)) ||
+        (w.victory === "elimination") !== (w.finished && w.winnerId !== null))
   )
     throw new Error("checkpoint: invalid outcome");
+  if (
+    !Array.isArray(w.timeline) ||
+    w.timeline.length > TIMELINE.maxSamples ||
+    w.timeline.some(
+      (sample, i) =>
+        !record(sample) ||
+        !integer(sample.tick, 0, w.tick) ||
+        (i > 0 && sample.tick <= w.timeline[i - 1]!.tick) ||
+        !Array.isArray(sample.players) ||
+        sample.players.length !== w.players.length ||
+        sample.players.some(
+          (entry, j) =>
+            !record(entry) ||
+            entry.id !== w.players[j]!.id ||
+            (
+              [
+                "territory",
+                "structures",
+                "weapons",
+                "biomassEarned",
+                "insightEarned",
+                "damage",
+                "lost",
+                "biomass",
+              ] as const
+            ).some((key) => !integer(entry[key])),
+        ),
+    ) ||
+    !Array.isArray(w.events) ||
+    w.events.length > TIMELINE.maxEvents ||
+    w.events.some(
+      (e) =>
+        !record(e) ||
+        !integer(e.tick, 0, w.tick) ||
+        !owners.has(e.playerId) ||
+        !(EVENT_TYPES as readonly string[]).includes(e.type) ||
+        (e.detail !== undefined &&
+          (typeof e.detail !== "string" || e.detail.length > 64)),
+    )
+  )
+    throw new Error("checkpoint: invalid timeline");
   return clone(w);
 }

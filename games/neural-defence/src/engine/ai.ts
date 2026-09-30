@@ -9,6 +9,7 @@ import {
   researchAvailability,
 } from "./catalog.js";
 import { neighbors, homeCellOrder } from "./map.js";
+import { territoryOwners } from "./territory.js";
 import type {
   Action,
   Command,
@@ -28,6 +29,12 @@ const openings: Record<
     harvesters: number;
     weapon: BuildKind;
     profile: ParticleKind;
+    /** How much a new neuron's fresh territory counts against pushing forward. */
+    territory?: number;
+    /** How strongly new neurons are pulled toward the enemy (default 4). */
+    advance?: number;
+    /** Neurons kept per weapon before another gun is built (default none). */
+    neuronsPerWeapon?: number;
   }
 > = {
   balanced: {
@@ -71,6 +78,18 @@ const openings: Record<
     harvesters: 0,
     weapon: "bastion",
     profile: "heavy",
+  },
+  // Zerg-style creep spread: claim the map fast and win by dominance, with
+  // few, cheap guns. Loses to early pressure and to Spore splash.
+  swarm: {
+    research: ["growth", "conduction", "resonance", "excitation", "ballistics"],
+    deposits: 4,
+    harvesters: 1,
+    weapon: "relay",
+    profile: "swift",
+    territory: 3,
+    advance: 1,
+    neuronsPerWeapon: 4,
   },
 };
 
@@ -277,6 +296,14 @@ export function aiCommands(
       neighbors(world.map, cell).filter(
         (n) => world.map.cells[n]?.terrain === "deposit",
       );
+    // Cells a neuron here would newly claim for this player.
+    const owners = territoryOwners(world);
+    const freshTerritory = (cell: number) =>
+      [cell, ...neighbors(world.map, cell)].filter(
+        (n) =>
+          world.map.cells[n]?.terrain !== "blocked" &&
+          owners.get(n) !== playerId,
+      ).length;
     const specialistSites = sites.filter(
       (cell) =>
         eligible("harvester", cell) &&
@@ -511,6 +538,28 @@ export function aiCommands(
     // has entered its blind spot. Siege/Economy use a Pulse tower for support.
     if (tower === "siege" && forward < (STRUCTURES.siege.minRange ?? 0))
       tower = policy.weapon === "siege" ? "tower" : policy.weapon;
+    // Answer a creep spread with splash: an enemy mostly made of neurons.
+    const enemyNeurons = enemy.filter((s) => s.kind === "neuron").length;
+    const enemyGuns = enemy.filter(
+      (s) => s.kind !== "brain" && s.kind !== "neuron" && canAttack(s.kind),
+    ).length;
+    if (
+      strategy !== "swarm" &&
+      enemyNeurons >= 12 &&
+      enemyNeurons >= enemyGuns * 3 &&
+      player.research.includes("growth") &&
+      tower !== "siege"
+    )
+      tower = "spore";
+    const ownNeurons = own.filter((s) => s.kind === "neuron").length;
+    const ownGuns = armed.filter(
+      (s) => s.kind !== "brain" && s.kind !== "neuron",
+    ).length;
+    // A creep spread keeps its guns scarce unless it is already fighting.
+    const gunsAllowed =
+      !policy.neuronsPerWeapon ||
+      fighting.length > 0 ||
+      ownNeurons >= (ownGuns + 1) * policy.neuronsPerWeapon;
     const firingSites = sites.filter((cell) => {
       if (!eligible(tower, cell)) return false;
       const cells = attackCells(world.map, cell, tower);
@@ -525,6 +574,7 @@ export function aiCommands(
     );
     if (
       !choice &&
+      gunsAllowed &&
       firingSites[0] !== undefined &&
       (!threats(firingSites[0]).length ||
         fighting.length > 0 ||
@@ -597,9 +647,10 @@ export function aiCommands(
         (cell) => eligible("neuron", cell) && !threats(cell).length,
       );
       const score = (cell: number) =>
-        distance(cell) * 4 +
+        distance(cell) * (policy.advance ?? 4) +
         brainDistance(cell) -
-        deposits(cell).length * policy.deposits;
+        deposits(cell).length * policy.deposits -
+        freshTerritory(cell) * (policy.territory ?? 0);
       candidates.sort((a, b) => score(a) - score(b) || cellOrder(a, b));
       if (candidates[0] !== undefined)
         choice = { kind: "neuron", cell: candidates[0] };

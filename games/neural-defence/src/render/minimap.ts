@@ -1,6 +1,7 @@
 import type { World } from "../engine/types.js";
 import { hexCenter, hexPoints, boardSize, groundCell } from "./projection.js";
 import { POWERUP_STYLE } from "./powerup-art.js";
+import { TEAM_PALETTES } from "./creep.js";
 
 export function minimapMarkup(world: Readonly<World>): string {
   const { width, height } = boardSize(world.map.width, world.map.height);
@@ -10,7 +11,7 @@ export function minimapMarkup(world: Readonly<World>): string {
     const key = cell.terrain === "deposit" ? cell.resourceKind : "blocked";
     paths[key] += `M${hexPoints(world.map.width, i).replaceAll(" ", "L")}Z`;
   });
-  const colors = ["#62dcff", "#ff6d85", "#9ee394", "#f7d477"];
+  const colors = TEAM_PALETTES.map((p) => p.glow);
   return `<section class="tactical-map" aria-label="Tactical map"><div class="tactical-map-title">TACTICAL OVERVIEW <span>LIVE</span></div><svg id="nd-minimap" data-minimap="true" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="button" tabindex="0" aria-label="Tactical map. Click to move camera. Arrow keys move selection."><rect width="${width}" height="${height}" fill="#071a20"/><path d="${paths.blocked}" fill="#536366"/><path d="${paths.biomass}" fill="#b9d860"/><path d="${paths.insight}" fill="#b691e9"/>${world.structures
     .map((s) => {
       const { x, y } = hexCenter(world.map.width, s.cell);

@@ -27,7 +27,11 @@ import {
 import type { BoardCamera, CameraFactory } from "../render/camera.js";
 import type { LightRenderer } from "../render/light-field.js";
 import { ROOM_MAPS, bundledMap } from "../online/maps.js";
+import { TEAM_PALETTES } from "../render/creep.js";
+
+const TEAM_COLORS = TEAM_PALETTES.map((p) => p.glow);
 import { POWERUP_STYLE } from "../render/powerup-art.js";
+import { sporeIconUrl } from "../render/spore-art.js";
 import { POWERUP_PRESENTATION } from "../engine/powerups.js";
 import {
   isBuildKind,
@@ -458,7 +462,7 @@ export function mountNeuralDefence(
         const brain = world.structures.find(
           (s) => s.ownerId === p.id && s.kind === "brain",
         );
-        return `<button class="watch-player" data-watch-player="${escape(p.id)}" style="--team:${["#63cfff", "#ff8e9d", "#9ee394", "#f7d477"][p.slot]}"><strong>${sideName(world, p.id)} · ${escape(opening)}</strong><span>Brain ${brain?.hp ?? 0} HP</span><small>${p.statistics.built} built · ${p.statistics.lost} lost</small></button>`;
+        return `<button class="watch-player" data-watch-player="${escape(p.id)}" style="--team:${TEAM_COLORS[p.slot]}"><strong>${sideName(world, p.id)} · ${escape(opening)}</strong><span>Brain ${brain?.hp ?? 0} HP</span><small>${p.statistics.built} built · ${p.statistics.lost} lost</small></button>`;
       })
       .join("");
     return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls"><button data-action="reset" class="secondary">Restart</button><button data-action="leave" class="secondary">Menu</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div><button data-action="find-battle" class="secondary" title="Jump to fighting or the nearest opposing networks">Find battle</button></section><nav class="watch-players" aria-label="AI players">${cards}</nav></div>`;
@@ -504,7 +508,11 @@ export function mountNeuralDefence(
     const portrait = structure
       ? structure.kind === "neuron"
         ? neuronPortraitUrl(world, structure.cell)
-        : sprite(structureArt(structure.kind))
+        : structure.kind === "spore"
+          ? sporeIconUrl(
+              world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0,
+            )
+          : sprite(structureArt(structure.kind))
       : cell?.terrain === "deposit"
         ? sprite(`deposit-${cell.resourceKind}`)
         : sprite(
@@ -575,7 +583,7 @@ export function mountNeuralDefence(
             ? `<div class="command-context"><strong>Research</strong><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · researching` : "Choose an upgrade"}</p><small>${player.research.length ? `Complete: ${player.research.map((r) => researchNames[r]).join(", ")}` : "Hover or focus a command for its requirements."}</small></div>`
             : `<div class="command-context"><strong>Recent activity</strong><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></div>`;
     return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div>${buffChips(world, player)}</div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls">${online ? (online.room().manager ? '<button data-action="reset" class="secondary">Lobby</button>' : "") : '<button data-action="reset" class="secondary">Reset</button>'}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div>
-      <div class="command-dock">${minimapMarkup(world)}<section class="inspector" aria-label="${panel === "inspect" || panel === "build" ? "Selected hex" : panel === "research" ? "Research" : "Recent activity"}">${portrait ? `<div class="selection-portrait"><img style="filter:${structure && structure.kind !== "neuron" ? teamArtFilter(world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0) : "none"}" src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${contextDetail}</div></section><nav class="command-card" data-panel="${panel}" aria-label="${panel === "research" ? "Research commands" : panel === "build" ? "Build commands" : panel === "activity" ? "Activity commands" : "Commands"}">${commands}</nav></div>`;
+      <div class="command-dock">${minimapMarkup(world)}<section class="inspector" aria-label="${panel === "inspect" || panel === "build" ? "Selected hex" : panel === "research" ? "Research" : "Recent activity"}">${portrait ? `<div class="selection-portrait"><img style="filter:${structure && structure.kind !== "neuron" && structure.kind !== "spore" ? teamArtFilter(world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0) : "none"}" src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${contextDetail}</div></section><nav class="command-card" data-panel="${panel}" aria-label="${panel === "research" ? "Research commands" : panel === "build" ? "Build commands" : panel === "activity" ? "Activity commands" : "Commands"}">${commands}</nav></div>`;
   }
 
   function renderGame() {
@@ -715,7 +723,7 @@ export function mountNeuralDefence(
     const seats = players
       .map(
         (seat) =>
-          `<li class="room-seat${seat.connected ? "" : " away"}" style="--team:${["#63cfff", "#ff8e9d", "#9ee394", "#f7d477"][players.indexOf(seat)] ?? "#63cfff"}"><span class="seat-dot"></span><strong>${escape(seat.name)}</strong>${seat.id === room.self ? "<em>you</em>" : ""}${seat.bot ? "<em>bot</em>" : ""}${seat.connected ? "" : "<em>away</em>"}${room.manager && seat.bot && room.stage === "lobby" ? `<button data-action="remove-bot" data-bot-id="${escape(seat.id)}" class="secondary small" aria-label="Remove ${escape(seat.name)}">✕</button>` : ""}</li>`,
+          `<li class="room-seat${seat.connected ? "" : " away"}" style="--team:${TEAM_COLORS[players.indexOf(seat)] ?? "#63cfff"}"><span class="seat-dot"></span><strong>${escape(seat.name)}</strong>${seat.id === room.self ? "<em>you</em>" : ""}${seat.bot ? "<em>bot</em>" : ""}${seat.connected ? "" : "<em>away</em>"}${room.manager && seat.bot && room.stage === "lobby" ? `<button data-action="remove-bot" data-bot-id="${escape(seat.id)}" class="secondary small" aria-label="Remove ${escape(seat.name)}">✕</button>` : ""}</li>`,
       )
       .join("");
     const disabled = room.manager && room.stage === "lobby" ? "" : "disabled";

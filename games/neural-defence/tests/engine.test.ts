@@ -13,6 +13,7 @@ import {
   type MapDefinition,
   type Command,
   RULES,
+  TERRITORY,
 } from "../src/engine/index.ts";
 function map(): MapDefinition {
   return {
@@ -203,7 +204,9 @@ test("four independent economies, pure steps and exact checkpoint replay", () =>
   const after = run(w, 20);
   assert.equal(encodeState(w), before);
   for (const p of after.players) {
-    assert.equal(p.biomass, 61000);
+    // Mining plus one second of territory: the brain and its six neighbours.
+    assert.equal(p.territory, 7);
+    assert.equal(p.biomass, 61000 + 7 * TERRITORY.incomePerCell);
     assert.equal(p.insight, 500);
   }
   assert.equal(after.particles.length, 512);
@@ -269,7 +272,11 @@ test("mining follows owned connected adjacency and research changes future build
   w = run(w, 12);
   const before = w.players[0]!.biomass;
   w = run(w, 20);
-  assert.equal(w.players[0]!.biomass - before, 2000);
+  // Two mined deposits plus one second of territory income.
+  assert.equal(
+    w.players[0]!.biomass - before,
+    2000 + w.players[0]!.territory * TERRITORY.incomePerCell,
+  );
 });
 test("priority routes conserved particles with edge capacity and visible latency", () => {
   let w = start(true);

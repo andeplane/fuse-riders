@@ -4413,6 +4413,8 @@
         "lost": 27,
         "sitesLost": 2
       },
+      "territory": 103,
+      "dominanceSince": null,
       "worker": {
         "arrivesAt": 18031,
         "cell": 429,
@@ -4474,6 +4476,8 @@
         "lost": 26,
         "sitesLost": 6
       },
+      "territory": 48,
+      "dominanceSince": null,
       "worker": {
         "arrivesAt": 17977,
         "cell": 61,
@@ -4485,7 +4489,7 @@
       }
     }
   ],
-  "rulesVersion": 10,
+  "rulesVersion": 11,
   "settings": {},
   "structures": [
     {
@@ -5092,6 +5096,9 @@
       "ownerId": "alpha"
     }
   ],
+  "timeline": [],
+  "events": [],
+  "victory": null,
   "tick": 18040,
   "winnerId": null
 }

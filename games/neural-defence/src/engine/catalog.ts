@@ -120,6 +120,15 @@ export const CONSTRUCTIONS: Readonly<
     requires: ["growth"],
     durationUpgrades: [],
   },
+  // Splash: the counter to dense neuron spreads (a siege-tank or TD splash tower).
+  spore: {
+    upgradesFrom: ["neuron"],
+    cost: 55_000,
+    duration: 200,
+    connectedNeighbors: 1,
+    requires: ["growth"],
+    durationUpgrades: [],
+  },
 };
 export const RESEARCH: Readonly<Record<Research, ResearchDefinition>> = {
   growth: {
@@ -151,6 +160,8 @@ export const STRUCTURES: Readonly<
       cadence: number;
       volley: number;
       miningBonus?: number;
+      /** Share of each hit, in percent, also dealt to enemy structures next to the target. */
+      splashPercent?: number;
       protection?: Readonly<{
         range: number;
         absorbPercent: number;
@@ -176,6 +187,13 @@ export const STRUCTURES: Readonly<
     cadence: 20,
     volley: 0,
     miningBonus: 2,
+  }),
+  spore: Object.freeze({
+    hp: 70,
+    range: 2,
+    cadence: 40,
+    volley: 5,
+    splashPercent: 60,
   }),
   bastion: Object.freeze({
     hp: 240,

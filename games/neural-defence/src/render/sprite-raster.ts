@@ -1,3 +1,4 @@
+import { RULES } from "../engine/types.js";
 import { structureArt, teamArtHue } from "./art.js";
 
 type Sprites = Readonly<Record<string, string>>;
@@ -8,9 +9,11 @@ export interface SpriteRasterizer {
     tint?: number | "shadow",
   ): Promise<string>;
 }
-export type SpritePaint = "shadow" | "team-0" | "team-1" | "team-2" | "team-3";
+export type SpritePaint = "shadow" | `team-${number}`;
 export function teamSpritePaint(slot: number): SpritePaint {
-  return (["team-0", "team-1", "team-2", "team-3"] as const)[slot] ?? "team-0";
+  return Number.isInteger(slot) && slot >= 0 && slot < RULES.maxPlayers
+    ? `team-${slot}`
+    : "team-0";
 }
 export function paintedSpriteKey(name: string, paint: SpritePaint): string {
   return `${name}:${paint}`;
@@ -46,7 +49,7 @@ export function createBuildingSprites(
         ? [
             ...new Set(
               slots
-                .filter((slot) => [0, 1, 2, 3].includes(slot))
+                .filter((slot) => slot >= 0 && slot < RULES.maxPlayers)
                 .map(teamSpritePaint),
             ),
             "shadow",
@@ -64,7 +67,7 @@ export function createBuildingSprites(
             paint === "shadow"
               ? "shadow"
               : paint
-                ? teamArtHue(Number(paint.slice(-1)))
+                ? teamArtHue(Number(paint.slice(5)))
                 : undefined;
           void rasterizer.resize(url, size, tint).then(
             (resized) =>
