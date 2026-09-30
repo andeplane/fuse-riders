@@ -7,6 +7,9 @@ import { chromium, webkit } from "playwright";
 const output = process.argv[2] ?? "/tmp/fuse-frame-profile";
 const deviceScaleFactor = Number(process.argv[3] ?? 1);
 const selectedBrowser = process.argv[4] ?? "all";
+// Headless Chromium renders WebGL in software (SwiftShader) unless asked to
+// use the GPU; pass "gpu" to measure the light layer on real hardware.
+const gpu = process.argv[5] === "gpu";
 assert.ok([1, 2, 3].includes(deviceScaleFactor), "DPR must be 1, 2 or 3");
 assert.ok(["all", "chromium", "webkit"].includes(selectedBrowser));
 mkdirSync(output, { recursive: true });
@@ -28,7 +31,13 @@ const dirty = () =>
 // This observes frame callbacks only; it never drives or accelerates the game.
 for (const [name, engine] of Object.entries({ chromium, webkit })) {
   if (selectedBrowser !== "all" && selectedBrowser !== name) continue;
-  const browser = await engine.launch();
+  const browser = await engine.launch(
+    gpu && name === "chromium"
+      ? {
+          args: ["--use-angle=metal", "--ignore-gpu-blocklist", "--enable-gpu"],
+        }
+      : {},
+  );
   try {
     const source = revision();
     assert.equal(dirty(), "", "profile a committed game source");
@@ -80,6 +89,13 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
       cpu: cpus()[0]?.model,
       browser: name,
       browserVersion: browser.version(),
+      webglRenderer: await page.evaluate(() => {
+        const gl = document.createElement("canvas").getContext("webgl2");
+        const info = gl?.getExtension("WEBGL_debug_renderer_info");
+        return gl && info
+          ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL))
+          : null;
+      }),
       viewport: { width: 1280, height: 800 },
       mode: "ordinary watch, Close Quarters, Pressure versus Balanced",
       elapsedMs: frames.elapsed,
