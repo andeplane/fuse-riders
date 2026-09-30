@@ -140,6 +140,11 @@ export function showLanding(host: LandingHost): void {
       "landing-more",
       document.createTextNode("FUSE CHOPPERS — CAVE CHAOS ›"),
     ),
+    link(
+      `${appUrl()}fuse-freight/${new URLSearchParams(location.search).has("mute") ? "?mute" : ""}`,
+      "landing-more",
+      document.createTextNode("FUSE FREIGHT — COLLECT, STEAL, DELIVER ›"),
+    ),
   );
   const live = node("aside", "", "landing-live");
   live.append(

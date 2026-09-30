@@ -1,6 +1,7 @@
 import { diceRegistration } from "dice/platform";
 import { hookRegistration } from "hook-havok/platform";
 import { choppersRegistration } from "fuse-choppers/platform";
+import { freightRegistration } from "fuse-freight/platform";
 import {
   ACCOUNT_RULES,
   fuseRiders,
@@ -24,6 +25,7 @@ export const GAMES = [
   diceRegistration,
   hookRegistration,
   choppersRegistration,
+  freightRegistration,
 ] as const;
 
 /**
