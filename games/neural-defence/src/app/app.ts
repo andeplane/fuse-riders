@@ -151,6 +151,8 @@ export interface AppDependencies {
   preferences: PreferencesStore;
   createSession: SessionFactory;
   debug: boolean;
+  /** The Fuse app portal, placed first in every page header. */
+  portal?: () => HTMLElement;
   /** Draws random openings; Math.random unless a test injects one. */
   random?: () => number;
   animationClock: () => number;
@@ -215,6 +217,7 @@ export function mountNeuralDefence(
   // How to Play: the open section, and whether it is open over a match.
   let guideSection: GuideSection = "goal";
   let helpOpen = false;
+  let portal: HTMLElement | undefined;
   // The guided first game: the coach's current step, or null.
   let tutorial: { step: number } | null = null;
   // The end-of-match report: open or not, and which chart it shows.
@@ -1068,6 +1071,10 @@ export function mountNeuralDefence(
     root
       .querySelectorAll<HTMLElement>(".primary")
       .forEach((button) => button.classList.add("fui-button-primary"));
+    // One portal element survives re-renders, so an open grid stays open.
+    const head = root.querySelector(".nd-header");
+    if (head && dependencies.portal)
+      head.prepend((portal ??= dependencies.portal()));
     if (screen === "menu") {
       const scenery = root.querySelector<SVGSVGElement>("#nd-attract-board");
       if (scenery)

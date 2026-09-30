@@ -6,6 +6,7 @@ import {
   validRoomCode,
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
+import { createAppPortal } from "fuse-ui";
 import { mountNeuralDefence } from "./app.js";
 import { createBrowserMapRepository } from "./map-repository.js";
 import { createPreferencesStore } from "./preferences.js";
@@ -21,6 +22,7 @@ import { createBrowserAudio } from "./audio.js";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
+import "fuse-ui/portal.css";
 import "./neural-defence.css";
 
 const GAME = "neural-defence";
@@ -75,6 +77,14 @@ const buildingSprites = createBuildingSprites(
 );
 
 mountNeuralDefence(root, {
+  // The shared portal of every Fuse game, first in each header.
+  portal: () =>
+    createAppPortal({
+      document,
+      current: "neural-defence",
+      base: import.meta.env.BASE_URL,
+      search: location.search,
+    }).element,
   maps: createBrowserMapRepository(fetch.bind(globalThis)),
   preferences: createPreferencesStore(localStorage),
   createSession: (map, slot, mode, settings, options) =>

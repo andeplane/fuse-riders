@@ -41,7 +41,11 @@ async function settle() {
   await Promise.resolve();
 }
 
-function fixture(maps?: MapRepository, random: () => number = () => 0) {
+function fixture(
+  maps?: MapRepository,
+  random: () => number = () => 0,
+  portal?: () => HTMLElement,
+) {
   const { document: dom } = parseHTML(
     '<html><body><div id="app"></div></body></html>',
   );
@@ -108,6 +112,7 @@ function fixture(maps?: MapRepository, random: () => number = () => 0) {
     },
     debug: true,
     random,
+    ...(portal ? { portal } : {}),
     animationClock: () => 0,
     requestFrame(callback) {
       const handle = ++requestedFrames;
@@ -880,5 +885,29 @@ test("a chosen opening is kept and replayed without a new draw", async () => {
     1,
     "a chosen opening restarts the same session",
   );
+  f.app.dispose();
+});
+
+test("the Fuse app portal comes first in every page header and survives re-renders", async () => {
+  let made = 0;
+  let element: HTMLElement | undefined;
+  const f = fixture(
+    undefined,
+    () => 0,
+    () => {
+      made++;
+      element = parseHTML("<html></html>").document.createElement(
+        "nav",
+      ) as unknown as HTMLElement;
+      element.className = "portal-stub";
+      return element;
+    },
+  );
+  const first = () => f.root.querySelector(".nd-header")!.firstElementChild;
+  assert.equal(first(), element);
+  f.click("new-game");
+  await settle();
+  assert.equal(first(), element, "the setup header keeps the same portal");
+  assert.equal(made, 1, "one portal for the page's lifetime");
   f.app.dispose();
 });
