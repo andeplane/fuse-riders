@@ -26,6 +26,7 @@ export const PORTAL_GAMES: readonly PortalGame[] =
   typeof __FUSE_PORTAL_GAMES__ === "undefined" ? [] : __FUSE_PORTAL_GAMES__;
 
 const DEFAULT_ORDER = 100;
+let portals = 0;
 const text = (value: unknown, max: number): value is string =>
   typeof value === "string" && value.trim().length > 0 && value.length <= max;
 
@@ -88,7 +89,8 @@ export function createAppPortal(options: AppPortalOptions): AppPortal {
   }
   const panel = document.createElement("nav");
   panel.className = "fui-portal-panel";
-  panel.id = `fui-portal-${current}`;
+  // A page can hold more than one portal (Hook Havok's entrance and room header), so each panel id is its own.
+  panel.id = `fui-portal-${++portals}`;
   panel.setAttribute("aria-label", "Fuse games");
   panel.setAttribute("hidden", "");
   toggle.setAttribute("aria-controls", panel.id);

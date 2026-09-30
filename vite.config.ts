@@ -21,8 +21,9 @@ const games = readdirSync(new URL("games/", import.meta.url), {
 
 /**
  * The app portal's games: every `games/<id>/portal.json`, ordered by `order` then name. A game without one (the
- * dice demo) stays off the portal; see "The app portal" in AGENTS.md.
+ * dice demo) stays off the portal; AGENTS.md says which games belong on it.
  */
+const ROOT_GAME = "fuse-riders";
 const portalGames = (): PortalGame[] =>
   readdirSync(new URL("games/", import.meta.url), { withFileTypes: true })
     .filter(
@@ -41,8 +42,13 @@ const portalGames = (): PortalGame[] =>
         ),
       );
       if (!parsed) throw new Error(`games/${id}/portal.json is invalid`);
-      // Fuse Riders is the root page; every other game is served at `<base><id>/`.
-      return { ...parsed, id, path: games.includes(id) ? `${id}/` : "" };
+      // Fuse Riders is the root page; every other game is served at `<base><id>/` and must have that page.
+      if (id === ROOT_GAME) return { ...parsed, id, path: "" };
+      if (!games.includes(id))
+        throw new Error(
+          `games/${id}/portal.json lists a game with no index.html`,
+        );
+      return { ...parsed, id, path: `${id}/` };
     })
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
 

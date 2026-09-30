@@ -142,6 +142,9 @@
 .fui-portal .fui-portal-name {
   flex: none;
 }
+.fui-portal .fui-portal-mark {
+  color: var(--fui-portal-accent, #16e7ff);
+}
 .fui-portal .fui-portal-name {
   color: var(--fui-text, #eefaff);
 }

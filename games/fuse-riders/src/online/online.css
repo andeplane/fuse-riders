@@ -1103,6 +1103,10 @@
     grid-row: 1;
   }
 }
+/* A phone controller's bar is for play; the app portal stays on the menus and the shared screen. */
+.controller-only .online-header > .fui-portal {
+  display: none;
+}
 .controller-only .online-header > strong {
   flex: 1 0 100%;
 }

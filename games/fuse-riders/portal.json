@@ -1,1 +1,7 @@
-{ "name": "Fuse Riders", "tagline": "Tiny riders. Big trouble. A neon arena party game.", "mark": "FR", "accent": "#16e7ff", "order": 1 }
+{
+  "name": "Fuse Riders",
+  "tagline": "Tiny riders. Big trouble. A neon arena party game.",
+  "mark": "FR",
+  "accent": "#16e7ff",
+  "order": 1
+}
