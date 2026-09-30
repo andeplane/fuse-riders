@@ -41,6 +41,7 @@ import {
 } from "./creep.js";
 import { CreepLayer, type CreepSource } from "./creep-layer.js";
 import { organicBurst } from "./organic-burst.js";
+import { buildingRootsMarkup } from "./building-roots.js";
 import {
   CYTOPLASM,
   EMBERS,
@@ -310,6 +311,13 @@ function structureMarkup(
         artwork = neuronMarkup(visual, slot);
       } else
         artwork =
+          buildingRootsMarkup(
+            x,
+            y + buildingFoot,
+            slot,
+            s.cell * 7 + 3,
+            s.kind === "brain" ? 1.3 : 1,
+          ) +
           structureArtwork(world.map.width, s.cell, s.kind, slot, sprites) +
           damagePlume(x + 6, y - 18, s.hp / hpMax, s.id);
       // Select the raised body as well as the ground footprint. These are

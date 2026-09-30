@@ -79,6 +79,7 @@ export function neuronDefs(only?: number): string {
           .join("") +
         `<radialGradient id="nd-nucleus-${slot}"><stop offset="0" stop-color="#ffffff"/><stop offset="0.3" stop-color="${base.glow}" stop-opacity="0.95"/><stop offset="1" stop-color="${base.glow}" stop-opacity="0"/></radialGradient>` +
         `<radialGradient id="nd-neuron-glow-${slot}"><stop offset="0" stop-color="${base.glow}" stop-opacity="0.38"/><stop offset="1" stop-color="${base.glow}" stop-opacity="0"/></radialGradient>` +
+        `<radialGradient id="nd-mound-${slot}" fx="0.4" fy="0.3"><stop offset="0" stop-color="${base.light}" stop-opacity="0.32"/><stop offset="0.5" stop-color="${base.mid}" stop-opacity="0.12"/><stop offset="1" stop-color="${base.mid}" stop-opacity="0"/></radialGradient>` +
         `<radialGradient id="nd-cocoon-${slot}" fx="0.4" fy="0.3"><stop offset="0" stop-color="${base.light}" stop-opacity="0.55"/><stop offset="0.55" stop-color="${base.mid}" stop-opacity="0.35"/><stop offset="1" stop-color="${base.dark}" stop-opacity="0.85"/></radialGradient>`,
   ).join("");
 }
