@@ -2264,3 +2264,25 @@ select {
     animation: none;
   }
 }
+
+/* Spore pods: a lobbed green pod that bursts into a drifting cloud. */
+.weapon-spore .weapon-halo {
+  stroke: #8fe36b;
+  stroke-width: 7;
+}
+.weapon-spore .weapon-core {
+  stroke: #d8ffc2;
+  stroke-width: 2;
+}
+.weapon-spore .weapon-head {
+  fill: #b8f28a;
+}
+.spore-cloud {
+  fill: #7fd65a;
+}
+.spore-mote {
+  fill: #e4ffc9;
+}
+.spore-stain {
+  fill: #3f7a2a;
+}

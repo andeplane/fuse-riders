@@ -65,6 +65,7 @@ import {
   LightField,
   rgb,
   SPARKS,
+  SPORES,
   SPROUT,
   type LightRenderer,
   type LightTransform,
@@ -161,14 +162,16 @@ function weaponStyle(
   cache: BoardCache,
   owner: string,
   cell: number | undefined,
-): "siege" | "relay" | "pulse" {
+): "siege" | "relay" | "spore" | "pulse" {
   const kind =
     world.structures.find((s) => s.ownerId === owner && s.cell === cell)
       ?.kind ??
     (world.tick === cache.tick + 1
       ? cache.weaponKinds.get(`${owner}:${cell}`)
       : undefined);
-  return kind === "siege" || kind === "relay" ? kind : "pulse";
+  return kind === "siege" || kind === "relay" || kind === "spore"
+    ? kind
+    : "pulse";
 }
 const escaped = (text: string) =>
   text.replace(
@@ -766,6 +769,8 @@ export function renderBoard(
         });
       }
     }
+  // A Spore pod is one projectile: its splash hits share the first trail.
+  const sporeTrails = new Set<string>();
   if (world.tick !== cache.tick && !reducedMotion)
     for (const outcome of world.outcomes) {
       if (
@@ -784,8 +789,15 @@ export function renderBoard(
       )
         continue;
       const at = hexCenter(width, outcome.cell);
+      const shooter = `${outcome.playerId}:${outcome.fromCell}`;
+      const splash =
+        outcome.type === "damage" &&
+        weaponStyle(world, cache, outcome.playerId, outcome.fromCell) ===
+          "spore" &&
+        sporeTrails.has(shooter);
+      if (outcome.type === "damage") sporeTrails.add(shooter);
       const from =
-        outcome.type === "damage" && outcome.fromCell !== undefined
+        outcome.type === "damage" && outcome.fromCell !== undefined && !splash
           ? hexCenter(width, outcome.fromCell)
           : undefined;
       const hits = world.outcomes.filter(
@@ -831,8 +843,9 @@ export function renderBoard(
           weapon: weaponStyle(world, cache, outcome.playerId, outcome.fromCell),
           incoming:
             incoming === undefined ? undefined : hexCenter(width, incoming),
-          impactDelay:
-            outcome.type === "destroyed" || outcome.type === "shielded"
+          impactDelay: splash
+            ? weaponFlightMs.spore
+            : outcome.type === "destroyed" || outcome.type === "shielded"
               ? Math.max(
                   0,
                   ...hits.map(
@@ -873,8 +886,19 @@ export function renderBoard(
         if (outcome.type === "damage") {
           if (from)
             cache.light.flash(from.x, from.y - 22, now, 22, team, 0.7, 150);
-          cache.light.flash(at.x, at.y - 10, hit, 34, fire, 0.75, 260);
-          cache.light.burst(at.x, at.y - 6, hit, seed, SPARKS(fire));
+          const style = weaponStyle(
+            world,
+            cache,
+            outcome.playerId,
+            outcome.fromCell,
+          );
+          if (style === "spore") {
+            cache.light.flash(at.x, at.y - 8, hit, 40, [0.5, 1, 0.4], 0.6, 420);
+            cache.light.burst(at.x, at.y - 4, hit, seed, SPORES);
+          } else {
+            cache.light.flash(at.x, at.y - 10, hit, 34, fire, 0.75, 260);
+            cache.light.burst(at.x, at.y - 6, hit, seed, SPARKS(fire));
+          }
         } else if (outcome.type === "shielded")
           cache.light.flash(
             at.x,

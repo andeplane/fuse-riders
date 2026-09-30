@@ -1,9 +1,10 @@
 type Point = Readonly<{ x: number; y: number }>;
-export type WeaponStyle = "pulse" | "siege" | "relay";
+export type WeaponStyle = "pulse" | "siege" | "relay" | "spore";
 export const weaponFlightMs: Readonly<Record<WeaponStyle, number>> = {
   pulse: 55,
   siege: 180,
   relay: 90,
+  spore: 150,
 };
 const ns = "http://www.w3.org/2000/svg";
 
@@ -23,7 +24,10 @@ export function weaponTrail(
   core.setAttribute("class", "weapon-core");
   const head = document.createElementNS(ns, "circle");
   head.setAttribute("class", "weapon-head");
-  head.setAttribute("r", style === "siege" ? "3.5" : "2");
+  head.setAttribute(
+    "r",
+    style === "siege" ? "3.5" : style === "spore" ? "4" : "2",
+  );
   element.append(halo, core, head);
   const shadow = document.createElementNS(ns, "ellipse");
   shadow.setAttribute("class", "weapon-shadow");
@@ -31,7 +35,13 @@ export function weaponTrail(
   const dx = to.x - from.x,
     dy = to.y - from.y;
   const length = Math.max(1, Math.hypot(dx, dy));
-  const height = style === "siege" ? Math.min(78, 26 + length * 0.16) : 0;
+  // Artillery and spore pods are lobbed; pulses and relays fly flat.
+  const height =
+    style === "siege"
+      ? Math.min(78, 26 + length * 0.16)
+      : style === "spore"
+        ? Math.min(44, 14 + length * 0.1)
+        : 0;
   const position = (t: number) => ({
     x: from.x + dx * t,
     y: from.y + dy * t - 19 + 9 * t - height * 4 * t * (1 - t),
@@ -66,7 +76,10 @@ export function weaponTrail(
         String(4 + height * 0.04 * Math.sin(Math.PI * end)),
       );
       shadow.setAttribute("ry", "2");
-      shadow.setAttribute("opacity", style === "siege" && t < 1 ? "0.3" : "0");
+      shadow.setAttribute(
+        "opacity",
+        (style === "siege" || style === "spore") && t < 1 ? "0.3" : "0",
+      );
       element.setAttribute(
         "opacity",
         String(t >= 1 ? 0 : style === "relay" ? 1 - t * 0.6 : 1),

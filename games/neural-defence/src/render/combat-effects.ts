@@ -1,3 +1,4 @@
+import { sporeBurst, SPORE_CLOUD_MS } from "./spore-burst.js";
 /** Cosmetic 3D trajectories projected onto the battlefield; never advances rules. */
 import { weaponTrail, type WeaponStyle } from "./weapon-trail.js";
 import { shieldShell } from "./shield-shell.js";
@@ -43,6 +44,7 @@ export function combatEffect(
     : undefined;
   const flight = impactDelay ?? trail?.duration ?? 0;
   const artillery = type === "damage" && weapon === "siege";
+  const spore = type === "damage" && weapon === "spore";
   const wreck =
     destroyed && options.wreck
       ? wreckCollapse(document, options.wreck.artwork, options.wreck.foot, seed)
@@ -52,8 +54,16 @@ export function combatEffect(
   }
   if (trail) ground.append(trail.shadow);
   const duration =
-    (destroyed ? 1050 : type === "constructed" ? 850 : artillery ? 680 : 420) +
-    (weapon === "siege" || destroyed || shielded ? flight : 0);
+    (destroyed
+      ? 1050
+      : type === "constructed"
+        ? 850
+        : spore
+          ? SPORE_CLOUD_MS
+          : artillery
+            ? 680
+            : 420) +
+    (weapon === "siege" || spore || destroyed || shielded ? flight : 0);
   const count = destroyed ? 10 : type === "constructed" ? 8 : 5;
   const light = document.createElementNS(ns, "ellipse");
   light.setAttribute("cx", String(at.x));
@@ -75,7 +85,11 @@ export function combatEffect(
     ? shieldShell(document, at, color, incoming)
     : undefined;
   if (shell) element.append(shell.element);
-  const plume = artillery ? siegeImpact(document, at, seed) : undefined;
+  const plume = artillery
+    ? siegeImpact(document, at, seed)
+    : spore
+      ? sporeBurst(document, at, seed)
+      : undefined;
   if (plume) {
     element.prepend(plume.element);
     ground.prepend(plume.ground);

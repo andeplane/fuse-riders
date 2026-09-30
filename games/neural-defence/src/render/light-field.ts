@@ -254,6 +254,21 @@ export const SPARKS = (color: Rgb): BurstSpec => ({
   drag: 2.2,
   height: 8,
 });
+/** A Spore pod bursting: slow green motes that billow out and float up. */
+export const SPORES: BurstSpec = {
+  count: 30,
+  speed: [15, 70],
+  lift: [20, 70],
+  life: [700, 1500],
+  size: [2.4, 4.6],
+  hot: [0.9, 1, 0.75],
+  color: [0.45, 0.95, 0.35],
+  alpha: 0.85,
+  sharpness: 4,
+  gravity: -30,
+  drag: 2.6,
+  height: 6,
+};
 export const EMBERS: BurstSpec = {
   count: 42,
   speed: [20, 120],
