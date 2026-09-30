@@ -51,7 +51,8 @@ async function build(page: Page, kind: string, cell: number) {
       const neuron = node?.querySelector(".neuron-body");
       if (neuron)
         return [...neuron.classList].find((c) => c !== "neuron-body") ?? null;
-      return node?.querySelector("image")?.getAttribute("href") ?? null;
+      // Compare the logical sprite: built art may use a cached raster URL.
+      return node?.querySelector("image")?.getAttribute("data-sprite") ?? null;
     }, scope);
   const ghost = await identity(".placement-preview");
   assert.ok(ghost);
@@ -133,14 +134,32 @@ await Promise.all(
             ).matrixTransform(image.getScreenCTM()!);
             return { x: point.x, y: point.y };
           });
+        // Top-row heads can sit under the HUD when the camera rests at the
+        // map edge; click the highest visible point of the raised body.
+        const board = (await page.locator("#nd-viewport").boundingBox())!;
+        head.y = Math.max(head.y, board.y + 10);
+        assert.equal(
+          await page.evaluate(
+            ({ x, y }) =>
+              document
+                .elementFromPoint(x, y)
+                ?.closest(".structure")
+                ?.getAttribute("data-cell") ?? null,
+            head,
+          ),
+          String(cell),
+          "the raised body is on screen and hit-testable",
+        );
         await page.mouse.click(head.x, head.y);
         assert.match(
           await page.locator(".tile-heading").innerText(),
           new RegExp(`HEX ${cell}\\b`),
         );
-        assert.equal(
-          await page.locator(".selection-portrait img").getAttribute("src"),
-          art,
+        assert.ok(
+          (
+            await page.locator(".selection-portrait img").getAttribute("src")
+          )?.includes(`/${art}.png`),
+          "portrait shows the same sprite as the world",
         );
         await page.locator('[data-action="charge"]').click();
         await page.waitForFunction(
