@@ -430,10 +430,10 @@ export function renderCommands(
           pressed: player.autoExpand,
           cost: player.autoExpand ? "ON" : "OFF",
           description:
-            "Automatically grow neurons outward from your brain. Manual construction takes priority.",
+            "Sprout neurons outward from your brain into every free sprout slot. Manual construction takes priority.",
           hints: [
             player.autoExpand
-              ? "Enabled. Pauses while the builder, resources or open connected ground are unavailable."
+              ? "Enabled. Pauses while every sprout slot is growing, or biomass or open connected ground runs out."
               : "Enable to spend biomass on automatic expansion.",
             "Turning off leaves the current construction in progress.",
           ],
