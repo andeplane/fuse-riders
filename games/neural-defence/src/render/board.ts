@@ -25,6 +25,7 @@ import {
 import { hexCenter, hexPoints, boardSize } from "./projection.js";
 import {
   cocoonMarkup,
+  pointAlong,
   neuronAnimation,
   neuronDefs,
   neuronImageUrl,
@@ -41,7 +42,7 @@ import {
 } from "./creep.js";
 import { CreepLayer, type CreepSource } from "./creep-layer.js";
 import { organicBurst } from "./organic-burst.js";
-import { buildingRootsMarkup } from "./building-roots.js";
+import { buildingRoots, buildingRootsMarkup } from "./building-roots.js";
 import {
   claimLabelMarkup,
   POWERUP_STYLE,
@@ -1081,6 +1082,12 @@ export function renderBoard(
     color: Rgb;
     alpha: number;
   }[] = [];
+  /** Buildings feed the creep: light pulses run out along their roots. */
+  const rootPulses: {
+    spine: readonly (readonly [number, number])[];
+    color: Rgb;
+    phase: number;
+  }[] = [];
   const deposits: { x: number; y: number; biomass: boolean; index: number }[] =
     [];
   const mining: {
@@ -1101,6 +1108,20 @@ export function renderBoard(
       const { x, y } = hexCenter(width, s.cell);
       const phase = (s.cell * 0.618) % (Math.PI * 2);
       const dim = s.connected ? 1 : 0.25;
+      if (s.connected && s.kind !== "neuron")
+        buildingRoots(
+          x,
+          y + buildingFoot,
+          slot,
+          s.cell * 7 + 3,
+          s.kind === "brain" ? 1.3 : 1,
+        ).spines.forEach((spine, i) =>
+          rootPulses.push({
+            spine,
+            color: rgb(p.light),
+            phase: (s.cell * 0.37 + i * 0.29) % 1,
+          }),
+        );
       if (s.connected)
         pools.push({
           x,
@@ -1421,6 +1442,13 @@ export function renderBoard(
   };
   /** Blood in the vessels, twinkling crystals, spore puffs and harvest motes. */
   const drawAmbient = (field: LightField, frameNow: number) => {
+    for (const root of rootPulses) {
+      const t = (frameNow / 2200 + root.phase) % 1;
+      if (t > 0.6) continue;
+      const u = t / 0.6;
+      const [x, y] = pointAlong(root.spine, u);
+      field.add(x, y, 3.4, root.color, 0.55 * Math.sin(u * Math.PI), 6);
+    }
     const beat = heartbeat(frameNow);
     const travel = bloodTravel(frameNow, 34);
     const blood: Rgb = [0.8, 0.1, 0.16];

@@ -431,14 +431,14 @@ export function smoothClosedPath(points: readonly Point[]): string {
  * A tapered, branching tendril on the ground plane, used for the roots that
  * anchor buildings into the creep. Returns outlines for the trunk and twigs.
  */
-export function tendrilOutlines(
+export function tendril(
   start: Point,
   angle: number,
   length: number,
   width: number,
   bend: number,
   seed: number,
-): string[] {
+): { outlines: string[]; spine: readonly Point[] } {
   const random = seededRandom(seed);
   const spine = curve(start, angle, length, bend);
   const outlines = [taper(spine, width)];
@@ -448,5 +448,5 @@ export function tendrilOutlines(
     outlines,
     [],
   );
-  return outlines;
+  return { outlines, spine };
 }
