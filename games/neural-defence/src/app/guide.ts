@@ -54,50 +54,57 @@ export const OPENINGS: Readonly<
     name: "Balanced",
     style: "Standard",
     plan: "Expand steadily, take a Harvester, then mix towers and Siege as the front forms.",
-    beats: ["economy", "swarm"],
-    losesTo: ["pressure", "relay"],
+
+    beats: ["defensive"],
+    losesTo: ["relay", "swarm"],
   },
   pressure: {
     name: "Pressure",
     style: "Rush",
-    plan: "Few neurons, early Pulse towers pushed at the rival before their economy pays off.",
-    beats: ["balanced", "economy", "siege"],
-    losesTo: ["defensive"],
+    plan: "Excitation first and a straight drive at the rival with Pulse towers, before a greedy economy pays off. Strongest on close maps.",
+
+    beats: ["siege", "relay"],
+    losesTo: ["economy", "swarm"],
   },
   siege: {
     name: "Siege",
     style: "Contain",
     plan: "Ballistics first; artillery outranges static defences from behind a wall of neurons.",
-    beats: ["defensive", "balanced"],
-    losesTo: ["relay", "pressure"],
+
+    beats: ["defensive"],
+    losesTo: ["pressure", "economy", "relay", "swarm"],
   },
   relay: {
     name: "Relay",
     style: "Tempo",
-    plan: "Resonance and cheap Relay towers: frequent small volleys that get inside Siege's blind spot.",
-    beats: ["siege", "economy"],
-    losesTo: ["defensive"],
+    plan: "Growth, then Resonance and cheap Relay towers: frequent small volleys that get inside Siege's blind spot and outpace slow builds. A duel opening; spread thin in a free-for-all.",
+
+    beats: ["balanced", "economy", "siege", "defensive"],
+    losesTo: ["pressure", "swarm"],
   },
   defensive: {
     name: "Defensive",
     style: "Turtle",
     plan: "Towers and Bastions around a compact network; wins the fights it is offered.",
-    beats: ["pressure", "relay"],
-    losesTo: ["siege", "swarm"],
+
+    beats: ["economy"],
+    losesTo: ["balanced", "siege", "relay"],
   },
   economy: {
     name: "Economy",
     style: "Greed",
-    plan: "Deposits and Harvesters before guns, then out-produce the rival in the late game.",
-    beats: ["defensive"],
-    losesTo: ["pressure", "relay"],
+    plan: "Deposits and Harvesters before guns, then out-produce the rival. Strongest on wide, rich maps; switches to Spores against creep.",
+
+    beats: ["pressure", "siege", "swarm"],
+    losesTo: ["relay", "defensive"],
   },
   swarm: {
     name: "Swarm",
     style: "Creep",
-    plan: "Growth first and neurons everywhere: claim the map and win by dominance, with just enough guns to hold it.",
-    beats: ["defensive", "siege"],
-    losesTo: ["pressure", "balanced"],
+    plan: "Growth first and neurons everywhere: claim the map and win by dominance, with just enough guns to hold it. Answered by Spore splash.",
+
+    beats: ["balanced", "pressure", "siege", "relay"],
+    losesTo: ["economy"],
   },
 };
 
@@ -154,7 +161,7 @@ function sectionMarkup(section: GuideSection): string {
         const o = OPENINGS[s];
         return `<li class="guide-opening"><strong>${o.name}</strong><em>${o.style}</em><p>${o.plan}</p><small>Beats ${o.beats.map(name).join(", ")} · Loses to ${o.losesTo.map(name).join(", ")}</small></li>`;
       }).join("");
-      return `<h2>Strategies</h2><p>Every opening has a counter. Scout what your rival builds and adapt: rushes lose to defence, defence loses to expansion and artillery, greed loses to rushes.</p><ul class="guide-openings">${cards}</ul><p class="muted">Counters are measured by AI-vs-AI benchmarks on every map; human play will differ.</p>`;
+      return `<h2>Strategies</h2><p>Every opening has a counter. Scout what your rival builds and adapt: Pressure's early towers break Relay and Siege; Relay's quick volleys out-pace slow builds like Economy and Defensive; Economy out-produces Pressure and Swarm; Swarm's creep out-grows Balanced, Siege and Relay; and Spore towers answer creep. Maps change the answer: rushes win close maps, economies win wide ones.</p><ul class="guide-openings">${cards}</ul><p class="muted">Counters are measured by AI-vs-AI benchmarks on every map; human play will differ.</p>`;
     }
     case "controls":
       return `<h2>Controls</h2><table class="guide-table"><tbody><tr><th scope="row">Select</th><td>Click a hex, or arrow keys</td></tr><tr><th scope="row">Pan and zoom</th><td>Drag, scroll or pinch; the minimap jumps</td></tr><tr><th scope="row">Commands</th><td>Q W E / A S D follow the command card; Esc goes back</td></tr><tr><th scope="row">Particles · Build · Research</th><td>Q · W · E from the root card</td></tr><tr><th scope="row">Auto expand</th><td>S with your brain selected</td></tr><tr><th scope="row">Charge a weapon</th><td>D with the weapon selected</td></tr></tbody></table>`;
