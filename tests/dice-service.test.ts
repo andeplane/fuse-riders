@@ -41,7 +41,14 @@ function playedMatch(a: string, b: string) {
 }
 
 test("the service hosts dice rooms beside Fuse Riders, and a room refuses the other game's pages", async () => {
-  assert.deepEqual(platform.gameIds, [GAME_ID, diceGame.id]);
+  assert.deepEqual(platform.gameIds, [
+    GAME_ID,
+    diceGame.id,
+    "hook-havok",
+    "fuse-choppers",
+  ]);
+  assert.equal(platform.game("fuse-choppers").parseStats({}, 1), undefined);
+  assert.equal(platform.game("hook-havok").parseStats({}, 1), undefined);
   assert.equal(diceRegistration.id, diceGame.id);
   const service = createDevRoomService({
     identity: async (value) =>
@@ -85,6 +92,15 @@ test("the service hosts dice rooms beside Fuse Riders, and a room refuses the ot
   try {
     const dice = await create("dice"),
       riders = await create(GAME_ID);
+    const hook = await create("hook-havok");
+    assert.deepEqual(await open(hook.code, hook.token, "hook-havok"), {
+      welcomed: true,
+    });
+    const choppers = await create("fuse-choppers");
+    assert.deepEqual(
+      await open(choppers.code, choppers.token, "fuse-choppers"),
+      { welcomed: true },
+    );
     assert.deepEqual(await open(dice.code, dice.token, "dice"), {
       welcomed: true,
     });
@@ -97,6 +113,7 @@ test("the service hosts dice rooms beside Fuse Riders, and a room refuses the ot
       reason: "Room is for another game",
     };
     assert.deepEqual(await open(dice.code, token(), GAME_ID), refused);
+    assert.deepEqual(await open(hook.code, token(), GAME_ID), refused);
     assert.deepEqual(await open(dice.code, token()), refused);
     assert.deepEqual(await open(riders.code, token(), "dice"), refused);
 

@@ -135,6 +135,16 @@ export function showLanding(host: LandingHost): void {
       "landing-more",
       document.createTextNode("FUSE CRAFT ›"),
     ),
+    link(
+      `${appUrl()}hook-havok/${new URLSearchParams(location.search).has("mute") ? "?mute" : ""}`,
+      "landing-more",
+      document.createTextNode("HOOK HAVOK — MOVEMENT PLAYGROUND ›"),
+    ),
+    link(
+      `${appUrl()}fuse-choppers/${new URLSearchParams(location.search).has("mute") ? "?mute" : ""}`,
+      "landing-more",
+      document.createTextNode("FUSE CHOPPERS — CAVE CHAOS ›"),
+    ),
   );
   const live = node("aside", "", "landing-live");
   live.append(

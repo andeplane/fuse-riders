@@ -1445,10 +1445,9 @@ export class RoomRuntime<
         [...this.game.members(room)].filter(
           (player) => player.connected && !player.watcher,
         ).length + this.pending().seats;
-      const minimum = seating.minimumParticipants?.(room) ?? 2;
       if (
         command.action === "start" &&
-        (stage !== "lobby" || connected < minimum)
+        (stage !== "lobby" || connected < (this.game.seating.minPlayers ?? 2))
       ) {
         this.status.notice(
           stage !== "lobby" ? this.text.matchRunning : this.text.needTwo,
@@ -1457,7 +1456,7 @@ export class RoomRuntime<
       }
       if (
         command.action === "rematch" &&
-        (stage !== "over" || connected < minimum)
+        (stage !== "over" || connected < (this.game.seating.minPlayers ?? 2))
       ) {
         this.status.notice(this.text.rematchLater);
         return false;

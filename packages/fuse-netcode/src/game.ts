@@ -127,10 +127,10 @@ export interface RollbackGame<
 }
 
 export interface Seating<Room, Settings> {
-  /** Minimum connected participants for start/rematch. The game fold must enforce the same rule. Defaults to two. */
-  minimumParticipants?(room: Room): number;
   /** Seats per room; slots are 0 to capacity − 1. */
   capacity: number;
+  /** Minimum connected seats to start/rematch; defaults to two. */
+  minPlayers?: number;
   /** Places in the watching list beside the seats. */
   maxWatchers: number;
   /** The one normaliser for a requested name: what is logged in a join, or undefined to refuse it. */

@@ -488,7 +488,7 @@ export const neuralGame: RollbackGame<
   seating: {
     capacity: 4,
     maxWatchers: 4,
-    minimumParticipants: () => 1,
+    minPlayers: 1,
     seatName: name,
     isAvatar: avatar,
     defaultAvatar: "brain",
