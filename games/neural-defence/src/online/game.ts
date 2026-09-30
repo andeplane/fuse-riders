@@ -22,7 +22,7 @@ import {
   type Command,
 } from "../engine/index.js";
 import { prepareCombatLab, labCommands } from "./combat-lab.js";
-import { aiCommands } from "../engine/ai.js";
+import { aiCommands, randomOpening } from "../engine/ai.js";
 import { isAiStrategy, RULES, type AiStrategy } from "../engine/types.js";
 import { ROOM_MAPS, bundledMap } from "./maps.js";
 
@@ -243,6 +243,14 @@ function fitTable(room: NeuralRoom) {
     excess--;
   }
 }
+/** The opening a room bot plays: the room's choice, or a seeded random one. */
+export function botOpening(
+  settings: Readonly<NeuralSettings>,
+  matchId: string,
+  slot: number,
+): AiStrategy {
+  return settings.engine.aiStrategy ?? randomOpening(matchId, slot);
+}
 function start(room: NeuralRoom, matchId: string) {
   if (room.settings.mode === "versus") return startVersus(room, matchId);
   const map = settingsMap(room.settings);
@@ -331,7 +339,7 @@ export const neuralGame: RollbackGame<
   NeuralSettings
 > = {
   id: "neural-defence",
-  rules: "neural-defence-12-watch-7",
+  rules: "neural-defence-12-watch-8",
   isEntry,
   createRoom: (matchId, settings) => ({
     tick: 0,
@@ -393,7 +401,7 @@ export const neuralGame: RollbackGame<
               ...aiCommands(
                 room.world,
                 seat.id,
-                room.settings.engine.aiStrategy ?? "balanced",
+                botOpening(room.settings, room.matchId, seat.slot),
               ),
             );
       if (room.settings.mode === "combat-lab")

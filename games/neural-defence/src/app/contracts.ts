@@ -5,8 +5,13 @@ import type {
   World,
   AiStrategy,
 } from "../engine/types.js";
+import { isAiStrategy } from "../engine/types.js";
 
 export type GameMode = "sandbox" | "combat-lab" | "skirmish" | "watch";
+/** An AI opening to play, or "random": drawn when the match starts. */
+export type OpeningChoice = AiStrategy | "random";
+export const isOpeningChoice = (value: unknown): value is OpeningChoice =>
+  value === "random" || isAiStrategy(value);
 
 /** A seat as the lobby shows it. */
 export interface RoomSeat {
@@ -20,7 +25,7 @@ export interface RoomSeat {
 /** Settings the room's manager can change in the lobby. */
 export interface RoomRules {
   mapId: string;
-  aiStrategy: AiStrategy;
+  aiStrategy: OpeningChoice;
   powerups: boolean;
 }
 export interface RoomSnapshot extends RoomRules {

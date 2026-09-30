@@ -10,6 +10,7 @@ import {
 } from "./catalog.js";
 import { neighbors, homeCellOrder } from "./map.js";
 import { territoryOwners } from "./territory.js";
+import { powerupDraw } from "./powerups.js";
 import type {
   Action,
   Command,
@@ -19,7 +20,7 @@ import type {
   ParticleKind,
 } from "./types.js";
 
-import type { AiStrategy } from "./types.js";
+import { AI_STRATEGIES, type AiStrategy } from "./types.js";
 export { AI_STRATEGIES, type AiStrategy } from "./types.js";
 const openings: Record<
   AiStrategy,
@@ -97,6 +98,16 @@ const openings: Record<
     neuronsPerWeapon: 4,
   },
 };
+
+/**
+ * A random opening for the AI in one seat, drawn from the match id so every
+ * peer and every replay picks the same one, while different matches and
+ * seats vary.
+ */
+export function randomOpening(matchId: string, slot: number): AiStrategy {
+  const kinds = AI_STRATEGIES;
+  return kinds[Math.floor(powerupDraw(matchId, slot, 7919) * kinds.length)]!;
+}
 
 /** Stateless, public-information opponent. All decisions enter ordinary apply(). */
 export function aiCommands(

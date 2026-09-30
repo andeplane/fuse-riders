@@ -24,6 +24,7 @@ test("two members share a Versus room: seats, rules, bots, a match and the lobby
     ["Friend", "Host"],
   );
 
+  assert.equal(friend.room().aiStrategy, "random", "bots open at random");
   host.configure({ mapId: "sandbox-12", powerups: false, aiStrategy: "siege" });
   mesh.until(() => friend.room().mapId === "sandbox-12");
   assert.equal(friend.room().powerups, false);

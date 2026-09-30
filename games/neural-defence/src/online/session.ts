@@ -119,7 +119,7 @@ export function createSession(
 
 export const DEFAULT_ROOM_RULES: RoomRules = {
   mapId: "close-quarters",
-  aiStrategy: "balanced",
+  aiStrategy: "random",
   powerups: true,
 };
 
@@ -140,7 +140,11 @@ export function createOnlineSession(
     mapId: rules.mapId,
     slot: 0,
     mode: "versus",
-    engine: { aiStrategy: rules.aiStrategy, powerups: rules.powerups },
+    // Random leaves the opening unset: each bot draws its own from the match.
+    engine:
+      rules.aiStrategy === "random"
+        ? { powerups: rules.powerups }
+        : { aiStrategy: rules.aiStrategy, powerups: rules.powerups },
   });
   let view = createMatch(settingsMap(settings(DEFAULT_ROOM_RULES)), {}, [
     { id: "solo", slot: 0 },
@@ -182,7 +186,9 @@ export function createOnlineSession(
     const current = runtime.roomState()?.settings;
     return {
       mapId: current?.mapId ?? DEFAULT_ROOM_RULES.mapId,
-      aiStrategy: current?.engine.aiStrategy ?? DEFAULT_ROOM_RULES.aiStrategy,
+      aiStrategy: current
+        ? (current.engine.aiStrategy ?? "random")
+        : DEFAULT_ROOM_RULES.aiStrategy,
       powerups: current?.engine.powerups ?? DEFAULT_ROOM_RULES.powerups,
     };
   };

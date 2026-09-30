@@ -41,7 +41,7 @@ async function settle() {
   await Promise.resolve();
 }
 
-function fixture(maps?: MapRepository) {
+function fixture(maps?: MapRepository, random: () => number = () => 0) {
   const { document: dom } = parseHTML(
     '<html><body><div id="app"></div></body></html>',
   );
@@ -107,6 +107,7 @@ function fixture(maps?: MapRepository) {
       };
     },
     debug: true,
+    random,
     animationClock: () => 0,
     requestFrame(callback) {
       const handle = ++requestedFrames;
@@ -195,8 +196,9 @@ test("watch mode shows both openings, inspection and neutral results without gam
   assert.ok(f.root.querySelector("#first-strategy-picker"));
   assert.ok(f.root.querySelector("#strategy-picker"));
   f.click("start");
+  // Both openings default to Random; the injected draw picks the first.
   assert.deepEqual(f.sessionOptions()?.watchStrategies, [
-    "pressure",
+    "balanced",
     "balanced",
   ]);
   assert.equal(f.root.querySelectorAll(".watch-player").length, 2);
@@ -824,5 +826,59 @@ test("the top bar shows territory and a dominance countdown while someone domina
   rival.dominanceSince = null;
   f.publish();
   assert.equal(banner.hidden, true);
+  f.app.dispose();
+});
+
+test("the opponent's opening is random by default, redrawn each match and revealed at the end", async () => {
+  let draw = 0.99;
+  const f = fixture(undefined, () => draw);
+  f.click("new-game");
+  await settle();
+  const picker = f.root.querySelector<HTMLSelectElement>("#strategy-picker")!;
+  assert.equal(picker.value, "random");
+  assert.equal(picker.options[0]!.textContent, "Random");
+  f.click("start");
+  assert.equal(
+    f.settings()?.aiStrategy,
+    "swarm",
+    "0.99 draws the last opening",
+  );
+  // Nothing reveals the opening during play.
+  assert.doesNotMatch(f.root.textContent!, /played Swarm/);
+  f.world.finished = true;
+  f.world.winnerId = "coral";
+  f.publish();
+  const result = f.root.querySelector("#match-result")!;
+  assert.match(result.textContent!, /played Swarm/);
+  // Play again draws a new opening for the new match.
+  draw = 0;
+  f.click("reset");
+  assert.equal(f.settings()?.aiStrategy, "balanced");
+  assert.equal(f.counts().created, 2);
+  f.app.dispose();
+});
+
+test("a chosen opening is kept and replayed without a new draw", async () => {
+  const f = fixture(undefined, () => 0.99);
+  f.click("new-game");
+  await settle();
+  const picker = f.root.querySelector<HTMLSelectElement>("#strategy-picker")!;
+  // linkedom's select value is read-only: choose the option instead.
+  for (const option of picker.options)
+    option.toggleAttribute("selected", option.value === "siege");
+  picker.dispatchEvent(
+    new f.root.ownerDocument.defaultView!.Event("change", { bubbles: true }),
+  );
+  f.click("start");
+  assert.equal(f.settings()?.aiStrategy, "siege");
+  f.world.finished = true;
+  f.world.winnerId = "coral";
+  f.publish();
+  f.click("reset");
+  assert.equal(
+    f.counts().created,
+    1,
+    "a chosen opening restarts the same session",
+  );
   f.app.dispose();
 });

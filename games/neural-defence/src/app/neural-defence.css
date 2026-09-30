@@ -2286,3 +2286,16 @@ select {
 .spore-stain {
   fill: #3f7a2a;
 }
+
+/* The AI openings, revealed when a match ends. */
+.match-result .result-openings {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+.result-openings span {
+  white-space: nowrap;
+}
+.match-result .result-openings strong {
+  color: var(--team);
+  font-size: 13px;
+}

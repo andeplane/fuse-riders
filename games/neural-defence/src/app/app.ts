@@ -39,7 +39,13 @@ import { TEAM_PALETTES } from "../render/creep.js";
 const TEAM_COLORS = TEAM_PALETTES.map((p) => p.glow);
 import { POWERUP_STYLE } from "../render/powerup-art.js";
 import { sporeIconUrl } from "../render/spore-art.js";
-import { guideMarkup, isGuideSection, type GuideSection } from "./guide.js";
+import {
+  OPENINGS,
+  guideMarkup,
+  isGuideSection,
+  type GuideSection,
+} from "./guide.js";
+import { randomOpening } from "../engine/ai.js";
 import {
   TUTORIAL_MAP,
   TUTORIAL_STEPS,
@@ -86,7 +92,9 @@ import type {
   OnlineDependencies,
   OnlineSession,
   RoomSnapshot,
+  OpeningChoice,
 } from "./contracts.js";
+import { isOpeningChoice } from "./contracts.js";
 
 type Screen =
   "menu" | "settings" | "setup" | "game" | "multiplayer" | "room" | "guide";
@@ -94,6 +102,16 @@ type LoadState<T> =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; value: T };
+
+/** The opening picker: Random first, then every opening by name. */
+function openingOptions(selected: OpeningChoice): string {
+  return (["random", ...AI_STRATEGIES] as const)
+    .map(
+      (kind) =>
+        `<option value="${kind}" ${kind === selected ? "selected" : ""}>${kind[0]!.toUpperCase()}${kind.slice(1)}</option>`,
+    )
+    .join("");
+}
 
 function escape(value: unknown): string {
   return String(value).replace(
@@ -133,6 +151,8 @@ export interface AppDependencies {
   preferences: PreferencesStore;
   createSession: SessionFactory;
   debug: boolean;
+  /** Draws random openings; Math.random unless a test injects one. */
+  random?: () => number;
   animationClock: () => number;
   requestFrame: (callback: FrameRequestCallback) => number;
   cancelFrame: (handle: number) => void;
@@ -185,9 +205,12 @@ export function mountNeuralDefence(
   dependencies.audio?.configure(preferences);
   let instantConstruction = false;
   let instantResearch = false;
-  let aiStrategy: AiStrategy = "balanced";
+  // The opening chosen in setup, and the one drawn for the current match.
+  let aiStrategy: OpeningChoice = "random";
+  let opponentOpening: AiStrategy = "balanced";
   let powerups = true;
-  let firstAiStrategy: AiStrategy = "pressure";
+  let firstAiStrategy: OpeningChoice = "random";
+  let firstOpening: AiStrategy = "pressure";
   let notices: Outcome[] = [];
   // How to Play: the open section, and whether it is open over a match.
   let guideSection: GuideSection = "goal";
@@ -231,6 +254,16 @@ export function mountNeuralDefence(
     if (online) {
       pending = null;
       online.lobby();
+      return;
+    }
+    // A random opening is drawn again for every new match.
+    if (
+      (mode === "skirmish" || mode === "watch") &&
+      (aiStrategy === "random" ||
+        (mode === "watch" && firstAiStrategy === "random"))
+    ) {
+      pending = null;
+      launch();
       return;
     }
     camera?.dispose();
@@ -286,6 +319,42 @@ export function mountNeuralDefence(
     await loadSelectedMap(TUTORIAL_MAP);
     if (tutorial && screen === "setup" && mapState?.status === "ready")
       launch();
+  }
+
+  /** Which opening each AI played, revealed once the match is over. */
+  function aiOpenings(world: Readonly<World>): Map<string, AiStrategy> {
+    const openings = new Map<string, AiStrategy>();
+    if (online) {
+      const room = online.room();
+      for (const seat of room.seats)
+        if (seat.bot)
+          openings.set(
+            seat.id,
+            room.aiStrategy === "random"
+              ? randomOpening(world.matchId, seat.slot)
+              : room.aiStrategy,
+          );
+    } else if (mode === "skirmish" || mode === "watch")
+      for (const p of world.players)
+        if (mode === "watch" || p.id !== session?.localPlayerId)
+          openings.set(
+            p.id,
+            p.id === session?.localPlayerId ? firstOpening : opponentOpening,
+          );
+    return openings;
+  }
+  function openingsMarkup(
+    world: Readonly<World>,
+    players: readonly { id: string; name: string; color: string }[],
+  ): string {
+    const openings = aiOpenings(world);
+    if (!openings.size) return "";
+    return `<p class="result-openings">${[...openings]
+      .map(([id, kind]) => {
+        const p = players.find((q) => q.id === id);
+        return `<span style="--team:${p?.color ?? "#63cfff"}">${escape(p?.name ?? id)} played <strong>${escape(OPENINGS[kind].name)}</strong></span>`;
+      })
+      .join(" · ")}</p>`;
   }
 
   /** The dominance countdown: who holds the dominant share and for how long. */
@@ -401,8 +470,21 @@ export function mountNeuralDefence(
     launchError = null;
     render();
     try {
+      const draw = (choice: OpeningChoice): AiStrategy =>
+        choice === "random"
+          ? AI_STRATEGIES[
+              Math.min(
+                AI_STRATEGIES.length - 1,
+                Math.floor(
+                  (dependencies.random ?? Math.random)() * AI_STRATEGIES.length,
+                ),
+              )
+            ]!
+          : choice;
+      opponentOpening = draw(aiStrategy);
+      firstOpening = draw(firstAiStrategy);
       const settings = {
-        aiStrategy,
+        aiStrategy: opponentOpening,
         instantConstruction: dependencies.debug && instantConstruction,
         instantResearch: dependencies.debug && instantResearch,
         ...(mode === "skirmish" || mode === "watch" ? { powerups } : {}),
@@ -413,7 +495,7 @@ export function mountNeuralDefence(
         mode,
         settings,
         mode === "watch"
-          ? { watchStrategies: [firstAiStrategy, aiStrategy] }
+          ? { watchStrategies: [firstOpening, opponentOpening] }
           : undefined,
       );
       disposeSession();
@@ -504,8 +586,8 @@ export function mountNeuralDefence(
         <aside class="nd-panel setup-summary"><p class="section-index">SESSION BRIEF</p>
         <h2>${mode === "watch" ? "Follow the battle" : mode === "skirmish" ? "Take the field" : mode === "sandbox" ? "An open beginning" : "A controlled confrontation"}</h2>
         <p>${mode === "watch" ? "Two AI players · Equal resources · Watch, pan and inspect either network" : mode === "skirmish" ? "You versus one AI · Equal resources · Destroy the enemy brain" : `One local player · No AI controller${mode === "combat-lab" ? " · Scripted opposing network" : ""}`}</p>
-        ${mode === "watch" ? `<label class="field-label" for="first-strategy-picker">First AI opening</label><select id="first-strategy-picker" data-field="first-strategy">${AI_STRATEGIES.map((kind) => `<option value="${kind}" ${kind === firstAiStrategy ? "selected" : ""}>${kind[0]!.toUpperCase() + kind.slice(1)}</option>`).join("")}</select>` : ""}
-        ${mode === "skirmish" || mode === "watch" ? `<label class="field-label" for="strategy-picker">${mode === "watch" ? "Second AI opening" : "Opponent opening"}</label><select id="strategy-picker" data-field="strategy">${AI_STRATEGIES.map((kind) => `<option value="${kind}" ${kind === aiStrategy ? "selected" : ""}>${kind[0]!.toUpperCase() + kind.slice(1)}</option>`).join("")}</select><p class="muted">Different openings, equal resources. Opponents can adapt when countered.</p>` : ""}
+        ${mode === "watch" ? `<label class="field-label" for="first-strategy-picker">First AI opening</label><select id="first-strategy-picker" data-field="first-strategy">${openingOptions(firstAiStrategy)}</select>` : ""}
+        ${mode === "skirmish" || mode === "watch" ? `<label class="field-label" for="strategy-picker">${mode === "watch" ? "Second AI opening" : "Opponent opening"}</label><select id="strategy-picker" data-field="strategy">${openingOptions(aiStrategy)}</select><p class="muted">Different openings, equal resources. Random keeps you guessing: scout what the AI builds and counter it. Its opening is revealed when the match ends.</p>` : ""}
         ${mode === "skirmish" || mode === "watch" ? `<label class="toggle-field"><input type="checkbox" data-field="powerups" ${powerups ? "checked" : ""}> Random powerups <small>Contested pickups spawn between the brains; the first network to touch one claims it.</small></label>` : ""}
         ${
           dependencies.debug
@@ -563,7 +645,7 @@ export function mountNeuralDefence(
     const cards = players
       .map((p) => {
         const opening =
-          p.id === session?.localPlayerId ? firstAiStrategy : aiStrategy;
+          p.id === session?.localPlayerId ? firstOpening : opponentOpening;
         const brain = world.structures.find(
           (s) => s.ownerId === p.id && s.kind === "brain",
         );
@@ -752,7 +834,7 @@ export function mountNeuralDefence(
         );
         updateContent(
           result,
-          `<strong>${title}</strong><p>${escape(how)}</p><small>${clock(world.tick)} elapsed</small><div class="button-row"><button data-action="toggle-report" class="secondary" aria-expanded="${report.open}">${report.open ? "Hide report" : "Match report"}</button>${online ? (online.room().manager ? '<button data-action="rematch-room">Rematch</button><button data-action="lobby-room" class="secondary">Lobby</button>' : '<span class="room-wait">Waiting for the host…</span>') : `<button data-action="reset">${session?.canControl ? "Play again" : "Watch again"}</button>`}<button data-action="leave" class="secondary">${online ? "Leave room" : "Menu"}</button></div>${report.open ? reportMarkup(world, players, session?.canControl ? (session.localPlayerId ?? null) : null, report.metric) : ""}`,
+          `<strong>${title}</strong><p>${escape(how)}</p><small>${clock(world.tick)} elapsed</small>${openingsMarkup(world, players)}<div class="button-row"><button data-action="toggle-report" class="secondary" aria-expanded="${report.open}">${report.open ? "Hide report" : "Match report"}</button>${online ? (online.room().manager ? '<button data-action="rematch-room">Rematch</button><button data-action="lobby-room" class="secondary">Lobby</button>' : '<span class="room-wait">Waiting for the host…</span>') : `<button data-action="reset">${session?.canControl ? "Play again" : "Watch again"}</button>`}<button data-action="leave" class="secondary">${online ? "Leave room" : "Menu"}</button></div>${report.open ? reportMarkup(world, players, session?.canControl ? (session.localPlayerId ?? null) : null, report.metric) : ""}`,
         );
       }
     }
@@ -863,7 +945,7 @@ export function mountNeuralDefence(
       seated
         ? ""
         : `<label class="field-label" for="player-name">Your name</label><div class="join-row"><input id="player-name" data-field="player-name" maxlength="32" autocomplete="nickname" value="${escape(playerName)}" placeholder="Name"><button data-action="join-seat" class="primary">Join</button></div>`
-    }${room.manager && room.stage === "lobby" && players.length < capacity ? '<button data-action="add-bot" class="secondary">+ Add bot</button>' : ""}</section><aside class="nd-panel setup-summary"><p class="section-index">INVITE</p><div class="room-invite"><strong class="room-code">${escape(room.code)}</strong>${roomQr?.code === room.code ? `<img class="room-qr" src="${escape(roomQr.url)}" alt="QR code for the room link">` : ""}<small>${escape(link)}</small><button data-action="copy-room-link" class="secondary">Copy link</button></div><p class="section-index">RULES</p><label class="field-label" for="room-map">Map</label><select id="room-map" data-field="room-map" ${disabled}>${ROOM_MAPS.map((map) => `<option value="${map.id}" ${map.id === room.mapId ? "selected" : ""}>${escape(map.title)} · ${map.seats} players</option>`).join("")}</select><label class="field-label" for="room-strategy">Bot opening</label><select id="room-strategy" data-field="room-strategy" ${disabled}>${AI_STRATEGIES.map((kind) => `<option value="${kind}" ${kind === room.aiStrategy ? "selected" : ""}>${kind[0]!.toUpperCase()}${kind.slice(1)}</option>`).join("")}</select><label class="toggle-field"><input type="checkbox" data-field="room-powerups" ${room.powerups ? "checked" : ""} ${disabled}> Random powerups</label><p class="room-status" role="status">${escape(room.stage === "connecting" ? "Connecting to the room…" : players.length > capacity ? `Too many players for this map: it seats ${capacity}. Pick a larger map or ask someone to watch.` : room.status)}</p><div class="button-row"><button data-action="leave-room" class="secondary">Leave</button>${room.manager ? `<button data-action="start-room" class="primary" ${canStart ? "" : "disabled"}>Start match</button>` : '<span class="room-wait">Waiting for the host to start…</span>'}</div></aside></main>`;
+    }${room.manager && room.stage === "lobby" && players.length < capacity ? '<button data-action="add-bot" class="secondary">+ Add bot</button>' : ""}</section><aside class="nd-panel setup-summary"><p class="section-index">INVITE</p><div class="room-invite"><strong class="room-code">${escape(room.code)}</strong>${roomQr?.code === room.code ? `<img class="room-qr" src="${escape(roomQr.url)}" alt="QR code for the room link">` : ""}<small>${escape(link)}</small><button data-action="copy-room-link" class="secondary">Copy link</button></div><p class="section-index">RULES</p><label class="field-label" for="room-map">Map</label><select id="room-map" data-field="room-map" ${disabled}>${ROOM_MAPS.map((map) => `<option value="${map.id}" ${map.id === room.mapId ? "selected" : ""}>${escape(map.title)} · ${map.seats} players</option>`).join("")}</select><label class="field-label" for="room-strategy">Bot opening</label><select id="room-strategy" data-field="room-strategy" ${disabled}>${openingOptions(room.aiStrategy)}</select><label class="toggle-field"><input type="checkbox" data-field="room-powerups" ${room.powerups ? "checked" : ""} ${disabled}> Random powerups</label><p class="room-status" role="status">${escape(room.stage === "connecting" ? "Connecting to the room…" : players.length > capacity ? `Too many players for this map: it seats ${capacity}. Pick a larger map or ask someone to watch.` : room.status)}</p><div class="button-row"><button data-action="leave-room" class="secondary">Leave</button>${room.manager ? `<button data-action="start-room" class="primary" ${canStart ? "" : "disabled"}>Start match</button>` : '<span class="room-wait">Waiting for the host to start…</span>'}</div></aside></main>`;
   }
 
   function openRoom(code: string) {
@@ -1371,7 +1453,7 @@ export function mountNeuralDefence(
       return;
     }
     if (target.dataset.field === "room-strategy" && online) {
-      if (isAiStrategy(target.value))
+      if (isOpeningChoice(target.value))
         online.configure({ aiStrategy: target.value });
       return;
     }
@@ -1388,12 +1470,12 @@ export function mountNeuralDefence(
     if (target.dataset.field === "map") void loadSelectedMap(target.value);
     else if (
       target.dataset.field === "first-strategy" &&
-      isAiStrategy(target.value)
+      isOpeningChoice(target.value)
     )
       firstAiStrategy = target.value;
     else if (
       target.dataset.field === "strategy" &&
-      isAiStrategy(target.value)
+      isOpeningChoice(target.value)
     ) {
       aiStrategy = target.value;
     } else if (target.dataset.field === "spawn") {

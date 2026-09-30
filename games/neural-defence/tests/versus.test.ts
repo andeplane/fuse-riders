@@ -9,7 +9,9 @@ import {
   type NeuralEntry,
   type NeuralRoom,
   type NeuralSettings,
+  botOpening,
 } from "../src/online/game.js";
+import { AI_STRATEGIES, randomOpening } from "../src/engine/ai.js";
 import { BUNDLED_MAP_IDS, bundledMap } from "../src/online/maps.js";
 
 const versus = (mapId = "close-quarters"): NeuralSettings => ({
@@ -168,4 +170,26 @@ test("bot ids and names stay unique and valid roster ids", () => {
   assert.equal(id, "bot-3");
   assert.match(id, /^[-a-zA-Z0-9_]{1,64}$/);
   assert.equal(neuralGame.seating.botName(1), "Bot 2");
+});
+
+test("room bots with a random opening draw one per seat from the match, the same on every peer", () => {
+  const random = { ...versus(), engine: { powerups: true } };
+  assert.ok(parseSettings(random), "no opening means Random");
+  const drawn = new Set<string>();
+  for (let m = 0; m < 200; m++)
+    for (const slot of [0, 1, 2, 3]) {
+      const kind = botOpening(random, `match-${m}`, slot);
+      assert.equal(kind, randomOpening(`match-${m}`, slot), "deterministic");
+      drawn.add(kind);
+    }
+  assert.deepEqual(
+    [...drawn].sort(),
+    [...AI_STRATEGIES].sort(),
+    "every opening can come up",
+  );
+  assert.equal(
+    botOpening(versus(), "any", 1),
+    "pressure",
+    "a chosen opening wins",
+  );
 });
