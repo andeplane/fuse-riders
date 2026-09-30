@@ -16,6 +16,7 @@ import {
   TERRITORY,
   SPROUT,
   sproutSlots,
+  claimPrecedence,
 } from "../src/engine/index.ts";
 function map(): MapDefinition {
   return {
@@ -155,7 +156,7 @@ test("contested auto expansion uses rotating slots, not IDs or opponent unpaid p
         ),
       );
       const winner = w.players.find((p) => p.queue.some((j) => j.paid))!;
-      assert.equal(winner.slot, delay);
+      assert.equal(winner.slot, claimPrecedence(w.tick, 2));
       assert.equal(
         w.players.find((p) => p.id !== winner.id)!.queue.length,
         0,
@@ -560,7 +561,7 @@ test("simultaneous construction claims rotate by slot, independent of IDs and in
         hashState(step(initial, [...commands].reverse())),
       );
       const winner = w.players.find((p) => p.queue[0]?.paid)!;
-      assert.equal(winner.slot, delay);
+      assert.equal(winner.slot, claimPrecedence(w.tick, 2));
       assert.equal(
         winner.biomass,
         60_000 + 50 * (delay + 1) - RULES.neuronCost,
@@ -571,6 +572,26 @@ test("simultaneous construction claims rotate by slot, independent of IDs and in
       assert.doesNotThrow(() => decodeState(encodeState(w)));
     }
   }
+});
+
+test("claim precedence is even over any cadence, including the AI's", () => {
+  for (const players of [2, 3, 4, 6, 8])
+    for (const [offset, every] of [
+      [1, 1],
+      [1, 20],
+      [0, 20],
+      [7, 40],
+    ] as const) {
+      const wins = Array.from({ length: players }, () => 0);
+      const samples = 4000;
+      for (let i = 0; i < samples; i++)
+        wins[claimPrecedence(offset + i * every, players)]!++;
+      for (const n of wins)
+        assert.ok(
+          Math.abs(n - samples / players) < (samples / players) * 0.15,
+          `${players} players every ${every}: ${wins}`,
+        );
+    }
 });
 
 test("builders recover when either edge endpoint is cut, even on the arrival tick", () => {

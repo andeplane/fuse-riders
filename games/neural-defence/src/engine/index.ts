@@ -444,11 +444,20 @@ function prepareWorker(w: World, p: Player): boolean {
   }
   return true;
 }
+/**
+ * Which player, in slot order, wins this tick's contested construction
+ * claims. A hash of the tick rather than the tick itself: players who act on
+ * a fixed cadence (the AI decides every 20 ticks) would otherwise always meet
+ * the same precedence, and one seat would win every contested claim.
+ */
+export function claimPrecedence(tick: number, players: number): number {
+  return (Math.imul(tick, 0x9e3779b1) >>> 16) % players;
+}
 function dispatchConstruction(w: World, ready: Player[]) {
   // Collect claims against one shared pre-dispatch board. Rotate spawn-slot
   // precedence each tick so renaming players cannot buy construction priority.
   const order = [...w.players].sort((a, b) => a.slot - b.slot);
-  const first = (w.tick - 1) % order.length;
+  const first = claimPrecedence(w.tick, order.length);
   const rank = (p: Player) =>
     (order.indexOf(p) - first + order.length) % order.length;
   // The builder takes one tower or upgrade at a time; neurons sprout from the
