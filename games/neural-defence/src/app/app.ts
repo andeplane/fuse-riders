@@ -10,7 +10,14 @@ import {
   isAiStrategy,
   type AiStrategy,
 } from "../engine/types.js";
-import { loadMap, RULES } from "../engine/index.js";
+import {
+  dominanceCells,
+  isSprout,
+  loadMap,
+  RULES,
+  sproutSlots,
+  TERRITORY,
+} from "../engine/index.js";
 import { updateContent } from "./dom-update.js";
 import { minimapMarkup, minimapCell } from "../render/minimap.js";
 import { battleFocusCell } from "../render/battle-focus.js";
@@ -32,6 +39,13 @@ import { TEAM_PALETTES } from "../render/creep.js";
 const TEAM_COLORS = TEAM_PALETTES.map((p) => p.glow);
 import { POWERUP_STYLE } from "../render/powerup-art.js";
 import { sporeIconUrl } from "../render/spore-art.js";
+import { guideMarkup, isGuideSection, type GuideSection } from "./guide.js";
+import {
+  TUTORIAL_MAP,
+  TUTORIAL_STEPS,
+  nextStep,
+  type TutorialContext,
+} from "./tutorial.js";
 import {
   REPORT_METRICS,
   TEAM_NAMES,
@@ -74,7 +88,8 @@ import type {
   RoomSnapshot,
 } from "./contracts.js";
 
-type Screen = "menu" | "settings" | "setup" | "game" | "multiplayer" | "room";
+type Screen =
+  "menu" | "settings" | "setup" | "game" | "multiplayer" | "room" | "guide";
 type LoadState<T> =
   | { status: "loading" }
   | { status: "error"; message: string }
@@ -92,6 +107,14 @@ function escape(value: unknown): string {
 
 function units(value: number): string {
   return (value / 1000).toFixed(1);
+}
+
+/** Territory against the dominance bar, and the network's sprout slots. */
+function territoryChips(world: Readonly<World>, player: Player): string {
+  const needed = dominanceCells(world);
+  const growing = player.queue.filter((j) => j.paid && isSprout(j)).length;
+  const rivals = world.players.length > 1;
+  return `<div class="territory-chip" title="Cells your connected network claims.${rivals ? ` Hold ${needed} for a minute to win by dominance.` : ""}"><small>TERRITORY</small><strong>⬡ ${player.territory}${rivals ? `<span>/${needed}</span>` : ""}</strong></div><div title="Neurons growing at once; more territory grows more."><small>SPROUTS</small><strong>${growing}/${sproutSlots(player)}</strong></div>`;
 }
 
 /** Active powerup buffs with their remaining seconds. */
@@ -166,6 +189,11 @@ export function mountNeuralDefence(
   let powerups = true;
   let firstAiStrategy: AiStrategy = "pressure";
   let notices: Outcome[] = [];
+  // How to Play: the open section, and whether it is open over a match.
+  let guideSection: GuideSection = "goal";
+  let helpOpen = false;
+  // The guided first game: the coach's current step, or null.
+  let tutorial: { step: number } | null = null;
   // The end-of-match report: open or not, and which chart it shows.
   let report = { open: false, metric: "territory" as ReportMetric, match: "" };
   let noticeTick = -1;
@@ -244,9 +272,72 @@ export function mountNeuralDefence(
     if (online) dependencies.online?.leaveRoom();
     disposeSession();
     pending = null;
+    helpOpen = false;
+    tutorial = null;
     launchError = null;
     screen = "menu";
     render();
+  }
+
+  async function startTutorial() {
+    screen = "setup";
+    mode = "sandbox";
+    tutorial = { step: 0 };
+    await loadSelectedMap(TUTORIAL_MAP);
+    if (tutorial && screen === "setup" && mapState?.status === "ready")
+      launch();
+  }
+
+  /** The dominance countdown: who holds the dominant share and for how long. */
+  function renderDominance(world: Readonly<World>) {
+    const banner = root.querySelector<HTMLElement>("#dominance-banner");
+    if (!banner) return;
+    const holder = world.finished
+      ? undefined
+      : world.players
+          .filter((p) => p.alive && p.dominanceSince !== null)
+          .sort((a, b) => a.dominanceSince! - b.dominanceSince!)[0];
+    banner.hidden = !holder;
+    if (!holder) return;
+    const left = Math.max(
+      0,
+      holder.dominanceSince! + TERRITORY.dominanceTicks - world.tick,
+    );
+    const you = holder.id === session?.localPlayerId && session?.canControl;
+    banner.style.setProperty("--team", TEAM_COLORS[holder.slot] ?? "#63cfff");
+    banner.classList.toggle("yours", !!you);
+    updateContent(
+      banner,
+      `<strong>${you ? "You dominate the cortex" : `${escape(sideName(world, holder.id))} dominates the cortex`}</strong><span>${clock(left)} to ${you ? "victory" : "defeat"} · ${holder.territory}/${dominanceCells(world)} cells</span>`,
+    );
+  }
+
+  /** The coach panel: the current step, advanced by what the player has done. */
+  function renderCoach(world: Readonly<World>) {
+    const coach = root.querySelector<HTMLElement>("#tutorial-coach");
+    root
+      .querySelectorAll(".tutorial-target")
+      .forEach((element) => element.classList.remove("tutorial-target"));
+    if (!coach) return;
+    coach.hidden = !tutorial || !session?.localPlayerId;
+    if (!tutorial || !session?.localPlayerId) return;
+    const context: TutorialContext = {
+      world,
+      playerId: session.localPlayerId,
+      selectedCell,
+    };
+    tutorial = { step: nextStep(tutorial.step, context) };
+    const index = tutorial.step;
+    const step = TUTORIAL_STEPS[index]!;
+    const last = index === TUTORIAL_STEPS.length - 1;
+    updateContent(
+      coach,
+      `<p class="coach-progress">TUTORIAL · ${index + 1}/${TUTORIAL_STEPS.length}</p><h2>${escape(step.title)}</h2><p>${escape(step.text)}</p>${step.keys ? `<p class="coach-keys">${step.keys.map((k) => `<kbd>${escape(k)}</kbd>`).join(" then ")}</p>` : ""}<div class="button-row">${last ? '<button data-action="tutorial-play" class="primary">Play vs AI</button><button data-action="tutorial-close" class="secondary">Keep exploring</button>' : `${step.done ? "" : '<button data-action="tutorial-next" class="primary">Next</button>'}<button data-action="tutorial-close" class="secondary">Skip tutorial</button>`}</div>`,
+    );
+    if (step.target)
+      root
+        .querySelectorAll(step.target)
+        .forEach((element) => element.classList.add("tutorial-target"));
   }
 
   async function loadCatalog() {
@@ -351,7 +442,13 @@ export function mountNeuralDefence(
     return session?.view() ?? null;
   }
 
+  function guideScreenMarkup(): string {
+    return `${header("How to play", "rules and strategy")}<main class="nd-panel guide-panel">${guideMarkup(guideSection)}<button data-action="back-menu" class="secondary">← Back</button></main>`;
+  }
+
   function modal(): string {
+    if (!pending && helpOpen)
+      return `<div class="nd-modal-backdrop"><section class="nd-modal guide-modal" role="dialog" aria-modal="true" aria-labelledby="help-title"><div class="guide-modal-head"><h2 id="help-title">How to play</h2><button data-action="close-help" class="secondary">Close</button></div>${guideMarkup(guideSection)}</section></div>`;
     if (!pending) return "";
     const watching = session?.canControl === false;
     return `<div class="nd-modal-backdrop"><section class="nd-modal" role="alertdialog" aria-modal="true" aria-labelledby="discard-title"><p class="eyebrow">Progress will be discarded</p><h2 id="discard-title">${pending === "reset" ? "Reset this session?" : "Return to the menu?"}</h2><p>${pending === "reset" ? "The same map and spawn will start from the beginning." : watching ? "This battle will be discarded." : "Your current network and research will be lost."}</p><div class="button-row"><button data-action="cancel-confirm" class="secondary">${watching ? "Keep watching" : "Keep playing"}</button><button data-action="confirm-${pending}" class="danger">${pending === "reset" ? "Reset session" : "Leave session"}</button></div></section></div>`;
@@ -362,7 +459,7 @@ export function mountNeuralDefence(
   }
 
   function menuMarkup(): string {
-    return `<div class="attract-scene" aria-hidden="true"><svg id="nd-attract-board"></svg></div><div class="attract-shade"></div>${header("Fuse Craft", "A neural strategy game")}<main class="menu-layout fui-landing"><p class="eyebrow">GROW · CONNECT · DEFEND</p><h1 class="fui-landing-title">FUSE<br><span>CRAFT</span></h1><p class="fui-landing-tagline">Build your network.<br>Keep the signal alive.</p><nav class="fui-landing-actions" aria-label="Main menu"><button data-action="new-game" class="fui-button-primary menu-button"><span aria-hidden="true">▶</span> Single player</button>${dependencies.online ? '<button data-action="multiplayer" class="menu-button">Multiplayer</button>' : ""}<button data-action="settings" class="menu-button">Settings</button></nav></main><footer class="menu-footer">A FUSE GAME <span>${dependencies.online ? "PLAYER VS AI · ONLINE VERSUS" : "SKIRMISH · PLAYER VS AI"}</span></footer>`;
+    return `<div class="attract-scene" aria-hidden="true"><svg id="nd-attract-board"></svg></div><div class="attract-shade"></div>${header("Fuse Craft", "A neural strategy game")}<main class="menu-layout fui-landing"><p class="eyebrow">GROW · CONNECT · DEFEND</p><h1 class="fui-landing-title">FUSE<br><span>CRAFT</span></h1><p class="fui-landing-tagline">Build your network.<br>Keep the signal alive.</p><nav class="fui-landing-actions" aria-label="Main menu"><button data-action="new-game" class="fui-button-primary menu-button"><span aria-hidden="true">▶</span> Single player</button>${dependencies.online ? '<button data-action="multiplayer" class="menu-button">Multiplayer</button>' : ""}<button data-action="tutorial" class="menu-button">Tutorial</button><button data-action="guide" class="menu-button">How to play</button><button data-action="settings" class="menu-button">Settings</button></nav></main><footer class="menu-footer">A FUSE GAME <span>${dependencies.online ? "PLAYER VS AI · ONLINE VERSUS" : "SKIRMISH · PLAYER VS AI"}</span></footer>`;
   }
 
   function settingsMarkup(): string {
@@ -434,7 +531,7 @@ export function mountNeuralDefence(
     return `<main class="game-layout" aria-label="${escape(title ?? "Neural field")} battlefield" ${pending ? "inert" : ""}>
       <section class="board-shell">
       <div id="nd-viewport" class="board-scroll"><svg id="nd-board" class="nd-board" tabindex="0" aria-label="Hex board. Use arrow keys to move selection."></svg><canvas id="nd-light" class="nd-light" aria-hidden="true"></canvas></div>
-      <div id="match-result" class="match-result" role="status" hidden></div>
+      <div id="dominance-banner" class="dominance-banner" role="status" hidden></div><div id="match-result" class="match-result" role="status" hidden></div><aside id="tutorial-coach" class="tutorial-coach" aria-live="polite" hidden></aside>
       </section>
       <aside id="game-sidebar" class="game-sidebar"></aside></main><div id="game-modal">${modal()}</div>`;
   }
@@ -460,7 +557,7 @@ export function mountNeuralDefence(
     const resources = players
       .map(
         (p) =>
-          `<div><small>${sideName(world, p.id).toUpperCase()}</small><strong>◈ ${units(p.biomass)} <span>◇ ${units(p.insight)}</span></strong></div>${buffChips(world, p)}`,
+          `<div><small>${sideName(world, p.id).toUpperCase()}</small><strong>◈ ${units(p.biomass)} <span>◇ ${units(p.insight)}</span> <span>⬡ ${p.territory}</span></strong></div>${buffChips(world, p)}`,
       )
       .join("");
     const cards = players
@@ -473,7 +570,7 @@ export function mountNeuralDefence(
         return `<button class="watch-player" data-watch-player="${escape(p.id)}" style="--team:${TEAM_COLORS[p.slot]}"><strong>${sideName(world, p.id)} · ${escape(opening)}</strong><span>Brain ${brain?.hp ?? 0} HP</span><small>${p.statistics.built} built · ${p.statistics.lost} lost</small></button>`;
       })
       .join("");
-    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls"><button data-action="reset" class="secondary">Restart</button><button data-action="leave" class="secondary">Menu</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div><button data-action="find-battle" class="secondary" title="Jump to fighting or the nearest opposing networks">Find battle</button></section><nav class="watch-players" aria-label="AI players">${cards}</nav></div>`;
+    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls"><button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button><button data-action="reset" class="secondary">Restart</button><button data-action="leave" class="secondary">Menu</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div><button data-action="find-battle" class="secondary" title="Jump to fighting or the nearest opposing networks">Find battle</button></section><nav class="watch-players" aria-label="AI players">${cards}</nav></div>`;
   }
 
   function sidebarMarkup(world: Readonly<World>): string {
@@ -590,7 +687,7 @@ export function mountNeuralDefence(
           : panel === "research"
             ? `<div class="command-context"><strong>Research</strong><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · researching` : "Choose an upgrade"}</p><small>${player.research.length ? `Complete: ${player.research.map((r) => researchNames[r]).join(", ")}` : "Hover or focus a command for its requirements."}</small></div>`
             : `<div class="command-context"><strong>Recent activity</strong><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></div>`;
-    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div>${buffChips(world, player)}</div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls">${online ? (online.room().manager ? '<button data-action="reset" class="secondary">Lobby</button>' : "") : '<button data-action="reset" class="secondary">Reset</button>'}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div>
+    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div>${territoryChips(world, player)}${buffChips(world, player)}</div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls"><button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button>${online ? (online.room().manager ? '<button data-action="reset" class="secondary">Lobby</button>' : "") : '<button data-action="reset" class="secondary">Reset</button>'}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div>
       <div class="command-dock">${minimapMarkup(world)}<section class="inspector" aria-label="${panel === "inspect" || panel === "build" ? "Selected hex" : panel === "research" ? "Research" : "Recent activity"}">${portrait ? `<div class="selection-portrait"><img style="filter:${structure && structure.kind !== "neuron" && structure.kind !== "spore" ? teamArtFilter(world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0) : "none"}" src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${contextDetail}</div></section><nav class="command-card" data-panel="${panel}" aria-label="${panel === "research" ? "Research commands" : panel === "build" ? "Build commands" : panel === "activity" ? "Activity commands" : "Commands"}">${commands}</nav></div>`;
   }
 
@@ -661,6 +758,8 @@ export function mountNeuralDefence(
     }
     if (tick) tick.textContent = `TICK ${world.tick}`;
     updateContent(sidebar, sidebarMarkup(world));
+    renderCoach(world);
+    renderDominance(world);
     const rate = sidebar.querySelector<HTMLElement>(".hud-mini");
     const income = (resource: "biomass" | "insight") =>
       (world.outcomes
@@ -858,7 +957,7 @@ export function mountNeuralDefence(
     const battlefield = root.querySelector<HTMLElement>(".game-layout");
     const modalHost = root.querySelector<HTMLElement>("#game-modal");
     if (screen === "game" && battlefield && modalHost) {
-      battlefield.toggleAttribute("inert", pending !== null);
+      battlefield.toggleAttribute("inert", pending !== null || helpOpen);
       modalHost.innerHTML = modal();
       renderGame();
       if (pending)
@@ -879,9 +978,11 @@ export function mountNeuralDefence(
             ? setupMarkup()
             : screen === "multiplayer"
               ? multiplayerMarkup()
-              : screen === "room"
-                ? roomMarkup()
-                : gameMarkup();
+              : screen === "guide"
+                ? guideScreenMarkup()
+                : screen === "room"
+                  ? roomMarkup()
+                  : gameMarkup();
     root
       .querySelectorAll<HTMLElement>(".primary")
       .forEach((button) => button.classList.add("fui-button-primary"));
@@ -1015,6 +1116,37 @@ export function mountNeuralDefence(
       } else if (action === "next-command-page") {
         commandPage = (commandPage + 1) % commandPageCount(panel);
         renderGame();
+      } else if (action === "guide") {
+        screen = "guide";
+        render();
+      } else if (action === "guide-section") {
+        const section =
+          target.closest<HTMLElement>("[data-section]")?.dataset.section;
+        if (isGuideSection(section)) guideSection = section;
+        render();
+      } else if (action === "help") {
+        helpOpen = true;
+        render();
+      } else if (action === "close-help") {
+        helpOpen = false;
+        render();
+      } else if (action === "tutorial") void startTutorial();
+      else if (action === "tutorial-next" && tutorial) {
+        tutorial = {
+          step: Math.min(tutorial.step + 1, TUTORIAL_STEPS.length - 1),
+        };
+        renderGame();
+      } else if (action === "tutorial-close") {
+        tutorial = null;
+        renderGame();
+      } else if (action === "tutorial-play") {
+        tutorial = null;
+        disposeSession();
+        screen = "setup";
+        mode = "skirmish";
+        aiStrategy = "economy";
+        selectedId = "close-quarters";
+        void loadCatalog();
       } else if (action === "new-game") {
         screen = "setup";
         mode = "skirmish";
@@ -1298,6 +1430,12 @@ export function mountNeuralDefence(
   }
 
   function onKeyDown(event: KeyboardEvent) {
+    if (helpOpen && event.key === "Escape") {
+      event.preventDefault();
+      helpOpen = false;
+      render();
+      return;
+    }
     if (pending) {
       if (event.key === "Escape") {
         event.preventDefault();

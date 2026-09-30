@@ -547,7 +547,7 @@ test("menu uses Fuse controls and actual board scenery without starting a simula
   assert.ok(f.root.classList.contains("fui-app"));
   assert.deepEqual(
     Array.from(f.root.querySelectorAll("button"), (b) => b.dataset.action),
-    ["new-game", "settings"],
+    ["new-game", "tutorial", "guide", "settings"],
   );
   assert.ok(
     f.root
@@ -742,4 +742,87 @@ test("dispose unsubscribes and cancels the active frame without scheduling anoth
   assert.equal(f.root.innerHTML, "");
   f.app.dispose();
   assert.equal(f.lifecycle().unsubscribed, 1);
+});
+
+test("How to play explains the rules and strategies from the menu and during a match", async () => {
+  const f = fixture();
+  await f.start();
+  f.click("help");
+  const dialog = f.root.querySelector('[role="dialog"]')!;
+  assert.match(dialog.textContent!, /Take over the cortex/);
+  assert.match(dialog.textContent!, /Dominance\. Hold 40% of the map/);
+  assert.ok(f.root.querySelector(".game-layout")!.hasAttribute("inert"));
+  f.root.querySelector<HTMLElement>('[data-section="strategies"]')!.click();
+  const text = f.root.querySelector('[role="dialog"]')!.textContent!;
+  for (const name of ["Pressure", "Defensive", "Swarm", "Siege", "Relay"])
+    assert.match(text, new RegExp(name));
+  assert.match(text, /Beats .* · Loses to /);
+  f.press("Escape");
+  assert.equal(f.root.querySelector('[role="dialog"]'), null);
+  assert.equal(
+    f.root.querySelector(".game-layout")!.hasAttribute("inert"),
+    false,
+  );
+  f.app.dispose();
+});
+
+test("the tutorial coach follows the player's progress and ends with a match offer", async () => {
+  const f = fixture();
+  await f.start();
+  f.click("leave");
+  f.click("confirm-leave");
+  // A fresh start: only coral's brain.
+  f.world.structures = f.world.structures.filter(
+    (s) => s.ownerId !== "coral" || s.kind === "brain",
+  );
+  f.world.players.find((p) => p.id === "coral")!.queue = [];
+  f.click("tutorial");
+  await settle();
+  const coach = () => f.root.querySelector<HTMLElement>("#tutorial-coach")!;
+  assert.equal(coach().hidden, false);
+  assert.match(coach().textContent!, /1\/10.*This is your brain/s);
+  f.click("tutorial-next");
+  assert.match(coach().textContent!, /Select your brain/);
+  const local = f.world.players.find((p) => p.id === "coral")!;
+  f.selectCell(
+    f.world.structures.find(
+      (s) => s.ownerId === local.id && s.kind === "brain",
+    )!.cell,
+  );
+  assert.match(coach().textContent!, /Grow a neuron/);
+  assert.ok(
+    f.root
+      .querySelector('[data-action="panel-build"]')!
+      .classList.contains("tutorial-target"),
+    "the coach points at the control",
+  );
+  f.click("tutorial-close");
+  assert.equal(coach().hidden, true);
+  f.app.dispose();
+});
+
+test("the top bar shows territory and a dominance countdown while someone dominates", async () => {
+  const f = fixture();
+  await f.start();
+  const coral = f.world.players.find((p) => p.id === "coral")!;
+  coral.territory = 42;
+  f.publish();
+  assert.match(f.root.querySelector(".territory-chip")!.textContent!, /⬡ 42\//);
+  const banner = f.root.querySelector<HTMLElement>("#dominance-banner")!;
+  assert.equal(banner.hidden, true);
+  coral.dominanceSince = f.world.tick;
+  f.publish();
+  assert.equal(banner.hidden, false);
+  assert.match(banner.textContent!, /You dominate the cortex/);
+  assert.match(banner.textContent!, /1:00 to victory/);
+  const rival = f.world.players.find((p) => p.id !== "coral")!;
+  coral.dominanceSince = null;
+  rival.dominanceSince = f.world.tick - 20 * 45;
+  f.publish();
+  assert.match(banner.textContent!, /dominates the cortex/);
+  assert.match(banner.textContent!, /0:15 to defeat/);
+  rival.dominanceSince = null;
+  f.publish();
+  assert.equal(banner.hidden, true);
+  f.app.dispose();
 });

@@ -2048,3 +2048,219 @@ select {
     gap: 3px;
   }
 }
+
+/* How to Play: a tabbed guide, on its own screen or over a match. */
+.guide-panel {
+  width: min(880px, calc(100vw - 32px));
+  margin: 0 auto 32px;
+}
+.guide-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.guide-tab {
+  padding: 6px 12px;
+  border: 1px solid #2c4a63;
+  border-radius: 999px;
+  background: transparent;
+  color: #b8d4e8;
+  font-size: 13px;
+}
+.guide-tab.active {
+  border-color: #63cfff;
+  background: #133049;
+  color: #fff;
+}
+.guide-body {
+  line-height: 1.55;
+}
+.guide-body h2 {
+  margin: 0 0 8px;
+  color: #8ce5ff;
+}
+.guide-body h3 {
+  margin: 16px 0 6px;
+  color: #cfe8f8;
+  font-size: 14px;
+}
+.guide-body ul {
+  padding-left: 20px;
+}
+.guide-scroll {
+  overflow-x: auto;
+}
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.guide-table th,
+.guide-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #1c3044;
+  text-align: left;
+  vertical-align: top;
+}
+.guide-table thead th {
+  color: #7d97ad;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.guide-body p,
+.guide-body li {
+  font-size: 14px;
+}
+.guide-body .guide-openings {
+  padding: 0;
+}
+.guide-openings {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  padding: 0;
+  list-style: none;
+}
+.guide-opening {
+  padding: 10px 12px;
+  border: 1px solid #1f3a52;
+  border-radius: 8px;
+  background: #0d1c2b;
+}
+.guide-opening strong {
+  color: #fff;
+}
+.guide-opening em {
+  margin-left: 8px;
+  color: #f7d477;
+  font-size: 11px;
+  font-style: normal;
+  text-transform: uppercase;
+}
+.guide-opening p {
+  margin: 6px 0;
+  font-size: 13px;
+}
+.guide-opening small {
+  color: #8aa6bd;
+}
+.guide-modal {
+  width: min(860px, calc(100vw - 24px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  text-align: left;
+}
+.guide-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.guide-modal-head h2 {
+  margin: 0;
+}
+
+/* The tutorial coach, and the control it points at. */
+.tutorial-coach:not([hidden]) {
+  position: absolute;
+  z-index: 7;
+  top: 64px;
+  right: 16px;
+  width: min(340px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border: 1px solid #f7d477;
+  border-radius: 8px;
+  background: #0b1824f2;
+  box-shadow: 0 10px 30px #0008;
+}
+.tutorial-coach h2 {
+  margin: 2px 0 6px;
+  color: #fff;
+  font-size: 17px;
+}
+.tutorial-coach p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.coach-progress {
+  color: #f7d477;
+  font-size: 11px !important;
+  letter-spacing: 0.1em;
+}
+.coach-keys kbd {
+  padding: 1px 6px;
+  border: 1px solid #4b6a84;
+  border-radius: 4px;
+  background: #13263a;
+}
+.tutorial-target {
+  outline: 2px solid #f7d477;
+  outline-offset: 2px;
+  animation: tutorial-pulse 1.4s ease-in-out infinite;
+}
+@keyframes tutorial-pulse {
+  50% {
+    outline-color: #f7d47733;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-target {
+    animation: none;
+  }
+}
+@media (max-width: 700px) {
+  .tutorial-coach:not([hidden]) {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+  }
+}
+
+/* Territory in the top bar, and the dominance countdown over the board. */
+.territory-chip strong span {
+  margin-left: 2px;
+  color: #7d97ad;
+  font-size: 0.75em;
+}
+.dominance-banner:not([hidden]) {
+  position: absolute;
+  z-index: 6;
+  top: 64px;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 18px;
+  transform: translateX(-50%);
+  border: 1px solid var(--team);
+  border-radius: 999px;
+  background: #07121ee6;
+  box-shadow: 0 0 24px color-mix(in srgb, var(--team) 40%, transparent);
+  text-align: center;
+  pointer-events: none;
+  animation: dominance-pulse 2s ease-in-out infinite;
+}
+.dominance-banner strong {
+  color: var(--team);
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.dominance-banner span {
+  color: #cfe3f2;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes dominance-pulse {
+  50% {
+    box-shadow: 0 0 8px color-mix(in srgb, var(--team) 25%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dominance-banner:not([hidden]) {
+    animation: none;
+  }
+}
