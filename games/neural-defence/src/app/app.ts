@@ -26,6 +26,7 @@ import {
 } from "../render/board.js";
 import type { BoardCamera, CameraFactory } from "../render/camera.js";
 import type { LightRenderer } from "../render/light-field.js";
+import { ROOM_MAPS, bundledMap } from "../online/maps.js";
 import { POWERUP_STYLE } from "../render/powerup-art.js";
 import { POWERUP_PRESENTATION } from "../engine/powerups.js";
 import {
@@ -56,9 +57,12 @@ import type {
   PreferencesStore,
   PresentationPreferences,
   SessionFactory,
+  OnlineDependencies,
+  OnlineSession,
+  RoomSnapshot,
 } from "./contracts.js";
 
-type Screen = "menu" | "settings" | "setup" | "game";
+type Screen = "menu" | "settings" | "setup" | "game" | "multiplayer" | "room";
 type LoadState<T> =
   | { status: "loading" }
   | { status: "error"; message: string }
@@ -100,6 +104,10 @@ export interface AppDependencies {
   sprites?: Readonly<Record<string, string>>;
   buildingSprites?: import("../render/sprite-raster.js").BuildingSprites;
   createCamera?: CameraFactory;
+  /** Online Versus rooms; omitted where the page cannot reach the room service. */
+  online?: OnlineDependencies;
+  /** A room code from the page address, opened on load. */
+  initialRoom?: string;
   /** Additive GPU light over the battlefield; omitted or null renders without it. */
   createLightRenderer?: (canvas: HTMLCanvasElement) => LightRenderer | null;
   audio?: PresentationAudio;
@@ -121,6 +129,12 @@ export function mountNeuralDefence(
   let placementCell: number | null = null;
   let pending: "reset" | "leave" | null = null;
   let lightTarget: HTMLCanvasElement | null = null;
+  let online: OnlineSession | null = null;
+  let roomCode = "";
+  let roomError: string | null = null;
+  let creatingRoom = false;
+  let playerName = dependencies.online?.savedName() ?? "";
+  let roomQr: { code: string; url: string } | null = null;
   let lightRenderer: LightRenderer | undefined;
   let launchError: string | null = null;
   let launching = false;
@@ -172,6 +186,11 @@ export function mountNeuralDefence(
   }
 
   function restart() {
+    if (online) {
+      pending = null;
+      online.lobby();
+      return;
+    }
     camera?.dispose();
     camera = null;
     placement = null;
@@ -203,10 +222,12 @@ export function mountNeuralDefence(
     unsubscribe = null;
     session?.dispose();
     session = null;
+    online = null;
   }
 
   function showMenu() {
     cancelLoads();
+    if (online) dependencies.online?.leaveRoom();
     disposeSession();
     pending = null;
     launchError = null;
@@ -327,7 +348,7 @@ export function mountNeuralDefence(
   }
 
   function menuMarkup(): string {
-    return `<div class="attract-scene" aria-hidden="true"><svg id="nd-attract-board"></svg></div><div class="attract-shade"></div>${header("Fuse Craft", "A neural strategy game")}<main class="menu-layout fui-landing"><p class="eyebrow">GROW · CONNECT · DEFEND</p><h1 class="fui-landing-title">FUSE<br><span>CRAFT</span></h1><p class="fui-landing-tagline">Build your network.<br>Keep the signal alive.</p><nav class="fui-landing-actions" aria-label="Main menu"><button data-action="new-game" class="fui-button-primary menu-button"><span aria-hidden="true">▶</span> New game</button><button data-action="settings" class="menu-button">Settings</button></nav></main><footer class="menu-footer">A FUSE GAME <span>SKIRMISH · PLAYER VS AI</span></footer>`;
+    return `<div class="attract-scene" aria-hidden="true"><svg id="nd-attract-board"></svg></div><div class="attract-shade"></div>${header("Fuse Craft", "A neural strategy game")}<main class="menu-layout fui-landing"><p class="eyebrow">GROW · CONNECT · DEFEND</p><h1 class="fui-landing-title">FUSE<br><span>CRAFT</span></h1><p class="fui-landing-tagline">Build your network.<br>Keep the signal alive.</p><nav class="fui-landing-actions" aria-label="Main menu"><button data-action="new-game" class="fui-button-primary menu-button"><span aria-hidden="true">▶</span> Single player</button>${dependencies.online ? '<button data-action="multiplayer" class="menu-button">Multiplayer</button>' : ""}<button data-action="settings" class="menu-button">Settings</button></nav></main><footer class="menu-footer">A FUSE GAME <span>${dependencies.online ? "PLAYER VS AI · ONLINE VERSUS" : "SKIRMISH · PLAYER VS AI"}</span></footer>`;
   }
 
   function settingsMarkup(): string {
@@ -553,7 +574,7 @@ export function mountNeuralDefence(
           : panel === "research"
             ? `<div class="command-context"><strong>Research</strong><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · researching` : "Choose an upgrade"}</p><small>${player.research.length ? `Complete: ${player.research.map((r) => researchNames[r]).join(", ")}` : "Hover or focus a command for its requirements."}</small></div>`
             : `<div class="command-context"><strong>Recent activity</strong><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></div>`;
-    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div>${buffChips(world, player)}</div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls"><button data-action="reset" class="secondary">Reset</button><button data-action="leave" class="secondary">Menu</button></div></div>
+    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div>${buffChips(world, player)}</div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls">${online ? (online.room().manager ? '<button data-action="reset" class="secondary">Lobby</button>' : "") : '<button data-action="reset" class="secondary">Reset</button>'}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div>
       <div class="command-dock">${minimapMarkup(world)}<section class="inspector" aria-label="${panel === "inspect" || panel === "build" ? "Selected hex" : panel === "research" ? "Research" : "Recent activity"}">${portrait ? `<div class="selection-portrait"><img style="filter:${structure && structure.kind !== "neuron" ? teamArtFilter(world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0) : "none"}" src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${contextDetail}</div></section><nav class="command-card" data-panel="${panel}" aria-label="${panel === "research" ? "Research commands" : panel === "build" ? "Build commands" : panel === "activity" ? "Activity commands" : "Commands"}">${commands}</nav></div>`;
   }
 
@@ -594,7 +615,7 @@ export function mountNeuralDefence(
                 : "Defeat";
         updateContent(
           result,
-          `<strong>${title}</strong><p>${world.winnerId === null ? "Both brains were destroyed." : !session?.canControl ? "The opposing brain has been destroyed." : world.winnerId === session?.localPlayerId ? "The rival brain has been destroyed." : "Your brain has been destroyed."}</p><small>${Math.floor(world.tick / RULES.ticksPerSecond / 60)}:${String(Math.floor(world.tick / RULES.ticksPerSecond) % 60).padStart(2, "0")} elapsed</small><div class="button-row"><button data-action="reset">${session?.canControl ? "Play again" : "Watch again"}</button><button data-action="leave" class="secondary">Menu</button></div>`,
+          `<strong>${title}</strong><p>${world.winnerId === null ? "Both brains were destroyed." : !session?.canControl ? "The opposing brain has been destroyed." : world.winnerId === session?.localPlayerId ? "The rival brain has been destroyed." : "Your brain has been destroyed."}</p><small>${Math.floor(world.tick / RULES.ticksPerSecond / 60)}:${String(Math.floor(world.tick / RULES.ticksPerSecond) % 60).padStart(2, "0")} elapsed</small><div class="button-row">${online ? (online.room().manager ? '<button data-action="rematch-room">Rematch</button><button data-action="lobby-room" class="secondary">Lobby</button>' : '<span class="room-wait">Waiting for the host…</span>') : `<button data-action="reset">${session?.canControl ? "Play again" : "Watch again"}</button>`}<button data-action="leave" class="secondary">${online ? "Leave room" : "Menu"}</button></div>`,
         );
       }
     }
@@ -677,6 +698,121 @@ export function mountNeuralDefence(
     camera?.refresh();
   }
 
+  function multiplayerMarkup(): string {
+    return `${header("Multiplayer", "online versus")}<main class="setup-layout multiplayer-layout"><section class="nd-panel"><p class="section-index">01 / NEW ROOM</p><h2>Host a Versus match</h2><p>Create a room, share its code or link, add bots if you like, and start when everyone has joined. Two to four networks, one brain each.</p><button data-action="create-room" class="primary" ${creatingRoom ? "disabled" : ""}>${creatingRoom ? "Creating…" : "Create room"}</button></section><section class="nd-panel"><p class="section-index">02 / JOIN</p><h2>Join a friend</h2><label class="field-label" for="room-code">Room code</label><div class="join-row"><input id="room-code" data-field="room-code" autocomplete="off" spellcheck="false" maxlength="12" value="${escape(roomCode)}" placeholder="CODE"><button data-action="join-room" class="primary">Join</button></div>${roomError ? `<p class="error-card" role="alert">${escape(roomError)}</p>` : ""}</section><div class="button-row"><button data-action="back-menu" class="secondary">← Back</button></div></main>`;
+  }
+
+  function roomMarkup(): string {
+    const room = online?.room();
+    if (!online || !room) return multiplayerMarkup();
+    if (room.closed)
+      return `${header("Versus room", room.code)}<main class="setup-layout"><section class="nd-panel"><h2>${room.closed === "kicked" ? "The host removed you from the room" : "The room has ended"}</h2><div class="button-row"><button data-action="leave-room" class="primary">Back to menu</button></div></section></main>`;
+    const players = room.seats.filter((seat) => !seat.watcher);
+    const seated = players.some((seat) => seat.id === room.self);
+    const capacity = ROOM_MAPS.find((map) => map.id === room.mapId)?.seats ?? 2;
+    const ready = players.filter((seat) => seat.connected).length;
+    const canStart = room.manager && ready >= 2 && ready <= capacity;
+    const seats = players
+      .map(
+        (seat) =>
+          `<li class="room-seat${seat.connected ? "" : " away"}" style="--team:${["#63cfff", "#ff8e9d", "#9ee394", "#f7d477"][players.indexOf(seat)] ?? "#63cfff"}"><span class="seat-dot"></span><strong>${escape(seat.name)}</strong>${seat.id === room.self ? "<em>you</em>" : ""}${seat.bot ? "<em>bot</em>" : ""}${seat.connected ? "" : "<em>away</em>"}${room.manager && seat.bot && room.stage === "lobby" ? `<button data-action="remove-bot" data-bot-id="${escape(seat.id)}" class="secondary small" aria-label="Remove ${escape(seat.name)}">✕</button>` : ""}</li>`,
+      )
+      .join("");
+    const disabled = room.manager && room.stage === "lobby" ? "" : "disabled";
+    const link = dependencies.online?.roomLink(room.code) ?? "";
+    return `${header("Versus room", room.code)}<main class="setup-layout room-layout"><section class="nd-panel"><p class="section-index">PLAYERS · ${ready}/${capacity}</p><ul class="room-seats">${seats || '<li class="room-seat empty">Nobody has joined yet</li>'}</ul>${
+      seated
+        ? ""
+        : `<label class="field-label" for="player-name">Your name</label><div class="join-row"><input id="player-name" data-field="player-name" maxlength="32" autocomplete="nickname" value="${escape(playerName)}" placeholder="Name"><button data-action="join-seat" class="primary">Join</button></div>`
+    }${room.manager && room.stage === "lobby" && players.length < capacity ? '<button data-action="add-bot" class="secondary">+ Add bot</button>' : ""}</section><aside class="nd-panel setup-summary"><p class="section-index">INVITE</p><div class="room-invite"><strong class="room-code">${escape(room.code)}</strong>${roomQr?.code === room.code ? `<img class="room-qr" src="${escape(roomQr.url)}" alt="QR code for the room link">` : ""}<small>${escape(link)}</small><button data-action="copy-room-link" class="secondary">Copy link</button></div><p class="section-index">RULES</p><label class="field-label" for="room-map">Map</label><select id="room-map" data-field="room-map" ${disabled}>${ROOM_MAPS.map((map) => `<option value="${map.id}" ${map.id === room.mapId ? "selected" : ""}>${escape(map.title)} · ${map.seats} players</option>`).join("")}</select><label class="field-label" for="room-strategy">Bot opening</label><select id="room-strategy" data-field="room-strategy" ${disabled}>${AI_STRATEGIES.map((kind) => `<option value="${kind}" ${kind === room.aiStrategy ? "selected" : ""}>${kind[0]!.toUpperCase()}${kind.slice(1)}</option>`).join("")}</select><label class="toggle-field"><input type="checkbox" data-field="room-powerups" ${room.powerups ? "checked" : ""} ${disabled}> Random powerups</label><p class="room-status" role="status">${escape(room.stage === "connecting" ? "Connecting to the room…" : room.status)}</p><div class="button-row"><button data-action="leave-room" class="secondary">Leave</button>${room.manager ? `<button data-action="start-room" class="primary" ${canStart ? "" : "disabled"}>Start match</button>` : '<span class="room-wait">Waiting for the host to start…</span>'}</div></aside></main>`;
+  }
+
+  function openRoom(code: string) {
+    if (!dependencies.online) return;
+    disposeSession();
+    const created = dependencies.online.openRoom(code);
+    online = created;
+    session = created;
+    panel = "inspect";
+    placement = null;
+    placementCell = null;
+    unsubscribe = created.subscribe(onRoomChange);
+    screen = "room";
+    render();
+    const link = dependencies.online.roomLink(code);
+    void dependencies.online
+      .qr?.(link)
+      .then((url) => {
+        roomQr = { code, url };
+        if (screen === "room") render();
+      })
+      .catch(() => {});
+  }
+
+  /** Follows the room between its lobby and the battlefield. */
+  function onRoomChange() {
+    if (!online || disposed) return;
+    const room = online.room();
+    const playing = room.stage === "running" || room.stage === "over";
+    if (screen === "room" && playing && !room.closed) {
+      selectedCell =
+        online
+          .view()
+          .structures.find(
+            (s) => s.ownerId === online?.localPlayerId && s.kind === "brain",
+          )?.cell ?? null;
+      screen = "game";
+      render();
+      return;
+    }
+    if (screen === "game" && (!playing || room.closed)) {
+      camera?.dispose();
+      camera = null;
+      pending = null;
+      screen = "room";
+      render();
+      return;
+    }
+    if (screen === "room") {
+      updateContent(root, roomMarkup());
+      return;
+    }
+    if (screen === "game") renderGame();
+  }
+
+  async function createRoom() {
+    if (!dependencies.online || creatingRoom) return;
+    creatingRoom = true;
+    roomError = null;
+    render();
+    try {
+      const { code } = await dependencies.online.createRoom();
+      if (disposed) return;
+      dependencies.online.enterRoom(code);
+      openRoom(code);
+    } catch (error) {
+      roomError =
+        error instanceof Error
+          ? error.message
+          : "The room could not be created.";
+    } finally {
+      creatingRoom = false;
+      if (screen === "multiplayer") render();
+    }
+  }
+
+  function joinRoom() {
+    const code = roomCode.trim().toUpperCase();
+    if (!dependencies.online?.validCode(code)) {
+      roomError = "That is not a room code: check it and try again.";
+      render();
+      return;
+    }
+    roomError = null;
+    dependencies.online.enterRoom(code);
+    openRoom(code);
+  }
+
   function render() {
     if (disposed) return;
     const battlefield = root.querySelector<HTMLElement>(".game-layout");
@@ -701,7 +837,11 @@ export function mountNeuralDefence(
           ? settingsMarkup()
           : screen === "setup"
             ? setupMarkup()
-            : gameMarkup();
+            : screen === "multiplayer"
+              ? multiplayerMarkup()
+              : screen === "room"
+                ? roomMarkup()
+                : gameMarkup();
     root
       .querySelectorAll<HTMLElement>(".primary")
       .forEach((button) => button.classList.add("fui-button-primary"));
@@ -840,6 +980,29 @@ export function mountNeuralDefence(
         mode = "skirmish";
         selectedId = "close-quarters";
         void loadCatalog();
+      } else if (action === "multiplayer") {
+        roomError = null;
+        screen = "multiplayer";
+        render();
+      } else if (action === "create-room") void createRoom();
+      else if (action === "join-room") joinRoom();
+      else if (action === "join-seat" && online) {
+        const name = playerName.trim();
+        if (name) {
+          dependencies.online?.saveName(name);
+          online.join(name);
+        }
+      } else if (action === "add-bot") online?.addBot();
+      else if (action === "remove-bot") {
+        const id = target.closest<HTMLElement>("[data-bot-id]")?.dataset.botId;
+        if (id) online?.removeBot(id);
+      } else if (action === "start-room") online?.start();
+      else if (action === "rematch-room") online?.rematch();
+      else if (action === "lobby-room") online?.lobby();
+      else if (action === "leave-room") showMenu();
+      else if (action === "copy-room-link" && online) {
+        const link = dependencies.online?.roomLink(online.code) ?? "";
+        void navigator.clipboard?.writeText(link).catch(() => {});
       } else if (action === "settings") {
         screen = "settings";
         render();
@@ -998,6 +1161,13 @@ export function mountNeuralDefence(
     }
   }
 
+  /** Text fields keep their value as typed, so a re-render never loses it. */
+  function onInput(event: Event) {
+    const target = event.target as HTMLInputElement;
+    if (target.dataset.field === "room-code") roomCode = target.value;
+    if (target.dataset.field === "player-name") playerName = target.value;
+  }
+
   function onChange(event: Event) {
     const target = event.target as HTMLInputElement | HTMLSelectElement;
     if (target.dataset.debug && dependencies.debug) {
@@ -1005,6 +1175,29 @@ export function mountNeuralDefence(
         instantConstruction = (target as HTMLInputElement).checked;
       if (target.dataset.debug === "research")
         instantResearch = (target as HTMLInputElement).checked;
+      return;
+    }
+    if (target.dataset.field === "room-code") {
+      roomCode = target.value;
+      return;
+    }
+    if (target.dataset.field === "player-name") {
+      playerName = target.value;
+      return;
+    }
+    if (target.dataset.field === "room-map" && online) {
+      if (bundledMap(target.value)) online.configure({ mapId: target.value });
+      return;
+    }
+    if (target.dataset.field === "room-strategy" && online) {
+      if (isAiStrategy(target.value))
+        online.configure({ aiStrategy: target.value });
+      return;
+    }
+    if (target.dataset.field === "room-powerups" && online) {
+      online.configure({
+        powerups: (target as HTMLInputElement).checked,
+      });
       return;
     }
     if (target.dataset.field === "powerups") {
@@ -1169,7 +1362,13 @@ export function mountNeuralDefence(
   root.addEventListener("pointermove", onPointerMove);
   root.addEventListener("change", onChange);
   root.addEventListener("keydown", onKeyDown);
-  render();
+  root.addEventListener("input", onInput);
+  if (
+    dependencies.initialRoom &&
+    dependencies.online?.validCode(dependencies.initialRoom)
+  )
+    openRoom(dependencies.initialRoom);
+  else render();
   return {
     dispose() {
       if (disposed) return;
@@ -1181,6 +1380,7 @@ export function mountNeuralDefence(
       root.removeEventListener("pointermove", onPointerMove);
       root.removeEventListener("change", onChange);
       root.removeEventListener("keydown", onKeyDown);
+      root.removeEventListener("input", onInput);
       root.innerHTML = "";
     },
   };

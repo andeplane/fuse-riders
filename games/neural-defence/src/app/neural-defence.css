@@ -316,6 +316,103 @@ select {
   margin-top: auto;
   padding-top: 1rem;
 }
+/* Multiplayer: create/join and the room lobby. */
+.multiplayer-layout .nd-panel h2,
+.room-layout .nd-panel h2 {
+  margin: 0.25rem 0 0.75rem;
+}
+.join-row {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.4rem 0 0.9rem;
+}
+.join-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  background: #0a1c24;
+  border: 1px solid var(--fui-cyan-soft, #3bb6d6);
+  border-radius: var(--fui-radius-small, 6px);
+  color: var(--fui-text, #e1f6eb);
+  font: inherit;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.join-row input#player-name {
+  text-transform: none;
+  letter-spacing: normal;
+}
+.room-seats {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+.room-seat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--team, #63cfff) 45%, transparent);
+  border-radius: var(--fui-radius-small, 6px);
+  background: color-mix(in srgb, var(--team, #63cfff) 8%, transparent);
+}
+.room-seat.away {
+  opacity: 0.55;
+}
+.room-seat.empty {
+  border-style: dashed;
+  color: var(--fui-text-muted);
+}
+.room-seat em {
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fui-text-muted);
+}
+.room-seat button {
+  margin-left: auto;
+}
+.seat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--team, #63cfff);
+  box-shadow: 0 0 8px var(--team, #63cfff);
+}
+.room-invite {
+  display: grid;
+  justify-items: start;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+.room-code {
+  font-size: 28px;
+  letter-spacing: 0.18em;
+  color: var(--fui-cyan, #63cfff);
+}
+.room-invite small {
+  color: var(--fui-text-muted);
+  word-break: break-all;
+}
+.room-qr {
+  width: 140px;
+  height: 140px;
+  border-radius: 6px;
+  background: #fff;
+}
+.room-status {
+  min-height: 1.4em;
+  color: var(--fui-text-muted);
+  font-size: 12px;
+}
+.room-wait {
+  color: var(--fui-text-muted);
+  font-size: 12px;
+  align-self: center;
+}
 .toggle-field {
   display: grid;
   grid-template-columns: auto 1fr;

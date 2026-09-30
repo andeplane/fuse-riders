@@ -31,3 +31,29 @@ export const BUNDLED_MAP_IDS: readonly string[] = Object.keys(BUNDLED).sort();
 export function bundledMap(id: string): unknown {
   return Object.hasOwn(BUNDLED, id) ? BUNDLED[id] : undefined;
 }
+
+const TITLES: Readonly<Record<string, string>> = {
+  "close-quarters": "Close Quarters",
+  "skirmish-24": "Synaptic Reach",
+  "open-front": "Open Synapse",
+  "narrow-front": "Twin Pass",
+  "lean-resources": "Scarce Reach",
+  "sandbox-12": "Slate Basin",
+  "combat-lab-12": "The Conduit",
+};
+/** Maps a Versus room can use, with how many players each seats. */
+export const ROOM_MAPS: readonly {
+  id: string;
+  title: string;
+  seats: number;
+}[] = Object.keys(TITLES).map((id) => {
+  const map = BUNDLED[id];
+  const spawns =
+    map &&
+    typeof map === "object" &&
+    "spawns" in map &&
+    Array.isArray(map.spawns)
+      ? map.spawns.length
+      : 0;
+  return { id, title: TITLES[id]!, seats: spawns };
+});
