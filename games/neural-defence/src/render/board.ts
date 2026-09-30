@@ -1076,6 +1076,15 @@ export function renderBoard(
       });
     }
   }
+  const brains = world.structures
+    .filter((s) => s.kind === "brain" && s.connected)
+    .flatMap((s) => {
+      const art = cache.structures.querySelector<SVGGElement>(
+        `.structure[data-cell="${s.cell}"] .building-art`,
+      );
+      const { x, y } = hexCenter(width, s.cell);
+      return art ? [{ cell: s.cell, art, x, foot: y + buildingFoot }] : [];
+    });
   let displayedSprites: Sprites | null = null;
   const animate = (frameNow: number) => {
     if (light) cache.light.begin();
@@ -1121,6 +1130,18 @@ export function renderBoard(
     for (const orbit of orbits)
       orbit.style.transform = `rotate(${reducedMotion ? 0 : ((frameNow % 5000) * 360) / 5000}deg)`;
     for (const animateNeuron of neurons) animateNeuron(frameNow, reducedMotion);
+    // Brains breathe: a slow swell anchored at the base of the sprite.
+    for (const brain of brains)
+      if (!cache.recoil.has(brain.cell)) {
+        if (reducedMotion) brain.art.removeAttribute("transform");
+        else {
+          const breath = Math.sin(frameNow / 900 + brain.cell) * 0.018;
+          brain.art.setAttribute(
+            "transform",
+            `translate(${brain.x} ${brain.foot}) scale(${(1 - breath * 0.6).toFixed(4)} ${(1 + breath).toFixed(4)}) translate(${-brain.x} ${-brain.foot})`,
+          );
+        }
+      }
     for (const link of growingLinks) {
       const g = reducedMotion
         ? 1
