@@ -24,14 +24,32 @@ import {
 import { prepareCombatLab, labCommands } from "./combat-lab.js";
 import { aiCommands } from "../engine/ai.js";
 import { isAiStrategy, type AiStrategy } from "../engine/types.js";
+import { bundledMap } from "./maps.js";
 
+export type NeuralMode =
+  "sandbox" | "combat-lab" | "skirmish" | "watch" | "versus";
 export interface NeuralSettings {
-  map: MapDefinition;
+  /** A local session carries its loaded map; an online room names a bundled one. */
+  map?: MapDefinition;
+  mapId?: string;
   slot: number;
-  mode: "sandbox" | "combat-lab" | "skirmish" | "watch";
+  mode: NeuralMode;
   engine: MatchSettings;
   watchStrategies?: readonly [AiStrategy, AiStrategy];
 }
+const bundled = new Map<string, MapDefinition>();
+/** The validated map a room plays on, whichever way its settings name it. */
+export function settingsMap(settings: NeuralSettings): MapDefinition {
+  if (settings.map) return settings.map;
+  const id = settings.mapId ?? "";
+  let map = bundled.get(id);
+  if (!map) {
+    map = loadMap(bundledMap(id));
+    bundled.set(id, map);
+  }
+  return map;
+}
+const ROSTER_ID = /^[-a-zA-Z0-9_]{1,64}$/;
 export interface NeuralRoom {
   tick: number;
   matchId: string;
@@ -53,8 +71,14 @@ export function parseSettings(x: unknown): NeuralSettings | undefined {
     (x.mode !== "sandbox" &&
       x.mode !== "combat-lab" &&
       x.mode !== "skirmish" &&
-      x.mode !== "watch") ||
-    !record(x.engine)
+      x.mode !== "watch" &&
+      x.mode !== "versus") ||
+    !record(x.engine) ||
+    // Exactly one map source; online versus rooms must name a bundled map.
+    (x.map === undefined) === (x.mapId === undefined) ||
+    (x.mapId !== undefined &&
+      (typeof x.mapId !== "string" || bundledMap(x.mapId) === undefined)) ||
+    (x.mode === "versus" && x.mapId === undefined)
   )
     return;
   if (
@@ -81,12 +105,17 @@ export function parseSettings(x: unknown): NeuralSettings | undefined {
   )
     return;
   try {
-    const map = loadMap(x.map);
+    const map = loadMap(
+      typeof x.mapId === "string" ? bundledMap(x.mapId) : x.map,
+    );
     if (!map.spawns.some((s) => s.slot === x.slot)) return;
-    if ((x.mode === "skirmish" || x.mode === "watch") && map.spawns.length < 2)
+    if (
+      (x.mode === "skirmish" || x.mode === "watch" || x.mode === "versus") &&
+      map.spawns.length < 2
+    )
       return;
     return {
-      map,
+      ...(typeof x.mapId === "string" ? { mapId: x.mapId } : { map }),
       slot: Number(x.slot),
       mode: x.mode,
       engine: { ...x.engine },
@@ -159,11 +188,42 @@ export function isEntry(x: unknown): x is NeuralEntry {
   );
 }
 function initial(settings: NeuralSettings, matchId: string): World {
-  return createMatch(settings.map, { ...settings.engine, matchId }, [
+  return createMatch(settingsMap(settings), { ...settings.engine, matchId }, [
     { id: "solo", slot: settings.slot },
   ]);
 }
+/**
+ * Versus: every connected seat, human or bot, owns a network. Seats take the
+ * map's spawns in seat order, so a two-spawn map seats two whatever slots the
+ * room handed out.
+ */
+function startVersus(room: NeuralRoom, matchId: string) {
+  const map = settingsMap(room.settings);
+  const players = [...room.seats.values()]
+    .filter((s) => s.connected && !s.watcher)
+    .sort((a, b) => a.slot - b.slot);
+  const spawns = [...map.spawns].sort((a, b) => a.slot - b.slot);
+  if (
+    players.length < 2 ||
+    players.length > spawns.length ||
+    players.some((p) => !ROSTER_ID.test(p.id))
+  )
+    return;
+  try {
+    room.world = createMatch(
+      map,
+      { ...room.settings.engine, matchId },
+      players.map((p, i) => ({ id: p.id, slot: spawns[i]!.slot })),
+    );
+  } catch {
+    return;
+  }
+  room.matchId = matchId;
+  room.stage = "running";
+}
 function start(room: NeuralRoom, matchId: string) {
+  if (room.settings.mode === "versus") return startVersus(room, matchId);
+  const map = settingsMap(room.settings);
   const players = [...room.seats.values()]
     .filter((s) => s.connected && !s.watcher)
     .sort((a, b) => a.slot - b.slot);
@@ -173,9 +233,7 @@ function start(room: NeuralRoom, matchId: string) {
       (players.length !== 1 || players[0]!.bot))
   )
     return;
-  const spawnSlots = new Set(
-    room.settings.map.spawns.map((spawn) => spawn.slot),
-  );
+  const spawnSlots = new Set(map.spawns.map((spawn) => spawn.slot));
   const roster = players.map((p) => ({
     id: p.id,
     slot: players.length === 1 ? room.settings.slot : p.slot,
@@ -191,20 +249,14 @@ function start(room: NeuralRoom, matchId: string) {
   let world: World | undefined;
   try {
     if (room.settings.mode === "sandbox") {
-      world = createMatch(
-        room.settings.map,
-        { ...room.settings.engine, matchId },
-        roster,
-      );
+      world = createMatch(map, { ...room.settings.engine, matchId }, roster);
     } else if (
       room.settings.mode === "skirmish" ||
       room.settings.mode === "watch"
     ) {
-      const origin = room.settings.map.spawns.find(
-        (s) => s.slot === roster[0]!.slot,
-      )!;
+      const origin = map.spawns.find((s) => s.slot === roster[0]!.slot)!;
       const distance = (cell: number) => {
-        const width = room.settings.map.width;
+        const width = map.width;
         return (
           Math.abs((cell % width) - (origin.cellIndex % width)) +
           Math.abs(
@@ -212,23 +264,22 @@ function start(room: NeuralRoom, matchId: string) {
           )
         );
       };
-      const opponent = [...room.settings.map.spawns]
+      const opponent = [...map.spawns]
         .filter((s) => s.slot !== origin.slot)
         .sort(
           (a, b) =>
             distance(b.cellIndex) - distance(a.cellIndex) || a.slot - b.slot,
         )[0];
       if (!opponent) return;
-      world = createMatch(
-        room.settings.map,
-        { ...room.settings.engine, matchId },
-        [...roster, { id: "ai-opponent", slot: opponent.slot }],
-      );
+      world = createMatch(map, { ...room.settings.engine, matchId }, [
+        ...roster,
+        { id: "ai-opponent", slot: opponent.slot },
+      ]);
     } else {
-      for (const spawn of room.settings.map.spawns) {
+      for (const spawn of map.spawns) {
         if (spawn.slot === roster[0]!.slot) continue;
         const candidate = createMatch(
-          room.settings.map,
+          map,
           { ...room.settings.engine, matchId },
           [...roster, { id: "lab-opponent", slot: spawn.slot }],
         );
@@ -310,6 +361,18 @@ export const neuralGame: RollbackGame<
               action: entry[4],
             });
       }
+      if (room.settings.mode === "versus")
+        for (const seat of [...room.seats.values()].sort(
+          (a, b) => a.slot - b.slot,
+        ))
+          if (seat.bot && !seat.watcher)
+            commands.push(
+              ...aiCommands(
+                room.world,
+                seat.id,
+                room.settings.engine.aiStrategy ?? "balanced",
+              ),
+            );
       if (room.settings.mode === "combat-lab")
         commands.push(...labCommands(room.world));
       if (room.settings.mode === "skirmish")
@@ -428,7 +491,7 @@ export const neuralGame: RollbackGame<
           world.matchId !== raw.matchId ||
           world.tick > tick ||
           JSON.stringify(canonical(world.map)) !==
-            JSON.stringify(canonical(settings.map)) ||
+            JSON.stringify(canonical(settingsMap(settings))) ||
           JSON.stringify(canonical(world.settings)) !==
             JSON.stringify(
               canonical({ ...settings.engine, matchId: raw.matchId }),
@@ -447,7 +510,20 @@ export const neuralGame: RollbackGame<
                 p.id === "ai-opponent"
               ),
           );
-          if (
+          if (settings.mode === "versus") {
+            // Every network belongs to a seat of the room (a human or a bot).
+            if (
+              participants.length < 2 ||
+              world.players.some((p) => p.id === "ai-opponent") ||
+              world.players.some((p) => p.id === "lab-opponent") ||
+              (raw.stage === "running" &&
+                participants.some((p) => {
+                  const seat = seats.get(p.id);
+                  return !seat || seat.watcher;
+                }))
+            )
+              return;
+          } else if (
             participants.length === 0 ||
             participants.some((p) => {
               const seat = seats.get(p.id);
@@ -500,8 +576,14 @@ export const neuralGame: RollbackGame<
     parseSettings,
     soloSettings: (s) => s,
     sharedScreen: () => false,
-    botId: () => "",
-    botName: () => "",
+    // Room bots play Versus through the same AI as the single-player opponent.
+    botId: (room, pending) => {
+      for (let n = 1; ; n++) {
+        const id = `bot-${n}`;
+        if (!room.seats.has(id) && !pending.has(id)) return id;
+      }
+    },
+    botName: (slot) => `Bot ${slot + 1}`,
     solo: { name: "You", bots: 0 },
   },
   text: defaultText,
