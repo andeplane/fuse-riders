@@ -51,7 +51,8 @@ export const POWERUP_PRESENTATION: Record<
   },
   regrowth: {
     label: "Regrowth",
-    description: "Heals every structure you own by 40% of its full health.",
+    description:
+      "Heals every structure you own except the brain by 40% of its full health.",
   },
   surge: {
     label: "Growth surge",
@@ -148,8 +149,9 @@ function claim(w: World, player: Player, powerup: Powerup) {
     player.biomass = Math.min(1_000_000_000, player.biomass + r.cacheBiomass);
     player.insight = Math.min(1_000_000_000, player.insight + r.cacheInsight);
   } else if (powerup.kind === "regrowth") {
+    // The brain is excluded: healing it made choke-point sieges unwinnable.
     for (const s of w.structures)
-      if (s.ownerId === player.id) {
+      if (s.ownerId === player.id && s.kind !== "brain") {
         const full = STRUCTURES[s.kind].hp;
         s.hp = Math.min(
           full,

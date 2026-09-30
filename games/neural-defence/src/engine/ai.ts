@@ -460,32 +460,6 @@ export function aiCommands(
       choice = { kind: repairKind(choice.cell), cell: choice.cell };
     if (!choice && repairs[0] !== undefined)
       choice = { kind: repairKind(repairs[0]), cell: repairs[0] };
-    // Race for a nearby powerup through safe ground; a contested one (both
-    // networks already touching it) is left to whoever breaks contact.
-    if (!choice && world.powerups.length) {
-      const toward = new Map<number, number>();
-      const queue = world.powerups.map((p) => p.cell).sort(cellOrder);
-      for (const cell of queue) toward.set(cell, 0);
-      for (const cell of queue)
-        for (const next of neighbors(world.map, cell)) {
-          if (world.map.cells[next]?.terrain !== "open" || toward.has(next))
-            continue;
-          toward.set(next, toward.get(cell)! + 1);
-          queue.push(next);
-        }
-      const gap = (cell: number) => toward.get(cell) ?? Infinity;
-      const best = Math.min(...own.map((s) => gap(s.cell)));
-      if (best > 1 && best <= 5) {
-        const steps = sites.filter(
-          (cell) =>
-            eligible("neuron", cell) &&
-            !threats(cell).length &&
-            gap(cell) < best,
-        );
-        steps.sort((a, b) => gap(a) - gap(b) || cellOrder(a, b));
-        if (steps[0] !== undefined) choice = { kind: "neuron", cell: steps[0] };
-      }
-    }
     if (
       !choice &&
       own.filter((s) => s.kind === "harvester").length < policy.harvesters &&
@@ -569,6 +543,33 @@ export function aiCommands(
             : tower,
         cell: firingSites[0],
       };
+    // Race for a nearby powerup through safe ground, once the front has no
+    // weapon to place. A contested one (both networks already touching it) is
+    // left to whoever breaks contact.
+    if (!choice && world.powerups.length) {
+      const toward = new Map<number, number>();
+      const queue = world.powerups.map((p) => p.cell).sort(cellOrder);
+      for (const cell of queue) toward.set(cell, 0);
+      for (const cell of queue)
+        for (const next of neighbors(world.map, cell)) {
+          if (world.map.cells[next]?.terrain !== "open" || toward.has(next))
+            continue;
+          toward.set(next, toward.get(cell)! + 1);
+          queue.push(next);
+        }
+      const gap = (cell: number) => toward.get(cell) ?? Infinity;
+      const best = Math.min(...own.map((s) => gap(s.cell)));
+      if (best > 1 && best <= 5) {
+        const steps = sites.filter(
+          (cell) =>
+            eligible("neuron", cell) &&
+            !threats(cell).length &&
+            gap(cell) < best,
+        );
+        steps.sort((a, b) => gap(a) - gap(b) || cellOrder(a, b));
+        if (steps[0] !== undefined) choice = { kind: "neuron", cell: steps[0] };
+      }
+    }
     // A short-range army with no admissible firing site must be able to
     // establish an artillery position outside the opposing weapon's reach.
     if (
