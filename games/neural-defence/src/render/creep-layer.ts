@@ -23,10 +23,14 @@ interface Blob {
   drawn: number;
 }
 interface Team {
+  slot: number;
   shapes: SVGPathElement[];
   details: SVGGElement;
+  ripples: SVGEllipseElement[];
   drawnAt: number;
 }
+/** Heartbeat ripples spread from each brain through its creep, ms. */
+const HEARTBEAT_MS = 3200;
 
 /** Growth and recession time constants, ms. */
 const GROW_TAU = 650;
@@ -111,11 +115,26 @@ export class CreepLayer {
       if (team.details.getAttribute("data-markup") !== markup) {
         team.details.innerHTML = markup;
         team.details.setAttribute("data-markup", markup);
+        team.ripples = [
+          ...team.details.querySelectorAll<SVGEllipseElement>(".creep-ripple"),
+        ];
       }
     }
   }
 
   animate(now: number, reducedMotion: boolean): void {
+    for (const team of this.teams.values())
+      for (const ripple of team.ripples) {
+        const reach = Number(ripple.getAttribute("data-reach"));
+        const t = reducedMotion
+          ? 1
+          : (now / HEARTBEAT_MS + team.slot * 0.37) % 1;
+        const r = reach * (0.15 + t * 0.85);
+        ripple.setAttribute("rx", r.toFixed(1));
+        ripple.setAttribute("ry", (r * 0.72).toFixed(1));
+        ripple.setAttribute("stroke-width", (5 * (1 - t) + 0.5).toFixed(2));
+        ripple.setAttribute("opacity", (0.55 * (1 - t) * (1 - t)).toFixed(3));
+      }
     const changed = new Set<number>();
     const moving = new Set<number>();
     for (const [key, blob] of this.blobs) {
@@ -168,6 +187,8 @@ export class CreepLayer {
       `<path class="creep-rim" stroke="${p.glow}"/>`;
     this.host.append(group);
     const team: Team = {
+      slot,
+      ripples: [],
       shapes: [
         ...group.querySelectorAll<SVGPathElement>(
           ".creep-clip, .creep-shadow, .creep-side, .creep-top, .creep-rim",

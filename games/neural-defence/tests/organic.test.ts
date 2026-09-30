@@ -13,6 +13,11 @@ import {
   veinMarkup,
 } from "../src/render/creep.js";
 import { GROUND } from "../src/render/projection.js";
+import { organicBurst } from "../src/render/organic-burst.js";
+import { renderBoard } from "../src/render/board.js";
+import { createMatch, encodeState, loadMap } from "../src/engine/index.js";
+import { parseHTML } from "linkedom";
+import { readFileSync } from "node:fs";
 
 test("neuron forms are stable per seed and differ between cells", () => {
   const a = neuronForm(neuronSeed(14));
@@ -130,4 +135,66 @@ test("tissue pattern and veins are team-specific markup", () => {
   const veins = veinMarkup(100, 100, 50, 3);
   assert.equal(veins, veinMarkup(100, 100, 50, 3));
   assert.ok((veins.match(/class="creep-vein"/g) ?? []).length >= 3);
+});
+
+test("a destroyed neuron bursts into droplets and a fading splat, then cleans up", () => {
+  const { document } = parseHTML("<html><body><svg></svg></body></html>");
+  const svg = document.querySelector("svg") as unknown as SVGSVGElement;
+  const map = loadMap(
+    JSON.parse(
+      readFileSync(new URL("../maps/sandbox-12.json", import.meta.url), "utf8"),
+    ),
+  );
+  const world = createMatch(map, {}, [{ id: "solo", slot: 0 }]);
+  const neuron = {
+    id: world.nextEntityId++,
+    cell: world.structures[0]!.cell + 1,
+    ownerId: "solo",
+    kind: "neuron" as const,
+    hp: 60,
+    connected: true,
+  };
+  world.structures.push(neuron);
+  renderBoard(svg, world, null, false, false, 0);
+  world.structures = world.structures.filter((s) => s !== neuron);
+  world.tick++;
+  world.outcomes = [
+    {
+      tick: world.tick,
+      playerId: "solo",
+      type: "destroyed",
+      cell: neuron.cell,
+    },
+  ];
+  const before = encodeState(world);
+  const frame = renderBoard(svg, world, null, false, false, 50);
+  const burst = svg.querySelector(".organic-burst")!;
+  assert.ok(burst, "the neuron bursts");
+  assert.ok(
+    svg.querySelector(".organic-splat"),
+    "and leaves a splat on the ground",
+  );
+  const droplets = [...burst.querySelectorAll(".organic-droplet")];
+  assert.ok(droplets.length >= 8);
+  const start = droplets.map((d) => d.getAttribute("cy"));
+  frame.animate(500);
+  assert.notDeepEqual(
+    droplets.map((d) => d.getAttribute("cy")),
+    start,
+    "droplets fly",
+  );
+  assert.equal(encodeState(world), before, "presentation only");
+  frame.animate(5000);
+  assert.equal(svg.querySelector(".organic-burst"), null);
+  assert.equal(svg.querySelector(".organic-splat"), null);
+});
+
+test("a burst is repeatable at a given age", () => {
+  const { document } = parseHTML("<html></html>");
+  const burst = organicBurst(document, { x: 100, y: 80 }, 1, 7, 0);
+  burst.animate(0.3);
+  const at = burst.element.outerHTML + burst.ground.outerHTML;
+  burst.animate(0.8);
+  burst.animate(0.3);
+  assert.equal(burst.element.outerHTML + burst.ground.outerHTML, at);
 });

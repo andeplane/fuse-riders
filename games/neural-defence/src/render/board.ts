@@ -40,6 +40,7 @@ import {
   veinMarkup,
 } from "./creep.js";
 import { CreepLayer, type CreepSource } from "./creep-layer.js";
+import { organicBurst } from "./organic-burst.js";
 export { hexCenter, hexPoints } from "./projection.js";
 const ns = "http://www.w3.org/2000/svg";
 const colors = ["#63cfff", "#ff8e9d", "#9ee394", "#f7d477"];
@@ -517,7 +518,10 @@ export function renderBoard(
         slot,
         creepDetails.get(slot) +
           `<ellipse class="creep-sheen" cx="${x - radius * 0.12}" cy="${y - 2}" rx="${radius * 0.78}" ry="${radius * 0.5}" fill="url(#nd-creep-sheen-${slot})"/>` +
-          `<g class="creep-veins">${veinMarkup(x, y, radius, s.id * 31 + slot)}</g>`,
+          `<g class="creep-veins">${veinMarkup(x, y, radius, s.id * 31 + slot)}</g>` +
+          (s.kind === "brain"
+            ? `<ellipse class="creep-ripple" cx="${x}" cy="${y + 2}" data-reach="${radius * 2.2}" fill="none" stroke="${TEAM_PALETTES[slot]?.light}" opacity="0"/>`
+            : ""),
       );
   }
   for (const p of world.players)
@@ -697,6 +701,33 @@ export function renderBoard(
       effect.body?.setAttribute("data-depth", String(outcome.cell));
       cache.groundEffects.append(effect.ground);
       cache.pulses.push({ ...effect, born: now });
+      if (lostKind === "neuron") {
+        const burst = organicBurst(
+          svg.ownerDocument,
+          at,
+          world.players.find((p) => p.id === outcome.playerId)?.slot ?? 0,
+          world.tick * 131 + outcome.cell,
+          Math.max(
+            0,
+            ...hits.map(
+              (hit) =>
+                weaponFlightMs[
+                  weaponStyle(world, cache, hit.playerId, hit.fromCell)
+                ],
+            ),
+          ),
+        );
+        cache.effectLayer.append(burst.element);
+        cache.groundEffects.append(burst.ground);
+        burst.animate(0);
+        cache.pulses.push({
+          element: burst.element,
+          ground: burst.ground,
+          born: now,
+          duration: burst.duration,
+          animate: burst.animate,
+        });
+      }
       if (from && outcome.fromCell !== undefined) {
         const length = Math.max(1, Math.hypot(at.x - from.x, at.y - from.y));
         cache.recoil.set(outcome.fromCell, {
