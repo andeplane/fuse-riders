@@ -28,6 +28,21 @@ unchanged, and the AI matrix below confirms it.
 - **Reduced motion**: both the in-game setting and the system preference
   stop sway, sparks, ripples, breathing and the light layer's motion.
 
+## Blood flow and living deposits
+
+Added after the captures below, at source `353ac0b5`: faint blood vessels
+thread the ground (seeded per map, beneath rocks and creep) and blood cells
+glow through them in surges on a ~1.1 s heartbeat; biomass pods breathe and
+puff spores; insight crystals hover and sparkle; mined deposits stream motes
+into their miners. [Desktop](blood-desktop-battle.png) and
+[phone](blood-phone-battle.png) captures. Profiles on the same workload:
+Chromium on GPU still a locked 60 fps
+([raw](profile-chromium-gpu-dpr2-blood.json)); WebKit 42–46 callbacks per
+second across runs, median 18–22 ms
+([raw](profile-webkit-dpr2-blood.json)), about the same as before within
+run-to-run noise. Removing an opacity group on the vessels avoided an
+offscreen layer in WebKit; the deposit CSS animations measured as free.
+
 ## Captures
 
 Ordinary Watch AI vs AI on Close Quarters (Pressure vs Balanced), normal
