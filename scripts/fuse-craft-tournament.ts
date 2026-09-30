@@ -62,6 +62,9 @@ if (!names.every((name) => AI_STRATEGIES.includes(name as AiStrategy)))
   throw new Error("Unknown strategy");
 const strategies = names as AiStrategy[];
 const seconds = Number(option("seconds", "900"));
+// Powerups vary per match through the match id; without the flag runs are
+// identical to earlier matrices.
+const powerups = process.argv.includes("--powerups");
 if (!Number.isInteger(seconds) || seconds < 1 || seconds > 3600)
   throw new Error("seconds must be 1..3600");
 const source = execFileSync("git", ["rev-parse", "HEAD"], {
@@ -96,6 +99,7 @@ const run = {
   seconds,
   strategies,
   maps,
+  ...(powerups ? { powerups } : {}),
 };
 if (resume) {
   const previous = JSON.parse(readFileSync(manifestPath, "utf8"));
@@ -183,11 +187,16 @@ for (const map of maps.filter(
         const pair = [strategies[a]!, strategies[b]!] as const;
         const key = `${map.id}-${pair.join("-")}-${slot}`;
         if (completed.has(key)) continue;
-        let world = createMatch(map, {}, [
-          { id: "alpha", slot },
-          { id: "beta", slot: 1 - slot },
-        ]);
+        let world = createMatch(
+          map,
+          powerups ? { powerups: true, matchId: key } : {},
+          [
+            { id: "alpha", slot },
+            { id: "beta", slot: 1 - slot },
+          ],
+        );
         const initial = encodeState(world);
+        const claims: Record<string, number> = { alpha: 0, beta: 0 };
         const commands: { tick: number; commands: Command[] }[] = [];
         let contact: number | null = null,
           rejected = 0;
@@ -214,6 +223,8 @@ for (const map of maps.filter(
             commands.push({ tick: world.tick, commands: inputs });
           const prior = world;
           world = step(world, inputs);
+          for (const o of world.outcomes)
+            if (o.type === "claimed") claims[o.playerId]!++;
           prior.players.forEach((p, i) => {
             for (const job of p.queue.filter((j) => j.paid)) {
               if (
@@ -315,6 +326,7 @@ for (const map of maps.filter(
           result: world.finished ? (world.winnerId ?? "draw") : "timeout",
           rejected,
           hash,
+          ...(powerups ? { claims } : {}),
           players: world.players.map((p, i) => ({
             id: p.id,
             strategy: pair[i],
