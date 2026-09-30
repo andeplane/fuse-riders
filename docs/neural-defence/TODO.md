@@ -31,8 +31,8 @@ Last reviewed: 2026-09-30, branch `claude/fuse-craft` ([PR #417](https://github.
 
 ## Rendering and visuals
 
-- [ ] Neurons at default play zoom read as glowing orbs; branch silhouettes are clearer only when zoomed in. Consider thicker branches or a size bump with age.
-- [ ] The light layer's bloom is additive glow, not a true bloom pass; there is no light falling on terrain from effects beyond the glow itself.
+- [x] Neurons at default play zoom read as glowing orbs. Somas are now low domes with thicker branches; see the lighting pass in [organic network and light](verification/organic-light-2026-09-30/README.md).
+- [ ] The light layer approximates bloom with wide halos and spills team light onto the ground, but it is not a screen-space bloom pass: that needs the whole battlefield rendered on the GPU.
 
 - [ ] Cached team tints are not checked against a native-filter reference image, so exact hue match is unproven. See [cached tints](verification/cached-tints-2026-09-27/README.md).
 

@@ -43,6 +43,20 @@ second across runs, median 18–22 ms
 run-to-run noise. Removing an opacity group on the vessels avoided an
 offscreen layer in WebKit; the deposit CSS animations measured as free.
 
+## Lighting and readability pass
+
+At source `282a636c`: somas are low domes on the tissue with a shadowed
+base, a quieter highlight and a brighter nucleus, and dendrites are
+thicker, so neurons read as branching cells rather than glossy balls at
+play zoom. A warm key light from the shadow direction, team-coloured light
+pools under each network, a wide halo around bright sources (a bloom
+stand-in) and pulses of light running out along every building's roots
+tie the mechanical buildings into the living network.
+[Contact](lit-desktop-contact.png) and [battle](lit-desktop-battle.png)
+captures. Chromium on GPU still holds 60 fps
+([raw](profile-chromium-gpu-dpr2-lit.json)); WebKit 45.5 callbacks per
+second, median 22 ms ([raw](profile-webkit-dpr2-lit.json)).
+
 ## Captures
 
 Ordinary Watch AI vs AI on Close Quarters (Pressure vs Balanced), normal
