@@ -1073,6 +1073,14 @@ export function renderBoard(
     swing: number;
   };
   const glows: Glow[] = [];
+  const arena = boardSize(width, world.map.height);
+  const pools: {
+    x: number;
+    y: number;
+    size: number;
+    color: Rgb;
+    alpha: number;
+  }[] = [];
   const deposits: { x: number; y: number; biomass: boolean; index: number }[] =
     [];
   const mining: {
@@ -1093,6 +1101,14 @@ export function renderBoard(
       const { x, y } = hexCenter(width, s.cell);
       const phase = (s.cell * 0.618) % (Math.PI * 2);
       const dim = s.connected ? 1 : 0.25;
+      if (s.connected)
+        pools.push({
+          x,
+          y,
+          size: s.kind === "brain" ? 170 : 80,
+          color: rgb(p.glow),
+          alpha: s.kind === "brain" ? 0.09 : 0.045,
+        });
       const visual = neuronVisuals.get(s.cell);
       if (visual) {
         const n = visual.form.nucleus;
@@ -1358,11 +1374,26 @@ export function renderBoard(
   };
   const drawLight = (frameNow: number, view: LightTransform) => {
     const field = cache.light;
+    // Key light from the upper left (matching cast shadows) warms the arena.
+    field.add(
+      arena.width * 0.18,
+      arena.height * 0.12,
+      Math.max(arena.width, arena.height) * 0.75,
+      [1, 0.82, 0.58],
+      0.055,
+      1,
+    );
+    // Each network spills its team colour onto the ground around it.
+    for (const pool of pools)
+      field.add(pool.x, pool.y, pool.size, pool.color, pool.alpha, 1.3);
     for (const g of glows) {
       const pulse = reducedMotion
         ? 1
         : 1 + g.swing * Math.sin(frameNow / g.period + g.phase);
       field.add(g.x, g.y, g.size, g.color, g.alpha * pulse, g.sharpness);
+      // A wide faint halo around bright sources stands in for bloom.
+      if (g.alpha >= 0.3)
+        field.add(g.x, g.y, g.size * 2.3, g.color, g.alpha * pulse * 0.16, 1.2);
     }
     if (!reducedMotion) {
       // A signal runs along every live axon, a spark with a soft halo.

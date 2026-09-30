@@ -60,6 +60,8 @@ export interface Neighbour {
 }
 type Point = readonly [number, number];
 type Random = () => number;
+/** Somas are low domes on the tissue, seen from the board's oblique angle. */
+const SOMA_SQUASH = 0.7;
 
 export function seededRandom(seed: number): Random {
   let state = seed >>> 0 || 0x9e3779b9;
@@ -305,7 +307,10 @@ export function somaPath(
   const points = Array.from({ length: 20 }, (_, i) => {
     const angle = (i / 20) * Math.PI * 2;
     const r = somaRadiusAt(form, angle) + grow;
-    return [x + Math.cos(angle) * r, y + Math.sin(angle) * r * 0.86] as Point;
+    return [
+      x + Math.cos(angle) * r,
+      y + Math.sin(angle) * r * SOMA_SQUASH,
+    ] as Point;
   });
   return smoothClosedPath(points);
 }
@@ -333,7 +338,7 @@ function taper(spine: readonly Point[], width: number): string {
     const nx = -(b[1] - a[1]) / length,
       ny = (b[0] - a[0]) / length;
     const t = i / (spine.length - 1);
-    const w = width * Math.pow(1 - t, 1.35) + 0.35;
+    const w = width * 1.2 * Math.pow(1 - t, 1.35) + 0.4;
     left.push([p[0] + nx * w, p[1] + ny * w]);
     right.push([p[0] - nx * w, p[1] - ny * w]);
   });
@@ -393,7 +398,7 @@ export function dendriteGeometry(
   const rim = somaRadiusAt(form, d.angle) * 0.72;
   const root: Point = [
     x + Math.cos(d.angle) * rim,
-    y + Math.sin(d.angle) * rim * 0.86,
+    y + Math.sin(d.angle) * rim * SOMA_SQUASH,
   ];
   const spine = curve(root, d.angle, d.length, d.bend);
   const outlines = [taper(spine, d.width)];

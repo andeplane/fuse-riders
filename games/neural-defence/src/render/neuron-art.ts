@@ -121,7 +121,7 @@ export function neuronMarkup(visual: NeuronVisual, slot: number): string {
   const { form, x, y } = visual;
   const p = palette(slot);
   const tone = form.tone;
-  const lift = 4;
+  const lift = 2.5;
   const anchored = visual.dendrites
     .filter((d) => d.anchored)
     .map(
@@ -142,7 +142,7 @@ export function neuronMarkup(visual: NeuronVisual, slot: number): string {
   const n = form.nucleus;
   const sx = x - form.radius * 0.36,
     sy = y - lift - form.radius * 0.44;
-  return `<g class="neuron-body neuron-${form.kind}" data-phase="${f(form.phase)}"><ellipse class="neuron-glow" cx="${f(x)}" cy="${f(y + 2)}" rx="${f(form.radius * 2.9)}" ry="${f(form.radius * 1.9)}" fill="url(#nd-neuron-glow-${slot})"/>${anchored}${sides}<g class="soma"><path class="soma-under" d="${somaPath(form, x + 0.8, y + 1.6, 0.9)}" fill="${p.fleshDark}"/><path class="soma-flesh" d="${somaPath(form, x, y - lift)}" fill="url(#nd-soma-${slot}-${tone})" stroke="${p.light}" stroke-opacity="0.4" stroke-width="0.7"/><ellipse class="soma-nucleus" cx="${f(x + n.dx)}" cy="${f(y - lift + n.dy)}" rx="${f(n.radius * 1.35)}" ry="${f(n.radius * 1.15)}" fill="url(#nd-nucleus-${slot})"/><ellipse class="soma-specular" cx="${f(sx)}" cy="${f(sy)}" rx="${f(form.radius * 0.26)}" ry="${f(form.radius * 0.14)}" fill="#ffffff" opacity="0.45" transform="rotate(-24 ${f(sx)} ${f(sy)})"/></g><circle class="neuron-spark" r="1.9" cx="${f(x)}" cy="${f(y)}" fill="#ffffff" opacity="0"/></g>`;
+  return `<g class="neuron-body neuron-${form.kind}" data-phase="${f(form.phase)}"><ellipse class="neuron-glow" cx="${f(x)}" cy="${f(y + 2)}" rx="${f(form.radius * 2.9)}" ry="${f(form.radius * 1.9)}" fill="url(#nd-neuron-glow-${slot})"/>${anchored}${sides}<g class="soma"><path class="soma-under" d="${somaPath(form, x + 0.6, y + 2.2, 1.6)}" fill="${p.fleshDark}"/><path class="soma-flesh" d="${somaPath(form, x, y - lift)}" fill="url(#nd-soma-${slot}-${tone})" stroke="${p.light}" stroke-opacity="0.3" stroke-width="0.6"/><ellipse class="soma-nucleus" cx="${f(x + n.dx)}" cy="${f(y - lift + n.dy)}" rx="${f(n.radius * 1.35)}" ry="${f(n.radius * 1.15)}" fill="url(#nd-nucleus-${slot})"/><ellipse class="soma-specular" cx="${f(sx)}" cy="${f(sy)}" rx="${f(form.radius * 0.26)}" ry="${f(form.radius * 0.14)}" fill="#ffffff" opacity="0.26" transform="rotate(-24 ${f(sx)} ${f(sy)})"/></g><circle class="neuron-spark" r="1.9" cx="${f(x)}" cy="${f(y)}" fill="#ffffff" opacity="0"/></g>`;
 }
 
 /**
