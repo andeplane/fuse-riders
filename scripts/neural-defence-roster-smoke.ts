@@ -44,20 +44,25 @@ async function build(page: Page, kind: string, cell: number) {
   const x = tile.x + tile.width / 2,
     y = tile.y + tile.height / 2;
   await page.mouse.move(x, y);
-  const ghost = await page
-    .locator(".placement-preview image")
-    .getAttribute("href");
+  // Buildings preview their sprite; neurons preview their procedural anatomy.
+  const identity = (scope: string) =>
+    page.evaluate((root) => {
+      const node = document.querySelector(root);
+      const neuron = node?.querySelector(".neuron-body");
+      if (neuron)
+        return [...neuron.classList].find((c) => c !== "neuron-body") ?? null;
+      return node?.querySelector("image")?.getAttribute("href") ?? null;
+    }, scope);
+  const ghost = await identity(".placement-preview");
   assert.ok(ghost);
   await page.mouse.click(x, y);
   await page
     .locator(`[data-action="build-${kind}"] [role="progressbar"]`)
     .waitFor({ timeout: 120_000 });
-  const structure = page.locator(
-    `#nd-board .structure-${kind}[data-cell="${cell}"]`,
-  );
-  await structure.waitFor({ timeout: 25_000 });
+  const selector = `#nd-board .structure-${kind}[data-cell="${cell}"]`;
+  await page.locator(selector).waitFor({ timeout: 25_000 });
   assert.equal(
-    await structure.locator("image").first().getAttribute("href"),
+    await identity(selector),
     ghost,
     "completed art matches the placement ghost",
   );

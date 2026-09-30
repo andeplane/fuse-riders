@@ -518,26 +518,21 @@ for (const [name, engine] of [
         (await page.locator(".network-link:not(.disconnected-link)").count()) >
           0,
       );
-      const neuron = page.locator(".structure-neuron .neuron-body").first();
-      const breath = await neuron.evaluate(
-        (el) => getComputedStyle(el).transform,
-      );
+      const sway = ".structure-neuron:not(.disconnected) .dendrite-side";
+      const breath = await page.locator(sway).first().getAttribute("transform");
       await page.waitForFunction(
-        (before) =>
-          getComputedStyle(
-            document.querySelector(".structure-neuron .neuron-body")!,
-          ).transform !== before,
-        breath,
+        ([selector, before]) =>
+          document.querySelector(selector!)?.getAttribute("transform") !==
+          before,
+        [sway, breath],
       );
       await page.emulateMedia({ reducedMotion: "reduce" });
-      await page.waitForFunction(() => {
-        const current = document.querySelector(
-          ".structure-neuron .neuron-body",
-        );
+      await page.waitForFunction((selector) => {
+        const current = document.querySelector(selector);
         return (
           current?.isConnected && getComputedStyle(current).transform === "none"
         );
-      });
+      }, sway);
       await page.emulateMedia({ reducedMotion: "no-preference" });
       const rotation = await page
         .locator(".supply-orbit")

@@ -1219,8 +1219,17 @@ select {
 }
 @media (prefers-reduced-motion: reduce) {
   .supply-orbit,
-  .neuron-body {
+  .neuron-body,
+  .neuron-body .dendrite-side,
+  .neuron-body .dendrite,
+  .neuron-body .soma,
+  .structure-brain .building-art {
     transform: none !important;
+  }
+  .neuron-spark,
+  .creep-ripple,
+  .nd-light {
+    display: none;
   }
 }
 .structure-core {

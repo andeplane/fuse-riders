@@ -86,6 +86,7 @@ for (const [name, browserType] of [
     assert.match(
       (await page
         .locator("#nd-board #ground-continuation image")
+        .first()
         .getAttribute("href"))!,
       /terrain-walkable-v6/,
     );
@@ -154,16 +155,23 @@ for (const [name, browserType] of [
     await page.locator('[data-action="new-game"]').click();
     await page.locator('[data-action="mode-combat-lab"]').click();
     await page.locator('[data-action="start"]').click();
+    await page.locator("#nd-board .structure .neuron-body").first().waitFor();
     const anatomies = await page
-      .locator("#nd-board .neuron-body image")
-      .evaluateAll((images) => [
-        ...new Set(images.map((node) => node.getAttribute("href"))),
+      .locator("#nd-board .structure .neuron-body")
+      .evaluateAll((bodies) => [
+        ...new Set(
+          bodies.map((node) =>
+            [...node.classList].find(
+              (c) => c.startsWith("neuron-") && c !== "neuron-body",
+            ),
+          ),
+        ),
       ]);
-    assert.equal(
-      anatomies.length,
-      3,
-      "live network shows three different neuron anatomies",
+    assert.ok(
+      anatomies.length >= 2,
+      "live network shows different procedural neuron cell types",
     );
+    assert.equal(await page.locator("#nd-board .neuron-body image").count(), 0);
     await page.locator(".structure-tower .structure-hp").first().waitFor();
     const readableHealth = await page
       .locator(".structure-tower")

@@ -44,15 +44,17 @@ for (const [name, engine] of [
             .locator(".network-link:not(.disconnected-link)")
             .count()) >= 3,
         );
-        const before = await neurons
+        // Dendrites sway by transform attribute; the body itself stays put.
+        const sway = ".structure-neuron:not(.disconnected) .dendrite-side";
+        const before = await page
+          .locator(sway)
           .first()
-          .evaluate((node) => getComputedStyle(node).transform);
+          .getAttribute("transform");
         await page.waitForFunction(
-          (value) =>
-            getComputedStyle(
-              document.querySelector(".structure-neuron .neuron-body")!,
-            ).transform !== value,
-          before,
+          ([selector, value]) =>
+            document.querySelector(selector!)?.getAttribute("transform") !==
+            value,
+          [sway, before],
         );
         // Select a real node and supply it through ordinary Charge commands.
         // The body intentionally animates, so locator.click's stable-bounds
@@ -74,7 +76,8 @@ for (const [name, engine] of [
         });
         await page.emulateMedia({ reducedMotion: "reduce" });
         assert.equal(
-          await neurons
+          await page
+            .locator(sway)
             .first()
             .evaluate((node) => getComputedStyle(node).transform),
           "none",
