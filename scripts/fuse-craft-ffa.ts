@@ -40,13 +40,19 @@ const map: MapDefinition = loadMap(
 if (!Number.isInteger(players) || players < 3 || players > map.spawns.length)
   throw new Error(`players must be 3..${map.spawns.length} on ${mapId}`);
 
-/** Every combination of `k` openings, each rotated through every seat. */
+/**
+ * Every combination of openings, rotated through every seat in both
+ * directions. One direction alone confounds seat with matchup: seats that
+ * are neighbours in the rotation would always meet the same opening pair
+ * the same way round.
+ */
 function cases(): AiStrategy[][] {
   const out: AiStrategy[][] = [];
   const pick = (start: number, chosen: AiStrategy[]) => {
     if (chosen.length === players) {
-      for (let r = 0; r < players; r++)
-        out.push(chosen.map((_, i) => chosen[(i + r) % players]!));
+      for (const order of [chosen, [...chosen].reverse()])
+        for (let r = 0; r < players; r++)
+          out.push(order.map((_, i) => order[(i + r) % players]!));
       return;
     }
     for (let i = start; i < AI_STRATEGIES.length; i++)
@@ -103,7 +109,7 @@ const worker = option("worker", "");
 if (worker) {
   const [index, count] = worker.split("/").map(Number);
   for (let k = index!; k < all.length; k += count!)
-    process.send!(play(all[k]!, `${mapId}-${all[k]!.join("-")}`));
+    process.send!(play(all[k]!, `${mapId}-${k}-${all[k]!.join("-")}`));
   process.exit(0);
 }
 
