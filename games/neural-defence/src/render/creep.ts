@@ -212,32 +212,32 @@ export const TEAM_PALETTES: readonly TeamPalette[] = [
     mid: "#3d9fe6",
     dark: "#0f2f55",
     glow: "#63cfff",
-    flesh: "#1d2a4d",
-    fleshDark: "#0b1128",
+    flesh: "#212b40",
+    fleshDark: "#0e1117",
   },
   {
     light: "#ffd4da",
     mid: "#e24d68",
     dark: "#56131f",
     glow: "#ff8e9d",
-    flesh: "#48192b",
-    fleshDark: "#1d0710",
+    flesh: "#3a2129",
+    fleshDark: "#150c0f",
   },
   {
     light: "#dcffd2",
     mid: "#4dbb65",
     dark: "#133d1e",
     glow: "#9ee394",
-    flesh: "#1d3d27",
-    fleshDark: "#08170d",
+    flesh: "#213427",
+    fleshDark: "#0d130f",
   },
   {
     light: "#fff1c4",
     mid: "#dca436",
     dark: "#50360b",
     glow: "#f7d477",
-    flesh: "#45351a",
-    fleshDark: "#1a1206",
+    flesh: "#383020",
+    fleshDark: "#14110b",
   },
 ];
 export const palette = (slot: number): TeamPalette =>
@@ -269,12 +269,12 @@ export function creepPatternMarkup(slot: number): string {
   const pores = Array.from({ length: 26 }, () => {
     const x = random() * width,
       y = random() * height;
-    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(0.8 + random() * 1.1).toFixed(1)}" fill="${p.glow}" opacity="${(0.25 + random() * 0.45).toFixed(2)}"/>`;
+    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(0.8 + random() * 1.1).toFixed(1)}" fill="${p.glow}" opacity="${(0.12 + random() * 0.23).toFixed(2)}"/>`;
   });
   return (
-    `<radialGradient id="nd-creep-cell-${slot}" fx="0.38" fy="0.32"><stop offset="0" stop-color="${p.mid}" stop-opacity="0.55"/><stop offset="0.55" stop-color="${p.flesh}" stop-opacity="0.5"/><stop offset="1" stop-color="${p.fleshDark}" stop-opacity="0.85"/></radialGradient>` +
+    `<radialGradient id="nd-creep-cell-${slot}" fx="0.38" fy="0.32"><stop offset="0" stop-color="${p.mid}" stop-opacity="0.22"/><stop offset="0.55" stop-color="${p.flesh}" stop-opacity="0.4"/><stop offset="1" stop-color="${p.fleshDark}" stop-opacity="0.7"/></radialGradient>` +
     `<pattern id="nd-creep-${slot}" patternUnits="userSpaceOnUse" width="${width}" height="${height}"><rect width="${width}" height="${height}" fill="${p.flesh}"/>${cells.join("")}${pores.join("")}</pattern>` +
-    `<radialGradient id="nd-creep-sheen-${slot}"><stop offset="0" stop-color="${p.light}" stop-opacity="0.34"/><stop offset="0.5" stop-color="${p.glow}" stop-opacity="0.1"/><stop offset="1" stop-color="${p.glow}" stop-opacity="0"/></radialGradient>`
+    `<radialGradient id="nd-creep-sheen-${slot}"><stop offset="0" stop-color="${p.light}" stop-opacity="0.2"/><stop offset="0.5" stop-color="${p.glow}" stop-opacity="0.06"/><stop offset="1" stop-color="${p.glow}" stop-opacity="0"/></radialGradient>`
   );
 }
 
