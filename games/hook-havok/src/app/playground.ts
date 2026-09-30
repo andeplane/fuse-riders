@@ -1,5 +1,7 @@
+import "fuse-ui/portal.css";
 import "./style.css";
 import "./presentation.css";
+import { createAppPortal } from "fuse-ui/portal";
 import { createRadio } from "fuse-ui/radio";
 import { EffectsAudio, browserToneSink } from "./audio.js";
 import {
@@ -170,6 +172,18 @@ document.addEventListener("pointerdown", () => effects.unlock());
 document.addEventListener("keydown", () => effects.unlock());
 el<HTMLAnchorElement>("home").href =
   import.meta.env.BASE_URL + (muted ? "?mute" : "");
+const homeBar = document.createElement("div");
+homeBar.className = "home-bar";
+el("home").before(homeBar);
+homeBar.append(
+  createAppPortal({
+    document,
+    current: "hook-havok",
+    base: import.meta.env.BASE_URL,
+    search: location.search,
+  }).element,
+  el("home"),
+);
 el<HTMLAnchorElement>("study").href = `?showcase=1${muted ? "&mute" : ""}`;
 const tuning = el<HTMLFormElement>("tuning");
 const experiment = el<HTMLSelectElement>("experiment");

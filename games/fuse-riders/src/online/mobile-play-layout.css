@@ -187,6 +187,7 @@
   align-content: start;
 }
 .mobile-play.mobile-tools-open .online-header > .room-brand,
+.mobile-play.mobile-tools-open .online-header > .fui-portal,
 .mobile-play.mobile-tools-open .online-header > .desktop-help,
 .mobile-play.mobile-tools-open .online-header > button[hidden] {
   display: none;
