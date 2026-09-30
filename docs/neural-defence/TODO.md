@@ -2,7 +2,7 @@
 
 Everything known to need fixing or deciding, in one list. Tick an item when its fix is merged, and add new findings here instead of in a new report file. Link evidence rather than pasting it.
 
-Last reviewed: 2026-09-30, branch `claude/fuse-craft` ([PR #417](https://github.com/andeplane/fuse-riders/pull/417)).
+Last reviewed: 2026-09-30 (rules 12), branch `claude/fuse-craft` ([PR #417](https://github.com/andeplane/fuse-riders/pull/417)).
 
 ## Needs a decision from Anders
 
@@ -19,13 +19,18 @@ Last reviewed: 2026-09-30, branch `claude/fuse-craft` ([PR #417](https://github.
 
 ## Gameplay and balance
 
-- [ ] Pressure against Relay does not finish within the 900-second cap in either seat; both run to 968 seconds. See [durable reconnect](verification/durable-reconnect-2026-09-27/README.md).
+- [x] Territory, dominance victory, creep-like sprouting, unarmed neurons, the Spore splash tower and the Swarm opening (rules 11 and 12). Every opening has a counter in the duel benchmark; see [Strategies](STRATEGIES.md).
+- [x] At least eight maps: eleven, including four-seat Cortex Crossing and six-seat Grand Cortex from the symmetric map generator.
+- [x] End-of-match report, tutorial and How to Play.
 - [ ] No human balance data. All win rates come from deterministic AI against AI.
-- [ ] Status-effect particles and area-damage towers are deferred in [EXPANSION_PLAN.md](EXPANSION_PLAN.md). Decide whether they are in scope.
+- [ ] Relay is the best duellist (62%) but the weakest four-player opening (8% of games, fair 25%): its small volleys spread thin against three rivals. Decide whether free-for-all needs its own tuning. See [Strategies](STRATEGIES.md#free-for-all).
+- [ ] Siege is the weakest duel opening (38%); every opening has a counter, but Siege's only favourable matchup is an edge over Defensive.
+- [ ] Synapse Islands ends mostly by dominance and Twin Pass keeps a few 900-second timeouts; both are map character so far, not bugs.
+- [ ] Status-effect particles are still deferred in [EXPANSION_PLAN.md](EXPANSION_PLAN.md); area damage now exists as the Spore tower.
+- [ ] The tutorial teaches growth, economy, research, towers and supply against no opponent. A second lesson could cover combat and the match report.
 
 ## Powerups
 
-- [ ] With powerups, six Twin Pass mirror matches stall to the 900 s cap instead of ending in a simultaneous draw (8 Twin Pass timeouts of 42). Non-mirror matchups are unaffected. See [Versus and powerups](verification/versus-powerups-2026-09-30/README.md).
 - [ ] The AI claims only about 0.9 powerups per match, since it races for one only when it has no weapon to place. Humans may exploit that; revisit once people play.
 - [ ] The roster smoke's on-screen check for raised bodies failed once under heavy CPU load (a tournament running in parallel) and passed on the next run.
 
@@ -39,7 +44,9 @@ Last reviewed: 2026-09-30, branch `claude/fuse-craft` ([PR #417](https://github.
 ## Platform and multiplayer
 
 - [x] Online multiplayer: Versus rooms with create/join, lobby, room bots, rematch and return to lobby. See [Versus and powerups](verification/versus-powerups-2026-09-30/README.md).
-- [ ] Online Versus has been exercised on the local room service with two browsers on one machine; it has not been played across real networks or phones.
+- [x] Up to four players online: four browsers on the local room service play a Cortex Crossing room end to end, and the in-memory mesh tests four- and six-member rooms. See [four players](verification/four-player-2026-09-30/README.md).
+- [x] Six browsers play a Grand Cortex room end to end on an idle machine.
+- [ ] Online Versus has not been played across real networks or phones.
 - [ ] Versus reports no match results or ratings to `fuse-platform` (admission only, like Fuse Choppers).
 - [ ] A page refresh during a Versus match rejoins as the same member, but there is no in-room chat, spectating UI or kick button yet.
 - [ ] No win verified on a real phone, and touch or trackpad controls have only been exercised in emulation.

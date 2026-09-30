@@ -1,0 +1,57 @@
+{
+  "source": "5924ba290ff213d9198f110a97957b12d4efc940",
+  "map": "cortex-crossing",
+  "players": 4,
+  "seconds": 900,
+  "matches": 280,
+  "outcomes": {
+    "elimination": 135,
+    "dominance": 143,
+    "draw": 1,
+    "timeout": 1
+  },
+  "medianSeconds": 510,
+  "winsByOpening": {
+    "balanced": {
+      "games": 160,
+      "wins": 49,
+      "share": 0.306
+    },
+    "pressure": {
+      "games": 160,
+      "wins": 60,
+      "share": 0.375
+    },
+    "economy": {
+      "games": 160,
+      "wins": 41,
+      "share": 0.256
+    },
+    "siege": {
+      "games": 160,
+      "wins": 40,
+      "share": 0.25
+    },
+    "relay": {
+      "games": 160,
+      "wins": 13,
+      "share": 0.081
+    },
+    "defensive": {
+      "games": 160,
+      "wins": 48,
+      "share": 0.3
+    },
+    "swarm": {
+      "games": 160,
+      "wins": 27,
+      "share": 0.169
+    }
+  },
+  "winsBySeat": [
+    65,
+    65,
+    67,
+    81
+  ]
+}

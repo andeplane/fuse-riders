@@ -1,0 +1,245 @@
+{
+ "close-quarters": {
+  "source": "5924ba290ff213d9198f110a97957b12d4efc940",
+  "harnessVersion": 2,
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "simulationDirty": "",
+  "command": [
+   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
+   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "--maps",
+   "close-quarters",
+   "--seconds",
+   "900",
+   "--powerups",
+   "--out",
+   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/close-quarters"
+  ],
+  "seconds": 900,
+  "strategies": [
+   "balanced",
+   "pressure",
+   "economy",
+   "siege",
+   "relay",
+   "defensive",
+   "swarm"
+  ]
+ },
+ "cortex-crossing": {
+  "source": "5924ba290ff213d9198f110a97957b12d4efc940",
+  "harnessVersion": 2,
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "simulationDirty": "",
+  "command": [
+   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
+   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "--maps",
+   "cortex-crossing",
+   "--seconds",
+   "900",
+   "--powerups",
+   "--out",
+   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/cortex-crossing"
+  ],
+  "seconds": 900,
+  "strategies": [
+   "balanced",
+   "pressure",
+   "economy",
+   "siege",
+   "relay",
+   "defensive",
+   "swarm"
+  ]
+ },
+ "grand-cortex": {
+  "source": "5924ba290ff213d9198f110a97957b12d4efc940",
+  "harnessVersion": 2,
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "simulationDirty": "",
+  "command": [
+   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
+   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "--maps",
+   "grand-cortex",
+   "--seconds",
+   "900",
+   "--powerups",
+   "--out",
+   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/grand-cortex"
+  ],
+  "seconds": 900,
+  "strategies": [
+   "balanced",
+   "pressure",
+   "economy",
+   "siege",
+   "relay",
+   "defensive",
+   "swarm"
+  ]
+ },
+ "lean-resources": {
+  "source": "5924ba290ff213d9198f110a97957b12d4efc940",
+  "harnessVersion": 2,
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "simulationDirty": "",
+  "command": [
+   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
+   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "--maps",
+   "lean-resources",
+   "--seconds",
+   "900",
+   "--powerups",
+   "--out",
+   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/lean-resources"
+  ],
+  "seconds": 900,
+  "strategies": [
+   "balanced",
+   "pressure",
+   "economy",
+   "siege",
+   "relay",
+   "defensive",
+   "swarm"
+  ]
+ },
+ "narrow-front": {
+  "source": "5924ba290ff213d9198f110a97957b12d4efc940",
+  "harnessVersion": 2,
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "simulationDirty": "",
+  "command": [
+   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
+   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "--maps",
+   "narrow-front",
+   "--seconds",
+   "900",
+   "--powerups",
+   "--out",
+   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/narrow-front"
+  ],
+  "seconds": 900,
+  "strategies": [
+   "balanced",
+   "pressure",
+   "economy",
+   "siege",
+   "relay",
+   "defensive",
+   "swarm"
+  ]
+ },
+ "open-front": {
+  "source": "5924ba290ff213d9198f110a97957b12d4efc940",
+  "harnessVersion": 2,
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "simulationDirty": "",
+  "command": [
+   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
+   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "--maps",
+   "open-front",
+   "--seconds",
+   "900",
+   "--powerups",
+   "--out",
+   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/open-front"
+  ],
+  "seconds": 900,
+  "strategies": [
+   "balanced",
+   "pressure",
+   "economy",
+   "siege",
+   "relay",
+   "defensive",
+   "swarm"
+  ]
+ },
+ "skirmish-24": {
+  "source": "5924ba290ff213d9198f110a97957b12d4efc940",
+  "harnessVersion": 2,
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "simulationDirty": "",
+  "command": [
+   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
+   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "--maps",
+   "skirmish-24",
+   "--seconds",
+   "900",
+   "--powerups",
+   "--out",
+   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/skirmish-24"
+  ],
+  "seconds": 900,
+  "strategies": [
+   "balanced",
+   "pressure",
+   "economy",
+   "siege",
+   "relay",
+   "defensive",
+   "swarm"
+  ]
+ },
+ "synapse-islands": {
+  "source": "5924ba290ff213d9198f110a97957b12d4efc940",
+  "harnessVersion": 2,
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "simulationDirty": "",
+  "command": [
+   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
+   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "--maps",
+   "synapse-islands",
+   "--seconds",
+   "900",
+   "--powerups",
+   "--out",
+   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/synapse-islands"
+  ],
+  "seconds": 900,
+  "strategies": [
+   "balanced",
+   "pressure",
+   "economy",
+   "siege",
+   "relay",
+   "defensive",
+   "swarm"
+  ]
+ },
+ "twin-hemispheres": {
+  "source": "5924ba290ff213d9198f110a97957b12d4efc940",
+  "harnessVersion": 2,
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "simulationDirty": "",
+  "command": [
+   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
+   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "--maps",
+   "twin-hemispheres",
+   "--seconds",
+   "900",
+   "--powerups",
+   "--out",
+   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/twin-hemispheres"
+  ],
+  "seconds": 900,
+  "strategies": [
+   "balanced",
+   "pressure",
+   "economy",
+   "siege",
+   "relay",
+   "defensive",
+   "swarm"
+  ]
+ }
+}
