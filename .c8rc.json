@@ -23,7 +23,6 @@
     "games/hook-havok/src/render/assets.ts",
     "games/hook-havok/src/render/echoes.ts",
     "games/hook-havok/src/render/frame.ts",
-    "games/hook-havok/src/render/identity.ts",
     "games/hook-havok/src/render/juice.ts",
     "games/hook-havok/src/render/light.ts",
     "games/hook-havok/src/render/power-ups.ts",
