@@ -2,6 +2,8 @@ import {
   CONSTRUCTIONS,
   constructionQueueAvailability,
   constructionDispatchAvailability,
+  isSprout,
+  sproutSlots,
 } from "./catalog.js";
 import type { Player, World } from "./types.js";
 
@@ -13,8 +15,9 @@ export function autoExpandCell(
   if (
     !player.autoExpand ||
     !player.alive ||
-    player.queue.length ||
-    player.worker.mode !== "idle" ||
+    player.queue.some((j) => !j.paid) ||
+    player.queue.filter((j) => j.paid && isSprout(j)).length >=
+      sproutSlots(player) ||
     player.biomass < CONSTRUCTIONS.neuron.cost
   )
     return null;

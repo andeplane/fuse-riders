@@ -473,7 +473,7 @@ test("AI concentrates ammunition on guns that can hit paid construction", () => 
     duration: 120,
     hp: 60,
   });
-  world.players[1]!.worker.mode = "building";
+  // A paid neuron sprouts by itself; the builder stays home.
   assert.ok(decodeState(encodeState(world)));
   const commands = aiCommands(world, "a");
   assert.ok(

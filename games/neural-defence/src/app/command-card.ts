@@ -149,6 +149,8 @@ export function requirementText(requirement: Requirement): string {
       return `Needs ${requirement.required} connected friendly neighbor${requirement.required === 1 ? "" : "s"} (${requirement.connected} connected).`;
     case "idle-builder":
       return "Waiting for your builder to become available.";
+    case "sprout-slot":
+      return `Your network is already growing ${requirement.limit} sprout${requirement.limit === 1 ? "" : "s"}; more territory grows more at once.`;
     case "idle-research":
       return "Finish or cancel the current research first.";
     case "not-researched":

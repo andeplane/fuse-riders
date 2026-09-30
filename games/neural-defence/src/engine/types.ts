@@ -158,7 +158,7 @@ export interface Outcome {
 }
 export interface World {
   formatVersion: 1;
-  rulesVersion: 11;
+  rulesVersion: 12;
   matchId: string;
   tick: number;
   map: MapDefinition;
@@ -180,7 +180,7 @@ export interface World {
   events: MatchEvent[];
 }
 export const RULES = Object.freeze({
-  version: 11,
+  version: 12,
   /** Most brains in one match. Maps, seats, colours and bounds all follow it. */
   maxPlayers: 8,
   ticksPerSecond: 20,

@@ -74,11 +74,11 @@ test("territory pays a trickle of biomass once a second", () => {
   assert.ok(p.statistics.biomassEarned - before >= 7 * TERRITORY.incomePerCell);
 });
 
-test("the dominance share shrinks with more players and never passes 60%", () => {
-  assert.equal(dominanceShare(1), 0.6);
-  assert.equal(dominanceShare(2), 0.6);
-  assert.ok(Math.abs(dominanceShare(4) - 0.425) < 1e-9);
-  assert.ok(Math.abs(dominanceShare(8) - 0.3375) < 1e-9);
+test("the dominance share shrinks with more players", () => {
+  assert.equal(dominanceShare(1), 0.4);
+  assert.equal(dominanceShare(2), 0.4);
+  assert.ok(Math.abs(dominanceShare(4) - 0.3) < 1e-9);
+  assert.ok(Math.abs(dominanceShare(8) - 0.25) < 1e-9);
   for (let n = 2; n < RULES.maxPlayers; n++)
     assert.ok(dominanceShare(n + 1) <= dominanceShare(n));
   const w = duel();

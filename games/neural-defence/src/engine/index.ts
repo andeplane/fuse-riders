@@ -27,6 +27,9 @@ import {
   constructionDispatchAvailability,
   constructionDuration,
   constructionDurations,
+  isSprout,
+  sproutSlots,
+  SPROUT,
   researchAvailability,
   isBuildKind,
   isResearchKind,
@@ -36,6 +39,7 @@ import {
   isAiStrategy,
   type Action,
   type Command,
+  type Construction,
   type MatchSettings,
   type Player,
   type RosterEntry,
@@ -48,6 +52,7 @@ export { loadMap, neighbors } from "./map.ts";
 export * from "./powerups.js";
 export * from "./territory.js";
 export * from "./timeline.js";
+export { SPROUT, isSprout, sproutSlots } from "./catalog.js";
 const clone = <T>(v: T): T => structuredClone(v);
 const record = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
@@ -409,7 +414,9 @@ function prepareWorker(w: World, p: Player): boolean {
     worker.to = b.cell;
     worker.from = b.cell;
     worker.arrivesAt = w.tick;
-    worker.mode = p.queue.some((j) => j.paid) ? "outbound" : "idle";
+    worker.mode = p.queue.some((j) => j.paid && !isSprout(j))
+      ? "outbound"
+      : "idle";
   }
   // Check both endpoints before waiting or arriving: an alternate route to the
   // destination does not repair the edge on which this builder was travelling.
@@ -444,24 +451,50 @@ function dispatchConstruction(w: World, ready: Player[]) {
   const first = (w.tick - 1) % order.length;
   const rank = (p: Player) =>
     (order.indexOf(p) - first + order.length) % order.length;
-  const claims = ready
+  // The builder takes one tower or upgrade at a time; neurons sprout from the
+  // network into every free sprout slot.
+  const claims = w.players
+    .filter((p) => p.alive)
     .flatMap((p) => {
-      if (p.worker.mode !== "idle" || p.queue.some((j) => j.paid)) return [];
-      const job = p.queue.find(
-        (j) => !j.paid && constructionDispatchAvailability(w, p, j).allowed,
-      );
-      return job ? [{ p, job }] : [];
+      const out: { p: Player; job: Construction }[] = [];
+      if (
+        ready.includes(p) &&
+        p.worker.mode === "idle" &&
+        !p.queue.some((j) => j.paid && !isSprout(j))
+      ) {
+        const job = p.queue.find(
+          (j) =>
+            !j.paid &&
+            !isSprout(j) &&
+            constructionDispatchAvailability(w, p, j).allowed,
+        );
+        if (job) out.push({ p, job });
+      }
+      let free =
+        sproutSlots(p) - p.queue.filter((j) => j.paid && isSprout(j)).length;
+      for (const job of p.queue) {
+        if (free <= 0) break;
+        if (
+          !job.paid &&
+          isSprout(job) &&
+          constructionDispatchAvailability(w, p, job).allowed
+        ) {
+          out.push({ p, job });
+          free--;
+        }
+      }
+      return out;
     })
     .sort((a, b) => rank(a.p) - rank(b.p));
   const claimed = new Set<number>();
   for (const { p, job } of claims) {
-    if (claimed.has(job.cell)) continue;
-    claimed.add(job.cell);
     const cost = CONSTRUCTIONS[job.kind].cost;
+    if (claimed.has(job.cell) || p.biomass < cost) continue;
+    claimed.add(job.cell);
     p.biomass -= cost;
     job.paid = true;
     job.duration = constructionDuration(w, p, job.kind);
-    p.worker.mode = "outbound";
+    if (!isSprout(job)) p.worker.mode = "outbound";
     emit(w, p, "dispatched", {
       cell: job.cell,
       amount: cost,
@@ -472,7 +505,7 @@ function dispatchConstruction(w: World, ready: Player[]) {
 function worker(w: World, p: Player) {
   const b = brain(w, p)!;
   const worker = p.worker;
-  const job = p.queue.find((j) => j.paid);
+  const job = p.queue.find((j) => j.paid && !isSprout(j));
   const move = (target: number) => {
     const route = path(w, p, worker.cell, target);
     if (!route) {
@@ -535,6 +568,30 @@ function worker(w: World, p: Player) {
     p.statistics.built++;
     emit(w, p, "constructed", { cell: job.cell });
     worker.mode = "returning";
+  }
+}
+/** Paid neurons grow while they touch this player's connected network. */
+function sprouts(w: World, p: Player) {
+  for (const job of p.queue.filter((j) => j.paid && isSprout(j))) {
+    const anchored = neighbors(w.map, job.cell).some((cell) =>
+      w.structures.some(
+        (s) => s.cell === cell && s.ownerId === p.id && s.connected,
+      ),
+    );
+    if (!anchored) continue;
+    job.progress += hasBuff(p, "surge", w.tick) ? 2 : 1;
+    if (job.progress < job.duration) continue;
+    w.structures.push({
+      id: w.nextEntityId++,
+      cell: job.cell,
+      ownerId: p.id,
+      kind: job.kind,
+      hp: job.hp,
+      connected: true,
+    });
+    p.queue.splice(p.queue.indexOf(job), 1);
+    p.statistics.built++;
+    emit(w, p, "constructed", { cell: job.cell });
   }
 }
 function recoverParticle(w: World, particle: World["particles"][number]) {
@@ -921,7 +978,8 @@ export function step(state: World, commands: readonly Command[] = []): World {
         delete p.priorities[cell];
   const ready = w.players.filter((p) => p.alive && prepareWorker(w, p));
   const automatic: { player: Player; cell: number }[] = [];
-  for (const p of ready) {
+  for (const p of w.players) {
+    if (!p.alive) continue;
     const cell = autoExpandCell(w, p);
     if (cell !== null) {
       p.queue.push({
@@ -941,6 +999,7 @@ export function step(state: World, commands: readonly Command[] = []): World {
   for (const { player, cell } of automatic)
     player.queue = player.queue.filter((job) => job.cell !== cell || job.paid);
   for (const p of ready) worker(w, p);
+  for (const p of w.players) if (p.alive) sprouts(w, p);
   connectivity(w);
   powerupPhase(w);
   if (!w.finished) {
@@ -1196,7 +1255,7 @@ export function decodeState(raw: unknown): World {
       if (!integer(p.worker[key]))
         throw new Error("checkpoint: invalid worker timing");
     const worker = p.worker;
-    const paid = p.queue.some((j) => j.paid);
+    const paid = p.queue.some((j) => j.paid && !isSprout(j));
     if (
       p.alive &&
       (worker.departedAt > w.tick ||
@@ -1225,7 +1284,8 @@ export function decodeState(raw: unknown): World {
         throw new Error("checkpoint: invalid worker transit");
     }
     if (
-      p.queue.filter((j) => j.paid).length > 1 ||
+      p.queue.filter((j) => j.paid && !isSprout(j)).length > 1 ||
+      p.queue.filter((j) => j.paid && isSprout(j)).length > SPROUT.maxSlots ||
       new Set(p.queue.map((j) => j.cell)).size !== p.queue.length ||
       w.structures.filter((s) => s.ownerId === p.id && s.kind === "brain")
         .length !== (p.alive ? 1 : 0) ||

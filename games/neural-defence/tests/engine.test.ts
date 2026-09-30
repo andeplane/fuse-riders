@@ -14,6 +14,8 @@ import {
   type Command,
   RULES,
   TERRITORY,
+  SPROUT,
+  sproutSlots,
 } from "../src/engine/index.ts";
 function map(): MapDefinition {
   return {
@@ -216,29 +218,61 @@ test("four independent economies, pure steps and exact checkpoint replay", () =>
     hashState(run(decodeState(encodeState(after)), 20)),
   );
 });
-test("queued ghosts wait for connectivity, builder delivers, debug does not teleport", () => {
+test("queued ghosts wait for connectivity, neurons sprout, the builder delivers upgrades without teleporting", () => {
   let w = start(true);
   w = step(w, [
     command(0, { type: "queueConstruction", cell: 12, kind: "neuron" }),
     command(1, { type: "queueConstruction", cell: 10, kind: "neuron" }),
   ]);
+  // A neuron beside the network sprouts by itself; the builder stays home.
   assert.ok(w.structures.some((s) => s.cell === 10));
+  assert.equal(w.players[0]!.worker.mode, "idle");
   assert.equal(w.players[0]!.queue.find((j) => j.cell === 12)!.paid, false);
-  w = run(w, 2);
   w = step(w, [
     command(2, { type: "queueConstruction", cell: 11, kind: "neuron" }),
+  ]);
+  assert.ok(w.structures.some((s) => s.cell === 11));
+  w = run(w, 2);
+  assert.ok(
+    w.structures.some((s) => s.cell === 12),
+    "the ghost connected",
+  );
+  // Towers are upgrades: the builder walks out, even with instant construction.
+  w.players[0]!.biomass = 200_000;
+  w = step(w, [
+    command(3, { type: "queueConstruction", cell: 11, kind: "tower" }),
   ]);
   const moving = w.players[0]!.worker;
   assert.equal(moving.mode, "outbound");
   assert.ok(moving.arrivesAt > w.tick);
-  assert.equal(
-    w.structures.some((s) => s.cell === 11),
-    false,
-  );
+  assert.equal(w.structures.find((s) => s.cell === 11)!.kind, "neuron");
   w = run(w, 20);
-  assert.ok(w.structures.some((s) => s.cell === 11));
-  assert.ok(w.structures.some((s) => s.cell === 12));
+  assert.equal(w.structures.find((s) => s.cell === 11)!.kind, "tower");
 });
+
+test("sprout slots grow with territory and cap concurrent neurons", () => {
+  const w = start();
+  const p = w.players[0]!;
+  assert.equal(sproutSlots(p), 1);
+  p.territory = SPROUT.cellsPerSlot * 2;
+  assert.equal(sproutSlots(p), 3);
+  p.territory = 10_000;
+  assert.equal(sproutSlots(p), SPROUT.maxSlots);
+  // With one slot, a second neuron waits unpaid until the first finishes.
+  let x = start();
+  x.players[0]!.biomass = 200_000;
+  x = step(x, [
+    command(0, { type: "queueConstruction", cell: 10, kind: "neuron" }),
+    command(1, { type: "queueConstruction", cell: 8, kind: "neuron" }),
+  ]);
+  assert.deepEqual(
+    x.players[0]!.queue.map((j) => j.paid),
+    [true, false],
+  );
+  assert.equal(x.players[0]!.worker.mode, "idle");
+  assert.doesNotThrow(() => decodeState(encodeState(x)));
+});
+
 test("ordinary construction takes time; no duplicated spending and foreign priority rejected", () => {
   let w = start();
   w = step(w, [
@@ -535,9 +569,10 @@ test("builders recover when either edge endpoint is cut, even on the arrival tic
   for (const cut of [10, 11])
     for (const arrivalTick of [false, true]) {
       let w = start(true);
-      for (const cell of [10, 11, 18, 19, 20]) addNeuron(w, cell);
+      // The builder raises upgrades; neurons sprout without it.
+      for (const cell of [10, 11, 12, 18, 19, 20]) addNeuron(w, cell);
       w = step(w, [
-        command(0, { type: "queueConstruction", cell: 12, kind: "neuron" }),
+        command(0, { type: "queueConstruction", cell: 12, kind: "tower" }),
       ]);
       w = run(w, 4);
       assert.equal(w.players[0]!.worker.from, 10);
@@ -547,14 +582,11 @@ test("builders recover when either edge endpoint is cut, even on the arrival tic
       w = step(w);
       assert.equal(w.players[0]!.worker.mode, "recovering");
       assert.equal(w.players[0]!.queue[0]!.progress, 0);
-      assert.equal(
-        w.structures.some((s) => s.cell === 12),
-        false,
-      );
+      assert.equal(w.structures.find((s) => s.cell === 12)!.kind, "neuron");
       assert.doesNotThrow(() => decodeState(encodeState(w)));
       const recoveryEnd = w.players[0]!.worker.recoverAt;
       w = run(w, recoveryEnd - w.tick + 20);
-      assert.ok(w.structures.some((s) => s.cell === 12));
+      assert.equal(w.structures.find((s) => s.cell === 12)!.kind, "tower");
       assert.equal(w.players[0]!.statistics.built, 1);
     }
 });

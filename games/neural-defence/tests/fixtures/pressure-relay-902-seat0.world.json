@@ -4483,13 +4483,13 @@
         "cell": 418,
         "departedAt": 17974,
         "from": 418,
-        "mode": "building",
+        "mode": "returning",
         "recoverAt": 9761,
         "to": 418
       }
     }
   ],
-  "rulesVersion": 11,
+  "rulesVersion": 12,
   "settings": {},
   "structures": [
     {

@@ -279,7 +279,9 @@ export function aiCommands(
   if (research && researchAvailability(player, research).allowed)
     actions.push({ type: "startResearch", research });
 
-  if (!player.queue.length && player.worker.mode === "idle") {
+  // One decision a second: while nothing waits unpaid, queue the next
+  // structure for whichever of the builder or a sprout slot is free.
+  if (!player.queue.some((j) => !j.paid)) {
     const sites = [
       ...new Set(own.flatMap((s) => neighbors(world.map, s.cell))),
     ];

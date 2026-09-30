@@ -20,11 +20,13 @@ export function claimableCells(map: Readonly<MapDefinition>): number {
 }
 
 /**
- * The share of claimable cells needed for dominance: 60% of the map against
- * one rival, less with more players, so a free-for-all can still end.
+ * The share of claimable cells needed for dominance: 40% of the map against
+ * one rival, less with more players (30% of a four-way map), so a
+ * free-for-all can still end. Contested cells count for nobody, so holding
+ * it means pushing the rival's network back, not just outgrowing it.
  */
 export function dominanceShare(players: number): number {
-  return Math.min(0.6, 0.25 + 0.7 / Math.max(2, players));
+  return 0.2 + 0.4 / Math.max(2, players);
 }
 export function dominanceCells(world: Readonly<World>): number {
   return Math.ceil(

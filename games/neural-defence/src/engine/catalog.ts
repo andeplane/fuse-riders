@@ -307,6 +307,7 @@ export type Requirement =
     }
   | { kind: "neighbors"; required: number; connected: number }
   | { kind: "idle-builder" }
+  | { kind: "sprout-slot"; limit: number }
   | { kind: "idle-research" }
   | { kind: "not-researched"; research: Research };
 export interface Availability {
@@ -328,6 +329,27 @@ export function researchPrerequisites(
     .filter((id) => !player.research.includes(id))
     .map((research) => ({ kind: "research", research }));
 }
+/**
+ * Neurons sprout from the network by themselves, like creep: a paid neuron
+ * grows while it touches a connected structure, without the builder. A
+ * network grows more sprouts at once as its territory grows, so expansion
+ * snowballs with map control. The builder only raises towers and upgrades.
+ */
+export const SPROUT = Object.freeze({
+  /** Territory cells per additional concurrent sprout. */
+  cellsPerSlot: 30,
+  maxSlots: 6,
+});
+export const isSprout = (
+  job: Readonly<Pick<Construction, "kind" | "upgradeFrom">>,
+): boolean => job.kind === "neuron" && job.upgradeFrom === undefined;
+export function sproutSlots(player: Readonly<Player>): number {
+  return Math.min(
+    SPROUT.maxSlots,
+    1 + Math.floor(player.territory / SPROUT.cellsPerSlot),
+  );
+}
+
 export function constructionUpgradeSource(
   world: Readonly<World>,
   player: Readonly<Player>,
@@ -397,7 +419,14 @@ export function constructionDispatchAvailability(
     ...researchPrerequisites(player, definition.requires),
     ...constructionSiteRequirements(world, job.kind, job.cell),
   ];
-  if (player.worker.mode !== "idle" || player.queue.some((j) => j.paid))
+  if (isSprout(job)) {
+    const limit = sproutSlots(player);
+    if (player.queue.filter((j) => j.paid && isSprout(j)).length >= limit)
+      missing.push({ kind: "sprout-slot", limit });
+  } else if (
+    player.worker.mode !== "idle" ||
+    player.queue.some((j) => j.paid && !isSprout(j))
+  )
     missing.push({ kind: "idle-builder" });
   const source = constructionUpgradeSource(world, player, job.kind, job.cell);
   if (
