@@ -13,6 +13,15 @@ import grandUrl from "../../maps/grand-cortex.json?url";
 
 const catalog: MapSummary[] = [
   {
+    id: "cortex-crossing",
+    title: "Cortex Crossing",
+    description:
+      "Four brains around a walled central lobe. For two to four players; the centre pays the most.",
+    width: 29,
+    height: 23,
+    url: crossingUrl,
+  },
+  {
     id: "close-quarters",
     title: "Close Quarters",
     description:
@@ -47,15 +56,6 @@ const catalog: MapSummary[] = [
     width: 26,
     height: 22,
     url: islandsUrl,
-  },
-  {
-    id: "cortex-crossing",
-    title: "Cortex Crossing",
-    description:
-      "Four brains around a walled central lobe. For two to four players; the centre pays the most.",
-    width: 29,
-    height: 23,
-    url: crossingUrl,
   },
   {
     id: "grand-cortex",

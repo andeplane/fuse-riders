@@ -33,7 +33,7 @@ import {
 } from "../render/board.js";
 import type { BoardCamera, CameraFactory } from "../render/camera.js";
 import type { LightRenderer } from "../render/light-field.js";
-import { ROOM_MAPS, bundledMap } from "../online/maps.js";
+import { DEFAULT_MAP, ROOM_MAPS, bundledMap } from "../online/maps.js";
 import { TEAM_PALETTES } from "../render/creep.js";
 
 const TEAM_COLORS = TEAM_PALETTES.map((p) => p.glow);
@@ -1234,12 +1234,12 @@ export function mountNeuralDefence(
         screen = "setup";
         mode = "skirmish";
         aiStrategy = "economy";
-        selectedId = "close-quarters";
+        selectedId = DEFAULT_MAP;
         void loadCatalog();
       } else if (action === "new-game") {
         screen = "setup";
         mode = "skirmish";
-        selectedId = "close-quarters";
+        selectedId = DEFAULT_MAP;
         void loadCatalog();
       } else if (action === "multiplayer") {
         roomError = null;
@@ -1296,7 +1296,7 @@ export function mountNeuralDefence(
                 : "combat-lab";
         const id =
           mode === "skirmish" || mode === "watch"
-            ? "close-quarters"
+            ? DEFAULT_MAP
             : mode === "sandbox"
               ? "sandbox-12"
               : "combat-lab-12";

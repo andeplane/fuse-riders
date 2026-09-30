@@ -1,3 +1,4 @@
+import { DEFAULT_MAP } from "./maps.js";
 import {
   RoomRuntime,
   type RoomTransport,
@@ -118,7 +119,7 @@ export function createSession(
 }
 
 export const DEFAULT_ROOM_RULES: RoomRules = {
-  mapId: "close-quarters",
+  mapId: DEFAULT_MAP,
   aiStrategy: "random",
   powerups: true,
 };

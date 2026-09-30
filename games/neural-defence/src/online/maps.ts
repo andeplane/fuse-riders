@@ -33,6 +33,12 @@ const BUNDLED: Readonly<Record<string, unknown>> = Object.freeze(
   ),
 );
 
+/**
+ * The map new matches and rooms start on: the most balanced across openings
+ * in the benchmark, with room to grow and seats for up to four.
+ */
+export const DEFAULT_MAP = "cortex-crossing";
+
 export const BUNDLED_MAP_IDS: readonly string[] = Object.keys(BUNDLED).sort();
 
 /** The raw bundled map for an id; callers validate it with `loadMap`. */
