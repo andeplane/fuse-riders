@@ -492,10 +492,9 @@ function room(solo: boolean): void {
     select.onchange = () => {
       const picked = options.find(([value]) => String(value) === select.value);
       if (!picked) return;
-      runtime.command({
-        type: "settings",
-        settings: { ...settings, [key]: picked[0] },
-      });
+      // Kept at once, so a second change before the next frame builds on this one rather than undoing it.
+      settings = { ...settings, [key]: picked[0] };
+      runtime.command({ type: "settings", settings });
     };
     row.append(el("span", label), select);
     rules.append(row);

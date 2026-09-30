@@ -433,7 +433,19 @@ body.fui-app button {
   border: 0.2rem solid var(--ff-brass-dark);
   box-shadow: 0 0 0 0.12rem #17111f;
 }
-.ff-lobby .fui-invite,
+/* The invitation is a cream freight ticket with dark ink, as fuse-ui draws it light. */
+.ff-lobby .fui-invite {
+  background: linear-gradient(180deg, #f6efdc, #e6dac0);
+  color: #1d1408;
+  border: 0.25rem solid var(--ff-brass);
+  border-radius: 0.7rem;
+  box-shadow:
+    0 0 0 0.15rem #3a2408,
+    0 0.4rem 1.2rem rgba(0, 0, 0, 0.5);
+}
+.ff-lobby .fui-invite .fui-room-code {
+  color: #1d1408;
+}
 .ff-roster,
 .ff-depot-rules {
   padding: 1rem;
@@ -453,7 +465,7 @@ body.fui-app button {
   color: var(--ff-brass-light);
 }
 .ff-roster .fui-roster-row {
-  border-left: 0.35rem solid var(--fui-roster-color, var(--ff-brass));
+  border-left-width: 0.35rem;
 }
 .fui-app .ff-add-bot {
   margin-top: 0.6rem;
@@ -936,9 +948,40 @@ body.fui-app button {
   }
   .fui-app .ff-pad {
     pointer-events: auto;
-    opacity: 0.82;
-    width: 7.5rem;
+    opacity: 0.6;
+    width: 7rem;
     min-height: 4.5rem;
+    background: rgba(21, 18, 36, 0.55);
+  }
+  /* A small screen: bigger numbers, no names, and the pads already say which way is which. */
+  .ff-card-name {
+    display: none;
+  }
+  .ff-card .ff-icon {
+    width: 3.6cqw;
+  }
+  .ff-card-tag {
+    font-size: 1.3cqw;
+  }
+  .ff-card-score {
+    font-size: 2.2cqw;
+  }
+  .ff-card-carry {
+    font-size: 1.2cqw;
+  }
+  .ff-clock b {
+    font-size: 2.6cqw;
+  }
+  .ff-callout {
+    font-size: 1.3cqw;
+  }
+  .ff-banner span {
+    font-size: 1.8cqw;
+  }
+}
+@media (pointer: coarse) {
+  .ff-hint {
+    display: none;
   }
 }
 
@@ -988,7 +1031,8 @@ body.fui-app button {
   width: 100%;
   min-height: 12rem;
   height: 100%;
-  font-size: clamp(1.2rem, 6vw, 2.4rem);
+  white-space: nowrap;
+  font-size: clamp(1rem, 5vw, 2.2rem);
   border-color: color-mix(in srgb, var(--c) 60%, #3a3044);
 }
 .fui-app .ff-pad-big.held {
