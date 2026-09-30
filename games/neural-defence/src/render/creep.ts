@@ -220,7 +220,7 @@ export const TEAM_PALETTES: readonly TeamPalette[] = [
     mid: "#e24d68",
     dark: "#56131f",
     glow: "#ff8e9d",
-    flesh: "#3a2129",
+    flesh: "#322027",
     fleshDark: "#150c0f",
   },
   {
@@ -272,7 +272,7 @@ export function creepPatternMarkup(slot: number): string {
     return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(0.8 + random() * 1.1).toFixed(1)}" fill="${p.glow}" opacity="${(0.12 + random() * 0.23).toFixed(2)}"/>`;
   });
   return (
-    `<radialGradient id="nd-creep-cell-${slot}" fx="0.38" fy="0.32"><stop offset="0" stop-color="${p.mid}" stop-opacity="0.22"/><stop offset="0.55" stop-color="${p.flesh}" stop-opacity="0.4"/><stop offset="1" stop-color="${p.fleshDark}" stop-opacity="0.7"/></radialGradient>` +
+    `<radialGradient id="nd-creep-cell-${slot}" fx="0.38" fy="0.32"><stop offset="0" stop-color="${p.mid}" stop-opacity="${slot === 1 ? 0.14 : 0.22}"/><stop offset="0.55" stop-color="${p.flesh}" stop-opacity="0.4"/><stop offset="1" stop-color="${p.fleshDark}" stop-opacity="0.7"/></radialGradient>` +
     `<pattern id="nd-creep-${slot}" patternUnits="userSpaceOnUse" width="${width}" height="${height}"><rect width="${width}" height="${height}" fill="${p.flesh}"/>${cells.join("")}${pores.join("")}</pattern>` +
     `<radialGradient id="nd-creep-sheen-${slot}"><stop offset="0" stop-color="${p.light}" stop-opacity="0.2"/><stop offset="0.5" stop-color="${p.glow}" stop-opacity="0.06"/><stop offset="1" stop-color="${p.glow}" stop-opacity="0"/></radialGradient>`
   );

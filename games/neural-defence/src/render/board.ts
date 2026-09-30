@@ -32,7 +32,7 @@ import {
   neuronVisual,
   type NeuronVisual,
 } from "./neuron-art.js";
-import type { Neighbour } from "./neuron-form.js";
+import { seededRandom, type Neighbour } from "./neuron-form.js";
 import {
   CREEP_RADIUS,
   creepPatternMarkup,
@@ -41,6 +41,16 @@ import {
 } from "./creep.js";
 import { CreepLayer, type CreepSource } from "./creep-layer.js";
 import { organicBurst } from "./organic-burst.js";
+import {
+  CYTOPLASM,
+  EMBERS,
+  LightField,
+  rgb,
+  SPARKS,
+  SPROUT,
+  type LightRenderer,
+  type Rgb,
+} from "./light-field.js";
 export { hexCenter, hexPoints } from "./projection.js";
 const ns = "http://www.w3.org/2000/svg";
 const colors = ["#63cfff", "#ff8e9d", "#9ee394", "#f7d477"];
@@ -88,6 +98,35 @@ interface BoardCache {
   born: Map<string, number>;
   creep: CreepLayer;
   fresh: boolean;
+  light: LightField;
+  spores: readonly Spore[];
+}
+interface Spore {
+  x: number;
+  y: number;
+  size: number;
+  speed: number;
+  rise: number;
+  phase: number;
+  color: Rgb;
+}
+/** Drifting motes of light over the whole arena; fixed per match. */
+function sporesFor(size: { width: number; height: number }, seed: string) {
+  let hash = 2166136261;
+  for (const c of seed) hash = Math.imul(hash ^ c.charCodeAt(0), 16777619);
+  const random = seededRandom(hash >>> 0);
+  return Array.from(
+    { length: Math.round((size.width * size.height) / 9000) },
+    () => ({
+      x: random() * size.width,
+      y: random() * size.height,
+      size: 1.4 + random() * 2.2,
+      speed: 0.15 + random() * 0.35,
+      rise: 2 + random() * 5,
+      phase: random() * Math.PI * 2,
+      color: (random() < 0.6 ? [0.7, 0.95, 1] : [0.8, 1, 0.7]) as Rgb,
+    }),
+  );
 }
 const LINK_GROW_MS = 900;
 const caches = new WeakMap<SVGSVGElement, BoardCache>();
@@ -393,6 +432,7 @@ export function renderBoard(
   now: number,
   sprites: Sprites = {},
   buildingSprites?: BuildingSprites,
+  light?: LightRenderer,
 ): BoardAnimation {
   const width = world.map.width,
     height = world.map.height;
@@ -484,6 +524,8 @@ export function renderBoard(
       born: new Map(),
       creep: new CreepLayer(territory, size),
       fresh: true,
+      light: new LightField(),
+      spores: sporesFor(size, `${world.matchId}`),
     };
     caches.set(svg, cached);
   }
@@ -701,6 +743,52 @@ export function renderBoard(
       effect.body?.setAttribute("data-depth", String(outcome.cell));
       cache.groundEffects.append(effect.ground);
       cache.pulses.push({ ...effect, born: now });
+      if (light) {
+        const slot =
+          world.players.find((p) => p.id === outcome.playerId)?.slot ?? 0;
+        const team = rgb(TEAM_PALETTES[slot]!.glow);
+        const arrival =
+          outcome.type === "damage"
+            ? weaponFlightMs[
+                weaponStyle(world, cache, outcome.playerId, outcome.fromCell)
+              ]
+            : Math.max(
+                0,
+                ...hits.map(
+                  (hit) =>
+                    weaponFlightMs[
+                      weaponStyle(world, cache, hit.playerId, hit.fromCell)
+                    ],
+                ),
+              );
+        const seed = world.tick * 977 + outcome.cell * 31;
+        const hit = now + arrival;
+        const fire: Rgb = [1, 0.55, 0.2];
+        if (outcome.type === "damage") {
+          if (from)
+            cache.light.flash(from.x, from.y - 22, now, 22, team, 0.7, 150);
+          cache.light.flash(at.x, at.y - 10, hit, 34, fire, 0.75, 260);
+          cache.light.burst(at.x, at.y - 6, hit, seed, SPARKS(fire));
+        } else if (outcome.type === "shielded")
+          cache.light.flash(
+            at.x,
+            at.y - 14,
+            hit,
+            44,
+            [0.45, 0.85, 1],
+            0.8,
+            320,
+          );
+        else if (outcome.type === "destroyed") {
+          cache.light.flash(at.x, at.y - 12, hit, 110, fire, 1, 560);
+          cache.light.burst(at.x, at.y, hit, seed, EMBERS);
+          if (lostKind === "neuron")
+            cache.light.burst(at.x, at.y, hit, seed + 1, CYTOPLASM(team));
+        } else if (outcome.type === "constructed") {
+          cache.light.flash(at.x, at.y - 6, now, 40, team, 0.55, 700);
+          cache.light.burst(at.x, at.y, now, seed, SPROUT(team));
+        }
+      }
       if (lostKind === "neuron") {
         const burst = organicBurst(
           svg.ownerDocument,
@@ -872,8 +960,117 @@ export function renderBoard(
   const damageAnimations = [
     ...cache.structures.querySelectorAll<SVGGElement>(".damage-plume"),
   ].map(damageAnimation);
+  // Emissive light for this render: glows, axon signals and drifting spores.
+  type Glow = {
+    x: number;
+    y: number;
+    size: number;
+    color: Rgb;
+    alpha: number;
+    sharpness: number;
+    period: number;
+    phase: number;
+    swing: number;
+  };
+  const glows: Glow[] = [];
+  const signals: {
+    path: ReturnType<typeof networkPath>;
+    color: Rgb;
+    phase: number;
+  }[] = [];
+  if (light) {
+    for (const s of world.structures) {
+      const slot = slotOf(s.ownerId);
+      const p = TEAM_PALETTES[slot]!;
+      const { x, y } = hexCenter(width, s.cell);
+      const phase = (s.cell * 0.618) % (Math.PI * 2);
+      const dim = s.connected ? 1 : 0.25;
+      const visual = neuronVisuals.get(s.cell);
+      if (visual) {
+        const n = visual.form.nucleus;
+        glows.push({
+          x: x + n.dx,
+          y: y - 4 + n.dy,
+          size: visual.form.radius * 2.6,
+          color: rgb(p.mid),
+          alpha: 0.26 * dim,
+          sharpness: 3,
+          period: 620,
+          phase: visual.form.phase,
+          swing: 0.35,
+        });
+      } else if (s.kind === "brain")
+        glows.push({
+          x,
+          y: y - 44,
+          size: 62,
+          color: rgb(p.glow),
+          alpha: 0.5 * dim,
+          sharpness: 2.2,
+          period: 1600,
+          phase,
+          swing: 0.3,
+        });
+      else
+        glows.push({
+          x,
+          y: y - 30,
+          size: 30,
+          color: rgb(p.glow),
+          alpha: 0.32 * dim,
+          sharpness: 2.5,
+          period: 1100,
+          phase,
+          swing: 0.25,
+        });
+    }
+    world.map.cells.forEach((cell, index) => {
+      if (cell.terrain !== "deposit") return;
+      const { x, y } = hexCenter(width, index);
+      glows.push({
+        x,
+        y: y - 8,
+        size: 30,
+        color: rgb(cell.resourceKind === "biomass" ? "#b6f25c" : "#c48cff"),
+        alpha: 0.2,
+        sharpness: 2.2,
+        period: 2300,
+        phase: index,
+        swing: 0.4,
+      });
+    });
+    for (const p of world.players)
+      for (const q of p.queue)
+        if (q.paid) {
+          const { x, y } = hexCenter(width, q.cell);
+          glows.push({
+            x,
+            y: y - 10,
+            size: 26,
+            color: rgb(TEAM_PALETTES[p.slot]!.light),
+            alpha: 0.35,
+            sharpness: 2.5,
+            period: q.kind === "neuron" ? 420 : 900,
+            phase: q.cell,
+            swing: 0.45,
+          });
+        }
+    for (const link of cache.links.querySelectorAll(
+      ".network-link:not(.disconnected-link)",
+    )) {
+      const from = Number(link.getAttribute("data-from")),
+        to = Number(link.getAttribute("data-to"));
+      const owner = world.structures.find((s) => s.cell === from)?.ownerId;
+      signals.push({
+        path: networkPath(width, from, to),
+        color: rgb(TEAM_PALETTES[owner ? slotOf(owner) : 0]!.light),
+        phase: ((from * 7919 + to * 104729) % 1000) / 1000,
+      });
+    }
+  }
   let displayedSprites: Sprites | null = null;
   const animate = (frameNow: number) => {
+    if (light) cache.light.begin();
     // Camera/DPR and async raster changes also matter after authoritative
     // frames stop (for example at the result screen). Use the existing RAF.
     const matrix = buildingSprites ? svg.getScreenCTM() : null;
@@ -949,6 +1146,11 @@ export function renderBoard(
       );
       const { x, y, dx, dy } = sampleNetworkPath(path, fraction);
       const direction = (Math.atan2(dy, dx) * 180) / Math.PI;
+      if (light) {
+        const color = rgb(TEAM_PALETTES[m.slot]!.glow);
+        cache.light.add(x, y, m.builder ? 12 : 9, color, 0.45, 2.5);
+        cache.light.add(x, y, 3, [1, 1, 1], 0.8, 8);
+      }
       glyph.setAttribute(
         "transform",
         `translate(${x} ${y}) rotate(${direction})`,
@@ -978,6 +1180,39 @@ export function renderBoard(
       );
       return true;
     });
+    if (light) drawLight(frameNow);
+  };
+  const drawLight = (frameNow: number) => {
+    const field = cache.light;
+    for (const g of glows) {
+      const pulse = reducedMotion
+        ? 1
+        : 1 + g.swing * Math.sin(frameNow / g.period + g.phase);
+      field.add(g.x, g.y, g.size, g.color, g.alpha * pulse, g.sharpness);
+    }
+    if (!reducedMotion) {
+      // A signal runs along every live axon, a spark with a soft halo.
+      for (const signal of signals) {
+        const t = (frameNow / 1500 + signal.phase) % 1;
+        const { x, y } = sampleNetworkPath(signal.path, t);
+        const fade = Math.sin(t * Math.PI);
+        field.add(x, y, 9, signal.color, 0.3 * fade, 2.5);
+        field.add(x, y, 2.6, [1, 1, 1], 0.85 * fade, 8);
+      }
+      for (const spore of cache.spores) {
+        const t = frameNow / 1000;
+        const x = spore.x + Math.sin(t * spore.speed + spore.phase) * 26;
+        const y =
+          spore.y +
+          Math.cos(t * spore.speed * 0.7 + spore.phase) * 14 -
+          ((t * spore.rise) % 60);
+        const twinkle = 0.5 + 0.5 * Math.sin(t * 2.3 + spore.phase * 3);
+        field.add(x, y, spore.size, spore.color, 0.16 * twinkle, 5);
+      }
+    }
+    field.step(frameNow, reducedMotion);
+    const m = svg.getScreenCTM();
+    if (m) light!.draw(field.instances, field.size, m);
   };
   animate(now);
   return { animate };

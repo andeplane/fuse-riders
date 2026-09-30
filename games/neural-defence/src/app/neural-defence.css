@@ -388,6 +388,32 @@ select {
   display: block;
   touch-action: none;
 }
+/* Emissive light is added onto the board, then the view is graded with a vignette. */
+.nd-light {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+@supports (mix-blend-mode: plus-lighter) {
+  .nd-light {
+    mix-blend-mode: plus-lighter;
+  }
+}
+.board-scroll::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 75% 70% at 50% 48%,
+    transparent 55%,
+    rgb(2 8 14 / 0.38) 82%,
+    rgb(2 6 10 / 0.7) 100%
+  );
+}
 .game-sidebar {
   position: absolute;
   inset: 0;

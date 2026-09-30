@@ -8,6 +8,7 @@ import {
   createBrowserSpriteRasterizer,
 } from "../render/sprite-raster.js";
 import { createCameraFactory } from "../render/camera.js";
+import { createWebGlLightRenderer } from "../render/light-canvas.js";
 import { createBrowserAudio } from "./audio.js";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
@@ -44,6 +45,8 @@ mountNeuralDefence(root, {
       return () => observer.disconnect();
     },
   }),
+  createLightRenderer: (canvas) =>
+    createWebGlLightRenderer(canvas, () => window.devicePixelRatio),
   debug: new URLSearchParams(location.search).has("debug"),
   animationClock: () => performance.now(),
   requestFrame: (callback) => requestAnimationFrame(callback),

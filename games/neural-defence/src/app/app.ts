@@ -19,6 +19,7 @@ import {
   type BoardAnimation,
 } from "../render/board.js";
 import type { BoardCamera, CameraFactory } from "../render/camera.js";
+import type { LightRenderer } from "../render/light-field.js";
 import {
   isBuildKind,
   canAttack,
@@ -80,6 +81,8 @@ export interface AppDependencies {
   sprites?: Readonly<Record<string, string>>;
   buildingSprites?: import("../render/sprite-raster.js").BuildingSprites;
   createCamera?: CameraFactory;
+  /** Additive GPU light over the battlefield; omitted or null renders without it. */
+  createLightRenderer?: (canvas: HTMLCanvasElement) => LightRenderer | null;
   audio?: PresentationAudio;
   forcedMute?: boolean;
 }
@@ -98,6 +101,8 @@ export function mountNeuralDefence(
   let placement: BuildKind | null = null;
   let placementCell: number | null = null;
   let pending: "reset" | "leave" | null = null;
+  let lightTarget: HTMLCanvasElement | null = null;
+  let lightRenderer: LightRenderer | undefined;
   let launchError: string | null = null;
   let launching = false;
   let session: NeuralSession | null = null;
@@ -371,7 +376,7 @@ export function mountNeuralDefence(
         : undefined;
     return `<main class="game-layout" aria-label="${escape(title ?? "Neural field")} battlefield" ${pending ? "inert" : ""}>
       <section class="board-shell">
-      <div id="nd-viewport" class="board-scroll"><svg id="nd-board" class="nd-board" tabindex="0" aria-label="Hex board. Use arrow keys to move selection."></svg></div>
+      <div id="nd-viewport" class="board-scroll"><svg id="nd-board" class="nd-board" tabindex="0" aria-label="Hex board. Use arrow keys to move selection."></svg><canvas id="nd-light" class="nd-light" aria-hidden="true"></canvas></div>
       <div id="match-result" class="match-result" role="status" hidden></div>
       </section>
       <aside id="game-sidebar" class="game-sidebar"></aside></main><div id="game-modal">${modal()}</div>`;
@@ -588,6 +593,13 @@ export function mountNeuralDefence(
     const debugNote = sidebar.querySelector<HTMLElement>(".debug-note");
     if (debugNote)
       debugNote.textContent = `DEBUG · grid${world.settings.instantConstruction ? " · instant build" : ""}${world.settings.instantResearch ? " · instant research" : ""} · normal travel`;
+    const lightCanvas = root.querySelector<HTMLCanvasElement>("#nd-light");
+    if (lightCanvas !== lightTarget) {
+      lightTarget = lightCanvas;
+      lightRenderer =
+        (lightCanvas && dependencies.createLightRenderer?.(lightCanvas)) ??
+        undefined;
+    }
     animation = renderBoard(
       svg,
       world,
@@ -597,6 +609,7 @@ export function mountNeuralDefence(
       dependencies.animationClock(),
       dependencies.sprites,
       dependencies.buildingSprites,
+      lightRenderer,
     );
     let preview = svg.querySelector<SVGGElement>(".placement-preview");
     if (!preview) {
