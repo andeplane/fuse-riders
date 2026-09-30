@@ -45,8 +45,12 @@ mountNeuralDefence(root, {
       return () => observer.disconnect();
     },
   }),
+  // Light is soft, so one canvas pixel per CSS pixel is enough; on dense
+  // screens this quarters the GPU fill cost and the browser upscales smoothly.
   createLightRenderer: (canvas) =>
-    createWebGlLightRenderer(canvas, () => window.devicePixelRatio),
+    createWebGlLightRenderer(canvas, () =>
+      Math.min(1, window.devicePixelRatio),
+    ),
   debug: new URLSearchParams(location.search).has("debug"),
   animationClock: () => performance.now(),
   requestFrame: (callback) => requestAnimationFrame(callback),

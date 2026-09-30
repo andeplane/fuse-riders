@@ -100,8 +100,8 @@ export function createWebGlLightRenderer(
   return {
     draw(data, count, t: LightTransform) {
       const ratio = pixelRatio();
-      const width = Math.round(canvas.clientWidth * ratio),
-        height = Math.round(canvas.clientHeight * ratio);
+      const width = Math.round(t.width * ratio),
+        height = Math.round(t.height * ratio);
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
@@ -115,8 +115,6 @@ export function createWebGlLightRenderer(
       gl.useProgram(program);
       gl.bindVertexArray(vao);
       // Column-major 3×3 from the CTM, scaled to device pixels.
-      // The CTM is in client coordinates; make it relative to this canvas.
-      const rect = canvas.getBoundingClientRect();
       gl.uniformMatrix3fv(board, false, [
         t.a * ratio,
         t.b * ratio,
@@ -124,8 +122,8 @@ export function createWebGlLightRenderer(
         t.c * ratio,
         t.d * ratio,
         0,
-        (t.e - rect.left) * ratio,
-        (t.f - rect.top) * ratio,
+        t.e * ratio,
+        t.f * ratio,
         1,
       ]);
       gl.uniform2f(viewport, width, height);

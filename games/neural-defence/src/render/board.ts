@@ -50,6 +50,7 @@ import {
   SPARKS,
   SPROUT,
   type LightRenderer,
+  type LightTransform,
   type Rgb,
 } from "./light-field.js";
 export { hexCenter, hexPoints } from "./projection.js";
@@ -1087,7 +1088,25 @@ export function renderBoard(
     });
   let displayedSprites: Sprites | null = null;
   const animate = (frameNow: number) => {
-    if (light) cache.light.begin();
+    // Measure before this frame writes to the DOM, so drawing light never
+    // forces a synchronous layout. The canvas shares the board's box.
+    let lightView: LightTransform | null = null;
+    if (light) {
+      cache.light.begin();
+      const m = svg.getScreenCTM();
+      const box = svg.getBoundingClientRect();
+      if (m)
+        lightView = {
+          a: m.a,
+          b: m.b,
+          c: m.c,
+          d: m.d,
+          e: m.e - box.left,
+          f: m.f - box.top,
+          width: box.width,
+          height: box.height,
+        };
+    }
     // Camera/DPR and async raster changes also matter after authoritative
     // frames stop (for example at the result screen). Use the existing RAF.
     const matrix = buildingSprites ? svg.getScreenCTM() : null;
@@ -1209,9 +1228,9 @@ export function renderBoard(
       );
       return true;
     });
-    if (light) drawLight(frameNow);
+    if (light && lightView) drawLight(frameNow, lightView);
   };
-  const drawLight = (frameNow: number) => {
+  const drawLight = (frameNow: number, view: LightTransform) => {
     const field = cache.light;
     for (const g of glows) {
       const pulse = reducedMotion
@@ -1240,8 +1259,7 @@ export function renderBoard(
       }
     }
     field.step(frameNow, reducedMotion);
-    const m = svg.getScreenCTM();
-    if (m) light!.draw(field.instances, field.size, m);
+    light!.draw(field.instances, field.size, view);
   };
   animate(now);
   return { animate };

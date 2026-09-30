@@ -11,7 +11,11 @@ import { seededRandom } from "./neuron-form.js";
  */
 export const LIGHT_STRIDE = 8;
 
-/** Board units to canvas CSS pixels, as an SVG CTM relative to the canvas. */
+/**
+ * Board units to canvas CSS pixels (an SVG CTM relative to the canvas), plus
+ * the canvas size in CSS pixels. Measured before a frame's DOM writes so
+ * drawing never forces a synchronous layout.
+ */
 export interface LightTransform {
   a: number;
   b: number;
@@ -19,6 +23,8 @@ export interface LightTransform {
   d: number;
   e: number;
   f: number;
+  width: number;
+  height: number;
 }
 export interface LightRenderer {
   draw(instances: Float32Array, count: number, transform: LightTransform): void;
