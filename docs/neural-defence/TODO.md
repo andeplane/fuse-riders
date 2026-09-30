@@ -19,7 +19,6 @@ Last reviewed: 2026-09-30, branch `claude/fuse-craft` ([PR #417](https://github.
 ## Gameplay and balance
 
 - [ ] Pressure against Relay does not finish within the 900-second cap in either seat; both run to 968 seconds. See [durable reconnect](verification/durable-reconnect-2026-09-27/README.md).
-- [ ] Wide and narrow-passage maps still produce long stalemates, Twin Pass most of all. See [BALANCE_REPORT.md](BALANCE_REPORT.md) and [STRATEGIC_DIVERSITY.md](STRATEGIC_DIVERSITY.md).
 - [ ] No human balance data. All win rates come from deterministic AI against AI.
 - [ ] Status-effect particles and area-damage towers are deferred in [EXPANSION_PLAN.md](EXPANSION_PLAN.md). Decide whether they are in scope.
 
