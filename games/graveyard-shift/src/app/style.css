@@ -494,3 +494,49 @@ a {
     margin: 5px;
   }
 }
+/* Landscape play keeps both thumbs and the arena visible together. */
+@media (max-height: 550px) and (pointer: coarse) {
+  [data-layout="arena"] .play {
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr) 145px;
+    grid-template-rows: 58px minmax(0, 1fr);
+    gap: 6px;
+    height: calc(100dvh - 77px);
+  }
+  [data-layout="arena"] .hud {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  [data-layout="arena"] .arena {
+    grid-column: 2;
+    grid-row: 2;
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+  }
+  [data-layout="arena"] .pad {
+    display: contents;
+  }
+  [data-layout="arena"] .directions {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: center;
+    grid-template: repeat(2, 55px) / repeat(3, 46px);
+    gap: 4px;
+  }
+  [data-layout="arena"] .abilities {
+    grid-column: 3;
+    grid-row: 2;
+    align-self: center;
+    flex-direction: column;
+    gap: 8px;
+  }
+  [data-layout="arena"] .abilities button {
+    min-height: 67px;
+    font-size: 12px;
+  }
+  [data-layout="arena"] .hint,
+  [data-layout="arena"] .personal {
+    display: none;
+  }
+}

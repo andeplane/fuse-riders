@@ -343,7 +343,7 @@ function room() {
     if (
       e.target instanceof HTMLInputElement ||
       e.target instanceof HTMLTextAreaElement ||
-      e.target instanceof HTMLButtonElement
+      (e.target instanceof HTMLButtonElement && e.key === " ")
     )
       return;
     const b = keysMap[e.key.toLowerCase()];
@@ -405,6 +405,7 @@ function room() {
     {
       state(frame, settings) {
         latest = frame;
+        host = solo || frame.managerId === self;
         shared = settings.display;
         runtime?.flush();
         const mine = frame.seats.find((s) => s.id === self && !s.watcher);
@@ -476,6 +477,10 @@ function room() {
           }),
         );
         const me = w.hunters.find((h) => h.id === self);
+        if (me) {
+          personal.dataset.x = String(me.x);
+          personal.dataset.y = String(me.y);
+        }
         personal.textContent = me
           ? `${mine?.name ?? "Hunter"} · BANKED ${me.score} · TANK ${me.tank.length}/5 · CARRYING ${carried(w, me)}`
           : "Watching the night crew";

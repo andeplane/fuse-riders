@@ -47,6 +47,18 @@ try {
   await splash.keyboard.up("j");
   await snap(splash, "gameplay");
   assert.equal(await splash.locator(".score").count(), 4);
+  await splash.locator(".sound").evaluate((el) => {
+    el.disabled = false;
+    el.focus();
+  });
+  const oldX = Number(await splash.locator(".personal").getAttribute("data-x"));
+  await splash.keyboard.down("d");
+  await splash.waitForTimeout(300);
+  await splash.keyboard.up("d");
+  assert.ok(
+    Number(await splash.locator(".personal").getAttribute("data-x")) > oldX,
+    "focused header button still allows movement",
+  );
   console.log("PASS splash, handbook, solo, keyboard");
   const host = await open("?mute");
   await host.getByRole("button", { name: "CREATE ROOM", exact: true }).click();
@@ -98,6 +110,38 @@ try {
   console.log("PASS shared TV and phone controller");
   const phoneSolo = await open("?solo=1&mute", true);
   await phoneSolo.locator("[data-phase=running]").waitFor();
+  for (const selector of ["canvas", ".up", ".vacuum", ".pulse"]) {
+    const box = await phoneSolo.locator(selector).boundingBox();
+    assert.ok(
+      box &&
+        box.x >= 0 &&
+        box.y >= 0 &&
+        box.x + box.width <= 844 &&
+        box.y + box.height <= 390,
+      `${selector} fits the phone viewport before interaction`,
+    );
+  }
+  const beforeY = Number(
+    await phoneSolo.locator(".personal").getAttribute("data-y"),
+  );
+  const upBox = await phoneSolo.locator(".up").boundingBox();
+  const cdp = await phoneSolo.context().newCDPSession(phoneSolo);
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [
+      { x: upBox.x + upBox.width / 2, y: upBox.y + upBox.height / 2, id: 1 },
+    ],
+  });
+  await phoneSolo.waitForTimeout(350);
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  assert.ok(
+    Number(await phoneSolo.locator(".personal").getAttribute("data-y")) <
+      beforeY,
+    "held phone direction moves the hunter",
+  );
   await phoneSolo.getByRole("button", { name: "↑", exact: true }).tap();
   await snap(phoneSolo, "phone-solo");
   assert.equal(

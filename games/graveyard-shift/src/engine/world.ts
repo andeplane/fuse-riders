@@ -97,7 +97,7 @@ export function createWorld(
       id: s.id,
       slot: s.slot,
       x: 180 + s.slot * 160,
-      y: 310,
+      y: 400,
       dx: 0,
       dy: -1,
       tank: [],
@@ -172,6 +172,67 @@ export function carried(w: World, h: Hunter): number {
     0,
   );
 }
+type Point = { x: number; y: number };
+/** Visibility graph around the two walls. Stable node order breaks equal route costs. */
+function waypoint(from: Point, to: Point): Point {
+  const clear = (a: Point, b: Point) =>
+    !WALLS.some((r) => {
+      let enter = 0,
+        leave = 1;
+      for (const [start, delta, low, high] of [
+        [a.x, b.x - a.x, r.x - 16, r.x + r.w + 16],
+        [a.y, b.y - a.y, r.y - 16, r.y + r.h + 16],
+      ]) {
+        if (delta === 0) {
+          if (start! <= low! || start! >= high!) return false;
+        } else {
+          const t1 = (low! - start!) / delta!,
+            t2 = (high! - start!) / delta!;
+          enter = Math.max(enter, Math.min(t1, t2));
+          leave = Math.min(leave, Math.max(t1, t2));
+          if (enter > leave) return false;
+        }
+      }
+      return leave > Math.max(0, enter);
+    });
+  if (clear(from, to)) return to;
+  const nodes = [
+    from,
+    to,
+    ...WALLS.flatMap((r) => [
+      { x: r.x - 30, y: r.y - 30 },
+      { x: r.x + r.w + 30, y: r.y - 30 },
+      { x: r.x - 30, y: r.y + r.h + 30 },
+      { x: r.x + r.w + 30, y: r.y + r.h + 30 },
+    ]),
+  ];
+  const cost = nodes.map(() => Infinity),
+    parent = nodes.map(() => -1),
+    seen = new Set<number>();
+  cost[0] = 0;
+  for (let n = 0; n < nodes.length; n++) {
+    let at = -1;
+    for (let i = 0; i < nodes.length; i++)
+      if (!seen.has(i) && (at < 0 || cost[i]! < cost[at]!)) at = i;
+    if (at < 0 || !Number.isFinite(cost[at]) || at === 1) break;
+    seen.add(at);
+    for (let i = 1; i < nodes.length; i++) {
+      if (seen.has(i) || !clear(nodes[at]!, nodes[i]!)) continue;
+      const next =
+        cost[at]! +
+        Math.abs(nodes[i]!.x - nodes[at]!.x) +
+        Math.abs(nodes[i]!.y - nodes[at]!.y);
+      if (next < cost[i]!) {
+        cost[i] = next;
+        parent[i] = at;
+      }
+    }
+  }
+  if (parent[1]! < 0) return to;
+  let at = 1;
+  while (parent[at]! > 0) at = parent[at]!;
+  return nodes[at]!;
+}
 export function botInput(w: World, h: Hunter): number {
   let target: { x: number; y: number } | undefined;
   const full =
@@ -182,11 +243,13 @@ export function botInput(w: World, h: Hunter): number {
       .filter((g) => !g.carrier && !g.emerge)
       .sort((a, b) => dist2(h, a) - dist2(h, b) || a.id - b.id)[0];
   if (!target) return 0;
-  const dx = target.x - h.x,
-    dy = target.y - h.y;
+  const next = waypoint(h, target),
+    tolerance = next === target ? 12 : 2;
+  const dx = next.x - h.x,
+    dy = next.y - h.y;
   let bits =
-    (dx > 12 ? RIGHT : dx < -12 ? LEFT : 0) |
-    (dy > 12 ? DOWN : dy < -12 ? UP : 0);
+    (dx > tolerance ? RIGHT : dx < -tolerance ? LEFT : 0) |
+    (dy > tolerance ? DOWN : dy < -tolerance ? UP : 0);
   if (!full && dist2(h, target) < 130 ** 2) bits |= VACUUM;
   if (full && dist2(h, target) < 42 ** 2) bits = 0;
   if (w.hunters.some((r) => r.id !== h.id && r.tank.length && cone(h, r, 90)))

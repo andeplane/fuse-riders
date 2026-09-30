@@ -58,15 +58,58 @@ const ghost = (id = 1, kind: 1 | 4 = 1): Ghost => ({
   claim: [0, 0, 0, 0, 0],
   carrier: "",
 });
+test("every hunter can move immediately from the spawn row", () => {
+  const w = createWorld(
+    8,
+    Array.from({ length: 5 }, (_, slot) => ({ id: `bot:${slot}`, slot })),
+  );
+  const before = w.hunters.map((h) => ({ x: h.x, y: h.y }));
+  stepWorld(w, new Map(w.hunters.map((h) => [h.id, UP | RIGHT])));
+  w.hunters.forEach((h, i) => {
+    assert.ok(h.x > before[i]!.x);
+    assert.ok(h.y < before[i]!.y);
+  });
+});
+test("a loaded bot routes around the wall and deposits instead of getting stuck", () => {
+  for (const [x, y] of [
+    [405, 301],
+    [401, 298],
+    [402, 298],
+    [403, 298],
+    [404, 298],
+    [596, 320],
+  ]) {
+    const w = createWorld(8, [
+        { id: "a", slot: 0 },
+        { id: "b", slot: 1 },
+      ]),
+      h = w.hunters[0]!;
+    h.x = x!;
+    h.y = y!;
+    w.ghosts = w.ghosts.slice(0, 3);
+    for (const g of w.ghosts) {
+      g.carrier = h.id;
+      g.emerge = 0;
+      g.resistance = 0;
+    }
+    h.tank = w.ghosts.map((g) => g.id);
+    for (let i = 0; i < 300 && h.score === 0; i++)
+      stepWorld(w, new Map([[h.id, botInput(w, h)]]));
+    assert.equal(h.score, 3);
+    assert.equal(h.tank.length, 0);
+  }
+});
 function world() {
   const w = createWorld(47, [
     { id: "a", slot: 0 },
     { id: "b", slot: 1 },
   ]);
   w.hunters[0]!.x = 480;
+  w.hunters[0]!.y = 310;
   w.hunters[0]!.dx = 1;
   w.hunters[0]!.dy = 0;
   w.hunters[1]!.x = 580;
+  w.hunters[1]!.y = 310;
   w.hunters[1]!.dx = -1;
   w.hunters[1]!.dy = 0;
   w.ghosts = [ghost()];
@@ -269,6 +312,7 @@ test("readiness is unanimous, entries are scoped, and checkpoint replay converge
     fold(initial, es);
   }
   assert.equal(hash(r), hash(initial));
+  fold(r, { a: [[98, r.tick + 1, PLAY, r.matchId, 1, 0]] });
   const before = r.world!.hunters[0]!.x;
   fold(r, { a: [[99, r.tick + 1, PLAY, "old-match", 1, RIGHT]] });
   assert.equal(r.world!.hunters[0]!.x, before);

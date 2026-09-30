@@ -355,7 +355,7 @@ export const view = (r: Room): View => ({
 });
 export const graveyardGame: RollbackGame<Room, Entry, View, never, Settings> = {
   id: "graveyard-shift",
-  rules: "graveyard-shift-1",
+  rules: "graveyard-shift-2",
   isEntry,
   createRoom,
   createTicker: () => foldTick,
