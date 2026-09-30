@@ -2,7 +2,7 @@
  * Starts a new game from the template: `pnpm exec tsx scripts/new-game.ts <id>` copies `games/dice` to `games/<id>` with
  * its ids and names renamed (`"dice"` → `"<id>"`, `dice-1` rules → `<id>-1`, `Dice…`/`dice…` identifiers and file
  * names → the id in PascalCase/camelCase). The copy is Pig under a new name, with its tests; change the rules from
- * there. Afterwards run `pnpm install` (the root workspaces include `games/*`) and add the new manifest to
+ * there. It also writes `portal.json`, which lists the game on the app portal (Pig itself is not listed). Afterwards run `pnpm install` (the root workspaces include `games/*`) and add the new manifest to
  * Dockerfile.cloud beside `games/dice/package.json`, since `pnpm install --frozen-lockfile` in the service image needs every workspace.
  */
 import {
@@ -41,6 +41,21 @@ export function rename(text: string, id: string): string {
     .replaceAll(`games/${TEMPLATE}`, `games/${id}`)
     .replaceAll("Dice", pascalCase(id))
     .replaceAll("dice", camelCase(id));
+}
+
+/** A starter `portal.json`, so a new game appears on the app portal; edit its name, tagline, mark and accent. */
+export function portalEntry(id: string) {
+  const parts = words(id);
+  return {
+    name: parts.map((word) => word[0]!.toUpperCase() + word.slice(1)).join(" "),
+    tagline: "A new Fuse game.",
+    mark: parts
+      .map((word) => word[0]!)
+      .join("")
+      .slice(0, 3)
+      .toUpperCase(),
+    accent: "#16e7ff",
+  };
 }
 
 function files(root: string): string[] {
@@ -120,6 +135,12 @@ export function newGame(
     writeFileSync(target, rename(readFileSync(source, "utf8"), id));
     written.push(path);
   }
+  // The template is a demo and stays off the app portal; a new game is on it from the start.
+  writeFileSync(
+    join(to, "portal.json"),
+    `${JSON.stringify(portalEntry(id), null, 2)}\n`,
+  );
+  written.push("portal.json");
   return written.sort();
 }
 

@@ -105,7 +105,7 @@
 .arena-focused header {
   margin: 0 0 4px;
 }
-.arena-focused header #home,
+.arena-focused header .home-bar,
 .arena-focused .room-entry,
 .arena-focused #invitation,
 .arena-focused .experiment-controls,
@@ -157,7 +157,7 @@
     margin: 0 0 4px;
   }
   .touch-trial header h1,
-  .touch-trial header #home {
+  .touch-trial header .home-bar {
     display: none;
   }
   .playground.touch-trial .play-surface .stage {

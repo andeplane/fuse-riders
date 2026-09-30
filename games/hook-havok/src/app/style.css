@@ -20,6 +20,12 @@ header {
   position: relative;
   margin: 0 0 24px;
 }
+/* The app portal, then the way home. */
+.home-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 #home {
   font:
     11px system-ui,
