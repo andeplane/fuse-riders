@@ -25,6 +25,13 @@ export type CameraFactory = (
   viewport: HTMLElement,
 ) => BoardCamera;
 
+/**
+ * The closest zoom, in screen pixels per board unit: a brain about 216px
+ * across. Closer than this shows one building filling the screen and
+ * nothing of the battle around it.
+ */
+export const MAX_SCALE = 3;
+
 /** Camera coordinates are presentation state; no simulation coordinates are changed. */
 export function createCameraModel(
   world: Size,
@@ -80,7 +87,7 @@ export function createCameraModel(
     if (!Number.isFinite(factor) || factor <= 0) return;
     const x = view.x + anchor.x / scale,
       y = view.y + anchor.y / scale;
-    scale = Math.max(minimumScale(), Math.min(8, scale * factor));
+    scale = Math.max(minimumScale(), Math.min(MAX_SCALE, scale * factor));
     view.x = x - anchor.x / scale;
     view.y = y - anchor.y / scale;
     clamp();

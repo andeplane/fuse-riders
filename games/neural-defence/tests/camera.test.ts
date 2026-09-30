@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createCameraModel } from "../src/render/camera.js";
+import { createCameraModel, MAX_SCALE } from "../src/render/camera.js";
 
 const world = { width: 768, height: 648 };
 const insets = { top: 52, right: 12, bottom: 154, left: 12 };
@@ -90,4 +90,16 @@ test("keyboard-selected edge cells remain accessible above the bottom HUD after 
     ((target.y - resized.y) * 1200) / resized.width <=
       800 - insets.bottom + 0.001,
   );
+});
+
+test("zoom-in stops at a scale that still shows the battle around a building", () => {
+  const camera = createCameraModel(
+    { width: 1500, height: 1200 },
+    { width: 1200, height: 800 },
+    { top: 0, right: 0, bottom: 0, left: 0 },
+  );
+  camera.zoom(1000, { x: 600, y: 400 });
+  assert.equal(1200 / camera.view().width, MAX_SCALE);
+  camera.zoom(0.5, { x: 600, y: 400 });
+  assert.equal(1200 / camera.view().width, MAX_SCALE / 2);
 });
