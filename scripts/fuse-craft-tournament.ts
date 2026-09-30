@@ -328,6 +328,7 @@ for (const map of maps.filter(
           seconds: world.tick / 20,
           contact: contact === null ? null : contact / 20,
           result: world.finished ? (world.winnerId ?? "draw") : "timeout",
+          victory: world.victory,
           rejected,
           hash,
           ...(powerups ? { claims } : {}),
@@ -337,6 +338,14 @@ for (const map of maps.filter(
             ...p.statistics,
             biomass: p.biomass,
             insight: p.insight,
+            territory: p.territory,
+            peakTerritory: Math.max(
+              0,
+              ...world.timeline.map(
+                (sample) =>
+                  sample.players.find((q) => q.id === p.id)!.territory,
+              ),
+            ),
             research: p.research,
             builds: builds[p.id],
             ...sampled[i],
