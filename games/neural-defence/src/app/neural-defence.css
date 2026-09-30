@@ -905,9 +905,7 @@ select {
   }
 }
 /* Blood vessels beneath the ground; the blood itself flows in the light layer. */
-.vessels {
-  opacity: 0.42;
-}
+
 .vessel-wall,
 .vessel-blood,
 .vessel-sheen {
@@ -917,15 +915,15 @@ select {
 }
 .vessel-wall {
   stroke: #16050a;
-  stroke-opacity: 0.55;
+  stroke-opacity: 0.23;
 }
 .vessel-blood {
   stroke: #45101a;
-  stroke-opacity: 0.85;
+  stroke-opacity: 0.36;
 }
 .vessel-sheen {
   stroke: #b8465a;
-  stroke-opacity: 0.18;
+  stroke-opacity: 0.08;
 }
 /* Deposits: biomass pods breathe, insight crystals hover. */
 .terrain-object[data-resource] image {
