@@ -57,6 +57,23 @@ captures. Chromium on GPU still holds 60 fps
 ([raw](profile-chromium-gpu-dpr2-lit.json)); WebKit 45.5 callbacks per
 second, median 22 ms ([raw](profile-webkit-dpr2-lit.json)).
 
+## Bloom
+
+At source `340010ce` the light layer has a real bloom pass: lights render
+into a quarter-resolution buffer (half-float where supported), two
+separable Gaussian passes blur it (the second twice as wide), and the result
+is added over the sharp lights at 0.7 strength. Bright sources such as
+brains, nuclei, signals, cocoons, powerups and impacts bleed soft light into
+their surroundings. [Contact capture](bloom-desktop-contact.png). No
+measurable cost: Chromium on GPU 60 fps
+([raw](profile-chromium-gpu-dpr2-bloom.json)); WebKit 46.3 callbacks per
+second, median 20 ms, none over 50 ms ([raw](profile-webkit-dpr2-bloom.json)).
+
+Brains and towers keep their painted bio-mechanical art on purpose. They
+grow from tissue mounds, pulse light out along their roots and glow and
+bloom in team colour, so they read as organs of the network. Redrawing them
+as procedural vector shapes would lose their painted detail.
+
 ## Captures
 
 Ordinary Watch AI vs AI on Close Quarters (Pressure vs Balanced), normal

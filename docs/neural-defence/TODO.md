@@ -8,7 +8,7 @@ Last reviewed: 2026-09-30, branch `claude/fuse-craft` ([PR #417](https://github.
 
 - [ ] Play the current build and say what falls short in look and feel. This is the one open acceptance item in [GOAL_VERIFICATION.md](GOAL_VERIFICATION.md).
 - [ ] Decide whether the SVG battlefield with its GPU light layer is enough, or whether the whole battlefield should move to WebGL (true bloom, lit terrain, tilted camera). See [organic network and light](verification/organic-light-2026-09-30/README.md).
-- [ ] Brains and towers are still painted mechanical sprites, now rooted into the creep. Decide whether they should become organic structures in the same procedural style as neurons.
+- [ ] Brains and towers keep painted bio-mechanical art, rooted into the creep and lit in team colour. Say if you would rather see them redrawn as organic structures.
 - [ ] Decide whether to rename `games/neural-defence/`, the `/neural-defence/` URL and the internal identifiers to Fuse Craft. Only the display name and commit scope have changed so far.
 
 ## Performance
@@ -32,7 +32,7 @@ Last reviewed: 2026-09-30, branch `claude/fuse-craft` ([PR #417](https://github.
 ## Rendering and visuals
 
 - [x] Neurons at default play zoom read as glowing orbs. Somas are now low domes with thicker branches; see the lighting pass in [organic network and light](verification/organic-light-2026-09-30/README.md).
-- [ ] The light layer approximates bloom with wide halos and spills team light onto the ground, but it is not a screen-space bloom pass: that needs the whole battlefield rendered on the GPU.
+- [x] Bloom: the light layer blurs its lights at quarter resolution and adds them back. Painted sprites themselves do not bloom; that would need the whole battlefield on the GPU.
 
 - [ ] Cached team tints are not checked against a native-filter reference image, so exact hue match is unproven. See [cached tints](verification/cached-tints-2026-09-27/README.md).
 
