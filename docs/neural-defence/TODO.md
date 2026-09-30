@@ -23,6 +23,12 @@ Last reviewed: 2026-09-30, branch `claude/fuse-craft` ([PR #417](https://github.
 - [ ] No human balance data. All win rates come from deterministic AI against AI.
 - [ ] Status-effect particles and area-damage towers are deferred in [EXPANSION_PLAN.md](EXPANSION_PLAN.md). Decide whether they are in scope.
 
+## Powerups
+
+- [ ] With powerups, six Twin Pass mirror matches stall to the 900 s cap instead of ending in a simultaneous draw (8 Twin Pass timeouts of 42). Non-mirror matchups are unaffected. See [Versus and powerups](verification/versus-powerups-2026-09-30/README.md).
+- [ ] The AI claims only about 0.9 powerups per match, since it races for one only when it has no weapon to place. Humans may exploit that; revisit once people play.
+- [ ] The roster smoke's on-screen check for raised bodies failed once under heavy CPU load (a tournament running in parallel) and passed on the next run.
+
 ## Rendering and visuals
 
 - [ ] Neurons at default play zoom read as glowing orbs; branch silhouettes are clearer only when zoomed in. Consider thicker branches or a size bump with age.
@@ -32,9 +38,12 @@ Last reviewed: 2026-09-30, branch `claude/fuse-craft` ([PR #417](https://github.
 
 ## Platform and multiplayer
 
-- [ ] No online multiplayer UI. The engine and adapter support four owners, but there are no browser rooms.
+- [x] Online multiplayer: Versus rooms with create/join, lobby, room bots, rematch and return to lobby. See [Versus and powerups](verification/versus-powerups-2026-09-30/README.md).
+- [ ] Online Versus has been exercised on the local room service with two browsers on one machine; it has not been played across real networks or phones.
+- [ ] Versus reports no match results or ratings to `fuse-platform` (admission only, like Fuse Choppers).
+- [ ] A page refresh during a Versus match rejoins as the same member, but there is no in-room chat, spectating UI or kick button yet.
 - [ ] No win verified on a real phone, and touch or trackpad controls have only been exercised in emulation.
-- [ ] Not deployed. Cloud Run serves extra games only when `EXTRA_GAME_IDS` names them.
+- [ ] Not deployed. Cloud Run serves extra games only when `EXTRA_GAME_IDS` names them; add `neural-defence` there to open online rooms.
 
 ## Verification gaps
 
