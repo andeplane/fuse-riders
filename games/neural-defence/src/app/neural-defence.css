@@ -853,32 +853,96 @@ select {
 .hex:hover > .hex-hover-outline {
   stroke: var(--fui-cyan);
 }
+.cocoon-sac,
+.cocoon-vein,
+.cocoon-specular {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: cocoon-throb 1.6s ease-in-out infinite;
+}
+.cocoon-active .cocoon-sac,
+.cocoon-active .cocoon-vein,
+.cocoon-active .cocoon-specular {
+  animation-duration: 0.8s;
+}
+@keyframes cocoon-throb {
+  50% {
+    transform: scale(1.06, 0.95);
+  }
+}
+#nd-board[data-reduced-motion="true"] .cocoon * {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cocoon * {
+    animation: none;
+  }
+}
+/* Creep: a raised slab of living tissue beneath each network. */
+.creep-shadow {
+  fill: #000;
+  opacity: 0.32;
+  stroke: #000;
+  stroke-width: 14;
+  stroke-opacity: 0.35;
+  stroke-linejoin: round;
+}
+.creep-rim {
+  fill: none;
+  stroke-width: 1.6;
+  opacity: 0.55;
+}
+.creep-vein {
+  fill: none;
+  stroke: var(--vein);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.5;
+}
+.creep-vein-fine {
+  stroke-width: 0.8;
+}
+.creep-veins {
+  animation: creep-vein-pulse 3.2s ease-in-out infinite;
+}
+@keyframes creep-vein-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+#nd-board[data-reduced-motion="true"] .creep-veins {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .creep-veins {
+    animation: none;
+  }
+}
 .axon {
   fill: none;
-  stroke: var(--team, var(--fui-cyan));
-  stroke-width: 2;
+  stroke: var(--glow, var(--fui-cyan));
+  stroke-width: 1.4;
   stroke-linecap: round;
-  opacity: 0.8;
-  filter: drop-shadow(0 0 4px var(--team, var(--fui-cyan)));
+  opacity: 0.9;
 }
 .axon-sheath {
   fill: none;
-  stroke: #163f49;
-  stroke-width: 7;
+  stroke: var(--flesh, #163f49);
+  stroke-width: 6.5;
   stroke-linecap: round;
 }
 .axon-shadow {
   fill: none;
   stroke: #020c13;
-  stroke-width: 9;
+  stroke-width: 8;
   stroke-linecap: round;
-  opacity: 0.5;
-  transform: translate(2px, 3px);
+  opacity: 0.45;
+  transform: translate(1px, 3px);
 }
 .axon-rim {
   fill: none;
-  stroke: #8cb7ba;
-  stroke-width: 4;
+  stroke: var(--team, #8cb7ba);
+  stroke-width: 3.2;
   stroke-linecap: round;
   opacity: 0.55;
   transform: translate(0, -1px);

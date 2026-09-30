@@ -9,7 +9,7 @@ import {
   neuronArtwork,
   structureArtwork,
 } from "../src/render/board.js";
-import { structureArt, NEURON_ART } from "../src/render/art.js";
+import { structureArt } from "../src/render/art.js";
 import { boardSize } from "../src/render/projection.js";
 
 function world() {
@@ -52,30 +52,30 @@ test("tower identities are distinct across the shared presentation contract", ()
   assert.equal(structureArt("neuron"), "neuron-v3");
 });
 
-test("neuron anatomy varies with location and remains identical across ghost, world and portrait", () => {
-  const sprites = Object.fromEntries(
-    NEURON_ART.map((name) => [name, `/${name}.png`]),
-  );
-  const used = new Set<string>();
+test("neuron anatomy varies with location and remains identical across ghost, world and team", () => {
+  const kinds = new Set<string>();
+  const shapes = (markup: string) => markup.match(/ d="[^"]+"/g)?.join("");
   for (let cell = 0; cell < 40; cell++) {
-    const name = structureArt("neuron", cell);
-    used.add(name);
-    const worldArt = neuronArtwork(12, cell, 0, sprites);
-    const ghostArt = structureArtwork(12, cell, "neuron", 0, sprites);
-    assert.equal(ghostArt, worldArt);
-    assert.ok(
-      worldArt.includes(`href="/${name}.png"`),
-      "rendered body matches the portrait resolver",
+    const worldArt = neuronArtwork(12, cell, 0);
+    assert.equal(structureArtwork(12, cell, "neuron", 0), worldArt);
+    kinds.add(/neuron-body neuron-(\w+)/.exec(worldArt)![1]!);
+    const teamArt = neuronArtwork(12, cell, 1);
+    assert.equal(
+      shapes(teamArt),
+      shapes(worldArt),
+      "team does not change anatomy",
     );
-    assert.ok(
-      neuronArtwork(12, cell, 1, sprites).includes(`href="/${name}.png"`),
-      "team tint does not change anatomy",
+    assert.notEqual(teamArt, worldArt, "team changes colour");
+    assert.doesNotMatch(
+      worldArt,
+      /<image/,
+      "drawn procedurally, not from sprites",
     );
   }
   assert.deepEqual(
-    [...used].sort(),
-    [...NEURON_ART].sort(),
-    "uses genuinely different sprite files, not just transformed copies",
+    [...kinds].sort(),
+    ["bipolar", "granule", "pyramidal", "stellate"],
+    "uses genuinely different cell types, not transformed copies",
   );
 });
 

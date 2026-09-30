@@ -1,4 +1,4 @@
-import { NEURON_ART, structureArt, teamArtHue } from "./art.js";
+import { structureArt, teamArtHue } from "./art.js";
 
 type Sprites = Readonly<Record<string, string>>;
 export interface SpriteRasterizer {
@@ -31,12 +31,10 @@ export function createBuildingSprites(
   sprites: Sprites,
   rasterizer: SpriteRasterizer,
 ): BuildingSprites {
-  const names = [
-    ...NEURON_ART,
-    ...(
-      ["brain", "tower", "siege", "relay", "bastion", "harvester"] as const
-    ).map((kind) => structureArt(kind)),
-  ];
+  // Neurons are procedural vector art and need no raster tiers.
+  const names = (
+    ["brain", "tower", "siege", "relay", "bastion", "harvester"] as const
+  ).map((kind) => structureArt(kind));
   const tiers = new Map<number, Sprites>();
   const requested = new Set<string>();
   return {

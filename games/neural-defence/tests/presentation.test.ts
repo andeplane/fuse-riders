@@ -377,8 +377,9 @@ test("neurons vary, animate without state changes, and show only real friendly l
   };
   const animation = renderBoard(svg, world, null, false, false, 1000, sprites);
   assert.equal(
-    svg.querySelector(".neuron-body image")?.getAttribute("href"),
-    "/neuron.png",
+    svg.querySelector(".neuron-body image"),
+    null,
+    "neurons are procedural anatomy, not sprites",
   );
   assert.equal(
     svg.querySelector("#ground-continuation image")?.getAttribute("href"),
@@ -401,22 +402,24 @@ test("neurons vary, animate without state changes, and show only real friendly l
   assert.equal(svg.querySelectorAll(".disconnected-link").length, 1);
   const neurons = [...svg.querySelectorAll<SVGGElement>(".neuron-body")];
   assert.notEqual(neurons[0]!.innerHTML, neurons[1]!.innerHTML);
-  const transform = neurons[0]!.style.transform;
+  const sway = () =>
+    svg
+      .querySelector(".structure-neuron:not(.disconnected) .dendrite-side")!
+      .getAttribute("transform");
+  const transform = sway();
   animation.animate(1300);
-  assert.notEqual(neurons[0]!.style.transform, transform);
+  assert.notEqual(sway(), transform, "connected dendrites sway");
   assert.equal(
-    svg.querySelector<SVGGElement>(".disconnected .neuron-body")!.style
-      .transform,
-    "",
+    svg
+      .querySelector(".disconnected .dendrite-side")!
+      .getAttribute("transform"),
+    null,
     "disconnected neurons are dormant",
   );
-  const phase = neurons[0]!.style.transform;
+  const phase = sway();
   world.structures[1]!.hp--;
   renderBoard(svg, world, null, false, false, 1300, sprites);
-  assert.equal(
-    svg.querySelector<SVGGElement>(".neuron-body")!.style.transform,
-    phase,
-  );
+  assert.equal(sway(), phase, "re-rendering keeps the motion phase");
   world.structures[1]!.hp++;
   assert.equal(
     JSON.stringify(world),
@@ -424,12 +427,110 @@ test("neurons vary, animate without state changes, and show only real friendly l
     "animation cannot mutate simulation",
   );
   const reduced = renderBoard(svg, world, null, false, true, 1300, sprites);
-  const still = svg.querySelector<SVGGElement>(".neuron-body")!.style.transform;
+  const still = sway();
   reduced.animate(1600);
-  assert.equal(
-    svg.querySelector<SVGGElement>(".neuron-body")!.style.transform,
-    still,
+  assert.equal(sway(), still);
+  assert.equal(still, null, "reduced motion leaves neurons at rest");
+});
+
+test("new neurons sprout, reach toward neighbours and spread creep from the time they appear", () => {
+  const { document } = parseHTML("<html><body><svg></svg></body></html>");
+  const svg = document.querySelector("svg") as unknown as SVGSVGElement;
+  const map = loadMap(
+    JSON.parse(
+      readFileSync(new URL("../maps/sandbox-12.json", import.meta.url), "utf8"),
+    ),
   );
+  const world = createMatch(map, {}, [{ id: "solo", slot: 0 }]);
+  const brain = world.structures[0]!;
+  renderBoard(svg, world, null, false, false, 0);
+  const creep = () => svg.querySelector(".creep .creep-top")!.getAttribute("d");
+  assert.match(creep() ?? "", /^M.*Z$/, "the brain starts on grown creep");
+  const grown = creep();
+  const cell = brain.cell + 1;
+  world.structures.push({
+    id: 2001,
+    cell,
+    ownerId: "solo",
+    kind: "neuron",
+    hp: 60,
+    connected: true,
+  });
+  world.tick++;
+  const animation = renderBoard(svg, world, null, false, false, 10_000);
+  const side = () =>
+    svg
+      .querySelector(`.structure[data-cell="${cell}"] .dendrite-side`)!
+      .getAttribute("transform")!;
+  assert.match(side(), /scale\(0\.0/, "dendrites start folded in");
+  assert.ok(
+    svg
+      .querySelector(`.network-link[data-to="${cell}"] path`)!
+      .getAttribute("pathLength"),
+    "the new link grows in",
+  );
+  animation.animate(10_700);
+  const half = creep();
+  assert.notEqual(half, grown, "creep spreads toward the new neuron");
+  animation.animate(13_000);
+  assert.doesNotMatch(side(), /scale/, "fully sprouted after growth");
+  assert.equal(
+    svg
+      .querySelector(`.network-link[data-to="${cell}"] path`)!
+      .getAttribute("pathLength"),
+    null,
+  );
+  // The existing neuron-free brain gets no dendrites; a second neuron reaches
+  // a new anchored dendrite toward the first.
+  world.structures.push({
+    id: 2002,
+    cell: cell + 1,
+    ownerId: "solo",
+    kind: "neuron",
+    hp: 60,
+    connected: true,
+  });
+  world.tick++;
+  const next = renderBoard(svg, world, null, false, false, 20_000);
+  const reaching = svg.querySelector(
+    `.structure[data-cell="${cell}"] .dendrite[data-key="n${cell + 1}"]`,
+  )!;
+  assert.match(reaching.getAttribute("transform")!, /scale\(0\.0/);
+  next.animate(22_000);
+  assert.equal(reaching.getAttribute("transform"), null);
+  // Removing a structure recedes its creep rather than cutting it off.
+  world.structures.splice(1, 2);
+  world.tick++;
+  const recede = renderBoard(svg, world, null, false, false, 30_000);
+  const before = creep();
+  recede.animate(30_600);
+  assert.notEqual(creep(), before);
+  recede.animate(60_000);
+  assert.equal(creep(), grown, "creep settles back to the brain alone");
+});
+
+test("paid neuron sites grow in a cocoon instead of a fabrication frame", () => {
+  const { document } = parseHTML("<html><body><svg></svg></body></html>");
+  const svg = document.querySelector("svg") as unknown as SVGSVGElement;
+  const map = loadMap(
+    JSON.parse(
+      readFileSync(new URL("../maps/sandbox-12.json", import.meta.url), "utf8"),
+    ),
+  );
+  const world = createMatch(map, {}, [{ id: "solo", slot: 0 }]);
+  world.players[0]!.queue.push({
+    cell: world.structures[0]!.cell + 1,
+    kind: "neuron",
+    paid: true,
+    progress: 5,
+    duration: 10,
+    hp: 10,
+  });
+  renderBoard(svg, world, null, false, true, 0);
+  const cocoon = svg.querySelector(".cocoon")!;
+  assert.equal(cocoon.getAttribute("data-progress"), "0.500");
+  assert.ok(cocoon.querySelector(".cocoon-embryo .neuron-body"));
+  assert.equal(svg.querySelector(".construction-body"), null);
 });
 
 test("team artwork and shadows use native SVG filters with resolvable definitions", () => {

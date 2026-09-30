@@ -18,6 +18,7 @@ import {
   type World,
   type ParticleKind,
 } from "../engine/types.js";
+import { neuronIconUrl } from "../render/neuron-art.js";
 
 export type CommandPanel =
   "inspect" | "build" | "research" | "activity" | "particles";
@@ -268,7 +269,10 @@ export function renderCommands(
         label: presentation.label,
         shortcut: keys[index]!,
         description: `${presentation.description} ${stats.hp} HP · ${constructionDuration(world, player, kind) / RULES.ticksPerSecond}s construction, plus travel. ${capabilities}${stats.protection ? ` Field range ${stats.protection.range}; absorbs up to ${stats.protection.absorbPercent}% damage. Each particle absorbs up to ${stats.protection.capacityPerAttack}× its attack before recovery.` : ""}`,
-        art: sprites[`${asset}-v2`] ?? sprites[asset],
+        art:
+          kind === "neuron"
+            ? neuronIconUrl(player.slot)
+            : (sprites[`${asset}-v2`] ?? sprites[asset]),
         cost: `${definition.cost / 1000} ◈`,
         disabled: !availability.allowed,
         hints: availability.allowed
