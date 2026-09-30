@@ -775,14 +775,28 @@ function combat(w: World) {
               priority: 3,
             })),
         ),
-    ].sort(
+    ];
+    // Splash weapons aim where the burst hits most: the target with the most
+    // enemy structures beside it. Others finish the weakest target first.
+    const cluster = (cell: number) =>
+      weapon.splashPercent
+        ? neighbors(w.map, cell).filter((n) =>
+            w.structures.some((t) => t.cell === n && t.ownerId !== s.ownerId),
+          ).length
+        : 0;
+    const density = new Map(targets.map((t) => [t.cell, cluster(t.cell)]));
+    targets.sort(
       (a, b) =>
         a.priority - b.priority ||
+        density.get(b.cell)! - density.get(a.cell)! ||
         a.hp - b.hp ||
         homeCellOrder(w.map, p.slot, a.cell, b.cell),
     );
     const equal = targets.filter(
-      (t) => t.priority === targets[0]?.priority && t.hp === targets[0]?.hp,
+      (t) =>
+        t.priority === targets[0]?.priority &&
+        density.get(t.cell) === density.get(targets[0]!.cell) &&
+        t.hp === targets[0]?.hp,
     );
     const target = equal[(s.firingCursor ?? 0) % equal.length];
     if (!target) continue;

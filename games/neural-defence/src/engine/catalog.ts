@@ -177,10 +177,10 @@ export const STRUCTURES: Readonly<
     hp: 80,
     range: 3,
     minRange: 3,
-    cadence: 80,
-    volley: 4,
+    cadence: 60,
+    volley: 5,
   }),
-  relay: Object.freeze({ hp: 90, range: 2, cadence: 10, volley: 4 }),
+  relay: Object.freeze({ hp: 90, range: 2, cadence: 10, volley: 3 }),
   harvester: Object.freeze({
     hp: 70,
     range: 0,
@@ -202,7 +202,7 @@ export const STRUCTURES: Readonly<
     volley: 12,
     protection: Object.freeze({
       range: 2,
-      absorbPercent: 50,
+      absorbPercent: 60,
       capacityPerAttack: 2,
     }),
   }),
@@ -237,6 +237,8 @@ export function protectionCells(
 }
 
 /** A deposit receives its ordinary adjacent contributions and one best specialist bonus. */
+/** Structures of one player that can mine the same deposit. */
+export const MINERS_PER_DEPOSIT = 2;
 export function depositContribution(
   world: Readonly<World>,
   playerId: string,
@@ -246,8 +248,10 @@ export function depositContribution(
   const miners = world.structures.filter(
     (s) => s.connected && s.ownerId === playerId && adjacent.has(s.cell),
   );
+  // Two miners work a deposit; a Harvester adds its bonus on top. Holding
+  // more deposits, not crowding one, grows an economy.
   return (
-    miners.length +
+    Math.min(miners.length, MINERS_PER_DEPOSIT) +
     Math.max(0, ...miners.map((s) => STRUCTURES[s.kind].miningBonus ?? 0))
   );
 }
@@ -337,8 +341,8 @@ export function researchPrerequisites(
  */
 export const SPROUT = Object.freeze({
   /** Territory cells per additional concurrent sprout. */
-  cellsPerSlot: 30,
-  maxSlots: 6,
+  cellsPerSlot: 50,
+  maxSlots: 4,
 });
 export const isSprout = (
   job: Readonly<Pick<Construction, "kind" | "upgradeFrom">>,

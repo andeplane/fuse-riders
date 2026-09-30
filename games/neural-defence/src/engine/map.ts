@@ -7,8 +7,25 @@ export function homeCellOrder(
   a: number,
   b: number,
 ): number {
+  // Order cells as seen from this seat's home: rows away from its edge, then
+  // columns away from its side. Every map's symmetry (point, or both mirrors
+  // on four- and six-seat maps) maps one seat's order onto another's, so no
+  // seat wins a tie another would lose. On two-seat maps this is the plain
+  // cell order from the top home and its reverse from the bottom one.
   const home = map.spawns.find((spawn) => spawn.slot === slot)!.cellIndex;
-  return (home < map.cells.length / 2 ? 1 : -1) * (a - b);
+  const { width: W, height: H } = map;
+  const hr = Math.floor(home / W),
+    hx = (home % W) + 0.5 * (hr & 1);
+  const flipY = hr * 2 > H - 1,
+    flipX = hx * 2 > W - 1;
+  const key = (cell: number) => {
+    const r = Math.floor(cell / W),
+      x = (cell % W) + 0.5 * (r & 1);
+    return [flipY ? H - 1 - r : r, flipX ? W - 1 - x : x] as const;
+  };
+  const [ay, ax] = key(a),
+    [by, bx] = key(b);
+  return ay - by || ax - bx;
 }
 export function neighbors(
   map: Pick<MapDefinition, "width" | "height">,

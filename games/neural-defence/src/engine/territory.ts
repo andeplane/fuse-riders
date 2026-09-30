@@ -21,13 +21,15 @@ export function claimableCells(map: Readonly<MapDefinition>): number {
 
 /**
  * The share of claimable cells needed for dominance: 40% of the map against
- * one rival, less with more players (30% of a four-way map), so a
+ * one rival, a little less with more players (35% of a four-way map), so a
  * free-for-all can still end. Contested cells count for nobody, so holding
- * it means pushing the rival's network back, not just outgrowing it.
+ * it means pushing rivals back, not just outgrowing them.
  */
 export function dominanceShare(players: number): number {
-  return 0.2 + 0.4 / Math.max(2, players);
+  return 0.3 + 0.2 / Math.max(2, players);
 }
+/** A dominant player also holds this many times any rival's territory. */
+export const DOMINANCE_LEAD = 1.5;
 export function dominanceCells(world: Readonly<World>): number {
   return Math.ceil(
     claimableCells(world.map) * dominanceShare(world.players.length),
@@ -83,7 +85,16 @@ export function territoryPhase(
       p.biomass += income;
       p.statistics.biomassEarned += income;
     }
-    const dominant = w.players.length > 1 && p.territory >= needed;
+    const rival = Math.max(
+      0,
+      ...w.players
+        .filter((q) => q !== p && q.alive)
+        .map((q) => counts.get(q.id) ?? 0),
+    );
+    const dominant =
+      w.players.length > 1 &&
+      p.territory >= needed &&
+      p.territory >= rival * DOMINANCE_LEAD;
     if (dominant && p.dominanceSince === null) {
       p.dominanceSince = w.tick;
       emit(p.id, "dominating");

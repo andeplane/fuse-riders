@@ -13,13 +13,18 @@ import {
   step,
   claimableCells,
   territoryCounts,
+  DOMINANCE_LEAD,
   territoryOwners,
   RULES,
   TERRITORY,
   TIMELINE,
   type World,
 } from "../src/engine/index.ts";
-import { STRUCTURES } from "../src/engine/catalog.ts";
+import {
+  STRUCTURES,
+  MINERS_PER_DEPOSIT,
+  depositContribution,
+} from "../src/engine/catalog.ts";
 import { aiCommands } from "../src/engine/ai.ts";
 
 test("connected structures claim their cell and its neighbours; touching networks contest", () => {
@@ -77,8 +82,8 @@ test("territory pays a trickle of biomass once a second", () => {
 test("the dominance share shrinks with more players", () => {
   assert.equal(dominanceShare(1), 0.4);
   assert.equal(dominanceShare(2), 0.4);
-  assert.ok(Math.abs(dominanceShare(4) - 0.3) < 1e-9);
-  assert.ok(Math.abs(dominanceShare(8) - 0.25) < 1e-9);
+  assert.ok(Math.abs(dominanceShare(4) - 0.35) < 1e-9);
+  assert.ok(Math.abs(dominanceShare(8) - 0.325) < 1e-9);
   for (let n = 2; n < RULES.maxPlayers; n++)
     assert.ok(dominanceShare(n + 1) <= dominanceShare(n));
   const w = duel();
@@ -182,6 +187,96 @@ test("a free-for-all plays on after one elimination and ends at the last brain",
   assert.equal(w.finished, true);
   assert.equal(w.winnerId, "b");
   assert.equal(w.victory, "elimination");
+});
+
+test("dominance needs a clear lead over every rival, not only the share", () => {
+  let w = duel();
+  spread(w, "a", dominanceCells(w));
+  // The rival grows close to a's size: a holds the share but not the lead.
+  spread(w, "b", Math.ceil(dominanceCells(w) / DOMINANCE_LEAD) + 10);
+  w = step(w);
+  const [a, b] = w.players;
+  assert.ok(a!.territory >= dominanceCells(w), "a holds the share");
+  assert.ok(a!.territory < b!.territory * DOMINANCE_LEAD, "but no clear lead");
+  assert.equal(a!.dominanceSince, null);
+  // Cut the rival back to its brain: the lead returns and the clock starts.
+  w.structures = w.structures.filter(
+    (s) => s.ownerId !== "b" || s.kind === "brain",
+  );
+  w = step(w);
+  assert.equal(w.players[0]!.dominanceSince, w.tick);
+});
+
+test("two structures mine a deposit; more crowd it without more income", () => {
+  const w = duel();
+  const deposit = w.map.cells.findIndex(
+    (c, i) =>
+      c.terrain === "deposit" &&
+      neighbors(w.map, i).filter((n) => w.map.cells[n]!.terrain === "open")
+        .length >= 4,
+  );
+  const around = neighbors(w.map, deposit).filter(
+    (n) => w.map.cells[n]!.terrain === "open",
+  );
+  const share = (count: number) => {
+    const x = structuredClone(w);
+    for (const cell of around.slice(0, count)) plant(x, "a", cell);
+    return depositContribution(x, "a", deposit);
+  };
+  assert.equal(share(1), 1);
+  assert.equal(share(2), MINERS_PER_DEPOSIT);
+  assert.equal(share(4), MINERS_PER_DEPOSIT);
+});
+
+test("Spore pods aim at the densest enemy cluster in reach", () => {
+  const w = createMatch(
+    {
+      schemaVersion: 1,
+      id: "cluster",
+      width: 8,
+      height: 4,
+      layout: "odd-r",
+      cells: Array.from({ length: 32 }, () => ({ terrain: "open" })),
+      spawns: [
+        { slot: 0, cellIndex: 0 },
+        { slot: 1, cellIndex: 7 },
+      ],
+    },
+    {},
+    [
+      { id: "a", slot: 0 },
+      { id: "b", slot: 1 },
+    ],
+  );
+  for (const [ownerId, cell, kind, hp] of [
+    ["a", 1, "neuron", 60],
+    ["a", 2, "spore", 70],
+    // A lone, weaker neuron and a healthier one inside a cluster.
+    ["b", 10, "neuron", 20],
+    ["b", 4, "neuron", 60],
+    ["b", 5, "neuron", 60],
+    ["b", 12, "neuron", 60],
+    ["b", 13, "neuron", 60],
+  ] as const)
+    w.structures.push({
+      id: w.nextEntityId++,
+      ownerId,
+      cell,
+      kind,
+      hp,
+      connected: true,
+    });
+  w.tick = STRUCTURES.spore.cadence - 1;
+  w.players[0]!.research = ["growth"];
+  w.players[0]!.priorities = { 2: 3 };
+  for (const q of w.particles.filter((q) => q.ownerId === "a").slice(0, 6))
+    Object.assign(q, { cell: 2, destination: 2, from: 2, to: 2 });
+  const next = step(w);
+  const direct = next.outcomes
+    .filter((o) => o.type === "damage" && o.fromCell === 2)
+    .sort((x, y) => y.amount! - x.amount!)[0]!;
+  assert.notEqual(direct.cell, 10, "not the lone weak neuron");
+  assert.ok([4, 12].includes(direct.cell!), `hit ${direct.cell}`);
 });
 
 test("checkpoints reject impossible victories, territory and timelines", () => {

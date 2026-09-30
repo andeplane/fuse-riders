@@ -55,7 +55,7 @@ test("supplied Siege cannot hit inside two steps, fires at three and takes close
       connected: true,
     });
   }
-  w.tick = 79;
+  w.tick = STRUCTURES.siege.cadence - 1;
   for (const [owner, cell] of [
     ["a", 3],
     ["b", 4],

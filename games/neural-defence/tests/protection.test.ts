@@ -128,12 +128,19 @@ test("overlapping fields do not stack their absorption percentage", () => {
     Object.assign(q, { cell: 9, destination: 9, from: 9, to: 9 });
   w.players[0]!.priorities[9] = 3;
   const next = step(w);
-  assert.equal(next.structures.find((s) => s.cell === 1)!.hp, 52);
+  // One field's share of the 16 incoming, however many fields overlap.
+  const absorbed = Math.floor(
+    (16 * STRUCTURES.bastion.protection!.absorbPercent) / 100,
+  );
+  assert.equal(
+    next.structures.find((s) => s.cell === 1)!.hp,
+    60 - 16 + absorbed,
+  );
   assert.equal(
     next.outcomes
       .filter((o) => o.type === "shielded")
       .reduce((n, o) => n + o.amount!, 0),
-    8,
+    absorbed,
   );
 });
 

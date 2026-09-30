@@ -39,7 +39,7 @@ const openings: Record<
 > = {
   balanced: {
     research: ["growth", "excitation", "ballistics", "conduction", "resonance"],
-    deposits: 7,
+    deposits: 5,
     harvesters: 1,
     weapon: "tower",
     profile: "heavy",
@@ -64,22 +64,22 @@ const openings: Record<
     neuronsPerWeapon: 3,
   },
   siege: {
-    research: ["excitation", "ballistics", "growth", "conduction", "resonance"],
-    deposits: 5,
+    research: ["growth", "excitation", "ballistics", "conduction", "resonance"],
+    deposits: 7,
     harvesters: 0,
     weapon: "siege",
     profile: "heavy",
   },
   relay: {
-    research: ["conduction", "resonance", "excitation", "growth", "ballistics"],
-    deposits: 5,
+    research: ["growth", "conduction", "resonance", "excitation", "ballistics"],
+    deposits: 6,
     harvesters: 0,
     weapon: "relay",
     profile: "swift",
   },
   defensive: {
     research: ["growth", "excitation", "ballistics", "conduction", "resonance"],
-    deposits: 5,
+    deposits: 7,
     harvesters: 0,
     weapon: "bastion",
     profile: "heavy",
@@ -92,8 +92,8 @@ const openings: Record<
     harvesters: 1,
     weapon: "relay",
     profile: "swift",
-    territory: 3,
-    advance: 1,
+    territory: 2,
+    advance: 2,
     neuronsPerWeapon: 4,
   },
 };
@@ -529,9 +529,7 @@ export function aiCommands(
         choice = { kind: "bastion", cell: fortifications[0] };
     }
     if (
-      (artilleryThreat ||
-        (strategy === "balanced" && forward <= 4) ||
-        (strategy === "defensive" && anchors.length > 0)) &&
+      (artilleryThreat || (strategy === "defensive" && anchors.length > 0)) &&
       player.research.includes("ballistics")
     )
       tower = "siege";
@@ -657,7 +655,7 @@ export function aiCommands(
         distance(cell) * (policy.advance ?? 4) +
         brainDistance(cell) -
         deposits(cell).length * policy.deposits -
-        freshTerritory(cell) * (policy.territory ?? 0);
+        freshTerritory(cell) * (policy.territory ?? 1);
       candidates.sort((a, b) => score(a) - score(b) || cellOrder(a, b));
       if (candidates[0] !== undefined)
         choice = { kind: "neuron", cell: candidates[0] };

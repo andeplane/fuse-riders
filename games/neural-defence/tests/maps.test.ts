@@ -9,6 +9,7 @@ import {
   type MapDefinition,
 } from "../src/engine/index.ts";
 import { BUNDLED_MAP_IDS, ROOM_MAPS, bundledMap } from "../src/online/maps.ts";
+import { homeCellOrder } from "../src/engine/map.ts";
 
 const files = readdirSync(new URL("../maps/", import.meta.url)).filter((f) =>
   f.endsWith(".json"),
@@ -121,3 +122,37 @@ function opening(map: MapDefinition, from: number) {
       .sort((a, b) => a - b),
   };
 }
+
+test("every seat breaks ties the same way as its mirror image", () => {
+  for (const file of files) {
+    const map = load(file);
+    const { width: W, height: H } = map;
+    const point = (i: number) => map.cells.length - 1 - i;
+    const vertical = (i: number) => (H - 1 - Math.floor(i / W)) * W + (i % W);
+    const horizontal = (i: number) => {
+      const r = Math.floor(i / W),
+        c = i % W;
+      const m = r & 1 ? W - 2 - c : W - 1 - c;
+      return m < 0 ? -1 : r * W + m;
+    };
+    const home = (slot: number) =>
+      map.spawns.find((s) => s.slot === slot)!.cellIndex;
+    const mirrors = H % 2 ? [vertical, horizontal] : [point];
+    for (const a of map.spawns)
+      for (const mirror of mirrors) {
+        const b = map.spawns.find((s) => s.cellIndex === mirror(home(a.slot)));
+        if (!b || b === a) continue;
+        // Compare a sample of cell pairs through the mirror.
+        for (let i = 0; i < map.cells.length; i += 7)
+          for (let j = 3; j < map.cells.length; j += 11) {
+            const [mi, mj] = [mirror(i), mirror(j)];
+            if (mi < 0 || mj < 0 || i === j) continue;
+            assert.equal(
+              Math.sign(homeCellOrder(map, a.slot, i, j)),
+              Math.sign(homeCellOrder(map, b.slot, mi, mj)),
+              `${map.id} seats ${a.slot}/${b.slot} cells ${i},${j}`,
+            );
+          }
+      }
+  }
+});

@@ -1,11 +1,16 @@
 import {
   CONSTRUCTIONS,
+  MINERS_PER_DEPOSIT,
   RESEARCH,
   SPROUT,
   STRUCTURES,
 } from "../engine/catalog.js";
 import { POWERUP_KINDS, POWERUP_PRESENTATION } from "../engine/powerups.js";
-import { dominanceShare, TERRITORY } from "../engine/territory.js";
+import {
+  DOMINANCE_LEAD,
+  dominanceShare,
+  TERRITORY,
+} from "../engine/territory.js";
 import { AI_STRATEGIES, RULES, type AiStrategy } from "../engine/types.js";
 import { BUILD_PRESENTATION, RESEARCH_PRESENTATION } from "./command-card.js";
 
@@ -110,11 +115,11 @@ export function guideMarkup(section: GuideSection): string {
 function sectionMarkup(section: GuideSection): string {
   switch (section) {
     case "goal":
-      return `<h2>Take over the cortex</h2><p>You are a brain. Grow a network of neurons across the map, feed it from deposits, arm it with towers and push back every rival network.</p><h3>Two ways to win</h3><ul><li><strong>Elimination.</strong> Destroy every rival brain. A brain is a structure like any other; guard it.</li><li><strong>Dominance.</strong> Hold ${pct(dominanceShare(2))} of the map in a duel (${pct(dominanceShare(4))} with four players) for ${TERRITORY.dominanceTicks / RULES.ticksPerSecond} seconds. The top bar counts your territory and shows a countdown while someone dominates.</li></ul><p>Contested cells, touched by two networks, count for nobody: to dominate you must push rivals back, not only outgrow them.</p>`;
+      return `<h2>Take over the cortex</h2><p>You are a brain. Grow a network of neurons across the map, feed it from deposits, arm it with towers and push back every rival network.</p><h3>Two ways to win</h3><ul><li><strong>Elimination.</strong> Destroy every rival brain. A brain is a structure like any other; guard it.</li><li><strong>Dominance.</strong> Hold ${pct(dominanceShare(2))} of the map in a duel (${pct(dominanceShare(4))} with four players) for ${TERRITORY.dominanceTicks / RULES.ticksPerSecond} seconds, while holding at least ${DOMINANCE_LEAD} times as much as any rival. The top bar counts your territory and shows a countdown while someone dominates.</li></ul><p>Contested cells, touched by two networks, count for nobody: to dominate you must push rivals back, not only outgrow them.</p>`;
     case "network":
       return `<h2>Your network</h2><p>Everything grows from the brain. A structure is <em>connected</em> while a chain of your structures links it to the brain; disconnected structures stop mining, claiming and firing until you reconnect them.</p><h3>Neurons sprout</h3><p>Neurons carry no weapon: they claim ground, mine deposits and carry supply, and every tower is built on one. Queue a Neuron beside your network and it grows by itself, like creep. You grow one sprout at a time at first and one more for every ${SPROUT.cellsPerSlot} territory cells, up to ${SPROUT.maxSlots}. Expansion snowballs: the more map you hold, the faster you take more.</p><h3>The builder</h3><p>Your builder walks out along the network to raise towers and other upgrades on existing neurons. Cut a route it is travelling and it retreats to the brain.</p><h3>Auto expand</h3><p>Select your brain and switch on Auto expand to fill free sprout slots automatically. Your own orders always come first.</p>`;
     case "economy":
-      return `<h2>Economy</h2><p>Two resources: <strong>biomass</strong> ◈ builds, <strong>insight</strong> ◇ researches. The brain trickles both.</p><ul><li><strong>Deposits.</strong> A connected structure beside a crystal mines it: biomass or insight. More of your structures around a deposit mine it faster.</li><li><strong>Harvesters</strong> count as three miners on every deposit beside them.</li><li><strong>Territory</strong> pays ${bio(TERRITORY.incomePerCell)} biomass per claimed cell every second.</li></ul><p>A Neuron costs ${bio(CONSTRUCTIONS.neuron.cost)} biomass; a Pulse tower ${bio(CONSTRUCTIONS.tower.cost)}.</p>`;
+      return `<h2>Economy</h2><p>Two resources: <strong>biomass</strong> ◈ builds, <strong>insight</strong> ◇ researches. The brain trickles both.</p><ul><li><strong>Deposits.</strong> A connected structure beside a crystal mines it: biomass or insight. Up to ${MINERS_PER_DEPOSIT} of your structures mine the same deposit, so take more deposits rather than crowding one.</li><li><strong>Harvesters</strong> add one more share to every deposit beside them, on top of the two miners.</li><li><strong>Territory</strong> pays ${bio(TERRITORY.incomePerCell)} biomass per claimed cell every second.</li></ul><p>A Neuron costs ${bio(CONSTRUCTIONS.neuron.cost)} biomass; a Pulse tower ${bio(CONSTRUCTIONS.tower.cost)}.</p>`;
     case "structures": {
       const rows = (
         Object.keys(CONSTRUCTIONS) as (keyof typeof CONSTRUCTIONS)[]
