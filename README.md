@@ -50,7 +50,7 @@ Every device in a room simulates the game from one shared input log, so no brows
 
 ## Pig, the second game
 
-The same service serves **Pig**, a dice game for 2–5 players and bots, at `/dice/` (locally **http://localhost:8787/dice/**; the Fuse Riders home page links it as **MORE GAMES: PIG**). Roll a die as often as you like, every roll adding to your turn; a 1 loses the turn, **HOLD** banks it. First to 50 wins the round, two rounds win the match. It has solo against bots, rooms with a QR invite, and a shared TV (`?room=CODE&display=1`) with phones as ROLL/HOLD controllers. It is the template for new games: see [games/dice/README.md](games/dice/README.md). Production serves its rooms only once `EXTRA_GAME_IDS=dice` is set ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page offers solo only.
+The same service serves **Pig**, a dice game for 2–5 players and bots, at `/dice/` (locally **http://localhost:8787/dice/**). It is the platform's demo, so the app portal (the dot-grid button at the top left of every game, listing each game with a `portal.json`) leaves it out. Roll a die as often as you like, every roll adding to your turn; a 1 loses the turn, **HOLD** banks it. First to 50 wins the round, two rounds win the match. It has solo against bots, rooms with a QR invite, and a shared TV (`?room=CODE&display=1`) with phones as ROLL/HOLD controllers. It is the template for new games: see [games/dice/README.md](games/dice/README.md). Production serves its rooms only once `EXTRA_GAME_IDS=dice` is set ([GCP deploy](docs/online/GCP-DEPLOY.md)); until then its page offers solo only.
 
 ## How to play
 

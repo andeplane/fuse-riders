@@ -1,6 +1,7 @@
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
+import "fuse-ui/portal.css";
 import "./style.css";
 import QRCode from "qrcode";
 import {
@@ -13,6 +14,7 @@ import {
 import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
 import {
   button,
+  createAppPortal,
   createInviteCard,
   createLandingCard,
   createNameEntry,
@@ -187,7 +189,13 @@ function logo(): HTMLElement {
 }
 function header(extra: HTMLElement[] = []): HTMLElement {
   const bar = el("header", "", "ff-top");
-  bar.append(logo(), ...extra);
+  const portal = createAppPortal({
+    document,
+    current: GAME,
+    base: import.meta.env.BASE_URL,
+    search: location.search,
+  });
+  bar.append(portal.element, logo(), ...extra);
   return bar;
 }
 

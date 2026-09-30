@@ -1,10 +1,11 @@
 /**
  * The landing page: what an online page shows before any room exists (#255 P1). CREATE ROOM, JOIN ROOM, REJOIN,
- * PLAY SOLO, SETTINGS, MORE GAMES and the account panel all live here. The room itself is `ui.ts`'s: the landing
+ * PLAY SOLO, SETTINGS, the app portal and the account panel all live here. The room itself is `ui.ts`'s: the landing
  * page talks to it through `LandingHost`, and leaving for a room keeps the document (and so the music) alive.
  */
 import {
   button,
+  createAppPortal,
   createDialog,
   createJoinByCode,
   createRadioGroup,
@@ -91,8 +92,18 @@ export function showLanding(host: LandingHost): void {
     musicButton,
     muteButton,
   );
+  const topStart = node("div", "", "landing-top-start");
+  topStart.append(
+    createAppPortal({
+      document,
+      current: GAME_ID,
+      base: import.meta.env.BASE_URL,
+      search: location.search,
+    }).element,
+    brand,
+  );
   const top = node("header", "", "landing-top");
-  top.append(brand, topEnd);
+  top.append(topStart, topEnd);
   const eyebrow = node("p", "", "landing-eyebrow");
   eyebrow.append(node("span"), " A NEON ARENA PARTY GAME");
   const headline = node("h1");
@@ -118,34 +129,7 @@ export function showLanding(host: LandingHost): void {
     "On the same Wi-Fi? Even better.",
   );
   const content = node("section", "", "landing-content");
-  content.append(
-    eyebrow,
-    headline,
-    intro,
-    soloLink,
-    form,
-    hint,
-    link(
-      `${appUrl()}dice/`,
-      "landing-more",
-      document.createTextNode("MORE GAMES: PIG ›"),
-    ),
-    link(
-      `${appUrl()}hook-havok/${new URLSearchParams(location.search).has("mute") ? "?mute" : ""}`,
-      "landing-more",
-      document.createTextNode("HOOK HAVOK — MOVEMENT PLAYGROUND ›"),
-    ),
-    link(
-      `${appUrl()}fuse-choppers/${new URLSearchParams(location.search).has("mute") ? "?mute" : ""}`,
-      "landing-more",
-      document.createTextNode("FUSE CHOPPERS — CAVE CHAOS ›"),
-    ),
-    link(
-      `${appUrl()}fuse-freight/${new URLSearchParams(location.search).has("mute") ? "?mute" : ""}`,
-      "landing-more",
-      document.createTextNode("FUSE FREIGHT — COLLECT, STEAL, DELIVER ›"),
-    ),
-  );
+  content.append(eyebrow, headline, intro, soloLink, form, hint);
   const live = node("aside", "", "landing-live");
   live.append(
     node("span", "", "live-dot"),
