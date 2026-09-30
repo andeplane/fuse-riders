@@ -252,6 +252,54 @@ test("completed matches show a result and offer restart", async () => {
   f.app.dispose();
 });
 
+test("the match report opens from the result with charts, a scoreboard and key moments", async () => {
+  const f = fixture();
+  await f.start();
+  f.world.finished = true;
+  f.world.winnerId = "coral";
+  f.world.victory = "dominance";
+  f.world.timeline = [
+    {
+      tick: 200,
+      players: f.world.players.map((p, i) => ({
+        id: p.id,
+        territory: i ? 12 : 300,
+        structures: 3,
+        weapons: i ? 0 : 1,
+        biomassEarned: i ? 5_000 : 9_000,
+        insightEarned: 0,
+        damage: 0,
+        lost: 0,
+        biomass: 0,
+      })),
+    },
+  ];
+  f.world.events = [{ tick: 150, playerId: "coral", type: "dominating" }];
+  f.publish();
+  const result = f.root.querySelector("#match-result")!;
+  assert.match(result.textContent!, /dominant share/);
+  assert.equal(result.querySelector(".match-report"), null);
+  f.click("toggle-report");
+  assert.ok(result.classList.contains("expanded"));
+  assert.ok(result.querySelector(".match-report"));
+  assert.equal(result.querySelectorAll(".report-line").length, 2);
+  assert.ok(
+    result.querySelector(".report-threshold"),
+    "territory shows dominance",
+  );
+  assert.match(result.textContent!, /Scoreboard/);
+  assert.match(result.textContent!, /0:07\s*You reached a dominant share/);
+  result.querySelector<HTMLElement>('[data-metric="economy"]')!.click();
+  assert.equal(
+    result.querySelector('[aria-selected="true"]')?.textContent,
+    "Economy",
+  );
+  assert.equal(result.querySelector(".report-threshold"), null);
+  f.click("toggle-report");
+  assert.equal(result.querySelector(".match-report"), null);
+  f.app.dispose();
+});
+
 test("command shortcuts respect selection, availability, research context and input focus", async () => {
   const f = fixture();
   await f.start();

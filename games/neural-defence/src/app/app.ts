@@ -32,6 +32,14 @@ import { TEAM_PALETTES } from "../render/creep.js";
 const TEAM_COLORS = TEAM_PALETTES.map((p) => p.glow);
 import { POWERUP_STYLE } from "../render/powerup-art.js";
 import { sporeIconUrl } from "../render/spore-art.js";
+import {
+  REPORT_METRICS,
+  TEAM_NAMES,
+  clock,
+  reportMarkup,
+  reportPlayers,
+  type ReportMetric,
+} from "./match-report.js";
 import { POWERUP_PRESENTATION } from "../engine/powerups.js";
 import {
   isBuildKind,
@@ -158,6 +166,8 @@ export function mountNeuralDefence(
   let powerups = true;
   let firstAiStrategy: AiStrategy = "pressure";
   let notices: Outcome[] = [];
+  // The end-of-match report: open or not, and which chart it shows.
+  let report = { open: false, metric: "territory" as ReportMetric, match: "" };
   let noticeTick = -1;
   let noticeMatch = "";
   let panel: CommandPanel = "inspect";
@@ -431,9 +441,7 @@ export function mountNeuralDefence(
 
   function sideName(world: Readonly<World>, id: string): string {
     return (
-      ["Blue", "Red", "Green", "Gold"][
-        world.players.find((p) => p.id === id)?.slot ?? 0
-      ] ?? "Player"
+      TEAM_NAMES[world.players.find((p) => p.id === id)?.slot ?? 0] ?? "Player"
     );
   }
 
@@ -612,7 +620,10 @@ export function mountNeuralDefence(
     const result = root.querySelector<HTMLElement>("#match-result");
     if (result) {
       result.hidden = !world.finished;
+      result.classList.toggle("expanded", world.finished && report.open);
       if (world.finished) {
+        if (report.match !== world.matchId)
+          report = { ...report, open: false, match: world.matchId };
         const title =
           world.winnerId === null
             ? "Draw"
@@ -621,9 +632,30 @@ export function mountNeuralDefence(
               : world.winnerId === session?.localPlayerId
                 ? "Victory"
                 : "Defeat";
+        const winner = world.winnerId
+          ? world.winnerId === session?.localPlayerId && session?.canControl
+            ? "You"
+            : sideName(world, world.winnerId)
+          : "";
+        const how =
+          world.winnerId === null
+            ? "Every brain was destroyed."
+            : world.victory === "dominance"
+              ? `${winner} held a dominant share of the cortex for a minute.`
+              : !session?.canControl
+                ? `${winner} destroyed the last rival brain.`
+                : world.winnerId === session?.localPlayerId
+                  ? "The last rival brain has been destroyed."
+                  : "Your brain has been destroyed.";
+        const seats = online?.room().seats ?? [];
+        const players = reportPlayers(
+          world,
+          session?.canControl ? (session.localPlayerId ?? null) : null,
+          (id) => seats.find((seat) => seat.id === id)?.name,
+        );
         updateContent(
           result,
-          `<strong>${title}</strong><p>${world.winnerId === null ? "Both brains were destroyed." : !session?.canControl ? "The opposing brain has been destroyed." : world.winnerId === session?.localPlayerId ? "The rival brain has been destroyed." : "Your brain has been destroyed."}</p><small>${Math.floor(world.tick / RULES.ticksPerSecond / 60)}:${String(Math.floor(world.tick / RULES.ticksPerSecond) % 60).padStart(2, "0")} elapsed</small><div class="button-row">${online ? (online.room().manager ? '<button data-action="rematch-room">Rematch</button><button data-action="lobby-room" class="secondary">Lobby</button>' : '<span class="room-wait">Waiting for the host…</span>') : `<button data-action="reset">${session?.canControl ? "Play again" : "Watch again"}</button>`}<button data-action="leave" class="secondary">${online ? "Leave room" : "Menu"}</button></div>`,
+          `<strong>${title}</strong><p>${escape(how)}</p><small>${clock(world.tick)} elapsed</small><div class="button-row"><button data-action="toggle-report" class="secondary" aria-expanded="${report.open}">${report.open ? "Hide report" : "Match report"}</button>${online ? (online.room().manager ? '<button data-action="rematch-room">Rematch</button><button data-action="lobby-room" class="secondary">Lobby</button>' : '<span class="room-wait">Waiting for the host…</span>') : `<button data-action="reset">${session?.canControl ? "Play again" : "Watch again"}</button>`}<button data-action="leave" class="secondary">${online ? "Leave room" : "Menu"}</button></div>${report.open ? reportMarkup(world, players, session?.canControl ? (session.localPlayerId ?? null) : null, report.metric) : ""}`,
         );
       }
     }
@@ -1006,7 +1038,16 @@ export function mountNeuralDefence(
         if (id) online?.removeBot(id);
       } else if (action === "start-room") online?.start();
       else if (action === "rematch-room") online?.rematch();
-      else if (action === "lobby-room") online?.lobby();
+      else if (action === "toggle-report") {
+        report = { ...report, open: !report.open };
+        renderGame();
+      } else if (action === "report-metric") {
+        const metric =
+          target.closest<HTMLElement>("[data-metric]")?.dataset.metric;
+        const chosen = REPORT_METRICS.find((m) => m.id === metric);
+        if (chosen) report = { ...report, metric: chosen.id };
+        renderGame();
+      } else if (action === "lobby-room") online?.lobby();
       else if (action === "leave-room") showMenu();
       else if (action === "copy-room-link" && online) {
         const link = dependencies.online?.roomLink(online.code) ?? "";
