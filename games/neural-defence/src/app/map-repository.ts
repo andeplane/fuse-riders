@@ -6,6 +6,10 @@ import openUrl from "../../maps/open-front.json?url";
 import narrowUrl from "../../maps/narrow-front.json?url";
 import leanUrl from "../../maps/lean-resources.json?url";
 import closeUrl from "../../maps/close-quarters.json?url";
+import hemispheresUrl from "../../maps/twin-hemispheres.json?url";
+import islandsUrl from "../../maps/synapse-islands.json?url";
+import crossingUrl from "../../maps/cortex-crossing.json?url";
+import grandUrl from "../../maps/grand-cortex.json?url";
 
 const catalog: MapSummary[] = [
   {
@@ -25,6 +29,42 @@ const catalog: MapSummary[] = [
     width: 24,
     height: 20,
     url: skirmishUrl,
+  },
+  {
+    id: "twin-hemispheres",
+    title: "Twin Hemispheres",
+    description:
+      "Two halves split by a deep fissure with three bridges. Hold the bridges to hold the brain.",
+    width: 28,
+    height: 20,
+    url: hemispheresUrl,
+  },
+  {
+    id: "synapse-islands",
+    title: "Synapse Islands",
+    description:
+      "Islands of cortex joined by one-cell synapses. Rich islands, fragile supply lines.",
+    width: 26,
+    height: 22,
+    url: islandsUrl,
+  },
+  {
+    id: "cortex-crossing",
+    title: "Cortex Crossing",
+    description:
+      "Four brains around a walled central lobe. For two to four players; the centre pays the most.",
+    width: 29,
+    height: 23,
+    url: crossingUrl,
+  },
+  {
+    id: "grand-cortex",
+    title: "Grand Cortex",
+    description:
+      "A six-seat free-for-all. Flank seats sit between two corners; corners have the open ground.",
+    width: 35,
+    height: 27,
+    url: grandUrl,
   },
   {
     id: "sandbox-12",

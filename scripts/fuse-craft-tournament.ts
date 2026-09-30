@@ -41,6 +41,10 @@ const maps: MapDefinition[] = [
   "narrow-front",
   "lean-resources",
   "close-quarters",
+  "twin-hemispheres",
+  "synapse-islands",
+  "cortex-crossing",
+  "grand-cortex",
 ].map((id) =>
   loadMap(
     JSON.parse(

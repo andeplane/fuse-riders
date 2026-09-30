@@ -1,10 +1,14 @@
 import closeQuarters from "../../maps/close-quarters.json";
 import combatLab from "../../maps/combat-lab-12.json";
+import cortexCrossing from "../../maps/cortex-crossing.json";
+import grandCortex from "../../maps/grand-cortex.json";
 import leanResources from "../../maps/lean-resources.json";
 import narrowFront from "../../maps/narrow-front.json";
 import openFront from "../../maps/open-front.json";
 import sandbox from "../../maps/sandbox-12.json";
 import skirmish from "../../maps/skirmish-24.json";
+import synapseIslands from "../../maps/synapse-islands.json";
+import twinHemispheres from "../../maps/twin-hemispheres.json";
 
 /**
  * The bundled maps, by id. Online rooms name a map instead of carrying it:
@@ -16,11 +20,15 @@ const BUNDLED: Readonly<Record<string, unknown>> = Object.freeze(
     [
       closeQuarters,
       combatLab,
+      cortexCrossing,
+      grandCortex,
       leanResources,
       narrowFront,
       openFront,
       sandbox,
       skirmish,
+      synapseIslands,
+      twinHemispheres,
     ].map((map) => [map.id, map]),
   ),
 );
@@ -34,6 +42,10 @@ export function bundledMap(id: string): unknown {
 
 const TITLES: Readonly<Record<string, string>> = {
   "close-quarters": "Close Quarters",
+  "twin-hemispheres": "Twin Hemispheres",
+  "synapse-islands": "Synapse Islands",
+  "cortex-crossing": "Cortex Crossing",
+  "grand-cortex": "Grand Cortex",
   "skirmish-24": "Synaptic Reach",
   "open-front": "Open Synapse",
   "narrow-front": "Twin Pass",
