@@ -1412,9 +1412,6 @@ export function renderBoard(
         ? 1
         : 1 + g.swing * Math.sin(frameNow / g.period + g.phase);
       field.add(g.x, g.y, g.size, g.color, g.alpha * pulse, g.sharpness);
-      // A wide faint halo around bright sources stands in for bloom.
-      if (g.alpha >= 0.3)
-        field.add(g.x, g.y, g.size * 2.3, g.color, g.alpha * pulse * 0.16, 1.2);
     }
     if (!reducedMotion) {
       // A signal runs along every live axon, a spark with a soft halo.
