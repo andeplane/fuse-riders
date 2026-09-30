@@ -7,12 +7,13 @@ Last reviewed: 2026-09-30, branch `claude/fuse-craft` ([PR #417](https://github.
 ## Needs a decision from Anders
 
 - [ ] Play the current build and say what falls short in look and feel. This is the one open acceptance item in [GOAL_VERIFICATION.md](GOAL_VERIFICATION.md).
-- [ ] Decide whether the sprite/SVG oblique battlefield is enough, or whether the game should move to a fully 3D renderer.
+- [ ] Decide whether the SVG battlefield with its GPU light layer is enough, or whether the whole battlefield should move to WebGL (true bloom, lit terrain, tilted camera). See [organic network and light](verification/organic-light-2026-09-30/README.md).
+- [ ] Brains and towers are still painted mechanical sprites, now rooted into the creep. Decide whether they should become organic structures in the same procedural style as neurons.
 - [ ] Decide whether to rename `games/neural-defence/`, the `/neural-defence/` URL and the internal identifiers to Fuse Craft. Only the display name and commit scope have changed so far.
 
 ## Performance
 
-- [ ] WebKit at device pixel ratio 2 still drops frames in a live battle: median 21 ms, p95 47 ms, 15 intervals over 50 ms in 20 seconds. Target is a steady 60 FPS. See [cached tints](verification/cached-tints-2026-09-27/README.md).
+- [ ] WebKit at device pixel ratio 2 still misses 60 FPS in a live battle: median 22 ms, p95 44 ms, none over 50 ms, 46 callbacks per second. It was 52.7 per second before the light layer, and resolution capping did not recover it. Chromium on the GPU holds 60. See [organic network and light](verification/organic-light-2026-09-30/README.md).
 - [ ] The placement preview still uses a live SVG filter instead of the tint cache.
 - [ ] Measure frame rate on a real phone. Every number so far is a headless callback interval.
 
@@ -24,6 +25,9 @@ Last reviewed: 2026-09-30, branch `claude/fuse-craft` ([PR #417](https://github.
 
 ## Rendering and visuals
 
+- [ ] Neurons at default play zoom read as glowing orbs; branch silhouettes are clearer only when zoomed in. Consider thicker branches or a size bump with age.
+- [ ] The light layer's bloom is additive glow, not a true bloom pass; there is no light falling on terrain from effects beyond the glow itself.
+
 - [ ] Cached team tints are not checked against a native-filter reference image, so exact hue match is unproven. See [cached tints](verification/cached-tints-2026-09-27/README.md).
 
 ## Platform and multiplayer
@@ -34,7 +38,9 @@ Last reviewed: 2026-09-30, branch `claude/fuse-craft` ([PR #417](https://github.
 
 ## Verification gaps
 
-- [ ] Re-run the browser smokes and the 210-case AI matrix on the branch after the merge with `main`. Only typecheck, lint and the unit suite (1,970 tests) were re-run.
+- [x] Re-run the browser smokes and the 210-case AI matrix after the merge with `main`. All 210 cases match the qualified matrix exactly; network, terrain, UI and roster smokes pass in Chromium and WebKit. See [organic network and light](verification/organic-light-2026-09-30/README.md).
+- [ ] The other browser smokes (construction, damage, effects, expansion, watch, upgrade, finish, player victory, raster and tint) have not been re-run on the new renderer.
+- [ ] Top-row buildings' heads sit under the HUD when the camera rests at the map's top edge, so players cannot click them there. Consider letting the camera pan a little past the top edge.
 - [ ] CI for this pull request skips coverage, smoke and end-to-end jobs; they run on `main` only.
 - [ ] Map load failure and retry are covered by injected app tests, not by a simulated browser network failure.
 

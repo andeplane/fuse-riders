@@ -1,4 +1,24 @@
-# Goal verification — 2026-09-27
+# Goal verification
+
+## Update — 2026-09-30
+
+Branch `claude/fuse-craft`, [PR #417](https://github.com/andeplane/fuse-riders/pull/417)
+(replaces #409, merged with current `main`). The visual pass answers the
+user's review ("neurons look alike and static; want a more 3D, Zerg-like
+growth"; then "AAA style, animations and colours"):
+
+| Requirement                 | Evidence                                                                                                                                                                                                                                                     | Assessment                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| Balance, AI against AI      | All 210 cases on the merged source match the qualified matrix exactly by replay hash, result and duration; zero rejected commands; the same two Pressure/Relay timeouts                                                                                      | Unchanged and reconfirmed                                                                       |
+| Richer motion and particles | Procedural, swaying neurons with signal sparks; cocoon growth; spreading and receding creep with heartbeat ripples; breathing brains; neuron death bursts; a GPU light layer with axon signals, lit particles, spores, hit flashes, sparks, embers and motes | Implemented; see [organic network and light](verification/organic-light-2026-09-30/README.md)   |
+| Less flat presentation      | Raised creep slab with side and shadow, shaded somas with nuclei, buildings rooted into tissue mounds, additive emissive light and a vignette                                                                                                                | Clearly less flat; still an oblique 2D scene, not a 3D camera                                   |
+| Colour                      | Muted creep so units stand out, three tones per team for neurons, emissive glow, graded edges                                                                                                                                                                | Implemented; the user asked for the muted creep                                                 |
+| Performance                 | Chromium on GPU: locked 60 at DPR 2 with light. WebKit: median 22 ms, p95 44 ms, none over 50 ms                                                                                                                                                             | WebKit still below 60; better than before the branch                                            |
+| Overall AAA quality         | Captures and clips retained                                                                                                                                                                                                                                  | **Not proven.** Needs the user's play review; the main known gaps are listed in [TODO](TODO.md) |
+
+The 2026-09-27 audit follows unchanged for its evidence.
+
+## 2026-09-27
 
 Objective: complete a more complex game with multiple working strategies,
 AI-vs-AI balance evidence, beautiful animation and particles, and greater visual
