@@ -48,7 +48,7 @@ export interface Train {
   score: number;
   collected: number;
   deliveries: number;
-  /** Rival wagons it cut loose, and its own wagons others cut loose. */
+  /** Rival wagons it cut loose, and its own wagons others cut loose (counting any a full floor scrapped). */
   stolen: number;
   lost: number;
 }

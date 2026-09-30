@@ -111,3 +111,13 @@ test("the checkpoint refuses a world with any field out of its bounds, and never
   assert.equal(decodeWorld(null), undefined);
   assert.equal(decodeWorld({}), undefined);
 });
+
+test("the checkpoint refuses a world stepped on past the end of its outro", () => {
+  const world = createWorld(5, [{ id: "a", slot: 0 }], { seconds: 60 });
+  while (world.phase !== "outro") stepWorld(world, new Map());
+  for (let i = 0; i < T.OUTRO_STEPS; i++) stepWorld(world, new Map());
+  assert.ok(decodeWorld(encodeWorld(world)), "the end of the outro");
+  const raw = encodeWorld(world);
+  raw[2] = world.phaseAt + T.OUTRO_STEPS + T.STEPS_PER_TICK + 1;
+  assert.equal(decodeWorld(raw), undefined);
+});

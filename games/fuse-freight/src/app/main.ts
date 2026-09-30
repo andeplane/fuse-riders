@@ -113,10 +113,28 @@ const make: MakeSurface = (width, height) => {
 
 // ---- sound ----
 const audio: GameAudio = createAudio(muted, loadPrefs(store, touchFirst()));
-for (const type of ["pointerdown", "keydown"] as const)
+// iOS counts a touch's end, a click or a key as the gesture that may start sound, not a touch's pointerdown.
+for (const type of [
+  "pointerdown",
+  "pointerup",
+  "touchend",
+  "click",
+  "keydown",
+] as const)
   document.addEventListener(type, () => audio.resume(), { passive: true });
 
-function soundToggles(): HTMLElement {
+/** Whether an element is on screen now, so an animation off it can skip its frame. */
+function onScreen(element: Element): () => boolean {
+  let visible = true;
+  if (typeof IntersectionObserver !== "undefined")
+    new IntersectionObserver((entries) => {
+      for (const entry of entries) visible = entry.isIntersecting;
+    }).observe(element);
+  return () => visible && element.isConnected;
+}
+
+/** The sound toggles; `prompt` adds a TAP FOR SOUND button until the browser lets the page play (the TV screen). */
+function soundToggles(prompt = false): HTMLElement {
   const box = el("div", "", "ff-sound");
   if (audio.silenced) {
     const chip = el("span", "🔇 MUTED", "ff-sound-chip");
@@ -141,10 +159,19 @@ function soundToggles(): HTMLElement {
   effects.onclick = () => {
     audio.setMuted("effects", !audio.prefs.muted.effects);
     savePrefs(store, audio.prefs);
+    audio.resume();
     show();
   };
   show();
   box.append(music, effects);
+  if (prompt) {
+    const tap = button("🔊 TAP FOR SOUND", "ff-sound-button ff-sound-tap");
+    tap.onclick = () => audio.resume();
+    box.prepend(tap);
+    animations.add(() => {
+      tap.hidden = audio.running();
+    });
+  }
   return box;
 }
 
@@ -208,8 +235,9 @@ function howToPlay(): HTMLElement {
     head.append(el("b", String(index + 1), "ff-rule-number"), el("h3", title));
     card.append(head, el("p", body), canvas);
     grid.append(card);
+    const shown = onScreen(canvas);
     animations.add((now) => {
-      if (!canvas.isConnected || canvas.offsetParent === null) return;
+      if (!shown() || canvas.offsetParent === null) return;
       g.setTransform(ratio, 0, 0, ratio, 0, 0);
       panel.draw(now);
     });
@@ -260,8 +288,13 @@ function landing(): void {
     canvas.height = Math.max(1, Math.round(canvas.clientHeight * ratio));
   };
   new ResizeObserver(fit).observe(canvas);
+  const shown = onScreen(canvas);
   animations.add((now) => {
-    if (!canvas.isConnected) return;
+    // Scrolled away (the rules below it), the depot waits rather than running on.
+    if (!shown()) {
+      lastNow = now;
+      return;
+    }
     carry += Math.min(100, lastNow ? now - lastNow : 0);
     lastNow = now;
     while (carry >= 1000 / 60) {
@@ -349,13 +382,16 @@ function holdButton(
 ): HTMLButtonElement {
   const pad = button(label, className);
   const source = `pad:${className}:${label}`;
+  let captured = false;
   const down = (event: PointerEvent) => {
     event.preventDefault();
     try {
       // Keeps the press while the thumb slides off the pad; a pointer the browser no longer tracks cannot be captured.
       pad.setPointerCapture(event.pointerId);
+      captured = true;
     } catch {
-      /* the press still holds until pointerup */
+      // Uncaptured, the press ends when the thumb leaves the pad, since its pointerup may land elsewhere.
+      captured = false;
     }
     pad.classList.add("held");
     controls.hold(source, bits);
@@ -368,6 +404,9 @@ function holdButton(
   pad.addEventListener("pointerup", up);
   pad.addEventListener("pointercancel", up);
   pad.addEventListener("lostpointercapture", up);
+  pad.addEventListener("pointerleave", () => {
+    if (!captured) up();
+  });
   pad.addEventListener("contextmenu", (event) => event.preventDefault());
   return pad;
 }
@@ -409,13 +448,31 @@ function room(solo: boolean): void {
   };
   // The host can go back to the lobby (and the depot rules) mid-match; in solo that is the only way to them.
   const backToLobby = button("LOBBY", "ff-to-lobby");
-  backToLobby.onclick = () =>
-    runtime.command({ type: "action", action: "lobby" });
+  let lobbyArmed = 0;
+  const disarm = () => {
+    lobbyArmed = 0;
+    setText(backToLobby, "LOBBY");
+    backToLobby.classList.remove("armed");
+  };
+  // Mid-match it asks twice: one stray tap would end the match for everyone.
+  backToLobby.onclick = () => {
+    if (lobbyArmed && performance.now() - lobbyArmed < 3000) {
+      disarm();
+      runtime.command({ type: "action", action: "lobby" });
+      return;
+    }
+    lobbyArmed = performance.now();
+    setText(backToLobby, "END MATCH? TAP AGAIN");
+    backToLobby.classList.add("armed");
+    setTimeout(() => {
+      if (lobbyArmed && performance.now() - lobbyArmed >= 3000) disarm();
+    }, 3100);
+  };
   backToLobby.hidden = true;
   const top = header([
     el("strong", solo ? "SOLO" : code, "ff-code"),
     status.element,
-    soundToggles(),
+    soundToggles(display),
     backToLobby,
     leave,
   ]);
@@ -434,8 +491,9 @@ function room(solo: boolean): void {
   let bayState: { slot: number; taken: boolean; you: boolean }[] = [
     0, 1, 2, 3, 4,
   ].map((slot) => ({ slot, taken: false, you: false }));
+  const baysShown = onScreen(bays.canvas);
   animations.add((now) => {
-    if (lobby.hidden || !bays.canvas.isConnected) return;
+    if (lobby.hidden || !baysShown()) return;
     bays.g.setTransform(bays.ratio, 0, 0, bays.ratio, 0, 0);
     bayPainter.draw(bayState, now);
   });
@@ -608,7 +666,25 @@ function room(solo: boolean): void {
     holdButton("◀ LEFT", "ff-pad ff-pad-left ff-pad-big", LEFT, controls),
     holdButton("RIGHT ▶", "ff-pad ff-pad-right ff-pad-big", RIGHT, controls),
   );
-  controller.append(controllerHead, controllerBody);
+  const controllerResult = el("section", "", "ff-controller-result"),
+    controllerResultTitle = el("h2"),
+    controllerResultWaiting = el("p"),
+    controllerResultActions = el("div", "", "ff-lobby-actions"),
+    controllerRematch = button("REMATCH", "fui-button-primary"),
+    controllerLobby = button("LOBBY");
+  controllerRematch.onclick = () =>
+    runtime.command({ type: "action", action: "rematch" });
+  controllerLobby.onclick = () =>
+    runtime.command({ type: "action", action: "lobby" });
+  controllerResultActions.append(controllerLobby, controllerRematch);
+  controllerResult.append(
+    el("small", "MATCH OVER"),
+    controllerResultTitle,
+    controllerResultWaiting,
+    controllerResultActions,
+  );
+  controllerResult.hidden = true;
+  controller.append(controllerHead, controllerResult, controllerBody);
 
   // Until the first frame nothing of the room shows, so a room that turns out not to exist never offers its controls.
   const connecting = el("p", "Connecting to the depot…", "ff-connecting"),
@@ -855,6 +931,14 @@ function room(solo: boolean): void {
               : `${mine.score} DELIVERED${mine.carrying ? ` · +${mine.carrying}` : ""}${mine.full ? " · FULL" : ""}`),
       );
     }
+    controllerResult.hidden = !next.result;
+    controllerBody.hidden = !!next.result;
+    if (next.result) {
+      setText(controllerResultTitle, next.result.title);
+      setText(controllerResultWaiting, next.result.waiting);
+      controllerResultWaiting.hidden = !next.result.waiting;
+      controllerResultActions.hidden = !next.result.host;
+    }
     // Result.
     result.hidden = !next.result || next.screen === "controller";
     if (next.result) {
@@ -877,8 +961,19 @@ function room(solo: boolean): void {
   let lastBanner = "",
     lastSeed = -1,
     lastFull = false,
-    lastPhase = "";
+    lastPhase = "",
+    first = true;
   const listen = (view: View, next: Model) => {
+    // A page that arrives mid-round (a reload, a late join) starts from what it sees, without a fanfare for it.
+    const arriving = first;
+    first = false;
+    if (arriving && view.world) {
+      lastSeed = view.world.seed;
+      for (const fx of view.world.fx) heard.add(effectKey(fx));
+      lastPhase = `${view.round}:${view.world.phase}`;
+      lastBanner = next.banner?.title ?? "";
+      lastFull = next.cards.find((c) => c.you)?.full ?? false;
+    }
     const mood: Mood =
       view.stage === "running" && view.world?.phase === "play"
         ? next.urgent
@@ -897,13 +992,13 @@ function room(solo: boolean): void {
     for (const fx of world.fx)
       if (!heard.has(effectKey(fx))) {
         heard.add(effectKey(fx));
-        // On a crowded floor only this device's own cargo pings; cuts and deliveries always sound.
+        // A driver's device pings for its own cargo and wall knocks only; the shared screen and watchers, which
+        // drive nothing, hear every train's pick-ups. Cuts, deliveries and bumps always sound; new carts never do.
         const own = world.trains.find((t) => t.id === viewer.me)?.slot;
+        if (fx.kind === "spawn") continue;
         if (fx.kind === "collect" && own !== undefined && fx.slot !== own)
           continue;
-        if (fx.kind === "spawn" || fx.kind === "wall") {
-          if (fx.slot !== own) continue;
-        }
+        if (fx.kind === "wall" && fx.slot !== own) continue;
         audio.play(fx.kind as Cue);
       }
     if (heard.size > 2000) heard.clear();
@@ -1034,9 +1129,15 @@ function room(solo: boolean): void {
     controls.release(event.code);
     if (captured.delete(event.code)) event.preventDefault();
   });
-  window.addEventListener("blur", () => controls.clear());
+  // Letting go of everything also unlights the pads, whose pointerup may never come.
+  const releaseAll = () => {
+    controls.clear();
+    for (const pad of document.querySelectorAll(".ff-pad.held"))
+      pad.classList.remove("held");
+  };
+  window.addEventListener("blur", releaseAll);
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) controls.clear();
+    if (document.hidden) releaseAll();
   });
   runtime.start();
 }

@@ -20,6 +20,7 @@ import {
   foldTick,
   freightGame,
   hash,
+  EMPTY_ROUNDS,
   isEntry,
   maxRounds,
   view,
@@ -234,21 +235,49 @@ test("a match that ends level on round wins goes to the most wagons delivered, a
   );
 });
 
-test("a match of nothing but empty rounds ends at its round limit with no winner", () => {
+test("empty rounds: three in a row end a match of absent drivers with no winner; a delivery in between keeps it going", () => {
   const settings = {
     ...DEFAULT_SETTINGS,
-    wins: 1 as const,
+    wins: 3 as const,
     seconds: 60 as const,
   };
-  const room = started(settings);
-  for (let round = 0; round < maxRounds(settings); round++) {
-    finish(room, {});
-    if (room.stage === "between") run(room, BETWEEN_TICKS);
+  const dead = started(settings);
+  for (let round = 0; round < EMPTY_ROUNDS; round++) {
+    assert.notEqual(dead.stage, "over");
+    finish(dead, {});
+    if (dead.stage === "between") run(dead, BETWEEN_TICKS);
   }
-  assert.equal(room.stage, "over");
-  assert.deepEqual(room.winners, []);
-  assert.equal(room.results.length, maxRounds(settings));
-  assert.ok(room.results.every((r) => r.winners.length === 0));
+  assert.equal(dead.stage, "over");
+  assert.deepEqual(dead.winners, []);
+  assert.equal(dead.results.length, EMPTY_ROUNDS);
+  assert.ok(decode(structuredClone(encode(dead)), dead.tick));
+
+  const alive = started(settings);
+  const rounds: Record<string, number>[] = [{}, {}, { a: 1 }, {}, {}];
+  for (const scores of rounds) {
+    finish(alive, scores);
+    assert.equal(alive.stage, "between", "never three empty rounds in a row");
+    run(alive, BETWEEN_TICKS);
+  }
+  finish(alive, {});
+  assert.equal(alive.stage, "over");
+  assert.deepEqual(alive.winners, ["a"]);
+  assert.ok(maxRounds(settings) > alive.results.length);
+});
+
+test("LEFT then RIGHT inside one tick steers right on its first step: the press held at the tick's end wins", () => {
+  const tapped = started(),
+    control = started();
+  for (const room of [tapped, control]) run(room, COUNTDOWN_TICKS);
+  fold(tapped, {
+    b: [
+      [PLAY, "m1", 1, LEFT],
+      [PLAY, "m1", 1, RIGHT],
+    ],
+  });
+  fold(control, { b: [[PLAY, "m1", 1, RIGHT]] });
+  assert.equal(train(tapped, "b").dir, train(control, "b").dir);
+  assert.equal(tapped.held.b, RIGHT);
 });
 
 test("settings are the host's between matches; the match keeps the ones it started with", () => {
@@ -382,8 +411,30 @@ test("the checkpoint carries a room whole in every stage, and a corrupt one is r
       (f: unknown[]) =>
         (((f[11] as unknown[])[8] as unknown[][])[0]![0] = "__proto__"),
     ],
+    ["a round the results do not reach", (f: unknown[]) => (f[1] = 7)],
+    ["a round past 32 bits' reach", (f: unknown[]) => (f[1] = 0xffff_ffff)],
+    ["a finished match that is not decided", (f: unknown[]) => (f[2] = "over")],
   ] as const)
     assert.equal(broken(change), undefined, what);
+  // Between rounds the round just played stands at the whistle.
+  const midPlay = started();
+  run(midPlay, COUNTDOWN_TICKS + 20);
+  const fields = structuredClone(encode(midPlay));
+  fields[2] = "between";
+  fields[7] = [{ round: 1, winners: [], placings: [] }];
+  fields[9] = midPlay.tick + 10;
+  assert.equal(
+    decode(fields, midPlay.tick),
+    undefined,
+    "between over a round in play",
+  );
+  const running = structuredClone(encode(midPlay));
+  running[1] = 3;
+  assert.equal(
+    decode(running, midPlay.tick),
+    undefined,
+    "round 3 with no results",
+  );
 
   // A finished match: its winners must be the leaders the results give.
   run(room, BETWEEN_TICKS);

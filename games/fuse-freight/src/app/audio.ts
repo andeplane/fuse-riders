@@ -129,6 +129,8 @@ export interface GameAudio {
   readonly prefs: AudioPrefs;
   /** The query muted this page: nothing plays and nothing may be stored. */
   readonly silenced: boolean;
+  /** The browser lets this page make sound now (it has had its gesture). */
+  running(): boolean;
 }
 
 export function createAudio(
@@ -143,12 +145,21 @@ export function createAudio(
     stopClock: (() => void) | undefined,
     mood: Mood = "off",
     step = 0,
-    nextAt = 0;
+    nextAt = 0,
+    unavailable = false;
   const open = () => {
-    if (silenced) return undefined;
+    if (silenced || unavailable) return undefined;
     if (!context) {
-      context = deps.open();
-      if (!context) return undefined;
+      // A browser that refuses an audio context is asked once, not on every key press.
+      try {
+        context = deps.open();
+      } catch {
+        context = undefined;
+      }
+      if (!context) {
+        unavailable = true;
+        return undefined;
+      }
       musicBus = context.createGain();
       effectsBus = context.createGain();
       musicBus.connect(context.destination);
@@ -326,6 +337,7 @@ export function createAudio(
   return {
     prefs,
     silenced,
+    running: () => !!live(),
     resume() {
       const audio = open();
       if (!audio) return;

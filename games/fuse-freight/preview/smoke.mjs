@@ -198,6 +198,7 @@ try {
   assert.equal(hostResult, guestResult, "one result on both pages");
   assert.ok(
     await guest
+      .locator(".ff-result")
       .getByText("Waiting for the host to start a rematch")
       .isVisible(),
   );
@@ -207,6 +208,12 @@ try {
     await page
       .locator('main[data-phase="countdown"]')
       .waitFor({ timeout: 20_000 });
+  // LOBBY mid-match asks twice.
+  await host.locator(".ff-to-lobby").click();
+  assert.equal(
+    await host.locator(".ff-to-lobby").textContent(),
+    "END MATCH? TAP AGAIN",
+  );
   await host.locator(".ff-to-lobby").click();
   for (const page of [host, guest])
     await page
@@ -247,10 +254,17 @@ try {
     .locator(".fui-roster-row")
     .nth(1)
     .waitFor({ timeout: 20_000 });
+  await sharedHost.locator('select[name="seconds"]').selectOption("60");
+  await sharedHost.locator('select[name="wins"]').selectOption("1");
   await sharedHost.getByRole("button", { name: "START THE TRAINS ▶" }).click();
   await phone
     .locator('main[data-screen="controller"]')
     .waitFor({ timeout: 20_000 });
+  // The phone fits its screen: the header and both buttons, nothing to scroll.
+  const height = await phone.evaluate(
+    () => document.documentElement.scrollHeight,
+  );
+  assert.ok(height <= 844, `the controller fits the phone (${height} px)`);
   await tv.locator('main[data-screen="play"]').waitFor({ timeout: 20_000 });
   const left = phone.locator(".ff-controller .ff-pad-left");
   assert.equal(await left.textContent(), "◀ LEFT");
@@ -267,8 +281,29 @@ try {
   await left.dispatchEvent("pointerup", { pointerId: 7, pointerType: "touch" });
   await tv.waitForTimeout(2_000);
   await snap(tv, "shared-tv");
+  // The match ends: the host's controller offers REMATCH, the other phone shows the result and waits.
+  await sharedHost
+    .locator(".ff-controller-result")
+    .waitFor({ timeout: 90_000 });
+  await phone.locator(".ff-controller-result").waitFor({ timeout: 20_000 });
+  assert.ok(
+    await phone
+      .locator(".ff-controller-result")
+      .getByText("Waiting for the host to start a rematch")
+      .isVisible(),
+  );
+  assert.equal(
+    await phone.getByRole("button", { name: "REMATCH" }).isVisible(),
+    false,
+  );
+  await snap(phone, "shared-phone-result");
+  await sharedHost
+    .locator(".ff-controller-result")
+    .getByRole("button", { name: "REMATCH" })
+    .click();
+  await tv.locator('main[data-phase="countdown"]').waitFor({ timeout: 20_000 });
   console.log(
-    `shared ${sharedCode}: the TV shows the depot, the phone is a controller`,
+    `shared ${sharedCode}: the TV shows the depot, the phone is a controller, the host's phone starts the rematch`,
   );
   await sharedHost.context().close();
   await tv.context().close();

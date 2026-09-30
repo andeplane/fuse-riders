@@ -167,7 +167,12 @@ export function decodeWorld(raw: unknown): World | undefined {
       ? !(step < play && phaseAt === 0)
       : phase === "play"
         ? !(step >= play && step < whistle && phaseAt === play)
-        : !(step >= whistle && phaseAt === whistle)
+        : // The room ends a round within the tick its outro runs out in, so the world never gets further.
+          !(
+            step >= whistle &&
+            step <= whistle + T.OUTRO_STEPS + T.STEPS_PER_TICK &&
+            phaseAt === whistle
+          )
   )
     return;
   const decoded = trains.map(decodeTrain);

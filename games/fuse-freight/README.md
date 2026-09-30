@@ -17,7 +17,7 @@ link on the Fuse Riders landing page.
 | A / ←                    | Steer left (relative to where the train faces)  |
 | D / →                    | Steer right                                     |
 | Both, or neither         | Straight on: the train never stops              |
-| ◀ ▶ buttons (touch)      | The same, held; over the depot's corners        |
+| ◀ ▶ buttons (touch)      | The same, held (a phone held sideways)          |
 | ◀ LEFT / RIGHT ▶ (phone) | A phone in a shared-screen room is a controller |
 
 There is no action button and nothing to aim. `?mute` silences the page for that load only, without touching the
@@ -52,7 +52,9 @@ is the shape of it.
   the same distance ahead; the ellipse turns with the seed so no seat keeps the spot by a dock.
 - **The match.** First to the room's round wins (1, 2 or 3; default 2) with 60, 75 or 90 second rounds (default 75).
   Level on round wins at the end, the most wagons delivered over the match decides; level on those too, the win is
-  shared. Wagons still pulled at the whistle score nothing.
+  shared. Wagons still pulled at the whistle score nothing. Three rounds in a row with no delivery at all end the
+  match with no winner, so a room of absent drivers does not run on. The host's LOBBY button mid-match asks for a
+  second tap, since it ends the match for everyone; on a shared screen the host's phone gets REMATCH and LOBBY.
 
 ## Design notes
 
@@ -80,8 +82,9 @@ is the shape of it.
 - **Sound** (`src/app/audio.ts`): every effect and the chiptune soundtrack (a chugging rhythm, oom-pah bass and a
   tune that speeds up for the last ten seconds) are synthesised with Web Audio: no audio files, nothing to license.
   Music and effects follow the mute and volume every Fuse page shares (`fuse-riders-audio` in `localStorage`, with
-  music off on a phone's first visit as in Fuse Riders), start on the first tap or key the browser allows, and the
-  MUSIC / FX toggles write that shared choice. `?mute` never opens an audio context.
+  music off on a phone's first visit as in Fuse Riders), and the MUSIC / FX toggles write that shared choice. Sound
+  starts on the first gesture a browser accepts (a touch's end, a click or a key: iOS does not count a touch's start);
+  the shared TV screen shows a TAP FOR SOUND button until then. `?mute` never opens an audio context.
 - **Look.** The four concept sketches (splash and lobby, arena, late-round action, illustrated rules) set the
   direction: a night-time loading depot, brass and rivets, numbered loading bays, two side docks, framed clock and
   seat cards. Two deliberate differences: seats keep the portfolio's colours (cyan, magenta, lime, orange, violet)

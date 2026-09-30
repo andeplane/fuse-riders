@@ -21,7 +21,7 @@ export function playing(count = 1, seed = 7, seconds = 75): World {
   world.carts = [];
   world.fx = [];
   // Nothing new arrives on its own while a test runs.
-  world.spawnAt = Number.MAX_SAFE_INTEGER;
+  world.spawnAt = 0xffff_ffff;
   return world;
 }
 

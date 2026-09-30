@@ -144,6 +144,22 @@ export interface View {
 /** The most rounds a match plays: past it the leaders win. */
 export const maxRounds = (settings: Settings): number =>
   settings.wins * CAPACITY + 3;
+/** Rounds in a row with no delivery at all that end a match: a room of absent drivers does not run on for ever. */
+export const EMPTY_ROUNDS = 3;
+
+/** Whether the match is decided after its latest result: a win target reached, the round limit, or a dead room. */
+function decided(
+  wins: Record<string, number>,
+  results: readonly RoundResult[],
+  play: Settings,
+): boolean {
+  const empty = results.slice(-EMPTY_ROUNDS);
+  return (
+    Object.values(wins).some((w) => w >= play.wins) ||
+    results.length >= maxRounds(play) ||
+    (empty.length === EMPTY_ROUNDS && empty.every((r) => !r.winners.length))
+  );
+}
 
 const payloads = {
   name: validName,
@@ -323,8 +339,7 @@ function endRound(room: Room, tick: number): void {
     top > 0 ? placed.filter((p) => p.score === top).map((p) => p.id) : [];
   for (const id of winners) room.wins[id] = (room.wins[id] ?? 0) + 1;
   room.results.push({ round: room.round, winners, placings: placed });
-  const reached = Object.values(room.wins).some((w) => w >= room.play.wins);
-  if (reached || room.round >= maxRounds(room.play)) {
+  if (decided(room.wins, room.results, room.play)) {
     room.stage = "over";
     room.winners = leaders(room.wins, room.results);
   } else {
@@ -365,7 +380,8 @@ export function foldTick(
       if (bits && !seat?.bot) room.held[train.id] = bits;
       else delete room.held[train.id];
       held.set(train.id, bits);
-      // A tap that came and went within the tick still steers its first step; a tap of both sides cancels out.
+      // A tap that came and went within the tick still steers its first step. What is held at the tick's end wins
+      // over anything tapped before it (LEFT then RIGHT in one tick steers right), as a player's last press would.
       first.set(train.id, bits || tapped);
     }
     for (let step = 0; step < STEPS_PER_TICK; step++)
@@ -618,12 +634,21 @@ export function decode(
     return;
   const world = rawWorld === null ? null : decodeWorld(rawWorld);
   if (world === undefined) return;
-  // The lobby has no round and no world; a round in play or between rounds has both; only a finished match has
-  // winners (a match of nothing but empty rounds ends with none).
+  // The lobby has no round and no world; a round in play has its world and the results of the rounds before it;
+  // between rounds and at the end, the round just played has its result and its world stands at the whistle, and
+  // only a decided match is over. Only a finished match has winners (one of nothing but empty rounds has none).
+  const played = stage === "running" ? round - 1 : round;
   if (
     (stage === "lobby") !== (round === 0) ||
     (stage === "lobby" && world !== null) ||
-    ((stage === "running" || stage === "between") && world === null) ||
+    (stage !== "lobby" && world === null) ||
+    round > maxRounds(play) ||
+    results.length !== played ||
+    results.some((result, index) => result.round !== index + 1) ||
+    ((stage === "between" || stage === "over") && world?.phase !== "outro") ||
+    ((stage === "between" || stage === "running") &&
+      decided(wins, results, play)) ||
+    (stage === "over" && !decided(wins, results, play)) ||
     (stage === "over"
       ? winners.join() !== leaders(wins, results).join()
       : winners.length > 0) ||

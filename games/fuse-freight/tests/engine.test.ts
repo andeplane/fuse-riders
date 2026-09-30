@@ -293,7 +293,7 @@ test("two trains cutting each other on the same step both lose their tails, what
     );
     while (world.phase === "countdown") stepWorld(world, new Map());
     world.carts = [];
-    world.spawnAt = Number.MAX_SAFE_INTEGER;
+    world.spawnAt = 0xffff_ffff;
     place(world, "a", 300, 300, EAST, 2);
     place(world, "b", 260, 314, WEST, 2);
     steps(world, 1);
@@ -563,4 +563,18 @@ test("a round replays to the same world, and a checkpoint taken halfway plays on
   const straight = run(-1);
   assert.equal(run(-1), straight);
   assert.equal(run(1400), straight);
+});
+
+test("at the loose-cart limit a cut wagon that has no room is scrapped, and the floor never passes the limit", () => {
+  const world = playing(2);
+  const victim = place(world, "t1", 400, 300, EAST, 8);
+  place(world, "t0", 326, 280, SOUTH);
+  for (let i = 0; i < T.MAX_LOOSE - 2; i++)
+    cart(world, 100 + (i % 10) * 60, 120 + Math.floor(i / 10) * 30, 0, 5);
+  steps(world, 1);
+  assert.equal(victim.cargo.length, 1);
+  assert.equal(world.carts.length, T.MAX_LOOSE);
+  assert.equal(fxOf(world, FX.scrap).length, 5, "seven cut, two found room");
+  assert.equal(victim.lost, 7, "scrapped wagons were still lost");
+  assert.ok(decodeWorld(encodeWorld(world)));
 });

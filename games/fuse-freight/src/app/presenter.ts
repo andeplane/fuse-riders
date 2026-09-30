@@ -196,7 +196,7 @@ export function present(view: View, viewer: Viewer): Model {
         score: p.score,
         detail: [
           `${view.wins[p.id] ?? 0}/${view.winsNeeded} wins`,
-          p.stolen ? `${p.stolen} stolen` : "",
+          p.stolen ? `cut ${p.stolen} loose` : "",
           p.stranded ? `${p.stranded} never delivered` : "",
         ]
           .filter(Boolean)
