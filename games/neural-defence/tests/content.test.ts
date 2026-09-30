@@ -48,16 +48,16 @@ test("economic buildings require adjacent deposits, cap specialist bonuses and r
   assert.ok(w.outcomes.some((e) => e.type === "rejected"));
   assert.equal(
     w.players[0]!.biomass - before,
-    200,
-    "base 50 plus three extraction shares",
+    150,
+    "base 50 plus two extraction shares",
   );
   add(2);
   const second = w.players[0]!.biomass;
   w = step(w);
   assert.equal(
     w.players[0]!.biomass - second,
-    250,
-    "two miners plus only one two-share bonus",
+    200,
+    "two miners plus only one one-share bonus",
   );
   assert.ok(decodeState(encodeState(w)));
   const corrupt = structuredClone(w);
@@ -341,12 +341,13 @@ test("particle refits require research and preserve units already on the front",
     "conduction",
     "resonance",
   ];
+  // Neurons carry no weapon; particles station on armed structures.
   w.structures.push({
     id: w.nextEntityId++,
     cell: 1,
     ownerId: "a",
-    kind: "neuron",
-    hp: 60,
+    kind: "tower",
+    hp: 120,
     connected: true,
   });
   w = step(w, [

@@ -139,7 +139,8 @@ test("overlapping fields do not stack their absorption percentage", () => {
 
 test("mixed-strength salvos allocate shared protection independently of structure order", () => {
   const w = fixture(1);
-  add(w, "b", "neuron", 2);
+  // A second gun with a single particle: a weaker salvo than the first.
+  add(w, "b", "tower", 2);
   const q = w.particles.filter((q) => q.ownerId === "b")[8]!;
   Object.assign(q, { cell: 2, destination: 2, from: 2, to: 2 });
   w.players[1]!.priorities[2] = 3;
@@ -219,7 +220,9 @@ for (const guns of [1, 2])
   test(`paid site loss from ${guns} guns is counted once and replayed`, () => {
     let w = fixture(0);
     if (guns === 2) {
-      add(w, "b", "neuron", 2);
+      // A range-one gun beside the site: only the site is in its reach.
+      w.players[1]!.research = ["growth"];
+      add(w, "b", "bastion", 2);
       w.players[1]!.priorities[2] = 3;
       for (const q of w.particles
         .filter((q) => q.ownerId === "b" && q.cell === 4)

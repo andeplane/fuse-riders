@@ -942,6 +942,8 @@ function combat(w: World) {
       p.queue = [];
       p.researchJob = null;
       p.priorities = {};
+      p.territory = 0;
+      p.dominanceSince = null;
       w.structures = w.structures.filter((s) => s.ownerId !== p.id);
       w.particles = w.particles.filter((q) => q.ownerId !== p.id);
       emit(w, p, "eliminated");

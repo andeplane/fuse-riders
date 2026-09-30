@@ -4393,7 +4393,7 @@
         "403": 0
       },
       "particleKind": "pulse",
-      "priorities": { "280": 1, "304": 3, "308": 3, "332": 3 },
+      "priorities": { "280": 1, "304": 3 },
       "queue": [],
       "research": [
         "growth",
@@ -4447,7 +4447,7 @@
         "403": 0
       },
       "particleKind": "heavy",
-      "priorities": { "378": 3, "427": 3, "428": 3, "429": 3 },
+      "priorities": { "429": 3 },
       "queue": [
         {
           "cell": 394,

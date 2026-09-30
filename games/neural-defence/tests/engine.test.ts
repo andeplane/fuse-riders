@@ -317,6 +317,8 @@ test("priority routes conserved particles with edge capacity and visible latency
   w = step(w, [
     command(0, { type: "queueConstruction", cell: 10, kind: "neuron" }),
   ]);
+  // Neurons carry no weapon: make the new node an armed destination.
+  w.structures.find((s) => s.cell === 10)!.kind = "tower";
   w = step(w, [command(1, { type: "setPriority", cell: 10, weight: 3 })]);
   assert.equal(w.particles.filter((p) => p.mode === "transit").length, 8);
   assert.equal(w.particles.filter((p) => p.cell === 10).length, 0);
@@ -456,6 +458,8 @@ test("disconnected particles recover without duplication, and checkpoint survive
   w = step(w, [
     command(0, { type: "queueConstruction", cell: 10, kind: "neuron" }),
   ]);
+  // Neurons carry no weapon: make the new node an armed destination.
+  w.structures.find((s) => s.cell === 10)!.kind = "tower";
   w = step(w, [command(1, { type: "setPriority", cell: 10, weight: 3 })]);
   w = run(w, 20);
   w.structures = w.structures.filter((s) => s.cell !== 10);
@@ -472,6 +476,8 @@ test("research does not mutate properties of already deployed particles", () => 
   w = step(w, [
     command(0, { type: "queueConstruction", cell: 10, kind: "neuron" }),
   ]);
+  // Neurons carry no weapon: make the new node an armed destination.
+  w.structures.find((s) => s.cell === 10)!.kind = "tower";
   w = step(w, [command(1, { type: "setPriority", cell: 10, weight: 3 })]);
   w = run(w, 400);
   w = step(w, [command(2, { type: "startResearch", research: "excitation" })]);
@@ -504,6 +510,8 @@ test("destroyed priorities release one of eight slots and stale priorities can b
     { id: "b", slot: 1 },
   ]);
   for (const cell of [10, 11, 12, 13, 17, 18, 19, 20]) addNeuron(w, cell);
+  // Neurons carry no weapon; priorities need armed destinations.
+  for (const s of w.structures) if (s.kind === "neuron") s.kind = "tower";
   w = step(
     w,
     [9, 10, 11, 12, 13, 17, 18, 19].map((cell, sequence) =>
@@ -679,6 +687,7 @@ test("checkpoint rejects paid-site progress and live transit corruption", () => 
   let moving = step(start(true), [
     command(0, { type: "queueConstruction", cell: 10, kind: "neuron" }),
   ]);
+  moving.structures.find((s) => s.cell === 10)!.kind = "tower";
   moving = step(moving, [
     command(1, { type: "setPriority", cell: 10, weight: 3 }),
   ]);
@@ -712,6 +721,11 @@ test("four-player construction, research, income and finite attacks replay throu
   const cells = [10, 11, 50, 51];
   let replay = decodeState(encodeState(w));
   for (let tick = 1; tick <= 820; tick++) {
+    // Neurons carry no weapon: arm each player's first node before charging it.
+    if (tick === 125)
+      for (const world of [w, replay])
+        for (const s of world.structures)
+          if (cells.includes(s.cell)) s.kind = "tower";
     const commands = w.players.flatMap((p, i) => {
       if (tick === 1)
         return [
@@ -751,11 +765,13 @@ test("four-player construction, research, income and finite attacks replay throu
       assert.ok(Number.isSafeInteger(p.statistics.insightEarned));
     }
   }
+  // Towers reach the rival brains, so some players fall; survivors research.
   for (const p of w.players) {
     assert.equal(p.statistics.built, 1);
-    assert.ok(p.statistics.damage > 0);
-    assert.ok(p.statistics.lost > 0);
+    if (!p.alive) continue;
     assert.deepEqual(p.research, ["excitation"]);
     assert.equal(p.statistics.insightEarned, 820 * 25);
   }
+  assert.ok(w.players.every((p) => p.statistics.damage > 0));
+  assert.ok(w.players.some((p) => p.statistics.lost > 0));
 });

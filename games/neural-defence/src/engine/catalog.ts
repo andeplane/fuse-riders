@@ -171,7 +171,7 @@ export const STRUCTURES: Readonly<
   >
 > = Object.freeze({
   brain: Object.freeze({ hp: 240, range: 1, cadence: 20, volley: 4 }),
-  neuron: Object.freeze({ hp: 60, range: 1, cadence: 20, volley: 4 }),
+  neuron: Object.freeze({ hp: 60, range: 1, cadence: 20, volley: 0 }),
   tower: Object.freeze({ hp: 120, range: 2, cadence: 20, volley: 8 }),
   siege: Object.freeze({
     hp: 80,
@@ -180,20 +180,20 @@ export const STRUCTURES: Readonly<
     cadence: 80,
     volley: 4,
   }),
-  relay: Object.freeze({ hp: 90, range: 2, cadence: 10, volley: 3 }),
+  relay: Object.freeze({ hp: 90, range: 2, cadence: 10, volley: 4 }),
   harvester: Object.freeze({
     hp: 70,
     range: 0,
     cadence: 20,
     volley: 0,
-    miningBonus: 2,
+    miningBonus: 1,
   }),
   spore: Object.freeze({
     hp: 70,
     range: 2,
-    cadence: 40,
-    volley: 5,
-    splashPercent: 60,
+    cadence: 20,
+    volley: 6,
+    splashPercent: 50,
   }),
   bastion: Object.freeze({
     hp: 240,

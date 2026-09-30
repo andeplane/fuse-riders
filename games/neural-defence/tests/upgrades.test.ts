@@ -103,12 +103,15 @@ test("cancellation keeps the source and delivered cost stays spent", () => {
 test("source destruction cancels an upgrade instead of creating a new shield", () => {
   let w = fixture();
   w.structures.find((s) => s.cell === 1)!.hp = 1;
+  // Neurons carry no weapon: the nearby enemy gun is a range-one Bastion,
+  // which reaches the upgrade source but not the brain behind it.
+  w.players[1]!.research = ["growth"];
   w.structures.push({
     id: w.nextEntityId++,
     cell: 2,
     ownerId: "b",
-    kind: "neuron",
-    hp: 60,
+    kind: "bastion",
+    hp: 240,
     connected: true,
   });
   // The enemy network joins the nearby weapon through row one.
@@ -125,7 +128,7 @@ test("source destruction cancels an upgrade instead of creating a new shield", (
   ammo.cell = 2;
   ammo.destination = 2;
   w.players[1]!.priorities[2] = 3;
-  w.tick = STRUCTURES.neuron.cadence - 2;
+  w.tick = STRUCTURES.bastion.cadence - 2;
   w = queue(w);
   assert.equal(w.players[0]!.queue[0]!.paid, true);
   w = step(w);

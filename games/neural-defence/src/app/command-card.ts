@@ -98,8 +98,7 @@ export const BUILD_PRESENTATION: Readonly<
   },
   spore: {
     label: "Spore tower",
-    description:
-      "Bursts on impact: every enemy structure beside the target takes 60% of the hit. The answer to dense neuron spreads.",
+    description: `Bursts on impact: every enemy structure beside the target takes ${STRUCTURES.spore.splashPercent}% of the hit. The answer to dense neuron spreads.`,
     sprite: () => "tower-spore",
   },
 };

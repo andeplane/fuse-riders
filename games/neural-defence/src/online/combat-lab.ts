@@ -1,4 +1,5 @@
 import { neighbors, type World, type Command } from "../engine/index.js";
+import { canAttack } from "../engine/catalog.js";
 
 /** Authored scenario setup only. Once ticking, the opponent has exactly the ordinary action interface. */
 export function prepareCombatLab(world: World): void {
@@ -33,7 +34,16 @@ export function prepareCombatLab(world: World): void {
       hp: 60,
       connected: true,
     });
+  // Neurons carry no weapon: each side's front node is an armed Relay, so
+  // both sides start with the research Relays need.
+  for (const p of [human, opponent]) p.research = ["conduction", "resonance"];
   const front = route[middle - 1];
+  for (const cell of [front, route[middle]])
+    if (cell !== undefined && cell !== start && cell !== end) {
+      const node = world.structures.find((s) => s.cell === cell)!;
+      node.kind = "relay";
+      node.hp = 90;
+    }
   if (front !== undefined) human.priorities[String(front)] = 3;
   // A single experimental tower, with its six support cells, behind the human front.
   const candidate = route.slice(1, Math.max(1, middle - 1)).find((c) => {
@@ -69,7 +79,9 @@ export function labCommands(world: World): Command[] {
   if (!opponent?.alive || world.tick % 100 !== 0) return [];
   const enemies = world.structures.filter((s) => s.ownerId !== opponent.id);
   const front = world.structures
-    .filter((s) => s.ownerId === opponent.id && s.connected)
+    .filter(
+      (s) => s.ownerId === opponent.id && s.connected && canAttack(s.kind),
+    )
     .sort((a, b) => {
       const pressure = (cell: number) =>
         neighbors(world.map, cell).filter((n) =>

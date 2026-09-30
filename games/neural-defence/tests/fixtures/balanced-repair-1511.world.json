@@ -4393,7 +4393,7 @@
         "403": 0
       },
       "particleKind": "heavy",
-      "priorities": { "51": 3, "77": 3, "102": 3, "126": 3 },
+      "priorities": { "102": 3, "126": 3 },
       "queue": [],
       "research": [
         "growth",
@@ -4447,7 +4447,7 @@
         "403": 0
       },
       "particleKind": "heavy",
-      "priorities": { "353": 3, "377": 3, "402": 3, "428": 3 },
+      "priorities": { "353": 3, "377": 3 },
       "queue": [],
       "research": [
         "growth",

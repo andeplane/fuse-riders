@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { aiCommands, AI_STRATEGIES } from "../src/engine/ai.js";
-import { CONSTRUCTIONS, STRUCTURES } from "../src/engine/catalog.js";
+import { CONSTRUCTIONS, STRUCTURES, canAttack } from "../src/engine/catalog.js";
 import { weaponCells } from "../src/engine/map.js";
 import {
   createMatch,
@@ -623,11 +623,17 @@ for (const strategy of AI_STRATEGIES)
     const ai = world.players.find((p) => p.id === "ai")!;
     assert.ok(ai.statistics.built >= 3);
     assert.ok(ai.research.length > 0 || ai.researchJob);
-    assert.ok(
-      world.particles.some(
-        (p) => p.ownerId === "ai" && p.cell !== map.spawns[1]!.cellIndex,
-      ),
-    );
+    // Particles leave the brain once the AI owns a weapon to supply.
+    if (
+      world.structures.some(
+        (s) => s.ownerId === "ai" && s.kind !== "brain" && canAttack(s.kind),
+      )
+    )
+      assert.ok(
+        world.particles.some(
+          (p) => p.ownerId === "ai" && p.cell !== map.spawns[1]!.cellIndex,
+        ),
+      );
     assert.equal(
       world.players.find((p) => p.id === "human")!.statistics.built,
       0,

@@ -44,19 +44,24 @@ const openings: Record<
     weapon: "tower",
     profile: "heavy",
   },
+  // A rush: hit harder sooner and drive straight at the rival before a
+  // greedy economy pays off.
   pressure: {
-    research: ["growth", "excitation", "conduction", "ballistics", "resonance"],
-    deposits: 3,
+    research: ["excitation", "growth", "conduction", "ballistics", "resonance"],
+    deposits: 5,
     harvesters: 0,
     weapon: "tower",
     profile: "pulse",
+    advance: 7,
   },
+  // Greed: deposits and harvesters first, guns only once fighting starts.
   economy: {
     research: ["growth", "conduction", "excitation", "ballistics", "resonance"],
-    deposits: 14,
+    deposits: 12,
     harvesters: 2,
     weapon: "siege",
     profile: "heavy",
+    neuronsPerWeapon: 3,
   },
   siege: {
     research: ["excitation", "ballistics", "growth", "conduction", "resonance"],
@@ -66,7 +71,7 @@ const openings: Record<
     profile: "heavy",
   },
   relay: {
-    research: ["growth", "conduction", "resonance", "excitation", "ballistics"],
+    research: ["conduction", "resonance", "excitation", "growth", "ballistics"],
     deposits: 5,
     harvesters: 0,
     weapon: "relay",
