@@ -146,6 +146,44 @@ test("an elimination records its victory kind", () => {
   assert.doesNotThrow(() => decodeState(encodeState(w)));
 });
 
+test("a free-for-all plays on after one elimination and ends at the last brain", () => {
+  const map = loadMap(
+    JSON.parse(
+      readFileSync(
+        new URL("../maps/cortex-crossing.json", import.meta.url),
+        "utf8",
+      ),
+    ),
+  );
+  let w = createMatch(map, { matchId: "ffa" }, [
+    { id: "a", slot: 0 },
+    { id: "b", slot: 1 },
+    { id: "c", slot: 2 },
+  ]);
+  const kill = (id: string) => {
+    w.structures = w.structures.filter(
+      (s) => !(s.ownerId === id && s.kind === "brain"),
+    );
+    w = step(w);
+  };
+  kill("c");
+  assert.equal(w.finished, false);
+  assert.deepEqual(
+    w.players.map((p) => p.alive),
+    [true, true, false],
+  );
+  assert.equal(w.players[2]!.territory, 0);
+  assert.ok(!w.structures.some((s) => s.ownerId === "c"));
+  assert.ok(
+    w.events.some((e) => e.type === "eliminated" && e.playerId === "c"),
+  );
+  assert.doesNotThrow(() => decodeState(encodeState(w)));
+  kill("a");
+  assert.equal(w.finished, true);
+  assert.equal(w.winnerId, "b");
+  assert.equal(w.victory, "elimination");
+});
+
 test("checkpoints reject impossible victories, territory and timelines", () => {
   const w = until(duel(), TIMELINE.interval);
   assert.equal(w.timeline.length, 1);

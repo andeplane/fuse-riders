@@ -24,7 +24,7 @@ import {
 import { prepareCombatLab, labCommands } from "./combat-lab.js";
 import { aiCommands } from "../engine/ai.js";
 import { isAiStrategy, RULES, type AiStrategy } from "../engine/types.js";
-import { bundledMap } from "./maps.js";
+import { ROOM_MAPS, bundledMap } from "./maps.js";
 
 export type NeuralMode =
   "sandbox" | "combat-lab" | "skirmish" | "watch" | "versus";
@@ -221,6 +221,28 @@ function startVersus(room: NeuralRoom, matchId: string) {
   room.matchId = matchId;
   room.stage = "running";
 }
+/**
+ * A Versus table never holds more players than its map has spawns: bots beyond
+ * that leave, the most recently seated first, whether the host added one too
+ * many or switched to a smaller map. Humans are never removed; the lobby
+ * explains that the table is too full to start.
+ */
+function fitTable(room: NeuralRoom) {
+  if (room.settings.mode !== "versus") return;
+  const capacity =
+    ROOM_MAPS.find((map) => map.id === room.settings.mapId)?.seats ??
+    RULES.maxPlayers;
+  const players = [...room.seats.values()]
+    .filter((s) => !s.watcher)
+    .sort((a, b) => b.slot - a.slot);
+  let excess = players.length - capacity;
+  for (const seat of players) {
+    if (excess <= 0) return;
+    if (!seat.bot) continue;
+    room.seats.delete(seat.id);
+    excess--;
+  }
+}
 function start(room: NeuralRoom, matchId: string) {
   if (room.settings.mode === "versus") return startVersus(room, matchId);
   const map = settingsMap(room.settings);
@@ -336,6 +358,7 @@ export const neuralGame: RollbackGame<
         r.world = initial(r.settings, id);
       },
     });
+    if (room.stage === "lobby") fitTable(room);
     if (room.stage === "lobby" && room.settings !== previousSettings)
       room.world = initial(room.settings, room.matchId);
     if (room.stage === "running") {
@@ -432,7 +455,7 @@ export const neuralGame: RollbackGame<
           raw.matchId.length > 128 ||
           !["lobby", "running", "over"].includes(String(raw.stage)) ||
           !Array.isArray(raw.seats) ||
-          raw.seats.length > 8 ||
+          raw.seats.length > RULES.maxPlayers ||
           typeof raw.world !== "string"
         )
           return;
