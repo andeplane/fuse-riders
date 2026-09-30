@@ -1,4 +1,10 @@
-import type { Action, MapDefinition, World, Outcome } from "../engine/types.js";
+import type {
+  Action,
+  MapDefinition,
+  World,
+  Outcome,
+  Player,
+} from "../engine/types.js";
 import {
   AI_STRATEGIES,
   isAiStrategy,
@@ -20,6 +26,8 @@ import {
 } from "../render/board.js";
 import type { BoardCamera, CameraFactory } from "../render/camera.js";
 import type { LightRenderer } from "../render/light-field.js";
+import { POWERUP_STYLE } from "../render/powerup-art.js";
+import { POWERUP_PRESENTATION } from "../engine/powerups.js";
 import {
   isBuildKind,
   canAttack,
@@ -70,6 +78,17 @@ function units(value: number): string {
   return (value / 1000).toFixed(1);
 }
 
+/** Active powerup buffs with their remaining seconds. */
+function buffChips(world: Readonly<World>, player: Player): string {
+  return player.buffs
+    .filter((b) => b.expiresAt > world.tick)
+    .map(
+      (b) =>
+        `<span class="buff-chip" style="--buff:${POWERUP_STYLE[b.kind].color}" title="${escape(POWERUP_PRESENTATION[b.kind].description)}">${escape(POWERUP_PRESENTATION[b.kind].label.toUpperCase())} ${Math.ceil((b.expiresAt - world.tick) / RULES.ticksPerSecond)}s</span>`,
+    )
+    .join("");
+}
+
 export interface AppDependencies {
   maps: MapRepository;
   preferences: PreferencesStore;
@@ -118,6 +137,7 @@ export function mountNeuralDefence(
   let instantConstruction = false;
   let instantResearch = false;
   let aiStrategy: AiStrategy = "balanced";
+  let powerups = true;
   let firstAiStrategy: AiStrategy = "pressure";
   let notices: Outcome[] = [];
   let noticeTick = -1;
@@ -259,6 +279,7 @@ export function mountNeuralDefence(
         aiStrategy,
         instantConstruction: dependencies.debug && instantConstruction,
         instantResearch: dependencies.debug && instantResearch,
+        ...(mode === "skirmish" || mode === "watch" ? { powerups } : {}),
       };
       const created = dependencies.createSession(
         mapState.value,
@@ -353,6 +374,7 @@ export function mountNeuralDefence(
         <p>${mode === "watch" ? "Two AI players · Equal resources · Watch, pan and inspect either network" : mode === "skirmish" ? "You versus one AI · Equal resources · Destroy the enemy brain" : `One local player · No AI controller${mode === "combat-lab" ? " · Scripted opposing network" : ""}`}</p>
         ${mode === "watch" ? `<label class="field-label" for="first-strategy-picker">First AI opening</label><select id="first-strategy-picker" data-field="first-strategy">${AI_STRATEGIES.map((kind) => `<option value="${kind}" ${kind === firstAiStrategy ? "selected" : ""}>${kind[0]!.toUpperCase() + kind.slice(1)}</option>`).join("")}</select>` : ""}
         ${mode === "skirmish" || mode === "watch" ? `<label class="field-label" for="strategy-picker">${mode === "watch" ? "Second AI opening" : "Opponent opening"}</label><select id="strategy-picker" data-field="strategy">${AI_STRATEGIES.map((kind) => `<option value="${kind}" ${kind === aiStrategy ? "selected" : ""}>${kind[0]!.toUpperCase() + kind.slice(1)}</option>`).join("")}</select><p class="muted">Different openings, equal resources. Opponents can adapt when countered.</p>` : ""}
+        ${mode === "skirmish" || mode === "watch" ? `<label class="toggle-field"><input type="checkbox" data-field="powerups" ${powerups ? "checked" : ""}> Random powerups <small>Contested pickups spawn between the brains; the first network to touch one claims it.</small></label>` : ""}
         ${
           dependencies.debug
             ? `<fieldset class="debug-options"><legend>Debug options</legend>
@@ -405,7 +427,7 @@ export function mountNeuralDefence(
     const resources = players
       .map(
         (p) =>
-          `<div><small>${sideName(world, p.id).toUpperCase()}</small><strong>◈ ${units(p.biomass)} <span>◇ ${units(p.insight)}</span></strong></div>`,
+          `<div><small>${sideName(world, p.id).toUpperCase()}</small><strong>◈ ${units(p.biomass)} <span>◇ ${units(p.insight)}</span></strong></div>${buffChips(world, p)}`,
       )
       .join("");
     const cards = players
@@ -467,10 +489,12 @@ export function mountNeuralDefence(
         : sprite(
             cell?.terrain === "blocked" ? "blocker-boulder" : "terrain-slate-a",
           );
+    const powerup = world.powerups.find((p) => p.cell === selectedCell);
     const detail =
       selectedCell === null
         ? '<div class="selection-summary"><strong>Select a hex</strong><span>Click terrain to build or inspect.</span></div>'
-        : `<div class="selection-summary"><div class="tile-heading"><span>HEX ${selectedCell}</span><strong>${structure ? `${structure.kind.toUpperCase()} · ${structure.hp} HP` : cell?.terrain === "deposit" ? `${cell.resourceKind.toUpperCase()} DEPOSIT` : cell?.terrain === "blocked" ? "BLOCKED GROUND" : "OPEN GROUND"}</strong></div>
+        : `<div class="selection-summary"><div class="tile-heading"><span>HEX ${selectedCell}</span><strong>${structure ? `${structure.kind.toUpperCase()} · ${structure.hp} HP` : powerup ? `POWERUP · ${POWERUP_PRESENTATION[powerup.kind].label.toUpperCase()}` : cell?.terrain === "deposit" ? `${cell.resourceKind.toUpperCase()} DEPOSIT` : cell?.terrain === "blocked" ? "BLOCKED GROUND" : "OPEN GROUND"}</strong></div>
+        ${powerup ? `<span>${escape(POWERUP_PRESENTATION[powerup.kind].description)} Fades in ${Math.ceil((powerup.expiresAt - world.tick) / RULES.ticksPerSecond)}s. Touch it with your connected network to claim it; two networks touching it keep it contested.</span>` : ""}
         ${structure ? `<span title="${structure.connected ? "Connected to brain" : "Disconnected from brain"}${incoming.length ? ` · next arrival in ${Math.ceil((Math.min(...incoming.map((p) => p.arrivesAt)) - world.tick) / RULES.ticksPerSecond)}s` : ""}">${structure.connected ? "Connected" : "Disconnected"} · ${count} particles · ${incoming.length} incoming</span>` : ""}
         ${cell?.terrain === "deposit" ? '<span title="Connected neighboring structures harvest this deposit. Several players may share it.">Expand alongside to mine.</span>' : ""}</div>
         ${owned && canAttack(structure.kind) ? `${priority === 0 && structure.kind !== "brain" ? '<span class="supply-warning">No supply assigned — use D / Charge to arm this node.</span>' : ""}<div class="priority-control"><label class="field-label" for="priority-slider">Attack priority · ${priority}/3</label><input id="priority-slider" data-field="priority" type="range" min="0" max="3" step="1" value="${priority}"></div>` : ""}
@@ -529,7 +553,7 @@ export function mountNeuralDefence(
           : panel === "research"
             ? `<div class="command-context"><strong>Research</strong><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · researching` : "Choose an upgrade"}</p><small>${player.research.length ? `Complete: ${player.research.map((r) => researchNames[r]).join(", ")}` : "Hover or focus a command for its requirements."}</small></div>`
             : `<div class="command-context"><strong>Recent activity</strong><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></div>`;
-    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div></div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls"><button data-action="reset" class="secondary">Reset</button><button data-action="leave" class="secondary">Menu</button></div></div>
+    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div>${buffChips(world, player)}</div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls"><button data-action="reset" class="secondary">Reset</button><button data-action="leave" class="secondary">Menu</button></div></div>
       <div class="command-dock">${minimapMarkup(world)}<section class="inspector" aria-label="${panel === "inspect" || panel === "build" ? "Selected hex" : panel === "research" ? "Research" : "Recent activity"}">${portrait ? `<div class="selection-portrait"><img style="filter:${structure && structure.kind !== "neuron" ? teamArtFilter(world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0) : "none"}" src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${contextDetail}</div></section><nav class="command-card" data-panel="${panel}" aria-label="${panel === "research" ? "Research commands" : panel === "build" ? "Build commands" : panel === "activity" ? "Activity commands" : "Commands"}">${commands}</nav></div>`;
   }
 
@@ -981,6 +1005,10 @@ export function mountNeuralDefence(
         instantConstruction = (target as HTMLInputElement).checked;
       if (target.dataset.debug === "research")
         instantResearch = (target as HTMLInputElement).checked;
+      return;
+    }
+    if (target.dataset.field === "powerups") {
+      powerups = (target as HTMLInputElement).checked;
       return;
     }
     if (target.dataset.field === "map") void loadSelectedMap(target.value);

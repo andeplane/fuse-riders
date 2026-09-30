@@ -1,3 +1,10 @@
+import {
+  hasBuff,
+  isBuffKind,
+  isPowerupKind,
+  POWERUP_RULES,
+  powerupPhase,
+} from "./powerups.js";
 import { loadMap, neighbors, homeCellOrder } from "./map.ts";
 import { autoExpandCell } from "./auto-expand.js";
 import {
@@ -36,6 +43,7 @@ import {
 } from "./types.ts";
 export * from "./types.ts";
 export { loadMap, neighbors } from "./map.ts";
+export * from "./powerups.js";
 const clone = <T>(v: T): T => structuredClone(v);
 const record = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
@@ -85,8 +93,11 @@ export function createMatch(
           "instantResearch",
           "matchId",
           "aiStrategy",
+          "powerups",
         ].includes(k),
     ) ||
+    (settings.powerups !== undefined &&
+      typeof settings.powerups !== "boolean") ||
     (settings.aiStrategy !== undefined && !isAiStrategy(settings.aiStrategy)) ||
     (settings.instantConstruction !== undefined &&
       typeof settings.instantConstruction !== "boolean") ||
@@ -107,6 +118,8 @@ export function createMatch(
     structures: [],
     particles: [],
     nextEntityId: 1,
+    powerups: [],
+    powerupSerial: 0,
     outcomes: [],
     winnerId: null,
     finished: false,
@@ -143,6 +156,7 @@ export function createMatch(
         lost: 0,
         sitesLost: 0,
       },
+      buffs: [],
     });
     w.structures.push({
       id: w.nextEntityId++,
@@ -487,7 +501,7 @@ function worker(w: World, p: Player) {
     return;
   }
   worker.mode = "building";
-  job.progress++;
+  job.progress += hasBuff(p, "surge", w.tick) ? 2 : 1;
   if (job.progress >= job.duration) {
     const source =
       job.upgradeFrom === undefined
@@ -653,9 +667,13 @@ function combat(w: World) {
   }[] = [];
   for (const s of w.structures) {
     const weapon = STRUCTURES[s.kind];
-    if (!s.connected || !canAttack(s.kind) || w.tick % weapon.cadence !== 0)
-      continue;
+    if (!s.connected || !canAttack(s.kind)) continue;
     const p = w.players.find((p) => p.id === s.ownerId)!;
+    // Synaptic frenzy halves the time between volleys.
+    const cadence = hasBuff(p, "frenzy", w.tick)
+      ? Math.max(1, Math.floor(weapon.cadence / 2))
+      : weapon.cadence;
+    if (w.tick % cadence !== 0) continue;
     const cells = attackCells(w.map, s.cell, s.kind);
     const targets = [
       ...w.structures
@@ -896,6 +914,7 @@ export function step(state: World, commands: readonly Command[] = []): World {
     player.queue = player.queue.filter((job) => job.cell !== cell || job.paid);
   for (const p of ready) worker(w, p);
   connectivity(w);
+  powerupPhase(w);
   const launches = new Map<string, number>();
   for (const p of w.players) if (p.alive) particles(w, p, launches);
   return w;
@@ -977,6 +996,7 @@ export function decodeState(raw: unknown): World {
         "shielded",
         "destroyed",
         "eliminated",
+        "claimed",
       ].includes(o.type) ||
       (o.cell !== undefined && !integer(o.cell, 0, w.map.cells.length - 1)) ||
       (o.fromCell !== undefined &&
@@ -1031,7 +1051,16 @@ export function decodeState(raw: unknown): World {
       !record(p.priorities) ||
       Object.keys(p.priorities).length > 8 ||
       !record(p.miningRemainders) ||
-      !record(p.statistics)
+      !record(p.statistics) ||
+      !Array.isArray(p.buffs) ||
+      p.buffs.length > 2 ||
+      p.buffs.some(
+        (b, i) =>
+          !record(b) ||
+          !isBuffKind(b.kind) ||
+          !integer(b.expiresAt, w.tick + 1) ||
+          (i > 0 && p.buffs[i - 1]!.kind >= b.kind),
+      )
     )
       throw new Error("checkpoint: invalid player");
     if (
@@ -1218,6 +1247,27 @@ export function decodeState(raw: unknown): World {
       )
     )
       throw new Error("checkpoint: invalid recovery");
+  }
+  if (
+    !Array.isArray(w.powerups) ||
+    w.powerups.length > POWERUP_RULES.maxActive ||
+    !integer(w.powerupSerial, w.powerups.length) ||
+    (!w.settings.powerups && (w.powerups.length > 0 || w.powerupSerial > 0))
+  )
+    throw new Error("checkpoint: invalid powerups");
+  for (const p of w.powerups) {
+    if (
+      !record(p) ||
+      !integer(p.id, 1) ||
+      ids.has(p.id) ||
+      !integer(p.cell, 0, w.map.cells.length - 1) ||
+      w.map.cells[p.cell]?.terrain !== "open" ||
+      w.powerups.filter((q) => q.cell === p.cell).length > 1 ||
+      !isPowerupKind(p.kind) ||
+      !integer(p.expiresAt, w.tick + 1, w.tick + POWERUP_RULES.lifetime)
+    )
+      throw new Error("checkpoint: invalid powerup");
+    ids.add(p.id);
   }
   if ([...ids].some((id) => id >= w.nextEntityId))
     throw new Error("checkpoint: invalid identity counter");

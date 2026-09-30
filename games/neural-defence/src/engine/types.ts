@@ -1,3 +1,4 @@
+import type { Buff, Powerup } from "./powerups.js";
 export type Resource = "biomass" | "insight";
 export const AI_STRATEGIES = [
   "balanced",
@@ -34,6 +35,8 @@ export interface MatchSettings {
   instantConstruction?: boolean;
   instantResearch?: boolean;
   matchId?: string;
+  /** Random powerups spawn on contested tiles. Off unless enabled. */
+  powerups?: boolean;
 }
 export interface RosterEntry {
   id: string;
@@ -81,6 +84,8 @@ export interface Player {
     lost: number;
     sitesLost: number;
   };
+  /** Timed effects from claimed powerups, sorted by kind. */
+  buffs: Buff[];
 }
 export interface Structure {
   id: number;
@@ -134,7 +139,8 @@ export interface Outcome {
     | "damage"
     | "shielded"
     | "destroyed"
-    | "eliminated";
+    | "eliminated"
+    | "claimed";
   cell?: number;
   /** Origin of a resolved attack; presentation does not infer it from nearby nodes. */
   fromCell?: number;
@@ -144,7 +150,7 @@ export interface Outcome {
 }
 export interface World {
   formatVersion: 1;
-  rulesVersion: 9;
+  rulesVersion: 10;
   matchId: string;
   tick: number;
   map: MapDefinition;
@@ -153,12 +159,15 @@ export interface World {
   structures: Structure[];
   particles: Particle[];
   nextEntityId: number;
+  /** Powerups on the board, and how many have ever spawned (their draw counter). */
+  powerups: Powerup[];
+  powerupSerial: number;
   outcomes: Outcome[];
   winnerId: string | null;
   finished: boolean;
 }
 export const RULES = Object.freeze({
-  version: 9,
+  version: 10,
   ticksPerSecond: 20,
   particleCount: 128,
   particleSpeed: 4,

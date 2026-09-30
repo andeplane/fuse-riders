@@ -525,6 +525,7 @@ test("context tools remain reachable and stable during updates, using the local 
     aiStrategy: "balanced",
     instantConstruction: false,
     instantResearch: false,
+    powerups: true,
   });
   assert.ok(
     f.root.querySelector(".resource-row")?.textContent?.includes("99.0"),

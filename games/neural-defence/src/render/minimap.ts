@@ -1,5 +1,6 @@
 import type { World } from "../engine/types.js";
 import { hexCenter, hexPoints, boardSize, groundCell } from "./projection.js";
+import { POWERUP_STYLE } from "./powerup-art.js";
 
 export function minimapMarkup(world: Readonly<World>): string {
   const { width, height } = boardSize(world.map.width, world.map.height);
@@ -15,6 +16,11 @@ export function minimapMarkup(world: Readonly<World>): string {
       const { x, y } = hexCenter(world.map.width, s.cell);
       const slot = world.players.find((p) => p.id === s.ownerId)?.slot ?? 0;
       return `<circle cx="${x}" cy="${y}" r="${s.kind === "brain" ? 20 : 11}" fill="${colors[slot]}" opacity="${s.connected ? 1 : 0.4}"/>`;
+    })
+    .join("")}${world.powerups
+    .map((p) => {
+      const { x, y } = hexCenter(world.map.width, p.cell);
+      return `<circle class="minimap-powerup" cx="${x}" cy="${y}" r="13" fill="${POWERUP_STYLE[p.kind].color}" stroke="#fff" stroke-width="4"/>`;
     })
     .join(
       "",

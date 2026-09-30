@@ -68,7 +68,12 @@ export function parseSettings(x: unknown): NeuralSettings | undefined {
   if (
     Object.keys(x.engine).some(
       (k) =>
-        !["instantConstruction", "instantResearch", "aiStrategy"].includes(k),
+        ![
+          "instantConstruction",
+          "instantResearch",
+          "aiStrategy",
+          "powerups",
+        ].includes(k),
     ) ||
     Object.entries(x.engine).some(([key, value]) =>
       key === "aiStrategy" ? !isAiStrategy(value) : typeof value !== "boolean",
@@ -253,7 +258,7 @@ export const neuralGame: RollbackGame<
   NeuralSettings
 > = {
   id: "neural-defence",
-  rules: "neural-defence-9-watch-4",
+  rules: "neural-defence-10-watch-5",
   isEntry,
   createRoom: (matchId, settings) => ({
     tick: 0,

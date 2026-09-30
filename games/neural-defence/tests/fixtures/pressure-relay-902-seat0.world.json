@@ -496,6 +496,8 @@
   },
   "matchId": "sandbox",
   "nextEntityId": 383,
+  "powerups": [],
+  "powerupSerial": 0,
   "outcomes": [
     {
       "amount": 450,
@@ -4371,6 +4373,7 @@
   "players": [
     {
       "alive": true,
+      "buffs": [],
       "autoExpand": false,
       "biomass": 5026800,
       "id": "alpha",
@@ -4422,6 +4425,7 @@
     },
     {
       "alive": true,
+      "buffs": [],
       "autoExpand": false,
       "biomass": 4261650,
       "id": "beta",
@@ -4481,7 +4485,7 @@
       }
     }
   ],
-  "rulesVersion": 9,
+  "rulesVersion": 10,
   "settings": {},
   "structures": [
     {

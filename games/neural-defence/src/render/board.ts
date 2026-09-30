@@ -43,6 +43,13 @@ import { CreepLayer, type CreepSource } from "./creep-layer.js";
 import { organicBurst } from "./organic-burst.js";
 import { buildingRootsMarkup } from "./building-roots.js";
 import {
+  claimLabelMarkup,
+  POWERUP_STYLE,
+  powerupDefs,
+  powerupMarkup,
+} from "./powerup-art.js";
+import { POWERUP_PRESENTATION, isPowerupKind } from "../engine/powerups.js";
+import {
   bloodTravel,
   heartbeat,
   vesselMarkup,
@@ -98,6 +105,7 @@ interface BoardCache {
   castShadows: SVGGElement;
   links: SVGGElement;
   queues: SVGGElement;
+  powerups: SVGGElement;
   selection: SVGPolygonElement;
   firingRange: SVGGElement;
   territory: SVGGElement;
@@ -482,6 +490,7 @@ export function renderBoard(
         "beforeend",
         svgArtFilters() +
           neuronDefs() +
+          powerupDefs() +
           TEAM_PALETTES.map((_, slot) => creepPatternMarkup(slot)).join("") +
           [...colors, "#ffb767"]
             .map(
@@ -504,12 +513,14 @@ export function renderBoard(
     const castShadows = layer(svg, "cast-shadow-layer");
     const links = layer(svg, "link-layer"),
       queues = layer(svg, "queue-layer"),
+      powerups = layer(svg, "powerup-layer"),
       groundEffects = layer(svg, "ground-effect-layer"),
       particleLayer = layer(svg, "particle-layer"),
       structures = layer(svg, "structure-layer");
     const effectLayer = layer(svg, "effect-layer");
     for (const decorative of [
       territory,
+      powerups,
       firingRange,
       castShadows,
       links,
@@ -531,6 +542,7 @@ export function renderBoard(
       tick: world.tick,
       links,
       queues,
+      powerups,
       structures,
       castShadows,
       particleLayer,
@@ -658,6 +670,68 @@ export function renderBoard(
       )
       .join(""),
   );
+  setMarkup(
+    cache.powerups,
+    world.powerups
+      .map((p) => {
+        const { x, y } = hexCenter(width, p.cell);
+        // Blink through the last five seconds before it fades away.
+        return powerupMarkup(
+          p.kind,
+          p.cell,
+          x,
+          y,
+          p.expiresAt - world.tick <= 100,
+        );
+      })
+      .join(""),
+  );
+  if (world.tick !== cache.tick && !reducedMotion)
+    for (const claimed of world.outcomes)
+      if (
+        claimed.type === "claimed" &&
+        claimed.cell !== undefined &&
+        isPowerupKind(claimed.reason) &&
+        cache.pulses.length < 48
+      ) {
+        const { x, y } = hexCenter(width, claimed.cell);
+        const style = POWERUP_STYLE[claimed.reason];
+        const label = svg.ownerDocument.createElementNS(ns, "g");
+        label.setAttribute("class", "claim-effect");
+        label.innerHTML = claimLabelMarkup(
+          POWERUP_PRESENTATION[claimed.reason].label,
+          claimed.reason,
+          x,
+          y,
+        );
+        cache.effectLayer.append(label);
+        cache.pulses.push({
+          element: label,
+          born: now,
+          duration: 1600,
+          animate: (t) => {
+            label.setAttribute(
+              "transform",
+              `translate(0 ${(-t * 26).toFixed(1)})`,
+            );
+            label.setAttribute(
+              "opacity",
+              String(t < 0.15 ? t / 0.15 : 1 - (t - 0.15) / 0.85),
+            );
+          },
+        });
+        if (light) {
+          const color = rgb(style.color);
+          cache.light.flash(x, y - 16, now, 70, color, 1, 520);
+          cache.light.burst(x, y - 16, now, world.tick * 7 + claimed.cell, {
+            ...SPROUT(color),
+            count: 34,
+            speed: [30, 110],
+            lift: [40, 120],
+            gravity: 60,
+          });
+        }
+      }
   if (world.tick !== cache.tick && !reducedMotion)
     for (const p of world.particles) {
       if (
@@ -1057,6 +1131,20 @@ export function renderBoard(
           phase,
           swing: 0.25,
         });
+    }
+    for (const p of world.powerups) {
+      const { x, y } = hexCenter(width, p.cell);
+      glows.push({
+        x,
+        y: y - 16,
+        size: 34,
+        color: rgb(POWERUP_STYLE[p.kind].color),
+        alpha: 0.55,
+        sharpness: 2.4,
+        period: 380,
+        phase: p.id,
+        swing: 0.35,
+      });
     }
     world.map.cells.forEach((cell, index) => {
       if (cell.terrain !== "deposit") return;

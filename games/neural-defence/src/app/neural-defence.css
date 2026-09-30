@@ -316,6 +316,20 @@ select {
   margin-top: auto;
   padding-top: 1rem;
 }
+.toggle-field {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.5rem;
+  align-items: center;
+  margin: 0.75rem 0 1rem;
+  font-size: 13px;
+}
+.toggle-field small {
+  grid-column: 2;
+  line-height: 1.5;
+  color: var(--fui-text-muted);
+  font-size: 11px;
+}
 .debug-options {
   border: 1px solid #ffe46b70;
   color: var(--fui-yellow);
@@ -903,6 +917,71 @@ select {
   .cocoon * {
     animation: none;
   }
+}
+/* Powerups: a floating orb over a pulsing ground ring. */
+.powerup-shadow {
+  fill: #000;
+  opacity: 0.35;
+}
+.powerup-ring {
+  fill: none;
+  stroke-width: 1.6;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: powerup-ring 1.6s ease-out infinite;
+}
+.powerup-orb {
+  animation: powerup-bob 2.2s ease-in-out infinite;
+}
+.powerup.expiring {
+  animation: powerup-blink 0.5s steps(2, jump-none) infinite;
+}
+@keyframes powerup-ring {
+  from {
+    transform: scale(0.55);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.25);
+    opacity: 0;
+  }
+}
+@keyframes powerup-bob {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+@keyframes powerup-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+.claim-label {
+  font: 700 11px var(--fui-font-mono, monospace);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+#nd-board[data-reduced-motion="true"] .powerup *,
+#nd-board[data-reduced-motion="true"] .powerup {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .powerup,
+  .powerup * {
+    animation: none;
+  }
+}
+.buff-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border: 1px solid var(--buff);
+  border-radius: 999px;
+  color: var(--buff);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 /* Blood vessels beneath the ground; the blood itself flows in the light layer. */
 
