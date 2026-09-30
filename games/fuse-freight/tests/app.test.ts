@@ -548,3 +548,56 @@ test("sound: nothing at all under ?mute; effects per cue; music runs only while 
     "music starts once the browser allows it",
   );
 });
+
+test("every sound cue plays, and the last stretch speeds the soundtrack up with a whistle's toot", () => {
+  const fake = fakeAudio();
+  const audio = createAudio(
+    false,
+    loadPrefs(
+      safeStore(() => memory()),
+      false,
+    ),
+    fake.deps,
+  );
+  audio.resume();
+  for (const cue of [
+    "collect",
+    "cut",
+    "deliver",
+    "bump",
+    "wall",
+    "spawn",
+    "scrap",
+    "full",
+    "count",
+    "go",
+    "whistle",
+    "final",
+    "win",
+  ] as const) {
+    const before = fake.made.length;
+    audio.play(cue);
+    assert.ok(fake.made.length > before, `${cue} makes a sound`);
+  }
+  // Each mood schedules notes; the last stretch has more of them for the same stretch of time.
+  const notes = (mood: "menu" | "round" | "final") => {
+    const run = fakeAudio();
+    const player = createAudio(
+      false,
+      loadPrefs(
+        safeStore(() => memory()),
+        false,
+      ),
+      run.deps,
+    );
+    player.resume();
+    player.mood(mood);
+    for (let i = 0; i < 40; i++) {
+      run.context.currentTime += 0.05;
+      run.timers[0]!();
+    }
+    return run.made.length;
+  };
+  assert.ok(notes("final") > notes("round"));
+  assert.ok(notes("round") > notes("menu"));
+});

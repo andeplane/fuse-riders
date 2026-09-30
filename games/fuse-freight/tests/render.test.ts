@@ -202,3 +202,63 @@ test("the pictures: every rules panel animates, the loading bays show taken and 
   assert.ok(icon.width > 0);
   assert.equal(hexA("#ff0080", 0.5), "rgba(255,0,128,0.5)");
 });
+
+test("every kind of effect draws, a cooling cart shows its ring, and reduced motion keeps the frame still", () => {
+  const r = recorder();
+  const scene = createScene(r.screen, r.make);
+  const world = crowded();
+  scene.draw({ world, me: "", labels: new Map(), now: 0, reducedMotion: true });
+  const kinds = [
+    "collect",
+    "cut",
+    "deliver",
+    "bump",
+    "wall",
+    "spawn",
+    "scrap",
+  ] as const;
+  const later: WorldView = {
+    ...world,
+    step: world.step + 1,
+    fx: kinds.map((kind, i) => ({
+      id: 2000 + i,
+      at: world.step + 1,
+      kind,
+      x: 200 + i * 60,
+      y: 250,
+      slot: i % 5,
+      data: 2,
+      other: kind === "deliver" ? 1 : 0,
+    })),
+  };
+  r.clear();
+  scene.draw({
+    world: later,
+    me: "t0",
+    labels: new Map(),
+    now: 16,
+    reducedMotion: true,
+  });
+  const texts = r.texts();
+  assert.ok(
+    texts.includes("+1") && texts.includes("CUT ×2!") && texts.includes("+2"),
+  );
+  // Reduced motion: no screen shake, so the frame is never offset.
+  const shaken = r.calls.filter(
+    (c) =>
+      c[0] === "translate" &&
+      c.length === 3 &&
+      Math.abs(Number(c[1])) < 3 &&
+      Number(c[1]) !== 0 &&
+      Math.abs(Number(c[2])) < 3,
+  );
+  assert.equal(shaken.length, 0);
+  // Particles age out over a few seconds of frames.
+  for (let t = 32; t < 4000; t += 50)
+    scene.draw({ world: later, me: "", labels: new Map(), now: t });
+  r.clear();
+  scene.draw({ world: later, me: "", labels: new Map(), now: 4050 });
+  assert.ok(!r.texts().includes("CUT ×2!"), "the pop-ups are gone");
+  // The cooling cart draws its countdown ring.
+  assert.ok(r.calls.some((c) => c[0] === "arc" && c[3] === 19));
+});

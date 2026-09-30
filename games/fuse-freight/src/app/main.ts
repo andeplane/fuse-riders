@@ -722,8 +722,18 @@ function room(solo: boolean): void {
         c.full ? "FULL" : c.carrying ? `+${c.carrying}` : "",
       );
       setText(card.wins!, c.wins ? "♛".repeat(Math.min(3, c.wins)) : "");
+      // Wagons gone without a delivery were stolen: the card flashes, so the victim notices from anywhere.
+      const was = pulled.get(c.id);
+      if (was && c.carrying < was.carrying && c.score === was.score) {
+        root.classList.remove("robbed");
+        void root.offsetWidth;
+        root.classList.add("robbed");
+      }
+      pulled.set(c.id, { carrying: c.carrying, score: c.score });
     });
   };
+  const pulled = new Map<string, { carrying: number; score: number }>();
+  let cardRound = "";
 
   const render = (next: Model, view: View) => {
     if (over) return;
@@ -780,6 +790,10 @@ function room(solo: boolean): void {
     showSeconds(view.settings.seconds, next.lobby.editable);
     backToLobby.hidden = !(viewer.host && view.stage !== "lobby" && !display);
     // HUD.
+    // A new round empties every train: that is not a theft.
+    const round = `${view.matchId}:${view.round}:${view.world?.seed ?? ""}`;
+    if (round !== cardRound) pulled.clear();
+    cardRound = round;
     renderCards(next.cards);
     setText(clockValue, next.time);
     clock.classList.toggle("urgent", next.urgent);

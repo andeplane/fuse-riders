@@ -1084,3 +1084,20 @@ body.fui-app button {
     animation: none;
   }
 }
+
+/* A card whose train was just robbed flashes red once. */
+.ff-card.robbed {
+  animation: ff-robbed 0.7s ease-out;
+}
+@keyframes ff-robbed {
+  0%,
+  30% {
+    background: rgba(255, 60, 60, 0.55);
+    box-shadow: 0 0 1.4cqw rgba(255, 60, 60, 0.9);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ff-card.robbed {
+    animation: none;
+  }
+}
