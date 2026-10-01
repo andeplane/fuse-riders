@@ -223,7 +223,7 @@ function startVersus(room: NeuralRoom, matchId: string) {
 }
 /**
  * A Versus table never holds more players than its map has spawns: bots beyond
- * that leave, the most recently seated first, whether the host added one too
+ * that leave, highest seat first, whether the host added one too
  * many or switched to a smaller map. Humans are never removed; the lobby
  * explains that the table is too full to start.
  */
@@ -331,6 +331,13 @@ function start(room: NeuralRoom, matchId: string) {
   room.world = world;
   room.stage = "running";
 }
+const MAX_WATCHERS = 4;
+/**
+ * Commands one seat may issue in a tick. A player issues a handful at most;
+ * the cap keeps a flooding peer from pushing the tick past the engine's limit
+ * of 256 commands, which would stop the match for everyone.
+ */
+const COMMANDS_PER_SEAT = 16;
 export const neuralGame: RollbackGame<
   NeuralRoom,
   NeuralEntry,
@@ -339,7 +346,7 @@ export const neuralGame: RollbackGame<
   NeuralSettings
 > = {
   id: "neural-defence",
-  rules: "neural-defence-12-watch-8",
+  rules: "neural-defence-12-watch-9",
   isEntry,
   createRoom: (matchId, settings) => ({
     tick: 0,
@@ -354,7 +361,7 @@ export const neuralGame: RollbackGame<
     const previousSettings = room.settings;
     applyManagementTick(room, tick, creator, streams, {
       stage: (r) => r.stage,
-      maxWatchers: 4,
+      maxWatchers: MAX_WATCHERS,
       parseSettings: (value) =>
         room.stage === "lobby" ? parseSettings(value) : undefined,
       botAvatar: "brain",
@@ -383,8 +390,14 @@ export const neuralGame: RollbackGame<
             : stream?.retired?.find((s) => s.generation === seat.generation);
         let sequence =
           room.world.players.find((p) => p.id === seat.id)?.sequence ?? 0;
+        let taken = 0;
         for (const entry of source?.entries ?? [])
-          if (entry[1] === tick && entry[2] === 1 && entry[3] === room.matchId)
+          if (
+            entry[1] === tick &&
+            entry[2] === 1 &&
+            entry[3] === room.matchId &&
+            taken++ < COMMANDS_PER_SEAT
+          )
             commands.push({
               playerId: seat.id,
               sequence: ++sequence,
@@ -422,7 +435,7 @@ export const neuralGame: RollbackGame<
           ...aiCommands(room.world, "ai-opponent", strategies[1]),
         );
       }
-      room.world = step(room.world, commands);
+      room.world = step(room.world, commands.slice(0, 256));
       if (room.world.finished) room.stage = "over";
     }
     room.tick = tick;
@@ -463,7 +476,7 @@ export const neuralGame: RollbackGame<
           raw.matchId.length > 128 ||
           !["lobby", "running", "over"].includes(String(raw.stage)) ||
           !Array.isArray(raw.seats) ||
-          raw.seats.length > RULES.maxPlayers ||
+          raw.seats.length > RULES.maxPlayers + MAX_WATCHERS ||
           typeof raw.world !== "string"
         )
           return;
@@ -517,6 +530,8 @@ export const neuralGame: RollbackGame<
               : {}),
           });
         }
+        if ([...seats.values()].filter((s) => s.watcher).length > MAX_WATCHERS)
+          return;
         const world = decodeState(raw.world);
         if (
           world.matchId !== raw.matchId ||

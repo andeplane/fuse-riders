@@ -659,3 +659,54 @@ test("skirmish starts a fair AI opponent and restores its runtime state", () => 
   session.dispose();
   assert.equal(clock.loops.size, 0);
 });
+test("a flooding seat cannot push a tick past the engine's command limit", () => {
+  const room = fold({ host: [join(1, 1, "host", 0), start(2, 2)] });
+  assert.equal(room.stage, "running");
+  const before = room.world.players.find((p) => p.id === "host")!.sequence;
+  const flood = Array.from({ length: 300 }, (_, i): NeuralEntry => [
+    10 + i,
+    room.tick + 1,
+    1,
+    room.matchId,
+    { type: "setParticleKind", kind: "heavy" },
+  ]);
+  assert.doesNotThrow(() =>
+    neuralGame.createTicker()(
+      room,
+      "host",
+      new Map([["host", { generation: 1, entries: flood }]]),
+    ),
+  );
+  assert.equal(
+    room.world.players.find((p) => p.id === "host")!.sequence - before,
+    16,
+  );
+});
+test("checkpoints keep a full table of eight players alongside watchers", () => {
+  const room = neuralGame.createRoom("match", settings());
+  const [fields] = neuralGame.checkpoint.encode(room);
+  const raw = JSON.parse(fields!) as { seats: unknown[] };
+  const seat = (id: string, slot: number, watcher: boolean) => ({
+    id,
+    name: id,
+    slot: watcher ? -1 : slot,
+    connected: true,
+    bot: false,
+    generation: 1,
+    avatarId: watcher ? "" : "brain",
+    ...(watcher ? { watcher: true } : {}),
+  });
+  raw.seats = [
+    ...Array.from({ length: 8 }, (_, i) => seat(`p${i}`, i, false)),
+    seat("w0", 0, true),
+    seat("w1", 0, true),
+  ];
+  const restored = neuralGame.checkpoint.decode([JSON.stringify(raw)], 0);
+  assert.ok(restored);
+  assert.equal(restored.seats.size, 10);
+  raw.seats.push(seat("w2", 0, true), seat("w3", 0, true), seat("w4", 0, true));
+  assert.equal(
+    neuralGame.checkpoint.decode([JSON.stringify(raw)], 0),
+    undefined,
+  );
+});
