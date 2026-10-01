@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 
-// Explicit smoke only: the wall-clock child startup deadline is load-sensitive
-// under the parallel coverage suite. Track restoring CI coverage in issue #250.
+// The child's startup deadline is generous (20 s, it starts in about 1.5 s)
+// because the parallel coverage suite loads the machine; see issue #250.
 
 test("actual service exposes Cloud Run safe health aliases without requiring provider operations", async () => {
   const child = spawn(
