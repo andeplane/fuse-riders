@@ -2,7 +2,14 @@ import type { World } from "../engine/types.js";
 import type { PresentationPreferences } from "./contracts.js";
 
 export type SoundCue =
-  "select" | "build" | "research" | "attack" | "destroy" | "victory" | "defeat";
+  | "select"
+  | "build"
+  | "research"
+  | "attack"
+  | "destroy"
+  | "victory"
+  | "defeat"
+  | "draw";
 export interface PresentationAudio {
   configure(preferences: PresentationPreferences): void;
   unlock(): void;
@@ -27,7 +34,15 @@ export function createCueTracker() {
     tick = world.tick;
     if (world.finished && !ended) {
       ended = true;
-      return local ? [world.winnerId === local ? "victory" : "defeat"] : [];
+      // A draw is nobody's defeat: it gets its own neutral cue.
+      if (!local) return [];
+      return [
+        world.winnerId === null
+          ? "draw"
+          : world.winnerId === local
+            ? "victory"
+            : "defeat",
+      ];
     }
     const cues: SoundCue[] = [];
     if (world.outcomes.some((e) => e.type === "destroyed"))
@@ -73,6 +88,7 @@ export function createBrowserAudio(forceMute: boolean): PresentationAudio {
     destroy: [90, 55],
     victory: [330, 440, 550, 660],
     defeat: [220, 165, 110],
+    draw: [294, 294, 294],
   };
   const play = (cue: SoundCue) => {
     if (

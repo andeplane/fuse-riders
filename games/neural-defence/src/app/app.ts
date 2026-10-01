@@ -5,11 +5,7 @@ import type {
   Outcome,
   Player,
 } from "../engine/types.js";
-import {
-  AI_STRATEGIES,
-  isAiStrategy,
-  type AiStrategy,
-} from "../engine/types.js";
+import { AI_STRATEGIES, type AiStrategy } from "../engine/types.js";
 import {
   dominanceCells,
   isSprout,
@@ -41,6 +37,12 @@ import { DEFAULT_MAP, ROOM_MAPS, bundledMap } from "../online/maps.js";
 import { TEAM_PALETTES } from "../render/creep.js";
 
 const TEAM_COLORS = TEAM_PALETTES.map((p) => p.glow);
+/** The most networks any Versus map seats, in words for the lobby copy. */
+const MAX_ROOM_SEATS = Math.max(2, ...ROOM_MAPS.map((map) => map.seats));
+const MAX_ROOM_SEATS_TEXT =
+  ["two", "three", "four", "five", "six", "seven", "eight"][
+    MAX_ROOM_SEATS - 2
+  ] ?? String(MAX_ROOM_SEATS);
 import { POWERUP_STYLE } from "../render/powerup-art.js";
 import { sporeIconUrl } from "../render/spore-art.js";
 import {
@@ -95,7 +97,6 @@ import type {
   SessionFactory,
   OnlineDependencies,
   OnlineSession,
-  RoomSnapshot,
   OpeningChoice,
 } from "./contracts.js";
 import { isOpeningChoice } from "./contracts.js";
@@ -230,6 +231,10 @@ export function mountNeuralDefence(
   let portal: HTMLElement | undefined;
   // The guided first game: the coach's current step, or null.
   let tutorial: { step: number } | null = null;
+  // Why the tutorial's map could not be loaded, shown on the setup screen.
+  let tutorialError: string | null = null;
+  // The control focused before How to play opened over a match.
+  let helpReturn: HTMLElement | null = null;
   // The end-of-match report: open or not, and which chart it shows.
   let report = { open: false, metric: "territory" as ReportMetric, match: "" };
   let noticeTick = -1;
@@ -287,12 +292,15 @@ export function mountNeuralDefence(
     commandPage = 0;
     pending = null;
     session?.reset();
-    selectedCell =
-      session
-        ?.view()
-        .structures.find(
-          (s) => s.ownerId === session?.localPlayerId && s.kind === "brain",
-        )?.cell ?? null;
+    // A restarted tutorial starts its coaching over, brain unselected.
+    if (tutorial) tutorial = { step: 0 };
+    selectedCell = tutorial
+      ? null
+      : (session
+          ?.view()
+          .structures.find(
+            (s) => s.ownerId === session?.localPlayerId && s.kind === "brain",
+          )?.cell ?? null);
     render();
   }
 
@@ -320,6 +328,7 @@ export function mountNeuralDefence(
     pending = null;
     helpOpen = false;
     tutorial = null;
+    tutorialError = null;
     launchError = null;
     screen = "menu";
     render();
@@ -328,10 +337,36 @@ export function mountNeuralDefence(
   async function startTutorial() {
     screen = "setup";
     mode = "sandbox";
-    tutorial = { step: 0 };
+    tutorialError = null;
+    const attempt = { step: 0 };
+    tutorial = attempt;
     await loadSelectedMap(TUTORIAL_MAP);
-    if (tutorial && screen === "setup" && mapState?.status === "ready")
+    // A newer attempt, or leaving the menu, owns the tutorial now.
+    if (tutorial !== attempt) return;
+    if (
+      screen === "setup" &&
+      selectedId === TUTORIAL_MAP &&
+      mapState?.status === "ready"
+    ) {
       launch();
+      return;
+    }
+    tutorial = null;
+    if (screen === "setup" && mapState?.status === "error") {
+      tutorialError = mapState.message;
+      render();
+    }
+  }
+
+  /**
+   * This device holds a seat in the match: it controls it while it runs and,
+   * online, still sees the match as a player once it is over.
+   */
+  function participant(world: Readonly<World>): boolean {
+    if (!session) return false;
+    if (session.canControl) return true;
+    const self = session.localPlayerId;
+    return online !== null && world.players.some((p) => p.id === self);
   }
 
   /** Which opening each AI played, revealed once the match is over. */
@@ -385,12 +420,15 @@ export function mountNeuralDefence(
       0,
       holder.dominanceSince! + TERRITORY.dominanceTicks - world.tick,
     );
-    const you = holder.id === session?.localPlayerId && session?.canControl;
+    const playing = participant(world);
+    const you = playing && holder.id === session?.localPlayerId;
     banner.style.setProperty("--team", TEAM_COLORS[holder.slot] ?? "#63cfff");
-    banner.classList.toggle("yours", !!you);
+    banner.classList.toggle("yours", you);
+    // Spectators get a neutral countdown: nobody watching is being defeated.
+    const stake = you ? "victory" : playing ? "defeat" : "a dominance win";
     updateContent(
       banner,
-      `<strong>${you ? "You dominate the cortex" : `${escape(sideName(world, holder.id))} dominates the cortex`}</strong><span>${clock(left)} to ${you ? "victory" : "defeat"} · ${holder.territory}/${dominanceCells(world)} cells</span>`,
+      `<strong>${you ? "You dominate the cortex" : `${escape(sideName(world, holder.id))} dominates the cortex`}</strong><span>${clock(left)} to ${stake} · ${holder.territory}/${dominanceCells(world)} cells</span>`,
     );
   }
 
@@ -427,6 +465,7 @@ export function mountNeuralDefence(
     const token = generation;
     aborter = new AbortController();
     catalog = { status: "loading" };
+    tutorialError = null;
     mapState = null;
     render();
     try {
@@ -457,6 +496,7 @@ export function mountNeuralDefence(
     selectedId = id;
     selectedSlot = 0;
     mapState = { status: "loading" };
+    tutorialError = null;
     launchError = null;
     render();
     try {
@@ -516,9 +556,11 @@ export function mountNeuralDefence(
       panel = "inspect";
       placement = null;
       placementCell = null;
-      selectedCell =
-        mapState.value.spawns.find((spawn) => spawn.slot === selectedSlot)
-          ?.cellIndex ?? null;
+      // The tutorial asks the player to select the brain themselves.
+      selectedCell = tutorial
+        ? null
+        : (mapState.value.spawns.find((spawn) => spawn.slot === selectedSlot)
+            ?.cellIndex ?? null);
       unsubscribe = created.subscribe(() => {
         if (screen === "game") renderGame();
       });
@@ -545,7 +587,8 @@ export function mountNeuralDefence(
     if (!pending && helpOpen)
       return `<div class="nd-modal-backdrop"><section class="nd-modal guide-modal" role="dialog" aria-modal="true" aria-labelledby="help-title"><div class="guide-modal-head"><h2 id="help-title">How to play</h2><button data-action="close-help" class="secondary">Close</button></div>${guideMarkup(guideSection)}</section></div>`;
     if (!pending) return "";
-    const watching = session?.canControl === false;
+    const world = gameWorld();
+    const watching = !!session && !!world && !participant(world);
     return `<div class="nd-modal-backdrop"><section class="nd-modal" role="alertdialog" aria-modal="true" aria-labelledby="discard-title"><p class="eyebrow">Progress will be discarded</p><h2 id="discard-title">${pending === "reset" ? "Reset this session?" : "Return to the menu?"}</h2><p>${pending === "reset" ? "The same map and spawn will start from the beginning." : watching ? "This battle will be discarded." : "Your current network and research will be lost."}</p><div class="button-row"><button data-action="cancel-confirm" class="secondary">${watching ? "Keep watching" : "Keep playing"}</button><button data-action="confirm-${pending}" class="danger">${pending === "reset" ? "Reset session" : "Leave session"}</button></div></section></div>`;
   }
 
@@ -571,8 +614,9 @@ export function mountNeuralDefence(
             )
             .join("")
         : "";
-    const catalogBlock =
-      !catalog || catalog.status === "loading"
+    const catalogBlock = tutorialError
+      ? `<div class="error-card" role="alert"><strong>Tutorial map unavailable</strong><p>${escape(tutorialError)}</p><button data-action="tutorial">Retry tutorial</button></div>`
+      : !catalog || catalog.status === "loading"
         ? '<p role="status">Loading maps…</p>'
         : catalog.status === "error"
           ? `<div class="error-card" role="alert"><strong>Map catalog unavailable</strong><p>${escape(catalog.message)}</p><button data-action="retry-catalog">Retry</button></div>`
@@ -619,8 +663,10 @@ export function mountNeuralDefence(
   }
 
   function gameMarkup(): string {
-    const title =
-      catalog?.status === "ready"
+    const roomMap = online?.room().mapId;
+    const title = online
+      ? ROOM_MAPS.find((m) => m.id === roomMap)?.title
+      : catalog?.status === "ready"
         ? catalog.value.find((m) => m.id === selectedId)?.title
         : undefined;
     return `<main class="game-layout" aria-label="${escape(title ?? "Neural field")} battlefield" ${pending ? "inert" : ""}>
@@ -708,21 +754,33 @@ export function mountNeuralDefence(
           `<div><small>${sideName(world, p.id).toUpperCase()}</small><strong>◈ ${units(p.biomass)} <span>◇ ${units(p.insight)}</span> <span>⬡ ${p.territory}</span></strong></div>${buffChips(world, p)}`,
       )
       .join("");
+    // Online spectators see each seat's name: the local watch openings are
+    // whatever the last single-player match used, not this room's.
+    const seats = online?.room().seats ?? [];
     const cards = players
       .map((p) => {
-        const opening =
-          p.id === session?.localPlayerId ? firstOpening : opponentOpening;
+        const label = online
+          ? escape(seats.find((seat) => seat.id === p.id)?.name ?? "")
+          : escape(
+              p.id === session?.localPlayerId ? firstOpening : opponentOpening,
+            );
         const brain = world.structures.find(
           (s) => s.ownerId === p.id && s.kind === "brain",
         );
-        return `<button class="watch-player" data-watch-player="${escape(p.id)}" style="--team:${TEAM_COLORS[p.slot]}"><strong>${sideName(world, p.id)} · ${escape(opening)}</strong><span>Brain ${brain?.hp ?? 0} HP</span><small>${p.statistics.built} built · ${p.statistics.lost} lost</small></button>`;
+        return `<button class="watch-player" data-watch-player="${escape(p.id)}" style="--team:${TEAM_COLORS[p.slot]}"><strong>${sideName(world, p.id)}${label ? ` · ${label}` : ""}</strong><span>Brain ${brain?.hp ?? 0} HP</span><small>${p.statistics.built} built · ${p.statistics.lost} lost</small></button>`;
       })
       .join("");
-    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls">${fullscreenButton()}<button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button><button data-action="reset" class="secondary">Restart</button><button data-action="leave" class="secondary">Menu</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div><button data-action="find-battle" class="secondary" title="Jump to fighting or the nearest opposing networks">Find battle</button></section><nav class="watch-players" aria-label="AI players">${cards}</nav></div>`;
+    // Only a room's host can send it back to the lobby.
+    const restart = online
+      ? online.room().manager
+        ? '<button data-action="reset" class="secondary">Lobby</button>'
+        : ""
+      : '<button data-action="reset" class="secondary">Restart</button>';
+    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls">${fullscreenButton()}<button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button>${restart}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div><button data-action="find-battle" class="secondary" title="Jump to fighting or the nearest opposing networks">Find battle</button></section><nav class="watch-players" aria-label="${online ? "Players" : "AI players"}">${cards}</nav></div>`;
   }
 
   function sidebarMarkup(world: Readonly<World>): string {
-    if (session && !session.canControl) return watchMarkup(world);
+    if (session && !participant(world)) return watchMarkup(world);
     const player = world.players.find(
       (item) => item.id === session?.localPlayerId,
     );
@@ -842,10 +900,11 @@ export function mountNeuralDefence(
   function renderGame() {
     const world = gameWorld();
     if (!world) return;
-    dependencies.audio?.present(
-      world,
-      session?.canControl ? session.localPlayerId : "",
-    );
+    // Online, the seat stays this device's once the match is over and
+    // control ends: it still hears and reads its own victory or defeat.
+    const playing = participant(world);
+    const self = playing ? (session?.localPlayerId ?? null) : null;
+    dependencies.audio?.present(world, self ?? "");
     if (world.matchId !== noticeMatch || world.tick < noticeTick) {
       notices = [];
       noticeTick = -1;
@@ -860,7 +919,6 @@ export function mountNeuralDefence(
     }
     const svg = root.querySelector<SVGSVGElement>("#nd-board");
     const sidebar = root.querySelector<HTMLElement>("#game-sidebar");
-    const tick = root.querySelector<HTMLElement>("#tick-label");
     if (!svg || !sidebar) return;
     const result = root.querySelector<HTMLElement>("#match-result");
     if (result) {
@@ -872,13 +930,13 @@ export function mountNeuralDefence(
         const title =
           world.winnerId === null
             ? "Draw"
-            : !session?.canControl
+            : !playing
               ? `${sideName(world, world.winnerId)} wins`
-              : world.winnerId === session?.localPlayerId
+              : world.winnerId === self
                 ? "Victory"
                 : "Defeat";
         const winner = world.winnerId
-          ? world.winnerId === session?.localPlayerId && session?.canControl
+          ? world.winnerId === self
             ? "You"
             : sideName(world, world.winnerId)
           : "";
@@ -887,24 +945,23 @@ export function mountNeuralDefence(
             ? "Every brain was destroyed."
             : world.victory === "dominance"
               ? `${winner} held a dominant share of the cortex for a minute.`
-              : !session?.canControl
+              : !playing
                 ? `${winner} destroyed the last rival brain.`
-                : world.winnerId === session?.localPlayerId
+                : world.winnerId === self
                   ? "The last rival brain has been destroyed."
                   : "Your brain has been destroyed.";
         const seats = online?.room().seats ?? [];
         const players = reportPlayers(
           world,
-          session?.canControl ? (session.localPlayerId ?? null) : null,
+          self,
           (id) => seats.find((seat) => seat.id === id)?.name,
         );
         updateContent(
           result,
-          `<strong>${title}</strong><p>${escape(how)}</p><small>${clock(world.tick)} elapsed</small>${openingsMarkup(world, players)}<div class="button-row"><button data-action="toggle-report" class="secondary" aria-expanded="${report.open}">${report.open ? "Hide report" : "Match report"}</button>${online ? (online.room().manager ? '<button data-action="rematch-room">Rematch</button><button data-action="lobby-room" class="secondary">Lobby</button>' : '<span class="room-wait">Waiting for the host…</span>') : `<button data-action="reset">${session?.canControl ? "Play again" : "Watch again"}</button>`}<button data-action="leave" class="secondary">${online ? "Leave room" : "Menu"}</button></div>${report.open ? reportMarkup(world, players, session?.canControl ? (session.localPlayerId ?? null) : null, report.metric) : ""}`,
+          `<strong>${title}</strong><p>${escape(how)}</p><small>${clock(world.tick)} elapsed</small>${openingsMarkup(world, players)}<div class="button-row"><button data-action="toggle-report" class="secondary" aria-expanded="${report.open}">${report.open ? "Hide report" : "Match report"}</button>${online ? (online.room().manager ? '<button data-action="rematch-room">Rematch</button><button data-action="lobby-room" class="secondary">Lobby</button>' : '<span class="room-wait">Waiting for the host…</span>') : `<button data-action="reset">${playing ? "Play again" : "Watch again"}</button>`}<button data-action="leave" class="secondary">${online ? "Leave room" : "Menu"}</button></div>${report.open ? reportMarkup(world, players, self, report.metric) : ""}`,
         );
       }
     }
-    if (tick) tick.textContent = `TICK ${world.tick}`;
     updateContent(sidebar, sidebarMarkup(world));
     renderCoach(world);
     renderDominance(world);
@@ -921,7 +978,7 @@ export function mountNeuralDefence(
         20) /
       1000;
     if (rate)
-      rate.textContent = `${Math.floor(world.tick / RULES.ticksPerSecond / 60)}:${String(Math.floor(world.tick / RULES.ticksPerSecond) % 60).padStart(2, "0")}${session?.canControl ? ` · +${income("biomass").toFixed(1)} ◈ / s · +${income("insight").toFixed(1)} ◇ / s` : " · AI vs AI"}`;
+      rate.textContent = `${Math.floor(world.tick / RULES.ticksPerSecond / 60)}:${String(Math.floor(world.tick / RULES.ticksPerSecond) % 60).padStart(2, "0")}${playing ? ` · +${income("biomass").toFixed(1)} ◈ / s · +${income("insight").toFixed(1)} ◇ / s` : online ? " · Spectating" : " · AI vs AI"}`;
     const debugNote = sidebar.querySelector<HTMLElement>(".debug-note");
     if (debugNote)
       debugNote.textContent = `DEBUG · grid${world.settings.instantConstruction ? " · instant build" : ""}${world.settings.instantResearch ? " · instant research" : ""} · normal travel`;
@@ -987,7 +1044,7 @@ export function mountNeuralDefence(
   }
 
   function multiplayerMarkup(): string {
-    return `${header("Multiplayer", "online versus")}<main class="setup-layout multiplayer-layout"><section class="nd-panel"><p class="section-index">01 / NEW ROOM</p><h2>Host a Versus match</h2><p>Create a room, share its code or link, add bots if you like, and start when everyone has joined. Two to four networks, one brain each.</p><button data-action="create-room" class="primary" ${creatingRoom ? "disabled" : ""}>${creatingRoom ? "Creating…" : "Create room"}</button></section><section class="nd-panel"><p class="section-index">02 / JOIN</p><h2>Join a friend</h2><label class="field-label" for="room-code">Room code</label><div class="join-row"><input id="room-code" data-field="room-code" autocomplete="off" spellcheck="false" maxlength="12" value="${escape(roomCode)}" placeholder="CODE"><button data-action="join-room" class="primary">Join</button></div>${roomError ? `<p class="error-card" role="alert">${escape(roomError)}</p>` : ""}</section><div class="button-row"><button data-action="back-menu" class="secondary">← Back</button></div></main>`;
+    return `${header("Multiplayer", "online versus")}<main class="setup-layout multiplayer-layout"><section class="nd-panel"><p class="section-index">01 / NEW ROOM</p><h2>Host a Versus match</h2><p>Create a room, share its code or link, add bots if you like, and start when everyone has joined. Two to ${MAX_ROOM_SEATS_TEXT} networks depending on the map, one brain each.</p><button data-action="create-room" class="primary" ${creatingRoom ? "disabled" : ""}>${creatingRoom ? "Creating…" : "Create room"}</button></section><section class="nd-panel"><p class="section-index">02 / JOIN</p><h2>Join a friend</h2><label class="field-label" for="room-code">Room code</label><div class="join-row"><input id="room-code" data-field="room-code" autocomplete="off" spellcheck="false" maxlength="12" value="${escape(roomCode)}" placeholder="CODE"><button data-action="join-room" class="primary">Join</button></div>${roomError ? `<p class="error-card" role="alert">${escape(roomError)}</p>` : ""}</section><div class="button-row"><button data-action="back-menu" class="secondary">← Back</button></div></main>`;
   }
 
   function roomMarkup(): string {
@@ -1012,7 +1069,7 @@ export function mountNeuralDefence(
       seated
         ? ""
         : `<label class="field-label" for="player-name">Your name</label><div class="join-row"><input id="player-name" data-field="player-name" maxlength="32" autocomplete="nickname" value="${escape(playerName)}" placeholder="Name"><button data-action="join-seat" class="primary">Join</button></div>`
-    }${room.manager && room.stage === "lobby" && players.length < capacity ? '<button data-action="add-bot" class="secondary">+ Add bot</button>' : ""}</section><aside class="nd-panel setup-summary"><p class="section-index">INVITE</p><div class="room-invite"><strong class="room-code">${escape(room.code)}</strong>${roomQr?.code === room.code ? `<img class="room-qr" src="${escape(roomQr.url)}" alt="QR code for the room link">` : ""}<small>${escape(link)}</small><button data-action="copy-room-link" class="secondary">Copy link</button></div><p class="section-index">RULES</p><label class="field-label" for="room-map">Map</label><select id="room-map" data-field="room-map" ${disabled}>${ROOM_MAPS.map((map) => `<option value="${map.id}" ${map.id === room.mapId ? "selected" : ""}>${escape(map.title)} · ${map.seats} players</option>`).join("")}</select><label class="field-label" for="room-strategy">Bot opening</label><select id="room-strategy" data-field="room-strategy" ${disabled}>${openingOptions(room.aiStrategy)}</select><label class="toggle-field"><input type="checkbox" data-field="room-powerups" ${room.powerups ? "checked" : ""} ${disabled}> Random powerups</label><p class="room-status" role="status">${escape(room.stage === "connecting" ? "Connecting to the room…" : players.length > capacity ? `Too many players for this map: it seats ${capacity}. Pick a larger map or ask someone to watch.` : room.status)}</p><div class="button-row"><button data-action="leave-room" class="secondary">Leave</button>${room.manager ? `<button data-action="start-room" class="primary" ${canStart ? "" : "disabled"}>Start match</button>` : '<span class="room-wait">Waiting for the host to start…</span>'}</div></aside></main>`;
+    }${room.manager && room.stage === "lobby" && players.length < capacity ? '<button data-action="add-bot" class="secondary">+ Add bot</button>' : ""}</section><aside class="nd-panel setup-summary"><p class="section-index">INVITE</p><div class="room-invite"><strong class="room-code">${escape(room.code)}</strong>${roomQr?.code === room.code ? `<img class="room-qr" src="${escape(roomQr.url)}" alt="QR code for the room link">` : ""}<small>${escape(link)}</small><button data-action="copy-room-link" class="secondary">Copy link</button></div><p class="section-index">RULES</p><label class="field-label" for="room-map">Map</label><select id="room-map" data-field="room-map" ${disabled}>${ROOM_MAPS.map((map) => `<option value="${map.id}" ${map.id === room.mapId ? "selected" : ""}>${escape(map.title)} · ${map.seats} players</option>`).join("")}</select><label class="field-label" for="room-strategy">Bot opening</label><select id="room-strategy" data-field="room-strategy" ${disabled}>${openingOptions(room.aiStrategy)}</select><label class="toggle-field"><input type="checkbox" data-field="room-powerups" ${room.powerups ? "checked" : ""} ${disabled}> Random powerups</label><p class="room-status" role="status">${escape(room.stage === "connecting" ? "Connecting to the room…" : players.length > capacity ? `Too many players for this map: it seats ${capacity}. Pick a larger map or ask someone to leave.` : room.status)}</p><div class="button-row"><button data-action="leave-room" class="secondary">Leave</button>${room.manager ? `<button data-action="start-room" class="primary" ${canStart ? "" : "disabled"}>Start match</button>` : '<span class="room-wait">Waiting for the host to start…</span>'}</div></aside></main>`;
   }
 
   function openRoom(code: string) {
@@ -1043,6 +1100,7 @@ export function mountNeuralDefence(
     const room = online.room();
     const playing = room.stage === "running" || room.stage === "over";
     if (screen === "room" && playing && !room.closed) {
+      helpOpen = false;
       selectedCell =
         online
           .view()
@@ -1057,12 +1115,14 @@ export function mountNeuralDefence(
       camera?.dispose();
       camera = null;
       pending = null;
+      helpOpen = false;
       screen = "room";
       render();
       return;
     }
     if (screen === "room") {
       updateContent(root, roomMarkup());
+      decorate();
       return;
     }
     if (screen === "game") renderGame();
@@ -1075,7 +1135,8 @@ export function mountNeuralDefence(
     render();
     try {
       const { code } = await dependencies.online.createRoom();
-      if (disposed) return;
+      // Someone who left the multiplayer screen meanwhile stays where they went.
+      if (disposed || screen !== "multiplayer") return;
       dependencies.online.enterRoom(code);
       openRoom(code);
     } catch (error) {
@@ -1109,10 +1170,9 @@ export function mountNeuralDefence(
       battlefield.toggleAttribute("inert", pending !== null || helpOpen);
       modalHost.innerHTML = modal();
       renderGame();
-      if (pending)
-        modalHost
-          .querySelector<HTMLButtonElement>('[data-action="cancel-confirm"]')
-          ?.focus();
+      // A relaunch from the battlefield disposed the old session's loop.
+      frame ??= dependencies.requestFrame(animate);
+      focusModal(modalHost);
       return;
     }
     camera?.dispose();
@@ -1132,13 +1192,7 @@ export function mountNeuralDefence(
                 : screen === "room"
                   ? roomMarkup()
                   : gameMarkup();
-    root
-      .querySelectorAll<HTMLElement>(".primary")
-      .forEach((button) => button.classList.add("fui-button-primary"));
-    // One portal element survives re-renders, so an open grid stays open.
-    const head = root.querySelector(".nd-header");
-    if (head && dependencies.portal)
-      head.prepend((portal ??= dependencies.portal()));
+    decorate();
     if (screen === "menu") {
       const scenery = root.querySelector<SVGSVGElement>("#nd-attract-board");
       if (scenery)
@@ -1157,11 +1211,63 @@ export function mountNeuralDefence(
       stopAnimation();
       renderGame();
       frame = dependencies.requestFrame(animate);
-      if (pending)
-        root
-          .querySelector<HTMLElement>('[data-action="cancel-confirm"]')
-          ?.focus();
+      focusModal(root);
     }
+  }
+
+  /** Fuse styling and the app portal, after the page markup is replaced or reconciled. */
+  function decorate() {
+    root
+      .querySelectorAll<HTMLElement>(".primary")
+      .forEach((button) => button.classList.add("fui-button-primary"));
+    // One portal element survives re-renders, so an open grid stays open.
+    // Reconciling a header drops it, so it goes back first in each header.
+    const head = root.querySelector(".nd-header");
+    if (head && dependencies.portal) {
+      portal ??= dependencies.portal();
+      if (head.firstElementChild !== portal) head.prepend(portal);
+    }
+  }
+
+  /**
+   * Puts focus inside an open dialog after its markup is rebuilt, so Escape
+   * and Tab reach it: the confirmation's safe choice, or the guide's open tab.
+   */
+  function focusModal(host: ParentNode) {
+    const control = pending
+      ? host.querySelector<HTMLElement>('[data-action="cancel-confirm"]')
+      : helpOpen
+        ? (host.querySelector<HTMLElement>(
+            `[role="dialog"] [data-section="${guideSection}"]`,
+          ) ??
+          host.querySelector<HTMLElement>(
+            '[role="dialog"] [data-action="close-help"]',
+          ))
+        : null;
+    control?.focus?.();
+  }
+
+  function openHelp() {
+    const active = root.ownerDocument.activeElement;
+    helpReturn =
+      active && root.contains(active) ? (active as HTMLElement) : null;
+    helpOpen = true;
+    render();
+    root
+      .querySelector<HTMLElement>('[role="dialog"] [data-action="close-help"]')
+      ?.focus?.();
+  }
+
+  function closeHelp() {
+    helpOpen = false;
+    render();
+    // Back to where the player was, or the help button that opened it.
+    const back =
+      helpReturn?.isConnected && root.contains(helpReturn)
+        ? helpReturn
+        : root.querySelector<HTMLElement>('[data-action="help"]');
+    helpReturn = null;
+    back?.focus?.({ preventScroll: true });
   }
 
   function dispatch(action: Action) {
@@ -1268,13 +1374,9 @@ export function mountNeuralDefence(
         render();
       } else if (action === "fullscreen") {
         dependencies.fullscreen?.toggle();
-      } else if (action === "help") {
-        helpOpen = true;
-        render();
-      } else if (action === "close-help") {
-        helpOpen = false;
-        render();
-      } else if (action === "tutorial") void startTutorial();
+      } else if (action === "help") openHelp();
+      else if (action === "close-help") closeHelp();
+      else if (action === "tutorial") void startTutorial();
       else if (action === "tutorial-next" && tutorial) {
         tutorial = {
           step: Math.min(tutorial.step + 1, TUTORIAL_STEPS.length - 1),
@@ -1586,13 +1688,19 @@ export function mountNeuralDefence(
     }
   }
 
+  /**
+   * Escape closes How to play wherever focus is, even when it fell to the
+   * page body, so it listens on the document rather than the app root.
+   */
+  function onDocumentKeyDown(event: KeyboardEvent) {
+    if (!helpOpen || screen !== "game" || event.key !== "Escape") return;
+    event.preventDefault();
+    closeHelp();
+  }
+
   function onKeyDown(event: KeyboardEvent) {
-    if (helpOpen && event.key === "Escape") {
-      event.preventDefault();
-      helpOpen = false;
-      render();
-      return;
-    }
+    // How to play is modal: no game shortcut acts behind it.
+    if (helpOpen && screen === "game") return;
     if (pending) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -1741,6 +1849,8 @@ export function mountNeuralDefence(
   root.addEventListener("change", onChange);
   root.addEventListener("keydown", onKeyDown);
   root.addEventListener("input", onInput);
+  const page = root.ownerDocument;
+  page.addEventListener("keydown", onDocumentKeyDown);
   if (
     dependencies.initialRoom &&
     dependencies.online?.validCode(dependencies.initialRoom)
@@ -1765,6 +1875,7 @@ export function mountNeuralDefence(
       root.removeEventListener("change", onChange);
       root.removeEventListener("keydown", onKeyDown);
       root.removeEventListener("input", onInput);
+      page.removeEventListener("keydown", onDocumentKeyDown);
       root.innerHTML = "";
     },
   };

@@ -646,10 +646,17 @@ select {
     #0e1b25
   );
 }
+/* The resources give way (wrapping inside the bar) so the session controls
+   always stay on screen, even on a 375px phone. */
 .resource-row {
   display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 1.5rem;
+  gap: 0 1.5rem;
+  min-width: 0;
+  max-height: 100%;
+  overflow: hidden;
 }
 .resource-row > div {
   display: flex;
@@ -1271,7 +1278,7 @@ select {
     gap: 4px;
   }
   .watch-topbar .resource-row {
-    gap: 10px;
+    gap: 0 10px;
   }
   .watch-topbar .resource-row strong {
     font-size: 10px;
@@ -1918,7 +1925,7 @@ select {
     padding: 0 8px;
   }
   .resource-row {
-    gap: 10px;
+    gap: 0 10px;
   }
   .resource-row > div {
     gap: 4px;
@@ -1934,6 +1941,7 @@ select {
   }
   .resource-row strong {
     font-size: 10px;
+    line-height: 1.35;
   }
   .resource-row small {
     font-size: 8px;
@@ -1971,7 +1979,7 @@ select {
     gap: 3px;
   }
   .resource-row {
-    gap: 0.5rem;
+    gap: 0 0.5rem;
   }
   .resource-row strong {
     font-size: 10px;
@@ -2210,11 +2218,17 @@ select {
     animation: none;
   }
 }
+/* On phones the coach sits above the command dock, beside the minimap, so the
+   controls it points at (Build, Research, Charge) stay visible and tappable. */
 @media (max-width: 700px) {
   .tutorial-coach:not([hidden]) {
     top: auto;
-    right: 12px;
-    bottom: 12px;
+    left: 98px;
+    right: 8px;
+    bottom: calc(var(--dock-height) + 8px);
+    width: auto;
+    max-height: calc(100% - var(--dock-height) - var(--topbar-height) - 16px);
+    overflow: auto;
   }
 }
 

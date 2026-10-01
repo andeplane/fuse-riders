@@ -160,7 +160,7 @@ export function chartMarkup(
     .map((e) => {
       const color =
         players.find((p) => p.id === e.playerId)?.color ?? "#ffffff";
-      return `<line x1="${x(e.tick).toFixed(1)}" x2="${x(e.tick).toFixed(1)}" y1="${top}" y2="${H - bottom}" class="report-moment" stroke="${color}"><title>${clock(e.tick)} ${eventText(e, players)}</title></line>`;
+      return `<line x1="${x(e.tick).toFixed(1)}" x2="${x(e.tick).toFixed(1)}" y1="${top}" y2="${H - bottom}" class="report-moment" stroke="${color}"><title>${clock(e.tick)} ${escapeText(eventText(e, players))}</title></line>`;
     });
   const paths = players.map((p) => {
     const line = lines.get(p.id) ?? [];

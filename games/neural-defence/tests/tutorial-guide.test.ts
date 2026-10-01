@@ -84,7 +84,7 @@ test("the guide covers every section with live numbers and every opening", () =>
   assert.equal(isGuideSection("secrets"), false);
   assert.match(
     guideMarkup("goal"),
-    /Hold 40% of the map in a duel \(35% with four players\) for 60 seconds, while holding at least 1.5 times as much as any rival/,
+    /Hold 40% of the map in a duel \(less in larger rooms: 35% with four players, 33% with six\) for 60 seconds, while holding at least 1.5 times as much as any rival/,
   );
   assert.match(guideMarkup("structures"), /Spore tower/);
   assert.match(guideMarkup("economy"), /A Neuron costs 20 biomass/);

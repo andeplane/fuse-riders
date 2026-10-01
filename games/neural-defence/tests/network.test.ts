@@ -685,7 +685,8 @@ test("a flooding seat cannot push a tick past the engine's command limit", () =>
 test("checkpoints keep a full table of eight players alongside watchers", () => {
   const room = neuralGame.createRoom("match", settings());
   const [fields] = neuralGame.checkpoint.encode(room);
-  const raw = JSON.parse(fields!) as { seats: unknown[] };
+  assert.equal(typeof fields, "string");
+  const raw = JSON.parse(String(fields)) as { seats: unknown[] };
   const seat = (id: string, slot: number, watcher: boolean) => ({
     id,
     name: id,

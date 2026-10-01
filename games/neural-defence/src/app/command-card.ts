@@ -59,7 +59,7 @@ export const commandPageCount = (panel: CommandPanel) =>
 export const BUILD_PRESENTATION: Readonly<
   Record<
     BuildKind,
-    { label: string; description: string; sprite: (team: string) => string }
+    { label: string; description: string; sprite: () => string }
   >
 > = {
   neuron: {
@@ -258,7 +258,6 @@ export function renderCommands(
       : empty;
 
   if (panel === "build") {
-    const team = ["blue", "coral", "green", "gold"][player.slot] ?? "blue";
     const kinds = buildKinds.slice(
       page * keys.length,
       (page + 1) * keys.length,
@@ -267,7 +266,7 @@ export function renderCommands(
       const definition = CONSTRUCTIONS[kind],
         presentation = BUILD_PRESENTATION[kind];
       const availability = constructionAvailability(player, kind);
-      const asset = presentation.sprite(team);
+      const asset = presentation.sprite();
       const stats = STRUCTURES[kind];
       const capabilities = canAttack(kind)
         ? `${stats.minRange ? `Fires exactly ${stats.range} traversable hex steps away; cannot hit within ${stats.minRange - 1} steps.` : `Range ${stats.range}.`} Up to ${stats.volley} supplied particles every ${stats.cadence / RULES.ticksPerSecond}s.`
