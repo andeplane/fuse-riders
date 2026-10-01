@@ -65,8 +65,10 @@ const openings: Record<
     profile: "heavy",
     neuronsPerWeapon: 3,
   },
+  // Containment: Ballistics straight after Growth so artillery arrives
+  // before the rival's defences settle.
   siege: {
-    research: ["growth", "excitation", "ballistics", "conduction", "resonance"],
+    research: ["growth", "ballistics", "excitation", "conduction", "resonance"],
     deposits: 7,
     harvesters: 0,
     weapon: "siege",
