@@ -22,8 +22,8 @@ const dirty = () =>
       "status",
       "--porcelain",
       "--untracked-files=no",
-      "games/neural-defence/src",
-      "games/neural-defence/maps",
+      "games/fuse-craft/src",
+      "games/fuse-craft/maps",
     ],
     { encoding: "utf8" },
   ).trim();
@@ -50,7 +50,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
     await page.routeWebSocket("**", (socket) => socket.close());
     await page.goto(
       process.env.FUSE_CRAFT_URL ??
-        "http://127.0.0.1:5174/games/neural-defence/?mute",
+        "http://127.0.0.1:5174/games/fuse-craft/?mute",
     );
     await page.locator('[data-action="new-game"]').click();
     await page.locator('[data-action="mode-watch"]').click();

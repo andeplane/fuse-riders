@@ -7,7 +7,7 @@ import {
   hashState,
   type Command,
   type World,
-} from "../games/neural-defence/src/engine/index.js";
+} from "../games/fuse-craft/src/engine/index.js";
 
 // Diagnostic replay rendering, not a substitute for ordinary UI playtesting.
 const file = process.argv[2];
@@ -41,14 +41,14 @@ try {
   });
   await page.goto(
     process.env.FUSE_CRAFT_URL ??
-      "http://127.0.0.1:5174/games/neural-defence/?mute",
+      "http://127.0.0.1:5174/games/fuse-craft/?mute",
   );
   for (const [index, frame] of frames.entries()) {
     await page.evaluate(async (world) => {
-      const root = "/games/neural-defence/src/render/";
+      const root = "/games/fuse-craft/src/render/";
       const renderer = (await import(
         root + "board.ts"
-      )) as typeof import("../games/neural-defence/src/render/board.js");
+      )) as typeof import("../games/fuse-craft/src/render/board.js");
       const art = (await import(root + "sprites.ts")) as {
         spriteUrls: Readonly<Record<string, string>>;
       };

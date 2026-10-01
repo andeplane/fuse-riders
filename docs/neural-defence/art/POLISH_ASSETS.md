@@ -1,6 +1,6 @@
 # Sculpted RTS presentation assets
 
-Generated with the built-in image generator on 2026-09-25. Assets live in `games/neural-defence/src/assets/`; original generator outputs remain outside the repo. Gameplay geometry is never inferred from an image.
+Generated with the built-in image generator on 2026-09-25. Assets live in `games/fuse-craft/src/assets/`; original generator outputs remain outside the repo. Gameplay geometry is never inferred from an image.
 
 ## Traversable ground
 

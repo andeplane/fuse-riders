@@ -32,7 +32,7 @@ and [ordinary phone placement](verification/terrain-relief-2026-09-27/phone-plac
 ## Asset provenance
 
 Built-in image-generation tool; output copied into
-`games/neural-defence/src/assets/terrain-cliff-material-v1.png`, then downsampled
+`games/fuse-craft/src/assets/terrain-cliff-material-v1.png`, then downsampled
 to 512×512 for delivery. The original generated image was preserved outside the
 repository. No externally sourced art or generation credentials are required at
 runtime.

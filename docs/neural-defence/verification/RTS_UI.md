@@ -13,7 +13,7 @@ Scroll-wheel and trackpad input zoom around the pointer. Touch supports one-fing
 Run `pnpm exec vite --host 127.0.0.1 --port 5174`, then:
 
 ```sh
-pnpm exec tsx scripts/neural-defence-ui-smoke.ts http://127.0.0.1:5174/games/neural-defence/?mute
+pnpm exec tsx scripts/neural-defence-ui-smoke.ts http://127.0.0.1:5174/games/fuse-craft/?mute
 ```
 
 The real New game → sandbox flow is exercised in Chromium and WebKit at 1440×900, 390×844, 320×568 and 568×320. Checks cover full-width battlefield geometry, visible controls, no horizontal overflow, wheel zoom, drag without selection, camera preservation through a cancelled menu confirmation, Build/Research/Log navigation, grey-button explanations by hover and phone tap, building progress, portrait-to-landscape resize and command shortcuts. Chromium's trusted multi-touch input also verifies pinch zoom and one-finger pan without accidental selection. Line-mode wheel input and release-outside-before-drag regressions are exercised through the browser adapter.

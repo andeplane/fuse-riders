@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { chromium, webkit } from "playwright";
-import { loadMap } from "../games/neural-defence/src/engine/map.js";
+import { loadMap } from "../games/fuse-craft/src/engine/map.js";
 
 const url =
   process.argv[2] ??
   process.env.FUSE_CRAFT_URL ??
-  "http://127.0.0.1:5174/games/neural-defence/?mute";
+  "http://127.0.0.1:5174/games/fuse-craft/?mute";
 const phone = process.argv.includes("--phone");
 const map = loadMap(
   JSON.parse(
     await readFile(
-      new URL("../games/neural-defence/maps/sandbox-12.json", import.meta.url),
+      new URL("../games/fuse-craft/maps/sandbox-12.json", import.meta.url),
       "utf8",
     ),
   ),

@@ -1,6 +1,6 @@
 # Terrain sprite revision — 2026-09-25
 
-Generated with the built-in imagegen tool, one asset per call. The first seven requests ran independently in parallel. Existing assets were preserved. Source PNGs were copied unchanged into `games/neural-defence/src/assets/`.
+Generated with the built-in imagegen tool, one asset per call. The first seven requests ran independently in parallel. Existing assets were preserved. Source PNGs were copied unchanged into `games/fuse-craft/src/assets/`.
 
 The visual reference is the user-provided Neural Defence board: sculpted cool stone, luminous biological units, and readable terrain. This batch provides ground and obstacles only; ownership, hex borders, selection, and glow remain renderer effects.
 

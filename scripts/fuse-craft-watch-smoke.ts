@@ -5,7 +5,7 @@ import { chromium, webkit } from "playwright";
 const url =
   process.argv[2] ??
   process.env.FUSE_CRAFT_URL ??
-  "http://127.0.0.1:5174/games/neural-defence/?mute";
+  "http://127.0.0.1:5174/games/fuse-craft/?mute";
 const output = process.argv[3] ?? "/tmp/fuse-watch-smoke";
 mkdirSync(output, { recursive: true });
 for (const [name, engine] of Object.entries({ chromium, webkit })) {

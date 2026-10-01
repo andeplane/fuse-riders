@@ -1,7 +1,7 @@
 import { diceRegistration } from "dice/platform";
 import { hookRegistration } from "hook-havok/platform";
 import { choppersRegistration } from "fuse-choppers/platform";
-import { craftRegistration } from "neural-defence/platform";
+import { craftRegistration } from "fuse-craft/platform";
 import { freightRegistration } from "fuse-freight/platform";
 import {
   ACCOUNT_RULES,

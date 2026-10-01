@@ -2,7 +2,7 @@
 
 ## Update: territory, strategies and N players, 2026-09-30
 
-Branch `claude/fuse-craft`, rules 12. The current online adapter is `neural-defence-12-watch-9` ([`src/online/game.ts`](../../games/neural-defence/src/online/game.ts)); the evidence below was recorded at `neural-defence-12-watch-7`. The goal: the game works end to end over the established networking for up to four players and generalises to N; several documented, benchmarked strategies with counters to all, built on an RTS/tower-defence playbook with good economy play; taking over the map with neurons at the core; several tower types with distinct particles and mechanics; a tutorial, in-game docs, at least eight maps, and strong end-of-match statistics.
+Branch `claude/fuse-craft`, rules 12. The current online adapter is `neural-defence-12-watch-9` ([`src/online/game.ts`](../../games/fuse-craft/src/online/game.ts)); the evidence below was recorded at `neural-defence-12-watch-7`. The goal: the game works end to end over the established networking for up to four players and generalises to N; several documented, benchmarked strategies with counters to all, built on an RTS/tower-defence playbook with good economy play; taking over the map with neurons at the core; several tower types with distinct particles and mechanics; a tutorial, in-game docs, at least eight maps, and strong end-of-match statistics.
 
 | Requirement                                                          | Evidence                                                                                                                                                                                                                                                                        | Assessment                                           |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
@@ -77,4 +77,4 @@ more effects and completed AI matches do not establish AAA quality. The user has
 been asked to try the concrete preview and identify what still falls short.
 No additional architecture rewrite is assumed from an unanswered question.
 
-Preview: http://127.0.0.1:5174/games/neural-defence/?mute
+Preview: http://127.0.0.1:5174/games/fuse-craft/?mute

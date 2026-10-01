@@ -16,11 +16,11 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(
       process.env.FUSE_CRAFT_URL ??
-        "http://127.0.0.1:5174/games/neural-defence/?mute",
+        "http://127.0.0.1:5174/games/fuse-craft/?mute",
     );
     // Raw JS avoids tsx's named-function helper in the page.
     const result = await page.evaluate(`(async () => {
-      const root = '/games/neural-defence/src/';
+      const root = '/games/fuse-craft/src/';
       const { renderBoard } = await import(root + 'render/board.ts');
       const { createAttractScene } = await import(root + 'app/attract-scene.ts');
       const { spriteUrls } = await import(root + 'render/sprites.ts');

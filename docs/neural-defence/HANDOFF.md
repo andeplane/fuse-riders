@@ -17,7 +17,7 @@ Status: **implemented locally; final verification and player review remain open*
 
 ## Implemented and reviewed
 
-`games/neural-defence/src/engine/` owns JSON map validation, pure ticking, construction and builder recovery, adjacency mining, independent research, finite attack transport/combat, statistics, codecs and canonical hashing. `src/online/` supplies the RollbackGame adapter, offline RoomRuntime session and scripted combat lab. Solo creates no transport and uses no competing authoritative timer. Shared netcode's optional `seating.minPlayers` defaults to two; Neural Defence uses one.
+`games/fuse-craft/src/engine/` owns JSON map validation, pure ticking, construction and builder recovery, adjacency mining, independent research, finite attack transport/combat, statistics, codecs and canonical hashing. `src/online/` supplies the RollbackGame adapter, offline RoomRuntime session and scripted combat lab. Solo creates no transport and uses no competing authoritative timer. Shared netcode's optional `seating.minPlayers` defaults to two; Neural Defence uses one.
 
 Core corrections are in `d80dc94f`, `8dd2a789` and `a9163e81`: stale routing priorities, simultaneous construction claims, severed builder edges, strict checkpoint validation, explicit local-player/spawn selection, all four lab spawn choices, and checkpoint restoration after lobby settings changes or post-match departures. The seven original checkpoint findings are resolved; the [review record](REVIEW-2026-09-25.md) preserves their context rather than an outstanding blocker list.
 
@@ -44,4 +44,4 @@ The delivered art inventory is in [ASSET_MANIFEST.md](ASSET_MANIFEST.md): eleven
 
 ## Running locally
 
-Use `pnpm install --frozen-lockfile`, then `pnpm dev` at the repository root. The dev command builds the games and starts the existing service; use the full URL printed by that server. At this checkpoint, the current completion build is previewed at **http://localhost:8787/neural-defence/?mute&debug**. A static preview needs `pnpm build` after source or asset changes. Ports and running processes are transient; verify them before restarting anything.
+Use `pnpm install --frozen-lockfile`, then `pnpm dev` at the repository root. The dev command builds the games and starts the existing service; use the full URL printed by that server. At this checkpoint, the current completion build is previewed at **http://localhost:8787/fuse-craft/?mute&debug**. A static preview needs `pnpm build` after source or asset changes. Ports and running processes are transient; verify them before restarting anything.

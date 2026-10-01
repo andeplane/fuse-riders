@@ -1,11 +1,11 @@
 # Distinct neuron forms
 
-> Historical: neurons are now drawn procedurally (`neuronArtwork` in `games/neural-defence/src/render/board.ts`), and the two v4 sprites below were removed from the bundle. They remain in git history.
+> Historical: neurons are now drawn procedurally (`neuronArtwork` in `games/fuse-craft/src/render/board.ts`), and the two v4 sprites below were removed from the bundle. They remain in git history.
 
 The original v3 neuron remains one form. Two additional transparent PNGs give the network visibly different cell bodies, rather than just rotating one silhouette:
 
-- `games/neural-defence/src/assets/neuron-lobed-v4.png`: three-lobed soma and three linked nuclei.
-- `games/neural-defence/src/assets/neuron-folded-v4.png`: folded oval soma and curved synaptic fissure.
+- `games/fuse-craft/src/assets/neuron-lobed-v4.png`: three-lobed soma and three linked nuclei.
+- `games/fuse-craft/src/assets/neuron-folded-v4.png`: folded oval soma and curved synaptic fissure.
 
 Both retain six primary roots, the same cobalt/ivory materials and overhead view. These are cosmetic forms of one unit, with identical gameplay. A stable cell-based resolver in `render/art.ts` chooses the form; world, placement ghost and selected portrait share it. Ownership only changes tint. The build catalog uses the representative original form.
 

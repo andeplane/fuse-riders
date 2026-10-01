@@ -30,7 +30,7 @@ const join = async (page: Page, name: string) => {
 };
 try {
   const host = await open("host");
-  await host.goto(`${base}/neural-defence/?mute`);
+  await host.goto(`${base}/fuse-craft/?mute`);
   await host.locator('[data-action="multiplayer"]').click();
   await host.locator('[data-action="create-room"]').click();
   await host.locator(".room-code").waitFor({ timeout: 15_000 });
@@ -41,7 +41,7 @@ try {
   const guests: Page[] = [];
   for (const name of names.slice(1)) {
     const page = await open(name.toLowerCase());
-    await page.goto(`${base}/neural-defence/?mute&room=${code}`);
+    await page.goto(`${base}/fuse-craft/?mute&room=${code}`);
     await join(page, name);
     guests.push(page);
   }

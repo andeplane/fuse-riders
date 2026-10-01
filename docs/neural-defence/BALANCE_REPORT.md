@@ -37,7 +37,7 @@ pnpm exec tsx scripts/neural-defence-tower-assay.ts
 pnpm exec tsx scripts/fuse-craft-replay-capture.ts docs/neural-defence/verification/expansion-2026-09-27/close-quarters.replay.json
 ```
 
-The replay capture needs Vite at `http://127.0.0.1:5174/games/neural-defence/?mute`. Its images are diagnostic views of a hash-verified command replay using the production renderer, not evidence of interacting through the player UI.
+The replay capture needs Vite at `http://127.0.0.1:5174/games/fuse-craft/?mute`. Its images are diagnostic views of a hash-verified command replay using the production renderer, not evidence of interacting through the player UI.
 
 Each map runs 21 unordered policy pairs including mirrors, in both starting positions: **42 matches per map**. The cap is 18,000 ticks (15 simulated minutes). No instant settings, extra resources, privileged AI attacks or modified clocks enter the rules. A timeout is **not** an engine draw. Exact deterministic repeats are not independent statistical samples; swapped seats check fairness. These policies are handcrafted opponents, not an exhaustive search of human play.
 
