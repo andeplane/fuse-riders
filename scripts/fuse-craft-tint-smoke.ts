@@ -16,7 +16,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
     await page.routeWebSocket("**", (socket) => socket.close());
     await page.goto(
       process.env.FUSE_CRAFT_URL ??
-        "http://127.0.0.1:5174/games/neural-defence/?mute",
+        "http://127.0.0.1:5174/games/fuse-craft/?mute",
     );
     await page.locator('[data-action="new-game"]').click();
     await page.locator('[data-action="mode-watch"]').click();
@@ -39,7 +39,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
       colorDifference: number;
       shadowRgb: number;
     }>(`(async () => {
-      const root = '/games/neural-defence/src/render/';
+      const root = '/games/fuse-craft/src/render/';
       const { createBrowserSpriteRasterizer } = await import(root + 'sprite-raster.ts');
       const { spriteUrls } = await import(root + 'sprites.ts');
       const raster = createBrowserSpriteRasterizer(document, () => new Image(), blob => URL.createObjectURL(blob));

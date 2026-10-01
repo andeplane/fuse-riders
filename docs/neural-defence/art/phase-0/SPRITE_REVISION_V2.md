@@ -8,13 +8,13 @@ Luminous sculpted biological forms, saturated team colors, smooth circular neuro
 
 ## Blue neuron
 
-File: `games/neural-defence/src/assets/neuron-blue-v2.png`
+File: `games/fuse-craft/src/assets/neuron-blue-v2.png`
 
 Use case: stylized-concept. Asset type: ONE individual transparent gameplay sprite for Neural Defence. Input image is STYLE REFERENCE ONLY, specifically the simple blue circular neurons in the upper-left overview. Generate only one blue neuron, never a board or sheet. Exact overhead camera, very shallow volumetric relief like the reference. A clearly circular glowing cobalt cell nucleus inside a thick smooth luminous cyan biological ring, with exactly six slender slightly irregular organic dendrites radiating toward six evenly distributed directions, delicate tips, slight branching on two tips. Central ring diameter about 42% of full sprite width so recognizable at 50 pixels. Clean strong silhouette, few broad forms, smooth soft sculpted shading, living neural tissue with moderate electric cyan rim light, saturated cobalt midtones and lighter cyan upper surface. Three-dimensional polished mobile strategy game art matching the source artwork's painterly sculpted biology. Centered within square canvas, fills 78% of canvas, ample transparent padding, no ground plane, no tile, no pedestal, no cast ground shadow. Background must be genuinely transparent alpha. No metal, no jewelry, no bronze, no gold details, no machinery, no screws, no filigree, no ornate geometry, no decorative spirals, no flower, no text, no UI, no numbers, no whitewashed glowing blob. Only one single cutout neuron.
 
 ## Blue brain
 
-File: `games/neural-defence/src/assets/brain-blue-v2.png`
+File: `games/fuse-craft/src/assets/brain-blue-v2.png`
 
 Use case: stylized-concept. Asset type: ONE individual transparent brain headquarters gameplay sprite for Neural Defence. Input image is STYLE REFERENCE ONLY, specifically the blue brain in upper-left overview. Generate only one blue brain, never a board or sheet. Match the reference's luminous soft sculpted biology closely. Compact unmistakable brain with two rounded hemispheres and curved broad sulci, visible central fissure, small rounded frontal stem lobe at bottom; warm organic shapes in electric BLUE. Near overhead camera with shallow dimensional relief and subtly visible front contour, reference-like 3D sculpted handpainted strategy-game rendering. Brain body should occupy 70% of square canvas; a few slender dendritic tendrils extend from its lower sides with maximum total extent 82%. Strong silhouette legible at 70 pixels. SATURATED cobalt blue and sky blue broad tissue folds; dark blue creases; moderate cyan edge illumination; upper surfaces colored blue, not white. Soft translucent tissue feeling with simple clear fold structure, polished art. Centered within square canvas with transparent padding. Background must be genuinely transparent alpha. No ground, no tile, no pedestal, no halo disk, no typography, no UI, no metal, jewelry, filigree, gold ornament, armor, machinery, realistic gore, or washed-out white highlights. Only one single cutout blue brain.
 
@@ -24,7 +24,7 @@ All delivered files are 1254 × 1254 RGBA with actual transparency. The first ne
 
 ## Final delivery
 
-Delivered in `games/neural-defence/src/assets/`:
+Delivered in `games/fuse-craft/src/assets/`:
 
 - `brain-{blue,coral,green,gold}-v2.png`
 - `neuron-{blue,coral,green,gold}-v2.png`

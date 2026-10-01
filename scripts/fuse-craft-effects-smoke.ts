@@ -7,7 +7,7 @@ import {
   hashState,
   type Command,
   type World,
-} from "../games/neural-defence/src/engine/index.js";
+} from "../games/fuse-craft/src/engine/index.js";
 
 // Verified real-command combat snapshots, rendered diagnostically at multiple
 // effect ages. Ordinary UI flows are covered by the separate expansion smoke.
@@ -85,7 +85,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
       page.on("pageerror", (error) => errors.push(error.message));
       await page.goto(
         process.env.FUSE_CRAFT_URL ??
-          "http://127.0.0.1:5174/games/neural-defence/?mute",
+          "http://127.0.0.1:5174/games/fuse-craft/?mute",
       );
       for (const age of weapon
         ? [40, 90, 200, 400]
@@ -100,10 +100,10 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
           wreckVisible: boolean;
         } = await page.evaluate(
           async ({ battle, age, eventType, weapon, requireWreck }) => {
-            const root = "/games/neural-defence/src/render/";
+            const root = "/games/fuse-craft/src/render/";
             const renderer = (await import(
               root + "board.ts"
-            )) as typeof import("../games/neural-defence/src/render/board.js");
+            )) as typeof import("../games/fuse-craft/src/render/board.js");
             const art = (await import(root + "sprites.ts")) as {
               spriteUrls: Readonly<Record<string, string>>;
             };

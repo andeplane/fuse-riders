@@ -345,6 +345,7 @@ export const neuralGame: RollbackGame<
   never,
   NeuralSettings
 > = {
+  // The netcode label keeps the old id; it only names the game in logs.
   id: "neural-defence",
   rules: "neural-defence-13-watch-9",
   isEntry,

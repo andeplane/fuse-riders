@@ -1,17 +1,17 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { aiCommands } from "../games/neural-defence/src/engine/ai.js";
+import { aiCommands } from "../games/fuse-craft/src/engine/ai.js";
 import {
   createMatch,
   loadMap,
   step,
   hashState,
-} from "../games/neural-defence/src/engine/index.js";
+} from "../games/fuse-craft/src/engine/index.js";
 
 // Normal timings and resources: records actual complete-match evidence.
 const map = loadMap(
   JSON.parse(
     readFileSync(
-      new URL("../games/neural-defence/maps/skirmish-24.json", import.meta.url),
+      new URL("../games/fuse-craft/maps/skirmish-24.json", import.meta.url),
       "utf8",
     ),
   ),

@@ -16,7 +16,7 @@ An ordinary neuron fires at adjacent targets when supplied. The **one test tower
 
 ## Authoritative values
 
-[`engine/types.ts`](../../games/neural-defence/src/engine/types.ts) (`RULES`) and [`engine/index.ts`](../../games/neural-defence/src/engine/index.ts) own exact rules. Currency is integer milli-units (1,000 = one displayed unit). Values are first-play hypotheses, not balance findings.
+[`engine/types.ts`](../../games/fuse-craft/src/engine/types.ts) (`RULES`) and [`engine/index.ts`](../../games/fuse-craft/src/engine/index.ts) own exact rules. Currency is integer milli-units (1,000 = one displayed unit). Values are first-play hypotheses, not balance findings.
 
 | Rule                     | Current value                                                                                                                                             |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -37,9 +37,9 @@ Priority weight `0` clears a destination. Growth and mining never create attack 
 
 ## Map and state contract
 
-Version 1 JSON maps use `odd-r` offset hexes with row-major cells, dimensions 1–64 per side and 1–4 explicit spawn slots. Cells are open (optionally with a visual variant or `towerSite` suggestion), blocked, or a Biomass/Insight deposit. Deposits and blockers cannot hold structures. [`loadMap`](../../games/neural-defence/src/engine/map.ts) validates schema, spawn identity, connected open terrain and each spawn's expansion neighbor. Map fairness and lab layout need separate tests; structural validity alone does not make a competitive map.
+Version 1 JSON maps use `odd-r` offset hexes with row-major cells, dimensions 1–64 per side and 1–4 explicit spawn slots. Cells are open (optionally with a visual variant or `towerSite` suggestion), blocked, or a Biomass/Insight deposit. Deposits and blockers cannot hold structures. [`loadMap`](../../games/fuse-craft/src/engine/map.ts) validates schema, spawn identity, connected open terrain and each spawn's expansion neighbor. Map fairness and lab layout need separate tests; structural validity alone does not make a competitive map.
 
-[`createMatch`](../../games/neural-defence/src/engine/index.ts) takes an explicit 1–4 player roster and slots. Ownership, balances, jobs, research, priorities, particles and statistics are per owner. The same `step` handles solo, lab and multi-owner headless runs. Commands carry actor, sequence and optional match scope. Encoding, decoding and hashing support replay and checkpoint restoration. Statistics (`biomassEarned`, `insightEarned`, `built`, `damage`, `lost`) reserve a future graphs seam; historical series and graphs remain later work.
+[`createMatch`](../../games/fuse-craft/src/engine/index.ts) takes an explicit 1–4 player roster and slots. Ownership, balances, jobs, research, priorities, particles and statistics are per owner. The same `step` handles solo, lab and multi-owner headless runs. Commands carry actor, sequence and optional match scope. Encoding, decoding and hashing support replay and checkpoint restoration. Statistics (`biomassEarned`, `insightEarned`, `built`, `damage`, `lost`) reserve a future graphs seam; historical series and graphs remain later work.
 
 ## Acceptance boundary
 

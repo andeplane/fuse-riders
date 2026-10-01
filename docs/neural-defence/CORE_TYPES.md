@@ -1,6 +1,6 @@
 # Neural Defence core contracts
 
-Status: current implementation reference; first skirmish version; physical-phone and human balance acceptance remain open. Authoritative declarations live in [`engine/types.ts`](../../games/neural-defence/src/engine/types.ts), [`engine/index.ts`](../../games/neural-defence/src/engine/index.ts), [`online/game.ts`](../../games/neural-defence/src/online/game.ts) and [`app/contracts.ts`](../../games/neural-defence/src/app/contracts.ts). Refer to source for exact field bounds and runtime guards. The excerpts below use the current discriminants.
+Status: current implementation reference; first skirmish version; physical-phone and human balance acceptance remain open. Authoritative declarations live in [`engine/types.ts`](../../games/fuse-craft/src/engine/types.ts), [`engine/index.ts`](../../games/fuse-craft/src/engine/index.ts), [`online/game.ts`](../../games/fuse-craft/src/online/game.ts) and [`app/contracts.ts`](../../games/fuse-craft/src/app/contracts.ts). Refer to source for exact field bounds and runtime guards. The excerpts below use the current discriminants.
 
 ## Identity and state
 

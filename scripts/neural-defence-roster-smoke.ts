@@ -6,7 +6,7 @@ import { chromium, webkit, type Page } from "playwright";
 const url =
   process.argv[2] ??
   process.env.FUSE_CRAFT_URL ??
-  "http://127.0.0.1:5174/games/neural-defence/?mute";
+  "http://127.0.0.1:5174/games/fuse-craft/?mute";
 async function root(page: Page) {
   const back = page.locator('[data-action="close-panel"]');
   if (await back.count()) await back.click();

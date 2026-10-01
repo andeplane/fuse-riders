@@ -11,8 +11,8 @@ import {
   type Command,
   type MapDefinition,
   type World,
-} from "../games/neural-defence/src/engine/index.ts";
-import { canAttack } from "../games/neural-defence/src/engine/catalog.ts";
+} from "../games/fuse-craft/src/engine/index.ts";
+import { canAttack } from "../games/fuse-craft/src/engine/catalog.ts";
 
 const SEED = 0x4e445030;
 const TICKS = 820;

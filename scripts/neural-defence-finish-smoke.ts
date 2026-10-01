@@ -7,7 +7,7 @@ import { chromium, webkit } from "playwright";
 const url =
   process.argv[2] ??
   process.env.FUSE_CRAFT_URL ??
-  "http://127.0.0.1:5174/games/neural-defence/?mute";
+  "http://127.0.0.1:5174/games/fuse-craft/?mute";
 const output = "/tmp/neural-finish-smoke";
 await mkdir(output, { recursive: true });
 await Promise.all(

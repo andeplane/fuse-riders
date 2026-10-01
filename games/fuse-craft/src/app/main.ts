@@ -24,9 +24,9 @@ import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
 import "fuse-ui/portal.css";
-import "./neural-defence.css";
+import "./fuse-craft.css";
 
-const GAME = "neural-defence";
+const GAME = "fuse-craft";
 const endpoints = createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -86,7 +86,7 @@ mountNeuralDefence(root, {
   portal: () =>
     createAppPortal({
       document,
-      current: "neural-defence",
+      current: "fuse-craft",
       base: import.meta.env.BASE_URL,
       search: location.search,
     }).element,

@@ -2,8 +2,8 @@ import {
   createMatch,
   step,
   type StructureKind,
-} from "../games/neural-defence/src/engine/index.js";
-import { STRUCTURES } from "../games/neural-defence/src/engine/catalog.js";
+} from "../games/fuse-craft/src/engine/index.js";
+import { STRUCTURES } from "../games/fuse-craft/src/engine/catalog.js";
 
 // Controlled equal-supply engagements at one and two hexes. These are not
 // equal-cost matches: they isolate weapon reach and close-range counterplay.

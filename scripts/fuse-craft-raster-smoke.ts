@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { webkit, type Page } from "playwright";
-import { MAX_SCALE } from "../games/neural-defence/src/render/camera.ts";
-import { spriteRasterSize } from "../games/neural-defence/src/render/sprite-raster.ts";
+import { MAX_SCALE } from "../games/fuse-craft/src/render/camera.ts";
+import { spriteRasterSize } from "../games/fuse-craft/src/render/sprite-raster.ts";
 
 const output = process.argv[2] ?? "/tmp/fuse-raster-smoke";
 mkdirSync(output, { recursive: true });
@@ -17,7 +17,7 @@ try {
   await page.routeWebSocket("**", (socket) => socket.close());
   await page.goto(
     process.env.FUSE_CRAFT_URL ??
-      "http://127.0.0.1:5174/games/neural-defence/?mute",
+      "http://127.0.0.1:5174/games/fuse-craft/?mute",
   );
   await page.locator('[data-action="new-game"]').click();
   await page.locator('[data-action="mode-watch"]').click();

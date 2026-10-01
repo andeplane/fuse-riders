@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { chromium, webkit } from "playwright";
-import { DEFAULT_MAP } from "../games/neural-defence/src/online/maps.js";
+import { DEFAULT_MAP } from "../games/fuse-craft/src/online/maps.js";
 
 const url =
   process.argv[2] ??
   process.env.FUSE_CRAFT_URL ??
-  "http://127.0.0.1:5174/games/neural-defence/?mute";
+  "http://127.0.0.1:5174/games/fuse-craft/?mute";
 for (const [name, type] of [
   ["chromium", chromium],
   ["webkit", webkit],
@@ -49,7 +49,7 @@ for (const [name, type] of [
         );
       const map = JSON.parse(
         readFileSync(
-          new URL(`../games/neural-defence/maps/${id}.json`, import.meta.url),
+          new URL(`../games/fuse-craft/maps/${id}.json`, import.meta.url),
           "utf8",
         ),
       );

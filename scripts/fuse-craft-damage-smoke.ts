@@ -7,8 +7,8 @@ import {
   hashState,
   type Command,
   type World,
-} from "../games/neural-defence/src/engine/index.js";
-import { STRUCTURES } from "../games/neural-defence/src/engine/catalog.js";
+} from "../games/fuse-craft/src/engine/index.js";
+import { STRUCTURES } from "../games/fuse-craft/src/engine/catalog.js";
 
 const recording = JSON.parse(
   readFileSync(
@@ -48,7 +48,7 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
       page.on("pageerror", (e) => errors.push(e.message));
       await page.goto(
         process.env.FUSE_CRAFT_URL ??
-          "http://127.0.0.1:5174/games/neural-defence/?mute",
+          "http://127.0.0.1:5174/games/fuse-craft/?mute",
       );
       const result: {
         moved: boolean;
@@ -57,10 +57,10 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
         transparent: string | null;
         visible: boolean;
       } = await page.evaluate(async ({ world, cell }) => {
-        const root = "/games/neural-defence/src/render/";
+        const root = "/games/fuse-craft/src/render/";
         const renderer = (await import(
           root + "board.ts"
-        )) as typeof import("../games/neural-defence/src/render/board.js");
+        )) as typeof import("../games/fuse-craft/src/render/board.js");
         const art = (await import(root + "sprites.ts")) as {
           spriteUrls: Readonly<Record<string, string>>;
         };

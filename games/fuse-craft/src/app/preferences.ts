@@ -1,5 +1,6 @@
 import type { PreferencesStore, PresentationPreferences } from "./contracts.js";
 
+// Named after the game's old id so saved settings survive the rename.
 const key = "neural-defence-presentation-v1";
 const defaults: PresentationPreferences = {
   mute: true,
