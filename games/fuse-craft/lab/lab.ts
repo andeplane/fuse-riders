@@ -10,7 +10,7 @@ import { hexCenter } from "../src/render/projection.js";
 import { createWebGlLightRenderer } from "../src/render/light-canvas.js";
 import type { StructureKind } from "../src/engine/types.js";
 import map from "../maps/close-quarters.json";
-import "../src/app/neural-defence.css";
+import "../src/app/fuse-craft.css";
 
 const svg = document.querySelector<SVGSVGElement>("#nd-board")!;
 const light =

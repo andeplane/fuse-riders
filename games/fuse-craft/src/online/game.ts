@@ -345,9 +345,8 @@ export const neuralGame: RollbackGame<
   never,
   NeuralSettings
 > = {
-  // The netcode label keeps the old id; it only names the game in logs.
-  id: "neural-defence",
-  rules: "neural-defence-12-watch-9",
+  id: "fuse-craft",
+  rules: "fuse-craft-12-watch-9",
   isEntry,
   createRoom: (matchId, settings) => ({
     tick: 0,

@@ -1,4 +1,4 @@
-import "../src/app/neural-defence.css";
+import "../src/app/fuse-craft.css";
 import { createMatch, loadMap, step } from "../src/engine/index.js";
 import { aiCommands } from "../src/engine/ai.js";
 import {
