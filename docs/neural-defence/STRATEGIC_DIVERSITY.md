@@ -90,9 +90,9 @@ whose progress was already positive retained that new timeout.
 
 The broad warning candidate's rows are saved as `planned-weapon-*.jsonl` in the
 same diagnostic directory; `started-weapon-probes.jsonl` records the progress
-restriction. `rejected-warning.patch` retains the unshipped broad candidate and
-its focused regression against `e6075eaf` for reproduction, not application to
-production. These trials used ordinary simulation and accepted
+restriction. The unshipped broad candidate and its focused regression against
+`e6075eaf` were kept as `rejected-warning.patch` (removed; see git history at `5c0b9be1`) for reproduction, not
+application to production. These trials used ordinary simulation and accepted
 commands, but only one seat. The draft production changes and regression were
 removed; those experiments did not change policy 6. Its later full comparison
 withdrew it under policy 7, as recorded in `REACTIVE_APPROACH.md`. Do not mistake the observed construction

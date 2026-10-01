@@ -5,7 +5,7 @@ Generated with the built-in imagegen tool, using `games/neural-defence/src/asset
 ## Harvester
 
 Workspace: `games/neural-defence/src/assets/harvester-v1.png`.
-Source: `/Users/anderhaf/.codex/generated_images/01a0d798-3d5c-76a3-a900-6c4f8e88c21c/exec-088f44a1-291c-4400-be54-226fce1575ef.png`.
+Source: `<generated-images-dir>/01a0d798-3d5c-76a3-a900-6c4f8e88c21c/exec-088f44a1-291c-4400-be54-226fce1575ef.png`.
 
 Prompt:
 
@@ -14,7 +14,7 @@ Prompt:
 ## Bastion
 
 Workspace: `games/neural-defence/src/assets/tower-bastion-v1.png`.
-Source: `/Users/anderhaf/.codex/generated_images/01a0d798-3d5c-76a3-a900-6c4f8e88c21c/exec-6fb65909-f745-47dc-8e5c-62c97e6f3695.png`.
+Source: `<generated-images-dir>/01a0d798-3d5c-76a3-a900-6c4f8e88c21c/exec-6fb65909-f745-47dc-8e5c-62c97e6f3695.png`.
 
 Prompt:
 

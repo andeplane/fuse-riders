@@ -32,7 +32,7 @@ Last reviewed: 2026-09-30 (rules 12), branch `claude/fuse-craft` ([PR #417](http
 ## Powerups
 
 - [ ] The AI claims only about 0.9 powerups per match, since it races for one only when it has no weapon to place. Humans may exploit that; revisit once people play.
-- [ ] The roster smoke's on-screen check for raised bodies failed once under heavy CPU load (a tournament running in parallel) and passed on the next run.
+- [ ] Browser smokes time out under heavy CPU load (parallel tournaments) and pass on an idle machine; they are not in CI. See the input-lag item under Verification gaps.
 
 ## Rendering and visuals
 
@@ -55,7 +55,11 @@ Last reviewed: 2026-09-30 (rules 12), branch `claude/fuse-craft` ([PR #417](http
 ## Verification gaps
 
 - [x] Re-run the browser smokes and the 210-case AI matrix after the merge with `main`. All 210 cases match the qualified matrix exactly; network, terrain, UI and roster smokes pass in Chromium and WebKit. See [organic network and light](verification/organic-light-2026-09-30/README.md).
-- [ ] The other browser smokes (construction, damage, effects, expansion, watch, upgrade, finish, player victory, raster and tint) have not been re-run on the new renderer.
+- [x] Browser smokes refreshed for rules 12 on 2026-10-01 (all accept `FUSE_CRAFT_URL`; replay smokes default to the [rules-12 recordings](verification/rules12-replays-2026-10-01/README.md)). Passing in Chromium and WebKit: UI, camera, network, roster, terrain, build queue, finish, watch, expansion, upgrade, construction, damage, effects (destruction, siege, wreck, shielded, site), audio (Chromium only), raster, raster refresh and tint; the benchmark passes with a Pulse tower in its workload.
+- [ ] The player-victory smoke has a rules-12 plan that wins every headless replay of it, but has not yet won in a browser: under heavy machine load the page falls behind and the plan loses. Re-run it on an idle machine; delete it if it still fails there.
+- [ ] The effects smoke's `relay` mode has no rules-12 recording yet; record one from a tournament match in which a Relay tower fires (`--replay all`).
+- [ ] When the browser cannot simulate in real time, solo commands are stamped at the wall-clock tick (`RoomRuntime.ownTick()`) and take effect only once the lagging simulation catches up, so clicks appear to do nothing for many seconds. Seen in every smoke under heavy load; consider stamping solo commands against the shown world.
+- [ ] Headless Chromium on software GL renders about 1.5 frames per second with the WebGL2 light layer (55 without WebGL), which makes Chromium smokes slow under load.
 - [ ] Top-row buildings' heads sit under the HUD when the camera rests at the map's top edge, so players cannot click them there. Consider letting the camera pan a little past the top edge.
 - [ ] CI for this pull request skips coverage, smoke and end-to-end jobs; they run on `main` only.
 - [ ] Map load failure and retry are covered by injected app tests, not by a simulated browser network failure.

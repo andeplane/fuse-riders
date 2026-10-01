@@ -38,7 +38,7 @@ This contradicts the desired varied counterplay. The earlier rules-5 defensive o
 
 ## Rejected reserve experiment
 
-A six-match trial gave Defensive up to two low-priority Bastion ammunition reserves while active guns retained priority three. Pressure still won both non-mirror matches at 141 seconds. The change was removed. [Exact candidate patch](verification/rules6-2026-09-27/reserve-trial.patch), based on `f42bd8db` (same AI as `4418838b`), and [raw results](verification/rules6-2026-09-27/reserve-trial.jsonl) are retained. This experiment did not add a protective field; [supplied defensive support](DEFENSIVE_SUPPORT_DESIGN.md) remains only a design hypothesis.
+A six-match trial gave Defensive up to two low-priority Bastion ammunition reserves while active guns retained priority three. Pressure still won both non-mirror matches at 141 seconds. The change was removed. The exact candidate patch, based on `f42bd8db` (same AI as `4418838b`), was removed (removed; see git history at `5c0b9be1`); [raw results](verification/rules6-2026-09-27/reserve-trial.jsonl) are retained. This experiment did not add a protective field; [supplied defensive support](DEFENSIVE_SUPPORT_DESIGN.md) remains only a design hypothesis.
 
 ## Verification and reproduction
 

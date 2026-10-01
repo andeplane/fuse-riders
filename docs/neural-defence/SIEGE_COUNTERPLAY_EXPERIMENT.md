@@ -55,14 +55,14 @@ result hash. These are isolated experimental rules, not a production checkpoint.
 
 ## Evidence and promotion requirements
 
-`verification/siege-counterplay-2026-09-27/` retains result rows, per-variant
-patches against `0e0cd8e8`, the ordinary-command runner and the controlled fixture.
-`runner.ts.txt` runs the four paired probes; `default-runner.ts.txt` runs all 21
-single-seat Close Quarters pairings without editing a case list.
-The `.ts.txt` files are reproduction sources intended to sit beside an isolated
-`engine/` copy. `restored.patch` is the selected prototype against `e7d2ec2e`, with
-`restored-default.jsonl` and `restored-results.jsonl` retaining its recheck.
-The earlier `adaptive.patch` targets the withdrawn policy-6 source. The prototype deliberately does
+`verification/siege-counterplay-2026-09-27/` retains result rows and the controlled
+fixture. The per-variant patches against `0e0cd8e8` and the ordinary-command runners
+were removed (removed; see git history at `5c0b9be1`). `runner.ts.txt` ran the four paired probes;
+`default-runner.ts.txt` ran all 21 single-seat Close Quarters pairings without
+editing a case list. The `.ts.txt` files were reproduction sources intended to sit
+beside an isolated `engine/` copy. `restored.patch` was the selected prototype
+against `e7d2ec2e`, with `restored-default.jsonl` and `restored-results.jsonl`
+retaining its recheck. The earlier `adaptive.patch` targeted the withdrawn policy-6 source. The prototype deliberately does
 not include production version, UI or validation migration and must not be
 applied as a complete release.
 

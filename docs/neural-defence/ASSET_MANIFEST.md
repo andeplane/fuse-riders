@@ -1,14 +1,14 @@
 # Fuse Craft asset inventory
 
-## Current presentation (2026-09-27)
+## Current presentation
 
-The expansion adds `harvester-v1.png` and `tower-bastion-v1.png`: distinct economic chambers and a broad armored defensive silhouette. [Exact prompts and original paths](art/EXPANSION_SPRITES.md) document built-in image generation. Both share the existing material palette and the same world/ghost/card/portrait art resolver.
+Buildings use individual transparent sculpted sprites, tinted by owner: `brain-v3.png`, `harvester-v1.png`, `tower-bastion-v1.png`, `tower-pulse-v3.png`, `tower-siege-v3.png` and `tower-relay-v3.png` (the mapping is `structureArt` in [art.ts](../../games/neural-defence/src/render/art.ts)). World buildings, placement ghosts and portraits share these identities; the browser rasterises and caches them, so the page references `blob:` URLs rather than the PNG paths. [Exact prompts and original paths](art/EXPANSION_SPRITES.md) document the expansion sprites.
 
-The current renderer uses `brain-v3.png`, three neuron forms (`neuron-v3.png`, `neuron-lobed-v4.png`, `neuron-folded-v4.png`), `tower-pulse-v3.png`, `tower-siege-v3.png`, and `tower-relay-v3.png`. They are individual transparent sculpted sprites, tinted by owner. World buildings, placement ghosts and portraits share these identities; the build catalog uses representative forms. Selection and status remain separate presentation layers. Completed neurons have stable anatomical, size and orientation variation and reduced-motion-aware breathing; links represent actual friendly adjacency. [Neuron form prompts and selection verification](art/NEURON_FORMS.md) document the follow-up.
+Neurons and Spore pods are **procedural SVG**, not sprites: `neuronArtwork` in [board.ts](../../games/neural-defence/src/render/board.ts) draws neurons from [neuron-art.ts](../../games/neural-defence/src/render/neuron-art.ts) with stable anatomical, size and orientation variation and reduced-motion-aware breathing, and [spore-art.ts](../../games/neural-defence/src/render/spore-art.ts) draws Spore pods. `neuron-v3.png` remains only as the build card's icon and a fallback. The lobed and folded v4 neuron sprites from [NEURON_FORMS.md](art/NEURON_FORMS.md) were superseded by the procedural neurons and have been removed. Selection and status remain separate presentation layers; links represent actual friendly adjacency.
 
-The continuous open floor is **`terrain-walkable-v6.png`**. It depicts flush slate, fine gravel and low moss with shallow surface seams. It replaces the softer v5 material, which is retained as a historical asset. The rejected v4 background suggested large rock ridges on open cells and is not used. All raised obstacles and resource deposits come from `world.map.cells`, using the category-restricted [terrain art catalog](../../games/neural-defence/src/render/terrain-art.ts). Art and contact shadows are clipped to their cell. Unknown or mismatched variant names use the category default; a blocked tile remains visible even if its sprite is unavailable. The tactical minimap draws the same complete terrain footprints. No painted background feature adds collision, elevation or pathfinding rules.
+The continuous open floor is **`terrain-walkable-v6.png`**: flush slate, fine gravel and low moss with shallow surface seams. The earlier v5 floor and the v3 battlefield texture were removed. All raised obstacles and resource deposits come from `world.map.cells`, using the category-restricted [terrain art catalog](../../games/neural-defence/src/render/terrain-art.ts). Art and contact shadows are clipped to their cell. Unknown or mismatched variant names use the category default; a blocked tile remains visible even if its sprite is unavailable. The tactical minimap draws the same complete terrain footprints. No painted background feature adds collision, elevation or pathfinding rules.
 
-Generated using the built-in image generator. Current asset prompts and terrain constraints: [POLISH_ASSETS.md](art/POLISH_ASSETS.md). Earlier assets below are retained as historical source inventory, not a description of current selection.
+Generated using the built-in image generator. Current asset prompts and terrain constraints: [POLISH_ASSETS.md](art/POLISH_ASSETS.md). Earlier assets below are historical source inventory, not a description of current selection; files marked _removed_ are no longer in `games/neural-defence/src/assets/` and survive only in git history.
 
 ## Historical Phase 0 inventory
 
@@ -25,15 +25,15 @@ Status: **individual sprites delivered and integrated; user visual acceptance is
 
 Every filename below exists individually; braces name the explicit color variants listed in the row. The renderer prefers a `-v2` file over its earlier unsuffixed candidate.
 
-| Files                                                                                    | Count | Role                                            |
-| ---------------------------------------------------------------------------------------- | ----: | ----------------------------------------------- |
-| `brain-blue-v2.png`, `brain-coral-v2.png`, `brain-green-v2.png`, `brain-gold-v2.png`     |     4 | Team-colored brain bases                        |
-| `neuron-blue-v2.png`, `neuron-coral-v2.png`, `neuron-green-v2.png`, `neuron-gold-v2.png` |     4 | Team-colored six-port neurons                   |
-| `tower-experimental-v2.png`                                                              |     1 | The single experimental tower type              |
-| `particle-builder-v2.png`                                                                |     1 | Construction delivery particle                  |
-| `particle-attack-v2.png`                                                                 |     1 | Sole Phase 0 combat particle type               |
-| `deposit-biomass.png`, `deposit-insight.png`                                             |     2 | Reused green organic and violet mineral sources |
-| `construction-site.png`                                                                  |     1 | Reused paid construction scaffold               |
+| Files                                                                                                | Count | Role                                            |
+| ---------------------------------------------------------------------------------------------------- | ----: | ----------------------------------------------- |
+| `brain-blue-v2.png`, `brain-coral-v2.png`, `brain-green-v2.png`, `brain-gold-v2.png` (_removed_)     |     4 | Team-colored brain bases                        |
+| `neuron-blue-v2.png`, `neuron-coral-v2.png`, `neuron-green-v2.png`, `neuron-gold-v2.png` (_removed_) |     4 | Team-colored six-port neurons                   |
+| `tower-experimental-v2.png` (_removed_)                                                              |     1 | The single experimental tower type              |
+| `particle-builder-v2.png`                                                                            |     1 | Construction delivery particle                  |
+| `particle-attack-v2.png`                                                                             |     1 | Sole Phase 0 combat particle type               |
+| `deposit-biomass.png`, `deposit-insight.png`                                                         |     2 | Reused green organic and violet mineral sources |
+| `construction-site.png`                                                                              |     1 | Reused paid construction scaffold               |
 
 The eleven v2 objects are individual **1254×1254 RGBA PNGs** with genuine transparency. All four neurons have six main single-tip dendrites. The particles face right in the source artwork and rotate during travel. Exact prompts and inspection notes: [SPRITE_REVISION_V2.md](art/phase-0/SPRITE_REVISION_V2.md). Review sheet: [sprites-v2-review.png](art/phase-0/sprites-v2-review.png).
 
@@ -41,13 +41,13 @@ Biomass and Insight are source deposits, not extra mining buildings. A paid site
 
 ## Delivered map-building assets
 
-| Files                                                                  | Count | Current use                                                    |
-| ---------------------------------------------------------------------- | ----: | -------------------------------------------------------------- |
-| `terrain-slate-a-v2.png`, `terrain-slate-b.png`, `terrain-slate-c.png` |     3 | Slate ground variants; opaque square textures clipped to hexes |
-| `terrain-soil-a.png`, `terrain-sand-a.png`, `terrain-moss-a.png`       |     3 | Additional open-ground appearances                             |
-| `blocker-rock-cluster-a.png`, `blocker-rock-ridge-a.png`               |     2 | New transparent rock silhouettes                               |
-| `blocker-boulder.png`                                                  |     1 | Reused boulder and fallback for undelivered rock variations    |
-| `blocker-water.png`, `blocker-void.png`                                |     2 | Earlier blocked-surface candidates available to map variants   |
+| Files                                                                                         | Count | Current use                                                    |
+| --------------------------------------------------------------------------------------------- | ----: | -------------------------------------------------------------- |
+| `terrain-slate-a-v2.png`, `terrain-slate-b.png` and `terrain-slate-c.png` (b and c _removed_) |     3 | Slate ground variants; opaque square textures clipped to hexes |
+| `terrain-soil-a.png`, `terrain-sand-a.png`, `terrain-moss-a.png` (_removed_)                  |     3 | Additional open-ground appearances                             |
+| `blocker-rock-cluster-a.png`, `blocker-rock-ridge-a.png`                                      |     2 | New transparent rock silhouettes                               |
+| `blocker-boulder.png`                                                                         |     1 | Reused boulder and fallback for undelivered rock variations    |
+| `blocker-water.png`, `blocker-void.png`                                                       |     2 | Earlier blocked-surface candidates available to map variants   |
 
 The eight new terrain/rock files are **1254×1254**. Ground files are opaque RGB; the new rock cluster and ridge have genuine RGBA transparency. See [TERRAIN_REVISION.md](art/phase-0/TERRAIN_REVISION.md) for exact prompts, bounds and inspection results.
 
@@ -67,4 +67,4 @@ No separate guard, shield, insulation, refit, broken-link raster or destruction-
 - Optional stone biome and tested adjacent-terrain transitions.
 - Final sprite packing, download-size optimization and a certified continuous texture set if needed.
 
-These are extensions, not existing files or new gameplay rules. The neutral `brain.png` and older slab `terrain-slate-a.png` remain in the asset directory as fallbacks. Seven superseded unsuffixed neuron/tower/particle candidates were moved to `art/phase-0/superseded/` so comparison artwork is not bundled with the game. Historical guard concepts remain exploration only. None of these override the current roster or establish finished visual acceptance.
+These are extensions, not existing files or new gameplay rules. The older slab `terrain-slate-a.png` remains in the asset directory as a fallback; the neutral `brain.png` was removed as unused. Seven superseded unsuffixed neuron/tower/particle candidates were moved to `art/phase-0/superseded/` so comparison artwork is not bundled with the game. Historical guard concepts remain exploration only. None of these override the current roster or establish finished visual acceptance.

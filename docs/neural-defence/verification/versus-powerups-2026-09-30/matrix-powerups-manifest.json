@@ -4,15 +4,15 @@
   "dirty": "docs/architecture.md          | 63 ++++++++++++++++++++++---------------------\n docs/neural-defence/README.md |  8 ++++--\n docs/neural-defence/TODO.md   | 12 +++++++--\n 3 files changed, 48 insertions(+), 35 deletions(-)",
   "simulationDirty": "",
   "command": [
-    "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-    "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+    "<node>",
+    "scripts/fuse-craft-tournament.ts",
     "--maps",
     "all",
     "--seconds",
     "900",
     "--powerups",
     "--out",
-    "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/tournament-powerups2"
+    "<scratch>/tournament-powerups2"
   ],
   "seconds": 900,
   "strategies": [

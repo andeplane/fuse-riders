@@ -23,6 +23,5 @@ bias and let renaming affect priority. No rule was changed. Balance assessments
 must include both starting sides; exact outcome equality is not a universal
 invariant when opposing strategies contest the same cell simultaneously.
 
-To reproduce, copy `reproduce.ts.txt` to `scripts/claim-order-diagnostic.ts` and
-run `pnpm exec tsx scripts/claim-order-diagnostic.ts`. Remove that temporary script
-afterward. `first-divergence.json` contains the compact validated output.
+The reproduction script (`reproduce.ts.txt`, removed; see git history at `5c0b9be1`) was a temporary
+`scripts/claim-order-diagnostic.ts` run with `pnpm exec tsx`. `first-divergence.json` contains the compact validated output.

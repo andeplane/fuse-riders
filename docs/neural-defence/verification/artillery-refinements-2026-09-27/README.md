@@ -8,7 +8,7 @@ site, avoiding repeated traversal for every enemy.
 
 ## Require an existing short-range firing site
 
-`firing-sites.patch` limits the original fallback to an existing firing position
+`firing-sites.patch` (removed; see git history at `5c0b9be1`) limited the original fallback to an existing firing position
 that cannot be admitted safely. It restores Narrow Front Economy/Relay and
 Siege/Relay to Relay wins at 382 and 398 seconds from both sides. However,
 Pressure/Relay and Balanced/Defensive still time out at 900 seconds.
@@ -23,7 +23,7 @@ and samples document the distinction.
 
 ## Require an existing specialist weapon
 
-`specialist.patch` instead lets a force adapt after it has established at least
+`specialist.patch` (removed; see git history at `5c0b9be1`) instead let a force adapt after it has established at least
 one specialist weapon; brains and ordinary neurons do not satisfy this guard.
 This addresses the observed pre-contact switch before either side had built a
 weapon, while allowing a developed army to seek artillery positions.

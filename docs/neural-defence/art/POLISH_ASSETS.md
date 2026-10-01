@@ -4,7 +4,7 @@ Generated with the built-in image generator on 2026-09-25. Assets live in `games
 
 ## Traversable ground
 
-Current file: `terrain-walkable-v6.png`. It replaces the softer v5 floor with clearer flush slate, fine gravel and low moss. The renderer composites it at 65% opacity over the existing dark ground color to keep the fine texture subordinate to structures and actual blockers. Inspected in Chromium and WebKit at desktop and phone sizes; independent review confirmed that raised map blockers remain distinct. Source: `/Users/anderhaf/.codex/generated_images/01a0d798-3d5c-76a3-a900-6c4f8e88c21c/exec-95dd04af-df34-4594-a65d-596da618a9c1.png`.
+Current file: `terrain-walkable-v6.png`. It replaces the softer v5 floor with clearer flush slate, fine gravel and low moss. The renderer composites it at 65% opacity over the existing dark ground color to keep the fine texture subordinate to structures and actual blockers. Inspected in Chromium and WebKit at desktop and phone sizes; independent review confirmed that raised map blockers remain distinct. Source: `<generated-images-dir>/01a0d798-3d5c-76a3-a900-6c4f8e88c21c/exec-95dd04af-df34-4594-a65d-596da618a9c1.png`.
 
 Exact v6 prompt:
 

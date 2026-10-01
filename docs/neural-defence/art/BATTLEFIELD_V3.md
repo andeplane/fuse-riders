@@ -8,7 +8,7 @@ Large arenas begin at a readable unit scale centered on the player's brain. Whee
 
 ## Generated asset
 
-Saved asset: [terrain-battlefield-v3.png](../../../games/neural-defence/src/assets/terrain-battlefield-v3.png). Generated using the built-in imagegen tool, copied into the game's bundled assets. Existing source assets were preserved. The texture was requested as seamless; visual browser inspection is the acceptance evidence, not a mathematical guarantee of edge continuity.
+Saved asset: `terrain-battlefield-v3.png` (since superseded by `terrain-walkable-v6.png` and removed from the bundle; it remains in git history). Generated using the built-in imagegen tool, copied into the game's bundled assets. Existing source assets were preserved. The texture was requested as seamless; visual browser inspection is the acceptance evidence, not a mathematical guarantee of edge continuity.
 
 Exact generation prompt:
 

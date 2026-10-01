@@ -1,5 +1,7 @@
 # Distinct neuron forms
 
+> Historical: neurons are now drawn procedurally (`neuronArtwork` in `games/neural-defence/src/render/board.ts`), and the two v4 sprites below were removed from the bundle. They remain in git history.
+
 The original v3 neuron remains one form. Two additional transparent PNGs give the network visibly different cell bodies, rather than just rotating one silhouette:
 
 - `games/neural-defence/src/assets/neuron-lobed-v4.png`: three-lobed soma and three linked nuclei.

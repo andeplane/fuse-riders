@@ -4,14 +4,14 @@
   "dirty": "docs/neural-defence/README.md              |  4 +-\n games/neural-defence/tests/organic.test.ts | 59 ++++++++++++++++++++++++++++++\n 2 files changed, 62 insertions(+), 1 deletion(-)",
   "simulationDirty": "",
   "command": [
-    "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-    "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+    "<node>",
+    "scripts/fuse-craft-tournament.ts",
     "--maps",
     "all",
     "--seconds",
     "900",
     "--out",
-    "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/tournament"
+    "<scratch>/tournament"
   ],
   "seconds": 900,
   "strategies": [

@@ -28,12 +28,14 @@ portrait and short-landscape UI flow. These viewport checks emulate phones.
 ## Reproduce the captures
 
 These captures and commands record historical **rules 7** behavior at
-`b2077471`. Rules 9 rejects those checkpoints. For current-source effects checks,
-run `pnpm exec tsx scripts/fuse-craft-effects-smoke.ts`; the default is a fresh
-rules-9 recording. Append an output directory and `site` after that recording's
-path to inspect destruction of a paid construction site specifically.
+`b2077471`. Later rules reject those checkpoints, and the rules-9 recordings
+below are historical too: rules 12 rejects them. For current-source effects
+checks, run `pnpm exec tsx scripts/fuse-craft-effects-smoke.ts`; the default is
+the [rules-12 combat recording](verification/rules12-replays-2026-10-01/README.md),
+which also lists the `siege`, `wreck`, `shielded` and `site` commands. No current
+recording contains Relay fire, so the `relay` mode has nothing to render.
 
-Run the source preview on port 5174, then:
+Historical commands (rules 9, reproduce only on that source revision):
 
 ```sh
 pnpm exec tsx scripts/fuse-craft-effects-smoke.ts docs/neural-defence/verification/rules9-2026-09-27/combat.replay.json /tmp/fuse-siege siege

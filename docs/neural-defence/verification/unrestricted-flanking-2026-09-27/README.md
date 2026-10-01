@@ -18,9 +18,9 @@ follow-up sweep completed 181 additional cases for a full 210-match comparison:
 20 timeouts, zero rejected commands, all 105 swapped-seat pairs agreeing on
 outcome, duration and recorded statistics. It is not merged or deployed.
 Default/probe runners are identical
-to those archived in `../support-selection-2026-09-27/`; `matrix.ts.txt` skips
-those completed keys and accepts comma-separated map IDs. It uses only the
-isolated patched engine, which matches the integrated engine after formatting.
+to those archived in `../support-selection-2026-09-27/`; `matrix.ts.txt` (removed; see git history at `5c0b9be1`) skipped
+those completed keys and accepted comma-separated map IDs. It used only the
+isolated patched engine, which matched the integrated engine after formatting.
 
 Completed candidate subsets are now archived: Close Quarters42/42 with no
 timeouts, Skirmish24 and Open Front42/42 each with two (Defensive mirrors), and Lean Resources42/42
@@ -29,21 +29,21 @@ these subsets finishes. Narrow Front is now also complete with ten timeouts:
 Balanced, Relay and Defensive mirrors, plus Balanced/Defensive and Pressure/Relay.
 See `../../FLANK_RECOVERY.md` for the remaining regressions and verification scope.
 
-`regression.test.ts.txt` contains four focused cases: zero/one engaged gun under
+`regression.test.ts.txt` (removed; see git history at `5c0b9be1`) contained four focused cases: zero/one engaged gun under
 both map rotations. All pass with the isolated candidate and fail with the
 unchanged engine. They assert the safe next cell, dispatched outcome, replay,
-immutability and ordering independence. Copy it beside the isolated `engine/`
-directory as `.test.ts` to run it.
+immutability and ordering independence. It was run by copying it beside the isolated `engine/`
+directory as `.test.ts`.
 
 The existing exposed-site fixture previously expected a Bastion after repeated
 losses. The candidate correctly takes an available safe flank instead. The
-unapplied `test-fixture.patch` checks that flank, then closes its side corridor to
+unapplied `test-fixture.patch` (removed; see git history at `5c0b9be1`) checked that flank, then closes its side corridor to
 retain the original protective fallback and no-duplicate-protection assertions.
 All25 focused AI cases pass with that fixture update. Source review found no
 blocking issues. The complete comparison above does not establish human play-feel
 or visual-quality acceptance.
 
-A local timing diagnostic (`performance.ts.txt`, `performance.json`) advances the
+A local timing diagnostic (`performance.ts.txt`, removed; see git history at `5c0b9be1`; and `performance.json`) advances the
 archived Balanced/Economy world by220 ordinary ticks without commands to an idle
 decision, hash`04972e64`, then measures100 calls per implementation. Production
 median/p95/max are4.422/4.977/8.623ms; candidate4.617/5.744/11.031ms. This is one

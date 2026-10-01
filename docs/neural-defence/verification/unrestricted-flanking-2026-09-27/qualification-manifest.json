@@ -4,8 +4,8 @@
   "dirty": "",
   "simulationDirty": "",
   "command": [
-    "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-    "/Users/anderhaf/projects/personal/slackgame/scripts/fuse-craft-tournament.ts",
+    "<node>",
+    "scripts/fuse-craft-tournament.ts",
     "--maps",
     "skirmish-24",
     "--strategies",
@@ -15,7 +15,7 @@
     "--replay",
     "all",
     "--out",
-    "/tmp/fuse-flank-99c820e1-qualification"
+    "<scratch>/fuse-flank-99c820e1-qualification"
   ],
   "seconds": 900,
   "strategies": [

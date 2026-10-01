@@ -8,7 +8,7 @@
     "map.ts": "8a40fb76a2852441baa5e0e0e0abdee30c62927df24c606e5f1425efa8327e18",
     "auto-expand.ts": "047081b8692af8158073dbd49f29482f99b8249d8ba9dc0ed4293672a15dffd0"
   },
-  "patch": "candidate.patch",
+  "patch": "candidate.patch (removed; see git history at 5c0b9be1)",
   "initialRunner": "run.ts",
   "qualificationRunner": "qualify.ts",
   "baselineDirectory": "docs/neural-defence/verification/unrestricted-flanking-2026-09-27",

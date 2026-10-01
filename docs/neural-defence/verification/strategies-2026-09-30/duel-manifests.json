@@ -5,15 +5,15 @@
   "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
-   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "<node>",
+   "scripts/fuse-craft-tournament.ts",
    "--maps",
    "close-quarters",
    "--seconds",
    "900",
    "--powerups",
    "--out",
-   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/close-quarters"
+   "<scratch>/final5/close-quarters"
   ],
   "seconds": 900,
   "strategies": [
@@ -32,15 +32,15 @@
   "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
-   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "<node>",
+   "scripts/fuse-craft-tournament.ts",
    "--maps",
    "cortex-crossing",
    "--seconds",
    "900",
    "--powerups",
    "--out",
-   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/cortex-crossing"
+   "<scratch>/final5/cortex-crossing"
   ],
   "seconds": 900,
   "strategies": [
@@ -59,15 +59,15 @@
   "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
-   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "<node>",
+   "scripts/fuse-craft-tournament.ts",
    "--maps",
    "grand-cortex",
    "--seconds",
    "900",
    "--powerups",
    "--out",
-   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/grand-cortex"
+   "<scratch>/final5/grand-cortex"
   ],
   "seconds": 900,
   "strategies": [
@@ -86,15 +86,15 @@
   "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
-   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "<node>",
+   "scripts/fuse-craft-tournament.ts",
    "--maps",
    "lean-resources",
    "--seconds",
    "900",
    "--powerups",
    "--out",
-   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/lean-resources"
+   "<scratch>/final5/lean-resources"
   ],
   "seconds": 900,
   "strategies": [
@@ -113,15 +113,15 @@
   "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
-   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "<node>",
+   "scripts/fuse-craft-tournament.ts",
    "--maps",
    "narrow-front",
    "--seconds",
    "900",
    "--powerups",
    "--out",
-   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/narrow-front"
+   "<scratch>/final5/narrow-front"
   ],
   "seconds": 900,
   "strategies": [
@@ -140,15 +140,15 @@
   "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
-   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "<node>",
+   "scripts/fuse-craft-tournament.ts",
    "--maps",
    "open-front",
    "--seconds",
    "900",
    "--powerups",
    "--out",
-   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/open-front"
+   "<scratch>/final5/open-front"
   ],
   "seconds": 900,
   "strategies": [
@@ -167,15 +167,15 @@
   "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
-   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "<node>",
+   "scripts/fuse-craft-tournament.ts",
    "--maps",
    "skirmish-24",
    "--seconds",
    "900",
    "--powerups",
    "--out",
-   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/skirmish-24"
+   "<scratch>/final5/skirmish-24"
   ],
   "seconds": 900,
   "strategies": [
@@ -194,15 +194,15 @@
   "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
-   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "<node>",
+   "scripts/fuse-craft-tournament.ts",
    "--maps",
    "synapse-islands",
    "--seconds",
    "900",
    "--powerups",
    "--out",
-   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/synapse-islands"
+   "<scratch>/final5/synapse-islands"
   ],
   "seconds": 900,
   "strategies": [
@@ -221,15 +221,15 @@
   "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
-   "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-   "/Users/anderhaf/projects/personal/slackgame/.claude/worktrees/fuse-craft/scripts/fuse-craft-tournament.ts",
+   "<node>",
+   "scripts/fuse-craft-tournament.ts",
    "--maps",
    "twin-hemispheres",
    "--seconds",
    "900",
    "--powerups",
    "--out",
-   "/private/tmp/claude-501/-Users-anderhaf-cognite-dune-duneception/dafb0d07-0035-4a20-a4cf-e19c0828fb8c/scratchpad/final5/twin-hemispheres"
+   "<scratch>/final5/twin-hemispheres"
   ],
   "seconds": 900,
   "strategies": [

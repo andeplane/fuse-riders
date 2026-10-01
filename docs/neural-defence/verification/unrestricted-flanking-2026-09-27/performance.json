@@ -1,7 +1,7 @@
 {
   "sourceRevision": "1edeecefd6b26585a634109b8481111381f52092",
   "requestedBaseline": "290c4086",
-  "sourceInput": "/tmp/fuse-rules9-be.world.json",
+  "sourceInput": "<scratch>/fuse-rules9-be.world.json",
   "initialTick": 18000,
   "decisionTick": 18220,
   "worldHash": "04972e64",

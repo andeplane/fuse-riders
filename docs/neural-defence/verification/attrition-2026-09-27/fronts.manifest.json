@@ -4,14 +4,14 @@
   "dirty": "",
   "simulationDirty": "",
   "command": [
-    "/Users/anderhaf/.nvm/versions/node/v22.20.0/bin/node",
-    "/Users/anderhaf/projects/personal/slackgame/scripts/fuse-craft-tournament.ts",
+    "<node>",
+    "scripts/fuse-craft-tournament.ts",
     "--maps",
     "close-quarters,narrow-front",
     "--seconds",
     "900",
     "--out",
-    "/tmp/fuse-attrition-0eeff333-fronts"
+    "<scratch>/fuse-attrition-0eeff333-fronts"
   ],
   "seconds": 900,
   "strategies": [

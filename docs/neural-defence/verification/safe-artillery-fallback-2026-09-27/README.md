@@ -60,7 +60,7 @@ the close-corridor test no longer claims to isolate the blind spot.
 
 ## Starting-side duration difference
 
-`seat-divergence.ts.txt` exhaustively checks Narrow Front terrain, adjacency and
+The seat-divergence diagnostic (`seat-divergence.ts.txt`, removed; see git history at `5c0b9be1`) exhaustively checked Narrow Front terrain, adjacency and
 Siege-range rotation, then compares normalized worlds tick by tick. Both worlds
 remain equivalent through tick 5660. At tick 5661, both players request the same
 cell (246, or 233 after rotation): Balanced requests a Tower and Defensive a
