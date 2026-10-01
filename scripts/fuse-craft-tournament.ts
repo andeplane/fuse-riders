@@ -28,7 +28,7 @@ import {
 // injected resources or artificial "winner" when the time budget expires.
 // Bump when match setup, command generation, stepping or result measurement
 // changes. Existing manifests without this field used this same version-1 loop.
-const harnessVersion = 2;
+const harnessVersion = 3;
 const option = (name: string, fallback: string) => {
   const index = process.argv.indexOf(`--${name}`);
   return index < 0 ? fallback : (process.argv[index + 1] ?? fallback);
@@ -64,6 +64,7 @@ if (
 const names = option("strategies", AI_STRATEGIES.join(",")).split(",");
 if (!names.every((name) => AI_STRATEGIES.includes(name as AiStrategy)))
   throw new Error("Unknown strategy");
+if (new Set(names).size !== names.length) throw new Error("Duplicate strategy");
 const strategies = names as AiStrategy[];
 const seconds = Number(option("seconds", "900"));
 // Powerups vary per match through the match id; without the flag runs are
@@ -82,18 +83,23 @@ const completed = new Set<string>();
 const manifestPath = `${output}/manifest.json`;
 const resultsPath = `${output}/results.jsonl`;
 const resume = process.argv.includes("--resume");
-const simulationDirty = execFileSync(
-  "git",
-  [
-    "diff",
-    "HEAD",
-    "--stat",
-    "--",
-    "games/neural-defence/src/engine",
-    "games/neural-defence/maps",
-  ],
-  { encoding: "utf8" },
-).trim();
+const simulationPaths = [
+  "games/neural-defence/src/engine",
+  "games/neural-defence/maps",
+];
+// Untracked engine or map files change the simulation as much as edits do.
+const simulationDirty = [
+  execFileSync("git", ["diff", "HEAD", "--stat", "--", ...simulationPaths], {
+    encoding: "utf8",
+  }),
+  execFileSync(
+    "git",
+    ["ls-files", "--others", "--exclude-standard", "--", ...simulationPaths],
+    { encoding: "utf8" },
+  ),
+]
+  .join("")
+  .trim();
 const run = {
   harnessVersion,
   source,
@@ -114,6 +120,7 @@ if (resume) {
     (previous.harnessVersion ?? 1) !== harnessVersion ||
     (previous.simulationDirty ?? previous.dirty) ||
     previous.seconds !== seconds ||
+    Boolean(previous.powerups) !== powerups ||
     JSON.stringify(previous.strategies) !== JSON.stringify(strategies) ||
     JSON.stringify(previous.maps) !== JSON.stringify(maps) ||
     previousMaps !== option("maps", "all")
@@ -233,8 +240,13 @@ for (const map of maps.filter(
             for (const job of p.queue.filter((j) => j.paid)) {
               if (
                 world.players[i]!.queue.some((j) => j.cell === job.cell) ||
+                // An upgrade leaves its neuron behind when cancelled, so only
+                // a structure of the job's own kind means it finished.
                 world.structures.some(
-                  (s) => s.ownerId === p.id && s.cell === job.cell,
+                  (s) =>
+                    s.ownerId === p.id &&
+                    s.cell === job.cell &&
+                    s.kind === job.kind,
                 )
               )
                 continue;

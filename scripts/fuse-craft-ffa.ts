@@ -1,6 +1,6 @@
 /**
- * Free-for-all benchmark: every set of N openings, rotated through the seats
- * of an N-seat map, played AI against AI with powerups. Reports wins by
+ * Free-for-all benchmark: every set of N openings, arranged over the seats
+ * of an N-seat map by a balanced design, played AI against AI with powerups. Reports wins by
  * opening and by seat, how matches end and how long they take.
  *
  *   pnpm exec tsx scripts/fuse-craft-ffa.ts --map cortex-crossing \
@@ -41,18 +41,41 @@ if (!Number.isInteger(players) || players < 3 || players > map.spawns.length)
   throw new Error(`players must be 3..${map.spawns.length} on ${mapId}`);
 
 /**
- * Every combination of openings, rotated through every seat in both
- * directions. One direction alone confounds seat with matchup: seats that
- * are neighbours in the rotation would always meet the same opening pair
- * the same way round.
+ * Seat orders for one set of openings. Rotations alone tie each pair of
+ * openings to one distance apart, whatever the map's geometry makes of it.
+ * The even permutations are 2-transitive from four seats up, so every
+ * ordered pair of openings sits in every ordered pair of seats equally
+ * often; three seats need all six orders for that.
  */
+function seatOrders(n: number): number[][] {
+  const all: number[][] = [];
+  const permute = (rest: number[], chosen: number[]) => {
+    if (!rest.length) all.push(chosen);
+    rest.forEach((x, i) =>
+      permute([...rest.slice(0, i), ...rest.slice(i + 1)], [...chosen, x]),
+    );
+  };
+  permute(
+    Array.from({ length: n }, (_, i) => i),
+    [],
+  );
+  const even = (order: number[]) => {
+    let inversions = 0;
+    for (let i = 0; i < order.length; i++)
+      for (let j = i + 1; j < order.length; j++)
+        if (order[i]! > order[j]!) inversions++;
+    return inversions % 2 === 0;
+  };
+  return n < 4 ? all : all.filter(even);
+}
+
+/** Every combination of openings in every balanced seat order. */
 function cases(): AiStrategy[][] {
   const out: AiStrategy[][] = [];
+  const orders = seatOrders(players);
   const pick = (start: number, chosen: AiStrategy[]) => {
     if (chosen.length === players) {
-      for (const order of [chosen, [...chosen].reverse()])
-        for (let r = 0; r < players; r++)
-          out.push(order.map((_, i) => order[(i + r) % players]!));
+      for (const order of orders) out.push(order.map((i) => chosen[i]!));
       return;
     }
     for (let i = start; i < AI_STRATEGIES.length; i++)
@@ -116,22 +139,28 @@ if (worker) {
 const output = resolve(option("out", "/tmp/fuse-craft-ffa"));
 mkdirSync(output, { recursive: true });
 const jobs = Number(option("jobs", "8"));
+if (!Number.isInteger(jobs) || jobs < 1 || jobs > 64)
+  throw new Error("jobs must be 1..64");
 const rows: Row[] = [];
 await Promise.all(
   Array.from(
     { length: jobs },
     (_, i) =>
-      new Promise<void>((done) => {
+      new Promise<void>((done, fail) => {
         const child = fork(
           new URL(import.meta.url).pathname,
           [...process.argv.slice(2), "--worker", `${i}/${jobs}`],
           { execArgv: ["--import", "tsx"] },
         );
         child.on("message", (row: Row) => rows.push(row));
-        child.on("exit", () => done());
+        child.on("exit", (code) =>
+          code === 0 ? done() : fail(new Error(`worker ${i} exited ${code}`)),
+        );
       }),
   ),
 );
+if (rows.length !== all.length)
+  throw new Error(`expected ${all.length} games, got ${rows.length}`);
 rows.sort((a, b) => (a.key < b.key ? -1 : 1));
 writeFileSync(
   `${output}/results.jsonl`,
