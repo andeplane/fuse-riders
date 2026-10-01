@@ -53,58 +53,51 @@ export const OPENINGS: Readonly<
   balanced: {
     name: "Balanced",
     style: "Standard",
-    plan: "Expand steadily, take a Harvester, then mix towers and Siege as the front forms.",
-
-    beats: ["defensive"],
-    losesTo: ["relay", "swarm"],
+    plan: "Expand steadily, take a Harvester, then mix towers and Siege as the front forms. Weak in duels, the strongest opening in a free-for-all.",
+    beats: ["economy"],
+    losesTo: ["pressure", "siege", "relay", "defensive", "swarm"],
   },
   pressure: {
     name: "Pressure",
     style: "Rush",
     plan: "Excitation first and a straight drive at the rival with Pulse towers, before a greedy economy pays off. Strongest on close maps.",
-
-    beats: ["siege", "relay"],
-    losesTo: ["economy", "swarm"],
+    beats: ["balanced", "swarm"],
+    losesTo: ["economy", "siege", "defensive"],
   },
   siege: {
     name: "Siege",
     style: "Contain",
-    plan: "Ballistics first; artillery outranges static defences from behind a wall of neurons.",
-
-    beats: ["defensive"],
-    losesTo: ["pressure", "economy", "relay", "swarm"],
+    plan: "Growth, then Ballistics straight away; artillery outranges Pulse towers and Bastions from behind a wall of neurons.",
+    beats: ["balanced", "pressure", "defensive"],
+    losesTo: ["economy", "relay", "swarm"],
   },
   relay: {
     name: "Relay",
     style: "Tempo",
     plan: "Growth, then Resonance and cheap Relay towers: frequent small volleys that get inside Siege's blind spot and outpace slow builds. A duel opening; spread thin in a free-for-all.",
-
     beats: ["balanced", "economy", "siege", "defensive"],
-    losesTo: ["pressure", "swarm"],
+    losesTo: ["swarm"],
   },
   defensive: {
     name: "Defensive",
     style: "Turtle",
-    plan: "Towers and Bastions around a compact network; wins the fights it is offered.",
-
-    beats: ["economy"],
-    losesTo: ["balanced", "siege", "relay"],
+    plan: "Towers and Bastions around a compact network; wins the fights it is offered and holds creep and rushes.",
+    beats: ["balanced", "pressure", "swarm"],
+    losesTo: ["siege", "relay"],
   },
   economy: {
     name: "Economy",
     style: "Greed",
-    plan: "Deposits and Harvesters before guns, then out-produce the rival. Strongest on wide, rich maps; switches to Spores against creep.",
-
-    beats: ["pressure", "siege", "swarm"],
-    losesTo: ["relay", "defensive"],
+    plan: "Deposits and Harvesters before guns, then out-produce the rival. Strongest on wide, rich maps.",
+    beats: ["pressure", "siege"],
+    losesTo: ["balanced", "relay"],
   },
   swarm: {
     name: "Swarm",
     style: "Creep",
-    plan: "Growth first and neurons everywhere: claim the map and win by dominance, with just enough guns to hold it. Answered by Spore splash.",
-
-    beats: ["balanced", "pressure", "siege", "relay"],
-    losesTo: ["economy"],
+    plan: "Growth first and neurons everywhere: claim the map and threaten dominance, with just enough guns to hold it. Bastions stop it.",
+    beats: ["balanced", "siege", "relay"],
+    losesTo: ["pressure", "defensive"],
   },
 };
 
@@ -161,7 +154,7 @@ function sectionMarkup(section: GuideSection): string {
         const o = OPENINGS[s];
         return `<li class="guide-opening"><strong>${o.name}</strong><em>${o.style}</em><p>${o.plan}</p><small>Beats ${o.beats.map(name).join(", ")} · Loses to ${o.losesTo.map(name).join(", ")}</small></li>`;
       }).join("");
-      return `<h2>Strategies</h2><p>Every opening has a counter. Scout what your rival builds and adapt: Pressure's early towers break Relay and Siege; Relay's quick volleys out-pace slow builds like Economy and Defensive; Economy out-produces Pressure and Swarm; Swarm's creep out-grows Balanced, Siege and Relay; and Spore towers answer creep. Maps change the answer: rushes win close maps, economies win wide ones.</p><ul class="guide-openings">${cards}</ul><p class="muted">Counters are measured by AI-vs-AI benchmarks on every map; human play will differ.</p>`;
+      return `<h2>Strategies</h2><p>Every opening has a counter. Scout what your rival builds and adapt: Pressure's early Pulse towers break Balanced; Siege's artillery outranges Balanced, Pressure and Defensive; Relay's quick volleys get inside Siege's blind spot and out-pace slow builds; Swarm's creep out-grows Balanced, Siege and Relay; Defensive's Bastions hold Swarm and Pressure; and Economy out-produces Pressure and Siege. Maps change the answer: rushes win close maps, economies win wide ones. In a free-for-all, steady openings outlast specialists.</p><ul class="guide-openings">${cards}</ul><p class="muted">Counters are measured by AI-vs-AI benchmarks on every map; human play will differ.</p>`;
     }
     case "controls":
       return `<h2>Controls</h2><table class="guide-table"><tbody><tr><th scope="row">Select</th><td>Click a hex, or Shift + arrow keys</td></tr><tr><th scope="row">Move the camera</th><td>Arrow keys, drag the board, rest the mouse at the board's edge, or press and drag on the minimap</td></tr><tr><th scope="row">Zoom</th><td>Scroll or pinch</td></tr><tr><th scope="row">Full screen</th><td>F, or the ⛶ button</td></tr><tr><th scope="row">Commands</th><td>Q W E / A S D follow the command card; Esc goes back</td></tr><tr><th scope="row">Particles · Build · Research</th><td>Q · W · E from the root card</td></tr><tr><th scope="row">Auto expand</th><td>S with your brain selected</td></tr><tr><th scope="row">Charge a weapon</th><td>D with the weapon selected</td></tr></tbody></table>`;
