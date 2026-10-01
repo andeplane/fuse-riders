@@ -1,6 +1,7 @@
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
+import "fuse-ui/portal.css";
 import "./dice.css";
 import QRCode from "qrcode";
 import {
@@ -13,6 +14,7 @@ import {
 import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
 import {
   button,
+  createAppPortal,
   createControllerRow,
   createInviteCard,
   createLandingCard,
@@ -57,7 +59,14 @@ function header(extra: HTMLElement[] = []): HTMLElement {
     brand = el("a", "", "dice-brand");
   brand.href = endpoints.appUrl();
   brand.append(el("span", "PIG"), el("small", "A FUSE GAME"));
-  bar.append(brand, ...extra);
+  // Every game opens the app portal top left; it lists the games that have a portal.json.
+  const portal = createAppPortal({
+    document,
+    current: GAME,
+    base: import.meta.env.BASE_URL,
+    search: location.search,
+  });
+  bar.append(portal.element, brand, ...extra);
   return bar;
 }
 

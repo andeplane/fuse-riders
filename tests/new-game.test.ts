@@ -11,6 +11,7 @@ import {
   rename,
   takenNames,
 } from "../scripts/new-game.js";
+import { parsePortalEntry } from "fuse-ui/portal";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -40,6 +41,21 @@ test("new-game copies the dice template to a renamed game whose own tests pass",
     assert.ok(written.includes("package.json"));
     assert.ok(written.includes("src/game/index.ts"));
     assert.ok(written.includes("tests/fixtures/snakeEyes.ts"));
+    // A new game is on the app portal from the start.
+    assert.deepEqual(
+      parsePortalEntry(
+        JSON.parse(
+          readFileSync(join(dir, "snake-eyes", "portal.json"), "utf8"),
+        ),
+      ),
+      {
+        name: "Snake Eyes",
+        tagline: "A new Fuse game.",
+        mark: "SE",
+        accent: "#16e7ff",
+        order: 100,
+      },
+    );
     for (const file of written) {
       const text = readFileSync(join(dir, "snake-eyes", file), "utf8");
       assert.doesNotMatch(text, /dice/i, `${file} still names the template`);

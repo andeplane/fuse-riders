@@ -1,0 +1,20 @@
+{
+  "name": "fuse-freight",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fuse Freight: little trains collect wagons, cut rival tails and deliver cargo before the whistle.",
+  "exports": {
+    "./platform": "./src/platform.ts"
+  },
+  "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-network-fe": "workspace:*",
+    "fuse-platform": "workspace:*",
+    "fuse-ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
+    "qrcode": "^1.5.4"
+  }
+}

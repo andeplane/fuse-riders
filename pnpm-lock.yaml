@@ -29,6 +29,9 @@ importers:
       fuse-choppers:
         specifier: workspace:*
         version: link:games/fuse-choppers
+      fuse-freight:
+        specifier: workspace:*
+        version: link:games/fuse-freight
       fuse-network-be:
         specifier: workspace:*
         version: link:packages/fuse-network-be
@@ -150,6 +153,28 @@ importers:
         version: 1.5.4
 
   games/fuse-choppers:
+    dependencies:
+      fuse-netcode:
+        specifier: workspace:*
+        version: link:../../packages/fuse-netcode
+      fuse-network-fe:
+        specifier: workspace:*
+        version: link:../../packages/fuse-network-fe
+      fuse-platform:
+        specifier: workspace:*
+        version: link:../../packages/fuse-platform
+      fuse-ui:
+        specifier: workspace:*
+        version: link:../../packages/fuse-ui
+    devDependencies:
+      '@fontsource/press-start-2p':
+        specifier: ^5.3.0
+        version: 5.3.0
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
+
+  games/fuse-freight:
     dependencies:
       fuse-netcode:
         specifier: workspace:*

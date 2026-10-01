@@ -4,8 +4,9 @@ on:
     branches: [main]
   pull_request:
     # `labeled` is not a default type: without it, adding `full-ci` to an open pull
-    # request would not start the browser matrix until the next push.
-    types: [opened, synchronize, reopened, labeled]
+    # request would not start the browser matrix until the next push. `unlabeled` re-checks
+    # `verify` when `cd-fix` comes off, so a stale pass cannot outlive the label.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,7 +31,7 @@ jobs:
   # 116 s on a ten-job gate. The pool is shared with every other workflow, so availability swings.
   #
   # What is stable is the work. On run 35514185047: slowest `unit` test step 37 s, `checks` 26 s, `build`
-  # 19 s — about 40 s of critical path. Observed wall clock for the same gate ranges 65 s to 169 s, and the
+  # 19 s — about 40 s of critical path. Observed wall clock for the same gate ranges 58 s to 169 s, and the
   # difference is queueing, not tests.
   #
   # So more shards cut per-shard work but add jobs that each queue when the pool is busy, and past some
@@ -93,22 +94,70 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
 
-  # One stable check name for the whole gate: green only when every job above passed. A branch rule waits on
-  # this, never on the shards, so the matrix can be resized without touching the rule.
+  # Whether main is red: its latest CI push run failed (which also withholds both deployments) or its latest
+  # deployment failed. A pull request opened while main is red runs coverage and the whole browser matrix as if
+  # it had `full-ci`, and `verify` requires them, so nothing merges on top of a broken main except a change
+  # that leaves it green. A failed deployment also needs the `cd-fix` label: pull-request CI cannot show that a
+  # deployment works. scripts/main-health.ts decides; on a push it does nothing and main counts as green.
+  main-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      red: ${{ steps.health.outputs.red }}
+      deploy-red: ${{ steps.health.outputs.deploy-red }}
+      reason: ${{ steps.health.outputs.reason }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+      - uses: actions/setup-node@v4
+        if: github.event_name == 'pull_request'
+        with:
+          node-version: 22
+      - name: Is main red?
+        id: health
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/main-health.ts
+
+  # One stable check name for the whole gate: green only when every job above passed and, while main is red,
+  # coverage and every smoke passed too. A branch rule waits on this, never on the shards, so the matrix can be
+  # resized without touching the rule.
   verify:
-    needs: [checks, build, unit]
+    needs: [checks, build, unit, main-health, coverage, e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Every gate passed
-        run: test "${{ needs.checks.result }} ${{ needs.build.result }} ${{ needs.unit.result }}" = "success success success"
+        env:
+          GATE: ${{ needs.checks.result }} ${{ needs.build.result }} ${{ needs.unit.result }} ${{ needs.main-health.result }}
+          MAIN_RED: ${{ needs.main-health.outputs.red }}
+          DEPLOY_RED: ${{ needs.main-health.outputs.deploy-red }}
+          REASON: ${{ needs.main-health.outputs.reason }}
+          PROOF: ${{ needs.coverage.result }} ${{ needs.e2e.result }}
+          CD_FIX: ${{ contains(github.event.pull_request.labels.*.name, 'cd-fix') }}
+        run: |
+          test "$GATE" = "success success success success"
+          if [ "$MAIN_RED" = true ]; then
+            echo "Main is red: $REASON. A pull request merges now only if coverage and every smoke pass on top of main."
+            test "$PROOF" = "success success" || { echo "::error::Main is red and this pull request does not make it green (coverage, e2e: $PROOF)."; exit 1; }
+          fi
+          if [ "$DEPLOY_RED" = true ] && [ "$CD_FIX" != true ]; then
+            echo "::error::A main deployment failed ($REASON). Fix it first; a pull request that fixes it carries the cd-fix label."
+            exit 1
+          fi
 
   # The coverage gate: the same tests again with every module instrumented, which costs about 60% on top of
-  # them. A pull request does not wait for it; a main push does, before anything deploys, and so does the
-  # release suite in AGENTS.md. The thresholds are in .c8rc.json and are not relaxed here.
+  # them. A pull request runs it only while main is red (`main-health`); a main push always does, before
+  # anything deploys, and so does the release suite in AGENTS.md. The thresholds are in .c8rc.json and are not
+  # relaxed here.
   coverage:
-    if: github.event_name != 'pull_request'
+    needs: main-health
+    if: github.event_name != 'pull_request' || needs.main-health.outputs.red == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -136,7 +185,8 @@ jobs:
   #
   # Run it on a pull request before merging, for a change to the renderer, the online runtime,
   # the controller or any other browser-facing path: add the `full-ci` label, dispatch this
-  # workflow on the branch, or run `scripts/ci-local.sh` locally.
+  # workflow on the branch, or run `scripts/ci-local.sh` locally. While main is red it runs on
+  # every pull request, and `verify` requires it.
   #
   # scripts/ci-manifest.json is the only list of smokes. `plan` reads it, `smoke` runs one job per
   # entry in parallel (its name, browsers, env and timeout all come from the entry), and `e2e`
@@ -144,9 +194,11 @@ jobs:
   # entries through the same runner, and tests/ci-manifest.test.ts fails when this file stops
   # doing so.
   plan:
+    needs: main-health
     if: >-
       github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'full-ci')
+      contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+      needs.main-health.outputs.red == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -219,11 +271,12 @@ jobs:
 
   # One stable check name for the whole matrix: green only when every smoke passed.
   e2e:
-    needs: smoke
+    needs: [main-health, smoke]
     if: >-
       always() &&
       (github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'full-ci'))
+      contains(github.event.pull_request.labels.*.name, 'full-ci') ||
+      needs.main-health.outputs.red == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
