@@ -15,12 +15,12 @@ import {
   loadMap,
   step,
   type MapDefinition,
-} from "../games/neural-defence/src/engine/index.ts";
+} from "../games/fuse-craft/src/engine/index.ts";
 import {
   aiCommands,
   AI_STRATEGIES,
   type AiStrategy,
-} from "../games/neural-defence/src/engine/ai.ts";
+} from "../games/fuse-craft/src/engine/ai.ts";
 
 const option = (name: string, fallback: string) => {
   const index = process.argv.indexOf(`--${name}`);
@@ -32,7 +32,7 @@ const seconds = Number(option("seconds", "900"));
 const map: MapDefinition = loadMap(
   JSON.parse(
     readFileSync(
-      new URL(`../games/neural-defence/maps/${mapId}.json`, import.meta.url),
+      new URL(`../games/fuse-craft/maps/${mapId}.json`, import.meta.url),
       "utf8",
     ),
   ),

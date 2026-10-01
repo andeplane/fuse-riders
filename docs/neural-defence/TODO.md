@@ -9,7 +9,7 @@ Last reviewed: 2026-09-30 (rules 12), branch `claude/fuse-craft` ([PR #417](http
 - [ ] Play the current build and say what falls short in look and feel. This is the one open acceptance item in [GOAL_VERIFICATION.md](GOAL_VERIFICATION.md).
 - [ ] Decide whether the SVG battlefield with its GPU light layer is enough, or whether the whole battlefield should move to WebGL (true bloom, lit terrain, tilted camera). See [organic network and light](verification/organic-light-2026-09-30/README.md).
 - [ ] Brains and towers keep painted bio-mechanical art, rooted into the creep and lit in team colour. Say if you would rather see them redrawn as organic structures.
-- [ ] Decide whether to rename `games/neural-defence/`, the `/neural-defence/` URL and the internal identifiers to Fuse Craft. Only the display name and commit scope have changed so far.
+- [x] The game lives in `games/fuse-craft/` and is served at `/fuse-craft/`; `/neural-defence/` redirects there with its query, so old room links still work. Kept on purpose: this docs folder's name, the netcode label and rules string (`neural-defence-12-watch-9`), and the saved-settings key, so nothing about the protocol or players' settings changes.
 
 ## Performance
 

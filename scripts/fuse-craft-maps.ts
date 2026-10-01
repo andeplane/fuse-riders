@@ -15,7 +15,7 @@ import {
   loadMap,
   neighbors,
   type MapDefinition,
-} from "../games/neural-defence/src/engine/index.ts";
+} from "../games/fuse-craft/src/engine/index.ts";
 
 type Terrain = "open" | "blocked" | "biomass" | "insight";
 interface Design {
@@ -373,7 +373,7 @@ for (const design of designs) {
   console.log(report(map).join("\n") + "\n");
   if (write)
     writeFileSync(
-      new URL(`../games/neural-defence/maps/${map.id}.json`, import.meta.url),
+      new URL(`../games/fuse-craft/maps/${map.id}.json`, import.meta.url),
       JSON.stringify(map, null, 2) + "\n",
     );
 }

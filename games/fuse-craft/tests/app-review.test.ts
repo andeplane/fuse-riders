@@ -406,7 +406,7 @@ function fixture(options: FixtureOptions = {}) {
       return online;
     },
     validCode: (code) => /^[A-Z0-9]{4}$/.test(code),
-    roomLink: (code) => `https://fuse.test/neural-defence/?room=${code}`,
+    roomLink: (code) => `https://fuse.test/fuse-craft/?room=${code}`,
     enterRoom: (code) => calls.push(`enterRoom:${code}`),
     leaveRoom: () => calls.push("leaveRoom"),
     savedName: () => "",

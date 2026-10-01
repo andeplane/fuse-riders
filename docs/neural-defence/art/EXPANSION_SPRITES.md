@@ -1,10 +1,10 @@
 # Economic and defensive building art — 2026-09-27
 
-Generated with the built-in imagegen tool, using `games/neural-defence/src/assets/tower-pulse-v3.png` as material/style reference. Versioned workspace assets preserve the generated alpha; originals remain in the generator output folder. Both were visually inspected at generation and integrated into world, placement ghost, command card and portrait through the shared art resolver.
+Generated with the built-in imagegen tool, using `games/fuse-craft/src/assets/tower-pulse-v3.png` as material/style reference. Versioned workspace assets preserve the generated alpha; originals remain in the generator output folder. Both were visually inspected at generation and integrated into world, placement ghost, command card and portrait through the shared art resolver.
 
 ## Harvester
 
-Workspace: `games/neural-defence/src/assets/harvester-v1.png`.
+Workspace: `games/fuse-craft/src/assets/harvester-v1.png`.
 Source: `<generated-images-dir>/01a0d798-3d5c-76a3-a900-6c4f8e88c21c/exec-088f44a1-291c-4400-be54-226fce1575ef.png`.
 
 Prompt:
@@ -13,7 +13,7 @@ Prompt:
 
 ## Bastion
 
-Workspace: `games/neural-defence/src/assets/tower-bastion-v1.png`.
+Workspace: `games/fuse-craft/src/assets/tower-bastion-v1.png`.
 Source: `<generated-images-dir>/01a0d798-3d5c-76a3-a900-6c4f8e88c21c/exec-6fb65909-f745-47dc-8e5c-62c97e6f3695.png`.
 
 Prompt:

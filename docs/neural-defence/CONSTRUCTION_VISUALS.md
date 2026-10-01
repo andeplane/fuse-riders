@@ -24,7 +24,7 @@ With the source preview running on port 5174:
 
 ```sh
 pnpm exec tsx scripts/fuse-craft-construction-smoke.ts
-pnpm exec tsx scripts/neural-defence-ui-smoke.ts 'http://127.0.0.1:5174/games/neural-defence/?mute' /tmp/fuse-construction-ui
+pnpm exec tsx scripts/neural-defence-ui-smoke.ts 'http://127.0.0.1:5174/games/fuse-craft/?mute' /tmp/fuse-construction-ui
 pnpm exec tsx scripts/neural-defence-build-queue-smoke.ts
 ```
 

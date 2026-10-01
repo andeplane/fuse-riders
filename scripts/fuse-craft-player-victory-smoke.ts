@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { chromium, type Page } from "playwright";
-import type { Action } from "../games/neural-defence/src/engine/types.js";
+import type { Action } from "../games/fuse-craft/src/engine/types.js";
 
 const output = process.argv[2] ?? "/tmp/fuse-player-victory";
 mkdirSync(output, { recursive: true });
@@ -145,7 +145,7 @@ try {
   await page.routeWebSocket("**", (socket) => socket.close());
   await page.goto(
     process.env.FUSE_CRAFT_URL ??
-      "http://127.0.0.1:5174/games/neural-defence/?mute",
+      "http://127.0.0.1:5174/games/fuse-craft/?mute",
   );
   await page.locator('[data-action="new-game"]').click();
   await page.locator('[data-action="mode-skirmish"]').click();

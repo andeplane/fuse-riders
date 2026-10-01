@@ -40,7 +40,7 @@ Historical commands (rules 9, reproduce only on that source revision):
 ```sh
 pnpm exec tsx scripts/fuse-craft-effects-smoke.ts docs/neural-defence/verification/rules9-2026-09-27/combat.replay.json /tmp/fuse-siege siege
 pnpm exec tsx scripts/fuse-craft-effects-smoke.ts docs/neural-defence/verification/rules9-2026-09-27/relay.replay.json /tmp/fuse-relay relay
-pnpm exec tsx scripts/neural-defence-ui-smoke.ts 'http://127.0.0.1:5174/games/neural-defence/?mute' /tmp/fuse-weapons-ui
+pnpm exec tsx scripts/neural-defence-ui-smoke.ts 'http://127.0.0.1:5174/games/fuse-craft/?mute' /tmp/fuse-weapons-ui
 ```
 
 The effect harness checks the complete authoritative recording before rendering

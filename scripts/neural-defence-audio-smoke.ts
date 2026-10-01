@@ -9,11 +9,11 @@ try {
   await page.goto(
     process.argv[2] ??
       process.env.FUSE_CRAFT_URL ??
-      "http://127.0.0.1:5174/games/neural-defence/?mute",
+      "http://127.0.0.1:5174/games/fuse-craft/?mute",
   );
   const result = await page.evaluate(async () => {
-    const moduleUrl = "/games/neural-defence/src/app/audio.ts";
-    const audio: typeof import("../games/neural-defence/src/app/audio.js") =
+    const moduleUrl = "/games/fuse-craft/src/app/audio.ts";
+    const audio: typeof import("../games/fuse-craft/src/app/audio.js") =
       await import(moduleUrl);
     const original = AudioContext.prototype.createOscillator;
     let active = 0;

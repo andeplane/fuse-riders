@@ -29,6 +29,9 @@ importers:
       fuse-choppers:
         specifier: workspace:*
         version: link:games/fuse-choppers
+      fuse-craft:
+        specifier: workspace:*
+        version: link:games/fuse-craft
       fuse-freight:
         specifier: workspace:*
         version: link:games/fuse-freight
@@ -47,9 +50,6 @@ importers:
       jose:
         specifier: ^6.2.12
         version: 6.2.12
-      neural-defence:
-        specifier: workspace:*
-        version: link:games/neural-defence
       tsx:
         specifier: ^4.20.5
         version: 4.23.13
@@ -177,6 +177,25 @@ importers:
         specifier: ^1.5.4
         version: 1.5.4
 
+  games/fuse-craft:
+    dependencies:
+      fuse-netcode:
+        specifier: workspace:*
+        version: link:../../packages/fuse-netcode
+      fuse-network-fe:
+        specifier: workspace:*
+        version: link:../../packages/fuse-network-fe
+      fuse-platform:
+        specifier: workspace:*
+        version: link:../../packages/fuse-platform
+      fuse-ui:
+        specifier: workspace:*
+        version: link:../../packages/fuse-ui
+    devDependencies:
+      qrcode:
+        specifier: ^1.5.4
+        version: 1.5.4
+
   games/fuse-freight:
     dependencies:
       fuse-netcode:
@@ -219,25 +238,6 @@ importers:
       phaser:
         specifier: 4.2.1
         version: 4.2.1
-
-  games/neural-defence:
-    dependencies:
-      fuse-netcode:
-        specifier: workspace:*
-        version: link:../../packages/fuse-netcode
-      fuse-network-fe:
-        specifier: workspace:*
-        version: link:../../packages/fuse-network-fe
-      fuse-platform:
-        specifier: workspace:*
-        version: link:../../packages/fuse-platform
-      fuse-ui:
-        specifier: workspace:*
-        version: link:../../packages/fuse-ui
-    devDependencies:
-      qrcode:
-        specifier: ^1.5.4
-        version: 1.5.4
 
   packages/fuse-netcode:
     dependencies:

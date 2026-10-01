@@ -11,8 +11,8 @@ import {
   aiCommands,
   AI_STRATEGIES,
   type AiStrategy,
-} from "../games/neural-defence/src/engine/ai.js";
-import { CONSTRUCTIONS } from "../games/neural-defence/src/engine/catalog.js";
+} from "../games/fuse-craft/src/engine/ai.js";
+import { CONSTRUCTIONS } from "../games/fuse-craft/src/engine/catalog.js";
 import {
   createMatch,
   loadMap,
@@ -22,7 +22,7 @@ import {
   decodeState,
   type Command,
   type MapDefinition,
-} from "../games/neural-defence/src/engine/index.js";
+} from "../games/fuse-craft/src/engine/index.js";
 
 // Every match uses production rules and ordinary commands. No instant build,
 // injected resources or artificial "winner" when the time budget expires.
@@ -49,7 +49,7 @@ const maps: MapDefinition[] = [
   loadMap(
     JSON.parse(
       readFileSync(
-        new URL(`../games/neural-defence/maps/${id}.json`, import.meta.url),
+        new URL(`../games/fuse-craft/maps/${id}.json`, import.meta.url),
         "utf8",
       ),
     ),
@@ -84,8 +84,8 @@ const manifestPath = `${output}/manifest.json`;
 const resultsPath = `${output}/results.jsonl`;
 const resume = process.argv.includes("--resume");
 const simulationPaths = [
-  "games/neural-defence/src/engine",
-  "games/neural-defence/maps",
+  "games/fuse-craft/src/engine",
+  "games/fuse-craft/maps",
 ];
 // Untracked engine or map files change the simulation as much as edits do.
 const simulationDirty = [
@@ -136,8 +136,8 @@ if (resume) {
       "diff",
       previous.source,
       "--",
-      "games/neural-defence/src/engine",
-      "games/neural-defence/maps",
+      "games/fuse-craft/src/engine",
+      "games/fuse-craft/maps",
     ],
     { encoding: "utf8" },
   );
