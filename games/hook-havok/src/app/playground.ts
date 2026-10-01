@@ -24,12 +24,14 @@ import { toView, type WorldView } from "../engine/view.js";
 import type { ShowcaseHandle } from "../render/scene.js";
 import { interpolate } from "../render/interpolation.js";
 import { createTouchControls, type TouchControls } from "./touch-controls.js";
-import { touchAim } from "./touch-input.js";
+import { bombDirection, touchAim, type TouchState } from "./touch-input.js";
+import { ButtonMerge, mouseAims, touchInput } from "./input-merge.js";
 import { createRoster } from "./roster.js";
 import { createEntrance } from "./entrance.js";
 import { KeyboardInput } from "./keyboard-input.js";
 import { assistAim } from "./aim-assist.js";
 import { createMatchShell } from "./match-shell.js";
+import { createKnockoutFeed } from "./knockout-feed.js";
 import {
   sessionStore,
   sessionToken,
@@ -43,7 +45,7 @@ document.querySelector("main")!.innerHTML =
 <section id="invitation" class="controls" hidden><label>Invite <input id="invite-url" readonly aria-label="Room invite link"></label><button id="copy-invite">Copy link</button><a id="display-link" target="_blank" rel="noopener">Open shared display</a><button id="restart-room" disabled>Restart shared trial</button><button id="leave-room">Leave room</button></section><p id="roster" aria-live="polite"></p>
 <section class="controls experiment-controls"><label>Experiment <select id="experiment" name="experiment" form="tuning" disabled><option value="movement">Movement course</option><option value="target">Knockback target</option><option value="ball">Splitting ball</option></select></label><label><input id="touch-toggle" type="checkbox"> Touch controls</label><label id="aim-label" hidden>Aim <select id="aim-mode"><option value="eight">8 directions</option><option value="free">Free aim</option></select></label><span id="experiment-help">Explore the eight ledges with jump and grapple.</span></section>
 <div class="play-surface"><section class="stage"><div id="scene" tabindex="0" aria-label="Hook Havok playground"></div><div class="stage-caption"><span id="phase">Preparing the belfry…</span><span id="counter">SOLO EXPERIMENT</span></div></section>
-<section id="touch-deck" aria-label="Touch controls" hidden><div class="thumb-control move-control"><div class="thumb-pad" data-pad="move" aria-label="Move pad: slide left or right, slide up to jump"><span class="pad-cross">↔</span><span class="thumb-knob"></span></div><span>MOVE · UP TO JUMP</span></div><div class="thumb-control aim-control"><div class="thumb-pad" data-pad="aim" aria-label="Hook pad: drag from center to aim and fire, release to let go"><span class="pad-cross">✧</span><span class="thumb-knob"></span></div><span>AIM · HOLD TO HOOK</span></div></section></div>
+<section id="touch-deck" aria-label="Touch controls" hidden><div class="thumb-control move-control"><div class="thumb-pad" data-pad="move" aria-label="Move pad: slide left or right, slide up to jump"><span class="pad-cross">↔</span><span class="thumb-knob"></span></div><span>MOVE · UP TO JUMP</span></div><div class="thumb-control bomb-control"><div class="bomb-button" data-pad="bomb" role="button" aria-label="Bomb: hold to charge, release to throw along your last aim"><span class="thumb-knob"></span></div><span>BOMB · HOLD</span></div><div class="thumb-control aim-control"><div class="thumb-pad" data-pad="aim" aria-label="Hook pad: drag from center to aim and fire, release to let go"><span class="pad-cross">✧</span><span class="thumb-knob"></span></div><span>AIM · HOLD TO HOOK</span></div></section></div>
 <p id="touch-help" class="intro" hidden>Left thumb: slide sideways to move, up to jump; hold up for height. Right thumb: start near the center and drag toward your target to fire, keep holding to pull, release to let go. Release and drag again for another shot.</p>
 <section class="controls"><button id="start" disabled>Enter the belfry</button><button id="reset" disabled>Restart experiment</button><label><input id="debug" type="checkbox"> Show collision shapes</label><label><input id="atmosphere" type="checkbox" checked> Atmosphere</label><a id="study">Art showcase</a><button id="retry" hidden>Retry graphics</button></section>
 <p id="status" role="status" data-state="loading">Loading the belfry…</p>
@@ -86,12 +88,13 @@ document
 document.querySelector(".move-control > span")!.textContent =
   "MOVE · UP JUMP · DOWN DROP";
 el("touch-help").textContent =
-  "Left thumb: sideways to move, up to jump, down to drop through a ledge. Release down before dropping again. Right thumb: drag from center to aim and fire, hold to pull, release to let go.";
+  "Left thumb: sideways to move, up to jump, down to drop through a ledge. Release down before dropping again. Right thumb: drag from center to aim and fire, hold to pull, release to let go. Bomb button: hold to charge, release to throw along your last aim (forward and up before you have aimed).";
 const mouseHelp =
-  "A / D or ← / → to move · Space to jump through ledges · S / ↓ to drop through (one press per ledge) · Mouse to aim · Hold left mouse to hook and pull · Release to let go · R to reset. Click the scene to focus.";
-const KEYS_SHORT = "WASD aims · J jumps · K or click hooks · ↓ + J drops.";
+  "A / D or ← / → to move · Space to jump through ledges · S / ↓ to drop through (one press per ledge) · Mouse to aim · Hold left mouse to hook and pull · Hold right mouse to charge a bomb, release to throw · R to reset. Click the scene to focus.";
+const KEYS_SHORT =
+  "WASD aims · Space jumps · J or left click hooks · K or right click bombs · ↓ + Space drops.";
 const KEYS_HELP =
-  "A / D or ← / → to move · WASD / arrows aim in eight directions · J / Space to jump, twice for an air jump · Hold K to hook and reel in, or click to hook where the mouse points · Steer to swing · Jump while hooked to leap off · Release to let go · ↓ + jump (or Shift+↓) to drop · R to reset. Click the scene to focus.";
+  "A / D or ← / → to move · WASD / arrows aim in eight directions · Space to jump, twice for an air jump · Hold J to hook and reel in, or left click to hook where the mouse points · Steer to swing · Jump while hooked to leap off · Release to let go · Hold K (or right click) to charge a bomb, release to throw · ↓ + Space (or Shift+↓) to drop · R to reset. Click the scene to focus.";
 document.querySelector(".desktop-help")!.textContent = KEYS_HELP;
 document.querySelector("details > p")!.textContent =
   "Apply restarts the exercise. Platforms catch players from above; hooks still attach to every surface. Dropping releases your hook.";
@@ -106,14 +109,15 @@ mapHelp.textContent = "Changing arena restarts the shared trial.";
 rulesPanel.prepend(mapLabel, mapHelp);
 const trials = document.createElement("section");
 trials.className = "controls experiment-controls";
-trials.innerHTML = `<label>Jump <select id="jump-mode" name="jumpMode" form="tuning" disabled><option value="single">Single jump</option><option value="double">Double jump</option></select></label><label>Tether <select id="wire-mode" name="wire" form="tuning" disabled><option value="tip">Hook tip only</option><option value="spiked">Spiked wire</option></select></label><label>Your controls <select id="keyboard-mode"><option value="keyboard">Keyboard · J / K</option><option value="mouse">Mouse aim</option></select></label><span id="control-help">${KEYS_SHORT}</span>`;
+trials.innerHTML = `<label>Jump <select id="jump-mode" name="jumpMode" form="tuning" disabled><option value="single">Single jump</option><option value="double">Double jump</option></select></label><label>Tether <select id="wire-mode" name="wire" form="tuning" disabled><option value="tip">Hook tip only</option><option value="spiked">Spiked wire</option></select></label><label>Bombs <select id="bomb-mode" name="bomb" form="tuning" disabled><option value="off">Off</option><option value="fuse">Fuse · 1.5 s</option><option value="impact">Impact on a rival</option></select></label><label>Your controls <select id="keyboard-mode"><option value="keyboard">Keyboard · J hook / K bomb</option><option value="mouse">Mouse aim</option></select></label><span id="control-help">${KEYS_SHORT}</span>`;
 rulesPanel.after(trials);
 const trialHelp = document.createElement("span");
 trialHelp.textContent =
-  "Jump / Tether changes restart the shared trial. Double jump: one extra leap before landing. Spiked wire: balls split on contact and the shot ends; rivals and the brass target still need the tip.";
+  "Jump / Tether / Bombs changes restart the shared trial. Double jump: one extra leap before landing. Spiked wire (default): the whole visible rope pops balls, retract included, and a pop ends the shot; rivals and the brass target still need the tip. Bombs: hold to charge (full at 0.6 s), release to throw; the blast knocks out every keeper in reach, you included. Impact goes off on touching a rival, or at the fuse.";
 trials.append(trialHelp);
 const jumpMode = el<HTMLSelectElement>("jump-mode"),
   wireMode = el<HTMLSelectElement>("wire-mode"),
+  bombMode = el<HTMLSelectElement>("bomb-mode"),
   keyboardMode = el<HTMLSelectElement>("keyboard-mode");
 const powerLabel = document.createElement("label");
 powerLabel.innerHTML = `Power-ups <select id="power-ups" name="powerUps" form="tuning" disabled><option value="off">Off</option><option value="on">Lift & Ward</option></select>`;
@@ -238,53 +242,88 @@ let runtime: HookRuntime | undefined,
 let input: Input = { ...NEUTRAL };
 let touch: TouchControls | undefined;
 let mousePointer: number | undefined;
+const buttons = new ButtonMerge();
+let touchState: TouchState | undefined;
 const keyboard = new KeyboardInput();
 host.dataset.controls = keyboard.mode;
-let keyFire = false;
-/** Merges keyboard intent; in the standard scheme K and a mouse click both hold the hook. */
-function sampleKeys() {
-  const chest = latest.feet - latest.body.height * 0.6;
-  const sampled = keyboard.sample(latest.x, chest, (dx, dy) =>
-    assistAim(latest.platforms, latest.x, chest, dx, dy, latest.range),
+const chest = () => latest.feet - latest.body.height * 0.6;
+const sampleKeyboard = () =>
+  keyboard.sample(
+    latest.x,
+    chest(),
+    (dx, dy) =>
+      assistAim(latest.platforms, latest.x, chest(), dx, dy, latest.range),
+    performance.now(),
   );
-  keyFire = sampled.fire ?? false;
+/** Merges keyboard intent; J or a left click holds the hook, K or a right click the bomb. */
+function sampleKeys() {
+  const sampled = sampleKeyboard();
   Object.assign(input, sampled);
-  if (keyboard.mode === "keyboard")
-    input.fire = keyFire || mousePointer !== undefined;
+  Object.assign(
+    input,
+    buttons.keys(sampled.fire ?? false, sampled.bomb ?? false),
+  );
+}
+/** Where a bomb released now would be aimed; drives the local arc preview only. */
+function bombAim(): { x: number; y: number } | undefined {
+  if (display) return;
+  if (touchDeck.dataset.active === "true" && touchState) {
+    const aim = touchAim(
+      latest.x,
+      chest(),
+      bombDirection(touchState, latest.facing),
+    );
+    return { x: aim.aimX, y: aim.aimY };
+  }
+  if (keyboard.mode === "keyboard" && keyboard.aimSource === "keys") {
+    const sampled = sampleKeyboard();
+    if (sampled.aimX !== undefined && sampled.aimY !== undefined)
+      return { x: sampled.aimX, y: sampled.aimY };
+  }
+  return { x: input.aimX, y: input.aimY };
 }
 let roomDeadline: ReturnType<typeof setTimeout> | undefined;
+/**
+ * Releases everything held. The protocol has no cancel, so a charging bomb is
+ * thrown: along where it is aimed now (keys, touch or the mouse's last
+ * position), not where the press was.
+ */
 function clear() {
+  const aim = bombAim() ?? { x: input.aimX, y: input.aimY };
   const captured = mousePointer;
   mousePointer = undefined;
+  buttons.clear();
   if (captured !== undefined && host.hasPointerCapture(captured))
     host.releasePointerCapture(captured);
   touch?.clear();
   keyboard.clear();
-  input = { ...NEUTRAL, aimX: input.aimX, aimY: input.aimY };
-  runtime?.clear();
+  input = { ...NEUTRAL, aimX: aim.x, aimY: aim.y };
+  runtime?.clear(input);
 }
 function send() {
   runtime?.input(input);
 }
 const touchToggle = el<HTMLInputElement>("touch-toggle"),
-  touchDeck = el("touch-deck");
+  touchDeck = el("touch-deck"),
+  bombButton = touchDeck.querySelector<HTMLElement>('[data-pad="bomb"]')!;
+/** The bomb button dims while recharging and hides when bombs are off. */
+function paintBombButton(view: WorldView) {
+  const local = view.keepers.find((k) => k.id === selfId),
+    off = view.bombMode === "off",
+    ready = String(!!local && !local.cooldown);
+  const control = bombButton.closest<HTMLElement>(".bomb-control")!;
+  if (control.hidden !== off) control.hidden = off;
+  if (bombButton.dataset.ready !== ready) bombButton.dataset.ready = ready;
+}
 touch = createTouchControls(
   touchDeck,
   (state) => {
-    const wasFiring = input.fire;
-    input.move = state.move;
-    input.jump = state.jump;
-    input.drop = state.drop;
-    input.fire = state.fire;
-    if (state.fire && !wasFiring)
-      Object.assign(
-        input,
-        touchAim(
-          latest.x,
-          latest.feet - latest.body.height * 0.6,
-          state.direction,
-        ),
-      );
+    touchState = state;
+    input = touchInput(input, state, {
+      x: latest.x,
+      y: chest(),
+      facing: latest.facing,
+    });
     send();
   },
   clear,
@@ -308,7 +347,8 @@ el<HTMLSelectElement>("aim-mode").onchange = (event) => {
   );
 };
 touchLayout();
-window.addEventListener("resize", clear);
+// Not on resize: a phone's URL bar and rotation resize mid-charge, and a
+// clear would throw the bomb.
 function sample(): WorldView {
   const timing = runtime?.frameTiming();
   if (!timing) return latest;
@@ -327,11 +367,15 @@ function localView(view: WorldView): WorldView {
     contest: view.contest,
     pickups: view.pickups,
     pickupEvents: view.pickupEvents,
+    bombs: view.bombs,
+    blasts: view.blasts,
+    knockouts: view.knockouts,
     localId: local?.id,
   };
 }
 function stopRoom() {
   matchShell.reset();
+  knockoutFeed.reset();
   connecting = false;
   document.body.classList.remove("arena-focused");
   focusButton.textContent = "Focus arena";
@@ -352,7 +396,7 @@ function stopRoom() {
   experiment.disabled = true;
   rulesSelect.disabled = true;
   mapSelect.disabled = true;
-  jumpMode.disabled = wireMode.disabled = true;
+  jumpMode.disabled = wireMode.disabled = bombMode.disabled = true;
   powerMode.disabled = true;
   touch?.enable(false);
   el<HTMLButtonElement>("restart-room").disabled = true;
@@ -398,8 +442,9 @@ async function graphics() {
         !display &&
         keyboard.mode === "keyboard" &&
         keyboard.aimSource === "keys"
-          ? keyboard.direction
+          ? keyboard.aimDirection(performance.now())
           : undefined,
+      bombAim,
       cue: (cue) => effects.cue(cue),
       ready() {
         if (token !== attempt) return;
@@ -454,6 +499,7 @@ const enterRoom = async () => {
   mapSelect.value = DEFAULT_TUNING.map;
   jumpMode.value = DEFAULT_TUNING.jumpMode;
   wireMode.value = DEFAULT_TUNING.wire;
+  bombMode.value = DEFAULT_TUNING.bomb;
   powerMode.value = DEFAULT_TUNING.powerUps;
   for (const key of Object.keys(TUNING_BOUNDS)) {
     const field = tuning.elements.namedItem(key) as HTMLInputElement;
@@ -542,6 +588,7 @@ const enterRoom = async () => {
               controllable &&
               !!local?.connected,
           );
+          paintBombButton(frame);
           if (!display && !joined) {
             joined = !!runtime?.command({
               type: "join",
@@ -584,7 +631,10 @@ const enterRoom = async () => {
             experiment.disabled = !manager;
             rulesSelect.disabled = !manager;
             mapSelect.disabled = !manager;
-            jumpMode.disabled = wireMode.disabled = !manager;
+            jumpMode.disabled =
+              wireMode.disabled =
+              bombMode.disabled =
+                !manager;
             powerMode.disabled = !manager;
             el<HTMLButtonElement>("restart-room").disabled = !manager;
             setText(
@@ -604,6 +654,7 @@ const enterRoom = async () => {
           mapSelect.value = settings.map;
           jumpMode.value = settings.jumpMode;
           wireMode.value = settings.wire;
+          bombMode.value = settings.bomb;
           powerMode.value = settings.powerUps;
           powerHelp.hidden = settings.powerUps !== "on";
           setText(
@@ -617,8 +668,8 @@ const enterRoom = async () => {
             c.rules === "free"
               ? "Respawn freely and explore."
               : c.rules === "elimination"
-                ? "A fall puts you out. Last keeper wins · 60-second limit."
-                : "Player hit +1 · fall −2 · respawn · highest score after 60 seconds. Props give no points. Last remaining entrant wins if others forfeit.",
+                ? "A fall or a bomb knockout puts you out. Last keeper wins · 60-second limit."
+                : "Hook hit +1 · bomb knockout +1 · own bomb −1 more · fall or knockout −2 · respawn · highest score after 60 seconds. Props give no points. Last remaining entrant wins if others forfeit.",
           );
           const names = (ids: string[]) =>
             ids
@@ -642,6 +693,7 @@ const enterRoom = async () => {
           host.dataset.contest = JSON.stringify(c);
           host.dataset.round = String(frame.round);
           paintRoster(frame, selfId);
+          knockoutFeed.update(frame, frame.round);
           matchShell.update(
             frame,
             selfId,
@@ -760,9 +812,15 @@ tuning.onsubmit = (e) => {
     Object.fromEntries(
       [...new FormData(tuning)].map(([k, v]) => [
         k,
-        ["experiment", "rules", "map", "jumpMode", "wire", "powerUps"].includes(
-          k,
-        )
+        [
+          "experiment",
+          "rules",
+          "map",
+          "jumpMode",
+          "wire",
+          "bomb",
+          "powerUps",
+        ].includes(k)
           ? v
           : Number(v),
       ]),
@@ -778,7 +836,10 @@ tuning.onsubmit = (e) => {
 experiment.onchange = () => tuning.requestSubmit();
 rulesSelect.onchange = () => tuning.requestSubmit();
 mapSelect.onchange = () => tuning.requestSubmit();
-jumpMode.onchange = wireMode.onchange = () => tuning.requestSubmit();
+jumpMode.onchange =
+  wireMode.onchange =
+  bombMode.onchange =
+    () => tuning.requestSubmit();
 powerMode.onchange = () => tuning.requestSubmit();
 keyboardMode.onchange = () => {
   clear();
@@ -786,7 +847,7 @@ keyboardMode.onchange = () => {
   el("control-help").textContent =
     keyboard.mode === "keyboard"
       ? KEYS_SHORT
-      : "Mouse aims · Space jumps · S / ↓ drops.";
+      : "Mouse aims · left click hooks · right click bombs · Space jumps · S / ↓ drops.";
   host.dataset.controls = keyboard.mode;
   document.querySelector(".desktop-help")!.textContent =
     keyboard.mode === "keyboard" ? KEYS_HELP : mouseHelp;
@@ -803,13 +864,13 @@ host.addEventListener("keydown", (e) => {
   e.preventDefault();
   if (e.repeat) return;
   if (touchDeck.dataset.active === "true") clear();
-  keyboard.key(e.code, true);
+  keyboard.key(e.code, true, performance.now());
   sampleKeys();
   send();
 });
 host.addEventListener("keyup", (e) => {
   if (!keyboard.accepts(e.code)) return;
-  keyboard.key(e.code, false);
+  keyboard.key(e.code, false, performance.now());
   if (touchDeck.dataset.active === "true") return;
   sampleKeys();
   send();
@@ -825,12 +886,20 @@ function aim(e: PointerEvent) {
   );
 }
 host.addEventListener("pointermove", (e) => {
-  if (e.pointerType !== "mouse") return;
-  if (keyboard.mode === "keyboard" && keyboard.aimSource === "keys") return;
-  aim(e);
+  if (e.pointerType === "mouse" && mouseAims(keyboard)) aim(e);
 });
+/**
+ * Left holds the hook, right charges a bomb (`ButtonMerge`). Aim travels
+ * with each change while the mouse owns it: the hook reads it on the press,
+ * the bomb on the release.
+ */
+function mouseButtons(mask: number): void {
+  const held = buttons.pointer(mask);
+  if (held) Object.assign(input, held);
+}
+host.addEventListener("contextmenu", (e) => e.preventDefault());
 host.addEventListener("pointerdown", (e) => {
-  if (e.button !== 0 || e.pointerType !== "mouse") return;
+  if ((e.button !== 0 && e.button !== 2) || e.pointerType !== "mouse") return;
   if (touchDeck.dataset.active === "true") clear();
   e.preventDefault();
   host.focus();
@@ -838,13 +907,22 @@ host.addEventListener("pointerdown", (e) => {
   mousePointer = e.pointerId;
   host.setPointerCapture(e.pointerId);
   aim(e);
-  input.fire = true;
+  mouseButtons(ButtonMerge.pressed(e.button, e.buttons));
+  send();
+});
+// A chord: the second button pressed or released while the first is held.
+host.addEventListener("pointermove", (e) => {
+  if (e.pointerId !== mousePointer || (e.buttons & 3) === buttons.buttons)
+    return;
+  if (mouseAims(keyboard)) aim(e);
+  mouseButtons(e.buttons);
   send();
 });
 function releaseMouse(e: PointerEvent) {
   if (e.pointerId !== mousePointer) return;
   mousePointer = undefined;
-  input.fire = keyboard.mode === "keyboard" && keyFire;
+  if (e.type === "pointerup" && mouseAims(keyboard)) aim(e);
+  mouseButtons(0);
   send();
 }
 host.addEventListener("pointerup", releaseMouse);
@@ -878,6 +956,7 @@ window.addEventListener("pageshow", (e) => {
   if (e.persisted) location.reload();
 });
 const matchShell = createMatchShell();
+const knockoutFeed = createKnockoutFeed(document.querySelector(".stage")!);
 const entrance = createEntrance({
   main: document.querySelector("main")!,
   start,

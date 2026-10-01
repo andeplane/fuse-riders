@@ -143,6 +143,8 @@ export function paintBurst(
   const age = Math.max(0, Math.min(1, (ms - burst.at) / 400));
   const alpha = 1 - age;
   const { x, y, kind } = burst;
+  // A throw is a pose; a blast has its own presenter (render/bombs.ts).
+  if (kind === "throw" || kind === "boom") return;
   if (reduced) {
     g.lineStyle(2, burst.color ?? 0xffe5b2, alpha * 0.6).strokeCircle(
       x,
@@ -152,7 +154,7 @@ export function paintBurst(
     return;
   }
   const ground = kind === "land" || kind === "jump";
-  const impact = kind === "impact" || kind === "pop";
+  const impact = kind === "impact" || kind === "pop" || kind === "blasted";
   if (kind === "power") {
     g.lineStyle(3, 0xa1f5d1, alpha).strokeCircle(x, y - 28, 18 + age * 40);
     g.lineStyle(1, 0xffefbc, alpha).strokeCircle(x, y - 28, 12 + age * 24);

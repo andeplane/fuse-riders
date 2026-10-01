@@ -44,11 +44,11 @@ try {
   await page.locator("#arena-focus").click();
   await page.locator("#scene").focus();
   await page.waitForTimeout(400);
-  // Tap right to aim right without walking far, then fire.
+  // Tap right to aim right without walking far, then fire with J.
   await page.keyboard.down("KeyD");
   await page.waitForTimeout(30);
   await page.keyboard.up("KeyD");
-  await page.keyboard.down("KeyK");
+  await page.keyboard.down("KeyJ");
   await page.waitForFunction(
     () => document.querySelector("#scene").dataset.hook !== "ready",
   );
@@ -58,7 +58,7 @@ try {
     await page.screenshot({ path });
     shots.push(path);
   }
-  await page.keyboard.up("KeyK");
+  await page.keyboard.up("KeyJ");
   const hits = Number(await page.locator("#scene").getAttribute("data-hits"));
   assert.ok(hits >= 1, "the keyboard shot struck the target");
   assert.deepEqual(errors, []);

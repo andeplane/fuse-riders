@@ -52,12 +52,12 @@ try {
   assert.equal(await guest.locator("#jump-mode").isDisabled(), true);
   await ticks(12);
   await host.locator("#scene").focus();
-  await host.keyboard.down("j");
+  await host.keyboard.down("Space");
   await ticks(12);
-  await host.keyboard.up("j");
+  await host.keyboard.up("Space");
   await ticks(3);
   assert.equal((await state(host)).airJump, "true");
-  await host.keyboard.down("j");
+  await host.keyboard.down("Space");
   await host.waitForFunction(
     () => document.querySelector("#scene").dataset.airJump === "false",
   );
@@ -68,7 +68,7 @@ try {
     path: "games/hook-havok/docs/evidence/controls-air-jump.png",
     fullPage: true,
   });
-  await host.keyboard.up("j");
+  await host.keyboard.up("Space");
   const restart = async () => {
     const round = (await state(host)).round;
     await host.locator("#restart-room").click();
@@ -93,13 +93,13 @@ try {
   );
   await host.keyboard.up("s");
   await host.keyboard.up("Shift");
-  await host.keyboard.down("j");
+  await host.keyboard.down("Space");
   await host.waitForFunction(
     () => document.querySelector("#scene").dataset.airJump === "false",
   );
-  await host.keyboard.up("j");
+  await host.keyboard.up("Space");
   console.log(
-    "PASS J double jump, hold/release and down-aim versus deliberate drop with air recovery",
+    "PASS Space double jump, hold/release and down-aim versus deliberate drop with air recovery",
   );
   await restart();
   await host.locator("#wire-mode").selectOption("spiked");
@@ -109,7 +109,7 @@ try {
   await ticks(12);
   await host.locator("#scene").focus();
   await host.keyboard.down("w");
-  await host.keyboard.down("k");
+  await host.keyboard.down("j");
   await host.waitForFunction(
     () => document.querySelector("#scene").dataset.hook === "attached",
   );
@@ -122,7 +122,7 @@ try {
     path: "games/hook-havok/docs/evidence/controls-spiked-wire.png",
     fullPage: true,
   });
-  await host.keyboard.up("k");
+  await host.keyboard.up("j");
   await host.keyboard.up("w");
   await host.waitForFunction(
     () => document.querySelector("#scene").dataset.hook === "ready",
@@ -131,7 +131,7 @@ try {
   await host.locator("#scene").focus();
   await host.keyboard.down("w");
   await host.keyboard.down("d");
-  await host.keyboard.down("k");
+  await host.keyboard.down("j");
   await host.waitForFunction(
     () => document.querySelector("#scene").dataset.hook === "flying",
   );
@@ -151,7 +151,7 @@ try {
   await host.waitForFunction(
     () => document.querySelector("#scene").dataset.hook === "ready",
   );
-  await host.keyboard.up("k");
+  await host.keyboard.up("j");
   await host.keyboard.up("w");
   await host.keyboard.up("d");
   await guest.reload();
@@ -159,7 +159,7 @@ try {
   assert.equal(await guest.locator("#wire-mode").inputValue(), "spiked");
   assert.equal(await guest.locator("#jump-mode").inputValue(), "double");
   console.log(
-    "PASS up/diagonal K hooks, spiked presentation, blur cancellation, shared options and peer refresh",
+    "PASS up/diagonal J hooks, spiked presentation, blur cancellation, shared options and peer refresh",
   );
   await host.locator("#keyboard-mode").selectOption("mouse");
   await restart();

@@ -4,6 +4,8 @@ An illustrated 2D grappling-platformer experiment for the Fuse party pack.
 
 ## Current milestone
 
+Phases 11A–11B add [the spiked wire everywhere and a thrown bomb](docs/bombs.md). The spikes now pop orbs along the whole visible rope, the retract included, and spiked is the default. Controls change: **Space** jumps, **J** (or left click) hooks, **K** (or right click) charges a bomb, **↓ + Space** drops; on touch a bomb button sits beside the aim pad. Hold to charge (full at 0.6 s) and release to throw; after 1.5 s the blast knocks out every keeper in its red ring, you included, then you are back in a second. **Development workshop → Bombs** switches between off, fuse and impact. Rules are `hook-havok-12`; refresh all clients and create a fresh room.
+
 Phases 10B–10D are a [look and feel pass](docs/look-and-feel.md): sharp high-density rendering, a full-screen arena in **Focus arena** with an inked foreground frame, a hand-drawn rope, light shafts and lantern halos, painted stone keels under the ledges, and flashier hits, pops, knockouts and swings. Rules are unchanged from 10A. Add `?res=1` to compare against the old rendering cost.
 
 Phase 10A reworks the hook into a [winch rope](docs/hook-rope.md). It catches you instead of letting you sink, reels you up to a hang, swings when you steer and lets go with a rope jump. Passing through other ledges no longer cuts it. New rooms start on Crossroads with double jump, bouncing orbs and keyboard + mouse controls: J / Space jump, WASD / arrows aim, hold K (or click) to hook, Down + Jump drops. Rules are `hook-havok-10`; refresh all clients and create a fresh room.
@@ -46,7 +48,7 @@ The working direction combines **A's belfry/character identity with B's denser p
 
 ## Open the movement playground
 
-Build with `pnpm build`, then run `node --import tsx service/dev.ts --port 8787` (or `pnpm dev` in a shell supporting the repository's scripts). The existing server selects a free port if needed. Open `/hook-havok/?mute` on the printed origin, or follow the landing-page link. Click **Create room**. A/D or arrows move; J / Space jumps (release early for a shorter jump, press again in the air); WASD / arrows aim and holding K hooks and reels, or hold left mouse to hook where you point; jump while hooked to leap off; Down + Jump drops; R resets. The **Development workshop** changes settings and restarts the exercise. For Vite source development, the page is `/games/hook-havok/`; built output is `/hook-havok/`.
+Build with `pnpm build`, then run `node --import tsx service/dev.ts --port 8787` (or `pnpm dev` in a shell supporting the repository's scripts). The existing server selects a free port if needed. Open `/hook-havok/?mute` on the printed origin, or follow the landing-page link. Click **Create room**. A/D or arrows move; Space jumps (release early for a shorter jump, press again in the air); WASD / arrows aim; hold J to hook and reel, or hold left mouse to hook where you point; jump while hooked to leap off; hold K (or right mouse) to charge a bomb and release to throw; Down + Space drops; R resets. On touch, the bomb button sits beside the aim pad. The **Development workshop** changes settings and restarts the exercise. For Vite source development, the page is `/games/hook-havok/`; built output is `/hook-havok/`.
 
 The **Art showcase** link opens the previous authored study at `?showcase=1&mute`.
 

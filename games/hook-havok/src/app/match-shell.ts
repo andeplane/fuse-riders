@@ -45,7 +45,7 @@ export function createMatchShell() {
   const overlay = document.createElement("section");
   overlay.id = "match-overlay";
   overlay.hidden = true;
-  overlay.innerHTML = `<div id="countdown-card" role="status" hidden><span>GET READY</span><strong id="countdown-number"></strong></div><section id="result-card" aria-labelledby="result-title" hidden><p class="result-kicker">THE BELFRY REMEMBERS</p><h2 id="result-title"></h2><div id="winner-portraits" aria-hidden="true"></div><p id="result-detail" role="status"></p><div class="result-actions"><button id="rematch">Play again</button><button id="result-free">Free play</button><button id="dismiss-results">View arena</button></div><p id="rematch-help"></p></section>`;
+  overlay.innerHTML = `<div id="countdown-card" role="status" hidden><span>GET READY</span><strong id="countdown-number"></strong></div><section id="result-card" aria-labelledby="result-title" hidden><p class="result-kicker">THE BELFRY REMEMBERS</p><h2 id="result-title"></h2><div id="winner-portraits" aria-hidden="true"></div><p id="result-detail" role="status"></p><ol id="result-tally" aria-label="Round tally"></ol><div class="result-actions"><button id="rematch">Play again</button><button id="result-free">Free play</button><button id="dismiss-results">View arena</button></div><p id="rematch-help"></p></section>`;
   document.querySelector(".stage")!.append(overlay);
   get("rematch").onclick = () => {
     get<HTMLButtonElement>("restart-room").click();
@@ -95,7 +95,15 @@ export function createMatchShell() {
         c.entries,
         c.winners,
         view.map,
-        view.keepers.map((k) => [k.id, k.name, k.slot, k.connected, k.playing]),
+        view.keepers.map((k) => [
+          k.id,
+          k.name,
+          k.slot,
+          k.connected,
+          k.playing,
+          c.phase === "over" ? k.tally : null,
+        ]),
+        view.bombMode,
         selfId,
         manager,
         display,
@@ -172,6 +180,48 @@ export function createMatchShell() {
         get("result-detail").textContent = c.winners.length
           ? c.winners.map(name).join(" & ")
           : "The round ends in a draw.";
+        // Knockouts, self-knockouts, bombs thrown and how each keeper went down.
+        const bombs = view.bombMode !== "off";
+        const fate = (t: (typeof view.keepers)[number]["tally"]) =>
+          t.fate === "fall"
+            ? "fell"
+            : t.fate === "self"
+              ? "own bomb"
+              : t.fate === "bomb"
+                ? `bombed by ${name(t.by)}`
+                : "";
+        get("result-tally").replaceChildren(
+          ...c.entries.map((entry) => {
+            const k = view.keepers.find((k) => k.id === entry.id);
+            const li = document.createElement("li");
+            li.style.setProperty("--keeper-color", keeperColor(entry.slot));
+            const who = document.createElement("strong");
+            who.textContent = name(entry.id);
+            const facts: string[] = [];
+            if (k && bombs)
+              facts.push(
+                `${k.tally.knockouts} KO`,
+                `${k.tally.selfKnockouts} self`,
+                `${k.tally.thrown} bombs`,
+              );
+            if (c.rules === "elimination")
+              facts.push(
+                entry.out
+                  ? `out · ${(k && fate(k.tally)) || "left"}`
+                  : "standing",
+              );
+            else if (k)
+              facts.push(
+                `${k.tally.falls} falls`,
+                ...(bombs ? [`${k.tally.bombed} bombed`] : []),
+                ...(k.tally.fate ? [`last: ${fate(k.tally)}`] : []),
+              );
+            const detail = document.createElement("span");
+            detail.textContent = facts.join(" · ");
+            li.append(who, " ", detail);
+            return li;
+          }),
+        );
         get("winner-portraits").replaceChildren(
           ...c.winners.map((id) => {
             const p = document.createElement("span");

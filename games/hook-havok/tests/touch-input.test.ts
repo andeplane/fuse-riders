@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { TouchInput, touchAim } from "../src/app/touch-input.js";
+import { TouchInput, bombDirection, touchAim } from "../src/app/touch-input.js";
 import { parseInput } from "../src/engine/codec.js";
 import { NEUTRAL } from "../src/engine/world.js";
 
@@ -77,4 +77,38 @@ test("aim endpoints preserve direction within the wire contract near arena edges
           }),
         );
       }
+});
+test("the bomb button holds a charge beside the aim pad and throws along the last aim, or forward and up", () => {
+  const c = new TouchInput();
+  assert.equal(c.begin("bomb", 5), true);
+  c.update("bomb", 5, 0, 0);
+  assert.equal(c.state.bomb, true);
+  assert.equal(c.begin("aim", 5), false, "one finger, one control");
+  c.begin("aim", 6);
+  c.update("aim", 6, -0.8, 0);
+  assert.equal(c.state.fire, true);
+  assert.equal(c.state.bomb, true, "hook and bomb are independent");
+  const along = bombDirection(c.state, 1);
+  assert.ok(
+    Math.abs(along.x + 1) < 1e-9 && Math.abs(along.y) < 1e-9,
+    "the aim pad's direction",
+  );
+  c.end("bomb", 5);
+  assert.equal(c.state.bomb, false);
+  assert.equal(c.state.fire, true);
+  const fresh = new TouchInput();
+  const lob = bombDirection(fresh.state, -1);
+  assert.ok(lob.x < 0 && lob.y < 0, "before aiming: facing, forward and up");
+  fresh.begin("bomb", 1);
+  fresh.update("bomb", 1, 0, 0);
+  fresh.clear();
+  assert.equal(fresh.state.bomb, false, "a cleared finger cannot throw later");
+  assert.equal(fresh.update("bomb", 1, 0, 0), false);
+  assert.ok(
+    parseInput({
+      ...NEUTRAL,
+      bomb: false,
+      ...touchAim(310, 780, bombDirection(fresh.state, 1)),
+    }),
+  );
 });

@@ -23,6 +23,7 @@ import { paintPowerUps } from "./power-ups.js";
 import { createFrame, type Frame } from "./frame.js";
 import { createLight, keelTexture, type Light } from "./light.js";
 import { createJuice, type Juice } from "./juice.js";
+import { createBombs, type BombKeeper, type Bombs } from "./bombs.js";
 import {
   animateShrine,
   dressShrine,
@@ -41,6 +42,8 @@ export interface ShowcaseHandle {
 }
 interface Options {
   keyboardAim?(): { x: number; y: number } | undefined;
+  /** Where the local keeper's bomb would be aimed on release (arc preview only). */
+  bombAim?(): { x: number; y: number } | undefined;
   cue?(cue: Cue): void;
   view?(): WorldView;
   debug?(): boolean;
@@ -86,6 +89,18 @@ export function createShowcase(
   const feedback = new Feedback();
   const res = renderScale();
   const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+  /** Diagnostic lists for the browser checks, written only when they change. */
+  const written = new Map<string, string>();
+  const writeList = (key: string, list: readonly unknown[]) => {
+    const last = written.get(key);
+    if (!list.length && last === "[]") return;
+    const text = list.length ? JSON.stringify(list) : "[]";
+    if (text === last) return;
+    written.set(key, text);
+    host.dataset[key] = text;
+  };
+  /** Reused every frame: the bomb layer's keepers. */
+  const bombKeepers: BombKeeper[] = [];
   class Belfry extends Phaser.Scene {
     private peers = new Map<
       string,
@@ -127,6 +142,7 @@ export function createShowcase(
     private frame?: Frame;
     private light?: Light;
     private juice?: Juice;
+    private bombs?: Bombs;
     constructor() {
       super("belfry");
     }
@@ -264,6 +280,7 @@ export function createShowcase(
         .setVisible(false);
       this.effects = this.add.graphics().setDepth(14);
       this.juice = createJuice(this, res);
+      this.bombs = createBombs(this);
       // Inked foreground framing, never a playable surface.
       this.frame = createFrame(this);
       this.paint();
@@ -409,9 +426,34 @@ export function createShowcase(
       this.frame?.destroy();
       this.light?.destroy();
       this.juice?.destroy();
+      this.bombs?.destroy();
     }
     resetPeerFeedback(): void {
       for (const peer of this.peers.values()) peer.feedback.reset();
+      this.bombs?.reset();
+    }
+    /** The bomb layer's keepers, in pooled objects: this runs every frame. */
+    private bombKeepers(
+      world: WorldView,
+      focused: string | undefined,
+      pose: { x: number; feet: number; alpha: number },
+      own: number,
+    ): readonly BombKeeper[] {
+      bombKeepers.length = world.keepers.length;
+      world.keepers.forEach((k, i) => {
+        const mine = k.id === focused,
+          entry = (bombKeepers[i] ??= {} as BombKeeper);
+        entry.id = k.id;
+        entry.x = mine ? pose.x : k.body.x;
+        entry.feet = mine ? pose.feet : k.body.feet;
+        entry.facing = mine ? world.facing : k.body.facing;
+        entry.charge = mine ? world.charge : k.body.charge;
+        entry.color = KEEPER_COLORS[k.slot] ?? own;
+        entry.alpha = mine
+          ? pose.alpha
+          : (this.peers.get(k.id)?.actor.alpha ?? 1);
+      });
+      return bombKeepers;
     }
     private paint(): void {
       if (!this.actor || !this.hook || !this.tether || !this.effects) return;
@@ -446,11 +488,15 @@ export function createShowcase(
               spark: 0,
               label: world.respawn
                 ? "Returning to the belfry…"
-                : world.hook.phase === "attached"
-                  ? "Release to keep your momentum"
-                  : world.grounded
-                    ? "Find your next foothold"
-                    : "In the air",
+                : world.charge > 0
+                  ? world.charge >= 1
+                    ? "Full charge · release to throw"
+                    : "Charging · release to throw"
+                  : world.hook.phase === "attached"
+                    ? "Release to keep your momentum"
+                    : world.grounded
+                      ? "Find your next foothold"
+                      : "In the air",
             }
           : showcasePose(elapsed, idleOnly),
         frame = (motion?.texture === "run" ? this.runFrames : this.frames)[
@@ -558,6 +604,8 @@ export function createShowcase(
               keepers: world.keepers,
               contest: world.contest,
               pickupEvents: world.pickupEvents,
+              // A peer body's own lists are empty; its "blasted" cue needs the room's.
+              knockouts: world.knockouts,
             },
             elapsed,
           );
@@ -659,9 +707,28 @@ export function createShowcase(
                 paintBurst(this.effects, burst, elapsed, reduced.matches);
         }
         const own = color;
+        const bombFrame = this.bombs?.update(
+          world,
+          elapsed,
+          reduced.matches,
+          this.bombKeepers(world, focused, pose, own),
+          (owner) =>
+            KEEPER_COLORS[
+              world.keepers.find((k) => k.id === owner)?.slot ?? 0
+            ] ?? own,
+          world.localId
+            ? {
+                view: world,
+                aim: world.charge > 0 ? options.bombAim?.() : undefined,
+              }
+            : undefined,
+        );
+        if (!document.hidden)
+          for (const cue of bombFrame?.cues ?? []) options.cue?.(cue);
         this.juice?.update(
           elapsed,
           [
+            ...(bombFrame?.bursts ?? []),
             ...feedback.active().map((burst) => ({
               burst,
               color: own,
@@ -708,6 +775,10 @@ export function createShowcase(
             costume: k.slot,
             shield: k.shield,
             ward: k.ward,
+            respawn: k.body.respawn,
+            charge: k.body.charge,
+            cooldown: k.cooldown,
+            tally: k.tally,
             atlas: this.peers.get(k.id)?.actor.texture.key,
             frame: this.peers.get(k.id)?.actor.frame.name,
             motion: this.peers.get(k.id)?.motion,
@@ -838,6 +909,11 @@ export function createShowcase(
             .strokeEllipse(world.x, world.feet + 5, 22, 5);
         host.dataset.airJump = String(world.airJump);
         host.dataset.wire = JSON.stringify(world.wire);
+        host.dataset.charge = String(world.charge);
+        host.dataset.bombMode = world.bombMode;
+        writeList("bombs", world.bombs);
+        writeList("blasts", world.blasts);
+        writeList("knockouts", world.knockouts);
         host.dataset.hookX = String(world.hook.x);
         host.dataset.hookY = String(world.hook.y);
         host.dataset.aimDirection = JSON.stringify(aim ?? null);

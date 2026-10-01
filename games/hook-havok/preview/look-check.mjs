@@ -41,7 +41,7 @@ try {
   await page.locator("#scene").focus();
   // A little play: aim up, hook and reel, so the rope and effects are visible.
   await page.keyboard.down("KeyW");
-  await page.keyboard.down("KeyK");
+  await page.keyboard.down("KeyJ");
   await page.waitForTimeout(450);
   const canvas = await page.evaluate(() => {
     const c = document.querySelector("#scene canvas");
@@ -80,10 +80,10 @@ try {
       height: 320,
     },
   });
-  await page.keyboard.down("KeyJ");
+  await page.keyboard.down("Space");
   await page.waitForTimeout(300);
+  await page.keyboard.up("Space");
   await page.keyboard.up("KeyJ");
-  await page.keyboard.up("KeyK");
   await page.keyboard.up("KeyW");
   await page.waitForTimeout(700);
   await page.screenshot({ path: `${out}/focus-after-rope-jump.png` });

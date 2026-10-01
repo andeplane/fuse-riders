@@ -1,44 +1,25 @@
-import { sweep } from "./collision.js";
-import { MAPS } from "./maps.js";
 import { BODY, S, type World } from "./world.js";
 
+/**
+ * The lethal wire is the whole visible rope, chest to hook, in every phase
+ * the rope is drawn: flying, attached and retracting. Since 10A the rope
+ * passes through one-way ledges, so stone neither clips nor disables it.
+ * Presentation draws exactly this segment (`paintSpikes`).
+ */
 export function activeWire(
   owner: World,
 ): { x: number; y: number; endX: number; endY: number } | undefined {
   const h = owner.hook;
-  if (
-    owner.tuning.wire !== "spiked" ||
-    owner.respawn ||
-    !owner.input.fire ||
-    (h.phase !== "flying" && h.phase !== "attached")
-  )
+  if (owner.tuning.wire !== "spiked" || owner.respawn || h.phase === "ready")
     return;
   const sx = owner.x,
     sy = owner.feet - Math.round(BODY * 0.6);
-  if (
-    MAPS[owner.tuning.map].platforms.some(
-      ([x, y, w, height]) =>
-        sx > x * S && sx < (x + w) * S && sy > y * S && sy < (y + height) * S,
-    )
-  )
-    return;
-  let ex = h.x - sx,
+  // Shorter than one unit the renderer draws no rope either. Integer squares
+  // are exact, so this needs no square root.
+  const ex = h.x - sx,
     ey = h.y - sy;
-  const obstruction = sweep(
-    sx,
-    sy,
-    ex,
-    ey,
-    false,
-    MAPS[owner.tuning.map].platforms,
-  );
-  if (obstruction) {
-    ex *= obstruction.time;
-    ey *= obstruction.time;
-  }
-  const length = Math.hypot(ex, ey);
-  if (length < S) return;
-  return { x: sx, y: sy, endX: sx + ex, endY: sy + ey };
+  if (ex * ex + ey * ey < S * S) return;
+  return { x: sx, y: sy, endX: h.x, endY: h.y };
 }
 /** Moving ball centre against a closed capsule (wire spine plus its two endpoints). */
 export function wireContact(
@@ -55,7 +36,9 @@ export function wireContact(
     sy = wire.y,
     ex = wire.endX - sx,
     ey = wire.endY - sy;
-  const length = Math.hypot(ex, ey);
+  // Math.hypot and ** are not correctly rounded, so engines may disagree;
+  // sqrt of an exact integer sum is. Every peer rounds this identically.
+  const length = Math.sqrt(ex * ex + ey * ey);
   const ux = ex / length,
     uy = ey / length;
   const along = (x - sx) * ux + (y - sy) * uy;
@@ -64,7 +47,8 @@ export function wireContact(
     vc = -dx * uy + dy * ux;
   const r = radius + 3 * S;
   const nearest = Math.max(0, Math.min(length, along));
-  if ((along - nearest) ** 2 + across ** 2 <= r * r) return 0;
+  const beyond = along - nearest;
+  if (beyond * beyond + across * across <= r * r) return 0;
   let first = Infinity;
   if (vc)
     for (const edge of [-r, r]) {

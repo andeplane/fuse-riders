@@ -7,6 +7,7 @@ import {
   ballField,
   ballSpeed,
   ballBounce,
+  readyHook,
   type Ball,
   type World,
 } from "./world.js";
@@ -15,8 +16,8 @@ import { MAPS } from "./maps.js";
 import { ricochet } from "./ball-motion.js";
 import { wireContact } from "./wire-contact.js";
 
-/** One binary family, regardless of whether the tip or a spike consumed it. */
-function splitBall(world: World, ball: Ball): void {
+/** One binary family, regardless of whether the tip, a spike or a blast consumed it. */
+export function splitBall(world: World, ball: Ball): void {
   const c = world.combat,
     field = ballField(world.tuning.experiment, world.tuning.map);
   c.balls = c.balls.filter((b) => b.id !== ball.id);
@@ -121,7 +122,7 @@ export function strike(
   h.x += Math.round(dx * time);
   h.y += Math.round(dy * time);
   if (rival !== undefined) {
-    const length = Math.hypot(h.vx, h.vy) || 1;
+    const length = Math.sqrt(h.vx * h.vx + h.vy * h.vy) || 1;
     context!.hit(
       rival,
       Math.round((h.vx / length) * 9 * S),
@@ -136,13 +137,19 @@ export function strike(
   if (rival !== undefined) {
     // Player impulses are applied together after every keeper has moved.
   } else if (id === 0 && target) {
-    const length = Math.hypot(h.vx, h.vy) || 1;
+    const length = Math.sqrt(h.vx * h.vx + h.vy * h.vy) || 1;
     target.vx = Math.round((h.vx / length) * 9 * S);
     target.vy = Math.min(-3 * S, Math.round((h.vy / length) * 7 * S) - 3 * S);
     target.grounded = false;
   } else {
     const ball = c.balls.find((b) => b.id === id)!;
     splitBall(world, ball);
+    if (world.tuning.wire === "spiked") {
+      // A spiked rope is lethal while it retracts, so a pop ends the shot at
+      // once: the children never meet the same rope and nothing drawn is harmless.
+      Object.assign(h, readyHook());
+      return true;
+    }
   }
   h.phase = "retracting";
   h.life = 6;
@@ -199,8 +206,8 @@ export function stepCombat(
       c.hits = Math.min(0xffffffff, c.hits + 1);
       c.impact = { tick: world.tick, x: ball.x, y: ball.y };
       splitBall(world, ball);
-      owner.hook.phase = "retracting";
-      owner.hook.life = 6;
+      // One shot pops one orb: the rope is gone at once (see strike).
+      Object.assign(owner.hook, readyHook());
       return true;
     };
     if (world.tuning.experiment !== "ball") {

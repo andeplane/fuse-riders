@@ -1,6 +1,6 @@
 import { MAPS, type MapId } from "./maps.js";
 /** All authoritative lengths/velocities use integer subunits (1024 per world unit). */
-export const RULES = "hook-havok-10";
+export const RULES = "hook-havok-12";
 export const S = 1024;
 export const WIDTH = 1600,
   HEIGHT = 900,
@@ -12,6 +12,8 @@ export const HOOK_SPEED = 32,
 /** Original belfry geometry, retained for its traversal fixtures. Runtime uses tuning.map. */
 export const PLATFORMS = MAPS.belfry.platforms;
 export interface Tuning {
+  /** Thrown bomb trial (11B): off, a timed fuse, or impact on a rival. */
+  bomb: "off" | "fuse" | "impact";
   powerUps: "off" | "on";
   jumpMode: "single" | "double";
   wire: "tip" | "spiked";
@@ -26,9 +28,10 @@ export interface Tuning {
   range: number;
 }
 export const DEFAULT_TUNING: Tuning = {
+  bomb: "fuse",
   powerUps: "off",
   jumpMode: "double",
-  wire: "tip",
+  wire: "spiked",
   map: "crossroads",
   rules: "free",
   experiment: "ricochet",
@@ -40,9 +43,11 @@ export const DEFAULT_TUNING: Tuning = {
   pull: 850,
   range: 650,
 };
-/** The pre-10A trial defaults: belfry, no balls, single jump. Fixtures pin it. */
+/** The pre-10A trial defaults: belfry, no balls, single jump, tip-only hook, no bombs. Fixtures pin it. */
 export const CLASSIC_TUNING: Tuning = {
   ...DEFAULT_TUNING,
+  bomb: "off",
+  wire: "tip",
   jumpMode: "single",
   map: "belfry",
   experiment: "movement",
@@ -52,6 +57,8 @@ export interface Input {
   move: -1 | 0 | 1;
   jump: boolean;
   fire: boolean;
+  /** Held to charge a bomb; the release throws toward that tick's aim. */
+  bomb: boolean;
   reset: boolean;
   aimX: number;
   aimY: number;
@@ -61,6 +68,7 @@ export const NEUTRAL: Input = {
   move: 0,
   jump: false,
   fire: false,
+  bomb: false,
   reset: false,
   aimX: 800,
   aimY: 100,
@@ -89,6 +97,8 @@ export interface World {
   buffer: number;
   respawn: number;
   deaths: number;
+  /** Ticks the bomb button has been held while armed; 0 when not charging. */
+  charge: number;
   facing: -1 | 1;
   input: Input;
   previous: Input;
@@ -196,6 +206,7 @@ export function createWorld(tuning: Tuning = DEFAULT_TUNING, slot = 0): World {
     buffer: 0,
     respawn: 0,
     deaths: 0,
+    charge: 0,
     facing: 1,
     input: { ...NEUTRAL },
     previous: { ...NEUTRAL },
@@ -216,5 +227,7 @@ export function cancel(world: World): void {
   world.input = { ...NEUTRAL, aimX: world.input.aimX, aimY: world.input.aimY };
   world.previous = { ...world.input };
   world.buffer = 0;
+  // A cancelled charge is dropped, never thrown.
+  world.charge = 0;
   world.hook = readyHook();
 }

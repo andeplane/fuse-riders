@@ -16,9 +16,11 @@ import {
   createWorld,
   NEUTRAL,
   RULES,
+  S,
   type Input,
   type Tuning,
 } from "../engine/world.js";
+import { COOLDOWN_TICKS } from "../engine/bomb-rules.js";
 import {
   createArena,
   stepArena,
@@ -119,6 +121,61 @@ const lifecycle: LifecycleHooks<Room, Tuning> = {
     r.simulation = createArena(r.settings, r.simulation.tick);
   },
 };
+/**
+ * The inputs of one log tick's three engine steps, from the input the last
+ * step held and the tick's inputs in log order. Every step takes the tick's
+ * last input, with these exceptions so quick taps are not lost:
+ * - A press released inside the tick (jump, drop, fire, bomb, reset) is
+ *   held on the first step and released on the next, so a tapped bomb is
+ *   still thrown.
+ * - The bomb also keeps a release: each change of the bomb button inside the
+ *   tick gets a step of its own, up to three, ending on the last state. A
+ *   release and re-press inside one tick reads `bomb: false` on the first
+ *   step, so that throw is thrown and a new charge starts on the next.
+ * - A step that releases the bomb aims where the releasing input aimed: the
+ *   engine reads a throw's aim on its release, and a later input in the same
+ *   tick (lifting a direction key after K, say) must not steer it.
+ * Other buttons keep press edges only: a hook released and pressed again
+ * inside one tick stays held, and keeps its rope.
+ */
+export function stepInputs(
+  held: Input,
+  inputs: readonly Input[],
+): [Input, Input, Input] {
+  let final = held;
+  const pulse = { jump: false, drop: false, fire: false, reset: false },
+    changes: Input[] = [];
+  for (const input of inputs) {
+    for (const key of ["jump", "drop", "fire", "reset"] as const)
+      pulse[key] ||= input[key] && !final[key];
+    if (input.bomb !== final.bomb) changes.push(input);
+    final = input;
+  }
+  // Each step's bomb state and the input that set it.
+  const sources = [changes[0], changes[1], changes.at(-1)],
+    steps: [Input, Input, Input] = [
+      {
+        ...final,
+        jump: final.jump || pulse.jump,
+        drop: final.drop || pulse.drop,
+        fire: final.fire || pulse.fire,
+        reset: final.reset || pulse.reset,
+        bomb: changes[0]?.bomb ?? final.bomb,
+      },
+      { ...final, bomb: changes[1]?.bomb ?? final.bomb },
+      { ...final },
+    ];
+  let before = held.bomb;
+  steps.forEach((step, i) => {
+    const source = sources[i];
+    if (before && !step.bomb && source && !source.bomb) {
+      step.aimX = source.aimX;
+      step.aimY = source.aimY;
+    }
+    before = step.bomb;
+  });
+  return steps;
+}
 export function foldTick(
   r: Room,
   creator: string,
@@ -160,28 +217,11 @@ export function foldTick(
             .sort((a, b) => a[0] - b[0])
             .map((e) => e[5])
         : [];
-    let final = { ...keeper.world.input };
-    const pulse = { jump: false, drop: false, fire: false, reset: false };
-    for (const input of inputs) {
-      for (const key of ["jump", "drop", "fire", "reset"] as const)
-        pulse[key] ||= input[key] && !final[key];
-      final = { ...input };
-    }
-    return { keeper, final, pulse };
+    return { keeper, steps: stepInputs(keeper.world.input, inputs) };
   });
   for (let i = 0; i < 3; i++) {
-    for (const { keeper, final, pulse } of controls)
-      keeper.world.input = {
-        ...final,
-        ...(i === 0
-          ? {
-              jump: final.jump || pulse.jump,
-              drop: final.drop || pulse.drop,
-              fire: final.fire || pulse.fire,
-              reset: final.reset || pulse.reset,
-            }
-          : {}),
-      };
+    for (const { keeper, steps } of controls)
+      keeper.world.input = { ...steps[i]! };
     stepArena(r.simulation, r.stage === "running");
   }
   r.tick = tick;
@@ -216,7 +256,13 @@ export function decode(f: readonly unknown[], tick: number): Room | undefined {
     !settings ||
     !simulation ||
     simulation.tick !== tick * 3 ||
-    JSON.stringify(settings) !== JSON.stringify(simulation.tuning)
+    JSON.stringify(settings) !== JSON.stringify(simulation.tuning) ||
+    // The lobby holds a fresh arena that never runs: no bomb state at all.
+    (f[2] === "lobby" &&
+      (simulation.bombs.length ||
+        simulation.blasts.length ||
+        simulation.knockouts.length ||
+        simulation.keepers.some((k) => k.world.charge)))
   )
     return;
   const seats = new Map<string, SeatRecord>();
@@ -320,6 +366,19 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       },
     ),
     keepers: r.simulation.keepers.map((k): KeeperView => ({
+      cooldown: k.bomb.cooldown / COOLDOWN_TICKS,
+      tally: {
+        thrown: k.bomb.thrown,
+        knockouts: k.bomb.knockouts,
+        selfKnockouts: k.bomb.selfKnockouts,
+        bombed: k.bomb.bombed,
+        falls: Math.max(
+          0,
+          k.world.deaths - k.bomb.bombed - k.bomb.selfKnockouts,
+        ),
+        fate: k.bomb.fate,
+        by: k.bomb.by,
+      },
       ward: Math.ceil(k.ward / 60),
       playing:
         r.settings.rules === "free" ||
@@ -337,6 +396,19 @@ export const hookGame: RollbackGame<Room, Entry, View, never, Tuning> = {
       x: r.simulation.hit.x / 1024,
       y: r.simulation.hit.y / 1024,
     },
+    bombs: r.simulation.bombs.map((b) => ({
+      ...b,
+      x: b.x / S,
+      y: b.y / S,
+      vx: (b.vx * 60) / S,
+      vy: (b.vy * 60) / S,
+    })),
+    blasts: r.simulation.blasts.map((e) => ({ ...e, x: e.x / S, y: e.y / S })),
+    knockouts: r.simulation.knockouts.map((e) => ({
+      ...e,
+      x: e.x / S,
+      y: e.y / S,
+    })),
     pickups:
       r.settings.powerUps === "on"
         ? POWER_PADS[r.settings.map].map((p, i) => ({
