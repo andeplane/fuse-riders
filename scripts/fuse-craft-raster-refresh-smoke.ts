@@ -14,7 +14,10 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
     });
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto("http://127.0.0.1:5174/games/neural-defence/?mute");
+    await page.goto(
+      process.env.FUSE_CRAFT_URL ??
+        "http://127.0.0.1:5174/games/neural-defence/?mute",
+    );
     // Raw JS avoids tsx's named-function helper in the page.
     const result = await page.evaluate(`(async () => {
       const root = '/games/neural-defence/src/';

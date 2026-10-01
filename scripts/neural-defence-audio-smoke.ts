@@ -7,7 +7,9 @@ const browser = await chromium.launch({ args: ["--mute-audio"] });
 try {
   const page = await browser.newPage();
   await page.goto(
-    process.argv[2] ?? "http://127.0.0.1:5174/games/neural-defence/?mute",
+    process.argv[2] ??
+      process.env.FUSE_CRAFT_URL ??
+      "http://127.0.0.1:5174/games/neural-defence/?mute",
   );
   const result = await page.evaluate(async () => {
     const moduleUrl = "/games/neural-defence/src/app/audio.ts";

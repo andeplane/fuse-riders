@@ -4,7 +4,9 @@ import { chromium, webkit, type Page } from "playwright";
 // Real resources, delivery, construction and research timing. No injected world,
 // debug cheats, accelerated clock or privileged commands.
 const url =
-  process.argv[2] ?? "http://127.0.0.1:5174/games/neural-defence/?mute";
+  process.argv[2] ??
+  process.env.FUSE_CRAFT_URL ??
+  "http://127.0.0.1:5174/games/neural-defence/?mute";
 async function root(page: Page) {
   const back = page.locator('[data-action="close-panel"]');
   if (await back.count()) await back.click();
@@ -187,7 +189,12 @@ await Promise.all(
       await page.mouse.click(economicHead.x, economicHead.y);
       assert.equal(await page.locator('[data-action="charge"]').count(), 0);
       assert.equal(await page.locator("#priority-slider").count(), 0);
-      assert.match(await page.locator(".inspector").innerText(), /Extracting/);
+      const inspector = await page.locator(".inspector").innerText();
+      assert.match(
+        inspector,
+        /Extracting/,
+        `connected harvester inspector shows extraction: ${JSON.stringify(inspector.slice(0, 400))}`,
+      );
       await page.screenshot({ path: `/tmp/neural-roster-${name}-desktop.png` });
       await page.setViewportSize({ width: 390, height: 844 });
       // Use ordinary keyboard navigation to bring the selected base back into

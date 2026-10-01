@@ -14,7 +14,10 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.routeWebSocket("**", (socket) => socket.close());
-    await page.goto("http://127.0.0.1:5174/games/neural-defence/?mute");
+    await page.goto(
+      process.env.FUSE_CRAFT_URL ??
+        "http://127.0.0.1:5174/games/neural-defence/?mute",
+    );
     await page.locator('[data-action="new-game"]').click();
     await page.locator('[data-action="mode-watch"]').click();
     await page.locator("#map-picker").selectOption("close-quarters");

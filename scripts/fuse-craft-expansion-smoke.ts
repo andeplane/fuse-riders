@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { chromium, webkit } from "playwright";
+import { DEFAULT_MAP } from "../games/neural-defence/src/online/maps.js";
 
-const url = process.argv[2] ?? "http://127.0.0.1:5176/neural-defence/?mute";
+const url =
+  process.argv[2] ??
+  process.env.FUSE_CRAFT_URL ??
+  "http://127.0.0.1:5174/games/neural-defence/?mute";
 for (const [name, type] of [
   ["chromium", chromium],
   ["webkit", webkit],
@@ -25,7 +29,8 @@ for (const [name, type] of [
       await page.locator('[data-action="new-game"]').click();
       assert.equal(
         await page.locator("#map-picker").inputValue(),
-        "close-quarters",
+        DEFAULT_MAP,
+        "setup preselects the default map",
       );
       await page.locator("#strategy-picker").selectOption("relay");
       await page.locator("#map-picker").selectOption(id);

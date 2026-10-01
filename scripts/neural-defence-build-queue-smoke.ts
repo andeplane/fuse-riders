@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { chromium, webkit } from "playwright";
 
 const url =
-  process.argv[2] ?? "http://127.0.0.1:5174/games/neural-defence/?mute";
+  process.argv[2] ??
+  process.env.FUSE_CRAFT_URL ??
+  "http://127.0.0.1:5174/games/neural-defence/?mute";
 for (const [name, engine] of [
   ["chromium", chromium],
   ["webkit", webkit],
@@ -59,11 +61,16 @@ for (const [name, engine] of [
       await page.locator(`.queue-mark[data-cell="${cell}"]`).waitFor();
       assert.equal(await page.locator(".placement-instructions").count(), 1);
     }
+    // Neurons sprout without the builder and finish in six seconds, so a plan
+    // may complete (and lose its mark) while this runs on a loaded machine:
+    // compare against the marks present just before the rejected clicks.
+    const planned = await page.locator(".queue-mark").count();
     await clickCell(14, true);
     await clickCell(13, true);
-    assert.equal(
-      await page.locator(".queue-mark").count(),
-      2,
+    assert.ok(
+      (await page.locator(".queue-mark").count()) <= planned &&
+        (await page.locator('.queue-mark[data-cell="14"]').count()) <= 1 &&
+        (await page.locator('.queue-mark[data-cell="13"]').count()) === 0,
       "duplicates and occupied tiles do not add plans",
     );
     assert.equal(await page.locator(".placement-instructions").count(), 1);
@@ -74,7 +81,11 @@ for (const [name, engine] of [
       0,
       "ordinary placement exits build mode",
     );
-    assert.equal(await page.locator(".queue-mark").count(), 3);
+    assert.equal(
+      await page.locator('.queue-mark[data-cell="13"]').count(),
+      0,
+      "the occupied tile never gained a plan",
+    );
     await page.screenshot({ path: `/tmp/neural-shift-queue-${name}.png` });
     console.log(
       `${name}: Shift queues consecutive plans, rejects duplicates/occupied cells, ordinary click exits`,

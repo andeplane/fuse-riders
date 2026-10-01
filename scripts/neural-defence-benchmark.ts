@@ -12,6 +12,7 @@ import {
   type MapDefinition,
   type World,
 } from "../games/neural-defence/src/engine/index.ts";
+import { canAttack } from "../games/neural-defence/src/engine/catalog.ts";
 
 const SEED = 0x4e445030;
 const TICKS = 820;
@@ -84,11 +85,19 @@ function run(recorded?: readonly (readonly Command[])[]) {
             cell: FIRST_CELLS[i]!,
             kind: "neuron",
           });
+        // Neurons are unarmed: upgrading the first one to a Pulse tower brings
+        // combat (a and b, c and d start next to each other).
+        if (tick === 121)
+          issue({
+            type: "queueConstruction",
+            cell: FIRST_CELLS[i]!,
+            kind: "tower",
+          });
         if (tick === 401)
           issue({ type: "startResearch", research: "excitation" });
         if (tick >= 160 && tick % 80 === 0) {
           const owned = world.structures.filter(
-            (s) => s.ownerId === id && s.kind === "neuron",
+            (s) => s.ownerId === id && canAttack(s.kind),
           );
           if (owned.length)
             issue({
@@ -97,7 +106,10 @@ function run(recorded?: readonly (readonly Command[])[]) {
               weight: 3,
             });
         }
-        if (tick >= 241 && (tick - 241) % 160 === 0) {
+        const towerUnpaid = player.queue.some(
+          (q) => q.kind === "tower" && !q.paid,
+        );
+        if (!towerUnpaid && tick >= 241 && (tick - 241) % 160 === 0) {
           const occupied = new Set(world.structures.map((s) => s.cell));
           for (const p of world.players)
             for (const job of p.queue) occupied.add(job.cell);
@@ -175,7 +187,7 @@ console.log(
       rulesHash,
       seed: `0x${SEED.toString(16)}`,
       workload:
-        "four-owner 8x8 construction/research/routing/combat; default timing; seeded local command policy",
+        "four-owner 8x8 construction/tower upgrade/research/routing/combat; default timing; seeded local command policy",
       ticks: TICKS,
       commands: measured.commandsSent,
       runtimeMs: Number(measured.elapsedMs.toFixed(1)),

@@ -5,7 +5,9 @@ import { chromium, webkit } from "playwright";
 // A real, normal-time skirmish: the unattended human loses to the ordinary AI.
 // This checks the actual result/reset flow; it does not inject a finished world.
 const url =
-  process.argv[2] ?? "http://127.0.0.1:5174/games/neural-defence/?mute";
+  process.argv[2] ??
+  process.env.FUSE_CRAFT_URL ??
+  "http://127.0.0.1:5174/games/neural-defence/?mute";
 const output = "/tmp/neural-finish-smoke";
 await mkdir(output, { recursive: true });
 await Promise.all(

@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { chromium, webkit } from "playwright";
 const url =
-  process.argv[2] ?? "http://127.0.0.1:5174/games/neural-defence/?mute";
+  process.argv[2] ??
+  process.env.FUSE_CRAFT_URL ??
+  "http://127.0.0.1:5174/games/neural-defence/?mute";
 const out = "/tmp/fuse-neuron-upgrades";
 mkdirSync(out, { recursive: true });
 await Promise.all(
@@ -46,9 +48,9 @@ await Promise.all(
           await page.locator(".placement-instructions").innerText(),
           /Upgrade neuron to Pulse/,
         );
-        const art = await page
-          .locator(".placement-preview image")
-          .getAttribute("href");
+        const ghost = page.locator(".placement-preview image[data-sprite]");
+        const art = await ghost.getAttribute("data-sprite");
+        assert.equal(art, "tower-pulse-v3", "ghost shows the Pulse tower art");
         if (size === "phone") await page.touchscreen.tap(x, y);
         else await page.mouse.click(x, y);
         await page
@@ -65,7 +67,23 @@ await Promise.all(
           await page.locator('.structure[data-cell="26"]').count(),
           1,
         );
-        assert.equal(await finished.locator("image").getAttribute("href"), art);
+        // Finished art may be a rasterised blob: copy, so compare sprite identity.
+        const built = finished.locator("image[data-sprite]");
+        assert.equal(
+          await built.getAttribute("data-sprite"),
+          art,
+          "finished tower keeps the ghost's sprite",
+        );
+        const href = (await built.getAttribute("href")) ?? "";
+        assert.ok(
+          await page.evaluate(async (src) => {
+            const image = new Image();
+            image.src = src;
+            await image.decode();
+            return image.naturalWidth > 0;
+          }, href),
+          `finished tower art loads (${href})`,
+        );
         assert.equal(
           await page.locator('.queue-mark[data-cell="26"]').count(),
           0,

@@ -4,7 +4,9 @@ import { chromium, webkit } from "playwright";
 import { loadMap } from "../games/neural-defence/src/engine/map.js";
 
 const url =
-  process.argv[2] ?? "http://127.0.0.1:5174/games/neural-defence/?mute";
+  process.argv[2] ??
+  process.env.FUSE_CRAFT_URL ??
+  "http://127.0.0.1:5174/games/neural-defence/?mute";
 const phone = process.argv.includes("--phone");
 const map = loadMap(
   JSON.parse(

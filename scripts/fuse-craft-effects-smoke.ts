@@ -23,7 +23,7 @@ const eventType = weapon
 const recording = JSON.parse(
   readFileSync(
     process.argv[2] ??
-      "docs/neural-defence/verification/rules9-2026-09-27/combat.replay.json",
+      "docs/neural-defence/verification/rules12-replays-2026-10-01/combat.replay.json",
     "utf8",
   ),
 ) as {
@@ -83,7 +83,10 @@ for (const [name, engine] of Object.entries({ chromium, webkit })) {
       const page = await browser.newPage({ viewport });
       const errors: string[] = [];
       page.on("pageerror", (error) => errors.push(error.message));
-      await page.goto("http://127.0.0.1:5174/games/neural-defence/?mute");
+      await page.goto(
+        process.env.FUSE_CRAFT_URL ??
+          "http://127.0.0.1:5174/games/neural-defence/?mute",
+      );
       for (const age of weapon
         ? [40, 90, 200, 400]
         : eventType === "shielded"

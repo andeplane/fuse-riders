@@ -5,7 +5,9 @@ import { chromium, webkit, type Page } from "playwright";
 // Real menu -> sandbox flow; Chromium CDP supplies trusted multi-touch input.
 // Phone emulation is not a physical-device or real-network qualification.
 const url =
-  process.argv[2] ?? "http://127.0.0.1:5174/games/neural-defence/?mute";
+  process.argv[2] ??
+  process.env.FUSE_CRAFT_URL ??
+  "http://127.0.0.1:5174/games/neural-defence/?mute";
 const output = process.argv[3] ?? "/tmp/neural-rts-smoke";
 await mkdir(output, { recursive: true });
 
@@ -23,6 +25,22 @@ async function view(page: Page) {
   return (await page.locator("#nd-board").getAttribute("viewBox"))!
     .split(" ")
     .map(Number);
+}
+
+async function settled(page: Page) {
+  await page.waitForFunction(
+    () =>
+      // No named inner functions: tsx would inject an undefined __name helper.
+      new Promise<boolean>((resolve) => {
+        const board = document.querySelector("#nd-board")!;
+        const before = board.getAttribute("viewBox");
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() =>
+            resolve(board.getAttribute("viewBox") === before),
+          ),
+        );
+      }),
+  );
 }
 
 async function zoomOut(page: Page) {
@@ -57,8 +75,11 @@ async function geometry(page: Page) {
     board.height > size.height / 2,
     "battlefield retains most of the screen",
   );
-  assert.ok(dock.y >= board.y + board.height - 1);
-  assert.ok(dock.y + dock.height <= size.height + 1);
+  assert.ok(
+    dock.y >= board.y + board.height - 1,
+    "dock sits below the battlefield",
+  );
+  assert.ok(dock.y + dock.height <= size.height + 1, "dock fits on screen");
   assert.equal(
     await page
       .locator(
@@ -66,26 +87,43 @@ async function geometry(page: Page) {
       )
       .count(),
     0,
+    "no on-screen zoom buttons",
   );
-  assert.equal(await page.locator(".hud-popover").count(), 0);
+  assert.equal(await page.locator(".hud-popover").count(), 0, "no HUD popover");
   assert.equal(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
     true,
+    "no horizontal page scroll",
   );
-  for (const control of await page
-    .locator(".command-dock button, .command-dock input, .battle-topbar button")
-    .all()) {
-    const box = (await control.boundingBox())!;
-    assert.ok(
-      box.x >= 0 &&
-        box.y >= 0 &&
-        box.x + box.width <= size.width + 1 &&
-        box.y + box.height <= size.height + 1,
-      await control.innerText(),
-    );
-  }
+  // Measure every control in one pass: the dock re-renders while the match
+  // runs, so per-element locators can go stale between listing and measuring.
+  const offscreen = await page.evaluate(
+    ({ width, height }) =>
+      [
+        ...document.querySelectorAll(
+          ".command-dock button, .command-dock input, .battle-topbar button",
+        ),
+      ]
+        .filter((control) => {
+          const box = control.getBoundingClientRect();
+          return !(
+            box.x >= 0 &&
+            box.y >= 0 &&
+            box.right <= width + 1 &&
+            box.bottom <= height + 1
+          );
+        })
+        .map(
+          (control) =>
+            control.getAttribute("data-action") ??
+            control.textContent?.trim() ??
+            control.tagName,
+        ),
+    size,
+  );
+  assert.deepEqual(offscreen, [], "every HUD control stays on screen");
 }
 
 for (const [name, engine] of [
@@ -212,7 +250,8 @@ for (const [name, engine] of [
       .waitFor({ state: "visible" });
     assert.match(
       await desktop.locator("#help-research-growth").innerText(),
-      /more insight/,
+      /Faster neuron construction/,
+      "Growth help describes faster neuron construction",
     );
     await desktop.screenshot({ path: `${output}/${name}-research.png` });
     await desktop.keyboard.press("Escape");
@@ -235,9 +274,14 @@ for (const [name, engine] of [
     await desktop.mouse.move(300, 42);
     await desktop.mouse.up();
     await desktop.mouse.move(350, 150);
+    // Edge scrolling (on by default) legitimately pans while the mouse rests in
+    // the top edge zone; let it settle before checking that hover cannot pan.
+    await settled(desktop);
+    const released = await view(desktop);
+    await desktop.mouse.move(450, 250, { steps: 4 });
     assert.deepEqual(
       await view(desktop),
-      fitted,
+      released,
       "released mouse must not continue panning",
     );
     assert.equal(
@@ -370,17 +414,28 @@ for (const [name, engine] of [
     await phone.locator('[data-action="panel-research"]').tap();
     await phone.locator('.command-card[data-panel="research"]').waitFor();
     await geometry(phone);
-    const grey = (await phone
-      .locator('[data-action="research-growth"]')
-      .boundingBox())!;
+    // Growth becomes affordable as sandbox insight accrues, so tapping it may
+    // start research. Ballistics stays greyed out until Excitation is done.
+    await phone.locator('[data-action="next-command-page"]').tap();
+    const locked = phone.locator('[data-action="research-ballistics"]');
+    await locked.waitFor();
+    assert.equal(
+      await locked.getAttribute("aria-disabled"),
+      "true",
+      "Ballistics is locked behind Excitation",
+    );
+    const grey = (await locked.boundingBox())!;
     await phone.touchscreen.tap(
       grey.x + grey.width / 2,
       grey.y + grey.height / 2,
     );
-    await phone.locator("#help-research-growth").waitFor({ state: "visible" });
+    await phone
+      .locator("#help-research-ballistics")
+      .waitFor({ state: "visible" });
     assert.match(
-      await phone.locator("#help-research-growth").innerText(),
-      /more insight/,
+      await phone.locator("#help-research-ballistics").innerText(),
+      /Siege towers[\s\S]*Research Excitation first/,
+      "tapping a greyed-out command shows its help and missing requirement",
     );
     await phone.screenshot({ path: `${output}/${name}-phone-research.png` });
     await phone
@@ -477,8 +532,17 @@ for (const [name, engine] of [
         await page.setViewportSize({ width: 390, height: 844 });
       await start(page, "skirmish");
       await geometry(page);
-      assert.equal(await page.locator(".terrain-layer .hex").count(), 480);
-      assert.equal(await page.locator(".structure-brain").count(), 2);
+      // Skirmish starts on the default map, Cortex Crossing (29 x 23 hexes).
+      assert.equal(
+        await page.locator(".terrain-layer .hex").count(),
+        667,
+        "skirmish renders every Cortex Crossing hex",
+      );
+      assert.equal(
+        await page.locator(".structure-brain").count(),
+        2,
+        "skirmish shows both brains",
+      );
       assert.deepEqual(
         await page
           .locator(".command-card .command-button")

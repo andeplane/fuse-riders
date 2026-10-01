@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { chromium, webkit, type Page } from "playwright";
 
 const url =
-  process.argv[2] ?? "http://127.0.0.1:5174/games/neural-defence/?mute";
+  process.argv[2] ??
+  process.env.FUSE_CRAFT_URL ??
+  "http://127.0.0.1:5174/games/neural-defence/?mute";
 const view = (page: Page) =>
   page
     .locator("#nd-board")
@@ -36,19 +38,31 @@ for (const [name, engine] of [
         });
       const box = (await viewport.boundingBox())!;
       const v = await view(page);
+      // The camera never shows more than the board's world (its initial
+      // viewBox). Since the oblique ground plane (projection.ts), that world
+      // pads the hex terrain by GROUND.radius on every side, which leaves a
+      // symmetric margin of decorative ground around the terrain: about 4.7
+      // units left and right (plus the width's ceil) and 9.8 above and below
+      // (35 - 35 * 0.72). Recover the world from the terrain and its margin.
       const ground = await page.locator(".terrain-layer").evaluate((el) => {
         const b = (el as SVGGraphicsElement).getBBox();
-        return { width: b.width, height: b.height };
+        return {
+          width: Math.ceil(b.width + 2 * b.x),
+          height: b.height + 2 * b.y,
+        };
       });
       assert.ok(
-        v[2]! <= ground.width + 12,
-        "map fills viewport width at zoom-out limit",
+        v[2]! <= ground.width + 0.5,
+        `map fills viewport width at zoom-out limit (${size.width}x${size.height}: view ${v[2]} > world ${ground.width})`,
       );
       assert.ok(
-        v[3]! <= ground.height + 1,
-        "map fills viewport height at zoom-out limit",
+        v[3]! <= ground.height + 0.5,
+        `map fills viewport height at zoom-out limit (${size.width}x${size.height}: view ${v[3]} > world ${ground.height})`,
       );
-      assert.ok(box.width / v[2]! >= 1.1 - 0.001, "units stay readable");
+      assert.ok(
+        box.width / v[2]! >= 1.1 - 0.001,
+        `units stay readable (${box.width / v[2]!} px per unit)`,
+      );
       await page.screenshot({
         path: `/tmp/neural-camera-${name}-${size.width}.png`,
       });

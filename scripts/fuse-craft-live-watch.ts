@@ -26,7 +26,10 @@ await Promise.all(
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     try {
-      await page.goto("http://127.0.0.1:5174/games/neural-defence/?mute");
+      await page.goto(
+        process.env.FUSE_CRAFT_URL ??
+          "http://127.0.0.1:5174/games/neural-defence/?mute",
+      );
       await page.locator('[data-action="new-game"]').click();
       await page.locator('[data-action="mode-watch"]').click();
       await page.locator('[data-action="start"]').click();

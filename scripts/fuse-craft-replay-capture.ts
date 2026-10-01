@@ -39,7 +39,10 @@ try {
   const page = await browser.newPage({
     viewport: { width: 1280, height: 800 },
   });
-  await page.goto("http://127.0.0.1:5174/games/neural-defence/?mute");
+  await page.goto(
+    process.env.FUSE_CRAFT_URL ??
+      "http://127.0.0.1:5174/games/neural-defence/?mute",
+  );
   for (const [index, frame] of frames.entries()) {
     await page.evaluate(async (world) => {
       const root = "/games/neural-defence/src/render/";
