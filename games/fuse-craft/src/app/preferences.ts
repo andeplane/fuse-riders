@@ -1,7 +1,8 @@
 import type { PreferencesStore, PresentationPreferences } from "./contracts.js";
 
-// Named after the game's old id so saved settings survive the rename.
-const key = "neural-defence-presentation-v1";
+const key = "fuse-craft-presentation-v1";
+/** The key from before the game was renamed from its working name; read so a returning player keeps settings. */
+const legacyKey = "neural-defence-presentation-v1";
 const defaults: PresentationPreferences = {
   mute: true,
   volume: 0.5,
@@ -15,7 +16,7 @@ export function createPreferencesStore(
   return {
     read() {
       try {
-        const raw = storage.getItem(key);
+        const raw = storage.getItem(key) ?? storage.getItem(legacyKey);
         if (!raw) return { ...defaults };
         const value: unknown = JSON.parse(raw);
         if (typeof value !== "object" || value === null) return { ...defaults };

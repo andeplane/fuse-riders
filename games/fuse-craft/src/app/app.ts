@@ -182,7 +182,7 @@ export interface AppDependencies {
   forcedMute?: boolean;
 }
 
-export function mountNeuralDefence(
+export function mountFuseCraft(
   root: HTMLElement,
   dependencies: AppDependencies,
 ): { dispose(): void } {

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
-import { mountNeuralDefence, type AppDependencies } from "../src/app/app.js";
+import { mountFuseCraft, type AppDependencies } from "../src/app/app.js";
 import { createAttractScene } from "../src/app/attract-scene.js";
 import type {
   OnlineDependencies,
@@ -101,7 +101,7 @@ function fixture(options: { manager?: boolean; initialRoom?: string } = {}) {
     online,
     ...(options.initialRoom ? { initialRoom: options.initialRoom } : {}),
   };
-  const app = mountNeuralDefence(root, dependencies);
+  const app = mountFuseCraft(root, dependencies);
   const click = (selector: string) => {
     const element = root.querySelector<HTMLElement>(selector);
     assert.ok(element, `missing ${selector}`);

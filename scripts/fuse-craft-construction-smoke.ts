@@ -12,7 +12,7 @@ import {
 const recording = JSON.parse(
   readFileSync(
     process.argv[2] ??
-      "docs/neural-defence/verification/rules12-replays-2026-10-01/combat.replay.json",
+      "docs/fuse-craft/verification/rules12-replays-2026-10-01/combat.replay.json",
     "utf8",
   ),
 ) as {

@@ -7,7 +7,7 @@ import {
 } from "fuse-network-fe";
 import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
 import { createAppPortal } from "fuse-ui";
-import { mountNeuralDefence } from "./app.js";
+import { mountFuseCraft } from "./app.js";
 import { createBrowserMapRepository } from "./map-repository.js";
 import { createPreferencesStore } from "./preferences.js";
 import { createOnlineSession, createSession } from "../online/session.js";
@@ -66,7 +66,7 @@ const initialRoom = new URLSearchParams(location.search)
   .toUpperCase();
 
 const root = document.getElementById("app");
-if (!root) throw new Error("Neural Defence mount point is missing");
+if (!root) throw new Error("Fuse Craft mount point is missing");
 const buildingSprites = createBuildingSprites(
   spriteUrls,
   createBrowserSpriteRasterizer(
@@ -76,7 +76,7 @@ const buildingSprites = createBuildingSprites(
   ),
 );
 
-mountNeuralDefence(root, {
+mountFuseCraft(root, {
   // The shared portal of every Fuse game, first in each header.
   portal: () =>
     createAppPortal({

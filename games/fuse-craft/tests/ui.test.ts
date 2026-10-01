@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
-import { mountNeuralDefence, type AppDependencies } from "../src/app/app.js";
+import { mountFuseCraft, type AppDependencies } from "../src/app/app.js";
 import { createAttractScene } from "../src/app/attract-scene.js";
 import type {
   MapRepository,
@@ -131,7 +131,7 @@ function fixture(
       cancelledFrames.push(handle);
     },
   };
-  const app = mountNeuralDefence(root, dependencies);
+  const app = mountFuseCraft(root, dependencies);
   function click(action: string) {
     const button = root.querySelector<HTMLButtonElement>(
       `[data-action="${action}"]`,
