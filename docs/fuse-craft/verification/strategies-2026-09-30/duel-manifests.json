@@ -2,7 +2,7 @@
  "close-quarters": {
   "source": "5924ba290ff213d9198f110a97957b12d4efc940",
   "harnessVersion": 2,
-  "dirty": "docs/fuse-craft/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
    "<node>",
@@ -29,7 +29,7 @@
  "cortex-crossing": {
   "source": "5924ba290ff213d9198f110a97957b12d4efc940",
   "harnessVersion": 2,
-  "dirty": "docs/fuse-craft/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
    "<node>",
@@ -56,7 +56,7 @@
  "grand-cortex": {
   "source": "5924ba290ff213d9198f110a97957b12d4efc940",
   "harnessVersion": 2,
-  "dirty": "docs/fuse-craft/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
    "<node>",
@@ -83,7 +83,7 @@
  "lean-resources": {
   "source": "5924ba290ff213d9198f110a97957b12d4efc940",
   "harnessVersion": 2,
-  "dirty": "docs/fuse-craft/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
    "<node>",
@@ -110,7 +110,7 @@
  "narrow-front": {
   "source": "5924ba290ff213d9198f110a97957b12d4efc940",
   "harnessVersion": 2,
-  "dirty": "docs/fuse-craft/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
    "<node>",
@@ -137,7 +137,7 @@
  "open-front": {
   "source": "5924ba290ff213d9198f110a97957b12d4efc940",
   "harnessVersion": 2,
-  "dirty": "docs/fuse-craft/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
    "<node>",
@@ -164,7 +164,7 @@
  "skirmish-24": {
   "source": "5924ba290ff213d9198f110a97957b12d4efc940",
   "harnessVersion": 2,
-  "dirty": "docs/fuse-craft/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
    "<node>",
@@ -191,7 +191,7 @@
  "synapse-islands": {
   "source": "5924ba290ff213d9198f110a97957b12d4efc940",
   "harnessVersion": 2,
-  "dirty": "docs/fuse-craft/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
    "<node>",
@@ -218,7 +218,7 @@
  "twin-hemispheres": {
   "source": "5924ba290ff213d9198f110a97957b12d4efc940",
   "harnessVersion": 2,
-  "dirty": "docs/fuse-craft/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
+  "dirty": "docs/neural-defence/TODO.md | 16 +++++++++++-----\n 1 file changed, 11 insertions(+), 5 deletions(-)",
   "simulationDirty": "",
   "command": [
    "<node>",

@@ -1,7 +1,7 @@
 {
   "harnessVersion": 2,
   "source": "8e6d0d2475ee2cc6f874b30f07901e1b44b8a463",
-  "dirty": "docs/architecture.md          | 63 ++++++++++++++++++++++---------------------\n docs/fuse-craft/README.md |  8 ++++--\n docs/fuse-craft/TODO.md   | 12 +++++++--\n 3 files changed, 48 insertions(+), 35 deletions(-)",
+  "dirty": "docs/architecture.md          | 63 ++++++++++++++++++++++---------------------\n docs/neural-defence/README.md |  8 ++++--\n docs/neural-defence/TODO.md   | 12 +++++++--\n 3 files changed, 48 insertions(+), 35 deletions(-)",
   "simulationDirty": "",
   "command": [
     "<node>",

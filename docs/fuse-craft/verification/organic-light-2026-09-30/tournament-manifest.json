@@ -1,7 +1,7 @@
 {
   "harnessVersion": 2,
   "source": "0bd67ec01f82504692d87e98ad683be6b1fe26a2",
-  "dirty": "docs/fuse-craft/README.md              |  4 +-\n games/fuse-craft/tests/organic.test.ts | 59 ++++++++++++++++++++++++++++++\n 2 files changed, 62 insertions(+), 1 deletion(-)",
+  "dirty": "docs/neural-defence/README.md              |  4 +-\n games/neural-defence/tests/organic.test.ts | 59 ++++++++++++++++++++++++++++++\n 2 files changed, 62 insertions(+), 1 deletion(-)",
   "simulationDirty": "",
   "command": [
     "<node>",
