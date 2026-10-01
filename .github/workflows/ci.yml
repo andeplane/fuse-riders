@@ -4,8 +4,9 @@ on:
     branches: [main]
   pull_request:
     # `labeled` is not a default type: without it, adding `full-ci` to an open pull
-    # request would not start the browser matrix until the next push.
-    types: [opened, synchronize, reopened, labeled]
+    # request would not start the browser matrix until the next push. `unlabeled` re-checks
+    # `verify` when `cd-fix` comes off, so a stale pass cannot outlive the label.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
 permissions:
   contents: read

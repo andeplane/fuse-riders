@@ -122,12 +122,25 @@ test("the coverage gate runs the release steps, on a pull request only while mai
   );
 });
 
+/** What each of verify's `env:` values must be read from: the script below is only as right as its inputs. */
+const VERIFY_ENV: Record<string, string> = {
+  GATE: "${{ needs.checks.result }} ${{ needs.unit.result }} ${{ needs.main-health.result }}",
+  MAIN_RED: "${{ needs.main-health.outputs.red }}",
+  DEPLOY_RED: "${{ needs.main-health.outputs.deploy-red }}",
+  REASON: "${{ needs.main-health.outputs.reason }}",
+  PROOF: "${{ needs.coverage.result }} ${{ needs.e2e.result }}",
+  CD_FIX: "${{ contains(github.event.pull_request.labels.*.name, 'cd-fix') }}",
+};
+
 /** verify's script, run by bash with the values its `env:` would carry; true when it passes. */
 function verifyPasses(env: Record<string, string>): boolean {
   const script = /run: \|\n((?: {10}.*\n?)+)/.exec(job("verify"))?.[1];
   assert.ok(script, "verify has one multi-line run step");
   for (const name of Object.keys(env))
-    assert.match(job("verify"), new RegExp(`^ {10}${name}: `, "m"));
+    assert.ok(
+      job("verify").includes(`          ${name}: ${VERIFY_ENV[name]}\n`),
+      `verify's ${name} must be ${VERIFY_ENV[name]}`,
+    );
   return (
     spawnSync("bash", ["-e", "-c", script.replace(/^ {10}/gm, "")], {
       env: { PATH: process.env.PATH, ...env },
@@ -260,7 +273,7 @@ test("no smoke is written out in the workflow or in the local mirror", () => {
 test("the matrix keeps its triggers and one stable result", () => {
   assert.match(
     workflow,
-    /pull_request:\n(?: +#.*\n)* +types: \[opened, synchronize, reopened, labeled\]/,
+    /pull_request:\n(?: +#.*\n)* +types: \[opened, synchronize, reopened, labeled, unlabeled\]/,
   );
   // The matrix runs on a push, on `full-ci`, and on every pull request while main is red.
   const gate = `github.event_name != 'pull_request' ||\n      contains(github.event.pull_request.labels.*.name, 'full-ci') ||\n      ${RED}`;
