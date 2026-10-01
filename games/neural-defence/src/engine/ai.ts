@@ -8,7 +8,7 @@ import {
   protectionCells,
   researchAvailability,
 } from "./catalog.js";
-import { neighbors, homeCellOrder } from "./map.js";
+import { neighbors, homeOrder } from "./map.js";
 import { territoryOwners } from "./territory.js";
 import { powerupDraw } from "./powerups.js";
 import type {
@@ -18,6 +18,7 @@ import type {
   World,
   BuildKind,
   ParticleKind,
+  Structure,
 } from "./types.js";
 
 import { AI_STRATEGIES, type AiStrategy } from "./types.js";
@@ -118,8 +119,7 @@ export function aiCommands(
   const player = world.players.find((p) => p.id === playerId);
   if (!player?.alive || world.finished || world.tick % 20 !== 0) return [];
   const policy = openings[strategy];
-  const cellOrder = (a: number, b: number) =>
-    homeCellOrder(world.map, player.slot, a, b);
+  const cellOrder = homeOrder(world.map, player.slot);
   const own = world.structures.filter(
     (s) => s.ownerId === playerId && s.connected,
   );
@@ -161,10 +161,18 @@ export function aiCommands(
       attackCells(world.map, s.cell, s.kind),
     ]),
   );
-  const threats = (cell: number) =>
-    enemy.filter(
-      (s) => s.connected && canAttack(s.kind) && reach.get(s.cell)!.has(cell),
-    );
+  // The armed enemy structures covering each cell, in enemy order, built
+  // once per decision: sorts below ask for them many times per cell.
+  const covering = new Map<number, Structure[]>();
+  for (const s of enemy)
+    if (s.connected && canAttack(s.kind))
+      for (const cell of reach.get(s.cell)!) {
+        const list = covering.get(cell);
+        if (list) list.push(s);
+        else covering.set(cell, [s]);
+      }
+  const threats = (cell: number): readonly Structure[] =>
+    covering.get(cell) ?? [];
   // Strategic pursuit ignores orphan branches, but guns can still engage them
   // and paid construction. Match combat's actual targets when allocating ammo.
   const attackable = [
@@ -189,7 +197,14 @@ export function aiCommands(
       ) ||
       world.structures.some(
         (s) => s.cell === job.cell && s.id !== job.upgradeFrom,
-      )
+      ) ||
+      // A rival already paid for this cell: the job can never start.
+      (!job.paid &&
+        world.players.some(
+          (o) =>
+            o.id !== playerId &&
+            o.queue.some((j) => j.paid && j.cell === job.cell),
+        ))
     )
       actions.push({ type: "cancelConstruction", cell: job.cell });
 
@@ -297,19 +312,33 @@ export function aiCommands(
 
   // One decision a second: while nothing waits unpaid, queue the next
   // structure for whichever of the builder or a sprout slot is free.
-  if (!player.queue.some((j) => !j.paid)) {
+  const cancelled = new Set(
+    actions.flatMap((a) => (a.type === "cancelConstruction" ? [a.cell] : [])),
+  );
+  if (!player.queue.some((j) => !j.paid && !cancelled.has(j.cell))) {
     const sites = [
       ...new Set(own.flatMap((s) => neighbors(world.map, s.cell))),
     ];
-    const eligible = (kind: BuildKind, cell: number) =>
-      constructionQueueAvailability(world, player, kind, cell).allowed &&
-      // Queue the intended investment while saving. Falling back to cheap
-      // conduits on every decision otherwise prevents specialists ever starting.
-      constructionDispatchAvailability(world, player, {
-        kind,
-        cell,
-        upgradeFrom: constructionUpgradeSource(world, player, kind, cell)?.id,
-      }).missing.every((requirement) => requirement.kind === "resource");
+    const eligibleCache = new Map<string, boolean>();
+    const eligible = (kind: BuildKind, cell: number) => {
+      const key = `${kind}:${cell}`;
+      let value = eligibleCache.get(key);
+      if (value === undefined) {
+        value =
+          constructionQueueAvailability(world, player, kind, cell).allowed &&
+          // Queue the intended investment while saving. Falling back to cheap
+          // conduits on every decision otherwise prevents specialists ever
+          // starting.
+          constructionDispatchAvailability(world, player, {
+            kind,
+            cell,
+            upgradeFrom: constructionUpgradeSource(world, player, kind, cell)
+              ?.id,
+          }).missing.every((requirement) => requirement.kind === "resource");
+        eligibleCache.set(key, value);
+      }
+      return value;
+    };
     const deposits = (cell: number) =>
       neighbors(world.map, cell).filter(
         (n) => world.map.cells[n]?.terrain === "deposit",
@@ -376,32 +405,70 @@ export function aiCommands(
       (player.statistics.sitesLost >= 2 || player.statistics.lost >= 8)
     ) {
       const costs = new Map<number, number>();
-      const pending = new Set<number>();
+      // Cells pop in (cost, home order) order, as a sorted pending set would,
+      // but from a binary heap keyed on a precomputed home rank.
+      const rank = new Map(
+        world.map.cells
+          .map((_, cell) => cell)
+          .sort(cellOrder)
+          .map((cell, i) => [cell, i]),
+      );
+      const heap: [number, number, number][] = [];
+      const before = (
+        a: [number, number, number],
+        b: [number, number, number],
+      ) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+      const push = (cost: number, cell: number) => {
+        heap.push([cost, rank.get(cell)!, cell]);
+        for (let i = heap.length - 1; i > 0;) {
+          const up = (i - 1) >> 1;
+          if (!before(heap[i]!, heap[up]!)) break;
+          [heap[i], heap[up]] = [heap[up]!, heap[i]!];
+          i = up;
+        }
+      };
+      const pop = () => {
+        const top = heap[0]!;
+        const last = heap.pop()!;
+        if (heap.length) {
+          heap[0] = last;
+          for (let i = 0; ;) {
+            const l = 2 * i + 1,
+              r = l + 1;
+            let m = i;
+            if (l < heap.length && before(heap[l]!, heap[m]!)) m = l;
+            if (r < heap.length && before(heap[r]!, heap[m]!)) m = r;
+            if (m === i) break;
+            [heap[i], heap[m]] = [heap[m]!, heap[i]!];
+            i = m;
+          }
+        }
+        return top;
+      };
+      const rivalCells = new Set(
+        world.structures
+          .filter((s) => s.ownerId !== playerId)
+          .map((s) => s.cell),
+      );
       for (const s of enemy.filter((s) => s.kind === "brain")) {
         costs.set(s.cell, 0);
-        pending.add(s.cell);
+        push(0, s.cell);
       }
-      while (pending.size) {
-        const cell = [...pending].sort(
-          (a, b) => costs.get(a)! - costs.get(b)! || cellOrder(a, b),
-        )[0]!;
-        pending.delete(cell);
+      const done = new Set<number>();
+      while (heap.length) {
+        const [cost, , cell] = pop();
+        if (done.has(cell) || cost !== costs.get(cell)) continue;
+        done.add(cell);
         // One movement step, six for each covering gun, twelve to clear an
         // occupied enemy cell. These are planning costs, never game damage.
         const crossing =
-          1 +
-          threats(cell).length * 6 +
-          (world.structures.some(
-            (s) => s.ownerId !== playerId && s.cell === cell,
-          )
-            ? 12
-            : 0);
+          1 + threats(cell).length * 6 + (rivalCells.has(cell) ? 12 : 0);
         for (const next of neighbors(world.map, cell)) {
           if (world.map.cells[next]?.terrain !== "open") continue;
-          const cost = costs.get(cell)! + crossing;
-          if (cost < (costs.get(next) ?? Infinity)) {
-            costs.set(next, cost);
-            pending.add(next);
+          const through = cost + crossing;
+          if (through < (costs.get(next) ?? Infinity)) {
+            costs.set(next, through);
+            push(through, next);
           }
         }
       }
