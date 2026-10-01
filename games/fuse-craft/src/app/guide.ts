@@ -36,7 +36,7 @@ export const isGuideSection = (value: unknown): value is GuideSection =>
 /**
  * The openings, as an RTS playbook: what each does, what it beats and what
  * beats it. The counters come from the AI-vs-AI benchmark
- * (docs/neural-defence/STRATEGIES.md).
+ * (docs/fuse-craft/STRATEGIES.md).
  */
 export const OPENINGS: Readonly<
   Record<

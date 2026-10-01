@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseHTML } from "linkedom";
-import { mountNeuralDefence, type AppDependencies } from "../src/app/app.js";
+import { mountFuseCraft, type AppDependencies } from "../src/app/app.js";
 import { createAttractScene } from "../src/app/attract-scene.js";
 import { createCueTracker, type PresentationAudio } from "../src/app/audio.js";
 import type {
@@ -461,7 +461,7 @@ function fixture(options: FixtureOptions = {}) {
       ? { initialRoom: "AB12" }
       : {}),
   };
-  const app = mountNeuralDefence(root, dependencies);
+  const app = mountFuseCraft(root, dependencies);
   const publish = () => {
     for (const listener of [...listeners]) listener();
   };

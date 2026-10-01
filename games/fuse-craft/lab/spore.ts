@@ -7,7 +7,7 @@ import {
 } from "../src/render/sprite-raster.js";
 import { hexCenter } from "../src/render/projection.js";
 import { createWebGlLightRenderer } from "../src/render/light-canvas.js";
-import "../src/app/neural-defence.css";
+import "../src/app/fuse-craft.css";
 
 // A Spore tower of a's, supplied, facing a clump of b's neurons.
 const svg = document.querySelector<SVGSVGElement>("#nd-board")!;

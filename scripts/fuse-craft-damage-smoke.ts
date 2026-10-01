@@ -12,7 +12,7 @@ import { STRUCTURES } from "../games/fuse-craft/src/engine/catalog.js";
 
 const recording = JSON.parse(
   readFileSync(
-    "docs/neural-defence/verification/rules12-replays-2026-10-01/combat.replay.json",
+    "docs/fuse-craft/verification/rules12-replays-2026-10-01/combat.replay.json",
     "utf8",
   ),
 ) as {
