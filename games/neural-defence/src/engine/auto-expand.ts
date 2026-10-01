@@ -3,12 +3,17 @@ import {
   constructionQueueAvailability,
   constructionDispatchAvailability,
   isSprout,
+  planSupport,
   sproutSlots,
 } from "./catalog.js";
 import { homeCellOrder, neighbors } from "./map.js";
 import type { Player, World } from "./types.js";
 
-/** Nearest legal frontier to the brain; ties follow the seat's home order. */
+/**
+ * Nearest legal frontier to the brain; ties follow the seat's home order.
+ * Manual plans take priority while they can still connect; a plan that
+ * nothing built or queued reaches does not hold automatic growth back.
+ */
 export function autoExpandCell(
   world: Readonly<World>,
   player: Readonly<Player>,
@@ -16,7 +21,9 @@ export function autoExpandCell(
   if (
     !player.autoExpand ||
     !player.alive ||
-    player.queue.some((j) => !j.paid) ||
+    [...planSupport(world, player).values()].some(
+      (support) => support !== "unsupported",
+    ) ||
     player.queue.filter((j) => j.paid && isSprout(j)).length >=
       sproutSlots(player) ||
     player.biomass < CONSTRUCTIONS.neuron.cost

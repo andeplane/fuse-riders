@@ -5,7 +5,7 @@ import {
   type BuildingSprites,
   type SpritePaint,
 } from "./sprite-raster.js";
-import { STRUCTURES, attackCells } from "../engine/catalog.js";
+import { STRUCTURES, attackCells, planSupport } from "../engine/catalog.js";
 import { neighbors } from "../engine/map.js";
 import { structureArt, teamSvgFilter, svgArtFilters } from "./art.js";
 import { terrainArt, WALKABLE_GROUND } from "./terrain-art.js";
@@ -697,12 +697,19 @@ export function renderBoard(
   setMarkup(
     cache.queues,
     world.players
-      .flatMap((p) =>
-        p.queue.map((q, i) => {
+      .flatMap((p) => {
+        // A plan nothing built or queued reaches would wait forever; mark it
+        // apart from a line that grows plan by plan.
+        const support = p.queue.some((q) => !q.paid)
+          ? planSupport(world, p)
+          : null;
+        return p.queue.map((q, i) => {
           const { x, y } = hexCenter(width, q.cell);
-          return `<g class="queue-mark" data-cell="${q.cell}" style="--team:${colors[p.slot]}">${q.paid ? `<circle class="site-progress" cx="${x}" cy="${y}" r="24" pathLength="1" stroke-dasharray="${q.progress / Math.max(1, q.duration)} 1"/>` : ""}<circle cx="${x}" cy="${y}" r="24"/><text x="${x}" y="${y + 5}" text-anchor="middle">${i + 1}</text></g>`;
-        }),
-      )
+          const unsupported =
+            !q.paid && support?.get(q.cell) === "unsupported";
+          return `<g class="queue-mark${unsupported ? " queue-unsupported" : ""}" data-cell="${q.cell}" style="--team:${colors[p.slot]}">${unsupported ? "<title>Not connected: waits until the network reaches a neighbouring hex</title>" : ""}${q.paid ? `<circle class="site-progress" cx="${x}" cy="${y}" r="24" pathLength="1" stroke-dasharray="${q.progress / Math.max(1, q.duration)} 1"/>` : ""}<circle cx="${x}" cy="${y}" r="24"/><text x="${x}" y="${y + 5}" text-anchor="middle">${i + 1}</text></g>`;
+        });
+      })
       .join(""),
   );
   setMarkup(

@@ -19,6 +19,7 @@ import {
 import { createCameraFactory } from "../render/camera.js";
 import { createWebGlLightRenderer } from "../render/light-canvas.js";
 import { createBrowserAudio } from "./audio.js";
+import { createFullscreenControl, createPointerSurface } from "./screen.js";
 import "@fontsource/press-start-2p/latin.css";
 import "fuse-ui/tokens.css";
 import "fuse-ui/components.css";
@@ -75,6 +76,10 @@ const buildingSprites = createBuildingSprites(
     (blob) => URL.createObjectURL(blob),
   ),
 );
+
+// Real full screen for the game itself, so the mouse stays in the window and
+// edge scrolling works at every side.
+const fullscreen = createFullscreenControl(document, root);
 
 mountNeuralDefence(root, {
   // The shared portal of every Fuse game, first in each header.
@@ -149,25 +154,9 @@ mountNeuralDefence(root, {
     },
     requestFrame: (callback) => requestAnimationFrame(callback),
     cancelFrame: (handle) => cancelAnimationFrame(handle),
+    screen: createPointerSurface(window),
   }),
-  ...(document.fullscreenEnabled
-    ? {
-        fullscreen: {
-          active: () => document.fullscreenElement !== null,
-          toggle() {
-            if (document.fullscreenElement)
-              void document.exitFullscreen().catch(() => {});
-            else
-              void document.documentElement.requestFullscreen().catch(() => {});
-          },
-          onChange(callback: () => void) {
-            document.addEventListener("fullscreenchange", callback);
-            return () =>
-              document.removeEventListener("fullscreenchange", callback);
-          },
-        },
-      }
-    : {}),
+  ...(fullscreen ? { fullscreen } : {}),
   // Light is soft, so one canvas pixel per CSS pixel is enough; on dense
   // screens this quarters the GPU fill cost and the browser upscales smoothly.
   createLightRenderer: (canvas) =>

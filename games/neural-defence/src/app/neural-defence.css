@@ -28,6 +28,15 @@ select {
   padding: 0;
   background: var(--fui-ink);
 }
+/* The game container itself goes full screen; keep the page's ground. */
+.nd-app:fullscreen {
+  overflow: auto;
+  background: var(--fui-ink);
+}
+.nd-app::backdrop {
+  /* Older engines do not inherit custom properties into ::backdrop. */
+  background: var(--fui-ink, #030919);
+}
 .nd-header {
   display: flex;
   align-items: center;
@@ -1795,6 +1804,24 @@ select {
 .placement-preview[data-valid="false"] > polygon {
   fill: #ff476f30;
   stroke: #ff476f;
+}
+/* Legal, but nothing built or queued reaches it: it would wait. */
+.placement-preview[data-valid="true"][data-support="unsupported"] > polygon {
+  fill: #ffc84a26;
+  stroke: var(--fui-yellow);
+}
+.placement-frontier polygon {
+  fill: #16e7ff14;
+  stroke: #7ff3ffaa;
+  stroke-width: 1.5;
+}
+.queue-mark.queue-unsupported circle {
+  stroke: #ff8a5c;
+  stroke-dasharray: 2 4;
+  fill: #2a0f1899;
+}
+.queue-mark.queue-unsupported text {
+  fill: #ff8a5c;
 }
 .placement-instructions {
   max-height: calc(var(--dock-height) - 24px);
