@@ -1,4 +1,6 @@
+import "fuse-ui/portal.css";
 import "./entrance.css";
+import { createAppPortal } from "fuse-ui/portal";
 
 interface EntranceOptions {
   main: HTMLElement;
@@ -39,9 +41,22 @@ export function createEntrance(o: EntranceOptions) {
   trialHelp.textContent =
     "New control trials: choose Keyboard · J / K in Settings for WASD/arrows aiming, J/Space jump, K hook and Shift+Down drop. Inside the room, the manager can enable Double jump and Spiked wire for everyone. One extra jump recharges on landing; active wire splits balls and ends the shot.";
   root.querySelector("#entrance-help")!.append(trialHelp);
-  root.querySelector<HTMLAnchorElement>(".entrance-home")!.href =
+  const home = root.querySelector<HTMLAnchorElement>(".entrance-home")!;
+  home.href =
     import.meta.env.BASE_URL +
     (new URLSearchParams(location.search).has("mute") ? "?mute" : "");
+  const bar = document.createElement("div");
+  bar.className = "entrance-bar";
+  home.before(bar);
+  bar.append(
+    createAppPortal({
+      document,
+      current: "hook-havok",
+      base: import.meta.env.BASE_URL,
+      search: location.search,
+    }).element,
+    home,
+  );
   const placements = Object.entries({
     start: o.start,
     status: o.status,
