@@ -50,7 +50,7 @@ Last reviewed: 2026-09-30 (rules 12), branch `claude/fuse-craft` ([PR #417](http
 - [ ] Versus reports no match results or ratings to `fuse-platform` (admission only, like Fuse Choppers).
 - [ ] A page refresh during a Versus match rejoins as the same member, but there is no in-room chat, spectating UI or kick button yet.
 - [ ] No win verified on a real phone, and touch or trackpad controls have only been exercised in emulation.
-- [ ] Not deployed. Cloud Run serves extra games only when `EXTRA_GAME_IDS` names them; add `fuse-craft` there to open online rooms.
+- [x] Online rooms are live: `EXTRA_GAME_IDS` names `fuse-craft` since 2026-10-01, and the production gateway creates Fuse Craft rooms. Play across real networks and on phones is still unverified.
 
 ## Verification gaps
 
