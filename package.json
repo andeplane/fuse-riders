@@ -31,6 +31,7 @@
     "dice": "workspace:*",
     "hook-havok": "workspace:*",
     "fuse-choppers": "workspace:*",
+    "neural-defence": "workspace:*",
     "fuse-freight": "workspace:*",
     "fuse-network-be": "workspace:*",
     "fuse-platform": "workspace:*",

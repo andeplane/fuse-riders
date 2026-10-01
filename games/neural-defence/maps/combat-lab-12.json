@@ -1,0 +1,468 @@
+{
+  "schemaVersion": 1,
+  "width": 12,
+  "height": 12,
+  "layout": "odd-r",
+  "cells": [
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "insight"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "insight"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open",
+      "towerSite": true
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "insight"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "biomass"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "deposit",
+      "resourceKind": "insight"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "blocked"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    },
+    {
+      "terrain": "open"
+    }
+  ],
+  "spawns": [
+    {
+      "slot": 0,
+      "cellIndex": 13
+    },
+    {
+      "slot": 1,
+      "cellIndex": 22
+    },
+    {
+      "slot": 2,
+      "cellIndex": 121
+    },
+    {
+      "slot": 3,
+      "cellIndex": 130
+    }
+  ],
+  "id": "combat-lab-12"
+}

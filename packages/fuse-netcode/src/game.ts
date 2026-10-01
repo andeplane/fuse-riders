@@ -151,7 +151,7 @@ export interface Seating<Room, Settings> {
   /** A new bot's id, unused in `room` (including ids it remembers from departed seats) and not in `pending`. */
   botId(room: Room, pending: ReadonlySet<string>): string;
   botName(slot: number): string;
-  /** A solo room: the fallback seat name and how many bots join before the match starts. */
+  /** A solo room: fallback seat name and bots to add; zero is valid for games permitting one participant. */
   solo: { name: string; bots: number };
 }
 

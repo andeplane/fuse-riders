@@ -1,0 +1,353 @@
+{
+  "close-quarters": {
+    "harnessVersion": 3,
+    "source": "f504deefffd9c0109ca54b1cdf2cd760312544d9",
+    "dirty": "uncommitted app, script and docs edits only; simulationDirty is empty",
+    "simulationDirty": "",
+    "command": [
+      "<node>",
+      "scripts/fuse-craft-tournament.ts",
+      "--maps",
+      "close-quarters",
+      "--seconds",
+      "900",
+      "--powerups",
+      "--out",
+      "<scratch>/close-quarters"
+    ],
+    "seconds": 900,
+    "strategies": [
+      "balanced",
+      "pressure",
+      "economy",
+      "siege",
+      "relay",
+      "defensive",
+      "swarm"
+    ],
+    "maps": [
+      "skirmish-24",
+      "open-front",
+      "narrow-front",
+      "lean-resources",
+      "close-quarters",
+      "twin-hemispheres",
+      "synapse-islands",
+      "cortex-crossing",
+      "grand-cortex"
+    ],
+    "powerups": true
+  },
+  "cortex-crossing": {
+    "harnessVersion": 3,
+    "source": "f504deefffd9c0109ca54b1cdf2cd760312544d9",
+    "dirty": "uncommitted app, script and docs edits only; simulationDirty is empty",
+    "simulationDirty": "",
+    "command": [
+      "<node>",
+      "scripts/fuse-craft-tournament.ts",
+      "--maps",
+      "cortex-crossing",
+      "--seconds",
+      "900",
+      "--powerups",
+      "--out",
+      "<scratch>/cortex-crossing"
+    ],
+    "seconds": 900,
+    "strategies": [
+      "balanced",
+      "pressure",
+      "economy",
+      "siege",
+      "relay",
+      "defensive",
+      "swarm"
+    ],
+    "maps": [
+      "skirmish-24",
+      "open-front",
+      "narrow-front",
+      "lean-resources",
+      "close-quarters",
+      "twin-hemispheres",
+      "synapse-islands",
+      "cortex-crossing",
+      "grand-cortex"
+    ],
+    "powerups": true
+  },
+  "grand-cortex": {
+    "harnessVersion": 3,
+    "source": "f504deefffd9c0109ca54b1cdf2cd760312544d9",
+    "dirty": "uncommitted app, script and docs edits only; simulationDirty is empty",
+    "simulationDirty": "",
+    "command": [
+      "<node>",
+      "scripts/fuse-craft-tournament.ts",
+      "--maps",
+      "grand-cortex",
+      "--seconds",
+      "900",
+      "--powerups",
+      "--out",
+      "<scratch>/grand-cortex"
+    ],
+    "seconds": 900,
+    "strategies": [
+      "balanced",
+      "pressure",
+      "economy",
+      "siege",
+      "relay",
+      "defensive",
+      "swarm"
+    ],
+    "maps": [
+      "skirmish-24",
+      "open-front",
+      "narrow-front",
+      "lean-resources",
+      "close-quarters",
+      "twin-hemispheres",
+      "synapse-islands",
+      "cortex-crossing",
+      "grand-cortex"
+    ],
+    "powerups": true
+  },
+  "lean-resources": {
+    "harnessVersion": 3,
+    "source": "f504deefffd9c0109ca54b1cdf2cd760312544d9",
+    "dirty": "uncommitted app, script and docs edits only; simulationDirty is empty",
+    "simulationDirty": "",
+    "command": [
+      "<node>",
+      "scripts/fuse-craft-tournament.ts",
+      "--maps",
+      "lean-resources",
+      "--seconds",
+      "900",
+      "--powerups",
+      "--out",
+      "<scratch>/lean-resources"
+    ],
+    "seconds": 900,
+    "strategies": [
+      "balanced",
+      "pressure",
+      "economy",
+      "siege",
+      "relay",
+      "defensive",
+      "swarm"
+    ],
+    "maps": [
+      "skirmish-24",
+      "open-front",
+      "narrow-front",
+      "lean-resources",
+      "close-quarters",
+      "twin-hemispheres",
+      "synapse-islands",
+      "cortex-crossing",
+      "grand-cortex"
+    ],
+    "powerups": true
+  },
+  "narrow-front": {
+    "harnessVersion": 3,
+    "source": "f504deefffd9c0109ca54b1cdf2cd760312544d9",
+    "dirty": "uncommitted app, script and docs edits only; simulationDirty is empty",
+    "simulationDirty": "",
+    "command": [
+      "<node>",
+      "scripts/fuse-craft-tournament.ts",
+      "--maps",
+      "narrow-front",
+      "--seconds",
+      "900",
+      "--powerups",
+      "--out",
+      "<scratch>/narrow-front"
+    ],
+    "seconds": 900,
+    "strategies": [
+      "balanced",
+      "pressure",
+      "economy",
+      "siege",
+      "relay",
+      "defensive",
+      "swarm"
+    ],
+    "maps": [
+      "skirmish-24",
+      "open-front",
+      "narrow-front",
+      "lean-resources",
+      "close-quarters",
+      "twin-hemispheres",
+      "synapse-islands",
+      "cortex-crossing",
+      "grand-cortex"
+    ],
+    "powerups": true
+  },
+  "open-front": {
+    "harnessVersion": 3,
+    "source": "f504deefffd9c0109ca54b1cdf2cd760312544d9",
+    "dirty": "uncommitted app, script and docs edits only; simulationDirty is empty",
+    "simulationDirty": "",
+    "command": [
+      "<node>",
+      "scripts/fuse-craft-tournament.ts",
+      "--maps",
+      "open-front",
+      "--seconds",
+      "900",
+      "--powerups",
+      "--out",
+      "<scratch>/open-front"
+    ],
+    "seconds": 900,
+    "strategies": [
+      "balanced",
+      "pressure",
+      "economy",
+      "siege",
+      "relay",
+      "defensive",
+      "swarm"
+    ],
+    "maps": [
+      "skirmish-24",
+      "open-front",
+      "narrow-front",
+      "lean-resources",
+      "close-quarters",
+      "twin-hemispheres",
+      "synapse-islands",
+      "cortex-crossing",
+      "grand-cortex"
+    ],
+    "powerups": true
+  },
+  "skirmish-24": {
+    "harnessVersion": 3,
+    "source": "f504deefffd9c0109ca54b1cdf2cd760312544d9",
+    "dirty": "uncommitted app, script and docs edits only; simulationDirty is empty",
+    "simulationDirty": "",
+    "command": [
+      "<node>",
+      "scripts/fuse-craft-tournament.ts",
+      "--maps",
+      "skirmish-24",
+      "--seconds",
+      "900",
+      "--powerups",
+      "--out",
+      "<scratch>/skirmish-24"
+    ],
+    "seconds": 900,
+    "strategies": [
+      "balanced",
+      "pressure",
+      "economy",
+      "siege",
+      "relay",
+      "defensive",
+      "swarm"
+    ],
+    "maps": [
+      "skirmish-24",
+      "open-front",
+      "narrow-front",
+      "lean-resources",
+      "close-quarters",
+      "twin-hemispheres",
+      "synapse-islands",
+      "cortex-crossing",
+      "grand-cortex"
+    ],
+    "powerups": true
+  },
+  "synapse-islands": {
+    "harnessVersion": 3,
+    "source": "f504deefffd9c0109ca54b1cdf2cd760312544d9",
+    "dirty": "uncommitted app, script and docs edits only; simulationDirty is empty",
+    "simulationDirty": "",
+    "command": [
+      "<node>",
+      "scripts/fuse-craft-tournament.ts",
+      "--maps",
+      "synapse-islands",
+      "--seconds",
+      "900",
+      "--powerups",
+      "--out",
+      "<scratch>/synapse-islands"
+    ],
+    "seconds": 900,
+    "strategies": [
+      "balanced",
+      "pressure",
+      "economy",
+      "siege",
+      "relay",
+      "defensive",
+      "swarm"
+    ],
+    "maps": [
+      "skirmish-24",
+      "open-front",
+      "narrow-front",
+      "lean-resources",
+      "close-quarters",
+      "twin-hemispheres",
+      "synapse-islands",
+      "cortex-crossing",
+      "grand-cortex"
+    ],
+    "powerups": true
+  },
+  "twin-hemispheres": {
+    "harnessVersion": 3,
+    "source": "f504deefffd9c0109ca54b1cdf2cd760312544d9",
+    "dirty": "uncommitted app, script and docs edits only; simulationDirty is empty",
+    "simulationDirty": "",
+    "command": [
+      "<node>",
+      "scripts/fuse-craft-tournament.ts",
+      "--maps",
+      "twin-hemispheres",
+      "--seconds",
+      "900",
+      "--powerups",
+      "--out",
+      "<scratch>/twin-hemispheres"
+    ],
+    "seconds": 900,
+    "strategies": [
+      "balanced",
+      "pressure",
+      "economy",
+      "siege",
+      "relay",
+      "defensive",
+      "swarm"
+    ],
+    "maps": [
+      "skirmish-24",
+      "open-front",
+      "narrow-front",
+      "lean-resources",
+      "close-quarters",
+      "twin-hemispheres",
+      "synapse-islands",
+      "cortex-crossing",
+      "grand-cortex"
+    ],
+    "powerups": true
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "source": "2a3524d3ea741c0bed26954e2487ba96d3a3a4d4",
+  "engineMatchesCandidate": true,
+  "mapHashes": {
+    "games/neural-defence/maps/close-quarters.json": "f6b8d427fffb344ae531dcd262f68fe3d0475608f396a6b50189b91f7ef2f4be",
+    "games/neural-defence/maps/skirmish-24.json": "6a3f3e0931886ceff0ffe6fa28dad61877ad68b2b566f54269a0a68a32cf546e",
+    "games/neural-defence/maps/open-front.json": "c28f3c27b5cecf9e58f30844c76d3c719816188fe51aa907ec66251a851f2ef6",
+    "games/neural-defence/maps/narrow-front.json": "d70ed97157abbe5d34c550e8292766cb8dd6822cba64a12ad80e45cfa734f6f7",
+    "games/neural-defence/maps/lean-resources.json": "7a6caeab6a4d723c2e9271689c549800445a4219fedc051ed0b3a1786c67bc68"
+  }
+}

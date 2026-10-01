@@ -1,0 +1,314 @@
+{
+  "cap": 1,
+  "seconds": 143,
+  "winner": "alpha",
+  "hash": "54487e3f",
+  "rejected": 0,
+  "plan": [
+    {
+      "seconds": 0,
+      "actions": [
+        {
+          "type": "queueConstruction",
+          "kind": "neuron",
+          "cell": 176
+        },
+        {
+          "type": "setPriority",
+          "cell": 175,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 6,
+      "actions": [
+        {
+          "type": "queueConstruction",
+          "kind": "neuron",
+          "cell": 177
+        },
+        {
+          "type": "setPriority",
+          "cell": 175,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 176,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 13,
+      "actions": [
+        {
+          "type": "queueConstruction",
+          "kind": "neuron",
+          "cell": 178
+        },
+        {
+          "type": "setPriority",
+          "cell": 176,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 177,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 20,
+      "actions": [
+        {
+          "type": "startResearch",
+          "research": "growth"
+        },
+        {
+          "type": "queueConstruction",
+          "kind": "neuron",
+          "cell": 203
+        },
+        {
+          "type": "setPriority",
+          "cell": 177,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 178,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 27,
+      "actions": [
+        {
+          "type": "queueConstruction",
+          "kind": "tower",
+          "cell": 227
+        },
+        {
+          "type": "setPriority",
+          "cell": 178,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 203,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 41,
+      "actions": [
+        {
+          "type": "startResearch",
+          "research": "conduction"
+        }
+      ]
+    },
+    {
+      "seconds": 48,
+      "actions": [
+        {
+          "type": "queueConstruction",
+          "kind": "tower",
+          "cell": 204
+        },
+        {
+          "type": "setPriority",
+          "cell": 203,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 227,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 62,
+      "actions": [
+        {
+          "type": "startResearch",
+          "research": "resonance"
+        }
+      ]
+    },
+    {
+      "seconds": 63,
+      "actions": [
+        {
+          "type": "queueConstruction",
+          "kind": "neuron",
+          "cell": 226
+        },
+        {
+          "type": "setPriority",
+          "cell": 227,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 204,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 68,
+      "actions": [
+        {
+          "type": "queueConstruction",
+          "kind": "tower",
+          "cell": 205
+        },
+        {
+          "type": "setPriority",
+          "cell": 204,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 226,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 82,
+      "actions": [
+        {
+          "type": "setPriority",
+          "cell": 226,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 205,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 83,
+      "actions": [
+        {
+          "type": "startResearch",
+          "research": "excitation"
+        },
+        {
+          "type": "setParticleKind",
+          "kind": "swift"
+        },
+        {
+          "type": "queueConstruction",
+          "kind": "relay",
+          "cell": 206
+        }
+      ]
+    },
+    {
+      "seconds": 92,
+      "actions": [
+        {
+          "type": "queueConstruction",
+          "kind": "relay",
+          "cell": 229
+        },
+        {
+          "type": "setPriority",
+          "cell": 205,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 206,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 102,
+      "actions": [
+        {
+          "type": "queueConstruction",
+          "kind": "relay",
+          "cell": 254
+        },
+        {
+          "type": "setPriority",
+          "cell": 206,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 229,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 112,
+      "actions": [
+        {
+          "type": "queueConstruction",
+          "kind": "relay",
+          "cell": 255
+        },
+        {
+          "type": "setPriority",
+          "cell": 229,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 254,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 123,
+      "actions": [
+        {
+          "type": "queueConstruction",
+          "kind": "relay",
+          "cell": 256
+        },
+        {
+          "type": "setPriority",
+          "cell": 254,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 255,
+          "weight": 3
+        }
+      ]
+    },
+    {
+      "seconds": 133,
+      "actions": [
+        {
+          "type": "setPriority",
+          "cell": 255,
+          "weight": 0
+        },
+        {
+          "type": "setPriority",
+          "cell": 256,
+          "weight": 3
+        }
+      ]
+    }
+  ]
+}
