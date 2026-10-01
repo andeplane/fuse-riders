@@ -57,6 +57,7 @@ export function createBrowserAudio(forceMute: boolean): PresentationAudio {
     mute: true,
     volume: 0.5,
     reducedMotion: false,
+    edgeScroll: true,
   };
   let disposed = false;
   const voices = new Set<() => void>();

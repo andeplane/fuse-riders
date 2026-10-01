@@ -83,7 +83,12 @@ function fixture(options: { manager?: boolean; initialRoom?: string } = {}) {
       },
     },
     preferences: {
-      read: () => ({ mute: true, volume: 0.5, reducedMotion: true }),
+      read: () => ({
+        mute: true,
+        volume: 0.5,
+        reducedMotion: true,
+        edgeScroll: true,
+      }),
       write() {},
     },
     createSession() {

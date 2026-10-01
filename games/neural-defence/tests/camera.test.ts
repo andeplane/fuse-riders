@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createCameraModel, MAX_SCALE } from "../src/render/camera.js";
+import {
+  createCameraModel,
+  EDGE_ZONE,
+  MAX_SCALE,
+  scrollDirection,
+  type PanDirection,
+} from "../src/render/camera.js";
 
 const world = { width: 768, height: 648 };
 const insets = { top: 52, right: 12, bottom: 154, left: 12 };
@@ -102,4 +108,41 @@ test("zoom-in stops at a scale that still shows the battle around a building", (
   assert.equal(1200 / camera.view().width, MAX_SCALE);
   camera.zoom(0.5, { x: 600, y: 400 });
   assert.equal(1200 / camera.view().width, MAX_SCALE / 2);
+});
+
+test("held arrows and the board's edges choose a unit scroll direction", () => {
+  const size = { width: 800, height: 600 };
+  const held = (...d: PanDirection[]) => new Set<PanDirection>(d);
+  assert.equal(scrollDirection(held(), null, size), null);
+  assert.equal(scrollDirection(held(), { x: 400, y: 300 }, size), null);
+  assert.deepEqual(scrollDirection(held("right"), null, size), { x: 1, y: 0 });
+  assert.equal(scrollDirection(held("left", "right"), null, size), null);
+  const diagonal = scrollDirection(held("up", "left"), null, size)!;
+  assert.ok(Math.abs(Math.hypot(diagonal.x, diagonal.y) - 1) < 1e-9);
+  assert.ok(diagonal.x < 0 && diagonal.y < 0);
+  assert.deepEqual(
+    scrollDirection(held(), { x: EDGE_ZONE - 1, y: 300 }, size),
+    { x: -1, y: 0 },
+  );
+  assert.deepEqual(
+    scrollDirection(held(), { x: 400, y: size.height - 2 }, size),
+    { x: 0, y: 1 },
+  );
+});
+
+test("scrolling moves the view the same way and stops at the map's edge", () => {
+  const camera = createCameraModel(
+    { width: 3000, height: 2000 },
+    { width: 1200, height: 800 },
+    { top: 0, right: 0, bottom: 0, left: 0 },
+  );
+  camera.focus({ x: 1500, y: 1000 });
+  const before = camera.view();
+  camera.scroll(100, 50);
+  const after = camera.view();
+  assert.ok(after.x > before.x && after.y > before.y);
+  camera.scroll(1e6, 1e6);
+  const edge = camera.view();
+  camera.scroll(1e6, 1e6);
+  assert.deepEqual(camera.view(), edge, "clamped at the far corner");
 });

@@ -107,6 +107,8 @@ export interface PresentationPreferences {
   mute: boolean;
   volume: number;
   reducedMotion: boolean;
+  /** Scroll the camera when the mouse rests at the board's edge. */
+  edgeScroll: boolean;
 }
 export interface PreferencesStore {
   read(): PresentationPreferences;

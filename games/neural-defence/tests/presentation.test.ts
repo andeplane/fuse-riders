@@ -618,6 +618,7 @@ test("presentation preferences tolerate corrupt data and unavailable storage", (
     volume: 1,
     mute: false,
     reducedMotion: true,
+    edgeScroll: true,
   });
   assert.doesNotThrow(() => store.write(store.read()));
   assert.equal(

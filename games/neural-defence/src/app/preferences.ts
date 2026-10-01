@@ -5,6 +5,7 @@ const defaults: PresentationPreferences = {
   mute: true,
   volume: 0.5,
   reducedMotion: false,
+  edgeScroll: true,
 };
 
 export function createPreferencesStore(
@@ -28,6 +29,10 @@ export function createPreferencesStore(
             typeof parsed.reducedMotion === "boolean"
               ? parsed.reducedMotion
               : defaults.reducedMotion,
+          edgeScroll:
+            typeof parsed.edgeScroll === "boolean"
+              ? parsed.edgeScroll
+              : defaults.edgeScroll,
         };
       } catch {
         return { ...defaults };

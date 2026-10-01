@@ -27,25 +27,50 @@ try {
     };
     const adapter = audio.createBrowserAudio(false);
     try {
-      adapter.configure({ mute: false, volume: 0.5, reducedMotion: false });
+      adapter.configure({
+        mute: false,
+        volume: 0.5,
+        reducedMotion: false,
+        edgeScroll: true,
+      });
       adapter.unlock();
       // Allow native resume to settle; no simulation clock is involved.
       await new Promise((resolve) => setTimeout(resolve, 100));
       adapter.play("victory");
       const playing = active;
-      adapter.configure({ mute: true, volume: 0.5, reducedMotion: false });
+      adapter.configure({
+        mute: true,
+        volume: 0.5,
+        reducedMotion: false,
+        edgeScroll: true,
+      });
       const muted = active;
-      adapter.configure({ mute: false, volume: 0.5, reducedMotion: false });
+      adapter.configure({
+        mute: false,
+        volume: 0.5,
+        reducedMotion: false,
+        edgeScroll: true,
+      });
       adapter.unlock();
       await new Promise((resolve) => setTimeout(resolve, 100));
       const resumed = active;
       adapter.play("victory");
-      adapter.configure({ mute: false, volume: 0, reducedMotion: false });
+      adapter.configure({
+        mute: false,
+        volume: 0,
+        reducedMotion: false,
+        edgeScroll: true,
+      });
       adapter.play("victory");
       const zeroVolume = active;
       adapter.dispose();
       const forced = audio.createBrowserAudio(true);
-      forced.configure({ mute: false, volume: 1, reducedMotion: false });
+      forced.configure({
+        mute: false,
+        volume: 1,
+        reducedMotion: false,
+        edgeScroll: true,
+      });
       forced.unlock();
       forced.play("victory");
       forced.dispose();

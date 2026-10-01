@@ -39,7 +39,7 @@ export const TUTORIAL_STEPS: readonly TutorialStep[] = [
   {
     id: "select-brain",
     title: "Select your brain",
-    text: "Click your brain, or move the selection with the arrow keys. The panel shows what you have selected and what it can do.",
+    text: "Click your brain, or move the selection with Shift and the arrow keys. The panel shows what you have selected and what it can do. Arrow keys, the board's edges and the minimap move the camera.",
     done: (c) =>
       c.selectedCell !== null &&
       own(c).some((s) => s.kind === "brain" && s.cell === c.selectedCell),

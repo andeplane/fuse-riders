@@ -14,11 +14,44 @@ export interface Insets {
   bottom: number;
   left: number;
 }
+export type PanDirection = "left" | "right" | "up" | "down";
 export interface BoardCamera {
   dispose(): void;
   focusCell(width: number, cell: number): void;
   ensureCellVisible(width: number, cell: number): void;
   refresh(): void;
+  /** Starts or stops scrolling one way, as while an arrow key is held. */
+  hold(direction: PanDirection, held: boolean): void;
+  /** Scrolls when the mouse rests at the board's edge (RTS edge scrolling). */
+  setEdgeScroll(enabled: boolean): void;
+}
+
+/** Screen pixels from the board's edge that start edge scrolling. */
+export const EDGE_ZONE = 28;
+/** Scroll speed for held keys and edge scrolling, in screen pixels a second. */
+export const SCROLL_SPEED = 900;
+
+/**
+ * Which way the camera scrolls, as unit components: held arrow keys, plus the
+ * mouse resting within EDGE_ZONE of the viewport's sides. Null when nothing
+ * asks it to move.
+ */
+export function scrollDirection(
+  held: ReadonlySet<PanDirection>,
+  pointer: { x: number; y: number } | null,
+  size: Size,
+): { x: number; y: number } | null {
+  let x = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
+  let y = (held.has("down") ? 1 : 0) - (held.has("up") ? 1 : 0);
+  if (pointer) {
+    if (pointer.x < EDGE_ZONE) x = -1;
+    else if (pointer.x > size.width - EDGE_ZONE) x = 1;
+    if (pointer.y < EDGE_ZONE) y = -1;
+    else if (pointer.y > size.height - EDGE_ZONE) y = 1;
+  }
+  if (!x && !y) return null;
+  const length = Math.hypot(x, y);
+  return { x: x / length, y: y / length };
 }
 export type CameraFactory = (
   svg: SVGSVGElement,
@@ -107,6 +140,12 @@ export function createCameraModel(
       view.y -= dy / scale;
       clamp();
     },
+    /** Moves the view itself by screen pixels: positive scrolls right and down. */
+    scroll(dx: number, dy: number) {
+      view.x += dx / scale;
+      view.y += dy / scale;
+      clamp();
+    },
     resize(next: Size) {
       if (
         next.width <= 0 ||
@@ -141,6 +180,8 @@ export function createCameraModel(
 
 export interface CameraDependencies {
   observeResize(element: Element, callback: () => void): () => void;
+  requestFrame(callback: (now: number) => void): number;
+  cancelFrame(handle: number): void;
 }
 
 export function createCameraFactory(
@@ -176,6 +217,38 @@ export function createCameraFactory(
       panOnly: boolean;
     } | null = null;
     let suppressClick = false;
+    const held = new Set<PanDirection>();
+    let edgeScroll = false;
+    // The mouse's position over the board, for edge scrolling; null when it
+    // is elsewhere or a button is down.
+    let pointer: { x: number; y: number } | null = null;
+    let frame: number | null = null;
+    let lastFrame: number | null = null;
+    function tick(now: number) {
+      frame = null;
+      const direction = scrollDirection(
+        held,
+        edgeScroll ? pointer : null,
+        measure(),
+      );
+      if (!direction || disposed) {
+        lastFrame = null;
+        return;
+      }
+      // Frame time, capped so a stalled tab does not jump across the map.
+      const seconds =
+        lastFrame === null ? 1 / 60 : Math.min(0.05, (now - lastFrame) / 1000);
+      lastFrame = now;
+      model.scroll(
+        direction.x * SCROLL_SPEED * seconds,
+        direction.y * SCROLL_SPEED * seconds,
+      );
+      refresh();
+      frame = dependencies.requestFrame(tick);
+    }
+    function wake() {
+      if (frame === null && !disposed) frame = dependencies.requestFrame(tick);
+    }
     const touches = new Map<number, { x: number; y: number }>();
     let pinch: { x: number; y: number; distance: number } | null = null;
     function touchPair() {
@@ -232,7 +305,20 @@ export function createCameraFactory(
       }
       svg.focus({ preventScroll: true });
     }
+    function hover(event: PointerEvent) {
+      if (event.pointerType !== "mouse" || event.buttons) {
+        pointer = null;
+        return;
+      }
+      const rect = viewport.getBoundingClientRect();
+      pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      if (edgeScroll) wake();
+    }
+    function leave() {
+      pointer = null;
+    }
     function move(event: PointerEvent) {
+      hover(event);
       // A mouse can leave the viewport before crossing the drag threshold.
       // Its release then happens outside our listeners, so hover must cancel it.
       if (event.pointerType !== "touch" && event.buttons === 0 && gesture) {
@@ -329,6 +415,7 @@ export function createCameraFactory(
     }
     viewport.addEventListener("pointerdown", down);
     viewport.addEventListener("pointermove", move);
+    viewport.addEventListener("pointerleave", leave);
     viewport.addEventListener("pointerup", up);
     viewport.addEventListener("pointercancel", up);
     viewport.addEventListener("click", click, true);
@@ -347,11 +434,24 @@ export function createCameraFactory(
         model.ensureVisible(hexCenter(width, cell));
         refresh();
       },
+      hold(direction, on) {
+        if (on) held.add(direction);
+        else held.delete(direction);
+        if (held.size) wake();
+      },
+      setEdgeScroll(enabled) {
+        edgeScroll = enabled;
+        if (!enabled) pointer = null;
+      },
       dispose() {
         disposed = true;
         stopResize();
         viewport.removeEventListener("pointerdown", down);
         viewport.removeEventListener("pointermove", move);
+        viewport.removeEventListener("pointerleave", leave);
+        if (frame !== null) dependencies.cancelFrame(frame);
+        frame = null;
+        held.clear();
         viewport.removeEventListener("pointerup", up);
         viewport.removeEventListener("pointercancel", up);
         viewport.removeEventListener("click", click, true);

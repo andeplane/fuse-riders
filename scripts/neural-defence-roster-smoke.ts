@@ -193,8 +193,8 @@ await Promise.all(
       // Use ordinary keyboard navigation to bring the selected base back into
       // view after changing from a wide desktop viewport to portrait.
       await page.locator("#nd-board").focus();
-      await page.keyboard.press("ArrowRight");
-      await page.keyboard.press("ArrowLeft");
+      await page.keyboard.press("Shift+ArrowRight");
+      await page.keyboard.press("Shift+ArrowLeft");
       await page.screenshot({ path: `/tmp/neural-roster-${name}-phone.png` });
       assert.deepEqual(errors, []);
       console.log(

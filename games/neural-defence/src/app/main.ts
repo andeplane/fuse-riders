@@ -147,7 +147,27 @@ mountNeuralDefence(root, {
       observer.observe(element);
       return () => observer.disconnect();
     },
+    requestFrame: (callback) => requestAnimationFrame(callback),
+    cancelFrame: (handle) => cancelAnimationFrame(handle),
   }),
+  ...(document.fullscreenEnabled
+    ? {
+        fullscreen: {
+          active: () => document.fullscreenElement !== null,
+          toggle() {
+            if (document.fullscreenElement)
+              void document.exitFullscreen().catch(() => {});
+            else
+              void document.documentElement.requestFullscreen().catch(() => {});
+          },
+          onChange(callback: () => void) {
+            document.addEventListener("fullscreenchange", callback);
+            return () =>
+              document.removeEventListener("fullscreenchange", callback);
+          },
+        },
+      }
+    : {}),
   // Light is soft, so one canvas pixel per CSS pixel is enough; on dense
   // screens this quarters the GPU fill cost and the browser upscales smoothly.
   createLightRenderer: (canvas) =>

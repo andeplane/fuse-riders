@@ -9,6 +9,7 @@ import type {
   SessionOptions,
 } from "../src/app/contracts.js";
 import type { Action, MatchSettings } from "../src/engine/types.js";
+import type { BoardCamera } from "../src/render/camera.js";
 import { RESEARCH, researchPrerequisites } from "../src/engine/catalog.js";
 import { requirementText, renderCommands } from "../src/app/command-card.js";
 
@@ -45,6 +46,7 @@ function fixture(
   maps?: MapRepository,
   random: () => number = () => 0,
   portal?: () => HTMLElement,
+  extra: Partial<AppDependencies> = {},
 ) {
   const { document: dom } = parseHTML(
     '<html><body><div id="app"></div></body></html>',
@@ -82,7 +84,12 @@ function fixture(
       },
     },
     preferences: {
-      read: () => ({ mute: true, volume: 0.5, reducedMotion: false }),
+      read: () => ({
+        mute: true,
+        volume: 0.5,
+        reducedMotion: false,
+        edgeScroll: true,
+      }),
       write() {},
     },
     createSession(map, _slot, _mode, selectedSettings, options) {
@@ -113,6 +120,7 @@ function fixture(
     debug: true,
     random,
     ...(portal ? { portal } : {}),
+    ...extra,
     animationClock: () => 0,
     requestFrame(callback) {
       const handle = ++requestedFrames;
@@ -188,6 +196,14 @@ function fixture(
         .dispatchEvent(
           new KeyEvent("keydown", { bubbles: true, cancelable: true }),
         );
+    },
+    release(key: string, selector = "#nd-board") {
+      class KeyEvent extends EventConstructor {
+        readonly key = key;
+      }
+      root
+        .querySelector(selector)!
+        .dispatchEvent(new KeyEvent("keyup", { bubbles: true }));
     },
   };
 }
@@ -910,4 +926,99 @@ test("the Fuse app portal comes first in every page header and survives re-rende
   assert.equal(first(), element, "the setup header keeps the same portal");
   assert.equal(made, 1, "one portal for the page's lifetime");
   f.app.dispose();
+});
+
+test("arrows scroll the camera while held, Shift+arrows move the selection, and the minimap drags", async () => {
+  const calls: string[] = [];
+  const camera: BoardCamera = {
+    dispose() {},
+    focusCell: (_w, cell) => calls.push(`focus ${cell}`),
+    ensureCellVisible() {},
+    refresh() {},
+    hold: (direction, held) => calls.push(`${direction} ${held}`),
+    setEdgeScroll: (on) => calls.push(`edge ${on}`),
+  };
+  const f = fixture(undefined, () => 0, undefined, {
+    createCamera: () => camera,
+  });
+  await f.start();
+  assert.ok(calls.includes("edge true"), "edge scrolling follows the setting");
+  calls.length = 0;
+  const selected = () =>
+    f.root.querySelector("#nd-board")?.getAttribute("aria-label");
+  const before = selected();
+  f.press("ArrowRight");
+  assert.deepEqual(calls, ["right true"]);
+  assert.equal(selected(), before, "plain arrows leave the selection");
+  f.release("ArrowRight");
+  assert.deepEqual(calls, ["right true", "right false"]);
+  f.press("ArrowRight", "#nd-board", { shiftKey: true });
+  assert.notEqual(selected(), before, "Shift+arrow moves the selection");
+  // Press and drag on the minimap: the camera follows every move.
+  calls.length = 0;
+  const minimap = f.root.querySelector("#nd-minimap")!;
+  // linkedom has no layout; give the minimap a size.
+  Object.assign(minimap, {
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }),
+  });
+  const Pointer = f.root.ownerDocument.defaultView!.Event;
+  const pointer = (type: string, x: number, buttons: number) => {
+    const event = new Pointer(type, { bubbles: true }) as Event &
+      Record<string, number>;
+    Object.assign(event, {
+      pointerId: 7,
+      button: 0,
+      buttons,
+      clientX: x,
+      clientY: 5,
+    });
+    minimap.dispatchEvent(event);
+  };
+  pointer("pointerdown", 2, 1);
+  pointer("pointermove", 40, 1);
+  pointer("pointermove", 80, 1);
+  pointer("pointerup", 80, 0);
+  pointer("pointermove", 120, 0);
+  assert.equal(
+    calls.filter((c) => c.startsWith("focus")).length,
+    3,
+    "down and two drags move the camera; moves after release do not",
+  );
+  f.app.dispose();
+});
+
+test("full screen toggles from the top bar and the F key where the browser allows it", async () => {
+  let on = false;
+  let listener: (() => void) | null = null;
+  const f = fixture(undefined, () => 0, undefined, {
+    fullscreen: {
+      active: () => on,
+      toggle() {
+        on = !on;
+        listener?.();
+      },
+      onChange(callback) {
+        listener = callback;
+        return () => (listener = null);
+      },
+    },
+  });
+  await f.start();
+  const button = () =>
+    f.root.querySelector<HTMLElement>('[data-action="fullscreen"]')!;
+  assert.equal(button().getAttribute("aria-pressed"), "false");
+  f.click("fullscreen");
+  assert.equal(on, true);
+  assert.equal(button().getAttribute("aria-pressed"), "true");
+  f.press("f");
+  assert.equal(on, false);
+  f.app.dispose();
+  const plain = fixture();
+  await plain.start();
+  assert.equal(
+    plain.root.querySelector('[data-action="fullscreen"]'),
+    null,
+    "no button where full screen is unavailable",
+  );
+  plain.app.dispose();
 });

@@ -31,7 +31,11 @@ import {
   neuronPortraitUrl,
   type BoardAnimation,
 } from "../render/board.js";
-import type { BoardCamera, CameraFactory } from "../render/camera.js";
+import type {
+  BoardCamera,
+  CameraFactory,
+  PanDirection,
+} from "../render/camera.js";
 import type { LightRenderer } from "../render/light-field.js";
 import { DEFAULT_MAP, ROOM_MAPS, bundledMap } from "../online/maps.js";
 import { TEAM_PALETTES } from "../render/creep.js";
@@ -151,6 +155,12 @@ export interface AppDependencies {
   preferences: PreferencesStore;
   createSession: SessionFactory;
   debug: boolean;
+  /** Full-screen play, where the browser supports it. */
+  fullscreen?: {
+    active(): boolean;
+    toggle(): void;
+    onChange(callback: () => void): () => void;
+  };
   /** The Fuse app portal, placed first in every page header. */
   portal?: () => HTMLElement;
   /** Draws random openings; Math.random unless a test injects one. */
@@ -548,7 +558,7 @@ export function mountNeuralDefence(
   }
 
   function settingsMarkup(): string {
-    return `${header("Settings", "presentation")}<main class="nd-panel settings-panel"><p>Preferences stay on this device.</p>${dependencies.forcedMute ? '<p class="debug-note">This preview URL forces audio off.</p>' : ""}<label class="setting-row"><span><strong>Mute sound</strong><small>Interface, construction and combat cues</small></span><input type="checkbox" data-setting="mute" ${preferences.mute ? "checked" : ""}></label><label class="setting-row"><span><strong>Volume</strong></span><input type="range" min="0" max="1" step="0.05" data-setting="volume" value="${preferences.volume}"></label><label class="setting-row"><span><strong>Reduced motion</strong><small>Reduce particle animation and flashes</small></span><input type="checkbox" data-setting="reducedMotion" ${preferences.reducedMotion ? "checked" : ""}></label><button data-action="back-menu" class="secondary">← Back</button></main>`;
+    return `${header("Settings", "presentation")}<main class="nd-panel settings-panel"><p>Preferences stay on this device.</p>${dependencies.forcedMute ? '<p class="debug-note">This preview URL forces audio off.</p>' : ""}<label class="setting-row"><span><strong>Mute sound</strong><small>Interface, construction and combat cues</small></span><input type="checkbox" data-setting="mute" ${preferences.mute ? "checked" : ""}></label><label class="setting-row"><span><strong>Volume</strong></span><input type="range" min="0" max="1" step="0.05" data-setting="volume" value="${preferences.volume}"></label><label class="setting-row"><span><strong>Reduced motion</strong><small>Reduce particle animation and flashes</small></span><input type="checkbox" data-setting="reducedMotion" ${preferences.reducedMotion ? "checked" : ""}></label><label class="setting-row"><span><strong>Edge scrolling</strong><small>Move the camera when the mouse rests at the board's edge</small></span><input type="checkbox" data-setting="edgeScroll" ${preferences.edgeScroll ? "checked" : ""}></label><button data-action="back-menu" class="secondary">← Back</button></main>`;
   }
 
   function setupMarkup(): string {
@@ -621,6 +631,59 @@ export function mountNeuralDefence(
       <aside id="game-sidebar" class="game-sidebar"></aside></main><div id="game-modal">${modal()}</div>`;
   }
 
+  function fullscreenButton(): string {
+    const full = dependencies.fullscreen;
+    if (!full) return "";
+    const on = full.active();
+    return `<button data-action="fullscreen" class="secondary" aria-pressed="${on}" aria-label="${on ? "Leave full screen" : "Full screen"}" title="${on ? "Leave full screen (F)" : "Full screen (F)"}">⛶</button>`;
+  }
+
+  /** Points the camera at the minimap position under a pointer. */
+  function minimapFocus(minimap: Element, x: number, y: number) {
+    const world = gameWorld();
+    const box = minimap.getBoundingClientRect();
+    if (!world || !box.width || !box.height) return;
+    camera?.focusCell(
+      world.map.width,
+      minimapCell(
+        world,
+        (x - box.left) / box.width,
+        (y - box.top) / box.height,
+      ),
+    );
+    updateMinimapView();
+  }
+  // A press on the minimap keeps the camera on the pointer until release.
+  let minimapDrag: number | null = null;
+  function onPointerDown(event: PointerEvent) {
+    const minimap = (event.target as Element).closest?.("#nd-minimap");
+    if (!minimap || pending || event.button !== 0) return;
+    minimapDrag = event.pointerId;
+    (
+      minimap as Element & { setPointerCapture?(id: number): void }
+    ).setPointerCapture?.(event.pointerId);
+    minimapFocus(minimap, event.clientX, event.clientY);
+  }
+  function onPointerUp(event: PointerEvent) {
+    if (event.pointerId === minimapDrag) minimapDrag = null;
+  }
+  const ARROWS: Record<string, PanDirection> = {
+    ArrowLeft: "left",
+    ArrowRight: "right",
+    ArrowUp: "up",
+    ArrowDown: "down",
+  };
+  function onKeyUp(event: KeyboardEvent) {
+    const direction = ARROWS[event.key];
+    if (direction) camera?.hold(direction, false);
+  }
+  // Keys released while the window is in the background never arrive.
+  function onFocusOut(event: FocusEvent) {
+    if (event.relatedTarget) return;
+    for (const direction of Object.values(ARROWS))
+      camera?.hold(direction, false);
+  }
+
   function sideName(world: Readonly<World>, id: string): string {
     return (
       TEAM_NAMES[world.players.find((p) => p.id === id)?.slot ?? 0] ?? "Player"
@@ -655,7 +718,7 @@ export function mountNeuralDefence(
         return `<button class="watch-player" data-watch-player="${escape(p.id)}" style="--team:${TEAM_COLORS[p.slot]}"><strong>${sideName(world, p.id)} · ${escape(opening)}</strong><span>Brain ${brain?.hp ?? 0} HP</span><small>${p.statistics.built} built · ${p.statistics.lost} lost</small></button>`;
       })
       .join("");
-    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls"><button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button><button data-action="reset" class="secondary">Restart</button><button data-action="leave" class="secondary">Menu</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div><button data-action="find-battle" class="secondary" title="Jump to fighting or the nearest opposing networks">Find battle</button></section><nav class="watch-players" aria-label="AI players">${cards}</nav></div>`;
+    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls">${fullscreenButton()}<button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button><button data-action="reset" class="secondary">Restart</button><button data-action="leave" class="secondary">Menu</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div><button data-action="find-battle" class="secondary" title="Jump to fighting or the nearest opposing networks">Find battle</button></section><nav class="watch-players" aria-label="AI players">${cards}</nav></div>`;
   }
 
   function sidebarMarkup(world: Readonly<World>): string {
@@ -772,7 +835,7 @@ export function mountNeuralDefence(
           : panel === "research"
             ? `<div class="command-context"><strong>Research</strong><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · researching` : "Choose an upgrade"}</p><small>${player.research.length ? `Complete: ${player.research.map((r) => researchNames[r]).join(", ")}` : "Hover or focus a command for its requirements."}</small></div>`
             : `<div class="command-context"><strong>Recent activity</strong><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></div>`;
-    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div>${territoryChips(world, player)}${buffChips(world, player)}</div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls"><button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button>${online ? (online.room().manager ? '<button data-action="reset" class="secondary">Lobby</button>' : "") : '<button data-action="reset" class="secondary">Reset</button>'}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div>
+    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div>${territoryChips(world, player)}${buffChips(world, player)}</div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls">${fullscreenButton()}<button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button>${online ? (online.room().manager ? '<button data-action="reset" class="secondary">Lobby</button>' : "") : '<button data-action="reset" class="secondary">Reset</button>'}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div>
       <div class="command-dock">${minimapMarkup(world)}<section class="inspector" aria-label="${panel === "inspect" || panel === "build" ? "Selected hex" : panel === "research" ? "Research" : "Recent activity"}">${portrait ? `<div class="selection-portrait"><img style="filter:${structure && structure.kind !== "neuron" && structure.kind !== "spore" ? teamArtFilter(world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0) : "none"}" src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${contextDetail}</div></section><nav class="command-card" data-panel="${panel}" aria-label="${panel === "research" ? "Research commands" : panel === "build" ? "Build commands" : panel === "activity" ? "Activity commands" : "Commands"}">${commands}</nav></div>`;
   }
 
@@ -912,6 +975,7 @@ export function mountNeuralDefence(
     const viewport = root.querySelector<HTMLElement>("#nd-viewport");
     if (!camera && viewport && dependencies.createCamera) {
       camera = dependencies.createCamera(svg, viewport);
+      camera.setEdgeScroll(preferences.edgeScroll);
       const player = world.players.find((p) => p.id === session?.localPlayerId);
       const brain = world.structures.find(
         (s) => s.ownerId === player?.id && s.kind === "brain",
@@ -1155,18 +1219,7 @@ export function mountNeuralDefence(
     }
     const tactical = target.closest<SVGSVGElement>("#nd-minimap");
     if (tactical && !pending) {
-      const world = gameWorld();
-      const box = tactical.getBoundingClientRect();
-      if (world && box.width && box.height)
-        camera?.focusCell(
-          world.map.width,
-          minimapCell(
-            world,
-            (event.clientX - box.left) / box.width,
-            (event.clientY - box.top) / box.height,
-          ),
-        );
-      updateMinimapView();
+      minimapFocus(tactical, event.clientX, event.clientY);
       return;
     }
     const button = target.closest<HTMLElement>("[data-action]");
@@ -1213,6 +1266,8 @@ export function mountNeuralDefence(
           target.closest<HTMLElement>("[data-section]")?.dataset.section;
         if (isGuideSection(section)) guideSection = section;
         render();
+      } else if (action === "fullscreen") {
+        dependencies.fullscreen?.toggle();
       } else if (action === "help") {
         helpOpen = true;
         render();
@@ -1419,6 +1474,13 @@ export function mountNeuralDefence(
   }
 
   function onPointerMove(event: PointerEvent) {
+    if (event.pointerId === minimapDrag) {
+      const minimap = root.querySelector("#nd-minimap");
+      if (minimap && event.buttons)
+        minimapFocus(minimap, event.clientX, event.clientY);
+      else minimapDrag = null;
+      return;
+    }
     if (!placement || pending || event.pointerType === "touch" || event.buttons)
       return;
     const tile = (event.target as Element).closest<SVGElement>(
@@ -1509,7 +1571,13 @@ export function mountNeuralDefence(
           ...preferences,
           reducedMotion: (target as HTMLInputElement).checked,
         };
-      else if (setting === "volume")
+      else if (setting === "edgeScroll") {
+        preferences = {
+          ...preferences,
+          edgeScroll: (target as HTMLInputElement).checked,
+        };
+        camera?.setEdgeScroll(preferences.edgeScroll);
+      } else if (setting === "volume")
         preferences = { ...preferences, volume: Number(target.value) };
       dependencies.preferences.write(preferences);
       dependencies.audio?.configure(preferences);
@@ -1561,6 +1629,27 @@ export function mountNeuralDefence(
       closePanel();
       return;
     }
+    // Arrow keys scroll the camera while held; Shift+arrows move the
+    // selection, and arrows move the target while placing a building.
+    const direction = ARROWS[event.key];
+    if (
+      direction &&
+      screen === "game" &&
+      !pending &&
+      !helpOpen &&
+      !placement &&
+      !event.shiftKey &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !(event.target as HTMLElement).closest?.(
+        'input, select, textarea, [contenteditable="true"]',
+      )
+    ) {
+      event.preventDefault();
+      camera?.hold(direction, true);
+      return;
+    }
     if (
       screen === "game" &&
       !event.altKey &&
@@ -1572,6 +1661,11 @@ export function mountNeuralDefence(
       if (
         !target.closest('input, select, textarea, [contenteditable="true"]')
       ) {
+        if (event.key.toLowerCase() === "f" && dependencies.fullscreen) {
+          event.preventDefault();
+          dependencies.fullscreen.toggle();
+          return;
+        }
         if (
           "qweasd".includes(event.key.toLowerCase()) &&
           event.key.length === 1
@@ -1636,6 +1730,14 @@ export function mountNeuralDefence(
 
   root.addEventListener("click", onClick);
   root.addEventListener("pointermove", onPointerMove);
+  root.addEventListener("pointerdown", onPointerDown);
+  root.addEventListener("pointerup", onPointerUp);
+  root.addEventListener("pointercancel", onPointerUp);
+  root.addEventListener("keyup", onKeyUp);
+  root.addEventListener("focusout", onFocusOut);
+  const stopFullscreen = dependencies.fullscreen?.onChange(() => {
+    if (screen === "game") renderGame();
+  });
   root.addEventListener("change", onChange);
   root.addEventListener("keydown", onKeyDown);
   root.addEventListener("input", onInput);
@@ -1654,6 +1756,12 @@ export function mountNeuralDefence(
       dependencies.audio?.dispose();
       root.removeEventListener("click", onClick);
       root.removeEventListener("pointermove", onPointerMove);
+      root.removeEventListener("pointerdown", onPointerDown);
+      root.removeEventListener("pointerup", onPointerUp);
+      root.removeEventListener("pointercancel", onPointerUp);
+      root.removeEventListener("keyup", onKeyUp);
+      root.removeEventListener("focusout", onFocusOut);
+      stopFullscreen?.();
       root.removeEventListener("change", onChange);
       root.removeEventListener("keydown", onKeyDown);
       root.removeEventListener("input", onInput);
