@@ -42,7 +42,7 @@ Use typed fakes for clocks, scheduling, transport, storage and browser surfaces.
 
 ## Browser checks
 
-CI runs the browser matrix on main pushes, manual dispatch and pull requests explicitly labelled `full-ci`; it normally skips it on PRs. Inspect the actual run and revision before citing browser success. Use the affected local smoke when practical, and report what could not run. A green `verify` job alone proves no browser interaction.
+CI runs the browser matrix on main pushes, manual dispatch and pull requests explicitly labelled `full-ci`; it normally skips it on PRs, except while main is red, when every PR runs it and coverage and `verify` requires both. Inspect the actual run and revision before citing browser success. Use the affected local smoke when practical, and report what could not run. A green `verify` job alone proves no browser interaction.
 
 [README](../README.md#tests-and-evidence) lists smoke commands. `scripts/ci-local.sh` runs the local mirror, with `ONLY` selecting relevant checks and `PORT` avoiding occupied matches:
 
