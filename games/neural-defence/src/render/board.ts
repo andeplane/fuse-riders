@@ -41,6 +41,7 @@ import {
   veinMarkup,
 } from "./creep.js";
 import { CreepLayer, type CreepSource } from "./creep-layer.js";
+import { arrangeChildren, KeyedLayer, type KeyedItem } from "./keyed-layer.js";
 import { organicBurst } from "./organic-burst.js";
 import { SPORE_POD, sporeMarkup } from "./spore-art.js";
 import { buildingRoots, buildingRootsMarkup } from "./building-roots.js";
@@ -105,6 +106,8 @@ interface BoardCache {
   prior: Map<number, number>;
   pulses: Pulse[];
   structures: SVGGElement;
+  /** Structure and construction-site elements, one per item, reused when unchanged. */
+  structureItems: KeyedLayer;
   castShadows: SVGGElement;
   links: SVGGElement;
   queues: SVGGElement;
@@ -118,6 +121,10 @@ interface BoardCache {
   /** First presentation time of structures, dendrites and links; -Infinity when present at load. */
   born: Map<string, number>;
   creep: CreepLayer;
+  /** Vein markup per connected structure; recomputed only when it changes. */
+  veins: Map<string, string>;
+  /** Neuron forms by cell, team and neighbours, reused while unchanged. */
+  memo: { neurons: NeuronMemo };
   fresh: boolean;
   light: LightField;
   spores: readonly Spore[];
@@ -156,6 +163,9 @@ function sporesFor(size: { width: number; height: number }, seed: string) {
   );
 }
 const LINK_GROW_MS = 900;
+/** A stable identity for a decorative light, so thinning keeps the same ones. */
+const decorKey = (kind: number, index: number) =>
+  kind * 0x1000000 + (index & 0xffffff);
 const caches = new WeakMap<SVGSVGElement, BoardCache>();
 function weaponStyle(
   world: Readonly<World>,
@@ -307,23 +317,27 @@ function shadowMarkup(world: Readonly<World>, sprites: Sprites): string {
     })
     .join("");
 }
-function structureMarkup(
+type NeuronMemo = Map<string, { visual: NeuronVisual; markup: string }>;
+function structureItems(
   world: Readonly<World>,
   sprites: Sprites,
   neurons: Map<number, NeuronVisual>,
-): string {
-  return [...world.structures]
+  memo: { neurons: NeuronMemo },
+): KeyedItem[] {
+  const stocks = new Map<string, number>();
+  for (const p of world.particles)
+    if (p.mode === "stationed") {
+      const key = `${p.ownerId}:${p.cell}`;
+      stocks.set(key, (stocks.get(key) ?? 0) + 1);
+    }
+  const forms: NeuronMemo = new Map();
+  const items = [...world.structures]
     .sort((a, b) => a.cell - b.cell)
     .map((s) => {
       const { x, y } = hexCenter(world.map.width, s.cell),
         slot = world.players.find((p) => p.id === s.ownerId)?.slot ?? 0;
       const hpMax = STRUCTURES[s.kind].hp;
-      const stock = world.particles.filter(
-        (p) =>
-          p.ownerId === s.ownerId &&
-          p.cell === s.cell &&
-          p.mode === "stationed",
-      ).length;
+      const stock = stocks.get(`${s.ownerId}:${s.cell}`) ?? 0;
       const healthY =
         s.kind === "neuron"
           ? y - 35
@@ -334,14 +348,17 @@ function structureMarkup(
           : "";
       let artwork: string;
       if (s.kind === "neuron") {
-        const visual = neuronVisual(
-          x,
-          y,
-          s.cell,
-          neuronNeighbours(world, s.cell, s.ownerId),
-        );
-        neurons.set(s.cell, visual);
-        artwork = neuronMarkup(visual, slot);
+        // A neuron's form depends only on its cell, team and neighbours.
+        const neighbours = neuronNeighbours(world, s.cell, s.ownerId);
+        const key = `${s.cell}:${slot}:${neighbours.map((n) => n.cell).join(",")}`;
+        let form = memo.neurons.get(key);
+        if (!form) {
+          const visual = neuronVisual(x, y, s.cell, neighbours);
+          form = { visual, markup: neuronMarkup(visual, slot) };
+        }
+        forms.set(key, form);
+        neurons.set(s.cell, form.visual);
+        artwork = form.markup;
       } else
         artwork =
           buildingRootsMarkup(
@@ -365,9 +382,11 @@ function structureMarkup(
         stock && s.connected
           ? `<ellipse class="supply-footprint" cx="${x}" cy="${y + 20}" rx="${s.kind === "neuron" ? 20 : 29}" ry="9" opacity="${Math.min(0.35, stock / 96)}"/>`
           : "";
-      return `<g class="structure structure-${s.kind} ${s.connected ? "" : "disconnected"}" data-cell="${s.cell}" style="--team:${colors[slot]}"><ellipse class="contact-shadow" cx="${x + 4}" cy="${y + 19}" rx="${s.kind === "neuron" ? 23 : 34}" ry="16" fill="url(#contact-shadow)"/>${supply}<circle class="owner-ring" cx="${x}" cy="${y}" r="${s.kind === "brain" ? 27 : 10}"/>${artwork || `<circle class="structure-core" cx="${x}" cy="${y}" r="15"/>`}${stock && s.connected ? `<g class="supply-orbit" style="transform-origin:${x}px ${y}px">${Array.from({ length: Math.min(6, Math.ceil(stock / 8)) }, (_, i) => `<circle cx="${x + Math.cos((i * Math.PI) / 3) * 22}" cy="${y + Math.sin((i * Math.PI) / 3) * 22}" r="2" fill="${colors[slot]}"/>`).join("")}</g>` : ""}${health}<ellipse class="structure-hit" cx="${x}" cy="${y + hit.offset}" rx="${hit.rx}" ry="${hit.ry}"/></g>`;
-    })
-    .join("");
+      const markup = `<g class="structure structure-${s.kind} ${s.connected ? "" : "disconnected"}" data-cell="${s.cell}" style="--team:${colors[slot]}"><ellipse class="contact-shadow" cx="${x + 4}" cy="${y + 19}" rx="${s.kind === "neuron" ? 23 : 34}" ry="16" fill="url(#contact-shadow)"/>${supply}<circle class="owner-ring" cx="${x}" cy="${y}" r="${s.kind === "brain" ? 27 : 10}"/>${artwork || `<circle class="structure-core" cx="${x}" cy="${y}" r="15"/>`}${stock && s.connected ? `<g class="supply-orbit" style="transform-origin:${x}px ${y}px">${Array.from({ length: Math.min(6, Math.ceil(stock / 8)) }, (_, i) => `<circle cx="${x + Math.cos((i * Math.PI) / 3) * 22}" cy="${y + Math.sin((i * Math.PI) / 3) * 22}" r="2" fill="${colors[slot]}"/>`).join("")}</g>` : ""}${health}<ellipse class="structure-hit" cx="${x}" cy="${y + hit.offset}" rx="${hit.rx}" ry="${hit.ry}"/></g>`;
+      return { key: `s${s.id}`, markup };
+    });
+  memo.neurons = forms;
+  return items;
 }
 function linkMarkup(world: Readonly<World>): string {
   const nodes = new Map(world.structures.map((s) => [s.cell, s]));
@@ -413,45 +432,44 @@ function setMarkup(element: SVGElement, markup: string): void {
   element.innerHTML = markup;
   element.setAttribute("data-markup", markup);
 }
-function constructionBodies(world: Readonly<World>, sprites: Sprites): string {
-  return world.players
-    .flatMap((p) =>
-      p.queue
-        .filter((q) => q.paid)
-        .map((q) => {
-          const at = hexCenter(world.map.width, q.cell);
-          const progress = q.progress / Math.max(1, q.duration);
-          if (q.kind === "neuron")
-            return cocoonMarkup(
-              neuronVisual(
-                at.x,
-                at.y,
-                q.cell,
-                neuronNeighbours(world, q.cell, p.id),
-              ),
-              p.slot,
-              progress,
-              p.worker.mode === "building",
-            );
-          return constructionMarkup({
-            cell: q.cell,
-            slot: p.slot,
-            ...at,
-            height: buildingSize(q.kind),
-            progress,
-            active: p.worker.mode === "building",
-            color: colors[p.slot]!,
-            artwork: structureArtwork(
-              world.map.width,
-              q.cell,
-              q.kind,
-              p.slot,
-              sprites,
-            ),
-          });
-        }),
-    )
-    .join("");
+function constructionItems(
+  world: Readonly<World>,
+  sprites: Sprites,
+): KeyedItem[] {
+  return world.players.flatMap((p) =>
+    p.queue
+      .filter((q) => q.paid)
+      .map((q) => ({
+        key: `c${p.slot}:${q.cell}:${q.kind}`,
+        markup: constructionBody(world, sprites, p, q),
+      })),
+  );
+}
+function constructionBody(
+  world: Readonly<World>,
+  sprites: Sprites,
+  p: World["players"][number],
+  q: World["players"][number]["queue"][number],
+): string {
+  const at = hexCenter(world.map.width, q.cell);
+  const progress = q.progress / Math.max(1, q.duration);
+  if (q.kind === "neuron")
+    return cocoonMarkup(
+      neuronVisual(at.x, at.y, q.cell, neuronNeighbours(world, q.cell, p.id)),
+      p.slot,
+      progress,
+      p.worker.mode === "building",
+    );
+  return constructionMarkup({
+    cell: q.cell,
+    slot: p.slot,
+    ...at,
+    height: buildingSize(q.kind),
+    progress,
+    active: p.worker.mode === "building",
+    color: colors[p.slot]!,
+    artwork: structureArtwork(world.map.width, q.cell, q.kind, p.slot, sprites),
+  });
 }
 function layer(svg: SVGSVGElement, className: string): SVGGElement {
   const element = svg.ownerDocument.createElementNS(ns, "g");
@@ -553,6 +571,7 @@ export function renderBoard(
       queues,
       powerups,
       structures,
+      structureItems: new KeyedLayer(structures),
       castShadows,
       particleLayer,
       effectLayer,
@@ -569,6 +588,8 @@ export function renderBoard(
       weaponKinds: new Map(),
       born: new Map(),
       creep: new CreepLayer(territory, size),
+      veins: new Map(),
+      memo: { neurons: new Map() },
       fresh: true,
       light: new LightField(),
       spores: sporesFor(size, `${world.matchId}`),
@@ -577,6 +598,9 @@ export function renderBoard(
     caches.set(svg, cached);
   }
   const cache = cached;
+  // Measure once, before this render writes to the DOM: reading layout after
+  // a write forces a synchronous layout.
+  const measured = measure(svg, !!light, !!buildingSprites);
   // Anything present when the board is built is already grown; later arrivals grow in.
   const initial = cache.fresh;
   cache.fresh = false;
@@ -596,23 +620,26 @@ export function renderBoard(
   const creepDetails = new Map<number, string>(
     world.players.map((p) => [p.slot, ""]),
   );
+  const veins = new Map<string, string>();
   for (const s of world.structures) {
     const slot = slotOf(s.ownerId);
     const { x, y } = hexCenter(width, s.cell);
     const radius = CREEP_RADIUS[s.kind] * (s.connected ? 1 : 0.55);
     bornAt(`s${s.id}`);
     creepSources.push({ key: `s${s.id}`, slot, x, y, radius });
-    if (s.connected)
-      creepDetails.set(
-        slot,
-        creepDetails.get(slot) +
-          `<ellipse class="creep-sheen" cx="${x - radius * 0.12}" cy="${y - 2}" rx="${radius * 0.78}" ry="${radius * 0.5}" fill="url(#nd-creep-sheen-${slot})"/>` +
-          `<g class="creep-veins">${veinMarkup(x, y, radius, s.id * 31 + slot)}</g>` +
-          (s.kind === "brain"
-            ? `<ellipse class="creep-ripple" cx="${x}" cy="${y + 2}" data-reach="${radius * 2.2}" fill="none" stroke="${TEAM_PALETTES[slot]?.light}" opacity="0"/>`
-            : ""),
-      );
+    if (!s.connected) continue;
+    const key = `${s.id}:${s.cell}:${slot}:${s.kind}`;
+    const detail =
+      cache.veins.get(key) ??
+      `<ellipse class="creep-sheen" cx="${x - radius * 0.12}" cy="${y - 2}" rx="${radius * 0.78}" ry="${radius * 0.5}" fill="url(#nd-creep-sheen-${slot})"/>` +
+        `<g class="creep-veins">${veinMarkup(x, y, radius, s.id * 31 + slot)}</g>` +
+        (s.kind === "brain"
+          ? `<ellipse class="creep-ripple" cx="${x}" cy="${y + 2}" data-reach="${radius * 2.2}" fill="none" stroke="${TEAM_PALETTES[slot]?.light}" opacity="0"/>`
+          : "");
+    veins.set(key, detail);
+    creepDetails.set(slot, creepDetails.get(slot) + detail);
   }
+  cache.veins = veins;
   for (const p of world.players)
     for (const q of p.queue)
       if (q.paid) {
@@ -655,19 +682,18 @@ export function renderBoard(
       : "",
   );
   setMarkup(cache.links, linkMarkup(world));
-  const matrix = buildingSprites ? svg.getScreenCTM() : null;
-  if (matrix && buildingSprites)
+  if (measured.scale !== null && buildingSprites)
     sprites = buildingSprites.resolve(
-      Math.max(Math.hypot(matrix.a, matrix.b), Math.hypot(matrix.c, matrix.d)),
+      measured.scale,
       world.players.map((player) => player.slot),
     );
   setMarkup(cache.castShadows, shadowMarkup(world, sprites));
   const neuronVisuals = new Map<number, NeuronVisual>();
-  setMarkup(
-    cache.structures,
-    structureMarkup(world, sprites, neuronVisuals) +
-      constructionBodies(world, sprites),
-  );
+  // Only structures and sites whose markup changed are re-parsed.
+  const items = cache.structureItems.sync([
+    ...structureItems(world, sprites, neuronVisuals, cache.memo),
+    ...constructionItems(world, sprites),
+  ]);
   setMarkup(
     cache.queues,
     world.players
@@ -769,8 +795,16 @@ export function renderBoard(
         });
       }
     }
-  // A Spore pod is one projectile: its splash hits share the first trail.
-  const sporeTrails = new Set<string>();
+  // A Spore pod is one projectile: it flies to the primary target (the
+  // shooter's hardest hit this tick) and its splash hits burst from there.
+  const primaryHit = new Map<string, (typeof world.outcomes)[number]>();
+  for (const outcome of world.outcomes)
+    if (outcome.type === "damage" && outcome.fromCell !== undefined) {
+      const shooter = `${outcome.playerId}:${outcome.fromCell}`;
+      const best = primaryHit.get(shooter);
+      if (!best || (outcome.amount ?? 0) > (best.amount ?? 0))
+        primaryHit.set(shooter, outcome);
+    }
   if (world.tick !== cache.tick && !reducedMotion)
     for (const outcome of world.outcomes) {
       if (
@@ -789,13 +823,11 @@ export function renderBoard(
       )
         continue;
       const at = hexCenter(width, outcome.cell);
-      const shooter = `${outcome.playerId}:${outcome.fromCell}`;
       const splash =
         outcome.type === "damage" &&
         weaponStyle(world, cache, outcome.playerId, outcome.fromCell) ===
           "spore" &&
-        sporeTrails.has(shooter);
-      if (outcome.type === "damage") sporeTrails.add(shooter);
+        primaryHit.get(`${outcome.playerId}:${outcome.fromCell}`) !== outcome;
       const from =
         outcome.type === "damage" && outcome.fromCell !== undefined && !splash
           ? hexCenter(width, outcome.fromCell)
@@ -955,20 +987,30 @@ export function renderBoard(
         });
       }
     }
-  // Reattach persistent wrecks after structure markup is refreshed. Solid
-  // silhouettes share ground-depth ordering; smoke/sparks remain above it.
+  // Solid silhouettes (structures, sites, terrain objects and persistent
+  // wrecks) share ground-depth ordering; smoke/sparks remain above it. Other
+  // items (cocoons) sit beneath them. Only out-of-place elements move, since
+  // moving a node restarts its animations.
+  const isBody = (element: Element) =>
+    element.classList.contains("structure") ||
+    element.classList.contains("construction-body");
   const bodies = [
-    ...cache.structures.querySelectorAll<SVGGElement>(".structure"),
-    ...cache.structures.querySelectorAll<SVGGElement>(".construction-body"),
+    ...items.filter(isBody),
     ...cache.terrainObjects,
     ...cache.pulses.flatMap((p) => (p.body ? [p.body] : [])),
-  ];
-  bodies.sort(
-    (a, b) =>
-      Number(a.getAttribute("data-cell") ?? a.getAttribute("data-depth")) -
-      Number(b.getAttribute("data-cell") ?? b.getAttribute("data-depth")),
-  );
-  for (const body of bodies) cache.structures.append(body);
+  ]
+    .map((element) => ({
+      element,
+      depth: Number(
+        element.getAttribute("data-cell") ?? element.getAttribute("data-depth"),
+      ),
+    }))
+    .sort((a, b) => a.depth - b.depth)
+    .map((body) => body.element);
+  arrangeChildren(cache.structures, [
+    ...items.filter((element) => !isBody(element)),
+    ...bodies,
+  ]);
   cache.prior = new Map(
     world.particles
       .filter((p) => p.mode === "transit")
@@ -1116,6 +1158,7 @@ export function renderBoard(
     spine: readonly (readonly [number, number])[];
     color: Rgb;
     phase: number;
+    key: number;
   }[] = [];
   const deposits: { x: number; y: number; biomass: boolean; index: number }[] =
     [];
@@ -1129,6 +1172,7 @@ export function renderBoard(
     path: ReturnType<typeof networkPath>;
     color: Rgb;
     phase: number;
+    key: number;
   }[] = [];
   if (light) {
     for (const s of world.structures) {
@@ -1149,6 +1193,7 @@ export function renderBoard(
             spine,
             color: rgb(p.light),
             phase: (s.cell * 0.37 + i * 0.29) % 1,
+            key: decorKey(3, s.cell * 16 + i),
           }),
         );
       if (s.connected)
@@ -1266,6 +1311,7 @@ export function renderBoard(
         path: networkPath(width, from, to),
         color: rgb(TEAM_PALETTES[owner ? slotOf(owner) : 0]!.light),
         phase: ((from * 7919 + to * 104729) % 1000) / 1000,
+        key: decorKey(1, from * 1024 + to),
       });
     }
   }
@@ -1279,35 +1325,16 @@ export function renderBoard(
       return art ? [{ cell: s.cell, art, x, foot: y + buildingFoot }] : [];
     });
   let displayedSprites: Sprites | null = null;
-  const animate = (frameNow: number) => {
-    // Measure before this frame writes to the DOM, so drawing light never
-    // forces a synchronous layout. The canvas shares the board's box.
-    let lightView: LightTransform | null = null;
-    if (light) {
-      cache.light.begin();
-      const m = svg.getScreenCTM();
-      const box = svg.getBoundingClientRect();
-      if (m)
-        lightView = {
-          a: m.a,
-          b: m.b,
-          c: m.c,
-          d: m.d,
-          e: m.e - box.left,
-          f: m.f - box.top,
-          width: box.width,
-          height: box.height,
-        };
-    }
+  const frame = (frameNow: number, view: Measurement) => {
+    // `view` was measured before this frame wrote to the DOM, so drawing
+    // light never forces a synchronous layout.
+    const lightView = view.light;
+    if (light) cache.light.begin(lightView ?? undefined);
     // Camera/DPR and async raster changes also matter after authoritative
     // frames stop (for example at the result screen). Use the existing RAF.
-    const matrix = buildingSprites ? svg.getScreenCTM() : null;
-    if (matrix && buildingSprites) {
+    if (view.scale !== null && buildingSprites) {
       const resolved = buildingSprites.resolve(
-        Math.max(
-          Math.hypot(matrix.a, matrix.b),
-          Math.hypot(matrix.c, matrix.d),
-        ),
+        view.scale,
         world.players.map((player) => player.slot),
       );
       if (resolved !== displayedSprites) {
@@ -1388,8 +1415,8 @@ export function renderBoard(
       const direction = (Math.atan2(dy, dx) * 180) / Math.PI;
       if (light) {
         const color = rgb(TEAM_PALETTES[m.slot]!.glow);
-        cache.light.add(x, y, m.builder ? 12 : 9, color, 0.45, 2.5);
-        cache.light.add(x, y, 3, [1, 1, 1], 0.8, 8);
+        cache.light.addTransient(x, y, m.builder ? 12 : 9, color, 0.45, 2.5);
+        cache.light.addTransient(x, y, 3, [1, 1, 1], 0.8, 8);
       }
       glyph.setAttribute(
         "transform",
@@ -1421,6 +1448,7 @@ export function renderBoard(
       return true;
     });
     if (light && lightView) drawLight(frameNow, lightView);
+    else if (light) cache.light.step(frameNow, reducedMotion);
   };
   const drawLight = (frameNow: number, view: LightTransform) => {
     const field = cache.light;
@@ -1448,10 +1476,10 @@ export function renderBoard(
         const t = (frameNow / 1500 + signal.phase) % 1;
         const { x, y } = sampleNetworkPath(signal.path, t);
         const fade = Math.sin(t * Math.PI);
-        field.add(x, y, 9, signal.color, 0.3 * fade, 2.5);
-        field.add(x, y, 2.6, [1, 1, 1], 0.85 * fade, 8);
+        field.addDecor(signal.key, x, y, 9, signal.color, 0.3 * fade, 2.5);
+        field.addDecor(signal.key, x, y, 2.6, [1, 1, 1], 0.85 * fade, 8);
       }
-      for (const spore of cache.spores) {
+      for (const [i, spore] of cache.spores.entries()) {
         const t = frameNow / 1000;
         const x = spore.x + Math.sin(t * spore.speed + spore.phase) * 26;
         const y =
@@ -1459,7 +1487,15 @@ export function renderBoard(
           Math.cos(t * spore.speed * 0.7 + spore.phase) * 14 -
           ((t * spore.rise) % 60);
         const twinkle = 0.5 + 0.5 * Math.sin(t * 2.3 + spore.phase * 3);
-        field.add(x, y, spore.size, spore.color, 0.16 * twinkle, 5);
+        field.addDecor(
+          decorKey(2, i),
+          x,
+          y,
+          spore.size,
+          spore.color,
+          0.16 * twinkle,
+          5,
+        );
       }
     }
     if (!reducedMotion) drawAmbient(field, frameNow);
@@ -1473,7 +1509,15 @@ export function renderBoard(
       if (t > 0.6) continue;
       const u = t / 0.6;
       const [x, y] = pointAlong(root.spine, u);
-      field.add(x, y, 3.4, root.color, 0.55 * Math.sin(u * Math.PI), 6);
+      field.addDecor(
+        root.key,
+        x,
+        y,
+        3.4,
+        root.color,
+        0.55 * Math.sin(u * Math.PI),
+        6,
+      );
     }
     const beat = heartbeat(frameNow);
     const travel = bloodTravel(frameNow, 34);
@@ -1486,7 +1530,15 @@ export function renderBoard(
       const size = v.width + 1.2;
       for (let c = 0; c < count; c++) {
         const [x, y] = vesselPoint(v, c * spacing + offset);
-        field.add(x, y, size, blood, 0.05 + 0.14 * beat, 3);
+        field.addDecor(
+          decorKey(4, i * 1024 + c),
+          x,
+          y,
+          size,
+          blood,
+          0.05 + 0.14 * beat,
+          3,
+        );
       }
     });
     for (const d of deposits) {
@@ -1498,7 +1550,15 @@ export function renderBoard(
           const x = d.x + Math.sin(t * 0.9 + k * 2.1) * 10 + (k - 1) * 8;
           const y = d.y - 16 - cycle * 34;
           const fade = Math.sin(cycle * Math.PI);
-          field.add(x, y, 2.4, [0.8, 1, 0.45], 0.55 * fade, 6);
+          field.addDecor(
+            decorKey(5, d.index * 8 + k),
+            x,
+            y,
+            2.4,
+            [0.8, 1, 0.45],
+            0.55 * fade,
+            6,
+          );
         }
       } else {
         // Sparkles blink at the crystal tips.
@@ -1506,7 +1566,8 @@ export function renderBoard(
           const blink = Math.max(0, Math.sin(t * (1.3 + k * 0.37) + k * 1.9));
           const sharp = blink ** 12;
           const angle = k * 1.6 + d.index;
-          field.add(
+          field.addDecor(
+            decorKey(5, d.index * 8 + k),
             d.x + Math.cos(angle) * 12,
             d.y - 20 + Math.sin(angle) * 7,
             4.5,
@@ -1517,17 +1578,62 @@ export function renderBoard(
         }
       }
     }
-    for (const m of mining) {
+    for (const [i, m] of mining.entries()) {
       // A mote every ~0.9 s travels from the deposit into its miner.
       for (let k = 0; k < 2; k++) {
         const u = (frameNow / 1800 + m.phase + k / 2) % 1;
         const lift = Math.sin(u * Math.PI) * 10;
         const x = m.from[0] + (m.to[0] - m.from[0]) * u,
           y = m.from[1] + (m.to[1] - m.from[1]) * u - lift;
-        field.add(x, y, 3, m.color, 0.7 * Math.sin(u * Math.PI), 6);
+        field.addDecor(
+          decorKey(6, i * 2 + k),
+          x,
+          y,
+          3,
+          m.color,
+          0.7 * Math.sin(u * Math.PI),
+          6,
+        );
       }
     }
   };
-  animate(now);
-  return { animate };
+  // The render above wrote to the DOM; reuse its earlier measurement.
+  frame(now, measured);
+  return {
+    animate: (frameNow: number) =>
+      frame(frameNow, measure(svg, !!light, !!buildingSprites)),
+  };
+}
+
+interface Measurement {
+  /** Board units to canvas pixels, for the light layer. */
+  light: LightTransform | null;
+  /** Screen pixels per board unit, for sprite resolution. */
+  scale: number | null;
+}
+/** Read the board's screen transform once; the canvas shares the board's box. */
+function measure(
+  svg: SVGSVGElement,
+  light: boolean,
+  sprites: boolean,
+): Measurement {
+  if (!light && !sprites) return { light: null, scale: null };
+  const m = svg.getScreenCTM();
+  if (!m) return { light: null, scale: null };
+  const box = light ? svg.getBoundingClientRect() : null;
+  return {
+    light: box
+      ? {
+          a: m.a,
+          b: m.b,
+          c: m.c,
+          d: m.d,
+          e: m.e - box.left,
+          f: m.f - box.top,
+          width: box.width,
+          height: box.height,
+        }
+      : null,
+    scale: Math.max(Math.hypot(m.a, m.b), Math.hypot(m.c, m.d)),
+  };
 }

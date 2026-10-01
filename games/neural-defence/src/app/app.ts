@@ -985,6 +985,7 @@ export function mountNeuralDefence(
     const lightCanvas = root.querySelector<HTMLCanvasElement>("#nd-light");
     if (lightCanvas !== lightTarget) {
       lightTarget = lightCanvas;
+      lightRenderer?.destroy?.();
       lightRenderer =
         (lightCanvas && dependencies.createLightRenderer?.(lightCanvas)) ??
         undefined;

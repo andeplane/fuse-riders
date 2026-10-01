@@ -9,7 +9,7 @@ export const SPORE_POD = Object.freeze({ dy: -36, rx: 16, ry: 13 });
 /**
  * A Spore tower: a fleshy stalk rising from the creep, topped by a pod with
  * glowing vents that bursts on impact. Drawn procedurally in the same tissue
- * as the neurons; the pod throbs through CSS.
+ * as the neurons; the pod's throb is light, pulsed by the board's light field.
  */
 export function sporeMarkup(x: number, y: number, slot: number): string {
   const p = palette(slot);

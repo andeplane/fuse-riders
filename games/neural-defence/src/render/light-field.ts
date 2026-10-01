@@ -28,6 +28,8 @@ export interface LightTransform {
 }
 export interface LightRenderer {
   draw(instances: Float32Array, count: number, transform: LightTransform): void;
+  /** Release GPU resources and the context; later draws do nothing. */
+  destroy?(): void;
 }
 
 export type Rgb = readonly [number, number, number];
@@ -86,44 +88,41 @@ interface Flash {
 }
 
 const GROUND_DEPTH = 0.72;
+/** Flashes kept at once; older ones go first if a hidden tab piles them up. */
+const MAX_FLASHES = 512;
+/** Canvas pixels a light may sit outside the view and still bloom into it. */
+const CULL_MARGIN = 48;
 
-export class LightField {
-  private buffer: Float32Array;
-  private count = 0;
-  private particles: Particle[] = [];
-  private flashes: Flash[] = [];
-  private last = Number.NaN;
+/** A stable 0–1 hash, so thinning keeps the same decorative lights each frame. */
+function keep(key: number): number {
+  let h = Math.imul(key | 0, 0x9e3779b1) ^ 0x5bd1e995;
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
 
-  constructor(private readonly budget = 3000) {
-    this.buffer = new Float32Array(budget * LIGHT_STRIDE);
+/** One priority class of lights collected during a frame. */
+class Tier {
+  readonly data: Float32Array;
+  readonly keys: Float64Array;
+  count = 0;
+  constructor(readonly capacity: number) {
+    this.data = new Float32Array(capacity * LIGHT_STRIDE);
+    this.keys = new Float64Array(capacity);
   }
-
-  get size(): number {
-    return this.count;
-  }
-  get instances(): Float32Array {
-    return this.buffer;
-  }
-  get live(): number {
-    return this.particles.length + this.flashes.length;
-  }
-
-  /** Start a frame; static and dynamic lights are added again every frame. */
-  begin(): void {
-    this.count = 0;
-  }
-
-  add(
+  push(
+    key: number,
     x: number,
     y: number,
     size: number,
     color: Rgb,
     alpha: number,
-    sharpness = 2.5,
+    sharpness: number,
   ): void {
-    if (this.count >= this.budget || alpha <= 0.002 || size <= 0) return;
+    if (this.count >= this.capacity) return;
+    this.keys[this.count] = key;
     const o = this.count++ * LIGHT_STRIDE;
-    const b = this.buffer;
+    const b = this.data;
     b[o] = x;
     b[o + 1] = y;
     b[o + 2] = size;
@@ -132,6 +131,162 @@ export class LightField {
     b[o + 5] = color[2];
     b[o + 6] = alpha;
     b[o + 7] = sharpness;
+  }
+}
+
+/**
+ * Collects a frame's lights in three priority tiers and packs them into one
+ * buffer within the budget: transient combat light (shots, flashes, sparks)
+ * first, up to `transientShare` of the budget; then steady ambient glows; then
+ * decorative motes, thinned by a stable per-light hash when they do not fit.
+ * Lights outside the view are culled before they count against the budget.
+ */
+export class LightField {
+  private buffer: Float32Array;
+  private count = 0;
+  private dirty = false;
+  private readonly transient: Tier;
+  private readonly ambient: Tier;
+  private readonly decor: Tier;
+  private readonly transientCap: number;
+  private particles: Particle[] = [];
+  private flashes: Flash[] = [];
+  private last = Number.NaN;
+  private view: LightTransform | null = null;
+  private viewScale = 1;
+
+  constructor(
+    private readonly budget = 3000,
+    transientShare = 2 / 3,
+  ) {
+    this.buffer = new Float32Array(budget * LIGHT_STRIDE);
+    this.transientCap = Math.max(1, Math.floor(budget * transientShare));
+    this.transient = new Tier(this.transientCap);
+    this.ambient = new Tier(budget);
+    this.decor = new Tier(budget * 4);
+  }
+
+  get size(): number {
+    this.pack();
+    return this.count;
+  }
+  get instances(): Float32Array {
+    this.pack();
+    return this.buffer;
+  }
+  get live(): number {
+    return this.particles.length + this.flashes.length;
+  }
+  /** Lights collected this frame before the budget, by tier. */
+  get wanted(): { transient: number; ambient: number; decor: number } {
+    return {
+      transient: this.transient.count,
+      ambient: this.ambient.count,
+      decor: this.decor.count,
+    };
+  }
+
+  /**
+   * Start a frame; static and dynamic lights are added again every frame.
+   * With a view, lights that cannot reach the canvas are skipped.
+   */
+  begin(view?: LightTransform): void {
+    this.transient.count = this.ambient.count = this.decor.count = 0;
+    this.count = 0;
+    this.dirty = true;
+    this.view = view ?? null;
+    this.viewScale = view
+      ? Math.max(Math.hypot(view.a, view.b), Math.hypot(view.c, view.d))
+      : 1;
+  }
+
+  /** A steady ambient light: kept ahead of decoration, after combat light. */
+  add(
+    x: number,
+    y: number,
+    size: number,
+    color: Rgb,
+    alpha: number,
+    sharpness = 2.5,
+  ): void {
+    if (this.visible(x, y, size, alpha))
+      this.ambient.push(0, x, y, size, color, alpha, sharpness);
+  }
+
+  /** A shot, flash or spark: drawn first so a busy board never hides combat. */
+  addTransient(
+    x: number,
+    y: number,
+    size: number,
+    color: Rgb,
+    alpha: number,
+    sharpness = 2.5,
+  ): void {
+    if (this.visible(x, y, size, alpha))
+      this.transient.push(0, x, y, size, color, alpha, sharpness);
+  }
+
+  /**
+   * A decorative mote. `key` identifies it across frames, so when there are
+   * more than fit the same ones are thinned out every frame (no flicker).
+   */
+  addDecor(
+    key: number,
+    x: number,
+    y: number,
+    size: number,
+    color: Rgb,
+    alpha: number,
+    sharpness = 2.5,
+  ): void {
+    if (this.visible(x, y, size, alpha))
+      this.decor.push(key, x, y, size, color, alpha, sharpness);
+  }
+
+  private visible(x: number, y: number, size: number, alpha: number): boolean {
+    if (alpha <= 0.002 || size <= 0) return false;
+    const v = this.view;
+    // An unmeasured (zero-size) view says nothing about what is visible.
+    if (!v || !v.width || !v.height) return true;
+    const reach = size * this.viewScale + CULL_MARGIN;
+    const px = v.a * x + v.c * y + v.e,
+      py = v.b * x + v.d * y + v.f;
+    return (
+      px > -reach &&
+      py > -reach &&
+      px < v.width + reach &&
+      py < v.height + reach
+    );
+  }
+
+  /** Pack the tiers into the output buffer within the budget. */
+  private pack(): void {
+    if (!this.dirty) return;
+    this.dirty = false;
+    const out = this.buffer;
+    let n = 0;
+    const copy = (tier: Tier, limit: number) => {
+      const take = Math.min(tier.count, limit);
+      out.set(tier.data.subarray(0, take * LIGHT_STRIDE), n * LIGHT_STRIDE);
+      n += take;
+    };
+    copy(this.transient, this.transientCap);
+    copy(this.ambient, this.budget - n);
+    const room = this.budget - n;
+    if (this.decor.count <= room) copy(this.decor, room);
+    else {
+      const ratio = room / this.decor.count;
+      const d = this.decor;
+      for (let i = 0; i < d.count && n < this.budget; i++) {
+        if (keep(d.keys[i]!) >= ratio) continue;
+        out.set(
+          d.data.subarray(i * LIGHT_STRIDE, (i + 1) * LIGHT_STRIDE),
+          n * LIGHT_STRIDE,
+        );
+        n++;
+      }
+    }
+    this.count = n;
   }
 
   flash(
@@ -143,6 +298,11 @@ export class LightField {
     alpha: number,
     life: number,
   ): void {
+    if (this.flashes.length >= MAX_FLASHES) {
+      // Frames stop while a tab is hidden; ticks keep adding flashes.
+      this.flashes = this.flashes.filter((f) => now < f.born + f.life);
+      if (this.flashes.length >= MAX_FLASHES) this.flashes.shift();
+    }
     this.flashes.push({ x, y, born: now, life, size, color, alpha });
   }
 
@@ -156,7 +316,9 @@ export class LightField {
     const random = seededRandom(seed);
     const pick = ([low, high]: readonly [number, number]) =>
       low + random() * (high - low);
-    const room = this.budget - this.particles.length;
+    if (this.particles.length + spec.count > this.transientCap)
+      this.particles = this.particles.filter((p) => now < p.born + p.life);
+    const room = this.transientCap - this.particles.length;
     for (let i = 0; i < Math.min(spec.count, room); i++) {
       const angle = random() * Math.PI * 2;
       const speed = pick(spec.speed);
@@ -197,8 +359,15 @@ export class LightField {
       if (t >= 1) return false;
       if (t < 0) return true;
       const swell = 0.55 + 0.45 * Math.min(1, t * 4);
-      this.add(f.x, f.y, f.size * swell, f.color, f.alpha * (1 - t) ** 2, 2);
-      this.add(
+      this.addTransient(
+        f.x,
+        f.y,
+        f.size * swell,
+        f.color,
+        f.alpha * (1 - t) ** 2,
+        2,
+      );
+      this.addTransient(
         f.x,
         f.y,
         f.size * 0.3 * swell,
@@ -233,7 +402,14 @@ export class LightField {
         p.hot[2] + (p.color[2] - p.hot[2]) * u,
       ];
       const fade = t < 0.1 ? t / 0.1 : 1 - ((t - 0.1) / 0.9) ** 1.5;
-      this.add(p.x, p.y - p.z, p.size, color, p.alpha * fade, p.sharpness);
+      this.addTransient(
+        p.x,
+        p.y - p.z,
+        p.size,
+        color,
+        p.alpha * fade,
+        p.sharpness,
+      );
       return true;
     });
   }

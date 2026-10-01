@@ -73,32 +73,153 @@ void main() {
 const BLOOM_SCALE = 0.25;
 const BLOOM_STRENGTH = 0.7;
 
+/** The part of a canvas the light renderer uses; an HTMLCanvasElement fits. */
+export interface LightCanvas {
+  width: number;
+  height: number;
+  readonly isConnected: boolean;
+  getContext(
+    id: "webgl2",
+    options: WebGLContextAttributes,
+  ): WebGL2RenderingContext | null;
+  addEventListener(type: string, listener: (event: Event) => void): void;
+  removeEventListener(type: string, listener: (event: Event) => void): void;
+}
+type Pipeline = (data: Float32Array, count: number, t: LightTransform) => void;
+/** Every GL object a pipeline allocates, so a failed or finished one is freed. */
+interface Owned {
+  shaders: WebGLShader[];
+  programs: WebGLProgram[];
+  buffers: (WebGLBuffer | null)[];
+  arrays: (WebGLVertexArrayObject | null)[];
+  textures: WebGLTexture[];
+  framebuffers: WebGLFramebuffer[];
+}
+const owning = (): Owned => ({
+  shaders: [],
+  programs: [],
+  buffers: [],
+  arrays: [],
+  textures: [],
+  framebuffers: [],
+});
+function release(gl: WebGL2RenderingContext, owned: Owned): void {
+  for (const shader of owned.shaders) gl.deleteShader(shader);
+  for (const program of owned.programs) gl.deleteProgram(program);
+  for (const buffer of owned.buffers) gl.deleteBuffer(buffer);
+  for (const array of owned.arrays) gl.deleteVertexArray(array);
+  for (const texture of owned.textures) gl.deleteTexture(texture);
+  for (const framebuffer of owned.framebuffers)
+    gl.deleteFramebuffer(framebuffer);
+  for (const list of Object.values(owned)) list.length = 0;
+}
+
+/** Renderers still holding a context, so detached canvases can be released. */
+const live = new Set<{ canvas: LightCanvas; destroy(): void }>();
+
 /**
  * Draws a LightField additively on a canvas laid over the board, with a bloom
  * pass: the lights are rendered small, blurred twice (the second wider), and
- * added back over the sharp lights. Returns null where WebGL2 is unavailable;
- * the game then simply renders without light.
+ * added back over the sharp lights. Returns null where WebGL2 is unavailable,
+ * the context is lost or the shaders fail; the game then simply renders
+ * without light. A context lost later is waited out: drawing stops until the
+ * browser restores it, and then resumes with rebuilt resources.
  */
 export function createWebGlLightRenderer(
-  canvas: HTMLCanvasElement,
+  canvas: LightCanvas,
   pixelRatio: () => number,
-): LightRenderer | null {
-  const gl = canvas.getContext("webgl2", {
-    alpha: true,
-    premultipliedAlpha: true,
-    antialias: false,
-  });
-  if (!gl) return null;
+): (LightRenderer & { destroy(): void }) | null {
+  // A screen re-render replaces the canvas; free contexts left behind.
+  for (const renderer of live)
+    if (renderer.canvas !== canvas && !renderer.canvas.isConnected)
+      renderer.destroy();
+  let gl: WebGL2RenderingContext | null;
+  try {
+    gl = canvas.getContext("webgl2", {
+      alpha: true,
+      premultipliedAlpha: true,
+      antialias: false,
+    });
+  } catch {
+    return null;
+  }
+  if (!gl || gl.isContextLost()) return null;
+  const context = gl;
+  let owned = owning();
+  const build = (): Pipeline | null => {
+    owned = owning();
+    try {
+      return createPipeline(context, canvas, pixelRatio, owned);
+    } catch {
+      if (!context.isContextLost()) release(context, owned);
+      return null;
+    }
+  };
+  let pipeline = build();
+  if (!pipeline) {
+    context.getExtension("WEBGL_lose_context")?.loseContext();
+    return null;
+  }
+  let destroyed = false;
+  const lost = (event: Event) => {
+    // Without preventDefault the browser never restores the context.
+    event.preventDefault();
+    pipeline = null;
+  };
+  const restored = () => {
+    if (!destroyed) pipeline = build();
+  };
+  canvas.addEventListener("webglcontextlost", lost);
+  canvas.addEventListener("webglcontextrestored", restored);
+  const handle = {
+    canvas,
+    destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      live.delete(handle);
+      canvas.removeEventListener("webglcontextlost", lost);
+      canvas.removeEventListener("webglcontextrestored", restored);
+      if (!context.isContextLost()) release(context, owned);
+      pipeline = null;
+      context.getExtension("WEBGL_lose_context")?.loseContext();
+    },
+  };
+  live.add(handle);
+  return {
+    draw(data, count, t) {
+      if (!pipeline || context.isContextLost()) return;
+      try {
+        pipeline(data, count, t);
+      } catch {
+        // Light is cosmetic; the SVG board carries on without it.
+        pipeline = null;
+      }
+    },
+    destroy: handle.destroy,
+  };
+}
+
+/** Compile, link and allocate everything; throws if any step fails. */
+function createPipeline(
+  gl: WebGL2RenderingContext,
+  canvas: LightCanvas,
+  pixelRatio: () => number,
+  { shaders, programs, buffers, arrays, textures, framebuffers }: Owned,
+): Pipeline {
   const compile = (type: number, source: string) => {
-    const shader = gl.createShader(type)!;
+    const shader = gl.createShader(type);
+    if (!shader) throw new Error("light shader unavailable");
     gl.shaderSource(shader, source);
+    shaders.push(shader);
     gl.compileShader(shader);
     if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS))
       throw new Error(gl.getShaderInfoLog(shader) ?? "light shader failed");
     return shader;
   };
   const link = (vertex: string, fragment: string) => {
-    const program = gl.createProgram()!;
+    const program = gl.createProgram();
+    if (!program) throw new Error("light program unavailable");
+    programs.push(program);
     gl.attachShader(program, compile(gl.VERTEX_SHADER, vertex));
     gl.attachShader(program, compile(gl.FRAGMENT_SHADER, fragment));
     gl.linkProgram(program);
@@ -111,6 +232,7 @@ export function createWebGlLightRenderer(
   const composite = link(screenVertex, compositeFragment);
 
   const quad = gl.createBuffer();
+  buffers.push(quad);
   gl.bindBuffer(gl.ARRAY_BUFFER, quad);
   gl.bufferData(
     gl.ARRAY_BUFFER,
@@ -119,11 +241,13 @@ export function createWebGlLightRenderer(
   );
   // Instanced light quads.
   const lightVao = gl.createVertexArray();
+  arrays.push(lightVao);
   gl.bindVertexArray(lightVao);
   const cornerAt = gl.getAttribLocation(lights, "corner");
   gl.enableVertexAttribArray(cornerAt);
   gl.vertexAttribPointer(cornerAt, 2, gl.FLOAT, false, 0, 0);
   const instances = gl.createBuffer();
+  buffers.push(instances);
   gl.bindBuffer(gl.ARRAY_BUFFER, instances);
   const bytes = LIGHT_STRIDE * 4;
   const attribute = (name: string, components: number, offset: number) => {
@@ -138,6 +262,7 @@ export function createWebGlLightRenderer(
   attribute("sharpness", 1, 7);
   // Full-screen passes share one quad.
   const screenVao = gl.createVertexArray();
+  arrays.push(screenVao);
   gl.bindVertexArray(screenVao);
   gl.bindBuffer(gl.ARRAY_BUFFER, quad);
   for (const program of [blur, composite]) {
@@ -156,10 +281,14 @@ export function createWebGlLightRenderer(
 
   // Half-float targets keep overlapping lights from clipping before the blur.
   const float = !!gl.getExtension("EXT_color_buffer_float");
-  const targets = [0, 1].map(() => ({
-    texture: gl.createTexture()!,
-    framebuffer: gl.createFramebuffer()!,
-  }));
+  const targets = [0, 1].map(() => {
+    const texture = gl.createTexture(),
+      framebuffer = gl.createFramebuffer();
+    if (texture) textures.push(texture);
+    if (framebuffer) framebuffers.push(framebuffer);
+    if (!texture || !framebuffer) throw new Error("light target unavailable");
+    return { texture, framebuffer };
+  });
   let bloomWidth = 0,
     bloomHeight = 0;
   const sizeTargets = (width: number, height: number) => {
@@ -236,59 +365,58 @@ export function createWebGlLightRenderer(
   };
 
   let drawn = true;
-  return {
-    draw(data, count, t: LightTransform) {
-      const ratio = pixelRatio();
-      const width = Math.round(t.width * ratio),
-        height = Math.round(t.height * ratio);
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-      }
-      if (!count && !drawn) return;
-      drawn = count > 0;
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.viewport(0, 0, width, height);
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      if (!count) return;
-      gl.bindBuffer(gl.ARRAY_BUFFER, instances);
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        data.subarray(0, count * LIGHT_STRIDE),
-        gl.STREAM_DRAW,
-      );
-      // 1. The lights, small, into the first bloom target.
-      const bw = Math.max(1, Math.round(width * BLOOM_SCALE)),
-        bh = Math.max(1, Math.round(height * BLOOM_SCALE));
-      sizeTargets(bw, bh);
-      const a = targets[0]!,
-        b = targets[1]!;
-      gl.bindFramebuffer(gl.FRAMEBUFFER, a.framebuffer);
-      gl.viewport(0, 0, bw, bh);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE);
-      drawLights(count, t, ratio * BLOOM_SCALE, bw, bh);
-      // 2. Blur twice, the second pass twice as wide.
-      gl.disable(gl.BLEND);
-      blurPass(a.texture, b.framebuffer, 1, 0);
-      blurPass(b.texture, a.framebuffer, 0, 1);
-      blurPass(a.texture, b.framebuffer, 2, 0);
-      blurPass(b.texture, a.framebuffer, 0, 2);
-      // 3. The sharp lights and the bloom, added onto the canvas.
-      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-      gl.viewport(0, 0, width, height);
-      gl.enable(gl.BLEND);
-      gl.blendFunc(gl.ONE, gl.ONE);
-      drawLights(count, t, ratio, width, height);
-      gl.useProgram(composite);
-      gl.bindVertexArray(screenVao);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, a.texture);
-      gl.uniform1i(compositeSource, 0);
-      gl.uniform1f(compositeStrength, BLOOM_STRENGTH);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-    },
+  const draw = (data: Float32Array, count: number, t: LightTransform) => {
+    const ratio = pixelRatio();
+    const width = Math.round(t.width * ratio),
+      height = Math.round(t.height * ratio);
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    if (!count && !drawn) return;
+    drawn = count > 0;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    if (!count) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, instances);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      data.subarray(0, count * LIGHT_STRIDE),
+      gl.STREAM_DRAW,
+    );
+    // 1. The lights, small, into the first bloom target.
+    const bw = Math.max(1, Math.round(width * BLOOM_SCALE)),
+      bh = Math.max(1, Math.round(height * BLOOM_SCALE));
+    sizeTargets(bw, bh);
+    const a = targets[0]!,
+      b = targets[1]!;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, a.framebuffer);
+    gl.viewport(0, 0, bw, bh);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+    drawLights(count, t, ratio * BLOOM_SCALE, bw, bh);
+    // 2. Blur twice, the second pass twice as wide.
+    gl.disable(gl.BLEND);
+    blurPass(a.texture, b.framebuffer, 1, 0);
+    blurPass(b.texture, a.framebuffer, 0, 1);
+    blurPass(a.texture, b.framebuffer, 2, 0);
+    blurPass(b.texture, a.framebuffer, 0, 2);
+    // 3. The sharp lights and the bloom, added onto the canvas.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE);
+    drawLights(count, t, ratio, width, height);
+    gl.useProgram(composite);
+    gl.bindVertexArray(screenVao);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, a.texture);
+    gl.uniform1i(compositeSource, 0);
+    gl.uniform1f(compositeStrength, BLOOM_STRENGTH);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   };
+  return draw;
 }
