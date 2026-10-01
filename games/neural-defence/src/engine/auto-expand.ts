@@ -5,9 +5,10 @@ import {
   isSprout,
   sproutSlots,
 } from "./catalog.js";
+import { homeCellOrder, neighbors } from "./map.js";
 import type { Player, World } from "./types.js";
 
-/** Nearest legal frontier to the brain; cell index breaks ties deterministically. */
+/** Nearest legal frontier to the brain; ties follow the seat's home order. */
 export function autoExpandCell(
   world: Readonly<World>,
   player: Readonly<Player>,
@@ -30,22 +31,33 @@ export function autoExpandCell(
     return [(cell % world.map.width) - (row - (row & 1)) / 2, row] as const;
   };
   const [q, r] = axial(brain.cell);
+  // Only cells beside the connected network can take a sprout; scan those,
+  // nearest the brain first, with seat-fair ties.
+  const frontier = new Set<number>();
+  for (const s of world.structures)
+    if (s.ownerId === player.id && s.connected)
+      for (const n of neighbors(world.map, s.cell)) frontier.add(n);
   let best: number | null = null,
     bestDistance = Infinity;
-  for (let cell = 0; cell < world.map.cells.length; cell++) {
+  for (const cell of frontier) {
+    const [cq, cr] = axial(cell);
+    const distance =
+      (Math.abs(cq - q) + Math.abs(cr - r) + Math.abs(cq + cr - q - r)) / 2;
+    if (
+      distance > bestDistance ||
+      (distance === bestDistance &&
+        best !== null &&
+        homeCellOrder(world.map, player.slot, cell, best) > 0)
+    )
+      continue;
     if (
       !constructionQueueAvailability(world, player, "neuron", cell).allowed ||
       !constructionDispatchAvailability(world, player, { kind: "neuron", cell })
         .allowed
     )
       continue;
-    const [cq, cr] = axial(cell);
-    const distance =
-      (Math.abs(cq - q) + Math.abs(cr - r) + Math.abs(cq + cr - q - r)) / 2;
-    if (distance < bestDistance) {
-      best = cell;
-      bestDistance = distance;
-    }
+    best = cell;
+    bestDistance = distance;
   }
   return best;
 }

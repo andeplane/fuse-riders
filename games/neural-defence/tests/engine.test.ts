@@ -168,6 +168,8 @@ test("contested auto expansion uses rotating slots, not IDs or opponent unpaid p
         0,
         "losing auto claims do not leave stale plans",
       );
+      // The reversal only tests order independence; checkpoints are canonical.
+      w.players.sort((a, b) => (a.id < b.id ? -1 : 1));
       assert.doesNotThrow(() => decodeState(encodeState(w)));
     }
   let w = createMatch(narrow, {}, [

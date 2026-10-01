@@ -6,9 +6,14 @@ import {
   powerupPhase,
   powerupDraw,
 } from "./powerups.js";
-import { territoryPhase } from "./territory.js";
+import {
+  DOMINANCE_LEAD,
+  dominanceCells,
+  territoryCounts,
+  territoryPhase,
+} from "./territory.js";
 import { EVENT_TYPES, recordTimeline, TIMELINE } from "./timeline.js";
-import { loadMap, neighbors, homeCellOrder } from "./map.ts";
+import { loadMap, neighbors, homeCellOrder, homeOrder } from "./map.ts";
 import { autoExpandCell } from "./auto-expand.js";
 import {
   CONSTRUCTIONS,
@@ -200,7 +205,12 @@ export function createMatch(
   }
   return w;
 }
+/** Structures by cell; a cell holds at most one. Valid until structures change. */
+type CellIndex = ReadonlyMap<number, Structure>;
+const cellIndex = (w: World): CellIndex =>
+  new Map(w.structures.map((s) => [s.cell, s]));
 function connectivity(w: World) {
+  const at = cellIndex(w);
   for (const s of w.structures) s.connected = false;
   for (const p of w.players) {
     const b = brain(w, p);
@@ -209,7 +219,7 @@ function connectivity(w: World) {
     b.connected = true;
     for (const s of queue)
       for (const n of neighbors(w.map, s.cell)) {
-        const next = structure(w, n);
+        const next = at.get(n);
         if (next && next.ownerId === p.id && !next.connected) {
           next.connected = true;
           queue.push(next);
@@ -217,18 +227,23 @@ function connectivity(w: World) {
       }
   }
 }
-function path(w: World, p: Player, from: number, to: number): number[] | null {
-  const start = structure(w, from);
+function path(
+  w: World,
+  p: Player,
+  from: number,
+  to: number,
+  index: CellIndex = cellIndex(w),
+): number[] | null {
+  const start = index.get(from);
   if (!start || start.ownerId !== p.id || !start.connected) return null;
+  const order = homeOrder(w.map, p.slot);
   const queue = [[from]],
     seen = new Set([from]);
   for (const route of queue) {
     const at = route[route.length - 1]!;
     if (at === to) return route;
-    for (const n of neighbors(w.map, at).sort((a, b) =>
-      homeCellOrder(w.map, p.slot, a, b),
-    )) {
-      const s = structure(w, n);
+    for (const n of neighbors(w.map, at).sort(order)) {
+      const s = index.get(n);
       if (s?.connected && s.ownerId === p.id && !seen.has(n)) {
         seen.add(n);
         queue.push([...route, n]);
@@ -319,9 +334,11 @@ function apply(w: World, c: Command) {
     }
     const j = p.queue[i]!;
     p.queue.splice(i, 1);
-    if (j.paid) {
+    // Delivered work is spent; queued ghosts cost nothing. Only the builder's
+    // own job sends it home: sprouts never use it, and a recovering builder
+    // keeps its penalty.
+    if (j.paid && !isSprout(j) && p.worker.mode !== "recovering")
       p.worker.mode = "returning";
-    } // Delivered work is spent; queued ghosts cost nothing.
   } else if (a.type === "setPriority") {
     // Clearing an old destination must remain possible after its destruction.
     if (a.weight === 0) {
@@ -462,8 +479,9 @@ export function claimPrecedence(
   return powerupDraw(matchId, tick, 1000 + slot);
 }
 function dispatchConstruction(w: World, ready: Player[]) {
-  // Collect claims against one shared pre-dispatch board. Rotate spawn-slot
-  // precedence each tick so renaming players cannot buy construction priority.
+  // Collect claims against one shared pre-dispatch board. Contested claims go
+  // by claimPrecedence, a per-tick shuffle of seats, so renaming players
+  // cannot buy construction priority.
   const rank = (p: Player) => claimPrecedence(w.matchId, w.tick, p.slot);
   // The builder takes one tower or upgrade at a time; neurons sprout from the
   // network into every free sprout slot.
@@ -695,6 +713,24 @@ function particles(w: World, p: Player, edgeLaunch: Map<string, number>) {
   }
   // Rotate arbitration to avoid permanently privileging low particle IDs.
   const ordered = [...all.slice(w.tick % 128), ...all.slice(0, w.tick % 128)];
+  // Structures do not change while particles move, so the index and the
+  // routes between cells hold for the whole pass. Edge and arrival counts are
+  // kept as particles launch, matching a fresh count at every decision.
+  const index = cellIndex(w);
+  const routes = new Map<string, number[] | null>();
+  const edgeOf = (a: number, b: number) => (a < b ? `${a}:${b}` : `${b}:${a}`);
+  const transitsOn = new Map<string, number>();
+  for (const a of w.particles)
+    if (a.mode === "transit") {
+      const edge = edgeOf(a.from, a.to);
+      transitsOn.set(edge, (transitsOn.get(edge) ?? 0) + 1);
+    }
+  const arriving = new Map<number, number>();
+  for (const a of all) {
+    const cell =
+      a.mode === "stationed" ? a.cell : a.mode === "transit" ? a.to : null;
+    if (cell !== null) arriving.set(cell, (arriving.get(cell) ?? 0) + 1);
+  }
   for (const q of ordered) {
     if (
       q.mode !== "stationed" ||
@@ -705,27 +741,23 @@ function particles(w: World, p: Player, edgeLaunch: Map<string, number>) {
     if (q.cell === b.cell) {
       Object.assign(q, particleProfile(p));
     }
-    const route = path(w, p, q.cell, q.destination);
+    const key = `${q.cell}>${q.destination}`;
+    if (!routes.has(key))
+      routes.set(key, path(w, p, q.cell, q.destination, index));
+    const route = routes.get(key);
     if (!route || route.length < 2) continue;
     const next = route[1]!,
-      edge = [q.cell, next].sort((a, b) => a - b).join(":");
-    const transits = w.particles.filter(
-      (a) =>
-        a.mode === "transit" &&
-        [a.from, a.to].sort((a, b) => a - b).join(":") === edge,
-    ).length;
-    const receiving = all.filter(
-      (a) =>
-        (a.mode === "stationed" && a.cell === next) ||
-        (a.mode === "transit" && a.to === next),
-    ).length;
+      edge = edgeOf(q.cell, next);
     if (
       (edgeLaunch.get(edge) ?? 0) >= RULES.edgeLaunchCapacity ||
-      transits >= RULES.edgeTransitCapacity ||
-      receiving >= 128
+      (transitsOn.get(edge) ?? 0) >= RULES.edgeTransitCapacity ||
+      (arriving.get(next) ?? 0) >= 128
     )
       continue;
     edgeLaunch.set(edge, (edgeLaunch.get(edge) ?? 0) + 1);
+    transitsOn.set(edge, (transitsOn.get(edge) ?? 0) + 1);
+    arriving.set(q.cell, (arriving.get(q.cell) ?? 0) - 1);
+    arriving.set(next, (arriving.get(next) ?? 0) + 1);
     q.from = q.cell;
     q.to = next;
     q.departedAt = w.tick;
@@ -932,7 +964,7 @@ function combat(w: World) {
   for (const s of w.structures) s.hp -= hits.get(s.id) ?? 0;
   for (const p of w.players) {
     for (const j of p.queue) j.hp -= siteHits.get(`${p.id}:${j.cell}`) ?? 0;
-    const destroyed = p.queue.some((j) => j.paid && j.hp <= 0);
+    const destroyed = p.queue.some((j) => j.paid && !isSprout(j) && j.hp <= 0);
     for (const j of p.queue) {
       if (j.paid && j.upgradeFrom === undefined && j.hp <= 0) {
         p.statistics.sitesLost++;
@@ -940,7 +972,8 @@ function combat(w: World) {
       }
     }
     p.queue = p.queue.filter((j) => j.hp > 0);
-    if (destroyed) p.worker.mode = "returning";
+    if (destroyed && p.worker.mode !== "recovering")
+      p.worker.mode = "returning";
   }
   for (const s of w.structures.filter((s) => s.hp <= 0)) {
     const p = w.players.find((p) => p.id === s.ownerId)!;
@@ -1108,6 +1141,8 @@ export function decodeState(raw: unknown): World {
     w.outcomes.length > 2048
   )
     throw new Error("checkpoint: invalid world");
+  if (w.players.some((p, i) => i > 0 && w.players[i - 1]!.id >= p.id))
+    throw new Error("checkpoint: players out of order");
   const owners = new Set(w.players.map((p) => p.id)),
     ids = new Set<number>(),
     occupied = new Set<number>();
@@ -1191,11 +1226,19 @@ export function decodeState(raw: unknown): World {
       (!p.alive && (p.territory !== 0 || p.dominanceSince !== null)) ||
       !Array.isArray(p.buffs) ||
       p.buffs.length > 2 ||
+      (!w.settings.powerups && p.buffs.length > 0) ||
       p.buffs.some(
         (b, i) =>
           !record(b) ||
           !isBuffKind(b.kind) ||
-          !integer(b.expiresAt, w.tick + 1) ||
+          // Stacked pickups extend a buff, at most once per powerup spawned.
+          !integer(
+            b.expiresAt,
+            w.tick + 1,
+            w.tick +
+              Math.max(POWERUP_RULES.surgeTicks, POWERUP_RULES.frenzyTicks) *
+                Math.max(1, w.powerupSerial),
+          ) ||
           (i > 0 && p.buffs[i - 1]!.kind >= b.kind),
       )
     )
@@ -1261,7 +1304,13 @@ export function decodeState(raw: unknown): World {
         typeof j.paid !== "boolean" ||
         !integer(j.progress) ||
         !integer(j.duration) ||
-        !constructionDurations(j.kind).includes(j.duration) ||
+        // Zero-time work exists only with debug instant construction.
+        (j.paid
+          ? w.settings.instantConstruction
+            ? j.duration !== 0
+            : j.duration === 0 ||
+              !constructionDurations(j.kind).includes(j.duration)
+          : !constructionDurations(j.kind).includes(j.duration)) ||
         !integer(j.hp, 1, hp(j.kind)) ||
         (!j.paid &&
           (j.progress !== 0 || j.duration !== 0 || j.hp !== hp(j.kind))) ||
@@ -1351,10 +1400,24 @@ export function decodeState(raw: unknown): World {
         w.players.find((p) => p.id === q.ownerId)!,
         PARTICLES[q.kind].requires,
       ).length > 0 ||
-      ![PARTICLES[q.kind].attack, PARTICLES[q.kind].attack + 1].includes(
-        q.attack,
-      ) ||
-      ![PARTICLES[q.kind].speed, PARTICLES[q.kind].speed - 1].includes(q.speed)
+      // Upgrades apply only once researched, and only when a particle is
+      // re-equipped, so either value is possible after research, not before.
+      ![
+        PARTICLES[q.kind].attack,
+        ...(w.players
+          .find((p) => p.id === q.ownerId)!
+          .research.includes("excitation")
+          ? [PARTICLES[q.kind].attack + 1]
+          : []),
+      ].includes(q.attack) ||
+      ![
+        PARTICLES[q.kind].speed,
+        ...(w.players
+          .find((p) => p.id === q.ownerId)!
+          .research.includes("conduction")
+          ? [PARTICLES[q.kind].speed - 1]
+          : []),
+      ].includes(q.speed)
     )
       throw new Error("checkpoint: invalid particle");
     ids.add(q.id);
@@ -1438,6 +1501,27 @@ export function decodeState(raw: unknown): World {
     throw new Error("checkpoint: edge capacity exceeded");
   const alive = w.players.filter((p) => p.alive);
   const eliminated = w.players.length > 1 && alive.length <= 1;
+  // Territory and the dominance clock come from the network. A match still
+  // in play cannot claim more than its structures claim, nor run a clock
+  // without the dominant share and lead (an ended match may be a tick stale).
+  if (!w.finished) {
+    const counts = territoryCounts(w);
+    const needed = dominanceCells(w);
+    for (const p of alive) {
+      const rival = Math.max(
+        0,
+        ...alive.filter((q) => q !== p).map((q) => q.territory),
+      );
+      if (
+        p.territory > (counts.get(p.id) ?? 0) ||
+        (p.dominanceSince !== null &&
+          (w.players.length < 2 ||
+            p.territory < needed ||
+            p.territory < rival * DOMINANCE_LEAD))
+      )
+        throw new Error("checkpoint: invalid territory");
+    }
+  }
   if (
     !["elimination", "dominance", null].includes(w.victory) ||
     (!w.finished && (w.winnerId !== null || w.victory !== null)) ||

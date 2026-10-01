@@ -1,31 +1,42 @@
 import { RULES } from "./types.js";
 import type { MapDefinition } from "./types.ts";
 /** Stable local ordering for symmetric choices, viewed from the home spawn. */
-export function homeCellOrder(
+/**
+ * Order cells as seen from a seat's home: rows away from its edge, then
+ * columns away from its side. Every map's symmetry (point, or both mirrors
+ * on four- and six-seat maps) maps one seat's order onto another's, so no
+ * seat wins a tie another would lose. On two-seat maps this is the plain
+ * cell order from the top home and its reverse from the bottom one.
+ * Returns a comparator, so callers sorting many cells compute the home once.
+ */
+export function homeOrder(
   map: MapDefinition,
   slot: number,
-  a: number,
-  b: number,
-): number {
-  // Order cells as seen from this seat's home: rows away from its edge, then
-  // columns away from its side. Every map's symmetry (point, or both mirrors
-  // on four- and six-seat maps) maps one seat's order onto another's, so no
-  // seat wins a tie another would lose. On two-seat maps this is the plain
-  // cell order from the top home and its reverse from the bottom one.
+): (a: number, b: number) => number {
   const home = map.spawns.find((spawn) => spawn.slot === slot)!.cellIndex;
   const { width: W, height: H } = map;
   const hr = Math.floor(home / W),
     hx = (home % W) + 0.5 * (hr & 1);
   const flipY = hr * 2 > H - 1,
     flipX = hx * 2 > W - 1;
-  const key = (cell: number) => {
-    const r = Math.floor(cell / W),
-      x = (cell % W) + 0.5 * (r & 1);
-    return [flipY ? H - 1 - r : r, flipX ? W - 1 - x : x] as const;
+  return (a, b) => {
+    const ar = Math.floor(a / W),
+      br = Math.floor(b / W);
+    const ay = flipY ? H - 1 - ar : ar,
+      by = flipY ? H - 1 - br : br;
+    if (ay !== by) return ay - by;
+    const ax = (a % W) + 0.5 * (ar & 1),
+      bx = (b % W) + 0.5 * (br & 1);
+    return flipX ? bx - ax : ax - bx;
   };
-  const [ay, ax] = key(a),
-    [by, bx] = key(b);
-  return ay - by || ax - bx;
+}
+export function homeCellOrder(
+  map: MapDefinition,
+  slot: number,
+  a: number,
+  b: number,
+): number {
+  return homeOrder(map, slot)(a, b);
 }
 export function neighbors(
   map: Pick<MapDefinition, "width" | "height">,
