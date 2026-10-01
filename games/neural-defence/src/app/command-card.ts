@@ -107,7 +107,8 @@ export const RESEARCH_PRESENTATION: Readonly<
 > = {
   growth: {
     label: "Growth",
-    description: "Faster neuron construction. Unlocks Harvesters and Bastions.",
+    description:
+      "Faster neuron construction. Unlocks Harvesters, Bastions and Spores.",
   },
   excitation: {
     label: "Excitation",

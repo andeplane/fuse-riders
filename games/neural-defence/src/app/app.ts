@@ -1029,7 +1029,11 @@ export function mountNeuralDefence(
       );
       const artwork = `<g opacity="0.55">${structureArtwork(world.map.width, placementCell, placement, owner.slot, dependencies.sprites)}</g>`;
       preview.innerHTML = `<polygon points="${hexPoints(world.map.width, placementCell, 1.5)}"/>${artwork}`;
-    } else preview.replaceChildren();
+    } else {
+      preview.replaceChildren();
+      preview.removeAttribute("data-valid");
+      preview.removeAttribute("data-upgrade");
+    }
     const viewport = root.querySelector<HTMLElement>("#nd-viewport");
     if (!camera && viewport && dependencies.createCamera) {
       camera = dependencies.createCamera(svg, viewport);
