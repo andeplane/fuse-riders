@@ -4,7 +4,7 @@
     { "id": "format", "command": "pnpm format:check", "job": "checks" },
     { "id": "lint", "command": "pnpm lint", "job": "checks" },
     { "id": "config", "command": "pnpm config:check", "job": "checks" },
-    { "id": "build", "command": "pnpm build", "job": "checks" },
+    { "id": "build", "command": "pnpm build", "job": "build" },
     { "id": "unit", "command": "pnpm test", "job": "unit" }
   ],
   "release": [{ "id": "coverage", "command": "pnpm test:coverage" }],
