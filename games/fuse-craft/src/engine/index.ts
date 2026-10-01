@@ -641,6 +641,8 @@ function sprouts(w: World, p: Player) {
       job.paid = false;
       job.progress = 0;
       job.duration = 0;
+      // A waiting plan is undamaged by definition (checkpoints require it),
+      // so damage to the cut-off site goes with the refund.
       job.hp = hp(job.kind);
       emit(w, p, "stalled", {
         cell: job.cell,

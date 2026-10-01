@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { parseHTML } from "linkedom";
 import {
+  createCameraFactory,
   createCameraModel,
   EDGE_ZONE,
   MAX_SCALE,
@@ -8,6 +10,8 @@ import {
   edgeAxes,
   scrollDirection,
   type PanDirection,
+  type Point,
+  type PointerSurface,
 } from "../src/render/camera.js";
 
 const world = { width: 768, height: 648 };
@@ -183,4 +187,62 @@ test("scrolling moves the view the same way and stops at the map's edge", () => 
   const edge = camera.view();
   camera.scroll(1e6, 1e6);
   assert.deepEqual(camera.view(), edge, "clamped at the far corner");
+});
+
+test("edge scrolling keeps going while the mouse rests at the screen's edge and stops when it leaves", () => {
+  const { document } = parseHTML(
+    `<div id="viewport"><svg viewBox="0 0 3000 2000"></svg></div>`,
+  );
+  const viewport = document.getElementById("viewport") as HTMLElement;
+  const svg = viewport.querySelector("svg") as unknown as SVGSVGElement;
+  // The board sits between a 56px top bar and a dock from y 616.
+  const board = { left: 12, top: 56, width: 1256, height: 560 };
+  Object.defineProperties(viewport, {
+    clientWidth: { value: board.width },
+    clientHeight: { value: board.height },
+    getBoundingClientRect: { value: () => ({ ...board, x: 12, y: 56 }) },
+  });
+  let report: ((pointer: Point | null) => void) | null = null;
+  let stopped = 0;
+  const screen: PointerSurface = {
+    size: () => ({ width: 1280, height: 800 }),
+    watch(listener) {
+      report = listener;
+      return () => {
+        stopped++;
+        report = null;
+      };
+    },
+  };
+  const frames: ((now: number) => void)[] = [];
+  const camera = createCameraFactory({
+    observeResize: () => () => {},
+    requestFrame: (callback) => frames.push(callback),
+    cancelFrame: () => {},
+    screen,
+  })(svg, viewport);
+  camera.setEdgeScroll(true);
+  const view = () => svg.getAttribute("viewBox")!.split(" ").map(Number);
+  const start = view();
+  // Over the command dock, on the last pixel row: it scrolls down, frame
+  // after frame, with no further mouse movement.
+  report!({ x: 640, y: 799 });
+  let now = 0;
+  for (let i = 0; i < 5; i++) frames.shift()!((now += 16));
+  assert.ok(view()[1]! > start[1]!, "scrolled down over the dock");
+  assert.equal(frames.length, 1, "still scheduling frames while resting");
+  const rested = view();
+  frames.shift()!((now += 16));
+  assert.ok(view()[1]! > rested[1]!);
+  // Leaving the window clears the pointer and the loop ends.
+  report!(null);
+  frames.shift()!((now += 16));
+  assert.equal(frames.length, 0);
+  const left = view();
+  // Over the dock but away from the outer pixels: nothing moves.
+  report!({ x: 640, y: 700 });
+  while (frames.length) frames.shift()!((now += 16));
+  assert.deepEqual(view(), left);
+  camera.dispose();
+  assert.equal(stopped, 1, "disposal stops following the mouse");
 });

@@ -35,7 +35,7 @@ class FakeDocument extends FakeEvents<unknown> implements FullscreenDocument {
   exitFullscreen?: () => Promise<void> = async () => {
     this.exits++;
   };
-  webkitExitFullscreen?: () => void;
+  webkitExitFullscreen?: () => void | Promise<void>;
 }
 
 test("full screen goes to the game container and follows the document's state", async () => {
@@ -76,10 +76,14 @@ test("full screen falls back to Safari's prefixed API and is absent when unavail
   doc.webkitFullscreenEnabled = true;
   doc.webkitFullscreenElement = null;
   let exits = 0;
-  doc.webkitExitFullscreen = () => exits++;
+  doc.webkitExitFullscreen = () => {
+    exits++;
+  };
   let requests = 0;
   const container: FullscreenTarget = {
-    webkitRequestFullscreen: () => requests++,
+    webkitRequestFullscreen: () => {
+      requests++;
+    },
   };
   const control = createFullscreenControl(doc, container)!;
   let changes = 0;
@@ -111,6 +115,15 @@ test("a refused full-screen request does not surface as an error", async () => {
   control.toggle();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(control.active(), false);
+  // Newer Safari's prefixed request may also return a rejected promise.
+  const prefixed = new FakeDocument();
+  prefixed.webkitFullscreenEnabled = true;
+  const safari = createFullscreenControl(prefixed, {
+    webkitRequestFullscreen: () => Promise.reject(new Error("not allowed")),
+  })!;
+  safari.toggle();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(safari.active(), false);
 });
 
 test("the pointer surface follows the mouse over the whole window and clears when it leaves", () => {

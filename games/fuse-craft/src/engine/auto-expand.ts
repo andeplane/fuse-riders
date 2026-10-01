@@ -21,12 +21,14 @@ export function autoExpandCell(
   if (
     !player.autoExpand ||
     !player.alive ||
-    [...planSupport(world, player).values()].some(
-      (support) => support !== "unsupported",
-    ) ||
     player.queue.filter((j) => j.paid && isSprout(j)).length >=
       sproutSlots(player) ||
-    player.biomass < CONSTRUCTIONS.neuron.cost
+    player.biomass < CONSTRUCTIONS.neuron.cost ||
+    // Checked last: it is the costliest test, and all are side-effect free.
+    (player.queue.some((j) => !j.paid) &&
+      [...planSupport(world, player).values()].some(
+        (support) => support !== "unsupported",
+      ))
   )
     return null;
   const brain = world.structures.find(

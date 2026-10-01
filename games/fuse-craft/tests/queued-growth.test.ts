@@ -124,9 +124,9 @@ test("a paid neuron cut off from the network is refunded and frees its sprout sl
   assert.ok(w.structures.some((s) => s.cell === first));
   const growing = w.players[0]!.queue.find((j) => j.cell === outer)!;
   assert.equal(growing.paid, true, "the outer neuron sprouts from the first");
-  // The anchor dies mid-growth.
+  // The anchor dies mid-growth; compare with the same tick left intact.
+  const intact = step(w);
   w.structures = w.structures.filter((s) => s.cell !== first);
-  const before = w.players[0]!.biomass;
   w = step(w);
   const stalled = w.players[0]!.queue.find((j) => j.cell === outer)!;
   assert.deepEqual(
@@ -137,7 +137,11 @@ test("a paid neuron cut off from the network is refunded and frees its sprout sl
     w.outcomes.some((o) => o.type === "stalled" && o.cell === outer),
     "the player is told the sprout stalled",
   );
-  assert.ok(w.players[0]!.biomass >= before + RULES.neuronCost);
+  assert.equal(
+    w.players[0]!.biomass - intact.players[0]!.biomass,
+    RULES.neuronCost,
+    "exactly the neuron's cost comes back",
+  );
   assert.doesNotThrow(() => decodeState(encodeState(w)));
   // The slot is free, so another plan grows instead of waiting forever.
   w = step(w, [queueNeuron(3, other!)]);
@@ -173,6 +177,24 @@ test("a waiting plan on a hex someone else built is dropped with an outcome", ()
       (o) => o.playerId === "a" && o.type === "dropped" && o.cell === far,
     ),
   );
+});
+
+test("a waiting upgrade on the neuron it upgrades is not dropped", () => {
+  let w = createMatch(tiny(), {}, [{ id: "a", slot: 0 }]);
+  const beside = neighbors(w.map, brainOf(w))[0]!;
+  w.players[0]!.biomass = RULES.neuronCost;
+  w = step(w, [queueNeuron(1, beside)]);
+  w = run(w, RULES.constructionTicks + 5);
+  assert.ok(w.structures.some((s) => s.cell === beside));
+  w.players[0]!.biomass = 0;
+  w = step(w, [
+    command(2, { type: "queueConstruction", kind: "tower", cell: beside }),
+  ]);
+  w = run(w, 5);
+  const upgrade = w.players[0]!.queue.find((j) => j.cell === beside);
+  assert.equal(upgrade?.paid, false, "it waits for biomass");
+  assert.notEqual(upgrade?.upgradeFrom, undefined);
+  assert.ok(!w.outcomes.some((o) => o.type === "dropped"));
 });
 
 test("stalled and dropped outcomes survive a checkpoint", () => {

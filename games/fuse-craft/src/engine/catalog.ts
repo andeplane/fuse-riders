@@ -472,33 +472,37 @@ export function constructionDispatchAvailability(
  */
 export type PlanSupport = "connected" | "chained" | "unsupported";
 
-const connectedNeighbors = (
-  world: Readonly<World>,
-  player: Readonly<Player>,
-  cell: number,
-) =>
-  neighbors(world.map, cell).filter((n) =>
-    world.structures.some(
-      (s) => s.cell === n && s.ownerId === player.id && s.connected,
-    ),
-  ).length;
+/** Cells holding this player's connected structures, for neighbour counts. */
+const connectedCells = (world: Readonly<World>, player: Readonly<Player>) =>
+  new Set(
+    world.structures
+      .filter((s) => s.ownerId === player.id && s.connected)
+      .map((s) => s.cell),
+  );
+const countIn = (world: Readonly<World>, cells: Set<number>, cell: number) =>
+  neighbors(world.map, cell).filter((n) => cells.has(n)).length;
 
 /**
  * The support of each of the player's unpaid plans, keyed by cell, plus a
  * prospective plan when `extra` is given (placement asks before queueing).
- * Paid neurons count as future network. A pure function of public state.
+ * Paid neurons that still touch the network count as future network; a cut
+ * off one reverts to waiting on the next step. A pure function of public
+ * state, linear in the queue (at most RULES.queueLimit passes).
  */
 export function planSupport(
   world: Readonly<World>,
   player: Readonly<Player>,
   extra?: Readonly<Pick<Construction, "cell" | "kind">>,
 ): Map<number, PlanSupport> {
+  const own = connectedCells(world, player);
   const plans: Readonly<Pick<Construction, "cell" | "kind" | "upgradeFrom">>[] =
     player.queue.filter((j) => !j.paid);
   if (extra && !player.queue.some((j) => j.cell === extra.cell))
     plans.push(extra);
   const growing = new Set(
-    player.queue.filter((j) => j.paid && isSprout(j)).map((j) => j.cell),
+    player.queue
+      .filter((j) => j.paid && isSprout(j) && countIn(world, own, j.cell) > 0)
+      .map((j) => j.cell),
   );
   const support = new Map<number, PlanSupport>();
   for (let changed = true; changed;) {
@@ -506,10 +510,8 @@ export function planSupport(
     for (const plan of plans) {
       if (support.has(plan.cell)) continue;
       const required = CONSTRUCTIONS[plan.kind].connectedNeighbors;
-      const connected = connectedNeighbors(world, player, plan.cell);
-      const queued = neighbors(world.map, plan.cell).filter((n) =>
-        growing.has(n),
-      ).length;
+      const connected = countIn(world, own, plan.cell);
+      const queued = countIn(world, growing, plan.cell);
       const resolved: PlanSupport | null =
         connected >= required
           ? "connected"
@@ -537,16 +539,16 @@ export function connectedFrontier(
   player: Readonly<Player>,
   kind: BuildKind,
 ): number[] {
+  const own = connectedCells(world, player);
   const candidates = new Set<number>();
-  for (const s of world.structures)
-    if (s.ownerId === player.id && s.connected)
-      for (const n of neighbors(world.map, s.cell)) candidates.add(n);
+  for (const cell of own)
+    for (const n of neighbors(world.map, cell))
+      if (!own.has(n)) candidates.add(n);
   return [...candidates]
     .filter(
       (cell) =>
+        countIn(world, own, cell) >= CONSTRUCTIONS[kind].connectedNeighbors &&
         !constructionUpgradeSource(world, player, kind, cell) &&
-        connectedNeighbors(world, player, cell) >=
-          CONSTRUCTIONS[kind].connectedNeighbors &&
         constructionQueueAvailability(world, player, kind, cell).allowed,
     )
     .sort((a, b) => a - b);

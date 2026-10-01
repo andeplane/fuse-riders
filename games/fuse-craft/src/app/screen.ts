@@ -16,11 +16,12 @@ export interface FullscreenDocument extends Events<unknown> {
   readonly fullscreenElement?: unknown;
   readonly webkitFullscreenElement?: unknown;
   exitFullscreen?(): Promise<void>;
-  webkitExitFullscreen?(): void;
+  /** Older Safari returns nothing; newer may return a promise. */
+  webkitExitFullscreen?(): void | Promise<void>;
 }
 export interface FullscreenTarget {
   requestFullscreen?(options?: { navigationUI?: "hide" }): Promise<void>;
-  webkitRequestFullscreen?(): void;
+  webkitRequestFullscreen?(): void | Promise<void>;
 }
 export interface FullscreenControl {
   active(): boolean;
@@ -45,15 +46,18 @@ export function createFullscreenControl(
   if (!enabled) return undefined;
   const element = () => doc.fullscreenElement ?? doc.webkitFullscreenElement;
   const ignore = () => {};
+  // A refused request is the browser's answer, not an error to surface.
+  const settle = (result: void | Promise<void>) =>
+    void Promise.resolve(result).catch(ignore);
   return {
     active: () => element() != null,
     toggle() {
       if (element() != null) {
         if (doc.exitFullscreen) void doc.exitFullscreen().catch(ignore);
-        else doc.webkitExitFullscreen?.();
+        else settle(doc.webkitExitFullscreen?.());
       } else if (target.requestFullscreen)
         void target.requestFullscreen({ navigationUI: "hide" }).catch(ignore);
-      else target.webkitRequestFullscreen?.();
+      else settle(target.webkitRequestFullscreen?.());
     },
     onChange(callback) {
       const listener = () => callback();
