@@ -19,7 +19,7 @@ Verification must cover event deduplication, expiry, rollback, depth sorting, im
 - Both browsers passed raised-body selection, placement on the ground behind a building, rejection on visible rocks and minimap navigation after the depth-layer change.
 - Automated regressions verify the shared 48-event limit, moving fragments, fixed ground hit regions, depth ordering, terrain fallback images, state immutability, repeated-tick deduplication, expiry, rollback and reduced-motion cleanup.
 
-Reproduce current effects with `pnpm exec tsx scripts/fuse-craft-effects-smoke.ts` while the source preview is running on port 5174 (or `FUSE_CRAFT_URL` names another). The default is the [rules-12 combat recording](verification/rules12-replays-2026-10-01/README.md). Historical: the captures below used the rules-5 recording under `verification/expansion-2026-09-27/close-quarters.replay.json`, which the current engine rejects; they reproduce only on that older source revision.
+Reproduce current effects with `pnpm exec tsx scripts/fuse-craft-effects-smoke.ts` while the source preview is running on port 5174 (or `FUSE_CRAFT_URL` names another). The default is the [rules-13 combat recording](verification/rules13-replays-2026-10-01/README.md). Historical: the captures below used the rules-5 recording under `verification/expansion-2026-09-27/close-quarters.replay.json`, which the current engine rejects; they reproduce only on that older source revision.
 
 ![Phone destruction at 240 ms](verification/depth-2026-09-27/phone-240ms.png)
 

@@ -31,7 +31,7 @@ These captures and commands record historical **rules 7** behavior at
 `b2077471`. Later rules reject those checkpoints, and the rules-9 recordings
 below are historical too: rules 12 rejects them. For current-source effects
 checks, run `pnpm exec tsx scripts/fuse-craft-effects-smoke.ts`; the default is
-the [rules-12 combat recording](verification/rules12-replays-2026-10-01/README.md),
+the [rules-13 combat recording](verification/rules13-replays-2026-10-01/README.md),
 which also lists the `siege`, `wreck`, `shielded` and `site` commands. No current
 recording contains Relay fire, so the `relay` mode has nothing to render.
 

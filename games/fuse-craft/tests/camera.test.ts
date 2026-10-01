@@ -146,7 +146,11 @@ test("edge scrolling reaches every side of the screen, over the HUD too", () => 
   assert.deepEqual(at(0, 700), { x: -1, y: 0 }, "dock, first column");
   assert.deepEqual(at(1279, 30), { x: 1, y: 0 }, "top bar, last column");
   assert.deepEqual(at(1279, 799), { x: 1, y: 1 }, "bottom-right corner");
-  assert.deepEqual(at(1279.5, 800), { x: 1, y: 1 }, "fractional and past the edge");
+  assert.deepEqual(
+    at(1279.5, 800),
+    { x: 1, y: 1 },
+    "fractional and past the edge",
+  );
   assert.deepEqual(
     at(640, screen.height - SCREEN_EDGE),
     { x: 0, y: 1 },

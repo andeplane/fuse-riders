@@ -705,8 +705,7 @@ export function renderBoard(
           : null;
         return p.queue.map((q, i) => {
           const { x, y } = hexCenter(width, q.cell);
-          const unsupported =
-            !q.paid && support?.get(q.cell) === "unsupported";
+          const unsupported = !q.paid && support?.get(q.cell) === "unsupported";
           return `<g class="queue-mark${unsupported ? " queue-unsupported" : ""}" data-cell="${q.cell}" style="--team:${colors[p.slot]}">${unsupported ? "<title>Not connected: waits until the network reaches a neighbouring hex</title>" : ""}${q.paid ? `<circle class="site-progress" cx="${x}" cy="${y}" r="24" pathLength="1" stroke-dasharray="${q.progress / Math.max(1, q.duration)} 1"/>` : ""}<circle cx="${x}" cy="${y}" r="24"/><text x="${x}" y="${y + 5}" text-anchor="middle">${i + 1}</text></g>`;
         });
       })

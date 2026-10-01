@@ -1,5 +1,7 @@
 # Rules-12 command recordings — 2026-10-01
 
+Historical: rules 13 rejects these; the replay smokes now default to the [rules-13 recordings](../rules13-replays-2026-10-01/README.md).
+
 Two ordinary AI-versus-AI matches on Cortex Crossing, recorded at source `a58eb325` (rules 12, no uncommitted simulation changes) so the replay-driven browser smokes have a recording the current engine accepts. The rules-9 and older recordings elsewhere in `verification/` are rejected by rules 12 and only reproduce on their own source revisions.
 
 | File                 | Match                             | Ticks | Final hash | Covers                                                                                            |
