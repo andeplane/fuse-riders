@@ -137,6 +137,10 @@ export interface Outcome {
   type:
     | "rejected"
     | "queued"
+    /** A waiting plan removed because its hex was taken. */
+    | "dropped"
+    /** A paid neuron cut off from the network, refunded and waiting again. */
+    | "stalled"
     | "dispatched"
     | "constructed"
     | "researched"
@@ -158,7 +162,7 @@ export interface Outcome {
 }
 export interface World {
   formatVersion: 1;
-  rulesVersion: 12;
+  rulesVersion: 13;
   matchId: string;
   tick: number;
   map: MapDefinition;
@@ -180,7 +184,7 @@ export interface World {
   events: MatchEvent[];
 }
 export const RULES = Object.freeze({
-  version: 12,
+  version: 13,
   /** Most brains in one match. Maps, seats, colours and bounds all follow it. */
   maxPlayers: 8,
   ticksPerSecond: 20,

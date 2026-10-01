@@ -346,7 +346,7 @@ export const neuralGame: RollbackGame<
   NeuralSettings
 > = {
   id: "fuse-craft",
-  rules: "fuse-craft-12-watch-9",
+  rules: "fuse-craft-13-watch-9",
   isEntry,
   createRoom: (matchId, settings) => ({
     tick: 0,

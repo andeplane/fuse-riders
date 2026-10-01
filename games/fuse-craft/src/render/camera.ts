@@ -28,30 +28,80 @@ export interface BoardCamera {
 
 /** Screen pixels from the board's edge that start edge scrolling. */
 export const EDGE_ZONE = 28;
+/**
+ * The window's outermost pixels scroll even over the top bar and command
+ * dock, as in RTS games: in full screen the mouse stops there.
+ */
+export const SCREEN_EDGE = 8;
 /** Scroll speed for held keys and edge scrolling, in screen pixels a second. */
 export const SCROLL_SPEED = 900;
 
+export interface Point {
+  x: number;
+  y: number;
+}
+export interface Rect extends Size {
+  left: number;
+  top: number;
+}
+
 /**
- * Which way the camera scrolls, as unit components: held arrow keys, plus the
- * mouse resting within EDGE_ZONE of the viewport's sides. Null when nothing
- * asks it to move.
+ * Which way the mouse asks the camera to scroll, per axis -1, 0 or 1. The
+ * pointer is in window pixels. Inside the board, resting within EDGE_ZONE of
+ * its sides scrolls; anywhere, including over the HUD, the window's outer
+ * SCREEN_EDGE pixels do. A pointer at or past the last pixel row or column
+ * still counts. Without a screen size only the board's edges apply.
+ */
+export function edgeAxes(
+  pointer: Point | null,
+  board: Rect,
+  screen: Size | null,
+): Point {
+  let x = 0,
+    y = 0;
+  if (!pointer) return { x, y };
+  const bx = pointer.x - board.left,
+    by = pointer.y - board.top;
+  if (bx >= 0 && by >= 0 && bx < board.width && by < board.height) {
+    if (bx < EDGE_ZONE) x = -1;
+    else if (bx >= board.width - EDGE_ZONE) x = 1;
+    if (by < EDGE_ZONE) y = -1;
+    else if (by >= board.height - EDGE_ZONE) y = 1;
+  }
+  if (screen) {
+    if (pointer.x < SCREEN_EDGE) x = -1;
+    else if (pointer.x >= screen.width - SCREEN_EDGE) x = 1;
+    if (pointer.y < SCREEN_EDGE) y = -1;
+    else if (pointer.y >= screen.height - SCREEN_EDGE) y = 1;
+  }
+  return { x, y };
+}
+
+/**
+ * Which way the camera scrolls, as unit components: held arrow keys, plus
+ * the edge axes from the mouse. Null when nothing asks it to move.
  */
 export function scrollDirection(
   held: ReadonlySet<PanDirection>,
-  pointer: { x: number; y: number } | null,
-  size: Size,
-): { x: number; y: number } | null {
+  edge: Point = { x: 0, y: 0 },
+): Point | null {
   let x = (held.has("right") ? 1 : 0) - (held.has("left") ? 1 : 0);
   let y = (held.has("down") ? 1 : 0) - (held.has("up") ? 1 : 0);
-  if (pointer) {
-    if (pointer.x < EDGE_ZONE) x = -1;
-    else if (pointer.x > size.width - EDGE_ZONE) x = 1;
-    if (pointer.y < EDGE_ZONE) y = -1;
-    else if (pointer.y > size.height - EDGE_ZONE) y = 1;
-  }
+  if (edge.x) x = edge.x;
+  if (edge.y) y = edge.y;
   if (!x && !y) return null;
   const length = Math.hypot(x, y);
   return { x: x / length, y: y / length };
+}
+
+/**
+ * The window the mouse moves over, for edge scrolling across the HUD as
+ * well as the board. `watch` reports the mouse in window pixels, or null
+ * when a button is down, it leaves the window, or the window loses focus.
+ */
+export interface PointerSurface {
+  size(): Size;
+  watch(listener: (pointer: Point | null) => void): () => void;
 }
 export type CameraFactory = (
   svg: SVGSVGElement,
@@ -182,6 +232,8 @@ export interface CameraDependencies {
   observeResize(element: Element, callback: () => void): () => void;
   requestFrame(callback: (now: number) => void): number;
   cancelFrame(handle: number): void;
+  /** Without it, edge scrolling follows the mouse over the board only. */
+  screen?: PointerSurface;
 }
 
 export function createCameraFactory(
@@ -219,17 +271,26 @@ export function createCameraFactory(
     let suppressClick = false;
     const held = new Set<PanDirection>();
     let edgeScroll = false;
-    // The mouse's position over the board, for edge scrolling; null when it
-    // is elsewhere or a button is down.
-    let pointer: { x: number; y: number } | null = null;
+    // The mouse in window pixels, for edge scrolling; null when it is away
+    // or a button is down.
+    let pointer: Point | null = null;
     let frame: number | null = null;
     let lastFrame: number | null = null;
     function tick(now: number) {
       frame = null;
+      const rect = viewport.getBoundingClientRect();
       const direction = scrollDirection(
         held,
-        edgeScroll ? pointer : null,
-        measure(),
+        edgeAxes(
+          edgeScroll ? pointer : null,
+          {
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+          },
+          dependencies.screen?.size() ?? null,
+        ),
       );
       if (!direction || disposed) {
         lastFrame = null;
@@ -305,18 +366,24 @@ export function createCameraFactory(
       }
       svg.focus({ preventScroll: true });
     }
+    // With a screen surface the mouse is followed over the whole window;
+    // otherwise only while it is over the board.
     function hover(event: PointerEvent) {
-      if (event.pointerType !== "mouse" || event.buttons) {
-        pointer = null;
-        return;
-      }
-      const rect = viewport.getBoundingClientRect();
-      pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      if (edgeScroll) wake();
+      if (dependencies.screen) return;
+      pointerAt(
+        event.pointerType !== "mouse" || event.buttons
+          ? null
+          : { x: event.clientX, y: event.clientY },
+      );
+    }
+    function pointerAt(next: Point | null) {
+      pointer = next;
+      if (pointer && edgeScroll) wake();
     }
     function leave() {
-      pointer = null;
+      if (!dependencies.screen) pointer = null;
     }
+    const stopPointer = dependencies.screen?.watch(pointerAt);
     function move(event: PointerEvent) {
       hover(event);
       // A mouse can leave the viewport before crossing the drag threshold.
@@ -446,6 +513,7 @@ export function createCameraFactory(
       dispose() {
         disposed = true;
         stopResize();
+        stopPointer?.();
         viewport.removeEventListener("pointerdown", down);
         viewport.removeEventListener("pointermove", move);
         viewport.removeEventListener("pointerleave", leave);

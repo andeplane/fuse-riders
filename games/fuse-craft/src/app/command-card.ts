@@ -9,6 +9,7 @@ import {
   constructionAvailability,
   researchAvailability,
   type BuildKind,
+  type PlanSupport,
   type Requirement,
 } from "../engine/catalog.js";
 import {
@@ -156,6 +157,24 @@ export function requirementText(requirement: Requirement): string {
     case "not-researched":
       return `${RESEARCH_PRESENTATION[requirement.research].label} is already researched.`;
   }
+}
+/**
+ * Why a legal plan waits, in words that say what will happen. A missing
+ * connection is explained by the plan's support: a Shift-queued line grows
+ * from its predecessor, while a plan nothing reaches would wait forever and
+ * must not read as a requirement the queue will satisfy.
+ */
+export function waitingText(
+  missing: readonly Requirement[],
+  support: PlanSupport | undefined,
+): string[] {
+  return missing.map((requirement) =>
+    requirement.kind !== "neighbors"
+      ? requirementText(requirement)
+      : support === "chained"
+        ? "Grows once the queued neuron beside it has grown."
+        : "Not connected: nothing built or queued touches this hex, so it waits until your network reaches a neighbouring hex. Highlighted hexes start at once.",
+  );
 }
 function escape(value: unknown): string {
   return String(value).replace(

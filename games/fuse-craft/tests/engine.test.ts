@@ -86,14 +86,27 @@ test("auto expansion waits for funds, respects manual plans, and resumes after t
     funded.players[0]!.queue.some((j) => j.paid),
     "income automatically resumes expansion without a new toggle",
   );
+  w.players[0]!.biomass = RULES.neuronCost - 1_000;
+  const beside = neighbors(w.map, 9).find((c) => c !== 27 && c !== 36)!;
+  let manual = step(w, [
+    command(1, { type: "queueConstruction", kind: "neuron", cell: beside }),
+  ]);
+  manual = run(manual, 25);
+  assert.deepEqual(
+    manual.players[0]!.queue.map((j) => [j.cell, j.paid]),
+    [[beside, true]],
+    "a connected manual plan waiting for funds takes priority",
+  );
+  // Hex 63 is far from the brain: nothing built or queued will reach it, so
+  // it must not stop automatic growth for the rest of the match.
   w.players[0]!.biomass = RULES.neuronCost;
   w = step(w, [
     command(1, { type: "queueConstruction", kind: "neuron", cell: 63 }),
   ]);
-  assert.deepEqual(
-    w.players[0]!.queue.map((j) => j.cell),
-    [63],
-    "even a waiting manual plan takes priority",
+  assert.equal(w.players[0]!.queue.find((j) => j.cell === 63)?.paid, false);
+  assert.ok(
+    w.players[0]!.queue.some((j) => j.cell !== 63 && j.paid),
+    "an unreachable plan does not hold auto expansion back",
   );
   w = step(w, [command(2, { type: "cancelConstruction", cell: 63 })]);
   assert.equal(w.players[0]!.queue.length, 1);

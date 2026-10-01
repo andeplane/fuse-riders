@@ -478,6 +478,22 @@ export function claimPrecedence(
 ): number {
   return powerupDraw(matchId, tick, 1000 + slot);
 }
+/**
+ * A waiting plan whose hex now holds a building it does not upgrade (an
+ * opponent grew there, or this network built it another way) can never start.
+ * Drop it with an outcome rather than leave a numbered ghost in the queue.
+ */
+function dropTakenPlans(w: World, p: Player) {
+  const taken = p.queue.filter(
+    (j) =>
+      !j.paid &&
+      w.structures.some((s) => s.cell === j.cell && s.id !== j.upgradeFrom),
+  );
+  if (!taken.length) return;
+  p.queue = p.queue.filter((j) => !taken.includes(j));
+  for (const j of taken)
+    emit(w, p, "dropped", { cell: j.cell, reason: "hex taken" });
+}
 function dispatchConstruction(w: World, ready: Player[]) {
   // Collect claims against one shared pre-dispatch board. Contested claims go
   // by claimPrecedence, a per-tick shuffle of seats, so renaming players
@@ -602,7 +618,13 @@ function worker(w: World, p: Player) {
     worker.mode = "returning";
   }
 }
-/** Paid neurons grow while they touch this player's connected network. */
+/**
+ * Paid neurons grow while they touch this player's connected network. One
+ * that loses every connected neighbour goes back to a waiting plan with its
+ * biomass returned, so it cannot hold a sprout slot, and with it all later
+ * growth, until its anchor returns; it is claimed again once something
+ * connected touches it.
+ */
 function sprouts(w: World, p: Player) {
   for (const job of p.queue.filter((j) => j.paid && isSprout(j))) {
     const anchored = neighbors(w.map, job.cell).some((cell) =>
@@ -610,7 +632,26 @@ function sprouts(w: World, p: Player) {
         (s) => s.cell === cell && s.ownerId === p.id && s.connected,
       ),
     );
-    if (!anchored) continue;
+    if (!anchored) {
+      const refund = Math.min(
+        CONSTRUCTIONS[job.kind].cost,
+        RULES.bankCap - p.biomass,
+      );
+      p.biomass += refund;
+      job.paid = false;
+      job.progress = 0;
+      job.duration = 0;
+      // A waiting plan is undamaged by definition (checkpoints require it),
+      // so damage to the cut-off site goes with the refund.
+      job.hp = hp(job.kind);
+      emit(w, p, "stalled", {
+        cell: job.cell,
+        amount: refund,
+        resource: "biomass",
+        reason: "cut off, refunded",
+      });
+      continue;
+    }
     job.progress += hasBuff(p, "surge", w.tick) ? 2 : 1;
     if (job.progress < job.duration) continue;
     w.structures.push({
@@ -1056,6 +1097,7 @@ export function step(state: World, commands: readonly Command[] = []): World {
       automatic.push({ player: p, cell });
     }
   }
+  for (const p of w.players) if (p.alive) dropTakenPlans(w, p);
   dispatchConstruction(w, ready);
   // Losing automatic claims are retried from the next authoritative board;
   // they must not become stale ghost jobs that block this player's expansion.
@@ -1154,6 +1196,8 @@ export function decodeState(raw: unknown): World {
       ![
         "rejected",
         "queued",
+        "dropped",
+        "stalled",
         "dispatched",
         "constructed",
         "researched",

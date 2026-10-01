@@ -1,6 +1,6 @@
 # Fuse Craft tech tree
 
-Current implemented rules, updated **2026-09-30**, written against engine **rules version 12**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
+Current implemented rules, updated **2026-10-01**, written against engine **rules version 13**. This is the current game reference, not a list of planned features. Update this document in the same change as any tech-tree rule change.
 
 **The numbers live in source.** This document describes what each building, research and particle profile is for, how they unlock each other and how they interact. It deliberately does not copy costs, HP, damage, ranges, cooldowns or durations, because those change with the rules version. Read them from the linked definitions below.
 
@@ -107,11 +107,11 @@ Choose **Build → structure → tile**. A plan requires completed prerequisite 
 
 **Disconnected plans are allowed.** They remain unpaid ghosts until construction can start. Every buildable structure requires at least **one adjacent completed friendly structure connected back to the brain** before dispatch, plus sufficient Biomass. A queued ghost is not a connection.
 
-**Neurons sprout; the builder upgrades.** A paid neuron grows by itself while it touches the connected network, like creep. Each player grows one sprout at a time, plus one more per block of claimed territory, up to a cap (`SPROUT`). Towers and other specialists are upgrades of a neuron: they need an idle builder, which physically travels through the network, and one builder means one active upgrade per player. The queue dispatches the first currently eligible job of each kind, so a distant plan does not block a later connecting plan. Biomass is charged at dispatch.
+**Neurons sprout; the builder upgrades.** A paid neuron grows by itself while it touches the connected network, like creep. Each player grows one sprout at a time, plus one more per block of claimed territory, up to a cap (`SPROUT`). Towers and other specialists are upgrades of a neuron: they need an idle builder, which physically travels through the network, and one builder means one active upgrade per player. The queue dispatches the first currently eligible job of each kind, so a distant plan does not block a later connecting plan. Biomass is charged at dispatch. A paid neuron cut off from every connected neighbour is refunded and waits again, so it never holds a sprout slot; a waiting plan on a hex someone builds on is dropped.
 
 Paid construction has the catalog HP of its building and can be attacked immediately. Damage persists through completion; construction does not heal it. Unpaid plans cannot be attacked. This makes building durability meaningful during construction as well as afterward. Cancelling paid work gives no refund.
 
-The brain's **Auto expand** toggle requires no research. It proposes neurons when resources, a free sprout slot and a valid connected tile are available. It stays enabled while waiting, respects manual queues, and does not automatically research or choose specialist towers. Turning it off does not cancel the active construction.
+The brain's **Auto expand** toggle requires no research. It proposes neurons when resources, a free sprout slot and a valid connected tile are available. It stays enabled while waiting, respects manual plans that can still connect, and does not automatically research or choose specialist towers. Turning it off does not cancel the active construction.
 
 ## Territory and dominance
 

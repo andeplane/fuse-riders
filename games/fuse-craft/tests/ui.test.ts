@@ -10,7 +10,13 @@ import type {
 } from "../src/app/contracts.js";
 import type { Action, MatchSettings } from "../src/engine/types.js";
 import type { BoardCamera } from "../src/render/camera.js";
-import { RESEARCH, researchPrerequisites } from "../src/engine/catalog.js";
+import {
+  RESEARCH,
+  STRUCTURES,
+  connectedFrontier,
+  planSupport,
+  researchPrerequisites,
+} from "../src/engine/catalog.js";
 import { requirementText, renderCommands } from "../src/app/command-card.js";
 
 test("Siege command help explains its minimum range before purchase", () => {
@@ -520,6 +526,60 @@ test("build commands arm placement, reject occupied tiles, place once, and cance
   f.click("build-neuron");
   f.press("Escape");
   assert.equal(f.root.querySelector(".placement-instructions"), null);
+  f.app.dispose();
+});
+
+test("placement outlines hexes touching the network and says when a plan cannot connect", async () => {
+  const f = fixture();
+  await f.start();
+  const player = f.world.players.find((p) => p.id === "coral")!;
+  f.click("panel-build");
+  f.click("build-neuron");
+  const outlined = [
+    ...f.root.querySelectorAll(".placement-frontier polygon"),
+  ].map((n) => Number(n.getAttribute("data-cell")));
+  const frontier = connectedFrontier(f.world, player, "neuron");
+  assert.ok(frontier.length > 0);
+  assert.deepEqual(outlined, frontier, "the network's edge is outlined");
+  const open = f.world.map.cells.flatMap((c, i) =>
+    c.terrain === "open" &&
+    !f.world.structures.some((s) => s.cell === i) &&
+    !f.world.players.some((p) => p.queue.some((j) => j.cell === i))
+      ? [i]
+      : [],
+  );
+  const support = (cell: number) =>
+    planSupport(f.world, player, { cell, kind: "neuron" }).get(cell);
+  const far = open.find((cell) => support(cell) === "unsupported")!;
+  f.selectCell(far, true);
+  assert.deepEqual(f.actions.at(-1), {
+    type: "queueConstruction",
+    kind: "neuron",
+    cell: far,
+  });
+  const hint = () =>
+    f.root.querySelector(".placement-instructions small")?.textContent ?? "";
+  assert.match(hint(), /Not connected/);
+  assert.doesNotMatch(hint(), /Needs 1 connected/);
+  assert.equal(
+    f.root.querySelector(".placement-preview")?.getAttribute("data-support"),
+    "unsupported",
+  );
+  f.selectCell(frontier[0]!, true);
+  assert.doesNotMatch(hint(), /Not connected/);
+  // A plan nothing reaches is marked apart on the board.
+  player.queue.push({
+    cell: far,
+    kind: "neuron",
+    paid: false,
+    progress: 0,
+    duration: 0,
+    hp: STRUCTURES.neuron.hp,
+  });
+  f.publish();
+  assert.ok(
+    f.root.querySelector(`.queue-mark.queue-unsupported[data-cell="${far}"]`),
+  );
   f.app.dispose();
 });
 

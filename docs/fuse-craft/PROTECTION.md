@@ -24,6 +24,6 @@ Actual absorption emits `shielded` with source cell, protected cell and absorbed
 
 The earlier rules-6 saving-policy tournament is a separate baseline. Do not mix its outcomes with rules 7 or infer balance from passing technical tests.
 
-Historical: the shield capture below came from `verification/protection-2026-09-27/close-quarters.replay.json`, a rules-7 recording the current engine rejects; it reproduces only on that source revision. For the current rules, run `pnpm exec tsx scripts/fuse-craft-effects-smoke.ts docs/fuse-craft/verification/rules12-replays-2026-10-01/combat.replay.json /tmp/fuse-shield-effects shielded` while the source preview runs on port 5174 (see [rules-12 recordings](verification/rules12-replays-2026-10-01/README.md)).
+Historical: the shield capture below came from `verification/protection-2026-09-27/close-quarters.replay.json`, a rules-7 recording the current engine rejects; it reproduces only on that source revision. For the current rules, run `pnpm exec tsx scripts/fuse-craft-effects-smoke.ts docs/fuse-craft/verification/rules13-replays-2026-10-01/shielded.replay.json /tmp/fuse-shield-effects shielded` while the source preview runs on port 5174 (see [rules-13 recordings](verification/rules13-replays-2026-10-01/README.md)).
 
 ![Supplied field absorbing a real hit](verification/protection-2026-09-27/phone-shield-80ms.png)

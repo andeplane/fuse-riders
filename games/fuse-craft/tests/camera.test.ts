@@ -1,11 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { parseHTML } from "linkedom";
 import {
+  createCameraFactory,
   createCameraModel,
   EDGE_ZONE,
   MAX_SCALE,
+  SCREEN_EDGE,
+  edgeAxes,
   scrollDirection,
   type PanDirection,
+  type Point,
+  type PointerSurface,
 } from "../src/render/camera.js";
 
 const world = { width: 768, height: 648 };
@@ -112,22 +118,58 @@ test("zoom-in stops at a scale that still shows the battle around a building", (
 
 test("held arrows and the board's edges choose a unit scroll direction", () => {
   const size = { width: 800, height: 600 };
+  const board = { left: 0, top: 0, ...size };
   const held = (...d: PanDirection[]) => new Set<PanDirection>(d);
-  assert.equal(scrollDirection(held(), null, size), null);
-  assert.equal(scrollDirection(held(), { x: 400, y: 300 }, size), null);
-  assert.deepEqual(scrollDirection(held("right"), null, size), { x: 1, y: 0 });
-  assert.equal(scrollDirection(held("left", "right"), null, size), null);
-  const diagonal = scrollDirection(held("up", "left"), null, size)!;
+  const edge = (x: number, y: number) => edgeAxes({ x, y }, board, null);
+  assert.equal(scrollDirection(held()), null);
+  assert.equal(scrollDirection(held(), edge(400, 300)), null);
+  assert.deepEqual(scrollDirection(held("right")), { x: 1, y: 0 });
+  assert.equal(scrollDirection(held("left", "right")), null);
+  const diagonal = scrollDirection(held("up", "left"))!;
   assert.ok(Math.abs(Math.hypot(diagonal.x, diagonal.y) - 1) < 1e-9);
   assert.ok(diagonal.x < 0 && diagonal.y < 0);
+  assert.deepEqual(scrollDirection(held(), edge(EDGE_ZONE - 1, 300)), {
+    x: -1,
+    y: 0,
+  });
+  assert.deepEqual(scrollDirection(held(), edge(400, size.height - 2)), {
+    x: 0,
+    y: 1,
+  });
+  assert.deepEqual(edgeAxes(null, board, size), { x: 0, y: 0 });
+});
+
+test("edge scrolling reaches every side of the screen, over the HUD too", () => {
+  // A 1280×800 window: top bar to y 56, command dock from y 616, board between.
+  const screen = { width: 1280, height: 800 };
+  const board = { left: 12, top: 56, width: 1256, height: 560 };
+  const at = (x: number, y: number) => edgeAxes({ x, y }, board, screen);
+  // The last pixel row and column, and the first, over the top bar and dock.
+  assert.deepEqual(at(640, 0), { x: 0, y: -1 }, "top bar, top pixel row");
+  assert.deepEqual(at(640, 799), { x: 0, y: 1 }, "dock, last pixel row");
+  assert.deepEqual(at(0, 700), { x: -1, y: 0 }, "dock, first column");
+  assert.deepEqual(at(1279, 30), { x: 1, y: 0 }, "top bar, last column");
+  assert.deepEqual(at(1279, 799), { x: 1, y: 1 }, "bottom-right corner");
   assert.deepEqual(
-    scrollDirection(held(), { x: EDGE_ZONE - 1, y: 300 }, size),
-    { x: -1, y: 0 },
+    at(1279.5, 800),
+    { x: 1, y: 1 },
+    "fractional and past the edge",
   );
   assert.deepEqual(
-    scrollDirection(held(), { x: 400, y: size.height - 2 }, size),
+    at(640, screen.height - SCREEN_EDGE),
     { x: 0, y: 1 },
+    "the whole outer band counts",
   );
+  // Inside the HUD away from the outer pixels, the camera stays put, so
+  // buttons near the board can be used.
+  assert.deepEqual(at(640, 30), { x: 0, y: 0 }, "top bar");
+  assert.deepEqual(at(640, 700), { x: 0, y: 0 }, "dock");
+  assert.deepEqual(at(640, 799 - SCREEN_EDGE), { x: 0, y: 0 });
+  // The board's own edges still scroll before the screen's.
+  assert.deepEqual(at(640, board.top + 2), { x: 0, y: -1 });
+  assert.deepEqual(at(640, board.top + board.height - 2), { x: 0, y: 1 });
+  assert.deepEqual(at(board.left + 2, 300), { x: -1, y: 0 });
+  assert.deepEqual(at(640, 300), { x: 0, y: 0 });
 });
 
 test("scrolling moves the view the same way and stops at the map's edge", () => {
@@ -145,4 +187,62 @@ test("scrolling moves the view the same way and stops at the map's edge", () => 
   const edge = camera.view();
   camera.scroll(1e6, 1e6);
   assert.deepEqual(camera.view(), edge, "clamped at the far corner");
+});
+
+test("edge scrolling keeps going while the mouse rests at the screen's edge and stops when it leaves", () => {
+  const { document } = parseHTML(
+    `<div id="viewport"><svg viewBox="0 0 3000 2000"></svg></div>`,
+  );
+  const viewport = document.getElementById("viewport") as HTMLElement;
+  const svg = viewport.querySelector("svg") as unknown as SVGSVGElement;
+  // The board sits between a 56px top bar and a dock from y 616.
+  const board = { left: 12, top: 56, width: 1256, height: 560 };
+  Object.defineProperties(viewport, {
+    clientWidth: { value: board.width },
+    clientHeight: { value: board.height },
+    getBoundingClientRect: { value: () => ({ ...board, x: 12, y: 56 }) },
+  });
+  let report: ((pointer: Point | null) => void) | null = null;
+  let stopped = 0;
+  const screen: PointerSurface = {
+    size: () => ({ width: 1280, height: 800 }),
+    watch(listener) {
+      report = listener;
+      return () => {
+        stopped++;
+        report = null;
+      };
+    },
+  };
+  const frames: ((now: number) => void)[] = [];
+  const camera = createCameraFactory({
+    observeResize: () => () => {},
+    requestFrame: (callback) => frames.push(callback),
+    cancelFrame: () => {},
+    screen,
+  })(svg, viewport);
+  camera.setEdgeScroll(true);
+  const view = () => svg.getAttribute("viewBox")!.split(" ").map(Number);
+  const start = view();
+  // Over the command dock, on the last pixel row: it scrolls down, frame
+  // after frame, with no further mouse movement.
+  report!({ x: 640, y: 799 });
+  let now = 0;
+  for (let i = 0; i < 5; i++) frames.shift()!((now += 16));
+  assert.ok(view()[1]! > start[1]!, "scrolled down over the dock");
+  assert.equal(frames.length, 1, "still scheduling frames while resting");
+  const rested = view();
+  frames.shift()!((now += 16));
+  assert.ok(view()[1]! > rested[1]!);
+  // Leaving the window clears the pointer and the loop ends.
+  report!(null);
+  frames.shift()!((now += 16));
+  assert.equal(frames.length, 0);
+  const left = view();
+  // Over the dock but away from the outer pixels: nothing moves.
+  report!({ x: 640, y: 700 });
+  while (frames.length) frames.shift()!((now += 16));
+  assert.deepEqual(view(), left);
+  camera.dispose();
+  assert.equal(stopped, 1, "disposal stops following the mouse");
 });

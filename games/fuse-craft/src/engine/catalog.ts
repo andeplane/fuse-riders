@@ -463,6 +463,97 @@ export function constructionDispatchAvailability(
   return result(missing);
 }
 
+/**
+ * Whether a plan can ever gain the connected neighbours it needs on its own.
+ * "connected": the network already touches it. "chained": a queued neuron
+ * beside it (itself connected or chained) will touch it once grown, as in a
+ * Shift-queued line. "unsupported": nothing built or queued reaches it, so it
+ * waits until the network grows beside it by other means.
+ */
+export type PlanSupport = "connected" | "chained" | "unsupported";
+
+/** Cells holding this player's connected structures, for neighbour counts. */
+const connectedCells = (world: Readonly<World>, player: Readonly<Player>) =>
+  new Set(
+    world.structures
+      .filter((s) => s.ownerId === player.id && s.connected)
+      .map((s) => s.cell),
+  );
+const countIn = (world: Readonly<World>, cells: Set<number>, cell: number) =>
+  neighbors(world.map, cell).filter((n) => cells.has(n)).length;
+
+/**
+ * The support of each of the player's unpaid plans, keyed by cell, plus a
+ * prospective plan when `extra` is given (placement asks before queueing).
+ * Paid neurons that still touch the network count as future network; a cut
+ * off one reverts to waiting on the next step. A pure function of public
+ * state, linear in the queue (at most RULES.queueLimit passes).
+ */
+export function planSupport(
+  world: Readonly<World>,
+  player: Readonly<Player>,
+  extra?: Readonly<Pick<Construction, "cell" | "kind">>,
+): Map<number, PlanSupport> {
+  const own = connectedCells(world, player);
+  const plans: Readonly<Pick<Construction, "cell" | "kind" | "upgradeFrom">>[] =
+    player.queue.filter((j) => !j.paid);
+  if (extra && !player.queue.some((j) => j.cell === extra.cell))
+    plans.push(extra);
+  const growing = new Set(
+    player.queue
+      .filter((j) => j.paid && isSprout(j) && countIn(world, own, j.cell) > 0)
+      .map((j) => j.cell),
+  );
+  const support = new Map<number, PlanSupport>();
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const plan of plans) {
+      if (support.has(plan.cell)) continue;
+      const required = CONSTRUCTIONS[plan.kind].connectedNeighbors;
+      const connected = countIn(world, own, plan.cell);
+      const queued = countIn(world, growing, plan.cell);
+      const resolved: PlanSupport | null =
+        connected >= required
+          ? "connected"
+          : connected + queued >= required
+            ? "chained"
+            : null;
+      if (!resolved) continue;
+      support.set(plan.cell, resolved);
+      if (isSprout(plan)) growing.add(plan.cell);
+      changed = true;
+    }
+  }
+  for (const plan of plans)
+    if (!support.has(plan.cell)) support.set(plan.cell, "unsupported");
+  return support;
+}
+
+/**
+ * Open hexes where this kind could be queued and start at once as far as
+ * connection goes: the edge of the connected network. Placement highlights
+ * them so the brain's wide artwork cannot hide which hexes touch it.
+ */
+export function connectedFrontier(
+  world: Readonly<World>,
+  player: Readonly<Player>,
+  kind: BuildKind,
+): number[] {
+  const own = connectedCells(world, player);
+  const candidates = new Set<number>();
+  for (const cell of own)
+    for (const n of neighbors(world.map, cell))
+      if (!own.has(n)) candidates.add(n);
+  return [...candidates]
+    .filter(
+      (cell) =>
+        countIn(world, own, cell) >= CONSTRUCTIONS[kind].connectedNeighbors &&
+        !constructionUpgradeSource(world, player, kind, cell) &&
+        constructionQueueAvailability(world, player, kind, cell).allowed,
+    )
+    .sort((a, b) => a - b);
+}
+
 export function researchAvailability(
   player: Readonly<Player>,
   kind: Research,
