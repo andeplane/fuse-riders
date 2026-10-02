@@ -3,8 +3,9 @@ import type { PreferencesStore, PresentationPreferences } from "./contracts.js";
 const key = "fuse-craft-presentation-v1";
 /** The key from before the game was renamed from its working name; read so a returning player keeps settings. */
 const legacyKey = "neural-defence-presentation-v1";
+// Sound is on for a new player; the browser still holds it until a click.
 const defaults: PresentationPreferences = {
-  mute: true,
+  mute: false,
   volume: 0.5,
   reducedMotion: false,
   edgeScroll: true,
