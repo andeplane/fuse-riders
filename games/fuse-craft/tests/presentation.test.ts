@@ -621,10 +621,11 @@ test("presentation preferences tolerate corrupt data and unavailable storage", (
     edgeScroll: true,
   });
   assert.doesNotThrow(() => store.write(store.read()));
+  // Corrupt data falls back to the defaults, where sound is on.
   assert.equal(
     createPreferencesStore({ getItem: () => "{broken", setItem() {} }).read()
       .mute,
-    true,
+    false,
   );
 });
 

@@ -12,7 +12,7 @@ Status: **implemented locally; final verification and player review remain open*
 - Biomass and Insight deposits; Growth, Excitation and Conduction research. Tower construction uses any open hex with six connected friendly neighbors; `towerSite` is an optional map/editor suggestion.
 - `?debug` draws clear tile boundaries. Independent instant construction/research options start unchecked and retain costs, prerequisites and travel.
 - Individual colored brain/neuron sprites, sculpted terrain, one tower, distinct builder/attack particles and shared selection overlays. Visual acceptance remains the user's decision.
-- Settings currently contains the working reduced-motion preference. Audio has not been implemented; inert audio controls were removed.
+- Settings currently contains the working reduced-motion preference. Sound effects and their mute/volume settings are described in the [README](README.md).
 - Pure headless TypeScript simulation, the existing network runtime, injected side effects, typed test fakes and cumulative statistics for later graphs.
 
 ## Implemented and reviewed

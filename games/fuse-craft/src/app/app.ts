@@ -18,10 +18,16 @@ import { updateContent } from "./dom-update.js";
 import { minimapMarkup, minimapCell } from "../render/minimap.js";
 import { battleFocusCell } from "../render/battle-focus.js";
 import { structureArt, teamArtFilter } from "../render/art.js";
-import type { PresentationAudio } from "./audio.js";
+import {
+  spatialize,
+  type Locate,
+  type PresentationAudio,
+  type SoundCue,
+} from "./audio.js";
 import { createAttractScene } from "./attract-scene.js";
 import {
   renderBoard,
+  hexCenter,
   hexPoints,
   structureArtwork,
   neuronPortraitUrl,
@@ -183,6 +189,49 @@ export interface AppDependencies {
   createLightRenderer?: (canvas: HTMLCanvasElement) => LightRenderer | null;
   audio?: PresentationAudio;
   forcedMute?: boolean;
+}
+
+/**
+ * The interface sound for a clicked action. Commands whose result arrives as
+ * a match event (placing, researching) sound from that event instead, and
+ * `null` leaves the cue to the action's own handler.
+ */
+export function actionCue(action: string | undefined): SoundCue | null {
+  if (!action) return "select";
+  if (action.startsWith("build-") || action === "toggle-mute") return null;
+  if (
+    [
+      "close-panel",
+      "back-menu",
+      "close-help",
+      "cancel-placement",
+      "cancel-confirm",
+      "tutorial-close",
+      "leave-room",
+    ].includes(action)
+  )
+    return "back";
+  if (action === "cancel-build" || action === "cancel-research")
+    return "cancel";
+  if (
+    action === "auto-expand" ||
+    action === "charge" ||
+    action === "fullscreen" ||
+    action === "toggle-report" ||
+    action.startsWith("particle-")
+  )
+    return "toggle";
+  if (
+    action === "help" ||
+    action === "guide" ||
+    action === "guide-section" ||
+    action === "next-command-page" ||
+    action === "report-metric" ||
+    action === "settings" ||
+    action.startsWith("mode-")
+  )
+    return "panel";
+  return "select";
 }
 
 export function mountFuseCraft(
@@ -687,6 +736,36 @@ export function mountFuseCraft(
     return `<button data-action="fullscreen" class="secondary" aria-pressed="${on}" aria-label="${on ? "Leave full screen" : "Full screen"}" title="${on ? "Leave full screen (F)" : "Full screen (F)"}">⛶</button>`;
   }
 
+  function muteButton(): string {
+    if (!dependencies.audio || dependencies.forcedMute) return "";
+    const muted = preferences.mute;
+    return `<button data-action="toggle-mute" class="secondary" aria-pressed="${muted}" aria-label="${muted ? "Unmute sound" : "Mute sound"}" title="${muted ? "Unmute sound (M)" : "Mute sound (M)"}">${muted ? "🔇" : "🔊"}</button>`;
+  }
+
+  function toggleMute() {
+    preferences = { ...preferences, mute: !preferences.mute };
+    dependencies.preferences.write(preferences);
+    dependencies.audio?.configure(preferences);
+    dependencies.audio?.unlock();
+    dependencies.audio?.play("toggle");
+    if (screen === "game") renderGame();
+    else render();
+  }
+
+  /** Places board sounds relative to what the camera shows. */
+  function soundLocator(world: Readonly<World>): Locate | undefined {
+    const view = root
+      .querySelector("#nd-board")
+      ?.getAttribute("viewBox")
+      ?.split(" ")
+      .map(Number);
+    if (view?.length !== 4 || view.some((n) => !Number.isFinite(n)))
+      return undefined;
+    const [x = 0, y = 0, width = 0, height = 0] = view;
+    return (cell) =>
+      spatialize({ x, y, width, height }, hexCenter(world.map.width, cell));
+  }
+
   /** Points the camera at the minimap position under a pointer. */
   function minimapFocus(minimap: Element, x: number, y: number) {
     const world = gameWorld();
@@ -779,7 +858,7 @@ export function mountFuseCraft(
         ? '<button data-action="reset" class="secondary">Lobby</button>'
         : ""
       : '<button data-action="reset" class="secondary">Restart</button>';
-    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls">${fullscreenButton()}<button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button>${restart}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div><button data-action="find-battle" class="secondary" title="Jump to fighting or the nearest opposing networks">Find battle</button></section><nav class="watch-players" aria-label="${online ? "Players" : "AI players"}">${cards}</nav></div>`;
+    return `<div class="battle-topbar watch-topbar"><div class="resource-row">${resources}</div><div class="hud-mini"></div><div class="session-controls">${muteButton()}${fullscreenButton()}<button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button>${restart}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div><div class="command-dock watch-dock">${minimapMarkup(world)}<section class="inspector" aria-label="Selected hex"><div class="selection-details"><strong>${escape(selected)}</strong><span>${structure ? (structure.connected ? "Connected to its brain" : "Disconnected") : "Watch either network grow and adapt."}</span><small>Pan, zoom and inspect · Select a player to follow its brain</small></div><button data-action="find-battle" class="secondary" title="Jump to fighting or the nearest opposing networks">Find battle</button></section><nav class="watch-players" aria-label="${online ? "Players" : "AI players"}">${cards}</nav></div>`;
   }
 
   function sidebarMarkup(world: Readonly<World>): string {
@@ -910,7 +989,7 @@ export function mountFuseCraft(
           : panel === "research"
             ? `<div class="command-context"><strong>Research</strong><p>${player.researchJob ? `${researchNames[player.researchJob.kind]} · researching` : "Choose an upgrade"}</p><small>${player.research.length ? `Complete: ${player.research.map((r) => researchNames[r]).join(", ")}` : "Hover or focus a command for its requirements."}</small></div>`
             : `<div class="command-context"><strong>Recent activity</strong><ul class="event-list" aria-live="polite">${outcomes || "<li>No recent activity.</li>"}</ul></div>`;
-    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div>${territoryChips(world, player)}${buffChips(world, player)}</div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls">${fullscreenButton()}<button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button>${online ? (online.room().manager ? '<button data-action="reset" class="secondary">Lobby</button>' : "") : '<button data-action="reset" class="secondary">Reset</button>'}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div>
+    return `<div class="battle-topbar"><div class="resource-row"><div><small>BIOMASS</small><strong>◈ ${units(player.biomass)}</strong></div><div><small>INSIGHT</small><strong>◇ ${units(player.insight)}</strong></div>${territoryChips(world, player)}${buffChips(world, player)}</div><div class="hud-mini"></div>${dependencies.debug ? '<div class="debug-note"></div>' : ""}<div class="session-controls">${muteButton()}${fullscreenButton()}<button data-action="help" class="secondary" aria-label="How to play" title="How to play">?</button>${online ? (online.room().manager ? '<button data-action="reset" class="secondary">Lobby</button>' : "") : '<button data-action="reset" class="secondary">Reset</button>'}<button data-action="leave" class="secondary">${online ? "Leave" : "Menu"}</button></div></div>
       <div class="command-dock">${minimapMarkup(world)}<section class="inspector" aria-label="${panel === "inspect" || panel === "build" ? "Selected hex" : panel === "research" ? "Research" : "Recent activity"}">${portrait ? `<div class="selection-portrait"><img style="filter:${structure && structure.kind !== "neuron" && structure.kind !== "spore" ? teamArtFilter(world.players.find((p) => p.id === structure.ownerId)?.slot ?? 0) : "none"}" src="${escape(portrait)}" alt="" draggable="false"></div>` : ""}<div class="selection-details">${contextDetail}</div></section><nav class="command-card" data-panel="${panel}" aria-label="${panel === "research" ? "Research commands" : panel === "build" ? "Build commands" : panel === "activity" ? "Activity commands" : "Commands"}">${commands}</nav></div>`;
   }
 
@@ -921,7 +1000,7 @@ export function mountFuseCraft(
     // control ends: it still hears and reads its own victory or defeat.
     const playing = participant(world);
     const self = playing ? (session?.localPlayerId ?? null) : null;
-    dependencies.audio?.present(world, self ?? "");
+    dependencies.audio?.present(world, self ?? "", soundLocator(world));
     if (world.matchId !== noticeMatch || world.tick < noticeTick) {
       notices = [];
       noticeTick = -1;
@@ -1376,6 +1455,7 @@ export function mountFuseCraft(
     }
     const button = target.closest<HTMLElement>("[data-action]");
     if (button?.getAttribute("aria-disabled") === "true") {
+      dependencies.audio?.play("invalid");
       button.focus?.();
       return;
     }
@@ -1391,6 +1471,7 @@ export function mountFuseCraft(
         next === "particles"
       )
         panel = panel === next ? "inspect" : next;
+      dependencies.audio?.play(panel === "inspect" ? "back" : "panel");
       commandPage = 0;
       renderGame();
       if (panel !== "inspect") {
@@ -1403,8 +1484,9 @@ export function mountFuseCraft(
       return;
     }
     if (button) {
-      dependencies.audio?.play("select");
       const action = button.dataset.action;
+      const cue = actionCue(action);
+      if (cue) dependencies.audio?.play(cue);
       if (action === "close-panel") {
         closePanel();
       } else if (action === "next-command-page") {
@@ -1420,7 +1502,8 @@ export function mountFuseCraft(
         render();
       } else if (action === "fullscreen") {
         dependencies.fullscreen?.toggle();
-      } else if (action === "help") openHelp();
+      } else if (action === "toggle-mute") toggleMute();
+      else if (action === "help") openHelp();
       else if (action === "close-help") closeHelp();
       else if (action === "tutorial") void startTutorial();
       else if (action === "tutorial-next" && tutorial) {
@@ -1515,13 +1598,14 @@ export function mountFuseCraft(
           owner &&
           constructionAvailability(owner, kind).allowed
         ) {
+          dependencies.audio?.play("panel");
           placement = kind;
           placementCell = null;
           renderGame();
           root
             .querySelector<SVGSVGElement>("#nd-board")
             ?.focus?.({ preventScroll: true });
-        }
+        } else dependencies.audio?.play("invalid");
       } else if (action === "cancel-placement") {
         placement = null;
         placementCell = null;
@@ -1618,7 +1702,10 @@ export function mountFuseCraft(
         placementCell = null;
       }
       dispatch({ type: "queueConstruction", kind, cell });
-    } else renderGame();
+    } else {
+      if (placement && world && owner) dependencies.audio?.play("invalid");
+      renderGame();
+    }
   }
 
   function onPointerMove(event: PointerEvent) {
@@ -1818,6 +1905,15 @@ export function mountFuseCraft(
         if (event.key.toLowerCase() === "f" && dependencies.fullscreen) {
           event.preventDefault();
           dependencies.fullscreen.toggle();
+          return;
+        }
+        if (
+          event.key.toLowerCase() === "m" &&
+          dependencies.audio &&
+          !dependencies.forcedMute
+        ) {
+          event.preventDefault();
+          toggleMute();
           return;
         }
         if (
