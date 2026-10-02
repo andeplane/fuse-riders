@@ -82,6 +82,22 @@ try {
       adapter.unlock();
       await new Promise((resolve) => setTimeout(resolve, 100));
       const resumed = active;
+      // Mute and unmute at once (two quick M presses): the pending suspend
+      // must not leave sound off while the game shows it on.
+      const on = {
+        mute: false,
+        volume: 0.5,
+        reducedMotion: false,
+        edgeScroll: true,
+      };
+      adapter.configure({ ...on, mute: true });
+      adapter.configure(on);
+      adapter.unlock();
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      const quick = active;
+      adapter.play("panel");
+      const quickToggle = active > quick;
+      adapter.configure({ ...on, mute: true });
       adapter.play("victory");
       adapter.configure({
         mute: false,
@@ -110,6 +126,7 @@ try {
         muted,
         resumed,
         zeroVolume,
+        quickToggle,
         disposed: active,
       };
     } finally {
@@ -125,6 +142,7 @@ try {
     drained: 0,
     muted: 0,
     resumed: 0,
+    quickToggle: true,
     zeroVolume: 0,
     disposed: 0,
   });

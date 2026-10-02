@@ -60,6 +60,29 @@ test("losses and kills sound different, and elimination is the biggest", () => {
   assert.deepEqual(names(cues), ["destroy", "lost", "eliminated"]);
 });
 
+test("losses in ticks a frame skipped are still heard", () => {
+  const { w, next } = duel();
+  place(w, 40, "red", "tower");
+  place(w, 41, "blue", "neuron");
+  place(w, 42, "red", "neuron");
+  next([]);
+  // Three ticks pass between frames; only the last one's outcomes are seen.
+  w.structures = w.structures.filter((s) => s.cell < 40 || s.cell > 41);
+  w.players.find((p) => p.id === "red")!.alive = false;
+  w.tick += 2;
+  const cues = next([]);
+  assert.deepEqual(names(cues), ["destroy", "lost", "eliminated"]);
+  assert.deepEqual(cues[0]!.cells, [40]);
+  assert.deepEqual(cues[1]!.cells, [41]);
+  // A destruction reported in the newest tick is not counted twice.
+  w.structures = w.structures.filter((s) => s.cell !== 42);
+  w.tick += 2;
+  const reported = next([
+    { tick: 0, playerId: "red", type: "destroyed", cell: 42 },
+  ]);
+  assert.deepEqual(reported[0]!.cells, [42]);
+});
+
 test("personal feedback is the player's alone; spectators hear none of it", () => {
   const personal: Outcome["type"][] = [
     "queued",

@@ -86,6 +86,7 @@ export function createCueTracker() {
   // Owner and kind of every structure on the previous tick, so a destroyed
   // cell can still say whose it was and what fired from it.
   let previous = new Map<number, { ownerId: string; kind: StructureKind }>();
+  let alive = new Set<string>();
   const remember = (world: Readonly<World>) => {
     previous = new Map(
       world.structures.map((s) => [
@@ -93,6 +94,7 @@ export function createCueTracker() {
         { ownerId: s.ownerId, kind: s.kind },
       ]),
     );
+    alive = new Set(world.players.filter((p) => p.alive).map((p) => p.id));
     powerupSerial = world.powerupSerial;
   };
   return (world: Readonly<World>, local: string): CueEvent[] => {
@@ -109,6 +111,9 @@ export function createCueTracker() {
         : [];
     }
     if (world.tick === tick) return [];
+    // A frame can skip ticks (a background tab catching up, an online
+    // resync); only the newest tick's outcomes are visible then.
+    const skipped = world.tick - tick > 1;
     tick = world.tick;
     const cues = new Map<SoundCue, number[]>();
     const add = (cue: SoundCue, cell?: number) => {
@@ -192,6 +197,22 @@ export function createCueTracker() {
         case "income":
           break;
       }
+    }
+    if (skipped) {
+      // Recover the losses that matter from the board itself.
+      const standing = new Set(world.structures.map((s) => s.cell));
+      for (const [cell, { ownerId }] of previous)
+        if (
+          !standing.has(cell) &&
+          !cues.get("destroy")?.includes(cell) &&
+          !cues.get("lost")?.includes(cell)
+        )
+          add(own(ownerId) ? "lost" : "destroy", cell);
+      if (
+        world.players.some((p) => alive.has(p.id) && !p.alive) &&
+        !cues.has("eliminated")
+      )
+        add("eliminated");
     }
     const spawned = world.powerupSerial - powerupSerial;
     if (spawned > 0)
@@ -602,6 +623,16 @@ const COOLDOWN: Partial<Record<SoundCue, number>> = {
 const DEFAULT_COOLDOWN = 0.04;
 /** Most sources sounding at once; further layers are dropped. */
 const MAX_VOICES = 48;
+/** Cues a busy battle must never crowd out get this much extra room. */
+const PRIORITY: ReadonlySet<SoundCue> = new Set<SoundCue>([
+  "victory",
+  "defeat",
+  "draw",
+  "eliminated",
+  "alarm",
+  "matchStart",
+]);
+const PRIORITY_VOICES = 24;
 
 /** Audio is presentation only; its clock never drives game simulation. */
 export function createBrowserAudio(
@@ -647,6 +678,7 @@ export function createBrowserAudio(
   };
 
   const play = (cue: SoundCue, spatial: Spatial = { pan: 0, gain: 1 }) => {
+    const limit = MAX_VOICES + (PRIORITY.has(cue) ? PRIORITY_VOICES : 0);
     if (
       !context ||
       context.state !== "running" ||
@@ -654,7 +686,7 @@ export function createBrowserAudio(
       settings.volume <= 0 ||
       forceMute ||
       disposed ||
-      voices.size >= MAX_VOICES
+      voices.size >= limit
     )
       return;
     const audio = context;
@@ -682,7 +714,7 @@ export function createBrowserAudio(
       panner?.disconnect();
     };
     for (const layer of cueRecipe(cue, random)) {
-      if (voices.size >= MAX_VOICES) break;
+      if (voices.size >= limit) break;
       const start = now + (layer.at ?? 0);
       const end = start + layer.dur;
       let source: AudioScheduledSourceNode;
@@ -758,7 +790,9 @@ export function createBrowserAudio(
       )
         return;
       context ??= new AudioContext();
-      if (context.state === "suspended") void context.resume().catch(() => {});
+      // Resume even while "running": a suspend from a mute an instant ago may
+      // still be pending, and resume() is queued after it.
+      void context.resume().catch(() => {});
     },
     play,
     present(world, local, locate) {

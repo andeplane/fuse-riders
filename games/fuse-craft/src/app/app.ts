@@ -192,9 +192,9 @@ export interface AppDependencies {
 }
 
 /**
- * The interface sound for a clicked action. Commands whose result arrives as
- * a match event (placing, researching) sound from that event instead, and
- * `null` leaves the cue to the action's own handler.
+ * The interface sound for a clicked action. A command's result (a placed
+ * plan, research begun) sounds again from its match event, and `null` leaves
+ * the cue to the action's own handler.
  */
 export function actionCue(action: string | undefined): SoundCue | null {
   if (!action) return "select";
