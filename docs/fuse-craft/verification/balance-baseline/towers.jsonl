@@ -1,0 +1,9 @@
+{"left":"tower","right":"tower","seconds":7,"result":"mutual","damage":[136,136]}
+{"left":"tower","right":"siege","seconds":5,"result":"left","damage":[88,48]}
+{"left":"tower","right":"relay","seconds":6,"result":"left","damage":[112,76]}
+{"left":"siege","right":"tower","seconds":5,"result":"right","damage":[48,88]}
+{"left":"siege","right":"siege","seconds":60,"result":"unresolved","damage":[148,148]}
+{"left":"siege","right":"relay","seconds":6.5,"result":"right","damage":[76,85]}
+{"left":"relay","right":"tower","seconds":6,"result":"right","damage":[76,112]}
+{"left":"relay","right":"siege","seconds":6.5,"result":"left","damage":[85,76]}
+{"left":"relay","right":"relay","seconds":7,"result":"mutual","damage":[94,94]}

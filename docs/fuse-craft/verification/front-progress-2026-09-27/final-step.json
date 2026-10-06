@@ -1,0 +1,143 @@
+{
+  "p": "alpha",
+  "brain": 429,
+  "queue": [
+    {
+      "cell": 283,
+      "duration": 240,
+      "hp": 120,
+      "kind": "tower",
+      "paid": true,
+      "progress": 0
+    }
+  ],
+  "worker": {
+    "arrivesAt": 36001,
+    "cell": 370,
+    "departedAt": 35998,
+    "from": 370,
+    "mode": "outbound",
+    "recoverAt": 28361,
+    "to": 371
+  },
+  "biomass": 12995300,
+  "stats": {
+    "biomassEarned": 19245300,
+    "built": 114,
+    "damage": 6817,
+    "insightEarned": 7657400,
+    "lost": 62,
+    "sitesLost": 2
+  },
+  "brainSites": [
+    {
+      "cell": 426,
+      "kind": "siege",
+      "queue": {
+        "allowed": true,
+        "missing": []
+      },
+      "dispatch": {
+        "allowed": false,
+        "missing": [
+          {
+            "kind": "idle-builder"
+          }
+        ]
+      },
+      "threats": [
+        {
+          "c": 453,
+          "k": "siege",
+          "hp": 80
+        },
+        {
+          "c": 405,
+          "k": "siege",
+          "hp": 80
+        },
+        {
+          "c": 476,
+          "k": "siege",
+          "hp": 80
+        }
+      ],
+      "anchors": [
+        {
+          "c": 425,
+          "k": "siege",
+          "hp": 80
+        },
+        {
+          "c": 402,
+          "k": "siege",
+          "hp": 80
+        }
+      ]
+    },
+    {
+      "cell": 403,
+      "kind": "siege",
+      "queue": {
+        "allowed": false,
+        "missing": [
+          {
+            "kind": "open-cell"
+          }
+        ]
+      },
+      "dispatch": {
+        "allowed": false,
+        "missing": [
+          {
+            "kind": "idle-builder"
+          }
+        ]
+      },
+      "threats": [
+        {
+          "c": 453,
+          "k": "siege",
+          "hp": 80
+        },
+        {
+          "c": 476,
+          "k": "siege",
+          "hp": 80
+        }
+      ],
+      "anchors": [
+        {
+          "c": 402,
+          "k": "siege",
+          "hp": 80
+        }
+      ]
+    }
+  ]
+}
+{
+  "p": "beta",
+  "brain": 50,
+  "queue": [],
+  "worker": {
+    "arrivesAt": 35981,
+    "cell": 429,
+    "departedAt": 35978,
+    "from": 429,
+    "mode": "idle",
+    "recoverAt": 34541,
+    "to": 429
+  },
+  "biomass": 17293850,
+  "stats": {
+    "biomassEarned": 23873850,
+    "built": 122,
+    "damage": 6461,
+    "insightEarned": 7827275,
+    "lost": 75,
+    "sitesLost": 2
+  },
+  "brainSites": []
+}
+repair283 {"neighbors":[{"cell":307,"connected":true,"firingCursor":5,"hp":110,"id":467,"kind":"tower","ownerId":"alpha"},{"cell":282,"connected":true,"hp":60,"id":470,"kind":"neuron","ownerId":"alpha"}],"cover":[],"jobBrainReach":false,"terrain403":{"resourceKind":"biomass","terrain":"deposit"},"priorities":{"105":1,"258":3,"330":3}}

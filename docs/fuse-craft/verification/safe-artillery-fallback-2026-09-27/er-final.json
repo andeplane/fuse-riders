@@ -1,0 +1,174 @@
+{
+  "tick": 18000,
+  "finished": false,
+  "hash": "67bc4013",
+  "state": [
+    {
+      "id": "alpha",
+      "statistics": {
+        "biomassEarned": 16044500,
+        "insightEarned": 2830025,
+        "built": 57,
+        "damage": 3275,
+        "lost": 12,
+        "sitesLost": 2
+      },
+      "biomass": 12954500,
+      "research": [
+        "growth",
+        "conduction",
+        "excitation",
+        "ballistics",
+        "resonance"
+      ],
+      "queue": [
+        {
+          "cell": 307,
+          "kind": "siege",
+          "paid": true,
+          "progress": 208,
+          "duration": 280,
+          "hp": 80
+        }
+      ],
+      "worker": {
+        "mode": "building",
+        "cell": 306,
+        "from": 306,
+        "to": 306,
+        "departedAt": 17790,
+        "arrivesAt": 17793,
+        "recoverAt": 4641
+      },
+      "priorities": {
+        "222": 1,
+        "283": 3
+      },
+      "connected": {
+        "brain": 1,
+        "neuron": 15,
+        "harvester": 2,
+        "siege": 19,
+        "bastion": 2,
+        "tower": 6
+      },
+      "firingCount": 0,
+      "fightingCount": 1,
+      "weapons": [
+        {
+          "cell": 222,
+          "kind": "bastion",
+          "priority": 1,
+          "ammo": 32,
+          "targets": [],
+          "activeProtection": []
+        },
+        {
+          "cell": 283,
+          "kind": "bastion",
+          "priority": 3,
+          "ammo": 28,
+          "targets": [],
+          "activeProtection": [
+            283,
+            307
+          ]
+        }
+      ]
+    },
+    {
+      "id": "beta",
+      "statistics": {
+        "biomassEarned": 5427950,
+        "insightEarned": 1852600,
+        "built": 79,
+        "damage": 1233,
+        "lost": 44,
+        "sitesLost": 1
+      },
+      "biomass": 2517950,
+      "research": [
+        "growth",
+        "conduction",
+        "resonance",
+        "excitation",
+        "ballistics"
+      ],
+      "queue": [
+        {
+          "cell": 285,
+          "kind": "siege",
+          "paid": true,
+          "progress": 25,
+          "duration": 280,
+          "hp": 80
+        }
+      ],
+      "worker": {
+        "mode": "building",
+        "cell": 310,
+        "from": 310,
+        "to": 310,
+        "departedAt": 17973,
+        "arrivesAt": 17976,
+        "recoverAt": 15241
+      },
+      "priorities": {
+        "310": 3,
+        "357": 3
+      },
+      "connected": {
+        "brain": 1,
+        "relay": 3,
+        "neuron": 9,
+        "siege": 9
+      },
+      "firingCount": 2,
+      "fightingCount": 2,
+      "weapons": [
+        {
+          "cell": 357,
+          "kind": "siege",
+          "priority": 3,
+          "ammo": 28,
+          "targets": [
+            283,
+            307
+          ],
+          "activeProtection": []
+        },
+        {
+          "cell": 310,
+          "kind": "siege",
+          "priority": 3,
+          "ammo": 28,
+          "targets": [
+            283,
+            307
+          ],
+          "activeProtection": []
+        }
+      ]
+    }
+  ],
+  "last60": [
+    {
+      "id": "alpha",
+      "biomassEarned": 1260000,
+      "insightEarned": 226575,
+      "built": 3,
+      "damage": 60,
+      "lost": 1,
+      "sitesLost": 0
+    },
+    {
+      "id": "beta",
+      "biomassEarned": 300000,
+      "insightEarned": 128000,
+      "built": 4,
+      "damage": 260,
+      "lost": 1,
+      "sitesLost": 0
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "browser": "153.0.8010.12",
+  "result": {
+    "worldUnchanged": true,
+    "groupPreserved": true,
+    "imagePreserved": true,
+    "asyncReadyRefreshed": true,
+    "closeZoomOriginal": true,
+    "newTierReady": true,
+    "cachedTierRestored": true
+  },
+  "errors": []
+}

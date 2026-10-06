@@ -1,0 +1,190 @@
+{
+  "tick": 2860,
+  "seconds": 143,
+  "candidate": [
+    {
+      "playerId": "beta",
+      "matchId": "sandbox",
+      "sequence": 58,
+      "action": {
+        "type": "queueConstruction",
+        "kind": "siege",
+        "cell": 295
+      }
+    }
+  ],
+  "production": [
+    {
+      "playerId": "beta",
+      "matchId": "sandbox",
+      "sequence": 58,
+      "action": {
+        "type": "queueConstruction",
+        "kind": "neuron",
+        "cell": 295
+      }
+    }
+  ],
+  "state": [
+    {
+      "id": "alpha",
+      "statistics": {
+        "biomassEarned": 1325350,
+        "insightEarned": 236425,
+        "built": 17,
+        "damage": 0,
+        "lost": 0,
+        "sitesLost": 0
+      },
+      "biomass": 945350,
+      "research": [
+        "growth",
+        "conduction",
+        "excitation",
+        "ballistics",
+        "resonance"
+      ],
+      "queue": [
+        {
+          "cell": 246,
+          "kind": "neuron",
+          "paid": true,
+          "progress": 70,
+          "duration": 80,
+          "hp": 60
+        }
+      ],
+      "worker": {
+        "mode": "building",
+        "cell": 222,
+        "from": 222,
+        "to": 222,
+        "departedAt": 2788,
+        "arrivesAt": 2791,
+        "recoverAt": 0
+      },
+      "priorities": {
+        "173": 3,
+        "174": 3,
+        "198": 3,
+        "222": 3
+      },
+      "connected": {
+        "brain": 1,
+        "neuron": 14,
+        "harvester": 2
+      },
+      "firingCount": 0,
+      "fightingCount": 0,
+      "weapons": [
+        {
+          "cell": 173,
+          "kind": "neuron",
+          "priority": 3,
+          "ammo": 32,
+          "targets": [],
+          "activeProtection": []
+        },
+        {
+          "cell": 174,
+          "kind": "neuron",
+          "priority": 3,
+          "ammo": 32,
+          "targets": [],
+          "activeProtection": []
+        },
+        {
+          "cell": 198,
+          "kind": "neuron",
+          "priority": 3,
+          "ammo": 32,
+          "targets": [],
+          "activeProtection": []
+        },
+        {
+          "cell": 222,
+          "kind": "neuron",
+          "priority": 3,
+          "ammo": 32,
+          "targets": [],
+          "activeProtection": []
+        }
+      ]
+    },
+    {
+      "id": "beta",
+      "statistics": {
+        "biomassEarned": 808800,
+        "insightEarned": 258700,
+        "built": 18,
+        "damage": 0,
+        "lost": 0,
+        "sitesLost": 0
+      },
+      "biomass": 508800,
+      "research": [
+        "growth",
+        "conduction",
+        "resonance",
+        "excitation",
+        "ballistics"
+      ],
+      "queue": [],
+      "worker": {
+        "mode": "idle",
+        "cell": 429,
+        "from": 429,
+        "to": 429,
+        "departedAt": 2840,
+        "arrivesAt": 2843,
+        "recoverAt": 0
+      },
+      "priorities": {
+        "319": 3,
+        "320": 3,
+        "321": 3,
+        "322": 3
+      },
+      "connected": {
+        "brain": 1,
+        "neuron": 18
+      },
+      "firingCount": 0,
+      "fightingCount": 0,
+      "weapons": [
+        {
+          "cell": 322,
+          "kind": "neuron",
+          "priority": 3,
+          "ammo": 32,
+          "targets": [],
+          "activeProtection": []
+        },
+        {
+          "cell": 321,
+          "kind": "neuron",
+          "priority": 3,
+          "ammo": 32,
+          "targets": [],
+          "activeProtection": []
+        },
+        {
+          "cell": 320,
+          "kind": "neuron",
+          "priority": 3,
+          "ammo": 32,
+          "targets": [],
+          "activeProtection": []
+        },
+        {
+          "cell": 319,
+          "kind": "neuron",
+          "priority": 3,
+          "ammo": 32,
+          "targets": [],
+          "activeProtection": []
+        }
+      ]
+    }
+  ]
+}
