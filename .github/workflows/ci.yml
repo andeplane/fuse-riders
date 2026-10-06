@@ -36,9 +36,13 @@ jobs:
   #
   # So more shards cut per-shard work but add jobs that each queue when the pool is busy, and past some
   # width that trade goes the wrong way. Eight was chosen on work alone (slowest shard at the pull-request
-  # budget, locally on 4 cores: 3 shards 50.3 s, 4 shards 41.8 s, 6 shards 35.5 s, 8 shards 25.4 s — note 3
-  # was worse than 4, because `node --test` splits files round-robin by index rather than by cost). Before
-  # changing the width, measure both halves: the shard balance AND how much queueing the extra jobs draw.
+  # budget, locally on 4 cores, at 1852 tests: 3 shards 50.3 s, 4 shards 41.8 s, 6 shards 35.5 s, 8 shards
+  # 25.4 s — note 3 was worse than 4, because `node --test` splits files round-robin by index rather than by
+  # cost). Re-measured the same way at 2195 tests: 4 shards 59 s, 8 shards 44 s, 12 shards 43 s. Every number
+  # grew with the suite, and past eight the balance stopped improving at all, because one heavy file sets the
+  # floor however many shards there are — so eight stays, and twelve would buy a second while adding four
+  # more jobs to queue. Before changing the width, measure both halves: the shard balance AND how much
+  # queueing the extra jobs draw.
   #
   # `pnpm build` is `tsc --noEmit && vite build`, so it is the type check; there is no separate step for it.
   checks:
