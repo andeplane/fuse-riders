@@ -11,6 +11,8 @@
     "**/*.d.ts",
     "games/dice/src/app/main.ts",
     "games/fuse-choppers/src/app/main.ts",
+    "games/fuse-craft/src/app/main.ts",
+    "games/fuse-craft/src/render/light-canvas.ts",
     "games/fuse-freight/src/app/main.ts",
     "games/hook-havok/src/app/entrance.ts",
     "games/hook-havok/src/app/main.ts",
