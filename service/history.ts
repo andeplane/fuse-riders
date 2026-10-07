@@ -3,6 +3,7 @@ import { hookRegistration } from "hook-havok/platform";
 import { choppersRegistration } from "fuse-choppers/platform";
 import { craftRegistration } from "fuse-craft/platform";
 import { freightRegistration } from "fuse-freight/platform";
+import { graveyardRegistration } from "graveyard-shift/platform";
 import {
   ACCOUNT_RULES,
   fuseRiders,
@@ -28,6 +29,7 @@ export const GAMES = [
   choppersRegistration,
   craftRegistration,
   freightRegistration,
+  graveyardRegistration,
 ] as const;
 
 /**
