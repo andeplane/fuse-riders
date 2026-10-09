@@ -1,5 +1,5 @@
 import type { TickContext } from "../context.js";
-import { advanceScenery, mapTracks } from "../../scenery-motion.js";
+import { advanceScenery } from "../../scenery-motion.js";
 
 /**
  * Scenery that moves takes its step before any rider does, so the whole tick — steps, shells, bullets, blasts — is
@@ -8,10 +8,9 @@ import { advanceScenery, mapTracks } from "../../scenery-motion.js";
  * on its own, so the order they are stored in decides nothing.
  */
 export function moveScenery({ state, sceneryBefore }: TickContext): void {
-  const tracks = mapTracks(state.map);
   for (const obstacle of state.obstacles) {
     if (!obstacle.motion) continue;
     sceneryBefore.set(obstacle.id, { x: obstacle.x, y: obstacle.y });
-    advanceScenery(obstacle, state.width, state.height, tracks);
+    advanceScenery(obstacle, state.width, state.height, state.tracks);
   }
 }

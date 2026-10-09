@@ -119,13 +119,22 @@ export function detectHazards(ctx: TickContext): void {
           dx === 0 && dy === 0
             ? obstacle
             : { ...obstacle, x: obstacle.x - dx, y: obstacle.y - dy };
+        // Scenery that moved this tick is met in its own frame: the step is taken against the piece where it stood
+        // before, less the piece's own step over the same time, so a car that sweeps across the rider's path during
+        // the tick is met as surely as one standing on it at the end. Standing scenery has no step and is met as is.
+        const before = sceneryBefore.get(obstacle.id);
+        const stoodIn = before
+          ? { ...piece, x: before.x - dx, y: before.y - dy }
+          : piece;
+        const sweepX = before ? obstacle.x - before.x : 0,
+          sweepY = before ? obstacle.y - before.y : 0;
         const touches = (time: number): boolean =>
           hitboxBlocksPath(
-            piece,
+            stoodIn,
             movement.oldX,
             movement.oldY,
-            movement.oldX + (movement.x - movement.oldX) * time,
-            movement.oldY + (movement.y - movement.oldY) * time,
+            movement.oldX + (movement.x - movement.oldX - sweepX) * time,
+            movement.oldY + (movement.y - movement.oldY - sweepY) * time,
             RIDER_OBSTACLE_RADIUS,
           );
         const previous = obstacleContactTimes.get(movement.player.id) ?? 1;
@@ -134,10 +143,6 @@ export function detectHazards(ctx: TickContext): void {
         // killed on the spot by a rock it had every right to be inside; any other obstacle is as solid as ever.
         // Scenery that moved this tick is judged where it stood before its step: a train that has just rolled onto
         // where the rider stands is not something the rider was ever inside of.
-        const before = sceneryBefore.get(obstacle.id);
-        const stoodIn = before
-          ? { ...piece, x: before.x - dx, y: before.y - dy }
-          : piece;
         if (
           !touches(previous) ||
           hitboxBlocksPath(

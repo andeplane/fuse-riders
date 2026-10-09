@@ -32,9 +32,12 @@ try {
       (await import(
         String("/games/fuse-riders/src/engine/arena-map.ts")
       )) as typeof import("../games/fuse-riders/src/engine/arena-map.js");
-    const { fixedScenery, mapTracks, advanceScenery } = (await import(
+    const { fixedScenery, advanceScenery } = (await import(
       String("/games/fuse-riders/src/engine/scenery-motion.ts")
     )) as typeof import("../games/fuse-riders/src/engine/scenery-motion.js");
+    const { layRailway, railwayCars } = (await import(
+      String("/games/fuse-riders/src/engine/railway.ts")
+    )) as typeof import("../games/fuse-riders/src/engine/railway.js");
     const maps = ["desert", "forest", "city", "drift", "trains"] as const;
     const pictures: { name: string; data: string }[] = [];
     for (const backend of ["auto", "canvas"] as const) {
@@ -112,6 +115,8 @@ try {
             return seed / 0x1_0000_0000;
           };
           const sampled = ARENA_MAP_RECIPES[map].species.length > 0;
+          const railway = map === "trains" ? layRailway(random, []) : undefined;
+          const tracks = railway?.tracks ?? [];
           const snapshot = {
             ...visualFixture(40),
             map,
@@ -126,12 +131,15 @@ try {
                   keepClear: [],
                   bounds: { minX: 60, minY: 60, maxX: 1540, maxY: 840 },
                 })
-              : fixedScenery(map, 1600, 900, 1).map((piece) => {
+              : (railway
+                  ? railwayCars(railway, 1)
+                  : fixedScenery(map, 1600, 900, 1)
+                ).map((piece) => {
                   for (let tick = 0; tick < 160; tick += 1)
-                    advanceScenery(piece, 1600, 900, mapTracks(map));
+                    advanceScenery(piece, 1600, 900, tracks);
                   return piece;
                 }),
-            tracks: mapTracks(map),
+            tracks,
             ...(map === "drift" ? { openEdges: true, boundaryInset: 0 } : {}),
           };
           arena.reset();
