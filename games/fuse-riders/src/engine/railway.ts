@@ -295,8 +295,17 @@ export function trackKeepsClear(
 }
 
 /**
- * The trains: between `MIN_TRAINS` and `MAX_LAID_TRAINS`, one on every line first and each further one on the line
- * with the most track per train, as long as every train there keeps a full train's length and its headway to itself.
+ * The track a train of `cars` cars needs to itself on a line where trains are evenly spaced: its own length and its
+ * headway to the next one.
+ */
+const trainSlot = (cars: number): number =>
+  cars * TRAIN_CAR_SPACING + TRAIN_HEADWAY;
+
+/**
+ * The trains: between `MIN_TRAINS` and `MAX_LAID_TRAINS`. First how many each line runs — one on every line, then
+ * each further one on the line with the most track per train, while a train of the shortest length still fits — and
+ * then each train's length, drawn and cut short to the room its line's spacing leaves. Two of the shortest lines a
+ * railway can lay (about 690 units each) hold three trains apiece, so two lines always carry the minimum.
  */
 function timetable(
   tracks: readonly Track[],
@@ -308,19 +317,18 @@ function timetable(
       TRAIN_SPEEDS[Math.floor(random() * TRAIN_SPEEDS.length)]! *
       (random() < 0.5 ? -1 : 1),
     phase: random(),
-    cars: [] as number[],
+    trains: 0,
   }));
   const wanted =
     MIN_TRAINS + Math.floor(random() * (MAX_LAID_TRAINS - MIN_TRAINS + 1));
-  const slot = MAX_CARS * TRAIN_CAR_SPACING + TRAIN_HEADWAY;
   for (let train = 0; train < wanted; train += 1) {
     let best = -1,
       bestEmpty = false,
       bestShare = 0;
     lines.forEach((line, index) => {
-      const share = lengths[index]! / (line.cars.length + 1),
-        empty = line.cars.length === 0;
-      if (share < slot) return;
+      const share = lengths[index]! / (line.trains + 1),
+        empty = line.trains === 0;
+      if (share < trainSlot(MIN_CARS)) return;
       if (
         best < 0 ||
         (empty && !bestEmpty) ||
@@ -332,23 +340,37 @@ function timetable(
       }
     });
     if (best < 0) break;
-    lines[best]!.cars.push(
-      MIN_CARS + Math.floor(random() * (MAX_CARS - MIN_CARS + 1)),
-    );
+    lines[best]!.trains += 1;
   }
-  return lines.flatMap((line, index) =>
-    line.cars.map((cars, position) => ({
+  return lines.flatMap((line, index) => {
+    const spacing = lengths[index]! / line.trains;
+    const room = Math.floor((spacing - TRAIN_HEADWAY) / TRAIN_CAR_SPACING);
+    return Array.from({ length: line.trains }, (_, position) => ({
       track: index,
-      cars,
+      cars: Math.min(
+        room,
+        MIN_CARS + Math.floor(random() * (MAX_CARS - MIN_CARS + 1)),
+      ),
       speed: line.speed,
       start:
-        ((line.phase + position / line.cars.length) * lengths[index]!) %
+        ((line.phase + position / line.trains) * lengths[index]!) %
         lengths[index]!,
-    })),
-  );
+    }));
+  });
 }
 
-/** The loop round the outermost two columns on one side of the grid: no spawn corridor ever reaches that far out. */
+/** The outermost two columns on one side of the grid: no spawn corridor ever reaches that far out. */
+function sidingCells(left: boolean): number[] {
+  const cells: number[] = [];
+  for (let r = 0; r < RAIL_GRID.rows; r += 1)
+    for (const c of left
+      ? [0, 1]
+      : [RAIL_GRID.columns - 2, RAIL_GRID.columns - 1])
+      cells.push(cellAt(c, r)!);
+  return cells;
+}
+
+/** The loop round `sidingCells`: a plain chamfered rectangle. */
 function siding(left: boolean): Track {
   const c = left ? 0 : RAIL_GRID.columns - 2;
   const minX = RAIL_GRID.x + c * RAIL_GRID.cellWidth,
@@ -413,8 +435,15 @@ export function layRailway(
         if (other !== undefined) claimed.add(other);
       }
   }
-  // A board too crowded for even one line still gets a railway: the two sidings, far outside every spawn corridor.
-  if (tracks.length === 0) tracks.push(siding(true), siding(false));
+  // A board too crowded for the lines it wanted makes up the minimum with sidings, far outside every spawn corridor,
+  // wherever no line has claimed the ground.
+  for (const left of [true, false]) {
+    if (tracks.length >= MIN_LINES) break;
+    const cells = sidingCells(left);
+    if (cells.some((cell) => claimed.has(cell))) continue;
+    tracks.push(siding(left));
+    for (const cell of cells) claimed.add(cell);
+  }
   return { tracks, trains: timetable(tracks, random) };
 }
 
