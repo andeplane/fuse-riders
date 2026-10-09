@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  deterministicViolations,
   imports,
   sourceFiles,
   syntax,
@@ -11,27 +11,13 @@ import {
 
 /**
  * The engine boundary: `src/engine/` is a deterministic simulation that imports nothing outside itself — no
- * `render/`, no `app/`, no Phaser, no npm or Node packages. Rendering and app code import the engine, never the
- * reverse. A new cross-layer import is a design question (which layer owns this?), not an exception to add here.
- * Like every game in the repo, the rest of the game may import the shared packages but never another game.
+ * `render/`, no `app/`, no Phaser, no npm or Node packages — and reads no clock or ambient randomness. Rendering and
+ * app code import the engine, never the reverse. A new cross-layer import is a design question (which layer owns
+ * this?), not an exception to add here. That the game as a whole imports no other game is tests/game-isolation.
  */
 
 const game = fileURLToPath(new URL("..", import.meta.url));
-const repo = fileURLToPath(new URL("../../../", import.meta.url));
 const engineDir = path.join(game, "src", "engine");
-const OTHER_GAMES = [
-  ...readdirSync(path.join(repo, "games")).filter(
-    (name) => name !== "fuse-bombers",
-  ),
-  "fuse-riders-game",
-];
-const inside = (base: string, target: string): boolean => {
-  const relative = path.relative(base, target);
-  return (
-    relative === "" ||
-    (!relative.startsWith("..") && !path.isAbsolute(relative))
-  );
-};
 
 /** Why `specifier`, imported from the engine file `source`, crosses the boundary; undefined when it stays inside. */
 export function boundaryViolation(
@@ -40,50 +26,27 @@ export function boundaryViolation(
 ): string | undefined {
   if (!specifier.startsWith("."))
     return `${specifier} is a package; the engine imports only its own modules`;
-  if (!inside(engineDir, path.resolve(path.dirname(source), specifier)))
+  const relative = path.relative(
+    engineDir,
+    path.resolve(path.dirname(source), specifier),
+  );
+  if (relative.startsWith("..") || path.isAbsolute(relative))
     return `${specifier} resolves outside src/engine/`;
   return undefined;
 }
 
-/** Why `specifier`, imported from any game file `source`, leaves the game; undefined when it may. */
-export function gameViolation(
-  source: string,
-  specifier: string,
-): string | undefined {
-  if (!specifier.startsWith("."))
-    return OTHER_GAMES.some(
-      (name) => specifier === name || specifier.startsWith(`${name}/`),
-    )
-      ? `${specifier} is another game`
-      : undefined;
-  const target = path.resolve(path.dirname(source), specifier);
-  return inside(game, target) || inside(path.join(repo, "packages"), target)
-    ? undefined
-    : `${specifier} leaves the game`;
-}
-
-function violations(
-  directory: string,
-  rule: (source: string, specifier: string) => string | undefined,
-): string[] {
-  return sourceFiles(directory).flatMap((file) =>
+test("src/engine/ imports nothing outside itself", () => {
+  const found = sourceFiles(engineDir).flatMap((file) =>
     imports(syntax(file)).flatMap((specifier) => {
-      const reason = rule(file, specifier);
+      const reason = boundaryViolation(file, specifier);
       return reason ? [`${path.relative(game, file)}: ${reason}`] : [];
     }),
   );
-}
-
-test("src/engine/ imports nothing outside itself", () => {
   assert.deepEqual(
-    violations(engineDir, boundaryViolation),
+    found,
     [],
     "move the concept into the engine, or have render/app import the engine instead",
   );
-});
-
-test("the game imports shared packages, never another game", () => {
-  assert.deepEqual(violations(path.join(game, "src"), gameViolation), []);
 });
 
 test("the boundary guard rejects render, app and packages and accepts engine-relative imports", () => {
@@ -103,20 +66,34 @@ test("the boundary guard rejects render, app and packages and accepts engine-rel
   assert.equal(boundaryViolation(nested, "../world.js"), undefined);
 });
 
-test("the game guard rejects other games and paths out of the game, and accepts the shared packages", () => {
-  const source = path.join(game, "src", "app", "main.ts");
-  for (const specifier of [
-    "fuse-riders-game",
-    "fuse-craft/platform",
-    "../../../fuse-riders/src/engine/rng.js",
-    "../../../../service/history.js",
-  ])
-    assert.ok(gameViolation(source, specifier), specifier);
-  for (const specifier of [
-    "fuse-ui/portal",
-    "phaser",
-    "../engine/index.js",
-    "../../../../packages/fuse-ui/src/portal.js",
-  ])
-    assert.equal(gameViolation(source, specifier), undefined, specifier);
+/**
+ * What would make a seeded match play differently on a replay: the clock and ambient randomness. Unlike the online
+ * games, this one-screen game may use `Math`'s trigonometry, `exp` and `log2`, so only these are refused.
+ */
+const UNSEEDED = new Set([
+  "Date",
+  "performance",
+  "Math.random",
+  "Math.[dynamic]",
+  "Math extraction",
+]);
+
+test("the engine reads no clock and no unseeded randomness", () => {
+  for (const file of sourceFiles(engineDir))
+    assert.deepEqual(
+      deterministicViolations(syntax(file)).filter((v) => UNSEEDED.has(v)),
+      [],
+      path.relative(game, file),
+    );
+});
+
+test("the clock and randomness guard catches every form it refuses", () => {
+  const found = deterministicViolations(
+    syntax(
+      "sample.ts",
+      `const a = Date.now(); const b = performance.now(); const c = Math.random();
+       const d = Math["ran" + "dom"](); const { random } = Math; const e = Math.sin(1);`,
+    ),
+  ).filter((v) => UNSEEDED.has(v));
+  assert.deepEqual(found, [...UNSEEDED].sort());
 });

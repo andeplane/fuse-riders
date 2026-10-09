@@ -92,8 +92,9 @@ blast audio. The flow check starts its own Vite server and needs Chromium once: 
 `src/engine/` imports nothing outside itself: no `render/`, no `app/`, no Phaser, no npm or `node:` packages, and no
 DOM globals (`window`, `document`, `performance`, `Date.now`, `Math.random`). Randomness comes from the engine's seeded
 RNG, time from the fixed step. Bots use the same one-button input as humans and get no privileged physics.
-[tests/engine-boundary.test.ts](tests/engine-boundary.test.ts) fails on a cross-layer import, and on an import of
-another game: like every game here, Fuse Bombers may use `packages/` but never another game.
+[tests/engine-boundary.test.ts](tests/engine-boundary.test.ts) fails on a cross-layer import and on an engine read
+of `Date`, `performance` or `Math.random`. Like every game here, Fuse Bombers may use `packages/` but never another
+game; the repo's `tests/game-isolation.test.ts` holds every game to that.
 
 From the shared packages it takes the neon tokens (`fuse-ui/tokens.css`), the app portal (`fuse-ui/portal`) and the
 music catalogue (`fuse-ui/assets`). Its music, the crate and the fuse's flame and bomb are the site root's shared

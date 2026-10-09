@@ -24,6 +24,7 @@ import {
   playerColor,
   THEMES,
 } from "./palette.js";
+import { SHARED_SPRITES } from "./sprites.js";
 import { TerrainLayer } from "./terrain-layer.js";
 
 /** How one player looks on screen. */
@@ -178,16 +179,12 @@ export class RoundScene extends Phaser.Scene {
       ...PLAYER_COLORS,
       ...this.players.map((p) => p.color),
     ]);
-    // Shared with Fuse Riders from the site root's public/: its prop pack's crate and its neon fuse sprites.
-    this.load.image(
-      "crate",
-      `${base}props/desert-industrial-v1/crate-small-wood.png`,
-    );
+    this.load.image("crate", `${base}${SHARED_SPRITES.crate}`);
     for (const [key, size] of [
       ["flame", 48],
       ["bomb", 64],
     ] as const)
-      this.load.svg(key, `${base}themes/clean-neon/${key}.svg`, {
+      this.load.svg(key, `${base}${SHARED_SPRITES[key]}`, {
         width: size,
         height: size,
       });

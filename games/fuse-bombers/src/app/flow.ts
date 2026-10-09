@@ -74,6 +74,26 @@ export function menuAction(state: MenuState, key: string): string | undefined {
 }
 
 /**
+ * Whether Enter or Space at `target` presses that control rather than the menus: a focused button or link outside
+ * the overlay `screen` (the app portal, the sound toggle) keeps its own keys. Inside the screen the menus keep them.
+ */
+export function pressesFocusedControl(
+  key: string,
+  target: EventTarget | null | undefined,
+  screen: Pick<Node, "contains">,
+): boolean {
+  if (key !== "Enter" && key !== "Space") return false;
+  const element = target as {
+    closest?: (selectors: string) => unknown;
+  } | null;
+  return (
+    typeof element?.closest === "function" &&
+    element.closest("button, a[href]") != null &&
+    !screen.contains(target as Node)
+  );
+}
+
+/**
  * The match flow: lobby (a bots-only round plays behind it) → countdown → round → results → … → match winner →
  * play again or back to the lobby, plus pause. It is the round scene's `RoundSource`, so the scene's frame drives
  * its timers, and it draws the DOM overlay screens.
@@ -188,6 +208,8 @@ export class Flow implements RoundSource {
 
   private onKey(event: KeyboardEvent): void {
     if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
+    if (pressesFocusedControl(event.code, event.target, this.options.root))
+      return;
     const action = menuAction(this.menuState, event.code);
     if (!action) return;
     event.preventDefault();

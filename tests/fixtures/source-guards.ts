@@ -22,6 +22,60 @@ export function syntax(
   return ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
 }
 
+const repoRoot = path.resolve(import.meta.dirname, "../..");
+const within = (base: string, target: string): boolean => {
+  const relative = path.relative(base, target);
+  return (
+    relative === "" ||
+    (!relative.startsWith("..") && !path.isAbsolute(relative))
+  );
+};
+
+/** Every game's package name (`games/<id>/package.json`), by its directory id: Fuse Riders' is `fuse-riders-game`. */
+export function gamePackages(root = repoRoot): Map<string, string> {
+  return new Map(
+    readdirSync(path.join(root, "games"), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => [
+        entry.name,
+        (
+          JSON.parse(
+            readFileSync(
+              path.join(root, "games", entry.name, "package.json"),
+              "utf8",
+            ),
+          ) as { name: string }
+        ).name,
+      ]),
+  );
+}
+
+/**
+ * Why `specifier`, imported from `file` in `games/<game>/`, leaves that game, or undefined when it may. A game
+ * imports its own modules and the shared packages (by name or by path), never another game, by package name or by
+ * path, and nothing else outside it, such as `service/`.
+ */
+export function gameImportViolation(
+  game: string,
+  file: string,
+  specifier: string,
+  packages: ReadonlyMap<string, string> = gamePackages(),
+  root = repoRoot,
+): string | undefined {
+  if (!specifier.startsWith(".")) {
+    const other = [...packages].find(
+      ([id, name]) =>
+        id !== game && (specifier === name || specifier.startsWith(`${name}/`)),
+    );
+    return other ? `${specifier} is the game ${other[0]}` : undefined;
+  }
+  const target = path.resolve(path.dirname(file), specifier);
+  return within(path.join(root, "games", game), target) ||
+    within(path.join(root, "packages"), target)
+    ? undefined
+    : `${specifier} leaves games/${game}/`;
+}
+
 export function deterministicViolations(file: ts.SourceFile): string[] {
   const found = new Set<string>();
   const mathObject = (node: ts.Node): boolean =>
