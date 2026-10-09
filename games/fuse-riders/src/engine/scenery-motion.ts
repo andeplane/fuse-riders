@@ -4,8 +4,8 @@
  * A mover is an ordinary obstacle — lethal to ride into, solid to shells and bullets, kept clear of by pickups and
  * gates — that carries a `motion`, and is advanced one step per tick by the `moveScenery` phase before anyone rides.
  * Its position is state, so a checkpoint restores a train exactly where it was and every replica advances it from
- * there with the same arithmetic. The tracks it runs on are map data, the same on every device, and reach a screen
- * through the view. Movers are permanent (`PERMANENT_OBSTACLE_KINDS`): a blast does not clear one and the overtime
+ * there with the same arithmetic. The tracks it runs on are state as well (`GameState.tracks`, laid each round by
+ * `layRailway`), and reach a screen through the view. Movers are permanent (`PERMANENT_OBSTACLE_KINDS`): a blast does not clear one and the overtime
  * walls do not crush one, because a map is its movers, and a railway with nothing on it is the classic arena.
  */
 import type { ArenaMapId, Obstacle } from "./arena-map.js";
@@ -54,56 +54,6 @@ export const CROSS_WALL_HALF_THICKNESS = 6;
 export const DRIFT_VELOCITY = Object.freeze({ vx: 2.4, vy: 1.8 });
 /** Bounds checkpoint decoding admits, well over anything a map defines. */
 export const MAX_MOVER_SPEED = 50;
-export const MAX_TRAINS = 8;
-
-const loop = (
-  minX: number,
-  minY: number,
-  maxX: number,
-  maxY: number,
-  chamfer: number,
-): Track => ({
-  // Clockwise on screen (y grows downwards), from the top-left corner along the top straight.
-  points: [
-    { x: minX + chamfer, y: minY },
-    { x: maxX - chamfer, y: minY },
-    { x: maxX, y: minY + chamfer },
-    { x: maxX, y: maxY - chamfer },
-    { x: maxX - chamfer, y: maxY },
-    { x: minX + chamfer, y: maxY },
-    { x: minX, y: maxY - chamfer },
-    { x: minX, y: minY + chamfer },
-  ],
-});
-
-/**
- * Two loops that never meet, on a 1600x900 board: an outer one with a corridor of at least 100 units between its
- * cars and the classic wall, and an inner one inside the circle riders start on. Every spawn lies in the ring
- * between them (`games/fuse-riders/tests/moving-scenery.test.ts` holds the trains clear of every spawn corridor for two to five riders).
- */
-export const TRAIN_TRACKS: readonly Track[] = Object.freeze([
-  loop(160, 150, 1440, 750, 48),
-  loop(600, 360, 1000, 540, 32),
-]);
-
-export interface TrainSpec {
-  track: number;
-  cars: number;
-  /** Signed units per tick; the sign is the way round the loop. */
-  speed: number;
-  /** Where the locomotive starts, as distance round the loop. */
-  start: number;
-}
-/** Two trains share the outer loop, the same way round at the same speed, so they never meet; one runs the inner loop the other way. */
-export const TRAINS: readonly TrainSpec[] = Object.freeze([
-  { track: 0, cars: 5, speed: 4, start: 3400 },
-  { track: 0, cars: 4, speed: 4, start: 1550 },
-  { track: 1, cars: 3, speed: -3, start: 60 },
-]);
-
-export function mapTracks(map: ArenaMapId): readonly Track[] {
-  return map === "trains" ? TRAIN_TRACKS : [];
-}
 
 export function trackLength(track: Track): number {
   let length = 0;
@@ -141,9 +91,8 @@ export function trackPose(track: Track, along: number): TrackPose {
 }
 
 /**
- * The movers a map starts a round with, ids continuing from `firstId`. Nothing is sampled: the same map lays the
- * same movers in the same places every round. Cars are laid head first, so within a train the lowest id is the
- * locomotive and the highest the last car.
+ * The movers a map starts a round with whatever the stream says, ids continuing from `firstId`: the drifting cross,
+ * laid the same way every round. The trains are not fixed; `layRailway` (`railway.ts`) lays them from the stream.
  */
 export function fixedScenery(
   map: ArenaMapId,
@@ -176,37 +125,6 @@ export function fixedScenery(
         motion: { kind: "bounce", vx: DRIFT_VELOCITY.vx, vy: 0 },
       },
     ];
-  }
-  if (map === "trains") {
-    const cars: Obstacle[] = [];
-    TRAINS.forEach((train, index) => {
-      const track = TRAIN_TRACKS[train.track]!;
-      const length = trackLength(track);
-      const behind = train.speed < 0 ? -1 : 1;
-      for (let car = 0; car < train.cars; car += 1) {
-        const along = wrapCoordinate(
-          train.start - car * TRAIN_CAR_SPACING * behind,
-          length,
-        );
-        const pose = trackPose(track, along);
-        cars.push({
-          id: id++,
-          kind: "train",
-          x: pose.x,
-          y: pose.y,
-          halfWidth: TRAIN_CAR_HALF_SIZE,
-          halfHeight: TRAIN_CAR_HALF_SIZE,
-          motion: {
-            kind: "rail",
-            track: train.track,
-            along,
-            speed: train.speed,
-            train: index,
-          },
-        });
-      }
-    });
-    return cars;
   }
   return [];
 }

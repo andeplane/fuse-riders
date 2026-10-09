@@ -11,6 +11,7 @@ import {
   initialBoundaryInset,
 } from "./arena-map.js";
 import { fixedScenery } from "./scenery-motion.js";
+import { layRailway, railwayCars } from "./railway.js";
 import { beginMatchParticipant, recordEarlyExit } from "./match-stats.js";
 import { createTickContext } from "./sim/context.js";
 import { PHASES, TickFault, type Phase } from "./sim/pipeline.js";
@@ -76,6 +77,7 @@ export function createGame(
     boundaryInset: INITIAL_BOUNDARY_INSET,
     map: "classic",
     obstacles: [],
+    tracks: [],
     players: new Map(),
     bombs: new Map(),
     tracers: [],
@@ -358,16 +360,24 @@ function prepareRound(state: GameState): void {
     random: () => nextRandom(state),
     keepClear,
   });
-  // The movers a map starts with are laid after the sampled scenery, with the ids that follow it: nothing is drawn
-  // from the stream for them, and their places keep clear of every spawn by design rather than by rejection.
+  // The movers a map starts with are laid after the sampled scenery, with the ids that follow it. The drifting cross
+  // draws nothing from the stream and keeps clear of every spawn by design; the railway is drawn from the stream after
+  // everything else and keeps its lines clear of every spawn corridor by rejection.
+  const railway =
+    state.map === "trains"
+      ? layRailway(() => nextRandom(state), keepClear)
+      : undefined;
+  state.tracks = railway?.tracks ?? [];
   state.obstacles = [
     ...state.obstacles,
-    ...fixedScenery(
-      state.map,
-      state.width,
-      state.height,
-      state.obstacles.length + 1,
-    ),
+    ...(railway
+      ? railwayCars(railway, state.obstacles.length + 1)
+      : fixedScenery(
+          state.map,
+          state.width,
+          state.height,
+          state.obstacles.length + 1,
+        )),
   ].slice(0, MAX_OBSTACLES);
 }
 
