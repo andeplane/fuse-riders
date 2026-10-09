@@ -61,6 +61,7 @@ import {
   type Railway,
 } from "../src/engine/railway.js";
 import { segmentDistanceSquared } from "../src/engine/geometry.js";
+import { RIDER_OBSTACLE_RADIUS } from "../src/engine/tuning.js";
 import { defaultRoomSettings } from "../src/engine/room-settings.js";
 import { BotController } from "../src/engine/bot-controller.js";
 import {
@@ -147,6 +148,20 @@ function scene(
   }
   while (game.phase === "countdown") step(game, new Map());
   game.nextPickupSpawnTick = Number.MAX_SAFE_INTEGER;
+  return game;
+}
+/** A trains round as `startMatch` lays it, still in its countdown: every rider stands exactly on its spawn. */
+function laidRound(riders: number, seed: number): GameState {
+  const game = createGame(`railway-${seed}`, classicSettings(), seed);
+  game.settings = { ...defaultRoomSettings(), map: "trains" };
+  for (let slot = 0; slot < riders; slot += 1)
+    addPlayer(game, {
+      id: `p${slot}`,
+      name: `P${slot}`,
+      slot,
+      color: RIDER_COLORS[slot]!,
+    });
+  startMatch(game);
   return game;
 }
 const rider = (game: GameState, id = "p0"): PlayerState =>
@@ -293,7 +308,7 @@ test("every trains round lays its own railway: winding loops a cell apart, clear
     rounds = 0;
   for (let seed = 1; seed <= 30; seed += 1)
     for (let riders = 2; riders <= 5; riders += 1) {
-      const game = scene("trains", riders, seed, true);
+      const game = laidRound(riders, seed);
       rounds += 1;
       const { tracks } = game;
       layouts.add(JSON.stringify(tracks));
@@ -301,9 +316,23 @@ test("every trains round lays its own railway: winding loops a cell apart, clear
         tracks.length >= MIN_LINES && tracks.length <= MAX_TRACKS,
         `${tracks.length} lines`,
       );
-      if (tracks.some((track) => track.points.length > 8)) winding += 1;
-      // Where riders actually start, read from the started round: nobody moves during the countdown, so each rider
-      // still stands on its spawn with the corridor ahead of it that the sampled maps keep clear.
+      // A line that turns back on itself somewhere: a corner turning the other way to the loop (clockwise on screen).
+      const turnsBack = (track: Track) =>
+        track.points.some((here, index) => {
+          const before =
+              track.points[
+                (index + track.points.length - 1) % track.points.length
+              ]!,
+            after = track.points[(index + 1) % track.points.length]!;
+          return (
+            (here.x - before.x) * (after.y - here.y) -
+              (here.y - before.y) * (after.x - here.x) <
+            0
+          );
+        });
+      if (tracks.some(turnsBack)) winding += 1;
+      // Where riders actually start, read from the round as laid: still in its countdown, each rider stands on its
+      // spawn with the corridor ahead of it that the sampled maps keep clear.
       const corridors = [...game.players.values()].map((player) => ({
         x1: player.x,
         y1: player.y,
@@ -393,6 +422,7 @@ test("every trains round lays its own railway: winding loops a cell apart, clear
         const pose = trackPose(tracks[car.motion.track]!, car.motion.along);
         assert.ok(close(car.x, pose.x) && close(car.y, pose.y), "on the rails");
       }
+      // Two lines always carry the minimum: even the shortest line a railway lays holds three of the shortest trains.
       assert.ok(
         trains.size >= MIN_TRAINS && trains.size <= MAX_LAID_TRAINS,
         `${trains.size} trains`,
@@ -429,12 +459,23 @@ test("every trains round lays its own railway: winding loops a cell apart, clear
   );
   assert.ok(
     winding >= rounds * 0.9,
-    `only ${winding} of ${rounds} rounds have a line with more than four corners`,
+    `only ${winding} of ${rounds} rounds have a line that turns back on itself`,
   );
 
   // The railway is the stream's: the same match lays the same one, and the next round lays another.
   const again = scene("trains", 3, 7, true),
     twin = scene("trains", 3, 7, true);
+  // A laid railway travels with a checkpoint whole, and the restored round runs on in step.
+  for (const seed of [3, 8, 21]) {
+    const laid = scene("trains", 4, seed, true);
+    run(laid, 40);
+    const restored = decodeGameState(encodeGameState(laid));
+    assert.ok(restored, `the laid railway of seed ${seed} decodes`);
+    assert.deepEqual(restored.tracks, laid.tracks);
+    run(laid, 40);
+    run(restored, 40);
+    assert.deepEqual(restored.obstacles, laid.obstacles);
+  }
   assert.deepEqual(twin.tracks, again.tracks);
   assert.deepEqual(twin.obstacles, again.obstacles);
   const first = JSON.stringify(again.tracks);
@@ -1206,4 +1247,71 @@ test("a car is drawn in its train's livery inside its footprint whichever way it
     MAX_TRAINS,
     "no two trains of a round look alike",
   );
+});
+
+test("the rails of every laid railway are drawn either side of its line without one rail running into another", () => {
+  for (let seed = 1; seed <= 12; seed += 1)
+    for (const track of laidRound(5, seed).tracks) {
+      const { rails } = trackDecoration(track);
+      const count = track.points.length;
+      assert.equal(rails.length, 2 * count);
+      for (const rail of rails)
+        assert.ok(
+          Math.hypot(rail.x2 - rail.x1, rail.y2 - rail.y1) > 1,
+          "every rail has length, concave corners included",
+        );
+      // Each side's rails, in order round the loop: no rail touches any but its two neighbours.
+      for (const side of [rails.slice(0, count), rails.slice(count)])
+        side.forEach((a, i) =>
+          side.forEach((b, j) => {
+            const gap = Math.abs(i - j);
+            if (gap <= 1 || gap === count - 1) return;
+            assert.ok(
+              segmentDistanceSquared(
+                a.x1,
+                a.y1,
+                a.x2,
+                a.y2,
+                b.x1,
+                b.y1,
+                b.x2,
+                b.y2,
+              ) > 0,
+              `rails ${i} and ${j} of seed ${seed} cross`,
+            );
+          }),
+        );
+    }
+});
+
+test("a fast car is met through its whole step: a rider grazing the rail it has just left still dies against it", () => {
+  const game = scene("trains", 3);
+  const track = game.tracks[0]!; // the outer loop, whose top straight runs left to right at y 150
+  const along = 400;
+  const pose = trackPose(track, along);
+  game.obstacles = [
+    {
+      id: 1,
+      kind: "train",
+      x: pose.x,
+      y: pose.y,
+      halfWidth: TRAIN_CAR_HALF_SIZE,
+      halfHeight: TRAIN_CAR_HALF_SIZE,
+      motion: { kind: "rail", track: 0, along, speed: 7.5, train: 0 },
+    },
+  ];
+  // Four units inside the car's back edge as it stands, and a unit and a half above its reach, riding straight down:
+  // the rider meets the car's top a fifth of the way through the tick, while the car ends the tick half a unit
+  // beyond the rider's reach, clear of its whole step.
+  const x = pose.x - TRAIN_CAR_HALF_SIZE + 4;
+  const y = pose.y - TRAIN_CAR_HALF_SIZE - RIDER_OBSTACLE_RADIUS - 1.5;
+  place(game, "p0", { x, y, angle: Math.PI / 2 });
+  place(game, "p1", { x: 800, y: 450, angle: 0 });
+  place(game, "p2", { x: 800, y: 600, angle: 0 });
+  const end = { ...game.obstacles[0]!, x: pose.x + 7.5 };
+  assert.ok(
+    !obstacleBlocksPath(end, x, y, x, y + 7.5, RIDER_OBSTACLE_RADIUS),
+    "where the car ends the tick misses the rider's step",
+  );
+  assert.deepEqual(run(game, 1), [{ playerId: "p0", cause: "wall" }]);
 });

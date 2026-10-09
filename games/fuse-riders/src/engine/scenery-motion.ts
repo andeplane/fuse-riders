@@ -5,8 +5,9 @@
  * gates — that carries a `motion`, and is advanced one step per tick by the `moveScenery` phase before anyone rides.
  * Its position is state, so a checkpoint restores a train exactly where it was and every replica advances it from
  * there with the same arithmetic. The tracks it runs on are state as well (`GameState.tracks`, laid each round by
- * `layRailway`), and reach a screen through the view. Movers are permanent (`PERMANENT_OBSTACLE_KINDS`): a blast does not clear one and the overtime
- * walls do not crush one, because a map is its movers, and a railway with nothing on it is the classic arena.
+ * `layRailway`), and reach a screen through the view. Movers are permanent (`PERMANENT_OBSTACLE_KINDS`): a blast
+ * does not clear one and the overtime walls do not crush one, because a map is its movers, and a railway with
+ * nothing on it is the classic arena.
  */
 import type { ArenaMapId, Obstacle } from "./arena-map.js";
 import { hypot2 } from "./deterministic-math.js";
@@ -17,7 +18,7 @@ export type ObstacleMotion =
   | { kind: "bounce"; vx: number; vy: number }
   /**
    * A car on a track: `along` is its distance round the loop from the track's first point, `speed` is signed units
-   * per tick (negative runs the loop the other way) and `train` says which train of the map it is a car of.
+   * per tick (negative runs the loop the other way) and `train` says which train of the round's railway it is a car of.
    */
   | {
       kind: "rail";
