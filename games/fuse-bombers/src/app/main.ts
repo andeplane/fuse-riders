@@ -3,7 +3,7 @@ import "fuse-ui/tokens.css";
 import "fuse-ui/portal.css";
 import "./style.css";
 import "./screens.css";
-import { createAppPortal } from "fuse-ui/portal";
+import { createAppPortal, type AppPortal } from "fuse-ui/portal";
 import Phaser from "phaser";
 import { ARENA_HEIGHT, ARENA_WIDTH } from "../engine/index.js";
 import { RoundScene, type RoundSceneData } from "../render/round-scene.js";
@@ -56,13 +56,14 @@ async function boot(): Promise<void> {
   root.id = "screen";
   document.body.append(root);
   audio.mountToggle(); // After `#screen`, so screens.css can hide it mid-round.
-  mountPortal(root);
+  const portal = mountPortal();
   const flow = new Flow({
     input: createBrowserInput(window, { forceTouch: params.has("touch") }),
     root,
     seed: Number(params.get("seed")) || Math.floor(Math.random() * 2 ** 31),
     speed: Number(params.get("speed")) || 1,
     show: (source, players, attract) => {
+      if (!attract) portal.close(); // A match started; screens.css hides the portal until the lobby.
       const data: RoundSceneData = { source, players };
       game.scene.start(RoundScene.KEY, data);
       attractMode = attract;
@@ -76,10 +77,10 @@ async function boot(): Promise<void> {
 
 /**
  * The app portal (every Fuse game) in the top-left corner, after `#screen` so screens.css shows it in the lobby
- * only. Enter and Space belong to the lobby, so the portal closes when the match starts rather than reopening
- * over the next lobby.
+ * only. Focused from the keyboard, it keeps Enter and Space (`pressesFocusedControl`); a mouse click leaves no
+ * focus behind, so Enter starts the match again, as after the sound toggle.
  */
-function mountPortal(screen: HTMLElement): void {
+function mountPortal(): AppPortal {
   const portal = createAppPortal({
     document,
     current: "fuse-bombers",
@@ -89,10 +90,12 @@ function mountPortal(screen: HTMLElement): void {
   const corner = document.createElement("div");
   corner.className = "portal-corner";
   corner.append(portal.element);
+  corner.addEventListener("click", (event) => {
+    if (event.detail > 0 && document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+  });
   document.body.append(corner);
-  new MutationObserver(() => {
-    if (screen.dataset.screen !== "lobby") portal.close();
-  }).observe(screen, { attributeFilter: ["data-screen"] });
+  return portal;
 }
 
 boot().catch((error: unknown) => {

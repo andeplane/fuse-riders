@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Flow, menuAction, type MenuState } from "../src/app/flow.js";
+import {
+  Flow,
+  menuAction,
+  pressesFocusedControl,
+  type MenuState,
+} from "../src/app/flow.js";
 import {
   HOLD_MS,
   attachGamepads,
@@ -97,6 +102,28 @@ test("menu keys and pad commands: Start confirms and pauses, Back goes back", ()
   ];
   for (const [state, key, action] of table)
     assert.equal(menuAction(state, key), action, `${key} in ${state}`);
+});
+
+test("Enter and Space on a focused control outside the screens press it, not the menus", () => {
+  /** A focused element: a button or link (`control`), inside the overlay screens or not. */
+  const focused = (control: boolean, inScreen: boolean) =>
+    ({ closest: () => (control ? {} : null), inScreen }) as unknown as Node;
+  const screen = {
+    contains: (node: Node | null) =>
+      (node as unknown as { inScreen: boolean }).inScreen,
+  };
+  const portalToggle = focused(true, false);
+  const lobbyButton = focused(true, true);
+  const canvas = focused(false, false);
+  assert.ok(pressesFocusedControl("Enter", portalToggle, screen));
+  assert.ok(pressesFocusedControl("Space", portalToggle, screen));
+  // Player buttons and other menu keys still reach the game.
+  assert.ok(!pressesFocusedControl("KeyQ", portalToggle, screen));
+  assert.ok(!pressesFocusedControl("Escape", portalToggle, screen));
+  // A clicked lobby button, the page itself and no target leave Enter to the lobby.
+  assert.ok(!pressesFocusedControl("Enter", lobbyButton, screen));
+  assert.ok(!pressesFocusedControl("Enter", canvas, screen));
+  assert.ok(!pressesFocusedControl("Enter", null, screen));
 });
 
 test("touch zones are renumbered left to right, so a match has no blank zone", () => {

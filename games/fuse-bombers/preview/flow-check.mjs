@@ -77,7 +77,20 @@ try {
     games.some((g) => g.name === "Fuse Riders"),
     `portal: ${games.length} games, Fuse Riders among them`,
   );
-  await page.click(".portal-corner .fui-portal-toggle"); // Close it again.
+  // Close it again; a mouse click leaves no focus behind, so the Enter below still starts the match.
+  await page.click(".portal-corner .fui-portal-toggle");
+  await page.focus(".portal-corner .fui-portal-toggle");
+  await page.keyboard.press("Enter");
+  check(
+    (await page.isVisible(".fui-portal-panel")) && (await screen()) === "lobby",
+    "keyboard: Enter on the focused portal opens it, and the lobby stays",
+  );
+  await page.keyboard.press("Escape");
+  check(
+    !(await page.isVisible(".fui-portal-panel")),
+    "keyboard: Esc closes the portal",
+  );
+  await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press("q");
   await page.keyboard.press("p");
   await page.click('[data-action="wins:-"]');
