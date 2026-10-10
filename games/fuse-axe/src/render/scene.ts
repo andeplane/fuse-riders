@@ -122,9 +122,6 @@ export const deadShows = (animStep: number): boolean =>
   animStep < DEAD_STEPS / 3 ||
   (animStep < DEAD_STEPS && Math.floor(animStep / BLINK_STEPS) % 2 === 0);
 
-/** An invulnerable hero (getting up, just risen or just dropped back in) blinks: its sprite shows and hides every `BLINK_FRAMES` frames, as its portrait does. */
-export { BLINK_FRAMES } from "./hud.js";
-
 /** A shadow's half-width on the ground; it shrinks as the figure rises, to half at `SHADOW_FADE` pixels up. */
 export const SHADOW_RX = 13;
 const SHADOW_FADE = 60;

@@ -38,6 +38,10 @@ const SPELLED: Readonly<Record<string, string>> = {
   Ø: "O",
   Œ: "OE",
   ẞ: "SS",
+  Ð: "D",
+  Đ: "D",
+  Ł: "L",
+  Þ: "TH",
 };
 
 /** The pixels `text` spans: `ADVANCE` a glyph, less the gap after the last; 0 for no text. */
@@ -45,11 +49,12 @@ export const textWidth = (text: string): number =>
   Math.max(0, text.length * ADVANCE - 1);
 
 /**
- * A player's name as the font can write it: in capitals, accents taken off (Å is A), a few letters spelled out (Ø is
- * O, Æ is AE), anything else the font lacks dropped, spaces closed up, and at most `max` glyphs.
+ * A player's name as the font can write it: in capitals, accents taken off (Å is A) and styled letters made plain
+ * (fullwidth Ｂ and mathematical 𝓑 are B), a few letters spelled out (Ø is O, Æ is AE), anything else the font lacks
+ * dropped, spaces closed up, and at most `max` glyphs.
  */
 export function fontText(raw: string, max: number): string {
-  const letters = [...raw.normalize("NFD").toUpperCase()]
+  const letters = [...raw.normalize("NFKD").toUpperCase()]
     .map((char) => SPELLED[char] ?? char)
     .join("")
     .replace(/\p{M}/gu, "");

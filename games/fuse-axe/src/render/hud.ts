@@ -20,7 +20,9 @@ import type { MakeSurface } from "./surface.js";
  * portrait in the hero's own look (the palette it wears on the field) framed in its seat's colour, its player's name,
  * its lives as ×N, a segmented health bar whose lost part shows white for a moment and then drains, and its row of
  * magic pots. A hero out of lives is greyed; one lying fallen, dropping back in or invulnerable blinks, in step with
- * its sprite. An empty seat shows its tag and blinks JOIN, or names the player who joins with the next run.
+ * its sprite. An empty seat shows its tag and blinks JOIN (not in a solo game, where nobody can), or names the player
+ * who joins with the next run. A hero that has lost its last life is out as it lands: the counter has already
+ * dropped to ×0, so its panel greys then, not when it has finished lying there.
  *
  * Portraits and labels are baked once; a frame is a few flat rectangles and blits.
  */
@@ -29,6 +31,8 @@ export interface HudSeats {
   readonly names: readonly (string | null)[];
   /** The seat this device plays, underlined in its colour; none on a shared screen. */
   readonly you?: number | null;
+  /** An empty seat blinks JOIN. False where nobody can join (a solo game): it shows its tag and no more. Default true. */
+  readonly open?: boolean;
 }
 
 /** What the HUD needs of a hero's look on the field: the palette its portrait wears too. */
@@ -222,6 +226,7 @@ export function createHud<Image>(
     seat: number,
     raw: string | null,
     frame: number,
+    open: boolean,
   ) => {
     const c = HUD_COLORS;
     frameBox(pen, x0, c.empty);
@@ -230,12 +235,13 @@ export function createHud<Image>(
     const tx = x0 + FRAME.x + 1 + ((inner - textWidth(tag)) >> 1);
     const ty = FRAME.y + 1 + ((inner - GLYPH_H) >> 1);
     write(pen, tag, c.empty, tx, ty);
-    const name = raw === null ? "" : nameOf(raw);
+    // A player the font cannot write (all emoji, say) still holds the seat: shown by its tag, as a hero's panel does.
+    const name = raw === null ? "" : nameOf(raw) || tag;
     if (name) {
       // A player seated mid-run plays from the next one.
       write(pen, name, c.dim, x0 + NAME.x, NAME.y);
       write(pen, "NEXT RUN", c.empty, x0 + NAME.x, BAR.y);
-    } else if (Math.floor(frame / JOIN_FRAMES) % 2 === 0)
+    } else if (open && Math.floor(frame / JOIN_FRAMES) % 2 === 0)
       write(pen, "JOIN", c.dim, x0 + NAME.x, ty);
   };
 
@@ -318,7 +324,7 @@ export function createHud<Image>(
           fill(pen, x0, HUD_H - 2, PANEL_W, 1);
         }
         if (hero) heroPanel(pen, x0, hero, raw, frame, looks);
-        else emptyPanel(pen, x0, seat, raw, frame);
+        else emptyPanel(pen, x0, seat, raw, frame, seats?.open !== false);
       }
       // A hero gone from the world takes its trail with it.
       for (const [id, trail] of trails)

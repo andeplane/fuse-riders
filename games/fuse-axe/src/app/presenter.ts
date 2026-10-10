@@ -118,8 +118,23 @@ export function present(view: View, viewer: Viewer): Model {
         (_, slot) => seats.find((seat) => seat.slot === slot)?.name ?? null,
       ),
       you: seated ? mine.slot : null,
+      open: !viewer.solo,
     },
   };
+}
+
+/**
+ * What the game's canvas is to a screen reader: its HUD draws the party in pixels (capitals, names cut to fit), so
+ * this says every seat's tag, player in full and hero in words.
+ */
+export function partyLabel(members: readonly Member[]): string {
+  if (!members.length) return "Fuse Axe: nobody is seated";
+  const seats = members.map(({ tag, name, hero }) =>
+    [`${tag} ${name}`, hero ? HEROES[hero].name : ""]
+      .filter(Boolean)
+      .join(", "),
+  );
+  return `Fuse Axe: ${seats.join("; ")}`;
 }
 
 /** The largest whole-number scale at which the native screen fits `width` × `height` device pixels; at least 1. */

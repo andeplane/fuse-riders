@@ -28,9 +28,9 @@ import { BRAKKA } from "../src/render/art/brakka.js";
 import { HEROES } from "../src/render/art/index.js";
 import { RAVAGER, RAVAGER_ANIMS } from "../src/render/art/ravager.js";
 import { createBackdrop } from "../src/render/backdrop/backdrop.js";
+import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
 import {
-  BLINK_FRAMES,
   createLooks,
   createScene,
   deadShows,

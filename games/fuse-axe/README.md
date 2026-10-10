@@ -96,9 +96,11 @@ Over it all the HUD (`src/render/hud.ts`) is a strip along the top with a panel 
 in the palette it wears on the field, framed in its seat's colour; the player's name in a 3 × 5 pixel font
 (`font.ts`: capitals, digits and a few marks; accents dropped, anything else left out, cut to fit); its lives as ×N;
 a segmented health bar whose lost part trails white for a moment and then drains; and a row of magic pots, empty
-until magic lands (`drawPots` takes held and max from the view then). A hero out of lives is greyed, one that cannot
-be hit blinks with its sprite, an empty seat blinks JOIN (or names a player who joins with the next run), and this
+until magic lands (`drawPots` takes held and max from the view then). A hero out of lives is greyed (from the moment
+it lands on its last life), one that cannot be hit blinks with its sprite, an empty seat blinks JOIN (not in a solo
+game) or names a player who joins with the next run (by its tag when the font cannot write the name), and this
 device's seat is underlined. Names are not in the world: the app passes the room's, by seat, as the scene's
-`draw(pen, view, frame, { names, you })`. Portraits and labels are baked once.
+`draw(pen, view, frame, { names, you, open })`. Portraits and labels are baked once. The canvas carries the party in
+words for screen readers (`partyLabel`), since the pixel font cuts names to eight capitals.
 
 ![The HUD over a three-hero fight](docs/images/hud.png)

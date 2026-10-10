@@ -36,6 +36,7 @@ import { PendingPick, SoloOpening } from "./flow.js";
 import { drawn } from "./interpolate.js";
 import {
   HEROES,
+  partyLabel,
   pixelScale,
   present,
   type Model,
@@ -220,6 +221,8 @@ function room(solo: boolean): void {
     screen = el("div", "", "fa-screen"),
     canvas = el("canvas", "", "fa-canvas"),
     note = el("p", "", "fa-note");
+  // The HUD draws the party in pixels; the canvas says it in words.
+  canvas.setAttribute("role", "img");
   screen.append(canvas);
   stage.append(screen, note);
 
@@ -301,6 +304,9 @@ function room(solo: boolean): void {
     main.dataset.stage = view.stage;
     main.dataset.hero = next.hero ?? "";
     main.dataset.playing = String(next.playing);
+    const party = partyLabel(next.members);
+    if (canvas.getAttribute("aria-label") !== party)
+      canvas.setAttribute("aria-label", party);
     lobby.hidden = next.screen !== "lobby";
     stage.hidden = next.screen !== "play";
     nameEntry.form.hidden = !next.askName;

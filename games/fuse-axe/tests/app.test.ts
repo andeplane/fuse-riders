@@ -9,6 +9,7 @@ import {
 } from "../src/app/controls.js";
 import {
   HEROES,
+  partyLabel,
   pixelScale,
   present,
   type Viewer,
@@ -178,10 +179,23 @@ test("in a run: the game for every page, keys for a hero in the world, notes for
 test("the HUD names each seat's player by slot, watchers left out, and knows this device's seat", () => {
   const running = frame("running");
   const names = ["A", "B", null, null, null];
-  assert.deepEqual(present(running, host).hud, { names, you: 0 });
-  assert.deepEqual(present(running, guest).hud, { names, you: 1 });
-  assert.deepEqual(present(running, tv).hud, { names, you: null });
+  assert.deepEqual(present(running, host).hud, { names, you: 0, open: true });
+  assert.deepEqual(present(running, guest).hud, { names, you: 1, open: true });
+  assert.deepEqual(present(running, tv).hud, { names, you: null, open: true });
   assert.equal(present(running, { ...guest, me: "w" }).hud.you, null);
+  // Nobody joins a solo game: its empty seats do not call for a player.
+  assert.equal(present(running, { ...host, solo: true }).hud.open, false);
+});
+
+test("the canvas is labelled with the party the HUD draws in pixels: tag, player in full, hero", () => {
+  const { members } = present(frame("running"), guest);
+  assert.equal(partyLabel(members), "Fuse Axe: P1 A, RHEA; P2 B (you), GORM");
+  assert.equal(
+    partyLabel([{ ...members[0]!, name: "Дмитрий 🔥", hero: null }]),
+    "Fuse Axe: P1 Дмитрий 🔥",
+    "a name the pixel font cannot write is whole here",
+  );
+  assert.equal(partyLabel([]), "Fuse Axe: nobody is seated");
 });
 
 test("the screen scales by the largest whole number that fits, never below 1", () => {

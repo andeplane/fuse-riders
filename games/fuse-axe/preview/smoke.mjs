@@ -4,10 +4,12 @@
  *   node games/fuse-axe/preview/smoke.mjs http://localhost:PORT/ [screenshot-dir]
  *
  * 1. The landing page: the portal button first in the header, the keys on screen.
- * 2. Solo: the hero picker comes first; Rhea is picked, START sets out, and the hero walks right, jumps and swings.
+ * 2. Solo: the hero picker comes first; Rhea is picked, START sets out, and the hero walks right, jumps and swings;
+ *    the HUD's empty seats never blink JOIN.
  * 3. Online: one page creates a room, a second joins by its code and picks Gorm, and a third joins; the rosters show
  *    it, the host starts, the guest walks and both pages draw its hero in the same place. Every page's HUD frames the
- *    three heroes in their seats' colours, and the party walks on into the first wave's fight.
+ *    three heroes in their seats' colours, an empty seat blinks JOIN, the canvas names the party in words, and the
+ *    party walks on into the first wave's fight.
  * 4. A well-formed code for a room that does not exist shows the closed-room card.
  * Run by hand; not in CI. Screenshots go to the directory given, and nowhere else. Every page opens muted.
  */
@@ -102,6 +104,37 @@ const framed = async (page, seat, rgb) =>
     `the HUD frames P${seat + 1}`,
   );
 /**
+ * The most native pixels of the rectangle [x, y, w, h] that were not the HUD strip's own colour in any frame over `ms`
+ * (long enough to see a blinking label both ways): 0 for a panel with nothing written in it.
+ */
+const inked = (page, rect, ms) =>
+  page.evaluate(
+    async ([[x, y, w, h], ms]) => {
+      const canvas = document.querySelector(".fa-canvas"),
+        scale = canvas.width / 320,
+        context = canvas.getContext("2d");
+      let most = 0;
+      for (const end = performance.now() + ms; performance.now() < end;) {
+        let count = 0;
+        for (let py = y; py < y + h; py++)
+          for (let px = x; px < x + w; px++) {
+            const { data } = context.getImageData(
+              Math.floor((px + 0.5) * scale),
+              Math.floor((py + 0.5) * scale),
+              1,
+              1,
+            );
+            if (data[0] !== 0x0b || data[1] !== 0x06 || data[2] !== 0x14)
+              count++;
+          }
+        most = Math.max(most, count);
+        await new Promise((done) => setTimeout(done, 50));
+      }
+      return most;
+    },
+    [rect, ms],
+  );
+/**
  * The white-hot pixels (the glowing yellow and white a swing's smear is drawn in) seen under and around the marker at
  * `at` over `ms`, reading every animation frame as the blade is out for a few steps only: the most in one frame that
  * were not in `known`, and every place any showed. The backdrop's fires flicker in the same colours, so a swing is
@@ -184,6 +217,8 @@ try {
   assert.ok(before, "P1 is drawn");
   assert.ok(before.scale >= 2 && Number.isInteger(before.scale), "whole scale");
   await framed(landing, 0, P1);
+  // Nobody joins a solo game, so its empty seats never blink JOIN: P2's name area stays blank.
+  assert.equal(await inked(landing, [85, 2, 40, 16], 1_200), 0, "no JOIN solo");
   await hold(landing, "ArrowRight", 800);
   const walked = await hero(landing, P1);
   assert.ok(
@@ -262,6 +297,14 @@ try {
   for (const page of [host, guest, third])
     for (const [seat, rgb] of [P1, P2, P3].entries())
       await framed(page, seat, rgb);
+  // The empty fourth seat invites a player (JOIN blinks in its name area); and the canvas names the party in words.
+  assert.ok((await inked(host, [213, 2, 40, 16], 1_200)) > 0, "JOIN in a room");
+  for (const page of [host, guest, third])
+    assert.match(
+      (await page.locator(".fa-canvas").getAttribute("aria-label")) ?? "",
+      /P1 Host.*P2 Guest.*GORM.*P3 Cy.*BRAKKA/,
+      "the canvas names the party",
+    );
   // A fight: all three walk on to the first wave and meet its ravagers, then swing.
   await Promise.all(
     [
