@@ -1,4 +1,4 @@
-// Plays one match through the real page in Chromium: the app portal in the lobby, two keyboard players (Q, P)
+// Plays one match through the real page in Chromium: the app portal in the lobby, two keyboard riders (Space, /)
 // and two bots, first to 2 wins, one pause, round after round (the humans fire now and then) up to the match
 // winner, then play again, pause and quit to the lobby. Screenshots every screen and fails on console errors, a
 // missing asset or a wrong flow state. Run by hand from the repo root; not in CI.
@@ -91,14 +91,17 @@ try {
     "keyboard: Esc closes the portal",
   );
   await page.evaluate(() => document.activeElement?.blur());
-  await page.keyboard.press("q");
-  await page.keyboard.press("p");
+  await page.keyboard.press("Space"); // WASD's fire key
+  await page.keyboard.press("Slash"); // the arrows' fire key
   await page.click('[data-action="wins:-"]');
   await page.click('[data-action="bot:3"]');
   await page.waitForTimeout(400);
   await shot("lobby");
   const joined = (await seats()).join(" ");
-  check(joined === "RED:Q BLUE:P GREEN:BOT YELLOW:BOT", `lobby: ${joined}`);
+  check(
+    joined === "RED:WASD BLUE:ARROWS GREEN:BOT YELLOW:BOT",
+    `lobby: ${joined}`,
+  );
 
   await page.keyboard.press("Enter");
   await waitFor("playing");
@@ -109,7 +112,7 @@ try {
   let [rounds, paused] = [0, false];
   for (let kind; (kind = await screen()) !== "winner";) {
     if (kind === "playing") {
-      await page.keyboard.press(Math.random() < 0.5 ? "q" : "p"); // The humans fire now and then.
+      await page.keyboard.press(Math.random() < 0.5 ? "Space" : "Slash"); // The humans fire now and then.
       if (
         !paused &&
         (await flow(() => window.fuseBombers.flow.view.tick)) > 720

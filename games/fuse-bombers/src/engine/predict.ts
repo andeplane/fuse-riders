@@ -1,8 +1,9 @@
 // Pure trajectory prediction for the aiming guide and for bots. It replays exactly the physics a
 // rocket fired right now would get (same integrator, same sub-steps, gates at their future
-// positions), minus the per-rocket random spread. It never mutates the state.
+// positions, rock along every sub-step's path), minus the per-rocket random spread. It never mutates the state.
 
 import {
+  CRATE_BOB,
   crateYAt,
   gatePositionAt,
   ghostPositionAt,
@@ -11,7 +12,7 @@ import {
   isOffscreen,
   launchState,
 } from "./geometry.js";
-import { surfaceAt } from "./terrain.js";
+import { segmentHit, solidAt } from "./grid.js";
 import { SUBSTEPS, type Card } from "./tuning.js";
 import type { RoundView, Vec2 } from "./types.js";
 
@@ -71,7 +72,6 @@ export function predictTrajectory(
   const crates: Trajectory["crates"] = [];
   const passed = new Set<number>();
   const taken = new Set<number>();
-  const halfH = t.castleHeight / 2;
   const shieldR = t.shieldRadius + t.rocketRadius;
   const castleR = t.castleRadius + t.rocketRadius;
   const crateR = t.crateRadius + t.rocketRadius;
@@ -93,21 +93,30 @@ export function predictTrajectory(
   for (let k = 0; k < maxTicks; k++) {
     const tick = state.tick + k;
     for (let s = 0; s < SUBSTEPS; s++) {
+      const [px, py] = [r.x, r.y];
       integrate(r, t.gravity);
       if (isOffscreen(r.x, r.y, terrain.width, terrain.height))
         return done("offscreen", k);
       for (const c of state.castles) {
         if (!c.alive || c.id === castleId) continue;
         const dx = r.x - c.x;
-        const dy = r.y - (c.y - halfH);
+        const dy = r.y - c.y;
         const d2 = dx * dx + dy * dy;
         if (c.shieldHp > 0 && d2 < shieldR * shieldR)
           return done("shield", k, c.id);
         if (d2 < castleR * castleR) return done("castle", k, c.id);
       }
-      if (r.y >= surfaceAt(terrain, r.x)) return done("terrain", k);
+      const rock = segmentHit(terrain, px, py, r.x, r.y);
+      if (rock) {
+        [r.x, r.y] = [rock.x, rock.y];
+        return done("terrain", k);
+      }
       for (const g of state.gates) {
         if (passed.has(g.id) || tick >= g.expireTick) continue;
+        // Only work out where the gate is when the rocket is inside the box it sweeps (most of the time it is not).
+        const reachX = (g.maxX - g.minX + g.width) / 2 + 1;
+        if (Math.abs(r.x - (g.minX + g.maxX) / 2) > reachX) continue;
+        if (Math.abs(r.y - g.baseY) > g.height / 2 + g.bobAmp + 1) continue;
         const p = gatePositionAt(g, tick);
         if (!insideGate(p.x, p.y, g, r.x, r.y)) continue;
         passed.add(g.id);
@@ -123,6 +132,8 @@ export function predictTrajectory(
       for (const crate of state.crates) {
         if (taken.has(crate.id)) continue;
         const dx = r.x - crate.x;
+        if (Math.abs(dx) >= crateR) continue;
+        if (Math.abs(r.y - crate.baseY) >= crateR + CRATE_BOB + 1) continue;
         const dy =
           r.y - crateYAt(crate.baseY, crate.bobPhase, crate.spawnTick, tick);
         if (dx * dx + dy * dy < crateR * crateR) {
@@ -145,7 +156,9 @@ export function predictTrajectory(
  * Predicts where player `owner`'s ghost bomb would land if its button were pressed `ticks` steps
  * from now (0 = on the next `step`), from the ghost's deterministic path and the current terrain
  * and castles. Bombs ignore gates and crates, so `gates` and `crates` are always empty. Returns
- * null when the player has no ghost.
+ * null when the player has no ghost, and when the blimp would be inside rock at that tick (a press
+ * there drops nothing: see `isGhostLoaded`). The drop does not wait for the reload; only the path
+ * is predicted.
  */
 export function predictGhostBomb(
   state: RoundView,
@@ -158,9 +171,9 @@ export function predictGhostBomb(
   const t = state.tuning;
   const start = state.tick + ticks;
   const p = ghostPositionAt(g, start);
+  if (solidAt(state.terrain, p.x, p.y)) return null;
   const r = { x: p.x, y: p.y, vx: p.vx, vy: t.ghostBombSpeed };
   const points: Vec2[] = [{ x: r.x, y: r.y }];
-  const halfH = t.castleHeight / 2;
   const shieldR = t.shieldRadius + t.rocketRadius;
   const castleR = t.castleRadius + t.rocketRadius;
   const done = (kind: ImpactKind, k: number, castleId: number | null) => {
@@ -170,19 +183,24 @@ export function predictGhostBomb(
   };
   for (let k = 1; k <= maxTicks; k++) {
     for (let s = 0; s < SUBSTEPS; s++) {
+      const [px, py] = [r.x, r.y];
       integrate(r, t.gravity);
       if (isOffscreen(r.x, r.y, state.terrain.width, state.terrain.height))
         return done("offscreen", k, null);
       for (const c of state.castles) {
         if (!c.alive || c.id === owner) continue;
         const dx = r.x - c.x;
-        const dy = r.y - (c.y - halfH);
+        const dy = r.y - c.y;
         const d2 = dx * dx + dy * dy;
         if (c.shieldHp > 0 && d2 < shieldR * shieldR)
           return done("shield", k, c.id);
         if (d2 < castleR * castleR) return done("castle", k, c.id);
       }
-      if (r.y >= surfaceAt(state.terrain, r.x)) return done("terrain", k, null);
+      const rock = segmentHit(state.terrain, px, py, r.x, r.y);
+      if (rock) {
+        [r.x, r.y] = [rock.x, rock.y];
+        return done("terrain", k, null);
+      }
     }
     points.push({ x: r.x, y: r.y });
   }
