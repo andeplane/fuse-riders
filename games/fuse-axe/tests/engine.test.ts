@@ -49,6 +49,14 @@ test("presses and releases come from the previous step's held bits", () => {
   const tapped = stepTick(solo(), [0], [JUMP]);
   assert.equal(hero(tapped).state, "jump");
   assert.equal(hero(tapped).held, 0);
+  // A direction tapped for less than a tick walks for that first step only, and opposite taps cancel, as in
+  // Choppers' fold.
+  const walked = (held: number, first: number) =>
+    hero(stepTick(solo(), [held], [first])).x - hero(solo()).x;
+  assert.equal(walked(0, RIGHT), T.WALK.brakka.x);
+  assert.equal(walked(0, LEFT), -T.WALK.brakka.x);
+  assert.equal(walked(RIGHT, LEFT | RIGHT), 2 * T.WALK.brakka.x);
+  assert.equal(walked(RIGHT, RIGHT), 3 * T.WALK.brakka.x);
 });
 
 test("createWorld seats heroes in id order across the left of the screen", () => {
@@ -86,6 +94,16 @@ test("createWorld seats heroes in id order across the left of the screen", () =>
           heroes: seats.map((seat) => ({ seat, kind: "rhea" })),
         }),
       RangeError,
+    );
+  for (const kind of ["bogus", undefined, "toString"])
+    assert.throws(
+      () =>
+        createWorld({
+          seed: 1,
+          heroes: [{ seat: 0, kind: kind as unknown as HeroKind }],
+        }),
+      RangeError,
+      String(kind),
     );
 });
 
@@ -240,6 +258,27 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
   assert.equal(JSON.stringify(a), before);
   assert.deepEqual(tick, run(a, [JUMP, 0, RIGHT], T.STEPS_PER_TICK));
   assert.equal(tick.step, a.step + T.STEPS_PER_TICK);
+});
+
+test("a rollback replays from a snapshot to the same world, presses included", () => {
+  const start = createWorld({
+    seed: 11,
+    heroes: [
+      { seat: 0, kind: "gorm" },
+      { seat: 1, kind: "rhea" },
+    ],
+  });
+  const inputs = script(21, 600);
+  const fold = (world: World, rows: readonly (readonly number[])[]) =>
+    rows.reduce<World>((w, held) => step(w, held), world);
+  const straight = fold(start, inputs);
+  // Restore a snapshot through JSON, as a checkpoint would, and replay the rest: no press is lost or made twice.
+  for (const cut of [1, 7, 8, 50, 301, 599]) {
+    const snapshot = JSON.parse(
+      JSON.stringify(fold(start, inputs.slice(0, cut))),
+    ) as World;
+    assert.deepEqual(fold(snapshot, inputs.slice(cut)), straight, `cut ${cut}`);
+  }
 });
 
 test("the seeded stream and the seed hash are stable", () => {

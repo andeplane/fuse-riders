@@ -87,15 +87,20 @@ function moveHero(world: World, hero: Hero, bits: number): void {
 
 /**
  * The camera only moves forward: it keeps the leading hero `CAMERA_LEAD` from its left edge, but never past the
- * leftmost hero (who therefore holds it) and never past the stage's end. With no heroes, the spread maxima are
- * ∓Infinity and it stays put.
+ * leftmost hero (who therefore holds it) and never past the stage's end. With no heroes it stays put.
  */
 function advanceCamera(world: World): void {
-  const xs = world.heroes.map((hero) => hero.x),
-    target = Math.min(
-      Math.max(...xs) - T.CAMERA_LEAD,
-      Math.min(...xs) - T.HERO_MARGIN,
-      T.CAMERA_END,
-    );
+  if (world.heroes.length === 0) return;
+  let leader = -Infinity,
+    leftmost = Infinity;
+  for (const hero of world.heroes) {
+    if (hero.x > leader) leader = hero.x;
+    if (hero.x < leftmost) leftmost = hero.x;
+  }
+  const target = Math.min(
+    leader - T.CAMERA_LEAD,
+    leftmost - T.HERO_MARGIN,
+    T.CAMERA_END,
+  );
   if (target > world.camX) world.camX = target;
 }

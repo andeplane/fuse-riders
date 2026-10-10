@@ -4,7 +4,8 @@ import type { HeroState, World } from "./world.js";
 /**
  * What the renderer sees of the world: positions in whole pixels (`x` along the road, `y` the depth that is also
  * the feet's screen row, `z` height above the floor), so sprites land on the pixel grid. A hero's screen position
- * is `(x − camX, y − z)` and its shadow sits at `(x − camX, y)`.
+ * is `(x − camX, y − z)` and its shadow sits at `(x − camX, y)`. Each value is floored once on its own, so every
+ * sprite shares the same whole-pixel camera offset as the backdrop and none shimmers against it.
  */
 export type { HeroKind } from "./tuning.js";
 export type HeroAnim = HeroState;

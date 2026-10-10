@@ -1,4 +1,4 @@
-import { CAPACITY, px, type HeroKind } from "./tuning.js";
+import { CAPACITY, HERO_KINDS, px, type HeroKind } from "./tuning.js";
 
 /**
  * One run's world: plain integer data, so the netcode can clone, hash and checkpoint it. Space is `x` along the
@@ -66,6 +66,8 @@ export function createWorld(options: {
       entries[index - 1]?.seat === entry.seat
     )
       throw new RangeError(`fuse-axe: bad or repeated seat ${entry.seat}`);
+    if (!HERO_KINDS.includes(entry.kind))
+      throw new RangeError(`fuse-axe: unknown hero kind ${entry.kind}`);
   });
   const heroes = entries.map((entry, index): Hero => {
     const [x, y] = SPAWNS[entry.seat]!;
