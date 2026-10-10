@@ -46,7 +46,9 @@ for the other two.
 | Touch      | Not yet: D-pads come in a later change               | Your coloured tap zone along the bottom edge |
 
 Until the gunships fly, only fire plays: the steering keys are read (`InputHub.heldBits`) but move nothing yet. Held
-together, opposite directions cancel. Menus: on a keyboard `Enter` confirms, `Esc` pauses or goes back and `Backspace`
+together, opposite directions cancel. Keys are physical positions, so `/` is whatever the key left of right Shift
+reads (`-` on Nordic layouts). A pad without the standard mapping steers with its first stick only, and all its
+buttons fire. Menus: on a keyboard `Enter` confirms, `Esc` pauses or goes back and `Backspace`
 quits; on a pad Start confirms and pauses, Back goes back or pauses, and holding fire for 1 s in the lobby starts; on a
 touch screen tap the on-screen buttons, and the `II` corner button pauses.
 

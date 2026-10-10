@@ -39,7 +39,7 @@ function slotCard(lobby: Lobby, slot: number, seat: Seat | undefined): string {
   const style = `style="--c:${css(seat.color)}"`;
   if (seat.device) {
     const fire = fireKeyLabel(seat.device);
-    const leave = fire ? `PRESS ${fire} TO LEAVE` : "FIRE AGAIN TO LEAVE";
+    const leave = fire ? `PRESS ${fire} TO LEAVE` : "PRESS AGAIN TO LEAVE";
     return `<div class="slot human" ${style}>${head}<span class="key">${seat.tag}</span><small>${leave}</small></div>`;
   }
   const next = lobby.devices.indexOf(undefined) === slot;
