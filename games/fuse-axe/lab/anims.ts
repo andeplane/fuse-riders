@@ -69,7 +69,7 @@ function strips({ name, figure }: Animated, up: number, down: number) {
     const strip = canvas(width * 2, (height + 6) * 2);
     const { paint } = strip;
     paint.fillStyle = "#281e34";
-    paint.fillRect(0, 0, width * 2, height * 2);
+    paint.fillRect(0, 0, width * 2, (height + 6) * 2);
     paint.fillStyle = "#16e7ff55";
     paint.fillRect(0, (PAD + up + 1) * 2, width * 2, 1);
     paint.font = "9px ui-monospace, monospace";

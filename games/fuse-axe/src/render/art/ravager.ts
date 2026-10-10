@@ -334,7 +334,7 @@ const getup = adjust(idle, {
     knee: [40, 55.5],
     ankle: [40.5, 63.5],
   },
-  mace: 82,
+  mace: 78,
 });
 
 export const RAVAGER_POSES = {
@@ -366,8 +366,9 @@ export interface AnimStrip<F extends string> {
 
 /**
  * The ravager's anims. A one-frame anim holds its frame for as long as the enemy is in that state, so its steps only
- * pace the lab; they follow the combat tuning (hurt 20, down 45, getup 20, dead 60), and the windup, attack and
- * recover steps stand in until the enemy AI sets that frame data.
+ * pace the lab; they are as long as the engine keeps the enemy in the state (hurt 20, knockdown 28, the steps a
+ * knocked-up enemy takes to land, down 45, getup 20, dead 60), and the windup, attack and recover steps stand in
+ * until the enemy AI sets that frame data. The tests play the engine against them.
  */
 export const RAVAGER_ANIMS: Readonly<
   Record<RavagerAnim, AnimStrip<RavagerFrame>>
@@ -392,7 +393,7 @@ export const RAVAGER_ANIMS: Readonly<
   attack: { frames: [["attack", 8]], loop: false },
   recover: { frames: [["recover", 16]], loop: false },
   hurt: { frames: [["hurt", 20]], loop: false },
-  knockdown: { frames: [["knockdown", 30]], loop: false },
+  knockdown: { frames: [["knockdown", 28]], loop: false },
   down: { frames: [["down", 45]], loop: false },
   getup: { frames: [["getup", 20]], loop: false },
   dead: { frames: [["down", 60]], loop: false },

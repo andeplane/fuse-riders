@@ -1,12 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  DEAD_STEPS,
-  DOWN_STEPS,
-  GETUP_STEPS,
-  HURT_STEPS,
-} from "../src/engine/tuning.js";
-import { ENEMY_STATES } from "../src/engine/world.js";
+  ATTACK,
+  createWorld,
+  spawnEnemy,
+  step,
+  toView,
+  type EnemyAnim,
+  type World,
+} from "../src/engine/index.js";
+import { px } from "../src/engine/tuning.js";
+import { ENEMY_STATES } from "../src/engine/view-kit.js";
 import {
   paintRavager,
   RAVAGER,
@@ -30,18 +34,6 @@ import {
 
 const sprite = (frame: RavagerFrame) => RAVAGER.sprite(frame);
 const FRAMES = RAVAGER.frames;
-const STANDING: readonly RavagerFrame[] = [
-  "idle",
-  "breathe",
-  "walk1",
-  "walk2",
-  "walk3",
-  "walk4",
-  "windup",
-  "attack",
-  "recover",
-  "hurt",
-];
 /** The frames the ravager plants its feet through: standing still, and the whole attack. */
 const PLANTED: readonly RavagerFrame[] = [
   "idle",
@@ -78,21 +70,33 @@ test("every frame is a valid sprite in every tier, painted inside its canvas", (
   // A foot soldier about 32 wide and 48 tall, the mace and the crest aside.
   const idle = sprite("idle");
   assert.ok(idle.h >= 46 && idle.h <= 52, `idle is ${idle.h} tall`);
-  // The anchor is on the feet's bottom row, with only the outline under it.
-  const floor = (s: Sprite) => s.h - 2;
-  for (const frame of STANDING)
-    assert.equal(sprite(frame).ay, floor(sprite(frame)), frame);
-  // Lying flat is wider than tall, and the body in the air comes down on its anchor's row.
+  // The anchor is on the lowest row of every frame, the kneeling and the fallen included (boots, body or mace), with
+  // only the outline under it, so no frame sinks into the floor line or hovers above it.
+  for (const frame of FRAMES) {
+    const s = sprite(frame);
+    assert.equal(s.ay, s.h - 2, frame);
+  }
+  // Lying flat is wider than tall.
   const down = sprite("down");
   assert.ok(down.w > down.h * 2, `down is ${down.w}×${down.h}`);
-  assert.equal(sprite("knockdown").ay, floor(sprite("knockdown")));
 });
 
 test("the face shows its eye glinting under the helm, shut when hurt", () => {
+  const SKIN = ["S", "s", "1"];
   for (const frame of FRAMES) {
-    const keys = new Set(sprite(frame).rows.join(""));
+    const { rows } = sprite(frame);
+    const keys = new Set(rows.join(""));
     const hurt = ["hurt", "knockdown", "down"].includes(frame);
     assert.equal(keys.has("D"), !hurt, frame);
+    // The glint is stamped where the rotated head puts it: among the face's skin, whatever the head's tilt.
+    rows.forEach((row, y) => {
+      const x = row.indexOf("D");
+      if (x < 0) return;
+      const around = [-1, 0, 1].flatMap((dy) =>
+        [-1, 0, 1].map((dx) => rows[y + dy]?.[x + dx] ?? CLEAR),
+      );
+      assert.ok(around.filter((key) => SKIN.includes(key)).length >= 3, frame);
+    });
   }
 });
 
@@ -163,6 +167,9 @@ test("a tier only recolours the tier ramp: the same pixels, the tunic, crest and
     assert.deepEqual(Object.keys(swap).sort(), [...TIER].sort());
     for (const key of TIER) assert.notEqual(swap[key], MASTER[key]);
   }
+  // Each tier's three colours differ from the other's too, so no two tiers are alike at 1×.
+  const { rust, violet } = RAVAGER_TIERS;
+  for (const key of TIER) assert.notEqual(rust[key], violet[key], key);
   for (const frame of FRAMES) {
     const s = sprite(frame);
     for (const key of TIER) assert.ok(s.rows.join("").includes(key), frame);
@@ -196,13 +203,6 @@ test("every anim plays frames the figure has, for whole steps, and every frame i
     Object.keys(RAVAGER_ANIMS).sort(),
     [...ENEMY_STATES, "walk", "windup", "attack", "recover"].sort(),
   );
-  // A one-frame state anim lasts as long as the state does.
-  const length = (anim: keyof typeof RAVAGER_ANIMS) =>
-    RAVAGER_ANIMS[anim].frames.reduce((sum, [, steps]) => sum + steps, 0);
-  assert.deepEqual(
-    [length("hurt"), length("down"), length("getup"), length("dead")],
-    [HURT_STEPS, DOWN_STEPS, GETUP_STEPS, DEAD_STEPS],
-  );
   const played = new Set<string>();
   for (const [anim, { frames, loop }] of Object.entries(RAVAGER_ANIMS)) {
     assert.ok(frames.length > 0, anim);
@@ -222,4 +222,61 @@ test("every anim plays frames the figure has, for whole steps, and every frame i
     ["walk1", "walk2", "walk3", "walk4"],
   );
   assert.deepEqual([...played].sort(), [...FRAMES].sort());
+});
+
+/** The most `animStep` the enemy view reaches in each anim over `steps` steps of a scripted fight. */
+function reached(
+  start: World,
+  held: (index: number, world: World) => number,
+  steps: number,
+): Map<EnemyAnim, number> {
+  const peaks = new Map<EnemyAnim, number>();
+  let world = start;
+  for (let index = 0; index < steps; index++) {
+    world = step(world, [held(index, world)]);
+    for (const { anim, animStep } of toView(world).enemies)
+      peaks.set(anim, Math.max(peaks.get(anim) ?? 0, animStep));
+  }
+  return peaks;
+}
+
+test("a state anim lasts exactly as many steps as the engine keeps the enemy in that state", () => {
+  const length = (anim: EnemyAnim) =>
+    RAVAGER_ANIMS[anim].frames.reduce((sum, [, steps]) => sum + steps, 0);
+  /** Brakka with a ravager 18 px in front of it, at `hp` if given. */
+  const arena = (hp?: number): World => {
+    const world = createWorld({
+      seed: 3,
+      heroes: [{ seat: 0, kind: "brakka" }],
+    });
+    const { x, y } = world.heroes[0]!;
+    const fight = spawnEnemy(world, "ravager", x + px(18), y);
+    return hp === undefined
+      ? fight
+      : { ...fight, enemies: fight.enemies.map((e) => ({ ...e, hp })) };
+  };
+  const swingOnce = (index: number) => (index === 0 ? ATTACK : 0);
+  // One slash lands and the enemy reels, then stands.
+  const reeled = reached(arena(), swingOnce, 120);
+  // Mashed to the finisher, it knocks the enemy up: it flies, lies, gets up and stands.
+  const finished = reached(
+    arena(),
+    (index, world) =>
+      world.heroes[0]!.state !== "attack3" && index % 2 === 0 ? ATTACK : 0,
+    400,
+  );
+  // The blow that takes the last hp: the enemy flies, lands dead, blinks and is gone.
+  const killed = reached(arena(3), swingOnce, 200);
+  // The last step an anim shows is the one before its state ends, so it lasts one more than that.
+  const lasts: readonly (readonly [EnemyAnim, Map<EnemyAnim, number>])[] = [
+    ["hurt", reeled],
+    ["knockdown", finished],
+    ["down", finished],
+    ["getup", finished],
+    ["dead", killed],
+  ];
+  for (const [anim, peaks] of lasts) {
+    assert.ok(peaks.has(anim), `the fight never reached ${anim}`);
+    assert.equal(peaks.get(anim)! + 1, length(anim), anim);
+  }
 });
