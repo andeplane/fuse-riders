@@ -43,7 +43,7 @@ export {
   GRAB_STEPS,
   THROW_STEPS,
 } from "./tuning.js";
-export { ENEMY_STATES, FX_KINDS, HERO_STATES } from "./world.js";
+export { ENEMY_STATES, FX_KINDS, HERO_STATES, IMP_ONLY } from "./world.js";
 
 /** The floor band's top and bottom screen rows. */
 export const FLOOR_TOP_PX = FLOOR_TOP / SUB;
