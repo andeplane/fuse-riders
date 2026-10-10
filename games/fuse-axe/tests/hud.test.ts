@@ -171,6 +171,17 @@ test("a panel a seat: a hero's portrait framed in its seat's colour, an empty se
   assert.equal(wrote(late, "BO", C.dim), 1);
   assert.equal(wrote(late, "NEXT RUN", C.empty), 1);
   assert.equal(wrote(late, "JOIN", C.dim), 2);
+  // A player whose name the font cannot write still holds the seat: its tag stands for it, and no JOIN invites another.
+  const emoji = draw(view, 0, { names: [null, "😀🔥", null, null, null] });
+  assert.equal(wrote(emoji, "P2", C.dim), 1);
+  assert.equal(wrote(emoji, "NEXT RUN", C.empty), 1);
+  assert.equal(wrote(emoji, "JOIN", C.dim), 2);
+  // Where nobody can join (a solo game) an empty seat shows its tag and never JOIN.
+  assert.equal(wrote(draw(view, 0, { names: [], open: false }), "JOIN", C.dim), 0); // prettier-ignore
+  assert.equal(
+    wrote(draw(view, 0, { names: [], open: true }), "JOIN", C.dim),
+    3,
+  );
 });
 
 test("names in the font's capitals, unknown characters dropped and cut to fit before the lives, ×N at the right", () => {
@@ -180,6 +191,23 @@ test("names in the font's capitals, unknown characters dropped and cut to fit be
   assert.equal(fontText("Æsir", 8), "AESIR");
   assert.equal(fontText("abc defgh", 4), "ABC", "no space left at the end");
   assert.equal(fontText("😀😀", 8), "");
+  assert.equal(fontText("Łukasz Đorđe Þór", 30), "LUKASZ DORDE THOR");
+  assert.equal(
+    fontText("Ｂｏｂ 𝓒𝔂", 8),
+    "BOB CY",
+    "styled letters are plain ones",
+  );
+  assert.equal(
+    fontText("Дмитрий", 8),
+    "",
+    "a script the font lacks is no name",
+  );
+  assert.equal(
+    fontText("ﬃ ㎏ ™", 20),
+    "FFI KG TM",
+    "ligatures and units are spelled",
+  );
+  assert.equal(fontText("A​B‮C\u0000D", 8), "ABCD", "invisible and control characters are dropped"); // prettier-ignore
   assert.equal(textWidth(""), 0);
   assert.equal(textWidth("AB"), 2 * ADVANCE - 1);
 
@@ -273,6 +301,14 @@ test("a portrait wears its hero's look on the field; out of lives it is greyed, 
   assert.equal(wrote(grey, "×0", C.outText), 1);
   const later = draw(world([out(1, 0)]), BLINK_FRAMES);
   assert.equal(portraits(later).length, 1, "out never blinks");
+  // The last life lost, a hero is out from the moment it lands: ×0, no life to drop back in with, so no blink either.
+  const last = world([hero(1, 0, { anim: "dead", hp: 0, lives: 0 })]);
+  for (const frame of [0, BLINK_FRAMES]) {
+    const fallen = draw(last, frame);
+    assert.equal(portraits(fallen).length, 1, `frame ${frame}`);
+    assert.equal(fillsAt(fallen, FRAME.x, FRAME.y, C.outFrame), 1);
+    assert.equal(wrote(fallen, "×0", C.outText), 1);
+  }
   // A second Brakka out of lives greys his own colours, so the two stay told apart.
   const both = portraits(draw(world([out(1, 0), out(2, 1)]), 0, undefined, looks)); // prettier-ignore
   assert.notDeepEqual(both[0]!.image.fills, both[1]!.image.fills);
