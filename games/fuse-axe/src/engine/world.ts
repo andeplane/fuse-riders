@@ -1,11 +1,15 @@
 import {
   CAPACITY,
   ENEMY_HALF_W,
+  FX_MAX,
   ENEMY_KINDS,
   ENEMY_MAX,
   FLOOR_BOTTOM,
   FLOOR_TOP,
+  HERO_HP,
   HERO_KINDS,
+  LIVES,
+  RAVAGER,
   STAGE_LENGTH,
   SUB,
   TIERS,
@@ -33,6 +37,13 @@ export const HERO_STATES = [
   "attack1",
   "attack2",
   "attack3",
+  "hurt",
+  "knockdown",
+  "down",
+  "getup",
+  "dead",
+  "respawn",
+  "out",
 ] as const;
 export type HeroState = (typeof HERO_STATES)[number];
 
@@ -63,6 +74,14 @@ export interface Hero {
   /** Tallies for the HUD: hit points taken from enemies, and enemies knocked down. */
   damage: number;
   knockdowns: number;
+  /** Hit points left in this life, and lives left, this one included: a hero with none is `out`. */
+  hp: number;
+  lives: number;
+  /** No mace lands on the hero up to and including this step: getting up, and after dropping back in. */
+  invulnUntil: number;
+  /** Hits taken in a row, each within `JUGGLE_WINDOW` of the one before; that window closes after `staggerUntil`. */
+  stagger: number;
+  staggerUntil: number;
 }
 
 export const ENEMY_STATES = [
@@ -73,6 +92,10 @@ export const ENEMY_STATES = [
   "getup",
   "dead",
   "enter",
+  "walk",
+  "windup",
+  "attack",
+  "recover",
 ] as const;
 export type EnemyState = (typeof ENEMY_STATES)[number];
 
@@ -93,8 +116,13 @@ export interface Enemy {
   /** Hit-stop: the enemy holds still on every step up to and including this one. */
   stopUntil: number;
   tier: Tier;
-  /** The x an `enter`ing enemy walks to, on screen; where it stood when it last arrived otherwise. */
+  /** The x an `enter`ing or a walking enemy walks to, on screen, and the depth a walking one does. */
   goal: number;
+  goalY: number;
+  /** The id of the hero it is going for, or 0 while it hovers or has no one. */
+  target: number;
+  /** An idle enemy decides what to do next on this step. */
+  thinkAt: number;
 }
 
 export const FX_KINDS = ["hit", "heavy", "ko"] as const;
@@ -186,6 +214,11 @@ export function createWorld(options: {
       struck: [],
       damage: 0,
       knockdowns: 0,
+      hp: HERO_HP[entry.kind],
+      lives: LIVES,
+      invulnUntil: 0,
+      stagger: 0,
+      staggerUntil: 0,
     };
   });
   return {
@@ -249,20 +282,70 @@ export function newEnemy(
     stopUntil: 0,
     tier,
     goal: x,
+    goalY: y,
+    target: 0,
+    thinkAt: world.step + RAVAGER[tier].think,
   };
 }
 
-/** Turns an enemy toward the hero nearest it along the road plus in depth (the first in id order on a tie). */
+/** A hero on the field, whom enemies go for: not lying fallen, dropping back in or out. */
+export const present = (hero: Hero): boolean =>
+  hero.state !== "dead" && hero.state !== "respawn" && hero.state !== "out";
+
+/**
+ * Every hero is out of lives: the run is lost, unless the party continues. The last to fall lies `RESPAWN_DELAY`
+ * steps before it is out, so the run is lost a beat after the fall rather than at it.
+ */
+export const defeated = (world: World): boolean =>
+  world.heroes.length > 0 && world.heroes.every((hero) => hero.state === "out");
+
+/** How far apart two figures are, along the road plus in depth. */
+export const distance = (a: Enemy | Hero, b: Enemy | Hero): number =>
+  Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+/** The hero on the field nearest an enemy (the first in id order on a tie), if any is. */
+export function nearestHero(world: World, enemy: Enemy): Hero | undefined {
+  let nearest: Hero | undefined;
+  for (const hero of world.heroes)
+    if (
+      present(hero) &&
+      (!nearest || distance(hero, enemy) < distance(nearest, enemy))
+    )
+      nearest = hero;
+  return nearest;
+}
+
+/** Turns an enemy toward `x`; one straight above or below it in depth keeps its facing. */
+export function face(enemy: Enemy, x: number): void {
+  if (x !== enemy.x) enemy.facing = x > enemy.x ? 1 : -1;
+}
+
+/** Turns an enemy toward the nearest hero on the field. */
 export function faceNearest(world: World, enemy: Enemy): void {
-  let nearest: Hero | undefined,
-    best = Infinity;
-  for (const hero of world.heroes) {
-    const distance = Math.abs(hero.x - enemy.x) + Math.abs(hero.y - enemy.y);
-    if (distance < best) [nearest, best] = [hero, distance];
-  }
-  // One straight above or below it in depth keeps its facing.
-  if (nearest && nearest.x !== enemy.x)
-    enemy.facing = nearest.x > enemy.x ? 1 : -1;
+  const nearest = nearestHero(world, enemy);
+  if (nearest) face(enemy, nearest.x);
+}
+
+/** Puts a figure in `state` from its first step; staying in the state it is in changes nothing. */
+export function setState<S extends string>(
+  entity: { state: S; timer: number },
+  state: S,
+): void {
+  if (entity.state === state) return;
+  entity.state = state;
+  entity.timer = 0;
+}
+
+/** A hit spark born now at the impact point; the world keeps only the newest `FX_MAX`. */
+export function spark(
+  world: World,
+  kind: FxKind,
+  x: number,
+  y: number,
+  z: number,
+): void {
+  world.fx.push({ kind, x, y, z, born: world.step });
+  if (world.fx.length > FX_MAX) world.fx.shift();
 }
 
 /**

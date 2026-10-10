@@ -7,8 +7,10 @@ import {
   JUMP_VZ,
   STAGE_LENGTH,
   SUB,
+  RAVAGER,
   type HeroKind,
   type Swing,
+  type Tier,
 } from "./tuning.js";
 
 /** The engine constants the renderer may read, in whole pixels where they are distances. */
@@ -28,6 +30,14 @@ export {
   GETUP_STEPS,
   DEAD_STEPS,
   FX_LIFE,
+  HERO_HP,
+  LIVES,
+  HERO_HURT_STEPS,
+  HERO_DOWN_STEPS,
+  GETUP_GRACE,
+  RESPAWN_DELAY,
+  ATTACK_STEPS,
+  RECOVER_STEPS,
 } from "./tuning.js";
 export { ENEMY_STATES, FX_KINDS, HERO_STATES } from "./world.js";
 
@@ -66,3 +76,10 @@ export const SWING_STEPS: Readonly<Record<HeroKind, Swings>> = {
  * moves it by the launch speed less `n` pulls of gravity, so it climbs while that is above zero.
  */
 export const JUMP_RISE_STEPS = Math.ceil(JUMP_VZ / GRAVITY);
+
+/** Each tier's wind-up in steps (ash, rust, violet): the mace lands on the step after the last. */
+export const WINDUP_STEPS: Readonly<Record<Tier, number>> = {
+  0: RAVAGER[0].windup,
+  1: RAVAGER[1].windup,
+  2: RAVAGER[2].windup,
+};
