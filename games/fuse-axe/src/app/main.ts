@@ -215,14 +215,13 @@ function room(solo: boolean): void {
   lobby.append(lobbyMain, lobbySide);
   start.onclick = () => runtime.command({ type: "action", action: "start" });
 
-  // The game: the native frame, scaled by whole numbers and letterboxed, with the party under it.
+  // The game: the native frame, scaled by whole numbers and letterboxed; its HUD names the party.
   const stage = el("section", "", "fa-stage"),
     screen = el("div", "", "fa-screen"),
     canvas = el("canvas", "", "fa-canvas"),
-    party = el("ul", "", "fa-party"),
     note = el("p", "", "fa-note");
   screen.append(canvas);
-  stage.append(screen, party, note);
+  stage.append(screen, note);
 
   // Until the first frame nothing of the room shows, so a room that turns out not to exist never offers its controls.
   const connecting = el("p", "Connecting to the room…", "fa-connecting"),
@@ -284,7 +283,7 @@ function room(solo: boolean): void {
     if (over) return;
     const world = stage.hidden ? null : drawn(runtime.frameTiming());
     if (world) {
-      scene.draw(native, world, Math.floor((now * 60) / 1000));
+      scene.draw(native, world, Math.floor((now * 60) / 1000), model?.hud);
       // Resizing the canvas resets its context, smoothing included.
       g.imageSmoothingEnabled = false;
       g.drawImage(pixels, 0, 0, canvas.width, canvas.height);
@@ -328,22 +327,6 @@ function room(solo: boolean): void {
     for (const line of [lobbyNote, note]) {
       setText(line, next.note);
       line.hidden = !next.note;
-    }
-    const members = JSON.stringify(next.members);
-    if (party.dataset.members !== members) {
-      party.dataset.members = members;
-      party.replaceChildren(
-        ...next.members.map((member) => {
-          const item = el("li", "", member.you ? "you" : "");
-          item.style.setProperty("--c", member.color);
-          item.append(
-            el("b", member.tag),
-            el("span", member.name),
-            el("small", member.hero ? HEROES[member.hero].name : ""),
-          );
-          return item;
-        }),
-      );
     }
   };
 

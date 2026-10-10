@@ -1,6 +1,7 @@
-import { VIEW_H, VIEW_W } from "../engine/view-kit.js";
+import { CAPACITY, VIEW_H, VIEW_W } from "../engine/view-kit.js";
 import type { HeroKind } from "../engine/index.js";
 import { picksApply, type View } from "../online/game.js";
+import type { HudSeats } from "../render/hud.js";
 import { SEAT_COLORS } from "../render/seat-colors.js";
 
 /**
@@ -56,6 +57,8 @@ export interface Model {
   /** The host may take the room back to the lobby (and the hero picker) from a run. */
   canReturn: boolean;
   note: string;
+  /** What the game's HUD names: each seat's player by slot, and this device's seat. */
+  hud: HudSeats;
 }
 
 export function present(view: View, viewer: Viewer): Model {
@@ -109,6 +112,13 @@ export function present(view: View, viewer: Viewer): Model {
     canStart: seats.length > 0,
     canReturn: viewer.host && !viewer.display && screen === "play",
     note,
+    hud: {
+      names: Array.from(
+        { length: CAPACITY },
+        (_, slot) => seats.find((seat) => seat.slot === slot)?.name ?? null,
+      ),
+      you: seated ? mine.slot : null,
+    },
   };
 }
 
