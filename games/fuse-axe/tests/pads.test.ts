@@ -20,9 +20,9 @@ import {
   MAGIC,
   RIGHT,
   UP,
-  pressed,
-  released,
-} from "../src/engine/input.js";
+  createWorld,
+  step,
+} from "../src/engine/index.js";
 
 /** A d-pad's element: 200 × 200 CSS px at (100, 50), so its centre is (200, 150) and its radius 100. */
 class FakeSurface implements PadSurface {
@@ -158,22 +158,17 @@ test("a double tap of the d-pad, lifted or slid through the centre, is the press
     if (how === "lifted") surface.fire("pointerdown", 2, 75, 10);
     else surface.fire("pointermove", 1, 75, 10);
     assert.deepEqual(sent, [RIGHT, 0, RIGHT], how);
-    // What the engine derives from the held bits step by step: Right pressed, let go, pressed again.
-    let previous = 0;
-    const edges = sent.map((held) => {
-      const edge = [pressed(held, previous), released(held, previous)];
-      previous = held;
-      return edge;
-    });
-    assert.deepEqual(
-      edges,
-      [
-        [RIGHT, 0],
-        [0, RIGHT],
-        [RIGHT, 0],
-      ],
-      how,
-    );
+    // The engine, fed each change for a log tick (three steps), runs the hero right; a single tap walks.
+    const played = (changes: readonly number[]) =>
+      changes
+        .flatMap((bits) => [bits, bits, bits])
+        .reduce(
+          (world, bits) => step(world, [bits]),
+          createWorld({ seed: 1, heroes: [{ seat: 0, kind: "brakka" }] }),
+        ).heroes[0]!.state;
+    assert.equal(played(sent), "run", how);
+    assert.equal(played([RIGHT, 0, 0]), "idle", how);
+    assert.equal(played([RIGHT, RIGHT, RIGHT]), "walk", how);
   }
 });
 

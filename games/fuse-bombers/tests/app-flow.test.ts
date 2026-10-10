@@ -230,6 +230,9 @@ test("a gamepad-only group joins, starts with Start and pauses and resumes with 
   assert.equal(flow.screen.kind, "countdown");
   frame([pad(0), pad(1)], 4000);
   assert.equal(flow.screen.kind, "playing");
+  const x = flow.view.castles[0]?.x ?? 0;
+  for (let i = 0; i < 30; i++) frame([pad(0, [15]), pad(1)]); // D-pad right
+  assert.ok((flow.view.castles[0]?.x ?? 0) > x + 5, "the held D-pad steers");
   frame([pad(0, [0]), pad(1)]); // a shot never pauses
   assert.equal(flow.paused, false);
   frame([pad(0, [0, 9]), pad(1)]);

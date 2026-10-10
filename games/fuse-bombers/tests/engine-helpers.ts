@@ -2,6 +2,7 @@
 
 import {
   createRound,
+  FIRE,
   gridHash,
   isLoaded,
   step,
@@ -11,6 +12,13 @@ import {
   type Rocket,
 } from "../src/engine/index.js";
 
+/** One tick of an input script: each seat's held bits, or `true` for `FIRE` held (`true` on consecutive ticks holds it). */
+export type Inputs = readonly (number | boolean)[];
+
+/** The held bits `step` takes for one tick of an input script. */
+export const held = (inputs: Inputs): number[] =>
+  inputs.map((b) => (b === true ? FIRE : b === false ? 0 : b));
+
 /** Presses every loaded castle's button: the "fire whenever loaded" script. */
 export function spamInputs(state: RoundState): boolean[] {
   return state.castles.map((c) => isLoaded(c));
@@ -19,14 +27,14 @@ export function spamInputs(state: RoundState): boolean[] {
 /** Runs a round to completion with the given input script (after `setup` changes the fresh round, if given). */
 export function playOut(
   config: RoundConfig,
-  inputs: (state: RoundState) => boolean[] = spamInputs,
+  inputs: (state: RoundState) => Inputs = spamInputs,
   onTick?: (state: RoundState) => void,
   setup?: (state: RoundState) => void,
 ): RoundState {
   const state = createRound(config);
   setup?.(state);
   while (state.result === null && state.tick < state.maxTicks + 10) {
-    step(state, inputs(state));
+    step(state, held(inputs(state)));
     onTick?.(state);
   }
   return state;
@@ -46,6 +54,7 @@ export function fingerprint(state: RoundState): string {
     gates: state.gates.map((g) => [g.id, g.x, g.y, g.multiplier]),
     crates: state.crates.map((k) => [k.id, k.x, k.y, k.card]),
     ghosts: state.ghosts,
+    lastHeld: state.lastHeld,
   });
 }
 
@@ -108,7 +117,7 @@ export function openWorld(state: RoundState): void {
 
 /**
  * Clears the rock and lines the castles up `spacing` px apart across the middle of the world, so neighbours are in
- * range of each other. On the temple the spawn anchors are mostly out of range until gunships fly, so tests of aim
+ * range of each other. On the temple the spawn anchors are mostly out of range until bots fly, so tests of aim
  * set rounds up like this.
  */
 export function lineUp(state: RoundState, spacing = 1200): void {
