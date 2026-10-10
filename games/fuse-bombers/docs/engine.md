@@ -34,6 +34,18 @@ device (`focus`) follows its gunship with a look-ahead and adds the nearest oppo
 exponentially (no overshoot; zoom in log space, out faster than in) with dead zones, and weight-1 points stay
 `keepMargin` world px inside the view (world edge allowing) whatever the easing. `offscreenMarkers` gives off-screen ships an edge arrow; the HUD and arrows stay on the UI camera.
 
+`src/render/round-scene.ts` runs the shared screen this way ([a close fight](images/camera-fight.png),
+[a spread](images/camera-spread.png), [a ghost's edge arrow](images/camera-ghost-arrow.png)): the camera's view is the screen between the fuse and the score bar
+(the world still shows under them), and `src/render/framing.ts` holds the pure parts: `framingPoints` (living gunships
+at weight 1, ghosts at `GHOST_WEIGHT`), `shipMarkers` (edge arrows in the player's colour, smaller the farther the ship,
+a gunship's with a tiny health bar), `skyRect` (the sky behind the world, with a little parallax), `hudScale` (health
+bars, rings and guide dots shrink to 0.6 at the widest zoom, tags half as much) and `minScreenScale` (crates keep 32
+screen px; gate outlines and caps, never the gate's panel, thicken when zoomed out). Effects shake around the camera's
+pose each frame. The gunships and ghosts are `GunshipArt` and `GhostArt` (`src/render/gunship-art.ts`) fed from the
+view, with the engine's geometry: `GUNSHIP_FLIGHT.shape.radius`, `tuning.shieldRadius`, and the launcher drawn on
+`launcherPivot` (`tuning.launcherOffset` above the hull, on a pylon over the envelope) at `tuning.barrelLength`, so the
+drawn barrel ends where the dotted guide starts. A gunship's wreck starts on the frame its `castle-destroyed` arrives.
+
 ## Lifecycle
 
 ```ts
