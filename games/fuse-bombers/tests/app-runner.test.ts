@@ -139,9 +139,17 @@ test("a bots-only round fast-forwards once the humans are out, unless a human gh
       id === null ? null : createBotPlayer("hard", id, id),
     ),
     input: { takePresses: () => [press] },
+    // Castles hover out of each other's reach until they fly, so steady sudden-death bombs knock them out; with
+    // this seed the human's castle falls first and the bots play on.
+    tuning: {
+      fuseTime: 1,
+      castleHp: [0, 0, 60, 60, 60, 60, 60],
+      bombIntervalStart: 0.3,
+      bombIntervalMin: 0.3,
+      damageRampTime: 1e6,
+    },
   });
   const round = runner.view;
-  // The idle human never presses, so the bots knock its castle out sooner or later.
   for (let i = 0; i < 60 * 180 && round.castles[0]?.alive; i++) {
     runner.advance(STEP_MS);
     assert.equal(runner.speed, 1, "1× while the human's castle stands");
