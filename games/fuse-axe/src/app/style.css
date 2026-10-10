@@ -240,39 +240,6 @@ body {
   image-rendering: pixelated;
 }
 
-.fa-party {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font: 9px var(--fui-font-pixel, monospace);
-}
-
-.fa-party li {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 6px 10px;
-  border: 1px solid var(--c);
-  border-radius: 6px;
-  background: var(--fa-panel);
-}
-
-.fa-party b {
-  color: var(--c);
-}
-
-.fa-party small {
-  color: var(--fa-gold);
-}
-
-.fa-party li.you {
-  box-shadow: 0 0 12px color-mix(in srgb, var(--c) 60%, transparent);
-}
-
 .fa-note {
   margin: 0;
   text-align: center;

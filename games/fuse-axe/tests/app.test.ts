@@ -175,6 +175,15 @@ test("in a run: the game for every page, keys for a hero in the world, notes for
   assert.equal(over.note, "The run is over");
 });
 
+test("the HUD names each seat's player by slot, watchers left out, and knows this device's seat", () => {
+  const running = frame("running");
+  const names = ["A", "B", null, null, null];
+  assert.deepEqual(present(running, host).hud, { names, you: 0 });
+  assert.deepEqual(present(running, guest).hud, { names, you: 1 });
+  assert.deepEqual(present(running, tv).hud, { names, you: null });
+  assert.equal(present(running, { ...guest, me: "w" }).hud.you, null);
+});
+
 test("the screen scales by the largest whole number that fits, never below 1", () => {
   assert.equal(pixelScale(1920, 1080), 6);
   assert.equal(pixelScale(1280, 720), 4);
