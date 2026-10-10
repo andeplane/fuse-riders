@@ -71,6 +71,9 @@ export type PickEntry = [
   hero: HeroKind,
 ];
 export type Entry = ManagementEntry<Settings> | PlayEntry | PickEntry;
+/** Whether the fold applies `PICK` entries in `stage`: in the lobby and once the run is over, never in a run or camp. */
+export const picksApply = (stage: Stage): boolean =>
+  stage === "lobby" || stage === "over";
 
 export const MAX_WATCHERS = 5;
 /** A run's stages, in order: Ashen Village only, so far. The stage flow (camp, then the next stage) raises it. */
@@ -286,7 +289,7 @@ export function foldTick(
   applyManagementTick(room, tick, creatorId, streams, lifecycle);
   if (room.stage === "running")
     room.world = playTick(room, room.world!, streams, tick);
-  else if (room.stage === "lobby" || room.stage === "over")
+  else if (picksApply(room.stage))
     // Each pick touches only its own seat, so the seats need no order.
     for (const seat of room.seats.values())
       if (!seat.watcher && !seat.bot && seat.connected)
