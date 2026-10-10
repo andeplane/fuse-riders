@@ -23,6 +23,7 @@ import {
   hash,
   isEntry,
   maxRounds,
+  roundSeed,
   view,
   type Entry,
   type Room,
@@ -93,13 +94,17 @@ test("entries: play carries direction bits, a press its ordinal and step; bad fi
     assert.ok(!isEntry(bad), JSON.stringify(bad));
   assert.equal(game.ordinal!([1, 5, PRESS, "m1", 1, 7, 2]), 7);
   assert.equal(game.ordinal!([1, 5, PLAY, "m1", 1, UP]), undefined);
+  assert.equal(
+    game.seating.seatName(" Ace\u{1F680} Ace Ace Ace Ace "),
+    "Ace🚀 Ace Ace Ace A",
+  );
 });
 
 test("start seats riders and bots, counts down, then held directions fly; stale or absent controls do nothing", () => {
   const room = started({ ...SETUP, difficulty: "hard" });
   assert.deepEqual([room.stage, room.ships], ["running", ["a", "b", "bot:1"]]);
   assert.deepEqual(room.world!.config, {
-    seed: room.world!.config.seed,
+    seed: roundSeed("m1", 1),
     playerCount: 3,
     bots: [{ id: 2, difficulty: "hard" }],
   });
@@ -110,6 +115,14 @@ test("start seats riders and bots, counts down, then held directions fly; stale 
   fold(room);
   assert.equal(room.world!.tick, 3);
   assert.ok(room.world!.castles[1]!.vy < 0, "b climbs on held UP");
+  fold(room, {
+    a: [
+      [PLAY, "m1", 1, UP],
+      [PLAY, "m1", 1, 0],
+    ],
+  });
+  assert.ok(room.world!.castles[0]!.vy < 0, "a tap inside one tick climbs");
+  assert.equal(room.held.a, undefined, "and holds nothing after");
   fold(room, { b: [[PLAY, "m0", 1, 0]] });
   fold(room, { b: [[PLAY, "m1", 2, 0]] });
   assert.equal(room.held.b, UP, "another match's or round's entry");
@@ -117,7 +130,7 @@ test("start seats riders and bots, counts down, then held directions fly; stale 
   assert.equal(room.held.b, undefined, "an absent seat holds nothing");
 });
 
-test("a press shorter than a log tick fires once, on the step it names; held fire fires nothing more", () => {
+test("a press shorter than a log tick fires once, on the step it names, and only in its match and round", () => {
   const room = started();
   toFlight(room);
   run(room, 30); // loaded
@@ -131,8 +144,11 @@ test("a press shorter than a log tick fires once, on the step it names; held fir
     );
     let later = 0;
     for (let i = 0; i < 80; i++) later += fired(fold(copy), 0).length;
-    assert.equal(later, 0, "no press, no shot, however long fire is held");
+    assert.equal(later, 0, "no press, no shot: FIRE is never held");
   }
+  const stale = [PRESS, "m0", 1, 1, 0],
+    later = [PRESS, "m1", 2, 2, 0];
+  assert.deepEqual(fired(fold(room, { a: [stale, later] }), 0), []);
   // A gesture repeated, or an older one after a newer, in the same tick folds once: FIRE only on its first step.
   for (const [first, second, last] of [
     [5, 5, 0],
@@ -178,13 +194,10 @@ test("a round is decided, plays its aftermath and scoreboard, and crowns decide 
 test("a match of nothing but draws ends at its round limit with no winner", () => {
   const quick = { ...SETUP, wins: 1 },
     room = started(quick);
-  while (room.stage !== "over") {
+  while (room.stage !== "over" && room.round <= maxRounds(quick)) {
     toFlight(room);
     knockOut(room, "nobody");
-    run(
-      room,
-      OUTRO_TICKS + 1 + (room.round < maxRounds(quick) ? BETWEEN_TICKS : 0),
-    );
+    run(room, OUTRO_TICKS + 1 + BETWEEN_TICKS); // an "over" room only waits
   }
   assert.equal(room.winner, "");
   assert.equal(room.results.length, maxRounds(quick));
@@ -283,7 +296,7 @@ test("every replica folds the same round, however late, duplicated or reordered 
   const send = (world: ReturnType<typeof replica>, batch: Entry[]) => {
     const [last, through] = batch.at(-1)!;
     const sent = world.receive("b", batch, last, through, world.tick);
-    assert.notEqual(sent.status, "invalid");
+    assert.equal(sent.status, "accepted");
   };
   const batches: Entry[][] = [];
   for (let i = 0; i < entries.length; i += 6)
@@ -298,9 +311,9 @@ test("every replica folds the same round, however late, duplicated or reordered 
     late.advance(entry[1] + 15);
     send(late, [entry]);
   }
-  // Every packet twice, each pair of batches in reverse order: the later waits behind the gap the earlier fills.
+  // Each pair of batches reversed and twice: the earlier as if dropped and resent once the replica predicted past it.
   for (let i = 0; i < batches.length; i += 2) {
-    shuffled.advance(batches[i]![0]![1] - 1);
+    shuffled.advance(batches[i]![0]![1] + 10);
     const pair = [batches[i + 1], batches[i]].filter((b) => b !== undefined);
     for (const batch of [...pair, ...pair]) send(shuffled, batch);
   }
@@ -309,7 +322,7 @@ test("every replica folds the same round, however late, duplicated or reordered 
     world.advance(900);
     assert.equal(world.tick, 900);
   }
-  assert.ok(late.rollbacks > 0, "the late replica rolled back");
+  assert.ok(late.rollbacks * shuffled.rollbacks > 0, "both rolled back");
   assert.equal(hash(late.state), hash(whole.state));
   assert.equal(hash(shuffled.state), hash(whole.state));
   assert.ok(whole.state.world!.castles[1]!.stats.volleys > 0, "b fired");
