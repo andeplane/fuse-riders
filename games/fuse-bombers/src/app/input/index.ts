@@ -12,4 +12,4 @@ export {
   type BrowserInput,
   type TouchZoneStyle,
 } from "./browser.js";
-export { KEY_BINDINGS } from "./keyboard.js";
+export { KEY_BINDINGS, fireKeyLabel } from "./keyboard.js";
