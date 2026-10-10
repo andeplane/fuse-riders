@@ -97,7 +97,7 @@ export interface Hero {
   tapUntil: number;
   /** Steps a double tap stays usable (0: none waiting): a free hero starts its run toward `tap`. */
   runBuf: number;
-  /** Tally for the HUD: enemies thrown. */
+  /** Enemies thrown: a count for a tally to show once one wants it. The stage's bank takes only damage and knockdowns. */
   throws: number;
 }
 

@@ -59,7 +59,8 @@ higher levels, and never hurts other heroes.
   Neither press waits for the other, so a lone Attack slashes and a lone Jump leaves the floor on the step it is
   pressed: the second press, within `BACK_WINDOW` (one log tick) of the first, turns the slash still winding up, or
   the jump still leaving the floor, into the back attack. Both waiting as a busy hero comes free count if pressed
-  within the window of each other. The back attack keeps the hero's facing and never comes from a run: there Attack
+  within the window of each other. The back attack keeps the hero's facing (which a direction held on the step it
+  begins has already turned, as for every move) and never comes from a run: there Attack
   dashes, and Attack in a running jump is the jump attack. Frame data is `BACK_ATTACK`, `JUMP_ATTACK` and the grab
   and throw constants in `src/engine/tuning.ts`.
 - Heroes do not hurt each other.
