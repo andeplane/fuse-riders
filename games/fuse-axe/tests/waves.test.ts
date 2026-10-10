@@ -22,6 +22,7 @@ import {
   type WorldView,
 } from "../src/engine/index.js";
 import * as T from "../src/engine/tuning.js";
+import { inView } from "../src/engine/world.js";
 
 const { px, SUB } = T;
 const SCREEN = T.VIEW_W * SUB;
@@ -345,6 +346,31 @@ test("a wave's next spawn waits while the world holds the most enemies", () => {
     [world.spawned, world.enemies.length, enemy(world, T.ENEMY_MAX - 1).state],
     [1, T.ENEMY_MAX, "enter"],
   );
+});
+
+test("the last wave enters from beyond the stage's end, walks in to its goal, and its checkpoint is accepted", () => {
+  // Five heroes: the most spawns, the right-hand ones standing past the road's end when they begin.
+  let world = party(5);
+  for (const _ of WAVES.slice(0, -1))
+    world = step(rout(allIn(toWave(world))), []);
+  world = toWave(world);
+  assert.deepEqual([world.wave, world.camX], [WAVES.length, T.CAMERA_END]);
+  const beyond = world.enemies.filter((e) => e.x > T.STAGE_LENGTH);
+  assert.ok(beyond.length >= 2);
+  assert.ok(beyond.every((e) => e.state === "enter"));
+  for (const checked of [world, run(world, 5)]) {
+    const back = decodeWorld(structuredClone(encodeWorld(checked)));
+    assert.deepEqual(back, checked);
+  }
+  // Every spawn walks the whole way in and stands inside the stage's end, so the wave can be fought and cleared.
+  const settled = until(
+    allIn(world),
+    (w) => w.enemies.every((e) => e.state === "idle"),
+    [],
+  );
+  assert.equal(settled.enemies.length, 10);
+  assert.ok(settled.enemies.every((e) => inView(settled, e)));
+  assert.ok(settled.enemies.every((e) => e.x <= T.STAGE_LENGTH));
 });
 
 test("a world mid-wave, with GO up or with the stage cleared survives the checkpoint and plays on identically", () => {
