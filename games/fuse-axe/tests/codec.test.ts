@@ -17,10 +17,20 @@ import {
   BUFFER_STEPS,
   CAMERA_END,
   ENEMY_MAX,
+  FLOOR_BOTTOM,
+  FLOOR_TOP,
   FX_LIFE,
   FX_MAX,
   HEAVY_HITSTOP,
+  HERO_HP,
+  JUGGLE_HITS,
+  JUGGLE_WINDOW,
+  LIVES,
+  RAVAGER,
+  RESPAWN_INVULN,
   STAGE_LENGTH,
+  TIERS,
+  VIEW_H,
   enemyMaxHp,
   px,
 } from "../src/engine/tuning.js";
@@ -153,13 +163,9 @@ test("a world mid-fight survives the checkpoint whole, and fights on from it ide
     straight = step(straight, mash(straight));
   }
   assert.deepEqual(restored, straight);
-  // Rhea's finisher knocked her ravager down too, and both got up again.
-  assert.deepEqual(
-    straight.heroes.map((hero) => hero.knockdowns),
-    [1, 1],
-  );
-  assert.ok(straight.heroes[1]!.damage > world.heroes[1]!.damage);
-  assert.ok(straight.enemies.every((enemy) => enemy.state === "idle"));
+  // Rhea's finisher knocked her ravager down too, and the fight went on.
+  assert.ok(straight.heroes.every((hero) => hero.knockdowns > 0));
+  assert.ok(straight.heroes.some((h, i) => h.damage > world.heroes[i]!.damage));
 });
 
 test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole", () => {
@@ -186,7 +192,14 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     for (const each of f[5] as unknown[][]) each[16] = [];
   };
   const firstEnemy = enemy(good)[0] as number,
-    lastEnemy = enemies(good).at(-1)![0] as number;
+    lastEnemy = enemies(good).at(-1)![0] as number,
+    brakka = HERO_HP.brakka,
+    thinking = Math.max(
+      ...TIERS.map((t) => RAVAGER[t].think + RAVAGER[t].jitter),
+    );
+  /** The first hero in `state` with `hp` and `lives`. */
+  const life = (f: unknown[], state: string, hp: number, lives: number) =>
+    Object.assign(hero(f), { 10: state, 19: hp, 20: lives });
   assert.ok(lastEnemy > firstEnemy && sparks(good).length > 1);
 
   // The edges the rules reach are kept.
@@ -201,6 +214,36 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     ["the most enemies", (f) => crowd(f, ENEMY_MAX)],
     ["the most sparks", (f) => (f[7] = Array(FX_MAX).fill(sparks(f)[0]))],
     ["a spark on its last step", (f) => (sparks(f)[0]![4] = now - FX_LIFE + 1)],
+    ["a hero at full health", (f) => (hero(f)[19] = brakka)],
+    ["a goal at the road's start", (f) => (enemy(f)[13] = 0)],
+    ["a goal at the road's end", (f) => (enemy(f)[13] = STAGE_LENGTH)],
+    ["a depth goal at the floor's far edge", (f) => (enemy(f)[14] = FLOOR_TOP)],
+    [
+      "a depth goal at the floor's near edge",
+      (f) => (enemy(f)[14] = FLOOR_BOTTOM),
+    ],
+    ["a hero flying from the last blow", (f) => life(f, "knockdown", 0, 1)],
+    ["a hero fallen with a life left", (f) => life(f, "dead", 0, 1)],
+    ["a hero fallen on the first life", (f) => life(f, "dead", 0, LIVES - 1)],
+    // Fallen on its last life, it lies `RESPAWN_DELAY` steps before it is out.
+    ["a hero fallen on its last life", (f) => life(f, "dead", 0, 0)],
+    ["a hero out", (f) => life(f, "out", 0, 0)],
+    ["a hero dropping back in", (f) => life(f, "respawn", brakka, 2)],
+    ["a hero dropping in on its last life", (f) => life(f, "respawn", 1, 1)],
+    [
+      "a hero flying from its last life's blow",
+      (f) => life(f, "knockdown", 0, 1),
+    ],
+    ["the longest blink", (f) => (hero(f)[21] = now + RESPAWN_INVULN)],
+    [
+      "a run of hits short of a knockdown",
+      (f) => (
+        (hero(f)[22] = JUGGLE_HITS - 1),
+        (hero(f)[23] = now + JUGGLE_WINDOW)
+      ),
+    ],
+    ["an enemy going for a hero", (f) => (enemy(f)[15] = hero(f, 1)[0])],
+    ["an enemy's longest pause", (f) => (enemy(f)[16] = now + thinking)],
   ] as [string, (fields: unknown[]) => void][])
     assert.ok(broken(change), what);
 
@@ -232,6 +275,20 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
       },
     ],
     ["negative damage", (f) => (hero(f)[17] = -1)],
+    ["a hero past full health", (f) => (hero(f)[19] = brakka + 1)],
+    ["negative hero hp", (f) => (hero(f)[19] = -1)],
+    ["a hero swinging with no hp", (f) => (hero(f)[19] = 0)],
+    ["a fallen hero with hp", (f) => life(f, "dead", 1, 1)],
+    ["a fourth life", (f) => (hero(f)[20] = LIVES + 1)],
+    ["a hero swinging with no life", (f) => (hero(f)[20] = 0)],
+    ["a hero out with a life left", (f) => life(f, "out", 0, 1)],
+    ["a hero fallen with every life", (f) => life(f, "dead", 0, LIVES)],
+    ["a hero dropping in with no life", (f) => life(f, "respawn", brakka, 0)],
+    ["a hero dropping in with no hp", (f) => life(f, "respawn", 0, 2)],
+    ["a hero flying with no life", (f) => life(f, "knockdown", 0, 0)],
+    ["a blink too long", (f) => (hero(f)[21] = now + RESPAWN_INVULN + 1)],
+    ["a run of hits past a knockdown", (f) => (hero(f)[22] = JUGGLE_HITS)],
+    ["a run of hits too long", (f) => (hero(f)[23] = now + JUGGLE_WINDOW + 1)],
     ["a fractional knockdown tally", (f) => (hero(f)[18] = 1.5)],
     ["knockdowns as text", (f) => (hero(f)[18] = "1")],
     ["enemies not a list", (f) => (f[6] = {})],
@@ -253,6 +310,20 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     ["an enemy's goal off the road", (f) => (enemy(f)[13] = -px(400))],
     ["an enemy's goal between sub-units", (f) => (enemy(f)[13] = 0.5)],
     ["negative hp", (f) => (enemy(f)[8] = -1)],
+    [
+      "an enemy's depth goal off the screen",
+      (f) => (enemy(f)[14] = px(VIEW_H) + 1),
+    ],
+    // A walk toward a goal the rules never set would never end.
+    ["a goal behind the road", (f) => (enemy(f)[13] = -1)],
+    ["a goal past the road's end", (f) => (enemy(f)[13] = STAGE_LENGTH + 1)],
+    ["a depth goal above the floor", (f) => (enemy(f)[14] = FLOOR_TOP - 1)],
+    ["a depth goal below the floor", (f) => (enemy(f)[14] = FLOOR_BOTTOM + 1)],
+    ["a depth goal at the top of the screen", (f) => (enemy(f)[14] = 0)],
+    ["an enemy going for an enemy", (f) => (enemy(f)[15] = lastEnemy)],
+    ["an enemy going for an id not issued", (f) => (enemy(f)[15] = nextId)],
+    ["an enemy going for half a hero", (f) => (enemy(f)[15] = 1.5)],
+    ["an enemy's pause too long", (f) => (enemy(f)[16] = now + thinking + 1)],
     ["an unknown enemy state", (f) => (enemy(f)[9] = "sleep")],
     ["a negative enemy timer", (f) => (enemy(f)[10] = -1)],
     [

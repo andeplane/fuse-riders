@@ -6,6 +6,7 @@ import {
   type SwingSteps,
   type Swings,
 } from "../../engine/view-kit.js";
+import type { AnimStrip } from "./ravager.js";
 
 /**
  * Which sprite frame a hero shows: a pure function of its anim, the steps since the anim began and the engine's
@@ -22,11 +23,14 @@ export const HERO_FRAMES = [
 ] as const;
 export type HeroFrame = (typeof HERO_FRAMES)[number];
 
-/** Every anim a hero has or will have; the heroes' `hurt` to `dead` arrive with the enemies' attacks. */
+/**
+ * Every anim a hero has: the walk, jump and swings, and the `hurt` to `dead` a ravager's mace brings; `respawn` drops
+ * back in with the fall frame, and one who is `out` lies as `dead` does.
+ */
 export const HERO_ANIMS = [
   ...["idle", "walk", "jump", "land"],
   ...["attack1", "attack2", "attack3"],
-  ...["hurt", "knockdown", "down", "getup", "dead"],
+  ...["hurt", "knockdown", "down", "getup", "dead", "respawn", "out"],
 ] as const;
 export type FigureAnim = (typeof HERO_ANIMS)[number];
 // The engine's states must all have frames: a new one fails to compile here until it is mapped below.
@@ -109,8 +113,11 @@ export function heroFrame(
       return "hurt";
     case "knockdown":
       return "knockdown";
+    case "respawn":
+      return "fall";
     case "down":
     case "dead":
+    case "out":
       return "down";
     case "getup":
       return "getup";
@@ -118,4 +125,22 @@ export function heroFrame(
       anim satisfies never;
       return "idle0";
   }
+}
+
+/**
+ * The frame an anim strip shows `animStep` steps in: a looping strip wraps, a one-shot holds its last frame for as long
+ * as the anim lasts. Like `heroFrame` it never throws: an odd step is rounded down to a whole one from 0.
+ */
+export function stripFrame<F extends string>(
+  { frames, loop }: AnimStrip<F>,
+  animStep: number,
+): F {
+  const total = frames.reduce((sum, [, steps]) => sum + steps, 0);
+  let step = Number.isFinite(animStep) ? Math.max(0, Math.floor(animStep)) : 0;
+  if (loop && total > 0) step %= total;
+  for (const [frame, steps] of frames) {
+    if (step < steps) return frame;
+    step -= steps;
+  }
+  return frames.at(-1)![0];
 }

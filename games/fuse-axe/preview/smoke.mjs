@@ -51,9 +51,8 @@ const open = async (path) => {
   return page;
 };
 const P1 = [0x2d, 0xe2, 0xff],
-  P2 = [0xff, 0x4f, 0xa3],
-  BLADE = [0xff, 0xe9, 0xa8];
-/** Where a seat's box is on the native 320 × 180 screen, read back from the scaled canvas; null if not drawn. */
+  P2 = [0xff, 0x4f, 0xa3];
+/** Where a seat's marker (the chevron over its hero) is on the native 320 × 180 screen, from the scaled canvas; null if not drawn. */
 const hero = (page, rgb) =>
   page.evaluate((rgb) => {
     const canvas = document.querySelector(".fa-canvas"),
@@ -77,6 +76,46 @@ const hero = (page, rgb) =>
       }
     return left === Infinity ? null : { x: left, y: top, scale };
   }, rgb);
+/**
+ * The white-hot pixels (the glowing yellow and white a swing's smear is drawn in) seen under and around the marker at
+ * `at` over `ms`, reading every animation frame as the blade is out for a few steps only: the most in one frame that
+ * were not in `known`, and every place any showed. The backdrop's fires flicker in the same colours, so a swing is
+ * measured against the places seen while the hero stood still.
+ */
+const hot = (page, at, ms, known = []) =>
+  page.evaluate(
+    ([at, ms, known]) =>
+      new Promise((done) => {
+        const canvas = document.querySelector(".fa-canvas"),
+          g = canvas.getContext("2d"),
+          scale = canvas.width / 320,
+          end = performance.now() + ms,
+          skip = new Set(known),
+          seen = new Set();
+        let most = 0;
+        const read = () => {
+          const { data } = g.getImageData(0, 0, canvas.width, canvas.height);
+          let count = 0;
+          for (let y = at.y; y < Math.min(180, at.y + 64); y++)
+            for (
+              let x = Math.max(0, at.x - 40);
+              x < Math.min(320, at.x + 64);
+              x++
+            ) {
+              const i = (y * scale * canvas.width + x * scale) * 4;
+              const rgb = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
+              if (rgb !== 0xfff6b8 && rgb !== 0xffffff) continue;
+              seen.add(y * 320 + x);
+              if (!skip.has(y * 320 + x)) count++;
+            }
+          most = Math.max(most, count);
+          if (performance.now() < end) requestAnimationFrame(read);
+          else done({ most, seen: [...seen] });
+        };
+        read();
+      }),
+    [at, ms, known],
+  );
 const hold = async (page, key, ms) => {
   await page.keyboard.down(key);
   await page.waitForTimeout(ms);
@@ -131,14 +170,20 @@ try {
   await landing.keyboard.up("KeyK");
   assert.ok(jumped.y < walked.y - 10, `jumped: ${walked.y} → ${jumped.y}`);
   await landing.waitForTimeout(800);
-  // J swings: the placeholder scene draws the blade while the swing lasts.
+  // J swings: the blade's white-hot smear sweeps round the hero while the swing lasts.
+  const standing = await hero(landing, P1);
+  const calm = await hot(landing, standing, 400);
   await landing.keyboard.down("KeyJ");
-  await landing.waitForTimeout(100);
-  assert.ok(await hero(landing, BLADE), "Attack swings a blade");
+  const swung = await hot(landing, standing, 400, calm.seen);
+  // The smallest strike frame has 27 of them; a few more than a stray spark or a late flicker.
+  assert.ok(
+    swung.most >= 15,
+    `Attack swings a blade: ${swung.most} new white-hot pixels, ${calm.seen.length} while standing`,
+  );
   await snap(landing, "solo-play");
   await landing.keyboard.up("KeyJ");
   console.log(
-    `solo: Rhea walked ${walked.x - before.x}px and jumped ${walked.y - jumped.y}px at ${before.scale}×`,
+    `solo: Rhea walked ${walked.x - before.x}px, jumped ${walked.y - jumped.y}px and swung ${swung.most} white-hot pixels at ${before.scale}×`,
   );
   await landing.context().close();
 
