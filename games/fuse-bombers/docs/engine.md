@@ -164,6 +164,27 @@ castles on one difficulty (20 seeds, 2–6 players): hard 31–60 s, normal 42�
 need sudden death); none needed the 180 s hard stop. `predictTrajectory` costs ~70 µs, so five hard bots cost ~0.2 ms
 per tick on average (p99 0.7 ms).
 
+## Flight kernel (sky overhaul, not wired into the round yet)
+
+For the flying gunships of the sky overhaul ([design.md](design.md)). Not exported from `index.ts` until the round uses
+it.
+
+- `src/engine/input.ts`: held bits `UP 1, DOWN 2, LEFT 4, RIGHT 8, FIRE 16`, `INPUT_MASK`, `isInput(value)` (runtime
+  check for input crossing a boundary) and `thrustDirection(bits)` (opposites cancel, diagonals normalised to unit
+  length).
+- `src/engine/flight.ts`: `flyStep(body, bits, tuning, world)` advances one `{ x, y, vx, vy }` by one `DT` in place:
+  thrust, linear drag (stronger `brakeDrag` when nothing is held, a dead stop below `stopSpeed`), a `topSpeed` cap, no
+  gravity. `world` is `{ width, height, solidAt(x, y) }`. The body is a circle that slides along rock and the world edge
+  and bounces off it (`bounce`, below `bounceMinSpeed` it just stops); moves are sub-stepped at `MAX_SUBSTEP` = 2 px and
+  rock is probed on a ring about a pixel wider than the circle, so the circle never overlaps a 4 px cell and never
+  tunnels through one. A body that starts a step buried (a bad spawn) is moved to the nearest clear spot within its
+  radius, or flies through rock until it is clear. `separate(bodies, radius, world)` parts overlapping gunships
+  symmetrically in index order and removes their approach velocity, never pushing one into rock. Ghosts use
+  `GHOST_FLIGHT` in `openSky(width, height)`.
+- `GUNSHIP_FLIGHT` (thrust 400 px/s², top speed 200 px/s, drag 1.6/s, brake drag 2.4/s): half speed in 0.33 s, top
+  speed in 1.07 s, a full reversal at top speed in 1.45 s, coasting to rest in 1.6 s. `GHOST_FLIGHT` is lighter and
+  faster (top speed 260 px/s in 0.78 s). Six gunships cost about 30 µs a step.
+
 ## Rules as implemented (defaults in `DEFAULT_TUNING`)
 
 - **Terrain**: height map with rolling hills, a tall peak between each neighbouring pair of castles (and extra hills in
