@@ -30,14 +30,42 @@ export const KEY_HELP: readonly (readonly [string, string])[] = [
   ["L / C", "Magic"],
 ];
 
+/** The parts of a keyboard event the controls read. */
+export interface KeyPress {
+  readonly code: string;
+  readonly metaKey: boolean;
+  readonly ctrlKey: boolean;
+  readonly altKey: boolean;
+}
+
 export class HeldControls {
   private readonly keys = new Set<string>();
+  /** The keys whose keydown was ours, so their keyup is ours to cancel too. */
+  private readonly captured = new Set<string>();
   private readonly sources = new Map<string, number>();
   private last = 0;
+  private closed = false;
   constructor(private readonly changed: (bits: number) => void) {}
+  /**
+   * A keydown. True if the page should cancel it (arrows must not scroll): it is one of ours, in no shortcut and not
+   * typed into a field. Cmd lets go of everything held first, since the browser sends no keyup for a key released
+   * while Cmd is down and the hero would walk on.
+   */
+  down(event: KeyPress, typing: boolean): boolean {
+    if (event.metaKey) this.clear();
+    if (typing || event.metaKey || event.ctrlKey || event.altKey) return false;
+    if (!this.press(event.code)) return false;
+    this.captured.add(event.code);
+    return true;
+  }
+  /** A keyup, from anywhere. True if its keydown was ours, so the page cancels it too. */
+  up(code: string): boolean {
+    this.release(code);
+    return this.captured.delete(code);
+  }
   /** A key went down; true if it is one of ours. */
   press(code: string): boolean {
-    if (!(code in KEYS)) return false;
+    if (this.closed || !(code in KEYS)) return false;
     this.keys.add(code);
     this.emit();
     return true;
@@ -50,6 +78,7 @@ export class HeldControls {
   }
   /** A named source (a touch pad, a gamepad) holds `bits`, or 0 to let go. */
   hold(source: string, bits: number): void {
+    if (this.closed) return;
     if (bits) this.sources.set(source, bits);
     else this.sources.delete(source);
     this.emit();
@@ -57,8 +86,14 @@ export class HeldControls {
   /** Lets go of everything: blur, a hidden page, leaving the run. */
   clear(): void {
     this.keys.clear();
+    this.captured.clear();
     this.sources.clear();
     this.emit();
+  }
+  /** The room is over: lets go of everything and takes no more, so nothing is logged to a room that has ended. */
+  close(): void {
+    this.clear();
+    this.closed = true;
   }
   get bits(): number {
     let bits = 0;

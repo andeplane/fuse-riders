@@ -31,6 +31,8 @@ import { DEFAULT_HERO, isHero, seatName } from "../online/names.js";
 import { AxeRuntime, type AxeCallbacks } from "../online/runtime.js";
 import { draw } from "../render/debug-scene.js";
 import { HeldControls, KEY_HELP } from "./controls.js";
+import { PendingPick, SoloOpening } from "./flow.js";
+import { drawn } from "./interpolate.js";
 import {
   HEROES,
   pixelScale,
@@ -184,8 +186,9 @@ function room(solo: boolean): void {
     art: badge,
     onPick(hero) {
       store.setItem(names.hero, hero);
-      // Seated, the room decides: the next frame shows the seat's hero, whether or not this pick landed.
-      if (model?.seated) runtime.pick(hero);
+      // Seated, the room decides: the pick shows until the seat's hero answers, then the seat's hero shows, whether
+      // or not this pick landed.
+      if (model?.seated && runtime.pick(hero)) pending.pick(hero, tick);
     },
   });
   if (!solo)
@@ -241,6 +244,9 @@ function room(solo: boolean): void {
     part.hidden = true;
   let over = false;
   let model: Model | undefined;
+  // The log tick of the newest frame, and the hero this device has picked that the seat has not yet answered.
+  let tick = 0;
+  const pending = new PendingPick();
 
   // ---- drawing ----
   const pixels = el("canvas");
@@ -249,9 +255,12 @@ function room(solo: boolean): void {
   const native = pixels.getContext("2d")!,
     g = canvas.getContext("2d")!;
   const fit = () => {
-    const box = screen.getBoundingClientRect(),
-      ratio = window.devicePixelRatio || 1,
-      scale = pixelScale(box.width * ratio, box.height * ratio);
+    // The screen's own area (a border is not drawable), in device pixels.
+    const ratio = window.devicePixelRatio || 1,
+      scale = pixelScale(
+        screen.clientWidth * ratio,
+        screen.clientHeight * ratio,
+      );
     canvas.width = VIEW_W * scale;
     canvas.height = VIEW_H * scale;
     canvas.style.width = `${canvas.width / ratio}px`;
@@ -259,8 +268,10 @@ function room(solo: boolean): void {
   };
   new ResizeObserver(fit).observe(screen);
   const paint = (now: number) => {
-    const world = runtime.frameTiming()?.newer.world;
-    if (world && !stage.hidden) {
+    // A room that has ended draws nothing more, so its loop ends with it.
+    if (over) return;
+    const world = stage.hidden ? null : drawn(runtime.frameTiming());
+    if (world) {
       draw(native, world, Math.floor((now * 60) / 1000));
       // Resizing the canvas resets its context, smoothing included.
       g.imageSmoothingEnabled = false;
@@ -273,6 +284,7 @@ function room(solo: boolean): void {
   const render = (next: Model, view: View) => {
     if (over) return;
     model = next;
+    tick = view.logTick;
     connecting.hidden = true;
     main.dataset.screen = next.screen;
     main.dataset.stage = view.stage;
@@ -291,8 +303,10 @@ function room(solo: boolean): void {
         avatar: member.hero ?? undefined,
       })),
     );
-    // A seat shows the hero the room gave it; before a seat, the one this browser will join with.
-    const hero = next.hero ?? storedHero();
+    // A seat shows the hero the room gave it (this device's own pick until the room answers); before a seat, the one
+    // this browser will join with.
+    const hero =
+      pending.shown(next.hero, next.canPick, view.logTick) ?? storedHero();
     picker.sync(hero);
     picker.element.disabled = next.seated && !next.canPick;
     picker.element.hidden = blurb.hidden = display;
@@ -324,24 +338,17 @@ function room(solo: boolean): void {
   // ---- the runtime ----
   const remembered = seatName(store.getItem(names.name) ?? "");
   let joinSent = false,
-    adopted = false,
-    // Solo sets out at once, on the tick it starts at; this page opens on the hero picker instead. It sends the party
-    // back to the lobby once the clock has moved past that tick (an entry at a tick already folded is too late), and
-    // shows nothing until the lobby lands.
-    opening: number | undefined = solo ? -1 : undefined;
+    adopted = false;
+  // Solo sets out at once; this page opens on the hero picker, so its first frames never show (see `SoloOpening`).
+  const opening = solo ? new SoloOpening() : undefined;
   const callbacks: AxeCallbacks = {
     state(frame) {
-      if (opening !== undefined) {
-        if (frame.stage === "running") {
-          if (opening < 0) opening = frame.logTick;
-          else if (frame.logTick > opening)
-            opening = runtime.command({ type: "action", action: "lobby" })
-              ? Infinity
-              : undefined;
-          return;
-        }
-        opening = undefined;
-      }
+      if (
+        opening?.holds(frame, () =>
+          runtime.command({ type: "action", action: "lobby" }),
+        )
+      )
+        return;
       const next = present(frame, viewer);
       if (next.askName && remembered && !joinSent) {
         joinSent = true;
@@ -355,7 +362,8 @@ function room(solo: boolean): void {
       // Solo seats its player as the default hero: the one this browser picked last is picked for it, once.
       if (solo && !adopted && next.canPick) {
         adopted = true;
-        if (next.hero !== storedHero()) runtime.pick(storedHero());
+        if (next.hero !== storedHero() && runtime.pick(storedHero()))
+          pending.pick(storedHero(), frame.logTick);
       }
       render(next, frame);
       runtime.flush();
@@ -377,7 +385,7 @@ function room(solo: boolean): void {
     ended() {
       status.show("Room ended", "error");
       over = true;
-      controls.clear();
+      controls.close();
       for (const part of [connecting, nameEntry.form, lobby, stage, toLobby])
         part.hidden = true;
       closed.hidden = false;
@@ -414,25 +422,19 @@ function room(solo: boolean): void {
     reload: () => location.reload(),
   });
 
-  // Keys: while this device plays a hero, ours are swallowed so arrows never scroll and a focused button never fires;
-  // otherwise a focused button or field keeps its own keys (START and the name form work from the keyboard).
+  // Keys: while this device plays a hero, a focused button does not take ours (they steer the hero, and arrows never
+  // scroll); otherwise a focused button or field keeps its own keys (START and the name form work from the keyboard).
+  // What counts as ours, and what lets go of them, is `HeldControls`'s.
   const controls = new HeldControls((bits) => runtime.input(bits));
   const typing = (target: EventTarget | null) =>
     target instanceof HTMLInputElement ||
     target instanceof HTMLTextAreaElement ||
     (target instanceof HTMLButtonElement && !model?.playing);
-  const captured = new Set<string>();
   document.addEventListener("keydown", (event) => {
-    if (typing(event.target) || event.metaKey || event.ctrlKey || event.altKey)
-      return;
-    if (controls.press(event.code)) {
-      captured.add(event.code);
-      event.preventDefault();
-    }
+    if (controls.down(event, typing(event.target))) event.preventDefault();
   });
   document.addEventListener("keyup", (event) => {
-    controls.release(event.code);
-    if (captured.delete(event.code)) event.preventDefault();
+    if (controls.up(event.code)) event.preventDefault();
   });
   window.addEventListener("blur", () => controls.clear());
   document.addEventListener("visibilitychange", () => {

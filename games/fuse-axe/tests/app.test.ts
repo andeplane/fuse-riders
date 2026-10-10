@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { SeatRecord, Stage } from "fuse-netcode";
-import { HeldControls, KEY_HELP, KEYS } from "../src/app/controls.js";
+import {
+  HeldControls,
+  KEY_HELP,
+  KEYS,
+  type KeyPress,
+} from "../src/app/controls.js";
 import {
   HEROES,
   pixelScale,
@@ -32,6 +37,8 @@ import {
   type Room,
   type View,
 } from "../src/online/game.js";
+import { SEAT_COLORS as SCENE_COLORS } from "../src/render/debug-scene.js";
+import { SEAT_COLORS } from "../src/render/seat-colors.js";
 
 const host: Viewer = { me: "a", host: true, solo: false, display: false };
 const guest: Viewer = { me: "b", host: false, solo: false, display: false };
@@ -175,6 +182,66 @@ test("the screen scales by the largest whole number that fits, never below 1", (
   assert.equal(pixelScale(1279, 900), 3);
   assert.equal(pixelScale(2000, 539), 2);
   assert.equal(pixelScale(100, 50), 1);
+});
+
+test("keys: ours are cancelled, shortcuts and typing are left alone, Cmd lets go, and a closed room takes nothing more", () => {
+  const key = (code: string, mods: Partial<KeyPress> = {}): KeyPress => ({
+    code,
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    ...mods,
+  });
+  const seen: number[] = [];
+  const controls = new HeldControls((bits) => seen.push(bits));
+  assert.equal(controls.down(key("ArrowRight"), false), true);
+  assert.equal(controls.down(key("ArrowRight"), false), true, "key repeat");
+  assert.deepEqual(seen, [RIGHT], "a repeat logs nothing");
+  assert.equal(controls.down(key("KeyQ"), false), false, "not ours");
+  assert.equal(controls.down(key("KeyJ"), true), false, "typed into a field");
+  assert.equal(controls.down(key("KeyK", { ctrlKey: true }), false), false);
+  assert.equal(controls.down(key("KeyK", { altKey: true }), false), false);
+  assert.equal(controls.bits, RIGHT, "a shortcut holds nothing");
+  assert.equal(controls.up("ArrowRight"), true, "its keyup is ours to cancel");
+  assert.equal(controls.up("ArrowRight"), false, "once");
+  assert.equal(controls.up("KeyJ"), false, "a key pressed in a field is not");
+  assert.deepEqual(seen, [RIGHT, 0]);
+  controls.down(key("ArrowLeft"), false);
+  controls.down(key("KeyD"), false);
+  assert.equal(
+    controls.bits,
+    LEFT | RIGHT,
+    "opposite directions are held as both",
+  );
+  controls.down(key("KeyJ"), false);
+  assert.equal(
+    controls.down(key("MetaLeft", { metaKey: true }), false),
+    false,
+    "Cmd is not ours",
+  );
+  assert.equal(
+    controls.bits,
+    0,
+    "the browser sends no keyup under Cmd, so Cmd lets go",
+  );
+  assert.equal(controls.up("KeyJ"), false, "nothing left to cancel");
+  controls.down(key("KeyD"), false);
+  controls.hold("pad", ATTACK);
+  const before = seen.length;
+  controls.close();
+  assert.equal(controls.bits, 0);
+  assert.equal(seen.at(-1), 0, "closing lets go");
+  assert.equal(controls.down(key("KeyD"), false), false);
+  assert.equal(controls.press("KeyD"), false);
+  controls.hold("pad", ATTACK);
+  assert.equal(controls.bits, 0);
+  assert.equal(seen.length, before + 1, "and nothing is logged after it");
+});
+
+test("a seat has one colour, on the page and in the game", () => {
+  const colors = present(frame("lobby"), host).members.map((m) => m.color);
+  assert.deepEqual(colors, SEAT_COLORS.slice(0, 2));
+  assert.equal(SCENE_COLORS, SEAT_COLORS);
 });
 
 test("held controls: arrows or WASD walk, J/Z attack, K/X jump, L/C magic, one change at a time", () => {

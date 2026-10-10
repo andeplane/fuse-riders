@@ -1,6 +1,7 @@
 import { VIEW_H, VIEW_W } from "../engine/view-kit.js";
 import type { HeroKind } from "../engine/index.js";
 import { picksApply, type View } from "../online/game.js";
+import { SEAT_COLORS } from "../render/seat-colors.js";
 
 /**
  * What the page shows, decided from one frame: the lobby (roster, hero picker, start) or the running game, and the
@@ -27,14 +28,6 @@ export const HEROES: Readonly<
   rhea: { name: "RHEA", blurb: "Amazon · longsword · Fire", color: "#ff6a3d" },
   gorm: { name: "GORM", blurb: "Dwarf · battle axe · Earth", color: "#ffc23d" },
 };
-/** Each seat's colour on the page, P1 to P5. */
-export const SEAT_COLORS = [
-  "#2de2ff",
-  "#ff4fa3",
-  "#b6ff4d",
-  "#ffc23d",
-  "#a77bff",
-] as const;
 export const tag = (slot: number): string => `P${slot + 1}`;
 
 export interface Member {
