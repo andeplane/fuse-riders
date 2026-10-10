@@ -26,8 +26,9 @@ export function createBrowserInput(
   options: { forceTouch?: boolean } = {},
 ): BrowserInput {
   const hub = new InputHub();
-  const press = hub.press.bind(hub);
-  hub.addSource(attachKeyboard(win, press));
+  const press = hub.press.bind(hub); // Touch zones are still taps without held bits.
+  const hold = hub.setHeld.bind(hub);
+  hub.addSource(attachKeyboard(win, hold));
   hub.addSource(
     attachGamepads(
       (): readonly (GamepadLike | null)[] => {
@@ -40,7 +41,7 @@ export function createBrowserInput(
           return [];
         }
       },
-      press,
+      hold,
       hub.command.bind(hub),
     ),
   );
