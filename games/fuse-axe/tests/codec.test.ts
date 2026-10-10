@@ -4,7 +4,9 @@ import {
   ATTACK,
   DOWN,
   JUMP,
+  LEFT,
   RIGHT,
+  UP,
   createWorld,
   decodeWorld,
   encodeWorld,
@@ -28,6 +30,8 @@ import {
   LIVES,
   RAVAGER,
   RESPAWN_INVULN,
+  RUN_GAP,
+  RUN_TAP,
   STAGE_LENGTH,
   TIERS,
   VIEW_H,
@@ -197,6 +201,10 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     thinking = Math.max(
       ...TIERS.map((t) => RAVAGER[t].think + RAVAGER[t].jitter),
     );
+  /** The first hero's double tap: its side, the last step it counts and the run waiting. */
+  const tapped = (f: unknown[], tap: number, until: number, buf: number) =>
+    Object.assign(hero(f), { 24: tap, 25: until, 26: buf });
+  const TAP = Math.max(RUN_TAP, RUN_GAP);
   /** The first hero in `state` with `hp` and `lives`. */
   const life = (f: unknown[], state: string, hp: number, lives: number) =>
     Object.assign(hero(f), { 10: state, 19: hp, 20: lives });
@@ -242,6 +250,9 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
         (hero(f)[23] = now + JUGGLE_WINDOW)
       ),
     ],
+    ["a tap just pressed", (f) => tapped(f, LEFT, now + RUN_TAP, 0)],
+    ["a tap waiting for its second", (f) => tapped(f, RIGHT, now + RUN_GAP, 0)],
+    ["a double tap waiting to run", (f) => tapped(f, RIGHT, 0, BUFFER_STEPS)],
     ["an enemy going for a hero", (f) => (enemy(f)[15] = hero(f, 1)[0])],
     ["an enemy's longest pause", (f) => (enemy(f)[16] = now + thinking)],
   ] as [string, (fields: unknown[]) => void][])
@@ -289,6 +300,13 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     ["a blink too long", (f) => (hero(f)[21] = now + RESPAWN_INVULN + 1)],
     ["a run of hits past a knockdown", (f) => (hero(f)[22] = JUGGLE_HITS)],
     ["a run of hits too long", (f) => (hero(f)[23] = now + JUGGLE_WINDOW + 1)],
+    ["a tap of Up", (f) => tapped(f, UP, now, 0)],
+    ["a tap of both sides", (f) => tapped(f, LEFT | RIGHT, now, 0)],
+    ["a tap counting too long", (f) => tapped(f, LEFT, now + TAP + 1, 0)],
+    ["a negative tap step", (f) => tapped(f, LEFT, -1, 0)],
+    ["a run buffered too long", (f) => tapped(f, LEFT, 0, BUFFER_STEPS + 1)],
+    ["a run with no side", (f) => tapped(f, 0, 0, 1)],
+    ["a tap step with no tap", (f) => tapped(f, 0, now, 0)],
     ["a fractional knockdown tally", (f) => (hero(f)[18] = 1.5)],
     ["knockdowns as text", (f) => (hero(f)[18] = "1")],
     ["enemies not a list", (f) => (f[6] = {})],
