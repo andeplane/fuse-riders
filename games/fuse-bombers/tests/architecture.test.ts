@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -11,9 +12,10 @@ import {
 
 /**
  * The engine boundary: `src/engine/` is a deterministic simulation that imports nothing outside itself — no
- * `render/`, no `app/`, no Phaser, no npm or Node packages — and reads no clock or ambient randomness. Rendering and
- * app code import the engine, never the reverse. A new cross-layer import is a design question (which layer owns
- * this?), not an exception to add here. That the game as a whole imports no other game is tests/game-isolation.
+ * `render/`, no `app/`, no Phaser, no npm or Node packages — and computes the same bits on every JS engine, because
+ * an online room replays one input log on different browsers. Rendering and app code import the engine, never the
+ * reverse. A new cross-layer import is a design question (which layer owns this?), not an exception to add here.
+ * That the game as a whole imports no other game is tests/game-isolation.
  */
 
 const game = fileURLToPath(new URL("..", import.meta.url));
@@ -67,33 +69,47 @@ test("the boundary guard rejects render, app and packages and accepts engine-rel
 });
 
 /**
- * What would make a seeded match play differently on a replay: the clock and ambient randomness. Unlike the online
- * games, this one-screen game may use `Math`'s trigonometry, `exp` and `log2`, so only these are refused.
+ * What would make a replay play differently, here or on another browser: the clock, ambient randomness, and the
+ * `Math` functions (`sin`, `atan2`, `hypot`, `exp`, `log2`, `**`, …) whose last bits the language leaves to each
+ * engine. The engine's trigonometry, `exp` and `log2` are `src/engine/det-math.ts`.
  */
-const UNSEEDED = new Set([
-  "Date",
-  "performance",
-  "Math.random",
-  "Math.[dynamic]",
-  "Math extraction",
-]);
-
-test("the engine reads no clock and no unseeded randomness", () => {
-  for (const file of sourceFiles(engineDir))
+test("the engine keeps to deterministic arithmetic: no clock, no Math.random, no library trigonometry", () => {
+  const files = sourceFiles(engineDir);
+  assert.ok(files.some((file) => file.endsWith("det-math.ts")));
+  for (const file of files)
     assert.deepEqual(
-      deterministicViolations(syntax(file)).filter((v) => UNSEEDED.has(v)),
+      deterministicViolations(syntax(file)),
       [],
-      path.relative(game, file),
+      `${path.relative(game, file)}: use src/engine/det-math.ts`,
     );
 });
 
-test("the clock and randomness guard catches every form it refuses", () => {
+test("the guard refuses Math.sin added to an engine file, and every other form it bans", () => {
+  const file = path.join(engineDir, "geometry.ts");
+  const withSin = `${readFileSync(file, "utf8")}\nexport const wobble = (t: number) => Math.sin(t);\n`;
+  assert.deepEqual(deterministicViolations(syntax(file, withSin)), [
+    "Math.sin",
+  ]);
   const found = deterministicViolations(
     syntax(
       "sample.ts",
       `const a = Date.now(); const b = performance.now(); const c = Math.random();
-       const d = Math["ran" + "dom"](); const { random } = Math; const e = Math.sin(1);`,
+       const d = Math["ran" + "dom"](); const { random } = Math; const e = Math.cos(1);
+       const f = Math.atan2(1, 2) + Math.hypot(3, 4) + Math.exp(1) + Math.log2(8) + Math.pow(2, 3) + 2 ** 3;`,
     ),
-  ).filter((v) => UNSEEDED.has(v));
-  assert.deepEqual(found, [...UNSEEDED].sort());
+  );
+  assert.deepEqual(found, [
+    "Date",
+    "Math extraction",
+    "Math.[dynamic]",
+    "Math.atan2",
+    "Math.cos",
+    "Math.exp",
+    "Math.hypot",
+    "Math.log2",
+    "Math.pow",
+    "Math.random",
+    "exponentiation",
+    "performance",
+  ]);
 });
