@@ -176,6 +176,7 @@ const hero = record<Hero>(
     tap: oneOf([0, LEFT, RIGHT]),
     tapUntil: COUNT,
     runBuf: BUFFER,
+    throws: COUNT,
   },
   // A double tap waiting as a run knows its direction, and with no tap no step counts for one.
   (value) =>
@@ -203,6 +204,7 @@ const enemy = record<Enemy>({
   goalY: GOAL_Y,
   target: COUNT,
   thinkAt: COUNT,
+  holder: COUNT,
 });
 
 const fx = record<Fx>({
@@ -242,11 +244,32 @@ function wavesKept(value: World): boolean {
 }
 
 /**
+ * The grabs and throws: every enemy `held` is in the hands of a hero mid-grab, and every hero mid-grab holds exactly
+ * one; a `thrown` one was thrown by a hero in the world; no other enemy has a holder.
+ */
+function holdsKept(value: World): boolean {
+  const heroes = new Map(value.heroes.map((each) => [each.id, each.state])),
+    held = value.enemies.filter((each) => each.state === "held");
+  return (
+    value.enemies.every((each) =>
+      each.state === "held"
+        ? heroes.get(each.holder) === "grab"
+        : each.state === "thrown"
+          ? heroes.has(each.holder)
+          : each.holder === 0,
+    ) &&
+    new Set(held.map((each) => each.holder)).size === held.length &&
+    held.length === value.heroes.filter((each) => each.state === "grab").length
+  );
+}
+
+/**
  * Heroes in id order, which is seat order, and enemies in id order, every id below `nextId` and none both a hero's
  * and an enemy's; the ids a swing has hit are enemy ids too, though the enemy may since be gone, and an enemy goes
  * for a hero in the world or nobody. No enemy has more hit points than its tier's for this party, no hit-stop,
  * invulnerability, run of hits, double tap or idle pause runs past the longest one starting now, the sparks run
- * oldest first, each born no later than now and not yet past its life, and the waves are as `wavesKept` says.
+ * oldest first, each born no later than now and not yet past its life, and the waves and the grabs are as `wavesKept`
+ * and `holdsKept` say.
  */
 const world = record<World>(
   {
@@ -297,7 +320,8 @@ const world = record<World>(
           value.step - each.born < FX_LIFE &&
           (index === 0 || each.born >= value.fx[index - 1]!.born),
       ) &&
-      wavesKept(value)
+      wavesKept(value) &&
+      holdsKept(value)
     );
   },
 );
