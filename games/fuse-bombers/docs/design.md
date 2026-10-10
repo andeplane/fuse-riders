@@ -101,8 +101,8 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
    turning a full circle; render draws the bitmap terrain with the whole map in view. With castles fixed at spread
    anchors few pairs can reach each other, so until step 5 most rounds are decided in sudden death
    ([engine.md](engine.md) has the numbers).
-5. Free flight: held-bit input, the flight kernel wired in, flying ghosts (done, with keyboard clusters and gamepads
-   steering), then bots inside `step` with their memory in the state (next; until then bots fire but do not fly).
+5. Free flight (done): held-bit input, the flight kernel wired in, flying ghosts (with keyboard clusters and gamepads
+   steering), then flying bots inside `step` with their memory in the state (`RoundConfig.bots`, `state.bots`).
    (Until 6 lands, touch riders hover and fire but do not steer.)
 6. Devices and render, in parallel: touch pads and lobby texts; the framing camera and gunship art.
 7. Online game: the checkpoint codec, `RULES` with a golden-hash replay, and the `RollbackGame` with tests for rollback,
