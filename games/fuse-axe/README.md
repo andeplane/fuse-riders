@@ -19,3 +19,4 @@ poses, each joint positions on a small canvas plus a feet anchor; a new frame is
 
 To see every figure's frames at 4× and 1×, with palette swaps, the damage flash and the flip, run `pnpm exec vite`
 and open `/games/fuse-axe/lab/sprites.html`. The lab is dev-only: it is not in the build and not on the portal.
+[`docs/images/sprite-lab.png`](docs/images/sprite-lab.png) is a screenshot of it.
