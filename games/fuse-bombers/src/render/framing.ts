@@ -2,7 +2,7 @@
 // the minimum on-screen size of small things, in plain numbers (no Phaser) so tests run them under Node. Render only:
 // positions in, screen positions out; nothing here feeds the simulation. round-scene.ts wires it to `camera.ts`.
 
-import type { RoundView } from "../engine/index.js";
+import type { CastleView, GhostView } from "../engine/index.js";
 import {
   offscreenMarkers,
   visibleRect,
@@ -22,9 +22,10 @@ export type ShipPoint = CameraPoint & {
 };
 
 /** The shared screen's points: every living gunship, then every ghost. Wrecks are not framed. */
-export function framingPoints(
-  view: Pick<RoundView, "castles" | "ghosts">,
-): ShipPoint[] {
+export function framingPoints(view: {
+  castles: readonly Pick<CastleView, "id" | "x" | "y" | "alive">[];
+  ghosts: readonly Pick<GhostView, "owner" | "x" | "y">[];
+}): ShipPoint[] {
   const ships: ShipPoint[] = [];
   for (const c of view.castles)
     if (c.alive) ships.push({ id: c.id, x: c.x, y: c.y, ghost: false });
@@ -88,8 +89,8 @@ export const SKY = { parallax: 40, grow: 0.12, margin: 24 } as const;
 
 /**
  * Where the screen-filling sky sits in the world (its centre and display size) for a pose on a `screen`: centred on
- * the view, slid against the camera by up to `SKY.parallax` screen px as it pans from one side of the world to the
- * other, and grown by up to `SKY.grow` as it zooms from `zoomMin` to `zoomMax`. It always covers the screen and
+ * the view, slid against the camera up to `SKY.parallax` screen px each way (× the growth) as it pans toward a world
+ * edge, and grown by up to `SKY.grow` as it zooms from `zoomMin` to `zoomMax`. It always covers the screen and
  * `SKY.margin` screen px more each way (a shake's worth).
  */
 export function skyRect(
