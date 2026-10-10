@@ -29,6 +29,9 @@ importers:
       fuse-axe:
         specifier: workspace:*
         version: link:games/fuse-axe
+      fuse-bombers:
+        specifier: workspace:*
+        version: link:games/fuse-bombers
       fuse-choppers:
         specifier: workspace:*
         version: link:games/fuse-choppers
@@ -182,6 +185,15 @@ importers:
 
   games/fuse-bombers:
     dependencies:
+      fuse-netcode:
+        specifier: workspace:*
+        version: link:../../packages/fuse-netcode
+      fuse-network-fe:
+        specifier: workspace:*
+        version: link:../../packages/fuse-network-fe
+      fuse-platform:
+        specifier: workspace:*
+        version: link:../../packages/fuse-platform
       fuse-ui:
         specifier: workspace:*
         version: link:../../packages/fuse-ui
