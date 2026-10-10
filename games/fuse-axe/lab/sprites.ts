@@ -135,9 +135,7 @@ function playOut(spec: string, pace: number) {
 
 const players: ((step: number) => void)[] = [];
 for (const kind of HERO_KINDS) {
-  const art = HEROES[kind];
-  if (!art) continue;
-  const { figure, portrait } = art;
+  const { figure, portrait } = HEROES[kind];
   const sprites = figure.frames.map((frame) => figure.sprite(frame));
   const section = add(main, "section");
   add(section, "h2", `${kind} · palettes, damage flash, flip and portrait`);

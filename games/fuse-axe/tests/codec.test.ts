@@ -25,9 +25,9 @@ import {
   HERO_HP,
   JUGGLE_HITS,
   JUGGLE_WINDOW,
+  LIVES,
   RAVAGER,
-  GETUP_GRACE,
-  GETUP_STEPS,
+  RESPAWN_INVULN,
   STAGE_LENGTH,
   TIERS,
   VIEW_H,
@@ -197,9 +197,9 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     thinking = Math.max(
       ...TIERS.map((t) => RAVAGER[t].think + RAVAGER[t].jitter),
     );
-  /** The first hero in `state` with `hp`. */
-  const life = (f: unknown[], state: string, hp: number) =>
-    Object.assign(hero(f), { 10: state, 19: hp });
+  /** The first hero in `state` with `hp` and `lives`. */
+  const life = (f: unknown[], state: string, hp: number, lives: number) =>
+    Object.assign(hero(f), { 10: state, 19: hp, 20: lives });
   assert.ok(lastEnemy > firstEnemy && sparks(good).length > 1);
 
   // The edges the rules reach are kept.
@@ -222,17 +222,24 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
       "a depth goal at the floor's near edge",
       (f) => (enemy(f)[14] = FLOOR_BOTTOM),
     ],
-    ["a hero flying from the last blow", (f) => life(f, "knockdown", 0)],
-    ["a hero fallen", (f) => life(f, "dead", 0)],
+    ["a hero flying from the last blow", (f) => life(f, "knockdown", 0, 1)],
+    ["a hero fallen with a life left", (f) => life(f, "dead", 0, 1)],
+    ["a hero fallen on the first life", (f) => life(f, "dead", 0, LIVES - 1)],
+    // Fallen on its last life, it lies `RESPAWN_DELAY` steps before it is out.
+    ["a hero fallen on its last life", (f) => life(f, "dead", 0, 0)],
+    ["a hero out", (f) => life(f, "out", 0, 0)],
+    ["a hero dropping back in", (f) => life(f, "respawn", brakka, 2)],
+    ["a hero dropping in on its last life", (f) => life(f, "respawn", 1, 1)],
     [
-      "the longest blink",
-      (f) => (hero(f)[20] = now + GETUP_STEPS + GETUP_GRACE),
+      "a hero flying from its last life's blow",
+      (f) => life(f, "knockdown", 0, 1),
     ],
+    ["the longest blink", (f) => (hero(f)[21] = now + RESPAWN_INVULN)],
     [
       "a run of hits short of a knockdown",
       (f) => (
-        (hero(f)[21] = JUGGLE_HITS - 1),
-        (hero(f)[22] = now + JUGGLE_WINDOW)
+        (hero(f)[22] = JUGGLE_HITS - 1),
+        (hero(f)[23] = now + JUGGLE_WINDOW)
       ),
     ],
     ["an enemy going for a hero", (f) => (enemy(f)[15] = hero(f, 1)[0])],
@@ -271,13 +278,17 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     ["a hero past full health", (f) => (hero(f)[19] = brakka + 1)],
     ["negative hero hp", (f) => (hero(f)[19] = -1)],
     ["a hero swinging with no hp", (f) => (hero(f)[19] = 0)],
-    ["a fallen hero with hp", (f) => life(f, "dead", 1)],
-    [
-      "a blink too long",
-      (f) => (hero(f)[20] = now + GETUP_STEPS + GETUP_GRACE + 1),
-    ],
-    ["a run of hits past a knockdown", (f) => (hero(f)[21] = JUGGLE_HITS)],
-    ["a run of hits too long", (f) => (hero(f)[22] = now + JUGGLE_WINDOW + 1)],
+    ["a fallen hero with hp", (f) => life(f, "dead", 1, 1)],
+    ["a fourth life", (f) => (hero(f)[20] = LIVES + 1)],
+    ["a hero swinging with no life", (f) => (hero(f)[20] = 0)],
+    ["a hero out with a life left", (f) => life(f, "out", 0, 1)],
+    ["a hero fallen with every life", (f) => life(f, "dead", 0, LIVES)],
+    ["a hero dropping in with no life", (f) => life(f, "respawn", brakka, 0)],
+    ["a hero dropping in with no hp", (f) => life(f, "respawn", 0, 2)],
+    ["a hero flying with no life", (f) => life(f, "knockdown", 0, 0)],
+    ["a blink too long", (f) => (hero(f)[21] = now + RESPAWN_INVULN + 1)],
+    ["a run of hits past a knockdown", (f) => (hero(f)[22] = JUGGLE_HITS)],
+    ["a run of hits too long", (f) => (hero(f)[23] = now + JUGGLE_WINDOW + 1)],
     ["a fractional knockdown tally", (f) => (hero(f)[18] = 1.5)],
     ["knockdowns as text", (f) => (hero(f)[18] = "1")],
     ["enemies not a list", (f) => (f[6] = {})],
