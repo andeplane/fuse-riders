@@ -1,5 +1,6 @@
 // Small pure helpers shared by the simulation and the trajectory predictor.
 
+import { cos, sin } from "./det-math.js";
 import { DT, SUBSTEPS, type Tuning } from "./tuning.js";
 import type { Facing, GateView, GhostView, Vec2 } from "./types.js";
 
@@ -33,13 +34,13 @@ export function launchState(
   speed = tuning.launchSpeed,
 ): { x: number; y: number; vx: number; vy: number } {
   const p = launcherPivot(c, tuning);
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
+  const dx = cos(angle);
+  const dy = sin(angle);
   return {
-    x: p.x + cos * tuning.barrelLength,
-    y: p.y - sin * tuning.barrelLength,
-    vx: cos * speed,
-    vy: -sin * speed,
+    x: p.x + dx * tuning.barrelLength,
+    y: p.y - dy * tuning.barrelLength,
+    vx: dx * speed,
+    vy: -dy * speed,
   };
 }
 
@@ -80,8 +81,7 @@ export function gatePositionAt(g: GateView, tick: number): Vec2 {
     g.minX + triangle(g.x0 - g.minX + g.vx * elapsed * DT, g.maxX - g.minX);
   const y =
     g.baseY +
-    g.bobAmp *
-      Math.sin(g.bobPhase + (2 * Math.PI * elapsed) / g.bobPeriodTicks);
+    g.bobAmp * sin(g.bobPhase + (2 * Math.PI * elapsed) / g.bobPeriodTicks);
   return { x, y };
 }
 
@@ -122,5 +122,5 @@ export function crateYAt(
   spawnTick: number,
   tick: number,
 ): number {
-  return baseY + 6 * Math.sin(bobPhase + (tick - spawnTick) * DT * 2.2);
+  return baseY + 6 * sin(bobPhase + (tick - spawnTick) * DT * 2.2);
 }
