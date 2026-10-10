@@ -26,6 +26,9 @@ importers:
       dice:
         specifier: workspace:*
         version: link:games/dice
+      fuse-axe:
+        specifier: workspace:*
+        version: link:games/fuse-axe
       fuse-choppers:
         specifier: workspace:*
         version: link:games/fuse-choppers
