@@ -56,7 +56,10 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 - Gamepad: left stick (dead zone 0.35, quantised to 8 directions) or D-pad, any face button fires.
 - The app's `InputHub` keeps each device's held bits (`setHeld`, read per slot with `heldBits`) and turns `FIRE`'s
   rising edge into the press that `takePresses` latches, so a tap shorter than a step still fires.
-- Touch (local): up to two riders, a D-pad and FIRE on each side of the screen.
+- Touch (local): up to two riders, a D-pad and FIRE on each side of the screen (`src/app/input/touch.ts`, devices
+  `touch:0` left and `touch:1` right). The D-pad quantises the thumb like a stick (dead centre a quarter of its
+  half-width, 8 sectors); each finger keeps the control it went down on (pointer capture) until it lifts, and a cancel,
+  lost capture, blur or hidden page lets go. A lone touch rider's D-pad and FIRE spread to opposite corners.
 - Phone controller (online shared TV): a held D-pad and a FIRE button (each tap is one fire press).
 
 ### Technical rules for the overhaul

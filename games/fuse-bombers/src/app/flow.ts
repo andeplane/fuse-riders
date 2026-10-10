@@ -4,12 +4,13 @@ import { css } from "../render/palette.js";
 import type { PlayerLook, RoundSource } from "../render/round-scene.js";
 import { createBotPlayer } from "./bot.js";
 import {
+  TOUCH_SIDES,
   fireKeyLabel,
   type BrowserInput,
   type Command,
   type DeviceId,
 } from "./input/index.js";
-import { Lobby, PLAYER_NAMES, type Seat } from "./lobby.js";
+import { Lobby, type Seat } from "./lobby.js";
 import { RoundRunner } from "./round-runner.js";
 import * as screens from "./screens.js";
 
@@ -204,7 +205,7 @@ export class Flow implements RoundSource {
     if (!seat) return;
     if (seat.joined) hub.bind(seat.slot, device);
     else hub.unbind(seat.slot);
-    this.updateTouchZones();
+    this.updateTouchPads();
   }
 
   private get menuState(): MenuState {
@@ -270,7 +271,7 @@ export class Flow implements RoundSource {
       case "lobby":
         return this.toLobby();
     }
-    this.updateTouchZones();
+    this.updateTouchPads();
   }
 
   private toLobby(): void {
@@ -289,14 +290,12 @@ export class Flow implements RoundSource {
       true,
     );
     this.options.music?.("lobby");
-    this.updateTouchZones();
+    this.updateTouchPads();
   }
 
   private startMatch(): void {
     const { hub } = this.options.input;
-    this.lobby.compactTouchZones();
     this.seats = this.lobby.seats();
-    for (const s of this.seats) if (s.device) hub.bind(s.slot, s.device); // Touch zones may have been renumbered.
     const seed = this.seed++;
     this.runner = new RoundRunner({
       seed,
@@ -311,14 +310,14 @@ export class Flow implements RoundSource {
     this.paused = false;
     const prompt = (s: Seat) =>
       s.device?.startsWith("touch:")
-        ? "TAP!"
+        ? "TAP FIRE!"
         : `PRESS ${(s.device && fireKeyLabel(s.device)) ?? s.tag}`;
     this.options.show(
       this,
       this.seats.map((s) => (s.device ? { ...s, prompt: prompt(s) } : s)),
       false,
     );
-    this.updateTouchZones();
+    this.updateTouchPads();
   }
 
   private nextRound(): void {
@@ -326,23 +325,20 @@ export class Flow implements RoundSource {
     this.screen = { kind: "countdown", left: COUNTDOWN };
   }
 
-  /** Touch players get a zone in their colour; in the lobby the free zones read JOIN. */
-  private updateTouchZones(): void {
+  /**
+   * Each touch side (`touch:0` left, `touch:1` right) shows its pad while it can play: in the lobby both sides, a
+   * free side's FIRE reading JOIN and a seated one's the player's name; in a match only the seated sides.
+   */
+  private updateTouchPads(): void {
     const inLobby = this.screen.kind === "lobby";
     const seats = inLobby ? this.lobby.seats() : this.seats;
-    const zones = new Map<number, Seat>();
-    for (const s of seats)
-      if (s.device?.startsWith("touch:"))
-        zones.set(Number(s.device.slice(6)), s);
-    const count = Math.min(
-      PLAYER_NAMES.length,
-      Math.max(-1, ...zones.keys()) + (inLobby ? 2 : 1),
-    );
-    this.options.input.setTouchZones(
-      Array.from({ length: count }, (_, zone) => {
-        const s = zones.get(zone);
-        if (s) return { label: s.name, color: css(s.color) };
-        return { label: inLobby ? "JOIN" : "", color: "var(--fui-yellow)" };
+    this.options.input.setTouchPads(
+      Array.from({ length: TOUCH_SIDES }, (_, side) => {
+        const s = seats.find(({ device }) => device === `touch:${side}`);
+        if (s) return { label: inLobby ? s.name : "FIRE", color: css(s.color) };
+        return inLobby
+          ? { label: "JOIN", color: "var(--fui-yellow)" }
+          : undefined;
       }),
     );
   }

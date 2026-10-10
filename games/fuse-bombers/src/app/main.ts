@@ -17,8 +17,8 @@ const audio = createAudio();
 
 /**
  * Boots the game: the Phaser round scene fills the window and the match flow's DOM screens sit on top.
- * Debug flags: `?seed=N` fixes the matches, `?speed=N` runs everything N times as fast, `?touch` forces touch
- * zones, `?debug` exposes `window.fuseBombers = { game, flow, audio }` for browser tests. `?mute` silences audio.
+ * Debug flags: `?seed=N` fixes the matches, `?speed=N` runs everything N times as fast, `?touch` forces the touch
+ * pads, `?debug` exposes `window.fuseBombers = { game, flow, audio }` for browser tests. `?mute` silences audio.
  */
 async function boot(): Promise<void> {
   // Phaser rasterises text once, so the pixel font must be ready before the first scene draws.
