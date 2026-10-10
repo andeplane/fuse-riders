@@ -25,13 +25,14 @@ Phaser, npm or `node:` imports; everything else imports it through `src/engine/i
 ### Camera (render only)
 
 `src/render/camera.ts` (defaults in `CAMERA_DEFAULTS`) reads positions and never feeds the simulation, so it may use
-`Math` and frame time. Each frame `updateCamera(camera, { points }, dt)` gives `{ centerX, centerY, zoom }` for
+`Math` and frame time. `createCamera({ view, world })` once, `snapCamera` at a round's start, then each frame
+`updateCamera(camera, { points }, dt)` gives `{ centerX, centerY, zoom }` for
 `cameras.main.setZoom(zoom).centerOn(centerX, centerY)`. A shared screen frames `points` (gunships at weight 1; ghosts
 or a big explosion lower pull it part of the way) with padding for the aim guide and health bar, fitted to the view,
 zoomed between one old arena's area and the whole world, inside the world; no points shows the whole world. A personal
 device (`focus`) follows its gunship with a look-ahead and adds the nearest opponents while they fit. The pose eases
-exponentially (no overshoot; zoom in log space, out faster than in) with dead zones, and weight-1 points stay inside
-whatever the easing. `offscreenMarkers` gives off-screen ships an edge arrow; the HUD and arrows stay on the UI camera.
+exponentially (no overshoot; zoom in log space, out faster than in) with dead zones, and weight-1 points stay
+`keepMargin` world px inside the view (world edge allowing) whatever the easing. `offscreenMarkers` gives off-screen ships an edge arrow; the HUD and arrows stay on the UI camera.
 
 ## Lifecycle
 
