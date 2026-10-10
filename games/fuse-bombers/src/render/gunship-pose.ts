@@ -4,16 +4,16 @@
 // only by the frame time it is given: it never feeds back into the simulation, and the hit circle stays at the
 // engine's (x, y) whatever the bob or bank. No Phaser, so tests run it under Node.
 
-/** Hit circle radius (px) the gunship art is drawn for: the flight kernel's gunship radius. */
+/** Hit circle radius (px) the gunship art is drawn for: the flight kernel's gunship radius (a test pins them equal). */
 export const GUNSHIP_RADIUS = 30;
-/** Hit circle radius (px) the ghost art is drawn for. */
+/** Hit circle radius (px) the ghost art is drawn for: the flight kernel's ghost radius. */
 export const GHOST_RADIUS = 18;
 
 /** Speed (px/s) a gunship must fly the other way before its hull turns round, so hovering never flickers. */
 export const FACING_SPEED = 20;
 /** Seconds the hull takes to turn round (its drawn width passes through zero). */
 export const TURN_TIME = 0.28;
-/** Bob amplitude (in units of 1/30 of the hit radius) and period (s). Cosmetic: the hit circle never moves. */
+/** Bob amplitude (base units: 1/30 of a gunship's hit radius, 1/18 of a ghost's) and period (s). Cosmetic. */
 export const BOB = { amplitude: 1.6, period: 2.6 } as const;
 /** Largest cosmetic lean (radians) at full speed; the hull pitches bow-down into its motion. */
 export const MAX_BANK = 0.14;
@@ -26,6 +26,10 @@ export const FLASH_TIME = 0.16;
 export const SHIELD_FLASH_TIME = 0.24;
 /** How long the wreck animation runs after the gunship is destroyed (s); the art is hidden after it. */
 export const WRECK_TIME = 1.6;
+/** The last part of the wreck (s) in which the falling hull fades out. */
+export const WRECK_FADE = 0.7;
+/** How fast the falling hull tips over (radians per second of wreck), toward its bow. */
+export const WRECK_SPIN = 1.7;
 /** Longest frame the animation advances by in one go, so a backgrounded tab does not dump a burst of particles. */
 export const MAX_DT = 0.1;
 /** Most particles one gunship or ghost keeps; the oldest makes way. */
@@ -88,7 +92,7 @@ export interface Pose {
   readonly facing: 1 | -1;
   /** The hull's drawn x scale, easing from -1 to 1 (or back) as it turns round. */
   readonly turn: number;
-  /** Cosmetic vertical offset of the drawn ship, in base units (1/30 of the hit radius). */
+  /** Cosmetic vertical offset of the drawn ship, in base units (1/30 of a gunship's hit radius, 1/18 of a ghost's). */
   readonly bob: number;
   /** Cosmetic lean, radians clockwise on screen. */
   readonly bank: number;
@@ -103,6 +107,12 @@ export interface Pose {
   readonly damage: DamageStage;
   /** Seconds since the gunship was destroyed; -1 while alive, `Infinity` when it was never seen alive. */
   readonly wreck: number;
+  /** True on the one update in which a ship that was alive is seen destroyed, and only if it was not already
+   * exploding a moment ago: it keys the wreck burst, which must not fire twice for one destruction. */
+  readonly died: boolean;
+  /** Seconds before another destruction may burst again: a rollback that flickers a ship dead, alive, dead must not
+   * explode it twice. 0 when free. */
+  readonly burstHold: number;
   /** Last seen hp, shield and alive, for spotting hits and destruction. */
   readonly hp: number;
   readonly shield: number;
@@ -158,6 +168,7 @@ export function initialPose(
   facing: 1 | -1 = 1,
 ): Pose {
   const f = nextFacing(facing, finite(input.vx));
+  const hp = finite(input.hp, finite(input.maxHp));
   return {
     time: 0,
     facing: f,
@@ -169,10 +180,12 @@ export function initialPose(
     rotorTilt: 0,
     flash: 0,
     shieldFlash: 0,
-    damage: damageStage(input.hp, input.maxHp),
+    damage: damageStage(hp, input.maxHp),
     wreck: input.alive ? -1 : Infinity,
-    hp: input.hp,
-    shield: input.shield,
+    died: false,
+    burstHold: 0,
+    hp,
+    shield: finite(input.shield),
     alive: input.alive,
   };
 }
@@ -201,8 +214,12 @@ export function stepPose(
       : Math.max(facing, prev.turn - turnRate);
   const thrust = Math.min(1, Math.sqrt(tx * tx + ty * ty));
   const rotorSpin = ease(prev.rotorSpin, rotorTarget(thrust), 0.25, d);
-  const hit = input.alive && prev.alive && input.hp < prev.hp;
-  const shieldHit = input.alive && prev.alive && input.shield < prev.shield;
+  // A number that is not finite keeps the last good one, so one bad frame cannot blind the hit detection for good.
+  const hp = finite(input.hp, prev.hp);
+  const shield = finite(input.shield, prev.shield);
+  const hit = input.alive && prev.alive && hp < prev.hp;
+  const shieldHit = input.alive && prev.alive && shield < prev.shield;
+  const dying = prev.alive && !input.alive;
   const wreck = input.alive
     ? -1
     : prev.alive
@@ -223,10 +240,15 @@ export function stepPose(
     shieldFlash: shieldHit
       ? 1
       : Math.max(0, prev.shieldFlash - d / SHIELD_FLASH_TIME),
-    damage: damageStage(input.hp, input.maxHp),
+    damage: damageStage(hp, input.maxHp),
     wreck,
-    hp: input.hp,
-    shield: input.shield,
+    died: dying && prev.burstHold <= 0,
+    burstHold:
+      dying && prev.burstHold <= 0
+        ? WRECK_TIME
+        : Math.max(0, prev.burstHold - d),
+    hp,
+    shield,
     alive: input.alive,
   };
 }
@@ -246,8 +268,42 @@ export function shipVisible(pose: Pose): boolean {
   return pose.wreck < WRECK_TIME;
 }
 
-/** Where a point of the ship drawing lands in the world: `(px, py)` in base units (1/30 of the hit radius, x toward
- * the bow) on a ship centred at `(x, y)` with `unit` px per base unit, after the hull's turn, bob and lean. */
+/** How far (base units) the gondola has fallen `t` seconds into its wreck. */
+export function wreckDrop(t: number): number {
+  return t <= 0 ? 0 : 0.5 * 300 * t * t;
+}
+
+/** True while a wreck is playing (`wreck` is -1 while the ship lives and `Infinity` if it was never seen alive). */
+const wrecking = (pose: Pose): boolean =>
+  pose.wreck >= 0 && pose.wreck < Infinity;
+
+/** The turn of the hull container on screen (radians clockwise): the lean, and in a wreck the tipping toward the bow. */
+export function hullRotation(pose: Pose): number {
+  return (
+    pose.bank + (wrecking(pose) ? pose.facing * WRECK_SPIN * pose.wreck : 0)
+  );
+}
+
+/** The hull container's drop (base units) below the bob: the fall of a wreck, nothing while it flies. */
+export function hullDrop(pose: Pose): number {
+  return wrecking(pose) ? wreckDrop(pose.wreck) : 0;
+}
+
+/** The hull's opacity: full, then fading out over the last `WRECK_FADE` seconds of the wreck. */
+export function wreckAlpha(pose: Pose): number {
+  const into = pose.wreck - (WRECK_TIME - WRECK_FADE);
+  return into > 0 ? Math.max(0, 1 - into / WRECK_FADE) : 1;
+}
+
+/** How strongly the shield bubble is drawn (0 to 1): the shield, or while it flashes the flash, so the hit that
+ * breaks the last of a shield still shows the bubble for the length of the flash. */
+export function bubbleStrength(shield: number, flash: number): number {
+  return Math.max(clamp(finite(shield), 0, 1), clamp(finite(flash), 0, 1));
+}
+
+/** Where a point of the ship drawing lands in the world: `(px, py)` in base units (x toward the bow) on a ship
+ * centred at `(x, y)` with `unit` px per base unit, after the hull's turn, bob, lean and, in a wreck, its tipping and
+ * fall: exactly where the hull container in gunship-art.ts puts it. */
 export function shipPoint(
   pose: Pose,
   x: number,
@@ -257,11 +313,12 @@ export function shipPoint(
   py: number,
 ): { x: number; y: number } {
   const lx = px * turnScale(pose.turn);
-  const c = Math.cos(pose.bank);
-  const s = Math.sin(pose.bank);
+  const rotation = hullRotation(pose);
+  const c = Math.cos(rotation);
+  const s = Math.sin(rotation);
   return {
     x: x + unit * (lx * c - py * s),
-    y: y + unit * (pose.bob + lx * s + py * c),
+    y: y + unit * (pose.bob + hullDrop(pose) + lx * s + py * c),
   };
 }
 
@@ -343,7 +400,9 @@ export function owed(
   rate: number,
   dt: number,
 ): number {
-  const total = (p.owed[emitter] ?? 0) + Math.max(0, rate) * dt;
+  const total =
+    (p.owed[emitter] ?? 0) +
+    Math.max(0, finite(rate)) * clamp(finite(dt), 0, MAX_DT);
   const n = Math.floor(total);
   p.owed[emitter] = total - n;
   return n;
@@ -410,9 +469,9 @@ export function emitGunship(
   const put = spawner(p, unit);
   const r = (): number => random(p);
   const jitter = (n: number): number => (r() - 0.5) * n;
-  const at = (px: number, py: number) =>
-    shipPoint(pose, state.x, state.y, unit, px, py);
-  const { vx, vy } = state;
+  const [x, y] = [finite(state.x), finite(state.y)];
+  const [vx, vy] = [finite(state.vx), finite(state.vy)];
+  const at = (px: number, py: number) => shipPoint(pose, x, y, unit, px, py);
   if (pose.alive) {
     const tx = clamp(finite(state.thrustX), -1, 1);
     const ty = clamp(finite(state.thrustY), -1, 1);
@@ -444,7 +503,7 @@ export function emitGunship(
     }
     return;
   }
-  if (pose.wreck === 0) {
+  if (pose.died) {
     const centre = at(0, -6);
     const burst = (
       kind: ParticleKind,
@@ -474,7 +533,7 @@ export function emitGunship(
   }
   if (pose.wreck >= WRECK_TIME * 0.8) return;
   for (let i = owed(p, "trail", 22, d); i > 0; i--) {
-    const from = at(jitter(16), 15 + wreckDrop(pose.wreck));
+    const from = at(jitter(16), 15);
     const kind = r() < 0.3 ? "fire" : "soot";
     put(kind, from, jitter(20), -10 - r() * 10, 0.5 + r() * 0.5, 2.5, 7);
   }
@@ -493,13 +552,15 @@ export function emitGhost(
   const r = (): number => random(p);
   for (let i = owed(p, "wisp", 7, d); i > 0; i--) {
     const [px, py] = [-16 - r() * 4, -2 + r() * 8];
-    const from = shipPoint(pose, state.x, state.y, unit, px, py);
-    const wx = -pose.facing * 12 + state.vx * 0.1;
+    const from = shipPoint(
+      pose,
+      finite(state.x),
+      finite(state.y),
+      unit,
+      px,
+      py,
+    );
+    const wx = -pose.facing * 12 + finite(state.vx) * 0.1;
     put("wisp", from, wx, -6 + (r() - 0.5) * 8, 0.6 + r() * 0.3, 2.2, 4.5);
   }
-}
-
-/** How far (base units) the gondola has fallen `t` seconds into its wreck. */
-export function wreckDrop(t: number): number {
-  return t <= 0 ? 0 : 0.5 * 300 * t * t;
 }

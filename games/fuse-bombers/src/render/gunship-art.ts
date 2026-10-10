@@ -2,23 +2,35 @@
 // colour over a gondola with a tilting rotor on each side and a ball turret whose launcher points any way round, and a
 // small translucent ghost blimp. Each ship owns its game objects; `update` takes plain values each frame and draws
 // them. What moves on its own (bob, lean, rotors, flashes, smoke, the wreck) is cosmetic, comes from gunship-pose.ts
-// and advances only by the frame time it is given; the hit circle is always the engine's (x, y) and radius.
+// and advances only by the frame time it is given; the ship is centred on the engine's (x, y) and scaled to its radius
+// (the hull bobs by a pixel or two around that centre, and the launcher turns on it).
+//
+// Cost: Phaser re-tessellates every Graphics command each frame it is drawn, so the static parts (envelope, gondola,
+// gun, ghost body) cost as much per frame as the animated ones. Measured in the preview's setting (twelve ships, six
+// gunships all burning with full shields and six loaded ghosts, 1280×720, desktop headless Chromium with software
+// WebGL): 0.4 ms to build the draw commands and about 8 ms in Phaser's renderer per frame, of which the static parts
+// are 40 %, the particles 30 % and the shield bubbles 20 %. That is a budget to watch on a phone; baking the static
+// parts into textures (`Graphics.generateTexture`, one per colour and damage stage) is the planned fix once the round
+// draws these.
 
 import type Phaser from "phaser";
 import {
   advanceParticles,
+  bubbleStrength,
   createParticles,
   emitGhost,
   emitGunship,
   GHOST_RADIUS,
   GUNSHIP_RADIUS,
+  hullDrop,
+  hullRotation,
   initialPose,
   lived,
   radiusOf,
   shipVisible,
   stepPose,
   turnScale,
-  wreckDrop,
+  wreckAlpha,
   WRECK_TIME,
   type GhostState,
   type GunshipState,
@@ -41,8 +53,11 @@ export interface GunshipLook {
   readonly color: number;
   /** Hit circle radius (px) to draw for; the art scales with it. Defaults to `GUNSHIP_RADIUS` (`GHOST_RADIUS`). */
   readonly radius?: number;
-  /** Varies the bob phase and particle scatter between ships (read on the first update); the seat id works. */
+  /** Varies the bob phase (read every frame) and the particle scatter (fixed on the first update) between ships;
+   * the seat id works. */
   readonly seed?: number;
+  /** Shield bubble radius (px), the engine's `tuning.shieldRadius`. Defaults to `SHIELD_RADIUS` scaled to the ship. */
+  readonly shieldRadius?: number;
   /** Which way the hull faces before the ship has flown anywhere. */
   readonly facing?: 1 | -1;
 }
@@ -51,7 +66,8 @@ export interface GunshipLook {
 export const LAUNCHER_LENGTH = 26;
 /** How far below a ghost's centre its loaded bomb hangs, in 1/18 of the ghost radius. */
 export const GHOST_HOOK = 18.5;
-/** Shield bubble radius, in 1/30 of the gunship radius. */
+/** Shield bubble radius when the look gives none, in 1/30 of the gunship radius: a stand-in, not the engine's value
+ * (`tuning.shieldRadius`), which the caller passes as `GunshipLook.shieldRadius`. */
 export const SHIELD_RADIUS = 38;
 
 const INK = 0x1b1e28;
@@ -141,7 +157,7 @@ function neonShape(g: Graphics, points: Point[], body: number, color: number) {
 }
 
 // Gunship geometry in base units (the hit radius is 30), facing right: +x is the bow, y grows down. The drawing stays
-// close to the hit circle; only the thin tail and the rotor tips reach a few units past it.
+// close to the hit circle; only the thin tail fin reaches about 8 units past it and the rotor tips up to 7.
 const ENV = { cx: 0, cy: -9, rx: 27, ry: 16 } as const;
 const HULL = pts(-13, 12, 13, 12, 17, 13.5, 12, 21, -9, 21, -14, 16.5);
 /** The upper fin and the horizontal stabiliser (seen edge-on), behind the envelope. */
@@ -435,7 +451,11 @@ export class GunshipArt {
     return this;
   }
 
-  /** Draws the gunship for this frame; `dt` is the frame time in seconds. */
+  /**
+   * Draws the gunship for this frame; `dt` is the frame time in seconds. A hidden ship (see `setVisible`) only
+   * advances its animation and particles and draws nothing, so call `setVisible(true)` before the update that should
+   * show it.
+   */
   update(look: GunshipLook, state: GunshipState, dt: number): void {
     const seed = look.seed ?? 0;
     const unit = radiusOr(look.radius, GUNSHIP_RADIUS) / 30;
@@ -443,6 +463,13 @@ export class GunshipArt {
       ? stepPose(this.current, state, dt, seed)
       : initialPose(state, seed, look.facing);
     this.current = pose;
+    const particles = (this.particles ??= createParticles(seed));
+    advanceParticles(particles, dt);
+    emitGunship(particles, pose, state, unit, dt);
+    const shown = shipVisible(pose);
+    this.root.setVisible(this.visible && shown);
+    if (!this.visible) return;
+
     const key = `${look.color}:${pose.damage}:${pose.alive}`;
     if (key !== this.drawn) {
       this.drawn = key;
@@ -453,23 +480,17 @@ export class GunshipArt {
       this.gunColor = look.color;
       drawGun(this.gunG, look.color);
     }
-    const particles = (this.particles ??= createParticles(seed));
-    advanceParticles(particles, dt);
-    emitGunship(particles, pose, state, unit, dt);
     drawParticles(this.back.clear(), particles, look.color, false);
     drawParticles(this.front.clear(), particles, look.color, true);
-
-    const shown = shipVisible(pose);
-    this.root.setVisible(this.visible && shown);
     if (!shown) return;
+
     this.root.setPosition(state.x, state.y).setScale(unit);
-    const wreck = pose.wreck;
-    const wrecked = wreck >= 0;
+    const wrecked = pose.wreck >= 0;
     this.hull
-      .setPosition(0, pose.bob + (wrecked ? wreckDrop(wreck) : 0))
-      .setRotation(pose.bank + (wrecked ? pose.facing * 1.7 * wreck : 0))
+      .setPosition(0, pose.bob + hullDrop(pose))
+      .setRotation(hullRotation(pose))
       .setScale(turnScale(pose.turn), 1)
-      .setAlpha(wreck > 0.9 ? Math.max(0, 1 - (wreck - 0.9) / 0.7) : 1);
+      .setAlpha(wreckAlpha(pose));
     this.envelopeG.setVisible(!wrecked);
     this.flashG.setVisible(pose.flash > 0).setAlpha(0.85 * pose.flash);
     drawRotors(this.rotorsG, pose, look.color);
@@ -477,11 +498,18 @@ export class GunshipArt {
       .setVisible(!wrecked)
       .setPosition(0, pose.bob)
       .setRotation(-state.angle);
-    this.drawOverlay(look.color, state, pose);
+    const bubble = radiusOr(look.shieldRadius, SHIELD_RADIUS * unit) / unit;
+    this.drawOverlay(look.color, state, pose, bubble);
   }
 
-  /** The loaded glow or reload ring on the turret, the shield bubble, and the wreck's flash and shock ring. */
-  private drawOverlay(color: number, state: GunshipState, pose: Pose): void {
+  /** The loaded glow or reload ring on the turret, the shield bubble (`bubbleRadius` base units), and the wreck's
+   * flash and shock ring. */
+  private drawOverlay(
+    color: number,
+    state: GunshipState,
+    pose: Pose,
+    bubbleRadius: number,
+  ): void {
     const g = this.overlayG.clear();
     if (pose.wreck >= 0) {
       const t = pose.wreck;
@@ -513,9 +541,11 @@ export class GunshipArt {
       if (done > 0)
         g.arc(0, y, 9.5, start, start + done * 2 * Math.PI).strokePath();
     }
-    const shield = Math.max(0, Math.min(1, state.shield));
+    // The flash outlives a shield the hit just broke, so the bubble is drawn for as long as either is up.
+    const f = pose.shieldFlash;
+    const shield = bubbleStrength(state.shield, f);
     if (shield <= 0) return;
-    const [f, r, sweep] = [pose.shieldFlash, SHIELD_RADIUS, pose.time * 1.3];
+    const [r, sweep] = [bubbleRadius, pose.time * 1.3];
     g.fillStyle(
       lighten(color, 0.75),
       0.06 + 0.08 * shield + 0.25 * f,
@@ -589,6 +619,7 @@ export class GhostArt {
   private particles: Particles | undefined;
   private current: Pose | undefined;
   private drawn = -1;
+  private visible = true;
 
   constructor(scene: Phaser.Scene, depth = 0) {
     [this.bodyG, this.liveG] = [scene.add.graphics(), scene.add.graphics()];
@@ -603,7 +634,9 @@ export class GhostArt {
     return this.current;
   }
 
+  /** Shows or hides everything, particles included; a hidden ghost still animates on `update` but draws nothing. */
   setVisible(visible: boolean): this {
+    this.visible = visible;
     this.root.setVisible(visible);
     this.back.setVisible(visible);
     return this;
@@ -618,13 +651,14 @@ export class GhostArt {
       ? stepPose(this.current, input, dt, seed)
       : initialPose(input, seed, look.facing);
     this.current = pose;
+    const particles = (this.particles ??= createParticles(seed + 101));
+    advanceParticles(particles, dt);
+    emitGhost(particles, pose, state, unit, dt);
+    if (!this.visible) return;
     if (this.drawn !== look.color) {
       this.drawn = look.color;
       drawGhostBody(this.bodyG, look.color);
     }
-    const particles = (this.particles ??= createParticles(seed + 101));
-    advanceParticles(particles, dt);
-    emitGhost(particles, pose, state, unit, dt);
     drawParticles(this.back.clear(), particles, look.color, false);
 
     const alpha = 0.66 + 0.08 * Math.sin(pose.time * 2.4 + seed);
