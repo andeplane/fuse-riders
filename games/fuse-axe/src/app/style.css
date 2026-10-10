@@ -634,8 +634,11 @@ body.fa-phone .fa-note {
   display: none;
 }
 
+/* The page covers the whole screen (`viewport-fit=cover`): the pads and the controller's head stay clear of a notch, a
+   rounded corner and the home bar. */
 body.fa-phone .fa-room {
-  padding: 8px max(8px, env(safe-area-inset-right)) 8px
+  padding: max(8px, env(safe-area-inset-top))
+    max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
     max(8px, env(safe-area-inset-left));
 }
 
@@ -656,7 +659,7 @@ body.fa-phone .fa-controller-body .fa-buttons {
 .fui-app.fa-phone .fui-tools-toggle {
   display: block;
   position: fixed;
-  bottom: 8px;
+  bottom: max(8px, env(safe-area-inset-bottom));
   left: 50%;
   translate: -50% 0;
   z-index: 20;
@@ -681,7 +684,7 @@ body.fa-phone .fui-control-hints {
 }
 
 body.fa-phone main[data-screen="controller"] ~ .fui-control-hints {
-  top: 72px;
+  top: calc(max(8px, env(safe-area-inset-top)) + 64px);
 }
 
 .fui-control-hints span::after {
@@ -695,5 +698,57 @@ body.fa-phone main[data-screen="controller"] ~ .fui-control-hints {
   }
   100% {
     opacity: 0;
+  }
+}
+
+/* The hints are for the pads: opened over them, the menu's header would have them running across it. */
+body.fa-phone #app.fui-tools-open .fui-control-hints {
+  display: none;
+}
+
+/* The header that MENU opens keeps clear of a notch and the rounded corners too. */
+body.fa-phone #app.fui-tools-open > .fa-top {
+  padding: max(10px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right)) 10px
+    max(16px, env(safe-area-inset-left));
+}
+
+/*
+ * Held upright, the pads share the width, not the height the landscape sizes above come from (they ran off the
+ * controller's right edge and pushed MENU off the screen), MENU moves to the top corner where no pad is, and the two
+ * hints stack instead of running into each other.
+ */
+@media (orientation: portrait) {
+  body.fa-phone .fa-controller-body .fa-dpad {
+    --pad: min(44vmin, 280px);
+  }
+
+  body.fa-phone .fa-controller-body .fa-buttons {
+    --button: min(20vmin, 130px);
+  }
+
+  .fui-app.fa-phone .fui-tools-toggle {
+    top: calc(max(8px, env(safe-area-inset-top)) + 12px);
+    right: calc(max(8px, env(safe-area-inset-right)) + 8px);
+    bottom: auto;
+    left: auto;
+    translate: none;
+  }
+
+  body.fa-phone .fa-controller-head,
+  body.fa-phone #app.fui-tools-open > .fa-top {
+    padding-right: 100px;
+  }
+
+  body.fa-phone #app.fui-tools-open .fa-status {
+    flex-basis: 100%;
+  }
+
+  body.fa-phone .fui-control-hints {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+    line-height: 1.5;
   }
 }

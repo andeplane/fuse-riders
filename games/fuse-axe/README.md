@@ -17,23 +17,26 @@ A gamepad (`src/app/gamepad.ts`, polled each animation frame) drives this device
 stick walks, A (Cross) attacks, B (Circle) jumps and X (Square) or Y (Triangle) casts magic. With several pads, the one
 in use drives.
 
-| Keys          | Phone pads                       | Does                                                                 |
-| ------------- | -------------------------------- | -------------------------------------------------------------------- |
-| Arrows / WASD | 8-way d-pad (slide for diagonal) | Walk the road, up and down in depth; double-tap left or right to run |
-| J / Z         | ATTACK                           | Attack (from a run, a dash attack)                                   |
-| K / X         | JUMP                             | Jump (from a run, a running jump)                                    |
-| L / C         | MAGIC                            | Magic                                                                |
+| Keys          | Phone pads                       | Does                                                                  |
+| ------------- | -------------------------------- | --------------------------------------------------------------------- |
+| Arrows / WASD | 8-way d-pad (slide for diagonal) | Walk the road, up and down in depth; double-tap left or right to run  |
+| J / Z         | ATTACK                           | Attack (a dash from a run, a stab in the air, a throw at a dazed one) |
+| K / X         | JUMP                             | Jump (a running jump from a run); with Attack, a back attack          |
+| L / C         | MAGIC                            | Magic                                                                 |
 
 On a touch screen the pads (`src/app/pad.ts`) sit over the game's corners while your hero fights; a thumb slides
 round the d-pad for the diagonals, and a double tap of left or right (a second tap, or a slide back through the
 centre and out again) is the same press, release, press as the keys. A **shared screen** is the host's switch in the
 lobby: **OPEN TV SCREEN** opens the room's `?room=CODE&display=1` page, which shows the game as large as it scales,
 with the room's QR code in its header; everyone joins on a phone, picks a hero in the lobby, and once the run starts
-the phone shows only its controller, in its seat's colour. Losing focus, hiding the page or a cancelled touch lets go
+the phone shows only its controller, in its seat's colour; the host's MENU on it still offers LOBBY. A phone in play
+folds the header behind a **MENU** button (between the pads when held sideways, in the top corner when upright, where
+the pads share the width). Losing focus, hiding the page, turning the phone, opening MENU or a cancelled touch lets go
 of every pad.
 
 ![The shared screen: the game on the TV, with the room's QR code](docs/images/app-shared-tv.png)
 ![A phone as its controller (Playwright's Pixel 7 emulation, landscape)](docs/images/app-phone-controller.png)
+![The same held upright](docs/images/app-phone-controller-upright.png)
 
 ```sh
 pnpm build && pnpm exec tsx service/dev.ts   # then open http://localhost:8787/fuse-axe/?mute
