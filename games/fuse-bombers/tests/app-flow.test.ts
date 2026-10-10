@@ -13,6 +13,11 @@ import {
 } from "../src/app/input/gamepad.js";
 import { InputHub, type Command, type DeviceId } from "../src/app/input/hub.js";
 import type { TouchZoneStyle } from "../src/app/input/index.js";
+import {
+  attachKeyboard,
+  type KeyEventLike,
+  type KeyboardTarget,
+} from "../src/app/input/keyboard.js";
 import { Lobby } from "../src/app/lobby.js";
 
 /** A standard-mapped pad with these buttons down (0–3 face buttons, 8 Back, 9 Start). */
@@ -21,6 +26,7 @@ function pad(index: number, down: number[] = [], mapping = "standard") {
     index,
     connected: true,
     mapping,
+    axes: [0, 0, 0, 0],
     buttons: Array.from({ length: 17 }, (_, i) => ({
       pressed: down.includes(i),
       value: down.includes(i) ? 1 : 0,
@@ -34,7 +40,7 @@ function fakePads(hub: InputHub) {
   hub.addSource(
     attachGamepads(
       () => state.pads,
-      (d) => hub.press(d),
+      (d, bits) => hub.setHeld(d, bits),
       (d, c) => hub.command(d, c),
       () => state.time,
     ),
@@ -45,10 +51,12 @@ function fakePads(hub: InputHub) {
 test("gamepads: Start and Back are commands, never presses, and a held button reports hold once", () => {
   const presses: DeviceId[] = [];
   const commands: string[] = [];
+  const hub = new InputHub();
+  hub.onPress((d) => presses.push(d));
   let [pads, time] = [[pad(0)] as GamepadLike[], 0];
   const source = attachGamepads(
     () => pads,
-    (d) => presses.push(d),
+    (d, bits) => hub.setHeld(d, bits),
     (d, c) => commands.push(`${d} ${c}`),
     () => time,
   );
@@ -65,7 +73,9 @@ test("gamepads: Start and Back are commands, never presses, and a held button re
   poll([pad(0, [0])], 64 + HOLD_MS); // …and is held for a second
   poll([pad(0, [0])], 64 + 3 * HOLD_MS);
   poll([pad(0, [1])], 64 + 3 * HOLD_MS + 16); // still a face button down: no new press
-  poll([pad(1, [9], "")], 5000); // unmapped pad: every button is the player button
+  poll([pad(0, [12])], 4000); // steering alone (the D-pad)…
+  poll([pad(0, [12])], 4000 + 2 * HOLD_MS); // …never reports hold
+  poll([pad(1, [9], "")], 7000); // unmapped pad: every button is the player button
   assert.deepEqual(presses, ["pad:0", "pad:1"]);
   assert.deepEqual(commands, ["pad:0 start", "pad:0 back", "pad:0 hold"]);
 });
@@ -87,6 +97,8 @@ test("menu keys and pad commands: Start confirms and pauses, Back goes back", ()
     ["lobby", "start", "start"],
     ["lobby", "back", undefined],
     ["lobby", "Enter", "start"],
+    ["lobby", "Space", undefined], // the WASD rider's fire key
+    ["winner", "Space", undefined],
     ["countdown", "start", "pause"],
     ["playing", "start", "pause"],
     ["playing", "back", "pause"],
@@ -137,6 +149,38 @@ test("touch zones are renumbered left to right, so a match has no blank zone", (
     lobby.seats().map((s) => s.device),
     ["pad:0", "key:Q", "touch:0", "touch:1"],
   );
+});
+
+test("keyboard riders join and leave the lobby by their fire key; direction keys never join", () => {
+  const { flow, hub } = fakeFlow();
+  const listeners = new Map<string, (event: KeyEventLike) => void>();
+  const target: KeyboardTarget = {
+    addEventListener: (type, listener) => listeners.set(type, listener),
+    removeEventListener: () => undefined,
+  };
+  attachKeyboard(target, (d, bits) => hub.setHeld(d, bits));
+  const key = (type: "keydown" | "keyup", code: string) =>
+    listeners.get(type)?.({
+      code,
+      repeat: false,
+      ...{ ctrlKey: false, metaKey: false, altKey: false },
+      preventDefault: () => undefined,
+    });
+  for (const code of ["KeyW", "KeyA", "ArrowUp", "KeyI", "Numpad8"])
+    key("keydown", code);
+  assert.deepEqual(flow.lobby.devices, Array(6).fill(undefined));
+  key("keydown", "Space");
+  key("keydown", "Slash");
+  key("keyup", "Slash");
+  key("keydown", "Slash"); // fires again: leaves
+  key("keydown", "KeyH");
+  key("keydown", "NumpadEnter");
+  assert.deepEqual(flow.lobby.devices.slice(0, 4), [
+    "key:WASD",
+    "key:IJKL",
+    "key:NUMPAD",
+    undefined,
+  ]);
 });
 
 type Listener = (event: never) => void;

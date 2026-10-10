@@ -47,11 +47,16 @@ knockdown, down and getup; plus a 16 × 16 HUD portrait and palette swaps for up
 `stride` lays out a walk's legs, `breath` an exhale and `bend` a knee or elbow (`armTo` and `legTo` place a limb from
 its ends with another pose's bones), so a new hero only adds its poses. `pixel/head.ts` holds what every hero shares
 above the neck: `turn(tilt)`, the body's frame for lying poses, `head` (skull, jaw, nose), `stampFace` for a hero's
-`Faces` (calm, yell, pain, out) and `portrait`, which paints the plate, shoulders and face and takes the hair,
-headgear and face pixels. A hero's `stride` reach is 1.5 × its `WALK_STEPS` × its walking speed in px per step, so a
-planted foot stays put; `tests/hero-art.test.ts` checks that for every hero in `HEROES`. Brakka
-(`src/render/art/brakka.ts`) swings a broadsword; Rhea (`rhea.ts`) is slimmer, in bronze and green, with a longsword:
-a level slash, a thrust, and a spinning overhead finisher.
+`Faces` (calm, yell, pain, out), `beard`, `hornedHelm` and `portrait`, which paints the plate, shoulders and face and
+takes the hair, headgear and face pixels. A shape's `grain` darkens a regular run of its pixels into strands, as a
+beard's. A hero's `stride` reach is 1.5 × its `WALK_STEPS` × its walking speed in px per step (the engine's exact
+sub-pixel speed: Gorm's 0.8 px is 205/256), so a planted foot stays put; `tests/hero-art.test.ts` checks that for
+every hero in `HEROES`, which has art for every `HERO_KINDS` hero. Brakka (`src/render/art/brakka.ts`) swings a
+broadsword; Rhea (`rhea.ts`) is slimmer, in bronze and green, with a longsword: a level slash, a thrust, and a spinning
+overhead finisher. Gorm (`gorm.ts`) is a dwarf about three quarters of Brakka's height and broader, in a horned helm
+and a blue tunic, with the kit's double-bit `axe` (its angle and haft length are pose fields) gripped in both hands
+for the combo: a level hack, a rising uppercut chop, and an overhead cleave that bites into the ground, which hides
+whatever reaches below the floor.
 `heroFrame(kind, anim, animStep)` picks the frame for a hero in the view, timed by view-kit's `SWING_STEPS` and
 `JUMP_RISE_STEPS`: the strike exactly in the swing's active steps (a hit's freeze holds it, as the engine stops
 counting `animStep`), the walk at a cadence that keeps a planted foot still on a straight walk along the road. It
@@ -60,8 +65,9 @@ engine state fails to compile until it has frames. `tests/animate-engine.test.ts
 
 To see every figure's frames at 3× and 1×, each hero's swaps, flash, flip and portrait, and a reel per anim at game
 speed, run `pnpm exec vite` and open `/games/fuse-axe/lab/sprites.html`. The lab is dev-only: it is not in the build
-and not on the portal. [`docs/images/brakka-frames.png`](docs/images/brakka-frames.png) and
-[`docs/images/rhea-frames.png`](docs/images/rhea-frames.png) are screenshots of it.
+and not on the portal. [`docs/images/brakka-frames.png`](docs/images/brakka-frames.png),
+[`docs/images/rhea-frames.png`](docs/images/rhea-frames.png) and
+[`docs/images/gorm-frames.png`](docs/images/gorm-frames.png) are screenshots of it.
 
 The ravager (`src/render/art/ravager.ts`) paints every frame on one canvas with one feet anchor, so its frames line
 up on the floor; its falling poses are standing poses tipped over backwards (`tipped`). `RAVAGER_ANIMS` lists each
@@ -78,8 +84,8 @@ figure (narrower the higher it jumps), heroes and enemies by depth (further up t
 higher, then by id) flipped to their facing, each hero's chevron in its seat's colour, the hit sparks
 (`sparks.ts`), the grass in front and a flashing GO → when a cleared wave opens the road. An enemy in hit-stop
 flashes, a tier wears its palette and a defeated one blinks out over `DEAD_STEPS`; an invulnerable hero (getting up,
-or just risen) blinks its sprite, keeping its shadow and chevron. Heroes who share a figure each
-get a palette of their own, in seat order; Gorm, until his art lands, borrows Brakka's in one no Brakka wears.
+or just risen) blinks its sprite, keeping its shadow and chevron. Heroes of one kind each get a palette of their own,
+in seat order.
 Nothing is drawn off screen (`pen.ts` clips every call), and every sprite, shadow and sign is baked once.
 
 Everything the renderer pre-paints goes through one injected surface factory, `MakeSurface` in

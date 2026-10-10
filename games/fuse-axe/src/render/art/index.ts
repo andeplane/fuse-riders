@@ -3,6 +3,7 @@ import type { Figure, Pose } from "../pixel/kit.js";
 import type { Sprite } from "../pixel/sprite.js";
 import type { HeroFrame } from "./animate.js";
 import { BRAKKA, BRAKKA_PORTRAIT, BRAKKA_POSES } from "./brakka.js";
+import { GORM, GORM_PORTRAIT, GORM_POSES } from "./gorm.js";
 import { RAVAGER } from "./ravager.js";
 import { RHEA, RHEA_PORTRAIT, RHEA_POSES } from "./rhea.js";
 
@@ -10,6 +11,7 @@ import { RHEA, RHEA_PORTRAIT, RHEA_POSES } from "./rhea.js";
 export const FIGURES: Readonly<Record<string, Figure>> = {
   brakka: BRAKKA,
   rhea: RHEA,
+  gorm: GORM,
   ravager: RAVAGER,
 };
 
@@ -19,8 +21,9 @@ export interface HeroArt {
   readonly poses: Readonly<Record<HeroFrame, Pose>>;
   readonly portrait: Sprite;
 }
-/** The heroes' art by kind; Gorm is still to come. */
-export const HEROES: Readonly<Partial<Record<HeroKind, HeroArt>>> = {
+/** Every hero's art by kind. */
+export const HEROES: Readonly<Record<HeroKind, HeroArt>> = {
   brakka: { figure: BRAKKA, poses: BRAKKA_POSES, portrait: BRAKKA_PORTRAIT },
   rhea: { figure: RHEA, poses: RHEA_POSES, portrait: RHEA_PORTRAIT },
+  gorm: { figure: GORM, poses: GORM_POSES, portrait: GORM_PORTRAIT },
 };
