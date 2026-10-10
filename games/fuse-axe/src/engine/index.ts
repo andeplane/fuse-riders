@@ -1,8 +1,9 @@
 /** Fuse Axe's engine: deterministic rules with no imports from outside this folder. */
-export const RULES = "fuse-axe-4";
+export const RULES = "fuse-axe-5";
 export * from "./input.js";
 export {
   createWorld,
+  defeated,
   spawnEnemy,
   stageCleared,
   showsGo,

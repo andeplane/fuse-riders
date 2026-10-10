@@ -22,6 +22,7 @@ const hero = (id: number, x: number, y = 120, z = 0): HeroView => ({
   animStep: 0,
   hp: 48,
   maxHp: 48,
+  lives: 3,
   invulnerable: false,
 });
 const enemy = (id: number, x: number): EnemyView => ({
@@ -49,6 +50,7 @@ const world = (extra: Partial<WorldView> = {}): WorldView => ({
   locked: false,
   go: false,
   cleared: false,
+  defeated: false,
   ...extra,
 });
 
@@ -101,6 +103,30 @@ test("drawing between frames moves figures by id on whole pixels and leaves the 
     100,
     "never before `older`",
   );
+});
+
+test("a hero that drops back in appears at its drop point instead of sliding there from where it fell", () => {
+  const older = world({
+    camX: 400,
+    heroes: [{ ...hero(1, 40, 120, 0), anim: "dead", lives: 2 }],
+  });
+  const newer = world({
+    step: 3,
+    camX: 400,
+    heroes: [{ ...hero(1, 464, 138, 130), anim: "respawn", lives: 2 }],
+  });
+  const half = blend(older, newer, 0.5);
+  assert.deepEqual(
+    [half.heroes[0]!.x, half.heroes[0]!.y, half.heroes[0]!.z],
+    [464, 138, 130],
+  );
+  // Falling on, it blends as any figure in the air does.
+  const falling = world({
+    step: 6,
+    camX: 400,
+    heroes: [{ ...hero(1, 464, 138, 110), anim: "respawn", lives: 2 }],
+  });
+  assert.equal(blend(newer, falling, 0.5).heroes[0]!.z, 120);
 });
 
 test("a camera that follows a hero keeps it at the same screen column, and one that passes a stander moves it as the backdrop does", () => {

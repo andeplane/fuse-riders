@@ -1,5 +1,11 @@
 import type { Pose } from "./kit.js";
-import { Rig, type Painting, type Point, type Smear } from "./rig.js";
+import {
+  Rig,
+  type Painting,
+  type Point,
+  type ShapeOptions,
+  type Smear,
+} from "./rig.js";
 import type { Sprite } from "./sprite.js";
 
 /**
@@ -41,6 +47,55 @@ export function head(rig: Rig, h: Point, at: Turn, scale = 1) {
   rig.ellipse(h, 3.7 * k, 4.3 * k, "s", face);
   rig.ellipse(at(h, 1.7 * k, 2.4 * k), 2.8 * k, 2.3 * k, "s", face);
   rig.ellipse(at(h, 4 * k, 0.9 * k), 1 * k, 1.1 * k, "s", face);
+}
+
+/**
+ * A full beard in `key` hair from the cheeks down over the chest, sized for `head` at 1.1, its strands in grain, and a
+ * moustache under the nose; it turns with the head.
+ */
+export function beard(rig: Rig, h: Point, at: Turn, key: string) {
+  const hair = { group: "beard", bias: 0.1 };
+  const fall: Point[] = [
+    [-4.4, 4.2],
+    [1, 5.2],
+    [6.8, 5.4],
+    [6.4, 10],
+    [3, 15.5],
+    [0, 14],
+    [-3.4, 9],
+  ];
+  rig.poly(
+    fall.map(([dx, dy]) => at(h, dx, dy)),
+    key,
+    { ...hair, bevel: 2.4, grain: 3 },
+  );
+  rig.capsule(at(h, 1.6, 5.2), at(h, 7.4, 5.8), 1.5, 1.1, key, hair);
+}
+
+/**
+ * A steel helm over the top of the head, a bronze rim at the brow and two bone horns curving up and out: the far one
+ * behind the dome in shadow, the near one in front. Sized for `head` at 1.1, as `beard` is. Every part is a capsule
+ * turned with the head, so a lying hero keeps it on; a palette swap recolours it.
+ */
+export function hornedHelm(rig: Rig, h: Point, at: Turn) {
+  const horn = (side: 1 | -1, o: ShapeOptions) => {
+    const part = { ...o, group: rig.newGroup() };
+    const [root, bend, tip] = [
+      at(h, 4.4 * side, -3.4),
+      at(h, 7.8 * side, -6),
+      at(h, 8.2 * side, -10),
+    ];
+    rig.capsule(root, bend, 1.9, 1.3, "b", part);
+    rig.capsule(bend, tip, 1.3, 0.6, "b", part);
+  };
+  horn(-1, { bias: -0.2 });
+  rig.capsule(at(h, -1.8, -3.6), at(h, 1.8, -3.6), 3.6, 3.6, "m", {
+    group: "helm",
+  });
+  rig.capsule(at(h, -5.2, -1.2), at(h, 5.4, -1.2), 1.2, 1.2, "n", {
+    edge: "none",
+  });
+  horn(1, {});
 }
 
 /** Stamps a face's rows on the baked painting, turned with the head. */
