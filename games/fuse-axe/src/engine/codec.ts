@@ -1,14 +1,29 @@
 import { INPUT_MASK } from "./input.js";
 import {
+  BUFFER_STEPS,
   CAMERA_END,
   CAPACITY,
+  ENEMY_HP,
+  ENEMY_KINDS,
+  ENEMY_MAX,
+  FX_LIFE,
+  FX_MAX,
+  HEAVY_HITSTOP,
   HERO_KINDS,
   STAGE_LENGTH,
   VIEW_H,
   VIEW_W,
   px,
 } from "./tuning.js";
-import { HERO_STATES, type Hero, type World } from "./world.js";
+import {
+  ENEMY_STATES,
+  FX_KINDS,
+  HERO_STATES,
+  type Enemy,
+  type Fx,
+  type Hero,
+  type World,
+} from "./world.js";
 
 /**
  * The world as checkpoint fields: nested integer tuples MessagePack carries, and a decoder that checks every field's
@@ -85,25 +100,68 @@ const ID = int(1, UINT32),
   X = int(-px(VIEW_W), STAGE_LENGTH + px(VIEW_W)),
   Y = int(0, px(VIEW_H)),
   Z = int(0, px(VIEW_H)),
-  SPEED = int(-px(16), px(16));
+  SPEED = int(-px(16), px(16)),
+  FACING = oneOf([1, -1] as const),
+  BUFFER = int(0, BUFFER_STEPS);
 
-const hero = record<Hero>({
-  id: ID,
-  seat: int(0, CAPACITY - 1),
-  kind: oneOf(HERO_KINDS),
+// `ENEMY_MAX` bounds the enemy list, and the ones a swing has hit: a hit enemy is not gone within its swing.
+const hero = record<Hero>(
+  {
+    id: ID,
+    seat: int(0, CAPACITY - 1),
+    kind: oneOf(HERO_KINDS),
+    x: X,
+    y: Y,
+    z: Z,
+    vx: SPEED,
+    vy: SPEED,
+    vz: SPEED,
+    facing: FACING,
+    state: oneOf(HERO_STATES),
+    timer: COUNT,
+    held: int(0, INPUT_MASK),
+    attackBuf: BUFFER,
+    jumpBuf: BUFFER,
+    stopUntil: COUNT,
+    struck: list(ID, ENEMY_MAX),
+    damage: COUNT,
+    knockdowns: COUNT,
+  },
+  (value) => ascending(value.struck, (id) => id),
+);
+
+const enemy = record<Enemy>(
+  {
+    id: ID,
+    kind: oneOf(ENEMY_KINDS),
+    x: X,
+    y: Y,
+    z: Z,
+    vx: SPEED,
+    vz: SPEED,
+    facing: FACING,
+    hp: COUNT,
+    state: oneOf(ENEMY_STATES),
+    timer: COUNT,
+    stopUntil: COUNT,
+  },
+  (value) => value.hp <= ENEMY_HP[value.kind],
+);
+
+const fx = record<Fx>({
+  kind: oneOf(FX_KINDS),
   x: X,
   y: Y,
   z: Z,
-  vx: SPEED,
-  vy: SPEED,
-  vz: SPEED,
-  facing: oneOf([1, -1] as const),
-  state: oneOf(HERO_STATES),
-  timer: COUNT,
-  held: int(0, INPUT_MASK),
+  born: COUNT,
 });
 
-/** Heroes in id order, which is seat order, every id below `nextId`. */
+/**
+ * Heroes in id order, which is seat order, and enemies in id order, every id below `nextId` and none both a hero's
+ * and an enemy's; the ids a swing has hit are enemy ids too, though the enemy may since be gone. No hit-stop runs
+ * past the longest a hit starts now, and the sparks run oldest first, each born no later than now and not yet past
+ * its life.
+ */
 const world = record<World>(
   {
     seed: COUNT,
@@ -112,11 +170,32 @@ const world = record<World>(
     nextId: ID,
     camX: int(0, CAMERA_END),
     heroes: list(hero, CAPACITY),
+    enemies: list(enemy, ENEMY_MAX),
+    fx: list(fx, FX_MAX),
   },
-  (value) =>
-    ascending(value.heroes, (each) => each.id) &&
-    ascending(value.heroes, (each) => each.seat) &&
-    value.heroes.every((each) => each.id < value.nextId),
+  (value) => {
+    const heroIds = new Set(value.heroes.map((each) => each.id)),
+      issued = (id: number) => id < value.nextId,
+      enemyId = (id: number) => issued(id) && !heroIds.has(id),
+      stopped = (each: Hero | Enemy) =>
+        each.stopUntil <= value.step + HEAVY_HITSTOP;
+    return (
+      ascending(value.heroes, (each) => each.id) &&
+      ascending(value.heroes, (each) => each.seat) &&
+      ascending(value.enemies, (each) => each.id) &&
+      value.heroes.every(
+        (each) =>
+          issued(each.id) && stopped(each) && each.struck.every(enemyId),
+      ) &&
+      value.enemies.every((each) => enemyId(each.id) && stopped(each)) &&
+      value.fx.every(
+        (each, index) =>
+          each.born <= value.step &&
+          value.step - each.born < FX_LIFE &&
+          (index === 0 || each.born >= value.fx[index - 1]!.born),
+      )
+    );
+  },
 );
 
 export const encodeWorld = (value: World): unknown => world.encode(value);
