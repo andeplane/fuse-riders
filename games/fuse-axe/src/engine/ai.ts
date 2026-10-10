@@ -51,8 +51,11 @@ export function act(world: World, enemy: Enemy): void {
   if (enemy.state === "idle") {
     const towards = target ?? nearestHero(world, enemy);
     if (towards) face(enemy, towards.x);
-    // A hero who walks up into its lane is met at once.
-    if (world.step >= enemy.thinkAt || (towards && linedUp(enemy, towards)))
+    // A hero who walks up into its lane is met at once; one lying there is waited out, not re-decided every step.
+    if (
+      world.step >= enemy.thinkAt ||
+      (towards && linedUp(enemy, towards) && !FLOORED.includes(towards.state))
+    )
       decide(world, enemy);
   } else if (enemy.state === "walk") stride(world, enemy);
   else if (enemy.state === "windup") {

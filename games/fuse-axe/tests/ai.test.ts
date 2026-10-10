@@ -239,6 +239,8 @@ test("a mace hit holds a hero in hit-stop, then it reels back; one landing in a 
 test("the third hit in a row knocks a hero down, as does one low on health or in the air; it gets up invulnerable", () => {
   const hit = (w: World) => step(armed(w), []);
   const between = Kit.HERO_HURT_STEPS + T.HITSTOP;
+  // A fresh hero has never been invulnerable, though its `invulnUntil` of 0 is not before step 0.
+  assert.equal(toView(duel(0, 24)).heroes[0]!.invulnerable, false);
   let world = hit(duel(0, 24));
   world = hit(run(world, between));
   assert.deepEqual([hero(world).state, hero(world).stagger], ["hurt", 2]);
@@ -298,6 +300,51 @@ test("a hero at no hp is knocked down for good: it lies dead, and the enemies le
     ["dead", hero(world).x, "dead"],
   );
   assert.ok(later.enemies.every((e) => e.target === 0 && e.state === "idle"));
+});
+
+test("a fallen hero holds the camera no more: the others walk on, and with none on the field it stays put", () => {
+  const party = createWorld({
+    seed: 1,
+    heroes: [
+      { seat: 0, kind: "gorm" },
+      { seat: 1, kind: "rhea" },
+    ],
+  });
+  const fallen = { ...hero(party), state: "dead" as const, hp: 0 };
+  const marched = run({ ...party, heroes: [fallen, hero(party, 1)] }, 150, [
+    0,
+    RIGHT,
+  ]);
+  // The fallen one lies where it fell, behind the camera, and the survivor leads it by the usual distance.
+  assert.equal(hero(marched).x, fallen.x);
+  assert.ok(marched.camX > fallen.x, "the camera went on past it");
+  assert.equal(hero(marched, 1).x - marched.camX, T.CAMERA_LEAD);
+  const wiped = run(
+    { ...party, heroes: [fallen, { ...fallen, id: 2, seat: 1 }] },
+    120,
+    [RIGHT, RIGHT],
+  );
+  assert.equal(wiped.camX, 0);
+});
+
+test("an enemy beside a hero lying down waits out its pause instead of deciding every step, then swings at the one who rises", () => {
+  let world = withHero(duel(0, 24), { state: "down" });
+  const { think } = T.RAVAGER[0];
+  let draws = 0;
+  for (let index = 0; index < think + 4; index++) {
+    const before = world.rng;
+    world = step(world, []);
+    if (world.rng !== before) draws++;
+    assert.notEqual(enemy(world).state, "windup");
+  }
+  assert.equal(hero(world).state, "down", "it is still lying");
+  // One decision when its pause ran out (it rested again, with a random part), none in the steps before.
+  assert.equal(draws, 1);
+  assert.ok(enemy(world).thinkAt > world.step);
+  kept(world);
+  world = until(world, (w) => hero(w).state === "idle");
+  world = until(world, (w) => enemy(w).state === "windup");
+  assert.equal(enemy(world).target, hero(world).id);
 });
 
 /** Walks toward the nearest enemy standing, lining up in depth, and presses Attack every other step regardless. */

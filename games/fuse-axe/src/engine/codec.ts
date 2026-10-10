@@ -5,6 +5,8 @@ import {
   CAPACITY,
   ENEMY_KINDS,
   ENEMY_MAX,
+  FLOOR_BOTTOM,
+  FLOOR_TOP,
   FX_LIFE,
   FX_MAX,
   GETUP_GRACE,
@@ -111,7 +113,11 @@ const ID = int(1, UINT32),
   Z = int(0, px(VIEW_H)),
   SPEED = int(-px(16), px(16)),
   FACING = oneOf([1, -1] as const),
-  BUFFER = int(0, BUFFER_STEPS);
+  BUFFER = int(0, BUFFER_STEPS),
+  // Where an enemy walks to: `walkTo` and `walkIn` keep a goal on the road and in the floor band, and one past either
+  // is a walk that never ends.
+  GOAL_X = int(0, STAGE_LENGTH),
+  GOAL_Y = int(FLOOR_TOP, FLOOR_BOTTOM);
 
 /** The longest a hero is invulnerable and an idle enemy waits to decide, from any step. */
 const INVULN = GETUP_STEPS + GETUP_GRACE,
@@ -168,8 +174,8 @@ const enemy = record<Enemy>({
   timer: COUNT,
   stopUntil: COUNT,
   tier: oneOf(TIERS),
-  goal: X,
-  goalY: Y,
+  goal: GOAL_X,
+  goalY: GOAL_Y,
   target: COUNT,
   thinkAt: COUNT,
 });
