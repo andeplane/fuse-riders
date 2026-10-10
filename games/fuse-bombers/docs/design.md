@@ -111,7 +111,7 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
    and gunship art.
 7. Online game: the checkpoint codec, `RULES` with a golden-hash replay, and the `RollbackGame` with tests for rollback,
    checkpoints, bad input, and dropped, duplicated and reordered fire presses (in progress: the `RollbackGame`, `RULES`
-   and the golden are in `src/online/`; next the codec and this device's runtime, `src/online/runtime.ts`).
+   and the golden, and this device's runtime, are in `src/online/`; next the codec).
 8. Online app: registration (the game's `package.json` `exports` and workspace dependencies, the root `package.json`,
    `Dockerfile.cloud`, `service/history.ts`, the game list in `tests/dice-service.test.ts`, `.c8rc.json`), runtime,
    session, landing and room lobby, then the shared TV and phone controller, a `preview/smoke.mjs` like Choppers', and

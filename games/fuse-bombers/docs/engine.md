@@ -393,6 +393,9 @@ joins mid-match flies from the next round, and too few gunships send the room ba
 - **Hash**: `hashPlain` (`src/online/hash.ts`) walks the whole room as plain data (numbers by their bits, typed arrays,
   sorted keys), so state added later is covered; only the latest step's `events` are left out. About 0.6 ms a call.
 - **Checkpoint**: none yet; `decode` refuses every snapshot until the validated codec (the next pull request).
+- **This device** (`src/online/runtime.ts`, `BombersRuntime`): `input(bits)` logs the directions on change (and again
+  for a new round); `fire()` logs a `PRESS` with the next ordinal and the step its moment falls on in the shared clock's
+  current log tick.
 - **`RULES`** (`src/engine/index.ts`) and `tests/online-golden.test.ts`, a scripted six-gunship match replayed to
   recorded hashes: a change to how a logged room plays bumps `RULES` and re-records them (`GOLDEN_RECORD=1`) in the same
   commit; a failure without one is a regression ([engine-safety-net.md](../../../docs/design/engine-safety-net.md)).
