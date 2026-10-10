@@ -29,14 +29,17 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 
 - **World.** About 4800 × 2700 logical pixels (three times the old arena each way), y down. Terrain is a bitmap of
   4 px cells (a bitset, about 100 KB) instead of a height map, so the map can have overhangs, tunnels and caves. Every
-  explosion carves a circle; the map may mark some cells indestructible so the temple keeps a skeleton.
+  explosion carves a circle; the map may mark some cells indestructible so the temple keeps a skeleton (a constant
+  mask that comes with the map, not a second bitset in the round state).
 - **Flight.** Input is held bits: up, down, left, right, fire. Thrust about 260 px/s², top speed about 200 px/s,
   linear drag. Diagonals are normalised. A gunship is a circle for collisions; it slides along rock rather than
   sticking.
 - **Aim.** The launcher turns counter-clockwise at a steady rate (about 3.6 s a revolution). Fire fires on the press
-  (the rising edge of the fire bit) when loaded, at the angle the player saw.
+  (the rising edge of the fire bit, which the engine tracks per gunship in the round state) when loaded, at the angle
+  the player saw. Online, a press arrives as its own log entry (see "Online shape" below).
 - **Spawns.** The map lists anchor points; a round picks a spread, seeded set for the player count. Because gunships
-  move, no reachability check is needed any more.
+  move, the old check that every pair of castles can hit each other (`src/engine/reach.ts`) goes; a map test only
+  checks that every anchor is open air with room for a gunship.
 - **Gates and crates** spread over the open sky of the whole map, more of them than on the old one-screen arena.
 - **Sudden death** drops bombs from a fixed height above living gunships.
 - **Ghosts** fly freely with the same controls, pass through rock and drop bombs.
@@ -49,37 +52,58 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
   Shift, IJKL + H, numpad 8456 + numpad 0, adjustable in the PR that lands it).
 - Gamepad: left stick or D-pad, any face button fires.
 - Touch (local): up to two riders, a D-pad and FIRE on each side of the screen.
-- Phone controller (online shared TV): D-pad and FIRE hold buttons.
+- Phone controller (online shared TV): a held D-pad and a FIRE button (each tap is one fire press).
 
 ### Technical rules for the overhaul
 
 - **Determinism across browsers.** Online rollback replays the same log on different engines, so the engine must not
-  use `Math.sin/cos/tan/atan/atan2/hypot/pow/exp/log*/random`, `**`, `Date` or `performance`
-  (`deterministicViolations` in `tests/fixtures/source-guards.ts`; `Math.sqrt` is fine). Trig goes through the
-  engine's own deterministic helper. A `tests/architecture.test.ts` applies the guard to `src/engine/`.
+  use `Math.sin/cos/tan/atan/atan2/hypot/pow/exp/log*/random`, `**`, `Date`, `performance` or `localeCompare`, nor take
+  `Math` apart (`const { sin } = Math`, `Math[name]`) (`deterministicViolations` in `tests/fixtures/source-guards.ts`;
+  `Math.sqrt` is exact IEEE and fine). Today's engine uses several of them (`exp`, `log2` and `hypot` in `bot.ts`,
+  `sin`/`cos` in `geometry.ts`, `atan2`, `hypot`, `sin` and `cos` in `round.ts`, `exp`/`sin` in `terrain.ts`). Trig goes through a
+  deterministic helper written inside `src/engine/`: `tests/engine-boundary.test.ts` refuses npm imports there, so Fuse
+  Riders' `@stdlib`-backed `deterministic-math.ts` cannot be reused as is. That test already runs
+  `deterministicViolations` over `src/engine/`, but keeps only the clock and `Math.random` (`UNSEEDED`) because of the
+  list above; step 1 drops that filter (and updates the test's comment and its "catches every form" case) instead of
+  adding a second test file.
 - **Bots live in the state.** A bot is a pure function of the round state plus bot memory stored in that state (seeded,
-  checkpointed, hashed), and the engine computes bot seats' inputs inside `step`. No closures with memory, so a
-  rollback replays a bot exactly. Bots stay cheap: the netcode re-runs up to 8 steps per 6 ms, so a step with six bots
-  must stay well under a millisecond on average.
-- **Snapshot-friendly state.** The round state is plain data and typed arrays (it survives `structuredClone`), with a
-  validated checkpoint codec: terrain as runs, rockets and gates as bounded arrays.
-- **Online shape** follows Fuse Choppers: `src/online/game.ts` (the `RollbackGame`: held-bit `PLAY` entries folded per
-  log tick of three 60 Hz steps, with the fire press carrying its step offset so aim timing is not rounded to 50 ms),
-  `src/online/runtime.ts`, `src/engine/codec.ts`, `src/app/session.ts`, a presenter, and `src/platform.ts` registered in
-  `service/history.ts`.
+  checkpointed, hashed), and the engine computes bot seats' inputs inside `step`. They emit ordinary input bits and get
+  no privileged physics. No closures with memory, so a rollback replays a bot exactly. Bots stay cheap: catch-up and
+  rollback re-runs spend up to 8 steps per 10 ms loop pass (`CATCHUP_STEPS`) and start no new log tick once a pass has
+  spent 6 ms in steps (`CATCHUP_MS`), so a step with six bots must stay well under a millisecond on average.
+- **Snapshot-friendly state.** The round state is plain data and typed arrays (it survives `structuredClone`; the
+  netcode clones it every 4th log tick, keeps 12, and clones again for every rollback, so the terrain is one typed array
+  and nothing else in the state is large), with a validated checkpoint codec: terrain as runs (decode refuses runs that
+  do not total the grid), rockets and gates as bounded arrays, all within the netcode's 2 MB snapshot limit.
+- **Online shape** follows Fuse Choppers (`games/fuse-choppers/`): `src/online/game.ts` (the `RollbackGame`: one log
+  tick of 50 ms folds the management entries, each seat's held direction bits and the bots' answers, then runs three
+  60 Hz steps), `src/online/runtime.ts` (this device's controls), `src/engine/codec.ts`, `src/app/session.ts`,
+  `src/app/presenter.ts`, and `src/platform.ts` registered in `service/history.ts`. Choppers' `PLAY` entry carries held
+  bits only; Bombers cannot do that for fire, because a press and release inside one log tick would fold to nothing and
+  aim timing would round to 50 ms. So the fire press is its own entry: an increasing gesture id (`EntryRules.ordinal`,
+  as with Fuse Riders' press) plus its step offset (0 to 2) inside the log tick, and `step` sees the fire bit for
+  exactly that step. The `RollbackGame` also brings a `RULES` id (`fuse-bombers-1`) and a golden-hash replay test, as
+  Choppers has; after that an engine change bumps `RULES` and refreshes the golden in the same commit.
 
 ### Plan (pull requests of 10–1000 lines, each leaving the game playable)
 
-1. Deterministic engine: a trig helper, no banned operations, the architecture guard.
+1. Deterministic engine: an in-engine trig helper, the banned operations replaced (`bot.ts`, `geometry.ts`, `round.ts`,
+   `terrain.ts`), the full guard in `tests/engine-boundary.test.ts`.
 2. Bitmap terrain and the temple map (new modules, a preview image of the map).
 3. Flight kernel: momentum, collisions against a solid-field interface (new module).
 4. Big map: the round on the bitmap terrain and the temple map, hovering gunships at spawn anchors, the launcher
    turning a full circle; render draws the bitmap terrain with the whole map in view.
 5. Free flight: held-bit input, the flight kernel wired in, flying ghosts, bots inside `step` with their memory in the
-   state; keyboard clusters.
+   state; keyboard clusters. (Until 6 lands, gamepad and touch riders hover and fire but do not steer.)
 6. Devices and render, in parallel: gamepad sticks, touch pads and lobby texts; the framing camera and gunship art.
-7. Online game: the checkpoint codec and the `RollbackGame` with tests for rollback, checkpoints and bad input.
-8. Online app: registration, runtime, session, landing and room lobby, then the shared TV and phone controller.
+7. Online game: the checkpoint codec, `RULES` with a golden-hash replay, and the `RollbackGame` with tests for rollback,
+   checkpoints, bad input, and dropped, duplicated and reordered fire presses.
+8. Online app: registration (the game's `package.json` `exports` and workspace dependencies, the root `package.json`,
+   `Dockerfile.cloud`, `service/history.ts`, the game list in `tests/dice-service.test.ts`, `.c8rc.json`), runtime,
+   session, landing and room lobby, then the shared TV and phone controller, a `preview/smoke.mjs` like Choppers', and
+   the docs the change makes stale (the README says "a local game: no rooms"; the `docs/architecture.md` row). Cloud
+   Run serves a game beyond Fuse Riders only once the operator adds its id to `EXTRA_GAME_IDS`; that is not part of these
+   pull requests.
 
 ## Original design (before the overhaul)
 
