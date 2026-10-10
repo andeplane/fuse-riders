@@ -82,6 +82,5 @@ Everything the renderer pre-paints goes through one injected surface factory, `M
 smoothing off whose `putPixels` is `putImageData`; without it the backdrop's layers are replayed through `paint` a
 run of a colour at a time, which draws the same pixels (about 77,000 rectangles for Stage 1, once).
 
-To playtest the scene without a room, run `pnpm exec vite` and open `/games/fuse-axe/lab/scene.html?mute`: the engine
-runs on the page with the keyboard on P1 and three ravagers to fight (R brings three more), `?heroes=brakka,gorm,rhea`
-seats a party, and the corner shows the draw time. [`docs/images/scene.png`](docs/images/scene.png) is the game mid-fight.
+[`docs/images/scene.png`](docs/images/scene.png) is Brakka fighting Stage 1's first wave in a solo game; it draws a
+frame in well under a millisecond.
