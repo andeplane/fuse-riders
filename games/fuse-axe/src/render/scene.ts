@@ -89,6 +89,39 @@ export function heroLooks(heroes: readonly HeroView[]): Map<number, HeroLook> {
   return looks;
 }
 
+/**
+ * `heroLooks` kept for as long as the roster (each hero's id, seat and kind) is the same, which is the whole run: a
+ * frame reads the one map back instead of sorting, filtering and allocating a new one sixty times a second. A hero's
+ * position, anim or hit points do not enter into it, so a look never changes mid-fight.
+ */
+export function createLooks(): (
+  heroes: readonly HeroView[],
+) => ReadonlyMap<number, HeroLook> {
+  let roster: readonly Pick<HeroView, "id" | "seat" | "kind">[] = [];
+  let looks = new Map<number, HeroLook>();
+  const same = (heroes: readonly HeroView[]) => {
+    if (heroes.length !== roster.length) return false;
+    for (let i = 0; i < heroes.length; i++) {
+      const hero = heroes[i]!;
+      const known = roster[i]!;
+      if (
+        hero.id !== known.id ||
+        hero.seat !== known.seat ||
+        hero.kind !== known.kind
+      )
+        return false;
+    }
+    return true;
+  };
+  return (heroes) => {
+    if (!same(heroes)) {
+      roster = heroes.map(({ id, seat, kind }) => ({ id, seat, kind }));
+      looks = heroLooks(heroes);
+    }
+    return looks;
+  };
+}
+
 /** A defeated enemy lies still for a third of `DEAD_STEPS`, then blinks every `BLINK_STEPS` until it is gone. */
 export const BLINK_STEPS = 4;
 export const deadShows = (animStep: number): boolean =>
@@ -163,6 +196,7 @@ export function createScene<Image>(
   const baker = createSpriteBaker(make);
   const shadows = new Map<number, { image: Image; w: number; h: number }>();
   const crowns = new Map<Figure, number>();
+  const lookOf = createLooks();
 
   /** A soft dithered ellipse `rx` wide either side: solid in the middle, thinning to its edge. */
   const shadow = (rx: number) => {
@@ -199,13 +233,13 @@ export function createScene<Image>(
         z: Math.floor(f.z),
         sx: Math.floor(f.x - camX),
       });
-      const looks = heroLooks(view.heroes);
+      const looks = lookOf(view.heroes);
       const standing: Standing[] = view.heroes.map((hero) => {
         const { figure, swap } = looks.get(hero.id)!;
-        const frame = heroFrame(hero.kind, hero.anim, hero.animStep);
+        const pose = heroFrame(hero.kind, hero.anim, hero.animStep);
         return {
           ...at(hero),
-          sprite: figure.sprite(frame),
+          sprite: figure.sprite(pose),
           options: { swap, flip: hero.facing < 0 },
           marker: { seat: hero.seat, crown: crown(figure) },
         };
@@ -213,10 +247,11 @@ export function createScene<Image>(
       for (const enemy of view.enemies) {
         if (enemy.anim === "dead" && !deadShows(enemy.animStep)) continue;
         const art = ENEMY_ART[enemy.kind];
-        const frame = stripFrame(art.anims[enemy.anim], enemy.animStep);
+        // An anim the art has no strip for stands idle, as a hero's does, rather than stopping the frame loop.
+        const strip = art.anims[enemy.anim] ?? art.anims.idle;
         standing.push({
           ...at(enemy),
-          sprite: art.figure.sprite(frame),
+          sprite: art.figure.sprite(stripFrame(strip, enemy.animStep)),
           options: {
             swap: art.tiers[enemy.tier],
             flash: enemy.flash,
