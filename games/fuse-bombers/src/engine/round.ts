@@ -243,8 +243,8 @@ function withBots(state: RoundState, held: readonly number[]): number[] {
 /**
  * Advances the round by one tick. `held[i]` is the input bits player i holds this tick (`UP | DOWN | LEFT | RIGHT |
  * FIRE` from input.ts); a missing entry, or one that is not an integer of those bits, holds nothing. The seats
- * `config.bots` names hold what their bots decide (`botInput`, from the state before this step), whatever `held` says. The directions
- * steer the gunship (or the ghost), and a fire press is the rising edge of `FIRE` against the previous step's bits,
+ * `config.bots` names hold what their bots decide (`botInput`, from the state before this step), whatever `held`
+ * says. The directions steer the gunship (or the ghost), and a fire press is the rising edge of `FIRE` against the previous step's bits,
  * so holding fire never fires again. Mutates `state` in place and returns this tick's events (also stored on
  * `state.events`). Stepping a finished round keeps rockets and gunships flying for the aftermath but no longer
  * fires, damages or changes the result.

@@ -55,8 +55,8 @@ export const GHOST_HOLD_SECONDS = 5;
 
 /**
  * The app's game loop: advances the engine at a fixed 60 Hz from real frame times, asks the input hub for the
- * humans' input every step (the engine plays the bot seats), records each finished round in `match` as soon as it ends, and starts the next round
- * (then a new match) once the aftermath has played. It implements the render layer's `RoundSource`.
+ * humans' input every step (the engine plays the bot seats), records each finished round in `match` as soon as it
+ * ends, and starts the next round (then a new match) once the aftermath has played. It implements the render layer's `RoundSource`.
  */
 export class RoundRunner {
   match: MatchState;

@@ -67,6 +67,7 @@ test("real bots fire, the result is recorded as the round ends, and the next rou
   assert.ok(recordedAtEnd, "the match saw the result as the round ended");
   assert.notEqual(runner.view, first, "a new round started");
   assert.equal(runner.view.tick, 1);
+  assert.equal(runner.view.config.bots?.length, 2, "the bots play on");
   assert.equal(runner.match.history.length, 1);
 });
 

@@ -56,8 +56,8 @@ quits; on a pad Start confirms and pauses, Back goes back or pauses, and holding
 touch screen tap the on-screen buttons, and the `II` corner button pauses.
 
 Lobby shortcuts: `2`–`6` sets the player count, `R` cycles rounds to win (1–5; the `+`/`−` buttons go up to 9), `B`
-cycles every bot's level (bots start on easy), and `Enter` starts. Click a bot to change its level: easy bots wander
-and miss a lot, normal ones hunt the weak and finish most rounds before the fuse, hard ones aim tighter and dodge.
+cycles every bot's level (bots start on easy), and `Enter` starts. Click a bot to change its level: easy bots take
+their time and miss a lot, normal ones hunt the weak and finish most rounds before the fuse, hard ones aim tighter and dodge.
 Bots fly and fire like you (the same controls, no extra physics). Mid-round, `Esc` or a pad's Start/Back
 pauses; while paused, `Enter`/`Esc` resume and `Backspace` quits to the lobby. On the winner screen, `Enter`
 plays again and `Esc` or `Backspace` returns to the lobby.
