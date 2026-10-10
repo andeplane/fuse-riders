@@ -29,11 +29,13 @@ higher levels, and never hurts other heroes.
 
 - **Walk** in eight directions on the floor: left/right along the road, up/down in depth (slower, as in the
   original). The floor is a depth band in the lower half of the screen.
-- **Run**: double-tap left or right. **Dash attack** (shoulder charge) from a run knocks down.
+- **Run**: double-tap left or right, on a phone's d-pad too. **Dash attack** (shoulder charge) from a run knocks
+  down. If double-taps prove unreliable on glass in playtests, a phone gets a run toggle instead.
 - **Combo**: Attack three times — two slashes and a heavy finisher that knocks down.
 - **Throw**: walk into a dazed enemy and Attack to grab and throw them; a thrown body knocks down anyone it hits.
 - **Jump** and **jump attack** (a downward stab).
-- **Back attack**: Attack + Jump together strikes behind you, for when you are surrounded.
+- **Back attack**: on the floor, Attack and Jump pressed within a couple of steps of each other (the window is a
+  tuning constant) strike behind you, for when you are surrounded. In the air Attack is always the jump attack.
 - Heroes do not hurt each other.
 
 Hits connect only when attacker and target are within a few pixels of each other in depth, so lining up on the road
@@ -113,9 +115,11 @@ for up to five seats with bots, rooms and a shared screen.
   (`px(n)`), so there is no floating-point drift between peers. Space is x (along the road), y (depth on the floor
   band) and z (height above the floor). Randomness is a seeded generator whose state lives in the world, so replay and
   rollback reproduce it. Entities are kept in id order and processed in that order.
-- **Input.** Each seat logs held bits per step — left, right, up, down, attack, jump, magic — and the engine derives
-  presses (double taps, combos, charge) from the previous step's bits kept in the world, so a press is never lost
-  to a rollback.
+- **Input.** Each seat logs its held bits — left, right, up, down, attack, jump, magic — in the netcode's per-tick
+  entries, as Choppers does: every entry a seat logs in a tick is folded into the tick's first step (so a tap shorter
+  than 50 ms still counts as a press) and the last one is held for the other two. The engine derives presses (double
+  taps, combos, charge) from the previous step's bits, which live in the world and so in every snapshot: a late input
+  rewinds and replays to the same presses, and none is lost to a rollback.
 - **Rendering.** Canvas 2D at the native 320 × 180 into an offscreen canvas, copied to the page at the largest whole
   scale with smoothing off. Sprites are built once from palette-indexed data into offscreen canvases through an
   injectable surface factory, so tests can draw into a fake context.
@@ -126,7 +130,7 @@ for up to five seats with bots, rooms and a shared screen.
 
 Small pull requests, each reviewed and merged before the next one that depends on it:
 
-1. Design outline, concept art and the package skeleton (this document).
+1. Design outline and the package skeleton (this document). Concept art follows in its own pull request.
 2. Engine core: world state, fixed-step tick, seeded randomness, movement on the floor band, jumping, camera.
    Sprite pipeline: palette-indexed sprite data, surface builder, the heroes' idle, walk and jump frames. (In
    parallel.)
