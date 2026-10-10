@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { LEFT, RIGHT } from "../src/engine/input.js";
 import {
   Flow,
   menuAction,
@@ -12,13 +13,17 @@ import {
   type GamepadLike,
 } from "../src/app/input/gamepad.js";
 import { InputHub, type Command, type DeviceId } from "../src/app/input/hub.js";
-import type { TouchZoneStyle } from "../src/app/input/index.js";
+import type { TouchPadStyle } from "../src/app/input/index.js";
 import {
   attachKeyboard,
   type KeyEventLike,
   type KeyboardTarget,
 } from "../src/app/input/keyboard.js";
-import { Lobby } from "../src/app/lobby.js";
+import {
+  attachTouch,
+  type PointerLike,
+  type PointerTarget,
+} from "../src/app/input/touch.js";
 
 /** A standard-mapped pad with these buttons down (0–3 face buttons, 8 Back, 9 Start). */
 function pad(index: number, down: number[] = [], mapping = "standard") {
@@ -138,19 +143,6 @@ test("Enter and Space on a focused control outside the screens press it, not the
   assert.ok(!pressesFocusedControl("Enter", null, screen));
 });
 
-test("touch zones are renumbered left to right, so a match has no blank zone", () => {
-  const lobby = new Lobby();
-  for (const d of ["touch:0", "key:Q", "touch:1", "touch:2"] as const)
-    lobby.press(d);
-  lobby.press("touch:0"); // leaves slot 0
-  lobby.press("pad:0"); // takes slot 0
-  lobby.compactTouchZones();
-  assert.deepEqual(
-    lobby.seats().map((s) => s.device),
-    ["pad:0", "key:Q", "touch:0", "touch:1"],
-  );
-});
-
 test("keyboard riders join and leave the lobby by their fire key; direction keys never join", () => {
   const { flow, hub } = fakeFlow();
   const listeners = new Map<string, (event: KeyEventLike) => void>();
@@ -185,11 +177,63 @@ test("keyboard riders join and leave the lobby by their fire key; direction keys
 
 type Listener = (event: never) => void;
 
-/** A Flow on fake devices: a real hub, fake pads and clock, a fake overlay element and keyboard. */
+/**
+ * Touch pads on a fake 1000 × 500 overlay feeding `hub`. `press` puts finger `id` on one side's control (a point of
+ * its D-pad, up by default) and `lift` takes it off; `tap` is both, on FIRE or the up arrow.
+ */
+function fakeTouchPads(hub: InputHub) {
+  const listeners = new Map<string, (event: PointerLike) => void>();
+  const surface: PointerTarget = {
+    addEventListener: (type, listener) => listeners.set(type, listener),
+    removeEventListener: () => undefined,
+    getBoundingClientRect: () => ({
+      left: 0,
+      top: 0,
+      width: 1000,
+      height: 500,
+    }),
+  };
+  const page = { addEventListener: () => {}, removeEventListener: () => {} };
+  const source = attachTouch(surface, (d, bits) => hub.setHeld(d, bits), page);
+  const pointer = (type: string, x: number, y: number, pointerId: number) =>
+    listeners.get(type)?.({
+      ...{ clientX: x, clientY: y, pointerId },
+      preventDefault: () => undefined,
+    });
+  /** Finger `id` down on `side`'s FIRE, or at fractions `at` of its D-pad; false when that side shows no pad. */
+  const press = (
+    side: number,
+    control: "fire" | "dpad",
+    at: readonly [number, number] = control === "fire"
+      ? [0.5, 0.5]
+      : [0.5, 0.15],
+    id = 1,
+  ): boolean => {
+    const rect = source.layout().find((pad) => pad.side === side)?.[control];
+    if (!rect) return false;
+    pointer(
+      "pointerdown",
+      rect.x + rect.width * at[0],
+      rect.y + rect.height * at[1],
+      id,
+    );
+    return true;
+  };
+  const lift = (id = 1) => pointer("pointerup", 0, 0, id);
+  const tap = (side: number, control: "fire" | "dpad"): boolean => {
+    const pressed = press(side, control);
+    lift();
+    return pressed;
+  };
+  return { source, press, lift, tap };
+}
+
+/** A Flow on fake devices: a real hub, fake pads, touch pads and clock, a fake overlay element and keyboard. */
 function fakeFlow(touch = false) {
   const hub = new InputHub();
   const pads = fakePads(hub);
-  const zones: TouchZoneStyle[][] = [];
+  const touchPads = fakeTouchPads(hub);
+  const zones: (TouchPadStyle | undefined)[][] = [];
   const listeners = new Map<string, Listener>();
   const root = {
     dataset: {} as Record<string, string>,
@@ -200,7 +244,10 @@ function fakeFlow(touch = false) {
     input: {
       hub,
       touchEnabled: touch,
-      setTouchZones: (z) => zones.push([...z]),
+      setTouchPads: (z) => {
+        zones.push([...z]);
+        touchPads.source.setSides(z.flatMap((s, side) => (s ? [side] : [])));
+      },
     },
     root: root as unknown as HTMLElement,
     keys: { addEventListener: () => undefined },
@@ -217,7 +264,7 @@ function fakeFlow(touch = false) {
     (listeners.get("click") as (e: object) => void)({
       target: { closest: () => ({ getAttribute: () => action }) },
     });
-  return { flow, hub, frame, root, zones, click };
+  return { flow, hub, frame, root, zones, click, ...touchPads };
 }
 
 test("a gamepad-only group joins, starts with Start and pauses and resumes with Start", () => {
@@ -261,24 +308,116 @@ test("holding a seated player's button for a second in the lobby starts the matc
   assert.equal(flow.paused, false);
 });
 
-test("touch-only players get a pause button mid-round and no blank zone", () => {
-  const { flow, hub, root, zones, click } = fakeFlow(true);
-  hub.press("touch:0");
-  hub.press("touch:1");
-  hub.press("touch:0"); // leaves: zone 0 would be blank in the match
+test("touch riders join and leave the lobby with their side's FIRE; the D-pad never joins", () => {
+  const { flow, zones, tap } = fakeFlow(true);
+  const labels = () => zones.at(-1)?.map((z) => z?.label);
+  assert.deepEqual(labels(), ["JOIN", "JOIN"]);
+  assert.ok(tap(0, "dpad") && tap(1, "dpad"));
+  assert.deepEqual(flow.lobby.devices, Array(6).fill(undefined));
+  tap(1, "fire");
+  tap(0, "fire");
+  assert.deepEqual(flow.lobby.devices.slice(0, 2), ["touch:1", "touch:0"]);
+  assert.deepEqual(labels(), ["BLUE", "RED"]);
+  tap(1, "fire"); // fires again: leaves
+  assert.deepEqual(flow.lobby.devices.slice(0, 2), [undefined, "touch:0"]);
+  assert.deepEqual(labels(), ["BLUE", "JOIN"]);
+});
+
+test("touch riders keep their side in the match, and get a pause button", () => {
+  const { flow, hub, root, zones, click, tap } = fakeFlow(true);
+  tap(0, "fire");
+  tap(1, "fire");
+  tap(0, "fire"); // leaves: the right side's rider stays on the right
   flow.advance(16);
   assert.match(root.innerHTML, /data-action="start"/);
   assert.doesNotMatch(root.innerHTML, /data-action="pause"/);
   click("start");
-  assert.deepEqual(flow.lobby.devices[1], "touch:0");
+  assert.deepEqual(flow.lobby.devices[1], "touch:1");
   assert.deepEqual(
-    zones.at(-1)?.map((z) => z.label),
-    ["BLUE"],
+    zones.at(-1)?.map((z) => z?.label),
+    [undefined, "FIRE"],
   );
+  assert.equal(tap(0, "fire"), false, "only seated sides show");
+  hub.clearPresses();
+  assert.ok(tap(1, "fire"));
+  assert.deepEqual(hub.takePresses(2), [false, true]);
   flow.advance(16);
   assert.match(root.innerHTML, /data-action="pause"/);
   click("pause");
   assert.equal(flow.paused, true);
   flow.advance(16);
   assert.doesNotMatch(root.innerHTML, /class="pause"/);
+});
+
+test("a touch rider flies with the held D-pad through the match flow, and stops when the finger lifts", () => {
+  const { flow, hub, frame, click, tap, press, lift } = fakeFlow(true);
+  tap(0, "fire");
+  click("start");
+  frame(undefined, 4000); // the countdown
+  assert.equal(flow.screen.kind, "playing");
+  const x = () => flow.view.castles[0]?.x ?? 0;
+  const start = x();
+  press(0, "dpad", [0.9, 0.5]); // the right arrow
+  assert.equal(hub.heldBits(0), RIGHT);
+  for (let i = 0; i < 30; i++) frame();
+  assert.ok(x() > start + 5, "the held arrow flies right");
+  assert.equal(flow.view.lastHeld[0], RIGHT, "steering is not a shot");
+  lift();
+  frame();
+  assert.equal(flow.view.lastHeld[0], 0);
+});
+
+test("the touch pads give way to the pause menu and let go of every finger, and return on resume", () => {
+  const { flow, hub, zones, frame, click, tap, press } = fakeFlow(true);
+  tap(0, "fire");
+  tap(1, "fire");
+  click("start");
+  frame(undefined, 4000);
+  press(0, "dpad", [0.9, 0.5], 1);
+  press(1, "dpad", [0.1, 0.5], 2);
+  assert.deepEqual(
+    [hub.heldBy("touch:0"), hub.heldBy("touch:1")],
+    [RIGHT, LEFT],
+  );
+  click("pause");
+  assert.deepEqual(zones.at(-1), [undefined, undefined], "no pad over RESUME");
+  assert.deepEqual([hub.heldBy("touch:0"), hub.heldBy("touch:1")], [0, 0]);
+  assert.equal(press(0, "fire"), false, "nothing to touch while paused");
+  click("resume");
+  assert.deepEqual(
+    zones.at(-1)?.map((z) => z?.label),
+    ["FIRE", "FIRE"],
+  );
+  assert.equal(flow.paused, false);
+});
+
+test("the touch pads stay off the results screen and come back with the next round", () => {
+  const { flow, zones, frame, click, tap } = fakeFlow(true);
+  const shown = () => zones.at(-1)?.map((z) => z !== undefined);
+  tap(0, "fire");
+  tap(1, "fire");
+  click("start");
+  frame(undefined, 4000);
+  assert.deepEqual(shown(), [true, true]);
+  for (let i = 0; i < 4000 && flow.screen.kind === "playing"; i++)
+    frame(undefined, 100);
+  assert.equal(flow.screen.kind, "results", "the round ran out");
+  assert.deepEqual(shown(), [false, false], "no pad over NEXT ROUND");
+  frame(undefined, 8000); // the results screen counts down
+  assert.equal(flow.screen.kind, "countdown");
+  assert.deepEqual(shown(), [true, true]);
+});
+
+test("the touch pads stay off the winner screen, and the lobby brings them back", () => {
+  const { flow, zones, frame, click, tap } = fakeFlow(true);
+  const shown = () => zones.at(-1)?.map((z) => z !== undefined);
+  tap(0, "fire");
+  flow.lobby.setWinsToWin(1);
+  click("start");
+  for (let i = 0; i < 40000 && flow.screen.kind !== "winner"; i++)
+    frame(undefined, 100);
+  assert.equal(flow.screen.kind, "winner", "one round win takes the match");
+  assert.deepEqual(shown(), [false, false], "no pad over PLAY AGAIN");
+  click("lobby");
+  assert.deepEqual(shown(), [true, true], "the lobby's JOIN pads");
 });

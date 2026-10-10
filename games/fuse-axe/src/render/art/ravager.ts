@@ -377,8 +377,9 @@ const WALK_CYCLE: AnimStrip<RavagerFrame> = {
 /**
  * The ravager's anims. A one-frame anim holds its frame for as long as the enemy is in that state, so its steps only
  * pace the lab; they are as long as the engine keeps the enemy in the state (hurt 20, knockdown 28, the steps a
- * knocked-up enemy takes to land, down 45, getup 20, dead 60), and the windup, attack and recover steps stand in
- * until the enemy AI sets that frame data. The tests play the engine against them.
+ * knocked-up enemy takes to land, down 45, getup 20, dead 60, held 12 for a grab, thrown 30 for a throw's flight),
+ * and the windup, attack and recover steps stand in until the enemy AI sets that frame data. The tests play the
+ * engine against them.
  */
 export const RAVAGER_ANIMS: Readonly<
   Record<RavagerAnim, AnimStrip<RavagerFrame>>
@@ -401,6 +402,9 @@ export const RAVAGER_ANIMS: Readonly<
   down: { frames: [["down", 45]], loop: false },
   getup: { frames: [["getup", 20]], loop: false },
   dead: { frames: [["down", 60]], loop: false },
+  // Until they have frames of their own, one held in a hero's grab reels, and a thrown one flies as if knocked down.
+  held: { frames: [["hurt", 12]], loop: false },
+  thrown: { frames: [["knockdown", 30]], loop: false },
 };
 
 const HAFT = 11.5;

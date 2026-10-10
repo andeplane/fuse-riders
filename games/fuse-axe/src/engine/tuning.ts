@@ -176,6 +176,53 @@ export const SWING_HEIGHT = px(40);
 export const HITSTOP = 4;
 export const HEAVY_HITSTOP = 8;
 
+// ---- the back attack, the jump attack and the throw ----
+/**
+ * Attack and Jump pressed on the floor within this many steps of each other are the back attack. One log tick, so
+ * two buttons pressed together land in it even when the log carries them in neighbouring ticks; shorter than every
+ * first slash's wind-up, so a slash it turns into the back attack never had its blade out.
+ */
+export const BACK_WINDOW = STEPS_PER_TICK;
+/** The back attack: a quick blow behind the hero, its facing kept, that knocks down. */
+export const BACK_ATTACK: Readonly<Record<HeroKind, Swing>> = {
+  brakka: swing(4, 3, 16, 28, 8),
+  rhea: swing(3, 3, 14, 32, 6),
+  gorm: swing(5, 4, 18, 24, 11),
+};
+/** The jump attack's downward stab: steps before the blade is out (it stays out until the hero lands), and its blow. */
+export interface Stab extends Blow {
+  readonly startup: number;
+}
+const stab = (startup: number, reach: number, damage: number): Stab => ({
+  startup,
+  reach: px(reach),
+  damage,
+});
+export const JUMP_ATTACK: Readonly<Record<HeroKind, Stab>> = {
+  brakka: stab(3, 26, 10),
+  rhea: stab(2, 30, 8),
+  gorm: stab(4, 22, 13),
+};
+/** How far below the hero's feet the stab reaches, besides the swing's sweep up from them. */
+export const STAB_BELOW = px(16);
+/** A dazed (`hurt`) enemy this close in front of the hero's centre, in the lane, can be grabbed. */
+export const GRAB_REACH = px(24);
+/** A grabbed enemy is held this far in front of the hero for `GRAB_STEPS`; the throw's follow-through lasts `THROW_STEPS`. */
+export const GRAB_HOLD = px(14);
+export const GRAB_STEPS = 12;
+export const THROW_STEPS = 16;
+/** The body leaves from this high over the hero's shoulder, flying behind it at `THROW_VX` and rising at `THROW_VZ`. */
+export const THROW_LIFT = px(24);
+export const THROW_VX = px(2.5);
+export const THROW_VZ = px(2);
+/** Damage the thrown body takes as it lands, and each enemy it knocks down on the way. */
+export const THROW_DAMAGE = 12;
+export const BODY_DAMAGE = 6;
+/** The kinds a hero can throw; a boss will not be. */
+export const THROWABLE: Readonly<Record<EnemyKind, boolean>> = {
+  ravager: true,
+};
+
 // ---- the enemies ----
 export const ENEMY_KINDS = ["ravager"] as const;
 export type EnemyKind = (typeof ENEMY_KINDS)[number];
