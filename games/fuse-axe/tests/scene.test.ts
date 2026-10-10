@@ -76,16 +76,7 @@ class FakePaint implements PixelPaint {
 class RecordingPen extends FakePaint implements Pen<FakeImage> {
   readonly blits: Blit[] = [];
   drawImage(image: FakeImage, ...r: number[]) {
-    const [sx, sy, sw, sh, dx, dy, dw, dh] = r as [
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-      number,
-    ];
+    const [sx = 0, sy = 0, sw = 0, sh = 0, dx = 0, dy = 0, dw = 0, dh = 0] = r;
     this.blits.push({ image, sx, sy, sw, sh, dx, dy, dw, dh });
   }
 }
