@@ -30,6 +30,7 @@
     "@stdlib/math-base-special-sin": "0.3.1",
     "dice": "workspace:*",
     "hook-havok": "workspace:*",
+    "fuse-axe": "workspace:*",
     "fuse-choppers": "workspace:*",
     "fuse-craft": "workspace:*",
     "fuse-freight": "workspace:*",

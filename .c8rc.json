@@ -22,6 +22,7 @@
     "games/fuse-bombers/src/render/effects/textures.ts",
     "games/fuse-bombers/src/render/round-scene.ts",
     "games/fuse-bombers/src/render/terrain-layer.ts",
+    "games/fuse-axe/src/app/main.ts",
     "games/fuse-choppers/src/app/main.ts",
     "games/fuse-craft/src/app/main.ts",
     "games/fuse-craft/src/render/light-canvas.ts",
