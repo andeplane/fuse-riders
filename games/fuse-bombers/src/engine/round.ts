@@ -1,5 +1,6 @@
 // The round simulation: `createRound` builds the initial state, `step` advances it one tick.
 
+import { atan2, cos, hypot, sin } from "./det-math.js";
 import {
   arcFor,
   castleCenter,
@@ -889,8 +890,8 @@ function splitRocket(
   });
   if (created === 0) return;
 
-  const speed = Math.hypot(r.vx, r.vy);
-  const dir = Math.atan2(r.vy, r.vx);
+  const speed = hypot(r.vx, r.vy);
+  const dir = atan2(r.vy, r.vx);
   const fan = Math.min(t.splitFanMaxDeg, t.splitFanPerChildDeg * (n - 1)) * DEG;
   const slots = created + 1;
   const parentSlot = Math.floor(created / 2);
@@ -899,8 +900,8 @@ function splitRocket(
     const v =
       speed * (1 + range(state, -t.splitSpeedJitter, t.splitSpeedJitter));
     if (j === parentSlot) {
-      r.vx = Math.cos(a) * v;
-      r.vy = Math.sin(a) * v;
+      r.vx = cos(a) * v;
+      r.vy = sin(a) * v;
       continue;
     }
     born.push({
@@ -908,8 +909,8 @@ function splitRocket(
       owner: r.owner,
       x: r.x,
       y: r.y,
-      vx: Math.cos(a) * v,
-      vy: Math.sin(a) * v,
+      vx: cos(a) * v,
+      vy: sin(a) * v,
       power: r.power,
       mega: r.mega,
       bomb: r.bomb,

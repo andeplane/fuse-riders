@@ -12,9 +12,15 @@ Phaser, npm or `node:` imports; everything else imports it through `src/engine/i
   the right number of times; render interpolation (if any) is the renderer's business.
 - Angles are radians in math convention: `0` = pointing right, `π/2` = straight up, `π` = pointing left. A rocket fired
   at angle `a` with speed `v` starts with velocity `(cos a · v, −sin a · v)`.
-- Deterministic: a round is a pure function of `RoundConfig` and the sequence of `pressed` arrays. The RNG
-  (mulberry32) state lives in `state.rng`; there is no `Math.random`, `Date` or wall clock. Plain JS numbers are used,
-  so the guarantee is same-machine/same-runtime (fine for local play).
+- Deterministic: a round is a pure function of `RoundConfig` and the sequence of `pressed` arrays, bit for bit on
+  every JS engine, so an online replay of one input log agrees across browsers (the helper's bits were compared on V8
+  and SpiderMonkey; JavaScriptCore has not been run). The RNG (mulberry32) state lives in `state.rng`; there is no
+  `Math.random`, `Date` or wall clock. Numbers are plain doubles, combined only with operations IEEE 754 rounds exactly
+  (`+ − × ÷`, `Math.sqrt`, `floor`, `round`, …). The `Math` functions the language leaves approximated (`sin`, `cos`,
+  `atan2`, `hypot`, `exp`, `log2`, `pow`, `**` and the rest) differ in their last bits between engines and are refused
+  in `src/engine/`; the engine uses `src/engine/det-math.ts` for the six it needs: fdlibm's algorithms in plain
+  arithmetic, within an ulp or two of `Math`. [tests/architecture.test.ts](../tests/architecture.test.ts) refuses the
+  banned forms, and `tests/engine-det-math.test.ts` pins the helper's bits.
 
 ## Lifecycle
 
