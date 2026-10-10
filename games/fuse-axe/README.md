@@ -80,8 +80,8 @@ figure (narrower the higher it jumps), heroes and enemies by depth (further up t
 higher, then by id) flipped to their facing, each hero's chevron in its seat's colour, the hit sparks
 (`sparks.ts`), the grass in front and a flashing GO → when a cleared wave opens the road. An enemy in hit-stop
 flashes, a tier wears its palette and a defeated one blinks out over `DEAD_STEPS`; an invulnerable hero (getting up,
-or just risen) blinks its sprite, keeping its shadow and chevron. Heroes who share a figure each
-get a palette of their own, in seat order; Gorm, until his art lands, borrows Brakka's in one no Brakka wears.
+or just risen) blinks its sprite, keeping its shadow and chevron. Heroes of one kind each get a palette of their own,
+in seat order.
 Nothing is drawn off screen (`pen.ts` clips every call), and every sprite, shadow and sign is baked once.
 
 Everything the renderer pre-paints goes through one injected surface factory, `MakeSurface` in
