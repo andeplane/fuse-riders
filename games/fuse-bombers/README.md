@@ -101,8 +101,9 @@ holds every game to that.
 From the shared packages it takes the neon tokens (`fuse-ui/tokens.css`), the app portal (`fuse-ui/portal`) and the
 music catalogue (`fuse-ui/assets`). Its music, the crate and the fuse's flame and bomb are the site root's shared
 `public/` files (`music/`, `props/desert-industrial-v1/`, `themes/clean-neon/`), loaded through
-`import.meta.env.BASE_URL`; everything else is drawn in code, and sound effects are synthesized. It has no rooms,
-accounts or `platform.ts`. The portal sits in the lobby's top-left corner and hides once a match starts:
+`import.meta.env.BASE_URL`; everything else is drawn in code, and sound effects are synthesized. Its
+`src/platform.ts` registers it with the room service for admission only (online play is in progress); it has no
+accounts and reports no results. The portal sits in the lobby's top-left corner and hides once a match starts:
 
 ![The lobby with the app portal open, listing every Fuse game with Fuse Bombers marked as this one](docs/images/portal.png)
 

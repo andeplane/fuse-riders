@@ -81,6 +81,29 @@ export function bend(
   return [root[0] + ux * a + uy * h, root[1] + uy * a - ux * h];
 }
 
+const span = (a: Point, b: Point) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+/** An arm from `shoulder` to `hand` with `like`'s bones, the elbow bent by `bend` (below a forward reach by default). */
+export const armTo = (
+  like: Side,
+  shoulder: Point,
+  hand: Point,
+  side: 1 | -1 = -1,
+) => {
+  const [upper, lower] = [
+    span(like.shoulder, like.elbow),
+    span(like.elbow, like.hand),
+  ];
+  return armAt(shoulder, bend(shoulder, hand, upper, lower, side), hand);
+};
+/** A leg from `hip` to `ankle` with `like`'s bones, the knee bent forward. */
+export const legTo = (like: Side, hip: Point, ankle: Point) =>
+  legAt(
+    hip,
+    bend(hip, ankle, span(like.hip, like.knee), span(like.knee, like.ankle), 1),
+    ankle,
+  );
+
 /** Breathing out: head, chest and arms lowered by `dy`, the waist by half that, the legs where they were. */
 export function breath(pose: Pose, dy: number): PoseChanges<Pose> {
   const down = (p: Point) => offset(p, 0, dy);
@@ -94,8 +117,6 @@ export function breath(pose: Pose, dy: number): PoseChanges<Pose> {
     near: arm(pose.near),
   };
 }
-
-const span = (a: Point, b: Point) => Math.hypot(b[0] - a[0], b[1] - a[1]);
 
 /**
  * Frame `i` of a walk cycle of `frames`: the near foot is planted `reach` ahead of the hips on frame 0 and sweeps back
@@ -182,6 +203,9 @@ export interface PartOptions extends ShapeOptions {
   /** The limb's own material (skin by default), or the boot's, cuff's, bracer's, shoulder pad's. */
   readonly material?: string;
   readonly boot?: string;
+  /** How far down the shin the boot starts, 0 at the knee to 1 at the ankle (0.3), and the foot's own material. */
+  readonly bootTop?: number;
+  readonly foot?: string;
   readonly cuff?: string;
   readonly bracer?: string;
   readonly pad?: string;
@@ -194,10 +218,10 @@ export function leg(rig: Rig, { hip, knee, ankle }: Side, o: PartOptions = {}) {
   const skin = o.material ?? "s";
   rig.capsule(hip, knee, 3.8 * t, 2.9 * t, skin, o);
   rig.capsule(knee, ankle, 2.9 * t, 2.2 * t, skin, o);
-  const top = between(knee, ankle, 0.3);
+  const top = between(knee, ankle, o.bootTop ?? 0.3);
   rig.capsule(top, ankle, 2.9 * t, 2.6 * t, boot, o);
   if (o.cuff) rig.ellipse(top, 3.3 * t, 1.5 * t, o.cuff, o);
-  rig.ellipse(offset(ankle, 1.4, 1.6), 3.8 * t, 2 * t, boot, o);
+  rig.ellipse(offset(ankle, 1.4, 1.6), 3.8 * t, 2 * t, o.foot ?? boot, o);
 }
 
 /** An arm, the upper arm one part with the shoulder, with an optional bracer and shoulder pad. */
@@ -227,26 +251,30 @@ export function fist(rig: Rig, hand: Point, o: PartOptions = {}) {
   rig.ellipse(hand, 2.3 * t, 2.1 * t, o.material ?? "s", o);
 }
 
-/** A steel sword gripped at `hand`, pointing `degrees` clockwise from right, the fist drawn over the grip. */
+/**
+ * A steel sword gripped at `hand`, pointing `degrees` clockwise from right, its blade `length` long and `width` wide,
+ * the crossguard `o.guard` either side of the blade (2.6), the fist drawn over the grip.
+ */
 export function sword(
   rig: Rig,
   hand: Point,
   degrees: number,
   length: number,
   width: number,
-  o: PartOptions = {},
+  o: PartOptions & { readonly guard?: number } = {},
 ) {
   const radians = (degrees * Math.PI) / 180;
   const [ux, uy] = [Math.cos(radians), Math.sin(radians)];
   const along = (d: number, p = hand) => offset(p, ux * d, uy * d);
   const guard = along(2.4);
   const pommel = along(-3.6);
+  const g = o.guard ?? 2.6;
   rig.capsule(pommel, along(1.5), 1, 1, "l");
   rig.ellipse(pommel, 1.3, 1.3, "n");
   rig.blade(along(0.4, guard), along(length, guard), width, "m", { tip: 4 });
   rig.capsule(
-    offset(guard, uy * 2.6, -ux * 2.6),
-    offset(guard, -uy * 2.6, ux * 2.6),
+    offset(guard, uy * g, -ux * g),
+    offset(guard, -uy * g, ux * g),
     1,
     1,
     "n",

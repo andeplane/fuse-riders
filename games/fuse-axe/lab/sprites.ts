@@ -4,6 +4,8 @@
  * `HEROES` also gets its palettes, portraits and a reel per anim, timed by `heroFrame` at the game's 60 steps a second.
  * `?step=N` freezes the reels at step N.
  */
+// The walking speeds are not in the view yet; this dev page reads them from the engine's tuning.
+import { SUB, WALK } from "../src/engine/tuning.js";
 import { HERO_KINDS, STEPS_PER_SECOND } from "../src/engine/view-kit.js";
 import {
   HERO_ANIMS,
@@ -109,8 +111,8 @@ function reels({ swings }: HeroTiming): Record<string, string> {
     "knockdown, down, getup": "knockdown:26 down:45 getup:20 idle:20",
   };
 }
-/** Every step of a reel, a hero moved as the engine moves Brakka: walking 1 px a step, his jump's arc, flung back. */
-function playOut(spec: string) {
+/** Every step of a reel, a hero moved as the engine moves it: walking `pace` px a step, a jump's arc, flung back. */
+function playOut(spec: string, pace: number) {
   const arc = (t: number, vz: number) =>
     Math.max(0, Math.floor((t + 1) * vz - 0.095 * t * (t + 1)));
   let x = 0;
@@ -119,7 +121,7 @@ function playOut(spec: string) {
     const figureAnim = HERO_ANIMS.find((known) => known === anim);
     if (!figureAnim) throw new Error(`The reel has no anim "${anim}"`);
     return Array.from({ length: Number(steps) }, (_, step) => {
-      x += anim === "walk" ? 1 : anim === "knockdown" ? -1.25 : 0;
+      x += anim === "walk" ? pace : anim === "knockdown" ? -1.25 : 0;
       const z =
         anim === "jump"
           ? arc(step, 3.7)
@@ -161,7 +163,7 @@ for (const kind of HERO_KINDS) {
   add(section, "h2", `${kind} · a reel per anim at game speed`);
   const motion = add(section, "div", "", "row");
   for (const [label, spec] of Object.entries(reels(HERO_TIMING[kind]))) {
-    const steps = playOut(spec);
+    const steps = playOut(spec, WALK[kind].x / SUB);
     const xs = steps.map((s) => s.x);
     const [left, right] = [Math.min(...xs), Math.max(...xs)];
     const high = Math.max(...steps.map((s) => s.z));
