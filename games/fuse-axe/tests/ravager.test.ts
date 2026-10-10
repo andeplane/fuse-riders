@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  DEAD_STEPS,
+  DOWN_STEPS,
+  GETUP_STEPS,
+  HURT_STEPS,
+} from "../src/engine/tuning.js";
+import { ENEMY_STATES } from "../src/engine/world.js";
+import {
   paintRavager,
   RAVAGER,
   RAVAGER_ANIMS,
@@ -184,19 +191,18 @@ test("a pose paints the same rows every time, and the figure paints each frame o
 });
 
 test("every anim plays frames the figure has, for whole steps, and every frame is played", () => {
-  // The enemy view's anims, and the ones the enemy AI adds; `dead` lies in the `down` frame while it blinks.
-  assert.deepEqual(Object.keys(RAVAGER_ANIMS).sort(), [
-    "attack",
-    "dead",
-    "down",
-    "getup",
-    "hurt",
-    "idle",
-    "knockdown",
-    "recover",
-    "walk",
-    "windup",
-  ]);
+  // Every anim the enemy view can show, and the ones the enemy AI adds; `dead` lies in the `down` frame while it blinks.
+  assert.deepEqual(
+    Object.keys(RAVAGER_ANIMS).sort(),
+    [...ENEMY_STATES, "walk", "windup", "attack", "recover"].sort(),
+  );
+  // A one-frame state anim lasts as long as the state does.
+  const length = (anim: keyof typeof RAVAGER_ANIMS) =>
+    RAVAGER_ANIMS[anim].frames.reduce((sum, [, steps]) => sum + steps, 0);
+  assert.deepEqual(
+    [length("hurt"), length("down"), length("getup"), length("dead")],
+    [HURT_STEPS, DOWN_STEPS, GETUP_STEPS, DEAD_STEPS],
+  );
   const played = new Set<string>();
   for (const [anim, { frames, loop }] of Object.entries(RAVAGER_ANIMS)) {
     assert.ok(frames.length > 0, anim);

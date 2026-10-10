@@ -1,3 +1,4 @@
+import type { EnemyAnim } from "../../engine/view.js";
 import {
   adjust,
   arm,
@@ -354,17 +355,7 @@ export const RAVAGER_POSES = {
 export type RavagerFrame = keyof typeof RAVAGER_POSES;
 
 /** The enemy view's anims (`dead` lies in the `down` frame while the renderer blinks it), and the AI's to come. */
-export type RavagerAnim =
-  | "idle"
-  | "walk"
-  | "windup"
-  | "attack"
-  | "recover"
-  | "hurt"
-  | "knockdown"
-  | "down"
-  | "getup"
-  | "dead";
+export type RavagerAnim = EnemyAnim | "walk" | "windup" | "attack" | "recover";
 
 /** An anim's frames in order, each with the simulation steps (60 a second) it shows. */
 export interface AnimStrip<F extends string> {
