@@ -79,11 +79,14 @@ export class AxeAudio {
     if (this.unlocked) this.backend.hide(hidden);
   }
 
-  /** A new frame: its cues play, each on its channel if that is on. */
-  frame(frame: Heard): void {
+  /**
+   * A new frame: its cues play, each on its channel if that is on. A `quiet` page hears them without playing them: a
+   * phone that is only a shared screen's controller, whose room the screen sounds for.
+   */
+  frame(frame: Heard, quiet = false): void {
     const cues = this.tracker.next(frame);
     this.heard += cues.length;
-    if (this.muted || !this.unlocked || this.hidden) return;
+    if (quiet || this.muted || !this.unlocked || this.hidden) return;
     for (const cue of cues) {
       const sound = SOUNDS[cue];
       if (sound.channel === "music" ? this.musicOn : this.effectsOn)
