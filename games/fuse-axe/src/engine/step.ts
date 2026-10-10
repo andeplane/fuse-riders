@@ -134,6 +134,27 @@ function respawn(world: World, hero: Hero): void {
 }
 
 /**
+ * The party continues: every hero drops back in at its seat's place on the screen with full health and every life
+ * (`LIVES`), as after a lost life, with nothing buffered. The stage goes on where it stood: the camera, the waves and
+ * the enemies are left as they are. Pure, like `step`: the world passed in is left untouched. The room calls it once
+ * per stage, on the first CONTINUE folded after every hero is out (`defeated`).
+ */
+export function revive(world: World): World {
+  const next: World = {
+    ...world,
+    heroes: world.heroes.map((hero) => ({ ...hero })),
+  };
+  for (const hero of next.heroes) {
+    hero.lives = T.LIVES;
+    hero.vx = hero.vy = hero.vz = 0;
+    hero.attackBuf = hero.jumpBuf = hero.stagger = 0;
+    hero.struck = [];
+    respawn(next, hero);
+  }
+  return next;
+}
+
+/**
  * A hero's timed state runs out: landing, reeling and getting up end in idle, lying in getting up (invulnerable,
  * and for `GETUP_GRACE` after), and a fallen hero drops back in, or with no life left is out.
  */
