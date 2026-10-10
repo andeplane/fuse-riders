@@ -21,6 +21,11 @@ screen follow.
 | K / X         | Jump (a running jump from a run); with Attack, a back attack          |
 | L / C         | Magic                                                                 |
 
+Sound is synthesised in the browser, with nothing to load: every cue is found by diffing the frames the page is shown
+(`src/app/audio/cues.ts`), never by the simulation, and plays after the first key or tap. **♫ MUSIC** (the stage
+jingles) and **EFFECTS** in the header are this browser's choices and are kept; `?mute` silences the page without
+touching them.
+
 ```sh
 pnpm build && pnpm exec tsx service/dev.ts   # then open http://localhost:8787/fuse-axe/?mute
 pnpm exec tsx --test games/fuse-axe/tests/*.test.ts
