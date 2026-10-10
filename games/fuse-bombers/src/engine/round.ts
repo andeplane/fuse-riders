@@ -1,5 +1,6 @@
 // The round simulation: `createRound` builds the initial state, `step` advances it one tick.
 
+import { botInput, createBotMemory, validateBots } from "./bot.js";
 import { atan2, cos, hypot, sin } from "./det-math.js";
 import {
   castleCenter,
@@ -98,6 +99,7 @@ export function createRound(config: RoundConfig): RoundState {
   }
   if (!Number.isFinite(config.seed))
     throw new RangeError("seed must be a finite number");
+  const seats = validateBots(config.bots, n);
   const tuning = resolveTuning(config.tuning);
   // The temple, with the gunships at rest at a spread set of its spawn anchors.
   const terrain = buildTempleGrid();
@@ -153,6 +155,9 @@ export function createRound(config: RoundConfig): RoundState {
     crates: [],
     ghosts: [],
     lastHeld: castles.map(() => 0),
+    bots: seats.map((s) =>
+      createBotMemory(s, config.seed, castles[s.id] ?? { x: 0, y: 0 }),
+    ),
     events: [],
     nextCrateTick: secondsToTicks(tuning.firstCrateDelay),
     nextBombTick: 0,
@@ -228,10 +233,18 @@ function firePressed(
   return (bitsOf(held, id) & FIRE) !== 0 && (before & FIRE) === 0;
 }
 
+/** `held` with each bot seat's entry replaced by the bits its bot holds (what `held` says for a bot seat is ignored). */
+function withBots(state: RoundState, held: readonly number[]): number[] {
+  const input = state.castles.map((c) => bitsOf(held, c.id));
+  for (const m of state.bots) input[m.id] = botInput(state, m);
+  return input;
+}
+
 /**
  * Advances the round by one tick. `held[i]` is the input bits player i holds this tick (`UP | DOWN | LEFT | RIGHT |
- * FIRE` from input.ts); a missing entry, or one that is not an integer of those bits, holds nothing. The directions
- * steer the gunship (or the ghost), and a fire press is the rising edge of `FIRE` against the previous step's bits,
+ * FIRE` from input.ts); a missing entry, or one that is not an integer of those bits, holds nothing. The seats
+ * `config.bots` names hold what their bots decide (`botInput`, from the state before this step), whatever `held`
+ * says. The directions steer the gunship (or the ghost), and a fire press is the rising edge of `FIRE` against the previous step's bits,
  * so holding fire never fires again. Mutates `state` in place and returns this tick's events (also stored on
  * `state.events`). Stepping a finished round keeps rockets and gunships flying for the aftermath but no longer
  * fires, damages or changes the result.
@@ -240,6 +253,7 @@ export function step(
   state: RoundState,
   held: readonly number[] = [],
 ): readonly TickEvent[] {
+  const input = state.bots.length > 0 ? withBots(state, held) : held;
   state.events = [];
   const tick = state.tick;
 
@@ -249,11 +263,11 @@ export function step(
     state.events.push({ type: "sudden-death-started", tick });
   }
 
-  updateCastles(state, held);
-  flyGunships(state, held);
-  updateGhosts(state, held);
+  updateCastles(state, input);
+  flyGunships(state, input);
+  updateGhosts(state, input);
   for (let id = 0; id < state.lastHeld.length; id++)
-    state.lastHeld[id] = bitsOf(held, id);
+    state.lastHeld[id] = bitsOf(input, id);
   updateGates(state);
   updateCrates(state);
   if (state.phase === "sudden-death") dropBombs(state);

@@ -15,9 +15,14 @@ import {
   HEAVY_HITSTOP,
   HERO_HP,
   HERO_KINDS,
+  IMP_POTS,
+  ITEM_KINDS,
+  ITEM_LIFE,
+  ITEM_MAX,
   JUGGLE_HITS,
   JUGGLE_WINDOW,
   LIVES,
+  MAX_POTS,
   RAVAGER,
   RESPAWN_INVULN,
   RUN_GAP,
@@ -34,10 +39,13 @@ import {
   ENEMY_STATES,
   FX_KINDS,
   HERO_STATES,
+  IMP_ONLY,
+  IMP_STATES,
   type Enemy,
   type Fx,
   type Hero,
   type HeroState,
+  type Item,
   type World,
 } from "./world.js";
 
@@ -177,11 +185,14 @@ const hero = record<Hero>(
     tapUntil: COUNT,
     runBuf: BUFFER,
     throws: COUNT,
+    pots: int(0, Math.max(...HERO_KINDS.map((kind) => MAX_POTS[kind]))),
   },
-  // A double tap waiting as a run knows its direction, and with no tap no step counts for one.
+  // A double tap waiting as a run knows its direction, and with no tap no step counts for one. No hero holds more
+  // pots than its kind's most.
   (value) =>
     ascending(value.struck, (id) => id) &&
     lifeKept(value) &&
+    value.pots <= MAX_POTS[value.kind] &&
     (value.runBuf === 0 || value.tap !== 0) &&
     (value.tap !== 0 || value.tapUntil === 0),
 );
@@ -205,7 +216,16 @@ const enemy = record<Enemy>({
   target: COUNT,
   thinkAt: COUNT,
   holder: COUNT,
+  pots: int(0, IMP_POTS),
 });
+/**
+ * A sack imp is of the lowest tier, in an imp's state and going for nobody; every other enemy has no sack and is
+ * never in a state only an imp is in.
+ */
+const sackKept = (value: Enemy): boolean =>
+  value.kind === "imp"
+    ? value.tier === 0 && IMP_STATES.includes(value.state) && !value.target
+    : value.pots === 0 && !IMP_ONLY.includes(value.state);
 
 const fx = record<Fx>({
   kind: oneOf(FX_KINDS),
@@ -214,6 +234,20 @@ const fx = record<Fx>({
   z: Z,
   born: COUNT,
 });
+
+/** An item lies on the road and in the floor band, and one that has landed is still. */
+const item = record<Item>(
+  {
+    id: ID,
+    kind: oneOf(ITEM_KINDS),
+    x: GOAL_X,
+    y: GOAL_Y,
+    z: Z,
+    vz: SPEED,
+    born: COUNT,
+  },
+  (value) => value.z > 0 || value.vz === 0,
+);
 
 /**
  * The waves. Before the first nothing has begun and the camera is short of its trigger. Once one has, it began no
@@ -268,8 +302,9 @@ function holdsKept(value: World): boolean {
  * and an enemy's; the ids a swing has hit are enemy ids too, though the enemy may since be gone, and an enemy goes
  * for a hero in the world or nobody. No enemy has more hit points than its tier's for this party, no hit-stop,
  * invulnerability, run of hits, double tap or idle pause runs past the longest one starting now, the sparks run
- * oldest first, each born no later than now and not yet past its life, and the waves and the grabs are as `wavesKept`
- * and `holdsKept` say.
+ * oldest first, each born no later than now and not yet past its life, the items run in id order, each id issued and
+ * no hero's or enemy's, each born no later than now and not yet past its life, no imp is sent before the camera
+ * reached its cue, and the sacks, the waves and the grabs are as `sackKept`, `wavesKept` and `holdsKept` say.
  */
 const world = record<World>(
   {
@@ -286,9 +321,12 @@ const world = record<World>(
     waveStep: COUNT,
     spawned: COUNT,
     goUntil: COUNT,
+    items: list(item, ITEM_MAX),
+    impsSent: int(0, STAGE_1.imps.length),
   },
   (value) => {
     const heroIds = new Set(value.heroes.map((each) => each.id)),
+      enemyIds = new Set(value.enemies.map((each) => each.id)),
       issued = (id: number) => id < value.nextId,
       enemyId = (id: number) => issued(id) && !heroIds.has(id),
       stopped = (each: Hero | Enemy) =>
@@ -312,7 +350,8 @@ const world = record<World>(
           stopped(each) &&
           each.hp <= enemyMaxHp(each.kind, each.tier, value.heroes.length) &&
           (each.target === 0 || heroIds.has(each.target)) &&
-          each.thinkAt <= value.step + THINK,
+          each.thinkAt <= value.step + THINK &&
+          sackKept(each),
       ) &&
       value.fx.every(
         (each, index) =>
@@ -320,6 +359,16 @@ const world = record<World>(
           value.step - each.born < FX_LIFE &&
           (index === 0 || each.born >= value.fx[index - 1]!.born),
       ) &&
+      ascending(value.items, (each) => each.id) &&
+      value.items.every(
+        (each) =>
+          enemyId(each.id) &&
+          !enemyIds.has(each.id) &&
+          each.born <= value.step &&
+          value.step - each.born < ITEM_LIFE,
+      ) &&
+      (value.impsSent === 0 ||
+        STAGE_1.imps[value.impsSent - 1]!.at <= value.camX) &&
       wavesKept(value) &&
       holdsKept(value)
     );
