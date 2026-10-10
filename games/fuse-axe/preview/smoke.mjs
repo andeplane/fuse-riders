@@ -10,10 +10,15 @@
  *    it, the host starts, the guest walks and both pages draw its hero in the same place. Every page's HUD frames the
  *    three heroes in their seats' colours, an empty seat blinks JOIN, the canvas names the party in words, and the
  *    party walks on into the first wave's fight.
- * 4. A well-formed code for a room that does not exist shows the closed-room card.
- * Run by hand; not in CI. Screenshots go to the directory given, and nowhere else. Every page opens muted.
+ * 4. A shared screen: the host switches it on in the lobby, a TV page joins with `display=1` and an emulated phone
+ *    (Playwright's Pixel 7, landscape) picks Gorm; once the run starts the TV draws the game with its QR code, the
+ *    phone shows only its controller, and a touch on the d-pad's right walks Gorm on the TV.
+ * 5. Solo on the emulated phone: the pads sit over the game, and a touch on the d-pad walks the hero.
+ * 6. A well-formed code for a room that does not exist shows the closed-room card.
+ * Run by hand; not in CI. Screenshots go to the directory given, and nowhere else. Every page opens muted. Browser
+ * emulation is not a physical phone.
  */
-import { chromium } from "playwright";
+import { chromium, devices } from "playwright";
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -32,10 +37,12 @@ const browser = await chromium.launch({
   headless: true,
 });
 const errors = [];
-const open = async (path) => {
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 },
-  });
+const PHONE = devices["Pixel 7 landscape"];
+const open = async (
+  path,
+  options = { viewport: { width: 1280, height: 800 } },
+) => {
+  const context = await browser.newContext(options);
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
@@ -179,6 +186,78 @@ const hold = async (page, key, ms) => {
   await page.waitForTimeout(ms);
   await page.keyboard.up(key);
 };
+/**
+ * A thumb on the right edge of the d-pad for `ms`, as real touch events (CDP), then `during(page)` before it lifts;
+ * the d-pad must light its right arrow.
+ */
+const thumbRight = async (page, ms, during = async () => {}) => {
+  const pad = await page.locator(".fa-dpad:visible").boundingBox(),
+    cdp = await page.context().newCDPSession(page);
+  const at = { x: pad.x + pad.width * 0.9, y: pad.y + pad.height / 2 };
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [at],
+  });
+  await page.waitForTimeout(ms);
+  assert.equal(
+    await page.locator(".fa-dpad:visible").getAttribute("data-dir"),
+    "right",
+  );
+  await during(page);
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+};
+
+/**
+ * What is wrong with the pads' places on a phone in play, as words (none when all is well): a pad outside the screen,
+ * over the HUD's strip (the canvas's top 22 of 180 rows) or under MENU, or a page wider than the screen.
+ */
+const padsFit = (page) =>
+  page.evaluate(() => {
+    const box = (selector) => {
+      const shown = [...document.querySelectorAll(selector)].find(
+        (e) => e.getBoundingClientRect().width > 0,
+      );
+      return shown?.getBoundingClientRect();
+    };
+    const meet = (a, b) =>
+      a.left < b.right &&
+      a.right > b.left &&
+      a.top < b.bottom &&
+      a.bottom > b.top;
+    const problems = [],
+      canvas = box(".fa-canvas"),
+      menu = box(".fui-tools-toggle");
+    if (document.documentElement.scrollWidth > innerWidth)
+      problems.push("the page is wider than the screen");
+    for (const selector of [".fa-dpad", ".fa-buttons"]) {
+      const pad = box(selector);
+      if (!pad) problems.push(`${selector} is not shown`);
+      else {
+        if (
+          pad.left < 0 ||
+          pad.top < 0 ||
+          pad.right > innerWidth ||
+          pad.bottom > innerHeight
+        )
+          problems.push(`${selector} is off the screen`);
+        if (
+          canvas &&
+          meet(pad, {
+            left: canvas.left,
+            right: canvas.right,
+            top: canvas.top,
+            bottom: canvas.top + (canvas.height * 22) / 180,
+          })
+        )
+          problems.push(`${selector} covers the HUD`);
+        if (menu && meet(pad, menu)) problems.push(`${selector} is under MENU`);
+      }
+    }
+    return problems;
+  });
 
 try {
   // ---- the landing page ----
@@ -324,6 +403,190 @@ try {
   await snap(host, "online-fight-swing");
   console.log("online: every page's HUD frames P1–P3, through a fight");
   for (const page of [host, guest, third]) await page.context().close();
+
+  // ---- a shared screen: the TV draws the game, an emulated phone is the controller ----
+  const lead = await open("fuse-axe/?mute");
+  await lead.getByRole("button", { name: "CREATE ROOM" }).click();
+  await lead.waitForURL(/room=[A-Z0-9]+/);
+  const shared = new URL(lead.url()).searchParams.get("room");
+  await enter(lead, "Host");
+  await lead.locator(".fa-share input").check();
+  await lead.getByRole("button", { name: "OPEN TV SCREEN" }).waitFor();
+  assert.equal(
+    await lead.evaluate(() => localStorage.getItem("fuse-axe-shared-screen")),
+    "1",
+    "the host's choice is kept once the room has taken it",
+  );
+  const tv = await open(`fuse-axe/?room=${shared}&display=1&mute`, {
+    viewport: { width: 1280, height: 720 },
+  });
+  const phone = await open(`fuse-axe/?room=${shared}&mute`, PHONE);
+  await enter(phone, "Phone");
+  await phone.locator('main[data-hero="brakka"]').waitFor({ timeout: 15_000 });
+  await phone.locator('[data-hero="gorm"]').click();
+  await tv
+    .locator(".fui-roster-row", { hasText: "P2 · GORM" })
+    .waitFor({ timeout: 15_000 });
+  // A second phone, held upright: its controller shares the width between the pads.
+  const upright = await open(
+    `fuse-axe/?room=${shared}&mute`,
+    devices["Pixel 7"],
+  );
+  await enter(upright, "Upright");
+  await tv.locator(".fui-roster-row").nth(2).waitFor({ timeout: 15_000 });
+  await lead.getByRole("button", { name: "START" }).click();
+  await tv.locator('main[data-screen="play"]').waitFor({ timeout: 20_000 });
+  for (const page of [lead, phone, upright])
+    await page
+      .locator('main[data-screen="controller"]')
+      .waitFor({ timeout: 20_000 });
+  for (const [page, how] of [
+    [phone, "landscape"],
+    [upright, "upright"],
+  ])
+    assert.deepEqual(
+      await padsFit(page),
+      [],
+      `the controller's pads fit, ${how}`,
+    );
+  if (shots)
+    await upright.screenshot({
+      path: join(shots, "shared-phone-upright.png"),
+      scale: "css",
+    });
+  assert.ok(await tv.locator(".fa-tv-qr").isVisible(), "the TV's QR code");
+  assert.match(
+    await tv.locator(".fa-tv-qr").getAttribute("src"),
+    /^data:image\//,
+    "the QR code is drawn",
+  );
+  // The TV is no member of the room: it keeps no token for it, neither the host's nor a joiner's.
+  assert.deepEqual(
+    await tv.evaluate(() =>
+      Object.keys(localStorage).filter((key) => /-(room|peer)-/.test(key)),
+    ),
+    [],
+    "the TV stores no room token",
+  );
+  // The host's controller (a desktop page here, its header showing) can still call the room back to the lobby.
+  assert.ok(
+    await lead.locator(".fa-to-lobby").isVisible(),
+    "the host's controller offers the lobby",
+  );
+  assert.equal(await phone.locator(".fa-to-lobby").isVisible(), false);
+  assert.equal(await phone.locator(".fa-canvas").isVisible(), false);
+  assert.match(
+    await phone.locator(".fa-controller-head").textContent(),
+    /P2 · Phone.*GORM/,
+  );
+  await tv.waitForTimeout(800);
+  const parked = await hero(tv, P2);
+  await thumbRight(phone, 800, async (page) => {
+    if (shots)
+      await page.screenshot({
+        path: join(shots, "shared-phone.png"),
+        scale: "css",
+      });
+  });
+  await tv.waitForTimeout(600);
+  const moved = await hero(tv, P2);
+  assert.ok(
+    moved.x > parked.x + 15,
+    `the phone's d-pad walks P2 on the TV: ${parked.x} → ${moved.x}`,
+  );
+  await snap(tv, "shared-tv");
+  console.log(
+    `shared screen ${shared}: the phone's d-pad walked Gorm from x ${parked.x} to ${moved.x} on the TV`,
+  );
+  for (const page of [lead, tv, phone, upright]) await page.context().close();
+
+  // ---- solo on the emulated phone: the pads over the game ----
+  const thumb = await open("fuse-axe/?solo=1&mute", PHONE);
+  await thumb.locator('main[data-screen="lobby"]').waitFor({ timeout: 15_000 });
+  await thumb.getByRole("button", { name: "START" }).click();
+  await thumb.locator(".fa-touch .fa-dpad").waitFor({ timeout: 10_000 });
+  await thumb.waitForTimeout(500);
+  const resting = await hero(thumb, P1);
+  await thumbRight(thumb, 700);
+  const stepped = await hero(thumb, P1);
+  assert.ok(
+    stepped.x > resting.x + 10,
+    `the pad walks: ${resting.x} → ${stepped.x}`,
+  );
+  if (shots)
+    await thumb.screenshot({
+      path: join(shots, "solo-phone.png"),
+      scale: "css",
+    });
+  console.log(`solo phone: the d-pad walked ${stepped.x - resting.x}px`);
+  assert.deepEqual(await padsFit(thumb), [], "the pads fit (landscape)");
+  // The pads leave the screen under a thumb that stays down (the host calls the lobby): the pad lets go as it goes (the
+  // phone layout clears the controls), the thumb's later moves steer nothing, and the next run starts with the hero
+  // standing still.
+  const pad = await thumb.locator(".fa-dpad:visible").boundingBox(),
+    cdp = await thumb.context().newCDPSession(thumb),
+    onPad = (x) => ({ x: pad.x + pad.width * x, y: pad.y + pad.height / 2 });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [onPad(0.9)],
+  });
+  await thumb.waitForTimeout(300);
+  assert.equal(
+    await thumb.locator(".fa-dpad:visible").getAttribute("data-dir"),
+    "right",
+  );
+  await thumb.evaluate(() => document.querySelector(".fa-to-lobby").click());
+  await thumb.locator('main[data-screen="lobby"]').waitFor({ timeout: 5_000 });
+  assert.equal(
+    await thumb.locator(".fa-dpad").getAttribute("data-dir"),
+    "",
+    "the d-pad let go as it left",
+  );
+  await thumb.getByRole("button", { name: "START" }).click();
+  await thumb.locator(".fa-touch .fa-dpad").waitFor({ timeout: 10_000 });
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchMove",
+    touchPoints: [onPad(0.1)],
+  });
+  await thumb.waitForTimeout(500);
+  const atRest = await hero(thumb, P1);
+  await thumb.waitForTimeout(700);
+  const stood = await hero(thumb, P1);
+  assert.equal(
+    await thumb.locator(".fa-dpad:visible").getAttribute("data-dir"),
+    "",
+    "a thumb that was let go steers no more",
+  );
+  assert.ok(
+    Math.abs(stood.x - atRest.x) < 3,
+    `the hero stands still: ${atRest.x} → ${stood.x}`,
+  );
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  await thumb.context().close();
+  // Upright and on a small screen: the pads fit, clear of the HUD and of MENU.
+  for (const [name, device] of [
+    ["Pixel 7", devices["Pixel 7"]],
+    ["iPhone SE", devices["iPhone SE"]],
+    ["iPhone SE landscape", devices["iPhone SE landscape"]],
+  ]) {
+    const small = await open("fuse-axe/?solo=1&mute", device);
+    await small
+      .locator('main[data-screen="lobby"]')
+      .waitFor({ timeout: 15_000 });
+    await small.getByRole("button", { name: "START" }).click();
+    await small.locator(".fa-touch .fa-dpad").waitFor({ timeout: 10_000 });
+    await small.waitForTimeout(500);
+    assert.deepEqual(await padsFit(small), [], `the pads fit on ${name}`);
+    if (shots && name === "Pixel 7")
+      await small.screenshot({
+        path: join(shots, "solo-phone-upright.png"),
+        scale: "css",
+      });
+    await small.context().close();
+  }
 
   // ---- a room that does not exist ----
   const nowhere = await open("fuse-axe/?room=ZZ99&mute");
