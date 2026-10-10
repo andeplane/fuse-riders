@@ -3,12 +3,13 @@ import type { MusicKind } from "./audio/index.js";
 import { css } from "../render/palette.js";
 import type { PlayerLook, RoundSource } from "../render/round-scene.js";
 import {
+  TOUCH_SIDES,
   fireKeyLabel,
   type BrowserInput,
   type Command,
   type DeviceId,
 } from "./input/index.js";
-import { Lobby, PLAYER_NAMES, type Seat } from "./lobby.js";
+import { Lobby, type Seat } from "./lobby.js";
 import { RoundRunner } from "./round-runner.js";
 import * as screens from "./screens.js";
 
@@ -111,6 +112,8 @@ export class Flow implements RoundSource {
   private seed: number;
   private readonly speed: number;
   private html = "";
+  /** Whether the touch pads were last set to give way to a menu (`menuOpen`). */
+  private padsYielded = false;
 
   constructor(private readonly options: FlowOptions) {
     this.seed = options.seed;
@@ -172,6 +175,7 @@ export class Flow implements RoundSource {
 
   private render(): void {
     const { runner, seats, screen } = this;
+    if (this.menuOpen !== this.padsYielded) this.updateTouchPads(); // A menu opened or closed on its own.
     const info = { seats, match: runner.match, view: runner.view };
     let html = "";
     if (screen.kind === "lobby")
@@ -203,7 +207,7 @@ export class Flow implements RoundSource {
     if (!seat) return;
     if (seat.joined) hub.bind(seat.slot, device);
     else hub.unbind(seat.slot);
-    this.updateTouchZones();
+    this.updateTouchPads();
   }
 
   private get menuState(): MenuState {
@@ -269,7 +273,7 @@ export class Flow implements RoundSource {
       case "lobby":
         return this.toLobby();
     }
-    this.updateTouchZones();
+    this.updateTouchPads();
   }
 
   private toLobby(): void {
@@ -288,14 +292,12 @@ export class Flow implements RoundSource {
       true,
     );
     this.options.music?.("lobby");
-    this.updateTouchZones();
+    this.updateTouchPads();
   }
 
   private startMatch(): void {
     const { hub } = this.options.input;
-    this.lobby.compactTouchZones();
     this.seats = this.lobby.seats();
-    for (const s of this.seats) if (s.device) hub.bind(s.slot, s.device); // Touch zones may have been renumbered.
     const seed = this.seed++;
     this.runner = new RoundRunner({
       seed,
@@ -311,14 +313,14 @@ export class Flow implements RoundSource {
     this.paused = false;
     const prompt = (s: Seat) =>
       s.device?.startsWith("touch:")
-        ? "TAP!"
+        ? "TAP FIRE!"
         : `PRESS ${(s.device && fireKeyLabel(s.device)) ?? s.tag}`;
     this.options.show(
       this,
       this.seats.map((s) => (s.device ? { ...s, prompt: prompt(s) } : s)),
       false,
     );
-    this.updateTouchZones();
+    this.updateTouchPads();
   }
 
   private nextRound(): void {
@@ -326,23 +328,29 @@ export class Flow implements RoundSource {
     this.screen = { kind: "countdown", left: COUNTDOWN };
   }
 
-  /** Touch players get a zone in their colour; in the lobby the free zones read JOIN. */
-  private updateTouchZones(): void {
+  /** Whether a menu panel (pause, results, the match winner) is up, with buttons where the pads would sit. */
+  private get menuOpen(): boolean {
+    const { kind } = this.screen;
+    return this.paused || kind === "results" || kind === "winner";
+  }
+
+  /**
+   * Each touch side (`touch:0` left, `touch:1` right) shows its pad while it can play: in the lobby both sides, a
+   * free side's FIRE reading JOIN and a seated one's the player's name; in a match only the seated sides, and none
+   * while a menu is up, so a pad never covers one of its buttons and no finger is left holding a rider through it.
+   */
+  private updateTouchPads(): void {
     const inLobby = this.screen.kind === "lobby";
+    this.padsYielded = this.menuOpen;
     const seats = inLobby ? this.lobby.seats() : this.seats;
-    const zones = new Map<number, Seat>();
-    for (const s of seats)
-      if (s.device?.startsWith("touch:"))
-        zones.set(Number(s.device.slice(6)), s);
-    const count = Math.min(
-      PLAYER_NAMES.length,
-      Math.max(-1, ...zones.keys()) + (inLobby ? 2 : 1),
-    );
-    this.options.input.setTouchZones(
-      Array.from({ length: count }, (_, zone) => {
-        const s = zones.get(zone);
-        if (s) return { label: s.name, color: css(s.color) };
-        return { label: inLobby ? "JOIN" : "", color: "var(--fui-yellow)" };
+    this.options.input.setTouchPads(
+      Array.from({ length: TOUCH_SIDES }, (_, side) => {
+        if (this.padsYielded) return undefined;
+        const s = seats.find(({ device }) => device === `touch:${side}`);
+        if (s) return { label: inLobby ? s.name : "FIRE", color: css(s.color) };
+        return inLobby
+          ? { label: "JOIN", color: "var(--fui-yellow)" }
+          : undefined;
       }),
     );
   }

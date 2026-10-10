@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  BACK_STEPS,
   HERO_KINDS,
   HERO_STATES,
   JUMP_RISE_STEPS,
+  STAB_STEPS,
   SWING_STEPS,
 } from "../src/engine/view-kit.js";
 import type { HeroKind } from "../src/engine/view.js";
@@ -33,9 +35,24 @@ const swings = (a: Triple, b: Triple, c: Triple): HeroTiming["swings"] => [
 const SWING_ANIMS = ["attack1", "attack2", "attack3"] as const;
 /** Timing that differs per hero, so the mapping is seen to read the hero's own. */
 const TIMING: Readonly<Record<HeroKind, HeroTiming>> = {
-  brakka: { swings: swings([6, 3, 10], [6, 3, 10], [9, 4, 20]), rise: 20 },
-  rhea: { swings: swings([4, 3, 8], [4, 3, 8], [7, 4, 16]), rise: 18 },
-  gorm: { swings: swings([8, 4, 13], [8, 4, 13], [12, 5, 24]), rise: 22 },
+  brakka: {
+    swings: swings([6, 3, 10], [6, 3, 10], [9, 4, 20]),
+    rise: 20,
+    back: swing([4, 3, 16]),
+    stab: 3,
+  },
+  rhea: {
+    swings: swings([4, 3, 8], [4, 3, 8], [7, 4, 16]),
+    rise: 18,
+    back: swing([3, 2, 14]),
+    stab: 2,
+  },
+  gorm: {
+    swings: swings([8, 4, 13], [8, 4, 13], [12, 5, 24]),
+    rise: 22,
+    back: swing([5, 4, 18]),
+    stab: 5,
+  },
 };
 const steps = (n: number) => [...Array(n).keys()];
 
@@ -84,6 +101,26 @@ test("until they have frames of their own, a run strides through the walk's fast
     );
     for (const step of steps(60))
       assert.equal(heroFrame(kind, "dash", step, TIMING), "strike1");
+  }
+});
+
+test("until they have frames of their own, the jump attack, back attack, grab and throw borrow the swings', the strike exactly while a blade is out", () => {
+  for (const kind of HERO_KINDS) {
+    const { back, stab } = TIMING[kind];
+    const frames = (anim: FigureAnim, count: number) =>
+      steps(count).map((step) => heroFrame(kind, anim, step, TIMING));
+    assert.deepEqual(frames("jumpattack", stab + 40), [
+      ...Array<string>(stab).fill("windup2"),
+      ...Array<string>(40).fill("strike2"),
+    ]);
+    const { startup, active, recovery } = back;
+    assert.deepEqual(frames("backattack", startup + active + recovery + 5), [
+      ...Array<string>(startup).fill("windup1"),
+      ...Array<string>(active).fill("strike1"),
+      ...Array<string>(recovery + 5).fill("follow1"),
+    ]);
+    assert.deepEqual(frames("grab", 30), Array<string>(30).fill("windup3"));
+    assert.deepEqual(frames("throw", 30), Array<string>(30).fill("follow3"));
   }
 });
 
@@ -140,10 +177,12 @@ test("the frame never throws, as the renderer asks it every frame: a step that i
   assert.equal(heroFrame("brakka", dance as FigureAnim, 9, TIMING), "idle0");
 });
 
-test("by default the frames follow the engine's swings and its jump's apex", () => {
+test("by default the frames follow the engine's swings, its jump's apex, its back attack and its stab", () => {
   for (const kind of HERO_KINDS) {
     assert.equal(HERO_TIMING[kind].swings, SWING_STEPS[kind]);
     assert.equal(HERO_TIMING[kind].rise, JUMP_RISE_STEPS);
+    assert.equal(HERO_TIMING[kind].back, BACK_STEPS[kind]);
+    assert.equal(HERO_TIMING[kind].stab, STAB_STEPS[kind]);
     for (const anim of HERO_ANIMS)
       for (const step of steps(60))
         assert.equal(

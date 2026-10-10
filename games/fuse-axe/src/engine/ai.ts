@@ -170,7 +170,10 @@ function stride(world: World, enemy: Enemy): void {
 const BLOWS: readonly HeroState[] = ["attack1", "attack2", "attack3", "dash"];
 /** A hero knocked off its feet, whom no attacker winds up at. */
 const FLOORED: readonly HeroState[] = ["knockdown", "down", "getup"];
-/** The states a mace lands in: on its feet or in the air, running, swinging, dashing or reeling. */
+/**
+ * The states a mace lands in: on its feet or in the air, running, swinging, dashing, stabbing, striking behind,
+ * throwing or reeling. A hero mid-grab is out of its way: the grab is brief and always ends in the throw.
+ */
 const STRUCK: readonly HeroState[] = [
   "idle",
   "walk",
@@ -179,6 +182,9 @@ const STRUCK: readonly HeroState[] = [
   "land",
   ...BLOWS,
   "hurt",
+  "jumpattack",
+  "backattack",
+  "throw",
 ];
 
 /** The mace lands on every hero it reaches in front of the enemy, in the depth lane and below its sweep. */

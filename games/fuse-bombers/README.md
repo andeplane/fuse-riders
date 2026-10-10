@@ -2,7 +2,7 @@
 
 A party artillery game for 2–6 players, humans and bots, on one keyboard, a few gamepads or a touch screen. Gunships
 fly round a destructible floating temple and lob rockets across it, and the rockets fly through multiplier gates to
-turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md): touch riders cannot steer yet.)
+turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md).)
 
 **Play it: <https://andeplane.github.io/fuse-riders/fuse-bombers/>**, or pick it from the app portal (the dot-grid
 button at the top left of every Fuse game's lobby). It is a local game: no rooms, no accounts, everyone at one screen.
@@ -37,8 +37,8 @@ button at the top left of every Fuse game's lobby). It is a local game: no rooms
 ## Controls
 
 In the lobby, press your fire key or button to join and press it again to leave. Seats up to the player count that
-nobody holds are played by bots. One keyboard seats four riders, so a lobby of six humans needs gamepads or touch zones
-for the other two.
+nobody holds are played by bots. One keyboard seats four riders and one touch screen two, so a lobby of six humans
+needs gamepads too.
 
 | Rider      | Steer                                                | Fire                                         |
 | ---------- | ---------------------------------------------------- | -------------------------------------------- |
@@ -47,7 +47,7 @@ for the other two.
 | Keyboard 3 | Arrow keys                                           | `/` (the key left of right Shift)            |
 | Keyboard 4 | Numpad `8` `4` `5` `6` (`2` is down too)             | Numpad `0` or numpad `Enter`                 |
 | Gamepad    | Left stick (8 directions, with a dead zone) or D-pad | Any face button (A/B/X/Y on a standard pad)  |
-| Touch      | Not yet: D-pads come in a later change               | Your coloured tap zone along the bottom edge |
+| Touch      | Your side's D-pad; between two arrows is a diagonal  | The big FIRE button beside your side's D-pad |
 
 Held together, opposite directions cancel. Keys are physical positions, so `/` is whatever the key left of right Shift
 reads (`-` on Nordic layouts). A pad without the standard mapping steers with its first stick only, and all its
@@ -62,8 +62,18 @@ Bots fly and fire like you (the same controls, no extra physics). Mid-round, `Es
 pauses; while paused, `Enter`/`Esc` resume and `Backspace` quits to the lobby. On the winner screen, `Enter`
 plays again and `Esc` or `Backspace` returns to the lobby.
 
-A gamepad that is unplugged and comes back at the same index is the same player. Tap zones appear on touch devices; on
-a desktop, `?touch` shows them.
+A gamepad that is unplugged and comes back at the same index is the same player.
+
+Touch pads appear on touch devices (on a desktop, `?touch` shows them, and the mouse holds one control at a time): a
+D-pad and a FIRE button in the bottom-left corner for one rider and in the bottom-right for a second, so two can share a
+tablet. In the lobby both show, reading JOIN; press your side's FIRE to join and again to leave. In a match only the
+seated sides show, and a lone touch rider's controls spread out, D-pad bottom left and FIRE bottom right. The pads step
+aside while the pause, results or winner screen is up. A finger holds the control it went down on until it lifts, even
+sliding off it; a cancelled touch, switching apps or tabs, or the window losing focus lets everything go.
+
+![Two touch riders on a tablet, each holding a direction](docs/images/touch-pads.png)
+
+![A lone touch rider on a phone in landscape: D-pad bottom left, FIRE bottom right, the II pause button top right](docs/images/touch-pads-phone.png)
 
 ### URL flags
 
@@ -75,7 +85,7 @@ Add them to the address, for example `?mute&speed=4`.
 | `?calm`    | Turns off screen shake and full-screen flashes (also on with the OS reduced-motion setting). |
 | `?speed=N` | Runs the game and its timers N times as fast (whole numbers, 1 or more).                     |
 | `?seed=N`  | Fixes the random seed so matches replay the same spawns, gates and crates.                   |
-| `?touch`   | Forces the touch zones on a non-touch device.                                                |
+| `?touch`   | Forces the touch pads on a non-touch device.                                                 |
 | `?debug`   | Exposes `window.fuseBombers` (`game`, `flow`, `audio`) for browser tests.                    |
 
 ## Development
