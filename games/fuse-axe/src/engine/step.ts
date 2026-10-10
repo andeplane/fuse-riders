@@ -182,7 +182,9 @@ function hit(world: World, hero: Hero, enemy: Enemy, damage: number): void {
     until = world.step + (knocked ? T.HEAVY_HITSTOP : T.HITSTOP);
   enemy.hp -= taken;
   hero.damage += taken;
-  hero.struck = [...hero.struck, enemy.id];
+  // In id order, the one way the checkpoint spells it: an enemy that gets up or is nudged into reach later in the
+  // window can have a lower id than one already hit.
+  hero.struck = [...hero.struck, enemy.id].sort((a, b) => a - b);
   hero.stopUntil = Math.max(hero.stopUntil, until);
   enemy.stopUntil = until;
   enemy.facing = hero.facing > 0 ? -1 : 1;

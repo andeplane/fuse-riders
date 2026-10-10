@@ -51,7 +51,7 @@ export interface Hero {
   jumpBuf: number;
   /** Hit-stop: the hero holds still on every step up to and including this one. */
   stopUntil: number;
-  /** The enemies this swing has hit, by id, so none is hit twice by one swing. Replaced, never mutated. */
+  /** The enemies this swing has hit, in id order, so none is hit twice by one swing. Replaced, never mutated. */
   struck: number[];
   /** Tallies for the HUD: hit points taken from enemies, and enemies knocked down. */
   damage: number;
