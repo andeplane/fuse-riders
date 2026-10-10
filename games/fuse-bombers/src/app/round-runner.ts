@@ -1,6 +1,7 @@
 import {
   createMatch,
   createRound,
+  FIRE,
   nextRoundConfig,
   recordRoundResult,
   step,
@@ -14,17 +15,20 @@ import {
 } from "../engine/index.js";
 import type { Bot } from "./bot.js";
 
-/** Human presses per slot, e.g. the `InputHub`. */
-export interface PressSource {
+/** Human input per slot, e.g. the `InputHub`. */
+export interface RiderInput {
   poll?(): void;
+  /** Per slot, whether fire was pressed since the last take (latched, so a tap between two steps still counts). */
   takePresses(slotCount: number): boolean[];
+  /** The bits the slot's device holds now (`UP` … `FIRE`); the runner takes the directions from here. */
+  heldBits(slot: number): number;
 }
 
 export interface RoundRunnerOptions {
   seed: number;
-  /** One entry per player: its bot, or null for a human whose presses come from `input`. */
+  /** One entry per player: its bot, or null for a human whose input comes from `input`. */
   controllers: readonly (Bot | null)[];
-  input?: PressSource;
+  input?: RiderInput;
   /** Round wins needed to take the match (default 3). */
   winsToWin?: number;
   /**
@@ -41,14 +45,14 @@ const MAX_STEPS_PER_FRAME = 6;
 /** Sim speed once only bots are left standing, and how fast (×/s of real time) the speed ramps up and back down. */
 export const FAST_FORWARD = { speed: 2, rampUp: 0.8, rampDown: 4 } as const;
 /**
- * Humans count as still playing for this long after their last castle fell or their ghost's button was last
- * pressed; after that a bots-only round fast-forwards.
+ * Humans count as still playing for this long after their last castle fell or their ghost was last steered or
+ * fired; after that a bots-only round fast-forwards.
  */
 export const GHOST_HOLD_SECONDS = 5;
 
 /**
  * The app's game loop: advances the engine at a fixed 60 Hz from real frame times, asks bots and the input hub
- * for presses every step, records each finished round in `match` as soon as it ends, and starts the next round
+ * for input every step, records each finished round in `match` as soon as it ends, and starts the next round
  * (then a new match) once the aftermath has played. It implements the render layer's `RoundSource`.
  */
 export class RoundRunner {
@@ -58,7 +62,7 @@ export class RoundRunner {
   private ticksOver = 0;
   private readonly aftermathTicks: number;
   private readonly humans: number[];
-  /** Last tick a human castle stood or a human ghost pressed. */
+  /** Last tick a human castle stood or a human ghost had input. */
   private humanTick = 0;
   private simSpeed = 1;
 
@@ -81,7 +85,7 @@ export class RoundRunner {
 
   /**
    * True when at least one human plays, every human castle is destroyed, the round is still on and no human ghost
-   * pressed within `GHOST_HOLD_SECONDS`: nobody is waiting on anything but the bots.
+   * had input within `GHOST_HOLD_SECONDS`: nobody is waiting on anything but the bots.
    */
   get botsOnly(): boolean {
     const round = this.state;
@@ -124,19 +128,26 @@ export class RoundRunner {
     return events;
   }
 
+  /**
+   * One step's input: a bot's bits, or a human's held directions plus `FIRE` on the step that takes a latched press
+   * (never from the held fire bit, so a button held through the countdown does not fire on GO, and a tap shorter
+   * than a step still fires).
+   */
   private tick(): readonly TickEvent[] {
     if (this.state.result) this.ticksOver++;
     const { controllers, input } = this.options;
-    const humans = input?.takePresses(controllers.length) ?? [];
+    const presses = input?.takePresses(controllers.length) ?? [];
     const round = view(this.state);
-    const pressed = controllers.map((bot, id) =>
-      bot ? bot(round, id) : humans[id] === true,
+    const held = controllers.map((bot, id) =>
+      bot
+        ? bot(round, id)
+        : ((input?.heldBits(id) ?? 0) & ~FIRE) | (presses[id] ? FIRE : 0),
     );
     const humanActive = this.humans.some(
-      (id) => this.state.castles[id]?.alive || pressed[id],
+      (id) => this.state.castles[id]?.alive || held[id],
     );
     if (humanActive) this.humanTick = this.state.tick;
-    const events = step(this.state, pressed);
+    const events = step(this.state, held);
     for (const event of events)
       if (event.type === "round-over")
         recordRoundResult(this.match, event.result);

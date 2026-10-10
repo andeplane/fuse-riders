@@ -1,6 +1,6 @@
 // Flight for gunships and ghosts: held-direction thrust with momentum, drag, a speed cap and collisions against a
-// solid field. Plain arithmetic and `Math.sqrt` only, so a replay on any browser gives the same floats. Not wired into
-// the round yet; see docs/engine.md.
+// solid field. Plain arithmetic and `Math.sqrt` only, so a replay on any browser gives the same floats. The round flies
+// its gunships and ghosts with it; see docs/engine.md.
 
 import { thrustDirection, type Direction } from "./input.js";
 import { DT } from "./tuning.js";

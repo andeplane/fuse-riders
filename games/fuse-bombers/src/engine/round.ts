@@ -7,14 +7,23 @@ import {
   crateYAt,
   DEG,
   gatePositionAt,
-  ghostPositionAt,
+  GHOST_SKY,
   insideGate,
   integrate,
   isOffscreen,
+  launcherPivot,
   launchState,
   TAU,
   turnLauncher,
 } from "./geometry.js";
+import {
+  flyStep,
+  GHOST_FLIGHT,
+  GUNSHIP_FLIGHT,
+  placeClear,
+  separate,
+  type FlightWorld,
+} from "./flight.js";
 import {
   carveCircle,
   cellSolid,
@@ -23,6 +32,7 @@ import {
   type Grid,
   type ReadGrid,
 } from "./grid.js";
+import { DOWN, FIRE, isInput, LEFT, RIGHT, UP } from "./input.js";
 import { hashSeed, int, random, range, weighted } from "./rng.js";
 import {
   buildTempleGrid,
@@ -59,6 +69,22 @@ import type {
 
 const NO_GATES: readonly number[] = [];
 const NO_GATE_LIST: readonly Gate[] = [];
+const STEER = UP | DOWN | LEFT | RIGHT;
+
+/** Flight's view of each round's grid, made once per grid object (a clone gets its own), so no step allocates one. */
+const worlds = new WeakMap<ReadGrid, FlightWorld>();
+function terrainWorld(grid: ReadGrid): FlightWorld {
+  let world = worlds.get(grid);
+  if (!world) {
+    world = {
+      width: grid.width,
+      height: grid.height,
+      solidAt: (x, y) => solidAt(grid, x, y),
+    };
+    worlds.set(grid, world);
+  }
+  return world;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Creation
@@ -73,13 +99,16 @@ export function createRound(config: RoundConfig): RoundState {
   if (!Number.isFinite(config.seed))
     throw new RangeError("seed must be a finite number");
   const tuning = resolveTuning(config.tuning);
-  // The temple, with the castles hovering at a spread set of its spawn anchors.
+  // The temple, with the gunships at rest at a spread set of its spawn anchors.
   const terrain = buildTempleGrid();
   const hp = tuning.castleHp[n] ?? 200;
   const castles: Castle[] = spawnOrder(n, config.seed).map(({ x, y }, id) => ({
     id,
     x,
     y,
+    vx: 0,
+    vy: 0,
+    thrust: 0,
     hp,
     maxHp: hp,
     alive: true,
@@ -106,6 +135,8 @@ export function createRound(config: RoundConfig): RoundState {
       ghostDamage: 0,
     },
   }));
+  for (const c of castles)
+    placeClear(c, GUNSHIP_FLIGHT.shape, terrainWorld(terrain));
 
   const state: RoundState = {
     config,
@@ -121,6 +152,7 @@ export function createRound(config: RoundConfig): RoundState {
     gates: [],
     crates: [],
     ghosts: [],
+    lastHeld: castles.map(() => 0),
     events: [],
     nextCrateTick: secondsToTicks(tuning.firstCrateDelay),
     nextBombTick: 0,
@@ -158,9 +190,9 @@ export function ghostOf(
 }
 
 /**
- * True when the ghost would drop a bomb if its button were pressed this tick: it is reloaded and the blimp is in
- * the open. A bomb released inside rock would blow up at the drop point that very step, so the press is ignored (and
- * the reload kept) until the blimp, which flies through rock, comes out of it. Pass the round's `terrain`.
+ * True when the ghost would drop a bomb on a fire press this tick: it is reloaded and the blimp is in the open. A
+ * bomb released inside rock would blow up at the drop point that very step, so the press is ignored (and the reload
+ * kept) until the blimp, which flies through rock, comes out of it. Pass the round's `terrain`.
  */
 export function isGhostLoaded(g: GhostView, terrain: ReadGrid): boolean {
   return g.reloadTicks === 0 && !solidAt(terrain, g.x, g.y);
@@ -180,15 +212,33 @@ export function damageScale(state: RoundView): number {
 // ---------------------------------------------------------------------------------------------
 // Step
 
+/** Seat `id`'s input bits this step: `held[id]` when it is valid input (`isInput`), else 0 (nothing held). */
+function bitsOf(held: readonly number[], id: number): number {
+  const bits = held[id];
+  return isInput(bits) ? bits : 0;
+}
+
+/** Whether seat `id`'s fire button went down this step: `FIRE` held now and not on the latest step. */
+function firePressed(
+  state: RoundState,
+  held: readonly number[],
+  id: number,
+): boolean {
+  const before = state.lastHeld[id] ?? 0;
+  return (bitsOf(held, id) & FIRE) !== 0 && (before & FIRE) === 0;
+}
+
 /**
- * Advances the round by one tick. `pressed[i]` is true when player i's button went down this
- * tick (edge, not level). Mutates `state` in place and returns this tick's events (also stored on
- * `state.events`). Stepping a finished round keeps rockets flying for the aftermath but no longer
+ * Advances the round by one tick. `held[i]` is the input bits player i holds this tick (`UP | DOWN | LEFT | RIGHT |
+ * FIRE` from input.ts); a missing entry, or one that is not an integer of those bits, holds nothing. The directions
+ * steer the gunship (or the ghost), and a fire press is the rising edge of `FIRE` against the previous step's bits,
+ * so holding fire never fires again. Mutates `state` in place and returns this tick's events (also stored on
+ * `state.events`). Stepping a finished round keeps rockets and gunships flying for the aftermath but no longer
  * fires, damages or changes the result.
  */
 export function step(
   state: RoundState,
-  pressed: readonly boolean[] = [],
+  held: readonly number[] = [],
 ): readonly TickEvent[] {
   state.events = [];
   const tick = state.tick;
@@ -199,8 +249,11 @@ export function step(
     state.events.push({ type: "sudden-death-started", tick });
   }
 
-  updateCastles(state, pressed);
-  updateGhosts(state, pressed);
+  updateCastles(state, held);
+  flyGunships(state, held);
+  updateGhosts(state, held);
+  for (let id = 0; id < state.lastHeld.length; id++)
+    state.lastHeld[id] = bitsOf(held, id);
   updateGates(state);
   updateCrates(state);
   if (state.phase === "sudden-death") dropBombs(state);
@@ -219,15 +272,15 @@ function volleyInterval(c: Castle, t: Tuning): number {
   return Math.max(2, Math.min(t.volleyIntervalTicks, fit));
 }
 
-function updateCastles(state: RoundState, pressed: readonly boolean[]): void {
+function updateCastles(state: RoundState, held: readonly number[]): void {
   const t = state.tuning;
   const tick = state.tick;
   const over = state.phase === "over";
   for (const c of state.castles) {
     if (!c.alive) continue;
 
-    // Fire at the angle the player saw when pressing (the angle after the previous tick).
-    if (!over && pressed[c.id] === true && isLoaded(c)) {
+    // Fire at the angle the player saw when pressing, and from where the ship was then (flight comes after).
+    if (!over && firePressed(state, held, c.id) && isLoaded(c)) {
       c.volleyLeft = c.units;
       c.volleyAngle = c.angle;
       c.volleyMega = c.megaReady;
@@ -261,6 +314,18 @@ function updateCastles(state: RoundState, pressed: readonly boolean[]): void {
   }
 }
 
+/** Every living gunship flies one step on its held directions; then overlapping ones are parted, in seat order. */
+function flyGunships(state: RoundState, held: readonly number[]): void {
+  const world = terrainWorld(state.terrain);
+  for (const c of state.castles) {
+    if (!c.alive) continue;
+    c.thrust = bitsOf(held, c.id) & STEER;
+    flyStep(c, c.thrust, GUNSHIP_FLIGHT, world);
+  }
+  const living = state.castles.filter((c) => c.alive);
+  separate(living, GUNSHIP_FLIGHT.shape, world);
+}
+
 /**
  * The launcher angle a castle will have after `ticks` more steps (it turns at a steady rate, so this is
  * exact, bit for bit). `futureAngle(state, id, 0)` is the current angle, the one a press on the next
@@ -285,7 +350,7 @@ function launchRocket(state: RoundState, c: Castle): void {
   const speed =
     t.launchSpeed * (1 + range(state, -t.speedJitter, t.speedJitter));
   const l = launchState(c, t, angle, speed);
-  state.rockets.push({
+  const rocket: Rocket = {
     id: state.nextId++,
     owner: c.id,
     x: l.x,
@@ -298,8 +363,19 @@ function launchRocket(state: RoundState, c: Castle): void {
     ghost: false,
     gates: NO_GATES,
     age: 0,
-  });
+  };
   c.stats.rocketsFired++;
+  // Rock on the barrel (pivot to tip: a gunship flown up against a wall) stops the rocket where the barrel enters
+  // it, so it blows up on the near face instead of starting beyond the wall.
+  const pivot = launcherPivot(c, t);
+  const wall = segmentHit(state.terrain, pivot.x, pivot.y, l.x, l.y);
+  if (!wall) {
+    state.rockets.push(rocket);
+    return;
+  }
+  rocket.x = wall.x;
+  rocket.y = wall.y;
+  explode(state, rocket);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -308,27 +384,20 @@ function launchRocket(state: RoundState, c: Castle): void {
 function spawnGhost(state: RoundState, c: Castle): void {
   const t = state.tuning;
   if (!t.ghosts || state.ghosts.some((g) => g.owner === c.id)) return;
-  const minX = t.ghostMargin;
-  const maxX = WORLD_WIDTH - t.ghostMargin;
-  const x0 = Math.min(maxX, Math.max(minX, c.x));
   const reload = secondsToTicks(t.ghostFirstReload);
   const ghost: Ghost = {
     owner: c.id,
-    x: x0,
-    // Above the wreck, flying through rock at that height until free flight lands.
+    // At rest above the wreck (inside the world's edges), in play from the next step.
+    x: c.x,
     y: Math.max(t.ghostMargin, c.y - t.ghostRise),
     vx: 0,
+    vy: 0,
+    thrust: 0,
     reloadTicks: reload,
     reloadTotalTicks: reload,
-    // It is at `x0` when the next step starts (see `ghostPositionAt`).
     spawnTick: state.tick + 1,
-    x0,
-    // Head for the middle of the world first.
-    speed: x0 < WORLD_WIDTH / 2 ? t.ghostSpeed : -t.ghostSpeed,
-    minX,
-    maxX,
   };
-  ghost.vx = ghost.speed;
+  placeClear(ghost, GHOST_FLIGHT.shape, GHOST_SKY);
   state.ghosts.push(ghost);
   state.events.push({
     type: "ghost-spawned",
@@ -339,18 +408,19 @@ function spawnGhost(state: RoundState, c: Castle): void {
   });
 }
 
-function updateGhosts(state: RoundState, pressed: readonly boolean[]): void {
+function updateGhosts(state: RoundState, held: readonly number[]): void {
   for (const g of state.ghosts) {
+    // A ghost born this step (from a barrel blast) plays from the next one.
+    if (g.spawnTick > state.tick) continue;
     // Drop from where the player saw the blimp (its position after the previous tick).
     if (
       state.phase !== "over" &&
-      pressed[g.owner] === true &&
+      firePressed(state, held, g.owner) &&
       isGhostLoaded(g, state.terrain)
     )
       dropGhostBomb(state, g);
-    const p = ghostPositionAt(g, state.tick + 1);
-    g.x = p.x;
-    g.vx = p.vx;
+    g.thrust = bitsOf(held, g.owner) & STEER;
+    flyStep(g, g.thrust, GHOST_FLIGHT, GHOST_SKY);
     if (g.reloadTicks > 0) g.reloadTicks--;
   }
 }
@@ -367,7 +437,7 @@ function dropGhostBomb(state: RoundState, g: Ghost): void {
     x: g.x,
     y: g.y,
     vx: g.vx,
-    vy: t.ghostBombSpeed,
+    vy: g.vy + t.ghostBombSpeed,
     power: 1,
     mega: false,
     bomb: false,
@@ -1022,6 +1092,7 @@ function damageCastle(
   c.alive = false;
   c.shieldHp = 0;
   c.volleyLeft = 0;
+  c.vx = c.vy = c.thrust = 0;
   if (attacker && attacker !== c) attacker.stats.kills++;
   state.events.push({
     type: "castle-destroyed",
@@ -1031,7 +1102,7 @@ function damageCastle(
     x: c.x,
     y: c.y,
   });
-  // The wreck blows a big crater where it hovered (harmless in open air).
+  // The wreck blows a big crater where it flew (harmless in open air).
   crater(state, c.x, c.y, state.tuning.wreckCraterRadius, owner);
   spawnGhost(state, c);
   return amount;

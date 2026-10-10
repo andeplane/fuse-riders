@@ -5,6 +5,7 @@ import {
   castleCenter,
   createRound,
   damageScale,
+  FIRE,
   futureAngle,
   gridHash,
   isLoaded,
@@ -25,10 +26,12 @@ import { skyZones, spawnOrder, type Rect } from "../src/engine/temple-map.js";
 import {
   addRocket,
   clearSky,
+  held,
   openWorld,
   placeGate,
   playOut,
   spamInputs,
+  type Inputs,
 } from "./engine-helpers.js";
 
 const TAU = 2 * Math.PI;
@@ -45,10 +48,10 @@ function eventsOf<T extends TickEvent["type"]>(
 function run(
   state: RoundState,
   ticks: number,
-  inputs: (s: RoundState) => boolean[] = () => [],
+  inputs: (s: RoundState) => Inputs = () => [],
 ) {
   const all: TickEvent[] = [];
-  for (let i = 0; i < ticks; i++) all.push(...step(state, inputs(state)));
+  for (let i = 0; i < ticks; i++) all.push(...step(state, held(inputs(state))));
   return all;
 }
 
@@ -164,10 +167,10 @@ test("pressing when loaded fires a volley of `units` rockets; pressing while rel
   const c = s.castles[0];
   assert.ok(c);
   assert.equal(isLoaded(c), false, "starts with a short initial reload");
-  assert.deepEqual(eventsOf(step(s, [true]), "fired"), []);
+  assert.deepEqual(eventsOf(step(s, [FIRE]), "fired"), []);
   while (!isLoaded(c)) step(s);
   const angle = c.angle;
-  const fired = eventsOf(step(s, [true, false]), "fired");
+  const fired = eventsOf(step(s, [FIRE, 0]), "fired");
   assert.equal(fired.length, 1);
   assert.equal(fired[0]?.angle, angle);
   assert.equal(fired[0]?.units, c.units);
@@ -175,7 +178,7 @@ test("pressing when loaded fires a volley of `units` rockets; pressing while rel
   run(s, 60);
   assert.equal(c.stats.rocketsFired, c.units);
   assert.equal(c.volleyLeft, 0);
-  assert.deepEqual(eventsOf(step(s, [true]), "fired"), [], "still reloading");
+  assert.deepEqual(eventsOf(step(s, [FIRE]), "fired"), [], "still reloading");
   const reload = Math.round(c.reloadTime * TICK_HZ);
   assert.equal(c.reloadTotalTicks, reload);
 });
@@ -189,7 +192,7 @@ test("a volley leaves at the angle the player saw, whichever way it points", () 
     assert.ok(c);
     c.reloadTicks = 0;
     c.angle = angle;
-    const fired = eventsOf(step(s, [true]), "fired");
+    const fired = eventsOf(step(s, [FIRE]), "fired");
     assert.equal(fired[0]?.angle, angle);
     const r = s.rockets[0];
     assert.ok(r);
