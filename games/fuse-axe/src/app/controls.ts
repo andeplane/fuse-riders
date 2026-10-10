@@ -24,7 +24,10 @@ export const KEYS: Readonly<Record<string, number>> = {
 
 /** The keys as the lobby and the landing page show them. */
 export const KEY_HELP: readonly (readonly [string, string])[] = [
-  ["ARROWS / WASD", "Walk the road, up and down in depth"],
+  [
+    "ARROWS / WASD",
+    "Walk the road, up and down in depth; double-tap left or right to run",
+  ],
   ["J / Z", "Attack"],
   ["K / X", "Jump"],
   ["L / C", "Magic"],

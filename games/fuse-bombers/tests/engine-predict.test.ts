@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createRound,
+  FIRE,
   predictTrajectory,
   step,
   view,
@@ -30,7 +31,7 @@ test("the prediction matches the real flight of a spread-free rocket exactly, at
     c.angle = angle;
     const predicted = predictTrajectory(view(s), 0);
     kinds.add(predicted.impact.kind);
-    step(s, [true]);
+    step(s, [FIRE]);
     const rocket = s.rockets[0];
     assert.ok(rocket);
     const id = rocket.id;

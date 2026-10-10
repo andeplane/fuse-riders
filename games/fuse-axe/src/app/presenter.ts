@@ -1,6 +1,8 @@
-import { VIEW_H, VIEW_W } from "../engine/view-kit.js";
+import { TICK_MS } from "fuse-netcode";
+import { CAPACITY, VIEW_H, VIEW_W } from "../engine/view-kit.js";
 import type { HeroKind } from "../engine/index.js";
 import { picksApply, type View } from "../online/game.js";
+import type { HudSeats } from "../render/hud.js";
 import { SEAT_COLORS } from "../render/seat-colors.js";
 
 /**
@@ -29,6 +31,31 @@ export const HEROES: Readonly<
   gorm: { name: "GORM", blurb: "Dwarf · battle axe · Earth", color: "#ffc23d" },
 };
 export const tag = (slot: number): string => `P${slot + 1}`;
+/** The stages by number, as the cards name them. */
+export const STAGE_NAMES: readonly string[] = ["", "ASHEN VILLAGE"];
+/** Log ticks a second: the clocks count in log ticks and show whole seconds. */
+const TICKS_PER_SECOND = 1000 / TICK_MS;
+
+/** Every line the stage-flow cards show. */
+export const TEXT = {
+  clear: (round: number) => `STAGE ${round} CLEAR`,
+  onward: "The road goes on in",
+  won: "The run is won in",
+  continueTitle: "CONTINUE?",
+  fallen: "Every hero has fallen",
+  pressAttack: "Press ATTACK (J / Z) to fight on",
+  waitHeroes: "A hero may continue the run",
+  victory: "VICTORY",
+  defeat: "GAME OVER",
+  reached: (round: number, last: number) =>
+    `STAGE ${round} OF ${last} · ${STAGE_NAMES[round] ?? ""}`,
+  waitHost: "The host sets out again",
+  hostChoice: "Set out again, or back to the lobby",
+  continueButton: "CONTINUE",
+  rematchButton: "REMATCH",
+  lobbyButton: "LOBBY",
+  tallyHead: ["", "HERO", "DAMAGE", "KO"],
+} as const;
 
 export interface Member {
   id: string;
@@ -37,10 +64,37 @@ export interface Member {
   color: string;
   hero: HeroKind | null;
   status: string;
-  you: boolean;
+}
+/** A hero's line in a tally: its seat, its player (or its tag once the seat has gone) and the numbers. */
+export interface TallyRow {
+  tag: string;
+  name: string;
+  color: string;
+  hero: HeroKind;
+  damage: number;
+  knockdowns: number;
+}
+/**
+ * The card over the game while the stage flow holds it: a cleared stage's tally, the continue countdown, or the run's
+ * end with its summary. `seconds` counts down whole seconds (rounded up) where a clock runs.
+ */
+export interface Card {
+  kind: "clear" | "continue" | "victory" | "defeat";
+  title: string;
+  /** The stage, or what happened. */
+  line: string;
+  seconds: number | null;
+  /** What the clock runs to, or what to do now. */
+  hint: string;
+  rows: TallyRow[];
+  /** This device plays a hero in the run and may vote to continue it. */
+  canContinue: boolean;
+  /** The host may set out again (REMATCH) or go back to the lobby from here. */
+  canRematch: boolean;
 }
 export interface Model {
   screen: "lobby" | "play";
+  card: Card | null;
   askName: boolean;
   seated: boolean;
   /** This device steers a hero in the running world, so the game's keys are its own. */
@@ -56,6 +110,8 @@ export interface Model {
   /** The host may take the room back to the lobby (and the hero picker) from a run. */
   canReturn: boolean;
   note: string;
+  /** What the game's HUD names: each seat's player by slot, and this device's seat. */
+  hud: HudSeats;
 }
 
 export function present(view: View, viewer: Viewer): Model {
@@ -86,6 +142,7 @@ export function present(view: View, viewer: Viewer): Model {
           : "";
   return {
     screen,
+    card: card(view, viewer, inWorld && mine.connected && !mine.away),
     askName: !mine && !viewer.display && !viewer.solo,
     seated,
     playing: inWorld && view.stage === "running",
@@ -102,14 +159,97 @@ export function present(view: View, viewer: Viewer): Model {
         : !seat.connected && !seat.bot
           ? "OFFLINE"
           : `${tag(seat.slot)} · ${seat.hero ? HEROES[seat.hero].name : ""}`,
-      you: seat.id === viewer.me,
     })),
     watchers: view.seats.length - seats.length,
     showStart: viewer.host && !viewer.display && screen === "lobby",
     canStart: seats.length > 0,
     canReturn: viewer.host && !viewer.display && screen === "play",
     note,
+    hud: {
+      names: Array.from(
+        { length: CAPACITY },
+        (_, slot) => seats.find((seat) => seat.slot === slot)?.name ?? null,
+      ),
+      you: seated ? mine.slot : null,
+      open: !viewer.solo,
+    },
   };
+}
+
+/** Each hero of the run's tally line, from this stage's numbers or the whole run's. */
+function rows(view: View, of: "stage" | "run"): TallyRow[] {
+  return view.tally.map((row) => {
+    const seat = view.seats.find(
+      (each) => !each.watcher && each.slot === row.seat,
+    );
+    return {
+      tag: tag(row.seat),
+      name: seat?.name ?? tag(row.seat),
+      color: SEAT_COLORS[row.seat % SEAT_COLORS.length]!,
+      hero: row.kind,
+      ...row[of],
+    };
+  });
+}
+
+/**
+ * The stage flow's card: the tally between stages, the countdown while every hero is out (a vote for a present hero
+ * of the run, a wait for everyone else), and the outcome with the run's summary once it is over (the host's REMATCH
+ * and lobby). None while the party fights, or in the lobby.
+ */
+function card(view: View, viewer: Viewer, hero: boolean): Card | null {
+  const seconds = Math.ceil(view.countdown / TICKS_PER_SECOND),
+    host = viewer.host && !viewer.display;
+  if (view.stage === "between")
+    return {
+      kind: "clear",
+      title: TEXT.clear(view.round),
+      line: STAGE_NAMES[view.round] ?? "",
+      seconds,
+      hint: view.round < view.lastStage ? TEXT.onward : TEXT.won,
+      rows: rows(view, "stage"),
+      canContinue: false,
+      canRematch: false,
+    };
+  if (view.stage === "running" && view.countdown > 0)
+    return {
+      kind: "continue",
+      title: TEXT.continueTitle,
+      line: TEXT.fallen,
+      seconds,
+      hint: hero ? TEXT.pressAttack : TEXT.waitHeroes,
+      rows: [],
+      canContinue: hero,
+      canRematch: false,
+    };
+  if (view.stage === "over") {
+    const won = view.outcome === "victory";
+    return {
+      kind: won ? "victory" : "defeat",
+      title: won ? TEXT.victory : TEXT.defeat,
+      line: TEXT.reached(view.round, view.lastStage),
+      seconds: null,
+      hint: host ? TEXT.hostChoice : TEXT.waitHost,
+      rows: rows(view, "run"),
+      canContinue: false,
+      canRematch: host,
+    };
+  }
+  return null;
+}
+
+/**
+ * What the game's canvas is to a screen reader: its HUD draws the party in pixels (capitals, names cut to fit), so
+ * this says every seat's tag, player in full and hero in words.
+ */
+export function partyLabel(members: readonly Member[]): string {
+  if (!members.length) return "Fuse Axe: nobody is seated";
+  const seats = members.map(({ tag, name, hero }) =>
+    [`${tag} ${name}`, hero ? HEROES[hero].name : ""]
+      .filter(Boolean)
+      .join(", "),
+  );
+  return `Fuse Axe: ${seats.join("; ")}`;
 }
 
 /** The largest whole-number scale at which the native screen fits `width` × `height` device pixels; at least 1. */

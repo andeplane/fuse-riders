@@ -34,9 +34,8 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
   no gravity: a piece a bomb cuts loose from the rest, like the temple's floating islets, stays in the air.
 - **Flight.** Input is held bits: up, down, left, right, fire. Thrust about 400 px/s², top speed about 200 px/s,
   linear drag. Diagonals are normalised. A gunship is a circle for collisions; it slides along rock rather than
-  sticking. The launcher's barrel (pivot 32 px above the hull, tip 20 px past it) is not tested against rock today,
-  which is safe only while castles hover at spawn anchors with 60 px of air round them: the flight change must decide
-  what a launch with the pivot or tip inside rock does.
+  sticking. A launch with rock on the barrel (pivot 32 px above the hull, tip 20 px past it) blows up where the barrel
+  enters the rock, so no rocket starts beyond a wall.
 - **Aim.** The launcher turns counter-clockwise at a steady rate (about 3.6 s a revolution). Fire fires on the press
   (the rising edge of the fire bit, which the engine tracks per gunship in the round state) when loaded, at the angle
   the player saw. Online, a press arrives as its own log entry (see "Online shape" below).
@@ -105,9 +104,10 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
    turning a full circle; render draws the bitmap terrain with the whole map in view. With castles fixed at spread
    anchors few pairs can reach each other, so until step 5 most rounds are decided in sudden death
    ([engine.md](engine.md) has the numbers).
-5. Free flight: held-bit input, the flight kernel wired in, flying ghosts, bots inside `step` with their memory in the
-   state; keyboard clusters. (Until 6 lands, gamepad and touch riders hover and fire but do not steer.)
-6. Devices and render, in parallel: gamepad sticks, touch pads and lobby texts; the framing camera and gunship art.
+5. Free flight: held-bit input, the flight kernel wired in, flying ghosts (done, with keyboard clusters and gamepads
+   steering), then bots inside `step` with their memory in the state (next; until then bots fire but do not fly).
+   (Until 6 lands, touch riders hover and fire but do not steer.)
+6. Devices and render, in parallel: touch pads and lobby texts; the framing camera and gunship art.
 7. Online game: the checkpoint codec, `RULES` with a golden-hash replay, and the `RollbackGame` with tests for rollback,
    checkpoints, bad input, and dropped, duplicated and reordered fire presses.
 8. Online app: registration (the game's `package.json` `exports` and workspace dependencies, the root `package.json`,

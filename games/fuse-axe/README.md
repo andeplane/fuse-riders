@@ -8,20 +8,24 @@ A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Wo
 
 Open `/fuse-axe/` on a running service, or pick **Fuse Axe** from the app portal (the dot grid at the top left of
 every game). **PLAY SOLO** opens the hero picker; **CREATE ROOM** makes a room to share by code, link or QR code,
-where everyone picks a hero (duplicates are allowed) and the host presses **START**. The heroes walk, jump and swing
-through Stage 1's waves of ravagers in the pixel-art scene; phone pads, the HUD and the shared screen follow.
+where everyone picks a hero (duplicates are allowed) and the host presses **START**. The heroes walk, run, jump and swing
+through Stage 1's waves of ravagers in the pixel-art scene under the HUD. Clearing the stage shows each hero's
+tally, then the run's victory; when every hero is out, any hero may press Attack within ten seconds to continue once,
+or the run is over. The host sets out again with **REMATCH** or goes back to the lobby. Phone pads and the shared
+screen follow.
 
-| Keys          | Does                                |
-| ------------- | ----------------------------------- |
-| Arrows / WASD | Walk the road, up and down in depth |
-| J / Z         | Attack                              |
-| K / X         | Jump                                |
-| L / C         | Magic                               |
+| Keys          | Does                                                                 |
+| ------------- | -------------------------------------------------------------------- |
+| Arrows / WASD | Walk the road, up and down in depth; double-tap left or right to run |
+| J / Z         | Attack (from a run, a dash attack)                                   |
+| K / X         | Jump (from a run, a running jump)                                    |
+| L / C         | Magic                                                                |
 
 ```sh
 pnpm build && pnpm exec tsx service/dev.ts   # then open http://localhost:8787/fuse-axe/?mute
 pnpm exec tsx --test games/fuse-axe/tests/*.test.ts
 node games/fuse-axe/preview/smoke.mjs http://localhost:8787/ [screenshot-dir]   # by hand, against the service
+node games/fuse-axe/preview/flow.mjs http://localhost:8787/ [screenshot-dir]    # continue and game over, ~2 min
 ```
 
 Production serves Fuse Axe rooms only once `EXTRA_GAME_IDS` names `fuse-axe` ([GCP deploy](../../docs/online/GCP-DEPLOY.md));
@@ -91,3 +95,16 @@ run of a colour at a time, which draws the same pixels (about 77,000 rectangles 
 
 [`docs/images/scene.png`](docs/images/scene.png) is Brakka fighting Stage 1's first wave in a solo game; it draws a
 frame in well under a millisecond.
+
+Over it all the HUD (`src/render/hud.ts`) is a strip along the top with a panel a seat: the hero's 16 × 16 portrait
+in the palette it wears on the field, framed in its seat's colour; the player's name in a 3 × 5 pixel font
+(`font.ts`: capitals, digits and a few marks; accents dropped, anything else left out, cut to fit); its lives as ×N;
+a segmented health bar whose lost part trails white for a moment and then drains; and a row of magic pots, empty
+until magic lands (`drawPots` takes held and max from the view then). A hero out of lives is greyed (from the moment
+it lands on its last life), one that cannot be hit blinks with its sprite, an empty seat blinks JOIN (not in a solo
+game) or names a player who joins with the next run (by its tag when the font cannot write the name), and this
+device's seat is underlined. Names are not in the world: the app passes the room's, by seat, as the scene's
+`draw(pen, view, frame, { names, you, open })`. Portraits and labels are baked once. The canvas carries the party in
+words for screen readers (`partyLabel`), since the pixel font cuts names to eight capitals.
+
+![The HUD over a three-hero fight](docs/images/hud.png)

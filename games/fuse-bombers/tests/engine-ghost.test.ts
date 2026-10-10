@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  DOWN,
+  FIRE,
+  LEFT,
   TICK_HZ,
+  UP,
+  WORLD_HEIGHT,
   WORLD_WIDTH,
   castleCenter,
   createBot,
@@ -22,23 +27,28 @@ import {
   addRocket,
   clearSky,
   fingerprint,
+  held,
   openWorld,
   placeGate,
   playOut,
+  type Inputs,
 } from "./engine-helpers.js";
 
-// Ghost bombers: eliminated players fly a blimp above their wreck, across the world and through rock, and drop bombs.
+// Ghost bombers: eliminated players fly a blimp from above their wreck, through rock, and drop bombs.
 
 function run(
   state: RoundState,
   ticks: number,
-  inputs: (s: RoundState) => boolean[] = () => [],
+  inputs: (s: RoundState) => Inputs = () => [],
 ): TickEvent[] {
   const all: TickEvent[] = [];
   for (let i = 0; i < ticks && !state.result; i++)
-    all.push(...step(state, inputs(state)));
+    all.push(...step(state, held(inputs(state))));
   return all;
 }
+
+/** Everyone mashes fire: pressed on every other tick, so each press is a rising edge. */
+const mash = (s: RoundState) => s.castles.map(() => s.tick % 2 === 0);
 
 const only = <T extends TickEvent["type"]>(events: TickEvent[], type: T) =>
   events.filter((e): e is Extract<TickEvent, { type: T }> => e.type === type);
@@ -53,7 +63,7 @@ function withGhost(seed = 21, tuning: Partial<Tuning> = {}) {
   const c = castleCenter(victim);
   addRocket(s, { owner: 0, x: c.x, y: c.y - 40, vy: 600 });
   const events = run(s, 10);
-  return { s, events, ghost: ghostOf(s, 1) };
+  return { s, events, ghost: s.ghosts.find((g) => g.owner === 1) };
 }
 
 test("a destroyed castle's owner becomes a ghost above the wreck", () => {
@@ -77,24 +87,30 @@ test("a destroyed castle's owner becomes a ghost above the wreck", () => {
   assert.equal(only(off.events, "ghost-spawned").length, 0);
 });
 
-test("ghosts drift at constant speed and bounce between the edges", () => {
+test("ghosts fly on the held directions, through rock, to the world's edge; let go, they coast as ghostPositionAt says", () => {
   const { s, ghost } = withGhost();
   assert.ok(ghost);
-  let flips = 0;
-  let dir = Math.sign(ghost.vx);
-  for (let i = 0; i < TICK_HZ * 70; i++) {
-    step(s);
-    const p = ghostPositionAt(ghost, s.tick);
-    assert.ok(Math.abs(p.x - ghost.x) < 1e-6 && p.vx === ghost.vx);
-    assert.ok(ghost.x >= ghost.minX - 1e-9 && ghost.x <= ghost.maxX + 1e-9);
-    if (Math.sign(ghost.vx) !== dir) flips++;
-    dir = Math.sign(ghost.vx);
+  const [x, y] = [ghost.x, ghost.y];
+  run(s, 30, () => [0, LEFT | UP]);
+  assert.ok(ghost.x < x - 40 && ghost.y < y - 40 && ghost.thrust === 5);
+  const coast = ghostPositionAt(ghost, 120);
+  run(s, 120);
+  assert.deepEqual(
+    [ghost.x, ghost.y, ghost.vx, ghost.vy],
+    [coast.x, coast.y, 0, 0],
+  );
+  // Straight down through the middle of the temple, to the bottom edge.
+  Object.assign(ghost, { x: WORLD_WIDTH / 2, y: 100 });
+  let inRock = 0;
+  for (let i = 0; i < TICK_HZ * 14; i++) {
+    run(s, 1, () => [0, DOWN]);
+    if (solidAt(s.terrain, ghost.x, ghost.y)) inRock++;
   }
-  assert.ok(ghost.minX > 0 && ghost.maxX < WORLD_WIDTH);
-  assert.ok(flips >= 2, `flips ${flips}`);
+  assert.ok(inRock > 60, `${inRock} ticks in rock`);
+  assert.ok(ghost.y < WORLD_HEIGHT && ghost.y > WORLD_HEIGHT - 25);
 });
 
-test("pressing drops one bomb per reload; it lands where predictGhostBomb says", () => {
+test("pressing drops one bomb per reload; it lands where predictGhostBomb says, also coasting", () => {
   const { s, ghost } = withGhost(23);
   assert.ok(ghost);
   assert.equal(
@@ -105,16 +121,19 @@ test("pressing drops one bomb per reload; it lands where predictGhostBomb says",
     0,
   );
   while (!isGhostLoaded(ghost, s.terrain)) step(s);
-  const predicted = predictGhostBomb(s, 1);
+  // Thrown sideways (toward the temple), the blimp coasts 10 ticks and drops: from there, with its velocity.
+  Object.assign(ghost, { vx: -200, vy: -90 });
+  const predicted = predictGhostBomb(s, 1, 10);
   assert.ok(predicted);
+  run(s, 10);
   const [x, vx] = [ghost.x, ghost.vx];
-  const dropped = only(step(s, [false, true]).slice(), "ghost-bomb-dropped");
+  const dropped = only(step(s, [0, FIRE]).slice(), "ghost-bomb-dropped");
   assert.equal(dropped.length, 1);
   assert.equal(dropped[0]?.x, x);
   const bomb = s.rockets.find((r) => r.id === dropped[0]?.rocketId);
   assert.ok(bomb?.ghost && bomb.vx === vx && !bomb.bomb);
   assert.ok(ghost.reloadTicks > 0);
-  const events = run(s, 400, () => [false, true]);
+  const events = run(s, 400, (st) => [0, st.tick % 2 === 0]);
   assert.equal(only(events, "ghost-bomb-dropped").length >= 1, true);
   const hit = only(events, "ghost-bomb-hit").find(
     (e) => e.rocketId === bomb.id,
@@ -130,7 +149,7 @@ test("pressing drops one bomb per reload; it lands where predictGhostBomb says",
 test("a ghost inside rock cannot drop: it stays unloaded, nothing blows up at the drop point, and the press waits", () => {
   const { s, ghost } = withGhost(23);
   assert.ok(ghost);
-  // A band of indestructible rock along the blimp's whole flight line, as in the temple's hall.
+  // A band of indestructible rock round the blimp, as in the temple's hall.
   const band = [0, ghost.y - 40, WORLD_WIDTH, ghost.y + 40] as const;
   fillRect(s.terrain, ...band, "hard");
   while (ghost.reloadTicks > 0) step(s);
@@ -142,7 +161,7 @@ test("a ghost inside rock cannot drop: it stays unloaded, nothing blows up at th
   // Mashing the button drops nothing (so no bomb blows up on the spot and no reload is spent).
   const version = s.terrain.version;
   const rockets = s.rockets.length;
-  const events = run(s, 90, () => [false, true]);
+  const events = run(s, 90, (st) => [0, st.tick % 2 === 0]);
   assert.equal(only(events, "ghost-bomb-dropped").length, 0);
   assert.equal(only(events, "ghost-bomb-hit").length, 0);
   assert.equal(only(events, "crater").length, 0);
@@ -155,28 +174,28 @@ test("a ghost inside rock cannot drop: it stays unloaded, nothing blows up at th
   fillRect(s.terrain, ...band, "air");
   assert.equal(isGhostLoaded(ghost, s.terrain), true);
   assert.ok(predictGhostBomb(s, 1));
-  const dropped = only(step(s, [false, true]).slice(), "ghost-bomb-dropped");
+  step(s);
+  const dropped = only(step(s, [0, FIRE]).slice(), "ghost-bomb-dropped");
   assert.equal(dropped.length, 1);
   assert.equal(s.castles[1]?.stats.ghostBombs, 1);
 });
 
-test("predictGhostBomb is null exactly at the ticks the blimp is inside rock", () => {
+test("predictGhostBomb is null exactly at the ticks the coasting blimp is inside rock", () => {
   const { s, ghost } = withGhost(23);
   assert.ok(ghost);
-  // Rock over a stretch of the flight line ahead of the blimp, so it flies in and out of it.
-  const ahead = ghost.x + Math.sign(ghost.vx) * 300;
-  const [x0, x1] = [Math.min(ahead, ahead + 400), Math.max(ahead, ahead + 400)];
-  fillRect(s.terrain, x0, ghost.y - 30, x1, ghost.y + 30, "rock");
+  // Rock across the blimp's coast (about 90 px from 260 px/s), so it flies into it and out again.
+  ghost.vx = 260;
+  fillRect(s.terrain, ghost.x + 25, ghost.y - 30, ghost.x + 55, ghost.y + 30);
   let inRock = 0;
   let open = 0;
-  for (let k = 0; k <= 600; k += 3) {
-    const p = ghostPositionAt(ghost, s.tick + k);
+  for (let k = 0; k <= 120; k++) {
+    const p = ghostPositionAt(ghost, k);
     const blocked = solidAt(s.terrain, p.x, p.y);
     if (blocked) inRock++;
     else open++;
     assert.equal(predictGhostBomb(s, 1, k) === null, blocked, `tick +${k}`);
   }
-  assert.ok(inRock > 20 && open > 20, `${inRock} in rock, ${open} in the open`);
+  assert.ok(inRock > 5 && open > 20, `${inRock} in rock, ${open} in the open`);
 });
 
 test("ghost bombs hit castles and carve craters, but gates and crates ignore them", () => {
@@ -235,7 +254,7 @@ test("ghosts cannot win: the last castle standing wins while ghosts fly", () => 
   assert.equal(s.result?.winner, 0);
   assert.equal(s.result?.reason, "last-standing");
   assert.equal(s.ghosts.length, 2);
-  const after = run(s, 600, () => [true, true, true]);
+  const after = run(s, 600, mash);
   assert.equal(
     only(after, "ghost-bomb-dropped").length,
     0,
@@ -254,26 +273,27 @@ test("ghost rounds are deterministic and replay from a clone", () => {
   const kinds: BotDifficulty[] = ["hard", "normal", "easy", "hard"];
   const a = playOut({ seed: 31, playerCount: 4 }, bots(31, kinds));
   const b = playOut({ seed: 31, playerCount: 4 }, bots(31, kinds));
-  assert.ok(
-    a.castles.some((c) => c.stats.ghostBombs > 0),
-    "no ghost dropped",
-  );
+  // (Bots do not steer yet, so their ghosts hover above the wreck and seldom drop; the mashing below drops.)
+  assert.ok(a.ghosts.length > 0);
   assert.equal(fingerprint(a), fingerprint(b));
 
-  // Everyone mashes their button: castles fire and ghosts drop whenever loaded (a short first reload, so they do
-  // before mashing ends the round; a blimp inside rock waits until it is out).
-  const mash = (st: RoundState) => st.castles.map(() => true);
+  // Everyone mashes their button and steers a changing way: castles fire and ghosts drop whenever loaded (a short
+  // first reload, so they do before mashing ends the round; a blimp inside rock waits until it is out). The clone is
+  // taken mid-flight, with fire held on some seats.
   const c = createRound({
     seed: 32,
     playerCount: 5,
     tuning: { ghostFirstReload: 1 },
   });
-  while (c.ghosts.length < 2 && !c.result) step(c, mash(c));
+  const steer = (st: RoundState) =>
+    held(mash(st)).map((b, id) => b | (((st.tick >> 5) + id) & 15));
+  while (c.ghosts.length < 2 && !c.result) step(c, steer(c));
   assert.equal(c.result, null);
   const d = structuredClone(c);
-  run(c, 1200, mash);
-  run(d, 1200, mash);
+  run(c, 1200, steer);
+  run(d, 1200, steer);
   assert.ok(c.castles.some((k) => k.stats.ghostBombs > 0));
+  assert.ok(c.ghosts.some((g) => g.vy !== 0));
   assert.equal(fingerprint(d), fingerprint(c));
 });
 
@@ -289,7 +309,7 @@ test("balance: bot rounds with ghosts end in similar time and ghosts do not domi
   const lengths = { on: [] as number[], off: [] as number[] };
   let ghost = 0;
   let total = 0;
-  // Until gunships fly, most rounds end in sudden death, so this is a smoke check more than a balance measure.
+  // Until bots fly, most rounds end in sudden death, so this is a smoke check more than a balance measure.
   for (const players of [3, 5]) {
     for (const seed of [1, 2]) {
       for (const on of [true, false]) {
@@ -318,7 +338,9 @@ test("balance: bot rounds with ghosts end in similar time and ghosts do not domi
     `median ${on}s with ghosts vs ${off}s without`,
   );
   const share = ghost / total;
-  assert.ok(share > 0.005 && share < 0.25, `ghost damage share ${share}`);
+  // Bots do not steer yet, so their ghosts hover where they appear and seldom hit; once bots fly, ghosts should
+  // again deal a small share (it was over 0.5 % when they drifted across the map).
+  assert.ok(share < 0.25, `ghost damage share ${share}`);
 });
 
 test("ghost bombs bypass the rocket cap, so a loaded press always drops", () => {
@@ -328,7 +350,7 @@ test("ghost bombs bypass the rocket cap, so a loaded press always drops", () => 
   // Fill the cap with rockets that leave the arena during the same step.
   while (s.rockets.length < s.tuning.maxRockets)
     addRocket(s, { owner: 0, x: -1000, y: 100 });
-  const dropped = only(step(s, [false, true]).slice(), "ghost-bomb-dropped");
+  const dropped = only(step(s, [0, FIRE]).slice(), "ghost-bomb-dropped");
   assert.equal(dropped.length, 1);
   assert.ok(s.rockets.some((r) => r.id === dropped[0]?.rocketId && r.ghost));
   assert.equal(s.castles[1]?.stats.ghostBombs, 1);
@@ -410,17 +432,23 @@ test("a press on the tick of death does not drop a ghost bomb", () => {
   victim.hp = 1;
   const c = castleCenter(victim);
   addRocket(s, { owner: 0, x: c.x, y: c.y - 40, vy: 600 });
-  const press = () => [false, true, false];
-  let events: readonly TickEvent[] = [];
-  for (let i = 0; i < 10 && !ghostOf(s, 1); i++) events = step(s, press());
-  assert.equal(only(events.slice(), "castle-destroyed").length, 1);
-  assert.equal(only(events.slice(), "ghost-bomb-dropped").length, 0);
+  // The rocket strikes on the first step, which is also a fresh press.
+  const events = step(s, [0, FIRE, 0]).slice();
+  assert.equal(only(events, "castle-destroyed").length, 1);
+  assert.equal(only(events, "ghost-bomb-dropped").length, 0);
   const ghost = ghostOf(s, 1);
   assert.ok(ghost && !isGhostLoaded(ghost, s.terrain));
   // Mashing through the first reload drops nothing until the ghost is loaded.
   let drops = 0;
   while (!isGhostLoaded(ghost, s.terrain))
-    drops += only(step(s, press()).slice(), "ghost-bomb-dropped").length;
+    drops += only(
+      run(s, 1, (st) => [0, st.tick % 2 === 0]),
+      "ghost-bomb-dropped",
+    ).length;
   assert.equal(drops, 0);
-  assert.equal(only(step(s, press()).slice(), "ghost-bomb-dropped").length, 1);
+  step(s);
+  assert.equal(
+    only(step(s, [0, FIRE]).slice(), "ghost-bomb-dropped").length,
+    1,
+  );
 });
