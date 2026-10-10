@@ -1,5 +1,6 @@
 import { STAGE_1 } from "./stages.js";
 import {
+  HERO_HP,
   SUB,
   enemyMaxHp,
   type EnemyKind,
@@ -23,9 +24,16 @@ import {
  */
 export type { EnemyKind, HeroKind, Tier } from "./tuning.js";
 export type { FxKind } from "./world.js";
-/** `attack1` and `attack2` are the slashes, `attack3` the finisher. */
+/**
+ * `attack1` and `attack2` are the slashes, `attack3` the finisher. `hurt` reels, `knockdown` flies, `down` lies and
+ * `getup` rises; `dead` lies fallen.
+ */
 export type HeroAnim = HeroState;
-/** `enter` is a wave's enemy walking in from the screen's edge (or back in to a locked screen): walk frames. */
+/**
+ * `enter` is a wave's enemy walking in from the screen's edge (or back in to a locked screen): walk frames, as is
+ * `walk`. `windup` telegraphs the mace for its tier's steps, `attack` swings it (it lands on the first step) and
+ * `recover` follows.
+ */
 export type EnemyAnim = EnemyState;
 
 export interface HeroView {
@@ -39,6 +47,10 @@ export interface HeroView {
   anim: HeroAnim;
   /** Steps since `anim` began; the renderer divides it into sprite frames. */
   animStep: number;
+  hp: number;
+  maxHp: number;
+  /** No mace lands on the hero, as it gets up and for a moment after. Draw it blinking. */
+  invulnerable: boolean;
 }
 
 export interface EnemyView {
@@ -101,6 +113,9 @@ export function toView(world: World): WorldView {
       facing: hero.facing,
       anim: hero.state,
       animStep: hero.timer,
+      hp: hero.hp,
+      maxHp: HERO_HP[hero.kind],
+      invulnerable: world.step <= hero.invulnUntil,
     })),
     enemies: world.enemies.map((enemy) => ({
       id: enemy.id,
