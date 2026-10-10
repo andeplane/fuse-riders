@@ -19,7 +19,8 @@ import {
  * How a ravager fights, and how a hero takes its blows. An idle enemy waits out its tier's pause (or meets a hero
  * who walks up into its lane at once), then picks the nearest hero on the field with a place free among its
  * `ATTACKERS` and walks to stand `ENGAGE_X` from it, lining up in depth as it goes: on its own side, unless more of
- * the enemies around the hero are there or the hero swings its blade that way, when it walks round to the other.
+ * the enemies around the hero are there or the hero swings its blade or dashes that way, when it walks round to the
+ * other.
  * Lined up, it winds up (facing fixed, so a hero who steps out of the lane or away is missed), swings the mace on
  * the attack's first step, then recovers and pauses again. One with no place free hovers at a distance from the
  * nearest hero, a fresh spot each time, and a wind-up is now and then a feint that backs off. Every random choice
@@ -137,9 +138,9 @@ function stride(world: World, enemy: Enemy): void {
       )
         crowded += (other.x < hero.x ? -1 : 1) === own ? 1 : -1;
     let side = crowded > 0 ? -own : own;
-    // A hero swinging its blade is gone round to its back. Crossing to the far side, it walks round `DODGE` out of
-    // the hero's lane, toward the middle of the floor band.
-    if (side === hero.facing && SWINGS.includes(hero.state)) side = -side;
+    // A hero swinging its blade or dashing is gone round to its back. Crossing to the far side, it walks round
+    // `DODGE` out of the hero's lane, toward the middle of the floor band.
+    if (side === hero.facing && BLOWS.includes(hero.state)) side = -side;
     const dodge =
       hero.y * 2 < T.FLOOR_TOP + T.FLOOR_BOTTOM ? T.DODGE : -T.DODGE;
     walkTo(
@@ -165,16 +166,18 @@ function stride(world: World, enemy: Enemy): void {
     rest(world, enemy);
 }
 
-const SWINGS: readonly HeroState[] = ["attack1", "attack2", "attack3"];
+/** A hero with a blow out, or coming: swinging or dashing. */
+const BLOWS: readonly HeroState[] = ["attack1", "attack2", "attack3", "dash"];
 /** A hero knocked off its feet, whom no attacker winds up at. */
 const FLOORED: readonly HeroState[] = ["knockdown", "down", "getup"];
-/** The states a mace lands in: on its feet or in the air, swinging or reeling. */
+/** The states a mace lands in: on its feet or in the air, running, swinging, dashing or reeling. */
 const STRUCK: readonly HeroState[] = [
   "idle",
   "walk",
+  "run",
   "jump",
   "land",
-  ...SWINGS,
+  ...BLOWS,
   "hurt",
 ];
 

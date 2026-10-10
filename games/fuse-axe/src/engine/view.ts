@@ -26,7 +26,8 @@ import {
 export type { EnemyKind, HeroKind, Tier } from "./tuning.js";
 export type { FxKind } from "./world.js";
 /**
- * `attack1` and `attack2` are the slashes, `attack3` the finisher. `hurt` reels, `knockdown` flies, `down` lies and
+ * `attack1` and `attack2` are the slashes, `attack3` the finisher. `run` is the run a double tap starts and `dash`
+ * the dash attack from it (a shoulder charge, Gorm's a headbutt). `hurt` reels, `knockdown` flies, `down` lies and
  * `getup` rises; `dead` lies fallen until `respawn` drops the hero in from the top of the screen, or it is `out`.
  */
 export type HeroAnim = HeroState;

@@ -37,8 +37,13 @@ higher levels, and never hurts other heroes.
 
 - **Walk** in eight directions on the floor: left/right along the road, up/down in depth (slower, as in the
   original). The floor is a depth band in the lower half of the screen.
-- **Run**: double-tap left or right, on a phone's d-pad too. **Dash attack** (shoulder charge) from a run knocks
-  down. If double-taps prove unreliable on glass in playtests, a phone gets a run toggle instead.
+- **Run**: double-tap left or right, on a phone's d-pad too: a quick tap, let go, and press again within a fifth of a
+  second. The run is about twice the walk along the road (Gorm the slowest), still steers in depth, and ends when the
+  direction is let go or reversed, or a blow lands. **Dash attack**: Attack from a run is a shoulder charge (Gorm's
+  is a headbutt) that slides a short way and knocks down every enemy it meets in the lane, once each. **Running
+  jump**: Jump from a run keeps the run's speed, so it carries further. A double tap made while the hero is busy
+  waits a few steps, as presses do. Timing and speeds are `RUN_TAP`, `RUN_GAP`, `RUN` and `DASH` in
+  `src/engine/tuning.ts`. If double-taps prove unreliable on glass in playtests, a phone gets a run toggle instead.
 - **Combo**: Attack three times — two slashes and a heavy finisher that knocks down. A press while the blade is out
   or in the recovery chains the next swing; one in the wind-up is ignored, so the combo has a rhythm. A press made
   while the hero is busy (a swing's recovery, a landing) waits a few steps and acts as soon as the hero is free.

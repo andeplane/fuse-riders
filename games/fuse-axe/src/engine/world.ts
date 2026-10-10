@@ -44,6 +44,8 @@ export const HERO_STATES = [
   "dead",
   "respawn",
   "out",
+  "run",
+  "dash",
 ] as const;
 export type HeroState = (typeof HERO_STATES)[number];
 
@@ -54,7 +56,7 @@ export interface Hero {
   x: number;
   y: number;
   z: number;
-  /** Velocity along the road and in depth: the walk this step, or the momentum a jump keeps. */
+  /** Velocity along the road and in depth: the walk or run this step, a dash's slide, or the momentum a jump keeps. */
   vx: number;
   vy: number;
   vz: number;
@@ -82,6 +84,15 @@ export interface Hero {
   /** Hits taken in a row, each within `JUGGLE_WINDOW` of the one before; that window closes after `staggerUntil`. */
   stagger: number;
   staggerUntil: number;
+  /**
+   * The run's double tap (`RUN_TAP`, `RUN_GAP`): `tap` is the direction (`LEFT` or `RIGHT`, 0 for none) pressed last,
+   * and `tapUntil` the last step that counts. While the direction is held it must be let go by then to be a tap;
+   * once it is, a second press by then is the double tap.
+   */
+  tap: number;
+  tapUntil: number;
+  /** Steps a double tap stays usable (0: none waiting): a free hero starts its run toward `tap`. */
+  runBuf: number;
 }
 
 export const ENEMY_STATES = [
@@ -219,6 +230,9 @@ export function createWorld(options: {
       invulnUntil: 0,
       stagger: 0,
       staggerUntil: 0,
+      tap: 0,
+      tapUntil: 0,
+      runBuf: 0,
     };
   });
   return {
