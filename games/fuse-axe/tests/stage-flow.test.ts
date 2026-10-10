@@ -4,6 +4,7 @@ import {
   ACTION,
   BOT,
   JOIN,
+  LEAVE,
   PRESENCE,
   SPECTATOR,
   type StreamEntries,
@@ -243,6 +244,83 @@ test("only a present hero of this run and stage votes: not a watcher, a bot, a n
   assert.deepEqual([early.until > 0, early.continued], [true, false]);
   fold(early, { a: [vote()] });
   assert.equal(early.continued, true);
+});
+
+test("the countdown holds the seats of a run: with every human gone it runs out into game over, and one who returns in time still votes", () => {
+  const gone = countdown();
+  fold(gone, { a: [[LEAVE, "a"], [LEAVE, "b"], vote()] });
+  // A run keeps its seats for the absent (only the lobby, camp and game over give them up), so nobody votes.
+  assert.deepEqual(
+    [...gone.seats.values()].map((seat) => [seat.id, seat.connected]),
+    [
+      ["a", false],
+      ["b", false],
+      ["bot:1", true],
+      ["w", true],
+    ],
+  );
+  assert.equal(gone.until, gone.tick - 1 + CONTINUE_TICKS, "the clock runs");
+  kept(gone);
+  fold(gone, { a: [vote()], b: [vote()] });
+  assert.equal(gone.continued, false, "an absent seat has no vote");
+  run(gone, CONTINUE_TICKS);
+  assert.deepEqual([gone.stage, gone.outcome], ["over", "defeat"]);
+  kept(gone);
+  // One back before the clock runs out is a present hero again.
+  const back = countdown();
+  fold(back, {
+    a: [
+      [LEAVE, "a"],
+      [LEAVE, "b"],
+    ],
+  });
+  run(back, 50);
+  fold(back, { a: [[JOIN, "b", "Bo", 1, "brakka", 1]] });
+  fold(back, { b: [vote()] });
+  assert.deepEqual(
+    [back.stage, back.until, back.continued],
+    ["running", 0, true],
+  );
+  kept(back);
+});
+
+test("a seat that leaves between stages is dropped, and the tally and the win stand", () => {
+  const room = started();
+  room.world = cleared({
+    ...room.world!,
+    heroes: room.world!.heroes.map((hero) => ({ ...hero, damage: 7 })),
+  });
+  fold(room);
+  assert.equal(room.stage, "between");
+  fold(room, { a: [[LEAVE, "b"]] });
+  assert.equal(room.seats.has("b"), false, "camp gives the seat up");
+  assert.equal(room.stage, "between");
+  assert.deepEqual(
+    room.tally.map((row) => [row.seat, row.damage]),
+    [
+      [0, 7],
+      [1, 7],
+      [2, 7],
+    ],
+    "the run's tallies keep the hero that left",
+  );
+  kept(room);
+  run(room, CLEAR_TICKS);
+  assert.deepEqual([room.stage, room.outcome], ["over", "victory"]);
+  kept(room);
+  // The next run sets out with whoever is seated.
+  fold(room, { a: [[ACTION, "rematch", "m2"]] });
+  assert.deepEqual(
+    [room.stage, room.world!.heroes.map((hero) => hero.seat)],
+    ["running", [0, 2]],
+  );
+  assert.deepEqual(
+    room.tally.map((row) => [row.seat, row.damage]),
+    [
+      [0, 0],
+      [2, 0],
+    ],
+  );
 });
 
 test("a stage cleared as the last hero falls is won; the lobby ends a countdown", () => {
