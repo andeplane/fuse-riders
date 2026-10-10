@@ -51,7 +51,8 @@ if (round.result) {
   and hand all of them to render and audio, or it drops events. `pressed` is an **edge** per player id; missing entries
   count as `false`. A press only fires when the castle `isLoaded`. It fires at the angle the castle had _before_ this
   step, i.e. the angle the player was looking at. Once a player's castle is destroyed, the same button drives their
-  ghost bomber (see Rules), which drops from where the blimp was _before_ this step when `isGhostLoaded`.
+  ghost bomber (see Rules), which drops from where the blimp was _before_ this step when `isGhostLoaded(ghost,
+terrain)` (reloaded, and the blimp in the open: a press with the blimp inside rock is ignored).
 - After `state.result` is set (`phase === "over"`) `step` keeps moving rockets and carving craters for the aftermath but
   never fires, drops ghost bombs, damages (no `hit` or `ghost-bomb-hit`) or changes the result again.
 - `view(state)` returns the same object typed as `RoundView` (deep read-only, without the RNG state and the spawn
@@ -64,19 +65,19 @@ Draws count for nobody.
 
 ## The view (`RoundView`)
 
-| Field                   | Meaning                                                                                                                                                                  |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `tick`                  | Ticks simulated so far.                                                                                                                                                  |
-| `phase`                 | `"playing"` → `"sudden-death"` (fuse burnt out) → `"over"`.                                                                                                              |
-| `result`                | `null` or `{ winner: id \| null, reason: "last-standing" \| "wipeout" \| "timeout", tick }`.                                                                             |
-| `fuseTicks`, `maxTicks` | Fuse length (90 s) and hard stop (180 s). `fuseProgress(view)` gives 0..1 for the fuse bar.                                                                              |
-| `terrain`               | The temple's `Grid` (see "Bitmap terrain" below): 4 px cells of air, rock and indestructible rock; `version` bumps on every carve.                                       |
-| `castles[id]`           | See below. `id` = player index (seat).                                                                                                                                   |
-| `rockets[]`             | `{ id, owner, x, y, vx, vy, power, mega, bomb, ghost, gates, age }`. `owner` −1 = sudden-death bomb; `ghost`: from `owner`'s ghost. `power` > 1 if capped (draw bigger). |
-| `gates[]`               | `{ id, multiplier, x, y, width, height, spawnTick, expireTick, … }` axis-aligned rectangle centred on `x, y`.                                                            |
-| `crates[]`              | `{ id, card, x, y, radius, spawnTick }`. Cards: `unit`, `shield`, `rapid`, `repair`, `mega`.                                                                             |
-| `ghosts[]`              | Ghost bombers of eliminated players: `{ owner, x, y, vx, reloadTicks, reloadTotalTicks, … }`, in the order they fell. `ghostOf(view, id)` finds one.                     |
-| `tuning`                | The resolved `Tuning` (castle size, shield radius, reload, … everything the renderer needs).                                                                             |
+| Field                   | Meaning                                                                                                                                                                                                           |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tick`                  | Ticks simulated so far.                                                                                                                                                                                           |
+| `phase`                 | `"playing"` → `"sudden-death"` (fuse burnt out) → `"over"`.                                                                                                                                                       |
+| `result`                | `null` or `{ winner: id \| null, reason: "last-standing" \| "wipeout" \| "timeout", tick }`.                                                                                                                      |
+| `fuseTicks`, `maxTicks` | Fuse length (90 s) and hard stop (180 s). `fuseProgress(view)` gives 0..1 for the fuse bar.                                                                                                                       |
+| `terrain`               | The temple's grid (see "Bitmap terrain" below) as the read-only `TerrainView`: 4 px cells of air, rock and indestructible rock; `version` bumps on every carve. The grid queries take it, `carveCircle` does not. |
+| `castles[id]`           | See below. `id` = player index (seat).                                                                                                                                                                            |
+| `rockets[]`             | `{ id, owner, x, y, vx, vy, power, mega, bomb, ghost, gates, age }`. `owner` −1 = sudden-death bomb; `ghost`: from `owner`'s ghost. `power` > 1 if capped (draw bigger).                                          |
+| `gates[]`               | `{ id, multiplier, x, y, width, height, spawnTick, expireTick, … }` axis-aligned rectangle centred on `x, y`.                                                                                                     |
+| `crates[]`              | `{ id, card, x, y, radius, spawnTick }`. Cards: `unit`, `shield`, `rapid`, `repair`, `mega`.                                                                                                                      |
+| `ghosts[]`              | Ghost bombers of eliminated players: `{ owner, x, y, vx, reloadTicks, reloadTotalTicks, … }`, in the order they fell. `ghostOf(view, id)` finds one.                                                              |
+| `tuning`                | The resolved `Tuning` (castle size, shield radius, reload, … everything the renderer needs).                                                                                                                      |
 
 Castle fields: `x, y` (the hull centre: centre of the hit circle and the shield; castles hover there), `hp / maxHp`,
 `alive`, `angle` (in [0, 2π), turning counter-clockwise), `reloadTicks / reloadTotalTicks` (reload ring), `units`
@@ -89,23 +90,23 @@ rocketsFired, damageDealt, kills, gateSplits, crates, ghostBombs, ghostDamage) f
 
 Every event carries the `tick` that produced it. `step` returns one tick's events only (see Lifecycle).
 
-| type                            | payload                                                                                       |
-| ------------------------------- | --------------------------------------------------------------------------------------------- |
-| `fired`                         | `castleId, angle, units, mega` — a volley started (rockets leave over the next ~0.1–1 s).     |
-| `gate-split`                    | `gateId, multiplier, owner, x, y, created` (`created` < multiplier−1 when capped).            |
-| `hit`                           | `castleId, owner, x, y, damage, shielded, splash`.                                            |
-| `shield-popped`                 | `castleId`.                                                                                   |
-| `crater`                        | `owner, x, y, radius, col0, row0, col1, row1` (changed cells, ends exclusive). Many per tick. |
-| `rocket-exploded`               | `owner, x, y, cause` — blew up without a crater (`"ground"` on hard rock, or `"expired"`).    |
-| `castle-destroyed`              | `castleId, by, x, y` (`by` −1 = bomb). Then `ghost-spawned` for that player.                  |
-| `ghost-spawned`                 | `owner, x, y` — the blimp appears above the wreck.                                            |
-| `ghost-bomb-dropped`            | `owner, rocketId, x, y` — the bomb is `rockets[]` entry `rocketId` (`ghost: true`).           |
-| `ghost-bomb-hit`                | `owner, rocketId, x, y, castleIds, damage` — it blew up (also a `hit` / `crater`).            |
-| `crate-spawned`                 | `crateId, card, x, y`.                                                                        |
-| `crate-taken`                   | `crateId, card, castleId, x, y`.                                                              |
-| `gate-spawned` / `gate-expired` | `gateId` (+ `multiplier` on spawn).                                                           |
-| `sudden-death-started`          | —                                                                                             |
-| `round-over`                    | `result`.                                                                                     |
+| type                            | payload                                                                                                                                 |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `fired`                         | `castleId, angle, units, mega` — a volley started (rockets leave over the next ~0.1–1 s).                                               |
+| `gate-split`                    | `gateId, multiplier, owner, x, y, created` (`created` < multiplier−1 when capped).                                                      |
+| `hit`                           | `castleId, owner, x, y, damage, shielded, splash`.                                                                                      |
+| `shield-popped`                 | `castleId`.                                                                                                                             |
+| `crater`                        | `owner, x, y, radius, col0, row0, col1, row1` (changed cells, ends exclusive). Many per tick.                                           |
+| `rocket-exploded`               | `owner, x, y, cause` — blew up without a crater (`"ground"` on hard rock, or `"expired"`).                                              |
+| `castle-destroyed`              | `castleId, by, x, y` (`by` −1 = bomb). Then `ghost-spawned` for that player.                                                            |
+| `ghost-spawned`                 | `owner, x, y` — the blimp appears above the wreck.                                                                                      |
+| `ghost-bomb-dropped`            | `owner, rocketId, x, y` — the bomb is the `rockets[]` entry with `id === rocketId` (`ghost: true`), unless it blew up in the same step. |
+| `ghost-bomb-hit`                | `owner, rocketId, x, y, castleIds, damage` — it blew up (also a `hit` / `crater`).                                                      |
+| `crate-spawned`                 | `crateId, card, x, y`.                                                                                                                  |
+| `crate-taken`                   | `crateId, card, castleId, x, y`.                                                                                                        |
+| `gate-spawned` / `gate-expired` | `gateId` (+ `multiplier` on spawn).                                                                                                     |
+| `sudden-death-started`          | —                                                                                                                                       |
+| `round-over`                    | `result`.                                                                                                                               |
 
 ## Prediction (aiming guide and bots)
 
@@ -122,8 +123,9 @@ bot with reaction time R can evaluate `predictTrajectory(view, id, futureAngle(v
 Bots get no other privileged information. Gate motion is also a pure function: `gatePositionAt(gate, tick)`.
 
 Ghosts: `ghostPositionAt(ghost, tick)` gives the blimp's `{ x, y, vx }` at any tick, and `predictGhostBomb(view, owner,
-ticks = 0)` returns a `Trajectory` (empty `gates`/`crates`) for a bomb dropped `ticks` steps from now, or null without a
-ghost. The renderer can use it for a drop guide.
+ticks = 0, maxTicks = 300)` returns a `Trajectory` (empty `gates`/`crates`) for a bomb dropped `ticks` steps from now,
+or null without a ghost and when the blimp would be inside rock then (a press there drops nothing, see
+`isGhostLoaded`). The renderer can use it for a drop guide.
 
 ## Bots
 
@@ -219,7 +221,12 @@ it.
 - **Castles** hover at their spawn anchors (`spawnOrder`), each a hit circle of radius 34 round its `x, y`, until
   flight lands. Anchors are spread over the map, so most pairs are out of each other's reach for now.
 - **Aim**: the launcher turns counter-clockwise at a steady rate, one full circle per `aimPeriod` (3.6 s), from a random
-  starting angle, so a castle can fire in any direction, down included.
+  starting angle, so a castle can fire in any direction, down included. `createRound` throws `RangeError` for an
+  `aimPeriod` that is not finite or is under two ticks (`MIN_AIM_PERIOD`). A rocket's path is tested against rock from
+  where it leaves the barrel, never the barrel itself (the pivot `launcherOffset` 32 px above the hull, the tip
+  `barrelLength` 20 px past it). That is safe while castles hover at the spawn anchors, which have 60 px of air round
+  them, but **free flight must handle it**: a gunship that flies close to rock can have its pivot or tip inside it, and
+  the launch then has to be decided (refuse it, or blow up at the barrel) rather than started inside rock.
 - **Volleys**: launch speed 900 px/s, gravity 500 px/s². `units` rockets (start 5, max 30) leave every 5 ticks (packed
   tighter for big volleys so a volley lasts ≤ 1 s) with ±1.2° / ±1.5 % spread. Reload 2.6 s (first shot after 1.2 s).
 - **Rockets** test the segment each sub-step moved along with `segmentHit` and blow up where it enters rock, so they
@@ -233,13 +240,16 @@ it.
   and respawn elsewhere. A gate lives in one of the map's `skyZones` (picked with odds by area): the whole box it
   sweeps (drift up to ±170 px, less in a narrow zone, and bob ±14 px) lies inside the zone, holds no rock, keeps
   `gateSpacing` (80 px) from every other gate's box and clear of the crates present, and preferably 60 px clear of
-  living castles (16 seeded tries; a gate that finds no room is tried again every 0.5 s). A rocket inside a gate splits
+  living castles (16 seeded tries; a gate that finds no room is tried again every 0.5 s; when no try is clear of the
+  castles the first free one stands, so a gate or crate can sit over a castle, which is intended: better there than
+  nowhere, and a rocket is as likely to reach it as any other). A rocket inside a gate splits
   into `multiplier` rockets fanned over up to 22°; every child remembers the gate so a lineage multiplies once per gate.
 - **Rocket cap**: 1500 live rockets. Splits stop creating rockets at 1350 (the remaining 150 are reserved so volleys
   and bombs still appear) and instead multiply the `power` of the rockets that exist, so damage is conserved. Ghost
   bombs bypass the cap (there are only a few), so a loaded ghost's press always drops one.
 - **Crates**: 4 / 4 / 5 / 5 / 6 for 2–6 players, first at 3 s, respawn 5–9 s, in the sky zones like the gates: clear of
-  rock and of every gate's box, 100 px from other crates. The first rocket to touch one gives its owner the card:
+  rock and of every gate's box, 100 px from other crates (a crate that finds no room is tried again every 0.5 s, not
+  after the respawn wait). The first rocket to touch one gives its owner the card:
   `unit` +1 rocket per volley, `shield` +50 shield HP (max 100, radius 60), `rapid` reload ×0.75 (min 1.2 s), `repair`
   +40 HP, `mega` next volley does ×3 damage with ×2.5 craters. Rockets fly on through crates.
 - **Fuse**: 90 s. Then sudden death: bombs (6 damage) appear `bombHeight` (600 px) above a random living castle,
@@ -250,7 +260,9 @@ it.
 - **Ghost bombers** (`ghosts: true`): a destroyed castle's player gets a blimp `ghostRise` (220 px) above the wreck
   (at least 40 px below the top). Until free flight lands it drifts across the whole world at that height, through
   rock, toward the middle first at 160 px/s, bouncing 40 px from the edges. Pressing drops a bomb (first after 2.5 s,
-  then every 3.5 s) that starts at 60 px/s downward with the blimp's `vx`. It deals 7 on a direct hit (splash half,
+  then every 3.5 s) that starts at 60 px/s downward with the blimp's `vx`, but only with the blimp in the open: a bomb
+  released inside rock would blow up on the spot, so while the blimp is in rock it stays unloaded (`isGhostLoaded`
+  false, the press ignored and the reload kept) until it flies out. It deals 7 on a direct hit (splash half,
   times the sudden-death scale), carves an 18 px crater, is never multiplied by gates and never takes crates. Ghosts
   cannot win: the round still ends when ≤ 1 castle stands, and they stop dropping once it is over.
 
@@ -273,7 +285,7 @@ nearly all of it painting the temple.
 
 The round's world ([design.md](design.md), "The sky overhaul"). Both modules keep to the deterministic-engine rule (no
 `Math.sin/cos/…/random`, `**`, `Date`, `performance`; `tests/architecture.test.ts` checks it). `index.ts` exports the
-grid queries (`solidAt`, `hardAt`, `cellSolid`, `cellHard`, `gridHash`) for render and tests.
+grid queries (`solidAt`, `hardAt`, `cellSolid`, `cellHard`, `segmentHit`, `gridHash`) for render and tests.
 
 **`src/engine/grid.ts`**: destructible terrain as plain data that survives `structuredClone`:
 `Grid = { width, height, cell, cols, rows, solid, hard, version }`, world units in logical pixels (y down), square
@@ -282,7 +294,9 @@ for indestructible rock (`hard` ⊆ `solid`). Outside the world is open air. A c
 half-open: `solidAt(width, y)` is air, as is everything past it. There is no terrain gravity: carving never makes rock
 fall, so the temple's islets, and any piece a bomb cuts loose from the rest, float where they are for the whole round.
 `hard` is a second bitset inside the `Grid`, so the round state carries it and every snapshot clones it (about 100 KB
-more per clone, which is negligible), rather than sharing one constant mask with the map.
+more per clone, which is negligible), rather than sharing one constant mask with the map. The queries take a
+`ReadGrid` (the same fields with the bitsets as `ArrayLike<number>` and `version` read-only), so `RoundView.terrain`,
+which is one, can be queried but not handed to `carveCircle` or written through; the writable `Grid` is the engine's.
 
 - Queries: `solidAt` / `hardAt` (world px, O(1)), `cellSolid` / `cellHard`, `segmentHit(grid, x0, y0, x1, y1)` →
   `{ x, y, t, col, row } | null` (a grid DDA that visits every cell the segment touches, so it never skips a wall one

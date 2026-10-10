@@ -28,7 +28,7 @@ function botInputs(seed: number, kinds: readonly BotDifficulty[]) {
         // An eliminated bot presses for its ghost bomber.
         const ghost = ghostOf(state, id);
         const ready = ghost
-          ? isGhostLoaded(ghost)
+          ? isGhostLoaded(ghost, state.terrain)
           : isLoaded(state.castles[id] ?? state.castles[0]!);
         if (!ready) log.pressedWhileBusy++;
       }

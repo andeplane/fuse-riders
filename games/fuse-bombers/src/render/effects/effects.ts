@@ -18,6 +18,7 @@ import {
   VIEW_WIDTH,
   type Frame,
 } from "../round-scene.js";
+import { CHUNK_FOOT, restingPlace } from "./landing.js";
 import { addHit, driftY, TALLY_RISE, type TallyState } from "./tally.js";
 import { addFxTextures } from "./textures.js";
 
@@ -318,16 +319,24 @@ export class Effects {
     let bursts = 0;
     for (const b of craters.values()) if (bursts++ < MAX_BURSTS) this.crater(b);
     for (const [id, h] of hits) this.hit(view, id, h);
-    this.land(view);
+    this.land(view, dt);
     this.animate(dt);
-    this.applyShake();
   }
 
-  /** Bricks and clods come to rest on rock instead of sinking into it. */
-  private land(view: RoundView): void {
+  /**
+   * Bricks and clods come to rest on rock instead of sinking into it: where their path this frame (`dt` ms) met it,
+   * not where the frame ended, since a fast chunk ends the frame well inside.
+   */
+  private land(view: RoundView, dt: number): void {
     const grid = view.terrain;
+    const seconds = dt / 1000;
     this.debris.forEachAlive((p: Chunk) => {
-      if (p.velocityY < 0 || !solidAt(grid, p.x, p.y + 3)) return;
+      if (p.velocityY < 0 || !solidAt(grid, p.x, p.y + CHUNK_FOOT)) return;
+      const from = {
+        x: p.x - p.velocityX * seconds,
+        y: p.y - p.velocityY * seconds,
+      };
+      ({ x: p.x, y: p.y } = restingPlace(grid, from, p));
       p.velocityX = p.velocityY = 0;
       p.landed = true;
     }, this);
@@ -687,8 +696,12 @@ export class Effects {
     this.trauma = Math.min(1, this.trauma + amount);
   }
 
-  /** Trauma-style shake: offsets grow with trauma², with a matching zoom so the edges never show. */
-  private applyShake(): void {
+  /**
+   * Trauma-style shake: offsets grow with trauma², with a matching zoom so the edges never show. The scene calls this
+   * once a frame before it draws anything that projects through the camera (the HUD), so the HUD and the world are
+   * drawn through the same shaken camera; this frame's explosions add their trauma for the next call.
+   */
+  applyShake(): void {
     const cam = this.scene.cameras.main;
     this.trauma = Math.max(0, this.trauma - this.scene.game.loop.delta / 700);
     if (this.calm || !cam) return;

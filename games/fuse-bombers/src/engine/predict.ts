@@ -12,7 +12,7 @@ import {
   isOffscreen,
   launchState,
 } from "./geometry.js";
-import { segmentHit } from "./grid.js";
+import { segmentHit, solidAt } from "./grid.js";
 import { SUBSTEPS, type Card } from "./tuning.js";
 import type { RoundView, Vec2 } from "./types.js";
 
@@ -156,7 +156,9 @@ export function predictTrajectory(
  * Predicts where player `owner`'s ghost bomb would land if its button were pressed `ticks` steps
  * from now (0 = on the next `step`), from the ghost's deterministic path and the current terrain
  * and castles. Bombs ignore gates and crates, so `gates` and `crates` are always empty. Returns
- * null when the player has no ghost.
+ * null when the player has no ghost, and when the blimp would be inside rock at that tick (a press
+ * there drops nothing: see `isGhostLoaded`). The drop does not wait for the reload; only the path
+ * is predicted.
  */
 export function predictGhostBomb(
   state: RoundView,
@@ -169,6 +171,7 @@ export function predictGhostBomb(
   const t = state.tuning;
   const start = state.tick + ticks;
   const p = ghostPositionAt(g, start);
+  if (solidAt(state.terrain, p.x, p.y)) return null;
   const r = { x: p.x, y: p.y, vx: p.vx, vy: t.ghostBombSpeed };
   const points: Vec2[] = [{ x: r.x, y: r.y }];
   const shieldR = t.shieldRadius + t.rocketRadius;
