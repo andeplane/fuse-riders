@@ -57,6 +57,32 @@ export const LAND_STEPS = 8;
 /** Steps an Attack or Jump press stays usable, counting its own: one made while the hero is busy acts when it is free. */
 export const BUFFER_STEPS = 6;
 
+// ---- the heroes' health ----
+/** A hero's hit points for each life: Gorm is the toughest, Rhea the frailest. */
+export const HERO_HP: Readonly<Record<HeroKind, number>> = {
+  brakka: 60,
+  rhea: 48,
+  gorm: 72,
+};
+/** Lives a hero sets out with. One who falls with none left is out. */
+export const LIVES = 3;
+/** Half a hero's width either side of its centre, where a mace lands. */
+export const HERO_HALF_W = px(10);
+/** Steps a hit hero reels, nudged back as an enemy is. */
+export const HERO_HURT_STEPS = 16;
+/** Juggle protection: the third hit within `JUGGLE_WINDOW` steps of the one before knocks the hero down. */
+export const JUGGLE_HITS = 3;
+export const JUGGLE_WINDOW = 90;
+/** A hit that leaves a hero with a quarter of its hit points or fewer knocks it down. */
+export const LOW_HP_SHARE = 4;
+/** Steps a knocked-down hero lies. It gets up in `GETUP_STEPS`, invulnerable then and for `GETUP_GRACE` more. */
+export const HERO_DOWN_STEPS = 40;
+export const GETUP_GRACE = 30;
+/** Steps a fallen hero lies before it drops back in from the top of the screen, if it has a life left. */
+export const RESPAWN_DELAY = 90;
+/** Steps a hero who dropped back in blinks invulnerable after it lands. */
+export const RESPAWN_INVULN = 120;
+
 // ---- the combo ----
 /**
  * One swing's frame data: steps of wind-up, of the blade's hit window and of recovery, the blade's reach in front of
@@ -109,7 +135,7 @@ export const ENEMY_KINDS = ["ravager"] as const;
 export type EnemyKind = (typeof ENEMY_KINDS)[number];
 /** A kind's hit points at its lowest tier with one hero; `enemyMaxHp` scales them. */
 export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = { ravager: 40 };
-/** Tiers by palette (ash, rust, violet): each adds hit points now, and aggression once enemies fight back. */
+/** Tiers by palette (ash, rust, violet): each adds hit points, and aggression (`RAVAGER`). */
 export const TIERS = [0, 1, 2] as const;
 export type Tier = (typeof TIERS)[number];
 /** Each tier's hit points in quarters of the kind's base. */
@@ -145,6 +171,65 @@ export const KNOCK_VZ = px(2.5);
 export const DOWN_STEPS = 45;
 export const GETUP_STEPS = 20;
 export const DEAD_STEPS = 60;
+
+// ---- how ravagers fight (`ai.ts`) ----
+/** At most this many enemies go for one hero at once; the rest hover at a distance until a place comes free. */
+export const ATTACKERS = 2;
+/**
+ * A tier's fight: steps of the telegraphed wind-up, the steps an idle enemy waits before it next decides (plus a
+ * random part under `jitter`), its walk along the road and in depth, the mace's damage, and the chance in 256 that
+ * a wind-up is a feint that backs off instead.
+ */
+export interface Fighter {
+  readonly windup: number;
+  readonly think: number;
+  readonly jitter: number;
+  readonly walk: { readonly x: number; readonly y: number };
+  readonly damage: number;
+  readonly feint: number;
+}
+const fighter = (
+  windup: number,
+  think: number,
+  jitter: number,
+  walk: number,
+  damage: number,
+  feint: number,
+): Fighter => ({
+  windup,
+  think,
+  jitter,
+  walk: { x: px(walk), y: px((walk * 2) / 3) },
+  damage,
+  feint,
+});
+/**
+ * Ash, rust and violet: each winds up faster, decides sooner, walks faster (in depth two thirds as fast) and hits
+ * harder than the one before, and feints more often.
+ */
+export const RAVAGER: Readonly<Record<Tier, Fighter>> = {
+  0: fighter(24, 24, 32, 0.6, 6, 24),
+  1: fighter(20, 16, 24, 0.7, 7, 36),
+  2: fighter(16, 8, 16, 0.8, 8, 48),
+};
+/** Steps the mace swings through after it lands (on the swing's first step), then steps of recovery. */
+export const ATTACK_STEPS = 8;
+export const RECOVER_STEPS = 16;
+/** The mace reaches this far in front of the enemy's centre, in the depth lane, and sweeps this high. */
+export const MACE_REACH = px(26);
+export const MACE_HEIGHT = px(36);
+/** An attacker heads for this far from its target along the road, and winds up once within `ENGAGE_SLACK` more and `AI_LANE` in depth. */
+export const ENGAGE_X = px(24);
+export const ENGAGE_SLACK = px(6);
+export const AI_LANE = px(2);
+/** An attacker crossing to a hero's far side walks round it this far out of its lane. */
+export const DODGE = px(16);
+/** One with no place to attack hovers this far from the nearest hero along the road, plus up to `HOVER_SPREAD`. */
+export const HOVER_X = px(64);
+export const HOVER_SPREAD = px(32);
+/** A feint breaks off the wind-up on this step and backs off this far, facing the hero. */
+export const FEINT_AT = 8;
+export const BACKSTEP = px(24);
 
 // ---- waves (the triggers themselves are in `stages.ts`) ----
 /** A wave's enemy appears this far outside the screen's edge on its side, its whole body out of view... */

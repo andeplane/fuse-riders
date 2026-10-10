@@ -6,7 +6,6 @@ import {
   HERO_KINDS,
   RIGHT,
   STAGE_1,
-  UP,
   createWorld,
   decodeWorld,
   encodeWorld,
@@ -58,8 +57,6 @@ function until(
   assert.ok(done(world), "never happened");
   return world;
 }
-/** Attack pressed every other step. */
-const mashing: Held = (index) => (index % 2 ? 0 : ATTACK);
 const run = (world: World, steps: number, bits = 0): World =>
   until(world, (w) => w.step >= world.step + steps, bits);
 /** The party marches right until the next wave begins. */
@@ -265,7 +262,7 @@ test("each hero beyond the first adds a spawn from the other side, and a quarter
     [5, 6, 80],
   ] as const) {
     const world = until(allIn(toWave(party(heroes))), (w) =>
-      w.enemies.every((e) => e.state === "idle"),
+      w.enemies.every((e) => e.state !== "enter"),
     );
     assert.equal(world.enemies.length, size, `${heroes} heroes`);
     assert.ok(world.enemies.every((e) => e.hp === hp));
@@ -310,14 +307,14 @@ test("a blade lands on an enemy walking in only once its whole body is on screen
 
 test("while the screen is locked, an enemy knocked out of it gets up and walks back in", () => {
   let world = until(allIn(toWave(party(1))), (w) =>
-    w.enemies.every((e) => e.state === "idle"),
+    w.enemies.every((e) => e.state !== "enter"),
   );
-  const target = enemy(world);
-  // Line up behind the first ravager and mash until the finisher throws it off the right of the screen.
-  world = until(world, (w) => hero(w).y <= target.y + px(1), UP);
-  world = until(world, (w) => hero(w).x >= target.x - px(24), RIGHT);
-  world = until(world, (w) => enemy(w).state === "down", mashing);
-  assert.ok(enemy(world).x > world.camX + SCREEN - T.ENEMY_HALF_W);
+  // The first ravager lies where a finisher threw it, off the right of the screen (ai.test.ts throws them).
+  const thrown = world.camX + SCREEN + px(4);
+  world = {
+    ...world,
+    enemies: [{ ...enemy(world), x: thrown, state: "down", timer: 0 }],
+  };
   world = until(world, (w) => enemy(w).state !== "down");
   world = until(world, (w) => enemy(w).state !== "getup");
   assert.equal(enemy(world).state, "enter");
@@ -327,12 +324,10 @@ test("while the screen is locked, an enemy knocked out of it gets up and walks b
   );
   world = until(world, (w) => enemy(w).state === "idle");
   assert.equal(enemy(world).x, world.camX + SCREEN - T.RETURN_INSET);
-  // With the screen not locked, one left outside it stays where it is.
+  // With the screen not locked, one left outside it stays where it is until it decides to fight.
   const behind = spawnEnemy(party(1), "ravager", px(2), px(130));
-  assert.deepEqual(
-    [enemy(run(behind, 60)).state, enemy(run(behind, 60)).x],
-    ["idle", px(2)],
-  );
+  const waited = run(behind, T.RAVAGER[0].think - 1);
+  assert.deepEqual([enemy(waited).state, enemy(waited).x], ["idle", px(2)]);
 });
 
 test("a wave's next spawn waits while the world holds the most enemies", () => {
@@ -365,7 +360,7 @@ test("the last wave enters from beyond the stage's end, walks in to its goal, an
   // Every spawn walks the whole way in and stands inside the stage's end, so the wave can be fought and cleared.
   const settled = until(
     allIn(world),
-    (w) => w.enemies.every((e) => e.state === "idle"),
+    (w) => w.enemies.every((e) => e.state !== "enter"),
     [],
   );
   assert.equal(settled.enemies.length, 10);

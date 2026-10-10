@@ -288,7 +288,13 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
   const a = play(),
     b = play();
   assert.equal(seedOf(JSON.stringify(a)), seedOf(JSON.stringify(b)));
-  assert.deepEqual([...seen].sort(), [...HERO_STATES].sort());
+  // Falling for good, dropping back in and running out of lives are in ai.test.ts.
+  assert.deepEqual(
+    [...seen].sort(),
+    HERO_STATES.filter(
+      (state) => !["dead", "respawn", "out"].includes(state),
+    ).sort(),
+  );
   assert.deepEqual([...foes].sort(), [...ENEMY_STATES].sort());
   const fallen = start().enemies.filter(
     (e) => !a.enemies.some((left) => left.id === e.id),
@@ -312,17 +318,20 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
       ],
     }),
   );
-  // A brawl, then on into the first wave, whose spawns walk in while the crowd left behind walks back in.
-  const inputs = [...mashing(script(21, 600)), ...march(400)];
+  // A brawl the crowd fights back in, then on into the first wave, whose spawns walk in while the crowd left behind
+  // walks back in.
+  const inputs = [...mashing(script(21, 600)), ...march(600)];
   const fold = (world: World, rows: readonly (readonly number[])[]) =>
     rows.reduce<World>((w, held) => step(w, held), world);
   const trail = [start];
   for (const held of inputs) trail.push(step(trail.at(-1)!, held));
   const straight = trail.at(-1)!;
-  assert.ok(straight.heroes.every((h) => h.damage > 0 && h.knockdowns > 0));
+  assert.ok(straight.heroes.every((h) => h.damage > 0));
+  assert.ok(straight.heroes.some((h) => h.knockdowns > 0));
+  assert.ok(straight.heroes.some((h) => h.hp < T.HERO_HP[h.kind]));
   assert.equal(straight.camX, STAGE_1.waves[0]!.at);
   // Cut too where a snapshot holds a hit-stop, a press waiting in a swing, an enemy in flight, a wave with spawns
-  // still due, and an enemy walking in.
+  // still due, an enemy walking in, one winding up and one hovering, and a hero reeling.
   const first = (found: (world: World) => boolean) => {
     const cut = trail.findIndex(found);
     assert.ok(cut > 0);
@@ -335,9 +344,12 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
     first((w) => w.enemies.some((e) => e.state === "knockdown" && e.z > 0)),
     first((w) => w.locked && w.spawned > 0 && w.spawned < due),
     first((w) => w.enemies.some((e) => e.state === "enter")),
+    first((w) => w.enemies.some((e) => e.state === "windup")),
+    first((w) => w.enemies.some((e) => e.state === "walk" && !e.target)),
+    first((w) => w.heroes.some((h) => h.state === "hurt")),
   ];
   // Restore a snapshot through JSON, as a checkpoint would, and replay the rest: no press is lost or made twice.
-  for (const cut of [1, 7, 8, 50, 301, 599, 999, ...cuts]) {
+  for (const cut of [1, 7, 8, 50, 301, 599, 999, 1199, ...cuts]) {
     const snapshot = JSON.parse(JSON.stringify(trail[cut])) as World;
     assert.deepEqual(fold(snapshot, inputs.slice(cut)), straight, `cut ${cut}`);
   }
@@ -350,7 +362,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-3");
+  assert.equal(RULES, "fuse-axe-5");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {

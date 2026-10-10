@@ -8,8 +8,8 @@ A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Wo
 
 Open `/fuse-axe/` on a running service, or pick **Fuse Axe** from the app portal (the dot grid at the top left of
 every game). **PLAY SOLO** opens the hero picker; **CREATE ROOM** makes a room to share by code, link or QR code,
-where everyone picks a hero (duplicates are allowed) and the host presses **START**. So far the heroes walk, jump and swing
-through a placeholder scene of boxes; enemy waves, the pixel-art renderer, phone pads and the shared screen follow.
+where everyone picks a hero (duplicates are allowed) and the host presses **START**. The heroes walk, jump and swing
+through Stage 1's waves of ravagers in the pixel-art scene; phone pads, the HUD and the shared screen follow.
 
 | Keys          | Does                                |
 | ------------- | ----------------------------------- |
@@ -70,3 +70,24 @@ up on the floor; its falling poses are standing poses tipped over backwards (`ti
 anim's frames with the simulation steps each shows, and `RAVAGER_TIERS` (rust, violet) recolour its tier ramp; ash is
 its own palette. Below the sheet the lab packs each animated figure's frames onto one floor in every swap and plays
 its anims; [`docs/images/ravager-lab.png`](docs/images/ravager-lab.png) is a screenshot of the ravager's.
+
+## Scene
+
+`src/render/scene.ts` draws one native 320 × 180 frame of the view: `createScene(make).draw(ctx, view, frame)`, where
+`frame` counts 60 Hz frames and moves only scenery (fires, the GO flash); the app blends the two newest ticks
+(`src/app/interpolate.ts`) before it calls it. In order: the backdrop, a soft dithered shadow on the floor under every
+figure (narrower the higher it jumps), heroes and enemies by depth (further up the floor first, then lower before
+higher, then by id) flipped to their facing, each hero's chevron in its seat's colour, the hit sparks
+(`sparks.ts`), the grass in front and a flashing GO → when a cleared wave opens the road. An enemy in hit-stop
+flashes, a tier wears its palette and a defeated one blinks out over `DEAD_STEPS`; an invulnerable hero (getting up,
+or just risen) blinks its sprite, keeping its shadow and chevron. Heroes who share a figure each
+get a palette of their own, in seat order; Gorm, until his art lands, borrows Brakka's in one no Brakka wears.
+Nothing is drawn off screen (`pen.ts` clips every call), and every sprite, shadow and sign is baked once.
+
+Everything the renderer pre-paints goes through one injected surface factory, `MakeSurface` in
+`src/render/surface.ts`: `(w, h) => { image, paint, putPixels? }`. The page's (in `src/app/main.ts`) is a canvas with
+smoothing off whose `putPixels` is `putImageData`; without it the backdrop's layers are replayed through `paint` a
+run of a colour at a time, which draws the same pixels (about 77,000 rectangles for Stage 1, once).
+
+[`docs/images/scene.png`](docs/images/scene.png) is Brakka fighting Stage 1's first wave in a solo game; it draws a
+frame in well under a millisecond.

@@ -5,11 +5,21 @@ import {
   CAPACITY,
   ENEMY_KINDS,
   ENEMY_MAX,
+  FLOOR_BOTTOM,
+  FLOOR_TOP,
   FX_LIFE,
   FX_MAX,
+  GETUP_GRACE,
+  GETUP_STEPS,
   GO_STEPS,
   HEAVY_HITSTOP,
+  HERO_HP,
   HERO_KINDS,
+  JUGGLE_HITS,
+  JUGGLE_WINDOW,
+  LIVES,
+  RAVAGER,
+  RESPAWN_INVULN,
   STAGE_LENGTH,
   TIERS,
   VIEW_H,
@@ -25,6 +35,7 @@ import {
   type Enemy,
   type Fx,
   type Hero,
+  type HeroState,
   type World,
 } from "./world.js";
 
@@ -105,7 +116,32 @@ const ID = int(1, UINT32),
   Z = int(0, px(VIEW_H)),
   SPEED = int(-px(16), px(16)),
   FACING = oneOf([1, -1] as const),
-  BUFFER = int(0, BUFFER_STEPS);
+  BUFFER = int(0, BUFFER_STEPS),
+  // Where an enemy walks to: `walkTo` and `walkIn` keep a goal on the road and in the floor band, and one past either
+  // is a walk that never ends.
+  GOAL_X = int(0, STAGE_LENGTH),
+  GOAL_Y = int(FLOOR_TOP, FLOOR_BOTTOM);
+
+/** The longest a hero is invulnerable and an idle enemy waits to decide, from any step. */
+const INVULN = Math.max(RESPAWN_INVULN, GETUP_STEPS + GETUP_GRACE),
+  THINK = Math.max(
+    ...TIERS.map((tier) => RAVAGER[tier].think + RAVAGER[tier].jitter),
+  );
+/**
+ * A hero with no hit points is flying from the blow, fallen or out; one fallen or out has none. A hero with no life
+ * left is fallen on its last (it goes out after `RESPAWN_DELAY`) or out; one fallen has lost a life, so has fewer
+ * than it set out with, and one out has none. One dropping back in has hit points and a life.
+ */
+const FALLEN: readonly HeroState[] = ["dead", "out"];
+const lifeKept = (value: Hero): boolean =>
+  value.hp <= HERO_HP[value.kind] &&
+  (value.hp > 0 ||
+    value.state === "knockdown" ||
+    FALLEN.includes(value.state)) &&
+  (!FALLEN.includes(value.state) || value.hp === 0) &&
+  (value.lives > 0 || FALLEN.includes(value.state)) &&
+  (value.state !== "dead" || value.lives < LIVES) &&
+  (value.state !== "out" || value.lives === 0);
 
 // `ENEMY_MAX` bounds the enemy list, and the ones a swing has hit: a hit enemy is not gone within its swing.
 const hero = record<Hero>(
@@ -129,8 +165,13 @@ const hero = record<Hero>(
     struck: list(ID, ENEMY_MAX),
     damage: COUNT,
     knockdowns: COUNT,
+    hp: COUNT,
+    lives: int(0, LIVES),
+    invulnUntil: COUNT,
+    stagger: int(0, JUGGLE_HITS - 1),
+    staggerUntil: COUNT,
   },
-  (value) => ascending(value.struck, (id) => id),
+  (value) => ascending(value.struck, (id) => id) && lifeKept(value),
 );
 
 const enemy = record<Enemy>({
@@ -147,7 +188,10 @@ const enemy = record<Enemy>({
   timer: COUNT,
   stopUntil: COUNT,
   tier: oneOf(TIERS),
-  goal: X,
+  goal: GOAL_X,
+  goalY: GOAL_Y,
+  target: COUNT,
+  thinkAt: COUNT,
 });
 
 const fx = record<Fx>({
@@ -188,8 +232,9 @@ function wavesKept(value: World): boolean {
 
 /**
  * Heroes in id order, which is seat order, and enemies in id order, every id below `nextId` and none both a hero's
- * and an enemy's; the ids a swing has hit are enemy ids too, though the enemy may since be gone. No enemy has more
- * hit points than its tier's for this party, no hit-stop runs past the longest a hit starts now, the sparks run
+ * and an enemy's; the ids a swing has hit are enemy ids too, though the enemy may since be gone, and an enemy goes
+ * for a hero in the world or nobody. No enemy has more hit points than its tier's for this party, no hit-stop,
+ * invulnerability, run of hits or idle pause runs past the longest one starting now, the sparks run
  * oldest first, each born no later than now and not yet past its life, and the waves are as `wavesKept` says.
  */
 const world = record<World>(
@@ -220,13 +265,19 @@ const world = record<World>(
       ascending(value.enemies, (each) => each.id) &&
       value.heroes.every(
         (each) =>
-          issued(each.id) && stopped(each) && each.struck.every(enemyId),
+          issued(each.id) &&
+          stopped(each) &&
+          each.struck.every(enemyId) &&
+          each.invulnUntil <= value.step + INVULN &&
+          each.staggerUntil <= value.step + JUGGLE_WINDOW,
       ) &&
       value.enemies.every(
         (each) =>
           enemyId(each.id) &&
           stopped(each) &&
-          each.hp <= enemyMaxHp(each.kind, each.tier, value.heroes.length),
+          each.hp <= enemyMaxHp(each.kind, each.tier, value.heroes.length) &&
+          (each.target === 0 || heroIds.has(each.target)) &&
+          each.thinkAt <= value.step + THINK,
       ) &&
       value.fx.every(
         (each, index) =>

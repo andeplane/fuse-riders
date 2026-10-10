@@ -70,6 +70,11 @@ Enemies ride beasts in later stages. Knock a rider off and anyone can climb on:
 
 A mounted hero who takes a hard hit is thrown off and the beast wanders until someone else takes it.
 
+Enemies fight by the heroes' rules: they line up in the depth lane to hit, telegraph every blow with a wind-up a hero
+can interrupt or step out of, and get no reach, speed or knockdown a hero lacks. At most two go for one hero at once,
+from both sides where they can, while the rest hover at a distance; a hero swinging its blade is walked round. Their
+choices draw from the world's seeded stream (`src/engine/ai.ts`, tuned per tier in `tuning.ts`'s `RAVAGER`).
+
 ## Stages
 
 1. **Ashen Village** — a dusk road through burning thatched huts. Ravagers and lancers; boss: the Ogre twins.
@@ -99,7 +104,8 @@ drops pots and meat (meat heals). Then the next stage.
 
 - Native resolution **320 × 180**, scaled by whole numbers to fill the screen (6× at 1080p), nearest-neighbour.
 - Heroes and grunts are about 32 × 48 pixels, bosses up to 64 × 72. Sprites face right and flip for left; every
-  entity has a soft ellipse shadow on the floor, which also shows a jumping figure's depth.
+  entity has a soft ellipse shadow on the floor, which also shows a jumping figure's depth. A small chevron in the
+  seat's colour over each hero tells the players apart ([screenshot](images/scene.png)).
 - Sprites are drawn from palette-indexed pixel data in code, so palette swaps (enemy tiers, duplicate heroes,
   damage flash) are free and no sprite sheet is checked in. (The PNGs under `docs/images/` are screenshots of the
   concept page, the sprite lab and the Stage 1 backdrop, for readers who cannot open them.)
