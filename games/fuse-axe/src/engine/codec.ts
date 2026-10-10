@@ -3,18 +3,21 @@ import {
   BUFFER_STEPS,
   CAMERA_END,
   CAPACITY,
-  ENEMY_HP,
   ENEMY_KINDS,
   ENEMY_MAX,
   FX_LIFE,
   FX_MAX,
+  GO_STEPS,
   HEAVY_HITSTOP,
   HERO_KINDS,
   STAGE_LENGTH,
+  TIERS,
   VIEW_H,
   VIEW_W,
+  enemyMaxHp,
   px,
 } from "./tuning.js";
+import { STAGE_1, waveSpawns } from "./stages.js";
 import {
   ENEMY_STATES,
   FX_KINDS,
@@ -130,23 +133,22 @@ const hero = record<Hero>(
   (value) => ascending(value.struck, (id) => id),
 );
 
-const enemy = record<Enemy>(
-  {
-    id: ID,
-    kind: oneOf(ENEMY_KINDS),
-    x: X,
-    y: Y,
-    z: Z,
-    vx: SPEED,
-    vz: SPEED,
-    facing: FACING,
-    hp: COUNT,
-    state: oneOf(ENEMY_STATES),
-    timer: COUNT,
-    stopUntil: COUNT,
-  },
-  (value) => value.hp <= ENEMY_HP[value.kind],
-);
+const enemy = record<Enemy>({
+  id: ID,
+  kind: oneOf(ENEMY_KINDS),
+  x: X,
+  y: Y,
+  z: Z,
+  vx: SPEED,
+  vz: SPEED,
+  facing: FACING,
+  hp: COUNT,
+  state: oneOf(ENEMY_STATES),
+  timer: COUNT,
+  stopUntil: COUNT,
+  tier: oneOf(TIERS),
+  goal: X,
+});
 
 const fx = record<Fx>({
   kind: oneOf(FX_KINDS),
@@ -157,10 +159,38 @@ const fx = record<Fx>({
 });
 
 /**
+ * The waves. Before the first nothing has begun and the camera is short of its trigger. Once one has, it began no
+ * later than now, the camera stands at or past its trigger and short of the next one's (which would have begun it),
+ * and no more of its spawns have entered than the party's wave holds: a locked wave holds the camera at its trigger,
+ * an unlocked one has all its spawns in. No GO runs longer than one starting now.
+ */
+function wavesKept(value: World): boolean {
+  const latest = STAGE_1.waves[value.wave - 1],
+    next = STAGE_1.waves[value.wave];
+  if (value.goUntil > value.step + GO_STEPS) return false;
+  if (!latest)
+    return (
+      !value.locked &&
+      value.waveStep === 0 &&
+      value.spawned === 0 &&
+      value.goUntil === 0 &&
+      value.camX < next!.at
+    );
+  const count = waveSpawns(latest, value.heroes.length).length;
+  return (
+    value.waveStep <= value.step &&
+    value.camX >= latest.at &&
+    (value.locked
+      ? value.camX === latest.at && value.spawned <= count
+      : value.spawned === count && (!next || value.camX < next.at))
+  );
+}
+
+/**
  * Heroes in id order, which is seat order, and enemies in id order, every id below `nextId` and none both a hero's
- * and an enemy's; the ids a swing has hit are enemy ids too, though the enemy may since be gone. No hit-stop runs
- * past the longest a hit starts now, and the sparks run oldest first, each born no later than now and not yet past
- * its life.
+ * and an enemy's; the ids a swing has hit are enemy ids too, though the enemy may since be gone. No enemy has more
+ * hit points than its tier's for this party, no hit-stop runs past the longest a hit starts now, the sparks run
+ * oldest first, each born no later than now and not yet past its life, and the waves are as `wavesKept` says.
  */
 const world = record<World>(
   {
@@ -172,6 +202,11 @@ const world = record<World>(
     heroes: list(hero, CAPACITY),
     enemies: list(enemy, ENEMY_MAX),
     fx: list(fx, FX_MAX),
+    wave: int(0, STAGE_1.waves.length),
+    locked: oneOf([false, true]),
+    waveStep: COUNT,
+    spawned: COUNT,
+    goUntil: COUNT,
   },
   (value) => {
     const heroIds = new Set(value.heroes.map((each) => each.id)),
@@ -187,13 +222,19 @@ const world = record<World>(
         (each) =>
           issued(each.id) && stopped(each) && each.struck.every(enemyId),
       ) &&
-      value.enemies.every((each) => enemyId(each.id) && stopped(each)) &&
+      value.enemies.every(
+        (each) =>
+          enemyId(each.id) &&
+          stopped(each) &&
+          each.hp <= enemyMaxHp(each.kind, each.tier, value.heroes.length),
+      ) &&
       value.fx.every(
         (each, index) =>
           each.born <= value.step &&
           value.step - each.born < FX_LIFE &&
           (index === 0 || each.born >= value.fx[index - 1]!.born),
-      )
+      ) &&
+      wavesKept(value)
     );
   },
 );
