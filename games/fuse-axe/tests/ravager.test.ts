@@ -198,11 +198,8 @@ test("a pose paints the same rows every time, and the figure paints each frame o
 });
 
 test("every anim plays frames the figure has, for whole steps, and every frame is played", () => {
-  // Every anim the enemy view can show, and the ones the enemy AI adds; `dead` lies in the `down` frame while it blinks.
-  assert.deepEqual(
-    Object.keys(RAVAGER_ANIMS).sort(),
-    [...ENEMY_STATES, "walk", "windup", "attack", "recover"].sort(),
-  );
+  // Every anim the enemy view can show; `dead` lies in the `down` frame while it blinks.
+  assert.deepEqual(Object.keys(RAVAGER_ANIMS).sort(), [...ENEMY_STATES].sort());
   const played = new Set<string>();
   for (const [anim, { frames, loop }] of Object.entries(RAVAGER_ANIMS)) {
     assert.ok(frames.length > 0, anim);
