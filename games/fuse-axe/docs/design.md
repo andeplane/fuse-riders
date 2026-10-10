@@ -176,7 +176,8 @@ are not the world's heroes).
 ## Players, rooms and controls
 
 - Online room play like the other Fuse games: each device controls its own hero, or a shared screen shows the game
-  while phones act as controllers (a d-pad plus Attack, Jump and Magic).
+  while phones act as controllers (a d-pad plus Attack, Jump and Magic). Built: the pads hold bits through the same
+  `HeldControls` as the keys, so the engine sees one input path (`src/app/pad.ts`, `presenter.ts`'s `controller`).
 - Local play on one machine: keyboard and gamepads.
 - A solo player can bring bot companions. Bots press the same buttons as a human and get no privileged rules.
 
