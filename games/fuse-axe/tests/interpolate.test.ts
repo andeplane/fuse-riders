@@ -20,6 +20,9 @@ const hero = (id: number, x: number, y = 120, z = 0): HeroView => ({
   facing: 1,
   anim: "walk",
   animStep: 0,
+  hp: 48,
+  maxHp: 48,
+  invulnerable: false,
 });
 const enemy = (id: number, x: number): EnemyView => ({
   id,
