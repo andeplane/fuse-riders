@@ -38,6 +38,10 @@ export class Mesh {
   private readonly lastReliable = new Map<string, number>();
   private readonly hidden = new Set<string>();
   private readonly visibility = new Map<string, () => void>();
+  private readonly scripted = new Map<
+    string,
+    (from: string, data: unknown) => void
+  >();
   readonly runtimes = new Map<string, TestRuntime>();
   readonly frames = new Map<string, View[]>();
   fast: (from: string, to: string) => FastFate = () => ({ delayMs: 20 });
@@ -86,6 +90,17 @@ export class Mesh {
     runtime.start();
     return runtime;
   }
+  /**
+   * A member with no runtime, which the test speaks for: it hears the reliable messages sent to it through `hear` and
+   * answers with `say`. Its fast packets go nowhere.
+   */
+  script(id: string, hear: (from: string, data: unknown) => void): void {
+    this.scripted.set(id, hear);
+    this.admit(id);
+  }
+  say(from: string, to: string, data: unknown): void {
+    this.reliable(from, to, data);
+  }
   private transport(id: string): RoomTransport {
     return {
       id,
@@ -103,13 +118,13 @@ export class Mesh {
   private admit(id: string): void {
     this.online.add(id);
     this.at(0, () => {
-      this.events.get(id)!.welcome(id, this.hostId);
+      this.events.get(id)?.welcome(id, this.hostId);
       for (const other of this.online) {
         if (other === id) continue;
-        this.events.get(id)!.peer(other, true);
-        this.events.get(other)!.peer(id, true);
-        this.events.get(id)!.link(other, true);
-        this.events.get(other)!.link(id, true);
+        this.events.get(id)?.peer(other, true);
+        this.events.get(other)?.peer(id, true);
+        this.events.get(id)?.link(other, true);
+        this.events.get(other)?.link(id, true);
       }
     });
   }
@@ -135,13 +150,17 @@ export class Mesh {
       at,
       order: this.order++,
       run: () => {
-        if (this.online.has(to)) this.events.get(to)!.message(from, copy);
+        if (!this.online.has(to)) return;
+        const hear = this.scripted.get(to);
+        if (hear) hear(from, copy);
+        else this.events.get(to)!.message(from, copy);
       },
     });
     return true;
   }
   private sendFast(from: string, to: string, bytes: Uint8Array): boolean {
     if (!this.online.has(from) || !this.online.has(to)) return false;
+    if (this.scripted.has(to)) return true;
     const fate = this.fast(from, to);
     if (fate.drop) return true;
     const copy = bytes.slice();

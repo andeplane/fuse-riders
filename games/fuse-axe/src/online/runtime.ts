@@ -4,6 +4,7 @@ import {
   PICK,
   PLAY,
   axeGame,
+  picksApply,
   type Entry,
   type Room,
   type Settings,
@@ -58,13 +59,16 @@ export class AxeRuntime extends RoomRuntime<
     this.append(PLAY, room.matchId, room.round, this.bits);
     this.sendPackets(this.deps.now());
   }
-  /** Picks this member's hero for the next run; the fold applies it only while no run is under way. */
+  /**
+   * Picks this member's hero for the next run. Refused unless the room is in the lobby or the run is over, the only
+   * stages whose fold applies a pick: one logged in a run or in camp between its stages would be dropped.
+   */
   pick(hero: HeroKind): boolean {
     if (
       !isHero(hero) ||
       !this.player() ||
       this.hiddenState ||
-      this.world!.state.stage === "running"
+      !picksApply(this.world!.state.stage)
     )
       return false;
     this.append(PICK, hero);
