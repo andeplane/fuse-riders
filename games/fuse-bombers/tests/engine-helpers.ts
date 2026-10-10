@@ -55,6 +55,7 @@ export function fingerprint(state: RoundState): string {
     crates: state.crates.map((k) => [k.id, k.x, k.y, k.card]),
     ghosts: state.ghosts,
     lastHeld: state.lastHeld,
+    bots: state.bots,
   });
 }
 
@@ -117,8 +118,8 @@ export function openWorld(state: RoundState): void {
 
 /**
  * Clears the rock and lines the castles up `spacing` px apart across the middle of the world, so neighbours are in
- * range of each other. On the temple the spawn anchors are mostly out of range until bots fly, so tests of aim
- * set rounds up like this.
+ * range of each other. On the temple the spawn anchors are mostly out of range of each other, so tests of aim
+ * without flying set rounds up like this.
  */
 export function lineUp(state: RoundState, spacing = 1200): void {
   openWorld(state);
