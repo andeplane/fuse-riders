@@ -27,14 +27,17 @@ export type { EnemyKind, HeroKind, Tier } from "./tuning.js";
 export type { FxKind } from "./world.js";
 /**
  * `attack1` and `attack2` are the slashes, `attack3` the finisher. `run` is the run a double tap starts and `dash`
- * the dash attack from it (a shoulder charge, Gorm's a headbutt). `hurt` reels, `knockdown` flies, `down` lies and
- * `getup` rises; `dead` lies fallen until `respawn` drops the hero in from the top of the screen, or it is `out`.
+ * the dash attack from it (a shoulder charge, Gorm's a headbutt). `jumpattack` stabs down from a jump, standing or
+ * running (the blade is out from `STAB_STEPS` until it lands), `backattack` strikes behind the hero without turning
+ * it (`BACK_STEPS`), `grab` holds an enemy for `GRAB_STEPS` and `throw` follows through for `THROW_STEPS`. `hurt`
+ * reels, `knockdown` flies, `down` lies and `getup` rises; `dead` lies fallen until `respawn` drops the hero in from
+ * the top of the screen, or it is `out`.
  */
 export type HeroAnim = HeroState;
 /**
  * `enter` is a wave's enemy walking in from the screen's edge (or back in to a locked screen): walk frames, as is
  * `walk`. `windup` telegraphs the mace for its tier's steps, `attack` swings it (it lands on the first step) and
- * `recover` follows.
+ * `recover` follows. `held` waits in a hero's hands, and `thrown` flies behind it, then lands `down` (or `dead`).
  */
 export type EnemyAnim = EnemyState;
 
