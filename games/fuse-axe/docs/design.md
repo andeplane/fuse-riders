@@ -48,9 +48,20 @@ higher levels, and never hurts other heroes.
   or in the recovery chains the next swing; one in the wind-up is ignored, so the combo has a rhythm. A press made
   while the hero is busy (a swing's recovery, a landing) waits a few steps and acts as soon as the hero is free.
 - **Throw**: walk into a dazed enemy and Attack to grab and throw them; a thrown body knocks down anyone it hits.
-- **Jump** and **jump attack** (a downward stab).
+  A free hero holding toward a reeling (`hurt`) enemy close in front in its lane grabs it with Attack, holds it
+  briefly (no mace lands meanwhile), then throws it over the shoulder: the body flies behind the hero, knocks down
+  every enemy on its feet it meets in the lane and takes the throw's damage as it lands. Heroes are never grabbed;
+  a kind can be made unthrowable (`THROWABLE`), as bosses will be.
+- **Jump** and **jump attack** (a downward stab): Attack in the air, from a standing or a running jump, stabs down
+  from a few steps in until the hero lands, knocking down each enemy under or ahead of it in the lane once a jump.
 - **Back attack**: on the floor, Attack and Jump pressed within a couple of steps of each other (the window is a
   tuning constant) strike behind you, for when you are surrounded. In the air Attack is always the jump attack.
+  Neither press waits for the other, so a lone Attack slashes and a lone Jump leaves the floor on the step it is
+  pressed: the second press, within `BACK_WINDOW` (one log tick) of the first, turns the slash still winding up, or
+  the jump still leaving the floor, into the back attack. Both waiting as a busy hero comes free count if pressed
+  within the window of each other. The back attack keeps the hero's facing and never comes from a run: there Attack
+  dashes, and Attack in a running jump is the jump attack. Frame data is `BACK_ATTACK`, `JUMP_ATTACK` and the grab
+  and throw constants in `src/engine/tuning.ts`.
 - Heroes do not hurt each other.
 
 Hits connect only when attacker and target are within a few pixels of each other in depth, so lining up on the road

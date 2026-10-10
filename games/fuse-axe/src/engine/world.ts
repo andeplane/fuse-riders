@@ -46,6 +46,10 @@ export const HERO_STATES = [
   "out",
   "run",
   "dash",
+  "jumpattack",
+  "backattack",
+  "grab",
+  "throw",
 ] as const;
 export type HeroState = (typeof HERO_STATES)[number];
 
@@ -93,6 +97,8 @@ export interface Hero {
   tapUntil: number;
   /** Steps a double tap stays usable (0: none waiting): a free hero starts its run toward `tap`. */
   runBuf: number;
+  /** Tally for the HUD: enemies thrown. */
+  throws: number;
 }
 
 export const ENEMY_STATES = [
@@ -107,6 +113,8 @@ export const ENEMY_STATES = [
   "windup",
   "attack",
   "recover",
+  "held",
+  "thrown",
 ] as const;
 export type EnemyState = (typeof ENEMY_STATES)[number];
 
@@ -134,6 +142,8 @@ export interface Enemy {
   target: number;
   /** An idle enemy decides what to do next on this step. */
   thinkAt: number;
+  /** The id of the hero holding it in a grab (`held`) or who threw it (`thrown`), and 0 otherwise. */
+  holder: number;
 }
 
 export const FX_KINDS = ["hit", "heavy", "ko"] as const;
@@ -233,6 +243,7 @@ export function createWorld(options: {
       tap: 0,
       tapUntil: 0,
       runBuf: 0,
+      throws: 0,
     };
   });
   return {
@@ -299,6 +310,7 @@ export function newEnemy(
     goalY: y,
     target: 0,
     thinkAt: world.step + RAVAGER[tier].think,
+    holder: 0,
   };
 }
 

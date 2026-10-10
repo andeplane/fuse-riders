@@ -600,6 +600,8 @@ test("the view shows the swing, each enemy's anim, hp and flash, and each spark'
     "windup",
     "attack",
     "recover",
+    "held",
+    "thrown",
   ]);
   assert.deepEqual(Kit.FX_KINDS, ["hit", "heavy", "ko"]);
   for (const kind of Kit.HERO_KINDS)

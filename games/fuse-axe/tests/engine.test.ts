@@ -295,14 +295,20 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
   const a = play(),
     b = play();
   assert.equal(seedOf(JSON.stringify(a)), seedOf(JSON.stringify(b)));
-  // Falling for good, dropping back in and running out of lives are in ai.test.ts.
-  assert.deepEqual(
-    [...seen].sort(),
-    HERO_STATES.filter(
-      (state) => !["dead", "respawn", "out"].includes(state),
-    ).sort(),
-  );
-  assert.deepEqual([...foes].sort(), [...ENEMY_STATES].sort());
+  // Falling for good, dropping back in and running out of lives are in ai.test.ts, and grabs and throws in
+  // moves.test.ts.
+  const covered = (states: readonly string[]) =>
+    states
+      .filter(
+        (state) =>
+          ![
+            ...["dead", "respawn", "out"],
+            ...["grab", "throw", "held", "thrown"],
+          ].includes(state),
+      )
+      .sort();
+  assert.deepEqual(covered([...seen]), covered(HERO_STATES));
+  assert.deepEqual(covered([...foes]), covered(ENEMY_STATES));
   const fallen = start().enemies.filter(
     (e) => !a.enemies.some((left) => left.id === e.id),
   );
@@ -363,6 +369,9 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
         (h) => h.state === "dash" && h.timer >= T.DASH[h.kind].active,
       ),
     ),
+    // Mid-stab and mid-back-attack; grabs and throws are cut in moves.test.ts.
+    first((w) => w.heroes.some((h) => h.state === "jumpattack" && h.z > 0)),
+    first((w) => w.heroes.some((h) => h.state === "backattack" && h.timer > 0)),
   ];
   // Restore a snapshot through JSON, as a checkpoint would, and replay the rest: no press is lost or made twice.
   for (const cut of [1, 7, 8, 50, 301, 599, 999, 1199, ...cuts]) {
@@ -378,7 +387,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-7");
+  assert.equal(RULES, "fuse-axe-8");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {
