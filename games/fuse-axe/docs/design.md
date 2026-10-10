@@ -5,6 +5,14 @@ walk left to right through four hand-drawn pixel-art stages, cleave through wave
 for magic pots, steal the beasts their enemies ride, and finish at the keep of the warlord who shattered the Ember
 Axe. A full run is about 15–20 minutes; one stage is 3–5.
 
+Concept art: [`concept-art.html`](concept-art.html) (open it in a browser; everything is drawn from palette-indexed
+pixel data in the page, `?still` freezes the animation).
+
+![Stage 1 key scene](images/concept-scene.png)
+
+The full line-up (heroes, enemies, mounts, the boss, magic and the palette) as one image:
+[`images/concept-lineup.png`](images/concept-lineup.png).
+
 ## Story in one breath
 
 The warlord **Vorhal** broke the Ember Axe that kept the realm's hearth-fires lit and carried the shards to his keep.
@@ -89,7 +97,8 @@ drops pots and meat (meat heals). Then the next stage.
 - Heroes and grunts are about 32 × 48 pixels, bosses up to 64 × 72. Sprites face right and flip for left; every
   entity has a soft ellipse shadow on the floor, which also shows a jumping figure's depth.
 - Sprites are drawn from palette-indexed pixel data in code, so palette swaps (enemy tiers, duplicate heroes,
-  damage flash) are free and nothing binary is checked in.
+  damage flash) are free and no sprite sheet is checked in. (The two PNGs under `docs/images/` are screenshots of the
+  concept page, for readers who cannot open it.)
 - Draw order is by floor depth (further up the screen is further away), then by height.
 - Parallax backgrounds of two to three layers per stage.
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
@@ -130,7 +139,7 @@ for up to five seats with bots, rooms and a shared screen.
 
 Small pull requests, each reviewed and merged before the next one that depends on it:
 
-1. Design outline and the package skeleton (this document). Concept art follows in its own pull request.
+1. Design outline, the package skeleton and the concept art.
 2. Engine core: world state, fixed-step tick, seeded randomness, movement on the floor band, jumping, camera.
    Sprite pipeline: palette-indexed sprite data, surface builder, the heroes' idle, walk and jump frames. (In
    parallel.)
