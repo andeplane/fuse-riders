@@ -261,6 +261,13 @@ const mashing = (rows: number[][]): number[][] =>
 /** Every seat holds Right for `steps` steps. */
 const march = (steps: number): number[][] =>
   Array.from({ length: steps }, () => Array<number>(T.CAPACITY).fill(RIGHT));
+/** Every seat stands a while, double-taps Right, runs and dashes, then stands through the dash. */
+const charge = (): number[][] =>
+  [
+    ...Array<number>(60).fill(0),
+    ...[RIGHT, 0, RIGHT, RIGHT, RIGHT, RIGHT, RIGHT | ATTACK],
+    ...Array<number>(40).fill(0),
+  ].map((bits) => Array<number>(T.CAPACITY).fill(bits));
 
 test("the same seed and inputs fold to the same world, and a step leaves its input untouched", () => {
   const start = () =>
@@ -275,7 +282,7 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
       }),
     );
   // A brawl, then the party marches on into the first wave.
-  const inputs = [...mashing(script(5, 1200)), ...march(600)];
+  const inputs = [...mashing(script(5, 1200)), ...charge(), ...march(600)];
   const seen = new Set<string>(),
     foes = new Set<string>();
   const play = () =>
@@ -320,7 +327,7 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
   );
   // A brawl the crowd fights back in, then on into the first wave, whose spawns walk in while the crowd left behind
   // walks back in.
-  const inputs = [...mashing(script(21, 600)), ...march(600)];
+  const inputs = [...mashing(script(21, 600)), ...charge(), ...march(600)];
   const fold = (world: World, rows: readonly (readonly number[])[]) =>
     rows.reduce<World>((w, held) => step(w, held), world);
   const trail = [start];
@@ -331,7 +338,8 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
   assert.ok(straight.heroes.some((h) => h.hp < T.HERO_HP[h.kind]));
   assert.equal(straight.camX, STAGE_1.waves[0]!.at);
   // Cut too where a snapshot holds a hit-stop, a press waiting in a swing, an enemy in flight, a wave with spawns
-  // still due, an enemy walking in, one winding up and one hovering, and a hero reeling.
+  // still due, an enemy walking in, one winding up and one hovering, a hero reeling, a tap waiting for its second
+  // press, a run, and a dash sliding and recovering.
   const first = (found: (world: World) => boolean) => {
     const cut = trail.findIndex(found);
     assert.ok(cut > 0);
@@ -347,6 +355,14 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
     first((w) => w.enemies.some((e) => e.state === "windup")),
     first((w) => w.enemies.some((e) => e.state === "walk" && !e.target)),
     first((w) => w.heroes.some((h) => h.state === "hurt")),
+    first((w) => w.heroes.some((h) => h.tapUntil > 0 && !(h.held & h.tap))),
+    first((w) => w.heroes.some((h) => h.state === "run" && h.timer > 0)),
+    first((w) => w.heroes.some((h) => h.state === "dash" && h.timer > 0)),
+    first((w) =>
+      w.heroes.some(
+        (h) => h.state === "dash" && h.timer >= T.DASH[h.kind].active,
+      ),
+    ),
   ];
   // Restore a snapshot through JSON, as a checkpoint would, and replay the rest: no press is lost or made twice.
   for (const cut of [1, 7, 8, 50, 301, 599, 999, 1199, ...cuts]) {
@@ -362,7 +378,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-6");
+  assert.equal(RULES, "fuse-axe-7");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {

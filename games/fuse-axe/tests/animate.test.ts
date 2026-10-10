@@ -13,6 +13,7 @@ import {
   HERO_FRAMES,
   HERO_TIMING,
   heroFrame,
+  RUN_STEPS,
   WALK_STEPS,
   type FigureAnim,
   type HeroTiming,
@@ -68,6 +69,21 @@ test("the walk cycles through its six frames, each held for the hero's cadence",
         heroFrame(kind, "walk", step, TIMING),
         cycle[step % cycle.length],
       );
+  }
+});
+
+test("until they have frames of their own, a run strides through the walk's faster and a dash holds the first strike", () => {
+  for (const kind of HERO_KINDS) {
+    const hold = RUN_STEPS[kind];
+    assert.ok(hold > 0 && hold < WALK_STEPS[kind], kind);
+    assert.deepEqual(
+      steps(12 * hold).map((step) => heroFrame(kind, "run", step, TIMING)),
+      [0, 1].flatMap(() =>
+        steps(6).flatMap((i) => Array<string>(hold).fill(`walk${i}`)),
+      ),
+    );
+    for (const step of steps(60))
+      assert.equal(heroFrame(kind, "dash", step, TIMING), "strike1");
   }
 });
 
