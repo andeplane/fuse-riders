@@ -508,17 +508,17 @@ export class GunshipArt {
     if (!this.visible) return;
 
     // The launcher in base units: its pivot above the centre and its drawn length against the gun's.
-    const mount = Math.round(Math.max(0, look.launcherOffset ?? 0) / unit);
+    const mount = Math.round(radiusOr(look.launcherOffset, 0) / unit);
     const barrel = radiusOr(look.barrelLength, LAUNCHER_LENGTH * unit) / unit;
     const [color, damage, burnt] = [hex(look.color), pose.damage, !pose.alive];
-    const key = `${color}-${damage}-${burnt}-${mount}`;
-    if (key !== this.drawn) {
-      this.drawn = key;
+    const [hull, body] = [`${color}-${damage}-${burnt}`, `${color}-${damage}`];
+    if (`${hull}-${mount}` !== this.drawn) {
+      this.drawn = `${hull}-${mount}`;
       const box = envelopeBox(mount);
-      showBaked(this.envelope, `gunship-envelope-${key}`, box, (g) =>
+      showBaked(this.envelope, `gunship-envelope-${body}-${mount}`, box, (g) =>
         drawEnvelope(g, look.color, damage, mount),
       );
-      showBaked(this.gondola, `gunship-gondola-${key}`, GONDOLA_BOX, (g) =>
+      showBaked(this.gondola, `gunship-gondola-${hull}`, GONDOLA_BOX, (g) =>
         drawGondola(g, look.color, damage, burnt),
       );
     }

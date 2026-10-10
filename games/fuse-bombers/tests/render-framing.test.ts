@@ -33,7 +33,7 @@ test("the shared screen frames living gunships at weight 1 and ghosts at a lower
     { id: 2, x: 500, y: 600, alive: true },
   ];
   const ghosts = [{ owner: 1, x: 900, y: 50 }];
-  const points = framingPoints({ castles, ghosts } as never);
+  const points = framingPoints({ castles, ghosts });
   assert.deepEqual(points, [
     { id: 0, x: 100, y: 200, ghost: false },
     { id: 2, x: 500, y: 600, ghost: false },
@@ -55,12 +55,11 @@ test("framed gunships get no markers; a ghost the frame leaves out gets an edge 
   const markers = shipMarkers(ships, pose, REGION, 52);
   assert.equal(markers.length, 1);
   const [m] = markers;
-  assert.equal(m?.id, 2);
-  assert.equal(m?.ghost, true);
+  assert.ok(m && m.id === 2 && m.ghost);
   // Up and to the right, inside the region, which starts 52 px below the HUD's top.
-  assert.ok(m!.x > REGION.width / 2 && m!.x <= REGION.width - 30);
-  assert.ok(m!.y >= 52 + 30 && m!.y <= 52 + REGION.height - 30);
-  assert.ok(m!.angle < 0 && m!.angle > -Math.PI / 2, `angle ${m?.angle}`);
+  assert.ok(m.x > REGION.width / 2 && m.x <= REGION.width - 30);
+  assert.ok(m.y >= 52 + 30 && m.y <= 52 + REGION.height - 30);
+  assert.ok(m.angle < 0 && m.angle > -Math.PI / 2, `angle ${m.angle}`);
 });
 
 test("an arrow is full size just off the edge and shrinks with distance to a floor", () => {
@@ -120,10 +119,10 @@ test("the sky slides against the camera and grows as it zooms in", () => {
   assert.ok(
     Math.abs(screenWidth(max) / screenWidth(min) - (1 + SKY.grow)) < 1e-9,
   );
-  // Bad numbers keep the sky in place instead of throwing it to NaN.
-  const pose = { centerX: Number.NaN, centerY: 1350, zoom: min };
-  const odd = skyRect(pose, SCREEN, WORLD, min, min);
-  assert.ok(Number.isFinite(odd.width) && Number.isFinite(odd.y));
+  // A degenerate world or zoom range keeps the sky finite instead of throwing it to NaN.
+  const pose = { centerX: 0, centerY: 0, zoom: min };
+  const odd = skyRect(pose, SCREEN, { width: 0, height: 0 }, min, min);
+  assert.ok([odd.x, odd.y, odd.width, odd.height].every(Number.isFinite));
 });
 
 test("marks over ships shrink with the zoom to a floor and are full size zoomed in", () => {
@@ -131,6 +130,7 @@ test("marks over ships shrink with the zoom to a floor and are full size zoomed 
   assert.equal(hudScale(HUD_SCALE.fullZoom), 1);
   assert.equal(hudScale(0.05), HUD_SCALE.min);
   assert.equal(hudScale(Number.NaN), 1);
+  assert.ok(Math.abs(hudScale(0.48) - 0.8) < 1e-9);
   let last = 0;
   for (let zoom = 0.1; zoom <= 1; zoom += 0.05) {
     const k = hudScale(zoom);
@@ -143,5 +143,7 @@ test("small things keep a minimum on-screen size and are never shrunk", () => {
   assert.equal(minScreenScale(46, 1, 26), 1);
   assert.equal(minScreenScale(46, 0.3, 13), 1);
   assert.ok(Math.abs(minScreenScale(46, 0.3, 26) * 46 * 0.3 - 26) < 1e-9);
+  for (const zoom of [0, Number.NaN])
+    assert.equal(minScreenScale(46, zoom, 26), 1);
   assert.equal(minScreenScale(0, 0.3, 26), 1);
 });

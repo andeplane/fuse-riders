@@ -44,7 +44,7 @@ screen px; gate outlines and caps, never the gate's panel, thicken when zoomed o
 pose each frame. The gunships and ghosts are `GunshipArt` and `GhostArt` (`src/render/gunship-art.ts`) fed from the
 view, with the engine's geometry: `GUNSHIP_FLIGHT.shape.radius`, `tuning.shieldRadius`, and the launcher drawn on
 `launcherPivot` (`tuning.launcherOffset` above the hull, on a pylon over the envelope) at `tuning.barrelLength`, so the
-drawn barrel ends where the dotted guide starts. A gunship's wreck starts on the frame its `castle-destroyed` arrives.
+drawn barrel ends where the dotted guide starts (to within the cosmetic bob). A gunship's wreck starts on the frame its `castle-destroyed` arrives.
 
 ## Lifecycle
 

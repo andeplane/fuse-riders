@@ -108,8 +108,7 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 5. Free flight: held-bit input, the flight kernel wired in, flying ghosts (done, with keyboard clusters and gamepads
    steering), then bots inside `step` with their memory in the state (next; until then bots fire but do not fly).
 6. Devices and render, in parallel: touch pads and lobby texts (done: two riders per touch screen); the framing camera
-   and gunship art (done: the shared screen's camera, edge arrows and the art in the round, see
-   [engine.md](engine.md) "Camera"; the lobby still shows castles).
+   and gunship art (done: shared-screen camera, edge arrows, the art in the round; [engine.md](engine.md) "Camera").
 7. Online game: the checkpoint codec, `RULES` with a golden-hash replay, and the `RollbackGame` with tests for rollback,
    checkpoints, bad input, and dropped, duplicated and reordered fire presses.
 8. Online app: registration (the game's `package.json` `exports` and workspace dependencies, the root `package.json`,

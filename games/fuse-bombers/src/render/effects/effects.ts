@@ -101,9 +101,9 @@ const growing = (size: () => number, growth: number) => ({
 });
 
 /**
- * Juice on top of the round: smoke trails behind rockets, crater and castle-hit explosions with dirt and brick
+ * Juice on top of the round: smoke trails behind rockets, crater and gunship-hit explosions with dirt and hull
  * debris, floating damage numbers, shield ripples, gate flashes with "×N" pops, crate bursts with the card flying
- * home, a mega explosion for a destroyed castle, and screen shake (off with `?calm` or reduced motion). It only
+ * home, a mega explosion for a destroyed gunship, and screen shake (off with `?calm` or reduced motion). It only
  * listens to the scene's `ROUND_START` / `ROUND_EVENTS` and cleans up on shutdown.
  */
 export class Effects {
@@ -456,14 +456,10 @@ export class Effects {
     const prev = this.tallies.get(id);
     const hit = addHit(prev, this.now, damage);
     let t = prev;
+    // Over the health bar above the launcher pivot (x, y), the same screen distance at any zoom.
+    const top = y - 56 * this.textScale;
+    const left = Phaser.Math.Clamp(x, 110, WORLD_WIDTH - 110);
     if (!t || hit.fresh) {
-      // Over the health bar above the launcher pivot (x, y), the same screen distance at any zoom.
-      const top = y - 56 * this.textScale;
-      const left = Phaser.Math.Clamp(
-        x + rand(-18, 18) * this.textScale,
-        110,
-        WORLD_WIDTH - 110,
-      );
       const fx = this.show(this.text(), left, top, {
         life: 1100,
         grow: 140,
@@ -477,9 +473,10 @@ export class Effects {
     // Hull damage turns a shield-only tally red.
     if (!shield) text.setColor("#ff5a4a");
     if (hit.changed) text.setText(`-${hit.shown}`);
-    // A hit pops the number again and keeps it on screen. Resetting the age also puts it back on its anchor above
-    // the castle (see `driftY`), so it only rises away once the hits stop.
-    Object.assign(t.fx, { age: 0, s0: hit.s0, s1: hit.s1 });
+    // A hit pops the number again and keeps it on screen. It moves to the gunship's new anchor (it flies), and
+    // resetting the age puts it there (see `driftY`), so it only rises away once the hits stop.
+    Object.assign(t.fx, { age: 0, s0: hit.s0, s1: hit.s1, y0: top });
+    text.setX(left);
   }
 
   private gateSplit(
@@ -674,7 +671,8 @@ export class Effects {
       const fade = t < fx.hold ? 1 : 1 - (t - fx.hold) / (1 - fx.hold);
       const obj = fx.obj;
       obj.setAlpha(fx.a0 * fade);
-      if (fx.s0 !== fx.s1)
+      // Text follows the zoom as it changes (`scaleOf`), even at a steady scale.
+      if (fx.s0 !== fx.s1 || obj instanceof Phaser.GameObjects.Text)
         obj.setScale(
           (fx.s0 + (fx.s1 - fx.s0) * (1 - (1 - g) ** 2)) * this.scaleOf(obj),
         );

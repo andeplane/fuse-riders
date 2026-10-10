@@ -80,7 +80,7 @@ ${
         font-weight="900" font-size="15" fill="${color}">${symbol}</text>`
 }`;
 
-/** Texture key of a player-coloured sprite in `color`, e.g. `castle-e8403a`. */
+/** Texture key of a player-coloured sprite in `color`, e.g. `rocket-e8403a`. */
 export function spriteKey(
   kind: "rocket" | "ghost-bomb",
   color: number,

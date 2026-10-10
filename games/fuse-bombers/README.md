@@ -20,8 +20,8 @@ button at the top left of every Fuse game's lobby). It is a local game: no rooms
   rockets, so five rockets through a ×10 gate is fifty.
 - **Crates.** Floating crates give a card to the first volley that hits them: an extra rocket per volley, a shield, a
   faster reload, a repair or a mega bomb.
-- **Terrain.** The whole temple is in view. Every rocket carves a crater, so the rock between the castles wears away
-  over the round; only its darker skeleton (pillars, columns, the shrine's legs and keel) is indestructible.
+- **Terrain.** The camera zooms from one arena to the whole temple. Every rocket carves a crater, so the rock wears
+  away over the round; only its darker skeleton (pillars, columns, the shrine's legs and keel) is indestructible.
 - **The fuse.** The burning fuse across the top is the round timer (90 s). When it burns out, sudden death begins:
   bombs drop from above the castles and damage keeps growing. At 3 minutes the round ends on HP: the castle with the most HP wins, and
   a tie is a draw.
