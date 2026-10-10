@@ -1,5 +1,6 @@
 // Height-map terrain: generation, queries and crater carving.
 
+import { exp, sin } from "./det-math.js";
 import { random, range, type RngHolder } from "./rng.js";
 import { ARENA_HEIGHT, ARENA_WIDTH } from "./tuning.js";
 import type { Terrain, TerrainView } from "./types.js";
@@ -25,7 +26,7 @@ export function castlePositions(rng: RngHolder, playerCount: number): number[] {
 
 function bump(dx: number, sigma: number): number {
   const u = dx / sigma;
-  return Math.exp(-u * u);
+  return exp(-u * u);
 }
 
 /**
@@ -87,7 +88,7 @@ export function generateTerrain(
   for (let x = 0; x < width; x++) {
     let y = baseY;
     for (const w of waves)
-      y += w.amp * Math.sin((x / w.len) * Math.PI * 2 + w.phase);
+      y += w.amp * sin((x / w.len) * Math.PI * 2 + w.phase);
     // Peaks are slightly sharpened bumps so they read as mountains, not blobs.
     for (const p of peaks) {
       const b = bump(x - p.x, p.sigma);
