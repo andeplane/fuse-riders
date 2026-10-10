@@ -20,13 +20,18 @@ import {
   INPUT_MASK,
   RULES,
   STEPS_PER_TICK,
+  HERO_KINDS,
   createWorld,
   decodeWorld,
+  defeated,
   encodeWorld,
   isInput,
+  revive,
   seedOf,
+  stageCleared,
   stepTick,
   toView,
+  type HeroEntry,
   type HeroKind,
   type World,
   type WorldView,
@@ -46,11 +51,15 @@ import {
 
 /**
  * Fuse Axe behind the netcode's `RollbackGame`. The room keeps the seats and the run: the stage the party is on
- * (`round`) and that stage's world. One log tick folds the management entries; then, in a run, each hero's held
- * controls and `STEPS_PER_TICK` simulation steps, or, in the lobby and once the run is over, each member's hero pick.
+ * (`round`), that stage's world, the clock of a stage-clear tally or a continue countdown (`until`), whether the stage's
+ * continue is spent, the run's banked tallies and, once it is over, its outcome. One log tick folds the management
+ * entries; then, in a run, a CONTINUE while the countdown runs, each hero's held controls and `STEPS_PER_TICK`
+ * simulation steps, and the stage flow (`runTick`); between stages, the tally's clock; in the lobby and once the run is
+ * over, each member's hero pick.
  */
 export const PLAY = 0,
-  PICK = 1;
+  PICK = 1,
+  CONTINUE = 2;
 /** A seat's held control bits from this tick on, for the run and stage it names. */
 export type PlayEntry = [
   seq: number,
@@ -70,14 +79,42 @@ export type PickEntry = [
   kind: typeof PICK,
   hero: HeroKind,
 ];
-export type Entry = ManagementEntry<Settings> | PlayEntry | PickEntry;
+/**
+ * A hero's vote to continue the run and stage it names once every hero is out. The fold takes it only from a present
+ * human seat playing a hero of the run, only while the countdown runs and only once a stage: the first one folded
+ * revives the party, and any other (a duplicate, a late one, one for another run or stage) changes nothing.
+ */
+export type ContinueEntry = [
+  seq: number,
+  tick: number,
+  kind: typeof CONTINUE,
+  matchId: string,
+  round: number,
+];
+export type Entry =
+  ManagementEntry<Settings> | PlayEntry | PickEntry | ContinueEntry;
 /** Whether the fold applies `PICK` entries in `stage`: in the lobby and once the run is over, never in a run or camp. */
 export const picksApply = (stage: Stage): boolean =>
   stage === "lobby" || stage === "over";
 
 export const MAX_WATCHERS = 5;
-/** A run's stages, in order: Ashen Village only, so far. The stage flow (camp, then the next stage) raises it. */
+/** A run's stages, in order: Ashen Village only, so far. Camp and stage 2 raise it (see `nextStage`). */
 export const LAST_STAGE = 1;
+/** Log ticks (50 ms each) the stage-clear tally shows before the run goes on: 6 s. */
+export const CLEAR_TICKS = 120;
+/** Log ticks the party has to continue once every hero is out: 10 s. */
+export const CONTINUE_TICKS = 200;
+/** How a run ended: "" until it is over. */
+export const OUTCOMES = ["", "victory", "defeat"] as const;
+export type Outcome = (typeof OUTCOMES)[number];
+
+/** One hero of the run's tallies: hit points taken from enemies, and enemies knocked down. */
+export interface Tally {
+  seat: number;
+  kind: HeroKind;
+  damage: number;
+  knockdowns: number;
+}
 
 /** The room's settings: so far only whether it is one shared screen with phones as controllers. */
 export interface Settings {
@@ -103,6 +140,20 @@ export interface Room extends ManagedRoom<Settings> {
   /** Each hero's held bits by member id, from the latest entry its seat logged this stage. */
   held: Record<string, number>;
   world: World | null;
+  /**
+   * The log tick a clock runs out at, 0 when none runs: between stages, the stage-clear tally's; in a run whose heroes
+   * are all out, the continue countdown's. The fold acts on the first tick at or past it.
+   */
+  until: number;
+  /** The party has spent this stage's continue: the next time every hero is out, the run is lost. */
+  continued: boolean;
+  /** How the run ended, once it is `over`; "" before. */
+  outcome: Outcome;
+  /**
+   * Every hero of the run, in seat order, with its tallies over the stages that have ended: a stage's are banked
+   * from its world when it is cleared or lost, so they outlive it. While a stage runs, its own are the world's.
+   */
+  tally: Tally[];
 }
 
 export interface SeatView {
@@ -116,6 +167,13 @@ export interface SeatView {
   /** The hero this seat plays in the next run (in a run, the one it plays now); null for a watcher. */
   hero: HeroKind | null;
 }
+/** A hero of the run's tallies: this stage's, and the whole run's so far (this stage's included). */
+export interface TallyView {
+  seat: number;
+  kind: HeroKind;
+  stage: { damage: number; knockdowns: number };
+  run: { damage: number; knockdowns: number };
+}
 /** What the screen renders. */
 export interface View {
   /** The game clock: simulation steps. */
@@ -124,9 +182,18 @@ export interface View {
   stage: Stage;
   matchId: string;
   round: number;
+  /** The run's last stage: a cleared one wins it. */
+  lastStage: number;
   settings: Settings;
   seats: SeatView[];
   world: WorldView | null;
+  /** Log ticks left on the stage-clear tally (between stages) or the continue countdown (a run with every hero out). */
+  countdown: number;
+  /** This stage's continue is spent. */
+  continued: boolean;
+  outcome: Outcome;
+  /** Every hero of the run, in seat order; empty in the lobby. */
+  tally: TallyView[];
 }
 
 const payloads = {
@@ -150,12 +217,16 @@ export function isEntry(raw: unknown): raw is Entry {
     raw[1] === 0
   )
     return false;
-  return raw[2] === PLAY
-    ? raw.length === 6 &&
-        validMatchId(raw[3]) &&
-        uint32(raw[4]) &&
-        isInput(raw[5])
-    : raw[2] === PICK && raw.length === 4 && isHero(raw[3]);
+  if (raw[2] === PLAY)
+    return (
+      raw.length === 6 &&
+      validMatchId(raw[3]) &&
+      uint32(raw[4]) &&
+      isInput(raw[5])
+    );
+  if (raw[2] === CONTINUE)
+    return raw.length === 5 && validMatchId(raw[3]) && uint32(raw[4]);
+  return raw[2] === PICK && raw.length === 4 && isHero(raw[3]);
 }
 
 export function createRoom(matchId: string, settings: Settings): Room {
@@ -168,6 +239,10 @@ export function createRoom(matchId: string, settings: Settings): Room {
     settings: { ...settings },
     held: {},
     world: null,
+    until: 0,
+    continued: false,
+    outcome: "",
+    tally: [],
   };
 }
 
@@ -195,19 +270,40 @@ function toLobby(room: Room, matchId: string): void {
   room.round = 0;
   room.held = {};
   room.world = null;
+  room.until = 0;
+  room.continued = false;
+  room.outcome = "";
+  room.tally = [];
 }
-/** Stage 1 for everyone seated, or (nobody left to play) an empty lobby again. */
+/**
+ * Stage `round` of the run for `heroes`: a world seeded for the run and that stage (`seedOf("matchId:round")`, which
+ * the checkpoint holds every world to), nothing held, no clock running and the stage's continue unspent.
+ */
+function beginStage(room: Room, round: number, heroes: HeroEntry[]): void {
+  room.stage = "running";
+  room.round = round;
+  room.held = {};
+  room.until = 0;
+  room.continued = false;
+  room.world = createWorld({
+    seed: seedOf(`${room.matchId}:${round}`),
+    heroes,
+  });
+}
+/** Stage 1 for everyone seated, with nothing tallied yet, or (nobody left to play) an empty lobby again. */
 function startRun(room: Room, matchId: string): void {
   const seats = entrants(room);
   if (!seats.length) return toLobby(room, matchId);
+  const heroes = seats.map((seat) => ({ seat: seat.slot, kind: heroOf(seat) }));
   room.matchId = matchId;
-  room.stage = "running";
-  room.round = 1;
-  room.held = {};
-  room.world = createWorld({
-    seed: seedOf(`${matchId}:${room.round}`),
-    heroes: seats.map((seat) => ({ seat: seat.slot, kind: heroOf(seat) })),
-  });
+  room.outcome = "";
+  room.tally = heroes.map(({ seat, kind }) => ({
+    seat,
+    kind,
+    damage: 0,
+    knockdowns: 0,
+  }));
+  beginStage(room, 1, heroes);
 }
 
 export const lifecycle: LifecycleHooks<Room, Settings> = {
@@ -218,10 +314,38 @@ export const lifecycle: LifecycleHooks<Room, Settings> = {
   start(room, matchId) {
     if (entrants(room).length) startRun(room, matchId);
   },
-  // From "over", which game over will reach once the stage flow lands.
+  // From "over" only (the netcode's rule): a won or lost run sets out again with whoever is seated now.
   rematch: startRun,
   lobby: toLobby,
 };
+
+/** Adds the stage's tallies, from its world, to the run's: once, as the stage ends. */
+function bank(room: Room, world: World): void {
+  room.tally = room.tally.map((row) => {
+    const hero = world.heroes.find((each) => each.seat === row.seat);
+    return hero
+      ? {
+          ...row,
+          damage: row.damage + hero.damage,
+          knockdowns: row.knockdowns + hero.knockdowns,
+        }
+      : row;
+  });
+}
+/** The run is over: nothing is held from here on, no clock runs, and the next run's heroes are picked. */
+function finish(room: Room, outcome: Outcome): void {
+  room.stage = "over";
+  room.outcome = outcome;
+  room.until = 0;
+  room.held = {};
+}
+/**
+ * The stage-clear tally has shown. Past the last stage the run is won; only Ashen Village is built (`LAST_STAGE`), so
+ * for now every cleared stage wins it. Stage 2 slots in here as `beginStage(room, room.round + 1, heroes)` under the
+ * policy in design.md ("Stage flow"): each hero whose seat is still here sets out with the lives it has (one that went
+ * out comes back with one), full health, a fresh continue, and its tallies banked in the room.
+ */
+const nextStage = (room: Room): void => finish(room, "victory");
 
 /** The seat's own entries at `tick`, from the stream generation its controls follow, in seq order. */
 function ownEntries(
@@ -274,12 +398,70 @@ function playTick(
     held[hero.seat] = bits;
     first[hero.seat] = bits | tapped;
   }
-  // The stage flow hooks in after the steps: a cleared stage (`stageCleared(world)`) goes to camp and the next
-  // `round` (stage "between"), and a party with every hero out goes to "over".
   return stepTick(world, held, first);
 }
 
-/** One log tick: management first, then the heroes' controls and steps in a run, or hero picks in the lobby and after it. */
+/**
+ * Whether a hero of the run voted to continue it at `tick`: a CONTINUE for this run and stage from the seat of a hero
+ * in the world, played by a present human. A bot logs nothing and a watcher plays no hero, so neither has a vote.
+ */
+function continues(
+  room: Room,
+  world: World,
+  streams: ReadonlyMap<string, StreamEntries<Entry>>,
+  tick: number,
+): boolean {
+  return world.heroes.some((hero) => {
+    const seat = seatAt(room, hero.seat)!;
+    return (
+      !seat.bot &&
+      seat.connected &&
+      ownEntries(seat, streams, tick).some(
+        (entry) =>
+          entry[2] === CONTINUE &&
+          entry[3] === room.matchId &&
+          entry[4] === room.round,
+      )
+    );
+  });
+}
+
+/**
+ * A log tick of a run. While the continue countdown runs, a hero's CONTINUE revives the party first (`revive`: every
+ * hero drops back in with every life, the waves keep their progress) and spends the stage's continue. Then the
+ * controls and the steps. Then the stage flow, in this order: a cleared stage banks its tallies and shows them
+ * (`between`), even if every hero has fallen meanwhile; a countdown that has run out loses the run; and a party
+ * newly all out starts the countdown, or, with the continue spent, loses the run at once.
+ */
+function runTick(
+  room: Room,
+  streams: ReadonlyMap<string, StreamEntries<Entry>>,
+  tick: number,
+): void {
+  if (room.until > 0 && continues(room, room.world!, streams, tick)) {
+    room.world = revive(room.world!);
+    room.until = 0;
+    room.continued = true;
+  }
+  const world = (room.world = playTick(room, room.world!, streams, tick));
+  if (stageCleared(world)) {
+    bank(room, world);
+    room.stage = "between";
+    room.held = {};
+    room.until = tick + CLEAR_TICKS;
+  } else if (
+    room.until > 0 ? tick >= room.until : defeated(world) && room.continued
+  ) {
+    bank(room, world);
+    finish(room, "defeat");
+  } else if (room.until === 0 && defeated(world))
+    room.until = tick + CONTINUE_TICKS;
+}
+
+/**
+ * One log tick: management first; then a run's tick (`runTick`), the stage-clear tally's clock between stages, or hero
+ * picks in the lobby and after the run.
+ */
 export function foldTick(
   room: Room,
   creatorId: string,
@@ -287,9 +469,10 @@ export function foldTick(
 ): never[] {
   const tick = room.tick + 1;
   applyManagementTick(room, tick, creatorId, streams, lifecycle);
-  if (room.stage === "running")
-    room.world = playTick(room, room.world!, streams, tick);
-  else if (picksApply(room.stage))
+  if (room.stage === "running") runTick(room, streams, tick);
+  else if (room.stage === "between") {
+    if (tick >= room.until) nextStage(room);
+  } else if (picksApply(room.stage))
     // Each pick touches only its own seat, so the seats need no order.
     for (const seat of room.seats.values())
       if (!seat.watcher && !seat.bot && seat.connected)
@@ -300,7 +483,7 @@ export function foldTick(
 }
 
 // ---- checkpoint ----
-const FIELDS = 7;
+const FIELDS = 11;
 const SEAT_KEYS = [
   "id",
   "name",
@@ -325,7 +508,31 @@ export function encode(room: Room): unknown[] {
     [...room.seats.values()].sort(bySlot).map((seat) => ({ ...seat })),
     Object.entries(room.held).sort(([a], [b]) => (a < b ? -1 : 1)),
     room.world ? encodeWorld(room.world) : null,
+    room.until,
+    room.continued,
+    room.outcome,
+    room.tally.map((row) => [row.seat, row.kind, row.damage, row.knockdowns]),
   ];
+}
+
+/** One tally row, `[seat, kind, damage, knockdowns]`. */
+function decodeTally(raw: unknown): Tally | undefined {
+  if (
+    !Array.isArray(raw) ||
+    raw.length !== 4 ||
+    !uint32(raw[0]) ||
+    raw[0] >= CAPACITY ||
+    !HERO_KINDS.includes(raw[1] as HeroKind) ||
+    !uint32(raw[2]) ||
+    !uint32(raw[3])
+  )
+    return;
+  return {
+    seat: raw[0],
+    kind: raw[1] as HeroKind,
+    damage: raw[2],
+    knockdowns: raw[3],
+  };
 }
 
 function decodeSeat(raw: unknown): SeatRecord | undefined {
@@ -373,10 +580,60 @@ function decodeSeat(raw: unknown): SeatRecord | undefined {
 }
 
 /**
- * What spans the fields. The lobby has no stage, no world and nothing held. A run has both: its world is the one
- * `startRun` seeds for this run and stage and has run whole log ticks no later than this one, every hero's seat is
- * held for it by a member playing that hero, and only a human playing a hero holds bits. A run that is over holds
- * none (the stage flow clears them), so a pick after game over leaves a checkpoint that still decodes.
+ * Where the stage flow can stand, as the fold leaves it. A run in play has no outcome and an uncleared stage (a
+ * cleared one moves on at once); its clock runs exactly while every hero is out, and only with the continue unspent,
+ * for no more than the countdown. Between stages the stage is cleared and the tally's clock runs. Over, no clock
+ * runs: a won run cleared the last stage, a lost one has every hero out.
+ */
+function flowHolds(room: Room, world: World): boolean {
+  const cleared = stageCleared(world),
+    clock = (span: number) =>
+      room.until > room.tick && room.until <= room.tick + span;
+  if (room.stage === "running")
+    return (
+      room.outcome === "" &&
+      !cleared &&
+      room.until > 0 === defeated(world) &&
+      (room.until === 0 || (!room.continued && clock(CONTINUE_TICKS)))
+    );
+  if (room.stage === "between")
+    return room.outcome === "" && cleared && clock(CLEAR_TICKS);
+  return (
+    room.until === 0 &&
+    (room.outcome === "victory"
+      ? cleared && room.round === LAST_STAGE
+      : room.outcome === "defeat" && !cleared && defeated(world))
+  );
+}
+
+/**
+ * The run's banked tallies: a row per hero of the run in seat order, each the hero the world has in that seat. In
+ * stage 1 (the only one so far: decode refuses a later round) nothing is banked while it runs, and once it has ended
+ * its own tallies are, exactly. Stage 2 widens this to rows at least the world's, for heroes that may have left.
+ */
+function tallyHolds(room: Room, world: World): boolean {
+  const banked = room.stage !== "running";
+  return (
+    room.tally.length === world.heroes.length &&
+    world.heroes.every((hero, index) => {
+      const row = room.tally[index]!;
+      return (
+        row.seat === hero.seat &&
+        row.kind === hero.kind &&
+        row.damage === (banked ? hero.damage : 0) &&
+        row.knockdowns === (banked ? hero.knockdowns : 0)
+      );
+    })
+  );
+}
+
+/**
+ * What spans the fields. The lobby has no stage, no world, nothing held, no clock, no continue spent, no outcome and
+ * no tallies. A run has a world: the one `beginStage` seeds for this run and stage, run whole log ticks no later than
+ * this one; every hero's seat is held for it in play by a member playing that hero, and only a human playing a hero
+ * holds bits, and only in play: the stage flow clears them as a stage ends, so camp and a run that is over hold none
+ * and a pick after game over leaves a checkpoint that still decodes. The flow and the tallies hold (`flowHolds`,
+ * `tallyHolds`).
  */
 function consistent(room: Room): boolean {
   const world = room.world;
@@ -384,7 +641,11 @@ function consistent(room: Room): boolean {
     return (
       room.stage === "lobby" &&
       room.round === 0 &&
-      Object.keys(room.held).length === 0
+      Object.keys(room.held).length === 0 &&
+      room.until === 0 &&
+      !room.continued &&
+      room.outcome === "" &&
+      room.tally.length === 0
     );
   if (
     room.stage === "lobby" ||
@@ -392,7 +653,9 @@ function consistent(room: Room): boolean {
     world.step % STEPS_PER_TICK !== 0 ||
     world.step > room.tick * STEPS_PER_TICK ||
     world.seed !== seedOf(`${room.matchId}:${room.round}`) ||
-    (room.stage === "over" && Object.keys(room.held).length > 0)
+    (room.stage !== "running" && Object.keys(room.held).length > 0) ||
+    !flowHolds(room, world) ||
+    !tallyHolds(room, world)
   )
     return false;
   const plays = (seat: SeatRecord | undefined) =>
@@ -416,8 +679,19 @@ export function decode(
   tick: number,
 ): Room | undefined {
   if (fields.length !== FIELDS || !uint32(tick)) return;
-  const [matchId, round, stage, rawSettings, rawSeats, rawHeld, rawWorld] =
-    fields;
+  const [
+    matchId,
+    round,
+    stage,
+    rawSettings,
+    rawSeats,
+    rawHeld,
+    rawWorld,
+    until,
+    continued,
+    outcome,
+    rawTally,
+  ] = fields;
   const settings = parseSettings(rawSettings);
   if (
     !validMatchId(matchId) ||
@@ -428,9 +702,20 @@ export function decode(
     !Array.isArray(rawSeats) ||
     rawSeats.length > CAPACITY + MAX_WATCHERS ||
     !Array.isArray(rawHeld) ||
-    rawHeld.length > CAPACITY
+    rawHeld.length > CAPACITY ||
+    !uint32(until) ||
+    typeof continued !== "boolean" ||
+    !OUTCOMES.includes(outcome as Outcome) ||
+    !Array.isArray(rawTally) ||
+    rawTally.length > CAPACITY
   )
     return;
+  const tally: Tally[] = [];
+  for (const raw of rawTally) {
+    const row = decodeTally(raw);
+    if (!row) return;
+    tally.push(row);
+  }
   const seats = new Map<string, SeatRecord>();
   for (const raw of rawSeats) {
     const seat = decodeSeat(raw);
@@ -469,6 +754,10 @@ export function decode(
     settings,
     held,
     world,
+    until,
+    continued,
+    outcome: outcome as Outcome,
+    tally,
   };
   return consistent(room) ? room : undefined;
 }
@@ -511,6 +800,27 @@ export function view(room: Room): View {
       hero: seat.watcher ? null : heroOf(seat),
     })),
     world: room.world ? toView(room.world) : null,
+    lastStage: LAST_STAGE,
+    countdown: room.until > room.tick ? room.until - room.tick : 0,
+    continued: room.continued,
+    outcome: room.outcome,
+    tally: room.tally.map((row) => {
+      const hero = room.world?.heroes.find((each) => each.seat === row.seat),
+        stage = hero
+          ? { damage: hero.damage, knockdowns: hero.knockdowns }
+          : { damage: 0, knockdowns: 0 };
+      // While a stage runs nothing of it is banked yet; once it has ended the bank holds it.
+      const live = room.stage === "running";
+      return {
+        seat: row.seat,
+        kind: row.kind,
+        stage,
+        run: {
+          damage: row.damage + (live ? stage.damage : 0),
+          knockdowns: row.knockdowns + (live ? stage.knockdowns : 0),
+        },
+      };
+    }),
   };
 }
 
@@ -559,5 +869,7 @@ export const axeGame: RollbackGame<Room, Entry, View, never, Settings> = {
     // Bots stand still until they get a controller, so solo is one hero alone for now.
     solo: "Solo run",
     needTwo: "At least one hero must be seated to set out.",
+    matchRunning: "A run is already under way",
+    rematchLater: "REMATCH opens once the run is over",
   },
 };
