@@ -98,7 +98,7 @@ drops pots and meat (meat heals). Then the next stage.
   entity has a soft ellipse shadow on the floor, which also shows a jumping figure's depth.
 - Sprites are drawn from palette-indexed pixel data in code, so palette swaps (enemy tiers, duplicate heroes,
   damage flash) are free and no sprite sheet is checked in. (The PNGs under `docs/images/` are screenshots of the
-  concept page and of the Stage 1 backdrop, for readers who cannot open them.)
+  concept page, the sprite lab and the Stage 1 backdrop, for readers who cannot open them.)
 - Draw order is by floor depth (further up the screen is further away), then by height.
 - Parallax backgrounds (`src/render/backdrop/`, one module per stage): static layers are painted once and blitted at
   whole-pixel offsets, and only fires and torches draw per frame. Stage 1 has the sky, a ridge with Vorhal's keep (1/8
