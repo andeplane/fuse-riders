@@ -11,7 +11,11 @@ every game). **PLAY SOLO** opens the hero picker; **CREATE ROOM** makes a room t
 where everyone picks a hero (duplicates are allowed) and the host presses **START**. The heroes walk, run, jump and swing
 through Stage 1's waves of ravagers in the pixel-art scene under the HUD. Clearing the stage shows each hero's
 tally, then the run's victory; when every hero is out, any hero may press Attack within ten seconds to continue once,
-or the run is over. The host sets out again with **REMATCH** or goes back to the lobby. Gamepads follow.
+or the run is over. The host sets out again with **REMATCH** or goes back to the lobby.
+
+A gamepad (`src/app/gamepad.ts`, polled each animation frame) drives this device's hero too: the d-pad or the left
+stick walks, A (Cross) attacks, B (Circle) jumps and X (Square) or Y (Triangle) casts magic. With several pads, the one
+in use drives.
 
 | Keys          | Phone pads                       | Does                                                                 |
 | ------------- | -------------------------------- | -------------------------------------------------------------------- |

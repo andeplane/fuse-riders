@@ -35,6 +35,7 @@ import { createScene } from "../render/scene.js";
 import type { MakeSurface } from "../render/surface.js";
 import { HeldControls, KEY_HELP } from "./controls.js";
 import { PendingPick, SoloOpening } from "./flow.js";
+import { GamepadInput, browserGamepads } from "./gamepad.js";
 import { drawn } from "./interpolate.js";
 import { DPad, directionName, padButtons } from "./pad.js";
 import {
@@ -58,7 +59,8 @@ import {
 /**
  * The page's glue: it reads the query, builds the screens from fuse-ui components, wires the runtime to the
  * transport, draws every animation frame into the native 320 × 180 canvas and scales it up by whole numbers, and turns
- * keys and touches into held control bits. The decisions live in the presenter, the pads, the scene and the engine.
+ * keys, touches and gamepads into held control bits. The decisions live in the presenter, the pads, the scene and the
+ * engine.
  */
 const GAME = axeGame.id;
 /** The renderer's surfaces in the browser: a canvas and its 2D context, smoothing off, `putImageData` the fast path. */
@@ -180,7 +182,7 @@ function room(solo: boolean): void {
   };
   // The TV: the game as large as it goes, with the room's QR code in the header for a latecomer's phone.
   document.body.classList.toggle("fa-display", display);
-  // Keys and touches hold bits here; the runtime logs their changes while this device plays a hero.
+  // Keys, touches and gamepads hold bits here; the runtime logs their changes while this device plays a hero.
   const controls = new HeldControls((bits) => runtime.input(bits));
 
   // ---- the page ----
@@ -433,9 +435,14 @@ function room(solo: boolean): void {
     canvas.style.height = `${canvas.height / ratio}px`;
   };
   new ResizeObserver(fit).observe(screen);
+  // A gamepad has no events: the frame loop polls it, and the pad in use holds its bits like a key.
+  const gamepads = new GamepadInput(browserGamepads(navigator), (bits) =>
+    controls.hold("gamepad", bits),
+  );
   const paint = (now: number) => {
     // A room that has ended draws nothing more, so its loop ends with it.
     if (over) return;
+    gamepads.poll();
     const world = stage.hidden ? null : drawn(runtime.frameTiming());
     if (world) {
       scene.draw(native, world, Math.floor((now * 60) / 1000), model?.hud);
