@@ -33,6 +33,7 @@ const enemy = (id: number, x: number): EnemyView => ({
   hp: 40,
   maxHp: 40,
   flash: false,
+  tier: 0,
 });
 const world = (extra: Partial<WorldView> = {}): WorldView => ({
   step: 0,
@@ -40,6 +41,11 @@ const world = (extra: Partial<WorldView> = {}): WorldView => ({
   heroes: [],
   enemies: [],
   fx: [],
+  wave: 0,
+  waves: 5,
+  locked: false,
+  go: false,
+  cleared: false,
   ...extra,
 });
 

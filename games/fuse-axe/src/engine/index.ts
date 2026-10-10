@@ -1,9 +1,11 @@
 /** Fuse Axe's engine: deterministic rules with no imports from outside this folder. */
-export const RULES = "fuse-axe-2";
+export const RULES = "fuse-axe-3";
 export * from "./input.js";
 export {
   createWorld,
   spawnEnemy,
+  stageCleared,
+  showsGo,
   ENEMY_STATES,
   FX_KINDS,
   HERO_STATES,
@@ -27,6 +29,15 @@ export {
   type HeroView,
   type WorldView,
 } from "./view.js";
+export {
+  STAGE_1,
+  waveSpawns,
+  type Placed,
+  type Side,
+  type Spawn,
+  type StagePlan,
+  type Wave,
+} from "./stages.js";
 export { seedOf } from "./rng.js";
 export { decodeWorld, encodeWorld } from "./codec.js";
 export {
@@ -35,6 +46,9 @@ export {
   HERO_KINDS,
   STEPS_PER_SECOND,
   STEPS_PER_TICK,
+  TIERS,
+  enemyMaxHp,
   type EnemyKind,
   type HeroKind,
+  type Tier,
 } from "./tuning.js";
