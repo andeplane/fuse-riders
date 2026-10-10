@@ -53,7 +53,7 @@ export const BREATH_STEPS = 40;
  */
 export const WALK_STEPS: Readonly<Record<HeroKind, number>> = {
   brakka: 6,
-  rhea: 4,
+  rhea: 5,
   gorm: 6,
 };
 const WALK = ["walk0", "walk1", "walk2", "walk3", "walk4", "walk5"] as const;
