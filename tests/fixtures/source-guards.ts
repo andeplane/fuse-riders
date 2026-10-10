@@ -126,7 +126,9 @@ export function deterministicViolations(file: ts.SourceFile): string[] {
       if (mathObject(node.expression)) {
         if (
           key === undefined ||
-          /^(sin|cos|tan|atan2?|hypot|pow|exp|log\w*|random)$/.test(key)
+          /^(a?(sin|cos|tan)h?|atan2|hypot|pow|exp(m1)?|log\w*|cbrt|random)$/.test(
+            key,
+          )
         )
           found.add(`Math.${key ?? "[dynamic]"}`);
       }
