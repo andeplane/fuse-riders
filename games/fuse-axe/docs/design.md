@@ -97,8 +97,8 @@ drops pots and meat (meat heals). Then the next stage.
 - Heroes and grunts are about 32 × 48 pixels, bosses up to 64 × 72. Sprites face right and flip for left; every
   entity has a soft ellipse shadow on the floor, which also shows a jumping figure's depth.
 - Sprites are drawn from palette-indexed pixel data in code, so palette swaps (enemy tiers, duplicate heroes,
-  damage flash) are free and no sprite sheet is checked in. (The two PNGs under `docs/images/` are screenshots of the
-  concept page, for readers who cannot open it.)
+  damage flash) are free and no sprite sheet is checked in. (The PNGs under `docs/images/` are screenshots of the
+  concept page and the sprite lab, for readers who cannot open them.)
 - Draw order is by floor depth (further up the screen is further away), then by height.
 - Parallax backgrounds of two to three layers per stage.
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
