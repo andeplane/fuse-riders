@@ -1,5 +1,5 @@
-// The game's art, made in code: sprites are small inline SVGs fed to Phaser's loader, and the backdrop and ground
-// material are painted with the Canvas 2D API. Only the crate and the fuse's flame and bomb are files, shared
+// The game's art, made in code: sprites are small inline SVGs fed to Phaser's loader, and the backdrop is painted
+// with the Canvas 2D API (terrain-layer.ts paints the rock). Only the crate and the fuse's flame and bomb are files, shared
 // with Fuse Riders from the site root's public/ (round-scene.ts loads them).
 
 import type Phaser from "phaser";
@@ -7,6 +7,10 @@ import { CARDS, type Card } from "../engine/index.js";
 import { css, THEMES, type Theme } from "./palette.js";
 
 export const CASTLE_SIZE = { width: 100, height: 80 } as const;
+/** The castle art's bottom (its old ground contact) sits this far below the hull centre the engine's `x, y` names. */
+export const HULL_DROP = 26;
+/** Height of the castle art's top above the hull centre. */
+export const HULL_TOP = CASTLE_SIZE.height - HULL_DROP;
 export const SHIELD_SIZE = 128;
 /** Launcher texture width and the x of its pivot. */
 export const LAUNCHER = { width: 38, pivot: 5 } as const;
@@ -171,7 +175,7 @@ function canvas(width: number, height: number) {
   return { element, ctx };
 }
 
-/** Sky, sun, clouds and two mountain ranges; the arena terrain is drawn on top. */
+/** Sky, sun, clouds and two mountain ranges, far behind the temple. */
 function backdrop(theme: Theme, w: number, h: number): HTMLCanvasElement {
   const { element, ctx } = canvas(w, h);
   const sky = ctx.createLinearGradient(0, 0, 0, h * 0.75);
@@ -232,35 +236,4 @@ export function paintBackdrops(
     if (!scene.textures.exists(key))
       scene.textures.addCanvas(key, backdrop(theme, width, height));
   });
-}
-
-/** A full-arena canvas of ground material (layered earth with strata) that the terrain layer cuts to shape. */
-export function groundMaterial(
-  theme: Theme,
-  w: number,
-  h: number,
-): HTMLCanvasElement {
-  const { element, ctx } = canvas(w, h);
-  const body = ctx.createLinearGradient(0, h * 0.35, 0, h);
-  theme.ground.forEach((c, i) =>
-    body.addColorStop(i / (theme.ground.length - 1), c),
-  );
-  ctx.fillStyle = body;
-  ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = ctx.fillStyle = theme.strata;
-  ctx.lineWidth = 5;
-  for (let y = 300; y < h; y += 38) {
-    ctx.beginPath();
-    for (let x = 0; x <= w; x += 16)
-      ctx.lineTo(x, y + Math.sin(x / 90 + y) * 8);
-    ctx.stroke();
-  }
-  const random = lcg(11);
-  for (let i = 0; i < 260; i++) {
-    const [x, y] = [random() * w, 300 + random() * (h - 300)];
-    ctx.beginPath();
-    ctx.ellipse(x, y, 3 + random() * 6, 2 + random() * 3, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  return element;
 }

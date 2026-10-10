@@ -1,28 +1,37 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  ARENA_WIDTH,
   TICK_HZ,
   castleCenter,
   createRound,
   damageScale,
   futureAngle,
+  gridHash,
   isLoaded,
   step,
   view,
   type RoundState,
   type TickEvent,
 } from "../src/engine/index.js";
-import { carveCrater, highestGround } from "../src/engine/terrain.js";
+import {
+  carveCircle,
+  cellSolid,
+  circleOverlapsSolid,
+  fillRect,
+  type Grid,
+} from "../src/engine/grid.js";
+import { bombStartY, crateBox, gateBox } from "../src/engine/round.js";
+import { skyZones, spawnOrder, type Rect } from "../src/engine/temple-map.js";
 import {
   addRocket,
   clearSky,
+  openWorld,
   placeGate,
   playOut,
   spamInputs,
 } from "./engine-helpers.js";
 
-const DEG = Math.PI / 180;
+const TAU = 2 * Math.PI;
 
 function eventsOf<T extends TickEvent["type"]>(
   events: readonly TickEvent[],
@@ -43,62 +52,110 @@ function run(
   return all;
 }
 
+/** Cells whose centre lies within `r` of (`x`, `y`) that are still rock. */
+function rockWithin(grid: Grid, x: number, y: number, r: number): number {
+  let n = 0;
+  const c = grid.cell;
+  for (let row = Math.floor((y - r) / c); row <= (y + r) / c; row++)
+    for (let col = Math.floor((x - r) / c); col <= (x + r) / c; col++) {
+      const [cx, cy] = [(col + 0.5) * c, (row + 0.5) * c];
+      if (Math.hypot(cx - x, cy - y) <= r && cellSolid(grid, col, row)) n++;
+    }
+  return n;
+}
+
+/** Whether any rock cell touches the box. */
+function rockIn(grid: Grid, b: Rect): boolean {
+  const c = grid.cell;
+  for (let row = Math.floor(b.y0 / c); row * c < b.y1; row++)
+    for (let col = Math.floor(b.x0 / c); col * c < b.x1; col++)
+      if (cellSolid(grid, col, row)) return true;
+  return false;
+}
+
+const inside = (b: Rect, z: Rect) =>
+  b.x0 >= z.x0 && b.x1 <= z.x1 && b.y0 >= z.y0 && b.y1 <= z.y1;
+const overlap = (a: Rect, b: Rect, gap: number) =>
+  a.x0 < b.x1 + gap &&
+  b.x0 < a.x1 + gap &&
+  a.y0 < b.y1 + gap &&
+  b.y0 < a.y1 + gap;
+
 test("createRound validates the player count", () => {
   assert.throws(() => createRound({ seed: 1, playerCount: 1 }), RangeError);
   assert.throws(() => createRound({ seed: 1, playerCount: 7 }), RangeError);
   assert.throws(() => createRound({ seed: 1, playerCount: 2.5 }), RangeError);
+  assert.throws(() => createRound({ seed: NaN, playerCount: 2 }), RangeError);
   for (let n = 2; n <= 6; n++)
     assert.equal(createRound({ seed: 1, playerCount: n }).castles.length, n);
 });
 
-test("castles are spread left to right, parked on the ground, and aim at their opponents", () => {
-  for (let n = 2; n <= 6; n++) {
-    const s = createRound({ seed: 42 + n, playerCount: n });
-    const xs = s.castles.map((c) => c.x);
-    for (let i = 1; i < n; i++)
-      assert.ok(
-        (xs[i] ?? 0) - (xs[i - 1] ?? 0) > 150,
-        `spread ${xs.join(",")}`,
-      );
-    assert.ok((xs[0] ?? 0) < 200 && (xs[n - 1] ?? 0) > ARENA_WIDTH - 200);
-    for (const c of s.castles) {
-      const ground = highestGround(s.terrain, c.x - 32, c.x + 32);
-      assert.equal(c.y, ground);
-      assert.ok(c.angle >= c.arcMin && c.angle <= c.arcMax);
-      assert.equal(c.hp, c.maxHp);
-    }
-    const first = s.castles[0];
-    const last = s.castles[n - 1];
-    assert.ok(first && last);
-    assert.equal(first.facing, "right");
-    assert.ok(first.arcMax < 90 * DEG);
-    assert.equal(last.facing, "left");
-    assert.ok(last.arcMin > 90 * DEG);
-    for (const c of s.castles.slice(1, -1)) {
-      assert.equal(c.facing, "both");
-      assert.ok(c.arcMin < 30 * DEG && c.arcMax > 150 * DEG);
-    }
+test("createRound refuses an aimPeriod the launcher cannot turn by", () => {
+  const period = (aimPeriod: number) => () =>
+    createRound({ seed: 1, playerCount: 2, tuning: { aimPeriod } });
+  // Zero is an infinite angle per tick, NaN and Infinity poison or freeze it, and anything under two ticks a turn
+  // is more than `turnLauncher`'s single wrap-around subtraction can bring back into [0, 2π).
+  for (const bad of [0, -3.6, NaN, Infinity, -Infinity, 1 / TICK_HZ, 1e-9])
+    assert.throws(period(bad), RangeError, `${bad}`);
+  // The shortest accepted period still keeps every angle in range.
+  const s = createRound({
+    seed: 1,
+    playerCount: 2,
+    tuning: { aimPeriod: 2 / TICK_HZ },
+  });
+  for (let i = 0; i < 100; i++) {
+    step(s);
+    for (const c of s.castles)
+      assert.ok(c.angle >= 0 && c.angle < TAU, `angle ${c.angle}`);
   }
 });
 
-test("the launcher sweeps back and forth across its arc", () => {
+test("castles hover at the seed's spawn anchors, clear of rock, launchers anywhere on the circle", () => {
+  for (let n = 2; n <= 6; n++) {
+    const s = createRound({ seed: 42 + n, playerCount: n });
+    assert.deepEqual(
+      s.castles.map((c) => ({ x: c.x, y: c.y })),
+      spawnOrder(n, 42 + n),
+    );
+    for (const c of s.castles) {
+      const r = s.tuning.castleRadius;
+      assert.equal(circleOverlapsSolid(s.terrain, c.x, c.y, r), false);
+      assert.ok(c.angle >= 0 && c.angle < TAU);
+      assert.equal(c.hp, c.maxHp);
+    }
+    const before = s.castles.map((c) => [c.x, c.y]);
+    run(s, TICK_HZ * 2);
+    assert.deepEqual(
+      s.castles.map((c) => [c.x, c.y]),
+      before,
+      "castles hover in place",
+    );
+  }
+});
+
+test("the launcher turns counter-clockwise, a full circle per aimPeriod", () => {
   const s = createRound({ seed: 3, playerCount: 3 });
   const c = s.castles[1];
   assert.ok(c);
-  let min = Infinity;
-  let max = -Infinity;
-  let reversals = 0;
-  let dir = c.sweepDir;
-  for (let i = 0; i < TICK_HZ * 6; i++) {
+  const period = Math.round(s.tuning.aimPeriod * TICK_HZ);
+  const start = c.angle;
+  let turned = 0;
+  let wraps = 0;
+  for (let i = 0; i < period; i++) {
+    const before = c.angle;
     step(s);
-    min = Math.min(min, c.angle);
-    max = Math.max(max, c.angle);
-    if (c.sweepDir !== dir) reversals++;
-    dir = c.sweepDir;
-    assert.ok(c.angle >= c.arcMin - 1e-9 && c.angle <= c.arcMax + 1e-9);
+    assert.ok(c.angle >= 0 && c.angle < TAU, `angle ${c.angle}`);
+    let delta = c.angle - before;
+    if (delta < 0) {
+      wraps++;
+      delta += TAU;
+    }
+    assert.ok(Math.abs(delta - TAU / period) < 1e-9, `step ${delta}`);
+    turned += delta;
   }
-  assert.ok(reversals >= 2, `reversals ${reversals}`);
-  assert.ok(max - min > 0.9 * (c.arcMax - c.arcMin));
+  assert.equal(wraps, 1);
+  assert.ok(Math.abs(turned - TAU) < 1e-6);
+  assert.ok(Math.abs(c.angle - start) < 1e-6);
 });
 
 test("pressing when loaded fires a volley of `units` rockets; pressing while reloading does nothing", () => {
@@ -123,6 +180,26 @@ test("pressing when loaded fires a volley of `units` rockets; pressing while rel
   assert.equal(c.reloadTotalTicks, reload);
 });
 
+test("a volley leaves at the angle the player saw, whichever way it points", () => {
+  for (const angle of [0, Math.PI / 2, Math.PI, 1.5 * Math.PI, 5.9]) {
+    const s = createRound({ seed: 6, playerCount: 2 });
+    clearSky(s);
+    openWorld(s);
+    const c = s.castles[0];
+    assert.ok(c);
+    c.reloadTicks = 0;
+    c.angle = angle;
+    const fired = eventsOf(step(s, [true]), "fired");
+    assert.equal(fired[0]?.angle, angle);
+    const r = s.rockets[0];
+    assert.ok(r);
+    const speed = Math.hypot(r.vx, r.vy);
+    // Within the per-rocket spread (and one tick of gravity) of the launcher's direction.
+    assert.ok(Math.abs(r.vx / speed - Math.cos(angle)) < 0.05, `${angle}`);
+    assert.ok(Math.abs(-r.vy / speed - Math.sin(angle)) < 0.05, `${angle}`);
+  }
+});
+
 test("rockets fly, carve craters on impact and expire", () => {
   const s = createRound({ seed: 9, playerCount: 2 });
   clearSky(s);
@@ -133,25 +210,61 @@ test("rockets fly, carve craters on impact and expire", () => {
   assert.ok(eventsOf(events, "crater").length > 0);
   assert.ok(s.terrain.version > before);
   run(s, TICK_HZ * 12);
-  assert.equal(s.rockets.length, 0, "all rockets landed or left the arena");
+  assert.equal(s.rockets.length, 0, "all rockets landed or left the world");
 });
 
-test("rockets that blow up without a crater report it", () => {
+test("a rocket stops where it enters rock and carves a circle there", () => {
+  const s = createRound({ seed: 11, playerCount: 2, tuning: { gravity: 0 } });
+  clearSky(s);
+  openWorld(s);
+  fillRect(s.terrain, 2000, 1000, 2400, 1400, "rock");
+  // Fast enough to cross several cells per sub-step: it must still stop at the face.
+  addRocket(s, { owner: 0, x: 1801, y: 1202, vx: 3000, vy: 0 });
+  const events = run(s, 5);
+  const craters = eventsOf(events, "crater");
+  assert.equal(craters.length, 1);
+  const c = craters[0];
+  assert.ok(c);
+  assert.deepEqual([Math.round(c.x), c.y, c.owner], [2000, 1202, 0]);
+  assert.equal(rockWithin(s.terrain, c.x, c.y, c.radius), 0);
+  // The event names the cells that changed, from the left face inwards.
+  const cell = s.terrain.cell;
+  assert.equal(c.col0, 2000 / cell);
+  assert.ok(c.col1 * cell >= c.x + c.radius - cell);
+  assert.ok(c.row0 * cell <= c.y - c.radius + cell);
+  assert.ok(c.row1 * cell >= c.y + c.radius - cell);
+  assert.equal(s.terrain.version, 1);
+  assert.equal(s.rockets.length, 0);
+});
+
+test("indestructible rock stops rockets without a crater; a wall one cell thick never lets one through", () => {
   const s = createRound({ seed: 10, playerCount: 2, tuning: { gravity: 0 } });
   clearSky(s);
-  // Dig to bedrock, then drop a rocket there: nothing left to carve.
-  const x = 800;
-  for (let i = 0; i < 40; i++)
-    carveCrater(s.terrain, x, s.terrain.surface[x] ?? 0, 30);
-  addRocket(s, { owner: 0, x, y: s.terrain.bedrock - 20, vy: 600 });
+  openWorld(s);
+  fillRect(s.terrain, 2000, 1000, 2004, 1400, "hard");
+  const hash = gridHash(s.terrain);
+  addRocket(s, { owner: 0, x: 1701, y: 1200, vx: 3000, vy: 0 });
   let events = run(s, 10);
   assert.deepEqual(
-    eventsOf(events, "rocket-exploded").map((e) => [e.owner, e.cause]),
-    [[0, "ground"]],
+    eventsOf(events, "rocket-exploded").map((e) => [
+      e.owner,
+      e.cause,
+      Math.round(e.x),
+    ]),
+    [[0, "ground", 2000]],
   );
   assert.equal(eventsOf(events, "crater").length, 0);
+  assert.equal(gridHash(s.terrain), hash);
+  // A hard skeleton survives a crater around it; the soft rock beside it goes.
+  fillRect(s.terrain, 2004, 1000, 2020, 1400, "rock");
+  addRocket(s, { owner: 0, x: 2201, y: 1200, vx: -600, vy: 0, mega: true });
+  events = run(s, 20);
+  assert.equal(eventsOf(events, "crater").length, 1);
+  assert.equal(rockWithin(s.terrain, 2012, 1200, 10), 0);
+  for (let y = 1000; y < 1400; y += 4)
+    assert.ok(cellSolid(s.terrain, 500, y / 4), `hard cell at ${y}`);
   // Without gravity a rocket fired upward never comes down and times out in the air.
-  addRocket(s, { owner: 1, x, y: 100, vy: -1 });
+  addRocket(s, { owner: 1, x: 800, y: 100, vy: -1 });
   events = run(s, Math.round(s.tuning.rocketMaxAge * TICK_HZ) + 2);
   assert.deepEqual(
     eventsOf(events, "rocket-exploded").map((e) => [e.owner, e.cause]),
@@ -160,22 +273,85 @@ test("rockets that blow up without a crater report it", () => {
   assert.equal(s.rockets.length, 0);
 });
 
-test("castles settle when the ground under them is blown away", () => {
+test("rockets leave the world sideways and below, but fall back from above the top", () => {
   const s = createRound({ seed: 12, playerCount: 2 });
+  clearSky(s);
+  openWorld(s);
+  const { width, height } = s.terrain;
+  const out = [
+    addRocket(s, { x: width - 5, y: 1000, vx: 900 }),
+    addRocket(s, { x: 5, y: 1000, vx: -900 }),
+    addRocket(s, { x: 3000, y: height - 5, vy: 600 }),
+  ];
+  const up = addRocket(s, { x: 3000, y: 60, vy: -500 });
+  run(s, 30);
+  for (const r of out) assert.equal(s.rockets.includes(r), false);
+  assert.ok(s.rockets.includes(up) && up.y < 0, "above the top: still flying");
+  run(s, TICK_HZ * 2);
+  assert.ok(up.y > 60, "it came back down");
+});
+
+test("castles hover: blowing the rock round them away does not move them", () => {
+  const s = createRound({ seed: 12, playerCount: 2 });
+  clearSky(s);
+  openWorld(s);
   const c = s.castles[0];
   assert.ok(c);
-  const y0 = c.y;
-  for (let x = c.x - 60; x <= c.x + 60; x += 10)
-    carveCrater(s.terrain, x, y0, 30);
-  step(s);
-  assert.ok(c.y > y0 && c.y < y0 + 30, "falls gradually");
-  run(s, TICK_HZ);
-  assert.equal(c.y, highestGround(s.terrain, c.x - 32, c.x + 32));
+  const [x, y] = [c.x, c.y];
+  fillRect(s.terrain, x - 100, y - 200, x + 100, y - 40, "rock");
+  addRocket(s, { owner: 1, x, y: y - 300, vy: 900, mega: true });
+  const events = run(s, TICK_HZ);
+  assert.ok(eventsOf(events, "crater").length > 0);
+  assert.deepEqual([c.x, c.y], [x, y]);
+});
+
+test("an explosion in reach splashes a castle with no ground under it; a wreck in open air carves nothing", () => {
+  const s = createRound({ seed: 14, playerCount: 2, tuning: { gravity: 0 } });
+  clearSky(s);
+  openWorld(s);
+  const target = s.castles[1];
+  assert.ok(target);
+  const { x, y } = castleCenter(target);
+  // A lone pillar beside a castle in mid-air, its top level with the hull centre.
+  fillRect(s.terrain, x + 38, y, x + 50, y + 30, "rock");
+  addRocket(s, { owner: 0, x: x + 44, y: y - 300, vy: 900, vx: 0 });
+  let events = run(s, 30);
+  const splash = eventsOf(events, "hit");
+  assert.equal(splash.length, 1);
+  assert.equal(splash[0]?.splash, true);
+  assert.equal(
+    target.hp,
+    target.maxHp - s.tuning.rocketDamage * s.tuning.splashFactor,
+  );
+  const other = s.castles[0];
+  assert.ok(other);
+  other.hp = 1;
+  addRocket(s, { owner: 1, x: other.x, y: other.y - 200, vy: 900 });
+  events = run(s, 30);
+  assert.equal(eventsOf(events, "castle-destroyed").length, 1);
+  assert.equal(eventsOf(events, "crater").length, 0);
+});
+
+test("a destroyed castle leaves a big crater in the rock round it", () => {
+  const s = createRound({ seed: 15, playerCount: 3, tuning: { gravity: 0 } });
+  clearSky(s);
+  openWorld(s);
+  const victim = s.castles[1];
+  assert.ok(victim);
+  victim.hp = 1;
+  const [x, y] = [victim.x, victim.y];
+  fillRect(s.terrain, x - 80, y + 36, x + 80, y + 90, "rock");
+  addRocket(s, { owner: 0, x, y: y - 200, vy: 900 });
+  const craters = eventsOf(run(s, 30), "crater");
+  const wreck = craters.find((c) => c.radius === s.tuning.wreckCraterRadius);
+  assert.ok(wreck, "a wreck crater");
+  assert.deepEqual([wreck.x, wreck.y], [x, y]);
 });
 
 test("a rocket passing a gate splits into `multiplier` rockets, once per gate per lineage", () => {
   const s = createRound({ seed: 13, playerCount: 2, tuning: { gravity: 0 } });
   clearSky(s);
+  openWorld(s);
   const gate = placeGate(s, 600, 200, 5);
   addRocket(s, { x: 560, y: 200, vx: 600, vy: 0 });
   const events = run(s, 30);
@@ -195,30 +371,68 @@ test("a rocket passing a gate splits into `multiplier` rockets, once per gate pe
   assert.equal(s.rockets.length, 5);
 });
 
-test("gates keep their distance from each other at spawn, respawn and while drifting (#36)", () => {
-  let respawns = 0;
+test("gates and crates float inside the sky zones, clear of rock and of each other", () => {
+  let gatesSpawned = 0;
+  let cratesSpawned = 0;
   for (let n = 2; n <= 6; n++) {
-    for (let seed = 1; seed <= 8; seed++) {
+    for (let seed = 1; seed <= 3; seed++) {
       playOut({ seed: 36_000 + seed, playerCount: n }, spamInputs, (s) => {
-        const { gateSpacing } = s.tuning;
-        respawns += eventsOf(s.events, "gate-spawned").length;
-        for (const a of s.gates) {
+        const t = s.tuning;
+        const gates = s.gates.map(gateBox);
+        const boxes = [...gates, ...s.crates.map(crateBox)];
+        const spawned = s.events.filter(
+          (e) => e.type === "gate-spawned" || e.type === "crate-spawned",
+        );
+        for (const e of spawned)
+          if (e.type === "gate-spawned") gatesSpawned++;
+          else cratesSpawned++;
+        const where = `seed ${seed}, ${n}p, tick ${s.tick}`;
+        for (const [i, a] of boxes.entries()) {
           assert.ok(
-            a.minX <= a.x && a.x <= a.maxX,
-            `gate ${a.id} left its lane`,
+            skyZones.some((z) => inside(a, z)),
+            `${where}: no zone`,
           );
-          for (const b of s.gates) {
-            if (a.id >= b.id) continue;
-            assert.ok(
-              Math.abs(a.x - b.x) >= gateSpacing,
-              `seed ${seed}, ${n}p, tick ${s.tick}: gates ${a.id} and ${b.id} at x ${a.x} and ${b.x}`,
-            );
+          if (spawned.length > 0)
+            assert.equal(rockIn(s.terrain, a), false, `${where}: in rock`);
+          for (const [j, b] of boxes.entries()) {
+            if (j <= i) continue;
+            const gap = j < gates.length ? t.gateSpacing : 0;
+            assert.equal(overlap(a, b, gap - 1e-6), false, `${where}: overlap`);
           }
         }
+        for (const g of s.gates) {
+          assert.ok(g.minX <= g.x && g.x <= g.maxX);
+          assert.ok(Math.abs(g.y - g.baseY) <= g.bobAmp + 1e-9);
+        }
+        if (s.tick === 1)
+          assert.equal(s.gates.length, t.gateCounts[n], "gates at the start");
       });
     }
   }
-  assert.ok(respawns > 100, `only ${respawns} respawns`);
+  assert.ok(gatesSpawned > 100, `only ${gatesSpawned} gates`);
+  assert.ok(cratesSpawned > 50, `only ${cratesSpawned} crates`);
+});
+
+test("a crate that finds no room in the sky is tried again within a second, not after a respawn wait", () => {
+  const s = createRound({ seed: 37, playerCount: 2 });
+  clearSky(s);
+  fillRect(s.terrain, 0, 0, s.terrain.width, s.terrain.height, "hard");
+  const due = s.tick;
+  s.nextCrateTick = due;
+  step(s);
+  assert.equal(s.crates.length, 0, "no room in solid rock");
+  assert.ok(
+    s.nextCrateTick > due && s.nextCrateTick <= due + TICK_HZ,
+    `retry at ${s.nextCrateTick} after ${due}`,
+  );
+  // Once the sky has room again, the crate comes with the next retry rather than a 5 to 9 s respawn later.
+  openWorld(s);
+  const events = run(s, TICK_HZ);
+  assert.equal(eventsOf(events, "crate-spawned").length, 1);
+  assert.ok(
+    s.nextCrateTick >= s.tick + s.tuning.crateRespawn[0] * TICK_HZ - TICK_HZ,
+    "a spawned crate waits the full respawn time",
+  );
 });
 
 test("the rocket cap holds and folds capped children into rocket power", () => {
@@ -228,6 +442,7 @@ test("the rocket cap holds and folds capped children into rocket power", () => {
     tuning: { gravity: 0, maxRockets: 30, splitReserve: 0 },
   });
   clearSky(s);
+  openWorld(s);
   placeGate(s, 600, 200, 10);
   for (let i = 0; i < 10; i++)
     addRocket(s, { x: 560 - i * 3, y: 170 + i * 6, vx: 600, vy: 0 });
@@ -240,6 +455,7 @@ test("the rocket cap holds and folds capped children into rocket power", () => {
 test("hitting a crate awards its card to the shooter", () => {
   const s = createRound({ seed: 15, playerCount: 2, tuning: { gravity: 0 } });
   clearSky(s);
+  openWorld(s);
   const c = s.castles[0];
   assert.ok(c);
   const units = c.units;
@@ -264,10 +480,11 @@ test("hitting a crate awards its card to the shooter", () => {
 test("shields absorb damage and pop; direct hits damage the castle", () => {
   const s = createRound({ seed: 16, playerCount: 2, tuning: { gravity: 0 } });
   clearSky(s);
+  openWorld(s);
   const target = s.castles[1];
   assert.ok(target);
   target.shieldHp = 2;
-  const center = castleCenter(target, s.tuning);
+  const center = castleCenter(target);
   addRocket(s, { owner: 0, x: center.x, y: center.y - 150, vx: 0, vy: 600 });
   let events = run(s, 20);
   const shieldHits = eventsOf(events, "hit");
@@ -288,9 +505,10 @@ test("shields absorb damage and pop; direct hits damage the castle", () => {
 test("own rockets never hurt their own castle", () => {
   const s = createRound({ seed: 17, playerCount: 2, tuning: { gravity: 0 } });
   clearSky(s);
+  openWorld(s);
   const me = s.castles[0];
   assert.ok(me);
-  const center = castleCenter(me, s.tuning);
+  const center = castleCenter(me);
   addRocket(s, { owner: 0, x: center.x, y: center.y - 150, vx: 0, vy: 600 });
   assert.equal(eventsOf(run(s, 30), "hit").length, 0);
   assert.equal(me.hp, me.maxHp);
@@ -299,12 +517,13 @@ test("own rockets never hurt their own castle", () => {
 test("destroying the last opponent ends the round with a winner", () => {
   const s = createRound({ seed: 18, playerCount: 3, tuning: { gravity: 0 } });
   clearSky(s);
+  openWorld(s);
   const [a, b, c] = s.castles;
   assert.ok(a && b && c);
   b.hp = 1;
   c.hp = 1;
   for (const t of [b, c]) {
-    const center = castleCenter(t, s.tuning);
+    const center = castleCenter(t);
     addRocket(s, { owner: 0, x: center.x, y: center.y - 50, vx: 0, vy: 600 });
   }
   const events = run(s, 20);
@@ -337,12 +556,13 @@ test("destroying the last opponent ends the round with a winner", () => {
 test("a simultaneous wipe-out is a draw", () => {
   const s = createRound({ seed: 19, playerCount: 2, tuning: { gravity: 0 } });
   clearSky(s);
+  openWorld(s);
   const [a, b] = s.castles;
   assert.ok(a && b);
   a.hp = 1;
   b.hp = 1;
   for (const t of [a, b]) {
-    const center = castleCenter(t, s.tuning);
+    const center = castleCenter(t);
     addRocket(s, {
       owner: -1,
       bomb: true,
@@ -372,6 +592,39 @@ test("the fuse starts sudden death: bombs fall and damage escalates", () => {
   assert.ok(damageScale(s) > 1);
 });
 
+test("sudden-death bombs appear a fixed height above a living castle, under any ceiling", () => {
+  const s = createRound({
+    seed: 20,
+    playerCount: 3,
+    tuning: { fuseTime: 0.1 },
+  });
+  const grid = s.terrain;
+  openWorld(s);
+  assert.equal(bombStartY(grid, 1000, 1500, 600), 900);
+  assert.equal(bombStartY(grid, 1000, 300, 600), grid.cell, "inside the top");
+  fillRect(grid, 900, 1100, 1100, 1200, "rock");
+  assert.equal(bombStartY(grid, 1000, 1500, 600), 1200 + grid.cell / 2);
+  openWorld(s);
+  clearSky(s);
+  const { bombHeight, bombScatter } = s.tuning;
+  const seen = new Set<number>();
+  for (let i = 0; i < 4 * TICK_HZ; i++) {
+    step(s);
+    for (const r of s.rockets) {
+      if (!r.bomb || seen.has(r.id)) continue;
+      seen.add(r.id);
+      // One step after it appeared: within the scatter and about `bombHeight` above some castle.
+      const above = s.castles.some(
+        (c) =>
+          Math.abs(r.x - c.x) <= bombScatter[0] + 10 &&
+          Math.abs(r.y - Math.max(grid.cell, c.y - bombHeight)) < 10,
+      );
+      assert.ok(above, `bomb at ${r.x}, ${r.y}`);
+    }
+  }
+  assert.ok(seen.size >= 3, `${seen.size} bombs`);
+});
+
 test("the round is decided on HP at the hard time limit", () => {
   const s = createRound({
     seed: 21,
@@ -399,21 +652,7 @@ test("the round is decided on HP at the hard time limit", () => {
   assert.equal(tie.result?.winner, null);
 });
 
-test("arcs narrow toward the remaining opponents", () => {
-  const s = createRound({ seed: 22, playerCount: 3 });
-  clearSky(s);
-  const mid = s.castles[1];
-  const right = s.castles[2];
-  assert.ok(mid && right);
-  assert.equal(mid.facing, "both");
-  right.alive = false;
-  step(s);
-  assert.equal(mid.facing, "left");
-  assert.ok(mid.arcMin > 90 * DEG);
-  assert.ok(mid.angle >= mid.arcMin && mid.angle <= mid.arcMax);
-});
-
-test("futureAngle predicts the metronome sweep", () => {
+test("futureAngle predicts the launcher's turn exactly", () => {
   const s = createRound({ seed: 23, playerCount: 4 });
   clearSky(s);
   const ks = [0, 1, 17, 90, 250];
@@ -427,6 +666,24 @@ test("futureAngle predicts the metronome sweep", () => {
     expected,
     ks.map((k) => seen[k]),
   );
+  assert.throws(() => futureAngle(s, 9, 1), RangeError);
+});
+
+test("the view's terrain can be queried but not written or carved", () => {
+  const s = createRound({ seed: 25, playerCount: 2 });
+  const grid = view(s).terrain;
+  assert.equal(grid.solid.length, s.terrain.solid.length);
+  assert.equal(gridHash(grid), gridHash(s.terrain));
+  // Compile-time guarantees, so nothing here runs: a bot or renderer holding the view cannot dig or write through it.
+  const mutate = () => {
+    // @ts-expect-error carveCircle wants the writable Grid
+    carveCircle(grid, 0, 0, 1);
+    // @ts-expect-error the bitsets are read-only array-likes
+    grid.solid[0] = 0;
+    // @ts-expect-error and so is the version
+    grid.version = 7;
+  };
+  assert.equal(typeof mutate, "function");
 });
 
 test("the view hides the RNG and the spawn schedule", () => {

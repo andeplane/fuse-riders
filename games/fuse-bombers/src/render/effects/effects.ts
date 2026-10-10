@@ -1,15 +1,24 @@
 import Phaser from "phaser";
 import {
-  ARENA_HEIGHT,
-  ARENA_WIDTH,
   castleCenter,
   launcherPivot,
+  solidAt,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
   type RoundView,
   type TickEvent,
 } from "../../engine/index.js";
 import * as art from "../art.js";
 import { css, gateColor, playerColor, THEMES } from "../palette.js";
-import { DEPTH, ROUND_EVENTS, ROUND_START } from "../round-scene.js";
+import {
+  DEPTH,
+  ROUND_EVENTS,
+  ROUND_START,
+  VIEW_HEIGHT,
+  VIEW_WIDTH,
+  type Frame,
+} from "../round-scene.js";
+import { CHUNK_FOOT, restingPlace } from "./landing.js";
 import { addHit, driftY, TALLY_RISE, type TallyState } from "./tally.js";
 import { addFxTextures } from "./textures.js";
 
@@ -29,7 +38,7 @@ const MAX_BURSTS = 16;
 const SHAKE_PX = 12;
 /** Smoke grid cell size (px) and columns: one trail puff per cell and frame. */
 const CELL = 20;
-const COLS = Math.ceil(ARENA_WIDTH / CELL);
+const COLS = Math.ceil(WORLD_WIDTH / CELL);
 const INK = 0x1b1d26;
 const DIRT = [0x8a5a37, 0x6b4428, 0xb07a4c, 0x5d3b24];
 const STONE = [0xdfe2e8, 0xaeb4c2, 0xc8ccd6, 0x3a2a22];
@@ -112,7 +121,7 @@ export class Effects {
   private cursor = 0;
   private stamp = 0;
   private readonly cells = new Int32Array(
-    COLS * Math.ceil(ARENA_HEIGHT / CELL),
+    COLS * Math.ceil(WORLD_HEIGHT / CELL),
   );
   private now = 0;
   // Read by the emitters' callbacks, set just before each emit.
@@ -122,11 +131,21 @@ export class Effects {
   private debrisSpeed = 300;
   private debrisTints: readonly number[] = DIRT;
   private dirt: readonly number[] = DIRT;
+  /** The world camera's resting framing; shake moves around it. */
+  private readonly framing: Frame;
+  /** Text grows by this so damage numbers keep their screen size when the world is zoomed out. */
+  private readonly textScale: number;
 
   constructor(
     private readonly scene: Phaser.Scene,
-    options: { calm?: boolean } = {},
+    options: { calm?: boolean; frame?: Frame } = {},
   ) {
+    this.framing = options.frame ?? {
+      zoom: 1,
+      x: VIEW_WIDTH / 2,
+      y: VIEW_HEIGHT / 2,
+    };
+    this.textScale = 1 / this.framing.zoom;
     const query = new URLSearchParams(window.location.search);
     this.calm =
       options.calm ??
@@ -213,7 +232,9 @@ export class Effects {
     this.gateTimes.clear();
     this.shieldTimes.clear();
     this.trauma = 0;
-    this.scene.cameras.main?.setScroll(0, 0).setZoom(1);
+    this.scene.cameras.main
+      ?.setZoom(this.framing.zoom)
+      .centerOn(this.framing.x, this.framing.y);
   }
 
   private frame(events: readonly TickEvent[], view: RoundView): void {
@@ -298,18 +319,24 @@ export class Effects {
     let bursts = 0;
     for (const b of craters.values()) if (bursts++ < MAX_BURSTS) this.crater(b);
     for (const [id, h] of hits) this.hit(view, id, h);
-    this.land(view);
+    this.land(view, dt);
     this.animate(dt);
-    this.applyShake();
   }
 
-  /** Bricks and clods come to rest on the ground instead of sinking into it. */
-  private land(view: RoundView): void {
-    const surface = view.terrain.surface;
+  /**
+   * Bricks and clods come to rest on rock instead of sinking into it: where their path this frame (`dt` ms) met it,
+   * not where the frame ended, since a fast chunk ends the frame well inside.
+   */
+  private land(view: RoundView, dt: number): void {
+    const grid = view.terrain;
+    const seconds = dt / 1000;
     this.debris.forEachAlive((p: Chunk) => {
-      const ground = surface[Math.round(p.x)];
-      if (ground === undefined || p.velocityY < 0 || p.y < ground - 3) return;
-      p.y = ground - 3;
+      if (p.velocityY < 0 || !solidAt(grid, p.x, p.y + CHUNK_FOOT)) return;
+      const from = {
+        x: p.x - p.velocityX * seconds,
+        y: p.y - p.velocityY * seconds,
+      };
+      ({ x: p.x, y: p.y } = restingPlace(grid, from, p));
       p.velocityX = p.velocityY = 0;
       p.landed = true;
     }, this);
@@ -409,7 +436,7 @@ export class Effects {
       const last = this.shieldTimes.get(id) ?? -1e9;
       if (this.now - last > 120) {
         this.shieldTimes.set(id, this.now);
-        const o = castleCenter(c, view.tuning);
+        const o = castleCenter(c);
         const s = (2 * view.tuning.shieldRadius) / 64;
         this.ring(o.x, o.y, 0x9ff3ff, s * 0.92, s * 1.12, 260, 0.9);
       }
@@ -430,13 +457,17 @@ export class Effects {
     const hit = addHit(prev, this.now, damage);
     let t = prev;
     if (!t || hit.fresh) {
-      const top = y - art.CASTLE_SIZE.height - 40;
-      const left = Phaser.Math.Clamp(x + rand(-18, 18), 110, ARENA_WIDTH - 110);
+      const top = y - art.HULL_TOP - 40 * this.textScale;
+      const left = Phaser.Math.Clamp(
+        x + rand(-18, 18) * this.textScale,
+        110,
+        WORLD_WIDTH - 110,
+      );
       const fx = this.show(this.text(), left, top, {
         life: 1100,
         grow: 140,
         hold: 0.55,
-        vy: -TALLY_RISE,
+        vy: -TALLY_RISE * this.textScale,
       });
       (fx.obj as Phaser.GameObjects.Text).setColor("#9ff3ff");
       this.tallies.set(id, (t = Object.assign(hit.tally, { fx })));
@@ -474,14 +505,14 @@ export class Effects {
       .setBlendMode(Phaser.BlendModes.ADD);
     if (this.now - last < 420) return;
     // The gate's "×N" label pulses outwards.
-    const top = gate.y - gate.height / 2 - 26;
+    const top = gate.y - gate.height / 2 - 26 * this.textScale;
     const pop = this.show(this.text(), gate.x, top, {
       life: 450,
       s0: 0.9,
       s1: 2,
       grow: 450,
       hold: 0,
-      vy: -40,
+      vy: -40 * this.textScale,
     });
     (pop.obj as Phaser.GameObjects.Text)
       .setText(`×${mult}`)
@@ -491,7 +522,7 @@ export class Effects {
   private shieldPop(view: RoundView, id: number): void {
     const c = view.castles[id];
     if (!c) return;
-    const o = castleCenter(c, view.tuning);
+    const o = castleCenter(c);
     const s = (2 * view.tuning.shieldRadius) / 64;
     this.ring(o.x, o.y, 0x9ff3ff, s, s * 2.2, 380, 1);
     this.chunks(o.x, o.y - 20, SHIELD, 420, 20);
@@ -518,8 +549,7 @@ export class Effects {
     fx.obj.setScale(36 / fx.obj.width);
   }
 
-  private castleDestroyed(id: number, x: number, y: number): void {
-    const cy = y - art.CASTLE_SIZE.height / 2;
+  private castleDestroyed(id: number, x: number, cy: number): void {
     this.boom(x, cy, 2.4, 380, 45);
     const roof = playerColor(id);
     this.chunks(x, cy, [...STONE, roof, roof, INK], 650, 40);
@@ -561,18 +591,16 @@ export class Effects {
   private flash(tint: number, alpha: number): void {
     // Full-screen flashes count as motion: `?calm` and reduced motion skip them.
     if (this.calm) return;
-    const fx = this.show(
-      this.image("fx-px"),
-      ARENA_WIDTH / 2,
-      ARENA_HEIGHT / 2,
-      {
-        life: 320,
-        a0: alpha,
-        hold: 0,
-      },
-    );
+    const { x, y, zoom } = this.framing;
+    const fx = this.show(this.image("fx-px"), x, y, {
+      life: 320,
+      a0: alpha,
+      hold: 0,
+    });
     const img = fx.obj as Phaser.GameObjects.Image;
-    img.setDisplaySize(ARENA_WIDTH + 80, ARENA_HEIGHT + 80).setTint(tint);
+    img
+      .setDisplaySize((VIEW_WIDTH + 80) / zoom, (VIEW_HEIGHT + 80) / zoom)
+      .setTint(tint);
     img.setDepth(DEPTH.banner - 1);
   }
 
@@ -614,7 +642,11 @@ export class Effects {
       y0: y,
       ...o,
     };
-    obj.setPosition(x, y).setVisible(true).setAlpha(fx.a0).setScale(fx.s0);
+    obj
+      .setPosition(x, y)
+      .setVisible(true)
+      .setAlpha(fx.a0)
+      .setScale(fx.s0 * this.scaleOf(obj));
     this.active.push(fx);
     return fx;
   }
@@ -642,7 +674,9 @@ export class Effects {
       const obj = fx.obj;
       obj.setAlpha(fx.a0 * fade);
       if (fx.s0 !== fx.s1)
-        obj.setScale(fx.s0 + (fx.s1 - fx.s0) * (1 - (1 - g) ** 2));
+        obj.setScale(
+          (fx.s0 + (fx.s1 - fx.s0) * (1 - (1 - g) ** 2)) * this.scaleOf(obj),
+        );
       if (fx.fly) {
         const { x0, y0, x1, y1 } = fx.fly;
         const e = Math.min(1, t / fx.hold) ** 2;
@@ -654,21 +688,31 @@ export class Effects {
     }
   }
 
+  private scaleOf(obj: Visual): number {
+    return obj instanceof Phaser.GameObjects.Text ? this.textScale : 1;
+  }
+
   private shake(amount: number): void {
     this.trauma = Math.min(1, this.trauma + amount);
   }
 
-  /** Trauma-style shake: offsets grow with trauma², with a matching zoom so the edges never show. */
-  private applyShake(): void {
+  /**
+   * Trauma-style shake: offsets grow with trauma², with a matching zoom so the edges never show. The scene calls this
+   * once a frame before it draws anything that projects through the camera (the HUD), so the HUD and the world are
+   * drawn through the same shaken camera; this frame's explosions add their trauma for the next call.
+   */
+  applyShake(): void {
     const cam = this.scene.cameras.main;
     this.trauma = Math.max(0, this.trauma - this.scene.game.loop.delta / 700);
     if (this.calm || !cam) return;
     const k = this.trauma * this.trauma;
     const t = this.now / 1000;
-    cam.setZoom(1 + k * 0.03);
-    cam.setScroll(
-      SHAKE_PX * k * (Math.sin(t * 67) * 0.7 + Math.sin(t * 131) * 0.3),
-      SHAKE_PX * k * (Math.sin(t * 59 + 1) * 0.7 + Math.sin(t * 113) * 0.3),
+    const { zoom, x, y } = this.framing;
+    const px = (SHAKE_PX * k) / zoom;
+    cam.setZoom(zoom * (1 + k * 0.03));
+    cam.centerOn(
+      x + px * (Math.sin(t * 67) * 0.7 + Math.sin(t * 131) * 0.3),
+      y + px * (Math.sin(t * 59 + 1) * 0.7 + Math.sin(t * 113) * 0.3),
     );
   }
 }
