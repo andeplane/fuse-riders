@@ -81,10 +81,65 @@ test("sin and cos at zero, π and the multiples of 2π", () => {
   assert.equal(sin(Number.MIN_VALUE), Number.MIN_VALUE);
 });
 
-test("sin is odd and cos is even, bit for bit", () => {
-  for (const x of [...ANGLES, ...SPECIAL_ANGLES]) {
+/** The odd multiples of π/4: where x·2/π is a half-integer, so a reduction that rounds half up (`Math.round`) picks a
+ * different multiple of π/2 for x than for −x. */
+const ODD_QUARTER_TURNS = Array.from(
+  { length: 200 },
+  (_, i) => ((2 * i + 1) * PI) / 4,
+);
+
+test("sin is odd and cos is even, bit for bit, even where the reduction rounds a half", () => {
+  for (const x of [...ANGLES, ...SPECIAL_ANGLES, ...ODD_QUARTER_TURNS]) {
     assert.ok(Object.is(sin(-x), -sin(x)), `sin(-${x})`);
     assert.ok(Object.is(cos(-x), cos(x)), `cos(-${x})`);
+  }
+});
+
+test("sin and cos stay accurate relative to their own size next to the zeros, where an absolute bound says little", () => {
+  // x is within a few ulps of a multiple of π/2 (and so off it by up to ~1e-14), so the result is tiny or about ±1.
+  const nearZeros: number[] = [];
+  for (let k = 1; k <= 1_000_000; k = Math.ceil(k * 1.37)) {
+    let x = (k * PI) / 2;
+    for (let i = 0; i < 12; i++) {
+      nearZeros.push(x, -x);
+      x *= 1 + Number.EPSILON;
+    }
+  }
+  for (const x of nearZeros) {
+    for (const [actual, expected, name] of [
+      [sin(x), Math.sin(x), "sin"],
+      [cos(x), Math.cos(x), "cos"],
+    ] as const)
+      assert.ok(
+        Math.abs(actual - expected) <= 1e-15 * Math.abs(expected),
+        `${name}(${x}): ${actual} vs ${expected}`,
+      );
+  }
+});
+
+test("sin and cos of an argument beyond exact reduction stay in [-1, 1], deterministic and near Math", () => {
+  for (const x of [
+    1.7e6,
+    1e7,
+    1e9,
+    1e12,
+    1e15,
+    1e20,
+    1e300,
+    Number.MAX_VALUE,
+  ]) {
+    for (const v of [x, -x]) {
+      const s = sin(v);
+      const c = cos(v);
+      assert.ok(
+        Math.abs(s) <= 1 && Math.abs(c) <= 1,
+        `sin/cos(${v}): ${s}, ${c}`,
+      );
+      assertClose(s * s + c * c, 1, 1e-15, `sin² + cos² at ${v}`);
+      assert.ok(Object.is(sin(v), s));
+      // `x % 2π` is by the double 2π, so the error grows with x (about 4e-17 per radian) until it is noise.
+      if (x <= 1e9) assertClose(s, Math.sin(v), x * 5e-17 + 1e-15, `sin(${v})`);
+    }
   }
 });
 
@@ -130,7 +185,9 @@ test("atan2's signed zeros, axes and infinities", () => {
   assert.equal(atan2(1, -1), (3 * PI) / 4);
   assert.equal(atan2(-1, -1), (-3 * PI) / 4);
   assert.equal(atan2(Infinity, Infinity), PI / 4);
-  assert.equal(atan2(-Infinity, -Infinity), Math.atan2(-Infinity, -Infinity));
+  assert.equal(atan2(-Infinity, -Infinity), (-3 * PI) / 4);
+  assert.equal(atan2(-Infinity, Infinity), -PI / 4);
+  assert.equal(atan2(Infinity, -Infinity), (3 * PI) / 4);
   assert.equal(atan2(Infinity, 5), PI / 2);
   assert.ok(Object.is(atan2(-5, Infinity), -0));
   assert.equal(atan2(5, -Infinity), PI);
