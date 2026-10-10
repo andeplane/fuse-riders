@@ -1,5 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {
+  ATTACK,
+  createWorld,
+  spawnEnemy,
+  step,
+  toView,
+} from "../src/engine/index.js";
+import { px } from "../src/engine/tuning.js";
 import type {
   EnemyView,
   FxView,
@@ -22,6 +30,7 @@ import { RAVAGER, RAVAGER_ANIMS } from "../src/render/art/ravager.js";
 import { createBackdrop } from "../src/render/backdrop/backdrop.js";
 import type { Pen } from "../src/render/pen.js";
 import {
+  BLINK_FRAMES,
   createLooks,
   createScene,
   deadShows,
@@ -102,7 +111,7 @@ const hero = (
   more: Partial<HeroView> = {},
 ): HeroView => ({
   ...{ id, seat, kind: "brakka", x, y, z: 0, facing: 1 },
-  ...{ anim: "idle", animStep: 0 },
+  ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, invulnerable: false },
   ...more,
 });
 const enemy = (
@@ -233,6 +242,25 @@ test("a defeated enemy lies still, then blinks out over DEAD_STEPS, shadow and a
   assert.ok(blinking.includes(true) && blinking.includes(false));
   assert.deepEqual(blinking, steps.slice(still.length).map(deadShows));
   assert.equal(shown(DEAD_STEPS), false);
+});
+
+test("an invulnerable hero blinks its sprite, keeping its shadow and marker; a vulnerable one never does", () => {
+  const shows = (invulnerable: boolean, frame: number) => {
+    const view = world({
+      heroes: [hero(1, 0, 100, 140, { invulnerable, anim: "getup" })],
+    });
+    const { sprites, shadows, markers } = draw(view, frame);
+    assert.equal(shadows.length, 1);
+    assert.equal(markers.length, 1);
+    return sprites.length === 1;
+  };
+  const frames = Array.from({ length: 4 * BLINK_FRAMES }, (_, i) => i);
+  assert.ok(frames.every((frame) => shows(false, frame)));
+  assert.deepEqual(
+    frames.map((frame) => shows(true, frame)),
+    frames.map((frame) => Math.floor(frame / BLINK_FRAMES) % 2 === 0),
+  );
+  assert.ok(frames.some((frame) => !shows(true, frame)));
 });
 
 test("duplicate heroes each get a palette of their own, the same on every draw", () => {
@@ -430,6 +458,44 @@ test("an anim strip loops or holds its last frame, and never throws", () => {
   assert.deepEqual(at({ ...strip, loop: false }), [
     ...["a", "a", "b", "b", "b", "b", "a", "a", "b"],
   ]);
+});
+
+test("the scene draws every view of real brawls, heroes cut down and ravagers beaten alike", () => {
+  const { scene } = fakeScene();
+  const seen = { heroes: new Set<string>(), enemies: new Set<string>() };
+  for (const [swing, enemies] of [
+    [() => 0, 5],
+    [(i: number) => (i % 30 < 20 ? ATTACK : 0), 5],
+  ] as const) {
+    let brawl = createWorld({
+      seed: 7,
+      heroes: [
+        { seat: 0, kind: "brakka" },
+        { seat: 1, kind: "rhea" },
+      ],
+    });
+    const { x, y } = brawl.heroes[0]!;
+    for (let i = 0; i < enemies; i++)
+      brawl = spawnEnemy(
+        brawl,
+        "ravager",
+        x + px(60 + 25 * i),
+        y + px((i % 3) * 8),
+        (i % 3) as 0,
+      );
+    for (let i = 0; i < 3000; i++) {
+      brawl = step(brawl, [swing(i), swing(i + 10)]);
+      const view = toView(brawl);
+      for (const h of view.heroes) seen.heroes.add(h.anim);
+      for (const e of view.enemies) seen.enemies.add(e.anim);
+      scene.draw(new RecordingPen(), view, i);
+    }
+  }
+  // The brawls do reach the states the art has to cover: a hero hurt and cut down, a ravager winding up and swinging.
+  for (const anim of ["hurt", "dead"] as const)
+    assert.ok(seen.heroes.has(anim));
+  for (const anim of ["windup", "attack"] as const)
+    assert.ok(seen.enemies.has(anim));
 });
 
 /** A paint that writes into an RGBA buffer, to read back what `paintPixels` drew. */
