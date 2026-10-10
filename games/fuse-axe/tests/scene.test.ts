@@ -275,16 +275,17 @@ test("duplicate heroes each get a palette of their own, the same on every draw",
     draw(world({ heroes: five })).sprites.map((b) => b.image),
     images,
   );
-  // A hero whose art has not landed borrows Brakka's figure in a palette no Brakka in the party wears.
+  // A mixed party: each hero is drawn as its own kind, the first of a kind in seat order in its own colours.
   const kinds: HeroKind[] = ["brakka", "gorm", "brakka", "rhea", "gorm"];
   const mixed = five.map((h, i) => ({ ...h, kind: kinds[i]! }));
   const looks = heroLooks([...mixed].reverse());
   const pairs = mixed.map((h) => looks.get(h.id)!);
-  for (const [i, look] of pairs.entries()) {
-    if (HEROES[kinds[i]!]) continue;
-    assert.equal(look.figure, BRAKKA);
-    assert.notEqual(look.swap, undefined, `${kinds[i]} is not Brakka`);
-  }
+  for (const [i, look] of pairs.entries())
+    assert.equal(look.figure, HEROES[kinds[i]!].figure);
+  assert.deepEqual(
+    pairs.map((look) => look.swap === undefined),
+    [true, true, false, true, false],
+  );
   const same = pairs.filter((a, i) =>
     pairs.some((b, j) => i < j && a.figure === b.figure && a.swap === b.swap),
   );
