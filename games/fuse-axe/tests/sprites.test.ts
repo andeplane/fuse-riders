@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { HERO_FRAMES } from "../src/render/art/animate.js";
 import { FIGURES } from "../src/render/art/index.js";
 import { BRAKKA, BRAKKA_POSES, paintBrakka } from "../src/render/art/brakka.js";
 import { adjust, arm, fist, leg } from "../src/render/pixel/kit.js";
@@ -104,7 +105,7 @@ test("a palette swap recolours only the keys the sprite uses", () => {
 });
 
 test("flipping mirrors a sprite about its feet anchor", () => {
-  const right = BRAKKA.sprite("slash");
+  const right = BRAKKA.sprite("strike1");
   const left = flipSprite(right);
   assert.equal(left.ay, right.ay);
   assert.notDeepEqual(left.rows, right.rows);
@@ -246,34 +247,33 @@ test("stamps set pixels by hand: a space keeps one, a dot clears it, off the can
 
 test("a pose paints the same rows every time, and a figure paints each frame once", () => {
   assert.deepEqual(
-    paintBrakka(BRAKKA_POSES.slash),
-    paintBrakka(BRAKKA_POSES.slash),
+    paintBrakka(BRAKKA_POSES.strike1),
+    paintBrakka(BRAKKA_POSES.strike1),
   );
-  assert.deepEqual(BRAKKA.frames, ["idle", "slash"]);
-  assert.equal(BRAKKA.sprite("idle"), BRAKKA.sprite("idle"));
+  assert.deepEqual(BRAKKA.frames, HERO_FRAMES);
+  assert.equal(BRAKKA.sprite("idle0"), BRAKKA.sprite("idle0"));
 });
 
 test("adjust moves only the joints it names", () => {
-  const { idle } = BRAKKA_POSES;
-  const hand: Point = [37, 21];
-  // The sword now reaches past the idle canvas, so the pose widens it; painting on its edge would throw.
-  const raised = adjust(idle, { size: [60, 52], near: { hand }, sword: -40 });
+  const { idle0: idle } = BRAKKA_POSES;
+  const hand: Point = [50, 40];
+  const raised = adjust(idle, { near: { hand }, sword: -40 });
   assert.deepEqual(raised.near, { ...idle.near, hand });
   assert.deepEqual(
     [raised.far, raised.head, raised.sword],
     [idle.far, idle.head, -40],
   );
-  assert.notDeepEqual(paintBrakka(raised).rows, BRAKKA.sprite("idle").rows);
+  assert.notDeepEqual(paintBrakka(raised).rows, BRAKKA.sprite("idle0").rows);
 });
 
 test("body parts take their materials from the options", () => {
-  const side = BRAKKA_POSES.idle.near;
-  const rig = new Rig(48, 52);
+  const side = BRAKKA_POSES.idle0.near;
+  const rig = new Rig(84, 78);
   leg(rig, side, { material: "o", boot: "i", cuff: "w", thick: 1.2 });
   arm(rig, side, { material: "L", bracer: "m", pad: "n" });
   fist(rig, side.hand, { material: "B" });
   const ramps = new Set(
-    Object.keys(rig.bake().sprite([30, 50]).palette).map((key) =>
+    Object.keys(rig.bake().sprite([36, 74]).palette).map((key) =>
       shade(key, 0),
     ),
   );
@@ -314,7 +314,7 @@ test("the baker paints a sprite, flipped, swapped or flashing, into surfaces it 
     return { image, paint: image.paint };
   };
   const baker = createSpriteBaker(make);
-  const slash = BRAKKA.sprite("slash");
+  const slash = BRAKKA.sprite("strike1");
   const plain = baker.bake(slash);
   assert.deepEqual(plain.image.paint.pixels, expected(slash));
   assert.deepEqual(
@@ -352,7 +352,7 @@ test("every flip and flash combination is a variant of its own, painted from the
     return { image, paint: image.paint };
   };
   const baker = createSpriteBaker(make);
-  const slash = BRAKKA.sprite("slash");
+  const slash = BRAKKA.sprite("strike1");
   const swap = BRAKKA.swaps.second!;
   const variants = [false, true].flatMap((flip) =>
     [false, true].map((flash) => ({ flip, flash })),
@@ -382,7 +382,7 @@ test("the baker rejects a swap that is not a colour, whether or not the sprite f
     made++;
     return { image: null, paint: new FakePaint() };
   });
-  const slash = BRAKKA.sprite("slash");
+  const slash = BRAKKA.sprite("strike1");
   for (const color of ["red", "#abc", "#12345g"])
     for (const flash of [false, true])
       assert.throws(
