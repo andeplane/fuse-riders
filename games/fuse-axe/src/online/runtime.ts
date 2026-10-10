@@ -41,7 +41,11 @@ export class AxeRuntime extends RoomRuntime<
     this.bits = bits & INPUT_MASK;
     this.flush();
   }
-  /** Re-logs the held bits when the stage has moved on since they were last logged. */
+  /**
+   * Re-logs the held bits when the stage has moved on since they were last logged. The runtime does not call it on
+   * its own: the page calls it from its `state` callback, so a key held across the start of a run or a stage is
+   * logged for the new one without a fresh key event.
+   */
   flush(): void {
     const room = this.world?.state,
       seat = this.player();
@@ -60,13 +64,16 @@ export class AxeRuntime extends RoomRuntime<
     this.sendPackets(this.deps.now());
   }
   /**
-   * Picks this member's hero for the next run. Refused unless the room is in the lobby or the run is over, the only
-   * stages whose fold applies a pick: one logged in a run or in camp between its stages would be dropped.
+   * Picks this member's hero for the next run. Refused unless every condition the fold applies a pick under holds
+   * here: a seat that is present (not a watcher, and not absent or away, whose entries the fold skips) in the lobby or
+   * once the run is over, the only stages that apply one. `true` means the pick was logged, not that it landed: the
+   * room can start a run before the entry's tick, and the fold then drops it, so the screen shows the hero a seat
+   * plays from the view (`SeatView.hero`), never from this return.
    */
   pick(hero: HeroKind): boolean {
     if (
       !isHero(hero) ||
-      !this.player() ||
+      !this.player()?.connected ||
       this.hiddenState ||
       !picksApply(this.world!.state.stage)
     )

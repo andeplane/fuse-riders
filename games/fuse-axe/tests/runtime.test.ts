@@ -3,16 +3,19 @@ import assert from "node:assert/strict";
 import {
   ACTION,
   JOIN,
+  PRESENCE,
   World,
+  decodePacket,
   encodeSnapshot,
   roomHash,
   type Stage,
   type StreamEntries,
 } from "fuse-netcode";
-import { RESERVED_KEYS } from "fuse-platform";
+import { Platform, RESERVED_KEYS, type AccountRules } from "fuse-platform";
 import { RIGHT, type HeroKind } from "../src/engine/index.js";
 import {
   DEFAULT_SETTINGS,
+  PLAY,
   axeGame,
   createRoom,
   decode,
@@ -21,6 +24,7 @@ import {
   type Entry,
   type Room,
 } from "../src/online/game.js";
+import { isHero, validName } from "../src/online/names.js";
 import { axeRegistration } from "../src/platform.js";
 import { Mesh } from "./fixtures/mesh.js";
 
@@ -164,8 +168,11 @@ test("a hero is picked in the lobby; held controls are logged when the run begin
   mesh.leave("host");
 });
 
-/** `host` (Rhea) and `late` (Brakka) seated and run `m1` started by the pure fold, then restored as a room in `stage`. */
-function roomIn(stage: Stage): Room {
+/**
+ * `host` (Rhea) and `late` (Brakka) seated and run `m1` started by the pure fold, then restored as a room in `stage`
+ * (with `late` logged absent when `present` is false).
+ */
+function roomIn(stage: Stage, present = true): Room {
   const room = createRoom("m0", DEFAULT_SETTINGS);
   let seq = 0;
   const fold = (...bodies: unknown[][]) => {
@@ -183,9 +190,40 @@ function roomIn(stage: Stage): Room {
   fold([ACTION, "start", "m1"]);
   const fields = structuredClone(encode(room));
   fields[2] = stage;
+  for (const seat of fields[4] as { id: string; connected: boolean }[])
+    if (seat.id === "late") seat.connected = present;
   const restored = decode(fields, room.tick);
   assert.ok(restored, `a room in ${stage} restores`);
   return restored;
+}
+
+/**
+ * The `host` of a mesh as a peer this test speaks for: it serves `served` to a device that asks for the room, and
+ * collects the entries every other device logs (each once, in the order they were first heard).
+ */
+function serve(mesh: Mesh, served: Room): Entry[] {
+  const heard: Entry[] = [],
+    seen = new Set<string>();
+  mesh.script(
+    "host",
+    (from, data) => {
+      if ((data as { type?: unknown }).type !== "snapshotRequest") return;
+      const world = new World(axeGame, structuredClone(served), "host", "host");
+      for (const chunk of encodeSnapshot(world, roomHash("ROOM:host")))
+        mesh.say("host", from, chunk);
+    },
+    (from, bytes) => {
+      const decoded = decodePacket(axeGame, bytes);
+      if (!decoded || !("packet" in decoded)) return;
+      for (const entry of decoded.packet.entries) {
+        const key = `${from}:${decoded.packet.generation}:${entry[0]}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        heard.push(entry);
+      }
+    },
+  );
+  return heard;
 }
 
 test("a hero is picked only in the lobby or after game over, never in a run or in camp between its stages", () => {
@@ -194,15 +232,8 @@ test("a hero is picked only in the lobby or after game over, never in a run or i
     ["running", false],
     ["over", true],
   ] as const) {
-    // The host is a peer this test speaks for: it serves the room in `stage` to the device that joins.
-    const mesh = new Mesh("host", DEFAULT_SETTINGS),
-      served = roomIn(stage);
-    mesh.script("host", (from, data) => {
-      if ((data as { type?: unknown }).type !== "snapshotRequest") return;
-      const world = new World(axeGame, structuredClone(served), "host", "host");
-      for (const chunk of encodeSnapshot(world, roomHash("ROOM:host")))
-        mesh.say("host", from, chunk);
-    });
+    const mesh = new Mesh("host", DEFAULT_SETTINGS);
+    serve(mesh, roomIn(stage));
     const late = mesh.join("late");
     mesh.run(300);
     assert.equal(late.roomState()?.stage, stage, "the room came from a peer");
@@ -215,8 +246,76 @@ test("a hero is picked only in the lobby or after game over, never in a run or i
   }
 });
 
+test("a seat the fold would skip picks nothing: one logged absent, a watcher", () => {
+  const mesh = new Mesh("host", DEFAULT_SETTINGS);
+  serve(mesh, roomIn("over", false));
+  const late = mesh.join("late");
+  mesh.run(300);
+  assert.equal(late.roomState()?.seats.get("late")?.connected, false);
+  assert.ok(!late.pick("gorm"), "absent: the fold skips its entries");
+  mesh.run(300);
+  assert.equal(late.roomState()!.seats.get("late")!.avatarId, "brakka");
+  const watcher = mesh.join("watcher");
+  watcher.command({ type: "spectate", name: "Watcher" });
+  mesh.run(500);
+  assert.ok(!watcher.pick("gorm"), "a watcher has no hero");
+});
+
+test("held controls leave a device only in a run it plays: not in camp or after game over, and a hidden page lets go", () => {
+  for (const [stage, logged] of [
+    ["between", false],
+    ["over", false],
+    ["running", true],
+  ] as const) {
+    const mesh = new Mesh("host", DEFAULT_SETTINGS),
+      heard = serve(mesh, roomIn(stage));
+    const late = mesh.join("late");
+    mesh.run(300);
+    assert.equal(late.roomState()?.stage, stage, "the room came from a peer");
+    // A run's first entry from a device says what it holds then (nothing), the next what it does: only the bits a hero
+    // has (the stray bit is cut).
+    late.input(RIGHT | 0x8000);
+    mesh.run(300);
+    assert.deepEqual(
+      heard.filter((entry) => entry[2] === PLAY).map((entry) => entry.slice(2)),
+      logged
+        ? [
+            [PLAY, "m1", 1, 0],
+            [PLAY, "m1", 1, RIGHT],
+          ]
+        : [],
+      `held controls in ${stage}`,
+    );
+    mesh.hide("late", true);
+    mesh.run(300);
+    assert.deepEqual(
+      heard
+        .filter((entry) => entry[2] === PLAY || entry[2] === PRESENCE)
+        .map((entry) => entry.slice(2)),
+      logged
+        ? [
+            [PLAY, "m1", 1, 0],
+            [PLAY, "m1", 1, RIGHT],
+            [PLAY, "m1", 1, 0],
+            [PRESENCE, "late", false, 1],
+          ]
+        : [[PRESENCE, "late", false, 1]],
+      `a hidden page in ${stage} releases what it held and steps away`,
+    );
+  }
+});
+
 test("the platform registration admits rooms and records nothing yet", () => {
-  assert.equal(axeRegistration.id, "fuse-axe");
+  assert.equal(axeRegistration.id, axeGame.id);
+  const account: AccountRules = {
+    validName,
+    validAvatar: isHero,
+    nameRule: "1–18 characters",
+    fallbackName: "Hero",
+  };
+  const platform = new Platform(account, [axeRegistration]);
+  assert.deepEqual(platform.gameIds, ["fuse-axe"]);
+  assert.equal(platform.game("fuse-axe"), axeRegistration);
   assert.equal(axeRegistration.isBot("bot:1"), false);
   assert.equal(axeRegistration.parseStats({}, 1), undefined);
   assert.deepEqual(axeRegistration.emptyTotals(), {});
