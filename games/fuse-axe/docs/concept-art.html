@@ -1,0 +1,1251 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fuse Axe concept art</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <!-- prettier-ignore -->
+    <style>
+:root { --bg: #0d0814; --panel: #160e21; --line: #2f2142; --text: #f1e8f7; --dim: #a898bb; --gold: #ffc22e;
+  --ember: #f86420; --cyan: #16e7ff; --pink: #ff2e9d; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: radial-gradient(1100px 520px at 50% -8%, #2c1636 0%, transparent 70%), var(--bg); }
+main { max-width: 1180px; margin: 0 auto; padding: 28px 16px 72px; }
+h1, h2, h3 { font-family: Silkscreen, ui-monospace, monospace; font-weight: 700; letter-spacing: .04em; }
+h1 { margin: 0; font-size: clamp(34px, 7vw, 64px); line-height: 1; color: var(--gold);
+  text-shadow: 0 0 18px rgba(248, 100, 32, .55), 3px 3px 0 #6e1838; }
+h1 small { display: block; margin-top: 10px; font-size: 14px; color: var(--cyan); letter-spacing: .2em;
+  text-shadow: 0 0 10px rgba(22, 231, 255, .6); }
+.lede { color: var(--dim); max-width: 72ch; margin: 14px 0 0; }
+h2 { margin: 48px 0 6px; font-size: 20px; color: var(--gold); }
+h2 span { color: var(--pink); margin-right: 10px; }
+.sub { color: var(--dim); margin: 0 0 16px; max-width: 80ch; font-size: 14px; }
+canvas { display: block; max-width: 100%; height: auto; image-rendering: pixelated; image-rendering: crisp-edges; }
+.grid { display: flex; flex-wrap: wrap; gap: 14px; align-items: stretch; }
+figure { margin: 0; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; max-width: 100%; }
+.frames { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; }
+.frames > div { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+.tag { font: 11px/1 ui-monospace, monospace; color: var(--dim); }
+figcaption { margin-top: 10px; font-size: 13px; color: var(--dim); max-width: 40ch; }
+figcaption b { color: var(--text); font-family: Silkscreen, monospace; font-weight: 400; font-size: 15px; margin-right: 6px; }
+.scene { padding: 10px; background: #07040c; }
+#magic figure { width: 366px; }
+.scene-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+.pal { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.pal h3 { margin: 0 0 8px; font-size: 13px; color: var(--cyan); }
+.sw { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.sw div { border: 1px solid var(--line); border-radius: 4px; overflow: hidden; font: 11px/1.3 ui-monospace, monospace; }
+.sw i { display: block; height: 28px; }
+.sw span { display: block; padding: 3px 5px; color: var(--dim); }
+.sw span b { color: var(--text); margin-right: 4px; }
+code { color: var(--cyan); font-size: 13px; }
+</style>
+  </head>
+  <body>
+    <main>
+      <h1>FUSE AXE<small>CONCEPT ART · ASHEN VILLAGE</small></h1>
+      <p class="lede">
+        A co-op beat-em-up in the spirit of Golden Axe II. Everything on this
+        page is drawn live from palette-indexed pixel rows (<code
+          >{ w, h, ax, ay, palette, rows }</code
+        >, where <code>ax, ay</code> is the feet anchor) and a few procedural
+        backdrop layers, on the native 320×180 grid, scaled by whole numbers
+        with nearest-neighbour.
+      </p>
+      <h2><span>1</span>Key scene · Ashen Village</h2>
+      <p class="sub">
+        Stage 1 at dusk, mid-wave: Brakka's combo connects, Gorm swings through
+        a chop, Rhea holds the back line and a sack imp flees, dropping a pot.
+        HUD strip on top (portrait, name, health, pots, lives; two open seats)
+        and the GO marker at the right edge. Shown at 3× and at 1×.
+      </p>
+      <div class="scene-row">
+        <figure class="scene">
+          <canvas
+            id="scene3"
+            width="320"
+            height="180"
+            style="width: 960px"
+          ></canvas>
+        </figure>
+        <figure class="scene">
+          <canvas
+            id="scene1"
+            width="320"
+            height="180"
+            style="width: 320px"
+          ></canvas>
+          <figcaption>1×, native size</figcaption>
+        </figure>
+      </div>
+      <h2><span>2</span>Heroes</h2>
+      <p class="sub">
+        Idle and attack frames at 4×. Light from the upper left, 1-px dark
+        outlines, three-shade ramps per material.
+      </p>
+      <div class="grid" id="heroes"></div>
+      <h2><span>3</span>Enemies, mounts and the boss</h2>
+      <p class="sub">
+        Same 4× scale, so sizes compare directly with the heroes. The ravager
+        tiers are one sprite with a three-colour palette swap.
+      </p>
+      <div class="grid" id="enemies"></div>
+      <h2><span>4</span>Magic</h2>
+      <p class="sub">
+        One vignette per spell, 112×64 at 3×. Magic gets the platform's neon:
+        each caster glows in their spell's colour.
+      </p>
+      <div class="grid" id="magic"></div>
+      <h2><span>5</span>Palette</h2>
+      <p class="sub">
+        The shared master palette. Sprite rows use these one-character keys;
+        swaps (tiers, duplicate heroes, damage flash) are palette overrides.
+        Ramps run light, base, shadow; shadows lean violet and lights lean gold.
+      </p>
+      <div class="pal" id="palette"></div>
+    </main>
+    <!-- prettier-ignore -->
+    <script>
+"use strict";
+// ---- sprite data (generated, palette-indexed; '.' is transparent; ax/ay = feet anchor)
+const SPRITES = {
+  brakkaIdle: { w: 36, h: 50, ax: 13, ay: 48, palette: {"0":"#6e1838","1":"#9c4f45","3":"#a8632e","6":"#94786e","7":"#5a5c80","8":"#8a4e2e","9":"#4f2c2e","B":"#fff6dc","H":"#fff0a0","L":"#c98a58","M":"#f4f8ff","N":"#ffe08a","S":"#ffd1a1","b":"#dcc49a","c":"#c8303a","h":"#f0b83c","k":"#150c1f","l":"#8c5236","n":"#d8973a","s":"#e0905c"}, rows: [
+    "...........kkkkkk...................",
+    ".........kkHHHhh3k..................",
+    ".......kkHhHHHhhh3k...............k.",
+    "......kHHHHhhhhh33k.............kk7k",
+    ".....kHhhhccccccccck...........kMM7k",
+    "......kHhhh3333331k...........kMM77k",
+    "......kHhhh3SSS3kkSk..........kMM77k",
+    ".....kHHhhh3SsSSksS1k........kMM777k",
+    ".....kHHhhh3sSSSSs1k.........kMM77k.",
+    "....kHHh333kssSsss1k........kMM777k.",
+    "....kH33Hhh3k1ss111kk.......kMM77k..",
+    "...kskHHhhh33kkkkkSsskk....kMMM77k..",
+    "..ksskHHhh33ks1kSSSSss1k...kMM77k...",
+    ".kssskHHhh3kss11sSSss11k..kMMM77k...",
+    ".ksskkHHh33ks11ksssss11k..kMM777k...",
+    ".ksskkHHh3k1111ksssss11k..kMM77k....",
+    ".kskskhhh3kss1lk1ssss11kkkMM777k....",
+    ".kskskh33kss1ll9kssss11kNnkk77k.....",
+    ".kkksskkks111ll1ksskkk1knkknkkk.....",
+    "kksskss11111ll11kskSS1LLkSsknnk.....",
+    "ksssk1sss11ll9111kSS1LLkSSsskn8k....",
+    "ks111k1111lll1ss1kss1llksss1kkk.....",
+    "k1lll9kS11ll1sss1kss1llk1111k.......",
+    "klll9kss1ll11s1111k1119kkkkk........",
+    "kllkk9k1ll91skkkk1kkkkknn8k.........",
+    "klkss9k19911111111k....k88k.........",
+    "kkss1LLLLLLLL9NN89lk....kk..........",
+    ".kss1llllllll9nn89l9k...............",
+    ".k11199999999998999k................",
+    "..k11k1111000000111k................",
+    "...kksssskccccc0ks11k...............",
+    "....ksssskccccc0kss1k...............",
+    "....ksssskccccc0kss1k...............",
+    "....ksss1kccccc0ksss1k..............",
+    "...kkkkkk1kc0c0kskkkkk..............",
+    "...kssss1k1kk0kskSSssk..............",
+    "...kskkk1kk..kkkSSkkk1k.............",
+    "...kkkk9kkk....kskkkkkk.............",
+    "...kkbbkkk.....kkkBbbkk.............",
+    "..kbbbb66k.....kBBBbb66k............",
+    "..k666666k.....kbbb666k.............",
+    "..kkkkkkkk......kkkkkkk.............",
+    "..klll999k......kllll99k............",
+    "..klll999k......kllll99k............",
+    "..kllkkkkk......kllkkkkk............",
+    "..klkllllkk......kkLLLllk...........",
+    "..kkllll999k.....kLLLlll9k..........",
+    "..k9ll99999k.....klllll99k..........",
+    "...k999999k.......k99999k...........",
+    "....kkkkkk.........kkkkk............",
+  ] },
+  brakkaAttack: { w: 58, h: 49, ax: 17, ay: 47, palette: {"0":"#6e1838","1":"#9c4f45","3":"#a8632e","6":"#94786e","7":"#5a5c80","8":"#8a4e2e","9":"#4f2c2e","B":"#fff6dc","C":"#ff6a54","F":"#fff6b8","H":"#fff0a0","L":"#c98a58","M":"#f4f8ff","N":"#ffe08a","S":"#ffd1a1","Z":"#ffffff","b":"#dcc49a","c":"#c8303a","f":"#ffc22e","h":"#f0b83c","k":"#150c1f","l":"#8c5236","n":"#d8973a","s":"#e0905c"}, rows: [
+    "....................kkkk..................................",
+    ".................kkkHHhhkk................................",
+    "................kHHHHHhhh3k.........F.....................",
+    "..............kkHHHhHhhh33k...........FF..................",
+    ".............kHHhHCCCCCCCCck............FF................",
+    ".............k33hh000000000k.............FFF..............",
+    "..............kHhhh3SSS3kkk...............fFF.............",
+    "..............kHhhh3SSsSksSk...............FFF............",
+    ".............kHHhhh3ssSSSssk................FFF...........",
+    ".............kHHh333sSSSss1k................FFFF..........",
+    "..........kkkHh33hhk11skk11kk................FFZ..........",
+    ".........kssk3HHHhh3kkkSSSss1k...............FFZZ.........",
+    ".........kssskHHhh33k1kSSSsssk................FFZ.........",
+    ".......kkssskkHHhh33k1sSSssssskk..............FFZZ........",
+    "......kkssskSkHHhh3k1kssssssskkkkkk...kk......FFFZ........",
+    ".....kkskkksskHHh33kllkssssskSS1klkkkkn8kk....FFFZ........",
+    "....k11ss1kskhHhh3k1ll1111sskS1kNkSSs1k8kMkkkkFFFZZ.......",
+    "...klll111ks1khh331ll1skkk1ksskNnkSSs1kkMMMMMMMMMMMkkkk...",
+    "..kklll911kss1k33kll1s1111k1ksk88kss11kk7MMMMMMMMMMMMMMk..",
+    ".kkskk9911kkss1kkll91111111kk11kkk1111kk7777777777MMMMMMk.",
+    "ksss11k9kk.kS111ll91s11111k..kkkkkkkkknk77777777777777777k",
+    "ksss11kkk..kSS19ll1ss1111k..........k88kkkkkkkkkk77777kkk.",
+    "k11111k....kSS1ll1ss111kk............kk..........kkkkk....",
+    ".kk1kk.....ks1ll11skk11k..................................",
+    "..kkk.....kk19991111111k..................................",
+    ".........kLLLLLLLLL9N9Llk.................................",
+    ".........kLlllllll9Nn89l9k................................",
+    ".........kl99999999n88999k................................",
+    ".........k199999999999911k................................",
+    ".........ks111100000011ss1k...............................",
+    "........kssss1kccccc0kssssk...............................",
+    ".......kssss11kccccc0ksssssk..............................",
+    ".......kkkss11kccccc0ksskkkkk.............................",
+    "......kkssk1111kccc00kskSSSs1k............................",
+    "......ksss1k11kkc000k1skSSkk1k............................",
+    ".....kkkks11kk..kkkk.k1kskLlkk............................",
+    "....kkkkkk11k.........kkkkkkkk............................",
+    "....kbbbb6kkk..........kBBBbb6k...........................",
+    "...kbbbb666k...........kbbbb66k...........................",
+    "..klk66666k............kk6666kk...........................",
+    "..kllkkkkkk............klkkkk9k...........................",
+    ".kllll999k..............kllll9k...........................",
+    ".klll999k...............kllll9k...........................",
+    "kllkkkkk................kllkkkkk..........................",
+    "kkklll9kk...............klkLLLllk.........................",
+    "klllll999k...............kLLLlll9k........................",
+    "k9ll99999k...............kllll999k........................",
+    ".k999999k.................k99999k.........................",
+    "..kkkkkk...................kkkkk..........................",
+  ] },
+  rheaIdle: { w: 36, h: 50, ax: 12, ay: 48, palette: {"1":"#9c4f45","4":"#842439","8":"#8a4e2e","9":"#4f2c2e","!":"#1f4a3e","E":"#ff9a5c","L":"#c98a58","N":"#ffe08a","S":"#ffd1a1","e":"#d8462e","k":"#150c1f","l":"#8c5236","m":"#a8b4cc","n":"#d8973a","s":"#e0905c","v":"#3e8c4a"}, rows: [
+    "........kkkkkkk.....................",
+    ".......kEEEEEeek....................",
+    "......kEeEEEeee4k...................",
+    "......kEEEeeee444k..................",
+    ".....kEeEnnnnnnnnk..................",
+    ".....kEeee44444sk...................",
+    "....kEEEee4SS4k1Sk..................",
+    "...kEEEeee4sSSkssk..................",
+    "...kEEEeee4sSSSs1k..................",
+    "..kEEEEeee41sss11k..................",
+    "..kEEEekee4k11k1kkk.................",
+    "..kEEkksee4skkNNNnnk................",
+    "..kEkssskSsskNNNnnn8k...............",
+    ".kEEksskSSssknnnnn88k...............",
+    ".kEk1skSkkkkk8nn8888k...............",
+    ".kEkskskNNnnnkk888kkk...............",
+    ".kEkskkNNnnnNNkkkks1k...............",
+    "kekskkknnnnnnnkssskkk...............",
+    "kekksknnnn8nnnnksksskk..............",
+    "kekss1k88888888kkSSs1k..............",
+    ".kss11k8nnn88888ksskk1k.............",
+    ".kk1nn1k88888888kskNnkk.............",
+    ".k4nn8kskkk888kkkkknnkkk............",
+    ".k4nnkksssskkk111kkkkSSskkk.........",
+    "..knk18k11111111kkkkkSsskNnk........",
+    "..kk1NNNNNNNNNNNNNnkkss1kn8k........",
+    "...k1nnnnnnnnnnnnnnkk111k8k.........",
+    "...kk88888888888888k.kkk8kk.........",
+    "....kk!!!!!!!!!!!!k.kn88kmmk........",
+    ".....kvvvvvvvvvvvvk.k8kkmmmmk.......",
+    ".....kvvvvvvvvvvvv!k.k..kmmmmk......",
+    "....k!!!vvvvvvvvvv!k.....kmmmk......",
+    "....kkkk!!!!!!!!!!!k.....kmmmmk.....",
+    "....kssskkkkkkkkkkkk......kmmmmk....",
+    "....kkkk11k.kssskk1k.......kmmmmk...",
+    "...kkss1k1k..kskSskk........kmmmmk..",
+    "...kskkk1kk..kkSkkkk.........kmmmk..",
+    "...kknn8kk...kkkNN8kk........kmmmmk.",
+    "...knnn8kk....kNNnnkk.........kmmmk.",
+    "...knn88kk....knnn8kk..........kmmmk",
+    "...knn88k.....kknnn8k...........kkmk",
+    "...knn88k.....kknnn8k.............k.",
+    "...knn88k......knnn8k...............",
+    "...knn88k......knnn8k...............",
+    "...knnkkk......knnnkk...............",
+    "...kkkllkk......kkkLlkk.............",
+    "...kllll99k.....kLLLll9k............",
+    "...kll9999k.....kllll99k............",
+    "....k9999k.......k9999k.............",
+    ".....kkkk.........kkkk..............",
+  ] },
+  rheaAttack: { w: 59, h: 48, ax: 17, ay: 46, palette: {"1":"#9c4f45","4":"#842439","7":"#5a5c80","8":"#8a4e2e","9":"#4f2c2e","!":"#1f4a3e","E":"#ff9a5c","F":"#fff6b8","L":"#c98a58","M":"#f4f8ff","N":"#ffe08a","S":"#ffd1a1","Z":"#ffffff","e":"#d8462e","k":"#150c1f","l":"#8c5236","n":"#d8973a","s":"#e0905c","v":"#3e8c4a"}, rows: [
+    ".................kkkkkkk...................................",
+    "................kEEEEEeek..................................",
+    "...............kEeEEEeee4k.................................",
+    "...............kEEEeeee444k................................",
+    "..............kEeEnnnnnnnnk................................",
+    "..............kEeee44444sk.................................",
+    ".............kEEEee4SS4k1Sk................................",
+    "............kEEEeee4sSSkssk................................",
+    "............kEEEeee4sSSSs1k................................",
+    "...........kEEkkeee41skkkkk...........................F....",
+    "...........kEksskee4kkNN1nkk..........kk...................",
+    "...........kkssskee4kNNNnn8kkkkk.....kNnk..............F...",
+    "...........kssskSSssknnnn88ksksskkkkkknnkkkkkkkkkkkkkkkF...",
+    "..........kssskSkkkkknnn888kkSS1kkkkSsknkMMMMMMMMMMMMMMMFk.",
+    ".........kssskskNNnnnk8888ksksskNnkSSs1kkMMMMMMMMMM7777777k",
+    ".......kkkss1kkNNnnnNNkkkk11kssknnkss11kk77777777777777FFk.",
+    "......kkssk11kknnnnnnnnkkkkkkk11kkkk11knkkkkkkkkkkkkkkkFZ..",
+    "......k11s1k1knnnn8nnnnn88k...kkkkkkkknnk..............FZ..",
+    "......knn11kkek88888888888k...........k8k.............FZ...",
+    ".....knnn81kekk8nnn8888888k............k.............FFZ...",
+    ".....kkn88kEekSk888888888k..........................FFZ....",
+    "....kksk8kkEksSSkkk888kkk............................ZZ....",
+    "....kss1kkkeksssssskkk1k...................................",
+    "....k111k.k441111111111kk..................................",
+    "....kk1kk.kNnnnnnnnnnnnnnk.................................",
+    ".....kkk..kn8888888888888k.................................",
+    "...........k!!!!!!!!!!!!k..................................",
+    "..........kkvvvvvvvvvvvvkk.................................",
+    ".........kskvvvvvvvvvvvv!kk................................",
+    ".........ksk!vvvvvvvvvvv!ksk...............................",
+    "........ksssk!!!vvvvvv!!!ks1k..............................",
+    ".......kkkss1kkk!!!!!!!kkskkkk.............................",
+    "......kkssk1111kkkkkkkksskSSsk.............................",
+    "......kkks1k11k.......k1kSkkk1k............................",
+    ".....kkn8k1k1k.........kkkNNnkk............................",
+    ".....knnn8kkk...........kkNnn8k............................",
+    "....knnn88kk.............knnn8k............................",
+    "...kknn88kk..............knnn8k............................",
+    "...knn888k...............knnn8k............................",
+    "..knnn88k................knnn8kk...........................",
+    "..knn88kk................kknn8kk...........................",
+    ".knn888k..................knnn8k...........................",
+    "knnkkkk...................knnkkk...........................",
+    "kkkll9k...................kkkLllk..........................",
+    "kllll99k..................kLLLll9k.........................",
+    "k9l99999k.................kllll999k........................",
+    ".kk999kk...................kk999kk.........................",
+    "...kkk.......................kkk...........................",
+  ] },
+  gormIdle: { w: 40, h: 46, ax: 16, ay: 44, palette: {"1":"#9c4f45","5":"#6c5e78","6":"#94786e","7":"#5a5c80","8":"#8a4e2e","9":"#4f2c2e","#":"#241a3c","@":"#262e8c","B":"#fff6dc","I":"#8c7ab0","L":"#c98a58","M":"#f4f8ff","N":"#ffe08a","S":"#ffd1a1","U":"#78b4ff","W":"#f2ece6","b":"#dcc49a","i":"#4c3c70","k":"#150c1f","l":"#8c5236","m":"#a8b4cc","n":"#d8973a","s":"#e0905c","u":"#3c5ce0","w":"#b4a8b0"}, rows: [
+    ".....................................k..",
+    "........k...............kk.........kk7k.",
+    ".......kbk.............kB6k..kk...kMMmk.",
+    ".......kbk.............kb6k.kIikkkMmmmmk",
+    ".......kb6k....kkk.....kb6kkiiikMMmmmm7k",
+    ".......kb6k.kkkMmmkkk.kbb6k7iii7mmmmmm77",
+    ".......kb6kkkMMMMmmmkkkbb6k7iii7mmmmmmm7",
+    ".......k66kb6kMMmmmkBBBk6km7iii7mmmmmmm7",
+    "........kkbbb6kmmmkBBbb6kkm7iii7mmmmmm77",
+    ".........k6b66kmmmkbbb66km77iii7mmmmmm77",
+    "..........k666kkkkkk666k777kii#k77mmmm7k",
+    ".........kNkkknnnnnnkkkkkkk.k#9kkk7mm77k",
+    ".........kn888888888888k....k99k..k777k.",
+    "..........kkkkkkkkkkkkk.....kl9k...kk7k.",
+    "....kkkkk.kksssssWW1WWskk...kl9k.....k..",
+    "...ksss1kkUUksssskkksk118k..kl9k........",
+    "..ksssskUUUUkkkkkWWwkkk8n8k.kl9k........",
+    ".ksssskUUUUkwwwkWwwwwwWWk8k.kl9k........",
+    ".kssskUUUUUkwwwk55555www5k8kkl9k........",
+    ".ksskUUUUUUUkwwwkkkkkkkkk8k.kl9k........",
+    ".ksskUUUUUUUkw5wwww5w55k8k1kkl9k........",
+    ".kskkuUUUUuukwww5wwww55kkk1kkl9k........",
+    ".kkskuuuuuuuukwwww5ww55kS1LLkkkk........",
+    ".kss1uuuuuuuukw5wwww55kS1LLkSSskk.......",
+    "kks1kuuuuuuuuukww5ww55ks1LkSSSssk.......",
+    "kk1llk@uuuuu@@@kwww55kks1lkssss1kk......",
+    ".klllk@@@@@@@@@k5555k@k119ksss11k.......",
+    ".kllk9LLLLLLLLknkk55kLkkk19k111kk.......",
+    "..kk1LLLLLLLLLknnnkkLLlk.kkkkkkk........",
+    "..ks1lllllllllknnnnkll9k....kl9k........",
+    "..k11999999999knnnnk999k....kl9k........",
+    "...k111999@@@998888999k.....kl9k........",
+    "....kkkllkkkkllkkkkkk9k.....kl9k........",
+    ".....kklklllkklllkLLlkk.....kl9k........",
+    "......kkkkkkkkllkLkkkkk.....kl9k........",
+    "......kkiiii#kkkLkIIiikk....kl9k........",
+    "......kkiiii#kkkkIIIii#k....kl9k........",
+    "......kiiii###kkkIIiii#k....kl9k........",
+    "......kiiii###k.kiiiii#k....kl9k........",
+    "......kiiii###k.kiiiii#k....kl9k........",
+    "......kiikkkkkk.kiikkkkkk...kl9k........",
+    ".......kkiiiii#kkikIIIiiik..kl9k........",
+    ".......kiiiii###kkIIIiiii#k.k99k........",
+    ".......kiii#####kkiiiii###k..kk.........",
+    ".......k#######k.k#######k..............",
+    "........kkkkkkk...kkkkkkk...............",
+  ] },
+  gormAttack: { w: 51, h: 49, ax: 16, ay: 47, palette: {"1":"#9c4f45","5":"#6c5e78","6":"#94786e","7":"#5a5c80","8":"#8a4e2e","9":"#4f2c2e","#":"#241a3c","@":"#262e8c","B":"#fff6dc","F":"#fff6b8","I":"#8c7ab0","L":"#c98a58","M":"#f4f8ff","N":"#ffe08a","S":"#ffd1a1","U":"#78b4ff","W":"#f2ece6","Z":"#ffffff","b":"#dcc49a","f":"#ffc22e","i":"#4c3c70","k":"#150c1f","l":"#8c5236","m":"#a8b4cc","n":"#d8973a","s":"#e0905c","u":"#3c5ce0","w":"#b4a8b0"}, rows: [
+    ".................FFFFFFFFFF........................",
+    "..............FF......ffffFFFF.....................",
+    "...........................fffFFF..................",
+    ".............................fffFF.................",
+    "...............................FFFFF...............",
+    "................................FFFFF..............",
+    "............kk...............k....FFFF.............",
+    "...........kb6k.............kbk....FFFF............",
+    "...........kb6k............kBbk.....FFFF...........",
+    "...........kb6k....kkkk....kBbk......FFFF..........",
+    "...........kbbkk.kkMMmmkk.kkbbk......FFFZZ.........",
+    "...........kbb6kkMMMMMmm7kBkbbk.......FFFZ.........",
+    "............k6kbbkMMMmmmkBBk66k........FFFZ........",
+    "............kk6bbbkmmmmkBBb6kk.........FFFZZ.......",
+    ".............k66b66kmmmkbb66k...........FFFZ.......",
+    "..............k666kkkkkk666k............FFFZ.......",
+    "..............kkkknnnnnnkkk8k...........FFFFZ......",
+    "..............k8888888888888k............FFFZ......",
+    ".........kkkkk.kkkkkkkkkkkkk.............FFFZ......",
+    "........ksss1kkkkssssWW1WWs1k............FFFZZ.....",
+    ".......kssskkUUUksssskkksks1k............FFFFZ.....",
+    "......kssskUUUUUUkkkkWWwkkkkk............FFFFZ.....",
+    "......ksskUUUUUUkwwwkWwwwwwWwk...........FFFFZ.....",
+    "......kskuUUUUUUkwwwk5555www5k...........FFFFZ.....",
+    "......k1kUUUUUUUkwww5kkkkkkkkk...........FFFFZ.....",
+    ".......kkuUUUUUuk5wwww5www5k11k..........FFFFZ.....",
+    "........kuuuuuuuukw5wwww5w51LLlkk........FFFFZ.....",
+    "........kuuuuuuuukwww5www55kLkkkkk......FFFFFZ.....",
+    "........kuuuuuuuuukwwww5w55kkSSSs1k.....FFFFZZ.....",
+    ".......kU@uuuuuukkkk5www55klkSSss1k.....FFFFZ......",
+    "......kk@@@@@@@@NNNkww5w5k19ksss11kkk..FFFFFZk.....",
+    ".....kLLLLLLLLLknnn8k5555kk1k11111kllkFFFFFmmmkk...",
+    "....kLLllllllllknnn8kkk5k9k11kkkkkllllFFFFFmmmmmk..",
+    "....kllllllllllknnn8kl9kkkkkkkkkkkk9llllFFFmmmmmmk.",
+    ".....k999999999knnn8k999k..........kk9lll9ZZmmmmm7k",
+    "......k99999@@99kkkk999kkk...........kk99Iii77m777k",
+    ".....kkkkkl9kklllllllkkLlkk............k9iiiii77kk.",
+    "....kkkkl9k99k999lllkLkkkk9k............k##iiiiik..",
+    "....kiiik9k999k999llkkIIIikk..........kkM77#iiii#k.",
+    "...kiiii#k9k99kkk999kkIIIiik........kkMMmmm77#i##k.",
+    "..kiiii###kkkk...kk9kIIIii##k......kMMmmmmmmm7k#k..",
+    "..kiiii###kk.......kkiiiii##k.....kmmmmmmmmmm7kk...",
+    ".kiiii####k.........kiiiiii#k......kmmmmmmmmm7k....",
+    "kiiikkk##k...........kiiikkkk......kmmmmmmmmm7k....",
+    "kikkiiikk............kikkIIiikk.....k7mmmmmmm7k....",
+    "kkiiiii##k............kIIIIiii#k.....k7m7mmmm7k....",
+    "kiiiii####k...........kiIiiii##k......kk777777k....",
+    "k########k............kiiii####k........kkkkkk.....",
+    ".kk#####k..............k#####kk....................",
+  ] },
+  ravager: { w: 37, h: 50, ax: 13, ay: 48, palette: {"1":"#9c4f45","5":"#6c5e78","7":"#5a5c80","9":"#4f2c2e","#":"#241a3c","$":"#514a60","A":"#cfc6c8","D":"#ffe46b","I":"#8c7ab0","L":"#c98a58","M":"#f4f8ff","S":"#ffd1a1","W":"#f2ece6","a":"#8e8494","i":"#4c3c70","k":"#150c1f","l":"#8c5236","m":"#a8b4cc","s":"#e0905c","w":"#b4a8b0"}, rows: [
+    "..........kkkk.......................",
+    ".........kAAaakkk....................",
+    "........kAAaa$aaak...................",
+    "......kkAaa$aaaaak...................",
+    ".....kAA$$$$aa$k.....................",
+    ".....kAa$kkkkkkk$kk..................",
+    ".....ka$kiIIIiiik##k.................",
+    "....kAakkiiiiiii###k.................",
+    "....kA$kkMMMMMMMMMmmk................",
+    "....k$k.kmmmmmmmmmm7k.............k..",
+    ".....k.kkkk1####1kmk.............kkk.",
+    ".....kkLLlk1kkkkkDkkkkk.......kkkiik.",
+    "...kk1LLLlkk1s1s1k7kkMmk.....kkIIIiik",
+    "..kss1llllksk11111kkmmkk.....kIIIIii#",
+    ".ksssk9lllksskkkkkWkkk##k....kiIIiii#",
+    ".ksskA$lllkssss11kkki###k...kkiiiii##",
+    ".kskAAA$lllks111kkmmk###k..kMk#ii####",
+    ".kskAAA$lllk1111k#kmk##k....kkk#####k",
+    ".kkaaAAA$lllkkkkkkkmkkkk....kLlkk#kkk",
+    "kskaaaaa$9llll9$kskkkkkk...kLl9kMk...",
+    "kkkkaaaaa$lllll$k1skS11lkkkLl9k.k....",
+    "ksskaaaaaa$llll9$kkS1LLLkSsk9k.......",
+    "ks11k$$$lll99$kks1LLkSSssk...........",
+    "k1lllk$$$999$$ks1llksss1k............",
+    "k1llkaAA$$$$$$k199kss11k.............",
+    "klllkaaaaaaakkkkk$kkkkLk11k..........",
+    ".klk9k$$$99999$k...k99kk.............",
+    ".kk1LLLLLL9MMm9LLLlk...kk............",
+    ".ks1llllll9mm79lll99k................",
+    ".k1s199999997999999k.................",
+    "..k1k9$$$$$$9k.......................",
+    "...kkaaaaaaaaaaaaakk.................",
+    "...kkaaaaaaaaaaaaa$kk................",
+    "...kka$$aaaaa$aa$kk..................",
+    "...kk$kkkaaa$kk$$kk..................",
+    "...kkkkk99k$kllkkklkk................",
+    "..kklkk9k9kkkklkLLkk9k...............",
+    "..klkaak9k....kkkkAakk...............",
+    "..kkkkkkkk....kkkkkkkk...............",
+    "..kwwww55k.....kWWWww5k..............",
+    "..kww5555k.....kwwww55k..............",
+    "..kk5555kk.....kk5555kk..............",
+    "..kakkkkk......kakkkk$k..............",
+    "..kaaa$k......kaaaaa$k...............",
+    "..kaakkkk.......kaakkkk..............",
+    "..kkkaaa$kk.....kkkAAaakk............",
+    "..kaaaaa$$k....kAAAAaa$k.............",
+    "..k$aa$$$k....kaaaaa$$k..............",
+    "...k$$$k......k$$$k..................",
+    "....kkkkkk........kkkkkk.............",
+  ] },
+  lancer: { w: 64, h: 52, ax: 23, ay: 50, palette: {"0":"#6e1838","1":"#9c4f45","7":"#5a5c80","8":"#8a4e2e","9":"#4f2c2e","C":"#ff6a54","L":"#c98a58","M":"#f4f8ff","N":"#ffe08a","S":"#ffd1a1","c":"#c8303a","k":"#150c1f","l":"#8c5236","m":"#a8b4cc","n":"#d8973a","s":"#e0905c"}, rows: [
+    "...................kkkk.........................................",
+    ".................kkCCc0k........................................",
+    "................kCCCCc0kk.......................................",
+    "...............kCkccc00kck......................................",
+    "..............kCcck0000kcckk....................................",
+    "..............kCc0k0kkkccc0kk...................................",
+    "..............kcc0kkkkkk00kn8k..................................",
+    ".............kCc0k.knNNNkkn88k..................................",
+    ".............kCck..knnnnnn888k..................................",
+    ".............kc0k..knnnnn8888k..................................",
+    "..............kk....knn88kk8kk..................................",
+    "....................knn888kk1k..................................",
+    "....................knn8kkkkkk..................................",
+    "...............kkkk.k888kkNNnnkk................................",
+    "..............kssskkkkkkkNN1Nnn8k...............................",
+    ".............kssskMMMMMkNNNNnnn8k...............................",
+    "............kssskMMMMMMknnnnnn88k...............................",
+    "............ksskMMMMMMMknnnn8888k...............................",
+    "............k1kMMMMMMMmmk888888k1k..............................",
+    ".............kkmMMMMMmmmkkk88kkss1k.............................",
+    "..............kmmmmmmmmmmkkkksskkkk.............................",
+    "..............kmmmmmmmmmm77ksskSSssk............................",
+    "..............kmmmmmmmm77777kskSSs1lkk..............kkkkkkkkk...",
+    "...............k7mmm77777777kksss1LLllkk......kkkkkknnkmmmmmmkk.",
+    "...............km7777777kkk7kkks1LLllkkkkkkkkklLLkNNnn8kmmmmm77k",
+    "...............kmMkkkkkkSSskkkk11lllkSSssklllllllknnnn8kmm777kk.",
+    "...kkkkkkkkkkkkkkkLLLLkSSss1kllkk199kSss1k9999kkkk8888kk77kkk...",
+    ".kklLLLLLLLLllllllllllksss11k999kkk9kss11kkkkk....kkkk..kk......",
+    "kLlllllll999999999kkkkkk111kkkkk...kkk11kk......................",
+    ".k9kkkkkkkkkkkkkkkllllllkkkll9k......kkkk.......................",
+    "..k..........k999999999999999k..................................",
+    "..............kk00000000000099k.................................",
+    "..............kkcccccccccccc0kk.................................",
+    "..............kccccccccccccc0k9k................................",
+    ".............kkccc0ccccccccc0k9k................................",
+    ".............kkc0000ccc000000kkkk...............................",
+    "............kkkkkkkk000kkkkk0kllk...............................",
+    "............klll9k99kkk.k9kLkkkk9k..............................",
+    "...........kkkkl99kk.....kklkLllkk..............................",
+    "...........klkkk99kk......kkkkkkkk..............................",
+    "..........kkkcckk9k........kCCCcck..............................",
+    "..........kcccc00k........kcccc000k.............................",
+    ".........kk000000k.........kk000kkk.............................",
+    ".........klkkkkkk..........klkkk99k.............................",
+    "........kllll999k..........kllll99k.............................",
+    "........klll999k...........klllll9k.............................",
+    "........klkkkkkk............kllkkkk.............................",
+    ".......klkllll9k............kkkLLllkk...........................",
+    "........klllll99k...........kLLLLll99k..........................",
+    "........kll99999k...........klllll999k..........................",
+    ".........k99999k.............k999999k...........................",
+    "..........kkkkk...............kkkkkk............................",
+  ] },
+  brute: { w: 39, h: 62, ax: 19, ay: 60, palette: {"0":"#6e1838","2":"#464c3e","6":"#94786e","9":"#4f2c2e","B":"#fff6dc","D":"#ffe46b","L":"#c98a58","O":"#b8bc78","b":"#dcc49a","c":"#c8303a","k":"#150c1f","l":"#8c5236","o":"#7c8650"}, rows: [
+    "...........kklkk.......................",
+    "..........kLLLllkkk....................",
+    ".........kLLLLllkB6k...................",
+    "........klLLLlkkb6k....................",
+    "........klLllkBb6kk....................",
+    "........klllkBb6kl9k...................",
+    ".........klllkkkkkk9k..................",
+    ".........k9lllkBkcckkk.................",
+    "..........k9lkBbk0ccckk................",
+    "...........kkBb6kk0ccckkk..............",
+    "...........kB6kkkBkccc022k.............",
+    "............kk9llk6k00koo2kkk..........",
+    "..............k9llkOkkoooooO2k.........",
+    "...............k9lkO222222oo2k.........",
+    "................kkoOO222kDk2k..........",
+    "................kkooooooo22kk..........",
+    ".................kkoooOOOOkbk..........",
+    "..................k2ooOOOkb6kk.........",
+    "...................k22oookkkkkk........",
+    "......kkkkkk........k2oookkkOOok.......",
+    ".....kooooo2kkkkkkkkkkk22kkOOOook......",
+    "....koooookkooooooooookkkkOOOooo2k.....",
+    "...koooookooOooooooooookOkooooo22kk....",
+    "...kooookooOOooooooOOOokOkoooo222kk....",
+    "...koookoooooooooooOOookoOk22222k99k...",
+    "...koookoooooooooooooookoo2k222kll9k...",
+    "..koookOoooooooooooooookooo2kkkllll9k..",
+    "..kookoOoooooooooooooook22o2llllll99k..",
+    ".kokkkOOO2ooooo22oooooook22o2llll9992k.",
+    ".kkookOOOO222222222222222k222lll99992kk",
+    "kkookoOOOOOO222222o2222222kk2299999222k",
+    "koookooOOOOOOOOOOOOooooooo22kk22222222k",
+    "ko222oooOOOoOOOOOOOOooooooo22kkooo222kk",
+    "k2llkooooooOOOOOOOOOooooooo222k222222k.",
+    "klllkoooooOOOOOOOOOOooooooo2222kk22kk..",
+    "klllkoooooOOOOOOOOOoooooooo2222kkkkk...",
+    "kllllkooooOOOOOOOOooooooooo2222k.......",
+    "klll9kooooOOOOOOoooookkooo22222k.......",
+    "klkkkk2ooooooooooookkookk222222k.......",
+    "kkooo2k2ooooooooookOOOOook22222k.......",
+    "koooo22k22222222222222222222222k.......",
+    "koooo22LLLLLLLLLL9BBb9LLLLLLLLLk.......",
+    "koo222LLllllllll9BBbb69lllllllllk......",
+    "k22222llllllllll9bbb669llllllll9k......",
+    ".k2222k999999999996669999999999k.......",
+    "..kkkkk2299999999999999999999kk........",
+    "......kkklllllllllllllllllll9k.........",
+    ".....kkoklllllllllllllllllll9k.........",
+    ".....kooklllllllllllllllllll9kk........",
+    ".....kokkll9999llllllllllll99kk........",
+    ".....kklkl99kkk9lllll99999l9kkk........",
+    ".....klllkkk99kk99l99kkkkk99k9k........",
+    ".....klllll999k.kk99kkLLLLkkl9k........",
+    "....klllll9999k...kk.kllllll999k.......",
+    ".....kllll9999k......kllllll99k........",
+    ".....kllkkkkkkk......klllkkkkkk........",
+    ".....kkklllll9kk.....klkkLLLlllkk......",
+    ".....klllllll999k.....kLLLLLllll9k.....",
+    "....klllllll9999k....klLLLLllll99k.....",
+    "....k9llll9999999k...kllllllll9999k....",
+    ".....k9999999999k.....kllll999999k.....",
+    "......k9999999kk.......k9999999kk......",
+  ] },
+  bonewalker: { w: 36, h: 46, ax: 12, ay: 45, palette: {"6":"#94786e","7":"#5a5c80","#":"#241a3c","B":"#fff6dc","I":"#8c7ab0","J":"#b6ff4d","M":"#f4f8ff","^":"#46247a","b":"#dcc49a","i":"#4c3c70","k":"#150c1f","q":"#8c4ad8"}, rows: [
+    "............kkkkk...................",
+    "...........kBBBbbk................k.",
+    "..........kBBBBbb6k..............kMk",
+    "..........kBBBbbb6k............kkMk.",
+    "..........kbbbbb66k...........kMM7k.",
+    "..........kbbbbkJ6kk.........kMM77k.",
+    "..........kkk6Bkkbkkk........kMM77k.",
+    "..........kb6kbbb66kk.......kMM77k..",
+    ".....kkkkkBb6k6kk6k6kk.....kMM77k...",
+    "....kBBBBkBbkBkBbkkkk......kMM77k...",
+    "...kkb66bkb6kkbbb6k.......kMM77k....",
+    "..kIikkkkkkkkkkbbbk......kMM77k.....",
+    "..kiii#66666##kbbb6k..kkkMMM77k.....",
+    ".kIiiii##6b66B#kbb6k.kIikkM77k......",
+    ".kiiiii#bb666bbkbbkk.kiiiik7k.......",
+    ".kiiiii#666###bbkkBbkkkkkiik........",
+    ".kiiiiii#6b6Bb#kkBBb6kkBbkiik.......",
+    "kkiiiii#b6666bbkkbb66kbbb6k#k.......",
+    "kiiiiiii#66##6bk.k66kkk66kkk........",
+    "kiiiiiii#bb6b6k...kkkIikk...........",
+    "ki#k#ii#b666bbk.....ki#k............",
+    "kikbkii##66kkb6k....k##k............",
+    ".kkbk#kkkkkkkkk......kk.............",
+    "..kkkkqqqqqqqqqk....................",
+    "..kbbkqqqqqqqq^k....................",
+    "..k66kqqqqqqqq^k....................",
+    "...kkkqqqqqqq^^k....................",
+    ".....kq^qqq^^^^k....................",
+    "....kk^k^q^^k^^k....................",
+    "....kbk6kq^k6k^kk...................",
+    "....kb66k^^kkbkbk...................",
+    "...kkk6k.kk..kbkkk..................",
+    "...kbbkk.....kkBBbk.................",
+    "..kbbb6k......kBbbk.................",
+    "..k6666k......kbb6k.................",
+    "...k66k.......k666k.................",
+    "...kkkk.......kkkkk.................",
+    "...kb6k........kbbk.................",
+    "..kbb6k........kbbk.................",
+    "..kbb6k........kbbk.................",
+    "..kbb6k........kbb6k................",
+    "..kkkkkkk......kbkkkkk..............",
+    "..kbbbb66k......kBBBbbk.............",
+    "..kbbb666k.....kbbbbb66k............",
+    "...k6666k.......kk666kk.............",
+    "....kkkk..........kkk...............",
+  ] },
+  sackImp: { w: 30, h: 34, ax: 17, ay: 32, palette: {"1":"#9c4f45","6":"#94786e","9":"#4f2c2e","@":"#262e8c","B":"#fff6dc","D":"#ffe46b","L":"#c98a58","S":"#ffd1a1","U":"#78b4ff","b":"#dcc49a","k":"#150c1f","l":"#8c5236","s":"#e0905c","u":"#3c5ce0"}, rows: [
+    "..........kk..................",
+    ".........kuuk.................",
+    ".........kuuuk................",
+    "........kk@uuukk..............",
+    ".....kkkBBkuuu@ukkk...........",
+    "....kBBBBBk@u@@uuu@kk.........",
+    "...kBBBB666k@@uuuuu@ukk.......",
+    "..kBBBB6LLllk@uuuuu@uuuk......",
+    ".kBBBBB6999k6kkuuu@@ukk@k.....",
+    ".kBBBBBB666SSs1k@@@@k@@kk.....",
+    "kBBBBBBBBbksss1kk@@k@@@@kk....",
+    "kBBBBBBBbbbk11kuukk@@DkD@k....",
+    "kbBBBBBbbbbbkkuuuuk@@@@@Ssk...",
+    "kbBBBbbbbbbbb6kuuuu@@@@sss1k..",
+    "kbbbbbbbbbbb66kk@uuuu@@@11k...",
+    "kbbbbbbbbbbb6kUUk@uuu@kkkk....",
+    "kbbbbbbbbb66kU@@@k@@@@k.......",
+    "kbbbbbbbb666k@llllllllk.......",
+    ".kbbbbb66666klllllllll9k......",
+    ".k666666666ku@99999999@k......",
+    "..k666666666ku@@@@@@@@k.......",
+    "...k66666666kuuuuukUk@k.......",
+    "....k6666666k@@@@kUUukk.......",
+    ".....kkk66kkkk@@kuuuuuk.......",
+    "........kk.kuukk@kuuuuuk......",
+    "...........kkk@@kk@uuukkk.....",
+    ".........kkuu@kk..k@ukUuk.....",
+    "......kkkuuuu@kk...kkuuu@k....",
+    ".....kll9k@@@@k.....kuuu@k....",
+    "....klll99k@kk.......kuukkkk..",
+    "....k99999kk.........kukLLl9k.",
+    ".....kkkkk............kLlll99k",
+    "......................k99999k.",
+    ".......................kkkkk..",
+  ] },
+  pot: { w: 11, h: 12, ax: 5, ay: 11, palette: {"9":"#4f2c2e","@":"#262e8c","L":"#c98a58","U":"#78b4ff","Z":"#ffffff","k":"#150c1f","l":"#8c5236","u":"#3c5ce0"}, rows: [
+    "....klk....",
+    "...kLl9k...",
+    "..kUk9kuk..",
+    "..ku@k@@k..",
+    "..kkkkkkk..",
+    ".kUUkkku@k.",
+    ".kUZUuuu@k.",
+    "kuuUuuu@@@k",
+    ".kuuuu@@@k.",
+    ".k@@@@@@@k.",
+    "..k@@@@@k..",
+    "...kkkkk...",
+  ] },
+  clawbeak: { w: 63, h: 54, ax: 30, ay: 52, palette: {"0":"#6e1838","6":"#94786e","8":"#8a4e2e","9":"#4f2c2e","&":"#285058","B":"#fff6dc","C":"#ff6a54","D":"#ffe46b","Y":"#9ee0b4","b":"#dcc49a","c":"#c8303a","k":"#150c1f","l":"#8c5236","n":"#d8973a","y":"#4ea08a"}, rows: [
+    "...................................kkkCckk.....................",
+    "..................................kCCccckckk...................",
+    "..................................k00000kccck..................",
+    "...................................kkkkk0cccckkkkkkkkkkk.......",
+    "......................................k.k0ccc0kYyknnnnnnkk.....",
+    ".....................................kckkkkkkkYyyknnnnnnnnkk...",
+    "...................................kkcc0kccc0kyykDnnnnnnnnnnk..",
+    "..................................kc000k00cc0kyyyknnnnnnnnnnnk.",
+    "...................................kkkkkk0000kyy&knnnnnnnnnnn8k",
+    "......................................kYYkkkky&k&kkkkkkkk88nn8k",
+    ".....................................kYYYYyk&&&&&knnnnnnnkknn8k",
+    "kk..................................kYyYYyyykkkkkknnnnn8k..knk.",
+    "&yk.................kkkkkkkkk......kYYyyyyy&Bb66kkn88888k...k..",
+    "&yk................kkllllllllkkkk.kYYYYyyy&Bbb6k..kkkkkk.......",
+    "kyyk...............kkllllllllll9kkYYYYY&&&BBb6k................",
+    "kyy&kk.............kk9999kkllll9kkYYYYyyyBBb66k................",
+    "kyyy&ykk...........kckkkkl9kkkkkc0kYYyyyyBbb6k.................",
+    "kyy&&yyykk.........kcccckl9kccccc0kYyyyyBBb6k..................",
+    ".k&&&yyy&ykkkkkk....kccckl9kccccc0kyyyyBBb66k..................",
+    "..k&&yyy&yyy&yyykkkkkccckl9kcccccckyyyyBbb6k...................",
+    "...k&yyy&yyy&yyy&kkYkccckl9kccccc0kyyy&bb66k...................",
+    "....k&yy&yyy&yyykYYYkc0ckl9kcccc0kyy&&kk66k....................",
+    ".....k&y&yy&&yyk&YYYYkk0kl9kccc0k&&&&kYykk.....................",
+    "......k&&y&&&yyk&YYYYyykkl9k0kkkkkk&kYYy&k.....................",
+    ".......k&&&&&yky&YYYYyyykl9kkYYyyk&kkyyyyk.....................",
+    "........kk&&&&ky&YYYyyyykl9kYYYYyykbbk&yyyk....................",
+    "..........kk&&ky&yyyyyyyykkYYYYyyy&kbbk&yyyk...................",
+    "............kkky&yyyyyy&&kyYYYYyyy&&kbbk&yyk...................",
+    "..............kk&yyyyyy&&kYYYYyyyy&&kb66k&&k...................",
+    "...............k&&y&&&&&&kyYYyyyy&&&k666kkk....................",
+    "................k&&&&&&&&kyyyyyyy&&&k66k.......................",
+    ".................kk&&&&&&kyyyyyy&&&&kkk........................",
+    "...................kkkkkkk&yyyy&&kk&k..........................",
+    "...................k&&&&&kk&&&&&kYyk...........................",
+    "....................k&&&kyyk&&&kYYyyk..........................",
+    ".....................k&kyyyyk&kYYyy&&k.........................",
+    "......................kkyyy&&kkYYyy&&k.........................",
+    "......................kyyy&&&kYYyy&&k..........................",
+    "......................kyyy&&kkYyy&&k...........................",
+    ".....................kyyy&&&kYYy&&k............................",
+    ".....................kyy&&&kYYyy&&k............................",
+    "....................kkky&&kkkyy&&k.............................",
+    "....................kyyk&kkkYk&&k..............................",
+    "...................kyyy&kkkYyykk...............................",
+    "...................k&y&&k.kyyy&k...............................",
+    "....................kyy&&kkyyy&k...............................",
+    "....................k&y&&k.kyyyk...............................",
+    ".....................kyy&k.kyyy&k..............................",
+    ".....................k&y&&k.kyyyk..............................",
+    "......................kykkk.kyykkk.............................",
+    "......................kkbbbkkkkBbkk............................",
+    ".......................k666bbkkbbbbkk..........................",
+    "........................kkkk66kkkk666k.........................",
+    "............................kk....kkk..........................",
+  ] },
+  emberDrake: { w: 64, h: 47, ax: 32, ay: 45, palette: {"0":"#6e1838","6":"#94786e","8":"#8a4e2e","9":"#4f2c2e","*":"#7c2838","B":"#fff6dc","D":"#ffe46b","F":"#fff6b8","N":"#ffe08a","X":"#ffb060","b":"#dcc49a","c":"#c8303a","f":"#ffc22e","k":"#150c1f","l":"#8c5236","n":"#d8973a","x":"#d85a2e","~":"#f86420"}, rows: [
+    "..........................................kkkkk.................",
+    "..........................kk.............kBBBBkk................",
+    ".......................kkkkxk............k6666kbk.kkkk..........",
+    ".....................kkXXkxkk.............kkkkbbbkXXxxk.........",
+    "..................kkkXxxkxkk*k..............kkkbkXXXXxxk........",
+    "................kkXXx*kkxkkxxk.............kb6kkkXXXxXx*kk......",
+    "...............kXx*kkkkxk**kx*k...........k6kkbbbkXxXkDxxxkkk...",
+    "...............kkkk**kxk***kxxk............kkk66b6kXXxxxxxxxxk..",
+    "................k***kxk****kxx*k...........kXXkk6kxxxxxxxxxxxxk.",
+    ".................k*kxk******kxxk..........kXXnXxk***x**xxxxxx**k",
+    "..................kxk*******kxx*k........kXxXXxxxk***kk*******k.",
+    ".................kxk*********kxxk.......kXXxxxxxNNkkkXxkBkBfBk..",
+    "................kx***********kxx*k...k.kXXXXxxxNNn8kxxxxxxfffF~.",
+    ".................kk***********kxxkkkknkXXXXX***Nnn8kk***xxxxk.~.",
+    "...................kkk***kkkkkkkkkkkkkxXXnXxxxNNn8k..kkk***x*k..",
+    "....................k.k*kklllllllll9kkXXXXxxxNNn88k.....kkk*k...",
+    "...................knkkkkkl99llllll9kkXXXxxxNNnn8k.........k....",
+    ".................kkkXXXxkckkkkkkkkkkckXXxxxxNnn8k...............",
+    "...............kkkXXXXXXkcccccccccccckxxxxxNNn88k...............",
+    ".............kkXkXXXXXXXkcccccccccccc0kxxxxnn88k................",
+    "...........kkXXkXXXXXXXxkcccccccccccc0kxx***88k.................",
+    "..........kxXXXkXXXXXXkkkkccccccccccc0k*******k.................",
+    "........kkXXXXkxXXXXkkXXxxkk0cccccc00kkk****kk..................",
+    ".......kXXxxXxkxxXXkXXXXXxx*k000000kkkxxkkkk*k..................",
+    "......kXXXxx*xkxxxxkXXXXXxxxkkkkkkkkXXXxx*k**k..................",
+    ".....kXXXxxx*xkxxxkXXXXXxxxx*kxxxxxkXXXxx*k**k..................",
+    ".....kXXxxx****kxxkXXXXxxxx**knnnnkxXXxxx**kkk..................",
+    "....kXXxxx*****k*xkXXXxxxxx**knnnnkxXxxx***k*k..................",
+    "...kXXXxx*****kkk*kxxxxxxx***knnnnkxXxxx**k**k..................",
+    "...kXXxx***kkk...kkxxxxxXx***knnnnkxXxxx**k**k..................",
+    "..kXxxx**kk......kkxxxxXXxx**knnnnkxXxxx**k**k..................",
+    ".kXXx***k........kxk**XXxxx*k88888kxXxxx**k**k..................",
+    ".kXx**kk........kxkk**XXxx**kkkkkkkxXXxx*kkkk...................",
+    ".kXX*k..........kkxxkXXxx**k......kxXXxx*kx*k...................",
+    "kXXx*k..........kxxxkXXxx**k......kxXxxx*k**k...................",
+    "kxxxxk.........kxxxkXXxx**k.......kxxxxx*k**k...................",
+    "kxxxx*k........k*xxkXXx**k.........kxxxx*k***k..................",
+    "kxxx**k.........kxkXXxx**k.........kxxxxx*k**k..................",
+    ".kx**k..........kxkxxxx*k...........kxxxx*k**k..................",
+    ".k*kk...........k*xkxxxxk...........kxxxx*k**k..................",
+    "..k..............kxkxxxx*k...........kxxxx*k**k.................",
+    ".................kxxkxxx*kk..........kxxxx*kkkk.................",
+    ".................k*kkxxxXxxkk.........kxxXxxkkxk................",
+    "..................kxkxXXXxxx*k........kXXXxxx*k*k...............",
+    "..................k**kxxxx***k........kxxxx***k*k...............",
+    "...................kkkkk***BkBk........kk***BkBk................",
+    "........................kkkk.k...........kkkk.k.................",
+  ] },
+  vorhal: { w: 43, h: 71, ax: 21, ay: 68, palette: {"0":"#6e1838","6":"#94786e","7":"#5a5c80","8":"#8a4e2e","#":"#241a3c","B":"#fff6dc","I":"#8c7ab0","M":"#f4f8ff","N":"#ffe08a","P":"#ff2e9d","Q":"#d29aff","^":"#46247a","b":"#dcc49a","c":"#c8303a","i":"#4c3c70","k":"#150c1f","m":"#a8b4cc","n":"#d8973a","q":"#8c4ad8"}, rows: [
+    "........k666k.................kk66k........",
+    ".........kb66k...............kbbkkk........",
+    ".........kb66kk.............kkbb6k.........",
+    ".........k6b66kk..........kkkbb66k.........",
+    ".........k6666k6kk..kk..kkBBkbb6k..........",
+    "..........k66kbb66kkQqkkBBbbk666k..........",
+    "...........kk666bb6kqkbBbbbb6kkk...........",
+    "............k6666b66kkbbbb6666k............",
+    ".............k666666kkbbb666kk.............",
+    "..............kk666kq#66666k...............",
+    "...............kkkkQ^#kk6kk................",
+    "..............kiII#q^#iik##k..k............",
+    "..............kiii#q^#i#IIIikkmk...........",
+    "..............kki#qq^#kPkPkkkkmk...........",
+    "............kk7ki#Qq#iikkkk#kkm7k..........",
+    "..........kkMmkk##Q^#iiiiii#k.kmk..........",
+    ".......kkkkMmk..k#q^##iiii##kk#7#kkkk......",
+    "...kkkkkIIkm7kkkkk####iii#QQQQQQQQQQQk.....",
+    "..kmmmmmkIikki#kkkkkkkk###^^^kkkkkk^^k.....",
+    "...kkk77kiiiii##kIIIIIikkk###IIIiii##k.....",
+    "....kikkiiiii###kIIIIIiikiIkIIIIiii#kkk....",
+    "...kiiiiiikk#####kiIIIiikiikIIIIiii#kmmk...",
+    "....kiiiikmmk###kIiiiiIIkikiiIIiii###kk....",
+    "....k#iii#kmk###kIiiiIIkkkkiiiiiii###k.....",
+    "....kk####kmk##kIiiiiIkNnk7kiiiiii##kk.....",
+    "....kik####k7kkiiiiiikNNn8kkiiiiii##k......",
+    "...kiiikkk#kkkiiiiiiiknn88kkiikkkk##k......",
+    "...kkkkk#kkiiiiiiii#iik88k#kkkIIiik#k......",
+    "..kkiii#kkkii##i#####ikkkk#kIIIIii#kk......",
+    "..kiiiiii#kiii########kkkkkIIIIiii#k.......",
+    "..kiiiiiiik#iiiii##i#kIIIikIIiiii##k.......",
+    "..kii#iiiiik#########IIIii#kiii####kk......",
+    "..k#####iiiikQQQQQQQkiikki#ki#####k0k......",
+    "...k######ii#^^^^^^^kkkiik#k####kk00k......",
+    "....kk######k########IIiiikk##kkcc00k......",
+    "....kckk####kiiIIIi#kiiii##kkkccccc00k.....",
+    "....kccckk##kiiiiiiikiii###k#kccccc00k.....",
+    "....kccccckkkiiikkkkk#####kkkkkkkcc00k.....",
+    "...kccccccki#k#kNNNNNkk##kNNNNNNnkc000k....",
+    "...kcccccck#iiknnnnnnnkkkknnnnnnnkcc00k....",
+    "...kccccck#IIIIk8888888kk88888888kcc00k....",
+    "...kccccc0iiiiiikkkkkkkkkkkkkkkkkccc00k....",
+    "...kccccck#i#######bkmm7777k###0cccc00k....",
+    "...kcccccki#########kmm7777k###kcccc000k...",
+    "..kcccccckik#########mm7777###k#kcccc00k...",
+    "..kcccccckikiiiiiiiikmm7m77ki#k#kcccc00k...",
+    "..kccccckiikiiiiiiiikmm7m77ki#k#kcccc00k...",
+    "..kccccckiikiiiiiiiiikm7m77ki#k#kcccc00k...",
+    "..kccccckikkiiiiii###km7m77ki#kk#kccc00k...",
+    "..kccccckkkiiii####kkkm7m77kii#kkkccc00k...",
+    "..kccccckiki####kkkcckm7m77k###k#kccc000k..",
+    "..kccccckik##kkkkkccckm7m77kk##k#kcccc00k..",
+    "..kcccckiikkkkk##kccckm7m77kkkkk##kccc00k..",
+    ".kccccckikiiii#k#kccckm7m77kIIiik#kccc00k..",
+    ".kcccccckiiiii##kcccckm7m77kIIii#kcccc00k..",
+    ".kcccccckiiiii##kcccckm7m77kIiii#kcccc00k..",
+    ".kccccckiiiii###kcccckm7m77kiiii##kccc000k.",
+    ".kccccckiiii####kcccckm7m77kiiii##kcccc00k.",
+    ".kccccckiiii####kcccckm7m77kiiii##kcccc00k.",
+    ".kccccckiiii####kcccckm7m77kiiii##kcccc00k.",
+    ".kccccckiiii####kcccckm7m77kiiii##kcccc00k.",
+    ".kcc0cckiiii####kcccckm7m77kiiii##k000c00k.",
+    "kcc0000kiiii####kcccckm7m77kiiii##k000000k.",
+    "kcc00k0kiiii####kcccckm7m77kiiii##k0k00000k",
+    "kc0kk.kkiikkkkkkk0ccckm7m777kkkkkkkk.kk000k",
+    "k0k....kikiiiiii#k0cckm7m777kIIIiiik...kk0k",
+    ".k.....kkiiiiii###k0c0km777kIIIiiii#k....k.",
+    ".......kiiiiii#####k000km7kiiiiiii###k.....",
+    ".......k##########k000kkm7kiiiii####k......",
+    "........k########k.k0k..kkk########k.......",
+    ".........kkkkkkkk...k......kkkkkkkk........",
+  ] },
+};
+const MASTER = [
+  ["Skin", [["S", "#ffd1a1"], ["s", "#e0905c"], ["1", "#9c4f45"], ["O", "#b8bc78"], ["o", "#7c8650"], ["2", "#464c3e"]]],
+  ["Hair & bone", [["H", "#fff0a0"], ["h", "#f0b83c"], ["3", "#a8632e"], ["E", "#ff9a5c"], ["e", "#d8462e"], ["4", "#842439"], ["W", "#f2ece6"], ["w", "#b4a8b0"], ["5", "#6c5e78"], ["B", "#fff6dc"], ["b", "#dcc49a"], ["6", "#94786e"]]],
+  ["Metal", [["M", "#f4f8ff"], ["m", "#a8b4cc"], ["7", "#5a5c80"], ["N", "#ffe08a"], ["n", "#d8973a"], ["8", "#8a4e2e"], ["I", "#8c7ab0"], ["i", "#4c3c70"], ["#", "#241a3c"]]],
+  ["Cloth & leather", [["L", "#c98a58"], ["l", "#8c5236"], ["9", "#4f2c2e"], ["C", "#ff6a54"], ["c", "#c8303a"], ["0", "#6e1838"], ["V", "#8cd46a"], ["v", "#3e8c4a"], ["!", "#1f4a3e"], ["U", "#78b4ff"], ["u", "#3c5ce0"], ["@", "#262e8c"]]],
+  ["Enemy tiers", [["A", "#cfc6c8"], ["a", "#8e8494"], ["$", "#514a60"], ["T", "#f2a060"], ["t", "#b85a2c"], ["%", "#6e2c2a"], ["Q", "#d29aff"], ["q", "#8c4ad8"], ["^", "#46247a"]]],
+  ["Beasts", [["Y", "#9ee0b4"], ["y", "#4ea08a"], ["&", "#285058"], ["X", "#ffb060"], ["x", "#d85a2e"], ["*", "#7c2838"]]],
+  ["Fire & ember", [["F", "#fff6b8"], ["f", "#ffc22e"], ["~", "#f86420"], ["=", "#a82434"]]],
+  ["Night & shadow", [["k", "#150c1f"]]],
+  ["UI neon", [["G", "#16e7ff"], ["P", "#ff2e9d"], ["J", "#b6ff4d"], ["D", "#ffe46b"], ["Z", "#ffffff"], ["g", "#6544c2"]]],
+];
+// procedural backdrop colours (also listed in the palette section)
+const NIGHT = { sky: ["#0d0718", "#1a0e2e", "#2c1846", "#47265a", "#6e3460", "#a3444e", "#d8623c", "#f69a46"],
+  hills: ["#5a2f5e", "#3b1f4c", "#271537", "#1a0e28"], road: ["#3a2232", "#4c2b36", "#5f363a", "#74453e", "#8a5642"] };
+const HEX = Object.fromEntries(MASTER.flatMap((g) => g[1]));
+const tier = (l, m, d) => ({ A: HEX[l], a: HEX[m], $: HEX[d] });
+const SWAPS = { rust: tier("T", "t", "%"), violet: tier("Q", "q", "^"),
+  brakka2: { H: "#b58a6a", h: "#5e3a36", 3: "#2c1828", C: "#78b4ff", c: "#3c5ce0", 0: "#262e8c", S: "#eeb184", s: "#b86d45", 1: "#723a3a" } };
+const FLAME = ["#fff6b8", "#ffc22e", "#f86420", "#a82434"];
+const STILL = /[?&]still/.test(location.search) || matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ---- sprite rendering
+const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const cache = {};
+function art(name, over = {}, key = "") {
+  const id = name + "|" + key;
+  if (cache[id]) return cache[id];
+  const s = SPRITES[name], pal = { ...s.palette, ...over }, c = document.createElement("canvas");
+  c.width = s.w; c.height = s.h;
+  const g = c.getContext("2d"), img = g.createImageData(s.w, s.h);
+  s.rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== ".") img.data.set([...rgb(pal[ch]), 255], (y * s.w + x) * 4); }));
+  g.putImageData(img, 0, 0);
+  return (cache[id] = c);
+}
+// palette transforms: damage flash and electrified (magic hit)
+const mapPal = (name, fn) => Object.fromEntries(Object.entries(SPRITES[name].palette).map(([k, v]) => [k, fn(rgb(v), k)]));
+const toHex = (c) => "#" + c.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("");
+const flash = (name) => mapPal(name, (c, k) => (k === "k" ? "#3a0f24" : toHex(c.map((v, i) => v * 0.55 + [255, 120, 130][i] * 0.45))));
+const zap = (name) => mapPal(name, (c, k) => { const l = c[0] * 0.3 + c[1] * 0.55 + c[2] * 0.15; return k === "k" ? "#06122e" : l > 150 ? "#ffffff" : l > 90 ? "#16e7ff" : "#2a4ad0"; });
+function put(g, name, fx, fy, o = {}) {
+  const s = SPRITES[name], c = art(name, o.over, o.key);
+  const x = Math.round(o.flip ? fx - (s.w - 1 - s.ax) : fx - s.ax), y = Math.round(fy - s.ay - (o.z || 0));
+  if (o.glow) glow(g, s, x, y, o.flip, o.glow);
+  if (!o.flip) return g.drawImage(c, x, y);
+  g.save(); g.scale(-1, 1); g.drawImage(c, -x - s.w, y); g.restore();
+}
+function glow(g, s, x, y, flip, col) { // 2-px neon aura around the silhouette
+  const solid = (i, j) => { const ch = i >= 0 && j >= 0 && i < s.w && j < s.h ? s.rows[j][flip ? s.w - 1 - i : i] : "."; return ch !== undefined && ch !== "."; };
+  for (let j = -2; j < s.h + 2; j++) for (let i = -2; i < s.w + 2; i++) {
+    if (solid(i, j)) continue;
+    let d = 9;
+    for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) if (solid(i + a, j + b)) d = Math.min(d, Math.abs(a) + Math.abs(b));
+    if (d === 1 || (d === 2 && (i + j) % 2 === 0)) { g.fillStyle = col; g.fillRect(x + i, y + j, 1, 1); }
+  }
+}
+function shadow(g, x, y, rx, ry = Math.max(2, rx * 0.32)) {
+  g.fillStyle = "rgba(10, 3, 20, .5)";
+  for (let j = -Math.floor(ry); j <= ry; j++) {
+    const w = Math.round(rx * Math.sqrt(Math.max(0, 1 - (j * j) / (ry * ry))));
+    if (w > 0) g.fillRect(Math.round(x) - w, Math.round(y) + j, w * 2, 1);
+  }
+}
+
+// ---- tiny raster helpers for procedural layers
+const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+const bay = (x, y) => (BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16;
+const px = (g, x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
+function dband(cols, t, x, y) { // dithered pick between neighbouring colours
+  const f = Math.max(0, Math.min(cols.length - 1.001, t * (cols.length - 1))), i = Math.floor(f);
+  return cols[i + (f - i > bay(x, y) ? 1 : 0)];
+}
+const hash = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const FONT = { A: "010101111101101", B: "110101110101110", E: "111100110100111", G: "011100101101011", H: "101101111101101",
+  I: "111010010010111", J: "001001001101010", K: "101101110101101", M: "101111111101101", N: "110101101101101",
+  O: "010101101101010", P: "110101110100100", R: "110101110101101", S: "011100010001110", T: "111010010010010",
+  0: "111101101101111", 1: "010110010010111", 2: "110001010100111", 3: "110001010001110", 4: "101101111001001",
+  5: "111100110001110", x: "000101010101000", " ": "000000000000000" };
+function text(g, str, x, y, col, k = 1) {
+  [...str].forEach((ch, n) => [...(FONT[ch] || FONT[" "])].forEach((b, i) => {
+    if (b === "1") { g.fillStyle = col; g.fillRect(x + n * 4 * k + (i % 3) * k, y + Math.floor(i / 3) * k, k, k); }
+  }));
+}
+
+// ---- stage 1 backdrop (static part)
+const W = 320, H = 180, FLOOR = 104; // FLOOR is the engine's FLOOR_TOP; feet stand on rows FLOOR..172 (FLOOR_BOTTOM)
+const HUTS = [{ x: 10, w: 44, wall: 15, roof: 22, burn: 0.55 }, { x: 116, w: 56, wall: 18, roof: 28, burn: 1 },
+  { x: 236, w: 48, wall: 16, roof: 24, burn: 0.8 }];
+function roofTop(h, x) { // y of the thatch surface at column x
+  const c = h.x + h.w / 2, half = h.w / 2 + 5;
+  return FLOOR - h.wall - Math.round(h.roof * Math.max(0, 1 - Math.abs(x - c) / half));
+}
+function backdrop() {
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const g = c.getContext("2d");
+  for (let y = 0; y < FLOOR; y++) for (let x = 0; x < W; x++) px(g, x, y, dband(NIGHT.sky, (y - 18) / 84, x, y));
+  for (let i = 0; i < 40; i++) { const x = Math.floor(hash(i) * W), y = 21 + Math.floor(hash(i + 50) * 30); px(g, x, y, i % 5 ? "#5a3a7a" : "#c9b8ff"); }
+  for (let y = 66; y < 106; y++) for (let x = 40; x < 110; x++) { // low sun with retro bands
+    const d = Math.hypot(x - 76, y - 90);
+    if (d < 21 && !(y > 82 && (y - 82) % 4 < (y - 82) / 6)) px(g, x, y, d < 19 ? (y < 84 ? "#ffe9a0" : "#ffbe58") : "#ff8a4a");
+  }
+  for (let x = 0; x < W; x++) { // far ridge
+    const r1 = Math.round(80 + 9 * Math.sin(x * 0.028 + 1.2) + 5 * Math.sin(x * 0.083 + 2) + 2 * Math.sin(x * 0.21));
+    for (let y = r1; y < FLOOR; y++) px(g, x, y, y === r1 ? NIGHT.hills[0] : NIGHT.hills[1]);
+  }
+  for (const [x0, y0, w] of [[250, 63, 6], [258, 58, 5], [265, 66, 9], [276, 61, 5], [282, 69, 8]]) { // Vorhal's keep
+    for (let y = y0; y < 90; y++) for (let x = x0; x < x0 + w; x++) px(g, x, y, NIGHT.hills[2]);
+    for (let x = x0; x < x0 + w; x += 2) px(g, x, y0 - 1, NIGHT.hills[2]);
+    px(g, x0 + (w >> 1), y0 + 6, "#f86420");
+  }
+  for (let x = 0; x < W; x++) { // near hills
+    const r2 = Math.round(97 + 3 * Math.sin(x * 0.045 + 0.3) + 2 * Math.sin(x * 0.13 + 1));
+    for (let y = r2; y < FLOOR; y++) px(g, x, y, NIGHT.hills[2]);
+  }
+  for (const [tx, th] of [[60, 20], [66, 14], [94, 17], [190, 22], [199, 15], [212, 19], [300, 21], [309, 15]])
+    for (let j = 0; j < th; j++) { const w = Math.floor((j % 6) * 0.6 + j * 0.22); for (let i = -w; i <= w; i++) px(g, tx + i, FLOOR - th + j - 4, NIGHT.hills[3]); }
+  for (const h of HUTS) hut(g, h);
+  for (const [a, b] of [[58, 112], [176, 232], [288, 320]]) { // fence
+    for (let x = a; x < b; x++) { px(g, x, FLOOR - 7, "#5a3424"); px(g, x, FLOOR - 4, "#4a2a26"); }
+    for (let x = a + 2; x < b; x += 7) for (let y = FLOOR - 10; y < FLOOR; y++) px(g, x, y, y === FLOOR - 10 ? "#8a5236" : "#3c2226");
+  }
+  for (let y = FLOOR; y < H; y++) for (let x = 0; x < W; x++) { // road: dithered depth + firelight pool
+    const lit = Math.max(0, 1 - Math.hypot((x - 146) / 90, (y - FLOOR) / 30)) * 0.35;
+    px(g, x, y, dband(NIGHT.road, ((y - FLOOR) / (H - FLOOR)) * 0.75 + lit, x, y));
+  }
+  for (let x = 0; x < W; x++) {
+    px(g, x, FLOOR, "#241626"); px(g, x, FLOOR + 1, (x * 7) % 5 ? "#2e1c2c" : "#3d2a3a");
+    if (hash(x) > 0.7) px(g, x, FLOOR - 1, "#2e1c2c");
+    for (const ry of [139, 163]) { const y = ry + Math.round(2 * Math.sin(x * 0.035 + ry)); px(g, x, y, NIGHT.road[0]); if (x % 3) px(g, x, y + 1, NIGHT.road[3]); }
+  }
+  for (let i = 0; i < 70; i++) {
+    const x = Math.floor(hash(i * 3.1) * W), y = FLOOR + 4 + Math.floor(hash(i * 7.7) * 62), big = hash(i) > 0.6;
+    px(g, x, y, NIGHT.road[4]); if (big) { px(g, x + 1, y, NIGHT.road[3]); px(g, x, y + 1, NIGHT.road[1]); px(g, x + 1, y + 1, NIGHT.road[0]); }
+  }
+  for (let y = -2; y <= 2; y++) for (let x = -13; x <= 13; x++) // a puddle catching the firelight
+    if ((x / 13) ** 2 + (y / 2.6) ** 2 <= 1) px(g, 34 + x, 128 + y, y === 0 && Math.abs(x) < 8 ? (bay(x, y) > 0.5 ? "#f69a46" : "#d8623c") : y < 0 ? "#47265a" : "#2c1846");
+  for (let x = 0; x < W; x++) if (hash(x * 1.7) > 0.7) for (let j = 0; j < 2 + Math.floor(hash(x) * 4); j++) px(g, x + (j > 2 ? 1 : 0), H - 1 - j, "#1a0e1c");
+  return c;
+}
+function hut(g, h) {
+  const top = FLOOR - h.wall;
+  for (let y = top; y < FLOOR; y++) for (let x = h.x; x < h.x + h.w; x++) {
+    const plank = (x - h.x) % 5 === 0, edge = x === h.x || x === h.x + h.w - 1;
+    px(g, x, y, edge ? "#150c1f" : plank ? "#2e1a26" : x - h.x < h.w * 0.35 ? "#54303a" : "#43262f");
+  }
+  const dx = h.x + Math.round(h.w * 0.62);
+  for (let y = FLOOR - 11; y < FLOOR; y++) for (let x = dx; x < dx + 7; x++) px(g, x, y, y < FLOOR - 9 ? "#f86420" : x === dx || x === dx + 6 ? "#a82434" : "#ffc22e");
+  for (let y = FLOOR - 12; y < FLOOR - 7; y++) for (let x = h.x + 6; x < h.x + 12; x++) px(g, x, y, y === FLOOR - 12 || x === h.x + 6 ? "#150c1f" : "#ffb030");
+  for (let x = h.x - 5; x <= h.x + h.w + 5; x++) {
+    const ty = roofTop(h, x);
+    for (let y = ty; y <= top + 2; y++) {
+      const d = y - ty, strand = (x * 2 + y * 3) % 7 === 0, lit = x < h.x + h.w / 2;
+      px(g, x, y, d === 0 || y === top + 2 ? "#150c1f" : y === top + 1 ? "#5a3424" : strand ? "#5a3424" : d < 3 && hash(x + y) > 0.4 ? "#e0a050" : lit ? "#b07836" : "#8a5a2c");
+    }
+  }
+}
+
+// ---- animated layers
+function fire(g, x0, x1, base, hmax, t, seed) {
+  for (let x = x0; x <= x1; x++) {
+    const env = Math.sin((Math.PI * (x - x0 + 0.5)) / (x1 - x0 + 1));
+    const n = 0.55 + 0.25 * Math.sin(x * 0.9 + seed + t * 9) + 0.2 * Math.sin(x * 0.31 + seed * 2 - t * 6);
+    const h = Math.max(1, Math.round(hmax * env * n)), by = base(x);
+    for (let j = 0; j < h; j++) px(g, x, by - j, FLAME[Math.min(3, Math.floor((j / h) * 3.2 + (1 - env) * 1.6))]);
+    if (hash(x + Math.floor(t * 8) * 13 + seed) > 0.8) px(g, x, by - h - 2, FLAME[2 + (x & 1)]);
+  }
+}
+function embers(g, cx, by, n, t, seed) {
+  for (let i = 0; i < n; i++) {
+    const life = (t * (0.25 + hash(i + seed) * 0.3) + hash(i * 3 + seed)) % 1;
+    const x = Math.round(cx + (hash(i * 7 + seed) - 0.5) * 30 + Math.sin(life * 9 + i) * 3 + life * 12), y = Math.round(by - life * 60);
+    if (y > 20) px(g, x, y, FLAME[Math.min(3, Math.floor(life * 4))]);
+  }
+}
+function smoke(g, cx, by, t, seed) {
+  for (let i = 0; i < 7; i++) {
+    const life = (t * 0.06 + i / 7 + seed) % 1, r = 4 + life * 14, x = cx + life * 34 + Math.sin(i + t) * 2, y = by - life * 70;
+    for (let j = -r; j <= r; j++) for (let k = -r; k <= r; k++) {
+      const X = Math.round(x + k), Y = Math.round(y + j);
+      if (Y < 21 || k * k + j * j > r * r || bay(X, Y) > 0.42 * (1 - life)) continue;
+      px(g, X, Y, life < 0.3 ? "#4a3050" : "#3a2448");
+    }
+  }
+}
+function spark(g, x, y, t) {
+  const p = Math.floor(t * 10) % 2;
+  for (const [dx, dy, l, col] of [[1, 0, 9, "#16e7ff"], [-1, 0, 7, "#16e7ff"], [0, -1, 8, "#16e7ff"], [0, 1, 6, "#16e7ff"],
+    [1, -1, 5, "#ff2e9d"], [1, 1, 5, "#ff2e9d"], [-1, -1, 4, "#ff2e9d"], [-1, 1, 4, "#ff2e9d"]])
+    for (let i = 2; i <= l + p; i++) px(g, x + dx * i, y + dy * i, i < 4 ? "#ffffff" : i < l - 1 ? "#ffe46b" : col);
+  for (const [a, b] of [[0, -2], [-1, -1], [0, -1], [1, -1], [-2, 0], [-1, 0], [0, 0], [1, 0], [2, 0], [-1, 1], [0, 1], [1, 1], [0, 2]]) px(g, x + a, y + b, "#ffffff");
+  for (let i = 0; i < 5; i++) px(g, x + Math.round((hash(i) - 0.3) * 18), y + Math.round((hash(i + 9) - 0.5) * 14), i % 2 ? "#ffe46b" : "#16e7ff");
+}
+
+// ---- HUD: per hero a portrait, name, lives, health bar and pots; empty seats blink JOIN
+const HEROES = [{ id: "BRAKKA", spr: "brakkaIdle", col: "#ffc22e", hp: 0.72, pots: 2, max: 4, lives: 3, face: [1, -42] },
+  { id: "RHEA", spr: "rheaIdle", col: "#ff6a54", hp: 0.9, pots: 5, max: 6, lives: 2, face: [1, -42] },
+  { id: "GORM", spr: "gormIdle", col: "#16e7ff", hp: 0.45, pots: 1, max: 3, lives: 3, face: [1, -31] }];
+function hud(g, t) {
+  g.fillStyle = "#0b0614"; g.fillRect(0, 0, W, 19);
+  g.fillStyle = "#6544c2"; g.fillRect(0, 19, W, 1);
+  g.fillStyle = "#150c1f"; g.fillRect(0, 20, W, 1);
+  for (let i = 0; i < 5; i++) {
+    const x0 = i * 64 + 2, h = HEROES[i];
+    g.fillStyle = h ? h.col : "#3b2a52"; g.fillRect(x0, 2, 15, 15);
+    g.fillStyle = "#1a0e2e"; g.fillRect(x0 + 1, 3, 13, 13);
+    if (!h) {
+      text(g, "P" + (i + 1), x0 + 4, 7, "#3b2a52");
+      if (STILL || Math.floor(t * 2) % 2 === 0) text(g, "JOIN", x0 + 19, 7, "#7a5aa8");
+      continue;
+    }
+    const s = SPRITES[h.spr];
+    g.drawImage(art(h.spr), s.ax + h.face[0] - 6, s.ay + h.face[1] - 6, 13, 13, x0 + 1, 3, 13, 13);
+    text(g, h.id, x0 + 18, 2, h.col);
+    text(g, "x" + h.lives, x0 + 52, 2, "#f1e8f7");
+    g.fillStyle = "#150c1f"; g.fillRect(x0 + 18, 8, 42, 5);
+    g.fillStyle = "#3a1a2e"; g.fillRect(x0 + 19, 9, 40, 3);
+    const w = Math.round(40 * h.hp);
+    g.fillStyle = h.hp > 0.5 ? "#b6ff4d" : "#ffe46b"; g.fillRect(x0 + 19, 9, w, 3);
+    g.fillStyle = "#ffffff"; g.fillRect(x0 + 19, 9, w, 1);
+    for (let p = 0; p < h.max; p++) { // pots: filled blue or empty slot
+      const x = x0 + 18 + p * 6, full = p < h.pots;
+      g.fillStyle = full ? "#262e8c" : "#2a1c3a"; g.fillRect(x, 14, 5, 4); g.fillRect(x + 1, 13, 3, 1);
+      if (full) { g.fillStyle = "#3c5ce0"; g.fillRect(x + 1, 14, 3, 3); g.fillStyle = "#78b4ff"; g.fillRect(x + 1, 14, 1, 1); }
+    }
+  }
+}
+function goMarker(g, t) {
+  if (!STILL && Math.floor(t * 2.5) % 3 === 2) return;
+  const x = 270, y = 32;
+  const draw = (dx, dy, c) => {
+    text(g, "GO", x + dx, y + dy, c, 2);
+    g.fillStyle = c; g.fillRect(x + dx + 19, y + dy + 4, 9, 3);
+    for (let i = 0; i < 7; i++) g.fillRect(x + dx + 34 - i, y + dy + 5 - i, 1, i * 2 + 1);
+  };
+  for (const [a, b] of [[2, 2], [1, 2], [2, 1]]) draw(a, b, "#ff2e9d");
+  for (const [a, b] of [[-1, 0], [1, 0], [0, -1], [0, 1], [1, 1]]) draw(a, b, "#150c1f");
+  draw(0, 0, "#ffe46b");
+}
+
+// ---- the key scene: backdrop, smoke, fire, depth-sorted actors with shadows, spark, HUD
+let BG;
+function scene(g, t) {
+  g.drawImage(BG, 0, 0);
+  HUTS.forEach((h, i) => smoke(g, h.x + h.w / 2, FLOOR - h.wall - h.roof, t, i * 0.37));
+  HUTS.forEach((h, i) => {
+    const c = h.x + h.w / 2, span = Math.round((h.w / 2 + 4) * h.burn);
+    fire(g, Math.round(c - span), Math.round(c + span * 0.8), (x) => roofTop(h, x) + 2, 16 * h.burn + 6, t, i * 5);
+    embers(g, c, FLOOR - h.wall - h.roof, 14, t, i * 11);
+  });
+  const imp = 30 + (STILL ? 0 : (t * 14) % 6), pz = STILL ? 12 : Math.max(0, 22 - ((t * 30) % 40));
+  const actors = [
+    [168, () => { shadow(g, imp, 168, 9); put(g, "sackImp", imp, 168, { flip: true }); }],
+    [171, () => { shadow(g, 60, 171, 4); put(g, "pot", 60, 171, { z: pz }); }],
+    [139, () => { shadow(g, 82, 139, 11); put(g, "rheaIdle", 82, 139); }],
+    [152, () => { shadow(g, 146, 152, 12); put(g, "brakkaAttack", 146, 152); }],
+    [151, () => { shadow(g, 196, 151, 11); put(g, "ravager", 196, 151, { flip: true, over: flash("ravager"), key: "flash" }); }],
+    [131, () => { shadow(g, 264, 131, 11); put(g, "ravager", 264, 131, { flip: true, over: SWAPS.rust, key: "rust" }); }],
+    [172, () => { shadow(g, 206, 172, 12); put(g, "gormAttack", 206, 172); }],
+    [170, () => { shadow(g, 258, 170, 11); put(g, "ravager", 258, 170, { flip: true, over: SWAPS.violet, key: "violet" }); }],
+  ].sort((a, b) => a[0] - b[0]);
+  actors.forEach(([, f]) => f());
+  if (pz > 0) for (const [a, b] of [[-4, -3], [4, -5], [0, -10]]) px(g, 60 + a, 171 - pz + b, "#78b4ff");
+  spark(g, 184, 125, t);
+  hud(g, t);
+  goMarker(g, t);
+}
+
+// ---- magic vignettes (112x64)
+function bolt(g, x0, y0, x1, y1, seed, fork) { // jagged 4-px lightning: cyan rim, white core
+  const n = Math.ceil((y1 - y0) / 5), pts = [];
+  for (let i = 0; i <= n; i++) pts.push([x0 + ((x1 - x0) * i) / n + (i % n ? (hash(i + seed) - 0.5) * 9 : 0), y0 + ((y1 - y0) * i) / n]);
+  for (let i = 0; i < n; i++) {
+    const [ax, ay] = pts[i], [bx, by] = pts[i + 1];
+    for (let y = Math.round(ay); y < by; y++) {
+      const x = Math.round(ax + ((bx - ax) * (y - ay)) / (by - ay));
+      px(g, x - 2, y, "#16e7ff"); px(g, x + 1, y, "#16e7ff"); px(g, x - 1, y, "#ffffff"); px(g, x, y, "#ffffff");
+    }
+    if (fork && i === 2) for (let k = 1; k < 10; k++) px(g, Math.round(bx) + k * fork, Math.round(by) + k, k < 7 ? "#ffffff" : "#16e7ff");
+  }
+}
+function vignette(g, kind, t) {
+  const w = 112, h = 64, fl = 48, storm = kind === "storm";
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++)
+    px(g, x, y, y < fl ? dband(NIGHT.sky.slice(storm ? 1 : 0, storm ? 7 : 5), y / fl, x, y) : dband(NIGHT.road, ((y - fl) / 16) * 0.8, x, y));
+  for (let x = 0; x < w; x++) px(g, x, fl, "#241626");
+  const hero = { storm: "brakkaIdle", fire: "rheaIdle", earth: "gormIdle" }[kind];
+  const aura = { storm: "#16e7ff", fire: "#ff8a2e", earth: "#b6ff4d" }[kind];
+  shadow(g, 22, 60, 10); shadow(g, 88, 60, 10);
+  if (storm) {
+    for (let i = 0; i < 4; i++) for (let y = 0; y < 16; y++) for (let x = 0; x < w; x++) { // thunderhead
+      const top = 5 + Math.round(4 * Math.sin(x * 0.12 + i * 2) + 2 * Math.sin(x * 0.31 + i));
+      if (y > top - i * 2 && bay(x, y) < 1 - i * 0.2) px(g, x, y, ["#1a0e2e", "#2c1846", "#47265a", "#6e5a9a"][i]);
+    }
+    put(g, hero, 22, 60, { glow: aura });
+    put(g, "ravager", 88, 60, { flip: true, over: zap("ravager"), key: "zap" });
+    const f = Math.floor(t * 7);
+    bolt(g, 92, 4, 90, 20, f, -1); bolt(g, 58, 6, 62, 58, f + 5, 1);
+    for (let i = 0; i < 7; i++) px(g, 62 + Math.round((hash(i) - 0.5) * 14), 58 - Math.round(hash(i + 3) * 5), i % 2 ? "#16e7ff" : "#ffffff");
+    for (let i = 0; i < 14; i++) px(g, 88 + Math.round((hash(i + f) - 0.5) * 34), 14 + Math.round(hash(i * 3 + f) * 44), i % 2 ? "#16e7ff" : "#ffffff");
+  } else if (kind === "fire") {
+    for (let y = fl + 1; y < h; y++) for (let x = 40; x < w; x++) if (bay(x, y) < 0.45) px(g, x, y, "#a3444e");
+    put(g, hero, 22, 60, { glow: aura });
+    put(g, "ravager", 90, 60, { flip: true, over: flash("ravager"), key: "flash" });
+    for (let k = 0; k < 5; k++) fire(g, 38 + k * 14, 60 + k * 13, () => 63, 16 + k * 9, t + k * 0.7, k * 3);
+    embers(g, 84, 40, 30, t, 4);
+  } else {
+    for (let x = 46; x < w; x++) { // the ground splits, glowing
+      const y = 56 + Math.round(2 * Math.sin(x * 0.5) + (hash(x) - 0.5) * 2);
+      px(g, x, y, "#150c1f"); px(g, x, y - 1, x % 3 ? "#b6ff4d" : "#150c1f"); if (x % 4 === 0) px(g, x, y + 1, "#150c1f");
+    }
+    put(g, hero, 22, 60, { glow: aura });
+    put(g, "ravager", 88, 60, { flip: true, over: flash("ravager"), key: "flash" });
+    const fall = STILL ? 0.6 : (t * 0.9) % 1;
+    for (const [bx, by, r] of [[86, 4 + fall * 14, 9], [104, -6 + fall * 18, 6], [62, -2 + fall * 22, 7]]) boulder(g, bx, by, r);
+    for (let i = 0; i < 16; i++) { const a = hash(i) * Math.PI, d = 5 + hash(i + 4) * 12; px(g, Math.round(94 + Math.cos(a) * d * 1.4), Math.round(58 - Math.sin(a) * d * 0.5), i % 4 ? "#c8a07a" : "#b6ff4d"); }
+  }
+}
+function boulder(g, cx, cy, r) {
+  for (let i = 1; i <= 3; i++) for (let k = 2; k < 8; k += 2) px(g, Math.round(cx - r * 0.6 + i * r * 0.3), Math.round(cy - r - k - i), "#d6c2a8");
+  for (let y = -r - 1; y <= r + 1; y++) for (let x = -r - 1; x <= r + 1; x++) {
+    const d = Math.hypot(x * 0.95, y * 1.1) + (hash(Math.round(Math.atan2(y, x) * 3)) - 0.5) * 1.2, X = Math.round(cx + x), Y = Math.round(cy + y);
+    if (d > r + 0.8) continue;
+    if (d > r - 0.2) { px(g, X, Y, "#150c1f"); continue; }
+    const l = (-x - y) / r + (hash(x * 3 + y * 7) - 0.5) * 0.45;
+    px(g, X, Y, l > 0.7 ? "#f0c890" : l > 0 ? "#b07a4e" : l > -0.8 ? "#784a38" : "#45283a");
+  }
+  px(g, Math.round(cx + r * 0.2), Math.round(cy), "#b6ff4d"); px(g, Math.round(cx + r * 0.2) + 1, Math.round(cy) + 1, "#b6ff4d");
+}
+
+// ---- page assembly
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, kids = []) => { const e = Object.assign(document.createElement(tag), attrs); e.append(...kids); return e; };
+function spriteCanvas(name, k, o = {}) {
+  const s = SPRITES[name], pad = 2, c = el("canvas", { width: s.w + pad * 2, height: s.h + pad * 2 });
+  c.style.width = (s.w + pad * 2) * k + "px";
+  put(c.getContext("2d"), name, s.ax + pad, s.ay + pad, o);
+  return c;
+}
+function card(parent, title, text, frames, k = 4) {
+  const row = el("div", { className: "frames" }, frames.map(([name, tag, o]) => el("div", {}, [spriteCanvas(name, k, o), el("span", { className: "tag", textContent: tag })])));
+  parent.append(el("figure", {}, [row, el("figcaption", {}, [el("b", { textContent: title }), text])]));
+}
+card($("heroes"), "Brakka", "Barbarian · broadsword · Storm magic (4 pots). Balanced reach, speed and damage.", [["brakkaIdle", "idle"], ["brakkaAttack", "combo slash"]]);
+card($("heroes"), "Rhea", "Amazon · longsword · Fire magic (6 pots). Fastest and longest reach, lighter hits.", [["rheaIdle", "idle"], ["rheaAttack", "thrust"]]);
+card($("heroes"), "Gorm", "Dwarf · battle axe · Earth magic (3 pots). Slow and short, hits hardest, hard to knock down.", [["gormIdle", "idle"], ["gormAttack", "overhead chop"]]);
+card($("heroes"), "Second Brakka", "Duplicates are allowed: a second copy swaps the hair, skin and cloth ramps.", [["brakkaIdle", "P1"], ["brakkaIdle", "P4 swap", { over: SWAPS.brakka2, key: "b2" }]]);
+card($("enemies"), "Ravager", "Mace foot soldier, the bread and butter. Tiers by palette (ash, rust, violet) add HP and aggression.",
+  [["ravager", "ash"], ["ravager", "rust", { over: SWAPS.rust, key: "rust" }], ["ravager", "violet", { over: SWAPS.violet, key: "violet" }]]);
+card($("enemies"), "Lancer", "Spear, longer reach; jumps in from the screen edge.", [["lancer", "lancer"]]);
+card($("enemies"), "Brute", "Huge and slow; a club with knockback, takes several knockdowns.", [["brute", "brute"]]);
+card($("enemies"), "Bonewalker", "Skeleton swordsman that claws up out of the crypt floor.", [["bonewalker", "bonewalker"]]);
+card($("enemies"), "Sack imp", "Blue-hooded thief; flees, and drops a magic pot each time it is kicked.", [["sackImp", "imp"], ["pot", "pot"]]);
+card($("enemies"), "Clawbeak", "Mount. Bipedal beaked beast; its tail sweep hits everything around it.", [["clawbeak", "clawbeak"]]);
+card($("enemies"), "Ember drake", "Mount. A small dragon that breathes a stream of fire in front of it.", [["emberDrake", "ember drake"]]);
+card($("enemies"), "Vorhal", "Final boss. Horned dark knight with a greatsword, a fire spell and summoned bonewalkers.", [["vorhal", "vorhal"]]);
+const vig = [["storm", "Storm", "Brakka. Lightning strikes the screen; level 4 calls a thunderhead."],
+  ["fire", "Fire", "Rhea. A rolling flame wall; level 6 is a firebird."], ["earth", "Earth", "Gorm. Boulders fall; level 3 splits the ground."]]
+  .map(([kind, title, text]) => {
+    const c = el("canvas", { width: 112, height: 64 }); c.style.width = "336px";
+    $("magic").append(el("figure", {}, [c, el("figcaption", {}, [el("b", { textContent: title }), text])]));
+    return [c.getContext("2d"), kind];
+  });
+const NAMES = { k: "outline", S: "skin", O: "ogre", H: "blond", E: "red hair", W: "grey", B: "bone", M: "steel", N: "bronze",
+  I: "dark iron", L: "leather", C: "red cloth", V: "green", U: "imp blue", A: "ash", T: "rust", Q: "violet", Y: "clawbeak",
+  X: "drake", F: "flame", G: "cyan", P: "pink", J: "lime", D: "yellow", Z: "white", g: "UI violet" };
+const BACKDROP = [...NIGHT.sky, ...NIGHT.hills, ...NIGHT.road].map((v) => ["", v]); // procedural layers, no sprite key
+for (const [group, pal] of MASTER) {
+  const sw = el("div", { className: "sw" }, (group.startsWith("Night") ? [...pal, ...BACKDROP] : pal).map(([ch, hex]) =>
+    el("div", { title: NAMES[ch] || "" }, [el("i", { style: `background:${hex}` }), el("span", { innerHTML: `<b>${ch}</b>${hex}` })])));
+  $("palette").append(el("div", {}, [el("h3", { textContent: group }), sw]));
+}
+BG = backdrop();
+const s3 = $("scene3").getContext("2d"), s1 = $("scene1").getContext("2d");
+function tick(ms) {
+  const t = STILL ? 0.3 : ms / 1000;
+  scene(s1, t); s3.drawImage(s1.canvas, 0, 0);
+  for (const [g, kind] of vig) vignette(g, kind, t);
+  if (!STILL) setTimeout(() => requestAnimationFrame(tick), 90);
+}
+tick(0);
+</script>
+  </body>
+</html>
