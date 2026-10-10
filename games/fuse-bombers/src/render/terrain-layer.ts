@@ -1,110 +1,136 @@
 import type Phaser from "phaser";
-import type { TerrainView } from "../engine/index.js";
-import { groundMaterial } from "./art.js";
+import {
+  cellHard,
+  cellSolid,
+  type TerrainView,
+  type TickEvent,
+} from "../engine/index.js";
 import type { Theme } from "./palette.js";
 
-/** Grass/sand survives only where the surface is still within this many px of the original ground. */
-const UNTOUCHED = 1.5;
-/** Extra columns redrawn around a change, so the outline strokes join up. */
-const MARGIN = 8;
+const KEY = "terrain";
+
+/** `#rrggbb` → a pixel for a little-endian `Uint32Array` view of `ImageData` (ABGR), at `alpha`. */
+function pixel(hex: string, alpha = 255): number {
+  const v = Number.parseInt(hex.slice(1, 7), 16);
+  return ((alpha << 24) | ((v & 0xff) << 16) | (v & 0xff00) | (v >>> 16)) >>> 0;
+}
+
+/** A pixel scaled toward black by `k` (0..1). */
+function shade(p: number, k: number): number {
+  const f = (shift: number) => Math.round(((p >>> shift) & 0xff) * k) << shift;
+  return ((p & 0xff000000) | f(16) | f(8) | f(0)) >>> 0;
+}
+
+/** Linear blend of the theme's ground stops at `u` in [0, 1]. */
+function groundAt(theme: Theme, u: number): number {
+  const stops = theme.ground.map((c) => pixel(c));
+  const at = Math.min(stops.length - 1.001, u * (stops.length - 1));
+  const [a, b, t] = [stops[Math.floor(at)]!, stops[Math.ceil(at)]!, at % 1];
+  const mix = (shift: number) =>
+    Math.round(((a >>> shift) & 0xff) * (1 - t) + ((b >>> shift) & 0xff) * t) <<
+    shift;
+  return (0xff000000 | mix(16) | mix(8) | mix(0)) >>> 0;
+}
 
 /**
- * The destructible ground as one canvas texture. Each frame it diffs the engine's height map against the copy it
- * last drew and repaints only the changed column range: ground material below the surface, grass/sand along
- * untouched stretches and a dark outline everywhere, so craters read as bare earth.
+ * The destructible map as one canvas texture with a pixel per terrain cell (1200 × 675 on the temple), drawn scaled
+ * up by the cell size so it covers the world. Rock takes the theme's ground colours with strata, indestructible rock
+ * a darker shade, rock under open sky the theme's grass or sand and every other edge a dark outline. Each frame it
+ * repaints only the cells the `crater` events changed (with a one-cell border, whose edges may change), and all of
+ * it when it missed a carve.
  */
 export class TerrainLayer {
-  private readonly texture: Phaser.Textures.CanvasTexture;
-  private material: HTMLCanvasElement | null = null;
+  private texture: Phaser.Textures.CanvasTexture | null = null;
+  private readonly image: Phaser.GameObjects.Image;
   private theme: Theme | null = null;
-  private drawn = new Float64Array(0);
-  private original = new Float64Array(0);
+  /** Body colour per row (ground gradient top to bottom). */
+  private rows = new Uint32Array(0);
   private version = -1;
 
   constructor(
-    scene: Phaser.Scene,
-    width: number,
-    height: number,
+    private readonly scene: Phaser.Scene,
     depth: number,
   ) {
+    this.image = scene.add.image(0, 0, "__DEFAULT").setOrigin(0, 0);
+    this.image.setDepth(depth).setVisible(false);
+  }
+
+  /** Start a new round: size the texture to the grid and paint all of it. */
+  reset(grid: TerrainView, theme: Theme): void {
+    const textures = this.scene.textures;
     // Kept across scene restarts: the texture manager is global to the game.
-    const texture = scene.textures.exists("terrain")
-      ? (scene.textures.get("terrain") as Phaser.Textures.CanvasTexture)
-      : scene.textures.createCanvas("terrain", width, height);
+    let texture = textures.exists(KEY)
+      ? (textures.get(KEY) as Phaser.Textures.CanvasTexture)
+      : textures.createCanvas(KEY, grid.cols, grid.rows);
     if (!texture) throw new Error("could not create the terrain texture");
+    if (texture.width !== grid.cols || texture.height !== grid.rows)
+      texture = texture.setSize(grid.cols, grid.rows);
     this.texture = texture;
-    scene.add.image(0, 0, "terrain").setOrigin(0, 0).setDepth(depth);
-  }
-
-  /** Start a new round: remember the untouched surface and repaint everything. */
-  reset(terrain: TerrainView, theme: Theme): void {
-    if (theme !== this.theme)
-      this.material = groundMaterial(theme, terrain.width, terrain.height);
+    this.image.setTexture(KEY).setScale(grid.cell).setVisible(true);
     this.theme = theme;
-    this.original = Float64Array.from(terrain.surface);
-    this.drawn = Float64Array.from(terrain.surface);
-    this.version = terrain.version;
-    this.paint(terrain, 0, terrain.width - 1);
+    this.rows = Uint32Array.from({ length: grid.rows }, (_, row) =>
+      groundAt(theme, row / Math.max(1, grid.rows - 1)),
+    );
+    this.paint(grid, 0, 0, grid.cols, grid.rows);
+    this.version = grid.version;
+    texture.refresh();
   }
 
-  update(terrain: TerrainView): void {
-    if (terrain.version === this.version) return;
-    this.version = terrain.version;
-    let x0 = -1;
-    let x1 = -1;
-    for (let x = 0; x < terrain.width; x++) {
-      const y = terrain.surface[x] ?? 0;
-      if (y === this.drawn[x]) continue;
-      this.drawn[x] = y;
-      if (x0 < 0) x0 = x;
-      x1 = x;
+  /** Repaints what this frame's `crater` events changed; everything if the grid changed some other way. */
+  update(grid: TerrainView, events: readonly TickEvent[]): void {
+    const texture = this.texture;
+    if (!texture || grid.version === this.version) return;
+    let carves = 0;
+    for (const e of events) {
+      if (e.type !== "crater") continue;
+      this.paint(grid, e.col0 - 1, e.row0 - 1, e.col1 + 1, e.row1 + 1);
+      carves++;
     }
-    if (x0 >= 0) this.paint(terrain, x0, x1);
+    // Each carve that changes cells bumps the version once and reports one crater.
+    if (this.version + carves !== grid.version)
+      this.paint(grid, 0, 0, grid.cols, grid.rows);
+    this.version = grid.version;
+    texture.refresh();
   }
 
-  private paint(terrain: TerrainView, from: number, to: number): void {
+  /** Paints cells [`col0`, `col1`) × [`row0`, `row1`), clamped to the grid. */
+  private paint(
+    grid: TerrainView,
+    col0: number,
+    row0: number,
+    col1: number,
+    row1: number,
+  ): void {
     const theme = this.theme;
-    const material = this.material;
-    if (!theme || !material) return;
-    const ctx = this.texture.context;
-    const s = terrain.surface;
-    const a = Math.max(0, from - MARGIN);
-    const b = Math.min(terrain.width - 1, to + MARGIN);
-    const at = (x: number): number => s[Math.min(b, Math.max(a, x))] ?? 0;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(a, 0, b - a + 1, terrain.height);
-    ctx.clip();
-    ctx.clearRect(a, 0, b - a + 1, terrain.height);
-    ctx.beginPath();
-    ctx.moveTo(a - 4, terrain.height);
-    for (let x = a - 4; x <= b + 4; x++) ctx.lineTo(x, at(x));
-    ctx.lineTo(b + 4, terrain.height);
-    ctx.closePath();
-    ctx.save();
-    ctx.clip();
-    ctx.drawImage(material, 0, 0);
-    // Grass or sand along the stretches no explosion has touched yet.
-    ctx.strokeStyle = theme.top;
-    ctx.lineWidth = 16;
-    ctx.lineJoin = "round";
-    ctx.beginPath();
-    let open = false;
-    for (let x = a - 4; x <= b + 4; x++) {
-      const i = Math.min(b, Math.max(a, x));
-      const untouched = Math.abs(at(x) - (this.original[i] ?? 0)) < UNTOUCHED;
-      if (untouched && !open) ctx.moveTo(x, at(x));
-      else if (untouched) ctx.lineTo(x, at(x));
-      open = untouched;
+    const texture = this.texture;
+    if (!theme || !texture) return;
+    const [c0, r0] = [Math.max(0, col0), Math.max(0, row0)];
+    const [c1, r1] = [Math.min(grid.cols, col1), Math.min(grid.rows, row1)];
+    if (c1 <= c0 || r1 <= r0) return;
+    const image = texture.context.createImageData(c1 - c0, r1 - r0);
+    const out = new Uint32Array(image.data.buffer);
+    const top = pixel(theme.top);
+    const outline = pixel(theme.outline);
+    let i = 0;
+    for (let row = r0; row < r1; row++) {
+      const body = this.rows[row] ?? 0;
+      for (let col = c0; col < c1; col++, i++) {
+        if (!cellSolid(grid, col, row)) continue;
+        // Grass two cells deep, so it still reads with the whole world in view.
+        const open =
+          !cellSolid(grid, col, row - 1) || !cellSolid(grid, col, row - 2);
+        const edge =
+          open ||
+          !cellSolid(grid, col - 1, row) ||
+          !cellSolid(grid, col + 1, row) ||
+          !cellSolid(grid, col, row + 1);
+        const strata = (row + Math.round(2 * Math.sin(col / 23))) % 11 === 0;
+        const rock = strata ? shade(body, 0.8) : body;
+        if (cellHard(grid, col, row))
+          out[i] = edge ? outline : shade(rock, 0.55);
+        else out[i] = open ? top : edge ? outline : rock;
+      }
     }
-    ctx.stroke();
-    ctx.restore();
-    ctx.strokeStyle = theme.outline;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    for (let x = a - 4; x <= b + 4; x++) ctx.lineTo(x, at(x));
-    ctx.stroke();
-    ctx.restore();
-    this.texture.refresh();
+    texture.context.putImageData(image, c0, r0);
   }
 }

@@ -54,7 +54,7 @@ interface Profile {
   timingError: number;
   /** Evaluate one candidate shot every this many ticks (bounds the `predictTrajectory` cost). */
   thinkEvery: number;
-  /** Fire when a shot scores at least this fraction of the best shot seen over the last sweep. */
+  /** Fire when a shot scores at least this fraction of the best shot seen over the last turn. */
   pickiness: number;
   /** Smallest score worth a volley while patient (1 = a plain hit on an ordinary target). */
   minScore: number;
@@ -137,7 +137,6 @@ export function createBot(config: BotConfig): Bot {
   const rng: RngHolder = { rng: 0 };
   let roundSeed = NaN;
   let lastTick = -1;
-  let facing = "";
   let alive = true;
   let pressAt = -1;
   let loadedAt = -1;
@@ -170,7 +169,7 @@ export function createBot(config: BotConfig): Bot {
       (kind === "terrain" &&
         view.castles.some((c) => {
           if (!c.alive) return false;
-          const center = castleCenter(c, view.tuning);
+          const center = castleCenter(c);
           return hypot(x - center.x, y - center.y) < p.ghostSlack;
         }));
     if (!near) return false;
@@ -181,15 +180,14 @@ export function createBot(config: BotConfig): Bot {
 
   return (view) => {
     const me = view.castles[id];
-    // A new round, or a death that changed our arc (plans and remembered angles are then stale).
+    // A new round, or our castle fell (plans and remembered angles are then stale).
     const newRound = view.tick < lastTick || view.config.seed !== roundSeed;
     lastTick = view.tick;
     if (newRound) {
       roundSeed = view.config.seed;
       rng.rng = hashSeed(hashSeed(config.seed, roundSeed), 7919 + id);
     }
-    if (newRound || me?.facing !== facing || me.alive !== alive) {
-      facing = me?.facing ?? "";
+    if (newRound || me?.alive !== alive) {
       alive = me?.alive ?? false;
       pressAt = loadedAt = -1;
       seen = [];
@@ -222,10 +220,10 @@ export function createBot(config: BotConfig): Bot {
       return false;
     }
 
-    // Think while the reload finishes, so the bot knows the sweep's best shot by the time it is
+    // Think while the reload finishes, so the bot knows the turn's best shot by the time it is
     // loaded. Only one trajectory per `thinkEvery` ticks.
     if (
-      me.reloadTicks > p.reaction + period(view, me) ||
+      me.reloadTicks > p.reaction + period(view) ||
       (tick + id) % p.thinkEvery
     )
       return false;
@@ -245,7 +243,7 @@ export function createBot(config: BotConfig): Bot {
     if (!a || !b || !c) return false;
     const at = b[0];
     const score = 0.25 * a[1] + 0.5 * b[1] + 0.25 * c[1];
-    const horizon = tick - period(view, me);
+    const horizon = tick - period(view);
     while (seen.length > 0 && (seen[0]?.[0] ?? 0) < horizon) seen.shift();
     seen.push([at, score]);
     if (me.reloadTicks > p.reaction - p.thinkEvery) return false;
@@ -265,11 +263,9 @@ export function createBot(config: BotConfig): Bot {
   };
 }
 
-/** Ticks for the launcher to sweep there and back again. */
-function period(view: RoundView, me: CastleView): number {
-  const t = view.tuning;
-  const sweep = me.facing === "both" ? t.sweepTimeWide : t.sweepTimeNarrow;
-  return Math.round(2 * sweep * TICK_HZ);
+/** Ticks for the launcher to turn a full circle. */
+function period(view: RoundView): number {
+  return Math.round(view.tuning.aimPeriod * TICK_HZ);
 }
 
 /** How much the bot wants to hit each castle (0 for itself and the dead). */
@@ -323,7 +319,7 @@ function scoreShot(
     for (const o of view.castles) {
       const w = weights[o.id] ?? 0;
       if (w === 0) continue;
-      const c = castleCenter(o, t);
+      const c = castleCenter(o);
       const d = hypot(x - c.x, y - c.y);
       closest = Math.min(closest, d);
       hit = Math.max(hit, 0.7 * w * Math.max(0, 1 - d / reach));

@@ -17,9 +17,9 @@ test("a match is first to N round wins, with a fresh seed per round", () => {
   );
   const second = nextRoundConfig(match);
   assert.notEqual(first.seed, second.seed);
-  assert.notEqual(
-    createRound(first).terrain.surface[800],
-    createRound(second).terrain.surface[800],
+  assert.notDeepEqual(
+    createRound(first).castles.map((c) => c.angle),
+    createRound(second).castles.map((c) => c.angle),
   );
   assert.equal(
     recordRoundResult(match, { winner: null, reason: "wipeout", tick: 100 }),

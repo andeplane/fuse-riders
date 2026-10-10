@@ -65,7 +65,7 @@ export function lobbyHtml(lobby: Lobby, touch: boolean): string {
     ${button("bots", "ALL BOTS", "B")}
   </div>
   ${button("start", start, "ENTER", "start")}
-  <p>ONE BUTTON EACH: PRESS TO FIRE AS THE LAUNCHER SWEEPS · ESC${touch ? ", II" : ""} OR PAD START PAUSES</p>
+  <p>ONE BUTTON EACH: PRESS TO FIRE AS THE LAUNCHER TURNS · ESC${touch ? ", II" : ""} OR PAD START PAUSES</p>
   <p>GAMEPADS: START BEGINS, OR HOLD YOUR BUTTON FOR A SECOND</p>
 </div>`;
 }
