@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createBotPlayer, type Bot } from "../src/app/bot.js";
 import { RoundRunner } from "../src/app/round-runner.js";
-import { FIRE, RIGHT } from "../src/engine/index.js";
+import { FIRE, LEFT, RIGHT } from "../src/engine/index.js";
 
 const STEP_MS = 1000 / 60;
 const idle: Bot = () => 0;
@@ -136,15 +136,15 @@ test("one advance never spans two rounds: the next round starts on the following
   assert.equal(restarts, 2, "rounds finished and restarted");
 });
 
-test("a bots-only round fast-forwards once the humans are out, unless a human ghost keeps pressing", () => {
-  let press = false;
+test("a bots-only round fast-forwards once the humans are out, unless a human ghost keeps flying or firing", () => {
+  let steer = 0;
   const runner = new RoundRunner({
     seed: 6,
     controllers: [null, 1, 2, 3].map((id) =>
       id === null ? null : createBotPlayer("hard", id, id),
     ),
-    input: { takePresses: () => [press], heldBits: () => 0 },
-    // Castles hover out of each other's reach until they fly, so steady sudden-death bombs knock them out; with
+    input: { takePresses: () => [false], heldBits: () => steer },
+    // Bots hover out of each other's reach until they fly, so steady sudden-death bombs knock them out; with
     // this seed the human's castle falls first and the bots play on.
     tuning: {
       fuseTime: 1,
@@ -165,11 +165,11 @@ test("a bots-only round fast-forwards once the humans are out, unless a human gh
   assert.equal(runner.speed, 1, "a moment to notice the ghost");
   while (round.tick - out < 60 * 9 && !round.result) runner.advance(STEP_MS);
   assert.equal(runner.speed, 2, "then the bots finish at double speed");
-  press = true;
+  steer = LEFT;
   runner.advance(STEP_MS);
-  press = false;
+  steer = 0;
   for (let i = 0; i < 20; i++) runner.advance(STEP_MS);
-  assert.equal(runner.speed, 1, "a human ghost pressing brings back 1×");
+  assert.equal(runner.speed, 1, "a human ghost flying brings back 1×");
   assert.ok(!runner.botsOnly);
 });
 

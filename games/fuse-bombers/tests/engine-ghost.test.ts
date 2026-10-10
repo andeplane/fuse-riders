@@ -122,7 +122,7 @@ test("pressing drops one bomb per reload; it lands where predictGhostBomb says, 
   );
   while (!isGhostLoaded(ghost, s.terrain)) step(s);
   // Thrown sideways (toward the temple), the blimp coasts 10 ticks and drops: from there, with its velocity.
-  ghost.vx = -200;
+  Object.assign(ghost, { vx: -200, vy: -90 });
   const predicted = predictGhostBomb(s, 1, 10);
   assert.ok(predicted);
   run(s, 10);
@@ -274,21 +274,26 @@ test("ghost rounds are deterministic and replay from a clone", () => {
   const a = playOut({ seed: 31, playerCount: 4 }, bots(31, kinds));
   const b = playOut({ seed: 31, playerCount: 4 }, bots(31, kinds));
   // (Bots do not steer yet, so their ghosts hover above the wreck and seldom drop; the mashing below drops.)
+  assert.ok(a.ghosts.length > 0);
   assert.equal(fingerprint(a), fingerprint(b));
 
-  // Everyone mashes their button: castles fire and ghosts drop whenever loaded (a short first reload, so they do
-  // before mashing ends the round; a blimp inside rock waits until it is out).
+  // Everyone mashes their button and steers a changing way: castles fire and ghosts drop whenever loaded (a short
+  // first reload, so they do before mashing ends the round; a blimp inside rock waits until it is out). The clone is
+  // taken mid-flight, with fire held on some seats.
   const c = createRound({
     seed: 32,
     playerCount: 5,
     tuning: { ghostFirstReload: 1 },
   });
-  while (c.ghosts.length < 2 && !c.result) step(c, held(mash(c)));
+  const steer = (st: RoundState) =>
+    held(mash(st)).map((b, id) => b | (((st.tick >> 5) + id) & 15));
+  while (c.ghosts.length < 2 && !c.result) step(c, steer(c));
   assert.equal(c.result, null);
   const d = structuredClone(c);
-  run(c, 1200, mash);
-  run(d, 1200, mash);
+  run(c, 1200, steer);
+  run(d, 1200, steer);
   assert.ok(c.castles.some((k) => k.stats.ghostBombs > 0));
+  assert.ok(c.ghosts.some((g) => g.vy !== 0));
   assert.equal(fingerprint(d), fingerprint(c));
 });
 
@@ -304,7 +309,7 @@ test("balance: bot rounds with ghosts end in similar time and ghosts do not domi
   const lengths = { on: [] as number[], off: [] as number[] };
   let ghost = 0;
   let total = 0;
-  // Until gunships fly, most rounds end in sudden death, so this is a smoke check more than a balance measure.
+  // Until bots fly, most rounds end in sudden death, so this is a smoke check more than a balance measure.
   for (const players of [3, 5]) {
     for (const seed of [1, 2]) {
       for (const on of [true, false]) {

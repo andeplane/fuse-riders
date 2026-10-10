@@ -113,7 +113,7 @@ test("createRound refuses an aimPeriod the launcher cannot turn by", () => {
   }
 });
 
-test("castles hover at the seed's spawn anchors, clear of rock, launchers anywhere on the circle", () => {
+test("gunships start at rest at the seed's spawn anchors, clear of rock, launchers anywhere on the circle", () => {
   for (let n = 2; n <= 6; n++) {
     const s = createRound({ seed: 42 + n, playerCount: n });
     assert.deepEqual(
@@ -131,7 +131,7 @@ test("castles hover at the seed's spawn anchors, clear of rock, launchers anywhe
     assert.deepEqual(
       s.castles.map((c) => [c.x, c.y]),
       before,
-      "castles hover in place",
+      "with nothing held they stay put",
     );
   }
 });
@@ -294,7 +294,7 @@ test("rockets leave the world sideways and below, but fall back from above the t
   assert.ok(up.y > 60, "it came back down");
 });
 
-test("castles hover: blowing the rock round them away does not move them", () => {
+test("a gunship at rest stays put when the rock round it is blown away", () => {
   const s = createRound({ seed: 12, playerCount: 2 });
   clearSky(s);
   openWorld(s);
@@ -548,7 +548,7 @@ test("destroying the last opponent ends the round with a winner", () => {
   a.reloadTicks = 0;
   assert.equal(
     eventsOf(
-      run(s, 120, () => [true, true, true]),
+      run(s, 120, (st) => [0, 1, 2].map(() => st.tick % 2 === 0)),
       "fired",
     ).length,
     0,

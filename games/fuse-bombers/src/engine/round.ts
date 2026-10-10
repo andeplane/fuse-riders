@@ -215,7 +215,7 @@ export function damageScale(state: RoundView): number {
 /** Seat `id`'s input bits this step: `held[id]` when it is valid input (`isInput`), else 0 (nothing held). */
 function bitsOf(held: readonly number[], id: number): number {
   const bits = held[id];
-  return isInput(bits) ? bits : 0;
+  return isInput(bits) ? bits | 0 : 0; // `| 0` turns -0 into 0, so the state never holds -0
 }
 
 /** Whether seat `id`'s fire button went down this step: `FIRE` held now and not on the latest step. */

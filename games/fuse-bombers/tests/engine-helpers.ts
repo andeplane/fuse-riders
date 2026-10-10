@@ -12,7 +12,7 @@ import {
   type Rocket,
 } from "../src/engine/index.js";
 
-/** One tick of an input script: each seat's held bits, or `true` for `FIRE` held on that tick alone (a press). */
+/** One tick of an input script: each seat's held bits, or `true` for `FIRE` held (`true` on consecutive ticks holds it). */
 export type Inputs = readonly (number | boolean)[];
 
 /** The held bits `step` takes for one tick of an input script. */
@@ -117,7 +117,7 @@ export function openWorld(state: RoundState): void {
 
 /**
  * Clears the rock and lines the castles up `spacing` px apart across the middle of the world, so neighbours are in
- * range of each other. On the temple the spawn anchors are mostly out of range until gunships fly, so tests of aim
+ * range of each other. On the temple the spawn anchors are mostly out of range until bots fly, so tests of aim
  * set rounds up like this.
  */
 export function lineUp(state: RoundState, spacing = 1200): void {

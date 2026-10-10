@@ -11,7 +11,7 @@ import {
 } from "./tuning.js";
 import type { GateView, GhostView, Vec2 } from "./types.js";
 
-/** Anything with a hull centre (a castle, or a spot a castle might hover at). */
+/** Anything with a hull centre (a castle, or a spot a castle might fly to). */
 type Hull = Readonly<Vec2>;
 
 export const DEG = Math.PI / 180;

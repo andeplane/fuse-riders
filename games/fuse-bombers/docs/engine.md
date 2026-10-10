@@ -82,7 +82,7 @@ Draws count for nobody.
 | `gates[]`               | `{ id, multiplier, x, y, width, height, spawnTick, expireTick, … }` axis-aligned rectangle centred on `x, y`.                                                                                                     |
 | `crates[]`              | `{ id, card, x, y, radius, spawnTick }`. Cards: `unit`, `shield`, `rapid`, `repair`, `mega`.                                                                                                                      |
 | `ghosts[]`              | Ghost bombers of eliminated players: `{ owner, x, y, vx, vy, thrust, reloadTicks, reloadTotalTicks, spawnTick }`, in the order they fell. `ghostOf(view, id)` finds one.                                          |
-| `lastHeld[id]`          | The validated input bits each seat held on the latest step (the next fire press is a rising edge against these).                                                                                                  |
+| `lastHeld[id]`          | The validated input bits each seat held on the latest step (the next fire press is a rising edge against these). A checkpoint codec must refuse a length other than the seat count or an entry failing `isInput`. |
 | `tuning`                | The resolved `Tuning` (castle size, shield radius, reload, … everything the renderer needs).                                                                                                                      |
 
 Castle fields: `x, y` (the hull centre: centre of the hit circle and the shield; it moves as the gunship flies),
@@ -290,8 +290,8 @@ GUNSHIP_FLIGHT, world)` in seat order, where `world` is the round's grid seen th
   times the sudden-death scale), carves an 18 px crater, is never multiplied by gates and never takes crates. Ghosts
   cannot win: the round still ends when ≤ 1 castle stands, and they stop dropping once it is over.
 
-Measured headlessly on the big map before gunships flew, and still what bots do since they do not steer (bots only,
-all castles on one difficulty, 20 seeds per player count, seeds
+Measured headlessly on the big map before gunships flew (bots, which do not steer yet, still end their rounds in sudden
+death; bots only, all castles on one difficulty, 20 seeds per player count, seeds
 `s · 7919 + players`): every round reaches sudden death, with a median length of 131–134 s (p90 at most 136 s) for
 every difficulty and 2–6 players; none needs the 180 s stop. The same measurement on the old one-screen arena gave hard
 40–52 s, normal 42–75 s and easy 99–124 s, mostly before the fuse. From their spawn anchors, a sweep of all 360 whole
@@ -304,10 +304,10 @@ miss, and a near miss in open air splashes nobody. Bots that fly come next.
 A step with bots thinking costs, averaged over whole six-player rounds (Node 24): easy 62 µs, normal 114 µs, hard
 175 µs (the old arena: 86 / 155 / 259 µs; `predictTrajectory` only works out where a gate or crate is when the rocket
 is inside the box it sweeps). The slowest single step seen was 16 ms (warm-up and garbage collection included). `createRound` takes ~2 ms,
-nearly all of it painting the temple. Flight adds about 9 µs: six gunships on seeded random holds (a new direction
-every 20–80 ticks) that fire whenever loaded average 28 µs a step over four whole six-player rounds (seeds 1–4, about
-33 000 steps, Node 24, after a warm-up pass), against 19 µs for the same rounds with nobody steering; the slowest step
-was 2 ms.
+nearly all of it painting the temple. Flight adds about 10 µs: six gunships on seeded random holds (a new direction
+every 20–80 ticks) that fire whenever loaded average 24.5 µs a step over four whole six-player rounds (seeds 1–4, about
+32 000 steps, Node 24, the warm pass), against 15 µs for the same rounds with nobody steering
+(`pnpm exec tsx games/fuse-bombers/preview/step-cost.ts`).
 
 ## Bitmap terrain and the temple map
 
@@ -362,5 +362,5 @@ is ~24 % of the map; hard cells (~5 % of it: pillars, columns, the shrine's legs
 because the terrain is not symmetric, plus the top centre and under the keel on it), `spawnOrder(count, seed)` (a spread,
 symmetric set per player count 2–6 chosen and dealt to seats by the seed; it is the temple's, not generic), `skyZones` (open air for gates and crates) and
 `TEMPLE_LANDMARKS` (tunnel, cave, bays) come with it. `tests/engine-temple-map.test.ts` checks the margins, the
-clearances, that all open air is one region a gunship (radius 26) can fly through, and that the tunnel and cave are
+clearances, that all open air is one region a gunship (`GUNSHIP_FLIGHT`'s radius, 30) can fly through, and that the tunnel and cave are
 enclosed yet reachable.
