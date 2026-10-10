@@ -17,7 +17,7 @@ import { FIRE } from "../../engine/input.js";
  * this folder feed it.
  */
 
-/** `key:<cluster>` for a keyboard cluster, `pad:<index>` for a gamepad, `touch:<zone>` for a touch zone. */
+/** `key:<cluster>`: a keyboard cluster, `pad:<index>`: a gamepad, `touch:<side>`: a touch pad (0 left, 1 right). */
 export type DeviceId = `key:${string}` | `pad:${number}` | `touch:${number}`;
 
 /** A short on-screen name for a device: `WASD`, `ARROWS`, `PAD 1`, `TOUCH 2`. */

@@ -1,5 +1,6 @@
 import { createBrowserInput } from "./browser.js";
 import { deviceLabel } from "./hub.js";
+import { TOUCH_SIDES } from "./touch.js";
 
 const SLOTS = 6;
 /** Held bits as text: the arrows held, then F for fire (`UP`, `DOWN`, `LEFT`, `RIGHT`, `FIRE` are bits 0–4). */
@@ -7,10 +8,10 @@ const heldText = (bits: number): string =>
   [..."↑↓←→F"].filter((_, bit) => bits & (1 << bit)).join("");
 
 /**
- * `?inputdebug` (add `&touch` to force touch zones on a desktop): a corner readout proving the input layer works.
+ * `?inputdebug` (add `&touch` to force the touch pads on a desktop): a corner readout proving the input layer works.
  * Firing any device joins it to the next free slot, like a lobby would; after that its presses flash its slot and
  * its held bits show beside it.
- * Touch devices get one zone per joined touch player plus a JOIN zone.
+ * Touch devices get both sides' pads, FIRE reading JOIN until that side joins.
  */
 export function startInputDebug(win: Window = window): void {
   const params = new URLSearchParams(win.location.search);
@@ -34,17 +35,15 @@ export function startInputDebug(win: Window = window): void {
   });
   win.document.body.append(panel);
 
-  const updateTouchZones = (): void => {
-    const joined = hub
-      .bindings()
-      .filter(({ device }) => device.startsWith("touch:"));
-    input.setTouchZones([
-      ...joined.map(({ slot }) => ({ label: `P${slot + 1}` })),
-      ...(hub.bindings().length < SLOTS
-        ? [{ label: "JOIN", color: "var(--fui-yellow)" }]
-        : []),
-    ]);
-  };
+  const updateTouchPads = (): void =>
+    input.setTouchPads(
+      Array.from({ length: TOUCH_SIDES }, (_, side) => {
+        const slot = hub.slotOf(`touch:${side}`);
+        return slot === undefined
+          ? { label: "JOIN", color: "var(--fui-yellow)" }
+          : { label: `P${slot + 1}` };
+      }),
+    );
 
   hub.onPress((device) => {
     log.unshift(deviceLabel(device));
@@ -55,9 +54,9 @@ export function startInputDebug(win: Window = window): void {
     );
     if (free === undefined) return;
     hub.bind(free, device);
-    updateTouchZones();
+    updateTouchPads();
   });
-  updateTouchZones();
+  updateTouchPads();
 
   const frame = (): void => {
     hub.poll();
