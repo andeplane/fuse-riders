@@ -11,11 +11,11 @@ body {
   user-select: none;
 }
 
+/* Phaser's `autoCenter` centres the canvas in here with margins, onto the 16:9 box `#screen` takes; centring it here
+   too would offset it twice from the HUD and menus on any window that is not 16:9. */
 #app {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: center;
 }
 
 #app canvas {

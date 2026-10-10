@@ -249,6 +249,10 @@ test("nothing sounds before a gesture; the cues after it play", () => {
   audio.unlock();
   assert.deepEqual(backend.take(), ["unlock", "play:swing-brakka", "unlock"]);
   assert.equal(audio.state, "on");
+  audio.frame(frame(world(30)), true);
+  audio.frame(swing(60), true);
+  assert.deepEqual(backend.take(), [], "a controller phone hears, quietly");
+  assert.equal(audio.heard, 3);
 });
 
 test("?mute: nothing reaches the backend, the kept choices are never read or written, the toggles do nothing", () => {
