@@ -142,7 +142,8 @@ are not the world's heroes).
   speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in front; it ends at the
   village gate ([screenshot](images/stage1-backdrop.png)).
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
-  and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives.
+  and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives
+  ([screenshot](images/hud.png)).
 
 ## Players, rooms and controls
 

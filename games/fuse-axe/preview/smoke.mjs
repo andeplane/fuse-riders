@@ -4,9 +4,12 @@
  *   node games/fuse-axe/preview/smoke.mjs http://localhost:PORT/ [screenshot-dir]
  *
  * 1. The landing page: the portal button first in the header, the keys on screen.
- * 2. Solo: the hero picker comes first; Rhea is picked, START sets out, and the hero walks right, jumps and swings.
- * 3. Online: one page creates a room, a second joins by its code and picks Gorm; both rosters show it, the host
- *    starts, the guest walks and both pages draw its hero in the same place.
+ * 2. Solo: the hero picker comes first; Rhea is picked, START sets out, and the hero walks right, jumps and swings;
+ *    the HUD's empty seats never blink JOIN.
+ * 3. Online: one page creates a room, a second joins by its code and picks Gorm, and a third joins; the rosters show
+ *    it, the host starts, the guest walks and both pages draw its hero in the same place. Every page's HUD frames the
+ *    three heroes in their seats' colours, an empty seat blinks JOIN, the canvas names the party in words, and the
+ *    party walks on into the first wave's fight.
  * 4. A well-formed code for a room that does not exist shows the closed-room card.
  * Run by hand; not in CI. Screenshots go to the directory given, and nowhere else. Every page opens muted.
  */
@@ -51,8 +54,12 @@ const open = async (path) => {
   return page;
 };
 const P1 = [0x2d, 0xe2, 0xff],
-  P2 = [0xff, 0x4f, 0xa3];
-/** Where a seat's marker (the chevron over its hero) is on the native 320 × 180 screen, from the scaled canvas; null if not drawn. */
+  P2 = [0xff, 0x4f, 0xa3],
+  P3 = [0xb6, 0xff, 0x4d];
+/**
+ * Where a seat's marker (the chevron over its hero) is on the native 320 × 180 screen, from the scaled canvas; null if
+ * not drawn. It is looked for below the HUD's strip (`HUD_H`, 22 rows), which wears the seats' colours too.
+ */
 const hero = (page, rgb) =>
   page.evaluate((rgb) => {
     const canvas = document.querySelector(".fa-canvas"),
@@ -62,7 +69,7 @@ const hero = (page, rgb) =>
         .getImageData(0, 0, canvas.width, canvas.height);
     let left = Infinity,
       top = Infinity;
-    for (let y = 0; y < height; y += scale)
+    for (let y = 22 * scale; y < height; y += scale)
       for (let x = 0; x < width; x += scale) {
         const i = (y * width + x) * 4;
         if (
@@ -76,6 +83,57 @@ const hero = (page, rgb) =>
       }
     return left === Infinity ? null : { x: left, y: top, scale };
   }, rgb);
+/** The colour of one native pixel of the screen, as `[r, g, b]`. */
+const pixel = (page, x, y) =>
+  page.evaluate(
+    ([x, y]) => {
+      const canvas = document.querySelector(".fa-canvas"),
+        scale = canvas.width / 320;
+      const { data } = canvas
+        .getContext("2d")
+        .getImageData(x * scale, y * scale, 1, 1);
+      return [data[0], data[1], data[2]];
+    },
+    [x, y],
+  );
+/** The HUD frames each seated hero's portrait in its seat's colour: P1's panel from x 0, P2's from x 64. */
+const framed = async (page, seat, rgb) =>
+  assert.deepEqual(
+    await pixel(page, seat * 64 + 1, 10),
+    rgb,
+    `the HUD frames P${seat + 1}`,
+  );
+/**
+ * The most native pixels of the rectangle [x, y, w, h] that were not the HUD strip's own colour in any frame over `ms`
+ * (long enough to see a blinking label both ways): 0 for a panel with nothing written in it.
+ */
+const inked = (page, rect, ms) =>
+  page.evaluate(
+    async ([[x, y, w, h], ms]) => {
+      const canvas = document.querySelector(".fa-canvas"),
+        scale = canvas.width / 320,
+        context = canvas.getContext("2d");
+      let most = 0;
+      for (const end = performance.now() + ms; performance.now() < end;) {
+        let count = 0;
+        for (let py = y; py < y + h; py++)
+          for (let px = x; px < x + w; px++) {
+            const { data } = context.getImageData(
+              Math.floor((px + 0.5) * scale),
+              Math.floor((py + 0.5) * scale),
+              1,
+              1,
+            );
+            if (data[0] !== 0x0b || data[1] !== 0x06 || data[2] !== 0x14)
+              count++;
+          }
+        most = Math.max(most, count);
+        await new Promise((done) => setTimeout(done, 50));
+      }
+      return most;
+    },
+    [rect, ms],
+  );
 /**
  * The white-hot pixels (the glowing yellow and white a swing's smear is drawn in) seen under and around the marker at
  * `at` over `ms`, reading every animation frame as the blade is out for a few steps only: the most in one frame that
@@ -158,6 +216,9 @@ try {
   const before = await hero(landing, P1);
   assert.ok(before, "P1 is drawn");
   assert.ok(before.scale >= 2 && Number.isInteger(before.scale), "whole scale");
+  await framed(landing, 0, P1);
+  // Nobody joins a solo game, so its empty seats never blink JOIN: P2's name area stays blank.
+  assert.equal(await inked(landing, [85, 2, 40, 16], 1_200), 0, "no JOIN solo");
   await hold(landing, "ArrowRight", 800);
   const walked = await hero(landing, P1);
   assert.ok(
@@ -202,6 +263,10 @@ try {
   const guest = await open(`fuse-axe/?room=${code}&mute`);
   await enter(guest, "Guest");
   await host.locator(".fui-roster-row").nth(1).waitFor({ timeout: 20_000 });
+  // A third rider joins as Brakka, the host's hero, so the HUD shows a second Brakka in his own colours.
+  const third = await open(`fuse-axe/?room=${code}&mute`);
+  await enter(third, "Cy");
+  await host.locator(".fui-roster-row").nth(2).waitFor({ timeout: 20_000 });
   await guest.locator('main[data-hero="brakka"]').waitFor({ timeout: 10_000 });
   await guest.locator('[data-hero="gorm"]').click();
   for (const page of [host, guest])
@@ -210,7 +275,7 @@ try {
       .waitFor({ timeout: 10_000 });
   await snap(host, "online-lobby");
   await host.getByRole("button", { name: "START" }).click();
-  for (const page of [host, guest])
+  for (const page of [host, guest, third])
     await page.locator('main[data-screen="play"]').waitFor({ timeout: 20_000 });
   await guest.waitForTimeout(500);
   await hold(guest, "KeyD", 700);
@@ -228,8 +293,37 @@ try {
   await snap(host, "online-host");
   await snap(guest, "online-guest");
   console.log(`online ${code}: Gorm picked, walked to x ${onGuest.x} on both`);
-  await host.context().close();
-  await guest.context().close();
+  // The HUD frames every seated hero's portrait in its seat's colour, on every page.
+  for (const page of [host, guest, third])
+    for (const [seat, rgb] of [P1, P2, P3].entries())
+      await framed(page, seat, rgb);
+  // The empty fourth seat invites a player (JOIN blinks in its name area); and the canvas names the party in words.
+  assert.ok((await inked(host, [213, 2, 40, 16], 1_200)) > 0, "JOIN in a room");
+  for (const page of [host, guest, third])
+    assert.match(
+      (await page.locator(".fa-canvas").getAttribute("aria-label")) ?? "",
+      /P1 Host.*P2 Guest.*GORM.*P3 Cy.*BRAKKA/,
+      "the canvas names the party",
+    );
+  // A fight: all three walk on to the first wave and meet its ravagers, then swing.
+  await Promise.all(
+    [
+      [host, "ArrowRight"],
+      [guest, "KeyD"],
+      [third, "ArrowRight"],
+    ].map(([page, key]) => hold(page, key, 6_000)),
+  );
+  await host.waitForTimeout(2_500);
+  await snap(host, "online-fight");
+  for (let i = 0; i < 8; i++) {
+    await Promise.all(
+      [host, guest, third].map((page) => page.keyboard.press("KeyJ")),
+    );
+    await host.waitForTimeout(200);
+  }
+  await snap(host, "online-fight-swing");
+  console.log("online: every page's HUD frames P1–P3, through a fight");
+  for (const page of [host, guest, third]) await page.context().close();
 
   // ---- a room that does not exist ----
   const nowhere = await open("fuse-axe/?room=ZZ99&mute");
