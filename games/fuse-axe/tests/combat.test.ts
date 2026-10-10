@@ -274,7 +274,8 @@ test("the finisher knocks an enemy up and away, it lies down, gets up invulnerab
       peak = Math.max(peak, e.z);
       for (const fx of world.fx) sparks.add(fx.kind);
     }
-    assert.deepEqual(seen, ["idle", "hurt", "knockdown", "down", "getup"]);
+    // It sets off round the swinging hero, but the blade is quicker.
+    assert.deepEqual(seen, ["walk", "hurt", "knockdown", "down", "getup"]);
     assert.deepEqual([...sparks].sort(), ["heavy", "hit"]);
     assert.ok(peak > px(8), `${kind} flies ${peak / SUB} px high`);
     assert.ok(landing - launch > px(16), `${kind} flies away`);
@@ -296,7 +297,6 @@ test("the finisher knocks an enemy up and away, it lies down, gets up invulnerab
       world = step(world, mashing(index));
       assert.equal(enemy(world).hp, hp);
     }
-    assert.equal(enemy(world).state, "idle");
     until(world, (w) => enemy(w).hp < hp, mashing);
   }
   const [brakka, rhea, gorm] = dealt;
@@ -583,7 +583,11 @@ test("the view shows the swing, each enemy's anim, hp and flash, and each spark'
   assert.equal(spark!.kind, "hit");
   assert.ok(Number.isInteger(spark!.x + spark!.y + spark!.z));
   assert.ok(spark!.z > 0 && spark!.age === 0);
-  assert.deepEqual(Kit.HERO_STATES.slice(4), ["attack1", "attack2", "attack3"]);
+  assert.deepEqual(Kit.HERO_STATES.slice(4, 7), [
+    "attack1",
+    "attack2",
+    "attack3",
+  ]);
   assert.deepEqual(Kit.ENEMY_STATES, [
     "idle",
     "hurt",
@@ -592,6 +596,10 @@ test("the view shows the swing, each enemy's anim, hp and flash, and each spark'
     "getup",
     "dead",
     "enter",
+    "walk",
+    "windup",
+    "attack",
+    "recover",
   ]);
   assert.deepEqual(Kit.FX_KINDS, ["hit", "heavy", "ko"]);
   for (const kind of Kit.HERO_KINDS)
