@@ -17,6 +17,7 @@ import {
 } from "./art/ravager.js";
 import { createBackdrop, type StageNumber } from "./backdrop/backdrop.js";
 import { bayer } from "./backdrop/kit.js";
+import { blinksOn, createHud, type HudSeats } from "./hud.js";
 import { blit, type Pen } from "./pen.js";
 import type { Figure } from "./pixel/kit.js";
 import { UNLIT, type Palette } from "./pixel/palette.js";
@@ -31,14 +32,16 @@ import type { MakeSurface } from "./surface.js";
  * figure's shadow on the floor; heroes and enemies by depth (further up the floor first, then lower before higher,
  * then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when defeated, a hero
  * blinking while it is invulnerable; the hit
- * sparks; the grass in front; and a flashing GO → when the road ahead opens. It only draws: positions come from the
- * view (the app blends two ticks for smooth motion), and `frame`, a 60 Hz count, moves only scenery.
+ * sparks; the grass in front; a flashing GO → when the road ahead opens; and over it all the HUD (`hud.ts`), naming
+ * each seat's player from `seats` (the room's names, which the world does not hold). It only draws: positions come
+ * from the view (the app blends two ticks for smooth motion), and `frame`, a 60 Hz count, moves only scenery and
+ * the HUD's health trails.
  *
- * Every sprite, shadow and sign is painted once into a surface from `make` and reused, so a frame is blits and a few
- * spark pixels.
+ * Every sprite, shadow, sign and label is painted once into a surface from `make` and reused, so a frame is blits
+ * and a few spark and bar pixels.
  */
 export interface Scene<Image> {
-  draw(pen: Pen<Image>, view: WorldView, frame: number): void;
+  draw(pen: Pen<Image>, view: WorldView, frame: number, seats?: HudSeats): void;
 }
 
 /** What an enemy kind draws with: its figure, a strip per anim, and a palette per tier (none: the figure's own). */
@@ -119,9 +122,6 @@ export const deadShows = (animStep: number): boolean =>
   animStep < DEAD_STEPS / 3 ||
   (animStep < DEAD_STEPS && Math.floor(animStep / BLINK_STEPS) % 2 === 0);
 
-/** An invulnerable hero (getting up, just risen or just dropped back in) blinks: its sprite shows and hides every `BLINK_FRAMES` frames. */
-export const BLINK_FRAMES = 4;
-
 /** A shadow's half-width on the ground; it shrinks as the figure rises, to half at `SHADOW_FADE` pixels up. */
 export const SHADOW_RX = 13;
 const SHADOW_FADE = 60;
@@ -193,6 +193,7 @@ export function createScene<Image>(
   const shadows = new Map<number, { image: Image; w: number; h: number }>();
   const crowns = new Map<Figure, number>();
   const lookOf = createLooks();
+  const hud = createHud(make, baker);
 
   /** A soft dithered ellipse `rx` wide either side: solid in the middle, thinning to its edge. */
   const shadow = (rx: number) => {
@@ -220,7 +221,7 @@ export function createScene<Image>(
   };
 
   return {
-    draw(pen, view, frame) {
+    draw(pen, view, frame, seats) {
       const camX = view.camX;
       backdrop.draw(pen, camX, frame);
       const at = (f: HeroView | EnemyView) => ({
@@ -237,7 +238,7 @@ export function createScene<Image>(
           ...at(hero),
           sprite: figure.sprite(pose),
           options: { swap, flip: hero.facing < 0 },
-          lit: !hero.invulnerable || Math.floor(frame / BLINK_FRAMES) % 2 === 0,
+          lit: !hero.invulnerable || blinksOn(frame),
           marker: { seat: hero.seat, crown: crown(figure) },
         };
       });
@@ -281,6 +282,7 @@ export function createScene<Image>(
         const sign = baker.bake(GO_SIGN);
         blit(pen, sign.image, sign.w, sign.h, GO_AT[0], GO_AT[1]);
       }
+      hud.draw(pen, view, frame, looks, seats);
     },
   };
 }
