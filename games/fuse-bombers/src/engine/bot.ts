@@ -1,11 +1,9 @@
-// Bots inside the round. `step` plays the seats `RoundConfig.bots` names: each
-// tick `botInput` decides a bot's bits from the read-only view and the bot's
-// memory (`state.bots`, plain data, so a clone or rollback carries it). A bot
-// flies to a spot in range of its target (behind a gate if one is handy, round
-// the temple on the flyway when rock is in the way), works out when the turning
-// launcher will point at someone, checks that shot with `predictTrajectory`,
-// lets go of the stick so it coasts there, and presses. Its ghost flies over a
-// target and drops when `predictGhostBomb` says the bomb lands on it.
+// Bots inside the round. `step` plays the seats `RoundConfig.bots` names: each tick `botInput` decides a bot's bits
+// from the read-only view and the bot's memory (`state.bots`, plain data, so a clone or rollback carries it). A bot
+// flies to a spot in range of its target (behind a gate if one is handy, round the temple on the flyway when rock is
+// in the way), works out when the turning launcher will point at someone, checks that shot with `predictTrajectory`,
+// lets go of the stick so it coasts there, and presses. Its ghost flies over a target and drops when
+// `predictGhostBomb` says the bomb lands on it.
 
 import { atan2, cos, hypot, sin } from "./det-math.js";
 import { GHOST_FLIGHT, GUNSHIP_FLIGHT } from "./flight.js";
@@ -33,9 +31,8 @@ export interface BotSeat {
 }
 
 /**
- * What a bot remembers between ticks, in `RoundState.bots`: plain data that
- * clones, checkpoints and hashes carry. A checkpoint codec must refuse
- * non-finite numbers and a seat or difficulty other than `config.bots` says.
+ * What a bot remembers between ticks, in `RoundState.bots`: plain data that clones, checkpoints and hashes carry. A
+ * checkpoint codec must refuse non-finite numbers and a seat or difficulty other than `config.bots` says.
  */
 export interface BotMemory {
   id: number;
@@ -60,14 +57,11 @@ export interface BotMemory {
   dodgeTick: number;
 }
 
-// How a difficulty plays. Ticks: `reaction` (deciding to pressing),
-// `timingError` (a press lands up to this early or late), `thinkEvery` (between
-// looks for a shot; at most `checks` predicted per look), `planEvery` and
-// `routeEvery`. Then the range it fights at (px), the share of a target's motion
-// it leads by, the least a volley must promise (1 = a direct hit), what crates,
-// gates, weak castles, the leader and its last attacker are worth, its chance
-// to `dodge`, how hard it brakes into its spot (1/s), how far it looks ahead
-// for rock (s) and how near a ghost bomb must land (px).
+// How a difficulty plays. Ticks: `reaction` (deciding to pressing), `timingError` (a press lands up to this early or
+// late), `thinkEvery` (between looks for a shot; at most `checks` predicted per look), `planEvery` and `routeEvery`.
+// Then its range (px), the share of a target's motion it leads by, the least a volley must promise (1 = a direct
+// hit), what crates, gates, weak castles, the leader and its last attacker are worth, its chance to `dodge`, how hard
+// it brakes into its spot (1/s), how far it looks ahead for rock (s) and how near a ghost bomb must land (px).
 // prettier-ignore
 const PROFILES = {
   easy: { reaction: 22, timingError: 6, thinkEvery: 6, checks: 1, planEvery: 150, routeEvery: 30, range: 650,
@@ -91,8 +85,8 @@ const CARD_VALUE: Readonly<Record<Card, number>> =
 /** Rockets beyond which more gate splits add nothing (the swarm is plenty). */
 const SWARM_CAP = 250;
 const RADIUS = GUNSHIP_FLIGHT.shape.radius;
-// Px: half a route's lane, a gate spot's distance behind its gate, the distance
-// ships steer apart within, and how far above its target a ghost waits.
+// Px: half a route's lane, a gate spot's distance behind its gate, the distance ships steer apart within, and how far
+// above its target a ghost waits.
 const [LANE, GATE_GAP, SPACING, HOVER] = [RADIUS + 4, 260, 170, 260];
 /** Ticks a ghost leads its target by: about a bomb's fall from `HOVER`. */
 const FALL = 55;
@@ -114,12 +108,12 @@ const WHISKERS = [UP, UP | RIGHT, RIGHT, DOWN | RIGHT, DOWN, DOWN | LEFT, LEFT, 
 export function validateBots(bots: unknown, playerCount: number): BotSeat[] {
   if (bots === undefined) return [];
   if (!Array.isArray(bots)) throw new RangeError("bots must be an array");
-  const seats = bots.map((b: unknown): BotSeat => {
+  const seats = Array.from(bots, (b: unknown): BotSeat => {
     const { id, difficulty: d } = Object(b) as Partial<BotSeat>;
     const ok = typeof id === "number" && Number.isInteger(id) && id >= 0;
     if (!ok || id >= playerCount || !BOT_DIFFICULTIES.some((k) => k === d))
       throw new RangeError("a bot needs a seat below playerCount and a level");
-    return { id, difficulty: d as BotDifficulty };
+    return { id: id + 0, difficulty: d as BotDifficulty }; // no -0
   });
   seats.sort((a, b) => a.id - b.id);
   if (seats.some((s, i) => seats[i - 1]?.id === s.id))
@@ -135,9 +129,8 @@ export function createBotMemory(s: BotSeat, seed: number, at: Vec2): BotMemory {
 }
 
 /**
- * The bits bot `m` holds this tick, decided from the view (the state before
- * this tick's step) and its memory, which it updates. Nothing else is read or
- * kept, so a state always gives the same bits.
+ * The bits bot `m` holds this tick, decided from the view (the state before this tick's step) and its memory, which
+ * it updates. Nothing else is read or kept, so a state always gives the same bits.
  */
 export function botInput(view: RoundView, m: BotMemory): number {
   const me = view.castles[m.id];
@@ -184,9 +177,8 @@ function pickTarget({ view, m, p }: Turn, from: Vec2): number {
 }
 
 /**
- * Picks a target and the spot to fight it from: at the bot's range round it
- * (or behind a gate as the target sees it, so the shot goes through the gate),
- * the nearest in open air with a clear line to it, not below it, not crowded.
+ * Picks a target and the spot to fight it from: at the bot's range round it (or behind a gate as the target sees it,
+ * so the shot goes through the gate), the nearest in open air with a clear line to it, not below it, not crowded.
  */
 function plan(b: Turn): void {
   const { view, m, me, p } = b;
@@ -218,9 +210,8 @@ function plan(b: Turn): void {
 }
 
 /**
- * Sets the waypoint: the spot when a lane to it is clear of rock, else round
- * the flyway the shorter way, to the furthest of the next three points in
- * sight; out of a pocket with no flyway point in sight, the longest clear lane.
+ * Sets the waypoint: the spot when a lane to it is clear of rock, else round the flyway the shorter way, to the
+ * furthest of the next three points in sight; out of a pocket with no flyway point in sight, the longest clear lane.
  */
 function route(b: Turn): void {
   const { view, m, me } = b;
@@ -265,8 +256,8 @@ function byDistance(at: Vec2): number[] {
 }
 
 /**
- * Bits that fly the gunship to its waypoint (braking into the spot), apart from
- * other ships, braking for rock its coasting path runs into.
+ * Bits that fly the gunship to its waypoint (braking into the spot), apart from other ships, braking for rock its
+ * coasting path runs into.
  */
 function steer({ view, m, me, p }: Turn): number {
   const top = GUNSHIP_FLIGHT.topSpeed;
@@ -314,8 +305,8 @@ function drive(body: Body, w: Vec2, grid?: ReadGrid): number {
 }
 
 /**
- * The one of the eight directions nearest (x, y); with `grid`, the nearest with
- * no rock just ahead of `at` (0 when none within 120° of it is clear).
+ * The one of the eight directions nearest (x, y); with `grid`, the nearest with no rock just ahead of `at` (0 when
+ * none within 120° of it is clear).
  */
 function eight(x: number, y: number, grid?: ReadGrid, at = { x: 0, y: 0 }) {
   const d = hypot(x, y);
@@ -343,9 +334,9 @@ function clearLine(grid: ReadGrid, a: Vec2, b: Vec2, half: number): boolean {
   const [px, py] = d > 0 ? [(-dy / d) * half, (dx / d) * half] : [0, 0];
   for (let i = 0; i <= n; i++) {
     const [x, y] = [a.x + (dx * i) / n, a.y + (dy * i) / n];
-    if (solidAt(grid, x, y)) return false;
-    if (half > 0 && solidAt(grid, x + px, y + py)) return false;
-    if (half > 0 && solidAt(grid, x - px, y - py)) return false;
+    if (blocked(grid, x, y, 0)) return false;
+    if (half > 0 && blocked(grid, x + px, y + py, 0)) return false;
+    if (half > 0 && blocked(grid, x - px, y - py, 0)) return false;
   }
   return true;
 }
@@ -367,11 +358,9 @@ function coast(c: CastleView, ticks: number): Vec2 {
 type Shot = { k: number; lead: number; hope: number };
 
 /**
- * Looks for a shot the launcher comes round to in this look's window
- * (`reaction` to `reaction + thinkEvery` ticks on, once loaded): the low and
- * high arcs to each opponent in range, leading it, and to each crate near. The
- * likeliest are checked with `predictTrajectory` from where the gunship coasts
- * to; the first worth a volley sets `pressTick`.
+ * Looks for a shot the launcher comes round to in this look's window (`reaction` to `reaction + thinkEvery` ticks on,
+ * once loaded): the low and high arcs to each opponent in range, leading it, and to each crate near. The likeliest
+ * are checked with `predictTrajectory` from where the gunship coasts to; the first worth a volley sets `pressTick`.
  */
 function aim(b: Turn): void {
   const { view, m, me, p } = b;
@@ -383,13 +372,13 @@ function aim(b: Turn): void {
   const [v, g] = [t.launchSpeed, t.gravity];
   const shots: Shot[] = [];
   const consider = (o: Vec2, vx: number, vy: number, hope: number) => {
-    for (const high of [-1, 1]) {
+    arcs: for (const high of [-1, 1]) {
       // Lead by the flight, twice: the flight depends on the arc, the arc on the lead.
       let [lead, angle] = [lo * DT + hypot(o.x - fx, o.y - fy) / v, 0];
       for (let i = 0; i < 2; i++) {
         const [X, Y] = [o.x + vx * lead - fx, fy - o.y - vy * lead];
         const disc = v * v * v * v - g * (g * X * X + 2 * Y * v * v);
-        if (disc < 0) return;
+        if (disc < 0) continue arcs;
         angle = atan2(v * v + high * Math.sqrt(disc), g * X);
         const c = Math.abs(cos(angle));
         lead = lo * DT + (c > 0.15 ? Math.abs(X) / c : hypot(X, Y)) / v;
@@ -416,9 +405,8 @@ function aim(b: Turn): void {
 }
 
 /**
- * What a shot is worth, predicted from where the gunship coasts to, with the
- * castles led as aimed: 1 for a direct hit, splash partly, times the gates'
- * multipliers, plus the crates it takes.
+ * What a shot is worth, predicted from where the gunship coasts to, with the castles led as aimed: 1 for a direct
+ * hit, splash partly, times the gates' multipliers, plus the crates it takes.
  */
 function judge({ view, m, me, p }: Turn, shot: Shot): number {
   const at = coast(me, shot.k);
@@ -457,7 +445,7 @@ function missBy(view: RoundView, m: BotMemory, path: Trajectory): number {
   return miss;
 }
 
-/** Sometimes sidesteps a rocket about to pass within 70 px in the next half second. */
+/** At each look, with its `dodge` chance, sidesteps a rocket about to pass within 70 px in the next half second. */
 function dodge({ view, m, me, p }: Turn): void {
   if (p.dodge === 0 || view.tick < m.dodgeTick) return;
   for (const r of view.rockets) {
@@ -494,7 +482,11 @@ function ghostInput(b: Turn): number {
   const lead = p.lead * FALL * DT;
   const over = { x: t.x + t.vx * lead, y: Math.max(60, t.y - HOVER) };
   const look = (tick + m.id * 5) % p.thinkEvery === 0;
-  if (look && g.reloadTicks <= p.reaction && Math.abs(g.x - over.x) < 160) {
+  if (
+    look &&
+    g.reloadTicks <= p.reaction - p.timingError &&
+    Math.abs(g.x - over.x) < 160
+  ) {
     const drop = predictGhostBomb(view, m.id, p.reaction, 150);
     if (drop && missBy(view, m, drop) < p.ghostSlack) {
       const err = int(m, -p.timingError, p.timingError);

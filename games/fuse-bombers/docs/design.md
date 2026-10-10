@@ -86,8 +86,8 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
   and nothing else in the state is large), with a validated checkpoint codec: terrain as runs (decode refuses runs that
   do not total the grid), rockets and gates as bounded arrays, all within the netcode's 2 MB snapshot limit.
 - **Online shape** follows Fuse Choppers (`games/fuse-choppers/`): `src/online/game.ts` (the `RollbackGame`: one log
-  tick of 50 ms folds the management entries, each seat's held direction bits and the bots' answers, then runs three
-  60 Hz steps), `src/online/runtime.ts` (this device's controls), `src/engine/codec.ts`, `src/app/session.ts`,
+  tick of 50 ms folds the management entries and each seat's held direction bits, then runs three 60 Hz steps, which
+  work out the bots' bits themselves), `src/online/runtime.ts` (this device's controls), `src/engine/codec.ts`, `src/app/session.ts`,
   `src/app/presenter.ts`, and `src/platform.ts` registered in `service/history.ts`. Choppers' `PLAY` entry carries held
   bits only; Bombers cannot do that for fire, because a press and release inside one log tick would fold to nothing and
   aim timing would round to 50 ms. So the fire press is its own entry: an increasing gesture id (`EntryRules.ordinal`,
@@ -103,7 +103,7 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 3. Flight kernel (done): momentum, collisions against a solid-field interface (new module).
 4. Big map (done): the round on the bitmap terrain and the temple map, hovering gunships at spawn anchors, the launcher
    turning a full circle; render draws the bitmap terrain with the whole map in view. With castles fixed at spread
-   anchors few pairs can reach each other, so until step 5 most rounds are decided in sudden death
+   anchors few pairs could reach each other, so until step 5 most rounds were decided in sudden death
    ([engine.md](engine.md) has the numbers).
 5. Free flight (done): held-bit input, the flight kernel wired in, flying ghosts (with keyboard clusters and gamepads
    steering), then flying bots inside `step` with their memory in the state (`RoundConfig.bots`, `state.bots`).

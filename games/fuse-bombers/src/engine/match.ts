@@ -36,9 +36,9 @@ export function createMatch(config: MatchConfig): MatchState {
   const winsToWin = config.winsToWin ?? 3;
   if (!Number.isInteger(winsToWin) || winsToWin < 1)
     throw new RangeError("winsToWin must be >= 1");
-  validateBots(config.bots, n);
+  const bots = validateBots(config.bots, n); // a copy: later edits to the caller's list change nothing
   return {
-    config,
+    config: config.bots ? { ...config, bots } : config,
     winsToWin,
     wins: new Array<number>(n).fill(0),
     history: [],

@@ -63,7 +63,9 @@ for (const kind of rounds ? BOT_DIFFICULTIES : [])
     const ends = seeds.map((seed) => play(seed + players, kind, players).s);
     const ticks = ends.map((s) => s.result?.tick ?? s.tick);
     const early = ends.filter((s, i) => ticks[i]! < s.fuseTicks).length;
+    const stops = ends.filter((s) => s.result?.reason === "timeout");
     ticks.sort((a, b) => a - b);
     const median = Math.round((ticks[9]! + ticks[10]!) / 120);
-    console.log(`${kind} ${players}p: median ${median} s, ${early * 5}% early`);
+    const line = `median ${median} s, ${early * 5}% early, ${stops.length} at the 180 s stop`;
+    console.log(`${kind} ${players}p: ${line}`);
   }

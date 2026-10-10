@@ -4,6 +4,7 @@ import {
   createMatch,
   createRound,
   FIRE,
+  GUNSHIP_FLIGHT,
   LEFT,
   segmentHit,
   step,
@@ -16,10 +17,8 @@ import { circleOverlapsSolid } from "../src/engine/grid.js";
 import { buildTempleGrid, TEMPLE_FLYWAY } from "../src/engine/temple-map.js";
 import { fingerprint, playOut } from "./engine-helpers.js";
 
-// Bots inside the round: `RoundConfig.bots` names the seats the engine plays,
-// and each bot's memory lives in `state.bots`. These pin that bots fly and
-// fight, keep off rock, are ordered by difficulty, stay cheap, and that a clone
-// (what rollback restores) carries everything a bot remembers.
+// Bots inside the round (`RoundConfig.bots`, memory in `state.bots`): they fly and fight, keep off rock, are ordered
+// by difficulty, stay cheap, and a clone (what rollback restores) carries everything a bot remembers.
 
 const botRound = (seed: number, ...kinds: BotDifficulty[]): RoundConfig => ({
   seed,
@@ -33,24 +32,27 @@ const gap = ({ castles: [a, b] }: RoundState) =>
 test("bot seats are validated, and what held says for them is ignored", () => {
   // prettier-ignore
   const bad = [{}, [{ id: 2, difficulty: "easy" }], [{ id: -1, difficulty: "easy" }], [{ id: 0.5, difficulty: "hard" }],
-    [{ id: 0, difficulty: "easy" }, { id: 0, difficulty: "hard" }], [{ id: 1, difficulty: "insane" }], [{ id: 1 }], [null]];
+    [{ id: 0, difficulty: "easy" }, { id: 0, difficulty: "hard" }], [{ id: 1, difficulty: "insane" }], [{ id: 1 }], [null],
+    Array(1)];
   for (const bots of bad) {
     const config = { seed: 1, playerCount: 2, bots } as unknown as RoundConfig;
     assert.throws(() => createRound(config), RangeError, JSON.stringify(bots));
     assert.throws(() => createMatch(config), RangeError, JSON.stringify(bots));
   }
   // prettier-ignore
-  const a = createRound({ seed: 3, playerCount: 3, bots: [{ id: 2, difficulty: "hard" }, { id: 0, difficulty: "easy" }] });
+  const a = createRound({ seed: 3, playerCount: 4, bots: [{ id: 2, difficulty: "hard" }, { id: 0, difficulty: "easy" },
+    { id: 3, difficulty: "normal" }], tuning: { castleHp: [0, 0, 0, 0, 40] } });
   assert.deepEqual(
     a.bots.map((m) => m.id + m.difficulty),
-    ["0easy", "2hard"],
+    ["0easy", "2hard", "3normal"],
   );
   const b = structuredClone(a);
-  for (let i = 0; i < 900; i++) {
+  while (!a.result) {
     step(a, [0, LEFT, 0]);
-    step(b, [FIRE | LEFT, LEFT, NaN]);
+    step(b, [FIRE | LEFT, LEFT, NaN, 31]);
   }
-  assert.ok(a.castles[0]!.stats.volleys > 0, "the bot seats played");
+  const flew = a.ghosts.some((g) => g.owner !== 1 && g.spawnTick < a.tick - 60);
+  assert.ok(flew, "a bot's ghost flew");
   assert.equal(fingerprint(b), fingerprint(a));
 });
 
@@ -70,6 +72,7 @@ test("bots fly at each other from across the map, fire and hit", () => {
 });
 
 test("bots keep off rock: they seldom touch it and never hug it for long", () => {
+  const rim = GUNSHIP_FLIGHT.shape.radius + 2; // rock this near the hull centre touches it
   for (const seed of [1, 2, 3]) {
     const s = createRound(
       botRound(seed, "hard", "normal", "easy", "hard", "normal", "easy"),
@@ -81,7 +84,7 @@ test("bots keep off rock: they seldom touch it and never hug it for long", () =>
       for (const c of s.castles) {
         if (!c.alive) continue;
         flying++;
-        const touch = circleOverlapsSolid(s.terrain, c.x, c.y, 32);
+        const touch = circleOverlapsSolid(s.terrain, c.x, c.y, rim);
         streak[c.id] = touch ? streak[c.id]! + 1 : 0;
         if (touch) touching++;
         longest = Math.max(longest, streak[c.id]!);
@@ -92,15 +95,24 @@ test("bots keep off rock: they seldom touch it and never hug it for long", () =>
   }
 });
 
-test("hard bots beat easy bots in most seeded duels", () => {
-  let hardWins = 0;
-  for (let seed = 1; seed <= 12; seed++) {
-    const hard = seed % 2; // swap seats every round
-    const kinds: BotDifficulty[] = hard ? ["easy", "hard"] : ["hard", "easy"];
-    const s = playOut(botRound(seed, ...kinds), nobody);
-    if (s.result?.winner === hard) hardWins++;
+test("better bots beat worse ones in most seeded duels", () => {
+  const pairs = [
+    ["hard", "easy"],
+    ["normal", "easy"],
+    ["hard", "normal"],
+  ] as const;
+  for (const [better, worse] of pairs) {
+    let wins = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const seat = seed % 2; // swap seats every round
+      const s = playOut(
+        botRound(seed, ...(seat ? [worse, better] : [better, worse])),
+        nobody,
+      );
+      if (s.result?.winner === seat) wins++;
+    }
+    assert.ok(wins >= 9, `${better} beat ${worse} only ${wins}/12`);
   }
-  assert.ok(hardWins >= 9, `hard won only ${hardWins}/12`);
 });
 
 test("bots press only when loaded: every press fires a volley or drops a bomb", () => {
@@ -150,12 +162,12 @@ test("rollback: a clone taken mid-round, bot memory and all, continues bit for b
   }
 });
 
-test("cost: six hard bots flying and fighting stay far under a millisecond a step", () => {
+test("cost: six hard bots flying and fighting stay cheap (a runaway check, not a benchmark)", () => {
   const s = createRound(botRound(3, ...Array<BotDifficulty>(6).fill("hard")));
   const start = performance.now();
   while (!s.result) step(s);
   const perStep = (performance.now() - start) / s.tick;
-  // About 0.06 ms on a desktop (preview/step-cost.ts); this only catches a runaway.
+  // About 0.05 ms a step on a desktop (preview/step-cost.ts); 2 ms only catches a runaway.
   assert.ok(perStep < 2, `${perStep.toFixed(3)} ms a step`);
 });
 
