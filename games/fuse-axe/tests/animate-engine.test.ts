@@ -49,6 +49,30 @@ test("a hero shows its strike exactly on the steps its blade is out, through eve
   }
 });
 
+test("the back attack and the jump attack show their strike exactly on the steps their blade is out", () => {
+  for (const kind of HERO_KINDS)
+    for (const [rows, dx] of [
+      // Attack and Jump together strike behind, at a ravager standing there.
+      [[ATTACK | JUMP], -10],
+      // Attack once the jump has left the floor stabs down, at a ravager under the hero.
+      [[JUMP, ...Array<number>(T.BACK_WINDOW).fill(0), ATTACK], 10],
+    ] as const) {
+      let world = solo(kind);
+      let struck = 0;
+      for (let index = 0; index < 60; index++) {
+        const held = [rows[index] ?? 0];
+        const hero = world.heroes[0]!;
+        const probe = spawnEnemy(world, "ravager", hero.x + px(dx), hero.y);
+        const bladeOut = step(probe, held).enemies[0]!.hp < FULL;
+        world = step(world, held);
+        const frame = frameOf(world);
+        assert.equal(frame.startsWith("strike"), bladeOut, `${kind}: ${frame}`);
+        if (bladeOut) struck++;
+      }
+      assert.ok(struck > 0, `${kind}: the blade came out`);
+    }
+});
+
 test("a hit's freeze holds the strike frame, and the swing runs on from it", () => {
   for (const kind of HERO_KINDS)
     T.COMBO[kind].forEach(({ startup }, index) => {

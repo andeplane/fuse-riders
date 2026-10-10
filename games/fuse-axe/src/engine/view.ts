@@ -1,10 +1,14 @@
 import { STAGE_1 } from "./stages.js";
 import {
   HERO_HP,
+  ITEM_BLINK,
+  ITEM_LIFE,
+  MAX_POTS,
   SUB,
   enemyMaxHp,
   type EnemyKind,
   type HeroKind,
+  type ItemKind,
   type Tier,
 } from "./tuning.js";
 import {
@@ -23,18 +27,23 @@ import {
  * is `(x − camX, y − z)` and its shadow sits at `(x − camX, y)`. Each value is floored once on its own, so every
  * sprite shares the same whole-pixel camera offset as the backdrop and none shimmers against it.
  */
-export type { EnemyKind, HeroKind, Tier } from "./tuning.js";
+export type { EnemyKind, HeroKind, ItemKind, Tier } from "./tuning.js";
 export type { FxKind } from "./world.js";
 /**
  * `attack1` and `attack2` are the slashes, `attack3` the finisher. `run` is the run a double tap starts and `dash`
- * the dash attack from it (a shoulder charge, Gorm's a headbutt). `hurt` reels, `knockdown` flies, `down` lies and
- * `getup` rises; `dead` lies fallen until `respawn` drops the hero in from the top of the screen, or it is `out`.
+ * the dash attack from it (a shoulder charge, Gorm's a headbutt). `jumpattack` stabs down from a jump, standing or
+ * running (the blade is out from `STAB_STEPS` until it lands), `backattack` strikes behind the hero without turning
+ * it (`BACK_STEPS`), `grab` holds an enemy for `GRAB_STEPS` and `throw` follows through for `THROW_STEPS`. `hurt`
+ * reels, `knockdown` flies, `down` lies and `getup` rises; `dead` lies fallen until `respawn` drops the hero in from
+ * the top of the screen, or it is `out`.
  */
 export type HeroAnim = HeroState;
 /**
  * `enter` is a wave's enemy walking in from the screen's edge (or back in to a locked screen): walk frames, as is
  * `walk`. `windup` telegraphs the mace for its tier's steps, `attack` swings it (it lands on the first step) and
- * `recover` follows.
+ * `recover` follows. `held` waits in a hero's hands, and `thrown` flies behind it, then lands `down` (or `dead`).
+ * A sack imp (kind `imp`) scurries in `walk`, `stumble`s from a kick (or from a heavy one flies in `knockdown`, lies
+ * `down` and gets up), then runs in `flee`; it is never `dead`.
  */
 export type EnemyAnim = EnemyState;
 
@@ -55,6 +64,9 @@ export interface HeroView {
   lives: number;
   /** No mace lands on the hero: getting up, and for a while after dropping back in. Draw it blinking. */
   invulnerable: boolean;
+  /** Magic pots held, and the most the hero's kind can hold. */
+  pots: number;
+  maxPots: number;
 }
 
 export interface EnemyView {
@@ -84,12 +96,24 @@ export interface FxView {
   age: number;
 }
 
+/** An item on the floor (`z` above it while it pops out), blinking in its last moments before it vanishes. */
+export interface ItemView {
+  id: number;
+  kind: ItemKind;
+  x: number;
+  y: number;
+  z: number;
+  blink: boolean;
+}
+
 export interface WorldView {
   step: number;
   camX: number;
   heroes: HeroView[];
   enemies: EnemyView[];
   fx: FxView[];
+  /** In id order, which no hero or enemy shares. */
+  items: ItemView[];
   /** The wave begun latest, from 1 (0 before the first), of `waves` in the stage. */
   wave: number;
   waves: number;
@@ -124,6 +148,8 @@ export function toView(world: World): WorldView {
       lives: hero.lives,
       // A hero that has never been (`invulnUntil` 0) is not, though step 0 is no later than that.
       invulnerable: hero.invulnUntil > 0 && world.step <= hero.invulnUntil,
+      pots: hero.pots,
+      maxPots: MAX_POTS[hero.kind],
     })),
     enemies: world.enemies.map((enemy) => ({
       id: enemy.id,
@@ -145,6 +171,14 @@ export function toView(world: World): WorldView {
       y: whole(fx.y),
       z: whole(fx.z),
       age: world.step - fx.born,
+    })),
+    items: world.items.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      x: whole(item.x),
+      y: whole(item.y),
+      z: whole(item.z),
+      blink: world.step - item.born >= ITEM_LIFE - ITEM_BLINK,
     })),
     wave: world.wave,
     waves: STAGE_1.waves.length,

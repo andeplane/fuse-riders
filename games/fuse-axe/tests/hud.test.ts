@@ -23,7 +23,6 @@ import {
   HUD_H,
   JOIN_FRAMES,
   NAME,
-  NO_POTS,
   PANEL_W,
   POTS,
   SEGMENT,
@@ -101,13 +100,13 @@ const hero = (
 ): HeroView => ({
   ...{ id, seat, kind: "brakka", x: 100, y: 140, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
-  ...{ invulnerable: false },
+  ...{ invulnerable: false, pots: 0, maxPots: 4 },
   ...more,
 });
 const out = (id: number, seat: number) =>
   hero(id, seat, { anim: "out", lives: 0, hp: 0 });
 const world = (heroes: HeroView[]): WorldView => ({
-  ...{ step: 0, camX: 0, heroes, enemies: [], fx: [] },
+  ...{ step: 0, camX: 0, heroes, enemies: [], fx: [], items: [] },
   ...{ wave: 0, waves: 5, locked: false, go: false, cleared: false },
   ...{ defeated: false },
 });
@@ -350,7 +349,7 @@ test("the scene's HUD shows each hero in the look it wears on the field, and und
   assert.equal(fillsAt(pen, 0, HUD_H - 2, SEAT_COLORS[0]!), 0);
 });
 
-test("pots: a row of the most a hero can hold, the held ones full; none until magic arrives", () => {
+test("pots: a row of the most a hero can hold, the held ones full, as each hero's view says", () => {
   const pen = new RecordingPen();
   drawPots(pen, 20, POTS.y, { held: 2, max: 4 });
   const bodies = pen.fills.filter((f) => f.w === 5 && f.h === 4);
@@ -360,8 +359,23 @@ test("pots: a row of the most a hero can hold, the held ones full; none until ma
   );
   assert.equal(pen.fills.filter((f) => f.style === C.potGlint).length, 2);
   const none = new RecordingPen();
-  drawPots(none, 20, POTS.y, NO_POTS);
+  drawPots(none, 20, POTS.y, { held: 0, max: 0 });
   assert.equal(none.fills.length, 0);
+  // The panels draw each hero's own: Rhea holding 5 of 6 in seat 1, Gorm none of 3 in seat 3.
+  const panels = fakeHud().draw(
+    world([
+      hero(1, 1, { kind: "rhea", pots: 5, maxPots: 6 }),
+      hero(2, 3, { kind: "gorm", pots: 0, maxPots: 3 }),
+    ]),
+  );
+  const row = (seat: number) =>
+    panels.fills
+      .filter((f) => f.w === 5 && f.h === 4 && f.y === POTS.y + 1)
+      .filter((f) => f.x >= seat * PANEL_W && f.x < (seat + 1) * PANEL_W)
+      .map((f) => f.style);
+  assert.deepEqual(row(1), [...Array(5).fill(C.pot), C.potEmpty]);
+  assert.deepEqual(row(3), Array(3).fill(C.potEmpty));
+  assert.deepEqual(row(0), []);
 });
 
 test("the HUD keeps to its strip at the top of the 320 × 180 screen", () => {

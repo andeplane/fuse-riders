@@ -4,6 +4,8 @@ import {
   ATTACK,
   DOWN,
   ENEMY_STATES,
+  decodeWorld,
+  encodeWorld,
   HERO_KINDS,
   HERO_STATES,
   INPUT_MASK,
@@ -18,6 +20,7 @@ import {
   pressed,
   released,
   seedOf,
+  sendImp,
   spawnEnemy,
   step,
   stepTick,
@@ -242,13 +245,14 @@ function script(seed: number, steps: number): number[][] {
  * that a brawl fells some (a full-health crowd of three heroes' ravagers outlasts it) and the fallen blink out.
  */
 function crowd(world: World): World {
+  const before = world.enemies.length;
   for (let x = 72; x <= 132; x += 12)
     for (let y = 112; y <= 168; y += 8)
       world = spawnEnemy(world, "ravager", px(x), px(y));
   return {
     ...world,
     enemies: world.enemies.map((e, index) =>
-      index % 4 === 0 ? { ...e, hp: 10 } : e,
+      index >= before && (index - before) % 4 === 0 ? { ...e, hp: 10 } : e,
     ),
   };
 }
@@ -295,14 +299,21 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
   const a = play(),
     b = play();
   assert.equal(seedOf(JSON.stringify(a)), seedOf(JSON.stringify(b)));
-  // Falling for good, dropping back in and running out of lives are in ai.test.ts.
-  assert.deepEqual(
-    [...seen].sort(),
-    HERO_STATES.filter(
-      (state) => !["dead", "respawn", "out"].includes(state),
-    ).sort(),
-  );
-  assert.deepEqual([...foes].sort(), [...ENEMY_STATES].sort());
+  // Falling for good, dropping back in and running out of lives are in ai.test.ts, grabs and throws in
+  // moves.test.ts, and a sack imp's own states in imps.test.ts.
+  const covered = (states: readonly string[]) =>
+    states
+      .filter(
+        (state) =>
+          ![
+            ...["dead", "respawn", "out"],
+            ...["grab", "throw", "held", "thrown"],
+            ...["stumble", "flee"],
+          ].includes(state),
+      )
+      .sort();
+  assert.deepEqual(covered([...seen]), covered(HERO_STATES));
+  assert.deepEqual(covered([...foes]), covered(ENEMY_STATES));
   const fallen = start().enemies.filter(
     (e) => !a.enemies.some((left) => left.id === e.id),
   );
@@ -315,15 +326,21 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
   assert.equal(tick.step, a.step + T.STEPS_PER_TICK);
 });
 
-test("a rollback replays from a snapshot to the same world, presses, buffers, hit-stop and knockdowns included", () => {
+test("a rollback replays from a snapshot to the same world, presses, buffers, hit-stop, knockdowns, imps and pots included", () => {
+  // A sack imp scurries through the brawl, from in front of Gorm.
   const start = crowd(
-    createWorld({
-      seed: 11,
-      heroes: [
-        { seat: 0, kind: "gorm" },
-        { seat: 1, kind: "rhea" },
-      ],
-    }),
+    spawnEnemy(
+      createWorld({
+        seed: 11,
+        heroes: [
+          { seat: 0, kind: "gorm" },
+          { seat: 1, kind: "rhea" },
+        ],
+      }),
+      "imp",
+      px(100),
+      px(140),
+    ),
   );
   // A brawl the crowd fights back in, then on into the first wave, whose spawns walk in while the crowd left behind
   // walks back in.
@@ -342,7 +359,7 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
   // press, a run, and a dash sliding and recovering.
   const first = (found: (world: World) => boolean) => {
     const cut = trail.findIndex(found);
-    assert.ok(cut > 0);
+    assert.ok(cut > 0, `never ${String(found)}`);
     return cut;
   };
   const due = waveSpawns(STAGE_1.waves[0]!, 2).length;
@@ -353,7 +370,11 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
     first((w) => w.locked && w.spawned > 0 && w.spawned < due),
     first((w) => w.enemies.some((e) => e.state === "enter")),
     first((w) => w.enemies.some((e) => e.state === "windup")),
-    first((w) => w.enemies.some((e) => e.state === "walk" && !e.target)),
+    first((w) =>
+      w.enemies.some(
+        (e) => e.kind === "ravager" && e.state === "walk" && !e.target,
+      ),
+    ),
     first((w) => w.heroes.some((h) => h.state === "hurt")),
     first((w) => w.heroes.some((h) => h.tapUntil > 0 && !(h.held & h.tap))),
     first((w) => w.heroes.some((h) => h.state === "run" && h.timer > 0)),
@@ -363,11 +384,22 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
         (h) => h.state === "dash" && h.timer >= T.DASH[h.kind].active,
       ),
     ),
+    // Mid-stab and mid-back-attack; grabs and throws are cut in moves.test.ts.
+    first((w) => w.heroes.some((h) => h.state === "jumpattack" && h.z > 0)),
+    first((w) => w.heroes.some((h) => h.state === "backattack" && h.timer > 0)),
+    // An imp stumbling and one fleeing, a pot popping out of the sack and one lying, and a pot in hand.
+    first((w) => w.enemies.some((e) => e.state === "stumble")),
+    first((w) => w.enemies.some((e) => e.state === "flee")),
+    first((w) => w.items.some((i) => i.z > 0)),
+    first((w) => w.items.some((i) => i.z === 0)),
+    first((w) => w.heroes.some((h) => h.pots > 0)),
   ];
-  // Restore a snapshot through JSON, as a checkpoint would, and replay the rest: no press is lost or made twice.
+  // Restore a snapshot through JSON, as a checkpoint would, and replay the rest: no press is lost or made twice. The
+  // checkpoint codec takes every cut back whole.
   for (const cut of [1, 7, 8, 50, 301, 599, 999, 1199, ...cuts]) {
     const snapshot = JSON.parse(JSON.stringify(trail[cut])) as World;
     assert.deepEqual(fold(snapshot, inputs.slice(cut)), straight, `cut ${cut}`);
+    assert.deepEqual(decodeWorld(encodeWorld(trail[cut]!)), trail[cut]);
   }
 });
 
@@ -378,7 +410,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-7");
+  assert.equal(RULES, "fuse-axe-9");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {

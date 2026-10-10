@@ -9,7 +9,6 @@ import {
   WORLD_HEIGHT,
   WORLD_WIDTH,
   castleCenter,
-  createBot,
   createRound,
   ghostOf,
   ghostPositionAt,
@@ -262,19 +261,23 @@ test("ghosts cannot win: the last castle standing wins while ghosts fly", () => 
   );
 });
 
-function bots(seed: number, kinds: readonly BotDifficulty[]) {
-  const all = kinds.map((difficulty, playerId) =>
-    createBot({ difficulty, playerId, seed }),
-  );
-  return (s: RoundState) => all.map((bot) => bot(s));
-}
+/** Every seat a bot of `kinds`, played by the engine. */
+const bots = (kinds: readonly BotDifficulty[]) =>
+  kinds.map((difficulty, id) => ({ id, difficulty }));
+const nobody = () => [];
 
 test("ghost rounds are deterministic and replay from a clone", () => {
-  const kinds: BotDifficulty[] = ["hard", "normal", "easy", "hard"];
-  const a = playOut({ seed: 31, playerCount: 4 }, bots(31, kinds));
-  const b = playOut({ seed: 31, playerCount: 4 }, bots(31, kinds));
-  // (Bots do not steer yet, so their ghosts hover above the wreck and seldom drop; the mashing below drops.)
-  assert.ok(a.ghosts.length > 0);
+  const config = {
+    seed: 31,
+    playerCount: 4,
+    bots: bots(["hard", "normal", "easy", "hard"]),
+  };
+  const a = playOut(config, nobody);
+  const b = playOut(config, nobody);
+  assert.ok(
+    a.castles.some((c) => c.stats.ghostBombs > 0),
+    "no bot ghost dropped",
+  );
   assert.equal(fingerprint(a), fingerprint(b));
 
   // Everyone mashes their button and steers a changing way: castles fire and ghosts drop whenever loaded (a short
@@ -309,13 +312,17 @@ test("balance: bot rounds with ghosts end in similar time and ghosts do not domi
   const lengths = { on: [] as number[], off: [] as number[] };
   let ghost = 0;
   let total = 0;
-  // Until bots fly, most rounds end in sudden death, so this is a smoke check more than a balance measure.
   for (const players of [3, 5]) {
     for (const seed of [1, 2]) {
       for (const on of [true, false]) {
         const s = playOut(
-          { seed, playerCount: players, tuning: { ghosts: on } },
-          bots(seed, kinds.slice(0, players)),
+          {
+            seed,
+            playerCount: players,
+            bots: bots(kinds.slice(0, players)),
+            tuning: { ghosts: on },
+          },
+          nobody,
         );
         assert.ok(
           s.result && s.result.tick < s.maxTicks,
@@ -338,9 +345,8 @@ test("balance: bot rounds with ghosts end in similar time and ghosts do not domi
     `median ${on}s with ghosts vs ${off}s without`,
   );
   const share = ghost / total;
-  // Bots do not steer yet, so their ghosts hover where they appear and seldom hit; once bots fly, ghosts should
-  // again deal a small share (it was over 0.5 % when they drifted across the map).
-  assert.ok(share < 0.25, `ghost damage share ${share}`);
+  // Bot ghosts fly over their targets and drop on them: a small share, never the most of it.
+  assert.ok(share > 0.005 && share < 0.25, `ghost damage share ${share}`);
 });
 
 test("ghost bombs bypass the rocket cap, so a loaded press always drops", () => {

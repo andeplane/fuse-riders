@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  BACK_WINDOW,
   CAMERA_SPEED,
   CAPACITY,
+  COMBO,
   DASH,
   ENEMY_HP,
   ENEMY_KINDS,
@@ -44,6 +46,14 @@ test("the camera outruns every hero, so a hero held at the screen's edge is neve
   for (const kind of HERO_KINDS) {
     const top = Math.max(WALK[kind].x, RUN[kind], DASH[kind].speed);
     assert.ok(CAMERA_SPEED > top, kind);
+  }
+});
+
+test("Attack and Jump in neighbouring log ticks pair as the back attack, a slash it turns never had its blade out, and a running jump outpaces a walk", () => {
+  assert.ok(BACK_WINDOW >= STEPS_PER_TICK);
+  for (const kind of HERO_KINDS) {
+    assert.ok(BACK_WINDOW < COMBO[kind][0].startup, kind);
+    assert.ok(RUN[kind] > WALK[kind].x, kind);
   }
 });
 
