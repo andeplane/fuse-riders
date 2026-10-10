@@ -118,7 +118,7 @@ export interface Model {
   watchers: number;
   showStart: boolean;
   canStart: boolean;
-  /** The host may take the room back to the lobby (and the hero picker) from a run. */
+  /** The host may take the room back to the lobby (and the hero picker) from a run, from its controller too. */
   canReturn: boolean;
   note: string;
   /** What the game's HUD names: each seat's player by slot, and this device's seat. */
@@ -198,7 +198,7 @@ export function present(view: View, viewer: Viewer): Model {
     watchers: view.seats.length - seats.length,
     showStart: viewer.host && !viewer.display && screen === "lobby",
     canStart: seats.length > 0,
-    canReturn: viewer.host && !viewer.display && screen === "play",
+    canReturn: viewer.host && !viewer.display && screen !== "lobby",
     note,
     hud: {
       names: Array.from(

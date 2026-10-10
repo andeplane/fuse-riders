@@ -8,6 +8,7 @@ import {
   directionBits,
   directionName,
   padButtons,
+  releasePads,
   type PadEvent,
   type PadPointer,
   type PadSurface,
@@ -209,15 +210,67 @@ test("the d-pad lets go when the browser cancels the touch, takes its capture aw
   assert.deepEqual(sent, [DOWN, 0, RIGHT], "a fresh touch steers again");
 });
 
-test("a pointer the browser will not capture still steers; a pad with no size steers nothing", () => {
+test("a lift the page hears off the pad ends the thumb's press, and no other pointer's does", () => {
+  const { surface, holds, dpad } = pad();
+  surface.fire("pointerdown", 1, 80, 0);
+  dpad.lift(2);
+  assert.deepEqual(holds, [RIGHT], "another pointer's lift changes nothing");
+  dpad.lift(1);
+  assert.deepEqual(holds, [RIGHT, 0]);
+  surface.fire("pointermove", 1, -80, 0);
+  assert.deepEqual(holds, [RIGHT, 0], "the thumb that lifted steers no more");
+  dpad.lift(1);
+  assert.deepEqual(
+    holds,
+    [RIGHT, 0],
+    "and a lift with nothing held is nothing",
+  );
+  surface.fire("pointerdown", 3, 0, -80);
+  assert.deepEqual(holds, [RIGHT, 0, UP], "a fresh touch steers again");
+});
+
+test("a pointer the browser will not let the pad capture steers nothing, for its lift might never come; a pad with no size steers nothing", () => {
   const { surface, holds } = pad();
   surface.refuseCapture = true;
   surface.fire("pointerdown", 1, -80, 0);
-  assert.deepEqual(holds, [LEFT]);
+  surface.fire("pointermove", 1, 80, 0);
+  assert.deepEqual(holds, []);
+  // Nothing is left waiting on that pointer: the next thumb, once capture works, steers.
+  surface.refuseCapture = false;
+  surface.fire("pointerdown", 2, 0, 80);
+  assert.deepEqual(holds, [DOWN]);
   const empty = pad();
   empty.surface.box = { left: 0, top: 0, width: 0, height: 0 };
   empty.surface.fire("pointerdown", 1, 80, 0);
   assert.deepEqual(empty.holds, []);
+});
+
+test("pads moved under a thumb let go of the d-pad and every button, and of nothing a keyboard holds", () => {
+  const sent: number[] = [];
+  const controls = new HeldControls((bits) => sent.push(bits));
+  const hold = (source: string, bits: number) => controls.hold(source, bits);
+  const surface = new FakeSurface();
+  const dpad = new DPad(surface, (bits) => hold("dpad", bits));
+  const [attack, jump, magic] = padButtons(hold);
+  controls.press("KeyK");
+  surface.fire("pointerdown", 1, 80, 0);
+  attack!.onPress!();
+  magic!.onPress!();
+  assert.equal(controls.bits, RIGHT | ATTACK | MAGIC | JUMP);
+  releasePads(dpad, hold);
+  assert.equal(controls.bits, JUMP, "the key goes on");
+  assert.equal(dpad.bits, 0);
+  assert.deepEqual(sent.slice(-1), [JUMP]);
+  // The thumbs still down on the hidden pads change nothing, and their lifts do no harm.
+  surface.fire("pointermove", 1, -80, 0);
+  attack!.onRelease!();
+  jump!.onRelease!();
+  surface.fire("pointerup", 1);
+  assert.equal(controls.bits, JUMP);
+  // When the pads are back, a fresh touch steers and presses again.
+  surface.fire("pointerdown", 2, 0, -80);
+  attack!.onPress!();
+  assert.equal(controls.bits, JUMP | UP | ATTACK);
 });
 
 test("the pad's buttons hold Attack, Jump and Magic from press to release, two thumbs both, alongside the d-pad", () => {

@@ -359,6 +359,11 @@ test("a shared screen: the host switches it on in the lobby, the TV shows the ga
     color: SEAT_COLORS[0],
     hero: "rhea",
   });
+  assert.deepEqual(
+    [mine.canReturn, present(running, guest).canReturn, screen.canReturn],
+    [true, false, false],
+    "the host can still call the room back to the lobby from its controller; no one else, nor the TV, can",
+  );
   assert.deepEqual(present(running, guest).controller, {
     title: "P2 · B",
     color: SEAT_COLORS[1],

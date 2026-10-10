@@ -37,7 +37,7 @@ import { HeldControls, KEY_HELP } from "./controls.js";
 import { PendingPick, SoloOpening } from "./flow.js";
 import { GamepadInput, browserGamepads } from "./gamepad.js";
 import { drawn } from "./interpolate.js";
-import { DPad, directionName, padButtons } from "./pad.js";
+import { DPad, directionName, padButtons, releasePads } from "./pad.js";
 import {
   HEROES,
   TEXT,
@@ -194,9 +194,13 @@ function room(solo: boolean): void {
   tvQr.alt = `QR code to join room ${code}`;
   tvInvite.append(tvQr, el("span", "SCAN TO JOIN"));
   if (display)
-    void QRCode.toDataURL(joinLink, { margin: 1, width: 160 }).then((url) => {
-      tvQr.src = url;
-    });
+    void QRCode.toDataURL(joinLink, { margin: 1, width: 160 }).then(
+      (url) => {
+        tvQr.src = url;
+      },
+      // Without a code the header says nothing of it; the room's code beside it is still there to type.
+      () => tvInvite.remove(),
+    );
   // The host can take the room back to the lobby, and its hero picker, from a run.
   toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
   leave.onclick = () => {
@@ -252,11 +256,12 @@ function room(solo: boolean): void {
     el("small", "The game on a TV, phones as controllers"),
   );
   shareBox.onchange = () => {
-    store.setItem(names.shared, shareBox.checked ? "1" : "0");
-    runtime.command({
-      type: "settings",
-      settings: { display: shareBox.checked },
-    });
+    const wanted = shareBox.checked;
+    // The choice is kept only once the room has taken it; a room that did not (this device is not running it right
+    // now) goes on as it was, and so does the box.
+    if (runtime.command({ type: "settings", settings: { display: wanted } }))
+      store.setItem(names.shared, wanted ? "1" : "0");
+    else shareBox.checked = shownShared ?? false;
   };
   tvLink.onclick = () =>
     window.open(
@@ -320,6 +325,9 @@ function room(solo: boolean): void {
     controls.hold("dpad", bits);
     dpadPad.dataset.dir = directionName(bits);
   });
+  // A lift that lands off the pad (a thumb that slid off, a pad that moved) still ends its press.
+  for (const type of ["pointerup", "pointercancel"] as const)
+    window.addEventListener(type, (event) => dpad.lift(event.pointerId));
   const fightPads = createControllerRow({
     buttons: padButtons((source, bits) => controls.hold(source, bits)),
     className: "fui-controller fa-buttons",
@@ -340,10 +348,14 @@ function room(solo: boolean): void {
   controllerHead.append(controllerBadge, controllerName, controllerHero);
   controllerCenter.append(controllerNote);
   controller.append(controllerHead, controllerBody);
+  // The pads let go of everything they hold when they move (the d-pad's thumb and every button), whether or not the
+  // browser tells the pad in its new place that the thumb lifts. Hiding them is the phone layout's `clearControls`.
+  const letGoPads = () =>
+    releasePads(dpad, (source, bits) => controls.hold(source, bits));
   const placePads = (onController: boolean) => {
     if (dpadPad.parentElement === (onController ? controllerBody : touch))
       return;
-    dpad.cancel();
+    letGoPads();
     if (onController)
       controllerBody.append(dpadPad, controllerCenter, fightPads);
     else touch.append(dpadPad, fightPads);

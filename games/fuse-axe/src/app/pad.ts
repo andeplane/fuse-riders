@@ -89,12 +89,14 @@ export class DPad {
     surface.addEventListener("pointerdown", (event) => {
       event.preventDefault();
       if (this.pointer !== undefined || event.button !== 0) return;
-      this.pointer = event.pointerId;
+      // Capture is what brings the lift (or a cancel) to the pad from anywhere on the screen. A pointer the browser
+      // will not let the pad capture is one it no longer tracks, so its lift may never come: it steers nothing.
       try {
         surface.setPointerCapture(event.pointerId);
       } catch {
-        // A pointer the browser no longer tracks cannot be captured; the press still steers until it lifts.
+        return;
       }
+      this.pointer = event.pointerId;
       this.steer(event);
     });
     surface.addEventListener("pointermove", (event) => {
@@ -105,12 +107,18 @@ export class DPad {
       "pointercancel",
       "lostpointercapture",
     ] as const)
-      surface.addEventListener(type, (event) => {
-        if (event.pointerId === this.pointer) this.cancel();
-      });
+      surface.addEventListener(type, (event) => this.lift(event.pointerId));
   }
   get bits(): number {
     return this.held;
+  }
+  /**
+   * The browser reports pointer `pointerId` lifted or cancelled, wherever on the page: the page passes on every lift it
+   * hears, for a thumb whose lift landed elsewhere than on the pad (it slid off, or the pad moved). Only the pad's own
+   * thumb ends its press.
+   */
+  lift(pointerId: number): void {
+    if (pointerId === this.pointer) this.cancel();
   }
   /** Lets go: the thumb lifted, or the page lost focus or went hidden. Its later moves steer nothing. */
   cancel(): void {
@@ -143,6 +151,9 @@ export const PAD_BUTTONS = [
   { label: "MAGIC", bit: MAGIC, keys: "L C" },
 ] as const;
 
+/** The source a button holds its bit under in `HeldControls`. */
+export const padSource = (label: string): string => `pad:${label}`;
+
 /**
  * The buttons as fuse-ui's controller row takes them: each holds its bit from press to release under its own source,
  * so two thumbs on two buttons hold both.
@@ -153,7 +164,20 @@ export function padButtons(
   return PAD_BUTTONS.map(({ label, bit, keys }) => ({
     label,
     keys,
-    onPress: () => hold(`pad:${label}`, bit),
-    onRelease: () => hold(`pad:${label}`, 0),
+    onPress: () => hold(padSource(label), bit),
+    onRelease: () => hold(padSource(label), 0),
   }));
+}
+
+/**
+ * Lets go of the pads, and only the pads: the d-pad's thumb and every button's hold, keys held on a keyboard stay held.
+ * For when the pads are moved under a thumb (onto the phone's controller and back): a browser need not tell a pad that
+ * has changed its place in the page when the thumb lifts, and nothing may stay held for want of that.
+ */
+export function releasePads(
+  dpad: DPad,
+  hold: (source: string, bits: number) => void,
+): void {
+  dpad.cancel();
+  for (const { label } of PAD_BUTTONS) hold(padSource(label), 0);
 }
