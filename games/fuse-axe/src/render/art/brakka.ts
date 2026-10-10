@@ -13,21 +13,24 @@ import {
   legAt,
   stride,
   sword,
-  type Pose,
 } from "../pixel/kit.js";
+import {
+  head,
+  portrait,
+  stampFace,
+  turn,
+  type Faces,
+  type HeroPose,
+} from "../pixel/head.js";
 import { rampSwap, type Palette } from "../pixel/palette.js";
-import { Rig, type Point, type Smear } from "../pixel/rig.js";
+import { Rig, type Point } from "../pixel/rig.js";
 import type { Sprite } from "../pixel/sprite.js";
 
 /** Brakka the barbarian: a broadsword, a blond mane, a red loincloth. */
-export interface BrakkaPose extends Pose {
+export interface BrakkaPose extends HeroPose {
   /** The sword's angle in degrees, clockwise from pointing right, and its blade's length. */
   readonly sword: number;
   readonly blade: number;
-  readonly smear?: Smear;
-  /** Degrees the head and the details on the torso turn with the body, clockwise: −90 lies on his back. */
-  readonly tilt?: number;
-  readonly face?: Face;
 }
 
 /**
@@ -286,27 +289,16 @@ const poses: Readonly<Record<HeroFrame, BrakkaPose>> = {
 };
 export const BRAKKA_POSES = poses;
 
-/**
- * Hand-placed brow, eye and mouth pixels, rows from the brow down, the first column on the head's centre; they turn
- * with the head.
- */
-const FACES = {
+const FACES: Faces = {
   calm: ["3kk", " k ", "", "", "  11"],
   yell: ["3kk", " k ", "", "  kk", "  11"],
   pain: ["k3 ", " kk", "", "  kk", "  k1"],
   out: ["", "kk ", "", "", "  11"],
 };
-type Face = keyof typeof FACES;
 
 export function paintBrakka(pose: BrakkaPose): Sprite {
   const { head: h, chest, waist, far, near } = pose;
-  const radians = ((pose.tilt ?? 0) * Math.PI) / 180;
-  const [cos, sin] = [Math.cos(radians), Math.sin(radians)];
-  /** The point (dx, dy) from `p` in the body's own frame, turned with it. */
-  const at = (p: Point, dx: number, dy: number): Point => [
-    p[0] + dx * cos - dy * sin,
-    p[1] + dx * sin + dy * cos,
-  ];
+  const at = turn(pose.tilt);
   const rig = new Rig(...pose.size);
   if (pose.smear) rig.smear(pose.smear);
   arm(rig, far, { ...BACK, bracer: "l" });
@@ -328,10 +320,7 @@ export function paintBrakka(pose: BrakkaPose): Sprite {
   rig.capsule(at(h, -5.5, 4.5), at(h, -6.8, 9.5), 3.3, 2.2, "h", mane);
   rig.capsule(at(h, -3, -3.5), at(h, -8, -2), 1.9, 0.8, "h", mane);
   rig.capsule(at(h, -4.5, 1), at(h, -9, 4), 1.9, 0.8, "h", mane);
-  const face = { group: "head", bias: 0.2 };
-  rig.ellipse(h, 3.7, 4.3, "s", face);
-  rig.ellipse(at(h, 1.7, 2.4), 2.8, 2.3, "s", face);
-  rig.ellipse(at(h, 4, 0.9), 1, 1.1, "s", face);
+  head(rig, h, at);
   const fringe = { group: "fringe", edge: "none" } as const;
   rig.ellipse(at(h, -0.6, -3.1), 4.3, 2.6, "h", fringe);
   rig.capsule(at(h, -4, -2), at(h, -4.3, 1.5), 2.1, 1.7, "h", fringe);
@@ -364,48 +353,30 @@ export function paintBrakka(pose: BrakkaPose): Sprite {
   arm(rig, near, { bracer: "l" });
   sword(rig, near.hand, pose.sword, pose.blade, 4.2);
   const painting = rig.bake();
-  FACES[pose.face ?? "calm"].forEach((row, j) =>
-    [...row].forEach((key, i) => {
-      const [x, y] = at(h, i, j - 1);
-      if (key !== " ") painting.stamp(Math.round(x), Math.round(y), [key]);
-    }),
+  return stampFace(painting, h, at, FACES[pose.face ?? "calm"]).sprite(
+    pose.anchor,
   );
-  return painting.sprite(pose.anchor);
 }
 
-/** The HUD's 16 × 16 portrait: his face on a violet plate in an ink frame. */
+/** The HUD's 16 × 16 portrait: his face, mane and headband. */
 export function paintBrakkaPortrait(): Sprite {
-  const plate: Point[] = [
-    [2, 2],
-    [16, 2],
-    [16, 16],
-    [2, 16],
-  ];
-  const rig = new Rig(18, 18).poly(plate, "i", { bevel: 2 });
-  const body = { group: "body" };
-  rig.ellipse([9.5, 17.5], 7.5, 3.5, "s", body);
-  rig.capsule([9.5, 12], [9.5, 16], 2.6, 3, "s", body);
   const mane = { group: "mane", bias: 0.12 };
-  rig.capsule([6, 5], [4.5, 13], 4, 3, "h", mane);
-  rig.capsule([5, 4], [2, 8], 1.8, 1, "h", mane);
-  const face = { group: "head", bias: 0.2 };
-  rig.ellipse([9.5, 8], 4.2, 4.8, "s", face);
-  rig.ellipse([11.5, 10.5], 3, 2.5, "s", face);
-  rig.ellipse([13.5, 8.6], 1.1, 1.2, "s", face);
   const fringe = { group: "fringe", edge: "none" } as const;
-  rig.ellipse([9, 4], 4.8, 2.6, "h", fringe);
-  rig.capsule([5.5, 4.5], [5.5, 9], 2, 1.8, "h", fringe);
-  rig.capsule([5, 5.2], [13, 5.2], 0.8, 0.8, "c", { edge: "none" });
-  // Only the plate shows: everything outside it is cleared, and the outline closes round it.
-  const clear = Array.from({ length: 18 }, (_, y) =>
-    y < 2 || y > 15 ? ".".repeat(18) : `..${" ".repeat(14)}..`,
-  );
-  return rig
-    .bake()
-    .stamp(0, 0, clear)
-    .stamp(10, 7, ["3kk", " k "])
-    .stamp(12, 11, ["11"])
-    .sprite([9, 16]);
+  return portrait({
+    behind: (rig) =>
+      rig
+        .capsule([6, 5], [4.5, 13], 4, 3, "h", mane)
+        .capsule([5, 4], [2, 8], 1.8, 1, "h", mane),
+    over: (rig) =>
+      rig
+        .ellipse([9, 4], 4.8, 2.6, "h", fringe)
+        .capsule([5.5, 4.5], [5.5, 9], 2, 1.8, "h", fringe)
+        .capsule([5, 5.2], [13, 5.2], 0.8, 0.8, "c", { edge: "none" }),
+    face: [
+      [10, 7, ["3kk", " k "]],
+      [12, 11, ["11"]],
+    ],
+  });
 }
 
 const hair = (light: string, base: string, shadow: string): Palette => ({
