@@ -12,6 +12,13 @@ export function next(state: number): { value: number; state: number } {
   return { value: (t ^ (t >>> 14)) >>> 0, state: advanced };
 }
 
+/** A whole number below `count` from a world's stream, which the draw advances. */
+export function roll(world: { rng: number }, count: number): number {
+  const draw = next(world.rng);
+  world.rng = draw.state;
+  return draw.value % count;
+}
+
 /** FNV-1a over a string. */
 export function seedOf(text: string): number {
   let h = 0x811c9dc5;
