@@ -1,4 +1,5 @@
 import { clamp } from "./math.js";
+import { isImp } from "./imps.js";
 import { roll } from "./rng.js";
 import * as T from "./tuning.js";
 import {
@@ -134,7 +135,7 @@ function stride(world: World, enemy: Enemy): void {
       if (
         other.id < enemy.id &&
         other.state !== "dead" &&
-        other.kind !== "imp" &&
+        !isImp(other) &&
         (other.target === hero.id || Math.abs(other.x - hero.x) < T.HOVER_X)
       )
         crowded += (other.x < hero.x ? -1 : 1) === own ? 1 : -1;

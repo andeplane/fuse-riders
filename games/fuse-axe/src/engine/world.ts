@@ -427,7 +427,8 @@ export function spark(
  * A new world with one more enemy of `tier` standing at (`x`, `y`) in sub-units, held to the road and the floor
  * band, facing the nearest hero. It takes the world's next id, so enemies stay in id order; the world passed in is
  * left untouched. Like `createWorld` it throws on an unknown kind or tier or a position that is not whole, which
- * would otherwise leave NaN in the enemy's hit points or position, and on a world that already holds `ENEMY_MAX`:
+ * would otherwise leave NaN in the enemy's hit points or position, on a sack imp above the lowest tier (the codec
+ * refuses one), and on a world that already holds `ENEMY_MAX`:
  * the checkpoint codec refuses a bigger one, so a room that grew it could never be restored.
  */
 export function spawnEnemy(
@@ -439,6 +440,8 @@ export function spawnEnemy(
 ): World {
   if (!ENEMY_KINDS.includes(kind) || !TIERS.includes(tier))
     throw new RangeError(`fuse-axe: unknown enemy ${kind} of tier ${tier}`);
+  if (kind === "imp" && tier !== 0)
+    throw new RangeError(`fuse-axe: a sack imp of tier ${tier}`);
   if (!Number.isInteger(x) || !Number.isInteger(y))
     throw new RangeError(`fuse-axe: enemy position ${x},${y} is not whole`);
   if (world.enemies.length >= ENEMY_MAX)

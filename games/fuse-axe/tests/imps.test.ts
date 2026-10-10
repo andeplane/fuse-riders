@@ -168,6 +168,30 @@ test("a blow that knocks down sends the imp flying: it lies out of a blade's way
   assert.equal(imp(world).facing, 1, "away from the blow");
 });
 
+test("a dash and a jump attack each knock the imp down with one pot, as they do any enemy", () => {
+  const { x, y } = hero(solo());
+  const running = (gap: number) =>
+    [RIGHT, 0, RIGHT, RIGHT].reduce(
+      (w, bits) => step(w, [bits]),
+      spawnEnemy(solo(), "imp", x + px(gap), y),
+    );
+  for (const [move, gap, bits] of [
+    ["dash", 70, RIGHT | ATTACK],
+    ["jumpattack", 40, RIGHT | JUMP],
+  ] as const) {
+    let world = running(gap);
+    assert.equal(hero(world).state, "run");
+    world = step(world, [bits]);
+    if (move === "jumpattack") world = step(world, [RIGHT | ATTACK]);
+    world = until(world, (w) => imp(w).state === "knockdown", [RIGHT], 60);
+    assert.equal(hero(world).state, move);
+    assert.deepEqual([imp(world).pots, dropped(world)], [T.IMP_POTS - 1, 1]);
+    assert.deepEqual([hero(world).damage, hero(world).knockdowns], [0, 0]);
+    // The blade's window stays open across the next steps, and no second pot drops.
+    assert.equal(dropped(run(world, 20, [RIGHT])), 1, move);
+  }
+});
+
 test("a thrown body kicks a pot out of an imp it meets", () => {
   // Brakka grabs a dazed ravager and throws it back over the imp scurrying up behind.
   let world = spawnEnemy(solo(), "ravager", px(80), px(138));
@@ -294,6 +318,84 @@ test("Stage 1 sends one imp after wave 2, one with wave 3 and one after wave 4, 
   assert.deepEqual([world.impsSent, imp(world).facing], [2, 1]);
   assert.equal(imp(world).x, world.camX - T.ENTER_OUT);
   assert.equal(imps(run(world, 30)).length, 1, "and only one");
+});
+
+test("every cue's imp is seen: sent on a legal sack and depth, it comes whole onto the screen, however the camera moves", () => {
+  const { imps: cues, waves } = STAGE_1;
+  cues.forEach((cue, index) => {
+    const what = `cue ${index + 1}`;
+    assert.ok(cue.at <= T.CAMERA_END, `${what} is within the camera's reach`);
+    assert.ok(index === 0 || cue.at > cues[index - 1]!.at, `${what} in order`);
+    assert.ok(cue.pots >= 1 && cue.pots <= T.IMP_POTS, `${what} sack`);
+    assert.ok(cue.y >= T.FLOOR_TOP && cue.y <= T.FLOOR_BOTTOM, `${what} depth`);
+    // Camera short of the cue, the waves before it fought, the party well ahead: the camera runs at its top speed.
+    const wave = waves.filter((each) => each.at < cue.at).length,
+      camX = cue.at - px(8),
+      lone = solo();
+    const world: World = {
+      ...lone,
+      ...{ camX, wave, impsSent: index },
+      spawned: wave ? waveSpawns(waves[wave - 1]!, 1).length : 0,
+      heroes: lone.heroes.map((h) => ({
+        ...h,
+        x: camX + T.CAMERA_LEAD + px(48),
+      })),
+    };
+    const seen = (w: World) =>
+      imps(w).some(
+        (each) =>
+          each.x >= w.camX + T.ENEMY_HALF_W &&
+          each.x <= w.camX + SCREEN - T.ENEMY_HALF_W,
+      );
+    assert.equal(until(world, seen, [RIGHT], 300).impsSent, index + 1, what);
+  });
+});
+
+test("a sack imp is always of the lowest tier, as the checkpoint requires, and a ravager has no sack", () => {
+  assert.throws(
+    () => spawnEnemy(solo(), "imp", px(100), px(140), 1),
+    RangeError,
+  );
+  const world = spawnEnemy(
+    spawnEnemy(solo(), "imp", px(100), px(140)),
+    "ravager",
+    px(200),
+    px(140),
+    2,
+  );
+  assert.deepEqual(
+    world.enemies.map((each) => [each.kind, each.tier, each.pots]),
+    [
+      ["imp", 0, T.IMP_POTS],
+      ["ravager", 2, 0],
+    ],
+  );
+  assert.deepEqual(decodeWorld(encodeWorld(world)), world);
+});
+
+test("a sack imp beside a hero claims no side of it: a ravager going for the hero takes its own", () => {
+  const goal = (withImp: boolean) => {
+    const { x, y } = hero(heroAs(solo(), { x: px(160) }));
+    let world = heroAs(solo(), { x: px(160) });
+    if (withImp) world = spawnEnemy(world, "imp", x - px(30), y);
+    world = spawnEnemy(world, "ravager", x - px(90), y);
+    const foe = world.enemies.at(-1)!;
+    world = {
+      ...world,
+      enemies: world.enemies.map((each) =>
+        each === foe
+          ? { ...each, state: "walk", target: hero(world).id }
+          : each,
+      ),
+    };
+    return step(world, []).enemies.at(-1)!.goal - x;
+  };
+  assert.equal(
+    goal(true),
+    -T.ENGAGE_X,
+    "its own side, the left, as with no imp",
+  );
+  assert.equal(goal(true), goal(false));
 });
 
 test("a cue's imp waits while the world holds the most enemies, and a sack the checkpoint would refuse is never sent", () => {
