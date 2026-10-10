@@ -2,6 +2,7 @@
 
 import {
   createRound,
+  gridHash,
   isLoaded,
   step,
   type Gate,
@@ -15,13 +16,15 @@ export function spamInputs(state: RoundState): boolean[] {
   return state.castles.map((c) => isLoaded(c));
 }
 
-/** Runs a round to completion with the given input script. */
+/** Runs a round to completion with the given input script (after `setup` changes the fresh round, if given). */
 export function playOut(
   config: RoundConfig,
   inputs: (state: RoundState) => boolean[] = spamInputs,
   onTick?: (state: RoundState) => void,
+  setup?: (state: RoundState) => void,
 ): RoundState {
   const state = createRound(config);
+  setup?.(state);
   while (state.result === null && state.tick < state.maxTicks + 10) {
     step(state, inputs(state));
     onTick?.(state);
@@ -31,10 +34,7 @@ export function playOut(
 
 /** A compact fingerprint of everything that matters in a state. */
 export function fingerprint(state: RoundState): string {
-  let terrain = 0;
-  for (let i = 0; i < state.terrain.surface.length; i++) {
-    terrain += (state.terrain.surface[i] ?? 0) * ((i % 7) + 1);
-  }
+  const terrain = gridHash(state.terrain);
   return JSON.stringify({
     tick: state.tick,
     phase: state.phase,
@@ -98,6 +98,26 @@ export function addRocket(
   };
   state.rockets.push(r);
   return r;
+}
+
+/** Clears all rock (hard rock too), so a test builds exactly the terrain it needs. */
+export function openWorld(state: RoundState): void {
+  state.terrain.solid.fill(0);
+  state.terrain.hard.fill(0);
+}
+
+/**
+ * Clears the rock and lines the castles up `spacing` px apart across the middle of the world, so neighbours are in
+ * range of each other. On the temple the spawn anchors are mostly out of range until gunships fly, so tests of aim
+ * set rounds up like this.
+ */
+export function lineUp(state: RoundState, spacing = 1200): void {
+  openWorld(state);
+  const n = state.castles.length;
+  for (const c of state.castles) {
+    c.x = state.terrain.width / 2 + (c.id - (n - 1) / 2) * spacing;
+    c.y = 1300;
+  }
 }
 
 /** Removes gates and crates so tests are not disturbed by them. */

@@ -73,7 +73,8 @@ export function lobbyHtml(lobby: Lobby, touch: boolean): string {
     ${button("bots", "ALL BOTS", "B")}
   </div>
   ${button("start", start, "ENTER", "start")}
-  <p>FIRE AS THE LAUNCHER SWEEPS · UP TO FOUR RIDERS PER KEYBOARD${touch ? ", TWO PER TOUCH SCREEN" : ""} · ESC${touch ? ", II" : ""} OR PAD START PAUSES</p>  <p>GAMEPADS: STICK OR D-PAD, ANY FACE BUTTON FIRES · START BEGINS, OR HOLD FIRE FOR A SECOND</p>
+  <p>FIRE AS THE LAUNCHER TURNS · UP TO FOUR RIDERS PER KEYBOARD${touch ? ", TWO PER TOUCH SCREEN" : ""} · ESC${touch ? ", II" : ""} OR PAD START PAUSES</p>
+  <p>GAMEPADS: STICK OR D-PAD, ANY FACE BUTTON FIRES · START BEGINS, OR HOLD FIRE FOR A SECOND</p>
 </div>`;
 }
 

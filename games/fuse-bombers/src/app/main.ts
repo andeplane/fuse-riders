@@ -5,8 +5,12 @@ import "./style.css";
 import "./screens.css";
 import { createAppPortal, type AppPortal } from "fuse-ui/portal";
 import Phaser from "phaser";
-import { ARENA_HEIGHT, ARENA_WIDTH } from "../engine/index.js";
-import { RoundScene, type RoundSceneData } from "../render/round-scene.js";
+import {
+  RoundScene,
+  VIEW_HEIGHT,
+  VIEW_WIDTH,
+  type RoundSceneData,
+} from "../render/round-scene.js";
 import { createAudio } from "./audio/index.js";
 import { Flow } from "./flow.js";
 import { createBrowserInput } from "./input/index.js";
@@ -30,8 +34,8 @@ async function boot(): Promise<void> {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: "app",
-    width: ARENA_WIDTH,
-    height: ARENA_HEIGHT,
+    width: VIEW_WIDTH,
+    height: VIEW_HEIGHT,
     backgroundColor: "#0b1020",
     banner: false,
     audio: { noAudio: true }, // Sound is ./audio's, not Phaser's.
