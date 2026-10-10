@@ -14,7 +14,8 @@ Sprites are palette-indexed pixel data painted in code (`src/render/pixel/`): a 
 normals, lights them from the upper left into each material's three-shade ramp from the master palette
 (`palette.ts`), edges overlapping parts and outlines the silhouette. A figure (`src/render/art/brakka.ts`) is a set of
 poses, each joint positions on a small canvas plus a feet anchor; a new frame is a new pose, often
-`adjust(idle, { near: { hand: [37, 21] } })`. The renderer bakes a frame once per swap, flash and flip through
+`adjust(idle, { near: { hand: [37, 21] } })`; a pose that paints onto its canvas's outermost pixels throws, so
+widen `size` for a long reach. The renderer bakes a frame once per swap, flash and flip through
 `createSpriteBaker(makeSurface).bake(sprite, { swap, flash, flip })` and draws it at `(x - ax, y - ay)`.
 
 To see every figure's frames at 4× and 1×, with palette swaps, the damage flash and the flip, run `pnpm exec vite`

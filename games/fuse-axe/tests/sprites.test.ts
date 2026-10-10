@@ -91,6 +91,7 @@ test("every figure's frames and swaps are valid sprites; a bad sprite says what 
     [{ ...good, palette: { ...PALETTE, b: "red" } }, /palette entry b: red/],
     [{ ...good, palette: { ...PALETTE, ".": "#000000" } }, /palette entry \./],
     [{ ...good, ax: 2 }, /anchor \(2, 1\) lies outside/],
+    [{ ...good, ax: 0.5 }, /anchor \(0\.5, 1\) is not on a pixel/],
   ];
   for (const [sprite, problem] of bad)
     assert.throws(() => validateSprite(sprite), problem);
@@ -255,7 +256,8 @@ test("a pose paints the same rows every time, and a figure paints each frame onc
 test("adjust moves only the joints it names", () => {
   const { idle } = BRAKKA_POSES;
   const hand: Point = [37, 21];
-  const raised = adjust(idle, { near: { hand }, sword: -40 });
+  // The sword now reaches past the idle canvas, so the pose widens it; painting on its edge would throw.
+  const raised = adjust(idle, { size: [60, 52], near: { hand }, sword: -40 });
   assert.deepEqual(raised.near, { ...idle.near, hand });
   assert.deepEqual(
     [raised.far, raised.head, raised.sword],
@@ -340,4 +342,132 @@ test("the baker paints a sprite, flipped, swapped or flashing, into surfaces it 
     /rows for height/,
   );
   assert.equal(made.length, 4);
+});
+
+test("every flip and flash combination is a variant of its own, painted from the right sprite", () => {
+  const made: FakeImage[] = [];
+  const make: MakeSurface<FakeImage> = (width, height) => {
+    const image = { width, height, paint: new FakePaint() };
+    made.push(image);
+    return { image, paint: image.paint };
+  };
+  const baker = createSpriteBaker(make);
+  const slash = BRAKKA.sprite("slash");
+  const swap = BRAKKA.swaps.second!;
+  const variants = [false, true].flatMap((flip) =>
+    [false, true].map((flash) => ({ flip, flash })),
+  );
+  for (const swapped of [false, true]) {
+    const options = swapped ? { swap } : {};
+    const images = variants.map(({ flip, flash }) => {
+      const result = baker.bake(slash, { ...options, flip, flash });
+      let art = swapped ? swapPalette(slash, swap) : slash;
+      if (flash) art = { ...art, palette: flashPalette(art.palette) };
+      if (flip) art = flipSprite(art);
+      assert.deepEqual(result.image.paint.pixels, expected(art));
+      assert.deepEqual([result.ax, result.ay], [art.ax, art.ay]);
+      return result;
+    });
+    assert.equal(new Set(images).size, 4);
+    variants.forEach((variant, i) =>
+      assert.equal(baker.bake(slash, { ...options, ...variant }), images[i]),
+    );
+  }
+  assert.equal(made.length, 8);
+});
+
+test("the baker rejects a swap that is not a colour, whether or not the sprite flashes", () => {
+  let made = 0;
+  const baker = createSpriteBaker<null>(() => {
+    made++;
+    return { image: null, paint: new FakePaint() };
+  });
+  const slash = BRAKKA.sprite("slash");
+  for (const color of ["red", "#abc", "#12345g"])
+    for (const flash of [false, true])
+      assert.throws(
+        () => baker.bake(slash, { swap: { s: color }, flash }),
+        /palette entry s/,
+      );
+  assert.equal(made, 0);
+  // A key the sprite does not use is never painted, so it cannot corrupt anything.
+  baker.bake(slash, { swap: { "?": "red" } });
+  assert.equal(made, 1);
+});
+
+test("a smear sweeps any arc: across straight left, and from the larger angle to the smaller", () => {
+  const arc = (from: number, to: number) => {
+    const rig = new Rig(25, 25).smear({
+      center: [12.5, 12.5],
+      inner: 4,
+      outer: 10,
+      from,
+      to,
+    });
+    const px = onCanvas(rig.bake().sprite([12, 24]), [12, 24]);
+    return (x: number, y: number) => px(x, y) !== CLEAR;
+  };
+  const right = arc(-30, 30);
+  const left = arc(150, 210);
+  const backwards = arc(30, -30);
+  let painted = 0;
+  for (let y = 0; y < 25; y++)
+    for (let x = 0; x < 25; x++) {
+      painted += right(x, y) ? 1 : 0;
+      // The left arc is the right one turned half a circle, the backwards one the right one flipped upside down.
+      assert.equal(left(24 - x, 24 - y), right(x, y), `left (${x}, ${y})`);
+      assert.equal(backwards(x, 24 - y), right(x, y), `back (${x}, ${y})`);
+    }
+  assert.ok(painted > 20);
+  assert.throws(() => arc(40, 40), /sweeps no angle/);
+});
+
+test("a blade needs a length, and a blunt tip keeps its full width to the end", () => {
+  assert.throws(
+    () => new Rig(8, 8).blade([4, 4], [4, 4], 2, "m"),
+    /blade needs a length/,
+  );
+  const lastColumn = (tip?: number) => {
+    const painted = new Rig(24, 16)
+      .blade([3, 8], [21, 8], 5, "m", { tip })
+      .bake()
+      .sprite([12, 12]);
+    const steel = [...where(painted, "M"), ...where(painted, "7")];
+    const end = Math.max(...steel.map(([x]) => x));
+    return steel.filter(([x]) => x === end).length;
+  };
+  assert.ok(lastColumn(0) >= 4);
+  assert.ok(lastColumn() < 4);
+});
+
+test("a polygon's rim faces outward even where a thin slit runs between two of its sides", () => {
+  // Each side of the slit is within a probe's reach of the other, which an inside test would take for the interior.
+  const slit: Point[] = [
+    [2, 2],
+    [14, 2],
+    [14, 14],
+    [8.1, 14],
+    [8.1, 5],
+    [7.9, 5],
+    [7.9, 14],
+    [2, 14],
+  ];
+  const painted = new Rig(16, 16).poly(slit, "s").bake().sprite([8, 14]);
+  const px = onCanvas(painted, [8, 14]);
+  // The light comes from the left: the pixel left of the slit turns its back to it, the one right of it faces it.
+  const level = (key: string) => ["S", "s", "1"].indexOf(key);
+  assert.ok(level(px(7, 10)) > level(px(8, 10)));
+});
+
+test("a painting refuses a part drawn onto the canvas edge, where its outline would be cut off", () => {
+  const ball = (cx: number, r: number) => () =>
+    new Rig(12, 12).ellipse([cx, 6], r, r, "s").bake().sprite([6, 10]);
+  assert.doesNotThrow(ball(6, 4));
+  assert.throws(ball(6, 6), /canvas edge/);
+  assert.throws(ball(1, 4), /canvas edge/);
+});
+
+test("a figure says which frame it lacks", () => {
+  const unknown: string = "walk";
+  assert.throws(() => FIGURES.brakka!.sprite(unknown), /no frame "walk"/);
 });

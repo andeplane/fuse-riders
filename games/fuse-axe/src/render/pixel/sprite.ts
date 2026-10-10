@@ -16,7 +16,7 @@ export interface Sprite {
 export const CLEAR = ".";
 const HEX = /^#[0-9a-f]{6}$/i;
 
-/** Throws if the rows do not match the size, use a key the palette lacks, or the anchor lies outside. */
+/** Throws if the rows do not match the size, use a key the palette lacks, or the anchor is not a pixel of the sprite. */
 export function validateSprite(sprite: Sprite): void {
   const { w, h, ax, ay, palette, rows } = sprite;
   const problems: string[] = [];
@@ -33,6 +33,8 @@ export function validateSprite(sprite: Sprite): void {
       problems.push(`palette entry ${key}: ${color}`);
   if (!(ax >= 0 && ax < w && ay >= 0 && ay < h))
     problems.push(`anchor (${ax}, ${ay}) lies outside`);
+  else if (!Number.isInteger(ax) || !Number.isInteger(ay))
+    problems.push(`anchor (${ax}, ${ay}) is not on a pixel`);
   if (problems.length)
     throw new Error(`Invalid sprite: ${problems.join("; ")}`);
 }
