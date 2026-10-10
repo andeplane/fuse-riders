@@ -1,10 +1,12 @@
-// World constants and gameplay tuning. All distances are logical arena pixels (y grows downward),
+// World constants and gameplay tuning. All distances are logical world pixels (y grows downward),
 // all speeds are pixels per second and all durations are seconds unless the name says otherwise.
 
-/** Logical arena width in pixels. The renderer scales this box to the screen. */
-export const ARENA_WIDTH = 1600;
-/** Logical arena height in pixels. */
-export const ARENA_HEIGHT = 900;
+import { TEMPLE_MAP } from "./temple-map.js";
+
+/** Logical world width in pixels: the temple map's (4800). The renderer frames the world on screen. */
+export const WORLD_WIDTH = TEMPLE_MAP.width;
+/** Logical world height in pixels (2700). */
+export const WORLD_HEIGHT = TEMPLE_MAP.height;
 /** Simulation rate. One `step` call advances exactly one tick. */
 export const TICK_HZ = 60;
 /** Seconds per tick. */
@@ -45,12 +47,10 @@ export interface Tuning {
    * weaker ones, so a round with decent aim lasts about a minute whatever the player count.
    */
   castleHp: readonly number[];
-  castleHalfWidth: number;
-  castleHeight: number;
-  /** Radius of the castle's hit circle, centred half-way up the castle. */
+  /** Radius of the castle's hit circle, centred on the hull (`x, y`). */
   castleRadius: number;
-  /** Launcher pivot height above the ground contact point. */
-  launcherHeight: number;
+  /** Launcher pivot height above the hull centre. */
+  launcherOffset: number;
   startUnits: number;
   maxUnits: number;
   reloadTime: number;
@@ -64,20 +64,12 @@ export interface Tuning {
   spreadDeg: number;
   /** Per-rocket random launch speed spread (fraction, +/-). */
   speedJitter: number;
-  /** Seconds for one sweep across a one-sided (edge) arc. */
-  sweepTimeNarrow: number;
-  /** Seconds for one sweep across the wide two-sided arc. */
-  sweepTimeWide: number;
-  /** One-sided arc, in degrees above the horizon: [low, high]. Mirrored for left-facing castles. */
-  narrowArcDeg: readonly [number, number];
-  /** Wide arc (degrees, 0 = right, 180 = left). */
-  wideArcDeg: readonly [number, number];
-  /** Castles settle onto eroded ground with this gravity. */
-  castleFallGravity: number;
+  /** Seconds for one full counter-clockwise turn of the launcher. */
+  aimPeriod: number;
 
   // Damage
   rocketDamage: number;
-  /** Fraction of damage a castle takes from a terrain explosion that overlaps it. */
+  /** Fraction of damage a castle takes from an explosion within reach of it. */
   splashFactor: number;
   craterRadius: number;
   megaDamageFactor: number;
@@ -101,12 +93,9 @@ export interface Tuning {
   gateHeight: number;
   gateLife: readonly [number, number];
   gateDriftSpeed: readonly [number, number];
-  /** Half-width of the horizontal range a gate drifts in. */
+  /** Half-width of the horizontal range a gate drifts in (less when its sky zone is narrower). */
   gateDriftRange: number;
-  /**
-   * Minimum horizontal distance between the centres of two live gates. Each gate drifts in its own
-   * lane, kept this far from every other lane, so gates never overlap.
-   */
+  /** Gap kept between the areas two live gates sweep while drifting and bobbing, so gates never overlap. */
   gateSpacing: number;
   gateBobAmp: number;
   gateBobPeriod: number;
@@ -133,16 +122,18 @@ export interface Tuning {
   bombRampTime: number;
   /** Horizontal scatter of bombs around their target castle, at start and at the end of the ramp. */
   bombScatter: readonly [number, number];
+  /** Bombs appear this far above their target castle (lower under a ceiling of rock, never above the world). */
+  bombHeight: number;
   /** All damage is multiplied by 1 + suddenDeathSeconds / damageRampTime. */
   damageRampTime: number;
 
   // Ghost bombers
   /** Players whose castle is destroyed fly a ghost blimp that drops bombs. */
   ghosts: boolean;
-  /** Altitude of the ghost blimps (centre). */
-  ghostY: number;
+  /** A ghost blimp flies this far above its wreck (at least `ghostMargin` below the top of the world). */
+  ghostRise: number;
   ghostSpeed: number;
-  /** Ghosts bounce this far from the arena edges. */
+  /** Ghosts bounce this far from the world edges. */
   ghostMargin: number;
   ghostReload: number;
   /** Delay before a fresh ghost's first bomb. */
@@ -164,10 +155,8 @@ export const DEFAULT_TUNING: Tuning = {
   splitReserve: 150,
 
   castleHp: [0, 0, 280, 220, 150, 130, 120],
-  castleHalfWidth: 32,
-  castleHeight: 52,
   castleRadius: 34,
-  launcherHeight: 58,
+  launcherOffset: 32,
   startUnits: 5,
   maxUnits: 30,
   reloadTime: 2.6,
@@ -177,11 +166,7 @@ export const DEFAULT_TUNING: Tuning = {
   volleyMaxTime: 1.0,
   spreadDeg: 1.2,
   speedJitter: 0.015,
-  sweepTimeNarrow: 1.5,
-  sweepTimeWide: 2.4,
-  narrowArcDeg: [8, 89],
-  wideArcDeg: [10, 170],
-  castleFallGravity: 900,
+  aimPeriod: 3.6,
 
   rocketDamage: 4,
   splashFactor: 0.5,
@@ -197,7 +182,7 @@ export const DEFAULT_TUNING: Tuning = {
   repairAmount: 40,
   cardWeights: { unit: 3, shield: 2, rapid: 2, repair: 1.5, mega: 1.5 },
 
-  gateCounts: [0, 0, 3, 3, 4, 4, 4],
+  gateCounts: [0, 0, 5, 5, 6, 6, 7],
   gateMultipliers: [
     { multiplier: 2, weight: 4 },
     { multiplier: 3, weight: 3 },
@@ -216,7 +201,7 @@ export const DEFAULT_TUNING: Tuning = {
   splitFanMaxDeg: 22,
   splitSpeedJitter: 0.03,
 
-  crateCounts: [0, 0, 2, 2, 3, 3, 3],
+  crateCounts: [0, 0, 4, 4, 5, 5, 6],
   crateRadius: 20,
   firstCrateDelay: 3,
   crateRespawn: [5, 9],
@@ -229,11 +214,12 @@ export const DEFAULT_TUNING: Tuning = {
   bombIntervalMin: 0.1,
   bombRampTime: 40,
   bombScatter: [320, 40],
+  bombHeight: 600,
   damageRampTime: 30,
 
   ghosts: true,
-  ghostY: 64,
-  ghostSpeed: 110,
+  ghostRise: 220,
+  ghostSpeed: 160,
   ghostMargin: 40,
   ghostReload: 3.5,
   ghostFirstReload: 2.5,
@@ -242,8 +228,21 @@ export const DEFAULT_TUNING: Tuning = {
   ghostBombSpeed: 60,
 };
 
+/** Shortest `aimPeriod`: two ticks a revolution, so `turnLauncher`'s single wrap-around subtraction always suffices. */
+export const MIN_AIM_PERIOD = 2 * DT;
+
+/**
+ * The defaults with `overrides` on top. Throws `RangeError` for an `aimPeriod` that is not a finite number of at
+ * least `MIN_AIM_PERIOD` seconds (zero would turn the launcher by an infinite angle, a shorter one past what
+ * `turnLauncher` wraps), since this is where a round's configuration enters.
+ */
 export function resolveTuning(overrides?: Partial<Tuning>): Tuning {
-  return { ...DEFAULT_TUNING, ...overrides };
+  const tuning = { ...DEFAULT_TUNING, ...overrides };
+  if (!Number.isFinite(tuning.aimPeriod) || tuning.aimPeriod < MIN_AIM_PERIOD)
+    throw new RangeError(
+      `aimPeriod must be a finite number of at least ${MIN_AIM_PERIOD} s`,
+    );
+  return tuning;
 }
 
 export function secondsToTicks(seconds: number): number {

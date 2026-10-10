@@ -29,9 +29,8 @@ export interface Theme {
   far: string;
   near: string;
   snow: string;
-  /** Ground body, top to bottom, and the strata lines drawn across it. */
+  /** Ground body, top to bottom (the terrain paints its strata as darker bands of the body colour). */
   ground: readonly string[];
-  strata: string;
   /** Grass or sand on untouched surface, and the dark outline on every surface. */
   top: string;
   outline: string;
@@ -45,7 +44,6 @@ export const THEMES: readonly Theme[] = [
     near: "#6f93c2",
     snow: "#f6fbff",
     ground: ["#b07a4c", "#8a5a37", "#5d3b24"],
-    strata: "rgba(60, 34, 18, 0.28)",
     top: "#6fcf45",
     outline: "#2c1b0f",
   },
@@ -56,7 +54,6 @@ export const THEMES: readonly Theme[] = [
     near: "#8a3f5e",
     snow: "#ffd9c2",
     ground: ["#e5a55a", "#c27438", "#84451f"],
-    strata: "rgba(110, 50, 20, 0.3)",
     top: "#ffd98a",
     outline: "#4a200c",
   },
