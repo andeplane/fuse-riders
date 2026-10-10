@@ -354,8 +354,8 @@ export const RAVAGER_POSES = {
 };
 export type RavagerFrame = keyof typeof RAVAGER_POSES;
 
-/** The enemy view's anims (`dead` lies in the `down` frame while the renderer blinks it), and the AI's to come. */
-export type RavagerAnim = EnemyAnim | "walk" | "windup" | "attack" | "recover";
+/** The enemy view's anims but a sack imp's own (`dead` lies in the `down` frame while the renderer blinks it). */
+export type RavagerAnim = Exclude<EnemyAnim, "stumble" | "flee">;
 
 /** An anim's frames in order, each with the simulation steps (60 a second) it shows. */
 export interface AnimStrip<F extends string> {

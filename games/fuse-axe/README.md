@@ -99,8 +99,8 @@ frame in well under a millisecond.
 Over it all the HUD (`src/render/hud.ts`) is a strip along the top with a panel a seat: the hero's 16 × 16 portrait
 in the palette it wears on the field, framed in its seat's colour; the player's name in a 3 × 5 pixel font
 (`font.ts`: capitals, digits and a few marks; accents dropped, anything else left out, cut to fit); its lives as ×N;
-a segmented health bar whose lost part trails white for a moment and then drains; and a row of magic pots, empty
-until magic lands (`drawPots` takes held and max from the view then). A hero out of lives is greyed (from the moment
+a segmented health bar whose lost part trails white for a moment and then drains; and a row of its kind's most magic
+pots, the ones it holds full (`pots` and `maxPots` in the view). A hero out of lives is greyed (from the moment
 it lands on its last life), one that cannot be hit blinks with its sprite, an empty seat blinks JOIN (not in a solo
 game) or names a player who joins with the next run (by its tag when the font cannot write the name), and this
 device's seat is underlined. Names are not in the world: the app passes the room's, by seat, as the scene's

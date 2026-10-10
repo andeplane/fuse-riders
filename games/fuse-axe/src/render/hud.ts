@@ -100,8 +100,6 @@ export interface Pots {
   readonly held: number;
   readonly max: number;
 }
-/** Magic is still to come: until the view carries each hero's pots, every hero holds none of none. */
-export const NO_POTS: Pots = { held: 0, max: 0 };
 
 /** A row of `max` pots with its top-left at (`x`, `y`), the first `held` of them full. */
 export function drawPots<Image>(
@@ -301,7 +299,10 @@ export function createHud<Image>(
     for (let x = SEGMENT - 1; x < BAR.w; x += SEGMENT)
       fill(pen, bx + x, by, 1, BAR.h);
 
-    drawPots(pen, x0 + POTS.x, POTS.y, NO_POTS);
+    drawPots(pen, x0 + POTS.x, POTS.y, {
+      held: hero.pots,
+      max: hero.maxPots,
+    });
   };
 
   return {

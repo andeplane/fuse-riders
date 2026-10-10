@@ -7,7 +7,7 @@ import {
   FLOOR_BOTTOM,
   FLOOR_TOP,
   px,
-  type EnemyKind,
+  type FoeKind,
   type Tier,
 } from "./tuning.js";
 
@@ -20,7 +20,7 @@ export type Side = "left" | "right";
 
 /** One enemy of a wave: it walks in from outside the screen's edge on `side` at depth `y`, `delay` steps in. */
 export interface Spawn {
-  readonly kind: EnemyKind;
+  readonly kind: FoeKind;
   readonly tier: Tier;
   readonly side: Side;
   /** Depth on the floor band, in sub-units. */
@@ -39,7 +39,26 @@ export interface StagePlan {
   readonly name: string;
   /** Strictly along the road, each with a spawn; the last at the camera's end. */
   readonly waves: readonly Wave[];
+  /** The sack imps, in order along the road: between waves, or alongside one at its trigger. */
+  readonly imps: readonly ImpCue[];
 }
+
+/**
+ * A sack imp sent when the camera's left edge reaches `at`: it appears just outside the screen's edge on `side` at
+ * depth `y` and scurries across with `pots` pots (1 to `IMP_POTS`). One imp, whatever the party's size.
+ */
+export interface ImpCue {
+  readonly at: number;
+  readonly side: Side;
+  readonly y: number;
+  readonly pots: number;
+}
+const imp = (at: number, side: Side, y: number, pots: number): ImpCue => ({
+  at: px(at),
+  side,
+  y: px(y),
+  pots,
+});
 
 const ravager = (tier: Tier, side: Side, y: number, delay: number): Spawn => ({
   kind: "ravager",
@@ -99,6 +118,13 @@ export const STAGE_1: StagePlan = {
         ravager(RUST, "right", 168, 120),
       ],
     },
+  ],
+  // After wave 2 one comes the other way as the party walks on, another darts in behind wave 3's fight, and after
+  // wave 4 a fuller sack runs at the party before the gate.
+  imps: [
+    imp(480, "right", 136, 2),
+    imp(608, "left", 124, 2),
+    imp(872, "right", 150, 3),
   ],
 };
 
