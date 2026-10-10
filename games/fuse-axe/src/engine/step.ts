@@ -13,6 +13,7 @@ import * as T from "./tuning.js";
 import { STAGE_1, waveSpawns, type Placed, type Side } from "./stages.js";
 import { act, rest, thinks } from "./ai.js";
 import {
+  SPAWNS,
   inView,
   newEnemy,
   present,
@@ -28,7 +29,7 @@ import {
 /**
  * One 1/60 s step, as a pure function: the input world is left untouched. The order is part of the rules: effects
  * past their life are dropped; every hero in id order reads its seat's held bits, swings, walks, jumps or falls (or
- * reels, flies, lies or gets up), is held to the floor band and the screen, and lands its blade on the enemies
+ * reels, lies, gets up, drops back in), is held to the floor band and the screen, and lands its blade on the enemies
  * in id order; then every enemy in id order walks in, reels, flies, lies or gets up, or thinks (`ai.ts`) and lands
  * its mace on the heroes in id order, and a defeated one that has blinked long enough is gone; then the camera
  * follows, no further than the next wave's trigger; then the waves begin, spawn and clear (`advanceWaves`). `held`
@@ -112,26 +113,51 @@ const HERO_AFTER: Partial<Record<HeroState, readonly [number, HeroState]>> = {
   hurt: [T.HERO_HURT_STEPS, "idle"],
   down: [T.HERO_DOWN_STEPS, "getup"],
   getup: [T.GETUP_STEPS, "idle"],
+  dead: [T.RESPAWN_DELAY, "respawn"],
 };
-/** The states a hero flies or falls in under gravity. */
-const AIRBORNE: readonly HeroState[] = ["jump", "knockdown"];
+/** The states a hero flies, falls or drops in under gravity, and what each lands in. */
+const AIRBORNE: readonly HeroState[] = ["jump", "knockdown", "respawn"];
+/** The states a hero lies fallen in, where it fell. */
+const FALLEN: readonly HeroState[] = ["dead", "out"];
 
 /**
- * A hero's timed state runs out: landing, reeling and getting up end in idle, and lying in getting up, invulnerable
- * then and for `GETUP_GRACE` after. A fallen hero lies `dead` for good, until lives come.
+ * A fallen hero with a life left drops back in from the top of the screen at its seat's place, at full health. The
+ * screen row of a figure is its depth less its height, so a height equal to the depth is a drop from row 0.
+ */
+function respawn(world: World, hero: Hero): void {
+  const [x, y] = SPAWNS[hero.seat]!;
+  hero.x = world.camX + T.px(x);
+  hero.y = hero.z = T.px(y);
+  hero.facing = 1;
+  hero.hp = T.HERO_HP[hero.kind];
+  setState(hero, "respawn");
+}
+
+/**
+ * A hero's timed state runs out: landing, reeling and getting up end in idle, lying in getting up (invulnerable,
+ * and for `GETUP_GRACE` after), and a fallen hero drops back in, or with no life left is out.
  */
 function recover(world: World, hero: Hero): void {
   const after = HERO_AFTER[hero.state];
   if (!after || hero.timer < after[0]) return;
   if (after[1] === "getup")
     hero.invulnUntil = world.step + T.GETUP_STEPS + T.GETUP_GRACE;
-  setState(hero, after[1]);
+  if (after[1] !== "respawn") setState(hero, after[1]);
+  else if (hero.lives > 0) respawn(world, hero);
+  else setState(hero, "out");
 }
 
-/** Where a hero in the air comes down: a jump lands, a knockdown lies down, or falls for good at no hp left. */
-function land(hero: Hero): void {
+/** Where a figure in the air comes down: a jump lands, a knockdown lies down or falls for good, a drop-in stands. */
+function land(world: World, hero: Hero): void {
   if (hero.state === "jump") setState(hero, "land");
-  else setState(hero, hero.hp > 0 ? "down" : "dead");
+  else if (hero.state === "respawn") {
+    setState(hero, "idle");
+    hero.invulnUntil = world.step + T.RESPAWN_INVULN;
+  } else if (hero.hp > 0) setState(hero, "down");
+  else {
+    setState(hero, "dead");
+    hero.lives--;
+  }
 }
 
 /** A nudge slowing toward a stop by `HURT_FRICTION` a step. */
@@ -141,6 +167,7 @@ const slow = (v: number): number =>
 function moveHero(world: World, hero: Hero, bits: number): void {
   const presses = pressed(bits, hero.held);
   hero.held = bits;
+  if (hero.state === "out") return;
   if (presses & ATTACK) hero.attackBuf = T.BUFFER_STEPS;
   if (presses & JUMP) hero.jumpBuf = T.BUFFER_STEPS;
   // Hit-stop holds the hero, and the presses it buffers, in place.
@@ -166,11 +193,12 @@ function moveHero(world: World, hero: Hero, bits: number): void {
     hero.vz -= T.GRAVITY;
     if (hero.z <= 0) {
       hero.z = hero.vx = hero.vy = hero.vz = 0;
-      land(hero);
+      land(world, hero);
     }
   } else if (hero.state === "hurt") hero.vx = slow(hero.vx);
-  // A fallen hero lies where it fell, and the camera leaves it behind rather than drag it along the screen's edge.
-  if (hero.state !== "dead")
+  // A fallen hero lies where it fell, and the camera leaves it behind rather than drag it along the screen's edge: one
+  // that has just gone out too, or it would be pulled onto the screen on the step it does.
+  if (!FALLEN.includes(hero.state))
     hero.x = clamp(
       hero.x,
       world.camX + T.HERO_MARGIN,
@@ -305,8 +333,8 @@ function moveEnemy(world: World, enemy: Enemy): void {
 /**
  * The camera only moves forward: it keeps the leading hero `CAMERA_LEAD` from its left edge, but never past the
  * leftmost hero (who therefore holds it), the next wave's trigger (or, while a wave is fought, its own) or the
- * stage's end, and no faster than `CAMERA_SPEED`. A fallen hero counts for nothing, or it would hold the camera where
- * it lies for good; with no hero on the field it stays put.
+ * stage's end, and no faster than `CAMERA_SPEED`. A hero off the field (fallen, dropping back in or out) counts
+ * for nothing, or a fallen one would hold the camera where it lies; with no hero on the field it stays put.
  */
 function advanceCamera(world: World): void {
   let leader = -Infinity,

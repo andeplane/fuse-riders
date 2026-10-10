@@ -17,7 +17,9 @@ import {
   HERO_KINDS,
   JUGGLE_HITS,
   JUGGLE_WINDOW,
+  LIVES,
   RAVAGER,
+  RESPAWN_INVULN,
   STAGE_LENGTH,
   TIERS,
   VIEW_H,
@@ -33,6 +35,7 @@ import {
   type Enemy,
   type Fx,
   type Hero,
+  type HeroState,
   type World,
 } from "./world.js";
 
@@ -120,15 +123,25 @@ const ID = int(1, UINT32),
   GOAL_Y = int(FLOOR_TOP, FLOOR_BOTTOM);
 
 /** The longest a hero is invulnerable and an idle enemy waits to decide, from any step. */
-const INVULN = GETUP_STEPS + GETUP_GRACE,
+const INVULN = Math.max(RESPAWN_INVULN, GETUP_STEPS + GETUP_GRACE),
   THINK = Math.max(
     ...TIERS.map((tier) => RAVAGER[tier].think + RAVAGER[tier].jitter),
   );
-/** A hero with no hit points is flying from the blow or fallen, and one fallen has none. */
+/**
+ * A hero with no hit points is flying from the blow, fallen or out; one fallen or out has none. A hero with no life
+ * left is fallen on its last (it goes out after `RESPAWN_DELAY`) or out; one fallen has lost a life, so has fewer
+ * than it set out with, and one out has none. One dropping back in has hit points and a life.
+ */
+const FALLEN: readonly HeroState[] = ["dead", "out"];
 const lifeKept = (value: Hero): boolean =>
   value.hp <= HERO_HP[value.kind] &&
-  (value.hp > 0 || value.state === "knockdown" || value.state === "dead") &&
-  (value.state !== "dead" || value.hp === 0);
+  (value.hp > 0 ||
+    value.state === "knockdown" ||
+    FALLEN.includes(value.state)) &&
+  (!FALLEN.includes(value.state) || value.hp === 0) &&
+  (value.lives > 0 || FALLEN.includes(value.state)) &&
+  (value.state !== "dead" || value.lives < LIVES) &&
+  (value.state !== "out" || value.lives === 0);
 
 // `ENEMY_MAX` bounds the enemy list, and the ones a swing has hit: a hit enemy is not gone within its swing.
 const hero = record<Hero>(
@@ -153,6 +166,7 @@ const hero = record<Hero>(
     damage: COUNT,
     knockdowns: COUNT,
     hp: COUNT,
+    lives: int(0, LIVES),
     invulnUntil: COUNT,
     stagger: int(0, JUGGLE_HITS - 1),
     staggerUntil: COUNT,

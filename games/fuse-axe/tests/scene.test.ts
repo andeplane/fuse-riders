@@ -111,7 +111,8 @@ const hero = (
   more: Partial<HeroView> = {},
 ): HeroView => ({
   ...{ id, seat, kind: "brakka", x, y, z: 0, facing: 1 },
-  ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, invulnerable: false },
+  ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
+  ...{ invulnerable: false },
   ...more,
 });
 const enemy = (
@@ -127,6 +128,7 @@ const enemy = (
 const world = (more: Partial<WorldView>): WorldView => ({
   ...{ step: 0, camX: 0, heroes: [], enemies: [], fx: [] },
   ...{ wave: 0, waves: 5, locked: false, go: false, cleared: false },
+  ...{ defeated: false },
   ...more,
 });
 
