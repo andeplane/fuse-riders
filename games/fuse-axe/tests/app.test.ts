@@ -9,6 +9,8 @@ import {
 } from "../src/app/controls.js";
 import {
   HEROES,
+  STAGE_NAMES,
+  TEXT,
   partyLabel,
   pixelScale,
   present,
@@ -32,7 +34,10 @@ import {
   createWorld,
 } from "../src/engine/index.js";
 import {
+  CLEAR_TICKS,
+  CONTINUE_TICKS,
   DEFAULT_SETTINGS,
+  LAST_STAGE,
   createRoom,
   view,
   type Room,
@@ -174,6 +179,142 @@ test("in a run: the game for every page, keys for a hero in the world, notes for
   const over = present(frame("over"), host);
   assert.ok(over.canPick && !over.playing);
   assert.equal(over.note, "The run is over");
+});
+
+test("the stage flow's cards: a stage's tally, the countdown and its key, then victory or game over with REMATCH for the host", () => {
+  const world = createWorld({
+    seed: 1,
+    heroes: [
+      { seat: 0, kind: "rhea" },
+      { seat: 1, kind: "gorm" },
+    ],
+  });
+  const fought = {
+    ...world,
+    heroes: world.heroes.map((hero, index) => ({
+      ...hero,
+      damage: 12 + index,
+      knockdowns: index + 1,
+    })),
+  };
+  const tally = [
+    { seat: 0, kind: "rhea" as const, damage: 40, knockdowns: 3 },
+    { seat: 1, kind: "gorm" as const, damage: 50, knockdowns: 4 },
+  ];
+  assert.equal(present(frame("lobby"), host).card, null);
+  assert.equal(present(frame("running"), host).card, null, "a fight");
+  // A cleared stage: its own numbers, and the clock in whole seconds.
+  const clear = present(
+    frame("between", { world: fought, until: 120, tally }),
+    host,
+  ).card!;
+  assert.deepEqual(
+    [clear.kind, clear.title, clear.line, clear.seconds, clear.hint],
+    ["clear", "STAGE 1 CLEAR", "ASHEN VILLAGE", 6, TEXT.won],
+  );
+  assert.deepEqual(
+    clear.rows.map((row) => [row.tag, row.name, row.hero, row.damage]),
+    [
+      ["P1", "A", "rhea", 12],
+      ["P2", "B", "gorm", 13],
+    ],
+  );
+  assert.deepEqual(clear.rows[0]!.color, SEAT_COLORS[0]);
+  assert.ok(!clear.canContinue && !clear.canRematch);
+  const onward = present(
+    { ...frame("between", { world: fought, until: 1, tally }), lastStage: 2 },
+    host,
+  ).card!;
+  assert.deepEqual([onward.hint, onward.seconds], [TEXT.onward, 1]);
+  // Every hero out: a hero of the run presses Attack, everyone else waits on them.
+  const out = frame("running", { until: 199, tally });
+  const vote = present(out, host).card!;
+  assert.deepEqual(
+    [vote.kind, vote.title, vote.seconds, vote.hint, vote.canContinue],
+    ["continue", "CONTINUE?", 10, "Press ATTACK (J / Z) to fight on", true],
+  );
+  assert.equal(present(out, host).playing, true, "J reaches the controls");
+  assert.ok(present(out, guest).card!.canContinue);
+  for (const [who, viewer] of [
+    ["a watcher", { ...guest, me: "w" }],
+    ["the shared screen", tv],
+    ["a stranger", { ...guest, me: "zed" }],
+  ] as const) {
+    const waits = present(out, viewer).card!;
+    assert.deepEqual(
+      [waits.canContinue, waits.hint],
+      [false, TEXT.waitHeroes],
+      who,
+    );
+  }
+  const away = frame("running", {
+    until: 100,
+    tally,
+    seats: new Map([
+      seat("a", 0, "rhea", { away: true, connected: false }),
+      seat("b", 1, "gorm"),
+    ]),
+  });
+  assert.equal(present(away, host).card!.canContinue, false, "stepped away");
+  // The run's end: the run's numbers, the stage reached, and REMATCH or the lobby for the host alone.
+  const won = present(
+    frame("over", { world: fought, outcome: "victory", tally }),
+    host,
+  ).card!;
+  assert.deepEqual(
+    [won.kind, won.title, won.line, won.seconds, won.hint, won.canRematch],
+    [
+      "victory",
+      "VICTORY",
+      "STAGE 1 OF 1 · ASHEN VILLAGE",
+      null,
+      TEXT.hostChoice,
+      true,
+    ],
+  );
+  assert.deepEqual(
+    won.rows.map((row) => [row.damage, row.knockdowns]),
+    [
+      [40, 3],
+      [50, 4],
+    ],
+  );
+  const lost = frame("over", {
+    outcome: "defeat",
+    tally,
+    seats: new Map([seat("b", 1, "gorm")]),
+  });
+  const theirs = present(lost, guest).card!;
+  assert.deepEqual(
+    [theirs.kind, theirs.title, theirs.hint, theirs.canRematch],
+    ["defeat", "GAME OVER", TEXT.waitHost, false],
+  );
+  assert.equal(theirs.rows[0]!.name, "P1", "a seat that left shows its tag");
+  assert.equal(present(lost, tv).card!.canRematch, false);
+  assert.equal(present(frame("lobby"), host).card, null);
+});
+
+test("the cards follow the game: the clocks in the game's log ticks, a name for every stage, the real key in the hint", () => {
+  // The room's clocks are log ticks; the cards show whole seconds of them (the README's six and ten).
+  const tally = [{ seat: 0, kind: "rhea" as const, damage: 1, knockdowns: 0 }];
+  assert.equal(
+    present(frame("between", { until: CLEAR_TICKS, tally }), host).card!
+      .seconds,
+    6,
+  );
+  assert.equal(
+    present(frame("running", { until: CONTINUE_TICKS, tally }), host).card!
+      .seconds,
+    10,
+  );
+  // A stage the game has gets its name on the card (`LAST_STAGE` grows with the game).
+  for (let round = 1; round <= LAST_STAGE; round++)
+    assert.ok(STAGE_NAMES[round], `stage ${round} is named`);
+  // The hint names the keys that attack, as the lobby lists them and the controls bind them.
+  const [attackKeys] = KEY_HELP.find(([, does]) => does === "Attack")!;
+  assert.ok(TEXT.pressAttack.includes(attackKeys), attackKeys);
+  for (const letter of attackKeys.split(" / "))
+    assert.equal(KEYS[`Key${letter}`], ATTACK, `${letter} attacks`);
 });
 
 test("the HUD names each seat's player by slot, watchers left out, and knows this device's seat", () => {
