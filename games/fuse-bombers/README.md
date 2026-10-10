@@ -105,7 +105,8 @@ blast audio. The flow check starts its own Vite server and needs Chromium once: 
 `preview/browser-check.mjs` screenshots bots-only rounds and measures the frame rate against a running `pnpm dev`.
 `preview/gunships.html` (dev only: `npx vite`, then `/games/fuse-bombers/preview/gunships.html`) shows the sky
 overhaul's gunship and ghost art from `src/render/gunship-art.ts` in every state, at 1× and at the big map's 0.35×
-zoom ([screenshot](docs/images/gunships.png)); the round does not draw them yet.
+zoom ([screenshot](docs/images/gunships.png)); the round draws them under a framing camera
+([docs/engine.md](docs/engine.md), "Camera").
 
 ### Code
 
