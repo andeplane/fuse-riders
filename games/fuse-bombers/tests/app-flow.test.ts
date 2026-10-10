@@ -12,13 +12,17 @@ import {
   type GamepadLike,
 } from "../src/app/input/gamepad.js";
 import { InputHub, type Command, type DeviceId } from "../src/app/input/hub.js";
-import type { TouchZoneStyle } from "../src/app/input/index.js";
+import type { TouchPadStyle } from "../src/app/input/index.js";
 import {
   attachKeyboard,
   type KeyEventLike,
   type KeyboardTarget,
 } from "../src/app/input/keyboard.js";
-import { Lobby } from "../src/app/lobby.js";
+import {
+  attachTouch,
+  type PointerLike,
+  type PointerTarget,
+} from "../src/app/input/touch.js";
 
 /** A standard-mapped pad with these buttons down (0–3 face buttons, 8 Back, 9 Start). */
 function pad(index: number, down: number[] = [], mapping = "standard") {
@@ -138,19 +142,6 @@ test("Enter and Space on a focused control outside the screens press it, not the
   assert.ok(!pressesFocusedControl("Enter", null, screen));
 });
 
-test("touch zones are renumbered left to right, so a match has no blank zone", () => {
-  const lobby = new Lobby();
-  for (const d of ["touch:0", "key:Q", "touch:1", "touch:2"] as const)
-    lobby.press(d);
-  lobby.press("touch:0"); // leaves slot 0
-  lobby.press("pad:0"); // takes slot 0
-  lobby.compactTouchZones();
-  assert.deepEqual(
-    lobby.seats().map((s) => s.device),
-    ["pad:0", "key:Q", "touch:0", "touch:1"],
-  );
-});
-
 test("keyboard riders join and leave the lobby by their fire key; direction keys never join", () => {
   const { flow, hub } = fakeFlow();
   const listeners = new Map<string, (event: KeyEventLike) => void>();
@@ -185,11 +176,45 @@ test("keyboard riders join and leave the lobby by their fire key; direction keys
 
 type Listener = (event: never) => void;
 
-/** A Flow on fake devices: a real hub, fake pads and clock, a fake overlay element and keyboard. */
+/** Touch pads on a fake 1000 × 500 overlay feeding `hub`; `tap` puts a finger on one side's control and lifts it. */
+function fakeTouchPads(hub: InputHub) {
+  const listeners = new Map<string, (event: PointerLike) => void>();
+  const surface: PointerTarget = {
+    addEventListener: (type, listener) => listeners.set(type, listener),
+    removeEventListener: () => undefined,
+    getBoundingClientRect: () => ({
+      left: 0,
+      top: 0,
+      width: 1000,
+      height: 500,
+    }),
+  };
+  const page = { addEventListener: () => {}, removeEventListener: () => {} };
+  const source = attachTouch(surface, (d, bits) => hub.setHeld(d, bits), page);
+  const pointer = (type: string, x: number, y: number) =>
+    listeners.get(type)?.({
+      ...{ clientX: x, clientY: y, pointerId: 1 },
+      preventDefault: () => undefined,
+    });
+  /** Down and up on `side`'s FIRE, or its D-pad's up arrow; false when that side shows no pad. */
+  const tap = (side: number, control: "fire" | "dpad"): boolean => {
+    const rect = source.layout().find((pad) => pad.side === side)?.[control];
+    if (!rect) return false;
+    const x = rect.x + rect.width / 2;
+    const y = rect.y + rect.height * (control === "fire" ? 0.5 : 0.15);
+    pointer("pointerdown", x, y);
+    pointer("pointerup", x, y);
+    return true;
+  };
+  return { source, tap };
+}
+
+/** A Flow on fake devices: a real hub, fake pads, touch pads and clock, a fake overlay element and keyboard. */
 function fakeFlow(touch = false) {
   const hub = new InputHub();
   const pads = fakePads(hub);
-  const zones: TouchZoneStyle[][] = [];
+  const touchPads = fakeTouchPads(hub);
+  const zones: (TouchPadStyle | undefined)[][] = [];
   const listeners = new Map<string, Listener>();
   const root = {
     dataset: {} as Record<string, string>,
@@ -200,7 +225,10 @@ function fakeFlow(touch = false) {
     input: {
       hub,
       touchEnabled: touch,
-      setTouchZones: (z) => zones.push([...z]),
+      setTouchPads: (z) => {
+        zones.push([...z]);
+        touchPads.source.setSides(z.flatMap((s, side) => (s ? [side] : [])));
+      },
     },
     root: root as unknown as HTMLElement,
     keys: { addEventListener: () => undefined },
@@ -217,7 +245,7 @@ function fakeFlow(touch = false) {
     (listeners.get("click") as (e: object) => void)({
       target: { closest: () => ({ getAttribute: () => action }) },
     });
-  return { flow, hub, frame, root, zones, click };
+  return { flow, hub, frame, root, zones, click, tap: touchPads.tap };
 }
 
 test("a gamepad-only group joins, starts with Start and pauses and resumes with Start", () => {
@@ -258,20 +286,39 @@ test("holding a seated player's button for a second in the lobby starts the matc
   assert.equal(flow.paused, false);
 });
 
-test("touch-only players get a pause button mid-round and no blank zone", () => {
-  const { flow, hub, root, zones, click } = fakeFlow(true);
-  hub.press("touch:0");
-  hub.press("touch:1");
-  hub.press("touch:0"); // leaves: zone 0 would be blank in the match
+test("touch riders join and leave the lobby with their side's FIRE; the D-pad never joins", () => {
+  const { flow, zones, tap } = fakeFlow(true);
+  const labels = () => zones.at(-1)?.map((z) => z?.label);
+  assert.deepEqual(labels(), ["JOIN", "JOIN"]);
+  assert.ok(tap(0, "dpad") && tap(1, "dpad"));
+  assert.deepEqual(flow.lobby.devices, Array(6).fill(undefined));
+  tap(1, "fire");
+  tap(0, "fire");
+  assert.deepEqual(flow.lobby.devices.slice(0, 2), ["touch:1", "touch:0"]);
+  assert.deepEqual(labels(), ["BLUE", "RED"]);
+  tap(1, "fire"); // fires again: leaves
+  assert.deepEqual(flow.lobby.devices.slice(0, 2), [undefined, "touch:0"]);
+  assert.deepEqual(labels(), ["BLUE", "JOIN"]);
+});
+
+test("touch riders keep their side in the match, and get a pause button", () => {
+  const { flow, hub, root, zones, click, tap } = fakeFlow(true);
+  tap(0, "fire");
+  tap(1, "fire");
+  tap(0, "fire"); // leaves: the right side's rider stays on the right
   flow.advance(16);
   assert.match(root.innerHTML, /data-action="start"/);
   assert.doesNotMatch(root.innerHTML, /data-action="pause"/);
   click("start");
-  assert.deepEqual(flow.lobby.devices[1], "touch:0");
+  assert.deepEqual(flow.lobby.devices[1], "touch:1");
   assert.deepEqual(
-    zones.at(-1)?.map((z) => z.label),
-    ["BLUE"],
+    zones.at(-1)?.map((z) => z?.label),
+    [undefined, "FIRE"],
   );
+  assert.equal(tap(0, "fire"), false, "only seated sides show");
+  hub.clearPresses();
+  assert.ok(tap(1, "fire"));
+  assert.deepEqual(hub.takePresses(2), [false, true]);
   flow.advance(16);
   assert.match(root.innerHTML, /data-action="pause"/);
   click("pause");
