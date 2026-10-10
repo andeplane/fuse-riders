@@ -30,7 +30,8 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 - **World.** About 4800 × 2700 logical pixels (three times the old arena each way), y down. Terrain is a bitmap of
   4 px cells (a bitset, about 100 KB) instead of a height map, so the map can have overhangs, tunnels and caves. Every
   explosion carves a circle; the map may mark some cells indestructible so the temple keeps a skeleton (a constant
-  mask that comes with the map, not a second bitset in the round state).
+  mask that comes with the map, not a second bitset in the round state). Rock has no gravity: a piece a bomb cuts loose
+  from the rest, like the temple's floating islets, stays in the air.
 - **Flight.** Input is held bits: up, down, left, right, fire. Thrust about 400 px/s², top speed about 200 px/s,
   linear drag. Diagonals are normalised. A gunship is a circle for collisions; it slides along rock rather than
   sticking.
