@@ -271,3 +271,56 @@ One decent aimer against one "fire whenever loaded" player wins 58 of 60 two-pla
 (the spammer collects more crates, so it sometimes out-heals the aimer until the bombs fall). A full 6-player round
 simulates in well under 0.1 s; the worst tick seen (~1350 live rockets) took ~4 ms. `createRound` takes 1–50 ms, most of
 it the reachability check.
+
+## Bitmap terrain and the temple map (sky overhaul, not yet wired into the round)
+
+Two modules for the sky overhaul ([design.md](design.md)). Nothing imports them yet; the round above still plays on
+the height map. Both keep to the deterministic-engine rule (no `Math.sin/cos/…/random`, `**`, `Date`, `performance`; `tests/architecture.test.ts` checks it).
+
+**`src/engine/grid.ts`**: destructible terrain as plain data that survives `structuredClone`:
+`Grid = { width, height, cell, cols, rows, solid, hard, version }`, world units in logical pixels (y down), square
+cells of `cell` px (4 on the temple: 1200 × 675), and two `Uint32Array` bitsets (bit `row * cols + col`) for rock and
+for indestructible rock (`hard` ⊆ `solid`). Outside the world is open air. A cell owns its low edges, so the world is
+half-open: `solidAt(width, y)` is air, as is everything past it. There is no terrain gravity: carving never makes rock
+fall, so the temple's islets, and any piece a bomb cuts loose from the rest, float where they are for the whole round.
+`hard` is a second bitset inside the `Grid` (the first PR to wire this into a round state decides whether the round
+snapshots it or shares one constant mask, as [design.md](design.md) intends; `carveCircle` only needs it to read).
+
+- Queries: `solidAt` / `hardAt` (world px, O(1)), `cellSolid` / `cellHard`, `segmentHit(grid, x0, y0, x1, y1)` →
+  `{ x, y, t, col, row } | null` (a grid DDA that visits every cell the segment touches, so it never skips a wall one
+  cell thick; the point is where the segment enters the rock, or its start when that is in rock), `circleOverlapsSolid(
+grid, x, y, r)` (cells as squares; touching is clear) and `countCells`. `segmentHit` never misses: wherever `solidAt`
+  is true on the segment it hits. It can also hit without entering the rock, when the segment ends exactly on the far
+  face of a rock cell or crosses exactly through the corner of one (so it is not symmetric between the two
+  directions there); nothing else. NaN, infinite and absurdly large inputs are air.
+- Authoring: `createGrid(width, height, cell = 4)`, `fillRect` / `fillCircle` / `fillPolygon` (flat x, y pairs,
+  even-odd) with a `Paint` of `"rock" | "hard" | "air"`. A cell is painted when its centre is inside; later paint wins.
+  An empty or inverted `fillRect` paints nothing.
+- `carveCircle(grid, x, y, r)` clears non-hard rock whose cell centres lie within `r`, bumps `version` (wrapping past
+  32 bits, which is what `gridHash` reads) and returns the changed cells' `{ col0, row0, col1, row1 }` (ends
+  exclusive), or null when nothing changed.
+- `gridHash` is a 32-bit FNV-style hash of size, version and cells. `encodeGrid` gives
+  `[GRID_FORMAT, width, height, cell, version, ...runs]` with runs `length * 3 + state` (0 air, 1 rock, 2 hard; the
+  fresh temple is ~2 700 numbers), neighbouring runs always in different states, so a grid has one encoding.
+  `decodeGrid(data, expect?)` returns a new grid or undefined for anything malformed, never a partial one: another
+  format or size, a size other than `expect`, a version over 32 bits, a non-integer, negative or empty run, two
+  neighbouring runs in one state, or runs that do not cover the grid exactly. It reads one value per cell at most and
+  allocates nothing until the run count fits the grid.
+
+Measured on the temple (Node 24, a busy 8-core desktop): 3 000 rockets each testing a step of up to 10 px take
+0.35–0.5 ms in all, a 30 px carve ~4 µs (a `structuredClone` of the grid ~60 µs), a gunship-sized `circleOverlapsSolid` ~2 µs,
+`encodeGrid` plus `decodeGrid` ~1.5 ms.
+
+**`src/engine/temple-map.ts`**: the authored map `TEMPLE_MAP` (4800 × 2700, polygons painted in order by
+`buildMapGrid`; `buildTempleGrid()` for short), drawn in [images/temple-map.png](images/temple-map.png) by
+`pnpm exec tsx games/fuse-bombers/preview/map-preview.ts`. After Melee's temple stage: two terraces on columns, each
+split by a skylight so every bay beneath opens to the sky; a shrine with a peaked roof and a tunnel straight through
+it; a bridge to a gatehouse on the right terrace; the main hall; a cave beneath, open to the left and the lower right;
+a stepped ramp down the right; an underbelly tapering to y 2400; six islets; at least 300 px of sky on every side. Rock
+is ~24 % of the map; hard cells (~5 % of it: pillars, columns, the shrine's legs and keel) keep a skeleton standing.
+`spawnAnchors` (12, in open air ≥ 60 px from rock: five pairs that mirror each other about the shrine's axis, within 300 px
+because the terrain is not symmetric, plus the top centre and under the keel on it), `spawnOrder(count, seed)` (a spread,
+symmetric set per player count 2–6 chosen and dealt to seats by the seed; it is the temple's, not generic), `skyZones` (open air for gates and crates) and
+`TEMPLE_LANDMARKS` (tunnel, cave, bays) come with it. `tests/engine-temple-map.test.ts` checks the margins, the
+clearances, that all open air is one region a gunship (radius 26) can fly through, and that the tunnel and cave are
+enclosed yet reachable.

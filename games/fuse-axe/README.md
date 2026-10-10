@@ -40,7 +40,14 @@ widen `size` for a long reach. The renderer bakes a frame once per swap, flash a
 Every hero paints the same frames, `HERO_FRAMES` in `src/render/art/animate.ts`: a two-frame breath, a six-frame
 walk, rise, fall and land, a wind-up, strike and follow-through for each of the combo's three swings, then hurt,
 knockdown, down and getup; plus a 16 × 16 HUD portrait and palette swaps for up to five of the same hero. The kit's
-`stride` lays out a walk's legs, `breath` an exhale and `bend` a knee or elbow, so a new hero only adds its poses.
+`stride` lays out a walk's legs, `breath` an exhale and `bend` a knee or elbow (`armTo` and `legTo` place a limb from
+its ends with another pose's bones), so a new hero only adds its poses. `pixel/head.ts` holds what every hero shares
+above the neck: `turn(tilt)`, the body's frame for lying poses, `head` (skull, jaw, nose), `stampFace` for a hero's
+`Faces` (calm, yell, pain, out) and `portrait`, which paints the plate, shoulders and face and takes the hair,
+headgear and face pixels. A hero's `stride` reach is 1.5 × its `WALK_STEPS` × its walking speed in px per step, so a
+planted foot stays put; `tests/hero-art.test.ts` checks that for every hero in `HEROES`. Brakka
+(`src/render/art/brakka.ts`) swings a broadsword; Rhea (`rhea.ts`) is slimmer, in bronze and green, with a longsword:
+a level slash, a thrust, and a spinning overhead finisher.
 `heroFrame(kind, anim, animStep)` picks the frame for a hero in the view, timed by view-kit's `SWING_STEPS` and
 `JUMP_RISE_STEPS`: the strike exactly in the swing's active steps (a hit's freeze holds it, as the engine stops
 counting `animStep`), the walk at a cadence that keeps a planted foot still on a straight walk along the road. It
@@ -49,7 +56,8 @@ engine state fails to compile until it has frames. `tests/animate-engine.test.ts
 
 To see every figure's frames at 3× and 1×, each hero's swaps, flash, flip and portrait, and a reel per anim at game
 speed, run `pnpm exec vite` and open `/games/fuse-axe/lab/sprites.html`. The lab is dev-only: it is not in the build
-and not on the portal. [`docs/images/brakka-frames.png`](docs/images/brakka-frames.png) is a screenshot of it.
+and not on the portal. [`docs/images/brakka-frames.png`](docs/images/brakka-frames.png) and
+[`docs/images/rhea-frames.png`](docs/images/rhea-frames.png) are screenshots of it.
 
 The ravager (`src/render/art/ravager.ts`) paints every frame on one canvas with one feet anchor, so its frames line
 up on the floor; its falling poses are standing poses tipped over backwards (`tipped`). `RAVAGER_ANIMS` lists each
