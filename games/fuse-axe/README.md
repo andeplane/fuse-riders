@@ -9,7 +9,10 @@ A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Wo
 Open `/fuse-axe/` on a running service, or pick **Fuse Axe** from the app portal (the dot grid at the top left of
 every game). **PLAY SOLO** opens the hero picker; **CREATE ROOM** makes a room to share by code, link or QR code,
 where everyone picks a hero (duplicates are allowed) and the host presses **START**. The heroes walk, jump and swing
-through Stage 1's waves of ravagers in the pixel-art scene; phone pads, the HUD and the shared screen follow.
+through Stage 1's waves of ravagers in the pixel-art scene. Clearing the stage shows each hero's tally, then the
+run's victory; when every hero is out, any hero may press Attack within ten seconds to continue once, or the run is
+over. The host sets out again with **REMATCH** or goes back to the lobby. Phone pads, the HUD and the shared screen
+follow.
 
 | Keys          | Does                                |
 | ------------- | ----------------------------------- |
@@ -22,6 +25,7 @@ through Stage 1's waves of ravagers in the pixel-art scene; phone pads, the HUD 
 pnpm build && pnpm exec tsx service/dev.ts   # then open http://localhost:8787/fuse-axe/?mute
 pnpm exec tsx --test games/fuse-axe/tests/*.test.ts
 node games/fuse-axe/preview/smoke.mjs http://localhost:8787/ [screenshot-dir]   # by hand, against the service
+node games/fuse-axe/preview/flow.mjs http://localhost:8787/ [screenshot-dir]    # continue and game over, ~2 min
 ```
 
 Production serves Fuse Axe rooms only once `EXTRA_GAME_IDS` names `fuse-axe` ([GCP deploy](../../docs/online/GCP-DEPLOY.md));

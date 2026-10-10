@@ -240,6 +240,96 @@ body {
   image-rendering: pixelated;
 }
 
+/* ---- the stage flow's card over the game: a stage's tally, the continue countdown, the run's end ---- */
+.fa-card {
+  --edge: var(--fa-gold);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(calc(100% - 16px), 460px);
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 18px 16px;
+  border: 2px solid var(--edge);
+  border-radius: 8px;
+  background: rgba(12, 6, 24, 0.88);
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--edge) 45%, transparent),
+    0 0 0 4px rgba(6, 3, 12, 0.6);
+  text-align: center;
+  font: 10px/1.6 var(--fui-font-pixel, monospace);
+}
+
+.fa-card[data-kind="continue"],
+.fa-card[data-kind="defeat"] {
+  --edge: var(--fa-ember);
+}
+
+.fa-card-title {
+  margin: 0;
+  font: 20px/1.2 var(--fui-font-pixel, monospace);
+  color: var(--edge);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--edge) 70%, transparent);
+  letter-spacing: 0.06em;
+}
+
+.fa-card-line {
+  margin: 0;
+  color: var(--fui-cyan, #16e7ff);
+}
+
+.fa-card-hint {
+  margin: 0;
+  color: var(--fui-text-muted, #b6cce3);
+}
+
+.fa-card-clock {
+  font: 28px/1 var(--fui-font-pixel, monospace);
+  color: var(--fui-yellow, #ffe46b);
+  text-shadow: 0 0 10px rgba(255, 106, 61, 0.8);
+}
+
+.fa-tally {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9px;
+}
+
+.fa-tally th {
+  padding: 0 6px 6px;
+  color: var(--fui-text-muted, #b6cce3);
+  font-weight: normal;
+}
+
+.fa-tally td {
+  padding: 5px 6px;
+  border-top: 1px solid var(--fa-edge);
+}
+
+.fa-tally td:first-child {
+  text-align: left;
+}
+
+.fa-tally td:first-child b {
+  margin-right: 8px;
+  color: var(--c);
+}
+
+.fa-tally td:nth-child(2) {
+  color: var(--fa-gold);
+}
+
+.fa-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
 .fa-party {
   display: flex;
   flex-wrap: wrap;
