@@ -6,16 +6,19 @@ import type { HudSeats } from "../render/hud.js";
 import { SEAT_COLORS } from "../render/seat-colors.js";
 
 /**
- * What the page shows, decided from one frame: the lobby (roster, hero picker, start) or the running game, and the
- * line of help under it. Pure, so the decisions are unit-tested; `main.ts` only puts them on the page. A seat's hero
- * always comes from the room (`SeatView.hero`): a pick is logged, not promised, and the room can drop it.
+ * What the page shows, decided from one frame: the lobby (roster, hero picker, start), the running game, or a phone's
+ * controller for a shared screen, and the line of help under it. Pure, so the decisions are unit-tested; `main.ts`
+ * only puts them on the page. A seat's hero always comes from the room (`SeatView.hero`): a pick is logged, not
+ * promised, and the room can drop it.
  */
 export interface Viewer {
   me: string;
   host: boolean;
   solo: boolean;
-  /** This page only watches the room (`?display=1`): it never takes a seat. */
+  /** This page only watches the room (`?display=1`): it never takes a seat. It is the shared screen, the TV. */
   display: boolean;
+  /** A touch screen (a coarse pointer): its hero is steered with the on-screen pads. */
+  touch: boolean;
 }
 
 /** How the page introduces each hero. */
@@ -44,6 +47,7 @@ export const TEXT = {
   continueTitle: "CONTINUE?",
   fallen: "Every hero has fallen",
   pressAttack: "Press ATTACK (J / Z) to fight on",
+  tapAttack: "Tap ATTACK to fight on",
   waitHeroes: "A hero may continue the run",
   victory: "VICTORY",
   defeat: "GAME OVER",
@@ -92,8 +96,15 @@ export interface Card {
   /** The host may set out again (REMATCH) or go back to the lobby from here. */
   canRematch: boolean;
 }
+/** A shared screen's phone: its seat, in the seat's colour (its marker over the hero on the TV), and its hero. */
+export interface Controller {
+  title: string;
+  color: string;
+  hero: HeroKind | null;
+}
 export interface Model {
-  screen: "lobby" | "play";
+  /** The lobby, the game, or (a seat's page while a shared screen shows the game) the phone's controller. */
+  screen: "lobby" | "play" | "controller";
   card: Card | null;
   askName: boolean;
   seated: boolean;
@@ -107,11 +118,24 @@ export interface Model {
   watchers: number;
   showStart: boolean;
   canStart: boolean;
-  /** The host may take the room back to the lobby (and the hero picker) from a run. */
+  /** The host may take the room back to the lobby (and the hero picker) from a run, from its controller too. */
   canReturn: boolean;
   note: string;
   /** What the game's HUD names: each seat's player by slot, and this device's seat. */
   hud: HudSeats;
+  /** The on-screen d-pad and buttons show: on a controller, and over the game on a touch screen whose hero fights. */
+  pads: boolean;
+  /** The pads fill a phone: its header folds behind a MENU button and the control hints show. */
+  phone: boolean;
+  controller: Controller | null;
+  /** The room is one shared screen with phones as controllers (`Settings.display`). */
+  shared: boolean;
+  /** The host may turn the shared screen on or off: in the lobby of a room. */
+  canShare: boolean;
+  /** The host is offered the shared screen's page to open on the TV. */
+  showTv: boolean;
+  /** The shared screen shows the room's code and QR code beside its game, so a latecomer can join from a phone. */
+  invite: boolean;
 }
 
 export function present(view: View, viewer: Viewer): Model {
@@ -120,15 +144,26 @@ export function present(view: View, viewer: Viewer): Model {
   const seated = !!mine && !mine.watcher && !viewer.display;
   const inWorld =
     seated && !!view.world?.heroes.some((hero) => hero.seat === mine.slot);
-  const screen = view.stage === "lobby" ? "lobby" : "play";
+  const shared = view.settings.display,
+    room = !viewer.solo && !viewer.display;
+  const screen =
+    view.stage === "lobby" ? "lobby" : shared && seated ? "controller" : "play";
+  const playing = inWorld && view.stage === "running";
+  const pads = screen === "controller" || (viewer.touch && playing);
   let note = "";
   if (screen === "lobby")
     note = !seats.length
-      ? "Pick a name to take a seat"
+      ? viewer.display && shared
+        ? "Scan the code to join on your phone"
+        : "Pick a name to take a seat"
       : viewer.display
-        ? "This screen watches; everyone plays on their own device"
+        ? shared
+          ? "Join on your phone; the host starts the run"
+          : "This screen watches; everyone plays on their own device"
         : viewer.host
-          ? "Pick your hero, then START"
+          ? shared
+            ? "Open the TV screen, pick your hero, then START"
+            : "Pick your hero, then START"
           : "Pick your hero; the host starts the run";
   else if (!viewer.display)
     note = !seated
@@ -145,7 +180,7 @@ export function present(view: View, viewer: Viewer): Model {
     card: card(view, viewer, inWorld && mine.connected && !mine.away),
     askName: !mine && !viewer.display && !viewer.solo,
     seated,
-    playing: inWorld && view.stage === "running",
+    playing,
     hero: seated ? mine.hero : null,
     canPick: seated && mine.connected && !mine.away && picksApply(view.stage),
     members: seats.map((seat) => ({
@@ -163,7 +198,7 @@ export function present(view: View, viewer: Viewer): Model {
     watchers: view.seats.length - seats.length,
     showStart: viewer.host && !viewer.display && screen === "lobby",
     canStart: seats.length > 0,
-    canReturn: viewer.host && !viewer.display && screen === "play",
+    canReturn: viewer.host && !viewer.display && screen !== "lobby",
     note,
     hud: {
       names: Array.from(
@@ -173,6 +208,20 @@ export function present(view: View, viewer: Viewer): Model {
       you: seated ? mine.slot : null,
       open: !viewer.solo,
     },
+    pads,
+    phone: pads && viewer.touch,
+    controller:
+      screen === "controller" && mine
+        ? {
+            title: `${tag(mine.slot)} · ${mine.name}`,
+            color: SEAT_COLORS[mine.slot % SEAT_COLORS.length]!,
+            hero: mine.hero,
+          }
+        : null,
+    shared,
+    canShare: room && viewer.host && screen === "lobby",
+    showTv: room && viewer.host && shared && screen === "lobby",
+    invite: viewer.display && screen === "play",
   };
 }
 
@@ -217,7 +266,11 @@ function card(view: View, viewer: Viewer, hero: boolean): Card | null {
       title: TEXT.continueTitle,
       line: TEXT.fallen,
       seconds,
-      hint: hero ? TEXT.pressAttack : TEXT.waitHeroes,
+      hint: !hero
+        ? TEXT.waitHeroes
+        : viewer.touch
+          ? TEXT.tapAttack
+          : TEXT.pressAttack,
       rows: [],
       canContinue: hero,
       canRematch: false,
