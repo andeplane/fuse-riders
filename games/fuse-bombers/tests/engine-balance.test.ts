@@ -11,7 +11,7 @@ import { lineUp, playOut, spamInputs } from "./engine-helpers.js";
 
 // Headless balance checks. They pin the tuning to the design: rounds end within 3 minutes whatever
 // the players do, and aiming well ends them well before the fuse, so sudden death is the backstop.
-// Castles hover at the temple's spawn anchors, mostly out of range of each other, until gunships fly;
+// Bots wait at the temple's spawn anchors, mostly out of range of each other, until bots fly;
 // the aim checks line them up in range (`lineUp`) instead.
 
 const LIMIT_SECONDS = 180;

@@ -84,6 +84,7 @@ test("held bits are validated: an entry that is not an integer of the five bits 
     "valid input works; seats past the last are ignored",
   );
   assert.ok(c.x > 1000 && c.thrust === RIGHT);
+  assert.deepEqual(s.lastHeld, [RIGHT | FIRE, 0]);
 });
 
 test("gunships fly on their held directions, stop at rock and slide along it, and never fall", () => {
@@ -125,25 +126,38 @@ test("gunships that fly into each other are parted and never overlap", () => {
 test("a launch with rock on the barrel blows up at the wall instead of starting beyond it; the guide agrees", () => {
   const s = open(1000, 1100);
   const c = s.castles[0]!;
-  fillRect(s.terrain, 900, 956, 1100, 964); // a thin ceiling the barrel can reach through
+  fillRect(s.terrain, 900, 956, 1100, 964, "hard"); // a thin ceiling the barrel reaches through
   hold(s, [UP], 120); // flown up against it, the pivot is in the ceiling
   assert.ok(c.y < 1000 && c.y > 990, `${c.y}`);
   c.reloadTicks = 0;
   c.angle = Math.PI / 2;
   const guide = predictTrajectory(s, 0);
-  assert.equal(guide.impact.kind, "terrain");
-  assert.equal(guide.impact.tick, 0);
-  assert.equal(guide.points.length, 1);
-  const events = step(s, [FIRE]);
-  const crater = events.find((e) => e.type === "crater");
-  assert.ok(
-    crater && crater.y > 956 && crater.y < 968,
-    "it blew up in the ceiling",
+  assert.deepEqual(
+    [guide.impact.kind, guide.impact.tick, guide.points.length],
+    ["terrain", 0, 1],
   );
-  assert.deepEqual([crater.x, crater.y], [guide.impact.x, guide.impact.y]);
-  assert.ok(
-    s.rockets.every((r) => r.y > 964),
-    "nothing started above it",
+  // The whole volley blows up in the ceiling: no rocket ever starts above it.
+  const blasts = [];
+  for (let i = 0; i < 60; i++) {
+    for (const e of step(s, [i === 0 ? FIRE : 0]))
+      if (e.type === "rocket-exploded") blasts.push(e);
+    assert.equal(s.rockets.length, 0);
+  }
+  assert.equal(blasts.length, c.units);
+  assert.equal(c.stats.rocketsFired, c.units);
+  assert.deepEqual(
+    [blasts[0]?.x, blasts[0]?.y],
+    [guide.impact.x, guide.impact.y],
   );
+  assert.ok(blasts.every((e) => e.y > 956 && e.y < 968));
   assert.equal(c.hp, c.maxHp, "own blasts never hurt");
+
+  // The pivot in the open and the tip in a block: the rocket blows up on the block's face.
+  const t = open();
+  fillRect(t.terrain, 1012, 948, 1040, 960); // over 31 px from the hull, so the ship rests clear of it
+  Object.assign(t.castles[0]!, { reloadTicks: 0, angle: Math.PI / 6 });
+  const aim = predictTrajectory(t, 0);
+  const crater = step(t, [FIRE]).find((e) => e.type === "crater");
+  assert.ok(crater && crater.y === 960 && crater.x > 1012 && crater.x < 1017);
+  assert.deepEqual([crater.x, crater.y], [aim.impact.x, aim.impact.y]);
 });

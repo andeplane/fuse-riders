@@ -132,6 +132,7 @@ export interface Tuning {
   ghosts: boolean;
   /** A ghost blimp appears this far above its wreck (at least `ghostMargin` below the top of the world). */
   ghostRise: number;
+  /** A ghost appears at least this far below the top of the world. */
   ghostMargin: number;
   ghostReload: number;
   /** Delay before a fresh ghost's first bomb. */

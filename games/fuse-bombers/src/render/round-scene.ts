@@ -490,7 +490,7 @@ export class RoundScene extends Phaser.Scene {
   }
 
   /**
-   * A drifting translucent blimp in the player's colour. Loaded, a bomb hangs under it (and a human gets a short
+   * A translucent blimp in the player's colour. Loaded, a bomb hangs under it (and a human gets a short
    * drop guide and a pulsing ring); reloading, a ring fills around the empty hook.
    */
   private drawGhost(
