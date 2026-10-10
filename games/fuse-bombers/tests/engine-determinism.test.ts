@@ -11,8 +11,8 @@ import {
 } from "../src/engine/index.js";
 import { fingerprint } from "./engine-helpers.js";
 
-// Complements tests/engine-boundary.test.ts (imports): the engine must not reach for ambient
-// nondeterminism either. Randomness comes from the seeded RNG, time from the fixed step.
+// Complements tests/architecture.test.ts (imports and engine-dependent Math): the engine must not reach for
+// ambient nondeterminism either. Randomness comes from the seeded RNG, time from the fixed step.
 
 const engineDir = fileURLToPath(new URL("../src/engine", import.meta.url));
 

@@ -57,15 +57,15 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 ### Technical rules for the overhaul
 
 - **Determinism across browsers.** Online rollback replays the same log on different engines, so the engine must not
-  use `Math.sin/cos/tan/atan/atan2/hypot/pow/exp/log*/random`, `**`, `Date`, `performance` or `localeCompare`, nor take
-  `Math` apart (`const { sin } = Math`, `Math[name]`) (`deterministicViolations` in `tests/fixtures/source-guards.ts`;
-  `Math.sqrt` is exact IEEE and fine). Today's engine uses several of them (`exp`, `log2` and `hypot` in `bot.ts`,
-  `sin`/`cos` in `geometry.ts`, `atan2`, `hypot`, `sin` and `cos` in `round.ts`, `exp`/`sin` in `terrain.ts`). Trig goes through a
-  deterministic helper written inside `src/engine/`: `tests/engine-boundary.test.ts` refuses npm imports there, so Fuse
-  Riders' `@stdlib`-backed `deterministic-math.ts` cannot be reused as is. That test already runs
-  `deterministicViolations` over `src/engine/`, but keeps only the clock and `Math.random` (`UNSEEDED`) because of the
-  list above; step 1 drops that filter (and updates the test's comment and its "catches every form" case) instead of
-  adding a second test file.
+  use the `Math` functions the language leaves approximated (`sin/cos/tan`, their inverses and hyperbolics,
+  `atan2/hypot/pow/exp/expm1/cbrt/log*/random`), `**`, `Date`, `performance` or `localeCompare`, nor take `Math` apart
+  (`const { sin } = Math`, `Math[name]`); `Math.sqrt` is exact IEEE and fine. `deterministicViolations` in
+  `tests/fixtures/source-guards.ts` enforces it, and `tests/architecture.test.ts` runs it, unfiltered, over every file
+  in `src/engine/`. Trig, `atan2`, `hypot`, `exp` and `log2` come from `src/engine/det-math.ts`, fdlibm's algorithms
+  in plain arithmetic, written inside the engine because the same test refuses npm imports there (so Fuse Riders'
+  `@stdlib`-backed `deterministic-math.ts` could not be reused). `tests/engine-det-math.test.ts` checks it against
+  `Math` to within a few ulps and pins its bits; they were also checked identical on V8 and SpiderMonkey, not on
+  JavaScriptCore. Code that needs another approximated `Math` member adds it to `det-math.ts`.
 - **Bots live in the state.** A bot is a pure function of the round state plus bot memory stored in that state (seeded,
   checkpointed, hashed), and the engine computes bot seats' inputs inside `step`. They emit ordinary input bits and get
   no privileged physics. No closures with memory, so a rollback replays a bot exactly. Bots stay cheap: catch-up and
@@ -87,8 +87,8 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 
 ### Plan (pull requests of 10–1000 lines, each leaving the game playable)
 
-1. Deterministic engine: an in-engine trig helper, the banned operations replaced (`bot.ts`, `geometry.ts`, `round.ts`,
-   `terrain.ts`), the full guard in `tests/engine-boundary.test.ts`.
+1. Deterministic engine (done): `src/engine/det-math.ts`, the banned operations replaced (`bot.ts`, `geometry.ts`,
+   `round.ts`, `terrain.ts`), the full guard in `tests/architecture.test.ts` (renamed from `engine-boundary.test.ts`).
 2. Bitmap terrain and the temple map (new modules, a preview image of the map).
 3. Flight kernel: momentum, collisions against a solid-field interface (new module).
 4. Big map: the round on the bitmap terrain and the temple map, hovering gunships at spawn anchors, the launcher

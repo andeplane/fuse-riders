@@ -39,7 +39,9 @@ higher levels, and never hurts other heroes.
   original). The floor is a depth band in the lower half of the screen.
 - **Run**: double-tap left or right, on a phone's d-pad too. **Dash attack** (shoulder charge) from a run knocks
   down. If double-taps prove unreliable on glass in playtests, a phone gets a run toggle instead.
-- **Combo**: Attack three times — two slashes and a heavy finisher that knocks down.
+- **Combo**: Attack three times — two slashes and a heavy finisher that knocks down. A press while the blade is out
+  or in the recovery chains the next swing; one in the wind-up is ignored, so the combo has a rhythm. A press made
+  while the hero is busy (a swing's recovery, a landing) waits a few steps and acts as soon as the hero is free.
 - **Throw**: walk into a dazed enemy and Attack to grab and throw them; a thrown body knocks down anyone it hits.
 - **Jump** and **jump attack** (a downward stab).
 - **Back attack**: on the floor, Attack and Jump pressed within a couple of steps of each other (the window is a
@@ -98,9 +100,12 @@ drops pots and meat (meat heals). Then the next stage.
   entity has a soft ellipse shadow on the floor, which also shows a jumping figure's depth.
 - Sprites are drawn from palette-indexed pixel data in code, so palette swaps (enemy tiers, duplicate heroes,
   damage flash) are free and no sprite sheet is checked in. (The PNGs under `docs/images/` are screenshots of the
-  concept page and the sprite lab, for readers who cannot open them.)
+  concept page, the sprite lab and the Stage 1 backdrop, for readers who cannot open them.)
 - Draw order is by floor depth (further up the screen is further away), then by height.
-- Parallax backgrounds of two to three layers per stage.
+- Parallax backgrounds (`src/render/backdrop/`, one module per stage): static layers are painted once and blitted at
+  whole-pixel offsets, and only fires and torches draw per frame. Stage 1 has the sky, a ridge with Vorhal's keep (1/8
+  speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in front; it ends at the
+  village gate ([screenshot](images/stage1-backdrop.png)).
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
   and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives.
 
