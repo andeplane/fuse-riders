@@ -4,7 +4,7 @@
  *   node games/fuse-axe/preview/smoke.mjs http://localhost:PORT/ [screenshot-dir]
  *
  * 1. The landing page: the portal button first in the header, the keys on screen.
- * 2. Solo: the hero picker comes first; Rhea is picked, START sets out, and the hero walks right and jumps.
+ * 2. Solo: the hero picker comes first; Rhea is picked, START sets out, and the hero walks right, jumps and swings.
  * 3. Online: one page creates a room, a second joins by its code and picks Gorm; both rosters show it, the host
  *    starts, the guest walks and both pages draw its hero in the same place.
  * 4. A well-formed code for a room that does not exist shows the closed-room card.
@@ -51,7 +51,8 @@ const open = async (path) => {
   return page;
 };
 const P1 = [0x2d, 0xe2, 0xff],
-  P2 = [0xff, 0x4f, 0xa3];
+  P2 = [0xff, 0x4f, 0xa3],
+  BLADE = [0xff, 0xe9, 0xa8];
 /** Where a seat's box is on the native 320 × 180 screen, read back from the scaled canvas; null if not drawn. */
 const hero = (page, rgb) =>
   page.evaluate((rgb) => {
@@ -130,7 +131,12 @@ try {
   await landing.keyboard.up("KeyK");
   assert.ok(jumped.y < walked.y - 10, `jumped: ${walked.y} → ${jumped.y}`);
   await landing.waitForTimeout(800);
+  // J swings: the placeholder scene draws the blade while the swing lasts.
+  await landing.keyboard.down("KeyJ");
+  await landing.waitForTimeout(100);
+  assert.ok(await hero(landing, BLADE), "Attack swings a blade");
   await snap(landing, "solo-play");
+  await landing.keyboard.up("KeyJ");
   console.log(
     `solo: Rhea walked ${walked.x - before.x}px and jumped ${walked.y - jumped.y}px at ${before.scale}×`,
   );

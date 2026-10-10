@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fuse Axe · sprite sheet</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #150c1f;
+        color: #d8c8e8;
+        font:
+          13px/1.4 ui-monospace,
+          monospace;
+      }
+      h1,
+      h2 {
+        margin: 0 0 8px;
+        font-size: 15px;
+        color: #ffe08a;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      figure {
+        margin: 0;
+        display: grid;
+        gap: 4px;
+        justify-items: start;
+      }
+      canvas {
+        background: #281e34;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Fuse Axe · sprite sheet (dev only)</h1>
+    <p>
+      Every figure's frames at 4× and 1×, with its palette swaps, the damage
+      flash and the left-facing flip. The cyan line is the floor under the feet
+      anchor; frames share it, so a figure that jumps between frames shows.
+    </p>
+    <main></main>
+    <script type="module" src="./sprites.ts"></script>
+  </body>
+</html>

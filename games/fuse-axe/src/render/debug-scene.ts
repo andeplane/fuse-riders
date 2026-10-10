@@ -1,4 +1,4 @@
-import type { WorldView } from "../engine/view.js";
+import type { HeroAnim, WorldView } from "../engine/view.js";
 import {
   FLOOR_BOTTOM_PX,
   FLOOR_TOP_PX,
@@ -8,7 +8,7 @@ import {
 
 /**
  * A TEMPORARY placeholder scene, until the pixel-art renderer replaces it: a dusk sky, the floor band with posts that
- * scroll with the camera, and every figure as a box over its shadow. It is the app's one drawing seam,
+ * scroll with the camera, every figure as a box over its shadow and a swing as a blade. It is the app's one drawing seam,
  * `draw(ctx, view, frame)`: paint a whole native 320 × 180 frame of `view` into `ctx` (the page scales it up), where
  * `frame` counts 60 Hz frames and only animates scenery.
  */
@@ -57,6 +57,13 @@ const SKY = "#24123a",
   EMBERS = ["#ff8a1f", "#ffd23f"] as const,
   SHADOW = "rgba(0, 0, 0, 0.45)",
   EYE = "#ffffff";
+export const BLADE = "#ffe9a8";
+/** The blade's length in each swing of the combo. */
+const BLADES: Partial<Record<HeroAnim, number>> = {
+  attack1: 10,
+  attack2: 10,
+  attack3: 14,
+};
 
 export function draw(ctx: Paint, view: WorldView, frame: number): void {
   const camX = view.camX;
@@ -83,17 +90,13 @@ export function draw(ctx: Paint, view: WorldView, frame: number): void {
     ctx.fillRect(sx, FLOOR_TOP_PX - 20, 3, 2);
   }
 
-  // Enemies arrive with combat; until the view carries them there are none.
-  const enemies: readonly Placed[] =
-    "enemies" in view && Array.isArray(view.enemies)
-      ? (view.enemies as readonly Placed[])
-      : [];
-  const figures = [
+  const figures: (Placed & { color: string; blade?: number })[] = [
     ...view.heroes.map((hero) => ({
       ...hero,
       color: SEAT_COLORS[hero.seat % SEAT_COLORS.length]!,
+      blade: BLADES[hero.anim],
     })),
-    ...enemies.map((enemy) => ({ ...enemy, color: ENEMY_COLOR })),
+    ...view.enemies.map((enemy) => ({ ...enemy, color: ENEMY_COLOR })),
   ].sort((a, b) => a.y - b.y || a.z - b.z);
   ctx.fillStyle = SHADOW;
   for (const figure of figures) {
@@ -114,5 +117,15 @@ export function draw(ctx: Paint, view: WorldView, frame: number): void {
       2,
       2,
     );
+    // A swing: a blade out in front, longer for the finisher.
+    if (figure.blade) {
+      ctx.fillStyle = BLADE;
+      ctx.fillRect(
+        figure.facing > 0 ? left + BODY_W : left - figure.blade,
+        top + 12,
+        figure.blade,
+        2,
+      );
+    }
   }
 }
