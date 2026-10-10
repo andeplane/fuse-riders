@@ -28,13 +28,16 @@ import {
 } from "../src/online/game.js";
 import { seatName, validName } from "../src/online/names.js";
 import {
+  ATTACK,
   DOWN,
   JUMP,
   LEFT,
   RIGHT,
   STEPS_PER_TICK,
+  spawnEnemy,
+  toView,
 } from "../src/engine/index.js";
-import { WALK } from "../src/engine/tuning.js";
+import { WALK, px } from "../src/engine/tuning.js";
 
 type Bodies = Record<string, readonly unknown[][]>;
 let seq = 0;
@@ -408,6 +411,56 @@ test("a room restored from its checkpoint folds on to the same hash as the strai
   }
   assert.equal(hash(restored), hash(straight));
   assert.ok(straight.world!.camX > 0, "the party moved the camera");
+});
+
+test("a room restored mid-fight carries, shows and hashes its enemies and sparks, and fights on to the same hash", () => {
+  const straight = started();
+  // Ada's and Bo's heroes each get a ravager in front of them, as a wave will spawn them.
+  for (const slot of [0, 1]) {
+    const { x, y } = hero(straight, slot);
+    straight.world = spawnEnemy(straight.world!, "ravager", x + px(20), y);
+  }
+  const controls = (tick: number): Bodies => ({
+    a: [play(tick % 2 ? ATTACK : 0)],
+    b: [play(tick % 3 ? 0 : ATTACK)],
+  });
+  const midFight = (room: Room) => {
+    const world = room.world!;
+    return (
+      world.heroes.some(
+        (each) => each.state.startsWith("attack") && each.struck.length > 0,
+      ) &&
+      world.enemies.some((each) => world.step <= each.stopUntil) &&
+      world.fx.length > 0
+    );
+  };
+  while (straight.tick < 200 && !midFight(straight))
+    fold(straight, controls(straight.tick));
+  assert.ok(midFight(straight), "the fight got going");
+  const restored = decode(structuredClone(encode(straight)), straight.tick)!;
+  assert.ok(restored, "a room mid-fight restores");
+  assert.equal(hash(restored), hash(straight));
+  const shown = view(restored);
+  assert.deepEqual(shown, view(straight));
+  assert.deepEqual(shown.world, toView(straight.world!));
+  assert.equal(shown.world!.enemies.length, 2);
+  assert.ok(shown.world!.enemies.some((each) => each.flash));
+  assert.ok(shown.world!.fx.length > 0);
+  // The hash covers the fight: a ravager a point down is another room.
+  const other = decode(structuredClone(encode(straight)), straight.tick)!;
+  other.world!.enemies[0]!.hp--;
+  assert.notEqual(hash(other), hash(straight));
+  for (let i = 0; i < 60; i++) {
+    const bodies = controls(straight.tick);
+    fold(straight, bodies);
+    fold(restored, bodies);
+  }
+  assert.equal(hash(restored), hash(straight));
+  assert.deepEqual(view(restored), view(straight));
+  assert.ok(
+    straight.world!.heroes.some((each) => each.knockdowns > 0),
+    "a finisher landed",
+  );
 });
 
 /** A replica of one room: `a` seats itself (Rhea), `b` (Gorm) and a bot and starts; `b`'s stream is remote. */
