@@ -1,4 +1,5 @@
 import type { HeroAnim, WorldView } from "../engine/view.js";
+import { SEAT_COLORS } from "./seat-colors.js";
 import {
   FLOOR_BOTTOM_PX,
   FLOOR_TOP_PX,
@@ -37,13 +38,7 @@ interface Placed {
 }
 
 /** Heroes by seat, P1 to P5, as the lobby colours them. */
-export const SEAT_COLORS = [
-  "#2de2ff",
-  "#ff4fa3",
-  "#b6ff4d",
-  "#ffc23d",
-  "#a77bff",
-] as const;
+export { SEAT_COLORS };
 export const ENEMY_COLOR = "#ff3b3b";
 export const BODY_W = 12,
   BODY_H = 28;
