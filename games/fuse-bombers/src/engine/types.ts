@@ -1,15 +1,13 @@
 // Data shapes of a round. `RoundState` is what `step` mutates; everything outside the engine should
 // read it through `RoundView`, the deep read-only version of the same object.
 
+import type { Grid } from "./grid.js";
 import type { Card, Tuning } from "./tuning.js";
 
 export interface Vec2 {
   x: number;
   y: number;
 }
-
-/** Which way a castle aims: at opponents on one side, or both. */
-export type Facing = "left" | "right" | "both";
 
 export interface CastleStats {
   volleys: number;
@@ -25,22 +23,19 @@ export interface CastleStats {
 }
 
 export interface Castle {
-  /** Castle id == player index (0-based, castles are ordered left to right). */
+  /** Castle id == player index (0-based). */
   id: number;
-  /** Ground contact point (bottom centre). */
+  /** Hull centre: the centre of the hit circle and the shield. Castles hover in place at their spawn anchor. */
   x: number;
   y: number;
   hp: number;
   maxHp: number;
   alive: boolean;
-  /** Launcher angle in radians: 0 = right, PI/2 = straight up, PI = left. */
+  /**
+   * Launcher angle in radians, in [0, 2π): 0 = right, π/2 = straight up, π = left, 3π/2 = straight down. It turns
+   * counter-clockwise (increasing) at a steady rate, one revolution per `aimPeriod`.
+   */
   angle: number;
-  arcMin: number;
-  arcMax: number;
-  /** +1 while the angle is increasing (turning counter-clockwise, i.e. up/left), -1 otherwise. */
-  sweepDir: 1 | -1;
-  /** Which way the castle currently aims: at opponents on one side, or both. */
-  facing: Facing;
   /** Ticks until the launcher is loaded. */
   reloadTicks: number;
   /** Length of the current reload, for drawing a progress ring. */
@@ -57,7 +52,6 @@ export interface Castle {
   volleyAngle: number;
   volleyMega: boolean;
   volleyCooldown: number;
-  fallSpeed: number;
   /** Owner id of the last rocket that hurt this castle (-1 = bomb / nobody). */
   lastHitBy: number;
   stats: CastleStats;
@@ -86,8 +80,8 @@ export interface Rocket {
 
 /**
  * A ghost bomber: the blimp a player flies after their castle is destroyed. It drifts at a constant
- * speed along the top of the arena, bouncing between `minX` and `maxX`, and drops a bomb straight
- * down (inheriting `vx`) when its button is pressed while loaded.
+ * speed and height (above its wreck, through rock), bouncing between `minX` and `maxX`, and drops a
+ * bomb straight down (inheriting `vx`) when its button is pressed while loaded.
  */
 export interface Ghost {
   /** Player id (== the destroyed castle's id). */
@@ -140,19 +134,6 @@ export interface Crate {
   spawnTick: number;
 }
 
-export interface Terrain {
-  width: number;
-  height: number;
-  /**
-   * Surface height map: `surface[column]` is the y of the ground top in that one-pixel column.
-   * Everything below it (larger y) is solid. Never deeper than `bedrock`.
-   */
-  surface: Float64Array;
-  bedrock: number;
-  /** Incremented whenever the surface changes, so renderers can cache. */
-  version: number;
-}
-
 export type RoundPhase = "playing" | "sudden-death" | "over";
 
 export interface RoundResult {
@@ -203,15 +184,17 @@ export type TickEvent =
       x: number;
       y: number;
       radius: number;
-      /** Inclusive column range whose surface changed. */
-      x0: number;
-      x1: number;
+      /** The terrain cells that changed: columns `col0..col1` and rows `row0..row1`, ends exclusive. */
+      col0: number;
+      row0: number;
+      col1: number;
+      row1: number;
     }
   | {
       /**
-       * A rocket blew up without digging a `crater`: it landed where there was nothing left to dig
-       * (bedrock), or it reached `rocketMaxAge` in the air. Direct castle and shield hits report a
-       * `hit`; rockets that leave the arena are removed silently.
+       * A rocket blew up without digging a `crater`: it hit rock it could not dig (indestructible
+       * cells), or it reached `rocketMaxAge` in the air. Direct castle and shield hits report a
+       * `hit`; rockets that leave the world sideways or below are removed silently.
        */
       type: "rocket-exploded";
       tick: number;
@@ -257,7 +240,7 @@ export type TickEvent =
   | {
       /**
        * A ghost bomb blew up (on a castle, a shield or the ground; also reported as `hit` / `crater`).
-       * `castleIds` are the castles it damaged, `damage` the total. Bombs that leave the arena vanish.
+       * `castleIds` are the castles it damaged, `damage` the total. Bombs that leave the world vanish.
        */
       type: "ghost-bomb-hit";
       tick: number;
@@ -293,7 +276,8 @@ export interface RoundState {
   fuseTicks: number;
   /** Ticks at which the round is decided on HP if still running. */
   maxTicks: number;
-  terrain: Terrain;
+  /** The destructible map (the temple), carved by every explosion. Plain data: two bitsets. */
+  terrain: Grid;
   castles: Castle[];
   rockets: Rocket[];
   gates: Gate[];
@@ -311,7 +295,10 @@ export interface RoundState {
   rng: number;
 }
 
-type DeepReadonly<T> = T extends Float64Array
+// A typed array cannot be made read-only by a mapped type (its elements stay writable), so the view shows the grid's
+// bitsets as `ArrayLike<number>`: enough for the read-only queries in grid.ts (`ReadGrid`), and not assignable to the
+// writable `Grid` that `carveCircle` wants, so a bot or a renderer cannot carve the authoritative terrain.
+type DeepReadonly<T> = T extends Uint32Array
   ? ArrayLike<number>
   : T extends readonly unknown[]
     ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
@@ -331,4 +318,4 @@ export type RocketView = DeepReadonly<Rocket>;
 export type GateView = DeepReadonly<Gate>;
 export type CrateView = DeepReadonly<Crate>;
 export type GhostView = DeepReadonly<Ghost>;
-export type TerrainView = DeepReadonly<Terrain>;
+export type TerrainView = DeepReadonly<Grid>;

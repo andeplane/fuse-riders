@@ -4,12 +4,16 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  createBot,
   createRound,
+  gridHash,
   isLoaded,
   step,
+  type BotDifficulty,
   type RoundState,
 } from "../src/engine/index.js";
-import { fingerprint } from "./engine-helpers.js";
+import { buildTempleGrid } from "../src/engine/temple-map.js";
+import { fingerprint, playOut } from "./engine-helpers.js";
 
 // Complements tests/architecture.test.ts (imports and engine-dependent Math): the engine must not reach for
 // ambient nondeterminism either. Randomness comes from the seeded RNG, time from the fixed step.
@@ -75,5 +79,23 @@ test("a cloned round replays identically", () => {
     step(a, script(a));
     step(b, script(b));
   }
+  assert.equal(fingerprint(b), fingerprint(a));
+});
+
+test("a full bot round on the temple replays bit for bit: same result, same carved grid", () => {
+  const kinds: BotDifficulty[] = ["hard", "easy", "normal", "hard"];
+  const play = () => {
+    const bots = kinds.map((difficulty, playerId) =>
+      createBot({ difficulty, playerId, seed: 5 }),
+    );
+    return playOut({ seed: 2026, playerCount: kinds.length }, (s) =>
+      bots.map((bot) => bot(s)),
+    );
+  };
+  const [a, b] = [play(), play()];
+  assert.ok(a.result);
+  assert.deepEqual(b.result, a.result);
+  assert.equal(gridHash(b.terrain), gridHash(a.terrain));
+  assert.notEqual(gridHash(a.terrain), gridHash(buildTempleGrid()), "carved");
   assert.equal(fingerprint(b), fingerprint(a));
 });

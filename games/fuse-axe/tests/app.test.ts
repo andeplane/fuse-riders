@@ -9,7 +9,9 @@ import {
 } from "../src/app/controls.js";
 import {
   HEROES,
+  STAGE_NAMES,
   TEXT,
+  partyLabel,
   pixelScale,
   present,
   type Viewer,
@@ -32,7 +34,10 @@ import {
   createWorld,
 } from "../src/engine/index.js";
 import {
+  CLEAR_TICKS,
+  CONTINUE_TICKS,
   DEFAULT_SETTINGS,
+  LAST_STAGE,
   createRoom,
   view,
   type Room,
@@ -287,6 +292,51 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
   assert.equal(theirs.rows[0]!.name, "P1", "a seat that left shows its tag");
   assert.equal(present(lost, tv).card!.canRematch, false);
   assert.equal(present(frame("lobby"), host).card, null);
+});
+
+test("the cards follow the game: the clocks in the game's log ticks, a name for every stage, the real key in the hint", () => {
+  // The room's clocks are log ticks; the cards show whole seconds of them (the README's six and ten).
+  const tally = [{ seat: 0, kind: "rhea" as const, damage: 1, knockdowns: 0 }];
+  assert.equal(
+    present(frame("between", { until: CLEAR_TICKS, tally }), host).card!
+      .seconds,
+    6,
+  );
+  assert.equal(
+    present(frame("running", { until: CONTINUE_TICKS, tally }), host).card!
+      .seconds,
+    10,
+  );
+  // A stage the game has gets its name on the card (`LAST_STAGE` grows with the game).
+  for (let round = 1; round <= LAST_STAGE; round++)
+    assert.ok(STAGE_NAMES[round], `stage ${round} is named`);
+  // The hint names the keys that attack, as the lobby lists them and the controls bind them.
+  const [attackKeys] = KEY_HELP.find(([, does]) => does === "Attack")!;
+  assert.ok(TEXT.pressAttack.includes(attackKeys), attackKeys);
+  for (const letter of attackKeys.split(" / "))
+    assert.equal(KEYS[`Key${letter}`], ATTACK, `${letter} attacks`);
+});
+
+test("the HUD names each seat's player by slot, watchers left out, and knows this device's seat", () => {
+  const running = frame("running");
+  const names = ["A", "B", null, null, null];
+  assert.deepEqual(present(running, host).hud, { names, you: 0, open: true });
+  assert.deepEqual(present(running, guest).hud, { names, you: 1, open: true });
+  assert.deepEqual(present(running, tv).hud, { names, you: null, open: true });
+  assert.equal(present(running, { ...guest, me: "w" }).hud.you, null);
+  // Nobody joins a solo game: its empty seats do not call for a player.
+  assert.equal(present(running, { ...host, solo: true }).hud.open, false);
+});
+
+test("the canvas is labelled with the party the HUD draws in pixels: tag, player in full, hero", () => {
+  const { members } = present(frame("running"), guest);
+  assert.equal(partyLabel(members), "Fuse Axe: P1 A, RHEA; P2 B (you), GORM");
+  assert.equal(
+    partyLabel([{ ...members[0]!, name: "Дмитрий 🔥", hero: null }]),
+    "Fuse Axe: P1 Дмитрий 🔥",
+    "a name the pixel font cannot write is whole here",
+  );
+  assert.equal(partyLabel([]), "Fuse Axe: nobody is seated");
 });
 
 test("the screen scales by the largest whole number that fits, never below 1", () => {

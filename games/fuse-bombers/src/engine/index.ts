@@ -2,8 +2,6 @@
 // See docs/engine.md for the contract.
 
 export {
-  ARENA_HEIGHT,
-  ARENA_WIDTH,
   CARDS,
   DEFAULT_TUNING,
   DT,
@@ -11,6 +9,8 @@ export {
   MIN_PLAYERS,
   SUBSTEPS,
   TICK_HZ,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
   resolveTuning,
   secondsToTicks,
 } from "./tuning.js";
@@ -45,7 +45,15 @@ export {
   launcherPivot,
   launchState,
 } from "./geometry.js";
-export { surfaceAt } from "./terrain.js";
+export {
+  cellHard,
+  cellSolid,
+  gridHash,
+  hardAt,
+  segmentHit,
+  solidAt,
+} from "./grid.js";
+export type { CellRect, Grid } from "./grid.js";
 
 export type {
   Castle,
@@ -64,7 +72,6 @@ export type {
   RoundResult,
   RoundState,
   RoundView,
-  Terrain,
   TerrainView,
   TickEvent,
   TickEventType,
