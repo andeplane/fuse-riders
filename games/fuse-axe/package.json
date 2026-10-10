@@ -1,0 +1,17 @@
+{
+  "name": "fuse-axe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Fuse Axe: a co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Seeded engine (src/engine/), online rollback (src/online/), Canvas 2D renderer (src/render/), page, input and audio (src/app/).",
+  "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-network-fe": "workspace:*",
+    "fuse-platform": "workspace:*",
+    "fuse-ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@fontsource/press-start-2p": "^5.3.0",
+    "qrcode": "^1.5.4"
+  }
+}
