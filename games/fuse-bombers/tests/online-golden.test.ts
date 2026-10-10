@@ -13,13 +13,12 @@ import * as online from "../src/online/game.js";
  */
 const GOLDEN = {
   rules: "fuse-bombers-1",
-  end: "over at 5646: b:last-standing b:last-standing → b, shots 86,86",
+  end: "over at 3650: bot:5:last-standing bot:5:last-standing → bot:5, shots 30,47",
   hashes: [
-    "44d88bd44f811771",
-    "671eb7cb8e4cb55b",
-    "5de9ecd38e74ec84",
-    "f23e41563e44cd11",
-    "83c0734db113a248",
+    "3029bbe21a55ca67",
+    "3dd8e25eba878074",
+    "7454593783bcda08",
+    "ae149a0b586f7096",
   ],
 };
 

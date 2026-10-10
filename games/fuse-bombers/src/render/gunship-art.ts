@@ -1,17 +1,17 @@
-// The gunships and ghosts of the sky overhaul, drawn in code with Phaser Graphics: a balloon envelope in the player's
-// colour over a gondola with a tilting rotor on each side and a ball turret whose launcher points any way round, and a
-// small translucent ghost blimp. Each ship owns its game objects; `update` takes plain values each frame and draws
-// them. What moves on its own (bob, lean, rotors, flashes, smoke, the wreck) is cosmetic, comes from gunship-pose.ts
-// and advances only by the frame time it is given; the ship is centred on the engine's (x, y) and scaled to its radius
-// (the hull bobs by a pixel or two around that centre, and the launcher turns on it).
+// The gunships and ghosts of the sky overhaul: a balloon envelope in the player's colour over a gondola with a tilting
+// rotor on each side and a ball turret whose launcher points any way round, and a small translucent ghost blimp. Each
+// ship owns its game objects; `update` takes plain values each frame and draws them. What moves on its own (bob,
+// lean, rotors, flashes, smoke, the wreck) is cosmetic, comes from gunship-pose.ts and advances only by the frame time
+// it is given; the ship is centred on the engine's (x, y) and scaled to its radius (the hull bobs by a pixel or two
+// around that centre), and the launcher turns on the engine's pivot with the engine's barrel length.
 //
 // Cost: Phaser re-tessellates every Graphics command each frame it is drawn, so the static parts (envelope, gondola,
-// gun, ghost body) cost as much per frame as the animated ones. Measured in the preview's setting (twelve ships, six
-// gunships all burning with full shields and six loaded ghosts, 1280×720, desktop headless Chromium with software
-// WebGL): 0.4 ms to build the draw commands and about 8 ms in Phaser's renderer per frame, of which the static parts
-// are 40 %, the particles 30 % and the shield bubbles 20 %. That is a budget to watch on a phone; baking the static
-// parts into textures (`Graphics.generateTexture`, one per colour and damage stage) is the planned fix once the round
-// draws these.
+// gun, hit flash, ghost body) are drawn once with Graphics into textures (`showBaked`, one per colour and damage
+// stage, supersampled) and shown as images; only the rotors, the turret overlay, the shield bubble and the particles
+// stay Graphics. Before baking, twelve ships in the preview cost about 8 ms per frame in Phaser's renderer (software
+// WebGL), 40 % of it the static parts. In a six-bot round (1600×900, headless Chromium, SwiftShader, Phaser's
+// PRE_RENDER to POST_RENDER per frame) the median render step took 4.5–5.3 ms with every part Graphics and 2.9–3.1 ms
+// baked, about what the old castle sprites took (2.8 ms).
 
 import type Phaser from "phaser";
 import {
@@ -60,9 +60,17 @@ export interface GunshipLook {
   readonly shieldRadius?: number;
   /** Which way the hull faces before the ship has flown anywhere. */
   readonly facing?: 1 | -1;
+  /** How far (px) the launcher's pivot sits above the hit circle's centre, the engine's `tuning.launcherOffset`; a
+   * pylon on the envelope carries the turret. Defaults to 0, the centre. */
+  readonly launcherOffset?: number;
+  /** Pivot to muzzle (px), the engine's `tuning.barrelLength`; the gun is drawn to that length. Defaults to
+   * `LAUNCHER_LENGTH` scaled to the ship. */
+  readonly barrelLength?: number;
+  /** Draw the reload ring on the turret (default). A round that draws its own on the HUD turns it off. */
+  readonly reloadRing?: boolean;
 }
 
-/** The launcher pivots on the hit circle's centre; its muzzle is this far out, in 1/30 of the gunship radius. */
+/** The gun's muzzle is this far from its pivot as drawn, in 1/30 of the gunship radius (`barrelLength` rescales it). */
 export const LAUNCHER_LENGTH = 26;
 /** How far below a ghost's centre its loaded bomb hangs, in 1/18 of the ghost radius. */
 export const GHOST_HOOK = 18.5;
@@ -115,6 +123,45 @@ const stroke = (g: Graphics, points: readonly Point[], open = false) => {
   trace(g, points, open);
   g.strokePath();
 };
+
+/** Baked textures carry this many texture px per base unit: sharp at the closest zoom and under rotation. */
+const BAKE = 2;
+/** A baked part's bounds in base units around the ship's origin: x0, y0, x1, y1. */
+type Box = readonly [number, number, number, number];
+const GONDOLA_BOX: Box = [-31, 0, 31, 25];
+const FLASH_BOX: Box = [-35, -31, 31, 24];
+const GUN_BOX: Box = [-8, -8, 28, 8];
+const GHOST_BOX: Box = [-24, -18, 22, 17];
+/** The envelope's bounds, up to a pylon `mount` base units above the origin. */
+const envelopeBox = (mount: number): Box => [
+  -38,
+  Math.min(-36, -mount),
+  36,
+  16,
+];
+
+/**
+ * Shows the drawing `draw` makes (base units) on `image`, its origin on the image's position. The drawing is made
+ * once per `key` into a texture, then shared: an image costs the renderer one quad where Graphics re-tessellates
+ * every command every frame.
+ */
+function showBaked(
+  image: Phaser.GameObjects.Image,
+  key: string,
+  [x0, y0, x1, y1]: Box,
+  draw: (g: Graphics) => void,
+): void {
+  const [w, h] = [Math.ceil((x1 - x0) * BAKE), Math.ceil((y1 - y0) * BAKE)];
+  if (!image.scene.textures.exists(key)) {
+    const g = image.scene.make.graphics({}, false);
+    g.scaleCanvas(BAKE, BAKE).translateCanvas(-x0, -y0);
+    draw(g);
+    g.generateTexture(key, w, h).destroy();
+  }
+  image.setTexture(key);
+  image.setOrigin((-x0 * BAKE) / w, (-y0 * BAKE) / h).setScale(1 / BAKE);
+}
+const hex = (color: number) => color.toString(16).padStart(6, "0");
 
 /** An envelope outline (or its arc from angle `from` to `to`): an ellipse whose stern half narrows a little. */
 function envelope(
@@ -176,13 +223,16 @@ function halfHeight(x: number): number {
   return ENV.ry * Math.sqrt(1 - c * c) * (c < 0 ? 1 - 0.2 * c * c : 1);
 }
 
-/** The envelope: glow, tail, body with a shaded belly, seams, neon outline, highlight and, once damaged, patches. */
-function drawEnvelope(g: Graphics, color: number, damage: number): void {
+/** The envelope: glow, tail, the turret's pylon up to `mount` (base units above the centre) when that is above the
+ * envelope, body with a shaded belly, seams, neon outline, highlight and, once damaged, patches. */
+function drawEnvelope(g: Graphics, color: number, damage: number, mount = 0) {
   const { cx, cy, rx, ry } = ENV;
   const outline = envelope(cx, cy, rx, ry);
-  g.clear().lineStyle(10, lighten(color, 0.35), 0.2);
+  g.lineStyle(10, lighten(color, 0.35), 0.2);
   stroke(g, outline);
   for (const fin of TAIL) neonShape(g, fin, darken(color, 0.3), color);
+  const pylon = pts(-6, -20, 6, -20, 3, 3 - mount, -3, 3 - mount);
+  if (mount > ry - cy - 3) neonShape(g, pylon, METAL, color);
   g.fillStyle(color);
   fill(g, outline);
   g.fillStyle(darken(color, 0.22));
@@ -246,7 +296,7 @@ function drawGondola(
   burnt: boolean,
 ) {
   const [body, rim] = burnt ? [BURNT, 0x34363e] : [METAL, METAL_LIGHT];
-  g.clear().lineStyle(1.8, burnt ? rim : RIGGING);
+  g.lineStyle(1.8, burnt ? rim : RIGGING);
   for (const [x0, x1] of [
     [-13, -10],
     [-5, -4],
@@ -282,7 +332,7 @@ function drawGondola(
 
 /** The ball turret and the launcher, pointing right (the object turns to the launcher angle). */
 function drawGun(g: Graphics, color: number): void {
-  g.clear().fillStyle(INK).fillRoundedRect(1.5, -3.7, 21, 7.4, 3);
+  g.fillStyle(INK).fillRoundedRect(1.5, -3.7, 21, 7.4, 3);
   g.fillStyle(METAL_LIGHT).fillRoundedRect(3, -2.4, 18.5, 4.8, 2);
   g.fillStyle(METAL).fillRect(3.5, 0.3, 17.5, 2.1);
   g.fillStyle(color).fillRect(10, -2.4, 3.5, 4.8);
@@ -296,7 +346,7 @@ function drawGun(g: Graphics, color: number): void {
 
 /** A flat white silhouette of the ship for the hit flash. */
 function drawFlash(g: Graphics): void {
-  g.clear().fillStyle(0xffffff);
+  g.fillStyle(0xffffff);
   fill(g, envelope(ENV.cx, ENV.cy, ENV.rx + 1.5, ENV.ry + 1.5));
   for (const shape of [HULL, ...TAIL]) fill(g, shape);
 }
@@ -394,11 +444,11 @@ const radiusOr = (r: number | undefined, fallback: number) =>
 export class GunshipArt {
   private readonly root: Phaser.GameObjects.Container;
   private readonly hull: Phaser.GameObjects.Container;
-  private readonly envelopeG: Graphics;
-  private readonly gondolaG: Graphics;
-  private readonly flashG: Graphics;
+  private readonly envelope: Phaser.GameObjects.Image;
+  private readonly gondola: Phaser.GameObjects.Image;
+  private readonly flash: Phaser.GameObjects.Image;
   private readonly rotorsG: Graphics;
-  private readonly gunG: Graphics;
+  private readonly gun: Phaser.GameObjects.Image;
   private readonly overlayG: Graphics;
   private readonly back: Graphics;
   private readonly front: Graphics;
@@ -410,29 +460,16 @@ export class GunshipArt {
 
   constructor(scene: Phaser.Scene, depth = 0) {
     const add = () => scene.add.graphics();
-    [this.gondolaG, this.rotorsG, this.envelopeG, this.flashG] = [
-      add(),
-      add(),
-      add(),
-      add(),
-    ];
-    const hullParts = [
-      this.gondolaG,
-      this.rotorsG,
-      this.envelopeG,
-      this.flashG,
-    ];
+    const image = () => scene.add.image(0, 0, "__DEFAULT");
+    [this.gondola, this.envelope, this.flash] = [image(), image(), image()];
+    [this.rotorsG, this.gun, this.overlayG] = [add(), image(), add()];
+    const hullParts = [this.gondola, this.rotorsG, this.envelope, this.flash];
     this.hull = scene.add.container(0, 0, hullParts);
-    [this.gunG, this.overlayG] = [add(), add()];
-    this.root = scene.add.container(0, 0, [
-      this.hull,
-      this.gunG,
-      this.overlayG,
-    ]);
-    this.root.setDepth(depth);
+    const parts = [this.hull, this.gun, this.overlayG];
+    this.root = scene.add.container(0, 0, parts).setDepth(depth);
     this.back = add().setDepth(depth - 0.5);
     this.front = add().setDepth(depth + 0.5);
-    drawFlash(this.flashG);
+    showBaked(this.flash, "gunship-flash", FLASH_BOX, drawFlash);
   }
 
   /** The latest pose, e.g. to know when the wreck animation is over (`pose.wreck >= WRECK_TIME`). */
@@ -470,15 +507,26 @@ export class GunshipArt {
     this.root.setVisible(this.visible && shown);
     if (!this.visible) return;
 
-    const key = `${look.color}:${pose.damage}:${pose.alive}`;
-    if (key !== this.drawn) {
-      this.drawn = key;
-      drawEnvelope(this.envelopeG, look.color, pose.damage);
-      drawGondola(this.gondolaG, look.color, pose.damage, !pose.alive);
+    // The launcher in base units: its pivot above the centre and its drawn length against the gun's.
+    const mount = Math.round(radiusOr(look.launcherOffset, 0) / unit);
+    const barrel = radiusOr(look.barrelLength, LAUNCHER_LENGTH * unit) / unit;
+    const [color, damage, burnt] = [hex(look.color), pose.damage, !pose.alive];
+    const [hull, body] = [`${color}-${damage}-${burnt}`, `${color}-${damage}`];
+    if (`${hull}-${mount}` !== this.drawn) {
+      this.drawn = `${hull}-${mount}`;
+      const box = envelopeBox(mount);
+      showBaked(this.envelope, `gunship-envelope-${body}-${mount}`, box, (g) =>
+        drawEnvelope(g, look.color, damage, mount),
+      );
+      showBaked(this.gondola, `gunship-gondola-${hull}`, GONDOLA_BOX, (g) =>
+        drawGondola(g, look.color, damage, burnt),
+      );
     }
     if (this.gunColor !== look.color) {
       this.gunColor = look.color;
-      drawGun(this.gunG, look.color);
+      showBaked(this.gun, `gunship-gun-${color}`, GUN_BOX, (g) =>
+        drawGun(g, look.color),
+      );
     }
     drawParticles(this.back.clear(), particles, look.color, false);
     drawParticles(this.front.clear(), particles, look.color, true);
@@ -491,24 +539,27 @@ export class GunshipArt {
       .setRotation(hullRotation(pose))
       .setScale(turnScale(pose.turn), 1)
       .setAlpha(wreckAlpha(pose));
-    this.envelopeG.setVisible(!wrecked);
-    this.flashG.setVisible(pose.flash > 0).setAlpha(0.85 * pose.flash);
+    this.envelope.setVisible(!wrecked);
+    this.flash.setVisible(pose.flash > 0).setAlpha(0.85 * pose.flash);
     drawRotors(this.rotorsG, pose, look.color);
-    this.gunG
+    this.gun
       .setVisible(!wrecked)
-      .setPosition(0, pose.bob)
-      .setRotation(-state.angle);
+      .setPosition(0, pose.bob - mount)
+      .setRotation(-state.angle)
+      .setScale(barrel / LAUNCHER_LENGTH / BAKE);
     const bubble = radiusOr(look.shieldRadius, SHIELD_RADIUS * unit) / unit;
-    this.drawOverlay(look.color, state, pose, bubble);
+    const turret = { y: pose.bob - mount, barrel, ring: look.reloadRing };
+    this.drawOverlay(look.color, state, pose, bubble, turret);
   }
 
-  /** The loaded glow or reload ring on the turret, the shield bubble (`bubbleRadius` base units), and the wreck's
-   * flash and shock ring. */
+  /** The loaded glow (or, unless `turret.ring` is false, the reload ring) on the turret, the shield bubble
+   * (`bubbleRadius` base units), and the wreck's flash and shock ring. */
   private drawOverlay(
     color: number,
     state: GunshipState,
     pose: Pose,
     bubbleRadius: number,
+    turret: { y: number; barrel: number; ring?: boolean },
   ): void {
     const g = this.overlayG.clear();
     if (pose.wreck >= 0) {
@@ -521,19 +572,19 @@ export class GunshipArt {
       }
       return;
     }
-    const y = pose.bob;
+    const y = turret.y;
     if (state.loaded) {
       const pulse = 0.5 + 0.5 * Math.sin(pose.time * 7);
       const [cos, sin] = [Math.cos(state.angle), Math.sin(state.angle)];
       const tip = {
-        x: cos * (LAUNCHER_LENGTH - 1),
-        y: y - sin * (LAUNCHER_LENGTH - 1),
+        x: cos * (turret.barrel - 1),
+        y: y - sin * (turret.barrel - 1),
       };
       g.fillStyle(color, 0.35 + 0.35 * pulse).fillCircle(0, y, 3.4 + pulse);
       g.fillStyle(lighten(color, 0.6)).fillCircle(0, y, 2);
       g.fillStyle(color, 0.3 + 0.3 * pulse).fillCircle(tip.x, tip.y, 5 + pulse);
       g.fillStyle(lighten(color, 0.7)).fillCircle(tip.x, tip.y, 2.2);
-    } else {
+    } else if (turret.ring !== false) {
       const done = Math.max(0, Math.min(1, state.reload));
       g.lineStyle(4.4, INK, 0.7).strokeCircle(0, y, 9.5);
       const start = -Math.PI / 2;
@@ -583,7 +634,7 @@ const GHOST_GONDOLA = pts(-5, 10, 6, 10, 4, 14, -3, 14);
 function drawGhostBody(g: Graphics, color: number): void {
   const { cx, cy, rx, ry } = GHOST_ENV;
   const outline = envelope(cx, cy, rx, ry);
-  g.clear().lineStyle(8, lighten(color, 0.5), 0.3);
+  g.lineStyle(8, lighten(color, 0.5), 0.3);
   stroke(g, outline);
   for (const fin of GHOST_TAIL) neonShape(g, fin, darken(color, 0.2), color);
   g.lineStyle(1.6, RIGGING)
@@ -613,7 +664,7 @@ function drawGhostBody(g: Graphics, color: number): void {
 export class GhostArt {
   private readonly root: Phaser.GameObjects.Container;
   private readonly hull: Phaser.GameObjects.Container;
-  private readonly bodyG: Graphics;
+  private readonly body: Phaser.GameObjects.Image;
   private readonly liveG: Graphics;
   private readonly back: Graphics;
   private particles: Particles | undefined;
@@ -622,8 +673,9 @@ export class GhostArt {
   private visible = true;
 
   constructor(scene: Phaser.Scene, depth = 0) {
-    [this.bodyG, this.liveG] = [scene.add.graphics(), scene.add.graphics()];
-    this.hull = scene.add.container(0, 0, [this.bodyG]);
+    this.body = scene.add.image(0, 0, "__DEFAULT");
+    this.liveG = scene.add.graphics();
+    this.hull = scene.add.container(0, 0, [this.body]);
     this.root = scene.add
       .container(0, 0, [this.liveG, this.hull])
       .setDepth(depth);
@@ -657,7 +709,9 @@ export class GhostArt {
     if (!this.visible) return;
     if (this.drawn !== look.color) {
       this.drawn = look.color;
-      drawGhostBody(this.bodyG, look.color);
+      showBaked(this.body, `ghost-${hex(look.color)}`, GHOST_BOX, (g) =>
+        drawGhostBody(g, look.color),
+      );
     }
     drawParticles(this.back.clear(), particles, look.color, false);
 

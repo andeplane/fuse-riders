@@ -160,6 +160,17 @@ export const TEMPLE_MAP: MapDef = {
 export const spawnAnchors = TEMPLE_MAP.spawnAnchors;
 export const skyZones = TEMPLE_MAP.skyZones;
 
+/**
+ * The bots' flyway: a ring of open-sky points round the temple, clockwise from the top left, each in sight of the next
+ * along a lane wider than a gunship (tests/engine-bot.test.ts checks it on the fresh map; carving only adds air). A
+ * bot with rock between it and where it wants to be flies round the ring the shorter way.
+ */
+// prettier-ignore
+export const TEMPLE_FLYWAY: readonly Point[] = [
+  [300, 250], [1350, 260], [2400, 240], [3450, 260], [4500, 250], [4620, 900], [4620, 1700], [4600, 2500],
+  [3300, 2560], [2400, 2580], [1500, 2560], [300, 2500], [220, 1850], [250, 1100],
+].map(([x, y]) => ({ x: x ?? 0, y: y ?? 0 }));
+
 /** The temple painted onto a fresh grid. */
 export function buildTempleGrid(): Grid {
   return buildMapGrid(TEMPLE_MAP);

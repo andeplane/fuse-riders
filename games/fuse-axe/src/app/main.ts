@@ -15,11 +15,13 @@ import { MAX_PACKET_BYTES, uuid } from "fuse-netcode";
 import {
   button,
   createAppPortal,
+  createControllerRow,
   createInviteCard,
   createKeyList,
   createLandingCard,
   createNameEntry,
   createNotice,
+  createPhoneLayout,
   createPicker,
   createRoster,
   el,
@@ -33,7 +35,9 @@ import { createScene } from "../render/scene.js";
 import type { MakeSurface } from "../render/surface.js";
 import { HeldControls, KEY_HELP } from "./controls.js";
 import { PendingPick, SoloOpening } from "./flow.js";
+import { GamepadInput, browserGamepads } from "./gamepad.js";
 import { drawn } from "./interpolate.js";
+import { DPad, directionName, padButtons, releasePads } from "./pad.js";
 import {
   HEROES,
   TEXT,
@@ -55,7 +59,8 @@ import {
 /**
  * The page's glue: it reads the query, builds the screens from fuse-ui components, wires the runtime to the
  * transport, draws every animation frame into the native 320 × 180 canvas and scales it up by whole numbers, and turns
- * keys into held control bits. The decisions live in the presenter, the scene and the engine.
+ * keys, touches and gamepads into held control bits. The decisions live in the presenter, the pads, the scene and the
+ * engine.
  */
 const GAME = axeGame.id;
 /** The renderer's surfaces in the browser: a canvas and its 2D context, smoothing off, `putImageData` the fast path. */
@@ -164,13 +169,38 @@ function room(solo: boolean): void {
     return;
   }
   const code = session.kind === "room" ? session.code : "SOLO",
-    display = session.kind === "room" && session.role === "display";
-  const viewer: Viewer = { me: "", host: solo, solo, display };
+    display = session.kind === "room" && session.role === "display",
+    joinLink = endpoints.appUrl(`?room=${code}`);
+  const coarse = matchMedia("(pointer: coarse)"),
+    portrait = matchMedia("(orientation: portrait)");
+  const viewer: Viewer = {
+    me: "",
+    host: solo,
+    solo,
+    display,
+    touch: coarse.matches,
+  };
+  // The TV: the game as large as it goes, with the room's QR code in the header for a latecomer's phone.
+  document.body.classList.toggle("fa-display", display);
+  // Keys, touches and gamepads hold bits here; the runtime logs their changes while this device plays a hero.
+  const controls = new HeldControls((bits) => runtime.input(bits));
 
   // ---- the page ----
   const status = createNotice({ className: "fa-status" }),
     toLobby = button("LOBBY", "fa-to-lobby"),
-    leave = button(solo ? "EXIT" : "LEAVE", "fa-leave");
+    leave = button(solo ? "EXIT" : "LEAVE", "fa-leave"),
+    tvInvite = el("div", "", "fa-tv-invite"),
+    tvQr = el("img", "", "fa-tv-qr");
+  tvQr.alt = `QR code to join room ${code}`;
+  tvInvite.append(tvQr, el("span", "SCAN TO JOIN"));
+  if (display)
+    void QRCode.toDataURL(joinLink, { margin: 1, width: 160 }).then(
+      (url) => {
+        tvQr.src = url;
+      },
+      // Without a code the header says nothing of it; the room's code beside it is still there to type.
+      () => tvInvite.remove(),
+    );
   // The host can take the room back to the lobby, and its hero picker, from a run.
   toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
   leave.onclick = () => {
@@ -180,6 +210,7 @@ function room(solo: boolean): void {
   const top = header([
     el("strong", code, "fa-code"),
     status.element,
+    tvInvite,
     toLobby,
     leave,
   ]);
@@ -209,12 +240,44 @@ function room(solo: boolean): void {
     lobbyMain.append(
       createInviteCard({
         code,
-        link: endpoints.appUrl(`?room=${code}`),
+        link: joinLink,
         qr: (text) => QRCode.toDataURL(text, { margin: 1, width: 360 }),
       }).element,
     );
+  // The host's shared screen: the game on a TV (this room's `?display=1` page), every seat's phone its controller.
+  // This browser offers its last choice to the next room it creates.
+  const share = el("label", "", "fa-share"),
+    shareBox = el("input"),
+    tvLink = button("OPEN TV SCREEN", "fa-tv");
+  shareBox.type = "checkbox";
+  share.append(
+    shareBox,
+    el("span", "SHARED SCREEN"),
+    el("small", "The game on a TV, phones as controllers"),
+  );
+  shareBox.onchange = () => {
+    const wanted = shareBox.checked;
+    // The choice is kept only once the room has taken it; a room that did not (this device is not running it right
+    // now) goes on as it was, and so does the box.
+    if (runtime.command({ type: "settings", settings: { display: wanted } }))
+      store.setItem(names.shared, wanted ? "1" : "0");
+    else shareBox.checked = shownShared ?? false;
+  };
+  tvLink.onclick = () =>
+    window.open(
+      withFlags(endpoints.appUrl(`?room=${code}&display=1`)),
+      "_blank",
+    );
   lobbyMain.append(el("h2", "HEROES", "fui-lobby-title"), roster.element);
-  lobbySide.append(picker.element, blurb, lobbyNote, start, keyHelp());
+  lobbySide.append(
+    picker.element,
+    blurb,
+    share,
+    tvLink,
+    lobbyNote,
+    start,
+    keyHelp(),
+  );
   lobby.append(lobbyMain, lobbySide);
   start.onclick = () => runtime.command({ type: "action", action: "start" });
 
@@ -247,8 +310,56 @@ function room(solo: boolean): void {
     runtime.command({ type: "action", action: "lobby" });
   // The HUD draws the party in pixels; the canvas says it in words.
   canvas.setAttribute("role", "img");
-  screen.append(canvas, card);
+  // The pads: an 8-way d-pad a thumb slides on, and ATTACK, JUMP and MAGIC. One set, over the game's corners on a
+  // touch screen whose hero fights, or filling a shared screen's phone (`placePads`).
+  const dpadPad = el("div", "", "fa-dpad"),
+    touch = el("div", "", "fa-touch");
+  dpadPad.setAttribute("role", "group");
+  dpadPad.setAttribute(
+    "aria-label",
+    "Move: slide to steer, double-tap left or right to run",
+  );
+  for (const side of ["up", "down", "left", "right"])
+    dpadPad.append(el("i", "", `fa-dpad-${side}`));
+  const dpad = new DPad(dpadPad, (bits) => {
+    controls.hold("dpad", bits);
+    dpadPad.dataset.dir = directionName(bits);
+  });
+  // A lift that lands off the pad (a thumb that slid off, a pad that moved) still ends its press.
+  for (const type of ["pointerup", "pointercancel"] as const)
+    window.addEventListener(type, (event) => dpad.lift(event.pointerId));
+  const fightPads = createControllerRow({
+    buttons: padButtons((source, bits) => controls.hold(source, bits)),
+    className: "fui-controller fa-buttons",
+  }).element;
+  touch.append(dpadPad, fightPads);
+  screen.append(canvas, touch, card);
   stage.append(screen, note);
+
+  // A shared screen's phone: its seat in the seat's colour, then the d-pad, the stage flow's card and the buttons.
+  const controller = el("section", "", "fa-controller"),
+    controllerHead = el("header", "", "fa-controller-head"),
+    controllerBadge = el("span", "", "fa-badge"),
+    controllerName = el("b"),
+    controllerHero = el("span"),
+    controllerBody = el("div", "", "fa-controller-body"),
+    controllerCenter = el("div", "", "fa-controller-center"),
+    controllerNote = el("p", "", "fa-controller-note");
+  controllerHead.append(controllerBadge, controllerName, controllerHero);
+  controllerCenter.append(controllerNote);
+  controller.append(controllerHead, controllerBody);
+  // The pads let go of everything they hold when they move (the d-pad's thumb and every button), whether or not the
+  // browser tells the pad in its new place that the thumb lifts. Hiding them is the phone layout's `clearControls`.
+  const letGoPads = () =>
+    releasePads(dpad, (source, bits) => controls.hold(source, bits));
+  const placePads = (onController: boolean) => {
+    if (dpadPad.parentElement === (onController ? controllerBody : touch))
+      return;
+    letGoPads();
+    if (onController)
+      controllerBody.append(dpadPad, controllerCenter, fightPads);
+    else touch.append(dpadPad, fightPads);
+  };
 
   // Until the first frame nothing of the room shows, so a room that turns out not to exist never offers its controls.
   const connecting = el("p", "Connecting to the room…", "fa-connecting"),
@@ -275,11 +386,47 @@ function room(solo: boolean): void {
     },
   });
   const main = el("main", "", "fa-room");
-  main.append(connecting, closed, nameEntry.form, lobby, stage);
+  main.append(connecting, closed, nameEntry.form, lobby, stage, controller);
   app.replaceChildren(top, main);
-  for (const part of [closed, nameEntry.form, lobby, stage, toLobby])
+  for (const part of [
+    closed,
+    nameEntry.form,
+    lobby,
+    stage,
+    controller,
+    toLobby,
+    tvInvite,
+  ])
     part.hidden = true;
-  let over = false;
+  // A gamepad has no events: the frame loop polls it, and the pad in use holds its bits like a key.
+  const gamepads = new GamepadInput(browserGamepads(navigator), (bits) =>
+    controls.hold("gamepad", bits),
+  );
+  const letGo = () => {
+    controls.clear();
+    dpad.cancel();
+    gamepads.letGo();
+  };
+  // A phone in play folds the header behind a MENU button, and shows the pads' hints as each stage begins.
+  const phone = createPhoneLayout({
+    root: app,
+    clearControls: letGo,
+    hints: ["SLIDE TO WALK · DOUBLE-TAP TO RUN", "ATTACK · JUMP · MAGIC"],
+  });
+  let phase = { phase: "", live: false, results: false };
+  const layOut = (resized: boolean) => {
+    if (!model) return;
+    document.body.classList.toggle("fa-phone", model.phone);
+    phone.update(
+      { active: model.phone, portrait: portrait.matches },
+      phase,
+      resized,
+      model.screen === "controller",
+    );
+  };
+  window.addEventListener("resize", () => layOut(true));
+  let over = false,
+    shownShared: boolean | undefined;
   let model: Model | undefined;
   // The log tick of the newest frame, and the hero this device has picked that the seat has not yet answered.
   let tick = 0;
@@ -308,6 +455,8 @@ function room(solo: boolean): void {
   const paint = (now: number) => {
     // A room that has ended draws nothing more, so its loop ends with it.
     if (over) return;
+    // A hidden page, or the phone's MENU open over the pads, reads no gamepad: it must not steer from behind them.
+    gamepads.poll(!document.hidden && !phone.blocked());
     const world = stage.hidden ? null : drawn(runtime.frameTiming());
     if (world) {
       scene.draw(native, world, Math.floor((now * 60) / 1000), model?.hud);
@@ -391,11 +540,43 @@ function room(solo: boolean): void {
     setText(blurb, `${HEROES[hero].name}: ${HEROES[hero].blurb}`);
     start.hidden = !next.showStart;
     start.disabled = !next.canStart;
-    for (const line of [lobbyNote, note]) {
+    for (const line of [lobbyNote, note, controllerNote]) {
       setText(line, next.note);
       line.hidden = !next.note;
     }
+    // The shared screen: the host's switch follows the room (only when the room changes it, so a click is not undone
+    // by a frame that has not folded it yet), the TV link, and the TV's QR code.
+    share.hidden = !next.canShare;
+    if (shownShared !== next.shared) {
+      shownShared = next.shared;
+      shareBox.checked = next.shared;
+    }
+    tvLink.hidden = !next.showTv;
+    tvInvite.hidden = !next.invite;
+    controller.hidden = next.screen !== "controller";
+    if (next.controller) {
+      controller.style.setProperty("--c", next.controller.color);
+      setText(controllerName, next.controller.title);
+      const shownHero = next.controller.hero;
+      setText(controllerBadge, shownHero ? HEROES[shownHero].name[0]! : "?");
+      setText(controllerHero, shownHero ? HEROES[shownHero].name : "");
+      controllerBadge.style.setProperty(
+        "--hero",
+        shownHero ? HEROES[shownHero].color : "",
+      );
+    }
+    // The pads and the card go where this screen shows them: on the phone's controller, or over the game.
+    placePads(next.screen === "controller");
+    const cardHome = next.screen === "controller" ? controllerCenter : screen;
+    if (card.parentElement !== cardHome) cardHome.append(card);
+    touch.hidden = !next.pads || next.screen !== "play";
     showCard(next.card);
+    phase = {
+      phase: `${view.stage}:${view.round}`,
+      live: view.stage === "running",
+      results: view.stage === "over",
+    };
+    layOut(false);
   };
 
   // ---- the runtime ----
@@ -412,6 +593,7 @@ function room(solo: boolean): void {
         )
       )
         return;
+      viewer.touch = coarse.matches;
       const next = present(frame, viewer);
       if (next.askName && remembered && !joinSent) {
         joinSent = true;
@@ -449,8 +631,17 @@ function room(solo: boolean): void {
       status.show("Room ended", "error");
       over = true;
       controls.close();
-      for (const part of [connecting, nameEntry.form, lobby, stage, toLobby])
+      for (const part of [
+        connecting,
+        nameEntry.form,
+        lobby,
+        stage,
+        controller,
+        toLobby,
+        tvInvite,
+      ])
         part.hidden = true;
+      document.body.classList.remove("fa-phone");
       closed.hidden = false;
       void fetch(endpoints.apiUrl(`/api/games/${GAME}/leaderboard`))
         .then(async (response) => {
@@ -465,7 +656,12 @@ function room(solo: boolean): void {
   };
   const runtime = new AxeRuntime(
     code,
-    { display: false },
+    {
+      display:
+        session.kind === "room" &&
+        session.role === "host" &&
+        store.getItem(names.shared) === "1",
+    },
     callbacks,
     session.kind === "room"
       ? {
@@ -487,8 +683,8 @@ function room(solo: boolean): void {
 
   // Keys: while this device plays a hero, a focused button does not take ours (they steer the hero, and arrows never
   // scroll); otherwise a focused button or field keeps its own keys (START and the name form work from the keyboard).
-  // What counts as ours, and what lets go of them, is `HeldControls`'s.
-  const controls = new HeldControls((bits) => runtime.input(bits));
+  // What counts as ours, and what lets go of them, is `HeldControls`'s. Losing focus or the page lets go of every
+  // key, pad and button, the d-pad's thumb included.
   const typing = (target: EventTarget | null) =>
     target instanceof HTMLInputElement ||
     target instanceof HTMLTextAreaElement ||
@@ -499,9 +695,9 @@ function room(solo: boolean): void {
   document.addEventListener("keyup", (event) => {
     if (controls.up(event.code)) event.preventDefault();
   });
-  window.addEventListener("blur", () => controls.clear());
+  window.addEventListener("blur", letGo);
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) controls.clear();
+    if (document.hidden) letGo();
   });
   runtime.start();
 }
