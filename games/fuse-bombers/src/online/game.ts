@@ -336,7 +336,7 @@ export function foldTick(
   } else if (room.stage === "between" && tick >= room.resumeAt)
     startRound(room);
   room.tick = tick;
-  return events;
+  return structuredClone(events); // a `round-over` event shares the round's `result`
 }
 
 /**
