@@ -99,7 +99,8 @@ drops pots and meat (meat heals). Then the next stage.
 
 - Native resolution **320 × 180**, scaled by whole numbers to fill the screen (6× at 1080p), nearest-neighbour.
 - Heroes and grunts are about 32 × 48 pixels, bosses up to 64 × 72. Sprites face right and flip for left; every
-  entity has a soft ellipse shadow on the floor, which also shows a jumping figure's depth.
+  entity has a soft ellipse shadow on the floor, which also shows a jumping figure's depth. A small chevron in the
+  seat's colour over each hero tells the players apart ([screenshot](images/scene.png)).
 - Sprites are drawn from palette-indexed pixel data in code, so palette swaps (enemy tiers, duplicate heroes,
   damage flash) are free and no sprite sheet is checked in. (The PNGs under `docs/images/` are screenshots of the
   concept page, the sprite lab and the Stage 1 backdrop, for readers who cannot open them.)

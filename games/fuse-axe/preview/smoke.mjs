@@ -51,9 +51,8 @@ const open = async (path) => {
   return page;
 };
 const P1 = [0x2d, 0xe2, 0xff],
-  P2 = [0xff, 0x4f, 0xa3],
-  BLADE = [0xff, 0xe9, 0xa8];
-/** Where a seat's box is on the native 320 × 180 screen, read back from the scaled canvas; null if not drawn. */
+  P2 = [0xff, 0x4f, 0xa3];
+/** Where a seat's marker (the chevron over its hero) is on the native 320 × 180 screen, from the scaled canvas; null if not drawn. */
 const hero = (page, rgb) =>
   page.evaluate((rgb) => {
     const canvas = document.querySelector(".fa-canvas"),
@@ -77,6 +76,40 @@ const hero = (page, rgb) =>
       }
     return left === Infinity ? null : { x: left, y: top, scale };
   }, rgb);
+/**
+ * The most pixels of a swing's white-hot smear seen under and around the marker at `at` over `ms`: the blade is out
+ * for a few steps only, so every animation frame is read.
+ */
+const smear = (page, at, ms) =>
+  page.evaluate(
+    ([at, ms]) =>
+      new Promise((done) => {
+        const canvas = document.querySelector(".fa-canvas"),
+          g = canvas.getContext("2d"),
+          scale = canvas.width / 320,
+          end = performance.now() + ms;
+        let most = 0;
+        const read = () => {
+          const { data } = g.getImageData(0, 0, canvas.width, canvas.height);
+          let count = 0;
+          for (let y = at.y; y < Math.min(180, at.y + 64); y++)
+            for (
+              let x = Math.max(0, at.x - 40);
+              x < Math.min(320, at.x + 64);
+              x++
+            ) {
+              const i = (y * scale * canvas.width + x * scale) * 4;
+              const rgb = (data[i] << 16) | (data[i + 1] << 8) | data[i + 2];
+              if (rgb === 0xfff6b8 || rgb === 0xffffff) count++;
+            }
+          most = Math.max(most, count);
+          if (performance.now() < end) requestAnimationFrame(read);
+          else done(most);
+        };
+        read();
+      }),
+    [at, ms],
+  );
 const hold = async (page, key, ms) => {
   await page.keyboard.down(key);
   await page.waitForTimeout(ms);
@@ -131,10 +164,12 @@ try {
   await landing.keyboard.up("KeyK");
   assert.ok(jumped.y < walked.y - 10, `jumped: ${walked.y} → ${jumped.y}`);
   await landing.waitForTimeout(800);
-  // J swings: the placeholder scene draws the blade while the swing lasts.
+  // J swings: the blade's white-hot smear sweeps round the hero while the swing lasts.
+  const standing = await hero(landing, P1);
+  const calm = await smear(landing, standing, 300);
   await landing.keyboard.down("KeyJ");
-  await landing.waitForTimeout(100);
-  assert.ok(await hero(landing, BLADE), "Attack swings a blade");
+  const swung = await smear(landing, standing, 400);
+  assert.ok(swung > calm + 5, `Attack swings a blade: ${calm} → ${swung}`);
   await snap(landing, "solo-play");
   await landing.keyboard.up("KeyJ");
   console.log(
