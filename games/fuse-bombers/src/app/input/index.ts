@@ -10,6 +10,7 @@ export {
 export {
   createBrowserInput,
   type BrowserInput,
-  type TouchZoneStyle,
+  type TouchPadStyle,
 } from "./browser.js";
 export { KEY_BINDINGS, fireKeyLabel } from "./keyboard.js";
+export { TOUCH_SIDES } from "./touch.js";

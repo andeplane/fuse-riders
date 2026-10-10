@@ -25,11 +25,9 @@ import {
 } from "../src/app/input/keyboard.js";
 import {
   attachTouch,
-  touchBandHeight,
-  touchZoneAt,
-  touchZoneLayout,
-  type PointerLike,
-  type PointerTarget,
+  touchControlAt,
+  touchPadLayout,
+  type Rect,
 } from "../src/app/input/touch.js";
 
 /** A fake event target: records listeners by type and dispatches plain objects to them. */
@@ -435,6 +433,7 @@ test("stick quantisation: a dead zone, then 8 equal 45° sectors", () => {
   assert.equal(stickBits(Number.NaN, 1, STICK_DEAD_ZONE), 0);
 });
 
+/** A fake pad overlay: a `width` × `height` surface whose top-left corner sits at (10, 20) on the page. */
 class FakeSurface extends FakeTarget {
   constructor(
     readonly width: number,
@@ -447,93 +446,252 @@ class FakeSurface extends FakeTarget {
   }
 }
 
-function tap(
-  x: number,
-  y: number,
-): PointerLike & {
-  prevented: boolean;
-} {
-  const event = {
-    clientX: x + 10,
-    clientY: y + 20,
-    prevented: false,
-    preventDefault: () => {
-      event.prevented = true;
-    },
+/**
+ * Touch pads on a fake surface and page feeding a real hub. Fingers are given in surface coordinates: `down` puts
+ * finger `id` on a fake element that records its pointer captures (or, for a browser that cannot capture, throws
+ * on them or has no such method), `move` slides it, `end` lifts it (or cancels it, or takes its capture away).
+ */
+function touchRig(
+  width = 1000,
+  height = 500,
+  sides = [0, 1],
+  capture: "works" | "throws" | "missing" = "works",
+) {
+  const surface = new FakeSurface(width, height);
+  const page = new FakeTarget();
+  const { hub, presses, hold } = recorder();
+  const source = attachTouch(surface, hold, page);
+  source.setSides(sides);
+  const captured: number[] = [];
+  const element = Object.assign(
+    new EventTarget(),
+    capture === "missing"
+      ? {}
+      : {
+          setPointerCapture: (id: number) => {
+            if (capture === "throws") throw new Error("InvalidPointerId");
+            captured.push(id);
+          },
+        },
+  );
+  const event = (x: number, y: number, pointerId: number) => {
+    const e = {
+      ...{ clientX: x + 10, clientY: y + 20, pointerId, target: element },
+      prevented: false,
+      preventDefault: () => void (e.prevented = true),
+    };
+    return e;
   };
-  return event;
+  const down = (x: number, y: number, id = 1) => {
+    const e = event(x, y, id);
+    surface.dispatch("pointerdown", e);
+    return e;
+  };
+  const move = (x: number, y: number, id = 1) =>
+    surface.dispatch("pointermove", event(x, y, id));
+  const end = (id = 1, type = "pointerup") =>
+    surface.dispatch(type, event(0, 0, id));
+  const [left, right] = touchPadLayout(width, height, [0, 1]); // both sides' places
+  assert.ok(left && right);
+  /** A point on `rect` at fractions (`fx`, `fy`) of its size. */
+  const on = (rect: Rect, fx = 0.5, fy = 0.5): [number, number] => [
+    rect.x + rect.width * fx,
+    rect.y + rect.height * fy,
+  ];
+  const held = (side: number) => hub.heldBy(`touch:${side}`);
+  return {
+    ...{ surface, page, hub, presses, source, captured },
+    ...{ down, move, end, left, right, on, held },
+  };
 }
 
-test("touch: zones split the bottom band, and taps elsewhere are ignored", () => {
-  const surface = new FakeSurface(900, 600);
-  const { presses, press } = recorder();
-  const source = attachTouch(surface as PointerTarget, press);
-  surface.dispatch("pointerdown", tap(100, 590)); // no zones yet
-  source.setZoneCount(3);
-  const above = tap(100, 300);
-  surface.dispatch("pointerdown", above);
-  assert.equal(above.prevented, false);
-  const left = tap(100, 590);
-  surface.dispatch("pointerdown", left);
-  assert.ok(left.prevented);
-  surface.dispatch("pointerdown", tap(450, 500));
-  surface.dispatch("pointerdown", tap(899, 599));
-  assert.deepEqual(presses, ["touch:0", "touch:1", "touch:2"]);
-  source.dispose?.();
-  assert.equal(surface.count(), 0);
-});
-
-test("touch: fingers down together in different zones all press (multi-touch)", () => {
-  const surface = new FakeSurface(800, 400);
-  const hub = new InputHub();
-  const source = attachTouch(surface as PointerTarget, (d) => hub.press(d));
-  source.setZoneCount(4);
-  for (let zone = 0; zone < 4; zone++) hub.bind(zone, `touch:${zone}`);
-  surface.dispatch("pointerdown", tap(50, 390));
-  surface.dispatch("pointerdown", tap(650, 390));
-  surface.dispatch("pointerdown", tap(250, 390));
-  assert.deepEqual(hub.takePresses(4), [true, true, false, true]);
-});
-
-test("touch geometry: the drawn zones are the hit-test zones", () => {
-  assert.equal(touchBandHeight(400), 100);
-  assert.equal(touchBandHeight(200), 80);
-  assert.equal(touchBandHeight(2000), 180);
-  const [width, height, count] = [1000, 500, 4];
-  const zones = touchZoneLayout(width, height, count);
-  assert.equal(zones.length, count);
-  zones.forEach((zone, index) => {
-    const centreX = zone.x + zone.width / 2;
-    const centreY = zone.y + zone.height / 2;
-    assert.equal(touchZoneAt(centreX, centreY, width, height, count), index);
-    assert.ok(zone.y + zone.height <= height && zone.x + zone.width <= width);
-  });
-  assert.equal(touchZoneAt(500, 100, width, height, count), undefined);
-  assert.equal(touchZoneAt(500, 499, width, height, 0), undefined);
-  assert.deepEqual(touchZoneLayout(width, height, 0), []);
-});
-
-test("touch: the source draws zones from the rect it hit-tests against (#12)", () => {
-  const surface = new FakeSurface(700, 350);
-  const { presses, press } = recorder();
-  const source = attachTouch(surface as PointerTarget, press);
-  assert.deepEqual(source.layout(), []);
-  source.setZoneCount(3);
-  const zones = source.layout();
-  assert.deepEqual(zones, touchZoneLayout(700, 350, 3));
-  for (const zone of zones) {
-    surface.dispatch("pointerdown", tap(zone.x + 1, zone.y + 1));
-    surface.dispatch(
-      "pointerdown",
-      tap(zone.x + zone.width - 1, zone.y + zone.height - 1),
-    );
+test("touch: each arrow holds its direction, between two arrows the diagonal, the centre nothing", () => {
+  const { down, end, left, on, held, captured } = touchRig();
+  const cases: [number, number, number][] = [
+    [0.5, 0.1, UP],
+    [0.5, 0.9, DOWN],
+    [0.1, 0.5, LEFT],
+    [0.9, 0.5, RIGHT],
+    [0.8, 0.2, UP | RIGHT], // between ▲ and ▶
+    [0.1, 0.1, UP | LEFT], // a corner
+    [0.9, 0.9, DOWN | RIGHT],
+    [0.2, 0.8, DOWN | LEFT],
+    [0.5, 0.5, 0],
+    [0.55, 0.45, 0], // inside the dead centre
+  ];
+  for (const [fx, fy, bits] of cases) {
+    const event = down(...on(left.dpad, fx, fy));
+    assert.equal(held(0), bits, `${fx}, ${fy}`);
+    assert.ok(event.prevented, "no emulated mouse or zoom");
+    end();
+    assert.equal(held(0), 0);
   }
-  assert.deepEqual(presses, [
-    "touch:0",
-    "touch:0",
-    "touch:1",
-    "touch:1",
-    "touch:2",
-    "touch:2",
-  ]);
+  assert.equal(captured.length, cases.length, "every finger is captured");
+});
+
+test("touch: a thumb sliding round the D-pad turns, and past its edge still steers", () => {
+  const { down, move, end, left, on, held, presses } = touchRig();
+  down(...on(left.dpad, 0.5, 0.1));
+  assert.equal(held(0), UP);
+  move(...on(left.dpad, 0.85, 0.15));
+  assert.equal(held(0), UP | RIGHT);
+  move(...on(left.dpad, 0.9, 0.5));
+  assert.equal(held(0), RIGHT);
+  move(...on(left.dpad, 1.6, 0.5)); // off the pad, over the canvas
+  assert.equal(held(0), RIGHT);
+  move(...on(left.dpad, 0.5, 0.5));
+  assert.equal(held(0), 0);
+  move(...on(left.dpad, 0.1, 0.9));
+  assert.equal(held(0), DOWN | LEFT);
+  end();
+  assert.equal(held(0), 0);
+  assert.deepEqual(presses, [], "steering never fires");
+});
+
+test("touch: lift, cancel, lost capture, blur, a hidden tab and a hidden side all let go", () => {
+  const rig = touchRig();
+  const { down, end, left, right, on, held, page } = rig;
+  for (const ending of ["pointerup", "pointercancel", "lostpointercapture"]) {
+    down(...on(left.dpad, 0.5, 0.1), 1);
+    down(...on(left.fire), 2);
+    assert.equal(held(0), UP | FIRE);
+    end(2, ending);
+    assert.equal(held(0), UP, ending);
+    end(1, ending);
+    assert.equal(held(0), 0, ending);
+    end(1, "pointerup"); // a lift after a cancel is nothing
+    assert.equal(held(0), 0);
+  }
+  for (const loss of ["blur", "visibilitychange"]) {
+    down(...on(left.dpad, 0.1, 0.5), 1);
+    down(...on(right.fire), 2);
+    page.dispatch(loss);
+    assert.deepEqual([held(0), held(1)], [0, 0], loss);
+    end(1);
+    end(2);
+  }
+  down(...on(left.fire), 1);
+  down(...on(right.dpad, 0.5, 0.9), 2);
+  rig.source.setSides([1]); // the left rider's pad goes away
+  assert.deepEqual([held(0), held(1)], [0, DOWN]);
+  assert.equal(down(...on(left.fire), 3).prevented, false, "nothing there now");
+  assert.equal(held(0), 0);
+  down(...on(left.dpad, 0.5, 0.1), 4); // the lone right rider's D-pad spreads to the left corner
+  assert.deepEqual([held(0), held(1)], [0, UP | DOWN]);
+});
+
+test("touch: without pointer capture a finger that slid off its pad still lets go when it lifts anywhere", () => {
+  for (const capture of ["throws", "missing"] as const) {
+    const { down, move, left, on, held, page } = touchRig(
+      1000,
+      500,
+      [0, 1],
+      capture,
+    );
+    down(...on(left.dpad, 0.5, 0.1), 1);
+    down(...on(left.fire), 2);
+    assert.equal(held(0), UP | FIRE, capture);
+    move(...on(left.dpad, 0.9, 0.5), 1); // still on the pad: moves are heard
+    assert.equal(held(0), RIGHT | FIRE, capture);
+    // Off the pads the page, not the pad overlay, hears the lifts.
+    page.dispatch("pointerup", { pointerId: 9 }); // somebody else's finger
+    assert.equal(held(0), RIGHT | FIRE, capture);
+    page.dispatch("pointerup", { pointerId: 1 });
+    assert.equal(held(0), FIRE, capture);
+    page.dispatch("pointercancel", { pointerId: 2 });
+    assert.equal(held(0), 0, capture);
+  }
+});
+
+test("touch: two riders on one screen hold independently", () => {
+  const { hub, down, end, left, right, on, held } = touchRig();
+  hub.bind(0, "touch:0");
+  hub.bind(1, "touch:1");
+  down(...on(left.dpad, 0.5, 0.1), 1);
+  down(...on(right.fire), 2);
+  down(...on(right.dpad, 0.1, 0.5), 3);
+  assert.deepEqual([held(0), held(1)], [UP, LEFT | FIRE]);
+  down(...on(left.fire), 4);
+  end(3);
+  assert.deepEqual([hub.heldBits(0), hub.heldBits(1)], [UP | FIRE, FIRE]);
+  assert.deepEqual(hub.takePresses(2), [true, true]);
+  end(2);
+  assert.deepEqual([held(0), held(1)], [UP | FIRE, 0]);
+});
+
+test("touch: FIRE's rising edge is exactly one press, however the finger slides", () => {
+  const { hub, presses, down, move, end, left, right, on } = touchRig();
+  hub.bind(0, "touch:0");
+  down(...on(left.fire), 1);
+  assert.deepEqual(presses, ["touch:0"]);
+  move(...on(left.fire, 2, -1), 1); // slides off: still held, no new press
+  move(...on(right.fire), 1);
+  down(...on(left.fire), 2); // a second finger on the same button
+  end(1);
+  assert.equal(hub.heldBy("touch:0"), FIRE);
+  assert.deepEqual(presses, ["touch:0"]);
+  assert.deepEqual(hub.takePresses(1), [true]);
+  assert.deepEqual(hub.takePresses(1), [false]);
+  end(2);
+  assert.equal(hub.heldBy("touch:0"), 0);
+  down(...on(left.fire), 3);
+  assert.deepEqual(presses, ["touch:0", "touch:0"]);
+});
+
+test("touch: touches off the pads are the page's, and dispose detaches", () => {
+  const rig = touchRig(1000, 500, []);
+  const { down, surface, page, left, on, held } = rig;
+  assert.deepEqual(rig.source.layout(), []);
+  assert.equal(down(500, 480).prevented, false, "no sides shown yet");
+  rig.source.setSides([0, 1]);
+  assert.equal(down(500, 100).prevented, false, "above the pads");
+  assert.equal(down(...on(left.dpad, 1.1, 0.5)).prevented, false, "between");
+  assert.equal(
+    down(...on(left.fire, 0.05, 0.05)).prevented,
+    false,
+    "FIRE is round",
+  );
+  assert.equal(held(0), 0);
+  rig.source.dispose?.();
+  assert.equal(surface.count() + page.count(), 0);
+});
+
+test("touch geometry: pads fit phones and tablets, never meet, and a lone rider's spread out", () => {
+  const sizes = [
+    [667, 375],
+    [844, 390],
+    [1024, 768],
+    [1366, 1024],
+    [390, 844],
+  ];
+  for (const [width = 0, height = 0] of sizes) {
+    const pads = touchPadLayout(width, height, [0, 1]);
+    const [left, right] = pads;
+    assert.ok(left && right);
+    for (const pad of pads) {
+      for (const r of [pad.dpad, pad.fire]) {
+        assert.ok(r.x >= 0 && r.y >= 0, `${width}×${height}`);
+        assert.ok(r.x + r.width <= width && r.y + r.height <= height);
+      }
+      const centre = (r: Rect) =>
+        [r.x + r.width / 2, r.y + r.height / 2] as const;
+      assert.deepEqual(touchControlAt(...centre(pad.dpad), pads), {
+        side: pad.side,
+        fire: false,
+      });
+      assert.deepEqual(touchControlAt(...centre(pad.fire), pads), {
+        side: pad.side,
+        fire: true,
+      });
+    }
+    assert.ok(
+      left.fire.x + left.fire.width < right.dpad.x,
+      `${width}×${height}`,
+    );
+    if (width > height) assert.ok(left.dpad.width >= 100, "a thumb's worth");
+    const [solo] = touchPadLayout(width, height, [1]);
+    assert.ok(solo && solo.dpad.x < width / 4 && solo.fire.x > width / 2);
+  }
+  const { source } = touchRig(700, 350);
+  assert.deepEqual(source.layout(), touchPadLayout(700, 350, [0, 1]));
 });
