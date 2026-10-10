@@ -3,7 +3,12 @@ import type { MusicKind } from "./audio/index.js";
 import { css } from "../render/palette.js";
 import type { PlayerLook, RoundSource } from "../render/round-scene.js";
 import { createBotPlayer } from "./bot.js";
-import type { BrowserInput, Command, DeviceId } from "./input/index.js";
+import {
+  fireKeyLabel,
+  type BrowserInput,
+  type Command,
+  type DeviceId,
+} from "./input/index.js";
 import { Lobby, PLAYER_NAMES, type Seat } from "./lobby.js";
 import { RoundRunner } from "./round-runner.js";
 import * as screens from "./screens.js";
@@ -50,12 +55,12 @@ const AFTERMATH = 2.5;
 const RESULTS = 7;
 
 /**
- * The action a menu key (a `KeyboardEvent.code`) or a pad's `start`/`back` command takes in `state`, if any. Enter,
- * Space and Start confirm, Esc and Back go back; mid-round Start also pauses. None of these is a player's button,
- * so a shot never pauses and pausing never costs a shot.
+ * The action a menu key (a `KeyboardEvent.code`) or a pad's `start`/`back` command takes in `state`, if any. Enter
+ * and Start confirm, Esc and Back go back; mid-round Start also pauses. None of these is a player's key or button
+ * (Space is the WASD rider's fire key), so a shot never pauses and pausing never costs a shot.
  */
 export function menuAction(state: MenuState, key: string): string | undefined {
-  const primary = key === "Enter" || key === "Space" || key === "start";
+  const primary = key === "Enter" || key === "start";
   const back = key === "Escape" || key === "back";
   if (state === "lobby") {
     if (primary) return "start";
@@ -305,7 +310,9 @@ export class Flow implements RoundSource {
     this.screen = { kind: "countdown", left: COUNTDOWN };
     this.paused = false;
     const prompt = (s: Seat) =>
-      s.device?.startsWith("touch:") ? "TAP!" : `PRESS ${s.tag}`;
+      s.device?.startsWith("touch:")
+        ? "TAP!"
+        : `PRESS ${(s.device && fireKeyLabel(s.device)) ?? s.tag}`;
     this.options.show(
       this,
       this.seats.map((s) => (s.device ? { ...s, prompt: prompt(s) } : s)),

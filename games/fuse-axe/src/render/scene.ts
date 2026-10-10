@@ -8,7 +8,6 @@ import type {
 } from "../engine/view.js";
 import { DEAD_STEPS, VIEW_W } from "../engine/view-kit.js";
 import { heroFrame, stripFrame } from "./art/animate.js";
-import { BRAKKA } from "./art/brakka.js";
 import { HEROES } from "./art/index.js";
 import {
   RAVAGER,
@@ -56,36 +55,27 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   },
 };
 
-/** How a hero looks: its figure (Brakka's for a hero whose art has not landed) and its palette. */
+/** How a hero looks: its figure and its palette. */
 export interface HeroLook {
   readonly figure: Figure;
   readonly swap: Palette | undefined;
 }
 
 /**
- * Every hero's look, by id. Heroes sharing a figure each get a palette of their own: the figure's heroes take its
- * palettes from the first (its own colours) in seat order, and a hero borrowing the figure takes them from the last
- * back, so a borrower never looks like the figure's own hero. A pure function of the view, the same on every device.
+ * Every hero's look, by id. Heroes of one kind each get a palette of their own, its figure's palettes taken from the
+ * first (its own colours) in seat order. A pure function of the view, the same on every device.
  */
 export function heroLooks(heroes: readonly HeroView[]): Map<number, HeroLook> {
   const looks = new Map<number, HeroLook>();
   const bySeat = [...heroes].sort((a, b) => a.seat - b.seat);
-  const figures = new Set(
-    bySeat.map((hero) => HEROES[hero.kind]?.figure ?? BRAKKA),
-  );
-  for (const figure of figures) {
+  for (const kind of new Set(bySeat.map((hero) => hero.kind))) {
+    const { figure } = HEROES[kind];
     const palettes = [undefined, ...Object.values(figure.swaps)];
-    const owners = bySeat.filter((h) => HEROES[h.kind]?.figure === figure);
-    const borrowers = bySeat.filter(
-      (h) => !HEROES[h.kind] && figure === BRAKKA,
-    );
-    const n = palettes.length;
-    owners.forEach((hero, i) =>
-      looks.set(hero.id, { figure, swap: palettes[i % n] }),
-    );
-    borrowers.forEach((hero, i) =>
-      looks.set(hero.id, { figure, swap: palettes[(n - 1 - (i % n)) % n] }),
-    );
+    bySeat
+      .filter((hero) => hero.kind === kind)
+      .forEach((hero, i) =>
+        looks.set(hero.id, { figure, swap: palettes[i % palettes.length] }),
+      );
   }
   return looks;
 }
