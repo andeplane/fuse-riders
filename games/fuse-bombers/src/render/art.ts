@@ -6,14 +6,8 @@ import type Phaser from "phaser";
 import { CARDS, type Card } from "../engine/index.js";
 import { css, THEMES, type Theme } from "./palette.js";
 
+/** The lobby's castle icon (`castleSvg`); the round draws gunships (gunship-art.ts). */
 export const CASTLE_SIZE = { width: 100, height: 80 } as const;
-/** The castle art's bottom (its old ground contact) sits this far below the hull centre the engine's `x, y` names. */
-export const HULL_DROP = 26;
-/** Height of the castle art's top above the hull centre. */
-export const HULL_TOP = CASTLE_SIZE.height - HULL_DROP;
-export const SHIELD_SIZE = 128;
-/** Launcher texture width and the x of its pivot. */
-export const LAUNCHER = { width: 38, pivot: 5 } as const;
 /** Rocket texture width and the x of the body centre (the smoke streak trails behind it). */
 export const ROCKET = { width: 48, body: 38 } as const;
 
@@ -42,14 +36,6 @@ const castle = (roof: string): string => `
   </g>
 </g>`;
 
-const launcher = (band: string): string => `
-<linearGradient id="m" x2="0" y2="1"><stop stop-color="#8f98a8"/><stop offset="1" stop-color="#343a47"/></linearGradient>
-<g stroke="${INK}" stroke-width="2">
-  <rect x="2" y="3" width="32" height="10" rx="4" fill="url(#m)"/>
-  <rect x="16" y="4" width="6" height="8" fill="${band}" stroke="none"/>
-  <rect x="29" y="1" width="7" height="14" rx="2" fill="#5d6575"/>
-</g>`;
-
 /** Flying right, with its smoke streak baked in so a thousand rockets cost one image each. */
 const rocket = (body: string): string => `
 <linearGradient id="s"><stop stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".75"/></linearGradient>
@@ -57,23 +43,6 @@ const rocket = (body: string): string => `
 <ellipse cx="30" cy="7" rx="5" ry="3" fill="#ffb52e"/>
 <path d="M32 3h10q6 4 0 8H32z" fill="${body}" stroke="${INK}" stroke-width="1.5"/>
 <path d="M38 4.5h2v5h-2z" fill="#fff"/>`;
-
-/** Ghost blimp texture size; the envelope's centre (the engine's ghost position) sits at `centerY`. */
-export const BLIMP = { width: 96, height: 56, centerY: 24 } as const;
-
-/** A friendly ghost blimp heading right: the player's colour, tail fins, big eyes and a gondola. */
-const blimp = (body: string): string => `
-<g stroke="${INK}" stroke-width="2" stroke-linejoin="round">
-  <path d="M22 18L4 5h11l14 11zM22 30L4 43h11l14-11z" fill="${body}"/>
-  <ellipse cx="52" cy="24" rx="40" ry="18" fill="${body}"/>
-  <path d="M38 41h26l-4 10H42z" fill="#3d424f"/>
-  <path d="M44 41l-3-4M58 41l3-4" stroke-width="1.5"/>
-  <ellipse cx="74" cy="19" rx="5" ry="6.5" fill="#fbfbf2" stroke-width="1.5"/>
-  <ellipse cx="85" cy="19" rx="4" ry="6" fill="#fbfbf2" stroke-width="1.5"/>
-</g>
-<path d="M22 14q30-12 62 0" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="4" stroke-linecap="round"/>
-<path d="M75 18h3v4h-3zM86 18h2.5v4H86z" fill="${INK}"/>
-<path d="M45 44h3v4h-3zM51 44h3v4h-3zM57 44h3v4h-3z" fill="#ffe28a"/>`;
 
 /** A ghost's bomb, nose right: fat and dark with fins and a band in the owner's colour, no smoke streak. */
 const ghostBomb = (fins: string): string => `
@@ -93,18 +62,6 @@ const BOMB = `
 <circle cx="7.5" cy="9.5" r="2" fill="#fff" fill-opacity=".45"/>
 <circle cx="14" cy="4" r="2.5" fill="#ffcf3a"/>`;
 
-/** White bubble with a hexagon lattice; tinted per player. */
-const SHIELD = `
-<radialGradient id="g"><stop offset=".3" stop-color="#fff" stop-opacity=".04"/><stop offset="1" stop-color="#fff" stop-opacity=".4"/></radialGradient>
-<pattern id="h" width="19.05" height="33" patternUnits="userSpaceOnUse">
-  <path d="M0 5.5L9.53 0l9.52 5.5v11l-9.52 5.5L0 16.5zM9.53 22v11" fill="none" stroke="#fff" stroke-opacity=".45" stroke-width="1.5"/>
-</pattern>
-<clipPath id="c"><circle cx="64" cy="64" r="61"/></clipPath>
-<circle cx="64" cy="64" r="61" fill="url(#g)"/>
-<rect width="128" height="128" fill="url(#h)" clip-path="url(#c)"/>
-<circle cx="64" cy="64" r="61" fill="none" stroke="#fff" stroke-opacity=".9" stroke-width="3"/>
-<path d="M22 46A46 46 0 0 1 44 22" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="5" stroke-linecap="round"/>`;
-
 /** Badge colour and symbol (an SVG path, or text) per card. */
 const CARD_ART: Record<Card, readonly [string, string]> = {
   unit: ["#e8403a", "+1"],
@@ -123,16 +80,16 @@ ${
         font-weight="900" font-size="15" fill="${color}">${symbol}</text>`
 }`;
 
-/** Texture key of a player-coloured sprite in `color`, e.g. `castle-e8403a`. */
+/** Texture key of a player-coloured sprite in `color`, e.g. `rocket-e8403a`. */
 export function spriteKey(
-  kind: "castle" | "launcher" | "rocket" | "blimp" | "ghost-bomb",
+  kind: "rocket" | "ghost-bomb",
   color: number,
 ): string {
   return `${kind}-${css(color).slice(1)}`;
 }
 
 /** Queues every sprite on the scene's loader; call from `preload`. Keys: `spriteKey(kind, color)` per colour,
- * `rocket-bomb`, `shield`, `card-<card>`. */
+ * `rocket-bomb`, `card-<card>`. */
 export function loadSprites(
   scene: Phaser.Scene,
   colors: readonly number[],
@@ -144,20 +101,10 @@ export function loadSprites(
     scene.load.svg(key, url, { width, height });
   };
   for (const color of new Set(colors)) {
-    const [w, h] = [CASTLE_SIZE.width, CASTLE_SIZE.height];
-    add(spriteKey("castle", color), w, h, castle(css(color)));
-    add(spriteKey("launcher", color), LAUNCHER.width, 16, launcher(css(color)));
     add(spriteKey("rocket", color), ROCKET.width, 14, rocket(css(color)));
-    add(
-      spriteKey("blimp", color),
-      BLIMP.width,
-      BLIMP.height,
-      blimp(css(color)),
-    );
     add(spriteKey("ghost-bomb", color), 30, 16, ghostBomb(css(color)));
   }
   add("rocket-bomb", 20, 20, BOMB);
-  add("shield", SHIELD_SIZE, SHIELD_SIZE, SHIELD);
   for (const c of CARDS) add(`card-${c}`, 36, 36, card(CARD_ART[c]));
 }
 

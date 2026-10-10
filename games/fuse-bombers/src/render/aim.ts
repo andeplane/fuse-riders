@@ -75,16 +75,18 @@ export function drawGuide(
   }
 }
 
-/** A thick ring pulsing around a human's launcher while it is loaded; bots get a thin, steady one. */
+/** A thick ring pulsing around a human's launcher while it is loaded; bots get a thin, steady one. `scale` sizes the
+ * ring (not its line), e.g. smaller when the camera is zoomed far out. */
 export function drawReady(
   g: Phaser.GameObjects.Graphics,
   pivot: Vec2,
   color: number,
   time: number,
   bold: boolean,
+  scale = 1,
 ): void {
   const pulse = bold ? 0.5 + 0.5 * Math.sin(time / 110) : 0;
-  const [r, width] = bold ? [11 + 3 * pulse, 4] : [10, 2];
+  const [r, width] = bold ? [(11 + 3 * pulse) * scale, 4] : [10 * scale, 2];
   g.lineStyle(width + 4, INK, 0.75).strokeCircle(pivot.x, pivot.y, r);
   g.lineStyle(width, color, 0.7 + 0.3 * pulse);
   g.strokeCircle(pivot.x, pivot.y, r);
