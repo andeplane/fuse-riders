@@ -29,7 +29,8 @@ import { VIEW_H, VIEW_W } from "../engine/view-kit.js";
 import { axeGame, type View } from "../online/game.js";
 import { DEFAULT_HERO, isHero, seatName } from "../online/names.js";
 import { AxeRuntime, type AxeCallbacks } from "../online/runtime.js";
-import { draw } from "../render/debug-scene.js";
+import { createScene } from "../render/scene.js";
+import type { MakeSurface } from "../render/surface.js";
 import { HeldControls, KEY_HELP } from "./controls.js";
 import { PendingPick, SoloOpening } from "./flow.js";
 import { drawn } from "./interpolate.js";
@@ -54,6 +55,16 @@ import {
  * keys into held control bits. The decisions live in the presenter, the scene and the engine.
  */
 const GAME = axeGame.id;
+/** The renderer's surfaces in the browser: a canvas and its 2D context, smoothing off, `putImageData` the fast path. */
+const canvasSurface: MakeSurface<HTMLCanvasElement> = (width, height) => {
+  const image = el("canvas");
+  [image.width, image.height] = [width, height];
+  const paint = image.getContext("2d")!;
+  paint.imageSmoothingEnabled = false;
+  const putPixels = (rgba: Uint8ClampedArray<ArrayBuffer>) =>
+    paint.putImageData(new ImageData(rgba, width, height), 0, 0);
+  return { image, paint, putPixels };
+};
 const endpoints = createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -253,7 +264,8 @@ function room(solo: boolean): void {
   pixels.width = VIEW_W;
   pixels.height = VIEW_H;
   const native = pixels.getContext("2d")!,
-    g = canvas.getContext("2d")!;
+    g = canvas.getContext("2d")!,
+    scene = createScene(canvasSurface);
   const fit = () => {
     // The screen's own area (a border is not drawable), in device pixels.
     const ratio = window.devicePixelRatio || 1,
@@ -272,7 +284,7 @@ function room(solo: boolean): void {
     if (over) return;
     const world = stage.hidden ? null : drawn(runtime.frameTiming());
     if (world) {
-      draw(native, world, Math.floor((now * 60) / 1000));
+      scene.draw(native, world, Math.floor((now * 60) / 1000));
       // Resizing the canvas resets its context, smoothing included.
       g.imageSmoothingEnabled = false;
       g.drawImage(pixels, 0, 0, canvas.width, canvas.height);

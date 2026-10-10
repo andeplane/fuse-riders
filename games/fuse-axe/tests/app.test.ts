@@ -37,7 +37,6 @@ import {
   type Room,
   type View,
 } from "../src/online/game.js";
-import { SEAT_COLORS as SCENE_COLORS } from "../src/render/debug-scene.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
 
 const host: Viewer = { me: "a", host: true, solo: false, display: false };
@@ -238,10 +237,9 @@ test("keys: ours are cancelled, shortcuts and typing are left alone, Cmd lets go
   assert.equal(seen.length, before + 1, "and nothing is logged after it");
 });
 
-test("a seat has one colour, on the page and in the game", () => {
+test("a seat has one colour on the page, from the list its hero's marker uses in the game", () => {
   const colors = present(frame("lobby"), host).members.map((m) => m.color);
   assert.deepEqual(colors, SEAT_COLORS.slice(0, 2));
-  assert.equal(SCENE_COLORS, SEAT_COLORS);
 });
 
 test("held controls: arrows or WASD walk, J/Z attack, K/X jump, L/C magic, one change at a time", () => {
