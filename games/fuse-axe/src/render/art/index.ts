@@ -3,9 +3,13 @@ import type { Figure } from "../pixel/kit.js";
 import type { Sprite } from "../pixel/sprite.js";
 import type { HeroFrame } from "./animate.js";
 import { BRAKKA, BRAKKA_PORTRAIT } from "./brakka.js";
+import { RAVAGER } from "./ravager.js";
 
 /** Every figure the game draws, by name. The sprite sheet lab (`games/fuse-axe/lab/sprites.html`) shows them all. */
-export const FIGURES: Readonly<Record<string, Figure>> = { brakka: BRAKKA };
+export const FIGURES: Readonly<Record<string, Figure>> = {
+  brakka: BRAKKA,
+  ravager: RAVAGER,
+};
 
 /** A hero's figure, which paints every `HERO_FRAMES` frame, and its HUD portrait. */
 export interface HeroArt {
