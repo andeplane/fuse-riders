@@ -113,3 +113,21 @@ test("the guard refuses Math.sin added to an engine file, and every other form i
     "performance",
   ]);
 });
+
+test("the guard refuses every Math function the language leaves approximated and accepts the exactly rounded ones", () => {
+  const approximated = [
+    ...["sin", "cos", "tan", "asin", "acos", "atan", "atan2"],
+    ...["sinh", "cosh", "tanh", "asinh", "acosh", "atanh"],
+    ...["exp", "expm1", "log", "log1p", "log2", "log10", "pow", "hypot"],
+    ...["cbrt", "random"],
+  ];
+  for (const name of approximated)
+    assert.deepEqual(
+      deterministicViolations(syntax("sample.ts", `Math.${name}(1);`)),
+      [`Math.${name}`],
+    );
+  const exact = `Math.PI + Math.E + Math.SQRT2 + Math.LN2 + Math.LOG2E; Math.abs(1); Math.sign(1); Math.min(1, 2);
+    Math.max(1, 2); Math.floor(1); Math.ceil(1); Math.round(1); Math.trunc(1); Math.sqrt(4); Math.fround(1);
+    Math.imul(1, 2); Math.clz32(1);`;
+  assert.deepEqual(deterministicViolations(syntax("sample.ts", exact)), []);
+});

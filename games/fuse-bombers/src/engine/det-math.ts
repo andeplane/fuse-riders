@@ -1,8 +1,10 @@
 /**
  * Cross-engine deterministic math. `Math.sin`, `Math.exp` and friends are only approximated by the language spec, so
  * their last bits can differ between V8, SpiderMonkey and JavaScriptCore, and an online replay of the same input log
- * would drift apart. These versions use only + − × ÷, comparisons, `Math.floor/round/abs/sqrt` and constants, each
- * rounded by IEEE 754 exactly, in a fixed order (JS never fuses a multiply-add), so every engine returns the same bits.
+ * would drift apart. These versions use only + − × ÷ and `%`, comparisons, `Math.floor/trunc/abs/sqrt`, `Math.PI` and
+ * constants, each rounded by IEEE 754 exactly (the engines compute `Math.sqrt` with the hardware square root, which is
+ * correctly rounded though the spec does not demand it), in a fixed order (JS never fuses a multiply-add), so every
+ * engine returns the same bits.
  *
  * The algorithms are fdlibm's (range reduction to a small interval, then its minimax polynomials), accurate to within
  * a few units in the last place, so they agree with `Math` to about 1e-15 over the arguments the engine produces.
@@ -51,25 +53,35 @@ function cosKernel(x: number): number {
   return w + (1 - w - hz + z * r);
 }
 
+/** Past this the three-part π/2 below stops being exact (`n * PIO2_1` would need more than 53 bits): 2^20 · π/2. */
+const REDUCTION_LIMIT = 1048576 * HALF_PI;
+const TWO_PI = 2 * PI;
+
 /**
- * sin(x + shift·π/2) for shift 0 (sine) or 1 (cosine). `x` is reduced by the nearest multiple n·π/2 to r in about
- * [−π/4, π/4], exactly enough for |x| below 2^20·π/2 (about 1.6 million); beyond that it loses precision but stays
- * deterministic. NaN for a non-finite `x`.
+ * sin(x + shift·π/2) for shift 0 (sine) or 1 (cosine). |x| is reduced by the nearest multiple n·π/2 to r in about
+ * [−π/4, π/4], then the sign is put back, so sin is odd and cos even bit for bit. The reduction is accurate to the
+ * last bit for |x| below 2^20·π/2 (about 1.6 million). Beyond that `x % 2π` (an exact remainder, but by the double
+ * `2 * Math.PI`) comes first: the result stays in [−1, 1] and deterministic, but is off by about |x|·4e-17.
+ * NaN for a non-finite `x`.
  */
 function sinShifted(x: number, shift: number): number {
   if (!(x - x === 0)) return NaN;
-  let n = 0;
-  let r = x;
-  if (!(x > -QUARTER_PI && x < QUARTER_PI)) {
-    n = Math.round(x * TWO_OVER_PI);
-    r = x - n * PIO2_1 - n * PIO2_2 - n * PIO2_3;
-  }
-  const m = n + shift;
-  const q = m - 4 * Math.floor(m / 4);
-  if (q === 0) return sinKernel(r);
-  if (q === 1) return cosKernel(r);
-  if (q === 2) return -sinKernel(r);
-  return -cosKernel(r);
+  if (x > -QUARTER_PI && x < QUARTER_PI)
+    return shift === 0 ? sinKernel(x) : cosKernel(x);
+  let a = Math.abs(x);
+  if (a >= REDUCTION_LIMIT) a %= TWO_PI;
+  const n = Math.floor(a * TWO_OVER_PI + 0.5);
+  const r = a - n * PIO2_1 - n * PIO2_2 - n * PIO2_3;
+  const q = (n + shift) % 4;
+  const v =
+    q === 0
+      ? sinKernel(r)
+      : q === 1
+        ? cosKernel(r)
+        : q === 2
+          ? -sinKernel(r)
+          : -cosKernel(r);
+  return shift === 0 && x < 0 ? -v : v;
 }
 
 /** Sine of `x` radians. */
