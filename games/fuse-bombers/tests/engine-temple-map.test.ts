@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { GUNSHIP_FLIGHT } from "../src/engine/flight.js";
 import * as G from "../src/engine/grid.js";
 import {
   TEMPLE_LANDMARKS,
@@ -13,7 +14,7 @@ import {
 
 const grid = buildTempleGrid();
 /** The gunship collision radius the map is laid out for, and the lattice its centre is tested on. */
-const SHIP = 26;
+const SHIP = GUNSHIP_FLIGHT.shape.radius;
 const STEP = 16;
 const clear = (p: Point, r: number): boolean =>
   !G.circleOverlapsSolid(grid, p.x, p.y, r);
