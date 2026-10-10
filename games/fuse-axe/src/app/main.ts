@@ -398,9 +398,14 @@ function room(solo: boolean): void {
     tvInvite,
   ])
     part.hidden = true;
+  // A gamepad has no events: the frame loop polls it, and the pad in use holds its bits like a key.
+  const gamepads = new GamepadInput(browserGamepads(navigator), (bits) =>
+    controls.hold("gamepad", bits),
+  );
   const letGo = () => {
     controls.clear();
     dpad.cancel();
+    gamepads.letGo();
   };
   // A phone in play folds the header behind a MENU button, and shows the pads' hints as each stage begins.
   const phone = createPhoneLayout({
@@ -447,14 +452,11 @@ function room(solo: boolean): void {
     canvas.style.height = `${canvas.height / ratio}px`;
   };
   new ResizeObserver(fit).observe(screen);
-  // A gamepad has no events: the frame loop polls it, and the pad in use holds its bits like a key.
-  const gamepads = new GamepadInput(browserGamepads(navigator), (bits) =>
-    controls.hold("gamepad", bits),
-  );
   const paint = (now: number) => {
     // A room that has ended draws nothing more, so its loop ends with it.
     if (over) return;
-    gamepads.poll();
+    // A hidden page, or the phone's MENU open over the pads, reads no gamepad: it must not steer from behind them.
+    gamepads.poll(!document.hidden && !phone.blocked());
     const world = stage.hidden ? null : drawn(runtime.frameTiming());
     if (world) {
       scene.draw(native, world, Math.floor((now * 60) / 1000), model?.hud);

@@ -100,13 +100,19 @@ test("an unmapped pad: its stick and first four buttons count, but not buttons i
   assert.equal(odd([], [-1, 0]), LEFT);
 });
 
-test("one gamepad drives this device's hero: the one in use, until it lets go; a pad that goes away lets go", () => {
+/** A `GamepadInput` wired to a `HeldControls` as the page does, with what the controls heard in `sent`. */
+function wired() {
   const source = new FakeGamepads(),
     sent: number[] = [];
   const controls = new HeldControls((bits) => sent.push(bits));
   const input = new GamepadInput(source, (bits) =>
     controls.hold("gamepad", bits),
   );
+  return { source, sent, controls, input };
+}
+
+test("one gamepad drives this device's hero: the last to press; a pad that goes away lets go", () => {
+  const { source, sent, controls, input } = wired();
   input.poll();
   assert.deepEqual(sent, [], "no pads");
   // Pad 0 rests (a phantom pad, say) while pad 1 presses: pad 1 drives.
@@ -114,23 +120,105 @@ test("one gamepad drives this device's hero: the one in use, until it lets go; a
   input.poll();
   input.poll();
   assert.deepEqual(sent, [RIGHT], "a held button is heard once");
-  // Pad 0 presses while pad 1 still holds: pad 1 keeps driving.
-  source.list = [gamepad(0, [0]), gamepad(1, [15, 1])];
+  source.list = [gamepad(0), null, gamepad(1, [15, 1])];
   input.poll();
-  assert.deepEqual(sent, [RIGHT, RIGHT | JUMP]);
-  // Pad 1 lets go; pad 0 is still pressing, so it takes over.
-  source.list = [gamepad(0, [0]), gamepad(1)];
+  assert.deepEqual(sent, [RIGHT, RIGHT | JUMP], "its changes are heard");
+  // Pad 0 presses while pad 1 still holds: the pad just used takes over, and pad 1's hold does not come back.
+  source.list = [gamepad(0, [0]), null, gamepad(1, [15, 1])];
   input.poll();
-  assert.deepEqual(sent, [RIGHT, RIGHT | JUMP, ATTACK]);
-  // Pad 0 is unplugged mid-press: everything it held is let go.
-  source.list = [null, gamepad(1)];
+  assert.equal(sent.at(-1), ATTACK);
+  source.list = [gamepad(0), null, gamepad(1, [15, 1])];
   input.poll();
-  assert.deepEqual(sent, [RIGHT, RIGHT | JUMP, ATTACK, 0]);
+  assert.equal(sent.at(-1), 0, "pad 0 lets go; pad 1 has not pressed");
+  // Pad 1 lets go and presses again: it is the one in use once more.
+  source.list = [gamepad(0), null, gamepad(1)];
+  input.poll();
+  source.list = [gamepad(0), null, gamepad(1, [14])];
+  input.poll();
+  assert.equal(sent.at(-1), LEFT);
+  // Pad 1 is unplugged mid-press: everything it held is let go, and no stale driver is left behind.
+  source.list = [gamepad(0)];
+  input.poll();
+  assert.equal(sent.at(-1), 0);
+  assert.equal(controls.bits, 0);
+  source.list = [gamepad(0, [1])];
+  input.poll();
+  assert.equal(sent.at(-1), JUMP, "a pad pressing with none driving");
   // A disconnected pad counts as gone.
   source.list = [gamepad(0, [0], undefined, { connected: false })];
   input.poll();
-  assert.deepEqual(sent.at(-1), 0);
+  assert.equal(sent.at(-1), 0);
   assert.equal(controls.bits, 0);
+});
+
+test("a phantom pad stuck off centre does not lock out a real one", () => {
+  const { source, sent, input } = wired();
+  const phantom = () => gamepad(0, [], [-1, 0], { mapping: "" });
+  // It holds Left from the first poll, so it drives until a real pad is used.
+  source.list = [phantom()];
+  input.poll();
+  assert.deepEqual(sent, [LEFT]);
+  source.list = [phantom(), gamepad(1, [0])];
+  input.poll();
+  assert.equal(sent.at(-1), ATTACK, "the real pad takes over");
+  source.list = [phantom(), gamepad(1)];
+  input.poll();
+  assert.equal(sent.at(-1), 0, "the phantom's Left does not return");
+  source.list = [phantom(), gamepad(1, [15])];
+  input.poll();
+  assert.equal(sent.at(-1), RIGHT);
+});
+
+test("blur, a hidden page and the MENU let go of a held pad, and it must let go itself before it steers again", () => {
+  const { source, sent, controls, input } = wired();
+  source.list = [gamepad(0, [15, 0])];
+  input.poll();
+  assert.deepEqual(sent, [RIGHT | ATTACK]);
+  // The page's `letGo` (blur, a hidden page, MENU opening): the controls clear, then the pad lets go too.
+  controls.clear();
+  input.letGo();
+  input.poll();
+  input.poll();
+  assert.deepEqual(
+    sent,
+    [RIGHT | ATTACK, 0],
+    "the held pad does not come back",
+  );
+  // Changing what it holds is not letting go.
+  source.list = [gamepad(0, [15])];
+  input.poll();
+  assert.deepEqual(sent, [RIGHT | ATTACK, 0]);
+  // Once it is neutral it steers again.
+  source.list = [gamepad(0)];
+  input.poll();
+  source.list = [gamepad(0, [14])];
+  input.poll();
+  assert.deepEqual(sent, [RIGHT | ATTACK, 0, LEFT]);
+});
+
+test("an inactive poll (MENU open, page hidden) holds nothing, and a pad pressed meanwhile waits until it lets go", () => {
+  const { source, sent, controls, input } = wired();
+  source.list = [gamepad(0, [15])];
+  input.poll(false);
+  assert.deepEqual(sent, [], "nothing is held behind the menu");
+  // The menu closes with the pad still held: it is read as neutral until it lets go.
+  input.poll();
+  assert.deepEqual(sent, []);
+  assert.equal(controls.bits, 0);
+  source.list = [gamepad(0)];
+  input.poll();
+  source.list = [gamepad(0, [1])];
+  input.poll();
+  assert.deepEqual(sent, [JUMP]);
+  // A pad that is driving when the page goes inactive lets go at once.
+  input.poll(false);
+  assert.deepEqual(sent, [JUMP, 0]);
+  // A pad unplugged while latched is a new pad when it returns.
+  source.list = [];
+  input.poll();
+  source.list = [gamepad(0, [14])];
+  input.poll();
+  assert.equal(sent.at(-1), LEFT);
 });
 
 test("a gamepad's fresh Attack is a press like a key's, and it holds alongside the keys", () => {
