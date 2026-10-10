@@ -50,7 +50,7 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 ### Controls
 
 - Keyboard (local): up to four riders, each with a direction cluster and a fire key: WASD and Space, IJKL and H, the
-  arrows and `/`, numpad 8456 (2 also down) and numpad 0 or Enter (`src/app/input/keyboard.ts`). Not right Shift:
+  arrows and `/`, numpad 8456 (2 also down) and numpad 0 or numpad Enter (`src/app/input/keyboard.ts`). Not right Shift:
   Windows offers Sticky Keys after five Shift taps. Space no longer confirms menus; Enter does. Opposite keys both stay
   held, and `thrustDirection` cancels them.
 - Gamepad: left stick (dead zone 0.35, quantised to 8 directions) or D-pad, any face button fires.
@@ -120,7 +120,7 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
   guide in the player's colour shows the first part of the trajectory. Pressing the button launches a volley at the
   current angle with a fixed launch speed, so timing picks range and target. The launcher then reloads. Humans get a
   bolder, longer guide, a pulsing ring on the loaded launcher, brackets around the gates and crates the full path would
-  cross, and a `PRESS Q` badge over their castle for the first seconds of a round
+  cross, and a `PRESS SPACE` badge over their castle for the first seconds of a round
   ([screenshot](images/aim-readability.png)).
 - **Volleys.** A stream of rockets (one per "unit", start with ~5) released in quick succession with slight spread.
 - **Multiplier gates.** A rocket that passes through a gate splits into that many rockets (once per gate per lineage).

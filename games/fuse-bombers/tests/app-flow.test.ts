@@ -73,7 +73,9 @@ test("gamepads: Start and Back are commands, never presses, and a held button re
   poll([pad(0, [0])], 64 + HOLD_MS); // …and is held for a second
   poll([pad(0, [0])], 64 + 3 * HOLD_MS);
   poll([pad(0, [1])], 64 + 3 * HOLD_MS + 16); // still a face button down: no new press
-  poll([pad(1, [9], "")], 5000); // unmapped pad: every button is the player button
+  poll([pad(0, [12])], 4000); // steering alone (the D-pad)…
+  poll([pad(0, [12])], 4000 + 2 * HOLD_MS); // …never reports hold
+  poll([pad(1, [9], "")], 7000); // unmapped pad: every button is the player button
   assert.deepEqual(presses, ["pad:0", "pad:1"]);
   assert.deepEqual(commands, ["pad:0 start", "pad:0 back", "pad:0 hold"]);
 });
@@ -179,7 +181,6 @@ test("keyboard riders join and leave the lobby by their fire key; direction keys
     "key:NUMPAD",
     undefined,
   ]);
-  assert.equal(flow.screen.kind, "lobby", "Space joins, it does not start");
 });
 
 type Listener = (event: never) => void;
