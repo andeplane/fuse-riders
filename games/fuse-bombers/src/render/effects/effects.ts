@@ -8,7 +8,6 @@ import {
   type RoundView,
   type TickEvent,
 } from "../../engine/index.js";
-import * as art from "../art.js";
 import { css, gateColor, playerColor, THEMES } from "../palette.js";
 import {
   DEPTH,
@@ -41,7 +40,8 @@ const CELL = 20;
 const COLS = Math.ceil(WORLD_WIDTH / CELL);
 const INK = 0x1b1d26;
 const DIRT = [0x8a5a37, 0x6b4428, 0xb07a4c, 0x5d3b24];
-const STONE = [0xdfe2e8, 0xaeb4c2, 0xc8ccd6, 0x3a2a22];
+/** Gondola metal and rigging, for a gunship's debris. */
+const HULL = [0x4a5160, 0x8a93a3, 0x2f343f, 0x9aa2b3];
 const WOOD = [0xb5773a, 0x8a5424, 0xd9a05b];
 const SHIELD = [0x9ff3ff, 0xffffff, 0x5fd8ff];
 
@@ -101,9 +101,9 @@ const growing = (size: () => number, growth: number) => ({
 });
 
 /**
- * Juice on top of the round: smoke trails behind rockets, crater and castle-hit explosions with dirt and brick
+ * Juice on top of the round: smoke trails behind rockets, crater and gunship-hit explosions with dirt and hull
  * debris, floating damage numbers, shield ripples, gate flashes with "×N" pops, crate bursts with the card flying
- * home, a mega explosion for a destroyed castle, and screen shake (off with `?calm` or reduced motion). It only
+ * home, a mega explosion for a destroyed gunship, and screen shake (off with `?calm` or reduced motion). It only
  * listens to the scene's `ROUND_START` / `ROUND_EVENTS` and cleans up on shutdown.
  */
 export class Effects {
@@ -131,21 +131,15 @@ export class Effects {
   private debrisSpeed = 300;
   private debrisTints: readonly number[] = DIRT;
   private dirt: readonly number[] = DIRT;
-  /** The world camera's resting framing; shake moves around it. */
-  private readonly framing: Frame;
-  /** Text grows by this so damage numbers keep their screen size when the world is zoomed out. */
-  private readonly textScale: number;
+  /** The world camera's framing this frame (it moves and zooms); shake moves around it. */
+  private readonly framing: () => Frame;
 
   constructor(
     private readonly scene: Phaser.Scene,
-    options: { calm?: boolean; frame?: Frame } = {},
+    options: { calm?: boolean; frame?: () => Frame } = {},
   ) {
-    this.framing = options.frame ?? {
-      zoom: 1,
-      x: VIEW_WIDTH / 2,
-      y: VIEW_HEIGHT / 2,
-    };
-    this.textScale = 1 / this.framing.zoom;
+    const still = { zoom: 1, x: VIEW_WIDTH / 2, y: VIEW_HEIGHT / 2 };
+    this.framing = options.frame ?? (() => still);
     const query = new URLSearchParams(window.location.search);
     this.calm =
       options.calm ??
@@ -232,9 +226,13 @@ export class Effects {
     this.gateTimes.clear();
     this.shieldTimes.clear();
     this.trauma = 0;
-    this.scene.cameras.main
-      ?.setZoom(this.framing.zoom)
-      .centerOn(this.framing.x, this.framing.y);
+    const { zoom, x, y } = this.framing();
+    this.scene.cameras.main?.setZoom(zoom).centerOn(x, y);
+  }
+
+  /** Text grows by this so damage numbers keep their screen size however far the world is zoomed out. */
+  private get textScale(): number {
+    return 1 / this.framing().zoom;
   }
 
   private frame(events: readonly TickEvent[], view: RoundView): void {
@@ -430,7 +428,7 @@ export class Effects {
     if (h.hull > 0) {
       this.boom(x, y, 1.2 * k, 170 * k, Math.min(10, 4 + h.n));
       const roof = playerColor(id);
-      this.chunks(x, y, [...STONE, roof, roof], 380, Math.min(10, 4 + h.n));
+      this.chunks(x, y, [...HULL, roof, roof], 380, Math.min(10, 4 + h.n));
     }
     if (h.shield > 0 && c) {
       const last = this.shieldTimes.get(id) ?? -1e9;
@@ -443,7 +441,9 @@ export class Effects {
       this.chunks(x, y, SHIELD, 200, Math.min(8, 2 + h.n));
     }
     this.shake(Math.min(0.35, (h.hull + h.shield * 0.5) / 80));
-    if (c) this.tally(id, c.x, c.y, h.hull + h.shield, h.hull === 0);
+    if (!c) return;
+    const pivot = launcherPivot(c, view.tuning);
+    this.tally(id, pivot.x, pivot.y, h.hull + h.shield, h.hull === 0);
   }
 
   private tally(
@@ -456,13 +456,10 @@ export class Effects {
     const prev = this.tallies.get(id);
     const hit = addHit(prev, this.now, damage);
     let t = prev;
+    // Over the health bar above the launcher pivot (x, y), the same screen distance at any zoom.
+    const top = y - 56 * this.textScale;
+    const left = Phaser.Math.Clamp(x, 110, WORLD_WIDTH - 110);
     if (!t || hit.fresh) {
-      const top = y - art.HULL_TOP - 40 * this.textScale;
-      const left = Phaser.Math.Clamp(
-        x + rand(-18, 18) * this.textScale,
-        110,
-        WORLD_WIDTH - 110,
-      );
       const fx = this.show(this.text(), left, top, {
         life: 1100,
         grow: 140,
@@ -476,9 +473,10 @@ export class Effects {
     // Hull damage turns a shield-only tally red.
     if (!shield) text.setColor("#ff5a4a");
     if (hit.changed) text.setText(`-${hit.shown}`);
-    // A hit pops the number again and keeps it on screen. Resetting the age also puts it back on its anchor above
-    // the castle (see `driftY`), so it only rises away once the hits stop.
-    Object.assign(t.fx, { age: 0, s0: hit.s0, s1: hit.s1 });
+    // A hit pops the number again and keeps it on screen. It moves to the gunship's new anchor (it flies), and
+    // resetting the age puts it there (see `driftY`), so it only rises away once the hits stop.
+    Object.assign(t.fx, { age: 0, s0: hit.s0, s1: hit.s1, y0: top });
+    text.setX(left);
   }
 
   private gateSplit(
@@ -552,7 +550,7 @@ export class Effects {
   private castleDestroyed(id: number, x: number, cy: number): void {
     this.boom(x, cy, 2.4, 380, 45);
     const roof = playerColor(id);
-    this.chunks(x, cy, [...STONE, roof, roof, INK], 650, 40);
+    this.chunks(x, cy, [...HULL, roof, roof, INK], 650, 40);
     this.puffSize = 2;
     this.smoke.emitParticleAt(x, cy, 14);
     this.ring(x, cy, 0xfff0a0, 0.5, 7, 450, 1);
@@ -591,7 +589,7 @@ export class Effects {
   private flash(tint: number, alpha: number): void {
     // Full-screen flashes count as motion: `?calm` and reduced motion skip them.
     if (this.calm) return;
-    const { x, y, zoom } = this.framing;
+    const { x, y, zoom } = this.framing();
     const fx = this.show(this.image("fx-px"), x, y, {
       life: 320,
       a0: alpha,
@@ -673,7 +671,8 @@ export class Effects {
       const fade = t < fx.hold ? 1 : 1 - (t - fx.hold) / (1 - fx.hold);
       const obj = fx.obj;
       obj.setAlpha(fx.a0 * fade);
-      if (fx.s0 !== fx.s1)
+      // Text follows the zoom as it changes (`scaleOf`), even at a steady scale.
+      if (fx.s0 !== fx.s1 || obj instanceof Phaser.GameObjects.Text)
         obj.setScale(
           (fx.s0 + (fx.s1 - fx.s0) * (1 - (1 - g) ** 2)) * this.scaleOf(obj),
         );
@@ -697,17 +696,18 @@ export class Effects {
   }
 
   /**
-   * Trauma-style shake: offsets grow with trauma², with a matching zoom so the edges never show. The scene calls this
-   * once a frame before it draws anything that projects through the camera (the HUD), so the HUD and the world are
-   * drawn through the same shaken camera; this frame's explosions add their trauma for the next call.
+   * Puts the world camera on this frame's framing, shaken: trauma-style offsets grow with trauma², with a matching
+   * zoom so the edges never show (no shake with `?calm`). The scene calls this once a frame before it draws anything
+   * that projects through the camera (the HUD), so the HUD and the world are drawn through the same camera; this
+   * frame's explosions add their trauma for the next call.
    */
   applyShake(): void {
     const cam = this.scene.cameras.main;
     this.trauma = Math.max(0, this.trauma - this.scene.game.loop.delta / 700);
-    if (this.calm || !cam) return;
-    const k = this.trauma * this.trauma;
+    if (!cam) return;
+    const k = this.calm ? 0 : this.trauma * this.trauma;
     const t = this.now / 1000;
-    const { zoom, x, y } = this.framing;
+    const { zoom, x, y } = this.framing();
     const px = (SHAKE_PX * k) / zoom;
     cam.setZoom(zoom * (1 + k * 0.03));
     cam.centerOn(
