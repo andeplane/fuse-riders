@@ -1,0 +1,301 @@
+/* The match flow's overlay screens. `#screen` covers exactly the game canvas (16:9, centred like Phaser's FIT),
+ * and every size is in `cqw` (1cqw = 16 arena pixels), so the menus scale with the arena. */
+#screen {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(100vw, 177.78vh);
+  aspect-ratio: 16 / 9;
+  container-type: size;
+  z-index: var(--fui-z-overlay);
+  pointer-events: none;
+  font-size: 1cqw;
+  line-height: 1.5;
+}
+#screen button {
+  font: inherit;
+  font-size: 0.9cqw;
+  color: var(--fui-text);
+  background: var(--fui-button-fill);
+  border: 0.12cqw solid var(--fui-line);
+  border-radius: 0.5cqw;
+  padding: 0.6cqw 1cqw;
+  cursor: pointer;
+}
+#screen button:hover {
+  border-color: var(--fui-cyan);
+}
+#screen button.start {
+  font-size: 1.5cqw;
+  padding: 1cqw 3cqw;
+  color: var(--fui-ink);
+  background: var(--fui-cyan-fill);
+  border-color: var(--fui-cyan);
+  box-shadow: var(--fui-glow-cyan);
+}
+kbd {
+  font: inherit;
+  font-size: 0.6em;
+  padding: 0.2em 0.4em;
+  border: 0.08cqw solid;
+  opacity: 0.75;
+}
+
+/* Centred panels; results, winner and pause dim the arena around them. */
+.panel {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2cqw;
+  padding: 2cqw 3cqw;
+  background: #050e25;
+  border: 0.15cqw solid var(--fui-cyan);
+  border-radius: 1.2cqw;
+  box-shadow:
+    var(--fui-glow-cyan),
+    0 0 0 100cqw rgba(2, 7, 21, 0.35);
+  text-align: center;
+}
+.panel h1,
+.panel h2 {
+  margin: 0;
+  font-size: 2.2cqw;
+  color: var(--fui-yellow);
+  text-shadow: 0.25cqw 0.25cqw 0 var(--fui-pink);
+}
+.panel h1 {
+  font-size: 4cqw;
+}
+.panel p {
+  margin: 0;
+  font-size: 0.7cqw;
+  color: var(--fui-text-dim);
+}
+.panel .row {
+  display: flex;
+  gap: 1.5cqw;
+}
+
+/* Lobby: the attract round shows through. */
+#screen .lobby {
+  width: 86cqw;
+  background: rgba(5, 14, 37, 0.86);
+  box-shadow: var(--fui-glow-cyan);
+}
+.lobby p.join {
+  font-size: 1cqw;
+  color: var(--fui-cyan);
+  animation: blink 1.4s steps(2) infinite;
+}
+.slots {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 1cqw;
+  width: 100%;
+}
+.slot {
+  --c: var(--fui-line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6cqw;
+  padding: 1cqw 0.6cqw;
+  border: 0.2cqw solid var(--c);
+  border-radius: 0.9cqw;
+  background: var(--fui-surface);
+}
+.slot .castle {
+  width: 80%;
+  aspect-ratio: 5 / 4;
+}
+.slot b {
+  font-size: 1.2cqw;
+  color: var(--c);
+}
+.slot small {
+  font-size: 0.55cqw;
+  color: var(--fui-text-dim);
+}
+.slot .key {
+  font-size: 1.3cqw;
+  padding: 0.35cqw 0.7cqw;
+  color: var(--fui-ink);
+  background: var(--fui-text);
+  border-radius: 0.4cqw;
+  box-shadow: 0 0.25cqw 0 var(--fui-text-dim);
+}
+.slot.human {
+  background: color-mix(in srgb, var(--c) 28%, #081327);
+  box-shadow: 0 0 1.5cqw var(--c);
+}
+#screen .slot button.level {
+  font-size: 0.65cqw;
+  padding: 0.45cqw 0.6cqw;
+}
+.slot.next {
+  border-style: dashed;
+}
+.slot.next small {
+  color: var(--fui-yellow);
+  animation: blink 1s steps(2) infinite;
+}
+#screen .slot.off {
+  opacity: 0.4;
+  border-style: dashed;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.settings,
+.stepper {
+  display: flex;
+  gap: 2.5cqw;
+  align-items: center;
+}
+.stepper {
+  gap: 0.6cqw;
+  font-size: 0.75cqw;
+  color: var(--fui-text-muted);
+}
+.stepper b {
+  min-width: 2cqw;
+  font-size: 1.4cqw;
+  color: var(--fui-yellow);
+}
+
+/* In-round badges */
+.hud {
+  position: absolute;
+  inset: auto 0 0.8cqw;
+  display: flex;
+  justify-content: center;
+  gap: 0.8cqw;
+}
+.badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5cqw;
+  padding: 0.4cqw 0.8cqw;
+  font-size: 0.75cqw;
+  color: var(--c);
+  background: rgba(3, 9, 25, 0.78);
+  border: 0.12cqw solid var(--c);
+  border-radius: 0.6cqw;
+}
+.badge small,
+.scores small {
+  font-size: 0.55cqw;
+  color: var(--fui-text-muted);
+}
+.badge.out {
+  opacity: 0.4;
+}
+/* The bots finish a round without the humans at up to double speed. */
+.badge.fast-forward {
+  --c: var(--fui-yellow);
+  font-size: 0.9cqw;
+  animation: blink 1.2s ease-in-out infinite;
+}
+.pips {
+  display: inline-flex;
+  gap: 0.25cqw;
+}
+.pips i {
+  width: 0.65cqw;
+  height: 0.65cqw;
+  border: 0.1cqw solid var(--c);
+  transform: rotate(45deg);
+}
+.pips i.on {
+  background: var(--c);
+  box-shadow: 0 0 0.5cqw var(--c);
+}
+.countdown {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12cqw;
+  color: var(--fui-yellow);
+  text-shadow: 0.5cqw 0.5cqw 0 var(--fui-pink);
+  animation: pop 0.35s ease-out;
+}
+
+/* Results and winner */
+.scores {
+  width: 100%;
+  min-width: 50cqw;
+  border-collapse: collapse;
+}
+.scores th {
+  font-size: 0.6cqw;
+  font-weight: normal;
+  color: var(--fui-text-dim);
+}
+.scores td {
+  padding: 0.35cqw 0.8cqw;
+  border-top: 0.08cqw solid var(--fui-line);
+}
+.scores .castle {
+  width: 3.5cqw;
+}
+.scores td.name {
+  color: var(--c);
+  text-align: left;
+}
+.castle svg {
+  display: block;
+  width: 100%;
+}
+
+/* Touch zones take the bottom quarter of the screen: lift the lobby and move the badges to the top. */
+#screen[data-touch] .lobby {
+  top: 37%;
+  transform: translate(-50%, -50%) scale(0.8);
+}
+#screen[data-touch] .hud {
+  bottom: auto;
+  top: 5.8cqw;
+}
+/* Touch players pause with a corner button (keyboards have Esc, pads Start). */
+#screen button.pause {
+  position: absolute;
+  top: 2.6cqw; /* Below the fuse and its bomb. */
+  right: 0.8cqw;
+  pointer-events: auto;
+  font-size: 1.4cqw;
+  padding: 1cqw 1.4cqw;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes pop {
+  from {
+    transform: scale(1.3);
+    opacity: 0;
+  }
+}
+
+/* The app portal to the other Fuse games, top left in the lobby; quit to the lobby to reach it from a match. */
+.portal-corner {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: max(8px, env(safe-area-inset-left));
+  z-index: var(--fui-z-menu);
+}
+#screen:not([data-screen="lobby"]) ~ .portal-corner {
+  display: none;
+}
+
+/* The sound toggle is for the lobby and menus; mid-round the HUD owns the bottom edge (pause to reach it). */
+#screen[data-screen="countdown"] ~ .audio-toggle,
+#screen[data-screen="playing"] ~ .audio-toggle {
+  display: none;
+}
