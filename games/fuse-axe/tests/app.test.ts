@@ -45,9 +45,15 @@ import {
 } from "../src/online/game.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
 
-const host: Viewer = { me: "a", host: true, solo: false, display: false };
-const guest: Viewer = { me: "b", host: false, solo: false, display: false };
-const tv: Viewer = { me: "tv", host: false, solo: false, display: true };
+const host: Viewer = {
+  me: "a",
+  host: true,
+  solo: false,
+  display: false,
+  touch: false,
+};
+const guest: Viewer = { ...host, me: "b", host: false };
+const tv: Viewer = { ...host, me: "tv", host: false, display: true };
 
 const seat = (
   id: string,
@@ -292,6 +298,129 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
   assert.equal(theirs.rows[0]!.name, "P1", "a seat that left shows its tag");
   assert.equal(present(lost, tv).card!.canRematch, false);
   assert.equal(present(frame("lobby"), host).card, null);
+});
+
+test("a shared screen: the host switches it on in the lobby, the TV shows the game and its QR code, each seat's page is a controller", () => {
+  const shared = { ...DEFAULT_SETTINGS, display: true };
+  // The lobby: the host's switch and TV link, and what the TV and the phones are told.
+  const lobby = present(frame("lobby"), host);
+  assert.deepEqual(
+    [lobby.shared, lobby.canShare, lobby.showTv, lobby.note],
+    [false, true, false, "Pick your hero, then START"],
+  );
+  const lobbyShared = frame("lobby", { settings: shared });
+  const hostShared = present(lobbyShared, host);
+  assert.deepEqual(
+    [hostShared.shared, hostShared.canShare, hostShared.showTv],
+    [true, true, true],
+  );
+  assert.equal(
+    hostShared.note,
+    "Open the TV screen, pick your hero, then START",
+  );
+  for (const [who, viewer] of [
+    ["a guest", guest],
+    ["the TV", tv],
+    ["solo", { ...host, solo: true }],
+  ] as const) {
+    const theirs = present(lobbyShared, viewer);
+    assert.ok(!theirs.canShare && !theirs.showTv, who);
+  }
+  assert.equal(
+    present(lobbyShared, guest).screen,
+    "lobby",
+    "a phone picks its hero in the lobby",
+  );
+  assert.ok(present(lobbyShared, guest).canPick);
+  assert.equal(
+    present(lobbyShared, tv).note,
+    "Join on your phone; the host starts the run",
+  );
+  assert.equal(
+    present(view(createRoom("m1", shared)), tv).note,
+    "Scan the code to join on your phone",
+  );
+  assert.ok(!present(lobbyShared, tv).invite, "the lobby has its own invite");
+  // In a run: the TV draws the game with the QR code; every seat, the host's too, is a controller with no canvas.
+  const running = frame("running", { settings: shared });
+  const screen = present(running, tv);
+  assert.deepEqual(
+    [screen.screen, screen.invite, screen.pads, screen.controller],
+    ["play", true, false, null],
+  );
+  assert.deepEqual(screen.hud.you, null, "the TV plays no seat");
+  const mine = present(running, host);
+  assert.deepEqual(
+    [mine.screen, mine.pads, mine.playing, mine.canShare, mine.invite],
+    ["controller", true, true, false, false],
+  );
+  assert.deepEqual(mine.controller, {
+    title: "P1 · A",
+    color: SEAT_COLORS[0],
+    hero: "rhea",
+  });
+  assert.deepEqual(present(running, guest).controller, {
+    title: "P2 · B",
+    color: SEAT_COLORS[1],
+    hero: "gorm",
+  });
+  assert.equal(mine.phone, false, "a laptop's controller keeps its header");
+  assert.equal(present(running, { ...host, touch: true }).phone, true);
+  // A controller stays one between stages and at the run's end, where the card shows on it.
+  const tally = [{ seat: 0, kind: "rhea" as const, damage: 1, knockdowns: 0 }];
+  for (const stage of ["between", "over"] as const) {
+    const later = present(
+      frame(stage, { settings: shared, until: 10, tally }),
+      guest,
+    );
+    assert.deepEqual([later.screen, later.pads], ["controller", true], stage);
+    assert.ok(later.card, stage);
+  }
+  // A seat that joins mid-run holds a controller too; a watcher and a stranger see the game.
+  const late = frame("running", {
+    settings: shared,
+    seats: new Map([seat("a", 0, "rhea"), seat("c", 2, "brakka")]),
+  });
+  const joining = present(late, { ...guest, me: "c" });
+  assert.deepEqual(
+    [joining.screen, joining.playing, joining.note],
+    ["controller", false, "You join the next run"],
+  );
+  assert.equal(present(running, { ...guest, me: "w" }).screen, "play");
+  assert.equal(present(running, { ...guest, me: "zed" }).screen, "play");
+});
+
+test("touch screens: the pads over the game while this device's hero fights, and the continue hint names the button", () => {
+  const phone = { ...host, touch: true };
+  const running = present(frame("running"), phone);
+  assert.deepEqual(
+    [running.screen, running.pads, running.phone, running.controller],
+    ["play", true, true, null],
+  );
+  assert.deepEqual(
+    [
+      present(frame("running"), host).pads,
+      present(frame("running"), host).phone,
+    ],
+    [false, false],
+    "a keyboard needs no pads",
+  );
+  for (const [who, model] of [
+    ["the lobby", present(frame("lobby"), phone)],
+    ["between stages", present(frame("between", { until: 10 }), phone)],
+    ["the run's end", present(frame("over"), phone)],
+    ["a watcher", present(frame("running"), { ...phone, me: "w" })],
+    ["the TV", present(frame("running"), { ...tv, touch: true })],
+  ] as const)
+    assert.deepEqual([model.pads, model.phone], [false, false], who);
+  const tally = [{ seat: 0, kind: "rhea" as const, damage: 1, knockdowns: 0 }];
+  const out = frame("running", { until: 100, tally });
+  assert.equal(present(out, phone).card!.hint, TEXT.tapAttack);
+  assert.equal(present(out, host).card!.hint, TEXT.pressAttack);
+  assert.equal(
+    present(out, { ...tv, touch: true }).card!.hint,
+    TEXT.waitHeroes,
+  );
 });
 
 test("the cards follow the game: the clocks in the game's log ticks, a name for every stage, the real key in the hint", () => {

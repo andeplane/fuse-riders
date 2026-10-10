@@ -11,15 +11,25 @@ every game). **PLAY SOLO** opens the hero picker; **CREATE ROOM** makes a room t
 where everyone picks a hero (duplicates are allowed) and the host presses **START**. The heroes walk, jump and swing
 through Stage 1's waves of ravagers in the pixel-art scene under the HUD. Clearing the stage shows each hero's
 tally, then the run's victory; when every hero is out, any hero may press Attack within ten seconds to continue once,
-or the run is over. The host sets out again with **REMATCH** or goes back to the lobby. Phone pads and the shared
-screen follow.
+or the run is over. The host sets out again with **REMATCH** or goes back to the lobby. Gamepads follow.
 
-| Keys          | Does                                |
-| ------------- | ----------------------------------- |
-| Arrows / WASD | Walk the road, up and down in depth |
-| J / Z         | Attack                              |
-| K / X         | Jump                                |
-| L / C         | Magic                               |
+| Keys          | Phone pads                       | Does                                |
+| ------------- | -------------------------------- | ----------------------------------- |
+| Arrows / WASD | 8-way d-pad (slide for diagonal) | Walk the road, up and down in depth |
+| J / Z         | ATTACK                           | Attack                              |
+| K / X         | JUMP                             | Jump                                |
+| L / C         | MAGIC                            | Magic                               |
+
+On a touch screen the pads (`src/app/pad.ts`) sit over the game's corners while your hero fights; a thumb slides
+round the d-pad for the diagonals, and a double tap of left or right (a second tap, or a slide back through the
+centre and out again) is the same press, release, press as the keys. A **shared screen** is the host's switch in the
+lobby: **OPEN TV SCREEN** opens the room's `?room=CODE&display=1` page, which shows the game as large as it scales,
+with the room's QR code in its header; everyone joins on a phone, picks a hero in the lobby, and once the run starts
+the phone shows only its controller, in its seat's colour. Losing focus, hiding the page or a cancelled touch lets go
+of every pad.
+
+![The shared screen: the game on the TV, with the room's QR code](docs/images/app-shared-tv.png)
+![A phone as its controller (Playwright's Pixel 7 emulation, landscape)](docs/images/app-phone-controller.png)
 
 ```sh
 pnpm build && pnpm exec tsx service/dev.ts   # then open http://localhost:8787/fuse-axe/?mute

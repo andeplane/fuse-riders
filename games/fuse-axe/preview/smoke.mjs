@@ -10,10 +10,15 @@
  *    it, the host starts, the guest walks and both pages draw its hero in the same place. Every page's HUD frames the
  *    three heroes in their seats' colours, an empty seat blinks JOIN, the canvas names the party in words, and the
  *    party walks on into the first wave's fight.
- * 4. A well-formed code for a room that does not exist shows the closed-room card.
- * Run by hand; not in CI. Screenshots go to the directory given, and nowhere else. Every page opens muted.
+ * 4. A shared screen: the host switches it on in the lobby, a TV page joins with `display=1` and an emulated phone
+ *    (Playwright's Pixel 7, landscape) picks Gorm; once the run starts the TV draws the game with its QR code, the
+ *    phone shows only its controller, and a touch on the d-pad's right walks Gorm on the TV.
+ * 5. Solo on the emulated phone: the pads sit over the game, and a touch on the d-pad walks the hero.
+ * 6. A well-formed code for a room that does not exist shows the closed-room card.
+ * Run by hand; not in CI. Screenshots go to the directory given, and nowhere else. Every page opens muted. Browser
+ * emulation is not a physical phone.
  */
-import { chromium } from "playwright";
+import { chromium, devices } from "playwright";
 import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -32,10 +37,12 @@ const browser = await chromium.launch({
   headless: true,
 });
 const errors = [];
-const open = async (path) => {
-  const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 },
-  });
+const PHONE = devices["Pixel 7 landscape"];
+const open = async (
+  path,
+  options = { viewport: { width: 1280, height: 800 } },
+) => {
+  const context = await browser.newContext(options);
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
@@ -178,6 +185,29 @@ const hold = async (page, key, ms) => {
   await page.keyboard.down(key);
   await page.waitForTimeout(ms);
   await page.keyboard.up(key);
+};
+/**
+ * A thumb on the right edge of the d-pad for `ms`, as real touch events (CDP), then `during(page)` before it lifts;
+ * the d-pad must light its right arrow.
+ */
+const thumbRight = async (page, ms, during = async () => {}) => {
+  const pad = await page.locator(".fa-dpad:visible").boundingBox(),
+    cdp = await page.context().newCDPSession(page);
+  const at = { x: pad.x + pad.width * 0.9, y: pad.y + pad.height / 2 };
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [at],
+  });
+  await page.waitForTimeout(ms);
+  assert.equal(
+    await page.locator(".fa-dpad:visible").getAttribute("data-dir"),
+    "right",
+  );
+  await during(page);
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
 };
 
 try {
@@ -324,6 +354,78 @@ try {
   await snap(host, "online-fight-swing");
   console.log("online: every page's HUD frames P1–P3, through a fight");
   for (const page of [host, guest, third]) await page.context().close();
+
+  // ---- a shared screen: the TV draws the game, an emulated phone is the controller ----
+  const lead = await open("fuse-axe/?mute");
+  await lead.getByRole("button", { name: "CREATE ROOM" }).click();
+  await lead.waitForURL(/room=[A-Z0-9]+/);
+  const shared = new URL(lead.url()).searchParams.get("room");
+  await enter(lead, "Host");
+  await lead.locator(".fa-share input").check();
+  await lead.getByRole("button", { name: "OPEN TV SCREEN" }).waitFor();
+  const tv = await open(`fuse-axe/?room=${shared}&display=1&mute`, {
+    viewport: { width: 1280, height: 720 },
+  });
+  const phone = await open(`fuse-axe/?room=${shared}&mute`, PHONE);
+  await enter(phone, "Phone");
+  await phone.locator('main[data-hero="brakka"]').waitFor({ timeout: 15_000 });
+  await phone.locator('[data-hero="gorm"]').click();
+  await tv
+    .locator(".fui-roster-row", { hasText: "P2 · GORM" })
+    .waitFor({ timeout: 15_000 });
+  await lead.getByRole("button", { name: "START" }).click();
+  await tv.locator('main[data-screen="play"]').waitFor({ timeout: 20_000 });
+  for (const page of [lead, phone])
+    await page
+      .locator('main[data-screen="controller"]')
+      .waitFor({ timeout: 20_000 });
+  assert.ok(await tv.locator(".fa-tv-qr").isVisible(), "the TV's QR code");
+  assert.equal(await phone.locator(".fa-canvas").isVisible(), false);
+  assert.match(
+    await phone.locator(".fa-controller-head").textContent(),
+    /P2 · Phone.*GORM/,
+  );
+  await tv.waitForTimeout(800);
+  const parked = await hero(tv, P2);
+  await thumbRight(phone, 800, async (page) => {
+    if (shots)
+      await page.screenshot({
+        path: join(shots, "shared-phone.png"),
+        scale: "css",
+      });
+  });
+  await tv.waitForTimeout(600);
+  const moved = await hero(tv, P2);
+  assert.ok(
+    moved.x > parked.x + 15,
+    `the phone's d-pad walks P2 on the TV: ${parked.x} → ${moved.x}`,
+  );
+  await snap(tv, "shared-tv");
+  console.log(
+    `shared screen ${shared}: the phone's d-pad walked Gorm from x ${parked.x} to ${moved.x} on the TV`,
+  );
+  for (const page of [lead, tv, phone]) await page.context().close();
+
+  // ---- solo on the emulated phone: the pads over the game ----
+  const thumb = await open("fuse-axe/?solo=1&mute", PHONE);
+  await thumb.locator('main[data-screen="lobby"]').waitFor({ timeout: 15_000 });
+  await thumb.getByRole("button", { name: "START" }).click();
+  await thumb.locator(".fa-touch .fa-dpad").waitFor({ timeout: 10_000 });
+  await thumb.waitForTimeout(500);
+  const resting = await hero(thumb, P1);
+  await thumbRight(thumb, 700);
+  const stepped = await hero(thumb, P1);
+  assert.ok(
+    stepped.x > resting.x + 10,
+    `the pad walks: ${resting.x} → ${stepped.x}`,
+  );
+  if (shots)
+    await thumb.screenshot({
+      path: join(shots, "solo-phone.png"),
+      scale: "css",
+    });
+  console.log(`solo phone: the d-pad walked ${stepped.x - resting.x}px`);
+  await thumb.context().close();
 
   // ---- a room that does not exist ----
   const nowhere = await open("fuse-axe/?room=ZZ99&mute");
