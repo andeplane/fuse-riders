@@ -237,12 +237,20 @@ function script(seed: number, steps: number): number[][] {
   return rows;
 }
 
-/** A crowd of ravagers just ahead of the heroes, across the floor, so random play fights. */
+/**
+ * A crowd of ravagers just ahead of the heroes, across the floor, so random play fights. Every fourth is frail, so
+ * that a brawl fells some (a full-health crowd of three heroes' ravagers outlasts it) and the fallen blink out.
+ */
 function crowd(world: World): World {
   for (let x = 72; x <= 132; x += 12)
     for (let y = 112; y <= 168; y += 8)
       world = spawnEnemy(world, "ravager", px(x), px(y));
-  return world;
+  return {
+    ...world,
+    enemies: world.enemies.map((e, index) =>
+      index % 4 === 0 ? { ...e, hp: 10 } : e,
+    ),
+  };
 }
 /** Seat 0 mashes Attack (two steps held, two released) while its directions and Jump stay random: whole combos. */
 const mashing = (rows: number[][]): number[][] =>
@@ -281,11 +289,11 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
     b = play();
   assert.equal(seedOf(JSON.stringify(a)), seedOf(JSON.stringify(b)));
   assert.deepEqual([...seen].sort(), [...HERO_STATES].sort());
-  // Three heroes' ravagers outlast this brawl's blows (combat.test.ts fells them), so none is seen dead.
-  assert.deepEqual(
-    [...foes].sort(),
-    ENEMY_STATES.filter((state) => state !== "dead").sort(),
+  assert.deepEqual([...foes].sort(), [...ENEMY_STATES].sort());
+  const fallen = start().enemies.filter(
+    (e) => !a.enemies.some((left) => left.id === e.id),
   );
+  assert.ok(fallen.length > 0, "the fallen are gone");
   assert.deepEqual([a.wave, a.locked], [1, true]);
   const before = JSON.stringify(a);
   const tick = stepTick(a, [JUMP, 0, RIGHT]);
