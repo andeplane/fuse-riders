@@ -1,5 +1,19 @@
-import { ENEMY_HP, SUB, type EnemyKind, type HeroKind } from "./tuning.js";
-import type { EnemyState, FxKind, HeroState, World } from "./world.js";
+import { STAGE_1 } from "./stages.js";
+import {
+  SUB,
+  enemyMaxHp,
+  type EnemyKind,
+  type HeroKind,
+  type Tier,
+} from "./tuning.js";
+import {
+  showsGo,
+  stageCleared,
+  type EnemyState,
+  type FxKind,
+  type HeroState,
+  type World,
+} from "./world.js";
 
 /**
  * What the renderer sees of the world: positions in whole pixels (`x` along the road, `y` the depth that is also
@@ -7,10 +21,11 @@ import type { EnemyState, FxKind, HeroState, World } from "./world.js";
  * is `(x − camX, y − z)` and its shadow sits at `(x − camX, y)`. Each value is floored once on its own, so every
  * sprite shares the same whole-pixel camera offset as the backdrop and none shimmers against it.
  */
-export type { EnemyKind, HeroKind } from "./tuning.js";
+export type { EnemyKind, HeroKind, Tier } from "./tuning.js";
 export type { FxKind } from "./world.js";
 /** `attack1` and `attack2` are the slashes, `attack3` the finisher. */
 export type HeroAnim = HeroState;
+/** `enter` is a wave's enemy walking in from the screen's edge (or back in to a locked screen): walk frames. */
 export type EnemyAnim = EnemyState;
 
 export interface HeroView {
@@ -29,6 +44,8 @@ export interface HeroView {
 export interface EnemyView {
   id: number;
   kind: EnemyKind;
+  /** The palette: 0 ash, 1 rust, 2 violet. */
+  tier: Tier;
   x: number;
   y: number;
   z: number;
@@ -57,6 +74,15 @@ export interface WorldView {
   heroes: HeroView[];
   enemies: EnemyView[];
   fx: FxView[];
+  /** The wave begun latest, from 1 (0 before the first), of `waves` in the stage. */
+  wave: number;
+  waves: number;
+  /** A wave is being fought and the screen holds still until it is cleared. */
+  locked: boolean;
+  /** Flash "GO →": a wave was just cleared and the road ahead is open. */
+  go: boolean;
+  /** The stage's last wave is cleared. */
+  cleared: boolean;
 }
 
 const whole = (value: number) => Math.floor(value / SUB);
@@ -79,6 +105,7 @@ export function toView(world: World): WorldView {
     enemies: world.enemies.map((enemy) => ({
       id: enemy.id,
       kind: enemy.kind,
+      tier: enemy.tier,
       x: whole(enemy.x),
       y: whole(enemy.y),
       z: whole(enemy.z),
@@ -86,7 +113,7 @@ export function toView(world: World): WorldView {
       anim: enemy.state,
       animStep: enemy.timer,
       hp: enemy.hp,
-      maxHp: ENEMY_HP[enemy.kind],
+      maxHp: enemyMaxHp(enemy.kind, enemy.tier, world.heroes.length),
       flash: world.step <= enemy.stopUntil,
     })),
     fx: world.fx.map((fx) => ({
@@ -96,5 +123,10 @@ export function toView(world: World): WorldView {
       z: whole(fx.z),
       age: world.step - fx.born,
     })),
+    wave: world.wave,
+    waves: STAGE_1.waves.length,
+    locked: world.locked,
+    go: showsGo(world),
+    cleared: stageCleared(world),
   };
 }

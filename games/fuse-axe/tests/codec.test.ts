@@ -16,14 +16,18 @@ import {
 import {
   BUFFER_STEPS,
   CAMERA_END,
-  ENEMY_HP,
   ENEMY_MAX,
   FX_LIFE,
   FX_MAX,
   HEAVY_HITSTOP,
   STAGE_LENGTH,
+  enemyMaxHp,
   px,
 } from "../src/engine/tuning.js";
+
+/** A rust ravager's full hit points against two heroes, and an ash one's. */
+const RUST = enemyMaxHp("ravager", 1, 2),
+  ASH = enemyMaxHp("ravager", 0, 2);
 
 /** Three heroes well down the road: two walking, one in the air, the camera moved on. */
 function busy(): World {
@@ -189,7 +193,11 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
   for (const [what, change] of [
     ["an Attack just buffered", (f) => (hero(f)[13] = BUFFER_STEPS)],
     ["a knockdown's hit-stop", (f) => (hero(f)[15] = now + HEAVY_HITSTOP)],
-    ["an enemy at full health", (f) => (enemy(f)[8] = ENEMY_HP.ravager)],
+    ["an enemy at full health", (f) => (enemy(f)[8] = ASH)],
+    [
+      "a rust enemy at its full health",
+      (f) => ((enemy(f)[8] = RUST), (enemy(f)[12] = 1)),
+    ],
     ["the most enemies", (f) => crowd(f, ENEMY_MAX)],
     ["the most sparks", (f) => (f[7] = Array(FX_MAX).fill(sparks(f)[0]))],
     ["a spark on its last step", (f) => (sparks(f)[0]![4] = now - FX_LIFE + 1)],
@@ -238,7 +246,12 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     ["an enemy too fast", (f) => (enemy(f)[5] = px(17))],
     ["an enemy rising too fast", (f) => (enemy(f)[6] = -px(17))],
     ["an enemy facing nowhere", (f) => (enemy(f)[7] = 0)],
-    ["an enemy past full health", (f) => (enemy(f)[8] = ENEMY_HP.ravager + 1)],
+    ["an enemy past full health", (f) => (enemy(f)[8] = ASH + 1)],
+    ["an ash enemy at rust health", (f) => (enemy(f)[8] = RUST)],
+    ["an unknown tier", (f) => (enemy(f)[12] = 3)],
+    ["a tier as text", (f) => (enemy(f)[12] = "0")],
+    ["an enemy's goal off the road", (f) => (enemy(f)[13] = -px(400))],
+    ["an enemy's goal between sub-units", (f) => (enemy(f)[13] = 0.5)],
     ["negative hp", (f) => (enemy(f)[8] = -1)],
     ["an unknown enemy state", (f) => (enemy(f)[9] = "sleep")],
     ["a negative enemy timer", (f) => (enemy(f)[10] = -1)],

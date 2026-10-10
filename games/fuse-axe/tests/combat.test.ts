@@ -443,6 +443,12 @@ test("a spawn takes whole positions and a known kind, and holds the enemy to the
   const base = solo("brakka");
   const kind = (name: string) => name as EnemyKind;
   assert.throws(() => spawnEnemy(base, kind("wolf"), 0, 0), RangeError);
+  const tier = (value: number) => value as T.Tier;
+  assert.throws(() => spawnEnemy(base, "ravager", 0, 0, tier(3)), RangeError);
+  assert.equal(
+    enemy(spawnEnemy(base, "ravager", 0, 0, 2)).hp,
+    T.enemyMaxHp("ravager", 2, 1),
+  );
   for (const [x, y] of [
     [px(10) + 0.5, px(130)],
     [px(10), NaN],
@@ -561,6 +567,7 @@ test("the view shows the swing, each enemy's anim, hp and flash, and each spark'
     {
       id: 2,
       kind: "ravager",
+      tier: 0,
       x: Math.floor(e.x / SUB),
       y: Math.floor(e.y / SUB),
       z: 0,
@@ -584,6 +591,7 @@ test("the view shows the swing, each enemy's anim, hp and flash, and each spark'
     "down",
     "getup",
     "dead",
+    "enter",
   ]);
   assert.deepEqual(Kit.FX_KINDS, ["hit", "heavy", "ko"]);
   for (const kind of Kit.HERO_KINDS)

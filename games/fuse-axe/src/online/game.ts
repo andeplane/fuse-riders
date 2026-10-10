@@ -274,8 +274,8 @@ function playTick(
     held[hero.seat] = bits;
     first[hero.seat] = bits | tapped;
   }
-  // The stage flow hooks in after the steps: a cleared stage goes to camp and the next `round` (stage "between"),
-  // and a party with every hero out goes to "over".
+  // The stage flow hooks in after the steps: a cleared stage (`stageCleared(world)`) goes to camp and the next
+  // `round` (stage "between"), and a party with every hero out goes to "over".
   return stepTick(world, held, first);
 }
 

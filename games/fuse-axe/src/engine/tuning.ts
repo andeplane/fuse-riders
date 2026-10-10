@@ -31,6 +31,8 @@ export const STAGE_LENGTH = px(4 * VIEW_W);
 export const CAMERA_END = STAGE_LENGTH - px(VIEW_W);
 /** The camera keeps the leading hero this far from its left edge, unless the leftmost hero holds it back. */
 export const CAMERA_LEAD = px(160);
+/** The most the camera moves in a step: faster than any hero walks, so it catches up smoothly when a wave's lock lifts. */
+export const CAMERA_SPEED = px(2);
 /** How close a hero's centre comes to the screen's edges: half a body, so nobody walks off screen. */
 export const HERO_MARGIN = px(14);
 
@@ -105,7 +107,25 @@ export const HEAVY_HITSTOP = 8;
 // ---- the enemies ----
 export const ENEMY_KINDS = ["ravager"] as const;
 export type EnemyKind = (typeof ENEMY_KINDS)[number];
+/** A kind's hit points at its lowest tier with one hero; `enemyMaxHp` scales them. */
 export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = { ravager: 40 };
+/** Tiers by palette (ash, rust, violet): each adds hit points now, and aggression once enemies fight back. */
+export const TIERS = [0, 1, 2] as const;
+export type Tier = (typeof TIERS)[number];
+/** Each tier's hit points in quarters of the kind's base. */
+export const TIER_HP: Readonly<Record<Tier, number>> = { 0: 4, 1: 5, 2: 6 };
+/**
+ * An enemy's full hit points: its kind's base by its tier, and a quarter more for each hero beyond the first (an
+ * empty world counts one), in whole points. A party of five meets ravagers with twice the hit points.
+ */
+export function enemyMaxHp(
+  kind: EnemyKind,
+  tier: Tier,
+  heroes: number,
+): number {
+  const party = Math.min(Math.max(heroes, 1), CAPACITY);
+  return Math.trunc((ENEMY_HP[kind] * TIER_HP[tier] * (3 + party)) / 16);
+}
 /**
  * The most enemies a world holds at once, a defeated one that has not blinked out yet included. `spawnEnemy` refuses
  * the next one, so the checkpoint codec's bound on the list (and on the ones a swing has hit) is one no run can pass.
@@ -125,6 +145,20 @@ export const KNOCK_VZ = px(2.5);
 export const DOWN_STEPS = 45;
 export const GETUP_STEPS = 20;
 export const DEAD_STEPS = 60;
+
+// ---- waves (the triggers themselves are in `stages.ts`) ----
+/** A wave's enemy appears this far outside the screen's edge on its side, its whole body out of view... */
+export const ENTER_OUT = px(16);
+/** ...and walks in at this speed to `ENTER_INSET` inside that edge, or `ENTER_STAGGER` further per round of extras. */
+export const ENTER_WALK = px(0.75);
+export const ENTER_INSET = px(40);
+export const ENTER_STAGGER = px(24);
+/** Each round of a wave's extra spawns (one per hero beyond the first) comes this many steps after its original. */
+export const EXTRA_DELAY = 30;
+/** While the screen is locked, an enemy idle outside it walks back in to this far inside the nearer edge. */
+export const RETURN_INSET = px(32);
+/** Steps GO shows after a wave is cleared; it stays on longer while the camera has not moved on. */
+export const GO_STEPS = 2 * STEPS_PER_SECOND;
 
 // ---- effects ----
 /** Steps a hit spark lives, and the most the world keeps at once (the oldest go first). */
