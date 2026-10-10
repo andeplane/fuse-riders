@@ -10,13 +10,14 @@ import {
   type World,
 } from "../src/engine/index.js";
 import { px } from "../src/engine/tuning.js";
-import { ENEMY_STATES } from "../src/engine/view-kit.js";
+import { ENEMY_STATES, IMP_ONLY } from "../src/engine/view-kit.js";
 import {
   paintRavager,
   RAVAGER,
   RAVAGER_ANIMS,
   RAVAGER_POSES,
   RAVAGER_TIERS,
+  type RavagerAnim,
   type RavagerFrame,
 } from "../src/render/art/ravager.js";
 import { MASTER, OUTLINE } from "../src/render/pixel/palette.js";
@@ -198,8 +199,11 @@ test("a pose paints the same rows every time, and the figure paints each frame o
 });
 
 test("every anim plays frames the figure has, for whole steps, and every frame is played", () => {
-  // Every anim the enemy view can show; `dead` lies in the `down` frame while it blinks.
-  assert.deepEqual(Object.keys(RAVAGER_ANIMS).sort(), [...ENEMY_STATES].sort());
+  // Every anim the enemy view can show a ravager in; `dead` lies in the `down` frame while it blinks.
+  assert.deepEqual(
+    Object.keys(RAVAGER_ANIMS).sort(),
+    ENEMY_STATES.filter((state) => !IMP_ONLY.includes(state)).sort(),
+  );
   const played = new Set<string>();
   for (const [anim, { frames, loop }] of Object.entries(RAVAGER_ANIMS)) {
     assert.ok(frames.length > 0, anim);
@@ -241,7 +245,10 @@ function reached(
 
 test("a state anim lasts exactly as many steps as the engine keeps the enemy in that state", () => {
   const length = (anim: EnemyAnim) =>
-    RAVAGER_ANIMS[anim].frames.reduce((sum, [, steps]) => sum + steps, 0);
+    RAVAGER_ANIMS[anim as RavagerAnim].frames.reduce(
+      (sum, [, steps]) => sum + steps,
+      0,
+    );
   /** Brakka with a ravager 18 px in front of it, at `hp` if given. */
   const arena = (hp?: number): World => {
     const world = createWorld({
