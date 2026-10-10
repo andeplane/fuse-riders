@@ -3,9 +3,12 @@ import {
   COMBO,
   FLOOR_BOTTOM,
   FLOOR_TOP,
+  GRAVITY,
+  JUMP_VZ,
   STAGE_LENGTH,
   SUB,
   type HeroKind,
+  type Swing,
 } from "./tuning.js";
 
 /** The engine constants the renderer may read, in whole pixels where they are distances. */
@@ -39,15 +42,26 @@ export interface SwingSteps {
   readonly active: number;
   readonly recovery: number;
 }
-const steps = (kind: HeroKind): readonly SwingSteps[] =>
-  COMBO[kind].map(({ startup, active, recovery }) => ({
-    startup,
-    active,
-    recovery,
-  }));
+/** A hero's three swings, `attack1` to `attack3`. */
+export type Swings = readonly [SwingSteps, SwingSteps, SwingSteps];
+const timing = ({ startup, active, recovery }: Swing): SwingSteps => ({
+  startup,
+  active,
+  recovery,
+});
+const steps = (kind: HeroKind): Swings => {
+  const [first, second, third] = COMBO[kind];
+  return [timing(first), timing(second), timing(third)];
+};
 /** Each hero's three swings (`attack1`–`attack3`) as steps of wind-up, blade out and recovery, to time the frames. */
-export const SWING_STEPS: Readonly<Record<HeroKind, readonly SwingSteps[]>> = {
+export const SWING_STEPS: Readonly<Record<HeroKind, Swings>> = {
   brakka: steps("brakka"),
   rhea: steps("rhea"),
   gorm: steps("gorm"),
 };
+
+/**
+ * The steps a jump rises: it climbs on every `animStep` below this and falls from this one on. Step `n` of a jump
+ * moves it by the launch speed less `n` pulls of gravity, so it climbs while that is above zero.
+ */
+export const JUMP_RISE_STEPS = Math.ceil(JUMP_VZ / GRAVITY);

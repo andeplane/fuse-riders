@@ -40,9 +40,11 @@
   <body>
     <h1>Fuse Axe · sprite sheet (dev only)</h1>
     <p>
-      Every figure's frames at 4× and 1×, with its palette swaps, the damage
-      flash and the left-facing flip. The cyan line is the floor under the feet
-      anchor; frames share it, so a figure that jumps between frames shows.
+      Every figure's frames at 3× and 1×; each hero's palette swaps, damage
+      flash, flip and HUD portrait; and a reel per anim at the game's 60 steps a
+      second, its frames picked by <code>heroFrame</code>. The cyan line is the
+      floor under the feet anchor; frames share it, so a figure that jumps
+      between frames shows. <code>?step=N</code> freezes the reels.
     </p>
     <main></main>
     <script type="module" src="./sprites.ts"></script>

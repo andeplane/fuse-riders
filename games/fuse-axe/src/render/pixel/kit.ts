@@ -34,10 +34,107 @@ export type PoseChanges<P extends Pose> = Partial<Omit<P, "far" | "near">> & {
 };
 
 /** A copy of `base` with some joints moved: `adjust(idle, { near: { hand: [37, 22] } })`. */
-export function adjust<P extends Pose>(base: P, changes: PoseChanges<P>): P {
+export function adjust<P extends Pose>(
+  base: P,
+  changes: NoInfer<PoseChanges<P>>,
+): P {
   const far = { ...base.far, ...changes.far };
   const near = { ...base.near, ...changes.near };
   return { ...base, ...changes, far, near };
+}
+
+/** An arm's joints and a leg's, for `adjust`: `{ near: { ...armAt([40, 32], [46, 29], [44, 22]) } }`. */
+export const armAt = (shoulder: Point, elbow: Point, hand: Point) => ({
+  shoulder,
+  elbow,
+  hand,
+});
+export const legAt = (hip: Point, knee: Point, ankle: Point) => ({
+  hip,
+  knee,
+  ankle,
+});
+
+/**
+ * The middle joint of a limb from `root` to `end` whose two bones are `upper` and `lower` long: a knee bends to the
+ * right of the line from hip to ankle (`side` 1, forward for a figure facing right), an elbow to its left (-1).
+ * Out of reach, the limb straightens toward `end`; so close to `root` that the shorter bone could not fold back
+ * far enough, it folds as far as it goes. Either way the upper bone keeps its length.
+ */
+export function bend(
+  root: Point,
+  end: Point,
+  upper: number,
+  lower: number,
+  side: 1 | -1,
+): Point {
+  const [dx, dy] = [end[0] - root[0], end[1] - root[1]];
+  const length = Math.hypot(dx, dy) || 1e-6;
+  const d = Math.max(
+    Math.abs(upper - lower),
+    Math.min(length, upper + lower),
+    1e-6,
+  );
+  const a = (upper * upper - lower * lower + d * d) / (2 * d);
+  const h = Math.sqrt(Math.max(0, upper * upper - a * a)) * side;
+  const [ux, uy] = [dx / length, dy / length];
+  return [root[0] + ux * a + uy * h, root[1] + uy * a - ux * h];
+}
+
+/** Breathing out: head, chest and arms lowered by `dy`, the waist by half that, the legs where they were. */
+export function breath(pose: Pose, dy: number): PoseChanges<Pose> {
+  const down = (p: Point) => offset(p, 0, dy);
+  const arm = ({ shoulder, elbow, hand }: Side) =>
+    armAt(down(shoulder), down(elbow), down(hand));
+  return {
+    head: down(pose.head),
+    chest: down(pose.chest),
+    waist: offset(pose.waist, 0, dy / 2),
+    far: arm(pose.far),
+    near: arm(pose.near),
+  };
+}
+
+const span = (a: Point, b: Point) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+
+/**
+ * Frame `i` of a walk cycle of `frames`: the near foot is planted `reach` ahead of the hips on frame 0 and sweeps back
+ * at an even pace while the far foot swings forward, up to `lift` off the ground, half a cycle behind. On the frames
+ * where the feet are widest apart (0 and `frames / 2`) the body dips by `dip`. A planted foot moves
+ * `4 × reach / frames` pixels a frame, so walking that far a frame keeps it still on the ground.
+ */
+export function stride(
+  pose: Pose,
+  i: number,
+  frames: number,
+  { reach, lift, dip }: { reach: number; lift: number; dip: number },
+): PoseChanges<Pose> {
+  const low = (2 * i) % frames === 0 ? dip : 0;
+  // The feet swing about the body's centre line, a little to either side of it, not about hips the 3/4 view parts.
+  const centre = (pose.far.hip[0] + pose.near.hip[0]) / 2;
+  const leg = (side: Side, phase: number) => {
+    const q = (i / frames + phase) % 1;
+    const swing = q >= 0.5;
+    const x = swing ? reach * (4 * q - 3) : reach * (1 - 4 * q);
+    const up = swing ? lift * Math.sin((q - 0.5) * 2 * Math.PI) : 0;
+    const hip = offset(side.hip, 0, low);
+    const ankle: Point = [(centre + side.hip[0]) / 2 + x, side.ankle[1] - up];
+    const knee = bend(
+      hip,
+      ankle,
+      span(side.hip, side.knee),
+      span(side.knee, side.ankle),
+      1,
+    );
+    return legAt(hip, knee, ankle);
+  };
+  const body = breath(pose, low);
+  return {
+    ...body,
+    waist: offset(pose.waist, 0, low),
+    far: { ...body.far, ...leg(pose.far, 0.5) },
+    near: { ...body.near, ...leg(pose.near, 0) },
+  };
 }
 
 /** A figure's frames by name, each painted once on first use so it keeps one identity for the baker's cache. */
