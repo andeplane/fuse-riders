@@ -60,7 +60,8 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 - Touch (local): up to two riders, a D-pad and FIRE on each side of the screen (`src/app/input/touch.ts`, devices
   `touch:0` left and `touch:1` right). The D-pad quantises the thumb like a stick (dead centre a quarter of its
   half-width, 8 sectors); each finger keeps the control it went down on (pointer capture) until it lifts, and a cancel,
-  lost capture, blur or hidden page lets go. A lone touch rider's D-pad and FIRE spread to opposite corners.
+  lost capture, blur or hidden page lets go. A lone touch rider's D-pad and FIRE spread to opposite corners, and the
+  pads hide while a menu (pause, results, winner) is up.
 - Phone controller (online shared TV): a held D-pad and a FIRE button (each tap is one fire press).
 
 ### Technical rules for the overhaul
@@ -106,8 +107,8 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
    ([engine.md](engine.md) has the numbers).
 5. Free flight: held-bit input, the flight kernel wired in, flying ghosts (done, with keyboard clusters and gamepads
    steering), then bots inside `step` with their memory in the state (next; until then bots fire but do not fly).
-   (Until 6 lands, touch riders hover and fire but do not steer.)
-6. Devices and render, in parallel: touch pads and lobby texts; the framing camera and gunship art.
+6. Devices and render, in parallel: touch pads and lobby texts (done: two riders per touch screen); the framing camera
+   and gunship art.
 7. Online game: the checkpoint codec, `RULES` with a golden-hash replay, and the `RollbackGame` with tests for rollback,
    checkpoints, bad input, and dropped, duplicated and reordered fire presses.
 8. Online app: registration (the game's `package.json` `exports` and workspace dependencies, the root `package.json`,

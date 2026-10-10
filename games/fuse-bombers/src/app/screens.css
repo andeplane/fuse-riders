@@ -252,7 +252,7 @@ kbd {
   width: 100%;
 }
 
-/* Touch zones take the bottom quarter of the screen: lift the lobby and move the badges to the top. */
+/* Touch pads take the bottom corners of the screen: lift the lobby and move the badges to the top. */
 #screen[data-touch] .lobby {
   top: 37%;
   transform: translate(-50%, -50%) scale(0.8);
@@ -261,13 +261,16 @@ kbd {
   bottom: auto;
   top: 5.8cqw;
 }
-/* Touch players pause with a corner button (keyboards have Esc, pads Start). */
+/* Touch players pause with a corner button (keyboards have Esc, pads Start). The arena shrinks to a phone's width, so
+ * the button keeps a thumb's size (44px) however small the cqw units get. */
 #screen button.pause {
   position: absolute;
   top: 2.6cqw; /* Below the fuse and its bomb. */
   right: 0.8cqw;
   pointer-events: auto;
-  font-size: 1.4cqw;
+  min-width: 44px;
+  min-height: 44px;
+  font-size: max(1.4cqw, 14px);
   padding: 1cqw 1.4cqw;
 }
 
@@ -298,4 +301,9 @@ kbd {
 #screen[data-screen="countdown"] ~ .audio-toggle,
 #screen[data-screen="playing"] ~ .audio-toggle {
   display: none;
+}
+/* With touch pads in the bottom corners (the lobby shows both), the toggle moves to the free top right corner. */
+#screen[data-touch] ~ .audio-toggle {
+  top: max(8px, env(safe-area-inset-top));
+  bottom: auto;
 }

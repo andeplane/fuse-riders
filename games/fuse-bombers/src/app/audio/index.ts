@@ -104,7 +104,7 @@ export function createAudio(
         button.textContent = director.muted ? "SOUND OFF" : "SOUND ON";
         button.setAttribute("aria-pressed", String(!director.muted));
       };
-      // Not a touch-zone press for whoever plays in this corner.
+      // A tap on the toggle is no other control's press (touch devices carry it to the top right, clear of the pads).
       button.addEventListener("pointerdown", (event) =>
         event.stopPropagation(),
       );
