@@ -12,8 +12,11 @@ import {
   type StreamEntries,
 } from "fuse-netcode";
 import { Platform, RESERVED_KEYS, type AccountRules } from "fuse-platform";
-import { RIGHT, type HeroKind } from "../src/engine/index.js";
+import { ATTACK, RIGHT, type HeroKind } from "../src/engine/index.js";
+import { LIVES } from "../src/engine/tuning.js";
 import {
+  CLEAR_TICKS,
+  CONTINUE,
   DEFAULT_SETTINGS,
   PLAY,
   axeGame,
@@ -27,6 +30,7 @@ import {
 import { isHero, validName } from "../src/online/names.js";
 import { axeRegistration } from "../src/platform.js";
 import { Mesh } from "./fixtures/mesh.js";
+import { cleared, wiped } from "./fixtures/stage.js";
 
 /** A seeded generator, so a lossy mesh is the same mesh on every run. */
 function seeded(seed: number): () => number {
@@ -169,10 +173,11 @@ test("a hero is picked in the lobby; held controls are logged when the run begin
 });
 
 /**
- * `host` (Rhea) and `late` (Brakka) seated and run `m1` started by the pure fold, then restored as a room in `stage`
- * (with `late` logged absent when `present` is false).
+ * `host` (Rhea) and `late` (Brakka) seated and run `m1` started by the pure fold and taken on to `stage` the way play
+ * does (a cleared stage shows its tally, then wins the run; every hero out starts the continue countdown), then
+ * restored from its checkpoint (with `late` logged absent when `present` is false).
  */
-function roomIn(stage: Stage, present = true): Room {
+function roomIn(stage: Stage | "countdown", present = true): Room {
   const room = createRoom("m0", DEFAULT_SETTINGS);
   let seq = 0;
   const fold = (...bodies: unknown[][]) => {
@@ -188,12 +193,17 @@ function roomIn(stage: Stage, present = true): Room {
     [JOIN, "late", "Late", 1, "brakka", 1],
   );
   fold([ACTION, "start", "m1"]);
+  if (stage === "countdown") room.world = wiped(room.world!);
+  if (stage === "between" || stage === "over")
+    room.world = cleared(room.world!);
+  fold();
+  for (let tick = 0; stage === "over" && tick < CLEAR_TICKS; tick++) fold();
   const fields = structuredClone(encode(room));
-  fields[2] = stage;
   for (const seat of fields[4] as { id: string; connected: boolean }[])
     if (seat.id === "late") seat.connected = present;
   const restored = decode(fields, room.tick);
   assert.ok(restored, `a room in ${stage} restores`);
+  assert.equal(restored.stage, stage === "countdown" ? "running" : stage);
   return restored;
 }
 
@@ -232,10 +242,12 @@ test("a hero is picked only in the lobby or after game over, never in a run or i
     ["running", false],
     ["over", true],
   ] as const) {
-    const mesh = new Mesh("host", DEFAULT_SETTINGS);
-    serve(mesh, roomIn(stage));
+    const mesh = new Mesh("host", DEFAULT_SETTINGS),
+      served = roomIn(stage);
+    serve(mesh, served);
     const late = mesh.join("late");
-    mesh.run(300);
+    // The mesh's clock starts at 0: a room served from further on folds once the clock has caught up with it.
+    mesh.run(300 + (stage === "over" ? served.tick * 50 : 0));
     assert.equal(late.roomState()?.stage, stage, "the room came from a peer");
     assert.equal(late.pick("gorm"), picks, `a pick in ${stage}`);
     mesh.run(300);
@@ -303,6 +315,58 @@ test("held controls leave a device only in a run it plays: not in camp or after 
       `a hidden page in ${stage} releases what it held and steps away`,
     );
   }
+});
+
+test("a hero's fresh Attack votes to continue once a countdown, and nowhere else; the vote revives the party", () => {
+  const votes = (heard: Entry[]) =>
+    heard
+      .filter((entry) => entry[2] === CONTINUE)
+      .map((entry) => entry.slice(2));
+  for (const stage of ["running", "between", "over"] as const) {
+    const mesh = new Mesh("host", DEFAULT_SETTINGS),
+      heard = serve(mesh, roomIn(stage));
+    const late = mesh.join("late");
+    mesh.run(300);
+    late.input(ATTACK);
+    assert.equal(late.continueRun(), false, `no vote in ${stage}`);
+    mesh.run(300);
+    assert.deepEqual(votes(heard), [], `no vote logged in ${stage}`);
+  }
+  const mesh = new Mesh("host", DEFAULT_SETTINGS),
+    heard = serve(mesh, roomIn("countdown"));
+  const late = mesh.join("late"),
+    watcher = mesh.join("watcher");
+  watcher.command({ type: "spectate", name: "Watcher" });
+  mesh.run(500);
+  assert.ok(late.roomState()!.until > 0, "the countdown runs");
+  assert.equal(watcher.continueRun(), false, "a watcher plays no hero");
+  // A held Attack is no vote; its fresh press is, once, however often it is pressed again.
+  late.input(ATTACK | RIGHT);
+  late.input(RIGHT);
+  late.input(ATTACK);
+  assert.equal(late.continueRun(), false, "one vote a countdown");
+  mesh.run(300);
+  assert.deepEqual(votes(heard), [[CONTINUE, "m1", 1]]);
+  const room = late.roomState()!;
+  assert.deepEqual(
+    [room.stage, room.until, room.continued],
+    ["running", 0, true],
+    "the vote landed",
+  );
+  assert.ok(room.world!.heroes.every((hero) => hero.lives === LIVES));
+  // A hidden page, or one logged absent, does not vote.
+  const hidden = new Mesh("host", DEFAULT_SETTINGS);
+  serve(hidden, roomIn("countdown"));
+  const away = hidden.join("late");
+  hidden.run(300);
+  hidden.hide("late", true);
+  hidden.run(100);
+  assert.equal(away.continueRun(), false, "hidden");
+  const absent = new Mesh("host", DEFAULT_SETTINGS);
+  serve(absent, roomIn("countdown", false));
+  const gone = absent.join("late");
+  absent.run(300);
+  assert.equal(gone.continueRun(), false, "logged absent");
 });
 
 test("the platform registration admits rooms and records nothing yet", () => {
