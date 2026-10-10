@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   createBot,
   createRound,
+  FIRE,
   gridHash,
   isLoaded,
   step,
@@ -48,9 +49,15 @@ test("the engine uses no wall clock, Math.random or DOM globals", () => {
   }
 });
 
+/** Every seat steers a way that changes each second and fires now and then: flight, collisions and volleys. */
+const script = (s: RoundState) =>
+  s.castles.map(
+    (c) =>
+      ((s.tick / 60 + c.id * 5) & 15) |
+      (isLoaded(c) && (s.tick + c.id * 7) % 11 === 0 ? FIRE : 0),
+  );
+
 test("same seed and inputs give the same round; different seeds differ", () => {
-  const script = (s: RoundState) =>
-    s.castles.map((c) => isLoaded(c) && (s.tick + c.id * 7) % 11 === 0);
   const a = createRound({ seed: 1234, playerCount: 5 });
   const b = createRound({ seed: 1234, playerCount: 5 });
   assert.equal(fingerprint(a), fingerprint(b));
@@ -62,6 +69,11 @@ test("same seed and inputs give the same round; different seeds differ", () => {
   assert.ok(
     a.rockets.length > 0 || a.castles.some((c) => c.stats.rocketsFired > 0),
   );
+  const start = createRound({ seed: 1234, playerCount: 5 }).castles;
+  assert.ok(
+    a.castles.some((c, id) => c.x !== start[id]?.x),
+    "nobody flew",
+  );
 
   const c = createRound({ seed: 1235, playerCount: 5 });
   assert.notEqual(
@@ -70,8 +82,7 @@ test("same seed and inputs give the same round; different seeds differ", () => {
   );
 });
 
-test("a cloned round replays identically", () => {
-  const script = (s: RoundState) => s.castles.map((c) => isLoaded(c));
+test("a cloned round replays identically (what rollback relies on)", () => {
   const a = createRound({ seed: 77, playerCount: 4 });
   for (let i = 0; i < 1500; i++) step(a, script(a));
   const b = structuredClone(a);

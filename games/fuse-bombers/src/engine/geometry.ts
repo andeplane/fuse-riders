@@ -1,7 +1,14 @@
 // Small pure helpers shared by the simulation and the trajectory predictor.
 
 import { cos, sin } from "./det-math.js";
-import { DT, SUBSTEPS, type Tuning } from "./tuning.js";
+import { flyStep, GHOST_FLIGHT, openSky, type FlightBody } from "./flight.js";
+import {
+  DT,
+  SUBSTEPS,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
+  type Tuning,
+} from "./tuning.js";
 import type { GateView, GhostView, Vec2 } from "./types.js";
 
 /** Anything with a hull centre (a castle, or a spot a castle might hover at). */
@@ -85,24 +92,19 @@ export function gatePositionAt(g: GateView, tick: number): Vec2 {
   return { x, y };
 }
 
+/** Where ghosts fly: the world's edges and no rock, since they pass through it. */
+export const GHOST_SKY = openSky(WORLD_WIDTH, WORLD_HEIGHT);
+
 /**
- * Ghost blimp centre and velocity at an absolute tick: constant speed, bouncing between `minX` and
- * `maxX` (a fixed, input-independent path like the gates').
+ * Where ghost `g` will be `ticks` steps from now if its player holds no direction: it coasts on its momentum and
+ * brakes to a stop (in about 1.5 s), off the world's edges, exactly as `step` moves it. That is the assumption of the
+ * drop guide and the bots; a player who steers changes it.
  */
-export function ghostPositionAt(
-  g: GhostView,
-  tick: number,
-): { x: number; y: number; vx: number } {
-  const span = g.maxX - g.minX;
-  const u = g.x0 - g.minX + g.speed * (tick - g.spawnTick) * DT;
-  const m = span > 0 ? ((u % (2 * span)) + 2 * span) % (2 * span) : 0;
-  // On the first half of the triangle x follows u; at a turning point, look where u is heading.
-  const withU = g.speed >= 0 ? m < span : m > 0 && m <= span;
-  return {
-    x: g.minX + triangle(u, span),
-    y: g.y,
-    vx: withU ? g.speed : -g.speed,
-  };
+export function ghostPositionAt(g: GhostView, ticks: number): FlightBody {
+  const body = { x: g.x, y: g.y, vx: g.vx, vy: g.vy };
+  for (let i = 0; i < ticks && (body.vx !== 0 || body.vy !== 0); i++)
+    flyStep(body, 0, GHOST_FLIGHT, GHOST_SKY);
+  return body;
 }
 
 export function insideGate(
