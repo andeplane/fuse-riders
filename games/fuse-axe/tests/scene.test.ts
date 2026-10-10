@@ -15,13 +15,14 @@ import {
   VIEW_H,
   VIEW_W,
 } from "../src/engine/view-kit.js";
-import { stripFrame } from "../src/render/art/animate.js";
+import { HERO_ANIMS, stripFrame } from "../src/render/art/animate.js";
 import { BRAKKA } from "../src/render/art/brakka.js";
 import { HEROES } from "../src/render/art/index.js";
 import { RAVAGER, RAVAGER_ANIMS } from "../src/render/art/ravager.js";
 import { createBackdrop } from "../src/render/backdrop/backdrop.js";
 import type { Pen } from "../src/render/pen.js";
 import {
+  createLooks,
   createScene,
   deadShows,
   GO_AT,
@@ -258,6 +259,67 @@ test("duplicate heroes each get a palette of their own, the same on every draw",
     pairs.some((b, j) => i < j && a.figure === b.figure && a.swap === b.swap),
   );
   assert.deepEqual(same, []);
+});
+
+test("a hero's look is worked out once per roster: it holds across frames and anims, and follows a roster change", () => {
+  const looks = createLooks();
+  const roster = [0, 1, 2].map((seat) =>
+    hero(seat + 1, seat, 60 + seat * 50, 130),
+  );
+  const first = looks(roster);
+  const expected = heroLooks(roster);
+  for (const { id } of roster)
+    assert.deepEqual(first.get(id), expected.get(id));
+  const acting = roster.map((h) => ({
+    ...{ ...h, x: h.x + 9, z: 12, facing: -1 as const },
+    ...{ anim: "attack2" as const, animStep: 7 },
+  }));
+  assert.equal(
+    looks(acting),
+    first,
+    "moving, swinging or jumping changes none",
+  );
+  assert.equal(looks([...roster]), first);
+  const rhea = roster.map((h, i) =>
+    i === 1 ? { ...h, kind: "rhea" as const } : h,
+  );
+  const changed = looks(rhea);
+  assert.notEqual(changed, first, "a new kind in the party is a new roster");
+  assert.equal(looks(rhea), changed);
+  assert.notEqual(looks(roster.slice(0, 2)), changed, "so is one fewer hero");
+});
+
+test("every anim of a hero and an enemy draws at any step, and one the art lacks stands idle", () => {
+  const heroAnims = [...HERO_ANIMS] as HeroView["anim"][];
+  const enemyAnims = Object.keys(RAVAGER_ANIMS) as EnemyView["anim"][];
+  const steps = [0, 1, 7, 19, 33, 60, 100_000, 2.5, -4, Number.NaN];
+  for (const animStep of [...steps, Number.POSITIVE_INFINITY]) {
+    const { sprites } = draw(
+      world({
+        heroes: heroAnims.map((anim, i) =>
+          hero(i + 1, i % 5, 30 + i * 20, 130, { anim, animStep }),
+        ),
+        enemies: enemyAnims.map((anim, i) =>
+          enemy(20 + i, 50 + i * 20, 160, { anim, animStep }),
+        ),
+      }),
+    );
+    // Whole, finite steps draw every figure but a defeated enemy that has blinked out.
+    if (Number.isFinite(animStep) && animStep >= 0 && animStep < 20)
+      assert.equal(sprites.length, heroAnims.length + enemyAnims.length);
+  }
+  // A kind of anim from a build with more of them: the hero and the enemy stand idle.
+  const unknown = JSON.parse('"grab"') as HeroView["anim"] & EnemyView["anim"];
+  const [odd, idle] = [unknown, "idle" as const].map((anim) =>
+    draw(
+      world({
+        heroes: [hero(1, 0, 100, 130, { anim, animStep: 12 })],
+        enemies: [enemy(2, 200, 150, { anim, animStep: 12 })],
+      }),
+    ).sprites.map((b) => b.image),
+  );
+  assert.equal(odd!.length, 2);
+  assert.deepEqual(odd, idle);
 });
 
 test("each hero wears a marker in its seat's colour over its head, rising with it", () => {
