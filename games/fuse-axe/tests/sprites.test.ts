@@ -311,7 +311,8 @@ test("grain darkens a regular run of a shape's pixels by one shade and leaves th
       .bake()
       .sprite([10, 18]).rows;
   const [plain, grained] = [ball(), ball(3)];
-  assert.deepEqual(ball(0), plain);
+  // No grain, or one that is not a positive run, leaves the shape exactly as it was lit.
+  for (const none of [0, -3, Number.NaN]) assert.deepEqual(ball(none), plain);
   const rank = (key: string) => "Ww5".indexOf(key);
   let darker = 0;
   plain.forEach((row, y) =>

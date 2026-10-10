@@ -24,7 +24,7 @@ import {
   RHEA_POSES,
 } from "../src/render/art/rhea.js";
 import { turn } from "../src/render/pixel/head.js";
-import type { Palette } from "../src/render/pixel/palette.js";
+import { MASTER, type Palette } from "../src/render/pixel/palette.js";
 import { armTo, bend, breath, legTo } from "../src/render/pixel/kit.js";
 import {
   CLEAR,
@@ -129,6 +129,27 @@ test("a hero's five looks are told apart from each other, in its frames and its 
         }
     }
   }
+});
+
+test("Gorm's second and fourth looks trade his steel and bronze both ways; his other looks keep his metal", () => {
+  const { figure } = HEROES.gorm;
+  const drawn = figure.sprite("idle0").rows.join("");
+  const shows = (ramp: string) => [...ramp].some((key) => drawn.includes(key));
+  // The helm and axe are steel, the rim, buckle and pad bronze: a one-way swap would leave one of them as it was.
+  assert.ok(shows("Mm7") && shows("Nn8"));
+  const colour = (swap: Palette, key: string) => swap[key] ?? MASTER[key];
+  const { second, third, fourth, fifth } = figure.swaps;
+  for (const swap of [second!, fourth!])
+    for (const [steel, bronze] of [
+      ["M", "N"],
+      ["m", "n"],
+      ["7", "8"],
+    ] as const) {
+      assert.equal(colour(swap, steel), MASTER[bronze]);
+      assert.equal(colour(swap, bronze), MASTER[steel]);
+    }
+  for (const swap of [third!, fifth!])
+    for (const key of "MmNn78") assert.equal(colour(swap, key), MASTER[key]);
 });
 
 test("the feet stay planted: idle breathes and every swing of the combo turns above the same soles", () => {
