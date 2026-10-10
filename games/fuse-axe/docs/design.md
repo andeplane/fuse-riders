@@ -39,7 +39,9 @@ higher levels, and never hurts other heroes.
   original). The floor is a depth band in the lower half of the screen.
 - **Run**: double-tap left or right, on a phone's d-pad too. **Dash attack** (shoulder charge) from a run knocks
   down. If double-taps prove unreliable on glass in playtests, a phone gets a run toggle instead.
-- **Combo**: Attack three times — two slashes and a heavy finisher that knocks down.
+- **Combo**: Attack three times — two slashes and a heavy finisher that knocks down. A press while the blade is out
+  or in the recovery chains the next swing; one in the wind-up is ignored, so the combo has a rhythm. A press made
+  while the hero is busy (a swing's recovery, a landing) waits a few steps and acts as soon as the hero is free.
 - **Throw**: walk into a dazed enemy and Attack to grab and throw them; a thrown body knocks down anyone it hits.
 - **Jump** and **jump attack** (a downward stab).
 - **Back attack**: on the floor, Attack and Jump pressed within a couple of steps of each other (the window is a
