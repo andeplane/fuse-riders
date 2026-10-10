@@ -2,10 +2,14 @@ import { createBrowserInput } from "./browser.js";
 import { deviceLabel } from "./hub.js";
 
 const SLOTS = 6;
+/** Held bits as text: the arrows held, then F for fire (`UP`, `DOWN`, `LEFT`, `RIGHT`, `FIRE` are bits 0–4). */
+const heldText = (bits: number): string =>
+  [..."↑↓←→F"].filter((_, bit) => bits & (1 << bit)).join("");
 
 /**
  * `?inputdebug` (add `&touch` to force touch zones on a desktop): a corner readout proving the input layer works.
- * Pressing any device joins it to the next free slot, like a lobby would; after that its presses flash its slot.
+ * Firing any device joins it to the next free slot, like a lobby would; after that its presses flash its slot and
+ * its held bits show beside it.
  * Touch devices get one zone per joined touch player plus a JOIN zone.
  */
 export function startInputDebug(win: Window = window): void {
@@ -63,7 +67,8 @@ export function startInputDebug(win: Window = window): void {
     const rows = [...Array(SLOTS).keys()].map((slot) => {
       const device = hub.deviceOf(slot);
       const mark = (flash[slot] ?? 0) > 0 ? "*" : " ";
-      return `P${slot + 1} ${mark} ${device ? deviceLabel(device) : "-"}`;
+      const held = heldText(hub.heldBits(slot));
+      return `P${slot + 1} ${mark} ${device ? deviceLabel(device) : "-"} ${held}`;
     });
     panel.textContent = `INPUT DEBUG\n${rows.join("\n")}\nlast: ${log.join(" ")}`;
     win.requestAnimationFrame(frame);

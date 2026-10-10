@@ -1,6 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { attachGamepads, type GamepadLike } from "../src/app/input/gamepad.js";
+import {
+  DOWN,
+  FIRE,
+  INPUT_MASK,
+  LEFT,
+  RIGHT,
+  UP,
+  thrustDirection,
+} from "../src/engine/input.js";
+import { menuAction, type MenuState } from "../src/app/flow.js";
+import {
+  STICK_DEAD_ZONE,
+  attachGamepads,
+  stickBits,
+  type GamepadLike,
+} from "../src/app/input/gamepad.js";
 import { InputHub, deviceLabel, type DeviceId } from "../src/app/input/hub.js";
 import {
   KEY_BINDINGS,
@@ -37,9 +52,14 @@ class FakeTarget {
   }
 }
 
-function recorder(): { presses: DeviceId[]; press: (d: DeviceId) => void } {
+/** A hub that records every press: `press` reports one tap, `hold` held bits (whose fire edge presses). */
+function recorder() {
+  const hub = new InputHub();
   const presses: DeviceId[] = [];
-  return { presses, press: (device) => presses.push(device) };
+  hub.onPress((device) => presses.push(device));
+  const press = (device: DeviceId) => hub.press(device);
+  const hold = (device: DeviceId, bits: number) => hub.setHeld(device, bits);
+  return { hub, presses, press, hold };
 }
 
 function keyEvent(
@@ -94,11 +114,11 @@ test("a throwing press listener does not stop the others (#12)", () => {
     throw boom;
   });
   hub.onPress((device) => seen.push(device));
-  hub.bind(0, "key:Q");
+  hub.bind(0, "key:WASD");
   const target = new FakeTarget();
-  attachKeyboard(target as KeyboardTarget, (d) => hub.press(d));
-  assert.doesNotThrow(() => target.dispatch("keydown", keyEvent("KeyQ")));
-  assert.deepEqual(seen, ["key:Q"]);
+  attachKeyboard(target as KeyboardTarget, (d, bits) => hub.setHeld(d, bits));
+  assert.doesNotThrow(() => target.dispatch("keydown", keyEvent("Space")));
+  assert.deepEqual(seen, ["key:WASD"]);
   assert.deepEqual(errors, [boom]);
   assert.deepEqual(hub.takePresses(1), [true], "the press is still latched");
 });
@@ -148,80 +168,141 @@ test("device labels are short and one-based", () => {
   );
 });
 
-test("there are six distinct keyboard buttons with no shared codes", () => {
-  assert.equal(new Set(KEY_BINDINGS.map((b) => b.device)).size, 6);
-  const codes = KEY_BINDINGS.flatMap((b) => b.codes);
-  assert.equal(new Set(codes).size, codes.length);
+test("the hub: fire's rising edge is one press, and heldBits follows the seated device", () => {
+  const { hub, presses } = recorder();
+  hub.setHeld("pad:0", UP | FIRE);
+  hub.setHeld("pad:0", UP | FIRE); // still held: no new press
+  hub.setHeld("pad:0", UP);
+  hub.setHeld("pad:0", FIRE);
+  assert.deepEqual(presses, ["pad:0", "pad:0"]);
+  assert.equal(hub.heldBits(0), 0, "an unbound slot (a bot) holds nothing");
+  hub.bind(0, "pad:0");
+  assert.equal(hub.heldBits(0), FIRE);
+  assert.deepEqual(hub.takePresses(1), [false], "the join press is dropped");
+  hub.setHeld("pad:0", 0);
+  hub.setHeld("pad:0", LEFT | FIRE);
+  assert.deepEqual(
+    [hub.heldBits(0), hub.heldBy("pad:0")],
+    [LEFT | FIRE, LEFT | FIRE],
+  );
+  assert.deepEqual(hub.takePresses(1), [true]);
+  hub.dispose();
+  assert.equal(hub.heldBits(0), 0);
 });
 
-test("keyboard: each bound key presses its device once per keydown, ignoring repeat", () => {
+test("four keyboard riders, each with all five bits, share no key and use no menu key", () => {
+  assert.equal(new Set(KEY_BINDINGS.map((b) => b.device)).size, 4);
+  const codes = KEY_BINDINGS.flatMap((b) => Object.keys(b.keys));
+  assert.equal(new Set(codes).size, codes.length);
+  for (const { device, keys } of KEY_BINDINGS)
+    assert.equal(
+      Object.values(keys).reduce((all, bit) => all | bit, 0),
+      INPUT_MASK,
+      device,
+    );
+  const states: MenuState[] = ["lobby", "playing", "results", "winner"];
+  for (const state of [...states, "paused" as const])
+    for (const code of codes)
+      assert.equal(menuAction(state, code), undefined, `${code} in ${state}`);
+});
+
+test("keyboard: each fire key presses its rider once per keydown, ignoring repeat", () => {
   const target = new FakeTarget();
-  const { presses, press } = recorder();
-  const source = attachKeyboard(target as KeyboardTarget, press);
-  const down = keyEvent("KeyQ");
+  const { presses, hold } = recorder();
+  const source = attachKeyboard(target as KeyboardTarget, hold);
+  const down = keyEvent("Space");
   target.dispatch("keydown", down);
   assert.ok(down.prevented);
-  target.dispatch("keydown", keyEvent("KeyQ", { repeat: true }));
-  target.dispatch("keydown", keyEvent("KeyQ")); // repeat without the flag
-  target.dispatch("keydown", keyEvent("KeyP"));
-  target.dispatch("keyup", keyEvent("KeyQ"));
-  target.dispatch("keydown", keyEvent("KeyQ"));
-  assert.deepEqual(presses, ["key:Q", "key:P", "key:Q"]);
+  target.dispatch("keydown", keyEvent("Space", { repeat: true }));
+  target.dispatch("keydown", keyEvent("Space")); // repeat without the flag
+  target.dispatch("keydown", keyEvent("KeyH"));
+  target.dispatch("keyup", keyEvent("Space"));
+  target.dispatch("keydown", keyEvent("Space"));
+  target.dispatch("keydown", keyEvent("KeyW")); // steering is not a press
+  assert.deepEqual(presses, ["key:WASD", "key:IJKL", "key:WASD"]);
 
-  const unbound = keyEvent("KeyA");
+  const unbound = keyEvent("KeyQ");
   target.dispatch("keydown", unbound);
   assert.equal(unbound.prevented, false);
-  const shortcut = keyEvent("KeyC", { ctrlKey: true });
+  const shortcut = keyEvent("KeyA", { ctrlKey: true });
   target.dispatch("keydown", shortcut);
-  assert.equal(shortcut.prevented, false, "Ctrl+C stays the browser's");
+  assert.equal(shortcut.prevented, false, "Ctrl+A stays the browser's");
   assert.equal(presses.length, 3);
 
   source.dispose?.();
   assert.equal(target.count(), 0);
 });
 
+test("keyboard: riders hold their cluster's bits; release restores, opposites cancel, blur lets go", () => {
+  const target = new FakeTarget();
+  const { hub, hold } = recorder();
+  attachKeyboard(target as KeyboardTarget, hold);
+  hub.bind(0, "key:WASD");
+  hub.bind(1, "key:NUMPAD");
+  const key = (type: "keydown" | "keyup", ...codes: string[]) => {
+    for (const code of codes) target.dispatch(type, keyEvent(code));
+    return [hub.heldBits(0), hub.heldBits(1)];
+  };
+  assert.deepEqual(key("keydown", "KeyW", "KeyD", "Numpad5", "Numpad2"), [
+    UP | RIGHT,
+    DOWN,
+  ]);
+  assert.deepEqual(key("keyup", "Numpad5", "KeyW"), [RIGHT, DOWN]);
+  assert.deepEqual(key("keydown", "KeyA", "Space"), [
+    LEFT | RIGHT | FIRE,
+    DOWN,
+  ]);
+  assert.deepEqual(thrustDirection(hub.heldBits(0)), { x: 0, y: 0 });
+  assert.deepEqual(key("keyup", "KeyD"), [LEFT | FIRE, DOWN]);
+  target.dispatch("blur");
+  assert.deepEqual(key("keyup"), [0, 0], "blur releases every held key");
+  key("keydown", "KeyS", "Numpad6");
+  target.dispatch("visibilitychange");
+  assert.deepEqual(key("keyup"), [0, 0]);
+});
+
 test("keyboard: aliased keys are one button, and blur forgets held keys", () => {
   const target = new FakeTarget();
-  const { presses, press } = recorder();
-  attachKeyboard(target as KeyboardTarget, press);
-  target.dispatch("keydown", keyEvent("ArrowUp"));
-  target.dispatch("keydown", keyEvent("ArrowLeft")); // same button still held
-  target.dispatch("keyup", keyEvent("ArrowUp"));
-  target.dispatch("keyup", keyEvent("ArrowLeft"));
-  target.dispatch("keydown", keyEvent("ArrowDown"));
+  const { presses, hold } = recorder();
+  attachKeyboard(target as KeyboardTarget, hold);
   target.dispatch("keydown", keyEvent("Numpad0"));
+  target.dispatch("keydown", keyEvent("NumpadEnter")); // same button still held
+  target.dispatch("keyup", keyEvent("Numpad0"));
+  target.dispatch("keyup", keyEvent("NumpadEnter"));
+  target.dispatch("keydown", keyEvent("NumpadEnter"));
+  target.dispatch("keydown", keyEvent("Slash"));
   target.dispatch("blur");
-  target.dispatch("keydown", keyEvent("Numpad0")); // its keyup was lost
+  target.dispatch("keydown", keyEvent("Slash")); // its keyup was lost
   assert.deepEqual(presses, [
+    "key:NUMPAD",
+    "key:NUMPAD",
     "key:ARROWS",
     "key:ARROWS",
-    "key:NUM0",
-    "key:NUM0",
   ]);
 });
 
 test("keyboard: a lost keyup does not block the button forever (#12)", () => {
   const target = new FakeTarget();
-  const { presses, press } = recorder();
-  const source = attachKeyboard(target as KeyboardTarget, press);
+  const { presses, hold } = recorder();
+  const source = attachKeyboard(target as KeyboardTarget, hold);
   // macOS drops the keyup of a key released while Cmd is held.
-  target.dispatch("keydown", keyEvent("KeyQ"));
+  target.dispatch("keydown", keyEvent("Space"));
   target.dispatch("keydown", keyEvent("MetaLeft", { metaKey: true }));
   target.dispatch("keyup", keyEvent("MetaLeft"));
-  target.dispatch("keydown", keyEvent("KeyQ"));
+  target.dispatch("keydown", keyEvent("Space"));
   // Switching tabs while holding a key loses its keyup too.
-  target.dispatch("keydown", keyEvent("KeyP"));
+  target.dispatch("keydown", keyEvent("KeyH"));
   target.dispatch("visibilitychange");
-  target.dispatch("keydown", keyEvent("KeyP"));
+  target.dispatch("keydown", keyEvent("KeyH"));
   // A Ctrl chord forgets held keys even when the chord key is bound.
-  target.dispatch("keydown", keyEvent("ArrowUp"));
-  target.dispatch("keydown", keyEvent("ArrowDown", { ctrlKey: true }));
-  target.dispatch("keydown", keyEvent("ArrowUp"));
+  target.dispatch("keydown", keyEvent("Slash"));
+  target.dispatch("keydown", keyEvent("Slash", { ctrlKey: true }));
+  target.dispatch("keydown", keyEvent("Slash"));
   assert.deepEqual(presses, [
-    "key:Q",
-    "key:Q",
-    "key:P",
-    "key:P",
+    "key:WASD",
+    "key:WASD",
+    "key:IJKL",
+    "key:IJKL",
     "key:ARROWS",
     "key:ARROWS",
   ]);
@@ -231,35 +312,46 @@ test("keyboard: a lost keyup does not block the button forever (#12)", () => {
 
 test("keyboard: keys typed into a form field stay the field's (#12)", () => {
   const target = new FakeTarget();
-  const { presses, press } = recorder();
-  attachKeyboard(target as KeyboardTarget, press);
+  const { presses, hold } = recorder();
+  attachKeyboard(target as KeyboardTarget, hold);
   const fields = [
     { tagName: "INPUT" },
     { tagName: "TEXTAREA" },
     { tagName: "SELECT" },
     { tagName: "DIV", isContentEditable: true },
+    { tagName: "BUTTON" }, // Space presses a focused button (the portal)
   ];
   for (const field of fields) {
-    const typed = keyEvent("ArrowLeft", {
+    const typed = keyEvent("Space", {
       target: field as unknown as EventTarget,
     });
     target.dispatch("keydown", typed);
     assert.equal(typed.prevented, false, field.tagName);
   }
   assert.deepEqual(presses, [], "typing a name does not join a player");
-  const onCanvas = keyEvent("ArrowLeft", {
+  const onCanvas = keyEvent("Space", {
     target: { tagName: "CANVAS" } as unknown as EventTarget,
   });
   target.dispatch("keydown", onCanvas);
   assert.ok(onCanvas.prevented);
-  assert.deepEqual(presses, ["key:ARROWS"]);
+  const onButton = keyEvent("Slash", {
+    target: { tagName: "BUTTON" } as unknown as EventTarget,
+  });
+  target.dispatch("keydown", onButton);
+  assert.deepEqual(presses, ["key:WASD", "key:ARROWS"]);
 });
 
-function pad(index: number, down: number[] = [], mapping = "standard") {
+function pad(
+  index: number,
+  down: number[] = [],
+  mapping = "standard",
+  axes = [0, 0],
+) {
   return {
     index,
     connected: true,
     mapping,
+    axes,
     buttons: Array.from({ length: 16 }, (_, i) => ({
       pressed: down.includes(i),
       value: down.includes(i) ? 1 : 0,
@@ -269,8 +361,8 @@ function pad(index: number, down: number[] = [], mapping = "standard") {
 
 test("gamepads: any face button presses pad N on its rising edge", () => {
   let pads: (GamepadLike | null)[] = [pad(0), null, pad(2)];
-  const { presses, press } = recorder();
-  const source = attachGamepads(() => pads, press);
+  const { presses, hold } = recorder();
+  const source = attachGamepads(() => pads, hold);
   source.poll?.();
   pads = [pad(0, [0]), null, pad(2, [3])];
   source.poll?.();
@@ -285,18 +377,62 @@ test("gamepads: any face button presses pad N on its rising edge", () => {
 
 test("gamepads: hot-plugged pads join, and a replugged pad is the same device", () => {
   let pads: (GamepadLike | null)[] = [];
-  const { presses, press } = recorder();
-  const source = attachGamepads(() => pads, press);
+  const { hub, presses, hold } = recorder();
+  const source = attachGamepads(() => pads, hold);
   source.poll?.();
-  pads = [pad(0, [1])]; // appears with a button down: that is a press
+  pads = [pad(0, [1], "standard", [-1, 0])]; // appears with a button down: that is a press
   source.poll?.();
+  assert.equal(hub.heldBy("pad:0"), LEFT | FIRE);
   pads = []; // unplugged while held
   source.poll?.();
+  assert.equal(hub.heldBy("pad:0"), 0, "an unplugged pad lets go");
   pads = [null, pad(1, [5], "")]; // unmapped pad: any button
   source.poll?.();
   pads = [pad(0, [1]), { ...pad(1), connected: false }];
   source.poll?.();
   assert.deepEqual(presses, ["pad:0", "pad:1", "pad:0"]);
+});
+
+test("gamepads: the left stick or the D-pad steers; any face button fires", () => {
+  const { hub, hold } = recorder();
+  let pads: GamepadLike[] = [];
+  const source = attachGamepads(() => pads, hold);
+  const held = (next: GamepadLike) => {
+    pads = [next];
+    source.poll?.();
+    return hub.heldBy("pad:0");
+  };
+  assert.equal(held(pad(0, [], "standard", [0.3, -0.1])), 0, "dead zone");
+  assert.equal(held(pad(0, [], "standard", [0.7, -0.7])), UP | RIGHT);
+  assert.equal(held(pad(0, [12, 15])), UP | RIGHT, "D-pad up and right");
+  assert.equal(held(pad(0, [13, 2], "standard", [-1, 0])), LEFT | DOWN | FIRE);
+  assert.equal(held(pad(0, [14], "")), FIRE, "unmapped: every button fires");
+});
+
+test("stick quantisation: a dead zone, then 8 equal 45° sectors", () => {
+  /** A lean at `angle` degrees; y grows downward, so 90° is down. */
+  const lean = (angle: number, length = 1) =>
+    stickBits(
+      length * Math.cos((angle * Math.PI) / 180),
+      length * Math.sin((angle * Math.PI) / 180),
+      STICK_DEAD_ZONE,
+    );
+  assert.equal(lean(0, STICK_DEAD_ZONE), 0);
+  assert.equal(lean(0, STICK_DEAD_ZONE + 0.01), RIGHT);
+  const sectors: [number, number][] = [
+    [22, RIGHT],
+    [23, DOWN | RIGHT],
+    [67, DOWN | RIGHT],
+    [68, DOWN],
+    [135, DOWN | LEFT],
+    [180, LEFT],
+    [-157, UP | LEFT],
+    [-158, LEFT],
+    [-90, UP],
+  ];
+  for (const [angle, bits] of sectors)
+    assert.equal(lean(angle), bits, `${angle}°`);
+  assert.equal(stickBits(Number.NaN, 1, STICK_DEAD_ZONE), 0);
 });
 
 class FakeSurface extends FakeTarget {
