@@ -121,7 +121,8 @@ export function toView(world: World): WorldView {
       hp: hero.hp,
       maxHp: HERO_HP[hero.kind],
       lives: hero.lives,
-      invulnerable: world.step <= hero.invulnUntil,
+      // A hero that has never been (`invulnUntil` 0) is not, though step 0 is no later than that.
+      invulnerable: hero.invulnUntil > 0 && world.step <= hero.invulnUntil,
     })),
     enemies: world.enemies.map((enemy) => ({
       id: enemy.id,
