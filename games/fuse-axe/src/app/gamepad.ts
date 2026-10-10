@@ -58,28 +58,50 @@ export function gamepadBits(pad: GamepadLike): number {
 }
 
 /**
- * One gamepad drives this device's hero: the one in use. The first pad to press anything takes it, and keeps it while
- * it holds anything; once it lets go, another pad that presses takes over, so a second pad plugged in or a phantom
- * one cannot stand in the way. A pad that goes away lets go of what it held. `hold` hears the driving pad's bits every
- * poll (`HeldControls.hold` logs only changes).
+ * One gamepad drives this device's hero: the last to press. A pad's press is its bits changing to something held, and
+ * the first pad to hold anything drives until another presses, so a phantom pad whose axis sits off centre (or a
+ * resting one) cannot stand in the way of a real pad, and a second pad plugged in takes over only when it is used. The
+ * driver keeps the hero while it holds anything, and a pad that goes away lets go of what it held. `hold` hears the
+ * driving pad's bits every poll (`HeldControls.hold` logs only changes).
+ *
+ * A pad held through `letGo` (blur, a hidden page, the phone's MENU) or while a poll is not `active` is read as
+ * neutral until it lets go itself, so the stick or button that was down does not come straight back the next frame.
  */
 export class GamepadInput {
   private driver: number | undefined;
+  /** Each connected pad's bits at the last poll, to tell which one has just pressed. */
+  private seen = new Map<number, number>();
+  /** The pads held when input was let go, which are read as neutral until they are. */
+  private readonly latched = new Set<number>();
   constructor(
     private readonly source: GamepadSource,
     private readonly hold: (bits: number) => void,
   ) {}
-  poll(): void {
-    const held = new Map<number, number>();
-    for (const pad of this.source.pads())
-      if (pad?.connected) held.set(pad.index, gamepadBits(pad));
-    if (this.driver === undefined || !held.get(this.driver))
-      for (const [index, bits] of held)
-        if (bits) {
-          this.driver = index;
-          break;
-        }
-    this.hold(this.driver === undefined ? 0 : (held.get(this.driver) ?? 0));
+  /** Lets go of everything the pads hold, now and until each lets go itself. */
+  letGo(): void {
+    this.poll(false);
+  }
+  /** Reads the pads and holds the driver's bits; while not `active` (a hidden page, MENU open) it holds none. */
+  poll(active = true): void {
+    const bits = new Map<number, number>();
+    for (const pad of this.source.pads()) {
+      if (!pad?.connected) continue;
+      const held = gamepadBits(pad);
+      if (!held) this.latched.delete(pad.index);
+      else if (!active) this.latched.add(pad.index);
+      bits.set(pad.index, this.latched.has(pad.index) ? 0 : held);
+    }
+    for (const index of this.latched)
+      if (!bits.has(index)) this.latched.delete(index);
+    if (this.driver !== undefined && !bits.has(this.driver))
+      this.driver = undefined;
+    for (const [index, held] of bits)
+      if (held && (this.driver === undefined || held !== this.seen.get(index)))
+        this.driver = index;
+    this.seen = bits;
+    this.hold(
+      active && this.driver !== undefined ? (bits.get(this.driver) ?? 0) : 0,
+    );
   }
 }
 
