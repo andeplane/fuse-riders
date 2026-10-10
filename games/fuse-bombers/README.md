@@ -32,18 +32,27 @@ button at the top left of every Fuse game's lobby). It is a local game: no rooms
 
 ## Controls
 
-In the lobby, press your button to join and press it again to leave. Seats up to the player count that nobody holds are
-played by bots.
+In the lobby, press your fire key or button to join and press it again to leave. Seats up to the player count that
+nobody holds are played by bots. One keyboard seats four riders, so a lobby of six humans needs gamepads or touch zones
+for the other two.
 
-| Device   | Your button                                                   | Menus                                                                                           |
-| -------- | ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Keyboard | `Q`, `C`, `M`, `P`, any arrow key, `Num0` (or numpad `Enter`) | `Enter`/`Space` confirm, `Esc` pause or back, `Backspace` quit                                  |
-| Gamepad  | Any face button (A/B/X/Y on a standard pad)                   | Start confirms and pauses, Back goes back or pauses; hold your button 1 s in the lobby to start |
-| Touch    | Your coloured tap zone along the bottom edge                  | Tap the on-screen buttons; the `II` corner button pauses                                        |
+| Rider      | Steer                                                | Fire                                         |
+| ---------- | ---------------------------------------------------- | -------------------------------------------- |
+| Keyboard 1 | `W` `A` `S` `D`                                      | `Space`                                      |
+| Keyboard 2 | `I` `J` `K` `L`                                      | `H`                                          |
+| Keyboard 3 | Arrow keys                                           | `/` (the key left of right Shift)            |
+| Keyboard 4 | Numpad `8` `4` `5` `6` (`2` is down too)             | Numpad `0` or numpad `Enter`                 |
+| Gamepad    | Left stick (8 directions, with a dead zone) or D-pad | Any face button (A/B/X/Y on a standard pad)  |
+| Touch      | Not yet: D-pads come in a later change               | Your coloured tap zone along the bottom edge |
+
+Until the gunships fly, only fire plays: the steering keys are read (`InputHub.heldBits`) but move nothing yet. Held
+together, opposite directions cancel. Menus: on a keyboard `Enter` confirms, `Esc` pauses or goes back and `Backspace`
+quits; on a pad Start confirms and pauses, Back goes back or pauses, and holding fire for 1 s in the lobby starts; on a
+touch screen tap the on-screen buttons, and the `II` corner button pauses.
 
 Lobby shortcuts: `2`–`6` sets the player count, `R` cycles rounds to win (1–5; the `+`/`−` buttons go up to 9), `B`
 cycles every bot's level (bots start on easy), and `Enter` starts. Click a bot to change its level. Mid-round, `Esc` or a pad's Start/Back
-pauses; while paused, `Enter`/`Space`/`Esc` resume and `Backspace` quits to the lobby. On the winner screen, `Enter`
+pauses; while paused, `Enter`/`Esc` resume and `Backspace` quits to the lobby. On the winner screen, `Enter`
 plays again and `Esc` or `Backspace` returns to the lobby.
 
 A gamepad that is unplugged and comes back at the same index is the same player. Tap zones appear on touch devices; on
