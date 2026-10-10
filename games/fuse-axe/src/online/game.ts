@@ -556,6 +556,8 @@ export const axeGame: RollbackGame<Room, Entry, View, never, Settings> = {
   },
   text: {
     ...defaultText,
+    // Bots stand still until they get a controller, so solo is one hero alone for now.
+    solo: "Solo run",
     needTwo: "At least one hero must be seated to set out.",
   },
 };
