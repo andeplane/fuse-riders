@@ -43,7 +43,7 @@ test("hard bots clearly beat easy bots head to head", () => {
   for (let seed = 1; seed <= rounds; seed++) {
     const hard = seed % 2; // swap sides every round
     const kinds: BotDifficulty[] = hard ? ["easy", "hard"] : ["hard", "easy"];
-    // In range of each other (on the temple's spawn anchors aim rarely decides a duel until gunships fly).
+    // In range of each other (on the temple's spawn anchors aim rarely decides a duel until bots fly).
     const { inputs } = botInputs(seed, kinds);
     const s = playOut({ seed, playerCount: 2 }, inputs, undefined, lineUp);
     if (s.result?.winner === hard) hardWins++;
@@ -75,7 +75,7 @@ test("bots only press when loaded, and fire regularly", () => {
       0,
     );
     assert.equal(volleys, log.presses, `${difficulty}: a press did not fire`);
-    // Reload is 2.6 s. With nobody in reach (castles hover at their spawn anchors until they fly), a bot waits
+    // Reload is 2.6 s. With nobody in reach (bot gunships stay at their spawn anchors until bots fly), a bot waits
     // out its patience and then for the best angle of a full 3.6 s turn, so it fires at least every ~8 s.
     for (const c of s.castles.filter((c) => c.alive)) {
       const seconds = s.tick / TICK_HZ;

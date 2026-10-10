@@ -12,7 +12,7 @@ Phaser, npm or `node:` imports; everything else imports it through `src/engine/i
   the right number of times; render interpolation (if any) is the renderer's business.
 - Angles are radians in math convention, in [0, 2π): `0` = pointing right, `π/2` = straight up, `π` = pointing left,
   `3π/2` = straight down. A rocket fired at angle `a` with speed `v` starts with velocity `(cos a · v, −sin a · v)`.
-- Deterministic: a round is a pure function of `RoundConfig` and the sequence of `pressed` arrays, bit for bit on
+- Deterministic: a round is a pure function of `RoundConfig` and the sequence of `held` arrays, bit for bit on
   every JS engine, so an online replay of one input log agrees across browsers (the helper's bits were compared on V8
   and SpiderMonkey; JavaScriptCore has not been run). The RNG (mulberry32) state lives in `state.rng`; there is no
   `Math.random`, `Date` or wall clock. Numbers are plain doubles, combined only with operations IEEE 754 rounds exactly
@@ -46,7 +46,7 @@ import {
 
 const round = createRound({ seed: 1234, playerCount: 4 }); // optional `tuning: Partial<Tuning>`
 // every tick:
-const events = step(round, pressed); // pressed[playerId] = button went DOWN this tick
+const events = step(round, held); // held[playerId] = UP | DOWN | LEFT | RIGHT | FIRE bits held this tick
 render(round as RoundView, events);
 if (round.result) {
   /* round over: keep stepping a second or two for the aftermath, then next round */
@@ -54,19 +54,24 @@ if (round.result) {
 ```
 
 - `createRound(config)` → `RoundState`. Throws `RangeError` for `playerCount` outside 2..6 or a non-finite seed. The
-  world is always the temple (`buildTempleGrid()`); the castles hover at `spawnOrder(playerCount, seed)`, a spread,
-  symmetric set of the map's spawn anchors. There is no reachability check any more: castles will fly (the next step
-  of the overhaul), so until then most pairs of anchors are out of each other's reach and rounds are mostly decided
-  in sudden death.
-- `step(state, pressed)` mutates `state` in place and returns the events of **this one tick** (also on `state.events`,
+  world is always the temple (`buildTempleGrid()`); the gunships start at rest at `spawnOrder(playerCount, seed)`, a
+  spread, symmetric set of the map's spawn anchors (through `placeClear`, which leaves the anchors' open air as it is).
+- `step(state, held)` mutates `state` in place and returns the events of **this one tick** (also on `state.events`,
   which is replaced by the next `step`). An app that runs several steps per frame must collect the arrays of every call
-  and hand all of them to render and audio, or it drops events. `pressed` is an **edge** per player id; missing entries
-  count as `false`. A press only fires when the castle `isLoaded`. It fires at the angle the castle had _before_ this
-  step, i.e. the angle the player was looking at. Once a player's castle is destroyed, the same button drives their
-  ghost bomber (see Rules), which drops from where the blimp was _before_ this step when `isGhostLoaded(ghost,
-terrain)` (reloaded, and the blimp in the open: a press with the blimp inside rock is ignored).
-- After `state.result` is set (`phase === "over"`) `step` keeps moving rockets and carving craters for the aftermath but
-  never fires, drops ghost bombs, damages (no `hit` or `ghost-bomb-hit`) or changes the result again.
+  and hand all of them to render and audio, or it drops events. `held[playerId]` is the input bits that player holds
+  this tick (`UP 1, DOWN 2, LEFT 4, RIGHT 8, FIRE 16`, exported with `INPUT_MASK` and `isInput`); a missing entry, or
+  one that is not an integer of those bits (`isInput`: NaN, fractions, negatives, 32 and up, non-numbers), holds
+  nothing, and entries past the last seat are ignored. The directions steer the gunship (see "Flight" under Rules). A
+  **fire press is the rising edge of `FIRE`** against the bits of the previous step, kept per seat in
+  `state.lastHeld` (plain data, so a clone carries it): holding fire fires once at most, and only a release and a new
+  press fires again. A press fires only when the castle `isLoaded`, at the angle it had _before_ this step (the angle
+  the player was looking at) and from where it was then: the volley's first rocket leaves before the gunship moves.
+  Once a player's castle is destroyed, the same bits fly their ghost bomber (see Rules), whose fire press drops from
+  where the blimp was _before_ this step when `isGhostLoaded(ghost, terrain)` (reloaded, and the blimp in the open: a
+  press with the blimp inside rock is ignored).
+- After `state.result` is set (`phase === "over"`) `step` keeps moving rockets, gunships and ghosts and carving craters
+  for the aftermath but never fires, drops ghost bombs, damages (no `hit` or `ghost-bomb-hit`) or changes the result
+  again.
 - `view(state)` returns the same object typed as `RoundView` (deep read-only, without the RNG state and the spawn
   schedule, which would let a bot see the future). Hand render and bots a `RoundView`; only the app loop holds the
   mutable `RoundState`. Everything is plain data, so `structuredClone(state)` works.
@@ -88,11 +93,13 @@ Draws count for nobody.
 | `rockets[]`             | `{ id, owner, x, y, vx, vy, power, mega, bomb, ghost, gates, age }`. `owner` −1 = sudden-death bomb; `ghost`: from `owner`'s ghost. `power` > 1 if capped (draw bigger).                                          |
 | `gates[]`               | `{ id, multiplier, x, y, width, height, spawnTick, expireTick, … }` axis-aligned rectangle centred on `x, y`.                                                                                                     |
 | `crates[]`              | `{ id, card, x, y, radius, spawnTick }`. Cards: `unit`, `shield`, `rapid`, `repair`, `mega`.                                                                                                                      |
-| `ghosts[]`              | Ghost bombers of eliminated players: `{ owner, x, y, vx, reloadTicks, reloadTotalTicks, … }`, in the order they fell. `ghostOf(view, id)` finds one.                                                              |
+| `ghosts[]`              | Ghost bombers of eliminated players: `{ owner, x, y, vx, vy, thrust, reloadTicks, reloadTotalTicks, spawnTick }`, in the order they fell. `ghostOf(view, id)` finds one.                                          |
+| `lastHeld[id]`          | The validated input bits each seat held on the latest step (the next fire press is a rising edge against these). A checkpoint codec must refuse a length other than the seat count or an entry failing `isInput`. |
 | `tuning`                | The resolved `Tuning` (castle size, shield radius, reload, … everything the renderer needs).                                                                                                                      |
 
-Castle fields: `x, y` (the hull centre: centre of the hit circle and the shield; castles hover there), `hp / maxHp`,
-`alive`, `angle` (in [0, 2π), turning counter-clockwise), `reloadTicks / reloadTotalTicks` (reload ring), `units`
+Castle fields: `x, y` (the hull centre: centre of the hit circle and the shield; it moves as the gunship flies),
+`vx, vy` (px/s), `thrust` (the direction bits it flew with on the latest step, for thrusters; 0 once destroyed),
+`hp / maxHp`, `alive`, `angle` (in [0, 2π), turning counter-clockwise), `reloadTicks / reloadTotalTicks` (reload ring), `units`
 (rockets per volley), `shieldHp`, `megaReady`, `volleyLeft` (rockets still to leave the barrel), and `stats` (volleys,
 rocketsFired, damageDealt, kills, gateSplits, crates, ghostBombs, ghostDamage) for an end-of-round screen.
 `damageDealt` and `kills` include what the player's ghost did. Geometry helpers: `castleCenter(c)` (the hull centre),
@@ -124,7 +131,10 @@ Every event carries the `tick` that produced it. `step` returns one tick's event
 
 `predictTrajectory(view, castleId, angle = current, { maxTicks = 360, stopAtGate = false })` replays exactly the physics
 a rocket fired on the next `step` would get (same integrator and sub-steps, rock along every sub-step's path with
-`segmentHit`, gates at their future positions, castles and shields), without the per-rocket random spread. Returns:
+`segmentHit`, gates at their future positions, castles and shields), without the per-rocket random spread. It starts
+from where the gunship is now, which is where a press on the next step launches from however it flies (other
+gunships are taken where they are now). Rock on the barrel gives a `terrain` impact at tick 0 where the barrel enters
+it, the only point of `points` (see "Barrel" under Rules). Returns:
 
 - `points`: launch point then one point per tick until impact. The dotted guide draws a prefix (e.g. the first 20).
 - `impact`: `{ kind: "terrain" | "castle" | "shield" | "offscreen" | "gate" | "timeout", x, y, tick, castleId }`.
@@ -134,21 +144,26 @@ a rocket fired on the next `step` would get (same integrator and sub-steps, rock
 bot with reaction time R can evaluate `predictTrajectory(view, id, futureAngle(view, id, R))` and press R ticks early.
 Bots get no other privileged information. Gate motion is also a pure function: `gatePositionAt(gate, tick)`.
 
-Ghosts: `ghostPositionAt(ghost, tick)` gives the blimp's `{ x, y, vx }` at any tick, and `predictGhostBomb(view, owner,
-ticks = 0, maxTicks = 300)` returns a `Trajectory` (empty `gates`/`crates`) for a bomb dropped `ticks` steps from now,
-or null without a ghost and when the blimp would be inside rock then (a press there drops nothing, see
-`isGhostLoaded`). The renderer can use it for a drop guide.
+Ghosts fly where their player steers them, so their future is a guess. Prediction assumes **no input from now on**:
+`ghostPositionAt(ghost, ticks)` gives the blimp's `{ x, y, vx, vy }` `ticks` steps from now as it coasts on its
+momentum and brakes to a stop (in about 1.5 s; exactly what `step` does with no direction held), and
+`predictGhostBomb(view, owner, ticks = 0, maxTicks = 300)` returns a `Trajectory` (empty `gates`/`crates`) for a bomb
+dropped `ticks` steps from now from there, with the blimp's velocity, or null without a ghost and when the blimp would
+be inside rock then (a press there drops nothing, see `isGhostLoaded`). With `ticks = 0` it is exact; the renderer
+uses it for the drop guide.
 
 ## Bots
 
-`src/engine/bot.ts` plays a castle with the same one button as a human, using only the view, `futureAngle` and
-`predictTrajectory`.
+`src/engine/bot.ts` plays a castle with the fire button alone, using only the view, `futureAngle` and
+`predictTrajectory`: it does not steer yet, so its gunship and ghost stay where they appear (until bots move into the
+round state with flight, the next step of the overhaul). The app's `createBotPlayer` holds `FIRE` on the steps it
+presses; it presses only when loaded, so each press is a fresh rising edge.
 
 ```ts
-import { createBot, type Bot } from "../engine/index.js";
+import { createBot, FIRE, type Bot } from "../engine/index.js";
 
 const bot: Bot = createBot({ difficulty: "normal", playerId: 3, seed }); // "easy" | "normal" | "hard"
-pressed[3] = bot(view(round)); // call once per tick, before `step`; true = press this tick
+held[3] = bot(view(round)) ? FIRE : 0; // call once per tick, before `step`; true = press this tick
 
 // For a `(view, playerId) => boolean` policy:
 const bots = new Map(
@@ -169,9 +184,9 @@ partly; gate multipliers multiply the value and crates add to it. Each score is 
 (timing is never exact), and once loaded the bot presses when a shot is close to the best of the last full turn, relaxing
 its standards the longer it waits. The press lands up to `timingError` ticks early or late.
 
-An eliminated bot flies its ghost: when loaded it predicts the drop `reaction` ticks ahead with `predictGhostBomb` and
+An eliminated bot plays its ghost: when loaded it predicts the drop `reaction` ticks ahead with `predictGhostBomb` and
 presses (with the same timing error) when the bomb would hit a castle or land within `ghostSlack` of one (easy 70 px,
-normal 40, hard 25).
+normal 40, hard 25). Since it does not steer, its ghost hovers above the wreck and seldom has anything below it.
 
 | Difficulty | Timing error | Thinks every | Other                                                  |
 | ---------- | ------------ | ------------ | ------------------------------------------------------ |
@@ -179,15 +194,15 @@ normal 40, hard 25).
 | normal     | ±3 ticks     | 2 ticks      | likes gates and crates, some focus on weak castles     |
 | hard       | ±1 tick      | 1 tick       | picky, hunts gates and crates, finishes low-HP castles |
 
-On the temple's spawn anchors aim rarely decides a round until gunships fly (see the measurements under Rules). Lined
+From the temple's spawn anchors aim rarely decides a round while bots do not fly (see the measurements under Rules). Lined
 up in range in open air (`lineUp` in `tests/engine-helpers.ts`), hard beats easy in at least 9 of 12 duels
 (`tests/engine-bot.test.ts`). Before the sky overhaul the difficulties were measured on the one-screen arena (git
 history of this page has the numbers).
 
-## Flight kernel (sky overhaul, not wired into the round yet)
+## Flight kernel
 
-For the flying gunships of the sky overhaul ([design.md](design.md)). Not exported from `index.ts` until the round uses
-it.
+The flying gunships and ghosts of the sky overhaul ([design.md](design.md)); "Flight" under Rules says how the round
+uses it. `index.ts` exports the input bits and `GUNSHIP_FLIGHT` / `GHOST_FLIGHT`.
 
 - `src/engine/input.ts`: held bits `UP 1, DOWN 2, LEFT 4, RIGHT 8, FIRE 16`, `INPUT_MASK`, `isInput(value)` (runtime
   check for input crossing a boundary) and `thrustDirection(bits)` (opposites cancel, diagonals normalised to unit
@@ -230,15 +245,23 @@ it.
 
 - **World**: the temple (`buildTempleGrid()`, see below), 1200 × 675 cells of 4 px. Every explosion carves a circle
   (`carveCircle`) out of the rock, never out of its hard cells; nothing falls.
-- **Castles** hover at their spawn anchors (`spawnOrder`), each a hit circle of radius 34 round its `x, y`, until
-  flight lands. Anchors are spread over the map, so most pairs are out of each other's reach for now.
+- **Castles** (gunships) start at rest at their spawn anchors (`spawnOrder`), each a hit circle of radius 34 round its
+  `x, y`. Anchors are spread over the map, so a gunship has to fly to get in range.
+- **Flight**: each step, after firing, every living gunship runs `flyStep(castle, held & (UP | DOWN | LEFT | RIGHT),
+GUNSHIP_FLIGHT, world)` in seat order, where `world` is the round's grid seen through `solidAt` (one adapter per grid
+  object, so no step allocates one, and a clone gets its own), then `separate` parts the living gunships in seat order.
+  A gunship is a flight circle of radius 30 inside its hit circle: it slides along rock and the world's edge, bumps the
+  others aside and never falls (no gravity; with nothing held it brakes to a stop where it is). Rockets do not inherit
+  its velocity. A destroyed gunship stops where it was, and its wreck stays there.
 - **Aim**: the launcher turns counter-clockwise at a steady rate, one full circle per `aimPeriod` (3.6 s), from a random
   starting angle, so a castle can fire in any direction, down included. `createRound` throws `RangeError` for an
-  `aimPeriod` that is not finite or is under two ticks (`MIN_AIM_PERIOD`). A rocket's path is tested against rock from
-  where it leaves the barrel, never the barrel itself (the pivot `launcherOffset` 32 px above the hull, the tip
-  `barrelLength` 20 px past it). That is safe while castles hover at the spawn anchors, which have 60 px of air round
-  them, but **free flight must handle it**: a gunship that flies close to rock can have its pivot or tip inside it, and
-  the launch then has to be decided (refuse it, or blow up at the barrel) rather than started inside rock.
+  `aimPeriod` that is not finite or is under two ticks (`MIN_AIM_PERIOD`).
+- **Barrel**: every rocket of a volley tests its barrel, the segment from the pivot (`launcherOffset` 32 px above the
+  hull) to the tip (`barrelLength` 20 px past it), with `segmentHit`. Rock on it (a gunship flown up against a wall or a
+  ceiling, which can put even the pivot inside rock, since the pivot is 2 px outside the flight circle) blows the rocket
+  up where the barrel enters the rock (at the pivot when that is in rock) with its crater and splash, so no rocket
+  starts beyond a wall. Nothing between the hull and the pivot can hide rock: the flight circle's rim would have met it.
+  Otherwise the rocket's path is tested from the tip.
 - **Volleys**: launch speed 900 px/s, gravity 500 px/s². `units` rockets (start 5, max 30) leave every 5 ticks (packed
   tighter for big volleys so a volley lasts ≤ 1 s) with ±1.2° / ±1.5 % spread. Reload 2.6 s (first shot after 1.2 s).
 - **Rockets** test the segment each sub-step moved along with `segmentHit` and blow up where it enters rock, so they
@@ -247,7 +270,7 @@ it.
 - **Damage**: castle HP depends on the player count: 280 / 220 / 150 / 130 / 120 for 2 / 3 / 4 / 5 / 6 players. Direct
   rocket hit 4; an explosion within reach of a castle (crater radius plus castle radius) deals 50 % splash, with or
   without ground under the castle. Own rockets never hurt their own castle or shield. A dying castle blows a 46 px
-  crater where it hovered (harmless in open air).
+  crater where it is (harmless in open air).
 - **Gates**: 5 / 5 / 6 / 6 / 7 for 2–6 players, of ×2/×3/×5/×10 (weights 4/3/2/1), drift slowly and bob, live 14–22 s
   and respawn elsewhere. A gate lives in one of the map's `skyZones` (picked with odds by area): the whole box it
   sweeps (drift up to ±170 px, less in a narrow zone, and bob ±14 px) lies inside the zone, holds no rock, keeps
@@ -269,16 +292,18 @@ it.
   the castle has a ceiling), from one per second to ten per second over 40 s, scattering less and less; all damage
   scales by `1 + suddenDeathSeconds / 30`. Bombs can be multiplied by gates too. At 180 s the round is decided on HP
   (tie = draw).
-- **Ghost bombers** (`ghosts: true`): a destroyed castle's player gets a blimp `ghostRise` (220 px) above the wreck
-  (at least 40 px below the top). Until free flight lands it drifts across the whole world at that height, through
-  rock, toward the middle first at 160 px/s, bouncing 40 px from the edges. Pressing drops a bomb (first after 2.5 s,
-  then every 3.5 s) that starts at 60 px/s downward with the blimp's `vx`, but only with the blimp in the open: a bomb
-  released inside rock would blow up on the spot, so while the blimp is in rock it stays unloaded (`isGhostLoaded`
-  false, the press ignored and the reload kept) until it flies out. It deals 7 on a direct hit (splash half,
+- **Ghost bombers** (`ghosts: true`): a destroyed castle's player gets a blimp at rest `ghostRise` (220 px) above the
+  wreck (at least 40 px below the top), in play from the next step. The player flies it with the same bits:
+  `flyStep(ghost, directions, GHOST_FLIGHT, GHOST_SKY)`, lighter and faster than a gunship, through rock (`GHOST_SKY`
+  is `openSky`: the world's edges only), never colliding with anything. A fire press drops a bomb (first after 2.5 s,
+  then every 3.5 s) from where the blimp was before the step, with its velocity plus 60 px/s downward, but only with
+  the blimp in the open: a bomb released inside rock would blow up on the spot, so while the blimp is in rock it stays
+  unloaded (`isGhostLoaded` false, the press ignored and the reload kept) until it flies out. It deals 7 on a direct hit (splash half,
   times the sudden-death scale), carves an 18 px crater, is never multiplied by gates and never takes crates. Ghosts
   cannot win: the round still ends when ≤ 1 castle stands, and they stop dropping once it is over.
 
-Measured headlessly on the big map (bots only, all castles on one difficulty, 20 seeds per player count, seeds
+Measured headlessly on the big map before gunships flew (bots, which do not steer yet, still end their rounds in sudden
+death; bots only, all castles on one difficulty, 20 seeds per player count, seeds
 `s · 7919 + players`): every round reaches sudden death, with a median length of 131–134 s (p90 at most 136 s) for
 every difficulty and 2–6 players; none needs the 180 s stop. The same measurement on the old one-screen arena gave hard
 40–52 s, normal 42–75 s and easy 99–124 s, mostly before the fuse. From their spawn anchors, a sweep of all 360 whole
@@ -286,12 +311,15 @@ degrees finds a direct hit for 0 of the 12 ordered pairs of two-player rounds an
 seeds each): the castles mostly wait for the bombs. In range (`lineUp`, 600–1200 px apart in open air), the "decent
 aimer" of `tests/engine-balance.test.ts` (presses 8 ticks ahead, ±3 ticks off) beats "fire whenever loaded" in nearly
 every round, but its own duels mostly reach sudden death too: the launcher turns 100° a second, so a 3-tick slip is a 5°
-miss, and a near miss in open air splashes nobody. Free flight and its tuning come next.
+miss, and a near miss in open air splashes nobody. Bots that fly come next.
 
 A step with bots thinking costs, averaged over whole six-player rounds (Node 24): easy 62 µs, normal 114 µs, hard
 175 µs (the old arena: 86 / 155 / 259 µs; `predictTrajectory` only works out where a gate or crate is when the rocket
 is inside the box it sweeps). The slowest single step seen was 16 ms (warm-up and garbage collection included). `createRound` takes ~2 ms,
-nearly all of it painting the temple.
+nearly all of it painting the temple. Flight adds about 10 µs: six gunships on seeded random holds (a new direction
+every 20–80 ticks) that fire whenever loaded average 24.5 µs a step over four whole six-player rounds (seeds 1–4, about
+32 000 steps, Node 24, the warm pass), against 15 µs for the same rounds with nobody steering
+(`pnpm exec tsx games/fuse-bombers/preview/step-cost.ts`).
 
 ## Bitmap terrain and the temple map
 
@@ -346,5 +374,5 @@ is ~24 % of the map; hard cells (~5 % of it: pillars, columns, the shrine's legs
 because the terrain is not symmetric, plus the top centre and under the keel on it), `spawnOrder(count, seed)` (a spread,
 symmetric set per player count 2–6 chosen and dealt to seats by the seed; it is the temple's, not generic), `skyZones` (open air for gates and crates) and
 `TEMPLE_LANDMARKS` (tunnel, cave, bays) come with it. `tests/engine-temple-map.test.ts` checks the margins, the
-clearances, that all open air is one region a gunship (radius 26) can fly through, and that the tunnel and cave are
+clearances, that all open air is one region a gunship (`GUNSHIP_FLIGHT`'s radius, 30) can fly through, and that the tunnel and cave are
 enclosed yet reachable.

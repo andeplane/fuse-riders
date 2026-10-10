@@ -10,6 +10,7 @@ import {
   insideGate,
   integrate,
   isOffscreen,
+  launcherPivot,
   launchState,
 } from "./geometry.js";
 import { segmentHit, solidAt } from "./grid.js";
@@ -89,6 +90,14 @@ export function predictTrajectory(
       crates,
     };
   };
+  // Rock on the barrel blows the rocket up where the barrel enters it, as `step` does: the path is that point alone.
+  const pivot = launcherPivot(castle, t);
+  const wall = segmentHit(terrain, pivot.x, pivot.y, r.x, r.y);
+  if (wall) {
+    [r.x, r.y] = [wall.x, wall.y];
+    points.pop();
+    return done("terrain", -1);
+  }
 
   for (let k = 0; k < maxTicks; k++) {
     const tick = state.tick + k;
@@ -153,12 +162,12 @@ export function predictTrajectory(
 }
 
 /**
- * Predicts where player `owner`'s ghost bomb would land if its button were pressed `ticks` steps
- * from now (0 = on the next `step`), from the ghost's deterministic path and the current terrain
- * and castles. Bombs ignore gates and crates, so `gates` and `crates` are always empty. Returns
- * null when the player has no ghost, and when the blimp would be inside rock at that tick (a press
- * there drops nothing: see `isGhostLoaded`). The drop does not wait for the reload; only the path
- * is predicted.
+ * Predicts where player `owner`'s ghost bomb would land if fire were pressed `ticks` steps from now (0 = on the next
+ * `step`), with the current terrain and castles where they are. The blimp is assumed to coast without input until
+ * then (`ghostPositionAt`), and the bomb leaves with its velocity plus `ghostBombSpeed` down. Bombs ignore gates and
+ * crates, so `gates` and `crates` are always empty. Returns null when the player has no ghost, and when the blimp
+ * would be inside rock at that tick (a press there drops nothing: see `isGhostLoaded`). The drop does not wait for
+ * the reload; only the path is predicted.
  */
 export function predictGhostBomb(
   state: RoundView,
@@ -169,10 +178,9 @@ export function predictGhostBomb(
   const g = state.ghosts.find((h) => h.owner === owner);
   if (!g) return null;
   const t = state.tuning;
-  const start = state.tick + ticks;
-  const p = ghostPositionAt(g, start);
+  const p = ghostPositionAt(g, ticks);
   if (solidAt(state.terrain, p.x, p.y)) return null;
-  const r = { x: p.x, y: p.y, vx: p.vx, vy: t.ghostBombSpeed };
+  const r = { x: p.x, y: p.y, vx: p.vx, vy: p.vy + t.ghostBombSpeed };
   const points: Vec2[] = [{ x: r.x, y: r.y }];
   const shieldR = t.shieldRadius + t.rocketRadius;
   const castleR = t.castleRadius + t.rocketRadius;

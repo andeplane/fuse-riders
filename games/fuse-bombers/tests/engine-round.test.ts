@@ -5,6 +5,7 @@ import {
   castleCenter,
   createRound,
   damageScale,
+  FIRE,
   futureAngle,
   gridHash,
   isLoaded,
@@ -25,10 +26,12 @@ import { skyZones, spawnOrder, type Rect } from "../src/engine/temple-map.js";
 import {
   addRocket,
   clearSky,
+  held,
   openWorld,
   placeGate,
   playOut,
   spamInputs,
+  type Inputs,
 } from "./engine-helpers.js";
 
 const TAU = 2 * Math.PI;
@@ -45,10 +48,10 @@ function eventsOf<T extends TickEvent["type"]>(
 function run(
   state: RoundState,
   ticks: number,
-  inputs: (s: RoundState) => boolean[] = () => [],
+  inputs: (s: RoundState) => Inputs = () => [],
 ) {
   const all: TickEvent[] = [];
-  for (let i = 0; i < ticks; i++) all.push(...step(state, inputs(state)));
+  for (let i = 0; i < ticks; i++) all.push(...step(state, held(inputs(state))));
   return all;
 }
 
@@ -110,7 +113,7 @@ test("createRound refuses an aimPeriod the launcher cannot turn by", () => {
   }
 });
 
-test("castles hover at the seed's spawn anchors, clear of rock, launchers anywhere on the circle", () => {
+test("gunships start at rest at the seed's spawn anchors, clear of rock, launchers anywhere on the circle", () => {
   for (let n = 2; n <= 6; n++) {
     const s = createRound({ seed: 42 + n, playerCount: n });
     assert.deepEqual(
@@ -128,7 +131,7 @@ test("castles hover at the seed's spawn anchors, clear of rock, launchers anywhe
     assert.deepEqual(
       s.castles.map((c) => [c.x, c.y]),
       before,
-      "castles hover in place",
+      "with nothing held they stay put",
     );
   }
 });
@@ -164,10 +167,10 @@ test("pressing when loaded fires a volley of `units` rockets; pressing while rel
   const c = s.castles[0];
   assert.ok(c);
   assert.equal(isLoaded(c), false, "starts with a short initial reload");
-  assert.deepEqual(eventsOf(step(s, [true]), "fired"), []);
+  assert.deepEqual(eventsOf(step(s, [FIRE]), "fired"), []);
   while (!isLoaded(c)) step(s);
   const angle = c.angle;
-  const fired = eventsOf(step(s, [true, false]), "fired");
+  const fired = eventsOf(step(s, [FIRE, 0]), "fired");
   assert.equal(fired.length, 1);
   assert.equal(fired[0]?.angle, angle);
   assert.equal(fired[0]?.units, c.units);
@@ -175,7 +178,7 @@ test("pressing when loaded fires a volley of `units` rockets; pressing while rel
   run(s, 60);
   assert.equal(c.stats.rocketsFired, c.units);
   assert.equal(c.volleyLeft, 0);
-  assert.deepEqual(eventsOf(step(s, [true]), "fired"), [], "still reloading");
+  assert.deepEqual(eventsOf(step(s, [FIRE]), "fired"), [], "still reloading");
   const reload = Math.round(c.reloadTime * TICK_HZ);
   assert.equal(c.reloadTotalTicks, reload);
 });
@@ -189,7 +192,7 @@ test("a volley leaves at the angle the player saw, whichever way it points", () 
     assert.ok(c);
     c.reloadTicks = 0;
     c.angle = angle;
-    const fired = eventsOf(step(s, [true]), "fired");
+    const fired = eventsOf(step(s, [FIRE]), "fired");
     assert.equal(fired[0]?.angle, angle);
     const r = s.rockets[0];
     assert.ok(r);
@@ -291,7 +294,7 @@ test("rockets leave the world sideways and below, but fall back from above the t
   assert.ok(up.y > 60, "it came back down");
 });
 
-test("castles hover: blowing the rock round them away does not move them", () => {
+test("a gunship at rest stays put when the rock round it is blown away", () => {
   const s = createRound({ seed: 12, playerCount: 2 });
   clearSky(s);
   openWorld(s);
@@ -545,7 +548,7 @@ test("destroying the last opponent ends the round with a winner", () => {
   a.reloadTicks = 0;
   assert.equal(
     eventsOf(
-      run(s, 120, () => [true, true, true]),
+      run(s, 120, (st) => [0, 1, 2].map(() => st.tick % 2 === 0)),
       "fired",
     ).length,
     0,
