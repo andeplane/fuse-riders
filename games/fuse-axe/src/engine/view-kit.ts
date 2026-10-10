@@ -1,9 +1,11 @@
 import {
+  BACK_ATTACK,
   CAMERA_END,
   COMBO,
   FLOOR_BOTTOM,
   FLOOR_TOP,
   GRAVITY,
+  JUMP_ATTACK,
   JUMP_VZ,
   STAGE_LENGTH,
   SUB,
@@ -38,6 +40,8 @@ export {
   RESPAWN_DELAY,
   ATTACK_STEPS,
   RECOVER_STEPS,
+  GRAB_STEPS,
+  THROW_STEPS,
 } from "./tuning.js";
 export { ENEMY_STATES, FX_KINDS, HERO_STATES } from "./world.js";
 
@@ -69,6 +73,19 @@ export const SWING_STEPS: Readonly<Record<HeroKind, Swings>> = {
   brakka: steps("brakka"),
   rhea: steps("rhea"),
   gorm: steps("gorm"),
+};
+
+/** Each hero's back attack as steps of wind-up, blade out and recovery. */
+export const BACK_STEPS: Readonly<Record<HeroKind, SwingSteps>> = {
+  brakka: timing(BACK_ATTACK.brakka),
+  rhea: timing(BACK_ATTACK.rhea),
+  gorm: timing(BACK_ATTACK.gorm),
+};
+/** The steps each hero's jump attack winds up: its blade is out from this `animStep` until the hero lands. */
+export const STAB_STEPS: Readonly<Record<HeroKind, number>> = {
+  brakka: JUMP_ATTACK.brakka.startup,
+  rhea: JUMP_ATTACK.rhea.startup,
+  gorm: JUMP_ATTACK.gorm.startup,
 };
 
 /**

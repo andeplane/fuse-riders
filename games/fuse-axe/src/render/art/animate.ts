@@ -1,7 +1,9 @@
 import type { HeroKind } from "../../engine/view.js";
 import {
+  BACK_STEPS,
   HERO_STATES,
   JUMP_RISE_STEPS,
+  STAB_STEPS,
   SWING_STEPS,
   type SwingSteps,
   type Swings,
@@ -24,29 +26,44 @@ export const HERO_FRAMES = [
 export type HeroFrame = (typeof HERO_FRAMES)[number];
 
 /**
- * Every anim a hero has: the walk, run, jump, swings and dash, and the `hurt` to `dead` a ravager's mace brings;
- * `respawn` drops back in with the fall frame, and one who is `out` lies as `dead` does. Until the run and the dash
- * have frames of their own, the run strides through the walk's faster and the dash holds the first strike.
+ * Every anim a hero has: the walk, run, jump, swings and dash, the jump attack, back attack, grab and throw, and the
+ * `hurt` to `dead` a ravager's mace brings; `respawn` drops back in with the fall frame, and one who is `out` lies as
+ * `dead` does. Until the run and the dash have frames of their own, the run strides through the walk's faster and the
+ * dash holds the first strike; until the other moves do, they borrow the swings': the jump attack the second swing's
+ * wind-up and strike, the back attack the first swing's (the figure is not turned: the engine keeps its facing), the
+ * grab the finisher's wind-up and the throw its follow-through.
  */
 export const HERO_ANIMS = [
   ...["idle", "walk", "run", "jump", "land"],
   ...["attack1", "attack2", "attack3", "dash"],
+  ...["jumpattack", "backattack", "grab", "throw"],
   ...["hurt", "knockdown", "down", "getup", "dead", "respawn", "out"],
 ] as const;
 export type FigureAnim = (typeof HERO_ANIMS)[number];
 // The engine's states must all have frames: a new one fails to compile here until it is mapped below.
 HERO_STATES satisfies readonly FigureAnim[];
 
-/** A hero's engine timing: its three swings (`attack1`–`attack3`) and the steps from take-off to a jump's apex. */
+/**
+ * A hero's engine timing: its three swings (`attack1`–`attack3`), the steps from take-off to a jump's apex, its back
+ * attack and the steps its jump attack winds up.
+ */
 export interface HeroTiming {
   readonly swings: Swings;
   readonly rise: number;
+  readonly back: SwingSteps;
+  readonly stab: number;
 }
+const engineTiming = (kind: HeroKind): HeroTiming => ({
+  swings: SWING_STEPS[kind],
+  rise: JUMP_RISE_STEPS,
+  back: BACK_STEPS[kind],
+  stab: STAB_STEPS[kind],
+});
 /** Each hero's timing as the engine has it, `heroFrame`'s default. */
 export const HERO_TIMING: Readonly<Record<HeroKind, HeroTiming>> = {
-  brakka: { swings: SWING_STEPS.brakka, rise: JUMP_RISE_STEPS },
-  rhea: { swings: SWING_STEPS.rhea, rise: JUMP_RISE_STEPS },
-  gorm: { swings: SWING_STEPS.gorm, rise: JUMP_RISE_STEPS },
+  brakka: engineTiming("brakka"),
+  rhea: engineTiming("rhea"),
+  gorm: engineTiming("gorm"),
 };
 
 /** Steps each idle frame holds: a slow breath in and out. */
@@ -86,8 +103,9 @@ function swingFrame(
 }
 
 /**
- * The frame for a hero `animStep` steps into `anim`: the strike exactly while the blade is out (the swing's active
- * steps), the wind-up before and the follow-through after; the walk and the breath cycle; a jump rises, then falls.
+ * The frame for a hero `animStep` steps into `anim`: the strike exactly while the blade is out (a swing's or the back
+ * attack's active steps, the jump attack's from its wind-up on), the wind-up before and the follow-through after; the
+ * walk and the breath cycle; a jump rises, then falls.
  * The engine counts `animStep` only in the steps it runs, so a hit's freeze holds the strike frame. It never throws,
  * as the renderer calls it every frame: a step that is not a whole number from 0 is rounded down to one, and an anim
  * that has no case (one added to `FigureAnim` without a frame fails to compile) stands idle.
@@ -120,6 +138,14 @@ export function heroFrame(
       return swingFrame(timing[kind].swings[2], SWING[2], step);
     case "dash":
       return "strike1";
+    case "jumpattack":
+      return step < timing[kind].stab ? "windup2" : "strike2";
+    case "backattack":
+      return swingFrame(timing[kind].back, SWING[0], step);
+    case "grab":
+      return "windup3";
+    case "throw":
+      return "follow3";
     case "hurt":
       return "hurt";
     case "knockdown":
