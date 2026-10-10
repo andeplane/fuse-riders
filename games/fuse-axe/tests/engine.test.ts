@@ -11,6 +11,7 @@ import {
   LEFT,
   RIGHT,
   RULES,
+  STAGE_1,
   UP,
   createWorld,
   isInput,
@@ -21,6 +22,7 @@ import {
   step,
   stepTick,
   toView,
+  waveSpawns,
   type HeroKind,
   type World,
 } from "../src/engine/index.js";
@@ -198,21 +200,22 @@ test("a jump rises about 38 px, keeps its launch momentum and lands with a short
   assert.ok(hero(world).x < lastX);
 });
 
-test("the camera follows forward only, never leaves the leftmost hero and stops at the stage end", () => {
+test("the camera follows forward only, never leaves the leftmost hero and stops at the first wave", () => {
   let world = solo();
   let lastCam = 0;
-  for (let index = 0; index < 400; index++) {
+  for (let index = 0; index < 200; index++) {
     world = step(world, [RIGHT]);
     assert.ok(world.camX >= lastCam);
     lastCam = world.camX;
   }
+  assert.ok(world.camX > 0);
   assert.equal(hero(world).x - world.camX, T.CAMERA_LEAD);
   const back = run(world, [LEFT], 400);
   assert.equal(back.camX, world.camX, "the camera never scrolls back");
   assert.equal(hero(back).x, back.camX + T.HERO_MARGIN);
-  const end = run(world, [RIGHT], div(T.STAGE_LENGTH, T.WALK.brakka.x));
-  assert.equal(end.camX, T.CAMERA_END);
-  assert.equal(hero(end).x, T.STAGE_LENGTH - T.HERO_MARGIN);
+  // The stage's end, past every wave, is in waves.test.ts.
+  const on = run(world, [RIGHT], div(T.STAGE_LENGTH, T.WALK.brakka.x));
+  assert.equal(on.camX, STAGE_1.waves[0]!.at);
   assert.equal(run(createWorld({ seed: 1, heroes: [] }), [], 5).camX, 0);
 });
 
@@ -247,6 +250,9 @@ const mashing = (rows: number[][]): number[][] =>
     (row[0]! & ~ATTACK) | (index % 4 < 2 ? ATTACK : 0),
     ...row.slice(1),
   ]);
+/** Every seat holds Right for `steps` steps. */
+const march = (steps: number): number[][] =>
+  Array.from({ length: steps }, () => Array<number>(T.CAPACITY).fill(RIGHT));
 
 test("the same seed and inputs fold to the same world, and a step leaves its input untouched", () => {
   const start = () =>
@@ -260,7 +266,8 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
         ],
       }),
     );
-  const inputs = mashing(script(5, 1200));
+  // A brawl, then the party marches on into the first wave.
+  const inputs = [...mashing(script(5, 1200)), ...march(600)];
   const seen = new Set<string>(),
     foes = new Set<string>();
   const play = () =>
@@ -274,8 +281,12 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
     b = play();
   assert.equal(seedOf(JSON.stringify(a)), seedOf(JSON.stringify(b)));
   assert.deepEqual([...seen].sort(), [...HERO_STATES].sort());
-  assert.deepEqual([...foes].sort(), [...ENEMY_STATES].sort());
-  assert.ok(a.enemies.length < start().enemies.length, "the fallen are gone");
+  // Three heroes' ravagers outlast this brawl's blows (combat.test.ts fells them), so none is seen dead.
+  assert.deepEqual(
+    [...foes].sort(),
+    ENEMY_STATES.filter((state) => state !== "dead").sort(),
+  );
+  assert.deepEqual([a.wave, a.locked], [1, true]);
   const before = JSON.stringify(a);
   const tick = stepTick(a, [JUMP, 0, RIGHT]);
   assert.equal(JSON.stringify(a), before);
@@ -293,27 +304,32 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
       ],
     }),
   );
-  const inputs = mashing(script(21, 600));
+  // A brawl, then on into the first wave, whose spawns walk in while the crowd left behind walks back in.
+  const inputs = [...mashing(script(21, 600)), ...march(400)];
   const fold = (world: World, rows: readonly (readonly number[])[]) =>
     rows.reduce<World>((w, held) => step(w, held), world);
   const trail = [start];
   for (const held of inputs) trail.push(step(trail.at(-1)!, held));
   const straight = trail.at(-1)!;
   assert.ok(straight.heroes.every((h) => h.damage > 0 && h.knockdowns > 0));
-  assert.ok(straight.camX > 0);
-  // Cut too where a snapshot holds a hit-stop, a press waiting in a swing, and an enemy in flight.
+  assert.equal(straight.camX, STAGE_1.waves[0]!.at);
+  // Cut too where a snapshot holds a hit-stop, a press waiting in a swing, an enemy in flight, a wave with spawns
+  // still due, and an enemy walking in.
   const first = (found: (world: World) => boolean) => {
     const cut = trail.findIndex(found);
     assert.ok(cut > 0);
     return cut;
   };
+  const due = waveSpawns(STAGE_1.waves[0]!, 2).length;
   const cuts = [
     first((w) => w.heroes.some((h) => w.step < h.stopUntil)),
     first((w) => w.heroes.some((h) => h.attackBuf > 0 && h.state !== "idle")),
     first((w) => w.enemies.some((e) => e.state === "knockdown" && e.z > 0)),
+    first((w) => w.locked && w.spawned > 0 && w.spawned < due),
+    first((w) => w.enemies.some((e) => e.state === "enter")),
   ];
   // Restore a snapshot through JSON, as a checkpoint would, and replay the rest: no press is lost or made twice.
-  for (const cut of [1, 7, 8, 50, 301, 599, ...cuts]) {
+  for (const cut of [1, 7, 8, 50, 301, 599, 999, ...cuts]) {
     const snapshot = JSON.parse(JSON.stringify(trail[cut])) as World;
     assert.deepEqual(fold(snapshot, inputs.slice(cut)), straight, `cut ${cut}`);
   }
@@ -326,7 +342,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-2");
+  assert.equal(RULES, "fuse-axe-3");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {

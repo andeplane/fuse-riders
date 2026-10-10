@@ -1,17 +1,23 @@
 import {
   CAPACITY,
-  ENEMY_HP,
+  ENEMY_HALF_W,
   ENEMY_KINDS,
   ENEMY_MAX,
   FLOOR_BOTTOM,
   FLOOR_TOP,
   HERO_KINDS,
   STAGE_LENGTH,
+  SUB,
+  TIERS,
+  VIEW_W,
+  enemyMaxHp,
   px,
   type EnemyKind,
   type HeroKind,
+  type Tier,
 } from "./tuning.js";
 import { clamp } from "./math.js";
+import { STAGE_1 } from "./stages.js";
 
 /**
  * One run's world: plain integer data, so the netcode can clone, hash and checkpoint it. Space is `x` along the
@@ -66,6 +72,7 @@ export const ENEMY_STATES = [
   "down",
   "getup",
   "dead",
+  "enter",
 ] as const;
 export type EnemyState = (typeof ENEMY_STATES)[number];
 
@@ -85,6 +92,9 @@ export interface Enemy {
   timer: number;
   /** Hit-stop: the enemy holds still on every step up to and including this one. */
   stopUntil: number;
+  tier: Tier;
+  /** The x an `enter`ing enemy walks to, on screen; where it stood when it last arrived otherwise. */
+  goal: number;
 }
 
 export const FX_KINDS = ["hit", "heavy", "ko"] as const;
@@ -112,6 +122,16 @@ export interface World {
   enemies: Enemy[];
   /** Effects, oldest first, at most `FX_MAX`. */
   fx: Fx[];
+  /** Stage 1's waves begun: the next trigger is `STAGE_1.waves[wave]`, the latest begun `wave - 1`. */
+  wave: number;
+  /** The latest wave is being fought: the camera holds at its trigger until every spawn is in and none is left. */
+  locked: boolean;
+  /** The step the latest wave began, which its spawns' delays count from. */
+  waveStep: number;
+  /** How many of the latest wave's spawns (`waveSpawns`) have entered, in their order. */
+  spawned: number;
+  /** After a wave short of the last is cleared, GO shows through this step and while the camera has not moved on. */
+  goUntil: number;
 }
 
 export interface HeroEntry {
@@ -177,6 +197,58 @@ export function createWorld(options: {
     heroes,
     enemies: [],
     fx: [],
+    wave: 0,
+    locked: false,
+    waveStep: 0,
+    spawned: 0,
+    goUntil: 0,
+  };
+}
+
+/** The stage is won: its last wave has been fought to the end. The stage flow takes the party on from here. */
+export const stageCleared = (world: World): boolean =>
+  world.wave === STAGE_1.waves.length && !world.locked;
+
+/** GO flashes after a wave short of the last is cleared, for `GO_STEPS` and while the camera has not moved on. */
+export const showsGo = (world: World): boolean =>
+  !world.locked &&
+  world.wave > 0 &&
+  world.wave < STAGE_1.waves.length &&
+  (world.step <= world.goUntil ||
+    world.camX === STAGE_1.waves[world.wave - 1]!.at);
+
+/** Whether an enemy's whole body is on screen. */
+export const inView = (world: World, enemy: Enemy): boolean =>
+  enemy.x >= world.camX + ENEMY_HALF_W &&
+  enemy.x <= world.camX + VIEW_W * SUB - ENEMY_HALF_W;
+
+/**
+ * A new enemy at full hit points for its tier and the party, with the world's next id, facing `facing`. The caller
+ * adds it to the world's enemies (which keeps them in id order) and checks `ENEMY_MAX`.
+ */
+export function newEnemy(
+  world: World,
+  kind: EnemyKind,
+  tier: Tier,
+  x: number,
+  y: number,
+  facing: 1 | -1,
+): Enemy {
+  return {
+    id: world.nextId++,
+    kind,
+    x,
+    y,
+    z: 0,
+    vx: 0,
+    vz: 0,
+    facing,
+    hp: enemyMaxHp(kind, tier, world.heroes.length),
+    state: "idle",
+    timer: 0,
+    stopUntil: 0,
+    tier,
+    goal: x,
   };
 }
 
@@ -194,42 +266,35 @@ export function faceNearest(world: World, enemy: Enemy): void {
 }
 
 /**
- * A new world with one more enemy standing at (`x`, `y`) in sub-units, held to the road and the floor band, facing
- * the nearest hero. It takes the world's next id, so enemies stay in id order; the world passed in is left
- * untouched. Like `createWorld` it throws on an unknown kind or a position that is not whole, which would otherwise
- * leave NaN in the enemy's hit points or position, and on a world that already holds `ENEMY_MAX`: the checkpoint
- * codec refuses a bigger one, so a room that grew it could never be restored.
+ * A new world with one more enemy of `tier` standing at (`x`, `y`) in sub-units, held to the road and the floor
+ * band, facing the nearest hero. It takes the world's next id, so enemies stay in id order; the world passed in is
+ * left untouched. Like `createWorld` it throws on an unknown kind or tier or a position that is not whole, which
+ * would otherwise leave NaN in the enemy's hit points or position, and on a world that already holds `ENEMY_MAX`:
+ * the checkpoint codec refuses a bigger one, so a room that grew it could never be restored.
  */
 export function spawnEnemy(
   world: World,
   kind: EnemyKind,
   x: number,
   y: number,
+  tier: Tier = 0,
 ): World {
-  if (!ENEMY_KINDS.includes(kind))
-    throw new RangeError(`fuse-axe: unknown enemy kind ${kind}`);
+  if (!ENEMY_KINDS.includes(kind) || !TIERS.includes(tier))
+    throw new RangeError(`fuse-axe: unknown enemy ${kind} of tier ${tier}`);
   if (!Number.isInteger(x) || !Number.isInteger(y))
     throw new RangeError(`fuse-axe: enemy position ${x},${y} is not whole`);
   if (world.enemies.length >= ENEMY_MAX)
     throw new RangeError(`fuse-axe: already ${ENEMY_MAX} enemies`);
-  const enemy: Enemy = {
-    id: world.nextId,
+  const next = { ...world };
+  const enemy = newEnemy(
+    next,
     kind,
-    x: clamp(x, 0, STAGE_LENGTH),
-    y: clamp(y, FLOOR_TOP, FLOOR_BOTTOM),
-    z: 0,
-    vx: 0,
-    vz: 0,
-    facing: -1,
-    hp: ENEMY_HP[kind],
-    state: "idle",
-    timer: 0,
-    stopUntil: 0,
-  };
-  faceNearest(world, enemy);
-  return {
-    ...world,
-    nextId: world.nextId + 1,
-    enemies: [...world.enemies, enemy],
-  };
+    tier,
+    clamp(x, 0, STAGE_LENGTH),
+    clamp(y, FLOOR_TOP, FLOOR_BOTTOM),
+    -1,
+  );
+  faceNearest(next, enemy);
+  next.enemies = [...world.enemies, enemy];
+  return next;
 }

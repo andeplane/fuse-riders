@@ -10,8 +10,11 @@ import {
   pressed,
 } from "./input.js";
 import * as T from "./tuning.js";
+import { STAGE_1, waveSpawns, type Placed, type Side } from "./stages.js";
 import {
   faceNearest,
+  inView,
+  newEnemy,
   type Enemy,
   type EnemyState,
   type FxKind,
@@ -24,8 +27,9 @@ import {
  * One 1/60 s step, as a pure function: the input world is left untouched. The order is part of the rules: effects
  * past their life are dropped; every hero in id order reads its seat's held bits, swings, walks, jumps or falls, is
  * held to the floor band and the screen, and lands its blade on the enemies in id order; then every enemy in id
- * order reels, flies, lies or gets up, and a defeated one that has blinked long enough is gone; then the camera
- * follows. `held` holds each seat's bits by seat index; a missing seat holds nothing.
+ * order walks in, reels, flies, lies or gets up, and a defeated one that has blinked long enough is gone; then the
+ * camera follows, no further than the next wave's trigger; then the waves begin, spawn and clear (`advanceWaves`).
+ * `held` holds each seat's bits by seat index; a missing seat holds nothing.
  */
 export function step(world: World, held: readonly number[]): World {
   const now = world.step + 1;
@@ -43,6 +47,7 @@ export function step(world: World, held: readonly number[]): World {
     (enemy) => enemy.state !== "dead" || enemy.timer < T.DEAD_STEPS,
   );
   advanceCamera(next);
+  advanceWaves(next);
   return next;
 }
 
@@ -150,16 +155,22 @@ function moveHero(world: World, hero: Hero, bits: number): void {
   if (hero.jumpBuf > 0) hero.jumpBuf--;
 }
 
+/** An enemy a blade can land on: standing, reeling, or walking in once its whole body is on screen. */
+const hittable = (world: World, enemy: Enemy): boolean =>
+  enemy.state === "idle" ||
+  enemy.state === "hurt" ||
+  (enemy.state === "enter" && inView(world, enemy));
+
 /**
  * The blade's window: it reaches `reach` in front of the hero's centre, sweeps `SWING_HEIGHT` up from its feet and
- * lands only in the depth lane. Every enemy standing or reeling whose body overlaps it takes the hit, each at most
- * once a swing; heroes are never in its way.
+ * lands only in the depth lane. Every hittable enemy whose body overlaps it takes the hit, each at most once a
+ * swing; heroes are never in its way.
  */
 function strike(world: World, hero: Hero, blade: T.Swing): void {
   for (const enemy of world.enemies) {
     const ahead = (enemy.x - hero.x) * hero.facing;
     if (
-      (enemy.state === "idle" || enemy.state === "hurt") &&
+      hittable(world, enemy) &&
       !hero.struck.includes(enemy.id) &&
       ahead + T.ENEMY_HALF_W >= 0 &&
       ahead - T.ENEMY_HALF_W <= blade.reach &&
@@ -213,16 +224,32 @@ const AFTER: Partial<Record<EnemyState, readonly [number, EnemyState]>> = {
   getup: [T.GETUP_STEPS, "idle"],
 };
 
+/** Sends an enemy walking in to `inset` inside the screen's edge on `side`, facing its way. */
+function walkIn(world: World, enemy: Enemy, side: Side, inset: number): void {
+  const left = side === "left";
+  enemy.goal = left
+    ? world.camX + inset
+    : world.camX + T.VIEW_W * T.SUB - inset;
+  enemy.facing = left ? 1 : -1;
+  enemy.vx = 0;
+  setState(enemy, "enter");
+}
+
 /**
- * An enemy's step, unless it is in hit-stop. A nudge slows to a stop; a knockdown flies under gravity and lands
- * `down`, or `dead` at no hp left; reeling, lying and getting up each last their time. An idle enemy faces the
- * nearest hero (no AI yet). Every enemy stays on the road and in the floor band.
+ * An enemy's step, unless it is in hit-stop. One walking in steps toward its goal and stands idle there; a nudge
+ * slows to a stop; a knockdown flies under gravity and lands `down`, or `dead` at no hp left; reeling, lying and
+ * getting up each last their time. An idle enemy faces the nearest hero (no AI yet), unless the screen is locked
+ * and it stands outside it: then it walks back in at the nearer edge. Every enemy but one walking in stays on the
+ * road (a wave at the stage's end enters from beyond it) and in the floor band.
  */
 function moveEnemy(world: World, enemy: Enemy): void {
   if (world.step <= enemy.stopUntil) return;
   enemy.timer++;
   enemy.x += enemy.vx;
-  if (enemy.state === "knockdown") {
+  if (enemy.state === "enter") {
+    enemy.x += clamp(enemy.goal - enemy.x, -T.ENTER_WALK, T.ENTER_WALK);
+    if (enemy.x === enemy.goal) setState(enemy, "idle");
+  } else if (enemy.state === "knockdown") {
     enemy.z += enemy.vz;
     enemy.vz -= T.GRAVITY;
     if (enemy.z <= 0) {
@@ -235,14 +262,22 @@ function moveEnemy(world: World, enemy: Enemy): void {
       0;
   const after = AFTER[enemy.state];
   if (after && enemy.timer >= after[0]) setState(enemy, after[1]);
+  if (enemy.state === "idle" && world.locked && !inView(world, enemy))
+    walkIn(
+      world,
+      enemy,
+      2 * (enemy.x - world.camX) < T.VIEW_W * T.SUB ? "left" : "right",
+      T.RETURN_INSET,
+    );
   if (enemy.state === "idle") faceNearest(world, enemy);
-  enemy.x = clamp(enemy.x, 0, T.STAGE_LENGTH);
+  if (enemy.state !== "enter") enemy.x = clamp(enemy.x, 0, T.STAGE_LENGTH);
   enemy.y = clamp(enemy.y, T.FLOOR_TOP, T.FLOOR_BOTTOM);
 }
 
 /**
  * The camera only moves forward: it keeps the leading hero `CAMERA_LEAD` from its left edge, but never past the
- * leftmost hero (who therefore holds it) and never past the stage's end. With no heroes it stays put.
+ * leftmost hero (who therefore holds it), the next wave's trigger (or, while a wave is fought, its own) or the
+ * stage's end, and no faster than `CAMERA_SPEED`. With no heroes it stays put.
  */
 function advanceCamera(world: World): void {
   if (world.heroes.length === 0) return;
@@ -252,10 +287,52 @@ function advanceCamera(world: World): void {
     if (hero.x > leader) leader = hero.x;
     if (hero.x < leftmost) leftmost = hero.x;
   }
+  const hold = STAGE_1.waves[world.locked ? world.wave - 1 : world.wave];
   const target = Math.min(
     leader - T.CAMERA_LEAD,
     leftmost - T.HERO_MARGIN,
-    T.CAMERA_END,
+    hold?.at ?? T.CAMERA_END,
+    world.camX + T.CAMERA_SPEED,
   );
   if (target > world.camX) world.camX = target;
+}
+
+/** A wave's spawn appears just outside the screen's edge on its side and walks in. */
+function enter(world: World, spawn: Placed): void {
+  const x =
+    spawn.side === "left"
+      ? world.camX - T.ENTER_OUT
+      : world.camX + T.VIEW_W * T.SUB + T.ENTER_OUT;
+  const enemy = newEnemy(world, spawn.kind, spawn.tier, x, spawn.y, 1);
+  walkIn(world, enemy, spawn.side, spawn.inset);
+  world.enemies.push(enemy);
+}
+
+/**
+ * The camera at the next trigger begins its wave and locks the screen. The locked wave's spawns enter in order as
+ * their delays come due (one waits while the world holds `ENEMY_MAX`), and once all are in and no enemy is left the
+ * screen unlocks: GO shows, or after the last wave the stage is cleared.
+ */
+function advanceWaves(world: World): void {
+  const waves = STAGE_1.waves;
+  if (!world.locked) {
+    if (world.wave >= waves.length || world.camX < waves[world.wave]!.at)
+      return;
+    world.wave++;
+    world.locked = true;
+    world.waveStep = world.step;
+    world.spawned = 0;
+  }
+  const spawns = waveSpawns(waves[world.wave - 1]!, world.heroes.length);
+  for (
+    let due = spawns[world.spawned];
+    due &&
+    world.waveStep + due.delay <= world.step &&
+    world.enemies.length < T.ENEMY_MAX;
+    due = spawns[++world.spawned]
+  )
+    enter(world, due);
+  if (world.spawned < spawns.length || world.enemies.length > 0) return;
+  world.locked = false;
+  if (world.wave < waves.length) world.goUntil = world.step + T.GO_STEPS;
 }
