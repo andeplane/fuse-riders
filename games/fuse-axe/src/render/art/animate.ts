@@ -1,8 +1,10 @@
 import type { HeroKind } from "../../engine/view.js";
 import {
   HERO_STATES,
+  JUMP_RISE_STEPS,
   SWING_STEPS,
   type SwingSteps,
+  type Swings,
 } from "../../engine/view-kit.js";
 
 /**
@@ -32,11 +34,9 @@ HERO_STATES satisfies readonly FigureAnim[];
 
 /** A hero's engine timing: its three swings (`attack1`–`attack3`) and the steps from take-off to a jump's apex. */
 export interface HeroTiming {
-  readonly swings: readonly SwingSteps[];
+  readonly swings: Swings;
   readonly rise: number;
 }
-/** The steps a jump rises: the engine's `JUMP_VZ / GRAVITY` rounded up, which view-kit does not export yet. */
-export const JUMP_RISE_STEPS = 20;
 /** Each hero's timing as the engine has it, `heroFrame`'s default. */
 export const HERO_TIMING: Readonly<Record<HeroKind, HeroTiming>> = {
   brakka: { swings: SWING_STEPS.brakka, rise: JUMP_RISE_STEPS },
@@ -46,7 +46,11 @@ export const HERO_TIMING: Readonly<Record<HeroKind, HeroTiming>> = {
 
 /** Steps each idle frame holds: a slow breath in and out. */
 export const BREATH_STEPS = 40;
-/** Steps each walk frame holds, so a planted foot keeps pace with the ground at the hero's walking speed. */
+/**
+ * Steps each walk frame holds: a hero's walking speed times this is the ground a planted foot must keep pace with
+ * (1 px a step times 6 for Brakka, whose stride is drawn for it; Rhea's and Gorm's art will draw theirs to match).
+ * It holds on a straight walk along the road; walking in depth is slower and the foot slides a little.
+ */
 export const WALK_STEPS: Readonly<Record<HeroKind, number>> = {
   brakka: 6,
   rhea: 4,
@@ -59,40 +63,47 @@ const SWING = [
   ["windup3", "strike3", "follow3"],
 ] as const;
 
+/** A swing's frame `step` steps in: the wind-up, the strike for the steps the blade is out, then the follow-through. */
+function swingFrame(
+  { startup, active }: SwingSteps,
+  [windup, strike, follow]: readonly [HeroFrame, HeroFrame, HeroFrame],
+  step: number,
+): HeroFrame {
+  if (step < startup) return windup;
+  return step < startup + active ? strike : follow;
+}
+
 /**
  * The frame for a hero `animStep` steps into `anim`: the strike exactly while the blade is out (the swing's active
  * steps), the wind-up before and the follow-through after; the walk and the breath cycle; a jump rises, then falls.
- * Throws on an anim it has no frames for, or a step that is not a whole number from 0.
+ * The engine counts `animStep` only in the steps it runs, so a hit's freeze holds the strike frame. It never throws,
+ * as the renderer calls it every frame: a step that is not a whole number from 0 is rounded down to one, and an anim
+ * that has no case (one added to `FigureAnim` without a frame fails to compile) stands idle.
  */
 export function heroFrame(
   kind: HeroKind,
-  anim: string,
+  anim: FigureAnim,
   animStep: number,
   timing: Readonly<Record<HeroKind, HeroTiming>> = HERO_TIMING,
 ): HeroFrame {
-  if (!Number.isInteger(animStep) || animStep < 0)
-    throw new RangeError(
-      `An anim step is a whole number from 0, not ${animStep}`,
-    );
+  const step = Number.isFinite(animStep)
+    ? Math.max(0, Math.floor(animStep))
+    : 0;
   switch (anim) {
     case "idle":
-      return Math.floor(animStep / BREATH_STEPS) % 2 ? "idle1" : "idle0";
+      return Math.floor(step / BREATH_STEPS) % 2 ? "idle1" : "idle0";
     case "walk":
-      return WALK[Math.floor(animStep / WALK_STEPS[kind]) % WALK.length]!;
+      return WALK[Math.floor(step / WALK_STEPS[kind]) % WALK.length]!;
     case "jump":
-      return animStep < timing[kind].rise ? "rise" : "fall";
+      return step < timing[kind].rise ? "rise" : "fall";
     case "land":
       return "land";
     case "attack1":
+      return swingFrame(timing[kind].swings[0], SWING[0], step);
     case "attack2":
-    case "attack3": {
-      const index = Number(anim.slice(-1)) - 1;
-      const swing = timing[kind].swings[index];
-      if (!swing) throw new Error(`No timing for ${kind}'s ${anim}`);
-      const [windup, strike, follow] = SWING[index]!;
-      if (animStep < swing.startup) return windup;
-      return animStep < swing.startup + swing.active ? strike : follow;
-    }
+      return swingFrame(timing[kind].swings[1], SWING[1], step);
+    case "attack3":
+      return swingFrame(timing[kind].swings[2], SWING[2], step);
     case "hurt":
       return "hurt";
     case "knockdown":
@@ -103,6 +114,7 @@ export function heroFrame(
     case "getup":
       return "getup";
     default:
-      throw new Error(`No frames for the anim "${anim}"`);
+      anim satisfies never;
+      return "idle0";
   }
 }

@@ -6,6 +6,7 @@
  */
 import { HERO_KINDS, STEPS_PER_SECOND } from "../src/engine/view-kit.js";
 import {
+  HERO_ANIMS,
   HERO_TIMING,
   heroFrame,
   type HeroTiming,
@@ -108,13 +109,15 @@ function reels({ swings }: HeroTiming): Record<string, string> {
     "knockdown, down, getup": "knockdown:26 down:45 getup:20 idle:20",
   };
 }
-/** Every step of a reel, the hero moved as the engine would: walking 1 px a step, a jump's arc, flung back. */
+/** Every step of a reel, a hero moved as the engine moves Brakka: walking 1 px a step, his jump's arc, flung back. */
 function playOut(spec: string) {
   const arc = (t: number, vz: number) =>
     Math.max(0, Math.floor((t + 1) * vz - 0.095 * t * (t + 1)));
   let x = 0;
   return spec.split(" ").flatMap((part) => {
     const [anim = "", steps] = part.split(":");
+    const figureAnim = HERO_ANIMS.find((known) => known === anim);
+    if (!figureAnim) throw new Error(`The reel has no anim "${anim}"`);
     return Array.from({ length: Number(steps) }, (_, step) => {
       x += anim === "walk" ? 1 : anim === "knockdown" ? -1.25 : 0;
       const z =
@@ -123,7 +126,7 @@ function playOut(spec: string) {
           : anim === "knockdown"
             ? arc(step, 2.5)
             : 0;
-      return { anim, step, x: Math.round(x), z };
+      return { anim: figureAnim, step, x: Math.round(x), z };
     });
   });
 }
@@ -177,11 +180,15 @@ for (const kind of HERO_KINDS) {
   }
 }
 
-const frozen = new URLSearchParams(location.search).get("step");
+// `?step=N` freezes the reels at a whole step; anything else plays them.
+const asked = new URLSearchParams(location.search).get("step");
+const frozen = asked !== null && /^\d+$/.test(asked) ? Number(asked) : null;
 const start = performance.now();
 const tick = (now: number) => {
-  const step = frozen ?? Math.floor(((now - start) * STEPS_PER_SECOND) / 1000);
-  for (const player of players) player(Number(step));
+  // The first frame's time can precede `start`, so the step is held at 0 rather than going negative.
+  const elapsed = Math.max(0, now - start);
+  const step = frozen ?? Math.floor((elapsed * STEPS_PER_SECOND) / 1000);
+  for (const player of players) player(step);
   if (frozen === null) requestAnimationFrame(tick);
 };
 requestAnimationFrame(tick);

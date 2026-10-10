@@ -58,7 +58,8 @@ export const legAt = (hip: Point, knee: Point, ankle: Point) => ({
 /**
  * The middle joint of a limb from `root` to `end` whose two bones are `upper` and `lower` long: a knee bends to the
  * right of the line from hip to ankle (`side` 1, forward for a figure facing right), an elbow to its left (-1).
- * Out of reach, the limb straightens toward `end`.
+ * Out of reach, the limb straightens toward `end`; so close to `root` that the shorter bone could not fold back
+ * far enough, it folds as far as it goes. Either way the upper bone keeps its length.
  */
 export function bend(
   root: Point,
@@ -69,7 +70,11 @@ export function bend(
 ): Point {
   const [dx, dy] = [end[0] - root[0], end[1] - root[1]];
   const length = Math.hypot(dx, dy) || 1e-6;
-  const d = Math.min(length, upper + lower);
+  const d = Math.max(
+    Math.abs(upper - lower),
+    Math.min(length, upper + lower),
+    1e-6,
+  );
   const a = (upper * upper - lower * lower + d * d) / (2 * d);
   const h = Math.sqrt(Math.max(0, upper * upper - a * a)) * side;
   const [ux, uy] = [dx / length, dy / length];

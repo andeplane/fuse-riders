@@ -94,6 +94,16 @@ test("a limb bends at the middle joint the way it is told, and straightens out o
   assert.deepEqual(elbow, [-knee[0], knee[1]]);
   assert.deepEqual(bend([0, 0], [0, 30], 6, 4, 1), [0, 6]);
   assert.ok(bend([2, 2], [2, 2], 3, 3, 1).every(Number.isFinite));
+  assert.ok(bend([1, 1], [4, 5], 0, 0, 1).every(Number.isFinite));
+  // Closer than the bones' difference, the limb folds as far as it goes and its upper bone keeps its length.
+  for (const [upper, lower] of [
+    [6, 2],
+    [2, 6],
+  ] as const)
+    assert.ok(
+      Math.abs(Math.hypot(...bend([0, 0], [0, 1], upper, lower, 1)) - upper) <
+        1e-9,
+    );
   const { idle0 } = BRAKKA_POSES;
   const out = breath(idle0, 2);
   assert.deepEqual(
