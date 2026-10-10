@@ -25,11 +25,14 @@ round the d-pad for the diagonals, and a double tap of left or right (a second t
 centre and out again) is the same press, release, press as the keys. A **shared screen** is the host's switch in the
 lobby: **OPEN TV SCREEN** opens the room's `?room=CODE&display=1` page, which shows the game as large as it scales,
 with the room's QR code in its header; everyone joins on a phone, picks a hero in the lobby, and once the run starts
-the phone shows only its controller, in its seat's colour. Losing focus, hiding the page or a cancelled touch lets go
+the phone shows only its controller, in its seat's colour; the host's MENU on it still offers LOBBY. A phone in play
+folds the header behind a **MENU** button (between the pads when held sideways, in the top corner when upright, where
+the pads share the width). Losing focus, hiding the page, turning the phone, opening MENU or a cancelled touch lets go
 of every pad.
 
 ![The shared screen: the game on the TV, with the room's QR code](docs/images/app-shared-tv.png)
 ![A phone as its controller (Playwright's Pixel 7 emulation, landscape)](docs/images/app-phone-controller.png)
+![The same held upright](docs/images/app-phone-controller-upright.png)
 
 ```sh
 pnpm build && pnpm exec tsx service/dev.ts   # then open http://localhost:8787/fuse-axe/?mute
