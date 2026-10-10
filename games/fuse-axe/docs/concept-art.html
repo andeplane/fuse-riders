@@ -424,8 +424,8 @@ const SPRITES = {
     "..........kkkk.......................",
     ".........kAAaakkk....................",
     "........kAAaa$aaak...................",
-    "......kkAaa$aaaaak..................",
-    ".....kAA$$$$aa$k..................",
+    "......kkAaa$aaaaak...................",
+    ".....kAA$$$$aa$k.....................",
     ".....kAa$kkkkkkk$kk..................",
     ".....ka$kiIIIiiik##k.................",
     "....kAakkiiiiiii###k.................",
@@ -443,20 +443,20 @@ const SPRITES = {
     "kskaaaaa$9llll9$kskkkkkk...kLl9kMk...",
     "kkkkaaaaa$lllll$k1skS11lkkkLl9k.k....",
     "ksskaaaaaa$llll9$kkS1LLLkSsk9k.......",
-    "ks11k$$$lll99$kks1LLkSSssk........",
-    "k1lllk$$$999$$ks1llksss1k........",
-    "k1llkaAA$$$$$$k199kss11k........",
-    "klllkaaaaaaakkkkk$kkkkLk11k.........",
-    ".klk9k$$$99999$k...k99kk..........",
+    "ks11k$$$lll99$kks1LLkSSssk...........",
+    "k1lllk$$$999$$ks1llksss1k............",
+    "k1llkaAA$$$$$$k199kss11k.............",
+    "klllkaaaaaaakkkkk$kkkkLk11k..........",
+    ".klk9k$$$99999$k...k99kk.............",
     ".kk1LLLLLL9MMm9LLLlk...kk............",
     ".ks1llllll9mm79lll99k................",
     ".k1s199999997999999k.................",
-    "..k1k9$$$$$$9k.................",
+    "..k1k9$$$$$$9k.......................",
     "...kkaaaaaaaaaaaaakk.................",
     "...kkaaaaaaaaaaaaa$kk................",
-    "...kka$$aaaaa$aa$kk................",
-    "...kk$kkkaaa$kk$$kk................",
-    "...kkkkk99k$kllkkklkk...............",
+    "...kka$$aaaaa$aa$kk..................",
+    "...kk$kkkaaa$kk$$kk..................",
+    "...kkkkk99k$kllkkklkk................",
     "..kklkk9k9kkkklkLLkk9k...............",
     "..klkaak9k....kkkkAakk...............",
     "..kkkkkkkk....kkkkkkkk...............",
@@ -464,12 +464,12 @@ const SPRITES = {
     "..kww5555k.....kwwww55k..............",
     "..kk5555kk.....kk5555kk..............",
     "..kakkkkk......kakkkk$k..............",
-    "..kaaa$k......kaaaaa$k..............",
+    "..kaaa$k......kaaaaa$k...............",
     "..kaakkkk.......kaakkkk..............",
     "..kkkaaa$kk.....kkkAAaakk............",
-    "..kaaaaa$$k....kAAAAaa$k...........",
-    "..k$aa$$$k....kaaaaa$$k...........",
-    "...k$$$k......k$$$k............",
+    "..kaaaaa$$k....kAAAAaa$k.............",
+    "..k$aa$$$k....kaaaaa$$k..............",
+    "...k$$$k......k$$$k..................",
     "....kkkkkk........kkkkkk.............",
   ] },
   lancer: { w: 64, h: 52, ax: 23, ay: 50, palette: {"0":"#6e1838","1":"#9c4f45","7":"#5a5c80","8":"#8a4e2e","9":"#4f2c2e","C":"#ff6a54","L":"#c98a58","M":"#f4f8ff","N":"#ffe08a","S":"#ffd1a1","c":"#c8303a","k":"#150c1f","l":"#8c5236","m":"#a8b4cc","n":"#d8973a","s":"#e0905c"}, rows: [
@@ -886,7 +886,7 @@ const tier = (l, m, d) => ({ A: HEX[l], a: HEX[m], $: HEX[d] });
 const SWAPS = { rust: tier("T", "t", "%"), violet: tier("Q", "q", "^"),
   brakka2: { H: "#b58a6a", h: "#5e3a36", 3: "#2c1828", C: "#78b4ff", c: "#3c5ce0", 0: "#262e8c", S: "#eeb184", s: "#b86d45", 1: "#723a3a" } };
 const FLAME = ["#fff6b8", "#ffc22e", "#f86420", "#a82434"];
-const STILL = /[?&]still/.test(location.search);
+const STILL = /[?&]still/.test(location.search) || matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // ---- sprite rendering
 const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -914,7 +914,7 @@ function put(g, name, fx, fy, o = {}) {
   g.save(); g.scale(-1, 1); g.drawImage(c, -x - s.w, y); g.restore();
 }
 function glow(g, s, x, y, flip, col) { // 2-px neon aura around the silhouette
-  const solid = (i, j) => i >= 0 && j >= 0 && i < s.w && j < s.h && s.rows[j][flip ? s.w - 1 - i : i] !== ".";
+  const solid = (i, j) => { const ch = i >= 0 && j >= 0 && i < s.w && j < s.h ? s.rows[j][flip ? s.w - 1 - i : i] : "."; return ch !== undefined && ch !== "."; };
   for (let j = -2; j < s.h + 2; j++) for (let i = -2; i < s.w + 2; i++) {
     if (solid(i, j)) continue;
     let d = 9;
@@ -951,7 +951,7 @@ function text(g, str, x, y, col, k = 1) {
 }
 
 // ---- stage 1 backdrop (static part)
-const W = 320, H = 180, FLOOR = 112;
+const W = 320, H = 180, FLOOR = 104; // FLOOR is the engine's FLOOR_TOP; feet stand on rows FLOOR..172 (FLOOR_BOTTOM)
 const HUTS = [{ x: 10, w: 44, wall: 15, roof: 22, burn: 0.55 }, { x: 116, w: 56, wall: 18, roof: 28, burn: 1 },
   { x: 236, w: 48, wall: 16, roof: 24, burn: 0.8 }];
 function roofTop(h, x) { // y of the thatch surface at column x
@@ -1123,8 +1123,8 @@ function scene(g, t) {
     [152, () => { shadow(g, 146, 152, 12); put(g, "brakkaAttack", 146, 152); }],
     [151, () => { shadow(g, 196, 151, 11); put(g, "ravager", 196, 151, { flip: true, over: flash("ravager"), key: "flash" }); }],
     [131, () => { shadow(g, 264, 131, 11); put(g, "ravager", 264, 131, { flip: true, over: SWAPS.rust, key: "rust" }); }],
-    [175, () => { shadow(g, 206, 175, 12); put(g, "gormAttack", 206, 175); }],
-    [174, () => { shadow(g, 258, 174, 11); put(g, "ravager", 258, 174, { flip: true, over: SWAPS.violet, key: "violet" }); }],
+    [172, () => { shadow(g, 206, 172, 12); put(g, "gormAttack", 206, 172); }],
+    [170, () => { shadow(g, 258, 170, 11); put(g, "ravager", 258, 170, { flip: true, over: SWAPS.violet, key: "violet" }); }],
   ].sort((a, b) => a[0] - b[0]);
   actors.forEach(([, f]) => f());
   if (pz > 0) for (const [a, b] of [[-4, -3], [4, -5], [0, -10]]) px(g, 60 + a, 171 - pz + b, "#78b4ff");
@@ -1230,7 +1230,7 @@ const vig = [["storm", "Storm", "Brakka. Lightning strikes the screen; level 4 c
   });
 const NAMES = { k: "outline", S: "skin", O: "ogre", H: "blond", E: "red hair", W: "grey", B: "bone", M: "steel", N: "bronze",
   I: "dark iron", L: "leather", C: "red cloth", V: "green", U: "imp blue", A: "ash", T: "rust", Q: "violet", Y: "clawbeak",
-  X: "drake", F: "flame", G: "cyan", P: "pink", J: "lime", D: "yellow", Z: "white", g: "violet" };
+  X: "drake", F: "flame", G: "cyan", P: "pink", J: "lime", D: "yellow", Z: "white", g: "UI violet" };
 const BACKDROP = [...NIGHT.sky, ...NIGHT.hills, ...NIGHT.road].map((v) => ["", v]); // procedural layers, no sprite key
 for (const [group, pal] of MASTER) {
   const sw = el("div", { className: "sw" }, (group.startsWith("Night") ? [...pal, ...BACKDROP] : pal).map(([ch, hex]) =>
