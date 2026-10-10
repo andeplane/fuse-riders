@@ -5,6 +5,11 @@ walk left to right through four hand-drawn pixel-art stages, cleave through wave
 for magic pots, steal the beasts their enemies ride, and finish at the keep of the warlord who shattered the Ember
 Axe. A full run is about 15–20 minutes; one stage is 3–5.
 
+Concept art: [`concept-art.html`](concept-art.html) (open it in a browser; everything is drawn from palette-indexed
+pixel data in the page, `?still` freezes the animation).
+
+![Stage 1 key scene](images/concept-scene.png)
+
 ## Story in one breath
 
 The warlord **Vorhal** broke the Ember Axe that kept the realm's hearth-fires lit and carried the shards to his keep.
@@ -130,7 +135,7 @@ for up to five seats with bots, rooms and a shared screen.
 
 Small pull requests, each reviewed and merged before the next one that depends on it:
 
-1. Design outline and the package skeleton (this document). Concept art follows in its own pull request.
+1. Design outline, the package skeleton and the concept art.
 2. Engine core: world state, fixed-step tick, seeded randomness, movement on the floor band, jumping, camera.
    Sprite pipeline: palette-indexed sprite data, surface builder, the heroes' idle, walk and jump frames. (In
    parallel.)
