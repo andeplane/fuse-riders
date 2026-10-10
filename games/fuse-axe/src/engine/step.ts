@@ -15,6 +15,7 @@ import { act, rest, thinks } from "./ai.js";
 import {
   inView,
   newEnemy,
+  present,
   setState,
   spark,
   type Enemy,
@@ -168,11 +169,13 @@ function moveHero(world: World, hero: Hero, bits: number): void {
       land(hero);
     }
   } else if (hero.state === "hurt") hero.vx = slow(hero.vx);
-  hero.x = clamp(
-    hero.x,
-    world.camX + T.HERO_MARGIN,
-    world.camX + T.VIEW_W * T.SUB - T.HERO_MARGIN,
-  );
+  // A fallen hero lies where it fell, and the camera leaves it behind rather than drag it along the screen's edge.
+  if (hero.state !== "dead")
+    hero.x = clamp(
+      hero.x,
+      world.camX + T.HERO_MARGIN,
+      world.camX + T.VIEW_W * T.SUB - T.HERO_MARGIN,
+    );
   hero.y = clamp(hero.y, T.FLOOR_TOP, T.FLOOR_BOTTOM);
   if (blade) strike(world, hero, blade);
   if (hero.attackBuf > 0) hero.attackBuf--;
@@ -302,13 +305,14 @@ function moveEnemy(world: World, enemy: Enemy): void {
 /**
  * The camera only moves forward: it keeps the leading hero `CAMERA_LEAD` from its left edge, but never past the
  * leftmost hero (who therefore holds it), the next wave's trigger (or, while a wave is fought, its own) or the
- * stage's end, and no faster than `CAMERA_SPEED`. With no heroes it stays put.
+ * stage's end, and no faster than `CAMERA_SPEED`. A fallen hero counts for nothing, or it would hold the camera where
+ * it lies for good; with no hero on the field it stays put.
  */
 function advanceCamera(world: World): void {
-  if (world.heroes.length === 0) return;
   let leader = -Infinity,
     leftmost = Infinity;
   for (const hero of world.heroes) {
+    if (!present(hero)) continue;
     if (hero.x > leader) leader = hero.x;
     if (hero.x < leftmost) leftmost = hero.x;
   }
