@@ -14,6 +14,15 @@ import * as T from "./tuning.js";
 import { STAGE_1, waveSpawns, type Placed, type Side } from "./stages.js";
 import { act, rest, thinks } from "./ai.js";
 import {
+  advanceImps,
+  advanceItems,
+  gone,
+  isImp,
+  kick,
+  kickable,
+  scurry,
+} from "./imps.js";
+import {
   SPAWNS,
   inView,
   newEnemy,
@@ -32,9 +41,11 @@ import {
  * past their life are dropped; every hero in id order reads its seat's held bits, swings, walks, runs, dashes, jumps
  * or falls (or reels, lies, gets up, drops back in), is held to the floor band and the screen, and lands its blade
  * on the enemies in id order; then every enemy in id order walks in, reels, flies, lies or gets up, or thinks
- * (`ai.ts`) and lands its mace on the heroes in id order, and a defeated one that has blinked long enough is gone;
- * then the camera follows, no further than the next wave's trigger; then the waves begin, spawn and clear
- * (`advanceWaves`). `held` holds each seat's bits by seat index; a missing seat holds nothing.
+ * (`ai.ts`) and lands its mace on the heroes in id order, and a defeated one that has blinked long enough is gone, as
+ * is a sack imp that has left the screen (`imps.ts`); then the items on the floor fall, vanish or are picked up; then
+ * the camera follows, no further than the next wave's trigger; then the waves begin, spawn and clear
+ * (`advanceWaves`), and the imps the camera has reached are sent. `held` holds each seat's bits by seat index; a
+ * missing seat holds nothing.
  */
 export function step(world: World, held: readonly number[]): World {
   const now = world.step + 1;
@@ -44,15 +55,20 @@ export function step(world: World, held: readonly number[]): World {
     heroes: world.heroes.map((hero) => ({ ...hero })),
     enemies: world.enemies.map((enemy) => ({ ...enemy })),
     fx: world.fx.filter((fx) => now - fx.born < T.FX_LIFE),
+    items: world.items.map((item) => ({ ...item })),
   };
   for (const hero of next.heroes)
     moveHero(next, hero, (held[hero.seat] ?? 0) & INPUT_MASK);
   for (const enemy of next.enemies) moveEnemy(next, enemy);
   next.enemies = next.enemies.filter(
-    (enemy) => enemy.state !== "dead" || enemy.timer < T.DEAD_STEPS,
+    (enemy) =>
+      (enemy.state !== "dead" || enemy.timer < T.DEAD_STEPS) &&
+      !gone(next, enemy),
   );
+  advanceItems(next);
   advanceCamera(next);
   advanceWaves(next);
+  advanceImps(next);
   return next;
 }
 
@@ -194,7 +210,8 @@ const AIRBORNE: readonly HeroState[] = [
 const FALLEN: readonly HeroState[] = ["dead", "out"];
 
 /**
- * A fallen hero with a life left drops back in from the top of the screen at its seat's place, at full health. The
+ * A fallen hero with a life left drops back in from the top of the screen at its seat's place, at full health, its
+ * magic pots kept. The
  * screen row of a figure is its depth less its height, so a height equal to the depth is a drop from row 0.
  */
 function respawn(world: World, hero: Hero): void {
@@ -208,9 +225,10 @@ function respawn(world: World, hero: Hero): void {
 
 /**
  * The party continues: every hero drops back in at its seat's place on the screen with full health and every life
- * (`LIVES`), as after a lost life, with nothing buffered. The stage goes on where it stood: the camera, the waves and
- * the enemies are left as they are. Pure, like `step`: the world passed in is left untouched. The room calls it once
- * per stage, on the first CONTINUE folded after every hero is out (`defeated`).
+ * (`LIVES`), as after a lost life, with nothing buffered and its magic pots kept. The stage goes on where it stood: the
+ * camera, the waves, the enemies and the items on the floor are left as they are. Pure, like `step`: the world passed
+ * in is left untouched. The room calls it once per stage, on the first CONTINUE folded after every hero is out
+ * (`defeated`).
  */
 export function revive(world: World): World {
   const next: World = {
@@ -323,11 +341,16 @@ function moveHero(world: World, hero: Hero, bits: number): void {
   if (hero.runBuf > 0) hero.runBuf--;
 }
 
-/** An enemy a blade can land on: on its feet (thinking or reeling), or walking in once its whole body is on screen. */
+/**
+ * An enemy a blade can land on: on its feet (thinking or reeling), or walking in once its whole body is on screen; a
+ * sack imp as `kickable` says.
+ */
 const hittable = (world: World, enemy: Enemy): boolean =>
-  thinks(enemy) ||
-  enemy.state === "hurt" ||
-  (enemy.state === "enter" && inView(world, enemy));
+  isImp(enemy)
+    ? kickable(world, enemy)
+    : thinks(enemy) ||
+      enemy.state === "hurt" ||
+      (enemy.state === "enter" && inView(world, enemy));
 
 /** The blows that knock down whatever they land on: the finisher, the dash, the back attack and the jump attack. */
 const KNOCKS: readonly HeroState[] = [
@@ -365,20 +388,22 @@ function strike(world: World, hero: Hero, blade: T.Blow): void {
 /**
  * A hit: the damage, then hitstun and a nudge away from the hero, which breaks off the enemy's swing, or, from a blow
  * that knocks down (`KNOCKS`) or at no hp left, a knockdown that launches the enemy up and away and frees its place by
- * the hero it was going for. Attacker and target both hold still for the hit-stop.
+ * the hero it was going for. Attacker and target both hold still for the hit-stop. A sack imp is kicked (`kick`)
+ * instead, and the hero's tallies are left alone.
  */
 function hit(world: World, hero: Hero, enemy: Enemy, damage: number): void {
   const taken = Math.min(damage, enemy.hp),
     heavy = KNOCKS.includes(hero.state),
-    knocked = heavy || enemy.hp === taken,
+    knocked = heavy || (enemy.hp === taken && !isImp(enemy)),
     dir = aim(hero),
     until = world.step + (knocked ? T.HEAVY_HITSTOP : T.HITSTOP);
-  enemy.hp -= taken;
-  hero.damage += taken;
   // In id order, the one way the checkpoint spells it: an enemy that gets up or is nudged into reach later in the
   // window can have a lower id than one already hit.
   hero.struck = [...hero.struck, enemy.id].sort((a, b) => a - b);
   hero.stopUntil = Math.max(hero.stopUntil, until);
+  if (isImp(enemy)) return kick(world, enemy, dir, heavy);
+  enemy.hp -= taken;
+  hero.damage += taken;
   enemy.stopUntil = until;
   enemy.facing = dir > 0 ? -1 : 1;
   // Not `setState`, which ignores a change to the state the enemy is already in: a hit on a reeling enemy restarts
@@ -424,7 +449,7 @@ function walkIn(world: World, enemy: Enemy, side: Side, inset: number): void {
  * (`fly`) too; reeling, lying and getting up each last their time, and a held one waits in its holder's hands until
  * the throw. An idle enemy outside a locked screen walks back in at the nearer edge; one on
  * its feet otherwise thinks (`ai.ts`). Every enemy but one walking in stays on the road (a wave at the stage's end
- * enters from beyond it) and in the floor band.
+ * enters from beyond it) and in the floor band. A sack imp goes its own way (`scurry`) once it has moved and flown.
  */
 function moveEnemy(world: World, enemy: Enemy): void {
   if (world.step <= enemy.stopUntil) return;
@@ -442,6 +467,7 @@ function moveEnemy(world: World, enemy: Enemy): void {
     }
   } else if (enemy.state === "thrown") fly(world, enemy);
   else enemy.vx = slow(enemy.vx);
+  if (isImp(enemy)) return scurry(enemy);
   const after = AFTER[enemy.state];
   if (after && enemy.timer >= after[0])
     if (after[1] === "idle") rest(world, enemy);
@@ -495,8 +521,8 @@ function enter(world: World, spawn: Placed): void {
 
 /**
  * The camera at the next trigger begins its wave and locks the screen. The locked wave's spawns enter in order as
- * their delays come due (one waits while the world holds `ENEMY_MAX`), and once all are in and no enemy is left the
- * screen unlocks: GO shows, or after the last wave the stage is cleared.
+ * their delays come due (one waits while the world holds `ENEMY_MAX`), and once all are in and no enemy is left but
+ * sack imps, which leave on their own, the screen unlocks: GO shows, or after the last wave the stage is cleared.
  */
 function advanceWaves(world: World): void {
   const waves = STAGE_1.waves;
@@ -517,7 +543,11 @@ function advanceWaves(world: World): void {
     due = spawns[++world.spawned]
   )
     enter(world, due);
-  if (world.spawned < spawns.length || world.enemies.length > 0) return;
+  if (
+    world.spawned < spawns.length ||
+    world.enemies.some((enemy) => !isImp(enemy))
+  )
+    return;
   world.locked = false;
   if (world.wave < waves.length) world.goUntil = world.step + T.GO_STEPS;
 }
@@ -627,7 +657,8 @@ function throwHeld(world: World, hero: Hero): void {
 /**
  * A thrown body's step, after it has moved along the road: it rises and falls under gravity and knocks down every
  * hittable enemy it meets in its lane (`BODY_DAMAGE`, each once, as one knocked down is no longer hittable), then
- * lands with `THROW_DAMAGE`, down or, at no hp left, dead. Its thrower is credited with what it does.
+ * lands with `THROW_DAMAGE`, down or, at no hp left, dead. Its thrower is credited with what it does; a sack imp it
+ * meets is kicked as by a heavy blow.
  */
 function fly(world: World, body: Enemy): void {
   const thrower = world.heroes.find((each) => each.id === body.holder)!,
@@ -642,6 +673,10 @@ function fly(world: World, body: Enemy): void {
       Math.abs(enemy.y - body.y) <= T.LANE &&
       body.z < enemy.z + T.ENEMY_HEIGHT
     ) {
+      if (isImp(enemy)) {
+        kick(world, enemy, dir, true);
+        continue;
+      }
       const taken = Math.min(T.BODY_DAMAGE, enemy.hp);
       enemy.hp -= taken;
       thrower.damage += taken;

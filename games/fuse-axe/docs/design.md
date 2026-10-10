@@ -87,6 +87,15 @@ Enemies ride beasts in later stages. Knock a rider off and anyone can climb on:
 
 A mounted hero who takes a hard hit is thrown off and the beast wanders until someone else takes it.
 
+A **sack imp** (`src/engine/imps.ts`) is sent by a cue in the stage's script (`STAGE_1.imps` in `stages.ts`: one
+after wave 2, one alongside wave 3, one after wave 4, a single imp whatever the party's size). It scurries in from a
+screen edge and across the floor, zig-zagging in depth, never attacks and holds no wave's screen. Every blow that
+lands on it kicks one pot out of its sack (2–3 per imp); it stumbles (a blow that knocks down sends it flying), then
+flees away from the blow faster than any hero walks. Empty, it cannot be kicked; it leaves once off screen. A pot pops
+out and lies on the floor for ten seconds, blinking at the end; a hero on its feet walks over it to pick it up, up to
+its kind's most, and the lower id takes one two heroes reach on the same step. A hero keeps its pots through a lost
+life and a continue, as in the original. Kicks count in no tally.
+
 Enemies fight by the heroes' rules: they line up in the depth lane to hit, telegraph every blow with a wind-up a hero
 can interrupt or step out of, and get no reach, speed or knockdown a hero lacks. At most two go for one hero at once,
 from both sides where they can, while the rest hover at a distance; a hero swinging its blade is walked round. Their
