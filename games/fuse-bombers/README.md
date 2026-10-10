@@ -79,6 +79,9 @@ node games/fuse-bombers/preview/flow-check.mjs     # Playwright: portal, lobby, 
 `npx vite` from the repo root also serves it, unbuilt, at `/games/fuse-bombers/`. Open it with `?mute` so you do not
 blast audio. The flow check starts its own Vite server and needs Chromium once: `pnpm exec playwright install chromium`.
 `preview/browser-check.mjs` screenshots bots-only rounds and measures the frame rate against a running `pnpm dev`.
+`preview/gunships.html` (dev only: `npx vite`, then `/games/fuse-bombers/preview/gunships.html`) shows the sky
+overhaul's gunship and ghost art from `src/render/gunship-art.ts` in every state, at 1× and at the big map's 0.35×
+zoom ([screenshot](docs/images/gunships.png)); the round does not draw them yet.
 
 ### Code
 
