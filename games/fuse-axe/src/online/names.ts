@@ -35,7 +35,7 @@ export const playerKey = (value: unknown): value is string =>
 
 /**
  * A seat's avatar is the hero it plays: a member names one with its join (the netcode's `avatarId`) and may change it
- * with a `HERO` entry outside a run. Duplicates are allowed.
+ * with a `PICK` entry in the lobby or after the run (`online/game.ts`). Duplicates are allowed.
  */
 export const isHero = (value: unknown): value is HeroKind =>
   (HERO_KINDS as readonly unknown[]).includes(value);

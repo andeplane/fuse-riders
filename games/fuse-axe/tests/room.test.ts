@@ -176,10 +176,43 @@ test("a seated member picks its hero outside a run; the run plays the picks it s
   assert.deepEqual(
     room.world!.heroes.map((each) => each.kind),
     ["gorm", "rhea"],
-    "a pick in the start's tick waits for the next run",
+    "a pick in the start's tick is not applied (and not kept for later)",
   );
   fold(room, { a: [[PICK, "brakka"]] });
   assert.equal(room.seats.get("a")!.avatarId, "gorm");
+});
+
+/** The room as a checkpoint of it in `stage` would restore it, with `held` as the member ids and bits given. */
+function inStage(room: Room, stage: string, held: [string, number][] = []) {
+  const fields = structuredClone(encode(room));
+  fields[2] = stage;
+  fields[5] = held;
+  const back = decode(fields, room.tick);
+  assert.ok(back, `a ${stage} room restores`);
+  return back!;
+}
+
+test("picks land in the lobby and after game over, not in camp, which is part of the run", () => {
+  const picked = (room: Room) => room.seats.get("b")!.avatarId;
+  const restored = (room: Room) =>
+    decode(structuredClone(encode(room)), room.tick);
+  // Camp is between stages of one run: its heroes stay as they set out, and its checkpoint keeps the held bits.
+  const camp = inStage(started(), "between", [["b", RIGHT]]);
+  fold(camp, { b: [[PICK, "gorm"]] });
+  assert.equal(picked(camp), "brakka");
+  assert.equal(camp.held.b, RIGHT);
+  assert.ok(restored(camp), "camp still restores");
+  // After game over the next run's heroes are chosen, and the room restores whole with the pick in it.
+  const over = inStage(started(), "over");
+  fold(over, { b: [[PICK, "gorm"]] });
+  assert.equal(picked(over), "gorm");
+  assert.equal(hash(restored(over)!), hash(over));
+  // A run that is over holds no controls: a checkpoint that says otherwise is refused.
+  const base = started(),
+    fields = structuredClone(encode(base));
+  fields[2] = "over";
+  fields[5] = [["b", RIGHT]];
+  assert.equal(decode(fields, base.tick), undefined);
 });
 
 test("an empty lobby does not start; a hero who leaves mid-run stands, and a new member waits for the next run", () => {
@@ -344,6 +377,11 @@ test("the checkpoint carries a room whole in every stage, and a corrupt one is r
     ["a lobby with a run", (f) => (f[2] = "lobby")],
     ["a run on stage 0", (f) => (f[1] = 0)],
     ["a world between ticks", (f) => ((f[6] as unknown[])[1] = 1)],
+    [
+      "a world seeded for another run",
+      (f) => ((f[6] as number[])[0] = (f[6] as number[])[0]! ^ 1),
+    ],
+    ["another run's id", (f) => (f[0] = "m2")],
     ["a hero nobody sits at", (f) => (f[4] = (f[4] as unknown[]).slice(0, 3))],
     ["a hero its seat did not pick", (f) => (seat(f, 2).avatarId = "gorm")],
   ] as [string, (fields: unknown[]) => void][])
