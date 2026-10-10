@@ -13,10 +13,12 @@ import type {
   FxView,
   HeroKind,
   HeroView,
+  ItemView,
   WorldView,
 } from "../src/engine/view.js";
 import {
   DEAD_STEPS,
+  ENEMY_STATES,
   FLOOR_BOTTOM_PX,
   FX_KINDS,
   FX_LIFE,
@@ -27,6 +29,7 @@ import { HERO_ANIMS, stripFrame } from "../src/render/art/animate.js";
 import { BRAKKA } from "../src/render/art/brakka.js";
 import { HEROES } from "../src/render/art/index.js";
 import { RAVAGER, RAVAGER_ANIMS } from "../src/render/art/ravager.js";
+import { IMP_STAND_IN, POT_STAND_IN } from "../src/render/art/stand-ins.js";
 import { createBackdrop } from "../src/render/backdrop/backdrop.js";
 import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
@@ -38,6 +41,7 @@ import {
   GO_FLASH,
   GO_SIGN,
   heroLooks,
+  ITEM_SHADE,
   MARKER,
   shadowRadius,
 } from "../src/render/scene.js";
@@ -112,7 +116,7 @@ const hero = (
 ): HeroView => ({
   ...{ id, seat, kind: "brakka", x, y, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
-  ...{ invulnerable: false },
+  ...{ invulnerable: false, pots: 0, maxPots: 4 },
   ...more,
 });
 const enemy = (
@@ -126,7 +130,7 @@ const enemy = (
   ...more,
 });
 const world = (more: Partial<WorldView>): WorldView => ({
-  ...{ step: 0, camX: 0, heroes: [], enemies: [], fx: [] },
+  ...{ step: 0, camX: 0, heroes: [], enemies: [], fx: [], items: [] },
   ...{ wave: 0, waves: 5, locked: false, go: false, cleared: false },
   ...{ defeated: false },
   ...more,
@@ -352,7 +356,7 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
     const { sprites } = draw(
       world({
         heroes: heroAnims.map((anim, i) =>
-          hero(i + 1, i % 5, 30 + i * 20, 130, { anim, animStep }),
+          hero(i + 1, i % 5, 30 + i * 14, 130, { anim, animStep }),
         ),
         enemies: enemyAnims.map((anim, i) =>
           enemy(20 + i, 50 + i * 20, 160, { anim, animStep }),
@@ -364,7 +368,7 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
       assert.equal(sprites.length, heroAnims.length + enemyAnims.length);
   }
   // A kind of anim from a build with more of them: the hero and the enemy stand idle.
-  const unknown = JSON.parse('"grab"') as HeroView["anim"] & EnemyView["anim"];
+  const unknown = JSON.parse('"ride"') as HeroView["anim"] & EnemyView["anim"];
   const [odd, idle] = [unknown, "idle" as const].map((anim) =>
     draw(
       world({
@@ -375,6 +379,59 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
   );
   assert.equal(odd!.length, 2);
   assert.deepEqual(odd, idle);
+});
+
+test("a sack imp draws its stand-in in every anim, as does a kind with no art; pots lie among the figures and blink before they vanish", () => {
+  const stand = IMP_STAND_IN;
+  const imps = ENEMY_STATES.map((anim, i) =>
+    enemy(i + 2, 20 + i * 18, 140, { kind: "imp", anim }),
+  );
+  const drawn = draw(world({ enemies: imps })).sprites;
+  assert.deepEqual(
+    drawn.map((b) => [b.image.w, b.image.h]),
+    imps.map(() => [stand.w, stand.h]),
+  );
+  const odd = JSON.parse('"wizard"') as EnemyView["kind"];
+  const [unknown] = draw(
+    world({ enemies: [enemy(2, 160, 140, { kind: odd, facing: -1 })] }),
+  ).sprites;
+  // Facing left, mirrored about its feet.
+  assert.deepEqual(
+    [unknown!.image.w, unknown!.dx],
+    [stand.w, 160 - (stand.w - 1 - stand.ax)],
+  );
+  // A pot lies by its feet with a small shadow, in depth order: in front of an imp further up the floor.
+  const pot: ItemView = {
+    id: 9,
+    kind: "pot",
+    x: 100,
+    y: 150,
+    z: 4,
+    blink: false,
+  };
+  const { sprites, shadows } = draw(
+    world({
+      enemies: [enemy(2, 100, 140, { kind: "imp", anim: "walk" })],
+      items: [pot],
+    }),
+  );
+  assert.deepEqual(
+    sprites.map((b) => [b.image.w, b.dx, b.dy]),
+    [
+      [stand.w, 100 - stand.ax, 140 - stand.ay],
+      [POT_STAND_IN.w, 100 - POT_STAND_IN.ax, 150 - 4 - POT_STAND_IN.ay],
+    ],
+  );
+  assert.equal(shadows[1]!.image.w, 2 * ITEM_SHADE + 1);
+  const blinking = world({ items: [{ ...pot, blink: true }] });
+  assert.equal(draw(blinking, 0).sprites.length, 1);
+  assert.equal(draw(blinking, BLINK_FRAMES).sprites.length, 0);
+  assert.equal(draw(blinking, BLINK_FRAMES).shadows.length, 1);
+  const meat = JSON.parse('"meat"') as ItemView["kind"];
+  assert.equal(
+    draw(world({ items: [{ ...pot, kind: meat }] })).sprites[0]!.image.w,
+    POT_STAND_IN.w,
+  );
 });
 
 test("each hero wears a marker in its seat's colour over its head, rising with it", () => {

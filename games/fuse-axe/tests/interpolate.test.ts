@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { Frame } from "fuse-netcode";
 import { blend, drawn, fraction } from "../src/app/interpolate.js";
-import type { EnemyView, HeroView, WorldView } from "../src/engine/view.js";
+import type {
+  EnemyView,
+  HeroView,
+  ItemView,
+  WorldView,
+} from "../src/engine/view.js";
 import {
   DEFAULT_SETTINGS,
   createRoom,
@@ -24,6 +29,8 @@ const hero = (id: number, x: number, y = 120, z = 0): HeroView => ({
   maxHp: 48,
   lives: 3,
   invulnerable: false,
+  pots: 0,
+  maxPots: 6,
 });
 const enemy = (id: number, x: number): EnemyView => ({
   id,
@@ -45,6 +52,7 @@ const world = (extra: Partial<WorldView> = {}): WorldView => ({
   heroes: [],
   enemies: [],
   fx: [],
+  items: [],
   wave: 0,
   waves: 5,
   locked: false,
@@ -152,6 +160,22 @@ test("a camera that follows a hero keeps it at the same screen column, and one t
     197,
     "a standing enemy slides left by the camera's half step, as the posts do",
   );
+});
+
+test("a pot popping out of a sack rises and falls between ticks, a lying one stays put under a moving camera, and a new one stands where it appeared", () => {
+  const pot = (id: number, x: number, z: number): ItemView => ({
+    ...{ id, kind: "pot", x, y: 130, z },
+    blink: false,
+  });
+  const older = world({ camX: 0, items: [pot(5, 200, 12), pot(6, 240, 0)] });
+  const newer = world({
+    ...{ step: 3, camX: 6 },
+    items: [pot(5, 200, 16), pot(6, 240, 0), pot(7, 260, 12)],
+  });
+  const half = blend(older, newer, 0.5);
+  assert.equal(half.items[0]!.z, 14, "the popping pot is halfway up");
+  assert.equal(half.items[1]!.x, 240, "the lying pot keeps its place");
+  assert.deepEqual(half.items[2], newer.items[2], "a new pot is where it is");
 });
 
 test("frames of one run blend; across a run or stage, or with nothing earlier or nothing to draw, the newer frame stands alone", () => {

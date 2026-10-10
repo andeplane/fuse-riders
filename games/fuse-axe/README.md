@@ -11,15 +11,28 @@ every game). **PLAY SOLO** opens the hero picker; **CREATE ROOM** makes a room t
 where everyone picks a hero (duplicates are allowed) and the host presses **START**. The heroes walk, run, jump and swing
 through Stage 1's waves of ravagers in the pixel-art scene under the HUD. Clearing the stage shows each hero's
 tally, then the run's victory; when every hero is out, any hero may press Attack within ten seconds to continue once,
-or the run is over. The host sets out again with **REMATCH** or goes back to the lobby. Phone pads and the shared
-screen follow.
+or the run is over. The host sets out again with **REMATCH** or goes back to the lobby. Gamepads follow.
 
-| Keys          | Does                                                                 |
-| ------------- | -------------------------------------------------------------------- |
-| Arrows / WASD | Walk the road, up and down in depth; double-tap left or right to run |
-| J / Z         | Attack (from a run, a dash attack)                                   |
-| K / X         | Jump (from a run, a running jump)                                    |
-| L / C         | Magic                                                                |
+| Keys          | Phone pads                       | Does                                                                  |
+| ------------- | -------------------------------- | --------------------------------------------------------------------- |
+| Arrows / WASD | 8-way d-pad (slide for diagonal) | Walk the road, up and down in depth; double-tap left or right to run  |
+| J / Z         | ATTACK                           | Attack (a dash from a run, a stab in the air, a throw at a dazed one) |
+| K / X         | JUMP                             | Jump (a running jump from a run); with Attack, a back attack          |
+| L / C         | MAGIC                            | Magic                                                                 |
+
+On a touch screen the pads (`src/app/pad.ts`) sit over the game's corners while your hero fights; a thumb slides
+round the d-pad for the diagonals, and a double tap of left or right (a second tap, or a slide back through the
+centre and out again) is the same press, release, press as the keys. A **shared screen** is the host's switch in the
+lobby: **OPEN TV SCREEN** opens the room's `?room=CODE&display=1` page, which shows the game as large as it scales,
+with the room's QR code in its header; everyone joins on a phone, picks a hero in the lobby, and once the run starts
+the phone shows only its controller, in its seat's colour; the host's MENU on it still offers LOBBY. A phone in play
+folds the header behind a **MENU** button (between the pads when held sideways, in the top corner when upright, where
+the pads share the width). Losing focus, hiding the page, turning the phone, opening MENU or a cancelled touch lets go
+of every pad.
+
+![The shared screen: the game on the TV, with the room's QR code](docs/images/app-shared-tv.png)
+![A phone as its controller (Playwright's Pixel 7 emulation, landscape)](docs/images/app-phone-controller.png)
+![The same held upright](docs/images/app-phone-controller-upright.png)
 
 ```sh
 pnpm build && pnpm exec tsx service/dev.ts   # then open http://localhost:8787/fuse-axe/?mute
@@ -99,8 +112,8 @@ frame in well under a millisecond.
 Over it all the HUD (`src/render/hud.ts`) is a strip along the top with a panel a seat: the hero's 16 × 16 portrait
 in the palette it wears on the field, framed in its seat's colour; the player's name in a 3 × 5 pixel font
 (`font.ts`: capitals, digits and a few marks; accents dropped, anything else left out, cut to fit); its lives as ×N;
-a segmented health bar whose lost part trails white for a moment and then drains; and a row of magic pots, empty
-until magic lands (`drawPots` takes held and max from the view then). A hero out of lives is greyed (from the moment
+a segmented health bar whose lost part trails white for a moment and then drains; and a row of its kind's most magic
+pots, the ones it holds full (`pots` and `maxPots` in the view). A hero out of lives is greyed (from the moment
 it lands on its last life), one that cannot be hit blinks with its sprite, an empty seat blinks JOIN (not in a solo
 game) or names a player who joins with the next run (by its tag when the font cannot write the name), and this
 device's seat is underlined. Names are not in the world: the app passes the room's, by seat, as the scene's

@@ -2,7 +2,7 @@
 
 A party artillery game for 2–6 players, humans and bots, on one keyboard, a few gamepads or a touch screen. Gunships
 fly round a destructible floating temple and lob rockets across it, and the rockets fly through multiplier gates to
-turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md): bots do not fly yet.)
+turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md).)
 
 **Play it: <https://andeplane.github.io/fuse-riders/fuse-bombers/>**, or pick it from the app portal (the dot-grid
 button at the top left of every Fuse game's lobby). It is a local game: no rooms, no accounts, everyone at one screen.
@@ -20,8 +20,8 @@ button at the top left of every Fuse game's lobby). It is a local game: no rooms
   rockets, so five rockets through a ×10 gate is fifty.
 - **Crates.** Floating crates give a card to the first volley that hits them: an extra rocket per volley, a shield, a
   faster reload, a repair or a mega bomb.
-- **Terrain.** The whole temple is in view. Every rocket carves a crater, so the rock between the castles wears away
-  over the round; only its darker skeleton (pillars, columns, the shrine's legs and keel) is indestructible.
+- **Terrain.** The camera zooms from one arena to the whole temple. Every rocket carves a crater, so the rock wears
+  away over the round; only its darker skeleton (pillars, columns, the shrine's legs and keel) is indestructible.
 - **The fuse.** The burning fuse across the top is the round timer (90 s). When it burns out, sudden death begins:
   bombs drop from above the castles and damage keeps growing. At 3 minutes the round ends on HP: the castle with the most HP wins, and
   a tie is a draw.
@@ -56,7 +56,9 @@ quits; on a pad Start confirms and pauses, Back goes back or pauses, and holding
 touch screen tap the on-screen buttons, and the `II` corner button pauses.
 
 Lobby shortcuts: `2`–`6` sets the player count, `R` cycles rounds to win (1–5; the `+`/`−` buttons go up to 9), `B`
-cycles every bot's level (bots start on easy), and `Enter` starts. Click a bot to change its level. Mid-round, `Esc` or a pad's Start/Back
+cycles every bot's level (bots start on easy), and `Enter` starts. Click a bot to change its level: easy bots take
+their time and miss a lot, normal ones hunt the weak and finish most rounds before the fuse, hard ones aim tighter and dodge.
+Bots fly and fire like you (the same controls, no extra physics). Mid-round, `Esc` or a pad's Start/Back
 pauses; while paused, `Enter`/`Esc` resume and `Backspace` quits to the lobby. On the winner screen, `Enter`
 plays again and `Esc` or `Backspace` returns to the lobby.
 
@@ -105,7 +107,8 @@ blast audio. The flow check starts its own Vite server and needs Chromium once: 
 `preview/browser-check.mjs` screenshots bots-only rounds and measures the frame rate against a running `pnpm dev`.
 `preview/gunships.html` (dev only: `npx vite`, then `/games/fuse-bombers/preview/gunships.html`) shows the sky
 overhaul's gunship and ghost art from `src/render/gunship-art.ts` in every state, at 1× and at the big map's 0.35×
-zoom ([screenshot](docs/images/gunships.png)); the round does not draw them yet.
+zoom ([screenshot](docs/images/gunships.png)); the round draws them under a framing camera
+([docs/engine.md](docs/engine.md), "Camera").
 
 ### Code
 
