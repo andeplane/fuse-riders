@@ -70,6 +70,11 @@ Enemies ride beasts in later stages. Knock a rider off and anyone can climb on:
 
 A mounted hero who takes a hard hit is thrown off and the beast wanders until someone else takes it.
 
+Enemies fight by the heroes' rules: they line up in the depth lane to hit, telegraph every blow with a wind-up a hero
+can interrupt or step out of, and get no reach, speed or knockdown a hero lacks. At most two go for one hero at once,
+from both sides where they can, while the rest hover at a distance; a hero swinging its blade is walked round. Their
+choices draw from the world's seeded stream (`src/engine/ai.ts`, tuned per tier in `tuning.ts`'s `RAVAGER`).
+
 ## Stages
 
 1. **Ashen Village** — a dusk road through burning thatched huts. Ravagers and lancers; boss: the Ogre twins.
