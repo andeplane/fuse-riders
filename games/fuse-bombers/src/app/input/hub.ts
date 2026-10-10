@@ -1,21 +1,26 @@
+import { FIRE } from "../../engine/input.js";
+
 /**
- * The input hub: every physical one-button device (a keyboard key, a gamepad, a touch zone) reports presses here
- * under a stable device id, and the hub turns them into what the rest of the app needs:
+ * The input hub: every physical device (a keyboard cluster, a gamepad, a touch pad) reports its held input bits here
+ * under a stable device id (`setHeld`), and the hub turns them into what the rest of the app needs:
  *
- * - `onPress` — "device X pressed", for the lobby to join players (fires for bound and unbound devices alike).
+ * - `onPress` — "device X pressed fire" (the rising edge of its `FIRE` bit), for the lobby to join players (fires for
+ *   bound and unbound devices alike).
  * - `bind`/`unbind` — which device plays in which player slot.
- * - `takePresses` — per-slot "pressed since the last take" booleans for the engine's fixed step.
+ * - `takePresses` — per-slot "fire pressed since the last take" booleans for the engine's fixed step.
+ * - `heldBits` — what a slot's device holds now (`UP` … `FIRE` from `engine/input.ts`), sampled every step.
  * - `onCommand` — menu commands from buttons that are never a player's button (a pad's Start and Back), so starting
  *   or pausing can never cost a shot, and a shot can never pause.
  *
- * Presses are latched until taken, so a tap between two engine steps is never lost, and several engine steps in one
- * frame see it only once. The hub knows nothing about browsers; the device sources in this folder feed it.
+ * Presses are latched until taken, so a tap between two engine steps is never lost (held bits alone would miss it), and
+ * several engine steps in one frame see it only once. The hub knows nothing about browsers; the device sources in
+ * this folder feed it.
  */
 
-/** `key:<name>` for a keyboard binding, `pad:<index>` for a gamepad, `touch:<zone>` for a touch zone. */
+/** `key:<cluster>` for a keyboard cluster, `pad:<index>` for a gamepad, `touch:<zone>` for a touch zone. */
 export type DeviceId = `key:${string}` | `pad:${number}` | `touch:${number}`;
 
-/** A short on-screen name for a device: `Q`, `ARROWS`, `PAD 1`, `TOUCH 2`. */
+/** A short on-screen name for a device: `WASD`, `ARROWS`, `PAD 1`, `TOUCH 2`. */
 export function deviceLabel(device: DeviceId): string {
   const [kind, name = ""] = device.split(":");
   if (kind === "key") return name;
@@ -43,6 +48,7 @@ export class InputHub {
   private readonly sources: InputSource[] = [];
   private readonly slotDevices = new Map<number, DeviceId>();
   private readonly pending = new Set<DeviceId>();
+  private readonly held = new Map<DeviceId, number>();
 
   /**
    * `onListenerError` receives what a press listener throws. Each listener is called on its own, so one failing
@@ -53,7 +59,29 @@ export class InputHub {
       console.error("Input press listener failed", error),
   ) {}
 
-  /** Report one press of `device`. Device sources call this; tests and bots may too. */
+  /**
+   * Report every bit `device` holds now (0 when nothing is down). Device sources call this whenever it changes; a
+   * `FIRE` bit that was not held before is also one press, so a tap between two engine steps is never lost.
+   */
+  setHeld(device: DeviceId, bits: number): void {
+    const before = this.held.get(device) ?? 0;
+    if (bits === 0) this.held.delete(device);
+    else this.held.set(device, bits);
+    if (bits & FIRE && !(before & FIRE)) this.press(device);
+  }
+
+  /** What `device` holds now. */
+  heldBy(device: DeviceId): number {
+    return this.held.get(device) ?? 0;
+  }
+
+  /** What the device seated in `slot` holds now, for the engine step to sample; 0 for an unbound slot (a bot). */
+  heldBits(slot: number): number {
+    const device = this.slotDevices.get(slot);
+    return device === undefined ? 0 : this.heldBy(device);
+  }
+
+  /** Report one press of `device` without a held bit. `setHeld` calls this; tests and bots may too. */
   press(device: DeviceId): void {
     this.pending.add(device);
     for (const listener of [...this.listeners]) {
@@ -152,5 +180,6 @@ export class InputHub {
     this.listeners.clear();
     this.commandListeners.clear();
     this.pending.clear();
+    this.held.clear();
   }
 }
