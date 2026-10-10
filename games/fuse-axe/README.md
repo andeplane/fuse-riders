@@ -14,10 +14,17 @@ Sprites are palette-indexed pixel data painted in code (`src/render/pixel/`): a 
 normals, lights them from the upper left into each material's three-shade ramp from the master palette
 (`palette.ts`), edges overlapping parts and outlines the silhouette. A figure (`src/render/art/brakka.ts`) is a set of
 poses, each joint positions on a small canvas plus a feet anchor; a new frame is a new pose, often
-`adjust(idle, { near: { hand: [37, 21] } })`; a pose that paints onto its canvas's outermost pixels throws, so
+`adjust(idle, { near: { hand: [50, 40] } })`; a pose that paints onto its canvas's outermost pixels throws, so
 widen `size` for a long reach. The renderer bakes a frame once per swap, flash and flip through
 `createSpriteBaker(makeSurface).bake(sprite, { swap, flash, flip })` and draws it at `(x - ax, y - ay)`.
 
-To see every figure's frames at 4× and 1×, with palette swaps, the damage flash and the flip, run `pnpm exec vite`
-and open `/games/fuse-axe/lab/sprites.html`. The lab is dev-only: it is not in the build and not on the portal.
-[`docs/images/sprite-lab.png`](docs/images/sprite-lab.png) is a screenshot of it.
+Every hero paints the same frames, `HERO_FRAMES` in `src/render/art/animate.ts`: a two-frame breath, a six-frame
+walk, rise, fall and land, a wind-up, strike and follow-through for each of the combo's three swings, then hurt,
+knockdown, down and getup; plus a 16 × 16 HUD portrait and palette swaps for up to five of the same hero. The kit's
+`stride` lays out a walk's legs, `breath` an exhale and `bend` a knee or elbow, so a new hero only adds its poses.
+`heroFrame(kind, anim, animStep, timing)` picks the frame for a hero in the view: the strike exactly in the swing's
+active steps, the walk at a cadence that keeps a planted foot still on the ground.
+
+To see every figure's frames at 3× and 1×, each hero's swaps, flash, flip and portrait, and a reel per anim at game
+speed, run `pnpm exec vite` and open `/games/fuse-axe/lab/sprites.html`. The lab is dev-only: it is not in the build
+and not on the portal. [`docs/images/brakka-frames.png`](docs/images/brakka-frames.png) is a screenshot of it.
