@@ -46,8 +46,8 @@ import {
 
 /**
  * Fuse Axe behind the netcode's `RollbackGame`. The room keeps the seats and the run: the stage the party is on
- * (`round`) and that stage's world. One log tick folds the management entries; then, outside a run, each member's
- * hero pick, or in a run each hero's held controls and `STEPS_PER_TICK` simulation steps.
+ * (`round`) and that stage's world. One log tick folds the management entries; then, in a run, each hero's held
+ * controls and `STEPS_PER_TICK` simulation steps, or, in the lobby and once the run is over, each member's hero pick.
  */
 export const PLAY = 0,
   PICK = 1;
@@ -60,7 +60,10 @@ export type PlayEntry = [
   round: number,
   bits: number,
 ];
-/** A seated member's hero for the next run: its own entry, applied only while no run is under way. */
+/**
+ * A seated member's hero for the next run: its own entry, applied only in the lobby or once the run is over. Camp
+ * between stages is part of the run, whose heroes are the ones it set out with, so a pick there changes nothing.
+ */
 export type PickEntry = [
   seq: number,
   tick: number,
@@ -170,8 +173,12 @@ const bySlot = (a: SeatRecord, b: SeatRecord) =>
 /** Seats in slot order, watchers excluded. */
 const riders = (room: Room): SeatRecord[] =>
   [...room.seats.values()].filter((seat) => !seat.watcher).sort(bySlot);
-const seatAt = (room: Room, slot: number) =>
-  riders(room).find((seat) => seat.slot === slot);
+/** The rider in `slot`, if any. A scan, not `riders`: the fold asks for every hero's seat on every tick. */
+function seatAt(room: Room, slot: number): SeatRecord | undefined {
+  for (const seat of room.seats.values())
+    if (!seat.watcher && seat.slot === slot) return seat;
+  return undefined;
+}
 /** Who sets out on a new run: every seat that is here, stepped away or a bot. */
 const entrants = (room: Room) =>
   riders(room).filter((seat) => seat.connected || seat.away || seat.bot);
@@ -269,7 +276,7 @@ function playTick(
   return stepTick(world, held, first);
 }
 
-/** One log tick: management first, then hero picks outside a run or, in one, the heroes' controls and steps. */
+/** One log tick: management first, then the heroes' controls and steps in a run, or hero picks in the lobby and after it. */
 export function foldTick(
   room: Room,
   creatorId: string,
@@ -279,9 +286,10 @@ export function foldTick(
   applyManagementTick(room, tick, creatorId, streams, lifecycle);
   if (room.stage === "running")
     room.world = playTick(room, room.world!, streams, tick);
-  else
-    for (const seat of riders(room))
-      if (!seat.bot && seat.connected)
+  else if (room.stage === "lobby" || room.stage === "over")
+    // Each pick touches only its own seat, so the seats need no order.
+    for (const seat of room.seats.values())
+      if (!seat.watcher && !seat.bot && seat.connected)
         for (const entry of ownEntries(seat, streams, tick))
           if (entry[2] === PICK) seat.avatarId = entry[3];
   room.tick = tick;
@@ -362,9 +370,10 @@ function decodeSeat(raw: unknown): SeatRecord | undefined {
 }
 
 /**
- * What spans the fields. The lobby has no stage, no world and nothing held. A run has both, its world has run whole
- * log ticks no later than this one, every hero's seat is held for it by a member playing that hero, and only a
- * human playing a hero holds bits.
+ * What spans the fields. The lobby has no stage, no world and nothing held. A run has both: its world is the one
+ * `startRun` seeds for this run and stage and has run whole log ticks no later than this one, every hero's seat is
+ * held for it by a member playing that hero, and only a human playing a hero holds bits. A run that is over holds
+ * none (the stage flow clears them), so a pick after game over leaves a checkpoint that still decodes.
  */
 function consistent(room: Room): boolean {
   const world = room.world;
@@ -378,7 +387,9 @@ function consistent(room: Room): boolean {
     room.stage === "lobby" ||
     room.round === 0 ||
     world.step % STEPS_PER_TICK !== 0 ||
-    world.step > room.tick * STEPS_PER_TICK
+    world.step > room.tick * STEPS_PER_TICK ||
+    world.seed !== seedOf(`${room.matchId}:${room.round}`) ||
+    (room.stage === "over" && Object.keys(room.held).length > 0)
   )
     return false;
   const plays = (seat: SeatRecord | undefined) =>
