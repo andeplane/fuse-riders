@@ -1,5 +1,5 @@
 /**
- * A hero's controls as held bits, logged per seat per step. Presses (and later double taps, combos and charge) are
+ * A hero's controls as held bits, logged per seat per step. Presses and the run's double tap (and later charge) are
  * derived from the previous step's bits, which the world keeps per hero, so a rollback never loses one.
  */
 export const LEFT = 1,

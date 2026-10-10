@@ -2,9 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createBotPlayer, type Bot } from "../src/app/bot.js";
 import { RoundRunner } from "../src/app/round-runner.js";
+import { FIRE, LEFT, RIGHT } from "../src/engine/index.js";
 
 const STEP_MS = 1000 / 60;
-const idle: Bot = () => false;
+const idle: Bot = () => 0;
 
 test("the runner steps the engine at 60 Hz from frame times and carries the remainder", () => {
   const runner = new RoundRunner({ seed: 1, controllers: [idle, idle] });
@@ -16,11 +17,11 @@ test("the runner steps the engine at 60 Hz from frame times and carries the rema
   assert.ok(runner.view.tick <= 3 + 6);
 });
 
-test("the runner asks bots per step and takes human presses from the input source", () => {
+test("the runner asks bots per step; humans steer with held directions and fire only on latched presses", () => {
   const asked: number[] = [];
   const bot: Bot = (view, id) => {
     asked.push(id);
-    return view.tick === 80;
+    return view.tick === 80 ? FIRE : 0;
   };
   let humanPresses = 0;
   const runner = new RoundRunner({
@@ -31,14 +32,18 @@ test("the runner asks bots per step and takes human presses from the input sourc
         assert.equal(slots, 2);
         return [++humanPresses === 90, false];
       },
+      // Fire is held all along (through the countdown, say): only the latched press fires.
+      heldBits: (slot) => (slot === 0 ? RIGHT | FIRE : 0),
     },
   });
+  const x = runner.view.castles[0]?.x ?? 0;
   const fired: number[] = [];
   for (let i = 0; i < 100; i++)
     for (const event of runner.advance(STEP_MS))
       if (event.type === "fired") fired.push(event.castleId);
   assert.ok(asked.length >= 100 && asked.every((id) => id === 1));
   assert.deepEqual(fired, [1, 0]);
+  assert.ok((runner.view.castles[0]?.x ?? 0) > x + 100, "flew right");
 });
 
 test("real bots fire, the result is recorded as the round ends, and the next round follows", () => {
@@ -103,7 +108,7 @@ test("one advance never spans two rounds: the next round starts on the following
   let frame: number[] = [];
   const watcher: Bot = (view) => {
     frame.push(view.tick);
-    return false;
+    return 0;
   };
   const runner = new RoundRunner({
     seed: 5,
@@ -131,15 +136,15 @@ test("one advance never spans two rounds: the next round starts on the following
   assert.equal(restarts, 2, "rounds finished and restarted");
 });
 
-test("a bots-only round fast-forwards once the humans are out, unless a human ghost keeps pressing", () => {
-  let press = false;
+test("a bots-only round fast-forwards once the humans are out, unless a human ghost keeps flying or firing", () => {
+  let steer = 0;
   const runner = new RoundRunner({
     seed: 6,
     controllers: [null, 1, 2, 3].map((id) =>
       id === null ? null : createBotPlayer("hard", id, id),
     ),
-    input: { takePresses: () => [press] },
-    // Castles hover out of each other's reach until they fly, so steady sudden-death bombs knock them out; with
+    input: { takePresses: () => [false], heldBits: () => steer },
+    // Bots hover out of each other's reach until they fly, so steady sudden-death bombs knock them out; with
     // this seed the human's castle falls first and the bots play on.
     tuning: {
       fuseTime: 1,
@@ -160,11 +165,11 @@ test("a bots-only round fast-forwards once the humans are out, unless a human gh
   assert.equal(runner.speed, 1, "a moment to notice the ghost");
   while (round.tick - out < 60 * 9 && !round.result) runner.advance(STEP_MS);
   assert.equal(runner.speed, 2, "then the bots finish at double speed");
-  press = true;
+  steer = LEFT;
   runner.advance(STEP_MS);
-  press = false;
+  steer = 0;
   for (let i = 0; i < 20; i++) runner.advance(STEP_MS);
-  assert.equal(runner.speed, 1, "a human ghost pressing brings back 1×");
+  assert.equal(runner.speed, 1, "a human ghost flying brings back 1×");
   assert.ok(!runner.botsOnly);
 });
 

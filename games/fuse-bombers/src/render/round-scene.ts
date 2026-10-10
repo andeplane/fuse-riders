@@ -490,7 +490,7 @@ export class RoundScene extends Phaser.Scene {
   }
 
   /**
-   * A drifting translucent blimp in the player's colour. Loaded, a bomb hangs under it (and a human gets a short
+   * A translucent blimp in the player's colour. Loaded, a bomb hangs under it (and a human gets a short
    * drop guide and a pulsing ring); reloading, a ring fills around the empty hook.
    */
   private drawGhost(
@@ -503,7 +503,8 @@ export class RoundScene extends Phaser.Scene {
     const human = prompt !== undefined;
     const bob = 3 * Math.sin(time / 380 + g.owner);
     const [x, y] = [g.x, g.y + bob];
-    const left = g.vx < 0;
+    // Faces where it flies, and keeps facing that way once it stops.
+    const left = g.vx < 0 || (g.vx === 0 && sprite.blimp.flipX);
     sprite.blimp
       .setPosition(x, y)
       .setFlipX(left)

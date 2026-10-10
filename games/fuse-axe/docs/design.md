@@ -37,8 +37,13 @@ higher levels, and never hurts other heroes.
 
 - **Walk** in eight directions on the floor: left/right along the road, up/down in depth (slower, as in the
   original). The floor is a depth band in the lower half of the screen.
-- **Run**: double-tap left or right, on a phone's d-pad too. **Dash attack** (shoulder charge) from a run knocks
-  down. If double-taps prove unreliable on glass in playtests, a phone gets a run toggle instead.
+- **Run**: double-tap left or right, on a phone's d-pad too: a quick tap, let go, and press again within a fifth of a
+  second. The run is about twice the walk along the road (Gorm the slowest), still steers in depth, and ends when the
+  direction is let go or reversed, or a blow lands. **Dash attack**: Attack from a run is a shoulder charge (Gorm's
+  is a headbutt) that slides a short way and knocks down every enemy it meets in the lane, once each. **Running
+  jump**: Jump from a run keeps the run's speed, so it carries further. A double tap made while the hero is busy
+  waits a few steps, as presses do. Timing and speeds are `RUN_TAP`, `RUN_GAP`, `RUN` and `DASH` in
+  `src/engine/tuning.ts`. If double-taps prove unreliable on glass in playtests, a phone gets a run toggle instead.
 - **Combo**: Attack three times — two slashes and a heavy finisher that knocks down. A press while the blade is out
   or in the recovery chains the next swing; one in the wind-up is ignored, so the combo has a rhythm. A press made
   while the hero is busy (a swing's recovery, a landing) waits a few steps and acts as soon as the hero is free.
@@ -118,6 +123,8 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
   `over` as a defeat, with the stage's tallies banked.
 - **Over.** The outcome and the run's tallies show with the stage reached; nothing is held and no clock runs. Hero
   picks apply again, and the host's REMATCH sets out on a fresh run (stage 1, nothing tallied) or LOBBY goes back.
+  The page shows each as a card over the game (`src/app/presenter.ts`, `card`): [the countdown](images/app-continue.png)
+  and [game over](images/app-game-over.png), from `preview/flow.mjs`.
 - **The next stage** (once there is one) slots in where the tally ends (`nextStage`): a world seeded
   `seedOf("matchId:round+1")` as `beginStage` makes every stage's, with each hero whose seat is still here. Policy:
   lives carry over (a hero who went out comes back with one), health is full, the continue is fresh, and the
@@ -142,7 +149,8 @@ are not the world's heroes).
   speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in front; it ends at the
   village gate ([screenshot](images/stage1-backdrop.png)).
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
-  and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives.
+  and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives
+  ([screenshot](images/hud.png)).
 
 ## Players, rooms and controls
 

@@ -36,8 +36,11 @@ import { PendingPick, SoloOpening } from "./flow.js";
 import { drawn } from "./interpolate.js";
 import {
   HEROES,
+  TEXT,
+  partyLabel,
   pixelScale,
   present,
+  type Card,
   type Model,
   type Viewer,
 } from "./presenter.js";
@@ -215,14 +218,37 @@ function room(solo: boolean): void {
   lobby.append(lobbyMain, lobbySide);
   start.onclick = () => runtime.command({ type: "action", action: "start" });
 
-  // The game: the native frame, scaled by whole numbers and letterboxed, with the party under it.
+  // The game: the native frame, scaled by whole numbers and letterboxed; its HUD names the party.
   const stage = el("section", "", "fa-stage"),
     screen = el("div", "", "fa-screen"),
     canvas = el("canvas", "", "fa-canvas"),
-    party = el("ul", "", "fa-party"),
     note = el("p", "", "fa-note");
-  screen.append(canvas);
-  stage.append(screen, party, note);
+  // The stage flow's card over the game: a cleared stage's tally, the continue countdown, the run's end.
+  const card = el("div", "", "fa-card"),
+    cardTitle = el("h2", "", "fa-card-title"),
+    cardLine = el("p", "", "fa-card-line"),
+    cardClock = el("strong", "", "fa-card-clock"),
+    cardHint = el("p", "", "fa-card-hint"),
+    tally = el("table", "", "fa-tally"),
+    actions = el("div", "", "fa-card-actions"),
+    continueButton = button(
+      TEXT.continueButton,
+      "fui-button-primary fa-continue",
+    ),
+    rematch = button(TEXT.rematchButton, "fui-button-primary fa-rematch"),
+    backToLobby = button(TEXT.lobbyButton, "fa-card-lobby");
+  actions.append(continueButton, rematch, backToLobby);
+  card.append(cardTitle, cardLine, cardHint, cardClock, tally, actions);
+  card.hidden = true;
+  continueButton.onclick = () => runtime.continueRun();
+  rematch.onclick = () =>
+    runtime.command({ type: "action", action: "rematch" });
+  backToLobby.onclick = () =>
+    runtime.command({ type: "action", action: "lobby" });
+  // The HUD draws the party in pixels; the canvas says it in words.
+  canvas.setAttribute("role", "img");
+  screen.append(canvas, card);
+  stage.append(screen, note);
 
   // Until the first frame nothing of the room shows, so a room that turns out not to exist never offers its controls.
   const connecting = el("p", "Connecting to the room…", "fa-connecting"),
@@ -284,7 +310,7 @@ function room(solo: boolean): void {
     if (over) return;
     const world = stage.hidden ? null : drawn(runtime.frameTiming());
     if (world) {
-      scene.draw(native, world, Math.floor((now * 60) / 1000));
+      scene.draw(native, world, Math.floor((now * 60) / 1000), model?.hud);
       // Resizing the canvas resets its context, smoothing included.
       g.imageSmoothingEnabled = false;
       g.drawImage(pixels, 0, 0, canvas.width, canvas.height);
@@ -292,6 +318,43 @@ function room(solo: boolean): void {
     requestAnimationFrame(paint);
   };
   requestAnimationFrame(paint);
+
+  const showCard = (shown: Card | null) => {
+    main.dataset.card = shown?.kind ?? "";
+    card.hidden = !shown;
+    if (!shown) return;
+    card.dataset.kind = shown.kind;
+    setText(cardTitle, shown.title);
+    setText(cardLine, shown.line);
+    setText(cardHint, shown.hint);
+    setText(cardClock, shown.seconds === null ? "" : String(shown.seconds));
+    cardClock.hidden = shown.seconds === null;
+    continueButton.hidden = !shown.canContinue;
+    rematch.hidden = backToLobby.hidden = !shown.canRematch;
+    actions.hidden = !shown.canContinue && !shown.canRematch;
+    tally.hidden = !shown.rows.length;
+    const rows = JSON.stringify(shown.rows);
+    if (tally.dataset.rows === rows) return;
+    tally.dataset.rows = rows;
+    const head = el("tr");
+    for (const label of TEXT.tallyHead) head.append(el("th", label));
+    tally.replaceChildren(
+      head,
+      ...shown.rows.map((row) => {
+        const line = el("tr"),
+          who = el("td");
+        line.style.setProperty("--c", row.color);
+        who.append(el("b", row.tag), el("span", row.name));
+        line.append(
+          who,
+          el("td", HEROES[row.hero].name),
+          el("td", String(row.damage)),
+          el("td", String(row.knockdowns)),
+        );
+        return line;
+      }),
+    );
+  };
 
   const render = (next: Model, view: View) => {
     if (over) return;
@@ -302,6 +365,9 @@ function room(solo: boolean): void {
     main.dataset.stage = view.stage;
     main.dataset.hero = next.hero ?? "";
     main.dataset.playing = String(next.playing);
+    const party = partyLabel(next.members);
+    if (canvas.getAttribute("aria-label") !== party)
+      canvas.setAttribute("aria-label", party);
     lobby.hidden = next.screen !== "lobby";
     stage.hidden = next.screen !== "play";
     nameEntry.form.hidden = !next.askName;
@@ -329,22 +395,7 @@ function room(solo: boolean): void {
       setText(line, next.note);
       line.hidden = !next.note;
     }
-    const members = JSON.stringify(next.members);
-    if (party.dataset.members !== members) {
-      party.dataset.members = members;
-      party.replaceChildren(
-        ...next.members.map((member) => {
-          const item = el("li", "", member.you ? "you" : "");
-          item.style.setProperty("--c", member.color);
-          item.append(
-            el("b", member.tag),
-            el("span", member.name),
-            el("small", member.hero ? HEROES[member.hero].name : ""),
-          );
-          return item;
-        }),
-      );
-    }
+    showCard(next.card);
   };
 
   // ---- the runtime ----

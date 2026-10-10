@@ -1,20 +1,22 @@
 # Fuse Bombers
 
-A party artillery game for 2–6 players, humans and bots, on one keyboard, a few gamepads or a touch screen. Castles
-hover round a destructible floating temple and lob rockets across it, and the rockets fly through multiplier gates to
-turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md): the castles become gunships that
-fly; for now they hover where they spawn.)
+A party artillery game for 2–6 players, humans and bots, on one keyboard, a few gamepads or a touch screen. Gunships
+fly round a destructible floating temple and lob rockets across it, and the rockets fly through multiplier gates to
+turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md): bots do not fly yet, and touch
+riders cannot steer yet.)
 
 **Play it: <https://andeplane.github.io/fuse-riders/fuse-bombers/>**, or pick it from the app portal (the dot-grid
 button at the top left of every Fuse game's lobby). It is a local game: no rooms, no accounts, everyone at one screen.
 
-![Four castles round the floating temple trading rocket volleys between the multiplier gates, the fuse burning along the top](docs/images/big-map.png)
+![A keyboard rider's gunship flying over the temple's right terrace with its dotted aim guide, bots firing from round the temple, the fuse burning along the top](docs/images/free-flight.png)
 
 ## How to play
 
-- **One button each.** Your launcher turns round and round, a full circle every 3.6 s. Press your button to fire a
-  volley at the current angle, in any direction; the launcher then reloads. Timing picks range and target, and a dotted guide shows the first part of
-  the path.
+- **Fly and fire.** Steer your gunship in eight directions; it is heavy, so it takes a moment to get going, to stop
+  and to turn round, and it slides along rock and bumps other gunships aside. Your launcher turns round and round, a
+  full circle every 3.6 s. Press fire to fire a volley at the current angle, in any direction; the launcher then
+  reloads. Holding fire does not fire again: press it again. Where you fly and when you press pick range and target,
+  and a dotted guide shows the first part of the path. With the barrel against rock, the volley blows up there.
 - **Gates multiply.** Gates (×2, ×3, ×5, ×10) drift in the sky. A rocket that flies through one splits into that many
   rockets, so five rockets through a ×10 gate is fifty.
 - **Crates.** Floating crates give a card to the first volley that hits them: an extra rocket per volley, a shield, a
@@ -24,10 +26,11 @@ button at the top left of every Fuse game's lobby). It is a local game: no rooms
 - **The fuse.** The burning fuse across the top is the round timer (90 s). When it burns out, sudden death begins:
   bombs drop from above the castles and damage keeps growing. At 3 minutes the round ends on HP: the castle with the most HP wins, and
   a tie is a draw.
-- **Ghosts.** When your castle is destroyed you keep playing as a ghost blimp (your colour, your key on the side)
-  drifting across the sky above your wreck, straight through rock. Your button drops a bomb when one hangs under the blimp; a short dotted guide shows where it
-  falls. Ghosts cannot win, but they can decide who does. Once every human is out and no ghost has pressed for a few
-  seconds, the bots finish the round at up to double speed (⏩ in the bottom bar).
+- **Ghosts.** When your gunship is destroyed you keep playing as a ghost blimp (your colour, your key on the side)
+  that appears above your wreck. Fly it with the same controls, faster and straight through rock. Fire drops a bomb
+  when one hangs under the blimp; a short dotted guide shows where it falls. Ghosts cannot win, but they can decide who
+  does. Once every human is out and no ghost has flown or fired for a few seconds, the bots finish the round at up to
+  double speed (⏩ in the bottom bar).
 - **Winning.** The last castle standing wins the round (a wipe-out is a draw); if more than one is still standing at
   3 minutes, the highest HP wins (a tie is a draw). First to N round wins takes the match;
   N is 3 by default and set in the lobby (up to 9).
@@ -47,8 +50,7 @@ needs gamepads too.
 | Gamepad    | Left stick (8 directions, with a dead zone) or D-pad | Any face button (A/B/X/Y on a standard pad)  |
 | Touch      | Your side's D-pad; between two arrows is a diagonal  | The big FIRE button beside your side's D-pad |
 
-Until the gunships fly, only fire plays: steering is read (`InputHub.heldBits`) but moves nothing yet. Held
-together, opposite directions cancel. Keys are physical positions, so `/` is whatever the key left of right Shift
+Held together, opposite directions cancel. Keys are physical positions, so `/` is whatever the key left of right Shift
 reads (`-` on Nordic layouts). A pad without the standard mapping steers with its first stick only, and all its
 buttons fire. Menus: on a keyboard `Enter` confirms, `Esc` pauses or goes back and `Backspace`
 quits; on a pad Start confirms and pauses, Back goes back or pauses, and holding fire for 1 s in the lobby starts; on a
@@ -115,7 +117,7 @@ zoom ([screenshot](docs/images/gunships.png)); the round does not draw them yet.
 
 `src/engine/` imports nothing outside itself: no `render/`, no `app/`, no Phaser, no npm or `node:` packages, and no
 DOM globals (`window`, `document`, `performance`, `Date.now`, `Math.random`). Randomness comes from the engine's seeded
-RNG, time from the fixed step. Bots use the same one-button input as humans and get no privileged physics.
+RNG, time from the fixed step. Bots use the same input bits as humans and get no privileged physics.
 [tests/architecture.test.ts](tests/architecture.test.ts) fails on a cross-layer import and on an engine use of
 `Date`, `performance`, `Math.random` or of `Math`'s engine-dependent functions (`sin`, `atan2`, `hypot`, `exp`, `**`,
 …): the engine computes the same bits on every browser, with its own trigonometry in `src/engine/det-math.ts`. Like

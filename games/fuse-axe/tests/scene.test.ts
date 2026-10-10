@@ -28,9 +28,9 @@ import { BRAKKA } from "../src/render/art/brakka.js";
 import { HEROES } from "../src/render/art/index.js";
 import { RAVAGER, RAVAGER_ANIMS } from "../src/render/art/ravager.js";
 import { createBackdrop } from "../src/render/backdrop/backdrop.js";
+import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
 import {
-  BLINK_FRAMES,
   createLooks,
   createScene,
   deadShows,
@@ -132,7 +132,10 @@ const world = (more: Partial<WorldView>): WorldView => ({
   ...more,
 });
 
-/** One frame on the shared scene, its blits sorted into the layers they belong to. */
+/**
+ * One frame on the shared scene, its blits sorted into the layers they belong to. The HUD (`hud.test.ts`) draws over
+ * everything, after the grass in front, the last layer: what follows it but the GO sign is the HUD's.
+ */
 function draw(view: WorldView, frame = 0, scene = shared.scene) {
   const pen = new RecordingPen();
   scene.draw(pen, view, frame);
@@ -143,14 +146,18 @@ function draw(view: WorldView, frame = 0, scene = shared.scene) {
     b.image.fills.every((f) => f.style.startsWith("rgba("));
   const layer = (b: Blit) => b.image.w >= VIEW_W;
   const [marker, sign] = [is(MARKER.w, MARKER.h), is(GO_SIGN.w, GO_SIGN.h)];
+  let front = pen.blits.length - 1;
+  while (front >= 0 && !layer(pen.blits[front]!)) front--;
+  const field = pen.blits.slice(0, front + 1);
   return {
     pen,
-    shadows: pen.blits.filter(shadow),
-    markers: pen.blits.filter(marker),
+    shadows: field.filter(shadow),
+    markers: field.filter(marker),
     signs: pen.blits.filter(sign),
-    sprites: pen.blits.filter(
+    sprites: field.filter(
       (b) => !layer(b) && !shadow(b) && !marker(b) && !sign(b),
     ),
+    hud: pen.blits.slice(front + 1).filter((b) => !sign(b)),
   };
 }
 

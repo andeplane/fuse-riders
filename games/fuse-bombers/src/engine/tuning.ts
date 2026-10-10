@@ -130,10 +130,9 @@ export interface Tuning {
   // Ghost bombers
   /** Players whose castle is destroyed fly a ghost blimp that drops bombs. */
   ghosts: boolean;
-  /** A ghost blimp flies this far above its wreck (at least `ghostMargin` below the top of the world). */
+  /** A ghost blimp appears this far above its wreck (at least `ghostMargin` below the top of the world). */
   ghostRise: number;
-  ghostSpeed: number;
-  /** Ghosts bounce this far from the world edges. */
+  /** A ghost appears at least this far below the top of the world. */
   ghostMargin: number;
   ghostReload: number;
   /** Delay before a fresh ghost's first bomb. */
@@ -141,7 +140,7 @@ export interface Tuning {
   /** Direct-hit damage of a ghost bomb (splash deals `splashFactor` of it). Gates never multiply it. */
   ghostBombDamage: number;
   ghostCraterRadius: number;
-  /** Initial downward speed of a dropped bomb. */
+  /** Downward speed a dropped bomb gets on top of the blimp's velocity. */
   ghostBombSpeed: number;
 }
 
@@ -219,7 +218,6 @@ export const DEFAULT_TUNING: Tuning = {
 
   ghosts: true,
   ghostRise: 220,
-  ghostSpeed: 160,
   ghostMargin: 40,
   ghostReload: 3.5,
   ghostFirstReload: 2.5,
