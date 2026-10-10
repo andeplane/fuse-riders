@@ -1,3 +1,4 @@
+import type { MakeSurface, PixelPaint } from "../surface.js";
 import type { Palette } from "./palette.js";
 import {
   CLEAR,
@@ -8,17 +9,8 @@ import {
   type Sprite,
 } from "./sprite.js";
 
-/** The part of a 2D context the baker paints with. A canvas's context is one, and so is a test's fake. */
-export interface PixelPaint {
-  fillStyle: string | CanvasGradient | CanvasPattern;
-  fillRect(x: number, y: number, width: number, height: number): void;
-}
-
-/** Makes an offscreen surface: the image the renderer draws, and the paint that fills it. */
-export type MakeSurface<Image> = (
-  width: number,
-  height: number,
-) => { readonly image: Image; readonly paint: PixelPaint };
+/** The baker paints through the renderer's one surface factory (`../surface.ts`). */
+export type { MakeSurface, PixelPaint } from "../surface.js";
 
 /** A sprite baked into an image; draw it with its anchor on the feet: `drawImage(image, x - ax, y - ay)`. */
 export interface Baked<Image> {
