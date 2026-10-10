@@ -295,9 +295,11 @@ export interface RoundState {
   rng: number;
 }
 
-// Typed arrays stay as they are, so the view's grid works with the grid queries in grid.ts.
+// A typed array cannot be made read-only by a mapped type (its elements stay writable), so the view shows the grid's
+// bitsets as `ArrayLike<number>`: enough for the read-only queries in grid.ts (`ReadGrid`), and not assignable to the
+// writable `Grid` that `carveCircle` wants, so a bot or a renderer cannot carve the authoritative terrain.
 type DeepReadonly<T> = T extends Uint32Array
-  ? T
+  ? ArrayLike<number>
   : T extends readonly unknown[]
     ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
     : T extends object

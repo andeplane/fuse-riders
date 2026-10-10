@@ -10,6 +10,7 @@ import {
   ghostPositionAt,
   isGhostLoaded,
   predictGhostBomb,
+  solidAt,
   step,
   type BotDifficulty,
   type RoundState,
@@ -67,7 +68,7 @@ test("a destroyed castle's owner becomes a ghost above the wreck", () => {
     ghost.y,
     Math.max(s.tuning.ghostMargin, wreck - s.tuning.ghostRise),
   );
-  assert.ok(ghost.reloadTicks > 0 && !isGhostLoaded(ghost));
+  assert.ok(ghost.reloadTicks > 0 && !isGhostLoaded(ghost, s.terrain));
   assert.equal(s.ghosts.length, 1);
   assert.equal(s.result, null, "ghosts do not end or win the round");
 
@@ -103,7 +104,7 @@ test("pressing drops one bomb per reload; it lands where predictGhostBomb says",
     ).length,
     0,
   );
-  while (!isGhostLoaded(ghost)) step(s);
+  while (!isGhostLoaded(ghost, s.terrain)) step(s);
   const predicted = predictGhostBomb(s, 1);
   assert.ok(predicted);
   const [x, vx] = [ghost.x, ghost.vx];
@@ -124,6 +125,58 @@ test("pressing drops one bomb per reload; it lands where predictGhostBomb says",
     s.castles[1]?.stats.ghostBombs,
     1 + only(events, "ghost-bomb-dropped").length,
   );
+});
+
+test("a ghost inside rock cannot drop: it stays unloaded, nothing blows up at the drop point, and the press waits", () => {
+  const { s, ghost } = withGhost(23);
+  assert.ok(ghost);
+  // A band of indestructible rock along the blimp's whole flight line, as in the temple's hall.
+  const band = [0, ghost.y - 40, WORLD_WIDTH, ghost.y + 40] as const;
+  fillRect(s.terrain, ...band, "hard");
+  while (ghost.reloadTicks > 0) step(s);
+  assert.ok(solidAt(s.terrain, ghost.x, ghost.y));
+  assert.equal(ghost.reloadTicks, 0, "reloaded by the clock");
+  assert.equal(isGhostLoaded(ghost, s.terrain), false, "but inside rock");
+  assert.equal(predictGhostBomb(s, 1), null, "so there is no drop to predict");
+
+  // Mashing the button drops nothing (so no bomb blows up on the spot and no reload is spent).
+  const version = s.terrain.version;
+  const rockets = s.rockets.length;
+  const events = run(s, 90, () => [false, true]);
+  assert.equal(only(events, "ghost-bomb-dropped").length, 0);
+  assert.equal(only(events, "ghost-bomb-hit").length, 0);
+  assert.equal(only(events, "crater").length, 0);
+  assert.equal(s.terrain.version, version);
+  assert.equal(s.rockets.length, rockets);
+  assert.equal(ghost.reloadTicks, 0);
+  assert.equal(s.castles[1]?.stats.ghostBombs, 0);
+
+  // Out of the rock, the same press drops, from the open air.
+  fillRect(s.terrain, ...band, "air");
+  assert.equal(isGhostLoaded(ghost, s.terrain), true);
+  assert.ok(predictGhostBomb(s, 1));
+  const dropped = only(step(s, [false, true]).slice(), "ghost-bomb-dropped");
+  assert.equal(dropped.length, 1);
+  assert.equal(s.castles[1]?.stats.ghostBombs, 1);
+});
+
+test("predictGhostBomb is null exactly at the ticks the blimp is inside rock", () => {
+  const { s, ghost } = withGhost(23);
+  assert.ok(ghost);
+  // Rock over a stretch of the flight line ahead of the blimp, so it flies in and out of it.
+  const ahead = ghost.x + Math.sign(ghost.vx) * 300;
+  const [x0, x1] = [Math.min(ahead, ahead + 400), Math.max(ahead, ahead + 400)];
+  fillRect(s.terrain, x0, ghost.y - 30, x1, ghost.y + 30, "rock");
+  let inRock = 0;
+  let open = 0;
+  for (let k = 0; k <= 600; k += 3) {
+    const p = ghostPositionAt(ghost, s.tick + k);
+    const blocked = solidAt(s.terrain, p.x, p.y);
+    if (blocked) inRock++;
+    else open++;
+    assert.equal(predictGhostBomb(s, 1, k) === null, blocked, `tick +${k}`);
+  }
+  assert.ok(inRock > 20 && open > 20, `${inRock} in rock, ${open} in the open`);
 });
 
 test("ghost bombs hit castles and carve craters, but gates and crates ignore them", () => {
@@ -207,9 +260,14 @@ test("ghost rounds are deterministic and replay from a clone", () => {
   );
   assert.equal(fingerprint(a), fingerprint(b));
 
-  // Everyone mashes their button: castles fire and ghosts drop whenever loaded.
+  // Everyone mashes their button: castles fire and ghosts drop whenever loaded (a short first reload, so they do
+  // before mashing ends the round; a blimp inside rock waits until it is out).
   const mash = (st: RoundState) => st.castles.map(() => true);
-  const c = createRound({ seed: 32, playerCount: 5 });
+  const c = createRound({
+    seed: 32,
+    playerCount: 5,
+    tuning: { ghostFirstReload: 1 },
+  });
   while (c.ghosts.length < 2 && !c.result) step(c, mash(c));
   assert.equal(c.result, null);
   const d = structuredClone(c);
@@ -266,7 +324,7 @@ test("balance: bot rounds with ghosts end in similar time and ghosts do not domi
 test("ghost bombs bypass the rocket cap, so a loaded press always drops", () => {
   const { s, ghost } = withGhost(23, { maxRockets: 40, splitReserve: 0 });
   assert.ok(ghost);
-  while (!isGhostLoaded(ghost)) step(s);
+  while (!isGhostLoaded(ghost, s.terrain)) step(s);
   // Fill the cap with rockets that leave the arena during the same step.
   while (s.rockets.length < s.tuning.maxRockets)
     addRocket(s, { owner: 0, x: -1000, y: 100 });
@@ -358,10 +416,10 @@ test("a press on the tick of death does not drop a ghost bomb", () => {
   assert.equal(only(events.slice(), "castle-destroyed").length, 1);
   assert.equal(only(events.slice(), "ghost-bomb-dropped").length, 0);
   const ghost = ghostOf(s, 1);
-  assert.ok(ghost && !isGhostLoaded(ghost));
+  assert.ok(ghost && !isGhostLoaded(ghost, s.terrain));
   // Mashing through the first reload drops nothing until the ghost is loaded.
   let drops = 0;
-  while (!isGhostLoaded(ghost))
+  while (!isGhostLoaded(ghost, s.terrain))
     drops += only(step(s, press()).slice(), "ghost-bomb-dropped").length;
   assert.equal(drops, 0);
   assert.equal(only(step(s, press()).slice(), "ghost-bomb-dropped").length, 1);

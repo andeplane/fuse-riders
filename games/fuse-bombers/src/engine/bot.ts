@@ -152,7 +152,7 @@ export function createBot(config: BotConfig): Bot {
     if (!g) return false;
     const tick = view.tick;
     if (pressAt >= 0) {
-      if (tick >= pressAt && isGhostLoaded(g)) {
+      if (tick >= pressAt && isGhostLoaded(g, view.terrain)) {
         pressAt = -1;
         return true;
       }

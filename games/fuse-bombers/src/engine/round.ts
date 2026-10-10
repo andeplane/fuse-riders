@@ -15,7 +15,14 @@ import {
   TAU,
   turnLauncher,
 } from "./geometry.js";
-import { carveCircle, cellSolid, segmentHit, type Grid } from "./grid.js";
+import {
+  carveCircle,
+  cellSolid,
+  segmentHit,
+  solidAt,
+  type Grid,
+  type ReadGrid,
+} from "./grid.js";
 import { hashSeed, int, random, range, weighted } from "./rng.js";
 import {
   buildTempleGrid,
@@ -150,9 +157,13 @@ export function ghostOf(
   return state.ghosts.find((g) => g.owner === owner);
 }
 
-/** True when the ghost would drop a bomb if its button were pressed this tick. */
-export function isGhostLoaded(g: GhostView): boolean {
-  return g.reloadTicks === 0;
+/**
+ * True when the ghost would drop a bomb if its button were pressed this tick: it is reloaded and the blimp is in
+ * the open. A bomb released inside rock would blow up at the drop point that very step, so the press is ignored (and
+ * the reload kept) until the blimp, which flies through rock, comes out of it. Pass the round's `terrain`.
+ */
+export function isGhostLoaded(g: GhostView, terrain: ReadGrid): boolean {
+  return g.reloadTicks === 0 && !solidAt(terrain, g.x, g.y);
 }
 
 /** Fuse progress in [0, 1] (1 = burnt out, sudden death). */
@@ -331,7 +342,11 @@ function spawnGhost(state: RoundState, c: Castle): void {
 function updateGhosts(state: RoundState, pressed: readonly boolean[]): void {
   for (const g of state.ghosts) {
     // Drop from where the player saw the blimp (its position after the previous tick).
-    if (state.phase !== "over" && pressed[g.owner] === true && isGhostLoaded(g))
+    if (
+      state.phase !== "over" &&
+      pressed[g.owner] === true &&
+      isGhostLoaded(g, state.terrain)
+    )
       dropGhostBomb(state, g);
     const p = ghostPositionAt(g, state.tick + 1);
     g.x = p.x;
@@ -399,8 +414,8 @@ function ghostBombHit(
 const PLACE_ATTEMPTS = 16;
 /** Gates and crates prefer to keep this far from a living castle's hit circle. */
 const CASTLE_CLEARANCE = 60;
-/** A refill of missing gates is tried this often (in ticks) when the sky had no room. */
-const GATE_RETRY_TICKS = 30;
+/** A gate refill or a crate is tried again this often (in ticks, 0.5 s) when the sky had no room. */
+const PLACE_RETRY_TICKS = 30;
 
 /** Whether two boxes are at least `gap` apart along one axis (so they do not overlap). */
 function apart(a: Rect, b: Rect, gap: number): boolean {
@@ -464,7 +479,9 @@ function pickZone(state: RoundState, w: number, h: number): Rect | undefined {
 /**
  * Seeded spots in the map's sky zones until one is free: `make` turns a zone into a candidate and its box, which
  * must hold no rock and pass `free`. A spot that also keeps clear of the castles wins; otherwise the first free
- * one does. Undefined when the sky has no room (the caller tries again later).
+ * one does, even when that puts it right over a castle: with 16 tries all near castles, a crate or gate on top of one
+ * is intended (a crate there is just a card for whoever's rocket touches it, a gate a multiplier), better than none.
+ * Undefined when the sky has no room (the caller tries again later).
  */
 function placeInSky<S>(
   state: RoundState,
@@ -564,14 +581,17 @@ function updateGates(state: RoundState): void {
   }
   // Expired gates respawn at once; gates that found no room earlier try again every so often.
   const count = state.tuning.gateCounts[state.castles.length] ?? 5;
-  const retry = tick % GATE_RETRY_TICKS === 0;
+  const retry = tick % PLACE_RETRY_TICKS === 0;
   const missing = count - state.gates.length;
   for (let i = 0; i < missing && (i < expired || retry); i++)
     if (!spawnGate(state)) break;
 }
 
-/** A crate bobs in a sky zone, clear of rock, of every live gate's box and of other crates. */
-function spawnCrate(state: RoundState): void {
+/**
+ * A crate bobs in a sky zone, clear of rock, of every live gate's box and of other crates. Returns false when the sky
+ * had no room.
+ */
+function spawnCrate(state: RoundState): boolean {
   const t = state.tuning;
   const r = t.crateRadius;
   const gates = state.gates.map(gateBox);
@@ -592,7 +612,7 @@ function spawnCrate(state: RoundState): void {
       gates.every((g) => apart(g, box, 10)) &&
       crates.every((k) => apart(k, box, 100)),
   );
-  if (!spot) return;
+  if (!spot) return false;
   const card = weighted(state, CARDS, (c) => t.cardWeights[c]);
   const crate: Crate = {
     id: state.nextId++,
@@ -614,7 +634,9 @@ function spawnCrate(state: RoundState): void {
     x: crate.x,
     y: crate.y,
   });
+  return true;
 }
+
 function updateCrates(state: RoundState): void {
   const t = state.tuning;
   const max = t.crateCounts[state.castles.length] ?? 2;
@@ -623,10 +645,12 @@ function updateCrates(state: RoundState): void {
     state.crates.length < max &&
     state.tick >= state.nextCrateTick
   ) {
-    spawnCrate(state);
+    // A sky with no room (rock carved away, gates in the way) is tried again soon, not after a full respawn wait.
     state.nextCrateTick =
       state.tick +
-      secondsToTicks(range(state, t.crateRespawn[0], t.crateRespawn[1]));
+      (spawnCrate(state)
+        ? secondsToTicks(range(state, t.crateRespawn[0], t.crateRespawn[1]))
+        : PLACE_RETRY_TICKS);
   }
   for (const k of state.crates)
     k.y = crateYAt(k.baseY, k.bobPhase, k.spawnTick, state.tick);
@@ -694,7 +718,7 @@ function dropBombs(state: RoundState): void {
  * world, and just under the rock when the column above the castle has a ceiling.
  */
 export function bombStartY(
-  grid: Grid,
+  grid: ReadGrid,
   x: number,
   y: number,
   height: number,

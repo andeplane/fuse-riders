@@ -14,6 +14,7 @@ import {
   type TickEvent,
 } from "../src/engine/index.js";
 import {
+  carveCircle,
   cellSolid,
   circleOverlapsSolid,
   fillRect,
@@ -87,6 +88,26 @@ test("createRound validates the player count", () => {
   assert.throws(() => createRound({ seed: NaN, playerCount: 2 }), RangeError);
   for (let n = 2; n <= 6; n++)
     assert.equal(createRound({ seed: 1, playerCount: n }).castles.length, n);
+});
+
+test("createRound refuses an aimPeriod the launcher cannot turn by", () => {
+  const period = (aimPeriod: number) => () =>
+    createRound({ seed: 1, playerCount: 2, tuning: { aimPeriod } });
+  // Zero is an infinite angle per tick, NaN and Infinity poison or freeze it, and anything under two ticks a turn
+  // is more than `turnLauncher`'s single wrap-around subtraction can bring back into [0, 2π).
+  for (const bad of [0, -3.6, NaN, Infinity, -Infinity, 1 / TICK_HZ, 1e-9])
+    assert.throws(period(bad), RangeError, `${bad}`);
+  // The shortest accepted period still keeps every angle in range.
+  const s = createRound({
+    seed: 1,
+    playerCount: 2,
+    tuning: { aimPeriod: 2 / TICK_HZ },
+  });
+  for (let i = 0; i < 100; i++) {
+    step(s);
+    for (const c of s.castles)
+      assert.ok(c.angle >= 0 && c.angle < TAU, `angle ${c.angle}`);
+  }
 });
 
 test("castles hover at the seed's spawn anchors, clear of rock, launchers anywhere on the circle", () => {
@@ -392,6 +413,28 @@ test("gates and crates float inside the sky zones, clear of rock and of each oth
   assert.ok(cratesSpawned > 50, `only ${cratesSpawned} crates`);
 });
 
+test("a crate that finds no room in the sky is tried again within a second, not after a respawn wait", () => {
+  const s = createRound({ seed: 37, playerCount: 2 });
+  clearSky(s);
+  fillRect(s.terrain, 0, 0, s.terrain.width, s.terrain.height, "hard");
+  const due = s.tick;
+  s.nextCrateTick = due;
+  step(s);
+  assert.equal(s.crates.length, 0, "no room in solid rock");
+  assert.ok(
+    s.nextCrateTick > due && s.nextCrateTick <= due + TICK_HZ,
+    `retry at ${s.nextCrateTick} after ${due}`,
+  );
+  // Once the sky has room again, the crate comes with the next retry rather than a 5 to 9 s respawn later.
+  openWorld(s);
+  const events = run(s, TICK_HZ);
+  assert.equal(eventsOf(events, "crate-spawned").length, 1);
+  assert.ok(
+    s.nextCrateTick >= s.tick + s.tuning.crateRespawn[0] * TICK_HZ - TICK_HZ,
+    "a spawned crate waits the full respawn time",
+  );
+});
+
 test("the rocket cap holds and folds capped children into rocket power", () => {
   const s = createRound({
     seed: 14,
@@ -624,6 +667,23 @@ test("futureAngle predicts the launcher's turn exactly", () => {
     ks.map((k) => seen[k]),
   );
   assert.throws(() => futureAngle(s, 9, 1), RangeError);
+});
+
+test("the view's terrain can be queried but not written or carved", () => {
+  const s = createRound({ seed: 25, playerCount: 2 });
+  const grid = view(s).terrain;
+  assert.equal(grid.solid.length, s.terrain.solid.length);
+  assert.equal(gridHash(grid), gridHash(s.terrain));
+  // Compile-time guarantees, so nothing here runs: a bot or renderer holding the view cannot dig or write through it.
+  const mutate = () => {
+    // @ts-expect-error carveCircle wants the writable Grid
+    carveCircle(grid, 0, 0, 1);
+    // @ts-expect-error the bitsets are read-only array-likes
+    grid.solid[0] = 0;
+    // @ts-expect-error and so is the version
+    grid.version = 7;
+  };
+  assert.equal(typeof mutate, "function");
 });
 
 test("the view hides the RNG and the spawn schedule", () => {

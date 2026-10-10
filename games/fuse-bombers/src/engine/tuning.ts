@@ -228,8 +228,21 @@ export const DEFAULT_TUNING: Tuning = {
   ghostBombSpeed: 60,
 };
 
+/** Shortest `aimPeriod`: two ticks a revolution, so `turnLauncher`'s single wrap-around subtraction always suffices. */
+export const MIN_AIM_PERIOD = 2 * DT;
+
+/**
+ * The defaults with `overrides` on top. Throws `RangeError` for an `aimPeriod` that is not a finite number of at
+ * least `MIN_AIM_PERIOD` seconds (zero would turn the launcher by an infinite angle, a shorter one past what
+ * `turnLauncher` wraps), since this is where a round's configuration enters.
+ */
 export function resolveTuning(overrides?: Partial<Tuning>): Tuning {
-  return { ...DEFAULT_TUNING, ...overrides };
+  const tuning = { ...DEFAULT_TUNING, ...overrides };
+  if (!Number.isFinite(tuning.aimPeriod) || tuning.aimPeriod < MIN_AIM_PERIOD)
+    throw new RangeError(
+      `aimPeriod must be a finite number of at least ${MIN_AIM_PERIOD} s`,
+    );
+  return tuning;
 }
 
 export function secondsToTicks(seconds: number): number {

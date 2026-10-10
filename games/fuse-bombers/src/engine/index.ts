@@ -45,7 +45,14 @@ export {
   launcherPivot,
   launchState,
 } from "./geometry.js";
-export { cellHard, cellSolid, gridHash, hardAt, solidAt } from "./grid.js";
+export {
+  cellHard,
+  cellSolid,
+  gridHash,
+  hardAt,
+  segmentHit,
+  solidAt,
+} from "./grid.js";
 export type { CellRect, Grid } from "./grid.js";
 
 export type {

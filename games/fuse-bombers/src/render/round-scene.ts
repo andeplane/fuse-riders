@@ -267,6 +267,9 @@ export class RoundScene extends Phaser.Scene {
     const view = this.source.view;
     const started = view !== this.current;
     if (started) this.startRound(view);
+    // Shake the world camera first: the HUD below projects through it, and drawn before the shake it would trail the
+    // world by a frame (this frame's explosions shake from the next one).
+    this.effects.applyShake();
     this.terrain.update(view.terrain, events);
     this.hud.clear();
     this.drawGates(view);
@@ -514,21 +517,27 @@ export class RoundScene extends Phaser.Scene {
       hud.lineStyle(2, 0xffffff, 0.9);
       hud.strokeRoundedRect(b.x - w / 2, b.y - h / 2, w, h, 6);
     }
-    const loaded = isGhostLoaded(g) && !view.result;
+    const loaded = isGhostLoaded(g, view.terrain) && !view.result;
     sprite.bomb.setVisible(loaded).setPosition(x, y + HANG_Y);
     const hook = this.to.point(x, y + HANG_Y);
     if (loaded && human) {
       const path = predictGhostBomb(view, g.owner, 0, 90);
-      // The guide starts below the blimp, where the bomb comes out.
+      // The guide starts below the blimp, where the bomb comes out, and shows only its first stretch.
       const below = path?.points.filter((p) => p.y > g.y + HANG_Y + 14) ?? [];
-      const guide = below.map((p) => this.to.point(p.x, p.y));
+      const guide = below
+        .slice(0, aim.GHOST_GUIDE.ticks + 1)
+        .map((p) => this.to.point(p.x, p.y));
       aim.drawGuide(hud, guide, color, aim.GHOST_GUIDE);
       aim.drawReady(hud, hook, color, time, true);
     } else if (!loaded && g.reloadTotalTicks > 0 && !view.result) {
       const done = 1 - g.reloadTicks / g.reloadTotalTicks;
       const start = -Math.PI / 2;
+      // A full, dimmed ring: reloaded, but the blimp is inside rock, where no bomb can be dropped.
+      const blocked = g.reloadTicks === 0;
       hud.lineStyle(5, INK, 0.6).strokeCircle(hook.x, hook.y, 8);
-      hud.lineStyle(3, human ? 0xffffff : color, 0.95).beginPath();
+      hud
+        .lineStyle(3, human ? 0xffffff : color, blocked ? 0.45 : 0.95)
+        .beginPath();
       hud.arc(hook.x, hook.y, 8, start, start + done * Math.PI * 2);
       hud.strokePath();
     }
