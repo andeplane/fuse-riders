@@ -233,8 +233,7 @@ it the reachability check.
 ## Bitmap terrain and the temple map (sky overhaul, not yet wired into the round)
 
 Two modules for the sky overhaul ([design.md](design.md)). Nothing imports them yet; the round above still plays on
-the height map. Both keep to the deterministic-engine rule (no `Math.sin/cos/…/random`, `**`, `Date`, `performance`;
-`deterministicViolations` runs over them in `tests/engine-grid.test.ts`).
+the height map. Both keep to the deterministic-engine rule (no `Math.sin/cos/…/random`, `**`, `Date`, `performance`; `tests/architecture.test.ts` checks it).
 
 **`src/engine/grid.ts`**: destructible terrain as plain data that survives `structuredClone`:
 `Grid = { width, height, cell, cols, rows, solid, hard, version }`, world units in logical pixels (y down), square
@@ -267,7 +266,8 @@ grid, x, y, r)` (cells as squares; touching is clear) and `countCells`. `segment
   allocates nothing until the run count fits the grid.
 
 Measured on the temple (Node 24, a busy 8-core desktop): 3 000 rockets each testing a step of up to 10 px take
-0.35–0.5 ms in all, a 30 px carve ~4 µs, a gunship-sized `circleOverlapsSolid` ~1 µs, `encodeGrid` a few ms.
+0.35–0.5 ms in all, a 30 px carve ~4 µs (a `structuredClone` of the grid ~60 µs), a gunship-sized `circleOverlapsSolid` ~2 µs,
+`encodeGrid` plus `decodeGrid` ~1.5 ms.
 
 **`src/engine/temple-map.ts`**: the authored map `TEMPLE_MAP` (4800 × 2700, polygons painted in order by
 `buildMapGrid`; `buildTempleGrid()` for short), drawn in [images/temple-map.png](images/temple-map.png) by

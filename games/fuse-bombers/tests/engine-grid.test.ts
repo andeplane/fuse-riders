@@ -1,11 +1,5 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import {
-  deterministicViolations,
-  syntax,
-} from "../../../tests/fixtures/source-guards.js";
 import * as G from "../src/engine/grid.js";
 import {
   hashSeed,
@@ -122,7 +116,7 @@ test("an empty or inverted rectangle paints nothing, and fills far outside the w
   assert.equal(cells(grid), before);
   // Beyond 2^32 cells the word index of a span would wrap round into the grid.
   const far = createGrid(48, 48, 4);
-  for (const x of [1e11, -1e11, 3e12]) {
+  for (const x of [1e11, -1e11, 3e12, 2 ** 34, 2 ** 34 + 40, -(2 ** 34)]) {
     fillRect(far, x, 0, x + 40, 48);
     G.fillCircle(far, x, 20, 30);
     G.fillPolygon(far, [x, 0, x + 40, 0, x + 40, 48, x, 48]);
@@ -631,7 +625,17 @@ test("circleOverlapsSolid treats cells as squares and touching as clear", () => 
 test("circleOverlapsSolid is false far from the world, never wrapping round into it", () => {
   const grid = createGrid(64, 64, 4);
   fillRect(grid, 0, 0, 64, 64); // all rock, so any overlap that is claimed is a wrong one
-  const far = [1e11, -1e11, 3e12, Infinity, -Infinity, NaN, 1e300];
+  const far = [
+    1e11,
+    -1e11,
+    3e12,
+    2 ** 34,
+    2 ** 34 + 20,
+    Infinity,
+    -Infinity,
+    NaN,
+    1e300,
+  ];
   for (const x of far)
     for (const [y, r] of [
       [32, 20],
@@ -948,12 +952,160 @@ test("gridHash tells every one-cell difference apart, rock from hard rock, and o
   add(bumped, "the largest version");
 });
 
-test("grid.ts reads no clock, no ambient randomness and none of the Math that differs between engines", () => {
-  const dir = fileURLToPath(new URL("../src/engine/", import.meta.url));
-  for (const file of ["grid.ts", "temple-map.ts"])
-    assert.deepEqual(
-      deterministicViolations(syntax(path.join(dir, file))),
-      [],
-      file,
+test("cells exactly r from the centre are carved and filled, and a rock square exactly r away only touches", () => {
+  // Integer centres and radii put cell centres (4k + 2) exactly r away all the time, so ties are decided, not dodged.
+  const [width, height] = [28, 20]; // 7 × 5 cells: a row never ends on a word edge
+  for (let cx = -2; cx <= 30; cx++)
+    for (let cy = -2; cy <= 22; cy++)
+      for (let r = 1; r <= 14; r++) {
+        const grid = createGrid(width, height, 4);
+        fillRect(grid, 0, 0, width, height);
+        const filled = createGrid(width, height, 4);
+        G.fillCircle(filled, cx, cy, r);
+        const dirty = carveCircle(grid, cx, cy, r);
+        let count = 0;
+        for (let row = 0; row < 5; row++)
+          for (let col = 0; col < 7; col++) {
+            const [dx, dy] = [col * 4 + 2 - cx, row * 4 + 2 - cy];
+            const inside = dx * dx + dy * dy <= r * r;
+            if (inside) count++;
+            const at = `${cx},${cy} r${r} cell ${col},${row}`;
+            assert.equal(cellSolid(grid, col, row), !inside, at);
+            assert.equal(cellSolid(filled, col, row), inside, at);
+          }
+        assert.equal(dirty === null, count === 0, `${cx},${cy} r${r}`);
+      }
+  for (let x = -6; x <= 34; x++)
+    for (let r = 1; r <= 12; r++) {
+      const grid = createGrid(28, 20, 4);
+      fillRect(grid, 8, 8, 12, 12); // one rock cell, [8, 12)²
+      for (const y of [4, 8, 10, 14, 18]) {
+        const nx = Math.min(Math.max(x, 8), 12) - x;
+        const ny = Math.min(Math.max(y, 8), 12) - y;
+        assert.equal(
+          G.circleOverlapsSolid(grid, x, y, r),
+          nx * nx + ny * ny < r * r,
+          `${x},${y} r${r}`,
+        );
+      }
+    }
+});
+
+test("a rectangle paints the cells whose centres are in [x0, x1) × [y0, y1), the low edge included", () => {
+  const grid = createGrid(16, 16, 4);
+  fillRect(grid, 2, 2, 6, 6); // centre 2 is on the low edge, in; centre 6 on the high edge, out
+  assert.equal(cells(grid), "#...\n....\n....\n....\n");
+  fillRect(grid, 2.01, 2.01, 6.01, 6.01, "hard"); // now 2 is below the edge and 6 inside it
+  assert.equal(cells(grid), "#...\n.H..\n....\n....\n");
+  const full = createGrid(16, 16, 4);
+  fillRect(full, 0, 0, 16, 16);
+  fillRect(full, 6, 6, 14, 14, "air"); // centres 6 and 10 are in, 2 and 14 are not
+  assert.equal(cells(full), "####\n#..#\n#..#\n####\n");
+});
+
+test("a segment entering from the left whose entry point rounds just below zero still starts in column 0", () => {
+  // The entry x comes out as -1.4e-14, so its cell is -1, which is the last cell of the row above in the bitset.
+  const [x0, y0, x1, y1] = [
+    -99.98979865713045, 4.236249148845673, 262.9467383492738,
+    162.53543835878372,
+  ];
+  const grid = createGrid(256, 256, 4);
+  fillRect(grid, 252, 40, 256, 44); // cell (63, 10), the cell before the entry's row; the segment never goes near it
+  assert.equal(segmentHit(grid, x0, y0, x1, y1), null);
+  fillRect(grid, 0, 40, 4, 56); // a wall the segment does reach, at its entry
+  const hit = segmentHit(grid, x0, y0, x1, y1);
+  assertHit(grid, hit);
+  assert.equal(hit.col, 0);
+});
+
+test("the codec covers the extremes: a checkerboard of one-cell runs, the biggest cell, neighbouring equal runs", () => {
+  const board = createGrid(16, 16, 4); // 16 cells, every other one rock or hard
+  for (let i = 0; i < 16; i += 2) {
+    const [x, y] = [(i % 4) * 4, Math.floor(i / 4) * 4];
+    fillRect(board, x, y, x + 4, y + 4, i % 4 === 0 ? "rock" : "hard");
+  }
+  const data = G.encodeGrid(board);
+  assert.equal(data.length - 5, 16, "as many runs as cells");
+  assert.deepEqual(G.decodeGrid(data), board);
+  assert.equal(G.decodeGrid([...data, 3]), undefined, "a run too many");
+  // Two neighbouring runs in one state hold the same cells, but are not what encodeGrid writes.
+  const F = G.GRID_FORMAT;
+  assert.ok(G.decodeGrid([F, 64, 64, 4, 0, 3 * 100 + 1, 3 * 156]), "rock, air");
+  assert.ok(
+    G.decodeGrid([F, 64, 64, 4, 0, 3 * 100 + 2, 3 * 156 + 1]),
+    "hard, rock",
+  );
+  for (const state of [0, 1, 2])
+    assert.equal(
+      G.decodeGrid([F, 64, 64, 4, 0, 3 * 100 + state, 3 * 156 + state]),
+      undefined,
+      `two runs in state ${state}`,
     );
+  // The biggest cell is 64 px; 65 is refused though 130 is a whole number of them.
+  assert.ok(createGrid(128, 64, 64));
+  assert.throws(() => createGrid(130, 130, 65), RangeError);
+  assert.equal(G.decodeGrid([F, 130, 130, 65, 0, 12]), undefined);
+  assert.ok(G.decodeGrid([F, 128, 64, 64, 0, 6]), "two cells of air");
+  assert.equal(G.decodeGrid([F, 128, 64, 64, 0, 3]), undefined, "one short");
+});
+
+test("countCells matches counting the cells one by one, and a carve of Infinity or NaN does nothing", () => {
+  for (const shape of SHAPES)
+    for (let seed = 1; seed <= 3; seed++) {
+      const grid = sample(seed, shape);
+      let [solid, hard] = [0, 0];
+      for (let row = 0; row < grid.rows; row++)
+        for (let col = 0; col < grid.cols; col++) {
+          if (cellSolid(grid, col, row)) solid++;
+          if (G.cellHard(grid, col, row)) hard++;
+        }
+      assert.deepEqual(G.countCells(grid), { solid, hard }, `${shape}`);
+    }
+  const soft = createGrid(64, 64, 4);
+  fillRect(soft, 0, 0, 64, 64);
+  const before = G.gridHash(soft);
+  for (const r of [Infinity, NaN])
+    assert.equal(carveCircle(soft, 32, 32, r), null, `r ${r}`);
+  assert.equal(G.gridHash(soft), before);
+});
+
+test("gridHash differs in its low and its high bits alike when a single cell differs", () => {
+  // A hash that only mixes upwards would show a change in a word's top cell only in its top bits.
+  const grid = createGrid(256, 256, 4); // 64 columns: row 0 is two words
+  const [low, high] = [new Set<number>(), new Set<number>()];
+  for (let col = 0; col < 64; col++) {
+    const one = structuredClone(grid);
+    fillRect(one, col * 4, 0, col * 4 + 4, 4);
+    const h = G.gridHash(one);
+    low.add(h & 0xffff);
+    high.add(h >>> 16);
+  }
+  assert.equal(low.size, 64, "low 16 bits");
+  assert.equal(high.size, 64, "high 16 bits");
+});
+
+test("a grid whose last word is partial encodes its uniform state as one run, whatever the length", () => {
+  const paints = ["air", "rock", "hard"] as const;
+  for (const n of [1, 2, 30, 31, 32, 33, 62, 63, 64, 65, 95, 96, 97]) {
+    paints.forEach((paint, state) => {
+      const grid = createGrid(4 * n, 4, 4); // n cells in one row
+      fillRect(grid, 0, 0, 4 * n, 4, paint);
+      assert.deepEqual(
+        G.encodeGrid(grid).slice(5),
+        [n * 3 + state],
+        `${n} ${paint}`,
+      );
+      assert.deepEqual(G.decodeGrid(G.encodeGrid(grid)), grid, `${n} ${paint}`);
+      // One different cell at the very end.
+      fillRect(grid, 4 * n - 4, 0, 4 * n, 4, paint === "air" ? "rock" : "air");
+      const last = paint === "air" ? 1 : 0;
+      const runs = n === 1 ? [3 + last] : [(n - 1) * 3 + state, 3 + last];
+      assert.deepEqual(G.encodeGrid(grid).slice(5), runs, `${n} ${paint} end`);
+      assert.deepEqual(
+        G.decodeGrid(G.encodeGrid(grid)),
+        grid,
+        `${n} ${paint} end`,
+      );
+    });
+  }
 });
