@@ -45,7 +45,9 @@ export interface StagePlan {
 
 /**
  * A sack imp sent when the camera's left edge reaches `at`: it appears just outside the screen's edge on `side` at
- * depth `y` and scurries across with `pots` pots (1 to `IMP_POTS`). One imp, whatever the party's size.
+ * depth `y` and scurries across with `pots` pots (1 to `IMP_POTS`). One imp, whatever the party's size. An imp walks
+ * slower than the camera, so one from the left is only seen when the camera stands still: put its cue at a wave's
+ * trigger, where the screen locks, or the camera outruns it and it leaves unseen.
  */
 export interface ImpCue {
   readonly at: number;
