@@ -132,15 +132,26 @@ export interface PointerTarget {
   };
 }
 
-/** Where the page reports losing focus: `window` in the browser, a fake in tests. */
+/**
+ * Where the page reports losing focus, and every finger lifting wherever it lifts: `window` in the browser, a fake in
+ * tests.
+ */
 export interface PageTarget {
   addEventListener(
     type: "blur" | "visibilitychange",
     listener: () => void,
   ): void;
+  addEventListener(
+    type: "pointerup" | "pointercancel",
+    listener: (event: PointerLike) => void,
+  ): void;
   removeEventListener(
     type: "blur" | "visibilitychange",
     listener: () => void,
+  ): void;
+  removeEventListener(
+    type: "pointerup" | "pointercancel",
+    listener: (event: PointerLike) => void,
   ): void;
 }
 
@@ -158,7 +169,9 @@ export interface TouchSource extends InputSource {
  * Report each side's held bits (`hold`, the hub's `setHeld`) as fingers go down, slide and lift. The touched element
  * captures its finger, so sliding off FIRE still holds fire and a thumb past the D-pad's edge still steers, until it
  * lifts. Every way a lift can go missing lets go too: a cancelled pointer (a system gesture), a lost capture (the
- * element hidden), and the page losing focus or visibility (`page`), when no pointerup will come.
+ * element hidden), and the page losing focus or visibility (`page`), when no pointerup will come. A browser that
+ * cannot capture the pointer sends the lift of a finger that slid off its pad to whatever is under it, so the page
+ * listens for lifts and cancels as well, wherever they land.
  */
 export function attachTouch(
   target: PointerTarget,
@@ -208,7 +221,7 @@ export function attachTouch(
       // Moves and the lift come back here even once the finger slides off; a pointer no longer tracked cannot be.
       element?.setPointerCapture?.(event.pointerId);
     } catch {
-      /* the finger still holds until pointerup */
+      /* without capture the page's own pointerup and pointercancel listeners still hear the lift */
     }
     const bits = control.fire ? FIRE : steer(control.side, x, y);
     fingers.set(event.pointerId, { side: control.side, bits });
@@ -240,6 +253,8 @@ export function attachTouch(
     target.addEventListener(type, listener);
   page.addEventListener("blur", releaseAll);
   page.addEventListener("visibilitychange", releaseAll);
+  page.addEventListener("pointerup", onUp);
+  page.addEventListener("pointercancel", onUp);
   return {
     setSides: (next) => {
       sides = [...new Set(next)]
@@ -255,6 +270,8 @@ export function attachTouch(
         target.removeEventListener(type, listener);
       page.removeEventListener("blur", releaseAll);
       page.removeEventListener("visibilitychange", releaseAll);
+      page.removeEventListener("pointerup", onUp);
+      page.removeEventListener("pointercancel", onUp);
     },
   };
 }

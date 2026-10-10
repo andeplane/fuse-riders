@@ -2,8 +2,7 @@
 
 A party artillery game for 2–6 players, humans and bots, on one keyboard, a few gamepads or a touch screen. Gunships
 fly round a destructible floating temple and lob rockets across it, and the rockets fly through multiplier gates to
-turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md): bots do not fly yet, and touch
-riders cannot steer yet.)
+turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md): bots do not fly yet.)
 
 **Play it: <https://andeplane.github.io/fuse-riders/fuse-bombers/>**, or pick it from the app portal (the dot-grid
 button at the top left of every Fuse game's lobby). It is a local game: no rooms, no accounts, everyone at one screen.
@@ -66,11 +65,13 @@ A gamepad that is unplugged and comes back at the same index is the same player.
 Touch pads appear on touch devices (on a desktop, `?touch` shows them, and the mouse holds one control at a time): a
 D-pad and a FIRE button in the bottom-left corner for one rider and in the bottom-right for a second, so two can share a
 tablet. In the lobby both show, reading JOIN; press your side's FIRE to join and again to leave. In a match only the
-seated sides show, and a lone touch rider's controls spread out, D-pad bottom left and FIRE bottom right. A finger
-holds the control it went down on until it lifts, even sliding off it; a cancelled touch, switching apps or tabs, or the
-window losing focus lets everything go.
+seated sides show, and a lone touch rider's controls spread out, D-pad bottom left and FIRE bottom right. The pads step
+aside while the pause, results or winner screen is up. A finger holds the control it went down on until it lifts, even
+sliding off it; a cancelled touch, switching apps or tabs, or the window losing focus lets everything go.
 
 ![Two touch riders on a tablet, each holding a direction](docs/images/touch-pads.png)
+
+![A lone touch rider on a phone in landscape: D-pad bottom left, FIRE bottom right, the II pause button top right](docs/images/touch-pads-phone.png)
 
 ### URL flags
 

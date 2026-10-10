@@ -448,19 +448,32 @@ class FakeSurface extends FakeTarget {
 
 /**
  * Touch pads on a fake surface and page feeding a real hub. Fingers are given in surface coordinates: `down` puts
- * finger `id` on a fake element that records its pointer captures, `move` slides it, `end` lifts it (or cancels it,
- * or takes its capture away).
+ * finger `id` on a fake element that records its pointer captures (or, for a browser that cannot capture, throws
+ * on them or has no such method), `move` slides it, `end` lifts it (or cancels it, or takes its capture away).
  */
-function touchRig(width = 1000, height = 500, sides = [0, 1]) {
+function touchRig(
+  width = 1000,
+  height = 500,
+  sides = [0, 1],
+  capture: "works" | "throws" | "missing" = "works",
+) {
   const surface = new FakeSurface(width, height);
   const page = new FakeTarget();
   const { hub, presses, hold } = recorder();
   const source = attachTouch(surface, hold, page);
   source.setSides(sides);
   const captured: number[] = [];
-  const element = Object.assign(new EventTarget(), {
-    setPointerCapture: (id: number) => void captured.push(id),
-  });
+  const element = Object.assign(
+    new EventTarget(),
+    capture === "missing"
+      ? {}
+      : {
+          setPointerCapture: (id: number) => {
+            if (capture === "throws") throw new Error("InvalidPointerId");
+            captured.push(id);
+          },
+        },
+  );
   const event = (x: number, y: number, pointerId: number) => {
     const e = {
       ...{ clientX: x + 10, clientY: y + 20, pointerId, target: element },
@@ -565,6 +578,29 @@ test("touch: lift, cancel, lost capture, blur, a hidden tab and a hidden side al
   assert.equal(held(0), 0);
   down(...on(left.dpad, 0.5, 0.1), 4); // the lone right rider's D-pad spreads to the left corner
   assert.deepEqual([held(0), held(1)], [0, UP | DOWN]);
+});
+
+test("touch: without pointer capture a finger that slid off its pad still lets go when it lifts anywhere", () => {
+  for (const capture of ["throws", "missing"] as const) {
+    const { down, move, left, on, held, page } = touchRig(
+      1000,
+      500,
+      [0, 1],
+      capture,
+    );
+    down(...on(left.dpad, 0.5, 0.1), 1);
+    down(...on(left.fire), 2);
+    assert.equal(held(0), UP | FIRE, capture);
+    move(...on(left.dpad, 0.9, 0.5), 1); // still on the pad: moves are heard
+    assert.equal(held(0), RIGHT | FIRE, capture);
+    // Off the pads the page, not the pad overlay, hears the lifts.
+    page.dispatch("pointerup", { pointerId: 9 }); // somebody else's finger
+    assert.equal(held(0), RIGHT | FIRE, capture);
+    page.dispatch("pointerup", { pointerId: 1 });
+    assert.equal(held(0), FIRE, capture);
+    page.dispatch("pointercancel", { pointerId: 2 });
+    assert.equal(held(0), 0, capture);
+  }
 });
 
 test("touch: two riders on one screen hold independently", () => {
