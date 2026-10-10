@@ -17,6 +17,7 @@ import {
   RHEA_POSES,
 } from "../src/render/art/rhea.js";
 import { turn } from "../src/render/pixel/head.js";
+import type { Palette } from "../src/render/pixel/palette.js";
 import { armTo, bend, breath, legTo } from "../src/render/pixel/kit.js";
 import {
   CLEAR,
@@ -65,10 +66,13 @@ test("every hero paints every frame inside its canvas, with its anchor on its fe
     for (const swap of Object.values(figure.swaps))
       baker.bake(portrait, { swap, flash: true });
   }
+  // Every hero with art is covered, however many there are, and Brakka and Rhea are there.
   assert.deepEqual(
-    heroes.map(({ kind }) => kind),
-    ["brakka", "rhea"],
+    heroes.map(({ kind }) => kind).sort(),
+    Object.keys(HEROES).sort(),
   );
+  assert.ok(heroes.some(({ kind }) => kind === "brakka"));
+  assert.ok(heroes.some(({ kind }) => kind === "rhea"));
   assert.deepEqual(paintBrakkaPortrait(), HEROES.brakka!.portrait);
   assert.deepEqual(paintRheaPortrait(), HEROES.rhea!.portrait);
 });
@@ -82,20 +86,31 @@ test("Brakka paints the same pixels since his head, face and portrait moved to t
   assert.equal(
     createHash("sha256").update(JSON.stringify(art)).digest("hex"),
     "d5aa2a86712a9dddf3be9ca849179fc8786bfc36ddcd9275363110985c08485c",
+    "Brakka's pixels changed. If a pose, a colour or the shared head, kit or portrait code was meant to change them, " +
+      "look at the lab's sheet and refresh this hash; a refactor must not change them.",
   );
 });
 
 test("a hero's five looks are told apart from each other, in its frames and its portrait", () => {
-  for (const { figure, portrait } of heroes) {
+  for (const { kind, figure, portrait } of heroes) {
     const looks = [{}, ...Object.values(figure.swaps)];
-    assert.equal(looks.length, 5);
+    assert.equal(looks.length, 5, kind);
     for (const sprite of [figure.sprite("idle0"), portrait]) {
-      const colours = looks.map((swap) =>
-        JSON.stringify(
-          Object.entries(sprite.palette).map(([key, c]) => swap[key] ?? c),
-        ),
-      );
-      assert.equal(new Set(colours).size, 5);
+      // Of the pixels the sprite draws, a tenth or more change colour between any two looks: told apart at a glance.
+      const drawn = [...sprite.rows.join("")].filter((key) => key !== CLEAR);
+      const colour = (swap: Palette, key: string) =>
+        swap[key] ?? sprite.palette[key];
+      for (const [i, a] of looks.entries())
+        for (const [j, b] of looks.entries()) {
+          if (j <= i) continue;
+          const apart = drawn.filter(
+            (key) => colour(a, key) !== colour(b, key),
+          );
+          assert.ok(
+            apart.length / drawn.length >= 0.1,
+            `${kind}: looks ${i} and ${j} differ in ${apart.length} of ${drawn.length} pixels`,
+          );
+        }
     }
   }
 });
@@ -181,18 +196,56 @@ test("a limb set from its ends keeps its bones, and the body's frame turns with 
   const { near } = RHEA_POSES.idle0;
   const length = (a: readonly number[], b: readonly number[]) =>
     Math.hypot(b[0]! - a[0]!, b[1]! - a[1]!);
-  const reach = armTo(near, [0, 0], [9, 3]);
-  const leg = legTo(near, [0, 0], [2, 16]);
-  assert.ok(
-    Math.abs(
-      length(reach.shoulder, reach.elbow) - length(near.shoulder, near.elbow),
-    ) < 1e-9,
-  );
+  const same = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+  const [upper, lower] = [
+    length(near.shoulder, near.elbow),
+    length(near.elbow, near.hand),
+  ];
+  const [thigh, shin] = [
+    length(near.hip, near.knee),
+    length(near.knee, near.ankle),
+  ];
+  // Within reach both bones keep their lengths, whichever way the end lies.
+  for (const hand of [
+    [9, 3],
+    [0, 9],
+    [-6, 4],
+  ] as const) {
+    const arm = armTo(near, [0, 0], hand);
+    assert.ok(same(length(arm.shoulder, arm.elbow), upper));
+    assert.ok(same(length(arm.elbow, arm.hand), lower));
+    assert.deepEqual(arm.hand, hand);
+  }
+  for (const ankle of [
+    [2, 16],
+    [-3, 14],
+  ] as const) {
+    const leg = legTo(near, [0, 0], ankle);
+    assert.ok(same(length(leg.hip, leg.knee), thigh));
+    assert.ok(same(length(leg.knee, leg.ankle), shin));
+  }
   // An arm reaching forward bends its elbow below the reach, one told otherwise above it; a knee bends forward.
+  const reach = armTo(near, [0, 0], [9, 3]);
   assert.ok(reach.elbow[1] > 1);
   assert.ok(armTo(near, [0, 0], [9, 3], 1).elbow[1] < 1);
-  assert.ok(leg.knee[0] > 1);
+  assert.ok(legTo(near, [0, 0], [2, 16]).knee[0] > 1);
+  // Out of reach the limb straightens toward its end, the upper bone intact and the end where it was told.
+  const straight = armTo(near, [0, 0], [30, 0]);
+  assert.ok(same(length(straight.shoulder, straight.elbow), upper));
+  assert.ok(same(straight.elbow[1], 0) && straight.elbow[0] > 0);
+  assert.deepEqual(straight.hand, [30, 0]);
+  // At the root, at full stretch and in a bone's fold the joints stay numbers.
+  for (const end of [
+    [0, 0],
+    [upper + lower, 0],
+    [0.5, 0],
+  ] as const)
+    for (const joint of [
+      ...Object.values(armTo(near, [0, 0], end)),
+      ...Object.values(legTo(near, [0, 0], end)),
+    ])
+      assert.ok(joint.every(Number.isFinite));
   assert.deepEqual(turn()([3, 4], 1, 2), [4, 6]);
   const lying = turn(-90)([3, 4], 0, 5);
-  assert.ok(Math.abs(lying[0] - 8) < 1e-9 && Math.abs(lying[1] - 4) < 1e-9);
+  assert.ok(same(lying[0], 8) && same(lying[1], 4));
 });
