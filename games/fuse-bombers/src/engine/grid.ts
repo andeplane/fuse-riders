@@ -1,8 +1,10 @@
 // Destructible bitmap terrain: the world as a grid of square cells, each open air, rock or indestructible ("hard")
 // rock. Two bitsets hold it (bit `row * cols + col`), so a 4800 × 2700 world of 4 px cells is about 100 KB per set,
 // survives `structuredClone`, and a point query is a shift and a mask. World units are logical pixels, y down;
-// outside the world is open air. Only `+ - * /`, `Math.sqrt`, `floor`, `ceil`, `min`, `max`, `sign`, `imul` and
-// `clz32` are used, so results are bit-identical on every engine.
+// outside the world is open air, and the world is half-open: a cell owns its low edges, so the far edges at `width`
+// and `height` are air. Terrain has no gravity: carving never makes rock fall, so a piece a bomb cuts loose (like the
+// temple's islets) stays where it is. Only `+ - * / %`, the bit operators, `Math.sqrt`, `floor`, `ceil`, `min`, `max`,
+// `sign`, `imul` and `clz32` are used, so results are bit-identical on every engine.
 
 /** What a fill writes into the cells it covers: destructible rock, indestructible rock or open air. */
 export type Paint = "rock" | "hard" | "air";
@@ -42,6 +44,8 @@ export interface SegmentHit {
 
 /** Version tag of the `encodeGrid` format. */
 export const GRID_FORMAT = 1;
+/** Largest `version`: it is hashed as 32 bits, so `carveCircle` wraps past it and `decodeGrid` refuses more. */
+export const MAX_VERSION = 0xffffffff;
 /** Largest grid `createGrid` and `decodeGrid` accept, in cells (512 KB per bitset). */
 export const MAX_GRID_CELLS = 1 << 22;
 const MAX_CELL = 64;
@@ -131,7 +135,10 @@ export function hardAt(grid: Grid, x: number, y: number): boolean {
 const firstCentre = (v: number, cell: number): number =>
   Math.ceil(v / cell - 0.5);
 
-/** Paints every cell whose centre lies in [x0, x1) × [y0, y1). Authoring only: `version` is left alone. */
+/**
+ * Paints every cell whose centre lies in [x0, x1) × [y0, y1); an empty or inverted rectangle paints nothing. Authoring
+ * only: `version` is left alone.
+ */
 export function fillRect(
   grid: Grid,
   x0: number,
@@ -140,6 +147,7 @@ export function fillRect(
   y1: number,
   paint: Paint = "rock",
 ): void {
+  if (!(x1 > x0 && y1 > y0)) return;
   fillPolygon(grid, [x0, y0, x1, y0, x1, y1, x0, y1], paint);
 }
 
@@ -205,14 +213,15 @@ export function fillPolygon(
     for (let k = 0; k + 1 < xs.length; k += 2) {
       const c0 = Math.max(0, firstCentre(xs[k] ?? 0, cell));
       const c1 = Math.min(cols, firstCentre(xs[k + 1] ?? 0, cell));
-      paintSpan(grid, row * cols + c0, row * cols + c1, paint);
+      if (c0 < c1) paintSpan(grid, row * cols + c0, row * cols + c1, paint);
     }
   }
 }
 
 /**
  * Clears the rock (not the hard rock) of every cell whose centre lies within `r` of (`cx`, `cy`). Returns the
- * smallest rectangle holding every cell that changed and bumps `version`, or returns null when nothing changed.
+ * smallest rectangle holding every cell that changed and bumps `version` (wrapping past `MAX_VERSION`), or returns
+ * null when nothing changed.
  */
 export function carveCircle(
   grid: Grid,
@@ -240,14 +249,20 @@ export function carveCircle(
     col1 = Math.max(col1, hi - base);
   });
   if (row0 < 0) return null;
-  grid.version += 1;
+  grid.version = (grid.version + 1) >>> 0;
   return { col0, row0, col1: col1 + 1, row1: row1 + 1 };
 }
 
 /**
  * The first rock along the segment from (`x0`, `y0`) to (`x1`, `y1`), or null when it stays in the air. Walks every
  * cell the segment passes through (a grid DDA, stepping one axis at a time), so it never skips a wall one cell thick
- * at any angle. The hit point is where the segment enters that cell (the start itself when it starts in rock).
+ * at any angle. The hit point is where the segment enters that cell (the start itself when it starts in rock). Cells
+ * outside the world are air, and the world's far edges (`x` = `width`, `y` = `height`) are outside it.
+ *
+ * It never misses: if `solidAt` is true anywhere on the segment, it hits. It can also hit where the segment only
+ * touches rock without entering it: when it ends exactly on the far face of a rock cell (a wall to its left or above
+ * it), or crosses exactly through a cell corner (the cell the walk steps through first is the one that counts, so
+ * a hit there can depend on the direction). Those are the only cases where it disagrees with `solidAt`.
  */
 export function segmentHit(
   grid: Grid,
@@ -260,9 +275,9 @@ export function segmentHit(
   const dx = x1 - x0;
   const dy = y1 - y0;
   if (!Number.isFinite(dx) || !Number.isFinite(dy)) return null;
-  // Clip to the world box; outside it is open air.
-  if (dx === 0 && (x0 < 0 || x0 > grid.width)) return null;
-  if (dy === 0 && (y0 < 0 || y0 > grid.height)) return null;
+  // Clip to the world box [0, width] × [0, height]; outside it is open air.
+  if (dx === 0 && (x0 < 0 || x0 >= grid.width)) return null;
+  if (dy === 0 && (y0 < 0 || y0 >= grid.height)) return null;
   const ax = dx === 0 ? -Infinity : -x0 / dx;
   const bx = dx === 0 ? Infinity : (grid.width - x0) / dx;
   const ay = dy === 0 ? -Infinity : -y0 / dy;
@@ -271,8 +286,20 @@ export function segmentHit(
   const tOut = Math.min(1, Math.max(ax, bx), Math.max(ay, by));
   if (tIn > tOut) return null;
 
-  let col = Math.min(cols - 1, Math.max(0, Math.floor((x0 + dx * tIn) / cell)));
-  let row = Math.min(rows - 1, Math.max(0, Math.floor((y0 + dy * tIn) / cell)));
+  let col = Math.floor((x0 + dx * tIn) / cell);
+  let row = Math.floor((y0 + dy * tIn) / cell);
+  // Entering on a far edge is entering the last cell when heading in. Heading out, or only touching the edge, there is
+  // nothing of the segment inside the world.
+  if (col >= cols) {
+    if (!(dx < 0) || tIn === tOut) return null;
+    col = cols - 1;
+  }
+  if (row >= rows) {
+    if (!(dy < 0) || tIn === tOut) return null;
+    row = rows - 1;
+  }
+  col = Math.max(col, 0);
+  row = Math.max(row, 0);
   const stepX = Math.sign(dx);
   const stepY = Math.sign(dy);
   let t = tIn;
@@ -286,7 +313,10 @@ export function segmentHit(
     const ty =
       stepY === 0 ? Infinity : ((row + (stepY + 1) / 2) * cell - y0) / dy;
     if (Math.min(tx, ty) > tOut) return null;
-    if (tx <= ty) col += stepX;
+    // On a tie the segment passes exactly through a cell corner, and the cell that owns the corner (as `solidAt` sees
+    // it) is the one to the lower right. Stepping the column first reaches it in every direction but left and down,
+    // where it lies in the next row, so step that first or the walk would skip rock the segment is in.
+    if (tx < ty || (tx === ty && !(stepX < 0 && stepY > 0))) col += stepX;
     else row += stepY;
     t = Math.max(t, Math.min(tx, ty));
     if (col < 0 || col >= cols || row < 0 || row >= rows) return null;
@@ -310,6 +340,7 @@ export function circleOverlapsSolid(
     const half = Math.sqrt(r * r - dy * dy);
     const c0 = Math.max(0, Math.floor((x - half) / cell));
     const c1 = Math.min(cols, Math.ceil((x + half) / cell));
+    if (!(c0 < c1)) continue;
     const [start, end] = [row * cols + c0, row * cols + c1];
     for (let w = start >>> 5; w * 32 < end; w++)
       if (((solid[w] ?? 0) & spanMask(w, start, end)) !== 0) return true;
@@ -320,7 +351,7 @@ export function circleOverlapsSolid(
 function popcount(word: number): number {
   let v = word - ((word >>> 1) & 0x55555555);
   v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
-  return (Math.imul((v + (v >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24) & 0xff;
+  return Math.imul((v + (v >>> 4)) & 0x0f0f0f0f, 0x01010101) >>> 24;
 }
 
 /** How many cells are rock (hard included) and how many of those are hard. */
@@ -356,7 +387,8 @@ function cellState(grid: Grid, i: number): number {
 
 /**
  * Checkpoint form: `[GRID_FORMAT, width, height, cell, version, ...runs]`, each run `length * 3 + state` over the
- * cells in row-major order (state 0 air, 1 rock, 2 hard). A sculpted map is a few thousand runs.
+ * cells in row-major order (state 0 air, 1 rock, 2 hard), neighbouring runs in different states. A sculpted map is a
+ * few thousand runs.
  */
 export function encodeGrid(grid: Grid): number[] {
   const out = [GRID_FORMAT, grid.width, grid.height, grid.cell, grid.version];
@@ -388,8 +420,10 @@ export function encodeGrid(grid: Grid): number[] {
 
 /**
  * Rebuilds a grid from `encodeGrid` output, or returns undefined when anything is off: not an array, another
- * format, a size that is not whole positive cells or is oversize, a size other than `expect`, a non-integer or
- * negative value, an empty run, or runs that do not cover the grid exactly. Never returns a partial grid.
+ * format, a size that is not whole positive cells or is oversize, a size other than `expect`, a version past
+ * `MAX_VERSION`, a non-integer or negative value, an empty run, two neighbouring runs in one state (`encodeGrid`
+ * never writes them, so the encoding of a grid is unique), or runs that do not cover the grid exactly. Never returns a
+ * partial grid, and reads no more than one value per cell.
  */
 export function decodeGrid(
   data: unknown,
@@ -400,7 +434,8 @@ export function decodeGrid(
   const head = values.slice(0, HEADER);
   if (!head.every(isInt)) return undefined;
   const [format = 0, width = 0, height = 0, cell = 0, version = -1] = head;
-  if (format !== GRID_FORMAT || version < 0) return undefined;
+  if (format !== GRID_FORMAT || version < 0 || version > MAX_VERSION)
+    return undefined;
   if (!validSize(width, height, cell)) return undefined;
   if (
     expect &&
@@ -408,19 +443,23 @@ export function decodeGrid(
       [expect.width, expect.height, expect.cell].join()
   )
     return undefined;
-  const grid = createGrid(width, height, cell);
-  const total = grid.cols * grid.rows;
+  const total = (width / cell) * (height / cell);
+  // Every run covers a cell, so more runs than cells cannot be valid; checked before anything is allocated or read.
   if (values.length - HEADER > total) return undefined;
+  const grid = createGrid(width, height, cell);
   grid.version = version;
   let at = 0;
-  for (const v of values.slice(HEADER)) {
+  let previous = -1;
+  for (let i = HEADER; i < values.length; i++) {
+    const v = values[i];
     if (!isInt(v) || v < 3) return undefined;
     const state = v % 3;
     const length = (v - state) / 3;
-    if (length > total - at) return undefined;
+    if (state === previous || length > total - at) return undefined;
     writeSpan(grid.solid, at, at + length, state !== AIR);
     writeSpan(grid.hard, at, at + length, state === HARD);
     at += length;
+    previous = state;
   }
   return at === total ? grid : undefined;
 }

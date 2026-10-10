@@ -1,7 +1,8 @@
 // The temple: the one authored map of the sky overhaul, 4800 × 2700 logical pixels, painted from shapes onto a
 // `Grid`. Its outline borrows the huge temple stage of Super Smash Bros. Melee: a terrace on each side, a central
 // shrine with a tunnel through it, the main hall, a cave hollowed out underneath, a stepped ramp down the right, a
-// tapering underbelly and a few floating islets, with open sky all round. Preview: docs/images/temple-map.png
+// tapering underbelly and a few floating islets, with open sky all round. Rock does not fall, so the islets, and any
+// piece a bomb later cuts loose, hang in the air for the rest of the round. Preview: docs/images/temple-map.png
 // (`pnpm exec tsx games/fuse-bombers/preview/map-preview.ts`).
 
 import { createGrid, fillPolygon, type Grid, type Paint } from "./grid.js";
@@ -165,8 +166,10 @@ export function buildTempleGrid(): Grid {
 }
 
 /**
- * Spread sets of `spawnAnchors` indices per player count, each symmetric about the shrine. Anchors come in mirrored
- * pairs (0/4, 1/3, 5/6, 7/8, 9/10) plus the top centre (2) and under the keel (11).
+ * Spread sets of `spawnAnchors` indices per player count. Each is whole mirrored pairs (0/4, 1/3, 5/6, 7/8, 9/10, mirror
+ * images about the shrine's axis x = 2400) plus anchors on the axis (the top centre 2 and under the keel 11). The
+ * terrain is not symmetric (the ramp, the cave, the islets), so the anchors are not exact mirrors where it matters: 6 is
+ * 280 px lower than 5 and 8 is 20 px lower than 7. `tests/engine-temple-map.test.ts` bounds that.
  */
 // prettier-ignore
 const SPAWN_SETS: Readonly<Record<number, readonly (readonly number[])[]>> = {
@@ -178,8 +181,9 @@ const SPAWN_SETS: Readonly<Record<number, readonly (readonly number[])[]>> = {
 };
 
 /**
- * Spawn points for `count` players (2–6), seat by seat: a spread, symmetric set of anchors chosen by `seed`, dealt
- * to the seats in a seeded order. Deterministic. Throws `RangeError` for other counts.
+ * Spawn points for `count` players (2–6), seat by seat: a spread, symmetric set of the temple's anchors chosen by
+ * `seed`, dealt to the seats in a seeded order. Deterministic; the points are the entries of `spawnAnchors`, not copies.
+ * Throws `RangeError` for other counts.
  */
 export function spawnOrder(count: number, seed: number): Point[] {
   const sets = SPAWN_SETS[count];
