@@ -281,3 +281,57 @@ export function sword(
   );
   fist(rig, hand, o);
 }
+
+/** A double-bit axe head's front bit, (along the haft, across it) from the haft's end: a fan flaring to its edge. */
+const BIT: readonly Point[] = [
+  [-2.2, 1],
+  [2.2, 1],
+  [6.5, 7.5],
+  [3.5, 9.6],
+  [0, 10.3],
+  [-3.5, 9.6],
+  [-6.5, 7.5],
+];
+
+/**
+ * A battle axe gripped at `hand`, its haft pointing `degrees` clockwise from right and `haft` long from the hand to
+ * the head, `o.butt` (4) more behind the hand. The double-bit head, `o.head` (1) times a full-sized one, is steel on
+ * an iron socket: the front bit faces the way the haft turns clockwise (forward on an axe held upright, down on one
+ * held level), so it leads an overhead chop, and the back bit is smaller. The fist is drawn over the grip.
+ */
+export function axe(
+  rig: Rig,
+  hand: Point,
+  degrees: number,
+  haft: number,
+  o: PartOptions & { readonly butt?: number; readonly head?: number } = {},
+) {
+  const radians = (degrees * Math.PI) / 180;
+  const [ux, uy] = [Math.cos(radians), Math.sin(radians)];
+  const end = offset(hand, ux * haft, uy * haft);
+  const butt = o.butt ?? 4;
+  const s = o.head ?? 1;
+  // (along, across) from the haft's end, across being a quarter turn clockwise from the haft.
+  const at = ([a, b]: Point, k: number, side: 1 | -1): Point =>
+    offset(
+      end,
+      (ux * a - uy * b * side) * k * s,
+      (uy * a + ux * b * side) * k * s,
+    );
+  rig.capsule(offset(hand, -ux * butt, -uy * butt), end, 1.25, 1.25, "l");
+  rig.ellipse(offset(hand, -ux * butt, -uy * butt), 1.4, 1.4, "i");
+  rig.poly(
+    BIT.map((p) => at(p, 1, 1)),
+    "m",
+    { bevel: 2.2 * s },
+  );
+  rig.poly(
+    BIT.map((p) => at(p, 0.62, -1)),
+    "m",
+    { bevel: 1.6 * s, bias: -0.15 },
+  );
+  rig.capsule(at([-2.6, 0], 1, 1), at([3, 0], 1, 1), 1.6 * s, 1.6 * s, "i", {
+    edge: "none",
+  });
+  fist(rig, hand, o);
+}
