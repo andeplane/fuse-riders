@@ -8,6 +8,7 @@ import {
   RIGHT,
   UP,
   pressed,
+  released,
 } from "./input.js";
 import * as T from "./tuning.js";
 import { STAGE_1, waveSpawns, type Placed, type Side } from "./stages.js";
@@ -28,12 +29,12 @@ import {
 
 /**
  * One 1/60 s step, as a pure function: the input world is left untouched. The order is part of the rules: effects
- * past their life are dropped; every hero in id order reads its seat's held bits, swings, walks, jumps or falls (or
- * reels, lies, gets up, drops back in), is held to the floor band and the screen, and lands its blade on the enemies
- * in id order; then every enemy in id order walks in, reels, flies, lies or gets up, or thinks (`ai.ts`) and lands
- * its mace on the heroes in id order, and a defeated one that has blinked long enough is gone; then the camera
- * follows, no further than the next wave's trigger; then the waves begin, spawn and clear (`advanceWaves`). `held`
- * holds each seat's bits by seat index; a missing seat holds nothing.
+ * past their life are dropped; every hero in id order reads its seat's held bits, swings, walks, runs, dashes, jumps
+ * or falls (or reels, lies, gets up, drops back in), is held to the floor band and the screen, and lands its blade
+ * on the enemies in id order; then every enemy in id order walks in, reels, flies, lies or gets up, or thinks
+ * (`ai.ts`) and lands its mace on the heroes in id order, and a defeated one that has blinked long enough is gone;
+ * then the camera follows, no further than the next wave's trigger; then the waves begin, spawn and clear
+ * (`advanceWaves`). `held` holds each seat's bits by seat index; a missing seat holds nothing.
  */
 export function step(world: World, held: readonly number[]): World {
   const now = world.step + 1;
@@ -107,6 +108,72 @@ function swing(hero: Hero, index: number): T.Swing | undefined {
   return undefined;
 }
 
+const SIDES = LEFT | RIGHT;
+
+/**
+ * Follows Left and Right for the run's double tap, from presses and releases alone, so a rollback replays it. A press
+ * of one direction starts a tap of it, and any other press of either cancels whatever was waiting; letting go of it
+ * by `RUN_TAP` steps makes it a tap, and a second press of it within `RUN_GAP` steps of that waits `BUFFER_STEPS`
+ * as the run's. Letting go of a direction held too long, or of the second press, leaves nothing.
+ */
+function doubleTap(world: World, hero: Hero, down: number, up: number): void {
+  if (up & hero.tap)
+    if (world.step <= hero.tapUntil) hero.tapUntil = world.step + T.RUN_GAP;
+    else hero.tap = hero.tapUntil = hero.runBuf = 0;
+  if (!down) return;
+  if (down === hero.tap && world.step <= hero.tapUntil) {
+    hero.runBuf = T.BUFFER_STEPS;
+    hero.tapUntil = 0;
+  } else {
+    hero.tap = down === SIDES ? 0 : down;
+    hero.tapUntil = hero.tap ? world.step + T.RUN_TAP : 0;
+    hero.runBuf = 0;
+  }
+}
+
+/** A run's step: its speed along the road the way the hero faces, steered in depth at the walk's pace. */
+function stride(hero: Hero, bits: number): void {
+  hero.vx = hero.facing * T.RUN[hero.kind];
+  hero.vy = ((bits & DOWN ? 1 : 0) - (bits & UP ? 1 : 0)) * T.WALK[hero.kind].y;
+}
+
+/** A jump leaves the floor with the hero's velocity this step, which it keeps until it lands. */
+function leap(hero: Hero): void {
+  setState(hero, "jump");
+  hero.vz = T.JUMP_VZ;
+  hero.jumpBuf = 0;
+}
+
+/**
+ * A run's step. It ends, leaving the hero free to walk on this step, once its direction is let go or the other one
+ * held; Attack from it dashes and Jump leaps, carrying the run's speed.
+ */
+function run(hero: Hero, bits: number): void {
+  if ((bits & SIDES) !== (hero.facing > 0 ? RIGHT : LEFT))
+    setState(hero, "idle");
+  else if (hero.attackBuf > 0) {
+    setState(hero, "dash");
+    hero.vx = hero.facing * T.DASH[hero.kind].speed;
+    hero.vy = hero.attackBuf = 0;
+    hero.struck = [];
+  } else {
+    stride(hero, bits);
+    if (hero.jumpBuf > 0) leap(hero);
+  }
+}
+
+/**
+ * A dash's step: it slides on with its blow out for its active steps (the first is the step it began), then stands
+ * through the recovery and is idle again. Returns the blow while it is out.
+ */
+function dash(hero: Hero): T.Dash | undefined {
+  const frames = T.DASH[hero.kind];
+  if (hero.timer < frames.active) return frames;
+  hero.vx = 0;
+  if (hero.timer >= frames.active + frames.recovery) setState(hero, "idle");
+  return undefined;
+}
+
 /** How long each timed hero state lasts, and what follows it. */
 const HERO_AFTER: Partial<Record<HeroState, readonly [number, HeroState]>> = {
   land: [T.LAND_STEPS, "idle"],
@@ -147,7 +214,8 @@ export function revive(world: World): World {
   for (const hero of next.heroes) {
     hero.lives = T.LIVES;
     hero.vx = hero.vy = hero.vz = 0;
-    hero.attackBuf = hero.jumpBuf = hero.stagger = 0;
+    hero.attackBuf = hero.jumpBuf = hero.runBuf = hero.stagger = 0;
+    hero.tap = hero.tapUntil = 0;
     hero.struck = [];
     respawn(next, hero);
   }
@@ -186,24 +254,34 @@ const slow = (v: number): number =>
   Math.sign(v) * Math.max(0, Math.abs(v) - T.HURT_FRICTION) + 0;
 
 function moveHero(world: World, hero: Hero, bits: number): void {
-  const presses = pressed(bits, hero.held);
+  const presses = pressed(bits, hero.held),
+    releases = released(bits, hero.held);
   hero.held = bits;
   if (hero.state === "out") return;
   if (presses & ATTACK) hero.attackBuf = T.BUFFER_STEPS;
   if (presses & JUMP) hero.jumpBuf = T.BUFFER_STEPS;
+  doubleTap(world, hero, presses & SIDES, releases & SIDES);
   // Hit-stop holds the hero, and the presses it buffers, in place.
   if (world.step <= hero.stopUntil) return;
   hero.timer++;
   recover(world, hero);
+  if (hero.state === "run") run(hero, bits);
   const index = SWINGS.indexOf(hero.state);
-  const blade = index >= 0 ? swing(hero, index) : undefined;
+  const blade =
+    index >= 0
+      ? swing(hero, index)
+      : hero.state === "dash"
+        ? dash(hero)
+        : undefined;
   if (hero.state === "idle" || hero.state === "walk") {
     walk(hero, bits);
     if (hero.attackBuf > 0) startSwing(hero, 0);
-    else if (hero.jumpBuf > 0) {
-      setState(hero, "jump");
-      hero.vz = T.JUMP_VZ;
-      hero.jumpBuf = 0;
+    else if (hero.jumpBuf > 0) leap(hero);
+    else if (hero.runBuf > 0 && (bits & SIDES) === hero.tap) {
+      setState(hero, "run");
+      hero.facing = hero.tap === RIGHT ? 1 : -1;
+      hero.runBuf = 0;
+      stride(hero, bits);
     } else setState(hero, hero.vx !== 0 || hero.vy !== 0 ? "walk" : "idle");
   }
   // A jump keeps the momentum it launched with: no steering in the air, as in the original.
@@ -229,6 +307,7 @@ function moveHero(world: World, hero: Hero, bits: number): void {
   if (blade) strike(world, hero, blade);
   if (hero.attackBuf > 0) hero.attackBuf--;
   if (hero.jumpBuf > 0) hero.jumpBuf--;
+  if (hero.runBuf > 0) hero.runBuf--;
 }
 
 /** An enemy a blade can land on: on its feet (thinking or reeling), or walking in once its whole body is on screen. */
@@ -240,9 +319,9 @@ const hittable = (world: World, enemy: Enemy): boolean =>
 /**
  * The blade's window: it reaches `reach` in front of the hero's centre, sweeps `SWING_HEIGHT` up from its feet and
  * lands only in the depth lane. Every hittable enemy whose body overlaps it takes the hit, each at most once a
- * swing; heroes are never in its way.
+ * swing or a dash; heroes are never in its way.
  */
-function strike(world: World, hero: Hero, blade: T.Swing): void {
+function strike(world: World, hero: Hero, blade: T.Blow): void {
   for (const enemy of world.enemies) {
     const ahead = (enemy.x - hero.x) * hero.facing;
     if (
@@ -260,12 +339,12 @@ function strike(world: World, hero: Hero, blade: T.Swing): void {
 
 /**
  * A hit: the damage, then hitstun and a nudge away from the hero, which breaks off the enemy's swing, or, from the
- * finisher or at no hp left, a knockdown that launches the enemy up and away and frees its place by the hero it was
- * going for. Attacker and target both hold still for the hit-stop.
+ * finisher, a dash or at no hp left, a knockdown that launches the enemy up and away and frees its place by the hero
+ * it was going for. Attacker and target both hold still for the hit-stop.
  */
 function hit(world: World, hero: Hero, enemy: Enemy, damage: number): void {
   const taken = Math.min(damage, enemy.hp),
-    heavy = hero.state === "attack3",
+    heavy = hero.state === "attack3" || hero.state === "dash",
     knocked = heavy || enemy.hp === taken,
     until = world.step + (knocked ? T.HEAVY_HITSTOP : T.HITSTOP);
   enemy.hp -= taken;

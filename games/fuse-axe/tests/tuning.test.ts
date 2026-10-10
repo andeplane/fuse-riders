@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   CAMERA_SPEED,
   CAPACITY,
+  DASH,
   ENEMY_HP,
   ENEMY_KINDS,
   HERO_KINDS,
@@ -12,6 +13,7 @@ import {
   VIEW_H,
   TIERS,
   VIEW_W,
+  RUN,
   WALK,
   enemyMaxHp,
   px,
@@ -39,7 +41,10 @@ test("px mirrors across zero and never returns -0", () => {
 });
 
 test("the camera outruns every hero, so a hero held at the screen's edge is never slowed while the camera catches up", () => {
-  for (const kind of HERO_KINDS) assert.ok(CAMERA_SPEED > WALK[kind].x, kind);
+  for (const kind of HERO_KINDS) {
+    const top = Math.max(WALK[kind].x, RUN[kind], DASH[kind].speed);
+    assert.ok(CAMERA_SPEED > top, kind);
+  }
 });
 
 test("an enemy's hit points are whole numbers that grow with each hero, from the base alone to twice it at five", () => {

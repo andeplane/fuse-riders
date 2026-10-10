@@ -24,12 +24,13 @@ export const HERO_FRAMES = [
 export type HeroFrame = (typeof HERO_FRAMES)[number];
 
 /**
- * Every anim a hero has: the walk, jump and swings, and the `hurt` to `dead` a ravager's mace brings; `respawn` drops
- * back in with the fall frame, and one who is `out` lies as `dead` does.
+ * Every anim a hero has: the walk, run, jump, swings and dash, and the `hurt` to `dead` a ravager's mace brings;
+ * `respawn` drops back in with the fall frame, and one who is `out` lies as `dead` does. Until the run and the dash
+ * have frames of their own, the run strides through the walk's faster and the dash holds the first strike.
  */
 export const HERO_ANIMS = [
-  ...["idle", "walk", "jump", "land"],
-  ...["attack1", "attack2", "attack3"],
+  ...["idle", "walk", "run", "jump", "land"],
+  ...["attack1", "attack2", "attack3", "dash"],
   ...["hurt", "knockdown", "down", "getup", "dead", "respawn", "out"],
 ] as const;
 export type FigureAnim = (typeof HERO_ANIMS)[number];
@@ -60,6 +61,12 @@ export const WALK_STEPS: Readonly<Record<HeroKind, number>> = {
   brakka: 6,
   rhea: 5,
   gorm: 5,
+};
+/** Steps each walk frame holds in a run: about twice the walk's speed, so about half its cadence. */
+export const RUN_STEPS: Readonly<Record<HeroKind, number>> = {
+  brakka: 3,
+  rhea: 3,
+  gorm: 3,
 };
 const WALK = ["walk0", "walk1", "walk2", "walk3", "walk4", "walk5"] as const;
 const SWING = [
@@ -99,6 +106,8 @@ export function heroFrame(
       return Math.floor(step / BREATH_STEPS) % 2 ? "idle1" : "idle0";
     case "walk":
       return WALK[Math.floor(step / WALK_STEPS[kind]) % WALK.length]!;
+    case "run":
+      return WALK[Math.floor(step / RUN_STEPS[kind]) % WALK.length]!;
     case "jump":
       return step < timing[kind].rise ? "rise" : "fall";
     case "land":
@@ -109,6 +118,8 @@ export function heroFrame(
       return swingFrame(timing[kind].swings[1], SWING[1], step);
     case "attack3":
       return swingFrame(timing[kind].swings[2], SWING[2], step);
+    case "dash":
+      return "strike1";
     case "hurt":
       return "hurt";
     case "knockdown":
