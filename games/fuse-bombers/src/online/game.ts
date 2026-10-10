@@ -29,7 +29,6 @@ import {
   step,
   view as roundView,
   type BotDifficulty,
-  type RoundConfig,
   type RoundResult,
   type RoundState,
   type RoundView,
@@ -207,15 +206,14 @@ function startRound(room: Room): void {
   room.ships = seats.map((seat) => seat.id);
   room.startAt = room.tick + 1 + COUNTDOWN_TICKS;
   room.endAt = room.resumeAt = 0;
-  // TODO(flying bots): `bots` is `RoundConfig.bots` once the engine plays bot seats inside `step`.
-  const config: RoundConfig & { bots: unknown[] } = {
+  // The engine plays the bot seats inside `step`, their memory in the round state (so hashed and rolled back with it).
+  room.world = createRound({
     seed: roundSeed(room.matchId, room.round),
     playerCount: seats.length,
     bots: seats.flatMap((seat, id) =>
       seat.bot ? [{ id, difficulty: room.play.difficulty }] : [],
     ),
-  };
-  room.world = createRound(config);
+  });
 }
 /** A new match in the lobby: everything but the seats, the settings and the clock starts afresh. */
 function resetMatch(room: Room, matchId: string): void {

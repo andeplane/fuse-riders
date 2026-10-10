@@ -407,11 +407,10 @@ round, and too few gunships send the room back to its lobby.
   direction bits from that log tick on (a tap shorter than the tick still counts on its first step), and
   `[seq, tick, PRESS, matchId, round, ordinal, offset]` is one fire press: a gesture id (`EntryRules.ordinal`, rising
   along a stream, so repeats and stale presses never fold) and the step (0–2) of the log tick it came in.
-- **Fold**: a log tick of 50 ms runs three `step`s; each step holds the seat's directions plus `FIRE` on exactly the
-  step of each press, so a short tap fires on its step and a held button fires once. Bot seats are `RoundConfig.bots`.
+- **Fold**: a log tick of 50 ms runs three `step`s, each holding the seat's directions plus `FIRE` on exactly the step
+  of each press; bot seats play as `RoundConfig.bots`. Six gunships (four bots) take about 0.3 ms a log tick.
 - **Hash**: `hashPlain` (`src/online/hash.ts`) walks the whole room as plain data (numbers by their bits, typed arrays,
   sorted keys), so state added later is covered; only the latest step's `events` are left out. About 1 ms a call.
 - **Checkpoint**: none yet; `decode` refuses every snapshot until the validated codec (the next pull request).
-- **`RULES`** (`src/engine/index.ts`) and `tests/online-golden.test.ts`, a scripted six-gunship match replayed to
-  recorded hashes: a change to how a logged room plays bumps `RULES` and re-records them (`GOLDEN_RECORD=1` prints
-  them) in the same commit; a failure without one is a regression (`docs/design/engine-safety-net.md`).
+- **`RULES`** (`src/engine/index.ts`) and `tests/online-golden.test.ts` (a scripted six-gunship match's hashes): a
+  change to how a logged room plays bumps `RULES` and re-records them (`GOLDEN_RECORD=1`) in the same commit.
