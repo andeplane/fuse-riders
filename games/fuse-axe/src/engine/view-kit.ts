@@ -31,9 +31,11 @@ export {
   DEAD_STEPS,
   FX_LIFE,
   HERO_HP,
+  LIVES,
   HERO_HURT_STEPS,
   HERO_DOWN_STEPS,
   GETUP_GRACE,
+  RESPAWN_DELAY,
   ATTACK_STEPS,
   RECOVER_STEPS,
 } from "./tuning.js";
