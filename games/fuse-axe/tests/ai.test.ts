@@ -14,6 +14,7 @@ import {
   decodeWorld,
   defeated,
   encodeWorld,
+  revive,
   spawnEnemy,
   step,
   toView,
@@ -348,6 +349,65 @@ test("a hero at no hp falls and loses a life, then drops back in at full health 
   const one = withHero(pair, { state: "out", hp: 0, lives: 0 });
   assert.equal(defeated(one), false);
   assert.ok(run(one, 300, [0, RIGHT]).camX > hero(one).x);
+});
+
+test("a party that continues drops back in with every life at the camera, and the stage goes on where it stood", () => {
+  // Two heroes out on a locked first wave, with its ravagers still about and the camera moved on.
+  let world = createWorld({
+    seed: 3,
+    heroes: [
+      { seat: 0, kind: "rhea" },
+      { seat: 2, kind: "gorm" },
+    ],
+  });
+  world = until(
+    world,
+    (w) => w.locked && w.enemies.length > 0,
+    () => [RIGHT, 0, RIGHT],
+  );
+  const out = {
+    ...world,
+    heroes: world.heroes.map((each) => ({
+      ...each,
+      state: "out" as const,
+      hp: 0,
+      lives: 0,
+      attackBuf: 3,
+      struck: [world.enemies[0]!.id],
+    })),
+  };
+  assert.ok(defeated(out));
+  const before = structuredClone(out);
+  const back = revive(out);
+  assert.deepEqual(out, before, "the world passed in is left untouched");
+  assert.equal(defeated(back), false);
+  back.heroes.forEach((each, index) => {
+    const [x, y] = SPAWNS[each.seat]!;
+    assert.deepEqual(
+      [each.state, each.lives, each.hp, each.x, each.y, each.z],
+      [
+        "respawn",
+        T.LIVES,
+        T.HERO_HP[each.kind],
+        out.camX + px(x),
+        px(y),
+        px(y),
+      ],
+      `hero ${index}`,
+    );
+    assert.deepEqual([each.attackBuf, each.struck], [0, []]);
+  });
+  assert.deepEqual(
+    { ...back, heroes: [] },
+    { ...out, heroes: [] },
+    "the camera, waves and enemies stand",
+  );
+  kept(back);
+  // They land, blinking, and fight on.
+  const landed = until(back, (w) =>
+    w.heroes.every((each) => each.state === "idle"),
+  );
+  assert.ok(toView(landed).heroes.every((each) => each.invulnerable));
 });
 
 test("a fallen hero holds the camera no more: the others walk on, and with none on the field it stays put", () => {

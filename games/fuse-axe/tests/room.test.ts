@@ -12,6 +12,8 @@ import {
   type StreamEntries,
 } from "fuse-netcode";
 import {
+  CLEAR_TICKS,
+  CONTINUE_TICKS,
   DEFAULT_SETTINGS,
   PICK,
   PLAY,
@@ -27,6 +29,7 @@ import {
   type Room,
 } from "../src/online/game.js";
 import { seatName, validName } from "../src/online/names.js";
+import { cleared, wiped } from "./fixtures/stage.js";
 import {
   ATTACK,
   DOWN,
@@ -185,37 +188,39 @@ test("a seated member picks its hero outside a run; the run plays the picks it s
   assert.equal(room.seats.get("a")!.avatarId, "gorm");
 });
 
-/** The room as a checkpoint of it in `stage` would restore it, with `held` as the member ids and bits given. */
-function inStage(room: Room, stage: string, held: [string, number][] = []) {
-  const fields = structuredClone(encode(room));
-  fields[2] = stage;
-  fields[5] = held;
-  const back = decode(fields, room.tick);
-  assert.ok(back, `a ${stage} room restores`);
-  return back!;
+/** Takes a run on the way play does: its stage cleared, to the tally (`between`), and past it to a won run (`over`). */
+function reach(room: Room, stage: "between" | "over"): Room {
+  room.world = cleared(room.world!);
+  fold(room);
+  if (stage === "over") run(room, CLEAR_TICKS);
+  assert.equal(room.stage, stage);
+  return room;
 }
 
 test("picks land in the lobby and after game over, not in camp, which is part of the run", () => {
   const picked = (room: Room) => room.seats.get("b")!.avatarId;
   const restored = (room: Room) =>
     decode(structuredClone(encode(room)), room.tick);
-  // Camp is between stages of one run: its heroes stay as they set out, and its checkpoint keeps the held bits.
-  const camp = inStage(started(), "between", [["b", RIGHT]]);
+  // Camp is between stages of one run: its heroes stay as they set out, and the stage's end let go of the held bits.
+  const camp = started();
+  fold(camp, { b: [play(RIGHT)] });
+  assert.equal(camp.held.b, RIGHT);
+  reach(camp, "between");
   fold(camp, { b: [[PICK, "gorm"]] });
   assert.equal(picked(camp), "brakka");
-  assert.equal(camp.held.b, RIGHT);
+  assert.deepEqual(camp.held, {});
   assert.ok(restored(camp), "camp still restores");
   // After game over the next run's heroes are chosen, and the room restores whole with the pick in it.
-  const over = inStage(started(), "over");
+  const over = reach(started(), "over");
   fold(over, { b: [[PICK, "gorm"]] });
   assert.equal(picked(over), "gorm");
   assert.equal(hash(restored(over)!), hash(over));
-  // A run that is over holds no controls: a checkpoint that says otherwise is refused.
-  const base = started(),
-    fields = structuredClone(encode(base));
-  fields[2] = "over";
-  fields[5] = [["b", RIGHT]];
-  assert.equal(decode(fields, base.tick), undefined);
+  // Camp and a run that is over hold no controls: a checkpoint that says otherwise is refused.
+  for (const room of [camp, over]) {
+    const fields = structuredClone(encode(room));
+    fields[5] = [["b", RIGHT]];
+    assert.equal(decode(fields, room.tick), undefined, room.stage);
+  }
 });
 
 test("an empty lobby does not start; a hero who leaves mid-run stands, and a new member waits for the next run", () => {
@@ -240,14 +245,26 @@ test("an empty lobby does not start; a hero who leaves mid-run stands, and a new
 });
 
 test("a rematch after game over starts a new run, or an empty lobby when nobody is left", () => {
-  // Game over arrives with the stage flow; until then a test puts the room there.
   const room = started();
-  room.stage = "over";
+  fold(room, { a: [[ACTION, "rematch", "m9"]] });
+  assert.equal(room.matchId, "m1", "no rematch while the run is on");
+  room.world = wiped(room.world!);
+  fold(room);
+  run(room, CONTINUE_TICKS);
+  assert.deepEqual([room.stage, room.outcome], ["over", "defeat"]);
   fold(room, { a: [[ACTION, "rematch", "m2"]] });
   assert.equal(room.stage, "running");
   assert.equal(room.matchId, "m2");
   assert.equal(room.world!.step, STEPS_PER_TICK);
-  room.stage = "over";
+  assert.deepEqual(
+    [room.round, room.until, room.continued, room.outcome],
+    [1, 0, false, ""],
+    "a fresh run",
+  );
+  assert.ok(
+    room.tally.every((row) => row.damage === 0 && row.knockdowns === 0),
+  );
+  reach(room, "over");
   fold(room, {
     a: [
       [LEAVE, "b"],
@@ -258,6 +275,10 @@ test("a rematch after game over starts a new run, or an empty lobby when nobody 
   fold(room, { a: [[ACTION, "rematch", "m3"]] });
   assert.equal(room.stage, "lobby");
   assert.equal(room.world, null);
+  assert.deepEqual(
+    [room.until, room.continued, room.outcome, room.tally],
+    [0, false, "", []],
+  );
 });
 
 test("settings are the creator's; the view and the game describe the room and its seating", () => {

@@ -100,6 +100,33 @@ drops pots and meat (meat heals). Then the next stage.
   (once per stage) or the run ends.
 - **Score.** Damage, knockdowns, throws and magic are tallied per hero and shown at each camp and at the end.
 
+### Stage flow
+
+The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer folds the same outcome from the log:
+
+- **Stage clear.** The tick the last wave is cleared (`stageCleared`), the room banks each hero's tallies from the
+  world into the run's (`Room.tally`, so they outlive the stage's world), lets go of every held control and goes
+  `between` for `CLEAR_TICKS` (6 s), showing the stage's tally over the frozen scene. A stage cleared as the last hero
+  falls is still won. Past the last stage (`LAST_STAGE`, 1 until stage 2 is built) the run ends `over` as a victory.
+- **Continue.** When every hero is out (`defeated`), the world keeps running and a countdown of `CONTINUE_TICKS`
+  (10 s) starts. A present human seated at a hero of the run votes by pressing Attack (or the CONTINUE button): a
+  `CONTINUE` entry for the run and stage (`[seq, tick, 2, matchId, round]`). The first one folded in the countdown
+  revives the party (`revive`: every hero drops back in at the camera with full health and every life, and the
+  waves, enemies and camera stay as they were) and spends the stage's continue. Watchers, bots, a member who joined
+  mid-run and an absent seat have no vote; a vote before or after the countdown, for another run or stage, or a
+  second one is ignored. The countdown running out, or every hero out again with the continue spent, ends the run
+  `over` as a defeat, with the stage's tallies banked.
+- **Over.** The outcome and the run's tallies show with the stage reached; nothing is held and no clock runs. Hero
+  picks apply again, and the host's REMATCH sets out on a fresh run (stage 1, nothing tallied) or LOBBY goes back.
+- **The next stage** (once there is one) slots in where the tally ends (`nextStage`): a world seeded
+  `seedOf("matchId:round+1")` as `beginStage` makes every stage's, with each hero whose seat is still here. Policy:
+  lives carry over (a hero who went out comes back with one), health is full, the continue is fresh, and the
+  tallies stay banked in the room; camp sits between the tally and the next stage.
+
+The checkpoint carries the clock (`until`), the spent continue, the outcome and the banked tallies, and refuses any
+combination the fold cannot reach (a clock in play with heroes standing, a win short of the last stage, tallies that
+are not the world's heroes).
+
 ## Screen and art
 
 - Native resolution **320 × 180**, scaled by whole numbers to fill the screen (6× at 1080p), nearest-neighbour.
@@ -115,7 +142,8 @@ drops pots and meat (meat heals). Then the next stage.
   speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in front; it ends at the
   village gate ([screenshot](images/stage1-backdrop.png)).
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
-  and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives.
+  and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives
+  ([screenshot](images/hud.png)).
 
 ## Players, rooms and controls
 
