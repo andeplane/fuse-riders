@@ -94,6 +94,9 @@ test("a double tap of Left or Right runs; a slow tap or gap, the other side or a
   // Depth is no side: Up and Down neither make a tap nor break one.
   assert.equal(state([RIGHT, UP, RIGHT]), "run 1");
   assert.equal(state(tapTap(UP)), "walk 1");
+  // A side tapped with Up or Down held is a tap of it, and the run steers in depth with them still held.
+  assert.equal(state([UP, UP | RIGHT, UP, UP | RIGHT]), "run 1");
+  assert.equal(state([DOWN | LEFT, DOWN, DOWN | LEFT]), "run -1");
   // Holding a side never repeats, and a run lasts while it is held.
   let world = solo();
   for (let index = 0; index < 200; index++) {
@@ -106,6 +109,34 @@ test("a double tap of Left or Right runs; a slow tap or gap, the other side or a
   world = stepTick(stepTick(stepTick(solo(), [0], [RIGHT]), [0]), [RIGHT]);
   assert.equal(hero(world).state, "run");
   assert.equal(toView(world).heroes[0]!.anim, "run");
+});
+
+test("taps each shorter than a log tick fold into one press apiece: two make a run of a step, one makes none", () => {
+  // A log tick logs a quick tap as a press then a release, which `stepTick` folds into the first step alone.
+  const tap = (world: World) => stepTick(world, [0], [RIGHT]);
+  const rest = (world: World) => stepTick(world, [0]);
+  const once = tap(solo());
+  assert.deepEqual([hero(once).state, hero(once).tap], ["idle", RIGHT]);
+  // Left alone it is one tap, not two: later ticks start no run, and the tap lapses.
+  const left = rest(rest(rest(once)));
+  assert.deepEqual([hero(left).state, hero(left).runBuf], ["idle", 0]);
+  assert.equal(hero(left).x, hero(once).x);
+  // A second quick tap in the next tick is the double tap: the run lasts the one step Right is down.
+  const twice = tap(once);
+  assert.equal(hero(twice).x - hero(once).x, T.RUN.brakka);
+  assert.equal(hero(twice).state, "idle");
+  assert.equal(hero(rest(twice)).x, hero(twice).x);
+  // The same pair a tick or two further apart is still a double tap, and one beyond the gap is a walk step.
+  const gap = (ticks: number) => {
+    let world = once;
+    for (let index = 0; index < ticks; index++) world = rest(world);
+    return hero(tap(world)).x - hero(once).x;
+  };
+  assert.equal(gap(2), T.RUN.brakka);
+  assert.equal(
+    gap(Math.ceil(T.RUN_GAP / T.STEPS_PER_TICK) + 1),
+    T.WALK.brakka.x,
+  );
 });
 
 test("a run is about twice the walk along the road, Gorm slowest, steers in depth at the walk's pace and the camera keeps up", () => {
