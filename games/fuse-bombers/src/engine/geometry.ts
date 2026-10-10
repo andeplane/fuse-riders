@@ -2,33 +2,33 @@
 
 import { cos, sin } from "./det-math.js";
 import { DT, SUBSTEPS, type Tuning } from "./tuning.js";
-import type { Facing, GateView, GhostView, Vec2 } from "./types.js";
+import type { GateView, GhostView, Vec2 } from "./types.js";
 
-/** Anything with a ground contact point (a castle, or a spot a castle might stand on). */
-type Grounded = Readonly<Vec2>;
+/** Anything with a hull centre (a castle, or a spot a castle might hover at). */
+type Hull = Readonly<Vec2>;
 
 export const DEG = Math.PI / 180;
+export const TAU = 2 * Math.PI;
 
-/** Launcher arc `[min, max]` in radians for a castle facing one side or both. */
-export function arcFor(facing: Facing, tuning: Tuning): [number, number] {
-  const [lo, hi] = facing === "both" ? tuning.wideArcDeg : tuning.narrowArcDeg;
-  if (facing === "left") return [(180 - hi) * DEG, (180 - lo) * DEG];
-  return [lo * DEG, hi * DEG];
+/** Centre of a castle's hit circle (and of its shield bubble): the hull centre `x, y` itself. */
+export function castleCenter(c: Hull): Vec2 {
+  return { x: c.x, y: c.y };
 }
 
-/** Centre of a castle's hit circle (and of its shield bubble). */
-export function castleCenter(c: Grounded, tuning: Tuning): Vec2 {
-  return { x: c.x, y: c.y - tuning.castleHeight / 2 };
+/** Pivot the launcher rotates around, `launcherOffset` above the hull centre. */
+export function launcherPivot(c: Hull, tuning: Tuning): Vec2 {
+  return { x: c.x, y: c.y - tuning.launcherOffset };
 }
 
-/** Pivot the launcher rotates around. */
-export function launcherPivot(c: Grounded, tuning: Tuning): Vec2 {
-  return { x: c.x, y: c.y - tuning.launcherHeight };
+/** The launcher angle one tick on: `aimPeriod` per counter-clockwise revolution, wrapped into [0, 2π). */
+export function turnLauncher(angle: number, tuning: Tuning): number {
+  const next = angle + (TAU * DT) / tuning.aimPeriod;
+  return next >= TAU ? next - TAU : next;
 }
 
 /** Where a rocket fired at `angle` appears, and its velocity (before per-rocket spread). */
 export function launchState(
-  c: Grounded,
+  c: Hull,
   tuning: Tuning,
   angle: number,
   speed = tuning.launchSpeed,
@@ -57,7 +57,7 @@ export function integrate(
   r.y += r.vy * SUB_DT;
 }
 
-/** True once a rocket has left the arena for good (off the sides or below the bottom). */
+/** True once a rocket has left the world for good (off the sides or below the bottom; above the top it falls back). */
 export function isOffscreen(
   x: number,
   y: number,
@@ -115,6 +115,9 @@ export function insideGate(
   return Math.abs(x - gx) <= g.width / 2 && Math.abs(y - gy) <= g.height / 2;
 }
 
+/** How far a crate bobs above and below its `baseY`. */
+export const CRATE_BOB = 6;
+
 /** Crate centre at an absolute tick (crates bob in place). */
 export function crateYAt(
   baseY: number,
@@ -122,5 +125,5 @@ export function crateYAt(
   spawnTick: number,
   tick: number,
 ): number {
-  return baseY + 6 * sin(bobPhase + (tick - spawnTick) * DT * 2.2);
+  return baseY + CRATE_BOB * sin(bobPhase + (tick - spawnTick) * DT * 2.2);
 }

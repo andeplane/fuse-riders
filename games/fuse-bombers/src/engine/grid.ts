@@ -9,7 +9,12 @@
 /** What a fill writes into the cells it covers: destructible rock, indestructible rock or open air. */
 export type Paint = "rock" | "hard" | "air";
 
-export interface Grid {
+/**
+ * What the read-only queries (`cellSolid`, `solidAt`, `segmentHit`, `gridHash`, …) need of a grid: the bitsets as plain
+ * array-likes nothing can write through. A `Grid` is one, and so is the round view's `terrain`, which is why a bot or
+ * a renderer can query the terrain but cannot hand it to `carveCircle` (that wants the writable `Grid`).
+ */
+export interface ReadGrid {
   /** World size in logical pixels, a whole number of cells each way. */
   readonly width: number;
   readonly height: number;
@@ -18,10 +23,17 @@ export interface Grid {
   readonly cols: number;
   readonly rows: number;
   /** Bit `row * cols + col` set: the cell is rock. */
-  readonly solid: Uint32Array;
+  readonly solid: ArrayLike<number>;
   /** Bit set: the cell is indestructible rock. Always a subset of `solid`. */
-  readonly hard: Uint32Array;
+  readonly hard: ArrayLike<number>;
   /** Bumped by every carve that changes a cell (authoring fills leave it alone), so a renderer knows to redraw. */
+  readonly version: number;
+}
+
+/** The writable grid the engine owns: `carveCircle` and the authoring fills change it. */
+export interface Grid extends ReadGrid {
+  readonly solid: Uint32Array;
+  readonly hard: Uint32Array;
   version: number;
 }
 
@@ -80,7 +92,7 @@ export function createGrid(width: number, height: number, cell = 4): Grid {
   return { width, height, cell, cols, rows, solid, hard, version: 0 };
 }
 
-function bit(bits: Uint32Array, i: number): boolean {
+function bit(bits: ArrayLike<number>, i: number): boolean {
   return (((bits[i >>> 5] ?? 0) >>> (i & 31)) & 1) === 1;
 }
 
@@ -104,30 +116,30 @@ function paintSpan(grid: Grid, start: number, end: number, paint: Paint) {
 }
 
 /** The bit index of cell (`col`, `row`), or -1 outside the grid. */
-function cellIndex(grid: Grid, col: number, row: number): number {
+function cellIndex(grid: ReadGrid, col: number, row: number): number {
   const inside = col >= 0 && col < grid.cols && row >= 0 && row < grid.rows;
   return inside ? row * grid.cols + col : -1;
 }
 
 /** Whether cell (`col`, `row`) is rock; cells outside the grid are air. */
-export function cellSolid(grid: Grid, col: number, row: number): boolean {
+export function cellSolid(grid: ReadGrid, col: number, row: number): boolean {
   const i = cellIndex(grid, col, row);
   return i >= 0 && bit(grid.solid, i);
 }
 
 /** Whether cell (`col`, `row`) is indestructible rock. */
-export function cellHard(grid: Grid, col: number, row: number): boolean {
+export function cellHard(grid: ReadGrid, col: number, row: number): boolean {
   const i = cellIndex(grid, col, row);
   return i >= 0 && bit(grid.hard, i);
 }
 
 /** Whether the world point (`x`, `y`) is rock. O(1); outside the world (and NaN) is air. */
-export function solidAt(grid: Grid, x: number, y: number): boolean {
+export function solidAt(grid: ReadGrid, x: number, y: number): boolean {
   return cellSolid(grid, Math.floor(x / grid.cell), Math.floor(y / grid.cell));
 }
 
 /** Whether the world point (`x`, `y`) is indestructible rock. */
-export function hardAt(grid: Grid, x: number, y: number): boolean {
+export function hardAt(grid: ReadGrid, x: number, y: number): boolean {
   return cellHard(grid, Math.floor(x / grid.cell), Math.floor(y / grid.cell));
 }
 
@@ -153,7 +165,7 @@ export function fillRect(
 
 /** Calls `span(row, c0, c1)` (c1 exclusive) for each row of cells whose centres lie within `r` of (`cx`, `cy`). */
 function discSpans(
-  grid: Grid,
+  grid: ReadGrid,
   cx: number,
   cy: number,
   r: number,
@@ -265,7 +277,7 @@ export function carveCircle(
  * a hit there can depend on the direction). Those are the only cases where it disagrees with `solidAt`.
  */
 export function segmentHit(
-  grid: Grid,
+  grid: ReadGrid,
   x0: number,
   y0: number,
   x1: number,
@@ -325,7 +337,7 @@ export function segmentHit(
 
 /** Whether a circle overlaps any rock cell (touching an edge does not count). For gunship collisions. */
 export function circleOverlapsSolid(
-  grid: Grid,
+  grid: ReadGrid,
   x: number,
   y: number,
   r: number,
@@ -355,7 +367,7 @@ function popcount(word: number): number {
 }
 
 /** How many cells are rock (hard included) and how many of those are hard. */
-export function countCells(grid: Grid): { solid: number; hard: number } {
+export function countCells(grid: ReadGrid): { solid: number; hard: number } {
   let solid = 0;
   let hard = 0;
   for (let w = 0; w < grid.solid.length; w++) {
@@ -366,7 +378,7 @@ export function countCells(grid: Grid): { solid: number; hard: number } {
 }
 
 /** A 32-bit FNV-style hash of the size, `version` and every cell, for desync checks. */
-export function gridHash(grid: Grid): number {
+export function gridHash(grid: ReadGrid): number {
   let h = 0x811c9dc5;
   for (const v of [grid.cols, grid.rows, grid.cell, grid.version]) {
     h = Math.imul(h ^ v, 0x01000193);
@@ -381,7 +393,7 @@ export function gridHash(grid: Grid): number {
   return h >>> 0;
 }
 
-function cellState(grid: Grid, i: number): number {
+function cellState(grid: ReadGrid, i: number): number {
   return bit(grid.hard, i) ? HARD : bit(grid.solid, i) ? ROCK : AIR;
 }
 
@@ -390,7 +402,7 @@ function cellState(grid: Grid, i: number): number {
  * cells in row-major order (state 0 air, 1 rock, 2 hard), neighbouring runs in different states. A sculpted map is a
  * few thousand runs.
  */
-export function encodeGrid(grid: Grid): number[] {
+export function encodeGrid(grid: ReadGrid): number[] {
   const out = [GRID_FORMAT, grid.width, grid.height, grid.cell, grid.version];
   const total = grid.cols * grid.rows;
   let state = cellState(grid, 0);

@@ -1,29 +1,31 @@
 # Fuse Bombers
 
-A one-screen party artillery game for 2–6 players, humans and bots, on one keyboard, a few gamepads or a touch screen.
-Castles on treads lob rockets across a destructible landscape, and the rockets fly through multiplier gates to turn a
-handful into a swarm.
+A party artillery game for 2–6 players, humans and bots, on one keyboard, a few gamepads or a touch screen. Castles
+hover round a destructible floating temple and lob rockets across it, and the rockets fly through multiplier gates to
+turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md): the castles become gunships that
+fly; for now they hover where they spawn.)
 
 **Play it: <https://andeplane.github.io/fuse-riders/fuse-bombers/>**, or pick it from the app portal (the dot-grid
 button at the top left of every Fuse game's lobby). It is a local game: no rooms, no accounts, everyone at one screen.
 
-![Four castles trading rocket volleys between the multiplier gates, the fuse burning along the top](docs/images/round.png)
+![Four castles round the floating temple trading rocket volleys between the multiplier gates, the fuse burning along the top](docs/images/big-map.png)
 
 ## How to play
 
-- **One button each.** Your launcher sweeps back and forth like a metronome. Press your button to fire a volley at the
-  current angle; the launcher then reloads. Timing picks range and target, and a dotted guide shows the first part of
+- **One button each.** Your launcher turns round and round, a full circle every 3.6 s. Press your button to fire a
+  volley at the current angle, in any direction; the launcher then reloads. Timing picks range and target, and a dotted guide shows the first part of
   the path.
 - **Gates multiply.** Gates (×2, ×3, ×5, ×10) drift in the sky. A rocket that flies through one splits into that many
   rockets, so five rockets through a ×10 gate is fifty.
 - **Crates.** Floating crates give a card to the first volley that hits them: an extra rocket per volley, a shield, a
   faster reload, a repair or a mega bomb.
-- **Terrain.** Every rocket carves a crater, so the peaks between the castles wear away over the round.
+- **Terrain.** The whole temple is in view. Every rocket carves a crater, so the rock between the castles wears away
+  over the round; only its darker skeleton (pillars, columns, the shrine's legs and keel) is indestructible.
 - **The fuse.** The burning fuse across the top is the round timer (90 s). When it burns out, sudden death begins:
-  bombs rain down and damage keeps growing. At 3 minutes the round ends on HP: the castle with the most HP wins, and
+  bombs drop from above the castles and damage keeps growing. At 3 minutes the round ends on HP: the castle with the most HP wins, and
   a tie is a draw.
 - **Ghosts.** When your castle is destroyed you keep playing as a ghost blimp (your colour, your key on the side)
-  drifting along the top. Your button drops a bomb when one hangs under the blimp; a short dotted guide shows where it
+  drifting across the sky above your wreck, straight through rock. Your button drops a bomb when one hangs under the blimp; a short dotted guide shows where it
   falls. Ghosts cannot win, but they can decide who does. Once every human is out and no ghost has pressed for a few
   seconds, the bots finish the round at up to double speed (⏩ in the bottom bar).
 - **Winning.** The last castle standing wins the round (a wipe-out is a draw); if more than one is still standing at
@@ -77,7 +79,7 @@ Add them to the address, for example `?mute&speed=4`.
 | `?mute`    | No music or sound effects for this load (`?mute=0` or `?mute=false` leaves them on).         |
 | `?calm`    | Turns off screen shake and full-screen flashes (also on with the OS reduced-motion setting). |
 | `?speed=N` | Runs the game and its timers N times as fast (whole numbers, 1 or more).                     |
-| `?seed=N`  | Fixes the random seed so matches replay the same landscapes.                                 |
+| `?seed=N`  | Fixes the random seed so matches replay the same spawns, gates and crates.                   |
 | `?touch`   | Forces the touch pads on a non-touch device.                                                 |
 | `?debug`   | Exposes `window.fuseBombers` (`game`, `flow`, `audio`) for browser tests.                    |
 

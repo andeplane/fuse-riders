@@ -29,17 +29,19 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 
 - **World.** About 4800 × 2700 logical pixels (three times the old arena each way), y down. Terrain is a bitmap of
   4 px cells (a bitset, about 100 KB) instead of a height map, so the map can have overhangs, tunnels and caves. Every
-  explosion carves a circle; the map may mark some cells indestructible so the temple keeps a skeleton (a constant
-  mask that comes with the map, not a second bitset in the round state). Rock has no gravity: a piece a bomb cuts loose
-  from the rest, like the temple's floating islets, stays in the air.
+  explosion carves a circle; the map may mark some cells indestructible so the temple keeps a skeleton (a
+  second bitset, `hard`, inside the round's grid: about 100 KB more per snapshot clone, which is negligible). Rock has
+  no gravity: a piece a bomb cuts loose from the rest, like the temple's floating islets, stays in the air.
 - **Flight.** Input is held bits: up, down, left, right, fire. Thrust about 400 px/s², top speed about 200 px/s,
   linear drag. Diagonals are normalised. A gunship is a circle for collisions; it slides along rock rather than
-  sticking.
+  sticking. The launcher's barrel (pivot 32 px above the hull, tip 20 px past it) is not tested against rock today,
+  which is safe only while castles hover at spawn anchors with 60 px of air round them: the flight change must decide
+  what a launch with the pivot or tip inside rock does.
 - **Aim.** The launcher turns counter-clockwise at a steady rate (about 3.6 s a revolution). Fire fires on the press
   (the rising edge of the fire bit, which the engine tracks per gunship in the round state) when loaded, at the angle
   the player saw. Online, a press arrives as its own log entry (see "Online shape" below).
 - **Spawns.** The map lists anchor points; a round picks a spread, seeded set for the player count. Because gunships
-  move, the old check that every pair of castles can hit each other (`src/engine/reach.ts`) goes; a map test only
+  move, the old check that every pair of castles can hit each other (`reach.ts`, removed in step 4) goes; a map test only
   checks that every anchor is open air with room for a gunship.
 - **Gates and crates** spread over the open sky of the whole map, more of them than on the old one-screen arena.
 - **Sudden death** drops bombs from a fixed height above living gunships.
@@ -96,11 +98,13 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 ### Plan (pull requests of 10–1000 lines, each leaving the game playable)
 
 1. Deterministic engine (done): `src/engine/det-math.ts`, the banned operations replaced (`bot.ts`, `geometry.ts`,
-   `round.ts`, `terrain.ts`), the full guard in `tests/architecture.test.ts` (renamed from `engine-boundary.test.ts`).
-2. Bitmap terrain and the temple map (new modules, a preview image of the map).
-3. Flight kernel: momentum, collisions against a solid-field interface (new module).
-4. Big map: the round on the bitmap terrain and the temple map, hovering gunships at spawn anchors, the launcher
-   turning a full circle; render draws the bitmap terrain with the whole map in view.
+   `round.ts` and the height-map `terrain.ts`, which the bitmap `grid.ts` of step 2 has since replaced), the full guard in `tests/architecture.test.ts` (renamed from `engine-boundary.test.ts`).
+2. Bitmap terrain and the temple map (done: new modules, a preview image of the map).
+3. Flight kernel (done): momentum, collisions against a solid-field interface (new module).
+4. Big map (done): the round on the bitmap terrain and the temple map, hovering gunships at spawn anchors, the launcher
+   turning a full circle; render draws the bitmap terrain with the whole map in view. With castles fixed at spread
+   anchors few pairs can reach each other, so until step 5 most rounds are decided in sudden death
+   ([engine.md](engine.md) has the numbers).
 5. Free flight: held-bit input, the flight kernel wired in, flying ghosts, bots inside `step` with their memory in the
    state; keyboard clusters. (Until 6 lands, gamepad and touch riders hover and fire but do not steer.)
 6. Devices and render, in parallel: gamepad sticks, touch pads and lobby texts; the framing camera and gunship art.
