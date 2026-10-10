@@ -1,5 +1,6 @@
 import { STAGE_1 } from "./stages.js";
 import {
+  HERO_HP,
   SUB,
   enemyMaxHp,
   type EnemyKind,
@@ -7,6 +8,7 @@ import {
   type Tier,
 } from "./tuning.js";
 import {
+  defeated,
   showsGo,
   stageCleared,
   type EnemyState,
@@ -23,9 +25,16 @@ import {
  */
 export type { EnemyKind, HeroKind, Tier } from "./tuning.js";
 export type { FxKind } from "./world.js";
-/** `attack1` and `attack2` are the slashes, `attack3` the finisher. */
+/**
+ * `attack1` and `attack2` are the slashes, `attack3` the finisher. `hurt` reels, `knockdown` flies, `down` lies and
+ * `getup` rises; `dead` lies fallen until `respawn` drops the hero in from the top of the screen, or it is `out`.
+ */
 export type HeroAnim = HeroState;
-/** `enter` is a wave's enemy walking in from the screen's edge (or back in to a locked screen): walk frames. */
+/**
+ * `enter` is a wave's enemy walking in from the screen's edge (or back in to a locked screen): walk frames, as is
+ * `walk`. `windup` telegraphs the mace for its tier's steps, `attack` swings it (it lands on the first step) and
+ * `recover` follows.
+ */
 export type EnemyAnim = EnemyState;
 
 export interface HeroView {
@@ -39,6 +48,12 @@ export interface HeroView {
   anim: HeroAnim;
   /** Steps since `anim` began; the renderer divides it into sprite frames. */
   animStep: number;
+  hp: number;
+  maxHp: number;
+  /** Lives left, this one included. */
+  lives: number;
+  /** No mace lands on the hero: getting up, and for a while after dropping back in. Draw it blinking. */
+  invulnerable: boolean;
 }
 
 export interface EnemyView {
@@ -83,6 +98,8 @@ export interface WorldView {
   go: boolean;
   /** The stage's last wave is cleared. */
   cleared: boolean;
+  /** Every hero is out of lives. */
+  defeated: boolean;
 }
 
 const whole = (value: number) => Math.floor(value / SUB);
@@ -101,6 +118,11 @@ export function toView(world: World): WorldView {
       facing: hero.facing,
       anim: hero.state,
       animStep: hero.timer,
+      hp: hero.hp,
+      maxHp: HERO_HP[hero.kind],
+      lives: hero.lives,
+      // A hero that has never been (`invulnUntil` 0) is not, though step 0 is no later than that.
+      invulnerable: hero.invulnUntil > 0 && world.step <= hero.invulnUntil,
     })),
     enemies: world.enemies.map((enemy) => ({
       id: enemy.id,
@@ -128,5 +150,6 @@ export function toView(world: World): WorldView {
     locked: world.locked,
     go: showsGo(world),
     cleared: stageCleared(world),
+    defeated: defeated(world),
   };
 }

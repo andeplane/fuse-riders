@@ -2,10 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createBackdrop,
-  type MakeSurface,
   type Pen,
   type StageNumber,
 } from "../src/render/backdrop/backdrop.js";
+import type { MakeSurface } from "../src/render/surface.js";
 import { ASHEN_VILLAGE } from "../src/render/backdrop/ashen-village.js";
 import { hash, Raster } from "../src/render/backdrop/kit.js";
 import {
@@ -76,10 +76,24 @@ class RecordingPen implements Pen<FakeSurface> {
 
 function stage1() {
   const surfaces: FakeSurface[] = [];
-  const make: MakeSurface<FakeSurface> = (width, height, rgba) => {
-    const surface = { id: surfaces.length, width, height, rgba };
+  // The fast path keeps each layer's own pixels; `scene.test.ts` checks the painted fallback draws the same ones.
+  const make: MakeSurface<FakeSurface> = (width, height) => {
+    const surface = {
+      id: surfaces.length,
+      width,
+      height,
+      rgba: new Uint8ClampedArray(0),
+    };
     surfaces.push(surface);
-    return surface;
+    const paint = {
+      fillStyle: "",
+      fillRect: () => assert.fail("the fast path paints nothing"),
+    };
+    return {
+      image: surface,
+      paint,
+      putPixels: (rgba) => void (surface.rgba = rgba),
+    };
   };
   return { surfaces, backdrop: createBackdrop(make, 1) };
 }
@@ -110,12 +124,15 @@ const CAMERAS = [
 // Compile-time only: the browser's own context and canvases plug straight in.
 void ((ctx: CanvasRenderingContext2D): Pen<HTMLCanvasElement> => ctx);
 void ((ctx: OffscreenCanvasRenderingContext2D): Pen<OffscreenCanvas> => ctx);
-void ((): MakeSurface<OffscreenCanvas> => (width, height, rgba) => {
-  const canvas = new OffscreenCanvas(width, height);
-  canvas
-    .getContext("2d")
-    ?.putImageData(new ImageData(rgba, width, height), 0, 0);
-  return canvas;
+void ((): MakeSurface<OffscreenCanvas> => (width, height) => {
+  const image = new OffscreenCanvas(width, height);
+  const paint = image.getContext("2d")!;
+  return {
+    image,
+    paint,
+    putPixels: (rgba) =>
+      paint.putImageData(new ImageData(rgba, width, height), 0, 0),
+  };
 });
 
 test("static layers are painted once, when the backdrop is made, and every frame reuses them", () => {
@@ -317,7 +334,10 @@ test("a negative, NaN or infinite frame draws as frame 0", () => {
 });
 
 test("a stage without a backdrop is refused with a clear error", () => {
-  const make: MakeSurface<number> = () => 0;
+  const make: MakeSurface<number> = () => ({
+    image: 0,
+    paint: { fillStyle: "", fillRect: () => undefined },
+  });
   for (const stage of [0, 2, -1, 1.5, Number.NaN])
     assert.throws(
       () => createBackdrop(make, stage as StageNumber),
