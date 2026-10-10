@@ -23,7 +23,8 @@ export function fraction(
  * The world `alpha` of the way from `older` to `newer`. Figures are matched by id; one that appeared since `older`
  * stays where it is. A figure moves in screen space (`x − camX`) and lands back on a whole pixel, as the view
  * promises, so a hero walking with the camera shares the backdrop's pixel offset instead of shimmering against it.
- * Sparks stand where they struck, and every other value is `newer`'s.
+ * A hero that dropped back in since `older` is placed where it dropped, like one that appeared. Sparks stand where
+ * they struck, and every other value is `newer`'s.
  */
 export function blend(
   older: WorldView,
@@ -37,11 +38,12 @@ export function blend(
   const moved = <T extends { id: number; x: number; y: number; z: number }>(
     items: readonly T[],
     before: readonly T[],
+    jumped: (prev: T, item: T) => boolean = () => false,
   ): T[] => {
     const was = new Map(before.map((item) => [item.id, item]));
     return items.map((item) => {
       const prev = was.get(item.id);
-      return prev
+      return prev && !jumped(prev, item)
         ? {
             ...item,
             x: camX + mix(prev.x - older.camX, item.x - newer.camX),
@@ -54,7 +56,12 @@ export function blend(
   return {
     ...newer,
     camX,
-    heroes: moved(newer.heroes, older.heroes),
+    // A hero dropping back in is placed at its drop point, not carried there from where it fell.
+    heroes: moved(
+      newer.heroes,
+      older.heroes,
+      (prev, item) => item.anim === "respawn" && prev.anim !== "respawn",
+    ),
     enemies: moved(newer.enemies, older.enemies),
   };
 }

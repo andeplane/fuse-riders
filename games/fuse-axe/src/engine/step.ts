@@ -118,7 +118,10 @@ const HERO_AFTER: Partial<Record<HeroState, readonly [number, HeroState]>> = {
 /** The states a hero flies, falls or drops in under gravity, and what each lands in. */
 const AIRBORNE: readonly HeroState[] = ["jump", "knockdown", "respawn"];
 
-/** A fallen hero with a life left drops back in from the top of the screen at its seat's place, at full health. */
+/**
+ * A fallen hero with a life left drops back in from the top of the screen at its seat's place, at full health. The
+ * screen row of a figure is its depth less its height, so a height equal to the depth is a drop from row 0.
+ */
 function respawn(world: World, hero: Hero): void {
   const [x, y] = SPAWNS[hero.seat]!;
   hero.x = world.camX + T.px(x);
@@ -191,8 +194,9 @@ function moveHero(world: World, hero: Hero, bits: number): void {
       land(world, hero);
     }
   } else if (hero.state === "hurt") hero.vx = slow(hero.vx);
-  // A fallen hero lies where it fell, and the camera leaves it behind rather than drag it along the screen's edge.
-  if (hero.state !== "dead")
+  // A fallen hero lies where it fell, and the camera leaves it behind rather than drag it along the screen's edge: one
+  // that has just gone out too, or it would be pulled onto the screen on the step it does.
+  if (hero.state !== "dead" && hero.state !== "out")
     hero.x = clamp(
       hero.x,
       world.camX + T.HERO_MARGIN,
@@ -338,7 +342,6 @@ function advanceCamera(world: World): void {
     if (hero.x > leader) leader = hero.x;
     if (hero.x < leftmost) leftmost = hero.x;
   }
-  if (leader === -Infinity) return;
   const hold = STAGE_1.waves[world.locked ? world.wave - 1 : world.wave];
   const target = Math.min(
     leader - T.CAMERA_LEAD,

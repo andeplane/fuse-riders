@@ -127,7 +127,11 @@ const INVULN = Math.max(RESPAWN_INVULN, GETUP_STEPS + GETUP_GRACE),
   THINK = Math.max(
     ...TIERS.map((tier) => RAVAGER[tier].think + RAVAGER[tier].jitter),
   );
-/** A hero with no hit points is flying from the blow, fallen or out; one fallen or out has none, one out no life. */
+/**
+ * A hero with no hit points is flying from the blow, fallen or out; one fallen or out has none. A hero with no life
+ * left is fallen on its last (it goes out after `RESPAWN_DELAY`) or out; one fallen has lost a life, so has fewer
+ * than it set out with, and one out has none. One dropping back in has hit points and a life.
+ */
 const FALLEN: readonly HeroState[] = ["dead", "out"];
 const lifeKept = (value: Hero): boolean =>
   value.hp <= HERO_HP[value.kind] &&
@@ -136,6 +140,7 @@ const lifeKept = (value: Hero): boolean =>
     FALLEN.includes(value.state)) &&
   (!FALLEN.includes(value.state) || value.hp === 0) &&
   (value.lives > 0 || FALLEN.includes(value.state)) &&
+  (value.state !== "dead" || value.lives < LIVES) &&
   (value.state !== "out" || value.lives === 0);
 
 // `ENEMY_MAX` bounds the enemy list, and the ones a swing has hit: a hit enemy is not gone within its swing.
