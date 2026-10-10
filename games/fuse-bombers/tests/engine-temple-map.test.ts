@@ -123,6 +123,24 @@ test("sky zones are open air inside the world, 30 px clear of rock", () => {
   }
 });
 
+test("every spawn set is symmetric about the shrine: each anchor has its mirror image in the set", () => {
+  const axis = 2400;
+  for (let count = 2; count <= 6; count++)
+    for (let seed = 0; seed < 100; seed++) {
+      const spawns = spawnOrder(count, seed);
+      for (const a of spawns) {
+        const mirror = { x: 2 * axis - a.x, y: a.y };
+        // The terrain is not symmetric, so the pairs sit up to 300 px off the exact mirror (see SPAWN_SETS).
+        const near = spawns.filter((b) => dist(b, mirror) <= 300);
+        assert.equal(
+          near.length,
+          1,
+          `${count}: seed ${seed}, anchor ${spawnAnchors.indexOf(a)}`,
+        );
+      }
+    }
+});
+
 test("spawnOrder deals a spread, seeded set of distinct anchors to 2–6 seats", () => {
   for (let count = 2; count <= 6; count++) {
     const sets = new Set<string>();

@@ -9,6 +9,7 @@
  */
 import { writeFileSync } from "node:fs";
 import { crc32, deflateSync } from "node:zlib";
+import { fileURLToPath } from "node:url";
 import { cellHard, cellSolid } from "../src/engine/grid.js";
 import { TEMPLE_MAP, buildTempleGrid } from "../src/engine/temple-map.js";
 
@@ -16,7 +17,7 @@ type Rgb = readonly [number, number, number];
 
 const out =
   process.argv[2] ??
-  new URL("../docs/images/temple-map.png", import.meta.url).pathname;
+  fileURLToPath(new URL("../docs/images/temple-map.png", import.meta.url));
 const grid = buildTempleGrid();
 const { cols: w, rows: h, cell } = grid;
 const pixels = new Uint8Array(w * h * 3);
