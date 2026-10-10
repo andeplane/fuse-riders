@@ -376,3 +376,23 @@ symmetric set per player count 2–6 chosen and dealt to seats by the seed; it i
 `TEMPLE_LANDMARKS` (tunnel, cave, bays) come with it. `tests/engine-temple-map.test.ts` checks the margins, the
 clearances, that all open air is one region a gunship (`GUNSHIP_FLIGHT`'s radius, 30) can fly through, and that the tunnel and cave are
 enclosed yet reachable.
+
+## Online (`src/online/`)
+
+`src/online/game.ts` is the round behind the netcode's `RollbackGame`, shaped like Fuse Choppers' (the room page comes
+later). Settings `{ wins: 1–9 (3), difficulty, display }`; six seats, two gunships (bots count) to take off. A round is
+a 3 s countdown, play, a 2 s aftermath once decided and a 5 s scoreboard; crowns are kept by member id, so a rider who
+joins mid-match flies from the next round, and too few gunships send the room back to its lobby.
+
+- **Entries**, each counting only in the match and round it names: `[seq, tick, PLAY, matchId, round, bits]` holds the
+  direction bits from that log tick on (a tap shorter than the tick still counts on its first step), and
+  `[seq, tick, PRESS, matchId, round, ordinal, offset]` is one fire press: a gesture id (`EntryRules.ordinal`, rising
+  along a stream, so repeats and stale presses never fold) and the step (0–2) of the log tick it came in.
+- **Fold**: a log tick of 50 ms runs three `step`s; each step holds the seat's directions plus `FIRE` on exactly the
+  step of each press, so a short tap fires on its step and a held button fires once. Bot seats are `RoundConfig.bots`.
+- **Hash**: `hashPlain` (`src/online/hash.ts`) walks the whole room as plain data (numbers by their bits, typed arrays,
+  sorted keys), so state added later is covered; only the latest step's `events` are left out. About 0.6 ms a call.
+- **Checkpoint**: none yet; `decode` refuses every snapshot until the validated codec (the next pull request).
+- **`RULES`** (`src/engine/index.ts`) and `tests/online-golden.test.ts`, a scripted six-gunship match replayed to
+  recorded hashes: a change to how a logged room plays bumps `RULES` and re-records them (`GOLDEN_RECORD=1`) in the same
+  commit; a failure without one is a regression ([engine-safety-net.md](../../../docs/design/engine-safety-net.md)).
