@@ -18,6 +18,7 @@ export {
   type WorldView,
 } from "./view.js";
 export { seedOf } from "./rng.js";
+export { decodeWorld, encodeWorld } from "./codec.js";
 export {
   CAPACITY,
   HERO_KINDS,
