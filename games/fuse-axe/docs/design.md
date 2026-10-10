@@ -97,10 +97,13 @@ drops pots and meat (meat heals). Then the next stage.
 - Heroes and grunts are about 32 × 48 pixels, bosses up to 64 × 72. Sprites face right and flip for left; every
   entity has a soft ellipse shadow on the floor, which also shows a jumping figure's depth.
 - Sprites are drawn from palette-indexed pixel data in code, so palette swaps (enemy tiers, duplicate heroes,
-  damage flash) are free and no sprite sheet is checked in. (The two PNGs under `docs/images/` are screenshots of the
-  concept page, for readers who cannot open it.)
+  damage flash) are free and no sprite sheet is checked in. (The PNGs under `docs/images/` are screenshots of the
+  concept page and of the Stage 1 backdrop, for readers who cannot open them.)
 - Draw order is by floor depth (further up the screen is further away), then by height.
-- Parallax backgrounds of two to three layers per stage.
+- Parallax backgrounds (`src/render/backdrop/`, one module per stage): static layers are painted once and blitted at
+  whole-pixel offsets, and only fires and torches draw per frame. Stage 1 has the sky, a ridge with Vorhal's keep (1/8
+  speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in front; it ends at the
+  village gate ([screenshot](images/stage1-backdrop.png)).
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
   and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives.
 
