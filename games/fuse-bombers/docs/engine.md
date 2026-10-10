@@ -379,10 +379,10 @@ enclosed yet reachable.
 
 ## Online (`src/online/`)
 
-`src/online/game.ts` is the round behind the netcode's `RollbackGame`, shaped like Fuse Choppers' (the room page comes
-later). Settings `{ wins: 1–9 (3), difficulty, display }`; six seats, two gunships (bots count) to take off. A round is
-a 3 s countdown, play, a 2 s aftermath once decided and a 5 s scoreboard; crowns are kept by member id, so a rider who
-joins mid-match flies from the next round, and too few gunships send the room back to its lobby.
+`src/online/game.ts`, the round behind the netcode's `RollbackGame`, is shaped like Fuse Choppers'. Settings
+`{ wins: 1–9 (3), difficulty, display }`; six seats, two gunships (bots count) to take off. A round is a 3 s countdown,
+play, a 2 s aftermath and a 5 s scoreboard; crowns go by member id, so a rider who joins mid-match flies from the next
+round, and too few gunships send the room back to its lobby.
 
 - **Entries**, each counting only in the match and round it names: `[seq, tick, PLAY, matchId, round, bits]` holds the
   direction bits from that log tick on (a tap shorter than the tick still counts on its first step), and
@@ -391,11 +391,11 @@ joins mid-match flies from the next round, and too few gunships send the room ba
 - **Fold**: a log tick of 50 ms runs three `step`s; each step holds the seat's directions plus `FIRE` on exactly the
   step of each press, so a short tap fires on its step and a held button fires once. Bot seats are `RoundConfig.bots`.
 - **Hash**: `hashPlain` (`src/online/hash.ts`) walks the whole room as plain data (numbers by their bits, typed arrays,
-  sorted keys), so state added later is covered; only the latest step's `events` are left out. About 0.6 ms a call.
+  sorted keys), so state added later is covered; only the latest step's `events` are left out. About 1 ms a call.
 - **Checkpoint**: none yet; `decode` refuses every snapshot until the validated codec (the next pull request).
 - **This device** (`src/online/runtime.ts`, `BombersRuntime`): `input(bits)` logs the directions on change (and again
   for a new round); `fire()` logs a `PRESS` with the next ordinal and the step its moment falls on in the shared clock's
   current log tick.
 - **`RULES`** (`src/engine/index.ts`) and `tests/online-golden.test.ts`, a scripted six-gunship match replayed to
-  recorded hashes: a change to how a logged room plays bumps `RULES` and re-records them (`GOLDEN_RECORD=1`) in the same
-  commit; a failure without one is a regression ([engine-safety-net.md](../../../docs/design/engine-safety-net.md)).
+  recorded hashes: a change to how a logged room plays bumps `RULES` and re-records them (`GOLDEN_RECORD=1` prints
+  them) in the same commit; a failure without one is a regression (`docs/design/engine-safety-net.md`).

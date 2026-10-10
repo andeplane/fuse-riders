@@ -36,11 +36,4 @@ export const AVATAR = "gunship";
 export const isAvatar = (value: unknown): value is string => value === AVATAR;
 
 export const BOT_PREFIX = "bot:";
-export const BOT_NAMES = [
-  "Baron Boom",
-  "Gale Gunner",
-  "Captain Kite",
-  "Rocket Rae",
-  "Blimp Bo",
-  "Zeppo",
-] as const;
+export const BOT_NAMES = ["Baron", "Gale", "Kite", "Rae", "Blimp", "Zeppo"];

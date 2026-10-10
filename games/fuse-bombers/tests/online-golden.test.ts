@@ -5,16 +5,15 @@ import { DOWN, LEFT, RIGHT, RULES, UP } from "../src/engine/index.js";
 import * as online from "../src/online/game.js";
 
 /**
- * The online safety net: two scripted pilots and four hard bots play a match to two wins through the fold (held
- * directions, fire presses on every step offset, rounds and scoreboards), and the room's hash is recorded every minute
- * of play and at the end. A refactor must keep these. A change to how a logged room plays, in the engine or the fold,
- * bumps `RULES` in `src/engine/index.ts` and re-records them in the same commit (`GOLDEN_RECORD=1` prints them); a
- * failure without such a change is a regression to fix (docs/design/engine-safety-net.md, "When the golden fails").
- * The run also measures the fold: six gunships' log tick of three steps against the 6 ms a re-run pass may spend.
+ * The online safety net: two scripted pilots and four bots play a match to two wins through the fold, its hash taken
+ * every minute and at the end (the run also times six gunships' log tick, against a re-run pass's 6 ms). A change to how
+ * a logged room plays bumps `RULES` in `src/engine/index.ts` and re-records these in the same commit (`GOLDEN_RECORD=1
+ * pnpm exec tsx --test games/fuse-bombers/tests/online-golden.test.ts` prints them to paste); a failure without one is
+ * a regression to fix (docs/design/engine-safety-net.md, "When the golden fails").
  */
 const GOLDEN = {
   rules: "fuse-bombers-1",
-  end: "over at 5646: b:last-standing b:last-standing → b",
+  end: "over at 5646: b:last-standing b:last-standing → b, shots 86,86",
   hashes: [
     "44d88bd44f811771",
     "671eb7cb8e4cb55b",
@@ -32,6 +31,7 @@ function record() {
   const room = online.createRoom("golden", settings);
   let seq = 0,
     ordinal = 0;
+  const shots = [0, 0]; // the pilots' volleys, so the script is seen to play
   const fold = (bodies: Record<string, unknown[][]>) => {
     const tick = room.tick + 1,
       streams = new Map<string, StreamEntries<online.Entry>>();
@@ -39,7 +39,8 @@ function record() {
       const entries = list.map((body) => [++seq, tick, ...body]);
       streams.set(id, { generation: 1, entries: entries as online.Entry[] });
     }
-    online.foldTick(room, "a", streams);
+    for (const e of online.foldTick(room, "a", streams))
+      if (e.type === "fired" && e.castleId < 2) shots[e.castleId]!++;
   };
   const bots = [2, 3, 4, 5].map((n) => [BOT, "add", `bot:${n}`, "Zeppo", n]);
   fold({
@@ -75,7 +76,7 @@ function record() {
   hashes.push(online.hash(room));
   const rounds = room.results.map((r) => `${r.winner || "draw"}:${r.reason}`);
   return {
-    end: `${room.stage} at ${room.tick}: ${rounds.join(" ")} → ${room.winner}`,
+    end: `${room.stage} at ${room.tick}: ${rounds.join(" ")} → ${room.winner}, shots ${shots}`,
     hashes,
     ms,
   };

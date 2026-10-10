@@ -26,7 +26,9 @@ export function hashPlain(value: unknown, skip: ReadonlySet<string>): string {
     }
   };
   function feed(v: unknown): void {
-    if (typeof v === "number") {
+    if (v !== v)
+      word(10); // NaN: one value, whatever bits the engine keeps
+    else if (typeof v === "number") {
       view.setFloat64(0, v === 0 ? 0 : v, true);
       word(1);
       word(view.getUint32(0, true));
@@ -58,7 +60,7 @@ export function hashPlain(value: unknown, skip: ReadonlySet<string>): string {
       const record = v as Record<string, unknown>;
       word(9);
       fields(Object.keys(record), (k) => record[k]);
-    } else throw new TypeError(`not plain data: ${String(v)}`);
+    } else throw new TypeError(`not plain data: ${typeof v}`);
   }
   feed(value);
   const hex = (h: number) => (h >>> 0).toString(16).padStart(8, "0");
