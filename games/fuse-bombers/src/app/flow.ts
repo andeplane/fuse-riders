@@ -2,7 +2,6 @@ import type { RoundView, TickEvent } from "../engine/index.js";
 import type { MusicKind } from "./audio/index.js";
 import { css } from "../render/palette.js";
 import type { PlayerLook, RoundSource } from "../render/round-scene.js";
-import { createBotPlayer } from "./bot.js";
 import {
   fireKeyLabel,
   type BrowserInput,
@@ -280,7 +279,7 @@ export class Flow implements RoundSource {
     const seats = new Lobby().seats();
     this.runner = new RoundRunner({
       seed: this.seed++,
-      controllers: seats.map((s) => createBotPlayer("normal", s.slot, s.slot)),
+      seats: seats.map(() => "normal"),
       aftermath: 3,
     });
     this.options.show(
@@ -300,9 +299,7 @@ export class Flow implements RoundSource {
     const seed = this.seed++;
     this.runner = new RoundRunner({
       seed,
-      controllers: this.seats.map((s) =>
-        s.device ? null : createBotPlayer(s.difficulty, s.slot, seed + s.slot),
-      ),
+      seats: this.seats.map((s) => (s.device ? null : s.difficulty)),
       input: {
         takePresses: (slots) => hub.takePresses(slots),
         heldBits: (slot) => hub.heldBits(slot),

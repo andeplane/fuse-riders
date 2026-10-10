@@ -2,8 +2,7 @@
 
 A party artillery game for 2–6 players, humans and bots, on one keyboard, a few gamepads or a touch screen. Gunships
 fly round a destructible floating temple and lob rockets across it, and the rockets fly through multiplier gates to
-turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md): bots do not fly yet, and touch
-riders cannot steer yet.)
+turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md): touch riders cannot steer yet.)
 
 **Play it: <https://andeplane.github.io/fuse-riders/fuse-bombers/>**, or pick it from the app portal (the dot-grid
 button at the top left of every Fuse game's lobby). It is a local game: no rooms, no accounts, everyone at one screen.
@@ -57,7 +56,9 @@ quits; on a pad Start confirms and pauses, Back goes back or pauses, and holding
 touch screen tap the on-screen buttons, and the `II` corner button pauses.
 
 Lobby shortcuts: `2`–`6` sets the player count, `R` cycles rounds to win (1–5; the `+`/`−` buttons go up to 9), `B`
-cycles every bot's level (bots start on easy), and `Enter` starts. Click a bot to change its level. Mid-round, `Esc` or a pad's Start/Back
+cycles every bot's level (bots start on easy), and `Enter` starts. Click a bot to change its level: easy bots wander
+and miss a lot, normal ones hunt the weak and finish most rounds before the fuse, hard ones aim tighter and dodge.
+Bots fly and fire like you (the same controls, no extra physics). Mid-round, `Esc` or a pad's Start/Back
 pauses; while paused, `Enter`/`Esc` resume and `Backspace` quits to the lobby. On the winner screen, `Enter`
 plays again and `Esc` or `Backspace` returns to the lobby.
 

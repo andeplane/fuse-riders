@@ -30,8 +30,8 @@ export {
 export { predictGhostBomb, predictTrajectory } from "./predict.js";
 export { DOWN, FIRE, INPUT_MASK, isInput, LEFT, RIGHT, UP } from "./input.js";
 export { GHOST_FLIGHT, GUNSHIP_FLIGHT } from "./flight.js";
-export { BOT_DIFFICULTIES, createBot } from "./bot.js";
-export type { Bot, BotConfig, BotDifficulty } from "./bot.js";
+export { BOT_DIFFICULTIES } from "./bot.js";
+export type { BotDifficulty, BotMemory, BotSeat } from "./bot.js";
 export type {
   ImpactKind,
   PredictOptions,

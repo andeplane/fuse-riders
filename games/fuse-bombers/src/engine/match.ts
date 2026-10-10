@@ -1,5 +1,6 @@
 // Match bookkeeping: first to N round wins. Rounds get their own seeds derived from the match seed.
 
+import { validateBots, type BotSeat } from "./bot.js";
 import { hashSeed } from "./rng.js";
 import { MAX_PLAYERS, MIN_PLAYERS, type Tuning } from "./tuning.js";
 import type { RoundConfig, RoundResult } from "./types.js";
@@ -9,6 +10,8 @@ export interface MatchConfig {
   playerCount: number;
   /** Round wins needed to take the match (default 3). */
   winsToWin?: number;
+  /** Seats the engine plays, passed to every round (`RoundConfig.bots`). */
+  bots?: readonly BotSeat[];
   tuning?: Partial<Tuning>;
 }
 
@@ -33,6 +36,7 @@ export function createMatch(config: MatchConfig): MatchState {
   const winsToWin = config.winsToWin ?? 3;
   if (!Number.isInteger(winsToWin) || winsToWin < 1)
     throw new RangeError("winsToWin must be >= 1");
+  validateBots(config.bots, n);
   return {
     config,
     winsToWin,
@@ -48,6 +52,7 @@ export function nextRoundConfig(match: MatchState): RoundConfig {
     seed: hashSeed(match.config.seed, match.history.length + 1),
     playerCount: match.config.playerCount,
   };
+  if (match.config.bots) config.bots = match.config.bots;
   if (match.config.tuning) config.tuning = match.config.tuning;
   return config;
 }

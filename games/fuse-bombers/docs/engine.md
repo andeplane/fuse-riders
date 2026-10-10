@@ -44,7 +44,7 @@ import {
   type RoundView,
 } from "../engine/index.js";
 
-const round = createRound({ seed: 1234, playerCount: 4 }); // optional `tuning: Partial<Tuning>`
+const round = createRound({ seed: 1234, playerCount: 4 }); // optional `bots`, `tuning: Partial<Tuning>`
 // every tick:
 const events = step(round, held); // held[playerId] = UP | DOWN | LEFT | RIGHT | FIRE bits held this tick
 render(round as RoundView, events);
@@ -53,7 +53,8 @@ if (round.result) {
 }
 ```
 
-- `createRound(config)` → `RoundState`. Throws `RangeError` for `playerCount` outside 2..6 or a non-finite seed. The
+- `createRound(config)` → `RoundState`. Throws `RangeError` for `playerCount` outside 2..6, a non-finite seed or
+  malformed `bots` (see "Bots": distinct integer seats below `playerCount`, each with a known difficulty). The
   world is always the temple (`buildTempleGrid()`); the gunships start at rest at `spawnOrder(playerCount, seed)`, a
   spread, symmetric set of the map's spawn anchors (through `placeClear`, which leaves the anchors' open air as it is).
 - `step(state, held)` mutates `state` in place and returns the events of **this one tick** (also on `state.events`,
@@ -61,7 +62,8 @@ if (round.result) {
   and hand all of them to render and audio, or it drops events. `held[playerId]` is the input bits that player holds
   this tick (`UP 1, DOWN 2, LEFT 4, RIGHT 8, FIRE 16`, exported with `INPUT_MASK` and `isInput`); a missing entry, or
   one that is not an integer of those bits (`isInput`: NaN, fractions, negatives, 32 and up, non-numbers), holds
-  nothing, and entries past the last seat are ignored. The directions steer the gunship (see "Flight" under Rules). A
+  nothing, and entries past the last seat are ignored, as are the entries of bot seats, whose bits `step` works out
+  itself first. The directions steer the gunship (see "Flight" under Rules). A
   **fire press is the rising edge of `FIRE`** against the bits of the previous step, kept per seat in
   `state.lastHeld` (plain data, so a clone carries it): holding fire fires once at most, and only a release and a new
   press fires again. A press fires only when the castle `isLoaded`, at the angle it had _before_ this step (the angle
@@ -73,10 +75,10 @@ if (round.result) {
   for the aftermath but never fires, drops ghost bombs, damages (no `hit` or `ghost-bomb-hit`) or changes the result
   again.
 - `view(state)` returns the same object typed as `RoundView` (deep read-only, without the RNG state and the spawn
-  schedule, which would let a bot see the future). Hand render and bots a `RoundView`; only the app loop holds the
+  schedule, which would let a bot see the future, nor the bots' memory). Hand render a `RoundView`; only the app loop holds the
   mutable `RoundState`. Everything is plain data, so `structuredClone(state)` works.
 
-Match helper (first to N wins, default 3): `createMatch({ seed, playerCount, winsToWin? })`,
+Match helper (first to N wins, default 3): `createMatch({ seed, playerCount, winsToWin?, bots? })`,
 `nextRoundConfig(match)` (derives a fresh seed per round), `recordRoundResult(match, result)` → match winner or null.
 Draws count for nobody.
 
@@ -154,50 +156,61 @@ uses it for the drop guide.
 
 ## Bots
 
-`src/engine/bot.ts` plays a castle with the fire button alone, using only the view, `futureAngle` and
-`predictTrajectory`: it does not steer yet, so its gunship and ghost stay where they appear (until bots move into the
-round state with flight, the next step of the overhaul). The app's `createBotPlayer` holds `FIRE` on the steps it
-presses; it presses only when loaded, so each press is a fresh rising edge.
+Bots live inside the round. `RoundConfig.bots` names the seats the engine plays, each `{ id, difficulty }` with
+`difficulty` one of `BOT_DIFFICULTIES` (`"easy" | "normal" | "hard"`); `createMatch` takes the same list and passes it
+to every round. Each `step` first works out those seats' bits with `botInput` (`src/engine/bot.ts`) from the state
+before anything moves, and ignores what `held` says for them. A bot holds the same bits a human holds (directions, and
+`FIRE` on the step it presses, only when loaded, so every press is a fresh rising edge) and gets no physics of its own.
 
 ```ts
-import { createBot, FIRE, type Bot } from "../engine/index.js";
-
-const bot: Bot = createBot({ difficulty: "normal", playerId: 3, seed }); // "easy" | "normal" | "hard"
-held[3] = bot(view(round)) ? FIRE : 0; // call once per tick, before `step`; true = press this tick
-
-// For a `(view, playerId) => boolean` policy:
-const bots = new Map(
-  ids.map((id) => [id, createBot({ difficulty, playerId: id, seed })]),
-);
-const policy = (v: RoundView, id: number) => bots.get(id)?.(v) ?? false;
+const round = createRound({
+  seed,
+  playerCount: 4,
+  bots: [{ id: 3, difficulty: "normal" }],
+});
+step(round, held); // held[3] is ignored: seat 3 is the engine's
 ```
 
-A bot is a closure with a little memory: call it every tick of a round. The view may be the live state or a fresh copy
-each tick (a snapshot or `structuredClone` is fine). It resets itself when a new round starts, detected by the tick going
-backwards or `config.seed` changing (not by object identity), so one bot can play a whole match. Its RNG is reseeded
-each round from `seed` and the round's seed, so every round gets its own timing errors and a reused bot plays exactly
-like a fresh one. It is deterministic given `seed` and the views it sees, and never mutates the view.
+Everything a bot remembers is plain data in `state.bots` (`BotMemory`: its seat and difficulty, its own mulberry32
+state seeded from the round's seed and its seat, target, spot, waypoint, next plan tick, pending press tick and a dodge),
+so a `structuredClone`, a checkpoint or a rollback carries it and a replay presses exactly as before; there are no
+closures and no module state (the tables the module builds at load are constants). It decides from the view (which
+hides `state.bots`, so one bot cannot read another's plans) plus its own memory. A checkpoint codec must refuse
+non-finite numbers in it and a seat or difficulty other than `config.bots` says.
 
-How it plays: while reloading it evaluates one candidate shot per `thinkEvery` ticks (the angle `reaction` ticks ahead)
-and scores it: a hit on an opponent, weighted towards the weakest castle, the leader and whoever hit it last; near misses
-partly; gate multipliers multiply the value and crates add to it. Each score is smoothed with its neighbouring angles
-(timing is never exact), and once loaded the bot presses when a shot is close to the best of the last full turn, relaxing
-its standards the longer it waits. The press lands up to `timingError` ticks early or late.
+How a gunship bot plays:
 
-An eliminated bot plays its ghost: when loaded it predicts the drop `reaction` ticks ahead with `predictGhostBomb` and
-presses (with the same timing error) when the bomb would hit a castle or land within `ghostSlack` of one (easy 70 px,
-normal 40, hard 25). Since it does not steer, its ghost hovers above the wreck and seldom has anything below it.
+- **Target and spot.** Every 1.2–2.8 s it picks a target (weak castles, the leader and whoever hit it last count more,
+  far ones less, with a little luck and some loyalty to the last one) and a spot to fight from: twelve points on a
+  circle round the target at its range, plus points behind each gate as the target sees it (so its shots go through
+  the gate), the nearest in open air with a clear straight line to the target, not far below it, not next to another
+  ship.
+- **Flying.** It steers for the spot when a lane a gunship wide is clear of rock; otherwise round the temple on the
+  flyway (`TEMPLE_FLYWAY`, fourteen open-sky points in a ring, each in sight of the next) the shorter way, to the
+  furthest of the next points in sight; out of a pocket with no flyway point in sight (the cave), along the longest
+  clear lane. Desired velocity is full speed, braking into the spot, plus a push apart from ships within 170 px; when
+  its coasting path runs into rock within its look-ahead it brakes; then it holds the one of the eight directions
+  nearest the velocity change it wants that has no rock just ahead of its hull (nothing when it is there).
+- **Firing.** Every `thinkEvery` ticks while its reload is about done it works out, for each opponent in range (low and
+  high arc, the ballistic angle to where the target will be by the time the rocket gets there) and each crate near, how
+  many ticks until the turning launcher points that way. A shot that comes round between `reaction` and
+  `reaction + thinkEvery` ticks on is a candidate; the likeliest few are checked with `predictTrajectory` on a view with
+  its gunship where coasting takes it and the castles led as aimed, valued (a direct hit 1, splash partly, times the
+  gates it passes, plus crates), and the first worth a volley is planned: the bot lets go of the stick so it coasts to
+  where it planned from and presses then, give or take its timing error.
+- **Dodging.** Sometimes it sidesteps a rocket about to pass within 70 px in the next half second.
+- **Ghost.** Once its castle falls it flies its ghost to a point above a target (leading it by a bomb's fall) and, when
+  loaded, drops when `predictGhostBomb` (assuming it coasts from now, which it then does) lands within its slack.
 
-| Difficulty | Timing error | Thinks every | Other                                                  |
-| ---------- | ------------ | ------------ | ------------------------------------------------------ |
-| easy       | ±10 ticks    | 4 ticks      | often fires a nervous random shot, barely values gates |
-| normal     | ±3 ticks     | 2 ticks      | likes gates and crates, some focus on weak castles     |
-| hard       | ±1 tick      | 1 tick       | picky, hunts gates and crates, finishes low-HP castles |
+| Difficulty | Reaction | Timing error | Looks every | Range  | Other                                                      |
+| ---------- | -------- | ------------ | ----------- | ------ | ---------------------------------------------------------- |
+| easy       | 22 ticks | ±6 ticks     | 6 ticks     | 650 px | does not lead its shots or dodge, barely values gates      |
+| normal     | 15 ticks | ±2 ticks     | 4 ticks     | 500 px | leads 80 %, likes gates and crates, some focus on the weak |
+| hard       | 10 ticks | ±1 tick      | 3 ticks     | 420 px | picky, leads 90 %, hunts gates, finishes the weak, dodges  |
 
-From the temple's spawn anchors aim rarely decides a round while bots do not fly (see the measurements under Rules). Lined
-up in range in open air (`lineUp` in `tests/engine-helpers.ts`), hard beats easy in at least 9 of 12 duels
-(`tests/engine-bot.test.ts`). Before the sky overhaul the difficulties were measured on the one-screen arena (git
-history of this page has the numbers).
+In seeded bots-only duels on the temple, hard beats easy and normal beats easy in 24 of 24, and hard beats normal in
+all 24 (`tests/engine-bot.test.ts` asserts hard beats easy in at least 9 of 12). Round lengths and costs are under
+Rules; [images/flying-bots.png](images/flying-bots.png) is a six-bot match 20 s in.
 
 ## Flight kernel
 
@@ -302,24 +315,30 @@ GUNSHIP_FLIGHT, world)` in seat order, where `world` is the round's grid seen th
   times the sudden-death scale), carves an 18 px crater, is never multiplied by gates and never takes crates. Ghosts
   cannot win: the round still ends when ≤ 1 castle stands, and they stop dropping once it is over.
 
-Measured headlessly on the big map before gunships flew (bots, which do not steer yet, still end their rounds in sudden
-death; bots only, all castles on one difficulty, 20 seeds per player count, seeds
-`s · 7919 + players`): every round reaches sudden death, with a median length of 131–134 s (p90 at most 136 s) for
-every difficulty and 2–6 players; none needs the 180 s stop. The same measurement on the old one-screen arena gave hard
-40–52 s, normal 42–75 s and easy 99–124 s, mostly before the fuse. From their spawn anchors, a sweep of all 360 whole
-degrees finds a direct hit for 0 of the 12 ordered pairs of two-player rounds and 10 of 180 in six-player rounds (6
-seeds each): the castles mostly wait for the bombs. In range (`lineUp`, 600–1200 px apart in open air), the "decent
-aimer" of `tests/engine-balance.test.ts` (presses 8 ticks ahead, ±3 ticks off) beats "fire whenever loaded" in nearly
-every round, but its own duels mostly reach sudden death too: the launcher turns 100° a second, so a 3-tick slip is a 5°
-miss, and a near miss in open air splashes nobody. Bots that fly come next.
+Bots only, all on one difficulty, 20 seeds per player count (seeds `(s + 1) · 7919 + players`,
+`pnpm exec tsx games/fuse-bombers/preview/step-cost.ts --rounds`), median round length and the share over before the
+90 s fuse; no round needs the 180 s stop:
 
-A step with bots thinking costs, averaged over whole six-player rounds (Node 24): easy 62 µs, normal 114 µs, hard
-175 µs (the old arena: 86 / 155 / 259 µs; `predictTrajectory` only works out where a gate or crate is when the rocket
-is inside the box it sweeps). The slowest single step seen was 16 ms (warm-up and garbage collection included). `createRound` takes ~2 ms,
-nearly all of it painting the temple. Flight adds about 10 µs: six gunships on seeded random holds (a new direction
-every 20–80 ticks) that fire whenever loaded average 24.5 µs a step over four whole six-player rounds (seeds 1–4, about
-32 000 steps, Node 24, the warm pass), against 15 µs for the same rounds with nobody steering
-(`pnpm exec tsx games/fuse-bombers/preview/step-cost.ts`).
+| Players | easy        | normal      | hard        |
+| ------- | ----------- | ----------- | ----------- |
+| 2       | 113 s, 5 %  | 85 s, 70 %  | 81 s, 60 %  |
+| 3       | 108 s, 10 % | 75 s, 70 %  | 81 s, 65 %  |
+| 4       | 93 s, 45 %  | 68 s, 100 % | 69 s, 95 %  |
+| 5       | 86 s, 55 %  | 61 s, 100 % | 67 s, 100 % |
+| 6       | 83 s, 70 %  | 60 s, 100 % | 65 s, 100 % |
+
+Hard mirror matches run a little longer than normal ones because hard bots dodge. Before bots flew, every round on the
+big map reached sudden death (a median of 131–134 s for every difficulty and player count), since from their spawn
+anchors few castles could hit each other. In range (`lineUp`, 600–1200 px apart in open air), the "decent aimer" of
+`tests/engine-balance.test.ts` (presses 8 ticks ahead, ±3 ticks off) beats "fire whenever loaded" in nearly every round.
+
+Cost: averaged over four whole six-player rounds (seeds 1–4, Node 24, the warm pass of
+`pnpm exec tsx games/fuse-bombers/preview/step-cost.ts`, on a desktop busy with other work), a step costs 21 µs with
+nobody steering, 32 µs with six gunships on seeded random holds (a new direction every 20–80 ticks) firing whenever
+loaded, and 38 / 51 / 45 µs with six easy / normal / hard bots flying and fighting (the closure bots that did not fly
+cost 62–175 µs). A bot predicts a shot only when the launcher is about to come round to one, a few times a reload,
+and routes every 0.2–0.5 s and plans every 1.2–2.8 s, staggered across seats. `createRound` takes ~2 ms, nearly all of it painting the
+temple.
 
 ## Bitmap terrain and the temple map
 
