@@ -31,3 +31,9 @@ engine state fails to compile until it has frames. `tests/animate-engine.test.ts
 To see every figure's frames at 3× and 1×, each hero's swaps, flash, flip and portrait, and a reel per anim at game
 speed, run `pnpm exec vite` and open `/games/fuse-axe/lab/sprites.html`. The lab is dev-only: it is not in the build
 and not on the portal. [`docs/images/brakka-frames.png`](docs/images/brakka-frames.png) is a screenshot of it.
+
+The ravager (`src/render/art/ravager.ts`) paints every frame on one canvas with one feet anchor, so its frames line
+up on the floor; its falling poses are standing poses tipped over backwards (`tipped`). `RAVAGER_ANIMS` lists each
+anim's frames with the simulation steps each shows, and `RAVAGER_TIERS` (rust, violet) recolour its tier ramp; ash is
+its own palette. Below the sheet the lab packs each animated figure's frames onto one floor in every swap and plays
+its anims; [`docs/images/ravager-lab.png`](docs/images/ravager-lab.png) is a screenshot of the ravager's.
