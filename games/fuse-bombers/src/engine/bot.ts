@@ -3,6 +3,7 @@
 // physics) where that shot would go, scores it, and when it likes the shot it presses `reaction`
 // ticks later, give or take a difficulty-dependent timing error.
 
+import { exp, hypot, log2 } from "./det-math.js";
 import { castleCenter } from "./geometry.js";
 import {
   predictGhostBomb,
@@ -170,7 +171,7 @@ export function createBot(config: BotConfig): Bot {
         view.castles.some((c) => {
           if (!c.alive) return false;
           const center = castleCenter(c, view.tuning);
-          return Math.hypot(x - center.x, y - center.y) < p.ghostSlack;
+          return hypot(x - center.x, y - center.y) < p.ghostSlack;
         }));
     if (!near) return false;
     const err = int(rng, -p.timingError, p.timingError);
@@ -318,12 +319,12 @@ function scoreShot(
     closest = 0;
   } else if (kind === "terrain") {
     const reach =
-      (t.craterRadius + t.castleRadius + 20) * (1 + 0.35 * Math.log2(swarm));
+      (t.craterRadius + t.castleRadius + 20) * (1 + 0.35 * log2(swarm));
     for (const o of view.castles) {
       const w = weights[o.id] ?? 0;
       if (w === 0) continue;
       const c = castleCenter(o, t);
-      const d = Math.hypot(x - c.x, y - c.y);
+      const d = hypot(x - c.x, y - c.y);
       closest = Math.min(closest, d);
       hit = Math.max(hit, 0.7 * w * Math.max(0, 1 - d / reach));
     }
@@ -335,6 +336,6 @@ function scoreShot(
     hit * (1 + p.gateLove * (swarm - 1)) +
     p.crateLove * crates +
     // Swarms that miss still chew terrain (and may clip someone); a small reward for spectacle.
-    0.03 * p.gateLove * Math.log2(swarm);
-  return value + 0.02 * Math.exp(-closest / 300);
+    0.03 * p.gateLove * log2(swarm);
+  return value + 0.02 * exp(-closest / 300);
 }
