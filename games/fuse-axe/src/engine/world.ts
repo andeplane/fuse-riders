@@ -292,7 +292,10 @@ export function newEnemy(
 export const present = (hero: Hero): boolean =>
   hero.state !== "dead" && hero.state !== "respawn" && hero.state !== "out";
 
-/** Every hero is out of lives: the run is lost, unless the party continues. */
+/**
+ * Every hero is out of lives: the run is lost, unless the party continues. The last to fall lies `RESPAWN_DELAY`
+ * steps before it is out, so the run is lost a beat after the fall rather than at it.
+ */
 export const defeated = (world: World): boolean =>
   world.heroes.length > 0 && world.heroes.every((hero) => hero.state === "out");
 

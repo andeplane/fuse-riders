@@ -22,6 +22,7 @@ import {
   type Tier,
   type World,
 } from "../src/engine/index.js";
+import { STAGE_1 } from "../src/engine/stages.js";
 import * as T from "../src/engine/tuning.js";
 import * as Kit from "../src/engine/view-kit.js";
 
@@ -373,6 +374,81 @@ test("a fallen hero holds the camera no more: the others walk on, and with none 
     [RIGHT, RIGHT],
   );
   assert.equal(wiped.camX, 0);
+});
+
+test("a hero whose last life is lost lies where it fell when it goes out, though the camera has left it behind", () => {
+  const party = createWorld({
+    seed: 1,
+    heroes: [
+      { seat: 0, kind: "gorm" },
+      { seat: 1, kind: "rhea" },
+    ],
+  });
+  const lying = {
+    ...hero(party),
+    state: "dead" as const,
+    hp: 0,
+    lives: 0,
+    x: px(20),
+  };
+  let world = { ...party, camX: px(150), heroes: [lying, hero(party, 1)] };
+  world = until(world, (w) => hero(w).state === "out");
+  assert.equal(hero(world).x, px(20));
+  assert.ok(world.camX - hero(world).x > T.VIEW_W / 4, "left behind");
+  kept(world);
+  assert.equal(hero(run(world, 60, [RIGHT, RIGHT])).x, px(20));
+});
+
+test("a hero drops back in on the screen and the floor even at the stage's end, and no mace lands while it drops or blinks", () => {
+  const party = createWorld({
+    seed: 1,
+    heroes: [
+      { seat: 0, kind: "gorm" },
+      { seat: 4, kind: "rhea" },
+    ],
+  });
+  // Every wave begun and cleared, the camera at the stage's end, one hero lying far behind it with a life left.
+  const lying = {
+    ...hero(party),
+    state: "dead" as const,
+    hp: 0,
+    lives: 1,
+    x: px(5),
+  };
+  let world = duel(0, 24);
+  world = {
+    ...party,
+    camX: T.CAMERA_END,
+    wave: STAGE_1.waves.length,
+    heroes: [lying, hero(party, 1)],
+    enemies: world.enemies,
+  };
+  world = until(world, (w) => hero(w).state === "respawn");
+  const { x, y } = hero(world);
+  assert.ok(x >= world.camX + T.HERO_MARGIN, "on screen, left");
+  assert.ok(x <= T.STAGE_LENGTH && x <= world.camX + px(T.VIEW_W), "right");
+  assert.ok(y >= T.FLOOR_TOP && y <= T.FLOOR_BOTTOM, "on the floor band");
+  assert.deepEqual([hero(world).lives, hero(world).hp], [1, T.HERO_HP.gorm]);
+  // A ravager at the drop point winds up and swings: the hero in the air is not struck.
+  world = step(armed(world), []);
+  assert.deepEqual(
+    [hero(world).state, hero(world).hp],
+    ["respawn", T.HERO_HP.gorm],
+  );
+  world = until(world, (w) => hero(w).state === "idle");
+  const blink = hero(world).invulnUntil;
+  assert.equal(blink, world.step + T.RESPAWN_INVULN);
+  // Nor while it blinks, but the step after it ends one does.
+  world = step(armed(world), []);
+  assert.deepEqual(
+    [hero(world).state, hero(world).hp],
+    ["idle", T.HERO_HP.gorm],
+  );
+  world = until(world, (w) => w.step === blink);
+  world = step(armed(world), []);
+  assert.equal(hero(world).state, "hurt");
+  assert.ok(hero(world).hp < T.HERO_HP.gorm);
+  assert.equal(hero(world).lives, 1);
 });
 
 test("an enemy beside a hero lying down waits out its pause instead of deciding every step, then swings at the one who rises", () => {

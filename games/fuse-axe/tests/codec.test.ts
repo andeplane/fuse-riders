@@ -224,7 +224,16 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     ],
     ["a hero flying from the last blow", (f) => life(f, "knockdown", 0, 1)],
     ["a hero fallen with a life left", (f) => life(f, "dead", 0, 1)],
+    ["a hero fallen on the first life", (f) => life(f, "dead", 0, LIVES - 1)],
+    // Fallen on its last life, it lies `RESPAWN_DELAY` steps before it is out.
+    ["a hero fallen on its last life", (f) => life(f, "dead", 0, 0)],
     ["a hero out", (f) => life(f, "out", 0, 0)],
+    ["a hero dropping back in", (f) => life(f, "respawn", brakka, 2)],
+    ["a hero dropping in on its last life", (f) => life(f, "respawn", 1, 1)],
+    [
+      "a hero flying from its last life's blow",
+      (f) => life(f, "knockdown", 0, 1),
+    ],
     ["the longest blink", (f) => (hero(f)[21] = now + RESPAWN_INVULN)],
     [
       "a run of hits short of a knockdown",
@@ -273,6 +282,10 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     ["a fourth life", (f) => (hero(f)[20] = LIVES + 1)],
     ["a hero swinging with no life", (f) => (hero(f)[20] = 0)],
     ["a hero out with a life left", (f) => life(f, "out", 0, 1)],
+    ["a hero fallen with every life", (f) => life(f, "dead", 0, LIVES)],
+    ["a hero dropping in with no life", (f) => life(f, "respawn", brakka, 0)],
+    ["a hero dropping in with no hp", (f) => life(f, "respawn", 0, 2)],
+    ["a hero flying with no life", (f) => life(f, "knockdown", 0, 0)],
     ["a blink too long", (f) => (hero(f)[21] = now + RESPAWN_INVULN + 1)],
     ["a run of hits past a knockdown", (f) => (hero(f)[22] = JUGGLE_HITS)],
     ["a run of hits too long", (f) => (hero(f)[23] = now + JUGGLE_WINDOW + 1)],
