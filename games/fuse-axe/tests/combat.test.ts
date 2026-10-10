@@ -465,6 +465,25 @@ test("a spawn takes whole positions and a known kind, and holds the enemy to the
   );
 });
 
+test("the world holds at most ENEMY_MAX enemies, and a full one still survives the checkpoint and fights on", () => {
+  const base = solo("brakka");
+  let world = base;
+  for (let index = 0; index < T.ENEMY_MAX; index++)
+    world = spawnEnemy(world, "ravager", px(60 + index), hero(base).y);
+  assert.equal(world.enemies.length, T.ENEMY_MAX);
+  assert.throws(
+    () => spawnEnemy(world, "ravager", px(100), hero(base).y),
+    RangeError,
+  );
+  assert.equal(world.enemies.length, T.ENEMY_MAX);
+  assert.equal(world.nextId, base.nextId + T.ENEMY_MAX);
+  assert.deepEqual(decodeWorld(structuredClone(encodeWorld(world))), world);
+  // A swing into the crowd hits all it reaches, and a world mid-swing is still one the codec takes back.
+  world = play(world, [ATTACK, ...rest(T.COMBO.brakka[0].startup)]);
+  assert.ok(hero(world).struck.length > 1, "the swing hit the crowd");
+  assert.deepEqual(decodeWorld(structuredClone(encodeWorld(world))), world);
+});
+
 test("heroes never hit each other", () => {
   const pair = createWorld({
     seed: 3,

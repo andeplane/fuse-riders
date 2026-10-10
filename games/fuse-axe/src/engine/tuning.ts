@@ -106,6 +106,11 @@ export const HEAVY_HITSTOP = 8;
 export const ENEMY_KINDS = ["ravager"] as const;
 export type EnemyKind = (typeof ENEMY_KINDS)[number];
 export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = { ravager: 40 };
+/**
+ * The most enemies a world holds at once, a defeated one that has not blinked out yet included. `spawnEnemy` refuses
+ * the next one, so the checkpoint codec's bound on the list (and on the ones a swing has hit) is one no run can pass.
+ */
+export const ENEMY_MAX = 64;
 /** An enemy's body: half its width either side of its centre, and its height above its feet. */
 export const ENEMY_HALF_W = px(10);
 export const ENEMY_HEIGHT = px(44);

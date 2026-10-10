@@ -5,6 +5,7 @@ import {
   CAPACITY,
   ENEMY_HP,
   ENEMY_KINDS,
+  ENEMY_MAX,
   FX_LIFE,
   FX_MAX,
   HEAVY_HITSTOP,
@@ -102,9 +103,8 @@ const ID = int(1, UINT32),
   SPEED = int(-px(16), px(16)),
   FACING = oneOf([1, -1] as const),
   BUFFER = int(0, BUFFER_STEPS);
-/** More enemies than any stage puts on the road at once: the bound on the list, and on the ones a swing has hit. */
-const ENEMY_LIMIT = 64;
 
+// `ENEMY_MAX` bounds the enemy list, and the ones a swing has hit: a hit enemy is not gone within its swing.
 const hero = record<Hero>(
   {
     id: ID,
@@ -123,7 +123,7 @@ const hero = record<Hero>(
     attackBuf: BUFFER,
     jumpBuf: BUFFER,
     stopUntil: COUNT,
-    struck: list(ID, ENEMY_LIMIT),
+    struck: list(ID, ENEMY_MAX),
     damage: COUNT,
     knockdowns: COUNT,
   },
@@ -170,7 +170,7 @@ const world = record<World>(
     nextId: ID,
     camX: int(0, CAMERA_END),
     heroes: list(hero, CAPACITY),
-    enemies: list(enemy, ENEMY_LIMIT),
+    enemies: list(enemy, ENEMY_MAX),
     fx: list(fx, FX_MAX),
   },
   (value) => {

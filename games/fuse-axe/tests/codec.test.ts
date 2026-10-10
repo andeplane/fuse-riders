@@ -17,6 +17,7 @@ import {
   BUFFER_STEPS,
   CAMERA_END,
   ENEMY_HP,
+  ENEMY_MAX,
   FX_LIFE,
   FX_MAX,
   HEAVY_HITSTOP,
@@ -189,7 +190,7 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     ["an Attack just buffered", (f) => (hero(f)[13] = BUFFER_STEPS)],
     ["a knockdown's hit-stop", (f) => (hero(f)[15] = now + HEAVY_HITSTOP)],
     ["an enemy at full health", (f) => (enemy(f)[8] = ENEMY_HP.ravager)],
-    ["the most enemies", (f) => crowd(f, 64)],
+    ["the most enemies", (f) => crowd(f, ENEMY_MAX)],
     ["the most sparks", (f) => (f[7] = Array(FX_MAX).fill(sparks(f)[0]))],
     ["a spark on its last step", (f) => (sparks(f)[0]![4] = now - FX_LIFE + 1)],
   ] as [string, (fields: unknown[]) => void][])
@@ -214,16 +215,19 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     [
       "more struck than the most enemies",
       (f) => {
-        crowd(f, 65 - 1);
+        crowd(f, ENEMY_MAX);
         f[3] = 100;
-        hero(f)[16] = Array.from({ length: 65 }, (_, index) => 3 + index);
+        hero(f)[16] = Array.from(
+          { length: ENEMY_MAX + 1 },
+          (_, index) => 3 + index,
+        );
       },
     ],
     ["negative damage", (f) => (hero(f)[17] = -1)],
     ["a fractional knockdown tally", (f) => (hero(f)[18] = 1.5)],
     ["knockdowns as text", (f) => (hero(f)[18] = "1")],
     ["enemies not a list", (f) => (f[6] = {})],
-    ["more than the most enemies", (f) => crowd(f, 65)],
+    ["more than the most enemies", (f) => crowd(f, ENEMY_MAX + 1)],
     ["an enemy not a tuple", (f) => (enemies(f)[0] = 7 as never)],
     ["an enemy field short", (f) => enemy(f).pop()],
     ["an enemy field over", (f) => enemy(f).push(0)],
