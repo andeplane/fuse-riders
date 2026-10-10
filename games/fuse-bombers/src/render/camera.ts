@@ -1,12 +1,9 @@
 // The framing camera: where the world camera looks and how far it zooms, in plain numbers (no Phaser) so it is
-// unit-tested. Render only, never fed back into the simulation; docs/engine.md "Camera" has the behaviour. A scene,
-// each frame (HUD objects, the markers included, stay on the UI camera in screen pixels):
-//   const pose = updateCamera(this.framing, { points }, delta / 1000);
-//   this.cameras.main.setZoom(pose.zoom).centerOn(pose.centerX, pose.centerY);
-//   for (const m of offscreenMarkers(pose, VIEW, ships)) drawArrow(m.x, m.y, m.angle, m.point.color);
+// unit-tested. Render only, never fed back into the simulation; docs/engine.md "Camera" has the behaviour and the
+// wiring: `cameras.main.setZoom(pose.zoom).centerOn(pose.centerX, pose.centerY)`, the HUD on the UI camera.
 
 export type Size = { readonly width: number; readonly height: number };
-type Point = { readonly x: number; readonly y: number };
+export type Point = { readonly x: number; readonly y: number };
 type Box = { x0: number; y0: number; x1: number; y1: number };
 const EMPTY: Box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
 
@@ -116,7 +113,7 @@ export function snapCamera(camera: Camera, input: CameraInput): CameraPose {
 /** Eases the camera toward this frame's target over `dt` seconds and returns the pose to apply. */
 export function updateCamera(camera: Camera, input: CameraInput, dt: number) {
   const { settings: s, pose } = camera;
-  const time = clamp(finite(dt), 0, s.maxDt);
+  const time = Number.isNaN(dt) ? 0 : clamp(dt, 0, s.maxDt);
   const ease = (tau: number) => (tau > 0 ? 1 - Math.exp(-time / tau) : 1);
   const goal = hold(camera.goal, cameraTarget(camera, input), s);
   const zoomTime = goal.zoom < pose.zoom ? s.zoomOutTime : s.zoomInTime;

@@ -30,13 +30,12 @@ const ships = (...xy: [number, number][]) => ({
 /** Inside the world on each axis, or centred on one the view is wider than. */
 function assertInWorld(pose: CameraPose, view = VIEW): void {
   const r = visibleRect(pose, view);
-  for (const [lo, size, world] of [
-    [r.x, r.width, WORLD.width],
-    [r.y, r.height, WORLD.height],
-  ] as const) {
-    if (size >= world) assert.ok(Math.abs(lo + size / 2 - world / 2) < EPS);
-    else assert.ok(lo >= -EPS && lo + size <= world + EPS, `${lo}+${size}`);
-  }
+  const axis = (lo: number, size: number, world: number) =>
+    size >= world
+      ? Math.abs(lo + size / 2 - world / 2) < EPS
+      : lo >= -EPS && lo + size <= world + EPS;
+  assert.ok(axis(r.x, r.width, WORLD.width), `x ${r.x}+${r.width}`);
+  assert.ok(axis(r.y, r.height, WORLD.height), `y ${r.y}+${r.height}`);
 }
 
 /** The view shows `p` and `pad` around it, as far as the world goes. */
@@ -144,14 +143,21 @@ test("a gunship flying off is never lost, even through frame hitches", () => {
   const cam = camera();
   const parked = ships([2300, 1300], [2600, 1400]).points;
   // A ghost's top speed toward the top-left corner, with a 0.4 s hitch now and then.
-  for (let i = 0; i < 540; i++) {
-    const flier = { x: 2450 - (260 * i) / 60, y: 1350 - (150 * i) / 60 };
-    const input = { points: [...parked, flier] };
-    if (i === 0) snapCamera(cam, input);
-    const pose = updateCamera(cam, input, i % 97 === 0 ? 0.4 : 1 / 60);
-    for (const p of input.points) assertShows(pose, p);
+  let t = 0;
+  for (let i = 0; t < 8.5; i++) {
+    const dt = i % 97 === 0 ? 0.4 : 1 / 60;
+    t += dt;
+    const points = [...parked, { x: 2450 - 260 * t, y: 1350 - 150 * t }];
+    if (i === 0) snapCamera(cam, { points });
+    const pose = updateCamera(cam, { points }, dt);
+    for (const p of points) assertShows(pose, p);
     assertInWorld(pose);
   }
+  // A respawn across the map is in view, with the margin, on the very next frame.
+  snapCamera(cam, { points: parked });
+  const jump = ships([2300, 1300], [4600, 2500]);
+  const pose = updateCamera(cam, jump, 1 / 60);
+  for (const p of jump.points) assertShows(pose, p, DEFAULTS.keepMargin);
 });
 
 test("the dead zone holds the camera still while a hull bobs", () => {
@@ -167,7 +173,7 @@ test("the dead zone holds the camera still while a hull bobs", () => {
 test("long or invalid frame times are clamped; the same frames give the same poses", () => {
   const [a, b] = [camera(), camera()];
   const input = ships([4000, 600]);
-  const once = updateCamera(a, input, 5);
+  const once = updateCamera(a, input, Infinity);
   assert.deepEqual(once, updateCamera(b, input, DEFAULTS.maxDt));
   for (const dt of [NaN, -0.5, 0]) {
     assert.deepEqual(updateCamera(a, input, dt), once);
@@ -190,13 +196,18 @@ test("a personal device follows its gunship with look-ahead and keeps the neares
   // Looping past the opponents far faster than a gunship flies, it stays on screen.
   for (let i = 0; i < 900; i++) {
     const [c, s] = [Math.cos(i / 120), Math.sin(i / 120)];
-    const ship = { x: 2400 + 1900 * c, y: 1350 + 1100 * s, vx: -s, vy: c };
+    const [x, y] = [2400 + 1900 * c, 1350 + 1100 * s];
+    const ship = { x, y, vx: -950 * s, vy: 550 * c };
     const input = { focus: ship, points: [far, near] };
     if (i === 0) snapCamera(cam, input);
     const now = updateCamera(cam, input, 1 / 60);
     assertShows(now, ship);
     assertInWorld(now);
   }
+  // And a respawn across the map is in view on the very next frame.
+  const jumped = { x: 4500, y: 2500 };
+  const next = updateCamera(cam, { focus: jumped, points: [] }, 1 / 60);
+  assertShows(next, jumped, DEFAULTS.keepMargin);
 });
 
 test("off-screen markers sit on the matching edge or corner and point at the ship", () => {
