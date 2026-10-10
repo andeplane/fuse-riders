@@ -74,8 +74,8 @@ export function beard(rig: Rig, h: Point, at: Turn, key: string) {
 
 /**
  * A steel helm over the top of the head, a bronze rim at the brow and two bone horns curving up and out: the far one
- * behind the dome in shadow, the near one in front. Every part is a capsule turned with the head, so a lying hero keeps
- * it on; a palette swap recolours it.
+ * behind the dome in shadow, the near one in front. Sized for `head` at 1.1, as `beard` is. Every part is a capsule
+ * turned with the head, so a lying hero keeps it on; a palette swap recolours it.
  */
 export function hornedHelm(rig: Rig, h: Point, at: Turn) {
   const horn = (side: 1 | -1, o: ShapeOptions) => {

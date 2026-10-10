@@ -292,6 +292,23 @@ test("duplicate heroes each get a palette of their own, the same on every draw",
   assert.deepEqual(same, []);
 });
 
+test("a hero's look depends only on the heroes of its own kind: another kind joining or leaving never recolours it", () => {
+  const kinds: HeroKind[] = ["gorm", "brakka", "gorm", "rhea", "gorm"];
+  const party = kinds.map((kind, seat) => ({
+    ...hero(seat + 1, seat, 60 + seat * 50, 130),
+    kind,
+  }));
+  const all = heroLooks(party);
+  for (const kind of new Set(kinds)) {
+    const own = heroLooks(party.filter((h) => h.kind === kind));
+    for (const { id } of party.filter((h) => h.kind === kind))
+      assert.deepEqual(own.get(id), all.get(id), `${kind} ${id}`);
+  }
+  // Three Gorms are in three palettes whoever else is in the room.
+  const gorms = party.filter((h) => h.kind === "gorm");
+  assert.equal(new Set(gorms.map((h) => all.get(h.id)!.swap)).size, 3);
+});
+
 test("a hero's look is worked out once per roster: it holds across frames and anims, and follows a roster change", () => {
   const looks = createLooks();
   const roster = [0, 1, 2].map((seat) =>
