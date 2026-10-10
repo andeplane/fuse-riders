@@ -58,6 +58,8 @@ export function figure<F extends string, P>(
     frames: Object.keys(poses) as F[],
     swaps,
     sprite(frame) {
+      if (!Object.hasOwn(poses, frame))
+        throw new Error(`The figure has no frame "${frame}"`);
       const sprite = painted.get(frame) ?? paint(poses[frame]);
       painted.set(frame, sprite);
       return sprite;

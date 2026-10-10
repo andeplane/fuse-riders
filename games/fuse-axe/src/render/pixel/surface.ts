@@ -30,7 +30,10 @@ export interface Baked<Image> {
 }
 
 export interface BakeOptions {
-  /** A palette override such as a duplicate hero's; its identity keys the cache, so pass a constant. */
+  /**
+   * A palette override such as a duplicate hero's; its identity keys the cache, so pass a constant (a copy built per
+   * draw is baked again each time) and do not change it afterwards.
+   */
   readonly swap?: Palette;
   /** The damage flash. */
   readonly flash?: boolean;
@@ -77,8 +80,9 @@ export function createSpriteBaker<Image>(
       const slot = (flip ? 2 : 0) + (flash ? 1 : 0);
       const known = variants[slot];
       if (known) return known;
-      validateSprite(sprite);
+      // Validated with the swap applied, so a swap colour that is not `#rrggbb` fails here, not as a wrong pixel.
       let art = swapPalette(sprite, swap);
+      validateSprite(art);
       if (flash) art = { ...art, palette: flashPalette(art.palette) };
       if (flip) art = flipSprite(art);
       const { image, paint } = make(art.w, art.h);

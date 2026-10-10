@@ -5,7 +5,10 @@ import { CLEAR, cropSprite, type Sprite } from "./sprite.js";
  * The sprite rig. Shapes are painted onto a small canvas with a surface normal per pixel; `bake` lights them from
  * the upper left into each material's three-shade ramp and draws a 1-px edge wherever a shape overlaps one behind
  * it. Hand-placed details (eyes, mouths) are stamped onto the baked painting, which then closes with a dark outline
- * around the silhouette. Everything is plain arithmetic on the inputs, so a pose always paints the same rows.
+ * around the silhouette. Everything is plain arithmetic on the inputs, so a pose paints the same rows on every run
+ * (engines may round `Math.hypot`, `Math.atan2` and `**` differently, so a pixel exactly on a shape's edge or a
+ * shade's threshold could differ between browsers; this is presentation only and nothing in the simulation reads it).
+ * Nothing may be painted on the canvas's outermost pixels, where the outline has no room: `sprite` throws.
  */
 export type Point = readonly [x: number, y: number];
 
@@ -20,7 +23,10 @@ export interface ShapeOptions {
   readonly flat?: number;
 }
 
-/** A swing's motion arc around `center`, from `from` to `to` degrees (clockwise from pointing right). */
+/**
+ * A swing's motion arc around `center`, from `from` to `to` degrees (clockwise from pointing right). The arc may cross
+ * straight left (`from: 150, to: 210`) or run backwards (`from > to`), and spans at most one full turn.
+ */
 export interface Smear {
   readonly center: Point;
   readonly inner: number;
@@ -136,27 +142,26 @@ export class Rig {
       });
       return odd;
     };
+    // The way the points wind (the shoelace sum's sign) says which side of every edge is outside.
+    const turn = points.reduce((sum, a, i) => {
+      const b = points[(i + 1) % points.length]!;
+      return sum + a[0] * b[1] - b[0] * a[1];
+    }, 0);
+    const out = turn > 0 ? 1 : -1;
     const sides = points.map((a, i) => {
       const b = points[(i + 1) % points.length]!;
       const [ex, ey] = [b[0] - a[0], b[1] - a[1]];
       const l = Math.hypot(ex, ey) || 1;
-      const [mx, my] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-      const out = inside(mx + (0.3 * ey) / l, my - (0.3 * ex) / l) ? -1 : 1;
       return { a, ex, ey, l2: l * l, nx: (out * ey) / l, ny: (-out * ex) / l };
     });
     this.scan(around(points, 0), (px, py, x, y) => {
       if (!inside(px, py)) return;
-      const [d, side] = sides
-        .map((e) => {
-          const t = clamp01(
-            ((px - e.a[0]) * e.ex + (py - e.a[1]) * e.ey) / e.l2,
-          );
-          return [
-            Math.hypot(px - e.a[0] - e.ex * t, py - e.a[1] - e.ey * t),
-            e,
-          ] as const;
-        })
-        .reduce((best, next) => (next[0] < best[0] ? next : best));
+      let [d, side] = [Infinity, sides[0]!];
+      for (const e of sides) {
+        const t = clamp01(((px - e.a[0]) * e.ex + (py - e.a[1]) * e.ey) / e.l2);
+        const away = Math.hypot(px - e.a[0] - e.ex * t, py - e.a[1] - e.ey * t);
+        if (away < d) [d, side] = [away, e];
+      }
       const t = Math.max(0, 1 - d / bevel);
       this.put(x, y, s, [side.nx * t * 0.85, side.ny * t * 0.85, 1 - t / 2]);
     });
@@ -171,12 +176,14 @@ export class Rig {
     key: string,
     o: ShapeOptions & { readonly tip?: number } = {},
   ) {
-    const s = this.shape(key, o);
     const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+    if (!(length > 0)) throw new RangeError("A blade needs a length");
+    const s = this.shape(key, o);
     const [ux, uy] = [(to[0] - from[0]) / length, (to[1] - from[1]) / length];
     const lit = ux * LY - uy * LX < 0 ? -1 : 1;
     const [nx, ny] = [-uy * lit, ux * lit];
-    const tip = o.tip ?? width * 1.5;
+    // A tip of 0 is a blunt end, as wide as the rest.
+    const tip = Math.max(o.tip ?? width * 1.5, 1e-6);
     this.scan(around([from, to], width + 1), (px, py, x, y) => {
       const [dx, dy] = [px - from[0], py - from[1]];
       const along = dx * ux + dy * uy;
@@ -191,13 +198,17 @@ export class Rig {
 
   /** A weapon's motion arc: thin where it starts, full width at the end, white-hot along the outer rim. */
   smear({ center: [cx, cy], inner, outer, from, to }: Smear) {
+    const sweep = to - from;
+    if (!(sweep !== 0 && Math.abs(sweep) <= 360))
+      throw new RangeError(`A smear sweeps no angle, or over a turn: ${sweep}`);
     const keys = Object.fromEntries(
       ["Z", "F", "f"].map((key) => [key, this.shape(key, {})]),
     );
     this.scan(around([[cx, cy]], outer), (px, py, x, y) => {
       const d = Math.hypot(px - cx, py - cy);
-      const t =
-        ((Math.atan2(py - cy, px - cx) * 180) / Math.PI - from) / (to - from);
+      // The pixel's angle from the arc's start, taken the way round that lands nearest the arc's middle.
+      const turned = (Math.atan2(py - cy, px - cx) * 180) / Math.PI - from;
+      const t = (turned - 360 * Math.round((turned - sweep / 2) / 360)) / sweep;
       if (t < 0 || t > 1 || d > outer || d < outer - (outer - inner) * t ** 0.8)
         return;
       const key =
@@ -297,6 +308,15 @@ export class Painting {
   /** The sprite, outlined in ink around its silhouette (glowing pixels excepted) and cropped; `anchor` is its feet. */
   sprite([ax, ay]: Point): Sprite {
     const { w, h, pixels } = this;
+    const edge = pixels.findIndex(
+      (key, i) =>
+        key !== null &&
+        (i % w === 0 || i % w === w - 1 || i < w || i >= w * (h - 1)),
+    );
+    if (edge >= 0)
+      throw new Error(
+        `The painting reaches the canvas edge at (${edge % w}, ${Math.floor(edge / w)}), where the outline or the shape itself would be cut off: make the canvas larger`,
+      );
     const solid = (x: number, y: number) => {
       const key = x >= 0 && x < w ? pixels[y * w + x] : null;
       return !!key && !glows(key);
