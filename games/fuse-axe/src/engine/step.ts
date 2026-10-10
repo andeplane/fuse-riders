@@ -186,6 +186,8 @@ function hit(world: World, hero: Hero, enemy: Enemy, damage: number): void {
   hero.stopUntil = Math.max(hero.stopUntil, until);
   enemy.stopUntil = until;
   enemy.facing = hero.facing > 0 ? -1 : 1;
+  // Not `setState`, which ignores a change to the state the enemy is already in: a hit on a reeling enemy restarts
+  // its hitstun.
   enemy.state = knocked ? "knockdown" : "hurt";
   enemy.timer = 0;
   enemy.vx = hero.facing * (knocked ? T.KNOCK_VX : T.HURT_PUSH);
