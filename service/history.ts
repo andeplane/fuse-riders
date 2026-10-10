@@ -1,5 +1,6 @@
 import { diceRegistration } from "dice/platform";
 import { hookRegistration } from "hook-havok/platform";
+import { axeRegistration } from "fuse-axe/platform";
 import { choppersRegistration } from "fuse-choppers/platform";
 import { craftRegistration } from "fuse-craft/platform";
 import { freightRegistration } from "fuse-freight/platform";
@@ -28,6 +29,7 @@ export const GAMES = [
   choppersRegistration,
   craftRegistration,
   freightRegistration,
+  axeRegistration,
 ] as const;
 
 /**
