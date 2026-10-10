@@ -1,11 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { HERO_KINDS, HERO_STATES } from "../src/engine/view-kit.js";
+import { GRAVITY, JUMP_VZ } from "../src/engine/tuning.js";
+import {
+  HERO_KINDS,
+  HERO_STATES,
+  SWING_STEPS,
+} from "../src/engine/view-kit.js";
 import type { HeroKind } from "../src/engine/view.js";
 import {
   BREATH_STEPS,
   HERO_ANIMS,
   HERO_FRAMES,
+  HERO_TIMING,
   heroFrame,
   WALK_STEPS,
   type HeroTiming,
@@ -13,7 +19,7 @@ import {
 
 const swings = (...steps: [number, number, number][]) =>
   steps.map(([startup, active, recovery]) => ({ startup, active, recovery }));
-/** The combat pull request's swing timing, and a jump's 20 steps to its apex. */
+/** Timing that differs per hero, so the mapping is seen to read the hero's own. */
 const TIMING: Readonly<Record<HeroKind, HeroTiming>> = {
   brakka: { swings: swings([6, 3, 10], [6, 3, 10], [9, 4, 20]), rise: 20 },
   rhea: { swings: swings([4, 3, 8], [4, 3, 8], [7, 4, 16]), rise: 18 },
@@ -110,6 +116,19 @@ test("an unknown anim, a step that is not a whole number from 0 or a swing witho
     () => heroFrame("gorm", "attack2", 0, short),
     /No timing for gorm's attack2/,
   );
+});
+
+test("by default the frames follow the engine's swings and its jump's apex", () => {
+  for (const kind of HERO_KINDS) {
+    assert.equal(HERO_TIMING[kind].swings, SWING_STEPS[kind]);
+    assert.equal(HERO_TIMING[kind].rise, Math.ceil(JUMP_VZ / GRAVITY));
+    for (const anim of HERO_ANIMS)
+      for (const step of steps(60))
+        assert.equal(
+          heroFrame(kind, anim, step),
+          heroFrame(kind, anim, step, HERO_TIMING),
+        );
+  }
 });
 
 test("the same anim and step always give the same frame", () => {

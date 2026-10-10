@@ -1,5 +1,9 @@
 import type { HeroKind } from "../../engine/view.js";
-import { HERO_STATES } from "../../engine/view-kit.js";
+import {
+  HERO_STATES,
+  SWING_STEPS,
+  type SwingSteps,
+} from "../../engine/view-kit.js";
 
 /**
  * Which sprite frame a hero shows: a pure function of its anim, the steps since the anim began and the engine's
@@ -26,18 +30,19 @@ export type FigureAnim = (typeof HERO_ANIMS)[number];
 // The engine's states must all have frames: a new one fails to compile here until it is mapped below.
 HERO_STATES satisfies readonly FigureAnim[];
 
-/** One swing's steps of wind-up, blade out and recovery, as view-kit's `SWING_STEPS` gives them. */
-export interface SwingTiming {
-  readonly startup: number;
-  readonly active: number;
-  readonly recovery: number;
-}
-
 /** A hero's engine timing: its three swings (`attack1`–`attack3`) and the steps from take-off to a jump's apex. */
 export interface HeroTiming {
-  readonly swings: readonly SwingTiming[];
+  readonly swings: readonly SwingSteps[];
   readonly rise: number;
 }
+/** The steps a jump rises: the engine's `JUMP_VZ / GRAVITY` rounded up, which view-kit does not export yet. */
+export const JUMP_RISE_STEPS = 20;
+/** Each hero's timing as the engine has it, `heroFrame`'s default. */
+export const HERO_TIMING: Readonly<Record<HeroKind, HeroTiming>> = {
+  brakka: { swings: SWING_STEPS.brakka, rise: JUMP_RISE_STEPS },
+  rhea: { swings: SWING_STEPS.rhea, rise: JUMP_RISE_STEPS },
+  gorm: { swings: SWING_STEPS.gorm, rise: JUMP_RISE_STEPS },
+};
 
 /** Steps each idle frame holds: a slow breath in and out. */
 export const BREATH_STEPS = 40;
@@ -63,7 +68,7 @@ export function heroFrame(
   kind: HeroKind,
   anim: string,
   animStep: number,
-  timing: Readonly<Record<HeroKind, HeroTiming>>,
+  timing: Readonly<Record<HeroKind, HeroTiming>> = HERO_TIMING,
 ): HeroFrame {
   if (!Number.isInteger(animStep) || animStep < 0)
     throw new RangeError(
