@@ -352,7 +352,7 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
     const { sprites } = draw(
       world({
         heroes: heroAnims.map((anim, i) =>
-          hero(i + 1, i % 5, 30 + i * 20, 130, { anim, animStep }),
+          hero(i + 1, i % 5, 30 + i * 14, 130, { anim, animStep }),
         ),
         enemies: enemyAnims.map((anim, i) =>
           enemy(20 + i, 50 + i * 20, 160, { anim, animStep }),
@@ -364,7 +364,7 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
       assert.equal(sprites.length, heroAnims.length + enemyAnims.length);
   }
   // A kind of anim from a build with more of them: the hero and the enemy stand idle.
-  const unknown = JSON.parse('"grab"') as HeroView["anim"] & EnemyView["anim"];
+  const unknown = JSON.parse('"ride"') as HeroView["anim"] & EnemyView["anim"];
   const [odd, idle] = [unknown, "idle" as const].map((anim) =>
     draw(
       world({

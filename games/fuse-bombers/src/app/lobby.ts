@@ -27,8 +27,8 @@ export const MAX_WINS_TO_WIN = 9;
 /**
  * The lobby's state, without any DOM: who sits in which slot, how many players, bot difficulties and rounds to
  * win. A device that presses joins the first free slot (growing the player count if needed); pressing again
- * leaves. Slots up to the player count that no human holds are played by bots. One keyboard seats four riders, so
- * six humans need gamepads or touch zones too.
+ * leaves. Slots up to the player count that no human holds are played by bots. One keyboard seats four riders and
+ * one touch screen two (`touch:0` left, `touch:1` right).
  */
 export class Lobby {
   playerCount = 4;
@@ -48,22 +48,6 @@ export class Lobby {
     this.devices[slot] = device;
     this.playerCount = Math.max(this.playerCount, slot + 1);
     return { slot, joined: true };
-  }
-
-  /**
-   * Renumber the seated touch zones 0, 1, 2… in their left-to-right order, so a match has no blank zone where a
-   * touch player left the lobby. Zone i is the device `touch:i`.
-   */
-  compactTouchZones(): void {
-    const zone = (d: DeviceId | undefined) =>
-      d?.startsWith("touch:") ? Number(d.slice(6)) : -1;
-    const touch = this.devices
-      .map((device, slot) => ({ slot, zone: zone(device) }))
-      .filter((s) => s.zone >= 0)
-      .sort((a, b) => a.zone - b.zone);
-    touch.forEach(({ slot }, i) => {
-      this.devices[slot] = `touch:${i}`;
-    });
   }
 
   /** The smallest player count that keeps every seated human in the match. */
