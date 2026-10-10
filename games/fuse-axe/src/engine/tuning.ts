@@ -31,8 +31,11 @@ export const STAGE_LENGTH = px(4 * VIEW_W);
 export const CAMERA_END = STAGE_LENGTH - px(VIEW_W);
 /** The camera keeps the leading hero this far from its left edge, unless the leftmost hero holds it back. */
 export const CAMERA_LEAD = px(160);
-/** The most the camera moves in a step: faster than any hero walks, so it catches up smoothly when a wave's lock lifts. */
-export const CAMERA_SPEED = px(2);
+/**
+ * The most the camera moves in a step: faster than any hero walks, runs or dashes, so it keeps up with the leader and
+ * catches up smoothly when a wave's lock lifts.
+ */
+export const CAMERA_SPEED = px(3);
 /** How close a hero's centre comes to the screen's edges: half a body, so nobody walks off screen. */
 export const HERO_MARGIN = px(14);
 
@@ -54,8 +57,26 @@ export const JUMP_VZ = px(3.7);
 export const GRAVITY = px(0.19);
 /** Steps a landed hero shows the landing pose; it acts again on the step after. */
 export const LAND_STEPS = 8;
-/** Steps an Attack or Jump press stays usable, counting its own: one made while the hero is busy acts when it is free. */
+/**
+ * Steps an Attack or Jump press, or a run's double tap, stays usable, counting its own: one made while the hero is
+ * busy acts when it is free.
+ */
 export const BUFFER_STEPS = 6;
+/**
+ * The run's double tap: Left or Right let go within `RUN_TAP` steps of its press (longer is a walk, not a tap) and
+ * pressed again within `RUN_GAP` steps of letting go. Opposite directions never make one.
+ */
+export const RUN_TAP = 15;
+export const RUN_GAP = 12;
+/**
+ * Running speed along the road, about twice the walk; in depth a run steers at the walk's pace. It lasts while its
+ * direction is held and the other is not, and a jump from it keeps its speed, so it carries further.
+ */
+export const RUN: Readonly<Record<HeroKind, number>> = {
+  brakka: px(1.875),
+  rhea: px(2.25),
+  gorm: px(1.5),
+};
 
 // ---- the heroes' health ----
 /** A hero's hit points for each life: Gorm is the toughest, Rhea the frailest. */
@@ -84,17 +105,20 @@ export const RESPAWN_DELAY = 90;
 export const RESPAWN_INVULN = 120;
 
 // ---- the combo ----
+/** What a hero's hit lands: its reach in front of the hero's centre, and the damage. */
+export interface Blow {
+  readonly reach: number;
+  readonly damage: number;
+}
 /**
- * One swing's frame data: steps of wind-up, of the blade's hit window and of recovery, the blade's reach in front of
- * the hero's centre, and the damage. A press in the window or the recovery chains the next swing as soon as the
- * window ends; otherwise the hero is back to idle after the recovery.
+ * One swing's frame data: steps of wind-up, of the blade's hit window and of recovery, and its blow. A press in the
+ * window or the recovery chains the next swing as soon as the window ends; otherwise the hero is back to idle after
+ * the recovery.
  */
-export interface Swing {
+export interface Swing extends Blow {
   readonly startup: number;
   readonly active: number;
   readonly recovery: number;
-  readonly reach: number;
-  readonly damage: number;
 }
 const swing = (
   startup: number,
@@ -122,6 +146,28 @@ export const COMBO: Readonly<Record<HeroKind, readonly [Swing, Swing, Swing]>> =
       swing(12, 5, 24, 26, 16),
     ],
   };
+/**
+ * The dash attack, Attack during a run: from the press it slides `speed` a step along the road for the `active` steps
+ * its blow lands in, then stands for `recovery` steps. It knocks down whatever it hits, each enemy once.
+ */
+export interface Dash extends Blow {
+  readonly active: number;
+  readonly recovery: number;
+  readonly speed: number;
+}
+const dash = (
+  active: number,
+  recovery: number,
+  speed: number,
+  reach: number,
+  damage: number,
+): Dash => ({ active, recovery, speed: px(speed), reach: px(reach), damage });
+/** Brakka and Rhea charge with a shoulder, Rhea further and lighter; Gorm headbutts, shortest and hardest. */
+export const DASH: Readonly<Record<HeroKind, Dash>> = {
+  brakka: dash(10, 16, 2.5, 20, 10),
+  rhea: dash(10, 12, 2.75, 22, 8),
+  gorm: dash(8, 20, 2.25, 18, 14),
+};
 /** A hit lands only within this many sub-units in depth: lining up on the road is the core skill. */
 export const LANE = px(6);
 /** How high the blade sweeps above the hero's feet. */

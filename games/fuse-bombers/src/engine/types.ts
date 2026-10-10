@@ -25,9 +25,14 @@ export interface CastleStats {
 export interface Castle {
   /** Castle id == player index (0-based). */
   id: number;
-  /** Hull centre: the centre of the hit circle and the shield. Castles hover in place at their spawn anchor. */
+  /** Hull centre: the centre of the hit circle and the shield. Gunships fly (`flyStep`), so it moves. */
   x: number;
   y: number;
+  /** Velocity, px/s (y down). Gunships fly with momentum and never fall. */
+  vx: number;
+  vy: number;
+  /** The direction bits (`UP | DOWN | LEFT | RIGHT`) it flew with on the latest step, for drawing thrusters. */
+  thrust: number;
   hp: number;
   maxHp: number;
   alive: boolean;
@@ -79,9 +84,8 @@ export interface Rocket {
 }
 
 /**
- * A ghost bomber: the blimp a player flies after their castle is destroyed. It drifts at a constant
- * speed and height (above its wreck, through rock), bouncing between `minX` and `maxX`, and drops a
- * bomb straight down (inheriting `vx`) when its button is pressed while loaded.
+ * A ghost bomber: the blimp a player flies after their castle is destroyed, with the same controls (`GHOST_FLIGHT`:
+ * through rock, inside the world's edges). It drops a bomb, which inherits its velocity, on a fire press while loaded.
  */
 export interface Ghost {
   /** Player id (== the destroyed castle's id). */
@@ -89,17 +93,15 @@ export interface Ghost {
   /** Current centre. */
   x: number;
   y: number;
-  /** Current horizontal velocity (px/s); the sign is the drift direction. */
+  /** Velocity, px/s. */
   vx: number;
+  vy: number;
+  /** The direction bits it flew with on the latest step. */
+  thrust: number;
   reloadTicks: number;
   reloadTotalTicks: number;
-  /** First tick the ghost is in play (it is at `x0` when that step starts). */
+  /** First tick the ghost is in play (it flies and drops from that step on). */
   spawnTick: number;
-  /** Motion parameters; see `ghostPositionAt`. */
-  x0: number;
-  speed: number;
-  minX: number;
-  maxX: number;
 }
 
 export interface Gate {
@@ -284,6 +286,8 @@ export interface RoundState {
   crates: Crate[];
   /** Ghost bombers of eliminated players, in the order their castles fell. */
   ghosts: Ghost[];
+  /** Each seat's input bits on the latest step (validated): fire fires on the rising edge of `FIRE` against these. */
+  lastHeld: number[];
   /** Events produced by the most recent `step` (cleared at the start of each step). */
   events: TickEvent[];
   /** Tick at which the next crate may spawn. */

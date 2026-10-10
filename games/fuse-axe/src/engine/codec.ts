@@ -1,4 +1,4 @@
-import { INPUT_MASK } from "./input.js";
+import { INPUT_MASK, LEFT, RIGHT } from "./input.js";
 import {
   BUFFER_STEPS,
   CAMERA_END,
@@ -20,6 +20,8 @@ import {
   LIVES,
   RAVAGER,
   RESPAWN_INVULN,
+  RUN_GAP,
+  RUN_TAP,
   STAGE_LENGTH,
   TIERS,
   VIEW_H,
@@ -122,8 +124,9 @@ const ID = int(1, UINT32),
   GOAL_X = int(0, STAGE_LENGTH),
   GOAL_Y = int(FLOOR_TOP, FLOOR_BOTTOM);
 
-/** The longest a hero is invulnerable and an idle enemy waits to decide, from any step. */
+/** The longest a hero is invulnerable, a double tap's step counts and an idle enemy waits to decide, from any step. */
 const INVULN = Math.max(RESPAWN_INVULN, GETUP_STEPS + GETUP_GRACE),
+  TAP = Math.max(RUN_TAP, RUN_GAP),
   THINK = Math.max(
     ...TIERS.map((tier) => RAVAGER[tier].think + RAVAGER[tier].jitter),
   );
@@ -170,8 +173,16 @@ const hero = record<Hero>(
     invulnUntil: COUNT,
     stagger: int(0, JUGGLE_HITS - 1),
     staggerUntil: COUNT,
+    tap: oneOf([0, LEFT, RIGHT]),
+    tapUntil: COUNT,
+    runBuf: BUFFER,
   },
-  (value) => ascending(value.struck, (id) => id) && lifeKept(value),
+  // A double tap waiting as a run knows its direction, and with no tap no step counts for one.
+  (value) =>
+    ascending(value.struck, (id) => id) &&
+    lifeKept(value) &&
+    (value.runBuf === 0 || value.tap !== 0) &&
+    (value.tap !== 0 || value.tapUntil === 0),
 );
 
 const enemy = record<Enemy>({
@@ -234,7 +245,7 @@ function wavesKept(value: World): boolean {
  * Heroes in id order, which is seat order, and enemies in id order, every id below `nextId` and none both a hero's
  * and an enemy's; the ids a swing has hit are enemy ids too, though the enemy may since be gone, and an enemy goes
  * for a hero in the world or nobody. No enemy has more hit points than its tier's for this party, no hit-stop,
- * invulnerability, run of hits or idle pause runs past the longest one starting now, the sparks run
+ * invulnerability, run of hits, double tap or idle pause runs past the longest one starting now, the sparks run
  * oldest first, each born no later than now and not yet past its life, and the waves are as `wavesKept` says.
  */
 const world = record<World>(
@@ -269,7 +280,8 @@ const world = record<World>(
           stopped(each) &&
           each.struck.every(enemyId) &&
           each.invulnUntil <= value.step + INVULN &&
-          each.staggerUntil <= value.step + JUGGLE_WINDOW,
+          each.staggerUntil <= value.step + JUGGLE_WINDOW &&
+          each.tapUntil <= value.step + TAP,
       ) &&
       value.enemies.every(
         (each) =>

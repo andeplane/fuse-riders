@@ -1,6 +1,6 @@
 /**
  * A rider's controls as held bits, one number per tick: the four directions steer the gunship (or the ghost) and
- * `FIRE` is held while the fire button is down (the round fires on its rising edge). Not wired into the round yet.
+ * `FIRE` is held while the fire button is down (the round fires on its rising edge). `step` takes one per seat.
  */
 export const UP = 1,
   DOWN = 2,

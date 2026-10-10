@@ -303,7 +303,10 @@ export class Flow implements RoundSource {
       controllers: this.seats.map((s) =>
         s.device ? null : createBotPlayer(s.difficulty, s.slot, seed + s.slot),
       ),
-      input: { takePresses: (slots) => hub.takePresses(slots) },
+      input: {
+        takePresses: (slots) => hub.takePresses(slots),
+        heldBits: (slot) => hub.heldBits(slot),
+      },
       winsToWin: this.lobby.winsToWin,
       aftermath: Infinity,
     });
