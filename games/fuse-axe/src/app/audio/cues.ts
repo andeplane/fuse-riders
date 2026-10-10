@@ -32,9 +32,6 @@ const HERO_CUES: Partial<Record<HeroAnim, Cue>> = {
 };
 const heroCue = (anim: HeroAnim, kind: HeroKind): Cue | undefined =>
   SWINGS.includes(anim) ? `swing-${kind}` : HERO_CUES[anim];
-/** Healing pots carried, once heroes carry them; none before. */
-const potsOf = (hero: object): number =>
-  "pots" in hero && typeof hero.pots === "number" ? hero.pots : 0;
 
 interface Figure {
   anim: string;
@@ -128,7 +125,8 @@ export class CueTracker {
         this.fresh(`${key}:hp`, step)
       )
         cues.add("hurt");
-      const pots = potsOf(hero);
+      // A pot picked up off the floor; one drunk for magic takes one away.
+      const pots = hero.pots;
       if (pots > was.pots && this.fresh(`${key}:pot${pots}`, step))
         cues.add("pot");
     }
@@ -210,7 +208,7 @@ export class CueTracker {
         anim: hero.anim,
         animStep: hero.animStep,
         hp: hero.hp,
-        pots: potsOf(hero),
+        pots: hero.pots,
       });
     for (const enemy of world.enemies)
       this.figures.set(`e${enemy.id}`, {

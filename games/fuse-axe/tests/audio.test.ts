@@ -15,7 +15,7 @@ import type * as V from "../src/engine/view.js";
 const hero = (extra: Partial<V.HeroView> = {}): V.HeroView => ({
   ...{ id: 1, seat: 0, kind: "brakka", x: 100, y: 140, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
-  ...{ invulnerable: false, ...extra },
+  ...{ invulnerable: false, pots: 0, maxPots: 3, ...extra },
 });
 const enemy = (extra: Partial<V.EnemyView> = {}): V.EnemyView => ({
   ...{ id: 9, kind: "ravager", tier: 0, x: 200, y: 140, z: 0, facing: -1 },
@@ -28,7 +28,8 @@ const world = (
   step: number,
   extra: Partial<V.WorldView> = {},
 ): V.WorldView => ({
-  ...{ step, camX: 0, heroes: [hero()], enemies: [], fx: [], wave: 1 },
+  ...{ step, camX: 0, heroes: [hero()], enemies: [], fx: [], items: [] },
+  wave: 1,
   ...{ waves: 4, locked: false, go: false, cleared: false, defeated: false },
   ...extra,
 });
@@ -87,7 +88,6 @@ test("a swing a rollback corrects away and shows again sounds once; one begun lo
 });
 
 test("every moment of a hero and the mace's wind-up have their cues", () => {
-  // Heroes carry pots once the imps arrive; a view with them is a view all the same.
   const rows: [Partial<V.HeroView>, Partial<V.EnemyView>, number, string[]][] =
     [
       [{}, {}, 0, []],
@@ -110,7 +110,7 @@ test("every moment of a hero and the mace's wind-up have their cues", () => {
   const frames = rows.map(([me, foe, pots], i) =>
     frame(
       world(20 * i, {
-        heroes: [Object.assign(hero(me), { pots })],
+        heroes: [hero({ ...me, pots })],
         enemies: [enemy(foe)],
       }),
     ),
