@@ -30,7 +30,8 @@ import type { MakeSurface } from "./surface.js";
 /**
  * The game's picture: one native 320 × 180 frame of the engine's view, drawn in layers — the backdrop; every
  * figure's shadow on the floor; heroes and enemies by depth (further up the floor first, then lower before higher,
- * then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when defeated; the hit
+ * then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when defeated, a hero
+ * blinking while it is invulnerable; the hit
  * sparks; the grass in front; and a flashing GO → when the road ahead opens. It only draws: positions come from the
  * view (the app blends two ticks for smooth motion), and `frame`, a 60 Hz count, moves only scenery.
  *
@@ -128,6 +129,9 @@ export const deadShows = (animStep: number): boolean =>
   animStep < DEAD_STEPS / 3 ||
   (animStep < DEAD_STEPS && Math.floor(animStep / BLINK_STEPS) % 2 === 0);
 
+/** An invulnerable hero (getting up, or just risen) blinks: its sprite shows and hides every `BLINK_FRAMES` frames. */
+export const BLINK_FRAMES = 4;
+
 /** A shadow's half-width on the ground; it shrinks as the figure rises, to half at `SHADOW_FADE` pixels up. */
 export const SHADOW_RX = 13;
 const SHADOW_FADE = 60;
@@ -184,6 +188,8 @@ interface Standing {
   readonly sx: number;
   readonly sprite: Sprite;
   readonly options: BakeOptions;
+  /** False while an invulnerable hero blinks out: its sprite is left off, its shadow and marker stay. */
+  readonly lit: boolean;
   /** A hero's seat, and the rows its figure stands above its feet, for its marker. */
   readonly marker?: { readonly seat: number; readonly crown: number };
 }
@@ -241,6 +247,7 @@ export function createScene<Image>(
           ...at(hero),
           sprite: figure.sprite(pose),
           options: { swap, flip: hero.facing < 0 },
+          lit: !hero.invulnerable || Math.floor(frame / BLINK_FRAMES) % 2 === 0,
           marker: { seat: hero.seat, crown: crown(figure) },
         };
       });
@@ -257,6 +264,7 @@ export function createScene<Image>(
             flash: enemy.flash,
             flip: enemy.facing < 0,
           },
+          lit: true,
         });
       }
       standing.sort((a, b) => a.y - b.y || a.z - b.z || a.id - b.id);
@@ -264,7 +272,8 @@ export function createScene<Image>(
         const s = shadow(shadowRadius(z));
         blit(pen, s.image, s.w, s.h, sx - (s.w >> 1), y - (s.h >> 1));
       }
-      for (const { y, z, sx, sprite, options } of standing) {
+      for (const { y, z, sx, sprite, options, lit } of standing) {
+        if (!lit) continue;
         const b = baker.bake(sprite, options);
         blit(pen, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
       }

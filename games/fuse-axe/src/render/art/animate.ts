@@ -23,7 +23,7 @@ export const HERO_FRAMES = [
 ] as const;
 export type HeroFrame = (typeof HERO_FRAMES)[number];
 
-/** Every anim a hero has or will have; the heroes' `hurt` to `dead` arrive with the enemies' attacks. */
+/** Every anim a hero has: the walk, jump and swings, and the `hurt` to `dead` a ravager's mace brings. */
 export const HERO_ANIMS = [
   ...["idle", "walk", "jump", "land"],
   ...["attack1", "attack2", "attack3"],
