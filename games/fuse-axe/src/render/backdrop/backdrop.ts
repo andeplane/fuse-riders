@@ -1,12 +1,12 @@
 import { CAMERA_END_PX, VIEW_W } from "../../engine/view-kit.js";
+import { pixelSurface, type MakeSurface } from "../surface.js";
 import { ASHEN_VILLAGE } from "./ashen-village.js";
 import { Raster, type Brush, type LayerArt, type StageArt } from "./kit.js";
 
 /**
  * A stage's parallax backdrop at the native 320 × 180. Each static layer is painted once into a pixel buffer and
- * handed to `make`, which turns it into whatever surface the renderer blits (in the browser an `OffscreenCanvas`:
- * `(w, h, rgba) => { const c = new OffscreenCanvas(w, h); c.getContext("2d")!.putImageData(new ImageData(rgba, w, h),
- * 0, 0); return c; }`). A frame then blits each layer at a whole-pixel offset and paints only the fires.
+ * copied into a surface from the renderer's one factory (`../surface.ts`), through its `putPixels` fast path when it
+ * has one. A frame then blits each layer at a whole-pixel offset and paints only the fires.
  */
 export interface Pen<S> extends Brush {
   drawImage(
@@ -21,13 +21,6 @@ export interface Pen<S> extends Brush {
     dh: number,
   ): void;
 }
-
-/** Turns a painted layer (`width` × `height` RGBA, rows top to bottom) into a surface the pen can blit. */
-export type MakeSurface<S> = (
-  width: number,
-  height: number,
-  rgba: Uint8ClampedArray<ArrayBuffer>,
-) => S;
 
 export interface Backdrop<S> {
   /**
@@ -59,7 +52,7 @@ function bake<S>(make: MakeSurface<S>, layer: LayerArt): Baked<S> {
   );
   layer.paint(raster);
   return {
-    surface: make(raster.width, raster.height, raster.rgba),
+    surface: pixelSurface(make, raster.width, raster.height, raster.rgba),
     rate: layer.rate,
     top: layer.top,
     height: layer.height,
