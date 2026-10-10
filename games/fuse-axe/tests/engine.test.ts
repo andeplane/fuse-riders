@@ -1,8 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  ATTACK,
   DOWN,
+  ENEMY_STATES,
   HERO_KINDS,
+  HERO_STATES,
   INPUT_MASK,
   JUMP,
   LEFT,
@@ -14,6 +17,7 @@ import {
   pressed,
   released,
   seedOf,
+  spawnEnemy,
   step,
   stepTick,
   toView,
@@ -230,29 +234,48 @@ function script(seed: number, steps: number): number[][] {
   return rows;
 }
 
+/** A crowd of ravagers just ahead of the heroes, across the floor, so random play fights. */
+function crowd(world: World): World {
+  for (let x = 72; x <= 132; x += 12)
+    for (let y = 112; y <= 168; y += 8)
+      world = spawnEnemy(world, "ravager", px(x), px(y));
+  return world;
+}
+/** Seat 0 mashes Attack (two steps held, two released) while its directions and Jump stay random: whole combos. */
+const mashing = (rows: number[][]): number[][] =>
+  rows.map((row, index) => [
+    (row[0]! & ~ATTACK) | (index % 4 < 2 ? ATTACK : 0),
+    ...row.slice(1),
+  ]);
+
 test("the same seed and inputs fold to the same world, and a step leaves its input untouched", () => {
   const start = () =>
-    createWorld({
-      seed: 99,
-      heroes: [
-        { seat: 0, kind: "brakka" },
-        { seat: 2, kind: "rhea" },
-        { seat: 4, kind: "gorm" },
-      ],
-    });
-  const inputs = script(5, 1200);
-  const seen = new Set<string>();
+    crowd(
+      createWorld({
+        seed: 99,
+        heroes: [
+          { seat: 0, kind: "brakka" },
+          { seat: 2, kind: "rhea" },
+          { seat: 4, kind: "gorm" },
+        ],
+      }),
+    );
+  const inputs = mashing(script(5, 1200));
+  const seen = new Set<string>(),
+    foes = new Set<string>();
   const play = () =>
     inputs.reduce<World>((world, held) => {
       const after = step(world, held);
       for (const h of after.heroes) seen.add(h.state);
+      for (const e of after.enemies) foes.add(e.state);
       return after;
     }, start());
   const a = play(),
     b = play();
   assert.equal(seedOf(JSON.stringify(a)), seedOf(JSON.stringify(b)));
-  assert.deepEqual([...seen].sort(), ["idle", "jump", "land", "walk"]);
-  assert.ok(a.camX > 0);
+  assert.deepEqual([...seen].sort(), [...HERO_STATES].sort());
+  assert.deepEqual([...foes].sort(), [...ENEMY_STATES].sort());
+  assert.ok(a.enemies.length < start().enemies.length, "the fallen are gone");
   const before = JSON.stringify(a);
   const tick = stepTick(a, [JUMP, 0, RIGHT]);
   assert.equal(JSON.stringify(a), before);
@@ -260,23 +283,38 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
   assert.equal(tick.step, a.step + T.STEPS_PER_TICK);
 });
 
-test("a rollback replays from a snapshot to the same world, presses included", () => {
-  const start = createWorld({
-    seed: 11,
-    heroes: [
-      { seat: 0, kind: "gorm" },
-      { seat: 1, kind: "rhea" },
-    ],
-  });
-  const inputs = script(21, 600);
+test("a rollback replays from a snapshot to the same world, presses, buffers, hit-stop and knockdowns included", () => {
+  const start = crowd(
+    createWorld({
+      seed: 11,
+      heroes: [
+        { seat: 0, kind: "gorm" },
+        { seat: 1, kind: "rhea" },
+      ],
+    }),
+  );
+  const inputs = mashing(script(21, 600));
   const fold = (world: World, rows: readonly (readonly number[])[]) =>
     rows.reduce<World>((w, held) => step(w, held), world);
-  const straight = fold(start, inputs);
+  const trail = [start];
+  for (const held of inputs) trail.push(step(trail.at(-1)!, held));
+  const straight = trail.at(-1)!;
+  assert.ok(straight.heroes.every((h) => h.damage > 0 && h.knockdowns > 0));
+  assert.ok(straight.camX > 0);
+  // Cut too where a snapshot holds a hit-stop, a press waiting in a swing, and an enemy in flight.
+  const first = (found: (world: World) => boolean) => {
+    const cut = trail.findIndex(found);
+    assert.ok(cut > 0);
+    return cut;
+  };
+  const cuts = [
+    first((w) => w.heroes.some((h) => w.step < h.stopUntil)),
+    first((w) => w.heroes.some((h) => h.attackBuf > 0 && h.state !== "idle")),
+    first((w) => w.enemies.some((e) => e.state === "knockdown" && e.z > 0)),
+  ];
   // Restore a snapshot through JSON, as a checkpoint would, and replay the rest: no press is lost or made twice.
-  for (const cut of [1, 7, 8, 50, 301, 599]) {
-    const snapshot = JSON.parse(
-      JSON.stringify(fold(start, inputs.slice(0, cut))),
-    ) as World;
+  for (const cut of [1, 7, 8, 50, 301, 599, ...cuts]) {
+    const snapshot = JSON.parse(JSON.stringify(trail[cut])) as World;
     assert.deepEqual(fold(snapshot, inputs.slice(cut)), straight, `cut ${cut}`);
   }
 });
@@ -288,7 +326,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-1");
+  assert.equal(RULES, "fuse-axe-2");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {
@@ -318,5 +356,10 @@ test("the view gives whole pixels, the anim and its step count", () => {
   assert.ok(Kit.FLOOR_BOTTOM_PX < Kit.VIEW_H);
   assert.ok(Kit.STAGE_LENGTH_PX >= 3 * Kit.VIEW_W);
   assert.equal(Kit.CAMERA_END_PX, Kit.STAGE_LENGTH_PX - Kit.VIEW_W);
-  assert.deepEqual(Kit.HERO_STATES, ["idle", "walk", "jump", "land"]);
+  assert.deepEqual(Kit.HERO_STATES.slice(0, 4), [
+    "idle",
+    "walk",
+    "jump",
+    "land",
+  ]);
 });

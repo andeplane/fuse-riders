@@ -52,3 +52,78 @@ export const JUMP_VZ = px(3.7);
 export const GRAVITY = px(0.19);
 /** Steps a landed hero shows the landing pose; it acts again on the step after. */
 export const LAND_STEPS = 8;
+/** Steps an Attack or Jump press stays usable, counting its own: one made while the hero is busy acts when it is free. */
+export const BUFFER_STEPS = 6;
+
+// ---- the combo ----
+/**
+ * One swing's frame data: steps of wind-up, of the blade's hit window and of recovery, the blade's reach in front of
+ * the hero's centre, and the damage. A press in the window or the recovery chains the next swing as soon as the
+ * window ends; otherwise the hero is back to idle after the recovery.
+ */
+export interface Swing {
+  readonly startup: number;
+  readonly active: number;
+  readonly recovery: number;
+  readonly reach: number;
+  readonly damage: number;
+}
+const swing = (
+  startup: number,
+  active: number,
+  recovery: number,
+  reach: number,
+  damage: number,
+): Swing => ({ startup, active, recovery, reach: px(reach), damage });
+/** Two slashes and a heavy finisher that knocks down. Rhea is quick with long reach and light hits, Gorm the reverse. */
+export const COMBO: Readonly<Record<HeroKind, readonly [Swing, Swing, Swing]>> =
+  {
+    brakka: [
+      swing(6, 3, 10, 28, 6),
+      swing(6, 3, 10, 28, 6),
+      swing(9, 4, 20, 32, 12),
+    ],
+    rhea: [
+      swing(4, 3, 8, 34, 4),
+      swing(4, 3, 8, 34, 4),
+      swing(7, 4, 16, 38, 9),
+    ],
+    gorm: [
+      swing(8, 4, 13, 22, 9),
+      swing(8, 4, 13, 22, 9),
+      swing(12, 5, 24, 26, 16),
+    ],
+  };
+/** A hit lands only within this many sub-units in depth: lining up on the road is the core skill. */
+export const LANE = px(6);
+/** How high the blade sweeps above the hero's feet. */
+export const SWING_HEIGHT = px(40);
+/** Steps attacker and target hold still on a hit, and longer on one that knocks down. */
+export const HITSTOP = 4;
+export const HEAVY_HITSTOP = 8;
+
+// ---- the enemies ----
+export const ENEMY_KINDS = ["ravager"] as const;
+export type EnemyKind = (typeof ENEMY_KINDS)[number];
+export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = { ravager: 40 };
+/** An enemy's body: half its width either side of its centre, and its height above its feet. */
+export const ENEMY_HALF_W = px(10);
+export const ENEMY_HEIGHT = px(44);
+/** A hurt enemy is nudged back at this speed, slowing by `HURT_FRICTION` a step, and reels for `HURT_STEPS`. */
+export const HURT_PUSH = px(1.5);
+export const HURT_FRICTION = px(0.25);
+export const HURT_STEPS = 20;
+/** A knockdown launches the enemy up and away; it falls under the heroes' gravity. */
+export const KNOCK_VX = px(1.25);
+export const KNOCK_VZ = px(2.5);
+/** Steps an enemy lies down, then gets up (invulnerable throughout), and a defeated one blinks before it is gone. */
+export const DOWN_STEPS = 45;
+export const GETUP_STEPS = 20;
+export const DEAD_STEPS = 60;
+
+// ---- effects ----
+/** Steps a hit spark lives, and the most the world keeps at once (the oldest go first). */
+export const FX_LIFE = 20;
+export const FX_MAX = 32;
+/** How high above the target's feet a spark appears: where the blade meets the body. */
+export const SPARK_HEIGHT = px(28);
