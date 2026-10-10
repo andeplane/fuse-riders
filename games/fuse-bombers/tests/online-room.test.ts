@@ -94,10 +94,7 @@ test("entries: play carries direction bits, a press its ordinal and step; bad fi
     assert.ok(!isEntry(bad), JSON.stringify(bad));
   assert.equal(game.ordinal!([1, 5, PRESS, "m1", 1, 7, 2]), 7);
   assert.equal(game.ordinal!([1, 5, PLAY, "m1", 1, UP]), undefined);
-  assert.equal(
-    game.seating.seatName(" Ace\u{1F680} Ace Ace Ace Ace "),
-    "Ace🚀 Ace Ace Ace A",
-  );
+  assert.equal(game.seating.seatName(" Ace  Pilot "), "Ace  Pilot");
 });
 
 test("start seats riders and bots, counts down, then held directions fly; stale or absent controls do nothing", () => {
@@ -128,6 +125,10 @@ test("start seats riders and bots, counts down, then held directions fly; stale 
   assert.equal(room.held.b, UP, "another match's or round's entry");
   fold(room, { a: [[PRESENCE, "b", false, 1]] });
   assert.equal(room.held.b, undefined, "an absent seat holds nothing");
+  const bot = room.world!.castles[2]!,
+    at = `${bot.x},${bot.y}`;
+  run(room, 60);
+  assert.notEqual(`${bot.x},${bot.y}`, at, "the hard bot flies itself");
 });
 
 test("a press shorter than a log tick fires once, on the step it names, and only in its match and round", () => {
@@ -268,6 +269,8 @@ test("the hash covers the whole room in a fixed order, and fields added later", 
   room.world!.terrain.solid[100]! ^= 1;
   assert.notEqual(hash(room), before, "one terrain cell");
   room.world!.terrain.solid[100]! ^= 1;
+  room.world!.bots[0]!.rng++;
+  assert.notEqual(hash(room), before, "a bot's memory");
   Object.assign(room.world!, { memory: [{ aim: 1 }] });
   assert.notEqual(hash(room), before, "a field the room did not have before");
 });

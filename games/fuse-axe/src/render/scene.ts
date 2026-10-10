@@ -3,6 +3,8 @@ import type {
   EnemyKind,
   EnemyView,
   HeroView,
+  ItemKind,
+  ItemView,
   Tier,
   WorldView,
 } from "../engine/view.js";
@@ -15,6 +17,7 @@ import {
   RAVAGER_TIERS,
   type AnimStrip,
 } from "./art/ravager.js";
+import { IMP_STAND_IN, POT_STAND_IN } from "./art/stand-ins.js";
 import { createBackdrop, type StageNumber } from "./backdrop/backdrop.js";
 import { bayer } from "./backdrop/kit.js";
 import { blinksOn, createHud, type HudSeats } from "./hud.js";
@@ -29,9 +32,9 @@ import type { MakeSurface } from "./surface.js";
 
 /**
  * The game's picture: one native 320 × 180 frame of the engine's view, drawn in layers — the backdrop; every
- * figure's shadow on the floor; heroes and enemies by depth (further up the floor first, then lower before higher,
- * then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when defeated, a hero
- * blinking while it is invulnerable; the hit
+ * figure's shadow on the floor; heroes, enemies and items on the floor by depth (further up the floor first, then
+ * lower before higher, then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when
+ * defeated, a hero blinking while it is invulnerable and an item before it vanishes; the hit
  * sparks; the grass in front; a flashing GO → when the road ahead opens; and over it all the HUD (`hud.ts`), naming
  * each seat's player from `seats` (the room's names, which the world does not hold). It only draws: positions come
  * from the view (the app blends two ticks for smooth motion), and `frame`, a 60 Hz count, moves only scenery and
@@ -44,19 +47,30 @@ export interface Scene<Image> {
   draw(pen: Pen<Image>, view: WorldView, frame: number, seats?: HudSeats): void;
 }
 
-/** What an enemy kind draws with: its figure, a strip per anim, and a palette per tier (none: the figure's own). */
+/**
+ * What an enemy kind draws with: its figure, a strip per anim (an anim it lacks stands idle), and a palette per tier
+ * (none: the figure's own).
+ */
 interface EnemyArt {
   readonly figure: Figure;
-  readonly anims: Readonly<Record<EnemyAnim, AnimStrip<string>>>;
+  readonly anims: Readonly<Partial<Record<EnemyAnim, AnimStrip<string>>>> & {
+    readonly idle: AnimStrip<string>;
+  };
   readonly tiers: Readonly<Record<Tier, Palette | undefined>>;
 }
-export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
+/** A kind missing here, the sack imp for now, draws the imp's flat stand-in (`IMP_STAND_IN`) in every anim. */
+export const ENEMY_ART: Readonly<Partial<Record<EnemyKind, EnemyArt>>> = {
   ravager: {
     figure: RAVAGER,
     anims: RAVAGER_ANIMS,
     tiers: { 0: undefined, 1: RAVAGER_TIERS.rust, 2: RAVAGER_TIERS.violet },
   },
 };
+/** What each item kind draws (a kind missing here, the pot's stand-in), and the half-width of its shadow. */
+export const ITEM_ART: Readonly<Partial<Record<ItemKind, Sprite>>> = {
+  pot: POT_STAND_IN,
+};
+export const ITEM_SHADE = 3;
 
 /** How a hero looks: its figure and its palette. */
 export interface HeroLook {
@@ -182,6 +196,8 @@ interface Standing {
   readonly lit: boolean;
   /** A hero's seat, and the rows its figure stands above its feet, for its marker. */
   readonly marker?: { readonly seat: number; readonly crown: number };
+  /** The shadow's half-width, for a figure smaller than a body (an item); otherwise it shrinks with height. */
+  readonly shade?: number;
 }
 
 export function createScene<Image>(
@@ -224,7 +240,7 @@ export function createScene<Image>(
     draw(pen, view, frame, seats) {
       const camX = view.camX;
       backdrop.draw(pen, camX, frame);
-      const at = (f: HeroView | EnemyView) => ({
+      const at = (f: HeroView | EnemyView | ItemView) => ({
         id: f.id,
         y: Math.floor(f.y),
         z: Math.floor(f.z),
@@ -245,22 +261,38 @@ export function createScene<Image>(
       for (const enemy of view.enemies) {
         if (enemy.anim === "dead" && !deadShows(enemy.animStep)) continue;
         const art = ENEMY_ART[enemy.kind];
-        // An anim the art has no strip for stands idle, as a hero's does, rather than stopping the frame loop.
-        const strip = art.anims[enemy.anim] ?? art.anims.idle;
+        // An anim the art has no strip for stands idle, as a hero's does, and a kind with no art draws its stand-in,
+        // rather than stopping the frame loop.
         standing.push({
           ...at(enemy),
-          sprite: art.figure.sprite(stripFrame(strip, enemy.animStep)),
+          sprite: art
+            ? art.figure.sprite(
+                stripFrame(
+                  art.anims[enemy.anim] ?? art.anims.idle,
+                  enemy.animStep,
+                ),
+              )
+            : IMP_STAND_IN,
           options: {
-            swap: art.tiers[enemy.tier],
+            swap: art?.tiers[enemy.tier],
             flash: enemy.flash,
             flip: enemy.facing < 0,
           },
           lit: true,
         });
       }
+      // Items lie among the figures, a pot in its last moments blinking as an invulnerable hero does.
+      for (const item of view.items)
+        standing.push({
+          ...at(item),
+          sprite: ITEM_ART[item.kind] ?? POT_STAND_IN,
+          options: {},
+          lit: !item.blink || blinksOn(frame),
+          shade: ITEM_SHADE,
+        });
       standing.sort((a, b) => a.y - b.y || a.z - b.z || a.id - b.id);
-      for (const { y, z, sx } of standing) {
-        const s = shadow(shadowRadius(z));
+      for (const { y, z, sx, shade } of standing) {
+        const s = shadow(shade ?? shadowRadius(z));
         blit(pen, s.image, s.w, s.h, sx - (s.w >> 1), y - (s.h >> 1));
       }
       for (const { y, z, sx, sprite, options, lit } of standing) {

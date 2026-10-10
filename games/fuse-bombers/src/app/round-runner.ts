@@ -7,13 +7,13 @@ import {
   step,
   TICK_HZ,
   view,
+  type BotDifficulty,
   type MatchState,
   type RoundState,
   type RoundView,
   type TickEvent,
   type Tuning,
 } from "../engine/index.js";
-import type { Bot } from "./bot.js";
 
 /** Human input per slot, e.g. the `InputHub`. */
 export interface RiderInput {
@@ -26,8 +26,11 @@ export interface RiderInput {
 
 export interface RoundRunnerOptions {
   seed: number;
-  /** One entry per player: its bot, or null for a human whose input comes from `input`. */
-  controllers: readonly (Bot | null)[];
+  /**
+   * One entry per player: a bot's difficulty (the engine plays that seat, see `RoundConfig.bots`), or null for a human
+   * whose input comes from `input`.
+   */
+  seats: readonly (BotDifficulty | null)[];
   input?: RiderInput;
   /** Round wins needed to take the match (default 3). */
   winsToWin?: number;
@@ -51,9 +54,9 @@ export const FAST_FORWARD = { speed: 2, rampUp: 0.8, rampDown: 4 } as const;
 export const GHOST_HOLD_SECONDS = 5;
 
 /**
- * The app's game loop: advances the engine at a fixed 60 Hz from real frame times, asks bots and the input hub
- * for input every step, records each finished round in `match` as soon as it ends, and starts the next round
- * (then a new match) once the aftermath has played. It implements the render layer's `RoundSource`.
+ * The app's game loop: advances the engine at a fixed 60 Hz from real frame times, asks the input hub for the
+ * humans' input every step (the engine plays the bot seats), records each finished round in `match` as soon as it
+ * ends, and starts the next round (then a new match) once the aftermath has played. It implements the render layer's `RoundSource`.
  */
 export class RoundRunner {
   match: MatchState;
@@ -68,7 +71,7 @@ export class RoundRunner {
 
   constructor(private readonly options: RoundRunnerOptions) {
     this.aftermathTicks = Math.round((options.aftermath ?? 4) * TICK_HZ);
-    this.humans = options.controllers.flatMap((bot, id) => (bot ? [] : [id]));
+    this.humans = options.seats.flatMap((bot, id) => (bot ? [] : [id]));
     this.match = this.newMatch(options.seed);
     this.state = createRound(nextRoundConfig(this.match));
   }
@@ -129,19 +132,16 @@ export class RoundRunner {
   }
 
   /**
-   * One step's input: a bot's bits, or a human's held directions plus `FIRE` on the step that takes a latched press
-   * (never from the held fire bit, so a button held through the countdown does not fire on GO, and a tap shorter
-   * than a step still fires).
+   * One step's input: a human's held directions plus `FIRE` on the step that takes a latched press (never from the
+   * held fire bit, so a button held through the countdown does not fire on GO, and a tap shorter than a step still
+   * fires). Bot seats hold nothing here: the engine plays them inside `step`.
    */
   private tick(): readonly TickEvent[] {
     if (this.state.result) this.ticksOver++;
-    const { controllers, input } = this.options;
-    const presses = input?.takePresses(controllers.length) ?? [];
-    const round = view(this.state);
-    const held = controllers.map((bot, id) =>
-      bot
-        ? bot(round, id)
-        : ((input?.heldBits(id) ?? 0) & ~FIRE) | (presses[id] ? FIRE : 0),
+    const { seats, input } = this.options;
+    const presses = input?.takePresses(seats.length) ?? [];
+    const held = seats.map((bot, id) =>
+      bot ? 0 : ((input?.heldBits(id) ?? 0) & ~FIRE) | (presses[id] ? FIRE : 0),
     );
     const humanActive = this.humans.some(
       (id) => this.state.castles[id]?.alive || held[id],
@@ -165,8 +165,11 @@ export class RoundRunner {
   }
 
   private newMatch(seed: number): MatchState {
-    const { controllers, tuning, winsToWin } = this.options;
-    const playerCount = controllers.length;
-    return createMatch({ seed, playerCount, tuning, winsToWin });
+    const { seats, tuning, winsToWin } = this.options;
+    const bots = seats.flatMap((difficulty, id) =>
+      difficulty ? [{ id, difficulty }] : [],
+    );
+    const playerCount = seats.length;
+    return createMatch({ seed, playerCount, bots, tuning, winsToWin });
   }
 }

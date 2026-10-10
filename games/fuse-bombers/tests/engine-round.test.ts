@@ -689,11 +689,13 @@ test("the view's terrain can be queried but not written or carved", () => {
   assert.equal(typeof mutate, "function");
 });
 
-test("the view hides the RNG and the spawn schedule", () => {
+test("the view hides the RNG, the spawn schedule and the bots' memory", () => {
   const v = view(createRound({ seed: 24, playerCount: 2 }));
   // @ts-expect-error bots must not see the RNG state
   assert.equal(typeof v.rng, "number");
   // @ts-expect-error nor when the next crate or bomb is due
   assert.equal(typeof v.nextBombTick, "number");
+  // @ts-expect-error nor the bots' memory
+  assert.deepEqual(v.bots, []);
   assert.equal(v.castles.length, 2);
 });

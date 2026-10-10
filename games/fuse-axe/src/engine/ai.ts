@@ -1,4 +1,5 @@
 import { clamp } from "./math.js";
+import { isImp } from "./imps.js";
 import { roll } from "./rng.js";
 import * as T from "./tuning.js";
 import {
@@ -127,13 +128,14 @@ function stride(world: World, enemy: Enemy): void {
   const hero = world.heroes.find((each) => each.id === enemy.target);
   if (hero) {
     // Enemies going for the hero or close by claim their sides in id order: it takes the side fewer of the earlier
-    // ones are on, its own on a tie, so a crowd surrounds the hero.
+    // ones are on, its own on a tie, so a crowd surrounds the hero. A sack imp passing by claims nothing.
     const own = enemy.x < hero.x ? -1 : 1;
     let crowded = 0;
     for (const other of world.enemies)
       if (
         other.id < enemy.id &&
         other.state !== "dead" &&
+        !isImp(other) &&
         (other.target === hero.id || Math.abs(other.x - hero.x) < T.HOVER_X)
       )
         crowded += (other.x < hero.x ? -1 : 1) === own ? 1 : -1;
@@ -170,7 +172,10 @@ function stride(world: World, enemy: Enemy): void {
 const BLOWS: readonly HeroState[] = ["attack1", "attack2", "attack3", "dash"];
 /** A hero knocked off its feet, whom no attacker winds up at. */
 const FLOORED: readonly HeroState[] = ["knockdown", "down", "getup"];
-/** The states a mace lands in: on its feet or in the air, running, swinging, dashing or reeling. */
+/**
+ * The states a mace lands in: on its feet or in the air, running, swinging, dashing, stabbing, striking behind,
+ * throwing or reeling. A hero mid-grab is out of its way: the grab is brief and always ends in the throw.
+ */
 const STRUCK: readonly HeroState[] = [
   "idle",
   "walk",
@@ -179,6 +184,9 @@ const STRUCK: readonly HeroState[] = [
   "land",
   ...BLOWS,
   "hurt",
+  "jumpattack",
+  "backattack",
+  "throw",
 ];
 
 /** The mace lands on every hero it reaches in front of the enemy, in the depth lane and below its sweep. */
