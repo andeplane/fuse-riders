@@ -349,3 +349,406 @@ body {
   text-decoration: none;
   padding: 12px 18px;
 }
+
+/* ---- the shared screen: the host's switch, the TV link, and the TV page ---- */
+.fa-share {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 10px;
+  font: 10px var(--fui-font-pixel, monospace);
+  color: var(--fa-gold);
+  cursor: pointer;
+}
+
+.fui-app .fa-share input {
+  grid-row: span 2;
+  width: 22px;
+  min-height: 22px;
+  margin: 0;
+  accent-color: var(--fa-gold);
+}
+
+.fa-share small {
+  font: 12px var(--fui-font-body, system-ui, sans-serif);
+  color: var(--fui-text-muted, #b6cce3);
+}
+
+.fa-tv-invite {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 9px var(--fui-font-pixel, monospace);
+  color: var(--fa-gold);
+}
+
+.fa-tv-qr {
+  width: 72px;
+  height: 72px;
+  image-rendering: pixelated;
+  border-radius: 4px;
+}
+
+body.fa-display .fa-leave {
+  display: none;
+}
+
+body.fa-display .fa-room {
+  padding: 8px;
+}
+
+/* ---- the pads: an 8-way d-pad and the ATTACK, JUMP and MAGIC buttons ---- */
+.fa-dpad,
+.fa-buttons {
+  --pad: min(40vmin, 230px);
+  --button: min(19vmin, 104px);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.fa-dpad {
+  position: relative;
+  flex: none;
+  width: var(--pad);
+  height: var(--pad);
+  border: 2px solid var(--fa-edge);
+  border-radius: 50%;
+  background:
+    linear-gradient(rgba(255, 194, 61, 0.12) 0 0) center / 34% 100% no-repeat,
+    linear-gradient(rgba(255, 194, 61, 0.12) 0 0) center / 100% 34% no-repeat,
+    rgba(12, 6, 24, 0.6);
+  color: var(--fa-gold);
+}
+
+.fa-dpad i {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: calc(var(--pad) * 0.08) solid transparent;
+  opacity: 0.45;
+}
+
+.fa-dpad .fa-dpad-up {
+  left: 50%;
+  top: 8%;
+  translate: -50% 0;
+  border-top-width: 0;
+  border-bottom-color: currentColor;
+}
+
+.fa-dpad .fa-dpad-down {
+  left: 50%;
+  bottom: 8%;
+  translate: -50% 0;
+  border-bottom-width: 0;
+  border-top-color: currentColor;
+}
+
+.fa-dpad .fa-dpad-left {
+  top: 50%;
+  left: 8%;
+  translate: 0 -50%;
+  border-left-width: 0;
+  border-right-color: currentColor;
+}
+
+.fa-dpad .fa-dpad-right {
+  top: 50%;
+  right: 8%;
+  translate: 0 -50%;
+  border-right-width: 0;
+  border-left-color: currentColor;
+}
+
+.fa-dpad[data-dir~="up"] .fa-dpad-up,
+.fa-dpad[data-dir~="down"] .fa-dpad-down,
+.fa-dpad[data-dir~="left"] .fa-dpad-left,
+.fa-dpad[data-dir~="right"] .fa-dpad-right {
+  opacity: 1;
+  filter: drop-shadow(0 0 6px var(--fa-ember));
+}
+
+.fui-controller.fa-buttons {
+  flex: none;
+  grid-template-areas: ". magic" "attack jump";
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  align-items: end;
+  gap: 10px;
+  min-height: 0;
+}
+
+.fui-app .fui-controller.fa-buttons button {
+  --tone: var(--fa-ember);
+  width: var(--button);
+  height: var(--button);
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 3px solid var(--tone);
+  background: color-mix(in srgb, var(--tone) 22%, rgba(12, 6, 24, 0.7));
+  font: 9px var(--fui-font-pixel, monospace);
+}
+
+.fui-app .fui-controller.fa-buttons button:nth-child(1) {
+  grid-area: attack;
+}
+
+.fui-app .fui-controller.fa-buttons button:nth-child(2) {
+  --tone: var(--fui-cyan, #16e7ff);
+  grid-area: jump;
+}
+
+.fui-app .fui-controller.fa-buttons button:nth-child(3) {
+  --tone: var(--fa-gold);
+  grid-area: magic;
+  width: calc(var(--button) * 0.8);
+  height: calc(var(--button) * 0.8);
+  justify-self: center;
+}
+
+.fui-app .fui-controller.fa-buttons button.active {
+  color: #1a0d10;
+  background: var(--tone);
+  box-shadow: 0 0 18px var(--tone);
+}
+
+/* Over the game on a touch screen: the corners, half see-through, never in the way of the card. */
+.fa-touch {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 8px;
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.fa-touch > * {
+  pointer-events: auto;
+}
+
+/* ---- the phone controller for a shared screen ---- */
+.fa-controller {
+  --c: var(--fa-gold);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fa-controller-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 2px solid var(--c);
+  border-radius: 10px;
+  background: var(--fa-panel);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--c) 40%, transparent);
+  font: 11px var(--fui-font-pixel, monospace);
+}
+
+.fa-controller-head b {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--c);
+}
+
+.fa-controller-head span:last-child {
+  color: var(--fa-gold);
+}
+
+.fa-controller-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "dpad center buttons";
+  align-items: end;
+  gap: 12px;
+}
+
+.fa-controller-body .fa-dpad {
+  grid-area: dpad;
+  --pad: min(44vmin, 260px);
+}
+
+.fa-controller-body .fa-buttons {
+  grid-area: buttons;
+  --button: min(22vmin, 120px);
+}
+
+.fa-controller-center {
+  grid-area: center;
+  align-self: stretch;
+  min-height: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 10px;
+  overflow: auto;
+}
+
+.fa-controller-center .fa-card {
+  position: static;
+  transform: none;
+  width: 100%;
+  max-height: none;
+}
+
+.fa-controller-note {
+  margin: 0;
+  text-align: center;
+  font: 10px/1.6 var(--fui-font-pixel, monospace);
+  color: var(--fui-yellow, #ffe46b);
+}
+
+@media (orientation: portrait) {
+  .fa-controller-body {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: "center center" "dpad buttons";
+  }
+}
+
+/* ---- a phone in play: the header folds behind MENU, the hints fade in each stage ---- */
+.fui-tools-toggle,
+.fui-control-hints {
+  display: none;
+}
+
+body.fa-phone {
+  padding: 0;
+}
+
+body.fa-phone #app:not(.fui-tools-open) > .fa-top,
+body.fa-phone .fa-note {
+  display: none;
+}
+
+/* The page covers the whole screen (`viewport-fit=cover`): the pads and the controller's head stay clear of a notch, a
+   rounded corner and the home bar. */
+body.fa-phone .fa-room {
+  padding: max(8px, env(safe-area-inset-top))
+    max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+}
+
+body.fa-phone .fa-screen {
+  border: 0;
+  border-radius: 0;
+}
+
+body.fa-phone .fa-controller-body .fa-dpad {
+  --pad: min(52vmin, 280px);
+}
+
+body.fa-phone .fa-controller-body .fa-buttons {
+  --button: min(24vmin, 130px);
+}
+
+/* MENU sits at the bottom between the pads, where no thumb rests; the hints sit below the HUD or the controller's head. */
+.fui-app.fa-phone .fui-tools-toggle {
+  display: block;
+  position: fixed;
+  bottom: max(8px, env(safe-area-inset-bottom));
+  left: 50%;
+  translate: -50% 0;
+  z-index: 20;
+  min-height: 0;
+  padding: 6px 12px;
+  font: 9px var(--fui-font-pixel, monospace);
+  opacity: 0.85;
+}
+
+body.fa-phone .fui-control-hints {
+  display: flex;
+  justify-content: space-between;
+  position: fixed;
+  top: 35%;
+  left: 16px;
+  right: 16px;
+  z-index: 20;
+  pointer-events: none;
+  font: 8px var(--fui-font-pixel, monospace);
+  color: var(--fa-gold);
+  animation: fa-hints 5s forwards;
+}
+
+body.fa-phone main[data-screen="controller"] ~ .fui-control-hints {
+  top: calc(max(8px, env(safe-area-inset-top)) + 64px);
+}
+
+.fui-control-hints span::after {
+  content: attr(data-hint);
+}
+
+@keyframes fa-hints {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The hints are for the pads: opened over them, the menu's header would have them running across it. */
+body.fa-phone #app.fui-tools-open .fui-control-hints {
+  display: none;
+}
+
+/* The header that MENU opens keeps clear of a notch and the rounded corners too. */
+body.fa-phone #app.fui-tools-open > .fa-top {
+  padding: max(10px, env(safe-area-inset-top))
+    max(16px, env(safe-area-inset-right)) 10px
+    max(16px, env(safe-area-inset-left));
+}
+
+/*
+ * Held upright, the pads share the width, not the height the landscape sizes above come from (they ran off the
+ * controller's right edge and pushed MENU off the screen), MENU moves to the top corner where no pad is, and the two
+ * hints stack instead of running into each other.
+ */
+@media (orientation: portrait) {
+  body.fa-phone .fa-controller-body .fa-dpad {
+    --pad: min(44vmin, 280px);
+  }
+
+  body.fa-phone .fa-controller-body .fa-buttons {
+    --button: min(20vmin, 130px);
+  }
+
+  .fui-app.fa-phone .fui-tools-toggle {
+    top: calc(max(8px, env(safe-area-inset-top)) + 12px);
+    right: calc(max(8px, env(safe-area-inset-right)) + 8px);
+    bottom: auto;
+    left: auto;
+    translate: none;
+  }
+
+  body.fa-phone .fa-controller-head,
+  body.fa-phone #app.fui-tools-open > .fa-top {
+    padding-right: 100px;
+  }
+
+  body.fa-phone #app.fui-tools-open .fa-status {
+    flex-basis: 100%;
+  }
+
+  body.fa-phone .fui-control-hints {
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+    line-height: 1.5;
+  }
+}
