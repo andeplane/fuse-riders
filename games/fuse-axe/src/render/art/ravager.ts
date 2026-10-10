@@ -364,6 +364,16 @@ export interface AnimStrip<F extends string> {
   readonly loop: boolean;
 }
 
+const WALK_CYCLE: AnimStrip<RavagerFrame> = {
+  frames: [
+    ["walk1", 8],
+    ["walk2", 8],
+    ["walk3", 8],
+    ["walk4", 8],
+  ],
+  loop: true,
+};
+
 /**
  * The ravager's anims. A one-frame anim holds its frame for as long as the enemy is in that state, so its steps only
  * pace the lab; they are as long as the engine keeps the enemy in the state (hurt 20, knockdown 28, the steps a
@@ -380,15 +390,9 @@ export const RAVAGER_ANIMS: Readonly<
     ],
     loop: true,
   },
-  walk: {
-    frames: [
-      ["walk1", 8],
-      ["walk2", 8],
-      ["walk3", 8],
-      ["walk4", 8],
-    ],
-    loop: true,
-  },
+  walk: WALK_CYCLE,
+  // A wave's enemy walking in from the screen's edge, or back in to a locked screen, strides like a walker.
+  enter: WALK_CYCLE,
   windup: { frames: [["windup", 24]], loop: false },
   attack: { frames: [["attack", 8]], loop: false },
   recover: { frames: [["recover", 16]], loop: false },
