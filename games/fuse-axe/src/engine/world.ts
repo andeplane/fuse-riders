@@ -1,11 +1,33 @@
-import { CAPACITY, HERO_KINDS, px, type HeroKind } from "./tuning.js";
+import {
+  CAPACITY,
+  ENEMY_HP,
+  ENEMY_KINDS,
+  ENEMY_MAX,
+  FLOOR_BOTTOM,
+  FLOOR_TOP,
+  HERO_KINDS,
+  STAGE_LENGTH,
+  px,
+  type EnemyKind,
+  type HeroKind,
+} from "./tuning.js";
+import { clamp } from "./math.js";
 
 /**
  * One run's world: plain integer data, so the netcode can clone, hash and checkpoint it. Space is `x` along the
  * road, `y` depth on the floor band (larger is nearer the viewer) and `z` height above the floor, all in sub-units;
- * the camera's left edge is `camX`. Heroes are kept in id order, which is seat order.
+ * the camera's left edge is `camX`. Heroes are kept in id order, which is seat order; enemies follow in id order,
+ * the order they spawned in.
  */
-export const HERO_STATES = ["idle", "walk", "jump", "land"] as const;
+export const HERO_STATES = [
+  "idle",
+  "walk",
+  "jump",
+  "land",
+  "attack1",
+  "attack2",
+  "attack3",
+] as const;
 export type HeroState = (typeof HERO_STATES)[number];
 
 export interface Hero {
@@ -25,6 +47,56 @@ export interface Hero {
   timer: number;
   /** The bits held on the previous step, which the next step derives presses from. */
   held: number;
+  /** Steps an Attack or a Jump press stays usable for (0: none waiting). */
+  attackBuf: number;
+  jumpBuf: number;
+  /** Hit-stop: the hero holds still on every step up to and including this one. */
+  stopUntil: number;
+  /** The enemies this swing has hit, in id order, so none is hit twice by one swing. Replaced, never mutated. */
+  struck: number[];
+  /** Tallies for the HUD: hit points taken from enemies, and enemies knocked down. */
+  damage: number;
+  knockdowns: number;
+}
+
+export const ENEMY_STATES = [
+  "idle",
+  "hurt",
+  "knockdown",
+  "down",
+  "getup",
+  "dead",
+] as const;
+export type EnemyState = (typeof ENEMY_STATES)[number];
+
+export interface Enemy {
+  id: number;
+  kind: EnemyKind;
+  x: number;
+  y: number;
+  z: number;
+  /** A nudge's or a knockdown's speed along the road, and a knockdown's rise and fall. */
+  vx: number;
+  vz: number;
+  facing: 1 | -1;
+  hp: number;
+  state: EnemyState;
+  /** Steps since `state` began. */
+  timer: number;
+  /** Hit-stop: the enemy holds still on every step up to and including this one. */
+  stopUntil: number;
+}
+
+export const FX_KINDS = ["hit", "heavy", "ko"] as const;
+export type FxKind = (typeof FX_KINDS)[number];
+
+/** A hit spark where a blade landed, born on step `born` and dropped `FX_LIFE` steps later. */
+export interface Fx {
+  kind: FxKind;
+  x: number;
+  y: number;
+  z: number;
+  born: number;
 }
 
 export interface World {
@@ -37,6 +109,9 @@ export interface World {
   nextId: number;
   camX: number;
   heroes: Hero[];
+  enemies: Enemy[];
+  /** Effects, oldest first, at most `FX_MAX`. */
+  fx: Fx[];
 }
 
 export interface HeroEntry {
@@ -85,6 +160,12 @@ export function createWorld(options: {
       state: "idle",
       timer: 0,
       held: 0,
+      attackBuf: 0,
+      jumpBuf: 0,
+      stopUntil: 0,
+      struck: [],
+      damage: 0,
+      knockdowns: 0,
     };
   });
   return {
@@ -94,5 +175,61 @@ export function createWorld(options: {
     nextId: heroes.length + 1,
     camX: 0,
     heroes,
+    enemies: [],
+    fx: [],
+  };
+}
+
+/** Turns an enemy toward the hero nearest it along the road plus in depth (the first in id order on a tie). */
+export function faceNearest(world: World, enemy: Enemy): void {
+  let nearest: Hero | undefined,
+    best = Infinity;
+  for (const hero of world.heroes) {
+    const distance = Math.abs(hero.x - enemy.x) + Math.abs(hero.y - enemy.y);
+    if (distance < best) [nearest, best] = [hero, distance];
+  }
+  // One straight above or below it in depth keeps its facing.
+  if (nearest && nearest.x !== enemy.x)
+    enemy.facing = nearest.x > enemy.x ? 1 : -1;
+}
+
+/**
+ * A new world with one more enemy standing at (`x`, `y`) in sub-units, held to the road and the floor band, facing
+ * the nearest hero. It takes the world's next id, so enemies stay in id order; the world passed in is left
+ * untouched. Like `createWorld` it throws on an unknown kind or a position that is not whole, which would otherwise
+ * leave NaN in the enemy's hit points or position, and on a world that already holds `ENEMY_MAX`: the checkpoint
+ * codec refuses a bigger one, so a room that grew it could never be restored.
+ */
+export function spawnEnemy(
+  world: World,
+  kind: EnemyKind,
+  x: number,
+  y: number,
+): World {
+  if (!ENEMY_KINDS.includes(kind))
+    throw new RangeError(`fuse-axe: unknown enemy kind ${kind}`);
+  if (!Number.isInteger(x) || !Number.isInteger(y))
+    throw new RangeError(`fuse-axe: enemy position ${x},${y} is not whole`);
+  if (world.enemies.length >= ENEMY_MAX)
+    throw new RangeError(`fuse-axe: already ${ENEMY_MAX} enemies`);
+  const enemy: Enemy = {
+    id: world.nextId,
+    kind,
+    x: clamp(x, 0, STAGE_LENGTH),
+    y: clamp(y, FLOOR_TOP, FLOOR_BOTTOM),
+    z: 0,
+    vx: 0,
+    vz: 0,
+    facing: -1,
+    hp: ENEMY_HP[kind],
+    state: "idle",
+    timer: 0,
+    stopUntil: 0,
+  };
+  faceNearest(world, enemy);
+  return {
+    ...world,
+    nextId: world.nextId + 1,
+    enemies: [...world.enemies, enemy],
   };
 }
