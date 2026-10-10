@@ -1,6 +1,7 @@
 // Data shapes of a round. `RoundState` is what `step` mutates; everything outside the engine should
 // read it through `RoundView`, the deep read-only version of the same object.
 
+import type { BotMemory, BotSeat } from "./bot.js";
 import type { Grid } from "./grid.js";
 import type { Card, Tuning } from "./tuning.js";
 
@@ -264,6 +265,8 @@ export interface RoundConfig {
   seed: number;
   /** 2..6 */
   playerCount: number;
+  /** Seats the engine plays itself, each with a difficulty (distinct ids below `playerCount`; `step` ignores their `held`). */
+  bots?: readonly BotSeat[];
   tuning?: Partial<Tuning>;
 }
 
@@ -288,6 +291,8 @@ export interface RoundState {
   ghosts: Ghost[];
   /** Each seat's input bits on the latest step (validated): fire fires on the rising edge of `FIRE` against these. */
   lastHeld: number[];
+  /** The memory of the bots `config.bots` names, by seat (see bot.ts): plain data, cloned and checkpointed with the rest. */
+  bots: BotMemory[];
   /** Events produced by the most recent `step` (cleared at the start of each step). */
   events: TickEvent[];
   /** Tick at which the next crate may spawn. */
@@ -312,9 +317,9 @@ type DeepReadonly<T> = T extends Uint32Array
 
 /**
  * Simulation internals left out of the view: the RNG state and the schedule of upcoming spawns
- * would let a bot see the future, which a player cannot.
+ * would let a bot see the future, which a player cannot, and one bot's memory is not another's business.
  */
-type Internals = "rng" | "nextId" | "nextCrateTick" | "nextBombTick";
+type Internals = "rng" | "nextId" | "nextCrateTick" | "nextBombTick" | "bots";
 
 export type RoundView = DeepReadonly<Omit<RoundState, Internals>>;
 export type CastleView = DeepReadonly<Castle>;

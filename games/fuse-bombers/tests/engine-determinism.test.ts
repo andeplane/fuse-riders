@@ -4,7 +4,6 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  createBot,
   createRound,
   FIRE,
   gridHash,
@@ -95,14 +94,9 @@ test("a cloned round replays identically (what rollback relies on)", () => {
 
 test("a full bot round on the temple replays bit for bit: same result, same carved grid", () => {
   const kinds: BotDifficulty[] = ["hard", "easy", "normal", "hard"];
-  const play = () => {
-    const bots = kinds.map((difficulty, playerId) =>
-      createBot({ difficulty, playerId, seed: 5 }),
-    );
-    return playOut({ seed: 2026, playerCount: kinds.length }, (s) =>
-      bots.map((bot) => bot(s)),
-    );
-  };
+  const bots = kinds.map((difficulty, id) => ({ id, difficulty }));
+  const play = () =>
+    playOut({ seed: 2026, playerCount: kinds.length, bots }, () => []);
   const [a, b] = [play(), play()];
   assert.ok(a.result);
   assert.deepEqual(b.result, a.result);
