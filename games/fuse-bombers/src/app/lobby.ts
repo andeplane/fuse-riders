@@ -18,7 +18,7 @@ export interface Seat {
   /** The human's device, or undefined for a bot. */
   readonly device: DeviceId | undefined;
   readonly difficulty: BotDifficulty;
-  /** `Q`, `PAD 1`, `TOUCH 2`, or `BOT`. */
+  /** `WASD`, `PAD 1`, `TOUCH 2`, or `BOT`. */
   readonly tag: string;
 }
 
@@ -27,7 +27,8 @@ export const MAX_WINS_TO_WIN = 9;
 /**
  * The lobby's state, without any DOM: who sits in which slot, how many players, bot difficulties and rounds to
  * win. A device that presses joins the first free slot (growing the player count if needed); pressing again
- * leaves. Slots up to the player count that no human holds are played by bots.
+ * leaves. Slots up to the player count that no human holds are played by bots. One keyboard seats four riders, so
+ * six humans need gamepads or touch zones too.
  */
 export class Lobby {
   playerCount = 4;
