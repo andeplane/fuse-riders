@@ -4,9 +4,12 @@
  * `HEROES` also gets its palettes, portraits and a reel per anim, timed by `heroFrame` at the game's 60 steps a second.
  * `?step=N` freezes the reels at step N.
  */
-import type { HeroKind } from "../src/engine/view.js";
 import { HERO_KINDS, STEPS_PER_SECOND } from "../src/engine/view-kit.js";
-import { heroFrame, type HeroTiming } from "../src/render/art/animate.js";
+import {
+  HERO_TIMING,
+  heroFrame,
+  type HeroTiming,
+} from "../src/render/art/animate.js";
 import { FIGURES, HEROES } from "../src/render/art/index.js";
 import type { Sprite } from "../src/render/pixel/sprite.js";
 import {
@@ -89,16 +92,6 @@ for (const [name, figure] of Object.entries(FIGURES)) {
   });
 }
 
-// view-kit's SWING_STEPS once #434 lands; until then its numbers. A jump rises for 20 steps (JUMP_VZ / GRAVITY).
-const swings = (...steps: [number, number, number][]) =>
-  steps.map(
-    ([startup, active, recovery]) => ({ startup, active, recovery }) as const,
-  );
-const TIMING: Readonly<Record<HeroKind, HeroTiming>> = {
-  brakka: { swings: swings([6, 3, 10], [6, 3, 10], [9, 4, 20]), rise: 20 },
-  rhea: { swings: swings([4, 3, 8], [4, 3, 8], [7, 4, 16]), rise: 20 },
-  gorm: { swings: swings([8, 4, 13], [8, 4, 13], [12, 5, 24]), rise: 20 },
-};
 /** Each reel plays anims in turn for so many steps, `anim:steps`; the combo chains each swing as its blade ends. */
 function reels({ swings }: HeroTiming): Record<string, string> {
   const [a1, a2, a3] = swings.map((s) => s.startup + s.active + s.recovery);
@@ -164,7 +157,7 @@ for (const kind of HERO_KINDS) {
   }
   add(section, "h2", `${kind} · a reel per anim at game speed`);
   const motion = add(section, "div", "", "row");
-  for (const [label, spec] of Object.entries(reels(TIMING[kind]))) {
+  for (const [label, spec] of Object.entries(reels(HERO_TIMING[kind]))) {
     const steps = playOut(spec);
     const xs = steps.map((s) => s.x);
     const [left, right] = [Math.min(...xs), Math.max(...xs)];
@@ -177,7 +170,7 @@ for (const kind of HERO_KINDS) {
     cell.append(view.image);
     players.push((step) => {
       const { anim, step: local, x, z } = steps[step % steps.length]!;
-      const frame = heroFrame(kind, anim, local, TIMING);
+      const frame = heroFrame(kind, anim, local);
       caption.textContent = `${anim} ${local} → ${frame}`;
       draw(figure.sprite(frame), {}, [x - left, z], view);
     });

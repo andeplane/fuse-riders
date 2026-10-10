@@ -22,8 +22,8 @@ Every hero paints the same frames, `HERO_FRAMES` in `src/render/art/animate.ts`:
 walk, rise, fall and land, a wind-up, strike and follow-through for each of the combo's three swings, then hurt,
 knockdown, down and getup; plus a 16 × 16 HUD portrait and palette swaps for up to five of the same hero. The kit's
 `stride` lays out a walk's legs, `breath` an exhale and `bend` a knee or elbow, so a new hero only adds its poses.
-`heroFrame(kind, anim, animStep, timing)` picks the frame for a hero in the view: the strike exactly in the swing's
-active steps, the walk at a cadence that keeps a planted foot still on the ground.
+`heroFrame(kind, anim, animStep)` picks the frame for a hero in the view, timed by view-kit's `SWING_STEPS`: the
+strike exactly in the swing's active steps, the walk at a cadence that keeps a planted foot still on the ground.
 
 To see every figure's frames at 3× and 1×, each hero's swaps, flash, flip and portrait, and a reel per anim at game
 speed, run `pnpm exec vite` and open `/games/fuse-axe/lab/sprites.html`. The lab is dev-only: it is not in the build
