@@ -30,7 +30,10 @@ export type MakeSurface<S> = (
 ) => S;
 
 export interface Backdrop<S> {
-  /** Everything behind the heroes: call first each frame. `frame` counts 60 Hz steps and only moves the fires. */
+  /**
+   * Everything behind the heroes: call first each frame, with image smoothing off so the whole-pixel blits stay sharp.
+   * `frame` counts 60 Hz steps and only moves the fires; the pen's `fillStyle` is left as it was found.
+   */
   draw(pen: Pen<S>, camX: number, frame: number): void;
   /** The foreground in front of the heroes: call after them. */
   drawFront(pen: Pen<S>, camX: number): void;
@@ -84,10 +87,16 @@ const camera = (camX: number) =>
     ? Math.min(Math.max(Math.floor(camX), 0), CAMERA_END_PX)
     : 0;
 
+/** The fires' clock: a step count that is never negative or NaN, so no flame or ember gets an invalid colour. */
+const clock = (frame: number) =>
+  Number.isFinite(frame) ? Math.max(frame, 0) : 0;
+
 export function createBackdrop<S>(
   make: MakeSurface<S>,
   stage: StageNumber,
 ): Backdrop<S> {
+  if (!Object.hasOwn(STAGES, stage))
+    throw new RangeError(`no backdrop for stage ${String(stage)}`);
   const art = STAGES[stage];
   const back = art.back.map((layer) => bake(make, layer));
   const front = bake(make, art.front);
@@ -95,7 +104,9 @@ export function createBackdrop<S>(
     draw(pen, camX, frame) {
       const cam = camera(camX);
       for (const layer of back) blit(pen, layer, cam);
-      art.animate(pen, cam, frame);
+      const style = pen.fillStyle;
+      art.animate(pen, cam, clock(frame));
+      pen.fillStyle = style;
     },
     drawFront(pen, camX) {
       blit(pen, front, camera(camX));

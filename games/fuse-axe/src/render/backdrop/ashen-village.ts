@@ -270,10 +270,9 @@ function hut(r: Raster, h: Hut) {
   }
 }
 
-/** Pointed stakes from the wall to the stage end, with the gate and its towers left open. */
+/** Pointed stakes from the wall to the stage end; the gate and its towers are painted over them, leaving no slit. */
 function palisade(r: Raster) {
   for (let x = WALL_X; x < STAGE_LENGTH_PX; x += 5) {
-    if (x + 5 > TOWERS[0] - 9 && x < TOWERS[1] + 9) continue;
     const top = FLOOR - 32 - Math.floor(hash(x, 7) * 7);
     for (let y = top; y < FLOOR; y++)
       for (let i = 0; i < 5; i++) {
@@ -291,19 +290,21 @@ const SKULL = ["x....x", "xxxxxx", "x.xx.x", "xxxxxx", ".x..x."];
 
 /** The closed gate under Vorhal's banner. */
 function gate(r: Raster) {
+  // The towers' planks reach 8 either side of their centres, and the gate fills the columns between them.
   const left = TOWERS[0] + 9;
+  const right = TOWERS[1] - 8;
   const top = FLOOR - 44;
   planks(
     r,
     left,
-    TOWERS[1] - 9 - left,
+    right - left,
     top,
     [0x1f1222, 0x54303a, 0x43262f, 0x43262f, 0x43262f],
   );
   r.rect(GATE_X - 1, top, 2, FLOOR - top, INK);
   for (const y of [top + 8, FLOOR - 12]) {
-    r.rect(left, y, TOWERS[1] - 9 - left, 3, HILLS[2]);
-    for (let x = left + 2; x < TOWERS[1] - 9; x += 6) r.px(x, y + 1, 0x8a7a9a);
+    r.rect(left, y, right - left, 3, HILLS[2]);
+    for (let x = left + 2; x < right; x += 6) r.px(x, y + 1, 0x8a7a9a);
   }
   r.rect(TOWERS[0] - 4, top - 6, TOWERS[1] - TOWERS[0] + 8, 6, LOG_DARK);
   r.rect(TOWERS[0] - 4, top - 6, TOWERS[1] - TOWERS[0] + 8, 1, CAP);
@@ -460,11 +461,17 @@ function grass(r: Raster) {
 const tone = (j: number, h: number, env: number) =>
   Math.min(3, Math.floor((j / h) * 3.2 + (1 - env) * 1.6));
 
+/** How far an ember sways about its path and is blown along it, in pixels. */
+const EMBER_SWAY = 3;
+const EMBER_WIND = 12;
+
 /** One fire's flames and embers, each flame column in a few solid runs. */
 function burn(brush: Brush, fire: Fire, cam: number, t: number) {
   const span = fire.rows.length;
   const left = fire.x0 - cam;
-  if (left + span + 40 < 0 || left - 40 >= VIEW_W) return;
+  // Embers stray this far from the flame columns, so a fire further off-screen than that draws nothing.
+  const reach = fire.spread / 2 + EMBER_SWAY + EMBER_WIND + 1;
+  if (left + span + reach < 0 || left - reach >= VIEW_W) return;
   for (let i = 0; i < span; i++) {
     const x = left + i;
     if (x < 0 || x >= VIEW_W) continue;
@@ -492,8 +499,12 @@ function burn(brush: Brush, fire: Fire, cam: number, t: number) {
     const life = (t * rate + hash(i, fire.seed + 1)) % 1;
     const drift = (hash(i, fire.seed + 2) - 0.5) * fire.spread;
     const x =
-      Math.round(fire.cx + drift + Math.sin(life * 9 + i) * 3 + life * 12) -
-      cam;
+      Math.round(
+        fire.cx +
+          drift +
+          Math.sin(life * 9 + i) * EMBER_SWAY +
+          life * EMBER_WIND,
+      ) - cam;
     const y = Math.round(fire.top - life * 60);
     if (y <= 20 || x < 0 || x >= VIEW_W) continue;
     brush.fillStyle = FLAME[Math.min(3, Math.floor(life * 4))]!;
