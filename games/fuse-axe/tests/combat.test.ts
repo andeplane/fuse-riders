@@ -7,6 +7,8 @@ import {
   LEFT,
   RIGHT,
   createWorld,
+  decodeWorld,
+  encodeWorld,
   spawnEnemy,
   step,
   toView,
@@ -189,6 +191,24 @@ test("a swing hits each enemy in reach once however long its window, and every o
     [hero(world).damage, hero(world).knockdowns],
     [2 * first.damage, 0],
   );
+});
+
+test("a swing keeps the enemies it hit in id order, though one that gets up in its window is hit after a higher id", () => {
+  const [first] = T.COMBO.brakka;
+  let world = arena("brakka", [20, 0], [20, 2]);
+  // Enemy 2 stands up on the step after the blade first lands, which hits enemy 3 alone.
+  Object.assign(enemy(world), {
+    state: "getup",
+    timer: T.GETUP_STEPS - first.startup - 2,
+  });
+  world = play(world, [ATTACK, ...rest(first.startup)]);
+  assert.deepEqual(hero(world).struck, [3]);
+  assert.equal(enemy(world).state, "getup");
+  world = until(world, (w) => hero(w).struck.length === 2);
+  assert.equal(hero(world).state, "attack1");
+  assert.deepEqual(hero(world).struck, [2, 3]);
+  assert.equal(enemy(world).hp, FULL - first.damage);
+  assert.deepEqual(decodeWorld(structuredClone(encodeWorld(world))), world);
 });
 
 test("a hit holds attacker and target still for a few steps, a knockdown longer, and nobody else", () => {
