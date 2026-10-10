@@ -1,9 +1,11 @@
 import {
   CAPACITY,
   ENEMY_HP,
+  ENEMY_KINDS,
   FLOOR_BOTTOM,
   FLOOR_TOP,
   HERO_KINDS,
+  STAGE_LENGTH,
   px,
   type EnemyKind,
   type HeroKind,
@@ -191,8 +193,10 @@ export function faceNearest(world: World, enemy: Enemy): void {
 }
 
 /**
- * A new world with one more enemy standing at (`x`, `y`) in sub-units, its depth held to the floor band, facing the
- * nearest hero. It takes the world's next id, so enemies stay in id order; the world passed in is left untouched.
+ * A new world with one more enemy standing at (`x`, `y`) in sub-units, held to the road and the floor band, facing
+ * the nearest hero. It takes the world's next id, so enemies stay in id order; the world passed in is left
+ * untouched. Like `createWorld` it throws on an unknown kind or a position that is not whole, which would otherwise
+ * leave NaN in the enemy's hit points or position.
  */
 export function spawnEnemy(
   world: World,
@@ -200,10 +204,14 @@ export function spawnEnemy(
   x: number,
   y: number,
 ): World {
+  if (!ENEMY_KINDS.includes(kind))
+    throw new RangeError(`fuse-axe: unknown enemy kind ${kind}`);
+  if (!Number.isInteger(x) || !Number.isInteger(y))
+    throw new RangeError(`fuse-axe: enemy position ${x},${y} is not whole`);
   const enemy: Enemy = {
     id: world.nextId,
     kind,
-    x,
+    x: clamp(x, 0, STAGE_LENGTH),
     y: clamp(y, FLOOR_TOP, FLOOR_BOTTOM),
     z: 0,
     vx: 0,

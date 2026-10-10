@@ -10,6 +10,7 @@ import {
   spawnEnemy,
   step,
   toView,
+  type EnemyKind,
   type HeroKind,
   type World,
 } from "../src/engine/index.js";
@@ -259,6 +260,12 @@ test("the finisher knocks an enemy up and away, it lies down, gets up invulnerab
     assert.ok(landing - launch > px(16), `${kind} flies away`);
     const hp = enemy(world).hp;
     dealt.push(FULL - hp);
+    // Mashed from 18 px away, all three swings landed: the nudges never carried it out of reach.
+    assert.equal(
+      FULL - hp,
+      T.COMBO[kind].reduce((sum, swing) => sum + swing.damage, 0),
+      kind,
+    );
     assert.deepEqual(
       [hero(world).damage, hero(world).knockdowns],
       [FULL - hp, 1],
@@ -291,6 +298,151 @@ test("the hit that takes the last hp knocks down for good: the enemy lands dead,
   const fell = world.step;
   world = until(world, (w) => w.enemies.length === 0);
   assert.equal(world.step - fell, Kit.DEAD_STEPS);
+});
+
+test("a finisher that takes the last hp is a KO, and the tally counts only the hp it took", () => {
+  const [first, second, last] = T.COMBO.brakka;
+  let world = arena("brakka", [18, 0]);
+  const left = 5;
+  assert.ok(left < last.damage);
+  const hp = first.damage + second.damage + left;
+  world.enemies[0]!.hp = hp;
+  const sparks = new Map<number, string>();
+  for (let index = 0; enemy(world).state !== "dead"; index++) {
+    assert.ok(index < 1000, "never died");
+    world = step(world, mashing(index));
+    for (const fx of world.fx) sparks.set(fx.born, fx.kind);
+  }
+  assert.deepEqual(
+    [...sparks.values()],
+    ["hit", "hit", "ko"],
+    "the last blow is a KO, not a heavy hit",
+  );
+  assert.deepEqual([enemy(world).hp, hero(world).damage], [0, hp]);
+  assert.equal(hero(world).knockdowns, 1);
+  world = until(world, (w) => w.enemies.length === 0);
+});
+
+test("a knocked-down enemy is out of reach of a blade while it flies, lies and gets up", () => {
+  let world = arena("brakka", [18, 0]);
+  world = until(world, (w) => enemy(w).state === "knockdown", mashing);
+  const [hp, sparks] = [enemy(world).hp, world.fx.length];
+  const seen = new Set<string>();
+  // A hero stands right beside it the whole time, swinging.
+  for (let index = 0; enemy(world).state !== "idle"; index++) {
+    assert.ok(index < 1000, "never stood up");
+    seen.add(enemy(world).state);
+    world.heroes[0]!.x = enemy(world).x - px(12);
+    world = step(world, mashing(index));
+    assert.equal(enemy(world).hp, hp);
+    assert.ok(world.fx.length <= sparks, "no new hit");
+  }
+  assert.deepEqual([...seen], ["knockdown", "down", "getup"]);
+});
+
+test("heroes strike in id order: both land on one enemy, and a KO by the first leaves nothing for the second", () => {
+  const pair = createWorld({
+    seed: 3,
+    heroes: [
+      { seat: 0, kind: "brakka" },
+      { seat: 1, kind: "brakka" },
+    ],
+  });
+  pair.heroes[1]!.x = hero(pair).x - px(6);
+  pair.heroes[1]!.y = hero(pair).y;
+  const slash = T.COMBO.brakka[0].damage;
+  const both = (hp: number) => {
+    const world = spawnEnemy(
+      pair,
+      "ravager",
+      hero(pair).x + px(18),
+      hero(pair).y,
+    );
+    world.enemies[0]!.hp = hp;
+    return until(
+      step(world, [ATTACK, ATTACK]),
+      (w) => w.fx.length > 0,
+      () => [0, 0],
+    );
+  };
+  const wounded = both(FULL);
+  assert.deepEqual(
+    [enemy(wounded).hp, hero(wounded, 0).damage, hero(wounded, 1).damage],
+    [FULL - 2 * slash, slash, slash],
+  );
+  assert.deepEqual(
+    wounded.heroes.map((h) => h.struck),
+    [[enemy(wounded).id], [enemy(wounded).id]],
+  );
+  const finished = both(slash);
+  assert.deepEqual(
+    [enemy(finished).state, enemy(finished).hp],
+    ["knockdown", 0],
+  );
+  assert.deepEqual(
+    finished.heroes.map((h) => [h.damage, h.knockdowns, h.struck]),
+    [
+      [slash, 1, [enemy(finished).id]],
+      [0, 0, []],
+    ],
+  );
+  assert.deepEqual(
+    finished.fx.map((fx) => fx.kind),
+    ["ko"],
+  );
+});
+
+test("an enemy knocked to either end of the road stays on it", () => {
+  const edges = [
+    { name: "start", enemyX: px(4), heroX: px(30), camX: 0, push: LEFT },
+    {
+      name: "end",
+      enemyX: T.STAGE_LENGTH - px(4),
+      heroX: T.STAGE_LENGTH - px(30),
+      camX: T.CAMERA_END,
+      push: RIGHT,
+    },
+  ];
+  for (const { name, enemyX, heroX, camX, push } of edges) {
+    let world = solo("brakka");
+    world.camX = camX;
+    world.heroes[0]!.x = heroX;
+    world = spawnEnemy(world, "ravager", enemyX, hero(world).y);
+    // Face the edge with a step, then mash.
+    world = step(world, [push]);
+    for (let index = 0; enemy(world).state !== "down"; index++) {
+      assert.ok(index < 1000, `${name}: never went down`);
+      world = step(world, mashing(index));
+      assert.ok(enemy(world).x >= 0 && enemy(world).x <= T.STAGE_LENGTH, name);
+    }
+    assert.equal(enemy(world).x, push === LEFT ? 0 : T.STAGE_LENGTH, name);
+  }
+});
+
+test("a spawn takes whole positions and a known kind, and holds the enemy to the road", () => {
+  const base = solo("brakka");
+  const kind = (name: string) => name as EnemyKind;
+  assert.throws(() => spawnEnemy(base, kind("wolf"), 0, 0), RangeError);
+  for (const [x, y] of [
+    [px(10) + 0.5, px(130)],
+    [px(10), NaN],
+    [Infinity, px(130)],
+  ] as const)
+    assert.throws(() => spawnEnemy(base, "ravager", x, y), RangeError);
+  assert.equal(base.nextId, 2);
+  const world = spawnEnemy(
+    spawnEnemy(base, "ravager", px(-5), px(130)),
+    "ravager",
+    T.STAGE_LENGTH + px(50),
+    px(130),
+  );
+  assert.deepEqual(
+    world.enemies.map((e) => [e.x, e.hp]),
+    [
+      [0, FULL],
+      [T.STAGE_LENGTH, FULL],
+    ],
+  );
 });
 
 test("heroes never hit each other", () => {
