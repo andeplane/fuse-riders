@@ -1,6 +1,7 @@
 import { RoomRuntime, type Callbacks, type RuntimeOptions } from "fuse-netcode";
-import { INPUT_MASK, type HeroKind } from "../engine/index.js";
+import { ATTACK, INPUT_MASK, type HeroKind } from "../engine/index.js";
 import {
+  CONTINUE,
   PICK,
   PLAY,
   axeGame,
@@ -28,6 +29,8 @@ export class AxeRuntime extends RoomRuntime<
 > {
   private bits = 0;
   private sent = { matchId: "", round: -1, bits: 0 };
+  /** The countdown (run, stage and its end tick) this device last voted in, so a held or mashed Attack votes once. */
+  private voted = "";
   constructor(
     code: string,
     settings: Settings,
@@ -36,10 +39,40 @@ export class AxeRuntime extends RoomRuntime<
   ) {
     super(axeGame, code, settings, callbacks, options);
   }
-  /** Holds `bits` from now on; logs them if the room is in a run and this device plays a hero in it. */
+  /**
+   * Holds `bits` from now on; logs them if the room is in a run and this device plays a hero in it. A fresh press of
+   * Attack while the continue countdown runs is also this device's vote to continue (`continueRun`).
+   */
   input(bits: number): void {
+    const attack = bits & ~this.bits & ATTACK;
     this.bits = bits & INPUT_MASK;
+    if (attack) this.continueRun();
     this.flush();
+  }
+  /**
+   * Votes to continue the run once every hero is out. Refused unless the fold would count it: the continue countdown
+   * runs, and this device is present (not hidden, not logged absent) in the seat of a hero in the world. A vote is
+   * logged once a countdown. `true` means it was logged, not that it landed: another hero's vote, or the countdown
+   * running out first, settles it, and the screen shows what the room did.
+   */
+  continueRun(): boolean {
+    const room = this.world?.state,
+      seat = this.player();
+    if (
+      !room?.world ||
+      room.stage !== "running" ||
+      room.until === 0 ||
+      !seat?.connected ||
+      this.hiddenState ||
+      !room.world.heroes.some((hero) => hero.seat === seat.slot)
+    )
+      return false;
+    const countdown = `${room.matchId}:${room.round}:${room.until}`;
+    if (this.voted === countdown) return false;
+    this.voted = countdown;
+    this.append(CONTINUE, room.matchId, room.round);
+    this.sendPackets(this.deps.now());
+    return true;
   }
   /**
    * Re-logs the held bits when the stage has moved on since they were last logged. The runtime does not call it on
@@ -89,9 +122,13 @@ export class AxeRuntime extends RoomRuntime<
   get self(): string {
     return this.id;
   }
-  /** The log was reset (a resync): forget what was logged, not what is held, so `flush` logs the keys still down. */
+  /**
+   * The log was reset (a resync): forget what was logged, not what is held, so `flush` logs the keys still down and a
+   * vote to continue that was lost with the log can be cast again.
+   */
   protected resetControls(): void {
     this.sent = { matchId: "", round: -1, bits: 0 };
+    this.voted = "";
   }
   protected releaseControls(): void {
     this.input(0);
