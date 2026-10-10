@@ -211,7 +211,7 @@ test("every anim plays frames the figure has, for whole steps, and every frame i
       assert.ok(Number.isInteger(steps) && steps > 0, `${anim} ${frame}`);
       played.add(frame);
     }
-    assert.equal(loop, anim === "idle" || anim === "walk", anim);
+    assert.equal(loop, ["idle", "walk", "enter"].includes(anim), anim);
   }
   assert.deepEqual(
     RAVAGER_ANIMS.dead.frames.map(([frame]) => frame),
@@ -221,6 +221,8 @@ test("every anim plays frames the figure has, for whole steps, and every frame i
     RAVAGER_ANIMS.walk.frames.map(([frame]) => frame),
     ["walk1", "walk2", "walk3", "walk4"],
   );
+  // A wave's enemy walking in strides like a walker.
+  assert.deepEqual(RAVAGER_ANIMS.enter, RAVAGER_ANIMS.walk);
   assert.deepEqual([...played].sort(), [...FRAMES].sort());
 });
 
