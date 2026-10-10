@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ATTACK,
+  DOWN,
   HERO_KINDS,
   JUMP,
   LEFT,
   RIGHT,
+  UP,
   createWorld,
   decodeWorld,
   encodeWorld,
@@ -520,4 +522,176 @@ test("a checkpoint whose grabs and throws do not add up is refused whole", () =>
     ["half a throw", flying, (w) => (hero(w).throws = 0.5)],
   ] as [string, World, (copy: World) => void][])
     assert.equal(changed(world, change), undefined, what);
+});
+
+test("a jump after a knockback or a dash leaves from a standstill: Attack within the window is the back attack, not the stab", () => {
+  for (const kind of HERO_KINDS) {
+    // Reeling from a blow nudges the hero along at more than a walk, until it is on its feet again.
+    const struck = solo(kind);
+    Object.assign(hero(struck), { state: "hurt", timer: 0, vx: px(3) });
+    const reeled = until(struck, (w) => hero(w).state === "idle");
+    // A dash slides at more than a run, and ends standing.
+    const running = play(solo(kind), [RIGHT, 0, RIGHT, RIGHT]);
+    const dashed = until(step(running, [RIGHT | ATTACK]), (w) => {
+      assert.ok(["dash", "idle"].includes(hero(w).state), kind);
+      return hero(w).state === "idle";
+    });
+    // Whatever speed a hero stands with, a take-off carries the held directions' alone.
+    const leftover = solo(kind);
+    Object.assign(hero(leftover), { vx: px(3), vy: px(3) });
+    for (const [what, world] of [
+      ["knocked back", reeled],
+      ["dashed", dashed],
+      ["with speed left over", leftover],
+    ] as const) {
+      const jumped = step(world, [JUMP]);
+      assert.deepEqual([hero(jumped).state, hero(jumped).vx], ["jump", 0]);
+      const after = step(jumped, [ATTACK]);
+      assert.deepEqual(
+        [hero(after).state, hero(after).z, hero(after).vx],
+        ["backattack", 0, 0],
+        `${kind} ${what}`,
+      );
+    }
+  }
+});
+
+test("two heroes grabbing the same dazed enemy on the same step: the lower id gets it, and the other's Attack slashes the air", () => {
+  let world = createWorld({
+    seed: 1,
+    heroes: [
+      { seat: 0, kind: "gorm" },
+      { seat: 1, kind: "rhea" },
+    ],
+  });
+  const [first, second] = world.heroes;
+  Object.assign(second!, { x: first!.x + px(6), y: first!.y });
+  world = spawnEnemy(world, "ravager", first!.x + px(20), first!.y);
+  Object.assign(enemy(world), { state: "hurt", timer: 0 });
+  world = step(world, [RIGHT | ATTACK, RIGHT | ATTACK]);
+  assert.deepEqual(
+    [hero(world).state, hero(world, 1).state, enemy(world).holder],
+    ["grab", "attack1", first!.id],
+  );
+  assert.ok(decodeWorld(structuredClone(encodeWorld(world))), "and it holds");
+  // The slash's blade is out over the held body, which no blade lands on, and the throw is the first hero's.
+  world = until(world, landed);
+  assert.deepEqual(
+    [enemy(world).hp, hero(world).damage, hero(world, 1).damage],
+    [FULL2 - T.THROW_DAMAGE, T.THROW_DAMAGE, 0],
+  );
+  assert.deepEqual([hero(world).throws, hero(world, 1).throws], [1, 0]);
+});
+
+test("a thrower hit mid-throw still has its body fly on and land, and is credited for it", () => {
+  let world = dazed("brakka", [16, 0], [30, 0]);
+  world = step(world, [RIGHT | ATTACK]);
+  world = until(world, (w) => hero(w).state === "throw");
+  // The ravager in front swings its mace at the hero as the body leaves.
+  Object.assign(enemy(world, 1), {
+    state: "windup",
+    timer: T.RAVAGER[0].windup - 1,
+    facing: -1,
+    stopUntil: 0,
+  });
+  world = step(world, [0]);
+  assert.equal(hero(world).state, "hurt");
+  assert.equal(enemy(world).state, "thrown");
+  world = until(world, landed);
+  assert.deepEqual(
+    [enemy(world).state, enemy(world).holder, hero(world).damage],
+    ["down", 0, T.THROW_DAMAGE],
+  );
+  assert.ok(decodeWorld(structuredClone(encodeWorld(world))));
+});
+
+test("every world a brawl of grabs, throws, stabs and back attacks reaches is one the checkpoint takes back whole, with the held body in its holder's hands", () => {
+  const seen = { grab: 0, throw: 0, stab: 0, back: 0 };
+  for (let seed = 1; seed <= 4; seed++) {
+    let state = seed;
+    const roll = (n: number) =>
+      ((state = (Math.imul(state, 1103515245) + 12345) >>> 0) >>> 8) % n;
+    let world = createWorld({
+      seed,
+      heroes: HERO_KINDS.map((kind, seat) => ({ seat, kind })),
+    });
+    const held = HERO_KINDS.map(() => 0);
+    for (let index = 0; index < 1500; index++) {
+      // A crowd round the heroes, some of it dazed, for them to grab.
+      if (index % 20 === 0 && world.enemies.length < 6) {
+        const near = hero(world, roll(HERO_KINDS.length));
+        world = spawnEnemy(
+          world,
+          "ravager",
+          near.x + px(roll(80) - 40),
+          near.y + px(roll(16) - 8),
+        );
+      }
+      if (index % 7 === 0)
+        for (const each of world.enemies)
+          if (roll(3) === 0 && ["idle", "walk", "windup"].includes(each.state))
+            Object.assign(each, { state: "hurt", timer: 0, stopUntil: 0 });
+      // Each hero heads for the nearest enemy, pressing and releasing on alternate steps.
+      for (const me of world.heroes) {
+        const foe = [...world.enemies].sort(
+          (a, b) =>
+            Math.abs(a.x - me.x) +
+            Math.abs(a.y - me.y) -
+            (Math.abs(b.x - me.x) + Math.abs(b.y - me.y)),
+        )[0];
+        if (!foe || index % 2) {
+          held[me.seat] = held[me.seat]! & ~(ATTACK | JUMP);
+          continue;
+        }
+        const dx = foe.x - me.x,
+          dy = foe.y - me.y,
+          press = roll(100);
+        held[me.seat] =
+          (Math.abs(dx) > px(14) || roll(2) ? (dx > 0 ? RIGHT : LEFT) : 0) |
+          (Math.abs(dy) > px(3) ? (dy > 0 ? DOWN : UP) : 0) |
+          (press < 60
+            ? ATTACK
+            : press < 66
+              ? JUMP
+              : press < 70
+                ? ATTACK | JUMP
+                : 0);
+      }
+      const before = world;
+      world = step(world, held);
+      for (const [at, now] of world.heroes.entries()) {
+        const was = hero(before, at);
+        for (const state of ["grab", "throw"] as const)
+          if (now.state === state && was.state !== state) seen[state]++;
+        if (now.state === "jumpattack" && was.state !== "jumpattack")
+          seen.stab++;
+        if (now.state === "backattack" && was.state !== "backattack") {
+          seen.back++;
+          assert.deepEqual([now.z, now.vx, now.vy, now.vz], [0, 0, 0, 0]);
+          assert.ok(!["run", "jumpattack"].includes(was.state));
+          if (was.state === "jump")
+            assert.ok(
+              Math.abs(was.vx) <= T.WALK[was.kind].x,
+              "no running jump",
+            );
+        }
+      }
+      for (const each of world.enemies)
+        if (each.state === "held") {
+          const holder = world.heroes.find((one) => one.id === each.holder)!;
+          assert.deepEqual(
+            [each.x - holder.x, each.y, each.z],
+            [holder.facing * T.GRAB_HOLD, holder.y, 0],
+          );
+        }
+      if (world.step % 3 === 0)
+        assert.deepEqual(
+          decodeWorld(structuredClone(encodeWorld(world))),
+          world,
+          `seed ${seed} step ${world.step}`,
+        );
+    }
+  }
+  assert.ok(seen.grab >= 3 && seen.throw >= 3, JSON.stringify(seen));
+  assert.ok(seen.stab >= 3 && seen.back >= 3, JSON.stringify(seen));
 });

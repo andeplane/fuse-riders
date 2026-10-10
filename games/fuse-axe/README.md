@@ -14,12 +14,12 @@ tally, then the run's victory; when every hero is out, any hero may press Attack
 or the run is over. The host sets out again with **REMATCH** or goes back to the lobby. Phone pads and the shared
 screen follow.
 
-| Keys          | Does                                                                 |
-| ------------- | -------------------------------------------------------------------- |
-| Arrows / WASD | Walk the road, up and down in depth; double-tap left or right to run |
-| J / Z         | Attack (from a run, a dash attack)                                   |
-| K / X         | Jump (from a run, a running jump)                                    |
-| L / C         | Magic                                                                |
+| Keys          | Does                                                                  |
+| ------------- | --------------------------------------------------------------------- |
+| Arrows / WASD | Walk the road, up and down in depth; double-tap left or right to run  |
+| J / Z         | Attack (a dash from a run, a stab in the air, a throw at a dazed one) |
+| K / X         | Jump (a running jump from a run); with Attack, a back attack          |
+| L / C         | Magic                                                                 |
 
 ```sh
 pnpm build && pnpm exec tsx service/dev.ts   # then open http://localhost:8787/fuse-axe/?mute
