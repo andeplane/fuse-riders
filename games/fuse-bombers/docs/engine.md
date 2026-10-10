@@ -174,16 +174,37 @@ it.
   length).
 - `src/engine/flight.ts`: `flyStep(body, bits, tuning, world)` advances one `{ x, y, vx, vy }` by one `DT` in place:
   thrust, linear drag (stronger `brakeDrag` when nothing is held, a dead stop below `stopSpeed`), a `topSpeed` cap, no
-  gravity. `world` is `{ width, height, solidAt(x, y) }`. The body is a circle that slides along rock and the world edge
-  and bounces off it (`bounce`, below `bounceMinSpeed` it just stops); moves are sub-stepped at `MAX_SUBSTEP` = 2 px and
-  rock is probed on a ring about a pixel wider than the circle, so the circle never overlaps a 4 px cell and never
-  tunnels through one. A body that starts a step buried (a bad spawn) is moved to the nearest clear spot within its
-  radius, or flies through rock until it is clear. `separate(bodies, radius, world)` parts overlapping gunships
-  symmetrically in index order and removes their approach velocity, never pushing one into rock. Ghosts use
-  `GHOST_FLIGHT` in `openSky(width, height)`.
+  gravity. `world` is `{ width, height, solidAt(x, y), rockless? }`: `solidAt` is constant over each 4 px cell
+  (`CELL_SIZE`), is asked only about points in `[0, width) × [0, height)`, and is never called when `rockless` (what
+  `openSky(width, height)` sets, for ghosts with `GHOST_FLIGHT`).
+  - **Shape.** The body is a circle (`tuning.shape = flightShape(radius)`, a pure function: the rim probe offsets are
+    built once, at module load, with no trigonometry). Rock is tested at rim probes on a ring about a pixel wider than
+    the circle, at most 2 px apart, and moves are sub-stepped at `MAX_SUBSTEP` = 2 px, so the circle never overlaps a
+    4 px cell and never tunnels through one, at any speed. A ship resting on rock sits within about a pixel of it.
+  - **Sliding.** A blocked sub-step goes to the contact point and slides along the surface for the rest of its move.
+    The surface normal is read off the rim probes that hit (a world edge gives its axis), the velocity into the
+    surface bounces at `bounce` or, below `bounceMinSpeed`, just stops, and the part along it is kept. So a ship
+    thrusting into a 15°, 30° or 45° ramp, a stair-stepped gentle rise or a sloped roof rides along it, and a steeper
+    or jagged slope slows it without holding it (a slide stopped again within half its length falls back to moving
+    along each axis alone). The return value is the fastest hit of at least `bounceMinSpeed` (0 for a ship pressing on
+    a wall), for a bump sound or damage.
+  - **Placing.** `placeClear(body, shape, world)` is for spawns: it moves a body to a nearby clear spot (within four
+    radii, rings 2 px apart, up first), also when rock sits wholly inside its circle where the rim would never meet it.
+    `flyStep` itself checks only the rim, so a body that starts clear stays clear, since rock never grows. A body that
+    starts a step with its rim in rock and no clear spot in reach flies through rock until it is clear.
+  - **`separate(bodies, shape, world)`** parts overlapping gunships (one shape for all of them) in index order, up to 12
+    passes, symmetrically along the line between them, each push a sub-stepped move that slides along rock and edges, and
+    removes their approach velocity. What one ship cannot move, the other takes. A pair the line cannot part (two ships
+    in a shaft as wide as one, or exactly on top of each other with x blocked) is parted sideways. Nobody is pushed into
+    rock or out of the world. The result depends on the order of `bodies`: pass them in seat order.
+  - **State.** All four numbers of a body must be finite: flight does not repair NaN, so the checkpoint codec has to
+    refuse it. Nothing is shared between calls.
 - `GUNSHIP_FLIGHT` (thrust 400 px/s², top speed 200 px/s, drag 1.6/s, brake drag 2.4/s): half speed in 0.33 s, top
   speed in 1.07 s, a full reversal at top speed in 1.45 s, coasting to rest in 1.6 s. `GHOST_FLIGHT` is lighter and
-  faster (top speed 260 px/s in 0.78 s). Six gunships cost about 30 µs a step.
+  faster (top speed 260 px/s in 0.78 s). The tests assert ranges around these. Cost, measured on a 4800 × 2700 bitset
+  terrain with hills and islands (Node 24, `flyStep` for six gunships plus one `separate` per step): about 4 µs at rest,
+  7 µs flying with random 20–80 tick holds, 12 µs with all six pressing into the ground; six ghosts in `openSky` about
+  3 µs.
 
 ## Rules as implemented (defaults in `DEFAULT_TUNING`)
 

@@ -9,13 +9,15 @@ export const UP = 1,
   FIRE = 16;
 export const INPUT_MASK = UP | DOWN | LEFT | RIGHT | FIRE;
 
-/** Runtime check for input that crosses a boundary (keyboard map, phone, log entry): an integer of known bits only. */
+/**
+ * Runtime check for input that crosses a boundary (keyboard map, phone, log entry): an integer of known bits only. The
+ * five bits are contiguous from 1, so that is every integer from 0 to `INPUT_MASK`.
+ */
 export const isInput = (value: unknown): value is number =>
   typeof value === "number" &&
   Number.isInteger(value) &&
   value >= 0 &&
-  value <= INPUT_MASK &&
-  (value & ~INPUT_MASK) === 0;
+  value <= INPUT_MASK;
 
 /** A thrust direction: a unit vector, or zero when no direction is held. y grows downward. */
 export interface Direction {
@@ -43,5 +45,5 @@ const DIRECTIONS: readonly Direction[] = Array.from(
  */
 export function thrustDirection(bits: number): Direction {
   // `& 15` keeps any value, even a non-integer or NaN, inside the table.
-  return DIRECTIONS[bits & (UP | DOWN | LEFT | RIGHT)] ?? DIRECTIONS[0]!;
+  return DIRECTIONS[bits & (UP | DOWN | LEFT | RIGHT)]!;
 }
