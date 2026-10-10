@@ -8,18 +8,18 @@ A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Wo
 
 Open `/fuse-axe/` on a running service, or pick **Fuse Axe** from the app portal (the dot grid at the top left of
 every game). **PLAY SOLO** opens the hero picker; **CREATE ROOM** makes a room to share by code, link or QR code,
-where everyone picks a hero (duplicates are allowed) and the host presses **START**. The heroes walk, jump and swing
+where everyone picks a hero (duplicates are allowed) and the host presses **START**. The heroes walk, run, jump and swing
 through Stage 1's waves of ravagers in the pixel-art scene under the HUD. Clearing the stage shows each hero's
 tally, then the run's victory; when every hero is out, any hero may press Attack within ten seconds to continue once,
 or the run is over. The host sets out again with **REMATCH** or goes back to the lobby. Phone pads and the shared
 screen follow.
 
-| Keys          | Does                                |
-| ------------- | ----------------------------------- |
-| Arrows / WASD | Walk the road, up and down in depth |
-| J / Z         | Attack                              |
-| K / X         | Jump                                |
-| L / C         | Magic                               |
+| Keys          | Does                                                                 |
+| ------------- | -------------------------------------------------------------------- |
+| Arrows / WASD | Walk the road, up and down in depth; double-tap left or right to run |
+| J / Z         | Attack (from a run, a dash attack)                                   |
+| K / X         | Jump (from a run, a running jump)                                    |
+| L / C         | Magic                                                                |
 
 ```sh
 pnpm build && pnpm exec tsx service/dev.ts   # then open http://localhost:8787/fuse-axe/?mute

@@ -339,8 +339,8 @@ function strike(world: World, hero: Hero, blade: T.Blow): void {
 
 /**
  * A hit: the damage, then hitstun and a nudge away from the hero, which breaks off the enemy's swing, or, from the
- * finisher, a dash or at no hp left, a knockdown that launches the enemy up and away and frees its place by the hero it was
- * going for. Attacker and target both hold still for the hit-stop.
+ * finisher, a dash or at no hp left, a knockdown that launches the enemy up and away and frees its place by the hero
+ * it was going for. Attacker and target both hold still for the hit-stop.
  */
 function hit(world: World, hero: Hero, enemy: Enemy, damage: number): void {
   const taken = Math.min(damage, enemy.hp),
