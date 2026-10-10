@@ -8,6 +8,7 @@ import {
   FLOOR_TOP,
   HERO_HP,
   HERO_KINDS,
+  LIVES,
   RAVAGER,
   STAGE_LENGTH,
   SUB,
@@ -41,6 +42,8 @@ export const HERO_STATES = [
   "down",
   "getup",
   "dead",
+  "respawn",
+  "out",
 ] as const;
 export type HeroState = (typeof HERO_STATES)[number];
 
@@ -71,9 +74,10 @@ export interface Hero {
   /** Tallies for the HUD: hit points taken from enemies, and enemies knocked down. */
   damage: number;
   knockdowns: number;
-  /** Hit points left: a hero with none lies `dead`. */
+  /** Hit points left in this life, and lives left, this one included: a hero with none is `out`. */
   hp: number;
-  /** No mace lands on the hero up to and including this step, as it gets up and for a moment after. */
+  lives: number;
+  /** No mace lands on the hero up to and including this step: getting up, and after dropping back in. */
   invulnUntil: number;
   /** Hits taken in a row, each within `JUGGLE_WINDOW` of the one before; that window closes after `staggerUntil`. */
   stagger: number;
@@ -211,6 +215,7 @@ export function createWorld(options: {
       damage: 0,
       knockdowns: 0,
       hp: HERO_HP[entry.kind],
+      lives: LIVES,
       invulnUntil: 0,
       stagger: 0,
       staggerUntil: 0,
@@ -283,8 +288,13 @@ export function newEnemy(
   };
 }
 
-/** A hero on the field, whom enemies go for: not lying fallen. */
-export const present = (hero: Hero): boolean => hero.state !== "dead";
+/** A hero on the field, whom enemies go for: not lying fallen, dropping back in or out. */
+export const present = (hero: Hero): boolean =>
+  hero.state !== "dead" && hero.state !== "respawn" && hero.state !== "out";
+
+/** Every hero is out of lives: the run is lost, unless the party continues. */
+export const defeated = (world: World): boolean =>
+  world.heroes.length > 0 && world.heroes.every((hero) => hero.state === "out");
 
 /** How far apart two figures are, along the road plus in depth. */
 export const distance = (a: Enemy | Hero, b: Enemy | Hero): number =>

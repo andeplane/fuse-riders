@@ -22,6 +22,7 @@ const hero = (id: number, x: number, y = 120, z = 0): HeroView => ({
   animStep: 0,
   hp: 48,
   maxHp: 48,
+  lives: 3,
   invulnerable: false,
 });
 const enemy = (id: number, x: number): EnemyView => ({
@@ -49,6 +50,7 @@ const world = (extra: Partial<WorldView> = {}): WorldView => ({
   locked: false,
   go: false,
   cleared: false,
+  defeated: false,
   ...extra,
 });
 
