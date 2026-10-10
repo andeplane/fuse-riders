@@ -40,7 +40,10 @@ export class Mesh {
   private readonly visibility = new Map<string, () => void>();
   private readonly scripted = new Map<
     string,
-    (from: string, data: unknown) => void
+    {
+      hear: (from: string, data: unknown) => void;
+      hearFast?: (from: string, bytes: Uint8Array) => void;
+    }
   >();
   readonly runtimes = new Map<string, TestRuntime>();
   readonly frames = new Map<string, View[]>();
@@ -92,10 +95,14 @@ export class Mesh {
   }
   /**
    * A member with no runtime, which the test speaks for: it hears the reliable messages sent to it through `hear` and
-   * answers with `say`. Its fast packets go nowhere.
+   * the fast packets through `hearFast` (none, by default), and answers with `say`. Its own fast packets go nowhere.
    */
-  script(id: string, hear: (from: string, data: unknown) => void): void {
-    this.scripted.set(id, hear);
+  script(
+    id: string,
+    hear: (from: string, data: unknown) => void,
+    hearFast?: (from: string, bytes: Uint8Array) => void,
+  ): void {
+    this.scripted.set(id, { hear, hearFast });
     this.admit(id);
   }
   say(from: string, to: string, data: unknown): void {
@@ -151,8 +158,8 @@ export class Mesh {
       order: this.order++,
       run: () => {
         if (!this.online.has(to)) return;
-        const hear = this.scripted.get(to);
-        if (hear) hear(from, copy);
+        const peer = this.scripted.get(to);
+        if (peer) peer.hear(from, copy);
         else this.events.get(to)!.message(from, copy);
       },
     });
@@ -160,12 +167,14 @@ export class Mesh {
   }
   private sendFast(from: string, to: string, bytes: Uint8Array): boolean {
     if (!this.online.has(from) || !this.online.has(to)) return false;
-    if (this.scripted.has(to)) return true;
     const fate = this.fast(from, to);
     if (fate.drop) return true;
     const copy = bytes.slice();
     const deliver = () => {
-      if (this.online.has(to)) this.events.get(to)!.fast(from, copy);
+      if (!this.online.has(to)) return;
+      const peer = this.scripted.get(to);
+      if (peer) peer.hearFast?.(from, copy);
+      else this.events.get(to)!.fast(from, copy);
     };
     this.at(fate.delayMs, deliver);
     if (fate.duplicateMs !== undefined) this.at(fate.duplicateMs, deliver);
