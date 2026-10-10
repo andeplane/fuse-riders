@@ -1,8 +1,8 @@
 // Destructible bitmap terrain: the world as a grid of square cells, each open air, rock or indestructible ("hard")
 // rock. Two bitsets hold it (bit `row * cols + col`), so a 4800 × 2700 world of 4 px cells is about 100 KB per set,
 // survives `structuredClone`, and a point query is a shift and a mask. World units are logical pixels, y down;
-// outside the world is open air. Only `+ - * /`, `Math.sqrt`, `floor`, `ceil`, `min`, `max`, `imul` and `clz32` are
-// used, so results are bit-identical on every engine.
+// outside the world is open air. Only `+ - * /`, `Math.sqrt`, `floor`, `ceil`, `min`, `max`, `sign`, `imul` and
+// `clz32` are used, so results are bit-identical on every engine.
 
 /** What a fill writes into the cells it covers: destructible rock, indestructible rock or open air. */
 export type Paint = "rock" | "hard" | "air";
