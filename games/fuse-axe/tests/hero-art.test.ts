@@ -10,10 +10,17 @@ import {
   paintBrakka,
   paintBrakkaPortrait,
 } from "../src/render/art/brakka.js";
+import {
+  GORM_POSES,
+  paintGorm,
+  paintGormPortrait,
+} from "../src/render/art/gorm.js";
 import { HEROES } from "../src/render/art/index.js";
 import {
   paintRhea,
   paintRheaPortrait,
+  RHEA,
+  RHEA_PORTRAIT,
   RHEA_POSES,
 } from "../src/render/art/rhea.js";
 import { turn } from "../src/render/pixel/head.js";
@@ -30,10 +37,7 @@ import {
   type PixelPaint,
 } from "../src/render/pixel/surface.js";
 
-const heroes = HERO_KINDS.flatMap((kind) => {
-  const art = HEROES[kind];
-  return art ? [{ kind, ...art }] : [];
-});
+const heroes = HERO_KINDS.map((kind) => ({ kind, ...HEROES[kind] }));
 /** The sprite's rows from `top` above its anchor to `bottom` below, `left` and `right` of it, as text. */
 type Span = readonly [number, number];
 const around = (s: Sprite, [left, right]: Span, [top, bottom]: Span) =>
@@ -66,29 +70,41 @@ test("every hero paints every frame inside its canvas, with its anchor on its fe
     for (const swap of Object.values(figure.swaps))
       baker.bake(portrait, { swap, flash: true });
   }
-  // Every hero with art is covered, however many there are, and Brakka and Rhea are there.
-  assert.deepEqual(
-    heroes.map(({ kind }) => kind).sort(),
-    Object.keys(HEROES).sort(),
-  );
-  assert.ok(heroes.some(({ kind }) => kind === "brakka"));
-  assert.ok(heroes.some(({ kind }) => kind === "rhea"));
-  assert.deepEqual(paintBrakkaPortrait(), HEROES.brakka!.portrait);
-  assert.deepEqual(paintRheaPortrait(), HEROES.rhea!.portrait);
+  // Every hero has art, and nothing else does.
+  assert.deepEqual(Object.keys(HEROES).sort(), [...HERO_KINDS].sort());
+  assert.deepEqual(paintBrakkaPortrait(), HEROES.brakka.portrait);
+  assert.deepEqual(paintRheaPortrait(), HEROES.rhea.portrait);
+  assert.deepEqual(paintGormPortrait(), HEROES.gorm.portrait);
 });
 
-test("Brakka paints the same pixels since his head, face and portrait moved to the shared kit", () => {
-  const art = {
-    frames: HERO_FRAMES.map((frame) => BRAKKA.sprite(frame)),
-    portrait: BRAKKA_PORTRAIT,
-    swaps: BRAKKA.swaps,
-  };
-  assert.equal(
-    createHash("sha256").update(JSON.stringify(art)).digest("hex"),
-    "d5aa2a86712a9dddf3be9ca849179fc8786bfc36ddcd9275363110985c08485c",
-    "Brakka's pixels changed. If a pose, a colour or the shared head, kit or portrait code was meant to change them, " +
-      "look at the lab's sheet and refresh this hash; a refactor must not change them.",
-  );
+test("Brakka and Rhea paint the same pixels whatever the shared kit gains", () => {
+  const pinned = [
+    [
+      BRAKKA,
+      BRAKKA_PORTRAIT,
+      "Brakka",
+      "d5aa2a86712a9dddf3be9ca849179fc8786bfc36ddcd9275363110985c08485c",
+    ],
+    [
+      RHEA,
+      RHEA_PORTRAIT,
+      "Rhea",
+      "2f5d857e0e2737a2292874d1bd20405fa071bab7f86544b2e2ac8a42b69e1edd",
+    ],
+  ] as const;
+  for (const [figure, portrait, name, hash] of pinned) {
+    const art = {
+      frames: HERO_FRAMES.map((frame) => figure.sprite(frame)),
+      portrait,
+      swaps: figure.swaps,
+    };
+    assert.equal(
+      createHash("sha256").update(JSON.stringify(art)).digest("hex"),
+      hash,
+      `${name}'s pixels changed. If a pose, a colour or the shared head, kit or portrait code was meant to change ` +
+        "them, look at the lab's sheet and refresh this hash; a refactor or a new part must not change them.",
+    );
+  }
 });
 
 test("a hero's five looks are told apart from each other, in its frames and its portrait", () => {
@@ -188,6 +204,10 @@ test("a hero frame paints the same rows every time", () => {
     assert.deepEqual(
       paintRhea(RHEA_POSES[frame]),
       paintRhea(RHEA_POSES[frame]),
+    );
+    assert.deepEqual(
+      paintGorm(GORM_POSES[frame]),
+      paintGorm(GORM_POSES[frame]),
     );
   }
 });

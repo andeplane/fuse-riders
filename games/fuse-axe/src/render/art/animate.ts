@@ -48,13 +48,14 @@ export const HERO_TIMING: Readonly<Record<HeroKind, HeroTiming>> = {
 export const BREATH_STEPS = 40;
 /**
  * Steps each walk frame holds: a hero's walking speed times this is the ground a planted foot must keep pace with
- * (1 px a step times 6 for Brakka, 1.25 px times 5 for Rhea, whose strides are drawn for it; Gorm's art will draw his
- * to match). It holds on a straight walk along the road; walking in depth is slower and the foot slides a little.
+ * (1 px a step times 6 for Brakka, 1.25 px times 5 for Rhea and 0.8 px times 5 for Gorm's short quick steps, whose
+ * strides are drawn for it). It holds on a straight walk along the road; walking in depth is slower and the foot
+ * slides a little.
  */
 export const WALK_STEPS: Readonly<Record<HeroKind, number>> = {
   brakka: 6,
   rhea: 5,
-  gorm: 6,
+  gorm: 5,
 };
 const WALK = ["walk0", "walk1", "walk2", "walk3", "walk4", "walk5"] as const;
 const SWING = [

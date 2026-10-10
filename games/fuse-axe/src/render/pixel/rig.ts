@@ -21,6 +21,8 @@ export interface ShapeOptions {
   readonly bias?: number;
   /** Scales the normal's slope; below 1 shades flatter. */
   readonly flat?: number;
+  /** Every `grain`-th pixel along a steep diagonal drops a shade, for a beard's or a pelt's strands; 0 for none. */
+  readonly grain?: number;
 }
 
 /**
@@ -46,6 +48,8 @@ const NEIGHBOURS = [
   [0, 1],
   [0, -1],
 ] as const;
+/** A strand of grain one shade darker than the light gives. */
+const DARKER = [1, 2, 2] as const;
 
 interface Shape extends Required<Omit<ShapeOptions, "group" | "flat">> {
   readonly key: string;
@@ -221,13 +225,14 @@ export class Rig {
   /** Lights every shape into its ramp and edges the shapes that others overlap. */
   bake(): Painting {
     const { w, h, cells } = this;
-    const lit = cells.map((cell) => {
+    const lit = cells.map((cell, i) => {
       if (!cell) return null;
-      const { key, fixed, bias } = cell.shape;
+      const { key, fixed, bias, grain } = cell.shape;
       const light = cell.light + bias;
-      return fixed
-        ? key
-        : shade(key, light >= HIGHLIGHT ? 0 : light < SHADOW ? 2 : 1);
+      const level = light >= HIGHLIGHT ? 0 : light < SHADOW ? 2 : 1;
+      const strand =
+        grain > 0 && ((i % w) + Math.floor(i / w / 2)) % grain === 0;
+      return fixed ? key : shade(key, strand ? DARKER[level] : level);
     });
     const out = lit.slice();
     cells.forEach((cell, i) => {
@@ -258,7 +263,8 @@ export class Rig {
       if (o.group !== undefined) this.groups.set(o.group, part);
     }
     const [edge, bias, fixed] = [o.edge ?? "ink", o.bias ?? 0, !rampOf(key)];
-    return { key, seq: ++this.shapes, part, edge, bias, fixed };
+    const grain = o.grain ?? 0;
+    return { key, seq: ++this.shapes, part, edge, bias, grain, fixed };
   }
 
   private scan([left, top, right, bottom]: Box, paint: Scan) {

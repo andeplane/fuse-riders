@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { HERO_FRAMES } from "../src/render/art/animate.js";
 import { FIGURES } from "../src/render/art/index.js";
 import { BRAKKA, BRAKKA_POSES, paintBrakka } from "../src/render/art/brakka.js";
-import { adjust, arm, fist, leg } from "../src/render/pixel/kit.js";
+import { adjust, arm, axe, fist, leg } from "../src/render/pixel/kit.js";
 import {
   glows,
   MASTER,
@@ -279,6 +279,51 @@ test("body parts take their materials from the options", () => {
   );
   for (const ramp of ["O", "I", "W", "L", "M", "N", "B"])
     assert.ok(ramps.has(ramp), ramp);
+});
+
+test("an axe's front bit leads its clockwise turn, the butt sticks out behind the fist, and the head scales", () => {
+  /** The steel pixels' positions from the hand, which is the sprite's anchor, and the iron's. */
+  const paint = (degrees: number, o: Parameters<typeof axe>[4] = {}) => {
+    const rig = new Rig(64, 64);
+    axe(rig, [32, 32], degrees, 14, o);
+    const s = rig.bake().sprite([32, 32]);
+    const from = (keys: string) =>
+      [...keys].flatMap((key) =>
+        where(s, key).map(([x, y]) => [x - s.ax, y - s.ay] as const),
+      );
+    return { steel: from("Mm7"), iron: from("Ii#") };
+  };
+  // Held upright the bit faces forward, to the right; held level it hangs below the haft.
+  assert.ok(mean(paint(-90).steel, 0) > 2);
+  assert.ok(mean(paint(0).steel, 1) > 2);
+  // The butt's iron cap is 4 px behind the hand unless told otherwise.
+  const lowest = (o: { butt?: number }) =>
+    Math.max(...paint(-90, o).iron.map(([, y]) => y));
+  assert.ok(lowest({}) >= 4 && lowest({}) < 7);
+  assert.ok(lowest({ butt: 10 }) >= 10);
+  assert.ok(paint(-90, { head: 0.6 }).steel.length < paint(-90).steel.length);
+});
+
+test("grain darkens a regular run of a shape's pixels by one shade and leaves the rest alone", () => {
+  const ball = (grain?: number) =>
+    new Rig(20, 20)
+      .ellipse([10, 10], 7, 7, "w", grain === undefined ? {} : { grain })
+      .bake()
+      .sprite([10, 18]).rows;
+  const [plain, grained] = [ball(), ball(3)];
+  assert.deepEqual(ball(0), plain);
+  const rank = (key: string) => "Ww5".indexOf(key);
+  let darker = 0;
+  plain.forEach((row, y) =>
+    [...row].forEach((key, x) => {
+      const now = grained[y]![x]!;
+      if (rank(key) < 0) return assert.equal(now, key);
+      assert.ok(rank(now) - rank(key) === 0 || rank(now) - rank(key) === 1);
+      if (rank(now) > rank(key)) darker++;
+    }),
+  );
+  // About a third of the ball's pixels lie on a strand; those already in shadow cannot darken.
+  assert.ok(darker > 20, `${darker} pixels darkened`);
 });
 
 /** A 2D context that keeps the colour each pixel was last filled with. */
