@@ -1,5 +1,5 @@
 /** Fuse Axe's engine: deterministic rules with no imports from outside this folder. */
-export const RULES = "fuse-axe-5";
+export const RULES = "fuse-axe-6";
 export * from "./input.js";
 export {
   createWorld,
@@ -20,7 +20,7 @@ export {
   type HeroState,
   type World,
 } from "./world.js";
-export { step, stepTick } from "./step.js";
+export { revive, step, stepTick } from "./step.js";
 export {
   toView,
   type EnemyAnim,
