@@ -64,6 +64,8 @@ export const HERO_HP: Readonly<Record<HeroKind, number>> = {
   rhea: 48,
   gorm: 72,
 };
+/** Lives a hero sets out with. One who falls with none left is out. */
+export const LIVES = 3;
 /** Half a hero's width either side of its centre, where a mace lands. */
 export const HERO_HALF_W = px(10);
 /** Steps a hit hero reels, nudged back as an enemy is. */
@@ -76,6 +78,10 @@ export const LOW_HP_SHARE = 4;
 /** Steps a knocked-down hero lies. It gets up in `GETUP_STEPS`, invulnerable then and for `GETUP_GRACE` more. */
 export const HERO_DOWN_STEPS = 40;
 export const GETUP_GRACE = 30;
+/** Steps a fallen hero lies before it drops back in from the top of the screen, if it has a life left. */
+export const RESPAWN_DELAY = 90;
+/** Steps a hero who dropped back in blinks invulnerable after it lands. */
+export const RESPAWN_INVULN = 120;
 
 // ---- the combo ----
 /**

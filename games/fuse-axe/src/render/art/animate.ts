@@ -22,11 +22,11 @@ export const HERO_FRAMES = [
 ] as const;
 export type HeroFrame = (typeof HERO_FRAMES)[number];
 
-/** Every anim a hero has or will have; the heroes' `hurt` to `dead` arrive with the enemies' attacks. */
+/** Every anim a hero has: `respawn` drops back in with the fall frame, and one who is `out` lies as `dead` does. */
 export const HERO_ANIMS = [
   ...["idle", "walk", "jump", "land"],
   ...["attack1", "attack2", "attack3"],
-  ...["hurt", "knockdown", "down", "getup", "dead"],
+  ...["hurt", "knockdown", "down", "getup", "dead", "respawn", "out"],
 ] as const;
 export type FigureAnim = (typeof HERO_ANIMS)[number];
 // The engine's states must all have frames: a new one fails to compile here until it is mapped below.
@@ -108,8 +108,11 @@ export function heroFrame(
       return "hurt";
     case "knockdown":
       return "knockdown";
+    case "respawn":
+      return "fall";
     case "down":
     case "dead":
+    case "out":
       return "down";
     case "getup":
       return "getup";

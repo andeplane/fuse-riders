@@ -7,10 +7,12 @@ import {
   JUMP,
   LEFT,
   RIGHT,
+  SPAWNS,
   TIERS,
   UP,
   createWorld,
   decodeWorld,
+  defeated,
   encodeWorld,
   spawnEnemy,
   step,
@@ -165,7 +167,7 @@ test("at most two ravagers go for a hero at once, from both sides, while the thi
       engaged.length === 2 && engaged[0]!.x < h.x !== engaged[1]!.x < h.x;
   }
   assert.deepEqual([most, hovered, surrounded], [2, true, true]);
-  assert.ok(hero(world).hp < GORM);
+  assert.ok(hero(world).hp < GORM || hero(world).lives < T.LIVES);
   assert.ok(world.enemies.every((e) => e.hp === full));
   // One standing in another's swing is not hit by it.
   const between = spawnEnemy(
@@ -283,7 +285,7 @@ test("the third hit in a row knocks a hero down, as does one low on health or in
   assert.ok(hero(jumped).z > 0);
 });
 
-test("a hero at no hp is knocked down for good: it lies dead, and the enemies leave it be", () => {
+test("a hero at no hp falls and loses a life, then drops back in at full health and blinks; with none left it is out", () => {
   let world = withHero(duel(0, 24, 0, "brakka"), { hp: 1 });
   world = step(armed(world), []);
   assert.deepEqual(
@@ -291,13 +293,58 @@ test("a hero at no hp is knocked down for good: it lies dead, and the enemies le
     ["knockdown", 0, "ko"],
   );
   world = until(world, (w) => hero(w).state === "dead");
-  kept(world);
-  const later = run(world, 300, [RIGHT | ATTACK]);
+  assert.equal(hero(world).lives, T.LIVES - 1);
+  const fell = world.step;
+  world = run(world, 1);
+  assert.equal(enemy(world).target, 0, "enemies leave the fallen be");
+  world = until(world, (w) => hero(w).state === "respawn");
+  assert.equal(world.step - fell, Kit.RESPAWN_DELAY);
+  const [x, y] = SPAWNS[0]!;
   assert.deepEqual(
-    [hero(later).state, hero(later).x, toView(later).heroes[0]!.anim],
-    ["dead", hero(world).x, "dead"],
+    [hero(world).x, hero(world).y, hero(world).z, hero(world).hp],
+    [world.camX + px(x), px(y), px(y), T.HERO_HP.brakka],
   );
-  assert.ok(later.enemies.every((e) => e.target === 0 && e.state === "idle"));
+  kept(world);
+  world = until(world, (w) => hero(w).state !== "respawn");
+  const view = toView(world).heroes[0]!;
+  assert.deepEqual(
+    [
+      view.anim,
+      view.invulnerable,
+      view.hp,
+      view.maxHp,
+      view.lives,
+      hero(world).z,
+    ],
+    ["idle", true, T.HERO_HP.brakka, Kit.HERO_HP.brakka, 2, 0],
+  );
+  assert.equal(hero(world).invulnUntil, world.step + T.RESPAWN_INVULN);
+  // The last life lost, the hero is out for good, and the party with nobody else is defeated.
+  world = step(armed(withHero(world, { hp: 1, lives: 1, invulnUntil: 0 })), []);
+  world = until(
+    world,
+    (w) => hero(w).state === "out",
+    () => [RIGHT | ATTACK],
+  );
+  assert.deepEqual(
+    [hero(world).lives, defeated(world), toView(world).defeated],
+    [0, true, true],
+  );
+  kept(world);
+  const later = run(world, 200, [RIGHT | ATTACK]);
+  assert.deepEqual([hero(later).state, hero(later).x], ["out", hero(world).x]);
+  assert.ok(later.enemies.every((e) => e.target === 0));
+  // One hero out does not defeat a party, nor hold its camera back.
+  const pair = createWorld({
+    seed: 2,
+    heroes: [
+      { seat: 0, kind: "brakka" },
+      { seat: 1, kind: "rhea" },
+    ],
+  });
+  const one = withHero(pair, { state: "out", hp: 0, lives: 0 });
+  assert.equal(defeated(one), false);
+  assert.ok(run(one, 300, [0, RIGHT]).camX > hero(one).x);
 });
 
 /** Walks toward the nearest enemy standing, lining up in depth, and presses Attack every other step regardless. */
@@ -317,7 +364,7 @@ function masher(world: World, index: number): number[] {
   return [bits];
 }
 
-test("balance: a hero mashing Attack clears the first wave alone, taking hits but never falling", () => {
+test("balance: a hero mashing Attack clears the first wave alone, taking hits but keeping its lives", () => {
   for (const kind of HERO_KINDS) {
     let world = createWorld({ seed: 1, heroes: [{ seat: 0, kind }] });
     world = until(
@@ -325,8 +372,9 @@ test("balance: a hero mashing Attack clears the first wave alone, taking hits bu
       (w) => w.wave === 1,
       () => [RIGHT],
     );
-    world = until(world, (w) => !w.locked || hero(w).state === "dead", masher);
+    world = until(world, (w) => !w.locked || hero(w).state === "out", masher);
     assert.equal(world.locked, false, kind);
+    assert.equal(hero(world).lives, T.LIVES, kind);
     assert.ok(hero(world).hp < T.HERO_HP[kind], `${kind} took no hit`);
   }
 });

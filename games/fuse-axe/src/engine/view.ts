@@ -8,6 +8,7 @@ import {
   type Tier,
 } from "./tuning.js";
 import {
+  defeated,
   showsGo,
   stageCleared,
   type EnemyState,
@@ -26,7 +27,7 @@ export type { EnemyKind, HeroKind, Tier } from "./tuning.js";
 export type { FxKind } from "./world.js";
 /**
  * `attack1` and `attack2` are the slashes, `attack3` the finisher. `hurt` reels, `knockdown` flies, `down` lies and
- * `getup` rises; `dead` lies fallen.
+ * `getup` rises; `dead` lies fallen until `respawn` drops the hero in from the top of the screen, or it is `out`.
  */
 export type HeroAnim = HeroState;
 /**
@@ -49,7 +50,9 @@ export interface HeroView {
   animStep: number;
   hp: number;
   maxHp: number;
-  /** No mace lands on the hero, as it gets up and for a moment after. Draw it blinking. */
+  /** Lives left, this one included. */
+  lives: number;
+  /** No mace lands on the hero: getting up, and for a while after dropping back in. Draw it blinking. */
   invulnerable: boolean;
 }
 
@@ -95,6 +98,8 @@ export interface WorldView {
   go: boolean;
   /** The stage's last wave is cleared. */
   cleared: boolean;
+  /** Every hero is out of lives. */
+  defeated: boolean;
 }
 
 const whole = (value: number) => Math.floor(value / SUB);
@@ -115,6 +120,7 @@ export function toView(world: World): WorldView {
       animStep: hero.timer,
       hp: hero.hp,
       maxHp: HERO_HP[hero.kind],
+      lives: hero.lives,
       invulnerable: world.step <= hero.invulnUntil,
     })),
     enemies: world.enemies.map((enemy) => ({
@@ -143,5 +149,6 @@ export function toView(world: World): WorldView {
     locked: world.locked,
     go: showsGo(world),
     cleared: stageCleared(world),
+    defeated: defeated(world),
   };
 }
