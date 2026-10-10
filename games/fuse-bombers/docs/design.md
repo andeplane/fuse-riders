@@ -16,8 +16,8 @@ The overhaul keeps the rockets, gates, crates, fuse and ghosts, and changes thre
    and a few floating islets for cover. Spawn points sit in the open air around it.
 2. **Free flight with momentum.** Castles become gunships (a balloon envelope in the player's colour over a gondola
    with the launcher). They fly in eight directions, slowly, with inertia: thrust accelerates, drag slows, and turning
-   round takes about a second, so position is a decision rather than a reflex. Gunships do not fall; they bump off rock
-   and the world edge and nudge each other apart.
+   round takes about a second and a half, so position is a decision rather than a reflex. Gunships do not fall; they
+   bump off rock and the world edge, slide along ramps and roofs, and nudge each other apart.
 3. **Online rooms.** Like the other Fuse games: online rooms with one device per rider, a shared TV with phones as
    controllers, and solo against bots, on the repo's rollback netcode. Local play on one screen stays.
 
@@ -32,7 +32,7 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
   explosion carves a circle; the map may mark some cells indestructible so the temple keeps a skeleton (a constant
   mask that comes with the map, not a second bitset in the round state). Rock has no gravity: a piece a bomb cuts loose
   from the rest, like the temple's floating islets, stays in the air.
-- **Flight.** Input is held bits: up, down, left, right, fire. Thrust about 260 px/s², top speed about 200 px/s,
+- **Flight.** Input is held bits: up, down, left, right, fire. Thrust about 400 px/s², top speed about 200 px/s,
   linear drag. Diagonals are normalised. A gunship is a circle for collisions; it slides along rock rather than
   sticking.
 - **Aim.** The launcher turns counter-clockwise at a steady rate (about 3.6 s a revolution). Fire fires on the press

@@ -1,12 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  CAMERA_SPEED,
   CAPACITY,
+  ENEMY_HP,
+  ENEMY_KINDS,
+  HERO_KINDS,
   STEPS_PER_SECOND,
   STEPS_PER_TICK,
   SUB,
   VIEW_H,
+  TIERS,
   VIEW_W,
+  WALK,
+  enemyMaxHp,
   px,
 } from "../src/engine/tuning.js";
 
@@ -29,4 +36,25 @@ test("px mirrors across zero and never returns -0", () => {
   assert.equal(px(-1.5), -px(1.5));
   assert.ok(Object.is(px(-0.0001), 0));
   assert.ok(Object.is(px(-0), 0));
+});
+
+test("the camera outruns every hero, so a hero held at the screen's edge is never slowed while the camera catches up", () => {
+  for (const kind of HERO_KINDS) assert.ok(CAMERA_SPEED > WALK[kind].x, kind);
+});
+
+test("an enemy's hit points are whole numbers that grow with each hero, from the base alone to twice it at five", () => {
+  for (const kind of ENEMY_KINDS)
+    for (const tier of TIERS) {
+      let before = 0;
+      for (let heroes = 1; heroes <= CAPACITY; heroes++) {
+        const hp = enemyMaxHp(kind, tier, heroes);
+        assert.ok(Number.isInteger(hp) && hp > before, `${kind} ${tier}`);
+        before = hp;
+      }
+      // An empty world counts one hero and a crowd no more than a full room.
+      assert.equal(enemyMaxHp(kind, tier, 0), enemyMaxHp(kind, tier, 1));
+      assert.equal(enemyMaxHp(kind, tier, 9), before);
+    }
+  assert.equal(enemyMaxHp("ravager", 0, 1), ENEMY_HP.ravager);
+  assert.equal(enemyMaxHp("ravager", 0, CAPACITY), 2 * ENEMY_HP.ravager);
 });

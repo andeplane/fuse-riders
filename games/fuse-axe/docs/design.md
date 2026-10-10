@@ -86,8 +86,10 @@ drops pots and meat (meat heals). Then the next stage.
 - A stage is a long horizontal strip a few screens wide. The camera only moves forward and never leaves a hero
   behind: the leftmost hero holds the left edge, the screen edge holds everyone in.
 - **Waves.** Trigger points along the strip spawn a wave and lock the screen until it is cleared; then a flashing
-  **GO →** sends the party on. The last trigger is the stage boss.
-- **Scaling.** Wave size and enemy HP grow with the number of heroes.
+  **GO →** sends the party on. The last trigger is the stage boss. Enemies walk in from beyond the screen's edges,
+  and one knocked out of a locked screen walks back in. Stage 1's waves are data in `src/engine/stages.ts`.
+- **Scaling.** Wave size and enemy HP grow with the number of heroes: each hero beyond the first adds a spawn to
+  every wave and a quarter to every enemy's hit points (`waveSpawns` and `enemyMaxHp`).
 - **Life.** Each hero has a health bar and three lives. A hero who loses a life drops back in from the top after a
   short delay with brief invulnerability; teammates keep fighting. When every hero is out, the party may continue
   (once per stage) or the run ends.
