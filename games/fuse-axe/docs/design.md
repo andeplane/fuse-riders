@@ -118,6 +118,8 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
   `over` as a defeat, with the stage's tallies banked.
 - **Over.** The outcome and the run's tallies show with the stage reached; nothing is held and no clock runs. Hero
   picks apply again, and the host's REMATCH sets out on a fresh run (stage 1, nothing tallied) or LOBBY goes back.
+  The page shows each as a card over the game (`src/app/presenter.ts`, `card`): [the countdown](images/app-continue.png)
+  and [game over](images/app-game-over.png), from `preview/flow.mjs`.
 - **The next stage** (once there is one) slots in where the tally ends (`nextStage`): a world seeded
   `seedOf("matchId:round+1")` as `beginStage` makes every stage's, with each hero whose seat is still here. Policy:
   lives carry over (a hero who went out comes back with one), health is full, the continue is fresh, and the
