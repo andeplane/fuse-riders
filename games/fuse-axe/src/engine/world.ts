@@ -8,6 +8,7 @@ import {
   FLOOR_TOP,
   HERO_HP,
   HERO_KINDS,
+  IMP_POTS,
   LIVES,
   RAVAGER,
   STAGE_LENGTH,
@@ -18,6 +19,7 @@ import {
   px,
   type EnemyKind,
   type HeroKind,
+  type ItemKind,
   type Tier,
 } from "./tuning.js";
 import { clamp } from "./math.js";
@@ -27,7 +29,7 @@ import { STAGE_1 } from "./stages.js";
  * One run's world: plain integer data, so the netcode can clone, hash and checkpoint it. Space is `x` along the
  * road, `y` depth on the floor band (larger is nearer the viewer) and `z` height above the floor, all in sub-units;
  * the camera's left edge is `camX`. Heroes are kept in id order, which is seat order; enemies follow in id order,
- * the order they spawned in.
+ * the order they spawned in, and items on the floor in theirs: one id sequence for all three.
  */
 export const HERO_STATES = [
   "idle",
@@ -99,6 +101,11 @@ export interface Hero {
   runBuf: number;
   /** Enemies thrown: a count for a tally to show once one wants it. The stage's bank takes only damage and knockdowns. */
   throws: number;
+  /**
+   * Magic pots held, up to `MAX_POTS` for the hero's kind: picked up from the floor (`imps.ts`). A hero keeps them
+   * through a lost life and a continue, as in the original; casting spends them.
+   */
+  pots: number;
 }
 
 export const ENEMY_STATES = [
@@ -115,8 +122,23 @@ export const ENEMY_STATES = [
   "recover",
   "held",
   "thrown",
+  "stumble",
+  "flee",
 ] as const;
 export type EnemyState = (typeof ENEMY_STATES)[number];
+/**
+ * A sack imp's states (`imps.ts`): it scurries (`walk`), stumbles from a kick or flies, lies and gets up from a heavy
+ * one, then flees. `stumble` and `flee` are the imp's alone (`IMP_ONLY`).
+ */
+export const IMP_STATES: readonly EnemyState[] = [
+  "walk",
+  "stumble",
+  "knockdown",
+  "down",
+  "getup",
+  "flee",
+];
+export const IMP_ONLY: readonly EnemyState[] = ["stumble", "flee"];
 
 export interface Enemy {
   id: number;
@@ -144,6 +166,22 @@ export interface Enemy {
   thinkAt: number;
   /** The id of the hero holding it in a grab (`held`) or who threw it (`thrown`), and 0 otherwise. */
   holder: number;
+  /** The magic pots left in a sack imp's sack, up to `IMP_POTS`; 0 for every other kind. */
+  pots: number;
+}
+
+/**
+ * Something lying on the floor for a hero to walk over and pick up: a magic pot kicked out of an imp. It pops out of
+ * the sack at height `z`, rising at `vz` and falling under gravity, and vanishes `ITEM_LIFE` steps after `born`.
+ */
+export interface Item {
+  id: number;
+  kind: ItemKind;
+  x: number;
+  y: number;
+  z: number;
+  vz: number;
+  born: number;
 }
 
 export const FX_KINDS = ["hit", "heavy", "ko"] as const;
@@ -181,6 +219,10 @@ export interface World {
   spawned: number;
   /** After a wave short of the last is cleared, GO shows through this step and while the camera has not moved on. */
   goUntil: number;
+  /** Items on the floor, in id order, at most `ITEM_MAX`. */
+  items: Item[];
+  /** How many of Stage 1's imp cues (`STAGE_1.imps`) have sent their imp. */
+  impsSent: number;
 }
 
 export interface HeroEntry {
@@ -244,6 +286,7 @@ export function createWorld(options: {
       tapUntil: 0,
       runBuf: 0,
       throws: 0,
+      pots: 0,
     };
   });
   return {
@@ -260,6 +303,8 @@ export function createWorld(options: {
     waveStep: 0,
     spawned: 0,
     goUntil: 0,
+    items: [],
+    impsSent: 0,
   };
 }
 
@@ -281,8 +326,9 @@ export const inView = (world: World, enemy: Enemy): boolean =>
   enemy.x <= world.camX + VIEW_W * SUB - ENEMY_HALF_W;
 
 /**
- * A new enemy at full hit points for its tier and the party, with the world's next id, facing `facing`. The caller
- * adds it to the world's enemies (which keeps them in id order) and checks `ENEMY_MAX`.
+ * A new enemy at full hit points for its tier and the party, with the world's next id, facing `facing`: a sack imp
+ * scurrying that way with a full sack (`IMP_POTS`). The caller adds it to the world's enemies (which keeps them in id
+ * order) and checks `ENEMY_MAX`.
  */
 export function newEnemy(
   world: World,
@@ -292,6 +338,7 @@ export function newEnemy(
   y: number,
   facing: 1 | -1,
 ): Enemy {
+  const imp = kind === "imp";
   return {
     id: world.nextId++,
     kind,
@@ -302,15 +349,17 @@ export function newEnemy(
     vz: 0,
     facing,
     hp: enemyMaxHp(kind, tier, world.heroes.length),
-    state: "idle",
+    state: imp ? "walk" : "idle",
     timer: 0,
     stopUntil: 0,
     tier,
-    goal: x,
+    // On the road, as every goal is: one appearing beyond the stage's end has its own set as it walks in.
+    goal: clamp(x, 0, STAGE_LENGTH),
     goalY: y,
     target: 0,
     thinkAt: world.step + RAVAGER[tier].think,
     holder: 0,
+    pots: imp ? IMP_POTS : 0,
   };
 }
 
@@ -378,7 +427,8 @@ export function spark(
  * A new world with one more enemy of `tier` standing at (`x`, `y`) in sub-units, held to the road and the floor
  * band, facing the nearest hero. It takes the world's next id, so enemies stay in id order; the world passed in is
  * left untouched. Like `createWorld` it throws on an unknown kind or tier or a position that is not whole, which
- * would otherwise leave NaN in the enemy's hit points or position, and on a world that already holds `ENEMY_MAX`:
+ * would otherwise leave NaN in the enemy's hit points or position, on a sack imp above the lowest tier (the codec
+ * refuses one), and on a world that already holds `ENEMY_MAX`:
  * the checkpoint codec refuses a bigger one, so a room that grew it could never be restored.
  */
 export function spawnEnemy(
@@ -390,6 +440,8 @@ export function spawnEnemy(
 ): World {
   if (!ENEMY_KINDS.includes(kind) || !TIERS.includes(tier))
     throw new RangeError(`fuse-axe: unknown enemy ${kind} of tier ${tier}`);
+  if (kind === "imp" && tier !== 0)
+    throw new RangeError(`fuse-axe: a sack imp of tier ${tier}`);
   if (!Number.isInteger(x) || !Number.isInteger(y))
     throw new RangeError(`fuse-axe: enemy position ${x},${y} is not whole`);
   if (world.enemies.length >= ENEMY_MAX)

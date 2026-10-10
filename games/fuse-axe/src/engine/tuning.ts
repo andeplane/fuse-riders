@@ -218,16 +218,23 @@ export const THROW_VZ = px(2);
 /** Damage the thrown body takes as it lands, and each enemy it knocks down on the way. */
 export const THROW_DAMAGE = 12;
 export const BODY_DAMAGE = 6;
-/** The kinds a hero can throw; a boss will not be. */
+/** The kinds a hero can throw; a boss will not be, nor a sack imp, which is never dazed. */
 export const THROWABLE: Readonly<Record<EnemyKind, boolean>> = {
   ravager: true,
+  imp: false,
 };
 
 // ---- the enemies ----
-export const ENEMY_KINDS = ["ravager"] as const;
+/** A sack imp (`imps.ts`) is no fighter: it crosses the screen with magic pots for the heroes to kick out of it. */
+export const ENEMY_KINDS = ["ravager", "imp"] as const;
 export type EnemyKind = (typeof ENEMY_KINDS)[number];
-/** A kind's hit points at its lowest tier with one hero; `enemyMaxHp` scales them. */
-export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = { ravager: 40 };
+/** The kinds that fight, which a wave is made of and holds the screen for. */
+export type FoeKind = Exclude<EnemyKind, "imp">;
+/** A kind's hit points at its lowest tier with one hero; `enemyMaxHp` scales them. An imp takes no damage. */
+export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = {
+  ravager: 40,
+  imp: 4,
+};
 /** Tiers by palette (ash, rust, violet): each adds hit points, and aggression (`RAVAGER`). */
 export const TIERS = [0, 1, 2] as const;
 export type Tier = (typeof TIERS)[number];
@@ -337,6 +344,43 @@ export const EXTRA_DELAY = 30;
 export const RETURN_INSET = px(32);
 /** Steps GO shows after a wave is cleared; it stays on longer while the camera has not moved on. */
 export const GO_STEPS = 2 * STEPS_PER_SECOND;
+
+// ---- sack imps, floor items and magic pots (`imps.ts`) ----
+/** The most magic pots each hero carries: Rhea holds the most, Gorm the fewest. */
+export const MAX_POTS: Readonly<Record<HeroKind, number>> = {
+  brakka: 4,
+  rhea: 6,
+  gorm: 3,
+};
+/** The most pots one imp carries in its sack. */
+export const IMP_POTS = 3;
+/**
+ * An imp scurries along the road at `IMP_WALK`, zig-zagging in depth at `IMP_ZIG_Y` and turning every `IMP_ZIG`
+ * steps; kicked, it stumbles for `IMP_STUMBLE_STEPS` (or flies, then lies `IMP_DOWN_STEPS` and gets up), then flees
+ * at `IMP_FLEE`, faster than any hero walks.
+ */
+export const IMP_WALK = px(0.9);
+export const IMP_ZIG_Y = px(0.25);
+export const IMP_ZIG = 24;
+export const IMP_STUMBLE_STEPS = 16;
+export const IMP_DOWN_STEPS = 24;
+export const IMP_FLEE = px(1.6);
+/** How high above an imp's feet a kick's spark appears: it is half a ravager's height. */
+export const IMP_SPARK = px(14);
+/** Kinds of things lying on the floor: magic pots now, meat at camp later. */
+export const ITEM_KINDS = ["pot"] as const;
+export type ItemKind = (typeof ITEM_KINDS)[number];
+/** The most items the world holds at once: a new one past it takes the place of the oldest. */
+export const ITEM_MAX = 16;
+/** A dropped pot leaves the sack this high, popping up at `POT_POP` and falling under gravity. */
+export const POT_LIFT = px(12);
+export const POT_POP = px(1.5);
+/** Steps an item lies before it vanishes, blinking through the last `ITEM_BLINK` of them. */
+export const ITEM_LIFE = 10 * STEPS_PER_SECOND;
+export const ITEM_BLINK = 2 * STEPS_PER_SECOND;
+/** A hero on its feet picks an item up when its feet are this close to it along the road and in depth. */
+export const PICKUP_X = px(10);
+export const PICKUP_Y = px(5);
 
 // ---- effects ----
 /** Steps a hit spark lives, and the most the world keeps at once (the oldest go first). */
