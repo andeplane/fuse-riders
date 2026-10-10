@@ -1,8 +1,14 @@
 /**
  * Dev-only sprite sheet: `pnpm exec vite`, then open /games/fuse-axe/lab/sprites.html. It is not in the build and not
- * on the portal. Each figure in `FIGURES` is drawn through the production baker with a canvas surface.
+ * on the portal. Each figure in `FIGURES` is drawn through the production baker with a canvas surface; each hero in
+ * `HEROES` also gets its palettes, portraits and a reel per anim, timed by `heroFrame` at the game's 60 steps a second.
+ * `?step=N` freezes the reels at step N.
  */
-import { FIGURES } from "../src/render/art/index.js";
+import type { HeroKind } from "../src/engine/view.js";
+import { HERO_KINDS, STEPS_PER_SECOND } from "../src/engine/view-kit.js";
+import { heroFrame, type HeroTiming } from "../src/render/art/animate.js";
+import { FIGURES, HEROES } from "../src/render/art/index.js";
+import type { Sprite } from "../src/render/pixel/sprite.js";
 import {
   createSpriteBaker,
   type BakeOptions,
@@ -20,59 +26,169 @@ const canvas = (width: number, height: number) => {
 };
 const makeSurface: MakeSurface<HTMLCanvasElement> = canvas;
 const baker = createSpriteBaker(makeSurface);
-const SCALE = 4;
 const PAD = 3;
 const main = document.querySelector("main")!;
+const add = (parent: Element, tag: string, text = "", className = "") =>
+  parent.appendChild(
+    Object.assign(document.createElement(tag), {
+      textContent: text,
+      className,
+    }),
+  );
+
+/** A cell for a set of sprites, wide enough either side of the anchor for each flipped or not, `wide` and `high` more. */
+function cellFor(
+  sprites: readonly Sprite[],
+  scale: number,
+  wide = 0,
+  high = 0,
+) {
+  const side = Math.max(...sprites.map((s) => Math.max(s.ax, s.w - 1 - s.ax)));
+  const up = Math.max(...sprites.map((s) => s.ay)) + high;
+  const down = Math.max(...sprites.map((s) => s.h - 1 - s.ay));
+  const [w, h] = [side * 2 + 1 + PAD * 2 + wide, up + down + 1 + PAD * 2];
+  /**
+   * Draws a sprite with its anchor on the cyan floor line, `dx` along it from the left and `lift` above it, on a new
+   * canvas or over `onto`.
+   */
+  return (
+    sprite: Sprite,
+    options: BakeOptions = {},
+    [dx, lift] = [0, 0],
+    onto = canvas(w * scale, h * scale),
+  ) => {
+    const { image, paint } = onto;
+    paint.clearRect(0, 0, image.width, image.height);
+    const baked = baker.bake(sprite, options);
+    const [x, floor] = [PAD + side + dx, PAD + up + 1];
+    paint.fillStyle = "#16e7ff55";
+    paint.fillRect(0, floor * scale, w * scale, 1);
+    paint.fillRect(x * scale, floor * scale, scale, 3);
+    const [left, top] = [x - baked.ax, floor - 1 - lift - baked.ay];
+    paint.drawImage(
+      baked.image,
+      left * scale,
+      top * scale,
+      baked.w * scale,
+      baked.h * scale,
+    );
+    return onto;
+  };
+}
 
 for (const [name, figure] of Object.entries(FIGURES)) {
+  const section = add(main, "section");
+  add(section, "h2", `${name} · ${figure.frames.length} frames at 3× and 1×`);
+  const row = add(section, "div", "", "row");
   const sprites = figure.frames.map((frame) => figure.sprite(frame));
-  // One cell size per figure, wide enough either side of the anchor for every frame flipped or not.
-  const side = Math.max(...sprites.map((s) => Math.max(s.ax, s.w - 1 - s.ax)));
-  const up = Math.max(...sprites.map((s) => s.ay));
-  const down = Math.max(...sprites.map((s) => s.h - 1 - s.ay));
-  const [cw, ch] = [side * 2 + 1 + PAD * 2, up + down + 1 + PAD * 2];
+  const [big, small] = [cellFor(sprites, 3), cellFor(sprites, 1)];
+  sprites.forEach((sprite, i) => {
+    const cell = add(row, "figure");
+    add(cell, "figcaption", `${figure.frames[i]} — ${sprite.w}×${sprite.h}`);
+    cell.append(big(sprite).image, small(sprite).image);
+  });
+}
+
+// view-kit's SWING_STEPS once #434 lands; until then its numbers. A jump rises for 20 steps (JUMP_VZ / GRAVITY).
+const swings = (...steps: [number, number, number][]) =>
+  steps.map(
+    ([startup, active, recovery]) => ({ startup, active, recovery }) as const,
+  );
+const TIMING: Readonly<Record<HeroKind, HeroTiming>> = {
+  brakka: { swings: swings([6, 3, 10], [6, 3, 10], [9, 4, 20]), rise: 20 },
+  rhea: { swings: swings([4, 3, 8], [4, 3, 8], [7, 4, 16]), rise: 20 },
+  gorm: { swings: swings([8, 4, 13], [8, 4, 13], [12, 5, 24]), rise: 20 },
+};
+/** Each reel plays anims in turn for so many steps, `anim:steps`; the combo chains each swing as its blade ends. */
+function reels({ swings }: HeroTiming): Record<string, string> {
+  const [a1, a2, a3] = swings.map((s) => s.startup + s.active + s.recovery);
+  const [c1, c2] = swings.map((s) => s.startup + s.active);
+  return {
+    idle: "idle:160",
+    walk: "walk:90",
+    "jump, land": "jump:40 land:8 idle:30",
+    attack1: `attack1:${a1} idle:24`,
+    attack2: `attack2:${a2} idle:24`,
+    attack3: `attack3:${a3} idle:24`,
+    combo: `attack1:${c1} attack2:${c2} attack3:${a3} idle:30`,
+    hurt: "hurt:20 idle:30",
+    "knockdown, down, getup": "knockdown:26 down:45 getup:20 idle:20",
+  };
+}
+/** Every step of a reel, the hero moved as the engine would: walking 1 px a step, a jump's arc, flung back. */
+function playOut(spec: string) {
+  const arc = (t: number, vz: number) =>
+    Math.max(0, Math.floor((t + 1) * vz - 0.095 * t * (t + 1)));
+  let x = 0;
+  return spec.split(" ").flatMap((part) => {
+    const [anim = "", steps] = part.split(":");
+    return Array.from({ length: Number(steps) }, (_, step) => {
+      x += anim === "walk" ? 1 : anim === "knockdown" ? -1.25 : 0;
+      const z =
+        anim === "jump"
+          ? arc(step, 3.7)
+          : anim === "knockdown"
+            ? arc(step, 2.5)
+            : 0;
+      return { anim, step, x: Math.round(x), z };
+    });
+  });
+}
+
+const players: ((step: number) => void)[] = [];
+for (const kind of HERO_KINDS) {
+  const art = HEROES[kind];
+  if (!art) continue;
+  const { figure, portrait } = art;
+  const sprites = figure.frames.map((frame) => figure.sprite(frame));
+  const section = add(main, "section");
+  add(section, "h2", `${kind} · palettes, damage flash, flip and portrait`);
+  const palettes = add(section, "div", "", "row");
+  const idle = cellFor([figure.sprite("idle0")], 3);
+  const face = cellFor([portrait], 3);
   const variants: [string, BakeOptions][] = [
-    ["", {}],
+    ["first", {}],
     ...Object.entries(figure.swaps).map(
       ([swap, palette]): [string, BakeOptions] => [swap, { swap: palette }],
     ),
     ["flash", { flash: true }],
     ["flip", { flip: true }],
   ];
-  const section = document.createElement("section");
-  section.append(document.createElement("h2"));
-  section.firstElementChild!.textContent = name;
   for (const [label, options] of variants) {
-    const row = document.createElement("div");
-    row.className = "row";
-    figure.frames.forEach((frame, i) => {
-      const baked = baker.bake(sprites[i]!, options);
-      const [x, y] = [PAD + side - baked.ax, PAD + up - baked.ay];
-      const big = canvas(cw * SCALE, ch * SCALE);
-      big.paint.fillStyle = "#16e7ff55";
-      big.paint.fillRect(0, (PAD + up + 1) * SCALE, cw * SCALE, 1);
-      big.paint.fillRect(
-        (PAD + side) * SCALE,
-        (PAD + up + 1) * SCALE,
-        SCALE,
-        3,
-      );
-      big.paint.drawImage(
-        baked.image,
-        x * SCALE,
-        y * SCALE,
-        baked.w * SCALE,
-        baked.h * SCALE,
-      );
-      const small = canvas(cw, ch);
-      small.paint.drawImage(baked.image, x, y);
-      const cell = document.createElement("figure");
-      const caption = document.createElement("figcaption");
-      caption.textContent = `${frame}${label && ` · ${label}`} — ${baked.w}×${baked.h}`;
-      cell.append(caption, big.image, small.image);
-      row.append(cell);
-    });
-    section.append(row);
+    const cell = add(palettes, "figure");
+    add(cell, "figcaption", label);
+    cell.append(
+      idle(figure.sprite("idle0"), options).image,
+      face(portrait, options).image,
+    );
   }
-  main.append(section);
+  add(section, "h2", `${kind} · a reel per anim at game speed`);
+  const motion = add(section, "div", "", "row");
+  for (const [label, spec] of Object.entries(reels(TIMING[kind]))) {
+    const steps = playOut(spec);
+    const xs = steps.map((s) => s.x);
+    const [left, right] = [Math.min(...xs), Math.max(...xs)];
+    const high = Math.max(...steps.map((s) => s.z));
+    const draw = cellFor(sprites, 2, right - left, high);
+    const cell = add(motion, "figure");
+    add(cell, "figcaption", label);
+    const caption = add(cell, "figcaption");
+    const view = draw(figure.sprite("idle0"));
+    cell.append(view.image);
+    players.push((step) => {
+      const { anim, step: local, x, z } = steps[step % steps.length]!;
+      const frame = heroFrame(kind, anim, local, TIMING);
+      caption.textContent = `${anim} ${local} → ${frame}`;
+      draw(figure.sprite(frame), {}, [x - left, z], view);
+    });
+  }
 }
+
+const frozen = new URLSearchParams(location.search).get("step");
+const start = performance.now();
+const tick = (now: number) => {
+  const step = frozen ?? Math.floor(((now - start) * STEPS_PER_SECOND) / 1000);
+  for (const player of players) player(Number(step));
+  if (frozen === null) requestAnimationFrame(tick);
+};
+requestAnimationFrame(tick);
