@@ -1,7 +1,5 @@
 import Phaser from "phaser";
 import {
-  ARENA_HEIGHT,
-  ARENA_WIDTH,
   castleCenter,
   fuseProgress,
   isGhostLoaded,
@@ -13,6 +11,8 @@ import {
   type GhostView,
   type RoundView,
   type TickEvent,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
 } from "../engine/index.js";
 import * as aim from "./aim.js";
 import * as art from "./art.js";
@@ -83,11 +83,16 @@ export const DEPTH = {
   banner: 70,
 } as const;
 
-const [W, H] = [ARENA_WIDTH, ARENA_HEIGHT];
+/** The canvas size: the HUD's coordinates, and the screen the world camera fits the world into. */
+export const VIEW_WIDTH = 1600;
+export const VIEW_HEIGHT = 900;
+const [W, H] = [VIEW_WIDTH, VIEW_HEIGHT];
 const INK = 0x1b1d26;
 /** Ticks at the start of a round during which the `prompt` badges show (the countdown counts as tick 0). */
 const PROMPT_TICKS = 240;
 const FUSE = { y: 28, x0: 70, x1: 1510 } as const;
+/** Screen rows kept clear of the world: the fuse along the top, the match's score bar (DOM) along the bottom. */
+const HUD_BAND = 52;
 
 type Pool<O> = Map<number, O>;
 
@@ -97,6 +102,13 @@ interface GhostSprite {
   readonly bomb: Phaser.GameObjects.Image;
   readonly badge: Phaser.GameObjects.Text | undefined;
   destroy(): void;
+}
+
+/** The world camera's resting framing: its zoom and the world point at the centre of the screen. */
+export interface Frame {
+  readonly zoom: number;
+  readonly x: number;
+  readonly y: number;
 }
 
 /** Where the loaded bomb hangs, below the ghost's centre (under the gondola). */
@@ -127,6 +139,10 @@ function sync<T extends { readonly id: number }, O extends { destroy(): void }>(
  * Draws one round from its `RoundView`: backdrop, eroding terrain, castles with launchers, health, reload and
  * shields, pooled rockets, ghost blimps, gates, crates, the fuse and a winner banner. It owns no rules or timers.
  * Start it again with new `RoundSceneData` to draw another match.
+ *
+ * Two cameras: the main one shows the whole world, fitted to the view (letterboxed if the shapes differ); a HUD
+ * camera on top draws labels, bars, guides, the fuse and the banner in screen pixels, so they stay readable however
+ * far the world is zoomed out. Every object belongs to the world unless `toHud()` moves it to the HUD camera.
  */
 export class RoundScene extends Phaser.Scene {
   static readonly KEY = "round";
@@ -151,6 +167,21 @@ export class RoundScene extends Phaser.Scene {
   private gateLabels: Pool<Phaser.GameObjects.Text> = new Map();
   private crates: Pool<Phaser.GameObjects.Container> = new Map();
   private ghosts: Pool<GhostSprite> = new Map();
+  private ui!: Phaser.Cameras.Scene2D.Camera;
+  /** The main camera's resting framing (effects shake around it). */
+  frame: Frame = { zoom: 1, x: W / 2, y: H / 2 };
+  /** World to HUD (screen) coordinates through the main camera as it is now. */
+  private readonly to: aim.Projection = {
+    point: (x, y) => {
+      const cam = this.cameras.main;
+      const [cx, cy] = [cam.width / 2, cam.height / 2];
+      return {
+        x: (x - cam.scrollX - cx) * cam.zoom + cx,
+        y: (y - cam.scrollY - cy) * cam.zoom + cy,
+      };
+    },
+    size: (length) => length * this.cameras.main.zoom,
+  };
   /** Explosions, trails, damage numbers and shake; exposed for browser checks. */
   effects!: Effects;
 
@@ -191,20 +222,43 @@ export class RoundScene extends Phaser.Scene {
   }
 
   create(): void {
+    const zoom = Math.min(W / WORLD_WIDTH, (H - 2 * HUD_BAND) / WORLD_HEIGHT);
+    this.frame = { zoom, x: WORLD_WIDTH / 2, y: WORLD_HEIGHT / 2 };
+    // The whole world, fitted between the HUD bands and centred (letterboxed at the sides).
+    this.cameras.main.setZoom(zoom).centerOn(this.frame.x, this.frame.y);
+    this.ui = this.cameras.add(0, 0, W, H, false, "hud");
+    // Everything belongs to the world camera until `toHud()` moves it.
+    const added = Phaser.Scenes.Events.ADDED_TO_SCENE;
+    const world = (object: Phaser.GameObjects.GameObject) =>
+      this.ui.ignore(object);
+    this.events.on(added, world);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
+      this.events.off(added, world),
+    );
     art.paintBackdrops(this, W, H);
-    this.backdrop = this.add.image(0, 0, "backdrop-0").setOrigin(0, 0);
+    // The sky fills the whole view (and a shake's worth more), letterbox included.
+    const [skyW, skyH] = [(W + 48) / zoom, (H + 48) / zoom];
+    this.backdrop = this.add.image(this.frame.x, this.frame.y, "backdrop-0");
+    this.backdrop.setDisplaySize(skyW, skyH);
     this.gateGfx = this.add.graphics().setDepth(DEPTH.gates);
-    this.terrain = new TerrainLayer(this, W, H, DEPTH.terrain);
-    this.hud = this.add.graphics().setDepth(DEPTH.hud);
-    this.flame = this.add.image(0, 0, "flame").setDepth(DEPTH.fuse);
-    this.bomb = this.add
-      .image(FUSE.x1 + 34, FUSE.y + 4, "bomb")
-      .setDepth(DEPTH.fuse);
+    this.terrain = new TerrainLayer(this, DEPTH.terrain);
+    this.hud = this.toHud(this.add.graphics().setDepth(DEPTH.hud));
+    this.flame = this.toHud(this.add.image(0, 0, "flame").setDepth(DEPTH.fuse));
+    this.bomb = this.toHud(
+      this.add.image(FUSE.x1 + 34, FUSE.y + 4, "bomb").setDepth(DEPTH.fuse),
+    );
     this.suddenDeath = this.text(W / 2, 72, "SUDDEN DEATH!", 26, DEPTH.fuse);
     this.suddenDeath.setColor("#ff4a3a");
     this.banner = this.text(W / 2, H * 0.32, "", 56, DEPTH.banner);
     this.banner.setVisible(false);
-    this.effects = new Effects(this);
+    this.effects = new Effects(this, { frame: this.frame });
+  }
+
+  /** Moves an object from the world camera to the HUD camera (screen pixels). */
+  private toHud<T extends Phaser.GameObjects.GameObject>(object: T): T {
+    object.cameraFilter = 0;
+    this.cameras.main.ignore(object);
+    return object;
   }
 
   update(time: number): void {
@@ -213,7 +267,7 @@ export class RoundScene extends Phaser.Scene {
     const view = this.source.view;
     const started = view !== this.current;
     if (started) this.startRound(view);
-    this.terrain.update(view.terrain);
+    this.terrain.update(view.terrain, events);
     this.hud.clear();
     this.drawGates(view);
     sync(
@@ -259,7 +313,9 @@ export class RoundScene extends Phaser.Scene {
       stroke: css(INK),
       strokeThickness: Math.round(size / 4),
     };
-    return this.add.text(x, y, value, style).setOrigin(0.5).setDepth(depth);
+    return this.toHud(this.add.text(x, y, value, style))
+      .setOrigin(0.5)
+      .setDepth(depth);
   }
 
   /** A wooden crate with its card's badge pinned on it. */
@@ -282,7 +338,7 @@ export class RoundScene extends Phaser.Scene {
       pool.clear();
     }
     this.tags = view.castles.map((c) =>
-      this.text(0, 0, this.look(c.id).tag ?? "", 14, DEPTH.hud).setColor(
+      this.text(0, 0, this.look(c.id).tag ?? "", 12, DEPTH.hud).setColor(
         css(this.look(c.id).color),
       ),
     );
@@ -290,7 +346,7 @@ export class RoundScene extends Phaser.Scene {
       const prompt = this.look(c.id).prompt;
       return prompt === undefined
         ? undefined
-        : this.text(0, 0, prompt, 18, DEPTH.hud + 1);
+        : this.text(0, 0, prompt, 14, DEPTH.hud + 1);
     });
     this.castles = view.castles.map((c) => {
       const color = this.look(c.id).color;
@@ -317,11 +373,10 @@ export class RoundScene extends Phaser.Scene {
     const hud = this.hud;
     const [body, launcher, shield] = this.castles[c.id] ?? [];
     if (!body || !launcher || !shield) return;
-    body.setPosition(c.x, c.y + 1);
+    body.setPosition(c.x, c.y + art.HULL_DROP + 1);
     launcher.setVisible(c.alive);
-    this.tags[c.id]
-      ?.setVisible(c.alive)
-      .setPosition(c.x, c.y - art.CASTLE_SIZE.height - 34);
+    const top = this.to.point(c.x, c.y - art.HULL_TOP);
+    this.tags[c.id]?.setVisible(c.alive).setPosition(top.x, top.y - 22);
     shield.setVisible(c.alive && c.shieldHp > 0);
     this.drawPrompt(view, c, time);
     if (!c.alive) {
@@ -330,23 +385,24 @@ export class RoundScene extends Phaser.Scene {
     }
     const pivot = launcherPivot(c, t);
     launcher.setPosition(pivot.x, pivot.y).setRotation(-c.angle);
-    const centre = castleCenter(c, t);
+    const centre = castleCenter(c);
     shield
       .setPosition(centre.x, centre.y)
       .setScale((2 * t.shieldRadius) / art.SHIELD_SIZE)
       .setAlpha(0.45 + (0.55 * c.shieldHp) / t.shieldMax);
 
     // Health bar above the roofs; the shield shows as a cyan strip inside it.
-    const [w, x0, y0] = [64, c.x - 32, c.y - art.CASTLE_SIZE.height - 16];
-    hud.fillStyle(INK, 0.85).fillRoundedRect(x0 - 3, y0 - 3, w + 6, 14, 5);
+    const [w, x0, y0] = [44, top.x - 22, top.y - 10];
+    hud.fillStyle(INK, 0.85).fillRoundedRect(x0 - 2, y0 - 2, w + 4, 10, 4);
     hud
       .fillStyle(this.look(c.id).color)
-      .fillRect(x0, y0, (w * Math.max(0, c.hp)) / c.maxHp, 8);
+      .fillRect(x0, y0, (w * Math.max(0, c.hp)) / c.maxHp, 6);
     hud
       .fillStyle(0x9ff3ff)
-      .fillRect(x0, y0 + 5, (w * c.shieldHp) / t.shieldMax, 3);
+      .fillRect(x0, y0 + 4, (w * c.shieldHp) / t.shieldMax, 2);
 
     const { color, prompt } = this.look(c.id);
+    const at = this.to.point(pivot.x, pivot.y);
     if (isLoaded(c) && !view.result) {
       const human = prompt !== undefined;
       const style = human ? aim.HUMAN_GUIDE : aim.BOT_GUIDE;
@@ -354,20 +410,23 @@ export class RoundScene extends Phaser.Scene {
       const path = predictTrajectory(view, c.id, undefined, {
         maxTicks: human ? undefined : style.ticks,
       });
-      if (human) aim.drawTargets(hud, view, path, color, time);
-      aim.drawGuide(hud, path.points, color, style);
-      aim.drawReady(hud, pivot, color, time, human);
+      if (human) aim.drawTargets(hud, view, path, color, time, this.to);
+      const guide = path.points.slice(0, style.ticks + 1);
+      aim.drawGuide(
+        hud,
+        guide.map((p) => this.to.point(p.x, p.y)),
+        color,
+        style,
+      );
+      aim.drawReady(hud, at, color, time, human);
     } else if (c.reloadTicks > 0 && c.reloadTotalTicks > 0) {
       const done = 1 - c.reloadTicks / c.reloadTotalTicks;
       const start = -Math.PI / 2;
-      hud.lineStyle(7, INK, 0.6).strokeCircle(pivot.x, pivot.y, 17);
-      hud.lineStyle(4, 0xffffff, 0.95).beginPath();
-      hud
-        .arc(pivot.x, pivot.y, 17, start, start + done * Math.PI * 2)
-        .strokePath();
+      hud.lineStyle(5, INK, 0.6).strokeCircle(at.x, at.y, 10);
+      hud.lineStyle(3, 0xffffff, 0.95).beginPath();
+      hud.arc(at.x, at.y, 10, start, start + done * Math.PI * 2).strokePath();
     }
-    if (c.megaReady)
-      hud.lineStyle(3, 0xd35cff).strokeCircle(pivot.x, pivot.y, 28);
+    if (c.megaReady) hud.lineStyle(3, 0xd35cff).strokeCircle(at.x, at.y, 16);
   }
 
   /** The `PRESS Q` badge bobbing over a human's castle for the first seconds of a round. */
@@ -376,8 +435,9 @@ export class RoundScene extends Phaser.Scene {
     if (!label) return;
     const show = c.alive && !view.result && view.tick < PROMPT_TICKS;
     if (!label.setVisible(show).visible) return;
-    const x = c.x;
-    const y = c.y - art.CASTLE_SIZE.height - 84 + 5 * Math.sin(time / 160);
+    const top = this.to.point(c.x, c.y - art.HULL_TOP);
+    const x = top.x;
+    const y = top.y - 62 + 4 * Math.sin(time / 160);
     label.setPosition(x, y);
     const [w, h] = [label.width + 22, label.height + 16];
     const hud = this.hud;
@@ -412,7 +472,7 @@ export class RoundScene extends Phaser.Scene {
     // Humans get their key painted on the envelope, so everyone knows whose blimp it is.
     const badge =
       prompt !== undefined && tag
-        ? this.text(0, 0, tag, 16, DEPTH.hud + 1)
+        ? this.text(0, 0, tag, 12, DEPTH.hud + 1)
         : undefined;
     return {
       blimp,
@@ -447,27 +507,29 @@ export class RoundScene extends Phaser.Scene {
       .setAlpha(human ? 0.85 : 0.7);
     const hud = this.hud;
     if (sprite.badge) {
-      const b = sprite.badge.setPosition(x + (left ? 8 : -8), y + 2);
+      const at = this.to.point(x + (left ? 8 : -8), y + 2);
+      const b = sprite.badge.setPosition(at.x, at.y);
       const [w, h] = [b.width + 12, b.height + 8];
       hud.fillStyle(INK).fillRoundedRect(b.x - w / 2, b.y - h / 2, w, h, 6);
       hud.lineStyle(2, 0xffffff, 0.9);
       hud.strokeRoundedRect(b.x - w / 2, b.y - h / 2, w, h, 6);
     }
     const loaded = isGhostLoaded(g) && !view.result;
-    const hook = { x, y: y + HANG_Y };
-    sprite.bomb.setVisible(loaded).setPosition(hook.x, hook.y);
+    sprite.bomb.setVisible(loaded).setPosition(x, y + HANG_Y);
+    const hook = this.to.point(x, y + HANG_Y);
     if (loaded && human) {
-      const path = predictGhostBomb(view, g.owner, 0, 60);
+      const path = predictGhostBomb(view, g.owner, 0, 90);
       // The guide starts below the blimp, where the bomb comes out.
       const below = path?.points.filter((p) => p.y > g.y + HANG_Y + 14) ?? [];
-      aim.drawGuide(hud, below, color, aim.GHOST_GUIDE);
+      const guide = below.map((p) => this.to.point(p.x, p.y));
+      aim.drawGuide(hud, guide, color, aim.GHOST_GUIDE);
       aim.drawReady(hud, hook, color, time, true);
     } else if (!loaded && g.reloadTotalTicks > 0 && !view.result) {
       const done = 1 - g.reloadTicks / g.reloadTotalTicks;
       const start = -Math.PI / 2;
-      hud.lineStyle(6, INK, 0.6).strokeCircle(hook.x, hook.y, 11);
+      hud.lineStyle(5, INK, 0.6).strokeCircle(hook.x, hook.y, 8);
       hud.lineStyle(3, human ? 0xffffff : color, 0.95).beginPath();
-      hud.arc(hook.x, hook.y, 11, start, start + done * Math.PI * 2);
+      hud.arc(hook.x, hook.y, 8, start, start + done * Math.PI * 2);
       hud.strokePath();
     }
   }
@@ -537,13 +599,13 @@ export class RoundScene extends Phaser.Scene {
       this.gateLabels,
       view.gates,
       (gate) =>
-        this.text(0, 0, `×${gate.multiplier}`, 20, DEPTH.gates).setColor(
+        this.text(0, 0, `×${gate.multiplier}`, 14, DEPTH.gates).setColor(
           css(gateColor(gate.multiplier)),
         ),
-      (label, gate) =>
-        label
-          .setPosition(gate.x, gate.y - gate.height / 2 - 26)
-          .setAlpha(fade(gate)),
+      (label, gate) => {
+        const at = this.to.point(gate.x, gate.y - gate.height / 2 - 16);
+        label.setPosition(at.x, at.y - 10).setAlpha(fade(gate));
+      },
     );
   }
 

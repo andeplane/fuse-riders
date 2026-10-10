@@ -65,8 +65,10 @@ const crater = (radius: number, tick = 1): TickEvent => ({
   x: 100,
   y: 500,
   radius,
-  x0: 90,
-  x1: 110,
+  col0: 22,
+  row0: 122,
+  col1: 28,
+  row1: 128,
 });
 const roundView = (): RoundView =>
   view(createRound({ seed: 5, playerCount: 2 }));

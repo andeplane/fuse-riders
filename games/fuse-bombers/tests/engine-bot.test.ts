@@ -9,7 +9,7 @@ import {
   type BotDifficulty,
   type RoundState,
 } from "../src/engine/index.js";
-import { fingerprint, playOut } from "./engine-helpers.js";
+import { fingerprint, lineUp, playOut } from "./engine-helpers.js";
 
 // Headless bot checks. Bots press the same one button as humans; these pin that the difficulties
 // are ordered, that bot-only rounds finish, and that bots behave (deterministic, no wasted presses).
@@ -43,7 +43,9 @@ test("hard bots clearly beat easy bots head to head", () => {
   for (let seed = 1; seed <= rounds; seed++) {
     const hard = seed % 2; // swap sides every round
     const kinds: BotDifficulty[] = hard ? ["easy", "hard"] : ["hard", "easy"];
-    const s = playOut({ seed, playerCount: 2 }, botInputs(seed, kinds).inputs);
+    // In range of each other (on the temple's spawn anchors aim rarely decides a duel until gunships fly).
+    const { inputs } = botInputs(seed, kinds);
+    const s = playOut({ seed, playerCount: 2 }, inputs, undefined, lineUp);
     if (s.result?.winner === hard) hardWins++;
   }
   assert.ok(hardWins >= 9, `hard won only ${hardWins}/${rounds}`);
@@ -73,11 +75,12 @@ test("bots only press when loaded, and fire regularly", () => {
       0,
     );
     assert.equal(volleys, log.presses, `${difficulty}: a press did not fire`);
-    // Reload is 2.6 s; a purposeful bot still fires at least every ~6 s on average.
+    // Reload is 2.6 s. With nobody in reach (castles hover at their spawn anchors until they fly), a bot waits
+    // out its patience and then for the best angle of a full 3.6 s turn, so it fires at least every ~8 s.
     for (const c of s.castles.filter((c) => c.alive)) {
       const seconds = s.tick / TICK_HZ;
       assert.ok(
-        c.stats.volleys >= seconds / 6,
+        c.stats.volleys >= seconds / 8,
         `${difficulty}: ${c.stats.volleys} volleys in ${seconds}s`,
       );
     }
