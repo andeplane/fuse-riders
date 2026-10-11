@@ -410,8 +410,37 @@ round, and too few gunships send the room back to its lobby.
 - **Fold**: a log tick of 50 ms runs three `step`s, each holding the seat's directions plus `FIRE` on exactly the step
   of each press; bot seats play as `RoundConfig.bots`. Six gunships (four bots) take about 0.3 ms a log tick.
 - **Hash**: `hashPlain` (`src/online/hash.ts`) walks the whole room as plain data (numbers by their bits, typed arrays,
-  sorted keys), so state added later is covered; only the latest step's `events` are left out. About 1 ms a call.
-- **Checkpoint**: none yet; `decode` refuses every snapshot until the validated codec (the next pull request).
+  sorted keys), so state added later is covered; only the round's own `events` (the latest step's output) are left
+  out, and a field of that name anywhere else is hashed. About 1 ms a call.
+- **Checkpoint** (`encode`/`decode` in `game.ts`; the round by `encodeRound`/`decodeRound`, `src/engine/codec.ts`,
+  format 1): `[matchId, round, stage, settings, play]` before the netcode's streams and hash, then seats, results,
+  `startAt`, ships, held directions and the round as flat arrays. Numbers travel exactly (float64, never quantised;
+  MessagePack writes −0 as 0, as the hash counts it), the terrain as `encodeGrid` runs in arrays of at most 4096 (the
+  decoder's array limit). What can be derived is not sent: the tuning (online rounds play the defaults, and
+  `encodeRound` refuses any other), `fuseTicks`, `maxTicks`, `maxHp`, gate and crate positions, the crowns, the match
+  winner, `endAt` and `resumeAt`; `events` start empty.
+- `decode` returns a whole room or undefined and never throws. It checks every field's type and range; every list's
+  length against its cap before reading an item (rockets: `maxRockets` plus ghost bombs; a lineage: 64 gates), and
+  that no list has a hole; every reference (owners, ids unique and below `nextId`, ghost bombs of a ghost, bot memory
+  per `config.bots`, held keys among the ships); the terrain against the temple (its size, no rock it lacked, exactly
+  its indestructible rock); and the parts against each other (the result against the survivors, the phase against the
+  fuse, the round's seed, bots and step count against the match, round and countdown).
+- A range is one the engine keeps itself in, not a loose bound, so a hostile snapshot cannot park a value where the
+  fold misbehaves: castles, ghosts, gates, crates and bot waypoints are inside the world; a castle or ghost is under
+  twice its top speed; a rocket is where `isOffscreen` leaves it, its speed under 10,000 px/s; a gate drifts between
+  its ends, at most `gateDriftSpeed`, and lives at most `gateLife`; a rocket's power is at most the largest multiplier
+  to the power of the gates it passed (a lineage of 64 gates is 1e64, and `power` is how a few gates would carry a
+  loose bound to Infinity); a tally is under 2^30; each fallen castle has its ghost, and a bot flies a ghost only
+  after its castle fell; sudden-death bombs fall only in sudden death; an undecided round is under its time limit; a
+  timeout is decided on the last step the limit allows, for the survivor with most HP, a draw when the best are level;
+  and a match that was decided plays no further round (only its latest result may decide it). A value at the very edge
+  of a range can step out of it (a tally past 2^30, a lineage past 64): `decode` takes it, every peer folds it alike,
+  and only the checkpoint of the room after is refused, so that peer cannot serve a late joiner. Honest play is far from
+  every edge (a lineage is at most ~21).
+- A worst case (1,500 rockets, 6,000 craters: 14k runs) is 130 KB of the 2 MB cap. `tests/online-checkpoint.test.ts`
+  covers round trips at every stage and for rooms of 2, 3, 5 and 6 gunships, corruption field by field, each range at its edge
+  and just past it, an extreme in every field (refused, or folds on finite and checkpoints), a seeded fuzz and a late
+  joiner restoring from a peer's snapshot.
 - **This device** (`src/online/runtime.ts`, `BombersRuntime`): `input(bits)` logs the directions on change, and lets go
   of them when the page hides; `flush()`, which the app calls with every frame it renders, logs them again for a new
   round or match and after a resync or an absence. `fire()` logs a `PRESS` with the next ordinal (it only rises along
