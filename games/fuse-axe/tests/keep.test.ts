@@ -29,12 +29,14 @@ test("Vorhal's Keep is Stage 4: five screens of halls, bonewalkers rising from t
   assert.equal(waves.length, 6);
   assert.equal(waves.at(-1)!.at, cameraEnd);
   assert.equal(imps.length, 1);
-  const kinds = new Set<string>();
+  const kinds = new Set<string>(),
+    raised = new Set<number>();
   waves.forEach((wave, index) => {
     assert.ok(wave.at > (waves[index - 1]?.at ?? 0));
     for (const spawn of [...wave.spawns, ...(wave.extras ?? [])]) {
       kinds.add(`${spawn.kind}${spawn.tier}${spawn.mount ?? ""}`);
       if (spawn.grave === undefined) continue;
+      raised.add(spawn.grave);
       // The slab is on the screen the wave holds, a whole body in from its edges.
       const slab = SLABS[spawn.grave]!;
       assert.equal(spawn.kind, "bonewalker");
@@ -45,6 +47,10 @@ test("Vorhal's Keep is Stage 4: five screens of halls, bonewalkers rising from t
   });
   for (const each of ["ravager2", "lancer1", "bonewalker1", "ravager1clawbeak"])
     assert.ok(kinds.has(each), each);
+  // None of the halls' five slabs is dead data: each has a wave raising a bonewalker from it.
+  SLABS.forEach((slab, index) => {
+    if (slab.x < cameraEnd) assert.ok(raised.has(index), `slab ${index}`);
+  });
   // The throne room's three slabs lie on its screen.
   const throne = SLABS.filter((slab) => slab.x >= cameraEnd);
   assert.equal(throne.length, 3);
