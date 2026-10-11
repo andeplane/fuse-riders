@@ -1,17 +1,29 @@
 /**
- * Dev-only, below the sprite sheet: for each enemy, every frame packed on one floor in each palette swap, then its
- * anims playing at the simulation's 60 steps a second in the swap picked above them. A one-shot anim holds its last
- * frame for a moment, then plays again. Then the Ogre twins in the real scene, and last the floor items at 6×, 3×
- * and 1×.
+ * Dev-only, below the sprite sheet: for each enemy and beast, every frame packed on one floor in each palette swap,
+ * then its anims playing at the simulation's 60 steps a second in the swap picked above them. A one-shot anim holds its
+ * last frame for a moment, then plays again. Then the Ogre twins and a ravager riding a clawbeak in the real scene, and
+ * last the floor items at 6×, 3× and 1×.
  */
-import type { EnemyAnim, EnemyView, WorldView } from "../src/engine/view.js";
+import type {
+  EnemyAnim,
+  EnemyView,
+  MountAnim,
+  WorldView,
+} from "../src/engine/view.js";
 import {
+  CLAWBEAK,
+  CLAWBEAK_STEPS,
   ENEMY_KINDS,
+  MOUNT_KINDS,
   OGRE_STEPS,
   VIEW_H,
   VIEW_W,
 } from "../src/engine/view-kit.js";
-import { ENEMY_ANIMS, type AnimStrip } from "../src/render/art/animate.js";
+import {
+  ENEMY_ANIMS,
+  MOUNT_ANIMS,
+  type AnimStrip,
+} from "../src/render/art/animate.js";
 import { POT } from "../src/render/art/pot.js";
 import type { Figure } from "../src/render/pixel/kit.js";
 import type { Palette } from "../src/render/pixel/palette.js";
@@ -19,18 +31,17 @@ import {
   createSpriteBaker,
   type MakeSurface,
 } from "../src/render/pixel/surface.js";
-import { createScene, ENEMY_ART } from "../src/render/scene.js";
+import { createScene, ENEMY_ART, MOUNT_ART } from "../src/render/scene.js";
 
 interface Animated {
   readonly name: string;
   readonly figure: Figure;
   readonly anims: Readonly<Record<string, AnimStrip<string>>>;
 }
-const ANIMATED: readonly Animated[] = ENEMY_KINDS.map((kind) => ({
-  name: kind,
-  figure: ENEMY_ART[kind].figure,
-  anims: ENEMY_ANIMS[kind],
-}));
+const ANIMATED: readonly Animated[] = [
+  ...ENEMY_KINDS.map((kind) => ({ ...ENEMY_ART[kind], anims: ENEMY_ANIMS[kind], name: kind })), // prettier-ignore
+  ...MOUNT_KINDS.map((kind) => ({ ...MOUNT_ART[kind], anims: MOUNT_ANIMS[kind], name: kind })), // prettier-ignore
+];
 
 const canvas = (width: number, height: number) => {
   const image = document.createElement("canvas");
@@ -201,6 +212,50 @@ for (const animated of ANIMATED) {
   });
   section.append(shown.image);
   main.append(section);
+
+  // A rust ravager riding a clawbeak walks, stands, winds its tail up (blinking) and lashes on a loop; a riderless one
+  // behind it bolts, wanders and walks off.
+  const riding = document.createElement("section");
+  riding.append(document.createElement("h2"));
+  riding.firstElementChild!.textContent =
+    "clawbeak · a rider astride, the wind-up's blink and the lash";
+  const [still, big] = [canvas(VIEW_W, VIEW_H), canvas(VIEW_W * 2, VIEW_H * 2)];
+  type Loop = readonly (readonly [MountAnim, number])[];
+  const ridden: Loop = [["walk", 60], ["idle", 40], ["sweep", CLAWBEAK_STEPS.sweep], ["idle", 30]]; // prettier-ignore
+  const loose: Loop = [["flee", CLAWBEAK_STEPS.panic], ["wander", 2 * CLAWBEAK_STEPS.turn], ["leave", 40]]; // prettier-ignore
+  const playing = (loop: Loop) => {
+    let t = step % loop.reduce((sum, [, steps]) => sum + steps, 0);
+    for (const [anim, steps] of loop) {
+      if (t < steps) return { anim, animStep: t };
+      t -= steps;
+    }
+    return { anim: loop[0]![0], animStep: 0 };
+  };
+  const beast = (id: number, x: number, y: number, facing: 1 | -1) =>
+    ({ id, kind: "clawbeak", x, y, z: 0, facing, rider: null }) as const;
+  players.push(() => {
+    const view: WorldView = {
+      ...{ step, stage: 1, camX: 0, heroes: [], fx: [], items: [], spells: [] },
+      mounts: [
+        { ...beast(8, 90, 126, 1), ...playing(loose) },
+        { ...beast(9, 200, 150, -1), ...playing(ridden), rider: { kind: "enemy", id: 2 } }, // prettier-ignore
+      ],
+      enemies: [
+        {
+          ...{ id: 2, kind: "ravager", tier: 1, x: 200, y: 150, facing: -1 },
+          ...{ z: CLAWBEAK.saddle, anim: "ride", animStep: step, hp: 8 },
+          ...{ maxHp: 8, flash: false, boss: false, enraged: false },
+          mounted: true,
+        },
+      ],
+      ...{ wave: 2, waves: 5, locked: true, go: false, cleared: false },
+      ...{ defeated: false, boss: null },
+    };
+    scene.draw(still.paint, view, step);
+    big.paint.drawImage(still.image, 0, 0, VIEW_W * 2, VIEW_H * 2);
+  });
+  riding.append(big.image);
+  main.append(riding);
 }
 
 {
