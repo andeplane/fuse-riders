@@ -14,7 +14,6 @@ import {
   CLAWBEAK,
   CLAWBEAK_STEPS,
   DEAD_STEPS,
-  SPEAR,
   VIEW_H,
   VIEW_W,
   cameraEndPx,
@@ -23,7 +22,7 @@ import { enemyFrame, heroFrame } from "./art/animate.js";
 import { CLAWBEAK_SPRITE } from "./art/clawbeak.js";
 import { IMP } from "./art/imp.js";
 import { HEROES } from "./art/index.js";
-import { LANCER_TIERS } from "./art/lancer.js";
+import { LANCER, LANCER_TIERS } from "./art/lancer.js";
 import { OGRE, OGRE_CROWNS, OGRE_RAGE, OGRE_TIERS } from "./art/ogre.js";
 import { POT } from "./art/pot.js";
 import { RAVAGER, RAVAGER_TIERS } from "./art/ravager.js";
@@ -97,31 +96,8 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
     rage: { tiers: OGRE_RAGE, crowns: OGRE_CROWNS },
     shade: 1.5,
   },
-  // The ravager's figure in the lancer's colours until it has its own; its spear is drawn as it thrusts (`drawSpear`).
-  lancer: { figure: RAVAGER, tiers: LANCER_TIERS },
+  lancer: { figure: LANCER, tiers: LANCER_TIERS },
 };
-
-/**
- * A thrusting lancer's spear, until its figure holds one: a haft along its facing from its hand, at `SPEAR_ROW` above
- * its feet, out to the spear's reach, the last `SPEAR_TIP` pixels its steel head.
- */
-export const SPEAR_ROW = 22;
-export const SPEAR_TIP = 4;
-const HAFT = "#8c5236";
-const STEEL = "#f4f8ff";
-function drawSpear<Image>(
-  pen: Pen<Image>,
-  sx: number,
-  row: number,
-  facing: 1 | -1,
-): void {
-  const reach = Math.round(SPEAR.reach),
-    haft = reach - SPEAR_TIP;
-  pen.fillStyle = HAFT;
-  fill(pen, facing > 0 ? sx : sx - haft, row, haft, 1);
-  pen.fillStyle = STEEL;
-  fill(pen, facing > 0 ? sx + haft : sx - reach, row, SPEAR_TIP, 1);
-}
 /** What each item kind draws (a kind from a build with more of them, a pot), and the half-width of its shadow. */
 export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = { pot: POT };
 export const ITEM_SHADE = 3;
@@ -275,8 +251,6 @@ interface Standing {
   readonly shade?: number;
   /** An enraged ogre's steam, drawn with it so a figure in front of it hides the puffs: where it rises from its feet. */
   readonly steam?: { readonly enemy: EnemyView; readonly crown: Point };
-  /** A thrusting lancer's spear, drawn with it, the way it points. */
-  readonly spear?: 1 | -1;
   /** A beast's tail lashing round it, drawn with it. */
   readonly tail?: boolean;
 }
@@ -380,8 +354,6 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         standing.push({
           ...at(enemy),
           ...(crown && enemy.anim !== "dead" && { steam: { enemy, crown } }),
-          ...(enemy.kind === "lancer" &&
-            enemy.anim === "thrust" && { spear: enemy.facing }),
           sprite: art.figure.sprite(pose),
           options: {
             swap: (rage ?? art).tiers[enemy.tier],
@@ -429,13 +401,11 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         const top = crown(looks.get(hero.id)!.figure);
         spells.aura(field, hero, sx, y - z, top, frame);
       }
-      for (const { y, z, sx, sprite, options, lit, ...gear } of standing) {
+      for (const { y, z, sx, sprite, options, lit, steam, tail } of standing) {
         if (!lit) continue;
-        const { steam, spear, tail } = gear;
         const b = baker.bake(sprite, options);
         blit(field, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
         if (steam) drawSteam(field, steam.enemy, steam.crown, camX, frame);
-        if (spear) drawSpear(field, sx, y - z - SPEAR_ROW, spear);
         if (tail) {
           const reach = Math.round(CLAWBEAK.reach);
           field.fillStyle = LASH;

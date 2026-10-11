@@ -44,7 +44,11 @@ import { BRAKKA } from "../src/render/art/brakka.js";
 import { CLAWBEAK_SPRITE } from "../src/render/art/clawbeak.js";
 import { IMP, IMP_WALK_STEPS } from "../src/render/art/imp.js";
 import { FIGURES, HEROES } from "../src/render/art/index.js";
-import { LANCER_TIERS } from "../src/render/art/lancer.js";
+import {
+  LANCER,
+  LANCER_TIERS,
+  type LancerFrame,
+} from "../src/render/art/lancer.js";
 import {
   OGRE,
   OGRE_CROWNS,
@@ -77,8 +81,6 @@ import {
   scenery,
   shadowRadius,
   SHADOW_RX,
-  SPEAR_ROW,
-  SPEAR_TIP,
 } from "../src/render/scene.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
 import { drawSpark, HIT_STEPS } from "../src/render/sparks.js";
@@ -444,30 +446,50 @@ test("a beast draws among the figures with its rider in the saddle over it, blin
       }
 });
 
-test("a lancer draws as a ravager in its own colours, holding its spear out along its facing while it thrusts", () => {
-  const lancer = (more: Partial<EnemyView>) =>
-    draw(world({ enemies: [enemy(1, 150, 140, { kind: "lancer", ...more })] }));
-  const spear = (facing: 1 | -1, anim: EnemyView["anim"] = "thrust") =>
-    lancer({ anim, facing, z: 4 })
-      .pen.fills.filter((f) => f.h === 1 && f.y === 140 - 4 - SPEAR_ROW)
-      .map((f) => [f.x, f.w]);
-  const [reach, haft] = [SPEAR.reach, SPEAR.reach - SPEAR_TIP];
-  assert.deepEqual(spear(1), [
-    [150, haft],
-    [150 + haft, SPEAR_TIP],
-  ]);
-  assert.deepEqual(spear(-1), [
-    [150 - haft, haft],
-    [150 - reach, SPEAR_TIP],
-  ]);
-  assert.deepEqual(spear(1, "windup"), []);
-  const idle = RAVAGER.sprite(stripFrame(RAVAGER_ANIMS.idle, 0));
-  for (const tier of [0, 1, 2] as const) {
-    const [sprite] = lancer({ tier }).sprites;
-    assert.deepEqual(
-      sprite!.image.fills,
-      fillsOf(idle, { swap: LANCER_TIERS[tier], flash: false, flip: false }),
-    );
+test("a lancer draws from its own art in its tier's colours, the spear in its sprite: the thrust's point at the reach either way", () => {
+  const sprites = (more: Partial<EnemyView>) =>
+    draw(world({ enemies: [enemy(1, 150, 140, { kind: "lancer", ...more })] }))
+      .sprites;
+  const anims = [
+    ...[
+      ["idle", 0],
+      ["walk", 9],
+      ["windup", 5],
+      ["thrust", 3],
+    ],
+    ...[
+      ["recover", 4],
+      ["leap", 30],
+      ["plunge", 2],
+      ["down", 9],
+    ],
+  ] as const;
+  for (const tier of [0, 1, 2] as const)
+    for (const [anim, animStep] of anims)
+      for (const facing of [1, -1] as const) {
+        const z = anim === "leap" ? 20 : 0;
+        const drawn = sprites({ tier, anim, animStep, facing, z });
+        const frame = enemyFrame("lancer", anim, animStep) as LancerFrame;
+        assert.equal(drawn.length, 1);
+        assert.deepEqual(
+          drawn[0]!.image.fills,
+          fillsOf(LANCER.sprite(frame), {
+            ...{ swap: LANCER_TIERS[tier], flash: false },
+            flip: facing < 0,
+          }),
+          `${tier} ${anim} ${facing}`,
+        );
+      }
+  // The thrust's steel point on screen, found in the sprite's rows and placed by the blit: on the column the spear
+  // reaches from the lancer's.
+  const thrust = LANCER.sprite("thrust");
+  const point = Math.max(
+    ...thrust.rows.map((row) => row.search(/[^.k][.k]*$/)),
+  );
+  for (const facing of [1, -1] as const) {
+    const { dx } = sprites({ anim: "thrust", facing })[0]!;
+    const column = facing > 0 ? dx + point : dx + thrust.w - 1 - point;
+    assert.equal(column, 150 + facing * Math.round(SPEAR.reach), `${facing}`);
   }
 });
 
