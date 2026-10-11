@@ -1,26 +1,27 @@
 import type {
   EnemyKind,
   EnemyView,
-  FxView,
   HeroView,
   ItemKind,
   ItemView,
   Tier,
   WorldView,
 } from "../engine/view.js";
-import { DEAD_STEPS, QUAKE, VIEW_H, VIEW_W } from "../engine/view-kit.js";
+import { DEAD_STEPS, VIEW_H, VIEW_W } from "../engine/view-kit.js";
 import { enemyFrame, heroFrame } from "./art/animate.js";
 import { IMP } from "./art/imp.js";
 import { HEROES } from "./art/index.js";
-import { OGRE_SCALE, OGRE_TIERS } from "./art/ogre.js";
+import { OGRE, OGRE_CROWNS, OGRE_RAGE, OGRE_TIERS } from "./art/ogre.js";
 import { POT } from "./art/pot.js";
 import { RAVAGER, RAVAGER_TIERS } from "./art/ravager.js";
 import { createBackdrop, type StageNumber } from "./backdrop/backdrop.js";
 import { bayer } from "./backdrop/kit.js";
 import { blinksOn, createHud, type HudSeats } from "./hud.js";
-import { blit, blitScaled, fill, type Pen } from "./pen.js";
+import { drawCracks, drawShards, drawSteam } from "./ogre-fx.js";
+import { blit, fill, type Pen } from "./pen.js";
 import type { Figure } from "./pixel/kit.js";
 import { UNLIT, type Palette } from "./pixel/palette.js";
+import type { Point } from "./pixel/rig.js";
 import { cropSprite, type Sprite } from "./pixel/sprite.js";
 import { createSpriteBaker, type BakeOptions } from "./pixel/surface.js";
 import { SEAT_COLORS } from "./seat-colors.js";
@@ -33,12 +34,13 @@ import type { MakeSurface } from "./surface.js";
  * The game's picture: one native 320 × 180 frame of the engine's view, drawn in layers — the backdrop; every
  * figure's shadow on the floor; heroes, enemies and items on the floor by depth (further up the floor first, then
  * lower before higher, then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when
- * defeated, a hero blinking while it is invulnerable and an item before it vanishes; the hit sparks; the grass in
- * front; the spells playing (`spells/`), a charging or casting hero glowing behind its sprite and the field shaking a
- * moment at a spell's blow; a flashing GO → when the road ahead opens; and over it all the HUD (`hud.ts`), naming each
- * seat's player from `seats` (the room's names, which the world does not hold). It only draws: positions come from
- * the view (the app blends two ticks for smooth motion), and `frame`, a 60 Hz count, moves only scenery, the spells'
- * flicker and the HUD's health trails.
+ * defeated, a hero blinking while it is invulnerable and an item before it vanishes; an ogre's shockwave cracking the
+ * floor under the figures and bursting dust over them, and an enraged ogre's steam (`ogre-fx.ts`); the hit sparks; the
+ * grass in front; the spells playing (`spells/`), a charging or casting hero glowing behind its sprite and the field
+ * shaking a moment at a spell's blow; a flashing GO → when the road ahead opens; and over it all the HUD (`hud.ts`),
+ * naming each seat's player from `seats` (the room's names, which the world does not hold). It only draws: positions
+ * come from the view (the app blends two ticks for smooth motion), and `frame`, a 60 Hz count, moves only scenery, the
+ * spells' flicker, the steam's drift and the HUD's health trails.
  *
  * Every sprite, shadow, sign and label is painted once into a surface from `make` and reused, so a frame is blits
  * and a few spark and bar pixels.
@@ -54,8 +56,13 @@ export interface Scene<Image> {
 interface EnemyArt {
   readonly figure: Figure;
   readonly tiers: Readonly<Record<Tier, Palette | undefined>>;
-  /** Drawn this many times as big, its shadow too (none: its own size). */
-  readonly scale?: number;
+  /** Enraged (an ogre whose twin has fallen): a palette per tier, and where its steam rises in each frame. */
+  readonly rage?: {
+    readonly tiers: Readonly<Record<Tier, Palette>>;
+    readonly crowns: Readonly<Record<string, Point>>;
+  };
+  /** Its shadow's width as a multiple of a body's (none: a body's). */
+  readonly shade?: number;
 }
 /** Every enemy kind's art. A kind from a build with more of them draws as a ravager, as `enemyFrame` plays it. */
 export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
@@ -64,7 +71,12 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
     tiers: { 0: undefined, 1: RAVAGER_TIERS.rust, 2: RAVAGER_TIERS.violet },
   },
   imp: { figure: IMP, tiers: { 0: undefined, 1: undefined, 2: undefined } },
-  ogre: { figure: RAVAGER, tiers: OGRE_TIERS, scale: OGRE_SCALE },
+  ogre: {
+    figure: OGRE,
+    tiers: OGRE_TIERS,
+    rage: { tiers: OGRE_RAGE, crowns: OGRE_CROWNS },
+    shade: 1.5,
+  },
 };
 /** What each item kind draws (a kind from a build with more of them, a pot), and the half-width of its shadow. */
 export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = { pot: POT };
@@ -196,8 +208,6 @@ interface Standing {
   readonly marker?: { readonly seat: number; readonly crown: number };
   /** The shadow's half-width, for a figure smaller or bigger than a body; otherwise it shrinks with height. */
   readonly shade?: number;
-  /** Drawn this many times as big (an ogre); otherwise its own size. */
-  readonly scale?: number;
 }
 
 export function createScene<Image>(
@@ -266,6 +276,7 @@ export function createScene<Image>(
           marker: { seat: hero.seat, crown: crown(figure) },
         };
       });
+      const steam: { enemy: EnemyView; crown: Point }[] = [];
       for (const enemy of view.enemies) {
         if (enemy.anim === "dead" && !deadShows(enemy.animStep)) continue;
         // A kind from a build with more of them draws as a ravager, and an anim with no strip stands idle, as a
@@ -274,18 +285,21 @@ export function createScene<Image>(
           ? ENEMY_ART[enemy.kind]
           : ENEMY_ART.ravager;
         const pose = enemyFrame(enemy.kind, enemy.anim, enemy.animStep);
+        // An enraged ogre burns in its rage palette and steams, unless it has fallen.
+        const rage = enemy.enraged ? art.rage : undefined;
+        const crown = rage?.crowns[pose];
+        if (crown && enemy.anim !== "dead") steam.push({ enemy, crown });
         standing.push({
           ...at(enemy),
           sprite: art.figure.sprite(pose),
           options: {
-            swap: art.tiers[enemy.tier],
+            swap: (rage ?? art).tiers[enemy.tier],
             flash: enemy.flash,
             flip: enemy.facing < 0,
           },
           lit: true,
-          ...(art.scale && {
-            scale: art.scale,
-            shade: Math.round(shadowRadius(enemy.z) * art.scale),
+          ...(art.shade && {
+            shade: Math.round(shadowRadius(enemy.z) * art.shade),
           }),
         });
       }
@@ -306,21 +320,19 @@ export function createScene<Image>(
         blit(field, s.image, s.w, s.h, sx - (s.w >> 1), y - (s.h >> 1));
       }
       spells.ground(field, view, frame);
+      drawCracks(field, view.enemies, camX);
       for (const hero of view.heroes) {
         const { y, z, sx } = at(hero);
         const top = crown(looks.get(hero.id)!.figure);
         spells.aura(field, hero, sx, y - z, top, frame);
       }
-      for (const { y, z, sx, sprite, options, lit, scale } of standing) {
+      for (const { y, z, sx, sprite, options, lit } of standing) {
         if (!lit) continue;
         const b = baker.bake(sprite, options);
-        if (!scale) blit(field, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
-        else {
-          const left = sx - Math.round(b.ax * scale);
-          const top = y - z - Math.round(b.ay * scale);
-          blitScaled(field, b.image, b.w, b.h, left, top, scale);
-        }
+        blit(field, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
       }
+      for (const { enemy, crown } of steam)
+        drawSteam(field, enemy, crown, camX, frame);
       for (const { y, z, sx, marker } of standing) {
         if (!marker) continue;
         const { seat, crown } = marker;
@@ -329,14 +341,8 @@ export function createScene<Image>(
         const top = y - z - crown - MARKER_GAP - m.h;
         blit(field, m.image, m.w, m.h, sx - (m.w >> 1), top);
       }
+      drawShards(field, view.enemies, camX);
       for (const fx of view.fx) drawSpark(field, fx, camX);
-      // An ogre's shockwave, until it has art of its own: a burst of dust running along the floor at its front.
-      for (const e of view.enemies)
-        if (e.anim === "slam" && e.animStep >= 1 && e.animStep <= QUAKE.steps) {
-          const x = e.x + e.facing * (QUAKE.reach + QUAKE.speed * e.animStep);
-          const dust: FxView = { kind: "hit", x, y: e.y, z: 0, age: 0 };
-          drawSpark(field, { ...dust, age: e.animStep % 3 }, camX);
-        }
       backdrop.drawFront(field, camX);
       spells.draw(field, view, frame);
       if (view.go && Math.floor(frame / GO_FLASH) % 2 === 0) {
