@@ -16,10 +16,11 @@ const DIRECTIONS = UP | DOWN | LEFT | RIGHT;
 
 /**
  * The Fuse Bombers room: the netcode's runtime plus this device's controls. A change of the held directions is
- * logged (`PLAY`) for the round this device sees, and logged again when a new round starts, since the fold starts
- * every round with nothing held. Each fire press is its own `PRESS` entry: a gesture ordinal that only ever rises,
- * and the step of the log tick the press came in, read off the shared clock, so a tap shorter than a log tick fires,
- * on the step it was made.
+ * logged (`PLAY`) for the round this device sees. The fold starts every round with nothing held, so `flush`, which the
+ * app calls with every frame it renders (as Choppers' does), logs them again once a new round or match has begun, and
+ * after a resync or an absence made the runtime forget what it logged. Each fire press is its own `PRESS` entry: a
+ * gesture ordinal that only ever rises along this device's stream, and the step of the log tick the press came in,
+ * read off the shared clock, so a tap shorter than a log tick fires on the step it was made.
  */
 export class BombersRuntime extends RoomRuntime<
   Room,
@@ -53,13 +54,18 @@ export class BombersRuntime extends RoomRuntime<
     this.bits = bits & DIRECTIONS;
     this.flush();
   }
-  /** One fire press, on the step of the current log tick it came in; false when this device flies nothing. */
+  /**
+   * One fire press; false when this device flies nothing (and no ordinal is spent). `append` stamps the entry with the
+   * log tick after the clock's current one, the next to be folded, so the step is the third of that tick the clock's
+   * fraction is in: 0 from the tick's first instant, 2 up to its last. The fold fires a press on that step alone.
+   */
   fire(): boolean {
     const room = this.flying();
     if (!room) return false;
     const clock = this.clock.tick();
     const offset = Math.floor((clock - Math.floor(clock)) * STEPS_PER_TICK);
-    // A resync may have carried ordinals this page never wrote: the stream refuses any but a higher one.
+    // Ordinals only rise along a stream, which refuses any but a higher one: above this page's last press and above
+    // the stream's own floor, which is where a stream rebuilt by a resync starts.
     this.gesture = Math.max(this.gesture, this.own().latestOrdinal()) + 1;
     this.append(
       PRESS,
