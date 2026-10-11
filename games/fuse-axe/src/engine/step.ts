@@ -415,9 +415,9 @@ function strike(world: World, hero: Hero, blade: T.Blow): void {
 /**
  * A hit: the damage, then hitstun and a nudge away from the hero, which breaks off the enemy's swing, or, from a blow
  * that knocks down (`KNOCKS`), at no hp left or in the air (a lancer's leap), a knockdown that launches the enemy up
- * and away and frees its place by the hero it was going for. Attacker and target both hold still for the hit-stop. A sack imp is kicked (`kick`)
- * instead, and the hero's tallies are left alone. An ogre's super armour takes the blow (`brace`) unless it breaks
- * (`breaks`).
+ * and away and frees its place by the hero it was going for. Attacker and target both hold still for the hit-stop. A
+ * sack imp is kicked (`kick`) instead, and the hero's tallies are left alone. An ogre's super armour takes the blow
+ * (`brace`) unless it breaks (`breaks`).
  */
 function hit(world: World, hero: Hero, enemy: Enemy, damage: number): void {
   const taken = Math.min(damage, enemy.hp),
