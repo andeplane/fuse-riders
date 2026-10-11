@@ -7,6 +7,7 @@ import {
   GRAVITY,
   JUMP_ATTACK,
   JUMP_VZ,
+  HERO_KINDS,
   STAGE_LENGTH,
   SUB,
   RAVAGER,
@@ -106,12 +107,13 @@ export interface SpellSteps {
 }
 const spellSteps = (kind: HeroKind): readonly SpellSteps[] =>
   SPELLS[kind].levels.map(({ steps, hit }) => ({ steps, hit }));
-/** Each spell's timing by level, `SPELL_STEPS[kind][level - 1]`, against a `SpellView`'s `age`. */
-export const SPELL_STEPS: Readonly<Record<SpellKind, readonly SpellSteps[]>> = {
-  storm: spellSteps("brakka"),
-  fire: spellSteps("rhea"),
-  earth: spellSteps("gorm"),
-};
+/**
+ * Each spell's timing by level, `SPELL_STEPS[kind][level - 1]`, against a `SpellView`'s `age`. Keyed by the spell the
+ * way `SPELLS` says which hero casts it, so a change there cannot leave this table on the wrong hero.
+ */
+export const SPELL_STEPS = Object.fromEntries(
+  HERO_KINDS.map((kind) => [SPELLS[kind].kind, spellSteps(kind)]),
+) as Readonly<Record<SpellKind, readonly SpellSteps[]>>;
 
 /** Each tier's wind-up in steps (ash, rust, violet): the mace lands on the step after the last. */
 export const WINDUP_STEPS: Readonly<Record<Tier, number>> = {

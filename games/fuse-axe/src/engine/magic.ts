@@ -15,8 +15,8 @@ import {
 
 /**
  * Magic, as Golden Axe II had it (design.md, "Heroes"). A hero on its feet on the floor (standing, walking or
- * running) with a pot or more starts a charge on a Magic press; one pressed while it was busy waits `BUFFER_STEPS`,
- * as Attack does. Let go within `MAGIC_TAP` steps, the charge is a tap and casts every pot held; held longer, the
+ * running) with a pot or more starts a charge on a Magic press, ahead of any Attack or Jump pressed with it; one
+ * pressed while it was busy waits `BUFFER_STEPS`, as Attack does. Let go within `MAGIC_TAP` steps, the charge is a tap and casts every pot held; held longer, the
  * level chosen starts at 1 and rises by one every `CHARGE_STEPS`, up to the pots held, and letting go casts it and
  * keeps the rest. A press that waited and was let go before the hero came free is a tap too. A charging hero stands
  * still and can be hit, which ends the charge with nothing spent; nobody casts in the air, reeling or off its feet.

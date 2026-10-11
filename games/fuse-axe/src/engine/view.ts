@@ -72,7 +72,10 @@ export interface HeroView {
   maxHp: number;
   /** Lives left, this one included. */
   lives: number;
-  /** No mace lands on the hero: getting up, and for a while after dropping back in. Draw it blinking. */
+  /**
+   * No mace lands on the hero: getting up, and for a while after dropping back in. Draw it blinking. A hero in `cast`
+   * is safe too, but does not set this: the spell is its cue.
+   */
   invulnerable: boolean;
   /** Magic pots held, and the most the hero's kind can hold. */
   pots: number;
