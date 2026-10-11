@@ -2,6 +2,7 @@ import type { HeroFrame } from "./animate.js";
 import {
   beard,
   head,
+  headTurn,
   hornedHelm,
   portrait,
   stampFace,
@@ -23,7 +24,10 @@ import {
   leg,
   legAt,
   legTo,
+  offset,
+  sprint,
   stride,
+  type Side,
 } from "../pixel/kit.js";
 import { rampSwap, type Palette } from "../pixel/palette.js";
 import { Rig, type Point } from "../pixel/rig.js";
@@ -116,6 +120,49 @@ const twoHanded = (
   axe: degrees,
   both: true,
   haft: pose.haft,
+});
+
+/** A two-handed grip's arms on the legs `far` and `near`, for a blow in the air. */
+const tucked = (
+  grip: ReturnType<typeof twoHanded>,
+  far: Partial<Side>,
+  near: Partial<Side>,
+) => ({
+  ...grip,
+  far: { ...grip.far, ...far },
+  near: { ...grip.near, ...near },
+});
+
+/**
+ * Six frames of a quick, stumpy sprint, leaning into it: a planted foot sweeps back his running speed a step for
+ * `RUN_STEPS.gorm` steps (4.5 px a frame), and the fists pump against the legs, the near one only a little as it holds
+ * the axe up before him.
+ */
+const leaning = adjust(idle, {
+  head: [40.5, 46.5],
+  chest: [37, 55.5],
+  waist: [35.5, 60.5],
+  far: { shoulder: [29.5, 52.5], ...legTo(F, [32, 64], [31, 73.5]) },
+  near: { shoulder: [45, 52.5], ...legTo(N, [38, 64], [41, 73.5]) },
+});
+const run = [0, 1, 2, 3, 4, 5].map((i) => {
+  const step = adjust(
+    leaning,
+    sprint(leaning, i, 6, { reach: 4.5, lift: 6, dip: 1 }),
+  );
+  // 1 as the near foot lands ahead, when the far fist is forward and the near one back.
+  const swing = Math.cos((i / 6) * 2 * Math.PI);
+  const pump = (side: Side, ahead: number) =>
+    armTo(
+      side,
+      side.shoulder,
+      offset(side.shoulder, -5 + 10 * ahead, 7 - 4 * ahead),
+    );
+  return adjust(step, {
+    far: pump(step.far, (1 + swing) / 2),
+    near: pump(step.near, 0.875 - swing / 8),
+    axe: -62.5 - 12.5 * swing,
+  });
 });
 
 const poses: Readonly<Record<HeroFrame, GormPose>> = {
@@ -303,6 +350,117 @@ const poses: Readonly<Record<HeroFrame, GormPose>> = {
     ...twoHanded(squat, [28, 50.5], [41.5, 50.5], [38, 34], -90, 5),
     face: "yell",
   }),
+  run0: run[0]!,
+  run1: run[1]!,
+  run2: run[2]!,
+  run3: run[3]!,
+  run4: run[4]!,
+  run5: run[5]!,
+  // The headbutt: the helm driven forward and down like a ram's, the arms flung back with the axe; then he stops dead.
+  dash: adjust(idle, {
+    head: [46, 51.5],
+    chest: [39.5, 57.5],
+    waist: [36, 61.5],
+    far: {
+      ...armTo(F, [31, 54.5], [23, 61]),
+      ...legTo(F, [32.5, 64.5], [23, 73.5]),
+    },
+    near: {
+      ...armTo(N, [45, 55], [32, 62], 1),
+      ...legTo(N, [38.5, 64.5], [45, 73.5]),
+    },
+    axe: 170,
+    face: "yell",
+  }),
+  dashstop: adjust(idle, {
+    head: [38, 45.5],
+    chest: [35, 55],
+    waist: [34.5, 60],
+    far: {
+      ...armTo(F, [27.5, 52], [23, 60]),
+      ...legTo(F, [32, 63.5], [26, 73.5]),
+    },
+    near: {
+      ...armTo(N, [43, 52], [50, 58]),
+      ...legTo(N, [38, 63.5], [46, 73.5]),
+    },
+    axe: -50,
+  }),
+  // The jump attack: the axe hauled up behind his helm in the air, then chopped down before him, the knees tucked.
+  jumpwindup: adjust(idle, {
+    head: [37, 43.5],
+    chest: [35, 53],
+    waist: [35, 58],
+    ...tucked(
+      twoHanded(idle, [27, 50], [40, 50], [30.5, 43], -140),
+      legTo(F, [33, 61.5], [30, 73.5]),
+      legAt([38.5, 61.5], [44.5, 62.5], [42, 68.5]),
+    ),
+  }),
+  jumpstab: adjust(idle, {
+    head: [41, 46],
+    chest: [37.5, 55.5],
+    waist: [35.5, 60],
+    ...tucked(
+      twoHanded(idle, [30, 52.5], [45, 52.5], [51, 58], 50),
+      legTo(F, [33, 63], [30, 73.5]),
+      legAt([38.5, 63], [44.5, 63.5], [42, 69]),
+    ),
+    smear: { center: [43, 53], inner: 12, outer: 21, from: -115, to: 50 },
+    face: "yell",
+  }),
+  // The back attack: he looks over his shoulder and swings the axe up and over, back behind him.
+  backwindup: adjust(squat, {
+    head: [38.5, 46],
+    chest: [35.5, 55.5],
+    waist: [35, 60.5],
+    ...twoHanded(squat, [28, 52.5], [43, 52.5], [45, 46], -60),
+    lookBack: true,
+  }),
+  backstrike: adjust(squat, {
+    head: [33.5, 46.5],
+    chest: [32.5, 56],
+    waist: [33.5, 61],
+    ...twoHanded(squat, [25.5, 53], [39.5, 53], [25, 54], 182),
+    smear: { center: [30, 55], inner: 12, outer: 22, from: -60, to: -175 },
+    face: "yell",
+    lookBack: true,
+  }),
+  backfollow: adjust(squat, {
+    head: [33.5, 47],
+    chest: [32.5, 56.5],
+    waist: [33.5, 61],
+    ...twoHanded(squat, [25.5, 53.5], [39.5, 53.5], [27, 62], 150),
+    lookBack: true,
+  }),
+  // The grab clutches with both hands; the throw heaves the body up over his helm and tosses it behind him.
+  grab: adjust(squat, {
+    head: [39.5, 46.5],
+    chest: [36.5, 56],
+    waist: [35.5, 61],
+    far: armTo(F, [29.5, 53], [44, 52]),
+    near: armTo(N, [44, 53], [49, 57]),
+    axe: -95,
+    face: "yell",
+  }),
+  heave: adjust(crouch, {
+    head: [35.5, 47.5],
+    chest: [34.5, 57],
+    waist: [35, 62],
+    far: armTo(F, [27.5, 53.5], [31, 42.5], 1),
+    near: armTo(N, [41, 53.5], [39.5, 42], 1),
+    axe: -120,
+    face: "yell",
+  }),
+  toss: adjust(squat, {
+    head: [33.5, 47.5],
+    chest: [33, 57],
+    waist: [34, 61.5],
+    far: armTo(F, [26, 54], [19, 46], 1),
+    near: armTo(N, [39.5, 54], [29, 45], 1),
+    axe: 200,
+    lookBack: true,
+  }),
 };
 export const GORM_POSES = poses;
 
@@ -350,13 +508,15 @@ export function paintGorm(pose: GormPose): Sprite {
   rig.poly(buckle, "n", { bevel: 1 });
   // The near arm goes under the beard, which falls over the shoulder pad, then the helm over the head.
   arm(rig, near, { ...stout, bracer: "l", pad: "n" });
-  head(rig, h, at, 1.1);
-  rig.ellipse(at(h, 5.5, 2.4), 1.7, 1.5, "s", { group: "head", bias: 0.2 });
-  beard(rig, h, at, "w");
-  hornedHelm(rig, h, at);
+  // The head, beard and helm turn with the head, which may look back over the shoulder.
+  const look = headTurn(pose, at);
+  head(rig, h, look, 1.1);
+  rig.ellipse(look(h, 5.5, 2.4), 1.7, 1.5, "s", { group: "head", bias: 0.2 });
+  beard(rig, h, look, "w");
+  hornedHelm(rig, h, look);
   axe(rig, near.hand, pose.axe, pose.haft, { ...stout, butt: AXE - pose.haft });
   if (pose.both) fist(rig, far.hand, { ...BACK, ...stout });
-  const painting = stampFace(rig.bake(), h, at, FACES[pose.face ?? "calm"]);
+  const painting = stampFace(rig.bake(), h, look, FACES[pose.face ?? "calm"]);
   // The ground hides whatever reaches below the floor: the axe's bit where it bites in.
   const [w, height] = pose.size;
   const ground = height - pose.anchor[1] - 1;

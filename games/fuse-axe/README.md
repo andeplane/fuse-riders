@@ -94,31 +94,41 @@ widen `size` for a long reach. The renderer bakes a frame once per swap, flash a
 
 Every hero paints the same frames, `HERO_FRAMES` in `src/render/art/animate.ts`: a two-frame breath, a six-frame
 walk, rise, fall and land, a wind-up, strike and follow-through for each of the combo's three swings, then hurt,
-knockdown, down and getup; plus a 16 × 16 HUD portrait and palette swaps for up to five of the same hero. The kit's
-`stride` lays out a walk's legs, `breath` an exhale and `bend` a knee or elbow (`armTo` and `legTo` place a limb from
-its ends with another pose's bones), so a new hero only adds its poses. `pixel/head.ts` holds what every hero shares
+knockdown, down and getup, magic's charge and cast, and the moves: a six-frame sprint, the dash's lunge and stop (a
+shoulder charge, Gorm's a headbutt), the jump attack's wind-up and downward stab, the back attack's wind-up, strike and
+follow-through behind the hero, the grab's clutch and the throw's heave and toss; plus a 16 × 16 HUD portrait and
+palette swaps for up to five of the same hero. The kit's `stride` lays out a walk's legs, `sprint` a run's, `breath` an
+exhale and `bend` a knee or elbow (`armTo` and `legTo` place a limb from its ends with another pose's bones), so a new
+hero only adds its poses. The engine keeps a hero's facing through the back attack, so the figure is not flipped: a
+pose's `lookBack` turns only the head, and what is on it, to look over the shoulder (`headTurn`), while the blade
+swings behind. `pixel/head.ts` holds what every hero shares
 above the neck: `turn(tilt)`, the body's frame for lying poses, `head` (skull, jaw, nose), `stampFace` for a hero's
 `Faces` (calm, yell, pain, out), `beard`, `hornedHelm` and `portrait`, which paints the plate, shoulders and face and
 takes the hair, headgear and face pixels. A shape's `grain` darkens a regular run of its pixels into strands, as a
 beard's. A hero's `stride` reach is 1.5 × its `WALK_STEPS` × its walking speed in px per step (the engine's exact
-sub-pixel speed: Gorm's 0.8 px is 205/256), so a planted foot stays put; `tests/hero-art.test.ts` checks that for
+sub-pixel speed: Gorm's 0.8 px is 205/256), and its `sprint` reach its `RUN_STEPS` × its running speed, so a planted
+foot stays put; `tests/hero-art.test.ts` checks that for
 every hero in `HEROES`, which has art for every `HERO_KINDS` hero. Brakka (`src/render/art/brakka.ts`) swings a
 broadsword; Rhea (`rhea.ts`) is slimmer, in bronze and green, with a longsword: a level slash, a thrust, and a spinning
 overhead finisher. Gorm (`gorm.ts`) is a dwarf about three quarters of Brakka's height and broader, in a horned helm
 and a blue tunic, with the kit's double-bit `axe` (its angle and haft length are pose fields) gripped in both hands
 for the combo: a level hack, a rising uppercut chop, and an overhead cleave that bites into the ground, which hides
 whatever reaches below the floor.
-`heroFrame(kind, anim, animStep)` picks the frame for a hero in the view, timed by view-kit's `SWING_STEPS` and
-`JUMP_RISE_STEPS`: the strike exactly in the swing's active steps (a hit's freeze holds it, as the engine stops
-counting `animStep`), the walk at a cadence that keeps a planted foot still on a straight walk along the road. It
+`heroFrame(kind, anim, animStep)` picks the frame for a hero in the view, timed by view-kit's `SWING_STEPS`,
+`BACK_STEPS`, `STAB_STEPS`, `DASH_STEPS`, `THROW_STEPS` and `JUMP_RISE_STEPS`: a strike (`STRIKE_FRAMES`) exactly in
+the steps a blow is out, a swing's, the back attack's, the jump attack's or the dash's (a hit's freeze holds it, as the
+engine stops counting `animStep`), the grab while the body is held and the heave from the step it is thrown, and the
+walk and the run at cadences that keep a planted foot still on a straight line along the road. It
 never throws, so a frame cannot stop the renderer: an odd `animStep` is rounded to a whole step from 0, and a new
 engine state fails to compile until it has frames. `tests/animate-engine.test.ts` checks it against the real engine.
 
 To see every figure's frames at 3× and 1×, each hero's swaps, flash, flip and portrait, and a reel per anim at game
-speed, run `pnpm exec vite` and open `/games/fuse-axe/lab/sprites.html`. The lab is dev-only: it is not in the build
-and not on the portal. [`docs/images/brakka-frames.png`](docs/images/brakka-frames.png),
-[`docs/images/rhea-frames.png`](docs/images/rhea-frames.png) and
-[`docs/images/gorm-frames.png`](docs/images/gorm-frames.png) are screenshots of it.
+speed, run `pnpm exec vite` and open `/games/fuse-axe/lab/sprites.html` (`?frames=run0,dash` shows only those
+frames). The lab is dev-only: it is not in the build and not on the portal.
+[`docs/images/brakka-frames.png`](docs/images/brakka-frames.png),
+[`docs/images/rhea-frames.png`](docs/images/rhea-frames.png),
+[`docs/images/gorm-frames.png`](docs/images/gorm-frames.png) and
+[`docs/images/move-frames.png`](docs/images/move-frames.png) (the moves' frames) are screenshots of it.
 
 The ravager (`src/render/art/ravager.ts`) paints every frame on one canvas with one feet anchor, so its frames line
 up on the floor; its falling poses are standing poses tipped over backwards (`tipped`). `RAVAGER_ANIMS` lists each
