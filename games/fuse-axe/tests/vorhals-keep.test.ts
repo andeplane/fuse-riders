@@ -263,3 +263,40 @@ test("torches burn on the piers and braziers on the kerb, two flanking the dais,
     for (const f of glow(END, step)) styles.add(f.style);
   assert.deepEqual([...styles].sort(), [...SHARD_GLOW].sort());
 });
+
+test("every flame stands on its iron: a torch's in a cup on its pier, a brazier's in a bowl on legs to the kerb, each mirrored in the flagstones", () => {
+  const alphaAt = (x: number, y: number) =>
+    road.rgba[(y * road.width + x) * 4 + 3];
+  const [IRON, IRON_WARM, STREAK, STREAK_HOT] = [
+    0x181a24, 0x8a4a28, 0x4a2c22, 0x8a5030,
+  ];
+  const torches = PIERS.length + 1;
+  FIRES.forEach(([x0, w, base], i) => {
+    const x = x0 + (w >> 1);
+    const where = `${i < torches ? "torch" : "brazier"} ${i} at ${x}`;
+    // The rim of the cup (a row below the flame's base row) or of the bowl (two rows below it) is the hot iron.
+    assert.ok(
+      [1, 2].some((d) => roadAt(x, base + d) === IRON_WARM),
+      `${where}: nothing under the flame`,
+    );
+    if (i < torches) {
+      // Stone of the pier on both sides of the cup: a wall torch, not a free-standing one.
+      for (const dx of [-8, 8])
+        assert.equal(alphaAt(x + dx, base), 255, `${where}: no pier at ${dx}`);
+    } else {
+      // The legs reach the kerb; in the halls the nave shows behind the bowl, not a wall of the road's layer.
+      assert.equal(roadAt(x, KERB), IRON, `${where}: no leg on the kerb`);
+      if (i < FIRES.length - 2)
+        assert.equal(alphaAt(x, base - 6), 0, `${where}: a wall behind it`);
+    }
+    // Its streak in the polished floor runs down as far as the flame's base is above the floor's far edge.
+    let deepest = 0;
+    for (let y = FLOOR_TOP_PX; y < FLOOR_BOTTOM_PX; y++)
+      for (let dx = -2; dx <= 2; dx++)
+        if ([STREAK, STREAK_HOT].includes(roadAt(x + dx, y))) deepest = y;
+    assert.ok(
+      deepest >= 2 * FLOOR_TOP_PX - base - 4,
+      `${where}: the streak ends at ${deepest}`,
+    );
+  });
+});
