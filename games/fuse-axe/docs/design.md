@@ -179,8 +179,9 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
   and [game over](images/app-game-over.png), from `preview/flow.mjs`.
 - **The next stage** begins where a tally short of the last stage ends (`nextStage`): the next stage's world,
   seeded `seedOf("matchId:round+1")` as `beginStage` makes every stage's, with each hero whose seat is still here
-  (its slot held by a member playing its hero: camp gives up a seat that leaves, so a newcomer in that slot or a bot
-  taken off does not carry it on). Policy (`carryOf`): lives carry over (a hero who went out comes back with one),
+  (its slot held by a member playing its hero: camp gives up a seat that leaves, so a bot taken off does not carry it
+  on, nor does a newcomer in that slot playing another hero; the hero belongs to its slot, so one playing the same
+  hero carries it on as the member who left would). Policy (`carryOf`): lives carry over (a hero who went out comes back with one),
   and so do magic pots, as in the original; health is full, the continue is fresh, and the tallies stay banked in
   the room, a hero that left keeping its row. With none of the run's heroes left the room is an empty lobby again.
   Camp will sit between the tally and the next stage.
@@ -188,7 +189,8 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
 The checkpoint carries the clock (`until`), the spent continue, the outcome and the banked tallies, and refuses any
 combination the fold cannot reach (a clock in play with heroes standing, a win short of the last stage, a world of
 another stage than the round or with no hero, tallies that are not the world's heroes: in a later stage, a row for
-each of them in seat order, and once it has ended at least its own).
+each of them in seat order, and once it has ended at least its own: what earlier stages banked for a hero is not in
+the checkpoint to check against, so a later row is bounded below by its own stage only).
 
 ## Screen and art
 
@@ -205,7 +207,8 @@ each of them in seat order, and once it has ended at least its own).
   speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in front; it ends at the
   village gate ([screenshot](images/stage1-backdrop.png)). The scene picks the backdrop by the view's `stage`; a stage
   without art of its own draws Stage 1's, its camera scaled from the stage's road (`cameraEndPx(stage)` in
-  `view-kit.ts`) onto the village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery.
+  `view-kit.ts`) onto the village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery; on Wyrmbone
+  Pass's longer road that scrolls every layer at 3/4 of its speed, the floor-speed ones too, until it has its own art.
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
   and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives
   ([screenshot](images/hud.png)); the pots light up to the level chosen while a hero charges magic.

@@ -489,6 +489,48 @@ test("only a seat still playing its hero goes on: not a newcomer in a freed slot
   kept(empty);
 });
 
+test("a hero belongs to its slot: a newcomer or a bot in the freed slot playing the same hero carries it on, tallies and all", () => {
+  const room = started();
+  room.world = cleared({
+    ...room.world!,
+    heroes: room.world!.heroes.map((hero) => ({
+      ...hero,
+      damage: 7,
+      lives: hero.seat === 1 ? 2 : hero.lives,
+      pots: hero.seat === 1 ? 4 : hero.pots,
+    })),
+  });
+  fold(room);
+  // Bo leaves, and Cy takes Brakka's slot with Brakka; the bot's slot is taken by another bot (Ironhide's own hero).
+  fold(room, {
+    a: [
+      [LEAVE, "b"],
+      [JOIN, "c", "Cy", 1, "brakka", 1],
+      [BOT, "remove", "bot:1"],
+      [BOT, "add", "bot:2", "Flint", 2],
+    ],
+  });
+  kept(room);
+  run(room, CLEAR_TICKS);
+  assert.deepEqual(
+    room.world!.heroes.map((hero) => [hero.seat, hero.kind, hero.lives, hero.pots]),
+    [
+      [0, "rhea", LIVES, 0],
+      [1, "brakka", 2, 4],
+      [2, "gorm", LIVES, 0],
+    ],
+  ); // prettier-ignore
+  assert.deepEqual(
+    view(room).tally.map((row) => [row.seat, row.run.damage]),
+    [
+      [0, 7],
+      [1, 7],
+      [2, 7],
+    ],
+  );
+  kept(room);
+});
+
 test("a stage cleared as the last hero falls is won; the lobby ends a countdown", () => {
   const room = started();
   room.world = wiped(cleared(room.world!));

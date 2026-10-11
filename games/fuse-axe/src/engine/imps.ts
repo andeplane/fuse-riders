@@ -15,12 +15,12 @@ import {
 
 /**
  * Sack imps and the magic pots they drop. An imp is no fighter: it never attacks, holds no wave's screen and thinks
- * nothing (`ai.ts` never runs it). Sent by the stage's cues (`planOf(world).imps`) as the camera reaches them, it appears
- * just outside the screen's edge and scurries across the floor, zig-zagging in depth. Every hero blow that lands on
- * it (and a thrown body) kicks one pot out of its sack onto the floor: it stumbles, or from a blow that knocks down
- * it flies, lies and gets up, then flees away from the blow, faster. Stumbling, flying, lying, getting up or with an
- * empty sack it cannot be kicked; it leaves the world once it is more than `ENTER_OUT` outside the screen. A kick
- * counts for nothing in a hero's tallies.
+ * nothing (`ai.ts` never runs it). Sent by the stage's cues (`planOf(world).imps`) as the camera reaches them, it
+ * appears just outside the screen's edge and scurries across the floor, zig-zagging in depth. Every hero blow that
+ * lands on it (and a thrown body) kicks one pot out of its sack onto the floor: it stumbles, or from a blow that
+ * knocks down it flies, lies and gets up, then flees away from the blow, faster. Stumbling, flying, lying, getting up
+ * or with an empty sack it cannot be kicked; it leaves the world once it is more than `ENTER_OUT` outside the screen.
+ * A kick counts for nothing in a hero's tallies.
  *
  * A pot pops out of the sack and lands, then lies `ITEM_LIFE` steps, blinking at the end. A hero on its feet on the
  * floor, not reeling, knocked down, lying or getting up, picks up a landed pot it walks over while it holds fewer

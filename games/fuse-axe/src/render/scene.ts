@@ -216,6 +216,8 @@ interface Standing {
 /**
  * The backdrop a stage draws on, and where its camera stands: the stage's own art at the camera, or for a stage with
  * none Stage 1's, its camera scaled from the stage's road onto the village's so the scenery runs out at the same end.
+ * On a longer road than the village's the layers scroll the slower for it, the floor-speed ones too (3/4 of the
+ * floor's on Wyrmbone Pass): a placeholder until the stage has its own art, which takes the camera as it is.
  */
 export function scenery(
   stage: number,
