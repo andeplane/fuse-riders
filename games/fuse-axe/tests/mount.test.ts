@@ -2,14 +2,19 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   ATTACK,
+  DOWN,
+  JUMP,
   MAGIC,
   RIGHT,
   STAGE_1,
   STAGE_2,
+  UP,
   botInput,
+  carryOf,
   createWorld,
   decodeWorld,
   encodeWorld,
+  revive,
   spawnEnemy,
   spawnMount,
   step,
@@ -17,6 +22,7 @@ import {
   toView,
   waveSpawns,
   type Enemy,
+  type Hero,
   type HeroKind,
   type Mount,
   type World,
@@ -62,6 +68,19 @@ function mounted(
 /** A riderless clawbeak `dx` and `dy` sub-units from the first hero. */
 const loose = (world: World, dx: number, dy = 0) =>
   spawnMount(world, hero(world).x + dx, hero(world).y + dy);
+/** The first hero, standing beside a riderless clawbeak, climbs on. */
+const aboard = (world: World) => step(loose(world, px(10)), [JUMP]);
+/** A ravager 20 px in front of the first hero, two steps from landing its mace on it, the hero left `hp`. */
+function maced(world: World, hp: number): World {
+  const next = spawnEnemy(world, "ravager", hero(world).x + px(20), hero(world).y); // prettier-ignore
+  const timer = T.RAVAGER[0].windup - 2,
+    winding = { state: "windup", timer, target: 1, facing: -1 } as const;
+  return {
+    ...next,
+    enemies: next.enemies.map((e, i, all) => (i === all.length - 1 ? { ...e, ...winding } : e)), // prettier-ignore
+    heroes: next.heroes.map((h, i) => (i === 0 ? { ...h, hp } : h)),
+  };
+}
 const FULL = T.enemyMaxHp("ravager", 0, 1);
 
 test("an enemy's beast winds its tail up in plain sight, then knocks down every hero around it in its lane, either side, and no further", () => {
@@ -186,75 +205,100 @@ test("a bot breaks off a rider's tail or steps out of it, then knocks the rider 
     assert.equal(world.enemies.length, 0, `tier ${tier}`);
     assert.equal(hero(world).lives, T.LIVES, `tier ${tier}`);
   }
+  // One that finds itself riding (a player's seat it took over) climbs off.
+  let world = tick(aboard(party("brakka")));
+  assert.equal(botInput(world, 1), DOWN | JUMP);
+  assert.equal(hero(tick(world)).state, "jump");
 });
 
-test("a rollback or a checkpoint mid-walk, mid-sweep and with a beast riderless replays to the same world", () => {
-  // A rider far off and one by Rhea, and a riderless beast by Brakka.
+test("a rollback or a checkpoint mid-walk, mid-sweep, mid-hop, while a hero rides and with a beast riderless replays to the same world", () => {
+  // A rider far off and one by Rhea, whom her bot fights; Brakka climbs on a beast beside him, sweeps, hops, walks and
+  // climbs off.
   let opening = mounted(party("brakka", "rhea"), 200, 6, 1);
   opening = loose(mounted(opening, 40, 0, 0, 1), px(10));
-  const bots = (w: World) => w.heroes.map((h) => botInput(w, h.id));
+  const script = (i: number) =>
+    i === 1 ? JUMP
+    : i === 4 ? ATTACK
+    : i === 20 ? JUMP
+    : i > 33 && i < 39 ? RIGHT | UP
+    : i === 40 ? DOWN | JUMP
+    : 0; // prettier-ignore
+  const held = (w: World, i: number) => [script(i), botInput(w, 2)];
   const trail = [opening];
-  while (trail.length < 260) trail.push(stepTick(trail.at(-1)!, bots(trail.at(-1)!))); // prettier-ignore
+  while (trail.length < 260) trail.push(stepTick(trail.at(-1)!, held(trail.at(-1)!, trail.length))); // prettier-ignore
   const end = trail.at(-1)!;
-  const first = (found: (m: Mount) => boolean) => {
-    const cut = trail.findIndex((w) => w.mounts.some(found));
+  const first = (found: (m: Mount, heroes: boolean) => boolean) => {
+    const cut = trail.findIndex((w) =>
+      w.mounts.some((m) =>
+        found(
+          m,
+          w.heroes.some((h) => h.id === m.rider),
+        ),
+      ),
+    );
     assert.ok(cut > 0, String(found));
     return cut;
   };
-  const stray = beast(opening, 2).id;
   for (const cut of [
-    first((m) => m.rider > 0 && m.state === "walk"),
-    first((m) => m.state === "sweep" && m.timer > 0),
+    first((m, ours) => m.rider > 0 && !ours && m.state === "walk"),
+    first((m, ours) => ours && m.state === "walk"),
+    first((m) => m.state === "hop" && m.z > 0),
+    first((m, ours) => ours && m.state === "sweep" && m.timer > 0),
+    first((m, ours) => !ours && m.state === "sweep" && m.timer > 0),
     first((m) => m.state === "flee"),
-    first((m) => m.state === "wander" && m.id !== stray),
     first((m) => m.state === "leave"),
   ])
     for (const from of [trail[cut]!, decodeWorld(encodeWorld(trail[cut]!))!]) {
       let world = from;
       for (let i = cut; i < trail.length - 1; i++)
-        world = stepTick(world, bots(world));
+        world = stepTick(world, held(world, i + 1));
       assert.deepEqual(world, end);
     }
 });
 
 test("the checkpoint refuses riders and beasts where the rules never put them", () => {
-  const world = loose(mounted(party("brakka", "rhea"), 80), px(-30), px(10));
+  // Brakka's beast, a ravager's and a riderless one.
+  const world = loose(mounted(aboard(party("brakka", "rhea")), 80), px(-30), px(10)); // prettier-ignore
   kept(world);
-  const [ours, free] = world.mounts as [Mount, Mount];
+  const [, theirs, free] = world.mounts as [Mount, Mount, Mount];
   const enemy = rider(world)!;
-  const refused = (mounts: Partial<Mount>[], enemies: Partial<Enemy> = {}) =>
+  const refused = (
+    mounts: readonly Partial<Mount>[],
+    enemies: Partial<Enemy> = {},
+    heroes: Partial<Hero> = {},
+  ) =>
     decodeWorld(
       encodeWorld({
         ...world,
         mounts: mounts.map((change, i) => ({ ...world.mounts[i]!, ...change })),
         enemies: [{ ...enemy, ...enemies }],
+        heroes: world.heroes.map((h, i) => (i ? h : { ...h, ...heroes })),
       }),
     );
   const at = { x: enemy.x, y: enemy.y, facing: enemy.facing };
-  for (const [what, mounts, enemies] of [
-    ["a beast ridden by nobody there", [{ rider: 99 }, {}], {}],
-    ["a rider off its beast", [{}, {}], { x: enemy.x + 1 }],
-    ["a figure riding no beast", [{ rider: 0, state: "wander" }, {}], {}],
-    [
-      "two beasts under one rider",
-      [{}, { ...at, rider: enemy.id, state: "idle" }],
-      {},
-    ],
-    ["a riderless beast sweeping", [{}, { state: "sweep" }], {}],
-    ["a ridden beast wandering", [{ state: "wander" }, {}], {}],
-    ["a lancer riding", [{}, {}], { kind: "lancer" }],
-    ["a beast off the floor", [{}, { z: px(4) }], {}],
-    ["a beast with an enemy's id", [{}, { id: enemy.id }], {}],
-    ["beasts out of id order", [{ id: free.id }, { id: ours.id }], {}],
-    [
-      "a sweep cooling too long",
-      [{ coolUntil: world.step + T.TAIL_COOL + 1 }, {}],
-      {},
-    ],
-  ] as const)
-    // prettier-ignore
-    assert.equal(refused([...mounts], enemies), undefined, what);
-  assert.ok(refused([{ ...ours }, {}]), "the world as it is");
+  const cases: [string, Partial<Mount>[], Partial<Enemy>?, Partial<Hero>?][] = [
+    ["a beast ridden by nobody there", [{}, { rider: 99 }, {}]],
+    ["a rider off its beast", [{}, {}, {}], { x: enemy.x + 1 }],
+    ["a figure riding no beast", [{}, { rider: 0, state: "wander" }, {}]],
+    ["two beasts under one rider", [{}, {}, { ...at, rider: enemy.id, state: "idle" }]], // prettier-ignore
+    ["a riderless beast sweeping", [{}, {}, { state: "sweep" }]],
+    ["a ridden beast wandering", [{}, { state: "wander" }, {}]],
+    ["a lancer riding", [{}, {}, {}], { kind: "lancer" }],
+    ["a beast off the floor", [{}, {}, { z: px(4) }]],
+    ["a beast still falling on the floor", [{}, {}, { vz: -1 }]],
+    ["a beast with an enemy's id", [{}, {}, { id: enemy.id }]],
+    ["beasts out of id order", [{}, { id: free.id }, { id: theirs.id }]],
+    ["a sweep cooling too long", [{}, { coolUntil: world.step + T.TAIL_COOL + 1 }, {}]], // prettier-ignore
+    ["an enemy's beast hopping", [{}, { state: "hop" }, {}]],
+    ["an enemy's beast walking of its own", [{}, { vx: 1 }, {}]],
+    ["a riderless beast walking of its own", [{}, {}, { vy: 1 }]],
+    ["a hero's beast walking in", [{ state: "enter" }, {}, {}]],
+    ["a hero above its beast", [{}, {}, {}], {}, { z: px(2) }],
+    ["a rider with a speed of its own", [{}, {}, {}], {}, { vx: 1 }],
+  ];
+  for (const [what, mounts, enemies, heroes] of cases)
+    assert.equal(refused(mounts, enemies, heroes), undefined, what);
+  assert.ok(refused([{}, { ...theirs }, {}]), "the world as it is");
   const many = Array.from({ length: T.MOUNT_MAX + 1 }, (_, i) => ({ ...free, id: free.id + i })); // prettier-ignore
   assert.equal(decodeWorld(encodeWorld({ ...world, mounts: many })), undefined);
 });
@@ -348,4 +392,115 @@ test("a beast riderless holds no wave, and a wave's spawn of a kind that cannot 
     saddle(bare, enemy, "clawbeak");
     assert.deepEqual([enemy.state, bare.mounts.length], [odd.enemies[0]!.state, 0], kind); // prettier-ignore
   }
+});
+
+test("Jump beside a riderless beast climbs on; too far or out of its lane it is a jump; two on one step leave it to the lower id", () => {
+  let world = aboard(party("brakka"));
+  assert.deepEqual([hero(world).state, beast(world).rider, beast(world).state], ["ride", 1, "idle"]); // prettier-ignore
+  assert.deepEqual([hero(world).x, hero(world).y, hero(world).z], [beast(world).x, beast(world).y, 0]); // prettier-ignore
+  const view = toView(world);
+  assert.deepEqual([view.heroes[0]!.mounted, view.heroes[0]!.z, view.mounts[0]!.rider], [true, T.SADDLE / T.SUB, { kind: "hero", id: 1 }]); // prettier-ignore
+  kept(world);
+  for (const [dx, dy] of [
+    [T.BOARD_X + 1, 0],
+    [0, T.LANE + 1],
+  ] as const) {
+    world = step(loose(party("brakka"), dx, dy), [JUMP]);
+    assert.deepEqual([hero(world).state, beast(world).rider], ["jump", 0]);
+  }
+  // Rhea is nearer the beast, but Brakka's id is lower.
+  world = loose(party("brakka", "rhea"), px(16));
+  world = step(moved(world, 1, beast(world).x + px(6), beast(world).y), [JUMP, JUMP]); // prettier-ignore
+  assert.deepEqual([world.heroes.map((h) => h.state), beast(world).rider], [["ride", "jump"], 1]); // prettier-ignore
+  kept(world);
+});
+
+test("riding: the beast's walk, Attack lashing its tail at the enemies around (never a hero) once cooled, Jump hopping it, Down and Jump climbing off", () => {
+  let world = aboard(party("brakka", "rhea"));
+  const x0 = hero(world).x;
+  world = run(world, 10, [RIGHT]);
+  assert.deepEqual([hero(world).x - x0, beast(world).facing, beast(world).state], [10 * T.BEAST_WALK.x, 1, "walk"]); // prettier-ignore
+  const { x, y } = hero(world);
+  world = spawnEnemy(spawnEnemy(world, "ravager", x + px(30), y), "ravager", x - px(30), y); // prettier-ignore
+  world = moved(world, 1, x + px(12), y + px(4));
+  const [rhea, full] = [hero(world, 1), world.enemies[0]!.hp];
+  world = run(step(world, [ATTACK]), T.TAIL_WINDUP);
+  assert.deepEqual(world.enemies.map((e) => [e.state, e.hp, Math.sign(e.vx)]), [["knockdown", full - T.TAIL_DAMAGE, 1], ["knockdown", full - T.TAIL_DAMAGE, -1]]); // prettier-ignore
+  assert.deepEqual([hero(world).knockdowns, hero(world).damage, hero(world).state], [2, 2 * T.TAIL_DAMAGE, "ride"]); // prettier-ignore
+  assert.deepEqual([hero(world, 1).hp, hero(world, 1).state], [rhea.hp, "idle"], "Rhea in its sweep is spared"); // prettier-ignore
+  world = until({ ...world, enemies: [] }, (w) => beast(w).state === "idle");
+  assert.equal(beast(step(world, [ATTACK])).state, "idle", "it is cooling");
+  world = run(world, T.TAIL_COOL);
+  assert.equal(beast(step(world, [ATTACK])).state, "sweep");
+  // A hop carries the hero up with the beast, and lands.
+  world = run(step(world, [JUMP]), 10);
+  assert.ok(beast(world).state === "hop" && beast(world).z > px(20));
+  assert.equal(hero(world).z, beast(world).z);
+  kept(world);
+  world = until(world, (w) => beast(w).z === 0);
+  assert.deepEqual([beast(world).state, hero(world).state], ["idle", "ride"]);
+  // Down and Jump drops the hero from the saddle, and the beast wanders off.
+  world = step(world, [DOWN | JUMP]);
+  assert.deepEqual([hero(world).state, hero(world).z, beast(world).rider, beast(world).state], ["jump", T.SADDLE, 0, "wander"]); // prettier-ignore
+  world = until(world, (w) => hero(w).state === "land");
+  kept(world);
+});
+
+test("the saddle takes a light blow, which breaks off the tail's wind-up; a hard one, or any in a hop, throws the hero off and the beast panics", () => {
+  let world = step(maced(aboard(party("brakka")), 60), [ATTACK]);
+  assert.equal(beast(world).state, "sweep");
+  world = step(world, []);
+  assert.deepEqual([hero(world).state, hero(world).hp, beast(world).state], ["ride", 60 - T.RAVAGER[0].damage, "idle"]); // prettier-ignore
+  assert.deepEqual([hero(world).stopUntil, beast(world).coolUntil], [world.step + T.HITSTOP, world.step + T.TAIL_COOL]); // prettier-ignore
+  kept(world);
+  world = run(maced(aboard(party("brakka")), 10), 2);
+  assert.deepEqual([hero(world).state, hero(world).z], ["knockdown", T.SADDLE]);
+  assert.deepEqual([beast(world).rider, beast(world).state, beast(world).facing], [0, "flee", -1]); // prettier-ignore
+  assert.equal(toView(world).mounts[0]!.rider, null);
+  kept(world);
+  // Struck as it hops, the hero is thrown off whatever the blow, and the riderless beast comes down as it panics.
+  world = step(step(maced(aboard(party("brakka")), 60), []), [JUMP]);
+  assert.deepEqual([hero(world).state, beast(world).state], ["knockdown", "flee"]); // prettier-ignore
+  assert.ok(beast(world).z > 0 && hero(world).z > T.SADDLE, "off the saddle");
+  kept(world);
+  assert.ok(T.PANIC_STEPS >= T.LEAP_STEPS, "a hop is down before the panic is over"); // prettier-ignore
+  world = until(world, (w) => beast(w).z === 0, T.PANIC_STEPS);
+  assert.deepEqual([beast(world).vz, beast(world).state], [0, "flee"]);
+  kept(world);
+});
+
+test("Magic from the saddle climbs off to charge or cast where the beast stands", () => {
+  const rhea = party("rhea");
+  let world = aboard({ ...rhea, heroes: [{ ...hero(rhea), pots: 2 }] });
+  const { x } = hero(world);
+  world = step(world, [MAGIC]);
+  assert.deepEqual([hero(world).state, beast(world).rider, beast(world).state], ["charge", 0, "wander"]); // prettier-ignore
+  world = step(world, []);
+  assert.deepEqual([hero(world).state, hero(world).x, world.spells.length, hero(world).pots], ["cast", x, 1, 0]); // prettier-ignore
+  kept(world);
+});
+
+test("a rider brought to no hit points falls from the saddle and goes out on its last life; no rider outlives a continue or a stage, and camp refuses one", () => {
+  let world = aboard(party("brakka"));
+  world = run(maced({ ...world, heroes: [{ ...hero(world), lives: 1 }] }, 5), 2); // prettier-ignore
+  assert.deepEqual([hero(world).state, hero(world).hp, beast(world).rider], ["knockdown", 0, 0]); // prettier-ignore
+  world = until(world, (w) => hero(w).state === "out");
+  assert.deepEqual([hero(world).lives, toView(world).heroes[0]!.mounted], [0, false]); // prettier-ignore
+  kept(world);
+  // A continue drops every hero back in; a beast one still rode is left riderless.
+  const riding = aboard(party("brakka", "rhea"));
+  world = revive(loose(riding, px(60)));
+  assert.deepEqual([hero(world).state, beast(world).rider, beast(world).state], ["respawn", 0, "wander"]); // prettier-ignore
+  assert.deepEqual(beast(world, 1), beast(loose(riding, px(60)), 1), "another is left as it was"); // prettier-ignore
+  kept(world);
+  // The party goes on to camp on foot, carrying its lives, pots and health; the checkpoint refuses a rider there.
+  const carry = carryOf(hero(riding));
+  const camp = createWorld({ seed: 5, camp: true, heroes: [{ seat: 0, kind: "brakka", carry }] }); // prettier-ignore
+  assert.deepEqual([hero(camp).state, camp.mounts], ["idle", []]);
+  const sat: Hero = { ...hero(camp), state: "ride" };
+  const under = { ...beast(riding), ...{ x: sat.x, y: sat.y, facing: sat.facing }, rider: sat.id, id: camp.nextId }; // prettier-ignore
+  const rides = { ...camp, heroes: [sat], mounts: [under], nextId: camp.nextId + 1 }; // prettier-ignore
+  assert.ok(decodeWorld(encodeWorld({ ...rides, camp: false })), "on the road");
+  assert.equal(decodeWorld(encodeWorld(rides)), undefined);
+  assert.equal(decodeWorld(encodeWorld({ ...camp, heroes: [sat] })), undefined);
 });

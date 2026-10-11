@@ -32,6 +32,7 @@ const hero = (id: number, x: number, y = 120, z = 0): HeroView => ({
   pots: 0,
   maxPots: 6,
   charge: 0,
+  mounted: false,
 });
 const enemy = (id: number, x: number): EnemyView => ({
   id,
