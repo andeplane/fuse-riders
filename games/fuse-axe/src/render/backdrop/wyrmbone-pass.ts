@@ -52,6 +52,8 @@ const ROAD = [0x1c1e36, 0x252842, 0x2f3350, 0x3a3f5e, 0x464c6c, 0x535a7c];
 const PINE = 0x141c2c;
 const WOOD = 0x3a2a3a;
 const FLAME = ["#fff6b8", "#ffc22e", "#f86420", "#a82434"];
+/** The mist's colour, which no flame or snowflake shares. */
+const MIST = "#56628c";
 
 type Box = readonly [x0: number, y0: number, x1: number, y1: number];
 
@@ -89,22 +91,24 @@ function shape(
     }
 }
 
+type Ellipse = readonly [cx: number, cy: number, rx: number, ry: number];
+type Sweep = readonly [a0: number, a1: number, t0: number, t1: number];
+
 /**
- * Where a pixel lies across a band along the ellipse `[cx, cy, rx, ry]` between angles a0 and a1 (radians, y up),
- * `t0` pixels thick either side at a0 and `t1` at a1, from −1 (inner edge) to 1 (outer); NaN when off it. A rib or a
- * horn.
+ * Where a pixel lies across a band along an ellipse between angles a0 and a1 (radians, y up), `t0` pixels thick either
+ * side at a0 and `t1` at a1, from −1 (inner edge) to 1 (outer); NaN when off it. A rib or a horn.
  */
 function arc(
   x: number,
   y: number,
-  [cx, cy, rx, ry]: readonly number[],
-  [a0, a1, t0, t1]: readonly number[],
+  [cx, cy, rx, ry]: Ellipse,
+  [a0, a1, t0, t1]: Sweep,
 ) {
-  const dx = (x + 0.5 - cx!) / rx!;
-  const dy = (cy! - y - 0.5) / ry!;
-  const f = (Math.atan2(dy, dx) - a0!) / (a1! - a0!);
-  const off = (Math.hypot(dx, dy) - 1) * Math.hypot(rx! * dx, ry! * dy);
-  const across = off / (t0! + (t1! - t0!) * f);
+  const dx = (x + 0.5 - cx) / rx;
+  const dy = (cy - y - 0.5) / ry;
+  const f = (Math.atan2(dy, dx) - a0) / (a1 - a0);
+  const off = (Math.hypot(dx, dy) - 1) * Math.hypot(rx * dx, ry * dy);
+  const across = off / (t0 + (t1 - t0) * f);
   return f >= 0 && f <= 1 && Math.abs(across) <= 1 ? across : NaN;
 }
 
@@ -242,8 +246,8 @@ const RIBS = [...ribcage(236, 610, 40), ...ribcage(800, 1100, 44)];
 function rib(r: Raster, [x, rx, ry, end, front]: Rib) {
   const base = front ? FLOOR + 6 : FLOOR - 1;
   const t0 = front ? 7 : 5;
-  const along = [x - rx, base, rx, ry];
-  const span = [0, end, t0, 1.6];
+  const along: Ellipse = [x - rx, base, rx, ry];
+  const span: Sweep = [0, end, t0, 1.6];
   const box: Box = [x - 2 * rx - 8, base - ry - 8, x + 8, base];
   const at = (px: number, py: number) => arc(px, py, along, span);
   shape(
@@ -291,8 +295,8 @@ function spine(r: Raster) {
 /** A lesser wyrm's skull partway along, side on and sunk to the jaw, snout to the left. */
 function lesserSkull(r: Raster) {
   const ground = FLOOR + 2;
-  const horn = [SKULL_X + 116, ground - 28, 30, 20];
-  const sweep = [Math.PI, Math.PI * 0.38, 5, 1.2];
+  const horn: Ellipse = [SKULL_X + 116, ground - 28, 30, 20];
+  const sweep: Sweep = [Math.PI, Math.PI * 0.38, 5, 1.2];
   shape(
     r,
     [SKULL_X - 2, ground - 56, SKULL_X + 152, ground],
@@ -395,8 +399,8 @@ function greatSkull(x: number, y: number) {
     (a < 27 && v < mouthTop(a) && !fang(a, v)) ||
     (ea / 10) ** 2 + ((v - EYE_V - ea * 0.35) / 6.5) ** 2 < 1 ||
     ((a - 8) / 2.2) ** 2 + ((v - 46) / 3) ** 2 < 1;
-  const horn = [GATE_X + Math.sign(u) * 84, FLOOR - 76, 46, 26];
-  const sweep =
+  const horn: Ellipse = [GATE_X + Math.sign(u) * 84, FLOOR - 76, 46, 26];
+  const sweep: Sweep =
     u < 0 ? [0, Math.PI * 0.58, 6.5, 1.2] : [Math.PI, Math.PI * 0.42, 6.5, 1.2];
   return (v >= 0 && bone && !holes) || !isNaN(arc(x, y, horn, sweep));
 }
@@ -659,19 +663,18 @@ function burn(
   }
 }
 
-/** The world-fixed, screen-wide tiles a pattern repeats in, from `margin` left of the screen to its right edge. */
-function* tiles(cam: number, margin: number) {
-  for (
-    let k = Math.floor((cam - margin) / VIEW_W);
-    k * VIEW_W < cam + VIEW_W;
-    k++
-  )
-    yield k;
-}
+/**
+ * The first of the world-fixed, screen-wide tiles a pattern repeats in that can reach the screen: the one `margin` left
+ * of it. The tiles run on from there while they begin before the screen's right edge.
+ */
+const firstTile = (cam: number, margin: number) =>
+  Math.floor((cam - margin) / VIEW_W);
+
+const WISP_ROWS = [-2, -1, 1, 2] as const;
 
 /** Wisps of mist drifting along the back of the road, thin as a dither, each swelling and fading so none pops. */
 function mist(brush: Brush, cam: number, t: number) {
-  for (const k of tiles(cam, 160))
+  for (let k = firstTile(cam, 160); k * VIEW_W < cam + VIEW_W; k++)
     for (let i = 0; i < 3; i++) {
       const seed = k * 3 + i;
       const phase = (t / 26 + hash(seed, 90)) % 1;
@@ -680,14 +683,13 @@ function mist(brush: Brush, cam: number, t: number) {
         k * VIEW_W +
         Math.floor(hash(seed, 91) * VIEW_W) +
         Math.round(phase * 70);
-      const y = FLOOR - 14 + Math.floor(hash(seed, 92) * 14);
-      brush.fillStyle = "#56628c";
-      const [a, b] = [
-        Math.max(left - cam, 0),
-        Math.min(left + len - cam, VIEW_W),
-      ];
-      if (b > a) brush.fillRect(a, y, b - a, 1);
-      for (const row of [-2, -1, 1, 2])
+      // Its dither runs two rows below its line, so the line stops three short of the road, whose snow it would speckle.
+      const y = FLOOR - 14 + Math.floor(hash(seed, 92) * 12);
+      brush.fillStyle = MIST;
+      const from = Math.max(left - cam, 0);
+      const to = Math.min(left + len - cam, VIEW_W);
+      if (to > from) brush.fillRect(from, y, to - from, 1);
+      for (const row of WISP_ROWS)
         for (
           let s = Math.abs(row) * 8 + (row & 1);
           s < len - Math.abs(row) * 8;
@@ -701,7 +703,7 @@ function mist(brush: Brush, cam: number, t: number) {
 
 /** A light flurry of snow on the wind, falling through the whole picture. */
 function snow(brush: Brush, cam: number, t: number) {
-  for (const k of tiles(cam, 40))
+  for (let k = firstTile(cam, 40); k * VIEW_W < cam + VIEW_W; k++)
     for (let i = 0; i < 26; i++) {
       const seed = k * 26 + i;
       const life = (t * (0.1 + hash(seed, 93) * 0.08) + hash(seed, 94)) % 1;

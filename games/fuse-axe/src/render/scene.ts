@@ -240,15 +240,13 @@ export function scenery(
 }
 
 export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
-  // Stage 1's is baked at once; another stage's the first time it is drawn.
-  const backdrops = new Map<StageNumber, Backdrop<Image>>([
-    [1, createBackdrop(make, 1)],
-  ]);
-  const backdropOf = (art: StageNumber) => {
-    const known = backdrops.get(art) ?? createBackdrop(make, art);
-    backdrops.set(art, known);
-    return known;
-  };
+  // Every stage's backdrop is baked now, not as its stage is first drawn: a long road's takes long enough to stall the
+  // frame the stage begins on. `satisfies` has a new stage's art added here.
+  const backdrops = {
+    1: createBackdrop(make, 1),
+    2: createBackdrop(make, 2),
+  } satisfies Record<StageNumber, Backdrop<Image>>;
+  const backdropOf = (art: StageNumber) => backdrops[art];
   const baker = createSpriteBaker(make);
   const shadows = new Map<number, { image: Image; w: number; h: number }>();
   const crowns = new Map<Figure, number>();

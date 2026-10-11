@@ -863,3 +863,17 @@ test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage witho
   assert.deepEqual(scenery(3, 500), { art: 1, camX: 500 }, "an unknown one");
   assert.deepEqual(layers(world({ stage: 3 })), layers(world({ stage: 1 })));
 });
+
+test("every stage's backdrop is baked with the scene, so no frame stalls baking one as its stage begins", () => {
+  const { images, scene } = fakeScene();
+  const wide = () => images.filter((image) => image.w >= VIEW_W).length;
+  const baked = wide();
+  for (const stage of [1, 2])
+    assert.ok(
+      images.some((image) => image.w === stageLengthPx(stage)),
+      `stage ${stage}'s road`,
+    );
+  for (const stage of [1, 2, 3, 2, 1, Number.NaN])
+    draw(world({ stage, camX: 100 }), 0, scene);
+  assert.equal(wide(), baked, "drawing a stage baked a layer");
+});
