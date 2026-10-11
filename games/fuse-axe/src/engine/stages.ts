@@ -10,6 +10,7 @@ import {
   VIEW_W,
   px,
   type FoeKind,
+  type MountKind,
   type Tier,
 } from "./tuning.js";
 
@@ -28,6 +29,8 @@ export interface Spawn {
   /** Depth on the floor band, in sub-units. */
   readonly y: number;
   readonly delay: number;
+  /** A ravager that rides in on a beast of this kind (`mount.ts`). */
+  readonly mount?: MountKind;
 }
 
 export interface Wave {
@@ -80,6 +83,11 @@ const ravager = (tier: Tier, side: Side, y: number, delay: number): Spawn => ({
 const lancer = (tier: Tier, side: Side, y: number, delay: number): Spawn => ({
   ...ravager(tier, side, y, delay),
   kind: "lancer",
+});
+/** A ravager riding in on a clawbeak, whose tail it fights with. */
+const rider = (tier: Tier, side: Side, y: number, delay: number): Spawn => ({
+  ...ravager(tier, side, y, delay),
+  mount: "clawbeak",
 });
 const ASH = 0,
   RUST = 1,
@@ -154,9 +162,10 @@ export const STAGE_1: StagePlan = {
 
 const ROAD_2 = px(5 * VIEW_W);
 /**
- * Wyrmbone Pass, as gameplay to fight through until its art, mounts and boss come: a screen longer than the village,
- * five waves of ravagers mostly in rust and violet, each with a lancer leaping in, and at the pass's end a pair of
- * violet ravagers in place of the lancer captain on his ember drake, with rust ones for a bigger party.
+ * Wyrmbone Pass, as gameplay to fight through until its boss comes: a screen longer than the village, five waves of
+ * ravagers mostly in rust and violet, each with a lancer leaping in, and in waves 2 and 4 a ravager riding a clawbeak
+ * (copied, as any spawn is, for a party big enough), and at the pass's end a pair of violet ravagers in place of the
+ * lancer captain on his ember drake, with rust ones for a bigger party.
  */
 export const STAGE_2: StagePlan = {
   name: "Wyrmbone Pass",
@@ -176,7 +185,7 @@ export const STAGE_2: StagePlan = {
       spawns: [
         ravager(RUST, "right", 120, 0),
         ravager(RUST, "left", 150, 20),
-        ravager(ASH, "right", 164, 60),
+        rider(ASH, "right", 164, 60),
         lancer(RUST, "left", 128, 90),
       ],
     },
@@ -194,7 +203,7 @@ export const STAGE_2: StagePlan = {
       spawns: [
         ravager(RUST, "right", 120, 0),
         ravager(RUST, "left", 140, 0),
-        ravager(VIOLET, "right", 152, 40),
+        rider(RUST, "right", 152, 40),
         lancer(VIOLET, "left", 112, 70),
         ravager(ASH, "right", 168, 100),
       ],

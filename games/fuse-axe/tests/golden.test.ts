@@ -17,9 +17,9 @@ import {
 
 /**
  * The engine's safety net: three bots (Brakka, Rhea and Gorm) fight through Stage 1 — every wave, the sack imps,
- * pots, magic, throws, then the Ogre twins at the gate — and on through Wyrmbone Pass with the lives and pots they
- * carry (`carryOf`, as the room's stage flow does), and the world's hash is compared every ten seconds and at the end
- * of each stage. A refactor must keep these; a change to the rules (the bot's play included, as a bot seat folds
+ * pots, magic, throws, then the Ogre twins at the gate — and on through Wyrmbone Pass and its riders on clawbeaks
+ * with the lives and pots they carry (`carryOf`, as the room's stage flow does), and the world's hash is compared
+ * every ten seconds and at the end of each stage. A refactor must keep these; a change to the rules (the bot's play included, as a bot seat folds
  * `botInput`) must bump `RULES` in `src/engine/index.ts` and re-record them in the same commit: `GOLDEN_RECORD=1`
  * prints the new ones.
  *
@@ -36,30 +36,30 @@ interface Run {
   hashes: string[];
 }
 const GOLDEN: { rules: string; runs: Run[] } = {
-  rules: "fuse-axe-14",
+  rules: "fuse-axe-15",
   runs: [
     {
       seed: 20261011,
       humans: [],
-      steps: [5523, 6588],
+      steps: [5523, 6558],
       hashes: [
-        ...["2a304630", "d2ab98ed", "2444873d", "a43028f8", "52da57b5"],
-        ...["6d54b35e", "3709605a", "d823a8cf", "757d21b1", "c2b1f5e0"],
-        ...["47d5dd9d", "13ebda78", "e693cb77", "cf2ec1fc", "a0271687"],
-        ...["dc8313cd", "db77de98", "ebb92aed", "22802685", "845efa1a"],
-        ...["b47cec42"],
+        ...["818a2506", "bd766865", "18295155", "360b2b0e", "539e770d"],
+        ...["d5e799bc", "8c54e920", "e0d51b9f", "defe8331", "0d1eb456"],
+        ...["2b379d35", "a824ab8e", "9b4f2c0b", "93f2af38", "15e53f46"],
+        ...["452c4061", "50eb40e2", "069d3a79", "7599b62b", "68cd6e74"],
+        ...["285fef52"],
       ],
     },
     {
       seed: 20261012,
       humans: [1],
-      steps: [5937, 7128],
+      steps: [5937, 7017],
       hashes: [
-        ...["5a914d3e", "3a6ca30f", "317fa788", "60f4b0d5", "b6881831"],
-        ...["f7519815", "40bb9d53", "c8645239", "82cc5266", "9dce42cb"],
-        ...["c74983d5", "fef2bb3f", "b9ceaebd", "9c76189c", "968eb6fc"],
-        ...["32054c3c", "9e056bb3", "dc5fa34c", "6c9b271a", "57ae54fe"],
-        ...["00006141", "8069efc8"],
+        ...["56af9b1c", "2cb37a5f", "3322693e", "a11b6c2d", "0e903ab1"],
+        ...["efc1aeed", "dc57fe7b", "11bf9259", "4d3af564", "033c8893"],
+        ...["7d7e3d2d", "4f50f9ef", "42c6be1f", "1f5c2597", "efe668de"],
+        ...["6ea9897e", "0c015b39", "e186e3c1", "7568c776", "485a8911"],
+        ...["c9d8d892", "482c7e6a"],
       ],
     },
   ],

@@ -10,7 +10,7 @@ import { RAVAGER_ANIMS, type RavagerFrame } from "./ravager.js";
  */
 export type LancerAnim = Exclude<
   EnemyAnim,
-  "attack" | "stumble" | "flee" | "slam" | "sweep" | "stagger"
+  "attack" | "stumble" | "flee" | "slam" | "sweep" | "stagger" | "ride"
 >;
 
 const once = (frame: RavagerFrame, steps: number): AnimStrip<RavagerFrame> => ({

@@ -23,8 +23,9 @@ export function fraction(
  * The world `alpha` of the way from `older` to `newer`. Figures are matched by id; one that appeared since `older`
  * stays where it is. A figure moves in screen space (`x − camX`) and lands back on a whole pixel, as the view
  * promises, so a hero walking with the camera shares the backdrop's pixel offset instead of shimmering against it.
- * A hero that dropped back in since `older` is placed where it dropped, like one that appeared. Items on the floor
- * blend as figures do, so a pot popping out of a sack rises and falls smoothly. Sparks stand where they struck, and
+ * A hero that dropped back in since `older` is placed where it dropped, like one that appeared. Items on the floor and
+ * beasts blend as figures do, so a pot popping out of a sack rises and falls smoothly, and a rider moves with its beast
+ * (both blend from the same positions). Sparks stand where they struck, and
  * every other value is `newer`'s.
  */
 export function blend(
@@ -65,6 +66,7 @@ export function blend(
     ),
     enemies: moved(newer.enemies, older.enemies),
     items: moved(newer.items, older.items),
+    mounts: moved(newer.mounts, older.mounts),
   };
 }
 
