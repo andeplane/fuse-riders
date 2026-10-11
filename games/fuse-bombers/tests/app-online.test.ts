@@ -3,7 +3,7 @@ import { deepEqual as eq, equal, match, ok } from "node:assert/strict";
 import { ACTION, BOT, JOIN, type StreamEntries } from "fuse-netcode";
 import * as online from "../src/app/online-source.js";
 import { present, trouble, type Viewer } from "../src/app/presenter.js";
-import { keys, safeStore, sessionFor } from "../src/app/session.js";
+import { carry, keys, safeStore, sessionFor } from "../src/app/session.js";
 import type { TickEvent } from "../src/engine/index.js";
 import * as game from "../src/online/game.js";
 
@@ -31,6 +31,14 @@ test("the query opens the landing, the local lobby, solo or a room, with one tok
   });
   blocked.setItem("name", "Ada");
   equal(blocked.getItem("name"), "Ada", "blocked storage falls back to memory");
+});
+
+test("links to another page keep ?mute and ?calm as typed, and nothing else", () => {
+  equal(carry("?mute&calm"), "mute&calm");
+  equal(carry("?speed=4&seed=7", "local"), "local");
+  equal(carry("?mute=0&calm", "room=AB12"), "room=AB12&mute=0&calm");
+  equal(carry("", "solo=1"), "solo=1");
+  equal(carry("?calm=a b&x=1"), "calm=a%20b");
 });
 
 let seq = 0;
@@ -75,6 +83,20 @@ test("the lobby: the host adds and removes bots and starts at two gunships; a ne
   fold(alone, { a: [[JOIN, "a", "Ada", 0, "gunship", 1]] });
   ok(!show(alone).canStart);
   match(show(alone).note, /invite a friend or add a bot/);
+});
+
+test("START counts the gunships that would fly: an offline rider does not, one stepped away does", () => {
+  const frame = game.view(lobby());
+  const friend = frame.seats[1]!;
+  Object.assign(friend, { bot: false, connected: false, away: false }); // dropped
+  let model = present(frame, host);
+  equal(model.members[1]!.status, "OFFLINE");
+  ok(!model.canStart, "the engine would refuse this start");
+  match(model.note, /invite a friend or add a bot/);
+  Object.assign(friend, { away: true }); // stepped away: still flies
+  model = present(frame, host);
+  ok(model.canStart);
+  equal(model.note, "");
 });
 
 test("a round counts down, says GO, follows this device's gunship and escapes the names it shows", () => {
@@ -160,4 +182,30 @@ test("the online source blends a round's two newest frames and hands on its roun
   eq([source.advance(), source.advance()], [[boom], []]);
   for (let i = 0; i <= online.MAX_EVENTS; i++) source.push(boom, "m0", 1);
   equal(source.advance().length, online.MAX_EVENTS, "a bounded queue");
+});
+
+test("a full event queue keeps the newest events and drops the oldest", () => {
+  const room = lobby();
+  start(room);
+  const newer = { ...game.view(room), matchId: "m0", managerId: "a" };
+  const timing = { newer, tick: newer.tick, lead: 0 };
+  const source = new online.OnlineSource(
+    () => timing,
+    () => "a",
+    newer.world!,
+  );
+  const at = (tick: number): TickEvent => ({
+    type: "rocket-exploded",
+    tick,
+    owner: 0,
+    x: 1,
+    y: 1,
+    cause: "ground",
+  });
+  for (let i = 0; i < online.MAX_EVENTS + 5; i++)
+    source.push(at(i), "m0", newer.round);
+  const kept = source.advance();
+  equal(kept.length, online.MAX_EVENTS);
+  equal(kept[0]!.tick, 5, "the five oldest went");
+  equal(kept.at(-1)!.tick, online.MAX_EVENTS + 4, "the newest stayed");
 });

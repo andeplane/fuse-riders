@@ -14,8 +14,9 @@ button at the top left of every Fuse game's lobby): online in rooms, solo agains
 The first page offers CREATE ROOM, JOIN by code (or `?room=CODE`), SOLO VS BOTS and EVERYONE AT THIS SCREEN (the
 local lobby, also `?local`). In a room each device flies its own gunship (WASD and Space, a gamepad or the touch pad)
 and its camera follows it; the host adds bots, sets rounds to win and bot level, and starts at two gunships. Run it
-with `pnpm build` and `pnpm exec tsx service/dev.ts`. Until the checkpoint codec lands only a room's creator can load
-it (a joiner stays on CONNECTING); the shared TV with phones as controllers comes next.
+with `pnpm build` and `pnpm exec tsx service/dev.ts`. A device that joins someone else's room (or reloads, or arrives
+mid-round) loads the world from a peer's validated checkpoint (`src/engine/codec.ts`) and flies from the next round;
+the shared TV with phones as controllers comes next.
 
 ## How to play
 

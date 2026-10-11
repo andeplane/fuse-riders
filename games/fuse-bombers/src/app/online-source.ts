@@ -3,7 +3,8 @@ import type { RoundView, TickEvent } from "../engine/index.js";
 import type { View } from "../online/game.js";
 import type { RoundSource } from "../render/round-scene.js";
 
-/** Events kept for the next frame at most: a page that stops drawing (a hidden tab) must not hoard them. */
+/** Events kept for the next frame at most, the newest: a page that stops drawing must not hoard them (`online.ts` also
+ * stops handing them over while the tab is hidden, so nothing stale plays on return). */
 export const MAX_EVENTS = 512;
 const TAU = 2 * Math.PI;
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -55,8 +56,8 @@ export class OnlineSource implements RoundSource {
 
   /** The runtime delivered `event` of `matchId`'s `round` (it never delivers one twice, rollbacks included). */
   push(event: TickEvent, matchId: string, round: number): void {
-    if (this.events.length < MAX_EVENTS)
-      this.events.push({ round: `${matchId}:${round}`, event });
+    if (this.events.length >= MAX_EVENTS) this.events.shift(); // the newest matter: the oldest are already stale
+    this.events.push({ round: `${matchId}:${round}`, event });
   }
 
   advance(): readonly TickEvent[] {

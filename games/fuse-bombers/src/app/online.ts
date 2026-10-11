@@ -15,7 +15,7 @@ import type { GameAudio } from "./audio/index.js";
 import { createBrowserInput, type DeviceId } from "./input/index.js";
 import { OnlineSource } from "./online-source.js";
 import { present, trouble, type Model, type Viewer } from "./presenter.js";
-import { keys, type Session, type Store } from "./session.js";
+import { carry, keys, type Session, type Store } from "./session.js";
 
 /**
  * The online pages' glue: the landing card, and a room (created, joined by code, or solo against bots) built from
@@ -23,7 +23,7 @@ import { keys, type Session, type Store } from "./session.js";
  * presenter's decision.
  */
 const { el, button } = ui;
-const GAME = bombersGame.id;
+export const GAME = bombersGame.id;
 const endpoints = net.createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -32,13 +32,12 @@ const endpoints = net.createEndpoints(
   location.origin,
 );
 const names = keys(GAME);
-const flags = new URLSearchParams(location.search),
-  muted = flags.has("mute");
-/** A page of this game, keeping `?mute`. */
-const link = (query = "") =>
-  endpoints.appUrl(
-    muted ? `?${query}${query && "&"}mute` : query && `?${query}`,
-  );
+const flags = new URLSearchParams(location.search);
+/** A page of this game, keeping `?mute` and `?calm`. */
+const link = (query = "") => {
+  const search = carry(location.search, query);
+  return endpoints.appUrl(search && `?${search}`);
+};
 const go = (query = "") => location.assign(link(query));
 const after = <T>(list: readonly T[], item: T) =>
   list[(list.indexOf(item) + 1) % list.length]!;
@@ -178,6 +177,8 @@ export function showRoom(
     dead = true;
     runtime.stop();
     input.setTouchPads([]);
+    audio.music(null);
+    game.destroy(true); // Nothing of the round shows again: stop its loop, scene and sound hooks, drop the canvas.
     nameEntry.form.hidden = lobby.hidden = overlay.hidden = true;
     root.dataset.screen = "card";
     root.classList.remove("fb-match");
@@ -243,12 +244,16 @@ export function showRoom(
         frame.world,
       );
       game.scene.start(RoundScene.KEY, { source, players: looks });
-      const attach = () =>
-        audio.attachRound(game.scene.getScene(RoundScene.KEY)!);
+      const attach = () => {
+        if (!dead) audio.attachRound(game.scene.getScene(RoundScene.KEY)!);
+      };
       if (game.isRunning) attach();
       else game.events.once("ready", attach);
     },
-    event: (event, matchId, round) => source?.push(event, matchId, round),
+    // A hidden tab draws nothing: its effects would only pile up and all play at once when it returns.
+    event(event, matchId, round) {
+      if (!document.hidden) source?.push(event, matchId, round);
+    },
     status(text) {
       const kind = trouble(text);
       if (kind === "full")

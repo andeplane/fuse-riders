@@ -292,6 +292,30 @@ test("views share one copy of the terrain until a carve, and a kept view never c
   assert.equal(gridHash(kept.terrain), cells, "a kept view keeps its cells");
 });
 
+test("a rolled-back room's grid never shows another grid's copy, even at the same version", () => {
+  const room = started();
+  view(room); // the live grid has a copy at its version
+  const restored = structuredClone(room); // what a rollback installs: another grid object
+  carveCircle(room.world!.terrain, 2400, 1700, 300);
+  carveCircle(restored.world!.terrain, 600, 400, 300); // a different carve, the same version
+  assert.equal(room.world!.terrain.version, restored.world!.terrain.version);
+  const [live, back] = [
+    view(room).world!.terrain,
+    view(restored).world!.terrain,
+  ];
+  assert.notEqual(
+    gridHash(room.world!.terrain),
+    gridHash(restored.world!.terrain),
+  );
+  assert.equal(gridHash(live), gridHash(room.world!.terrain));
+  assert.equal(gridHash(back), gridHash(restored.world!.terrain));
+  carveCircle(room.world!.terrain, 2400, 2000, 300); // and each carve of one grid is seen at once
+  assert.equal(
+    gridHash(view(room).world!.terrain),
+    gridHash(room.world!.terrain),
+  );
+});
+
 test("the hash covers the whole room in a fixed order, and fields added later", () => {
   const h = hashPlain;
   assert.match(h({}), /^[0-9a-f]{16}$/);
