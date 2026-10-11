@@ -18,7 +18,12 @@ import {
   VIEW_W,
   cameraEndPx,
 } from "../engine/view-kit.js";
-import { enemyFrame, heroFrame, mountFrame } from "./art/animate.js";
+import {
+  enemyFrame,
+  heroFrame,
+  mountFrame,
+  riderFrame,
+} from "./art/animate.js";
 import { CLAWBEAK_DIPS, CLAWBEAK_FIGURE } from "./art/clawbeak.js";
 import { IMP } from "./art/imp.js";
 import { MEAT } from "./art/meat.js";
@@ -153,18 +158,17 @@ const winding = (mount: MountView) =>
   Math.floor(mount.animStep / TELEGRAPH) % 2 === 0;
 const mountArt = (kind: MountKind) =>
   Object.hasOwn(MOUNT_ART, kind) ? MOUNT_ART[kind] : MOUNT_ART.clawbeak;
-/**
- * The rows the saddle under rider `id` (of `kind`) dips in its beast's frame, or undefined for one whose beast is not in
- * the view: it keeps its own height and shadow, rather than hanging in the air shadowless.
- */
-function saddleDip(
+/** The beast rider `id` (of `kind`) sits, if it is in the view. */
+const mountUnder = (
   mounts: readonly MountView[],
   kind: "hero" | "enemy",
   id: number,
-): number | undefined {
-  const mount = mounts.find(
-    (each) => each.rider?.kind === kind && each.rider.id === id,
-  );
+) => mounts.find((each) => each.rider?.kind === kind && each.rider.id === id);
+/**
+ * The rows the saddle of `mount` dips in its frame, or undefined for a rider whose beast is not in the view: it keeps
+ * its own height and shadow, rather than hanging in the air shadowless.
+ */
+function saddleDip(mount: MountView | undefined): number | undefined {
   if (!mount) return undefined;
   const frame = mountFrame(mount.kind, mount.anim, mount.animStep);
   return mountArt(mount.kind).dips[frame] ?? 0;
@@ -277,7 +281,10 @@ export const GO_SIGN = signSprite(
 export const GO_AT = [VIEW_W - GO_SIGN.w - 10, 28] as const;
 export const GO_FLASH = 20;
 
-/** A hero's marker: a small chevron in its seat's colour, `MARKER_GAP` pixels over the top of its idle frame. */
+/**
+ * A hero's marker: a small chevron in its seat's colour, `MARKER_GAP` pixels over the top of its idle frame (a rider's,
+ * of its seated one).
+ */
 export const MARKER = signSprite(["#####", ".###.", "..#.."], 1, false);
 export const MARKER_GAP = 3;
 const SEAT_SWAPS: readonly Palette[] = SEAT_COLORS.map((D) => ({ D }));
@@ -330,7 +337,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
   const camp = createCampBackdrop(make);
   const baker = createSpriteBaker(make);
   const shadows = new Map<number, { image: Image; w: number; h: number }>();
-  const crowns = new Map<Figure, number>();
+  const crowns = new Map<Figure, Map<string, number>>();
   const lookOf = createLooks();
   const hud = createHud(make, baker);
   const spells = createSpells(make);
@@ -353,10 +360,11 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
     shadows.set(rx, made);
     return made;
   };
-  /** The rows from the top of a figure's idle frame down to its feet. */
-  const crown = (figure: Figure) => {
-    const rows = crowns.get(figure) ?? cropSprite(figure.sprite("idle0")).ay;
-    crowns.set(figure, rows);
+  /** The rows from the top of a figure's `frame` (its idle one) down to its feet. */
+  const crown = (figure: Figure, frame = "idle0") => {
+    const known = crowns.get(figure) ?? new Map<string, number>();
+    const rows = known.get(frame) ?? cropSprite(figure.sprite(frame)).ay;
+    crowns.set(figure, known.set(frame, rows));
     return rows;
   };
 
@@ -389,17 +397,25 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       const looks = lookOf(view.heroes);
       const standing: Standing[] = view.heroes.map((hero) => {
         const { figure, swap } = looks.get(hero.id)!;
-        const pose = heroFrame(hero.kind, hero.anim, hero.animStep);
-        const dip = hero.mounted
-          ? saddleDip(view.mounts, "hero", hero.id)
+        // A rider sits astride, doing what its beast's anim says the pair does (`riderFrame`).
+        const mount = hero.mounted
+          ? mountUnder(view.mounts, "hero", hero.id)
           : undefined;
+        const pose = mount
+          ? riderFrame(mount.anim, mount.animStep)
+          : heroFrame(hero.kind, hero.anim, hero.animStep);
+        const dip = saddleDip(mount);
         const place = at(hero);
         return {
           ...place,
           sprite: figure.sprite(pose),
           options: { swap, flip: hero.facing < 0 },
           lit: !hero.invulnerable || blinksOn(frame),
-          marker: { seat: hero.seat, crown: crown(figure) },
+          // Its marker over a rider's seated head, which sits higher or lower than a standing hero's.
+          marker: {
+            seat: hero.seat,
+            crown: crown(figure, mount ? "ride" : "idle0"),
+          },
           // A rider sits on its beast's saddle, sinking as it dips, in its shadow, as an enemy does.
           ...(dip !== undefined && { z: place.z - dip, shade: 0 }),
         };
@@ -412,9 +428,11 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           ? ENEMY_ART[enemy.kind]
           : ENEMY_ART.ravager;
         const pose = enemyFrame(enemy.kind, enemy.anim, enemy.animStep);
-        const dip = enemy.mounted
-          ? saddleDip(view.mounts, "enemy", enemy.id)
-          : undefined;
+        const dip = saddleDip(
+          enemy.mounted
+            ? mountUnder(view.mounts, "enemy", enemy.id)
+            : undefined,
+        );
         // An enraged ogre burns in its rage palette and steams, unless it has fallen.
         const rage = enemy.enraged ? art.rage : undefined;
         const crown = rage?.crowns[pose];
