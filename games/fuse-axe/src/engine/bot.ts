@@ -1,6 +1,6 @@
 import { ATTACK, DOWN, LEFT, MAGIC, RIGHT, UP } from "./input.js";
 import { clamp } from "./math.js";
-import { isImp, kickable } from "./imps.js";
+import { isImp, kickable, wants } from "./imps.js";
 import { isOgre, threatLane, threatens } from "./ogre.js";
 import { hits, isLancer, lancerLane } from "./lancer.js";
 import { next } from "./rng.js";
@@ -292,24 +292,24 @@ function pick(
 }
 
 /**
- * The pot to pick up: the nearest within `POT_FAR` that no hero with room for it is nearer, if it has room. One the
- * camera has left at the screen's edge is out of reach (a hero stops `HERO_MARGIN` in and picks up within
- * `PICKUP_X`), and walking at it would hold the bot there, and the camera with it, until it spoils.
+ * The pot (or at camp the meat) to pick up: the nearest within `POT_FAR` it has room for that no hero with room for it
+ * is nearer (`wants`). One the camera has left at the screen's edge is out of reach (a hero stops `HERO_MARGIN` in and
+ * picks up within `PICKUP_X`), and walking at it would hold the bot there, and the camera with it, until it spoils.
  */
 function potFor(world: World, hero: Hero): Item | undefined {
-  if (hero.pots >= T.MAX_POTS[hero.kind]) return undefined;
   let best: Item | undefined,
     score = POT_FAR;
   for (const item of world.items) {
     const each = gap(item, hero);
     if (
       each < score &&
+      wants(hero, item.kind) &&
       inside(world, item.x, T.HERO_MARGIN - T.PICKUP_X) &&
       !world.heroes.some(
         (other) =>
           other !== hero &&
           present(other) &&
-          other.pots < T.MAX_POTS[other.kind] &&
+          wants(other, item.kind) &&
           gap(item, other) < each,
       )
     ) {

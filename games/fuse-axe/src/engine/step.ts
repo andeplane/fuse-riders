@@ -327,7 +327,8 @@ function moveHero(world: World, hero: Hero, bits: number): void {
   if (hero.state === "idle" || hero.state === "walk") {
     walk(hero, bits);
     // Magic comes first, as from a run: it spends a pot on purpose, so no Attack or Jump pressed with it takes it over.
-    if (conjures(hero)) conjure(world, hero, bits);
+    // At camp there is nothing to cast at, and the pots are kept for the road.
+    if (!world.camp && conjures(hero)) conjure(world, hero, bits);
     else if (paired(hero)) backAttack(hero);
     else if (hero.attackBuf > 0) attack(world, hero, bits);
     else if (hero.jumpBuf > 0) leap(hero);

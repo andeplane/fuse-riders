@@ -61,6 +61,8 @@ export interface ImpCue {
   readonly side: Side;
   readonly y: number;
   readonly pots: number;
+  /** Nor before the world's step `step` (none: any step): camp's camera never moves, so its imps come by the clock. */
+  readonly step?: number;
 }
 const imp = (at: number, side: Side, y: number, pots: number): ImpCue => ({
   at: px(at),
@@ -224,9 +226,34 @@ export const STAGE_2: StagePlan = {
 
 /** The run's stages in order: a world's plan is `STAGES[world.stage - 1]`. */
 export const STAGES: readonly StagePlan[] = [STAGE_1, STAGE_2];
-/** The plan of the stage a world is on (`createWorld` and the codec keep its stage one of `STAGES`). */
-export const planOf = (world: { readonly stage: number }): StagePlan =>
-  STAGES[world.stage - 1]!;
+
+/**
+ * Camp between stages (`camp.ts`): one screen of night clearing, its camera standing still, no wave to fight, and four
+ * sack imps sneaking in from alternate edges a few seconds apart to scurry through the camp. A camp imp's sack holds
+ * meat and pots in turn (`kick` in `imps.ts`).
+ */
+export const CAMP: StagePlan = {
+  name: "Camp",
+  length: px(VIEW_W),
+  cameraEnd: 0,
+  waves: [],
+  imps: (
+    [
+      [90, "right", 128, 3],
+      [240, "left", 152, 2],
+      [390, "right", 142, 3],
+      [540, "left", 120, 2],
+    ] as const
+  ).map(([step, side, y, pots]) => ({ ...imp(0, side, y, pots), step })),
+};
+/**
+ * The plan of the stage a world is on (`createWorld` and the codec keep its stage one of `STAGES`), or camp's for a
+ * camp's world.
+ */
+export const planOf = (world: {
+  readonly stage: number;
+  readonly camp?: boolean;
+}): StagePlan => (world.camp ? CAMP : STAGES[world.stage - 1]!);
 
 /** A spawn as it enters: how far inside its edge it walks to. */
 export interface Placed extends Spawn {

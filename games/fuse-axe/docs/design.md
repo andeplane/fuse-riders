@@ -154,7 +154,17 @@ Wyrmbone Pass but the last.
 4. **Vorhal's Keep** — torch-lit halls to the throne room and Vorhal.
 
 Between stages the heroes make **camp**: a short night scene by a fire where sack imps sneak in to steal; kicking them
-drops pots and meat (meat heals). Then the next stage.
+drops pots and meat (meat heals). Then the next stage. In the engine (`src/engine/camp.ts`) a camp is a world of its
+own (`createWorld` with `camp`, `World.camp`) playing the `CAMP` plan: one screen whose camera never moves, no wave,
+and four sack imps sneaking in from alternate edges by the clock (`ImpCue.step`, 1.5 s to 9 s in) to scurry through
+the clearing past the packs. An imp that gets away takes nothing. A camp imp's sack spills meat and pots in turn, meat
+while an odd count is left; meat gives back `MEAT_HEAL` (15) hit points to a hero short of full health, no more than
+its whole health, and one at full leaves it lying for another. Nothing at camp fights back, so no hero is hurt there,
+and Magic casts nothing (the pots are kept for the road). Camp is over (`campOver`) once every imp has come and gone
+and nothing is left on the floor, or after `CAMP_STEPS` (20 s) at most. The backdrop is a starry night clearing with
+a tree line, two tents and the packs, and a campfire whose flames and light flicker (`src/render/backdrop/camp.ts`).
+
+![Camp: Ironhide has just kicked a sack imp, which flees with its meat spilled by his feet](images/camp.png)
 
 ## Structure
 
@@ -191,20 +201,32 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
   picks apply again, and the host's REMATCH sets out on a fresh run (stage 1, nothing tallied) or LOBBY goes back.
   The page shows each as a card over the game (`src/app/presenter.ts`, `card`): [the countdown](images/app-continue.png)
   and [game over](images/app-game-over.png), from `preview/flow.mjs`.
-- **The next stage** begins where a tally short of the last stage ends (`nextStage`): the next stage's world,
-  seeded `seedOf("matchId:round+1")` as `beginStage` makes every stage's, with each hero whose seat is still here
-  (its slot held by a member playing its hero: camp gives up a seat that leaves, so a bot taken off does not carry it
-  on, nor does a newcomer in that slot playing another hero; the hero belongs to its slot, so one playing the same
-  hero carries it on as the member who left would). Policy (`carryOf`): lives carry over (a hero who went out comes back with one),
-  and so do magic pots, as in the original; health is full, the continue is fresh, and the tallies stay banked in
-  the room, a hero that left keeping its row. With none of the run's heroes left the room is an empty lobby again.
-  Camp will sit between the tally and the next stage.
+- **Camp** follows a tally short of the last stage (`makeCamp`), still `between` stages and with the cleared stage's
+  number (`round`): the camp's world, seeded `seedOf("matchId:round:camp")`, with each hero going on (`goingOn`: its
+  seat still here, its slot held by a member playing its hero; camp, like the tally, gives up a seat that leaves, so a
+  bot taken off does not carry it on, nor does a newcomer in that slot playing another hero; the hero belongs to its
+  slot, so one playing the same hero carries it on as the member who left would). Nothing is held, no room clock runs
+  (the world's own ends camp; the view counts it down), and the stage's continue is put by. Each log tick plays it as
+  a stage is played (`campTick`): a seat's `PLAY` entries for the run and the cleared stage steer its hero, a bot plays
+  its own, and a hero with no seat playing it stands idle, its bits let go. Staying `between` keeps the netcode's rule
+  that only a running stage holds seats, so a member may leave, be removed or join at camp; the fold therefore never
+  assumes a camp hero has a seat. The page plays camp as a stage (its keys and pads are the hero's) under a small
+  CAMP caption with its clock (`card`, kind `camp`). The device re-logs its held keys as camp begins (`flush` keys its
+  last entry by run, stage and camp), since the tally let go of them.
+- **The next stage** begins once camp is over (`nextStage`): the next stage's world, seeded
+  `seedOf("matchId:round+1")` as `beginStage` makes every stage's, with each hero still going on from camp. Policy
+  (`carryOf`, into camp and out of it): lives carry over (a hero who went out comes back with one), and so do magic
+  pots and health, as in the original, so camp's meat is worth kicking for; a hero fallen with no hit points comes back
+  at full health. The continue is fresh, and the tallies stay banked in the room, a hero that left keeping its row
+  (camp tallies nothing). With none of the run's heroes left the room is an empty lobby again.
 
 The checkpoint carries the clock (`until`), the spent continue, the outcome and the banked tallies, and refuses any
 combination the fold cannot reach (a clock in play with heroes standing, a win short of the last stage, a world of
-another stage than the round or with no hero, tallies that are not the world's heroes: in a later stage, a row for
-each of them in seat order, and once it has ended at least its own: what earlier stages banked for a hero is not in
-the checkpoint to check against, so a later row is bounded below by its own stage only).
+another stage than the round or with no hero, tallies that are not the world's heroes: in a later stage or at camp, a
+row for each of them in seat order, and once it has ended at least its own: what earlier stages banked for a hero is
+not in the checkpoint to check against, so a later row is bounded below by its own stage only). A camp's world is
+refused anywhere but `between` with no clock, no continue spent and no outcome, after the last stage, or once it is
+over; held bits are refused over a tally, and at camp for a seat that plays no hero of it or is a bot.
 
 ## Screen and art
 
@@ -282,5 +304,5 @@ Small pull requests, each reviewed and merged before the next one that depends o
 6. HUD; run, dash attack, throw, jump attack and back attack.
 7. Sack imps, pots and magic for each hero.
 8. More enemies (lancer, brute), the Ogre twins and the stage flow.
-9. Camp, stages 2–4, mounts, bonewalkers and Vorhal.
+9. Camp, stages 2–4, mounts, bonewalkers and Vorhal (in: camp).
 10. Sound effects and music (in: the effects, the jingles and the Stage 1 march); bot companions.

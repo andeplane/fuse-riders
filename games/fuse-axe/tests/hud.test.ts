@@ -111,6 +111,7 @@ const out = (id: number, seat: number) =>
 const world = (heroes: HeroView[]): WorldView => ({
   ...{ step: 0, camX: 0, heroes, enemies: [], fx: [], items: [], spells: [] },
   ...{ stage: 1, wave: 0, waves: 5, locked: false, go: false, cleared: false },
+  camp: false,
   ...{ defeated: false, boss: null },
 });
 

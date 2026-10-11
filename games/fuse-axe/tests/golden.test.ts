@@ -1,10 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  CAMP,
   HERO_KINDS,
   RULES,
   STAGES,
   botInput,
+  campOver,
   carryOf,
   createWorld,
   defeated,
@@ -17,9 +19,9 @@ import {
 
 /**
  * The engine's safety net: three bots (Brakka, Rhea and Gorm) fight through Stage 1 — every wave, the sack imps,
- * pots, magic, throws, then the Ogre twins at the gate — and on through Wyrmbone Pass with the lives and pots they
- * carry (`carryOf`, as the room's stage flow does), and the world's hash is compared every ten seconds and at the end
- * of each stage. A refactor must keep these; a change to the rules (the bot's play included, as a bot seat folds
+ * pots, magic, throws, then the Ogre twins at the gate — make camp, kicking its imps for meat and pots, and go on
+ * through Wyrmbone Pass with the lives, pots and health they carry (`carryOf`, as the room's stage flow does), and the
+ * world's hash is compared every ten seconds and at the end of each stage and camp. A refactor must keep these; a change to the rules (the bot's play included, as a bot seat folds
  * `botInput`) must bump `RULES` in `src/engine/index.ts` and re-record them in the same commit: `GOLDEN_RECORD=1`
  * prints the new ones.
  *
@@ -31,35 +33,35 @@ interface Run {
   seed: number;
   /** The heroes (ids) a player steers, whom the bots follow; they are played by `botInput` here all the same. */
   humans: number[];
-  /** Each stage's steps. */
+  /** Each stage's steps, and each camp's after the stage it follows. */
   steps: number[];
   hashes: string[];
 }
 const GOLDEN: { rules: string; runs: Run[] } = {
-  rules: "fuse-axe-14",
+  rules: "fuse-axe-15",
   runs: [
     {
       seed: 20261011,
       humans: [],
-      steps: [5523, 6588],
+      steps: [5523, 702, 6360],
       hashes: [
-        ...["2a304630", "d2ab98ed", "2444873d", "a43028f8", "52da57b5"],
-        ...["6d54b35e", "3709605a", "d823a8cf", "757d21b1", "c2b1f5e0"],
-        ...["47d5dd9d", "13ebda78", "e693cb77", "cf2ec1fc", "a0271687"],
-        ...["dc8313cd", "db77de98", "ebb92aed", "22802685", "845efa1a"],
-        ...["b47cec42"],
+        ...["9c5107cd", "9cf0ca64", "c13dbdd4", "0adad315", "f140b0ec"],
+        ...["76a4a07b", "797c0c77", "61aee386", "4b101238", "5b20b31d"],
+        ...["b64d6ee2", "9c0660a0", "f2902532", "6f1c8fb7", "a7c2dd93"],
+        ...["aa96120e", "9270092f", "541295f3", "1127d3f8", "701e77db"],
+        ...["8ea1a626", "81a4b75b", "a189a10e"],
       ],
     },
     {
       seed: 20261012,
       humans: [1],
-      steps: [5937, 7128],
+      steps: [5937, 717, 6387],
       hashes: [
-        ...["5a914d3e", "3a6ca30f", "317fa788", "60f4b0d5", "b6881831"],
-        ...["f7519815", "40bb9d53", "c8645239", "82cc5266", "9dce42cb"],
-        ...["c74983d5", "fef2bb3f", "b9ceaebd", "9c76189c", "968eb6fc"],
-        ...["32054c3c", "9e056bb3", "dc5fa34c", "6c9b271a", "57ae54fe"],
-        ...["00006141", "8069efc8"],
+        ...["01c73ddb", "d6f13146", "b98b68c5", "f3e4e90c", "fb0f54b8"],
+        ...["40b22ecc", "75480bda", "00e1c3e0", "86d66b23", "1851f452"],
+        ...["c51bc10a", "404c4033", "ed34a98a", "0f52eff9", "fb1d2524"],
+        ...["c3280a9a", "38fb9e1e", "4bda9259", "12cd5f8e", "8056ce4c"],
+        ...["eb12767d", "53dc59c4", "11a1fb5d"],
       ],
     },
   ],
@@ -72,9 +74,14 @@ function fnv(text: string): string {
   return h.toString(16).padStart(8, "0");
 }
 
-/** One stage played to its end (or a bound), pushing a hash every ten seconds and at the end. */
+/** One stage or camp played to its end (or a bound), pushing a hash every ten seconds and at the end. */
 function play(world: World, humans: number[], hashes: string[]): World {
-  while (world.step < 12_000 && !stageCleared(world) && !defeated(world)) {
+  while (
+    world.step < 12_000 &&
+    !stageCleared(world) &&
+    !defeated(world) &&
+    !campOver(world)
+  ) {
     const held: number[] = [];
     for (const hero of world.heroes)
       held[hero.seat] = botInput(
@@ -90,30 +97,53 @@ function play(world: World, humans: number[], hashes: string[]): World {
   return world;
 }
 
-/** Every stage in turn, each won one's heroes carrying on into the next, seeded as a room seeds it. */
+/** The heroes of a world going on, with what they carry. */
+const carried = (world: World) =>
+  world.heroes.map((hero) => ({
+    seat: hero.seat,
+    kind: hero.kind,
+    carry: carryOf(hero),
+  }));
+
+/**
+ * Every stage in turn, each won one's heroes making camp and carrying on from it into the next, seeded as a room
+ * seeds them.
+ */
 function record({ seed, humans }: Pick<Run, "seed" | "humans">) {
   const hashes: string[] = [],
-    worlds: World[] = [];
+    worlds: World[] = [],
+    camps: World[] = [],
+    steps: number[] = [];
   let world = createWorld({
     seed,
     heroes: HERO_KINDS.map((kind, seat) => ({ seat, kind })),
   });
   for (let stage = 1; stage <= STAGES.length; stage++) {
-    if (stage > 1)
+    if (stage > 1) {
+      const camp = play(
+        createWorld({
+          seed: seedOf(`${seed}:${stage - 1}:camp`),
+          stage: stage - 1,
+          camp: true,
+          heroes: carried(world),
+        }),
+        humans,
+        hashes,
+      );
+      camps.push(camp);
+      steps.push(camp.step);
       world = createWorld({
         seed: seedOf(`${seed}:${stage}`),
         stage,
-        heroes: world.heroes.map((hero) => ({
-          seat: hero.seat,
-          kind: hero.kind,
-          carry: carryOf(hero),
-        })),
+        heroes: carried(camp),
       });
+    }
     world = play(world, humans, hashes);
     worlds.push(world);
+    steps.push(world.step);
     if (!stageCleared(world)) break;
   }
-  return { worlds, steps: worlds.map((each) => each.step), hashes };
+  return { worlds, camps, steps, hashes };
 }
 
 test("the bots clear every stage to the recorded hashes under the current rules", () => {
@@ -129,9 +159,16 @@ test("the bots clear every stage to the recorded hashes under the current rules"
         })),
       }),
     );
-  for (const { worlds } of recorded) {
+  for (const { worlds, camps } of recorded) {
     assert.equal(worlds.length, STAGES.length, "the bots reach every stage");
     assert.ok(worlds.every(stageCleared), "and clear it");
+    assert.equal(camps.length, STAGES.length - 1, "making camp between them");
+    assert.ok(
+      camps.every(
+        (camp) => campOver(camp) && camp.impsSent === CAMP.imps.length,
+      ),
+      "until it is over, every imp come",
+    );
     assert.ok(
       worlds[0]!.heroes.some((hero) => hero.casts > 0 && hero.throws > 0),
     );

@@ -17,6 +17,7 @@ import {
 } from "../engine/view-kit.js";
 import { enemyFrame, heroFrame } from "./art/animate.js";
 import { IMP } from "./art/imp.js";
+import { MEAT } from "./art/meat.js";
 import { HEROES } from "./art/index.js";
 import { LANCER_TIERS } from "./art/lancer.js";
 import { OGRE, OGRE_CROWNS, OGRE_RAGE, OGRE_TIERS } from "./art/ogre.js";
@@ -24,6 +25,7 @@ import { POT } from "./art/pot.js";
 import { RAVAGER, RAVAGER_TIERS } from "./art/ravager.js";
 import {
   createBackdrop,
+  createCampBackdrop,
   hasBackdrop,
   type Backdrop,
   type StageNumber,
@@ -45,7 +47,8 @@ import type { MakeSurface } from "./surface.js";
 
 /**
  * The game's picture: one native 320 × 180 frame of the engine's view, drawn in layers — the stage's backdrop (one
- * without art of its own draws Stage 1's, scrolled across the stage's longer or shorter road: `scenery`); every
+ * without art of its own draws Stage 1's, scrolled across the stage's longer or shorter road: `scenery`; camp its
+ * night clearing, `backdrop/camp.ts`); every
  * figure's shadow on the floor; heroes, enemies and items on the floor by depth (further up the floor first, then
  * lower before higher, then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when
  * defeated, a hero blinking while it is invulnerable and an item before it vanishes; an ogre's shockwave cracking the
@@ -118,7 +121,10 @@ function drawSpear<Image>(
   fill(pen, facing > 0 ? sx + haft : sx - reach, row, SPEAR_TIP, 1);
 }
 /** What each item kind draws (a kind from a build with more of them, a pot), and the half-width of its shadow. */
-export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = { pot: POT };
+export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = {
+  pot: POT,
+  meat: MEAT,
+};
 export const ITEM_SHADE = 3;
 
 /** How a hero looks: its figure and its palette. */
@@ -275,6 +281,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
     2: createBackdrop(make, 2),
   } satisfies Record<StageNumber, Backdrop<Image>>;
   const backdropOf = (art: StageNumber) => backdrops[art];
+  const camp = createCampBackdrop(make);
   const baker = createSpriteBaker(make);
   const shadows = new Map<number, { image: Image; w: number; h: number }>();
   const crowns = new Map<Figure, number>();
@@ -317,9 +324,11 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         pen.fillStyle = UNLIT.k!;
         fill(pen, 0, 0, VIEW_W, VIEW_H);
       }
+      // Camp has its own night clearing, one screen that never scrolls.
       const back = scenery(view.stage, camX),
-        backdrop = backdropOf(back.art);
-      backdrop.draw(field, back.camX, frame);
+        backdrop = view.camp ? camp : backdropOf(back.art),
+        backX = view.camp ? 0 : back.camX;
+      backdrop.draw(field, backX, frame);
       const at = (f: HeroView | EnemyView | ItemView) => ({
         id: f.id,
         y: Math.floor(f.y),
@@ -406,7 +415,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       }
       drawShards(field, view.enemies, camX);
       for (const fx of view.fx) drawSpark(field, fx, camX);
-      backdrop.drawFront(field, back.camX);
+      backdrop.drawFront(field, backX);
       spells.draw(field, view, frame);
       if (view.go && Math.floor(frame / GO_FLASH) % 2 === 0) {
         const sign = baker.bake(GO_SIGN);

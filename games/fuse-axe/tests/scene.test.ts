@@ -46,6 +46,7 @@ import {
   OGRE_RAGE,
   OGRE_TIERS,
 } from "../src/render/art/ogre.js";
+import { MEAT } from "../src/render/art/meat.js";
 import { POT } from "../src/render/art/pot.js";
 import { RAVAGER, RAVAGER_ANIMS } from "../src/render/art/ravager.js";
 import type { Sprite } from "../src/render/pixel/sprite.js";
@@ -166,7 +167,7 @@ const enemy = (
 });
 const world = (more: Partial<WorldView>): WorldView => ({
   ...{ step: 0, camX: 0, heroes: [], enemies: [], fx: [], items: [] },
-  ...{ spells: [], stage: 1 },
+  ...{ spells: [], stage: 1, camp: false },
   ...{ wave: 0, waves: 5, locked: false, go: false, cleared: false },
   ...{ defeated: false, boss: null },
   ...more,
@@ -652,8 +653,13 @@ test("a sack imp draws its own frames, a kind from a newer build draws as a rava
   assert.equal(draw(blinking, 0).sprites.length, 1);
   assert.equal(draw(blinking, BLINK_FRAMES).sprites.length, 0);
   assert.equal(draw(blinking, BLINK_FRAMES).shadows.length, 1);
-  // An item of a kind from a newer build lies as a pot.
-  for (const odd of ['"meat"', '"constructor"']) {
+  // Camp's meat is a drumstick; an item of a kind from a newer build lies as a pot.
+  const [meat] = draw(world({ items: [{ ...pot, kind: "meat" }] })).sprites;
+  assert.deepEqual(
+    [meat!.image.fills, meat!.dx, meat!.dy],
+    [fillsOf(MEAT), 100 - MEAT.ax, 150 - 4 - MEAT.ay],
+  );
+  for (const odd of ['"bread"', '"constructor"']) {
     const kind = JSON.parse(odd) as ItemView["kind"];
     const [item] = draw(world({ items: [{ ...pot, kind }] })).sprites;
     assert.deepEqual(item!.image.fills, fillsOf(POT));
@@ -907,4 +913,32 @@ test("every stage's backdrop is baked with the scene, so no frame stalls baking 
   for (const stage of [1, 2, 3, 2, 1, Number.NaN])
     draw(world({ stage, camX: 100 }), 0, scene);
   assert.equal(wide(), baked, "drawing a stage baked a layer");
+});
+
+test("camp draws its own night clearing, baked with the scene, where only the fire moves", () => {
+  const { images, scene } = fakeScene();
+  const wide = () => images.filter((image) => image.w >= VIEW_W).length;
+  const baked = wide();
+  const camp = (frame: number, more: Partial<WorldView> = {}) =>
+    draw(world({ camp: true, ...more }), frame, scene).pen;
+  const layers = (pen: RecordingPen) =>
+    pen.blits.filter((b) => b.image.w >= VIEW_W).map((b) => b.image.id);
+  // Whatever stage it follows and wherever the view says the camera is, camp is one screen at rest.
+  assert.deepEqual(layers(camp(0)), layers(camp(0, { stage: 2, camX: 90 })));
+  assert.notDeepEqual(
+    layers(camp(0)),
+    layers(draw(world({}), 0, scene).pen),
+    "not Stage 1's backdrop",
+  );
+  for (const frame of [-5, Number.NaN, 1e9])
+    assert.doesNotThrow(() => camp(frame), `frame ${frame}`);
+  // The flames and their light flicker frame to frame, each fill a whole pixel's rectangle on screen.
+  const fire = (frame: number) => camp(frame).fills;
+  assert.notDeepEqual(fire(0), fire(7));
+  assert.ok(
+    fire(7).every(
+      (f) => f.x >= 0 && f.x + f.w <= VIEW_W && f.y >= 0 && f.y + f.h <= 180,
+    ),
+  );
+  assert.equal(wide(), baked, "drawing camp baked no layer");
 });

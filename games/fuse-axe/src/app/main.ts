@@ -633,8 +633,9 @@ function room(solo: boolean): void {
     touch.hidden = !next.pads || next.screen !== "play";
     showCard(next.card);
     phase = {
-      phase: `${view.stage}:${view.round}`,
-      live: view.stage === "running",
+      // Camp is played as a stage is, so its pads and their hints come up as it begins.
+      phase: `${view.stage}:${view.round}:${!!view.world?.camp}`,
+      live: view.stage === "running" || !!view.world?.camp,
       results: view.stage === "over",
     };
     layOut(false);
