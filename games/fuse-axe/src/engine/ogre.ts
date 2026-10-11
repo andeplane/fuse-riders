@@ -12,8 +12,9 @@ import {
 
 /**
  * How an ogre fights (design.md, "Enemies": the Ogre twins, Stage 1's boss). It is slow and goes for the nearest hero
- * on its feet (one its twin is on counts further), walking to stand `OGRE_ENGAGE` from it; lined up, it winds up a
- * long, telegraphed overhead slam (facing fixed), and the hammer lands on its first step on every hero in a wide area
+ * in the fight (one its twin is on counts further), walking to stand `OGRE_ENGAGE` from it; lined up, it winds up a
+ * long, telegraphed overhead slam (facing fixed) at a hero on its feet (one lying, it waits for), and the hammer lands
+ * on its first step on every hero in a wide area
  * in front, then sends a shockwave on along the floor in its depth lane, which a hero steps out of or jumps. A hero
  * close behind it as it decides or walks draws a round sweep of the hammer instead. Every blow of its knocks down, and
  * after each it stands open for `OGRE_RECOVER` steps. Once its twin has fallen it is enraged (`enrage`): it winds up,
@@ -57,7 +58,7 @@ export function ogreAct(world: World, ogre: Enemy): void {
   } else if (ogre.timer >= T.OGRE_RECOVER) rest(world, ogre);
 }
 
-/** The hero on its feet nearest the ogre, one another living ogre goes for counting `HOVER_X` further. */
+/** The hero in the fight nearest the ogre, one another living ogre goes for counting `HOVER_X` further. */
 function nearest(world: World, ogre: Enemy): Hero | undefined {
   let best: Hero | undefined,
     score = Infinity;
