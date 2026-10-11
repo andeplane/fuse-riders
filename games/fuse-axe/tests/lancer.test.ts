@@ -26,8 +26,7 @@ import * as T from "../src/engine/tuning.js";
 import { LANCER_STEPS } from "../src/engine/view-kit.js";
 import { LANCER_STATES } from "../src/engine/world.js";
 import { enemyFrame } from "../src/render/art/animate.js";
-import { LANCER_ANIMS } from "../src/render/art/lancer.js";
-import { RAVAGER_POSES } from "../src/render/art/ravager.js";
+import { LANCER_ANIMS, LANCER_POSES } from "../src/render/art/lancer.js";
 
 const { px } = T;
 const party = (...kinds: HeroKind[]) =>
@@ -319,12 +318,11 @@ test("the checkpoint refuses a lancer's fields where the rules never put them, a
   assert.ok(refused(0, { state: "knockdown" }), "flying from a blow");
 });
 
-test("the placeholder plays the lancer's every state in the ravager's frames, the leap rising exactly while it climbs", () => {
+test("the art plays the lancer's every state in its own frames, the leap rising exactly while it climbs", () => {
   assert.deepEqual(Object.keys(LANCER_ANIMS).sort(), [...LANCER_STATES].sort());
   for (const { frames } of Object.values(LANCER_ANIMS))
-    for (const [frame] of frames)
-      assert.ok(Object.hasOwn(RAVAGER_POSES, frame));
-  assert.equal(enemyFrame("lancer", "thrust", 0), "attack");
+    for (const [frame] of frames) assert.ok(Object.hasOwn(LANCER_POSES, frame));
+  assert.equal(enemyFrame("lancer", "thrust", 0), "thrust");
   // Drive a leap through the engine: the rising frame shows on every step it climbs, and the falling one after.
   let world = step(foe(party("brakka"), 100, { thinkAt: 0 }), []);
   const rise = enemyFrame("lancer", "leap", 0);
