@@ -14,6 +14,8 @@ import {
   GO_STEPS,
   HEAVY_HITSTOP,
   HERO_HP,
+  HITSTOP,
+  OGRE,
   HERO_KINDS,
   IMP_POTS,
   ITEM_KINDS,
@@ -42,6 +44,8 @@ import {
   HERO_STATES,
   IMP_ONLY,
   IMP_STATES,
+  OGRE_ONLY,
+  OGRE_STATES,
   type Enemy,
   type Fx,
   type Hero,
@@ -140,7 +144,9 @@ const POTS = Math.max(...HERO_KINDS.map((kind) => MAX_POTS[kind]));
 const INVULN = Math.max(RESPAWN_INVULN, GETUP_STEPS + GETUP_GRACE),
   TAP = Math.max(RUN_TAP, RUN_GAP),
   THINK = Math.max(
-    ...TIERS.map((tier) => RAVAGER[tier].think + RAVAGER[tier].jitter),
+    ...[...TIERS.map((tier) => RAVAGER[tier]), OGRE.calm, OGRE.rage].map(
+      (each) => each.think + each.jitter,
+    ),
   );
 /**
  * A hero with no hit points is flying from the blow, fallen or out; one fallen or out has none. A hero with no life
@@ -226,15 +232,25 @@ const enemy = record<Enemy>({
   thinkAt: COUNT,
   holder: COUNT,
   pots: int(0, IMP_POTS),
+  poise: COUNT,
+  flashUntil: COUNT,
+  enraged: oneOf([false, true]),
 });
 /**
  * A sack imp is of the lowest tier, in an imp's state and going for nobody; every other enemy has no sack and is
- * never in a state only an imp is in.
+ * never in a state only an imp is in. An ogre is in an ogre's state; every other enemy is never in a state only an
+ * ogre is in, and has no poise, flash or rage of its own.
  */
-const sackKept = (value: Enemy): boolean =>
-  value.kind === "imp"
+const kindKept = (value: Enemy): boolean =>
+  (value.kind === "imp"
     ? value.tier === 0 && IMP_STATES.includes(value.state) && !value.target
-    : value.pots === 0 && !IMP_ONLY.includes(value.state);
+    : value.pots === 0 && !IMP_ONLY.includes(value.state)) &&
+  (value.kind === "ogre"
+    ? OGRE_STATES.includes(value.state)
+    : !OGRE_ONLY.includes(value.state) &&
+      value.poise === 0 &&
+      value.flashUntil === 0 &&
+      !value.enraged);
 
 const fx = record<Fx>({
   kind: oneOf(FX_KINDS),
@@ -389,10 +405,13 @@ const world = record<World>(
         (each) =>
           enemyId(each.id) &&
           stopped(each) &&
-          each.hp <= enemyMaxHp(each.kind, each.tier, value.heroes.length) &&
+          // An ogre's poise counts hit points it has lost since it last fell.
+          each.hp + each.poise <=
+            enemyMaxHp(each.kind, each.tier, value.heroes.length) &&
+          each.flashUntil <= value.step + HITSTOP &&
           (each.target === 0 || heroIds.has(each.target)) &&
           each.thinkAt <= value.step + THINK &&
-          sackKept(each),
+          kindKept(each),
       ) &&
       value.fx.every(
         (each, index) =>

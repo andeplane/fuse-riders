@@ -13,9 +13,10 @@ import {
 
 /**
  * The engine's safety net: three bots (Brakka, Rhea and Gorm) fight through Stage 1 — every wave, the sack imps,
- * pots, magic, throws — and the world's hash is compared every ten seconds and at the end. A refactor must keep
- * these; a change to the rules (the bot's play included, as a bot seat folds `botInput`) must bump `RULES` in
- * `src/engine/index.ts` and re-record them in the same commit: `GOLDEN_RECORD=1` prints the new ones.
+ * pots, magic, throws, then the Ogre twins at the gate — and the world's hash is compared every ten seconds and at the
+ * end. A refactor must keep these; a change to the rules (the bot's play included, as a bot seat folds `botInput`)
+ * must bump `RULES` in `src/engine/index.ts` and re-record them in the same commit: `GOLDEN_RECORD=1` prints the new
+ * ones.
  *
  * It runs twice. Once with every hero a bot with no player to follow, so they lead the camera on; once with Brakka
  * standing in for a player (played by `botInput` as well, and named in `humans`), so Rhea and Gorm follow it between
@@ -29,24 +30,24 @@ interface Run {
   hashes: string[];
 }
 const GOLDEN: { rules: string; runs: Run[] } = {
-  rules: "fuse-axe-11",
+  rules: "fuse-axe-12",
   runs: [
     {
       seed: 20261011,
       humans: [],
-      steps: 5151,
+      steps: 5793,
       hashes: [
-        ...["a9b4942b", "a4d2cf41", "85d8dcb5", "b635ac8b", "70f69837"],
-        ...["9f2515f8", "e8ffeec5", "727fcdee", "e92ed0c8"],
+        ...["35a77db1", "8951c204", "9b1b19b4", "85e85312", "70f69837"],
+        ...["0b93ba13", "807e11b8", "523f3916", "3f6520bf", "988af2ec"],
       ],
     },
     {
       seed: 20261012,
       humans: [1],
-      steps: 5133,
+      steps: 5883,
       hashes: [
-        ...["1493d377", "ffd8c8a9", "d44bbc6a", "96eb9680", "2ee751b4"],
-        ...["6c8b9fd0", "04a7e686", "944f2a6b", "98b80a1e"],
+        ...["0bb3435f", "e7d73086", "bb4e06f9", "65fed011", "05bbb7d6"],
+        ...["bf055f79", "378954e2", "d6592c69", "ebf363b4", "ef16f65e"],
       ],
     },
   ],

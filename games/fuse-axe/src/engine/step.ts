@@ -21,6 +21,7 @@ import {
 import * as T from "./tuning.js";
 import { STAGE_1, waveSpawns, type Placed, type Side } from "./stages.js";
 import { act, rest, thinks } from "./ai.js";
+import { brace, breaks, enrage, isOgre, ogreAct } from "./ogre.js";
 import {
   advanceImps,
   advanceItems,
@@ -51,7 +52,8 @@ import {
  * or falls (or reels, lies, gets up, drops back in, charges or casts magic), is held to the floor band and the
  * screen, and lands its blade on the enemies in id order; then the spells play in the order they were cast
  * (`magic.ts`), landing the blows due; then, unless a spell holds them frozen, every enemy in id order walks in,
- * reels, flies, lies or gets up, or thinks (`ai.ts`) and lands its mace on the heroes in id order; a defeated enemy
+ * reels, flies, lies or gets up, or thinks (`ai.ts`, an ogre `ogre.ts`) and lands its blows on the heroes in id order;
+ * an ogre whose twin has fallen enrages (`enrage`); a defeated enemy
  * that has blinked long enough is gone, as
  * is a sack imp that has left the screen (`imps.ts`); then the items on the floor fall, vanish or are picked up; then
  * the camera follows, no further than the next wave's trigger; then the waves begin, spawn and clear
@@ -74,6 +76,7 @@ export function step(world: World, held: readonly number[]): World {
   advanceSpells(next);
   if (!spellbound(next))
     for (const enemy of next.enemies) moveEnemy(next, enemy);
+  enrage(next);
   next.enemies = next.enemies.filter(
     (enemy) =>
       (enemy.state !== "dead" || enemy.timer < T.DEAD_STEPS) &&
@@ -392,15 +395,16 @@ const aim = (hero: Hero): 1 | -1 =>
 function strike(world: World, hero: Hero, blade: T.Blow): void {
   const below = hero.state === "jumpattack" ? T.STAB_BELOW : 0;
   for (const enemy of world.enemies) {
-    const ahead = (enemy.x - hero.x) * aim(hero);
+    const ahead = (enemy.x - hero.x) * aim(hero),
+      { half, height } = T.ENEMY_BODY[enemy.kind];
     if (
       hittable(world, enemy) &&
       !hero.struck.includes(enemy.id) &&
-      ahead + T.ENEMY_HALF_W >= 0 &&
-      ahead - T.ENEMY_HALF_W <= blade.reach &&
+      ahead + half >= 0 &&
+      ahead - half <= blade.reach &&
       Math.abs(enemy.y - hero.y) <= T.LANE &&
       enemy.z < hero.z + T.SWING_HEIGHT &&
-      hero.z - below < enemy.z + T.ENEMY_HEIGHT
+      hero.z - below < enemy.z + height
     )
       hit(world, hero, enemy, blade.damage);
   }
@@ -410,12 +414,15 @@ function strike(world: World, hero: Hero, blade: T.Blow): void {
  * A hit: the damage, then hitstun and a nudge away from the hero, which breaks off the enemy's swing, or, from a blow
  * that knocks down (`KNOCKS`) or at no hp left, a knockdown that launches the enemy up and away and frees its place by
  * the hero it was going for. Attacker and target both hold still for the hit-stop. A sack imp is kicked (`kick`)
- * instead, and the hero's tallies are left alone.
+ * instead, and the hero's tallies are left alone. An ogre's super armour takes the blow (`brace`) unless it breaks
+ * (`breaks`).
  */
 function hit(world: World, hero: Hero, enemy: Enemy, damage: number): void {
   const taken = Math.min(damage, enemy.hp),
     heavy = KNOCKS.includes(hero.state),
-    knocked = heavy || (enemy.hp === taken && !isImp(enemy)),
+    knocked = isOgre(enemy)
+      ? breaks(world, enemy, taken, heavy)
+      : heavy || (enemy.hp === taken && !isImp(enemy)),
     dir = aim(hero),
     until = world.step + (knocked ? T.HEAVY_HITSTOP : T.HITSTOP);
   // In id order, the one way the checkpoint spells it: an enemy that gets up or is nudged into reach later in the
@@ -425,22 +432,23 @@ function hit(world: World, hero: Hero, enemy: Enemy, damage: number): void {
   if (isImp(enemy)) return kick(world, enemy, dir, heavy);
   enemy.hp -= taken;
   hero.damage += taken;
-  enemy.stopUntil = until;
-  enemy.facing = dir > 0 ? -1 : 1;
-  // Not `setState`, which ignores a change to the state the enemy is already in: a hit on a reeling enemy restarts
-  // its hitstun.
-  enemy.state = knocked ? "knockdown" : "hurt";
-  enemy.timer = 0;
-  enemy.vx = dir * (knocked ? T.KNOCK_VX : T.HURT_PUSH);
-  enemy.vz = knocked ? T.KNOCK_VZ : 0;
   if (knocked) {
+    launch(world, enemy, dir);
     hero.knockdowns++;
-    enemy.target = 0;
+  } else if (isOgre(enemy)) brace(world, enemy, taken, heavy, dir);
+  else {
+    enemy.stopUntil = until;
+    enemy.facing = dir > 0 ? -1 : 1;
+    // Not `setState`, which ignores a change to the state the enemy is already in: a hit on a reeling enemy restarts
+    // its hitstun.
+    enemy.state = "hurt";
+    enemy.timer = enemy.vz = 0;
+    enemy.vx = dir * T.HURT_PUSH;
   }
   spark(
     world,
     enemy.hp === 0 ? "ko" : heavy ? "heavy" : "hit",
-    enemy.x - dir * T.ENEMY_HALF_W,
+    enemy.x - dir * T.ENEMY_BODY[enemy.kind].half,
     enemy.y,
     enemy.z + T.SPARK_HEIGHT,
   );
@@ -500,7 +508,7 @@ function moveEnemy(world: World, enemy: Enemy): void {
       2 * (enemy.x - world.camX) < T.VIEW_W * T.SUB ? "left" : "right",
       T.RETURN_INSET,
     );
-  if (thinks(enemy)) act(world, enemy);
+  if (thinks(enemy)) (isOgre(enemy) ? ogreAct : act)(world, enemy);
   if (enemy.state !== "enter") enemy.x = clamp(enemy.x, 0, T.STAGE_LENGTH);
   enemy.y = clamp(enemy.y, T.FLOOR_TOP, T.FLOOR_BOTTOM);
 }
@@ -689,6 +697,7 @@ function fly(world: World, body: Enemy): void {
   for (const enemy of world.enemies)
     if (
       enemy !== body &&
+      !T.BOSS[enemy.kind] &&
       hittable(world, enemy) &&
       Math.abs(enemy.x - body.x) <= 2 * T.ENEMY_HALF_W &&
       Math.abs(enemy.y - body.y) <= T.LANE &&
