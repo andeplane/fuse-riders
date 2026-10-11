@@ -26,6 +26,7 @@ import {
   BONEWALKER_POSES,
   BONEWALKER_TIERS,
   PILE_STILL,
+  clawOf,
   paintBonewalker,
   type BonewalkerAnim,
   type BonewalkerFrame,
@@ -33,6 +34,7 @@ import {
 import { FIGURES } from "../src/render/art/index.js";
 import { RAVAGER } from "../src/render/art/ravager.js";
 import { MASTER } from "../src/render/pixel/palette.js";
+import type { Point } from "../src/render/pixel/rig.js";
 import {
   CLEAR,
   flipSprite,
@@ -330,4 +332,27 @@ test("each bonewalker anim lasts as long as the engine keeps it: the pile twitch
   // The knight's slash and the stand after it.
   const swing = lasted(play(bonewalker(20, { state: "windup", target: 1 }, 2), 60)); // prettier-ignore
   for (const anim of ["attack", "recover"] as const) assert.equal(swing.get(anim), length(anim)); // prettier-ignore
+});
+
+test("a hand's fingers reach on from its knuckles the way the hand points, the middle one straight on and the others splayed", () => {
+  const near = (a: number, b: number, what: string) =>
+    assert.ok(Math.abs(a - b) < 1e-9, `${what}: ${a}, not ${b}`);
+  for (const degrees of [0, 45, 90, 135, 180, -45, -90, -135]) {
+    const [dx, dy] = [Math.cos((degrees * Math.PI) / 180), Math.sin((degrees * Math.PI) / 180)]; // prettier-ignore
+    const wrist: Point = [10, 10];
+    const { knuckles, fingers } = clawOf([wrist, [10 + 3 * dx, 10 + 3 * dy]]);
+    near(knuckles[0], 10 + 0.75 * dx, `${degrees} knuckles x`);
+    near(knuckles[1], 10 + 0.75 * dy, `${degrees} knuckles y`);
+    // Each finger's tip in the hand's own axes: how far on toward the fingertips, and how far to the side.
+    const own = fingers.map(([x, y]) => [
+      (x - knuckles[0]) * dx + (y - knuckles[1]) * dy,
+      (y - knuckles[1]) * dx - (x - knuckles[0]) * dy,
+    ]);
+    assert.equal(own.length, 3);
+    const half = 3 * Math.SQRT1_2;
+    for (const [i, [ahead, aside]] of own.entries()) {
+      near(ahead!, [half, 3, half][i]!, `${degrees} finger ${i} ahead`);
+      near(aside!, [-half, 0, half][i]!, `${degrees} finger ${i} aside`);
+    }
+  }
 });

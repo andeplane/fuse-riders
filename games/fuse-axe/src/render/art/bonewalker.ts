@@ -420,16 +420,25 @@ function long(rig: Rig, [a, b]: Bone, r: number, o: ShapeOptions = {}) {
   rig.ellipse(a, r * 1.4, r * 1.4, BONE, part);
   rig.ellipse(b, r * 1.25, r * 1.25, BONE, part);
 }
-/** A bony hand from the wrist: the knuckles and three long fingers spread toward the tips. */
-function claw(rig: Rig, [wrist, tips]: Bone, o: ShapeOptions = {}) {
-  const part = { ...o, group: rig.newGroup() };
-  const angle = lean(wrist, tips) - 90;
+/** A hand's knuckles, and the tips of its three fingers: 3 px on from them, spread to either side of the way it points. */
+export function clawOf([wrist, tips]: Bone): {
+  readonly knuckles: Point;
+  readonly fingers: readonly Point[];
+} {
+  // `lean` is a line's angle clockwise from a straight drop, `turned` wants it clockwise from east: a quarter turn on.
+  const angle = lean(wrist, tips) + 90;
   const knuckles = between(wrist, tips, 0.25);
+  const fingers = [-45, 0, 45].map((fan) =>
+    turned(knuckles, angle + fan)(3, 0),
+  );
+  return { knuckles, fingers };
+}
+/** A bony hand from the wrist: the knuckles and three long fingers spread toward the tips. */
+function claw(rig: Rig, bone: Bone, o: ShapeOptions = {}) {
+  const part = { ...o, group: rig.newGroup() };
+  const { knuckles, fingers } = clawOf(bone);
   rig.ellipse(knuckles, 1.5, 1.5, BONE, part);
-  for (const fan of [-45, 0, 45]) {
-    const tip = turned(knuckles, angle + fan)(3, 0);
-    rig.capsule(knuckles, tip, 0.75, 0.6, BONE, part);
-  }
+  for (const tip of fingers) rig.capsule(knuckles, tip, 0.75, 0.6, BONE, part);
 }
 
 /** The loincloth's front and back flaps in tatters round the hips, forward and down in the pelvis's axes. */

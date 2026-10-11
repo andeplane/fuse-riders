@@ -323,11 +323,11 @@ for (const animated of ANIMATED) {
   const [gx, gy] = gravesPx(3)[0]!;
   const B = BONEWALKER_STEPS;
   type Plan = readonly (readonly [EnemyAnim, number])[];
-  const swing: Plan = [["windup", B.windup[0]], ["attack", B.attack], ["recover", B.recover]]; // prettier-ignore
+  const swing = (tier: Tier): Plan => [["windup", B.windup[tier]], ["attack", B.attack], ["recover", B.recover]]; // prettier-ignore
   const bones: readonly (readonly [Tier, number, number, Plan])[] = [
-    [0, gx, gy, [["rise", B.rise], ["idle", 30], ...swing, ["idle", 20]]],
+    [0, gx, gy, [["rise", B.rise], ["idle", 30], ...swing(0), ["idle", 20]]],
     [1, gx - 70, gy + 22, [["pile", B.pile], ["reassemble", B.reassemble], ["idle", 30]]], // prettier-ignore
-    [2, gx + 80, gy + 12, [["walk", 48], ...swing, ["idle", 30]]],
+    [2, gx + 80, gy + 12, [["walk", 48], ...swing(2), ["idle", 30]]],
   ];
   const now = (plan: Plan) => {
     let t = step % plan.reduce((sum, [, steps]) => sum + steps, 0);

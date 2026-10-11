@@ -703,6 +703,35 @@ test("a bonewalker draws its own figure in its tier's rags, the violet one the a
   );
 });
 
+test("no state of a bonewalker, in any tier at any step, draws a frame its own figure lacks, a ravager's stand-in least of all", () => {
+  const { tiers } = ENEMY_ART.bonewalker;
+  for (const tier of [0, 1, 2] as const)
+    for (const anim of ENEMY_STATES)
+      for (const animStep of [0, 1, 7, 29, 59, 149, 1e9, Number.NaN]) {
+        const figure = tier === 2 ? BONE_KNIGHT : BONEWALKER;
+        const frame = enemyFrame("bonewalker", anim, animStep);
+        assert.ok(
+          (figure.frames as readonly string[]).includes(frame),
+          `${tier} ${anim} ${animStep}: ${frame}`,
+        );
+        const { sprites } = draw(
+          world({
+            enemies: [
+              enemy(2, 150, 150, { kind: "bonewalker", tier, anim, animStep }),
+            ],
+          }),
+        );
+        if (anim === "dead" && !deadShows(animStep)) continue;
+        assert.deepEqual(
+          sprites[0]!.image.fills,
+          fillsOf(figure.sprite(frame as BonewalkerFrame), {
+            swap: tiers[tier],
+          }),
+          `${tier} ${anim} ${animStep}`,
+        );
+      }
+});
+
 test("an ogre draws its own figure in its twin's colours on its feet, burns and steams once enraged, casts a bigger shadow, cracks the floor and is cut to the screen", () => {
   const ogre = (x: number, more: Partial<EnemyView> = {}) =>
     draw(
