@@ -240,6 +240,20 @@ tier. `tests/captain-art.test.ts` plays the real engine against the thrust and t
 
 ![The captain's frames beside a lancer's, on foot and in the saddle, and two frames of the scene from a real engine world: his saddle thrust winding up, then landing on Brakka](docs/images/captain.png)
 
+Vorhal (`src/render/art/vorhal.ts`) is a figure of his own, as tall as an ogre to his horns' tips: a dark knight in
+black-violet plate with violet trims and a gold belt, a horned great helm whose visor's eyes glow, a red cape that
+streams behind him as he moves and a greatsword as long as a hero is tall. He stands with its point planted and both
+hands on the hilt, drags it walking, draws it back over his shoulder through the wind-up, and cuts twice, each cut's
+smear sweeping out to `CUT.reach` from the step it lands (a slash down, then the rising backhand that knocks down). He
+plants the sword to raise a hand that burns from the step the sigils are marked, lifts it into a green light from the
+step the bonewalkers rise, vaults with his cape streaming until the leap's apex and drops after it, roars in a ring of
+flame, and lies cracked open, embers in his armour and his eyes dark, when he falls. Enraged (`VORHAL_RAGE`) his eyes
+and trims burn red, his plate's shadows go crimson and the embers on his cape's hem glow. Every strip is timed by
+`VORHAL_STEPS`; `tests/vorhal-art.test.ts` plays the real engine against the cuts, the cast, the summons, the leap and
+the roar.
+
+![Vorhal's frames, calm and enraged, and two frames of the scene from a real engine throne room: casting, the sigils under the heroes, and his first cut landing on Brakka](docs/images/vorhal.png)
+
 A hero riding sits astride too, in four frames of its own (`ride`, `ridewindup`, `rideattack`, `ridehop`): hips on
 the seat, the far leg out of sight (`astride` on the pose skips it), the near boot in the stirrup and the weapon held
 ready. The hero's anim is `ride` throughout, so `riderFrame(anim, animStep)` (`animate.ts`) picks the frame from its
