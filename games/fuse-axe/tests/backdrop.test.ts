@@ -346,7 +346,7 @@ test("a stage without a backdrop is refused with a clear error", () => {
     image: 0,
     paint: { fillStyle: "", fillRect: () => undefined },
   });
-  for (const stage of [0, 3, -1, 1.5, Number.NaN])
+  for (const stage of [0, 4, -1, 1.5, Number.NaN])
     assert.throws(
       () => createBackdrop(make, stage as StageNumber),
       RangeError,
