@@ -33,7 +33,7 @@ import {
 } from "../src/render/art/animate.js";
 import { BRAKKA } from "../src/render/art/brakka.js";
 import { IMP, IMP_WALK_STEPS } from "../src/render/art/imp.js";
-import { HEROES } from "../src/render/art/index.js";
+import { FIGURES, HEROES } from "../src/render/art/index.js";
 import { POT } from "../src/render/art/pot.js";
 import { RAVAGER, RAVAGER_ANIMS } from "../src/render/art/ravager.js";
 import type { Sprite } from "../src/render/pixel/sprite.js";
@@ -412,13 +412,15 @@ test("a sack imp draws its own frames, a kind from a newer build draws as a rava
   for (const animStep of [0, IMP_WALK_STEPS, 13]) {
     const imps = anims.map((anim, i) =>
       enemy(i + 2, 30 + i * 40, 140, {
-        ...{ kind: "imp", anim: anim as EnemyView["anim"], animStep },
+        kind: "imp",
+        anim: anim as EnemyView["anim"],
+        animStep,
       }),
     );
     const drawn = draw(world({ enemies: imps })).sprites;
     assert.equal(drawn.length, imps.length);
     imps.forEach(({ x, y, anim }, i) => {
-      const sprite = IMP.sprite(enemyFrame("imp", anim, animStep));
+      const sprite = FIGURES.imp!.sprite(enemyFrame("imp", anim, animStep));
       const { image, dx, dy } = drawn[i]!;
       assert.deepEqual(image.fills, fillsOf(sprite), `${anim} ${animStep}`);
       assert.deepEqual([dx, dy], [x - sprite.ax, y - sprite.ay]);
