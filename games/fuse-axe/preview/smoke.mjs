@@ -322,8 +322,16 @@ try {
   );
   await snap(landing, "solo-play");
   await landing.keyboard.up("KeyJ");
+  // Sound is wired but silent: `?mute` plays nothing and greys out the toggles (never click them: they keep a choice),
+  // while the page still hears its cues (GO, the jump, the landing, the swing).
+  const room = landing.locator("main.fa-room");
+  assert.equal(await room.getAttribute("data-audio"), "muted");
+  const heard = Number(await room.getAttribute("data-cues"));
+  assert.ok(heard >= 3, `cues heard: ${heard}`);
+  for (const name of ["♫ MUSIC OFF", "EFFECTS OFF"])
+    assert.ok(await landing.getByRole("button", { name }).isDisabled(), name);
   console.log(
-    `solo: Rhea walked ${walked.x - before.x}px, jumped ${walked.y - jumped.y}px and swung ${swung.most} white-hot pixels at ${before.scale}×`,
+    `solo: Rhea walked ${walked.x - before.x}px, jumped ${walked.y - jumped.y}px and swung ${swung.most} white-hot pixels at ${before.scale}×; ${heard} cues heard, muted`,
   );
   await landing.context().close();
 
