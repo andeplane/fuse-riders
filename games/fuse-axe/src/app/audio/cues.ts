@@ -1,5 +1,10 @@
 import { TICK_MS } from "fuse-netcode";
-import type { HeroAnim, HeroKind, WorldView } from "../../engine/view.js";
+import type {
+  FxKind,
+  HeroAnim,
+  HeroKind,
+  WorldView,
+} from "../../engine/view.js";
 import type { View } from "../../online/game.js";
 import type { Cue } from "./sounds.js";
 
@@ -40,7 +45,7 @@ interface Figure {
   pots: number;
 }
 interface Spark {
-  kind: string;
+  kind: FxKind;
   born: number;
   x: number;
   y: number;
