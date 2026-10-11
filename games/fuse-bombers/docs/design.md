@@ -115,7 +115,7 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 8. Online app: registration (the game's `package.json` `exports` and workspace dependencies, the root `package.json`,
    `Dockerfile.cloud`, `service/history.ts`, the game list in `tests/dice-service.test.ts`, `.c8rc.json`), runtime,
    session, landing and room lobby, then the shared TV and phone controller, a `preview/smoke.mjs` like Choppers', and
-   the docs the change makes stale (the README says "a local game: no rooms"; the `docs/architecture.md` row). Cloud
+   the docs the change makes stale (in progress: registration, runtime, session, landing and room lobby are in). Cloud
    Run serves a game beyond Fuse Riders only once the operator adds its id to `EXTRA_GAME_IDS`; that is not part of these
    pull requests.
 

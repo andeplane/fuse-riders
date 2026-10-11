@@ -3,6 +3,7 @@ import {
   fuseProgress,
   GHOST_FLIGHT,
   GUNSHIP_FLIGHT,
+  ghostOf,
   isGhostLoaded,
   isLoaded,
   launcherPivot,
@@ -72,6 +73,10 @@ export interface RoundSource {
   readonly view: RoundView;
   /** Advances by real time; the returned events all belong to the round `view` shows afterwards. */
   advance(deltaMs: number): readonly TickEvent[];
+  /** Changes when a new round starts, for a source whose `view` is a new object every frame; else `view` itself. */
+  readonly round?: unknown;
+  /** A personal device's gunship (its ghost once it falls) for the camera to follow; absent, it frames every ship. */
+  readonly follow?: number;
 }
 
 export interface RoundSceneData {
@@ -182,7 +187,8 @@ export class RoundScene extends Phaser.Scene {
 
   private source!: RoundSource;
   private players: readonly PlayerLook[] = [];
-  private current: RoundView | null = null;
+  /** The round drawn: `RoundSource.round`, or its view. */
+  private current: unknown = null;
   private backdrop!: Phaser.GameObjects.Image;
   private terrain!: TerrainLayer;
   private hud!: Phaser.GameObjects.Graphics;
@@ -317,13 +323,19 @@ export class RoundScene extends Phaser.Scene {
     // Raw frame time: Phaser's smoothed delta is clamped to 1/60 s while the window is unfocused.
     const events = this.source.advance(this.game.loop.rawDelta);
     const view = this.source.view;
-    const started = view !== this.current;
-    if (started) this.startRound(view);
+    const round = this.source.round ?? view;
+    const started = round !== this.current;
+    if (started) this.startRound(view, round);
     // The camera's easing and the ships' animation are cosmetic and run on Phaser's smoothed frame time.
     const dt = delta / 1000;
     const ships = framingPoints(view);
-    if (started) snapCamera(this.camera, { points: ships });
-    else updateCamera(this.camera, { points: ships }, dt);
+    // A personal device follows its gunship, or its ghost, with the others in view while they fit.
+    const id = this.source.follow ?? -1;
+    const own = view.castles[id]?.alive ? view.castles[id] : ghostOf(view, id);
+    const others = ships.filter((ship) => ship.id !== id);
+    const frame = own ? { points: others, focus: own } : { points: ships };
+    if (started) snapCamera(this.camera, frame);
+    else updateCamera(this.camera, frame, dt);
     this.setFrame();
     // Frame and shake the world camera first: the HUD below projects through it, and drawn before it the HUD would
     // trail the world by a frame (this frame's explosions shake from the next one).
@@ -391,8 +403,8 @@ export class RoundScene extends Phaser.Scene {
     return this.add.container(0, 0, [box, icon]).setDepth(DEPTH.crates);
   }
 
-  private startRound(view: RoundView): void {
-    this.current = view;
+  private startRound(view: RoundView, round: unknown): void {
+    this.current = round;
     const theme = Math.abs(Math.trunc(view.config.seed)) % THEMES.length;
     this.backdrop.setTexture(`backdrop-${theme}`);
     this.terrain.reset(view.terrain, THEMES[theme] ?? THEMES[0]!);

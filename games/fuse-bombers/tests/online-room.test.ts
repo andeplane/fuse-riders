@@ -11,6 +11,7 @@ import {
   type StreamEntries,
 } from "fuse-netcode";
 import { FIRE, LEFT, UP, type TickEvent } from "../src/engine/index.js";
+import { carveCircle, gridHash } from "../src/engine/grid.js";
 import {
   BETWEEN_TICKS,
   DEFAULT_SETTINGS as SETUP,
@@ -249,6 +250,21 @@ test("a structured clone of the room continues exactly as the room does; no chec
   assert.notEqual(hash(room), hash(started()));
   // Until the codec pull request, every snapshot is refused rather than restored in part.
   assert.equal(game.checkpoint.decode([0], room.tick), undefined);
+});
+
+test("views share one copy of the terrain until a carve, and a kept view never changes", () => {
+  const room = started(),
+    live = room.world!.terrain,
+    kept = view(room).world!;
+  const cells = gridHash(kept.terrain);
+  assert.equal(view(room).world!.terrain, kept.terrain);
+  assert.ok(
+    kept.terrain !== live && kept.castles[0] !== room.world!.castles[0],
+  );
+  carveCircle(live, 2400, 1700, 300);
+  assert.notEqual(kept.terrain.version, live.version);
+  assert.equal(view(room).world!.terrain.version, live.version);
+  assert.equal(gridHash(kept.terrain), cells, "a kept view keeps its cells");
 });
 
 test("the hash covers the whole room in a fixed order, and fields added later", () => {

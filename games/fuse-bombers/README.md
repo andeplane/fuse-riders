@@ -5,9 +5,18 @@ fly round a destructible floating temple and lob rockets across it, and the rock
 turn a handful into a swarm. (Mid-overhaul, see [docs/design.md](docs/design.md).)
 
 **Play it: <https://andeplane.github.io/fuse-riders/fuse-bombers/>**, or pick it from the app portal (the dot-grid
-button at the top left of every Fuse game's lobby). It is a local game: no rooms, no accounts, everyone at one screen.
+button at the top left of every Fuse game's lobby): online in rooms, solo against bots, or everyone at one screen.
 
 ![A keyboard rider's gunship flying over the temple's right terrace with its dotted aim guide, bots firing from round the temple, the fuse burning along the top](docs/images/free-flight.png)
+
+## Play online
+
+The first page offers CREATE ROOM, JOIN with a code (or a `?room=CODE` link), SOLO VS BOTS and EVERYONE AT THIS
+SCREEN (the local lobby, also `?local`). In a room each device flies its own gunship with WASD and Space, a gamepad or
+the touch pad, and its camera follows it. The host adds bots, sets the rounds to win and the bots' level, and starts
+at two gunships; at the end it picks a rematch or the lobby. Locally: `pnpm build`, `pnpm exec tsx service/dev.ts`,
+then `/fuse-bombers/?mute` in two browsers. Until the checkpoint codec lands, only a room's creator can load it (a
+joiner stays on CONNECTING); the shared TV with phones as controllers comes next.
 
 ## How to play
 
@@ -81,6 +90,7 @@ Add them to the address, for example `?mute&speed=4`.
 
 | Flag       | Effect                                                                                       |
 | ---------- | -------------------------------------------------------------------------------------------- |
+| `?local`   | The local lobby on this screen; `?speed`, `?seed`, `?touch` and `?debug` open it too.        |
 | `?mute`    | No music or sound effects for this load (`?mute=0` or `?mute=false` leaves them on).         |
 | `?calm`    | Turns off screen shake and full-screen flashes (also on with the OS reduced-motion setting). |
 | `?speed=N` | Runs the game and its timers N times as fast (whole numbers, 1 or more).                     |
@@ -132,8 +142,7 @@ From the shared packages it takes the neon tokens (`fuse-ui/tokens.css`), the ap
 music catalogue (`fuse-ui/assets`). Its music, the crate and the fuse's flame and bomb are the site root's shared
 `public/` files (`music/`, `props/desert-industrial-v1/`, `themes/clean-neon/`), loaded through
 `import.meta.env.BASE_URL`; everything else is drawn in code, and sound effects are synthesized. Its
-`src/platform.ts` registers it with the room service for admission only (online play is in progress); it has no
-accounts and reports no results. The portal sits in the lobby's top-left corner and hides once a match starts:
+`src/platform.ts` registers it with the room service for admission only; it has no accounts and reports no results. The portal sits in the lobby's top-left corner and hides once a match starts:
 
 ![The lobby with the app portal open, listing every Fuse game with Fuse Bombers marked as this one](docs/images/portal.png)
 
