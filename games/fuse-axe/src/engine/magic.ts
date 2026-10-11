@@ -38,9 +38,12 @@ export const chosenLevel = (hero: Hero, held: number): number =>
     1 + Math.floor(Math.max(0, held - T.MAGIC_TAP - 1) / T.CHARGE_STEPS),
   );
 
-/** A Magic press is waiting, and the hero has a pot to spend on it. */
-export const conjures = (hero: Hero): boolean =>
-  hero.magicBuf > 0 && hero.pots > 0;
+/**
+ * A Magic press is waiting, and the hero has a pot to spend on it. At camp there is nothing to cast at, so none is
+ * (from a walk or from a run alike) and the pots are kept for the road.
+ */
+export const conjures = (world: World, hero: Hero): boolean =>
+  !world.camp && hero.magicBuf > 0 && hero.pots > 0;
 
 /** A free hero's Magic: still held, it starts the charge; already let go, it was a tap and casts every pot. */
 export function conjure(world: World, hero: Hero, bits: number): void {

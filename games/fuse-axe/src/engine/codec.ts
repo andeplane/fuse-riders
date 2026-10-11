@@ -404,7 +404,8 @@ function onRoad(value: World): boolean {
  * invulnerability, run of hits, double tap or idle pause runs past the longest one starting now, the sparks run
  * oldest first, each born no later than now and not yet past its life, the items run in id order, each id issued and
  * no hero's or enemy's, each born no later than now and not yet past its life and meat only at camp, no imp is sent
- * before the camera reached its cue and its step came, no spell plays at camp, and the road, the sacks, the waves,
+ * before the camera reached its cue and its step came, no spell plays at camp and no enemy but a sack imp is there,
+ * and the road, the sacks, the waves,
  * the grabs and the spells are as `onRoad`, `sackKept`, `wavesKept`, `holdsKept` and `spellsKept` say.
  */
 const world = record<World>(
@@ -488,7 +489,9 @@ const world = record<World>(
           (each.kind === "pot" || value.camp),
       ) &&
       (value.impsSent === 0 || sent(planOf(value).imps[value.impsSent - 1]!)) &&
-      (!value.camp || value.spells.length === 0) &&
+      (!value.camp ||
+        (value.spells.length === 0 &&
+          value.enemies.every((each) => each.kind === "imp"))) &&
       wavesKept(value) &&
       holdsKept(value) &&
       spellsKept(value)
