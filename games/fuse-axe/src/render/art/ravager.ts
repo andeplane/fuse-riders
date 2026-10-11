@@ -1,4 +1,5 @@
 import type { EnemyAnim } from "../../engine/view.js";
+import type { AnimStrip } from "./animate.js";
 import {
   adjust,
   arm,
@@ -356,13 +357,6 @@ export type RavagerFrame = keyof typeof RAVAGER_POSES;
 
 /** The enemy view's anims but a sack imp's own (`dead` lies in the `down` frame while the renderer blinks it). */
 export type RavagerAnim = Exclude<EnemyAnim, "stumble" | "flee">;
-
-/** An anim's frames in order, each with the simulation steps (60 a second) it shows. */
-export interface AnimStrip<F extends string> {
-  readonly frames: readonly (readonly [frame: F, steps: number])[];
-  /** Starts over after the last frame; an anim that does not loop holds its last frame for as long as it lasts. */
-  readonly loop: boolean;
-}
 
 const WALK_CYCLE: AnimStrip<RavagerFrame> = {
   frames: [

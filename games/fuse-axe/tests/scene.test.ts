@@ -18,6 +18,7 @@ import type {
 } from "../src/engine/view.js";
 import {
   DEAD_STEPS,
+  ENEMY_KINDS,
   ENEMY_STATES,
   FLOOR_BOTTOM_PX,
   FX_KINDS,
@@ -25,11 +26,21 @@ import {
   VIEW_H,
   VIEW_W,
 } from "../src/engine/view-kit.js";
-import { HERO_ANIMS, stripFrame } from "../src/render/art/animate.js";
+import {
+  enemyFrame,
+  HERO_ANIMS,
+  stripFrame,
+} from "../src/render/art/animate.js";
 import { BRAKKA } from "../src/render/art/brakka.js";
-import { HEROES } from "../src/render/art/index.js";
+import { IMP, IMP_WALK_STEPS } from "../src/render/art/imp.js";
+import { FIGURES, HEROES } from "../src/render/art/index.js";
+import { POT } from "../src/render/art/pot.js";
 import { RAVAGER, RAVAGER_ANIMS } from "../src/render/art/ravager.js";
-import { IMP_STAND_IN, POT_STAND_IN } from "../src/render/art/stand-ins.js";
+import type { Sprite } from "../src/render/pixel/sprite.js";
+import {
+  createSpriteBaker,
+  type BakeOptions,
+} from "../src/render/pixel/surface.js";
 import { createBackdrop } from "../src/render/backdrop/backdrop.js";
 import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
@@ -106,6 +117,13 @@ function fakeScene() {
   return { images, scene: createScene(make) };
 }
 const shared = fakeScene();
+/** The fills a sprite bakes to, to tell which art a blit drew. */
+const reference = createSpriteBaker<FakeImage>((w, h) => {
+  const image = { id: -1, w, h, fills: [] };
+  return { image, paint: new FakePaint(image.fills) };
+});
+const fillsOf = (sprite: Sprite, options?: BakeOptions) =>
+  reference.bake(sprite, options).image.fills;
 
 const hero = (
   id: number,
@@ -245,6 +263,12 @@ test("an enemy in hit-stop flashes, and each tier has its own palette", () => {
   );
   const tiers = new Set([0, 1, 2].map((tier) => image({ tier: tier as 0 })));
   assert.equal(tiers.size, 3);
+  // The tiers are the ravager's palettes: a sack imp, which has only the one, is never tinted by them.
+  const imps = [0, 1, 2].map((tier) =>
+    image({ kind: "imp", tier: tier as 0, anim: "walk" }),
+  );
+  assert.equal(new Set(imps).size, 1);
+  assert.deepEqual(imps[0]!.fills, fillsOf(IMP.sprite("walk1")));
 });
 
 test("a defeated enemy lies still, then blinks out over DEAD_STEPS, shadow and all", () => {
@@ -357,16 +381,19 @@ test("a hero's look is worked out once per roster: it holds across frames and an
 
 test("every anim of a hero and an enemy draws at any step, and one the art lacks stands idle", () => {
   const heroAnims = [...HERO_ANIMS] as HeroView["anim"][];
-  const enemyAnims = Object.keys(RAVAGER_ANIMS) as EnemyView["anim"][];
+  // Every kind in every anim the view has, a ravager's `flee` and an imp's `windup` included.
+  const enemyAnims = ENEMY_KINDS.flatMap((kind) =>
+    ENEMY_STATES.map((anim) => ({ kind, anim })),
+  );
   const steps = [0, 1, 7, 19, 33, 60, 100_000, 2.5, -4, Number.NaN];
   for (const animStep of [...steps, Number.POSITIVE_INFINITY]) {
     const { sprites } = draw(
       world({
         heroes: heroAnims.map((anim, i) =>
-          hero(i + 1, i % 5, 30 + i * 14, 130, { anim, animStep }),
+          hero(i + 1, i % 5, 30 + i * 12, 130, { anim, animStep }),
         ),
-        enemies: enemyAnims.map((anim, i) =>
-          enemy(20 + i, 50 + i * 20, 160, { anim, animStep }),
+        enemies: enemyAnims.map(({ kind, anim }, i) =>
+          enemy(40 + i, 20 + i * 10, 160, { kind, anim, animStep }),
         ),
       }),
     );
@@ -374,40 +401,62 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
     if (Number.isFinite(animStep) && animStep >= 0 && animStep < 20)
       assert.equal(sprites.length, heroAnims.length + enemyAnims.length);
   }
-  // A kind of anim from a build with more of them: the hero and the enemy stand idle.
+  // A kind of anim from a build with more of them: the hero and each enemy stand idle.
   const unknown = JSON.parse('"ride"') as HeroView["anim"] & EnemyView["anim"];
   const [odd, idle] = [unknown, "idle" as const].map((anim) =>
     draw(
       world({
         heroes: [hero(1, 0, 100, 130, { anim, animStep: 12 })],
-        enemies: [enemy(2, 200, 150, { anim, animStep: 12 })],
+        enemies: [
+          enemy(2, 200, 150, { anim, animStep: 12 }),
+          enemy(3, 250, 150, { kind: "imp", anim, animStep: 12 }),
+        ],
       }),
     ).sprites.map((b) => b.image),
   );
-  assert.equal(odd!.length, 2);
+  assert.equal(odd!.length, 3);
   assert.deepEqual(odd, idle);
 });
 
-test("a sack imp draws its stand-in in every anim, as does a kind with no art; pots lie among the figures and blink before they vanish", () => {
-  const stand = IMP_STAND_IN;
-  const imps = ENEMY_STATES.map((anim, i) =>
-    enemy(i + 2, 20 + i * 18, 140, { kind: "imp", anim }),
-  );
-  const drawn = draw(world({ enemies: imps })).sprites;
-  assert.deepEqual(
-    drawn.map((b) => [b.image.w, b.image.h]),
-    imps.map(() => [stand.w, stand.h]),
-  );
-  const odd = JSON.parse('"wizard"') as EnemyView["kind"];
-  const [unknown] = draw(
-    world({ enemies: [enemy(2, 160, 140, { kind: odd, facing: -1 })] }),
-  ).sprites;
-  // Facing left, mirrored about its feet.
-  assert.deepEqual(
-    [unknown!.image.w, unknown!.dx],
-    [stand.w, 160 - (stand.w - 1 - stand.ax)],
-  );
-  // A pot lies by its feet with a small shadow, in depth order: in front of an imp further up the floor.
+test("a sack imp draws its own frames, a kind from a newer build draws as a ravager, and pots lie among the figures and blink before they vanish", () => {
+  // Every anim the imp has, a few steps in, draws the frame `enemyFrame` picks from the imp's art, on its feet.
+  const anims = ["walk", "flee", "stumble", "knockdown", "down", "getup"];
+  for (const animStep of [0, IMP_WALK_STEPS, 13]) {
+    const imps = anims.map((anim, i) =>
+      enemy(i + 2, 30 + i * 40, 140, {
+        kind: "imp",
+        anim: anim as EnemyView["anim"],
+        animStep,
+      }),
+    );
+    const drawn = draw(world({ enemies: imps })).sprites;
+    assert.equal(drawn.length, imps.length);
+    imps.forEach(({ x, y, anim }, i) => {
+      const sprite = FIGURES.imp!.sprite(enemyFrame("imp", anim, animStep));
+      const { image, dx, dy } = drawn[i]!;
+      assert.deepEqual(image.fills, fillsOf(sprite), `${anim} ${animStep}`);
+      assert.deepEqual([dx, dy], [x - sprite.ax, y - sprite.ay]);
+    });
+  }
+  const scurry = (animStep: number) =>
+    draw(
+      world({
+        enemies: [enemy(2, 100, 140, { kind: "imp", anim: "walk", animStep })],
+      }),
+    ).sprites[0]!.image;
+  assert.notDeepEqual(scurry(0).fills, scurry(IMP_WALK_STEPS).fills);
+  // A kind from a build with more of them, or one that names a property every object has, stands as a ravager,
+  // mirrored about its feet when it faces left.
+  const ravager = RAVAGER.sprite("idle");
+  for (const odd of ['"wizard"', '"constructor"', '"__proto__"']) {
+    const kind = JSON.parse(odd) as EnemyView["kind"];
+    const [unknown] = draw(
+      world({ enemies: [enemy(2, 160, 140, { kind, facing: -1 })] }),
+    ).sprites;
+    assert.deepEqual(unknown!.image.fills, fillsOf(ravager, { flip: true }));
+    assert.equal(unknown!.dx, 160 - (ravager.w - 1 - ravager.ax));
+  }
+  // A pot lies by the imp's feet with a small shadow, in depth order: in front of an imp further up the floor.
   const pot: ItemView = {
     id: 9,
     kind: "pot",
@@ -422,11 +471,12 @@ test("a sack imp draws its stand-in in every anim, as does a kind with no art; p
       items: [pot],
     }),
   );
+  const walk = IMP.sprite("walk1");
   assert.deepEqual(
-    sprites.map((b) => [b.image.w, b.dx, b.dy]),
+    sprites.map((b) => [b.image.fills, b.dx, b.dy]),
     [
-      [stand.w, 100 - stand.ax, 140 - stand.ay],
-      [POT_STAND_IN.w, 100 - POT_STAND_IN.ax, 150 - 4 - POT_STAND_IN.ay],
+      [fillsOf(walk), 100 - walk.ax, 140 - walk.ay],
+      [fillsOf(POT), 100 - POT.ax, 150 - 4 - POT.ay],
     ],
   );
   assert.equal(shadows[1]!.image.w, 2 * ITEM_SHADE + 1);
@@ -434,11 +484,12 @@ test("a sack imp draws its stand-in in every anim, as does a kind with no art; p
   assert.equal(draw(blinking, 0).sprites.length, 1);
   assert.equal(draw(blinking, BLINK_FRAMES).sprites.length, 0);
   assert.equal(draw(blinking, BLINK_FRAMES).shadows.length, 1);
-  const meat = JSON.parse('"meat"') as ItemView["kind"];
-  assert.equal(
-    draw(world({ items: [{ ...pot, kind: meat }] })).sprites[0]!.image.w,
-    POT_STAND_IN.w,
-  );
+  // An item of a kind from a newer build lies as a pot.
+  for (const odd of ['"meat"', '"constructor"']) {
+    const kind = JSON.parse(odd) as ItemView["kind"];
+    const [item] = draw(world({ items: [{ ...pot, kind }] })).sprites;
+    assert.deepEqual(item!.image.fills, fillsOf(POT));
+  }
 });
 
 test("each hero wears a marker in its seat's colour over its head, rising with it", () => {

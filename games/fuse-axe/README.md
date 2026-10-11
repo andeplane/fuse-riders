@@ -8,7 +8,8 @@ A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Wo
 
 Open `/fuse-axe/` on a running service, or pick **Fuse Axe** from the app portal (the dot grid at the top left of
 every game). **PLAY SOLO** opens the hero picker; **CREATE ROOM** makes a room to share by code, link or QR code,
-where everyone picks a hero (duplicates are allowed) and the host presses **START**. The heroes walk, run, jump and swing
+where everyone picks a hero (duplicates are allowed) and the host presses **START**. In either lobby the host's
+**+ BOT** seats a bot companion (see [Bots and the golden replay](#bots-and-the-golden-replay)). The heroes walk, run, jump and swing
 through Stage 1's waves of ravagers in the pixel-art scene under the HUD. Clearing the stage shows each hero's
 tally, then the run's victory; when every hero is out, any hero may press Attack within ten seconds to continue once,
 or the run is over. The host sets out again with **REMATCH** or goes back to the lobby.
@@ -41,9 +42,11 @@ of every pad.
 ![The same held upright](docs/images/app-phone-controller-upright.png)
 
 Sound is synthesised in the browser, with nothing to load: every cue is found by diffing the frames the page is shown
-(`src/app/audio/cues.ts`), never by the simulation, and plays after the first key or tap. **♫ MUSIC** (the stage
-jingles) and **EFFECTS** in the header are this browser's choices and are kept; `?mute` silences the page without
-touching them. With a shared screen the TV sounds for the room and a phone that is only a controller stays quiet.
+(`src/app/audio/cues.ts`), never by the simulation, and plays after the first key or tap. Stage 1 marches to a short
+chiptune loop in A minor (`src/app/audio/music.ts`) that ducks under GO and the stage-clear fanfare and stops in the
+lobby and at the run's end. **♫ MUSIC** (the loop and the jingles) and **EFFECTS** in the header are this browser's
+choices and are kept; `?mute` silences the page without touching them. With a shared screen the TV sounds for the
+room and a phone that is only a controller stays quiet.
 
 ![Solo with ?mute: the sound toggles greyed out in the header](docs/images/app-sound-toggles.png)
 
@@ -56,6 +59,28 @@ node games/fuse-axe/preview/flow.mjs http://localhost:8787/ [screenshot-dir]    
 
 Production serves Fuse Axe rooms only once `EXTRA_GAME_IDS` names `fuse-axe` ([GCP deploy](../../docs/online/GCP-DEPLOY.md));
 until then the page offers solo only.
+
+## Bots and the golden replay
+
+The host's **+ BOT** in the lobby seats a bot, which plays its seat's hero (Brakka, Rhea, Gorm, Brakka, Rhea), and its
+× removes it before the run. `botInput(world, heroId, humans)` in `src/engine/bot.ts` gives the bits a bot holds for a
+log tick, read off the world as a player reads the screen: it taps Magic with a pot when three enemies are about it
+(or one while it is low on health), steps out of a ravager's wind-up aimed at it or beats it to the blow (after a
+seeded reaction time, and it misses a few), swings and chains the combo at whatever is in reach, kicks sack imps and
+picks up pots, walks to the nearest ravager fewer heroes are on, and with nothing to fight follows the heroes players
+steer, or leads the camera on when there are none. It never presses Attack with no enemy in reach, and keeps nothing
+between ticks but what its hero holds. The room folds those bits for every bot seat (`playTick` in
+`src/online/game.ts`), so every replica plays a bot alike and a rollback replays it.
+
+![Solo with two bot companions in the lobby](docs/images/app-lobby-bots.png)
+![The bots following the player through the first wave](docs/images/app-play-bots.png)
+
+A bot's play is folded rather than logged, so it is part of the rules. `tests/golden.test.ts` has three bots clear
+Stage 1 twice (about 5,100 steps each, under a second): once with no player, so they lead the camera on, and once
+with Brakka standing in for one, so Rhea and Gorm follow it between fights. It compares the world's hash every ten
+seconds, and the step count, with the recorded ones. A change meant to alter the engine's behaviour or the bot's bumps `RULES` in `src/engine/index.ts` and
+re-records the golden in the same commit (`GOLDEN_RECORD=1 pnpm exec tsx --test games/fuse-axe/tests/golden.test.ts`
+prints the new values). A golden that fails without such a change is a regression to fix, not one to re-record.
 
 ## Sprites
 
@@ -100,6 +125,16 @@ up on the floor; its falling poses are standing poses tipped over backwards (`ti
 anim's frames with the simulation steps each shows, and `RAVAGER_TIERS` (rust, violet) recolour its tier ramp; ash is
 its own palette. Below the sheet the lab packs each animated figure's frames onto one floor in every swap and plays
 its anims; [`docs/images/ravager-lab.png`](docs/images/ravager-lab.png) is a screenshot of the ravager's.
+
+The sack imp (`src/render/art/imp.ts`) is about 22 px tall, under half a ravager: hunched in a blue hood with yellow
+eyes and a toothy grin in its dark, a long nose poking out, and a big pale sack on its back whose neck it grips over
+the shoulder. It scurries in a four-frame walk and flees in a faster four-frame run with the sack bouncing (each
+stride keeps a planted foot on the road at the engine's speeds), stumbles from a kick with the sack torn open and
+magic glinting out of it, and flies, lies and gets up as a ravager does. The magic pot (`pot.ts`) is an 8 × 10
+blue pot with a stopper and a glint, placed pixel by pixel. `IMP_ANIMS` times the imp's anims as `RAVAGER_ANIMS` does
+the ravager's, and `enemyFrame(kind, anim, animStep)` (`animate.ts`) picks any enemy's frame from them: like
+`heroFrame` it never throws, an anim a kind has no strip for stands idle and a kind from a newer build plays as a
+ravager, the scene's fallback. [`docs/images/imp-frames.png`](docs/images/imp-frames.png) is the lab's imp and pot.
 
 ## Scene
 
