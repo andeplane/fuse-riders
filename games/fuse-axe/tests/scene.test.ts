@@ -14,9 +14,13 @@ import type {
   HeroKind,
   HeroView,
   ItemView,
+  MountView,
   WorldView,
 } from "../src/engine/view.js";
 import {
+  CLAWBEAK,
+  CLAWBEAK_STEPS,
+  MOUNT_STATES,
   DEAD_STEPS,
   ENEMY_KINDS,
   ENEMY_STATES,
@@ -37,6 +41,7 @@ import {
   stripFrame,
 } from "../src/render/art/animate.js";
 import { BRAKKA } from "../src/render/art/brakka.js";
+import { CLAWBEAK_SPRITE } from "../src/render/art/clawbeak.js";
 import { IMP, IMP_WALK_STEPS } from "../src/render/art/imp.js";
 import { FIGURES, HEROES } from "../src/render/art/index.js";
 import { LANCER_TIERS } from "../src/render/art/lancer.js";
@@ -65,7 +70,10 @@ import {
   GO_SIGN,
   heroLooks,
   ITEM_SHADE,
+  LASH_STEPS,
   MARKER,
+  TAIL_ROW,
+  TELEGRAPH,
   scenery,
   shadowRadius,
   SHADOW_RX,
@@ -161,12 +169,12 @@ const enemy = (
 ): EnemyView => ({
   ...{ id, kind: "ravager", tier: 0, x, y, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 4, maxHp: 4, flash: false },
-  ...{ boss: false, enraged: false },
+  ...{ boss: false, enraged: false, mounted: false },
   ...more,
 });
 const world = (more: Partial<WorldView>): WorldView => ({
   ...{ step: 0, camX: 0, heroes: [], enemies: [], fx: [], items: [] },
-  ...{ spells: [], stage: 1 },
+  ...{ spells: [], mounts: [], stage: 1 },
   ...{ wave: 0, waves: 5, locked: false, go: false, cleared: false },
   ...{ defeated: false, boss: null },
   ...more,
@@ -396,6 +404,46 @@ test("a hero's look is worked out once per roster: it holds across frames and an
   assert.notEqual(looks(roster.slice(0, 2)), changed, "so is one fewer hero");
 });
 
+test("a beast draws among the figures with its rider in the saddle over it, blinks winding up its tail and streaks it lashing, in any anim", () => {
+  const beast = (more: Partial<MountView> = {}): MountView => ({
+    ...{ id: 9, kind: "clawbeak", x: 150, y: 140, z: 0, facing: 1 },
+    ...{ anim: "idle", animStep: 0, rider: { kind: "enemy", id: 2 }, ...more },
+  });
+  const seated = { anim: "ride", mounted: true, z: CLAWBEAK.saddle } as const;
+  const [on, off] = [seated, { anim: "ride" as const }].map((more) =>
+    draw(world({ enemies: [enemy(2, 150, 140, more)], mounts: [beast()] })),
+  );
+  // The beast first, its rider after it and the saddle's height higher; a shadow each.
+  const [body, rider] = on!.sprites;
+  assert.deepEqual(body!.image.fills, fillsOf(CLAWBEAK_SPRITE, { flash: false, flip: false })); // prettier-ignore
+  // On the floor beside it, the lower id draws first.
+  assert.equal(rider!.dy, off!.sprites[0]!.dy - CLAWBEAK.saddle);
+  assert.equal(on!.shadows.length, 2);
+  const lash = (more: Partial<MountView>) =>
+    draw(world({ mounts: [beast({ anim: "sweep", ...more })] })).pen.fills.filter((f) => f.style === "#f4f8ff" && f.h === 1); // prettier-ignore
+  const { windup } = CLAWBEAK_STEPS;
+  assert.deepEqual(
+    lash({ animStep: windup }).map((f) => [f.x, f.y, f.w]),
+    [[150 - CLAWBEAK.reach, 140 - TAIL_ROW, 2 * CLAWBEAK.reach + 1]],
+  );
+  assert.deepEqual(lash({ animStep: windup + LASH_STEPS }), []);
+  const [lit, unlit, last] = [0, TELEGRAPH, windup - 1].map(
+    (animStep) =>
+      draw(world({ mounts: [beast({ anim: "sweep", animStep })] })).sprites[0]!.image.fills, // prettier-ignore
+  );
+  assert.deepEqual(lit, fillsOf(CLAWBEAK_SPRITE, { flash: true, flip: false })); // prettier-ignore
+  assert.deepEqual([unlit, last], [body!.image.fills, lit], "blinking as it winds up"); // prettier-ignore
+  // Every anim at any step, facing either way, and a kind from a build with more of them, draws one beast.
+  const odd = JSON.parse('"drake"') as MountView["kind"];
+  for (const anim of MOUNT_STATES)
+    for (const animStep of [0, 7, 21, 1e9, -3, 2.5, Number.NaN])
+      for (const kind of ["clawbeak", odd] as const) {
+        const more = { anim, animStep, kind, facing: -1 as const };
+        const { sprites } = draw(world({ mounts: [beast(more)] }));
+        assert.equal(sprites.length, 1);
+      }
+});
+
 test("a lancer draws as a ravager in its own colours, holding its spear out along its facing while it thrusts", () => {
   const lancer = (more: Partial<EnemyView>) =>
     draw(world({ enemies: [enemy(1, 150, 140, { kind: "lancer", ...more })] }));
@@ -446,7 +494,7 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
       assert.equal(sprites.length, heroAnims.length + enemyAnims.length);
   }
   // A kind of anim from a build with more of them: the hero and each enemy stand idle.
-  const unknown = JSON.parse('"ride"') as HeroView["anim"] & EnemyView["anim"];
+  const unknown = JSON.parse('"dance"') as HeroView["anim"] & EnemyView["anim"];
   const [odd, idle] = [unknown, "idle" as const].map((anim) =>
     draw(
       world({

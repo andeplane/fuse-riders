@@ -175,7 +175,7 @@ for (const animated of ANIMATED) {
   const twin = (more: Partial<EnemyView>): EnemyView => ({
     ...{ id: 1, kind: "ogre", tier: 0, x: 70, y: 150, z: 0, facing: 1 },
     ...{ anim: "idle", animStep: 0, hp: 150, maxHp: 150, flash: false },
-    ...{ boss: true, enraged: false },
+    ...{ boss: true, enraged: false, mounted: false },
     ...more,
   });
   players.push(() => {
@@ -188,6 +188,7 @@ for (const animated of ANIMATED) {
     }
     const view: WorldView = {
       ...{ step, stage: 1, camX: 0, heroes: [], fx: [], items: [], spells: [] },
+      mounts: [],
       enemies: [
         twin({ anim, animStep }),
         twin({ id: 2, tier: 1, x: 260, y: 128, facing: -1, enraged: true }),

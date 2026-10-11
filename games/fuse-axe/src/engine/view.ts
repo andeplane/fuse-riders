@@ -5,12 +5,14 @@ import {
   ITEM_BLINK,
   ITEM_LIFE,
   MAX_POTS,
+  SADDLE,
   SPELLS,
   SUB,
   enemyMaxHp,
   type EnemyKind,
   type HeroKind,
   type ItemKind,
+  type MountKind,
   type SpellKind,
   type Tier,
 } from "./tuning.js";
@@ -22,6 +24,7 @@ import {
   type EnemyState,
   type FxKind,
   type HeroState,
+  type MountState,
   type World,
 } from "./world.js";
 
@@ -35,6 +38,7 @@ export type {
   EnemyKind,
   HeroKind,
   ItemKind,
+  MountKind,
   SpellKind,
   Tier,
 } from "./tuning.js";
@@ -66,8 +70,18 @@ export type HeroAnim = HeroState;
  * `thrust` holds it out (it lands on the first step, `SPEAR.reach` in front) and `recover` follows. `leap` jumps in
  * from the screen's edge or at a hero (rising, then falling, `LANCER_STEPS` in `view-kit.ts`), and `plunge` drives the
  * spear down where it lands, then stands over it. It walks back in to a locked screen in `enter`.
+ *
+ * A ravager riding a beast (`mounted`) is in `ride` throughout: the beast's anim says what the pair does.
  */
 export type EnemyAnim = EnemyState;
+
+/**
+ * A beast's anims (`CLAWBEAK_STEPS` in `view-kit.ts` times them). Ridden: `enter` walks a wave's in, `idle` and `walk`,
+ * `sweep` winds up its tail (`windup` steps), lashing it round on that `animStep` (`CLAWBEAK.reach` either side), then
+ * recovers to `sweep` steps. Riderless: `flee` panics for `panic` steps, `wander` walks back and forth (turning every
+ * `turn` steps) and `leave` walks off the screen.
+ */
+export type MountAnim = MountState;
 
 export interface HeroView {
   id: number;
@@ -131,6 +145,24 @@ export interface EnemyView {
   boss: boolean;
   /** An ogre whose twin has fallen: it fights faster. */
   enraged: boolean;
+  /** Riding a beast (`ride`): its `z` is the saddle's, `CLAWBEAK.saddle` over the beast's. */
+  mounted: boolean;
+}
+
+/**
+ * A beast, ridden or not. Its rider stands where it does, `CLAWBEAK.saddle` higher, and is drawn over it: an enemy now,
+ * a hero too once heroes climb on.
+ */
+export interface MountView {
+  id: number;
+  kind: MountKind;
+  x: number;
+  y: number;
+  z: number;
+  facing: 1 | -1;
+  anim: MountAnim;
+  animStep: number;
+  rider: { kind: "hero" | "enemy"; id: number } | null;
 }
 
 /**
@@ -172,6 +204,8 @@ export interface WorldView {
   items: ItemView[];
   /** The spells playing, in the order they were cast: at most one per hero. */
   spells: SpellView[];
+  /** The beasts, in id order, which no other figure shares. */
+  mounts: MountView[];
   /** The stage being fought, from 1: its road's length is `stageLengthPx(stage)` and its backdrop the stage's art. */
   stage: number;
   /** The wave begun latest, from 1 (0 before the first), of `waves` in the stage. */
@@ -240,7 +274,8 @@ export function toView(world: World): WorldView {
       tier: enemy.tier,
       x: whole(enemy.x),
       y: whole(enemy.y),
-      z: whole(enemy.z),
+      // A rider sits in the saddle, over its beast.
+      z: whole(enemy.z + (enemy.state === "ride" ? SADDLE : 0)),
       facing: enemy.facing,
       anim: enemy.state,
       animStep: enemy.timer,
@@ -251,6 +286,7 @@ export function toView(world: World): WorldView {
         (enemy.flashUntil > 0 && world.step <= enemy.flashUntil),
       boss: BOSS[enemy.kind],
       enraged: enemy.enraged,
+      mounted: enemy.state === "ride",
     })),
     fx: world.fx.map((fx) => ({
       kind: fx.kind,
@@ -273,6 +309,17 @@ export function toView(world: World): WorldView {
         .kind,
       level: spell.level,
       age: world.step - spell.born,
+    })),
+    mounts: world.mounts.map((mount) => ({
+      id: mount.id,
+      kind: mount.kind,
+      x: whole(mount.x),
+      y: whole(mount.y),
+      z: whole(mount.z),
+      facing: mount.facing,
+      anim: mount.state,
+      animStep: mount.timer,
+      rider: mount.rider ? { kind: "enemy", id: mount.rider } : null,
     })),
     stage: world.stage,
     wave: world.wave,

@@ -110,6 +110,7 @@ const out = (id: number, seat: number) =>
   hero(id, seat, { anim: "out", lives: 0, hp: 0 });
 const world = (heroes: HeroView[]): WorldView => ({
   ...{ step: 0, camX: 0, heroes, enemies: [], fx: [], items: [], spells: [] },
+  mounts: [],
   ...{ stage: 1, wave: 0, waves: 5, locked: false, go: false, cleared: false },
   ...{ defeated: false, boss: null },
 });
