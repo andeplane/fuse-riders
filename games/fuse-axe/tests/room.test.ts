@@ -37,7 +37,9 @@ import {
   LEFT,
   RIGHT,
   STEPS_PER_TICK,
+  botInput,
   spawnEnemy,
+  stepTick,
   toView,
 } from "../src/engine/index.js";
 import { WALK, px } from "../src/engine/tuning.js";
@@ -105,7 +107,7 @@ test("entries: play entries name a run and stage and carry control bits, picks n
   assert.ok(!validName(" padded"));
 });
 
-test("start seats every hero, a bot as its seat's; held controls walk until let go, and bots stand still", () => {
+test("start seats every hero, a bot as its seat's; held controls walk until let go", () => {
   const room = started();
   assert.equal(room.stage, "running");
   assert.equal(room.round, 1);
@@ -132,8 +134,31 @@ test("start seats every hero, a bot as its seat's; held controls walk until let 
   fold(room, { a: [[PLAY, "m1", 1, RIGHT]], "bot:1": [play(RIGHT)] });
   assert.equal(hero(room, 1).x, stood);
   assert.equal(room.held.b, undefined);
-  assert.equal(hero(room, 2).x, started().world!.heroes[2]!.x, "the bot");
   assert.equal(room.held["bot:1"], undefined);
+});
+
+test("a bot seat folds botInput's bits from the world as the tick begins, following the present players", () => {
+  const room = started(),
+    spawn = hero(room, 2).x;
+  for (let tick = 0; tick < 40; tick++) {
+    const before = room.world!,
+      bot = botInput(before, 3, [1, 2]);
+    // An entry logged under the bot's id is no control of its own.
+    fold(room, { a: [play(RIGHT)], "bot:1": [play(LEFT)] });
+    assert.deepEqual(
+      room.world,
+      stepTick(before, [RIGHT, 0, bot], [RIGHT, 0, bot]),
+    );
+    assert.equal(room.held["bot:1"], undefined, "the room keeps no bot bits");
+  }
+  assert.ok(hero(room, 2).x > spawn, "the bot followed Ada on");
+  assert.ok(hero(room, 2).x < hero(room, 0).x);
+  // With Ada away, Bo still stands where he is, and the bot follows him alone.
+  room.seats.get("a")!.connected = false;
+  const before = room.world!;
+  fold(room);
+  const bot = botInput(before, 3, [2]);
+  assert.deepEqual(room.world, stepTick(before, [0, 0, bot], [0, 0, bot]));
 });
 
 test("a tap shorter than a tick still presses, on the tick's first step", () => {
@@ -544,4 +569,7 @@ test("every replica folds the same run however b's controls arrive: late, batche
   }
   const b = whole.state.world!.heroes[1]!;
   assert.ok(b.x > whole.state.world!.heroes[0]!.x, "b walked on");
+  const bot = whole.state.world!.heroes[2]!;
+  // The bot (from seat 2's spawn, 48 px in) followed b on, the same on every replica however b's entries came.
+  assert.ok(bot.x > px(48) && bot.x < b.x, "the bot followed b on");
 });

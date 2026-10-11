@@ -219,6 +219,16 @@ body {
   font-size: 14px;
 }
 
+.fa-add-bot {
+  margin-top: 10px;
+  align-self: flex-start;
+}
+
+.fui-app .fa-remove {
+  margin-left: auto;
+  padding: 2px 10px;
+}
+
 /* ---- the game: whole-number scaling on a letterboxed stage ---- */
 .fa-stage {
   flex: 1;

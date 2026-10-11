@@ -366,7 +366,7 @@ function moveHero(world: World, hero: Hero, bits: number): void {
  * An enemy a blade can land on: on its feet (thinking or reeling), or walking in once its whole body is on screen; a
  * sack imp as `kickable` says.
  */
-const hittable = (world: World, enemy: Enemy): boolean =>
+export const hittable = (world: World, enemy: Enemy): boolean =>
   isImp(enemy)
     ? kickable(world, enemy)
     : thinks(enemy) ||
