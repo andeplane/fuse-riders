@@ -363,12 +363,18 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       const standing: Standing[] = view.heroes.map((hero) => {
         const { figure, swap } = looks.get(hero.id)!;
         const pose = heroFrame(hero.kind, hero.anim, hero.animStep);
+        const dip = hero.mounted
+          ? saddleDip(view.mounts, "hero", hero.id)
+          : undefined;
+        const place = at(hero);
         return {
-          ...at(hero),
+          ...place,
           sprite: figure.sprite(pose),
           options: { swap, flip: hero.facing < 0 },
           lit: !hero.invulnerable || blinksOn(frame),
           marker: { seat: hero.seat, crown: crown(figure) },
+          // A rider sits on its beast's saddle, sinking as it dips, in its shadow, as an enemy does.
+          ...(dip !== undefined && { z: place.z - dip, shade: 0 }),
         };
       });
       for (const enemy of view.enemies) {

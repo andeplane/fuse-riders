@@ -28,7 +28,8 @@ import type * as V from "../src/engine/view.js";
 const hero = (extra: Partial<V.HeroView> = {}): V.HeroView => ({
   ...{ id: 1, seat: 0, kind: "brakka", x: 100, y: 140, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
-  ...{ invulnerable: false, pots: 0, maxPots: 3, charge: 0, ...extra },
+  ...{ invulnerable: false, pots: 0, maxPots: 3, charge: 0, mounted: false },
+  ...extra,
 });
 const enemy = (extra: Partial<V.EnemyView> = {}): V.EnemyView => ({
   ...{ id: 9, kind: "ravager", tier: 0, x: 200, y: 140, z: 0, facing: -1 },
@@ -184,6 +185,32 @@ test("a beast's tail winding up has the mace's wind-up cue, once, and nothing el
       at(93, beast("sweep", 30)), // first seen well into its sweep: history
     ]),
     [[], ["windup"], [], [], [], ["windup"], [], [], []],
+  );
+});
+
+test("a hero climbing on lands in the saddle, its beast's hop is a jump and its tail a wind-up, each once", () => {
+  const at = (step: number, anim: V.MountAnim, animStep: number, on = true) =>
+    frame(
+      world(step, {
+        heroes: [hero(on ? { anim: "ride", animStep: 1, mounted: true } : {})],
+        mounts: [
+          {
+            ...{ id: 7, kind: "clawbeak", x: 100, y: 140, z: 0, facing: 1 },
+            ...{ anim, animStep, rider: on ? { kind: "hero", id: 1 } : null },
+          },
+        ],
+      }),
+    );
+  assert.deepEqual(
+    hear([
+      at(30, "wander", 30, false),
+      at(33, "idle", 1), // climbs on
+      at(36, "hop", 1),
+      at(39, "hop", 4),
+      at(60, "sweep", 1),
+      at(63, "sweep", 4),
+    ]),
+    [[], ["land"], ["jump"], [], ["windup"], []],
   );
 });
 

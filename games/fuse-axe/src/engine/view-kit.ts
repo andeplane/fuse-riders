@@ -241,13 +241,15 @@ export const SPEAR = {
 
 /**
  * A clawbeak's timing in steps, to time its frames (`MountAnim`): the tail sweep's wind-up (it lands on that
- * `animStep`) and length, the panic after losing a rider, and the steps a wanderer walks before turning.
+ * `animStep`) and length, the panic after losing a rider, the steps a wanderer walks before turning, and a hero's hop's
+ * rise (it climbs on every `animStep` below `hopRise`, as a hero's jump).
  */
 export const CLAWBEAK_STEPS = {
   windup: TAIL_WINDUP,
   sweep: TAIL_STEPS,
   panic: PANIC_STEPS,
   turn: WANDER_TURN,
+  hopRise: JUMP_RISE_STEPS,
 } as const;
 /** In pixels: the saddle's height over the beast's feet, the tail's reach either side, and half the beast's width. */
 export const CLAWBEAK = {

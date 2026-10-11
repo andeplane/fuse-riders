@@ -6,10 +6,12 @@ import * as T from "./tuning.js";
 import {
   distance,
   face,
+  flinch,
   nearestHero,
   present,
   setState,
   spark,
+  unseat,
   type Enemy,
   type EnemyState,
   type Hero,
@@ -199,10 +201,11 @@ const BLOWS: readonly HeroState[] = ["attack1", "attack2", "attack3", "dash"];
 export const FLOORED: readonly HeroState[] = ["knockdown", "down", "getup"];
 /**
  * The states a mace lands in: on its feet or in the air, running, swinging, dashing, stabbing, striking behind,
- * throwing, reeling or charging magic, which the hit breaks off. A hero mid-grab is out of its way: the grab is brief
- * and always ends in the throw. So is one casting a spell (`magic.ts`).
+ * throwing, reeling or charging magic, which the hit breaks off, or riding a beast (`mount.ts`). A hero mid-grab is out
+ * of its way: the grab is brief and always ends in the throw. So is one casting a spell (`magic.ts`).
  */
 const STRUCK: readonly HeroState[] = [
+  "ride",
   "idle",
   "walk",
   "run",
@@ -239,7 +242,9 @@ function mace(world: World, enemy: Enemy, damage: number): void {
  * A hero hit by a blow going the way `dir` points along the road: the damage, then hitstun and a nudge that way, which
  * breaks off a swing; or a knockdown up and away when the blow always knocks down (`knock`), the hit catches it in the
  * air, leaves it with a quarter of its hit points or fewer, or is the `JUGGLE_HITS`th in a row. The hero holds still
- * for the hit-stop, which is returned for the attacker to share.
+ * for the hit-stop, which is returned for the attacker to share. A rider's saddle takes any blow but a knockdown, which
+ * throws it off its beast (`unseat`; a hop is in the air, so any blow then): it holds still, and a tail sweep still
+ * winding up is broken off (`flinch`).
  */
 export function wound(
   world: World,
@@ -260,6 +265,15 @@ export function wound(
   if (knocked) hero.stagger = 0;
   const until = world.step + (knocked ? T.HEAVY_HITSTOP : T.HITSTOP);
   hero.stopUntil = Math.max(hero.stopUntil, until);
+  if (hero.state === "ride") {
+    if (!knocked) {
+      flinch(world, hero);
+      const z = T.SADDLE + T.SPARK_HEIGHT;
+      spark(world, "hit", hero.x - dir * T.HERO_HALF_W, hero.y, z);
+      return until;
+    }
+    unseat(world, hero, dir);
+  }
   hero.facing = dir > 0 ? -1 : 1;
   hero.state = knocked ? "knockdown" : "hurt";
   hero.timer = hero.vy = 0;
