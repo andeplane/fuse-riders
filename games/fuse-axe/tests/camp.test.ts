@@ -193,9 +193,9 @@ test("the codec keeps camp to itself: meat only there, imps not before their ste
   const at = run(camp("brakka"), CAMP.imps[0]!.step!);
   kept(at);
   for (const [what, change] of [
-    ["a flag that is no boolean", (f) => (f[17] = 1)],
+    ["a flag that is no boolean", (f) => (f[18] = 1)],
     ["an imp sent early", (f) => (f[1] = CAMP.imps[0]!.step! - 3)],
-    ["a stage's world with camp's imps", (f) => (f[17] = false)],
+    ["a stage's world with camp's imps", (f) => (f[18] = false)],
   ] as [string, (f: unknown[]) => void][]) {
     const raw = structuredClone(E.encodeWorld(at)) as unknown[];
     change(raw);
@@ -228,6 +228,14 @@ test("the codec keeps camp to itself: meat only there, imps not before their ste
     E.decodeWorld(E.encodeWorld(lancer(at))),
     undefined,
     "a lancer at camp",
+  );
+  // No beast either (camp's own list of them is empty and accepted, as every world above shows).
+  const beast = E.spawnMount(at, px(100), px(130));
+  kept({ ...beast, camp: false, impsSent: 0, enemies: [] });
+  assert.equal(
+    E.decodeWorld(E.encodeWorld(beast)),
+    undefined,
+    "a beast at camp",
   );
 });
 

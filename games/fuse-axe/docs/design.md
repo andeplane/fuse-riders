@@ -105,6 +105,15 @@ Enemies ride beasts in later stages. Knock a rider off and anyone can climb on:
 
 A mounted hero who takes a hard hit is thrown off and the beast wanders until someone else takes it.
 
+The **clawbeak** (`src/engine/mount.ts`, tuned in `tuning.ts`'s mount constants) is in. A beast takes no blow: blades,
+thrown bodies and spells land on its rider. Its weapon is its tail: a telegraphed sweep that knocks down every foe
+within its reach on both sides, in a lane a little wider than a blade's. A ravager may ride one in (Wyrmbone Pass's
+waves 2 and 4, copied for a big party); the beast fights for the pair, walking up to its hero and sweeping once the hero
+is in reach, then standing open. A blow that knocks down knocks the rider off; the saddle takes a lighter one (the rider
+flashes, and a sweep still winding up is broken off), so the combo's finisher, a dash, a back or jump attack, a throw or
+a spell unseats it. Riderless, the beast panics away from the blow, wanders, and after ten seconds with nobody on it
+walks off the screen. Enemies never climb back on. Heroes climbing on (Jump beside a riderless beast) come next.
+
 A **sack imp** (`src/engine/imps.ts`) is sent by a cue in the stage's script (`STAGE_1.imps` in `stages.ts`: one
 after wave 2, one alongside wave 3, one after wave 4; Wyrmbone Pass has two; a single imp whatever the party's size). It scurries in from a
 screen edge and across the floor, zig-zagging in depth, never attacks and holds no wave's screen. Every blow that
@@ -143,10 +152,10 @@ Wyrmbone Pass but the last.
 1. **Ashen Village** — a dusk road through burning thatched huts. Ravagers and lancers; boss: the Ogre twins.
 2. **Wyrmbone Pass** — a mountain path through the ribs of a dead giant wyrm. Mounts appear; boss: a lancer captain
    on an ember drake. Playable as gameplay for now (`STAGE_2`): five screens of road, five waves of ravagers mostly in
-   rust and violet, each with a lancer or two, and two imps, and a pair of violet ravagers at the end in place of the
-   captain until mounts come. Its backdrop is a cold dawn under a setting moon: ribs arching over the road, a lesser
-   wyrm's skull partway, the raiders' camp, and the wyrm's great skull in the cliff at the end, its open jaws the gate
-   the boss waits in.
+   rust and violet, each with a lancer or two, waves 2 and 4 with a ravager riding a clawbeak, and two imps, and a pair
+   of violet ravagers at the end in place of the captain until his drake comes. Its backdrop is a cold dawn under a
+   setting moon: ribs arching over the road, a lesser wyrm's skull partway, the raiders' camp, and the wyrm's great
+   skull in the cliff at the end, its open jaws the gate the boss waits in.
 
    ![Wyrmbone Pass: the ribs and the lesser skull, and the skull gate in the last screen](images/stage2-backdrop.png)
 
@@ -227,7 +236,9 @@ another stage than the round or with no hero, tallies that are not the world's h
 row for each of them in seat order, and once it has ended at least its own: what earlier stages banked for a hero is
 not in the checkpoint to check against, so a later row is bounded below by its own stage only). A camp's world is
 refused anywhere but `between` with no clock, no continue spent and no outcome, after the last stage, or once it is
-over; held bits are refused over a tally, and at camp for a seat that plays no hero of it or is a bot.
+over, and one holding a spell, a beast or any enemy but a sack imp (a run casts nothing at camp either: `conjures` is
+false there, from a walk or a run); held bits are refused over a tally, and at camp for a seat that plays no hero of it
+or is a bot.
 
 ## Screen and art
 

@@ -375,8 +375,8 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
     b = play();
   assert.equal(seedOf(JSON.stringify(a)), seedOf(JSON.stringify(b)));
   // Falling for good, dropping back in and running out of lives are in ai.test.ts, grabs and throws in
-  // moves.test.ts, a sack imp's own states in imps.test.ts, an ogre's in ogre.test.ts, a lancer's in lancer.test.ts
-  // and magic in magic.test.ts.
+  // moves.test.ts, a sack imp's own states in imps.test.ts, an ogre's in ogre.test.ts, a lancer's in lancer.test.ts,
+  // magic in magic.test.ts and riding in mount.test.ts.
   const covered = (states: readonly string[]) =>
     states
       .filter(
@@ -387,7 +387,7 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
             ...["stumble", "flee"],
             ...["slam", "sweep", "stagger"],
             ...["thrust", "leap", "plunge"],
-            ...["charge", "cast"],
+            ...["charge", "cast", "ride"],
           ].includes(state),
       )
       .sort();
@@ -507,7 +507,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-15");
+  assert.equal(RULES, "fuse-axe-16");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {

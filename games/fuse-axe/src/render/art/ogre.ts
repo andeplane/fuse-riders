@@ -292,6 +292,7 @@ export type OgreAnim = Exclude<
   | "thrust"
   | "leap"
   | "plunge"
+  | "ride"
 >;
 
 type Frames = (readonly [OgreFrame, number])[];

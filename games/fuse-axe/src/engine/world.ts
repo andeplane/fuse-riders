@@ -14,6 +14,7 @@ import {
   KNOCK_VZ,
   LIVES,
   MAX_POTS,
+  SADDLE,
   SUB,
   TIERS,
   VIEW_W,
@@ -23,6 +24,7 @@ import {
   type EnemyKind,
   type HeroKind,
   type ItemKind,
+  type MountKind,
   type Tier,
 } from "./tuning.js";
 import { clamp } from "./math.js";
@@ -32,7 +34,7 @@ import { STAGES, planOf } from "./stages.js";
  * One run's world: plain integer data, so the netcode can clone, hash and checkpoint it. Space is `x` along the
  * road, `y` depth on the floor band (larger is nearer the viewer) and `z` height above the floor, all in sub-units;
  * the camera's left edge is `camX`. Heroes are kept in id order, which is seat order; enemies follow in id order,
- * the order they spawned in, and items on the floor in theirs: one id sequence for all three.
+ * the order they spawned in, and items on the floor and beasts in theirs: one id sequence for them all.
  */
 export const HERO_STATES = [
   "idle",
@@ -118,6 +120,10 @@ export interface Hero {
   magicDamage: number;
 }
 
+/**
+ * An enemy's states. `ride` is a ravager's alone (`mount.ts`): it sits a beast's saddle, and no other kind mounts one
+ * (`OGRE_STATES` and `LANCER_STATES` leave it out, as the checkpoint does for an imp).
+ */
 export const ENEMY_STATES = [
   "idle",
   "hurt",
@@ -140,6 +146,7 @@ export const ENEMY_STATES = [
   "thrust",
   "leap",
   "plunge",
+  "ride",
 ] as const;
 export type EnemyState = (typeof ENEMY_STATES)[number];
 /**
@@ -168,14 +175,46 @@ export const IMP_ONLY: readonly EnemyState[] = ["stumble", "flee"];
  */
 export const OGRE_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
   (state) =>
-    !["hurt", "attack", "held", "thrown", ...IMP_ONLY, ...LANCER_ONLY].includes(
-      state,
-    ),
+    ![
+      ...["hurt", "attack", "held", "thrown", "ride"],
+      ...IMP_ONLY,
+      ...LANCER_ONLY,
+    ].includes(state),
 );
 export const OGRE_ONLY: readonly EnemyState[] = ["slam", "sweep", "stagger"];
 export const LANCER_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
-  (state) => !["attack", ...IMP_ONLY, ...OGRE_ONLY].includes(state),
+  (state) => !["attack", "ride", ...IMP_ONLY, ...OGRE_ONLY].includes(state),
 );
+
+/** A beast's states with a rider on it (`RIDDEN`), then riderless: it panics (`flee`), wanders or leaves. */
+export const MOUNT_STATES = [
+  ...["enter", "idle", "walk", "sweep"],
+  ...["flee", "wander", "leave"],
+] as const;
+export type MountState = (typeof MOUNT_STATES)[number];
+export const RIDDEN: readonly MountState[] = MOUNT_STATES.slice(0, 4);
+
+/**
+ * A beast to ride (`mount.ts`). Its rider, an enemy in `ride`, stands where it does, on its floor (the view lifts the
+ * rider into the saddle), and moves with it. It takes no blow itself, and stands on the floor (`z` 0).
+ */
+export interface Mount {
+  id: number;
+  kind: MountKind;
+  x: number;
+  y: number;
+  z: number;
+  facing: 1 | -1;
+  state: MountState;
+  /** Steps since `state` began. */
+  timer: number;
+  /** Who rides it: a hero's or an enemy's id, or 0 for nobody. */
+  rider: number;
+  /** The x a wave's beast walks in to. */
+  goal: number;
+  /** The beast sweeps its tail again no sooner than this step. */
+  coolUntil: number;
+}
 
 export interface Enemy {
   id: number;
@@ -283,6 +322,8 @@ export interface World {
   spells: Spell[];
   /** The stage the world is, from 1: its road, waves and imps are `STAGES[stage - 1]` (`planOf`). */
   stage: number;
+  /** The beasts, in id order (their ids from the one sequence too), at most `MOUNT_MAX`. */
+  mounts: Mount[];
   /** Camp after stage `stage` (`camp.ts`): one screen, no waves, only sack imps, and its own plan (`CAMP`). */
   camp: boolean;
 }
@@ -427,6 +468,7 @@ export function createWorld(options: {
     impsSent: 0,
     spells: [],
     stage,
+    mounts: [],
     camp,
   };
 }
@@ -522,8 +564,8 @@ export function nearestHero(world: World, enemy: Enemy): Hero | undefined {
   return nearest;
 }
 
-/** Turns an enemy toward `x`; one straight above or below it in depth keeps its facing. */
-export function face(enemy: Enemy, x: number): void {
+/** Turns an enemy (or a beast) toward `x`; one straight above or below it in depth keeps its facing. */
+export function face(enemy: Enemy | Mount, x: number): void {
   if (x !== enemy.x) enemy.facing = x > enemy.x ? 1 : -1;
 }
 
@@ -555,11 +597,23 @@ export function spark(
   if (world.fx.length > FX_MAX) world.fx.shift();
 }
 
+/** The beast enemy `id` rides, if it rides one. */
+export const mountOf = (world: World, id: number): Mount | undefined =>
+  world.mounts.find((each) => each.rider === id);
+
 /**
  * Knocks an enemy down, launched up and away the way `dir` points along the road (facing back at the blow), going for
- * nobody and held still for the heavy hit-stop. An ogre's poise is whole again.
+ * nobody and held still for the heavy hit-stop. A rider falls from the saddle, and its beast, riderless, panics away
+ * from the blow (`mount.ts`). An ogre's poise is whole again.
  */
 export function launch(world: World, enemy: Enemy, dir: 1 | -1): void {
+  const mount = enemy.state === "ride" ? mountOf(world, enemy.id) : undefined;
+  if (mount) {
+    mount.rider = 0;
+    mount.facing = dir;
+    setState(mount, "flee");
+    enemy.z = mount.z + SADDLE;
+  }
   enemy.state = "knockdown";
   enemy.poise = 0;
   enemy.timer = enemy.target = 0;

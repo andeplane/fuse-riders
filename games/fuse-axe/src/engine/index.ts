@@ -1,5 +1,5 @@
 /** Fuse Axe's engine: deterministic rules with no imports from outside this folder. */
-export const RULES = "fuse-axe-15";
+export const RULES = "fuse-axe-16";
 export * from "./input.js";
 export {
   carryOf,
@@ -21,6 +21,8 @@ export {
   type HeroEntry,
   type HeroState,
   type Item,
+  type Mount,
+  type MountState,
   type Spell,
   type World,
 } from "./world.js";
@@ -28,6 +30,7 @@ export { revive, step, stepTick } from "./step.js";
 export { botInput } from "./bot.js";
 export { sendImp } from "./imps.js";
 export { campLeft, campOver } from "./camp.js";
+export { spawnMount } from "./mount.js";
 export {
   toView,
   type BossView,
@@ -37,6 +40,8 @@ export {
   type HeroAnim,
   type HeroView,
   type ItemView,
+  type MountAnim,
+  type MountView,
   type SpellView,
   type WorldView,
 } from "./view.js";
@@ -70,6 +75,7 @@ export {
   type EnemyKind,
   type HeroKind,
   type ItemKind,
+  type MountKind,
   type SpellKind,
   type Tier,
 } from "./tuning.js";

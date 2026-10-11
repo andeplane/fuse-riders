@@ -4,17 +4,22 @@ import type {
   HeroView,
   ItemKind,
   ItemView,
+  MountKind,
+  MountView,
   Tier,
   WorldView,
 } from "../engine/view.js";
 import {
   CAMERA_END_PX,
+  CLAWBEAK,
+  CLAWBEAK_STEPS,
   DEAD_STEPS,
   VIEW_H,
   VIEW_W,
   cameraEndPx,
 } from "../engine/view-kit.js";
 import { enemyFrame, heroFrame } from "./art/animate.js";
+import { CLAWBEAK_SPRITE } from "./art/clawbeak.js";
 import { IMP } from "./art/imp.js";
 import { MEAT } from "./art/meat.js";
 import { HEROES } from "./art/index.js";
@@ -103,6 +108,27 @@ export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = {
 export const ITEM_SHADE = 3;
 /** The dark laid over camp's placeholder backdrop, Stage 1's first screen, until camp has art of its own. */
 export const NIGHT = "rgba(8, 4, 28, 0.62)";
+
+/**
+ * What each beast draws (a kind from a build with more of them, a clawbeak) until the mount art comes: a silhouette,
+ * blinking as its tail winds up (every `TELEGRAPH` steps) and with a streak of its lashing tail `TAIL_ROW` above its
+ * feet, its reach either side, for `LASH_STEPS` from the step it lands. Its shadow is a third wider than a body's.
+ */
+export const MOUNT_ART: Readonly<Record<MountKind, Sprite>> = {
+  clawbeak: CLAWBEAK_SPRITE,
+};
+export const TELEGRAPH = 3;
+export const TAIL_ROW = 6;
+export const LASH_STEPS = 6;
+const LASH = "#f4f8ff";
+const winding = (mount: MountView) =>
+  mount.anim === "sweep" &&
+  mount.animStep < CLAWBEAK_STEPS.windup &&
+  Math.floor(mount.animStep / TELEGRAPH) % 2 === 0;
+const lashing = (mount: MountView) =>
+  mount.anim === "sweep" &&
+  mount.animStep >= CLAWBEAK_STEPS.windup &&
+  mount.animStep < CLAWBEAK_STEPS.windup + LASH_STEPS;
 
 /** How a hero looks: its figure and its palette. */
 export interface HeroLook {
@@ -232,6 +258,8 @@ interface Standing {
   readonly shade?: number;
   /** An enraged ogre's steam, drawn with it so a figure in front of it hides the puffs: where it rises from its feet. */
   readonly steam?: { readonly enemy: EnemyView; readonly crown: Point };
+  /** A beast's tail lashing round it, drawn with it. */
+  readonly tail?: boolean;
 }
 
 /**
@@ -308,7 +336,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         field.fillStyle = NIGHT;
         fill(field, 0, 0, VIEW_W, VIEW_H);
       }
-      const at = (f: HeroView | EnemyView | ItemView) => ({
+      const at = (f: HeroView | EnemyView | ItemView | MountView) => ({
         id: f.id,
         y: Math.floor(f.y),
         z: Math.floor(f.z),
@@ -363,6 +391,18 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           lit: !item.blink || blinksOn(frame),
           shade: ITEM_SHADE,
         });
+      // A beast stands among them, its rider on it: the rider shares its depth, higher up, so it is drawn after.
+      for (const mount of view.mounts)
+        standing.push({
+          ...at(mount),
+          sprite: Object.hasOwn(MOUNT_ART, mount.kind)
+            ? MOUNT_ART[mount.kind]
+            : CLAWBEAK_SPRITE,
+          options: { flash: winding(mount), flip: mount.facing < 0 },
+          lit: true,
+          shade: Math.round((shadowRadius(mount.z) * 4) / 3),
+          tail: lashing(mount),
+        });
       standing.sort((a, b) => a.y - b.y || a.z - b.z || a.id - b.id);
       for (const { y, z, sx, shade } of standing) {
         const s = shadow(shade ?? shadowRadius(z));
@@ -375,11 +415,16 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         const top = crown(looks.get(hero.id)!.figure);
         spells.aura(field, hero, sx, y - z, top, frame);
       }
-      for (const { y, z, sx, sprite, options, lit, steam } of standing) {
+      for (const { y, z, sx, sprite, options, lit, steam, tail } of standing) {
         if (!lit) continue;
         const b = baker.bake(sprite, options);
         blit(field, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
         if (steam) drawSteam(field, steam.enemy, steam.crown, camX, frame);
+        if (tail) {
+          const reach = Math.round(CLAWBEAK.reach);
+          field.fillStyle = LASH;
+          fill(field, sx - reach, y - z - TAIL_ROW, 2 * reach + 1, 1);
+        }
       }
       for (const { y, z, sx, marker } of standing) {
         if (!marker) continue;
