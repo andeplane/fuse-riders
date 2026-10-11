@@ -40,12 +40,17 @@ const THINKS: readonly EnemyState[] = [
   "windup",
   "attack",
   "recover",
-  // An ogre's (`ogre.ts`) and a lancer's (`lancer.ts`), which they play out themselves.
+  // An ogre's (`ogre.ts`), a lancer's (`lancer.ts`) and Vorhal's (`vorhal.ts`), which they play out themselves.
   "slam",
   "sweep",
   "stagger",
   "thrust",
   "plunge",
+  "cut1",
+  "cut2",
+  "cast",
+  "summon",
+  "roar",
 ];
 export const thinks = (enemy: Enemy): boolean => THINKS.includes(enemy.state);
 

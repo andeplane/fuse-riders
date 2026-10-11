@@ -58,6 +58,8 @@ export const TEXT = {
   tapAttack: "Tap ATTACK to fight on",
   waitHeroes: "A hero may continue the run",
   victory: "VICTORY",
+  restored:
+    "Vorhal has fallen. The Ember Axe is whole again, and the hearth-fires burn",
   defeat: "GAME OVER",
   reached: (round: number, last: number) =>
     `STAGE ${round} OF ${last} · ${STAGE_NAMES[round] ?? ""}`,
@@ -312,7 +314,8 @@ function card(view: View, viewer: Viewer, hero: boolean): Card | null {
     return {
       kind: won ? "victory" : "defeat",
       title: won ? TEXT.victory : TEXT.defeat,
-      line: TEXT.reached(view.round, view.lastStage),
+      // A run is won only past its last stage, Vorhal's Keep: its card tells of the Ember Axe made whole.
+      line: won ? TEXT.restored : TEXT.reached(view.round, view.lastStage),
       seconds: null,
       hint: host ? TEXT.hostChoice : TEXT.waitHost,
       rows: rows(view, "run"),

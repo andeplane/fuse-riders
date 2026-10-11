@@ -46,9 +46,10 @@ import { bayer } from "./backdrop/kit.js";
 import { blinksOn, createHud, type HudSeats } from "./hud.js";
 import { drawFlame } from "./drake-fx.js";
 import { drawCracks, drawShards, drawSteam } from "./ogre-fx.js";
+import { drawHorns, drawPillars, drawSigils } from "./vorhal-fx.js";
 import { blit, fill, type Pen } from "./pen.js";
 import type { Figure } from "./pixel/kit.js";
-import { UNLIT, type Palette } from "./pixel/palette.js";
+import { UNLIT, rampSwap, type Palette } from "./pixel/palette.js";
 import type { Point } from "./pixel/rig.js";
 import { cropSprite, type Sprite } from "./pixel/sprite.js";
 import { createSpriteBaker, type BakeOptions } from "./pixel/surface.js";
@@ -98,7 +99,17 @@ interface EnemyArt {
   };
   /** Its shadow's width as a multiple of a body's (none: a body's). */
   readonly shade?: number;
+  /** Where its horns curl up in each frame (`drawHorns`): the top of its skull, from its feet. */
+  readonly horns?: Readonly<Record<string, Point>>;
 }
+/** Vorhal until he has art of his own: an ogre in dark steel and ash with burning eyes, crimson once enraged. */
+const VORHAL_LOOK = {
+  ...rampSwap("Oo2", "Ii#"),
+  ...rampSwap("Ll9", "Aa$"),
+  D: "#ff3a2e",
+};
+const VORHAL_RAGE = { ...VORHAL_LOOK, ...rampSwap("Ll9", "Cc0") };
+const each = <P>(palette: P) => ({ 0: palette, 1: palette, 2: palette });
 /** Every enemy kind's art. A kind from a build with more of them draws as a ravager, as `enemyFrame` plays it. */
 export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   ravager: {
@@ -127,6 +138,13 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
       2: BONEWALKER_TIERS.violet,
     },
     figures: { 2: BONE_KNIGHT },
+  },
+  vorhal: {
+    figure: OGRE,
+    tiers: each(VORHAL_LOOK),
+    rage: { tiers: each(VORHAL_RAGE), crowns: OGRE_CROWNS },
+    shade: 1.5,
+    horns: OGRE_CROWNS,
   },
 };
 /** What each item kind draws (a kind from a build with more of them, a pot), and the half-width of its shadow. */
@@ -316,6 +334,8 @@ interface Standing {
   readonly steam?: { readonly enemy: EnemyView; readonly crown: Point };
   /** A beast's flame if it is a drake breathing one, drawn with it likewise, from the jaws of the frame it shows. */
   readonly flame?: { readonly mount: MountView; readonly frame: string };
+  /** Vorhal's horns, drawn with him: where they curl up from his feet. */
+  readonly horns?: { readonly enemy: EnemyView; readonly crown: Point };
 }
 
 /**
@@ -445,9 +465,11 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         const rage = enemy.enraged ? art.rage : undefined;
         const crown = rage?.crowns[pose];
         const figure = art.figures?.[enemy.tier] ?? art.figure;
+        const horn = art.horns?.[pose];
         standing.push({
           ...at(enemy),
           ...(crown && enemy.anim !== "dead" && { steam: { enemy, crown } }),
+          ...(horn && { horns: { enemy, crown: horn } }),
           sprite: figure.sprite(pose),
           options: {
             swap: (rage ?? art).tiers[enemy.tier],
@@ -494,6 +516,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       }
       spells.ground(field, view, frame);
       drawCracks(field, view.enemies, camX);
+      drawSigils(field, view.sigils, camX, frame);
       for (const hero of view.heroes) {
         const { y, z, sx } = at(hero);
         const top = crown(looks.get(hero.id)!.figure);
@@ -501,7 +524,8 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       }
       // Camp's fire stands among the figures: after those further up the floor, before those in front of it.
       let prop = backdrop.prop;
-      for (const { y, z, sx, sprite, options, lit, steam, flame } of standing) {
+      for (const each of standing) {
+        const { y, z, sx, sprite, options, lit, steam, flame, horns } = each;
         if (prop && y > prop.y) {
           prop.draw(field, frame);
           prop = undefined;
@@ -509,6 +533,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         if (!lit) continue;
         const b = baker.bake(sprite, options);
         blit(field, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
+        if (horns) drawHorns(field, horns.enemy, horns.crown, camX);
         if (steam) drawSteam(field, steam.enemy, steam.crown, camX, frame);
         if (flame) drawFlame(field, baker, flame.mount, flame.frame, camX);
       }
@@ -522,6 +547,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         blit(field, m.image, m.w, m.h, sx - (m.w >> 1), top);
       }
       drawShards(field, view.enemies, camX);
+      drawPillars(field, view.sigils, camX, frame);
       for (const fx of view.fx) drawSpark(field, fx, camX);
       backdrop.drawFront(field, backX);
       spells.draw(field, view, frame);

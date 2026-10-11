@@ -1,4 +1,4 @@
-import type { EnemyAnim, Tier } from "../../engine/view.js";
+import type { EnemyAnim, Tier, VorhalAnim } from "../../engine/view.js";
 import { LANCER_STEPS, SPEAR } from "../../engine/view-kit.js";
 import type { AnimStrip } from "./animate.js";
 import {
@@ -410,6 +410,7 @@ export type LancerAnim = Exclude<
   | "rise"
   | "pile"
   | "reassemble"
+  | VorhalAnim
 >;
 
 const W = LANCER_WALK_STEPS;

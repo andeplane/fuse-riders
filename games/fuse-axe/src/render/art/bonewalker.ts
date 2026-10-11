@@ -1,4 +1,4 @@
-import type { EnemyAnim } from "../../engine/view.js";
+import type { EnemyAnim, VorhalAnim } from "../../engine/view.js";
 import { BONE_SWORD, BONEWALKER_STEPS } from "../../engine/view-kit.js";
 import type { AnimStrip } from "./animate.js";
 import {
@@ -349,7 +349,7 @@ export type BonewalkerFrame = keyof typeof BONEWALKER_POSES;
 /** The enemy view's anims a bonewalker has: a ravager's but riding, and its rise, bone pile and reassembly. */
 export type BonewalkerAnim = Exclude<
   EnemyAnim,
-  "stumble" | "flee" | "slam" | "sweep" | "stagger" | "thrust" | "leap" | "plunge" | "ride" // prettier-ignore
+  "stumble" | "flee" | "slam" | "sweep" | "stagger" | "thrust" | "leap" | "plunge" | "ride" | VorhalAnim // prettier-ignore
 >;
 type Strip = AnimStrip<BonewalkerFrame>;
 const once = (...frames: (readonly [BonewalkerFrame, number])[]): Strip => ({

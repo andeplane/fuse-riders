@@ -162,6 +162,7 @@ export const BOSS_NAMES: Readonly<Record<EnemyKind, string>> = {
   lancer: "LANCER",
   captain: "LANCER CAPTAIN",
   bonewalker: "BONE KNIGHTS",
+  vorhal: "VORHAL",
 };
 export const bossName = (kind: EnemyKind): string =>
   Object.hasOwn(BOSS_NAMES, kind) ? BOSS_NAMES[kind] : "BOSS";
