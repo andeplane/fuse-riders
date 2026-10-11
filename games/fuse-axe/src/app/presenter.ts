@@ -47,6 +47,8 @@ const TICKS_PER_SECOND = 1000 / TICK_MS;
 export const TEXT = {
   clear: (round: number) => `STAGE ${round} CLEAR`,
   onward: "The road goes on in",
+  camp: "CAMP",
+  campLine: "Kick the thieves: meat heals",
   won: "The run is won in",
   continueTitle: "CONTINUE?",
   fallen: "Every hero has fallen",
@@ -83,11 +85,11 @@ export interface TallyRow {
   knockdowns: number;
 }
 /**
- * The card over the game while the stage flow holds it: a cleared stage's tally, the continue countdown, or the run's
- * end with its summary. `seconds` counts down whole seconds (rounded up) where a clock runs.
+ * The card over the game while the stage flow holds it: a cleared stage's tally, camp's caption, the continue
+ * countdown, or the run's end with its summary. `seconds` counts down whole seconds (rounded up) where a clock runs.
  */
 export interface Card {
-  kind: "clear" | "continue" | "victory" | "defeat";
+  kind: "clear" | "camp" | "continue" | "victory" | "defeat";
   title: string;
   /** The stage, or what happened. */
   line: string;
@@ -155,7 +157,7 @@ export function present(view: View, viewer: Viewer): Model {
     room = !viewer.solo && !viewer.display;
   const screen =
     view.stage === "lobby" ? "lobby" : shared && seated ? "controller" : "play";
-  const playing = inWorld && view.stage === "running";
+  const playing = inWorld && (view.stage === "running" || !!view.world?.camp);
   const pads = screen === "controller" || (viewer.touch && playing);
   let note = "";
   if (screen === "lobby")
@@ -258,13 +260,25 @@ function rows(view: View, of: "stage" | "run"): TallyRow[] {
 }
 
 /**
- * The stage flow's card: the tally between stages, the countdown while every hero is out (a vote for a present hero
- * of the run, a wait for everyone else), and the outcome with the run's summary once it is over (the host's REMATCH
- * and lobby). None while the party fights, or in the lobby.
+ * The stage flow's card: the tally between stages, then camp's caption (small, over the top of the camp the heroes
+ * play in), the countdown while every hero is out (a vote for a present hero of the run, a wait for everyone else),
+ * and the outcome with the run's summary once it is over (the host's REMATCH and lobby). None while the party fights,
+ * or in the lobby.
  */
 function card(view: View, viewer: Viewer, hero: boolean): Card | null {
   const seconds = Math.ceil(view.countdown / TICKS_PER_SECOND),
     host = viewer.host && !viewer.display;
+  if (view.stage === "between" && view.world?.camp)
+    return {
+      kind: "camp",
+      title: TEXT.camp,
+      line: TEXT.campLine,
+      seconds,
+      hint: TEXT.onward,
+      rows: [],
+      canContinue: false,
+      canRematch: false,
+    };
   if (view.stage === "between")
     return {
       kind: "clear",

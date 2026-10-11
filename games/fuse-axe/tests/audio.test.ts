@@ -43,7 +43,7 @@ const world = (
   extra: Partial<V.WorldView> = {},
 ): V.WorldView => ({
   ...{ step, camX: 0, heroes: [hero()], enemies: [], fx: [], items: [] },
-  ...{ spells: [], mounts: [], stage: 1, wave: 1 },
+  ...{ spells: [], mounts: [], stage: 1, camp: false, wave: 1 },
   ...{ waves: 4, locked: false, go: false, cleared: false, defeated: false },
   boss: null,
   ...extra,
@@ -324,6 +324,21 @@ test("two blows on one hero in quick succession each grunt; a blow a rollback sh
       at(45, 44), // and the second
     ]),
     [[], ["hurt"], ["hurt"], [], [], []],
+  );
+});
+
+test("camp starts from what it shows, and meat eaten there sounds as a pot picked up", () => {
+  const between = (step: number, hp: number, camp: boolean) =>
+    frame(world(step, { camp, heroes: [hero({ hp })] }), { stage: "between" });
+  const camp = (step: number, hp: number) => between(step, hp, true);
+  assert.deepEqual(
+    hear([
+      between(900, 60, false), // the stage's tally
+      camp(0, 30), // a new world, its step and health and all: no news
+      camp(3, 45), // meat
+      camp(6, 45),
+    ]),
+    [[], [], ["pot"], []],
   );
 });
 

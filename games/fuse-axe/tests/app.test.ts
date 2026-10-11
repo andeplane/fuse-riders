@@ -679,3 +679,27 @@ test("sessions: solo, landing, a joiner's kept token, the creator's token and a 
   assert.match(roomFailure("room is for another game"), /another game/);
   assert.equal(roomFailure("full"), "full");
 });
+
+test("camp is played: the hero's keys and pads are its own, and a small CAMP caption counts down to the road", () => {
+  const camp = createWorld({
+    seed: 1,
+    camp: true,
+    heroes: [
+      { seat: 0, kind: "rhea" },
+      { seat: 1, kind: "gorm" },
+    ],
+  });
+  const shown = frame("between", { world: { ...camp, step: 300 } });
+  const mine = present(shown, { ...host, touch: true });
+  assert.ok(mine.playing && mine.pads, "a phone steers its hero at camp");
+  assert.deepEqual(
+    [mine.card!.kind, mine.card!.title, mine.card!.line, mine.card!.hint],
+    ["camp", TEXT.camp, TEXT.campLine, TEXT.onward],
+  );
+  assert.deepEqual([mine.card!.seconds, mine.card!.rows], [15, []]);
+  assert.ok(!mine.card!.canContinue && !mine.card!.canRematch);
+  assert.equal(present(shown, tv).playing, false, "the TV plays no hero");
+  // Over the tally before it the keys are nobody's.
+  const tally = frame("between", { until: CLEAR_TICKS });
+  assert.equal(present(tally, host).playing, false);
+});

@@ -19,17 +19,20 @@ const ROWS = [
   "..kkkk..",
 ];
 
-export function paintPot(): Sprite {
-  const keys = [...new Set(ROWS.join(""))].filter((key) => key !== ".");
+/** An item placed pixel by pixel in master-palette keys, anchored at column `ax` of the row above its last. */
+export function paintItem(rows: readonly string[], ax: number): Sprite {
+  const keys = [...new Set(rows.join(""))].filter((key) => key !== ".");
   const palette = Object.fromEntries(keys.map((key) => [key, MASTER[key]!]));
   return {
-    w: 8,
-    h: ROWS.length,
-    ax: 3,
-    ay: ROWS.length - 2,
+    w: rows[0]!.length,
+    h: rows.length,
+    ax,
+    ay: rows.length - 2,
     palette,
-    rows: ROWS,
+    rows,
   };
 }
+
+export const paintPot = (): Sprite => paintItem(ROWS, 3);
 
 export const POT = paintPot();
