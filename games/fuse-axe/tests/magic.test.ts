@@ -387,7 +387,7 @@ test("two heroes casting on one step both land, in id order: the first's blow ma
   );
 });
 
-test("the view shows the charge, the cast and each spell's kind, level and age; the frames borrow the finisher's", () => {
+test("the view shows the charge, the cast and each spell's kind, level and age, each with a frame of its own", () => {
   const cast = run(hold(armed("gorm"), 3), 5);
   const view = toView(cast);
   assert.deepEqual(
@@ -395,8 +395,8 @@ test("the view shows the charge, the cast and each spell's kind, level and age; 
     ["cast", 0, 0],
   );
   assert.deepEqual(view.spells, [{ hero: 1, kind: "earth", level: 3, age: 5 }]);
-  assert.equal(heroFrame("gorm", "charge", 9), "windup3");
-  assert.equal(heroFrame("gorm", "cast", 9), "strike3");
+  assert.equal(heroFrame("gorm", "charge", 9), "charge");
+  assert.equal(heroFrame("gorm", "cast", 9), "cast");
 });
 
 test("a world mid-charge and mid-spell survives the checkpoint whole and plays on identically; a corrupt spell or charge is refused", () => {
