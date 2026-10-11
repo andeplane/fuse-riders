@@ -48,7 +48,7 @@ import { bayer } from "./backdrop/kit.js";
 import { blinksOn, createHud, type HudSeats } from "./hud.js";
 import { drawFlame } from "./drake-fx.js";
 import { drawCracks, drawShards, drawSteam } from "./ogre-fx.js";
-import { drawPillars, drawSigils } from "./vorhal-fx.js";
+import { pillarSprite, sigilSprite } from "./vorhal-fx.js";
 import { blit, fill, type Pen } from "./pen.js";
 import type { Figure } from "./pixel/kit.js";
 import { UNLIT, type Palette } from "./pixel/palette.js";
@@ -70,7 +70,8 @@ import type { MakeSurface } from "./surface.js";
  * its facing, an enemy flashing in hit-stop and blinking out when
  * defeated, a beast's rider astride its saddle over it, a hero blinking while it is invulnerable and an item before it
  * vanishes; an ogre's shockwave cracking the
- * floor under the figures and bursting dust over them, and an enraged ogre's steam, drawn with it (`ogre-fx.ts`); the hit sparks; the
+ * floor under the figures and bursting dust over them, and an enraged ogre's steam, drawn with it (`ogre-fx.ts`);
+ * Vorhal's sigils glowing on the floor under the figures and their pillars of fire among them (`vorhal-fx.ts`); the hit sparks; the
  * grass in front; the spells playing (`spells/`), a charging or casting hero glowing behind its sprite and the field
  * shaking a moment at a spell's blow; a flashing GO → when the road ahead opens; and over it all the HUD (`hud.ts`),
  * naming each seat's player from `seats` (the room's names, which the world does not hold). It only draws: positions
@@ -328,6 +329,8 @@ interface Standing {
   /** A beast's flame if it is a drake breathing one, drawn with it likewise, from the jaws of the frame it shows. */
   readonly flame?: { readonly mount: MountView; readonly frame: string };
 }
+/** A pillar of fire's id among the figures: after every figure's, so one on its very row draws inside it. */
+const PILLAR_ID = 2 ** 30;
 
 /**
  * The backdrop a stage draws on, and where its camera stands: the stage's own art at the camera, or for a stage with
@@ -500,6 +503,15 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           shade: Math.round((shadowRadius(mount.z) * 4) / 3),
         });
       }
+      // A pillar of fire stands among them by its sigil's depth, engulfing a figure on that very row.
+      view.sigils.forEach(({ x, y, age }, i) => {
+        const sprite = pillarSprite(age, frame);
+        if (sprite)
+          standing.push({
+            ...{ id: PILLAR_ID + i, y: Math.floor(y), z: 0, shade: 0 },
+            ...{ sx: Math.floor(x - camX), sprite, options: {}, lit: true },
+          });
+      });
       standing.sort((a, b) => a.y - b.y || a.z - b.z || a.id - b.id);
       for (const { y, z, sx, shade } of standing) {
         if (shade === 0) continue;
@@ -508,7 +520,12 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       }
       spells.ground(field, view, frame);
       drawCracks(field, view.enemies, camX);
-      drawSigils(field, view.sigils, camX, frame);
+      for (const { x, y, age } of view.sigils) {
+        const sigil = sigilSprite(age, frame);
+        if (!sigil) continue;
+        const b = baker.bake(sigil);
+        blit(field, b.image, b.w, b.h, Math.floor(x - camX) - b.ax, Math.floor(y) - b.ay); // prettier-ignore
+      }
       for (const hero of view.heroes) {
         const { y, z, sx } = at(hero);
         const top = crown(looks.get(hero.id)!.figure);
@@ -538,7 +555,6 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         blit(field, m.image, m.w, m.h, sx - (m.w >> 1), top);
       }
       drawShards(field, view.enemies, camX);
-      drawPillars(field, view.sigils, camX, frame);
       for (const fx of view.fx) drawSpark(field, fx, camX);
       backdrop.drawFront(field, backX);
       spells.draw(field, view, frame);
