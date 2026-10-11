@@ -190,6 +190,19 @@ as the body dips: `CLAWBEAK_DIPS`), in the beast's shadow; `tests/clawbeak-art.t
 
 ![The clawbeak's frames, riderless and ridden, and two frames of the scene from a real engine world: the wind-up and the lash](docs/images/clawbeak-frames.png)
 
+A hero riding sits astride too, in four frames of its own (`ride`, `ridewindup`, `rideattack`, `ridehop`): hips on
+the seat, the far leg out of sight (`astride` on the pose skips it), the near boot in the stirrup and the weapon held
+ready. The hero's anim is `ride` throughout, so `riderFrame(anim, animStep)` (`animate.ts`) picks the frame from its
+beast's: braced, weapon cocked, while the tail winds up or an ember drake inhales; leaning in, weapon pointed at the
+foe, from the step the tail lands (or the flame is out) to the blow's end; crouched forward, weapon raised, through a
+hop; seated otherwise (the captain's saddle thrust, `lance`, is his, not a hero's, and `heroFrame` sits a rider whose
+beast is not in the view). Gorm's legs are shorter than the stirrup a ravager rides with, so his seated near leg is
+drawn longer, its thigh under the tunic. The rider's marker hangs over its seated head. `tests/hero-ride.test.ts`
+seats every frame on every frame a ridden clawbeak or drake shows and checks the mapping against the engine; the lab
+plays the three heroes riding each.
+
+![Each hero's riding frames on the clawbeak (sitting, walking, the wind-up, the lash, the hop), and a frame of the scene from a real engine world: Brakka's lash, Rhea's hop, Gorm's wind-up](docs/images/hero-riders.png)
+
 ## Scene
 
 `src/render/scene.ts` draws one native 320 × 180 frame of the view: `createScene(make).draw(ctx, view, frame)`, where

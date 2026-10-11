@@ -125,6 +125,24 @@ const run = [0, 1, 2, 3, 4, 5].map((i) => {
   });
 });
 
+/**
+ * Riding a beast, seated astride its saddle: the hips on the seat, the near leg down its flank to the stirrup, the
+ * boot's sole on the anchor (which the scene sets on the saddle point), the far leg out of sight on its far side and
+ * the far hand on the reins.
+ */
+const seat = adjust(idle, {
+  head: [38, 35.5],
+  chest: [35.5, 46.5],
+  waist: [35.5, 52.5],
+  far: { ...armTo(F, [29.5, 43.5], [39, 52]), hip: [33, 57.5] },
+  near: {
+    ...armTo(N, [43, 43.5], [48.5, 50]),
+    ...legTo(N, [38.5, 57.5], [40.5, 71.5]),
+  },
+  sword: -60,
+  astride: true,
+});
+
 const poses: Readonly<Record<HeroFrame, BrakkaPose>> = {
   idle0: idle,
   idle1: adjust(idle, { ...breath(idle, 1), sword: -64 }),
@@ -476,6 +494,34 @@ const poses: Readonly<Record<HeroFrame, BrakkaPose>> = {
     sword: 200,
     lookBack: true,
   }),
+  // In the saddle: the sword held ready; cocked back over his shoulder as the beast winds up, then pointed at the foe
+  // as it strikes; hunched over its neck through a hop.
+  ride: seat,
+  ridewindup: adjust(seat, {
+    head: [35.5, 35.5],
+    chest: [34.5, 46.5],
+    waist: [35, 52.5],
+    far: armTo(F, [28, 43.5], [37, 52]),
+    near: armTo(N, [41.5, 43.5], [47, 33], 1),
+    sword: -125,
+  }),
+  rideattack: adjust(seat, {
+    head: [41, 36.5],
+    chest: [38.5, 47],
+    waist: [36.5, 52.5],
+    far: armTo(F, [32, 44], [40, 53]),
+    near: armTo(N, [45.5, 44], [55, 46]),
+    sword: 8,
+    face: "yell",
+  }),
+  ridehop: adjust(seat, {
+    head: [41, 37.5],
+    chest: [38, 47.5],
+    waist: [36.5, 53],
+    far: armTo(F, [31.5, 45], [42, 53]),
+    near: armTo(N, [45, 45], [52, 38]),
+    sword: -80,
+  }),
 };
 export const BRAKKA_POSES = poses;
 
@@ -493,7 +539,7 @@ export function paintBrakka(pose: BrakkaPose): Sprite {
   if (pose.smear) rig.smear(pose.smear);
   arm(rig, far, { ...BACK, bracer: "l" });
   fist(rig, far.hand, BACK);
-  leg(rig, far, { ...BACK, cuff: "b" });
+  if (!pose.astride) leg(rig, far, { ...BACK, cuff: "b" });
   // Torso, pecs, a four-pack and the neck, all one part.
   const body = { group: "body" };
   rig.ellipse(waist, 6, 5.5, "s", body);
