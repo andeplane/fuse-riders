@@ -1,7 +1,7 @@
 # Fuse Axe
 
-A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Work in progress: see
-[`docs/design.md`](docs/design.md) for the game and the delivery plan, and
+A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Playable from the first stage to the
+final boss; see [`docs/design.md`](docs/design.md) for the game, the delivery plan and its status, and
 [`docs/concept-art.html`](docs/concept-art.html) (open it in a browser) for the concept art.
 
 ## Play it
@@ -9,10 +9,12 @@ A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Wo
 Open `/fuse-axe/` on a running service, or pick **Fuse Axe** from the app portal (the dot grid at the top left of
 every game). **PLAY SOLO** opens the hero picker; **CREATE ROOM** makes a room to share by code, link or QR code,
 where everyone picks a hero (duplicates are allowed) and the host presses **START**. In either lobby the host's
-**+ BOT** seats a bot companion (see [Bots and the golden replay](#bots-and-the-golden-replay)). The heroes walk, run, jump and swing
-through Stage 1's waves of ravagers in the pixel-art scene under the HUD. Clearing the stage shows each hero's
-tally, then the run's victory; when every hero is out, any hero may press Attack within ten seconds to continue once,
-or the run is over. The host sets out again with **REMATCH** or goes back to the lobby.
+**+ BOT** seats a bot companion (see [Bots and the golden replay](#bots-and-the-golden-replay)). A run is four stages
+with a camp between each: Ashen Village (ravagers, lancers, sack imps, the Ogre twins), Wyrmbone Pass (clawbeak riders
+and the lancer captain on his ember drake), the Drowned Crypt (bonewalkers rising from the graves, bone knights) and
+Vorhal's Keep (everything, then Vorhal himself). Clearing a stage shows each hero's tally; when every hero is out, any
+hero may press Attack within ten seconds to continue once per stage, or the run is over. Beating Vorhal wins the run.
+The host sets out again with **REMATCH** or goes back to the lobby.
 
 A gamepad (`src/app/gamepad.ts`, polled each animation frame) drives this device's hero too: the d-pad or the left
 stick walks, A (Cross) attacks, B (Circle) jumps and X (Square) or Y (Triangle) casts magic. With several pads, the one

@@ -403,5 +403,33 @@ Small pull requests, each reviewed and merged before the next one that depends o
 6. HUD; run, dash attack, throw, jump attack and back attack.
 7. Sack imps, pots and magic for each hero.
 8. More enemies (lancer, brute), the Ogre twins and the stage flow.
-9. Camp, stages 2–4, mounts, bonewalkers and Vorhal (in: camp).
-10. Sound effects and music (in: the effects, the jingles and the Stage 1 march); bot companions.
+9. Camp, stages 2–4, mounts, bonewalkers and Vorhal.
+10. Sound effects and music; bot companions.
+
+## Status
+
+As of 2026-10-11 every step above is on main except the **brute** (step 8), which was not built: the Ogre twins took
+its place as Stage 1's heavy hitters. A run plays all four stages with a camp between each, from the ravagers of Ashen
+Village to Vorhal's second phase, with pixel art for every hero, enemy, mount, boss, backdrop and effect, synthesised
+sound and a Stage 1 march, online rooms, a shared screen with phone pads, gamepads and bot companions. The golden
+replay (`tests/golden.test.ts`) plays two bot parties through the whole run.
+
+Known gaps and follow-ups, none blocking play:
+
+- **Music:** only the Stage 1 march loops; stages 2–4 open with a horn and play it too.
+- **Startup:** every backdrop is baked when the scene is made (about 0.25 s on a desktop, perhaps a second on a
+  phone). Baking stages 2–4 in idle time is the lever if it shows.
+- **Small engine nits:** a party's extra bonewalker can rise from the same grave as the first; Vorhal's cast makes his
+  next summons likelier than intended, and his "three standing" summon cap is a gate rather than a ceiling.
+- **Small art nits:** an enraged boss's planted foot slides a little (walk strips are timed to the calm pace); some limbs
+  are drawn longer than their bones.
+- **Audio:** a rollback flicker of an enemy frozen by a spell can sound its cue twice.
+- **Production:** online rooms need `fuse-axe` in the `EXTRA_GAME_IDS` repository variable.
+
+### For the playtest
+
+Bot runs suggest parties of two or more clear all four stages, while a lone hero often falls in Wyrmbone Pass and wins
+against Vorhal about half the time; humans dodge worse than bots, so treat those as upper bounds. Worth a feel check:
+health carrying over between stages, the double-tap run on phone pads, Down + Jump to climb off a beast (Jump near a
+riderless beast climbs on instead of jumping), the camp clock (it can end early), and every sound and the march — no
+agent has heard them.
