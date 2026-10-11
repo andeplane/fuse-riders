@@ -161,11 +161,10 @@ the clearing past the packs. An imp that gets away takes nothing. A camp imp's s
 while an odd count is left; meat gives back `MEAT_HEAL` (15) hit points to a hero short of full health, no more than
 its whole health, and one at full leaves it lying for another. Nothing at camp fights back, so no hero is hurt there,
 and Magic casts nothing (the pots are kept for the road). Camp is over (`campOver`) once every imp has come and gone
-and nothing is left on the floor, or after `CAMP_STEPS` (20 s) at most. Until camp has art of its own (a night
-clearing round a campfire, the follow-up), it draws Stage 1's first screen darkened to night (`NIGHT` in
-`src/render/scene.ts`).
+and nothing is left on the floor, or after `CAMP_STEPS` (20 s) at most. The backdrop is a starry night clearing with
+a tree line, two tents and the packs, and a campfire whose flames and light flicker (`src/render/backdrop/camp.ts`).
 
-![Camp on its placeholder backdrop: Ironhide has just kicked a sack imp, which flees, its meat by his feet](images/camp.png)
+![Camp: Ironhide has just kicked a sack imp, which flees with its meat spilled by his feet](images/camp.png)
 
 ## Structure
 

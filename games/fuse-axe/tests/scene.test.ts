@@ -71,7 +71,6 @@ import {
   heroLooks,
   ITEM_SHADE,
   MARKER,
-  NIGHT,
   scenery,
   shadowRadius,
   SHADOW_RX,
@@ -938,16 +937,30 @@ test("every stage's backdrop is baked with the scene, so no frame stalls baking 
   assert.equal(wide(), baked, "drawing a stage baked a layer");
 });
 
-test("camp draws, until it has art of its own, Stage 1's first screen at night, whatever stage it follows", () => {
+test("camp draws its own night clearing, baked with the scene, where only the fire moves", () => {
+  const { images, scene } = fakeScene();
+  const wide = () => images.filter((image) => image.w >= VIEW_W).length;
+  const baked = wide();
   const camp = (frame: number, more: Partial<WorldView> = {}) =>
-    draw(world({ camp: true, stage: 2, camX: 90, ...more }), frame).pen;
+    draw(world({ camp: true, ...more }), frame, scene).pen;
   const layers = (pen: RecordingPen) =>
-    pen.blits.filter((b) => b.image.w >= VIEW_W).map((b) => [b.image, b.sx]);
-  assert.deepEqual(layers(camp(0)), layers(draw(world({ camX: 0 })).pen));
-  const night = (pen: RecordingPen) =>
-    pen.fills.filter((f) => f.style === NIGHT && f.w === VIEW_W);
-  assert.equal(night(camp(0)).length, 1);
-  assert.equal(night(draw(world({})).pen).length, 0, "a stage is not dark");
+    pen.blits.filter((b) => b.image.w >= VIEW_W).map((b) => b.image.id);
+  // Whatever stage it follows and wherever the view says the camera is, camp is one screen at rest.
+  assert.deepEqual(layers(camp(0)), layers(camp(0, { stage: 2, camX: 90 })));
+  assert.notDeepEqual(
+    layers(camp(0)),
+    layers(draw(world({}), 0, scene).pen),
+    "not Stage 1's backdrop",
+  );
   for (const frame of [-5, Number.NaN, 1e9])
     assert.doesNotThrow(() => camp(frame), `frame ${frame}`);
+  // The flames and their light flicker frame to frame, each fill a whole pixel's rectangle on screen.
+  const fire = (frame: number) => camp(frame).fills;
+  assert.notDeepEqual(fire(0), fire(7));
+  assert.ok(
+    fire(7).every(
+      (f) => f.x >= 0 && f.x + f.w <= VIEW_W && f.y >= 0 && f.y + f.h <= 180,
+    ),
+  );
+  assert.equal(wide(), baked, "drawing camp baked no layer");
 });
