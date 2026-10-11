@@ -2,11 +2,16 @@
  * Dev-only sprite sheet: `pnpm exec vite`, then open /games/fuse-axe/lab/sprites.html. It is not in the build and not
  * on the portal. Each figure in `FIGURES` is drawn through the production baker with a canvas surface; each hero in
  * `HEROES` also gets its palettes, portraits and a reel per anim, timed by `heroFrame` at the game's 60 steps a second.
- * `?step=N` freezes the reels at step N.
+ * `?step=N` freezes the reels at step N, and `?frames=run0,dash` shows only those frames in the sheet.
  */
-// The walking speeds are not in the view yet; this dev page reads them from the engine's tuning.
-import { SUB, WALK } from "../src/engine/tuning.js";
-import { HERO_KINDS, STEPS_PER_SECOND } from "../src/engine/view-kit.js";
+// The walking, running and dashing speeds are not in the view yet; this dev page reads them from the engine's tuning.
+import { DASH, RUN, SUB, WALK } from "../src/engine/tuning.js";
+import {
+  GRAB_STEPS,
+  HERO_KINDS,
+  STEPS_PER_SECOND,
+  THROW_STEPS,
+} from "../src/engine/view-kit.js";
 import {
   HERO_ANIMS,
   HERO_TIMING,
@@ -82,21 +87,36 @@ function cellFor(
   };
 }
 
+const params = new URLSearchParams(location.search);
+// `?frames=` with no names asks for no filter; a name no figure has is said so, not left to show an empty page.
+const names = (params.get("frames") ?? "").split(",").filter(Boolean);
+const only = names.length > 0 ? new Set(names) : undefined;
+const known = new Set<string>(
+  Object.values(FIGURES).flatMap((figure) => figure.frames),
+);
+const unknown = names.filter((name) => !known.has(name));
+if (unknown.length > 0)
+  add(main, "p", `No figure has a frame named ${unknown.join(", ")}.`);
 for (const [name, figure] of Object.entries(FIGURES)) {
+  const frames = figure.frames.filter((frame) => only?.has(frame) ?? true);
+  if (frames.length === 0) continue;
   const section = add(main, "section");
-  add(section, "h2", `${name} · ${figure.frames.length} frames at 3× and 1×`);
+  add(section, "h2", `${name} · ${frames.length} frames at 3× and 1×`);
   const row = add(section, "div", "", "row");
-  const sprites = figure.frames.map((frame) => figure.sprite(frame));
+  const sprites = frames.map((frame) => figure.sprite(frame));
   const [big, small] = [cellFor(sprites, 3), cellFor(sprites, 1)];
   sprites.forEach((sprite, i) => {
     const cell = add(row, "figure");
-    add(cell, "figcaption", `${figure.frames[i]} — ${sprite.w}×${sprite.h}`);
+    add(cell, "figcaption", `${frames[i]} — ${sprite.w}×${sprite.h}`);
     cell.append(big(sprite).image, small(sprite).image);
   });
 }
 
+/** Steps the jump attack's reel flies before Attack is pressed in the air; the jump's arc goes on from there. */
+const LEAP_STEPS = 4;
+
 /** Each reel plays anims in turn for so many steps, `anim:steps`; the combo chains each swing as its blade ends. */
-function reels({ swings }: HeroTiming): Record<string, string> {
+function reels({ swings, back, dash }: HeroTiming): Record<string, string> {
   const [a1, a2, a3] = swings.map((s) => s.startup + s.active + s.recovery);
   const [c1, c2] = swings.map((s) => s.startup + s.active);
   return {
@@ -107,12 +127,24 @@ function reels({ swings }: HeroTiming): Record<string, string> {
     attack2: `attack2:${a2} idle:24`,
     attack3: `attack3:${a3} idle:24`,
     combo: `attack1:${c1} attack2:${c2} attack3:${a3} idle:30`,
+    run: "run:72",
+    dash: `run:24 dash:${dash.active + dash.recovery} idle:20`,
+    "jump attack": `jump:${LEAP_STEPS} jumpattack:36 land:8 idle:24`,
+    "back attack": `backattack:${back.startup + back.active + back.recovery} idle:24`,
+    "grab, throw": `grab:${GRAB_STEPS} throw:${THROW_STEPS} idle:24`,
     hurt: "hurt:20 idle:30",
     "knockdown, down, getup": "knockdown:26 down:45 getup:20 idle:20",
   };
 }
-/** Every step of a reel, a hero moved as the engine moves it: walking `pace` px a step, a jump's arc, flung back. */
-function playOut(spec: string, pace: number) {
+/** How far a hero moves a step: walking, running, and dashing for the steps its blow is out. */
+interface Paces {
+  readonly walk: number;
+  readonly run: number;
+  readonly dash: number;
+  readonly dashing: number;
+}
+/** Every step of a reel, a hero moved as the engine moves it: walking, running, dashing, a jump's arc, flung back. */
+function playOut(spec: string, pace: Paces) {
   const arc = (t: number, vz: number) =>
     Math.max(0, Math.floor((t + 1) * vz - 0.095 * t * (t + 1)));
   let x = 0;
@@ -121,13 +153,21 @@ function playOut(spec: string, pace: number) {
     const figureAnim = HERO_ANIMS.find((known) => known === anim);
     if (!figureAnim) throw new Error(`The reel has no anim "${anim}"`);
     return Array.from({ length: Number(steps) }, (_, step) => {
-      x += anim === "walk" ? pace : anim === "knockdown" ? -1.25 : 0;
+      const moved: Partial<Record<string, number>> = {
+        walk: pace.walk,
+        run: pace.run,
+        dash: step < pace.dashing ? pace.dash : 0,
+        knockdown: -1.25,
+      };
+      x += moved[anim] ?? 0;
       const z =
         anim === "jump"
           ? arc(step, 3.7)
-          : anim === "knockdown"
-            ? arc(step, 2.5)
-            : 0;
+          : anim === "jumpattack"
+            ? arc(step + LEAP_STEPS, 3.7)
+            : anim === "knockdown"
+              ? arc(step, 2.5)
+              : 0;
       return { anim: figureAnim, step, x: Math.round(x), z };
     });
   });
@@ -161,7 +201,12 @@ for (const kind of HERO_KINDS) {
   add(section, "h2", `${kind} · a reel per anim at game speed`);
   const motion = add(section, "div", "", "row");
   for (const [label, spec] of Object.entries(reels(HERO_TIMING[kind]))) {
-    const steps = playOut(spec, WALK[kind].x / SUB);
+    const steps = playOut(spec, {
+      walk: WALK[kind].x / SUB,
+      run: RUN[kind] / SUB,
+      dash: DASH[kind].speed / SUB,
+      dashing: DASH[kind].active,
+    });
     const xs = steps.map((s) => s.x);
     const [left, right] = [Math.min(...xs), Math.max(...xs)];
     const high = Math.max(...steps.map((s) => s.z));
@@ -181,7 +226,7 @@ for (const kind of HERO_KINDS) {
 }
 
 // `?step=N` freezes the reels at a whole step; anything else plays them.
-const asked = new URLSearchParams(location.search).get("step");
+const asked = params.get("step");
 const frozen = asked !== null && /^\d+$/.test(asked) ? Number(asked) : null;
 const start = performance.now();
 const tick = (now: number) => {
