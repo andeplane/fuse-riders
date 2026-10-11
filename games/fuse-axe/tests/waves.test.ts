@@ -19,6 +19,7 @@ import {
   toView,
   waveSpawns,
   type Spawn,
+  type Wave,
   type World,
   type WorldView,
 } from "../src/engine/index.js";
@@ -124,7 +125,27 @@ test("Stage 1 is five waves along the road, building in size and tier, the last 
   assert.ok(most <= T.ENEMY_MAX / 4, `${most} at once`);
 });
 
-test("Wyrmbone Pass is a longer road of six ravager waves, tougher than the village's, ending in a violet pair", () => {
+test("lancers leap into the village's later waves and every wave of the pass but its end, as many as a party's extras copy", () => {
+  const lancers = (wave: Wave, heroes = 1) =>
+    waveSpawns(wave, heroes).filter((s) => s.kind === "lancer").length;
+  assert.deepEqual(
+    WAVES.map((wave) => lancers(wave)),
+    [0, 0, 1, 1, 0],
+  );
+  assert.deepEqual(
+    STAGE_2.waves.map((wave) => lancers(wave)),
+    [1, 1, 1, 1, 2, 0],
+  );
+  // A bigger party's extras copy the wave's spawns, its lancers among them; lancers scale with the party as ravagers do.
+  assert.equal(lancers(WAVES[2]!, 5), 2);
+  assert.ok(T.enemyMaxHp("lancer", 0, 1) < T.enemyMaxHp("ravager", 0, 1));
+  assert.equal(
+    T.enemyMaxHp("lancer", 2, 5),
+    Math.trunc((T.ENEMY_HP.lancer * T.TIER_HP[2] * 8) / 16),
+  );
+});
+
+test("Wyrmbone Pass is a longer road of six waves of ravagers and lancers, tougher than the village's, ending in a violet pair", () => {
   const { length, cameraEnd, waves } = STAGE_2;
   assert.deepEqual(STAGES, [STAGE_1, STAGE_2]);
   assert.ok(length > T.STAGE_LENGTH);
@@ -133,7 +154,7 @@ test("Wyrmbone Pass is a longer road of six ravager waves, tougher than the vill
   waves.forEach((wave, index) => {
     assert.ok(wave.at > (waves[index - 1]?.at ?? 0) && wave.at <= cameraEnd);
     for (const [i, spawn] of wave.spawns.entries()) {
-      assert.equal(spawn.kind, "ravager");
+      assert.ok(["ravager", "lancer"].includes(spawn.kind));
       assert.ok(spawn.y >= T.FLOOR_TOP && spawn.y <= T.FLOOR_BOTTOM);
       assert.ok(i === 0 || spawn.delay >= wave.spawns[i - 1]!.delay);
     }

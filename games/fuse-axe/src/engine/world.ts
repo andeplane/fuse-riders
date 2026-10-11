@@ -137,8 +137,17 @@ export const ENEMY_STATES = [
   "slam",
   "sweep",
   "stagger",
+  "thrust",
+  "leap",
+  "plunge",
 ] as const;
 export type EnemyState = (typeof ENEMY_STATES)[number];
+/**
+ * A lancer's states (`lancer.ts`): a ravager's, but it `thrust`s its spear where a ravager swings (`attack`), and it
+ * `leap`s in from the screen's edge or at a hero out of reach, driving the spear down as it lands (`plunge`). Those
+ * three are the lancer's alone (`LANCER_ONLY`).
+ */
+export const LANCER_ONLY: readonly EnemyState[] = ["thrust", "leap", "plunge"];
 /**
  * A sack imp's states (`imps.ts`): it scurries (`walk`), stumbles from a kick or flies, lies and gets up from a heavy
  * one, then flees. `stumble` and `flee` are the imp's alone (`IMP_ONLY`).
@@ -158,9 +167,15 @@ export const IMP_ONLY: readonly EnemyState[] = ["stumble", "flee"];
  * `slam`, `sweep` and `stagger` are the ogre's alone (`OGRE_ONLY`).
  */
 export const OGRE_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
-  (state) => !["hurt", "attack", "held", "thrown", ...IMP_ONLY].includes(state),
+  (state) =>
+    !["hurt", "attack", "held", "thrown", ...IMP_ONLY, ...LANCER_ONLY].includes(
+      state,
+    ),
 );
 export const OGRE_ONLY: readonly EnemyState[] = ["slam", "sweep", "stagger"];
+export const LANCER_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
+  (state) => !["attack", ...IMP_ONLY, ...OGRE_ONLY].includes(state),
+);
 
 export interface Enemy {
   id: number;
@@ -168,7 +183,7 @@ export interface Enemy {
   x: number;
   y: number;
   z: number;
-  /** A nudge's or a knockdown's speed along the road, and a knockdown's rise and fall. */
+  /** A nudge's, a knockdown's or a lancer's leap's speed along the road, and a knockdown's or a leap's rise and fall. */
   vx: number;
   vz: number;
   facing: 1 | -1;
@@ -179,7 +194,10 @@ export interface Enemy {
   /** Hit-stop: the enemy holds still on every step up to and including this one. */
   stopUntil: number;
   tier: Tier;
-  /** The x an `enter`ing or a walking enemy walks to, on screen, and the depth a walking one does. */
+  /**
+   * The x an `enter`ing or a walking enemy walks to, or a leaping lancer lands on, on screen, and the depth a walking
+   * or leaping one does.
+   */
   goal: number;
   goalY: number;
   /** The id of the hero it is going for, or 0 while it hovers or has no one. */
