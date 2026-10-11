@@ -328,9 +328,9 @@ interface Standing {
   readonly steam?: { readonly enemy: EnemyView; readonly crown: Point };
   /** A beast's flame if it is a drake breathing one, drawn with it likewise, from the jaws of the frame it shows. */
   readonly flame?: { readonly mount: MountView; readonly frame: string };
+  /** A pillar of fire: drawn after every figure on its row, a jumping one too, for it burns all that is over it. */
+  readonly pillar?: boolean;
 }
-/** A pillar of fire's id among the figures: after every figure's, so one on its very row draws inside it. */
-const PILLAR_ID = 2 ** 30;
 
 /**
  * The backdrop a stage draws on, and where its camera stands: the stage's own art at the camera, or for a stage with
@@ -503,16 +503,22 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           shade: Math.round((shadowRadius(mount.z) * 4) / 3),
         });
       }
-      // A pillar of fire stands among them by its sigil's depth, engulfing a figure on that very row.
-      view.sigils.forEach(({ x, y, age }, i) => {
+      // A pillar of fire stands among them by its sigil's depth, engulfing every figure on that very row.
+      view.sigils.forEach(({ x, y, age }, id) => {
         const sprite = pillarSprite(age, frame);
         if (sprite)
           standing.push({
-            ...{ id: PILLAR_ID + i, y: Math.floor(y), z: 0, shade: 0 },
+            ...{ id, y: Math.floor(y), z: 0, shade: 0, pillar: true },
             ...{ sx: Math.floor(x - camX), sprite, options: {}, lit: true },
           });
       });
-      standing.sort((a, b) => a.y - b.y || a.z - b.z || a.id - b.id);
+      standing.sort(
+        (a, b) =>
+          a.y - b.y ||
+          Number(a.pillar === true) - Number(b.pillar === true) ||
+          a.z - b.z ||
+          a.id - b.id,
+      );
       for (const { y, z, sx, shade } of standing) {
         if (shade === 0) continue;
         const s = shadow(shade ?? shadowRadius(z));

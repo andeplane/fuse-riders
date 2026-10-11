@@ -41,6 +41,7 @@ import {
 import {
   PILLAR_H,
   PRIMED,
+  STAGES,
   pillarSprite,
   sigilSprite,
 } from "../src/render/vorhal-fx.js";
@@ -366,6 +367,25 @@ test("a sigil glows from the step he marks it, flashes before it erupts, and its
   );
   assert.ok(
     heights.at(-1)! < heights.at(-4)! && heights.at(-4)! < heights[10]!,
+  );
+});
+
+test("a sigil's ring traces round through every stage before it flashes, each further round than the last", () => {
+  const tracing = Array.from({ length: SIGIL.delay - PRIMED }, (_, age) =>
+    sigilSprite(age, 0)!,
+  );
+  assert.equal(new Set(tracing).size, STAGES);
+  // The ring's lit pixels (not its unlit rim or the floor's glow) only grow, and the stages come in order.
+  const lit = (s: Sprite) => s.rows.join("").replace(/[.=]/g, "").length;
+  const counts = [...new Set(tracing)].map(lit);
+  assert.deepEqual(
+    counts,
+    [...counts].sort((a, b) => a - b),
+  );
+  assert.equal(new Set(counts).size, STAGES);
+  assert.deepEqual(
+    tracing,
+    [...tracing].sort((a, b) => lit(a) - lit(b)),
   );
 });
 

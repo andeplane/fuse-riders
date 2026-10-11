@@ -4,8 +4,8 @@ import type { Sprite } from "./pixel/sprite.js";
 
 /**
  * Vorhal's fire spell, painted once into sprites the scene bakes and blits. A sigil is a horned rune in a ring on the
- * floor, under the figures: the ring traces itself round in ember as the eruption nears, the rune lighting inside it
- * halfway, and for its last `PRIMED` steps the whole of it flashes white-hot (`sigilSprite`). Then its pillar of fire
+ * floor, under the figures: the ring traces itself round in ember, the rune lighting inside it halfway, until for its
+ * last `PRIMED` steps the whole of it flashes white-hot as the eruption nears (`sigilSprite`). Then its pillar of fire
  * stands among the figures by its depth: it shoots up from the floor over its first steps, burns its full height in
  * bands from a dark ember rim to a white-hot core, licking with the 60 Hz frame, and sinks as it dies (`pillarSprite`).
  * Both are pure functions of the sigil's age and the frame; an age outside theirs (or not a number) has none.
@@ -14,7 +14,7 @@ export const PILLAR_H = 72;
 /** The steps before the eruption the sigil flashes, the flash's half-period in frames, the ring's stages. */
 export const PRIMED = 12;
 const FLASH = 4;
-const STAGES = 8;
+export const STAGES = 8;
 /** The ring's half-axes: wider than the pillar, foreshortened on the floor to its depth. */
 const RX = SIGIL.half + 4;
 const RY = SIGIL.lane;
@@ -62,12 +62,15 @@ const FILLING = Array.from(
 );
 const FLASHING = [sigil(1, "F", "~", "F"), sigil(1, "f", "=", "~")] as const;
 
-/** The sigil `age` steps after he marked it, at 60 Hz `frame`: none before it is marked or once its pillar erupts. */
+/**
+ * The sigil `age` steps after he marked it, at 60 Hz `frame`: its ring tracing round through every stage before its
+ * last `PRIMED` steps, then flashing; none before it is marked or once its pillar erupts.
+ */
 export function sigilSprite(age: number, frame: number): Sprite | undefined {
   if (!(age >= 0 && age < SIGIL.delay)) return undefined;
   if (age >= SIGIL.delay - PRIMED)
     return FLASHING[Math.floor(Math.abs(frame) / FLASH) % 2 || 0];
-  return FILLING[Math.floor((age * STAGES) / SIGIL.delay)];
+  return FILLING[Math.floor((age * STAGES) / (SIGIL.delay - PRIMED))];
 }
 
 /** A shade darker: white-hot to gold, gold to orange, orange to the dark ember rim. */
