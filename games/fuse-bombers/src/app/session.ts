@@ -8,6 +8,7 @@ export interface Store {
 export const keys = (gameId: string) => ({
   name: `${gameId}-player-name`,
   shared: `${gameId}-shared-screen`, // the landing's "Shared TV" choice
+  sharedRoom: (code: string) => `${gameId}-shared-${code}`, // what a room was created with
   host: (code: string) => `${gameId}-room-${code}`,
   peer: (code: string) => `${gameId}-peer-${code}`,
 });

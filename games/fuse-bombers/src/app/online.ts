@@ -20,6 +20,7 @@ import {
   present,
   trouble,
   type Model,
+  type Trouble,
   type Viewer,
 } from "./presenter.js";
 import { keys, type Session, type Store } from "./session.js";
@@ -72,6 +73,14 @@ function page(...parts: HTMLElement[]): HTMLElement {
 
 /** The first screen: create or join a room, play against bots, or everyone at this screen (the local lobby). */
 export function showLanding(store: Store, error = ""): void {
+  // A room made with this ticked shows the arena on a TV (OPEN TV SCREEN) and every seated phone is a controller.
+  const shared = el("label", "", "fb-shared"),
+    toggle = el("input");
+  toggle.type = "checkbox";
+  toggle.checked = store.getItem(names.shared) === "1";
+  toggle.onchange = () =>
+    store.setItem(names.shared, toggle.checked ? "1" : "0");
+  shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = ui.createLandingCard({
     title: "FUSE BOMBERS",
     tagline:
@@ -86,6 +95,8 @@ export function showLanding(store: Store, error = ""): void {
             : failure;
         });
       store.setItem(names.host(room.code), room.token);
+      // Kept with the room, so a reload of its creator's page makes the same room whatever the box says by then.
+      store.setItem(names.sharedRoom(room.code), toggle.checked ? "1" : "0");
       go(`room=${room.code}`);
     },
     onSolo: () => go("solo=1"),
@@ -95,14 +106,6 @@ export function showLanding(store: Store, error = ""): void {
   const local = button("EVERYONE AT THIS SCREEN");
   local.onclick = () => go("local");
   card.solo?.after(local);
-  // A room made with this ticked shows the arena on a TV (OPEN TV SCREEN) and every seated phone is a controller.
-  const shared = el("label", "", "fb-shared"),
-    toggle = el("input");
-  toggle.type = "checkbox";
-  toggle.checked = store.getItem(names.shared) === "1";
-  toggle.onchange = () =>
-    store.setItem(names.shared, toggle.checked ? "1" : "0");
-  shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   card.create.after(shared);
   card.error.textContent = error;
   page(card.element);
@@ -126,6 +129,7 @@ export function showRoom(
     hostPresent: true,
     touch,
     display,
+    tvWaiting: true, // until the runtime says a display is here
   };
   let settings = DEFAULT_SETTINGS,
     dead = false;
@@ -235,6 +239,7 @@ export function showRoom(
     nameEntry.form.hidden = lobby.hidden = overlay.hidden = pad.hidden = true;
     root.dataset.screen = "card";
     root.classList.remove("fb-match");
+    document.body.classList.remove("fb-controller", "fb-display");
     cardTitle.textContent = title;
     cardText.textContent = text;
     card.hidden = false;
@@ -244,9 +249,22 @@ export function showRoom(
   const looks: PlayerLook[] = [];
   let source: OnlineSource | undefined,
     model: Model | undefined,
-    shown = "";
+    frame: Parameters<BombersCallbacks["state"]>[0] | undefined,
+    shown = "",
+    heard: { text: string; kind: Trouble } = { text: "", kind: "" },
+    shownPanel = "", // what the controller's panel and the touch pads show: unchanged, nothing is written again
+    shownPads = "",
+    stopped = false; // the game's loop sleeps: a controller needs no frames
+  /** The runtime's status line. Pink while a link is being retried, and when a shared room has no TV mid-match. */
+  const showStatus = () => {
+    const urgent =
+      heard.kind === "retry" ||
+      (heard.kind === "display" && !!model && model.screen !== "lobby");
+    status.show(heard.text, urgent ? "error" : "info");
+  };
   const render = (next: Model) => {
     model = next;
+    showStatus();
     const controller = next.controller;
     card.hidden = true;
     root.dataset.screen = overlay.dataset.screen = next.screen;
@@ -256,7 +274,10 @@ export function showRoom(
     overlay.hidden = next.screen === "lobby" || !!controller;
     pad.hidden = !controller;
     document.body.classList.toggle("fb-controller", !!controller);
-    if (controller) {
+    // A frame comes every tick: write the panel only when something in it changed.
+    const panel = JSON.stringify(controller);
+    if (controller && panel !== shownPanel) {
+      shownPanel = panel;
       const { state, loaded } = controller;
       pad.style.setProperty("--c", controller.color);
       pad.dataset.state = state;
@@ -272,11 +293,23 @@ export function showRoom(
       padLine.textContent = controller.line;
       padActions.hidden = !controller.actions;
     }
-    // The arena sleeps on a controller: the TV shows it, and plays its sounds.
+    // A controller draws nothing: the TV shows the arena and plays its sounds. The round scene sleeps and the game
+    // stops drawing frames (no scene is no work, but still a canvas redrawn sixty times a second on a phone's
+    // battery); both wake together if this device is ever in the arena again.
     const scene = game.scene.getScene(RoundScene.KEY);
-    if (controller && scene?.sys.isActive()) game.scene.sleep(RoundScene.KEY);
-    else if (!controller && scene?.sys.isSleeping())
-      game.scene.wake(RoundScene.KEY);
+    if (controller) {
+      if (scene?.sys.isActive()) game.scene.sleep(RoundScene.KEY);
+      if (!stopped && game.loop.running) {
+        game.loop.sleep();
+        stopped = true;
+      }
+    } else {
+      if (stopped) {
+        game.loop.wake();
+        stopped = false;
+      }
+      if (scene?.sys.isSleeping()) game.scene.wake(RoundScene.KEY);
+    }
     tv.hidden = !next.openTv;
     if (overlay.dataset.html !== next.overlay)
       overlay.innerHTML = overlay.dataset.html = next.overlay;
@@ -304,30 +337,39 @@ export function showRoom(
     looks.splice(0, looks.length, ...next.looks);
     const color = next.looks[next.follow ?? -1]?.color;
     const label = controller?.state === "ghost" ? "BOMB" : "FIRE";
-    input.setTouchPads(
-      next.flying ? [{ label, color: css(color ?? 0) }] : [],
-      controller ? controllerPadLayout : undefined,
-    );
+    // Laying the pads out reads the page's size: only when they changed (a resize redraws them by itself).
+    const padsKey = JSON.stringify([next.flying, label, color, !!controller]);
+    if (padsKey !== shownPads) {
+      shownPads = padsKey;
+      input.setTouchPads(
+        next.flying ? [{ label, color: css(color ?? 0) }] : [],
+        controller ? controllerPadLayout : undefined,
+      );
+    }
+    // The lobby's music plays in the lobby; the arena brings its own (`audio.attachRound`), and a controller has
+    // none: the TV plays the round.
     if (next.screen !== root.dataset.music) {
       root.dataset.music = next.screen;
       if (next.screen === "lobby") audio.music("lobby");
+      else if (controller) audio.music(null);
     }
   };
 
   const callbacks: BombersCallbacks = {
-    state(frame, roomSettings) {
+    state(next, roomSettings) {
       if (dead) return;
+      frame = next;
       settings = roomSettings;
-      shown = `${frame.matchId}:${frame.round}`;
-      viewer.host = solo || frame.managerId === viewer.me;
+      shown = `${next.matchId}:${next.round}`;
+      viewer.host = solo || next.managerId === viewer.me;
       viewer.hostPresent = solo || runtime.hostPresent;
-      render(present(frame, viewer));
+      render(present(next, viewer));
       // A controller never needs the arena; a page that drew it and then took a seat puts it to sleep (`render`).
-      if (!frame.world || source || model?.controller) return;
+      if (!next.world || source || model?.controller) return;
       source = new OnlineSource(
         () => runtime.frameTiming(),
         () => viewer.me,
-        frame.world,
+        next.world,
       );
       game.scene.start(RoundScene.KEY, { source, players: looks });
       const attach = () =>
@@ -338,8 +380,14 @@ export function showRoom(
     event(event, matchId, round) {
       source?.push(event, matchId, round);
       // A controller buzzes when its gunship is hit, where the phone can (Android; iOS has no vibration).
+      // One buzz per hit, for the round on screen, and none for a page nobody is looking at.
       const ms = model?.controller ? buzz(event, model.follow) : 0;
-      if (ms && shown === `${matchId}:${round}` && "vibrate" in navigator)
+      if (
+        ms &&
+        shown === `${matchId}:${round}` &&
+        !document.hidden &&
+        typeof navigator.vibrate === "function"
+      )
         navigator.vibrate(ms);
     },
     status(text) {
@@ -350,11 +398,18 @@ export function showRoom(
         deadEnd("OUT OF SYNC", "This page lost step with the room: rejoin.");
       else if (kind === "fatal") deadEnd("CANNOT PLAY HERE", text);
       else {
-        // Retrying, or a shared room whose TV is not open: pink, and shown mid-match too.
-        status.show(
-          text,
-          kind === "retry" || kind === "display" ? "error" : "info",
-        );
+        heard = { text, kind };
+        // The runtime names a shared room's missing TV and says "Connected" once it is here; other news says nothing
+        // of it.
+        const waiting =
+          kind === "display" || (!/^connected/i.test(text) && viewer.tvWaiting);
+        if (waiting !== viewer.tvWaiting && frame) {
+          viewer.tvWaiting = waiting;
+          render(present(frame, viewer));
+        } else {
+          viewer.tvWaiting = waiting;
+          showStatus();
+        }
       }
     },
     ready(id) {
