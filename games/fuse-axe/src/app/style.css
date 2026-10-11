@@ -77,6 +77,14 @@ body {
   text-decoration: none;
 }
 
+/* The header's MUSIC and EFFECTS toggles: the label is the setting; one switched off reads dim. */
+.fa-sound {
+  font-size: 10px;
+}
+.fa-sound[aria-pressed="false"] {
+  opacity: 0.6;
+}
+
 .fa-error,
 .fa-connecting {
   margin: 48px auto;
