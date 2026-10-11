@@ -174,8 +174,10 @@ flashes, a tier wears its palette and a defeated one blinks out over `DEAD_STEPS
 or just risen) blinks its sprite, keeping its shadow and chevron. Heroes of one kind each get a palette of their own,
 in seat order. An ogre's slam sends its shockwave along the floor (`ogre-fx.ts`), placed by view-kit's `QUAKE`
 exactly where the engine's runs: a crack splits the floor from the hammer's reach to the front under the figures,
-and over them rock shards burst up at the front and crumble behind it, dust rolling and pebbles flying; an enraged
-twin steams ([screenshot](docs/images/ogre-twins.png)).
+and over them rock shards burst up at the front and crumble behind it (the last ones faster, to be gone as the
+hammer rises), dust rolling and pebbles flying; an enraged twin steams, drawn with it by depth so a hero in front of
+it hides the puffs ([screenshot](docs/images/ogre-twins.png)). The crack, shards and dust are flat rectangles drawn
+each frame (a few hundred for the 24 steps of a slam), not baked.
 Nothing is drawn off screen (`pen.ts` clips every call), and every sprite, shadow and sign is baked once.
 
 Everything the renderer pre-paints goes through one injected surface factory, `MakeSurface` in

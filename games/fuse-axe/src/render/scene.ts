@@ -35,7 +35,7 @@ import type { MakeSurface } from "./surface.js";
  * figure's shadow on the floor; heroes, enemies and items on the floor by depth (further up the floor first, then
  * lower before higher, then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when
  * defeated, a hero blinking while it is invulnerable and an item before it vanishes; an ogre's shockwave cracking the
- * floor under the figures and bursting dust over them, and an enraged ogre's steam (`ogre-fx.ts`); the hit sparks; the
+ * floor under the figures and bursting dust over them, and an enraged ogre's steam, drawn with it (`ogre-fx.ts`); the hit sparks; the
  * grass in front; the spells playing (`spells/`), a charging or casting hero glowing behind its sprite and the field
  * shaking a moment at a spell's blow; a flashing GO → when the road ahead opens; and over it all the HUD (`hud.ts`),
  * naming each seat's player from `seats` (the room's names, which the world does not hold). It only draws: positions
@@ -43,7 +43,8 @@ import type { MakeSurface } from "./surface.js";
  * spells' flicker, the steam's drift and the HUD's health trails.
  *
  * Every sprite, shadow, sign and label is painted once into a surface from `make` and reused, so a frame is blits
- * and a few spark and bar pixels.
+ * and a few spark and bar pixels, and (for the 24 steps of an ogre's shockwave, or while one steams) a few hundred
+ * flat rectangles of its crack, shards and dust.
  */
 export interface Scene<Image> {
   draw(pen: Pen<Image>, view: WorldView, frame: number, seats?: HudSeats): void;
@@ -208,6 +209,8 @@ interface Standing {
   readonly marker?: { readonly seat: number; readonly crown: number };
   /** The shadow's half-width, for a figure smaller or bigger than a body; otherwise it shrinks with height. */
   readonly shade?: number;
+  /** An enraged ogre's steam, drawn with it so a figure in front of it hides the puffs: where it rises from its feet. */
+  readonly steam?: { readonly enemy: EnemyView; readonly crown: Point };
 }
 
 export function createScene<Image>(
@@ -276,7 +279,6 @@ export function createScene<Image>(
           marker: { seat: hero.seat, crown: crown(figure) },
         };
       });
-      const steam: { enemy: EnemyView; crown: Point }[] = [];
       for (const enemy of view.enemies) {
         if (enemy.anim === "dead" && !deadShows(enemy.animStep)) continue;
         // A kind from a build with more of them draws as a ravager, and an anim with no strip stands idle, as a
@@ -288,9 +290,9 @@ export function createScene<Image>(
         // An enraged ogre burns in its rage palette and steams, unless it has fallen.
         const rage = enemy.enraged ? art.rage : undefined;
         const crown = rage?.crowns[pose];
-        if (crown && enemy.anim !== "dead") steam.push({ enemy, crown });
         standing.push({
           ...at(enemy),
+          ...(crown && enemy.anim !== "dead" && { steam: { enemy, crown } }),
           sprite: art.figure.sprite(pose),
           options: {
             swap: (rage ?? art).tiers[enemy.tier],
@@ -326,13 +328,12 @@ export function createScene<Image>(
         const top = crown(looks.get(hero.id)!.figure);
         spells.aura(field, hero, sx, y - z, top, frame);
       }
-      for (const { y, z, sx, sprite, options, lit } of standing) {
+      for (const { y, z, sx, sprite, options, lit, steam } of standing) {
         if (!lit) continue;
         const b = baker.bake(sprite, options);
         blit(field, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
+        if (steam) drawSteam(field, steam.enemy, steam.crown, camX, frame);
       }
-      for (const { enemy, crown } of steam)
-        drawSteam(field, enemy, crown, camX, frame);
       for (const { y, z, sx, marker } of standing) {
         if (!marker) continue;
         const { seat, crown } = marker;

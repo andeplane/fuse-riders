@@ -23,6 +23,7 @@ import {
   FLOOR_BOTTOM_PX,
   FX_KINDS,
   FX_LIFE,
+  OGRE_STEPS,
   QUAKE,
   VIEW_H,
   VIEW_W,
@@ -471,11 +472,14 @@ test("an ogre draws its own figure in its twin's colours on its feet, burns and 
     ogre(160, { ...dead, enraged: true }).pen.fills.length,
     ogre(160, dead).pen.fills.length,
   );
-  // Its shockwave cracks the floor and breaks it into shards while it runs, not as the hammer lands.
+  // Its shockwave cracks the floor and breaks it into shards while it runs, not as the hammer lands, the shards
+  // crumbling on after the wave's end until the hammer rises.
   const fills = (more: Partial<EnemyView>) => ogre(160, more).pen.fills.length;
   const landed = fills({ anim: "slam", animStep: 0 });
   assert.ok(fills({ anim: "slam", animStep: 5 }) > landed);
-  assert.equal(fills({ anim: "slam", animStep: QUAKE.steps + 1 }), landed);
+  assert.ok(fills({ anim: "slam", animStep: QUAKE.steps + 1 }) > landed);
+  assert.ok(fills({ anim: "slam", animStep: OGRE_STEPS.slam - 1 }) > landed);
+  assert.equal(fills({ anim: "slam", animStep: OGRE_STEPS.slam }), landed);
   // At the screen's edge only what is on screen is drawn.
   const [edge] = ogre(4, { anim: "idle" }).sprites;
   assert.ok(edge!.dx === 0 && edge!.sx > 0 && edge!.dx + edge!.dw <= VIEW_W);
@@ -484,6 +488,68 @@ test("an ogre draws its own figure in its twin's colours on its feet, burns and 
   const ravager = (enraged: boolean) =>
     draw(world({ enemies: [enemy(2, 160, 150, { enraged })] })).pen.fills;
   assert.equal(ravager(true).length, ravager(false).length);
+});
+
+test("an enraged ogre's steam is drawn with it by depth: a hero in front of it hides the puffs, one behind it does not", () => {
+  /** Every fill and blit of a frame in the order they were drawn. */
+  class OrderedPen extends RecordingPen {
+    readonly order: (Fill | Blit)[] = [];
+    override fillRect(x: number, y: number, w: number, h: number) {
+      super.fillRect(x, y, w, h);
+      this.order.push(this.fills.at(-1)!);
+    }
+    override drawImage(image: FakeImage, ...r: number[]) {
+      super.drawImage(image, ...r);
+      this.order.push(this.blits.at(-1)!);
+    }
+  }
+  const frame = (enraged: boolean, heroY: number) => {
+    const pen = new OrderedPen();
+    shared.scene.draw(
+      pen,
+      world({
+        heroes: [hero(1, 0, 160, heroY)],
+        enemies: [enemy(2, 160, 150, { kind: "ogre", boss: true, enraged })],
+      }),
+      7,
+    );
+    return pen.order;
+  };
+  const key = (f: Fill) => JSON.stringify(f);
+  const [heroSize, ogreSize] = [BRAKKA.sprite("idle0"), OGRE.sprite("idle")];
+  assert.notEqual(heroSize.w, ogreSize.w);
+  const sized = (sprite: Sprite) => (b: Fill | Blit) =>
+    "image" in b && b.image.w === sprite.w && b.image.h === sprite.h;
+  for (const [heroY, hides] of [
+    [160, true],
+    [140, false],
+  ] as const) {
+    const calm = new Set(
+      frame(false, heroY)
+        .filter((c) => "style" in c)
+        .map(key),
+    );
+    const order = frame(true, heroY);
+    // The puffs are the fills the calm frame lacks.
+    const steam = order.flatMap((c, i) =>
+      "style" in c && !calm.has(key(c)) ? [i] : [],
+    );
+    const mine = order.findIndex(sized(heroSize));
+    const ogre = order.findIndex(sized(ogreSize));
+    assert.ok(steam.length > 0 && mine >= 0 && ogre >= 0);
+    // The steam follows the ogre it blows off, and the hero in front of it is drawn over the steam.
+    assert.ok(steam.every((i) => i > ogre));
+    assert.equal(
+      steam.every((i) => i < mine),
+      hides,
+      `hero at ${heroY}`,
+    );
+    assert.equal(
+      steam.every((i) => i > mine),
+      !hides,
+      `hero at ${heroY}`,
+    );
+  }
 });
 
 test("a sack imp draws its own frames, a kind from a newer build draws as a ravager, and pots lie among the figures and blink before they vanish", () => {

@@ -1,4 +1,4 @@
-import { QUAKE, VIEW_W } from "../engine/view-kit.js";
+import { OGRE_STEPS, QUAKE, VIEW_W } from "../engine/view-kit.js";
 import type { EnemyView } from "../engine/view.js";
 import { fill, type Pen } from "./pen.js";
 import { MASTER } from "./pixel/palette.js";
@@ -44,18 +44,20 @@ export function drawCracks<Image>(
     const front = quakeFront(enemy);
     if (front === null) continue;
     const start = enemy.x + enemy.facing * QUAKE.reach;
-    // Only the columns on screen: a camera that is not a number draws none.
+    // Its ends on screen where the figures' are, `Math.floor(x - camX)`, and only the columns on screen: a camera
+    // that is not a number draws none.
     const left = Math.floor(camX);
-    const from = Math.max(Math.floor(Math.min(start, front)), left);
-    const to = Math.min(Math.floor(Math.max(start, front)), left + VIEW_W);
+    const from = Math.max(Math.floor(Math.min(start, front) - camX), 0);
+    const to = Math.min(Math.floor(Math.max(start, front) - camX), VIEW_W);
     const y = Math.floor(enemy.y);
-    for (let x = from; x <= to; x++) {
+    for (let sx = from; sx <= to; sx++) {
       // Each column lies between two bends, the crack eased from one bend's depth to the next; it gapes wider
-      // near the hammer, its far lip catching the light, and a short split forks off at the sharpest bends.
+      // near the hammer, its far lip catching the light, and a short split forks off at the sharpest bends. A
+      // column's world position (its bends, its width) is fixed as the camera moves.
+      const x = sx + left;
       const knot = Math.floor(x / BEND);
       const t = (x - knot * BEND) / BEND;
       const dy = Math.round(jag(knot) * (1 - t) + jag(knot + 1) * t);
-      const sx = x - left;
       const wide = Math.abs(x - start) < Math.abs(front - start) / 2 ? 2 : 1;
       pen.fillStyle = ROCK;
       fill(pen, sx, y + dy - 1, 1, 1);
@@ -70,10 +72,13 @@ export function drawCracks<Image>(
   }
 }
 
+/** A shard is drawn twice, in ink and then, inset, in light and rock. */
+const INSETS = [0, 1] as const;
+
 /** A pointed rock shard `h` high standing on (x, y), lit on its left, outlined in ink. */
 function shard<Image>(pen: Pen<Image>, x: number, y: number, h: number) {
   const half = Math.ceil(h / 3);
-  for (const inset of [0, 1])
+  for (const inset of INSETS)
     for (let i = -half - 1 + inset; i <= half + 1 - inset; i++) {
       const tall = Math.round(h + 1 - inset - (h * Math.abs(i)) / (half + 1));
       if (tall <= 0) continue;
@@ -99,9 +104,14 @@ function disc<Image>(
   }
 }
 
+/** The two sides of a figure, the same pair for every call. */
+const SIDES = [-1, 1] as const;
+
 /**
  * The shockwave's front breaking the floor: every `BURST` steps a pair of shards bursts up where the front is, peaks
- * and crumbles over `SHARD`'s steps, throwing pebbles and dust either side: drawn over the figures.
+ * and crumbles over `SHARD`'s steps, throwing pebbles and dust either side: drawn over the figures. The front stops
+ * after `QUAKE.steps` but the hammer stays down for the slam's steps, so the shards go on crumbling until it rises,
+ * the last bursts (too late to crumble in the steps left) crumbling the faster to be gone by then.
  */
 export function drawShards<Image>(
   pen: Pen<Image>,
@@ -109,18 +119,20 @@ export function drawShards<Image>(
   camX: number,
 ): void {
   for (const enemy of enemies) {
-    if (quakeFront(enemy) === null) continue;
     const n = Math.floor(enemy.animStep);
+    if (enemy.anim !== "slam" || !(n >= 1 && n < OGRE_STEPS.slam)) continue;
     const y = Math.floor(enemy.y);
-    // The first burst is on the shockwave's first step, the step after the hammer lands.
-    for (let born = n - ((n - 1) % BURST); born >= 1; born -= BURST) {
-      const age = n - born;
-      if (age >= SHARD.length) break;
+    // The first burst is on the shockwave's first step, the step after the hammer lands, the last on its last.
+    const wave = Math.min(n, QUAKE.steps);
+    for (let born = wave - ((wave - 1) % BURST); born >= 1; born -= BURST) {
+      if (n - born >= SHARD.length) break;
+      const left = Math.max(2, Math.min(SHARD.length, OGRE_STEPS.slam - born));
+      const age = Math.floor(((n - born) * (SHARD.length - 1)) / (left - 1));
       const x = enemy.x + enemy.facing * (QUAKE.reach + QUAKE.speed * born);
       const sx = Math.floor(x - camX);
       // Dust rolling out from the shards' feet and thinning away, and two pebbles thrown up and over.
       pen.fillStyle = age < 3 ? PUFF : DUST;
-      for (const side of [-1, 1])
+      for (const side of SIDES)
         disc(
           pen,
           sx + side * (3 + age),
@@ -130,7 +142,7 @@ export function drawShards<Image>(
         );
       const rise = Math.floor(age * 3.6 - age * age * 0.45);
       if (rise > 0)
-        for (const side of [-1, 1]) {
+        for (const side of SIDES) {
           const stone = sx + side * (5 + 2 * age);
           pen.fillStyle = INK;
           fill(pen, stone - 1, y - 4 - rise, 3, 3);
