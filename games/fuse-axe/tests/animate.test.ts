@@ -135,6 +135,7 @@ test("the back attack strikes behind exactly while its blade is out; the grab cl
       ...Array<string>(recovery + 5).fill("backfollow"),
     ]);
     assert.deepEqual(frames("grab", 30), Array<string>(30).fill("grab"));
+    assert.ok(Number.isInteger(HEAVE_STEPS), "the heave counts whole steps");
     assert.ok(HEAVE_STEPS > 0 && HEAVE_STEPS < THROW_STEPS);
     assert.deepEqual(frames("throw", THROW_STEPS + 5), [
       ...Array<string>(HEAVE_STEPS).fill("heave"),

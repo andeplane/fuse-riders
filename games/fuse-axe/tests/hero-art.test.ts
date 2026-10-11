@@ -32,7 +32,7 @@ import {
 } from "../src/render/art/rhea.js";
 import { headTurn, turn } from "../src/render/pixel/head.js";
 import { MASTER, type Palette } from "../src/render/pixel/palette.js";
-import { armTo, bend, breath, legTo } from "../src/render/pixel/kit.js";
+import { armTo, bend, breath, legTo, sprint } from "../src/render/pixel/kit.js";
 import {
   CLEAR,
   validateSprite,
@@ -136,8 +136,14 @@ test("a hero's five looks are told apart from each other, in its frames and its 
   for (const { kind, figure, portrait } of heroes) {
     const looks = [{}, ...Object.values(figure.swaps)];
     assert.equal(looks.length, 5, kind);
-    for (const sprite of [figure.sprite("idle0"), portrait]) {
-      // Of the pixels the sprite draws, a tenth or more change colour between any two looks: told apart at a glance.
+    // Of the pixels a sprite draws, a tenth or more change colour between any two looks in the idle and the portrait:
+    // told apart at a glance. In every frame, even the ones that hide a head or a tunic, at least a twentieth do.
+    const sprites = [
+      [figure.sprite("idle0"), 0.1],
+      [portrait, 0.1],
+      ...HERO_FRAMES.map((frame) => [figure.sprite(frame), 0.05] as const),
+    ] as const;
+    for (const [sprite, least] of sprites) {
       const drawn = [...sprite.rows.join("")].filter((key) => key !== CLEAR);
       const colour = (swap: Palette, key: string) =>
         swap[key] ?? sprite.palette[key];
@@ -148,7 +154,7 @@ test("a hero's five looks are told apart from each other, in its frames and its 
             (key) => colour(a, key) !== colour(b, key),
           );
           assert.ok(
-            apart.length / drawn.length >= 0.1,
+            apart.length / drawn.length >= least,
             `${kind}: looks ${i} and ${j} differ in ${apart.length} of ${drawn.length} pixels`,
           );
         }
@@ -371,4 +377,37 @@ test("a limb set from its ends keeps its bones, and the body's frame turns with 
   );
   const lying = turn(-90)([3, 4], 0, 5);
   assert.ok(same(lying[0], 8) && same(lying[1], 4));
+});
+
+test("a hero looking back turns only its head: the legs and hips under it are painted as they were", () => {
+  const poses = [
+    ["brakka", paintBrakka(BRAKKA_POSES.idle0), paintBrakka({ ...BRAKKA_POSES.idle0, lookBack: true })], // prettier-ignore
+    ["rhea", paintRhea(RHEA_POSES.idle0), paintRhea({ ...RHEA_POSES.idle0, lookBack: true })], // prettier-ignore
+    ["gorm", paintGorm(GORM_POSES.idle0), paintGorm({ ...GORM_POSES.idle0, lookBack: true })], // prettier-ignore
+  ] as const;
+  for (const [kind, ahead, back] of poses) {
+    assert.notDeepEqual(back.rows, ahead.rows, kind);
+    assert.deepEqual(
+      around(back, [16, 14], [14, 1]),
+      around(ahead, [16, 14], [14, 1]),
+      kind,
+    );
+  }
+});
+
+test("a sprint is a cycle of whole thirds and halves, and its joints stay numbers", () => {
+  const pose = BRAKKA_POSES.idle0;
+  const gait = { reach: 7.5, lift: 10, dip: 2 };
+  for (const frames of [0, 3, 4, 8, 7.5, NaN])
+    assert.throws(
+      () => sprint(pose, 0, frames, gait),
+      RangeError,
+      `${frames} frames`,
+    );
+  for (const frames of [6, 12])
+    for (let i = 0; i < frames; i++) {
+      const { far, near } = sprint(pose, i, frames, gait);
+      for (const joint of [...Object.values(far!), ...Object.values(near!)])
+        assert.ok(joint.every(Number.isFinite), `${i} of ${frames}`);
+    }
 });
