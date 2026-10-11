@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import {
   ATTACK,
   MAGIC,
+  RIGHT,
+  STAGE_1,
   STAGE_2,
   botInput,
   createWorld,
@@ -19,6 +21,7 @@ import {
   type Mount,
   type World,
 } from "../src/engine/index.js";
+import { saddle } from "../src/engine/mount.js";
 import * as T from "../src/engine/tuning.js";
 
 const { px } = T;
@@ -254,4 +257,95 @@ test("the checkpoint refuses riders and beasts where the rules never put them", 
   assert.ok(refused([{ ...ours }, {}]), "the world as it is");
   const many = Array.from({ length: T.MOUNT_MAX + 1 }, (_, i) => ({ ...free, id: free.id + i })); // prettier-ignore
   assert.equal(decodeWorld(encodeWorld({ ...world, mounts: many })), undefined);
+});
+
+/** The rider that fell and the beast that lost it: a knockdown at the saddle's height, the beast panicking. */
+function unseated(world: World, id: number) {
+  const fallen = world.enemies.find((e) => e.id === id)!;
+  assert.equal(fallen.state, "knockdown");
+  assert.deepEqual(
+    [beast(world).rider, beast(world).state, toView(world).mounts[0]!.rider],
+    [0, "flee", null],
+  );
+  kept(world);
+  return fallen;
+}
+
+test("a spell, a thrown body and a slash that leaves it no hit points each knock the rider off, and its beast panics", () => {
+  // Rhea's spell lands on the rider in view, as it does on any enemy.
+  const rhea = party("rhea");
+  let world = mounted({ ...rhea, heroes: [{ ...hero(rhea), pots: 1 }] }, 60);
+  const id = rider(world)!.id;
+  world = run(step(world, [MAGIC]), T.SPELLS.rhea.levels[0]!.hit + 1);
+  assert.ok(unseated(world, id).hp < FULL, "it took the spell's damage");
+  assert.ok(hero(world).magicDamage > 0);
+  // A hurt ravager thrown over Brakka's shoulder flies into a rider behind it, as into any enemy.
+  world = party("brakka");
+  const { x, y } = hero(world);
+  world = spawnEnemy(world, "ravager", x + px(14), y);
+  world = spawnEnemy(world, "ravager", x - px(70), y);
+  const [body, behind] = world.enemies as [Enemy, Enemy];
+  world = spawnMount(world, behind.x, behind.y, behind.id);
+  world = {
+    ...world,
+    enemies: world.enemies.map((e) => (e === body ? { ...e, state: "hurt" } : e)), // prettier-ignore
+  };
+  world = step(world, [RIGHT | ATTACK]);
+  assert.equal(world.enemies[0]!.state, "held", "grabbed");
+  world = until(world, (w) => w.enemies[1]!.state !== "ride");
+  assert.equal(unseated(world, behind.id).hp, FULL - T.BODY_DAMAGE);
+  assert.ok(hero(world).throws === 1 && hero(world).knockdowns === 2);
+  // A slash that takes the last hit point knocks it off as the finisher does, and it dies rather than riding on.
+  world = mounted(party("brakka"), 20);
+  world = { ...world, enemies: world.enemies.map((e) => ({ ...e, hp: 1 })) };
+  world = until(step(world, [ATTACK]), (w) => rider(w) === undefined);
+  assert.equal(unseated(world, world.enemies[0]!.id).hp, 0);
+  world = until(world, (w) => w.enemies[0]!.state === "dead");
+  assert.equal(beast(world).rider, 0);
+});
+
+test("a rider cannot be grabbed off its beast, and a beast spares an invulnerable hero and one in the air above its tail", () => {
+  // Brakka's grab takes a dazed enemy only, and a rider is never dazed: Attack beside one is a slash.
+  let world = mounted(party("brakka"), 14);
+  world = step(world, [RIGHT | ATTACK]);
+  assert.deepEqual([hero(world).state, rider(world)?.state], ["attack1", "ride"]); // prettier-ignore
+  // Wound up over the lash step, the tail passes under a hero in the air and one in its getting-up grace.
+  world = mounted(party("brakka", "rhea", "gorm"), 30);
+  const { x, y } = beast(world);
+  world = moved(world, 1, x + px(20), y);
+  world = moved(world, 2, x - px(20), y);
+  world = {
+    ...world,
+    heroes: world.heroes.map((h, i) =>
+      i === 1
+        ? { ...h, state: "jump", z: px(300), vz: 0 }
+        : i === 2
+          ? { ...h, invulnUntil: world.step + 2 * T.TAIL_STEPS }
+          : h,
+    ),
+  };
+  const full = hps(world);
+  world = run(world, T.TAIL_WINDUP + 2);
+  assert.equal(beast(world).state, "sweep");
+  assert.deepEqual(hps(world), [full[0]! - T.TAIL_DAMAGE, full[1], full[2]]);
+  assert.deepEqual(world.heroes.map((h) => h.state === "knockdown"), [true, false, false]); // prettier-ignore
+});
+
+test("a beast riderless holds no wave, and a wave's spawn of a kind that cannot ride walks in on foot", () => {
+  // A wave with every enemy fought and a beast left wandering clears, and the beast goes on.
+  const start = party("brakka");
+  const wave = createWorld({ seed: 5, heroes: [{ seat: 0, kind: "brakka" }] });
+  const spawned = waveSpawns(STAGE_1.waves[0]!, 1).length;
+  let world = loose({ ...wave, wave: 1, locked: true, spawned }, px(30));
+  assert.equal(start.mounts.length, 0);
+  world = step(world, []);
+  assert.deepEqual([world.locked, world.mounts.length], [false, 1]);
+  // Only a ravager is saddled: a lancer or an ogre a plan names a beast for stays on its own two feet.
+  for (const kind of ["lancer", "ogre", "imp"] as const) {
+    const odd = spawnEnemy(party("brakka"), kind, px(300), px(140));
+    const enemy = { ...odd.enemies[0]! };
+    const bare = { ...odd, enemies: [] as Enemy[], mounts: [] as Mount[] };
+    saddle(bare, enemy, "clawbeak");
+    assert.deepEqual([enemy.state, bare.mounts.length], [odd.enemies[0]!.state, 0], kind); // prettier-ignore
+  }
 });

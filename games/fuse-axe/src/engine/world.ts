@@ -120,6 +120,10 @@ export interface Hero {
   magicDamage: number;
 }
 
+/**
+ * An enemy's states. `ride` is a ravager's alone (`mount.ts`): it sits a beast's saddle, and no other kind mounts one
+ * (`OGRE_STATES` and `LANCER_STATES` leave it out, as the checkpoint does for an imp).
+ */
 export const ENEMY_STATES = [
   "idle",
   "hurt",
@@ -178,7 +182,6 @@ export const OGRE_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
     ].includes(state),
 );
 export const OGRE_ONLY: readonly EnemyState[] = ["slam", "sweep", "stagger"];
-/** A ravager rides a beast (`mount.ts`): `ride` is the ravager's alone, as no other kind mounts one. */
 export const LANCER_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
   (state) => !["attack", "ride", ...IMP_ONLY, ...OGRE_ONLY].includes(state),
 );

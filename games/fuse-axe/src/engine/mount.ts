@@ -69,9 +69,13 @@ const fresh = (
   coolUntil: 0,
 });
 
-/** A wave's enemy walking in rides a new beast of `kind` (the world's next id) to its goal, unless `MOUNT_MAX` are out. */
+/**
+ * A wave's ravager walking in rides a new beast of `kind` (the world's next id) to its goal, unless `MOUNT_MAX` are out.
+ * A spawn of any other kind that names a beast walks in on foot: only a ravager has the state to ride (`ride`), and the
+ * checkpoint refuses a world with another kind in it.
+ */
 export function saddle(world: World, rider: Enemy, kind: T.MountKind): void {
-  if (world.mounts.length >= T.MOUNT_MAX) return;
+  if (rider.kind !== "ravager" || world.mounts.length >= T.MOUNT_MAX) return;
   const mount = fresh(world, kind, rider.x, rider.y, rider.facing);
   mount.rider = rider.id;
   mount.state = "enter";
