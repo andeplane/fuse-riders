@@ -20,7 +20,7 @@ import {
   type World,
 } from "../src/engine/index.js";
 import { REACT, REACT_SPREAD } from "../src/engine/bot.js";
-import { quakeAt } from "../src/engine/ogre.js";
+import { quakeAt, threatLane } from "../src/engine/ogre.js";
 import * as T from "../src/engine/tuning.js";
 
 const { px } = T;
@@ -138,6 +138,54 @@ test("the slam's shockwave runs on along the floor in the ogre's lane: stepped o
   // The ogre recovers after the hammer's follow-through, standing open.
   const after = run(start, T.SLAM_STEPS);
   assert.equal(after.enemies[0]!.state, "recover");
+});
+
+test("the slam lands once on a hero: the hammer's victim is not struck again by the shockwave, and one in the lane is struck once", () => {
+  // Brakka in the hammer's reach, Rhea in the lane beyond it.
+  let world = ogre(party("brakka", "rhea"), 30, { state: "windup", target: 1 });
+  const { x, y } = world.enemies[0]!;
+  world = patchHero(world, 0, { x: x - px(40), y });
+  world = patchHero(world, 1, { x: x - px(90), y });
+  world = run(world, T.OGRE.calm.windup);
+  assert.equal(world.enemies[0]!.state, "slam");
+  assert.equal(hero(world).hp, T.HERO_HP.brakka - T.OGRE.calm.damage);
+  // The whole of the slam and the shockwave's run over the field, up to the ogre standing open after it.
+  world = run(world, T.SLAM_STEPS + 2 * T.HEAVY_HITSTOP);
+  assert.equal(world.enemies[0]!.state, "recover");
+  assert.equal(hero(world).hp, T.HERO_HP.brakka - T.OGRE.calm.damage);
+  assert.equal(hero(world, 1).hp, T.HERO_HP.rhea - T.QUAKE_DAMAGE);
+});
+
+test("a hero lying in the ogre's lane is not wound up at: it waits for the hero to get up, then winds up", () => {
+  let world = ogre(party("brakka"), 30, {
+    state: "idle",
+    thinkAt: 0,
+    target: 1,
+  });
+  world = patchHero(world, 0, { state: "down", timer: 0 });
+  const states = [world.enemies[0]!.state];
+  for (let i = 0; i < T.HERO_DOWN_STEPS - 2; i++) {
+    world = step(world, []);
+    states.push(world.enemies[0]!.state);
+  }
+  assert.equal(hero(world).state, "down");
+  assert.ok(!states.includes("windup"), states.join());
+  assert.ok(!states.includes("slam"));
+  while (world.enemies[0]!.state !== "windup" && world.step < 400)
+    world = step(world, []);
+  assert.equal(world.enemies[0]!.state, "windup");
+  assert.equal(hero(world).hp, T.HERO_HP.brakka);
+});
+
+test("what a bot steps out of is the lane of the blow coming: the slam's wide one, the sweep's narrow one, else the shockwave's", () => {
+  const big = ogre(party("brakka"), 30).enemies[0]!;
+  for (const [state, lane] of [
+    ["windup", T.SLAM_LANE],
+    ["sweep", T.SWEEP_LANE],
+    ["slam", T.LANE],
+    ["recover", T.LANE],
+  ] as const)
+    assert.equal(threatLane({ ...big, state }), lane, state);
 });
 
 test("a hero close behind an ogre as it decides draws the sweep, which knocks it away", () => {
@@ -291,6 +339,20 @@ test("when one twin falls the other enrages and winds up faster; both fallen cle
   world = step({ ...world, enemies: done(world) }, []);
   assert.ok(stageCleared(world));
   assert.equal(toView(world).boss, null);
+});
+
+test("twins that fall on the same step enrage nobody; the bar shows them gone", () => {
+  let world = run(gate("brakka"), 120);
+  assert.equal(ogres(world).length, 2);
+  const fallen = { hp: 0, state: "knockdown", z: px(10) } as const;
+  world = patchEnemy(patchEnemy(world, 0, fallen), 1, fallen);
+  world = step(world, []);
+  assert.deepEqual(
+    ogres(world).map((e) => e.enraged),
+    [false, false],
+  );
+  assert.equal(toView(world).boss!.hp, 0);
+  kept(world);
 });
 
 test("a bot steps out of a slam it has seen, then strikes the ogre while it recovers", () => {
