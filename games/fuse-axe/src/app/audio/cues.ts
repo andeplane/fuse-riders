@@ -152,6 +152,16 @@ export class CueTracker {
       if (was && enemy.anim === "windup" && this.began(key, enemy, was, step))
         cues.add("windup");
     }
+    // A beast's tail winding up is its wind-up, whoever rides it (its rider never leaves `ride`).
+    for (const mount of world.mounts) {
+      const was = this.figures.get(`m${mount.id}`);
+      if (
+        was &&
+        mount.anim === "sweep" &&
+        this.began(`m${mount.id}`, mount, was, step)
+      )
+        cues.add("windup");
+    }
     this.sparkCues(world, cues);
     const wave = `${run}:${world.wave}`;
     if (world.locked && !before.locked)
@@ -231,6 +241,13 @@ export class CueTracker {
         anim: enemy.anim,
         animStep: enemy.animStep,
         hp: enemy.hp,
+        pots: 0,
+      });
+    for (const mount of world.mounts)
+      this.figures.set(`m${mount.id}`, {
+        anim: mount.anim,
+        animStep: mount.animStep,
+        hp: 0,
         pots: 0,
       });
   }

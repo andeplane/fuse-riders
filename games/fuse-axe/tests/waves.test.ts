@@ -75,8 +75,8 @@ const due = (world: World) =>
 /** Until every spawn of the wave is in. */
 const allIn = (world: World): World =>
   until(world, (w) => w.spawned === due(w).length);
-/** Every enemy gone, as if the party had fought them all down: the rules clear the wave on the next step. */
-const rout = (world: World): World => ({ ...world, enemies: [] });
+/** Every enemy gone, as if the party had fought them all down (their beasts too): the rules clear the wave next step. */
+const rout = (world: World): World => ({ ...world, enemies: [], mounts: [] });
 /** The view's wave fields: [wave, waves, locked, go, cleared]. */
 const waveOf = ({ wave, waves, locked, go, cleared }: WorldView) => [
   wave,
