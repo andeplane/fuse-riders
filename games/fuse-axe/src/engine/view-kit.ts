@@ -2,6 +2,7 @@ import {
   BACK_ATTACK,
   CAMERA_END,
   COMBO,
+  DASH,
   ENEMY_HALF_W,
   FLOOR_BOTTOM,
   FLOOR_TOP,
@@ -89,6 +90,21 @@ export const BACK_STEPS: Readonly<Record<HeroKind, SwingSteps>> = {
   brakka: timing(BACK_ATTACK.brakka),
   rhea: timing(BACK_ATTACK.rhea),
   gorm: timing(BACK_ATTACK.gorm),
+};
+/** A dash's steps: its blow is out on every `animStep` below `active`, then it stands for `recovery`. */
+export interface DashSteps {
+  readonly active: number;
+  readonly recovery: number;
+}
+const dashSteps = (kind: HeroKind): DashSteps => ({
+  active: DASH[kind].active,
+  recovery: DASH[kind].recovery,
+});
+/** Each hero's dash attack as steps of its blow out and its recovery. */
+export const DASH_STEPS: Readonly<Record<HeroKind, DashSteps>> = {
+  brakka: dashSteps("brakka"),
+  rhea: dashSteps("rhea"),
+  gorm: dashSteps("gorm"),
 };
 /** The steps each hero's jump attack winds up: its blade is out from this `animStep` until the hero lands. */
 export const STAB_STEPS: Readonly<Record<HeroKind, number>> = {
