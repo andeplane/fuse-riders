@@ -17,16 +17,8 @@ import {
   MOUNT_STATES,
   flamePx,
 } from "../src/engine/view-kit.js";
-import {
-  enemyFrame,
-  mountFrame,
-  stripFrame,
-} from "../src/render/art/animate.js";
-import {
-  CAPTAIN,
-  CAPTAIN_ANIMS,
-  CAPTAIN_POSES,
-} from "../src/render/art/captain.js";
+import { mountFrame, stripFrame } from "../src/render/art/animate.js";
+import { CAPTAIN, CAPTAIN_POSES } from "../src/render/art/captain.js";
 import {
   DRAKE_ANIMS,
   DRAKE_DIPS,
@@ -39,7 +31,6 @@ import {
   type DrakeFrame,
 } from "../src/render/art/drake.js";
 import { FIGURES } from "../src/render/art/index.js";
-import { LANCER_ANIMS } from "../src/render/art/lancer.js";
 import { RAVAGER, RAVAGER_POSES } from "../src/render/art/ravager.js";
 import {
   drawFlame,
@@ -210,9 +201,10 @@ test("every rider sits astride the drake's saddle on every frame a ridden drake 
       (anim) => DRAKE_ANIMS[anim].frames.map(([frame]) => frame),
     ),
   );
+  // The captain sits it in his saddle thrust's frames too (`captain-art.test.ts`).
   const riders = [
     ["ravager", RAVAGER.sprite("ride"), RAVAGER_POSES.ride, /[Aa$k]/],
-    ["captain", CAPTAIN.sprite("ride"), CAPTAIN_POSES.ride, /[Ll9k]/],
+    ...(["ride", "ridewindup", "ridethrust"] as const).map((frame) => [`captain ${frame}`, CAPTAIN.sprite(frame), CAPTAIN_POSES[frame], /[Ll9k]/] as const), // prettier-ignore
   ] as const; // prettier-ignore
   for (const frame of FRAMES) {
     const dip = DRAKE_DIPS[frame];
@@ -361,18 +353,4 @@ test("a breath makes a bounded handful of jets once, and every breath after it d
   assert.ok(first > FLAME_PHASES && first <= (FLAME.length / (T.FLAME_SPEED / T.SUB) + 1) * FLAME_PHASES, `${first} jets`); // prettier-ignore
   breathe();
   assert.equal(seen.size, first, "a second breath makes no new jet");
-});
-
-test("the captain sits his drake astride in his own seated frame, and otherwise fights as a lancer, staggering as one reels", () => {
-  assert.equal(FIGURES.captain, CAPTAIN);
-  for (const frame of CAPTAIN.frames) validateSprite(CAPTAIN.sprite(frame));
-  for (const animStep of [0, 31, 32, 1e6, -2, Number.NaN])
-    assert.equal(enemyFrame("captain", "ride", animStep), "ride");
-  assert.equal(CAPTAIN_ANIMS.stagger, LANCER_ANIMS.hurt);
-  // Astride, one boot shows on the anchor's row, not two.
-  const boots = (s: Sprite) =>
-    s.rows[s.ay]!.replace(/[^Ll9]+/g, " ")
-      .trim()
-      .split(" ").length;
-  assert.deepEqual([boots(CAPTAIN.sprite("ride")), boots(CAPTAIN.sprite("idle"))], [1, 2]); // prettier-ignore
 });
