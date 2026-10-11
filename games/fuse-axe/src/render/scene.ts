@@ -20,12 +20,13 @@ import {
 } from "../engine/view-kit.js";
 import {
   enemyFrame,
+  enemyRiderFrame,
   heroFrame,
   mountFrame,
   riderFrame,
 } from "./art/animate.js";
 import { BONE_KNIGHT, BONEWALKER, BONEWALKER_TIERS } from "./art/bonewalker.js";
-import { CAPTAIN, CAPTAIN_LOOK } from "./art/captain.js";
+import { CAPTAIN } from "./art/captain.js";
 import { CLAWBEAK_DIPS, CLAWBEAK_FIGURE } from "./art/clawbeak.js";
 import { DRAKE_DIPS, DRAKE_FIGURE } from "./art/drake.js";
 import { IMP } from "./art/imp.js";
@@ -109,7 +110,7 @@ const VORHAL_LOOK = {
   D: "#ff3a2e",
 };
 const VORHAL_RAGE = { ...VORHAL_LOOK, ...rampSwap("Ll9", "Cc0") };
-const each = <P>(palette: P) => ({ 0: palette, 1: palette, 2: palette });
+const inEveryTier = <P>(palette: P) => ({ 0: palette, 1: palette, 2: palette });
 /** Every enemy kind's art. A kind from a build with more of them draws as a ravager, as `enemyFrame` plays it. */
 export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   ravager: {
@@ -124,10 +125,11 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
     shade: 1.5,
   },
   lancer: { figure: LANCER, tiers: LANCER_TIERS },
-  // The lancer captain, a lancer in gold and dark steel whatever his palette, seated on his drake (`captain.ts`).
+  // The lancer captain in his own black steel and gold whatever his palette, thrusting from his drake's saddle
+  // (`captain.ts`).
   captain: {
     figure: CAPTAIN,
-    tiers: { 0: CAPTAIN_LOOK, 1: CAPTAIN_LOOK, 2: CAPTAIN_LOOK },
+    tiers: { 0: undefined, 1: undefined, 2: undefined },
   },
   // A bonewalker in its grave cloth or rust rags; the violet knight in armour and a violet cape.
   bonewalker: {
@@ -141,8 +143,8 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   },
   vorhal: {
     figure: OGRE,
-    tiers: each(VORHAL_LOOK),
-    rage: { tiers: each(VORHAL_RAGE), crowns: OGRE_CROWNS },
+    tiers: inEveryTier(VORHAL_LOOK),
+    rage: { tiers: inEveryTier(VORHAL_RAGE), crowns: OGRE_CROWNS },
     shade: 1.5,
     horns: OGRE_CROWNS,
   },
@@ -455,12 +457,15 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         const art = Object.hasOwn(ENEMY_ART, enemy.kind)
           ? ENEMY_ART[enemy.kind]
           : ENEMY_ART.ravager;
-        const pose = enemyFrame(enemy.kind, enemy.anim, enemy.animStep);
-        const dip = saddleDip(
-          enemy.mounted
-            ? mountUnder(view.mounts, "enemy", enemy.id)
-            : undefined,
-        );
+        // A rider does in the saddle what its beast's anim says, where its kind has a strip for it (the captain's
+        // thrust: `enemyRiderFrame`); otherwise it sits in its own `ride` frame.
+        const mount = enemy.mounted
+          ? mountUnder(view.mounts, "enemy", enemy.id)
+          : undefined;
+        const pose =
+          (mount && enemyRiderFrame(enemy.kind, mount.anim, mount.animStep)) ??
+          enemyFrame(enemy.kind, enemy.anim, enemy.animStep);
+        const dip = saddleDip(mount);
         // An enraged ogre burns in its rage palette and steams, unless it has fallen.
         const rage = enemy.enraged ? art.rage : undefined;
         const crown = rage?.crowns[pose];

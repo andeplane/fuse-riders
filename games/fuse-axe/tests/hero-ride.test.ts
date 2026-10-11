@@ -158,8 +158,8 @@ test("a rider braces while its beast winds up its blow (a tail coiling, a drake 
     ...Array<HeroFrame>(DRAKE_STEPS.inhale).fill("ridewindup"),
     ...Array<HeroFrame>(DRAKE_STEPS.breathe - DRAKE_STEPS.inhale).fill("rideattack"), // prettier-ignore
   ]);
-  // No hero thrusts a lance (the captain's, an enemy's, is drawn as one), and a riderless beast's anims have no rider:
-  // each sits, at any step.
+  // No hero thrusts a lance (the captain's, an enemy's, is `enemyRiderFrame`'s), and a riderless beast's anims have no
+  // rider: each sits, at any step.
   for (const anim of ["lance", "enter", "flee", "wander", "leave"] as const)
     for (const animStep of [0, 1, 23, 24, 35, 36, 80, 1e6])
       assert.equal(riderFrame(anim, animStep), "ride", `${anim} ${animStep}`);

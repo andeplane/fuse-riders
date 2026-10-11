@@ -44,12 +44,12 @@ interface Run {
   hashes: string[];
 }
 const GOLDEN: { rules: string; runs: Run[] } = {
-  rules: "fuse-axe-21",
+  rules: "fuse-axe-22",
   runs: [
     {
       seed: 20261011,
       humans: [],
-      steps: [5523, 702, 6807, 666, 6954, 702, 9516],
+      steps: [5523, 702, 6807, 666, 6954, 702, 8442],
       hashes: [
         ...["9ef10783", "6b2fe356", "71dd514e", "3691b733", "679b6f22"],
         ...["9dda2a89", "f80eefd1", "0d61c578", "ecee146a", "319868db"],
@@ -61,14 +61,13 @@ const GOLDEN: { rules: string; runs: Run[] } = {
         ...["5b6f0660", "1cbbbbe7", "3ddecaa1", "c0e9e65f", "08782746"],
         ...["c77aaae5", "ecc0feb0", "cfb50a5e", "03fc0938", "190fdc3f"],
         ...["8db0230d", "f546ba73", "caf0d4df", "9e69dda1", "ce91895f"],
-        ...["47549efb", "345e31eb", "89c97f4d", "86913dbc", "51eb7d01"],
-        ...["7184a977"],
+        ...["4a185f73", "97e9cdc3", "8353e9a8", "2b55c130", "7958c72a"],
       ],
     },
     {
       seed: 20261012,
       humans: [1],
-      steps: [5937, 717, 6777, 720, 7245, 726, 8520],
+      steps: [5937, 717, 6777, 720, 7245, 726, 9084],
       hashes: [
         ...["c28b37c1", "efe8b0b8", "b68a238f", "d6337406", "8c5f05ca"],
         ...["aae22f86", "17cb1598", "b102a77e", "61dec9d9", "c3fb14e0"],
@@ -80,8 +79,8 @@ const GOLDEN: { rules: string; runs: Run[] } = {
         ...["33ce3fc0", "612ac823", "35016dc0", "3293dad6", "6e9b3eac"],
         ...["50c56d55", "11e884fd", "9707cb8e", "28cd0e09", "77bb8ea5"],
         ...["105ee38d", "51d45cbf", "f5d3cf94", "077630e1", "ba46a0cc"],
-        ...["c5c00f02", "2e31c573", "09f092de", "4a9442ba", "cf9624fc"],
-        ...["71d69aa7"],
+        ...["aedf8e65", "5f72610c", "e3cb6f44", "77c082d6", "ffcd7492"],
+        ...["0a6021ae", "31a2a6f6"],
       ],
     },
   ],

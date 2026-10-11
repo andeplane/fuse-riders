@@ -9,11 +9,13 @@ import {
 } from "../src/engine/index.js";
 import { px } from "../src/engine/tuning.js";
 import type {
+  EnemyKind,
   EnemyView,
   FxView,
   HeroKind,
   HeroView,
   ItemView,
+  MountAnim,
   MountView,
   Tier,
   WorldView,
@@ -53,7 +55,7 @@ import {
   type BonewalkerFrame,
 } from "../src/render/art/bonewalker.js";
 import { BRAKKA } from "../src/render/art/brakka.js";
-import { CAPTAIN, CAPTAIN_LOOK } from "../src/render/art/captain.js";
+import { CAPTAIN, type CaptainFrame } from "../src/render/art/captain.js";
 import {
   DRAKE_DIPS,
   DRAKE_FIGURE,
@@ -80,7 +82,11 @@ import {
 } from "../src/render/art/ogre.js";
 import { MEAT } from "../src/render/art/meat.js";
 import { POT } from "../src/render/art/pot.js";
-import { RAVAGER, RAVAGER_ANIMS } from "../src/render/art/ravager.js";
+import {
+  RAVAGER,
+  RAVAGER_ANIMS,
+  RAVAGER_TIERS,
+} from "../src/render/art/ravager.js";
 import { flipSprite, type Sprite } from "../src/render/pixel/sprite.js";
 import {
   createSpriteBaker,
@@ -1311,7 +1317,7 @@ test("camp's fire stands among the figures: in front of one behind it, behind on
   assert.deepEqual(order(hero(1, 0, FIRE.x - 30, FIRE.y)), [true]);
 });
 
-test("an ember drake draws from its own art, blinking as it inhales; its flame is one jet from its jaws to the front, drawn at its depth; the captain sits it in his colours", () => {
+test("an ember drake draws from its own art, blinking as it inhales; its flame is one jet from its jaws to the front, drawn at its depth", () => {
   const drake = (more: Partial<MountView> = {}): MountView => ({
     ...{ id: 9, kind: "drake", x: 150, y: 140, z: 0, facing: 1 },
     ...{ anim: "breathe", animStep: 0, rider: null, ...more },
@@ -1341,21 +1347,51 @@ test("an ember drake draws from its own art, blinking as it inhales; its flame i
   for (const anim of MOUNT_STATES)
     for (const step of [0, 40, 79, 1e9, -3, 2.5, Number.NaN, Infinity])
       assert.ok(draw(world({ mounts: [drake({ anim, animStep: step })] })).sprites.length >= 1); // prettier-ignore
-  // The captain: his own figure in gold and dark steel whatever his palette, seated on his drake's saddle.
+});
+
+test("the captain draws from his own art in his own colours, and in the saddle does what his drake's anim says: sits, or draws back and thrusts", () => {
   const boss = enemy(3, 150, 140, { kind: "captain", tier: 2, boss: true });
-  const captain = (frame: string) =>
-    fillsOf(CAPTAIN.sprite(frame as "ride"), { swap: CAPTAIN_LOOK, flash: false, flip: false }); // prettier-ignore
-  assert.deepEqual(draw(world({ enemies: [boss] })).sprites[0]!.image.fills, captain("idle")); // prettier-ignore
-  const ridden = draw(
-    world({
-      enemies: [{ ...boss, anim: "ride", mounted: true, z: CLAWBEAK.saddle }],
-      mounts: [drake({ anim: "walk", animStep: 0, rider: { kind: "enemy", id: 3 } })], // prettier-ignore
-    }),
-  ).sprites;
-  const seat = CAPTAIN.sprite("ride");
-  assert.deepEqual(ridden[1]!.image.fills, captain("ride"));
-  assert.equal(ridden[1]!.dy + seat.ay, 140 - CLAWBEAK.saddle + DRAKE_DIPS.walk0); // prettier-ignore
-  assert.deepEqual([0, 1, 2].map((tier) => ENEMY_ART.captain.tiers[tier as 0]), [CAPTAIN_LOOK, CAPTAIN_LOOK, CAPTAIN_LOOK]); // prettier-ignore
+  const captain = (frame: CaptainFrame) =>
+    fillsOf(CAPTAIN.sprite(frame), { flash: false, flip: false });
+  // On foot: his own figure whatever his palette, staggering in his own frame.
+  for (const tier of [0, 1, 2] as const)
+    assert.deepEqual(draw(world({ enemies: [{ ...boss, tier }] })).sprites[0]!.image.fills, captain("idle")); // prettier-ignore
+  assert.deepEqual(draw(world({ enemies: [{ ...boss, anim: "stagger" }] })).sprites[0]!.image.fills, captain("stagger")); // prettier-ignore
+  // On his drake: the frame his beast's anim and step say, on its saddle as it dips, over it.
+  const ridden = (
+    anim: MountAnim,
+    animStep: number,
+    kind: EnemyKind = "captain",
+  ) =>
+    // prettier-ignore
+    draw(
+      world({
+        enemies: [{ ...boss, kind, anim: "ride", animStep: 90, mounted: true, z: CLAWBEAK.saddle }], // prettier-ignore
+        mounts: [{ id: 9, kind: "drake", x: 150, y: 140, z: 0, facing: 1, anim, animStep, rider: { kind: "enemy", id: 3 } }], // prettier-ignore
+      }),
+    ).sprites;
+  const { lanceWindup, lance } = DRAKE_STEPS;
+  for (const [anim, animStep, frame, under] of [
+    ["walk", 0, "ride", "walk0"],
+    ["breathe", 30, "ride", mountFrame("drake", "breathe", 30)],
+    ["lance", 0, "ridewindup", "crouch"],
+    ["lance", lanceWindup - 1, "ridewindup", "crouch"],
+    ["lance", lanceWindup, "ridethrust", "brace"],
+    ["lance", lance - 1, "ridethrust", "brace"],
+  ] as const) {
+    // The drake first (its flame after it, if it breathes one), then its rider over it.
+    const rider = ridden(anim, animStep).at(-1)!;
+    assert.deepEqual(rider.image.fills, captain(frame), `${anim} ${animStep}`);
+    const seat = CAPTAIN.sprite(frame).ay;
+    assert.equal(rider.dy + seat, 140 - CLAWBEAK.saddle + DRAKE_DIPS[under as DrakeFrame], `${anim} ${animStep}`); // prettier-ignore
+  }
+  assert.deepEqual([0, 1, 2].map((tier) => ENEMY_ART.captain.tiers[tier as 0]), [undefined, undefined, undefined]); // prettier-ignore
+  // Another rider of the drake's lance (none the rules make) sits; any anim at any step draws, never throwing.
+  const sat = ridden("lance", lance - 1, "ravager").at(-1)!;
+  assert.deepEqual(sat.image.fills, fillsOf(RAVAGER.sprite("ride"), { swap: RAVAGER_TIERS.violet, flash: false, flip: false })); // prettier-ignore
+  for (const anim of MOUNT_STATES)
+    for (const animStep of [0, 23, 24, 1e9, -3, 2.5, Number.NaN, Infinity])
+      assert.ok(ridden(anim, animStep).length >= 2, `${anim} ${animStep}`);
 });
 
 test("Vorhal draws as a horned dark ogre in every anim, his sigils glow on the floor and their pillars burn over the figures, and nothing throws", () => {
