@@ -1,5 +1,5 @@
 import * as K from "../../engine/view-kit.js";
-import type { EnemyView, SpellView, WorldView } from "../../engine/view.js";
+import type { SpellView, WorldView } from "../../engine/view.js";
 import { bayer, hash } from "../backdrop/kit.js";
 import { blit, fill, type Pen } from "../pen.js";
 import { pixelSurface, type MakeSurface } from "../surface.js";
@@ -97,7 +97,10 @@ export interface Timing extends K.SpellSteps {
   readonly level: number;
   readonly max: number;
 }
-/** One pass of a kind's drawing, at its timing and whole-step age (0 to `steps − 1`) and a whole frame from 0. */
+/**
+ * One pass of a kind's drawing, at its timing and whole-step age (0 to `steps − 1`), a whole frame from 0 and the
+ * `marks` its blow lands on.
+ */
 export type Play<I> = (
   pen: Pen<I>,
   spell: SpellView,
@@ -105,6 +108,7 @@ export type Play<I> = (
   age: number,
   view: WorldView,
   frame: number,
+  marks: readonly Mark[],
 ) => void;
 /** A kind: what it lays on the ground under the figures, if anything, and what it draws over them. */
 export interface KindArt<I> {
@@ -129,9 +133,27 @@ export const envelope = (age: number, steps: number, rise = 12, fall = 18) =>
 export const FLASH_STEPS = 6;
 export const SHAKE_STEPS = 14;
 
-/** The enemies a blow is drawn landing on: every one on screen but the sack imps, which it never strikes. */
-export const targets = ({ enemies, camX }: WorldView): EnemyView[] =>
-  enemies.filter((e) => e.kind !== "imp" && e.x >= camX && e.x < camX + W);
+/** Where a blow is drawn landing: an enemy's spot on the floor, in the world, held there once the blow flings it. */
+export interface Mark {
+  readonly x: number;
+  readonly y: number;
+}
+/**
+ * The marks of the enemies the blow lands on, as `blasted` in `engine/magic.ts` has it: those with hit points left,
+ * not in a hero's hands or flying from a throw, and whole on screen, but never a sack imp.
+ */
+export const marksOf = ({ enemies, camX }: WorldView): Mark[] =>
+  enemies
+    .filter(
+      (e) =>
+        e.kind !== "imp" &&
+        e.hp > 0 &&
+        e.anim !== "held" &&
+        e.anim !== "thrown" &&
+        e.x >= camX + K.ENEMY_HALF_W_PX &&
+        e.x <= camX + W - K.ENEMY_HALF_W_PX,
+    )
+    .map(({ x, y }) => ({ x, y }));
 /** The caster's screen column, or the middle for a spell that outlived it. */
 export const casterX = ({ heroes, camX }: WorldView, spell: SpellView) =>
   Math.floor(

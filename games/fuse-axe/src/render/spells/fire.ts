@@ -120,7 +120,8 @@ export function createFire<I>(make: MakeSurface<I>): S.KindArt<I> {
     h: number,
     flicker: number,
   ) => {
-    const k = TONGUES.filter((tall) => tall <= h).length - 1;
+    let k = -1;
+    while (k + 1 < TONGUES.length && TONGUES[k + 1]! <= h) k++;
     if (k < 0) return;
     const [tall, left] = [
       TONGUES[k]!,

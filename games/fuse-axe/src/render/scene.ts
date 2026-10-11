@@ -31,13 +31,12 @@ import type { MakeSurface } from "./surface.js";
  * The game's picture: one native 320 × 180 frame of the engine's view, drawn in layers — the backdrop; every
  * figure's shadow on the floor; heroes, enemies and items on the floor by depth (further up the floor first, then
  * lower before higher, then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when
- * defeated, a hero blinking while it is invulnerable and an item before it vanishes; the hit
- * sparks; the grass in front; the spells playing (`spells/`), a charging or casting hero glowing behind its sprite and
- * the field shaking a moment at a spell's blow; a flashing GO → when the road ahead opens; and over it all the HUD
- * (`hud.ts`), naming
- * each seat's player from `seats` (the room's names, which the world does not hold). It only draws: positions come
- * from the view (the app blends two ticks for smooth motion), and `frame`, a 60 Hz count, moves only scenery and
- * the HUD's health trails.
+ * defeated, a hero blinking while it is invulnerable and an item before it vanishes; the hit sparks; the grass in
+ * front; the spells playing (`spells/`), a charging or casting hero glowing behind its sprite and the field shaking a
+ * moment at a spell's blow; a flashing GO → when the road ahead opens; and over it all the HUD (`hud.ts`), naming each
+ * seat's player from `seats` (the room's names, which the world does not hold). It only draws: positions come from
+ * the view (the app blends two ticks for smooth motion), and `frame`, a 60 Hz count, moves only scenery, the spells'
+ * flicker and the HUD's health trails.
  *
  * Every sprite, shadow, sign and label is painted once into a surface from `make` and reused, so a frame is blits
  * and a few spark and bar pixels.
