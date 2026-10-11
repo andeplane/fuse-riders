@@ -1,5 +1,10 @@
 import { CAPACITY, VIEW_W } from "../engine/view-kit.js";
-import type { HeroView, WorldView } from "../engine/view.js";
+import type {
+  BossView,
+  EnemyKind,
+  HeroView,
+  WorldView,
+} from "../engine/view.js";
 import { HEROES } from "./art/index.js";
 import {
   ADVANCE,
@@ -23,7 +28,7 @@ import type { MakeSurface } from "./surface.js";
  * fallen, dropping back in or invulnerable blinks, in step with its sprite. An empty seat shows its tag and blinks
  * JOIN (not in a solo game, where nobody can), or names the player who joins with the next run. A hero that has lost
  * its last life is out as it lands: the counter has already dropped to ×0, so its panel greys then, not when it has
- * finished lying there.
+ * finished lying there. While a boss's wave is fought, its name and health bar run under the strip (`BOSS_BAR`).
  *
  * Portraits and labels are baked once; a frame is a few flat rectangles and blits.
  */
@@ -86,6 +91,7 @@ export const HUD_COLORS = {
   pot: "#262e8c",
   potLit: "#3c5ce0",
   potGlint: "#78b4ff",
+  boss: "#ff2e9d",
 } as const;
 /** The bar's colour and its highlight, by the share of health left: over a half, over a quarter, and less. */
 export const HEALTH = {
@@ -138,11 +144,24 @@ export function drawPots<Image>(
   }
 }
 
-/** The health bar's lit pixels for `hp` of `maxHp`: never none while any is left. */
-export function barWidth(hp: number, maxHp: number): number {
+/** A health bar's lit pixels for `hp` of `maxHp` (on a hero's bar, unless `w` says): never none while any is left. */
+export function barWidth(hp: number, maxHp: number, w: number = BAR.w) {
   if (!(maxHp > 0) || !(hp > 0)) return 0;
-  return Math.max(1, Math.round((BAR.w * Math.min(hp, maxHp)) / maxHp));
+  return Math.max(1, Math.round((w * Math.min(hp, maxHp)) / maxHp));
 }
+
+/**
+ * The boss's bar, while its wave is fought (`WorldView.boss`): just under the strip, its name at the left and the bar
+ * on to the right, draining as the bosses lose hit points. Each kind's name; one from a newer build is the BOSS.
+ */
+export const BOSS_BAR = { x: 8, y: HUD_H + 3, h: 3, gap: 4 } as const;
+export const BOSS_NAMES: Readonly<Record<EnemyKind, string>> = {
+  ravager: "RAVAGER",
+  imp: "SACK IMP",
+  ogre: "OGRE TWINS",
+};
+export const bossName = (kind: EnemyKind): string =>
+  Object.hasOwn(BOSS_NAMES, kind) ? BOSS_NAMES[kind] : "BOSS";
 
 /** The glyphs a name gets beside lives of one digit; longer lives leave it fewer. */
 export const NAME_GLYPHS = 8;
@@ -324,6 +343,22 @@ export function createHud<Image>(
     );
   };
 
+  const bossBar = (pen: Pen<Image>, boss: BossView) => {
+    const c = HUD_COLORS,
+      name = bossName(boss.kind),
+      { x, y, h, gap } = BOSS_BAR;
+    write(pen, name, c.text, x, y);
+    const bx = x + textWidth(name) + gap,
+      by = y + ((GLYPH_H - h) >> 1),
+      w = VIEW_W - x - bx;
+    pen.fillStyle = c.ink;
+    fill(pen, bx - 1, by - 1, w + 2, h + 2);
+    pen.fillStyle = c.track;
+    fill(pen, bx, by, w, h);
+    pen.fillStyle = c.boss;
+    fill(pen, bx, by, barWidth(boss.hp, boss.maxHp, w), h);
+  };
+
   return {
     draw(pen, view, frame, looks, seats) {
       const c = HUD_COLORS;
@@ -346,6 +381,7 @@ export function createHud<Image>(
         if (hero) heroPanel(pen, x0, hero, raw, frame, looks);
         else emptyPanel(pen, x0, seat, raw, frame, seats?.open !== false);
       }
+      if (view.boss) bossBar(pen, view.boss);
       // A hero gone from the world takes its trail with it.
       for (const [id, trail] of trails)
         if (trail.draw !== draws) trails.delete(id);

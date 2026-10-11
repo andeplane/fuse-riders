@@ -45,6 +45,8 @@ const enemy = (id: number, x: number): EnemyView => ({
   hp: 40,
   maxHp: 40,
   flash: false,
+  boss: false,
+  enraged: false,
   tier: 0,
 });
 const world = (extra: Partial<WorldView> = {}): WorldView => ({
@@ -61,6 +63,7 @@ const world = (extra: Partial<WorldView> = {}): WorldView => ({
   go: false,
   cleared: false,
   defeated: false,
+  boss: null,
   ...extra,
 });
 
