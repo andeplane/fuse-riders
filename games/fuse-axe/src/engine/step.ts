@@ -113,7 +113,7 @@ function walk(hero: Hero, bits: number): void {
   if (dx !== 0) hero.facing = dx > 0 ? 1 : -1;
 }
 
-const SWINGS: readonly HeroState[] = ["attack1", "attack2", "attack3"];
+export const SWINGS: readonly HeroState[] = ["attack1", "attack2", "attack3"];
 
 /** A swing starts from a standstill and with a clean slate of enemies struck. */
 function startSwing(hero: Hero, index: number): void {
@@ -366,7 +366,7 @@ function moveHero(world: World, hero: Hero, bits: number): void {
  * An enemy a blade can land on: on its feet (thinking or reeling), or walking in once its whole body is on screen; a
  * sack imp as `kickable` says.
  */
-const hittable = (world: World, enemy: Enemy): boolean =>
+export const hittable = (world: World, enemy: Enemy): boolean =>
   isImp(enemy)
     ? kickable(world, enemy)
     : thinks(enemy) ||
