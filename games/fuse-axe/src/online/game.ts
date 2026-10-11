@@ -349,7 +349,9 @@ function finish(room: Room, outcome: Outcome): void {
  * under the policy in design.md ("Stage flow"): each hero of the cleared world whose seat is still here (its slot held
  * by a member playing its hero: camp gives up a seat that leaves, and a newcomer may take the slot) sets out with the
  * lives it has, one that went out with one, and the magic pots it holds (`carryOf`), at full health with a fresh
- * continue, its tallies banked in the room. With none of them left the run is over and the room an empty lobby.
+ * continue, its tallies banked in the room. The hero belongs to its slot, not to a member: a newcomer in the freed
+ * slot, or a bot added there, who plays the same hero carries it on as the one who left would, while one playing
+ * another hero leaves it behind. With none of them left the run is over and the room an empty lobby.
  */
 function nextStage(room: Room): void {
   if (room.round >= LAST_STAGE) return finish(room, "victory");
@@ -666,10 +668,10 @@ function tallyHolds(room: Room, world: World): boolean {
 /**
  * What spans the fields. The lobby has no stage, no world, nothing held, no clock, no continue spent, no outcome and
  * no tallies. A run has a world: the one `beginStage` seeds for this run and stage, of that stage and with a hero at
- * least, run whole log ticks no later than this one; every hero's seat is held for it in play by a member playing that hero, and only a human playing a hero
- * holds bits, and only in play: the stage flow clears them as a stage ends, so camp and a run that is over hold none
- * and a pick after game over leaves a checkpoint that still decodes. The flow and the tallies hold (`flowHolds`,
- * `tallyHolds`).
+ * least, run whole log ticks no later than this one; every hero's seat is held for it in play by a member playing that
+ * hero, and only a human playing a hero holds bits, and only in play: the stage flow clears them as a stage ends, so
+ * camp and a run that is over hold none and a pick after game over leaves a checkpoint that still decodes. The flow
+ * and the tallies hold (`flowHolds`, `tallyHolds`).
  */
 function consistent(room: Room): boolean {
   const world = room.world;

@@ -10,10 +10,14 @@ import {
   STAGE_1,
   STAGE_2,
   UP,
+  botInput,
+  carryOf,
   createWorld,
   decodeWorld,
+  defeated,
   encodeWorld,
   spawnEnemy,
+  stageCleared,
   step,
   stepTick,
   type World,
@@ -29,6 +33,7 @@ import {
   FX_MAX,
   HEAVY_HITSTOP,
   HERO_HP,
+  HERO_KINDS,
   JUGGLE_HITS,
   JUGGLE_WINDOW,
   LIVES,
@@ -156,6 +161,50 @@ test("a world's road is its own stage's: what lies past the village's end is ref
   const beyond = (f: unknown[]) => (near(f), (enemy(f)[2] = px(1700)));
   assert.equal(asStage1(true, beyond), undefined, "a ravager past it");
   assert.equal(asStage1(true, near)?.stage, 1, "within reach of its end");
+});
+
+test("every world the bots reach on any stage, in a party of one or five, is accepted by the checkpoint", () => {
+  let checked = 0;
+  for (const party of [1, 5]) {
+    let world = createWorld({
+      seed: 41,
+      heroes: Array.from({ length: party }, (_, seat) => ({
+        seat,
+        kind: HERO_KINDS[seat % HERO_KINDS.length]!,
+      })),
+    });
+    for (const [index, plan] of STAGES.entries()) {
+      if (index > 0)
+        world = createWorld({
+          seed: 41 + index,
+          stage: index + 1,
+          heroes: world.heroes.map((hero) => ({
+            seat: hero.seat,
+            kind: hero.kind,
+            carry: carryOf(hero),
+          })),
+        });
+      let furthest = 0;
+      while (world.step < 14_000 && !stageCleared(world) && !defeated(world)) {
+        const held: number[] = [];
+        for (const hero of world.heroes)
+          held[hero.seat] = botInput(world, hero.id);
+        world = stepTick(world, held);
+        furthest = Math.max(furthest, world.camX);
+        if (world.step % 15 === 0) {
+          checked++;
+          assert.deepEqual(
+            decodeWorld(JSON.parse(JSON.stringify(encodeWorld(world)))),
+            world,
+            `${plan.name} at step ${world.step} with ${party}`,
+          );
+        }
+      }
+      assert.ok(stageCleared(world), `${plan.name} cleared by ${party}`);
+      assert.equal(furthest, plan.cameraEnd, "to the end of its road");
+    }
+  }
+  assert.ok(checked > 1000, `${checked} worlds`);
 });
 
 /** The bits for a world's next step: seat 0 presses Attack every other step, seat 1 every third from step 41 on. */
