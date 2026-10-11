@@ -54,6 +54,11 @@ export interface LayerArt {
 export interface StageArt {
   /** Behind the heroes, far to near. */
   readonly back: readonly LayerArt[];
+  /**
+   * The furthest the camera's left edge goes, for a stage the engine does not have yet (its `cameraEndPx` is Stage
+   * 1's until it has); a stage the engine has leaves it out and takes the engine's.
+   */
+  readonly cameraEnd?: number;
   /** In front of the heroes. */
   readonly front: LayerArt;
   /** Draws what moves (flames, embers) over the back layers; `camX` is the floor's offset, `frame` counts 60 Hz steps. */
