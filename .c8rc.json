@@ -15,6 +15,7 @@
     "games/fuse-bombers/src/app/audio/web-backend.ts",
     "games/fuse-bombers/src/app/input/browser.ts",
     "games/fuse-bombers/src/app/input/debug.ts",
+    "games/fuse-bombers/src/app/online.ts",
     "games/fuse-bombers/src/engine/types.ts",
     "games/fuse-bombers/src/render/aim.ts",
     "games/fuse-bombers/src/render/art.ts",

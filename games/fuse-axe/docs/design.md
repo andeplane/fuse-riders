@@ -69,7 +69,7 @@ damage are tallied too. The spell's blow in sixteenths of an enemy's full hit po
   A free hero holding toward a reeling (`hurt`) enemy close in front in its lane grabs it with Attack, holds it
   briefly (no mace lands meanwhile), then throws it over the shoulder: the body flies behind the hero, knocks down
   every enemy on its feet it meets in the lane and takes the throw's damage as it lands. Heroes are never grabbed;
-  a kind can be made unthrowable (`THROWABLE`), as bosses will be.
+  a kind can be made unthrowable (`THROWABLE`), as the Ogre twins are.
 - **Jump** and **jump attack** (a downward stab): Attack in the air, from a standing or a running jump, stabs down
   from a few steps in until the hero lands, knocking down each enemy under or ahead of it in the lane once a jump.
 - **Back attack**: on the floor, Attack and Jump pressed within a couple of steps of each other (the window is a
@@ -105,8 +105,32 @@ Enemies ride beasts in later stages. Knock a rider off and anyone can climb on:
 
 A mounted hero who takes a hard hit is thrown off and the beast wanders until someone else takes it.
 
+The **clawbeak** (`src/engine/mount.ts`, tuned in `tuning.ts`'s mount constants) is in. A beast takes no blow: blades,
+thrown bodies and spells land on its rider. Its weapon is its tail: a telegraphed sweep that knocks down every foe
+within its reach on both sides, in a lane a little wider than a blade's. A ravager may ride one in (Wyrmbone Pass's
+waves 2 and 4, copied for a big party); the beast fights for the pair, walking up to its hero and sweeping once the hero
+is in reach, then standing open. A blow that knocks down knocks the rider off; the saddle takes a lighter one (the rider
+flashes, and a sweep still winding up is broken off), so the combo's finisher, a dash, a back or jump attack, a throw or
+a spell unseats it. Riderless, the beast panics away from the blow, wanders, and after ten seconds with nobody on it
+walks off the screen. Enemies never climb back on, but for the lancer captain, once.
+
+The **ember drake** is ridden and unseated the same way, but its weapon is its breath: a telegraphed inhale (half a
+second, the beast blinking), then a stream of fire along its facing in its lane, a little wider than a blade's, that
+runs out from its mouth to more than four maces' reach, holds and draws back (`DRAKE_INHALE`, `FLAME_*` in `tuning.ts`).
+Nothing blocks it: every foe it reaches on the floor or low in the air is burned and knocked down along it, once a
+breath; step out of the lane, or jump it. An enemy's drake breathes at its hero lined up in front within the flame's
+length, and otherwise keeps to the edge of it (`DRAKE_STAND`).
+
+A hero standing beside a riderless beast, in its lane, climbs on with **Jump** (two on the same step: the lower id).
+Riding, it walks at the beast's pace (no run), **Attack** strikes with the beast (a clawbeak sweeps its tail at the
+enemies around, a drake breathes fire in front), never at a hero (a cool-down after each), **Jump** hops the beast,
+**Down + Jump** climbs off, and **Magic** climbs off to charge or cast.
+The saddle takes light blows as an enemy's does; a hard one (any the rules would knock the hero down with, or a blow in
+a hop) throws it off. Nobody rides at camp, and a continue or a new stage drops every hero in on foot. Bots never
+board a beast, leaving them to the players.
+
 A **sack imp** (`src/engine/imps.ts`) is sent by a cue in the stage's script (`STAGE_1.imps` in `stages.ts`: one
-after wave 2, one alongside wave 3, one after wave 4, a single imp whatever the party's size). It scurries in from a
+after wave 2, one alongside wave 3, one after wave 4; Wyrmbone Pass has two; a single imp whatever the party's size). It scurries in from a
 screen edge and across the floor, zig-zagging in depth, never attacks and holds no wave's screen. Every blow that
 lands on it kicks one pot out of its sack (2–3 per imp); it stumbles (a blow that knocks down sends it flying), then
 flees away from the blow faster than any hero walks. Empty, it cannot be kicked; it leaves once off screen. A pot pops
@@ -119,16 +143,91 @@ can interrupt or step out of, and get no reach, speed or knockdown a hero lacks.
 from both sides where they can, while the rest hover at a distance; a hero swinging its blade is walked round. Their
 choices draw from the world's seeded stream (`src/engine/ai.ts`, tuned per tier in `tuning.ts`'s `RAVAGER`).
 
+The **Ogre twins** (`src/engine/ogre.ts`, tuned in `tuning.ts`'s `OGRE`) are Stage 1's last wave: one walks in from
+each side, one green and one red, with a ravager more for each hero beyond the first. An ogre is half as big again as
+a ravager, slow, and has hit points for the party's size, not its tier. Lined up, it raises its hammer in a long wind-up
+and slams it down on a wide area in front, then a shockwave runs on along the floor in its lane (step out of the lane
+or jump it); a hero close behind it draws a round sweep. After each blow it stands open. Its super armour shrugs off a
+slash (the hit flashes but neither nudges nor stops it); a heavy blow staggers it while it stands or walks, and knocks
+it down once it has taken a quarter of its hit points since it last fell. A spell always knocks it down but takes at
+most an eighth of its hit points, and it is never grabbed. When one twin falls the other enrages and fights faster; a
+boss bar across the top shows the twins' health together.
+
+A **lancer** (`src/engine/lancer.ts`, tuned in `tuning.ts`'s `LANCER`) is lighter and quicker than a ravager of its
+tier and shares the two places by a hero with every other kind. It keeps to the edge of its spear's reach (about 1.6
+maces, the one reach no hero has, paid for with a longer wind-up and a lane thinner than a blade's), backing away from
+a hero who comes too close until the screen's edge stops it, and thrusts lined up in the hero's lane; after the thrust
+it stands open. It leaps in from beyond the screen's edge, and at a hero far along the road, with a hero's jump that
+lands with the spear driven down in front, knocking down. A blow in the air knocks it down, as it does a hero; otherwise
+it is dazed, grabbed, thrown and spelled down as a ravager is. Stage 1's waves 3 and 4 have one each, and every wave of
+Wyrmbone Pass but the last.
+
+The **lancer captain** (`lancer.ts` and `mount.ts`, tuned in `tuning.ts`'s `CAPTAIN`) is Wyrmbone Pass's boss: he rides
+his ember drake out of the skull gate, with one more for each hero beyond the first from the other side (a violet
+lancer, then a violet ravager, and so on). He has a boss's hit points for the party, a boss's armour and poise, and a
+spell takes at most a boss's share of him; nobody throws him, and a thrown body passes him by. In the saddle the drake breathes fire, and now and then, at a hero close
+in front, he thrusts his spear from it instead (a telegraphed wind-up, `LANCE_WINDUP`). His saddle takes every blow
+until his poise breaks (a quarter of his hit points since he last fell): then a heavy blow, or any spell, knocks him
+off. Before that his armour takes a slash as an ogre's does (he only flashes), and a heavy blow holds him and breaks
+off the drake's inhale or his thrust, so step out of the flame's lane. On foot he fights as a lancer, quicker and
+harder, his leap's plunge landing wider (`CAPTAIN_PLUNGE`), staggering rather than reeling from a heavy blow; his armour
+holds in mid-leap too, so a blow there does not cut his plunge short as it does another lancer's. Once, while his drake
+is still riderless on screen, he walks back to it (he goes for it before any hero) and climbs on, unless a hero has
+climbed on first. The boss bar reads LANCER CAPTAIN.
+
+A **bonewalker** (`src/engine/bonewalker.ts`, tuned in `tuning.ts`'s `BONEWALKER`, the Drowned Crypt's) fights as a
+ravager does, lighter than one of its palette and quicker to swing its sword, which reaches a little further than a
+mace (`BONE_REACH`); the violet tier is the armoured knight, hardest-hitting and longest in reach. A wave's bonewalker
+may claw up out of an open grave on the screen it holds (`Spawn.grave`, `StagePlan.graves`): it stands there for a
+second (`RISE_STEPS`) climbing out, struck by no blade, thrown body or spell, then fights; a bigger party's copy of one
+rises from the same grave a rise later. The first time a fall leaves it with no hit points it lies as a bone pile
+(`pile`) rather than falling for good, and after 2.5 s (`PILE_STEPS`) pulls itself together (`reassemble`, half a
+second; no blade lands on it, as on one getting up, but a spell does) with half its full hit points. Any blow that lands
+on the pile, a slash, a jump attack's stab, a beast's, a thrown body or a spell, shatters it for good (a knockdown in
+the tally); nobody grabs a pile, and the second fall with no hit points is the last. A wave waits for its piles: one
+left alone pulls itself together and fights on, so the wave is not cleared while a pile lies. A bot goes for a pile
+first, to shatter it, and casts no pot because piles are about it. Until its art comes it is drawn as a ravager in
+bone, its pile as a skull and a few bones.
+
 ## Stages
 
 1. **Ashen Village** — a dusk road through burning thatched huts. Ravagers and lancers; boss: the Ogre twins.
 2. **Wyrmbone Pass** — a mountain path through the ribs of a dead giant wyrm. Mounts appear; boss: a lancer captain
-   on an ember drake.
-3. **Drowned Crypt** — a flooded graveyard under a broken cathedral; bonewalkers rise from the ground.
+   on an ember drake. Playable as gameplay for now (`STAGE_2`): five screens of road, five waves of ravagers mostly in
+   rust and violet, each with a lancer or two, waves 2 and 4 with a ravager riding a clawbeak, and two imps, and at the
+   end the lancer captain on his ember drake, breathing fire (the captain drawn for now as a lancer in gold, seated,
+   until his own look comes). Its backdrop is a cold dawn under a
+   setting moon: ribs arching over the road, a lesser wyrm's skull partway, the raiders' camp, and the wyrm's great
+   skull in the cliff at the end, its open jaws the gate the boss waits in.
+
+   ![Wyrmbone Pass: the ribs and the lesser skull, and the skull gate in the last screen](images/stage2-backdrop.png)
+
+3. **Drowned Crypt** — a flooded graveyard under a broken cathedral; bonewalkers rise from the ground. Playable as
+   gameplay (`STAGE_3`): five screens of road, five waves of bonewalkers clawing up out of the four graves on their
+   screens among violet ravagers and lancers, two imps, and at the cathedral's doors a pair of armoured bone knights
+   (violet bonewalkers) walking out from both sides, with a rust bonewalker and a violet ravager in turn for each hero
+   beyond the first. The knights are no boss (no bar, no armour), only the toughest of their kind with the longest
+   reach; Vorhal's Keep comes next. Its backdrop: a cold night under a pale moon, the cathedral's silhouette with its shattered rose
+   window, graves, iron fences and green-burning braziers on a bank behind black water with crosses sunk in it, a
+   causeway of wet flagstones broken open by graves, and at the end the cathedral's great doors up a flight of steps.
+
+   ![Drowned Crypt: the graveyard under the cathedral, an open grave, and the great doors in the last screen](images/stage3-backdrop.png)
+
 4. **Vorhal's Keep** — torch-lit halls to the throne room and Vorhal.
 
 Between stages the heroes make **camp**: a short night scene by a fire where sack imps sneak in to steal; kicking them
-drops pots and meat (meat heals). Then the next stage.
+drops pots and meat (meat heals). Then the next stage. In the engine (`src/engine/camp.ts`) a camp is a world of its
+own (`createWorld` with `camp`, `World.camp`) playing the `CAMP` plan: one screen whose camera never moves, no wave,
+and four sack imps sneaking in from alternate edges by the clock (`ImpCue.step`, 1.5 s to 9 s in) to scurry through
+the clearing past the packs. An imp that gets away takes nothing. A camp imp's sack spills meat and pots in turn, meat
+while an odd count is left; meat gives back `MEAT_HEAL` (15) hit points to a hero short of full health, no more than
+its whole health, and one at full leaves it lying for another. Nothing at camp fights back, so no hero is hurt there,
+and Magic casts nothing (the pots are kept for the road). Camp is over (`campOver`) once every imp has come and gone
+and nothing is left on the floor, or after `CAMP_STEPS` (20 s) at most. The backdrop is a starry night clearing with
+a tree line, two tents and the packs, and a campfire whose flames and light flicker (`src/render/backdrop/camp.ts`);
+the flames stand among the figures by depth, so a hero behind the fire is partly hidden by it.
+
+![Camp: Ada, Ironhide and Flint by the fire as a sack imp sneaks in from the right](images/camp.png)
 
 ## Structure
 
@@ -136,7 +235,8 @@ drops pots and meat (meat heals). Then the next stage.
   behind: the leftmost hero holds the left edge, the screen edge holds everyone in.
 - **Waves.** Trigger points along the strip spawn a wave and lock the screen until it is cleared; then a flashing
   **GO →** sends the party on. The last trigger is the stage boss. Enemies walk in from beyond the screen's edges,
-  and one knocked out of a locked screen walks back in. Stage 1's waves are data in `src/engine/stages.ts`.
+  and one knocked out of a locked screen walks back in. Each stage is data in `src/engine/stages.ts` (`STAGES`: its
+  road's length, waves and imp cues), and a world plays the one its `stage` names (`planOf`).
 - **Scaling.** Wave size and enemy HP grow with the number of heroes: each hero beyond the first adds a spawn to
   every wave and a quarter to every enemy's hit points (`waveSpawns` and `enemyMaxHp`).
 - **Life.** Each hero has a health bar and three lives. A hero who loses a life drops back in from the top after a
@@ -151,7 +251,7 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
 - **Stage clear.** The tick the last wave is cleared (`stageCleared`), the room banks each hero's tallies from the
   world into the run's (`Room.tally`, so they outlive the stage's world), lets go of every held control and goes
   `between` for `CLEAR_TICKS` (6 s), showing the stage's tally over the frozen scene. A stage cleared as the last hero
-  falls is still won. Past the last stage (`LAST_STAGE`, 1 until stage 2 is built) the run ends `over` as a victory.
+  falls is still won. Past the last stage (`LAST_STAGE`, 3) the run ends `over` as a victory.
 - **Continue.** When every hero is out (`defeated`), the world keeps running and a countdown of `CONTINUE_TICKS`
   (10 s) starts. A present human seated at a hero of the run votes by pressing Attack (or the CONTINUE button): a
   `CONTINUE` entry for the run and stage (`[seq, tick, 2, matchId, round]`). The first one folded in the countdown
@@ -164,15 +264,34 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
   picks apply again, and the host's REMATCH sets out on a fresh run (stage 1, nothing tallied) or LOBBY goes back.
   The page shows each as a card over the game (`src/app/presenter.ts`, `card`): [the countdown](images/app-continue.png)
   and [game over](images/app-game-over.png), from `preview/flow.mjs`.
-- **The next stage** (once there is one) slots in where the tally ends (`nextStage`): a world seeded
-  `seedOf("matchId:round+1")` as `beginStage` makes every stage's, with each hero whose seat is still here. Policy:
-  lives carry over (a hero who went out comes back with one), and so do magic pots, as in the original (the new
-  world takes each hero's pots from the cleared one); health is full, the continue is fresh, and the tallies stay
-  banked in the room; camp sits between the tally and the next stage.
+- **Camp** follows a tally short of the last stage (`makeCamp`), still `between` stages and with the cleared stage's
+  number (`round`): the camp's world, seeded `seedOf("matchId:round:camp")`, with each hero going on (`goingOn`: its
+  seat still here, its slot held by a member playing its hero; camp, like the tally, gives up a seat that leaves, so a
+  bot taken off does not carry it on, nor does a newcomer in that slot playing another hero; the hero belongs to its
+  slot, so one playing the same hero carries it on as the member who left would). Nothing is held, no room clock runs
+  (the world's own ends camp; the view counts it down), and the stage's continue is put by. Each log tick plays it as
+  a stage is played (`campTick`): a seat's `PLAY` entries for the run and the cleared stage steer its hero, a bot plays
+  its own, and a hero with no seat playing it stands idle, its bits let go. Staying `between` keeps the netcode's rule
+  that only a running stage holds seats, so a member may leave, be removed or join at camp; the fold therefore never
+  assumes a camp hero has a seat. The page plays camp as a stage (its keys and pads are the hero's) under a small
+  CAMP caption with its clock (`card`, kind `camp`). The device re-logs its held keys as camp begins (`flush` keys its
+  last entry by run, stage and camp), since the tally let go of them.
+- **The next stage** begins once camp is over (`nextStage`): the next stage's world, seeded
+  `seedOf("matchId:round+1")` as `beginStage` makes every stage's, with each hero still going on from camp. Policy
+  (`carryOf`, into camp and out of it): lives carry over (a hero who went out comes back with one), and so do magic
+  pots and health, as in the original, so camp's meat is worth kicking for; a hero fallen with no hit points comes back
+  at full health. The continue is fresh, and the tallies stay banked in the room, a hero that left keeping its row
+  (camp tallies nothing). With none of the run's heroes left the room is an empty lobby again.
 
 The checkpoint carries the clock (`until`), the spent continue, the outcome and the banked tallies, and refuses any
-combination the fold cannot reach (a clock in play with heroes standing, a win short of the last stage, tallies that
-are not the world's heroes).
+combination the fold cannot reach (a clock in play with heroes standing, a win short of the last stage, a world of
+another stage than the round or with no hero, tallies that are not the world's heroes: in a later stage or at camp, a
+row for each of them in seat order, and once it has ended at least its own: what earlier stages banked for a hero is
+not in the checkpoint to check against, so a later row is bounded below by its own stage only). A camp's world is
+refused anywhere but `between` with no clock, no continue spent and no outcome, after the last stage, or once it is
+over, and one holding a spell, a beast or any enemy but a sack imp (a run casts nothing at camp either: `conjures` is
+false there, from a walk or a run); held bits are refused over a tally, and at camp for a seat that plays no hero of it
+or is a bot.
 
 ## Screen and art
 
@@ -182,15 +301,30 @@ are not the world's heroes).
   seat's colour over each hero tells the players apart ([screenshot](images/scene.png)).
 - Sprites are drawn from palette-indexed pixel data in code, so palette swaps (enemy tiers, duplicate heroes,
   damage flash) are free and no sprite sheet is checked in. (The PNGs under `docs/images/` are screenshots of the
-  concept page, the sprite lab and the Stage 1 backdrop, for readers who cannot open them.)
-- Draw order is by floor depth (further up the screen is further away), then by height.
-- Parallax backgrounds (`src/render/backdrop/`, one module per stage): static layers are painted once and blitted at
-  whole-pixel offsets, and only fires and torches draw per frame. Stage 1 has the sky, a ridge with Vorhal's keep (1/8
-  speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in front; it ends at the
-  village gate ([screenshot](images/stage1-backdrop.png)).
+  concept page, the sprite lab and the stage backdrops, for readers who cannot open them.)
+- Draw order is by floor depth (further up the screen is further away), then by height. Camp's fire (the backdrop's
+  `prop`) takes its place among the figures by its row: it is drawn over those further up the floor and under those in
+  front of it, one on its own row counting as behind it.
+- Parallax backgrounds (`src/render/backdrop/`, one module per stage, and camp's): static layers are painted once and blitted at
+  whole-pixel offsets, and only fires, torches, mist and snow draw per frame. Stage 1 has the sky, a ridge with
+  Vorhal's keep (1/8 speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in
+  front; it ends at the village gate ([screenshot](images/stage1-backdrop.png)). Stage 2 (`wyrmbone-pass.ts`) has the
+  same rates: the sky and moon, snowy peaks, near mountains with a winding path, the road and the wyrm's bones, and
+  stones and bone chips in front; it ends at the skull gate ([screenshot](images/stage2-backdrop.png)). Stage 3
+  (`drowned-crypt.ts`) too: the sky and moon, the cathedral, cloisters and mausoleums, the bank, water and causeway,
+  and reeds in front; ripples, fog, green fires and drips move. Each layer is as wide as it scrolls across its stage
+  (`cameraEndPx(stage)` in `view-kit.ts`; a stage the engine lacks may set its own through `StageArt.cameraEnd`). The
+  crypt's four open graves are the engine's (`STAGE_3.graves`, `gravesPx(3)`: world x and floor row), where its
+  bonewalkers rise. The scene picks the backdrop by the
+  view's `stage`; a stage without art of its own draws Stage 1's, its camera scaled from the stage's road onto the
+  village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery. A camp (the view's `camp`) draws
+  `camp.ts` instead, whatever stage it follows: one screen, baked once with the scene, whose camera is held at 0.
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
   and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives
-  ([screenshot](images/hud.png)).
+  ([screenshot](images/hud.png)); the pots light up to the level chosen while a hero charges magic.
+- Spells (`src/render/spells/`, one module per kind) play over the field from the view's `spells`, timed by
+  `SPELL_STEPS`: a dithered dusk, the kind's art growing with the level, and a flash and a render-only shake at the
+  blow ([screenshot](images/spells.png)).
 
 ## Players, rooms and controls
 
@@ -199,6 +333,7 @@ are not the world's heroes).
   `HeldControls` as the keys, so the engine sees one input path (`src/app/pad.ts`, `presenter.ts`'s `controller`).
 - Local play on one machine: keyboard and gamepads.
 - A solo player can bring bot companions. Bots press the same buttons as a human and get no privileged rules.
+  Built: the host's + BOT in the lobby seats one, and the room folds `botInput` (`src/engine/bot.ts`) for its seat.
 
 ## Technical shape
 
@@ -241,5 +376,5 @@ Small pull requests, each reviewed and merged before the next one that depends o
 6. HUD; run, dash attack, throw, jump attack and back attack.
 7. Sack imps, pots and magic for each hero.
 8. More enemies (lancer, brute), the Ogre twins and the stage flow.
-9. Camp, stages 2–4, mounts, bonewalkers and Vorhal.
+9. Camp, stages 2–4, mounts, bonewalkers and Vorhal (in: camp).
 10. Sound effects and music (in: the effects, the jingles and the Stage 1 march); bot companions.

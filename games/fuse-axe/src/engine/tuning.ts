@@ -25,7 +25,7 @@ export const CAPACITY = 5;
 /** The floor band: a hero's feet stand between these depths, which are also screen rows in the lower half. */
 export const FLOOR_TOP = px(104);
 export const FLOOR_BOTTOM = px(172);
-/** Stage 1, Ashen Village: four screens of road. Later stages bring their own lengths. */
+/** Stage 1, Ashen Village: four screens of road. Each stage has its own (`STAGES` in `stages.ts`, `planOf`). */
 export const STAGE_LENGTH = px(4 * VIEW_W);
 /** The camera's left edge stops here, with the stage's end at the screen's right edge. */
 export const CAMERA_END = STAGE_LENGTH - px(VIEW_W);
@@ -218,22 +218,51 @@ export const THROW_VZ = px(2);
 /** Damage the thrown body takes as it lands, and each enemy it knocks down on the way. */
 export const THROW_DAMAGE = 12;
 export const BODY_DAMAGE = 6;
-/** The kinds a hero can throw; a boss will not be, nor a sack imp, which is never dazed. */
+/** The kinds a hero can throw: not a boss, nor a sack imp, which is never dazed (nor a bone pile, never dazed either). */
 export const THROWABLE: Readonly<Record<EnemyKind, boolean>> = {
   ravager: true,
   imp: false,
+  ogre: false,
+  lancer: true,
+  captain: false,
+  bonewalker: true,
 };
 
 // ---- the enemies ----
-/** A sack imp (`imps.ts`) is no fighter: it crosses the screen with magic pots for the heroes to kick out of it. */
-export const ENEMY_KINDS = ["ravager", "imp"] as const;
+/**
+ * A sack imp (`imps.ts`) is no fighter: it crosses the screen with magic pots for the heroes to kick out of it. An
+ * ogre (`ogre.ts`) is Stage 1's boss, one of the twins. A lancer (`lancer.ts`) fights with a spear and leaps in, and
+ * the lancer captain, Wyrmbone Pass's boss, is one who rides an ember drake. A bonewalker (`bonewalker.ts`), the
+ * Drowned Crypt's skeleton swordsman, claws up out of a grave and pulls itself together once from its bones.
+ */
+export const ENEMY_KINDS = [
+  "ravager",
+  "imp",
+  "ogre",
+  "lancer",
+  "captain",
+  "bonewalker",
+] as const;
 export type EnemyKind = (typeof ENEMY_KINDS)[number];
 /** The kinds that fight, which a wave is made of and holds the screen for. */
 export type FoeKind = Exclude<EnemyKind, "imp">;
+/** The bosses: no tier but a palette, super armour, and a cap on what a spell takes (`BOSS_SHARE`). */
+export const BOSS: Readonly<Record<EnemyKind, boolean>> = {
+  ravager: false,
+  imp: false,
+  ogre: true,
+  lancer: false,
+  captain: true,
+  bonewalker: false,
+};
 /** A kind's hit points at its lowest tier with one hero; `enemyMaxHp` scales them. An imp takes no damage. */
 export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = {
   ravager: 40,
   imp: 4,
+  ogre: 150,
+  lancer: 32,
+  captain: 180,
+  bonewalker: 32,
 };
 /** Tiers by palette (ash, rust, violet): each adds hit points, and aggression (`RAVAGER`). */
 export const TIERS = [0, 1, 2] as const;
@@ -241,16 +270,18 @@ export type Tier = (typeof TIERS)[number];
 /** Each tier's hit points in quarters of the kind's base. */
 export const TIER_HP: Readonly<Record<Tier, number>> = { 0: 4, 1: 5, 2: 6 };
 /**
- * An enemy's full hit points: its kind's base by its tier, and a quarter more for each hero beyond the first (an
- * empty world counts one), in whole points. A party of five meets ravagers with twice the hit points.
+ * An enemy's full hit points: its kind's base by its tier (a boss's tier is only its palette), and a quarter more for
+ * each hero beyond the first (an empty world counts one), in whole points. A party of five meets ravagers with twice
+ * the hit points.
  */
 export function enemyMaxHp(
   kind: EnemyKind,
   tier: Tier,
   heroes: number,
 ): number {
-  const party = Math.min(Math.max(heroes, 1), CAPACITY);
-  return Math.trunc((ENEMY_HP[kind] * TIER_HP[tier] * (3 + party)) / 16);
+  const party = Math.min(Math.max(heroes, 1), CAPACITY),
+    quarters = BOSS[kind] ? TIER_HP[0] : TIER_HP[tier];
+  return Math.trunc((ENEMY_HP[kind] * quarters * (3 + party)) / 16);
 }
 /**
  * The most enemies a world holds at once, a defeated one that has not blinked out yet included. `spawnEnemy` refuses
@@ -260,6 +291,17 @@ export const ENEMY_MAX = 64;
 /** An enemy's body: half its width either side of its centre, and its height above its feet. */
 export const ENEMY_HALF_W = px(10);
 export const ENEMY_HEIGHT = px(44);
+/** Each kind's body, half-width and height: an ogre is half as big again as a ravager. */
+export const ENEMY_BODY: Readonly<
+  Record<EnemyKind, { readonly half: number; readonly height: number }>
+> = {
+  ravager: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
+  imp: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
+  ogre: { half: px(15), height: px(66) },
+  lancer: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
+  captain: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
+  bonewalker: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
+};
 /** A hurt enemy is nudged back at this speed, slowing by `HURT_FRICTION` a step, and reels for `HURT_STEPS`. */
 export const HURT_PUSH = px(1.5);
 export const HURT_FRICTION = px(0.25);
@@ -331,6 +373,237 @@ export const HOVER_SPREAD = px(32);
 export const FEINT_AT = 8;
 export const BACKSTEP = px(24);
 
+// ---- how the Ogre twins fight (`ogre.ts`) ----
+/**
+ * An ogre calm and enraged (once its twin has fallen): its slam's wind-up, its pause, its slow walk and the slam's
+ * damage. It never feints.
+ */
+export const OGRE: Readonly<Record<"calm" | "rage", Fighter>> = {
+  calm: fighter(48, 30, 24, 0.45, 14, 0),
+  rage: fighter(32, 16, 16, 0.6, 16, 0),
+};
+/** The fighter an enemy is: its tier's ravager, lancer or bonewalker, an ogre's mood, or the captain. */
+export const fighterOf = (
+  kind: EnemyKind,
+  tier: Tier,
+  enraged: boolean,
+): Fighter =>
+  kind === "ogre"
+    ? OGRE[enraged ? "rage" : "calm"]
+    : kind === "captain"
+      ? CAPTAIN
+      : kind === "lancer"
+        ? LANCER[tier]
+        : kind === "bonewalker"
+          ? BONEWALKER[tier]
+          : RAVAGER[tier];
+/** It walks to stand this far from its hero along the road, and winds up within `OGRE_SLACK` more and `OGRE_LANE` in depth. */
+export const OGRE_ENGAGE = px(30);
+export const OGRE_SLACK = px(10);
+export const OGRE_LANE = px(3);
+/** The slam lands on the attack's first step: this far in front, this wide either side in depth, and this high. */
+export const SLAM_REACH = px(46);
+export const SLAM_LANE = px(10);
+export const SLAM_HEIGHT = px(48);
+/** Steps the hammer stays down after it lands; the shockwave runs through the first `QUAKE_STEPS` of them. */
+export const SLAM_STEPS = 28;
+/**
+ * The shockwave runs on along the floor from the slam's reach at `QUAKE_SPEED` a step, in the ogre's depth lane:
+ * every hero on the floor (not one in the air) it passes takes `QUAKE_DAMAGE` and is knocked down.
+ */
+export const QUAKE_SPEED = px(2.5);
+export const QUAKE_STEPS = 24;
+export const QUAKE_DAMAGE = 8;
+/**
+ * A hero within `BEHIND` behind an ogre (in `SWEEP_LANE`) as it decides or walks draws the sweep: a round swing of the
+ * hammer landing `SWEEP_WINDUP` steps in on every hero within `SWEEP_REACH` either side.
+ */
+export const BEHIND = px(32);
+export const SWEEP_REACH = px(40);
+export const SWEEP_LANE = px(8);
+export const SWEEP_WINDUP = 16;
+export const SWEEP_STEPS = 32;
+export const SWEEP_DAMAGE = 10;
+/** Steps an ogre stands open after a slam or a sweep, and staggers from a heavy blow. */
+export const OGRE_RECOVER = 40;
+export const STAGGER_STEPS = 18;
+/** A heavy blow knocks an ogre down once it has taken a `POISE`th of its full hit points since it last fell. */
+export const POISE = 4;
+/** A spell takes at most `BOSS_SHARE` sixteenths of a boss's full hit points (`SHARE`), whatever its level. */
+export const BOSS_SHARE = 2;
+
+// ---- how lancers fight (`lancer.ts`) ----
+/**
+ * A lancer by tier (ash, rust, violet): lighter than a ravager of its palette (`ENEMY_HP`) and quicker on its feet,
+ * though never faster than a hero walks, its spear's thrust wound up a little longer than the mace and lighter. It
+ * never feints: it leaps instead.
+ */
+export const LANCER: Readonly<Record<Tier, Fighter>> = {
+  0: fighter(28, 20, 28, 0.8, 5, 0),
+  1: fighter(24, 14, 20, 0.9, 6, 0),
+  2: fighter(20, 8, 14, 1, 7, 0),
+};
+/**
+ * The spear lands on the thrust's first step: this far in front of the lancer's centre (about 1.6 maces), in a lane
+ * thinner than a blade's, and as high as the mace sweeps.
+ */
+export const SPEAR_REACH = px(42);
+export const SPEAR_LANE = px(4);
+/** Steps the spear stays out after it lands, then steps the lancer stands open. */
+export const THRUST_STEPS = 10;
+export const LANCE_RECOVER = 24;
+/**
+ * It walks to stand `LANCE_ENGAGE` from its hero along the road, near the edge of its reach, and thrusts lined up within
+ * `LANCE_SLACK` beyond it and `AI_LANE` in depth; a hero closer than `LANCE_NEAR` it backs away from first, unless the
+ * screen's edge stops it.
+ */
+export const LANCE_ENGAGE = px(36);
+export const LANCE_SLACK = px(6);
+export const LANCE_NEAR = px(24);
+/**
+ * A hero further than `LEAP_FAR` along the road is leapt at, as a wave's lancer leaps in from the screen's edge: a
+ * hero's jump (`JUMP_VZ` under `GRAVITY`, `LEAP_STEPS` in the air), carrying no more than the fastest run along the
+ * road (`LEAP_VX`) and a walk in depth (`LEAP_VY`), to land `LEAP_LAND` in front of the hero.
+ */
+export const LEAP_FAR = px(80);
+export const LEAP_VX = px(2.25);
+export const LEAP_VY = px(0.75);
+export const LEAP_LAND = px(24);
+/** A jump's steps in the air: the step its height first comes back down to the floor. */
+export const LEAP_STEPS = 1 + Math.ceil((2 * JUMP_VZ) / GRAVITY);
+/**
+ * Landing, it drives the spear down in front (`plunge`): every hero within `PLUNGE_REACH`, in the lane, is knocked down
+ * with the thrust's damage. It stands over the spear for `PLUNGE_STEPS`, open.
+ */
+export const PLUNGE_REACH = px(28);
+export const PLUNGE_STEPS = 24;
+
+// ---- the lancer captain (`lancer.ts`), Wyrmbone Pass's boss ----
+/**
+ * A lancer quicker and harder than a violet one (his tier only his palette), with a boss's hit points, and on foot a
+ * boss's armour and poise (an ogre's: `POISE`, `BOSS_SHARE`). On his ember drake he thrusts from the saddle at a hero
+ * within `SPEAR_REACH` in front, `LANCE_CHANCE` times in 256 where the drake would breathe (`lance`: it lands
+ * `LANCE_WINDUP` steps in, lasts `LANCE_STEPS`, then he is open for `LANCE_COOL`). His leap lands harder: the plunge
+ * reaches `reach` in front and `lane` either side, with `damage`. A
+ * heavy blow his armour takes staggers him for `STAGGER_STEPS`; on foot he climbs back on a riderless drake within
+ * `REMOUNT_X` along the road, once.
+ */
+export const CAPTAIN: Fighter = fighter(22, 12, 14, 1, 9, 0);
+export const LANCE_WINDUP = 24;
+export const LANCE_STEPS = 36;
+export const LANCE_COOL = 40;
+export const LANCE_CHANCE = 96;
+export const CAPTAIN_PLUNGE = { reach: px(40), lane: px(10), damage: 14 };
+export const REMOUNT_X = px(200);
+
+// ---- bonewalkers (`bonewalker.ts`), the Drowned Crypt's ----
+/**
+ * A bonewalker by tier (bone, rust, and the armoured violet knight): lighter than a ravager of its palette
+ * (`ENEMY_HP`), its sword wound up faster; the knight walks slower and hits hardest, and never feints. It swings as a
+ * ravager does (`act`), its sword reaching `BONE_REACH` in front.
+ */
+export const BONEWALKER: Readonly<Record<Tier, Fighter>> = {
+  0: fighter(18, 20, 24, 0.7, 5, 16),
+  1: fighter(15, 14, 20, 0.8, 6, 24),
+  2: fighter(14, 12, 16, 0.7, 9, 0),
+};
+export const BONE_REACH: Readonly<Record<Tier, number>> = {
+  0: px(28),
+  1: px(28),
+  2: px(38),
+};
+/**
+ * One clawing up out of its grave rises for `RISE_STEPS`, invulnerable. The first time it falls with no hit points it
+ * lies as a bone pile for `PILE_STEPS`, then pulls itself together over `REASSEMBLE_STEPS` (invulnerable, as one
+ * getting up is) with half its full hit points; any blow on the pile shatters it for good.
+ */
+export const RISE_STEPS = 60;
+export const PILE_STEPS = 150;
+export const REASSEMBLE_STEPS = 30;
+
+// ---- mounts (`mount.ts`) ----
+/** The beasts a hero or an enemy rides: a clawbeak, which sweeps its tail round it, and an ember drake, breathing fire. */
+export const MOUNT_KINDS = ["clawbeak", "drake"] as const;
+export type MountKind = (typeof MOUNT_KINDS)[number];
+/** The most beasts a world holds at once: a wave's rider past it walks in on foot. */
+export const MOUNT_MAX = 8;
+/** The saddle's height over the beast's feet, where the view draws its rider; the rules stand the rider on its floor. */
+export const SADDLE = px(14);
+/** Half a beast's width either side of its centre, and its walk ridden by anyone: Rhea's pace, slower than any run. */
+export const BEAST_HALF_W = px(14);
+export const BEAST_WALK = { x: px(1.25), y: px(0.75) } as const;
+/**
+ * The tail sweep: wound up for `TAIL_WINDUP` steps, it lands on that step on every foe on the floor or low in the air
+ * (under `TAIL_HEIGHT`) within `TAIL_REACH` of the beast either side and `TAIL_LANE` in depth, knocking it down with
+ * `TAIL_DAMAGE`, and lasts `TAIL_STEPS`. The beast sweeps again no sooner than `TAIL_COOL` after one ends or is broken
+ * off; an enemy's stands open that long.
+ */
+export const TAIL_WINDUP = 20;
+export const TAIL_STEPS = 32;
+export const TAIL_REACH = px(36);
+export const TAIL_LANE = px(8);
+export const TAIL_HEIGHT = px(32);
+export const TAIL_DAMAGE = 10;
+export const TAIL_COOL = 30;
+/** An enemy's beast walks to stand this far from its hero along the road, in its lane: a clawbeak, and an ember drake. */
+export const TAIL_STAND = px(24);
+export const DRAKE_STAND = px(56);
+/**
+ * The ember drake's breath: it inhales for `DRAKE_INHALE` steps, then breathes a stream of fire along its facing for
+ * `FLAME_STEPS`. The flame runs out from its mouth (`BEAST_HALF_W` in front of its centre) at `FLAME_SPEED` a step to
+ * `FLAME_LENGTH`, holds, and draws back as the breath ends (`flameAt`). Every foe on the floor or low in the air (under
+ * `FLAME_HEIGHT`) it reaches within `FLAME_LANE` in depth is burned for `FLAME_DAMAGE` and knocked down along the
+ * drake's facing, once a breath; nothing blocks it. It breathes again no sooner than `DRAKE_COOL` after; an enemy's
+ * stands open that long.
+ */
+export const DRAKE_INHALE = 32;
+export const FLAME_STEPS = 48;
+export const FLAME_SPEED = px(4);
+export const FLAME_LENGTH = px(72);
+export const FLAME_LANE = px(8);
+export const FLAME_HEIGHT = px(28);
+export const FLAME_DAMAGE = 10;
+export const DRAKE_COOL = 60;
+/** How far in front of a breathing drake's centre its flame reaches `timer` steps into the breath: 0 while it inhales. */
+export function flameAt(timer: number): number {
+  const t = timer - DRAKE_INHALE;
+  if (!(t >= 0 && t < FLAME_STEPS)) return 0;
+  return (
+    BEAST_HALF_W +
+    Math.min(FLAME_LENGTH, FLAME_SPEED * Math.min(t + 1, FLAME_STEPS - t))
+  );
+}
+/** Every blow a beast's pair strikes, by its state: the step it lands on (a flame's first), its length, its cool-down. */
+export const BEAST_BLOWS = {
+  sweep: { windup: TAIL_WINDUP, steps: TAIL_STEPS, cool: TAIL_COOL },
+  breathe: {
+    windup: DRAKE_INHALE,
+    steps: DRAKE_INHALE + FLAME_STEPS,
+    cool: DRAKE_COOL,
+  },
+  lance: { windup: LANCE_WINDUP, steps: LANCE_STEPS, cool: LANCE_COOL },
+} as const;
+export type BeastBlow = keyof typeof BEAST_BLOWS;
+/** The longest a beast cools after a blow. */
+export const BEAST_COOL = Math.max(TAIL_COOL, DRAKE_COOL, LANCE_COOL);
+/** Each kind's own blow, which a hero riding it strikes with Attack. */
+export const BEAST_BLOW: Readonly<Record<MountKind, BeastBlow>> = {
+  clawbeak: "sweep",
+  drake: "breathe",
+};
+/** A hero standing this close to a riderless beast along the road, in its lane (`LANE`), climbs on with Jump. */
+export const BOARD_X = px(24);
+/**
+ * A beast that loses its rider to a blow panics, running from it at `PANIC_RUN` for `PANIC_STEPS` (no shorter than a
+ * hop, `LEAP_STEPS`, so one thrown out of a hop lands panicking); riderless it wanders at `WANDER`, turning every
+ * `WANDER_TURN` steps, and after `STRAY_STEPS` with nobody on it leaves the screen.
+ */
+export const PANIC_RUN = px(2);
+export const PANIC_STEPS = 40;
+export const WANDER = px(0.5);
+export const WANDER_TURN = 64;
+export const STRAY_STEPS = 10 * 60;
+
 // ---- waves (the triggers themselves are in `stages.ts`) ----
 /** A wave's enemy appears this far outside the screen's edge on its side, its whole body out of view... */
 export const ENTER_OUT = px(16);
@@ -367,8 +640,8 @@ export const IMP_DOWN_STEPS = 24;
 export const IMP_FLEE = px(1.6);
 /** How high above an imp's feet a kick's spark appears: it is half a ravager's height. */
 export const IMP_SPARK = px(14);
-/** Kinds of things lying on the floor: magic pots now, meat at camp later. */
-export const ITEM_KINDS = ["pot"] as const;
+/** Kinds of things lying on the floor: magic pots, and the meat a sack imp spills at camp. */
+export const ITEM_KINDS = ["pot", "meat"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
 /** The most items the world holds at once: a new one past it takes the place of the oldest. */
 export const ITEM_MAX = 16;
@@ -381,6 +654,12 @@ export const ITEM_BLINK = 2 * STEPS_PER_SECOND;
 /** A hero on its feet picks an item up when its feet are this close to it along the road and in depth. */
 export const PICKUP_X = px(10);
 export const PICKUP_Y = px(5);
+/** The hit points meat gives back, up to the hero's whole health: a quarter of Brakka's. */
+export const MEAT_HEAL = 15;
+
+// ---- camp between stages (`camp.ts`) ----
+/** The longest camp lasts: 20 s. It ends sooner once its imps have gone and nothing is left lying on the floor. */
+export const CAMP_STEPS = 20 * STEPS_PER_SECOND;
 
 // ---- magic (`magic.ts`) ----
 /**

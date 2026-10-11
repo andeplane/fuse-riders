@@ -219,6 +219,16 @@ body {
   font-size: 14px;
 }
 
+.fa-add-bot {
+  margin-top: 10px;
+  align-self: flex-start;
+}
+
+.fui-app .fa-remove {
+  margin-left: auto;
+  padding: 2px 10px;
+}
+
 /* ---- the game: whole-number scaling on a letterboxed stage ---- */
 .fa-stage {
   flex: 1;
@@ -275,6 +285,27 @@ body {
 .fa-card[data-kind="continue"],
 .fa-card[data-kind="defeat"] {
   --edge: var(--fa-ember);
+}
+
+/* Camp is played: its caption is a strip at the top that leaves the clearing in view and takes no clicks. */
+.fa-card[data-kind="camp"] {
+  top: 8px;
+  transform: translateX(-50%);
+  width: auto;
+  grid-auto-flow: column;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 12px;
+  background: rgba(12, 6, 24, 0.6);
+  pointer-events: none;
+}
+
+.fa-card[data-kind="camp"] .fa-card-title {
+  font-size: 12px;
+}
+
+.fa-card[data-kind="camp"] .fa-card-clock {
+  font-size: 12px;
 }
 
 .fa-card-title {

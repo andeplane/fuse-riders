@@ -10,7 +10,13 @@ import {
   type World,
 } from "../src/engine/index.js";
 import { px } from "../src/engine/tuning.js";
-import { ENEMY_STATES, IMP_ONLY } from "../src/engine/view-kit.js";
+import {
+  ENEMY_STATES,
+  BONE_ONLY,
+  IMP_ONLY,
+  LANCER_ONLY,
+  OGRE_ONLY,
+} from "../src/engine/view-kit.js";
 import {
   paintRavager,
   RAVAGER,
@@ -199,10 +205,16 @@ test("a pose paints the same rows every time, and the figure paints each frame o
 });
 
 test("every anim plays frames the figure has, for whole steps, and every frame is played", () => {
-  // Every anim the enemy view can show a ravager in; `dead` lies in the `down` frame while it blinks.
+  // Every anim the enemy view can show a ravager in (not an imp's, an ogre's or a lancer's own); `dead` lies in `down`
+  // as it blinks.
   assert.deepEqual(
     Object.keys(RAVAGER_ANIMS).sort(),
-    ENEMY_STATES.filter((state) => !IMP_ONLY.includes(state)).sort(),
+    ENEMY_STATES.filter(
+      (state) =>
+        ![...IMP_ONLY, ...OGRE_ONLY, ...LANCER_ONLY, ...BONE_ONLY].includes(
+          state,
+        ),
+    ).sort(),
   );
   const played = new Set<string>();
   for (const [anim, { frames, loop }] of Object.entries(RAVAGER_ANIMS)) {

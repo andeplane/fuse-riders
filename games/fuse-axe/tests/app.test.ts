@@ -139,6 +139,30 @@ test("the lobby: each seat's hero from the room, the host starts, a guest waits,
   );
 });
 
+test("the host seats bot companions from the lobby while a seat is free, and removes them there", () => {
+  const bot = seat("bot:1", 2, "bot", { bot: true, generation: undefined });
+  const lobby = frame("lobby", {
+    seats: new Map([seat("a", 0, "rhea"), seat("b", 1, "gorm"), bot]),
+  });
+  const mine = present(lobby, host);
+  assert.ok(mine.canAddBot);
+  assert.deepEqual(mine.removable, ["bot:1"]);
+  assert.equal(mine.members[2]!.status, "P3 · BOT · GORM");
+  assert.ok(!present(lobby, guest).canAddBot);
+  assert.deepEqual(present(lobby, guest).removable, []);
+  assert.ok(!present(lobby, tv).canAddBot, "not from the shared screen");
+  assert.ok(present(lobby, { ...host, solo: true }).canAddBot, "solo too");
+  const full = frame("lobby", {
+    seats: new Map(
+      [0, 1, 2, 3, 4].map((slot) => seat(`p${slot}`, slot, "gorm")),
+    ),
+  });
+  assert.ok(!present(full, host).canAddBot, "every seat taken");
+  const running = present(frame("running"), host);
+  assert.ok(!running.canAddBot);
+  assert.deepEqual(running.removable, []);
+});
+
 test("a seat's hero changes only when the room's does; an away or offline seat cannot pick", () => {
   const picked = frame("lobby", {
     seats: new Map([seat("a", 0, "gorm"), seat("b", 1, "gorm")]),
@@ -216,7 +240,7 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
   ).card!;
   assert.deepEqual(
     [clear.kind, clear.title, clear.line, clear.seconds, clear.hint],
-    ["clear", "STAGE 1 CLEAR", "ASHEN VILLAGE", 6, TEXT.won],
+    ["clear", "STAGE 1 CLEAR", "ASHEN VILLAGE", 6, TEXT.onward],
   );
   assert.deepEqual(
     clear.rows.map((row) => [row.tag, row.name, row.hero, row.damage]),
@@ -227,11 +251,15 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
   );
   assert.deepEqual(clear.rows[0]!.color, SEAT_COLORS[0]);
   assert.ok(!clear.canContinue && !clear.canRematch);
-  const onward = present(
-    { ...frame("between", { world: fought, until: 1, tally }), lastStage: 2 },
+  // The last stage cleared: the run is won once its tally has shown.
+  const last = present(
+    frame("between", { world: fought, round: 3, until: 1, tally }),
     host,
   ).card!;
-  assert.deepEqual([onward.hint, onward.seconds], [TEXT.onward, 1]);
+  assert.deepEqual(
+    [last.title, last.line, last.hint, last.seconds],
+    ["STAGE 3 CLEAR", "DROWNED CRYPT", TEXT.won, 1],
+  );
   // Every hero out: a hero of the run presses Attack, everyone else waits on them.
   const out = frame("running", { until: 199, tally });
   const vote = present(out, host).card!;
@@ -264,7 +292,7 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
   assert.equal(present(away, host).card!.canContinue, false, "stepped away");
   // The run's end: the run's numbers, the stage reached, and REMATCH or the lobby for the host alone.
   const won = present(
-    frame("over", { world: fought, outcome: "victory", tally }),
+    frame("over", { world: fought, round: 3, outcome: "victory", tally }),
     host,
   ).card!;
   assert.deepEqual(
@@ -272,7 +300,7 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
     [
       "victory",
       "VICTORY",
-      "STAGE 1 OF 1 · ASHEN VILLAGE",
+      "STAGE 3 OF 3 · DROWNED CRYPT",
       null,
       TEXT.hostChoice,
       true,
@@ -650,4 +678,28 @@ test("sessions: solo, landing, a joiner's kept token, the creator's token and a 
   assert.equal(roomFailure("unknown game fuse-axe"), NOT_OPEN);
   assert.match(roomFailure("room is for another game"), /another game/);
   assert.equal(roomFailure("full"), "full");
+});
+
+test("camp is played: the hero's keys and pads are its own, and a small CAMP caption counts down to the road", () => {
+  const camp = createWorld({
+    seed: 1,
+    camp: true,
+    heroes: [
+      { seat: 0, kind: "rhea" },
+      { seat: 1, kind: "gorm" },
+    ],
+  });
+  const shown = frame("between", { world: { ...camp, step: 300 } });
+  const mine = present(shown, { ...host, touch: true });
+  assert.ok(mine.playing && mine.pads, "a phone steers its hero at camp");
+  assert.deepEqual(
+    [mine.card!.kind, mine.card!.title, mine.card!.line, mine.card!.hint],
+    ["camp", TEXT.camp, TEXT.campLine, TEXT.onward],
+  );
+  assert.deepEqual([mine.card!.seconds, mine.card!.rows], [15, []]);
+  assert.ok(!mine.card!.canContinue && !mine.card!.canRematch);
+  assert.equal(present(shown, tv).playing, false, "the TV plays no hero");
+  // Over the tally before it the keys are nobody's.
+  const tally = frame("between", { until: CLEAR_TICKS });
+  assert.equal(present(tally, host).playing, false);
 });

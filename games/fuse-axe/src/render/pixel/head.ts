@@ -25,6 +25,10 @@ export interface HeroPose extends Pose {
   /** Degrees the head and the details on the torso turn with the body, clockwise: −90 lies on the back. */
   readonly tilt?: number;
   readonly face?: Expression;
+  /** Looking back over the shoulder: the head, and what is on it, face behind the body, which is not turned. */
+  readonly lookBack?: boolean;
+  /** Astride a beast: the far leg is on its far side, out of sight, and is not painted. */
+  readonly astride?: boolean;
 }
 
 /** The point (dx, dy) from a joint in the body's own frame, turned with the body. */
@@ -38,6 +42,11 @@ export function turn(tilt = 0): Turn {
     p[0] + dx * cos - dy * sin,
     p[1] + dx * sin + dy * cos,
   ];
+}
+
+/** The frame a pose's head is painted in: the body's, or mirrored front to back when the hero looks behind it. */
+export function headTurn(pose: HeroPose, at: Turn): Turn {
+  return pose.lookBack ? (p, dx, dy) => at(p, -dx, dy) : at;
 }
 
 /** A face in skin, the skull, jaw and nose one part lit a little brighter, `scale` times a broad barbarian's. */

@@ -1,14 +1,17 @@
 import { clamp } from "./math.js";
 import { isImp } from "./imps.js";
 import { roll } from "./rng.js";
+import { planOf } from "./stages.js";
 import * as T from "./tuning.js";
 import {
   distance,
   face,
+  flinch,
   nearestHero,
   present,
   setState,
   spark,
+  unseat,
   type Enemy,
   type EnemyState,
   type Hero,
@@ -28,7 +31,8 @@ import {
  * draws from the world's stream. An enemy only thinks standing, walking or in its own swing: hit-stop, reeling, a
  * knockdown, lying, getting up, a defeat and a walk-in leave it to the rules in `step.ts`, and a spell's freeze
  * (`magic.ts`) holds it as it stands, wind-up and all, thinking nothing until the blow lands. Its walk is no faster
- * than its tier's and keeps to the screen, and its mace lands only on heroes.
+ * than its tier's and keeps to the screen, and its mace lands only on heroes. A lancer (`lancer.ts`) picks its hero
+ * the same way (`decide`) and walks the same way to its own reach (`stride`), but thrusts and leaps where this swings.
  */
 const THINKS: readonly EnemyState[] = [
   "idle",
@@ -36,19 +40,36 @@ const THINKS: readonly EnemyState[] = [
   "windup",
   "attack",
   "recover",
+  // An ogre's (`ogre.ts`) and a lancer's (`lancer.ts`), which they play out themselves.
+  "slam",
+  "sweep",
+  "stagger",
+  "thrust",
+  "plunge",
 ];
 export const thinks = (enemy: Enemy): boolean => THINKS.includes(enemy.state);
 
+/** The fighter an enemy is: its tier's ravager or lancer, or an ogre's mood. */
+export const fighter = (enemy: Enemy): T.Fighter =>
+  T.fighterOf(enemy.kind, enemy.tier, enemy.enraged);
+
 /** Stands an enemy idle until it next decides: its tier's pause and a random part. */
 export function rest(world: World, enemy: Enemy): void {
-  const fighter = T.RAVAGER[enemy.tier];
+  const { think, jitter } = fighter(enemy);
   setState(enemy, "idle");
-  enemy.thinkAt = world.step + fighter.think + roll(world, fighter.jitter);
+  enemy.thinkAt = world.step + think + roll(world, jitter);
 }
 
-/** One step of an enemy that thinks (`thinks`). */
+/** How far a ravager's mace, or a bonewalker's sword, reaches in front of it. */
+export const reachOf = (enemy: Enemy): number =>
+  enemy.kind === "bonewalker" ? T.BONE_REACH[enemy.tier] : T.MACE_REACH;
+
+/**
+ * One step of a ravager, or a bonewalker (its own fighter and reach), that thinks (`thinks`): an ogre and a lancer
+ * have their own (`ogreAct`, `lancerAct`), which share `decide`, `stride` and `rest` with it.
+ */
 export function act(world: World, enemy: Enemy): void {
-  const fighter = T.RAVAGER[enemy.tier],
+  const stats = fighter(enemy),
     target = world.heroes.find((hero) => hero.id === enemy.target);
   if (enemy.target && !(target && present(target))) enemy.target = 0;
   if (enemy.state === "idle") {
@@ -62,12 +83,12 @@ export function act(world: World, enemy: Enemy): void {
       decide(world, enemy);
   } else if (enemy.state === "walk") stride(world, enemy);
   else if (enemy.state === "windup") {
-    if (enemy.timer === T.FEINT_AT && roll(world, 256) < fighter.feint) {
+    if (enemy.timer === T.FEINT_AT && roll(world, 256) < stats.feint) {
       enemy.target = 0;
       walkTo(world, enemy, enemy.x - enemy.facing * T.BACKSTEP, enemy.y);
-    } else if (enemy.timer >= fighter.windup) {
+    } else if (enemy.timer >= stats.windup) {
       setState(enemy, "attack");
-      mace(world, enemy, fighter.damage);
+      mace(world, enemy, stats.damage, reachOf(enemy));
     }
   } else if (enemy.state === "attack") {
     if (enemy.timer >= T.ATTACK_STEPS) setState(enemy, "recover");
@@ -83,8 +104,11 @@ const linedUp = (enemy: Enemy, hero: Hero): boolean =>
 const attackers = (world: World, hero: Hero, enemy: Enemy): Enemy[] =>
   world.enemies.filter((other) => other !== enemy && other.target === hero.id);
 
-/** Goes for the hero it is on, or the nearest with a place free; with none free it hovers near the nearest hero. */
-function decide(world: World, enemy: Enemy): void {
+/**
+ * Goes for the hero it is on, or the nearest with a place free among the `ATTACKERS` going for it, whatever their kind,
+ * walking with `walk` (a lancer has its own); with none free it hovers near the nearest hero.
+ */
+export function decide(world: World, enemy: Enemy, walk = stride): void {
   let pick = world.heroes.find((hero) => hero.id === enemy.target);
   for (const hero of pick ? [] : world.heroes)
     if (
@@ -97,7 +121,7 @@ function decide(world: World, enemy: Enemy): void {
   if (pick) {
     enemy.target = pick.id;
     setState(enemy, "walk");
-    stride(world, enemy);
+    walk(world, enemy);
   } else if (nearest) {
     const side = enemy.x < nearest.x ? -1 : 1;
     walkTo(
@@ -110,22 +134,28 @@ function decide(world: World, enemy: Enemy): void {
 }
 
 /** Walks an enemy toward (`x`, `y`), held to the road, the floor band and the screen. */
-function walkTo(world: World, enemy: Enemy, x: number, y: number): void {
+export function walkTo(world: World, enemy: Enemy, x: number, y: number) {
+  const { half } = T.ENEMY_BODY[enemy.kind];
   enemy.goal = clamp(
     x,
-    Math.max(world.camX + T.ENEMY_HALF_W, 0),
-    Math.min(world.camX + T.VIEW_W * T.SUB - T.ENEMY_HALF_W, T.STAGE_LENGTH),
+    Math.max(world.camX + half, 0),
+    Math.min(world.camX + T.VIEW_W * T.SUB - half, planOf(world).length),
   );
   enemy.goalY = clamp(y, T.FLOOR_TOP, T.FLOOR_BOTTOM);
   setState(enemy, "walk");
 }
 
 /**
- * A walking step. One going for a hero heads for its side of it, `ENGAGE_X` away and in its lane, and winds up once
- * lined up with the hero on its feet (lying, it waits); one hovering or backing off faces the nearest hero and stands
- * when it arrives.
+ * A walking step. One going for a hero heads for its side of it, `reach` away (a ravager's `ENGAGE_X`) and in its lane,
+ * and winds up once `lined` up with the hero on its feet (lying, it waits); one hovering or backing off faces the
+ * nearest hero and stands when it arrives.
  */
-function stride(world: World, enemy: Enemy): void {
+export function stride(
+  world: World,
+  enemy: Enemy,
+  reach = T.ENGAGE_X,
+  lined = linedUp,
+): void {
   const hero = world.heroes.find((each) => each.id === enemy.target);
   if (hero) {
     // Enemies going for the hero or close by claim their sides in id order: it takes the side fewer of the earlier
@@ -149,11 +179,11 @@ function stride(world: World, enemy: Enemy): void {
     walkTo(
       world,
       enemy,
-      hero.x + side * T.ENGAGE_X,
+      hero.x + side * reach,
       hero.y + (side === own ? 0 : dodge),
     );
     face(enemy, hero.x);
-    if (side === own && linedUp(enemy, hero)) {
+    if (side === own && lined(enemy, hero)) {
       if (FLOORED.includes(hero.state)) rest(world, enemy);
       else setState(enemy, "windup");
       return;
@@ -162,7 +192,7 @@ function stride(world: World, enemy: Enemy): void {
     const nearest = nearestHero(world, enemy);
     if (nearest) face(enemy, nearest.x);
   }
-  const { walk } = T.RAVAGER[enemy.tier];
+  const { walk } = fighter(enemy);
   enemy.x += clamp(enemy.goal - enemy.x, -walk.x, walk.x);
   enemy.y += clamp(enemy.goalY - enemy.y, -walk.y, walk.y);
   if (!hero && enemy.x === enemy.goal && enemy.y === enemy.goalY)
@@ -172,13 +202,14 @@ function stride(world: World, enemy: Enemy): void {
 /** A hero with a blow out, or coming: swinging or dashing. */
 const BLOWS: readonly HeroState[] = ["attack1", "attack2", "attack3", "dash"];
 /** A hero knocked off its feet, whom no attacker winds up at. */
-const FLOORED: readonly HeroState[] = ["knockdown", "down", "getup"];
+export const FLOORED: readonly HeroState[] = ["knockdown", "down", "getup"];
 /**
  * The states a mace lands in: on its feet or in the air, running, swinging, dashing, stabbing, striking behind,
- * throwing, reeling or charging magic, which the hit breaks off. A hero mid-grab is out of its way: the grab is brief
- * and always ends in the throw. So is one casting a spell (`magic.ts`).
+ * throwing, reeling or charging magic, which the hit breaks off, or riding a beast (`mount.ts`). A hero mid-grab is out
+ * of its way: the grab is brief and always ends in the throw. So is one casting a spell (`magic.ts`).
  */
 const STRUCK: readonly HeroState[] = [
+  "ride",
   "idle",
   "walk",
   "run",
@@ -192,50 +223,72 @@ const STRUCK: readonly HeroState[] = [
   "charge",
 ];
 
-/** The mace lands on every hero it reaches in front of the enemy, in the depth lane and below its sweep. */
-function mace(world: World, enemy: Enemy, damage: number): void {
+/** A hero a blow can land on now: in a state one lands in (`STRUCK`) and not invulnerable. */
+export const exposed = (world: World, hero: Hero): boolean =>
+  STRUCK.includes(hero.state) && world.step > hero.invulnUntil;
+
+/** The mace (or sword) lands on every hero within `reach` in front of the enemy, in the depth lane and below its sweep. */
+function mace(world: World, enemy: Enemy, damage: number, reach: number) {
   for (const hero of world.heroes) {
     const ahead = (hero.x - enemy.x) * enemy.facing;
     if (
-      STRUCK.includes(hero.state) &&
-      world.step > hero.invulnUntil &&
+      exposed(world, hero) &&
       ahead + T.HERO_HALF_W >= 0 &&
-      ahead - T.HERO_HALF_W <= T.MACE_REACH &&
+      ahead - T.HERO_HALF_W <= reach &&
       Math.abs(hero.y - enemy.y) <= T.LANE &&
       hero.z < T.MACE_HEIGHT
     )
-      wound(world, enemy, hero, damage);
+      enemy.stopUntil = wound(world, hero, damage, enemy.facing);
   }
 }
 
 /**
- * A hero hit: the damage, then hitstun and a nudge away, which breaks off a swing; or a knockdown up and away when
- * the hit catches it in the air, leaves it with a quarter of its hit points or fewer, or is the `JUGGLE_HITS`th in a
- * row. Attacker and hero both hold still for the hit-stop.
+ * A hero hit by a blow going the way `dir` points along the road: the damage, then hitstun and a nudge that way, which
+ * breaks off a swing; or a knockdown up and away when the blow always knocks down (`knock`), the hit catches it in the
+ * air, leaves it with a quarter of its hit points or fewer, or is the `JUGGLE_HITS`th in a row. The hero holds still
+ * for the hit-stop, which is returned for the attacker to share. A rider's saddle takes any blow but a knockdown, which
+ * throws it off its beast (`unseat`; a hop is in the air, so any blow then): it holds still, and a beast's blow still
+ * winding up (a tail, a drake's inhale) is broken off (`flinch`).
  */
-function wound(world: World, enemy: Enemy, hero: Hero, damage: number): void {
+export function wound(
+  world: World,
+  hero: Hero,
+  damage: number,
+  dir: 1 | -1,
+  knock = false,
+): number {
   hero.hp -= Math.min(damage, hero.hp);
   if (world.step > hero.staggerUntil) hero.stagger = 0;
   hero.stagger++;
   hero.staggerUntil = world.step + T.JUGGLE_WINDOW;
   const knocked =
+    knock ||
     hero.z > 0 ||
     hero.stagger >= T.JUGGLE_HITS ||
     hero.hp * T.LOW_HP_SHARE <= T.HERO_HP[hero.kind];
   if (knocked) hero.stagger = 0;
   const until = world.step + (knocked ? T.HEAVY_HITSTOP : T.HITSTOP);
   hero.stopUntil = Math.max(hero.stopUntil, until);
-  enemy.stopUntil = until;
-  hero.facing = enemy.facing > 0 ? -1 : 1;
+  if (hero.state === "ride") {
+    if (!knocked) {
+      flinch(world, hero);
+      const z = T.SADDLE + T.SPARK_HEIGHT;
+      spark(world, "hit", hero.x - dir * T.HERO_HALF_W, hero.y, z);
+      return until;
+    }
+    unseat(world, hero, dir);
+  }
+  hero.facing = dir > 0 ? -1 : 1;
   hero.state = knocked ? "knockdown" : "hurt";
   hero.timer = hero.vy = 0;
-  hero.vx = enemy.facing * (knocked ? T.KNOCK_VX : T.HURT_PUSH);
+  hero.vx = dir * (knocked ? T.KNOCK_VX : T.HURT_PUSH);
   hero.vz = knocked ? T.KNOCK_VZ : 0;
   spark(
     world,
     hero.hp === 0 ? "ko" : knocked ? "heavy" : "hit",
-    hero.x - enemy.facing * T.HERO_HALF_W,
+    hero.x - dir * T.HERO_HALF_W,
     hero.y,
     hero.z + T.SPARK_HEIGHT,
   );
+  return until;
 }

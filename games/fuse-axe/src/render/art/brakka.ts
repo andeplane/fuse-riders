@@ -3,6 +3,7 @@ import {
   adjust,
   arm,
   armAt,
+  armTo,
   BACK,
   bend,
   between,
@@ -11,11 +12,16 @@ import {
   fist,
   leg,
   legAt,
+  legTo,
+  offset,
+  sprint,
   stride,
   sword,
+  type Side,
 } from "../pixel/kit.js";
 import {
   head,
+  headTurn,
   portrait,
   stampFace,
   turn,
@@ -54,6 +60,7 @@ const idle: BrakkaPose = {
   sword: -66,
   blade: 18,
 };
+const { far: F, near: N } = idle;
 
 /** Six frames of a march, the sword held up; arms swing against the legs, their bones as long as idle's. */
 const walk = [0, 1, 2, 3, 4, 5].map((i) => {
@@ -85,6 +92,55 @@ const lunge = adjust(idle, {
 const crouch = adjust(lunge, {
   far: legAt([34, 58], [27, 64.5], [22.5, 71.5]),
   near: legAt([39, 58], [47, 64], [47, 71.5]),
+});
+
+/**
+ * Six frames of a sprint, leaning into it: a planted foot sweeps back his running speed a step for `RUN_STEPS.brakka`
+ * steps (7.5 px a frame), and the fists pump against the legs, the sword swinging up ahead and trailing behind.
+ */
+const leaning = adjust(idle, {
+  head: [43.5, 35.5],
+  chest: [39.5, 45.5],
+  waist: [37, 51],
+  far: { shoulder: [33, 42.5], ...legTo(F, [33, 56], [28.8, 71.5]) },
+  near: { shoulder: [46.5, 42.5], ...legTo(N, [38, 56], [43.2, 71.5]) },
+});
+const run = [0, 1, 2, 3, 4, 5].map((i) => {
+  const step = adjust(
+    leaning,
+    sprint(leaning, i, 6, { reach: 7.5, lift: 10, dip: 2 }),
+  );
+  // 1 as the near foot lands ahead, when the far fist is forward and the near one back.
+  const swing = Math.cos((i / 6) * 2 * Math.PI);
+  const pump = (side: Side, ahead: number) =>
+    armTo(
+      side,
+      side.shoulder,
+      offset(side.shoulder, -7 + 14 * ahead, 7 - 5 * ahead),
+    );
+  return adjust(step, {
+    far: pump(step.far, (1 + swing) / 2),
+    near: pump(step.near, (1 - swing) / 2),
+    sword: -170 + 120 * ((1 - swing) / 2) ** 2,
+  });
+});
+
+/**
+ * Riding a beast, seated astride its saddle: the hips on the seat, the near leg down its flank to the stirrup, the
+ * boot's sole on the anchor (which the scene sets on the saddle point), the far leg out of sight on its far side and
+ * the far hand on the reins.
+ */
+const seat = adjust(idle, {
+  head: [38, 35.5],
+  chest: [35.5, 46.5],
+  waist: [35.5, 52.5],
+  far: { ...armTo(F, [29.5, 43.5], [39, 52]), hip: [33, 57.5] },
+  near: {
+    ...armTo(N, [43, 43.5], [48.5, 50]),
+    ...legTo(N, [38.5, 57.5], [40.5, 71.5]),
+  },
+  sword: -60,
+  astride: true,
 });
 
 const poses: Readonly<Record<HeroFrame, BrakkaPose>> = {
@@ -286,6 +342,186 @@ const poses: Readonly<Record<HeroFrame, BrakkaPose>> = {
     },
     sword: 40,
   }),
+  // Magic: braced, the sword raised upright before his face and the free hand open to the sky, then thrust up.
+  charge: adjust(idle, {
+    head: [37, 33],
+    far: {
+      ...armAt([29, 41], [24, 36], [23, 29]),
+      ...legAt([33, 55], [29, 63.5], [26, 71.5]),
+    },
+    near: {
+      ...armAt([42.5, 41], [46, 46.5], [46.5, 39]),
+      ...legAt([38, 55], [43, 63.5], [46, 71.5]),
+    },
+    sword: -86,
+  }),
+  cast: adjust(idle, {
+    head: [36.5, 32],
+    far: {
+      ...armAt([29, 40], [25, 33], [26, 26]),
+      ...legAt([33, 55], [29, 63.5], [26, 71.5]),
+    },
+    near: {
+      ...armAt([42.5, 40], [44.5, 32], [42.5, 25]),
+      ...legAt([38, 55], [43, 63.5], [46, 71.5]),
+    },
+    sword: -90,
+    face: "yell",
+  }),
+  run0: run[0]!,
+  run1: run[1]!,
+  run2: run[2]!,
+  run3: run[3]!,
+  run4: run[4]!,
+  run5: run[5]!,
+  // The shoulder charge: the near shoulder lowered into it, the head tucked behind it, the sword trailing; then he
+  // brakes on the front foot.
+  dash: adjust(idle, {
+    head: [44, 41.5],
+    chest: [41, 47.5],
+    waist: [37.5, 52.5],
+    far: {
+      ...armTo(F, [35, 45], [46, 50]),
+      ...legTo(F, [34, 56.5], [20, 71.5]),
+    },
+    near: {
+      ...armTo(N, [48.5, 45], [34, 55], 1),
+      ...legTo(N, [39, 56.5], [48, 71.5]),
+    },
+    sword: 165,
+    face: "yell",
+  }),
+  dashstop: adjust(idle, {
+    head: [38, 34],
+    chest: [36, 45],
+    waist: [35.5, 51],
+    far: {
+      ...armTo(F, [29.5, 42], [24, 50]),
+      ...legTo(F, [33, 56], [26, 71.5]),
+    },
+    near: {
+      ...armTo(N, [43, 42], [50, 50]),
+      ...legTo(N, [38, 56], [49, 71.5]),
+    },
+    sword: 25,
+  }),
+  // The jump attack: the sword raised overhead in the air, then driven down and forward, the knees tucked.
+  jumpwindup: adjust(idle, {
+    head: [38.5, 32],
+    chest: [36.5, 43],
+    waist: [36, 49],
+    far: {
+      ...armTo(F, [30, 40], [22, 37], 1),
+      ...legTo(F, [33.5, 53.5], [28, 71]),
+    },
+    near: {
+      ...armTo(N, [43, 40], [45, 27], 1),
+      ...legAt([38.5, 53.5], [46, 55], [43, 62.5]),
+    },
+    sword: -105,
+  }),
+  jumpstab: adjust(idle, {
+    head: [42, 35],
+    chest: [39, 45],
+    waist: [37, 51],
+    far: {
+      ...armTo(F, [32.5, 42], [24, 39], 1),
+      ...legTo(F, [34, 55.5], [30, 71]),
+    },
+    near: {
+      ...armTo(N, [45.5, 42], [52, 51]),
+      ...legAt([39, 55.5], [47, 57], [42, 64]),
+    },
+    sword: 55,
+    smear: { center: [47, 45], inner: 15, outer: 23, from: -95, to: 55 },
+    face: "yell",
+  }),
+  // The back attack: he looks over his shoulder and swings the sword up and over, back behind him.
+  backwindup: adjust(lunge, {
+    head: [39.5, 34],
+    chest: [37, 44],
+    waist: [36, 50],
+    far: armTo(F, [31, 41], [27, 51]),
+    near: armTo(N, [44, 41], [49, 32], 1),
+    sword: -55,
+    lookBack: true,
+  }),
+  backstrike: adjust(lunge, {
+    head: [35, 34],
+    chest: [34.5, 44.5],
+    waist: [35.5, 50],
+    far: armTo(F, [28, 41.5], [33, 51]),
+    near: armTo(N, [41, 41.5], [27, 43], 1),
+    sword: 185,
+    smear: { center: [33, 44], inner: 14, outer: 21, from: -60, to: -175 },
+    face: "yell",
+    lookBack: true,
+  }),
+  backfollow: adjust(lunge, {
+    head: [35, 35],
+    chest: [34.5, 45],
+    waist: [35.5, 50.5],
+    far: armTo(F, [28, 42], [34, 52]),
+    near: armTo(N, [41, 42], [29, 51], 1),
+    sword: 150,
+    lookBack: true,
+  }),
+  // The grab clutches with both hands; the throw heaves the body up over his head and tosses it behind him.
+  grab: adjust(lunge, {
+    head: [40.5, 34],
+    chest: [38, 44.5],
+    waist: [36.5, 50],
+    far: armTo(F, [32, 41.5], [49, 42]),
+    near: armTo(N, [45, 41.5], [51, 48.5]),
+    sword: 75,
+    face: "yell",
+  }),
+  heave: adjust(crouch, {
+    head: [35.5, 35],
+    chest: [35, 46],
+    waist: [36, 52.5],
+    far: armTo(F, [29, 43], [32, 28], 1),
+    near: armTo(N, [41.5, 43], [42.5, 28]),
+    sword: -120,
+    face: "yell",
+  }),
+  toss: adjust(lunge, {
+    head: [33.5, 35],
+    chest: [34, 45.5],
+    waist: [35.5, 51],
+    far: armTo(F, [28, 42.5], [20, 38], 1),
+    near: armTo(N, [40.5, 42.5], [25, 39.5], 1),
+    sword: 200,
+    lookBack: true,
+  }),
+  // In the saddle: the sword held ready; cocked back over his shoulder as the beast winds up, then pointed at the foe
+  // as it strikes; hunched over its neck through a hop.
+  ride: seat,
+  ridewindup: adjust(seat, {
+    head: [35.5, 35.5],
+    chest: [34.5, 46.5],
+    waist: [35, 52.5],
+    far: armTo(F, [28, 43.5], [37, 52]),
+    near: armTo(N, [41.5, 43.5], [47, 33], 1),
+    sword: -125,
+  }),
+  rideattack: adjust(seat, {
+    head: [41, 36.5],
+    chest: [38.5, 47],
+    waist: [36.5, 52.5],
+    far: armTo(F, [32, 44], [40, 53]),
+    near: armTo(N, [45.5, 44], [55, 46]),
+    sword: 8,
+    face: "yell",
+  }),
+  ridehop: adjust(seat, {
+    head: [41, 37.5],
+    chest: [38, 47.5],
+    waist: [36.5, 53],
+    far: armTo(F, [31.5, 45], [42, 53]),
+    near: armTo(N, [45, 45], [52, 38]),
+    sword: -80,
+  }),
 };
 export const BRAKKA_POSES = poses;
 
@@ -303,7 +539,7 @@ export function paintBrakka(pose: BrakkaPose): Sprite {
   if (pose.smear) rig.smear(pose.smear);
   arm(rig, far, { ...BACK, bracer: "l" });
   fist(rig, far.hand, BACK);
-  leg(rig, far, { ...BACK, cuff: "b" });
+  if (!pose.astride) leg(rig, far, { ...BACK, cuff: "b" });
   // Torso, pecs, a four-pack and the neck, all one part.
   const body = { group: "body" };
   rig.ellipse(waist, 6, 5.5, "s", body);
@@ -313,19 +549,21 @@ export function paintBrakka(pose: BrakkaPose): Sprite {
   for (const dx of [-1.2, 2.1])
     for (const dy of [-1, 2])
       rig.ellipse(at(waist, dx, dy), 2.2, 1.75, "s", { ...body, flat: 0.6 });
-  rig.capsule(at(h, -1, 3.5), at(chest, 0.5, -4), 2.6, 2.9, "s", body);
+  // The neck and everything above it turn with the head, which may look back over the shoulder.
+  const look = headTurn(pose, at);
+  rig.capsule(look(h, -1, 3.5), at(chest, 0.5, -4), 2.6, 2.9, "s", body);
   // The mane falls behind the head; the fringe and headband sit on top of it.
   const mane = { group: "mane", bias: 0.12 };
-  rig.capsule(at(h, -3.4, -0.5), at(h, -5.5, 4.5), 4.3, 3.3, "h", mane);
-  rig.capsule(at(h, -5.5, 4.5), at(h, -6.8, 9.5), 3.3, 2.2, "h", mane);
-  rig.capsule(at(h, -3, -3.5), at(h, -8, -2), 1.9, 0.8, "h", mane);
-  rig.capsule(at(h, -4.5, 1), at(h, -9, 4), 1.9, 0.8, "h", mane);
-  head(rig, h, at);
+  rig.capsule(look(h, -3.4, -0.5), look(h, -5.5, 4.5), 4.3, 3.3, "h", mane);
+  rig.capsule(look(h, -5.5, 4.5), look(h, -6.8, 9.5), 3.3, 2.2, "h", mane);
+  rig.capsule(look(h, -3, -3.5), look(h, -8, -2), 1.9, 0.8, "h", mane);
+  rig.capsule(look(h, -4.5, 1), look(h, -9, 4), 1.9, 0.8, "h", mane);
+  head(rig, h, look);
   const fringe = { group: "fringe", edge: "none" } as const;
-  rig.ellipse(at(h, -0.6, -3.1), 4.3, 2.6, "h", fringe);
-  rig.capsule(at(h, -4, -2), at(h, -4.3, 1.5), 2.1, 1.7, "h", fringe);
+  rig.ellipse(look(h, -0.6, -3.1), 4.3, 2.6, "h", fringe);
+  rig.capsule(look(h, -4, -2), look(h, -4.3, 1.5), 2.1, 1.7, "h", fringe);
   const band = { edge: "none" } as const;
-  rig.capsule(at(h, -4, -1.9), at(h, 3.6, -1.9), 0.75, 0.75, "c", band);
+  rig.capsule(look(h, -4, -1.9), look(h, 3.6, -1.9), 0.75, 0.75, "c", band);
   // A baldric from the near shoulder to the far hip, then the near leg, loincloth, belt and buckle.
   const strap = { edge: "shade", flat: 0.2 } as const;
   rig.capsule(
@@ -353,7 +591,7 @@ export function paintBrakka(pose: BrakkaPose): Sprite {
   arm(rig, near, { bracer: "l" });
   sword(rig, near.hand, pose.sword, pose.blade, 4.2);
   const painting = rig.bake();
-  return stampFace(painting, h, at, FACES[pose.face ?? "calm"]).sprite(
+  return stampFace(painting, h, look, FACES[pose.face ?? "calm"]).sprite(
     pose.anchor,
   );
 }

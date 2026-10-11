@@ -14,47 +14,96 @@ import type {
   HeroKind,
   HeroView,
   ItemView,
+  MountView,
   WorldView,
 } from "../src/engine/view.js";
 import {
+  CLAWBEAK,
+  CLAWBEAK_STEPS,
+  DRAKE_STEPS,
+  MOUNT_STATES,
   DEAD_STEPS,
   ENEMY_KINDS,
+  HERO_KINDS,
   ENEMY_STATES,
   FLOOR_BOTTOM_PX,
   FX_KINDS,
   FX_LIFE,
+  OGRE_STEPS,
+  QUAKE,
+  SPEAR,
   VIEW_H,
   VIEW_W,
+  cameraEndPx,
+  stageLengthPx,
 } from "../src/engine/view-kit.js";
 import {
   enemyFrame,
+  heroFrame,
   HERO_ANIMS,
+  mountFrame,
+  riderFrame,
   stripFrame,
 } from "../src/render/art/animate.js";
 import { BRAKKA } from "../src/render/art/brakka.js";
+import { CAPTAIN, CAPTAIN_LOOK } from "../src/render/art/captain.js";
+import {
+  DRAKE_DIPS,
+  DRAKE_FIGURE,
+  type DrakeFrame,
+} from "../src/render/art/drake.js";
+import {
+  CLAWBEAK_DIPS,
+  CLAWBEAK_FIGURE,
+  type ClawbeakFrame,
+} from "../src/render/art/clawbeak.js";
 import { IMP, IMP_WALK_STEPS } from "../src/render/art/imp.js";
 import { FIGURES, HEROES } from "../src/render/art/index.js";
+import {
+  LANCER,
+  LANCER_TIERS,
+  type LancerFrame,
+} from "../src/render/art/lancer.js";
+import {
+  OGRE,
+  OGRE_CROWNS,
+  OGRE_RAGE,
+  OGRE_TIERS,
+} from "../src/render/art/ogre.js";
+import { MEAT } from "../src/render/art/meat.js";
 import { POT } from "../src/render/art/pot.js";
 import { RAVAGER, RAVAGER_ANIMS } from "../src/render/art/ravager.js";
-import type { Sprite } from "../src/render/pixel/sprite.js";
+import { flipSprite, type Sprite } from "../src/render/pixel/sprite.js";
 import {
   createSpriteBaker,
   type BakeOptions,
 } from "../src/render/pixel/surface.js";
 import { createBackdrop } from "../src/render/backdrop/backdrop.js";
+import { FIRE, FLAME } from "../src/render/backdrop/camp.js";
+import {
+  CRYPT_END,
+  CRYPT_LENGTH,
+} from "../src/render/backdrop/drowned-crypt.js";
 import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
 import {
+  BONE_PILE,
   createLooks,
   createScene,
   deadShows,
+  ENEMY_ART,
+  MOUNT_ART,
   GO_AT,
   GO_FLASH,
   GO_SIGN,
   heroLooks,
   ITEM_SHADE,
   MARKER,
+  MARKER_GAP,
+  TELEGRAPH,
+  scenery,
   shadowRadius,
+  SHADOW_RX,
 } from "../src/render/scene.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
 import { drawSpark, HIT_STEPS } from "../src/render/sparks.js";
@@ -100,9 +149,17 @@ class FakePaint implements PixelPaint {
 /** Enough of a 2D context for the scene, recording every call. */
 class RecordingPen extends FakePaint implements Pen<FakeImage> {
   readonly blits: Blit[] = [];
+  /** Every fill and blit, in the order they were drawn. */
+  readonly calls: (Fill | Blit)[] = [];
+  override fillRect(x: number, y: number, w: number, h: number) {
+    super.fillRect(x, y, w, h);
+    this.calls.push(this.fills.at(-1)!);
+  }
   drawImage(image: FakeImage, ...r: number[]) {
     const [sx = 0, sy = 0, sw = 0, sh = 0, dx = 0, dy = 0, dw = 0, dh = 0] = r;
-    this.blits.push({ image, sx, sy, sw, sh, dx, dy, dw, dh });
+    const blit = { image, sx, sy, sw, sh, dx, dy, dw, dh };
+    this.blits.push(blit);
+    this.calls.push(blit);
   }
 }
 
@@ -134,7 +191,7 @@ const hero = (
 ): HeroView => ({
   ...{ id, seat, kind: "brakka", x, y, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
-  ...{ invulnerable: false, pots: 0, maxPots: 4, charge: 0 },
+  ...{ invulnerable: false, pots: 0, maxPots: 4, charge: 0, mounted: false },
   ...more,
 });
 const enemy = (
@@ -145,13 +202,14 @@ const enemy = (
 ): EnemyView => ({
   ...{ id, kind: "ravager", tier: 0, x, y, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 4, maxHp: 4, flash: false },
+  ...{ boss: false, enraged: false, mounted: false },
   ...more,
 });
 const world = (more: Partial<WorldView>): WorldView => ({
   ...{ step: 0, camX: 0, heroes: [], enemies: [], fx: [], items: [] },
-  spells: [],
+  ...{ spells: [], mounts: [], stage: 1, camp: false },
   ...{ wave: 0, waves: 5, locked: false, go: false, cleared: false },
-  ...{ defeated: false },
+  ...{ defeated: false, boss: null },
   ...more,
 });
 
@@ -177,8 +235,14 @@ function draw(view: WorldView, frame = 0, scene = shared.scene) {
     shadows: field.filter(shadow),
     markers: field.filter(marker),
     signs: pen.blits.filter(sign),
+    // A spell's art and a charging hero's glow are pixel buffers (`spells.test.ts`), which paint no rectangles.
     sprites: field.filter(
-      (b) => !layer(b) && !shadow(b) && !marker(b) && !sign(b),
+      (b) =>
+        !layer(b) &&
+        !shadow(b) &&
+        !marker(b) &&
+        !sign(b) &&
+        b.image.fills.length > 0,
     ),
     hud: pen.blits.slice(front + 1).filter((b) => !sign(b)),
   };
@@ -373,6 +437,188 @@ test("a hero's look is worked out once per roster: it holds across frames and an
   assert.notEqual(looks(roster.slice(0, 2)), changed, "so is one fewer hero");
 });
 
+test("a beast draws its own art on its feet, its rider astride the saddle over it, sinking as the saddle dips, in the beast's one shadow", () => {
+  const beast = (more: Partial<MountView> = {}): MountView => ({
+    ...{ id: 9, kind: "clawbeak", x: 150, y: 140, z: 0, facing: 1 },
+    ...{ anim: "idle", animStep: 0, rider: { kind: "enemy", id: 2 }, ...more },
+  });
+  const seated = { anim: "ride", mounted: true, z: CLAWBEAK.saddle } as const;
+  const ride = RAVAGER.sprite("ride");
+  const anchorX = (s: Sprite, flip: boolean) =>
+    flip ? flipSprite(s).ax : s.ax;
+  // Out of the wind-up's blink, every anim at steps through its strips, facing either way.
+  for (const anim of MOUNT_STATES)
+    for (const animStep of [21, 27, 40, 64, 100])
+      for (const facing of [1, -1] as const) {
+        const flip = facing < 0;
+        const { sprites, shadows } = draw(
+          world({
+            enemies: [enemy(2, 150, 140, { ...seated, facing })],
+            mounts: [beast({ anim, animStep, facing })],
+          }),
+        );
+        const frame = mountFrame("clawbeak", anim, animStep) as ClawbeakFrame;
+        const art = CLAWBEAK_FIGURE.sprite(frame);
+        const label = `${anim} ${animStep} ${facing}`;
+        // The beast first, its feet on its floor position; its rider after it, its feet on the saddle point.
+        const [body, rider] = sprites;
+        assert.deepEqual(body!.image.fills, fillsOf(art, { flash: false, flip }), label); // prettier-ignore
+        assert.deepEqual([body!.dx + anchorX(art, flip), body!.dy + art.ay], [150, 140], label); // prettier-ignore
+        assert.deepEqual(rider!.image.fills, fillsOf(ride, { flash: false, flip }), label); // prettier-ignore
+        assert.equal(rider!.dx + anchorX(ride, flip), 150, label);
+        const saddle = 140 - CLAWBEAK.saddle + CLAWBEAK_DIPS[frame];
+        assert.equal(rider!.dy + ride.ay, saddle, label);
+        // One shadow, the beast's, a third wider than a body's: the rider casts none of its own.
+        assert.equal(shadows.length, 1, label);
+        assert.equal(shadows[0]!.image.w, 2 * Math.round((SHADOW_RX * 4) / 3) + 1); // prettier-ignore
+      }
+  // The strut's dip lowers the rider with the saddle.
+  const walking = (animStep: number) =>
+    draw(world({ enemies: [enemy(2, 150, 140, seated)], mounts: [beast({ anim: "walk", animStep })] })).sprites[1]!.dy; // prettier-ignore
+  assert.equal(walking(0), walking(5) + 1);
+  // A rider whose beast is not in the view (or is another's) fails safe: it stays at the height the view gives it, in a
+  // shadow of its own, not hanging in the air with none.
+  const strays = [
+    [],
+    [beast({ rider: { kind: "enemy", id: 3 } })],
+    [beast({ rider: { kind: "hero", id: 2 } })],
+  ];
+  for (const mounts of strays) {
+    const { sprites, shadows } = draw(world({ enemies: [enemy(2, 150, 140, seated)], mounts })); // prettier-ignore
+    assert.equal(sprites.at(-1)!.dy + ride.ay, 140 - CLAWBEAK.saddle);
+    const own = shadows.filter((s) => s.image.w === 2 * shadowRadius(CLAWBEAK.saddle) + 1); // prettier-ignore
+    assert.equal(own.length, 1, "the rider's own shadow");
+  }
+});
+
+test("a hero rides as an enemy does: astride the saddle, sinking with the beast's dip, doing what its beast does, in the beast's one shadow, facing either way, a hop and all", () => {
+  const seated = { anim: "ride", mounted: true, z: CLAWBEAK.saddle } as const;
+  const beast = (more: Partial<MountView> = {}): MountView => ({
+    ...{ id: 9, kind: "clawbeak", x: 150, y: 140, z: 0, facing: 1 },
+    ...{ anim: "idle", animStep: 0, rider: { kind: "hero", id: 1 }, ...more },
+  });
+  const anchorX = (s: Sprite, flip: boolean) =>
+    flip ? flipSprite(s).ax : s.ax;
+  for (const anim of MOUNT_STATES)
+    // Out of the wind-up's blink, every anim at steps through its strips, facing either way.
+    for (const animStep of [21, 27, 40, 64, 100])
+      for (const facing of [1, -1] as const) {
+        const flip = facing < 0;
+        const rider = hero(1, 0, 150, 140, { ...seated, facing });
+        const { sprites, shadows } = draw(
+          world({ heroes: [rider], mounts: [beast({ anim, animStep, facing })] }), // prettier-ignore
+        );
+        const frame = mountFrame("clawbeak", anim, animStep) as ClawbeakFrame;
+        const label = `${anim} ${animStep} ${facing}`;
+        // The beast first, its rider after it, in the hero's own colours and in the frame its beast's anim calls for
+        // (`riderFrame`), its feet on the saddle point.
+        const [body, sat] = sprites;
+        const art = CLAWBEAK_FIGURE.sprite(frame);
+        const ride = BRAKKA.sprite(riderFrame(anim, animStep));
+        assert.deepEqual(body!.image.fills, fillsOf(art, { flash: false, flip }), label); // prettier-ignore
+        assert.deepEqual(sat!.image.fills, fillsOf(ride, { flip }), label);
+        assert.equal(sat!.dx + anchorX(ride, flip), 150, label);
+        const saddle = 140 - CLAWBEAK.saddle + CLAWBEAK_DIPS[frame];
+        assert.equal(sat!.dy + ride.ay, saddle, label);
+        // One shadow, the beast's: the rider casts none of its own.
+        assert.equal(shadows.length, 1, label);
+      }
+  // A rider whose beast is not in the view (or is another's) fails safe: it sits (`heroFrame`) at the height the view
+  // gives it, in a shadow of its own, not hanging in the air with none.
+  const sitting = BRAKKA.sprite(heroFrame("brakka", "ride", 0));
+  const strays = [[], [beast({ rider: { kind: "enemy", id: 1 } })], [beast({ rider: { kind: "hero", id: 2 } })]]; // prettier-ignore
+  for (const mounts of strays) {
+    const { sprites, shadows } = draw(world({ heroes: [hero(1, 0, 150, 140, seated)], mounts })); // prettier-ignore
+    assert.deepEqual(sprites.at(-1)!.image.fills, fillsOf(sitting, {}));
+    assert.equal(sprites.at(-1)!.dy + sitting.ay, 140 - CLAWBEAK.saddle);
+    const own = shadows.filter((s) => s.image.w === 2 * shadowRadius(CLAWBEAK.saddle) + 1); // prettier-ignore
+    assert.equal(own.length, 1, "the rider's own shadow");
+  }
+});
+
+test("a beast blinks as its tail winds up, coiling, and lashes with the ring in its own frame; any anim or kind draws one beast", () => {
+  const beast = (more: Partial<MountView> = {}): MountView => ({
+    ...{ id: 9, kind: "clawbeak", x: 150, y: 140, z: 0, facing: 1 },
+    ...{ anim: "sweep", animStep: 0, rider: null, ...more },
+  });
+  const fills = (more: Partial<MountView>) =>
+    draw(world({ mounts: [beast(more)] })).sprites[0]!.image.fills;
+  const { windup } = CLAWBEAK_STEPS;
+  const art = (frame: ClawbeakFrame, flash: boolean) =>
+    fillsOf(CLAWBEAK_FIGURE.sprite(frame), { flash, flip: false });
+  // Blinking every `TELEGRAPH` steps through the wind-up, from its first step to its last, then lashing unlit.
+  assert.deepEqual(fills({ animStep: 0 }), art("coil1", true));
+  assert.deepEqual(fills({ animStep: TELEGRAPH }), art("coil1", false));
+  assert.deepEqual(fills({ animStep: windup - 1 }), art("coil2", true));
+  assert.deepEqual(fills({ animStep: windup }), art("lash", false));
+  // The ring is the sprite's own: nothing else is drawn for it.
+  const { sprites, pen } = draw(
+    world({ mounts: [beast({ animStep: windup })] }),
+  );
+  assert.equal(sprites.length, 1);
+  assert.deepEqual(
+    pen.fills.filter((f) => f.style === "#f4f8ff"),
+    [],
+  );
+  // Every anim at any step, facing either way, and a kind from a build with more of them, draws one beast.
+  const odd = JSON.parse('"wyvern"') as MountView["kind"];
+  for (const anim of MOUNT_STATES)
+    for (const animStep of [0, 7, 21, 1e9, -3, 2.5, Number.NaN])
+      for (const kind of ["clawbeak", "drake", odd] as const) {
+        const more = { anim, animStep, kind, facing: -1 as const };
+        const { sprites } = draw(world({ mounts: [beast(more)] }));
+        assert.equal(sprites.length, 1);
+      }
+  assert.deepEqual(fills({ kind: odd, anim: "idle" }), fills({ anim: "idle" }));
+});
+
+test("a lancer draws from its own art in its tier's colours, the spear in its sprite: the thrust's point at the reach either way", () => {
+  const sprites = (more: Partial<EnemyView>) =>
+    draw(world({ enemies: [enemy(1, 150, 140, { kind: "lancer", ...more })] }))
+      .sprites;
+  const anims = [
+    ...[
+      ["idle", 0],
+      ["walk", 9],
+      ["windup", 5],
+      ["thrust", 3],
+    ],
+    ...[
+      ["recover", 4],
+      ["leap", 30],
+      ["plunge", 2],
+      ["down", 9],
+    ],
+  ] as const;
+  for (const tier of [0, 1, 2] as const)
+    for (const [anim, animStep] of anims)
+      for (const facing of [1, -1] as const) {
+        const z = anim === "leap" ? 20 : 0;
+        const drawn = sprites({ tier, anim, animStep, facing, z });
+        const frame = enemyFrame("lancer", anim, animStep) as LancerFrame;
+        assert.equal(drawn.length, 1);
+        assert.deepEqual(
+          drawn[0]!.image.fills,
+          fillsOf(LANCER.sprite(frame), {
+            ...{ swap: LANCER_TIERS[tier], flash: false },
+            flip: facing < 0,
+          }),
+          `${tier} ${anim} ${facing}`,
+        );
+      }
+  // The thrust's steel point on screen, found in the sprite's rows and placed by the blit: on the column the spear
+  // reaches from the lancer's.
+  const thrust = LANCER.sprite("thrust");
+  const point = Math.max(
+    ...thrust.rows.map((row) => row.search(/[^.k][.k]*$/)),
+  );
+  for (const facing of [1, -1] as const) {
+    const { dx } = sprites({ anim: "thrust", facing })[0]!;
+    const column = facing > 0 ? dx + point : dx + thrust.w - 1 - point;
+    assert.equal(column, 150 + facing * Math.round(SPEAR.reach), `${facing}`);
+  }
+});
+
 test("every anim of a hero and an enemy draws at any step, and one the art lacks stands idle", () => {
   const heroAnims = [...HERO_ANIMS] as HeroView["anim"][];
   // Every kind in every anim the view has, a ravager's `flee` and an imp's `windup` included.
@@ -387,7 +633,7 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
           hero(i + 1, i % 5, 30 + i * 12, 130, { anim, animStep }),
         ),
         enemies: enemyAnims.map(({ kind, anim }, i) =>
-          enemy(40 + i, 20 + i * 10, 160, { kind, anim, animStep }),
+          enemy(40 + i, 20 + ((i * 10) % 280), 160, { kind, anim, animStep }),
         ),
       }),
     );
@@ -396,7 +642,7 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
       assert.equal(sprites.length, heroAnims.length + enemyAnims.length);
   }
   // A kind of anim from a build with more of them: the hero and each enemy stand idle.
-  const unknown = JSON.parse('"ride"') as HeroView["anim"] & EnemyView["anim"];
+  const unknown = JSON.parse('"dance"') as HeroView["anim"] & EnemyView["anim"];
   const [odd, idle] = [unknown, "idle" as const].map((anim) =>
     draw(
       world({
@@ -410,6 +656,160 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
   );
   assert.equal(odd!.length, 3);
   assert.deepEqual(odd, idle);
+});
+
+test("a bonewalker draws as a ravager in bone, by tier, and its pile or shattered bones as a few bones on the floor", () => {
+  const drawn = (more: Partial<EnemyView>) =>
+    draw(
+      world({
+        enemies: [enemy(2, 150, 150, { kind: "bonewalker", ...more })],
+      }),
+    );
+  for (const anim of ["pile", "dead"] as const) {
+    const { sprites, shadows } = drawn({ anim, animStep: 3, facing: -1 });
+    assert.deepEqual(
+      sprites[0]!.image.fills,
+      fillsOf(BONE_PILE, { swap: ENEMY_ART.bonewalker.tiers[0], flip: true }),
+    );
+    assert.ok(shadows[0]!.image.w < 2 * SHADOW_RX);
+  }
+  const looks = ([0, 1, 2] as const).map(
+    (tier) => drawn({ tier }).sprites[0]!.image.fills,
+  );
+  assert.equal(new Set(looks.map((each) => JSON.stringify(each))).size, 3);
+  assert.notDeepEqual(
+    looks[0],
+    draw(world({ enemies: [enemy(2, 150, 150)] })).sprites[0]!.image.fills,
+    "not a ravager's colours",
+  );
+  // It climbs out of its grave and pulls itself together standing; no step of either throws.
+  for (const anim of ["rise", "reassemble"] as const)
+    for (const animStep of [0, 30, 1e9, Number.NaN])
+      assert.equal(drawn({ anim, animStep }).sprites.length, 1);
+});
+
+test("an ogre draws its own figure in its twin's colours on its feet, burns and steams once enraged, casts a bigger shadow, cracks the floor and is cut to the screen", () => {
+  const ogre = (x: number, more: Partial<EnemyView> = {}) =>
+    draw(
+      world({
+        enemies: [
+          enemy(2, x, 150, { kind: "ogre", tier: 1, boss: true, ...more }),
+        ],
+      }),
+      7,
+    );
+  const windup = { anim: "windup", animStep: 30 } as const;
+  const { sprites, shadows, pen } = ogre(160, windup);
+  assert.equal(sprites.length, 1);
+  const [b] = sprites;
+  assert.equal(enemyFrame("ogre", "windup", 30), "windup");
+  const pose = OGRE.sprite("windup");
+  const options = { flash: false, flip: false };
+  assert.deepEqual(
+    b!.image.fills,
+    fillsOf(pose, { swap: OGRE_TIERS[1], ...options }),
+  );
+  // Drawn at its own size, its feet on its floor position.
+  assert.deepEqual([b!.dw, b!.dh], [b!.sw, b!.sh]);
+  assert.deepEqual([b!.dx + pose.ax, b!.dy + pose.ay], [160, 150]);
+  assert.equal(shadows[0]!.image.w, 2 * Math.round(SHADOW_RX * 1.5) + 1);
+  // Enraged, the same frame in the rage palette, steam rising from its crown over it; fallen, no steam.
+  const rage = ogre(160, { ...windup, enraged: true });
+  assert.deepEqual(
+    rage.sprites[0]!.image.fills,
+    fillsOf(pose, { swap: OGRE_RAGE[1], ...options }),
+  );
+  const calm = new Set(pen.fills.map((f) => JSON.stringify(f)));
+  const steam = rage.pen.fills.filter((f) => !calm.has(JSON.stringify(f)));
+  assert.ok(steam.length > 0, "it steams");
+  const [cx, cy] = OGRE_CROWNS.windup;
+  for (const f of steam) {
+    assert.ok(Math.abs(f.x - (160 + cx)) <= 8, `${f.x} far from the crown`);
+    assert.ok(f.y <= 150 + cy && f.y > 130 + cy, `${f.y} off the crown`);
+  }
+  const dead = { anim: "dead", animStep: 1 } as const;
+  assert.equal(
+    ogre(160, { ...dead, enraged: true }).pen.fills.length,
+    ogre(160, dead).pen.fills.length,
+  );
+  // Its shockwave cracks the floor and breaks it into shards while it runs, not as the hammer lands, the shards
+  // crumbling on after the wave's end until the hammer rises.
+  const fills = (more: Partial<EnemyView>) => ogre(160, more).pen.fills.length;
+  const landed = fills({ anim: "slam", animStep: 0 });
+  assert.ok(fills({ anim: "slam", animStep: 5 }) > landed);
+  assert.ok(fills({ anim: "slam", animStep: QUAKE.steps + 1 }) > landed);
+  assert.ok(fills({ anim: "slam", animStep: OGRE_STEPS.slam - 1 }) > landed);
+  assert.equal(fills({ anim: "slam", animStep: OGRE_STEPS.slam }), landed);
+  // At the screen's edge only what is on screen is drawn.
+  const [edge] = ogre(4, { anim: "idle" }).sprites;
+  assert.ok(edge!.dx === 0 && edge!.sx > 0 && edge!.dx + edge!.dw <= VIEW_W);
+  assert.equal(edge!.sw, edge!.dw);
+  // A ravager's rage, which nothing gives it, changes nothing.
+  const ravager = (enraged: boolean) =>
+    draw(world({ enemies: [enemy(2, 160, 150, { enraged })] })).pen.fills;
+  assert.equal(ravager(true).length, ravager(false).length);
+});
+
+test("an enraged ogre's steam is drawn with it by depth: a hero in front of it hides the puffs, one behind it does not", () => {
+  /** Every fill and blit of a frame in the order they were drawn. */
+  class OrderedPen extends RecordingPen {
+    readonly order: (Fill | Blit)[] = [];
+    override fillRect(x: number, y: number, w: number, h: number) {
+      super.fillRect(x, y, w, h);
+      this.order.push(this.fills.at(-1)!);
+    }
+    override drawImage(image: FakeImage, ...r: number[]) {
+      super.drawImage(image, ...r);
+      this.order.push(this.blits.at(-1)!);
+    }
+  }
+  const frame = (enraged: boolean, heroY: number) => {
+    const pen = new OrderedPen();
+    shared.scene.draw(
+      pen,
+      world({
+        heroes: [hero(1, 0, 160, heroY)],
+        enemies: [enemy(2, 160, 150, { kind: "ogre", boss: true, enraged })],
+      }),
+      7,
+    );
+    return pen.order;
+  };
+  const key = (f: Fill) => JSON.stringify(f);
+  const [heroSize, ogreSize] = [BRAKKA.sprite("idle0"), OGRE.sprite("idle")];
+  assert.notEqual(heroSize.w, ogreSize.w);
+  const sized = (sprite: Sprite) => (b: Fill | Blit) =>
+    "image" in b && b.image.w === sprite.w && b.image.h === sprite.h;
+  for (const [heroY, hides] of [
+    [160, true],
+    [140, false],
+  ] as const) {
+    const calm = new Set(
+      frame(false, heroY)
+        .filter((c) => "style" in c)
+        .map(key),
+    );
+    const order = frame(true, heroY);
+    // The puffs are the fills the calm frame lacks.
+    const steam = order.flatMap((c, i) =>
+      "style" in c && !calm.has(key(c)) ? [i] : [],
+    );
+    const mine = order.findIndex(sized(heroSize));
+    const ogre = order.findIndex(sized(ogreSize));
+    assert.ok(steam.length > 0 && mine >= 0 && ogre >= 0);
+    // The steam follows the ogre it blows off, and the hero in front of it is drawn over the steam.
+    assert.ok(steam.every((i) => i > ogre));
+    assert.equal(
+      steam.every((i) => i < mine),
+      hides,
+      `hero at ${heroY}`,
+    );
+    assert.equal(
+      steam.every((i) => i > mine),
+      !hides,
+      `hero at ${heroY}`,
+    );
+  }
 });
 
 test("a sack imp draws its own frames, a kind from a newer build draws as a ravager, and pots lie among the figures and blink before they vanish", () => {
@@ -478,8 +878,13 @@ test("a sack imp draws its own frames, a kind from a newer build draws as a rava
   assert.equal(draw(blinking, 0).sprites.length, 1);
   assert.equal(draw(blinking, BLINK_FRAMES).sprites.length, 0);
   assert.equal(draw(blinking, BLINK_FRAMES).shadows.length, 1);
-  // An item of a kind from a newer build lies as a pot.
-  for (const odd of ['"meat"', '"constructor"']) {
+  // Camp's meat is a drumstick; an item of a kind from a newer build lies as a pot.
+  const [meat] = draw(world({ items: [{ ...pot, kind: "meat" }] })).sprites;
+  assert.deepEqual(
+    [meat!.image.fills, meat!.dx, meat!.dy],
+    [fillsOf(MEAT), 100 - MEAT.ax, 150 - 4 - MEAT.ay],
+  );
+  for (const odd of ['"bread"', '"constructor"']) {
     const kind = JSON.parse(odd) as ItemView["kind"];
     const [item] = draw(world({ items: [{ ...pot, kind }] })).sprites;
     assert.deepEqual(item!.image.fills, fillsOf(POT));
@@ -495,6 +900,32 @@ test("each hero wears a marker in its seat's colour over its head, rising with i
   assert.equal(low.dy - high.dy, 30);
   assert.ok(low.dy + low.dh < ground!.sprites[0]!.dy + 40, "over the head");
   assert.equal(draw(world({ enemies: [enemy(1, 9, 140)] })).markers.length, 0);
+});
+
+test("a rider's marker hangs the same gap over its seated head as a standing hero's over its own, whichever hero it is", () => {
+  const beast: MountView = {
+    ...{ id: 9, kind: "clawbeak", x: 150, y: 140, z: 0, facing: 1 },
+    ...{ anim: "idle", animStep: 0, rider: { kind: "hero", id: 1 } },
+  };
+  const seated = { anim: "ride", mounted: true, z: CLAWBEAK.saddle } as const;
+  for (const kind of HERO_KINDS) {
+    const walking = draw(world({ heroes: [hero(1, 0, 150, 140, { kind })] }));
+    const riding = draw(
+      world({
+        heroes: [hero(1, 0, 150, 140, { kind, ...seated })],
+        mounts: [beast],
+      }),
+    );
+    // The beast first, its rider after it (the marker is the one chevron over it).
+    for (const [drawn, who] of [
+      [walking, walking.sprites[0]!],
+      [riding, riding.sprites[1]!],
+    ] as const) {
+      assert.equal(drawn.markers.length, 1, kind);
+      const [marker] = drawn.markers;
+      assert.equal(marker!.dy + marker!.dh, who.dy - MARKER_GAP, kind);
+    }
+  }
 });
 
 test("sparks burst within their life only, and a light hit's sooner", () => {
@@ -699,4 +1130,164 @@ test("the backdrop painted through a plain surface matches its pixel buffers exa
       ["#010203", 2, 1, 1],
     ],
   );
+});
+
+test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage without art Stage 1's, and no stage throws", () => {
+  const layers = (view: WorldView) =>
+    draw(view).pen.blits.filter((b) => b.image.w >= VIEW_W);
+  for (const stage of [2, 3, 4, 0, -1, 1.5, Number.NaN])
+    assert.doesNotThrow(() => draw(world({ stage, camX: 100 })), `${stage}`);
+  // Its road is the stage's whole length, scrolled with the floor out to the skull gate.
+  const end = cameraEndPx(2);
+  const road = (camX: number) =>
+    layers(world({ stage: 2, camX })).find(
+      (b) => b.image.w === stageLengthPx(2),
+    );
+  assert.equal(road(0)?.sx, 0);
+  assert.equal(road(end)?.sx, end);
+  assert.notDeepEqual(layers(world({ stage: 2 })), layers(world({ stage: 1 })));
+  assert.deepEqual(scenery(2, 700), { art: 2, camX: 700 });
+  assert.deepEqual(scenery(1, 500), { art: 1, camX: 500 });
+  assert.deepEqual(scenery(4, 500), { art: 1, camX: 500 }, "an unknown one");
+  assert.deepEqual(layers(world({ stage: 4 })), layers(world({ stage: 1 })));
+});
+
+test("Stage 3 draws the Drowned Crypt at the camera as it is, out to its great doors", () => {
+  const layers = (stage: number, camX = 0) =>
+    draw(world({ stage, camX })).pen.blits.filter((b) => b.image.w >= VIEW_W);
+  const road = (camX: number) =>
+    layers(3, camX).find((b) => b.image.w === CRYPT_LENGTH);
+  assert.equal(road(0)?.sx, 0);
+  assert.equal(road(CRYPT_END)?.sx, CRYPT_END);
+  const images = (stage: number) => layers(stage).map((b) => b.image);
+  for (const other of [1, 2]) {
+    const theirs = new Set(images(other));
+    assert.ok(
+      images(3).every((image) => !theirs.has(image)),
+      `${other}`,
+    );
+  }
+  assert.deepEqual(scenery(3, 700), { art: 3, camX: 700 });
+});
+
+test("every stage's backdrop is baked with the scene, so no frame stalls baking one as its stage begins", () => {
+  const { images, scene } = fakeScene();
+  const wide = () => images.filter((image) => image.w >= VIEW_W).length;
+  const baked = wide();
+  for (const length of [stageLengthPx(1), stageLengthPx(2), CRYPT_LENGTH])
+    assert.ok(
+      images.some((image) => image.w === length),
+      `a ${length} px road`,
+    );
+  for (const stage of [1, 2, 3, 4, 3, 2, 1, Number.NaN])
+    draw(world({ stage, camX: 100 }), 0, scene);
+  assert.equal(wide(), baked, "drawing a stage baked a layer");
+});
+
+test("camp draws its own night clearing, baked with the scene, and a stage its own backdrop", () => {
+  const { images, scene } = fakeScene();
+  const wide = () => images.filter((image) => image.w >= VIEW_W).length;
+  const baked = wide();
+  const camp = (frame: number, more: Partial<WorldView> = {}) =>
+    draw(world({ camp: true, ...more }), frame, scene).pen;
+  const layers = (pen: RecordingPen) =>
+    pen.blits.filter((b) => b.image.w >= VIEW_W).map((b) => [b.image.id, b.sx]);
+  const stage = (stage: number) =>
+    layers(draw(world({ stage, camX: 90 }), 0, scene).pen);
+  // Whatever stage it follows and wherever the view says the camera is, camp is one screen at rest.
+  const clearing = layers(camp(0));
+  for (const more of [{ stage: 2, camX: 90 }, { stage: 3 }, { camX: NaN }])
+    assert.deepEqual(layers(camp(0, more)), clearing, JSON.stringify(more));
+  assert.ok(clearing.every(([, sx]) => sx === 0));
+  // A stage draws its own backdrop at its camera, none of it camp's, and camp none of a stage's.
+  for (const each of [stage(1), stage(2), stage(3)]) {
+    assert.ok(
+      each.some(([, sx]) => sx !== 0),
+      "a stage scrolls",
+    );
+    const ids = new Set(each.map(([id]) => id));
+    assert.ok(clearing.every(([id]) => !ids.has(id)));
+  }
+  assert.notDeepEqual(stage(1), stage(2));
+  for (const frame of [-5, Number.NaN, Infinity, 1e9])
+    assert.doesNotThrow(() => camp(frame), `frame ${frame}`);
+  // The flames and their light flicker frame to frame, each fill a whole pixel's rectangle on screen.
+  const fills = (frame: number) => camp(frame).fills;
+  assert.notDeepEqual(fills(0), fills(7));
+  for (const frame of [0, 7, 1e9])
+    for (const f of fills(frame))
+      assert.ok(
+        f.x >= 0 && f.x + f.w <= VIEW_W && f.y >= 0 && f.y + f.h <= VIEW_H,
+        `frame ${frame}: ${JSON.stringify(f)}`,
+      );
+  assert.equal(wide(), baked, "drawing camp baked no layer");
+});
+
+test("camp's fire stands among the figures: in front of one behind it, behind one in front", () => {
+  const flame = new Set<string>(FLAME);
+  const order = (...heroes: HeroView[]) => {
+    const { pen, sprites } = draw(world({ camp: true, heroes }), 12);
+    const fire = pen.calls.findIndex(
+      (c) => "style" in c && flame.has(c.style) && c.y + c.h <= FIRE.y,
+    );
+    assert.ok(fire >= 0, "the fire is drawn");
+    return sprites.map((s) => pen.calls.indexOf(s) < fire);
+  };
+  const [behind, before] = [FIRE.y - 6, FIRE.y + 18];
+  assert.deepEqual(
+    order(hero(1, 0, FIRE.x, behind), hero(2, 1, FIRE.x + 4, before)),
+    [true, false],
+  );
+  assert.deepEqual(order(hero(1, 0, FIRE.x, behind)), [true], "the last");
+  assert.deepEqual(order(hero(1, 0, FIRE.x, before)), [false], "the first");
+  assert.deepEqual(order(), [], "with nobody there");
+  // A figure on the fire's own row is drawn before it, as one further up the floor would be.
+  assert.deepEqual(order(hero(1, 0, FIRE.x - 30, FIRE.y)), [true]);
+});
+
+test("an ember drake draws from its own art, blinking as it inhales; its flame is one jet from its jaws to the front, drawn at its depth; the captain sits it in his colours", () => {
+  const drake = (more: Partial<MountView> = {}): MountView => ({
+    ...{ id: 9, kind: "drake", x: 150, y: 140, z: 0, facing: 1 },
+    ...{ anim: "breathe", animStep: 0, rider: null, ...more },
+  });
+  const look = (more: Partial<MountView>) =>
+    draw(world({ mounts: [drake(more)] })).sprites[0]!.image.fills;
+  const art = (frame: DrakeFrame, flash: boolean) =>
+    fillsOf(DRAKE_FIGURE.sprite(frame), { flash, flip: false });
+  assert.deepEqual(look({}), art("inhale1", true));
+  assert.deepEqual(look({ animStep: TELEGRAPH }), art("inhale1", false));
+  assert.deepEqual(look({ animStep: DRAKE_STEPS.inhale }), art("blast0", false)); // prettier-ignore
+  // The jet (`drake-fx.ts`) is drawn once the flame is out, nothing while it inhales; at the drake's depth, over a
+  // hero further up the floor in its lane, under one in front of it.
+  const jets = (animStep: number) =>
+    draw(world({ mounts: [drake({ animStep })] })).sprites.length - 1;
+  assert.deepEqual([jets(DRAKE_STEPS.inhale - 1), jets(DRAKE_STEPS.inhale + 20)], [0, 1]); // prettier-ignore
+  const flaming = drake({ animStep: DRAKE_STEPS.inhale + 20 });
+  const [behind, before] = [hero(1, 0, 200, 136), hero(2, 1, 210, 144)];
+  const { sprites } = draw(world({ heroes: [behind, before], mounts: [flaming] })); // prettier-ignore
+  // In order: the hero behind, the drake, its jet, the hero in front.
+  assert.equal(sprites.length, 4);
+  assert.deepEqual(sprites[0]!.image.fills, fillsOf(BRAKKA.sprite("idle0"), {})); // prettier-ignore
+  assert.deepEqual(sprites[1]!.image.fills, look(flaming));
+  assert.notDeepEqual(sprites[3]!.image.fills, sprites[2]!.image.fills);
+  assert.equal(sprites[3]!.dy + BRAKKA.sprite("idle0").ay, 144);
+  // Any step of any anim, odd ones too, draws the drake and never throws.
+  for (const anim of MOUNT_STATES)
+    for (const step of [0, 40, 79, 1e9, -3, 2.5, Number.NaN, Infinity])
+      assert.ok(draw(world({ mounts: [drake({ anim, animStep: step })] })).sprites.length >= 1); // prettier-ignore
+  // The captain: his own figure in gold and dark steel whatever his palette, seated on his drake's saddle.
+  const boss = enemy(3, 150, 140, { kind: "captain", tier: 2, boss: true });
+  const captain = (frame: string) =>
+    fillsOf(CAPTAIN.sprite(frame as "ride"), { swap: CAPTAIN_LOOK, flash: false, flip: false }); // prettier-ignore
+  assert.deepEqual(draw(world({ enemies: [boss] })).sprites[0]!.image.fills, captain("idle")); // prettier-ignore
+  const ridden = draw(
+    world({
+      enemies: [{ ...boss, anim: "ride", mounted: true, z: CLAWBEAK.saddle }],
+      mounts: [drake({ anim: "walk", animStep: 0, rider: { kind: "enemy", id: 3 } })], // prettier-ignore
+    }),
+  ).sprites;
+  const seat = CAPTAIN.sprite("ride");
+  assert.deepEqual(ridden[1]!.image.fills, captain("ride"));
+  assert.equal(ridden[1]!.dy + seat.ay, 140 - CLAWBEAK.saddle + DRAKE_DIPS.walk0); // prettier-ignore
+  assert.deepEqual([0, 1, 2].map((tier) => ENEMY_ART.captain.tiers[tier as 0]), [CAPTAIN_LOOK, CAPTAIN_LOOK, CAPTAIN_LOOK]); // prettier-ignore
 });

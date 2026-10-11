@@ -34,6 +34,8 @@ const HERO_CUES: Partial<Record<HeroAnim, Cue>> = {
   throw: "throw",
   knockdown: "knocked",
   respawn: "respawn",
+  // Climbing on a beast lands in its saddle.
+  ride: "land",
 };
 const heroCue = (anim: HeroAnim, kind: HeroKind): Cue | undefined =>
   SWINGS.includes(anim) ? `swing-${kind}` : HERO_CUES[anim];
@@ -85,9 +87,10 @@ export class CueTracker {
     }
     this.stageCues(frame, run, cues);
     const world = frame.world;
-    if (world && this.world) this.worldCues(this.world, world, run, cues);
+    if (world && this.world && this.world.camp === world.camp)
+      this.worldCues(this.world, world, run, cues);
     else {
-      // A stage starts from what it shows: nothing in its first frame is news, its sparks included.
+      // A stage (or camp) starts from what it shows: nothing in its first frame is news, its sparks included.
       this.figures.clear();
       this.heard.clear();
       this.sparks = world ? sparksOf(world) : [];
@@ -141,9 +144,14 @@ export class CueTracker {
         this.fresh(`${key}:hp${hero.hp}`, step)
       )
         cues.add("hurt");
-      // A pot picked up off the floor; one drunk for magic takes one away.
+      // A pot picked up off the floor (one drunk for magic takes one away), or meat eaten at camp.
       const pots = hero.pots;
-      if (pots > was.pots && this.fresh(`${key}:pot${pots}`, step))
+      if (
+        (pots > was.pots && this.fresh(`${key}:pot${pots}`, step)) ||
+        (world.camp &&
+          hero.hp > was.hp &&
+          this.fresh(`${key}:meat${hero.hp}`, step))
+      )
         cues.add("pot");
     }
     for (const enemy of world.enemies) {
@@ -151,6 +159,16 @@ export class CueTracker {
         was = this.figures.get(key);
       if (was && enemy.anim === "windup" && this.began(key, enemy, was, step))
         cues.add("windup");
+    }
+    // A beast's blow winding up (a tail, a drake's inhale, the captain's saddle thrust) is its wind-up, whoever rides
+    // it (its rider never leaves `ride`), and a hero's beast hopping is a jump.
+    for (const mount of world.mounts) {
+      const was = this.figures.get(`m${mount.id}`),
+        cue = ["sweep", "breathe", "lance"].includes(mount.anim)
+          ? "windup"
+          : mount.anim === "hop" && "jump";
+      if (was && cue && this.began(`m${mount.id}`, mount, was, step))
+        cues.add(cue);
     }
     this.sparkCues(world, cues);
     const wave = `${run}:${world.wave}`;
@@ -231,6 +249,13 @@ export class CueTracker {
         anim: enemy.anim,
         animStep: enemy.animStep,
         hp: enemy.hp,
+        pots: 0,
+      });
+    for (const mount of world.mounts)
+      this.figures.set(`m${mount.id}`, {
+        anim: mount.anim,
+        animStep: mount.animStep,
+        hp: 0,
         pots: 0,
       });
   }
