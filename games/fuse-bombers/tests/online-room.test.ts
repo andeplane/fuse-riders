@@ -24,6 +24,7 @@ import {
   hash,
   isEntry,
   maxRounds,
+  parseSettings,
   roundSeed,
   view,
   type Entry,
@@ -206,6 +207,34 @@ test("a match of nothing but draws ends at its round limit with no winner", () =
   assert.ok(room.results.every((r) => r.reason === "wipeout"));
 });
 
+test("past the round limit the leader never depends on the order the crowns were recorded in", () => {
+  const leaders = ["yx", "xy"].map((order) => {
+    const room = started({ ...SETUP, wins: 1 });
+    room.round = maxRounds(room.play);
+    room.wins = Object.fromEntries([...order].map((id) => [id, 2])); // tied; neither won a round on record
+    toFlight(room);
+    knockOut(room, "nobody");
+    run(room, OUTRO_TICKS + 1);
+    return `${room.stage} ${room.winner}`;
+  });
+  assert.deepEqual(leaders, ["over x", "over x"]);
+});
+
+test("settings are exactly their three own keys, each of its type and range", () => {
+  const ok = { wins: 9, difficulty: "hard", display: true };
+  assert.deepEqual(parseSettings(ok), ok);
+  const inherited = Object.create({ display: true }) as object;
+  Object.assign(inherited, { wins: 3, difficulty: "easy", show: true });
+  // Two own keys whose names joined read as the three: the other two are inherited, which is not a setting.
+  const joined = Object.create({ difficulty: "easy", display: true }) as object;
+  Object.assign(joined, { "difficulty,display": 1, wins: 3 });
+  // prettier-ignore
+  for (const bad of [{ ...ok, extra: 1 }, { wins: 3, difficulty: "easy" }, { ...ok, wins: 0 }, { ...ok, wins: 10 },
+    { ...ok, wins: 2.5 }, { ...ok, wins: "3" }, { ...ok, difficulty: "x" }, { ...ok, display: 1 }, inherited, joined,
+    [3, "easy", true], null, "settings"])
+    assert.equal(parseSettings(bad), undefined, JSON.stringify(bad));
+});
+
 test("riders join and leave mid-match: a newcomer flies from the next round, and too few gunships end the match", () => {
   const room = started();
   toFlight(room);
@@ -232,7 +261,7 @@ test("riders join and leave mid-match: a newcomer flies from the next round, and
   assert.equal(game.seating.botId(room, new Set()), "bot:2", "crowns stay");
 });
 
-test("a structured clone of the room continues exactly as the room does; no checkpoint restores a room yet", () => {
+test("a structured clone of the room continues exactly as the room does", () => {
   const room = started();
   toFlight(room);
   run(room, 40);
@@ -248,8 +277,6 @@ test("a structured clone of the room continues exactly as the room does; no chec
   }
   assert.equal(hash(copy), hash(room));
   assert.notEqual(hash(room), hash(started()));
-  // Until the codec pull request, every snapshot is refused rather than restored in part.
-  assert.equal(game.checkpoint.decode([0], room.tick), undefined);
 });
 
 test("views share one copy of the terrain until a carve, and a kept view never changes", () => {
@@ -266,12 +293,13 @@ test("views share one copy of the terrain until a carve, and a kept view never c
 });
 
 test("the hash covers the whole room in a fixed order, and fields added later", () => {
-  const h = (v: unknown) => hashPlain(v, new Set(["events"]));
+  const h = hashPlain;
   assert.match(h({}), /^[0-9a-f]{16}$/);
   assert.equal(h({ a: 1, b: [2, "x"] }), h({ b: [2, "x"], a: 1 }));
   const map = (keys: string) => new Map([...keys].map((k) => [k, k]));
   assert.equal(h(map("ab")), h(map("ba")));
-  assert.equal(h({ a: 1, gone: undefined, events: [1] }), h({ a: 1 }));
+  assert.equal(h({ a: 1, gone: undefined }), h({ a: 1 }));
+  assert.notEqual(h({ a: 1, events: [1] }), h({ a: 1 }), "events are data");
   assert.equal(h(-0), h(0));
   assert.notEqual(h(0.1 + 0.2), h(0.3), "exact bits");
   assert.notEqual(h(new Uint32Array([1, 2])), h(new Uint32Array([1, 3])));
@@ -285,8 +313,15 @@ test("the hash covers the whole room in a fixed order, and fields added later", 
   room.world!.terrain.solid[100]! ^= 1;
   room.world!.bots[0]!.rng++;
   assert.notEqual(hash(room), before, "a bot's memory");
-  Object.assign(room.world!, { memory: [{ aim: 1 }] });
-  assert.notEqual(hash(room), before, "a field the room did not have before");
+  room.world!.bots[0]!.rng--;
+  // The round's own events are the one transient field; one of that name anywhere else is state.
+  room.world!.events = [{ type: "sudden-death-started", tick: 1 }];
+  assert.equal(hash(room), before, "the latest step's events");
+  Object.assign(room.world!, { memory: [{ events: [1] }] });
+  const nested = hash(room);
+  assert.notEqual(nested, before, "a field the room did not have before");
+  Object.assign(room.world!, { memory: [{ events: [2] }] });
+  assert.notEqual(hash(room), nested, "a nested field named events");
 });
 
 /** A replica: `a` seats `a`, `b` and a bot and starts the match; `b`'s stream is remote. */
