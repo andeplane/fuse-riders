@@ -4,6 +4,7 @@ import {
   ATTACK,
   DOWN,
   JUMP,
+  LEFT,
   MAGIC,
   RIGHT,
   STAGE_1,
@@ -295,6 +296,10 @@ test("the checkpoint refuses riders and beasts where the rules never put them", 
     ["a hero's beast walking in", [{ state: "enter" }, {}, {}]],
     ["a hero above its beast", [{}, {}, {}], {}, { z: px(2) }],
     ["a rider with a speed of its own", [{}, {}, {}], {}, { vx: 1 }],
+    ["a rider with a speed in depth", [{}, {}, {}], {}, { vy: 1 }],
+    ["a hero's beast faster than its walk", [{ vx: T.BEAST_WALK.x + 1 }, {}, {}]], // prettier-ignore
+    ["a hero's beast faster in depth", [{ vy: -T.BEAST_WALK.y - 1 }, {}, {}]], // prettier-ignore
+    ["a beast rising faster than a hop", [{}, {}, { state: "flee", z: px(4), vz: T.JUMP_VZ + 1 }]], // prettier-ignore
   ];
   for (const [what, mounts, enemies, heroes] of cases)
     assert.equal(refused(mounts, enemies, heroes), undefined, what);
@@ -503,4 +508,101 @@ test("a rider brought to no hit points falls from the saddle and goes out on its
   assert.ok(decodeWorld(encodeWorld({ ...rides, camp: false })), "on the road");
   assert.equal(decodeWorld(encodeWorld(rides)), undefined);
   assert.equal(decodeWorld(encodeWorld({ ...camp, heroes: [sat] })), undefined);
+});
+
+test("a hop carries the walk the beast has on the step it leaves the floor, as a hero's jump does, and keeps it in the air", () => {
+  // Jump pressed with Right, from a standstill: the hop goes that way at once, facing it, and no steering follows.
+  let world = step(aboard(party("brakka")), []);
+  const x0 = beast(world).x;
+  world = step(world, [JUMP | RIGHT]);
+  assert.deepEqual([beast(world).state, beast(world).facing, beast(world).vx, beast(world).x - x0], ["hop", 1, T.BEAST_WALK.x, T.BEAST_WALK.x]); // prettier-ignore
+  world = run(world, 5, [LEFT]);
+  assert.equal(beast(world).facing, 1, "no turning in the air");
+  assert.equal(
+    beast(world).x - x0,
+    6 * T.BEAST_WALK.x,
+    "no steering in the air",
+  );
+  kept(world);
+  world = until(world, (w) => beast(w).z === 0);
+  assert.deepEqual([beast(world).state, beast(world).vx, beast(world).vy], ["idle", 0, 0]); // prettier-ignore
+});
+
+test("no world heroes reach riding is refused by the checkpoint, and a rollback from any of them replays to the same one", () => {
+  // Three heroes, two steered by pseudo-random presses (Jump, Attack, Magic and every direction), through Wyrmbone Pass,
+  // with riderless beasts sent in beside them now and then, so the party boards, sweeps, hops, climbs off and is thrown off.
+  let seed = 20261011;
+  const roll = (n: number) => {
+    seed = (Math.imul(seed, 1103515245) + 12345) >>> 0;
+    return (seed >>> 8) % n;
+  };
+  const presses = [0, 0, 0, RIGHT, RIGHT | UP, RIGHT | DOWN, LEFT, DOWN, JUMP, JUMP, DOWN | JUMP, RIGHT | JUMP, ATTACK, ATTACK | RIGHT, MAGIC, UP | JUMP]; // prettier-ignore
+  const base = createWorld({
+    seed: 9,
+    stage: 2,
+    heroes: (["brakka", "rhea", "gorm"] as const).map((kind, seat) => ({
+      seat,
+      kind,
+      carry: { lives: T.LIVES, pots: T.MAX_POTS[kind], hp: T.HERO_HP[kind] },
+    })),
+  });
+  const seen = new Set<string>();
+  let world = base;
+  const held = [0, 0, 0];
+  const trail: { world: World; held: number[]; sent?: number[] }[] = [];
+  for (let tick = 0; tick < 1500; tick++) {
+    if (tick % 4 === 0) held[0] = presses[roll(presses.length)]!;
+    if (tick % 4 === 2) held[1] = presses[roll(presses.length)]!;
+    held[2] = botInput(world, world.heroes[2]!.id, [world.heroes[0]!.id, world.heroes[1]!.id]); // prettier-ignore
+    let sent: number[] | undefined;
+    const near = world.heroes[roll(2)]!;
+    if (tick % 70 === 6 && world.mounts.length < T.MOUNT_MAX)
+      sent = [near.x + px(roll(41) - 20), near.y + px(roll(13) - 6)].map(Math.round); // prettier-ignore
+    const before = world;
+    if (sent) world = spawnMount(world, sent[0]!, sent[1]!);
+    world = stepTick(world, held);
+    trail.push({ world: before, held: [...held], sent });
+    if (trail.length > 30) trail.shift();
+    const raw = decodeWorld(structuredClone(encodeWorld(world)));
+    assert.deepEqual(raw, world, `refused at step ${world.step}`);
+    for (const h of world.heroes) {
+      seen.add(h.state);
+      const mount = world.mounts.find((m) => m.rider === h.id);
+      if (mount) seen.add(`beast ${mount.state}`);
+    }
+    if (tick % 60 === 59) {
+      // A rollback from the oldest of the trail replays the same inputs, and the same spawns, to the same world.
+      let replay = decodeWorld(encodeWorld(trail[0]!.world))!;
+      for (const { held: bits, sent: at } of trail) {
+        if (at) replay = spawnMount(replay, at[0]!, at[1]!);
+        replay = stepTick(replay, bits);
+      }
+      assert.deepEqual(replay, world, `rollback at step ${world.step}`);
+    }
+  }
+  for (const covered of [
+    "ride",
+    "beast sweep",
+    "beast hop",
+    "beast walk",
+    "knockdown",
+    "jump",
+  ])
+    assert.ok(seen.has(covered), `the presses reached ${covered}`);
+});
+
+test("the tail sweep kicks a sack imp open as a blade does: a pot pops out and the imp flies, while a hero beside it is spared", () => {
+  let world = step(aboard(party("brakka", "rhea")), []);
+  const { x, y } = hero(world);
+  world = moved(spawnEnemy(world, "imp", x + px(10), y), 1, x - px(10), y);
+  const imp = world.enemies[0]!;
+  const full = imp.pots;
+  world = run(step(world, [ATTACK]), T.TAIL_WINDUP);
+  assert.deepEqual(
+    world.items.map((item) => item.kind),
+    ["pot"],
+  );
+  assert.deepEqual([world.enemies[0]!.state, world.enemies[0]!.pots, hero(world).struck], ["knockdown", full - 1, [imp.id]]); // prettier-ignore
+  assert.equal(hero(world, 1).state, "idle");
+  kept(world);
 });

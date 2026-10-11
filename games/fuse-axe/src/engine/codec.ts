@@ -1,5 +1,6 @@
 import { INPUT_MASK, LEFT, RIGHT } from "./input.js";
 import {
+  BEAST_WALK,
   BUFFER_STEPS,
   CAPACITY,
   ENEMY_KINDS,
@@ -22,6 +23,7 @@ import {
   ITEM_MAX,
   JUGGLE_HITS,
   JUGGLE_WINDOW,
+  JUMP_VZ,
   LANCER,
   LEAP_VX,
   LIVES,
@@ -336,7 +338,8 @@ const mount = record<Mount>(
  * The beasts and their riders, both ways: every hero or enemy in `ride` rides exactly one beast and every other none,
  * and a rider stands where its beast does, at its height, facing its way, with no speed of its own. A beast with a
  * rider is in a ridden state (only a hero's hops, only an enemy's walks in) and one without is not; only a hero's
- * walks of its own (`vx`, `vy`); none sweeps again later than one resting now would.
+ * walks of its own (`vx`, `vy`, no faster than the beast's walk) and none rises faster than a hop leaves the floor
+ * (`vz`); none sweeps again later than one resting now would.
  */
 function mountsKept(value: World): boolean {
   const riders = new Map<number, Hero | Enemy>();
@@ -356,11 +359,16 @@ function mountsKept(value: World): boolean {
             rider.facing === each.facing &&
             rider.vx === 0 &&
             rider.vz === 0 &&
+            (!("vy" in rider) || rider.vy === 0) &&
             RIDDEN.includes(each.state) &&
             (each.state !== "hop" || hero) &&
             (each.state !== "enter" || !hero)
           : each.rider === 0 && !RIDDEN.includes(each.state)) &&
-        (hero || (each.vx === 0 && each.vy === 0)) &&
+        (hero
+          ? Math.abs(each.vx) <= BEAST_WALK.x &&
+            Math.abs(each.vy) <= BEAST_WALK.y
+          : each.vx === 0 && each.vy === 0) &&
+        each.vz <= JUMP_VZ &&
         each.coolUntil <= value.step + TAIL_COOL
       );
     }) &&
