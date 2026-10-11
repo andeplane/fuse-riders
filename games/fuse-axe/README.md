@@ -196,8 +196,8 @@ and gold saddle, and red spines. It walks with diagonal pairs of feet keeping pa
 loses its rider. Its breath (`DRAKE_ANIMS.breathe`, timed by view-kit's `DRAKE_STEPS`) rears it back, its chest
 swelling and its throat kindling, for exactly the inhale (the telegraph, which the scene also blinks). From the step
 the flame is out it lunges with its jaws wide and its throat blazing. Through the captain's saddle thrust it crouches
-and then braces. Its saddle point is the clawbeak's (`DRAKE_DIPS`), so the captain (`captain.ts`, a seated `ride`
-frame until he has a look of his own) and the heroes sit it as they sit a clawbeak.
+and then braces. Its saddle point is the clawbeak's (`DRAKE_DIPS`), so the captain and the heroes sit it as they sit
+a clawbeak.
 
 The flame (`src/render/drake-fx.ts`) is a jet from the frame's jaws (`DRAKE_MOUTHS`) to the front `flamePx` gives. It
 has a white-hot core cooling to a red rim, streaks and tongues streaming forward, a billow at the front and rising
@@ -210,13 +210,26 @@ after the drake, at its depth: over a figure further up the floor, under one in 
 
 ![The ember drake's frames, riderless and ridden, and two frames of the scene from a real engine world: the captain's drake inhaling, then its flame on the party](docs/images/drake-frames.png)
 
+The lancer captain (`src/render/art/captain.ts`) is a lancer's build in his own gear (`CAPTAIN_GEAR`, which
+`paintLancer` takes): black steel edged in gold at the collar, waist and brow, a gold pauldron, a black helm under a
+tall red crest, a dark red cape down his back and a heavier spear with a broader head. On foot he fights in the lancer's
+poses and staggers in a frame of his own, rocked back with the spear across him, for as long as the engine staggers a
+boss (`OGRE_STEPS.stagger`). His anim is `ride` throughout on his drake, so what he does in the saddle follows the
+drake's, as a hero's does: `enemyRiderFrame(kind, anim, animStep)` (`animate.ts`) plays `CAPTAIN_SADDLE`, drawn back
+and glinting (`ridewindup`) through the saddle thrust's wind-up and lunging with the spear out to `SPEAR.reach`
+(`ridethrust`) from the step it lands (`DRAKE_STEPS.lanceWindup`) to its end; for anything else his drake does, and for
+any other rider, it has nothing and the scene draws the rider's own `ride` frame. His palette is his own whatever his
+tier. `tests/captain-art.test.ts` plays the real engine against the thrust and the stagger.
+
+![The captain's frames beside a lancer's, on foot and in the saddle, and two frames of the scene from a real engine world: his saddle thrust winding up, then landing on Brakka](docs/images/captain.png)
+
 A hero riding sits astride too, in four frames of its own (`ride`, `ridewindup`, `rideattack`, `ridehop`): hips on
 the seat, the far leg out of sight (`astride` on the pose skips it), the near boot in the stirrup and the weapon held
 ready. The hero's anim is `ride` throughout, so `riderFrame(anim, animStep)` (`animate.ts`) picks the frame from its
 beast's: braced, weapon cocked, while the tail winds up or an ember drake inhales; leaning in, weapon pointed at the
 foe, from the step the tail lands (or the flame is out) to the blow's end; crouched forward, weapon raised, through a
-hop; seated otherwise (the captain's saddle thrust, `lance`, is his, not a hero's, and `heroFrame` sits a rider whose
-beast is not in the view). Gorm's legs are shorter than the stirrup a ravager rides with, so his seated near leg is
+hop; seated otherwise (the captain's saddle thrust, `lance`, is his, not a hero's: `enemyRiderFrame`; and `heroFrame`
+sits a rider whose beast is not in the view). Gorm's legs are shorter than the stirrup a ravager rides with, so his seated near leg is
 drawn longer, its thigh under the tunic. The rider's marker hangs over its seated head. `tests/hero-ride.test.ts`
 seats every frame on every frame a ridden clawbeak or drake shows and checks the mapping against the engine; the lab
 plays the three heroes riding each.
