@@ -163,15 +163,17 @@ it is dazed, grabbed, thrown and spelled down as a ravager is. Stage 1's waves 3
 Wyrmbone Pass but the last.
 
 The **lancer captain** (`lancer.ts` and `mount.ts`, tuned in `tuning.ts`'s `CAPTAIN`) is Wyrmbone Pass's boss: he rides
-his ember drake out of the skull gate, with a violet lancer and ravager more for each hero beyond the first. He has a
-boss's hit points for the party, a boss's armour and poise, and a spell takes at most a boss's share of him; nobody
-throws him, and a thrown body passes him by. In the saddle the drake breathes fire, and now and then, at a hero close
+his ember drake out of the skull gate, with one more for each hero beyond the first from the other side (a violet
+lancer, then a violet ravager, and so on). He has a boss's hit points for the party, a boss's armour and poise, and a
+spell takes at most a boss's share of him; nobody throws him, and a thrown body passes him by. In the saddle the drake breathes fire, and now and then, at a hero close
 in front, he thrusts his spear from it instead (a telegraphed wind-up, `LANCE_WINDUP`). His saddle takes every blow
 until his poise breaks (a quarter of his hit points since he last fell): then a heavy blow, or any spell, knocks him
 off. Before that his armour takes a slash as an ogre's does (he only flashes), and a heavy blow holds him and breaks
 off the drake's inhale or his thrust, so step out of the flame's lane. On foot he fights as a lancer, quicker and
-harder, his leap's plunge landing wider (`CAPTAIN_PLUNGE`), staggering rather than reeling from a heavy blow. Once,
-while his drake is still riderless on screen, he walks back to it and climbs on. The boss bar reads LANCER CAPTAIN.
+harder, his leap's plunge landing wider (`CAPTAIN_PLUNGE`), staggering rather than reeling from a heavy blow; his armour
+holds in mid-leap too, so a blow there does not cut his plunge short as it does another lancer's. Once, while his drake
+is still riderless on screen, he walks back to it (he goes for it before any hero) and climbs on, unless a hero has
+climbed on first. The boss bar reads LANCER CAPTAIN.
 
 ## Stages
 

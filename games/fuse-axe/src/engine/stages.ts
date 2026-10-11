@@ -172,8 +172,8 @@ const ROAD_2 = px(5 * VIEW_W);
 /**
  * Wyrmbone Pass: a screen longer than the village, five waves of ravagers mostly in rust and violet, each with a lancer
  * leaping in, and in waves 2 and 4 a ravager riding a clawbeak (copied, as any spawn is, for a party big enough), and at
- * the skull gate its boss, the lancer captain riding his ember drake out of the jaws, with a violet lancer and ravager
- * more for each hero beyond the first.
+ * the skull gate its boss, the lancer captain riding his ember drake out of the jaws, with one more for each hero
+ * beyond the first from the other side: a violet lancer, then a violet ravager, and so on.
  */
 export const STAGE_2: StagePlan = {
   name: "Wyrmbone Pass",

@@ -243,8 +243,8 @@ function mace(world: World, enemy: Enemy, damage: number): void {
  * breaks off a swing; or a knockdown up and away when the blow always knocks down (`knock`), the hit catches it in the
  * air, leaves it with a quarter of its hit points or fewer, or is the `JUGGLE_HITS`th in a row. The hero holds still
  * for the hit-stop, which is returned for the attacker to share. A rider's saddle takes any blow but a knockdown, which
- * throws it off its beast (`unseat`; a hop is in the air, so any blow then): it holds still, and a tail sweep still
- * winding up is broken off (`flinch`).
+ * throws it off its beast (`unseat`; a hop is in the air, so any blow then): it holds still, and a beast's blow still
+ * winding up (a tail, a drake's inhale) is broken off (`flinch`).
  */
 export function wound(
   world: World,

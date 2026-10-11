@@ -351,3 +351,133 @@ test("a rollback or a checkpoint mid-breath, mid-thrust, mid-stagger, while the 
     }
   assert.ok(trail.some((w) => (boss(w) as Enemy | undefined)?.remounted));
 });
+
+test("a hero and the captain on foot going for the same riderless drake: Jump on the step takes it, as heroes move first, and a ridden drake is nobody else's", () => {
+  // The captain beside a riderless drake, due to climb on now, and Brakka beside both.
+  const beside = () => {
+    const alone = party("brakka");
+    const world = spawnMount(alone, hero(alone).x + px(10), hero(alone).y, 0, "drake"); // prettier-ignore
+    return spawnEnemy(
+      world,
+      "captain",
+      hero(world).x + px(14),
+      hero(world).y,
+      2,
+    );
+  };
+  // Whichever input a rollback replays the step with, a checkpoint taken before it replays to the same world.
+  const outcome = (held: number[]) => {
+    const world = step(beside(), held);
+    assert.deepEqual(step(decodeWorld(structuredClone(encodeWorld(beside())))!, held), world); // prettier-ignore
+    kept(world);
+    return world;
+  };
+  const won = outcome([JUMP]);
+  assert.deepEqual([hero(won).state, drake(won).rider, captain(won).remounted], ["ride", hero(won).id, false]); // prettier-ignore
+  const lost = outcome([]);
+  assert.deepEqual([captain(lost).state, drake(lost).rider, captain(lost).remounted], ["ride", captain(lost).id, true]); // prettier-ignore
+  // Jump beside a drake he rides is only a jump.
+  const jumped = step(lost, [JUMP]);
+  assert.deepEqual([hero(jumped).state, drake(jumped).rider], ["jump", captain(jumped).id]); // prettier-ignore
+  // While the hero rides, the captain never does; thrown off, the hero leaves the drake to whoever takes it.
+  let world = won,
+    rode = 0;
+  for (; hero(world).state === "ride" && rode < 600; rode++) {
+    world = step(world, []);
+    assert.notEqual(captain(world).state, "ride");
+  }
+  assert.ok(rode > 0 && rode < 600, `${rode}`);
+  assert.equal(drake(world).rider === hero(world).id, hero(world).state === "ride"); // prettier-ignore
+  kept(world);
+});
+
+test("the checkpoint refuses a captain's fields where the rules never put them: reeling, held, thrown, a mace, a slam, standing in the air", () => {
+  const afoot = spawnEnemy(party("brakka", "rhea"), "captain", px(300), px(140), 2); // prettier-ignore
+  const world = afoot;
+  kept(world);
+  // Rhea mid-grab, as a held captain would need her to be, so only his own states refuse him.
+  const refused = (change: Partial<Enemy>) =>
+    decodeWorld(encodeWorld(patch(patch(world, "enemies", 0, change), "heroes", 1, change.state === "held" ? { state: "grab" } : {}))); // prettier-ignore
+  const holder = { holder: hero(world, 1).id };
+  for (const [what, change] of [
+    ["a captain reeling", { state: "hurt" }],
+    ["a captain held", { state: "held", ...holder }],
+    ["a captain thrown", { state: "thrown", ...holder, z: px(10) }],
+    ["a captain swinging a mace", { state: "attack" }],
+    ["a captain slamming", { state: "slam" }],
+    ["a captain sweeping", { state: "sweep" }],
+    ["a captain standing in the air", { state: "idle", z: px(12) }],
+    ["a captain's poise past what he lost", { poise: BOSS_HP }],
+  ] as const)
+    assert.equal(refused(change), undefined, what);
+  // What the rules do put there, he may be: staggered, flashing, lying, having climbed on.
+  const flash = {
+    flashUntil: world.step + T.HITSTOP,
+    poise: 6,
+    hp: BOSS_HP - 6,
+  };
+  for (const change of [
+    { state: "stagger" },
+    flash,
+    { state: "knockdown" },
+    { remounted: true },
+  ] as const)
+    // prettier-ignore
+    assert.ok(refused(change), JSON.stringify(change));
+  // A lancer is none of a boss's: no stagger, no poise, no climbing back on.
+  const lancer = patch(world, "enemies", 0, { kind: "lancer" });
+  for (const change of [{ state: "stagger" }, { poise: 1, hp: 31 }, { remounted: true }] as const) // prettier-ignore
+    assert.equal(decodeWorld(encodeWorld(patch(lancer, "enemies", 0, change))), undefined, JSON.stringify(change)); // prettier-ignore
+});
+
+test("the captain's armour holds in mid-leap: a slash there only flashes him and his plunge lands, where another lancer is knocked out of his", () => {
+  const leaping = (kind: "captain" | "lancer") => {
+    const alone = party("brakka");
+    const start = spawnEnemy(
+      alone,
+      kind,
+      hero(alone).x + px(120),
+      hero(alone).y,
+      2,
+    );
+    let world = until(start, (w) => w.enemies[0]!.state === "leap" && w.enemies[0]!.z > px(4)); // prettier-ignore
+    const foe = world.enemies[0]!;
+    // Brakka stands under him, facing him, his first slash due to land.
+    const slash = { state: "attack1" as const, timer: T.COMBO.brakka[0].startup - 1, struck: [] as number[] }; // prettier-ignore
+    const under = { x: foe.x - foe.facing * px(20), y: foe.y, facing: foe.facing, ...slash }; // prettier-ignore
+    world = step(patch(world, "heroes", 0, under), []);
+    return world.enemies[0]!;
+  };
+  const boss = leaping("captain"),
+    other = leaping("lancer");
+  assert.deepEqual([boss.state, boss.poise > 0, boss.hp < BOSS_HP], ["leap", true, true]); // prettier-ignore
+  assert.equal(other.state, "knockdown");
+});
+
+test("a hero's flame kicks a sack imp in front once a breath, and knocks a clawbeak's rider off it", () => {
+  // Rhea breathes right from a drake, whatever `meet` puts in front of it.
+  const breath = (meet: (world: World, x: number, y: number) => World) => {
+    let world = party("rhea");
+    const { x, y } = hero(world);
+    world = meet(spawnMount(world, x + px(10), y, 0, "drake"), x, y);
+    world = step(step(world, [JUMP]), [RIGHT]);
+    assert.deepEqual([hero(world).state, drake(world).facing], ["ride", 1]);
+    return run(step(world, [ATTACK]), DRAKE_STEPS.breathe + 5);
+  };
+  // The sack imp scurries into the flame and spills one pot, though the flame burns on over it as it lies.
+  const pots = spawnEnemy(party("rhea"), "imp", px(100), px(140)).enemies[0]!.pots; // prettier-ignore
+  let world = breath((w, x, y) => spawnEnemy(w, "imp", x + px(45), y));
+  assert.equal(world.enemies[0]!.pots, pots - 1, "one pot, not one a step");
+  kept(world);
+  // A ravager riding in on a clawbeak is out of its tail's reach when the flame knocks it off.
+  world = breath((w, x, y) => {
+    const next = spawnEnemy(w, "ravager", x + px(100), y);
+    return spawnMount(next, next.enemies[0]!.x, y, next.enemies[0]!.id);
+  });
+  const [foe] = world.enemies as [Enemy];
+  const steed = world.mounts.find((m) => m.kind === "clawbeak")!;
+  assert.equal(foe.hp, T.enemyMaxHp("ravager", 0, 1) - T.FLAME_DAMAGE);
+  assert.deepEqual([foe.state === "ride", steed.rider], [false, 0]);
+  assert.equal(hero(world).hp, T.HERO_HP.rhea, "before its tail could land");
+  kept(world);
+});
