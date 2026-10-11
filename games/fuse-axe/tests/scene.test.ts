@@ -26,6 +26,7 @@ import {
   DEAD_STEPS,
   flamePx,
   ENEMY_KINDS,
+  HERO_KINDS,
   ENEMY_STATES,
   FLOOR_BOTTOM_PX,
   FX_KINDS,
@@ -93,6 +94,7 @@ import {
   heroLooks,
   ITEM_SHADE,
   MARKER,
+  MARKER_GAP,
   TELEGRAPH,
   scenery,
   shadowRadius,
@@ -865,6 +867,32 @@ test("each hero wears a marker in its seat's colour over its head, rising with i
   assert.equal(low.dy - high.dy, 30);
   assert.ok(low.dy + low.dh < ground!.sprites[0]!.dy + 40, "over the head");
   assert.equal(draw(world({ enemies: [enemy(1, 9, 140)] })).markers.length, 0);
+});
+
+test("a rider's marker hangs the same gap over its seated head as a standing hero's over its own, whichever hero it is", () => {
+  const beast: MountView = {
+    ...{ id: 9, kind: "clawbeak", x: 150, y: 140, z: 0, facing: 1 },
+    ...{ anim: "idle", animStep: 0, rider: { kind: "hero", id: 1 } },
+  };
+  const seated = { anim: "ride", mounted: true, z: CLAWBEAK.saddle } as const;
+  for (const kind of HERO_KINDS) {
+    const walking = draw(world({ heroes: [hero(1, 0, 150, 140, { kind })] }));
+    const riding = draw(
+      world({
+        heroes: [hero(1, 0, 150, 140, { kind, ...seated })],
+        mounts: [beast],
+      }),
+    );
+    // The beast first, its rider after it (the marker is the one chevron over it).
+    for (const [drawn, who] of [
+      [walking, walking.sprites[0]!],
+      [riding, riding.sprites[1]!],
+    ] as const) {
+      assert.equal(drawn.markers.length, 1, kind);
+      const [marker] = drawn.markers;
+      assert.equal(marker!.dy + marker!.dh, who.dy - MARKER_GAP, kind);
+    }
+  }
 });
 
 test("sparks burst within their life only, and a light hit's sooner", () => {
