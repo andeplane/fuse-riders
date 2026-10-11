@@ -108,8 +108,22 @@ export class AxeAudio {
       const sound: Sound = SOUNDS[cue];
       if (!(sound.channel === "music" ? this.musicOn : this.effectsOn))
         continue;
-      this.backend.play(sound);
-      if (sound.duck && this.playing) this.backend.duck(sound.duck);
+      this.play(sound);
+      const { duck } = sound;
+      if (duck && this.playing) this.safely((backend) => backend.duck(duck));
+    }
+  }
+
+  private play(sound: Sound): void {
+    this.safely((backend) => backend.play(sound));
+  }
+
+  /** A backend that fails costs the page that sound (or the loop), never the frame it came with. */
+  private safely(act: (backend: AudioBackend) => void): void {
+    try {
+      act(this.backend);
+    } catch {
+      // Silent: audio never gets in the way of the game.
     }
   }
 
@@ -127,7 +141,8 @@ export class AxeAudio {
     if (!this.live()) return;
     const song = this.musicOn ? this.wanted : null;
     if (song === this.playing) return;
+    // Taken as playing even if the backend throws, so a broken one is not asked again on every frame.
     this.playing = song;
-    this.backend.music(song);
+    this.safely((backend) => backend.music(song));
   }
 }
