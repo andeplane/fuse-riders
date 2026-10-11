@@ -5,6 +5,7 @@ import { FIRES } from "../src/render/backdrop/wyrmbone-pass.js";
 import type { MakeSurface } from "../src/render/surface.js";
 import {
   cameraEndPx,
+  FLOOR_TOP_PX,
   stageLengthPx,
   VIEW_H,
   VIEW_W,
@@ -208,4 +209,21 @@ test("only the raiders' camp and the skull gate burn: the campfire before the la
   assert.ok(flames(END) > 20);
   assert.equal(FIRES.filter(([x]) => x >= END).length, 4);
   assert.equal(FIRES.filter(([x]) => x < END && x + VIEW_W > END).length, 1);
+});
+
+test("the mist drifts above the road, never speckling its snowy back edge", () => {
+  // The mist is the only thing drawn in this colour.
+  const mist = (camX: number, step: number) =>
+    frame(camX, step).back.fills.filter((f) => f.style === "#56628c");
+  let seen = 0;
+  for (let camX = 0; camX <= END; camX += 7)
+    for (const step of [0, 90, 400, 777, 1234, 3000, 9001])
+      for (const f of mist(camX, step)) {
+        seen++;
+        assert.ok(
+          f.y + f.h <= FLOOR_TOP_PX,
+          `camX ${camX} step ${step}: ${JSON.stringify(f)}`,
+        );
+      }
+  assert.ok(seen > 1000, `${seen} mist fills`);
 });
