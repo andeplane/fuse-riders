@@ -85,7 +85,7 @@ function at(world: World, index: number): World {
 
 test("the Drowned Crypt is Stage 3: five screens to the cathedral's doors, its bonewalkers rising from graves on their waves' screens", () => {
   const { waves, graves = [], length, cameraEnd, imps } = STAGE_3;
-  assert.deepEqual([STAGES.length, STAGES[2]], [3, STAGE_3]);
+  assert.equal(STAGES[2], STAGE_3);
   assert.deepEqual([length, cameraEnd], [px(1600), px(1280)]);
   assert.deepEqual(
     graves.map(({ x, y }) => [x / T.SUB, y / T.SUB]),

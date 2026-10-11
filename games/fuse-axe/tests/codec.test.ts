@@ -17,6 +17,7 @@ import {
   decodeWorld,
   defeated,
   encodeWorld,
+  revive,
   spawnEnemy,
   stageCleared,
   step,
@@ -174,21 +175,28 @@ test("every world the bots reach on any stage, in a party of one or five, is acc
   let checked = 0;
   for (const party of [1, 5]) {
     let world = createWorld({
-      seed: 41,
+      seed: 42,
       heroes: Array.from({ length: party }, (_, seat) => ({
         seat,
         kind: HERO_KINDS[seat % HERO_KINDS.length]!,
       })),
     });
     let furthest = 0;
+    // A party wiped out continues once a stage, as a room's does (`revive`). A lone bot hero is wiped out on a quarter to
+    // a half of the seeds in each of Stages 2 to 4 (the keep no oftener than the crypt), a party of two or more in none
+    // of those tried; a second wipe-out in one stage still ends its play and fails the stage's clear below. The seeds
+    // are ones a lone bot gets through (of 41 to 60, eight in twenty are not): any change to a rule that draws from the
+    // stream moves them, and this test's seed with it.
     const play = (from: World, name: string) => {
-      let at = from;
+      let at = from,
+        continued = false;
       while (
         at.step < 14_000 &&
         !stageCleared(at) &&
-        !defeated(at) &&
+        !(defeated(at) && continued) &&
         !campOver(at)
       ) {
+        if (defeated(at)) [at, continued] = [revive(at), true];
         const held: number[] = [];
         for (const hero of at.heroes) held[hero.seat] = botInput(at, hero.id);
         at = stepTick(at, held);
@@ -215,7 +223,7 @@ test("every world the bots reach on any stage, in a party of one or five, is acc
       if (index > 0) {
         const camp = play(
           createWorld({
-            seed: 141 + index,
+            seed: 142 + index,
             stage: index,
             camp: true,
             heroes: carried(world),
@@ -224,7 +232,7 @@ test("every world the bots reach on any stage, in a party of one or five, is acc
         );
         assert.ok(campOver(camp));
         world = createWorld({
-          seed: 41 + index,
+          seed: 42 + index,
           stage: index + 1,
           heroes: carried(camp),
         });

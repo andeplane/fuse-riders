@@ -153,6 +153,11 @@ export const ENEMY_STATES = [
   "rise",
   "pile",
   "reassemble",
+  "cut1",
+  "cut2",
+  "cast",
+  "summon",
+  "roar",
 ] as const;
 export type EnemyState = (typeof ENEMY_STATES)[number];
 /**
@@ -181,6 +186,17 @@ export const IMP_ONLY: readonly EnemyState[] = ["stumble", "flee"];
  */
 export const BONE_ONLY: readonly EnemyState[] = ["rise", "pile", "reassemble"];
 /**
+ * Vorhal's own states (`vorhal.ts`): his greatsword's two cuts (`cut1`, `cut2`), the fire spell (`cast`), raising
+ * bonewalkers (`summon`) and the roar at half his hit points (`roar`).
+ */
+export const VORHAL_ONLY: readonly EnemyState[] = [
+  "cut1",
+  "cut2",
+  "cast",
+  "summon",
+  "roar",
+];
+/**
  * An ogre's states (`ogre.ts`): it walks in, walks and stands; winds up its slam, slams, sweeps and recovers; staggers
  * from a heavy blow; and is knocked down, lies, gets up or falls for good. It never reels, nor is held or thrown.
  * `slam`, `sweep` and `stagger` are the ogre's alone (`OGRE_ONLY`).
@@ -192,18 +208,23 @@ export const OGRE_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
       ...IMP_ONLY,
       ...LANCER_ONLY,
       ...BONE_ONLY,
+      ...VORHAL_ONLY,
     ].includes(state),
 );
 export const OGRE_ONLY: readonly EnemyState[] = ["slam", "sweep", "stagger"];
 export const LANCER_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
   (state) =>
-    !["attack", "ride", ...IMP_ONLY, ...OGRE_ONLY, ...BONE_ONLY].includes(
-      state,
-    ),
+    ![
+      ...["attack", "ride", ...IMP_ONLY, ...OGRE_ONLY, ...BONE_ONLY],
+      ...VORHAL_ONLY,
+    ].includes(state),
 );
 export const BONEWALKER_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
   (state) =>
-    !["ride", ...IMP_ONLY, ...OGRE_ONLY, ...LANCER_ONLY].includes(state),
+    ![
+      ...["ride", ...IMP_ONLY, ...OGRE_ONLY, ...LANCER_ONLY],
+      ...VORHAL_ONLY,
+    ].includes(state),
 );
 /**
  * The lancer captain's: a lancer's, riding his drake (`ride`), and staggering from a blow his armour takes. As an
@@ -216,6 +237,19 @@ export const CAPTAIN_STATES: readonly EnemyState[] = [
   "ride",
   "stagger",
 ];
+/**
+ * Vorhal's: he walks in, walks and stands, winds up and cuts twice, casts, summons and recovers, leaps over to the
+ * far side when cornered (`leap`), roars, staggers from a heavy blow and falls as an ogre does. He never reels, nor is
+ * held or thrown.
+ */
+export const VORHAL_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
+  (state) =>
+    VORHAL_ONLY.includes(state) ||
+    [
+      ...["idle", "knockdown", "down", "getup", "dead", "enter", "walk"],
+      ...["windup", "recover", "stagger", "leap"],
+    ].includes(state),
+);
 
 /**
  * A beast's states with a rider on it (`RIDDEN`: only an enemy's walks in, only a hero's hops), then riderless: it
@@ -336,6 +370,16 @@ export interface Spell {
   born: number;
 }
 
+/**
+ * A sigil of Vorhal's fire spell (`vorhal.ts`) on the floor at (`x`, `y`), `timer` steps since he marked it: it glows
+ * until `SIGIL_DELAY`, then its pillar of fire burns until `SIGIL_LIFE`.
+ */
+export interface Sigil {
+  x: number;
+  y: number;
+  timer: number;
+}
+
 export interface World {
   seed: number;
   /** Steps since the run began. */
@@ -371,6 +415,8 @@ export interface World {
   mounts: Mount[];
   /** Camp after stage `stage` (`camp.ts`): one screen, no waves, only sack imps, and its own plan (`CAMP`). */
   camp: boolean;
+  /** Vorhal's fire spell's sigils and pillars, in the order he marked them, at most `SIGIL_MAX`. */
+  sigils: Sigil[];
 }
 
 /**
@@ -515,6 +561,7 @@ export function createWorld(options: {
     stage,
     mounts: [],
     camp,
+    sigils: [],
   };
 }
 

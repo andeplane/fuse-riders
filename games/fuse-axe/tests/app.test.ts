@@ -253,12 +253,12 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
   assert.ok(!clear.canContinue && !clear.canRematch);
   // The last stage cleared: the run is won once its tally has shown.
   const last = present(
-    frame("between", { world: fought, round: 3, until: 1, tally }),
+    frame("between", { world: fought, round: 4, until: 1, tally }),
     host,
   ).card!;
   assert.deepEqual(
     [last.title, last.line, last.hint, last.seconds],
-    ["STAGE 3 CLEAR", "DROWNED CRYPT", TEXT.won, 1],
+    ["STAGE 4 CLEAR", "VORHAL'S KEEP", TEXT.won, 1],
   );
   // Every hero out: a hero of the run presses Attack, everyone else waits on them.
   const out = frame("running", { until: 199, tally });
@@ -290,22 +290,17 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
     ]),
   });
   assert.equal(present(away, host).card!.canContinue, false, "stepped away");
-  // The run's end: the run's numbers, the stage reached, and REMATCH or the lobby for the host alone.
+  // The run's end: the run's numbers, Vorhal fallen and the Ember Axe whole (or the stage reached), and REMATCH or the
+  // lobby for the host alone.
   const won = present(
-    frame("over", { world: fought, round: 3, outcome: "victory", tally }),
+    frame("over", { world: fought, round: 4, outcome: "victory", tally }),
     host,
   ).card!;
   assert.deepEqual(
     [won.kind, won.title, won.line, won.seconds, won.hint, won.canRematch],
-    [
-      "victory",
-      "VICTORY",
-      "STAGE 3 OF 3 · DROWNED CRYPT",
-      null,
-      TEXT.hostChoice,
-      true,
-    ],
+    ["victory", "VICTORY", TEXT.restored, null, TEXT.hostChoice, true],
   );
+  assert.match(won.line, /Vorhal has fallen\. The Ember Axe is whole again/);
   assert.deepEqual(
     won.rows.map((row) => [row.damage, row.knockdowns]),
     [
@@ -322,6 +317,11 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
   assert.deepEqual(
     [theirs.kind, theirs.title, theirs.hint, theirs.canRematch],
     ["defeat", "GAME OVER", TEXT.waitHost, false],
+  );
+  assert.equal(
+    present(frame("over", { round: 4, outcome: "defeat", tally }), guest).card!
+      .line,
+    "STAGE 4 OF 4 · VORHAL'S KEEP",
   );
   assert.equal(theirs.rows[0]!.name, "P1", "a seat that left shows its tag");
   assert.equal(present(lost, tv).card!.canRematch, false);

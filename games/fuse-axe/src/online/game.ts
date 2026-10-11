@@ -108,8 +108,8 @@ export const picksApply = (stage: Stage): boolean =>
 
 export const MAX_WATCHERS = 5;
 /**
- * A run's stages, in order: Ashen Village, Wyrmbone Pass, then the Drowned Crypt (`STAGES` in the engine); clearing
- * the last wins it.
+ * A run's stages, in order: Ashen Village, Wyrmbone Pass, the Drowned Crypt, then Vorhal's Keep (`STAGES` in the
+ * engine); clearing the last, Vorhal fallen, wins it.
  */
 export const LAST_STAGE = PLANS.length;
 /** Log ticks (50 ms each) the stage-clear tally shows before the run goes on: 6 s. */

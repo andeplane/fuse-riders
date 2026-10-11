@@ -213,7 +213,26 @@ bone, its pile as a skull and a few bones.
 
    ![Drowned Crypt: the graveyard under the cathedral, an open grave, and the great doors in the last screen](images/stage3-backdrop.png)
 
-4. **Vorhal's Keep** — torch-lit halls to the throne room and Vorhal.
+4. **Vorhal's Keep** — torch-lit halls to the throne room and Vorhal. Playable as gameplay (`STAGE_4`): five screens of
+   halls, five waves of ravagers (violet among them), lancers and bonewalkers clawing up out of crypt slabs in the
+   floor (the crypt's graves, `gravesPx(4)`: five in the halls, three in the throne room), a ravager on a clawbeak in
+   wave 4 and an imp before the throne room; there Vorhal walks out to the party, with a rust bonewalker and a violet ravager in turn for each hero beyond the
+   first. Beating him clears the stage and wins the run; the victory card tells of the Ember Axe made whole. Until his
+   art and the keep's backdrop come he is drawn as a horned ogre in dark steel and the halls as Stage 1's road.
+
+   **Vorhal** (`src/engine/vorhal.ts`, `VORHAL_*`, `CUT_*`, `SIGIL*`, `PILLAR_*`, `SUMMON*` in `tuning.ts`) is a boss
+   as the ogres are (super armour and poise, a spell takes no more than a boss's share, nobody throws him, hit points
+   by the party's size), half as big again as a hero. He keeps a pause between moves, so each leaves an opening, and
+   picks the next by a draw from the world's stream: **the greatsword** (he walks up to the nearest hero and, lined up,
+   winds it up long and visibly, then two wide cuts land on every hero in front in a lane wider than a blade's, the
+   second knocking down, and he stands open); **the fire spell** (he raises a hand and marks a glowing sigil under each
+   hero, two or three in all, the rest at random; a second later a pillar of fire erupts from each, burning and
+   knocking down whoever still stands on it: step off); **the summons** (two bonewalkers claw up out of the throne
+   room's slabs, while fewer than three stand). With his back to the screen's edge and a hero close in front he may
+   leap over the party to the far side. At half his hit points he roars, nothing landing on him for a second, and
+   fights on enraged: faster wind-ups and pauses, a sigil more, summons more often and rust bonewalkers. When he falls
+   his bonewalkers crumble and his sigils go out. Bots step off sigils and out of the greatsword's lane, keep out of
+   his lane while he stands guard, and strike while he recovers, casts or summons, or from behind.
 
 Between stages the heroes make **camp**: a short night scene by a fire where sack imps sneak in to steal; kicking them
 drops pots and meat (meat heals). Then the next stage. In the engine (`src/engine/camp.ts`) a camp is a world of its
@@ -251,7 +270,7 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
 - **Stage clear.** The tick the last wave is cleared (`stageCleared`), the room banks each hero's tallies from the
   world into the run's (`Room.tally`, so they outlive the stage's world), lets go of every held control and goes
   `between` for `CLEAR_TICKS` (6 s), showing the stage's tally over the frozen scene. A stage cleared as the last hero
-  falls is still won. Past the last stage (`LAST_STAGE`, 3) the run ends `over` as a victory.
+  falls is still won. Past the last stage (`LAST_STAGE`, 4: Vorhal's Keep) the run ends `over` as a victory.
 - **Continue.** When every hero is out (`defeated`), the world keeps running and a countdown of `CONTINUE_TICKS`
   (10 s) starts. A present human seated at a hero of the run votes by pressing Attack (or the CONTINUE button): a
   `CONTINUE` entry for the run and stage (`[seq, tick, 2, matchId, round]`). The first one folded in the countdown

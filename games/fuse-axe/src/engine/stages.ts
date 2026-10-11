@@ -345,8 +345,101 @@ export const STAGE_3: StagePlan = {
   imps: [imp(576, "right", 136, 2), imp(1104, "left", 124, 3)],
 };
 
+/**
+ * Vorhal's Keep's crypt slabs, in pixels as the crypt's graves are (`gravesPx`): the halls' five, each on the screen of
+ * a wave that raises a bonewalker from it, then the throne room's three, which only Vorhal's summons open.
+ */
+// prettier-ignore
+const KEEP_SLABS = [
+  [300, 130], [620, 152], [860, 124], [1000, 150], [1200, 128],
+  [1360, 150], [1452, 122], [1536, 154],
+] as const;
+/** A bonewalker clawing up out of the keep's slab `slab`. */
+const slabRiser = (tier: Tier, slab: number, delay: number): Spawn => ({
+  ...walker(tier, "left", KEEP_SLABS[slab]![1], delay),
+  grave: slab,
+});
+/** Vorhal, walking out of his throne room. */
+const vorhal = (side: Side, y: number): Spawn => ({
+  ...ogre(ASH, side, y),
+  kind: "vorhal",
+});
+
+const ROAD_4 = px(5 * VIEW_W);
+/**
+ * Vorhal's Keep: five screens of torch-lit halls, five waves of ravagers (violet among them), lancers and bonewalkers
+ * clawing up out of the crypt slabs in the floor, a ravager on a clawbeak in wave 4, and a sack imp darting in behind
+ * wave 5's fight; in the throne room Vorhal himself, with a rust bonewalker and a violet ravager in turn for each hero
+ * beyond the first.
+ */
+export const STAGE_4: StagePlan = {
+  name: "Vorhal's Keep",
+  length: ROAD_4,
+  cameraEnd: ROAD_4 - px(VIEW_W),
+  graves: KEEP_SLABS.map(([x, y]) => ({ x: px(x), y: px(y) })),
+  waves: [
+    {
+      at: px(192),
+      spawns: [
+        slabRiser(ASH, 0, 0),
+        ravager(RUST, "right", 140, 30),
+        lancer(ASH, "left", 120, 60),
+      ],
+    },
+    {
+      at: px(448),
+      spawns: [
+        ravager(VIOLET, "right", 128, 0),
+        slabRiser(ASH, 1, 30),
+        lancer(RUST, "left", 160, 60),
+      ],
+    },
+    {
+      at: px(704),
+      spawns: [
+        slabRiser(RUST, 2, 0),
+        ravager(VIOLET, "left", 150, 20),
+        slabRiser(ASH, 3, 40),
+        lancer(RUST, "right", 116, 80),
+      ],
+    },
+    {
+      at: px(928),
+      spawns: [
+        slabRiser(RUST, 3, 0),
+        ravager(VIOLET, "right", 120, 30),
+        rider(RUST, "left", 156, 60),
+        slabRiser(RUST, 4, 90),
+      ],
+    },
+    {
+      at: px(1104),
+      spawns: [
+        ravager(VIOLET, "left", 132, 0),
+        slabRiser(RUST, 4, 20),
+        lancer(VIOLET, "right", 156, 50),
+        ravager(RUST, "right", 120, 80),
+      ],
+    },
+    {
+      at: ROAD_4 - px(VIEW_W),
+      spawns: [vorhal("right", 140)],
+      extras: [
+        walker(RUST, "left", 120, 90),
+        ravager(VIOLET, "right", 160, 60),
+      ],
+    },
+  ],
+  imps: [imp(1104, "left", 124, 3)],
+};
+
 /** The run's stages in order: a world's plan is `STAGES[world.stage - 1]`. */
-export const STAGES: readonly StagePlan[] = [STAGE_1, STAGE_2, STAGE_3];
+export const STAGES: readonly StagePlan[] = [
+  STAGE_1,
+  STAGE_2,
+  STAGE_3,
+  STAGE_4,
+];
 
 /**
  * Camp between stages (`camp.ts`): one screen of night clearing, its camera standing still, no wave to fight, and four

@@ -83,8 +83,18 @@ export type HeroAnim = HeroState;
  * (`gravesPx`) in `rise`, struck by nothing, standing clear of it at `rise` steps. The first time it falls with no hit
  * points it lies as a bone pile (`pile`, `pile` steps) a blow shatters into `dead`, or pulls itself together
  * (`reassemble`, invulnerable) with half its hit points; the second time it lies `dead` from the fall.
+ *
+ * Vorhal (kind `vorhal`, a `boss`, the final one), timed by `VORHAL_STEPS` in `view-kit.ts`: he walks in, walks and
+ * stands; `windup` raises his greatsword (`windup` steps, `rageWindup` enraged), `cut1` sweeps it (landing on the first
+ * step, `CUT.reach` in front and `CUT.lane` either side) and `cut2` sweeps it back (landing on its first step, knocking
+ * down), then `recover` stands open; `cast` raises his hand and marks the sigils on `castMark` (`WorldView.sigils`),
+ * `summon` raises his sword and the bonewalkers claw up out of the slabs on `summonAt`; `leap` vaults to the far side
+ * (rising until `leapApex`); `roar` is the phase change at half his hit points, nothing landing on him, after which he
+ * is `enraged`; he `stagger`s as an ogre does, and is knocked down, lies, gets up and is `dead` as one.
  */
 export type EnemyAnim = EnemyState;
+/** Vorhal's anims no other kind has: an art's anims leave them out. */
+export type VorhalAnim = "cut1" | "cut2" | "cast" | "summon" | "roar";
 
 /**
  * A beast's anims (`CLAWBEAK_STEPS` and `DRAKE_STEPS` in `view-kit.ts` time them). Ridden: `enter` walks a wave's in,
@@ -158,9 +168,9 @@ export interface EnemyView {
   maxHp: number;
   /** In hit-stop from a hit just taken, or an ogre's armour taking one: draw the damage flash. */
   flash: boolean;
-  /** A stage boss (an ogre, the lancer captain): its health shows in the world's `boss` bar. */
+  /** A stage boss (an ogre, the lancer captain, Vorhal): its health shows in the world's `boss` bar. */
   boss: boolean;
-  /** An ogre whose twin has fallen: it fights faster. */
+  /** An ogre whose twin has fallen, or Vorhal in his second phase: it fights faster. */
   enraged: boolean;
   /** Riding a beast (`ride`), its `z` the saddle's, as a hero's. */
   mounted: boolean;
@@ -187,6 +197,16 @@ export interface BossView {
   kind: EnemyKind;
   hp: number;
   maxHp: number;
+}
+
+/**
+ * A sigil of Vorhal's fire spell on the floor, `age` steps since he marked it: it glows until `SIGIL.delay`, then a
+ * pillar of fire `SIGIL.half` either side and `SIGIL.lane` deep burns from it for `SIGIL.burn` steps (`view-kit.ts`).
+ */
+export interface SigilView {
+  x: number;
+  y: number;
+  age: number;
 }
 
 /** A hit spark at its impact point, `age` steps old (under `FX_LIFE`). */
@@ -240,6 +260,8 @@ export interface WorldView {
   defeated: boolean;
   /** The boss's health bar, while its wave is fought; null otherwise. */
   boss: BossView | null;
+  /** Vorhal's sigils and pillars of fire, in the order he marked them. */
+  sigils: SigilView[];
 }
 
 const whole = (value: number) => Math.floor(value / SUB);
@@ -356,5 +378,10 @@ export function toView(world: World): WorldView {
     cleared: stageCleared(world),
     defeated: defeated(world),
     boss: bossOf(world),
+    sigils: world.sigils.map((sigil) => ({
+      x: whole(sigil.x),
+      y: whole(sigil.y),
+      age: sigil.timer,
+    })),
   };
 }
