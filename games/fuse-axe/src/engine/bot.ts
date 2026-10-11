@@ -2,7 +2,7 @@ import { ATTACK, DOWN, LEFT, MAGIC, RIGHT, UP } from "./input.js";
 import { clamp } from "./math.js";
 import { isImp, kickable } from "./imps.js";
 import { next } from "./rng.js";
-import { hittable } from "./step.js";
+import { SWINGS, hittable } from "./step.js";
 import * as T from "./tuning.js";
 import {
   SPAWNS,
@@ -60,8 +60,8 @@ const LEAD_X = T.px(184),
   GAP = T.px(20),
   BEHIND = T.px(28);
 
+/** The states a bot decides afresh in; in a swing it chains the combo, and in any other it holds nothing. */
 const FREE: readonly HeroState[] = ["idle", "walk", "run"];
-const SWINGS: readonly HeroState[] = ["attack1", "attack2", "attack3"];
 
 /** The bits a bot playing hero `heroId` holds for the next log tick. */
 export function botInput(
@@ -264,7 +264,11 @@ function pick(
   return best;
 }
 
-/** The pot to pick up: the nearest within `POT_FAR` that no hero with room for it is nearer, if it has room. */
+/**
+ * The pot to pick up: the nearest within `POT_FAR` that no hero with room for it is nearer, if it has room. One the
+ * camera has left at the screen's edge is out of reach (a hero stops `HERO_MARGIN` in and picks up within
+ * `PICKUP_X`), and walking at it would hold the bot there, and the camera with it, until it spoils.
+ */
 function potFor(world: World, hero: Hero): Item | undefined {
   if (hero.pots >= T.MAX_POTS[hero.kind]) return undefined;
   let best: Item | undefined,
@@ -273,6 +277,7 @@ function potFor(world: World, hero: Hero): Item | undefined {
     const each = gap(item, hero);
     if (
       each < score &&
+      inside(world, item.x, T.HERO_MARGIN - T.PICKUP_X) &&
       !world.heroes.some(
         (other) =>
           other !== hero &&
