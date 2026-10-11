@@ -35,10 +35,10 @@ import {
  * A hero standing or walking within `BOARD_X` of a riderless beast on the floor along the road, in its lane, climbs on
  * with Jump in place of jumping (`board`); two heroes boarding one on the same step leave it to the lower id, as heroes
  * move in id order. Riding, it walks at the beast's pace (it does not run); Attack sweeps the tail at the enemies around
- * (`step.ts` lands it, never on a hero), Jump hops the beast (no steering in the air, as a hero's jump), Down and Jump
- * climbs off, and Magic climbs off to charge or cast where it stands. Light blows the saddle takes, as an enemy's; one
- * that would knock the hero down, and any in a hop, throws it off (`wound`), and the beast panics and wanders until
- * someone else takes it. Bots leave beasts to the players.
+ * (`step.ts` lands it, never on a hero), Jump hops the beast (carrying the walk it has that step, no steering in the
+ * air, as a hero's jump), Down and Jump climbs off, and Magic climbs off to charge or cast where it stands. Light blows
+ * the saddle takes, as an enemy's; one that would knock the hero down, and any in a hop, throws it off (`wound`), and
+ * the beast panics and wanders until someone else takes it. Bots leave beasts to the players.
  */
 
 /** Whether the tail reaches a body `half` wide at (`x`, `y`), `margin` to spare: either side of the beast, in its lane. */
@@ -200,7 +200,7 @@ function alight(world: World, hero: Hero, mount: Mount, bits: number): void {
   if (conjures(world, hero)) return conjure(world, hero, bits);
   setState(hero, "jump");
   hero.z = T.SADDLE;
-  hero.vz = hero.jumpBuf = 0;
+  hero.vx = hero.vy = hero.vz = hero.jumpBuf = 0;
 }
 
 /**
@@ -228,6 +228,7 @@ export function ride(
       mount.vx = mount.vy = hero.attackBuf = 0;
       hero.struck = [];
     } else if (hero.jumpBuf > 0) {
+      trot(mount, bits);
       setState(mount, "hop");
       mount.vz = T.JUMP_VZ;
       hero.jumpBuf = 0;
