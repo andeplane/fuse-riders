@@ -28,11 +28,13 @@ export interface RavagerPose extends Pose {
   readonly smear?: Smear;
   /** Eye squeezed shut and mouth open. */
   readonly pain?: boolean;
+  /** Astride a beast: the far leg is on its far side, out of sight. */
+  readonly astride?: boolean;
 }
 
 /** Offsets from `origin` along a part's own axes turned `degrees` clockwise: `forward` the way it faces, `down` along it. */
-type Local = (forward: number, down: number) => Point;
-const turned = (origin: Point, degrees: number): Local => {
+export type Local = (forward: number, down: number) => Point;
+export const turned = (origin: Point, degrees: number): Local => {
   const r = (degrees * Math.PI) / 180;
   const [c, s] = [Math.cos(r), Math.sin(r)];
   return (forward, down) => [
@@ -338,6 +340,35 @@ const getup = adjust(idle, {
   mace: 78,
 });
 
+/**
+ * Riding a beast, seated astride its saddle with the mace raised high, the far hand on the reins: the near leg hangs
+ * down its flank to the stirrup, the boot's sole on the anchor, which the scene sets on the beast's saddle point.
+ */
+const ride = adjust(idle, {
+  head: [33.5, 29.5],
+  tilt: -4,
+  chest: [31, 39],
+  waist: [31, 45],
+  far: {
+    shoulder: [24.5, 36],
+    elbow: [26, 42.5],
+    hand: [31.5, 45],
+    hip: [28, 49.5],
+    knee: [32, 56],
+    ankle: [33, 63.5],
+  },
+  near: {
+    shoulder: [37.5, 36.5],
+    elbow: [41, 30],
+    hand: [37.5, 23],
+    hip: [33.5, 49.5],
+    knee: [38, 56],
+    ankle: [35.5, 63.5],
+  },
+  mace: -118,
+  astride: true,
+});
+
 export const RAVAGER_POSES = {
   idle,
   breathe: settle(idle, 1),
@@ -352,6 +383,7 @@ export const RAVAGER_POSES = {
   knockdown,
   down,
   getup,
+  ride,
 };
 export type RavagerFrame = keyof typeof RAVAGER_POSES;
 
@@ -412,8 +444,8 @@ export const RAVAGER_ANIMS: Readonly<
   // Until they have frames of their own, one held in a hero's grab reels, and a thrown one flies as if knocked down.
   held: { frames: [["hurt", 12]], loop: false },
   thrown: { frames: [["knockdown", 30]], loop: false },
-  // Riding a beast it stands in the saddle, mace raised, until the mount art seats it.
-  ride: { frames: [["windup", 32]], loop: false },
+  // Riding a beast it sits astride the saddle, mace raised; the beast's anims say what the pair does.
+  ride: { frames: [["ride", 32]], loop: false },
 };
 
 const HAFT = 11.5;
@@ -466,7 +498,7 @@ export function paintRavager(pose: RavagerPose): Sprite {
   const legs = { material: "l", boot: "a", cuff: "w" };
   arm(rig, far, { ...BACK, bracer: "l" });
   fist(rig, far.hand, BACK);
-  leg(rig, far, { ...BACK, ...legs });
+  if (!pose.astride) leg(rig, far, { ...BACK, ...legs });
   // The tunic, a broad chest over a narrower waist in one part, and the harness strap across it.
   const body = { group: "body" };
   rig.capsule(torso(-2.2, 0), torso(2.2, 0), 6.4, 6.4, "a", body);
