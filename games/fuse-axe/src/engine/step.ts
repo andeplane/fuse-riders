@@ -5,11 +5,19 @@ import {
   INPUT_MASK,
   JUMP,
   LEFT,
+  MAGIC,
   RIGHT,
   UP,
   pressed,
   released,
 } from "./input.js";
+import {
+  advanceSpells,
+  charge,
+  conjure,
+  conjures,
+  spellbound,
+} from "./magic.js";
 import * as T from "./tuning.js";
 import { STAGE_1, waveSpawns, type Placed, type Side } from "./stages.js";
 import { act, rest, thinks } from "./ai.js";
@@ -25,6 +33,7 @@ import {
 import {
   SPAWNS,
   inView,
+  launch,
   newEnemy,
   present,
   setState,
@@ -39,9 +48,11 @@ import {
 /**
  * One 1/60 s step, as a pure function: the input world is left untouched. The order is part of the rules: effects
  * past their life are dropped; every hero in id order reads its seat's held bits, swings, walks, runs, dashes, jumps
- * or falls (or reels, lies, gets up, drops back in), is held to the floor band and the screen, and lands its blade
- * on the enemies in id order; then every enemy in id order walks in, reels, flies, lies or gets up, or thinks
- * (`ai.ts`) and lands its mace on the heroes in id order, and a defeated one that has blinked long enough is gone, as
+ * or falls (or reels, lies, gets up, drops back in, charges or casts magic), is held to the floor band and the
+ * screen, and lands its blade on the enemies in id order; then the spells play in the order they were cast
+ * (`magic.ts`), landing the blows due; then, unless a spell holds them frozen, every enemy in id order walks in,
+ * reels, flies, lies or gets up, or thinks (`ai.ts`) and lands its mace on the heroes in id order; a defeated enemy
+ * that has blinked long enough is gone, as
  * is a sack imp that has left the screen (`imps.ts`); then the items on the floor fall, vanish or are picked up; then
  * the camera follows, no further than the next wave's trigger; then the waves begin, spawn and clear
  * (`advanceWaves`), and the imps the camera has reached are sent. `held` holds each seat's bits by seat index; a
@@ -56,10 +67,13 @@ export function step(world: World, held: readonly number[]): World {
     enemies: world.enemies.map((enemy) => ({ ...enemy })),
     fx: world.fx.filter((fx) => now - fx.born < T.FX_LIFE),
     items: world.items.map((item) => ({ ...item })),
+    spells: [...world.spells],
   };
   for (const hero of next.heroes)
     moveHero(next, hero, (held[hero.seat] ?? 0) & INPUT_MASK);
-  for (const enemy of next.enemies) moveEnemy(next, enemy);
+  advanceSpells(next);
+  if (!spellbound(next))
+    for (const enemy of next.enemies) moveEnemy(next, enemy);
   next.enemies = next.enemies.filter(
     (enemy) =>
       (enemy.state !== "dead" || enemy.timer < T.DEAD_STEPS) &&
@@ -162,11 +176,12 @@ function leap(hero: Hero): void {
 
 /**
  * A run's step. It ends, leaving the hero free to walk on this step, once its direction is let go or the other one
- * held; Attack from it dashes and Jump leaps, carrying the run's speed.
+ * held; Magic from it stops to charge or cast (`magic.ts`), Attack dashes and Jump leaps, carrying the run's speed.
  */
-function run(hero: Hero, bits: number): void {
+function run(world: World, hero: Hero, bits: number): void {
   if ((bits & SIDES) !== (hero.facing > 0 ? RIGHT : LEFT))
     setState(hero, "idle");
+  else if (conjures(hero)) conjure(world, hero, bits);
   else if (hero.attackBuf > 0) {
     setState(hero, "dash");
     hero.vx = hero.facing * T.DASH[hero.kind].speed;
@@ -238,7 +253,8 @@ export function revive(world: World): World {
   for (const hero of next.heroes) {
     hero.lives = T.LIVES;
     hero.vx = hero.vy = hero.vz = 0;
-    hero.attackBuf = hero.jumpBuf = hero.runBuf = hero.stagger = 0;
+    hero.attackBuf = hero.jumpBuf = hero.runBuf = hero.magicBuf = 0;
+    hero.stagger = 0;
     hero.tap = hero.tapUntil = 0;
     hero.struck = [];
     respawn(next, hero);
@@ -288,12 +304,14 @@ function moveHero(world: World, hero: Hero, bits: number): void {
   if (hero.state === "out") return;
   if (presses & ATTACK) hero.attackBuf = T.BUFFER_STEPS;
   if (presses & JUMP) hero.jumpBuf = T.BUFFER_STEPS;
+  if (presses & MAGIC) hero.magicBuf = T.BUFFER_STEPS;
   doubleTap(world, hero, presses & SIDES, releases & SIDES);
   // Hit-stop holds the hero, and the presses it buffers, in place.
   if (world.step <= hero.stopUntil) return;
   hero.timer++;
   recover(world, hero);
-  if (hero.state === "run") run(hero, bits);
+  if (hero.state === "run") run(world, hero, bits);
+  else if (hero.state === "charge") charge(world, hero, bits);
   advanceMove(world, hero, presses);
   const index = SWINGS.indexOf(hero.state);
   const blade =
@@ -305,6 +323,7 @@ function moveHero(world: World, hero: Hero, bits: number): void {
   if (hero.state === "idle" || hero.state === "walk") {
     walk(hero, bits);
     if (paired(hero)) backAttack(hero);
+    else if (conjures(hero)) conjure(world, hero, bits);
     else if (hero.attackBuf > 0) attack(world, hero, bits);
     else if (hero.jumpBuf > 0) leap(hero);
     else if (hero.runBuf > 0 && (bits & SIDES) === hero.tap) {
@@ -339,6 +358,7 @@ function moveHero(world: World, hero: Hero, bits: number): void {
   if (hero.attackBuf > 0) hero.attackBuf--;
   if (hero.jumpBuf > 0) hero.jumpBuf--;
   if (hero.runBuf > 0) hero.runBuf--;
+  if (hero.magicBuf > 0) hero.magicBuf--;
 }
 
 /**
@@ -681,12 +701,7 @@ function fly(world: World, body: Enemy): void {
       enemy.hp -= taken;
       thrower.damage += taken;
       thrower.knockdowns++;
-      enemy.state = "knockdown";
-      enemy.timer = enemy.target = 0;
-      enemy.facing = dir > 0 ? -1 : 1;
-      enemy.vx = dir * T.KNOCK_VX;
-      enemy.vz = T.KNOCK_VZ;
-      enemy.stopUntil = world.step + T.HEAVY_HITSTOP;
+      launch(world, enemy, dir);
       spark(
         world,
         enemy.hp === 0 ? "ko" : "heavy",

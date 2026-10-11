@@ -10,7 +10,9 @@ import {
   STAGE_LENGTH,
   SUB,
   RAVAGER,
+  SPELLS,
   type HeroKind,
+  type SpellKind,
   type Swing,
   type Tier,
 } from "./tuning.js";
@@ -42,6 +44,9 @@ export {
   RECOVER_STEPS,
   GRAB_STEPS,
   THROW_STEPS,
+  MAGIC_TAP,
+  CHARGE_STEPS,
+  SPELL_KINDS,
 } from "./tuning.js";
 export { ENEMY_STATES, FX_KINDS, HERO_STATES, IMP_ONLY } from "./world.js";
 
@@ -93,6 +98,20 @@ export const STAB_STEPS: Readonly<Record<HeroKind, number>> = {
  * moves it by the launch speed less `n` pulls of gravity, so it climbs while that is above zero.
  */
 export const JUMP_RISE_STEPS = Math.ceil(JUMP_VZ / GRAVITY);
+
+/** A spell level's steps (from 1): enemies stand frozen until `hit`, when its blow lands, and it is gone at `steps`. */
+export interface SpellSteps {
+  readonly steps: number;
+  readonly hit: number;
+}
+const spellSteps = (kind: HeroKind): readonly SpellSteps[] =>
+  SPELLS[kind].levels.map(({ steps, hit }) => ({ steps, hit }));
+/** Each spell's timing by level, `SPELL_STEPS[kind][level - 1]`, against a `SpellView`'s `age`. */
+export const SPELL_STEPS: Readonly<Record<SpellKind, readonly SpellSteps[]>> = {
+  storm: spellSteps("brakka"),
+  fire: spellSteps("rhea"),
+  earth: spellSteps("gorm"),
+};
 
 /** Each tier's wind-up in steps (ash, rust, violet): the mace lands on the step after the last. */
 export const WINDUP_STEPS: Readonly<Record<Tier, number>> = {
