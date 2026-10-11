@@ -15,8 +15,39 @@ The first page offers CREATE ROOM, JOIN by code (or `?room=CODE`), SOLO VS BOTS 
 local lobby, also `?local`). In a room each device flies its own gunship (WASD and Space, a gamepad or the touch pad)
 and its camera follows it; the host adds bots, sets rounds to win and bot level, and starts at two gunships. Run it
 with `pnpm build` and `pnpm exec tsx service/dev.ts`. A device that joins someone else's room (or reloads, or arrives
-mid-round) loads the world from a peer's validated checkpoint (`src/engine/codec.ts`) and flies from the next round;
-the shared TV with phones as controllers comes next.
+mid-round) loads the world from a peer's validated checkpoint (`src/engine/codec.ts`) and flies from the next round.
+
+### Shared TV
+
+Tick **Shared TV: phones are the controllers** before CREATE ROOM (the choice is remembered). In the lobby the creator
+gets OPEN TV SCREEN, which opens `?room=CODE&display=1`: put that tab on the TV. The TV never takes a seat. It shows the
+lobby's QR code and roster, then every round under the shared framing camera (every gunship and ghost), with big
+badges, and the scoreboard and winner. Everyone scans the code and picks a name; once the host starts, each seated
+device is a controller with no arena:
+
+- a big D-pad (8 ways; slide the thumb to turn) and FIRE (each press is one shot, BOMB as a ghost), laid out for
+  portrait or landscape (`controllerPadLayout` in `src/app/input/touch.ts`); a keyboard works too;
+- your name and colour, wins, hull and launcher meters, LOADED or RELOADING, and the round's word (the countdown,
+  GO!, GHOST, who won); the host's REMATCH and BACK TO LOBBY at the end;
+- a buzz when your gunship is hit, where the phone can vibrate (not iOS).
+
+A controller draws nothing and plays nothing (the TV does both): its round scene never starts and its game's loop
+sleeps, which saves the phone's battery. Leaving the page, a cancelled touch or a lost focus lets go of everything.
+Until a TV is open the host is told to open one, and mid-match the phones say "Waiting for a display". The page logic
+is `presenter.ts` (`present`, `buzz`), unit-tested in `tests/app-online.test.ts`.
+
+```sh
+node games/fuse-bombers/preview/smoke.mjs http://localhost:8787/ path/to/screenshots
+```
+
+The smoke runs by hand, not in CI, against `pnpm build` and `service/dev.ts`. It plays a two-browser room (join by
+code, fly and fire, the same round winner on both) and a shared TV with a phone controller that steers and fires, lets
+go on a lost focus and keeps its header clear of the pads turned on its side.
+
+![The shared TV's lobby: scan to join](docs/images/shared-tv-lobby.png)
+![The shared TV during a round](docs/images/shared-tv.png)
+![A phone controller in portrait](docs/images/shared-phone.png)
+![A phone controller on its side](docs/images/shared-phone-landscape.png)
 
 ## How to play
 
@@ -88,15 +119,15 @@ sliding off it; a cancelled touch, switching apps or tabs, or the window losing 
 
 Add them to the address, for example `?mute&speed=4`.
 
-| Flag       | Effect                                                                                       |
-| ---------- | -------------------------------------------------------------------------------------------- |
-| `?local`   | The local lobby on this screen; `?speed`, `?seed`, `?touch` and `?debug` open it too.        |
-| `?mute`    | No music or sound effects for this load (`?mute=0` or `?mute=false` leaves them on).         |
-| `?calm`    | Turns off screen shake and full-screen flashes (also on with the OS reduced-motion setting). |
-| `?speed=N` | Runs the game and its timers N times as fast (whole numbers, 1 or more).                     |
-| `?seed=N`  | Fixes the random seed so matches replay the same spawns, gates and crates.                   |
-| `?touch`   | Forces the touch pads on a non-touch device.                                                 |
-| `?debug`   | Exposes `window.fuseBombers` (`game`, `flow`, `audio`) for browser tests.                    |
+| Flag       | Effect                                                                                           |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| `?local`   | The local lobby on this screen; `?speed`, `?seed`, `?touch` and `?debug` open it too.            |
+| `?mute`    | No music or sound effects for this load (`?mute=0` or `?mute=false` leaves them on).             |
+| `?calm`    | Turns off screen shake and full-screen flashes (also on with the OS reduced-motion setting).     |
+| `?speed=N` | Runs the game and its timers N times as fast (whole numbers, 1 or more).                         |
+| `?seed=N`  | Fixes the random seed so matches replay the same spawns, gates and crates.                       |
+| `?touch`   | Forces the touch pads on a non-touch device.                                                     |
+| `?debug`   | Exposes `window.fuseBombers` (`game`, `flow`, `audio`; a room's `runtime` and `game`) for tests. |
 
 ## Development
 
