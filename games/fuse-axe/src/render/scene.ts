@@ -344,10 +344,15 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         pen.fillStyle = UNLIT.k!;
         fill(pen, 0, 0, VIEW_W, VIEW_H);
       }
-      // Camp has its own night clearing, one screen that never scrolls.
-      const back = scenery(view.stage, camX),
-        backdrop = view.camp ? camp : backdropOf(back.art),
-        backX = view.camp ? 0 : back.camX;
+      // Camp has its own night clearing, one screen that never scrolls, whatever stage it follows; a stage has its own
+      // backdrop at its camera.
+      let backdrop = camp,
+        backX = 0;
+      if (!view.camp) {
+        const back = scenery(view.stage, camX);
+        backdrop = backdropOf(back.art);
+        backX = back.camX;
+      }
       backdrop.draw(field, backX, frame);
       const at = (f: HeroView | EnemyView | ItemView | MountView) => ({
         id: f.id,

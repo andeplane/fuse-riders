@@ -256,8 +256,10 @@ or is a bot.
 - Sprites are drawn from palette-indexed pixel data in code, so palette swaps (enemy tiers, duplicate heroes,
   damage flash) are free and no sprite sheet is checked in. (The PNGs under `docs/images/` are screenshots of the
   concept page, the sprite lab and the stage backdrops, for readers who cannot open them.)
-- Draw order is by floor depth (further up the screen is further away), then by height.
-- Parallax backgrounds (`src/render/backdrop/`, one module per stage): static layers are painted once and blitted at
+- Draw order is by floor depth (further up the screen is further away), then by height. Camp's fire (the backdrop's
+  `prop`) takes its place among the figures by its row: it is drawn over those further up the floor and under those in
+  front of it, one on its own row counting as behind it.
+- Parallax backgrounds (`src/render/backdrop/`, one module per stage, and camp's): static layers are painted once and blitted at
   whole-pixel offsets, and only fires, torches, mist and snow draw per frame. Stage 1 has the sky, a ridge with
   Vorhal's keep (1/8 speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in
   front; it ends at the village gate ([screenshot](images/stage1-backdrop.png)). Stage 2 (`wyrmbone-pass.ts`) has the
@@ -265,7 +267,8 @@ or is a bot.
   stones and bone chips in front; it ends at the skull gate ([screenshot](images/stage2-backdrop.png)). Each layer is
   as wide as it scrolls across its stage (`cameraEndPx(stage)` in `view-kit.ts`). The scene picks the backdrop by the
   view's `stage`; a stage without art of its own draws Stage 1's, its camera scaled from the stage's road onto the
-  village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery.
+  village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery. A camp (the view's `camp`) draws
+  `camp.ts` instead, whatever stage it follows: one screen, baked once with the scene, whose camera is held at 0.
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
   and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives
   ([screenshot](images/hud.png)); the pots light up to the level chosen while a hero charges magic.
