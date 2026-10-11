@@ -73,15 +73,22 @@ export type HeroAnim = HeroState;
  * spear down where it lands, then stands over it. It walks back in to a locked screen in `enter`.
  *
  * A ravager riding a beast (`mounted`) is in `ride` throughout: the beast's anim says what the pair does.
+ *
+ * The lancer captain (kind `captain`, a `boss`, Wyrmbone Pass's) has a lancer's anims, and rides his ember drake in
+ * `ride` (its anim says what the pair does, his saddle thrust among them); on foot he `stagger`s from a heavy blow his
+ * armour takes, as an ogre does, rather than reeling.
  */
 export type EnemyAnim = EnemyState;
 
 /**
- * A beast's anims (`CLAWBEAK_STEPS` in `view-kit.ts` times them). Ridden: `enter` walks a wave's in, `idle` and `walk`,
- * `sweep` winds up its tail (`windup` steps), lashing it round on that `animStep` (`CLAWBEAK.reach` either side), then
- * recovers to `sweep` steps; `hop` is a hero's beast jumping (rising for `hopRise` steps, then falling, as a hero's
- * jump). Riderless: `flee` panics for `panic` steps (coming down first if thrown out of a hop), `wander` walks back and
- * forth (turning every `turn` steps) and `leave` walks off the screen.
+ * A beast's anims (`CLAWBEAK_STEPS` and `DRAKE_STEPS` in `view-kit.ts` time them). Ridden: `enter` walks a wave's in,
+ * `idle` and `walk`; a clawbeak's `sweep` winds up its tail (`windup` steps), lashing it round on that `animStep`
+ * (`CLAWBEAK.reach` either side), then recovers to `sweep` steps; a drake's `breathe` inhales for `inhale` steps, then
+ * breathes fire to `breathe` (its front `flamePx(animStep)` in front of the drake's centre, in `FLAME.lane` either side),
+ * and the captain on one thrusts his spear from its saddle in `lance` (landing on `lanceWindup`, `SPEAR.reach` in front,
+ * to `lance` steps); `hop` is a hero's beast jumping (rising for `hopRise` steps, then falling, as a hero's jump).
+ * Riderless: `flee` panics for `panic` steps (coming down first if thrown out of a hop), `wander` walks back and forth
+ * (turning every `turn` steps) and `leave` walks off the screen.
  */
 export type MountAnim = MountState;
 
@@ -145,7 +152,7 @@ export interface EnemyView {
   maxHp: number;
   /** In hit-stop from a hit just taken, or an ogre's armour taking one: draw the damage flash. */
   flash: boolean;
-  /** A stage boss (an ogre): its health shows in the world's `boss` bar. */
+  /** A stage boss (an ogre, the lancer captain): its health shows in the world's `boss` bar. */
   boss: boolean;
   /** An ogre whose twin has fallen: it fights faster. */
   enraged: boolean;
