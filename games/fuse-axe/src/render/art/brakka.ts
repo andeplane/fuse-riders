@@ -286,6 +286,32 @@ const poses: Readonly<Record<HeroFrame, BrakkaPose>> = {
     },
     sword: 40,
   }),
+  // Magic: braced, the sword raised upright before his face and the free hand open to the sky, then thrust up.
+  charge: adjust(idle, {
+    head: [37, 33],
+    far: {
+      ...armAt([29, 41], [24, 36], [23, 29]),
+      ...legAt([33, 55], [29, 63.5], [26, 71.5]),
+    },
+    near: {
+      ...armAt([42.5, 41], [46, 46.5], [46.5, 39]),
+      ...legAt([38, 55], [43, 63.5], [46, 71.5]),
+    },
+    sword: -86,
+  }),
+  cast: adjust(idle, {
+    head: [36.5, 32],
+    far: {
+      ...armAt([29, 40], [25, 33], [26, 26]),
+      ...legAt([33, 55], [29, 63.5], [26, 71.5]),
+    },
+    near: {
+      ...armAt([42.5, 40], [44.5, 32], [42.5, 25]),
+      ...legAt([38, 55], [43, 63.5], [46, 71.5]),
+    },
+    sword: -90,
+    face: "yell",
+  }),
 };
 export const BRAKKA_POSES = poses;
 

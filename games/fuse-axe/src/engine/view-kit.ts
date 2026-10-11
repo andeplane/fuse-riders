@@ -2,6 +2,7 @@ import {
   BACK_ATTACK,
   CAMERA_END,
   COMBO,
+  ENEMY_BODY,
   FLOOR_BOTTOM,
   FLOOR_TOP,
   GRAVITY,
@@ -21,6 +22,7 @@ import {
   SWEEP_WINDUP,
   RAVAGER,
   SPELLS,
+  type EnemyKind,
   type HeroKind,
   type SpellKind,
   type Swing,
@@ -72,6 +74,13 @@ export const FLOOR_BOTTOM_PX = FLOOR_BOTTOM / SUB;
 /** Stage 1's length and the furthest the camera's left edge goes. */
 export const STAGE_LENGTH_PX = STAGE_LENGTH / SUB;
 export const CAMERA_END_PX = CAMERA_END / SUB;
+/**
+ * Half an enemy's width, by kind (an ogre's body is bigger): a spell's blow lands only on those at least this far
+ * inside either edge of the screen. A kind this build lacks (a newer one) has the ravager's.
+ */
+export const enemyHalfWPx = (kind: EnemyKind): number =>
+  (Object.hasOwn(ENEMY_BODY, kind) ? ENEMY_BODY[kind] : ENEMY_BODY.ravager)
+    .half / SUB;
 
 export interface SwingSteps {
   readonly startup: number;
