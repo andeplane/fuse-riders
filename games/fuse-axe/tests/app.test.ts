@@ -153,7 +153,9 @@ test("the host seats bot companions from the lobby while a seat is free, and rem
   assert.ok(!present(lobby, tv).canAddBot, "not from the shared screen");
   assert.ok(present(lobby, { ...host, solo: true }).canAddBot, "solo too");
   const full = frame("lobby", {
-    seats: new Map([0, 1, 2, 3, 4].map((slot) => seat(`p${slot}`, slot, "gorm"))),
+    seats: new Map(
+      [0, 1, 2, 3, 4].map((slot) => seat(`p${slot}`, slot, "gorm")),
+    ),
   });
   assert.ok(!present(full, host).canAddBot, "every seat taken");
   const running = present(frame("running"), host);

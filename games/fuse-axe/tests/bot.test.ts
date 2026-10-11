@@ -168,6 +168,53 @@ test("a bot picks up a pot, and kicks a sack imp for its pots", () => {
   );
 });
 
+test("a bot leaves a pot lying beyond what its hero can reach, at the screen's edge, and gets on with following", () => {
+  // The camera has left a pot behind: a hero stops `HERO_MARGIN` in from the screen's edge and picks up within
+  // `PICKUP_X`, so a pot further out than that is out of every hero's reach and would hold the bot against the edge
+  // (and the camera with it, as the leftmost hero holds it) until the pot spoils.
+  const base = party("rhea", "gorm"),
+    camX = px(40),
+    pot = (dx: number) => ({
+      id: 9,
+      kind: "pot" as const,
+      x: camX + px(dx),
+      y: px(138),
+      z: 0,
+      vz: 0,
+      born: 0,
+    });
+  const at = (dx: number): World => ({
+    ...patch(
+      patch(base, { x: camX + px(60) }, 0),
+      { x: camX + T.HERO_MARGIN, y: px(138) },
+      1,
+    ),
+    camX,
+    items: [pot(dx)],
+  });
+  const bare = (world: World) => botInput({ ...world, items: [] }, 2, [1]);
+  assert.equal(botInput(at(-50), 2, [1]), bare(at(-50)), "behind the screen");
+  assert.equal(botInput(at(2), 2, [1]), bare(at(2)), "just out of reach");
+  assert.equal(
+    botInput(at(4), 2, [1]),
+    LEFT,
+    "the last pot a hero can pick up",
+  );
+  const picked = play(at(4), (w) => w.heroes[1]!.pots > 0, { 1: 0 });
+  assert.equal(picked.items.length, 0);
+  // The same at the right edge of a screen.
+  const right = {
+    ...at(0),
+    items: [{ ...pot(0), x: camX + T.VIEW_W * T.SUB - px(2) }],
+    heroes: at(0).heroes.map((hero, index) =>
+      index === 1
+        ? { ...hero, x: camX + T.VIEW_W * T.SUB - T.HERO_MARGIN }
+        : hero,
+    ),
+  };
+  assert.equal(botInput(right, 2, [1]), bare(right), "past the right edge");
+});
+
 test("a bot taps Magic when surrounded or low on health, and the tap casts every pot", () => {
   const armed = patch(party("gorm"), { pots: 2 });
   const ringed = foe(foe(foe(armed, 30, 0), -30, 0), 50, 12);

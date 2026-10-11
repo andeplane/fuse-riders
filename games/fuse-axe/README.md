@@ -76,8 +76,9 @@ between ticks but what its hero holds. The room folds those bits for every bot s
 ![The bots following the player through the first wave](docs/images/app-play-bots.png)
 
 A bot's play is folded rather than logged, so it is part of the rules. `tests/golden.test.ts` has three bots clear
-Stage 1 (5,151 steps, under a second) and compares the world's hash every ten seconds, and the step count, with the
-recorded ones. A change meant to alter the engine's behaviour or the bot's bumps `RULES` in `src/engine/index.ts` and
+Stage 1 twice (about 5,100 steps each, under a second): once with no player, so they lead the camera on, and once
+with Brakka standing in for one, so Rhea and Gorm follow it between fights. It compares the world's hash every ten
+seconds, and the step count, with the recorded ones. A change meant to alter the engine's behaviour or the bot's bumps `RULES` in `src/engine/index.ts` and
 re-records the golden in the same commit (`GOLDEN_RECORD=1 pnpm exec tsx --test games/fuse-axe/tests/golden.test.ts`
 prints the new values). A golden that fails without such a change is a regression to fix, not one to re-record.
 
