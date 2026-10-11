@@ -1,0 +1,57 @@
+/* The online pages (fuse-ui inside `.fui-app`). Mid-match a room's page lets touches through, but to its bar and form. */
+.fb-online {
+  position: fixed;
+  inset: 0;
+  z-index: var(--fui-z-bar);
+  overflow: auto;
+  touch-action: auto;
+}
+.fb-online.fb-match {
+  background: none;
+  pointer-events: none;
+}
+.fb-online > * {
+  pointer-events: auto;
+}
+.fb-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--fui-space-3);
+  padding: max(8px, env(safe-area-inset-top)) 0 8px;
+  font: 0.8rem var(--fui-font-pixel);
+}
+.fb-bar a {
+  color: var(--fui-yellow);
+  text-decoration: none;
+}
+.fb-status {
+  flex: 1;
+}
+/* Mid-match the bar keeps only LEAVE, and the status while a link is being retried, clear of the HUD. */
+.fb-match .fb-bar {
+  width: fit-content;
+  font-size: 0.6rem;
+}
+.fb-match .fb-bar > :not(.fb-status, button),
+.fb-match .fb-status:not([data-tone="error"]) {
+  display: none;
+}
+.fb-lobby {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: var(--fui-space-3) var(--fui-space-6);
+  align-items: start;
+  max-width: 60rem;
+  margin: var(--fui-space-4) auto 0;
+}
+.fb-lobby > *,
+.fb-card {
+  display: grid;
+  gap: var(--fui-space-3);
+}
+.fb-online .fui-name-entry,
+.fb-card {
+  max-width: 30rem;
+  margin: var(--fui-space-4) auto 0;
+  text-align: center;
+}

@@ -72,6 +72,26 @@ export function repaintRect(carved: CellRect): CellRect {
   };
 }
 
+/** The rows in which two grids of one size differ, every column, or undefined when they are the same. */
+export function changedRect(
+  a: TerrainView,
+  b: TerrainView,
+): CellRect | undefined {
+  let first = -1,
+    last = -1;
+  for (let i = 0; i < b.solid.length; i++)
+    if (a.solid[i] !== b.solid[i] || a.hard[i] !== b.hard[i])
+      [first, last] = [first < 0 ? i : first, i];
+  const row = (bit: number) => Math.floor(bit / b.cols);
+  if (first >= 0)
+    return {
+      col0: 0,
+      row0: row(32 * first),
+      col1: b.cols,
+      row1: row(32 * last + 31) + 1,
+    };
+}
+
 /** `rect` clipped to a `cols` × `rows` grid; empty (`col1 <= col0` or `row1 <= row0`) when nothing is left. */
 export function clampRect(
   rect: CellRect,

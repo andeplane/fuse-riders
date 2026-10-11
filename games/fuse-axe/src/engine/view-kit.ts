@@ -3,17 +3,27 @@ import {
   CAMERA_END,
   COMBO,
   DASH,
-  ENEMY_HALF_W,
+  ENEMY_BODY,
   FLOOR_BOTTOM,
   FLOOR_TOP,
   GRAVITY,
   JUMP_ATTACK,
   JUMP_VZ,
   HERO_KINDS,
+  OGRE,
+  OGRE_RECOVER,
+  QUAKE_SPEED,
+  QUAKE_STEPS,
+  SLAM_REACH,
+  SLAM_STEPS,
   STAGE_LENGTH,
+  STAGGER_STEPS,
   SUB,
+  SWEEP_STEPS,
+  SWEEP_WINDUP,
   RAVAGER,
   SPELLS,
+  type EnemyKind,
   type HeroKind,
   type SpellKind,
   type Swing,
@@ -51,7 +61,13 @@ export {
   CHARGE_STEPS,
   SPELL_KINDS,
 } from "./tuning.js";
-export { ENEMY_STATES, FX_KINDS, HERO_STATES, IMP_ONLY } from "./world.js";
+export {
+  ENEMY_STATES,
+  FX_KINDS,
+  HERO_STATES,
+  IMP_ONLY,
+  OGRE_ONLY,
+} from "./world.js";
 
 /** The floor band's top and bottom screen rows. */
 export const FLOOR_TOP_PX = FLOOR_TOP / SUB;
@@ -59,8 +75,13 @@ export const FLOOR_BOTTOM_PX = FLOOR_BOTTOM / SUB;
 /** Stage 1's length and the furthest the camera's left edge goes. */
 export const STAGE_LENGTH_PX = STAGE_LENGTH / SUB;
 export const CAMERA_END_PX = CAMERA_END / SUB;
-/** Half an enemy's width: a spell's blow lands only on those at least this far inside either edge of the screen. */
-export const ENEMY_HALF_W_PX = ENEMY_HALF_W / SUB;
+/**
+ * Half an enemy's width, by kind (an ogre's body is bigger): a spell's blow lands only on those at least this far
+ * inside either edge of the screen. A kind this build lacks (a newer one) has the ravager's.
+ */
+export const enemyHalfWPx = (kind: EnemyKind): number =>
+  (Object.hasOwn(ENEMY_BODY, kind) ? ENEMY_BODY[kind] : ENEMY_BODY.ravager)
+    .half / SUB;
 
 export interface SwingSteps {
   readonly startup: number;
@@ -140,3 +161,27 @@ export const WINDUP_STEPS: Readonly<Record<Tier, number>> = {
   1: RAVAGER[1].windup,
   2: RAVAGER[2].windup,
 };
+
+/**
+ * An ogre's timing in steps, to time its frames: the slam's wind-up calm and enraged (the hammer lands on the step
+ * after the last), the slam's follow-through, the sweep's wind-up (it lands on that `animStep`) and length, the
+ * recovery and the stagger.
+ */
+export const OGRE_STEPS = {
+  windup: OGRE.calm.windup,
+  rageWindup: OGRE.rage.windup,
+  slam: SLAM_STEPS,
+  sweepWindup: SWEEP_WINDUP,
+  sweep: SWEEP_STEPS,
+  recover: OGRE_RECOVER,
+  stagger: STAGGER_STEPS,
+} as const;
+/**
+ * The slam's shockwave in pixels: its front runs `QUAKE_SPEED` a step on from `SLAM_REACH` in front of the ogre, `n`
+ * steps into the slam, for `1 ≤ n ≤ QUAKE_STEPS`.
+ */
+export const QUAKE = {
+  reach: SLAM_REACH / SUB,
+  speed: QUAKE_SPEED / SUB,
+  steps: QUAKE_STEPS,
+} as const;

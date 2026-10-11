@@ -33,6 +33,8 @@ export interface Wave {
   readonly at: number;
   /** In order of delay. */
   readonly spawns: readonly Spawn[];
+  /** What each hero beyond the first adds (`waveSpawns`), if not copies of `spawns`: a boss's wave adds grunts. */
+  readonly extras?: readonly Spawn[];
 }
 
 export interface StagePlan {
@@ -72,8 +74,16 @@ const ravager = (tier: Tier, side: Side, y: number, delay: number): Spawn => ({
 const ASH = 0,
   RUST = 1,
   VIOLET = 2;
+/** One of the Ogre twins, its tier only its palette. */
+const ogre = (tier: Tier, side: Side, y: number): Spawn => ({
+  kind: "ogre",
+  tier,
+  side,
+  y: px(y),
+  delay: 0,
+});
 
-/** Ashen Village: five waves building in size and tier, the last at the village gate (the Ogre twins' place). */
+/** Ashen Village: four waves building in size and tier, then the Ogre twins at the village gate. */
 export const STAGE_1: StagePlan = {
   name: "Ashen Village",
   waves: [
@@ -109,15 +119,12 @@ export const STAGE_1: StagePlan = {
       ],
     },
     {
-      // The village gate: the toughest group stands in for the Ogre twins until they arrive.
+      // The village gate: the Ogre twins come at the party from both sides, and a bigger party meets ravagers too.
       at: CAMERA_END,
-      spawns: [
-        ravager(VIOLET, "right", 128, 0),
-        ravager(VIOLET, "right", 152, 0),
-        ravager(RUST, "left", 116, 40),
-        ravager(RUST, "left", 164, 40),
-        ravager(VIOLET, "left", 140, 90),
-        ravager(RUST, "right", 168, 120),
+      spawns: [ogre(ASH, "left", 132), ogre(RUST, "right", 148)],
+      extras: [
+        ravager(VIOLET, "left", 116, 60),
+        ravager(RUST, "right", 164, 60),
       ],
     },
   ],
@@ -137,15 +144,17 @@ export interface Placed extends Spawn {
 
 /**
  * A wave's spawns for a party of `heroes` (an empty world counts one), in the order they enter. Each hero beyond
- * the first adds one: the k-th extra copies the wave's (k mod n)-th spawn from the other side, mirrored in depth,
- * a round of `EXTRA_DELAY` later per pass through the wave, and walks a round of `ENTER_STAGGER` further in, so no
- * two arrive on the same spot. The sort is stable: spawns due together enter in list order.
+ * the first adds one: the k-th extra copies the wave's (k mod n)-th spawn (of its `extras`, if it has them) from the
+ * other side, mirrored in depth, a round of `EXTRA_DELAY` later per pass through them, and walks a round of
+ * `ENTER_STAGGER` further in, so no two arrive on the same spot. The sort is stable: spawns due together enter in
+ * list order.
  */
 export function waveSpawns(wave: Wave, heroes: number): Placed[] {
-  const count = wave.spawns.length,
+  const pool = wave.extras ?? wave.spawns,
+    count = pool.length,
     party = Math.min(Math.max(heroes, 1), CAPACITY);
   const extras = Array.from({ length: party - 1 }, (_, k): Placed => {
-    const spawn = wave.spawns[k % count]!,
+    const spawn = pool[k % count]!,
       round = 1 + Math.trunc(k / count);
     return {
       ...spawn,

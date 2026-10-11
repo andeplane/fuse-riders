@@ -110,12 +110,13 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 6. Devices and render, in parallel: touch pads and lobby texts (done: two riders per touch screen); the framing camera
    and gunship art (done: shared-screen camera, edge arrows, the art in the round; [engine.md](engine.md) "Camera").
 7. Online game: the checkpoint codec, `RULES` with a golden-hash replay, and the `RollbackGame` with tests for rollback,
-   checkpoints, bad input, and dropped, duplicated and reordered fire presses (in progress: the `RollbackGame`, `RULES`
-   with the golden replay, and this device's runtime are in; next the codec).
+   checkpoints, bad input, and dropped, duplicated and reordered fire presses (done: the `RollbackGame`, `RULES` with
+   the golden replay, this device's runtime and the validated checkpoint codec, so a joiner loads a room from a peer).
 8. Online app: registration (the game's `package.json` `exports` and workspace dependencies, the root `package.json`,
    `Dockerfile.cloud`, `service/history.ts`, the game list in `tests/dice-service.test.ts`, `.c8rc.json`), runtime,
    session, landing and room lobby, then the shared TV and phone controller, a `preview/smoke.mjs` like Choppers', and
-   the docs the change makes stale (the README says "a local game: no rooms"; the `docs/architecture.md` row). Cloud
+   the docs the change makes stale (in progress: registration, runtime, session, landing, room lobby and the online
+   round, with a joiner or reloaded page loading the room from a peer, are in; the shared TV is next). Cloud
    Run serves a game beyond Fuse Riders only once the operator adds its id to `EXTRA_GAME_IDS`; that is not part of these
    pull requests.
 

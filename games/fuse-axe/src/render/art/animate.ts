@@ -12,6 +12,7 @@ import {
   type Swings,
 } from "../../engine/view-kit.js";
 import { IMP_ANIMS } from "./imp.js";
+import { OGRE_ANIMS } from "./ogre.js";
 import { RAVAGER_ANIMS } from "./ravager.js";
 
 /**
@@ -215,6 +216,7 @@ export type EnemyAnims = Readonly<
 export const ENEMY_ANIMS: Readonly<Record<EnemyKind, EnemyAnims>> = {
   ravager: RAVAGER_ANIMS,
   imp: IMP_ANIMS,
+  ogre: OGRE_ANIMS,
 };
 
 /**
