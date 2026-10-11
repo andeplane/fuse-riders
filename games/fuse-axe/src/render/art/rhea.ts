@@ -134,6 +134,25 @@ const run = [0, 1, 2, 3, 4, 5].map((i) => {
   });
 });
 
+/**
+ * Riding a beast, seated astride its saddle: the hips on the seat, the near leg down its flank to the stirrup, the
+ * greave's sole on the anchor (which the scene sets on the saddle point), the far leg out of sight on its far side and
+ * the far hand on the reins.
+ */
+const seat = adjust(idle, {
+  head: [39.5, 41.5],
+  chest: [38, 52],
+  waist: [38, 58],
+  far: { ...armTo(F, [33.5, 49.2], [42, 57]), hip: [35, 63.5] },
+  near: {
+    ...armTo(N, [42.8, 49.2], [49, 54.5]),
+    ...legTo(N, [40.5, 63.5], [42.5, 77.5]),
+  },
+  sword: -45,
+  hair: 10,
+  astride: true,
+});
+
 const poses: Readonly<Record<HeroFrame, RheaPose>> = {
   idle0: idle,
   idle1: adjust(idle, { ...breath(idle, 1), sword: 54 }),
@@ -521,6 +540,37 @@ const poses: Readonly<Record<HeroFrame, RheaPose>> = {
     hair: 35,
     lookBack: true,
   }),
+  // In the saddle: the blade held ready; drawn back over her shoulder as the beast winds up, then thrust at the foe as
+  // it strikes; low over its neck through a hop, the mane streaming.
+  ride: seat,
+  ridewindup: adjust(seat, {
+    head: [37.5, 41.5],
+    chest: [37, 52],
+    waist: [37.5, 58],
+    far: armTo(F, [32.5, 49.2], [40, 57]),
+    near: armTo(N, [41.8, 49.2], [48, 40], 1),
+    sword: -135,
+    hair: 20,
+  }),
+  rideattack: adjust(seat, {
+    head: [43, 42],
+    chest: [40.5, 52.5],
+    waist: [39, 58],
+    far: armTo(F, [36, 49.5], [43, 58]),
+    near: armTo(N, [45, 49.5], [57, 51]),
+    sword: -5,
+    face: "yell",
+    hair: 40,
+  }),
+  ridehop: adjust(seat, {
+    head: [42, 42.5],
+    chest: [40, 53],
+    waist: [39, 58.5],
+    far: armTo(F, [35.5, 50], [45, 58]),
+    near: armTo(N, [45, 50], [53, 44]),
+    sword: -65,
+    hair: 35,
+  }),
 };
 export const RHEA_POSES = poses;
 
@@ -567,7 +617,7 @@ export function paintRhea(pose: RheaPose): Sprite {
   const greave = { thick: 0.86, boot: "n", bootTop: 0.2, foot: "l" };
   arm(rig, far, { ...BACK, ...slim, bracer: "n" });
   fist(rig, far.hand, { ...BACK, ...slim });
-  leg(rig, far, { ...BACK, ...greave });
+  if (!pose.astride) leg(rig, far, { ...BACK, ...greave });
   // Hips, waist, chest and neck one part, the bronze breastplate over them; the wide parts are capsules, which turn
   // with the body where an ellipse would not.
   const hips = between(far.hip, near.hip);

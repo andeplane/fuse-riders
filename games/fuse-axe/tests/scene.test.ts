@@ -40,6 +40,7 @@ import {
   heroFrame,
   HERO_ANIMS,
   mountFrame,
+  riderFrame,
   stripFrame,
 } from "../src/render/art/animate.js";
 import { BRAKKA } from "../src/render/art/brakka.js";
@@ -474,14 +475,12 @@ test("a beast draws its own art on its feet, its rider astride the saddle over i
   }
 });
 
-test("a hero rides as an enemy does: its crouch sunk into the saddle with the beast's dip, in the beast's one shadow, facing either way, a hop and all", () => {
+test("a hero rides as an enemy does: astride the saddle, sinking with the beast's dip, doing what its beast does, in the beast's one shadow, facing either way, a hop and all", () => {
   const seated = { anim: "ride", mounted: true, z: CLAWBEAK.saddle } as const;
   const beast = (more: Partial<MountView> = {}): MountView => ({
     ...{ id: 9, kind: "clawbeak", x: 150, y: 140, z: 0, facing: 1 },
     ...{ anim: "idle", animStep: 0, rider: { kind: "hero", id: 1 }, ...more },
   });
-  // Until the art gives a rider its own pose, a hero sits in its landing crouch (`heroFrame`).
-  const crouch = BRAKKA.sprite(heroFrame("brakka", "ride", 0));
   const anchorX = (s: Sprite, flip: boolean) =>
     flip ? flipSprite(s).ax : s.ax;
   for (const anim of MOUNT_STATES)
@@ -495,23 +494,27 @@ test("a hero rides as an enemy does: its crouch sunk into the saddle with the be
         );
         const frame = mountFrame("clawbeak", anim, animStep) as ClawbeakFrame;
         const label = `${anim} ${animStep} ${facing}`;
-        // The beast first, its rider after it, in the hero's own colours, its feet on the saddle point.
+        // The beast first, its rider after it, in the hero's own colours and in the frame its beast's anim calls for
+        // (`riderFrame`), its feet on the saddle point.
         const [body, sat] = sprites;
         const art = CLAWBEAK_FIGURE.sprite(frame);
+        const ride = BRAKKA.sprite(riderFrame(anim, animStep));
         assert.deepEqual(body!.image.fills, fillsOf(art, { flash: false, flip }), label); // prettier-ignore
-        assert.deepEqual(sat!.image.fills, fillsOf(crouch, { flip }), label);
-        assert.equal(sat!.dx + anchorX(crouch, flip), 150, label);
+        assert.deepEqual(sat!.image.fills, fillsOf(ride, { flip }), label);
+        assert.equal(sat!.dx + anchorX(ride, flip), 150, label);
         const saddle = 140 - CLAWBEAK.saddle + CLAWBEAK_DIPS[frame];
-        assert.equal(sat!.dy + crouch.ay, saddle, label);
+        assert.equal(sat!.dy + ride.ay, saddle, label);
         // One shadow, the beast's: the rider casts none of its own.
         assert.equal(shadows.length, 1, label);
       }
-  // A rider whose beast is not in the view (or is another's) fails safe: it keeps the height the view gives it, in a
-  // shadow of its own, not hanging in the air with none.
+  // A rider whose beast is not in the view (or is another's) fails safe: it sits (`heroFrame`) at the height the view
+  // gives it, in a shadow of its own, not hanging in the air with none.
+  const sitting = BRAKKA.sprite(heroFrame("brakka", "ride", 0));
   const strays = [[], [beast({ rider: { kind: "enemy", id: 1 } })], [beast({ rider: { kind: "hero", id: 2 } })]]; // prettier-ignore
   for (const mounts of strays) {
     const { sprites, shadows } = draw(world({ heroes: [hero(1, 0, 150, 140, seated)], mounts })); // prettier-ignore
-    assert.equal(sprites.at(-1)!.dy + crouch.ay, 140 - CLAWBEAK.saddle);
+    assert.deepEqual(sprites.at(-1)!.image.fills, fillsOf(sitting, {}));
+    assert.equal(sprites.at(-1)!.dy + sitting.ay, 140 - CLAWBEAK.saddle);
     const own = shadows.filter((s) => s.image.w === 2 * shadowRadius(CLAWBEAK.saddle) + 1); // prettier-ignore
     assert.equal(own.length, 1, "the rider's own shadow");
   }
