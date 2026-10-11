@@ -208,6 +208,43 @@ test("any blow on a pile shatters it for good: a slash, a jump attack, a thrown 
   assert.equal(hero(thrower).throws, 1);
 });
 
+test("no blade lands on a bonewalker pulling itself together, as on one getting up, but a spell does", () => {
+  const mending = (world: World) =>
+    foe(world, 20, { state: "reassemble", reassembled: true, hp: 8 });
+  const swung = until(mending(party("brakka")), (w) => w.step === 12, (w) => [w.step === 0 ? ATTACK : 0]); // prettier-ignore
+  assert.deepEqual(
+    [bones(swung)[0]!.state, bones(swung)[0]!.hp],
+    ["reassemble", 8],
+  );
+  const armed = party("brakka");
+  const cast = mending({ ...armed, heroes: armed.heroes.map((h) => ({ ...h, pots: 1 })) }); // prettier-ignore
+  const blown = until(cast, (w) => bones(w)[0]!.state !== "reassemble", (w) => [w.step === 0 ? MAGIC : 0]); // prettier-ignore
+  assert.equal(bones(blown)[0]!.state, "knockdown");
+  assert.ok(bones(blown)[0]!.hp < 8);
+});
+
+test("a wave waits for its piles; one nobody shatters pulls itself together and is fought again, so the wave still clears", () => {
+  let world = at(party("brakka"), 0);
+  world = pile(
+    {
+      ...world,
+      wave: 1,
+      locked: true,
+      spawned: waveSpawns(STAGE_3.waves[0]!, 1).length,
+      waveStep: world.step,
+    },
+    120,
+  );
+  while (bones(world)[0]!.state === "pile") {
+    world = step(world, []);
+    assert.ok(world.locked, "no wave is cleared while a pile lies");
+  }
+  assert.equal(bones(world)[0]!.state, "reassemble");
+  const bots = (w: World) => w.heroes.map((h) => botInput(w, h.id));
+  world = until(world, (w) => !w.locked, bots, 3000);
+  assert.deepEqual(world.enemies, [], "the second fall is the last");
+});
+
 test("a bonewalker swings its sword as a ravager its mace, quicker; the violet knight's reaches furthest", () => {
   for (const tier of T.TIERS) {
     const { windup, damage } = T.BONEWALKER[tier];
@@ -269,6 +306,26 @@ test("a bot walks over to a pile and shatters it before it pulls itself together
     world = stepTick(world, [botInput(world, 1)]);
   assert.equal(bones(world)[0]!.state, "dead");
   assert.equal(hero(world).knockdowns, 1);
+});
+
+test("a bot spends no pot on piles about it, hurt or surrounded, and does on a swordsman", () => {
+  const armed = (w: World, hp = T.HERO_HP.rhea): World => ({
+    ...w,
+    heroes: w.heroes.map((h) => ({ ...h, pots: 2, hp })),
+  });
+  const thirds = Math.trunc(T.HERO_HP.rhea / 3);
+  // Three piles within reach would be a crowd, and one enough for a hero at a third of its health, were they foes.
+  const lying = pile(pile(pile(armed(party("rhea")), 20), 30), 40);
+  assert.equal(botInput(lying, 1) & MAGIC, 0);
+  assert.ok(botInput(lying, 1) & ATTACK, "it shatters one instead");
+  assert.equal(botInput(pile(armed(party("rhea"), thirds)), 1) & MAGIC, 0);
+  // The same bonewalkers on their feet are cast at.
+  const walkers = foe(foe(foe(armed(party("rhea")), 20), 30), 40);
+  assert.equal(botInput(walkers, 1) & MAGIC, MAGIC);
+  assert.equal(
+    botInput(foe(armed(party("rhea"), thirds), 20), 1) & MAGIC,
+    MAGIC,
+  );
 });
 
 test("a rollback or a checkpoint mid-rise, on a pile and mid-reassembly replays to the same world", () => {
