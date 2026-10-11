@@ -15,6 +15,7 @@ import type {
   HeroView,
   ItemView,
   MountView,
+  Tier,
   WorldView,
 } from "../src/engine/view.js";
 import {
@@ -47,6 +48,11 @@ import {
   riderFrame,
   stripFrame,
 } from "../src/render/art/animate.js";
+import {
+  BONE_KNIGHT,
+  BONEWALKER,
+  type BonewalkerFrame,
+} from "../src/render/art/bonewalker.js";
 import { BRAKKA } from "../src/render/art/brakka.js";
 import {
   CLAWBEAK_DIPS,
@@ -83,7 +89,6 @@ import {
 import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
 import {
-  BONE_PILE,
   createLooks,
   createScene,
   deadShows,
@@ -656,34 +661,44 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
   assert.deepEqual(odd, idle);
 });
 
-test("a bonewalker draws as a ravager in bone, by tier, and its pile or shattered bones as a few bones on the floor", () => {
+test("a bonewalker draws its own figure in its tier's rags, the violet one the armoured knight, its pile and crumbling bones too", () => {
   const drawn = (more: Partial<EnemyView>) =>
     draw(
       world({
         enemies: [enemy(2, 150, 150, { kind: "bonewalker", ...more })],
       }),
     );
-  for (const anim of ["pile", "dead"] as const) {
-    const { sprites, shadows } = drawn({ anim, animStep: 3, facing: -1 });
-    assert.deepEqual(
-      sprites[0]!.image.fills,
-      fillsOf(BONE_PILE, { swap: ENEMY_ART.bonewalker.tiers[0], flip: true }),
-    );
-    assert.ok(shadows[0]!.image.w < 2 * SHADOW_RX);
-  }
+  const { tiers } = ENEMY_ART.bonewalker;
+  // prettier-ignore
+  const shows = [["idle", 0], ["rise", 25], ["attack", 0], ["pile", 3], ["pile", 149], ["reassemble", 12], ["dead", 3]] as const;
+  for (const tier of [0, 1, 2] as const)
+    for (const [anim, animStep] of shows) {
+      const figure = tier === 2 ? BONE_KNIGHT : BONEWALKER;
+      const frame = enemyFrame("bonewalker", anim, animStep) as BonewalkerFrame;
+      const { sprites, shadows } = drawn({ tier, anim, animStep, facing: -1 });
+      assert.deepEqual(
+        sprites[0]!.image.fills,
+        fillsOf(figure.sprite(frame), { swap: tiers[tier], flip: true }),
+        `${tier} ${anim}`,
+      );
+      assert.equal(shadows[0]!.image.w, 2 * SHADOW_RX + 1);
+    }
   const looks = ([0, 1, 2] as const).map(
     (tier) => drawn({ tier }).sprites[0]!.image.fills,
   );
   assert.equal(new Set(looks.map((each) => JSON.stringify(each))).size, 3);
-  assert.notDeepEqual(
-    looks[0],
-    draw(world({ enemies: [enemy(2, 150, 150)] })).sprites[0]!.image.fills,
-    "not a ravager's colours",
-  );
-  // It climbs out of its grave and pulls itself together standing; no step of either throws.
-  for (const anim of ["rise", "reassemble"] as const)
+  // No anim at any step throws, nor a tier from a build with more of them, which draws in the figure's own rags.
+  const odd = JSON.parse("7") as Tier;
+  for (const anim of ENEMY_STATES)
     for (const animStep of [0, 30, 1e9, Number.NaN])
-      assert.equal(drawn({ anim, animStep }).sprites.length, 1);
+      assert.equal(
+        drawn({ anim, animStep }).sprites.length,
+        anim === "dead" && !deadShows(animStep) ? 0 : 1,
+      );
+  assert.deepEqual(
+    drawn({ tier: odd }).sprites[0]!.image.fills,
+    fillsOf(BONEWALKER.sprite("idle")),
+  );
 });
 
 test("an ogre draws its own figure in its twin's colours on its feet, burns and steams once enraged, casts a bigger shadow, cracks the floor and is cut to the screen", () => {
