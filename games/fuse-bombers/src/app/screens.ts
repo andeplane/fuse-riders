@@ -141,10 +141,8 @@ export function resultsHtml(info: MatchInfo, secondsLeft: number): string {
 </div>`;
 }
 
-/**
- * An online room between rounds, or once its match is `over` (its names escaped by the presenter): `winner` (a seat
- * index, or none for a draw), a line and the scoreboard; at the end REMATCH and LOBBY for the host, else a wait.
- */
+/** An online room between rounds or once `over` (names escaped by the presenter): `winner` (a seat, or a draw), a
+ * line and the scoreboard; at the end REMATCH and LOBBY for the host, else a wait. */
 export function roomResultsHtml(
   info: MatchInfo,
   winner: number | null,

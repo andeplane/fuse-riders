@@ -187,8 +187,7 @@ export class RoundScene extends Phaser.Scene {
 
   private source!: RoundSource;
   private players: readonly PlayerLook[] = [];
-  /** The round drawn: `RoundSource.round`, or its view. */
-  private current: unknown = null;
+  private current: unknown = null; // `RoundSource.round`, or the view
   private backdrop!: Phaser.GameObjects.Image;
   private terrain!: TerrainLayer;
   private hud!: Phaser.GameObjects.Graphics;

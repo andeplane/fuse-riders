@@ -16,12 +16,13 @@ test("the query opens the landing, the local lobby, solo or a room, with one tok
   const valid = (code: string) => /^\w{4}$/.test(code);
   const at = (query: string) =>
     sessionFor(query, store, "g", valid, () => "new");
-  const kinds = ["?mute", "?local", "?seed=7", "?solo=1"].map(
-    (q) => at(q).kind,
+  const queries = ["?mute", "?local", "?seed=7", "?solo=1"];
+  eq(
+    queries.map((q) => at(q).kind),
+    ["landing", "local", "local", "solo"],
   );
-  eq(kinds, ["landing", "local", "local", "solo"]);
   eq(at("?room=no!"), { kind: "invalid", code: "NO!" });
-  eq(at("?room=ab12"), { kind: "room", code: "AB12", token: "new" });
+  eq(at("?room=ab12&touch"), { kind: "room", code: "AB12", token: "new" });
   equal(items.get(keys("g").peer("AB12")), "new", "the same member on reload");
   store.setItem(keys("g").host("CD34"), "made");
   eq(at("?room=CD34"), { kind: "room", code: "CD34", token: "made" });
@@ -52,12 +53,8 @@ const start = (room: game.Room) => {
   fold(room, { a: [[ACTION, "start", `m${room.round}`]] });
   while (room.tick < room.startAt) fold(room);
 };
-const viewer = (me: string, host = false): Viewer => ({
-  me,
-  host,
-  hostPresent: true,
-  touch: false,
-});
+const seen = { hostPresent: true, touch: false };
+const viewer = (me: string, host = false): Viewer => ({ ...seen, me, host });
 const host = viewer("a", true),
   guest = viewer("z");
 const show = (room: game.Room, viewer = host) =>
@@ -123,7 +120,8 @@ test("between rounds the scoreboard counts down to the next; at the end the host
 
 test("room status lines: dead ends, a link being retried, and news", () => {
   const lines = {
-    "Room full": "full",
+    "Room full (five players, five spectators and TV)": "full",
+    "Room is full": "", // a seat refused: the page stays, to join once one frees
     "Room is full (AI included)": "",
     "Simulation out of sync — reload this page": "desync",
     "Direct connection failed · retrying": "retry",
@@ -155,14 +153,8 @@ test("the online source blends a round's two newest frames and hands on its roun
   const source = new online.OnlineSource(() => timing, me, newer.world!);
   const shown = source.view.castles[0]!.x;
   eq([shown, source.round, source.follow], [150, "m0:1", 0]);
-  const boom: TickEvent = {
-    type: "rocket-exploded",
-    tick: 1,
-    owner: 0,
-    x: 1,
-    y: 1,
-    cause: "ground",
-  };
+  const at = { tick: 1, owner: 0, x: 1, y: 1 };
+  const boom: TickEvent = { type: "rocket-exploded", ...at, cause: "ground" };
   source.push(boom, "m0", 1);
   source.push(boom, "m0", 2);
   eq([source.advance(), source.advance()], [[boom], []]);
