@@ -220,10 +220,11 @@ export function heroFrame(
 /**
  * The frame a hero riding a beast shows, `animStep` steps into the beast's `anim` (the hero's own anim is `ride`
  * throughout: the beast's says what the pair does). Through a tail sweep's wind-up it braces, weapon cocked, and from
- * the step the tail lands it leans into the blow, weapon pointed at the foe, to the sweep's end; through a hop it
- * crouches forward over the neck; otherwise it sits, weapon ready. Like `heroFrame` it never throws: an odd step is
- * rounded down to a whole one from 0, and an anim with no case (a riderless beast's, or one from a build with more of
- * them) sits.
+ * the step the tail lands it leans into the blow, weapon pointed at the foe, to the sweep's end; a drake's breath is the
+ * same, bracing through the inhale and pointing from the step the flame is out to the breath's end; through a hop it
+ * crouches forward over the neck; otherwise it sits, weapon ready. The captain's saddle thrust (`lance`) is no hero's,
+ * and a riderless beast's anims have no rider: they sit. Like `heroFrame` it never throws: an odd step is rounded down
+ * to a whole one from 0, and an anim with no case (or one from a build with more of them) sits.
  */
 export function riderFrame(anim: MountAnim, animStep: number): HeroFrame {
   const step = Number.isFinite(animStep)
@@ -232,6 +233,8 @@ export function riderFrame(anim: MountAnim, animStep: number): HeroFrame {
   switch (anim) {
     case "sweep":
       return step < CLAWBEAK_STEPS.windup ? "ridewindup" : "rideattack";
+    case "breathe":
+      return step < DRAKE_STEPS.inhale ? "ridewindup" : "rideattack";
     case "hop":
       return "ridehop";
     default:

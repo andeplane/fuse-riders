@@ -11,24 +11,26 @@ import {
   type World,
 } from "../src/engine/index.js";
 import * as T from "../src/engine/tuning.js";
-import type { HeroKind, MountAnim } from "../src/engine/view.js";
-import { CLAWBEAK, HERO_KINDS, MOUNT_STATES } from "../src/engine/view-kit.js";
+import type { HeroKind, MountAnim, MountKind } from "../src/engine/view.js";
 import {
+  CLAWBEAK,
+  DRAKE_STEPS,
+  HERO_KINDS,
+  MOUNT_KINDS,
+  flamePx,
+} from "../src/engine/view-kit.js";
+import {
+  MOUNT_ANIMS,
   heroFrame,
   mountFrame,
   riderFrame,
   type HeroFrame,
 } from "../src/render/art/animate.js";
 import { BRAKKA_POSES } from "../src/render/art/brakka.js";
-import {
-  CLAWBEAK_ANIMS,
-  CLAWBEAK_DIPS,
-  CLAWBEAK_FIGURE,
-  type ClawbeakFrame,
-} from "../src/render/art/clawbeak.js";
 import { GORM_POSES } from "../src/render/art/gorm.js";
 import { HEROES } from "../src/render/art/index.js";
 import { RHEA_POSES } from "../src/render/art/rhea.js";
+import { MOUNT_ART } from "../src/render/scene.js";
 import type { HeroPose } from "../src/render/pixel/head.js";
 import { CLEAR, type Sprite } from "../src/render/pixel/sprite.js";
 
@@ -42,26 +44,56 @@ const FOOT: Readonly<Record<HeroKind, RegExp>> = {
   rhea: /[Ll9]/,
   gorm: /[Ii#]/,
 };
-/** The frames a beast shows with a hero on it: it stands, walks, sweeps its tail and hops. */
-const RIDDEN = new Set(
-  (["idle", "walk", "sweep", "hop"] as const).flatMap((anim) =>
-    CLAWBEAK_ANIMS[anim].frames.map(([frame]) => frame),
-  ),
-);
+/**
+ * What a hero's beast of each kind does with it on its back (the engine's: a clawbeak sweeps its tail, a drake
+ * breathes, neither the other's), and the frame of its rider for each frame of the beast's that is not a plain sit.
+ */
+const RIDDEN: Readonly<
+  Record<
+    MountKind,
+    {
+      anims: readonly MountAnim[];
+      says: Readonly<Record<string, HeroFrame>>;
+    }
+  >
+> = {
+  clawbeak: {
+    anims: ["idle", "walk", "sweep", "hop"],
+    says: {
+      coil1: "ridewindup",
+      coil2: "ridewindup",
+      lash: "rideattack",
+      recover: "rideattack",
+      leap: "ridehop",
+      drop: "ridehop",
+    },
+  },
+  drake: {
+    anims: ["idle", "walk", "breathe", "hop"],
+    says: { coil1: "ridewindup", coil2: "rideattack", leap: "ridehop", drop: "ridehop" }, // prettier-ignore
+  },
+};
+/** The frames a beast of `kind` shows with a hero on it. */
+const ridden = (kind: MountKind) =>
+  new Set(
+    RIDDEN[kind].anims.flatMap((anim) =>
+      MOUNT_ANIMS[kind][anim]!.frames.map(([frame]) => frame),
+    ),
+  );
 const pixel = (s: Sprite, dx: number, dy: number) =>
   s.rows[s.ay + dy]?.[s.ax + dx] ?? CLEAR;
 /** The runs of painted pixels along a sprite's anchor row, outline aside: one per foot on it. */
 const feet = (s: Sprite) =>
   s.rows[s.ay]!.replaceAll("k", CLEAR).split(CLEAR).filter(Boolean).length;
 
-test("every hero sits astride a beast: hips on the seat, the far leg out of sight, the near boot in the stirrup, on every frame a ridden beast shows", () => {
-  for (const kind of HERO_KINDS) {
-    const figure = HEROES[kind].figure;
-    assert.equal(feet(figure.sprite("idle0")), 2, `${kind} stands on two`);
+test("every hero sits astride a beast: hips on the seat, the far leg out of sight, the near boot in the stirrup, on every frame a ridden beast of either kind shows", () => {
+  for (const hero of HERO_KINDS) {
+    const figure = HEROES[hero].figure;
+    assert.equal(feet(figure.sprite("idle0")), 2, `${hero} stands on two`);
     for (const ride of RIDES) {
-      const pose = POSES[kind][ride];
+      const pose = POSES[hero][ride];
       const rider = figure.sprite(ride);
-      const label = `${kind} ${ride}`;
+      const label = `${hero} ${ride}`;
       assert.equal(pose.astride, true, label);
       assert.equal(feet(rider), 1, `${label}: astride, one boot shows`);
       // Where the hips sit over the anchor, which the scene sets on the saddle point.
@@ -69,73 +101,87 @@ test("every hero sits astride a beast: hips on the seat, the far leg out of sigh
         (pose.far.hip[0] + pose.near.hip[0]) / 2 - pose.anchor[0],
         (pose.far.hip[1] + pose.near.hip[1]) / 2 - pose.anchor[1],
       ];
-      for (const frame of RIDDEN) {
-        const beast = CLAWBEAK_FIGURE.sprite(frame);
-        const dip = CLAWBEAK_DIPS[frame as ClawbeakFrame];
-        // The beast's pixel (dx, dy) from the saddle point, as the scene lays a rider's anchor on it.
-        const at = (dx: number, dy: number) =>
-          pixel(beast, dx, dy - CLAWBEAK.saddle + dip);
-        // The seat's top: the highest leather over the saddle point; the seat, the leather along that row.
-        const top = Math.min(
-          ...Array.from({ length: 30 }, (_, i) => -i - 1).filter((dy) =>
-            /[Ll9]/.test(at(0, dy)),
-          ),
-        );
-        const seat = Array.from({ length: 21 }, (_, i) => i - 10).filter((dx) =>
-          /[Ll9]/.test(at(dx, top)),
-        );
-        const where = `${label} on ${frame}: hips ${hips} over seat ${top}`;
-        assert.ok(hips[1]! >= top - 2 && hips[1]! <= top + 1, where);
-        assert.ok(
-          hips[0]! >= Math.min(...seat) && hips[0]! <= Math.max(...seat),
-          where,
-        );
-        // The stirrup's brass hangs where the near boot goes, which hides it.
-        const brass = [-1, 0].flatMap((dy) =>
-          [3, 4, 5].filter((dx) => /[Nn8]/.test(at(dx, dy))),
-        );
-        assert.ok(brass.length > 0, `${frame} has no stirrup`);
-        assert.match(pixel(rider, 4, -1), FOOT[kind], where);
-      }
+      for (const kind of MOUNT_KINDS)
+        for (const frame of ridden(kind)) {
+          const art = MOUNT_ART[kind];
+          const beast = art.figure.sprite(frame);
+          const dip = art.dips[frame] ?? 0;
+          // The beast's pixel (dx, dy) from the saddle point, as the scene lays a rider's anchor on it.
+          const at = (dx: number, dy: number) =>
+            pixel(beast, dx, dy - CLAWBEAK.saddle + dip);
+          // The seat's top: the highest leather over the saddle point; the seat, the leather along that row.
+          const top = Math.min(
+            ...Array.from({ length: 30 }, (_, i) => -i - 1).filter((dy) =>
+              /[Ll9]/.test(at(0, dy)),
+            ),
+          );
+          const seat = Array.from({ length: 21 }, (_, i) => i - 10).filter(
+            (dx) => /[Ll9]/.test(at(dx, top)),
+          );
+          const where = `${label} on a ${kind}'s ${frame}: hips ${hips} over seat ${top}`;
+          assert.ok(hips[1]! >= top - 2 && hips[1]! <= top + 1, where);
+          assert.ok(
+            hips[0]! >= Math.min(...seat) && hips[0]! <= Math.max(...seat),
+            where,
+          );
+          // The stirrup's brass hangs where the near boot goes, which hides it.
+          const brass = [-1, 0].flatMap((dy) =>
+            [3, 4, 5].filter((dx) => /[Nn8]/.test(at(dx, dy))),
+          );
+          assert.ok(brass.length > 0, `${where}: no stirrup`);
+          assert.match(pixel(rider, 4, -1), FOOT[hero], where);
+        }
     }
   }
 });
 
-test("a rider braces while its beast's tail coils, strikes from the lash to the sweep's end, crouches through a hop and otherwise sits", () => {
-  const beastSays: Readonly<Record<string, HeroFrame>> = {
-    coil1: "ridewindup",
-    coil2: "ridewindup",
-    lash: "rideattack",
-    recover: "rideattack",
-    leap: "ridehop",
-    drop: "ridehop",
-  };
-  for (const anim of MOUNT_STATES)
-    for (let animStep = 0; animStep < 80; animStep++) {
-      const frame = mountFrame("clawbeak", anim, animStep);
-      assert.equal(
-        riderFrame(anim, animStep),
-        beastSays[frame] ?? "ride",
-        `${anim} ${animStep} ${frame}`,
-      );
-    }
+test("a rider braces while its beast winds up its blow (a tail coiling, a drake inhaling), strikes from the step it lands to the blow's end, crouches through a hop and otherwise sits", () => {
+  for (const kind of MOUNT_KINDS) {
+    const { anims, says } = RIDDEN[kind];
+    for (const anim of anims)
+      for (let animStep = 0; animStep < 100; animStep++) {
+        const frame = mountFrame(kind, anim, animStep);
+        assert.equal(
+          riderFrame(anim, animStep),
+          says[frame] ?? "ride",
+          `${kind} ${anim} ${animStep} ${frame}`,
+        );
+      }
+  }
+  // A drake's breath: braced through the inhale, pointing from the step the flame is out to the breath's end.
+  const flames = Array.from({ length: DRAKE_STEPS.breathe }, (_, i) => riderFrame("breathe", i)); // prettier-ignore
+  assert.deepEqual(flames, [
+    ...Array<HeroFrame>(DRAKE_STEPS.inhale).fill("ridewindup"),
+    ...Array<HeroFrame>(DRAKE_STEPS.breathe - DRAKE_STEPS.inhale).fill("rideattack"), // prettier-ignore
+  ]);
+  // No hero thrusts a lance (the captain's, an enemy's, is drawn as one), and a riderless beast's anims have no rider:
+  // each sits, at any step.
+  for (const anim of ["lance", "enter", "flee", "wander", "leave"] as const)
+    for (const animStep of [0, 1, 23, 24, 35, 36, 80, 1e6])
+      assert.equal(riderFrame(anim, animStep), "ride", `${anim} ${animStep}`);
   // It never throws: an odd step rounds down to a whole one from 0, and an anim with no case sits.
   for (const odd of [-3, -0.5, Number.NaN, Infinity])
-    assert.equal(riderFrame("sweep", odd), "ridewindup");
+    for (const anim of ["sweep", "breathe"] as const)
+      assert.equal(riderFrame(anim, odd), "ridewindup", `${anim} ${odd}`);
   assert.equal(riderFrame("sweep", 20.9), "rideattack");
+  assert.equal(riderFrame("sweep", 19.9), "ridewindup");
+  assert.equal(riderFrame("breathe", DRAKE_STEPS.inhale + 0.9), "rideattack");
+  assert.equal(riderFrame("breathe", DRAKE_STEPS.inhale - 0.1), "ridewindup");
   const gallop: string = "gallop";
   assert.equal(riderFrame(gallop as MountAnim, 9), "ride");
+  assert.equal(riderFrame("constructor" as MountAnim, 9), "ride");
+  assert.equal(riderFrame("__proto__" as MountAnim, 9), "ride");
   // A rider whose beast is not in the view sits too.
   for (const kind of HERO_KINDS)
     for (const animStep of [0, 31, 1e6, Number.NaN])
       assert.equal(heroFrame(kind, "ride", animStep), "ride");
 });
 
-/** A hero who has climbed on a clawbeak beside it, the view's frames for it from then on. */
-const boarded = (kind: HeroKind): World => {
+/** A hero who has climbed on a beast (a clawbeak, or a `drake`) beside it, the view's frames for it from then on. */
+const boarded = (kind: HeroKind, beast: MountKind = "clawbeak"): World => {
   const start = createWorld({ seed: 3, heroes: [{ seat: 0, kind }] });
   const { x, y } = start.heroes[0]!;
-  const world = step(spawnMount(start, x + px(10), y), [JUMP]);
+  const world = step(spawnMount(start, x + px(10), y, 0, beast), [JUMP]);
   assert.equal(world.heroes[0]!.state, "ride");
   return world;
 };
@@ -178,6 +224,37 @@ test("in the engine a rider braces until its beast's tail lands, strikes from th
       aloft += world.mounts[0]!.z > 0 ? 1 : 0;
     }
     assert.ok(aloft > 10, `${kind} hopped`);
+    assert.equal(riding(world), "ride", kind);
+  }
+});
+
+test("in the engine a rider on a drake braces through the inhale, points from the step the flame is out to the breath's end, and sits again after", () => {
+  for (const kind of HERO_KINDS) {
+    let world = boarded(kind, "drake");
+    assert.equal(world.mounts[0]!.kind, "drake");
+    assert.equal(riding(world), "ride", `${kind} sits before the breath`);
+    world = step(world, [ATTACK]);
+    const shown: HeroFrame[] = [];
+    for (let i = 0; i < 200 && world.mounts[0]!.state === "breathe"; i++) {
+      // The rider points exactly while the view has the flame out in front of the drake.
+      const { animStep } = toView(world).mounts[0]!;
+      assert.equal(riding(world) === "rideattack", flamePx(animStep) > 0, `${kind} ${animStep}`); // prettier-ignore
+      shown.push(riding(world));
+      world = step(world, []);
+    }
+    assert.deepEqual(
+      shown,
+      [
+        ...Array<HeroFrame>(DRAKE_STEPS.inhale).fill("ridewindup"),
+        ...Array<HeroFrame>(DRAKE_STEPS.breathe - DRAKE_STEPS.inhale).fill("rideattack"), // prettier-ignore
+      ],
+      kind,
+    );
+    assert.equal(riding(world), "ride", `${kind} sits once the breath is over`);
+    // A hop on a drake crouches the rider as on a clawbeak.
+    world = step(step(boarded(kind, "drake"), []), [JUMP]);
+    for (; world.mounts[0]!.state === "hop"; world = step(world, []))
+      assert.equal(riding(world), "ridehop", kind);
     assert.equal(riding(world), "ride", kind);
   }
 });

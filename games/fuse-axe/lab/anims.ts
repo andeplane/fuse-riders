@@ -2,19 +2,21 @@
  * Dev-only, below the sprite sheet: for each enemy and beast, every frame packed on one floor in each palette swap,
  * then its anims playing at the simulation's 60 steps a second in the swap picked above them. A one-shot anim holds its
  * last frame for a moment, then plays again. Then the Ogre twins, a ravager riding a clawbeak and the heroes riding
- * them in the real scene, and last the floor items at 6×, 3× and 1×.
+ * clawbeaks and ember drakes in the real scene, and last the floor items at 6×, 3× and 1×.
  */
 import type {
   EnemyAnim,
   EnemyView,
   HeroView,
   MountAnim,
+  MountKind,
   MountView,
   WorldView,
 } from "../src/engine/view.js";
 import {
   CLAWBEAK,
   CLAWBEAK_STEPS,
+  DRAKE_STEPS,
   ENEMY_KINDS,
   MOUNT_KINDS,
   OGRE_STEPS,
@@ -261,44 +263,49 @@ for (const animated of ANIMATED) {
   riding.append(big.image);
   main.append(riding);
 
-  // Brakka, Rhea and Gorm astride clawbeaks, a third of a loop apart: each beast stands, walks, sweeps its tail (its
-  // rider bracing, then striking) and hops (its rider crouched), the hop's arc a parabola to the engine's rise.
-  const heroes = document.createElement("section");
-  heroes.append(document.createElement("h2"));
-  heroes.firstElementChild!.textContent =
-    "clawbeak · the heroes astride: sitting, the sweep's brace and strike, the hop";
-  const [native2, big2] = [canvas(VIEW_W, VIEW_H), canvas(VIEW_W * 2, VIEW_H * 2)]; // prettier-ignore
+  // Brakka, Rhea and Gorm astride a clawbeak each, then astride an ember drake each, a third of a loop apart: each
+  // beast stands, walks, strikes its blow (a tail's sweep, a drake's breath: its rider bracing through the wind-up,
+  // then pointing) and hops (its rider crouched), the hop's arc a parabola to the engine's rise.
   const rise = CLAWBEAK_STEPS.hopRise;
-  const ride: Loop = [["idle", 40], ["walk", 60], ["sweep", CLAWBEAK_STEPS.sweep], ["idle", 20], ["hop", 2 * rise], ["idle", 20]]; // prettier-ignore
-  const length = ride.reduce((sum, [, steps]) => sum + steps, 0);
+  const rides: readonly (readonly [MountKind, string, Loop])[] = [
+    ["clawbeak", "the heroes astride: sitting, the sweep's brace and strike, the hop", [["idle", 40], ["walk", 60], ["sweep", CLAWBEAK_STEPS.sweep], ["idle", 20], ["hop", 2 * rise], ["idle", 20]]], // prettier-ignore
+    ["drake", "the heroes astride: sitting, the inhale's brace, the flame's point, the hop", [["idle", 40], ["walk", 60], ["breathe", DRAKE_STEPS.breathe], ["idle", 20], ["hop", 2 * rise], ["idle", 20]]], // prettier-ignore
+  ];
   const kinds = ["brakka", "rhea", "gorm"] as const;
-  players.push(() => {
-    const mounts: MountView[] = [];
-    const riders: HeroView[] = [];
-    kinds.forEach((kind, i) => {
-      const t = step + Math.round((i * length) / kinds.length);
-      const { anim, animStep } = playing(ride, t);
-      const z = anim === "hop" ? Math.round(26 * (1 - ((animStep - rise) / rise) ** 2)) : 0; // prettier-ignore
-      const [x, y, facing] = [70 + 90 * i, 128 + 14 * (i % 2), i === 1 ? -1 : 1] as const; // prettier-ignore
-      mounts.push({ ...beast(10 + i, x, y, facing), z, anim, animStep, rider: { kind: "hero", id: i + 1 } }); // prettier-ignore
-      riders.push({
-        ...{ id: i + 1, seat: i, kind, x, y, z: z + CLAWBEAK.saddle, facing },
-        ...{ anim: "ride", animStep: step, hp: 16, maxHp: 16, lives: 3 },
-        ...{ invulnerable: false, pots: 1, maxPots: 4, charge: 0 },
-        mounted: true,
+  for (const [mount, title, ride] of rides) {
+    const heroes = document.createElement("section");
+    heroes.append(document.createElement("h2"));
+    heroes.firstElementChild!.textContent = `${mount} · ${title}`;
+    const [native2, big2] = [canvas(VIEW_W, VIEW_H), canvas(VIEW_W * 2, VIEW_H * 2)]; // prettier-ignore
+    const length = ride.reduce((sum, [, steps]) => sum + steps, 0);
+    players.push(() => {
+      const mounts: MountView[] = [];
+      const riders: HeroView[] = [];
+      kinds.forEach((kind, i) => {
+        const t = step + Math.round((i * length) / kinds.length);
+        const { anim, animStep } = playing(ride, t);
+        const z = anim === "hop" ? Math.round(26 * (1 - ((animStep - rise) / rise) ** 2)) : 0; // prettier-ignore
+        const [x, y, facing] = [70 + 90 * i, 128 + 14 * (i % 2), i === 1 ? -1 : 1] as const; // prettier-ignore
+        mounts.push({ ...beast(10 + i, x, y, facing), kind: mount, z, anim, animStep, rider: { kind: "hero", id: i + 1 } }); // prettier-ignore
+        riders.push({
+          ...{ id: i + 1, seat: i, kind, x, y, z: z + CLAWBEAK.saddle, facing },
+          ...{ anim: "ride", animStep: step, hp: 16, maxHp: 16, lives: 3 },
+          ...{ invulnerable: false, pots: 1, maxPots: 4, charge: 0 },
+          mounted: true,
+        });
       });
+      const view: WorldView = {
+        ...{ step, stage: 1, camX: 0, heroes: riders, fx: [], items: [], spells: [] }, // prettier-ignore
+        ...{ mounts, camp: false, enemies: [] },
+        ...{ wave: 2, waves: 5, locked: false, go: false, cleared: false },
+        ...{ defeated: false, boss: null },
+      };
+      scene.draw(native2.paint, view, step);
+      big2.paint.drawImage(native2.image, 0, 0, VIEW_W * 2, VIEW_H * 2);
     });
-    const view: WorldView = {
-      ...{ step, stage: 1, camX: 0, heroes: riders, fx: [], items: [], spells: [] }, // prettier-ignore
-      ...{ mounts, camp: false, enemies: [] },
-      ...{ wave: 2, waves: 5, locked: false, go: false, cleared: false },
-      ...{ defeated: false, boss: null },
-    };
-    scene.draw(native2.paint, view, step);
-    big2.paint.drawImage(native2.image, 0, 0, VIEW_W * 2, VIEW_H * 2);
-  });
-  heroes.append(big2.image);
-  main.append(heroes);
+    heroes.append(big2.image);
+    main.append(heroes);
+  }
 }
 
 {

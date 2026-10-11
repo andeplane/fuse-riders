@@ -281,7 +281,10 @@ export const GO_SIGN = signSprite(
 export const GO_AT = [VIEW_W - GO_SIGN.w - 10, 28] as const;
 export const GO_FLASH = 20;
 
-/** A hero's marker: a small chevron in its seat's colour, `MARKER_GAP` pixels over the top of its idle frame. */
+/**
+ * A hero's marker: a small chevron in its seat's colour, `MARKER_GAP` pixels over the top of its idle frame (a rider's,
+ * of its seated one).
+ */
 export const MARKER = signSprite(["#####", ".###.", "..#.."], 1, false);
 export const MARKER_GAP = 3;
 const SEAT_SWAPS: readonly Palette[] = SEAT_COLORS.map((D) => ({ D }));
@@ -334,7 +337,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
   const camp = createCampBackdrop(make);
   const baker = createSpriteBaker(make);
   const shadows = new Map<number, { image: Image; w: number; h: number }>();
-  const crowns = new Map<Figure, number>();
+  const crowns = new Map<Figure, Map<string, number>>();
   const lookOf = createLooks();
   const hud = createHud(make, baker);
   const spells = createSpells(make);
@@ -357,10 +360,11 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
     shadows.set(rx, made);
     return made;
   };
-  /** The rows from the top of a figure's idle frame down to its feet. */
-  const crown = (figure: Figure) => {
-    const rows = crowns.get(figure) ?? cropSprite(figure.sprite("idle0")).ay;
-    crowns.set(figure, rows);
+  /** The rows from the top of a figure's `frame` (its idle one) down to its feet. */
+  const crown = (figure: Figure, frame = "idle0") => {
+    const known = crowns.get(figure) ?? new Map<string, number>();
+    const rows = known.get(frame) ?? cropSprite(figure.sprite(frame)).ay;
+    crowns.set(figure, known.set(frame, rows));
     return rows;
   };
 
@@ -407,7 +411,11 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           sprite: figure.sprite(pose),
           options: { swap, flip: hero.facing < 0 },
           lit: !hero.invulnerable || blinksOn(frame),
-          marker: { seat: hero.seat, crown: crown(figure) },
+          // Its marker over a rider's seated head, which sits higher or lower than a standing hero's.
+          marker: {
+            seat: hero.seat,
+            crown: crown(figure, mount ? "ride" : "idle0"),
+          },
           // A rider sits on its beast's saddle, sinking as it dips, in its shadow, as an enemy does.
           ...(dip !== undefined && { z: place.z - dip, shade: 0 }),
         };
