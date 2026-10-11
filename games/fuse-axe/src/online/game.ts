@@ -107,7 +107,10 @@ export const picksApply = (stage: Stage): boolean =>
   stage === "lobby" || stage === "over";
 
 export const MAX_WATCHERS = 5;
-/** A run's stages, in order: Ashen Village, then Wyrmbone Pass (`STAGES` in the engine); clearing the last wins it. */
+/**
+ * A run's stages, in order: Ashen Village, Wyrmbone Pass, then the Drowned Crypt (`STAGES` in the engine); clearing
+ * the last wins it.
+ */
 export const LAST_STAGE = PLANS.length;
 /** Log ticks (50 ms each) the stage-clear tally shows before the run goes on: 6 s. */
 export const CLEAR_TICKS = 120;

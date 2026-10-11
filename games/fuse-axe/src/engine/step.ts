@@ -23,6 +23,7 @@ import { planOf, waveSpawns, type Placed, type Side } from "./stages.js";
 import { act, rest, thinks } from "./ai.js";
 import { brace, breaks, enrage, isOgre, ogreAct } from "./ogre.js";
 import { isLancer, lancerAct, soar, takeOff } from "./lancer.js";
+import { fallen, reassemble, rise, shatter } from "./bonewalker.js";
 import {
   HURTS,
   advanceMounts,
@@ -418,14 +419,15 @@ function lash(world: World, hero: Hero, mount: Mount): void {
 }
 
 /**
- * An enemy a blade can land on: on its feet (thinking or reeling), or walking, leaping or riding in once its whole body
- * is on screen; a sack imp as `kickable` says.
+ * An enemy a blade can land on: on its feet (thinking or reeling), a bonewalker's bone pile, or walking, leaping or
+ * riding in once its whole body is on screen; a sack imp as `kickable` says. A bonewalker clawing out of its grave is not.
  */
 export const hittable = (world: World, enemy: Enemy): boolean =>
   isImp(enemy)
     ? kickable(world, enemy)
     : thinks(enemy) ||
       enemy.state === "hurt" ||
+      enemy.state === "pile" ||
       ((enemy.state === "enter" ||
         enemy.state === "leap" ||
         enemy.state === "ride") &&
@@ -473,7 +475,7 @@ function strike(world: World, hero: Hero, blade: T.Blow): void {
  * boss's super armour (an ogre's, the lancer captain's) takes the blow (`brace`) unless it breaks (`breaks`), and a
  * rider's saddle any but a knockdown (`flinch`): the captain's saddle takes any that does not break his poise, and only
  * a heavy one breaks off his drake's blow. A beast's blow (`lash`) is `heavy` and lands away from the beast or along its
- * facing (`dir`).
+ * facing (`dir`). A bonewalker's bone pile is shattered (`shatter`).
  */
 function hit(
   world: World,
@@ -494,6 +496,7 @@ function hit(
   hero.struck = [...hero.struck, enemy.id].sort((a, b) => a - b);
   hero.stopUntil = Math.max(hero.stopUntil, until);
   if (isImp(enemy)) return kick(world, enemy, dir, heavy);
+  if (enemy.state === "pile") return shatter(world, enemy, hero);
   enemy.hp -= taken;
   hero.damage += taken;
   if (knocked) {
@@ -530,6 +533,9 @@ const AFTER: Partial<Record<EnemyState, readonly [number, EnemyState]>> = {
   hurt: [T.HURT_STEPS, "idle"],
   down: [T.DOWN_STEPS, "getup"],
   getup: [T.GETUP_STEPS, "idle"],
+  rise: [T.RISE_STEPS, "idle"],
+  pile: [T.PILE_STEPS, "reassemble"],
+  reassemble: [T.REASSEMBLE_STEPS, "idle"],
 };
 
 /** Sends an enemy walking in to `inset` inside the screen's edge on `side`, facing its way, going for nobody. */
@@ -545,8 +551,9 @@ function walkIn(world: World, enemy: Enemy, side: Side, inset: number): void {
 
 /**
  * An enemy's step, unless it is in hit-stop. One walking in steps toward its goal and stands idle there; a nudge
- * slows to a stop; a knockdown flies under gravity and lands `down`, or `dead` at no hp left, and a thrown body
- * (`fly`) too; reeling, lying and getting up each last their time, and a held one waits in its holder's hands until
+ * slows to a stop; a knockdown flies under gravity and lands `down`, or at no hp left `dead` (a bonewalker's first
+ * time, a bone pile: `fallen`), and a thrown body (`fly`) too; reeling, lying, getting up, a bonewalker's rise out of
+ * its grave, its pile and its reassembly each last their time, and a held one waits in its holder's hands until
  * the throw; a lancer's leap flies (`soar`). An idle enemy outside a locked screen walks back in at the nearer edge;
  * one on its feet otherwise thinks (`ai.ts`, an ogre `ogre.ts`, a lancer `lancer.ts`). Every enemy but one walking or
  * leaping in stays on the road (a wave at the stage's end enters from beyond it) and in the floor band. A sack imp
@@ -566,7 +573,7 @@ function moveEnemy(world: World, enemy: Enemy): void {
     enemy.vz -= T.GRAVITY;
     if (enemy.z <= 0) {
       enemy.z = enemy.vx = enemy.vz = 0;
-      setState(enemy, enemy.hp > 0 ? "down" : "dead");
+      setState(enemy, fallen(enemy));
     }
   } else if (enemy.state === "thrown") fly(world, enemy);
   else enemy.vx = slow(enemy.vx);
@@ -574,6 +581,7 @@ function moveEnemy(world: World, enemy: Enemy): void {
   const after = AFTER[enemy.state];
   if (after && enemy.timer >= after[0])
     if (after[1] === "idle") rest(world, enemy);
+    else if (after[1] === "reassemble") reassemble(world, enemy);
     else setState(enemy, after[1]);
   if (enemy.state === "idle" && world.locked && !inView(world, enemy))
     walkIn(
@@ -616,7 +624,8 @@ function advanceCamera(world: World): void {
 
 /**
  * A wave's spawn appears just outside the screen's edge on its side and walks in, or a rider rides in on its beast
- * (`saddle`: the captain on his drake), or a lancer leaps in (`takeOff`).
+ * (`saddle`: the captain on his drake), or a lancer leaps in (`takeOff`), or a bonewalker claws up out of its grave
+ * (`rise`).
  */
 function enter(world: World, spawn: Placed): void {
   const x =
@@ -624,7 +633,9 @@ function enter(world: World, spawn: Placed): void {
       ? world.camX - T.ENTER_OUT
       : world.camX + T.VIEW_W * T.SUB + T.ENTER_OUT;
   const enemy = newEnemy(world, spawn.kind, spawn.tier, x, spawn.y, 1);
-  walkIn(world, enemy, spawn.side, spawn.inset);
+  const grave = planOf(world).graves?.[spawn.grave ?? -1];
+  if (grave) rise(world, enemy, grave);
+  else walkIn(world, enemy, spawn.side, spawn.inset);
   if (spawn.mount) saddle(world, enemy, spawn.mount);
   if (isLancer(enemy) && enemy.state !== "ride") takeOff(enemy);
   world.enemies.push(enemy);
@@ -768,8 +779,8 @@ function throwHeld(world: World, hero: Hero): void {
 /**
  * A thrown body's step, after it has moved along the road: it rises and falls under gravity and knocks down every
  * hittable enemy it meets in its lane (`BODY_DAMAGE`, each once, as one knocked down is no longer hittable), then
- * lands with `THROW_DAMAGE`, down or, at no hp left, dead. Its thrower is credited with what it does; a sack imp it
- * meets is kicked as by a heavy blow.
+ * lands with `THROW_DAMAGE`, down or, at no hp left, dead (`fallen`). Its thrower is credited with what it does; a
+ * sack imp it meets is kicked as by a heavy blow, and a bone pile shattered.
  */
 function fly(world: World, body: Enemy): void {
   const thrower = world.heroes.find((each) => each.id === body.holder)!,
@@ -787,6 +798,10 @@ function fly(world: World, body: Enemy): void {
     ) {
       if (isImp(enemy)) {
         kick(world, enemy, dir, true);
+        continue;
+      }
+      if (enemy.state === "pile") {
+        shatter(world, enemy, thrower);
         continue;
       }
       const taken = Math.min(T.BODY_DAMAGE, enemy.hp);
@@ -807,7 +822,7 @@ function fly(world: World, body: Enemy): void {
   body.hp -= taken;
   thrower.damage += taken;
   body.z = body.vx = body.vz = body.holder = 0;
-  setState(body, body.hp > 0 ? "down" : "dead");
+  setState(body, fallen(body));
   spark(world, body.hp > 0 ? "heavy" : "ko", body.x, body.y, 0);
 }
 
