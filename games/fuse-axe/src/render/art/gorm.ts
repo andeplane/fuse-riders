@@ -165,6 +165,25 @@ const run = [0, 1, 2, 3, 4, 5].map((i) => {
   });
 });
 
+/**
+ * Riding a beast, seated astride its saddle with the axe in both hands: the hips on the seat, the near leg down its
+ * flank to the stirrup, the boot's sole on the anchor (which the scene sets on the saddle point), the far leg out of
+ * sight on its far side. His legs are too short for the stirrup a ravager rides with, so the near one is drawn longer,
+ * mostly hidden by the tunic, and reaches it straight down.
+ */
+const seated = adjust(idle, {
+  head: [37.5, 41.5],
+  chest: [35, 51],
+  waist: [35, 56],
+  far: { hip: [33, 59.5] },
+  near: legAt([38.5, 59.5], [41.5, 66.5], [40.5, 73.5]),
+  astride: true,
+});
+const seat = adjust(
+  seated,
+  twoHanded(seated, [27.5, 48], [42.5, 48], [46.5, 52.5], -80, 5),
+);
+
 const poses: Readonly<Record<HeroFrame, GormPose>> = {
   idle0: idle,
   idle1: adjust(idle, { ...breath(idle, 1), axe: -92 }),
@@ -461,6 +480,26 @@ const poses: Readonly<Record<HeroFrame, GormPose>> = {
     axe: 200,
     lookBack: true,
   }),
+  // In the saddle: the axe held up before him; hauled back over his shoulder as the beast winds up, then chopped out
+  // level at the foe as it strikes; raised overhead, hunched forward, through a hop.
+  ride: seat,
+  ridewindup: adjust(seat, {
+    head: [36, 41.5],
+    chest: [34, 51],
+    ...twoHanded(seat, [26.5, 48], [41.5, 48], [45, 38], -120, 4),
+  }),
+  rideattack: adjust(seat, {
+    head: [40, 42],
+    chest: [37, 51.5],
+    ...twoHanded(seat, [30, 48.5], [44.5, 48.5], [51, 52], 5),
+    face: "yell",
+  }),
+  ridehop: adjust(seat, {
+    head: [40, 44],
+    chest: [37, 53],
+    waist: [36, 57],
+    ...twoHanded(seat, [29, 50], [43.5, 50], [48, 40], -100, 4),
+  }),
 };
 export const GORM_POSES = poses;
 
@@ -481,7 +520,7 @@ export function paintGorm(pose: GormPose): Sprite {
   const breeches = { ...stout, material: "l", boot: "i", bootTop: 0.3 };
   arm(rig, far, { ...BACK, ...stout, bracer: "l" });
   if (!pose.both) fist(rig, far.hand, { ...BACK, ...stout });
-  leg(rig, far, { ...BACK, ...breeches });
+  if (!pose.astride) leg(rig, far, { ...BACK, ...breeches });
   // A barrel of a body in a blue tunic; the wide parts are capsules, which turn with the body.
   const hips = between(far.hip, near.hip);
   const body = { group: "body" };

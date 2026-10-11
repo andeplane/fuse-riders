@@ -7,6 +7,7 @@ import type {
 } from "../../engine/view.js";
 import {
   BACK_STEPS,
+  CLAWBEAK_STEPS,
   DASH_STEPS,
   DRAKE_STEPS,
   HERO_STATES,
@@ -41,6 +42,7 @@ export const HERO_FRAMES = [
   ...["dash", "dashstop", "jumpwindup", "jumpstab"],
   ...["backwindup", "backstrike", "backfollow"],
   ...["grab", "heave", "toss"],
+  ...["ride", "ridewindup", "rideattack", "ridehop"],
 ] as const;
 export type HeroFrame = (typeof HERO_FRAMES)[number];
 /** The frames a blow is out in: each swing's strike, the dash's lunge, the jump attack's stab and the back attack's. */
@@ -59,8 +61,9 @@ export const STRIKE_FRAMES: readonly HeroFrame[] = [
  * `dead` does. Every move has frames of its own: the run a sprint, the dash a charge and its stop, the jump attack a
  * stab down, the back attack a blow behind (the figure is not turned: the engine keeps its facing, and the hero looks
  * over its shoulder), the grab its clutch and the throw a heave over the shoulder. Magic has two: charging braces with
- * the weapon raised before the face, and casting thrusts it skyward until the spell is gone. Riding a beast sits the
- * landing crouch in the saddle until each hero has an astride pose of its own, as the ravager's.
+ * the weapon raised before the face, and casting thrusts it skyward until the spell is gone. Riding a beast sits astride
+ * its saddle, the far leg out of sight and the near boot in the stirrup, weapon held ready; what the rider does in the
+ * saddle follows its beast's anim (`riderFrame`).
  */
 export const HERO_ANIMS = [
   ...["idle", "walk", "run", "jump", "land"],
@@ -173,8 +176,9 @@ export function heroFrame(
     case "jump":
       return step < timing[kind].rise ? "rise" : "fall";
     case "land":
-    case "ride":
       return "land";
+    case "ride":
+      return "ride";
     case "attack1":
       return swingFrame(timing[kind].swings[0], SWING[0], step);
     case "attack2":
@@ -210,6 +214,31 @@ export function heroFrame(
     default:
       anim satisfies never;
       return "idle0";
+  }
+}
+
+/**
+ * The frame a hero riding a beast shows, `animStep` steps into the beast's `anim` (the hero's own anim is `ride`
+ * throughout: the beast's says what the pair does). Through a tail sweep's wind-up it braces, weapon cocked, and from
+ * the step the tail lands it leans into the blow, weapon pointed at the foe, to the sweep's end; a drake's breath is the
+ * same, bracing through the inhale and pointing from the step the flame is out to the breath's end; through a hop it
+ * crouches forward over the neck; otherwise it sits, weapon ready. The captain's saddle thrust (`lance`) is no hero's,
+ * and a riderless beast's anims have no rider: they sit. Like `heroFrame` it never throws: an odd step is rounded down
+ * to a whole one from 0, and an anim with no case (or one from a build with more of them) sits.
+ */
+export function riderFrame(anim: MountAnim, animStep: number): HeroFrame {
+  const step = Number.isFinite(animStep)
+    ? Math.max(0, Math.floor(animStep))
+    : 0;
+  switch (anim) {
+    case "sweep":
+      return step < CLAWBEAK_STEPS.windup ? "ridewindup" : "rideattack";
+    case "breathe":
+      return step < DRAKE_STEPS.inhale ? "ridewindup" : "rideattack";
+    case "hop":
+      return "ridehop";
+    default:
+      return "ride";
   }
 }
 
