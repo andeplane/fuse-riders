@@ -58,6 +58,17 @@ export interface StageArt {
   readonly front: LayerArt;
   /** Draws what moves (flames, embers) over the back layers; `camX` is the floor's offset, `frame` counts 60 Hz steps. */
   animate(brush: Brush, camX: number, frame: number): void;
+  /** Something that moves standing on the floor among the figures (camp's fire), drawn between them by depth. */
+  readonly prop?: Prop;
+}
+
+/**
+ * A moving thing on the floor of a screen that never scrolls (camp's), in screen pixels: the row it stands on, which
+ * places it among the figures, and what it draws from `frame` (60 Hz steps) alone.
+ */
+export interface Prop {
+  readonly y: number;
+  draw(brush: Brush, frame: number): void;
 }
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
