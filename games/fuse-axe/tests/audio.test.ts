@@ -376,6 +376,33 @@ test("a page that opens mid-fight does not hear the sparks already flying; the n
   );
 });
 
+test("a hero who joins mid-run and a gap in the frames are not news: only what began just now sounds, each cue once", () => {
+  const lancer = (id: number, anim: V.EnemyAnim, animStep: number) =>
+    enemy({ id, kind: "lancer", anim, animStep });
+  const newcomer = (anim: V.HeroAnim, animStep: number) =>
+    hero({ id: 2, seat: 1, kind: "rhea", anim, animStep });
+  const at = (step: number, friends: V.HeroView[], ...foes: V.EnemyView[]) =>
+    frame(world(step, { heroes: [hero(), ...friends], enemies: foes }));
+  assert.deepEqual(
+    hear([
+      at(300, [], lancer(1, "idle", 9), lancer(2, "idle", 9)),
+      // Ten seconds on (a tab brought back): the two it knew are long into their plunge and thrust, four more are new
+      // (two long into a plunge and a thrust, two just taking off), and a hero it never saw is already swinging.
+      at(
+        900,
+        [newcomer("attack1", 1)],
+        ...[lancer(1, "plunge", 30), lancer(2, "thrust", 20)],
+        ...[lancer(3, "plunge", 40), lancer(4, "thrust", 30)],
+        ...[lancer(5, "leap", 2), lancer(6, "leap", 3)],
+      ),
+      at(903, [newcomer("attack1", 4)], lancer(5, "leap", 5)),
+      // Seen now, the newcomer's next swing is its own to sound.
+      at(930, [newcomer("attack2", 1)], lancer(5, "recover", 2)),
+    ]),
+    [[], ["leap"], [], ["swing-rhea"]],
+  );
+});
+
 test("two blows on one hero in quick succession each grunt; a blow a rollback shows again grunts once", () => {
   const at = (step: number, hp: number) =>
     heroes(step, hero({ anim: "hurt", animStep: 1, hp }));

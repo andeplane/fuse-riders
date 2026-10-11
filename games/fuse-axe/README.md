@@ -51,9 +51,9 @@ chiptune loop in A minor (`src/app/audio/music.ts`) that ducks under GO and the 
 lobby and at the run's end. Every later enemy, beast and boss has its moments (a lancer's leap, a drake's flame, an
 ogre's slam and its shockwave, a bonewalker clattering to a pile, Vorhal's pillars of fire and his roar), as do riding,
 each level of a Magic charge and each spell; the loudest duck the loop. Stages 2–4 open on a horn of their own, a boss's
-health bar on a sting, and a won run ends on a victory fanfare after the last stage's. **♫ MUSIC** (the loop and the jingles) and **EFFECTS** in the header are this browser's
-choices and are kept; `?mute` silences the page without touching them. With a shared screen the TV sounds for the
-room and a phone that is only a controller stays quiet.
+health bar on a sting, and a won run ends on a victory fanfare after the last stage's. **♫ MUSIC** (the loop and the
+jingles) and **EFFECTS** in the header are this browser's choices and are kept; `?mute` silences the page without
+touching them. With a shared screen the TV sounds for the room and a phone that is only a controller stays quiet.
 
 ![Solo with ?mute: the sound toggles greyed out in the header](docs/images/app-sound-toggles.png)
 
