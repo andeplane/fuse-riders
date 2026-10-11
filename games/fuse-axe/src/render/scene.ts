@@ -29,6 +29,7 @@ import { POT } from "./art/pot.js";
 import { RAVAGER, RAVAGER_TIERS } from "./art/ravager.js";
 import {
   createBackdrop,
+  createCampBackdrop,
   hasBackdrop,
   type Backdrop,
   type StageNumber,
@@ -51,10 +52,11 @@ import type { MakeSurface } from "./surface.js";
 
 /**
  * The game's picture: one native 320 × 180 frame of the engine's view, drawn in layers — the stage's backdrop (one
- * without art of its own draws Stage 1's, scrolled across the stage's longer or shorter road: `scenery`; camp, until
- * it has its own, Stage 1's first screen under the `NIGHT`); every
+ * without art of its own draws Stage 1's, scrolled across the stage's longer or shorter road: `scenery`; camp its
+ * night clearing, `backdrop/camp.ts`); every
  * figure's shadow on the floor; heroes, enemies, beasts and items on the floor by depth (further up the floor first,
- * then lower before higher, then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when
+ * then lower before higher, then by id), camp's fire among them by its row (the backdrop's `prop`), each flipped to
+ * its facing, an enemy flashing in hit-stop and blinking out when
  * defeated, a beast's rider astride its saddle over it, a hero blinking while it is invulnerable and an item before it
  * vanishes; an ogre's shockwave cracking the
  * floor under the figures and bursting dust over them, and an enraged ogre's steam, drawn with it (`ogre-fx.ts`); the hit sparks; the
@@ -114,8 +116,6 @@ export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = {
   meat: MEAT,
 };
 export const ITEM_SHADE = 3;
-/** The dark laid over camp's placeholder backdrop, Stage 1's first screen, until camp has art of its own. */
-export const NIGHT = "rgba(8, 4, 28, 0.62)";
 
 /**
  * What a beast kind draws with: its figure, whose frames `mountFrame` picks, the rows each frame's saddle dips, and its
@@ -325,6 +325,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
     2: createBackdrop(make, 2),
   } satisfies Record<StageNumber, Backdrop<Image>>;
   const backdropOf = (art: StageNumber) => backdrops[art];
+  const camp = createCampBackdrop(make);
   const baker = createSpriteBaker(make);
   const shadows = new Map<number, { image: Image; w: number; h: number }>();
   const crowns = new Map<Figure, number>();
@@ -367,16 +368,16 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         pen.fillStyle = UNLIT.k!;
         fill(pen, 0, 0, VIEW_W, VIEW_H);
       }
-      // Camp, until it has art of its own, is Stage 1's first screen at night.
-      const back = view.camp
-          ? { art: 1 as const, camX: 0 }
-          : scenery(view.stage, camX),
+      // Camp has its own night clearing, one screen that never scrolls, whatever stage it follows; a stage has its own
+      // backdrop at its camera.
+      let backdrop = camp,
+        backX = 0;
+      if (!view.camp) {
+        const back = scenery(view.stage, camX);
         backdrop = backdropOf(back.art);
-      backdrop.draw(field, back.camX, frame);
-      if (view.camp) {
-        field.fillStyle = NIGHT;
-        fill(field, 0, 0, VIEW_W, VIEW_H);
+        backX = back.camX;
       }
+      backdrop.draw(field, backX, frame);
       const at = (f: HeroView | EnemyView | ItemView | MountView) => ({
         id: f.id,
         y: Math.floor(f.y),
@@ -472,12 +473,19 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         const top = crown(looks.get(hero.id)!.figure);
         spells.aura(field, hero, sx, y - z, top, frame);
       }
+      // Camp's fire stands among the figures: after those further up the floor, before those in front of it.
+      let prop = backdrop.prop;
       for (const { y, z, sx, sprite, options, lit, steam } of standing) {
+        if (prop && y > prop.y) {
+          prop.draw(field, frame);
+          prop = undefined;
+        }
         if (!lit) continue;
         const b = baker.bake(sprite, options);
         blit(field, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
         if (steam) drawSteam(field, steam.enemy, steam.crown, camX, frame);
       }
+      prop?.draw(field, frame);
       for (const { y, z, sx, marker } of standing) {
         if (!marker) continue;
         const { seat, crown } = marker;
@@ -489,7 +497,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       drawShards(field, view.enemies, camX);
       drawFlames(field, view.mounts, camX, frame);
       for (const fx of view.fx) drawSpark(field, fx, camX);
-      backdrop.drawFront(field, back.camX);
+      backdrop.drawFront(field, backX);
       spells.draw(field, view, frame);
       if (view.go && Math.floor(frame / GO_FLASH) % 2 === 0) {
         const sign = baker.bake(GO_SIGN);
