@@ -1,10 +1,10 @@
 /**
  * A 64-bit hash (16 hex characters) of plain data for the desync check: numbers by their IEEE bits (−0 as 0, which
  * MessagePack writes as the integer 0), booleans, strings, arrays, typed arrays, objects and maps in sorted key order,
- * so a field added to the room later is covered as it is. An undefined value counts as absent, and keys in `skip` are
- * left out wherever they appear. Anything else (a function, a symbol, a bigint, a class instance) throws.
+ * so a field added to the room later is covered as it is. An undefined value counts as absent. Anything else (a
+ * function, a symbol, a bigint, a class instance) throws.
  */
-export function hashPlain(value: unknown, skip: ReadonlySet<string>): string {
+export function hashPlain(value: unknown): string {
   let a = 0x811c9dc5,
     b = 0x9747b28c;
   const view = new DataView(new ArrayBuffer(8));
@@ -18,7 +18,7 @@ export function hashPlain(value: unknown, skip: ReadonlySet<string>): string {
     for (let i = 0; i < s.length; i++) word(s.charCodeAt(i));
   };
   const fields = (keys: string[], at: (key: string) => unknown) => {
-    const kept = keys.filter((k) => !skip.has(k) && at(k) !== undefined);
+    const kept = keys.filter((k) => at(k) !== undefined);
     word(kept.length);
     for (const key of kept.sort()) {
       text(key);
