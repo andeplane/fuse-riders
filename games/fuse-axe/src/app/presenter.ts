@@ -39,6 +39,7 @@ export const STAGE_NAMES: readonly string[] = [
   "",
   "ASHEN VILLAGE",
   "WYRMBONE PASS",
+  "DROWNED CRYPT",
 ];
 /** Log ticks a second: the clocks count in log ticks and show whole seconds. */
 const TICKS_PER_SECOND = 1000 / TICK_MS;

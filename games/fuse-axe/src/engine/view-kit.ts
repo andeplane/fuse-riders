@@ -1,6 +1,13 @@
 import {
+  ATTACK_STEPS,
   BACK_ATTACK,
   BEAST_HALF_W,
+  BONE_REACH,
+  BONEWALKER,
+  PILE_STEPS,
+  REASSEMBLE_STEPS,
+  RECOVER_STEPS,
+  RISE_STEPS,
   CAMERA_END,
   COMBO,
   DASH,
@@ -85,6 +92,8 @@ export {
   MOUNT_KINDS,
 } from "./tuning.js";
 export {
+  BONE_ONLY,
+  BONEWALKER_STATES,
   DRAKE_ONLY,
   ENEMY_STATES,
   FX_KINDS,
@@ -241,6 +250,35 @@ export const LANCER_STEPS = {
   leapApex: 1 + Math.floor((JUMP_VZ - 1) / GRAVITY),
   plunge: PLUNGE_STEPS,
 } as const;
+/**
+ * A bonewalker's timing in steps, to time its frames: the rise out of its grave (it stands clear of it on `animStep`
+ * `rise`), the sword's wind-up per tier (it lands on the step after the last), the swing (`attack`) and `recover` as a
+ * ravager's, the bone pile's lie before it pulls itself together (`pile`) and the reassembly (`reassemble`).
+ */
+export const BONEWALKER_STEPS = {
+  rise: RISE_STEPS,
+  windup: {
+    0: BONEWALKER[0].windup,
+    1: BONEWALKER[1].windup,
+    2: BONEWALKER[2].windup,
+  } satisfies Readonly<Record<Tier, number>>,
+  attack: ATTACK_STEPS,
+  recover: RECOVER_STEPS,
+  pile: PILE_STEPS,
+  reassemble: REASSEMBLE_STEPS,
+} as const;
+/** In pixels: how far a bonewalker's sword reaches in front of its centre, by tier (the violet knight's furthest). */
+export const BONE_SWORD: Readonly<Record<Tier, number>> = {
+  0: BONE_REACH[0] / SUB,
+  1: BONE_REACH[1] / SUB,
+  2: BONE_REACH[2] / SUB,
+};
+/** A stage's open graves the bonewalkers rise from, as [x along the road, the depth they lie at] in pixels. */
+export const gravesPx = (
+  stage: number,
+): readonly (readonly [number, number])[] =>
+  (roadOf(stage).graves ?? []).map(({ x, y }) => [x / SUB, y / SUB] as const);
+
 /** In pixels: how far the thrust's spear reaches in front of the lancer's centre, and the landing strike's. */
 export const SPEAR = {
   reach: SPEAR_REACH / SUB,

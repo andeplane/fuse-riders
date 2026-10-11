@@ -77,6 +77,12 @@ export type HeroAnim = HeroState;
  * The lancer captain (kind `captain`, a `boss`, Wyrmbone Pass's) has a lancer's anims, and rides his ember drake in
  * `ride` (its anim says what the pair does, his saddle thrust among them); on foot he `stagger`s from a heavy blow his
  * armour takes, as an ogre does, rather than reeling.
+ *
+ * A bonewalker (kind `bonewalker`, the violet tier the armoured knight) has a ravager's anims but `ride`, its sword
+ * timed by `BONEWALKER_STEPS` in `view-kit.ts` (reaching `BONE_SWORD` in front). A wave's may claw up out of a grave
+ * (`gravesPx`) in `rise`, struck by nothing, standing clear of it at `rise` steps. The first time it falls with no hit
+ * points it lies as a bone pile (`pile`, `pile` steps) a blow shatters into `dead`, or pulls itself together
+ * (`reassemble`, invulnerable) with half its hit points; the second time it lies `dead` from the fall.
  */
 export type EnemyAnim = EnemyState;
 

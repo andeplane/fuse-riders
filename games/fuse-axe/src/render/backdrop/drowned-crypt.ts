@@ -1,4 +1,11 @@
-import { FLOOR_TOP_PX, VIEW_H, VIEW_W } from "../../engine/view-kit.js";
+import {
+  FLOOR_TOP_PX,
+  VIEW_H,
+  VIEW_W,
+  cameraEndPx,
+  gravesPx,
+  stageLengthPx,
+} from "../../engine/view-kit.js";
 import { bayer, dither, hash, Raster } from "./kit.js";
 import type { Brush, StageArt } from "./kit.js";
 
@@ -13,14 +20,9 @@ import type { Brush, StageArt } from "./kit.js";
  * crypt. Only the ripples, the fog, the green fires and the drips from the trees move.
  */
 
-/**
- * The crypt's road, five screens as Wyrmbone Pass's, and the furthest the camera's left edge goes on it. The engine
- * has no Stage 3 yet (its `stageLengthPx(3)` is Stage 1's until it has), so the backdrop is laid out on its own length.
- * TODO(stage 3 in the engine): give `STAGE_3` this road, or this the engine's, then drop `cameraEnd` below;
- * `drowned-crypt.test.ts` fails once the engine has the stage until the override is gone and the two roads are equal.
- */
-export const CRYPT_LENGTH = 5 * VIEW_W;
-export const CRYPT_END = CRYPT_LENGTH - VIEW_W;
+/** The crypt's road (the engine's `STAGE_3`, five screens as Wyrmbone Pass's), and the furthest the camera goes on it. */
+export const CRYPT_LENGTH = stageLengthPx(3);
+export const CRYPT_END = cameraEndPx(3);
 
 const FLOOR = FLOOR_TOP_PX;
 /** The far bank's waterline: graves stand above it, and black water lies between it and the causeway. */
@@ -451,11 +453,10 @@ function sunken(r: Raster) {
 }
 
 /**
- * The graves the bonewalkers will claw out of, broken through the causeway: where each pit is, as pairs of its world x
- * and the screen row it lies on (an engine `Spawn.y`, in pixels). The engine cannot import this, so Stage 3's plan
- * carries the same positions as data, with each wave's trigger set so the pits it uses are on the screen it holds.
+ * The graves the bonewalkers claw out of, broken through the causeway: where each pit is, as pairs of its world x and
+ * the screen row it lies on, the engine's (`STAGE_3.graves`, `gravesPx`), where a bonewalker rising from it stands.
  */
-export const GRAVES = [318, 128, 702, 150, 988, 124, 1190, 146];
+export const GRAVES = gravesPx(3).flat();
 
 const EARTH = [VOID, MOUND[1], MOUND[2], MOUND[3]];
 
@@ -689,7 +690,6 @@ export const DROWNED_CRYPT: StageArt = {
     { rate: [1, 4], top: 40, height: FLOOR - 40, paint: mid },
     { rate: [1, 1], top: 0, height: VIEW_H, paint: crypt },
   ],
-  cameraEnd: CRYPT_END,
   front: { rate: [5, 4], top: VIEW_H - 12, height: 12, paint: reeds },
   animate(brush, camX, frame) {
     const t = frame / 60;

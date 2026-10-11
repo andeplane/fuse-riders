@@ -83,6 +83,7 @@ import {
 import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
 import {
+  BONE_PILE,
   createLooks,
   createScene,
   deadShows,
@@ -653,6 +654,36 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
   );
   assert.equal(odd!.length, 3);
   assert.deepEqual(odd, idle);
+});
+
+test("a bonewalker draws as a ravager in bone, by tier, and its pile or shattered bones as a few bones on the floor", () => {
+  const drawn = (more: Partial<EnemyView>) =>
+    draw(
+      world({
+        enemies: [enemy(2, 150, 150, { kind: "bonewalker", ...more })],
+      }),
+    );
+  for (const anim of ["pile", "dead"] as const) {
+    const { sprites, shadows } = drawn({ anim, animStep: 3, facing: -1 });
+    assert.deepEqual(
+      sprites[0]!.image.fills,
+      fillsOf(BONE_PILE, { swap: ENEMY_ART.bonewalker.tiers[0], flip: true }),
+    );
+    assert.ok(shadows[0]!.image.w < 2 * SHADOW_RX);
+  }
+  const looks = ([0, 1, 2] as const).map(
+    (tier) => drawn({ tier }).sprites[0]!.image.fills,
+  );
+  assert.equal(new Set(looks.map((each) => JSON.stringify(each))).size, 3);
+  assert.notDeepEqual(
+    looks[0],
+    draw(world({ enemies: [enemy(2, 150, 150)] })).sprites[0]!.image.fills,
+    "not a ravager's colours",
+  );
+  // It climbs out of its grave and pulls itself together standing; no step of either throws.
+  for (const anim of ["rise", "reassemble"] as const)
+    for (const animStep of [0, 30, 1e9, Number.NaN])
+      assert.equal(drawn({ anim, animStep }).sprites.length, 1);
 });
 
 test("an ogre draws its own figure in its twin's colours on its feet, burns and steams once enraged, casts a bigger shadow, cracks the floor and is cut to the screen", () => {

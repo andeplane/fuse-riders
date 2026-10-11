@@ -261,6 +261,14 @@ export const ENEMY_ANIMS: Readonly<Record<EnemyKind, EnemyAnims>> = {
   lancer: LANCER_ANIMS,
   // The lancer captain is a lancer until he has art of his own: he staggers as he reels.
   captain: { ...LANCER_ANIMS, stagger: LANCER_ANIMS.hurt },
+  // A bonewalker is a ravager in bone until it has art of its own: it climbs out of its grave and pulls itself together
+  // as one getting up, and its bone pile (drawn by the scene) lies as one down.
+  bonewalker: {
+    ...RAVAGER_ANIMS,
+    rise: RAVAGER_ANIMS.getup,
+    pile: RAVAGER_ANIMS.down,
+    reassemble: RAVAGER_ANIMS.getup,
+  },
 };
 
 /**

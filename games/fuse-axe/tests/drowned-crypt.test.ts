@@ -22,7 +22,7 @@ import {
 } from "../src/engine/view-kit.js";
 
 // Stage 3's backdrop against the same contract as Stages 1 and 2 (`backdrop.test.ts`, `wyrmbone-pass.test.ts`), on
-// the road it is laid out on until the engine has the stage.
+// the engine's Stage 3 road.
 const END = CRYPT_END;
 
 interface Layer {
@@ -112,24 +112,17 @@ test("its layers reach exactly to the crypt's end, the road its whole length, an
   same(END + 400, END);
 });
 
-test("the crypt keeps its own road only while the engine has no Stage 3, and takes the engine's road once it has one", () => {
-  if (STAGE_COUNT < 3) {
-    // The engine answers Stage 1's road for Stage 3 (`roadOf`), so the art's own `cameraEnd` is what holds the camera
-    // to the crypt; without it the great doors would never be reached (`CRYPT_LENGTH`'s TODO).
-    assert.equal(DROWNED_CRYPT.cameraEnd, CRYPT_END);
-    assert.equal(stageLengthPx(3), stageLengthPx(1));
-    assert.equal(cameraEndPx(3), cameraEndPx(1));
-    assert.notEqual(cameraEndPx(3), CRYPT_END);
-    return;
-  }
-  // The engine has Stage 3: its road is the camera's, and an override left behind would silently win over it.
-  assert.equal(
-    DROWNED_CRYPT.cameraEnd,
-    undefined,
-    "the engine has Stage 3: drop `cameraEnd`, `CRYPT_LENGTH` and `CRYPT_END` and lay the art on `stageLengthPx(3)`",
+test("the crypt is laid on the engine's Stage 3 road, five screens long, with no camera of its own", () => {
+  // An override left behind would silently win over the engine's road.
+  assert.ok(STAGE_COUNT >= 3);
+  assert.equal(DROWNED_CRYPT.cameraEnd, undefined);
+  assert.deepEqual(
+    [stageLengthPx(3), cameraEndPx(3)],
+    [CRYPT_LENGTH, CRYPT_END],
   );
-  assert.equal(stageLengthPx(3), CRYPT_LENGTH, "align the two roads");
-  assert.equal(cameraEndPx(3), CRYPT_END);
+  assert.deepEqual([CRYPT_LENGTH, CRYPT_END], [5 * VIEW_W, 4 * VIEW_W]);
+  // The pits are the engine's graves, where the bonewalkers rise.
+  assert.deepEqual(GRAVES, [318, 128, 702, 150, 988, 124, 1190, 146]);
 });
 
 test("the same inputs draw the same pixels and calls", () => {

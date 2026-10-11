@@ -22,7 +22,9 @@ import {
  * pots, magic, throws, then the Ogre twins at the gate — make camp, kicking its imps for meat and pots, and go
  * on through Wyrmbone Pass and its riders on clawbeaks with the lives, pots and health they carry (`carryOf`, as
  * the room's stage flow does), and the world's hash is compared every ten seconds and at the end of each stage and
- * camp; the pass ends with its boss, the lancer captain on his ember drake, whom both runs beat to clear it. A
+ * camp; the pass ends with its boss, the lancer captain on his ember drake, whom both runs beat to clear it. After a
+ * second camp they go down the Drowned Crypt, its bonewalkers clawing up out of the graves and pulling themselves
+ * together from their bones unless shattered, to the pair of bone knights at the cathedral's doors. A
  * refactor must keep these; a change to the rules (the bot's play included, as a bot seat folds
  * `botInput`) must bump `RULES` in `src/engine/index.ts` and re-record them in the same commit: `GOLDEN_RECORD=1`
  * prints the new ones.
@@ -40,30 +42,36 @@ interface Run {
   hashes: string[];
 }
 const GOLDEN: { rules: string; runs: Run[] } = {
-  rules: "fuse-axe-18",
+  rules: "fuse-axe-19",
   runs: [
     {
       seed: 20261011,
       humans: [],
-      steps: [5523, 702, 6807],
+      steps: [5523, 702, 6807, 666, 6954],
       hashes: [
-        ...["cf0dfbbd", "58693af7", "369f17d3", "e58d782f", "3adf2404"],
-        ...["2441d1d7", "12379f8c", "4b0e53eb", "c21b6b87", "f6f59f33"],
-        ...["27e6f3db", "fe3be356", "083e12df", "851d1029", "6014107b"],
-        ...["dfca48ad", "768a1a81", "1a0cb639", "ed96f319", "99d622d9"],
-        ...["a01f6e48", "f73cab5b", "cd880756", "7ab3182e"],
+        ...["e035e59b", "0f3922e0", "c551dcb8", "7dfc6b6b", "3adf2404"],
+        ...["358fc7c9", "1cb7cc51", "a92dcb72", "9579aaac", "f6f59f33"],
+        ...["678f1b5c", "fe3be356", "311461a6", "c5643bdd", "f3912af8"],
+        ...["d0bff503", "a194abbd", "00c89a46", "159aea9b", "76c92ab7"],
+        ...["5cdbcb06", "8f72d04e", "6fdd756f", "7ab3182e", "2040a2fa"],
+        ...["295b044f", "e45dc47b", "1a74be2e", "0b91b0fc", "68874d71"],
+        ...["9a588416", "0de6aebd", "52331eb5", "3b086215", "3102e49f"],
+        ...["6594a11a", "48737817", "1766e981"],
       ],
     },
     {
       seed: 20261012,
       humans: [1],
-      steps: [5937, 717, 6777],
+      steps: [5937, 717, 6777, 720, 7245],
       hashes: [
-        ...["457efc89", "0bf29f37", "3b7048fe", "a202d543", "ac3a28e7"],
-        ...["47070339", "58168026", "734a9004", "f2b53b0b", "6f013c9a"],
-        ...["201e53e3", "3a1c3fe3", "25bc1ea3", "a899dc0c", "da515bab"],
-        ...["6159903c", "958481d2", "a6ee36e2", "6fd89b16", "506a30bb"],
-        ...["9e5dc84b", "97454ac9", "d4d31dd7", "5886fa5e"],
+        ...["38b40aa1", "56fc6f32", "8d347cdf", "5b4bd330", "cad1bb0c"],
+        ...["138755b0", "6200b592", "812d3748", "2527c8b9", "6f013c9a"],
+        ...["f0191564", "3a1c3fe3", "ac6ea22e", "bef77d5b", "abdc2d21"],
+        ...["8deed309", "0748a7a6", "5a00ad1b", "f0549557", "4a5b9bbd"],
+        ...["1def3427", "96088938", "2ef220c3", "5886fa5e", "bf7a1d10"],
+        ...["67506e1a", "1f586126", "35ef4377", "bad99d15", "3ce4d7e4"],
+        ...["aa393d9a", "657b386e", "469b19f0", "68eac9e0", "42087a4b"],
+        ...["e082897a", "19fcab3b", "b971537a", "5212d960"],
       ],
     },
   ],
