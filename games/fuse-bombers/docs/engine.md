@@ -438,7 +438,7 @@ round, and too few gunships send the room back to its lobby.
   and only the checkpoint of the room after is refused, so that peer cannot serve a late joiner. Honest play is far from
   every edge (a lineage is at most ~21).
 - A worst case (1,500 rockets, 6,000 craters: 14k runs) is 130 KB of the 2 MB cap. `tests/online-checkpoint.test.ts`
-  covers round trips at every stage and for rooms of 2 to 6 gunships, corruption field by field, each range at its edge
+  covers round trips at every stage and for rooms of 2, 3, 5 and 6 gunships, corruption field by field, each range at its edge
   and just past it, an extreme in every field (refused, or folds on finite and checkpoints), a seeded fuzz and a late
   joiner restoring from a peer's snapshot.
 - **This device** (`src/online/runtime.ts`, `BombersRuntime`): `input(bits)` logs the directions on change, and lets go

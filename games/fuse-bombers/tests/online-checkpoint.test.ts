@@ -446,6 +446,14 @@ test("a value the engine cannot reach is refused, and each range is taken up to 
       !accepts(...power(value, gates)),
       `power ${value} through ${gates} gates`,
     );
+  // The watchers keep to their places.
+  const watching = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      ...{ id: `w${i}`, name: `w${i}`, slot: -1, avatarId: "" },
+      ...{ connected: true, bot: false, watcher: true, generation: 1 },
+    }));
+  assert.ok(accepts([[5], watching(5)]), "five watchers");
+  assert.ok(!accepts([[5], watching(6)]), "six watchers");
   // Parts that each fit but do not fit together.
   assert.ok(!accepts([[WORLD, 12], []]), "a fallen castle without its ghost");
   assert.ok(
@@ -497,6 +505,28 @@ test("a decided round's result is what its survivors make it, and an undecided r
   assert.ok(!accepts(lead, [[RESULT, 2], limit - 2]), "a timeout early");
   assert.ok(!accepts(lead, [[RESULT, 2], limit]), "a result past the limit");
   assert.ok(!accepts(lead, [[4], limit - 1]), "decided at the step it ends on");
+  // Nobody left: a wipeout, which nobody wins.
+  const wiped = createRound({ seed: 5, playerCount: 2 });
+  for (const c of wiped.castles) {
+    c.hp = 1;
+    wiped.rockets.push({
+      ...{ id: wiped.nextId++, owner: 1 - c.id, x: c.x, y: c.y, vx: 0, vy: 0 },
+      ...{
+        power: 1,
+        mega: false,
+        bomb: false,
+        ghost: false,
+        age: 0,
+        gates: [],
+      },
+    });
+  }
+  step(wiped);
+  const wipeout = encodeRound(wiped);
+  assert.deepEqual(wipeout[RESULT], [null, "wipeout", 0]);
+  assert.ok(accepts(wipeout));
+  assert.ok(!accepts(wipeout, [[RESULT, 0], 0]), "a winner of a wipeout");
+  assert.ok(!accepts(wipeout, [[RESULT, 1], "last-standing"]), "none standing");
   // The same against a round that is over with one survivor.
   const over = wire(rooms.get("over")!)[WORLD] as unknown[];
   assert.ok(accepts(over));
@@ -533,6 +563,10 @@ test("a match that was decided plays no further round", () => {
     ["bot:3", "bot:2", "bot:2"],
   );
   assert.ok(decode(crowned, tick("over")) === undefined, "crowned in round 2");
+  // A result names a member that can be a record key: not one of `Object.prototype`'s names.
+  assert.ok(decode(changed(over, [[6, 0, 1], "zz"]), tick("over")));
+  const proto = changed(over, [[6, 0, 1], "constructor"]);
+  assert.ok(decode(proto, tick("over")) === undefined, "a winner called that");
   // Running: the round before it already gave bot:3 the wins the match needs.
   assert.ok(decode(running, tick("sudden death")));
   const done = changed(running, [[4], settle(1)]);
