@@ -8,6 +8,7 @@ import type {
 import {
   BACK_STEPS,
   DASH_STEPS,
+  DRAKE_STEPS,
   HERO_STATES,
   JUMP_RISE_STEPS,
   STAB_STEPS,
@@ -229,6 +230,8 @@ export const ENEMY_ANIMS: Readonly<Record<EnemyKind, EnemyAnims>> = {
   imp: IMP_ANIMS,
   ogre: OGRE_ANIMS,
   lancer: LANCER_ANIMS,
+  // The lancer captain is a lancer until he has art of his own: he staggers as he reels.
+  captain: { ...LANCER_ANIMS, stagger: LANCER_ANIMS.hurt },
 };
 
 /**
@@ -249,10 +252,35 @@ export function enemyFrame(
   return stripFrame(strip ?? anims.idle, animStep);
 }
 
-/** Every beast kind's anims, one strip for each anim the view has, which `mountFrame` plays. */
-export const MOUNT_ANIMS: Readonly<
-  Record<MountKind, Readonly<Record<MountAnim, AnimStrip<string>>>>
-> = { clawbeak: CLAWBEAK_ANIMS };
+/** A beast kind's strip per anim: an anim it lacks (a clawbeak's breath) stands idle. */
+export type MountAnims = Readonly<
+  Partial<Record<MountAnim, AnimStrip<string>>>
+> & { readonly idle: AnimStrip<string> };
+/**
+ * Every beast kind's anims, which `mountFrame` plays. The ember drake is the clawbeak's figure until it has art of its
+ * own: its inhale coils, it snarls (the wind-up's gape, without the lash's ring) while the flame is out, and the captain's
+ * saddle thrust coils and recovers.
+ */
+export const MOUNT_ANIMS: Readonly<Record<MountKind, MountAnims>> = {
+  clawbeak: CLAWBEAK_ANIMS,
+  drake: {
+    ...CLAWBEAK_ANIMS,
+    breathe: {
+      frames: [
+        ["coil1", DRAKE_STEPS.inhale],
+        ["coil2", DRAKE_STEPS.breathe - DRAKE_STEPS.inhale],
+      ],
+      loop: false,
+    },
+    lance: {
+      frames: [
+        ["coil1", DRAKE_STEPS.lanceWindup],
+        ["recover", DRAKE_STEPS.lance - DRAKE_STEPS.lanceWindup],
+      ],
+      loop: false,
+    },
+  },
+};
 
 /**
  * The frame of its kind's figure a beast shows `animStep` steps into `anim`, played from `MOUNT_ANIMS`. Like
@@ -267,10 +295,8 @@ export function mountFrame(
   const anims = Object.hasOwn(MOUNT_ANIMS, kind)
     ? MOUNT_ANIMS[kind]
     : MOUNT_ANIMS.clawbeak;
-  return stripFrame(
-    Object.hasOwn(anims, anim) ? anims[anim] : anims.idle,
-    animStep,
-  );
+  const strip = Object.hasOwn(anims, anim) ? anims[anim] : undefined;
+  return stripFrame(strip ?? anims.idle, animStep);
 }
 
 /**

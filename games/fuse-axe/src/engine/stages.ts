@@ -102,6 +102,12 @@ const ogre = (tier: Tier, side: Side, y: number): Spawn => ({
   y: px(y),
   delay: 0,
 });
+/** The lancer captain riding in on his ember drake. */
+const captain = (side: Side, y: number): Spawn => ({
+  ...ogre(VIOLET, side, y),
+  kind: "captain",
+  mount: "drake",
+});
 
 /**
  * Ashen Village: four waves building in size and tier, the later two with a lancer leaping in, then the Ogre twins at
@@ -164,10 +170,10 @@ export const STAGE_1: StagePlan = {
 
 const ROAD_2 = px(5 * VIEW_W);
 /**
- * Wyrmbone Pass, as gameplay to fight through until its boss comes: a screen longer than the village, five waves of
- * ravagers mostly in rust and violet, each with a lancer leaping in, and in waves 2 and 4 a ravager riding a clawbeak
- * (copied, as any spawn is, for a party big enough), and at the pass's end a pair of violet ravagers in place of the
- * lancer captain on his ember drake, with rust ones for a bigger party.
+ * Wyrmbone Pass: a screen longer than the village, five waves of ravagers mostly in rust and violet, each with a lancer
+ * leaping in, and in waves 2 and 4 a ravager riding a clawbeak (copied, as any spawn is, for a party big enough), and at
+ * the skull gate its boss, the lancer captain riding his ember drake out of the jaws, with one more for each hero
+ * beyond the first from the other side: a violet lancer, then a violet ravager, and so on.
  */
 export const STAGE_2: StagePlan = {
   name: "Wyrmbone Pass",
@@ -222,11 +228,11 @@ export const STAGE_2: StagePlan = {
     },
     {
       at: ROAD_2 - px(VIEW_W),
-      spawns: [
-        ravager(VIOLET, "left", 132, 0),
-        ravager(VIOLET, "right", 148, 0),
+      spawns: [captain("right", 140)],
+      extras: [
+        lancer(VIOLET, "right", 116, 90),
+        ravager(VIOLET, "left", 164, 60),
       ],
-      extras: [ravager(RUST, "left", 116, 60), ravager(RUST, "right", 164, 60)],
     },
   ],
   // One runs at the party between waves 2 and 3, and a fuller sack darts in behind wave 5's fight.

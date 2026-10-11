@@ -232,7 +232,7 @@ export const threatLane = (ogre: Enemy): number =>
       ? T.SWEEP_LANE
       : T.LANE;
 
-/** Whether a heavy blow (or any) taking `taken` knocks the ogre down: it leaves none, or breaks its poise. */
+/** Whether a heavy blow (or any) taking `taken` knocks a boss down: it leaves none, or breaks its poise. */
 export const breaks = (
   world: World,
   ogre: Enemy,
@@ -245,9 +245,9 @@ export const breaks = (
       T.enemyMaxHp(ogre.kind, ogre.tier, world.heroes.length));
 
 /**
- * A blow the ogre's armour takes (`breaks` said it stands), its hit points already taken: it counts toward its poise
- * and flashes it, and a heavy one staggers it while it stands or walks, facing the blow and holding still for the
- * hit-stop.
+ * A blow a boss's armour takes (an ogre's, or the lancer captain's on foot; `breaks` said it stands), its hit points
+ * already taken: it counts toward its poise and flashes it, and a heavy one staggers it while it stands or walks,
+ * facing the blow and holding still for the hit-stop.
  */
 export function brace(
   world: World,

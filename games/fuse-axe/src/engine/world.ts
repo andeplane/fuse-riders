@@ -14,10 +14,9 @@ import {
   KNOCK_VZ,
   LIVES,
   MAX_POTS,
+  BEAST_BLOWS,
   SADDLE,
   SUB,
-  TAIL_COOL,
-  TAIL_WINDUP,
   TIERS,
   VIEW_W,
   enemyMaxHp,
@@ -25,6 +24,7 @@ import {
   px,
   type EnemyKind,
   type HeroKind,
+  type BeastBlow,
   type ItemKind,
   type MountKind,
   type Tier,
@@ -124,8 +124,8 @@ export interface Hero {
 }
 
 /**
- * An enemy's states. `ride` is a ravager's alone (`mount.ts`): it sits a beast's saddle, and no other kind mounts one
- * (`OGRE_STATES` and `LANCER_STATES` leave it out, as the checkpoint does for an imp).
+ * An enemy's states. `ride` is a ravager's and the lancer captain's alone (`mount.ts`): it sits a beast's saddle, and
+ * no other kind mounts one (`OGRE_STATES` and `LANCER_STATES` leave it out, as the checkpoint does for an imp).
  */
 export const ENEMY_STATES = [
   "idle",
@@ -188,17 +188,30 @@ export const OGRE_ONLY: readonly EnemyState[] = ["slam", "sweep", "stagger"];
 export const LANCER_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
   (state) => !["attack", "ride", ...IMP_ONLY, ...OGRE_ONLY].includes(state),
 );
+/**
+ * The lancer captain's: a lancer's, riding his drake (`ride`), and staggering from a blow his armour takes. As an
+ * ogre's, his armour never lets him reel, and nobody holds or throws him (`hurt`, `held` and `thrown` are a lancer's).
+ */
+export const CAPTAIN_STATES: readonly EnemyState[] = [
+  ...LANCER_STATES.filter(
+    (state) => !["hurt", "held", "thrown"].includes(state),
+  ),
+  "ride",
+  "stagger",
+];
 
 /**
  * A beast's states with a rider on it (`RIDDEN`: only an enemy's walks in, only a hero's hops), then riderless: it
- * panics (`flee`), wanders or leaves.
+ * panics (`flee`), wanders or leaves. A clawbeak `sweep`s its tail; an ember drake `breathe`s fire, and the captain on
+ * one thrusts from the saddle (`lance`): `DRAKE_ONLY`.
  */
 export const MOUNT_STATES = [
-  ...["enter", "idle", "walk", "sweep", "hop"],
+  ...["enter", "idle", "walk", "sweep", "hop", "breathe", "lance"],
   ...["flee", "wander", "leave"],
 ] as const;
 export type MountState = (typeof MOUNT_STATES)[number];
-export const RIDDEN: readonly MountState[] = MOUNT_STATES.slice(0, 5);
+export const RIDDEN: readonly MountState[] = MOUNT_STATES.slice(0, 7);
+export const DRAKE_ONLY: readonly MountState[] = ["breathe", "lance"];
 
 /**
  * A beast to ride (`mount.ts`). Its rider, a hero or an enemy in `ride`, stands where it does, at its height (the view
@@ -258,12 +271,14 @@ export interface Enemy {
   holder: number;
   /** The magic pots left in a sack imp's sack, up to `IMP_POTS`; 0 for every other kind. */
   pots: number;
-  /** An ogre's poise: hit points taken since it last fell (`POISE`); 0 for every other kind. */
+  /** A boss's poise: hit points taken since it last fell (`POISE`); 0 for every other kind. */
   poise: number;
-  /** An ogre flashes from a blow its armour takes, without holding still, up to and including this step; else 0. */
+  /** A boss flashes from a blow its armour takes, without holding still, up to and including this step; else 0. */
   flashUntil: number;
   /** An ogre whose twin has fallen fights faster (`OGRE.rage`); false for every other kind. */
   enraged: boolean;
+  /** The lancer captain has climbed back on a drake, which he does once (`REMOUNT_X`); false for every other kind. */
+  remounted: boolean;
 }
 
 /**
@@ -545,6 +560,7 @@ export function newEnemy(
     poise: 0,
     flashUntil: 0,
     enraged: false,
+    remounted: false,
   };
 }
 
@@ -624,12 +640,19 @@ export function unseat(world: World, rider: Hero | Enemy, dir: 1 | -1): void {
   rider.z = mount.z + SADDLE;
 }
 
-/** A blow the saddle takes (its rider stays on): the beast's tail still winding up is broken off. */
+/** The blow a beast's pair is striking (`BEAST_BLOWS`), if it is in one. */
+export const blowOf = (mount: Mount) =>
+  Object.hasOwn(BEAST_BLOWS, mount.state)
+    ? BEAST_BLOWS[mount.state as BeastBlow]
+    : undefined;
+
+/** A blow the saddle takes (its rider stays on): the beast's blow still winding up (a drake's inhale) is broken off. */
 export function flinch(world: World, rider: Hero | Enemy): void {
-  const mount = mountOf(world, rider.id)!;
-  if (mount.state !== "sweep" || mount.timer >= TAIL_WINDUP) return;
+  const mount = mountOf(world, rider.id)!,
+    blow = blowOf(mount);
+  if (!blow || mount.timer >= blow.windup) return;
   setState(mount, "idle");
-  mount.coolUntil = world.step + TAIL_COOL;
+  mount.coolUntil = world.step + blow.cool;
 }
 
 /**

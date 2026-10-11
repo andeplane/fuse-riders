@@ -20,6 +20,7 @@ import {
   stageCleared,
   step,
   stepTick,
+  waveSpawns,
   type World,
 } from "../src/engine/index.js";
 import { cleared } from "./fixtures/stage.js";
@@ -151,7 +152,12 @@ test("a world's road is its own stage's: what lies past the village's end is ref
   const asStage1 = (village: boolean, change = (_: unknown[]) => {}) => {
     const fields = structuredClone(encodeWorld(pass)) as unknown[];
     fields[16] = 1;
-    if (village) [fields[4], fields[8]] = [CAMERA_END, STAGE_1.waves.length];
+    if (village)
+      [fields[4], fields[8], fields[11]] = [
+        CAMERA_END,
+        STAGE_1.waves.length,
+        waveSpawns(STAGE_1.waves.at(-1)!, 1).length,
+      ];
     change(fields);
     return decodeWorld(fields);
   };
