@@ -579,6 +579,7 @@ test("the view shows the swing, each enemy's anim, hp and flash, and each spark'
       flash: true,
       boss: false,
       enraged: false,
+      mounted: false,
     },
   ]);
   const [spark] = view.fx;
@@ -612,6 +613,7 @@ test("the view shows the swing, each enemy's anim, hp and flash, and each spark'
     "thrust",
     "leap",
     "plunge",
+    "ride",
   ]);
   assert.deepEqual(Kit.FX_KINDS, ["hit", "heavy", "ko"]);
   for (const kind of Kit.HERO_KINDS)
