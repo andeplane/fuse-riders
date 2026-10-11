@@ -118,6 +118,9 @@ export interface Model {
   watchers: number;
   showStart: boolean;
   canStart: boolean;
+  /** The host may seat a bot companion in the lobby (+ BOT) while a seat is free, and remove the bots seated. */
+  canAddBot: boolean;
+  removable: string[];
   /** The host may take the room back to the lobby (and the hero picker) from a run, from its controller too. */
   canReturn: boolean;
   note: string;
@@ -193,11 +196,20 @@ export function present(view: View, viewer: Viewer): Model {
         ? "AWAY"
         : !seat.connected && !seat.bot
           ? "OFFLINE"
-          : `${tag(seat.slot)} · ${seat.hero ? HEROES[seat.hero].name : ""}`,
+          : `${tag(seat.slot)} · ${seat.bot ? "BOT · " : ""}${seat.hero ? HEROES[seat.hero].name : ""}`,
     })),
     watchers: view.seats.length - seats.length,
     showStart: viewer.host && !viewer.display && screen === "lobby",
     canStart: seats.length > 0,
+    canAddBot:
+      viewer.host &&
+      !viewer.display &&
+      screen === "lobby" &&
+      seats.length < CAPACITY,
+    removable:
+      viewer.host && !viewer.display && screen === "lobby"
+        ? seats.filter((seat) => seat.bot).map((seat) => seat.id)
+        : [],
     canReturn: viewer.host && !viewer.display && screen !== "lobby",
     note,
     hud: {

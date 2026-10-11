@@ -199,6 +199,7 @@ are not the world's heroes).
   `HeldControls` as the keys, so the engine sees one input path (`src/app/pad.ts`, `presenter.ts`'s `controller`).
 - Local play on one machine: keyboard and gamepads.
 - A solo player can bring bot companions. Bots press the same buttons as a human and get no privileged rules.
+  Built: the host's + BOT in the lobby seats one, and the room folds `botInput` (`src/engine/bot.ts`) for its seat.
 
 ## Technical shape
 
