@@ -296,6 +296,7 @@ for (const animated of ANIMATED) {
       ],
       ...{ wave: 5, waves: 6, locked: true, go: false, cleared: false },
       ...{ defeated: false, boss: { kind: "captain", hp: 90, maxHp: 90 } },
+      sigils: [],
     };
     scene.draw(bossStill.paint, view, step);
     bossBig.paint.drawImage(bossStill.image, 0, 0, VIEW_W * 2, VIEW_H * 2);
