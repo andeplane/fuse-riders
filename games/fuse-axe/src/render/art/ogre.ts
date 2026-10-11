@@ -12,6 +12,7 @@ import {
   legAt,
   offset,
   stride,
+  turned,
   type Pose,
   type Side,
 } from "../pixel/kit.js";
@@ -59,16 +60,6 @@ const LEG = [13, 12.5] as const;
 const GRIP = 7;
 const HAFT = 30;
 
-/** Offsets from `origin` along axes turned `degrees` clockwise: `forward` the way it points, `down` across it. */
-type Local = (forward: number, down: number) => Point;
-const turned = (origin: Point, degrees: number): Local => {
-  const r = (degrees * Math.PI) / 180;
-  const [c, s] = [Math.cos(r), Math.sin(r)];
-  return (forward, down) => [
-    origin[0] + forward * c - down * s,
-    origin[1] + forward * s + down * c,
-  ];
-};
 /** How far a spine from `top` down to `bottom` leans, in degrees clockwise from upright. */
 const lean = (top: Point, bottom: Point) =>
   (Math.atan2(top[0] - bottom[0], bottom[1] - top[1]) * 180) / Math.PI;
@@ -292,6 +283,7 @@ export type OgreAnim = Exclude<
   | "thrust"
   | "leap"
   | "plunge"
+  | "ride"
 >;
 
 type Frames = (readonly [OgreFrame, number])[];

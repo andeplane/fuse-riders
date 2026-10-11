@@ -34,6 +34,8 @@ const HERO_CUES: Partial<Record<HeroAnim, Cue>> = {
   throw: "throw",
   knockdown: "knocked",
   respawn: "respawn",
+  // Climbing on a beast lands in its saddle.
+  ride: "land",
 };
 const heroCue = (anim: HeroAnim, kind: HeroKind): Cue | undefined =>
   SWINGS.includes(anim) ? `swing-${kind}` : HERO_CUES[anim];
@@ -158,6 +160,15 @@ export class CueTracker {
       if (was && enemy.anim === "windup" && this.began(key, enemy, was, step))
         cues.add("windup");
     }
+    // A beast's tail winding up is its wind-up, whoever rides it (its rider never leaves `ride`), and a hero's beast
+    // hopping is a jump.
+    for (const mount of world.mounts) {
+      const was = this.figures.get(`m${mount.id}`),
+        cue =
+          mount.anim === "sweep" ? "windup" : mount.anim === "hop" && "jump";
+      if (was && cue && this.began(`m${mount.id}`, mount, was, step))
+        cues.add(cue);
+    }
     this.sparkCues(world, cues);
     const wave = `${run}:${world.wave}`;
     if (world.locked && !before.locked)
@@ -237,6 +248,13 @@ export class CueTracker {
         anim: enemy.anim,
         animStep: enemy.animStep,
         hp: enemy.hp,
+        pots: 0,
+      });
+    for (const mount of world.mounts)
+      this.figures.set(`m${mount.id}`, {
+        anim: mount.anim,
+        animStep: mount.animStep,
+        hp: 0,
         pots: 0,
       });
   }
