@@ -72,6 +72,51 @@ export function touchPadLayout(
   });
 }
 
+/** Where pads sit on a surface: `touchPadLayout` over the arena, `controllerPadLayout` on a phone that is a controller. */
+export type PadLayout = typeof touchPadLayout;
+
+/**
+ * A phone that is only a controller (a shared TV shows the arena): side 0's D-pad and FIRE as big as fit below the
+ * top `CONTROLLER_TOP` (the controller's header). Side by side on a wide screen, D-pad left; on a tall one the D-pad
+ * at the bottom, under the thumb, and FIRE above it.
+ */
+export const CONTROLLER_TOP = 0.3;
+export function controllerPadLayout(
+  width: number,
+  height: number,
+  sides: readonly number[],
+): TouchPad[] {
+  if (!sides.includes(0)) return [];
+  const room = height * (1 - CONTROLLER_TOP) - MARGIN;
+  const wide = width > height;
+  const size = Math.max(
+    40,
+    wide
+      ? Math.min(room, (width - 3 * MARGIN) / 2)
+      : Math.min(width - 2 * MARGIN, room * 0.58),
+  );
+  const fire = Math.max(
+    40,
+    wide ? size * 0.9 : Math.min(size * 0.75, room - size - MARGIN),
+  );
+  const y = height - MARGIN - size;
+  const square = (x: number, top: number, side: number): Rect => ({
+    x,
+    y: top,
+    width: side,
+    height: side,
+  });
+  return [
+    {
+      side: 0,
+      dpad: square(wide ? MARGIN : (width - size) / 2, y, size),
+      fire: wide
+        ? square(width - MARGIN - fire, y + (size - fire) / 2, fire)
+        : square((width - fire) / 2, y - MARGIN - fire, fire),
+    },
+  ];
+}
+
 const inRect = (r: Rect, x: number, y: number): boolean =>
   x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height;
 
@@ -156,8 +201,9 @@ export interface PageTarget {
 }
 
 export interface TouchSource extends InputSource {
-  /** Show the pads of these sides; touches elsewhere are ignored, and fingers on a side that goes away let go. */
-  setSides(sides: readonly number[]): void;
+  /** Show the pads of these sides, placed by `layout`; touches elsewhere are ignored, and fingers on a side that goes
+   * away let go. */
+  setSides(sides: readonly number[], layout?: PadLayout): void;
   /**
    * Where to draw the shown pads, relative to the target's top-left corner. Measured from the same rect that
    * touches are hit-tested against, so the drawing cannot drift from the hit areas (scrollbars, mobile URL bars).
@@ -178,11 +224,12 @@ export function attachTouch(
   hold: (device: DeviceId, bits: number) => void,
   page: PageTarget,
 ): TouchSource {
-  let sides: readonly number[] = [];
+  let sides: readonly number[] = [],
+    place: PadLayout = touchPadLayout;
   const fingers = new Map<number, { side: number; bits: number }>();
   const pads = (): TouchPad[] => {
     const rect = target.getBoundingClientRect();
-    return touchPadLayout(rect.width, rect.height, sides);
+    return place(rect.width, rect.height, sides);
   };
   const point = (event: PointerLike): [number, number] => {
     const rect = target.getBoundingClientRect();
@@ -256,7 +303,8 @@ export function attachTouch(
   page.addEventListener("pointerup", onUp);
   page.addEventListener("pointercancel", onUp);
   return {
-    setSides: (next) => {
+    setSides: (next, layout = touchPadLayout) => {
+      place = layout;
       sides = [...new Set(next)]
         .filter(
           (side) => Number.isInteger(side) && side >= 0 && side < TOUCH_SIDES,

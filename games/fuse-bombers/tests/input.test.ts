@@ -24,7 +24,9 @@ import {
   type KeyboardTarget,
 } from "../src/app/input/keyboard.js";
 import {
+  CONTROLLER_TOP,
   attachTouch,
+  controllerPadLayout,
   touchControlAt,
   touchPadLayout,
   type Rect,
@@ -694,4 +696,61 @@ test("touch geometry: pads fit phones and tablets, never meet, and a lone rider'
   }
   const { source } = touchRig(700, 350);
   assert.deepEqual(source.layout(), touchPadLayout(700, 350, [0, 1]));
+});
+
+test("a phone controller's pads: big, below its header, apart, and steering and firing like the arena's", () => {
+  for (const [width, height] of [
+    [390, 844],
+    [360, 640],
+    [844, 390],
+    [667, 375],
+  ] as const) {
+    const [pad] = controllerPadLayout(width, height, [0]);
+    assert.ok(pad, `${width}×${height}`);
+    for (const r of [pad.dpad, pad.fire]) {
+      assert.ok(
+        r.y >= height * CONTROLLER_TOP && r.x >= 0,
+        `${width}×${height}`,
+      );
+      assert.ok(r.x + r.width <= width && r.y + r.height <= height);
+    }
+    assert.ok(
+      Math.min(pad.dpad.width, pad.fire.width) >=
+        Math.min(width, height) * 0.35,
+      "a palm's worth",
+    );
+    const apart =
+      width > height
+        ? pad.dpad.x + pad.dpad.width < pad.fire.x
+        : pad.fire.y + pad.fire.height < pad.dpad.y;
+    assert.ok(
+      apart,
+      `${width}×${height}: FIRE ${width > height ? "right of" : "above"} the D-pad`,
+    );
+  }
+  assert.deepEqual(
+    controllerPadLayout(390, 844, []),
+    [],
+    "nothing shown, nothing hit",
+  );
+  // The same touch source, laid out as a controller: a finger slides from ▲ to the ◥ diagonal, then FIRE presses.
+  const rig = touchRig(390, 844, []);
+  rig.source.setSides([0], controllerPadLayout);
+  const [pad] = rig.source.layout();
+  assert.ok(pad && pad.dpad.width > 200);
+  rig.down(...rig.on(pad.dpad, 0.5, 0.1));
+  assert.equal(rig.held(0), UP);
+  rig.move(...rig.on(pad.dpad, 0.9, 0.1));
+  assert.equal(rig.held(0), UP | RIGHT);
+  rig.down(...rig.on(pad.fire), 2);
+  assert.equal(rig.held(0), UP | RIGHT | FIRE);
+  assert.equal(rig.presses.length, 1);
+  rig.page.dispatch("blur");
+  assert.equal(rig.held(0), 0, "blur lets go");
+  rig.source.setSides([0]);
+  assert.deepEqual(
+    rig.source.layout(),
+    touchPadLayout(390, 844, [0]),
+    "back over the arena",
+  );
 });
