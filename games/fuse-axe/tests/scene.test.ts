@@ -1148,7 +1148,9 @@ test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage witho
   assert.notDeepEqual(layers(world({ stage: 2 })), layers(world({ stage: 1 })));
   assert.deepEqual(scenery(2, 700), { art: 2, camX: 700 });
   assert.deepEqual(scenery(1, 500), { art: 1, camX: 500 });
-  assert.deepEqual(scenery(4, 500), { art: 1, camX: 500 }, "an unknown one");
+  assert.deepEqual(scenery(5, 500), { art: 1, camX: 500 }, "an unknown one");
+  // Vorhal's Keep has no art yet: Stage 1's, run out over its longer road.
+  assert.deepEqual(scenery(4, 1280), { art: 1, camX: 960 });
   assert.deepEqual(layers(world({ stage: 4 })), layers(world({ stage: 1 })));
 });
 
