@@ -1,9 +1,16 @@
 /**
  * Dev-only, below the sprite sheet: for each enemy, every frame packed on one floor in each palette swap, then its
  * anims playing at the simulation's 60 steps a second in the swap picked above them. A one-shot anim holds its last
- * frame for a moment, then plays again. Last, the floor items at 6×, 3× and 1×.
+ * frame for a moment, then plays again. Then the Ogre twins in the real scene, and last the floor items at 6×, 3×
+ * and 1×.
  */
-import { ENEMY_KINDS } from "../src/engine/view-kit.js";
+import type { EnemyAnim, EnemyView, WorldView } from "../src/engine/view.js";
+import {
+  ENEMY_KINDS,
+  OGRE_STEPS,
+  VIEW_H,
+  VIEW_W,
+} from "../src/engine/view-kit.js";
 import { ENEMY_ANIMS, type AnimStrip } from "../src/render/art/animate.js";
 import { POT } from "../src/render/art/pot.js";
 import type { Figure } from "../src/render/pixel/kit.js";
@@ -12,7 +19,7 @@ import {
   createSpriteBaker,
   type MakeSurface,
 } from "../src/render/pixel/surface.js";
-import { ENEMY_ART } from "../src/render/scene.js";
+import { createScene, ENEMY_ART } from "../src/render/scene.js";
 
 interface Animated {
   readonly name: string;
@@ -140,6 +147,58 @@ for (const animated of ANIMATED) {
       );
     });
   }
+  main.append(section);
+}
+
+// The Ogre twins in the real scene at 2×: the green one idles, winds up, slams and stands open on a loop, its
+// shockwave cracking the floor; the red one is enraged, burning and steaming as it stands.
+{
+  const section = document.createElement("section");
+  section.append(document.createElement("h2"));
+  section.firstElementChild!.textContent =
+    "ogre twins · the scene's slam, shockwave and rage";
+  const native = canvas(VIEW_W, VIEW_H);
+  const shown = canvas(VIEW_W * 2, VIEW_H * 2);
+  const scene = createScene<HTMLCanvasElement>((w, h) => {
+    const surface = canvas(w, h);
+    const putPixels = (rgba: Uint8ClampedArray<ArrayBuffer>) =>
+      surface.paint.putImageData(new ImageData(rgba, w, h), 0, 0);
+    return { ...surface, putPixels };
+  });
+  const loop: readonly (readonly [EnemyAnim, number])[] = [
+    ["idle", 30],
+    ["windup", OGRE_STEPS.windup],
+    ["slam", OGRE_STEPS.slam],
+    ["recover", OGRE_STEPS.recover],
+  ];
+  const total = loop.reduce((sum, [, steps]) => sum + steps, 0);
+  const twin = (more: Partial<EnemyView>): EnemyView => ({
+    ...{ id: 1, kind: "ogre", tier: 0, x: 70, y: 150, z: 0, facing: 1 },
+    ...{ anim: "idle", animStep: 0, hp: 150, maxHp: 150, flash: false },
+    ...{ boss: true, enraged: false },
+    ...more,
+  });
+  players.push(() => {
+    let [anim, animStep] = loop[0]!;
+    let t = step % total;
+    for (const [a, steps] of loop) {
+      [anim, animStep] = [a, t];
+      if (t < steps) break;
+      t -= steps;
+    }
+    const view: WorldView = {
+      ...{ step, camX: 0, heroes: [], fx: [], items: [], spells: [] },
+      enemies: [
+        twin({ anim, animStep }),
+        twin({ id: 2, tier: 1, x: 260, y: 128, facing: -1, enraged: true }),
+      ],
+      ...{ wave: 5, waves: 6, locked: true, go: false, cleared: false },
+      ...{ defeated: false, boss: { kind: "ogre", hp: 150, maxHp: 300 } },
+    };
+    scene.draw(native.paint, view, step);
+    shown.paint.drawImage(native.image, 0, 0, VIEW_W * 2, VIEW_H * 2);
+  });
+  section.append(shown.image);
   main.append(section);
 }
 

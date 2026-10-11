@@ -136,17 +136,36 @@ the ravager's, and `enemyFrame(kind, anim, animStep)` (`animate.ts`) picks any e
 `heroFrame` it never throws, an anim a kind has no strip for stands idle and a kind from a newer build plays as a
 ravager, the scene's fallback. [`docs/images/imp-frames.png`](docs/images/imp-frames.png) is the lab's imp and pot.
 
+The Ogre twins (`src/render/art/ogre.ts`) are drawn at their own size, half as big again as a ravager (about 70 px
+boots to crown): a hunched brute with a pot belly, a topknot, tusks jutting from an underbite, an iron pauldron,
+bracers and a hide kilt, and a huge two-handed war hammer. A pose gives only a limb's ends; `bend` places the elbows
+and knees, and the far hand grips the haft below the near one unless the pose lets go. It stands leaning on the
+hammer and stomps in a four-frame walk that keeps a planted foot on the road at the calm walking speed; the slam lifts
+the hammer, holds it high behind the head (the telegraph), brings it down through a motion arc and stays bent over
+it with its head driven into the floor (what reaches below the feet is cut off and clods fly); the sweep draws the
+hammer back behind the hip and swings it round in a flat ring of motion either side; it pants while it stands open,
+reels when staggered, and falls, lies and gets up leaning on the hammer. `OGRE_ANIMS` is timed by view-kit's
+`OGRE_STEPS`: the slam's blow shows on the step the hammer lands and the sweep's strike from the step it lands, which
+`tests/ogre-art.test.ts` checks against the real engine. Its skin is the olive ramp, which `OGRE_TIERS` recolours
+green and red for the twins (ember for a higher tier); `OGRE_RAGE` turns an enraged twin's eyes red, and the scene
+lets it blow off steam from its crown (`OGRE_CROWNS`). The lab plays the twins in the real scene below their frames.
+
+![The ogre's frames in the twins' palettes and enraged, and the lab's scene](docs/images/ogre-frames.png)
+
 ## Scene
 
 `src/render/scene.ts` draws one native 320 × 180 frame of the view: `createScene(make).draw(ctx, view, frame)`, where
-`frame` counts 60 Hz frames and moves only scenery (fires, the GO flash); the app blends the two newest ticks
+`frame` counts 60 Hz frames and moves only scenery (fires, the GO flash, an ogre's steam); the app blends the two newest ticks
 (`src/app/interpolate.ts`) before it calls it. In order: the backdrop, a soft dithered shadow on the floor under every
 figure (narrower the higher it jumps), heroes and enemies by depth (further up the floor first, then lower before
 higher, then by id) flipped to their facing, each hero's chevron in its seat's colour, the hit sparks
 (`sparks.ts`), the grass in front and a flashing GO → when a cleared wave opens the road. An enemy in hit-stop
 flashes, a tier wears its palette and a defeated one blinks out over `DEAD_STEPS`; an invulnerable hero (getting up,
 or just risen) blinks its sprite, keeping its shadow and chevron. Heroes of one kind each get a palette of their own,
-in seat order.
+in seat order. An ogre's slam sends its shockwave along the floor (`ogre-fx.ts`), placed by view-kit's `QUAKE`
+exactly where the engine's runs: a crack splits the floor from the hammer's reach to the front under the figures,
+and over them rock shards burst up at the front and crumble behind it, dust rolling and pebbles flying; an enraged
+twin steams ([screenshot](docs/images/ogre-twins.png)).
 Nothing is drawn off screen (`pen.ts` clips every call), and every sprite, shadow and sign is baked once.
 
 Everything the renderer pre-paints goes through one injected surface factory, `MakeSurface` in
