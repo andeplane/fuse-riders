@@ -162,6 +162,19 @@ lets it blow off steam from its crown (`OGRE_CROWNS`). The lab plays the twins i
 
 ![The ogre's frames in the twins' palettes and enraged, and the lab's scene](docs/images/ogre-frames.png)
 
+The lancer (`src/render/art/lancer.ts`) is a ravager's height: a bronze helm with a plume, a white steel cuirass over
+a pleated skirt, boots banded at the knee and a spear longer than it is tall, built as the ogre is (`bend` places the
+elbows and knees, the far hand grips the haft behind the near one). It stands with the spear upright and walks with it
+sloped; the wind-up brings it down level and draws it back, its point glinting (the telegraph), and the thrust lunges
+with it level and speed lines streaking back along the haft, its steel point drawn on the very column `SPEAR.reach`
+reaches. The leap raises it overhead while it climbs (to `LANCER_STEPS.leapApex`) and points it down as it falls, and
+the plunge drives it into the floor at `SPEAR.plunge`, what reaches below the feet cut off and clods flying; it
+falls, lies with the spear dropped beside it and gets up leaning on it. `LANCER_ANIMS` is timed by view-kit's
+`LANCER_STEPS`, which `tests/lancer-art.test.ts` checks against the real engine. Its plume, skirt and knee bands are
+its own red, which `LANCER_TIERS` recolours in the ravagers' rust and violet.
+
+![The lancer's frames in its three tiers, and two frames of the scene from a real engine world](docs/images/lancer-frames.png)
+
 ## Scene
 
 `src/render/scene.ts` draws one native 320 × 180 frame of the view: `createScene(make).draw(ctx, view, frame)`, where
