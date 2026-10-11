@@ -410,7 +410,22 @@ round, and too few gunships send the room back to its lobby.
 - **Fold**: a log tick of 50 ms runs three `step`s, each holding the seat's directions plus `FIRE` on exactly the step
   of each press; bot seats play as `RoundConfig.bots`. Six gunships (four bots) take about 0.3 ms a log tick.
 - **Hash**: `hashPlain` (`src/online/hash.ts`) walks the whole room as plain data (numbers by their bits, typed arrays,
-  sorted keys), so state added later is covered; only the latest step's `events` are left out. About 1 ms a call.
-- **Checkpoint**: none yet; `decode` refuses every snapshot until the validated codec (the next pull request).
+  sorted keys), so state added later is covered; only the round's own `events` (the latest step's output) are left
+  out, and a field of that name anywhere else is hashed. About 1 ms a call.
+- **Checkpoint** (`encode`/`decode` in `game.ts`; the round by `encodeRound`/`decodeRound`, `src/engine/codec.ts`,
+  format 1): `[matchId, round, stage, settings, play]` before the netcode's streams and hash, then seats, results,
+  `startAt`, ships, held directions and the round as flat arrays. Numbers travel exactly (float64, never quantised;
+  MessagePack writes −0 as 0, as the hash counts it), the terrain as `encodeGrid` runs in arrays of at most 4096 (the
+  decoder's array limit). What can be derived is not sent: the tuning (online rounds play the defaults, and
+  `encodeRound` refuses any other), `fuseTicks`, `maxTicks`, `maxHp`, gate and crate positions, the crowns, the match
+  winner, `endAt` and `resumeAt`; `events` start empty.
+- `decode` returns a whole room or undefined and never throws. It checks every field's type and range; every list's
+  length against its cap before reading an item (rockets: `maxRockets` plus ghost bombs; a lineage: 64 gates); every
+  reference (owners, ids unique and below `nextId`, ghost bombs of a ghost, bot memory per `config.bots`, held keys
+  among the ships); the terrain against the temple (its size, no rock it lacked, exactly its indestructible rock); and
+  the parts against each other (the result against the survivors, the phase against the fuse, the round's seed, bots
+  and step count against the match, round and countdown). A worst case (1,500 rockets, 6,000 craters: 14k runs) is
+  130 KB of the 2 MB cap. `tests/online-checkpoint.test.ts` covers round trips at every stage, corruption field by
+  field, a seeded fuzz and a late joiner restoring from a peer's snapshot.
 - **`RULES`** (`src/engine/index.ts`) and `tests/online-golden.test.ts` (a scripted six-gunship match's hashes): a
   change to how a logged room plays bumps `RULES` and re-records them (`GOLDEN_RECORD=1`) in the same commit.

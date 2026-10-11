@@ -34,6 +34,7 @@ export {
   view,
 } from "./round.js";
 export { predictGhostBomb, predictTrajectory } from "./predict.js";
+export { ROUND_REASONS, decodeRound, encodeRound } from "./codec.js";
 export * from "./input.js";
 export { GHOST_FLIGHT, GUNSHIP_FLIGHT } from "./flight.js";
 export { BOT_DIFFICULTIES } from "./bot.js";
