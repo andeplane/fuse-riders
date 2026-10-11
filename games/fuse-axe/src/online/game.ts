@@ -21,6 +21,7 @@ import {
   RULES,
   STEPS_PER_TICK,
   HERO_KINDS,
+  botInput,
   createWorld,
   decodeWorld,
   defeated,
@@ -367,7 +368,9 @@ function ownEntries(
 /**
  * Every hero's controls for one tick and its steps: a seat's latest bits this stage are held for every step, and
  * every entry it logged this tick is folded into the first (`first = last | every tap`), so a tap shorter than a
- * tick still presses. Bots stand still until they get a controller; an absent or away seat holds nothing.
+ * tick still presses. A bot's bits are `botInput`'s from the world as the tick begins, following the heroes present
+ * players steer: every replica folds the same, and the room keeps none of them (the world holds what a bot pressed).
+ * An absent or away seat holds nothing.
  */
 function playTick(
   room: Room,
@@ -377,12 +380,20 @@ function playTick(
 ): World {
   const held: number[] = [],
     first: number[] = [];
-  for (const hero of world.heroes) {
-    // A run holds every hero's seat for it (`consistent`), so a hero always has one.
-    const seat = seatAt(room, hero.seat)!;
+  // A run holds every hero's seat for it (`consistent`), so a hero always has one.
+  const seats = world.heroes.map((hero) => seatAt(room, hero.seat)!);
+  const humans = world.heroes
+    .filter((_, index) => !seats[index]!.bot && seats[index]!.connected)
+    .map((hero) => hero.id);
+  for (const [index, hero] of world.heroes.entries()) {
+    const seat = seats[index]!;
+    if (seat.bot) {
+      held[hero.seat] = first[hero.seat] = botInput(world, hero.id, humans);
+      continue;
+    }
     let bits = 0,
       tapped = 0;
-    if (!seat.bot && seat.connected) {
+    if (seat.connected) {
       bits = room.held[seat.id] ?? 0;
       for (const entry of ownEntries(seat, streams, tick))
         if (
@@ -862,12 +873,11 @@ export const axeGame: RollbackGame<Room, Entry, View, never, Settings> = {
       return `${BOT_PREFIX}${number}`;
     },
     botName: (slot) => BOT_NAMES[slot % BOT_NAMES.length]!,
-    // Bots stand still until they get a controller, so a solo hero sets out alone and adds companions by hand.
+    // Solo opens on the lobby's hero picker, where its host adds companions (+ BOT) before setting out.
     solo: { name: "Hero", bots: 0 },
   },
   text: {
     ...defaultText,
-    // Bots stand still until they get a controller, so solo is one hero alone for now.
     solo: "Solo run",
     needTwo: "At least one hero must be seated to set out.",
     matchRunning: "A run is already under way",
