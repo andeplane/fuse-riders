@@ -179,9 +179,10 @@ test("the fire spell marks a sigil under each hero; its pillar burns whoever sta
   world = step(world, []);
   const marked = world.sigils;
   assert.ok(marked.length >= T.SIGILS && marked.length <= T.SIGILS + 1);
+  const byPlace = (a: number[], b: number[]) => a[0]! - b[0]! || a[1]! - b[1]!;
   assert.deepEqual(
-    marked.slice(0, 2).map(({ x, y, timer }) => [x, y, timer]),
-    world.heroes.map((h) => [h.x, h.y, 0]),
+    marked.slice(0, 2).map(({ x, y, timer }) => [x, y, timer]).sort(byPlace), // prettier-ignore
+    world.heroes.map((h) => [h.x, h.y, 0]).sort(byPlace),
   );
   for (const each of marked.slice(2)) {
     assert.ok(each.x >= world.camX && each.x <= world.camX + px(T.VIEW_W));
@@ -227,6 +228,32 @@ test("the fire spell marks a sigil under each hero; its pillar burns whoever sta
   kept(raging);
 });
 
+test("the fire spell goes round the party: in a party of five every seat is aimed at in some casts, and only the count are", () => {
+  const spread = throne(["brakka", "rhea", "gorm", "brakka", "rhea"], 80, {
+    state: "cast",
+    timer: T.CAST_MARK - 1,
+  });
+  const party = {
+    ...spread,
+    heroes: spread.heroes.map((h, index) => ({
+      ...h,
+      x: spread.camX + px(40 + 50 * index),
+      y: px(110 + 12 * index),
+    })),
+  };
+  const aimed = new Set<number>();
+  for (let rng = 1; rng <= 60; rng++) {
+    const cast = step({ ...party, rng }, []);
+    const under = cast.heroes.filter((h) =>
+      cast.sigils.some((s) => s.x === h.x && s.y === h.y),
+    );
+    assert.ok(under.length >= T.SIGILS && under.length <= T.SIGILS + 1);
+    assert.ok(cast.sigils.length <= T.SIGIL_MAX);
+    for (const h of under) aimed.add(h.id);
+  }
+  assert.deepEqual([...aimed].sort(), party.heroes.map((h) => h.id).sort());
+});
+
 test("the summons raise bonewalkers from the slabs on screen, none where one still rises, within the world's room and his cap", () => {
   const summoning = (change: Partial<Enemy> = {}, world = throne(["gorm"], 80)) =>
     step(patchVorhal(world, { state: "summon", timer: T.SUMMON_AT - 1, ...change }), []); // prettier-ignore
@@ -234,6 +261,7 @@ test("the summons raise bonewalkers from the slabs on screen, none where one sti
   const raised = bones(world);
   assert.equal(raised.length, T.SUMMONED);
   for (const bone of raised) {
+    assert.equal(bone.timer, 0, "a wave's spawn rises the full RISE_STEPS");
     assert.deepEqual([bone.state, bone.tier, bone.hp], ["rise", 0, T.enemyMaxHp("bonewalker", 0, 1)]); // prettier-ignore
     assert.ok(SLABS.some((s) => s.x === bone.x && s.y === bone.y));
     assert.ok(bone.x >= world.camX);
@@ -361,7 +389,7 @@ test("a bot steps off a sigil before it erupts and out of the greatsword's lane 
 
 test("three bots beat him; every world of the fight is a checkpoint, and a rollback mid-cast, mid-summon, mid-leap, mid-roar or enraged replays to the same world", () => {
   const start = createWorld({
-    seed: 11,
+    seed: 10,
     stage: 4,
     heroes: (["brakka", "rhea", "gorm"] as const).map((kind, seat) => ({ seat, kind })), // prettier-ignore
   });

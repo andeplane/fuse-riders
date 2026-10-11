@@ -1,9 +1,9 @@
 /**
  * Dev-only, below the sprite sheet: for each enemy and beast, every frame packed on one floor in each palette swap,
  * then its anims playing at the simulation's 60 steps a second in the swap picked above them. A one-shot anim holds its
- * last frame for a moment, then plays again. Then the Ogre twins, a ravager riding a clawbeak, the heroes riding
- * clawbeaks and ember drakes and the bonewalkers at a grave in the real scene, and last the floor items at 6×, 3× and
- * 1×.
+ * last frame for a moment, then plays again. Then the Ogre twins, a ravager riding a clawbeak, the lancer captain on
+ * his ember drake, the heroes riding clawbeaks and ember drakes and the bonewalkers at a grave in the real scene, and
+ * last the floor items at 6×, 3× and 1×.
  */
 import type {
   EnemyAnim,
@@ -272,6 +272,37 @@ for (const animated of ANIMATED) {
   });
   riding.append(big.image);
   main.append(riding);
+
+  // The lancer captain on his ember drake on Wyrmbone Pass: he sits it walking and standing, draws his spear back
+  // through the saddle thrust's wind-up and drives it out from the step it lands, and sits through its breath.
+  const boss = document.createElement("section");
+  boss.append(document.createElement("h2"));
+  boss.firstElementChild!.textContent =
+    "drake · the captain astride: the saddle thrust's wind-up and thrust, the breath";
+  const [bossStill, bossBig] = [canvas(VIEW_W, VIEW_H), canvas(VIEW_W * 2, VIEW_H * 2)]; // prettier-ignore
+  const reign: Loop = [["walk", 60], ["idle", 30], ["lance", DRAKE_STEPS.lance], ["idle", 30], ["breathe", DRAKE_STEPS.breathe], ["idle", 30]]; // prettier-ignore
+  players.push(() => {
+    const view: WorldView = {
+      ...{ step, stage: 2, camX: 0, heroes: [], fx: [], items: [], spells: [] },
+      mounts: [{ ...beast(9, 190, 146, -1), kind: "drake", ...playing(reign), rider: { kind: "enemy", id: 2 } }], // prettier-ignore
+      camp: false,
+      enemies: [
+        {
+          ...{ id: 2, kind: "captain", tier: 2, x: 190, y: 146, facing: -1 },
+          ...{ z: CLAWBEAK.saddle, anim: "ride", animStep: step, hp: 90 },
+          ...{ maxHp: 90, flash: false, boss: true, enraged: false },
+          mounted: true,
+        },
+      ],
+      ...{ wave: 5, waves: 6, locked: true, go: false, cleared: false },
+      ...{ defeated: false, boss: { kind: "captain", hp: 90, maxHp: 90 } },
+      sigils: [],
+    };
+    scene.draw(bossStill.paint, view, step);
+    bossBig.paint.drawImage(bossStill.image, 0, 0, VIEW_W * 2, VIEW_H * 2);
+  });
+  boss.append(bossBig.image);
+  main.append(boss);
 
   // Brakka, Rhea and Gorm astride a clawbeak each, then astride an ember drake each, a third of a loop apart: each
   // beast stands, walks, strikes its blow (a tail's sweep, a drake's breath: its rider bracing through the wind-up,

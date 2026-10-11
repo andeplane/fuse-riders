@@ -509,7 +509,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-21");
+  assert.equal(RULES, "fuse-axe-22");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {
@@ -542,10 +542,11 @@ test("the view gives whole pixels, the anim and its step count", () => {
   // Each stage's road for the renderer; a stage this build lacks has Stage 1's.
   assert.equal(Kit.STAGE_COUNT, 4);
   assert.deepEqual(
-    [0, 1, 2, 3, 5, 1.5].map((s) => [Kit.stageLengthPx(s), Kit.cameraEndPx(s)]),
+    [0, 1, 2, 3, 4, 5, 1.5].map((s) => [Kit.stageLengthPx(s), Kit.cameraEndPx(s)]), // prettier-ignore
     [
       [Kit.STAGE_LENGTH_PX, Kit.CAMERA_END_PX],
       [Kit.STAGE_LENGTH_PX, Kit.CAMERA_END_PX],
+      [5 * Kit.VIEW_W, 4 * Kit.VIEW_W],
       [5 * Kit.VIEW_W, 4 * Kit.VIEW_W],
       [5 * Kit.VIEW_W, 4 * Kit.VIEW_W],
       [Kit.STAGE_LENGTH_PX, Kit.CAMERA_END_PX],
