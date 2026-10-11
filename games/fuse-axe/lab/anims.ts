@@ -187,7 +187,7 @@ for (const animated of ANIMATED) {
       t -= steps;
     }
     const view: WorldView = {
-      ...{ step, camX: 0, heroes: [], fx: [], items: [], spells: [] },
+      ...{ step, stage: 1, camX: 0, heroes: [], fx: [], items: [], spells: [] },
       enemies: [
         twin({ anim, animStep }),
         twin({ id: 2, tier: 1, x: 260, y: 128, facing: -1, enraged: true }),

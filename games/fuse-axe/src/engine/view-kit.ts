@@ -29,6 +29,7 @@ import {
   type Swing,
   type Tier,
 } from "./tuning.js";
+import { STAGES } from "./stages.js";
 
 /** The engine constants the renderer may read, in whole pixels where they are distances. */
 export {
@@ -75,6 +76,16 @@ export const FLOOR_BOTTOM_PX = FLOOR_BOTTOM / SUB;
 /** Stage 1's length and the furthest the camera's left edge goes. */
 export const STAGE_LENGTH_PX = STAGE_LENGTH / SUB;
 export const CAMERA_END_PX = CAMERA_END / SUB;
+/** How many stages the run has: `WorldView.stage` runs from 1 to this. */
+export const STAGE_COUNT = STAGES.length;
+/** A stage's plan, by number; a stage this build lacks (a newer one) has Stage 1's road. */
+const roadOf = (stage: number) =>
+  (Number.isInteger(stage) && STAGES[stage - 1]) || STAGES[0]!;
+/** A stage's length and the furthest the camera's left edge goes on it, in pixels. */
+export const stageLengthPx = (stage: number): number =>
+  roadOf(stage).length / SUB;
+export const cameraEndPx = (stage: number): number =>
+  roadOf(stage).cameraEnd / SUB;
 /**
  * Half an enemy's width, by kind (an ogre's body is bigger): a spell's blow lands only on those at least this far
  * inside either edge of the screen. A kind this build lacks (a newer one) has the ravager's.

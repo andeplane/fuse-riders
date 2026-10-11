@@ -240,7 +240,7 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
   ).card!;
   assert.deepEqual(
     [clear.kind, clear.title, clear.line, clear.seconds, clear.hint],
-    ["clear", "STAGE 1 CLEAR", "ASHEN VILLAGE", 6, TEXT.won],
+    ["clear", "STAGE 1 CLEAR", "ASHEN VILLAGE", 6, TEXT.onward],
   );
   assert.deepEqual(
     clear.rows.map((row) => [row.tag, row.name, row.hero, row.damage]),
@@ -251,11 +251,15 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
   );
   assert.deepEqual(clear.rows[0]!.color, SEAT_COLORS[0]);
   assert.ok(!clear.canContinue && !clear.canRematch);
-  const onward = present(
-    { ...frame("between", { world: fought, until: 1, tally }), lastStage: 2 },
+  // The last stage cleared: the run is won once its tally has shown.
+  const last = present(
+    frame("between", { world: fought, round: 2, until: 1, tally }),
     host,
   ).card!;
-  assert.deepEqual([onward.hint, onward.seconds], [TEXT.onward, 1]);
+  assert.deepEqual(
+    [last.title, last.line, last.hint, last.seconds],
+    ["STAGE 2 CLEAR", "WYRMBONE PASS", TEXT.won, 1],
+  );
   // Every hero out: a hero of the run presses Attack, everyone else waits on them.
   const out = frame("running", { until: 199, tally });
   const vote = present(out, host).card!;
@@ -288,7 +292,7 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
   assert.equal(present(away, host).card!.canContinue, false, "stepped away");
   // The run's end: the run's numbers, the stage reached, and REMATCH or the lobby for the host alone.
   const won = present(
-    frame("over", { world: fought, outcome: "victory", tally }),
+    frame("over", { world: fought, round: 2, outcome: "victory", tally }),
     host,
   ).card!;
   assert.deepEqual(
@@ -296,7 +300,7 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
     [
       "victory",
       "VICTORY",
-      "STAGE 1 OF 1 · ASHEN VILLAGE",
+      "STAGE 2 OF 2 · WYRMBONE PASS",
       null,
       TEXT.hostChoice,
       true,

@@ -13,7 +13,7 @@ import {
   KNOCK_VX,
   KNOCK_VZ,
   LIVES,
-  STAGE_LENGTH,
+  MAX_POTS,
   SUB,
   TIERS,
   VIEW_W,
@@ -26,7 +26,7 @@ import {
   type Tier,
 } from "./tuning.js";
 import { clamp } from "./math.js";
-import { STAGE_1 } from "./stages.js";
+import { STAGES, planOf } from "./stages.js";
 
 /**
  * One run's world: plain integer data, so the netcode can clone, hash and checkpoint it. Space is `x` along the
@@ -247,7 +247,7 @@ export interface World {
   enemies: Enemy[];
   /** Effects, oldest first, at most `FX_MAX`. */
   fx: Fx[];
-  /** Stage 1's waves begun: the next trigger is `STAGE_1.waves[wave]`, the latest begun `wave - 1`. */
+  /** The stage's waves begun: the next trigger is `planOf(world).waves[wave]`, the latest begun `wave - 1`. */
   wave: number;
   /** The latest wave is being fought: the camera holds at its trigger until every spawn is in and none is left. */
   locked: boolean;
@@ -259,16 +259,36 @@ export interface World {
   goUntil: number;
   /** Items on the floor, in id order, at most `ITEM_MAX`. */
   items: Item[];
-  /** How many of Stage 1's imp cues (`STAGE_1.imps`) have sent their imp. */
+  /** How many of the stage's imp cues (`planOf(world).imps`) have sent their imp. */
   impsSent: number;
   /** Spells playing, in the order they were cast (heroes in id order within a step): one per hero in `cast`. */
   spells: Spell[];
+  /** The stage the world is, from 1: its road, waves and imps are `STAGES[stage - 1]` (`planOf`). */
+  stage: number;
+}
+
+/** What a hero brings from the stage before: the lives it has left (at least one) and its magic pots. */
+export interface Carry {
+  lives: number;
+  pots: number;
 }
 
 export interface HeroEntry {
   seat: number;
   kind: HeroKind;
+  /** From a cleared stage; a hero setting out on a run has every life and no pots. */
+  carry?: Carry;
 }
+
+/**
+ * The stage flow's policy for a hero going on to the next stage (design.md, "Stage flow"): it keeps the lives it has,
+ * and one that went out comes back with one, and it keeps its magic pots, as in the original. Its health is full
+ * again, as every new world's is.
+ */
+export const carryOf = (hero: Hero): Carry => ({
+  lives: Math.max(hero.lives, 1),
+  pots: hero.pots,
+});
 
 /** Where each seat's hero starts, in pixels: spread across the left of the screen and the depth of the floor. */
 export const SPAWNS: readonly (readonly [number, number])[] = [
@@ -279,21 +299,40 @@ export const SPAWNS: readonly (readonly [number, number])[] = [
   [32, 149],
 ];
 
+const whole = (value: number, low: number, high: number) =>
+  Number.isInteger(value) && value >= low && value <= high;
+
+/**
+ * Stage `stage` (1 if not given) setting out, its heroes at their seats' spawns with full health, each with every
+ * life and no pots or with what it carries from the stage before. Throws on a bad or repeated seat, an unknown kind,
+ * a stage `STAGES` lacks or a carry the checkpoint would refuse (no life, or more pots than the kind holds).
+ */
 export function createWorld(options: {
   seed: number;
   heroes: readonly HeroEntry[];
+  stage?: number;
 }): World {
+  const stage = options.stage ?? 1;
+  if (!whole(stage, 1, STAGES.length))
+    throw new RangeError(`fuse-axe: no stage ${stage}`);
   const entries = [...options.heroes].sort((a, b) => a.seat - b.seat);
   entries.forEach((entry, index) => {
     if (
-      !Number.isInteger(entry.seat) ||
-      entry.seat < 0 ||
-      entry.seat >= CAPACITY ||
+      !whole(entry.seat, 0, CAPACITY - 1) ||
       entries[index - 1]?.seat === entry.seat
     )
       throw new RangeError(`fuse-axe: bad or repeated seat ${entry.seat}`);
     if (!HERO_KINDS.includes(entry.kind))
       throw new RangeError(`fuse-axe: unknown hero kind ${entry.kind}`);
+    const carry = entry.carry;
+    if (
+      carry &&
+      (!whole(carry.lives, 1, LIVES) ||
+        !whole(carry.pots, 0, MAX_POTS[entry.kind]))
+    )
+      throw new RangeError(
+        `fuse-axe: a ${entry.kind} carrying ${carry.lives} lives and ${carry.pots} pots`,
+      );
   });
   const heroes = entries.map((entry, index): Hero => {
     const [x, y] = SPAWNS[entry.seat]!;
@@ -318,7 +357,7 @@ export function createWorld(options: {
       damage: 0,
       knockdowns: 0,
       hp: HERO_HP[entry.kind],
-      lives: LIVES,
+      lives: entry.carry?.lives ?? LIVES,
       invulnUntil: 0,
       stagger: 0,
       staggerUntil: 0,
@@ -326,7 +365,7 @@ export function createWorld(options: {
       tapUntil: 0,
       runBuf: 0,
       throws: 0,
-      pots: 0,
+      pots: entry.carry?.pots ?? 0,
       magicBuf: 0,
       casts: 0,
       magicDamage: 0,
@@ -349,20 +388,24 @@ export function createWorld(options: {
     items: [],
     impsSent: 0,
     spells: [],
+    stage,
   };
 }
 
 /** The stage is won: its last wave has been fought to the end. The stage flow takes the party on from here. */
 export const stageCleared = (world: World): boolean =>
-  world.wave === STAGE_1.waves.length && !world.locked;
+  world.wave === planOf(world).waves.length && !world.locked;
 
 /** GO flashes after a wave short of the last is cleared, for `GO_STEPS` and while the camera has not moved on. */
-export const showsGo = (world: World): boolean =>
-  !world.locked &&
-  world.wave > 0 &&
-  world.wave < STAGE_1.waves.length &&
-  (world.step <= world.goUntil ||
-    world.camX === STAGE_1.waves[world.wave - 1]!.at);
+export function showsGo(world: World): boolean {
+  const { waves } = planOf(world);
+  return (
+    !world.locked &&
+    world.wave > 0 &&
+    world.wave < waves.length &&
+    (world.step <= world.goUntil || world.camX === waves[world.wave - 1]!.at)
+  );
+}
 
 /** Whether an enemy's whole body is on screen. */
 export const inView = (world: World, enemy: Enemy): boolean =>
@@ -398,7 +441,7 @@ export function newEnemy(
     stopUntil: 0,
     tier,
     // On the road, as every goal is: one appearing beyond the stage's end has its own set as it walks in.
-    goal: clamp(x, 0, STAGE_LENGTH),
+    goal: clamp(x, 0, planOf(world).length),
     goalY: y,
     target: 0,
     thinkAt: world.step + fighterOf(kind, tier, false).think,
@@ -512,7 +555,7 @@ export function spawnEnemy(
     next,
     kind,
     tier,
-    clamp(x, 0, STAGE_LENGTH),
+    clamp(x, 0, planOf(world).length),
     clamp(y, FLOOR_TOP, FLOOR_BOTTOM),
     -1,
   );

@@ -43,8 +43,7 @@ const world = (
   extra: Partial<V.WorldView> = {},
 ): V.WorldView => ({
   ...{ step, camX: 0, heroes: [hero()], enemies: [], fx: [], items: [] },
-  spells: [],
-  wave: 1,
+  ...{ spells: [], stage: 1, wave: 1 },
   ...{ waves: 4, locked: false, go: false, cleared: false, defeated: false },
   boss: null,
   ...extra,
