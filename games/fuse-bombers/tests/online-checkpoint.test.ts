@@ -8,7 +8,12 @@ import { DEFAULT_TUNING, DOWN, LEFT, RIGHT, UP } from "../src/engine/index.js";
 import { createRound, encodeRound } from "../src/engine/index.js";
 import { carveCircle, createGrid, encodeGrid } from "../src/engine/grid.js";
 import { buildTempleGrid } from "../src/engine/temple-map.js";
-import { DEFAULT_SETTINGS, PLAY, PRESS } from "../src/online/game.js";
+import {
+  BETWEEN_TICKS,
+  DEFAULT_SETTINGS,
+  PLAY,
+  PRESS,
+} from "../src/online/game.js";
 import { bombersGame as game, createRoom } from "../src/online/game.js";
 import { foldTick, hash, type Entry, type Room } from "../src/online/game.js";
 
@@ -104,6 +109,8 @@ test("the checkpoint carries a room whole at every stage, and the restored room 
     }
     assert.equal(hash(restored), hash(room), `${name}, 90 ticks on`);
   }
+  const stray = Object.assign({ extra: 1 }, DEFAULT_SETTINGS, { wins: 0 });
+  assert.ok(restore(createRoom("m0", stray)), "a room made with bad settings");
 });
 
 test("a worst-case room (every rocket in the air, the temple riddled) stays far below the snapshot cap", (t) => {
@@ -128,6 +135,8 @@ test("a worst-case room (every rocket in the air, the temple riddled) stays far 
   const restored = restore(room);
   assert.ok(restored);
   assert.equal(hash(restored), hash(room));
+  world.rockets.push({ ...world.rockets.at(-1)!, id: world.nextId++ });
+  assert.ok(restore(room) === undefined, "a shell past maxRockets");
 });
 
 type Path = readonly (number | string)[];
@@ -161,7 +170,7 @@ const isRecord = ([a, b, ...rest]: Path) => a === undefined ||
     : !rest.length ? (a === WORLD ? b === 6 : [5, 6, 9].includes(a as number))
     : a === WORLD && rest.length === 1 && [3, 8, 9, 10, 11, 12, 14].includes(b as number));
 
-/** `room`'s checkpoint is refused with any field of another type or not finite, any list past its cap, any record cut or padded. */
+/** `room`'s checkpoint, refused with a field mistyped or not finite, a list past its cap, a record cut or padded. */
 function sweep(room: Room): void {
   const fields = wire(room);
   const refused = (copy: unknown[], why: string) =>
@@ -200,9 +209,23 @@ test("a corrupt checkpoint is refused, field by field", () => {
     world = fields[WORLD] as unknown[][];
   const refused = (copy: unknown[], why: string, tick = battle.tick) =>
     assert.ok(decode(copy, tick) === undefined, why);
-  const alive = world[8]!.findIndex((c) => (c as unknown[])[6]);
+  const find = (list: number, test: (item: unknown[]) => unknown) =>
+    world[list]!.findIndex((item) => test(item as unknown[]));
+  const [alive, dead] = [find(8, (c) => c[6]), find(8, (c) => !c[6])],
+    shell = find(9, (r) => !r[8] && !r[9]),
+    steps = battle.world!.tick;
   // prettier-ignore
   const cases: [string, Path, unknown][] = [
+    ["the phase against the fuse", [WORLD, 5], battle.world!.phase === "playing" ? "sudden-death" : "playing"],
+    ["over without a result", [WORLD, 5], "over"],
+    ["a living castle without HP", [WORLD, 8, alive, 5], 0],
+    ["a wreck with a shield", [WORLD, 8, dead, 12], 10],
+    ["a gate past its expiry", [WORLD, 10, 0, 3], steps - 1],
+    ["a ghost from a later step", [WORLD, 12, 0, 8], steps + 1],
+    ["a rocket past its life", [WORLD, 9, 0, 11], 721],
+    ["a bomb of a castle's", [WORLD, 9, shell, 8], true],
+    ["a lineage through one gate twice", [WORLD, 9, shell, 10], [1, 1]],
+    ["held directions of a watcher", [9], [["w", 1]]],
     ["hp past maxHp", [WORLD, 8, alive, 5], DEFAULT_TUNING.castleHp[6]! + 1],
     ["a full turn", [WORLD, 8, 0, 7], 2 * Math.PI],
     ["a rocket of nobody's", [WORLD, 9, 0, 1], 6],
@@ -220,6 +243,8 @@ test("a corrupt checkpoint is refused, field by field", () => {
   for (const [why, path, value] of cases)
     refused(edit(fields, path, value), why);
   refused(fields, "another tick", battle.tick + 1);
+  const between = rooms.get("between")!;
+  refused(wire(between), "a scoreboard run out", between.tick + BETWEEN_TICKS);
   // Rock where the temple had none, and its indestructible rock carved.
   const temple = buildTempleGrid();
   for (const part of ["solid", "hard"] as const) {
