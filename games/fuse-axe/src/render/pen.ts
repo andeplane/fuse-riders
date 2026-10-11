@@ -40,22 +40,3 @@ export function blit<Image>(
   const [cw, ch] = [x1 - x0, y1 - y0];
   pen.drawImage(image, x0 - left, y0 - top, cw, ch, x0, y0, cw, ch);
 }
-
-/** A `w` × `h` image drawn `scale` times as big (to whole pixels) with its top-left corner at (`left`, `top`). */
-export function blitScaled<Image>(
-  pen: Pen<Image>,
-  image: Image,
-  w: number,
-  h: number,
-  left: number,
-  top: number,
-  scale: number,
-): void {
-  const [dw, dh] = [Math.round(w * scale), Math.round(h * scale)];
-  const [x0, x1] = clip(left, dw, VIEW_W);
-  const [y0, y1] = clip(top, dh, VIEW_H);
-  if (!(x1 > x0 && y1 > y0)) return;
-  const [cw, ch] = [x1 - x0, y1 - y0];
-  const [sx, sy] = [((x0 - left) * w) / dw, ((y0 - top) * h) / dh];
-  pen.drawImage(image, sx, sy, (cw * w) / dw, (ch * h) / dh, x0, y0, cw, ch);
-}
