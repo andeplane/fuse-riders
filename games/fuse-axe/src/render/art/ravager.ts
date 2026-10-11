@@ -392,6 +392,9 @@ export type RavagerAnim = Exclude<
   | "thrust"
   | "leap"
   | "plunge"
+  | "rise"
+  | "pile"
+  | "reassemble"
 >;
 
 const WALK_CYCLE: AnimStrip<RavagerFrame> = {

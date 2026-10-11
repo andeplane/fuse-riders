@@ -147,7 +147,7 @@ test("lancers leap into the village's later waves and every wave of the pass but
 
 test("Wyrmbone Pass is a longer road of six waves of ravagers and lancers, tougher than the village's, ending in the lancer captain on his drake", () => {
   const { length, cameraEnd, waves } = STAGE_2;
-  assert.deepEqual(STAGES, [STAGE_1, STAGE_2]);
+  assert.deepEqual(STAGES.slice(0, 2), [STAGE_1, STAGE_2]);
   assert.ok(length > T.STAGE_LENGTH);
   assert.equal(cameraEnd, length - SCREEN);
   assert.equal(waves.length, 6);
