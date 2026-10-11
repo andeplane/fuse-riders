@@ -13,6 +13,7 @@ import { LANCER } from "./lancer.js";
 import { OGRE } from "./ogre.js";
 import { RAVAGER } from "./ravager.js";
 import { RHEA, RHEA_PORTRAIT, RHEA_POSES } from "./rhea.js";
+import { VORHAL } from "./vorhal.js";
 
 /** Every figure the game draws, by name. The sprite sheet lab (`games/fuse-axe/lab/sprites.html`) shows them all. */
 export const FIGURES: Readonly<Record<string, Figure>> = {
@@ -28,6 +29,7 @@ export const FIGURES: Readonly<Record<string, Figure>> = {
   boneknight: BONE_KNIGHT,
   clawbeak: CLAWBEAK_FIGURE,
   drake: DRAKE_FIGURE,
+  vorhal: VORHAL,
 };
 
 /** A hero's figure, which paints every `HERO_FRAMES` frame, the poses it paints them from, and its HUD portrait. */
