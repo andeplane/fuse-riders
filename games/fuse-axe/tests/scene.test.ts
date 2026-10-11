@@ -74,6 +74,10 @@ import {
 } from "../src/render/pixel/surface.js";
 import { createBackdrop } from "../src/render/backdrop/backdrop.js";
 import { FIRE, FLAME } from "../src/render/backdrop/camp.js";
+import {
+  CRYPT_END,
+  CRYPT_LENGTH,
+} from "../src/render/backdrop/drowned-crypt.js";
 import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
 import {
@@ -1067,7 +1071,7 @@ test("the backdrop painted through a plain surface matches its pixel buffers exa
 test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage without art Stage 1's, and no stage throws", () => {
   const layers = (view: WorldView) =>
     draw(view).pen.blits.filter((b) => b.image.w >= VIEW_W);
-  for (const stage of [2, 3, 0, -1, 1.5, Number.NaN])
+  for (const stage of [2, 3, 4, 0, -1, 1.5, Number.NaN])
     assert.doesNotThrow(() => draw(world({ stage, camX: 100 })), `${stage}`);
   // Its road is the stage's whole length, scrolled with the floor out to the skull gate.
   const end = cameraEndPx(2);
@@ -1080,20 +1084,38 @@ test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage witho
   assert.notDeepEqual(layers(world({ stage: 2 })), layers(world({ stage: 1 })));
   assert.deepEqual(scenery(2, 700), { art: 2, camX: 700 });
   assert.deepEqual(scenery(1, 500), { art: 1, camX: 500 });
-  assert.deepEqual(scenery(3, 500), { art: 1, camX: 500 }, "an unknown one");
-  assert.deepEqual(layers(world({ stage: 3 })), layers(world({ stage: 1 })));
+  assert.deepEqual(scenery(4, 500), { art: 1, camX: 500 }, "an unknown one");
+  assert.deepEqual(layers(world({ stage: 4 })), layers(world({ stage: 1 })));
+});
+
+test("Stage 3 draws the Drowned Crypt at the camera as it is, out to its great doors", () => {
+  const layers = (stage: number, camX = 0) =>
+    draw(world({ stage, camX })).pen.blits.filter((b) => b.image.w >= VIEW_W);
+  const road = (camX: number) =>
+    layers(3, camX).find((b) => b.image.w === CRYPT_LENGTH);
+  assert.equal(road(0)?.sx, 0);
+  assert.equal(road(CRYPT_END)?.sx, CRYPT_END);
+  const images = (stage: number) => layers(stage).map((b) => b.image);
+  for (const other of [1, 2]) {
+    const theirs = new Set(images(other));
+    assert.ok(
+      images(3).every((image) => !theirs.has(image)),
+      `${other}`,
+    );
+  }
+  assert.deepEqual(scenery(3, 700), { art: 3, camX: 700 });
 });
 
 test("every stage's backdrop is baked with the scene, so no frame stalls baking one as its stage begins", () => {
   const { images, scene } = fakeScene();
   const wide = () => images.filter((image) => image.w >= VIEW_W).length;
   const baked = wide();
-  for (const stage of [1, 2])
+  for (const length of [stageLengthPx(1), stageLengthPx(2), CRYPT_LENGTH])
     assert.ok(
-      images.some((image) => image.w === stageLengthPx(stage)),
-      `stage ${stage}'s road`,
+      images.some((image) => image.w === length),
+      `a ${length} px road`,
     );
-  for (const stage of [1, 2, 3, 2, 1, Number.NaN])
+  for (const stage of [1, 2, 3, 4, 3, 2, 1, Number.NaN])
     draw(world({ stage, camX: 100 }), 0, scene);
   assert.equal(wide(), baked, "drawing a stage baked a layer");
 });
@@ -1114,7 +1136,7 @@ test("camp draws its own night clearing, baked with the scene, and a stage its o
     assert.deepEqual(layers(camp(0, more)), clearing, JSON.stringify(more));
   assert.ok(clearing.every(([, sx]) => sx === 0));
   // A stage draws its own backdrop at its camera, none of it camp's, and camp none of a stage's.
-  for (const each of [stage(1), stage(2)]) {
+  for (const each of [stage(1), stage(2), stage(3)]) {
     assert.ok(
       each.some(([, sx]) => sx !== 0),
       "a stage scrolls",
