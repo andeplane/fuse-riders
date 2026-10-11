@@ -160,12 +160,13 @@ export class CueTracker {
       if (was && enemy.anim === "windup" && this.began(key, enemy, was, step))
         cues.add("windup");
     }
-    // A beast's tail winding up is its wind-up, whoever rides it (its rider never leaves `ride`), and a hero's beast
-    // hopping is a jump.
+    // A beast's blow winding up (a tail, a drake's inhale, the captain's saddle thrust) is its wind-up, whoever rides
+    // it (its rider never leaves `ride`), and a hero's beast hopping is a jump.
     for (const mount of world.mounts) {
       const was = this.figures.get(`m${mount.id}`),
-        cue =
-          mount.anim === "sweep" ? "windup" : mount.anim === "hop" && "jump";
+        cue = ["sweep", "breathe", "lance"].includes(mount.anim)
+          ? "windup"
+          : mount.anim === "hop" && "jump";
       if (was && cue && this.began(`m${mount.id}`, mount, was, step))
         cues.add(cue);
     }

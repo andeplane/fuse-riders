@@ -23,7 +23,15 @@ import { planOf, waveSpawns, type Placed, type Side } from "./stages.js";
 import { act, rest, thinks } from "./ai.js";
 import { brace, breaks, enrage, isOgre, ogreAct } from "./ogre.js";
 import { isLancer, lancerAct, soar, takeOff } from "./lancer.js";
-import { advanceMounts, away, board, ride, saddle, swept } from "./mount.js";
+import {
+  HURTS,
+  advanceMounts,
+  away,
+  board,
+  reaches,
+  ride,
+  saddle,
+} from "./mount.js";
 import {
   advanceImps,
   advanceItems,
@@ -393,17 +401,20 @@ function countDown(hero: Hero): void {
 }
 
 /**
- * A riding hero's beast lashes its tail: it lands on every enemy a blade could (never a hero) within its sweep and under
- * `TAIL_HEIGHT`, a blow that knocks down, away from the beast.
+ * A riding hero's beast strikes: its tail, or its breath's flame on each of its steps, lands on every enemy a blade could
+ * (never a hero) that it reaches and under its height (`HURTS`), each once a blow (`struck`), a blow that knocks down,
+ * away from the beast or along its facing.
  */
 function lash(world: World, hero: Hero, mount: Mount): void {
+  const hurt = HURTS[mount.state as T.BeastBlow];
   for (const enemy of world.enemies)
     if (
       hittable(world, enemy) &&
-      enemy.z < T.TAIL_HEIGHT &&
-      swept(mount, enemy.x, enemy.y, T.ENEMY_BODY[enemy.kind].half)
+      !hero.struck.includes(enemy.id) &&
+      enemy.z < hurt.height &&
+      reaches(mount, enemy.x, enemy.y, T.ENEMY_BODY[enemy.kind].half)
     )
-      hit(world, hero, enemy, T.TAIL_DAMAGE, true, away(mount, enemy.x));
+      hit(world, hero, enemy, hurt.damage, true, away(mount, enemy.x));
 }
 
 /**
@@ -458,9 +469,11 @@ function strike(world: World, hero: Hero, blade: T.Blow): void {
  * A hit: the damage, then hitstun and a nudge away from the hero, which breaks off the enemy's swing, or, from a blow
  * that knocks down (`KNOCKS`), at no hp left or in the air (a lancer's leap), a knockdown that launches the enemy up
  * and away and frees its place by the hero it was going for (and knocks a rider off its beast). Attacker and target
- * both hold still for the hit-stop. A sack imp is kicked (`kick`) instead, and the hero's tallies are left alone. An
- * ogre's super armour takes the blow (`brace`) unless it breaks (`breaks`), and a rider's saddle any but a knockdown
- * (`flinch`). A beast's tail (`lash`) is `heavy` and lands away from the beast (`dir`).
+ * both hold still for the hit-stop. A sack imp is kicked (`kick`) instead, and the hero's tallies are left alone. A
+ * boss's super armour (an ogre's, the lancer captain's) takes the blow (`brace`) unless it breaks (`breaks`), and a
+ * rider's saddle any but a knockdown (`flinch`): the captain's saddle takes any that does not break his poise, and only
+ * a heavy one breaks off his drake's blow. A beast's blow (`lash`) is `heavy` and lands away from the beast or along its
+ * facing (`dir`).
  */
 function hit(
   world: World,
@@ -471,7 +484,8 @@ function hit(
   dir = aim(hero),
 ): void {
   const taken = Math.min(damage, enemy.hp),
-    knocked = isOgre(enemy)
+    armoured = T.BOSS[enemy.kind],
+    knocked = armoured
       ? breaks(world, enemy, taken, heavy)
       : heavy || ((enemy.hp === taken || enemy.z > 0) && !isImp(enemy)),
     until = world.step + (knocked ? T.HEAVY_HITSTOP : T.HITSTOP);
@@ -485,11 +499,15 @@ function hit(
   if (knocked) {
     launch(world, enemy, dir);
     hero.knockdowns++;
-  } else if (isOgre(enemy)) brace(world, enemy, taken, heavy, dir);
-  else if (enemy.state === "ride") {
-    enemy.stopUntil = until;
-    flinch(world, enemy);
-  } else {
+  } else if (enemy.state === "ride") {
+    // The captain's armour takes a light blow as an ogre's does; a heavy one holds him and breaks off his drake's.
+    if (armoured) brace(world, enemy, taken, heavy, dir);
+    if (!armoured || heavy) {
+      enemy.stopUntil = until;
+      flinch(world, enemy);
+    }
+  } else if (armoured) brace(world, enemy, taken, heavy, dir);
+  else {
     enemy.stopUntil = until;
     enemy.facing = dir > 0 ? -1 : 1;
     // Not `setState`, which ignores a change to the state the enemy is already in: a hit on a reeling enemy restarts
@@ -597,8 +615,8 @@ function advanceCamera(world: World): void {
 }
 
 /**
- * A wave's spawn appears just outside the screen's edge on its side and walks in, or a lancer leaps in (`takeOff`), or
- * a rider rides in on its beast (`saddle`).
+ * A wave's spawn appears just outside the screen's edge on its side and walks in, or a rider rides in on its beast
+ * (`saddle`: the captain on his drake), or a lancer leaps in (`takeOff`).
  */
 function enter(world: World, spawn: Placed): void {
   const x =
@@ -607,8 +625,8 @@ function enter(world: World, spawn: Placed): void {
       : world.camX + T.VIEW_W * T.SUB + T.ENTER_OUT;
   const enemy = newEnemy(world, spawn.kind, spawn.tier, x, spawn.y, 1);
   walkIn(world, enemy, spawn.side, spawn.inset);
-  if (isLancer(enemy)) takeOff(enemy);
   if (spawn.mount) saddle(world, enemy, spawn.mount);
+  if (isLancer(enemy) && enemy.state !== "ride") takeOff(enemy);
   world.enemies.push(enemy);
 }
 

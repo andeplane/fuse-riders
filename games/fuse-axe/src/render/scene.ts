@@ -12,6 +12,7 @@ import type {
 import {
   CAMERA_END_PX,
   CLAWBEAK_STEPS,
+  DRAKE_STEPS,
   DEAD_STEPS,
   VIEW_H,
   VIEW_W,
@@ -34,10 +35,11 @@ import {
 } from "./backdrop/backdrop.js";
 import { bayer } from "./backdrop/kit.js";
 import { blinksOn, createHud, type HudSeats } from "./hud.js";
+import { drawFlames } from "./drake-fx.js";
 import { drawCracks, drawShards, drawSteam } from "./ogre-fx.js";
 import { blit, fill, type Pen } from "./pen.js";
 import type { Figure } from "./pixel/kit.js";
-import { UNLIT, type Palette } from "./pixel/palette.js";
+import { UNLIT, rampSwap, type Palette } from "./pixel/palette.js";
 import type { Point } from "./pixel/rig.js";
 import { cropSprite, type Sprite } from "./pixel/sprite.js";
 import { createSpriteBaker, type BakeOptions } from "./pixel/surface.js";
@@ -85,6 +87,7 @@ interface EnemyArt {
   /** Its shadow's width as a multiple of a body's (none: a body's). */
   readonly shade?: number;
 }
+const CAPTAIN_LOOK = { ...rampSwap("Cc0", "Nn8"), ...rampSwap("Mm7", "Ii#") };
 /** Every enemy kind's art. A kind from a build with more of them draws as a ravager, as `enemyFrame` plays it. */
 export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   ravager: {
@@ -99,6 +102,11 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
     shade: 1.5,
   },
   lancer: { figure: LANCER, tiers: LANCER_TIERS },
+  // The lancer captain until he has art of his own: a lancer in gold and dark steel, whatever his palette.
+  captain: {
+    figure: LANCER,
+    tiers: { 0: CAPTAIN_LOOK, 1: CAPTAIN_LOOK, 2: CAPTAIN_LOOK },
+  },
 };
 /** What each item kind draws (a kind from a build with more of them, a pot), and the half-width of its shadow. */
 export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = {
@@ -109,23 +117,39 @@ export const ITEM_SHADE = 3;
 /** The dark laid over camp's placeholder backdrop, Stage 1's first screen, until camp has art of its own. */
 export const NIGHT = "rgba(8, 4, 28, 0.62)";
 
-/** What a beast kind draws with: its figure, whose frames `mountFrame` picks, and the rows each frame's saddle dips. */
+/**
+ * What a beast kind draws with: its figure, whose frames `mountFrame` picks, the rows each frame's saddle dips, and its
+ * palette (none: the figure's own).
+ */
 interface MountArt {
   readonly figure: Figure;
   readonly dips: Readonly<Record<string, number>>;
+  readonly swap?: Palette;
 }
 /**
- * Every beast kind's art (a kind from a build with more of them draws as a clawbeak, as `mountFrame` plays it). It
- * blinks as its tail winds up (every `TELEGRAPH` steps); the lash's ring is its own frame's. Its shadow is a third
- * wider than a body's, and its rider, sinking with the saddle as it dips, casts none of its own.
+ * Every beast kind's art (a kind from a build with more of them draws as a clawbeak, as `mountFrame` plays it); the
+ * ember drake is a clawbeak in ember red until it has its own, its flame drawn over the figures (`drake-fx.ts`). It
+ * blinks as its blow winds up (a tail, an inhale, a saddle thrust: every `TELEGRAPH` steps); the lash's ring is its own
+ * frame's. Its shadow is a third wider than a body's, and its rider, sinking with the saddle as it dips, casts none.
  */
 export const MOUNT_ART: Readonly<Record<MountKind, MountArt>> = {
   clawbeak: { figure: CLAWBEAK_FIGURE, dips: CLAWBEAK_DIPS },
+  drake: {
+    figure: CLAWBEAK_FIGURE,
+    dips: CLAWBEAK_DIPS,
+    swap: rampSwap("Yy&", "Xx*"),
+  },
 };
 export const TELEGRAPH = 3;
+/** The steps each beast blow's anim winds up for, which it blinks through. */
+const WINDUPS: Readonly<Partial<Record<string, number>>> = {
+  sweep: CLAWBEAK_STEPS.windup,
+  breathe: DRAKE_STEPS.inhale,
+  lance: DRAKE_STEPS.lanceWindup,
+};
 const winding = (mount: MountView) =>
-  mount.anim === "sweep" &&
-  mount.animStep < CLAWBEAK_STEPS.windup &&
+  Object.hasOwn(WINDUPS, mount.anim) &&
+  mount.animStep < WINDUPS[mount.anim]! &&
   Math.floor(mount.animStep / TELEGRAPH) % 2 === 0;
 const mountArt = (kind: MountKind) =>
   Object.hasOwn(MOUNT_ART, kind) ? MOUNT_ART[kind] : MOUNT_ART.clawbeak;
@@ -421,11 +445,16 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         });
       // A beast stands among them, its rider on it: the rider shares its depth, higher up, so it is drawn after.
       for (const mount of view.mounts) {
-        const frame = mountFrame(mount.kind, mount.anim, mount.animStep);
+        const frame = mountFrame(mount.kind, mount.anim, mount.animStep),
+          art = mountArt(mount.kind);
         standing.push({
           ...at(mount),
-          sprite: mountArt(mount.kind).figure.sprite(frame),
-          options: { flash: winding(mount), flip: mount.facing < 0 },
+          sprite: art.figure.sprite(frame),
+          options: {
+            swap: art.swap,
+            flash: winding(mount),
+            flip: mount.facing < 0,
+          },
           lit: true,
           shade: Math.round((shadowRadius(mount.z) * 4) / 3),
         });
@@ -458,6 +487,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         blit(field, m.image, m.w, m.h, sx - (m.w >> 1), top);
       }
       drawShards(field, view.enemies, camX);
+      drawFlames(field, view.mounts, camX, frame);
       for (const fx of view.fx) drawSpark(field, fx, camX);
       backdrop.drawFront(field, back.camX);
       spells.draw(field, view, frame);
