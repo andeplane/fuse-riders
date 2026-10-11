@@ -29,7 +29,8 @@ import {
  * draws from the world's stream. An enemy only thinks standing, walking or in its own swing: hit-stop, reeling, a
  * knockdown, lying, getting up, a defeat and a walk-in leave it to the rules in `step.ts`, and a spell's freeze
  * (`magic.ts`) holds it as it stands, wind-up and all, thinking nothing until the blow lands. Its walk is no faster
- * than its tier's and keeps to the screen, and its mace lands only on heroes.
+ * than its tier's and keeps to the screen, and its mace lands only on heroes. A lancer (`lancer.ts`) picks its hero
+ * the same way (`decide`) and walks the same way to its own reach (`stride`), but thrusts and leaps where this swings.
  */
 const THINKS: readonly EnemyState[] = [
   "idle",
@@ -46,7 +47,7 @@ const THINKS: readonly EnemyState[] = [
 ];
 export const thinks = (enemy: Enemy): boolean => THINKS.includes(enemy.state);
 
-/** The fighter an enemy is: its tier's ravager, or an ogre's mood. */
+/** The fighter an enemy is: its tier's ravager or lancer, or an ogre's mood. */
 export const fighter = (enemy: Enemy): T.Fighter =>
   T.fighterOf(enemy.kind, enemy.tier, enemy.enraged);
 
@@ -57,7 +58,10 @@ export function rest(world: World, enemy: Enemy): void {
   enemy.thinkAt = world.step + think + roll(world, jitter);
 }
 
-/** One step of an enemy that thinks (`thinks`). */
+/**
+ * One step of a ravager that thinks (`thinks`): an ogre and a lancer have their own (`ogreAct`, `lancerAct`), which
+ * share `decide`, `stride` and `rest` with it, so this reads the ravager's tier stats (`T.RAVAGER`) directly.
+ */
 export function act(world: World, enemy: Enemy): void {
   const stats = T.RAVAGER[enemy.tier],
     target = world.heroes.find((hero) => hero.id === enemy.target);
