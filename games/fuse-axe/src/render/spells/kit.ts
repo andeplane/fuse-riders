@@ -150,8 +150,8 @@ export const marksOf = ({ enemies, camX }: WorldView): Mark[] =>
         e.hp > 0 &&
         e.anim !== "held" &&
         e.anim !== "thrown" &&
-        e.x >= camX + K.ENEMY_HALF_W_PX &&
-        e.x <= camX + W - K.ENEMY_HALF_W_PX,
+        e.x >= camX + K.enemyHalfWPx(e.kind) &&
+        e.x <= camX + W - K.enemyHalfWPx(e.kind),
     )
     .map(({ x, y }) => ({ x, y }));
 /** The caster's screen column, or the middle for a spell that outlived it. */

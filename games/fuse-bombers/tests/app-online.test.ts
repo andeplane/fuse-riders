@@ -1,9 +1,9 @@
 import test from "node:test";
 import { deepEqual as eq, equal, match, ok } from "node:assert/strict";
-import { ACTION, BOT, JOIN, type StreamEntries } from "fuse-netcode";
+import { ACTION, BOT, JOIN, SPECTATOR, type StreamEntries } from "fuse-netcode";
 import * as online from "../src/app/online-source.js";
 import { buzz, present, trouble, type Viewer } from "../src/app/presenter.js";
-import { keys, safeStore, sessionFor } from "../src/app/session.js";
+import { carry, keys, safeStore, sessionFor } from "../src/app/session.js";
 import type { TickEvent } from "../src/engine/index.js";
 import * as game from "../src/online/game.js";
 
@@ -27,6 +27,12 @@ test("the query opens the landing, the local lobby, solo or a room, with one tok
   });
   eq(at("?room=ab12&touch"), room("AB12", "new", "joiner"));
   equal(items.get(keys("g").peer("AB12")), "new", "the same member on reload");
+  const kept = keys("g");
+  equal(
+    new Set([kept.shared, kept.sharedRoom("AB12"), kept.host("AB12")]).size,
+    3,
+    "a room's own Shared TV choice is a key of its own",
+  );
   store.setItem(keys("g").host("CD34"), "made");
   eq(at("?room=CD34"), room("CD34", "made", "host"));
   const stored = items.size;
@@ -37,6 +43,14 @@ test("the query opens the landing, the local lobby, solo or a room, with one tok
   });
   blocked.setItem("name", "Ada");
   equal(blocked.getItem("name"), "Ada", "blocked storage falls back to memory");
+});
+
+test("links to another page keep ?mute and ?calm as typed, and nothing else", () => {
+  equal(carry("?mute&calm"), "mute&calm");
+  equal(carry("?speed=4&seed=7", "local"), "local");
+  equal(carry("?mute=0&calm", "room=AB12"), "room=AB12&mute=0&calm");
+  equal(carry("", "solo=1"), "solo=1");
+  equal(carry("?calm=a b&x=1"), "calm=a%20b");
 });
 
 let seq = 0;
@@ -59,7 +73,12 @@ const start = (room: game.Room) => {
   fold(room, { a: [[ACTION, "start", `m${room.round}`]] });
   while (room.tick < room.startAt) fold(room);
 };
-const seen = { hostPresent: true, touch: false, display: false };
+const seen = {
+  hostPresent: true,
+  touch: false,
+  display: false,
+  tvWaiting: false,
+};
 const viewer = (me: string, host = false): Viewer => ({ ...seen, me, host });
 const host = viewer("a", true),
   guest = viewer("z");
@@ -81,6 +100,20 @@ test("the lobby: the host adds and removes bots and starts at two gunships; a ne
   fold(alone, { a: [[JOIN, "a", "Ada", 0, "gunship", 1]] });
   ok(!show(alone).canStart);
   match(show(alone).note, /invite a friend or add a bot/);
+});
+
+test("START counts the gunships that would fly: an offline rider does not, one stepped away does", () => {
+  const frame = game.view(lobby());
+  const friend = frame.seats[1]!;
+  Object.assign(friend, { bot: false, connected: false, away: false }); // dropped
+  let model = present(frame, host);
+  equal(model.members[1]!.status, "OFFLINE");
+  ok(!model.canStart, "the engine would refuse this start");
+  match(model.note, /invite a friend or add a bot/);
+  Object.assign(friend, { away: true }); // stepped away: still flies
+  model = present(frame, host);
+  ok(model.canStart);
+  equal(model.note, "");
 });
 
 test("a round counts down, says GO, follows this device's gunship and escapes the names it shows", () => {
@@ -136,6 +169,11 @@ test("a shared TV: the TV frames everyone and asks no name; each seated device i
   eq(
     [screen.screen, screen.follow, screen.controller, screen.note],
     ["countdown", undefined, null, ""],
+  );
+  match(screen.overlay, /&#60;b&#62;Ada/);
+  ok(
+    !screen.overlay.includes("<b>"),
+    "the TV shows a name as text, not markup",
   );
   let model = show(room);
   eq(
@@ -206,6 +244,58 @@ test("a shared TV: the TV frames everyone and asks no name; each seated device i
   );
 });
 
+test("a shared room's host is told to open the TV until one is open; nobody else is", () => {
+  const room = lobby();
+  room.settings.display = true;
+  const waiting = (who: Viewer): Viewer => ({ ...who, tvWaiting: true });
+  match(show(room, waiting(host)).note, /open the TV screen/);
+  equal(show(room, host).note, "", "the TV is open: no more telling");
+  equal(
+    show(room, waiting(viewer("bot:1"))).note,
+    "Waiting for the host to start",
+  );
+  const plain = lobby();
+  equal(show(plain, waiting(host)).note, "", "a plain room has no TV to open");
+});
+
+test("only a seated rider of a shared room is a controller: not in the lobby, a plain room, a watcher or the TV", () => {
+  const plain = lobby();
+  fold(plain, { a: [[ACTION, "start", "m1"]] });
+  const flat = show(plain);
+  eq(
+    [flat.screen, flat.controller, flat.openTv, flat.flying],
+    ["countdown", null, false, true],
+  );
+
+  const room = lobby();
+  room.settings.display = true;
+  const waiting = show(room);
+  eq([waiting.screen, waiting.controller], ["lobby", null]);
+  fold(room, { a: [[SPECTATOR, "join", "w", "Wanda", 1]] });
+  fold(room, { a: [[ACTION, "start", "m1"]] });
+  fold(room, { a: [[JOIN, "late", "Zed", 2, "gunship", 1]] });
+  eq(
+    room.seats.get("w")?.watcher && room.seats.has("late"),
+    true,
+    "a watcher and a latecomer are seated",
+  );
+  const watcher = show(room, viewer("w"));
+  eq([watcher.screen, watcher.controller], ["countdown", null], "watching");
+  const late = show(room, viewer("late"));
+  eq(
+    [late.screen, late.follow, late.flying, late.controller?.state],
+    ["controller", undefined, false, "out"],
+  );
+  eq(
+    [late.controller?.line, late.controller?.hp, late.controller?.loaded],
+    ["YOU FLY FROM THE NEXT ROUND", 0, false],
+  );
+  equal(late.note, "", "the controller's panel says it, not a second line");
+  const tv: Viewer = { ...seen, me: "tv", host: false, display: true };
+  equal(show(room, tv).controller, null, "the TV never is one");
+  equal(show(room, guest).controller, null, "nor an unseated page");
+});
+
 test("a controller buzzes when its own gunship is hit or falls", () => {
   const hit = (castleId: number, shielded = false): TickEvent => ({
     ...{ type: "hit", tick: 1, castleId, owner: 1, x: 0, y: 0 },
@@ -266,4 +356,30 @@ test("the online source blends a round's two newest frames and hands on its roun
   eq([source.advance(), source.advance()], [[boom], []]);
   for (let i = 0; i <= online.MAX_EVENTS; i++) source.push(boom, "m0", 1);
   equal(source.advance().length, online.MAX_EVENTS, "a bounded queue");
+});
+
+test("a full event queue keeps the newest events and drops the oldest", () => {
+  const room = lobby();
+  start(room);
+  const newer = { ...game.view(room), matchId: "m0", managerId: "a" };
+  const timing = { newer, tick: newer.tick, lead: 0 };
+  const source = new online.OnlineSource(
+    () => timing,
+    () => "a",
+    newer.world!,
+  );
+  const at = (tick: number): TickEvent => ({
+    type: "rocket-exploded",
+    tick,
+    owner: 0,
+    x: 1,
+    y: 1,
+    cause: "ground",
+  });
+  for (let i = 0; i < online.MAX_EVENTS + 5; i++)
+    source.push(at(i), "m0", newer.round);
+  const kept = source.advance();
+  equal(kept.length, online.MAX_EVENTS);
+  equal(kept[0]!.tick, 5, "the five oldest went");
+  equal(kept.at(-1)!.tick, online.MAX_EVENTS + 4, "the newest stayed");
 });

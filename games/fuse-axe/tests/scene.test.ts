@@ -34,6 +34,7 @@ import {
 import { BRAKKA } from "../src/render/art/brakka.js";
 import { IMP, IMP_WALK_STEPS } from "../src/render/art/imp.js";
 import { FIGURES, HEROES } from "../src/render/art/index.js";
+import { OGRE_SCALE, OGRE_TIERS } from "../src/render/art/ogre.js";
 import { POT } from "../src/render/art/pot.js";
 import { RAVAGER, RAVAGER_ANIMS } from "../src/render/art/ravager.js";
 import type { Sprite } from "../src/render/pixel/sprite.js";
@@ -55,6 +56,7 @@ import {
   ITEM_SHADE,
   MARKER,
   shadowRadius,
+  SHADOW_RX,
 } from "../src/render/scene.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
 import { drawSpark, HIT_STEPS } from "../src/render/sparks.js";
@@ -145,13 +147,14 @@ const enemy = (
 ): EnemyView => ({
   ...{ id, kind: "ravager", tier: 0, x, y, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 4, maxHp: 4, flash: false },
+  ...{ boss: false, enraged: false },
   ...more,
 });
 const world = (more: Partial<WorldView>): WorldView => ({
   ...{ step: 0, camX: 0, heroes: [], enemies: [], fx: [], items: [] },
   spells: [],
   ...{ wave: 0, waves: 5, locked: false, go: false, cleared: false },
-  ...{ defeated: false },
+  ...{ defeated: false, boss: null },
   ...more,
 });
 
@@ -393,7 +396,7 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
           hero(i + 1, i % 5, 30 + i * 12, 130, { anim, animStep }),
         ),
         enemies: enemyAnims.map(({ kind, anim }, i) =>
-          enemy(40 + i, 20 + i * 10, 160, { kind, anim, animStep }),
+          enemy(40 + i, 20 + ((i * 10) % 280), 160, { kind, anim, animStep }),
         ),
       }),
     );
@@ -416,6 +419,44 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
   );
   assert.equal(odd!.length, 3);
   assert.deepEqual(odd, idle);
+});
+
+test("an ogre draws as a ravager half as big again in its twin's colours, with a bigger shadow, its shockwave's dust and cut to the screen", () => {
+  const ogre = (x: number, more: Partial<EnemyView> = {}) =>
+    draw(
+      world({
+        enemies: [
+          enemy(2, x, 150, { kind: "ogre", tier: 1, boss: true, ...more }),
+        ],
+      }),
+    );
+  const { sprites, shadows } = ogre(160, { anim: "windup", animStep: 5 });
+  assert.equal(sprites.length, 1);
+  const [b] = sprites;
+  const pose = FIGURES.ravager!.sprite(enemyFrame("ogre", "windup", 5));
+  assert.deepEqual(
+    b!.image.fills,
+    fillsOf(pose, { swap: OGRE_TIERS[1], flash: false, flip: false }),
+  );
+  assert.deepEqual(
+    [b!.sw, b!.sh, b!.dw, b!.dh],
+    [
+      b!.image.w,
+      b!.image.h,
+      Math.round(b!.image.w * OGRE_SCALE),
+      Math.round(b!.image.h * OGRE_SCALE),
+    ],
+  );
+  assert.equal(shadows[0]!.image.w, 2 * Math.round(SHADOW_RX * OGRE_SCALE) + 1);
+  // Its shockwave raises dust along the floor while it runs.
+  const fills = (more: Partial<EnemyView>) => ogre(160, more).pen.fills.length;
+  assert.ok(
+    fills({ anim: "slam", animStep: 5 }) > fills({ anim: "slam", animStep: 0 }),
+  );
+  // At the screen's edge only what is on screen is drawn.
+  const [edge] = ogre(4, { anim: "idle" }).sprites;
+  assert.ok(edge!.dx === 0 && edge!.sx > 0 && edge!.dx + edge!.dw <= VIEW_W);
+  assert.ok(Math.abs(edge!.sw * OGRE_SCALE - edge!.dw) < 1);
 });
 
 test("a sack imp draws its own frames, a kind from a newer build draws as a ravager, and pots lie among the figures and blink before they vanish", () => {

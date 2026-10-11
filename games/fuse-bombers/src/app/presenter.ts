@@ -1,5 +1,5 @@
 import { MIN_PLAYERS, type TickEvent } from "../engine/index.js";
-import { CAPACITY, type View } from "../online/game.js";
+import { CAPACITY, entrant, type View } from "../online/game.js";
 import { css, playerColor } from "../render/palette.js";
 import type { PlayerLook } from "../render/round-scene.js";
 import * as screens from "./screens.js";
@@ -40,6 +40,7 @@ export type Model = ReturnType<typeof present>;
 /** Log ticks (of 50 ms) a second, and how long GO! stays up once the round flies. */
 const LOG_HZ = 20;
 const GO_TICKS = 14;
+const LATE = "YOU FLY FROM THE NEXT ROUND";
 /** Names are what players typed, and screens.ts builds markup: as HTML text. */
 export const escapeHtml = (text: string): string =>
   text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -132,7 +133,7 @@ export function present(view: View, viewer: Viewer) {
     if (pad) screen = "controller";
   }
 
-  const few = players.length < MIN_PLAYERS,
+  const few = players.filter(entrant).length < MIN_PLAYERS, // START counts who would fly, as the engine does
     tv = viewer.display,
     lobby = screen === "lobby";
   const notes: [boolean, string][] = [
@@ -168,17 +169,21 @@ export function present(view: View, viewer: Viewer) {
         ? 1 - unit.reloadTicks / Math.max(1, unit.reloadTotalTicks)
         : 0,
       wins: `${view.wins[mine.id] ?? 0} / ${view.play.wins}`,
+      // A seat that joined mid-round flies from the next one: a countdown would promise it a gunship.
       line:
-        line ||
-        (state === "ghost"
-          ? "GHOST: DROP BOMBS"
-          : state === "out"
-            ? "YOU FLY FROM THE NEXT ROUND"
-            : ""),
+        state === "out" && running && !world.result
+          ? LATE
+          : line ||
+            (state === "ghost"
+              ? "GHOST: DROP BOMBS"
+              : state === "out"
+                ? LATE
+                : ""),
       actions: view.stage === "over" && viewer.host,
     };
   }
-  const note = notes.find(([when]) => when)?.[1] ?? "";
+  // A controller's panel says all there is to say: no second line, no room for one above its pads.
+  const note = controller ? "" : (notes.find(([when]) => when)?.[1] ?? "");
   return {
     screen,
     askName: !mine && !tv,

@@ -577,6 +577,8 @@ test("the view shows the swing, each enemy's anim, hp and flash, and each spark'
       hp: FULL - T.COMBO.gorm[0].damage,
       maxHp: FULL,
       flash: true,
+      boss: false,
+      enraged: false,
     },
   ]);
   const [spark] = view.fx;
@@ -604,6 +606,9 @@ test("the view shows the swing, each enemy's anim, hp and flash, and each spark'
     "thrown",
     "stumble",
     "flee",
+    "slam",
+    "sweep",
+    "stagger",
   ]);
   assert.deepEqual(Kit.FX_KINDS, ["hit", "heavy", "ko"]);
   for (const kind of Kit.HERO_KINDS)

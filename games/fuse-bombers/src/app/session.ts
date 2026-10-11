@@ -30,6 +30,20 @@ export type Session =
 /** `?local`, or without a room a debug flag of the local game (main.ts), opens the lobby on this screen. */
 const LOCAL_FLAGS = ["local", "seed", "speed", "debug", "touch", "inputdebug"];
 
+/** Options of one load that follow the player from page to page. */
+const CARRIED = ["mute", "calm"];
+
+/** `query` (no `?`) for a page of this game opened from the page at `search`: the same, keeping `?mute` and `?calm`
+ * as typed (so `?mute=0` stays on). */
+export function carry(search: string, query = ""): string {
+  const flags = new URLSearchParams(search);
+  const kept = CARRIED.filter((flag) => flags.has(flag)).map((flag) => {
+    const value = flags.get(flag);
+    return value ? `${flag}=${encodeURIComponent(value)}` : flag;
+  });
+  return [query, ...kept].filter(Boolean).join("&");
+}
+
 /** Reads the query. CREATE ROOM stored the creator's token; a joiner keeps one per room, so a reload is the same member;
  * the TV takes a fresh token every load, as it holds no seat (as Fuse Choppers'). */
 export function sessionFor(
