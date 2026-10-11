@@ -1,5 +1,5 @@
 import { MIN_PLAYERS } from "../engine/index.js";
-import { CAPACITY, type View } from "../online/game.js";
+import { CAPACITY, entrant, type View } from "../online/game.js";
 import { css, playerColor } from "../render/palette.js";
 import type { PlayerLook } from "../render/round-scene.js";
 import * as screens from "./screens.js";
@@ -104,7 +104,7 @@ export function present(view: View, viewer: Viewer) {
     }
   }
 
-  const few = players.length < MIN_PLAYERS;
+  const few = players.filter(entrant).length < MIN_PLAYERS; // START counts who would fly, as the engine does
   const notes: [boolean, string][] = [
     [!viewer.hostPresent, "The host left: the room plays on without them"],
     [!mine, "Pick a name to take a seat"],

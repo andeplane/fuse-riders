@@ -16,19 +16,15 @@ import {
 import { createAudio } from "./audio/index.js";
 import { Flow } from "./flow.js";
 import { createBrowserInput } from "./input/index.js";
-import { showLanding, showRoom } from "./online.js";
+import { GAME, showLanding, showRoom } from "./online.js";
 import { safeStore, sessionFor } from "./session.js";
 
 const params = new URLSearchParams(window.location.search);
 /** Music and effects; `?mute` disables them for this load. */
 const audio = createAudio();
 const store = safeStore(() => localStorage);
-const session = sessionFor(
-  location.search,
-  store,
-  "fuse-bombers",
-  validRoomCode,
-  () => `${uuid()}${uuid()}`.replaceAll("-", ""),
+const session = sessionFor(location.search, store, GAME, validRoomCode, () =>
+  `${uuid()}${uuid()}`.replaceAll("-", ""),
 );
 
 /**
@@ -101,7 +97,7 @@ async function boot(): Promise<void> {
 function mountPortal(): AppPortal {
   const portal = createAppPortal({
     document,
-    current: "fuse-bombers",
+    current: GAME,
     base: import.meta.env.BASE_URL,
     search: location.search,
   });
