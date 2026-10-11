@@ -9,6 +9,7 @@ import {
   fist,
   leg,
   offset as at,
+  turned,
   type Pose,
   type Side,
 } from "../pixel/kit.js";
@@ -32,16 +33,6 @@ export interface RavagerPose extends Pose {
   readonly astride?: boolean;
 }
 
-/** Offsets from `origin` along a part's own axes turned `degrees` clockwise: `forward` the way it faces, `down` along it. */
-export type Local = (forward: number, down: number) => Point;
-export const turned = (origin: Point, degrees: number): Local => {
-  const r = (degrees * Math.PI) / 180;
-  const [c, s] = [Math.cos(r), Math.sin(r)];
-  return (forward, down) => [
-    origin[0] + forward * c - down * s,
-    origin[1] + forward * s + down * c,
-  ];
-};
 /** How far a spine from `top` down to `bottom` leans, in degrees clockwise from upright. */
 const lean = (top: Point, bottom: Point) =>
   (Math.atan2(top[0] - bottom[0], bottom[1] - top[1]) * 180) / Math.PI;

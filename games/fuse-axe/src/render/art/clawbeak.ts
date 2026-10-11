@@ -1,10 +1,17 @@
 import type { MountAnim } from "../../engine/view.js";
 import { CLAWBEAK, CLAWBEAK_STEPS } from "../../engine/view-kit.js";
 import type { AnimStrip } from "./animate.js";
-import { BACK, bend, between, figure, offset as at } from "../pixel/kit.js";
+import {
+  BACK,
+  bend,
+  between,
+  figure,
+  offset as at,
+  turned,
+  type Local,
+} from "../pixel/kit.js";
 import { Rig, type Point, type ShapeOptions } from "../pixel/rig.js";
 import type { Sprite } from "../pixel/sprite.js";
-import { turned, type Local } from "./ravager.js";
 
 /**
  * The clawbeak, the beast a ravager rides: a teal two-legged runner with a long tail held level behind, a big hooked
@@ -246,7 +253,11 @@ export const CLAWBEAK_POSES = {
 };
 export type ClawbeakFrame = keyof typeof CLAWBEAK_POSES;
 
-/** The rows each frame's saddle sits below `CLAWBEAK.saddle`, which the scene lowers the rider by. */
+/**
+ * The rows each frame's saddle sits below `CLAWBEAK.saddle`, which the scene lowers the rider by. A ridden beast shows
+ * only the idle, walk, wind-up and lash frames; the run (its body bobbing up, so a negative dip) and the peck are a
+ * riderless beast's, which nobody sits.
+ */
 export const CLAWBEAK_DIPS = Object.fromEntries(
   Object.entries(CLAWBEAK_POSES).map(([frame, pose]) => [
     frame,

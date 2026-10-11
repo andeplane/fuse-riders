@@ -446,12 +446,23 @@ test("a beast draws its own art on its feet, its rider astride the saddle over i
         assert.equal(shadows.length, 1, label);
         assert.equal(shadows[0]!.image.w, 2 * Math.round((SHADOW_RX * 4) / 3) + 1); // prettier-ignore
       }
-  // The strut's dip lowers the rider with the saddle; without its beast in the view a rider stands at its own height.
+  // The strut's dip lowers the rider with the saddle.
   const walking = (animStep: number) =>
     draw(world({ enemies: [enemy(2, 150, 140, seated)], mounts: [beast({ anim: "walk", animStep })] })).sprites[1]!.dy; // prettier-ignore
   assert.equal(walking(0), walking(5) + 1);
-  const alone = draw(world({ enemies: [enemy(2, 150, 140, seated)] })).sprites;
-  assert.equal(alone[0]!.dy + ride.ay, 140 - CLAWBEAK.saddle);
+  // A rider whose beast is not in the view (or is another's) fails safe: it stays at the height the view gives it, in a
+  // shadow of its own, not hanging in the air with none.
+  const strays = [
+    [],
+    [beast({ rider: { kind: "enemy", id: 3 } })],
+    [beast({ rider: { kind: "hero", id: 2 } })],
+  ];
+  for (const mounts of strays) {
+    const { sprites, shadows } = draw(world({ enemies: [enemy(2, 150, 140, seated)], mounts })); // prettier-ignore
+    assert.equal(sprites.at(-1)!.dy + ride.ay, 140 - CLAWBEAK.saddle);
+    const own = shadows.filter((s) => s.image.w === 2 * shadowRadius(CLAWBEAK.saddle) + 1); // prettier-ignore
+    assert.equal(own.length, 1, "the rider's own shadow");
+  }
 });
 
 test("a beast blinks as its tail winds up, coiling, and lashes with the ring in its own frame; any anim or kind draws one beast", () => {
