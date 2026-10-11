@@ -76,6 +76,11 @@ const ravager = (tier: Tier, side: Side, y: number, delay: number): Spawn => ({
   y: px(y),
   delay,
 });
+/** A lancer, which leaps in from beyond the screen's edge rather than walking. */
+const lancer = (tier: Tier, side: Side, y: number, delay: number): Spawn => ({
+  ...ravager(tier, side, y, delay),
+  kind: "lancer",
+});
 const ASH = 0,
   RUST = 1,
   VIOLET = 2;
@@ -88,7 +93,10 @@ const ogre = (tier: Tier, side: Side, y: number): Spawn => ({
   delay: 0,
 });
 
-/** Ashen Village: four waves building in size and tier, then the Ogre twins at the village gate. */
+/**
+ * Ashen Village: four waves building in size and tier, the later two with a lancer leaping in, then the Ogre twins at
+ * the village gate.
+ */
 export const STAGE_1: StagePlan = {
   name: "Ashen Village",
   length: STAGE_LENGTH,
@@ -111,7 +119,7 @@ export const STAGE_1: StagePlan = {
       spawns: [
         ravager(RUST, "right", 128, 0),
         ravager(ASH, "left", 116, 20),
-        ravager(ASH, "right", 160, 50),
+        lancer(ASH, "right", 160, 50),
         ravager(RUST, "left", 148, 80),
       ],
     },
@@ -121,7 +129,7 @@ export const STAGE_1: StagePlan = {
         ravager(RUST, "right", 120, 0),
         ravager(RUST, "left", 140, 0),
         ravager(VIOLET, "right", 152, 40),
-        ravager(ASH, "left", 112, 70),
+        lancer(RUST, "left", 112, 70),
         ravager(RUST, "right", 168, 100),
       ],
     },
@@ -147,8 +155,8 @@ export const STAGE_1: StagePlan = {
 const ROAD_2 = px(5 * VIEW_W);
 /**
  * Wyrmbone Pass, as gameplay to fight through until its art, mounts and boss come: a screen longer than the village,
- * five waves of ravagers mostly in rust and violet, and at the pass's end a pair of violet ravagers in place of the
- * lancer captain on his ember drake, with rust ones for a bigger party.
+ * five waves of ravagers mostly in rust and violet, each with a lancer leaping in, and at the pass's end a pair of
+ * violet ravagers in place of the lancer captain on his ember drake, with rust ones for a bigger party.
  */
 export const STAGE_2: StagePlan = {
   name: "Wyrmbone Pass",
@@ -160,7 +168,7 @@ export const STAGE_2: StagePlan = {
       spawns: [
         ravager(RUST, "right", 132, 0),
         ravager(ASH, "right", 156, 30),
-        ravager(ASH, "left", 120, 60),
+        lancer(ASH, "left", 120, 60),
       ],
     },
     {
@@ -169,7 +177,7 @@ export const STAGE_2: StagePlan = {
         ravager(RUST, "right", 120, 0),
         ravager(RUST, "left", 150, 20),
         ravager(ASH, "right", 164, 60),
-        ravager(ASH, "left", 128, 90),
+        lancer(RUST, "left", 128, 90),
       ],
     },
     {
@@ -177,7 +185,7 @@ export const STAGE_2: StagePlan = {
       spawns: [
         ravager(VIOLET, "right", 136, 0),
         ravager(RUST, "left", 116, 30),
-        ravager(RUST, "right", 160, 60),
+        lancer(RUST, "right", 160, 60),
         ravager(ASH, "left", 148, 90),
       ],
     },
@@ -187,7 +195,7 @@ export const STAGE_2: StagePlan = {
         ravager(RUST, "right", 120, 0),
         ravager(RUST, "left", 140, 0),
         ravager(VIOLET, "right", 152, 40),
-        ravager(RUST, "left", 112, 70),
+        lancer(VIOLET, "left", 112, 70),
         ravager(ASH, "right", 168, 100),
       ],
     },
@@ -196,9 +204,9 @@ export const STAGE_2: StagePlan = {
       spawns: [
         ravager(VIOLET, "right", 128, 0),
         ravager(VIOLET, "left", 150, 30),
-        ravager(RUST, "right", 116, 60),
+        lancer(RUST, "right", 116, 60),
         ravager(RUST, "left", 164, 90),
-        ravager(RUST, "right", 140, 120),
+        lancer(RUST, "right", 140, 120),
       ],
     },
     {

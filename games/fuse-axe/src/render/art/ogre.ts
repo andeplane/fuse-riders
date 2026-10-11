@@ -280,10 +280,18 @@ export const OGRE_CROWNS: Readonly<Record<OgreFrame, Point>> = (() => {
   return crowns;
 })();
 
-/** The anims an ogre is shown in: never reeling, held or thrown, nor in a sack imp's. */
+/** The anims an ogre is shown in: never reeling, held or thrown, nor in a sack imp's or a lancer's. */
 export type OgreAnim = Exclude<
   EnemyAnim,
-  "hurt" | "attack" | "held" | "thrown" | "stumble" | "flee"
+  | "hurt"
+  | "attack"
+  | "held"
+  | "thrown"
+  | "stumble"
+  | "flee"
+  | "thrust"
+  | "leap"
+  | "plunge"
 >;
 
 type Frames = (readonly [OgreFrame, number])[];

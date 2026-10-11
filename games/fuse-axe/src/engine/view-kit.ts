@@ -10,7 +10,14 @@ import {
   JUMP_ATTACK,
   JUMP_VZ,
   HERO_KINDS,
+  LANCE_RECOVER,
+  LANCER,
+  LEAP_STEPS,
   OGRE,
+  PLUNGE_REACH,
+  PLUNGE_STEPS,
+  SPEAR_REACH,
+  THRUST_STEPS,
   OGRE_RECOVER,
   QUAKE_SPEED,
   QUAKE_STEPS,
@@ -67,6 +74,7 @@ export {
   FX_KINDS,
   HERO_STATES,
   IMP_ONLY,
+  LANCER_ONLY,
   OGRE_ONLY,
 } from "./world.js";
 
@@ -195,4 +203,29 @@ export const QUAKE = {
   reach: SLAM_REACH / SUB,
   speed: QUAKE_SPEED / SUB,
   steps: QUAKE_STEPS,
+} as const;
+
+/**
+ * A lancer's timing in steps, to time its frames: the thrust's wind-up per tier (the spear lands on the step after the
+ * last), the steps the spear stays out (`thrust`) and the lancer stands open after it (`recover`), the leap's steps
+ * (`animStep` 0 takes off from the floor, it climbs on every step up to `leapApex` and falls after, landing on the step
+ * that would be `leap`) and the steps it stands over the spear it drove down landing (`plunge`).
+ */
+export const LANCER_STEPS = {
+  windup: {
+    0: LANCER[0].windup,
+    1: LANCER[1].windup,
+    2: LANCER[2].windup,
+  } satisfies Readonly<Record<Tier, number>>,
+  thrust: THRUST_STEPS,
+  recover: LANCE_RECOVER,
+  leap: LEAP_STEPS,
+  // Step `n` of the leap moves it by the launch speed less `n − 1` pulls of gravity.
+  leapApex: 1 + Math.floor((JUMP_VZ - 1) / GRAVITY),
+  plunge: PLUNGE_STEPS,
+} as const;
+/** In pixels: how far the thrust's spear reaches in front of the lancer's centre, and the landing strike's. */
+export const SPEAR = {
+  reach: SPEAR_REACH / SUB,
+  plunge: PLUNGE_REACH / SUB,
 } as const;
