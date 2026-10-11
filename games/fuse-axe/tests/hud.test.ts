@@ -16,6 +16,8 @@ import {
   BAR,
   BLINK_FRAMES,
   createHud,
+  CHARGE_BLINK,
+  CHARGED,
   drawPots,
   FRAME,
   HEALTH,
@@ -376,6 +378,41 @@ test("pots: a row of the most a hero can hold, the held ones full, as each hero'
   assert.deepEqual(row(1), [...Array(5).fill(C.pot), C.potEmpty]);
   assert.deepEqual(row(3), Array(3).fill(C.potEmpty));
   assert.deepEqual(row(0), []);
+});
+
+test("the charge meter: while a hero charges, its pots glow up to the level chosen, the last of them blinking", () => {
+  const row = (pen: RecordingPen, seat = 0) =>
+    pen.fills
+      .filter((f) => f.w === 5 && f.h === 4 && f.y === POTS.y + 1)
+      .filter((f) => f.x >= seat * PANEL_W && f.x < (seat + 1) * PANEL_W)
+      .map((f) => f.style);
+  const { draw } = fakeHud();
+  const charging = (charge: number, frame = 0) =>
+    row(draw(world([hero(1, 0, { anim: "charge", pots: 3, charge })]), frame));
+  assert.deepEqual(charging(0), Array(3).fill(C.pot).concat(C.potEmpty));
+  assert.deepEqual(charging(2), [CHARGED.pot, CHARGED.pot, C.pot, C.potEmpty]);
+  // The level just reached blinks: every other `CHARGE_BLINK` frames it shows as a pot only held.
+  assert.deepEqual(charging(2, CHARGE_BLINK), [
+    CHARGED.pot,
+    C.pot,
+    C.pot,
+    C.potEmpty,
+  ]);
+  assert.deepEqual(charging(3, CHARGE_BLINK * 2), [
+    ...Array(3).fill(CHARGED.pot),
+    C.potEmpty,
+  ]);
+  // A charge past the pots held lights only those; one out of lives lights none.
+  assert.deepEqual(charging(9), [...Array(3).fill(CHARGED.pot), C.potEmpty]);
+  const gone = draw(
+    world([hero(1, 0, { anim: "out", lives: 0, pots: 2, charge: 2 })]),
+  );
+  assert.ok(!row(gone).includes(CHARGED.pot));
+  // Each glowing pot keeps its highlight and glint, in white-hot cyan.
+  const pen = new RecordingPen();
+  drawPots(pen, 20, POTS.y, { held: 4, max: 4, charged: 2 });
+  assert.equal(pen.fills.filter((f) => f.style === CHARGED.glint).length, 2);
+  assert.equal(pen.fills.filter((f) => f.style === C.potGlint).length, 2);
 });
 
 test("the HUD keeps to its strip at the top of the 320 × 180 screen", () => {
