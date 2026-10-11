@@ -5,6 +5,7 @@ import {
   BANK,
   CRYPT_END,
   CRYPT_LENGTH,
+  DROWNED_CRYPT,
   DRIPS,
   FIRES,
   GRAVES,
@@ -111,9 +112,22 @@ test("its layers reach exactly to the crypt's end, the road its whole length, an
   same(END + 400, END);
 });
 
-test("the crypt's road is the one the engine gives Stage 3, once the engine has the stage", () => {
-  // Until then `stageLengthPx(3)` is Stage 1's, and the backdrop keeps its own length (`CRYPT_LENGTH`'s TODO).
-  if (STAGE_COUNT < 3) return;
+test("the crypt keeps its own road only while the engine has no Stage 3, and takes the engine's road once it has one", () => {
+  if (STAGE_COUNT < 3) {
+    // The engine answers Stage 1's road for Stage 3 (`roadOf`), so the art's own `cameraEnd` is what holds the camera
+    // to the crypt; without it the great doors would never be reached (`CRYPT_LENGTH`'s TODO).
+    assert.equal(DROWNED_CRYPT.cameraEnd, CRYPT_END);
+    assert.equal(stageLengthPx(3), stageLengthPx(1));
+    assert.equal(cameraEndPx(3), cameraEndPx(1));
+    assert.notEqual(cameraEndPx(3), CRYPT_END);
+    return;
+  }
+  // The engine has Stage 3: its road is the camera's, and an override left behind would silently win over it.
+  assert.equal(
+    DROWNED_CRYPT.cameraEnd,
+    undefined,
+    "the engine has Stage 3: drop `cameraEnd`, `CRYPT_LENGTH` and `CRYPT_END` and lay the art on `stageLengthPx(3)`",
+  );
   assert.equal(stageLengthPx(3), CRYPT_LENGTH, "align the two roads");
   assert.equal(cameraEndPx(3), CRYPT_END);
 });

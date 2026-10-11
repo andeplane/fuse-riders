@@ -17,7 +17,7 @@ import type { Brush, StageArt } from "./kit.js";
  * The crypt's road, five screens as Wyrmbone Pass's, and the furthest the camera's left edge goes on it. The engine
  * has no Stage 3 yet (its `stageLengthPx(3)` is Stage 1's until it has), so the backdrop is laid out on its own length.
  * TODO(stage 3 in the engine): give `STAGE_3` this road, or this the engine's, then drop `cameraEnd` below;
- * `drowned-crypt.test.ts` holds the two equal once the engine has the stage.
+ * `drowned-crypt.test.ts` fails once the engine has the stage until the override is gone and the two roads are equal.
  */
 export const CRYPT_LENGTH = 5 * VIEW_W;
 export const CRYPT_END = CRYPT_LENGTH - VIEW_W;
@@ -450,7 +450,11 @@ function sunken(r: Raster) {
   }
 }
 
-/** The graves the bonewalkers will claw out of, broken through the causeway: where each pit is. */
+/**
+ * The graves the bonewalkers will claw out of, broken through the causeway: where each pit is, as pairs of its world x
+ * and the screen row it lies on (an engine `Spawn.y`, in pixels). The engine cannot import this, so Stage 3's plan
+ * carries the same positions as data, with each wave's trigger set so the pits it uses are on the screen it holds.
+ */
 export const GRAVES = [318, 128, 702, 150, 988, 124, 1190, 146];
 
 const EARTH = [VOID, MOUND[1], MOUND[2], MOUND[3]];

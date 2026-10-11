@@ -274,7 +274,9 @@ or is a bot.
   (`drowned-crypt.ts`) too: the sky and moon, the cathedral, cloisters and mausoleums, the bank, water and causeway,
   and reeds in front; ripples, fog, green fires and drips move. Each layer is as wide as it scrolls across its stage
   (`cameraEndPx(stage)` in `view-kit.ts`; the crypt, until the engine has Stage 3, its own `CRYPT_END` on a five-screen
-  road, which its test holds equal to the engine's once it has one). The scene picks the backdrop by the
+  road through `StageArt.cameraEnd`; its test fails once the engine has the stage until the override is dropped and the
+  two roads are equal). The crypt's four open graves (`GRAVES`: world x and floor row) are where Stage 3's plan can have
+  its bonewalkers rise. The scene picks the backdrop by the
   view's `stage`; a stage without art of its own draws Stage 1's, its camera scaled from the stage's road onto the
   village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery. A camp (the view's `camp`) draws
   `camp.ts` instead, whatever stage it follows: one screen, baked once with the scene, whose camera is held at 0.
