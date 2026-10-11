@@ -343,7 +343,8 @@ function finish(room: Room, outcome: Outcome): void {
  * The stage-clear tally has shown. Past the last stage the run is won; only Ashen Village is built (`LAST_STAGE`), so
  * for now every cleared stage wins it. Stage 2 slots in here as `beginStage(room, room.round + 1, heroes)` under the
  * policy in design.md ("Stage flow"): each hero whose seat is still here sets out with the lives it has (one that went
- * out comes back with one), full health, a fresh continue, and its tallies banked in the room.
+ * out comes back with one) and the magic pots it holds in the cleared world, full health, a fresh continue, and its
+ * tallies banked in the room.
  */
 const nextStage = (room: Room): void => finish(room, "victory");
 

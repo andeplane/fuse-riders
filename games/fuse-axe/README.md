@@ -24,7 +24,7 @@ menu); a pad with no standard mapping offers only its stick and first four butto
 | Arrows / WASD | 8-way d-pad (slide for diagonal) | Walk the road, up and down in depth; double-tap left or right to run  |
 | J / Z         | ATTACK                           | Attack (a dash from a run, a stab in the air, a throw at a dazed one) |
 | K / X         | JUMP                             | Jump (a running jump from a run); with Attack, a back attack          |
-| L / C         | MAGIC                            | Magic                                                                 |
+| L / C         | MAGIC                            | Magic: tap to cast every pot, hold to charge level by level, let go   |
 
 On a touch screen the pads (`src/app/pad.ts`) sit over the game's corners while your hero fights; a thumb slides
 round the d-pad for the diagonals, and a double tap of left or right (a second tap, or a slide back through the
@@ -39,6 +39,13 @@ of every pad.
 ![The shared screen: the game on the TV, with the room's QR code](docs/images/app-shared-tv.png)
 ![A phone as its controller (Playwright's Pixel 7 emulation, landscape)](docs/images/app-phone-controller.png)
 ![The same held upright](docs/images/app-phone-controller-upright.png)
+
+Sound is synthesised in the browser, with nothing to load: every cue is found by diffing the frames the page is shown
+(`src/app/audio/cues.ts`), never by the simulation, and plays after the first key or tap. **♫ MUSIC** (the stage
+jingles) and **EFFECTS** in the header are this browser's choices and are kept; `?mute` silences the page without
+touching them. With a shared screen the TV sounds for the room and a phone that is only a controller stays quiet.
+
+![Solo with ?mute: the sound toggles greyed out in the header](docs/images/app-sound-toggles.png)
 
 ```sh
 pnpm build && pnpm exec tsx service/dev.ts   # then open http://localhost:8787/fuse-axe/?mute

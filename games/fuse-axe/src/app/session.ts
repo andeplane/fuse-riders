@@ -11,6 +11,9 @@ export const keys = (gameId: string) => ({
   /** The hero this browser last picked, offered with its next join; the screen still shows the seat's own. */
   hero: `${gameId}-hero`,
   shared: `${gameId}-shared-screen`,
+  /** The header's MUSIC and EFFECTS choices: "0" off, otherwise on. */
+  music: `${gameId}-music`,
+  effects: `${gameId}-effects`,
   host: (code: string) => `${gameId}-room-${code}`,
   peer: (code: string) => `${gameId}-peer-${code}`,
 });

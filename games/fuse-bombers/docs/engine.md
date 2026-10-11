@@ -427,5 +427,10 @@ round, and too few gunships send the room back to its lobby.
   and step count against the match, round and countdown). A worst case (1,500 rockets, 6,000 craters: 14k runs) is
   130 KB of the 2 MB cap. `tests/online-checkpoint.test.ts` covers round trips at every stage, corruption field by
   field, a seeded fuzz and a late joiner restoring from a peer's snapshot.
+- **This device** (`src/online/runtime.ts`, `BombersRuntime`): `input(bits)` logs the directions on change, and lets go
+  of them when the page hides; `flush()`, which the app calls with every frame it renders, logs them again for a new
+  round or match and after a resync or an absence. `fire()` logs a `PRESS` with the next ordinal (it only rises along
+  the stream) and the step its moment falls on in the shared clock's current log tick; the app passes a press, not a
+  key's auto-repeat. Both send their packet at once and stay scoped to the match and round this device sees.
 - **`RULES`** (`src/engine/index.ts`) and `tests/online-golden.test.ts` (a scripted six-gunship match's hashes): a
   change to how a logged room plays bumps `RULES` and re-records them (`GOLDEN_RECORD=1`) in the same commit.

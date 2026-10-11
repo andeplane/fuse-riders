@@ -6,9 +6,12 @@ import {
   ENEMY_MAX,
   FLOOR_BOTTOM,
   FLOOR_TOP,
+  HEAVY_HITSTOP,
   HERO_HP,
   HERO_KINDS,
   IMP_POTS,
+  KNOCK_VX,
+  KNOCK_VZ,
   LIVES,
   RAVAGER,
   STAGE_LENGTH,
@@ -52,6 +55,8 @@ export const HERO_STATES = [
   "backattack",
   "grab",
   "throw",
+  "charge",
+  "cast",
 ] as const;
 export type HeroState = (typeof HERO_STATES)[number];
 
@@ -106,6 +111,11 @@ export interface Hero {
    * through a lost life and a continue, as in the original; casting spends them.
    */
   pots: number;
+  /** Steps a Magic press stays usable for (0: none waiting), as `attackBuf` does. */
+  magicBuf: number;
+  /** Tallies: spells cast, and the hit points they took (counted in `damage` too). */
+  casts: number;
+  magicDamage: number;
 }
 
 export const ENEMY_STATES = [
@@ -196,6 +206,16 @@ export interface Fx {
   born: number;
 }
 
+/**
+ * A spell playing (`magic.ts`): the hero casting it, its level (the pots it spent) and the step it was cast. The
+ * hero's kind says which spell it is (`SPELLS`), and the level how long it plays and when its blow lands.
+ */
+export interface Spell {
+  hero: number;
+  level: number;
+  born: number;
+}
+
 export interface World {
   seed: number;
   /** Steps since the run began. */
@@ -223,6 +243,8 @@ export interface World {
   items: Item[];
   /** How many of Stage 1's imp cues (`STAGE_1.imps`) have sent their imp. */
   impsSent: number;
+  /** Spells playing, in the order they were cast (heroes in id order within a step): one per hero in `cast`. */
+  spells: Spell[];
 }
 
 export interface HeroEntry {
@@ -287,6 +309,9 @@ export function createWorld(options: {
       runBuf: 0,
       throws: 0,
       pots: 0,
+      magicBuf: 0,
+      casts: 0,
+      magicDamage: 0,
     };
   });
   return {
@@ -305,6 +330,7 @@ export function createWorld(options: {
     goUntil: 0,
     items: [],
     impsSent: 0,
+    spells: [],
   };
 }
 
@@ -421,6 +447,19 @@ export function spark(
 ): void {
   world.fx.push({ kind, x, y, z, born: world.step });
   if (world.fx.length > FX_MAX) world.fx.shift();
+}
+
+/**
+ * Knocks an enemy down, launched up and away the way `dir` points along the road (facing back at the blow), going for
+ * nobody and held still for the heavy hit-stop.
+ */
+export function launch(world: World, enemy: Enemy, dir: 1 | -1): void {
+  enemy.state = "knockdown";
+  enemy.timer = enemy.target = 0;
+  enemy.facing = dir > 0 ? -1 : 1;
+  enemy.vx = dir * KNOCK_VX;
+  enemy.vz = KNOCK_VZ;
+  enemy.stopUntil = world.step + HEAVY_HITSTOP;
 }
 
 /**
