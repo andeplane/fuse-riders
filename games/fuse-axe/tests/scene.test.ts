@@ -1422,10 +1422,15 @@ test("Vorhal draws as his own figure in every anim, his sigils glow under the fi
       draw(world({ enemies: [vorhal({ enraged, anim: "cast", animStep: 30 })] })).sprites[0]!.image.fills, // prettier-ignore
       fillsOf(VORHAL.sprite("cast"), { swap: enraged ? VORHAL_RAGE : undefined, flash: false, flip: false }), // prettier-ignore
     );
-  // Brakka at `y` by a sigil at (160, 140) `age` steps old: where its sigil's and its pillar's blits fall among the
-  // blits, and his.
-  const scene = (age: number, y = 140, sigil = { x: 160, y: 140, age }) => {
-    const { blits } = draw(world({ heroes: [hero(1, 0, 160, y)], sigils: [sigil] })).pen; // prettier-ignore
+  // Brakka at `y`, `z` up, by a sigil at (160, 140) `age` steps old: where its sigil's and its pillar's blits fall
+  // among the blits, and his.
+  const scene = (
+    age: number,
+    y = 140,
+    sigil = { x: 160, y: 140, age },
+    z = 0,
+  ) => {
+    const { blits } = draw(world({ heroes: [hero(1, 0, 160, y, { z })], sigils: [sigil] })).pen; // prettier-ignore
     const of = (sprite: Sprite | undefined) =>
       sprite ? blits.findIndex((b) => isDeepStrictEqual(b.image.fills, fillsOf(sprite))) : -1; // prettier-ignore
     const idle = BRAKKA.sprite("idle0");
@@ -1457,6 +1462,11 @@ test("Vorhal draws as his own figure in every anim, his sigils glow under the fi
     assert.ok(pillar >= 0 && sigil === -1, `${y}`);
     assert.equal(pillar > brakka, after, `${y}`);
     assert.deepEqual([blits[pillar]!.dx, blits[pillar]!.dy], [160 - p.ax, 140 - p.ay]); // prettier-ignore
+  }
+  // It burns whatever is over its row too: Brakka in the air above it is engulfed, not drawn in front of it.
+  for (const z of [1, 20, 36]) {
+    const { pillar, brakka } = scene(burning, 140, { x: 160, y: 140, age: burning }, z); // prettier-ignore
+    assert.ok(pillar > brakka && brakka >= 0, `${z}`);
   }
   // Burnt out, nothing is left; an odd age or place draws nothing amiss.
   const bare = draw(world({ heroes: [hero(1, 0, 160, 140)] })).pen.blits.length;
