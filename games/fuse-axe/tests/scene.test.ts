@@ -1409,6 +1409,12 @@ test("Vorhal draws as his own figure in every anim, burning red enraged; his sig
         () => draw(world({ enemies: [vorhal({ anim, animStep })] })),
         `${anim} ${animStep}`,
       );
+  // Enraged he burns but does not steam as an ogre does (nothing rises from his helm), and fallen he stands as before.
+  for (const anim of ["idle", "windup", "cut1", "dead"] as const) {
+    const drawn = (enraged: boolean) =>
+      draw(world({ enemies: [vorhal({ enraged, anim, animStep: 5 })] }), 7).pen.fills; // prettier-ignore
+    assert.deepEqual(drawn(true), drawn(false), anim);
+  }
   // His own figure, burning red enraged.
   for (const enraged of [false, true])
     assert.deepEqual(
