@@ -36,6 +36,7 @@ import { LANCER, LANCER_TIERS } from "./art/lancer.js";
 import { OGRE, OGRE_CROWNS, OGRE_RAGE, OGRE_TIERS } from "./art/ogre.js";
 import { POT } from "./art/pot.js";
 import { RAVAGER, RAVAGER_TIERS } from "./art/ravager.js";
+import { VORHAL, VORHAL_RAGE } from "./art/vorhal.js";
 import {
   createBackdrop,
   createCampBackdrop,
@@ -47,10 +48,10 @@ import { bayer } from "./backdrop/kit.js";
 import { blinksOn, createHud, type HudSeats } from "./hud.js";
 import { drawFlame } from "./drake-fx.js";
 import { drawCracks, drawShards, drawSteam } from "./ogre-fx.js";
-import { drawHorns, drawPillars, drawSigils } from "./vorhal-fx.js";
+import { drawPillars, drawSigils } from "./vorhal-fx.js";
 import { blit, fill, type Pen } from "./pen.js";
 import type { Figure } from "./pixel/kit.js";
-import { UNLIT, rampSwap, type Palette } from "./pixel/palette.js";
+import { UNLIT, type Palette } from "./pixel/palette.js";
 import type { Point } from "./pixel/rig.js";
 import { cropSprite, type Sprite } from "./pixel/sprite.js";
 import { createSpriteBaker, type BakeOptions } from "./pixel/surface.js";
@@ -93,24 +94,14 @@ interface EnemyArt {
   readonly tiers: Readonly<Record<Tier, Palette | undefined>>;
   /** A tier with a figure of its own, playing the same frames (a bonewalker's violet knight, in armour). */
   readonly figures?: Readonly<Partial<Record<Tier, Figure>>>;
-  /** Enraged (an ogre whose twin has fallen): a palette per tier, and where its steam rises in each frame. */
+  /** Enraged (an ogre whose twin has fallen, Vorhal's second phase): a palette per tier, and where it steams. */
   readonly rage?: {
     readonly tiers: Readonly<Record<Tier, Palette>>;
-    readonly crowns: Readonly<Record<string, Point>>;
+    readonly crowns?: Readonly<Record<string, Point>>;
   };
   /** Its shadow's width as a multiple of a body's (none: a body's). */
   readonly shade?: number;
-  /** Where its horns curl up in each frame (`drawHorns`): the top of its skull, from its feet. */
-  readonly horns?: Readonly<Record<string, Point>>;
 }
-/** Vorhal until he has art of his own: an ogre in dark steel and ash with burning eyes, crimson once enraged. */
-const VORHAL_LOOK = {
-  ...rampSwap("Oo2", "Ii#"),
-  ...rampSwap("Ll9", "Aa$"),
-  D: "#ff3a2e",
-};
-const VORHAL_RAGE = { ...VORHAL_LOOK, ...rampSwap("Ll9", "Cc0") };
-const inEveryTier = <P>(palette: P) => ({ 0: palette, 1: palette, 2: palette });
 /** Every enemy kind's art. A kind from a build with more of them draws as a ravager, as `enemyFrame` plays it. */
 export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   ravager: {
@@ -141,12 +132,12 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
     },
     figures: { 2: BONE_KNIGHT },
   },
+  // Vorhal in his own black-violet plate whatever his palette, burning red in his second phase (`vorhal.ts`).
   vorhal: {
-    figure: OGRE,
-    tiers: inEveryTier(VORHAL_LOOK),
-    rage: { tiers: inEveryTier(VORHAL_RAGE), crowns: OGRE_CROWNS },
+    figure: VORHAL,
+    tiers: { 0: undefined, 1: undefined, 2: undefined },
+    rage: { tiers: { 0: VORHAL_RAGE, 1: VORHAL_RAGE, 2: VORHAL_RAGE } },
     shade: 1.5,
-    horns: OGRE_CROWNS,
   },
 };
 /** What each item kind draws (a kind from a build with more of them, a pot), and the half-width of its shadow. */
@@ -336,8 +327,6 @@ interface Standing {
   readonly steam?: { readonly enemy: EnemyView; readonly crown: Point };
   /** A beast's flame if it is a drake breathing one, drawn with it likewise, from the jaws of the frame it shows. */
   readonly flame?: { readonly mount: MountView; readonly frame: string };
-  /** Vorhal's horns, drawn with him: where they curl up from his feet. */
-  readonly horns?: { readonly enemy: EnemyView; readonly crown: Point };
 }
 
 /**
@@ -468,13 +457,11 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         const dip = saddleDip(mount);
         // An enraged ogre burns in its rage palette and steams, unless it has fallen.
         const rage = enemy.enraged ? art.rage : undefined;
-        const crown = rage?.crowns[pose];
+        const crown = rage?.crowns?.[pose];
         const figure = art.figures?.[enemy.tier] ?? art.figure;
-        const horn = art.horns?.[pose];
         standing.push({
           ...at(enemy),
           ...(crown && enemy.anim !== "dead" && { steam: { enemy, crown } }),
-          ...(horn && { horns: { enemy, crown: horn } }),
           sprite: figure.sprite(pose),
           options: {
             swap: (rage ?? art).tiers[enemy.tier],
@@ -530,7 +517,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       // Camp's fire stands among the figures: after those further up the floor, before those in front of it.
       let prop = backdrop.prop;
       for (const each of standing) {
-        const { y, z, sx, sprite, options, lit, steam, flame, horns } = each;
+        const { y, z, sx, sprite, options, lit, steam, flame } = each;
         if (prop && y > prop.y) {
           prop.draw(field, frame);
           prop = undefined;
@@ -538,7 +525,6 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         if (!lit) continue;
         const b = baker.bake(sprite, options);
         blit(field, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
-        if (horns) drawHorns(field, horns.enemy, horns.crown, camX);
         if (steam) drawSteam(field, steam.enemy, steam.crown, camX, frame);
         if (flame) drawFlame(field, baker, flame.mount, flame.frame, camX);
       }
