@@ -141,6 +141,26 @@ export function resultsHtml(info: MatchInfo, secondsLeft: number): string {
 </div>`;
 }
 
+/** An online room between rounds or once `over` (names escaped by the presenter): `winner` (a seat, or a draw), a
+ * line and the scoreboard; at the end REMATCH and LOBBY for the host, else a wait. */
+export function roomResultsHtml(
+  info: MatchInfo,
+  winner: number | null,
+  line: string,
+  over?: { host: boolean },
+): string {
+  const name = named(info.seats[winner ?? -1]);
+  const title = over
+    ? `<h1>${name ? `${name} WINS!` : "NO WINNER"}</h1>`
+    : `<h2>${name ? `${name} WINS THE ROUND` : "DRAW!"}</h2>`;
+  const actions = !over
+    ? ""
+    : over.host
+      ? `<div class="row">${button("rematch", "REMATCH", "", "start")}${button("lobby", "BACK TO LOBBY")}</div>`
+      : "<p>WAITING FOR THE HOST</p>";
+  return `<div class="panel">${title}<p>${line}</p>${scoreboard(info)}${actions}</div>`;
+}
+
 export const pauseHtml = (): string => `<div class="panel">
   <h2>PAUSED</h2>
   <div class="row">${button("resume", "RESUME", "ESC", "start")}${button("quit", "QUIT TO LOBBY", "BKSP")}</div>
