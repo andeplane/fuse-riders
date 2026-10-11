@@ -8,7 +8,7 @@ import type {
   Tier,
   WorldView,
 } from "../engine/view.js";
-import { DEAD_STEPS, QUAKE, VIEW_W } from "../engine/view-kit.js";
+import { DEAD_STEPS, QUAKE, VIEW_H, VIEW_W } from "../engine/view-kit.js";
 import { enemyFrame, heroFrame } from "./art/animate.js";
 import { IMP } from "./art/imp.js";
 import { HEROES } from "./art/index.js";
@@ -18,24 +18,27 @@ import { RAVAGER, RAVAGER_TIERS } from "./art/ravager.js";
 import { createBackdrop, type StageNumber } from "./backdrop/backdrop.js";
 import { bayer } from "./backdrop/kit.js";
 import { blinksOn, createHud, type HudSeats } from "./hud.js";
-import { blit, blitScaled, type Pen } from "./pen.js";
+import { blit, blitScaled, fill, type Pen } from "./pen.js";
 import type { Figure } from "./pixel/kit.js";
 import { UNLIT, type Palette } from "./pixel/palette.js";
 import { cropSprite, type Sprite } from "./pixel/sprite.js";
 import { createSpriteBaker, type BakeOptions } from "./pixel/surface.js";
 import { SEAT_COLORS } from "./seat-colors.js";
 import { drawSpark } from "./sparks.js";
+import { createSpells, shakeOf } from "./spells/index.js";
+import { shifted } from "./spells/kit.js";
 import type { MakeSurface } from "./surface.js";
 
 /**
  * The game's picture: one native 320 × 180 frame of the engine's view, drawn in layers — the backdrop; every
  * figure's shadow on the floor; heroes, enemies and items on the floor by depth (further up the floor first, then
  * lower before higher, then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when
- * defeated, a hero blinking while it is invulnerable and an item before it vanishes; the hit
- * sparks; the grass in front; a flashing GO → when the road ahead opens; and over it all the HUD (`hud.ts`), naming
- * each seat's player from `seats` (the room's names, which the world does not hold). It only draws: positions come
- * from the view (the app blends two ticks for smooth motion), and `frame`, a 60 Hz count, moves only scenery and
- * the HUD's health trails.
+ * defeated, a hero blinking while it is invulnerable and an item before it vanishes; the hit sparks; the grass in
+ * front; the spells playing (`spells/`), a charging or casting hero glowing behind its sprite and the field shaking a
+ * moment at a spell's blow; a flashing GO → when the road ahead opens; and over it all the HUD (`hud.ts`), naming each
+ * seat's player from `seats` (the room's names, which the world does not hold). It only draws: positions come from
+ * the view (the app blends two ticks for smooth motion), and `frame`, a 60 Hz count, moves only scenery, the spells'
+ * flicker and the HUD's health trails.
  *
  * Every sprite, shadow, sign and label is painted once into a surface from `make` and reused, so a frame is blits
  * and a few spark and bar pixels.
@@ -207,6 +210,7 @@ export function createScene<Image>(
   const crowns = new Map<Figure, number>();
   const lookOf = createLooks();
   const hud = createHud(make, baker);
+  const spells = createSpells(make);
 
   /** A soft dithered ellipse `rx` wide either side: solid in the middle, thinning to its edge. */
   const shadow = (rx: number) => {
@@ -236,7 +240,14 @@ export function createScene<Image>(
   return {
     draw(pen, view, frame, seats) {
       const camX = view.camX;
-      backdrop.draw(pen, camX, frame);
+      // A spell's blow shakes the field, never the HUD: the strip it leaves bare at an edge is ink.
+      const [dx, dy] = shakeOf(view);
+      const field = dx || dy ? shifted(pen, dx, dy) : pen;
+      if (field !== pen) {
+        pen.fillStyle = UNLIT.k!;
+        fill(pen, 0, 0, VIEW_W, VIEW_H);
+      }
+      backdrop.draw(field, camX, frame);
       const at = (f: HeroView | EnemyView | ItemView) => ({
         id: f.id,
         y: Math.floor(f.y),
@@ -292,16 +303,22 @@ export function createScene<Image>(
       standing.sort((a, b) => a.y - b.y || a.z - b.z || a.id - b.id);
       for (const { y, z, sx, shade } of standing) {
         const s = shadow(shade ?? shadowRadius(z));
-        blit(pen, s.image, s.w, s.h, sx - (s.w >> 1), y - (s.h >> 1));
+        blit(field, s.image, s.w, s.h, sx - (s.w >> 1), y - (s.h >> 1));
+      }
+      spells.ground(field, view, frame);
+      for (const hero of view.heroes) {
+        const { y, z, sx } = at(hero);
+        const top = crown(looks.get(hero.id)!.figure);
+        spells.aura(field, hero, sx, y - z, top, frame);
       }
       for (const { y, z, sx, sprite, options, lit, scale } of standing) {
         if (!lit) continue;
         const b = baker.bake(sprite, options);
-        if (!scale) blit(pen, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
+        if (!scale) blit(field, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
         else {
           const left = sx - Math.round(b.ax * scale);
           const top = y - z - Math.round(b.ay * scale);
-          blitScaled(pen, b.image, b.w, b.h, left, top, scale);
+          blitScaled(field, b.image, b.w, b.h, left, top, scale);
         }
       }
       for (const { y, z, sx, marker } of standing) {
@@ -310,17 +327,18 @@ export function createScene<Image>(
         const swap = SEAT_SWAPS[seat % SEAT_SWAPS.length];
         const m = baker.bake(MARKER, { swap });
         const top = y - z - crown - MARKER_GAP - m.h;
-        blit(pen, m.image, m.w, m.h, sx - (m.w >> 1), top);
+        blit(field, m.image, m.w, m.h, sx - (m.w >> 1), top);
       }
-      for (const fx of view.fx) drawSpark(pen, fx, camX);
+      for (const fx of view.fx) drawSpark(field, fx, camX);
       // An ogre's shockwave, until it has art of its own: a burst of dust running along the floor at its front.
       for (const e of view.enemies)
         if (e.anim === "slam" && e.animStep >= 1 && e.animStep <= QUAKE.steps) {
           const x = e.x + e.facing * (QUAKE.reach + QUAKE.speed * e.animStep);
           const dust: FxView = { kind: "hit", x, y: e.y, z: 0, age: 0 };
-          drawSpark(pen, { ...dust, age: e.animStep % 3 }, camX);
+          drawSpark(field, { ...dust, age: e.animStep % 3 }, camX);
         }
-      backdrop.drawFront(pen, camX);
+      backdrop.drawFront(field, camX);
+      spells.draw(field, view, frame);
       if (view.go && Math.floor(frame / GO_FLASH) % 2 === 0) {
         const sign = baker.bake(GO_SIGN);
         blit(pen, sign.image, sign.w, sign.h, GO_AT[0], GO_AT[1]);

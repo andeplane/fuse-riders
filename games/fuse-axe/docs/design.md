@@ -200,7 +200,10 @@ are not the world's heroes).
   village gate ([screenshot](images/stage1-backdrop.png)).
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
   and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives
-  ([screenshot](images/hud.png)).
+  ([screenshot](images/hud.png)); the pots light up to the level chosen while a hero charges magic.
+- Spells (`src/render/spells/`, one module per kind) play over the field from the view's `spells`, timed by
+  `SPELL_STEPS`: a dithered dusk, the kind's art growing with the level, and a flash and a render-only shake at the
+  blow ([screenshot](images/spells.png)).
 
 ## Players, rooms and controls
 
