@@ -78,8 +78,8 @@ import {
   OGRE_CROWNS,
   OGRE_RAGE,
   OGRE_TIERS,
-  type OgreFrame,
 } from "../src/render/art/ogre.js";
+import { VORHAL, VORHAL_RAGE } from "../src/render/art/vorhal.js";
 import { MEAT } from "../src/render/art/meat.js";
 import { POT } from "../src/render/art/pot.js";
 import {
@@ -120,7 +120,7 @@ import {
   SHADOW_RX,
 } from "../src/render/scene.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
-import { MASTER, UNLIT } from "../src/render/pixel/palette.js";
+import { UNLIT } from "../src/render/pixel/palette.js";
 import { drawSpark, HIT_STEPS } from "../src/render/sparks.js";
 import {
   paintPixels,
@@ -1400,29 +1400,27 @@ test("the captain draws from his own art in his own colours, and in the saddle d
       assert.ok(ridden(anim, animStep).length >= 2, `${anim} ${animStep}`);
 });
 
-test("Vorhal draws as a horned dark ogre in every anim, his sigils glow on the floor and their pillars burn over the figures, and nothing throws", () => {
+test("Vorhal draws as his own figure in every anim, burning red enraged; his sigils glow on the floor and their pillars burn over the figures, and nothing throws", () => {
   const vorhal = (more: Partial<EnemyView> = {}) =>
     enemy(3, 200, 150, { kind: "vorhal", boss: true, ...more });
-  const horns = (view: WorldView) =>
-    draw(view).pen.fills.filter((f) => f.style === MASTER.B).length;
   for (const anim of ENEMY_STATES)
     for (const animStep of [0, 30, 1e9, -3, 2.5, Number.NaN])
       assert.doesNotThrow(
         () => draw(world({ enemies: [vorhal({ anim, animStep })] })),
         `${anim} ${animStep}`,
       );
-  // His figure is the ogre's in his own palette, with horns; enraged, crimson.
-  assert.deepEqual(
-    draw(world({ enemies: [vorhal()] })).sprites[0]!.image.fills,
-    fillsOf(OGRE.sprite(enemyFrame("vorhal", "idle", 0) as OgreFrame), {
-      swap: ENEMY_ART.vorhal.tiers[0],
-      flash: false,
-      flip: false,
-    }),
-  );
-  assert.ok(horns(world({ enemies: [vorhal()] })) >= 4);
-  assert.equal(horns(world({ enemies: [vorhal({ kind: "ogre" })] })), 0);
-  assert.notDeepEqual(ENEMY_ART.vorhal.rage!.tiers[0], ENEMY_ART.vorhal.tiers[0]); // prettier-ignore
+  // Enraged he burns but does not steam as an ogre does (nothing rises from his helm), and fallen he stands as before.
+  for (const anim of ["idle", "windup", "cut1", "dead"] as const) {
+    const drawn = (enraged: boolean) =>
+      draw(world({ enemies: [vorhal({ enraged, anim, animStep: 5 })] }), 7).pen.fills; // prettier-ignore
+    assert.deepEqual(drawn(true), drawn(false), anim);
+  }
+  // His own figure, burning red enraged.
+  for (const enraged of [false, true])
+    assert.deepEqual(
+      draw(world({ enemies: [vorhal({ enraged, anim: "cast", animStep: 30 })] })).sprites[0]!.image.fills, // prettier-ignore
+      fillsOf(VORHAL.sprite("cast"), { swap: enraged ? VORHAL_RAGE : undefined, flash: false, flip: false }), // prettier-ignore
+    );
   // A sigil glows until its pillar erupts, which burns white-hot for its steps, then nothing is left.
   const fire = (age: number, colour: string, frame = 0) =>
     draw(world({ sigils: [{ x: 160, y: 140, age }] }), frame).pen.fills.filter(
