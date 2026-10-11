@@ -179,6 +179,23 @@ its own red, which `LANCER_TIERS` recolours in the ravagers' rust and violet.
 
 ![The lancer's frames in its three tiers, and two frames of the scene from a real engine world](docs/images/lancer-frames.png)
 
+The bonewalker (`src/render/art/bonewalker.ts`) is a ravager's height: a skull with a glowing eye socket, a ribcage on
+a bare spine, long bones knobbed at the joints, a tattered loincloth and a notched, rusty sword. A frame is a skeleton,
+each bone's two ends: one on its feet is built from a pose's joints as the lancer's are, the bone pile is the bones
+heaped on the floor with the sword stuck in it, and the reassembly mixes the two, every bone flying from the heap back
+to its place onto one knee. It sways, lurches in a four-frame walk that keeps a planted foot on the road, raises the
+sword over its skull (the telegraph) and slashes through a motion arc whose front is on the very column `BONE_SWORD`
+reaches, and rattles when struck. It claws up out of its grave over the whole of `BONEWALKER_STEPS.rise` (a claw
+bursting through the earth, the sword's point and a claw on the lip, the skull, the shoulders, a leg over the lip,
+crouched), what is still below the floor cut off; its pile falls apart in a puff of dust, lies with its eyes dark,
+twitches quicker and quicker through its last `PILE_STILL` steps, and pulls itself together; the last fall crumbles
+the bones. Its rags are the tier ramp: grave cloth, rust and violet (`BONEWALKER_TIERS`), and the violet tier is
+`BONE_KNIGHT`, the same frames painted in a rusted steel helm, breastplate and pauldron, with a tattered cape and a
+longer, bright blade (the scene's `ENEMY_ART` gives a tier a figure of its own). `tests/bonewalker-art.test.ts`
+checks it all against the engine; the lab plays both figures and bonewalkers at a grave in the real scene.
+
+![The bonewalker's frames in grave cloth, rust and as the violet knight, and a frame of the scene from a real engine Stage 3 world: one clawing out of its grave, the knight's slash and a rust one's pile](docs/images/bonewalker-frames.png)
+
 The clawbeak (`src/render/art/clawbeak.ts`), the beast a ravager rides, is a teal two-legged runner a little over 40 px
 to its crest, with a long tail, a big hooked gold beak, a red crest, a leather saddle and a brass stirrup. It breathes
 swaying its tail, struts in a four-frame walk that keeps a planted foot on the road (wandering, it stoops to peck), and
