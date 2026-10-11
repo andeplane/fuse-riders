@@ -264,7 +264,7 @@ function knight(r: Raster, cx: number) {
   r.rect(cx - 2, top - 21, 4, 3, STATUE[1]);
 }
 
-/** An iron cage hung on a chain in a bay of the nave, some with what is left of a prisoner. */
+/** An iron cage hung on a chain beside a pillar of the nave, some with what is left of a prisoner. */
 function cage(r: Raster, cx: number, top: number, bones: boolean) {
   chain(r, cx, 0, top, IRON_LIT);
   for (let y = top; y < top + 18; y++)
@@ -282,7 +282,7 @@ function cage(r: Raster, cx: number, top: number, bones: boolean) {
   r.rect(cx + 2, top + 17, 1, 6, BONE[1]!);
 }
 
-/** The nave: massive pillars with arches between them, statues and hanging cages in turn in its bays. */
+/** The nave: massive pillars with arches between them, a statue standing against every other pillar and a cage hung beside the rest. */
 function mid(r: Raster) {
   for (let x = 0; x < r.width; x++)
     for (let y = 0; y < FLOOR; y++) {
@@ -548,11 +548,11 @@ function axe(r: Raster) {
       const s = shardAt(x, y);
       if (s < 0) continue;
       const u = Math.abs(x + 0.5 - AXE_X);
-      const out = (y: number, x: number) => shardAt(x, y) < 0 && !whole(x, y);
+      const out = (x: number, y: number) => shardAt(x, y) < 0 && !whole(x, y);
       let c = dither(STEEL, (u - 1.5) / 14, x, y);
       if (shardAt(x + 2 * Math.sign(x + 0.5 - AXE_X), y) < 0 && u > 8)
         c = 0xe0c8a4;
-      if (out(y - 1, x) || out(y + 1, x) || out(y, x - 1) || out(y, x + 1))
+      if (out(x, y - 1) || out(x, y + 1) || out(x - 1, y) || out(x + 1, y))
         c = 0x1a1012;
       r.px(x, y, c);
     }
@@ -563,9 +563,10 @@ function axe(r: Raster) {
     (x, y) => y >= 92 && y < KERB && Math.abs(x + 0.5 - AXE_X) < 11,
     SLAB,
   );
-  for (const [x0, x1, y] of GLOW_RUNS.slice(-3))
-    r.rect(x0, y, x1 - x0, 1, 0x4e1a10);
 }
+
+/** The rose window's light on the throne room's wall, its reach wide enough for the whole room. */
+const ROSE_LIGHT: readonly Light[] = [[THRONE_X, ROSE_Y, 150]];
 
 /** The throne room: red-lit walls from its arch, a lancet, the rose window, banners, the dais, throne and axe. */
 function room(r: Raster) {
@@ -573,8 +574,7 @@ function room(r: Raster) {
     for (let y = 0; y < KERB; y++) {
       const tone = masonry(x, y, 16, 9, 77);
       const lit =
-        warmth([[THRONE_X, ROSE_Y, 150]], x, y, 1.3) * 0.55 +
-        warmth(LIGHTS, x, y) * 0.4;
+        warmth(ROSE_LIGHT, x, y, 1.3) * 0.55 + warmth(LIGHTS, x, y) * 0.4;
       const t = tone < 0 ? lit * 0.4 : 0.08 + tone * 0.25 + lit;
       r.px(x, y, dither(RED_LIT, t, x, y));
     }
@@ -760,7 +760,8 @@ export const FIRES: readonly Fire[] = [
   ...BRAZIERS.map((x, i): Fire => [x - 5, 11, BOWL_Y - 2, 14, 20 + i]),
 ];
 
-const tone = (j: number, h: number, env: number) =>
+/** The flame's colour in `FLAME` at row `j` of a column `h` tall: bright in the heart, dark at the tips and edges. */
+const flameTone = (j: number, h: number, env: number) =>
   Math.min(3, Math.floor((j / h) * 3.2 + (1 - env) * 1.6));
 
 /** One row of world pixels from `x0` to `x1`, clipped to the screen at camera `cam`. */
@@ -778,9 +779,9 @@ function burn(brush: Brush, fire: Fire, cam: number, t: number) {
     const sway = 0.2 * Math.sin((x0 + i) * 0.37 + seed * 2 - t * 7);
     const h = Math.max(1, Math.round(height * env * (0.55 + lick + sway)));
     for (let j = 0; j < h;) {
-      const c = tone(j, h, env);
+      const c = flameTone(j, h, env);
       let k = j + 1;
-      while (k < h && tone(k, h, env) === c) k++;
+      while (k < h && flameTone(k, h, env) === c) k++;
       brush.fillStyle = FLAME[c]!;
       const x = x0 + i - cam;
       if (x >= 0 && x < VIEW_W) brush.fillRect(x, base - k + 1, 1, k - j);

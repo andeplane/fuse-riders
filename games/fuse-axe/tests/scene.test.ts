@@ -98,7 +98,7 @@ import {
   CRYPT_END,
   CRYPT_LENGTH,
 } from "../src/render/backdrop/drowned-crypt.js";
-import { KEEP_END } from "../src/render/backdrop/vorhals-keep.js";
+import { KEEP_END, KEEP_LENGTH } from "../src/render/backdrop/vorhals-keep.js";
 import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
 import {
@@ -1251,6 +1251,12 @@ test("every stage's backdrop is baked with the scene, so no frame stalls baking 
       images.some((image) => image.w === length),
       `a ${length} px road`,
     );
+  // Wyrmbone Pass's, the crypt's and the keep's roads are all five screens long: three of that width.
+  assert.equal(
+    images.filter((image) => image.w === KEEP_LENGTH).length,
+    3,
+    "the keep's road is baked with the scene",
+  );
   for (const stage of [1, 2, 3, 4, 3, 2, 1, Number.NaN])
     draw(world({ stage, camX: 100 }), 0, scene);
   assert.equal(wide(), baked, "drawing a stage baked a layer");
