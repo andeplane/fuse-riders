@@ -20,7 +20,7 @@ import {
   type Swings,
 } from "../../engine/view-kit.js";
 import { BONEWALKER_ANIMS } from "./bonewalker.js";
-import { CAPTAIN_ANIMS } from "./captain.js";
+import { CAPTAIN_ANIMS, CAPTAIN_SADDLE } from "./captain.js";
 import { CLAWBEAK_ANIMS } from "./clawbeak.js";
 import { DRAKE_ANIMS } from "./drake.js";
 import { IMP_ANIMS } from "./imp.js";
@@ -225,9 +225,10 @@ export function heroFrame(
  * throughout: the beast's says what the pair does). Through a tail sweep's wind-up it braces, weapon cocked, and from
  * the step the tail lands it leans into the blow, weapon pointed at the foe, to the sweep's end; a drake's breath is the
  * same, bracing through the inhale and pointing from the step the flame is out to the breath's end; through a hop it
- * crouches forward over the neck; otherwise it sits, weapon ready. The captain's saddle thrust (`lance`) is no hero's,
- * and a riderless beast's anims have no rider: they sit. Like `heroFrame` it never throws: an odd step is rounded down
- * to a whole one from 0, and an anim with no case (or one from a build with more of them) sits.
+ * crouches forward over the neck; otherwise it sits, weapon ready. The captain's saddle thrust (`lance`) is no hero's
+ * (`enemyRiderFrame` draws it), and a riderless beast's anims have no rider: they sit. Like `heroFrame` it never throws:
+ * an odd step is rounded down to a whole one from 0, and an anim with no case (or one from a build with more of them)
+ * sits.
  */
 export function riderFrame(anim: MountAnim, animStep: number): HeroFrame {
   const step = Number.isFinite(animStep)
@@ -282,6 +283,28 @@ export function enemyFrame(
     : ENEMY_ANIMS.ravager;
   const strip = Object.hasOwn(anims, anim) ? anims[anim] : undefined;
   return stripFrame(strip ?? anims.idle, animStep);
+}
+
+/** What an enemy kind does in the saddle by its beast's anim, where it does more than sit: the captain's thrust. */
+const SADDLE_ANIMS: Readonly<
+  Partial<Record<EnemyKind, Partial<Record<MountAnim, AnimStrip<string>>>>>
+> = { captain: CAPTAIN_SADDLE };
+
+/**
+ * The frame an enemy riding a beast shows `animStep` steps into its beast's `anim` (its own anim is `ride` throughout,
+ * as a hero's is: `riderFrame`), where its kind has a strip of its own for that anim: the captain's saddle thrust
+ * (`CAPTAIN_SADDLE`). Otherwise undefined, and it shows its own `ride` anim's frame (`enemyFrame`). Like `enemyFrame`
+ * it never throws: a kind or an anim from a build with more of them has no strip, and an odd step is rounded down to a
+ * whole one from 0.
+ */
+export function enemyRiderFrame(
+  kind: EnemyKind,
+  anim: MountAnim,
+  animStep: number,
+): string | undefined {
+  const anims = Object.hasOwn(SADDLE_ANIMS, kind) ? SADDLE_ANIMS[kind]! : {};
+  const strip = Object.hasOwn(anims, anim) ? anims[anim] : undefined;
+  return strip && stripFrame(strip, animStep);
 }
 
 /** A beast kind's strip per anim: an anim it lacks (a clawbeak's breath) stands idle. */
