@@ -3,6 +3,15 @@ import assert from "node:assert/strict";
 import { CueTracker, ECHO_STEPS, type Heard } from "../src/app/audio/cues.js";
 import { AxeAudio, type AudioBackend } from "../src/app/audio/director.js";
 import {
+  AHEAD,
+  Mixer,
+  PUMP_MS,
+  type Bus,
+  type Repeat,
+  type Synth,
+} from "../src/app/audio/mixer.js";
+import { MARCH, Sequencer, song, type Song } from "../src/app/audio/music.js";
+import {
   CUES,
   MAX_VOICES,
   SOUNDS,
@@ -10,6 +19,7 @@ import {
   hz,
   melody,
   type Sound,
+  type Voice,
 } from "../src/app/audio/sounds.js";
 import { keys } from "../src/app/session.js";
 import { BACK_ATTACK, COMBO, DASH, THROW_STEPS } from "../src/engine/tuning.js";
@@ -304,6 +314,9 @@ class FakeBackend implements AudioBackend {
   unlock = () => this.calls.push("unlock");
   play = (sound: Sound) =>
     this.calls.push(`play:${CUES.find((cue) => SOUNDS[cue] === sound)}`);
+  music = (tune: Song | null) =>
+    this.calls.push(`music:${tune?.name ?? "none"}`);
+  duck = (seconds: number) => this.calls.push(`duck:${seconds}`);
   hide = (hidden: boolean) => this.calls.push(`hide:${hidden}`);
   take = () => this.calls.splice(0);
 }
@@ -330,7 +343,7 @@ const swing = (step: number, extra: Partial<Heard> = {}) =>
   );
 const LOBBY = frame(null, { stage: "lobby" });
 
-test("nothing sounds before a gesture; the cues after it play", () => {
+test("nothing sounds before a gesture; the first starts the stage's loop and the cues after it play", () => {
   const { backend, audio } = setUp();
   audio.frame(LOBBY);
   audio.frame(frame(world(0)));
@@ -345,21 +358,59 @@ test("nothing sounds before a gesture; the cues after it play", () => {
   audio.unlock();
   audio.frame(swing(3));
   audio.unlock();
-  assert.deepEqual(backend.take(), ["unlock", "play:swing-brakka", "unlock"]);
+  assert.deepEqual(backend.take(), [
+    "unlock",
+    "music:march",
+    "play:swing-brakka",
+    "unlock",
+  ]);
   assert.equal(audio.state, "on");
   audio.frame(frame(world(30)), true);
   audio.frame(swing(60), true);
-  assert.deepEqual(backend.take(), [], "a controller phone hears, quietly");
+  assert.deepEqual(backend.take(), ["music:none"], "a controller is quiet");
   assert.equal(audio.heard, 3);
 });
 
-test("?mute: nothing reaches the backend, the kept choices are never read or written, the toggles do nothing", () => {
+test("the loop follows the stage, ducks under the fanfare and stops in the lobby and at the run's end", () => {
+  const { backend, audio } = setUp(),
+    go = ["music:march", "play:go", "duck:0.9"];
+  audio.unlock();
+  audio.frame(LOBBY);
+  assert.deepEqual(backend.take(), ["unlock"]);
+  audio.frame(frame(world(0)));
+  audio.frame(frame(world(3), { stage: "between" }));
+  audio.frame(frame(world(6), { stage: "over", outcome: "victory" }));
+  audio.frame(LOBBY);
+  assert.deepEqual(backend.take(), [
+    ...go,
+    "play:fanfare",
+    "duck:2.2",
+    "music:none",
+  ]);
+  audio.frame(frame(world(0), { matchId: "m2" }));
+  audio.frame(
+    frame(world(3), { matchId: "m2", stage: "over", outcome: "defeat" }),
+  );
+  audio.frame(frame(world(0), { matchId: "m3" }));
+  audio.stop();
+  assert.deepEqual(backend.take(), [
+    ...go,
+    "music:none",
+    "play:gameover",
+    ...go,
+    "music:none",
+  ]);
+});
+
+test("?mute: nothing reaches the backend (no context is built, no loop starts), the kept choices are never read or written, the toggles do nothing", () => {
   const { backend, store, audio } = setUp(
     true,
     fakeStore({ [NAMES.music]: "1" }),
   );
   audio.unlock();
   for (const each of [LOBBY, swing(0), swing(30)]) audio.frame(each);
+  audio.hide(false);
+  audio.stop();
   audio.setMusic(false);
   audio.setEffects(true);
   audio.hide(true);
@@ -385,7 +436,12 @@ test("MUSIC and EFFECTS are kept for the next page, and each silences only its o
   audio.setEffects(false);
   audio.frame(frame(world(30), { stage: "between" }));
   audio.frame(swing(60, { stage: "between" }));
-  assert.deepEqual(backend.take(), ["unlock", "play:swing-brakka"]);
+  assert.deepEqual(backend.take(), [
+    "unlock",
+    "music:march",
+    "music:none",
+    "play:swing-brakka",
+  ]);
   assert.deepEqual(
     store.log.filter((line) => line.startsWith("set")),
     ["set fuse-axe-music=0", "set fuse-axe-effects=0"],
@@ -401,43 +457,53 @@ test("MUSIC and EFFECTS are kept for the next page, and each silences only its o
     frame(world(3), { matchId: "m3", stage: "over", outcome: "defeat" }),
   );
   assert.deepEqual(backend.take(), [
+    "music:march",
     "play:go",
+    "duck:0.9",
     "play:fanfare",
+    "duck:2.2",
     "play:go",
+    "duck:0.9",
+    "music:none",
     "play:gameover",
   ]);
   assert.equal(store.data.get(NAMES.effects), "1");
 });
 
-test("a backend that fails costs a sound, never the frame", () => {
+test("a backend that fails costs a sound or the loop, never the frame", () => {
   const { backend, audio } = setUp();
   audio.unlock();
-  let tried = 0;
-  backend.play = () => {
-    tried++;
+  const tried: string[] = [];
+  const fail = (what: string) => () => {
+    tried.push(what);
     throw new Error("the audio graph is gone");
   };
-  audio.frame(frame(world(0)));
+  backend.play = fail("play");
+  backend.music = fail("music");
+  backend.duck = fail("duck");
+  audio.frame(LOBBY);
+  assert.doesNotThrow(() => audio.frame(frame(world(0))));
   assert.doesNotThrow(() => audio.frame(swing(3)));
-  assert.deepEqual([tried, audio.heard], [1, 1], "it tried; the page heard");
+  assert.doesNotThrow(() => audio.frame(LOBBY));
+  assert.deepEqual(tried, ["music", "play", "duck", "play", "music"]);
+  assert.equal(audio.heard, 2, "the page heard GO and the swing");
 });
 
-test("a hidden tab is silent until it is shown again", () => {
+test("a hidden tab is silent, and shown again comes back to the loop the stage wants", () => {
   const { backend, audio } = setUp();
   audio.unlock();
   audio.frame(frame(world(0)));
   audio.hide(true);
   audio.unlock();
   audio.frame(swing(3));
+  audio.frame(LOBBY);
   assert.equal(audio.state, "hidden");
   audio.hide(false);
   audio.frame(frame(world(30)));
   audio.frame(swing(60));
   assert.deepEqual(backend.take(), [
-    "unlock",
-    "hide:true",
-    "hide:false",
-    "play:swing-brakka",
+    ...["unlock", "music:march", "hide:true", "hide:false", "music:none"],
+    ...["music:march", "play:go", "duck:0.9", "play:swing-brakka"],
   ]);
 });
 
@@ -459,4 +525,258 @@ test("notes and melodies: the jingles play on the music channel, every other cue
     ["fanfare", "gameover"],
   );
   assert.ok(CUES.every((cue) => SOUNDS[cue].voices.length > 0));
+  // Only what is heard over the loop ducks it: the game over comes after the loop has stopped.
+  assert.deepEqual(
+    CUES.filter((cue) => {
+      const sound: Sound = SOUNDS[cue];
+      return sound.duck !== undefined;
+    }),
+    ["go", "fanfare"],
+  );
+});
+
+test("the march: a 30 to 60 second loop in A minor whose bass never rests", () => {
+  const seconds = MARCH.steps.length * MARCH.step;
+  assert.ok(seconds >= 30 && seconds <= 60, `${seconds} s`);
+  const tones = MARCH.steps
+    .flat()
+    .filter((one) => one.wave !== "noise" && one.wave !== "sine");
+  const pitches = new Set(
+    tones.map((one) => (Math.round(12 * Math.log2(one.freq / 440)) + 120) % 12),
+  );
+  // A B C D E F G and the leading note G#, in semitones above A.
+  assert.deepEqual(
+    [...pitches].sort((a, b) => a - b),
+    [0, 2, 3, 5, 7, 8, 10, 11],
+  );
+  assert.ok(
+    MARCH.steps.every((voices) =>
+      voices.some((one) => one.wave === "triangle"),
+    ),
+  );
+  assert.throws(
+    () => song("short", "a4 a4", "a", "k ."),
+    /short: lead 2, bass 4, drums 2/,
+  );
+});
+
+test("the sequencer hands out each step once, a little ahead, loops, and skips a stall's backlog", () => {
+  const tune = song("t", "a4 c5 e5 a5", "a", "k . s ."),
+    seq = new Sequencer(tune, 0.05),
+    step = tune.step;
+  const times = (list: { at: number }[]) => [
+    ...new Set(list.map((one) => one.at)),
+  ];
+  assert.deepEqual(times(seq.due(0, step + 0.06)), [0.05, 0.05 + step]);
+  assert.deepEqual(seq.due(0.01, step + 0.06), []);
+  assert.deepEqual(times(seq.due(3 * step, step)), [0.05 + 3 * step]);
+  assert.equal(seq.due(4 * step, step)[0]!.voice.freq, 440, "round again");
+  const late = seq.due(100, step);
+  assert.ok(
+    late.length > 0 &&
+      late.every((one) => one.at >= 100 && one.at < 100 + step),
+    "no backlog",
+  );
+});
+
+/** An audio graph that records each voice it is handed and ends one only when told to. */
+class FakeSynth implements Synth {
+  time = 0;
+  running = true;
+  voices: { at: number; bus: Bus; voice: Voice; end: () => void }[] = [];
+  /** The moments each duck was asked to lift at. */
+  ducks: number[] = [];
+  voice = (voice: Voice, at: number, bus: Bus, ended: () => void) => {
+    this.voices.push({ at, bus, voice, end: ended });
+  };
+  duck = (until: number) => this.ducks.push(until);
+  on = (bus: Bus) => this.voices.filter((one) => one.bus === bus);
+  /** Ends every voice handed out so far. */
+  endAll = () => this.voices.splice(0).forEach((one) => one.end());
+}
+/** A repeating timer driven by hand: `tick` runs each pump started and not yet stopped. */
+function fakeRepeat() {
+  const pumps = new Set<() => void>(),
+    periods: number[] = [];
+  const repeat: Repeat = (tick, ms) => {
+    const pump = () => tick();
+    periods.push(ms);
+    pumps.add(pump);
+    return () => pumps.delete(pump);
+  };
+  return { repeat, pumps, periods, tick: () => pumps.forEach((p) => p()) };
+}
+const mixing = () => {
+  const synth = new FakeSynth(),
+    timer = fakeRepeat();
+  return { synth, timer, mixer: new Mixer(synth, timer.repeat) };
+};
+
+test("the loop's voices go to the loop a little ahead of time, and each is released as it ends", () => {
+  const { synth, timer, mixer } = mixing();
+  synth.time = 1;
+  mixer.music(MARCH);
+  mixer.music(MARCH);
+  assert.deepEqual(
+    [timer.pumps.size, timer.periods],
+    [1, [PUMP_MS, PUMP_MS]],
+    "one pump",
+  );
+  timer.tick();
+  const first = synth.on("loop");
+  assert.equal(first.length, MARCH.steps[0]!.length, "the first step, once");
+  assert.ok(first.every((one) => one.at >= 1 && one.at < 1 + AHEAD));
+  assert.equal(mixer.sounding, first.length);
+  for (let t = 1; t < 3; t += PUMP_MS / 1000) {
+    synth.time = t;
+    timer.tick();
+  }
+  assert.ok(mixer.sounding > first.length, "the loop goes on");
+  assert.ok(synth.voices.every((one) => one.bus === "loop"));
+  synth.voices[0]!.end();
+  synth.voices[0]!.end(); // an ended voice is released once
+  assert.equal(mixer.sounding, synth.voices.length - 1);
+  synth.endAll();
+  assert.equal(mixer.sounding, 0, "every voice released");
+  mixer.music(null);
+  assert.equal(timer.pumps.size, 0, "the loop stops");
+  timer.tick();
+  assert.deepEqual(synth.voices, []);
+});
+
+test("the loop's voices count toward the cap, which drops effects but never holds the loop back", () => {
+  const { synth, timer, mixer } = mixing();
+  mixer.music(MARCH);
+  for (let t = 0; mixer.sounding <= MAX_VOICES; t += MARCH.step) {
+    synth.time = t;
+    timer.tick();
+  }
+  assert.ok(mixer.sounding > MAX_VOICES, "the pump ignores the cap");
+  mixer.play(SOUNDS.hit);
+  assert.deepEqual(
+    synth.on("effects"),
+    [],
+    "an effect with no room is dropped",
+  );
+  mixer.play(SOUNDS.fanfare);
+  assert.equal(
+    synth.on("effects").length,
+    SOUNDS.fanfare.voices.length,
+    "a jingle always sounds",
+  );
+  synth.endAll();
+  mixer.play(SOUNDS.hit);
+  const hits = synth.on("effects");
+  assert.equal(hits.length, SOUNDS.hit.voices.length, "room again");
+  assert.deepEqual(
+    hits.map((one) => one.at),
+    SOUNDS.hit.voices.map((one) => synth.time + (one.at ?? 0)),
+  );
+});
+
+test("a suspended clock is handed nothing, and picks the loop up where it stopped, with no backlog", () => {
+  const { synth, timer, mixer } = mixing();
+  synth.time = 2;
+  synth.running = false; // the first gesture's resume is still pending
+  mixer.music(MARCH);
+  for (let i = 0; i < 50; i++) timer.tick();
+  mixer.play(SOUNDS.hit);
+  assert.deepEqual([synth.voices, mixer.sounding], [[], 0]);
+  synth.running = true;
+  timer.tick();
+  const steps = new Set(synth.voices.map((one) => one.at));
+  assert.deepEqual([...steps], [2.05], "one step, not a pile");
+  synth.time = 2.5;
+  timer.tick();
+  const before = synth.voices.length;
+  synth.running = false; // the tab is hidden: the clock stands still
+  for (let i = 0; i < 50; i++) timer.tick();
+  assert.equal(synth.voices.length, before, "nothing while suspended");
+  synth.running = true;
+  timer.tick();
+  assert.equal(synth.voices.length, before, "nothing new is due yet");
+  synth.time = 2.5 + MARCH.step;
+  timer.tick();
+  assert.ok(synth.voices.length > before, "and on it goes");
+  assert.ok(synth.voices.every((one) => one.at < synth.time + AHEAD));
+});
+
+test("a voice the graph fails to render never holds a place under the cap", () => {
+  const { synth, mixer } = mixing();
+  synth.voice = () => {
+    throw new Error("the context is closed");
+  };
+  assert.throws(() => mixer.play(SOUNDS.hit), /closed/);
+  assert.equal(mixer.sounding, 0);
+});
+
+test("a voice of the loop the graph will not take costs that voice, never the timer's tick or the voices beside it", () => {
+  const { synth, timer, mixer } = mixing(),
+    refused: Voice[] = [],
+    render = synth.voice;
+  // The first voice of the first step fails, the way a node on a closing context would.
+  synth.voice = (voice, at, bus, ended) => {
+    if (refused.length === 0) {
+      refused.push(voice);
+      throw new Error("the context is closed");
+    }
+    render(voice, at, bus, ended);
+  };
+  mixer.music(MARCH);
+  assert.doesNotThrow(() => timer.tick());
+  const step = MARCH.steps[0]!;
+  assert.deepEqual(
+    synth.voices.map((one) => one.voice),
+    step.slice(1),
+    "the others of the step still sound",
+  );
+  assert.equal(
+    mixer.sounding,
+    step.length - 1,
+    "the failed one holds no place",
+  );
+  synth.time = MARCH.step;
+  timer.tick();
+  assert.ok(synth.voices.length > step.length - 1, "the loop goes on");
+});
+
+test("through two loops at a jittery pump every step sounds exactly once, on the grid: no drift, none doubled at the loop's end", () => {
+  const { synth, timer, mixer } = mixing(),
+    start = 0.05,
+    steps = MARCH.steps.length * 2;
+  mixer.music(MARCH);
+  // Each pump comes a little early or late, never so late as to miss the lookahead.
+  const gaps = [0.04, 0.07, 0.03, 0.1, 0.04];
+  for (
+    let i = 0, t = 0;
+    t < steps * MARCH.step;
+    t += gaps[i++ % gaps.length]!
+  ) {
+    synth.time = t;
+    timer.tick();
+  }
+  // The last pump hands out a step or two of the third time round, a little ahead: those are not counted.
+  const heard = synth.voices
+    .filter((one) => one.at < start + steps * MARCH.step)
+    .map((one) => [one.at, one.voice]);
+  const due = [];
+  for (let i = 0; i < steps; i++)
+    for (const voice of MARCH.steps[i % MARCH.steps.length]!)
+      due.push([start + i * MARCH.step, voice]);
+  assert.deepEqual(heard, due);
+});
+
+test("a duck lasts until the longest cue under it is over: a shorter one inside it never lifts it early", () => {
+  const { synth, mixer } = mixing();
+  synth.time = 10;
+  mixer.duck(SOUNDS.fanfare.duck);
+  synth.time = 11; // GO, inside the fanfare's duck
+  mixer.duck(SOUNDS.go.duck);
+  synth.time = 20; // and on its own, long after
+  mixer.duck(SOUNDS.go.duck);
+  assert.deepEqual(synth.ducks, [
+    10 + SOUNDS.fanfare.duck,
+    10 + SOUNDS.fanfare.duck,
+    20 + SOUNDS.go.duck,
+  ]);
 });
