@@ -103,6 +103,16 @@ anim's frames with the simulation steps each shows, and `RAVAGER_TIERS` (rust, v
 its own palette. Below the sheet the lab packs each animated figure's frames onto one floor in every swap and plays
 its anims; [`docs/images/ravager-lab.png`](docs/images/ravager-lab.png) is a screenshot of the ravager's.
 
+The sack imp (`src/render/art/imp.ts`) is about 22 px tall, under half a ravager: hunched in a blue hood with yellow
+eyes and a toothy grin in its dark, a long nose poking out, and a big pale sack on its back whose neck it grips over
+the shoulder. It scurries in a four-frame walk and flees in a faster four-frame run with the sack bouncing (each
+stride keeps a planted foot on the road at the engine's speeds), stumbles from a kick with the sack torn open and
+magic glinting out of it, and flies, lies and gets up as a ravager does. The magic pot (`pot.ts`) is an 8 × 10
+blue pot with a stopper and a glint, placed pixel by pixel. `IMP_ANIMS` times the imp's anims as `RAVAGER_ANIMS` does
+the ravager's, and `enemyFrame(kind, anim, animStep)` (`animate.ts`) picks any enemy's frame from them: like
+`heroFrame` it never throws, an anim a kind has no strip for stands idle and a kind from a newer build plays as a
+ravager, the scene's fallback. [`docs/images/imp-frames.png`](docs/images/imp-frames.png) is the lab's imp and pot.
+
 ## Scene
 
 `src/render/scene.ts` draws one native 320 × 180 frame of the view: `createScene(make).draw(ctx, view, frame)`, where
