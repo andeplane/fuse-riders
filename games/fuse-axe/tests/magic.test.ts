@@ -8,6 +8,7 @@ import {
   createWorld,
   decodeWorld,
   encodeWorld,
+  revive,
   spawnEnemy,
   step,
   stepTick,
@@ -93,6 +94,13 @@ test("each hero's spell has a level for every pot it can hold, Gorm's hits harde
   assert.ok(T.MAGIC_TAP < T.CHARGE_STEPS);
   assert.deepEqual(Kit.SPELL_STEPS.fire[5], { steps: 150, hit: 90 });
   assert.equal(Kit.SPELL_STEPS.earth.length, T.MAX_POTS.gorm);
+  // The view's timing table is each spell's own levels, whichever hero casts it.
+  for (const kind of T.HERO_KINDS)
+    assert.deepEqual(
+      Kit.SPELL_STEPS[T.SPELLS[kind].kind],
+      T.SPELLS[kind].levels.map(({ steps, hit }) => ({ steps, hit })),
+      kind,
+    );
 });
 
 test("a tap casts every pot held, a tap shorter than a tick too, and spends them", () => {
@@ -157,6 +165,31 @@ test("Magic from a run stops to charge, and a press made while busy waits: let g
   assert.equal(hero(busy).state, "attack1");
   busy = run(busy, T.BUFFER_STEPS);
   assert.deepEqual([hero(busy).state, busy.spells[0]?.level], ["cast", 4]);
+});
+
+test("Magic pressed with Attack, Jump or both casts: neither takes it over, and the pots are spent only once", () => {
+  for (const [name, bits] of [
+    ["Attack", MAGIC | ATTACK],
+    ["Jump", MAGIC | JUMP],
+    ["Attack and Jump", MAGIC | ATTACK | JUMP],
+  ] as const) {
+    let world = step(armed("rhea", 3), [bits]);
+    assert.equal(hero(world).state, "charge", name);
+    world = run(world, T.BUFFER_STEPS + 2);
+    assert.deepEqual(
+      [hero(world).state, world.spells.length],
+      ["cast", 1],
+      name,
+    );
+    assert.deepEqual([hero(world).pots, hero(world).casts], [0, 1], name);
+    // Once it is over, the presses that came with it are long gone: the hero stands and swings nothing.
+    world = run(world, T.SPELLS.rhea.levels[2]!.steps);
+    assert.deepEqual([hero(world).state, world.spells], ["idle", []], name);
+    assert.equal(hero(step(world, [])).state, "idle", name);
+  }
+  // Without Magic the same two presses are still the back attack.
+  const back = step(armed("rhea", 3), [ATTACK | JUMP]);
+  assert.deepEqual([hero(back).state, hero(back).pots], ["backattack", 3]);
 });
 
 test("no magic with no pots, in the air, reeling or down, and a hit breaks a charge with nothing spent", () => {
@@ -254,6 +287,42 @@ test("the blow leaves alone an enemy off screen, a sack imp, one in a hero's han
   assert.deepEqual([hero(blown).magicDamage, hero(blown).knockdowns], [0, 0]);
   assert.equal(hero(blown, 1).hp, T.HERO_HP.rhea);
   assert.equal(hero(blown, 1).state, "grab");
+});
+
+test("a body thrown during the freeze hangs where it is, unstruck, and flies on once the blow has landed", () => {
+  let world = party("brakka", "rhea");
+  world = heroAs(world, { pots: 1 });
+  const caster = hero(world),
+    thrower = hero(world, 1);
+  world = spawnEnemy(world, "ravager", caster.x + px(80), caster.y);
+  world = spawnEnemy(world, "ravager", thrower.x, thrower.y);
+  // Rhea has just thrown the second over her shoulder, as `throwHeld` leaves a body.
+  world = enemyAs(
+    world,
+    {
+      ...{ state: "thrown", holder: thrower.id, z: T.THROW_LIFT, stopUntil: 0 },
+      ...{ vx: -thrower.facing * T.THROW_VX, vz: T.THROW_VZ, target: 0 },
+      facing: thrower.facing,
+    },
+    1,
+  );
+  assert.ok(decodeWorld(encodeWorld(world)), "a world the rules reach");
+  const { hit } = level("brakka", 1);
+  const cast = hold(world, 3);
+  const frozen = run(cast, hit - 1);
+  assert.deepEqual(frozen.enemies[1], cast.enemies[1], "hangs in the air");
+  const blown = step(frozen, []);
+  assert.equal(blown.enemies[0]!.state, "knockdown", "the other is struck");
+  assert.equal(blown.enemies[1]!.hp, cast.enemies[1]!.hp, "this one is not");
+  assert.equal(blown.enemies[1]!.state, "thrown");
+  assert.equal(hero(blown).knockdowns, 1);
+  // Free of the freeze, it flies on and lands as any throw does, for Rhea's credit and no one else's.
+  const landed = run(blown, T.DOWN_STEPS);
+  const body = landed.enemies[1]!;
+  assert.deepEqual(
+    [body.state, body.hp, hero(landed, 1).damage],
+    ["down", cast.enemies[1]!.hp - T.THROW_DAMAGE, T.THROW_DAMAGE],
+  );
 });
 
 test("the caster stands invulnerable through the spell, then is free again when it is gone", () => {
@@ -376,6 +445,26 @@ test("a world mid-charge and mid-spell survives the checkpoint whole and plays o
   });
   const later = { ...pair.spells[1]!, born: pair.step - 1 };
   refused("a later cast first", { ...pair, spells: [pair.spells[0]!, later] });
+});
+
+test("a continue keeps the pots and the tallies, and drops a Magic press left waiting; the hero drops back in able to cast", () => {
+  let out = heroAs(armed("gorm", 3), {
+    ...{ state: "out", lives: 0, hp: 0, magicBuf: 4 },
+    ...{ casts: 2, magicDamage: 7, damage: 9 },
+  });
+  assert.ok(decodeWorld(encodeWorld(out)), "a world the rules reach");
+  const back = revive(out);
+  assert.deepEqual(
+    [hero(back).pots, hero(back).casts, hero(back).magicDamage],
+    [3, 2, 7],
+  );
+  assert.equal(hero(back).magicBuf, 0);
+  assert.deepEqual(back.spells, []);
+  // It drops in, lands and stands; a fresh press casts, spending what it carried through the fall.
+  out = run(back, 200);
+  assert.deepEqual([hero(out).state, out.spells], ["idle", []]);
+  const cast = hold(out, 3);
+  assert.deepEqual([hero(cast).state, hero(cast).pots], ["cast", 0]);
 });
 
 test("the same inputs fold to the same magic, and a step leaves its input untouched", () => {

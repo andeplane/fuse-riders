@@ -322,8 +322,9 @@ function moveHero(world: World, hero: Hero, bits: number): void {
         : undefined;
   if (hero.state === "idle" || hero.state === "walk") {
     walk(hero, bits);
-    if (paired(hero)) backAttack(hero);
-    else if (conjures(hero)) conjure(world, hero, bits);
+    // Magic comes first, as from a run: it spends a pot on purpose, so no Attack or Jump pressed with it takes it over.
+    if (conjures(hero)) conjure(world, hero, bits);
+    else if (paired(hero)) backAttack(hero);
     else if (hero.attackBuf > 0) attack(world, hero, bits);
     else if (hero.jumpBuf > 0) leap(hero);
     else if (hero.runBuf > 0 && (bits & SIDES) === hero.tap) {
