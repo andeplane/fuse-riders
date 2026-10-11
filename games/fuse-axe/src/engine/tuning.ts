@@ -382,6 +382,66 @@ export const ITEM_BLINK = 2 * STEPS_PER_SECOND;
 export const PICKUP_X = px(10);
 export const PICKUP_Y = px(5);
 
+// ---- magic (`magic.ts`) ----
+/**
+ * Magic held for no more than this many steps from the start of the charge is a tap, which casts every pot held.
+ * Held longer, the level chosen is 1 and rises by one every `CHARGE_STEPS` more, up to the pots held: let go to cast
+ * it and keep the rest.
+ */
+export const MAGIC_TAP = 12;
+export const CHARGE_STEPS = 20;
+/** Each hero's spell: Brakka's storm, Rhea's fire and Gorm's earth. */
+export const SPELL_KINDS = ["storm", "fire", "earth"] as const;
+export type SpellKind = (typeof SPELL_KINDS)[number];
+/**
+ * One level of a spell: the steps the hero casts it (invulnerable throughout), the step of those its blow lands on
+ * every fighting enemy on screen (they stand frozen until it does), and the blow, in sixteenths of each enemy's full
+ * hit points (`SHARE`), so it reads the same at every tier and party size. Every level knocks down.
+ */
+export interface SpellLevel {
+  readonly steps: number;
+  readonly hit: number;
+  readonly share: number;
+}
+export const SHARE = 16;
+const spell = (steps: number, hit: number, share: number): SpellLevel => ({
+  steps,
+  hit,
+  share,
+});
+/**
+ * A hero's spell by level, one level for each pot it can hold (`MAX_POTS`): level 1 is a panic button that knocks
+ * the screen down, the top level leaves a fresh wave a blow from gone. Gorm's is strongest at every level, Rhea's
+ * has the most levels, and each lasts 1.5–2.5 s.
+ */
+export const SPELLS: Readonly<
+  Record<
+    HeroKind,
+    { readonly kind: SpellKind; readonly levels: readonly SpellLevel[] }
+  >
+> = {
+  brakka: {
+    kind: "storm",
+    levels: [
+      spell(90, 48, 4),
+      spell(102, 56, 7),
+      spell(114, 64, 10),
+      spell(132, 76, 13),
+    ],
+  },
+  rhea: {
+    kind: "fire",
+    levels: [
+      ...[spell(90, 48, 3), spell(98, 54, 5), spell(106, 60, 7)],
+      ...[spell(114, 66, 9), spell(126, 74, 12), spell(150, 90, 15)],
+    ],
+  },
+  gorm: {
+    kind: "earth",
+    levels: [spell(96, 54, 5), spell(114, 66, 9), spell(138, 84, 14)],
+  },
+};
+
 // ---- effects ----
 /** Steps a hit spark lives, and the most the world keeps at once (the oldest go first). */
 export const FX_LIFE = 20;

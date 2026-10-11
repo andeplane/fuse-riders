@@ -31,6 +31,7 @@ const hero = (id: number, x: number, y = 120, z = 0): HeroView => ({
   invulnerable: false,
   pots: 0,
   maxPots: 6,
+  charge: 0,
 });
 const enemy = (id: number, x: number): EnemyView => ({
   id,
@@ -53,6 +54,7 @@ const world = (extra: Partial<WorldView> = {}): WorldView => ({
   enemies: [],
   fx: [],
   items: [],
+  spells: [],
   wave: 0,
   waves: 5,
   locked: false,
