@@ -529,8 +529,8 @@ export const IMP_DOWN_STEPS = 24;
 export const IMP_FLEE = px(1.6);
 /** How high above an imp's feet a kick's spark appears: it is half a ravager's height. */
 export const IMP_SPARK = px(14);
-/** Kinds of things lying on the floor: magic pots now, meat at camp later. */
-export const ITEM_KINDS = ["pot"] as const;
+/** Kinds of things lying on the floor: magic pots, and the meat a sack imp spills at camp. */
+export const ITEM_KINDS = ["pot", "meat"] as const;
 export type ItemKind = (typeof ITEM_KINDS)[number];
 /** The most items the world holds at once: a new one past it takes the place of the oldest. */
 export const ITEM_MAX = 16;
@@ -543,6 +543,12 @@ export const ITEM_BLINK = 2 * STEPS_PER_SECOND;
 /** A hero on its feet picks an item up when its feet are this close to it along the road and in depth. */
 export const PICKUP_X = px(10);
 export const PICKUP_Y = px(5);
+/** The hit points meat gives back, up to the hero's whole health: a quarter of Brakka's. */
+export const MEAT_HEAL = 15;
+
+// ---- camp between stages (`camp.ts`) ----
+/** The longest camp lasts: 20 s. It ends sooner once its imps have gone and nothing is left lying on the floor. */
+export const CAMP_STEPS = 20 * STEPS_PER_SECOND;
 
 // ---- magic (`magic.ts`) ----
 /**

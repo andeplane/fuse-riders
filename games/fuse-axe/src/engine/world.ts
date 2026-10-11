@@ -324,12 +324,18 @@ export interface World {
   stage: number;
   /** The beasts, in id order (their ids from the one sequence too), at most `MOUNT_MAX`. */
   mounts: Mount[];
+  /** Camp after stage `stage` (`camp.ts`): one screen, no waves, only sack imps, and its own plan (`CAMP`). */
+  camp: boolean;
 }
 
-/** What a hero brings from the stage before: the lives it has left (at least one) and its magic pots. */
+/**
+ * What a hero brings from the stage or the camp before: the lives it has left (at least one), its magic pots and its
+ * hit points (at least one).
+ */
 export interface Carry {
   lives: number;
   pots: number;
+  hp: number;
 }
 
 export interface HeroEntry {
@@ -340,13 +346,15 @@ export interface HeroEntry {
 }
 
 /**
- * The stage flow's policy for a hero going on to the next stage (design.md, "Stage flow"): it keeps the lives it has,
- * and one that went out comes back with one, and it keeps its magic pots, as in the original. Its health is full
- * again, as every new world's is.
+ * The stage flow's policy for a hero going on to camp and from camp to the next stage (design.md, "Stage flow"): it
+ * keeps the lives it has, and one that went out comes back with one, and it keeps its magic pots and its health, as in
+ * the original, so camp's meat is worth kicking for. One fallen (no hit points left) comes back at full health, as a
+ * hero dropping back in does.
  */
 export const carryOf = (hero: Hero): Carry => ({
   lives: Math.max(hero.lives, 1),
   pots: hero.pots,
+  hp: hero.hp > 0 ? hero.hp : HERO_HP[hero.kind],
 });
 
 /** Where each seat's hero starts, in pixels: spread across the left of the screen and the depth of the floor. */
@@ -357,20 +365,31 @@ export const SPAWNS: readonly (readonly [number, number])[] = [
   [32, 127],
   [32, 149],
 ];
+/** Where each seat's hero sits at camp, in pixels: round the fire in the middle of the clearing. */
+export const CAMP_SPAWNS: readonly (readonly [number, number])[] = [
+  [128, 136],
+  [196, 136],
+  [112, 158],
+  [212, 158],
+  [160, 166],
+];
 
 const whole = (value: number, low: number, high: number) =>
   Number.isInteger(value) && value >= low && value <= high;
 
 /**
- * Stage `stage` (1 if not given) setting out, its heroes at their seats' spawns with full health, each with every
- * life and no pots or with what it carries from the stage before. Throws on a bad or repeated seat, an unknown kind,
- * a stage `STAGES` lacks or a carry the checkpoint would refuse (no life, or more pots than the kind holds).
+ * Stage `stage` (1 if not given) setting out, or with `camp` the camp after it, its heroes at their seats' spawns
+ * (`SPAWNS`, at camp `CAMP_SPAWNS`), each with every life, full health and no pots or with what it carries from the
+ * stage or camp before. Throws on a bad or repeated seat, an unknown kind, a stage `STAGES` lacks or a carry the
+ * checkpoint would refuse (no life or hit point, more than the kind's health, or more pots than it holds).
  */
 export function createWorld(options: {
   seed: number;
   heroes: readonly HeroEntry[];
   stage?: number;
+  camp?: boolean;
 }): World {
+  const camp = options.camp ?? false;
   const stage = options.stage ?? 1;
   if (!whole(stage, 1, STAGES.length))
     throw new RangeError(`fuse-axe: no stage ${stage}`);
@@ -387,14 +406,15 @@ export function createWorld(options: {
     if (
       carry &&
       (!whole(carry.lives, 1, LIVES) ||
-        !whole(carry.pots, 0, MAX_POTS[entry.kind]))
+        !whole(carry.pots, 0, MAX_POTS[entry.kind]) ||
+        !whole(carry.hp, 1, HERO_HP[entry.kind]))
     )
       throw new RangeError(
-        `fuse-axe: a ${entry.kind} carrying ${carry.lives} lives and ${carry.pots} pots`,
+        `fuse-axe: a ${entry.kind} carrying ${carry.lives} lives, ${carry.pots} pots and ${carry.hp} hp`,
       );
   });
   const heroes = entries.map((entry, index): Hero => {
-    const [x, y] = SPAWNS[entry.seat]!;
+    const [x, y] = (camp ? CAMP_SPAWNS : SPAWNS)[entry.seat]!;
     return {
       id: index + 1,
       seat: entry.seat,
@@ -415,7 +435,7 @@ export function createWorld(options: {
       struck: [],
       damage: 0,
       knockdowns: 0,
-      hp: HERO_HP[entry.kind],
+      hp: entry.carry?.hp ?? HERO_HP[entry.kind],
       lives: entry.carry?.lives ?? LIVES,
       invulnUntil: 0,
       stagger: 0,
@@ -449,12 +469,16 @@ export function createWorld(options: {
     spells: [],
     stage,
     mounts: [],
+    camp,
   };
 }
 
-/** The stage is won: its last wave has been fought to the end. The stage flow takes the party on from here. */
+/**
+ * The stage is won: its last wave has been fought to the end. The stage flow takes the party on from here. A camp
+ * has no waves and is never won (`campOver` ends it).
+ */
 export const stageCleared = (world: World): boolean =>
-  world.wave === planOf(world).waves.length && !world.locked;
+  !world.camp && world.wave === planOf(world).waves.length && !world.locked;
 
 /** GO flashes after a wave short of the last is cleared, for `GO_STEPS` and while the camera has not moved on. */
 export function showsGo(world: World): boolean {
