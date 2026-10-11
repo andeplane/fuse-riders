@@ -5,14 +5,18 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createRound,
+  FIRE,
+  gridHash,
   isLoaded,
   step,
+  type BotDifficulty,
   type RoundState,
 } from "../src/engine/index.js";
-import { fingerprint } from "./engine-helpers.js";
+import { buildTempleGrid } from "../src/engine/temple-map.js";
+import { fingerprint, playOut } from "./engine-helpers.js";
 
-// Complements tests/engine-boundary.test.ts (imports): the engine must not reach for ambient
-// nondeterminism either. Randomness comes from the seeded RNG, time from the fixed step.
+// Complements tests/architecture.test.ts (imports and engine-dependent Math): the engine must not reach for
+// ambient nondeterminism either. Randomness comes from the seeded RNG, time from the fixed step.
 
 const engineDir = fileURLToPath(new URL("../src/engine", import.meta.url));
 
@@ -44,9 +48,15 @@ test("the engine uses no wall clock, Math.random or DOM globals", () => {
   }
 });
 
+/** Every seat steers a way that changes each second and fires now and then: flight, collisions and volleys. */
+const script = (s: RoundState) =>
+  s.castles.map(
+    (c) =>
+      ((s.tick / 60 + c.id * 5) & 15) |
+      (isLoaded(c) && (s.tick + c.id * 7) % 11 === 0 ? FIRE : 0),
+  );
+
 test("same seed and inputs give the same round; different seeds differ", () => {
-  const script = (s: RoundState) =>
-    s.castles.map((c) => isLoaded(c) && (s.tick + c.id * 7) % 11 === 0);
   const a = createRound({ seed: 1234, playerCount: 5 });
   const b = createRound({ seed: 1234, playerCount: 5 });
   assert.equal(fingerprint(a), fingerprint(b));
@@ -58,6 +68,11 @@ test("same seed and inputs give the same round; different seeds differ", () => {
   assert.ok(
     a.rockets.length > 0 || a.castles.some((c) => c.stats.rocketsFired > 0),
   );
+  const start = createRound({ seed: 1234, playerCount: 5 }).castles;
+  assert.ok(
+    a.castles.some((c, id) => c.x !== start[id]?.x),
+    "nobody flew",
+  );
 
   const c = createRound({ seed: 1235, playerCount: 5 });
   assert.notEqual(
@@ -66,8 +81,7 @@ test("same seed and inputs give the same round; different seeds differ", () => {
   );
 });
 
-test("a cloned round replays identically", () => {
-  const script = (s: RoundState) => s.castles.map((c) => isLoaded(c));
+test("a cloned round replays identically (what rollback relies on)", () => {
   const a = createRound({ seed: 77, playerCount: 4 });
   for (let i = 0; i < 1500; i++) step(a, script(a));
   const b = structuredClone(a);
@@ -75,5 +89,18 @@ test("a cloned round replays identically", () => {
     step(a, script(a));
     step(b, script(b));
   }
+  assert.equal(fingerprint(b), fingerprint(a));
+});
+
+test("a full bot round on the temple replays bit for bit: same result, same carved grid", () => {
+  const kinds: BotDifficulty[] = ["hard", "easy", "normal", "hard"];
+  const bots = kinds.map((difficulty, id) => ({ id, difficulty }));
+  const play = () =>
+    playOut({ seed: 2026, playerCount: kinds.length, bots }, () => []);
+  const [a, b] = [play(), play()];
+  assert.ok(a.result);
+  assert.deepEqual(b.result, a.result);
+  assert.equal(gridHash(b.terrain), gridHash(a.terrain));
+  assert.notEqual(gridHash(a.terrain), gridHash(buildTempleGrid()), "carved");
   assert.equal(fingerprint(b), fingerprint(a));
 });

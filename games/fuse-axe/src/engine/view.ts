@@ -1,0 +1,231 @@
+import { STAGE_1 } from "./stages.js";
+import {
+  HERO_HP,
+  ITEM_BLINK,
+  ITEM_LIFE,
+  MAX_POTS,
+  SPELLS,
+  SUB,
+  enemyMaxHp,
+  type EnemyKind,
+  type HeroKind,
+  type ItemKind,
+  type SpellKind,
+  type Tier,
+} from "./tuning.js";
+import { chosenLevel } from "./magic.js";
+import {
+  defeated,
+  showsGo,
+  stageCleared,
+  type EnemyState,
+  type FxKind,
+  type HeroState,
+  type World,
+} from "./world.js";
+
+/**
+ * What the renderer sees of the world: positions in whole pixels (`x` along the road, `y` the depth that is also
+ * the feet's screen row, `z` height above the floor), so sprites land on the pixel grid. A figure's screen position
+ * is `(x − camX, y − z)` and its shadow sits at `(x − camX, y)`. Each value is floored once on its own, so every
+ * sprite shares the same whole-pixel camera offset as the backdrop and none shimmers against it.
+ */
+export type {
+  EnemyKind,
+  HeroKind,
+  ItemKind,
+  SpellKind,
+  Tier,
+} from "./tuning.js";
+export type { FxKind } from "./world.js";
+/**
+ * `attack1` and `attack2` are the slashes, `attack3` the finisher. `run` is the run a double tap starts and `dash`
+ * the dash attack from it (a shoulder charge, Gorm's a headbutt). `jumpattack` stabs down from a jump, standing or
+ * running (the blade is out from `STAB_STEPS` until it lands), `backattack` strikes behind the hero without turning
+ * it (`BACK_STEPS`), `grab` holds an enemy for `GRAB_STEPS` and `throw` follows through for `THROW_STEPS`. `hurt`
+ * reels, `knockdown` flies, `down` lies and `getup` rises; `dead` lies fallen until `respawn` drops the hero in from
+ * the top of the screen, or it is `out`. `charge` holds Magic (the level chosen is `charge` in the view) and `cast`
+ * stands casting its spell (`spells` in the world's view) until the spell is gone.
+ */
+export type HeroAnim = HeroState;
+/**
+ * `enter` is a wave's enemy walking in from the screen's edge (or back in to a locked screen): walk frames, as is
+ * `walk`. `windup` telegraphs the mace for its tier's steps, `attack` swings it (it lands on the first step) and
+ * `recover` follows. `held` waits in a hero's hands, and `thrown` flies behind it, then lands `down` (or `dead`).
+ * A sack imp (kind `imp`) scurries in `walk`, `stumble`s from a kick (or from a heavy one flies in `knockdown`, lies
+ * `down` and gets up), then runs in `flee`; it is never `dead`.
+ */
+export type EnemyAnim = EnemyState;
+
+export interface HeroView {
+  id: number;
+  seat: number;
+  kind: HeroKind;
+  x: number;
+  y: number;
+  z: number;
+  facing: 1 | -1;
+  anim: HeroAnim;
+  /** Steps since `anim` began; the renderer divides it into sprite frames. */
+  animStep: number;
+  hp: number;
+  maxHp: number;
+  /** Lives left, this one included. */
+  lives: number;
+  /**
+   * No mace lands on the hero: getting up, and for a while after dropping back in. Draw it blinking. A hero in `cast`
+   * is safe too, but does not set this: the spell is its cue.
+   */
+  invulnerable: boolean;
+  /** Magic pots held, and the most the hero's kind can hold. */
+  pots: number;
+  maxPots: number;
+  /**
+   * While charging magic (`charge`), the level chosen, from 1, which letting go casts once the charge is past a tap
+   * (`MAGIC_TAP`; a tap casts every pot); 0 otherwise.
+   */
+  charge: number;
+}
+
+/**
+ * A spell playing: its caster's id, which spell, its level and its age in steps. Its timing per kind and level is
+ * `SPELL_STEPS` in `view-kit.ts`: every enemy stands frozen until `hit`, when the blow lands on the screen, and the
+ * caster stands in `cast` until `steps`, when the spell is gone.
+ */
+export interface SpellView {
+  hero: number;
+  kind: SpellKind;
+  level: number;
+  age: number;
+}
+
+export interface EnemyView {
+  id: number;
+  kind: EnemyKind;
+  /** The palette: 0 ash, 1 rust, 2 violet. */
+  tier: Tier;
+  x: number;
+  y: number;
+  z: number;
+  facing: 1 | -1;
+  /** `dead` lasts `DEAD_STEPS` for the blink before the enemy is gone; `getup` is invulnerable throughout. */
+  anim: EnemyAnim;
+  animStep: number;
+  hp: number;
+  maxHp: number;
+  /** In hit-stop from a hit just taken: draw the damage flash. */
+  flash: boolean;
+}
+
+/** A hit spark at its impact point, `age` steps old (under `FX_LIFE`). */
+export interface FxView {
+  kind: FxKind;
+  x: number;
+  y: number;
+  z: number;
+  age: number;
+}
+
+/** An item on the floor (`z` above it while it pops out), blinking in its last moments before it vanishes. */
+export interface ItemView {
+  id: number;
+  kind: ItemKind;
+  x: number;
+  y: number;
+  z: number;
+  blink: boolean;
+}
+
+export interface WorldView {
+  step: number;
+  camX: number;
+  heroes: HeroView[];
+  enemies: EnemyView[];
+  fx: FxView[];
+  /** In id order, which no hero or enemy shares. */
+  items: ItemView[];
+  /** The spells playing, in the order they were cast: at most one per hero. */
+  spells: SpellView[];
+  /** The wave begun latest, from 1 (0 before the first), of `waves` in the stage. */
+  wave: number;
+  waves: number;
+  /** A wave is being fought and the screen holds still until it is cleared. */
+  locked: boolean;
+  /** Flash "GO →": a wave was just cleared and the road ahead is open. */
+  go: boolean;
+  /** The stage's last wave is cleared. */
+  cleared: boolean;
+  /** Every hero is out of lives. */
+  defeated: boolean;
+}
+
+const whole = (value: number) => Math.floor(value / SUB);
+
+export function toView(world: World): WorldView {
+  return {
+    step: world.step,
+    camX: whole(world.camX),
+    heroes: world.heroes.map((hero) => ({
+      id: hero.id,
+      seat: hero.seat,
+      kind: hero.kind,
+      x: whole(hero.x),
+      y: whole(hero.y),
+      z: whole(hero.z),
+      facing: hero.facing,
+      anim: hero.state,
+      animStep: hero.timer,
+      hp: hero.hp,
+      maxHp: HERO_HP[hero.kind],
+      lives: hero.lives,
+      // A hero that has never been (`invulnUntil` 0) is not, though step 0 is no later than that.
+      invulnerable: hero.invulnUntil > 0 && world.step <= hero.invulnUntil,
+      pots: hero.pots,
+      maxPots: MAX_POTS[hero.kind],
+      // The step shown is one more held than `timer` counts since the press.
+      charge: hero.state === "charge" ? chosenLevel(hero, hero.timer + 1) : 0,
+    })),
+    enemies: world.enemies.map((enemy) => ({
+      id: enemy.id,
+      kind: enemy.kind,
+      tier: enemy.tier,
+      x: whole(enemy.x),
+      y: whole(enemy.y),
+      z: whole(enemy.z),
+      facing: enemy.facing,
+      anim: enemy.state,
+      animStep: enemy.timer,
+      hp: enemy.hp,
+      maxHp: enemyMaxHp(enemy.kind, enemy.tier, world.heroes.length),
+      flash: world.step <= enemy.stopUntil,
+    })),
+    fx: world.fx.map((fx) => ({
+      kind: fx.kind,
+      x: whole(fx.x),
+      y: whole(fx.y),
+      z: whole(fx.z),
+      age: world.step - fx.born,
+    })),
+    items: world.items.map((item) => ({
+      id: item.id,
+      kind: item.kind,
+      x: whole(item.x),
+      y: whole(item.y),
+      z: whole(item.z),
+      blink: world.step - item.born >= ITEM_LIFE - ITEM_BLINK,
+    })),
+    spells: world.spells.map((spell) => ({
+      hero: spell.hero,
+      kind: SPELLS[world.heroes.find((each) => each.id === spell.hero)!.kind]
+        .kind,
+      level: spell.level,
+      age: world.step - spell.born,
+    })),
+    wave: world.wave,
+    waves: STAGE_1.waves.length,
+    locked: world.locked,
+    go: showsGo(world),
+    cleared: stageCleared(world),
+    defeated: defeated(world),
+  };
+}

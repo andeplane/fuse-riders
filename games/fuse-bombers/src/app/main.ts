@@ -5,8 +5,12 @@ import "./style.css";
 import "./screens.css";
 import { createAppPortal, type AppPortal } from "fuse-ui/portal";
 import Phaser from "phaser";
-import { ARENA_HEIGHT, ARENA_WIDTH } from "../engine/index.js";
-import { RoundScene, type RoundSceneData } from "../render/round-scene.js";
+import {
+  RoundScene,
+  VIEW_HEIGHT,
+  VIEW_WIDTH,
+  type RoundSceneData,
+} from "../render/round-scene.js";
 import { createAudio } from "./audio/index.js";
 import { Flow } from "./flow.js";
 import { createBrowserInput } from "./input/index.js";
@@ -17,8 +21,8 @@ const audio = createAudio();
 
 /**
  * Boots the game: the Phaser round scene fills the window and the match flow's DOM screens sit on top.
- * Debug flags: `?seed=N` fixes the matches, `?speed=N` runs everything N times as fast, `?touch` forces touch
- * zones, `?debug` exposes `window.fuseBombers = { game, flow, audio }` for browser tests. `?mute` silences audio.
+ * Debug flags: `?seed=N` fixes the matches, `?speed=N` runs everything N times as fast, `?touch` forces the touch
+ * pads, `?debug` exposes `window.fuseBombers = { game, flow, audio }` for browser tests. `?mute` silences audio.
  */
 async function boot(): Promise<void> {
   // Phaser rasterises text once, so the pixel font must be ready before the first scene draws.
@@ -30,8 +34,8 @@ async function boot(): Promise<void> {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent: "app",
-    width: ARENA_WIDTH,
-    height: ARENA_HEIGHT,
+    width: VIEW_WIDTH,
+    height: VIEW_HEIGHT,
     backgroundColor: "#0b1020",
     banner: false,
     audio: { noAudio: true }, // Sound is ./audio's, not Phaser's.

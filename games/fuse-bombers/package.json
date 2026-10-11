@@ -4,7 +4,13 @@
   "private": true,
   "type": "module",
   "description": "Fuse Bombers: a one-screen party artillery game for 2–6 local players and bots on one keyboard, gamepads or a touch screen. Seeded engine (src/engine/), Phaser renderer (src/render/), page, input and audio (src/app/).",
+  "exports": {
+    "./platform": "./src/platform.ts"
+  },
   "dependencies": {
+    "fuse-netcode": "workspace:*",
+    "fuse-network-fe": "workspace:*",
+    "fuse-platform": "workspace:*",
     "fuse-ui": "workspace:*"
   },
   "devDependencies": {
