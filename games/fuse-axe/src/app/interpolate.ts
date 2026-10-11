@@ -70,7 +70,10 @@ export function blend(
   };
 }
 
-/** What to draw for `timing`: the blend of its two frames, or the newer one alone across a run or stage change. */
+/**
+ * What to draw for `timing`: the blend of its two frames, or the newer one alone across a run or stage change, or
+ * into or out of camp.
+ */
 export function drawn(
   timing: Pick<FrameTiming<View>, "older" | "newer" | "tick"> | undefined,
 ): WorldView | null {
@@ -80,7 +83,8 @@ export function drawn(
   if (
     !older?.world ||
     older.matchId !== newer.matchId ||
-    older.round !== newer.round
+    older.round !== newer.round ||
+    older.world.camp !== world.camp
   )
     return world;
   return blend(

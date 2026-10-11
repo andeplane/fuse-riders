@@ -21,6 +21,7 @@ import {
 import { enemyFrame, heroFrame } from "./art/animate.js";
 import { CLAWBEAK_SPRITE } from "./art/clawbeak.js";
 import { IMP } from "./art/imp.js";
+import { MEAT } from "./art/meat.js";
 import { HEROES } from "./art/index.js";
 import { LANCER, LANCER_TIERS } from "./art/lancer.js";
 import { OGRE, OGRE_CROWNS, OGRE_RAGE, OGRE_TIERS } from "./art/ogre.js";
@@ -49,7 +50,8 @@ import type { MakeSurface } from "./surface.js";
 
 /**
  * The game's picture: one native 320 × 180 frame of the engine's view, drawn in layers — the stage's backdrop (one
- * without art of its own draws Stage 1's, scrolled across the stage's longer or shorter road: `scenery`); every
+ * without art of its own draws Stage 1's, scrolled across the stage's longer or shorter road: `scenery`; camp, until
+ * it has its own, Stage 1's first screen under the `NIGHT`); every
  * figure's shadow on the floor; heroes, enemies and items on the floor by depth (further up the floor first, then
  * lower before higher, then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when
  * defeated, a hero blinking while it is invulnerable and an item before it vanishes; an ogre's shockwave cracking the
@@ -99,8 +101,13 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   lancer: { figure: LANCER, tiers: LANCER_TIERS },
 };
 /** What each item kind draws (a kind from a build with more of them, a pot), and the half-width of its shadow. */
-export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = { pot: POT };
+export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = {
+  pot: POT,
+  meat: MEAT,
+};
 export const ITEM_SHADE = 3;
+/** The dark laid over camp's placeholder backdrop, Stage 1's first screen, until camp has art of its own. */
+export const NIGHT = "rgba(8, 4, 28, 0.62)";
 
 /**
  * What each beast draws (a kind from a build with more of them, a clawbeak) until the mount art comes: a silhouette,
@@ -319,9 +326,16 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         pen.fillStyle = UNLIT.k!;
         fill(pen, 0, 0, VIEW_W, VIEW_H);
       }
-      const back = scenery(view.stage, camX),
+      // Camp, until it has art of its own, is Stage 1's first screen at night.
+      const back = view.camp
+          ? { art: 1 as const, camX: 0 }
+          : scenery(view.stage, camX),
         backdrop = backdropOf(back.art);
       backdrop.draw(field, back.camX, frame);
+      if (view.camp) {
+        field.fillStyle = NIGHT;
+        fill(field, 0, 0, VIEW_W, VIEW_H);
+      }
       const at = (f: HeroView | EnemyView | ItemView | MountView) => ({
         id: f.id,
         y: Math.floor(f.y),

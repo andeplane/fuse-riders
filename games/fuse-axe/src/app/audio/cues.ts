@@ -85,9 +85,10 @@ export class CueTracker {
     }
     this.stageCues(frame, run, cues);
     const world = frame.world;
-    if (world && this.world) this.worldCues(this.world, world, run, cues);
+    if (world && this.world && this.world.camp === world.camp)
+      this.worldCues(this.world, world, run, cues);
     else {
-      // A stage starts from what it shows: nothing in its first frame is news, its sparks included.
+      // A stage (or camp) starts from what it shows: nothing in its first frame is news, its sparks included.
       this.figures.clear();
       this.heard.clear();
       this.sparks = world ? sparksOf(world) : [];
@@ -141,9 +142,14 @@ export class CueTracker {
         this.fresh(`${key}:hp${hero.hp}`, step)
       )
         cues.add("hurt");
-      // A pot picked up off the floor; one drunk for magic takes one away.
+      // A pot picked up off the floor (one drunk for magic takes one away), or meat eaten at camp.
       const pots = hero.pots;
-      if (pots > was.pots && this.fresh(`${key}:pot${pots}`, step))
+      if (
+        (pots > was.pots && this.fresh(`${key}:pot${pots}`, step)) ||
+        (world.camp &&
+          hero.hp > was.hp &&
+          this.fresh(`${key}:meat${hero.hp}`, step))
+      )
         cues.add("pot");
     }
     for (const enemy of world.enemies) {

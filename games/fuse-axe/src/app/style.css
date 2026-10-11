@@ -287,6 +287,27 @@ body {
   --edge: var(--fa-ember);
 }
 
+/* Camp is played: its caption is a strip at the top that leaves the clearing in view and takes no clicks. */
+.fa-card[data-kind="camp"] {
+  top: 8px;
+  transform: translateX(-50%);
+  width: auto;
+  grid-auto-flow: column;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 12px;
+  background: rgba(12, 6, 24, 0.6);
+  pointer-events: none;
+}
+
+.fa-card[data-kind="camp"] .fa-card-title {
+  font-size: 12px;
+}
+
+.fa-card[data-kind="camp"] .fa-card-clock {
+  font-size: 12px;
+}
+
 .fa-card-title {
   margin: 0;
   font: 20px/1.2 var(--fui-font-pixel, monospace);

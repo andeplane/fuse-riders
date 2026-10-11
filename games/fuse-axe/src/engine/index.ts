@@ -1,5 +1,5 @@
 /** Fuse Axe's engine: deterministic rules with no imports from outside this folder. */
-export const RULES = "fuse-axe-15";
+export const RULES = "fuse-axe-16";
 export * from "./input.js";
 export {
   carryOf,
@@ -29,6 +29,7 @@ export {
 export { revive, step, stepTick } from "./step.js";
 export { botInput } from "./bot.js";
 export { sendImp } from "./imps.js";
+export { campLeft, campOver } from "./camp.js";
 export { spawnMount } from "./mount.js";
 export {
   toView,
@@ -45,6 +46,7 @@ export {
   type WorldView,
 } from "./view.js";
 export {
+  CAMP,
   STAGE_1,
   STAGE_2,
   STAGES,

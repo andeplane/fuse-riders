@@ -60,6 +60,7 @@ const world = (extra: Partial<WorldView> = {}): WorldView => ({
   spells: [],
   mounts: [],
   stage: 1,
+  camp: false,
   wave: 0,
   waves: 5,
   locked: false,
@@ -186,7 +187,7 @@ test("a pot popping out of a sack rises and falls between ticks, a lying one sta
   assert.deepEqual(half.items[2], newer.items[2], "a new pot is where it is");
 });
 
-test("frames of one run blend; across a run or stage, or with nothing earlier or nothing to draw, the newer frame stands alone", () => {
+test("frames of one run blend; across a run or stage or into camp, or with nothing earlier or nothing to draw, the newer frame stands alone", () => {
   const room = createRoom("m1", DEFAULT_SETTINGS);
   const frame = (
     wv: WorldView | null,
@@ -216,6 +217,12 @@ test("frames of one run blend; across a run or stage, or with nothing earlier or
     drawn({ older: { ...older, matchId: "other" }, newer, tick: 31.5 }),
     b,
     "another run",
+  );
+  const camp = { ...b, camp: true };
+  assert.equal(
+    drawn({ older, newer: { ...newer, world: camp }, tick: 31.5 }),
+    camp,
+    "into camp after the stage's tally",
   );
   assert.equal(drawn({ newer, tick: 33 }), b, "no earlier frame");
   assert.equal(drawn({ older: frame(null, 30), newer, tick: 31 }), b);

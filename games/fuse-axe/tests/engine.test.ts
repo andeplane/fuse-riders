@@ -125,9 +125,9 @@ test("createWorld seats heroes in id order across the left of the screen", () =>
     );
 });
 
-test("createWorld sets out on a stage, Stage 1 by default, with each hero's carry or every life and no pots", () => {
+test("createWorld sets out on a stage, Stage 1 by default, with each hero's carry or every life, full health and no pots", () => {
   const heroes = [
-    { seat: 0, kind: "rhea" as const, carry: { lives: 1, pots: 6 } },
+    { seat: 0, kind: "rhea" as const, carry: { lives: 1, pots: 6, hp: 9 } },
     { seat: 3, kind: "gorm" as const },
   ];
   assert.equal(solo().stage, 1);
@@ -136,7 +136,7 @@ test("createWorld sets out on a stage, Stage 1 by default, with each hero's carr
   assert.deepEqual(
     world.heroes.map((h) => [h.seat, h.lives, h.pots, h.hp]),
     [
-      [0, 1, 6, T.HERO_HP.rhea],
+      [0, 1, 6, 9],
       [3, T.LIVES, 0, T.HERO_HP.gorm],
     ],
   );
@@ -152,12 +152,16 @@ test("createWorld sets out on a stage, Stage 1 by default, with each hero's carr
       RangeError,
       `stage ${stage}`,
     );
+  const hp = T.HERO_HP.gorm;
   for (const carry of [
-    { lives: 0, pots: 0 },
-    { lives: T.LIVES + 1, pots: 0 },
-    { lives: 1.5, pots: 0 },
-    { lives: 1, pots: -1 },
-    { lives: 1, pots: T.MAX_POTS.gorm + 1 },
+    { lives: 0, pots: 0, hp },
+    { lives: T.LIVES + 1, pots: 0, hp },
+    { lives: 1.5, pots: 0, hp },
+    { lives: 1, pots: -1, hp },
+    { lives: 1, pots: T.MAX_POTS.gorm + 1, hp },
+    { lives: 1, pots: 0, hp: 0 },
+    { lives: 1, pots: 0, hp: hp + 1 },
+    { lives: 1, pots: 0, hp: 1.5 },
   ])
     assert.throws(
       () =>
@@ -165,15 +169,17 @@ test("createWorld sets out on a stage, Stage 1 by default, with each hero's carr
       RangeError,
       JSON.stringify(carry),
     );
-  // The policy: lives kept (one that went out comes back with one), pots kept.
+  // The policy: lives kept (one that went out comes back with one), pots and health kept (one fallen at full health).
   const [kept] = world.heroes;
   assert.deepEqual(carryOf({ ...kept!, lives: 2, pots: 3 }), {
     lives: 2,
     pots: 3,
+    hp: 9,
   });
   assert.deepEqual(carryOf({ ...kept!, state: "out", lives: 0, hp: 0 }), {
     lives: 1,
     pots: 6,
+    hp: T.HERO_HP.rhea,
   });
 });
 
@@ -501,7 +507,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-15");
+  assert.equal(RULES, "fuse-axe-16");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {

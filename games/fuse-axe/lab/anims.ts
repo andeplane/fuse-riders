@@ -189,6 +189,7 @@ for (const animated of ANIMATED) {
     const view: WorldView = {
       ...{ step, stage: 1, camX: 0, heroes: [], fx: [], items: [], spells: [] },
       mounts: [],
+      camp: false,
       enemies: [
         twin({ anim, animStep }),
         twin({ id: 2, tier: 1, x: 260, y: 128, facing: -1, enraged: true }),

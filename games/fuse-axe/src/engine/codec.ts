@@ -40,7 +40,14 @@ import {
   enemyMaxHp,
   px,
 } from "./tuning.js";
-import { STAGES, planOf, waveSpawns, type StagePlan } from "./stages.js";
+import {
+  CAMP,
+  STAGES,
+  planOf,
+  waveSpawns,
+  type ImpCue,
+  type StagePlan,
+} from "./stages.js";
 import {
   ENEMY_STATES,
   FX_KINDS,
@@ -132,9 +139,10 @@ const ascending = <T>(items: readonly T[], key: (item: T) => number) =>
   );
 
 // Bounds with room to spare around what the rules keep: a checkpoint is refused for nonsense, not for a hero a
-// later rule moves a little further than this one does. Along the road the fields allow the longest stage's, and the
-// world holds them to its own stage's (`onRoad`).
-const most = (of: (plan: StagePlan) => number) => Math.max(...STAGES.map(of));
+// later rule moves a little further than this one does. Along the road the fields allow the longest stage's (camp's
+// among them), and the world holds them to its own stage's (`onRoad`).
+const most = (of: (plan: StagePlan) => number) =>
+  Math.max(...[...STAGES, CAMP].map(of));
 const LENGTH = most((plan) => plan.length),
   /** How far outside the road a figure stands: one walking in from beyond its end, or knocked off its start. */
   BEYOND = px(VIEW_W);
@@ -387,13 +395,14 @@ function wavesKept(value: World): boolean {
     latest = waves[value.wave - 1],
     next = waves[value.wave];
   if (value.goUntil > value.step + GO_STEPS) return false;
+  // Camp has no wave, so nothing begins there.
   if (!latest)
     return (
       !value.locked &&
       value.waveStep === 0 &&
       value.spawned === 0 &&
       value.goUntil === 0 &&
-      value.camX < next!.at
+      (!next || value.camX < next.at)
     );
   const count = waveSpawns(latest, value.heroes.length).length;
   return (
@@ -450,10 +459,11 @@ function onRoad(value: World): boolean {
  * for a hero in the world or nobody. No enemy has more hit points than its tier's for this party, no hit-stop,
  * invulnerability, run of hits, double tap or idle pause runs past the longest one starting now, the sparks run
  * oldest first, each born no later than now and not yet past its life, the items run in id order, each id issued and
- * no hero's or enemy's, each born no later than now and not yet past its life, no imp is sent before the camera
- * reached its cue, the beasts run in id order, each id issued and no hero's, enemy's or item's, and the road, the sacks,
- * the waves, the grabs, the spells and the riders are as `onRoad`, `sackKept`, `wavesKept`, `holdsKept`, `spellsKept`
- * and `mountsKept` say.
+ * no hero's or enemy's, each born no later than now and not yet past its life and meat only at camp, no imp is sent
+ * before the camera reached its cue and its step came, no spell plays at camp, and nothing but sack imps is there
+ * (no other enemy, no beast), the beasts run in id order, each id issued and no hero's, enemy's or item's, and the
+ * road, the sacks, the waves, the grabs, the spells and the riders are as `onRoad`, `sackKept`, `wavesKept`,
+ * `holdsKept`, `spellsKept` and `mountsKept` say.
  */
 const world = record<World>(
   {
@@ -484,6 +494,7 @@ const world = record<World>(
     spells: list(spell, CAPACITY),
     stage: int(1, STAGES.length),
     mounts: list(mount, MOUNT_MAX),
+    camp: oneOf([false, true]),
   },
   (value) => {
     if (!onRoad(value)) return false;
@@ -493,7 +504,9 @@ const world = record<World>(
       issued = (id: number) => id < value.nextId,
       enemyId = (id: number) => issued(id) && !heroIds.has(id),
       stopped = (each: Hero | Enemy) =>
-        each.stopUntil <= value.step + HEAVY_HITSTOP;
+        each.stopUntil <= value.step + HEAVY_HITSTOP,
+      sent = (cue: ImpCue) =>
+        cue.at <= value.camX && (cue.step ?? 0) <= value.step;
     return (
       ascending(value.heroes, (each) => each.id) &&
       ascending(value.heroes, (each) => each.seat) &&
@@ -531,10 +544,14 @@ const world = record<World>(
           enemyId(each.id) &&
           !enemyIds.has(each.id) &&
           each.born <= value.step &&
-          value.step - each.born < ITEM_LIFE,
+          value.step - each.born < ITEM_LIFE &&
+          (each.kind === "pot" || value.camp),
       ) &&
-      (value.impsSent === 0 ||
-        planOf(value).imps[value.impsSent - 1]!.at <= value.camX) &&
+      (value.impsSent === 0 || sent(planOf(value).imps[value.impsSent - 1]!)) &&
+      (!value.camp ||
+        (value.spells.length === 0 &&
+          value.mounts.length === 0 &&
+          value.enemies.every((each) => each.kind === "imp"))) &&
       ascending(value.mounts, (each) => each.id) &&
       value.mounts.every(
         (each) =>

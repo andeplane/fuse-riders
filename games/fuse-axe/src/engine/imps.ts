@@ -1,6 +1,7 @@
 import { clamp } from "./math.js";
 import { planOf, type Side } from "./stages.js";
 import * as T from "./tuning.js";
+import type { ItemKind } from "./tuning.js";
 import {
   inView,
   newEnemy,
@@ -22,10 +23,11 @@ import {
  * or with an empty sack it cannot be kicked; it leaves the world once it is more than `ENTER_OUT` outside the screen.
  * A kick counts for nothing in a hero's tallies.
  *
- * A pot pops out of the sack and lands, then lies `ITEM_LIFE` steps, blinking at the end. A hero on its feet on the
- * floor, not reeling, knocked down, lying or getting up, picks up a landed pot it walks over while it holds fewer
- * than its kind's `MAX_POTS`; items go in id order, each to the first such hero in id order, so two heroes on one
- * pot on the same step leave it to the lower id.
+ * A pot (at camp, meat too) pops out of the sack and lands, then lies `ITEM_LIFE` steps, blinking at the end. A hero
+ * on its feet on the floor, not reeling, knocked down, lying or getting up, picks up a landed pot it walks over while
+ * it holds fewer than its kind's `MAX_POTS`, and eats landed meat while it is short of full health (`wants`); items go
+ * in id order, each to the first such hero in id order, so two heroes on one item on the same step leave it to the
+ * lower id.
  */
 export const isImp = (enemy: Enemy): boolean => enemy.kind === "imp";
 
@@ -35,11 +37,11 @@ export const kickable = (world: World, imp: Enemy): boolean =>
   imp.pots > 0 &&
   inView(world, imp);
 
-/** A pot pops out of the sack at (`x`, `y`) on the road; the oldest item makes way past `ITEM_MAX`. */
-function drop(world: World, x: number, y: number): void {
+/** An item of `kind` pops out of the sack at (`x`, `y`) on the road; the oldest item makes way past `ITEM_MAX`. */
+function drop(world: World, kind: ItemKind, x: number, y: number): void {
   world.items.push({
     id: world.nextId++,
-    kind: "pot",
+    kind,
     x: clamp(x, 0, planOf(world).length),
     y,
     z: T.POT_LIFT,
@@ -50,8 +52,9 @@ function drop(world: World, x: number, y: number): void {
 }
 
 /**
- * A blow lands on an imp from direction `dir` (along the road, +1 from the left): one pot drops, and the imp turns
- * to the blow and stumbles back, or from a `heavy` one flies; both hold still for the hit-stop.
+ * A blow lands on an imp from direction `dir` (along the road, +1 from the left): one pot drops (at camp, meat while
+ * an odd count is left in the sack, so the sack spills meat and pots in turn), and the imp turns to the blow and
+ * stumbles back, or from a `heavy` one flies; both hold still for the hit-stop.
  */
 export function kick(
   world: World,
@@ -59,8 +62,8 @@ export function kick(
   dir: 1 | -1,
   heavy: boolean,
 ): void {
+  drop(world, world.camp && imp.pots % 2 ? "meat" : "pot", imp.x, imp.y);
   imp.pots--;
-  drop(world, imp.x, imp.y);
   imp.facing = dir > 0 ? -1 : 1;
   imp.state = heavy ? "knockdown" : "stumble";
   imp.timer = 0;
@@ -137,12 +140,18 @@ export function sendImp(
   return next;
 }
 
-/** Every cue the camera has reached sends its imp, in order; the next waits while the world holds `ENEMY_MAX`. */
+/**
+ * Every cue the camera has reached, and whose step has come, sends its imp, in order; the next waits while the world
+ * holds `ENEMY_MAX`.
+ */
 export function advanceImps(world: World): void {
   const { imps } = planOf(world);
   for (
     let cue = imps[world.impsSent];
-    cue && cue.at <= world.camX && world.enemies.length < T.ENEMY_MAX;
+    cue &&
+    cue.at <= world.camX &&
+    (cue.step ?? 0) <= world.step &&
+    world.enemies.length < T.ENEMY_MAX;
     cue = imps[++world.impsSent]
   )
     enter(world, cue.side, cue.y, cue.pots);
@@ -158,14 +167,22 @@ const BUSY: readonly HeroState[] = [
   "respawn",
   "out",
 ];
+/** Whether a hero has room for an item of `kind`: a pot below its kind's `MAX_POTS`, meat below its full health. */
+export const wants = (hero: Hero, kind: ItemKind): boolean =>
+  kind === "meat"
+    ? hero.hp < T.HERO_HP[hero.kind]
+    : hero.pots < T.MAX_POTS[hero.kind];
 const picks = (hero: Hero, item: World["items"][number]): boolean =>
   hero.z === 0 &&
   !BUSY.includes(hero.state) &&
-  hero.pots < T.MAX_POTS[hero.kind] &&
+  wants(hero, item.kind) &&
   Math.abs(hero.x - item.x) <= T.PICKUP_X &&
   Math.abs(hero.y - item.y) <= T.PICKUP_Y;
 
-/** The items' step: the old vanish, a popping one rises or falls and lands, and a landed one may be picked up. */
+/**
+ * The items' step: the old vanish, a popping one rises or falls and lands, and a landed one may be picked up: a pot
+ * joins the hero's, meat gives back `MEAT_HEAL` hit points, no more than its whole health.
+ */
 export function advanceItems(world: World): void {
   world.items = world.items.filter((item) => {
     if (world.step - item.born >= T.ITEM_LIFE) return false;
@@ -176,7 +193,9 @@ export function advanceItems(world: World): void {
       return true;
     }
     const hero = world.heroes.find((each) => picks(each, item));
-    if (hero) hero.pots++;
+    if (hero && item.kind === "meat")
+      hero.hp = Math.min(hero.hp + T.MEAT_HEAL, T.HERO_HP[hero.kind]);
+    else if (hero) hero.pots++;
     return !hero;
   });
 }
