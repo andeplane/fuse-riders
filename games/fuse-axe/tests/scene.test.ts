@@ -257,6 +257,12 @@ test("an enemy in hit-stop flashes, and each tier has its own palette", () => {
   );
   const tiers = new Set([0, 1, 2].map((tier) => image({ tier: tier as 0 })));
   assert.equal(tiers.size, 3);
+  // The tiers are the ravager's palettes: a sack imp, which has only the one, is never tinted by them.
+  const imps = [0, 1, 2].map((tier) =>
+    image({ kind: "imp", tier: tier as 0, anim: "walk" }),
+  );
+  assert.equal(new Set(imps).size, 1);
+  assert.deepEqual(imps[0]!.fills, fillsOf(IMP.sprite("walk1")));
 });
 
 test("a defeated enemy lies still, then blinks out over DEAD_STEPS, shadow and all", () => {
