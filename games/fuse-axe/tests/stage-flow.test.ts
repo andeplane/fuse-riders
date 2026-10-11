@@ -265,18 +265,41 @@ test("the last stage cleared shows its tally, then the run is won with every sta
   fold(room);
   run(room, CLEAR_TICKS);
   breakCamp(room);
-  room.world = cleared(fought(room.world!, 1));
+  const worn = fought(room.world!, 1);
+  room.world = cleared({
+    ...worn,
+    heroes: worn.heroes.map((h, i) => ({ ...h, lives: 1 + i, pots: i, hp: 9 + i })), // prettier-ignore
+  });
   fold(room);
+  // Stage 2 cleared short of the last: camp, then the Drowned Crypt, each hero carrying its lives, pots and health.
+  run(room, CLEAR_TICKS);
+  assert.deepEqual([room.stage, room.world!.camp], ["between", true]);
+  breakCamp(room);
+  assert.deepEqual([room.stage, room.round, room.world!.stage], ["running", 3, 3]); // prettier-ignore
+  // The players' heroes stood at camp; the bot's (Ironhide) kicked its imps, so may have eaten.
+  const [ada, bo, bot] = room.world!.heroes;
+  assert.deepEqual(
+    [ada, bo].map((h) => [h!.lives, h!.pots, h!.hp]),
+    [
+      [1, 0, 9],
+      [2, 1, 10],
+    ],
+  );
+  assert.ok(bot!.lives === 3 && bot!.pots >= 2 && bot!.hp >= 11);
+  kept(room);
+  room.world = cleared(fought(room.world!, 100));
+  fold(room);
+  assert.equal(LAST_STAGE, 3);
   assert.deepEqual(
     [room.stage, room.round, view(room).countdown, room.world!.stage],
-    ["between", LAST_STAGE, CLEAR_TICKS, 2],
+    ["between", LAST_STAGE, CLEAR_TICKS, 3],
   );
   assert.deepEqual(
     view(room).tally.map((row) => [row.stage.damage, row.run]),
     [
-      [1, { damage: 11, knockdowns: 0 }],
-      [2, { damage: 22, knockdowns: 2 }],
-      [3, { damage: 33, knockdowns: 4 }],
+      [100, { damage: 111, knockdowns: 0 }],
+      [200, { damage: 222, knockdowns: 3 }],
+      [300, { damage: 333, knockdowns: 6 }],
     ],
   );
   kept(room);
@@ -469,6 +492,14 @@ test("a seat that leaves between stages is dropped: its hero stays behind, and t
   fold(room);
   kept(room);
   run(room, CLEAR_TICKS);
+  breakCamp(room);
+  assert.deepEqual(
+    [room.round, room.world!.stage, room.world!.heroes.map((h) => h.seat)],
+    [3, 3, [0, 2]],
+  );
+  room.world = cleared(room.world!);
+  fold(room);
+  run(room, CLEAR_TICKS);
   assert.deepEqual([room.stage, room.outcome], ["over", "victory"]);
   kept(room);
   // The next run sets out with whoever is seated.
@@ -625,9 +656,12 @@ test("the checkpoint refuses a stage flow the fold cannot reach, without partial
     lost = countdown();
   run(lost, CONTINUE_TICKS);
   const won = second();
-  won.world = cleared(won.world!);
-  fold(won);
-  run(won, CLEAR_TICKS);
+  for (const camps of [true, false]) {
+    won.world = cleared(won.world!);
+    fold(won);
+    run(won, CLEAR_TICKS);
+    if (camps) breakCamp(won);
+  }
   const later = second(),
     ended = second();
   ended.world = cleared({
@@ -755,6 +789,6 @@ test("the checkpoint refuses a stage flow the fold cannot reach, without partial
   // Every stage's world is seeded for its run and stage, and is of that stage.
   assert.deepEqual(
     [won.world!.seed, won.world!.stage, won.outcome],
-    [seedOf("m1:2"), 2, "victory"],
+    [seedOf("m1:3"), 3, "victory"],
   );
 });

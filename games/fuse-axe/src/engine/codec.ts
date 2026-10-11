@@ -2,6 +2,7 @@ import { INPUT_MASK, LEFT, RIGHT } from "./input.js";
 import {
   BEAST_COOL,
   BEAST_WALK,
+  BONEWALKER,
   BOSS,
   BUFFER_STEPS,
   CAPACITY,
@@ -54,6 +55,8 @@ import {
   type StagePlan,
 } from "./stages.js";
 import {
+  BONEWALKER_STATES,
+  BONE_ONLY,
   CAPTAIN_STATES,
   DRAKE_ONLY,
   ENEMY_STATES,
@@ -173,7 +176,11 @@ const INVULN = Math.max(RESPAWN_INVULN, GETUP_STEPS + GETUP_GRACE),
   TAP = Math.max(RUN_TAP, RUN_GAP),
   THINK = Math.max(
     ...[
-      ...TIERS.flatMap((tier) => [RAVAGER[tier], LANCER[tier]]),
+      ...TIERS.flatMap((tier) => [
+        RAVAGER[tier],
+        LANCER[tier],
+        BONEWALKER[tier],
+      ]),
       OGRE.calm,
       OGRE.rage,
       CAPTAIN,
@@ -267,6 +274,7 @@ const enemy = record<Enemy>({
   flashUntil: COUNT,
   enraged: oneOf([false, true]),
   remounted: oneOf([false, true]),
+  reassembled: oneOf([false, true]),
 });
 /** The states a lancer is off the floor in: leaping, flying from a blow or from a throw. */
 const ALOFT: readonly Enemy["state"][] = ["leap", "knockdown", "thrown"],
@@ -274,18 +282,24 @@ const ALOFT: readonly Enemy["state"][] = ["leap", "knockdown", "thrown"],
 /** Each kind's states: a ravager's are every state no other kind has alone, and it rides. */
 const STATES: Readonly<Record<EnemyKind, readonly Enemy["state"][]>> = {
   ravager: ENEMY_STATES.filter(
-    (state) => ![...IMP_ONLY, ...OGRE_ONLY, ...LANCER_ONLY].includes(state),
+    (state) =>
+      ![...IMP_ONLY, ...OGRE_ONLY, ...LANCER_ONLY, ...BONE_ONLY].includes(
+        state,
+      ),
   ),
   imp: IMP_STATES,
   ogre: OGRE_STATES,
   lancer: LANCER_STATES,
   captain: CAPTAIN_STATES,
+  bonewalker: BONEWALKER_STATES,
 };
 /**
  * Every enemy is in one of its kind's states (`STATES`: only a ravager and the captain ride). A sack imp is of the
  * lowest tier and going for nobody; every other enemy has no sack. Only a boss has poise or a flash of its own, only an
- * ogre rage and only the captain a remount. A lancer and the captain stand on the floor unless aloft (the captain's
- * drake carries him on it), and leap no faster than `LEAP_VX`.
+ * ogre rage, only the captain a remount and only a bonewalker a reassembly. A lancer and the captain stand on the floor
+ * unless aloft (the captain's drake carries him on it), and leap no faster than `LEAP_VX`. A bonewalker's bone pile
+ * lies still with no hit points, short of the reassembly it has not had; one clawing out of its grave stands still,
+ * whole and going for nobody, and one pulling itself together has.
  */
 const kindKept = (value: Enemy): boolean =>
   STATES[value.kind].includes(value.state) &&
@@ -295,9 +309,39 @@ const kindKept = (value: Enemy): boolean =>
   (BOSS[value.kind] || (value.poise === 0 && value.flashUntil === 0)) &&
   (value.kind === "ogre" || !value.enraged) &&
   (value.kind === "captain" || !value.remounted) &&
+  (value.kind === "bonewalker" || !value.reassembled) &&
+  (value.state !== "pile" ||
+    (value.hp === 0 &&
+      !value.reassembled &&
+      value.z === 0 &&
+      value.vx === 0 &&
+      value.vz === 0)) &&
+  (value.state !== "rise" ||
+    (!value.reassembled &&
+      value.target === 0 &&
+      value.z === 0 &&
+      value.vx === 0 &&
+      value.vz === 0)) &&
+  (value.state !== "reassemble" || value.reassembled) &&
   (!LANCERS.includes(value.kind) ||
     ((value.z === 0 || ALOFT.includes(value.state)) &&
       (value.state !== "leap" || Math.abs(value.vx) <= LEAP_VX)));
+
+/**
+ * A bonewalker clawing out of its grave stands at one of its stage's graves with every hit point, and one that has
+ * reassembled has no more than the half it came back with.
+ */
+function boneKept(value: Enemy, world: World): boolean {
+  const full = enemyMaxHp(value.kind, value.tier, world.heroes.length);
+  return (
+    (value.state !== "rise" ||
+      (value.hp === full &&
+        (planOf(world).graves ?? []).some(
+          (grave) => grave.x === value.x && grave.y === value.y,
+        ))) &&
+    (!value.reassembled || 2 * value.hp <= full)
+  );
+}
 
 const fx = record<Fx>({
   kind: oneOf(FX_KINDS),
@@ -571,7 +615,8 @@ const world = record<World>(
           each.flashUntil <= value.step + HITSTOP &&
           (each.target === 0 || heroIds.has(each.target)) &&
           each.thinkAt <= value.step + THINK &&
-          kindKept(each),
+          kindKept(each) &&
+          boneKept(each, value),
       ) &&
       value.fx.every(
         (each, index) =>

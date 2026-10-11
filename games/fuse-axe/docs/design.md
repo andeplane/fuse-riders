@@ -175,6 +175,18 @@ holds in mid-leap too, so a blow there does not cut his plunge short as it does 
 is still riderless on screen, he walks back to it (he goes for it before any hero) and climbs on, unless a hero has
 climbed on first. The boss bar reads LANCER CAPTAIN.
 
+A **bonewalker** (`src/engine/bonewalker.ts`, tuned in `tuning.ts`'s `BONEWALKER`, the Drowned Crypt's) fights as a
+ravager does, lighter than one of its palette and quicker to swing its sword, which reaches a little further than a
+mace (`BONE_REACH`); the violet tier is the armoured knight, hardest-hitting and longest in reach. A wave's bonewalker
+may claw up out of an open grave on the screen it holds (`Spawn.grave`, `StagePlan.graves`): it stands there for a
+second (`RISE_STEPS`) climbing out, struck by no blade, thrown body or spell, then fights; a bigger party's copy of one
+rises from the same grave a rise later. The first time a fall leaves it with no hit points it lies as a bone pile
+(`pile`) rather than falling for good, and after 2.5 s (`PILE_STEPS`) pulls itself together (`reassemble`, half a
+second, invulnerable as one getting up is) with half its full hit points. Any blow that lands on the pile, a slash, a
+jump attack's stab, a beast's, a thrown body or a spell, shatters it for good (a knockdown in the tally); nobody grabs
+a pile, and the second fall with no hit points is the last. A bot goes for a pile first, to shatter it. Until its art
+comes it is drawn as a ravager in bone, its pile as a skull and a few bones.
+
 ## Stages
 
 1. **Ashen Village** — a dusk road through burning thatched huts. Ravagers and lancers; boss: the Ogre twins.
@@ -188,8 +200,12 @@ climbed on first. The boss bar reads LANCER CAPTAIN.
 
    ![Wyrmbone Pass: the ribs and the lesser skull, and the skull gate in the last screen](images/stage2-backdrop.png)
 
-3. **Drowned Crypt** — a flooded graveyard under a broken cathedral; bonewalkers rise from the ground. Not in the
-   engine yet; its backdrop is drawn: a cold night under a pale moon, the cathedral's silhouette with its shattered rose
+3. **Drowned Crypt** — a flooded graveyard under a broken cathedral; bonewalkers rise from the ground. Playable as
+   gameplay (`STAGE_3`): five screens of road, five waves of bonewalkers clawing up out of the four graves on their
+   screens among violet ravagers and lancers, two imps, and at the cathedral's doors a pair of armoured bone knights
+   (violet bonewalkers) walking out from both sides, with a rust bonewalker and a violet ravager in turn for each hero
+   beyond the first. The knights are no boss (no bar, no armour), only the toughest of their kind with the longest
+   reach; Vorhal's Keep comes next. Its backdrop: a cold night under a pale moon, the cathedral's silhouette with its shattered rose
    window, graves, iron fences and green-burning braziers on a bank behind black water with crosses sunk in it, a
    causeway of wet flagstones broken open by graves, and at the end the cathedral's great doors up a flight of steps.
 
@@ -233,7 +249,7 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
 - **Stage clear.** The tick the last wave is cleared (`stageCleared`), the room banks each hero's tallies from the
   world into the run's (`Room.tally`, so they outlive the stage's world), lets go of every held control and goes
   `between` for `CLEAR_TICKS` (6 s), showing the stage's tally over the frozen scene. A stage cleared as the last hero
-  falls is still won. Past the last stage (`LAST_STAGE`, 2) the run ends `over` as a victory.
+  falls is still won. Past the last stage (`LAST_STAGE`, 3) the run ends `over` as a victory.
 - **Continue.** When every hero is out (`defeated`), the world keeps running and a countdown of `CONTINUE_TICKS`
   (10 s) starts. A present human seated at a hero of the run votes by pressing Attack (or the CONTINUE button): a
   `CONTINUE` entry for the run and stage (`[seq, tick, 2, matchId, round]`). The first one folded in the countdown
@@ -295,10 +311,9 @@ or is a bot.
   stones and bone chips in front; it ends at the skull gate ([screenshot](images/stage2-backdrop.png)). Stage 3
   (`drowned-crypt.ts`) too: the sky and moon, the cathedral, cloisters and mausoleums, the bank, water and causeway,
   and reeds in front; ripples, fog, green fires and drips move. Each layer is as wide as it scrolls across its stage
-  (`cameraEndPx(stage)` in `view-kit.ts`; the crypt, until the engine has Stage 3, its own `CRYPT_END` on a five-screen
-  road through `StageArt.cameraEnd`; its test fails once the engine has the stage until the override is dropped and the
-  two roads are equal). The crypt's four open graves (`GRAVES`: world x and floor row) are where Stage 3's plan can have
-  its bonewalkers rise. The scene picks the backdrop by the
+  (`cameraEndPx(stage)` in `view-kit.ts`; a stage the engine lacks may set its own through `StageArt.cameraEnd`). The
+  crypt's four open graves are the engine's (`STAGE_3.graves`, `gravesPx(3)`: world x and floor row), where its
+  bonewalkers rise. The scene picks the backdrop by the
   view's `stage`; a stage without art of its own draws Stage 1's, its camera scaled from the stage's road onto the
   village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery. A camp (the view's `camp`) draws
   `camp.ts` instead, whatever stage it follows: one screen, baked once with the scene, whose camera is held at 0.
