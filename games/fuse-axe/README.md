@@ -27,6 +27,9 @@ menu); a pad with no standard mapping offers only its stick and first four butto
 | K / X         | JUMP                             | Jump (a running jump from a run); with Attack, a back attack          |
 | L / C         | MAGIC                            | Magic: tap to cast every pot, hold to charge level by level, let go   |
 
+Beside a riderless clawbeak, Jump climbs on. Riding, Attack sweeps its tail, Jump hops it, Down + Jump climbs off and
+Magic climbs off to charge or cast; a hard blow throws the rider off ([design](docs/design.md#enemies)).
+
 On a touch screen the pads (`src/app/pad.ts`) sit over the game's corners while your hero fights; a thumb slides
 round the d-pad for the diagonals, and a double tap of left or right (a second tap, or a slide back through the
 centre and out again) is the same press, release, press as the keys. A **shared screen** is the host's switch in the
@@ -175,6 +178,17 @@ its own red, which `LANCER_TIERS` recolours in the ravagers' rust and violet.
 
 ![The lancer's frames in its three tiers, and two frames of the scene from a real engine world](docs/images/lancer-frames.png)
 
+The clawbeak (`src/render/art/clawbeak.ts`), the beast a ravager rides, is a teal two-legged runner a little over 40 px
+to its crest, with a long tail, a big hooked gold beak, a red crest, a leather saddle and a brass stirrup. It breathes
+swaying its tail, struts in a four-frame walk that keeps a planted foot on the road (wandering, it stoops to peck), and
+bolts head high when it loses its rider. The sweep coils the tail up over its back (the scene blinks it every
+`TELEGRAPH` steps), then from the step the tail lands whips it round in a flat ring `CLAWBEAK.reach` either side.
+`mountFrame` (`animate.ts`) plays `CLAWBEAK_ANIMS` as `enemyFrame` plays an enemy's. The scene seats the rider, in the
+ravager's own `ride` frame (astride, mace raised), on each frame's saddle point (`CLAWBEAK.saddle` over the feet, lower
+as the body dips: `CLAWBEAK_DIPS`), in the beast's shadow; `tests/clawbeak-art.test.ts` checks it all against the engine.
+
+![The clawbeak's frames, riderless and ridden, and two frames of the scene from a real engine world: the wind-up and the lash](docs/images/clawbeak-frames.png)
+
 ## Scene
 
 `src/render/scene.ts` draws one native 320 × 180 frame of the view: `createScene(make).draw(ctx, view, frame)`, where
@@ -185,7 +199,8 @@ higher, then by id) flipped to their facing, each hero's chevron in its seat's c
 (`sparks.ts`), the grass in front and a flashing GO → when a cleared wave opens the road. An enemy in hit-stop
 flashes, a tier wears its palette and a defeated one blinks out over `DEAD_STEPS`; an invulnerable hero (getting up,
 or just risen) blinks its sprite, keeping its shadow and chevron. Heroes of one kind each get a palette of their own,
-in seat order. An ogre's slam sends its shockwave along the floor (`ogre-fx.ts`), placed by view-kit's `QUAKE`
+in seat order. A beast stands among the figures, its rider drawn over it astride the saddle, and blinks as its tail
+winds up. An ogre's slam sends its shockwave along the floor (`ogre-fx.ts`), placed by view-kit's `QUAKE`
 exactly where the engine's runs: a crack splits the floor from the hammer's reach to the front under the figures,
 and over them rock shards burst up at the front and crumble behind it (the last ones faster, to be gone as the
 hammer rises), dust rolling and pebbles flying; an enraged twin steams, drawn with it by depth so a hero in front of

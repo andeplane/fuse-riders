@@ -23,6 +23,7 @@ import { planOf, waveSpawns, type Placed, type Side } from "./stages.js";
 import { act, rest, thinks } from "./ai.js";
 import { brace, breaks, enrage, isOgre, ogreAct } from "./ogre.js";
 import { isLancer, lancerAct, soar, takeOff } from "./lancer.js";
+import { advanceMounts, away, board, ride, saddle, swept } from "./mount.js";
 import {
   advanceImps,
   advanceItems,
@@ -34,6 +35,7 @@ import {
 } from "./imps.js";
 import {
   SPAWNS,
+  flinch,
   inView,
   launch,
   newEnemy,
@@ -44,17 +46,19 @@ import {
   type EnemyState,
   type Hero,
   type HeroState,
+  type Mount,
   type World,
 } from "./world.js";
 
 /**
  * One 1/60 s step, as a pure function: the input world is left untouched. The order is part of the rules: effects
  * past their life are dropped; every hero in id order reads its seat's held bits, swings, walks, runs, dashes, jumps
- * or falls (or reels, lies, gets up, drops back in, charges or casts magic), is held to the floor band and the
- * screen, and lands its blade on the enemies in id order; then the spells play in the order they were cast
- * (`magic.ts`), landing the blows due; then, unless a spell holds them frozen, every enemy in id order walks in,
- * reels, flies, lies or gets up, or thinks (`ai.ts`, an ogre `ogre.ts`) and lands its blows on the heroes in id order;
- * an ogre whose twin has fallen enrages (`enrage`); a defeated enemy
+ * or falls (or reels, lies, gets up, drops back in, charges or casts magic, or rides its beast, `mount.ts`), is held
+ * to the floor band and the screen, and lands its blade (or its beast's tail) on the enemies in id order; then the
+ * spells play in the order they were cast (`magic.ts`), landing the blows due; then, unless a spell holds them frozen,
+ * every enemy in id order walks in, reels, flies, lies or gets up, or thinks (`ai.ts`, an ogre `ogre.ts`) and lands its
+ * blows on the heroes in id order, and every beast no hero rides moves in id order (`advanceMounts`), an enemy's
+ * lashing its tail at the heroes; an ogre whose twin has fallen enrages (`enrage`); a defeated enemy
  * that has blinked long enough is gone, as
  * is a sack imp that has left the screen (`imps.ts`); then the items on the floor fall, vanish or are picked up; then
  * the camera follows, no further than the next wave's trigger; then the waves begin, spawn and clear
@@ -71,12 +75,15 @@ export function step(world: World, held: readonly number[]): World {
     fx: world.fx.filter((fx) => now - fx.born < T.FX_LIFE),
     items: world.items.map((item) => ({ ...item })),
     spells: [...world.spells],
+    mounts: world.mounts.map((mount) => ({ ...mount })),
   };
   for (const hero of next.heroes)
     moveHero(next, hero, (held[hero.seat] ?? 0) & INPUT_MASK);
   advanceSpells(next);
-  if (!spellbound(next))
+  if (!spellbound(next)) {
     for (const enemy of next.enemies) moveEnemy(next, enemy);
+    advanceMounts(next);
+  }
   enrage(next);
   next.enemies = next.enemies.filter(
     (enemy) =>
@@ -185,7 +192,7 @@ function leap(hero: Hero): void {
 function run(world: World, hero: Hero, bits: number): void {
   if ((bits & SIDES) !== (hero.facing > 0 ? RIGHT : LEFT))
     setState(hero, "idle");
-  else if (conjures(hero)) conjure(world, hero, bits);
+  else if (conjures(world, hero)) conjure(world, hero, bits);
   else if (hero.attackBuf > 0) {
     setState(hero, "dash");
     hero.vx = hero.facing * T.DASH[hero.kind].speed;
@@ -247,12 +254,19 @@ function respawn(world: World, hero: Hero): void {
  * (`LIVES`), as after a lost life, with nothing buffered and its magic pots kept. The stage goes on where it stood: the
  * camera, the waves, the enemies and the items on the floor are left as they are. Pure, like `step`: the world passed
  * in is left untouched. The room calls it once per stage, on the first CONTINUE folded after every hero is out
- * (`defeated`).
+ * (`defeated`); a beast a hero still rode would be left on the floor riderless, wandering.
  */
 export function revive(world: World): World {
+  const heroIds = new Set(world.heroes.map((hero) => hero.id)),
+    loose = { rider: 0, z: 0, vx: 0, vy: 0, vz: 0, timer: 0 } as const;
   const next: World = {
     ...world,
     heroes: world.heroes.map((hero) => ({ ...hero })),
+    mounts: world.mounts.map((mount) =>
+      heroIds.has(mount.rider)
+        ? { ...mount, ...loose, state: "wander" }
+        : mount,
+    ),
   };
   for (const hero of next.heroes) {
     hero.lives = T.LIVES;
@@ -313,6 +327,11 @@ function moveHero(world: World, hero: Hero, bits: number): void {
   // Hit-stop holds the hero, and the presses it buffers, in place.
   if (world.step <= hero.stopUntil) return;
   hero.timer++;
+  if (hero.state === "ride") {
+    const lashing = ride(world, hero, bits);
+    if (lashing) lash(world, hero, lashing);
+    return countDown(hero);
+  }
   recover(world, hero);
   if (hero.state === "run") run(world, hero, bits);
   else if (hero.state === "charge") charge(world, hero, bits);
@@ -327,12 +346,13 @@ function moveHero(world: World, hero: Hero, bits: number): void {
   if (hero.state === "idle" || hero.state === "walk") {
     walk(hero, bits);
     // Magic comes first, as from a run: it spends a pot on purpose, so no Attack or Jump pressed with it takes it over.
-    // At camp there is nothing to cast at, and the pots are kept for the road.
-    if (!world.camp && conjures(hero)) conjure(world, hero, bits);
+    // (`conjures` is false at camp, where the pots are kept for the road.)
+    if (conjures(world, hero)) conjure(world, hero, bits);
     else if (paired(hero)) backAttack(hero);
     else if (hero.attackBuf > 0) attack(world, hero, bits);
-    else if (hero.jumpBuf > 0) leap(hero);
-    else if (hero.runBuf > 0 && (bits & SIDES) === hero.tap) {
+    else if (hero.jumpBuf > 0) {
+      if (!board(world, hero)) leap(hero);
+    } else if (hero.runBuf > 0 && (bits & SIDES) === hero.tap) {
       setState(hero, "run");
       hero.facing = hero.tap === RIGHT ? 1 : -1;
       hero.runBuf = 0;
@@ -361,6 +381,11 @@ function moveHero(world: World, hero: Hero, bits: number): void {
   hero.y = clamp(hero.y, T.FLOOR_TOP, T.FLOOR_BOTTOM);
   if (blade) strike(world, hero, blade);
   moveStrike(world, hero);
+  countDown(hero);
+}
+
+/** A step of the buffered presses' lives. */
+function countDown(hero: Hero): void {
   if (hero.attackBuf > 0) hero.attackBuf--;
   if (hero.jumpBuf > 0) hero.jumpBuf--;
   if (hero.runBuf > 0) hero.runBuf--;
@@ -368,15 +393,31 @@ function moveHero(world: World, hero: Hero, bits: number): void {
 }
 
 /**
- * An enemy a blade can land on: on its feet (thinking or reeling), or walking or leaping in once its whole body is on
- * screen; a sack imp as `kickable` says.
+ * A riding hero's beast lashes its tail: it lands on every enemy a blade could (never a hero) within its sweep and under
+ * `TAIL_HEIGHT`, a blow that knocks down, away from the beast.
+ */
+function lash(world: World, hero: Hero, mount: Mount): void {
+  for (const enemy of world.enemies)
+    if (
+      hittable(world, enemy) &&
+      enemy.z < T.TAIL_HEIGHT &&
+      swept(mount, enemy.x, enemy.y, T.ENEMY_BODY[enemy.kind].half)
+    )
+      hit(world, hero, enemy, T.TAIL_DAMAGE, true, away(mount, enemy.x));
+}
+
+/**
+ * An enemy a blade can land on: on its feet (thinking or reeling), or walking, leaping or riding in once its whole body
+ * is on screen; a sack imp as `kickable` says.
  */
 export const hittable = (world: World, enemy: Enemy): boolean =>
   isImp(enemy)
     ? kickable(world, enemy)
     : thinks(enemy) ||
       enemy.state === "hurt" ||
-      ((enemy.state === "enter" || enemy.state === "leap") &&
+      ((enemy.state === "enter" ||
+        enemy.state === "leap" ||
+        enemy.state === "ride") &&
         inView(world, enemy));
 
 /** The blows that knock down whatever they land on: the finisher, the dash, the back attack and the jump attack. */
@@ -416,17 +457,23 @@ function strike(world: World, hero: Hero, blade: T.Blow): void {
 /**
  * A hit: the damage, then hitstun and a nudge away from the hero, which breaks off the enemy's swing, or, from a blow
  * that knocks down (`KNOCKS`), at no hp left or in the air (a lancer's leap), a knockdown that launches the enemy up
- * and away and frees its place by the hero it was going for. Attacker and target both hold still for the hit-stop. A
- * sack imp is kicked (`kick`) instead, and the hero's tallies are left alone. An ogre's super armour takes the blow
- * (`brace`) unless it breaks (`breaks`).
+ * and away and frees its place by the hero it was going for (and knocks a rider off its beast). Attacker and target
+ * both hold still for the hit-stop. A sack imp is kicked (`kick`) instead, and the hero's tallies are left alone. An
+ * ogre's super armour takes the blow (`brace`) unless it breaks (`breaks`), and a rider's saddle any but a knockdown
+ * (`flinch`). A beast's tail (`lash`) is `heavy` and lands away from the beast (`dir`).
  */
-function hit(world: World, hero: Hero, enemy: Enemy, damage: number): void {
+function hit(
+  world: World,
+  hero: Hero,
+  enemy: Enemy,
+  damage: number,
+  heavy = KNOCKS.includes(hero.state),
+  dir = aim(hero),
+): void {
   const taken = Math.min(damage, enemy.hp),
-    heavy = KNOCKS.includes(hero.state),
     knocked = isOgre(enemy)
       ? breaks(world, enemy, taken, heavy)
       : heavy || ((enemy.hp === taken || enemy.z > 0) && !isImp(enemy)),
-    dir = aim(hero),
     until = world.step + (knocked ? T.HEAVY_HITSTOP : T.HITSTOP);
   // In id order, the one way the checkpoint spells it: an enemy that gets up or is nudged into reach later in the
   // window can have a lower id than one already hit.
@@ -439,7 +486,10 @@ function hit(world: World, hero: Hero, enemy: Enemy, damage: number): void {
     launch(world, enemy, dir);
     hero.knockdowns++;
   } else if (isOgre(enemy)) brace(world, enemy, taken, heavy, dir);
-  else {
+  else if (enemy.state === "ride") {
+    enemy.stopUntil = until;
+    flinch(world, enemy);
+  } else {
     enemy.stopUntil = until;
     enemy.facing = dir > 0 ? -1 : 1;
     // Not `setState`, which ignores a change to the state the enemy is already in: a hit on a reeling enemy restarts
@@ -453,7 +503,7 @@ function hit(world: World, hero: Hero, enemy: Enemy, damage: number): void {
     enemy.hp === 0 ? "ko" : heavy ? "heavy" : "hit",
     enemy.x - dir * T.ENEMY_BODY[enemy.kind].half,
     enemy.y,
-    enemy.z + T.SPARK_HEIGHT,
+    enemy.z + T.SPARK_HEIGHT + (enemy.state === "ride" ? T.SADDLE : 0),
   );
 }
 
@@ -482,11 +532,12 @@ function walkIn(world: World, enemy: Enemy, side: Side, inset: number): void {
  * the throw; a lancer's leap flies (`soar`). An idle enemy outside a locked screen walks back in at the nearer edge;
  * one on its feet otherwise thinks (`ai.ts`, an ogre `ogre.ts`, a lancer `lancer.ts`). Every enemy but one walking or
  * leaping in stays on the road (a wave at the stage's end enters from beyond it) and in the floor band. A sack imp
- * goes its own way (`scurry`) once it has moved and flown.
+ * goes its own way (`scurry`) once it has moved and flown, and a rider goes where its beast takes it (`mount.ts`).
  */
 function moveEnemy(world: World, enemy: Enemy): void {
   if (world.step <= enemy.stopUntil) return;
   enemy.timer++;
+  if (enemy.state === "ride") return;
   enemy.x += enemy.vx;
   if (enemy.state === "enter") {
     enemy.x += clamp(enemy.goal - enemy.x, -T.ENTER_WALK, T.ENTER_WALK);
@@ -545,7 +596,10 @@ function advanceCamera(world: World): void {
   if (target > world.camX) world.camX = target;
 }
 
-/** A wave's spawn appears just outside the screen's edge on its side and walks in, or a lancer leaps in (`takeOff`). */
+/**
+ * A wave's spawn appears just outside the screen's edge on its side and walks in, or a lancer leaps in (`takeOff`), or
+ * a rider rides in on its beast (`saddle`).
+ */
 function enter(world: World, spawn: Placed): void {
   const x =
     spawn.side === "left"
@@ -554,6 +608,7 @@ function enter(world: World, spawn: Placed): void {
   const enemy = newEnemy(world, spawn.kind, spawn.tier, x, spawn.y, 1);
   walkIn(world, enemy, spawn.side, spawn.inset);
   if (isLancer(enemy)) takeOff(enemy);
+  if (spawn.mount) saddle(world, enemy, spawn.mount);
   world.enemies.push(enemy);
 }
 

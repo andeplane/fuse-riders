@@ -5,7 +5,7 @@ import type { StreamEntries } from "fuse-netcode";
 import * as E from "../src/engine/index.js";
 import type { Hero, HeroKind, World } from "../src/engine/index.js";
 import { kick } from "../src/engine/imps.js";
-import { CAMP_SPAWNS } from "../src/engine/world.js";
+import { CAMP_SPAWNS, newEnemy } from "../src/engine/world.js";
 import * as T from "../src/engine/tuning.js";
 import * as G from "../src/online/game.js";
 import type { Entry, Room } from "../src/online/game.js";
@@ -163,13 +163,39 @@ test("nothing at camp hurts a hero, and Magic casts nothing there: the pots are 
   assert.equal(world.heroes[0]!.pots, 3);
 });
 
+test("Magic from a run casts nothing at camp either, and the world stays one the checkpoint takes", () => {
+  let world = heroAs(camp("brakka"), { pots: 3 });
+  // A double tap to run, then Magic held and let go: on the road that charges and casts every pot.
+  const presses = [RIGHT, RIGHT, 0, RIGHT, ...Array(6).fill(RIGHT)];
+  for (const bits of [
+    ...presses,
+    ...Array(4).fill(RIGHT | E.MAGIC),
+    RIGHT,
+    0,
+  ]) {
+    world = step(world, [bits]);
+    assert.deepEqual(world.spells, []);
+    kept(world);
+  }
+  assert.notEqual(world.heroes[0]!.state, "cast");
+  assert.equal(world.heroes[0]!.pots, 3);
+  // The same on a stage's road does cast: it is camp that holds it back.
+  let road = heroAs(
+    createWorld({ seed: 7, heroes: [{ seat: 0, kind: "brakka" }] }),
+    { pots: 3 },
+  );
+  for (const bits of [...presses, ...Array(4).fill(RIGHT | E.MAGIC), 0, 0])
+    road = step(road, [bits]);
+  assert.equal(road.heroes[0]!.casts, 1);
+});
+
 test("the codec keeps camp to itself: meat only there, imps not before their step, no spell", () => {
   const at = run(camp("brakka"), CAMP.imps[0]!.step!);
   kept(at);
   for (const [what, change] of [
-    ["a flag that is no boolean", (f) => (f[17] = 1)],
+    ["a flag that is no boolean", (f) => (f[18] = 1)],
     ["an imp sent early", (f) => (f[1] = CAMP.imps[0]!.step! - 3)],
-    ["a stage's world with camp's imps", (f) => (f[17] = false)],
+    ["a stage's world with camp's imps", (f) => (f[18] = false)],
   ] as [string, (f: unknown[]) => void][]) {
     const raw = structuredClone(E.encodeWorld(at)) as unknown[];
     change(raw);
@@ -190,6 +216,26 @@ test("the codec keeps camp to itself: meat only there, imps not before their ste
     E.decodeWorld(E.encodeWorld(casting)),
     undefined,
     "a spell at camp",
+  );
+  // Nothing else is there to fight: a lancer is fine on the road, not at camp.
+  const lancer = (world: World): World => {
+    const into = structuredClone(world),
+      enemy = newEnemy(into, "lancer", 0, px(100), px(130), 1);
+    return { ...into, enemies: [...into.enemies, enemy] };
+  };
+  kept({ ...lancer(at), camp: false, impsSent: 0, enemies: [] });
+  assert.equal(
+    E.decodeWorld(E.encodeWorld(lancer(at))),
+    undefined,
+    "a lancer at camp",
+  );
+  // No beast either (camp's own list of them is empty and accepted, as every world above shows).
+  const beast = E.spawnMount(at, px(100), px(130));
+  kept({ ...beast, camp: false, impsSent: 0, enemies: [] });
+  assert.equal(
+    E.decodeWorld(E.encodeWorld(beast)),
+    undefined,
+    "a beast at camp",
   );
 });
 
@@ -298,6 +344,35 @@ test("camp runs out its clock with its imps still about, and a bot kicks them as
       spilled += Math.max(0, kicked.world!.items.length - before);
   }
   assert.ok(spilled > 0, "the bot kicked an imp");
+});
+
+test("controls are scoped to the stage they name: the cleared stage's steer its camp, never the next stage, and the next stage's never camp", () => {
+  const room = camped();
+  const camped1 = room.world!.heroes[1]!.x;
+  // Stage 2's controls, logged early, mean nothing at camp.
+  fold(room, { b: [[G.PLAY, "m1", 2, RIGHT]] });
+  assert.deepEqual([room.held, room.world!.heroes[1]!.x], [{}, camped1]);
+  fold(room, { b: [[G.PLAY, "m1", 1, RIGHT]] });
+  assert.deepEqual(room.held, { b: RIGHT });
+  throughCamp(room);
+  assert.deepEqual(
+    [room.stage, room.round, room.held],
+    ["running", 2, {}],
+    "what camp held does not carry into the stage",
+  );
+  // A camp control arriving late is not the new stage's.
+  const first = room.world!.heroes[1]!.x;
+  fold(room, { b: [[G.PLAY, "m1", 1, RIGHT]] });
+  assert.deepEqual([room.held, room.world!.heroes[1]!.x], [{}, first]);
+  fold(room, { b: [[G.PLAY, "m1", 2, RIGHT]] });
+  assert.deepEqual(room.held, { b: RIGHT });
+  // A vote to continue is for a countdown in play, never camp's.
+  const other = camped();
+  fold(other, { b: [[G.CONTINUE, "m1", 1]] });
+  assert.deepEqual(
+    [other.world!.camp, other.continued, other.until],
+    [true, false, 0],
+  );
 });
 
 test("a seat that leaves camp is given up: its hero stands idle, its bits go, and it is left behind; a newcomer playing it steers it", () => {

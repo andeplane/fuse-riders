@@ -62,13 +62,13 @@ const CASTER = { storm: "brakka", fire: "rhea", earth: "gorm" } as const;
 const hero = (more: Partial<V.HeroView> = {}): V.HeroView => ({
   ...{ id: 1, seat: 0, kind: "brakka", x: 110, y: 140, z: 0, facing: 1 },
   ...{ anim: "cast", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
-  ...{ invulnerable: false, pots: 0, maxPots: 4, charge: 0 },
+  ...{ invulnerable: false, pots: 0, maxPots: 4, charge: 0, mounted: false },
   ...more,
 });
 const enemy = (id: number, x: number, y: number): V.EnemyView => ({
   ...{ id, kind: "ravager", tier: 0, x, y, z: 0, facing: -1 },
   ...{ anim: "idle", animStep: 0, hp: 4, maxHp: 4, flash: false },
-  ...{ boss: false, enraged: false },
+  ...{ boss: false, enraged: false, mounted: false },
 });
 const ENEMIES = [[200, 120], [250, 150], [60, 160], [300, 130]].map(([x, y], i) => enemy(10 + i, x!, y!)); // prettier-ignore
 const spell = (kind: V.SpellKind, level: number, age: number, id = 1) =>
@@ -76,6 +76,7 @@ const spell = (kind: V.SpellKind, level: number, age: number, id = 1) =>
 const world = (list: V.SpellView[], more: Partial<V.WorldView> = {}) =>
   ({
     ...{ step: 0, camX: 0, enemies: ENEMIES, fx: [], items: [], spells: list },
+    mounts: [],
     heroes: [hero({ kind: CASTER[list[0]?.kind ?? "storm"] ?? "brakka" })],
     ...{ stage: 1, camp: false, wave: 1, waves: 5, locked: true, go: false },
     ...{ cleared: false, defeated: false, boss: null, ...more },

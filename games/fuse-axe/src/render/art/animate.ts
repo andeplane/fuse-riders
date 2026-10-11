@@ -1,4 +1,10 @@
-import type { EnemyAnim, EnemyKind, HeroKind } from "../../engine/view.js";
+import type {
+  EnemyAnim,
+  EnemyKind,
+  HeroKind,
+  MountAnim,
+  MountKind,
+} from "../../engine/view.js";
 import {
   BACK_STEPS,
   DASH_STEPS,
@@ -11,6 +17,7 @@ import {
   type SwingSteps,
   type Swings,
 } from "../../engine/view-kit.js";
+import { CLAWBEAK_ANIMS } from "./clawbeak.js";
 import { IMP_ANIMS } from "./imp.js";
 import { LANCER_ANIMS } from "./lancer.js";
 import { OGRE_ANIMS } from "./ogre.js";
@@ -51,14 +58,15 @@ export const STRIKE_FRAMES: readonly HeroFrame[] = [
  * `dead` does. Every move has frames of its own: the run a sprint, the dash a charge and its stop, the jump attack a
  * stab down, the back attack a blow behind (the figure is not turned: the engine keeps its facing, and the hero looks
  * over its shoulder), the grab its clutch and the throw a heave over the shoulder. Magic has two: charging braces with
- * the weapon raised before the face, and casting thrusts it skyward until the spell is gone.
+ * the weapon raised before the face, and casting thrusts it skyward until the spell is gone. Riding a beast sits the
+ * landing crouch in the saddle until each hero has an astride pose of its own, as the ravager's.
  */
 export const HERO_ANIMS = [
   ...["idle", "walk", "run", "jump", "land"],
   ...["attack1", "attack2", "attack3", "dash"],
   ...["jumpattack", "backattack", "grab", "throw"],
   ...["hurt", "knockdown", "down", "getup", "dead", "respawn", "out"],
-  ...["charge", "cast"],
+  ...["charge", "cast", "ride"],
 ] as const;
 export type FigureAnim = (typeof HERO_ANIMS)[number];
 // The engine's states must all have frames: a new one fails to compile here until it is mapped below.
@@ -164,6 +172,7 @@ export function heroFrame(
     case "jump":
       return step < timing[kind].rise ? "rise" : "fall";
     case "land":
+    case "ride":
       return "land";
     case "attack1":
       return swingFrame(timing[kind].swings[0], SWING[0], step);
@@ -238,6 +247,30 @@ export function enemyFrame(
     : ENEMY_ANIMS.ravager;
   const strip = Object.hasOwn(anims, anim) ? anims[anim] : undefined;
   return stripFrame(strip ?? anims.idle, animStep);
+}
+
+/** Every beast kind's anims, one strip for each anim the view has, which `mountFrame` plays. */
+export const MOUNT_ANIMS: Readonly<
+  Record<MountKind, Readonly<Record<MountAnim, AnimStrip<string>>>>
+> = { clawbeak: CLAWBEAK_ANIMS };
+
+/**
+ * The frame of its kind's figure a beast shows `animStep` steps into `anim`, played from `MOUNT_ANIMS`. Like
+ * `enemyFrame` it never throws: a kind from a build with more of them plays as a clawbeak (the scene's fallback
+ * figure), an anim from such a build stands idle, and an odd step is rounded down to a whole one from 0.
+ */
+export function mountFrame(
+  kind: MountKind,
+  anim: MountAnim,
+  animStep: number,
+): string {
+  const anims = Object.hasOwn(MOUNT_ANIMS, kind)
+    ? MOUNT_ANIMS[kind]
+    : MOUNT_ANIMS.clawbeak;
+  return stripFrame(
+    Object.hasOwn(anims, anim) ? anims[anim] : anims.idle,
+    animStep,
+  );
 }
 
 /**

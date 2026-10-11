@@ -457,6 +457,45 @@ export const LEAP_STEPS = 1 + Math.ceil((2 * JUMP_VZ) / GRAVITY);
 export const PLUNGE_REACH = px(28);
 export const PLUNGE_STEPS = 24;
 
+// ---- mounts (`mount.ts`) ----
+/** The beasts a hero or an enemy rides: a clawbeak, which sweeps its tail round it. */
+export const MOUNT_KINDS = ["clawbeak"] as const;
+export type MountKind = (typeof MOUNT_KINDS)[number];
+/** The most beasts a world holds at once: a wave's rider past it walks in on foot. */
+export const MOUNT_MAX = 8;
+/** The saddle's height over the beast's feet, where the view draws its rider; the rules stand the rider on its floor. */
+export const SADDLE = px(14);
+/** Half a beast's width either side of its centre, and its walk ridden by anyone: Rhea's pace, slower than any run. */
+export const BEAST_HALF_W = px(14);
+export const BEAST_WALK = { x: px(1.25), y: px(0.75) } as const;
+/**
+ * The tail sweep: wound up for `TAIL_WINDUP` steps, it lands on that step on every foe on the floor or low in the air
+ * (under `TAIL_HEIGHT`) within `TAIL_REACH` of the beast either side and `TAIL_LANE` in depth, knocking it down with
+ * `TAIL_DAMAGE`, and lasts `TAIL_STEPS`. The beast sweeps again no sooner than `TAIL_COOL` after one ends or is broken
+ * off; an enemy's stands open that long.
+ */
+export const TAIL_WINDUP = 20;
+export const TAIL_STEPS = 32;
+export const TAIL_REACH = px(36);
+export const TAIL_LANE = px(8);
+export const TAIL_HEIGHT = px(32);
+export const TAIL_DAMAGE = 10;
+export const TAIL_COOL = 30;
+/** An enemy's beast walks to stand this far from its hero along the road, in its lane. */
+export const TAIL_STAND = px(24);
+/** A hero standing this close to a riderless beast along the road, in its lane (`LANE`), climbs on with Jump. */
+export const BOARD_X = px(24);
+/**
+ * A beast that loses its rider to a blow panics, running from it at `PANIC_RUN` for `PANIC_STEPS` (no shorter than a
+ * hop, `LEAP_STEPS`, so one thrown out of a hop lands panicking); riderless it wanders at `WANDER`, turning every
+ * `WANDER_TURN` steps, and after `STRAY_STEPS` with nobody on it leaves the screen.
+ */
+export const PANIC_RUN = px(2);
+export const PANIC_STEPS = 40;
+export const WANDER = px(0.5);
+export const WANDER_TURN = 64;
+export const STRAY_STEPS = 10 * 60;
+
 // ---- waves (the triggers themselves are in `stages.ts`) ----
 /** A wave's enemy appears this far outside the screen's edge on its side, its whole body out of view... */
 export const ENTER_OUT = px(16);

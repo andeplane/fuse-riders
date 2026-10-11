@@ -19,9 +19,10 @@ import {
 
 /**
  * The engine's safety net: three bots (Brakka, Rhea and Gorm) fight through Stage 1 — every wave, the sack imps,
- * pots, magic, throws, then the Ogre twins at the gate — make camp, kicking its imps for meat and pots, and go on
- * through Wyrmbone Pass with the lives, pots and health they carry (`carryOf`, as the room's stage flow does), and the
- * world's hash is compared every ten seconds and at the end of each stage and camp. A refactor must keep these; a change to the rules (the bot's play included, as a bot seat folds
+ * pots, magic, throws, then the Ogre twins at the gate — make camp, kicking its imps for meat and pots, and go
+ * on through Wyrmbone Pass and its riders on clawbeaks with the lives, pots and health they carry (`carryOf`, as
+ * the room's stage flow does), and the world's hash is compared every ten seconds and at the end of each stage and
+ * camp. A refactor must keep these; a change to the rules (the bot's play included, as a bot seat folds
  * `botInput`) must bump `RULES` in `src/engine/index.ts` and re-record them in the same commit: `GOLDEN_RECORD=1`
  * prints the new ones.
  *
@@ -38,30 +39,30 @@ interface Run {
   hashes: string[];
 }
 const GOLDEN: { rules: string; runs: Run[] } = {
-  rules: "fuse-axe-15",
+  rules: "fuse-axe-17",
   runs: [
     {
       seed: 20261011,
       humans: [],
-      steps: [5523, 702, 6360],
+      steps: [5523, 702, 6387],
       hashes: [
-        ...["9c5107cd", "9cf0ca64", "c13dbdd4", "0adad315", "f140b0ec"],
-        ...["76a4a07b", "797c0c77", "61aee386", "4b101238", "5b20b31d"],
-        ...["b64d6ee2", "9c0660a0", "f2902532", "6f1c8fb7", "a7c2dd93"],
-        ...["aa96120e", "9270092f", "541295f3", "1127d3f8", "701e77db"],
-        ...["8ea1a626", "81a4b75b", "a189a10e"],
+        ...["ce198dc3", "6ce8077c", "3770858c", "794f5b4b", "3adf2404"],
+        ...["236062d9", "54038edd", "35924576", "1e7a67b8", "f6f59f33"],
+        ...["a6591d38", "fe3be356", "59086cfa", "d209a19d", "6a706b44"],
+        ...["2a156f7b", "9695cc85", "bfebbafa", "0a04ca7b", "3603623f"],
+        ...["8730e576", "79ef133e", "c47e9c1d"],
       ],
     },
     {
       seed: 20261012,
       humans: [1],
-      steps: [5937, 717, 6387],
+      steps: [5937, 717, 6507],
       hashes: [
-        ...["01c73ddb", "d6f13146", "b98b68c5", "f3e4e90c", "fb0f54b8"],
-        ...["40b22ecc", "75480bda", "00e1c3e0", "86d66b23", "1851f452"],
-        ...["c51bc10a", "404c4033", "ed34a98a", "0f52eff9", "fb1d2524"],
-        ...["c3280a9a", "38fb9e1e", "4bda9259", "12cd5f8e", "8056ce4c"],
-        ...["eb12767d", "53dc59c4", "11a1fb5d"],
+        ...["bc9499b9", "b59139b6", "f4ef79db", "278dcf24", "e8c26338"],
+        ...["84a63064", "35c9c1e2", "c8885600", "3091a701", "6f013c9a"],
+        ...["899f3800", "3a1c3fe3", "ec5499b2", "97516d97", "48d24699"],
+        ...["b6c8734d", "494e7c3e", "d4bc8e3f", "8eb517e3", "3691169d"],
+        ...["4e69a7bf", "c96fd13c", "82ca96c0"],
       ],
     },
   ],

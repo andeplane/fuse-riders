@@ -15,6 +15,7 @@ import {
   legAt,
   offset,
   stride,
+  turned,
   type Pose,
   type Side,
 } from "../pixel/kit.js";
@@ -62,16 +63,6 @@ const HOLD = 26;
 /** The spear's steel head, from its point back to the bronze socket. */
 const HEAD = 7;
 
-/** Offsets from `origin` along a part's own axes turned `degrees` clockwise: `forward` the way it faces, `down` along it. */
-type Local = (forward: number, down: number) => Point;
-const turned = (origin: Point, degrees: number): Local => {
-  const r = (degrees * Math.PI) / 180;
-  const [c, s] = [Math.cos(r), Math.sin(r)];
-  return (forward, down) => [
-    origin[0] + forward * c - down * s,
-    origin[1] + forward * s + down * c,
-  ];
-};
 /** How far a spine from `top` down to `bottom` leans, in degrees clockwise from upright. */
 const lean = (top: Point, bottom: Point) =>
   (Math.atan2(top[0] - bottom[0], bottom[1] - top[1]) * 180) / Math.PI;
@@ -407,7 +398,7 @@ export type LancerFrame = keyof typeof LANCER_POSES;
 /** The enemy view's anims but a ravager's mace, a sack imp's and an ogre's own. */
 export type LancerAnim = Exclude<
   EnemyAnim,
-  "attack" | "stumble" | "flee" | "slam" | "sweep" | "stagger"
+  "attack" | "stumble" | "flee" | "slam" | "sweep" | "stagger" | "ride"
 >;
 
 const W = LANCER_WALK_STEPS;

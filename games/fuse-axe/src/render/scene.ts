@@ -4,17 +4,21 @@ import type {
   HeroView,
   ItemKind,
   ItemView,
+  MountKind,
+  MountView,
   Tier,
   WorldView,
 } from "../engine/view.js";
 import {
   CAMERA_END_PX,
+  CLAWBEAK_STEPS,
   DEAD_STEPS,
   VIEW_H,
   VIEW_W,
   cameraEndPx,
 } from "../engine/view-kit.js";
-import { enemyFrame, heroFrame } from "./art/animate.js";
+import { enemyFrame, heroFrame, mountFrame } from "./art/animate.js";
+import { CLAWBEAK_DIPS, CLAWBEAK_FIGURE } from "./art/clawbeak.js";
 import { IMP } from "./art/imp.js";
 import { MEAT } from "./art/meat.js";
 import { HEROES } from "./art/index.js";
@@ -48,9 +52,10 @@ import type { MakeSurface } from "./surface.js";
  * The game's picture: one native 320 × 180 frame of the engine's view, drawn in layers — the stage's backdrop (one
  * without art of its own draws Stage 1's, scrolled across the stage's longer or shorter road: `scenery`; camp its
  * night clearing, `backdrop/camp.ts`); every
- * figure's shadow on the floor; heroes, enemies and items on the floor by depth (further up the floor first, then
- * lower before higher, then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when
- * defeated, a hero blinking while it is invulnerable and an item before it vanishes; an ogre's shockwave cracking the
+ * figure's shadow on the floor; heroes, enemies, beasts and items on the floor by depth (further up the floor first,
+ * then lower before higher, then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when
+ * defeated, a beast's rider astride its saddle over it, a hero blinking while it is invulnerable and an item before it
+ * vanishes; an ogre's shockwave cracking the
  * floor under the figures and bursting dust over them, and an enraged ogre's steam, drawn with it (`ogre-fx.ts`); the hit sparks; the
  * grass in front; the spells playing (`spells/`), a charging or casting hero glowing behind its sprite and the field
  * shaking a moment at a spell's blow; a flashing GO → when the road ahead opens; and over it all the HUD (`hud.ts`),
@@ -102,6 +107,43 @@ export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = {
   meat: MEAT,
 };
 export const ITEM_SHADE = 3;
+
+/** What a beast kind draws with: its figure, whose frames `mountFrame` picks, and the rows each frame's saddle dips. */
+interface MountArt {
+  readonly figure: Figure;
+  readonly dips: Readonly<Record<string, number>>;
+}
+/**
+ * Every beast kind's art (a kind from a build with more of them draws as a clawbeak, as `mountFrame` plays it). It
+ * blinks as its tail winds up (every `TELEGRAPH` steps); the lash's ring is its own frame's. Its shadow is a third
+ * wider than a body's, and its rider, sinking with the saddle as it dips, casts none of its own.
+ */
+export const MOUNT_ART: Readonly<Record<MountKind, MountArt>> = {
+  clawbeak: { figure: CLAWBEAK_FIGURE, dips: CLAWBEAK_DIPS },
+};
+export const TELEGRAPH = 3;
+const winding = (mount: MountView) =>
+  mount.anim === "sweep" &&
+  mount.animStep < CLAWBEAK_STEPS.windup &&
+  Math.floor(mount.animStep / TELEGRAPH) % 2 === 0;
+const mountArt = (kind: MountKind) =>
+  Object.hasOwn(MOUNT_ART, kind) ? MOUNT_ART[kind] : MOUNT_ART.clawbeak;
+/**
+ * The rows the saddle under rider `id` (of `kind`) dips in its beast's frame, or undefined for one whose beast is not in
+ * the view: it keeps its own height and shadow, rather than hanging in the air shadowless.
+ */
+function saddleDip(
+  mounts: readonly MountView[],
+  kind: "hero" | "enemy",
+  id: number,
+): number | undefined {
+  const mount = mounts.find(
+    (each) => each.rider?.kind === kind && each.rider.id === id,
+  );
+  if (!mount) return undefined;
+  const frame = mountFrame(mount.kind, mount.anim, mount.animStep);
+  return mountArt(mount.kind).dips[frame] ?? 0;
+}
 
 /** How a hero looks: its figure and its palette. */
 export interface HeroLook {
@@ -227,7 +269,10 @@ interface Standing {
   readonly lit: boolean;
   /** A hero's seat, and the rows its figure stands above its feet, for its marker. */
   readonly marker?: { readonly seat: number; readonly crown: number };
-  /** The shadow's half-width, for a figure smaller or bigger than a body; otherwise it shrinks with height. */
+  /**
+   * The shadow's half-width, for a figure smaller or bigger than a body (0: none, a rider over its beast's); otherwise
+   * it shrinks with height.
+   */
   readonly shade?: number;
   /** An enraged ogre's steam, drawn with it so a figure in front of it hides the puffs: where it rises from its feet. */
   readonly steam?: { readonly enemy: EnemyView; readonly crown: Point };
@@ -303,7 +348,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         backdrop = view.camp ? camp : backdropOf(back.art),
         backX = view.camp ? 0 : back.camX;
       backdrop.draw(field, backX, frame);
-      const at = (f: HeroView | EnemyView | ItemView) => ({
+      const at = (f: HeroView | EnemyView | ItemView | MountView) => ({
         id: f.id,
         y: Math.floor(f.y),
         z: Math.floor(f.z),
@@ -313,12 +358,18 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       const standing: Standing[] = view.heroes.map((hero) => {
         const { figure, swap } = looks.get(hero.id)!;
         const pose = heroFrame(hero.kind, hero.anim, hero.animStep);
+        const dip = hero.mounted
+          ? saddleDip(view.mounts, "hero", hero.id)
+          : undefined;
+        const place = at(hero);
         return {
-          ...at(hero),
+          ...place,
           sprite: figure.sprite(pose),
           options: { swap, flip: hero.facing < 0 },
           lit: !hero.invulnerable || blinksOn(frame),
           marker: { seat: hero.seat, crown: crown(figure) },
+          // A rider sits on its beast's saddle, sinking as it dips, in its shadow, as an enemy does.
+          ...(dip !== undefined && { z: place.z - dip, shade: 0 }),
         };
       });
       for (const enemy of view.enemies) {
@@ -329,6 +380,9 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           ? ENEMY_ART[enemy.kind]
           : ENEMY_ART.ravager;
         const pose = enemyFrame(enemy.kind, enemy.anim, enemy.animStep);
+        const dip = enemy.mounted
+          ? saddleDip(view.mounts, "enemy", enemy.id)
+          : undefined;
         // An enraged ogre burns in its rage palette and steams, unless it has fallen.
         const rage = enemy.enraged ? art.rage : undefined;
         const crown = rage?.crowns[pose];
@@ -345,6 +399,8 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           ...(art.shade && {
             shade: Math.round(shadowRadius(enemy.z) * art.shade),
           }),
+          // A rider sits on its beast's saddle, sinking as it dips, in its shadow.
+          ...(dip !== undefined && { z: Math.floor(enemy.z) - dip, shade: 0 }),
         });
       }
       // Items lie among the figures, a pot in its last moments blinking as an invulnerable hero does.
@@ -358,8 +414,20 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           lit: !item.blink || blinksOn(frame),
           shade: ITEM_SHADE,
         });
+      // A beast stands among them, its rider on it: the rider shares its depth, higher up, so it is drawn after.
+      for (const mount of view.mounts) {
+        const frame = mountFrame(mount.kind, mount.anim, mount.animStep);
+        standing.push({
+          ...at(mount),
+          sprite: mountArt(mount.kind).figure.sprite(frame),
+          options: { flash: winding(mount), flip: mount.facing < 0 },
+          lit: true,
+          shade: Math.round((shadowRadius(mount.z) * 4) / 3),
+        });
+      }
       standing.sort((a, b) => a.y - b.y || a.z - b.z || a.id - b.id);
       for (const { y, z, sx, shade } of standing) {
+        if (shade === 0) continue;
         const s = shadow(shade ?? shadowRadius(z));
         blit(field, s.image, s.w, s.h, sx - (s.w >> 1), y - (s.h >> 1));
       }
