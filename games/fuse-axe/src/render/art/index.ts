@@ -5,6 +5,7 @@ import type { HeroFrame } from "./animate.js";
 import { BRAKKA, BRAKKA_PORTRAIT, BRAKKA_POSES } from "./brakka.js";
 import { GORM, GORM_PORTRAIT, GORM_POSES } from "./gorm.js";
 import { IMP } from "./imp.js";
+import { OGRE } from "./ogre.js";
 import { RAVAGER } from "./ravager.js";
 import { RHEA, RHEA_PORTRAIT, RHEA_POSES } from "./rhea.js";
 
@@ -15,6 +16,7 @@ export const FIGURES: Readonly<Record<string, Figure>> = {
   gorm: GORM,
   ravager: RAVAGER,
   imp: IMP,
+  ogre: OGRE,
 };
 
 /** A hero's figure, which paints every `HERO_FRAMES` frame, the poses it paints them from, and its HUD portrait. */
