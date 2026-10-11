@@ -356,12 +356,19 @@ export const RAVAGER_POSES = {
 export type RavagerFrame = keyof typeof RAVAGER_POSES;
 
 /**
- * The enemy view's anims but a sack imp's and an ogre's own (`dead` lies in the `down` frame while the renderer blinks
- * it).
+ * The enemy view's anims but a sack imp's, an ogre's and a lancer's own (`dead` lies in the `down` frame while the
+ * renderer blinks it).
  */
 export type RavagerAnim = Exclude<
   EnemyAnim,
-  "stumble" | "flee" | "slam" | "sweep" | "stagger"
+  | "stumble"
+  | "flee"
+  | "slam"
+  | "sweep"
+  | "stagger"
+  | "thrust"
+  | "leap"
+  | "plunge"
 >;
 
 const WALK_CYCLE: AnimStrip<RavagerFrame> = {

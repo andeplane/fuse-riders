@@ -223,14 +223,15 @@ export const THROWABLE: Readonly<Record<EnemyKind, boolean>> = {
   ravager: true,
   imp: false,
   ogre: false,
+  lancer: true,
 };
 
 // ---- the enemies ----
 /**
  * A sack imp (`imps.ts`) is no fighter: it crosses the screen with magic pots for the heroes to kick out of it. An
- * ogre (`ogre.ts`) is Stage 1's boss, one of the twins.
+ * ogre (`ogre.ts`) is Stage 1's boss, one of the twins. A lancer (`lancer.ts`) fights with a spear and leaps in.
  */
-export const ENEMY_KINDS = ["ravager", "imp", "ogre"] as const;
+export const ENEMY_KINDS = ["ravager", "imp", "ogre", "lancer"] as const;
 export type EnemyKind = (typeof ENEMY_KINDS)[number];
 /** The kinds that fight, which a wave is made of and holds the screen for. */
 export type FoeKind = Exclude<EnemyKind, "imp">;
@@ -239,12 +240,14 @@ export const BOSS: Readonly<Record<EnemyKind, boolean>> = {
   ravager: false,
   imp: false,
   ogre: true,
+  lancer: false,
 };
 /** A kind's hit points at its lowest tier with one hero; `enemyMaxHp` scales them. An imp takes no damage. */
 export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = {
   ravager: 40,
   imp: 4,
   ogre: 150,
+  lancer: 32,
 };
 /** Tiers by palette (ash, rust, violet): each adds hit points, and aggression (`RAVAGER`). */
 export const TIERS = [0, 1, 2] as const;
@@ -280,6 +283,7 @@ export const ENEMY_BODY: Readonly<
   ravager: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
   imp: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
   ogre: { half: px(15), height: px(66) },
+  lancer: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
 };
 /** A hurt enemy is nudged back at this speed, slowing by `HURT_FRICTION` a step, and reels for `HURT_STEPS`. */
 export const HURT_PUSH = px(1.5);
@@ -361,13 +365,17 @@ export const OGRE: Readonly<Record<"calm" | "rage", Fighter>> = {
   calm: fighter(48, 30, 24, 0.45, 14, 0),
   rage: fighter(32, 16, 16, 0.6, 16, 0),
 };
-/** The fighter an enemy is: its tier's ravager, or an ogre's mood. */
+/** The fighter an enemy is: its tier's ravager or lancer, or an ogre's mood. */
 export const fighterOf = (
   kind: EnemyKind,
   tier: Tier,
   enraged: boolean,
 ): Fighter =>
-  kind === "ogre" ? OGRE[enraged ? "rage" : "calm"] : RAVAGER[tier];
+  kind === "ogre"
+    ? OGRE[enraged ? "rage" : "calm"]
+    : kind === "lancer"
+      ? LANCER[tier]
+      : RAVAGER[tier];
 /** It walks to stand this far from its hero along the road, and winds up within `OGRE_SLACK` more and `OGRE_LANE` in depth. */
 export const OGRE_ENGAGE = px(30);
 export const OGRE_SLACK = px(10);
@@ -402,6 +410,52 @@ export const STAGGER_STEPS = 18;
 export const POISE = 4;
 /** A spell takes at most `BOSS_SHARE` sixteenths of a boss's full hit points (`SHARE`), whatever its level. */
 export const BOSS_SHARE = 2;
+
+// ---- how lancers fight (`lancer.ts`) ----
+/**
+ * A lancer by tier (ash, rust, violet): lighter than a ravager of its palette (`ENEMY_HP`) and quicker on its feet,
+ * though never faster than a hero walks, its spear's thrust wound up a little longer than the mace and lighter. It
+ * never feints: it leaps instead.
+ */
+export const LANCER: Readonly<Record<Tier, Fighter>> = {
+  0: fighter(28, 20, 28, 0.8, 5, 0),
+  1: fighter(24, 14, 20, 0.9, 6, 0),
+  2: fighter(20, 8, 14, 1, 7, 0),
+};
+/**
+ * The spear lands on the thrust's first step: this far in front of the lancer's centre (about 1.6 maces), in a lane
+ * thinner than a blade's, and as high as the mace sweeps.
+ */
+export const SPEAR_REACH = px(42);
+export const SPEAR_LANE = px(4);
+/** Steps the spear stays out after it lands, then steps the lancer stands open. */
+export const THRUST_STEPS = 10;
+export const LANCE_RECOVER = 24;
+/**
+ * It walks to stand `LANCE_ENGAGE` from its hero along the road, near the edge of its reach, and thrusts lined up within
+ * `LANCE_SLACK` beyond it and `AI_LANE` in depth; a hero closer than `LANCE_NEAR` it backs away from first, unless the
+ * screen's edge stops it.
+ */
+export const LANCE_ENGAGE = px(36);
+export const LANCE_SLACK = px(6);
+export const LANCE_NEAR = px(24);
+/**
+ * A hero further than `LEAP_FAR` along the road is leapt at, as a wave's lancer leaps in from the screen's edge: a
+ * hero's jump (`JUMP_VZ` under `GRAVITY`, `LEAP_STEPS` in the air), carrying no more than the fastest run along the
+ * road (`LEAP_VX`) and a walk in depth (`LEAP_VY`), to land `LEAP_LAND` in front of the hero.
+ */
+export const LEAP_FAR = px(80);
+export const LEAP_VX = px(2.25);
+export const LEAP_VY = px(0.75);
+export const LEAP_LAND = px(24);
+/** A jump's steps in the air: the step its height first comes back down to the floor. */
+export const LEAP_STEPS = 1 + Math.ceil((2 * JUMP_VZ) / GRAVITY);
+/**
+ * Landing, it drives the spear down in front (`plunge`): every hero within `PLUNGE_REACH`, in the lane, is knocked down
+ * with the thrust's damage. It stands over the spear for `PLUNGE_STEPS`, open.
+ */
+export const PLUNGE_REACH = px(28);
+export const PLUNGE_STEPS = 24;
 
 // ---- waves (the triggers themselves are in `stages.ts`) ----
 /** A wave's enemy appears this far outside the screen's edge on its side, its whole body out of view... */

@@ -22,6 +22,8 @@ import {
   ITEM_MAX,
   JUGGLE_HITS,
   JUGGLE_WINDOW,
+  LANCER,
+  LEAP_VX,
   LIVES,
   MAX_POTS,
   RAVAGER,
@@ -42,6 +44,8 @@ import {
   HERO_STATES,
   IMP_ONLY,
   IMP_STATES,
+  LANCER_ONLY,
+  LANCER_STATES,
   OGRE_ONLY,
   OGRE_STATES,
   type Enemy,
@@ -147,9 +151,11 @@ const POTS = Math.max(...HERO_KINDS.map((kind) => MAX_POTS[kind]));
 const INVULN = Math.max(RESPAWN_INVULN, GETUP_STEPS + GETUP_GRACE),
   TAP = Math.max(RUN_TAP, RUN_GAP),
   THINK = Math.max(
-    ...[...TIERS.map((tier) => RAVAGER[tier]), OGRE.calm, OGRE.rage].map(
-      (each) => each.think + each.jitter,
-    ),
+    ...[
+      ...TIERS.flatMap((tier) => [RAVAGER[tier], LANCER[tier]]),
+      OGRE.calm,
+      OGRE.rage,
+    ].map((each) => each.think + each.jitter),
   );
 /**
  * A hero with no hit points is flying from the blow, fallen or out; one fallen or out has none. A hero with no life
@@ -239,10 +245,13 @@ const enemy = record<Enemy>({
   flashUntil: COUNT,
   enraged: oneOf([false, true]),
 });
+/** The states a lancer is off the floor in: leaping, flying from a blow or from a throw. */
+const ALOFT: readonly Enemy["state"][] = ["leap", "knockdown", "thrown"];
 /**
  * A sack imp is of the lowest tier, in an imp's state and going for nobody; every other enemy has no sack and is
  * never in a state only an imp is in. An ogre is in an ogre's state; every other enemy is never in a state only an
- * ogre is in, and has no poise, flash or rage of its own.
+ * ogre is in, and has no poise, flash or rage of its own. A lancer is in a lancer's state, on the floor unless it is
+ * aloft, and leaps no faster than `LEAP_VX`; every other enemy is never in a state only a lancer is in.
  */
 const kindKept = (value: Enemy): boolean =>
   (value.kind === "imp"
@@ -253,7 +262,12 @@ const kindKept = (value: Enemy): boolean =>
     : !OGRE_ONLY.includes(value.state) &&
       value.poise === 0 &&
       value.flashUntil === 0 &&
-      !value.enraged);
+      !value.enraged) &&
+  (value.kind === "lancer"
+    ? LANCER_STATES.includes(value.state) &&
+      (value.z === 0 || ALOFT.includes(value.state)) &&
+      (value.state !== "leap" || Math.abs(value.vx) <= LEAP_VX)
+    : !LANCER_ONLY.includes(value.state));
 
 const fx = record<Fx>({
   kind: oneOf(FX_KINDS),

@@ -25,6 +25,7 @@ import {
   FX_LIFE,
   OGRE_STEPS,
   QUAKE,
+  SPEAR,
   VIEW_H,
   VIEW_W,
   cameraEndPx,
@@ -38,6 +39,7 @@ import {
 import { BRAKKA } from "../src/render/art/brakka.js";
 import { IMP, IMP_WALK_STEPS } from "../src/render/art/imp.js";
 import { FIGURES, HEROES } from "../src/render/art/index.js";
+import { LANCER_TIERS } from "../src/render/art/lancer.js";
 import {
   OGRE,
   OGRE_CROWNS,
@@ -67,6 +69,8 @@ import {
   scenery,
   shadowRadius,
   SHADOW_RX,
+  SPEAR_ROW,
+  SPEAR_TIP,
 } from "../src/render/scene.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
 import { drawSpark, HIT_STEPS } from "../src/render/sparks.js";
@@ -390,6 +394,33 @@ test("a hero's look is worked out once per roster: it holds across frames and an
   assert.notEqual(changed, first, "a new kind in the party is a new roster");
   assert.equal(looks(rhea), changed);
   assert.notEqual(looks(roster.slice(0, 2)), changed, "so is one fewer hero");
+});
+
+test("a lancer draws as a ravager in its own colours, holding its spear out along its facing while it thrusts", () => {
+  const lancer = (more: Partial<EnemyView>) =>
+    draw(world({ enemies: [enemy(1, 150, 140, { kind: "lancer", ...more })] }));
+  const spear = (facing: 1 | -1, anim: EnemyView["anim"] = "thrust") =>
+    lancer({ anim, facing, z: 4 })
+      .pen.fills.filter((f) => f.h === 1 && f.y === 140 - 4 - SPEAR_ROW)
+      .map((f) => [f.x, f.w]);
+  const [reach, haft] = [SPEAR.reach, SPEAR.reach - SPEAR_TIP];
+  assert.deepEqual(spear(1), [
+    [150, haft],
+    [150 + haft, SPEAR_TIP],
+  ]);
+  assert.deepEqual(spear(-1), [
+    [150 - haft, haft],
+    [150 - reach, SPEAR_TIP],
+  ]);
+  assert.deepEqual(spear(1, "windup"), []);
+  const idle = RAVAGER.sprite(stripFrame(RAVAGER_ANIMS.idle, 0));
+  for (const tier of [0, 1, 2] as const) {
+    const [sprite] = lancer({ tier }).sprites;
+    assert.deepEqual(
+      sprite!.image.fills,
+      fillsOf(idle, { swap: LANCER_TIERS[tier], flash: false, flip: false }),
+    );
+  }
 });
 
 test("every anim of a hero and an enemy draws at any step, and one the art lacks stands idle", () => {
