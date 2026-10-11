@@ -1,8 +1,9 @@
 /**
  * Dev-only, below the sprite sheet: for each enemy and beast, every frame packed on one floor in each palette swap,
  * then its anims playing at the simulation's 60 steps a second in the swap picked above them. A one-shot anim holds its
- * last frame for a moment, then plays again. Then the Ogre twins, a ravager riding a clawbeak and the heroes riding
- * clawbeaks and ember drakes in the real scene, and last the floor items at 6×, 3× and 1×.
+ * last frame for a moment, then plays again. Then the Ogre twins, a ravager riding a clawbeak, the heroes riding
+ * clawbeaks and ember drakes and the bonewalkers at a grave in the real scene, and last the floor items at 6×, 3× and
+ * 1×.
  */
 import type {
   EnemyAnim,
@@ -11,9 +12,11 @@ import type {
   MountAnim,
   MountKind,
   MountView,
+  Tier,
   WorldView,
 } from "../src/engine/view.js";
 import {
+  BONEWALKER_STEPS,
   CLAWBEAK,
   CLAWBEAK_STEPS,
   DRAKE_STEPS,
@@ -22,6 +25,7 @@ import {
   OGRE_STEPS,
   VIEW_H,
   VIEW_W,
+  gravesPx,
 } from "../src/engine/view-kit.js";
 import {
   ENEMY_ANIMS,
@@ -44,6 +48,8 @@ interface Animated {
 }
 const ANIMATED: readonly Animated[] = [
   ...ENEMY_KINDS.map((kind) => ({ ...ENEMY_ART[kind], anims: ENEMY_ANIMS[kind], name: kind })), // prettier-ignore
+  // A tier with a figure of its own (the bonewalker's knight) plays its kind's anims.
+  ...ENEMY_KINDS.flatMap((kind) => Object.entries(ENEMY_ART[kind].figures ?? {}).map(([tier, figure]) => ({ figure, anims: ENEMY_ANIMS[kind], name: `${kind} · tier ${tier}` }))), // prettier-ignore
   ...MOUNT_KINDS.map((kind) => ({ ...MOUNT_ART[kind], anims: MOUNT_ANIMS[kind], name: kind })), // prettier-ignore
 ];
 
@@ -306,6 +312,48 @@ for (const animated of ANIMATED) {
     heroes.append(big2.image);
     main.append(heroes);
   }
+
+  // Bonewalkers on the Drowned Crypt: one claws up out of the first grave, stands, winds up and slashes; a rust one's
+  // bone pile lies, twitches and pulls itself together; the violet knight lurches in, winds up and slashes.
+  const crypt = document.createElement("section");
+  crypt.append(document.createElement("h2"));
+  crypt.firstElementChild!.textContent =
+    "bonewalkers · the rise from a grave, the pile's twitch and reassembly, the knight's slash";
+  const [native3, big3] = [canvas(VIEW_W, VIEW_H), canvas(VIEW_W * 2, VIEW_H * 2)]; // prettier-ignore
+  const [gx, gy] = gravesPx(3)[0]!;
+  const B = BONEWALKER_STEPS;
+  type Plan = readonly (readonly [EnemyAnim, number])[];
+  const swing = (tier: Tier): Plan => [["windup", B.windup[tier]], ["attack", B.attack], ["recover", B.recover]]; // prettier-ignore
+  const bones: readonly (readonly [Tier, number, number, Plan])[] = [
+    [0, gx, gy, [["rise", B.rise], ["idle", 30], ...swing(0), ["idle", 20]]],
+    [1, gx - 70, gy + 22, [["pile", B.pile], ["reassemble", B.reassemble], ["idle", 30]]], // prettier-ignore
+    [2, gx + 80, gy + 12, [["walk", 48], ...swing(2), ["idle", 30]]],
+  ];
+  const now = (plan: Plan) => {
+    let t = step % plan.reduce((sum, [, steps]) => sum + steps, 0);
+    for (const [anim, steps] of plan) {
+      if (t < steps) return { anim, animStep: t };
+      t -= steps;
+    }
+    return { anim: plan[0]![0], animStep: 0 };
+  };
+  players.push(() => {
+    const enemies = bones.map(([tier, x, y, plan], i): EnemyView => ({
+      ...{ id: i + 1, kind: "bonewalker", tier, x, y, z: 0 },
+      ...{ facing: i === 2 ? -1 : 1, hp: 8, maxHp: 8, flash: false },
+      ...{ boss: false, enraged: false, mounted: false, ...now(plan) },
+    }));
+    const view: WorldView = {
+      ...{ step, stage: 3, camX: gx - 120, heroes: [], fx: [], items: [] },
+      ...{ spells: [], mounts: [], camp: false, enemies },
+      ...{ wave: 1, waves: 6, locked: true, go: false, cleared: false },
+      ...{ defeated: false, boss: null },
+    };
+    scene.draw(native3.paint, view, step);
+    big3.paint.drawImage(native3.image, 0, 0, VIEW_W * 2, VIEW_H * 2);
+  });
+  crypt.append(big3.image);
+  main.append(crypt);
 }
 
 {
