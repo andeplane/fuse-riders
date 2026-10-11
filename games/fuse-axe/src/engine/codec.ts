@@ -1,5 +1,6 @@
 import { INPUT_MASK, LEFT, RIGHT } from "./input.js";
 import {
+  BEAST_WALK,
   BUFFER_STEPS,
   CAPACITY,
   ENEMY_KINDS,
@@ -22,6 +23,7 @@ import {
   ITEM_MAX,
   JUGGLE_HITS,
   JUGGLE_WINDOW,
+  JUMP_VZ,
   LANCER,
   LEAP_VX,
   LIVES,
@@ -308,46 +310,65 @@ const item = record<Item>(
 
 const spell = record<Spell>({ hero: ID, level: int(1, POTS), born: COUNT });
 
-/** A beast stands on the floor. */
-const mount = record<Mount>({
-  id: ID,
-  kind: oneOf(MOUNT_KINDS),
-  x: X,
-  y: Y,
-  z: int(0, 0),
-  facing: FACING,
-  state: oneOf(MOUNT_STATES),
-  timer: COUNT,
-  rider: COUNT,
-  goal: GOAL_X,
-  coolUntil: COUNT,
-});
+/** A beast stands on the floor, but in a hop or coming down from one its rider was thrown out of (`flee`). */
+const mount = record<Mount>(
+  {
+    id: ID,
+    kind: oneOf(MOUNT_KINDS),
+    x: X,
+    y: Y,
+    z: Z,
+    vx: SPEED,
+    vy: SPEED,
+    vz: SPEED,
+    facing: FACING,
+    state: oneOf(MOUNT_STATES),
+    timer: COUNT,
+    rider: COUNT,
+    goal: GOAL_X,
+    coolUntil: COUNT,
+  },
+  (value) =>
+    (value.z === 0 && value.vz === 0) ||
+    value.state === "hop" ||
+    value.state === "flee",
+);
 
 /**
- * The beasts and their riders, both ways: every enemy in `ride` rides exactly one beast and every other none, and a
- * rider stands where its beast does, facing its way. A beast with a rider is in a ridden state and one without is
- * not; none sweeps again later than one resting now would.
+ * The beasts and their riders, both ways: every hero or enemy in `ride` rides exactly one beast and every other none,
+ * and a rider stands where its beast does, at its height, facing its way, with no speed of its own. A beast with a
+ * rider is in a ridden state (only a hero's hops, only an enemy's walks in) and one without is not; only a hero's
+ * walks of its own (`vx`, `vy`, no faster than the beast's walk) and none rises faster than a hop leaves the floor
+ * (`vz`); none sweeps again later than one resting now would.
  */
 function mountsKept(value: World): boolean {
-  const riders = new Map(
-    value.enemies.flatMap((each) =>
-      each.state === "ride" ? [[each.id, each] as const] : [],
-    ),
-  );
-  const ridden = value.mounts.flatMap((each) =>
-    each.rider ? [each.rider] : [],
-  );
+  const riders = new Map<number, Hero | Enemy>();
+  for (const each of [...value.heroes, ...value.enemies])
+    if (each.state === "ride") riders.set(each.id, each);
+  const heroIds = new Set(value.heroes.map((each) => each.id)),
+    ridden = value.mounts.flatMap((each) => (each.rider ? [each.rider] : []));
   return (
     value.mounts.every((each) => {
-      const rider = riders.get(each.rider);
+      const rider = riders.get(each.rider),
+        hero = heroIds.has(each.rider);
       return (
         (rider
           ? rider.x === each.x &&
             rider.y === each.y &&
-            rider.z === 0 &&
+            rider.z === each.z &&
             rider.facing === each.facing &&
-            RIDDEN.includes(each.state)
+            rider.vx === 0 &&
+            rider.vz === 0 &&
+            (!("vy" in rider) || rider.vy === 0) &&
+            RIDDEN.includes(each.state) &&
+            (each.state !== "hop" || hero) &&
+            (each.state !== "enter" || !hero)
           : each.rider === 0 && !RIDDEN.includes(each.state)) &&
+        (hero
+          ? Math.abs(each.vx) <= BEAST_WALK.x &&
+            Math.abs(each.vy) <= BEAST_WALK.y
+          : each.vx === 0 && each.vy === 0) &&
+        each.vz <= JUMP_VZ &&
         each.coolUntil <= value.step + TAIL_COOL
       );
     }) &&

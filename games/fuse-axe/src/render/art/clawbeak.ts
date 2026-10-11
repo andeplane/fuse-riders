@@ -234,6 +234,34 @@ const recover: ClawbeakPose = {
   near: legTo(at(HIPS.near, 0, 1), planted(4)),
 };
 
+/**
+ * A hero's hop, rising: the beast pushes off its far foot, the near leg drawn up under it, the neck stretched and the
+ * tail streaming out behind. (The scene lifts the whole beast by its height in the air; one foot stays on the anchor
+ * row, as in every frame.)
+ */
+const leap: ClawbeakPose = {
+  ...idle,
+  tilt: -5,
+  neck: F(18, 36),
+  head: F(21, 40),
+  nod: -8,
+  tail: [F(-8, 25), F(-15, 27), F(-22, 28), F(-29, 29.5), F(-35, 30)],
+  claws: [F(14, 19), F(16, 19)],
+  far: legTo(HIPS.far, planted(-5)),
+  near: legTo(HIPS.near, F(4, SOLE + 7), true),
+};
+/** The hop's fall: the near foot reaching down ahead for the floor, the far leg trailing, the tail lifting behind. */
+const drop: ClawbeakPose = {
+  ...idle,
+  tilt: 3,
+  neck: F(17, 35),
+  head: F(20, 39),
+  nod: 5,
+  tail: [F(-8, 25), F(-15, 26), F(-22, 26), F(-29, 24.5), F(-35, 22)],
+  far: legTo(HIPS.far, F(-1, SOLE + 3), true),
+  near: legTo(HIPS.near, planted(6)),
+};
+
 export const CLAWBEAK_POSES = {
   idle,
   breathe,
@@ -250,6 +278,8 @@ export const CLAWBEAK_POSES = {
   coil2,
   lash,
   recover,
+  leap,
+  drop,
 };
 export type ClawbeakFrame = keyof typeof CLAWBEAK_POSES;
 
@@ -281,7 +311,7 @@ const COIL = CLAWBEAK_STEPS.windup / 2;
  * The clawbeak's anims, played by `mountFrame`. The walk keeps a planted foot on the ground at its pace (`walk` and
  * `leave` 1.25 px a step); walking a wave in (0.75 px a step) and wandering (0.5 px) take the strut slower, wandering
  * stooping to peck every other cycle. The sweep winds up from its first step, lashes on the step the tail lands
- * (`CLAWBEAK_STEPS.windup`) and recovers to its end; the panic bolts.
+ * (`CLAWBEAK_STEPS.windup`) and recovers to its end; the panic bolts; a hero's hop leaps and drops.
  */
 export const CLAWBEAK_ANIMS: Readonly<
   Record<MountAnim, AnimStrip<ClawbeakFrame>>
@@ -298,6 +328,14 @@ export const CLAWBEAK_ANIMS: Readonly<
     ["walk3", 12],
   ),
   flee: loop(["run0", 3], ["run1", 3], ["run2", 3], ["run3", 3]),
+  // A hero's hop rises for `hopRise` steps, as its jump does, then falls, holding the fall until it lands.
+  hop: {
+    frames: [
+      ["leap", CLAWBEAK_STEPS.hopRise],
+      ["drop", 1],
+    ],
+    loop: false,
+  },
   sweep: {
     frames: [
       ["coil1", COIL],

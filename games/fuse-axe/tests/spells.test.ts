@@ -62,7 +62,7 @@ const CASTER = { storm: "brakka", fire: "rhea", earth: "gorm" } as const;
 const hero = (more: Partial<V.HeroView> = {}): V.HeroView => ({
   ...{ id: 1, seat: 0, kind: "brakka", x: 110, y: 140, z: 0, facing: 1 },
   ...{ anim: "cast", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
-  ...{ invulnerable: false, pots: 0, maxPots: 4, charge: 0 },
+  ...{ invulnerable: false, pots: 0, maxPots: 4, charge: 0, mounted: false },
   ...more,
 });
 const enemy = (id: number, x: number, y: number): V.EnemyView => ({

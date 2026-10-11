@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  JUMP,
   createWorld,
   spawnEnemy,
   spawnMount,
@@ -47,7 +48,7 @@ const FRAMES = CLAWBEAK_FIGURE.frames;
 const sprite = (frame: ClawbeakFrame) => CLAWBEAK_FIGURE.sprite(frame);
 /** The frames a ridden beast shows: its rider sits on each one's saddle. */
 const RIDDEN = new Set(
-  (["idle", "walk", "enter", "sweep"] as const).flatMap((anim) =>
+  (["idle", "walk", "enter", "sweep", "hop"] as const).flatMap((anim) =>
     CLAWBEAK_ANIMS[anim].frames.map(([frame]) => frame),
   ),
 );
@@ -141,7 +142,7 @@ test("every clawbeak anim plays frames the figure has, every frame is played, an
       assert.ok(Number.isInteger(steps) && steps > 0, `${anim} ${frame}`);
       played.add(frame);
     }
-    assert.equal(loop, anim !== "sweep", anim);
+    assert.equal(loop, anim !== "sweep" && anim !== "hop", anim);
   }
   assert.deepEqual([...played].sort(), [...FRAMES].sort());
   // The sweep coils for its wind-up, lashes from the very step the tail lands for `LASH_STEPS`, and recovers to its end.
@@ -167,6 +168,35 @@ test("every clawbeak anim plays frames the figure has, every frame is played, an
         const strip = anim === dance ? CLAWBEAK_ANIMS.idle : CLAWBEAK_ANIMS[anim]; // prettier-ignore
         assert.equal(frame, stripFrame(strip, animStep));
       }
+});
+
+test("a hero's hop leaps for as many steps as its jump rises, then drops until it lands", () => {
+  assert.deepEqual(CLAWBEAK_ANIMS.hop.frames, [
+    ["leap", CLAWBEAK_STEPS.hopRise],
+    ["drop", 1],
+  ]);
+  for (let animStep = 0; animStep < 3 * T.LEAP_STEPS; animStep++)
+    assert.equal(
+      mountFrame("clawbeak", "hop", animStep),
+      animStep < CLAWBEAK_STEPS.hopRise ? "leap" : "drop",
+      `${animStep}`,
+    );
+  // A hop in the engine plays them: the beast leaps for the steps it rises and drops for the steps it falls.
+  const start = createWorld({ seed: 5, heroes: [{ seat: 0, kind: "brakka" }] });
+  const { x, y } = start.heroes[0]!;
+  let world = step(spawnMount(start, x + px(10), y), [JUMP]);
+  world = step(step(world, []), [JUMP]);
+  let [z, rose] = [0, 0];
+  for (; world.mounts[0]!.state === "hop"; world = step(world, [])) {
+    const { z: now, state } = world.mounts[0]!;
+    const view = toView(world).mounts[0]!;
+    assert.equal(view.anim, state);
+    const frame = mountFrame("clawbeak", view.anim, view.animStep);
+    assert.equal(frame, now > z ? "leap" : "drop", `step ${view.animStep}`);
+    rose += now > z ? 1 : 0;
+    z = now;
+  }
+  assert.equal(rose, CLAWBEAK_STEPS.hopRise);
 });
 
 test("in the engine's sweep the tail coils on every step of the wind-up and the lash shows from the very step it lands", () => {
