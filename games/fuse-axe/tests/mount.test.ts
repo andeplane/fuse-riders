@@ -591,6 +591,30 @@ test("no world heroes reach riding is refused by the checkpoint, and a rollback 
     assert.ok(seen.has(covered), `the presses reached ${covered}`);
 });
 
+test("only a hero standing or walking climbs on: one in the air, running, swinging, reeling or landing jumps or goes on as it was, and a fleeing or leaving beast is boarded like a wandering one", () => {
+  const beside = loose(party("brakka"), px(10));
+  for (const state of [
+    "jump",
+    "run",
+    "land",
+    "hurt",
+    "dash",
+    "attack1",
+  ] as const) {
+    const world = step({ ...beside, heroes: [{ ...hero(beside), state, timer: 1, z: state === "jump" ? px(8) : 0, vz: 0, vx: 0 }] }, [state === "run" ? JUMP | RIGHT : JUMP]); // prettier-ignore
+    assert.deepEqual([hero(world).state === "ride", beast(world).rider], [false, 0], state); // prettier-ignore
+  }
+  for (const [state, facing] of [
+    ["flee", 1],
+    ["leave", -1],
+    ["wander", 1],
+  ] as const) {
+    const world = step({ ...beside, mounts: [{ ...beast(beside), state, facing }] }, [JUMP]); // prettier-ignore
+    assert.deepEqual([hero(world).state, beast(world).rider, beast(world).state], ["ride", 1, "idle"], state); // prettier-ignore
+    kept(world);
+  }
+});
+
 test("the tail sweep kicks a sack imp open as a blade does: a pot pops out and the imp flies, while a hero beside it is spared", () => {
   let world = step(aboard(party("brakka", "rhea")), []);
   const { x, y } = hero(world);

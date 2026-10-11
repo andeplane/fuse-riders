@@ -59,7 +59,7 @@ export const STRIKE_FRAMES: readonly HeroFrame[] = [
  * stab down, the back attack a blow behind (the figure is not turned: the engine keeps its facing, and the hero looks
  * over its shoulder), the grab its clutch and the throw a heave over the shoulder. Magic has two: charging braces with
  * the weapon raised before the face, and casting thrusts it skyward until the spell is gone. Riding a beast sits the
- * landing crouch in the saddle until the mount art gives it a pose of its own.
+ * landing crouch in the saddle until each hero has an astride pose of its own, as the ravager's.
  */
 export const HERO_ANIMS = [
   ...["idle", "walk", "run", "jump", "land"],
