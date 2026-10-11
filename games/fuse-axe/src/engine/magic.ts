@@ -1,6 +1,7 @@
 import { MAGIC } from "./input.js";
 import { div } from "./math.js";
 import { isImp } from "./imps.js";
+import { shatter } from "./bonewalker.js";
 import * as T from "./tuning.js";
 import {
   inView,
@@ -86,17 +87,18 @@ export const spellbound = (world: World): boolean =>
       world.step - spell.born < played(caster(world, spell), spell).hit,
   );
 
-/** An enemy a spell's blow lands on. */
+/** An enemy a spell's blow lands on: not a bonewalker clawing out of its grave, which nothing strikes. */
 const blasted = (world: World, enemy: Enemy): boolean =>
   !isImp(enemy) &&
   enemy.hp > 0 &&
   enemy.state !== "held" &&
   enemy.state !== "thrown" &&
+  enemy.state !== "rise" &&
   inView(world, enemy);
 
 /**
- * The spells' step, in the order they were cast, once the heroes have moved: a blow due lands, and a spell played
- * out is gone and leaves its hero standing.
+ * The spells' step, in the order they were cast, once the heroes have moved: a blow due lands (and shatters every
+ * bonewalker's bone pile on screen), and a spell played out is gone and leaves its hero standing.
  */
 export function advanceSpells(world: World): void {
   world.spells = world.spells.filter((spell) => {
@@ -106,6 +108,8 @@ export function advanceSpells(world: World): void {
     if (age === hit)
       for (const enemy of world.enemies)
         if (blasted(world, enemy)) blast(world, hero, enemy, share);
+        else if (enemy.state === "pile" && inView(world, enemy))
+          shatter(world, enemy, hero);
     if (age < steps) return true;
     setState(hero, "idle");
     return false;

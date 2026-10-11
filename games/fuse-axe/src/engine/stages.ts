@@ -6,6 +6,7 @@ import {
   EXTRA_DELAY,
   FLOOR_BOTTOM,
   FLOOR_TOP,
+  RISE_STEPS,
   STAGE_LENGTH,
   VIEW_W,
   px,
@@ -31,6 +32,14 @@ export interface Spawn {
   readonly delay: number;
   /** A ravager that rides in on a beast of this kind (`mount.ts`). */
   readonly mount?: MountKind;
+  /** A bonewalker that claws up out of the stage's grave of this index (`StagePlan.graves`) rather than walking in. */
+  readonly grave?: number;
+}
+
+/** An open grave on the road a bonewalker rises from: its x and the depth it lies at, in sub-units. */
+export interface Grave {
+  readonly x: number;
+  readonly y: number;
 }
 
 export interface Wave {
@@ -51,6 +60,8 @@ export interface StagePlan {
   readonly waves: readonly Wave[];
   /** The sack imps, in order along the road: between waves, or alongside one at its trigger. */
   readonly imps: readonly ImpCue[];
+  /** The open graves its bonewalkers rise from, each on the screen of every wave that raises one from it. */
+  readonly graves?: readonly Grave[];
 }
 
 /**
@@ -101,6 +112,27 @@ const ogre = (tier: Tier, side: Side, y: number): Spawn => ({
   side,
   y: px(y),
   delay: 0,
+});
+/**
+ * The Drowned Crypt's graves, in pixels: each one's x along the road and the depth it lies at, where its backdrop breaks
+ * them through the causeway (`gravesPx` in `view-kit.ts`).
+ */
+const CRYPT_GRAVES = [
+  [318, 128],
+  [702, 150],
+  [988, 124],
+  [1190, 146],
+] as const;
+/** A bonewalker clawing up out of the crypt's grave `grave`, at its depth. */
+const riser = (tier: Tier, grave: number, delay: number): Spawn => ({
+  ...ravager(tier, "left", CRYPT_GRAVES[grave]![1], delay),
+  kind: "bonewalker",
+  grave,
+});
+/** A bonewalker walking in, as the armoured knights (violet) at the cathedral's doors do. */
+const walker = (tier: Tier, side: Side, y: number, delay: number): Spawn => ({
+  ...ravager(tier, side, y, delay),
+  kind: "bonewalker",
 });
 /** The lancer captain riding in on his ember drake. */
 const captain = (side: Side, y: number): Spawn => ({
@@ -239,8 +271,82 @@ export const STAGE_2: StagePlan = {
   imps: [imp(576, "right", 136, 2), imp(1120, "left", 124, 3)],
 };
 
+const ROAD_3 = px(5 * VIEW_W);
+/**
+ * The Drowned Crypt: Wyrmbone Pass's length of flooded graveyard, five waves of bonewalkers clawing up out of the graves
+ * on their screens among violet ravagers and lancers, and two imps; at the cathedral's great doors a pair of armoured
+ * bonewalker knights (violet) walks out at the party from both sides, with a rust bonewalker and a violet ravager in
+ * turn for each hero beyond the first. The knights are no boss (no bar, no armour), only the toughest of their kind,
+ * with the longest reach.
+ */
+export const STAGE_3: StagePlan = {
+  name: "Drowned Crypt",
+  length: ROAD_3,
+  cameraEnd: ROAD_3 - px(VIEW_W),
+  graves: CRYPT_GRAVES.map(([x, y]) => ({ x: px(x), y: px(y) })),
+  waves: [
+    {
+      at: px(192),
+      spawns: [
+        riser(ASH, 0, 0),
+        ravager(RUST, "right", 150, 30),
+        ravager(ASH, "left", 120, 60),
+      ],
+    },
+    {
+      at: px(448),
+      spawns: [
+        ravager(VIOLET, "right", 128, 0),
+        riser(ASH, 1, 30),
+        lancer(RUST, "left", 160, 60),
+      ],
+    },
+    {
+      at: px(680),
+      spawns: [
+        riser(RUST, 1, 0),
+        ravager(VIOLET, "right", 140, 20),
+        riser(ASH, 2, 40),
+        lancer(ASH, "left", 116, 80),
+      ],
+    },
+    {
+      at: px(928),
+      spawns: [
+        riser(RUST, 2, 0),
+        ravager(VIOLET, "right", 120, 30),
+        riser(RUST, 3, 50),
+        ravager(RUST, "left", 152, 70),
+        lancer(VIOLET, "right", 164, 100),
+      ],
+    },
+    {
+      at: px(1104),
+      spawns: [
+        riser(RUST, 3, 0),
+        ravager(VIOLET, "left", 128, 20),
+        lancer(RUST, "right", 116, 50),
+        ravager(VIOLET, "right", 156, 80),
+      ],
+    },
+    {
+      at: ROAD_3 - px(VIEW_W),
+      spawns: [
+        walker(VIOLET, "left", 132, 0),
+        walker(VIOLET, "right", 148, 20),
+      ],
+      extras: [
+        walker(RUST, "left", 116, 60),
+        ravager(VIOLET, "right", 164, 60),
+      ],
+    },
+  ],
+  // One runs at the party between waves 2 and 3, and a fuller sack darts in behind wave 5's fight.
+  imps: [imp(576, "right", 136, 2), imp(1104, "left", 124, 3)],
+};
+
 /** The run's stages in order: a world's plan is `STAGES[world.stage - 1]`. */
-export const STAGES: readonly StagePlan[] = [STAGE_1, STAGE_2];
+export const STAGES: readonly StagePlan[] = [STAGE_1, STAGE_2, STAGE_3];
 
 /**
  * Camp between stages (`camp.ts`): one screen of night clearing, its camera standing still, no wave to fight, and four
@@ -279,8 +385,9 @@ export interface Placed extends Spawn {
  * A wave's spawns for a party of `heroes` (an empty world counts one), in the order they enter. Each hero beyond
  * the first adds one: the k-th extra copies the wave's (k mod n)-th spawn (of its `extras`, if it has them) from the
  * other side, mirrored in depth, a round of `EXTRA_DELAY` later per pass through them, and walks a round of
- * `ENTER_STAGGER` further in, so no two arrive on the same spot. The sort is stable: spawns due together enter in
- * list order.
+ * `ENTER_STAGGER` further in, so no two arrive on the same spot; one copying a bonewalker's rise claws up out of the
+ * same grave a round of `RISE_STEPS` later, once the one before is out of it. The sort is stable: spawns due together
+ * enter in list order.
  */
 export function waveSpawns(wave: Wave, heroes: number): Placed[] {
   const pool = wave.extras ?? wave.spawns,
@@ -293,7 +400,9 @@ export function waveSpawns(wave: Wave, heroes: number): Placed[] {
       ...spawn,
       side: spawn.side === "left" ? "right" : "left",
       y: FLOOR_TOP + FLOOR_BOTTOM - spawn.y,
-      delay: spawn.delay + round * EXTRA_DELAY,
+      delay:
+        spawn.delay +
+        round * (spawn.grave === undefined ? EXTRA_DELAY : RISE_STEPS),
       inset: ENTER_INSET + round * ENTER_STAGGER,
     };
   });

@@ -253,12 +253,12 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
   assert.ok(!clear.canContinue && !clear.canRematch);
   // The last stage cleared: the run is won once its tally has shown.
   const last = present(
-    frame("between", { world: fought, round: 2, until: 1, tally }),
+    frame("between", { world: fought, round: 3, until: 1, tally }),
     host,
   ).card!;
   assert.deepEqual(
     [last.title, last.line, last.hint, last.seconds],
-    ["STAGE 2 CLEAR", "WYRMBONE PASS", TEXT.won, 1],
+    ["STAGE 3 CLEAR", "DROWNED CRYPT", TEXT.won, 1],
   );
   // Every hero out: a hero of the run presses Attack, everyone else waits on them.
   const out = frame("running", { until: 199, tally });
@@ -292,7 +292,7 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
   assert.equal(present(away, host).card!.canContinue, false, "stepped away");
   // The run's end: the run's numbers, the stage reached, and REMATCH or the lobby for the host alone.
   const won = present(
-    frame("over", { world: fought, round: 2, outcome: "victory", tally }),
+    frame("over", { world: fought, round: 3, outcome: "victory", tally }),
     host,
   ).card!;
   assert.deepEqual(
@@ -300,7 +300,7 @@ test("the stage flow's cards: a stage's tally, the countdown and its key, then v
     [
       "victory",
       "VICTORY",
-      "STAGE 2 OF 2 · WYRMBONE PASS",
+      "STAGE 3 OF 3 · DROWNED CRYPT",
       null,
       TEXT.hostChoice,
       true,

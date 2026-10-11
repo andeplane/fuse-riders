@@ -150,6 +150,9 @@ export const ENEMY_STATES = [
   "leap",
   "plunge",
   "ride",
+  "rise",
+  "pile",
+  "reassemble",
 ] as const;
 export type EnemyState = (typeof ENEMY_STATES)[number];
 /**
@@ -172,6 +175,12 @@ export const IMP_STATES: readonly EnemyState[] = [
 ];
 export const IMP_ONLY: readonly EnemyState[] = ["stumble", "flee"];
 /**
+ * A bonewalker's states (`bonewalker.ts`): a ravager's but riding, and its own (`BONE_ONLY`): it claws up out of a grave
+ * (`rise`), lies as a bone pile the first time it falls with no hit points left (`pile`) and pulls itself together
+ * (`reassemble`).
+ */
+export const BONE_ONLY: readonly EnemyState[] = ["rise", "pile", "reassemble"];
+/**
  * An ogre's states (`ogre.ts`): it walks in, walks and stands; winds up its slam, slams, sweeps and recovers; staggers
  * from a heavy blow; and is knocked down, lies, gets up or falls for good. It never reels, nor is held or thrown.
  * `slam`, `sweep` and `stagger` are the ogre's alone (`OGRE_ONLY`).
@@ -182,11 +191,19 @@ export const OGRE_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
       ...["hurt", "attack", "held", "thrown", "ride"],
       ...IMP_ONLY,
       ...LANCER_ONLY,
+      ...BONE_ONLY,
     ].includes(state),
 );
 export const OGRE_ONLY: readonly EnemyState[] = ["slam", "sweep", "stagger"];
 export const LANCER_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
-  (state) => !["attack", "ride", ...IMP_ONLY, ...OGRE_ONLY].includes(state),
+  (state) =>
+    !["attack", "ride", ...IMP_ONLY, ...OGRE_ONLY, ...BONE_ONLY].includes(
+      state,
+    ),
+);
+export const BONEWALKER_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
+  (state) =>
+    !["ride", ...IMP_ONLY, ...OGRE_ONLY, ...LANCER_ONLY].includes(state),
 );
 /**
  * The lancer captain's: a lancer's, riding his drake (`ride`), and staggering from a blow his armour takes. As an
@@ -279,6 +296,8 @@ export interface Enemy {
   enraged: boolean;
   /** The lancer captain has climbed back on a drake, which he does once (`REMOUNT_X`); false for every other kind. */
   remounted: boolean;
+  /** A bonewalker has pulled itself together from its bone pile, which it does once; false for every other kind. */
+  reassembled: boolean;
 }
 
 /**
@@ -561,6 +580,7 @@ export function newEnemy(
     flashUntil: 0,
     enraged: false,
     remounted: false,
+    reassembled: false,
   };
 }
 

@@ -218,20 +218,22 @@ export const THROW_VZ = px(2);
 /** Damage the thrown body takes as it lands, and each enemy it knocks down on the way. */
 export const THROW_DAMAGE = 12;
 export const BODY_DAMAGE = 6;
-/** The kinds a hero can throw: not a boss, nor a sack imp, which is never dazed. */
+/** The kinds a hero can throw: not a boss, nor a sack imp, which is never dazed (nor a bone pile, never dazed either). */
 export const THROWABLE: Readonly<Record<EnemyKind, boolean>> = {
   ravager: true,
   imp: false,
   ogre: false,
   lancer: true,
   captain: false,
+  bonewalker: true,
 };
 
 // ---- the enemies ----
 /**
  * A sack imp (`imps.ts`) is no fighter: it crosses the screen with magic pots for the heroes to kick out of it. An
  * ogre (`ogre.ts`) is Stage 1's boss, one of the twins. A lancer (`lancer.ts`) fights with a spear and leaps in, and
- * the lancer captain, Wyrmbone Pass's boss, is one who rides an ember drake.
+ * the lancer captain, Wyrmbone Pass's boss, is one who rides an ember drake. A bonewalker (`bonewalker.ts`), the
+ * Drowned Crypt's skeleton swordsman, claws up out of a grave and pulls itself together once from its bones.
  */
 export const ENEMY_KINDS = [
   "ravager",
@@ -239,6 +241,7 @@ export const ENEMY_KINDS = [
   "ogre",
   "lancer",
   "captain",
+  "bonewalker",
 ] as const;
 export type EnemyKind = (typeof ENEMY_KINDS)[number];
 /** The kinds that fight, which a wave is made of and holds the screen for. */
@@ -250,6 +253,7 @@ export const BOSS: Readonly<Record<EnemyKind, boolean>> = {
   ogre: true,
   lancer: false,
   captain: true,
+  bonewalker: false,
 };
 /** A kind's hit points at its lowest tier with one hero; `enemyMaxHp` scales them. An imp takes no damage. */
 export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = {
@@ -258,6 +262,7 @@ export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = {
   ogre: 150,
   lancer: 32,
   captain: 180,
+  bonewalker: 32,
 };
 /** Tiers by palette (ash, rust, violet): each adds hit points, and aggression (`RAVAGER`). */
 export const TIERS = [0, 1, 2] as const;
@@ -295,6 +300,7 @@ export const ENEMY_BODY: Readonly<
   ogre: { half: px(15), height: px(66) },
   lancer: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
   captain: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
+  bonewalker: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
 };
 /** A hurt enemy is nudged back at this speed, slowing by `HURT_FRICTION` a step, and reels for `HURT_STEPS`. */
 export const HURT_PUSH = px(1.5);
@@ -376,7 +382,7 @@ export const OGRE: Readonly<Record<"calm" | "rage", Fighter>> = {
   calm: fighter(48, 30, 24, 0.45, 14, 0),
   rage: fighter(32, 16, 16, 0.6, 16, 0),
 };
-/** The fighter an enemy is: its tier's ravager or lancer, an ogre's mood, or the captain. */
+/** The fighter an enemy is: its tier's ravager, lancer or bonewalker, an ogre's mood, or the captain. */
 export const fighterOf = (
   kind: EnemyKind,
   tier: Tier,
@@ -388,7 +394,9 @@ export const fighterOf = (
       ? CAPTAIN
       : kind === "lancer"
         ? LANCER[tier]
-        : RAVAGER[tier];
+        : kind === "bonewalker"
+          ? BONEWALKER[tier]
+          : RAVAGER[tier];
 /** It walks to stand this far from its hero along the road, and winds up within `OGRE_SLACK` more and `OGRE_LANE` in depth. */
 export const OGRE_ENGAGE = px(30);
 export const OGRE_SLACK = px(10);
@@ -487,6 +495,31 @@ export const LANCE_COOL = 40;
 export const LANCE_CHANCE = 96;
 export const CAPTAIN_PLUNGE = { reach: px(40), lane: px(10), damage: 14 };
 export const REMOUNT_X = px(200);
+
+// ---- bonewalkers (`bonewalker.ts`), the Drowned Crypt's ----
+/**
+ * A bonewalker by tier (bone, rust, and the armoured violet knight): lighter than a ravager of its palette
+ * (`ENEMY_HP`), its sword wound up faster; the knight walks slower and hits hardest, and never feints. It swings as a
+ * ravager does (`act`), its sword reaching `BONE_REACH` in front.
+ */
+export const BONEWALKER: Readonly<Record<Tier, Fighter>> = {
+  0: fighter(18, 20, 24, 0.7, 5, 16),
+  1: fighter(15, 14, 20, 0.8, 6, 24),
+  2: fighter(14, 12, 16, 0.7, 9, 0),
+};
+export const BONE_REACH: Readonly<Record<Tier, number>> = {
+  0: px(28),
+  1: px(28),
+  2: px(38),
+};
+/**
+ * One clawing up out of its grave rises for `RISE_STEPS`, invulnerable. The first time it falls with no hit points it
+ * lies as a bone pile for `PILE_STEPS`, then pulls itself together over `REASSEMBLE_STEPS` (invulnerable, as one
+ * getting up is) with half its full hit points; any blow on the pile shatters it for good.
+ */
+export const RISE_STEPS = 60;
+export const PILE_STEPS = 150;
+export const REASSEMBLE_STEPS = 30;
 
 // ---- mounts (`mount.ts`) ----
 /** The beasts a hero or an enemy rides: a clawbeak, which sweeps its tail round it, and an ember drake, breathing fire. */

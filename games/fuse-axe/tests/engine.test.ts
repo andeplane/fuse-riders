@@ -146,7 +146,7 @@ test("createWorld sets out on a stage, Stage 1 by default, with each hero's carr
     { ...createWorld({ seed: 5, heroes, stage: 1 }), stage: 2 },
     world,
   );
-  for (const stage of [0, 3, 1.5, Number.NaN])
+  for (const stage of [0, 4, 1.5, Number.NaN])
     assert.throws(
       () => createWorld({ seed: 1, heroes: [], stage }),
       RangeError,
@@ -388,6 +388,7 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
             ...["slam", "sweep", "stagger"],
             ...["thrust", "leap", "plunge"],
             ...["charge", "cast", "ride"],
+            ...["rise", "pile", "reassemble"],
           ].includes(state),
       )
       .sort();
@@ -507,7 +508,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-18");
+  assert.equal(RULES, "fuse-axe-19");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {
@@ -538,12 +539,13 @@ test("the view gives whole pixels, the anim and its step count", () => {
   assert.ok(Kit.STAGE_LENGTH_PX >= 3 * Kit.VIEW_W);
   assert.equal(Kit.CAMERA_END_PX, Kit.STAGE_LENGTH_PX - Kit.VIEW_W);
   // Each stage's road for the renderer; a stage this build lacks has Stage 1's.
-  assert.equal(Kit.STAGE_COUNT, 2);
+  assert.equal(Kit.STAGE_COUNT, 3);
   assert.deepEqual(
-    [0, 1, 2, 3, 1.5].map((s) => [Kit.stageLengthPx(s), Kit.cameraEndPx(s)]),
+    [0, 1, 2, 3, 4, 1.5].map((s) => [Kit.stageLengthPx(s), Kit.cameraEndPx(s)]),
     [
       [Kit.STAGE_LENGTH_PX, Kit.CAMERA_END_PX],
       [Kit.STAGE_LENGTH_PX, Kit.CAMERA_END_PX],
+      [5 * Kit.VIEW_W, 4 * Kit.VIEW_W],
       [5 * Kit.VIEW_W, 4 * Kit.VIEW_W],
       [Kit.STAGE_LENGTH_PX, Kit.CAMERA_END_PX],
       [Kit.STAGE_LENGTH_PX, Kit.CAMERA_END_PX],
