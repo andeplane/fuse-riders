@@ -1,6 +1,7 @@
 import { cameraEndPx, VIEW_W } from "../../engine/view-kit.js";
 import { pixelSurface, type MakeSurface } from "../surface.js";
 import { ASHEN_VILLAGE } from "./ashen-village.js";
+import { DROWNED_CRYPT } from "./drowned-crypt.js";
 import { Raster, type Brush, type LayerArt, type StageArt } from "./kit.js";
 import { WYRMBONE_PASS } from "./wyrmbone-pass.js";
 
@@ -33,12 +34,13 @@ export interface Backdrop<S> {
   drawFront(pen: Pen<S>, camX: number): void;
 }
 
-/** The stages with art of their own, so far Ashen Village's and Wyrmbone Pass's. */
-export type StageNumber = 1 | 2;
+/** The stages with art of their own, so far Ashen Village's, Wyrmbone Pass's and the Drowned Crypt's. */
+export type StageNumber = 1 | 2 | 3;
 
 const STAGES: Record<StageNumber, StageArt> = {
   1: ASHEN_VILLAGE,
   2: WYRMBONE_PASS,
+  3: DROWNED_CRYPT,
 };
 
 /** Whether `stage` has a backdrop of its own; one that has none is drawn on Stage 1's (`createScene`). */
@@ -99,7 +101,7 @@ export function createBackdrop<S>(
   if (!hasBackdrop(stage))
     throw new RangeError(`no backdrop for stage ${String(stage)}`);
   const art = STAGES[stage];
-  const end = cameraEndPx(stage);
+  const end = art.cameraEnd ?? cameraEndPx(stage);
   const back = art.back.map((layer) => bake(make, layer, end));
   const front = bake(make, art.front, end);
   return {
