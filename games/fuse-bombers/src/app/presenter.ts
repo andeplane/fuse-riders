@@ -17,6 +17,8 @@ export interface Viewer {
   touch: boolean; // touch pads rather than keys
   /** This page is the shared TV (`?display=1`): it shows every gunship and never takes a seat. */
   display: boolean;
+  /** A shared room that, as far as this page knows, has no TV open yet ("Waiting for a display"). */
+  tvWaiting: boolean;
 }
 /** A phone that is a controller for the shared TV: who it flies, how that gunship (or its ghost) is, and the round's
  * word (the countdown, GO!, who won). */
@@ -79,7 +81,7 @@ export function present(view: View, viewer: Viewer) {
   const shared = view.settings.display || view.play.display;
   const pad = shared && !viewer.display && !!mine && !mine.watcher;
   const name = (ship: number | null | undefined) =>
-    looks[ship ?? -1]?.name.toUpperCase();
+    looks[ship ?? -1]?.name.toUpperCase() ?? "GONE";
   let line = "";
   // A fallen gunship flies on as a ghost.
   const flying = running && follow !== undefined && !world.result;
@@ -142,7 +144,7 @@ export function present(view: View, viewer: Viewer) {
     [lobby && !viewer.host, "Waiting for the host to start"],
     [lobby && few, "Two gunships start: invite a friend or add a bot"],
     [
-      lobby && shared,
+      lobby && shared && viewer.host && !tv && viewer.tvWaiting,
       "Shared TV: open the TV screen, then everyone joins on their phone",
     ],
   ];
