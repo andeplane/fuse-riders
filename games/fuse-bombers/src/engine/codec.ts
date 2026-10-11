@@ -208,7 +208,9 @@ function readRocket(raw: unknown, n: number, nextId: number, t: Tuning): Rocket 
   // Each gate passed multiplies the power by at most the largest multiplier (by less when children take a share): more
   // than the lineage can have made, and a few gates carry it to Infinity.
   const top = Math.max(...t.gateMultipliers.map((m) => m.multiplier));
-  const power = r.power <= top ** r.gates.length * POWER_SLACK;
+  let reach = POWER_SLACK; // products, not `**`: every engine rounds a product alike
+  for (let i = 0; i < r.gates.length; i++) reach *= top;
+  const power = r.power <= reach;
   // In the world, as `isOffscreen` leaves every rocket at the end of a step.
   const inside = !isOffscreen(r.x, r.y, WORLD_WIDTH, WORLD_HEIGHT);
   if (f.done && kind && lineage && power && inside) return r;
