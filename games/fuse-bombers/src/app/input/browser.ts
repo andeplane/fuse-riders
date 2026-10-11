@@ -2,7 +2,12 @@ import { DOWN, FIRE, LEFT, RIGHT, UP } from "../../engine/input.js";
 import { attachGamepads, type GamepadLike } from "./gamepad.js";
 import { InputHub } from "./hub.js";
 import { attachKeyboard } from "./keyboard.js";
-import { TOUCH_SIDES, attachTouch, type Rect } from "./touch.js";
+import {
+  TOUCH_SIDES,
+  attachTouch,
+  type PadLayout,
+  type Rect,
+} from "./touch.js";
 
 /** How one side's touch pad looks: its FIRE button's caption and (CSS) colour, e.g. the player's, or "JOIN". */
 export interface TouchPadStyle {
@@ -16,9 +21,13 @@ export interface BrowserInput {
   readonly touchEnabled: boolean;
   /**
    * Show a D-pad and FIRE button for each side that has a style: entry 0 bottom left (`touch:0`), entry 1 bottom
-   * right (`touch:1`); a missing entry hides that side. Ignored without touch.
+   * right (`touch:1`); a missing entry hides that side. `layout` places them (a phone controller's are bigger).
+   * Ignored without touch.
    */
-  setTouchPads(pads: readonly (TouchPadStyle | undefined)[]): void;
+  setTouchPads(
+    pads: readonly (TouchPadStyle | undefined)[],
+    layout?: PadLayout,
+  ): void;
 }
 
 /** The D-pad's arrows: their cell in its 3 × 3 grid and the bit each lights up for. */
@@ -131,6 +140,7 @@ export function createBrowserInput(
       top: `${rect?.y ?? 0}px`,
       width: `${rect?.width ?? 0}px`,
       height: `${rect?.height ?? 0}px`,
+      fontSize: `${Math.max(12, (rect?.width ?? 0) / 14)}px`, // a phone controller's big pads, big glyphs
       border: `var(--fui-stroke) solid ${color}`,
       color,
     });
@@ -165,9 +175,12 @@ export function createBrowserInput(
   return {
     hub,
     touchEnabled,
-    setTouchPads: (next) => {
+    setTouchPads: (next, layout) => {
       styles = [...next];
-      touch.setSides(styles.flatMap((style, side) => (style ? [side] : [])));
+      touch.setSides(
+        styles.flatMap((style, side) => (style ? [side] : [])),
+        layout,
+      );
       draw();
     },
   };

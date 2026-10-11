@@ -62,7 +62,8 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
   half-width, 8 sectors); each finger keeps the control it went down on (pointer capture) until it lifts, and a cancel,
   lost capture, blur or hidden page lets go. A lone touch rider's D-pad and FIRE spread to opposite corners, and the
   pads hide while a menu (pause, results, winner) is up.
-- Phone controller (online shared TV): a held D-pad and a FIRE button (each tap is one fire press).
+- Phone controller (online shared TV): the touch D-pad and FIRE above, laid out big (`controllerPadLayout`); each FIRE
+  tap is one fire press.
 
 ### Technical rules for the overhaul
 
@@ -115,7 +116,8 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 8. Online app: registration (the game's `package.json` `exports` and workspace dependencies, the root `package.json`,
    `Dockerfile.cloud`, `service/history.ts`, the game list in `tests/dice-service.test.ts`, `.c8rc.json`), runtime,
    session, landing and room lobby, then the shared TV and phone controller, a `preview/smoke.mjs` like Choppers', and
-   the docs the change makes stale (in progress: registration, runtime, session, landing and room lobby are in). Cloud
+   the docs the change makes stale (in progress: registration, runtime, session, landing, room lobby, shared TV,
+   phone controller and smoke are in). Cloud
    Run serves a game beyond Fuse Riders only once the operator adds its id to `EXTRA_GAME_IDS`; that is not part of these
    pull requests.
 
