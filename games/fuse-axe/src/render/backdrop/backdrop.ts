@@ -1,6 +1,7 @@
 import { cameraEndPx, VIEW_W } from "../../engine/view-kit.js";
 import { pixelSurface, type MakeSurface } from "../surface.js";
 import { ASHEN_VILLAGE } from "./ashen-village.js";
+import { CAMP_ART } from "./camp.js";
 import { Raster, type Brush, type LayerArt, type StageArt } from "./kit.js";
 import { WYRMBONE_PASS } from "./wyrmbone-pass.js";
 
@@ -98,8 +99,19 @@ export function createBackdrop<S>(
 ): Backdrop<S> {
   if (!hasBackdrop(stage))
     throw new RangeError(`no backdrop for stage ${String(stage)}`);
-  const art = STAGES[stage];
-  const end = cameraEndPx(stage);
+  return fromArt(make, STAGES[stage], cameraEndPx(stage));
+}
+
+/** Camp's backdrop between stages: one screen, whose camera never moves. */
+export const createCampBackdrop = <S>(make: MakeSurface<S>): Backdrop<S> =>
+  fromArt(make, CAMP_ART, 0);
+
+/** A backdrop of `art` baked for a camera that goes as far as `end`. */
+function fromArt<S>(
+  make: MakeSurface<S>,
+  art: StageArt,
+  end: number,
+): Backdrop<S> {
   const back = art.back.map((layer) => bake(make, layer, end));
   const front = bake(make, art.front, end);
   return {
