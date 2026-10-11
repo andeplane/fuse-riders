@@ -40,6 +40,15 @@ export class Raster {
   }
 }
 
+/** The colour a raster holds at a pixel, or −1 where it is clear or off the raster. */
+export function rgbAt(r: Raster, x: number, y: number): number {
+  const row = y - r.top;
+  if (!(x >= 0 && x < r.width && row >= 0 && row < r.height)) return -1;
+  const i = (row * r.width + x) * 4;
+  const [red, green, blue] = [r.rgba[i]!, r.rgba[i + 1]!, r.rgba[i + 2]!];
+  return r.rgba[i + 3] ? (red << 16) | (green << 8) | blue : -1;
+}
+
 /** A static layer: painted once at `width` = 320 + how far it scrolls, then blitted at its parallax rate. */
 export interface LayerArt {
   /** How far the layer moves per pixel of camera, as `[numerator, denominator]`: 0 stands still, 1 is the floor. */
