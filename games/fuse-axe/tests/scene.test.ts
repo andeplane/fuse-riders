@@ -21,7 +21,7 @@ import {
   CLAWBEAK,
   CLAWBEAK_STEPS,
   DRAKE_STEPS,
-  FLAME,
+  FLAME as BREATH,
   MOUNT_STATES,
   DEAD_STEPS,
   flamePx,
@@ -1194,7 +1194,10 @@ test("an ember drake draws as a clawbeak in ember, blinking as it inhales, its f
         right = Math.max(...fills.map((f) => f.x + f.w));
       assert.deepEqual(
         facing > 0 ? [left - 150, right - 150] : [150 - right, 150 - left],
-        [FLAME.mouth, FLAME.mouth + 2 * Math.ceil((front - FLAME.mouth) / 2)],
+        [
+          BREATH.mouth,
+          BREATH.mouth + 2 * Math.ceil((front - BREATH.mouth) / 2),
+        ],
         `${facing}`,
       );
       for (const f of fills)
@@ -1208,7 +1211,7 @@ test("an ember drake draws as a clawbeak in ember, blinking as it inhales, its f
   const boss = enemy(3, 200, 150, { kind: "captain", tier: 2, boss: true });
   assert.deepEqual(
     draw(world({ enemies: [boss] })).sprites[0]!.image.fills,
-    fillsOf(LANCER.sprite(enemyFrame("lancer", "idle", 0)), {
+    fillsOf(LANCER.sprite(enemyFrame("lancer", "idle", 0) as LancerFrame), {
       swap: ENEMY_ART.captain.tiers[2],
       flash: false,
       flip: false,
