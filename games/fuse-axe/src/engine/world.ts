@@ -188,9 +188,14 @@ export const OGRE_ONLY: readonly EnemyState[] = ["slam", "sweep", "stagger"];
 export const LANCER_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
   (state) => !["attack", "ride", ...IMP_ONLY, ...OGRE_ONLY].includes(state),
 );
-/** The lancer captain's: a lancer's, riding his drake (`ride`), and staggering from a blow his armour takes. */
+/**
+ * The lancer captain's: a lancer's, riding his drake (`ride`), and staggering from a blow his armour takes. As an
+ * ogre's, his armour never lets him reel, and nobody holds or throws him (`hurt`, `held` and `thrown` are a lancer's).
+ */
 export const CAPTAIN_STATES: readonly EnemyState[] = [
-  ...LANCER_STATES,
+  ...LANCER_STATES.filter(
+    (state) => !["hurt", "held", "thrown"].includes(state),
+  ),
   "ride",
   "stagger",
 ];
