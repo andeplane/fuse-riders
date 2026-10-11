@@ -83,13 +83,13 @@ test("Brakka and Rhea paint the same pixels whatever the shared kit gains", () =
       BRAKKA,
       BRAKKA_PORTRAIT,
       "Brakka",
-      "d5aa2a86712a9dddf3be9ca849179fc8786bfc36ddcd9275363110985c08485c",
+      "13adc2440bb0a14c3f86952d201aead2cd2a07380db6d8e1e91159681cf011a6",
     ],
     [
       RHEA,
       RHEA_PORTRAIT,
       "Rhea",
-      "2f5d857e0e2737a2292874d1bd20405fa071bab7f86544b2e2ac8a42b69e1edd",
+      "1c1f4a00f64bb228aa0186104628c779a21d1e8288937bfb47ff6c9670066d5f",
     ],
   ] as const;
   for (const [figure, portrait, name, hash] of pinned) {

@@ -145,6 +145,7 @@ test("idle breathes slowly, a jump rises then falls, and the rest hold one frame
   }
   const held = [
     ...["land", "hurt", "knockdown", "down", "getup", "dead"],
+    ...["charge", "cast"],
   ] as const;
   assert.deepEqual(
     held.map((anim) => [frame(anim, 0), frame(anim, 99)]),
@@ -155,6 +156,8 @@ test("idle breathes slowly, a jump rises then falls, and the rest hold one frame
       ["down", "down"],
       ["getup", "getup"],
       ["down", "down"],
+      ["charge", "charge"],
+      ["cast", "cast"],
     ],
   );
 });

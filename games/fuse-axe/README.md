@@ -126,7 +126,8 @@ Over it all the HUD (`src/render/hud.ts`) is a strip along the top with a panel 
 in the palette it wears on the field, framed in its seat's colour; the player's name in a 3 × 5 pixel font
 (`font.ts`: capitals, digits and a few marks; accents dropped, anything else left out, cut to fit); its lives as ×N;
 a segmented health bar whose lost part trails white for a moment and then drains; and a row of its kind's most magic
-pots, the ones it holds full (`pots` and `maxPots` in the view). A hero out of lives is greyed (from the moment
+pots, the ones it holds full (`pots` and `maxPots` in the view), which double as the charge meter: while a hero holds
+Magic the pots up to the level chosen (`charge`) glow white-hot cyan, the newest blinking. A hero out of lives is greyed (from the moment
 it lands on its last life), one that cannot be hit blinks with its sprite, an empty seat blinks JOIN (not in a solo
 game) or names a player who joins with the next run (by its tag when the font cannot write the name), and this
 device's seat is underlined. Names are not in the world: the app passes the room's, by seat, as the scene's
@@ -134,3 +135,14 @@ device's seat is underlined. Names are not in the world: the app passes the room
 words for screen readers (`partyLabel`), since the pixel font cuts names to eight capitals.
 
 ![The HUD over a three-hero fight](docs/images/hud.png)
+
+### Spells
+
+`src/render/spells/` (a module a kind) draws the view's `spells`, timed by `age` against `SPELL_STEPS`: a dithered
+dusk while the enemies stand frozen, then a flash and a moment's shake of the field (never the HUD or the simulation)
+at the blow. Storm strikes every enemy on screen with lightning and the floor about them with 1–8 more bolts by level,
+from a thunderhead at level 4; fire rolls a wall out to both edges, taller and longer each level, flaring at the blow,
+with a firebird at level 6; earth drops a boulder on every enemy and 2–7 more about them, splitting the floor at level 3. A charging or casting hero glows in its spell's colour and has poses of its own. Every picture is baked once, and
+all of it is a pure function of the view and the frame, so rollback never flickers.
+
+![Storm, fire and earth: gathering and at the blow at their top level, and at the blow at level 1](docs/images/spells.png)
