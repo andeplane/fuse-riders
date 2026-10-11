@@ -213,11 +213,20 @@ test("a seated member picks its hero outside a run; the run plays the picks it s
   assert.equal(room.seats.get("a")!.avatarId, "gorm");
 });
 
-/** Takes a run on the way play does: its stage cleared, to the tally (`between`), and past it to a won run (`over`). */
+/**
+ * Takes a run on the way play does: its stage cleared, to the tally (`between`), and past it and every later stage to
+ * a won run (`over`).
+ */
 function reach(room: Room, stage: "between" | "over"): Room {
   room.world = cleared(room.world!);
   fold(room);
-  if (stage === "over") run(room, CLEAR_TICKS);
+  while (stage === "over" && room.stage !== "over") {
+    if (room.stage === "running") {
+      room.world = cleared(room.world!);
+      fold(room);
+    }
+    run(room, CLEAR_TICKS);
+  }
   assert.equal(room.stage, stage);
   return room;
 }

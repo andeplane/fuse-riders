@@ -57,6 +57,7 @@ const world = (extra: Partial<WorldView> = {}): WorldView => ({
   fx: [],
   items: [],
   spells: [],
+  stage: 1,
   wave: 0,
   waves: 5,
   locked: false,

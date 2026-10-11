@@ -6,6 +6,8 @@ import {
   EXTRA_DELAY,
   FLOOR_BOTTOM,
   FLOOR_TOP,
+  STAGE_LENGTH,
+  VIEW_W,
   px,
   type FoeKind,
   type Tier,
@@ -39,6 +41,9 @@ export interface Wave {
 
 export interface StagePlan {
   readonly name: string;
+  /** The road's length in sub-units, and the furthest the camera's left edge goes: with the end at the screen's right. */
+  readonly length: number;
+  readonly cameraEnd: number;
   /** Strictly along the road, each with a spawn; the last at the camera's end. */
   readonly waves: readonly Wave[];
   /** The sack imps, in order along the road: between waves, or alongside one at its trigger. */
@@ -86,6 +91,8 @@ const ogre = (tier: Tier, side: Side, y: number): Spawn => ({
 /** Ashen Village: four waves building in size and tier, then the Ogre twins at the village gate. */
 export const STAGE_1: StagePlan = {
   name: "Ashen Village",
+  length: STAGE_LENGTH,
+  cameraEnd: CAMERA_END,
   waves: [
     {
       at: px(192),
@@ -136,6 +143,82 @@ export const STAGE_1: StagePlan = {
     imp(872, "right", 150, 3),
   ],
 };
+
+const ROAD_2 = px(5 * VIEW_W);
+/**
+ * Wyrmbone Pass, as gameplay to fight through until its art, mounts and boss come: a screen longer than the village,
+ * five waves of ravagers mostly in rust and violet, and at the pass's end a pair of violet ravagers in place of the
+ * lancer captain on his ember drake, with rust ones for a bigger party.
+ */
+export const STAGE_2: StagePlan = {
+  name: "Wyrmbone Pass",
+  length: ROAD_2,
+  cameraEnd: ROAD_2 - px(VIEW_W),
+  waves: [
+    {
+      at: px(192),
+      spawns: [
+        ravager(RUST, "right", 132, 0),
+        ravager(ASH, "right", 156, 30),
+        ravager(ASH, "left", 120, 60),
+      ],
+    },
+    {
+      at: px(448),
+      spawns: [
+        ravager(RUST, "right", 120, 0),
+        ravager(RUST, "left", 150, 20),
+        ravager(ASH, "right", 164, 60),
+        ravager(ASH, "left", 128, 90),
+      ],
+    },
+    {
+      at: px(704),
+      spawns: [
+        ravager(VIOLET, "right", 136, 0),
+        ravager(RUST, "left", 116, 30),
+        ravager(RUST, "right", 160, 60),
+        ravager(ASH, "left", 148, 90),
+      ],
+    },
+    {
+      at: px(928),
+      spawns: [
+        ravager(RUST, "right", 120, 0),
+        ravager(RUST, "left", 140, 0),
+        ravager(VIOLET, "right", 152, 40),
+        ravager(RUST, "left", 112, 70),
+        ravager(ASH, "right", 168, 100),
+      ],
+    },
+    {
+      at: px(1120),
+      spawns: [
+        ravager(VIOLET, "right", 128, 0),
+        ravager(VIOLET, "left", 150, 30),
+        ravager(RUST, "right", 116, 60),
+        ravager(RUST, "left", 164, 90),
+        ravager(RUST, "right", 140, 120),
+      ],
+    },
+    {
+      at: ROAD_2 - px(VIEW_W),
+      spawns: [
+        ravager(VIOLET, "left", 132, 0),
+        ravager(VIOLET, "right", 148, 0),
+      ],
+      extras: [ravager(RUST, "left", 116, 60), ravager(RUST, "right", 164, 60)],
+    },
+  ],
+  // One runs at the party between waves 2 and 3, and a fuller sack darts in behind wave 5's fight.
+  imps: [imp(576, "right", 136, 2), imp(1120, "left", 124, 3)],
+};
+
+/** The run's stages in order: a world's plan is `STAGES[world.stage - 1]`. */
+export const STAGES: readonly StagePlan[] = [STAGE_1, STAGE_2];
+/** The plan of the stage a world is on (`createWorld` and the codec keep its stage one of `STAGES`). */
+export const planOf = (world: { readonly stage: number }): StagePlan =>
+  STAGES[world.stage - 1]!;
 
 /** A spawn as it enters: how far inside its edge it walks to. */
 export interface Placed extends Spawn {

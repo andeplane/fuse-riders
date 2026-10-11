@@ -174,8 +174,9 @@ test("a hero is picked in the lobby; held controls are logged when the run begin
 
 /**
  * `host` (Rhea) and `late` (Brakka) seated and run `m1` started by the pure fold and taken on to `stage` the way play
- * does (a cleared stage shows its tally, then wins the run; every hero out starts the continue countdown), then
- * restored from its checkpoint (with `late` logged absent when `present` is false).
+ * does (a cleared stage shows its tally, then the next stage begins, and the last one cleared wins the run; every
+ * hero out starts the continue countdown), then restored from its checkpoint (with `late` logged absent when
+ * `present` is false).
  */
 function roomIn(stage: Stage | "countdown", present = true): Room {
   const room = createRoom("m0", DEFAULT_SETTINGS);
@@ -197,7 +198,13 @@ function roomIn(stage: Stage | "countdown", present = true): Room {
   if (stage === "between" || stage === "over")
     room.world = cleared(room.world!);
   fold();
-  for (let tick = 0; stage === "over" && tick < CLEAR_TICKS; tick++) fold();
+  while (stage === "over" && room.stage !== "over") {
+    if (room.stage === "running") {
+      room.world = cleared(room.world!);
+      fold();
+    }
+    for (let tick = 0; tick < CLEAR_TICKS; tick++) fold();
+  }
   const fields = structuredClone(encode(room));
   for (const seat of fields[4] as { id: string; connected: boolean }[])
     if (seat.id === "late") seat.connected = present;

@@ -106,7 +106,7 @@ Enemies ride beasts in later stages. Knock a rider off and anyone can climb on:
 A mounted hero who takes a hard hit is thrown off and the beast wanders until someone else takes it.
 
 A **sack imp** (`src/engine/imps.ts`) is sent by a cue in the stage's script (`STAGE_1.imps` in `stages.ts`: one
-after wave 2, one alongside wave 3, one after wave 4, a single imp whatever the party's size). It scurries in from a
+after wave 2, one alongside wave 3, one after wave 4; Wyrmbone Pass has two; a single imp whatever the party's size). It scurries in from a
 screen edge and across the floor, zig-zagging in depth, never attacks and holds no wave's screen. Every blow that
 lands on it kicks one pot out of its sack (2–3 per imp); it stumbles (a blow that knocks down sends it flying), then
 flees away from the blow faster than any hero walks. Empty, it cannot be kicked; it leaves once off screen. A pot pops
@@ -133,7 +133,9 @@ boss bar across the top shows the twins' health together.
 
 1. **Ashen Village** — a dusk road through burning thatched huts. Ravagers and lancers; boss: the Ogre twins.
 2. **Wyrmbone Pass** — a mountain path through the ribs of a dead giant wyrm. Mounts appear; boss: a lancer captain
-   on an ember drake.
+   on an ember drake. Playable as gameplay for now (`STAGE_2`): five screens of road, five ravager waves mostly in
+   rust and violet with two imps, and a pair of violet ravagers at the end in place of the captain until mounts come;
+   it draws on Stage 1's backdrop until it has its own.
 3. **Drowned Crypt** — a flooded graveyard under a broken cathedral; bonewalkers rise from the ground.
 4. **Vorhal's Keep** — torch-lit halls to the throne room and Vorhal.
 
@@ -146,7 +148,8 @@ drops pots and meat (meat heals). Then the next stage.
   behind: the leftmost hero holds the left edge, the screen edge holds everyone in.
 - **Waves.** Trigger points along the strip spawn a wave and lock the screen until it is cleared; then a flashing
   **GO →** sends the party on. The last trigger is the stage boss. Enemies walk in from beyond the screen's edges,
-  and one knocked out of a locked screen walks back in. Stage 1's waves are data in `src/engine/stages.ts`.
+  and one knocked out of a locked screen walks back in. Each stage is data in `src/engine/stages.ts` (`STAGES`: its
+  road's length, waves and imp cues), and a world plays the one its `stage` names (`planOf`).
 - **Scaling.** Wave size and enemy HP grow with the number of heroes: each hero beyond the first adds a spawn to
   every wave and a quarter to every enemy's hit points (`waveSpawns` and `enemyMaxHp`).
 - **Life.** Each hero has a health bar and three lives. A hero who loses a life drops back in from the top after a
@@ -161,7 +164,7 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
 - **Stage clear.** The tick the last wave is cleared (`stageCleared`), the room banks each hero's tallies from the
   world into the run's (`Room.tally`, so they outlive the stage's world), lets go of every held control and goes
   `between` for `CLEAR_TICKS` (6 s), showing the stage's tally over the frozen scene. A stage cleared as the last hero
-  falls is still won. Past the last stage (`LAST_STAGE`, 1 until stage 2 is built) the run ends `over` as a victory.
+  falls is still won. Past the last stage (`LAST_STAGE`, 2) the run ends `over` as a victory.
 - **Continue.** When every hero is out (`defeated`), the world keeps running and a countdown of `CONTINUE_TICKS`
   (10 s) starts. A present human seated at a hero of the run votes by pressing Attack (or the CONTINUE button): a
   `CONTINUE` entry for the run and stage (`[seq, tick, 2, matchId, round]`). The first one folded in the countdown
@@ -174,15 +177,20 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
   picks apply again, and the host's REMATCH sets out on a fresh run (stage 1, nothing tallied) or LOBBY goes back.
   The page shows each as a card over the game (`src/app/presenter.ts`, `card`): [the countdown](images/app-continue.png)
   and [game over](images/app-game-over.png), from `preview/flow.mjs`.
-- **The next stage** (once there is one) slots in where the tally ends (`nextStage`): a world seeded
-  `seedOf("matchId:round+1")` as `beginStage` makes every stage's, with each hero whose seat is still here. Policy:
-  lives carry over (a hero who went out comes back with one), and so do magic pots, as in the original (the new
-  world takes each hero's pots from the cleared one); health is full, the continue is fresh, and the tallies stay
-  banked in the room; camp sits between the tally and the next stage.
+- **The next stage** begins where a tally short of the last stage ends (`nextStage`): the next stage's world,
+  seeded `seedOf("matchId:round+1")` as `beginStage` makes every stage's, with each hero whose seat is still here
+  (its slot held by a member playing its hero: camp gives up a seat that leaves, so a bot taken off does not carry it
+  on, nor does a newcomer in that slot playing another hero; the hero belongs to its slot, so one playing the same
+  hero carries it on as the member who left would). Policy (`carryOf`): lives carry over (a hero who went out comes back with one),
+  and so do magic pots, as in the original; health is full, the continue is fresh, and the tallies stay banked in
+  the room, a hero that left keeping its row. With none of the run's heroes left the room is an empty lobby again.
+  Camp will sit between the tally and the next stage.
 
 The checkpoint carries the clock (`until`), the spent continue, the outcome and the banked tallies, and refuses any
-combination the fold cannot reach (a clock in play with heroes standing, a win short of the last stage, tallies that
-are not the world's heroes).
+combination the fold cannot reach (a clock in play with heroes standing, a win short of the last stage, a world of
+another stage than the round or with no hero, tallies that are not the world's heroes: in a later stage, a row for
+each of them in seat order, and once it has ended at least its own: what earlier stages banked for a hero is not in
+the checkpoint to check against, so a later row is bounded below by its own stage only).
 
 ## Screen and art
 
@@ -197,7 +205,10 @@ are not the world's heroes).
 - Parallax backgrounds (`src/render/backdrop/`, one module per stage): static layers are painted once and blitted at
   whole-pixel offsets, and only fires and torches draw per frame. Stage 1 has the sky, a ridge with Vorhal's keep (1/8
   speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in front; it ends at the
-  village gate ([screenshot](images/stage1-backdrop.png)).
+  village gate ([screenshot](images/stage1-backdrop.png)). The scene picks the backdrop by the view's `stage`; a stage
+  without art of its own draws Stage 1's, its camera scaled from the stage's road (`cameraEndPx(stage)` in
+  `view-kit.ts`) onto the village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery; on Wyrmbone
+  Pass's longer road that scrolls every layer at 3/4 of its speed, the floor-speed ones too, until it has its own art.
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
   and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives
   ([screenshot](images/hud.png)); the pots light up to the level chosen while a hero charges magic.

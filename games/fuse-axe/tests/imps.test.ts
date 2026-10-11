@@ -5,6 +5,7 @@ import {
   JUMP,
   RIGHT,
   STAGE_1,
+  STAGES,
   createWorld,
   decodeWorld,
   encodeWorld,
@@ -320,11 +321,14 @@ test("Stage 1 sends one imp after wave 2, one with wave 3 and one after wave 4, 
   assert.equal(imps(run(world, 30)).length, 1, "and only one");
 });
 
-test("every cue's imp is seen: sent on a legal sack and depth, it comes whole onto the screen, however the camera moves", () => {
-  const { imps: cues, waves } = STAGE_1;
-  cues.forEach((cue, index) => {
-    const what = `cue ${index + 1}`;
-    assert.ok(cue.at <= T.CAMERA_END, `${what} is within the camera's reach`);
+test("every stage's cue's imp is seen: sent on a legal sack and depth, it comes whole onto the screen, however the camera moves", () => {
+  const cued = STAGES.flatMap((plan, at) =>
+    plan.imps.map((cue, index) => ({ cue, index, plan, stage: at + 1 })),
+  );
+  cued.forEach(({ cue, index, plan, stage }) => {
+    const { imps: cues, waves } = plan,
+      what = `stage ${stage} cue ${index + 1}`;
+    assert.ok(cue.at <= plan.cameraEnd, `${what} within the camera's reach`);
     assert.ok(index === 0 || cue.at > cues[index - 1]!.at, `${what} in order`);
     assert.ok(cue.pots >= 1 && cue.pots <= T.IMP_POTS, `${what} sack`);
     assert.ok(cue.y >= T.FLOOR_TOP && cue.y <= T.FLOOR_BOTTOM, `${what} depth`);
@@ -334,7 +338,7 @@ test("every cue's imp is seen: sent on a legal sack and depth, it comes whole on
       lone = solo();
     const world: World = {
       ...lone,
-      ...{ camX, wave, impsSent: index },
+      ...{ camX, wave, impsSent: index, stage },
       spawned: wave ? waveSpawns(waves[wave - 1]!, 1).length : 0,
       heroes: lone.heroes.map((h) => ({
         ...h,

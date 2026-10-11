@@ -1,5 +1,5 @@
 import { clamp } from "./math.js";
-import { STAGE_1, type Side } from "./stages.js";
+import { planOf, type Side } from "./stages.js";
 import * as T from "./tuning.js";
 import {
   inView,
@@ -15,12 +15,12 @@ import {
 
 /**
  * Sack imps and the magic pots they drop. An imp is no fighter: it never attacks, holds no wave's screen and thinks
- * nothing (`ai.ts` never runs it). Sent by Stage 1's cues (`STAGE_1.imps`) as the camera reaches them, it appears
- * just outside the screen's edge and scurries across the floor, zig-zagging in depth. Every hero blow that lands on
- * it (and a thrown body) kicks one pot out of its sack onto the floor: it stumbles, or from a blow that knocks down
- * it flies, lies and gets up, then flees away from the blow, faster. Stumbling, flying, lying, getting up or with an
- * empty sack it cannot be kicked; it leaves the world once it is more than `ENTER_OUT` outside the screen. A kick
- * counts for nothing in a hero's tallies.
+ * nothing (`ai.ts` never runs it). Sent by the stage's cues (`planOf(world).imps`) as the camera reaches them, it
+ * appears just outside the screen's edge and scurries across the floor, zig-zagging in depth. Every hero blow that
+ * lands on it (and a thrown body) kicks one pot out of its sack onto the floor: it stumbles, or from a blow that
+ * knocks down it flies, lies and gets up, then flees away from the blow, faster. Stumbling, flying, lying, getting up
+ * or with an empty sack it cannot be kicked; it leaves the world once it is more than `ENTER_OUT` outside the screen.
+ * A kick counts for nothing in a hero's tallies.
  *
  * A pot pops out of the sack and lands, then lies `ITEM_LIFE` steps, blinking at the end. A hero on its feet on the
  * floor, not reeling, knocked down, lying or getting up, picks up a landed pot it walks over while it holds fewer
@@ -40,7 +40,7 @@ function drop(world: World, x: number, y: number): void {
   world.items.push({
     id: world.nextId++,
     kind: "pot",
-    x: clamp(x, 0, T.STAGE_LENGTH),
+    x: clamp(x, 0, planOf(world).length),
     y,
     z: T.POT_LIFT,
     vz: T.POT_POP,
@@ -139,10 +139,11 @@ export function sendImp(
 
 /** Every cue the camera has reached sends its imp, in order; the next waits while the world holds `ENEMY_MAX`. */
 export function advanceImps(world: World): void {
+  const { imps } = planOf(world);
   for (
-    let cue = STAGE_1.imps[world.impsSent];
+    let cue = imps[world.impsSent];
     cue && cue.at <= world.camX && world.enemies.length < T.ENEMY_MAX;
-    cue = STAGE_1.imps[++world.impsSent]
+    cue = imps[++world.impsSent]
   )
     enter(world, cue.side, cue.y, cue.pots);
 }
