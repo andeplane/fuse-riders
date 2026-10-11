@@ -1,7 +1,6 @@
 import { INPUT_MASK, LEFT, RIGHT } from "./input.js";
 import {
   BUFFER_STEPS,
-  CAMERA_END,
   CAPACITY,
   ENEMY_KINDS,
   ENEMY_MAX,
@@ -30,14 +29,13 @@ import {
   RUN_GAP,
   RUN_TAP,
   SPELLS,
-  STAGE_LENGTH,
   TIERS,
   VIEW_H,
   VIEW_W,
   enemyMaxHp,
   px,
 } from "./tuning.js";
-import { STAGE_1, waveSpawns } from "./stages.js";
+import { STAGES, planOf, waveSpawns, type StagePlan } from "./stages.js";
 import {
   ENEMY_STATES,
   FX_KINDS,
@@ -124,10 +122,15 @@ const ascending = <T>(items: readonly T[], key: (item: T) => number) =>
   );
 
 // Bounds with room to spare around what the rules keep: a checkpoint is refused for nonsense, not for a hero a
-// later rule moves a little further than this one does.
+// later rule moves a little further than this one does. Along the road the fields allow the longest stage's, and the
+// world holds them to its own stage's (`onRoad`).
+const most = (of: (plan: StagePlan) => number) => Math.max(...STAGES.map(of));
+const LENGTH = most((plan) => plan.length),
+  /** How far outside the road a figure stands: one walking in from beyond its end, or knocked off its start. */
+  BEYOND = px(VIEW_W);
 const ID = int(1, UINT32),
   COUNT = int(0, UINT32),
-  X = int(-px(VIEW_W), STAGE_LENGTH + px(VIEW_W)),
+  X = int(-BEYOND, LENGTH + BEYOND),
   Y = int(0, px(VIEW_H)),
   Z = int(0, px(VIEW_H)),
   SPEED = int(-px(16), px(16)),
@@ -135,7 +138,7 @@ const ID = int(1, UINT32),
   BUFFER = int(0, BUFFER_STEPS),
   // Where an enemy walks to: `walkTo` and `walkIn` keep a goal on the road and in the floor band, and one past either
   // is a walk that never ends.
-  GOAL_X = int(0, STAGE_LENGTH),
+  GOAL_X = int(0, LENGTH),
   GOAL_Y = int(FLOOR_TOP, FLOOR_BOTTOM);
 
 /** The most pots any hero holds, and the highest level a spell has. */
@@ -311,8 +314,9 @@ function spellsKept(value: World): boolean {
  * an unlocked one has all its spawns in. No GO runs longer than one starting now.
  */
 function wavesKept(value: World): boolean {
-  const latest = STAGE_1.waves[value.wave - 1],
-    next = STAGE_1.waves[value.wave];
+  const { waves } = planOf(value),
+    latest = waves[value.wave - 1],
+    next = waves[value.wave];
   if (value.goUntil > value.step + GO_STEPS) return false;
   if (!latest)
     return (
@@ -353,14 +357,32 @@ function holdsKept(value: World): boolean {
 }
 
 /**
+ * Everything along the road is within the world's own stage: the camera short of its end, no more waves begun or imps
+ * sent than it has, every figure and spark no further outside the road than `BEYOND`, and every goal and item on it.
+ */
+function onRoad(value: World): boolean {
+  const { length, cameraEnd, waves, imps } = planOf(value),
+    x = (each: { x: number }) => each.x <= length + BEYOND;
+  return (
+    value.camX <= cameraEnd &&
+    value.wave <= waves.length &&
+    value.impsSent <= imps.length &&
+    value.heroes.every(x) &&
+    value.enemies.every((each) => x(each) && each.goal <= length) &&
+    value.fx.every(x) &&
+    value.items.every((each) => each.x <= length)
+  );
+}
+
+/**
  * Heroes in id order, which is seat order, and enemies in id order, every id below `nextId` and none both a hero's
  * and an enemy's; the ids a swing has hit are enemy ids too, though the enemy may since be gone, and an enemy goes
  * for a hero in the world or nobody. No enemy has more hit points than its tier's for this party, no hit-stop,
  * invulnerability, run of hits, double tap or idle pause runs past the longest one starting now, the sparks run
  * oldest first, each born no later than now and not yet past its life, the items run in id order, each id issued and
  * no hero's or enemy's, each born no later than now and not yet past its life, no imp is sent before the camera
- * reached its cue, and the sacks, the waves, the grabs and the spells are as `sackKept`, `wavesKept`, `holdsKept`
- * and `spellsKept` say.
+ * reached its cue, and the road, the sacks, the waves, the grabs and the spells are as `onRoad`, `sackKept`,
+ * `wavesKept`, `holdsKept` and `spellsKept` say.
  */
 const world = record<World>(
   {
@@ -368,20 +390,31 @@ const world = record<World>(
     step: COUNT,
     rng: COUNT,
     nextId: ID,
-    camX: int(0, CAMERA_END),
+    camX: int(
+      0,
+      most((plan) => plan.cameraEnd),
+    ),
     heroes: list(hero, CAPACITY),
     enemies: list(enemy, ENEMY_MAX),
     fx: list(fx, FX_MAX),
-    wave: int(0, STAGE_1.waves.length),
+    wave: int(
+      0,
+      most((plan) => plan.waves.length),
+    ),
     locked: oneOf([false, true]),
     waveStep: COUNT,
     spawned: COUNT,
     goUntil: COUNT,
     items: list(item, ITEM_MAX),
-    impsSent: int(0, STAGE_1.imps.length),
+    impsSent: int(
+      0,
+      most((plan) => plan.imps.length),
+    ),
     spells: list(spell, CAPACITY),
+    stage: int(1, STAGES.length),
   },
   (value) => {
+    if (!onRoad(value)) return false;
     const heroIds = new Set(value.heroes.map((each) => each.id)),
       enemyIds = new Set(value.enemies.map((each) => each.id)),
       issued = (id: number) => id < value.nextId,
@@ -428,7 +461,7 @@ const world = record<World>(
           value.step - each.born < ITEM_LIFE,
       ) &&
       (value.impsSent === 0 ||
-        STAGE_1.imps[value.impsSent - 1]!.at <= value.camX) &&
+        planOf(value).imps[value.impsSent - 1]!.at <= value.camX) &&
       wavesKept(value) &&
       holdsKept(value) &&
       spellsKept(value)

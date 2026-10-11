@@ -1,6 +1,7 @@
 import { clamp } from "./math.js";
 import { isImp } from "./imps.js";
 import { roll } from "./rng.js";
+import { planOf } from "./stages.js";
 import * as T from "./tuning.js";
 import {
   distance,
@@ -123,7 +124,7 @@ export function walkTo(world: World, enemy: Enemy, x: number, y: number) {
   enemy.goal = clamp(
     x,
     Math.max(world.camX + half, 0),
-    Math.min(world.camX + T.VIEW_W * T.SUB - half, T.STAGE_LENGTH),
+    Math.min(world.camX + T.VIEW_W * T.SUB - half, planOf(world).length),
   );
   enemy.goalY = clamp(y, T.FLOOR_TOP, T.FLOOR_BOTTOM);
   setState(enemy, "walk");

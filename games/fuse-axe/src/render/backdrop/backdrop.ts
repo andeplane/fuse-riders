@@ -32,9 +32,14 @@ export interface Backdrop<S> {
   drawFront(pen: Pen<S>, camX: number): void;
 }
 
+/** The stages with art of their own, so far Ashen Village's. */
 export type StageNumber = 1;
 
 const STAGES: Record<StageNumber, StageArt> = { 1: ASHEN_VILLAGE };
+
+/** Whether `stage` has a backdrop of its own; one that has none is drawn on Stage 1's (`createScene`). */
+export const hasBackdrop = (stage: number): stage is StageNumber =>
+  Object.hasOwn(STAGES, stage);
 
 interface Baked<S> {
   surface: S;
@@ -88,7 +93,7 @@ export function createBackdrop<S>(
   make: MakeSurface<S>,
   stage: StageNumber,
 ): Backdrop<S> {
-  if (!Object.hasOwn(STAGES, stage))
+  if (!hasBackdrop(stage))
     throw new RangeError(`no backdrop for stage ${String(stage)}`);
   const art = STAGES[stage];
   const back = art.back.map((layer) => bake(make, layer));

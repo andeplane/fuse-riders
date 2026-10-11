@@ -35,7 +35,11 @@ export const HEROES: Readonly<
 };
 export const tag = (slot: number): string => `P${slot + 1}`;
 /** The stages by number, as the cards name them. */
-export const STAGE_NAMES: readonly string[] = ["", "ASHEN VILLAGE"];
+export const STAGE_NAMES: readonly string[] = [
+  "",
+  "ASHEN VILLAGE",
+  "WYRMBONE PASS",
+];
 /** Log ticks a second: the clocks count in log ticks and show whole seconds. */
 const TICKS_PER_SECOND = 1000 / TICK_MS;
 

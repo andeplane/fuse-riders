@@ -17,6 +17,7 @@ import type {
   WorldView,
 } from "../src/engine/view.js";
 import {
+  CAMERA_END_PX,
   DEAD_STEPS,
   ENEMY_KINDS,
   ENEMY_STATES,
@@ -25,6 +26,7 @@ import {
   FX_LIFE,
   VIEW_H,
   VIEW_W,
+  cameraEndPx,
 } from "../src/engine/view-kit.js";
 import {
   enemyFrame,
@@ -55,6 +57,7 @@ import {
   heroLooks,
   ITEM_SHADE,
   MARKER,
+  scenery,
   shadowRadius,
   SHADOW_RX,
 } from "../src/render/scene.js";
@@ -152,7 +155,7 @@ const enemy = (
 });
 const world = (more: Partial<WorldView>): WorldView => ({
   ...{ step: 0, camX: 0, heroes: [], enemies: [], fx: [], items: [] },
-  spells: [],
+  ...{ spells: [], stage: 1 },
   ...{ wave: 0, waves: 5, locked: false, go: false, cleared: false },
   ...{ defeated: false, boss: null },
   ...more,
@@ -746,4 +749,22 @@ test("the backdrop painted through a plain surface matches its pixel buffers exa
       ["#010203", 2, 1, 1],
     ],
   );
+});
+
+test("a stage without art of its own draws Stage 1's backdrop across its own road, and no stage throws", () => {
+  const layers = (view: WorldView) =>
+    draw(view).pen.blits.filter((b) => b.image.w >= VIEW_W);
+  for (const stage of [2, 3, 0, -1, 1.5, Number.NaN])
+    assert.doesNotThrow(() => draw(world({ stage, camX: 100 })), `${stage}`);
+  // Wyrmbone Pass's road runs from the village's start to its gate.
+  const end = cameraEndPx(2);
+  assert.ok(end > CAMERA_END_PX);
+  assert.deepEqual(layers(world({ stage: 2 })), layers(world({ stage: 1 })));
+  assert.deepEqual(
+    layers(world({ stage: 2, camX: end })),
+    layers(world({ stage: 1, camX: CAMERA_END_PX })),
+  );
+  assert.deepEqual(scenery(1, 500), { art: 1, camX: 500 });
+  assert.deepEqual(scenery(2, end / 2), { art: 1, camX: CAMERA_END_PX / 2 });
+  assert.deepEqual(scenery(9, 500), { art: 1, camX: 500 }, "an unknown one");
 });

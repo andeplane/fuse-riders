@@ -19,7 +19,7 @@ import {
   spellbound,
 } from "./magic.js";
 import * as T from "./tuning.js";
-import { STAGE_1, waveSpawns, type Placed, type Side } from "./stages.js";
+import { planOf, waveSpawns, type Placed, type Side } from "./stages.js";
 import { act, rest, thinks } from "./ai.js";
 import { brace, breaks, enrage, isOgre, ogreAct } from "./ogre.js";
 import {
@@ -509,7 +509,8 @@ function moveEnemy(world: World, enemy: Enemy): void {
       T.RETURN_INSET,
     );
   if (thinks(enemy)) (isOgre(enemy) ? ogreAct : act)(world, enemy);
-  if (enemy.state !== "enter") enemy.x = clamp(enemy.x, 0, T.STAGE_LENGTH);
+  if (enemy.state !== "enter")
+    enemy.x = clamp(enemy.x, 0, planOf(world).length);
   enemy.y = clamp(enemy.y, T.FLOOR_TOP, T.FLOOR_BOTTOM);
 }
 
@@ -527,11 +528,12 @@ function advanceCamera(world: World): void {
     if (hero.x > leader) leader = hero.x;
     if (hero.x < leftmost) leftmost = hero.x;
   }
-  const hold = STAGE_1.waves[world.locked ? world.wave - 1 : world.wave];
+  const { waves, cameraEnd } = planOf(world);
+  const hold = waves[world.locked ? world.wave - 1 : world.wave];
   const target = Math.min(
     leader - T.CAMERA_LEAD,
     leftmost - T.HERO_MARGIN,
-    hold?.at ?? T.CAMERA_END,
+    hold?.at ?? cameraEnd,
     world.camX + T.CAMERA_SPEED,
   );
   if (target > world.camX) world.camX = target;
@@ -554,7 +556,7 @@ function enter(world: World, spawn: Placed): void {
  * sack imps, which leave on their own, the screen unlocks: GO shows, or after the last wave the stage is cleared.
  */
 function advanceWaves(world: World): void {
-  const waves = STAGE_1.waves;
+  const { waves } = planOf(world);
   if (!world.locked) {
     if (world.wave >= waves.length || world.camX < waves[world.wave]!.at)
       return;

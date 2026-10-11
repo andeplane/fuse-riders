@@ -8,14 +8,26 @@ import type {
   Tier,
   WorldView,
 } from "../engine/view.js";
-import { DEAD_STEPS, QUAKE, VIEW_H, VIEW_W } from "../engine/view-kit.js";
+import {
+  CAMERA_END_PX,
+  DEAD_STEPS,
+  QUAKE,
+  VIEW_H,
+  VIEW_W,
+  cameraEndPx,
+} from "../engine/view-kit.js";
 import { enemyFrame, heroFrame } from "./art/animate.js";
 import { IMP } from "./art/imp.js";
 import { HEROES } from "./art/index.js";
 import { OGRE_SCALE, OGRE_TIERS } from "./art/ogre.js";
 import { POT } from "./art/pot.js";
 import { RAVAGER, RAVAGER_TIERS } from "./art/ravager.js";
-import { createBackdrop, type StageNumber } from "./backdrop/backdrop.js";
+import {
+  createBackdrop,
+  hasBackdrop,
+  type Backdrop,
+  type StageNumber,
+} from "./backdrop/backdrop.js";
 import { bayer } from "./backdrop/kit.js";
 import { blinksOn, createHud, type HudSeats } from "./hud.js";
 import { blit, blitScaled, fill, type Pen } from "./pen.js";
@@ -30,7 +42,8 @@ import { shifted } from "./spells/kit.js";
 import type { MakeSurface } from "./surface.js";
 
 /**
- * The game's picture: one native 320 × 180 frame of the engine's view, drawn in layers — the backdrop; every
+ * The game's picture: one native 320 × 180 frame of the engine's view, drawn in layers — the stage's backdrop (one
+ * without art of its own draws Stage 1's, scrolled across the stage's longer or shorter road: `scenery`); every
  * figure's shadow on the floor; heroes, enemies and items on the floor by depth (further up the floor first, then
  * lower before higher, then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when
  * defeated, a hero blinking while it is invulnerable and an item before it vanishes; the hit sparks; the grass in
@@ -200,11 +213,28 @@ interface Standing {
   readonly scale?: number;
 }
 
-export function createScene<Image>(
-  make: MakeSurface<Image>,
-  stage: StageNumber = 1,
-): Scene<Image> {
-  const backdrop = createBackdrop(make, stage);
+/**
+ * The backdrop a stage draws on, and where its camera stands: the stage's own art at the camera, or for a stage with
+ * none Stage 1's, its camera scaled from the stage's road onto the village's so the scenery runs out at the same end.
+ */
+export function scenery(
+  stage: number,
+  camX: number,
+): { art: StageNumber; camX: number } {
+  if (hasBackdrop(stage)) return { art: stage, camX };
+  return { art: 1, camX: (camX * CAMERA_END_PX) / cameraEndPx(stage) };
+}
+
+export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
+  // Stage 1's is baked at once; another stage's the first time it is drawn.
+  const backdrops = new Map<StageNumber, Backdrop<Image>>([
+    [1, createBackdrop(make, 1)],
+  ]);
+  const backdropOf = (art: StageNumber) => {
+    const known = backdrops.get(art) ?? createBackdrop(make, art);
+    backdrops.set(art, known);
+    return known;
+  };
   const baker = createSpriteBaker(make);
   const shadows = new Map<number, { image: Image; w: number; h: number }>();
   const crowns = new Map<Figure, number>();
@@ -247,7 +277,9 @@ export function createScene<Image>(
         pen.fillStyle = UNLIT.k!;
         fill(pen, 0, 0, VIEW_W, VIEW_H);
       }
-      backdrop.draw(field, camX, frame);
+      const back = scenery(view.stage, camX),
+        backdrop = backdropOf(back.art);
+      backdrop.draw(field, back.camX, frame);
       const at = (f: HeroView | EnemyView | ItemView) => ({
         id: f.id,
         y: Math.floor(f.y),
@@ -337,7 +369,7 @@ export function createScene<Image>(
           const dust: FxView = { kind: "hit", x, y: e.y, z: 0, age: 0 };
           drawSpark(field, { ...dust, age: e.animStep % 3 }, camX);
         }
-      backdrop.drawFront(field, camX);
+      backdrop.drawFront(field, back.camX);
       spells.draw(field, view, frame);
       if (view.go && Math.floor(frame / GO_FLASH) % 2 === 0) {
         const sign = baker.bake(GO_SIGN);

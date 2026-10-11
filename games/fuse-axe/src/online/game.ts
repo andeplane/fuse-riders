@@ -19,9 +19,11 @@ import {
   CAPACITY,
   INPUT_MASK,
   RULES,
+  STAGES as PLANS,
   STEPS_PER_TICK,
   HERO_KINDS,
   botInput,
+  carryOf,
   createWorld,
   decodeWorld,
   defeated,
@@ -99,8 +101,8 @@ export const picksApply = (stage: Stage): boolean =>
   stage === "lobby" || stage === "over";
 
 export const MAX_WATCHERS = 5;
-/** A run's stages, in order: Ashen Village only, so far. Camp and stage 2 raise it (see `nextStage`). */
-export const LAST_STAGE = 1;
+/** A run's stages, in order: Ashen Village, then Wyrmbone Pass (`STAGES` in the engine); clearing the last wins it. */
+export const LAST_STAGE = PLANS.length;
 /** Log ticks (50 ms each) the stage-clear tally shows before the run goes on: 6 s. */
 export const CLEAR_TICKS = 120;
 /** Log ticks the party has to continue once every hero is out: 10 s. */
@@ -277,8 +279,9 @@ function toLobby(room: Room, matchId: string): void {
   room.tally = [];
 }
 /**
- * Stage `round` of the run for `heroes`: a world seeded for the run and that stage (`seedOf("matchId:round")`, which
- * the checkpoint holds every world to), nothing held, no clock running and the stage's continue unspent.
+ * Stage `round` of the run for `heroes`: that stage's world, seeded for the run and the stage
+ * (`seedOf("matchId:round")`, which the checkpoint holds every world to), nothing held, no clock running and the
+ * stage's continue unspent.
  */
 function beginStage(room: Room, round: number, heroes: HeroEntry[]): void {
   room.stage = "running";
@@ -289,6 +292,7 @@ function beginStage(room: Room, round: number, heroes: HeroEntry[]): void {
   room.world = createWorld({
     seed: seedOf(`${room.matchId}:${round}`),
     heroes,
+    stage: round,
   });
 }
 /** Stage 1 for everyone seated, with nothing tallied yet, or (nobody left to play) an empty lobby again. */
@@ -341,13 +345,23 @@ function finish(room: Room, outcome: Outcome): void {
   room.held = {};
 }
 /**
- * The stage-clear tally has shown. Past the last stage the run is won; only Ashen Village is built (`LAST_STAGE`), so
- * for now every cleared stage wins it. Stage 2 slots in here as `beginStage(room, room.round + 1, heroes)` under the
- * policy in design.md ("Stage flow"): each hero whose seat is still here sets out with the lives it has (one that went
- * out comes back with one) and the magic pots it holds in the cleared world, full health, a fresh continue, and its
- * tallies banked in the room.
+ * The stage-clear tally has shown. Past the last stage (`LAST_STAGE`) the run is won; otherwise the next stage begins
+ * under the policy in design.md ("Stage flow"): each hero of the cleared world whose seat is still here (its slot held
+ * by a member playing its hero: camp gives up a seat that leaves, and a newcomer may take the slot) sets out with the
+ * lives it has, one that went out with one, and the magic pots it holds (`carryOf`), at full health with a fresh
+ * continue, its tallies banked in the room. With none of them left the run is over and the room an empty lobby.
  */
-const nextStage = (room: Room): void => finish(room, "victory");
+function nextStage(room: Room): void {
+  if (room.round >= LAST_STAGE) return finish(room, "victory");
+  const heroes: HeroEntry[] = [];
+  for (const hero of room.world!.heroes) {
+    const seat = seatAt(room, hero.seat);
+    if (seat && heroOf(seat) === hero.kind)
+      heroes.push({ seat: hero.seat, kind: hero.kind, carry: carryOf(hero) });
+  }
+  if (!heroes.length) return toLobby(room, room.matchId);
+  beginStage(room, room.round + 1, heroes);
+}
 
 /** The seat's own entries at `tick`, from the stream generation its controls follow, in seq order. */
 function ownEntries(
@@ -619,21 +633,31 @@ function flowHolds(room: Room, world: World): boolean {
 }
 
 /**
- * The run's banked tallies: a row per hero of the run in seat order, each the hero the world has in that seat. In
- * stage 1 (the only one so far: decode refuses a later round) nothing is banked while it runs, and once it has ended
- * its own tallies are, exactly. Stage 2 widens this to rows at least the world's, for heroes that may have left.
+ * The run's banked tallies: a row per hero of the run in seat order. In stage 1 they are exactly the world's heroes:
+ * nothing is banked while it runs, and once it has ended its own tallies are, exactly. A later stage's world has the
+ * heroes still here, so the rows are at least those (a hero that left keeps its row), each the hero the world has in
+ * that seat, and once the stage has ended a row holds at least that hero's tallies in it.
  */
 function tallyHolds(room: Room, world: World): boolean {
-  const banked = room.stage !== "running";
+  const banked = room.stage !== "running",
+    rows = new Map(room.tally.map((row) => [row.seat, row]));
+  if (room.round === 1 && room.tally.length !== world.heroes.length)
+    return false;
   return (
-    room.tally.length === world.heroes.length &&
-    world.heroes.every((hero, index) => {
-      const row = room.tally[index]!;
+    room.tally.every(
+      (row, index) => index === 0 || row.seat > room.tally[index - 1]!.seat,
+    ) &&
+    world.heroes.every((hero) => {
+      const row = rows.get(hero.seat);
+      if (!row || row.kind !== hero.kind) return false;
+      if (room.round === 1)
+        return (
+          row.damage === (banked ? hero.damage : 0) &&
+          row.knockdowns === (banked ? hero.knockdowns : 0)
+        );
       return (
-        row.seat === hero.seat &&
-        row.kind === hero.kind &&
-        row.damage === (banked ? hero.damage : 0) &&
-        row.knockdowns === (banked ? hero.knockdowns : 0)
+        !banked ||
+        (row.damage >= hero.damage && row.knockdowns >= hero.knockdowns)
       );
     })
   );
@@ -641,8 +665,8 @@ function tallyHolds(room: Room, world: World): boolean {
 
 /**
  * What spans the fields. The lobby has no stage, no world, nothing held, no clock, no continue spent, no outcome and
- * no tallies. A run has a world: the one `beginStage` seeds for this run and stage, run whole log ticks no later than
- * this one; every hero's seat is held for it in play by a member playing that hero, and only a human playing a hero
+ * no tallies. A run has a world: the one `beginStage` seeds for this run and stage, of that stage and with a hero at
+ * least, run whole log ticks no later than this one; every hero's seat is held for it in play by a member playing that hero, and only a human playing a hero
  * holds bits, and only in play: the stage flow clears them as a stage ends, so camp and a run that is over hold none
  * and a pick after game over leaves a checkpoint that still decodes. The flow and the tallies hold (`flowHolds`,
  * `tallyHolds`).
@@ -665,6 +689,8 @@ function consistent(room: Room): boolean {
     world.step % STEPS_PER_TICK !== 0 ||
     world.step > room.tick * STEPS_PER_TICK ||
     world.seed !== seedOf(`${room.matchId}:${room.round}`) ||
+    world.stage !== room.round ||
+    world.heroes.length === 0 ||
     (room.stage !== "running" && Object.keys(room.held).length > 0) ||
     !flowHolds(room, world) ||
     !tallyHolds(room, world)
