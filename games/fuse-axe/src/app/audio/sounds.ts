@@ -17,7 +17,10 @@ export interface Voice {
   sustain?: boolean;
 }
 
-/** A cue's voices, on the effects channel or, for a jingle, the music channel; it ducks the loop for `duck` seconds. */
+/**
+ * A cue's voices, on the effects channel or, for a jingle, the music channel; played over the loop it ducks it for
+ * `duck` seconds. A cue that comes only after the loop has stopped (the game over) has none to give.
+ */
 export interface Sound {
   channel: "effects" | "music";
   voices: readonly Voice[];
@@ -133,7 +136,6 @@ export const SOUNDS = {
       ...line("square", 0.06, 0.3, "e5 d5 c5 b4 a4 - g#4 a4 -"),
       ...line("triangle", 0.2, 0.3, "a2 - f2 - e2 - - a1 -"),
     ],
-    duck: 3,
   },
 } satisfies Record<string, Sound>;
 

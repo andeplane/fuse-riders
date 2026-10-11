@@ -15,12 +15,11 @@ const every: Repeat = (tick, ms) => {
 /**
  * Renders the director's sounds on a Web Audio graph: effects, jingles and the loop (which ducks) into a master gain
  * and a compressor. The context is made on the first user gesture. It decides nothing: what plays, and when, is
- * `director.ts`'s, `sounds.ts`'s, `music.ts`'s and `mixer.ts`'s (the cap on voices and the loop's pump included); it
- * only keeps the graph clean, taking a voice's nodes off it as the voice ends.
+ * `director.ts`'s, `sounds.ts`'s, `music.ts`'s and `mixer.ts`'s (the cap on voices, the loop's pump and how long a duck
+ * lasts included); it only keeps the graph clean, taking a voice's nodes off it as the voice ends.
  */
 export class WebAudioBackend implements AudioBackend {
   private context?: AudioContext;
-  private loop?: GainNode;
   /** Made last by `build`, so there is one only on a context that built. */
   private mixer?: Mixer;
   /** The loop the director asked for, started once a context builds. */
@@ -62,13 +61,7 @@ export class WebAudioBackend implements AudioBackend {
   }
 
   duck(seconds: number): void {
-    const context = this.context,
-      gain = this.loop?.gain;
-    if (!context || !gain) return;
-    const now = context.currentTime;
-    gain.cancelScheduledValues(now);
-    gain.setTargetAtTime(LOOP * DUCKED, now, 0.04);
-    gain.setTargetAtTime(LOOP, now + seconds, 0.3);
+    this.mixer?.duck(seconds);
   }
 
   hide(hidden: boolean): void {
@@ -95,7 +88,6 @@ export class WebAudioBackend implements AudioBackend {
       noise = context.createBuffer(1, length, context.sampleRate),
       data = noise.getChannelData(0);
     for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
-    this.loop = buses.loop;
     this.mixer = new Mixer(
       {
         get time() {
@@ -106,6 +98,13 @@ export class WebAudioBackend implements AudioBackend {
         },
         voice: (voice, at, bus, ended) =>
           render(context, noise, voice, at, buses[bus], ended),
+        duck: (until) => {
+          const gain = buses.loop.gain,
+            now = context.currentTime;
+          gain.cancelScheduledValues(now);
+          gain.setTargetAtTime(LOOP * DUCKED, now, 0.04);
+          gain.setTargetAtTime(LOOP, until, 0.3);
+        },
       },
       every,
     );
