@@ -32,13 +32,15 @@ export type HeroFrame = (typeof HERO_FRAMES)[number];
  * `dead` does. Until the run and the dash have frames of their own, the run strides through the walk's faster and the
  * dash holds the first strike; until the other moves do, they borrow the swings': the jump attack the second swing's
  * wind-up and strike, the back attack the first swing's (the figure is not turned: the engine keeps its facing), the
- * grab the finisher's wind-up and the throw its follow-through.
+ * grab the finisher's wind-up and the throw its follow-through; until magic does, charging holds the finisher's
+ * wind-up and casting its strike.
  */
 export const HERO_ANIMS = [
   ...["idle", "walk", "run", "jump", "land"],
   ...["attack1", "attack2", "attack3", "dash"],
   ...["jumpattack", "backattack", "grab", "throw"],
   ...["hurt", "knockdown", "down", "getup", "dead", "respawn", "out"],
+  ...["charge", "cast"],
 ] as const;
 export type FigureAnim = (typeof HERO_ANIMS)[number];
 // The engine's states must all have frames: a new one fails to compile here until it is mapped below.
@@ -144,9 +146,12 @@ export function heroFrame(
     case "backattack":
       return swingFrame(timing[kind].back, SWING[0], step);
     case "grab":
+    case "charge":
       return "windup3";
     case "throw":
       return "follow3";
+    case "cast":
+      return "strike3";
     case "hurt":
       return "hurt";
     case "knockdown":

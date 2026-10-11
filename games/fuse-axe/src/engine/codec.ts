@@ -27,6 +27,7 @@ import {
   RESPAWN_INVULN,
   RUN_GAP,
   RUN_TAP,
+  SPELLS,
   STAGE_LENGTH,
   TIERS,
   VIEW_H,
@@ -46,6 +47,7 @@ import {
   type Hero,
   type HeroState,
   type Item,
+  type Spell,
   type World,
 } from "./world.js";
 
@@ -132,6 +134,8 @@ const ID = int(1, UINT32),
   GOAL_X = int(0, STAGE_LENGTH),
   GOAL_Y = int(FLOOR_TOP, FLOOR_BOTTOM);
 
+/** The most pots any hero holds, and the highest level a spell has. */
+const POTS = Math.max(...HERO_KINDS.map((kind) => MAX_POTS[kind]));
 /** The longest a hero is invulnerable, a double tap's step counts and an idle enemy waits to decide, from any step. */
 const INVULN = Math.max(RESPAWN_INVULN, GETUP_STEPS + GETUP_GRACE),
   TAP = Math.max(RUN_TAP, RUN_GAP),
@@ -185,14 +189,19 @@ const hero = record<Hero>(
     tapUntil: COUNT,
     runBuf: BUFFER,
     throws: COUNT,
-    pots: int(0, Math.max(...HERO_KINDS.map((kind) => MAX_POTS[kind]))),
+    pots: int(0, POTS),
+    magicBuf: BUFFER,
+    casts: COUNT,
+    magicDamage: COUNT,
   },
   // A double tap waiting as a run knows its direction, and with no tap no step counts for one. No hero holds more
-  // pots than its kind's most.
+  // pots than its kind's most, and one charging magic has a pot to cast. Magic's damage is part of the damage.
   (value) =>
     ascending(value.struck, (id) => id) &&
     lifeKept(value) &&
     value.pots <= MAX_POTS[value.kind] &&
+    (value.state !== "charge" || value.pots > 0) &&
+    value.magicDamage <= value.damage &&
     (value.runBuf === 0 || value.tap !== 0) &&
     (value.tap !== 0 || value.tapUntil === 0),
 );
@@ -249,6 +258,36 @@ const item = record<Item>(
   (value) => value.z > 0 || value.vz === 0,
 );
 
+const spell = record<Spell>({ hero: ID, level: int(1, POTS), born: COUNT });
+
+/**
+ * The spells: one for each hero casting (`cast`) and none for anyone else, in the order they were cast (a step's in
+ * hero id order), each of a level its hero's kind has, cast no later than now and still playing.
+ */
+function spellsKept(value: World): boolean {
+  const heroes = new Map(value.heroes.map((each) => [each.id, each]));
+  return (
+    value.spells.every((each, index) => {
+      const hero = heroes.get(each.hero),
+        before = value.spells[index - 1],
+        level = hero && SPELLS[hero.kind].levels[each.level - 1];
+      return (
+        hero?.state === "cast" &&
+        level !== undefined &&
+        each.born <= value.step &&
+        value.step - each.born < level.steps &&
+        (!before ||
+          each.born > before.born ||
+          (each.born === before.born && each.hero > before.hero))
+      );
+    }) &&
+    new Set(value.spells.map((each) => each.hero)).size ===
+      value.spells.length &&
+    value.spells.length ===
+      value.heroes.filter((each) => each.state === "cast").length
+  );
+}
+
 /**
  * The waves. Before the first nothing has begun and the camera is short of its trigger. Once one has, it began no
  * later than now, the camera stands at or past its trigger and short of the next one's (which would have begun it),
@@ -304,7 +343,8 @@ function holdsKept(value: World): boolean {
  * invulnerability, run of hits, double tap or idle pause runs past the longest one starting now, the sparks run
  * oldest first, each born no later than now and not yet past its life, the items run in id order, each id issued and
  * no hero's or enemy's, each born no later than now and not yet past its life, no imp is sent before the camera
- * reached its cue, and the sacks, the waves and the grabs are as `sackKept`, `wavesKept` and `holdsKept` say.
+ * reached its cue, and the sacks, the waves, the grabs and the spells are as `sackKept`, `wavesKept`, `holdsKept`
+ * and `spellsKept` say.
  */
 const world = record<World>(
   {
@@ -323,6 +363,7 @@ const world = record<World>(
     goUntil: COUNT,
     items: list(item, ITEM_MAX),
     impsSent: int(0, STAGE_1.imps.length),
+    spells: list(spell, CAPACITY),
   },
   (value) => {
     const heroIds = new Set(value.heroes.map((each) => each.id)),
@@ -370,7 +411,8 @@ const world = record<World>(
       (value.impsSent === 0 ||
         STAGE_1.imps[value.impsSent - 1]!.at <= value.camX) &&
       wavesKept(value) &&
-      holdsKept(value)
+      holdsKept(value) &&
+      spellsKept(value)
     );
   },
 );

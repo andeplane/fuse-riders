@@ -11,6 +11,7 @@ import {
   INPUT_MASK,
   JUMP,
   LEFT,
+  MAGIC,
   RIGHT,
   RULES,
   STAGE_1,
@@ -42,6 +43,13 @@ function run(world: World, held: readonly number[], steps: number): World {
   return world;
 }
 const hero = (world: World, index = 0) => world.heroes[index]!;
+/** Steps since a spell's blow landed: below 0 while its freeze holds. */
+const sinceBlow = (world: World, spell: World["spells"][number]) =>
+  world.step -
+  spell.born -
+  T.SPELLS[world.heroes.find((h) => h.id === spell.hero)!.kind].levels[
+    spell.level - 1
+  ]!.hit;
 
 test("presses and releases come from the previous step's held bits", () => {
   assert.equal(pressed(LEFT | JUMP, LEFT), JUMP);
@@ -272,6 +280,14 @@ const charge = (): number[][] =>
     ...[RIGHT, 0, RIGHT, RIGHT, RIGHT, RIGHT, RIGHT | ATTACK],
     ...Array<number>(40).fill(0),
   ].map((bits) => Array<number>(T.CAPACITY).fill(bits));
+/** The random play with Magic never pressed. */
+const unmagic = (rows: number[][]): number[][] =>
+  rows.map((row) => row.map((bits) => bits & ~MAGIC));
+/** Seat 1 alone charges Magic for `held` steps and lets go, then everyone stands while the spell plays. */
+const conjure = (held: number): number[][] =>
+  [...Array<number>(held).fill(MAGIC), ...Array<number>(160).fill(0)].map(
+    (bits) => [0, bits, 0, 0, 0],
+  );
 
 test("the same seed and inputs fold to the same world, and a step leaves its input untouched", () => {
   const start = () =>
@@ -300,7 +316,7 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
     b = play();
   assert.equal(seedOf(JSON.stringify(a)), seedOf(JSON.stringify(b)));
   // Falling for good, dropping back in and running out of lives are in ai.test.ts, grabs and throws in
-  // moves.test.ts, and a sack imp's own states in imps.test.ts.
+  // moves.test.ts, a sack imp's own states in imps.test.ts and magic in magic.test.ts.
   const covered = (states: readonly string[]) =>
     states
       .filter(
@@ -309,6 +325,7 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
             ...["dead", "respawn", "out"],
             ...["grab", "throw", "held", "thrown"],
             ...["stumble", "flee"],
+            ...["charge", "cast"],
           ].includes(state),
       )
       .sort();
@@ -326,9 +343,10 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
   assert.equal(tick.step, a.step + T.STEPS_PER_TICK);
 });
 
-test("a rollback replays from a snapshot to the same world, presses, buffers, hit-stop, knockdowns, imps and pots included", () => {
-  // A sack imp scurries through the brawl, from in front of Gorm.
-  const start = crowd(
+test("a rollback replays from a snapshot to the same world, presses, buffers, hit-stop, knockdowns, imps, pots and magic included", () => {
+  // A sack imp scurries through the brawl, from in front of Gorm; Rhea sets out with every pot she can hold, for the
+  // Magic the script presses.
+  const brawl = crowd(
     spawnEnemy(
       createWorld({
         seed: 11,
@@ -342,9 +360,20 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
       px(140),
     ),
   );
+  const start: World = {
+    ...brawl,
+    heroes: brawl.heroes.map((h, index) =>
+      index === 1 ? { ...h, pots: T.MAX_POTS[h.kind] } : h,
+    ),
+  };
   // A brawl the crowd fights back in, then on into the first wave, whose spawns walk in while the crowd left behind
   // walks back in.
-  const inputs = [...mashing(script(21, 600)), ...charge(), ...march(600)];
+  const inputs = [
+    ...mashing(unmagic(script(21, 600))),
+    ...charge(),
+    ...conjure(45),
+    ...march(600),
+  ];
   const fold = (world: World, rows: readonly (readonly number[])[]) =>
     rows.reduce<World>((w, held) => step(w, held), world);
   const trail = [start];
@@ -353,6 +382,8 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
   assert.ok(straight.heroes.every((h) => h.damage > 0));
   assert.ok(straight.heroes.some((h) => h.knockdowns > 0));
   assert.ok(straight.heroes.some((h) => h.hp < T.HERO_HP[h.kind]));
+  assert.equal(hero(straight, 1).casts, 1);
+  assert.ok(hero(straight, 1).magicDamage > 0, "the spell landed");
   assert.equal(straight.camX, STAGE_1.waves[0]!.at);
   // Cut too where a snapshot holds a hit-stop, a press waiting in a swing, an enemy in flight, a wave with spawns
   // still due, an enemy walking in, one winding up and one hovering, a hero reeling, a tap waiting for its second
@@ -392,7 +423,11 @@ test("a rollback replays from a snapshot to the same world, presses, buffers, hi
     first((w) => w.enemies.some((e) => e.state === "flee")),
     first((w) => w.items.some((i) => i.z > 0)),
     first((w) => w.items.some((i) => i.z === 0)),
-    first((w) => w.heroes.some((h) => h.pots > 0)),
+    first((w) => hero(w).pots > 0),
+    // Magic charging, a spell's freeze before its blow lands, and the spell playing on after it.
+    first((w) => w.heroes.some((h) => h.state === "charge" && h.timer > 0)),
+    first((w) => w.spells.some((s) => w.step > s.born && sinceBlow(w, s) < 0)),
+    first((w) => w.spells.some((s) => sinceBlow(w, s) > 0)),
   ];
   // Restore a snapshot through JSON, as a checkpoint would, and replay the rest: no press is lost or made twice. The
   // checkpoint codec takes every cut back whole.
@@ -410,7 +445,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-9");
+  assert.equal(RULES, "fuse-axe-10");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {
