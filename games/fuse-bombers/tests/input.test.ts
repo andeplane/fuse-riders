@@ -24,7 +24,9 @@ import {
   type KeyboardTarget,
 } from "../src/app/input/keyboard.js";
 import {
+  CONTROLLER_TOP,
   attachTouch,
+  controllerPadLayout,
   touchControlAt,
   touchPadLayout,
   type Rect,
@@ -436,8 +438,8 @@ test("stick quantisation: a dead zone, then 8 equal 45° sectors", () => {
 /** A fake pad overlay: a `width` × `height` surface whose top-left corner sits at (10, 20) on the page. */
 class FakeSurface extends FakeTarget {
   constructor(
-    readonly width: number,
-    readonly height: number,
+    public width: number, // a phone turned over is a surface resized
+    public height: number,
   ) {
     super();
   }
@@ -694,4 +696,91 @@ test("touch geometry: pads fit phones and tablets, never meet, and a lone rider'
   }
   const { source } = touchRig(700, 350);
   assert.deepEqual(source.layout(), touchPadLayout(700, 350, [0, 1]));
+});
+
+test("a phone controller's pads: big, below its header, apart, and steering and firing like the arena's", () => {
+  for (const [width, height] of [
+    [390, 844],
+    [360, 640],
+    [844, 390],
+    [667, 375],
+  ] as const) {
+    const [pad] = controllerPadLayout(width, height, [0]);
+    assert.ok(pad, `${width}×${height}`);
+    for (const r of [pad.dpad, pad.fire]) {
+      assert.ok(
+        r.y >= height * CONTROLLER_TOP && r.x >= 0,
+        `${width}×${height}`,
+      );
+      assert.ok(r.x + r.width <= width && r.y + r.height <= height);
+    }
+    assert.ok(
+      Math.min(pad.dpad.width, pad.fire.width) >=
+        Math.min(width, height) * 0.35,
+      "a palm's worth",
+    );
+    const apart =
+      width > height
+        ? pad.dpad.x + pad.dpad.width < pad.fire.x
+        : pad.fire.y + pad.fire.height < pad.dpad.y;
+    assert.ok(
+      apart,
+      `${width}×${height}: FIRE ${width > height ? "right of" : "above"} the D-pad`,
+    );
+  }
+  assert.deepEqual(
+    controllerPadLayout(390, 844, []),
+    [],
+    "nothing shown, nothing hit",
+  );
+  // The same touch source, laid out as a controller: a finger slides from ▲ to the ◥ diagonal, then FIRE presses.
+  const rig = touchRig(390, 844, []);
+  rig.source.setSides([0], controllerPadLayout);
+  const [pad] = rig.source.layout();
+  assert.ok(pad && pad.dpad.width > 200);
+  rig.down(...rig.on(pad.dpad, 0.5, 0.1));
+  assert.equal(rig.held(0), UP);
+  rig.move(...rig.on(pad.dpad, 0.9, 0.1));
+  assert.equal(rig.held(0), UP | RIGHT);
+  rig.down(...rig.on(pad.fire), 2);
+  assert.equal(rig.held(0), UP | RIGHT | FIRE);
+  assert.equal(rig.presses.length, 1);
+  rig.page.dispatch("blur");
+  assert.equal(rig.held(0), 0, "blur lets go");
+  rig.source.setSides([0]);
+  assert.deepEqual(
+    rig.source.layout(),
+    touchPadLayout(390, 844, [0]),
+    "back over the arena",
+  );
+});
+
+test("a controller's pads: only side 0 has any, and a finger held through a turn of the phone keeps its hold", () => {
+  assert.deepEqual(controllerPadLayout(390, 844, [1]), []);
+  assert.deepEqual(controllerPadLayout(390, 844, [1, 2]), []);
+  const rig = touchRig(390, 844, []);
+  rig.source.setSides([0], controllerPadLayout);
+  const [tall] = rig.source.layout();
+  assert.ok(tall);
+  rig.down(...rig.on(tall.dpad, 0.5, 0.1));
+  assert.equal(rig.held(0), UP);
+  // The phone turns: the surface is 844 × 390 now, the pads sit elsewhere, and the thumb has not lifted.
+  rig.surface.width = 844;
+  rig.surface.height = 390;
+  const [wide] = rig.source.layout();
+  assert.ok(wide && wide.dpad.x !== tall.dpad.x);
+  assert.equal(rig.held(0), UP, "a resize lets go of nothing");
+  rig.move(...rig.on(wide.dpad, 0.9, 0.5));
+  assert.equal(rig.held(0), RIGHT, "the thumb steers by the new D-pad");
+  rig.down(...rig.on(wide.fire), 2);
+  assert.equal(rig.held(0), RIGHT | FIRE);
+  assert.equal(rig.presses.length, 1, "one finger on FIRE, one press");
+  rig.end();
+  rig.end(2);
+  assert.equal(rig.held(0), 0, "and both lifts let go");
+  // A round that ends takes the pads away: a finger still down is let go with them.
+  rig.down(...rig.on(wide.dpad, 0.1, 0.5));
+  assert.equal(rig.held(0), LEFT);
+  rig.source.setSides([]);
+  assert.equal(rig.held(0), 0);
 });
