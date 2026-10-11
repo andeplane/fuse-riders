@@ -201,8 +201,10 @@ frame until he has a look of his own) and the heroes sit it as they sit a clawbe
 
 The flame (`src/render/drake-fx.ts`) is a jet from the frame's jaws (`DRAKE_MOUTHS`) to the front `flamePx` gives. It
 has a white-hot core cooling to a red rim, streaks and tongues streaming forward, a billow at the front and rising
-embers. Each length and phase is one sprite, made and baked once, so a breath costs one blit a frame. It is drawn
-straight after the drake, at its depth: over a figure further up the floor, under one in front.
+embers. Each length and phase is one sprite, made and baked once (a breath runs through about fifty), so a breath
+costs one blit a frame. While the front is still behind the jaws, in the breath's first steps and its last, where the
+flame already burns whatever stands that close, a four-pixel flare shows at the jaws (`FLARE`). It is drawn straight
+after the drake, at its depth: over a figure further up the floor, under one in front.
 `tests/drake-art.test.ts` plays the real engine against the drake's frames and checks that the drawn front matches
 `flamePx`.
 

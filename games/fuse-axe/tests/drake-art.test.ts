@@ -44,6 +44,8 @@ import { RAVAGER, RAVAGER_POSES } from "../src/render/art/ravager.js";
 import {
   drawFlame,
   FLAME_PHASES,
+  FLARE,
+  SHIFT,
   flameSprite,
 } from "../src/render/drake-fx.js";
 import {
@@ -51,7 +53,10 @@ import {
   validateSprite,
   type Sprite,
 } from "../src/render/pixel/sprite.js";
-import { createSpriteBaker } from "../src/render/pixel/surface.js";
+import {
+  createSpriteBaker,
+  type SpriteBaker,
+} from "../src/render/pixel/surface.js";
 
 const { px } = T;
 const FRAMES = DRAKE_FIGURE.frames;
@@ -274,9 +279,34 @@ test("the flame's jets are valid sprites, white-hot at the jaws, as long as aske
   // The phases differ, and loop: a phase is its own a cycle on.
   assert.notDeepEqual(flameSprite(40, 0).rows, flameSprite(40, 1).rows);
   assert.deepEqual(flameSprite(40, FLAME_PHASES + 1), flameSprite(40, 1));
+  // Odd input draws a valid jet rather than throwing.
+  for (const odd of [Number.NaN, Infinity, -Infinity])
+    validateSprite(flameSprite(odd, odd));
 });
 
-test("a drake's flame runs from its jaws to the flame's front either way, and only a breathing drake's, at any step", () => {
+test("the flame streams on from its last phase to its first as it does from each phase to the next, with no hitch at the loop", () => {
+  // How much of the jet's heart (the rows about its axis, clear of the tongues and embers above and the billow at its
+  // front) differs when `from` streams forward a phase's pixels into `to`.
+  const n = 56;
+  const drift = (from: number, to: number) => {
+    const [a, b] = [flameSprite(n, from), flameSprite(n, to)];
+    let [differs, total] = [0, 0];
+    for (let y = a.ay - 2; y <= a.ay + 4; y++)
+      for (let x = SHIFT; x < n - 14; x++) {
+        const [was, now] = [a.rows[y]![x - SHIFT]!, b.rows[y]![x]!];
+        if (was === CLEAR && now === CLEAR) continue;
+        total++;
+        if (was !== now) differs++;
+      }
+    return differs / total;
+  };
+  const steps = Array.from({ length: FLAME_PHASES }, (_, k) => drift(k, k + 1));
+  const [loop, ...others] = [steps.pop()!, ...steps];
+  assert.ok(Math.max(...others) < 0.5, `${steps}`);
+  assert.ok(loop <= Math.max(...others) * 1.1, `the loop drifts ${loop}, a step ${others}`); // prettier-ignore
+});
+
+test("a drake's flame runs from its jaws to the flame's front either way (a flare at the jaws while it is behind them), and only a breathing drake's, at any step", () => {
   const drake = (more: Partial<MountView>): MountView => ({
     ...{ id: 4, kind: "drake", x: 160, y: 120, z: 6, facing: 1 },
     ...{ anim: "breathe", animStep: 0, rider: null, ...more },
@@ -289,12 +319,14 @@ test("a drake's flame runs from its jaws to the flame's front either way, and on
       drawFlame(pen, baker, mount, frame, 30);
       const [jaws, up] = DRAKE_MOUTHS[frame as DrakeFrame];
       const front = flamePx(animStep);
-      assert.equal(pen.blits.length, front > jaws ? 1 : 0, `${animStep}`);
+      // A flame that is out is always drawn: its front where the engine's is, or a flare at the jaws while that is still
+      // behind them, where the flame already burns whatever stands that close (the breath's first steps and its last).
+      assert.equal(pen.blits.length, front > 0 ? 1 : 0, `${animStep}`);
       if (!pen.blits.length) continue;
       const { image, sx, dx } = pen.blits[0]!;
       const columns = image.cols.map((x) => dx - sx + x - 130);
       const [from, to] = facing > 0 ? [Math.min(...columns), Math.max(...columns)] : [-Math.max(...columns), -Math.min(...columns)]; // prettier-ignore
-      assert.deepEqual([from, to], [jaws, front - 1], `${facing} ${animStep}`);
+      assert.deepEqual([from, to], [jaws, Math.max(front, jaws + FLARE) - 1], `${facing} ${animStep}`); // prettier-ignore
       assert.ok(up > 10 && up < T.FLAME_HEIGHT / T.SUB, `${frame}'s jaws are ${up} up`); // prettier-ignore
     }
   // Nothing for a clawbeak, a drake doing anything else, a frame with no jaws; odd steps never throw.
@@ -310,6 +342,25 @@ test("a drake's flame runs from its jaws to the flame's front either way, and on
   assert.equal(none(drake({ animStep: flaming }), "coil1"), 0);
   for (const animStep of [-3, 2.5, 40.7, 1e9, Number.NaN, Infinity])
     assert.doesNotThrow(() => none(drake({ animStep })), `${animStep}`);
+});
+
+test("a breath makes a bounded handful of jets once, and every breath after it draws the same ones", () => {
+  const seen = new Set<Sprite>();
+  const spy: SpriteBaker<Shot> = {
+    bake: (jet, options) => (seen.add(jet), baker.bake(jet, options)),
+  };
+  const breathe = () => {
+    for (const facing of [1, -1] as const)
+      for (let animStep = 0; animStep < DRAKE_STEPS.breathe; animStep++)
+        drawFlame(new Pen(), spy, { id: 4, kind: "drake", x: 160, y: 120, z: 0, facing, anim: "breathe", animStep, rider: null }, mountFrame("drake", "breathe", animStep), 0); // prettier-ignore
+  };
+  breathe();
+  const first = seen.size;
+  // The jet lengths a breath runs through are each a few steps' worth of flame, in a few phases: far fewer than every
+  // length the longest flame could have, in every phase.
+  assert.ok(first > FLAME_PHASES && first <= (FLAME.length / (T.FLAME_SPEED / T.SUB) + 1) * FLAME_PHASES, `${first} jets`); // prettier-ignore
+  breathe();
+  assert.equal(seen.size, first, "a second breath makes no new jet");
 });
 
 test("the captain sits his drake astride in his own seated frame, and otherwise fights as a lancer, staggering as one reels", () => {
