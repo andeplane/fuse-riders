@@ -99,7 +99,9 @@ export function step(world: World, held: readonly number[]): World {
   advanceSpells(next);
   if (!spellbound(next)) {
     advanceSigils(next);
-    for (const enemy of next.enemies) moveEnemy(next, enemy);
+    // Those there at the step's start: a bonewalker Vorhal summons joins the list as it is walked and takes its first
+    // step with the next, as a wave's spawn does.
+    for (const enemy of [...next.enemies]) moveEnemy(next, enemy);
     advanceMounts(next);
   }
   enrage(next);

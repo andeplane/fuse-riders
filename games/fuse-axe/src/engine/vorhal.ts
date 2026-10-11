@@ -97,7 +97,11 @@ const lined = (vorhal: Enemy, hero: Hero): boolean => {
   );
 };
 
-/** Leaps when cornered, or picks a move (`VORHAL_MOVES`), or with no hero on the field stands. */
+/**
+ * Leaps when cornered, or picks a move (`VORHAL_MOVES`), or with no hero on the field stands. A draw in the spell's
+ * range while its sigils are still lit (the decision after a cast always is) falls through to the summons test, so
+ * the summons then come `cast + summon` in 256 and not `summon`, as the cast's range goes to them, not the greatsword.
+ */
 function decide(world: World, vorhal: Enemy): void {
   const pick = nearestHero(world, vorhal);
   if (!pick) return rest(world, vorhal);
@@ -216,22 +220,27 @@ export function vaultStep(world: World, vorhal: Enemy): void {
 }
 
 /**
- * The fire spell's mark: a sigil under each hero on its feet in id order, up to the count (`SIGILS`, one more enraged,
- * and one more by chance), and the rest on the floor on screen at random. Each is on the road and in the floor band.
+ * The fire spell's mark: a sigil under each hero on its feet, up to the count (`SIGILS`, one more enraged, and one more
+ * by chance), going round the heroes in id order from one drawn at random (or the first seats would take every pillar
+ * of a big party), and the rest on the floor on screen at random. Each is on the road and in the floor band.
  */
 function mark(world: World, vorhal: Enemy): void {
   const count = Math.min(
     T.SIGIL_MAX,
     T.SIGILS + (vorhal.enraged ? 1 : 0) + roll(world, 2),
   );
-  const at = (x: number, y: number): Sigil => ({ x, y, timer: 0 });
-  for (const hero of world.heroes)
+  const at = (x: number, y: number): Sigil => ({ x, y, timer: 0 }),
+    party = world.heroes.length,
+    from = roll(world, party);
+  for (let k = 0; k < party; k++) {
+    const hero = world.heroes[(from + k) % party]!;
     if (
       world.sigils.length < count &&
       present(hero) &&
       !FLOORED.includes(hero.state)
     )
       world.sigils.push(at(hero.x, hero.y));
+  }
   const edge = T.px(24);
   while (world.sigils.length < count)
     world.sigils.push(
