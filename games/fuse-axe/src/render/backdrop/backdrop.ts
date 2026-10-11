@@ -10,6 +10,7 @@ import {
   type Prop,
   type StageArt,
 } from "./kit.js";
+import { VORHALS_KEEP } from "./vorhals-keep.js";
 import { WYRMBONE_PASS } from "./wyrmbone-pass.js";
 
 /**
@@ -46,13 +47,14 @@ export interface Backdrop<S> {
   readonly prop?: Prop;
 }
 
-/** The stages with art of their own, so far Ashen Village's, Wyrmbone Pass's and the Drowned Crypt's. */
-export type StageNumber = 1 | 2 | 3;
+/** The stages with art of their own: Ashen Village's, Wyrmbone Pass's, the Drowned Crypt's and Vorhal's Keep's. */
+export type StageNumber = 1 | 2 | 3 | 4;
 
 const STAGES: Record<StageNumber, StageArt> = {
   1: ASHEN_VILLAGE,
   2: WYRMBONE_PASS,
   3: DROWNED_CRYPT,
+  4: VORHALS_KEEP,
 };
 
 /** Whether `stage` has a backdrop of its own; one that has none is drawn on Stage 1's (`createScene`). */
