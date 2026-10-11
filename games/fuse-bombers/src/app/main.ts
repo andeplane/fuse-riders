@@ -3,6 +3,8 @@ import "fuse-ui/tokens.css";
 import "fuse-ui/portal.css";
 import "./style.css";
 import "./screens.css";
+import { validRoomCode } from "fuse-network-fe";
+import { uuid } from "fuse-netcode";
 import { createAppPortal, type AppPortal } from "fuse-ui/portal";
 import Phaser from "phaser";
 import {
@@ -14,10 +16,16 @@ import {
 import { createAudio } from "./audio/index.js";
 import { Flow } from "./flow.js";
 import { createBrowserInput } from "./input/index.js";
+import { GAME, showLanding, showRoom } from "./online.js";
+import { safeStore, sessionFor } from "./session.js";
 
 const params = new URLSearchParams(window.location.search);
 /** Music and effects; `?mute` disables them for this load. */
 const audio = createAudio();
+const store = safeStore(() => localStorage);
+const session = sessionFor(location.search, store, GAME, validRoomCode, () =>
+  `${uuid()}${uuid()}`.replaceAll("-", ""),
+);
 
 /**
  * Boots the game: the Phaser round scene fills the window and the match flow's DOM screens sit on top.
@@ -45,6 +53,8 @@ async function boot(): Promise<void> {
     },
   });
   game.scene.add(RoundScene.KEY, RoundScene);
+  if (session.kind === "room" || session.kind === "solo")
+    return showRoom(session, { store, audio, game });
   // Every (re)start of the round scene needs the audio attached again; the attract round behind the lobby stays
   // silent so the lobby music plays.
   let detachAudio: (() => void) | undefined;
@@ -87,7 +97,7 @@ async function boot(): Promise<void> {
 function mountPortal(): AppPortal {
   const portal = createAppPortal({
     document,
-    current: "fuse-bombers",
+    current: GAME,
     base: import.meta.env.BASE_URL,
     search: location.search,
   });
@@ -102,9 +112,13 @@ function mountPortal(): AppPortal {
   return portal;
 }
 
-boot().catch((error: unknown) => {
-  console.error("Fuse Bombers failed to start", error);
-});
+if (session.kind === "landing") showLanding(store);
+else if (session.kind === "invalid")
+  showLanding(store, `${session.code} is not a room code`);
+else
+  boot().catch((error: unknown) => {
+    console.error("Fuse Bombers failed to start", error);
+  });
 
 // Developer aid: a readout of the one-button input layer.
 if (params.has("inputdebug")) {

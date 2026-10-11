@@ -12,6 +12,7 @@ import { hashSeed, int, random, type RngHolder } from "../src/engine/rng.js";
 import { THEMES } from "../src/render/palette.js";
 import {
   GRASS_DEPTH,
+  changedRect,
   clampRect,
   paintCells,
   repaintRect,
@@ -116,6 +117,17 @@ test("repainting only what a crater touched equals repainting the whole terrain"
     }
   }
   assert.ok(carves > 150, `only ${carves} carves changed cells`);
+});
+
+test("repainting where two grids differ (other carves after a rollback) equals repainting the second whole", () => {
+  const { grid, rng } = roughGrid(256, 192, 4, 3);
+  const colours = palette(grid),
+    image = paintAll(grid, colours),
+    other = structuredClone(grid);
+  assert.equal(changedRect(grid, structuredClone(grid)), undefined);
+  for (let i = 0; i < 6; i++) carveCircle(other, random(rng) * 256, 120, 24);
+  repaintAfter(image, other, colours, changedRect(grid, other)!);
+  assert.equal(firstDifference(image, paintAll(other, colours), 64), "same");
 });
 
 test("a carve changes the grass two rows below it, and repaintRect reaches that far", () => {

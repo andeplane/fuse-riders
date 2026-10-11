@@ -11,6 +11,7 @@ import {
   type StreamEntries,
 } from "fuse-netcode";
 import { FIRE, LEFT, UP, type TickEvent } from "../src/engine/index.js";
+import { carveCircle, gridHash } from "../src/engine/grid.js";
 import {
   BETWEEN_TICKS,
   DEFAULT_SETTINGS as SETUP,
@@ -276,6 +277,43 @@ test("a structured clone of the room continues exactly as the room does", () => 
   }
   assert.equal(hash(copy), hash(room));
   assert.notEqual(hash(room), hash(started()));
+});
+
+test("views share one copy of the terrain until a carve, and a kept view never changes", () => {
+  const room = started(),
+    live = room.world!.terrain,
+    kept = view(room).world!;
+  const cells = gridHash(kept.terrain);
+  assert.equal(view(room).world!.terrain, kept.terrain);
+  assert.ok(kept.terrain !== live && kept.castles !== room.world!.castles);
+  carveCircle(live, 2400, 1700, 300);
+  assert.notEqual(kept.terrain.version, live.version);
+  assert.equal(view(room).world!.terrain.version, live.version);
+  assert.equal(gridHash(kept.terrain), cells, "a kept view keeps its cells");
+});
+
+test("a rolled-back room's grid never shows another grid's copy, even at the same version", () => {
+  const room = started();
+  view(room); // the live grid has a copy at its version
+  const restored = structuredClone(room); // what a rollback installs: another grid object
+  carveCircle(room.world!.terrain, 2400, 1700, 300);
+  carveCircle(restored.world!.terrain, 600, 400, 300); // a different carve, the same version
+  assert.equal(room.world!.terrain.version, restored.world!.terrain.version);
+  const [live, back] = [
+    view(room).world!.terrain,
+    view(restored).world!.terrain,
+  ];
+  assert.notEqual(
+    gridHash(room.world!.terrain),
+    gridHash(restored.world!.terrain),
+  );
+  assert.equal(gridHash(live), gridHash(room.world!.terrain));
+  assert.equal(gridHash(back), gridHash(restored.world!.terrain));
+  carveCircle(room.world!.terrain, 2400, 2000, 300); // and each carve of one grid is seen at once
+  assert.equal(
+    gridHash(view(room).world!.terrain),
+    gridHash(room.world!.terrain),
+  );
 });
 
 test("the hash covers the whole room in a fixed order, and fields added later", () => {

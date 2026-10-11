@@ -158,6 +158,57 @@ export function stride(
   };
 }
 
+/**
+ * Frame `i` of a sprint of `frames` (a multiple of 6): each foot is down for a third of the cycle, landing `reach` ahead
+ * of the body's centre line and swept back at an even pace to `reach` behind it, then kicked up behind, driven forward
+ * up to `lift` off the ground and reached out to land again. The near foot lands on frame 0 and the far one half a
+ * cycle later, so between one foot's push and the other's landing neither is down. The body sinks by `dip` as a
+ * planted foot passes under it. A planted foot moves `6 × reach / frames` pixels a frame, so running that far a frame
+ * keeps it still on the ground.
+ */
+export function sprint(
+  pose: Pose,
+  i: number,
+  frames: number,
+  { reach, lift, dip }: { reach: number; lift: number; dip: number },
+): PoseChanges<Pose> {
+  // A cycle that a third and a half of it do not fall on whole frames of would drift the planted foot, with no error.
+  if (!Number.isInteger(frames / 6) || frames < 6)
+    throw new RangeError(
+      `A sprint's frames are a multiple of 6, not ${frames}`,
+    );
+  const centre = (pose.far.hip[0] + pose.near.hip[0]) / 2;
+  // Where a foot is along the cycle, counted in whole frames so a third of it falls exactly on a frame.
+  const foot = (shift: number): Point => {
+    const k = (i + shift) % frames;
+    if (3 * k <= frames) return [reach * (1 - (6 * k) / frames), 0];
+    const angle = (Math.PI * (k - frames / 3) * 1.5) / frames;
+    const [across, up] = [Math.cos(angle), Math.sin(angle)];
+    // The knee drives the foot a little ahead of the arc from push to landing.
+    return [reach * (0.3 * up - across), lift * up];
+  };
+  const [far, near] = [foot(frames / 2), foot(0)];
+  const sink = ([x, up]: Point) =>
+    up === 0 ? dip * Math.max(0, 1 - Math.abs(x) / reach) : 0;
+  const low = Math.max(sink(far), sink(near));
+  const leg = (side: Side, [x, up]: Point) => {
+    const hip = offset(side.hip, 0, low);
+    const ankle: Point = [(centre + side.hip[0]) / 2 + x, side.ankle[1] - up];
+    const [thigh, shin] = [
+      span(side.hip, side.knee),
+      span(side.knee, side.ankle),
+    ];
+    return legAt(hip, bend(hip, ankle, thigh, shin, 1), ankle);
+  };
+  const body = breath(pose, low);
+  return {
+    ...body,
+    waist: offset(pose.waist, 0, low),
+    far: { ...body.far, ...leg(pose.far, far) },
+    near: { ...body.near, ...leg(pose.near, near) },
+  };
+}
+
 /** A figure's frames by name, each painted once on first use so it keeps one identity for the baker's cache. */
 export interface Figure<F extends string = string> {
   readonly frames: readonly F[];
