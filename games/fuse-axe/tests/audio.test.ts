@@ -47,6 +47,7 @@ const world = (
   ...{ spells: [], mounts: [], stage: 1, camp: false, wave: 1 },
   ...{ waves: 4, locked: false, go: false, cleared: false, defeated: false },
   boss: null,
+  sigils: [],
   ...extra,
 });
 const frame = (w: V.WorldView | null, extra: Partial<Heard> = {}): Heard => ({

@@ -113,7 +113,7 @@ const world = (heroes: HeroView[]): WorldView => ({
   mounts: [],
   ...{ stage: 1, wave: 0, waves: 5, locked: false, go: false, cleared: false },
   camp: false,
-  ...{ defeated: false, boss: null },
+  ...{ defeated: false, boss: null, sigils: [] },
 });
 
 /** The blits of `text` written in `color`, known by what the font paints for it. */

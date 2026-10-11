@@ -25,6 +25,13 @@ import { brace, breaks, enrage, isOgre, ogreAct } from "./ogre.js";
 import { isLancer, lancerAct, soar, takeOff } from "./lancer.js";
 import { fallen, reassemble, rise, shatter } from "./bonewalker.js";
 import {
+  advanceSigils,
+  isVorhal,
+  vanquish,
+  vaultStep,
+  vorhalAct,
+} from "./vorhal.js";
+import {
   HURTS,
   advanceMounts,
   away,
@@ -85,15 +92,18 @@ export function step(world: World, held: readonly number[]): World {
     items: world.items.map((item) => ({ ...item })),
     spells: [...world.spells],
     mounts: world.mounts.map((mount) => ({ ...mount })),
+    sigils: world.sigils.map((sigil) => ({ ...sigil })),
   };
   for (const hero of next.heroes)
     moveHero(next, hero, (held[hero.seat] ?? 0) & INPUT_MASK);
   advanceSpells(next);
   if (!spellbound(next)) {
+    advanceSigils(next);
     for (const enemy of next.enemies) moveEnemy(next, enemy);
     advanceMounts(next);
   }
   enrage(next);
+  vanquish(next);
   next.enemies = next.enemies.filter(
     (enemy) =>
       (enemy.state !== "dead" || enemy.timer < T.DEAD_STEPS) &&
@@ -420,12 +430,13 @@ function lash(world: World, hero: Hero, mount: Mount): void {
 
 /**
  * An enemy a blade can land on: on its feet (thinking or reeling), a bonewalker's bone pile, or walking, leaping or
- * riding in once its whole body is on screen; a sack imp as `kickable` says. A bonewalker clawing out of its grave is not.
+ * riding in once its whole body is on screen; a sack imp as `kickable` says. A bonewalker clawing out of its grave is not,
+ * nor Vorhal roaring.
  */
 export const hittable = (world: World, enemy: Enemy): boolean =>
   isImp(enemy)
     ? kickable(world, enemy)
-    : thinks(enemy) ||
+    : (thinks(enemy) && enemy.state !== "roar") ||
       enemy.state === "hurt" ||
       enemy.state === "pile" ||
       ((enemy.state === "enter" ||
@@ -567,7 +578,8 @@ function moveEnemy(world: World, enemy: Enemy): void {
   if (enemy.state === "enter") {
     enemy.x += clamp(enemy.goal - enemy.x, -T.ENTER_WALK, T.ENTER_WALK);
     if (enemy.x === enemy.goal) rest(world, enemy);
-  } else if (enemy.state === "leap") soar(world, enemy);
+  } else if (enemy.state === "leap")
+    (isVorhal(enemy) ? vaultStep : soar)(world, enemy);
   else if (enemy.state === "knockdown") {
     enemy.z += enemy.vz;
     enemy.vz -= T.GRAVITY;
@@ -591,7 +603,13 @@ function moveEnemy(world: World, enemy: Enemy): void {
       T.RETURN_INSET,
     );
   if (thinks(enemy))
-    (isOgre(enemy) ? ogreAct : isLancer(enemy) ? lancerAct : act)(world, enemy);
+    (isOgre(enemy)
+      ? ogreAct
+      : isVorhal(enemy)
+        ? vorhalAct
+        : isLancer(enemy)
+          ? lancerAct
+          : act)(world, enemy);
   if (enemy.state !== "enter" && enemy.state !== "leap")
     enemy.x = clamp(enemy.x, 0, planOf(world).length);
   enemy.y = clamp(enemy.y, T.FLOOR_TOP, T.FLOOR_BOTTOM);

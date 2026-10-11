@@ -347,7 +347,7 @@ export const STAGE_3: StagePlan = {
 
 /**
  * Vorhal's Keep's crypt slabs, in pixels as the crypt's graves are (`gravesPx`): the halls' five, each on the screen of
- * a wave that raises a bonewalker from it, then the throne room's three.
+ * a wave that raises a bonewalker from it, then the throne room's three, which only Vorhal's summons open.
  */
 // prettier-ignore
 const KEEP_SLABS = [
@@ -360,13 +360,18 @@ const slabRiser = (tier: Tier, slab: number, delay: number): Spawn => ({
   y: px(KEEP_SLABS[slab]![1]),
   grave: slab,
 });
+/** Vorhal, walking out of his throne room. */
+const vorhal = (side: Side, y: number): Spawn => ({
+  ...ogre(ASH, side, y),
+  kind: "vorhal",
+});
 
 const ROAD_4 = px(5 * VIEW_W);
 /**
  * Vorhal's Keep: five screens of torch-lit halls, five waves of ravagers (violet among them), lancers and bonewalkers
  * clawing up out of the crypt slabs in the floor, a ravager on a clawbeak in wave 4, and a sack imp darting in behind
- * wave 5's fight; in the throne room, until Vorhal takes it, a pair of bone knights (violet bonewalkers) claw up out of
- * its slabs, with a rust bonewalker and a violet ravager in turn for each hero beyond the first.
+ * wave 5's fight; in the throne room Vorhal himself, with a rust bonewalker and a violet ravager in turn for each hero
+ * beyond the first.
  */
 export const STAGE_4: StagePlan = {
   name: "Vorhal's Keep",
@@ -419,7 +424,7 @@ export const STAGE_4: StagePlan = {
     },
     {
       at: ROAD_4 - px(VIEW_W),
-      spawns: [slabRiser(VIOLET, 5, 0), slabRiser(VIOLET, 7, 20)],
+      spawns: [vorhal("right", 140)],
       extras: [
         walker(RUST, "left", 120, 90),
         ravager(VIOLET, "right", 160, 60),

@@ -39,6 +39,23 @@ import {
   TAIL_WINDUP,
   THRUST_STEPS,
   WANDER_TURN,
+  CAST_MARK,
+  CAST_STEPS,
+  CUT_GAP,
+  CUT_LANE,
+  CUT_REACH,
+  CUT_STEPS,
+  PILLAR_HALF,
+  PILLAR_LANE,
+  PILLAR_STEPS,
+  ROAR_STEPS,
+  SIGIL_DELAY,
+  SUMMON_AT,
+  SUMMON_STEPS,
+  VAULT_STEPS,
+  VAULT_VZ,
+  VORHAL,
+  VORHAL_RECOVER,
   OGRE_RECOVER,
   QUAKE_SPEED,
   QUAKE_STEPS,
@@ -102,6 +119,8 @@ export {
   LANCER_ONLY,
   MOUNT_STATES,
   OGRE_ONLY,
+  VORHAL_ONLY,
+  VORHAL_STATES,
 } from "./world.js";
 
 /** The floor band's top and bottom screen rows. */
@@ -278,6 +297,40 @@ export const gravesPx = (
   stage: number,
 ): readonly (readonly [number, number])[] =>
   (roadOf(stage).graves ?? []).map(({ x, y }) => [x / SUB, y / SUB] as const);
+
+/**
+ * Vorhal's timing in steps, to time his frames: the greatsword's wind-up calm and enraged (the first cut lands on the
+ * step after the last), the first cut's steps before the second lands, the second's, the recovery; the cast's step
+ * that marks the sigils and its length; the summons' step that raises the bonewalkers and its length; the leap's steps
+ * (climbing on every `animStep` up to `leapApex`), the roar and the stagger.
+ */
+export const VORHAL_STEPS = {
+  windup: VORHAL.calm.windup,
+  rageWindup: VORHAL.rage.windup,
+  cut1: CUT_GAP,
+  cut2: CUT_STEPS,
+  recover: VORHAL_RECOVER,
+  castMark: CAST_MARK,
+  cast: CAST_STEPS,
+  summonAt: SUMMON_AT,
+  summon: SUMMON_STEPS,
+  leap: VAULT_STEPS,
+  leapApex: 1 + Math.floor((VAULT_VZ - 1) / GRAVITY),
+  roar: ROAR_STEPS,
+  stagger: STAGGER_STEPS,
+} as const;
+/** In pixels: how far Vorhal's cuts reach in front of his centre, and how far either side in depth. */
+export const CUT = { reach: CUT_REACH / SUB, lane: CUT_LANE / SUB } as const;
+/**
+ * A sigil's timing in steps and its pillar in pixels: it glows until `delay`, then the pillar burns for `burn` steps,
+ * `half` either side of it along the road (beyond a hero's half-width) and `lane` either side in depth.
+ */
+export const SIGIL = {
+  delay: SIGIL_DELAY,
+  burn: PILLAR_STEPS,
+  half: PILLAR_HALF / SUB,
+  lane: PILLAR_LANE / SUB,
+} as const;
 
 /** In pixels: how far the thrust's spear reaches in front of the lancer's centre, and the landing strike's. */
 export const SPEAR = {

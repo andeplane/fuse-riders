@@ -216,7 +216,11 @@ for (const animated of ANIMATED) {
         twin({ id: 2, tier: 1, x: 260, y: 128, facing: -1, enraged: true }),
       ],
       ...{ wave: 5, waves: 6, locked: true, go: false, cleared: false },
-      ...{ defeated: false, boss: { kind: "ogre", hp: 150, maxHp: 300 } },
+      ...{
+        defeated: false,
+        boss: { kind: "ogre", hp: 150, maxHp: 300 },
+        sigils: [],
+      },
     };
     scene.draw(native.paint, view, step);
     shown.paint.drawImage(native.image, 0, 0, VIEW_W * 2, VIEW_H * 2);
@@ -261,7 +265,7 @@ for (const animated of ANIMATED) {
         },
       ],
       ...{ wave: 2, waves: 5, locked: true, go: false, cleared: false },
-      ...{ defeated: false, boss: null },
+      ...{ defeated: false, boss: null, sigils: [] },
     };
     scene.draw(still.paint, view, step);
     big.paint.drawImage(still.image, 0, 0, VIEW_W * 2, VIEW_H * 2);
@@ -304,7 +308,7 @@ for (const animated of ANIMATED) {
         ...{ step, stage: 1, camX: 0, heroes: riders, fx: [], items: [], spells: [] }, // prettier-ignore
         ...{ mounts, camp: false, enemies: [] },
         ...{ wave: 2, waves: 5, locked: false, go: false, cleared: false },
-        ...{ defeated: false, boss: null },
+        ...{ defeated: false, boss: null, sigils: [] },
       };
       scene.draw(native2.paint, view, step);
       big2.paint.drawImage(native2.image, 0, 0, VIEW_W * 2, VIEW_H * 2);
@@ -347,7 +351,7 @@ for (const animated of ANIMATED) {
       ...{ step, stage: 3, camX: gx - 120, heroes: [], fx: [], items: [] },
       ...{ spells: [], mounts: [], camp: false, enemies },
       ...{ wave: 1, waves: 6, locked: true, go: false, cleared: false },
-      ...{ defeated: false, boss: null },
+      ...{ defeated: false, boss: null, sigils: [] },
     };
     scene.draw(native3.paint, view, step);
     big3.paint.drawImage(native3.image, 0, 0, VIEW_W * 2, VIEW_H * 2);

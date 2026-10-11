@@ -1,4 +1,4 @@
-import type { EnemyAnim } from "../../engine/view.js";
+import type { EnemyAnim, VorhalAnim } from "../../engine/view.js";
 import type { AnimStrip } from "./animate.js";
 import {
   adjust,
@@ -395,6 +395,7 @@ export type RavagerAnim = Exclude<
   | "rise"
   | "pile"
   | "reassemble"
+  | VorhalAnim
 >;
 
 const WALK_CYCLE: AnimStrip<RavagerFrame> = {

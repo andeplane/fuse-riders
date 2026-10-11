@@ -1,5 +1,5 @@
 /** Fuse Axe's engine: deterministic rules with no imports from outside this folder. */
-export const RULES = "fuse-axe-20";
+export const RULES = "fuse-axe-21";
 export * from "./input.js";
 export {
   carryOf,
@@ -23,6 +23,7 @@ export {
   type Item,
   type Mount,
   type MountState,
+  type Sigil,
   type Spell,
   type World,
 } from "./world.js";
@@ -42,6 +43,7 @@ export {
   type ItemView,
   type MountAnim,
   type MountView,
+  type SigilView,
   type SpellView,
   type WorldView,
 } from "./view.js";

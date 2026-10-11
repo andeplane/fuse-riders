@@ -15,6 +15,7 @@ import {
   STAB_STEPS,
   SWING_STEPS,
   THROW_STEPS,
+  VORHAL_STEPS,
   type DashSteps,
   type SwingSteps,
   type Swings,
@@ -252,6 +253,11 @@ export interface AnimStrip<F extends string> {
   readonly loop: boolean;
 }
 
+/** A strip played once, holding its last frame. */
+const once = (
+  ...frames: (readonly [frame: string, steps: number])[]
+): AnimStrip<string> => ({ frames, loop: false });
+
 /** An enemy kind's strip per anim: an anim it lacks stands idle. */
 export type EnemyAnims = Readonly<
   Partial<Record<EnemyAnim, AnimStrip<string>>>
@@ -264,6 +270,32 @@ export const ENEMY_ANIMS: Readonly<Record<EnemyKind, EnemyAnims>> = {
   lancer: LANCER_ANIMS,
   captain: CAPTAIN_ANIMS,
   bonewalker: BONEWALKER_ANIMS,
+  // Vorhal is an ogre with horns until he has art of his own: his cuts are its sweep and its slam, he casts and summons
+  // with the hammer raised (bringing it down as they rise), leaps with it raised and roars panting.
+  vorhal: {
+    ...OGRE_ANIMS,
+    cut1: once(["sweep", VORHAL_STEPS.cut1]),
+    cut2: once(["slam", 6], ["quake", VORHAL_STEPS.cut2 - 6]),
+    cast: once(
+      ["lift", VORHAL_STEPS.castMark],
+      ["windup", VORHAL_STEPS.cast - VORHAL_STEPS.castMark],
+    ),
+    summon: once(
+      ["windup", VORHAL_STEPS.summonAt],
+      ["slam", VORHAL_STEPS.summon - VORHAL_STEPS.summonAt],
+    ),
+    leap: once(
+      ["lift", VORHAL_STEPS.leapApex],
+      ["windup", VORHAL_STEPS.leap - VORHAL_STEPS.leapApex],
+    ),
+    roar: {
+      frames: [
+        ["recover1", 8],
+        ["recover2", 8],
+      ],
+      loop: true,
+    },
+  },
 };
 
 /**
