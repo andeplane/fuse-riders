@@ -24,7 +24,8 @@ import {
  * the room's stage flow does), and the world's hash is compared every ten seconds and at the end of each stage and
  * camp; the pass ends with its boss, the lancer captain on his ember drake, whom both runs beat to clear it. After a
  * second camp they go down the Drowned Crypt, its bonewalkers clawing up out of the graves and pulling themselves
- * together from their bones unless shattered, to the pair of bone knights at the cathedral's doors. A
+ * together from their bones unless shattered, to the pair of bone knights at the cathedral's doors. After a third they
+ * fight through the halls of Vorhal's Keep, bonewalkers clawing up out of its crypt slabs, to the throne room. A
  * refactor must keep these; a change to the rules (the bot's play included, as a bot seat folds
  * `botInput`) must bump `RULES` in `src/engine/index.ts` and re-record them in the same commit: `GOLDEN_RECORD=1`
  * prints the new ones.
@@ -42,12 +43,12 @@ interface Run {
   hashes: string[];
 }
 const GOLDEN: { rules: string; runs: Run[] } = {
-  rules: "fuse-axe-19",
+  rules: "fuse-axe-20",
   runs: [
     {
       seed: 20261011,
       humans: [],
-      steps: [5523, 702, 6807, 666, 6954],
+      steps: [5523, 702, 6807, 666, 6954, 702, 6993],
       hashes: [
         ...["e035e59b", "0f3922e0", "c551dcb8", "7dfc6b6b", "3adf2404"],
         ...["358fc7c9", "1cb7cc51", "a92dcb72", "9579aaac", "f6f59f33"],
@@ -56,13 +57,16 @@ const GOLDEN: { rules: string; runs: Run[] } = {
         ...["5cdbcb06", "8f72d04e", "6fdd756f", "7ab3182e", "2040a2fa"],
         ...["295b044f", "e45dc47b", "1a74be2e", "0b91b0fc", "68874d71"],
         ...["9a588416", "0de6aebd", "52331eb5", "3b086215", "3102e49f"],
-        ...["6594a11a", "48737817", "1766e981"],
+        ...["6594a11a", "48737817", "1766e981", "0ba0670f", "a1eecff0"],
+        ...["882c506d", "9743eb4a", "fbec18a8", "10a6a8b2", "724d6e6f"],
+        ...["4157dbb5", "4a229e2b", "19d1a28f", "44494281", "2d6e700f"],
+        ...["8b58903b", "7f9ada1e"],
       ],
     },
     {
       seed: 20261012,
       humans: [1],
-      steps: [5937, 717, 6777, 720, 7245],
+      steps: [5937, 717, 6777, 720, 7245, 726, 6621],
       hashes: [
         ...["38b40aa1", "56fc6f32", "8d347cdf", "5b4bd330", "cad1bb0c"],
         ...["138755b0", "6200b592", "812d3748", "2527c8b9", "6f013c9a"],
@@ -71,7 +75,10 @@ const GOLDEN: { rules: string; runs: Run[] } = {
         ...["1def3427", "96088938", "2ef220c3", "5886fa5e", "bf7a1d10"],
         ...["67506e1a", "1f586126", "35ef4377", "bad99d15", "3ce4d7e4"],
         ...["aa393d9a", "657b386e", "469b19f0", "68eac9e0", "42087a4b"],
-        ...["e082897a", "19fcab3b", "b971537a", "5212d960"],
+        ...["e082897a", "19fcab3b", "b971537a", "5212d960", "0e20dbee"],
+        ...["716b5b3d", "6bbfe485", "a7813a78", "c7d6c249", "85d37bad"],
+        ...["204b4d35", "a02a1fef", "f3c684b6", "b1505c41", "e6dcbc8e"],
+        ...["f9ae2b5a", "44d88539", "c36d9525"],
       ],
     },
   ],

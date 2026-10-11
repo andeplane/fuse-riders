@@ -17,6 +17,7 @@ import {
   decodeWorld,
   defeated,
   encodeWorld,
+  revive,
   spawnEnemy,
   stageCleared,
   step,
@@ -181,14 +182,17 @@ test("every world the bots reach on any stage, in a party of one or five, is acc
       })),
     });
     let furthest = 0;
+    // A party wiped out continues once a stage, as a room's does (`revive`): a lone hero reaches Vorhal on its last life.
     const play = (from: World, name: string) => {
-      let at = from;
+      let at = from,
+        continued = false;
       while (
         at.step < 14_000 &&
         !stageCleared(at) &&
-        !defeated(at) &&
+        !(defeated(at) && continued) &&
         !campOver(at)
       ) {
+        if (defeated(at)) [at, continued] = [revive(at), true];
         const held: number[] = [];
         for (const hero of at.heroes) held[hero.seat] = botInput(at, hero.id);
         at = stepTick(at, held);
