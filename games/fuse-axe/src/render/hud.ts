@@ -159,6 +159,7 @@ export const BOSS_NAMES: Readonly<Record<EnemyKind, string>> = {
   ravager: "RAVAGER",
   imp: "SACK IMP",
   ogre: "OGRE TWINS",
+  lancer: "LANCER",
 };
 export const bossName = (kind: EnemyKind): string =>
   Object.hasOwn(BOSS_NAMES, kind) ? BOSS_NAMES[kind] : "BOSS";

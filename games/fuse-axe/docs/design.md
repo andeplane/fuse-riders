@@ -129,14 +129,24 @@ it down once it has taken a quarter of its hit points since it last fell. A spel
 most an eighth of its hit points, and it is never grabbed. When one twin falls the other enrages and fights faster; a
 boss bar across the top shows the twins' health together.
 
+A **lancer** (`src/engine/lancer.ts`, tuned in `tuning.ts`'s `LANCER`) is lighter and quicker than a ravager of its
+tier and shares the two places by a hero with every other kind. It keeps to the edge of its spear's reach (about 1.6
+maces, the one reach no hero has, paid for with a longer wind-up and a lane thinner than a blade's), backing away from
+a hero who comes too close until the screen's edge stops it, and thrusts lined up in the hero's lane; after the thrust
+it stands open. It leaps in from beyond the screen's edge, and at a hero far along the road, with a hero's jump that
+lands with the spear driven down in front, knocking down. A blow in the air knocks it down, as it does a hero; otherwise
+it is dazed, grabbed, thrown and spelled down as a ravager is. Stage 1's waves 3 and 4 have one each, and every wave of
+Wyrmbone Pass but the last.
+
 ## Stages
 
 1. **Ashen Village** — a dusk road through burning thatched huts. Ravagers and lancers; boss: the Ogre twins.
 2. **Wyrmbone Pass** — a mountain path through the ribs of a dead giant wyrm. Mounts appear; boss: a lancer captain
-   on an ember drake. Playable as gameplay for now (`STAGE_2`): five screens of road, five ravager waves mostly in
-   rust and violet with two imps, and a pair of violet ravagers at the end in place of the captain until mounts come.
-   Its backdrop is a cold dawn under a setting moon: ribs arching over the road, a lesser wyrm's skull partway, the
-   raiders' camp, and the wyrm's great skull in the cliff at the end, its open jaws the gate the boss waits in.
+   on an ember drake. Playable as gameplay for now (`STAGE_2`): five screens of road, five waves of ravagers mostly in
+   rust and violet, each with a lancer or two, and two imps, and a pair of violet ravagers at the end in place of the
+   captain until mounts come. Its backdrop is a cold dawn under a setting moon: ribs arching over the road, a lesser
+   wyrm's skull partway, the raiders' camp, and the wyrm's great skull in the cliff at the end, its open jaws the gate
+   the boss waits in.
 
    ![Wyrmbone Pass: the ribs and the lesser skull, and the skull gate in the last screen](images/stage2-backdrop.png)
 

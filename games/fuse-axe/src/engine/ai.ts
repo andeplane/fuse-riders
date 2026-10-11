@@ -29,7 +29,8 @@ import {
  * draws from the world's stream. An enemy only thinks standing, walking or in its own swing: hit-stop, reeling, a
  * knockdown, lying, getting up, a defeat and a walk-in leave it to the rules in `step.ts`, and a spell's freeze
  * (`magic.ts`) holds it as it stands, wind-up and all, thinking nothing until the blow lands. Its walk is no faster
- * than its tier's and keeps to the screen, and its mace lands only on heroes.
+ * than its tier's and keeps to the screen, and its mace lands only on heroes. A lancer (`lancer.ts`) picks its hero
+ * the same way (`decide`) and walks the same way to its own reach (`stride`), but thrusts and leaps where this swings.
  */
 const THINKS: readonly EnemyState[] = [
   "idle",
@@ -37,14 +38,16 @@ const THINKS: readonly EnemyState[] = [
   "windup",
   "attack",
   "recover",
-  // An ogre's (`ogre.ts`), which it plays out itself.
+  // An ogre's (`ogre.ts`) and a lancer's (`lancer.ts`), which they play out themselves.
   "slam",
   "sweep",
   "stagger",
+  "thrust",
+  "plunge",
 ];
 export const thinks = (enemy: Enemy): boolean => THINKS.includes(enemy.state);
 
-/** The fighter an enemy is: its tier's ravager, or an ogre's mood. */
+/** The fighter an enemy is: its tier's ravager or lancer, or an ogre's mood. */
 export const fighter = (enemy: Enemy): T.Fighter =>
   T.fighterOf(enemy.kind, enemy.tier, enemy.enraged);
 
@@ -55,7 +58,10 @@ export function rest(world: World, enemy: Enemy): void {
   enemy.thinkAt = world.step + think + roll(world, jitter);
 }
 
-/** One step of an enemy that thinks (`thinks`). */
+/**
+ * One step of a ravager that thinks (`thinks`): an ogre and a lancer have their own (`ogreAct`, `lancerAct`), which
+ * share `decide`, `stride` and `rest` with it, so this reads the ravager's tier stats (`T.RAVAGER`) directly.
+ */
 export function act(world: World, enemy: Enemy): void {
   const stats = T.RAVAGER[enemy.tier],
     target = world.heroes.find((hero) => hero.id === enemy.target);
@@ -92,8 +98,11 @@ const linedUp = (enemy: Enemy, hero: Hero): boolean =>
 const attackers = (world: World, hero: Hero, enemy: Enemy): Enemy[] =>
   world.enemies.filter((other) => other !== enemy && other.target === hero.id);
 
-/** Goes for the hero it is on, or the nearest with a place free; with none free it hovers near the nearest hero. */
-function decide(world: World, enemy: Enemy): void {
+/**
+ * Goes for the hero it is on, or the nearest with a place free among the `ATTACKERS` going for it, whatever their kind,
+ * walking with `walk` (a lancer has its own); with none free it hovers near the nearest hero.
+ */
+export function decide(world: World, enemy: Enemy, walk = stride): void {
   let pick = world.heroes.find((hero) => hero.id === enemy.target);
   for (const hero of pick ? [] : world.heroes)
     if (
@@ -106,7 +115,7 @@ function decide(world: World, enemy: Enemy): void {
   if (pick) {
     enemy.target = pick.id;
     setState(enemy, "walk");
-    stride(world, enemy);
+    walk(world, enemy);
   } else if (nearest) {
     const side = enemy.x < nearest.x ? -1 : 1;
     walkTo(
@@ -131,11 +140,16 @@ export function walkTo(world: World, enemy: Enemy, x: number, y: number) {
 }
 
 /**
- * A walking step. One going for a hero heads for its side of it, `ENGAGE_X` away and in its lane, and winds up once
- * lined up with the hero on its feet (lying, it waits); one hovering or backing off faces the nearest hero and stands
- * when it arrives.
+ * A walking step. One going for a hero heads for its side of it, `reach` away (a ravager's `ENGAGE_X`) and in its lane,
+ * and winds up once `lined` up with the hero on its feet (lying, it waits); one hovering or backing off faces the
+ * nearest hero and stands when it arrives.
  */
-function stride(world: World, enemy: Enemy): void {
+export function stride(
+  world: World,
+  enemy: Enemy,
+  reach = T.ENGAGE_X,
+  lined = linedUp,
+): void {
   const hero = world.heroes.find((each) => each.id === enemy.target);
   if (hero) {
     // Enemies going for the hero or close by claim their sides in id order: it takes the side fewer of the earlier
@@ -159,11 +173,11 @@ function stride(world: World, enemy: Enemy): void {
     walkTo(
       world,
       enemy,
-      hero.x + side * T.ENGAGE_X,
+      hero.x + side * reach,
       hero.y + (side === own ? 0 : dodge),
     );
     face(enemy, hero.x);
-    if (side === own && linedUp(enemy, hero)) {
+    if (side === own && lined(enemy, hero)) {
       if (FLOORED.includes(hero.state)) rest(world, enemy);
       else setState(enemy, "windup");
       return;
@@ -172,7 +186,7 @@ function stride(world: World, enemy: Enemy): void {
     const nearest = nearestHero(world, enemy);
     if (nearest) face(enemy, nearest.x);
   }
-  const { walk } = T.RAVAGER[enemy.tier];
+  const { walk } = fighter(enemy);
   enemy.x += clamp(enemy.goal - enemy.x, -walk.x, walk.x);
   enemy.y += clamp(enemy.goalY - enemy.y, -walk.y, walk.y);
   if (!hero && enemy.x === enemy.goal && enemy.y === enemy.goalY)

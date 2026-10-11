@@ -61,6 +61,11 @@ export type HeroAnim = HeroState;
  * runs on along the floor from `SLAM_REACH` at `QUAKE_SPEED` for `QUAKE_STEPS`), `sweep` swings it round (landing at
  * `sweepWindup`) and `recover` stands open; `stagger` reels from a heavy blow without being nudged, and it is knocked
  * down, lies, gets up and is `dead` as a ravager is. It never reels (`hurt`), nor is `held` or `thrown`.
+ *
+ * A lancer (kind `lancer`) has a ravager's anims but `attack`: `windup` draws back its spear for its tier's steps,
+ * `thrust` holds it out (it lands on the first step, `SPEAR.reach` in front) and `recover` follows. `leap` jumps in
+ * from the screen's edge or at a hero (rising, then falling, `LANCER_STEPS` in `view-kit.ts`), and `plunge` drives the
+ * spear down where it lands, then stands over it. It walks back in to a locked screen in `enter`.
  */
 export type EnemyAnim = EnemyState;
 
