@@ -17,10 +17,11 @@ export interface Voice {
   sustain?: boolean;
 }
 
-/** A cue's voices, on the effects channel or, for a jingle, the music channel. */
+/** A cue's voices, on the effects channel or, for a jingle, the music channel; it ducks the loop for `duck` seconds. */
 export interface Sound {
   channel: "effects" | "music";
   voices: readonly Voice[];
+  duck?: number;
 }
 
 const SEMITONES: Readonly<Record<string, number>> = {
@@ -105,10 +106,13 @@ export const SOUNDS = {
   pot: fx(...line("triangle", 0.14, 0.07, "e6 b6 e7 -")),
   respawn: fx(v("square", 300, 0.3, 0.06, 3)),
   // A horn on a fifth, after the wave's own stinger.
-  go: fx(
-    ...line("sawtooth", 0.09, 0.25, ". a3 - -"),
-    ...line("sawtooth", 0.07, 0.25, ". e4 - -"),
-  ),
+  go: {
+    ...fx(
+      ...line("sawtooth", 0.09, 0.25, ". a3 - -"),
+      ...line("sawtooth", 0.07, 0.25, ". e4 - -"),
+    ),
+    duck: 0.9,
+  },
   locked: fx(
     ...line("sawtooth", 0.08, 0.14, "a2 d#3 a2 -"),
     v("noise", 300, 0.3, 0.3),
@@ -121,6 +125,7 @@ export const SOUNDS = {
       ...line("square", 0.07, 0.13, "a4 c#5 e5 a5 - - e5 a5 b5 c#6 - - - -"),
       ...line("triangle", 0.2, 0.13, "a2 - - e2 - - a2 - e2 a2 - - - -"),
     ],
+    duck: 2.2,
   },
   gameover: {
     channel: "music",
@@ -128,6 +133,7 @@ export const SOUNDS = {
       ...line("square", 0.06, 0.3, "e5 d5 c5 b4 a4 - g#4 a4 -"),
       ...line("triangle", 0.2, 0.3, "a2 - f2 - e2 - - a1 -"),
     ],
+    duck: 3,
   },
 } satisfies Record<string, Sound>;
 

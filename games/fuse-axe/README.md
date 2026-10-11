@@ -35,8 +35,9 @@ of every pad.
 ![The same held upright](docs/images/app-phone-controller-upright.png)
 
 Sound is synthesised in the browser, with nothing to load: every cue is found by diffing the frames the page is shown
-(`src/app/audio/cues.ts`), never by the simulation, and plays after the first key or tap. **♫ MUSIC** (the stage
-jingles) and **EFFECTS** in the header are this browser's choices and are kept; `?mute` silences the page without
+(`src/app/audio/cues.ts`), never by the simulation, and plays after the first key or tap. Stage 1 marches to a short
+chiptune loop in A minor (`src/app/audio/music.ts`) that ducks under the stage-clear fanfare and stops in the lobby
+and at the run's end. **♫ MUSIC** (the loop and the jingles) and **EFFECTS** in the header are this browser's choices and are kept; `?mute` silences the page without
 touching them. With a shared screen the TV sounds for the room and a phone that is only a controller stays quiet.
 
 ```sh
