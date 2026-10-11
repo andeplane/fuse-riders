@@ -248,6 +248,17 @@ export const between = (a: Point, b: Point, t = 0.5): Point => [
   a[1] + (b[1] - a[1]) * t,
 ];
 
+/** Offsets from `origin` along a part's own axes turned `degrees` clockwise: `forward` the way it faces, `down` across it. */
+export type Local = (forward: number, down: number) => Point;
+export const turned = (origin: Point, degrees: number): Local => {
+  const r = (degrees * Math.PI) / 180;
+  const [c, s] = [Math.cos(r), Math.sin(r)];
+  return (forward, down) => [
+    origin[0] + forward * c - down * s,
+    origin[1] + forward * s + down * c,
+  ];
+};
+
 export interface PartOptions extends ShapeOptions {
   /** Scales the part's girth. */
   readonly thick?: number;
