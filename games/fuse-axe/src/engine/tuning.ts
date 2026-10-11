@@ -557,11 +557,12 @@ export const CUT_STEPS = 18;
 export const CUT2_DAMAGE = 4;
 export const VORHAL_RECOVER = 36;
 /**
- * The fire spell: he raises his hand, and on `CAST_MARK` marks a sigil under each hero on its feet (the first in id
- * order up to the count: `SIGILS` and one more by chance, in his second phase `SIGILS + 1` and one more), and any left
- * on the floor at random; he stands casting until `CAST_STEPS`. A sigil glows for `SIGIL_DELAY` steps, then a pillar of
- * fire erupts from it and burns for `PILLAR_STEPS`: every hero on or over it (within `PILLAR_HALF` along the road and
- * `PILLAR_LANE` in depth) takes `PILLAR_DAMAGE` and is knocked down. He casts only while no sigil is left.
+ * The fire spell: he raises his hand, and on `CAST_MARK` marks a sigil under each hero on its feet (the first up to the
+ * count, round the party from a seat drawn at random: `SIGILS` and one more by chance, in his second phase `SIGILS + 1`
+ * and one more), and any left on the floor at random; he stands casting until `CAST_STEPS`. A sigil glows for
+ * `SIGIL_DELAY` steps, then a pillar of fire erupts from it and burns for `PILLAR_STEPS`: every hero on or over it
+ * (within `PILLAR_HALF` along the road and `PILLAR_LANE` in depth) takes `PILLAR_DAMAGE` and is knocked down. He casts
+ * only while no sigil is left.
  */
 export const CAST_MARK = 20;
 export const CAST_STEPS = 44;

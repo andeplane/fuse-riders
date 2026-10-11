@@ -109,7 +109,7 @@ const VORHAL_LOOK = {
   D: "#ff3a2e",
 };
 const VORHAL_RAGE = { ...VORHAL_LOOK, ...rampSwap("Ll9", "Cc0") };
-const each = <P>(palette: P) => ({ 0: palette, 1: palette, 2: palette });
+const inEveryTier = <P>(palette: P) => ({ 0: palette, 1: palette, 2: palette });
 /** Every enemy kind's art. A kind from a build with more of them draws as a ravager, as `enemyFrame` plays it. */
 export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   ravager: {
@@ -141,8 +141,8 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   },
   vorhal: {
     figure: OGRE,
-    tiers: each(VORHAL_LOOK),
-    rage: { tiers: each(VORHAL_RAGE), crowns: OGRE_CROWNS },
+    tiers: inEveryTier(VORHAL_LOOK),
+    rage: { tiers: inEveryTier(VORHAL_RAGE), crowns: OGRE_CROWNS },
     shade: 1.5,
     horns: OGRE_CROWNS,
   },
