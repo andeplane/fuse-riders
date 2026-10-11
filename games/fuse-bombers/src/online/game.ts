@@ -364,14 +364,31 @@ export interface View extends Omit<Room, "tick" | "seats" | "world"> {
   seats: SeatRecord[];
   world: RoundView | null;
 }
+type Terrain = RoundState["terrain"];
+/** Each live grid's latest copy: carving (the one change a round's grid sees) bumps `version`, and a rollback restores
+ * another grid, so frames share one copy (about 200 KB) until a carve instead of copying it every frame. */
+const terrainCopies = new WeakMap<Terrain, Terrain>();
+function terrainCopy(grid: Terrain): Terrain {
+  let copy = terrainCopies.get(grid);
+  if (copy?.version !== grid.version)
+    terrainCopies.set(grid, (copy = structuredClone(grid)));
+  return copy;
+}
+function roundCopy(world: RoundState): RoundView {
+  const { terrain, ...round } = world;
+  return roundView({
+    ...structuredClone(round),
+    terrain: terrainCopy(terrain),
+  });
+}
 export function view(room: Room): View {
-  const { tick, seats, world, ...rest } = structuredClone(room);
+  const { tick, seats, world, ...rest } = room;
   return {
-    ...rest,
+    ...structuredClone(rest),
     tick: tick * STEPS_PER_TICK,
     logTick: tick,
-    seats: seatOrder(seats.values()),
-    world: world && roundView(world),
+    seats: structuredClone(seatOrder(seats.values())),
+    world: world && roundCopy(world),
   };
 }
 

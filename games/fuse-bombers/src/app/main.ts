@@ -3,6 +3,8 @@ import "fuse-ui/tokens.css";
 import "fuse-ui/portal.css";
 import "./style.css";
 import "./screens.css";
+import { validRoomCode } from "fuse-network-fe";
+import { uuid } from "fuse-netcode";
 import { createAppPortal, type AppPortal } from "fuse-ui/portal";
 import Phaser from "phaser";
 import {
@@ -14,15 +16,26 @@ import {
 import { createAudio } from "./audio/index.js";
 import { Flow } from "./flow.js";
 import { createBrowserInput } from "./input/index.js";
+import { showLanding, showRoom } from "./online.js";
+import { safeStore, sessionFor } from "./session.js";
 
 const params = new URLSearchParams(window.location.search);
 /** Music and effects; `?mute` disables them for this load. */
 const audio = createAudio();
+const store = safeStore(() => localStorage);
+const session = sessionFor(
+  location.search,
+  store,
+  "fuse-bombers",
+  validRoomCode,
+  () => `${uuid()}${uuid()}`.replaceAll("-", ""),
+);
 
 /**
  * Boots the game: the Phaser round scene fills the window and the match flow's DOM screens sit on top.
  * Debug flags: `?seed=N` fixes the matches, `?speed=N` runs everything N times as fast, `?touch` forces the touch
- * pads, `?debug` exposes `window.fuseBombers = { game, flow, audio }` for browser tests. `?mute` silences audio.
+ * pads, `?debug` exposes `window.fuseBombers = { game, flow, audio }` for browser tests. `?mute` silences audio. A room
+ * (`?room=CODE`, or `?solo=1` against bots) draws the same scene from `online.ts`.
  */
 async function boot(): Promise<void> {
   // Phaser rasterises text once, so the pixel font must be ready before the first scene draws.
@@ -45,6 +58,8 @@ async function boot(): Promise<void> {
     },
   });
   game.scene.add(RoundScene.KEY, RoundScene);
+  if (session.kind === "room" || session.kind === "solo")
+    return showRoom(session, { store, audio, game });
   // Every (re)start of the round scene needs the audio attached again; the attract round behind the lobby stays
   // silent so the lobby music plays.
   let detachAudio: (() => void) | undefined;
@@ -102,9 +117,14 @@ function mountPortal(): AppPortal {
   return portal;
 }
 
-boot().catch((error: unknown) => {
-  console.error("Fuse Bombers failed to start", error);
-});
+// `?local` (or a debug flag above) is the lobby on this screen, `?room=CODE` a room, `?solo=1` bots; else the landing.
+if (session.kind === "landing") showLanding(store);
+else if (session.kind === "invalid")
+  showLanding(store, `${session.code} is not a room code`);
+else
+  boot().catch((error: unknown) => {
+    console.error("Fuse Bombers failed to start", error);
+  });
 
 // Developer aid: a readout of the one-button input layer.
 if (params.has("inputdebug")) {

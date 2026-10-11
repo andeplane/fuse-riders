@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@fontsource/press-start-2p": "^5.3.0",
-    "phaser": "4.2.1"
+    "phaser": "4.2.1",
+    "qrcode": "^1.5.4"
   }
 }
