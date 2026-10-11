@@ -16,6 +16,7 @@ import {
   IMP_ONLY,
   LANCER_ONLY,
   OGRE_ONLY,
+  VORHAL_ONLY,
 } from "../src/engine/view-kit.js";
 import {
   paintRavager,
@@ -211,9 +212,10 @@ test("every anim plays frames the figure has, for whole steps, and every frame i
     Object.keys(RAVAGER_ANIMS).sort(),
     ENEMY_STATES.filter(
       (state) =>
-        ![...IMP_ONLY, ...OGRE_ONLY, ...LANCER_ONLY, ...BONE_ONLY].includes(
-          state,
-        ),
+        ![
+          ...[...IMP_ONLY, ...OGRE_ONLY, ...LANCER_ONLY, ...BONE_ONLY],
+          ...VORHAL_ONLY,
+        ].includes(state),
     ).sort(),
   );
   const played = new Set<string>();

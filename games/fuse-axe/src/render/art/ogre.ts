@@ -1,4 +1,4 @@
-import type { EnemyAnim, Tier } from "../../engine/view.js";
+import type { EnemyAnim, Tier, VorhalAnim } from "../../engine/view.js";
 import { OGRE_STEPS } from "../../engine/view-kit.js";
 import type { AnimStrip } from "./animate.js";
 import {
@@ -287,6 +287,7 @@ export type OgreAnim = Exclude<
   | "rise"
   | "pile"
   | "reassemble"
+  | VorhalAnim
 >;
 
 type Frames = (readonly [OgreFrame, number])[];

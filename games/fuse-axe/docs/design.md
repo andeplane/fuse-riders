@@ -92,7 +92,7 @@ is the core skill, as in the original.
 | -------------- | ---------------------------------------------------------------------------------------------------------- |
 | **Ravager**    | foot soldier with a mace; the bread and butter. Tiers by palette (ash, rust, violet) add HP and aggression |
 | **Lancer**     | spear, longer reach, jumps in from the screen edge                                                         |
-| **Brute**      | huge, slow, a club with knockback; takes several knockdowns                                                |
+| **Brute**      | huge, slow, a club with knockback; takes several knockdowns (not built: the Ogre twins took its place)     |
 | **Bonewalker** | skeleton swordsman that claws up out of the ground (crypt stage)                                           |
 | **Sack imp**   | blue-hooded thief carrying a sack; flees, drops a magic pot (or meat in camp) each time it is kicked       |
 | **Ogre twins** | stage 1 boss pair with hammers                                                                             |
@@ -195,8 +195,8 @@ bone, its pile as a skull and a few bones.
 2. **Wyrmbone Pass** — a mountain path through the ribs of a dead giant wyrm. Mounts appear; boss: a lancer captain
    on an ember drake. Playable as gameplay for now (`STAGE_2`): five screens of road, five waves of ravagers mostly in
    rust and violet, each with a lancer or two, waves 2 and 4 with a ravager riding a clawbeak, and two imps, and at the
-   end the lancer captain on his ember drake, breathing fire (the captain drawn for now as a lancer in gold, seated,
-   until his own look comes). Its backdrop is a cold dawn under a
+   end the lancer captain on his ember drake, breathing fire, in his own black steel, gold, crest and cape, thrusting
+   from the saddle ([screenshot](images/captain.png)). Its backdrop is a cold dawn under a
    setting moon: ribs arching over the road, a lesser wyrm's skull partway, the raiders' camp, and the wyrm's great
    skull in the cliff at the end, its open jaws the gate the boss waits in.
 
@@ -213,7 +213,32 @@ bone, its pile as a skull and a few bones.
 
    ![Drowned Crypt: the graveyard under the cathedral, an open grave, and the great doors in the last screen](images/stage3-backdrop.png)
 
-4. **Vorhal's Keep** — torch-lit halls to the throne room and Vorhal.
+4. **Vorhal's Keep** — torch-lit halls to the throne room and Vorhal. Playable as gameplay (`STAGE_4`): five screens of
+   halls, five waves of ravagers (violet among them), lancers and bonewalkers clawing up out of crypt slabs in the
+   floor (the crypt's graves, `gravesPx(4)`: five in the halls, three in the throne room), a ravager on a clawbeak in
+   wave 4 and an imp before the throne room; there Vorhal walks out to the party, with a rust bonewalker and a violet ravager in turn for each hero beyond the
+   first. Beating him clears the stage and wins the run; the victory card tells of the Ember Axe made whole. Until his
+   art comes he is drawn as a horned ogre in dark steel. Its backdrop is the inside of his fortress, cold blue-black
+   stone under warm torchlight: a blood-red moon glimpsed through tall vaulted windows hung with his horned banners,
+   the nave's pillars, chains, iron cages and statues of horned knights, wall torches and braziers, polished flagstones
+   with a long red carpet and the crypt slabs pushed open, and at the end the throne room, lit red by a rose window:
+   his horned throne on its dais and, on the wall, the Ember Axe he broke, its shards glowing faintly.
+
+   ![Vorhal's Keep: a hall under the blood moon, the throne room, and Vorhal walking out to the party](images/stage4-backdrop.png)
+
+   **Vorhal** (`src/engine/vorhal.ts`, `VORHAL_*`, `CUT_*`, `SIGIL*`, `PILLAR_*`, `SUMMON*` in `tuning.ts`) is a boss
+   as the ogres are (super armour and poise, a spell takes no more than a boss's share, nobody throws him, hit points
+   by the party's size), half as big again as a hero. He keeps a pause between moves, so each leaves an opening, and
+   picks the next by a draw from the world's stream: **the greatsword** (he walks up to the nearest hero and, lined up,
+   winds it up long and visibly, then two wide cuts land on every hero in front in a lane wider than a blade's, the
+   second knocking down, and he stands open); **the fire spell** (he raises a hand and marks a glowing sigil under each
+   hero, two or three in all, the rest at random; a second later a pillar of fire erupts from each, burning and
+   knocking down whoever still stands on it: step off); **the summons** (two bonewalkers claw up out of the throne
+   room's slabs, while fewer than three stand). With his back to the screen's edge and a hero close in front he may
+   leap over the party to the far side. At half his hit points he roars, nothing landing on him for a second, and
+   fights on enraged: faster wind-ups and pauses, a sigil more, summons more often and rust bonewalkers. When he falls
+   his bonewalkers crumble and his sigils go out. Bots step off sigils and out of the greatsword's lane, keep out of
+   his lane while he stands guard, and strike while he recovers, casts or summons, or from behind.
 
 Between stages the heroes make **camp**: a short night scene by a fire where sack imps sneak in to steal; kicking them
 drops pots and meat (meat heals). Then the next stage. In the engine (`src/engine/camp.ts`) a camp is a world of its
@@ -251,7 +276,7 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
 - **Stage clear.** The tick the last wave is cleared (`stageCleared`), the room banks each hero's tallies from the
   world into the run's (`Room.tally`, so they outlive the stage's world), lets go of every held control and goes
   `between` for `CLEAR_TICKS` (6 s), showing the stage's tally over the frozen scene. A stage cleared as the last hero
-  falls is still won. Past the last stage (`LAST_STAGE`, 3) the run ends `over` as a victory.
+  falls is still won. Past the last stage (`LAST_STAGE`, 4: Vorhal's Keep) the run ends `over` as a victory.
 - **Continue.** When every hero is out (`defeated`), the world keeps running and a countdown of `CONTINUE_TICKS`
   (10 s) starts. A present human seated at a hero of the run votes by pressing Attack (or the CONTINUE button): a
   `CONTINUE` entry for the run and stage (`[seq, tick, 2, matchId, round]`). The first one folded in the countdown
@@ -312,10 +337,12 @@ or is a bot.
   same rates: the sky and moon, snowy peaks, near mountains with a winding path, the road and the wyrm's bones, and
   stones and bone chips in front; it ends at the skull gate ([screenshot](images/stage2-backdrop.png)). Stage 3
   (`drowned-crypt.ts`) too: the sky and moon, the cathedral, cloisters and mausoleums, the bank, water and causeway,
-  and reeds in front; ripples, fog, green fires and drips move. Each layer is as wide as it scrolls across its stage
+  and reeds in front; ripples, fog, green fires and drips move. Stage 4 (`vorhals-keep.ts`) too: the blood-red sky,
+  the far wall's windows and banners, the nave's pillars and statues, the halls and throne room, and pillar bases in
+  front; torch and brazier flames, embers and the axe's shards move. Each layer is as wide as it scrolls across its stage
   (`cameraEndPx(stage)` in `view-kit.ts`; a stage the engine lacks may set its own through `StageArt.cameraEnd`). The
   crypt's four open graves are the engine's (`STAGE_3.graves`, `gravesPx(3)`: world x and floor row), where its
-  bonewalkers rise. The scene picks the backdrop by the
+  bonewalkers rise, and so are the keep's eight slabs (`gravesPx(4)`). The scene picks the backdrop by the
   view's `stage`; a stage without art of its own draws Stage 1's, its camera scaled from the stage's road onto the
   village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery. A camp (the view's `camp`) draws
   `camp.ts` instead, whatever stage it follows: one screen, baked once with the scene, whose camera is held at 0.
@@ -375,6 +402,40 @@ Small pull requests, each reviewed and merged before the next one that depends o
    registration. The game becomes playable here.
 6. HUD; run, dash attack, throw, jump attack and back attack.
 7. Sack imps, pots and magic for each hero.
-8. More enemies (lancer, brute), the Ogre twins and the stage flow.
-9. Camp, stages 2–4, mounts, bonewalkers and Vorhal (in: camp).
-10. Sound effects and music (in: the effects, the jingles and the Stage 1 march); bot companions.
+8. More enemies (lancer; the brute was not built), the Ogre twins and the stage flow.
+9. Camp, stages 2–4, mounts, bonewalkers and Vorhal.
+10. Sound effects and music; bot companions.
+
+## Status
+
+As of 2026-10-11 every step above is on main except the **brute** (step 8), which was not built: the Ogre twins took
+its place as Stage 1's heavy hitters. A run plays all four stages with a camp between each, from the ravagers of Ashen
+Village to Vorhal's second phase, with pixel art for every hero, enemy, mount, boss, backdrop and effect, synthesised
+sound with one song (Ashen Village's march), online rooms, a shared screen with phone pads, gamepads and bot companions. The golden
+replay (`tests/golden.test.ts`) plays two bot parties through the whole run.
+
+Known gaps and follow-ups, none blocking play:
+
+- **Music:** Ashen Village's march is the only song and plays through every stage, tally and camp; stages 2–4 open with a
+  horn of their own but have no song of theirs.
+- **Startup:** every backdrop is baked when the scene is made (about 0.25 s measured on a desktop CPU in Node with a
+  fake surface, in the Keep backdrop's review; a phone is unmeasured, perhaps a second). Baking stages 2–4 in idle time
+  is the lever if it shows.
+- **Small engine nits:** a party's extra bonewalker claws up out of the very grave of the one it copies, a rise later
+  (`waveSpawns`), so the two start on one spot; Vorhal's summons come likelier after a cast than `VORHAL_MOVES` reads
+  (the spell's range falls through to them, see `decide`), and his "three standing" cap (`SUMMON_CAP`) gates a summon
+  without capping it: with two standing he raises two more.
+- **Small art nits:** an enraged boss's planted foot slides a little (walk strips are timed to the calm pace); some limbs
+  are drawn longer than their bones.
+- **Audio:** a rollback flicker of an enemy frozen by a spell can sound its cue twice.
+- **Production:** online rooms need `fuse-axe` in the `EXTRA_GAME_IDS` repository variable, which names `dice,fuse-craft`
+  as of 2026-10-11; until then the page offers solo only.
+
+### For the playtest
+
+Reviewers' bot runs (no script is kept) suggest parties of two or more clear all four stages, while a lone hero often
+falls in Wyrmbone Pass and wins against Vorhal about half the time; humans dodge worse than bots, so treat those as
+upper bounds. Worth a feel check:
+health carrying over between stages, the double-tap run on phone pads, Down + Jump to climb off a beast (Jump near a
+riderless beast climbs on instead of jumping), the camp clock (it can end early), and every sound and the march — no
+agent has heard them.

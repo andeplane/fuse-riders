@@ -20,11 +20,13 @@ import {
 } from "../engine/view-kit.js";
 import {
   enemyFrame,
+  enemyRiderFrame,
   heroFrame,
   mountFrame,
   riderFrame,
 } from "./art/animate.js";
-import { CAPTAIN, CAPTAIN_LOOK } from "./art/captain.js";
+import { BONE_KNIGHT, BONEWALKER, BONEWALKER_TIERS } from "./art/bonewalker.js";
+import { CAPTAIN } from "./art/captain.js";
 import { CLAWBEAK_DIPS, CLAWBEAK_FIGURE } from "./art/clawbeak.js";
 import { DRAKE_DIPS, DRAKE_FIGURE } from "./art/drake.js";
 import { IMP } from "./art/imp.js";
@@ -32,8 +34,9 @@ import { MEAT } from "./art/meat.js";
 import { HEROES } from "./art/index.js";
 import { LANCER, LANCER_TIERS } from "./art/lancer.js";
 import { OGRE, OGRE_CROWNS, OGRE_RAGE, OGRE_TIERS } from "./art/ogre.js";
-import { POT, paintItem } from "./art/pot.js";
+import { POT } from "./art/pot.js";
 import { RAVAGER, RAVAGER_TIERS } from "./art/ravager.js";
+import { VORHAL, VORHAL_RAGE } from "./art/vorhal.js";
 import {
   createBackdrop,
   createCampBackdrop,
@@ -45,9 +48,10 @@ import { bayer } from "./backdrop/kit.js";
 import { blinksOn, createHud, type HudSeats } from "./hud.js";
 import { drawFlame } from "./drake-fx.js";
 import { drawCracks, drawShards, drawSteam } from "./ogre-fx.js";
+import { pillarSprite, sigilSprite } from "./vorhal-fx.js";
 import { blit, fill, type Pen } from "./pen.js";
 import type { Figure } from "./pixel/kit.js";
-import { UNLIT, rampSwap, type Palette } from "./pixel/palette.js";
+import { UNLIT, type Palette } from "./pixel/palette.js";
 import type { Point } from "./pixel/rig.js";
 import { cropSprite, type Sprite } from "./pixel/sprite.js";
 import { createSpriteBaker, type BakeOptions } from "./pixel/surface.js";
@@ -66,7 +70,8 @@ import type { MakeSurface } from "./surface.js";
  * its facing, an enemy flashing in hit-stop and blinking out when
  * defeated, a beast's rider astride its saddle over it, a hero blinking while it is invulnerable and an item before it
  * vanishes; an ogre's shockwave cracking the
- * floor under the figures and bursting dust over them, and an enraged ogre's steam, drawn with it (`ogre-fx.ts`); the hit sparks; the
+ * floor under the figures and bursting dust over them, and an enraged ogre's steam, drawn with it (`ogre-fx.ts`);
+ * Vorhal's sigils glowing on the floor under the figures and their pillars of fire among them (`vorhal-fx.ts`); the hit sparks; the
  * grass in front; the spells playing (`spells/`), a charging or casting hero glowing behind its sprite and the field
  * shaking a moment at a spell's blow; a flashing GO → when the road ahead opens; and over it all the HUD (`hud.ts`),
  * naming each seat's player from `seats` (the room's names, which the world does not hold). It only draws: positions
@@ -88,15 +93,16 @@ export interface Scene<Image> {
 interface EnemyArt {
   readonly figure: Figure;
   readonly tiers: Readonly<Record<Tier, Palette | undefined>>;
-  /** Enraged (an ogre whose twin has fallen): a palette per tier, and where its steam rises in each frame. */
+  /** A tier with a figure of its own, playing the same frames (a bonewalker's violet knight, in armour). */
+  readonly figures?: Readonly<Partial<Record<Tier, Figure>>>;
+  /** Enraged (an ogre whose twin has fallen, Vorhal's second phase): a palette per tier, and where it steams. */
   readonly rage?: {
     readonly tiers: Readonly<Record<Tier, Palette>>;
-    readonly crowns: Readonly<Record<string, Point>>;
+    readonly crowns?: Readonly<Record<string, Point>>;
   };
   /** Its shadow's width as a multiple of a body's (none: a body's). */
   readonly shade?: number;
 }
-const BONE_LOOK = { ...rampSwap("Ss1", "Bb6"), ...rampSwap("Ll9", "Ww5") };
 /** Every enemy kind's art. A kind from a build with more of them draws as a ravager, as `enemyFrame` plays it. */
 export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   ravager: {
@@ -111,36 +117,30 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
     shade: 1.5,
   },
   lancer: { figure: LANCER, tiers: LANCER_TIERS },
-  // The lancer captain, a lancer in gold and dark steel whatever his palette, seated on his drake (`captain.ts`).
+  // The lancer captain in his own black steel and gold whatever his palette, thrusting from his drake's saddle
+  // (`captain.ts`).
   captain: {
     figure: CAPTAIN,
-    tiers: { 0: CAPTAIN_LOOK, 1: CAPTAIN_LOOK, 2: CAPTAIN_LOOK },
+    tiers: { 0: undefined, 1: undefined, 2: undefined },
   },
-  // A bonewalker until it has art of its own: a ravager in bone, in ash, rust or a knight's dark steel.
+  // A bonewalker in its grave cloth or rust rags; the violet knight in armour and a violet cape.
   bonewalker: {
-    figure: RAVAGER,
+    figure: BONEWALKER,
     tiers: {
-      0: { ...BONE_LOOK, ...rampSwap("Aa$", "Ww5") },
-      1: { ...BONE_LOOK, ...RAVAGER_TIERS.rust },
-      2: { ...BONE_LOOK, ...rampSwap("Aa$", "Ii#") },
+      0: BONEWALKER_TIERS.grave,
+      1: BONEWALKER_TIERS.rust,
+      2: BONEWALKER_TIERS.violet,
     },
+    figures: { 2: BONE_KNIGHT },
+  },
+  // Vorhal in his own black-violet plate whatever his palette, burning red in his second phase (`vorhal.ts`).
+  vorhal: {
+    figure: VORHAL,
+    tiers: { 0: undefined, 1: undefined, 2: undefined },
+    rage: { tiers: { 0: VORHAL_RAGE, 1: VORHAL_RAGE, 2: VORHAL_RAGE } },
+    shade: 1.5,
   },
 };
-/** A bonewalker's bone pile, and one shattered, until it has art of its own: a skull and a few bones on the floor. */
-export const BONE_PILE = paintItem(
-  [
-    "....kkk.........",
-    "...kBBbk..kk....",
-    "..kBkbkbkkBbk...",
-    ".kkbbbbkbBbbbkk.",
-    "kBBbbBbbbbbb66bk",
-    ".kkkkkkkkkkkkkk.",
-  ],
-  8,
-);
-const bonesOf = (enemy: EnemyView) =>
-  enemy.kind === "bonewalker" &&
-  (enemy.anim === "pile" || enemy.anim === "dead");
 /** What each item kind draws (a kind from a build with more of them, a pot), and the half-width of its shadow. */
 export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = {
   pot: POT,
@@ -328,14 +328,15 @@ interface Standing {
   readonly steam?: { readonly enemy: EnemyView; readonly crown: Point };
   /** A beast's flame if it is a drake breathing one, drawn with it likewise, from the jaws of the frame it shows. */
   readonly flame?: { readonly mount: MountView; readonly frame: string };
+  /** A pillar of fire: drawn after every figure on its row, a jumping one too, for it burns all that is over it. */
+  readonly pillar?: boolean;
 }
 
 /**
  * The backdrop a stage draws on, and where its camera stands: the stage's own art at the camera, or for a stage with
  * none Stage 1's, its camera scaled from the stage's road onto the village's so the scenery runs out at the same end.
  * On a longer road than the village's the layers scroll the slower for it, the floor-speed ones too: a placeholder
- * until the stage has its own art, which takes the camera as it is (Ashen Village's, Wyrmbone Pass's and the Drowned
- * Crypt's do).
+ * until the stage has its own art, which takes the camera as it is.
  */
 export function scenery(
   stage: number,
@@ -352,6 +353,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
     1: createBackdrop(make, 1),
     2: createBackdrop(make, 2),
     3: createBackdrop(make, 3),
+    4: createBackdrop(make, 4),
   } satisfies Record<StageNumber, Backdrop<Image>>;
   const backdropOf = (art: StageNumber) => backdrops[art];
   const camp = createCampBackdrop(make);
@@ -447,20 +449,23 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         const art = Object.hasOwn(ENEMY_ART, enemy.kind)
           ? ENEMY_ART[enemy.kind]
           : ENEMY_ART.ravager;
-        const pose = enemyFrame(enemy.kind, enemy.anim, enemy.animStep);
-        const dip = saddleDip(
-          enemy.mounted
-            ? mountUnder(view.mounts, "enemy", enemy.id)
-            : undefined,
-        );
+        // A rider does in the saddle what its beast's anim says, where its kind has a strip for it (the captain's
+        // thrust: `enemyRiderFrame`); otherwise it sits in its own `ride` frame.
+        const mount = enemy.mounted
+          ? mountUnder(view.mounts, "enemy", enemy.id)
+          : undefined;
+        const pose =
+          (mount && enemyRiderFrame(enemy.kind, mount.anim, mount.animStep)) ??
+          enemyFrame(enemy.kind, enemy.anim, enemy.animStep);
+        const dip = saddleDip(mount);
         // An enraged ogre burns in its rage palette and steams, unless it has fallen.
         const rage = enemy.enraged ? art.rage : undefined;
-        const crown = rage?.crowns[pose];
-        const bones = bonesOf(enemy);
+        const crown = rage?.crowns?.[pose];
+        const figure = art.figures?.[enemy.tier] ?? art.figure;
         standing.push({
           ...at(enemy),
           ...(crown && enemy.anim !== "dead" && { steam: { enemy, crown } }),
-          sprite: bones ? BONE_PILE : art.figure.sprite(pose),
+          sprite: figure.sprite(pose),
           options: {
             swap: (rage ?? art).tiers[enemy.tier],
             flash: enemy.flash,
@@ -470,7 +475,6 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           ...(art.shade && {
             shade: Math.round(shadowRadius(enemy.z) * art.shade),
           }),
-          ...(bones && { shade: ITEM_SHADE * 2 }),
           // A rider sits on its beast's saddle, sinking as it dips, in its shadow.
           ...(dip !== undefined && { z: Math.floor(enemy.z) - dip, shade: 0 }),
         });
@@ -499,7 +503,22 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           shade: Math.round((shadowRadius(mount.z) * 4) / 3),
         });
       }
-      standing.sort((a, b) => a.y - b.y || a.z - b.z || a.id - b.id);
+      // A pillar of fire stands among them by its sigil's depth, engulfing every figure on that very row.
+      view.sigils.forEach(({ x, y, age }, id) => {
+        const sprite = pillarSprite(age, frame);
+        if (sprite)
+          standing.push({
+            ...{ id, y: Math.floor(y), z: 0, shade: 0, pillar: true },
+            ...{ sx: Math.floor(x - camX), sprite, options: {}, lit: true },
+          });
+      });
+      standing.sort(
+        (a, b) =>
+          a.y - b.y ||
+          Number(a.pillar === true) - Number(b.pillar === true) ||
+          a.z - b.z ||
+          a.id - b.id,
+      );
       for (const { y, z, sx, shade } of standing) {
         if (shade === 0) continue;
         const s = shadow(shade ?? shadowRadius(z));
@@ -507,6 +526,12 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       }
       spells.ground(field, view, frame);
       drawCracks(field, view.enemies, camX);
+      for (const { x, y, age } of view.sigils) {
+        const sigil = sigilSprite(age, frame);
+        if (!sigil) continue;
+        const b = baker.bake(sigil);
+        blit(field, b.image, b.w, b.h, Math.floor(x - camX) - b.ax, Math.floor(y) - b.ay); // prettier-ignore
+      }
       for (const hero of view.heroes) {
         const { y, z, sx } = at(hero);
         const top = crown(looks.get(hero.id)!.figure);
@@ -514,7 +539,8 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       }
       // Camp's fire stands among the figures: after those further up the floor, before those in front of it.
       let prop = backdrop.prop;
-      for (const { y, z, sx, sprite, options, lit, steam, flame } of standing) {
+      for (const each of standing) {
+        const { y, z, sx, sprite, options, lit, steam, flame } = each;
         if (prop && y > prop.y) {
           prop.draw(field, frame);
           prop = undefined;

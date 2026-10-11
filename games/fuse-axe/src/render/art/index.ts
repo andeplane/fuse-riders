@@ -2,6 +2,7 @@ import type { HeroKind } from "../../engine/view.js";
 import type { Figure, Pose } from "../pixel/kit.js";
 import type { Sprite } from "../pixel/sprite.js";
 import type { HeroFrame } from "./animate.js";
+import { BONE_KNIGHT, BONEWALKER } from "./bonewalker.js";
 import { BRAKKA, BRAKKA_PORTRAIT, BRAKKA_POSES } from "./brakka.js";
 import { CAPTAIN } from "./captain.js";
 import { CLAWBEAK_FIGURE } from "./clawbeak.js";
@@ -12,6 +13,7 @@ import { LANCER } from "./lancer.js";
 import { OGRE } from "./ogre.js";
 import { RAVAGER } from "./ravager.js";
 import { RHEA, RHEA_PORTRAIT, RHEA_POSES } from "./rhea.js";
+import { VORHAL } from "./vorhal.js";
 
 /** Every figure the game draws, by name. The sprite sheet lab (`games/fuse-axe/lab/sprites.html`) shows them all. */
 export const FIGURES: Readonly<Record<string, Figure>> = {
@@ -23,8 +25,11 @@ export const FIGURES: Readonly<Record<string, Figure>> = {
   ogre: OGRE,
   lancer: LANCER,
   captain: CAPTAIN,
+  bonewalker: BONEWALKER,
+  boneknight: BONE_KNIGHT,
   clawbeak: CLAWBEAK_FIGURE,
   drake: DRAKE_FIGURE,
+  vorhal: VORHAL,
 };
 
 /** A hero's figure, which paints every `HERO_FRAMES` frame, the poses it paints them from, and its HUD portrait. */
