@@ -1,6 +1,7 @@
 import { ATTACK, DOWN, LEFT, MAGIC, RIGHT, UP } from "./input.js";
 import { clamp } from "./math.js";
 import { isImp, kickable } from "./imps.js";
+import { isOgre, threatLane, threatens } from "./ogre.js";
 import { next } from "./rng.js";
 import { SWINGS, hittable } from "./step.js";
 import * as T from "./tuning.js";
@@ -133,10 +134,11 @@ const nearest = (hero: Hero, enemies: readonly Enemy[]): Enemy | undefined =>
 function reaches(hero: Hero, enemy: Enemy, reach: number, turn = false) {
   const dir =
     turn && enemy.x !== hero.x ? (enemy.x > hero.x ? 1 : -1) : hero.facing;
-  const ahead = (enemy.x - hero.x) * dir;
+  const ahead = (enemy.x - hero.x) * dir,
+    { half } = T.ENEMY_BODY[enemy.kind];
   return (
-    ahead + T.ENEMY_HALF_W >= T.px(2) &&
-    ahead - T.ENEMY_HALF_W <= reach - T.px(4) &&
+    ahead + half >= T.px(2) &&
+    ahead - half <= reach - T.px(4) &&
     Math.abs(enemy.y - hero.y) <= T.LANE - T.px(1)
   );
 }
@@ -196,24 +198,33 @@ function chance(world: World, hero: Hero, foe: Enemy, salt: number): number {
   );
 }
 
-/** A ravager winding up with the hero in its mace's way, once the bot has seen it (and if it does). */
+/**
+ * A ravager winding up with the hero in its mace's way, or an ogre's blow coming at it (`threatens`), once the bot has
+ * seen it (and if it does).
+ */
 function menaces(world: World, hero: Hero, foe: Enemy): boolean {
-  if (foe.state !== "windup") return false;
   const ahead = (hero.x - foe.x) * foe.facing;
   return (
-    ahead + T.HERO_HALF_W >= -T.px(2) &&
-    ahead - T.HERO_HALF_W <= T.MACE_REACH + T.px(4) &&
-    Math.abs(hero.y - foe.y) <= T.LANE + T.px(2) &&
+    (isOgre(foe)
+      ? threatens(foe, hero, T.px(2))
+      : foe.state === "windup" &&
+        ahead + T.HERO_HALF_W >= -T.px(2) &&
+        ahead - T.HERO_HALF_W <= T.MACE_REACH + T.px(4) &&
+        Math.abs(hero.y - foe.y) <= T.LANE + T.px(2)) &&
     foe.timer >= REACT + (chance(world, hero, foe, 0) % REACT_SPREAD) &&
     chance(world, hero, foe, 1) >= MISS
   );
 }
 
-/** A wind-up the hero can beat: in front of it, in reach, and the first swing's blade out before the mace. */
+/**
+ * A wind-up the hero can beat: in front of it, in reach, and the first swing's blade out before the mace. No swing
+ * beats an ogre's: its armour takes the blow.
+ */
 function counters(hero: Hero, foe: Enemy): boolean {
   const first = T.COMBO[hero.kind][0]!,
     late = hero.held & ATTACK ? T.STEPS_PER_TICK : 0;
   return (
+    !isOgre(foe) &&
     (foe.x > hero.x ? 1 : -1) === hero.facing &&
     reaches(hero, foe, first.reach) &&
     T.RAVAGER[foe.tier].windup - foe.timer >= first.startup + 2 + late
@@ -221,11 +232,11 @@ function counters(hero: Hero, foe: Enemy): boolean {
 }
 
 /**
- * Out of the lane: away from the ravager in depth, toward the middle of the floor band if level with it, the other
- * way against the band's edge, and then also on along the road out of its reach.
+ * Out of the lane (an ogre's blow's, `threatLane`): away from the enemy in depth, toward the middle of the floor band
+ * if level with it, the other way against the band's edge, and then also on along the road out of its reach.
  */
 function dodge(hero: Hero, foe: Enemy): number {
-  const room = T.LANE + T.px(4);
+  const room = (isOgre(foe) ? threatLane(foe) : T.LANE) + T.px(4);
   let down =
     hero.y !== foe.y
       ? hero.y > foe.y

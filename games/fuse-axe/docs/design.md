@@ -69,7 +69,7 @@ damage are tallied too. The spell's blow in sixteenths of an enemy's full hit po
   A free hero holding toward a reeling (`hurt`) enemy close in front in its lane grabs it with Attack, holds it
   briefly (no mace lands meanwhile), then throws it over the shoulder: the body flies behind the hero, knocks down
   every enemy on its feet it meets in the lane and takes the throw's damage as it lands. Heroes are never grabbed;
-  a kind can be made unthrowable (`THROWABLE`), as bosses will be.
+  a kind can be made unthrowable (`THROWABLE`), as the Ogre twins are.
 - **Jump** and **jump attack** (a downward stab): Attack in the air, from a standing or a running jump, stabs down
   from a few steps in until the hero lands, knocking down each enemy under or ahead of it in the lane once a jump.
 - **Back attack**: on the floor, Attack and Jump pressed within a couple of steps of each other (the window is a
@@ -118,6 +118,16 @@ Enemies fight by the heroes' rules: they line up in the depth lane to hit, teleg
 can interrupt or step out of, and get no reach, speed or knockdown a hero lacks. At most two go for one hero at once,
 from both sides where they can, while the rest hover at a distance; a hero swinging its blade is walked round. Their
 choices draw from the world's seeded stream (`src/engine/ai.ts`, tuned per tier in `tuning.ts`'s `RAVAGER`).
+
+The **Ogre twins** (`src/engine/ogre.ts`, tuned in `tuning.ts`'s `OGRE`) are Stage 1's last wave: one walks in from
+each side, one green and one red, with a ravager more for each hero beyond the first. An ogre is half as big again as
+a ravager, slow, and has hit points for the party's size, not its tier. Lined up, it raises its hammer in a long wind-up
+and slams it down on a wide area in front, then a shockwave runs on along the floor in its lane (step out of the lane
+or jump it); a hero close behind it draws a round sweep. After each blow it stands open. Its super armour shrugs off a
+slash (the hit flashes but neither nudges nor stops it); a heavy blow staggers it while it stands or walks, and knocks
+it down once it has taken a quarter of its hit points since it last fell. A spell always knocks it down but takes at
+most an eighth of its hit points, and it is never grabbed. When one twin falls the other enrages and fights faster; a
+boss bar across the top shows the twins' health together.
 
 ## Stages
 

@@ -218,22 +218,33 @@ export const THROW_VZ = px(2);
 /** Damage the thrown body takes as it lands, and each enemy it knocks down on the way. */
 export const THROW_DAMAGE = 12;
 export const BODY_DAMAGE = 6;
-/** The kinds a hero can throw; a boss will not be, nor a sack imp, which is never dazed. */
+/** The kinds a hero can throw: not a boss, nor a sack imp, which is never dazed. */
 export const THROWABLE: Readonly<Record<EnemyKind, boolean>> = {
   ravager: true,
   imp: false,
+  ogre: false,
 };
 
 // ---- the enemies ----
-/** A sack imp (`imps.ts`) is no fighter: it crosses the screen with magic pots for the heroes to kick out of it. */
-export const ENEMY_KINDS = ["ravager", "imp"] as const;
+/**
+ * A sack imp (`imps.ts`) is no fighter: it crosses the screen with magic pots for the heroes to kick out of it. An
+ * ogre (`ogre.ts`) is Stage 1's boss, one of the twins.
+ */
+export const ENEMY_KINDS = ["ravager", "imp", "ogre"] as const;
 export type EnemyKind = (typeof ENEMY_KINDS)[number];
 /** The kinds that fight, which a wave is made of and holds the screen for. */
 export type FoeKind = Exclude<EnemyKind, "imp">;
+/** The bosses: no tier but a palette, super armour, and a cap on what a spell takes (`BOSS_SHARE`). */
+export const BOSS: Readonly<Record<EnemyKind, boolean>> = {
+  ravager: false,
+  imp: false,
+  ogre: true,
+};
 /** A kind's hit points at its lowest tier with one hero; `enemyMaxHp` scales them. An imp takes no damage. */
 export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = {
   ravager: 40,
   imp: 4,
+  ogre: 150,
 };
 /** Tiers by palette (ash, rust, violet): each adds hit points, and aggression (`RAVAGER`). */
 export const TIERS = [0, 1, 2] as const;
@@ -241,16 +252,18 @@ export type Tier = (typeof TIERS)[number];
 /** Each tier's hit points in quarters of the kind's base. */
 export const TIER_HP: Readonly<Record<Tier, number>> = { 0: 4, 1: 5, 2: 6 };
 /**
- * An enemy's full hit points: its kind's base by its tier, and a quarter more for each hero beyond the first (an
- * empty world counts one), in whole points. A party of five meets ravagers with twice the hit points.
+ * An enemy's full hit points: its kind's base by its tier (a boss's tier is only its palette), and a quarter more for
+ * each hero beyond the first (an empty world counts one), in whole points. A party of five meets ravagers with twice
+ * the hit points.
  */
 export function enemyMaxHp(
   kind: EnemyKind,
   tier: Tier,
   heroes: number,
 ): number {
-  const party = Math.min(Math.max(heroes, 1), CAPACITY);
-  return Math.trunc((ENEMY_HP[kind] * TIER_HP[tier] * (3 + party)) / 16);
+  const party = Math.min(Math.max(heroes, 1), CAPACITY),
+    quarters = BOSS[kind] ? TIER_HP[0] : TIER_HP[tier];
+  return Math.trunc((ENEMY_HP[kind] * quarters * (3 + party)) / 16);
 }
 /**
  * The most enemies a world holds at once, a defeated one that has not blinked out yet included. `spawnEnemy` refuses
@@ -260,6 +273,14 @@ export const ENEMY_MAX = 64;
 /** An enemy's body: half its width either side of its centre, and its height above its feet. */
 export const ENEMY_HALF_W = px(10);
 export const ENEMY_HEIGHT = px(44);
+/** Each kind's body, half-width and height: an ogre is half as big again as a ravager. */
+export const ENEMY_BODY: Readonly<
+  Record<EnemyKind, { readonly half: number; readonly height: number }>
+> = {
+  ravager: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
+  imp: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
+  ogre: { half: px(15), height: px(66) },
+};
 /** A hurt enemy is nudged back at this speed, slowing by `HURT_FRICTION` a step, and reels for `HURT_STEPS`. */
 export const HURT_PUSH = px(1.5);
 export const HURT_FRICTION = px(0.25);
@@ -330,6 +351,57 @@ export const HOVER_SPREAD = px(32);
 /** A feint breaks off the wind-up on this step and backs off this far, facing the hero. */
 export const FEINT_AT = 8;
 export const BACKSTEP = px(24);
+
+// ---- how the Ogre twins fight (`ogre.ts`) ----
+/**
+ * An ogre calm and enraged (once its twin has fallen): its slam's wind-up, its pause, its slow walk and the slam's
+ * damage. It never feints.
+ */
+export const OGRE: Readonly<Record<"calm" | "rage", Fighter>> = {
+  calm: fighter(48, 30, 24, 0.45, 14, 0),
+  rage: fighter(32, 16, 16, 0.6, 16, 0),
+};
+/** The fighter an enemy is: its tier's ravager, or an ogre's mood. */
+export const fighterOf = (
+  kind: EnemyKind,
+  tier: Tier,
+  enraged: boolean,
+): Fighter =>
+  kind === "ogre" ? OGRE[enraged ? "rage" : "calm"] : RAVAGER[tier];
+/** It walks to stand this far from its hero along the road, and winds up within `OGRE_SLACK` more and `OGRE_LANE` in depth. */
+export const OGRE_ENGAGE = px(30);
+export const OGRE_SLACK = px(10);
+export const OGRE_LANE = px(3);
+/** The slam lands on the attack's first step: this far in front, this wide either side in depth, and this high. */
+export const SLAM_REACH = px(46);
+export const SLAM_LANE = px(10);
+export const SLAM_HEIGHT = px(48);
+/** Steps the hammer stays down after it lands; the shockwave runs through the first `QUAKE_STEPS` of them. */
+export const SLAM_STEPS = 28;
+/**
+ * The shockwave runs on along the floor from the slam's reach at `QUAKE_SPEED` a step, in the ogre's depth lane:
+ * every hero on the floor (not one in the air) it passes takes `QUAKE_DAMAGE` and is knocked down.
+ */
+export const QUAKE_SPEED = px(2.5);
+export const QUAKE_STEPS = 24;
+export const QUAKE_DAMAGE = 8;
+/**
+ * A hero within `BEHIND` behind an ogre (in `SWEEP_LANE`) as it decides or walks draws the sweep: a round swing of the
+ * hammer landing `SWEEP_WINDUP` steps in on every hero within `SWEEP_REACH` either side.
+ */
+export const BEHIND = px(32);
+export const SWEEP_REACH = px(40);
+export const SWEEP_LANE = px(8);
+export const SWEEP_WINDUP = 16;
+export const SWEEP_STEPS = 32;
+export const SWEEP_DAMAGE = 10;
+/** Steps an ogre stands open after a slam or a sweep, and staggers from a heavy blow. */
+export const OGRE_RECOVER = 40;
+export const STAGGER_STEPS = 18;
+/** A heavy blow knocks an ogre down once it has taken a `POISE`th of its full hit points since it last fell. */
+export const POISE = 4;
+/** A spell takes at most `BOSS_SHARE` sixteenths of a boss's full hit points (`SHARE`), whatever its level. */
+export const BOSS_SHARE = 2;
 
 // ---- waves (the triggers themselves are in `stages.ts`) ----
 /** A wave's enemy appears this far outside the screen's edge on its side, its whole body out of view... */

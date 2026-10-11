@@ -79,14 +79,15 @@ const waveOf = ({ wave, waves, locked, go, cleared }: WorldView) => [
   cleared,
 ];
 
-test("Stage 1 is five waves along the road, building in size and tier, the last at the stage's end", () => {
+test("Stage 1 is five waves along the road, building in size and tier, the last the Ogre twins at the stage's end", () => {
   const toughness = (spawns: readonly Spawn[]) =>
     spawns.reduce((sum, s) => sum + enemyMaxHp(s.kind, s.tier, 1), 0);
   assert.equal(WAVES.length, 5);
   WAVES.forEach((wave, index) => {
     const before = WAVES[index - 1];
     assert.ok(wave.at > (before?.at ?? 0) && wave.at <= T.CAMERA_END);
-    assert.ok(wave.spawns.length > (before?.spawns.length ?? 1));
+    if (index < WAVES.length - 1)
+      assert.ok(wave.spawns.length > (before?.spawns.length ?? 1));
     assert.ok(toughness(wave.spawns) > toughness(before?.spawns ?? []));
     wave.spawns.forEach((spawn, i) => {
       assert.ok(spawn.y >= T.FLOOR_TOP && spawn.y <= T.FLOOR_BOTTOM);
@@ -97,9 +98,21 @@ test("Stage 1 is five waves along the road, building in size and tier, the last 
       wave.spawns.map((spawn) => ({ ...spawn, inset: T.ENTER_INSET })),
     );
   });
-  // The village gate, where the Ogre twins will stand: the violets come there.
-  assert.equal(WAVES.at(-1)!.at, T.CAMERA_END);
-  assert.ok(WAVES.at(-1)!.spawns.filter((s) => s.tier === 2).length >= 2);
+  // The village gate: the Ogre twins, one from each side in a palette of its own, and ravagers for a bigger party.
+  const gate = WAVES.at(-1)!;
+  assert.equal(gate.at, T.CAMERA_END);
+  assert.deepEqual(
+    gate.spawns.map((s) => [s.kind, s.side, s.tier]),
+    [
+      ["ogre", "left", 0],
+      ["ogre", "right", 1],
+    ],
+  );
+  assert.ok(
+    waveSpawns(gate, 5)
+      .slice(2)
+      .every((s) => s.kind === "ravager"),
+  );
   // Five heroes' biggest wave leaves the world plenty of room under its enemy bound.
   const most = Math.max(...WAVES.map((w) => waveSpawns(w, 5).length));
   assert.ok(most <= T.ENEMY_MAX / 4, `${most} at once`);
@@ -351,7 +364,7 @@ test("the last wave enters from beyond the stage's end, walks in to its goal, an
   world = toWave(world);
   assert.deepEqual([world.wave, world.camX], [WAVES.length, T.CAMERA_END]);
   const beyond = world.enemies.filter((e) => e.x > T.STAGE_LENGTH);
-  assert.ok(beyond.length >= 2);
+  assert.ok(beyond.length >= 1);
   assert.ok(beyond.every((e) => e.state === "enter"));
   for (const checked of [world, run(world, 5)]) {
     const back = decodeWorld(structuredClone(encodeWorld(checked)));
@@ -363,7 +376,7 @@ test("the last wave enters from beyond the stage's end, walks in to its goal, an
     (w) => w.enemies.every((e) => e.state !== "enter"),
     [],
   );
-  assert.equal(settled.enemies.length, 10);
+  assert.equal(settled.enemies.length, waveSpawns(WAVES.at(-1)!, 5).length);
   assert.ok(settled.enemies.every((e) => inView(settled, e)));
   assert.ok(settled.enemies.every((e) => e.x <= T.STAGE_LENGTH));
 });

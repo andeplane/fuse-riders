@@ -1,22 +1,24 @@
 import type {
   EnemyKind,
   EnemyView,
+  FxView,
   HeroView,
   ItemKind,
   ItemView,
   Tier,
   WorldView,
 } from "../engine/view.js";
-import { DEAD_STEPS, VIEW_W } from "../engine/view-kit.js";
+import { DEAD_STEPS, QUAKE, VIEW_W } from "../engine/view-kit.js";
 import { enemyFrame, heroFrame } from "./art/animate.js";
 import { IMP } from "./art/imp.js";
 import { HEROES } from "./art/index.js";
+import { OGRE_SCALE, OGRE_TIERS } from "./art/ogre.js";
 import { POT } from "./art/pot.js";
 import { RAVAGER, RAVAGER_TIERS } from "./art/ravager.js";
 import { createBackdrop, type StageNumber } from "./backdrop/backdrop.js";
 import { bayer } from "./backdrop/kit.js";
 import { blinksOn, createHud, type HudSeats } from "./hud.js";
-import { blit, type Pen } from "./pen.js";
+import { blit, blitScaled, type Pen } from "./pen.js";
 import type { Figure } from "./pixel/kit.js";
 import { UNLIT, type Palette } from "./pixel/palette.js";
 import { cropSprite, type Sprite } from "./pixel/sprite.js";
@@ -49,6 +51,8 @@ export interface Scene<Image> {
 interface EnemyArt {
   readonly figure: Figure;
   readonly tiers: Readonly<Record<Tier, Palette | undefined>>;
+  /** Drawn this many times as big, its shadow too (none: its own size). */
+  readonly scale?: number;
 }
 /** Every enemy kind's art. A kind from a build with more of them draws as a ravager, as `enemyFrame` plays it. */
 export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
@@ -57,6 +61,7 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
     tiers: { 0: undefined, 1: RAVAGER_TIERS.rust, 2: RAVAGER_TIERS.violet },
   },
   imp: { figure: IMP, tiers: { 0: undefined, 1: undefined, 2: undefined } },
+  ogre: { figure: RAVAGER, tiers: OGRE_TIERS, scale: OGRE_SCALE },
 };
 /** What each item kind draws (a kind from a build with more of them, a pot), and the half-width of its shadow. */
 export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = { pot: POT };
@@ -186,8 +191,10 @@ interface Standing {
   readonly lit: boolean;
   /** A hero's seat, and the rows its figure stands above its feet, for its marker. */
   readonly marker?: { readonly seat: number; readonly crown: number };
-  /** The shadow's half-width, for a figure smaller than a body (an item); otherwise it shrinks with height. */
+  /** The shadow's half-width, for a figure smaller or bigger than a body; otherwise it shrinks with height. */
   readonly shade?: number;
+  /** Drawn this many times as big (an ogre); otherwise its own size. */
+  readonly scale?: number;
 }
 
 export function createScene<Image>(
@@ -265,6 +272,10 @@ export function createScene<Image>(
             flip: enemy.facing < 0,
           },
           lit: true,
+          ...(art.scale && {
+            scale: art.scale,
+            shade: Math.round(shadowRadius(enemy.z) * art.scale),
+          }),
         });
       }
       // Items lie among the figures, a pot in its last moments blinking as an invulnerable hero does.
@@ -283,10 +294,15 @@ export function createScene<Image>(
         const s = shadow(shade ?? shadowRadius(z));
         blit(pen, s.image, s.w, s.h, sx - (s.w >> 1), y - (s.h >> 1));
       }
-      for (const { y, z, sx, sprite, options, lit } of standing) {
+      for (const { y, z, sx, sprite, options, lit, scale } of standing) {
         if (!lit) continue;
         const b = baker.bake(sprite, options);
-        blit(pen, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
+        if (!scale) blit(pen, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
+        else {
+          const left = sx - Math.round(b.ax * scale);
+          const top = y - z - Math.round(b.ay * scale);
+          blitScaled(pen, b.image, b.w, b.h, left, top, scale);
+        }
       }
       for (const { y, z, sx, marker } of standing) {
         if (!marker) continue;
@@ -297,6 +313,13 @@ export function createScene<Image>(
         blit(pen, m.image, m.w, m.h, sx - (m.w >> 1), top);
       }
       for (const fx of view.fx) drawSpark(pen, fx, camX);
+      // An ogre's shockwave, until it has art of its own: a burst of dust running along the floor at its front.
+      for (const e of view.enemies)
+        if (e.anim === "slam" && e.animStep >= 1 && e.animStep <= QUAKE.steps) {
+          const x = e.x + e.facing * (QUAKE.reach + QUAKE.speed * e.animStep);
+          const dust: FxView = { kind: "hit", x, y: e.y, z: 0, age: 0 };
+          drawSpark(pen, { ...dust, age: e.animStep % 3 }, camX);
+        }
       backdrop.drawFront(pen, camX);
       if (view.go && Math.floor(frame / GO_FLASH) % 2 === 0) {
         const sign = baker.bake(GO_SIGN);

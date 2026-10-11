@@ -314,7 +314,7 @@ test("a mid-fight world with a corrupt hero, enemy, spark or id is refused whole
     ["an enemy not a tuple", (f) => (enemies(f)[0] = 7 as never)],
     ["an enemy field short", (f) => enemy(f).pop()],
     ["an enemy field over", (f) => enemy(f).push(0)],
-    ["an unknown enemy", (f) => (enemy(f)[1] = "ogre")],
+    ["an unknown enemy", (f) => (enemy(f)[1] = "wyvern")],
     ["an enemy off the road", (f) => (enemy(f)[2] = STAGE_LENGTH + px(400))],
     ["an enemy between sub-units", (f) => (enemy(f)[3] = px(140) + 0.5)],
     ["an enemy under the floor", (f) => (enemy(f)[4] = -1)],
