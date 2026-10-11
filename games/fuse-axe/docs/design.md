@@ -166,7 +166,13 @@ Wyrmbone Pass but the last.
 
    ![Wyrmbone Pass: the ribs and the lesser skull, and the skull gate in the last screen](images/stage2-backdrop.png)
 
-3. **Drowned Crypt** — a flooded graveyard under a broken cathedral; bonewalkers rise from the ground.
+3. **Drowned Crypt** — a flooded graveyard under a broken cathedral; bonewalkers rise from the ground. Not in the
+   engine yet; its backdrop is drawn: a cold night under a pale moon, the cathedral's silhouette with its shattered rose
+   window, graves, iron fences and green-burning braziers on a bank behind black water with crosses sunk in it, a
+   causeway of wet flagstones broken open by graves, and at the end the cathedral's great doors up a flight of steps.
+
+   ![Drowned Crypt: the graveyard under the cathedral, an open grave, and the great doors in the last screen](images/stage3-backdrop.png)
+
 4. **Vorhal's Keep** — torch-lit halls to the throne room and Vorhal.
 
 Between stages the heroes make **camp**: a short night scene by a fire where sack imps sneak in to steal; kicking them
@@ -264,8 +270,13 @@ or is a bot.
   Vorhal's keep (1/8 speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in
   front; it ends at the village gate ([screenshot](images/stage1-backdrop.png)). Stage 2 (`wyrmbone-pass.ts`) has the
   same rates: the sky and moon, snowy peaks, near mountains with a winding path, the road and the wyrm's bones, and
-  stones and bone chips in front; it ends at the skull gate ([screenshot](images/stage2-backdrop.png)). Each layer is
-  as wide as it scrolls across its stage (`cameraEndPx(stage)` in `view-kit.ts`). The scene picks the backdrop by the
+  stones and bone chips in front; it ends at the skull gate ([screenshot](images/stage2-backdrop.png)). Stage 3
+  (`drowned-crypt.ts`) too: the sky and moon, the cathedral, cloisters and mausoleums, the bank, water and causeway,
+  and reeds in front; ripples, fog, green fires and drips move. Each layer is as wide as it scrolls across its stage
+  (`cameraEndPx(stage)` in `view-kit.ts`; the crypt, until the engine has Stage 3, its own `CRYPT_END` on a five-screen
+  road through `StageArt.cameraEnd`; its test fails once the engine has the stage until the override is dropped and the
+  two roads are equal). The crypt's four open graves (`GRAVES`: world x and floor row) are where Stage 3's plan can have
+  its bonewalkers rise. The scene picks the backdrop by the
   view's `stage`; a stage without art of its own draws Stage 1's, its camera scaled from the stage's road onto the
   village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery. A camp (the view's `camp`) draws
   `camp.ts` instead, whatever stage it follows: one screen, baked once with the scene, whose camera is held at 0.
