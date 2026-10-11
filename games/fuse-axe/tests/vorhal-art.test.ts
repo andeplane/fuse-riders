@@ -13,7 +13,12 @@ import {
   type World,
 } from "../src/engine/index.js";
 import * as T from "../src/engine/tuning.js";
-import { CUT, VORHAL_STATES, VORHAL_STEPS } from "../src/engine/view-kit.js";
+import {
+  CUT,
+  SIGIL,
+  VORHAL_STATES,
+  VORHAL_STEPS,
+} from "../src/engine/view-kit.js";
 import { enemyFrame, stripFrame } from "../src/render/art/animate.js";
 import { FIGURES } from "../src/render/art/index.js";
 import { OGRE } from "../src/render/art/ogre.js";
@@ -33,6 +38,13 @@ import {
   validateSprite,
   type Sprite,
 } from "../src/render/pixel/sprite.js";
+import {
+  PILLAR_H,
+  PRIMED,
+  STAGES,
+  pillarSprite,
+  sigilSprite,
+} from "../src/render/vorhal-fx.js";
 
 const { px } = T;
 const FRAMES = VORHAL.frames;
@@ -305,4 +317,93 @@ test("in the engine the leap vaults while he climbs and drops from its apex", ()
     }
   }
   assert.ok(leapt);
+});
+
+test("a sigil glows from the step he marks it, flashes before it erupts, and its pillar burns on exactly the steps it burns", () => {
+  let world = throne(110, { state: "cast", timer: T.CAST_MARK - 1 }, [
+    "brakka",
+    "gorm",
+  ]);
+  world = step(world, []);
+  const full = world.heroes[0]!.hp;
+  let erupted = -1;
+  for (let n = 0; world.sigils.length > 0; n++) {
+    const [sigil] = toView(world).sigils;
+    assert.equal(sigil!.age, n);
+    for (const frame of [0, 4, 9]) {
+      assert.equal(
+        sigilSprite(sigil!.age, frame) !== undefined,
+        n < SIGIL.delay,
+        `${n}`,
+      );
+      assert.equal(
+        pillarSprite(sigil!.age, frame) !== undefined,
+        n >= SIGIL.delay,
+        `${n}`,
+      );
+    }
+    // It flashes, two frames in turn, only in its last steps.
+    const flashes = sigilSprite(n, 0) !== sigilSprite(n, 4);
+    assert.equal(flashes, n >= SIGIL.delay - PRIMED && n < SIGIL.delay, `${n}`);
+    world = step(world, [0]);
+    if (erupted < 0 && world.heroes[0]!.hp < full) erupted = n + 1;
+  }
+  // The pillar burns from the step the engine burns Brakka standing on his sigil, for `SIGIL.burn` steps.
+  assert.equal(erupted, SIGIL.delay);
+  for (const frame of [0, 3, 6]) {
+    const tall = pillarSprite(SIGIL.delay + 10, frame)!;
+    assert.equal(tall.ay + 1, tall.h, "it stands on the floor");
+    assert.ok(tall.ay >= PILLAR_H - 3, `${tall.ay} tall`);
+  }
+  // It shoots up over its first steps and sinks over its last.
+  const heights = Array.from({ length: SIGIL.burn }, (_, n) => {
+    const s = pillarSprite(SIGIL.delay + n, 0)!;
+    return s.ay - s.rows.findIndex((row) => /[^.]/.test(row));
+  });
+  assert.ok(
+    heights[0]! < heights[1]! &&
+      heights[1]! < heights[2]! &&
+      heights[2]! < heights[5]!,
+  );
+  assert.ok(
+    heights.at(-1)! < heights.at(-4)! && heights.at(-4)! < heights[10]!,
+  );
+});
+
+test("a sigil's ring traces round through every stage before it flashes, each further round than the last", () => {
+  const tracing = Array.from({ length: SIGIL.delay - PRIMED }, (_, age) =>
+    sigilSprite(age, 0)!,
+  );
+  assert.equal(new Set(tracing).size, STAGES);
+  // The ring's lit pixels (not its unlit rim or the floor's glow) only grow, and the stages come in order.
+  const lit = (s: Sprite) => s.rows.join("").replace(/[.=]/g, "").length;
+  const counts = [...new Set(tracing)].map(lit);
+  assert.deepEqual(
+    counts,
+    [...counts].sort((a, b) => a - b),
+  );
+  assert.equal(new Set(counts).size, STAGES);
+  assert.deepEqual(
+    tracing,
+    [...tracing].sort((a, b) => lit(a) - lit(b)),
+  );
+});
+
+test("the sigils' and pillars' sprites are valid and few, and odd ages or frames have none or one of them, never throwing", () => {
+  const seen = new Set<Sprite>();
+  for (let age = -2; age < SIGIL.delay + SIGIL.burn + 3; age += 0.5)
+    for (const frame of [0, 1, 3, 4, 7, 8, 1e9])
+      for (const s of [sigilSprite(age, frame), pillarSprite(age, frame)])
+        if (s) seen.add(s);
+  assert.ok(seen.size <= 24, `${seen.size} sprites`);
+  for (const s of seen) validateSprite(s);
+  for (const odd of [Number.NaN, Infinity, -Infinity, -1, 1e12])
+    for (const frame of [0, Number.NaN, -5, Infinity]) {
+      assert.equal(sigilSprite(odd, frame), undefined);
+      assert.equal(pillarSprite(odd, frame), undefined);
+      assert.ok(
+        sigilSprite(SIGIL.delay - 1, frame) &&
+          pillarSprite(SIGIL.delay + 10, frame),
+      );
+    }
 });

@@ -252,7 +252,7 @@ and trims burn red, his plate's shadows go crimson and the embers on his cape's 
 `VORHAL_STEPS`; `tests/vorhal-art.test.ts` plays the real engine against the cuts, the cast, the summons, the leap and
 the roar.
 
-![Vorhal's frames, calm and enraged, and two frames of the scene from a real engine throne room: casting, the sigils under the heroes, and his first cut landing on Brakka](docs/images/vorhal.png)
+![Vorhal's frames, calm and enraged, and three frames of the scene from a real engine throne room: casting, a sigil glowing on the floor beside the heroes; the pillars of fire erupting from their sigils; his first cut landing on Brakka](docs/images/vorhal.png)
 
 A hero riding sits astride too, in four frames of its own (`ride`, `ridewindup`, `rideattack`, `ridehop`): hips on
 the seat, the far leg out of sight (`astride` on the pose skips it), the near boot in the stirrup and the weapon held
@@ -283,7 +283,11 @@ exactly where the engine's runs: a crack splits the floor from the hammer's reac
 and over them rock shards burst up at the front and crumble behind it (the last ones faster, to be gone as the
 hammer rises), dust rolling and pebbles flying; an enraged twin steams, drawn with it by depth so a hero in front of
 it hides the puffs ([screenshot](docs/images/ogre-twins.png)). The crack, shards and dust are flat rectangles drawn
-each frame (a few hundred for the 24 steps of a slam), not baked.
+each frame (a few hundred for the 24 steps of a slam), not baked. Vorhal's fire spell is baked (`vorhal-fx.ts`): a
+sigil is a horned rune in a ring on the floor under the figures, its ring tracing itself round and then flashing
+white-hot for its last `PRIMED` of the `SIGIL.delay` steps; then its pillar of fire stands among the figures by the
+sigil's depth (a hero on its very row inside it, in the air too) for exactly `SIGIL.burn` steps, shooting up, licking
+with the frame and sinking.
 Nothing is drawn off screen (`pen.ts` clips every call), and every sprite, shadow and sign is baked once.
 
 Everything the renderer pre-paints goes through one injected surface factory, `MakeSurface` in
