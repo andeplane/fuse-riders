@@ -6,6 +6,9 @@ import {
   JUMP,
   LEFT,
   RIGHT,
+  STAGES,
+  STAGE_1,
+  STAGE_2,
   UP,
   createWorld,
   decodeWorld,
@@ -15,6 +18,7 @@ import {
   stepTick,
   type World,
 } from "../src/engine/index.js";
+import { cleared } from "./fixtures/stage.js";
 import {
   BUFFER_STEPS,
   CAMERA_END,
@@ -120,8 +124,38 @@ test("a corrupt, oversized or out-of-range world is refused whole", () => {
     ["a repeated seat", (f) => (hero(f, 1)[1] = hero(f)[1])],
     ["a repeated id", (f) => (hero(f, 1)[0] = hero(f)[0])],
     ["an id not yet issued", (f) => (f[3] = hero(f, 2)[0])],
+    ["no stage", (f) => (f[16] = 0)],
+    ["a stage past the last", (f) => (f[16] = STAGES.length + 1)],
+    ["a fractional stage", (f) => (f[16] = 1.5)],
   ] as [string, (fields: unknown[]) => void][])
     assert.equal(broken(change), undefined, what);
+});
+
+test("a world's road is its own stage's: what lies past the village's end is refused on Stage 1, kept on Wyrmbone Pass", () => {
+  // The pass won, a ravager walking to a spot past the village's end.
+  const pass = spawnEnemy(
+    cleared(createWorld({ seed: 2, heroes: [{ seat: 0, kind: "gorm" }], stage: 2 })),
+    "ravager",
+    px(1500),
+    px(140),
+  ); // prettier-ignore
+  assert.equal(pass.camX, STAGE_2.cameraEnd);
+  assert.deepEqual(decodeWorld(structuredClone(encodeWorld(pass))), pass);
+  const enemy = (f: unknown[]) => (f[6] as unknown[][])[0]!;
+  /** The pass's world told it is on Stage 1, with the village's camera and waves if `village`. */
+  const asStage1 = (village: boolean, change = (_: unknown[]) => {}) => {
+    const fields = structuredClone(encodeWorld(pass)) as unknown[];
+    fields[16] = 1;
+    if (village) [fields[4], fields[8]] = [CAMERA_END, STAGE_1.waves.length];
+    change(fields);
+    return decodeWorld(fields);
+  };
+  assert.equal(asStage1(false), undefined, "the pass's camera and sixth wave");
+  assert.equal(asStage1(true), undefined, "a goal past the village's end");
+  const near = (f: unknown[]) => (enemy(f)[13] = CAMERA_END);
+  const beyond = (f: unknown[]) => (near(f), (enemy(f)[2] = px(1700)));
+  assert.equal(asStage1(true, beyond), undefined, "a ravager past it");
+  assert.equal(asStage1(true, near)?.stage, 1, "within reach of its end");
 });
 
 /** The bits for a world's next step: seat 0 presses Attack every other step, seat 1 every third from step 41 on. */

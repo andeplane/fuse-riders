@@ -1,7 +1,8 @@
 /** Fuse Axe's engine: deterministic rules with no imports from outside this folder. */
-export const RULES = "fuse-axe-12";
+export const RULES = "fuse-axe-13";
 export * from "./input.js";
 export {
+  carryOf,
   createWorld,
   defeated,
   spawnEnemy,
@@ -11,6 +12,7 @@ export {
   FX_KINDS,
   HERO_STATES,
   SPAWNS,
+  type Carry,
   type Enemy,
   type EnemyState,
   type Fx,
@@ -39,6 +41,9 @@ export {
 } from "./view.js";
 export {
   STAGE_1,
+  STAGE_2,
+  STAGES,
+  planOf,
   waveSpawns,
   type ImpCue,
   type Placed,

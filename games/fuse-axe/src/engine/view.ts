@@ -1,4 +1,4 @@
-import { STAGE_1, waveSpawns } from "./stages.js";
+import { planOf, waveSpawns } from "./stages.js";
 import {
   BOSS,
   HERO_HP,
@@ -167,6 +167,8 @@ export interface WorldView {
   items: ItemView[];
   /** The spells playing, in the order they were cast: at most one per hero. */
   spells: SpellView[];
+  /** The stage being fought, from 1: its road's length is `stageLengthPx(stage)` and its backdrop the stage's art. */
+  stage: number;
   /** The wave begun latest, from 1 (0 before the first), of `waves` in the stage. */
   wave: number;
   waves: number;
@@ -185,7 +187,7 @@ export interface WorldView {
 const whole = (value: number) => Math.floor(value / SUB);
 
 function bossOf(world: World): BossView | null {
-  const wave = STAGE_1.waves[world.wave - 1],
+  const wave = planOf(world).waves[world.wave - 1],
     party = world.heroes.length;
   if (!world.locked || !wave || world.spawned === 0) return null;
   const spawns = waveSpawns(wave, party),
@@ -267,8 +269,9 @@ export function toView(world: World): WorldView {
       level: spell.level,
       age: world.step - spell.born,
     })),
+    stage: world.stage,
     wave: world.wave,
-    waves: STAGE_1.waves.length,
+    waves: planOf(world).waves.length,
     locked: world.locked,
     go: showsGo(world),
     cleared: stageCleared(world),

@@ -25,7 +25,7 @@ export const CAPACITY = 5;
 /** The floor band: a hero's feet stand between these depths, which are also screen rows in the lower half. */
 export const FLOOR_TOP = px(104);
 export const FLOOR_BOTTOM = px(172);
-/** Stage 1, Ashen Village: four screens of road. Later stages bring their own lengths. */
+/** Stage 1, Ashen Village: four screens of road. Each stage has its own (`STAGES` in `stages.ts`, `planOf`). */
 export const STAGE_LENGTH = px(4 * VIEW_W);
 /** The camera's left edge stops here, with the stage's end at the screen's right edge. */
 export const CAMERA_END = STAGE_LENGTH - px(VIEW_W);
