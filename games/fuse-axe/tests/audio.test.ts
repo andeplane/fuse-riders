@@ -159,6 +159,34 @@ test("every moment of a hero and the mace's wind-up have their cues", () => {
   );
 });
 
+test("a beast's tail winding up has the mace's wind-up cue, once, and nothing else the beast or its rider does is heard", () => {
+  const beast = (anim: V.MountAnim, animStep: number): V.MountView => ({
+    ...{ id: 7, kind: "clawbeak", x: 200, y: 140, z: 0, facing: -1 },
+    ...{ anim, animStep, rider: { kind: "enemy", id: 9 } },
+  });
+  const at = (step: number, mount: V.MountView) =>
+    frame(
+      world(step, {
+        enemies: [enemy({ anim: "ride", animStep: 40, mounted: true })],
+        mounts: [mount],
+      }),
+    );
+  assert.deepEqual(
+    hear([
+      at(30, beast("walk", 40)),
+      at(33, beast("sweep", 1)), // the wind-up begins
+      at(36, beast("sweep", 4)),
+      at(39, beast("sweep", 21)), // the tail lands, in silence
+      at(60, beast("idle", 3)),
+      at(63, beast("sweep", 1)), // another
+      at(66, beast("sweep", 4)),
+      at(90, beast("flee", 2)),
+      at(93, beast("sweep", 30)), // first seen well into its sweep: history
+    ]),
+    [[], ["windup"], [], [], [], ["windup"], [], [], []],
+  );
+});
+
 test("sparks: each is heard once, a combo's second too, one a rollback moved is not", () => {
   const at = (step: number, ...fx: V.FxView[]) => frame(world(step, { fx }));
   const ko = (age: number, x: number) => spark(age, { kind: "ko", x });

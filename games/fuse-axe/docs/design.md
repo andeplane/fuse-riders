@@ -153,9 +153,9 @@ Wyrmbone Pass but the last.
 2. **Wyrmbone Pass** — a mountain path through the ribs of a dead giant wyrm. Mounts appear; boss: a lancer captain
    on an ember drake. Playable as gameplay for now (`STAGE_2`): five screens of road, five waves of ravagers mostly in
    rust and violet, each with a lancer or two, waves 2 and 4 with a ravager riding a clawbeak, and two imps, and a pair
-   of violet ravagers at the end in place of the captain until his drake comes. Its backdrop is a cold dawn under a setting moon: ribs arching over the road, a lesser
-   wyrm's skull partway, the raiders' camp, and the wyrm's great skull in the cliff at the end, its open jaws the gate
-   the boss waits in.
+   of violet ravagers at the end in place of the captain until his drake comes. Its backdrop is a cold dawn under a
+   setting moon: ribs arching over the road, a lesser wyrm's skull partway, the raiders' camp, and the wyrm's great
+   skull in the cliff at the end, its open jaws the gate the boss waits in.
 
    ![Wyrmbone Pass: the ribs and the lesser skull, and the skull gate in the last screen](images/stage2-backdrop.png)
 
