@@ -1,5 +1,6 @@
-import { STAGE_1 } from "./stages.js";
+import { STAGE_1, waveSpawns } from "./stages.js";
 import {
+  BOSS,
   HERO_HP,
   ITEM_BLINK,
   ITEM_LIFE,
@@ -54,6 +55,12 @@ export type HeroAnim = HeroState;
  * `recover` follows. `held` waits in a hero's hands, and `thrown` flies behind it, then lands `down` (or `dead`).
  * A sack imp (kind `imp`) scurries in `walk`, `stumble`s from a kick (or from a heavy one flies in `knockdown`, lies
  * `down` and gets up), then runs in `flee`; it is never `dead`.
+ *
+ * An ogre (kind `ogre`, a `boss`) walks in, walks and stands as a ravager does; `windup` raises its hammer for its
+ * mood's steps (`OGRE_STEPS` in `view-kit.ts`), `slam` brings it down (it lands on the first step, and the shockwave
+ * runs on along the floor from `SLAM_REACH` at `QUAKE_SPEED` for `QUAKE_STEPS`), `sweep` swings it round (landing at
+ * `sweepWindup`) and `recover` stands open; `stagger` reels from a heavy blow without being nudged, and it is knocked
+ * down, lies, gets up and is `dead` as a ravager is. It never reels (`hurt`), nor is `held` or `thrown`.
  */
 export type EnemyAnim = EnemyState;
 
@@ -113,8 +120,22 @@ export interface EnemyView {
   animStep: number;
   hp: number;
   maxHp: number;
-  /** In hit-stop from a hit just taken: draw the damage flash. */
+  /** In hit-stop from a hit just taken, or an ogre's armour taking one: draw the damage flash. */
   flash: boolean;
+  /** A stage boss (an ogre): its health shows in the world's `boss` bar. */
+  boss: boolean;
+  /** An ogre whose twin has fallen: it fights faster. */
+  enraged: boolean;
+}
+
+/**
+ * The stage boss's health while its wave is fought, once the first of it has come: every boss of the wave together,
+ * one still to come counting full and one fallen none, so the bar only ever drains. `kind` names it.
+ */
+export interface BossView {
+  kind: EnemyKind;
+  hp: number;
+  maxHp: number;
 }
 
 /** A hit spark at its impact point, `age` steps old (under `FX_LIFE`). */
@@ -157,9 +178,30 @@ export interface WorldView {
   cleared: boolean;
   /** Every hero is out of lives. */
   defeated: boolean;
+  /** The boss's health bar, while its wave is fought; null otherwise. */
+  boss: BossView | null;
 }
 
 const whole = (value: number) => Math.floor(value / SUB);
+
+function bossOf(world: World): BossView | null {
+  const wave = STAGE_1.waves[world.wave - 1],
+    party = world.heroes.length;
+  if (!world.locked || !wave || world.spawned === 0) return null;
+  const spawns = waveSpawns(wave, party),
+    bosses = spawns.filter((each) => BOSS[each.kind]);
+  if (bosses.length === 0) return null;
+  const full = (each: { kind: EnemyKind; tier: Tier }) =>
+    BOSS[each.kind] ? enemyMaxHp(each.kind, each.tier, party) : 0;
+  let hp = 0,
+    maxHp = 0;
+  spawns.forEach((each, index) => {
+    maxHp += full(each);
+    if (index >= world.spawned) hp += full(each);
+  });
+  for (const enemy of world.enemies) if (BOSS[enemy.kind]) hp += enemy.hp;
+  return { kind: bosses[0]!.kind, hp, maxHp };
+}
 
 export function toView(world: World): WorldView {
   return {
@@ -197,7 +239,11 @@ export function toView(world: World): WorldView {
       animStep: enemy.timer,
       hp: enemy.hp,
       maxHp: enemyMaxHp(enemy.kind, enemy.tier, world.heroes.length),
-      flash: world.step <= enemy.stopUntil,
+      flash:
+        world.step <= enemy.stopUntil ||
+        (enemy.flashUntil > 0 && world.step <= enemy.flashUntil),
+      boss: BOSS[enemy.kind],
+      enraged: enemy.enraged,
     })),
     fx: world.fx.map((fx) => ({
       kind: fx.kind,
@@ -227,5 +273,6 @@ export function toView(world: World): WorldView {
     go: showsGo(world),
     cleared: stageCleared(world),
     defeated: defeated(world),
+    boss: bossOf(world),
   };
 }

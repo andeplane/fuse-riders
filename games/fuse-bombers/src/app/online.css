@@ -139,7 +139,47 @@
 body.fb-controller > [data-input="touch-pads"] {
   z-index: calc(var(--fui-z-bar) + 1) !important;
 }
+/* A controller keeps its room code and LEAVE: the app portal and the brand lead out of the room mid-play. */
 .fb-controller .fb-bar > a,
+.fb-controller .fb-bar > .fui-portal,
 .fb-controller .fb-status:not([data-tone="error"]) {
   display: none;
+}
+/* The bar and its LEAVE are slim: the pads below take 70% of the screen, the header the 30% above them. */
+.fb-controller .fb-bar {
+  padding-block: 4px;
+}
+.fb-controller .fb-bar button {
+  min-height: 0;
+  padding: 3px 10px;
+  font-size: 0.6rem;
+}
+/* A short landscape phone (a 375 px tall screen gives the header 112 px, bar included): the header folds into three
+   short rows (name; hull and launcher side by side; launcher state and the round's word). */
+@media (orientation: landscape) and (max-height: 480px) {
+  .fb-pad {
+    grid-template-columns: 1fr 1fr;
+    gap: 4px var(--fui-space-3);
+  }
+  .fb-pad > * {
+    grid-column: 1 / -1;
+  }
+  .fb-pad > .fb-pad-state,
+  .fb-pad > .fb-pad-line {
+    grid-column: auto;
+    min-height: 0;
+    font-size: 0.65rem;
+  }
+  .fb-pad > .fb-pad-state {
+    text-align: left;
+  }
+  .fb-pad > .fb-pad-line {
+    text-align: right;
+  }
+  .fb-pad header b {
+    font-size: 0.85rem;
+  }
+  .fb-pad-meters {
+    grid-template-columns: auto 1fr auto 1fr;
+  }
 }

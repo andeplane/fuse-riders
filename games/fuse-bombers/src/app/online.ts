@@ -23,7 +23,7 @@ import {
   type Trouble,
   type Viewer,
 } from "./presenter.js";
-import { keys, type Session, type Store } from "./session.js";
+import { carry, keys, type Session, type Store } from "./session.js";
 
 /**
  * The online pages' glue: the landing card, and a room (created, joined by code, or solo against bots) built from
@@ -31,7 +31,7 @@ import { keys, type Session, type Store } from "./session.js";
  * presenter's decision.
  */
 const { el, button } = ui;
-const GAME = bombersGame.id;
+export const GAME = bombersGame.id;
 const endpoints = net.createEndpoints(
   {
     basePath: `${import.meta.env.BASE_URL}${GAME}/`,
@@ -40,13 +40,12 @@ const endpoints = net.createEndpoints(
   location.origin,
 );
 const names = keys(GAME);
-const flags = new URLSearchParams(location.search),
-  muted = flags.has("mute");
-/** A page of this game, keeping `?mute`. */
-const link = (query = "") =>
-  endpoints.appUrl(
-    muted ? `?${query}${query && "&"}mute` : query && `?${query}`,
-  );
+const flags = new URLSearchParams(location.search);
+/** A page of this game, keeping `?mute` and `?calm`. */
+const link = (query = "") => {
+  const search = carry(location.search, query);
+  return endpoints.appUrl(search && `?${search}`);
+};
 const go = (query = "") => location.assign(link(query));
 const after = <T>(list: readonly T[], item: T) =>
   list[(list.indexOf(item) + 1) % list.length]!;
@@ -236,6 +235,11 @@ export function showRoom(
     dead = true;
     runtime.stop();
     input.setTouchPads([]);
+    audio.music(null);
+    // Nothing of the round shows again: stop its loop, scene and sound hooks, drop the canvas. Phaser destroys on its
+    // next frame, so a loop put to sleep for a controller wakes first.
+    if (stopped) game.loop.wake();
+    game.destroy(true);
     nameEntry.form.hidden = lobby.hidden = overlay.hidden = pad.hidden = true;
     root.dataset.screen = "card";
     root.classList.remove("fb-match");
@@ -372,20 +376,22 @@ export function showRoom(
         next.world,
       );
       game.scene.start(RoundScene.KEY, { source, players: looks });
-      const attach = () =>
-        audio.attachRound(game.scene.getScene(RoundScene.KEY)!);
+      const attach = () => {
+        if (!dead) audio.attachRound(game.scene.getScene(RoundScene.KEY)!);
+      };
       if (game.isRunning) attach();
       else game.events.once("ready", attach);
     },
+    // A hidden tab draws nothing: its effects would only pile up and all play at once when it returns.
     event(event, matchId, round) {
+      if (document.hidden) return;
       source?.push(event, matchId, round);
-      // A controller buzzes when its gunship is hit, where the phone can (Android; iOS has no vibration).
-      // One buzz per hit, for the round on screen, and none for a page nobody is looking at.
+      // A controller buzzes when its gunship is hit, where the phone can (Android; iOS has no vibration): once per
+      // hit, for the round on screen.
       const ms = model?.controller ? buzz(event, model.follow) : 0;
       if (
         ms &&
         shown === `${matchId}:${round}` &&
-        !document.hidden &&
         typeof navigator.vibrate === "function"
       )
         navigator.vibrate(ms);
@@ -419,9 +425,11 @@ export function showRoom(
     ended: () =>
       deadEnd("ROOM CLOSED", "This room has ended, or it never existed."),
   };
-  // The creator's choice on the landing page; a joiner's settings are the room's anyway.
+  // What the creator chose on the landing page for this room; a joiner's settings are the room's anyway.
   const shared =
-    !solo && session.role === "host" && store.getItem(names.shared) === "1";
+    !solo &&
+    session.role === "host" &&
+    store.getItem(names.sharedRoom(code)) === "1";
   const runtime = new BombersRuntime(
     code,
     { ...DEFAULT_SETTINGS, display: shared },
@@ -438,7 +446,9 @@ export function showRoom(
           displayOnly: display,
         },
   );
-  if (flags.has("debug")) Object.assign(window, { fuseBombers: { runtime } }); // preview/smoke.mjs reads the room
+  // `?debug` only: preview/smoke.mjs reads this page's room and whether its game draws.
+  if (flags.has("debug"))
+    Object.assign(window, { fuseBombers: { runtime, game } });
   // WASD and Space, the touch pad and gamepads fly this device's gunship: presses fire at once, holds steer each frame.
   const flies = (device: DeviceId) =>
     device === "key:WASD" || !device.startsWith("key:");
@@ -453,14 +463,21 @@ export function showRoom(
   };
   requestAnimationFrame(poll);
   // A hidden page draws no frames to poll from: let go of everything at once (the sources forget their holds too).
-  const release = () => runtime.input(0);
-  window.addEventListener("blur", release);
-  document.addEventListener("visibilitychange", () => {
+  const release = () => {
+    if (!dead) runtime.input(0);
+  };
+  const hide = () => {
     if (document.hidden) release();
-  });
+  };
+  window.addEventListener("blur", release);
+  document.addEventListener("visibilitychange", hide);
   net.installRoomLifecycle(window, {
     stop: () => runtime.stop(),
-    destroy: () => input.hub.dispose(),
+    destroy: () => {
+      input.hub.dispose();
+      window.removeEventListener("blur", release);
+      document.removeEventListener("visibilitychange", hide);
+    },
     reload: () => location.reload(),
   });
   runtime.start();

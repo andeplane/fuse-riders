@@ -36,19 +36,27 @@ const THINKS: readonly EnemyState[] = [
   "windup",
   "attack",
   "recover",
+  // An ogre's (`ogre.ts`), which it plays out itself.
+  "slam",
+  "sweep",
+  "stagger",
 ];
 export const thinks = (enemy: Enemy): boolean => THINKS.includes(enemy.state);
 
+/** The fighter an enemy is: its tier's ravager, or an ogre's mood. */
+export const fighter = (enemy: Enemy): T.Fighter =>
+  T.fighterOf(enemy.kind, enemy.tier, enemy.enraged);
+
 /** Stands an enemy idle until it next decides: its tier's pause and a random part. */
 export function rest(world: World, enemy: Enemy): void {
-  const fighter = T.RAVAGER[enemy.tier];
+  const { think, jitter } = fighter(enemy);
   setState(enemy, "idle");
-  enemy.thinkAt = world.step + fighter.think + roll(world, fighter.jitter);
+  enemy.thinkAt = world.step + think + roll(world, jitter);
 }
 
 /** One step of an enemy that thinks (`thinks`). */
 export function act(world: World, enemy: Enemy): void {
-  const fighter = T.RAVAGER[enemy.tier],
+  const stats = T.RAVAGER[enemy.tier],
     target = world.heroes.find((hero) => hero.id === enemy.target);
   if (enemy.target && !(target && present(target))) enemy.target = 0;
   if (enemy.state === "idle") {
@@ -62,12 +70,12 @@ export function act(world: World, enemy: Enemy): void {
       decide(world, enemy);
   } else if (enemy.state === "walk") stride(world, enemy);
   else if (enemy.state === "windup") {
-    if (enemy.timer === T.FEINT_AT && roll(world, 256) < fighter.feint) {
+    if (enemy.timer === T.FEINT_AT && roll(world, 256) < stats.feint) {
       enemy.target = 0;
       walkTo(world, enemy, enemy.x - enemy.facing * T.BACKSTEP, enemy.y);
-    } else if (enemy.timer >= fighter.windup) {
+    } else if (enemy.timer >= stats.windup) {
       setState(enemy, "attack");
-      mace(world, enemy, fighter.damage);
+      mace(world, enemy, stats.damage);
     }
   } else if (enemy.state === "attack") {
     if (enemy.timer >= T.ATTACK_STEPS) setState(enemy, "recover");
@@ -110,11 +118,12 @@ function decide(world: World, enemy: Enemy): void {
 }
 
 /** Walks an enemy toward (`x`, `y`), held to the road, the floor band and the screen. */
-function walkTo(world: World, enemy: Enemy, x: number, y: number): void {
+export function walkTo(world: World, enemy: Enemy, x: number, y: number) {
+  const { half } = T.ENEMY_BODY[enemy.kind];
   enemy.goal = clamp(
     x,
-    Math.max(world.camX + T.ENEMY_HALF_W, 0),
-    Math.min(world.camX + T.VIEW_W * T.SUB - T.ENEMY_HALF_W, T.STAGE_LENGTH),
+    Math.max(world.camX + half, 0),
+    Math.min(world.camX + T.VIEW_W * T.SUB - half, T.STAGE_LENGTH),
   );
   enemy.goalY = clamp(y, T.FLOOR_TOP, T.FLOOR_BOTTOM);
   setState(enemy, "walk");
@@ -172,7 +181,7 @@ function stride(world: World, enemy: Enemy): void {
 /** A hero with a blow out, or coming: swinging or dashing. */
 const BLOWS: readonly HeroState[] = ["attack1", "attack2", "attack3", "dash"];
 /** A hero knocked off its feet, whom no attacker winds up at. */
-const FLOORED: readonly HeroState[] = ["knockdown", "down", "getup"];
+export const FLOORED: readonly HeroState[] = ["knockdown", "down", "getup"];
 /**
  * The states a mace lands in: on its feet or in the air, running, swinging, dashing, stabbing, striking behind,
  * throwing, reeling or charging magic, which the hit breaks off. A hero mid-grab is out of its way: the grab is brief
@@ -192,50 +201,61 @@ const STRUCK: readonly HeroState[] = [
   "charge",
 ];
 
+/** A hero a blow can land on now: in a state one lands in (`STRUCK`) and not invulnerable. */
+export const exposed = (world: World, hero: Hero): boolean =>
+  STRUCK.includes(hero.state) && world.step > hero.invulnUntil;
+
 /** The mace lands on every hero it reaches in front of the enemy, in the depth lane and below its sweep. */
 function mace(world: World, enemy: Enemy, damage: number): void {
   for (const hero of world.heroes) {
     const ahead = (hero.x - enemy.x) * enemy.facing;
     if (
-      STRUCK.includes(hero.state) &&
-      world.step > hero.invulnUntil &&
+      exposed(world, hero) &&
       ahead + T.HERO_HALF_W >= 0 &&
       ahead - T.HERO_HALF_W <= T.MACE_REACH &&
       Math.abs(hero.y - enemy.y) <= T.LANE &&
       hero.z < T.MACE_HEIGHT
     )
-      wound(world, enemy, hero, damage);
+      enemy.stopUntil = wound(world, hero, damage, enemy.facing);
   }
 }
 
 /**
- * A hero hit: the damage, then hitstun and a nudge away, which breaks off a swing; or a knockdown up and away when
- * the hit catches it in the air, leaves it with a quarter of its hit points or fewer, or is the `JUGGLE_HITS`th in a
- * row. Attacker and hero both hold still for the hit-stop.
+ * A hero hit by a blow going the way `dir` points along the road: the damage, then hitstun and a nudge that way, which
+ * breaks off a swing; or a knockdown up and away when the blow always knocks down (`knock`), the hit catches it in the
+ * air, leaves it with a quarter of its hit points or fewer, or is the `JUGGLE_HITS`th in a row. The hero holds still
+ * for the hit-stop, which is returned for the attacker to share.
  */
-function wound(world: World, enemy: Enemy, hero: Hero, damage: number): void {
+export function wound(
+  world: World,
+  hero: Hero,
+  damage: number,
+  dir: 1 | -1,
+  knock = false,
+): number {
   hero.hp -= Math.min(damage, hero.hp);
   if (world.step > hero.staggerUntil) hero.stagger = 0;
   hero.stagger++;
   hero.staggerUntil = world.step + T.JUGGLE_WINDOW;
   const knocked =
+    knock ||
     hero.z > 0 ||
     hero.stagger >= T.JUGGLE_HITS ||
     hero.hp * T.LOW_HP_SHARE <= T.HERO_HP[hero.kind];
   if (knocked) hero.stagger = 0;
   const until = world.step + (knocked ? T.HEAVY_HITSTOP : T.HITSTOP);
   hero.stopUntil = Math.max(hero.stopUntil, until);
-  enemy.stopUntil = until;
-  hero.facing = enemy.facing > 0 ? -1 : 1;
+  hero.facing = dir > 0 ? -1 : 1;
   hero.state = knocked ? "knockdown" : "hurt";
   hero.timer = hero.vy = 0;
-  hero.vx = enemy.facing * (knocked ? T.KNOCK_VX : T.HURT_PUSH);
+  hero.vx = dir * (knocked ? T.KNOCK_VX : T.HURT_PUSH);
   hero.vz = knocked ? T.KNOCK_VZ : 0;
   spark(
     world,
     hero.hp === 0 ? "ko" : knocked ? "heavy" : "hit",
-    hero.x - enemy.facing * T.HERO_HALF_W,
+    hero.x - dir * T.HERO_HALF_W,
     hero.y,
     hero.z + T.SPARK_HEIGHT,
   );
+  return until;
 }

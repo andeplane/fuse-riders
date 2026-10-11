@@ -75,12 +75,13 @@ export function touchPadLayout(
 /** Where pads sit on a surface: `touchPadLayout` over the arena, `controllerPadLayout` on a phone that is a controller. */
 export type PadLayout = typeof touchPadLayout;
 
+/** The top of a controller phone's page, as a fraction of its height, that its header (`online.css`'s `.fb-pad`) keeps. */
+export const CONTROLLER_TOP = 0.3;
 /**
  * A phone that is only a controller (a shared TV shows the arena): side 0's D-pad and FIRE as big as fit below the
  * top `CONTROLLER_TOP` (the controller's header). Side by side on a wide screen, D-pad left; on a tall one the D-pad
- * at the bottom, under the thumb, and FIRE above it.
+ * at the bottom, under the thumb, and FIRE above it. Only side 0 has pads: any other side is not shown.
  */
-export const CONTROLLER_TOP = 0.3;
 export function controllerPadLayout(
   width: number,
   height: number,

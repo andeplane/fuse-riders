@@ -110,8 +110,10 @@ export function advanceSpells(world: World): void {
 }
 
 function blast(world: World, hero: Hero, enemy: Enemy, share: number): void {
+  // A boss takes no more than its cap, whatever the level.
   const full = T.enemyMaxHp(enemy.kind, enemy.tier, world.heroes.length),
-    taken = Math.min(enemy.hp, div(full * share, T.SHARE));
+    cap = T.BOSS[enemy.kind] ? Math.min(share, T.BOSS_SHARE) : share,
+    taken = Math.min(enemy.hp, div(full * cap, T.SHARE));
   enemy.hp -= taken;
   hero.damage += taken;
   hero.magicDamage += taken;

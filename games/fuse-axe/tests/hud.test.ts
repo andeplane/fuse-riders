@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { HeroView, WorldView } from "../src/engine/view.js";
-import { CAPACITY, VIEW_W } from "../src/engine/view-kit.js";
+import type { EnemyKind, HeroView, WorldView } from "../src/engine/view.js";
+import { CAPACITY, VIEW_H, VIEW_W } from "../src/engine/view-kit.js";
 import { HEROES } from "../src/render/art/index.js";
 import {
   ADVANCE,
@@ -15,6 +15,7 @@ import {
 import {
   BAR,
   BLINK_FRAMES,
+  BOSS_BAR,
   createHud,
   CHARGE_BLINK,
   CHARGED,
@@ -110,7 +111,7 @@ const out = (id: number, seat: number) =>
 const world = (heroes: HeroView[]): WorldView => ({
   ...{ step: 0, camX: 0, heroes, enemies: [], fx: [], items: [], spells: [] },
   ...{ wave: 0, waves: 5, locked: false, go: false, cleared: false },
-  ...{ defeated: false },
+  ...{ defeated: false, boss: null },
 });
 
 /** The blits of `text` written in `color`, known by what the font paints for it. */
@@ -378,6 +379,32 @@ test("pots: a row of the most a hero can hold, the held ones full, as each hero'
   assert.deepEqual(row(1), [...Array(5).fill(C.pot), C.potEmpty]);
   assert.deepEqual(row(3), Array(3).fill(C.potEmpty));
   assert.deepEqual(row(0), []);
+});
+
+test("while a boss's wave is fought, its name and a bar of its health run under the strip", () => {
+  const { draw } = fakeHud();
+  const name = "OGRE TWINS",
+    bx = BOSS_BAR.x + textWidth(name) + BOSS_BAR.gap,
+    w = VIEW_W - BOSS_BAR.x - bx;
+  const boss = (hp: number, kind: EnemyKind = "ogre") =>
+    draw({ ...world([hero(1, 0)]), boss: { kind, hp, maxHp: 300 } });
+  const lit = (pen: RecordingPen) =>
+    pen.fills.filter((f) => f.style === C.boss).map((f) => [f.x, f.w, f.h]);
+  assert.equal(wrote(draw(world([hero(1, 0)])), name, C.text), 0);
+  const half = boss(150);
+  assert.equal(wrote(half, name, C.text), 1);
+  assert.deepEqual(lit(half), [[bx, Math.round(w / 2), BOSS_BAR.h]]);
+  assert.deepEqual(
+    lit(boss(1)),
+    [[bx, 1, BOSS_BAR.h]],
+    "never none while any is left",
+  );
+  assert.deepEqual(lit(boss(0)), []);
+  for (const r of [...half.fills, ...half.blits])
+    assert.ok(r.x >= 0 && r.x + r.w <= VIEW_W && r.y + r.h <= VIEW_H);
+  // A boss of a kind from a newer build is the BOSS.
+  const odd = boss(100, JSON.parse('"wyvern"') as EnemyKind);
+  assert.equal(wrote(odd, "BOSS", C.text), 1);
 });
 
 test("the charge meter: while a hero charges, its pots glow up to the level chosen, the last of them blinking", () => {

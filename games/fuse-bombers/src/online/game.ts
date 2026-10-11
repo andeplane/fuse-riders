@@ -192,11 +192,11 @@ const seatOrder = (seats: Iterable<SeatRecord>) =>
   [...seats].sort(
     (a, b) => a.slot - b.slot || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   );
-/** Who flies a new round, in slot order: every seat that is here, stepped away or a bot. */
-const entrants = (room: Room) =>
-  seatOrder(room.seats.values()).filter(
-    (seat) => !seat.watcher && (seat.connected || seat.away || seat.bot),
-  );
+/** Whether a seat flies a new round: it is here, stepped away, or a bot (an offline rider is skipped). */
+export const entrant = (seat: SeatRecord): boolean =>
+  !seat.watcher && (seat.connected || seat.away || seat.bot);
+/** Who flies a new round, in slot order. */
+const entrants = (room: Room) => seatOrder(room.seats.values()).filter(entrant);
 
 /** A round's seed: FNV-1a over its match id and number. */
 export function roundSeed(matchId: string, round: number): number {
