@@ -84,9 +84,16 @@ test("every hero paints every frame inside its canvas, with its anchor on its fe
   assert.deepEqual(paintGormPortrait(), HEROES.gorm.portrait);
 });
 
-/** The frames every hero had before its moves had their own, pinned apart so that new frames leave their pixels be. */
+/**
+ * The frames every hero had before its moves had their own, its moves', then its riding frames', each pinned apart so
+ * that new frames leave the older ones' pixels be.
+ */
 const FIRST_FRAMES = HERO_FRAMES.slice(0, HERO_FRAMES.indexOf("run0"));
-const MOVE_FRAMES = HERO_FRAMES.slice(FIRST_FRAMES.length);
+const MOVE_FRAMES = HERO_FRAMES.slice(
+  FIRST_FRAMES.length,
+  HERO_FRAMES.indexOf("ride"),
+);
+const RIDE_FRAMES = HERO_FRAMES.slice(HERO_FRAMES.indexOf("ride"));
 
 test("every hero paints the same pixels whatever the shared kit gains", () => {
   const pinned = [
@@ -96,6 +103,7 @@ test("every hero paints the same pixels whatever the shared kit gains", () => {
       "Brakka",
       "13adc2440bb0a14c3f86952d201aead2cd2a07380db6d8e1e91159681cf011a6",
       "f2c3b9e348626d22708b53065f7ab88fccd8833122904a340077d0f383657768",
+      "bae3ab8ab9daa466cb16c1677576d8bbd1f81f9d829f9bf6f8e1456a2950c35e",
     ],
     [
       RHEA,
@@ -103,6 +111,7 @@ test("every hero paints the same pixels whatever the shared kit gains", () => {
       "Rhea",
       "1c1f4a00f64bb228aa0186104628c779a21d1e8288937bfb47ff6c9670066d5f",
       "5743af9eb6e30b252a112a6a9cc2eaa07cffc6fa04320cd88d596c6193771dbe",
+      "8a017aa9871b6267c9bd0076981eb00c1d9075d1131680c1ab08a69b16acd1fd",
     ],
     [
       GORM,
@@ -110,12 +119,14 @@ test("every hero paints the same pixels whatever the shared kit gains", () => {
       "Gorm",
       "733cf43f939085b4dea152aad9d54ab0aadfa3cc397cbb9dc697d7932f81c6f6",
       "9f4bf23e121c5d3f603682355a99ca10fe59491531d87f70bb3a8dd613b2ab79",
+      "3794d2b30687b30214ce3fe210d5211166cbb53d94c82ca83d2cbcfa31b6b362",
     ],
   ] as const;
   assert.equal(FIRST_FRAMES.length, 26);
+  assert.deepEqual(RIDE_FRAMES, ["ride", "ridewindup", "rideattack", "ridehop"]); // prettier-ignore
   const digest = (art: unknown) =>
     createHash("sha256").update(JSON.stringify(art)).digest("hex");
-  for (const [figure, portrait, name, first, moves] of pinned) {
+  for (const [figure, portrait, name, first, moves, rides] of pinned) {
     const sprites = (frames: readonly HeroFrame[]) =>
       frames.map((frame) => figure.sprite(frame));
     const art = {
@@ -124,8 +135,8 @@ test("every hero paints the same pixels whatever the shared kit gains", () => {
       swaps: figure.swaps,
     };
     assert.deepEqual(
-      [digest(art), digest(sprites(MOVE_FRAMES))],
-      [first, moves],
+      [digest(art), digest(sprites(MOVE_FRAMES)), digest(sprites(RIDE_FRAMES))],
+      [first, moves, rides],
       `${name}'s pixels changed. If a pose, a colour or the shared head, kit or portrait code was meant to change ` +
         "them, look at the lab's sheet and refresh the hash; a refactor or a new part must not change them.",
     );

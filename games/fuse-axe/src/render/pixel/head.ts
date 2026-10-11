@@ -27,6 +27,8 @@ export interface HeroPose extends Pose {
   readonly face?: Expression;
   /** Looking back over the shoulder: the head, and what is on it, face behind the body, which is not turned. */
   readonly lookBack?: boolean;
+  /** Astride a beast: the far leg is on its far side, out of sight, and is not painted. */
+  readonly astride?: boolean;
 }
 
 /** The point (dx, dy) from a joint in the body's own frame, turned with the body. */

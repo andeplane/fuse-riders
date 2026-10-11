@@ -17,7 +17,12 @@ import {
   VIEW_W,
   cameraEndPx,
 } from "../engine/view-kit.js";
-import { enemyFrame, heroFrame, mountFrame } from "./art/animate.js";
+import {
+  enemyFrame,
+  heroFrame,
+  mountFrame,
+  riderFrame,
+} from "./art/animate.js";
 import { CLAWBEAK_DIPS, CLAWBEAK_FIGURE } from "./art/clawbeak.js";
 import { IMP } from "./art/imp.js";
 import { MEAT } from "./art/meat.js";
@@ -129,18 +134,17 @@ const winding = (mount: MountView) =>
   Math.floor(mount.animStep / TELEGRAPH) % 2 === 0;
 const mountArt = (kind: MountKind) =>
   Object.hasOwn(MOUNT_ART, kind) ? MOUNT_ART[kind] : MOUNT_ART.clawbeak;
-/**
- * The rows the saddle under rider `id` (of `kind`) dips in its beast's frame, or undefined for one whose beast is not in
- * the view: it keeps its own height and shadow, rather than hanging in the air shadowless.
- */
-function saddleDip(
+/** The beast rider `id` (of `kind`) sits, if it is in the view. */
+const mountUnder = (
   mounts: readonly MountView[],
   kind: "hero" | "enemy",
   id: number,
-): number | undefined {
-  const mount = mounts.find(
-    (each) => each.rider?.kind === kind && each.rider.id === id,
-  );
+) => mounts.find((each) => each.rider?.kind === kind && each.rider.id === id);
+/**
+ * The rows the saddle of `mount` dips in its frame, or undefined for a rider whose beast is not in the view: it keeps
+ * its own height and shadow, rather than hanging in the air shadowless.
+ */
+function saddleDip(mount: MountView | undefined): number | undefined {
   if (!mount) return undefined;
   const frame = mountFrame(mount.kind, mount.anim, mount.animStep);
   return mountArt(mount.kind).dips[frame] ?? 0;
@@ -363,10 +367,14 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       const looks = lookOf(view.heroes);
       const standing: Standing[] = view.heroes.map((hero) => {
         const { figure, swap } = looks.get(hero.id)!;
-        const pose = heroFrame(hero.kind, hero.anim, hero.animStep);
-        const dip = hero.mounted
-          ? saddleDip(view.mounts, "hero", hero.id)
+        // A rider sits astride, doing what its beast's anim says the pair does (`riderFrame`).
+        const mount = hero.mounted
+          ? mountUnder(view.mounts, "hero", hero.id)
           : undefined;
+        const pose = mount
+          ? riderFrame(mount.anim, mount.animStep)
+          : heroFrame(hero.kind, hero.anim, hero.animStep);
+        const dip = saddleDip(mount);
         const place = at(hero);
         return {
           ...place,
@@ -386,9 +394,11 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           ? ENEMY_ART[enemy.kind]
           : ENEMY_ART.ravager;
         const pose = enemyFrame(enemy.kind, enemy.anim, enemy.animStep);
-        const dip = enemy.mounted
-          ? saddleDip(view.mounts, "enemy", enemy.id)
-          : undefined;
+        const dip = saddleDip(
+          enemy.mounted
+            ? mountUnder(view.mounts, "enemy", enemy.id)
+            : undefined,
+        );
         // An enraged ogre burns in its rage palette and steams, unless it has fallen.
         const rage = enemy.enraged ? art.rage : undefined;
         const crown = rage?.crowns[pose];
