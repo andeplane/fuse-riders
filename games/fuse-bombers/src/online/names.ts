@@ -8,6 +8,8 @@ export function validName(value: unknown): value is string {
   return (
     typeof value === "string" &&
     value.length > 0 &&
+    // 18 code points are at most 36 UTF-16 units: a longer string is refused before anything copies or splits it.
+    value.length <= 2 * MAX_NAME &&
     value === value.trim() &&
     Array.from(value).length <= MAX_NAME &&
     !CONTROL.test(value) &&
