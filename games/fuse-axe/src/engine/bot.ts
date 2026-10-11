@@ -1,4 +1,4 @@
-import { ATTACK, DOWN, LEFT, MAGIC, RIGHT, UP } from "./input.js";
+import { ATTACK, DOWN, JUMP, LEFT, MAGIC, RIGHT, UP } from "./input.js";
 import { clamp } from "./math.js";
 import { isImp, kickable, wants } from "./imps.js";
 import { isOgre, threatLane, threatens } from "./ogre.js";
@@ -29,6 +29,8 @@ import {
  * nearest foe fewer heroes are on (a lower seat keeps its side; a lancer on guard it closes on from out of its spear's
  * lane), or a sack imp; with none, it follows the party. Every press is let go a tick before the next, and it never
  * presses a direction that would make a double tap unless it means to run, which it does far from where it is going.
+ * It never presses Jump, so never boards a beast, leaving them to the players; one that finds itself riding (a player's
+ * seat it took over) climbs off.
  *
  * It keeps nothing between ticks beyond what the hero itself holds (`held`, `tap`, `tapUntil`), so a rollback
  * replays it exactly. `humans` names the heroes players steer, whom it follows; without any it leads the way.
@@ -85,6 +87,7 @@ export function botInput(
 ): number {
   const hero = world.heroes.find((each) => each.id === heroId);
   if (!hero) return 0;
+  if (hero.state === "ride") return hero.held & JUMP ? 0 : DOWN | JUMP;
   const index = SWINGS.indexOf(hero.state);
   if (index >= 0) return combo(world, hero, index);
   if (!FREE.includes(hero.state)) return 0;

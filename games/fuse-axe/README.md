@@ -27,6 +27,9 @@ menu); a pad with no standard mapping offers only its stick and first four butto
 | K / X         | JUMP                             | Jump (a running jump from a run); with Attack, a back attack          |
 | L / C         | MAGIC                            | Magic: tap to cast every pot, hold to charge level by level, let go   |
 
+Beside a riderless clawbeak, Jump climbs on. Riding, Attack sweeps its tail, Jump hops it, Down + Jump climbs off and
+Magic climbs off to charge or cast; a hard blow throws the rider off ([design](docs/design.md#enemies)).
+
 On a touch screen the pads (`src/app/pad.ts`) sit over the game's corners while your hero fights; a thumb slides
 round the d-pad for the diagonals, and a double tap of left or right (a second tap, or a slide back through the
 centre and out again) is the same press, release, press as the keys. A **shared screen** is the host's switch in the

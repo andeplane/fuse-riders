@@ -162,7 +162,7 @@ const hero = (
 ): HeroView => ({
   ...{ id, seat, kind: "brakka", x, y, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
-  ...{ invulnerable: false, pots: 0, maxPots: 4, charge: 0 },
+  ...{ invulnerable: false, pots: 0, maxPots: 4, charge: 0, mounted: false },
   ...more,
 });
 const enemy = (
@@ -423,6 +423,15 @@ test("a beast draws among the figures with its rider in the saddle over it, blin
   // On the floor beside it, the lower id draws first.
   assert.equal(rider!.dy, off!.sprites[0]!.dy - CLAWBEAK.saddle);
   assert.equal(on!.shadows.length, 2);
+  // A hero rides the same way, in its own colours, sitting its landing crouch in the saddle, facing either way.
+  const mine = beast({ rider: { kind: "hero", id: 1 } });
+  for (const facing of [1, -1] as const) {
+    const sat = hero(1, 0, 150, 140, { ...seated, facing });
+    const [under, rode] = draw(world({ heroes: [sat], mounts: [{ ...mine, facing }] })).sprites; // prettier-ignore
+    const [crouch] = draw(world({ heroes: [{ ...sat, anim: "land", mounted: false, z: 0 }] })).sprites; // prettier-ignore
+    assert.deepEqual(under!.image.fills, fillsOf(CLAWBEAK_SPRITE, { flash: false, flip: facing < 0 })); // prettier-ignore
+    assert.deepEqual([rode!.image.fills, rode!.dy], [crouch!.image.fills, crouch!.dy - CLAWBEAK.saddle]); // prettier-ignore
+  }
   const lash = (more: Partial<MountView>) =>
     draw(world({ mounts: [beast({ anim: "sweep", ...more })] })).pen.fills.filter((f) => f.style === "#f4f8ff" && f.h === 1); // prettier-ignore
   const { windup } = CLAWBEAK_STEPS;

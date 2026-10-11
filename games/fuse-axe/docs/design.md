@@ -112,7 +112,14 @@ waves 2 and 4, copied for a big party); the beast fights for the pair, walking u
 is in reach, then standing open. A blow that knocks down knocks the rider off; the saddle takes a lighter one (the rider
 flashes, and a sweep still winding up is broken off), so the combo's finisher, a dash, a back or jump attack, a throw or
 a spell unseats it. Riderless, the beast panics away from the blow, wanders, and after ten seconds with nobody on it
-walks off the screen. Enemies never climb back on. Heroes climbing on (Jump beside a riderless beast) come next.
+walks off the screen. Enemies never climb back on.
+
+A hero standing beside a riderless beast, in its lane, climbs on with **Jump** (two on the same step: the lower id).
+Riding, it walks at the beast's pace (no run), **Attack** sweeps the tail at the enemies around, never a hero (a short
+cool-down after each), **Jump** hops the beast, **Down + Jump** climbs off, and **Magic** climbs off to charge or cast.
+The saddle takes light blows as an enemy's does; a hard one (any the rules would knock the hero down with, or a blow in
+a hop) throws it off. Nobody rides at camp, and a continue or a new stage drops every hero in on foot. Bots never
+board a beast, leaving them to the players.
 
 A **sack imp** (`src/engine/imps.ts`) is sent by a cue in the stage's script (`STAGE_1.imps` in `stages.ts`: one
 after wave 2, one alongside wave 3, one after wave 4; Wyrmbone Pass has two; a single imp whatever the party's size). It scurries in from a

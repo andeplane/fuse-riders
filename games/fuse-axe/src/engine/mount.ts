@@ -1,5 +1,7 @@
-import { clamp } from "./math.js";
+import { DOWN, LEFT, RIGHT, UP } from "./input.js";
+import { clamp, div } from "./math.js";
 import { FLOORED, exposed, wound } from "./ai.js";
+import { conjure, conjures } from "./magic.js";
 import { planOf } from "./stages.js";
 import * as T from "./tuning.js";
 import {
@@ -17,8 +19,8 @@ import {
 /**
  * Beasts to ride (design.md, "Enemies": enemies ride beasts in later stages; knock a rider off and anyone can climb on).
  * A clawbeak takes no blow: blades, thrown bodies and spells land on its rider, never on it. Its rider stands where it
- * does, on its floor (the view lifts the rider into the saddle, `SADDLE`), and its weapon is the beast's: the tail
- * sweep, wound up for `TAIL_WINDUP` steps, then landing on every hero within `TAIL_REACH` either side and `TAIL_LANE` in
+ * does, at its height (the view lifts the rider into the saddle, `SADDLE`), and its weapon is the beast's: the tail
+ * sweep, wound up for `TAIL_WINDUP` steps, then landing on every foe within `TAIL_REACH` either side and `TAIL_LANE` in
  * depth, knocking it down.
  *
  * A wave's ravager may walk in riding one (`Spawn.mount`), and the beast fights for the pair: it goes for the rider's
@@ -28,8 +30,15 @@ import {
  * the beast with it, and a sweep still winding up is broken off (`flinch`). No enemy climbs back on.
  *
  * Riderless, a beast panics away from the blow that unseated its rider (`flee`), then wanders back and forth on screen,
- * and after `STRAY_STEPS` with nobody on it walks off the nearer edge of the screen and is gone. Heroes climbing on it
- * come next.
+ * and after `STRAY_STEPS` with nobody on it walks off the nearer edge of the screen and is gone.
+ *
+ * A hero standing or walking within `BOARD_X` of a riderless beast on the floor along the road, in its lane, climbs on
+ * with Jump in place of jumping (`board`); two heroes boarding one on the same step leave it to the lower id, as heroes
+ * move in id order. Riding, it walks at the beast's pace (it does not run); Attack sweeps the tail at the enemies around
+ * (`step.ts` lands it, never on a hero), Jump hops the beast (no steering in the air, as a hero's jump), Down and Jump
+ * climbs off, and Magic climbs off to charge or cast where it stands. Light blows the saddle takes, as an enemy's; one
+ * that would knock the hero down, and any in a hop, throws it off (`wound`), and the beast panics and wanders until
+ * someone else takes it. Bots leave beasts to the players.
  */
 
 /** Whether the tail reaches a body `half` wide at (`x`, `y`), `margin` to spare: either side of the beast, in its lane. */
@@ -42,6 +51,10 @@ export const swept = (
 ): boolean =>
   Math.abs(x - mount.x) - half <= T.TAIL_REACH + margin &&
   Math.abs(y - mount.y) <= T.TAIL_LANE + margin;
+
+/** Which way along the road the tail knocks a figure at `x`: away from the beast. */
+export const away = (mount: Mount, x: number): 1 | -1 =>
+  x === mount.x ? mount.facing : x > mount.x ? 1 : -1;
 
 /** Whether the tail still winding up would land on `hero` where it stands, `margin` to spare: what a bot steps out of. */
 export const lashes = (mount: Mount, hero: Hero, margin: number): boolean =>
@@ -57,6 +70,22 @@ const onScreen = (world: World, x: number): number =>
     world.camX + T.VIEW_W * T.SUB - T.BEAST_HALF_W,
   );
 
+/** Holds `x` on screen as a hero is, `HERO_MARGIN` in from its edges. */
+const heroOnScreen = (world: World, x: number): number =>
+  clamp(
+    x,
+    world.camX + T.HERO_MARGIN,
+    world.camX + T.VIEW_W * T.SUB - T.HERO_MARGIN,
+  );
+
+/** The rider stands where its beast does, at its height, facing its way. */
+function carry(mount: Mount, rider: Hero | Enemy): void {
+  rider.x = mount.x;
+  rider.y = mount.y;
+  rider.z = mount.z;
+  rider.facing = mount.facing;
+}
+
 const fresh = (
   world: World,
   kind: T.MountKind,
@@ -64,9 +93,9 @@ const fresh = (
   y: number,
   facing: 1 | -1,
 ): Mount => ({
-  ...{ id: world.nextId++, kind, x, y, z: 0, facing, state: "wander" },
-  ...{ timer: 0, rider: 0, goal: clamp(x, 0, planOf(world).length) },
-  coolUntil: 0,
+  ...{ id: world.nextId++, kind, x, y, z: 0, vx: 0, vy: 0, vz: 0, facing },
+  ...{ state: "wander", timer: 0, rider: 0 },
+  ...{ goal: clamp(x, 0, planOf(world).length), coolUntil: 0 },
 });
 
 /**
@@ -127,35 +156,124 @@ export function spawnMount(
   return next;
 }
 
+/**
+ * A free hero's Jump beside a riderless beast on the floor (within `BOARD_X` along the road, in its lane): it climbs
+ * on, the first such beast in id order, standing where the beast does (held to the screen as the hero is). Returns
+ * whether it did, or the Jump is a jump.
+ */
+export function board(world: World, hero: Hero): boolean {
+  const mount = world.mounts.find(
+    (each) =>
+      each.rider === 0 &&
+      each.z === 0 &&
+      Math.abs(each.x - hero.x) <= T.BOARD_X &&
+      Math.abs(each.y - hero.y) <= T.LANE,
+  );
+  if (!mount) return false;
+  mount.rider = hero.id;
+  setState(mount, "idle");
+  mount.x = heroOnScreen(world, mount.x);
+  hero.vx = hero.vy = hero.jumpBuf = 0;
+  setState(hero, "ride");
+  carry(mount, hero);
+  return true;
+}
+
+/** The walk the held directions ask of a hero's beast, as a hero's own walk; opposite directions cancel. */
+function trot(mount: Mount, bits: number): void {
+  const dx = (bits & RIGHT ? 1 : 0) - (bits & LEFT ? 1 : 0),
+    dy = (bits & DOWN ? 1 : 0) - (bits & UP ? 1 : 0),
+    scale = dx !== 0 && dy !== 0 ? T.DIAGONAL : 256;
+  mount.vx = dx * div(T.BEAST_WALK.x * scale, 256);
+  mount.vy = dy * div(T.BEAST_WALK.y * scale, 256);
+  if (dx !== 0) mount.facing = dx > 0 ? 1 : -1;
+  setState(mount, mount.vx !== 0 || mount.vy !== 0 ? "walk" : "idle");
+}
+
+/**
+ * A riding hero climbs off where its beast stands, which wanders off riderless: to charge or cast its Magic there, or
+ * with Down and Jump dropping from the saddle.
+ */
+function alight(world: World, hero: Hero, mount: Mount, bits: number): void {
+  mount.rider = mount.vx = mount.vy = 0;
+  setState(mount, "wander");
+  if (conjures(world, hero)) return conjure(world, hero, bits);
+  setState(hero, "jump");
+  hero.z = T.SADDLE;
+  hero.vz = hero.jumpBuf = 0;
+}
+
+/**
+ * A riding hero's step, its presses read and out of hit-stop: on the floor and not sweeping, Magic or Down and Jump
+ * climbs off (`alight`), Attack sweeps the tail once `TAIL_COOL` has passed since the last, Jump hops, or the beast walks
+ * as the directions ask; then it moves, a hop rising and falling under gravity, held to the screen and the floor band,
+ * with the hero on it. Returns the beast on the step its tail lands, for `step.ts` to strike the enemies around.
+ */
+export function ride(
+  world: World,
+  hero: Hero,
+  bits: number,
+): Mount | undefined {
+  const mount = mountOf(world, hero.id)!;
+  mount.timer++;
+  if (mount.state === "sweep") {
+    if (mount.timer >= T.TAIL_STEPS) rest(world, mount);
+  } else if (mount.state !== "hop") {
+    if (conjures(world, hero) || (hero.jumpBuf > 0 && bits & DOWN)) {
+      alight(world, hero, mount, bits);
+      return undefined;
+    }
+    if (hero.attackBuf > 0 && world.step >= mount.coolUntil) {
+      setState(mount, "sweep");
+      mount.vx = mount.vy = hero.attackBuf = 0;
+      hero.struck = [];
+    } else if (hero.jumpBuf > 0) {
+      setState(mount, "hop");
+      mount.vz = T.JUMP_VZ;
+      hero.jumpBuf = 0;
+    } else trot(mount, bits);
+  }
+  mount.x = heroOnScreen(world, mount.x + mount.vx);
+  mount.y = clamp(mount.y + mount.vy, T.FLOOR_TOP, T.FLOOR_BOTTOM);
+  fall(mount);
+  carry(mount, hero);
+  return mount.state === "sweep" && mount.timer === T.TAIL_WINDUP
+    ? mount
+    : undefined;
+}
+
+/** A beast off the floor rises and falls under gravity, landing still: a hop stands. */
+function fall(mount: Mount): void {
+  if (mount.z === 0 && mount.state !== "hop") return;
+  mount.z += mount.vz;
+  mount.vz -= T.GRAVITY;
+  if (mount.z > 0) return;
+  mount.z = mount.vx = mount.vy = mount.vz = 0;
+  if (mount.state === "hop") setState(mount, "idle");
+}
+
 /** A sweep over, or broken off: the beast stands, and sweeps again no sooner than `TAIL_COOL`. */
 function rest(world: World, mount: Mount): void {
   setState(mount, "idle");
   mount.coolUntil = world.step + T.TAIL_COOL;
 }
 
-/** A blow the saddle takes (its rider stays on): the beast's tail still winding up is broken off. */
-export function flinch(world: World, rider: Enemy): void {
-  const mount = mountOf(world, rider.id)!;
-  if (mount.state === "sweep" && mount.timer < T.TAIL_WINDUP)
-    rest(world, mount);
-}
-
 /**
- * The beasts' step, after the enemies have moved (and, as they are, held while a spell's blow is coming): one with a
- * rider walks in or fights for it (`prowl`), holding still while its rider does in hit-stop, and carries it; a riderless
- * one panics, wanders or leaves (`roam`), and one that has left the screen is gone.
+ * The beasts no hero rides (a hero's moves with it, `ride`), after the enemies have moved (and, as they are, held while
+ * a spell's blow is coming): an enemy's walks in or fights for its rider (`prowl`), holding still while its rider does
+ * in hit-stop, and carries it; a riderless one panics, wanders or leaves (`roam`), and one that has left the screen is
+ * gone.
  */
 export function advanceMounts(world: World): void {
   for (const mount of world.mounts) {
+    if (world.heroes.some((hero) => hero.id === mount.rider)) continue;
     const rider = world.enemies.find((each) => each.id === mount.rider);
     if (rider && world.step <= rider.stopUntil) continue;
     mount.timer++;
     if (!rider) roam(world, mount);
     else {
       prowl(world, mount, rider);
-      rider.x = mount.x;
-      rider.y = mount.y;
-      rider.facing = mount.facing;
+      carry(mount, rider);
     }
   }
   world.mounts = world.mounts.filter(
@@ -167,7 +285,7 @@ export function advanceMounts(world: World): void {
 }
 
 /**
- * A ridden beast's step: walking in to its goal, it stands; sweeping, its tail lands on every hero exposed to it and
+ * An enemy's beast's step: walking in to its goal, it stands; sweeping, its tail lands on every hero exposed to it and
  * low enough, knocking each down away from it, and the sweep ends standing; otherwise, once open no longer, it sweeps
  * at its hero on its feet in the tail's reach, waits by one lying, or walks to stand `TAIL_STAND` off it in its lane.
  */
@@ -197,24 +315,26 @@ function prowl(world: World, mount: Mount, rider: Enemy): void {
   setState(mount, "walk");
 }
 
-/** The tail lands on every hero exposed to it in its sweep and under `TAIL_HEIGHT`, knocked down away from the beast. */
+/**
+ * An enemy's beast's tail lands on every hero exposed to it in its sweep and under `TAIL_HEIGHT`, knocked down away from
+ * the beast: one riding is thrown off its own.
+ */
 function lash(world: World, mount: Mount): void {
   for (const hero of world.heroes)
     if (
       exposed(world, hero) &&
       hero.z < T.TAIL_HEIGHT &&
       swept(mount, hero.x, hero.y, T.HERO_HALF_W)
-    ) {
-      const dir = hero.x === mount.x ? mount.facing : hero.x > mount.x ? 1 : -1;
-      wound(world, hero, T.TAIL_DAMAGE, dir, true);
-    }
+    )
+      wound(world, hero, T.TAIL_DAMAGE, away(mount, hero.x), true);
 }
 
 /**
- * A riderless beast's step: panicking, it runs the way it faces, then wanders, turning every `WANDER_TURN` steps, on
- * screen; after `STRAY_STEPS` of that it walks off the nearer edge.
+ * A riderless beast's step: one thrown out of a hop comes down; panicking, it runs the way it faces, then wanders,
+ * turning every `WANDER_TURN` steps, on screen; after `STRAY_STEPS` of that it walks off the nearer edge.
  */
 function roam(world: World, mount: Mount): void {
+  fall(mount);
   if (mount.state === "flee") {
     mount.x += mount.facing * T.PANIC_RUN;
     if (mount.timer >= T.PANIC_STEPS) setState(mount, "wander");

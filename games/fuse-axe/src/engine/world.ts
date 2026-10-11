@@ -16,6 +16,8 @@ import {
   MAX_POTS,
   SADDLE,
   SUB,
+  TAIL_COOL,
+  TAIL_WINDUP,
   TIERS,
   VIEW_W,
   enemyMaxHp,
@@ -59,6 +61,7 @@ export const HERO_STATES = [
   "throw",
   "charge",
   "cast",
+  "ride",
 ] as const;
 export type HeroState = (typeof HERO_STATES)[number];
 
@@ -186,17 +189,21 @@ export const LANCER_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
   (state) => !["attack", "ride", ...IMP_ONLY, ...OGRE_ONLY].includes(state),
 );
 
-/** A beast's states with a rider on it (`RIDDEN`), then riderless: it panics (`flee`), wanders or leaves. */
+/**
+ * A beast's states with a rider on it (`RIDDEN`: only an enemy's walks in, only a hero's hops), then riderless: it
+ * panics (`flee`), wanders or leaves.
+ */
 export const MOUNT_STATES = [
-  ...["enter", "idle", "walk", "sweep"],
+  ...["enter", "idle", "walk", "sweep", "hop"],
   ...["flee", "wander", "leave"],
 ] as const;
 export type MountState = (typeof MOUNT_STATES)[number];
-export const RIDDEN: readonly MountState[] = MOUNT_STATES.slice(0, 4);
+export const RIDDEN: readonly MountState[] = MOUNT_STATES.slice(0, 5);
 
 /**
- * A beast to ride (`mount.ts`). Its rider, an enemy in `ride`, stands where it does, on its floor (the view lifts the
- * rider into the saddle), and moves with it. It takes no blow itself, and stands on the floor (`z` 0).
+ * A beast to ride (`mount.ts`). Its rider, a hero or an enemy in `ride`, stands where it does, at its height (the view
+ * lifts the rider into the saddle), and moves with it. It takes no blow itself, and stands on the floor (`z` 0) but in
+ * a hero's hop, or coming down from one its rider was thrown out of.
  */
 export interface Mount {
   id: number;
@@ -204,6 +211,10 @@ export interface Mount {
   x: number;
   y: number;
   z: number;
+  /** A hero's beast's walk this step, or the momentum its hop keeps (0 for any other), and a hop's rise and fall. */
+  vx: number;
+  vy: number;
+  vz: number;
   facing: 1 | -1;
   state: MountState;
   /** Steps since `state` began. */
@@ -597,23 +608,37 @@ export function spark(
   if (world.fx.length > FX_MAX) world.fx.shift();
 }
 
-/** The beast enemy `id` rides, if it rides one. */
+/** The beast the hero or enemy `id` rides, if it rides one. */
 export const mountOf = (world: World, id: number): Mount | undefined =>
   world.mounts.find((each) => each.rider === id);
 
 /**
+ * A rider knocked off its beast by a blow going the way `dir` points: it falls from the saddle (the caller sends it
+ * flying, `launch` an enemy and `wound` a hero), and the beast, riderless, panics away from the blow (`mount.ts`).
+ */
+export function unseat(world: World, rider: Hero | Enemy, dir: 1 | -1): void {
+  const mount = mountOf(world, rider.id)!;
+  mount.rider = mount.vx = mount.vy = 0;
+  mount.facing = dir;
+  setState(mount, "flee");
+  rider.z = mount.z + SADDLE;
+}
+
+/** A blow the saddle takes (its rider stays on): the beast's tail still winding up is broken off. */
+export function flinch(world: World, rider: Hero | Enemy): void {
+  const mount = mountOf(world, rider.id)!;
+  if (mount.state !== "sweep" || mount.timer >= TAIL_WINDUP) return;
+  setState(mount, "idle");
+  mount.coolUntil = world.step + TAIL_COOL;
+}
+
+/**
  * Knocks an enemy down, launched up and away the way `dir` points along the road (facing back at the blow), going for
- * nobody and held still for the heavy hit-stop. A rider falls from the saddle, and its beast, riderless, panics away
- * from the blow (`mount.ts`). An ogre's poise is whole again.
+ * nobody and held still for the heavy hit-stop. A rider is knocked off its beast (`unseat`): the one way an enemy
+ * leaves the saddle. An ogre's poise is whole again.
  */
 export function launch(world: World, enemy: Enemy, dir: 1 | -1): void {
-  const mount = enemy.state === "ride" ? mountOf(world, enemy.id) : undefined;
-  if (mount) {
-    mount.rider = 0;
-    mount.facing = dir;
-    setState(mount, "flee");
-    enemy.z = mount.z + SADDLE;
-  }
+  if (enemy.state === "ride") unseat(world, enemy, dir);
   enemy.state = "knockdown";
   enemy.poise = 0;
   enemy.timer = enemy.target = 0;

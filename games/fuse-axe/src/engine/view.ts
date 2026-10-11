@@ -50,7 +50,8 @@ export type { FxKind } from "./world.js";
  * it (`BACK_STEPS`), `grab` holds an enemy for `GRAB_STEPS` and `throw` follows through for `THROW_STEPS`. `hurt`
  * reels, `knockdown` flies, `down` lies and `getup` rises; `dead` lies fallen until `respawn` drops the hero in from
  * the top of the screen, or it is `out`. `charge` holds Magic (the level chosen is `charge` in the view) and `cast`
- * stands casting its spell (`spells` in the world's view) until the spell is gone.
+ * stands casting its spell (`spells` in the world's view) until the spell is gone. `ride` sits a beast (`mounted`)
+ * throughout: the beast's anim says what the pair does.
  */
 export type HeroAnim = HeroState;
 /**
@@ -78,8 +79,9 @@ export type EnemyAnim = EnemyState;
 /**
  * A beast's anims (`CLAWBEAK_STEPS` in `view-kit.ts` times them). Ridden: `enter` walks a wave's in, `idle` and `walk`,
  * `sweep` winds up its tail (`windup` steps), lashing it round on that `animStep` (`CLAWBEAK.reach` either side), then
- * recovers to `sweep` steps. Riderless: `flee` panics for `panic` steps, `wander` walks back and forth (turning every
- * `turn` steps) and `leave` walks off the screen.
+ * recovers to `sweep` steps; `hop` is a hero's beast jumping (rising for `hopRise` steps, then falling, as a hero's
+ * jump). Riderless: `flee` panics for `panic` steps (coming down first if thrown out of a hop), `wander` walks back and
+ * forth (turning every `turn` steps) and `leave` walks off the screen.
  */
 export type MountAnim = MountState;
 
@@ -111,6 +113,8 @@ export interface HeroView {
    * (`MAGIC_TAP`; a tap casts every pot); 0 otherwise.
    */
   charge: number;
+  /** Riding a beast (`ride`): its `z` is the saddle's, `CLAWBEAK.saddle` over the beast's. */
+  mounted: boolean;
 }
 
 /**
@@ -145,14 +149,11 @@ export interface EnemyView {
   boss: boolean;
   /** An ogre whose twin has fallen: it fights faster. */
   enraged: boolean;
-  /** Riding a beast (`ride`): its `z` is the saddle's, `CLAWBEAK.saddle` over the beast's. */
+  /** Riding a beast (`ride`), its `z` the saddle's, as a hero's. */
   mounted: boolean;
 }
 
-/**
- * A beast, ridden or not. Its rider stands where it does, `CLAWBEAK.saddle` higher, and is drawn over it: an enemy now,
- * a hero too once heroes climb on.
- */
+/** A beast, ridden or not. Its rider, a hero or an enemy, stands where it does, `CLAWBEAK.saddle` higher, over it. */
 export interface MountView {
   id: number;
   kind: MountKind;
@@ -249,7 +250,12 @@ function bossOf(world: World): BossView | null {
   return { kind: bosses[0]!.kind, hp, maxHp };
 }
 
+/** A figure's height in the view: a rider's in the saddle, over its beast's. */
+const seated = (figure: { state: string; z: number }) =>
+  whole(figure.z + (figure.state === "ride" ? SADDLE : 0));
+
 export function toView(world: World): WorldView {
+  const heroIds = new Set(world.heroes.map((hero) => hero.id));
   return {
     step: world.step,
     camX: whole(world.camX),
@@ -259,7 +265,7 @@ export function toView(world: World): WorldView {
       kind: hero.kind,
       x: whole(hero.x),
       y: whole(hero.y),
-      z: whole(hero.z),
+      z: seated(hero),
       facing: hero.facing,
       anim: hero.state,
       animStep: hero.timer,
@@ -272,6 +278,7 @@ export function toView(world: World): WorldView {
       maxPots: MAX_POTS[hero.kind],
       // The step shown is one more held than `timer` counts since the press.
       charge: hero.state === "charge" ? chosenLevel(hero, hero.timer + 1) : 0,
+      mounted: hero.state === "ride",
     })),
     enemies: world.enemies.map((enemy) => ({
       id: enemy.id,
@@ -279,8 +286,7 @@ export function toView(world: World): WorldView {
       tier: enemy.tier,
       x: whole(enemy.x),
       y: whole(enemy.y),
-      // A rider sits in the saddle, over its beast.
-      z: whole(enemy.z + (enemy.state === "ride" ? SADDLE : 0)),
+      z: seated(enemy),
       facing: enemy.facing,
       anim: enemy.state,
       animStep: enemy.timer,
@@ -324,7 +330,9 @@ export function toView(world: World): WorldView {
       facing: mount.facing,
       anim: mount.state,
       animStep: mount.timer,
-      rider: mount.rider ? { kind: "enemy", id: mount.rider } : null,
+      rider: mount.rider
+        ? { kind: heroIds.has(mount.rider) ? "hero" : "enemy", id: mount.rider }
+        : null,
     })),
     stage: world.stage,
     camp: world.camp,

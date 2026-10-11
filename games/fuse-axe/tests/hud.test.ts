@@ -103,7 +103,7 @@ const hero = (
 ): HeroView => ({
   ...{ id, seat, kind: "brakka", x: 100, y: 140, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
-  ...{ invulnerable: false, pots: 0, maxPots: 4, charge: 0 },
+  ...{ invulnerable: false, pots: 0, maxPots: 4, charge: 0, mounted: false },
   ...more,
 });
 const out = (id: number, seat: number) =>
