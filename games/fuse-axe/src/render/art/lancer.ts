@@ -47,6 +47,8 @@ export interface LancerPose extends Pose {
   readonly loose?: boolean;
   /** The spear has fallen from the hands to lie on the floor along `spear`, its point here. */
   readonly dropped?: Point;
+  /** Astride a beast: the far leg is on its far side, out of sight. */
+  readonly astride?: boolean;
 }
 
 /** One canvas and one feet anchor for every frame: room ahead for the thrust, behind for the drawn-back spear. */
@@ -502,7 +504,7 @@ export function paintLancer(pose: LancerPose): Sprite {
   const legs = { material: "s", boot: "l", cuff: "c", bootTop: 0.08 };
   arm(rig, far, { ...BACK, bracer: "l" });
   if (pose.loose) fist(rig, far.hand, BACK);
-  leg(rig, far, { ...BACK, ...legs });
+  if (!pose.astride) leg(rig, far, { ...BACK, ...legs });
   // The white steel cuirass, broad at the chest over a narrower waist.
   const body = { group: "body" };
   rig.capsule(torso(-2, 0), torso(2, 0), 6, 6, "m", body);
@@ -584,3 +586,6 @@ export const LANCER = figure(LANCER_POSES, paintLancer, {
   rust: LANCER_TIERS[1],
   violet: LANCER_TIERS[2],
 });
+
+/** The pose builder and the feet-anchored point the captain's seated pose is built with (`captain.ts`). */
+export { build as buildLancer, F as lancerAt };
