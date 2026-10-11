@@ -6,7 +6,7 @@ import {
   gravesPx,
   stageLengthPx,
 } from "../../engine/view-kit.js";
-import { bayer, dither, hash, Raster } from "./kit.js";
+import { bayer, dither, hash, Raster, rgbAt } from "./kit.js";
 import type { Brush, StageArt } from "./kit.js";
 
 /**
@@ -79,15 +79,6 @@ function shape(r: Raster, box: Box, inside: Inside, ramp: Ramp) {
       else if (hash(x, y) > 0.93) c = dark;
       r.px(x, y, c);
     }
-}
-
-/** The colour a raster holds at a pixel, or −1 where it is clear or off the raster. */
-function rgbAt(r: Raster, x: number, y: number) {
-  const row = y - r.top;
-  if (!(x >= 0 && x < r.width && row >= 0 && row < r.height)) return -1;
-  const i = (row * r.width + x) * 4;
-  const [red, green, blue] = [r.rgba[i]!, r.rgba[i + 1]!, r.rgba[i + 2]!];
-  return r.rgba[i + 3] ? (red << 16) | (green << 8) | blue : -1;
 }
 
 /** Mirrors what `keep` holds above row `line` into the water below it, at half its light, broken up with depth. */
