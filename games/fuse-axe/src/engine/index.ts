@@ -1,5 +1,5 @@
 /** Fuse Axe's engine: deterministic rules with no imports from outside this folder. */
-export const RULES = "fuse-axe-10";
+export const RULES = "fuse-axe-11";
 export * from "./input.js";
 export {
   createWorld,
@@ -23,6 +23,7 @@ export {
   type World,
 } from "./world.js";
 export { revive, step, stepTick } from "./step.js";
+export { botInput } from "./bot.js";
 export { sendImp } from "./imps.js";
 export {
   toView,

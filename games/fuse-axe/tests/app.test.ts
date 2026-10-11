@@ -139,6 +139,30 @@ test("the lobby: each seat's hero from the room, the host starts, a guest waits,
   );
 });
 
+test("the host seats bot companions from the lobby while a seat is free, and removes them there", () => {
+  const bot = seat("bot:1", 2, "bot", { bot: true, generation: undefined });
+  const lobby = frame("lobby", {
+    seats: new Map([seat("a", 0, "rhea"), seat("b", 1, "gorm"), bot]),
+  });
+  const mine = present(lobby, host);
+  assert.ok(mine.canAddBot);
+  assert.deepEqual(mine.removable, ["bot:1"]);
+  assert.equal(mine.members[2]!.status, "P3 · BOT · GORM");
+  assert.ok(!present(lobby, guest).canAddBot);
+  assert.deepEqual(present(lobby, guest).removable, []);
+  assert.ok(!present(lobby, tv).canAddBot, "not from the shared screen");
+  assert.ok(present(lobby, { ...host, solo: true }).canAddBot, "solo too");
+  const full = frame("lobby", {
+    seats: new Map(
+      [0, 1, 2, 3, 4].map((slot) => seat(`p${slot}`, slot, "gorm")),
+    ),
+  });
+  assert.ok(!present(full, host).canAddBot, "every seat taken");
+  const running = present(frame("running"), host);
+  assert.ok(!running.canAddBot);
+  assert.deepEqual(running.removable, []);
+});
+
 test("a seat's hero changes only when the room's does; an away or offline seat cannot pick", () => {
   const picked = frame("lobby", {
     seats: new Map([seat("a", 0, "gorm"), seat("b", 1, "gorm")]),
