@@ -84,6 +84,18 @@ test("the engine keeps to deterministic arithmetic: no clock, no Math.random, no
     );
 });
 
+/** The online fold, hash and checkpoint run on every replica too; the runtime reads time only through its injected clock. */
+test("src/online/ keeps to deterministic arithmetic as well", () => {
+  const files = sourceFiles(path.join(game, "src", "online"));
+  assert.ok(files.some((file) => file.endsWith("game.ts")));
+  for (const file of files)
+    assert.deepEqual(
+      deterministicViolations(syntax(file)),
+      [],
+      path.relative(game, file),
+    );
+});
+
 test("the guard refuses Math.sin added to an engine file, and every other form it bans", () => {
   const file = path.join(engineDir, "geometry.ts");
   const withSin = `${readFileSync(file, "utf8")}\nexport const wobble = (t: number) => Math.sin(t);\n`;
