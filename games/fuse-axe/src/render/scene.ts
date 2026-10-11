@@ -1,5 +1,4 @@
 import type {
-  EnemyAnim,
   EnemyKind,
   EnemyView,
   HeroView,
@@ -9,15 +8,11 @@ import type {
   WorldView,
 } from "../engine/view.js";
 import { DEAD_STEPS, VIEW_H, VIEW_W } from "../engine/view-kit.js";
-import { heroFrame, stripFrame } from "./art/animate.js";
+import { enemyFrame, heroFrame } from "./art/animate.js";
+import { IMP } from "./art/imp.js";
 import { HEROES } from "./art/index.js";
-import {
-  RAVAGER,
-  RAVAGER_ANIMS,
-  RAVAGER_TIERS,
-  type AnimStrip,
-} from "./art/ravager.js";
-import { IMP_STAND_IN, POT_STAND_IN } from "./art/stand-ins.js";
+import { POT } from "./art/pot.js";
+import { RAVAGER, RAVAGER_TIERS } from "./art/ravager.js";
 import { createBackdrop, type StageNumber } from "./backdrop/backdrop.js";
 import { bayer } from "./backdrop/kit.js";
 import { blinksOn, createHud, type HudSeats } from "./hud.js";
@@ -52,28 +47,23 @@ export interface Scene<Image> {
 }
 
 /**
- * What an enemy kind draws with: its figure, a strip per anim (an anim it lacks stands idle), and a palette per tier
- * (none: the figure's own).
+ * What an enemy kind draws with: its figure, whose frames `enemyFrame` picks, and a palette per tier (none: the
+ * figure's own).
  */
 interface EnemyArt {
   readonly figure: Figure;
-  readonly anims: Readonly<Partial<Record<EnemyAnim, AnimStrip<string>>>> & {
-    readonly idle: AnimStrip<string>;
-  };
   readonly tiers: Readonly<Record<Tier, Palette | undefined>>;
 }
-/** A kind missing here, the sack imp for now, draws the imp's flat stand-in (`IMP_STAND_IN`) in every anim. */
-export const ENEMY_ART: Readonly<Partial<Record<EnemyKind, EnemyArt>>> = {
+/** Every enemy kind's art. A kind from a build with more of them draws as a ravager, as `enemyFrame` plays it. */
+export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   ravager: {
     figure: RAVAGER,
-    anims: RAVAGER_ANIMS,
     tiers: { 0: undefined, 1: RAVAGER_TIERS.rust, 2: RAVAGER_TIERS.violet },
   },
+  imp: { figure: IMP, tiers: { 0: undefined, 1: undefined, 2: undefined } },
 };
-/** What each item kind draws (a kind missing here, the pot's stand-in), and the half-width of its shadow. */
-export const ITEM_ART: Readonly<Partial<Record<ItemKind, Sprite>>> = {
-  pot: POT_STAND_IN,
-};
+/** What each item kind draws (a kind from a build with more of them, a pot), and the half-width of its shadow. */
+export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = { pot: POT };
 export const ITEM_SHADE = 3;
 
 /** How a hero looks: its figure and its palette. */
@@ -272,21 +262,17 @@ export function createScene<Image>(
       });
       for (const enemy of view.enemies) {
         if (enemy.anim === "dead" && !deadShows(enemy.animStep)) continue;
-        const art = ENEMY_ART[enemy.kind];
-        // An anim the art has no strip for stands idle, as a hero's does, and a kind with no art draws its stand-in,
-        // rather than stopping the frame loop.
+        // A kind from a build with more of them draws as a ravager, and an anim with no strip stands idle, as a
+        // hero's does (`enemyFrame`), rather than stopping the frame loop.
+        const art = Object.hasOwn(ENEMY_ART, enemy.kind)
+          ? ENEMY_ART[enemy.kind]
+          : ENEMY_ART.ravager;
+        const pose = enemyFrame(enemy.kind, enemy.anim, enemy.animStep);
         standing.push({
           ...at(enemy),
-          sprite: art
-            ? art.figure.sprite(
-                stripFrame(
-                  art.anims[enemy.anim] ?? art.anims.idle,
-                  enemy.animStep,
-                ),
-              )
-            : IMP_STAND_IN,
+          sprite: art.figure.sprite(pose),
           options: {
-            swap: art?.tiers[enemy.tier],
+            swap: art.tiers[enemy.tier],
             flash: enemy.flash,
             flip: enemy.facing < 0,
           },
@@ -297,7 +283,9 @@ export function createScene<Image>(
       for (const item of view.items)
         standing.push({
           ...at(item),
-          sprite: ITEM_ART[item.kind] ?? POT_STAND_IN,
+          sprite: Object.hasOwn(ITEM_ART, item.kind)
+            ? ITEM_ART[item.kind]
+            : POT,
           options: {},
           lit: !item.blink || blinksOn(frame),
           shade: ITEM_SHADE,

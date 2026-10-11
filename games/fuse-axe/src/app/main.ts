@@ -263,6 +263,7 @@ function room(solo: boolean): void {
     roster = createRoster({ emptyText: "No heroes yet", avatar: badge }),
     blurb = el("p", "", "fa-blurb"),
     lobbyNote = el("p", "", "fui-lobby-note"),
+    addBot = button("+ BOT", "fa-add-bot"),
     start = button("START", "fui-button-primary fa-start");
   const picker = createPicker<HeroKind>({
     legend: "CHOOSE YOUR HERO",
@@ -309,7 +310,13 @@ function room(solo: boolean): void {
       withFlags(endpoints.appUrl(`?room=${code}&display=1`)),
       "_blank",
     );
-  lobbyMain.append(el("h2", "HEROES", "fui-lobby-title"), roster.element);
+  // The host seats bot companions (solo too), each playing its seat's hero, and removes them before setting out.
+  addBot.onclick = () => runtime.command({ type: "bot", action: "add" });
+  lobbyMain.append(
+    el("h2", "HEROES", "fui-lobby-title"),
+    roster.element,
+    addBot,
+  );
   lobbySide.append(
     picker.element,
     blurb,
@@ -571,6 +578,19 @@ function room(solo: boolean): void {
         avatar: member.hero ?? undefined,
       })),
     );
+    for (const [id, row] of roster.entries()) {
+      let remove = row.querySelector<HTMLButtonElement>(".fa-remove");
+      const removable = next.removable.includes(id);
+      if (removable && !remove) {
+        remove = button("×", "fa-remove");
+        remove.setAttribute("aria-label", "Remove bot");
+        remove.onclick = () =>
+          runtime.command({ type: "bot", action: "remove", id });
+        row.append(remove);
+      }
+      if (remove) remove.hidden = !removable;
+    }
+    addBot.hidden = !next.canAddBot;
     // A seat shows the hero the room gave it (this device's own pick until the room answers); before a seat, the one
     // this browser will join with.
     const hero =
@@ -676,6 +696,7 @@ function room(solo: boolean): void {
     ended() {
       status.show("Room ended", "error");
       over = true;
+      audio.stop();
       controls.close();
       for (const part of [
         connecting,

@@ -202,6 +202,7 @@ are not the world's heroes).
   `HeldControls` as the keys, so the engine sees one input path (`src/app/pad.ts`, `presenter.ts`'s `controller`).
 - Local play on one machine: keyboard and gamepads.
 - A solo player can bring bot companions. Bots press the same buttons as a human and get no privileged rules.
+  Built: the host's + BOT in the lobby seats one, and the room folds `botInput` (`src/engine/bot.ts`) for its seat.
 
 ## Technical shape
 
@@ -245,4 +246,4 @@ Small pull requests, each reviewed and merged before the next one that depends o
 7. Sack imps, pots and magic for each hero.
 8. More enemies (lancer, brute), the Ogre twins and the stage flow.
 9. Camp, stages 2–4, mounts, bonewalkers and Vorhal.
-10. Sound effects and music (the effects and the stage jingles are in; the Stage 1 march follows); bot companions.
+10. Sound effects and music (in: the effects, the jingles and the Stage 1 march); bot companions.

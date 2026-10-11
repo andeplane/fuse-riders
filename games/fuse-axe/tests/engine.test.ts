@@ -445,7 +445,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-10");
+  assert.equal(RULES, "fuse-axe-11");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {
