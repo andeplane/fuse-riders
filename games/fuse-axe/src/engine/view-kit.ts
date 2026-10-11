@@ -4,7 +4,14 @@ import {
   CAMERA_END,
   COMBO,
   DASH,
+  DRAKE_INHALE,
   ENEMY_BODY,
+  FLAME_LANE,
+  FLAME_LENGTH,
+  FLAME_STEPS,
+  LANCE_STEPS,
+  LANCE_WINDUP,
+  flameAt,
   FLOOR_BOTTOM,
   FLOOR_TOP,
   GRAVITY,
@@ -78,6 +85,7 @@ export {
   MOUNT_KINDS,
 } from "./tuning.js";
 export {
+  DRAKE_ONLY,
   ENEMY_STATES,
   FX_KINDS,
   HERO_STATES,
@@ -257,3 +265,31 @@ export const CLAWBEAK = {
   reach: TAIL_REACH / SUB,
   half: BEAST_HALF_W / SUB,
 } as const;
+
+/**
+ * An ember drake's timing in steps, to time its frames (`MountAnim`): the breath's inhale (the flame is out from that
+ * `animStep`) and its whole length, the captain's saddle thrust's wind-up (it lands on that `animStep`) and length, and
+ * as a clawbeak's, the panic, the wanderer's turn and a hop's rise.
+ */
+export const DRAKE_STEPS = {
+  inhale: DRAKE_INHALE,
+  breathe: DRAKE_INHALE + FLAME_STEPS,
+  lanceWindup: LANCE_WINDUP,
+  lance: LANCE_STEPS,
+  panic: PANIC_STEPS,
+  turn: WANDER_TURN,
+  hopRise: JUMP_RISE_STEPS,
+} as const;
+/** In pixels: the flame's mouth in front of the drake's centre, its longest run from there, and its lane either side. */
+export const FLAME = {
+  mouth: BEAST_HALF_W / SUB,
+  length: FLAME_LENGTH / SUB,
+  lane: FLAME_LANE / SUB,
+} as const;
+/**
+ * How far in front of a breathing drake's centre its flame's front is, in pixels, `animStep` steps into `breathe`: 0
+ * while it inhales and once it is over; it runs out from the mouth, holds at its length and draws back. Never throws:
+ * an odd step is rounded down to a whole one, and one that is not a number has no flame.
+ */
+export const flamePx = (animStep: number): number =>
+  Number.isFinite(animStep) ? flameAt(Math.floor(animStep)) / SUB : 0;

@@ -13,6 +13,7 @@ import type { MountAnim, MountKind } from "../src/engine/view.js";
 import {
   CLAWBEAK,
   CLAWBEAK_STEPS,
+  DRAKE_ONLY,
   MOUNT_STATES,
 } from "../src/engine/view-kit.js";
 import {
@@ -28,6 +29,7 @@ import {
   CLAWBEAK_WALK_STEPS,
   LASH_STEPS,
   paintClawbeak,
+  type ClawbeakAnim,
   type ClawbeakFrame,
 } from "../src/render/art/clawbeak.js";
 import { FIGURES } from "../src/render/art/index.js";
@@ -52,7 +54,7 @@ const RIDDEN = new Set(
     CLAWBEAK_ANIMS[anim].frames.map(([frame]) => frame),
   ),
 );
-const length = (anim: MountAnim) =>
+const length = (anim: ClawbeakAnim) =>
   CLAWBEAK_ANIMS[anim].frames.reduce((sum, [, steps]) => sum + steps, 0);
 /** The columns from the feet anchor of the pixels in a sprite whose key `match`es, on any row. */
 const columns = (s: Sprite, match: RegExp) =>
@@ -117,7 +119,7 @@ test("a planted foot keeps pace with the beast's walk, and nearly so walking in 
   for (const i of [3, 4])
     assert.ok(Math.abs(ground(i, "far") - ground(2, "far")) < 0.05);
   // The other walks hold the strut's frames for so many steps at their own pace: a foot slips at most half a pixel.
-  const held = (anim: MountAnim) => CLAWBEAK_ANIMS[anim].frames[0]![1];
+  const held = (anim: ClawbeakAnim) => CLAWBEAK_ANIMS[anim].frames[0]![1];
   for (const [anim, speed] of [
     ["walk", T.BEAST_WALK.x],
     ["leave", T.BEAST_WALK.x],
@@ -133,7 +135,7 @@ test("a planted foot keeps pace with the beast's walk, and nearly so walking in 
 test("every clawbeak anim plays frames the figure has, every frame is played, and the strips are the engine's steps", () => {
   assert.deepEqual(
     Object.keys(CLAWBEAK_ANIMS).sort(),
-    [...MOUNT_STATES].sort(),
+    MOUNT_STATES.filter((anim) => !DRAKE_ONLY.includes(anim)).sort(),
   );
   const played = new Set<string>();
   for (const [anim, { frames, loop }] of Object.entries(CLAWBEAK_ANIMS)) {
@@ -157,15 +159,16 @@ test("every clawbeak anim plays frames the figure has, every frame is played, an
       assert.match(frame, /^coil/, `${animStep}`);
   }
   // `mountFrame` plays the strips as they are and never throws: any anim at any step is one of the figure's frames, an
-  // anim or a kind from a build with more of them stands as a clawbeak idles.
-  const odd = JSON.parse('"drake"') as MountKind;
+  // anim (a drake's to a clawbeak) or a kind from a build with more of them stands as a clawbeak idles.
+  const odd = JSON.parse('"wyvern"') as MountKind;
   const dance = JSON.parse('"dance"') as MountAnim;
   for (const anim of [...MOUNT_STATES, dance])
     for (const animStep of [0, 12, 33, 64, 2.5, -4, Number.NaN, Infinity])
       for (const kind of ["clawbeak", odd] as const) {
         const frame = mountFrame(kind, anim, animStep);
         sprite(frame as ClawbeakFrame);
-        const strip = anim === dance ? CLAWBEAK_ANIMS.idle : CLAWBEAK_ANIMS[anim]; // prettier-ignore
+        const own = anim !== dance && !DRAKE_ONLY.includes(anim);
+        const strip = own ? CLAWBEAK_ANIMS[anim as ClawbeakAnim] : CLAWBEAK_ANIMS.idle; // prettier-ignore
         assert.equal(frame, stripFrame(strip, animStep));
       }
 });

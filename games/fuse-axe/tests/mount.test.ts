@@ -163,7 +163,7 @@ test("a beast takes no blow: a blade passes it by, as does a spell, whose freeze
 test("Wyrmbone Pass sends riders on clawbeaks in waves 2 and 4, one more for a big party, who ride in on them; a full world sends them on foot", () => {
   assert.deepEqual(
     STAGE_2.waves.map((w) => w.spawns.filter((s) => s.mount).length),
-    [0, 1, 0, 1, 0, 0],
+    [0, 1, 0, 1, 0, 1],
   );
   const wave = STAGE_2.waves[1]!;
   assert.equal(waveSpawns(wave, 5).filter((s) => s.mount).length, 2);
@@ -187,7 +187,7 @@ test("Wyrmbone Pass sends riders on clawbeaks in waves 2 and 4, one more for a b
 
 test("spawning a beast refuses what the checkpoint would: an unknown kind, a broken position, a rider that cannot ride", () => {
   const world = spawnEnemy(party("brakka"), "lancer", px(100), px(140));
-  const odd = JSON.parse('"drake"') as T.MountKind;
+  const odd = JSON.parse('"wyvern"') as T.MountKind;
   for (const make of [
     () => spawnMount(world, px(90), px(140), 0, odd),
     () => spawnMount(world, 0.5, px(140)),
@@ -289,7 +289,11 @@ test("the checkpoint refuses riders and beasts where the rules never put them", 
     ["a beast still falling on the floor", [{}, {}, { vz: -1 }]],
     ["a beast with an enemy's id", [{}, {}, { id: enemy.id }]],
     ["beasts out of id order", [{}, { id: free.id }, { id: theirs.id }]],
-    ["a sweep cooling too long", [{}, { coolUntil: world.step + T.TAIL_COOL + 1 }, {}]], // prettier-ignore
+    ["a beast cooling too long", [{}, { coolUntil: world.step + T.BEAST_COOL + 1 }, {}]], // prettier-ignore
+    ["a clawbeak breathing fire", [{}, { state: "breathe" }, {}]],
+    ["a drake sweeping a tail", [{}, { kind: "drake", state: "sweep" }, {}]],
+    ["a ravager thrusting from a drake's saddle", [{}, { kind: "drake", state: "lance" }, {}]], // prettier-ignore
+    ["a ravager who remounted", [{}, {}, {}], { remounted: true }],
     ["an enemy's beast hopping", [{}, { state: "hop" }, {}]],
     ["an enemy's beast walking of its own", [{}, { vx: 1 }, {}]],
     ["a riderless beast walking of its own", [{}, {}, { vy: 1 }]],
