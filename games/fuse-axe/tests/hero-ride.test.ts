@@ -70,7 +70,11 @@ const RIDDEN: Readonly<
   },
   drake: {
     anims: ["idle", "walk", "breathe", "hop"],
-    says: { coil1: "ridewindup", coil2: "rideattack", leap: "ridehop", drop: "ridehop" }, // prettier-ignore
+    says: {
+      ...{ inhale1: "ridewindup", inhale2: "ridewindup" },
+      ...{ blast0: "rideattack", blast1: "rideattack" },
+      ...{ leap: "ridehop", drop: "ridehop" },
+    },
   },
 };
 /** The frames a beast of `kind` shows with a hero on it. */

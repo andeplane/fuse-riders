@@ -3,7 +3,9 @@ import type { Figure, Pose } from "../pixel/kit.js";
 import type { Sprite } from "../pixel/sprite.js";
 import type { HeroFrame } from "./animate.js";
 import { BRAKKA, BRAKKA_PORTRAIT, BRAKKA_POSES } from "./brakka.js";
+import { CAPTAIN } from "./captain.js";
 import { CLAWBEAK_FIGURE } from "./clawbeak.js";
+import { DRAKE_FIGURE } from "./drake.js";
 import { GORM, GORM_PORTRAIT, GORM_POSES } from "./gorm.js";
 import { IMP } from "./imp.js";
 import { LANCER } from "./lancer.js";
@@ -20,7 +22,9 @@ export const FIGURES: Readonly<Record<string, Figure>> = {
   imp: IMP,
   ogre: OGRE,
   lancer: LANCER,
+  captain: CAPTAIN,
   clawbeak: CLAWBEAK_FIGURE,
+  drake: DRAKE_FIGURE,
 };
 
 /** A hero's figure, which paints every `HERO_FRAMES` frame, the poses it paints them from, and its HUD portrait. */

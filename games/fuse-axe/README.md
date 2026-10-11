@@ -190,6 +190,26 @@ as the body dips: `CLAWBEAK_DIPS`), in the beast's shadow; `tests/clawbeak-art.t
 
 ![The clawbeak's frames, riderless and ridden, and two frames of the scene from a real engine world: the wind-up and the lash](docs/images/clawbeak-frames.png)
 
+The ember drake (`src/render/art/drake.ts`), the beast the lancer captain rides, is an orange-red dragon on four legs
+about the clawbeak's height, with a long neck, a horned head, gold belly plates, red bat wings folded up behind a black
+and gold saddle, and red spines. It walks with diagonal pairs of feet keeping pace with the road, and gallops when it
+loses its rider. Its breath (`DRAKE_ANIMS.breathe`, timed by view-kit's `DRAKE_STEPS`) rears it back, its chest
+swelling and its throat kindling, for exactly the inhale (the telegraph, which the scene also blinks). From the step
+the flame is out it lunges with its jaws wide and its throat blazing. Through the captain's saddle thrust it crouches
+and then braces. Its saddle point is the clawbeak's (`DRAKE_DIPS`), so the captain (`captain.ts`, a seated `ride`
+frame until he has a look of his own) and the heroes sit it as they sit a clawbeak.
+
+The flame (`src/render/drake-fx.ts`) is a jet from the frame's jaws (`DRAKE_MOUTHS`) to the front `flamePx` gives. It
+has a white-hot core cooling to a red rim, streaks and tongues streaming forward, a billow at the front and rising
+embers. Each length and phase is one sprite, made and baked once (a breath runs through about fifty), so a breath
+costs one blit a frame. While the front is still behind the jaws, in the breath's first steps and its last, where the
+flame already burns whatever stands that close, a four-pixel flare shows at the jaws (`FLARE`). It is drawn straight
+after the drake, at its depth: over a figure further up the floor, under one in front.
+`tests/drake-art.test.ts` plays the real engine against the drake's frames and checks that the drawn front matches
+`flamePx`.
+
+![The ember drake's frames, riderless and ridden, and two frames of the scene from a real engine world: the captain's drake inhaling, then its flame on the party](docs/images/drake-frames.png)
+
 A hero riding sits astride too, in four frames of its own (`ride`, `ridewindup`, `rideattack`, `ridehop`): hips on
 the seat, the far leg out of sight (`astride` on the pose skips it), the near boot in the stirrup and the weapon held
 ready. The hero's anim is `ride` throughout, so `riderFrame(anim, animStep)` (`animate.ts`) picks the frame from its
