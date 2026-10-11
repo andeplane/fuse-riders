@@ -1,8 +1,11 @@
 import { INPUT_MASK, LEFT, RIGHT } from "./input.js";
 import {
+  BEAST_COOL,
   BEAST_WALK,
+  BOSS,
   BUFFER_STEPS,
   CAPACITY,
+  CAPTAIN,
   ENEMY_KINDS,
   ENEMY_MAX,
   FLOOR_BOTTOM,
@@ -35,12 +38,12 @@ import {
   RUN_GAP,
   RUN_TAP,
   SPELLS,
-  TAIL_COOL,
   TIERS,
   VIEW_H,
   VIEW_W,
   enemyMaxHp,
   px,
+  type EnemyKind,
 } from "./tuning.js";
 import {
   CAMP,
@@ -51,6 +54,8 @@ import {
   type StagePlan,
 } from "./stages.js";
 import {
+  CAPTAIN_STATES,
+  DRAKE_ONLY,
   ENEMY_STATES,
   FX_KINDS,
   HERO_STATES,
@@ -171,6 +176,7 @@ const INVULN = Math.max(RESPAWN_INVULN, GETUP_STEPS + GETUP_GRACE),
       ...TIERS.flatMap((tier) => [RAVAGER[tier], LANCER[tier]]),
       OGRE.calm,
       OGRE.rage,
+      CAPTAIN,
     ].map((each) => each.think + each.jitter),
   );
 /**
@@ -260,31 +266,38 @@ const enemy = record<Enemy>({
   poise: COUNT,
   flashUntil: COUNT,
   enraged: oneOf([false, true]),
+  remounted: oneOf([false, true]),
 });
 /** The states a lancer is off the floor in: leaping, flying from a blow or from a throw. */
-const ALOFT: readonly Enemy["state"][] = ["leap", "knockdown", "thrown"];
+const ALOFT: readonly Enemy["state"][] = ["leap", "knockdown", "thrown"],
+  LANCERS: readonly EnemyKind[] = ["lancer", "captain"];
+/** Each kind's states: a ravager's are every state no other kind has alone, and it rides. */
+const STATES: Readonly<Record<EnemyKind, readonly Enemy["state"][]>> = {
+  ravager: ENEMY_STATES.filter(
+    (state) => ![...IMP_ONLY, ...OGRE_ONLY, ...LANCER_ONLY].includes(state),
+  ),
+  imp: IMP_STATES,
+  ogre: OGRE_STATES,
+  lancer: LANCER_STATES,
+  captain: CAPTAIN_STATES,
+};
 /**
- * A sack imp is of the lowest tier, in an imp's state and going for nobody; every other enemy has no sack and is
- * never in a state only an imp is in. An ogre is in an ogre's state; every other enemy is never in a state only an
- * ogre is in, and has no poise, flash or rage of its own. A lancer is in a lancer's state, on the floor unless it is
- * aloft, and leaps no faster than `LEAP_VX`; every other enemy is never in a state only a lancer is in. Only a ravager
- * rides (no other kind's states have `ride`).
+ * Every enemy is in one of its kind's states (`STATES`: only a ravager and the captain ride). A sack imp is of the
+ * lowest tier and going for nobody; every other enemy has no sack. Only a boss has poise or a flash of its own, only an
+ * ogre rage and only the captain a remount. A lancer and the captain stand on the floor unless aloft (the captain's
+ * drake carries him on it), and leap no faster than `LEAP_VX`.
  */
 const kindKept = (value: Enemy): boolean =>
+  STATES[value.kind].includes(value.state) &&
   (value.kind === "imp"
-    ? value.tier === 0 && IMP_STATES.includes(value.state) && !value.target
-    : value.pots === 0 && !IMP_ONLY.includes(value.state)) &&
-  (value.kind === "ogre"
-    ? OGRE_STATES.includes(value.state)
-    : !OGRE_ONLY.includes(value.state) &&
-      value.poise === 0 &&
-      value.flashUntil === 0 &&
-      !value.enraged) &&
-  (value.kind === "lancer"
-    ? LANCER_STATES.includes(value.state) &&
-      (value.z === 0 || ALOFT.includes(value.state)) &&
-      (value.state !== "leap" || Math.abs(value.vx) <= LEAP_VX)
-    : !LANCER_ONLY.includes(value.state));
+    ? value.tier === 0 && !value.target
+    : value.pots === 0) &&
+  (BOSS[value.kind] || (value.poise === 0 && value.flashUntil === 0)) &&
+  (value.kind === "ogre" || !value.enraged) &&
+  (value.kind === "captain" || !value.remounted) &&
+  (!LANCERS.includes(value.kind) ||
+    ((value.z === 0 || ALOFT.includes(value.state)) &&
+      (value.state !== "leap" || Math.abs(value.vx) <= LEAP_VX)));
 
 const fx = record<Fx>({
   kind: oneOf(FX_KINDS),
@@ -310,7 +323,10 @@ const item = record<Item>(
 
 const spell = record<Spell>({ hero: ID, level: int(1, POTS), born: COUNT });
 
-/** A beast stands on the floor, but in a hop or coming down from one its rider was thrown out of (`flee`). */
+/**
+ * A beast stands on the floor, but in a hop or coming down from one its rider was thrown out of (`flee`), and strikes
+ * only with its own kind's blow (a clawbeak's tail; a drake's breath, and the captain's spear from its saddle).
+ */
 const mount = record<Mount>(
   {
     id: ID,
@@ -329,17 +345,20 @@ const mount = record<Mount>(
     coolUntil: COUNT,
   },
   (value) =>
-    (value.z === 0 && value.vz === 0) ||
-    value.state === "hop" ||
-    value.state === "flee",
+    ((value.z === 0 && value.vz === 0) ||
+      value.state === "hop" ||
+      value.state === "flee") &&
+    (value.kind === "drake"
+      ? value.state !== "sweep"
+      : !DRAKE_ONLY.includes(value.state)),
 );
 
 /**
  * The beasts and their riders, both ways: every hero or enemy in `ride` rides exactly one beast and every other none,
  * and a rider stands where its beast does, at its height, facing its way, with no speed of its own. A beast with a
- * rider is in a ridden state (only a hero's hops, only an enemy's walks in) and one without is not; only a hero's
- * walks of its own (`vx`, `vy`, no faster than the beast's walk) and none rises faster than a hop leaves the floor
- * (`vz`); none sweeps again later than one resting now would.
+ * rider is in a ridden state (only a hero's hops, only an enemy's walks in, only the captain's thrusts from the
+ * saddle) and one without is not; only a hero's walks of its own (`vx`, `vy`, no faster than the beast's walk) and
+ * none rises faster than a hop leaves the floor (`vz`); none strikes again later than one resting now would.
  */
 function mountsKept(value: World): boolean {
   const riders = new Map<number, Hero | Enemy>();
@@ -362,14 +381,15 @@ function mountsKept(value: World): boolean {
             (!("vy" in rider) || rider.vy === 0) &&
             RIDDEN.includes(each.state) &&
             (each.state !== "hop" || hero) &&
-            (each.state !== "enter" || !hero)
+            (each.state !== "enter" || !hero) &&
+            (each.state !== "lance" || rider.kind === "captain")
           : each.rider === 0 && !RIDDEN.includes(each.state)) &&
         (hero
           ? Math.abs(each.vx) <= BEAST_WALK.x &&
             Math.abs(each.vy) <= BEAST_WALK.y
           : each.vx === 0 && each.vy === 0) &&
         each.vz <= JUMP_VZ &&
-        each.coolUntil <= value.step + TAIL_COOL
+        each.coolUntil <= value.step + BEAST_COOL
       );
     }) &&
     new Set(ridden).size === ridden.length &&

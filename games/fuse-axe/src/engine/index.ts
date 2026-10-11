@@ -1,5 +1,5 @@
 /** Fuse Axe's engine: deterministic rules with no imports from outside this folder. */
-export const RULES = "fuse-axe-17";
+export const RULES = "fuse-axe-18";
 export * from "./input.js";
 export {
   carryOf,

@@ -9,6 +9,7 @@ import {
   walkTo,
   wound,
 } from "./ai.js";
+import { remount, steedOf } from "./mount.js";
 import * as T from "./tuning.js";
 import {
   face,
@@ -35,8 +36,14 @@ import {
  * (`plunge`), knocking down every hero just in front in the lane, and stands over it, open. In the air it is struck as
  * any enemy is once its whole body is on screen, and a blow there knocks it down, as one does a hero. Otherwise it is
  * hit, dazed, grabbed, thrown and spelled down as a ravager is.
+ *
+ * The lancer captain, Wyrmbone Pass's boss, fights on foot as a lancer does, with his own fighter (`CAPTAIN`) and a
+ * harder plunge (`CAPTAIN_PLUNGE`); his armour takes blows as an ogre's does (`brace`: he staggers rather than reels),
+ * and a thrown body or a grab does not budge him. Before he decides, a riderless drake within `REMOUNT_X` (`steedOf`)
+ * draws him: he walks to it and, beside it, climbs back on (`remount`), once.
  */
-export const isLancer = (enemy: Enemy): boolean => enemy.kind === "lancer";
+export const isLancer = (enemy: Enemy): boolean =>
+  enemy.kind === "lancer" || enemy.kind === "captain";
 
 /** One step of a lancer that thinks (`thinks`), in place of a ravager's `act`. */
 export function lancerAct(world: World, lancer: Enemy): void {
@@ -47,12 +54,17 @@ export function lancerAct(world: World, lancer: Enemy): void {
     if (towards) face(lancer, towards.x);
     // A hero who walks up into its reach is met at once, as a ravager meets one.
     if (
-      world.step >= lancer.thinkAt ||
-      (towards && inReach(lancer, towards) && !FLOORED.includes(towards.state))
+      (world.step >= lancer.thinkAt ||
+        (towards &&
+          inReach(lancer, towards) &&
+          !FLOORED.includes(towards.state))) &&
+      !mountUp(world, lancer)
     )
       decide(world, lancer, walk);
   } else if (lancer.state === "walk") walk(world, lancer);
-  else if (lancer.state === "windup") {
+  else if (lancer.state === "stagger") {
+    if (lancer.timer >= T.STAGGER_STEPS) rest(world, lancer);
+  } else if (lancer.state === "windup") {
     if (lancer.timer >= fighter(lancer).windup) {
       setState(lancer, "thrust");
       strike(world, lancer);
@@ -78,10 +90,34 @@ const lined = (lancer: Enemy, hero: Hero): boolean =>
   (Math.abs(hero.x - lancer.x) >= T.LANCE_NEAR || lancer.x === lancer.goal);
 
 /**
- * A walking step: a hero on its feet further than `LEAP_FAR` along the road is leapt at; otherwise it walks as a ravager
- * does (`stride`), to its side of its hero `LANCE_ENGAGE` away, winding up once `lined` up.
+ * A captain going for his steed (`steedOf`), going for no hero: beside it, along the road and in its lane, he climbs on
+ * (`remount`); otherwise he walks to it. Returns whether he went for one.
+ */
+function mountUp(world: World, captain: Enemy): boolean {
+  const steed = captain.target ? undefined : steedOf(world, captain);
+  if (!steed) return false;
+  if (
+    Math.abs(steed.x - captain.x) <= T.BOARD_X &&
+    Math.abs(steed.y - captain.y) <= T.LANE
+  ) {
+    remount(world, captain, steed);
+    return true;
+  }
+  walkTo(world, captain, steed.x, steed.y);
+  face(captain, steed.x);
+  const { walk } = fighter(captain);
+  captain.x += clamp(captain.goal - captain.x, -walk.x, walk.x);
+  captain.y += clamp(captain.goalY - captain.y, -walk.y, walk.y);
+  return true;
+}
+
+/**
+ * A walking step: a captain going for nobody goes for his steed if he has one (`mountUp`); a hero on its feet further
+ * than `LEAP_FAR` along the road is leapt at; otherwise it walks as a ravager does (`stride`), to its side of its hero
+ * `LANCE_ENGAGE` away, winding up once `lined` up.
  */
 function walk(world: World, lancer: Enemy): void {
+  if (mountUp(world, lancer)) return;
   const hero = world.heroes.find((each) => each.id === lancer.target);
   if (
     hero &&
@@ -130,7 +166,10 @@ export function soar(world: World, lancer: Enemy): void {
 
 /** The thrust's spear, or the plunge's (`knock`): it lands on every hero below the mace's sweep that its blow `hits`. */
 function strike(world: World, lancer: Enemy, knock = false): void {
-  const { damage } = fighter(lancer);
+  const damage =
+    knock && lancer.kind === "captain"
+      ? T.CAPTAIN_PLUNGE.damage
+      : fighter(lancer).damage;
   for (const hero of world.heroes)
     if (exposed(world, hero) && hero.z < T.MACE_HEIGHT && hits(lancer, hero))
       lancer.stopUntil = wound(world, hero, damage, lancer.facing, knock);
@@ -153,8 +192,9 @@ export function landing(lancer: Enemy): { x: number; y: number } {
 export function hits(lancer: Enemy, hero: Hero, margin = 0): boolean {
   const leaping = lancer.state === "leap",
     plunge = leaping || lancer.state === "plunge",
-    reach = plunge ? T.PLUNGE_REACH : T.SPEAR_REACH,
-    lane = plunge ? T.LANE : T.SPEAR_LANE,
+    hard = plunge && lancer.kind === "captain",
+    reach = hard ? T.CAPTAIN_PLUNGE.reach : plunge ? T.PLUNGE_REACH : T.SPEAR_REACH, // prettier-ignore
+    lane = hard ? T.CAPTAIN_PLUNGE.lane : plunge ? T.LANE : T.SPEAR_LANE,
     from = leaping ? landing(lancer) : lancer,
     ahead = (hero.x - from.x) * lancer.facing;
   return (

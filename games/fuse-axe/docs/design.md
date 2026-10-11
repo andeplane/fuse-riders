@@ -112,11 +112,19 @@ waves 2 and 4, copied for a big party); the beast fights for the pair, walking u
 is in reach, then standing open. A blow that knocks down knocks the rider off; the saddle takes a lighter one (the rider
 flashes, and a sweep still winding up is broken off), so the combo's finisher, a dash, a back or jump attack, a throw or
 a spell unseats it. Riderless, the beast panics away from the blow, wanders, and after ten seconds with nobody on it
-walks off the screen. Enemies never climb back on.
+walks off the screen. Enemies never climb back on, but for the lancer captain, once.
+
+The **ember drake** is ridden and unseated the same way, but its weapon is its breath: a telegraphed inhale (half a
+second, the beast blinking), then a stream of fire along its facing in its lane, a little wider than a blade's, that
+runs out from its mouth to more than four maces' reach, holds and draws back (`DRAKE_INHALE`, `FLAME_*` in `tuning.ts`).
+Nothing blocks it: every foe it reaches on the floor or low in the air is burned and knocked down along it, once a
+breath; step out of the lane, or jump it. An enemy's drake breathes at its hero lined up in front within the flame's
+length, and otherwise keeps to the edge of it (`DRAKE_STAND`).
 
 A hero standing beside a riderless beast, in its lane, climbs on with **Jump** (two on the same step: the lower id).
-Riding, it walks at the beast's pace (no run), **Attack** sweeps the tail at the enemies around, never a hero (a short
-cool-down after each), **Jump** hops the beast, **Down + Jump** climbs off, and **Magic** climbs off to charge or cast.
+Riding, it walks at the beast's pace (no run), **Attack** strikes with the beast (a clawbeak sweeps its tail at the
+enemies around, a drake breathes fire in front), never at a hero (a cool-down after each), **Jump** hops the beast,
+**Down + Jump** climbs off, and **Magic** climbs off to charge or cast.
 The saddle takes light blows as an enemy's does; a hard one (any the rules would knock the hero down with, or a blow in
 a hop) throws it off. Nobody rides at camp, and a continue or a new stage drops every hero in on foot. Bots never
 board a beast, leaving them to the players.
@@ -154,13 +162,27 @@ lands with the spear driven down in front, knocking down. A blow in the air knoc
 it is dazed, grabbed, thrown and spelled down as a ravager is. Stage 1's waves 3 and 4 have one each, and every wave of
 Wyrmbone Pass but the last.
 
+The **lancer captain** (`lancer.ts` and `mount.ts`, tuned in `tuning.ts`'s `CAPTAIN`) is Wyrmbone Pass's boss: he rides
+his ember drake out of the skull gate, with one more for each hero beyond the first from the other side (a violet
+lancer, then a violet ravager, and so on). He has a boss's hit points for the party, a boss's armour and poise, and a
+spell takes at most a boss's share of him; nobody throws him, and a thrown body passes him by. In the saddle the drake breathes fire, and now and then, at a hero close
+in front, he thrusts his spear from it instead (a telegraphed wind-up, `LANCE_WINDUP`). His saddle takes every blow
+until his poise breaks (a quarter of his hit points since he last fell): then a heavy blow, or any spell, knocks him
+off. Before that his armour takes a slash as an ogre's does (he only flashes), and a heavy blow holds him and breaks
+off the drake's inhale or his thrust, so step out of the flame's lane. On foot he fights as a lancer, quicker and
+harder, his leap's plunge landing wider (`CAPTAIN_PLUNGE`), staggering rather than reeling from a heavy blow; his armour
+holds in mid-leap too, so a blow there does not cut his plunge short as it does another lancer's. Once, while his drake
+is still riderless on screen, he walks back to it (he goes for it before any hero) and climbs on, unless a hero has
+climbed on first. The boss bar reads LANCER CAPTAIN.
+
 ## Stages
 
 1. **Ashen Village** — a dusk road through burning thatched huts. Ravagers and lancers; boss: the Ogre twins.
 2. **Wyrmbone Pass** — a mountain path through the ribs of a dead giant wyrm. Mounts appear; boss: a lancer captain
    on an ember drake. Playable as gameplay for now (`STAGE_2`): five screens of road, five waves of ravagers mostly in
-   rust and violet, each with a lancer or two, waves 2 and 4 with a ravager riding a clawbeak, and two imps, and a pair
-   of violet ravagers at the end in place of the captain until his drake comes. Its backdrop is a cold dawn under a
+   rust and violet, each with a lancer or two, waves 2 and 4 with a ravager riding a clawbeak, and two imps, and at the
+   end the lancer captain on his ember drake (drawn for now as a clawbeak in ember red and a lancer in gold, until their
+   art comes). Its backdrop is a cold dawn under a
    setting moon: ribs arching over the road, a lesser wyrm's skull partway, the raiders' camp, and the wyrm's great
    skull in the cliff at the end, its open jaws the gate the boss waits in.
 
