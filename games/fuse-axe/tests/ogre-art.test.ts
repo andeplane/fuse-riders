@@ -12,7 +12,8 @@ import {
 } from "../src/engine/index.js";
 import { quakeAt } from "../src/engine/ogre.js";
 import * as T from "../src/engine/tuning.js";
-import { OGRE_STEPS, QUAKE } from "../src/engine/view-kit.js";
+import type { EnemyView } from "../src/engine/view.js";
+import { OGRE_STEPS, QUAKE, VIEW_H, VIEW_W } from "../src/engine/view-kit.js";
 import { OGRE_STATES } from "../src/engine/world.js";
 import { enemyFrame, stripFrame } from "../src/render/art/animate.js";
 import { FIGURES } from "../src/render/art/index.js";
@@ -309,9 +310,9 @@ test("the shockwave runs at the engine's front: the crack from the hammer's reac
     const columns = crack.fills.map((f) => f.x);
     const [first, last] = [Math.min(...columns), Math.max(...columns)];
     const [near, far] = enemy.facing > 0 ? [first, last] : [last, first];
-    const left = Math.floor(camX);
-    assert.equal(near, Math.floor(enemy.x + enemy.facing * QUAKE.reach) - left);
-    assert.ok(Math.abs(far - (Math.floor(front!) - left)) <= 2);
+    const screen = (x: number) => Math.floor(x - camX);
+    assert.equal(near, screen(enemy.x + enemy.facing * QUAKE.reach));
+    assert.ok(Math.abs(far - screen(front!)) <= 2);
     // The tallest shard stands where the front was at a burst, at most `BURST` steps back.
     const rocks = recorder();
     drawShards(rocks.pen, view.enemies, camX);
@@ -326,6 +327,69 @@ test("the shockwave runs at the engine's front: the crack from the hammer's reac
     seen,
     Array.from({ length: QUAKE.steps }, (_, i) => i + 1),
   );
+});
+
+/** An enemy `animStep` steps into its slam. */
+const slamming = (enemy: EnemyView, animStep: number): EnemyView => ({
+  ...enemy,
+  ...{ anim: "slam", animStep },
+});
+
+test("the crack ends where the figures' pixels are under a camera between pixels, and keeps its shape as the camera scrolls", () => {
+  const big = toView(ogre(party("brakka"), 120)).enemies[0]!;
+  const crack = (x: number, facing: 1 | -1, camX: number) => {
+    const { pen, fills } = recorder();
+    drawCracks(pen, [slamming({ ...big, x, facing }, 12)], camX);
+    return fills;
+  };
+  for (const facing of [1, -1] as const)
+    for (const x of [100, 100.2, 100.5, 100.9])
+      for (const camX of [0, 0.25, 10.5, 10.75]) {
+        const columns = crack(x, facing, camX).map((f) => f.x);
+        const near = facing > 0 ? Math.min(...columns) : Math.max(...columns);
+        // The hammer's reach on screen is where a sprite's feet would be put there (`Math.floor(x - camX)`).
+        const reach = Math.floor(x + facing * QUAKE.reach - camX);
+        assert.equal(near, reach, `${facing} ${x} ${camX}`);
+      }
+  // A world column's bends and width stay put as the camera moves by whole pixels.
+  const shape = (camX: number) => {
+    const columns = new Map<number, string[]>();
+    for (const f of crack(100, 1, camX)) {
+      const column = f.x + Math.floor(camX);
+      const drawn = `${f.style} ${f.y} ${f.w} ${f.h}`;
+      columns.set(column, [...(columns.get(column) ?? []), drawn]);
+    }
+    return columns;
+  };
+  const [home, scrolled] = [shape(0), shape(7)];
+  assert.ok(home.size > 20);
+  for (const [column, drawn] of home)
+    assert.deepEqual(scrolled.get(column), drawn, `column ${column}`);
+});
+
+test("the shards go on crumbling after the wave's last step until the hammer rises, then are gone, never popping out tall", () => {
+  const big = toView(ogre(party("brakka"), 120)).enemies[0]!;
+  const tallest = (animStep: number, anim: EnemyView["anim"] = "slam") => {
+    const { pen, fills } = recorder();
+    drawShards(pen, [{ ...big, anim, animStep }], 0);
+    const heights = fills
+      .filter((f) => f.w === 1 && f.h > 1)
+      .map((f) => Math.floor(big.y) - f.y + 1);
+    return { drawn: fills.length, height: Math.max(0, ...heights) };
+  };
+  for (let n = 1; n < OGRE_STEPS.slam; n++)
+    assert.ok(tallest(n).drawn > 0, `step ${n}`);
+  // From the wave's end the tallest shard falls a stage at a time, to the lowest as the hammer rises.
+  const drops: number[] = [];
+  for (let n = QUAKE.steps; n < OGRE_STEPS.slam - 1; n++)
+    drops.push(tallest(n).height - tallest(n + 1).height);
+  assert.ok(drops.every((drop) => drop >= 0 && drop <= Math.max(...SHARD) / 2));
+  assert.ok(tallest(OGRE_STEPS.slam - 1).height <= SHARD.at(-1)! + 1);
+  // None before the hammer lands or once it has risen, and none for any other anim.
+  assert.equal(tallest(0).drawn, 0);
+  assert.equal(tallest(OGRE_STEPS.slam).drawn, 0);
+  for (const anim of ["recover", "sweep", "windup", "idle"] as const)
+    assert.equal(tallest(8, anim).drawn, 0, anim);
 });
 
 test("an enraged twin's steam rises from its crown on either facing, and the effects never throw on odd input", () => {
@@ -343,12 +407,19 @@ test("an enraged twin's steam rises from its crown on either facing, and the eff
   }
   // Every frame's crown is on the head, above the shoulders' height of a standing frame and the floor.
   for (const frame of FRAMES) assert.ok(OGRE_CROWNS[frame][1] < -20, frame);
-  const { pen } = recorder();
+  const { pen, fills } = recorder();
   const odd = [Number.NaN, Infinity, -Infinity, -5, 1e12, 2.5];
   for (const value of odd) {
     const weird = { ...big, anim: "slam" as const, animStep: value, x: value };
     drawCracks(pen, [weird], value);
     drawShards(pen, [weird], 0);
+    // A slam mid-wave with its place or the camera not a sane number draws nothing off screen, or throws.
+    for (const lost of [{ x: value }, { y: value }, { facing: value as 1 }])
+      for (const camX of [0, value]) {
+        const placed = slamming({ ...big, ...lost }, 12);
+        drawCracks(pen, [placed], camX);
+        drawShards(pen, [placed], camX);
+      }
     drawSteam(
       pen,
       { ...big, x: value, z: value },
@@ -357,4 +428,11 @@ test("an enraged twin's steam rises from its crown on either facing, and the eff
       value,
     );
   }
+  // Whatever was drawn lies on the 320 × 180 screen.
+  assert.ok(fills.length > 0);
+  for (const f of fills)
+    assert.ok(
+      f.x >= 0 && f.y >= 0 && f.x + f.w <= VIEW_W && f.y + f.h <= VIEW_H,
+      JSON.stringify(f),
+    );
 });
