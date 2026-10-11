@@ -174,11 +174,11 @@ test("a hero is picked in the lobby; held controls are logged when the run begin
 
 /**
  * `host` (Rhea) and `late` (Brakka) seated and run `m1` started by the pure fold and taken on to `stage` the way play
- * does (a cleared stage shows its tally, then the next stage begins, and the last one cleared wins the run; every
- * hero out starts the continue countdown), then restored from its checkpoint (with `late` logged absent when
+ * does (a cleared stage shows its tally, then camp, then the next stage begins, and the last one cleared wins the run;
+ * every hero out starts the continue countdown), then restored from its checkpoint (with `late` logged absent when
  * `present` is false).
  */
-function roomIn(stage: Stage | "countdown", present = true): Room {
+function roomIn(stage: Stage | "countdown" | "camp", present = true): Room {
   const room = createRoom("m0", DEFAULT_SETTINGS);
   let seq = 0;
   const fold = (...bodies: unknown[][]) => {
@@ -195,24 +195,29 @@ function roomIn(stage: Stage | "countdown", present = true): Room {
   );
   fold([ACTION, "start", "m1"]);
   if (stage === "countdown") room.world = wiped(room.world!);
-  if (stage === "between" || stage === "over")
+  if (stage === "between" || stage === "over" || stage === "camp")
     room.world = cleared(room.world!);
   fold();
+  if (stage === "camp") for (let tick = 0; tick < CLEAR_TICKS; tick++) fold();
   while (stage === "over" && room.stage !== "over") {
     if (room.stage === "running") {
       room.world = cleared(room.world!);
       fold();
     }
-    for (let tick = 0; tick < CLEAR_TICKS; tick++) fold();
+    while (room.stage === "between") fold();
   }
   const fields = structuredClone(encode(room));
   for (const seat of fields[4] as { id: string; connected: boolean }[])
     if (seat.id === "late") seat.connected = present;
   const restored = decode(fields, room.tick);
   assert.ok(restored, `a room in ${stage} restores`);
-  assert.equal(restored.stage, stage === "countdown" ? "running" : stage);
+  assert.equal(restored.stage, phaseOf(stage));
+  assert.equal(restored.world!.camp, stage === "camp");
   return restored;
 }
+/** The room's stage in `stage` as `roomIn` names it: camp is between stages, the countdown in a run. */
+const phaseOf = (stage: Stage | "countdown" | "camp"): Stage =>
+  stage === "countdown" ? "running" : stage === "camp" ? "between" : stage;
 
 /**
  * The `host` of a mesh as a peer this test speaks for: it serves `served` to a device that asks for the room, and
@@ -246,6 +251,7 @@ function serve(mesh: Mesh, served: Room): Entry[] {
 test("a hero is picked only in the lobby or after game over, never in a run or in camp between its stages", () => {
   for (const [stage, picks] of [
     ["between", false],
+    ["camp", false],
     ["running", false],
     ["over", true],
   ] as const) {
@@ -255,7 +261,11 @@ test("a hero is picked only in the lobby or after game over, never in a run or i
     const late = mesh.join("late");
     // The mesh's clock starts at 0: a room served from further on folds once the clock has caught up with it.
     mesh.run(300 + (stage === "over" ? served.tick * 50 : 0));
-    assert.equal(late.roomState()?.stage, stage, "the room came from a peer");
+    assert.equal(
+      late.roomState()?.stage,
+      phaseOf(stage),
+      "the room came from a peer",
+    );
     assert.equal(late.pick("gorm"), picks, `a pick in ${stage}`);
     mesh.run(300);
     assert.equal(
@@ -280,17 +290,22 @@ test("a seat the fold would skip picks nothing: one logged absent, a watcher", (
   assert.ok(!watcher.pick("gorm"), "a watcher has no hero");
 });
 
-test("held controls leave a device only in a run it plays: not in camp or after game over, and a hidden page lets go", () => {
+test("held controls leave a device only in a run or a camp it plays: not over a tally or after game over, and a hidden page lets go", () => {
   for (const [stage, logged] of [
     ["between", false],
     ["over", false],
     ["running", true],
+    ["camp", true],
   ] as const) {
     const mesh = new Mesh("host", DEFAULT_SETTINGS),
       heard = serve(mesh, roomIn(stage));
     const late = mesh.join("late");
     mesh.run(300);
-    assert.equal(late.roomState()?.stage, stage, "the room came from a peer");
+    assert.equal(
+      late.roomState()?.stage,
+      phaseOf(stage),
+      "the room came from a peer",
+    );
     // A run's first entry from a device says what it holds then (nothing), the next what it does: only the bits a hero
     // has (the stray bit is cut).
     late.input(RIGHT | 0x8000);
