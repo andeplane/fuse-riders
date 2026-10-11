@@ -25,6 +25,7 @@ import {
   mountFrame,
   riderFrame,
 } from "./art/animate.js";
+import { BONE_KNIGHT, BONEWALKER, BONEWALKER_TIERS } from "./art/bonewalker.js";
 import { CAPTAIN } from "./art/captain.js";
 import { CLAWBEAK_DIPS, CLAWBEAK_FIGURE } from "./art/clawbeak.js";
 import { DRAKE_DIPS, DRAKE_FIGURE } from "./art/drake.js";
@@ -33,7 +34,7 @@ import { MEAT } from "./art/meat.js";
 import { HEROES } from "./art/index.js";
 import { LANCER, LANCER_TIERS } from "./art/lancer.js";
 import { OGRE, OGRE_CROWNS, OGRE_RAGE, OGRE_TIERS } from "./art/ogre.js";
-import { POT, paintItem } from "./art/pot.js";
+import { POT } from "./art/pot.js";
 import { RAVAGER, RAVAGER_TIERS } from "./art/ravager.js";
 import {
   createBackdrop,
@@ -48,7 +49,7 @@ import { drawFlame } from "./drake-fx.js";
 import { drawCracks, drawShards, drawSteam } from "./ogre-fx.js";
 import { blit, fill, type Pen } from "./pen.js";
 import type { Figure } from "./pixel/kit.js";
-import { UNLIT, rampSwap, type Palette } from "./pixel/palette.js";
+import { UNLIT, type Palette } from "./pixel/palette.js";
 import type { Point } from "./pixel/rig.js";
 import { cropSprite, type Sprite } from "./pixel/sprite.js";
 import { createSpriteBaker, type BakeOptions } from "./pixel/surface.js";
@@ -89,6 +90,8 @@ export interface Scene<Image> {
 interface EnemyArt {
   readonly figure: Figure;
   readonly tiers: Readonly<Record<Tier, Palette | undefined>>;
+  /** A tier with a figure of its own, playing the same frames (a bonewalker's violet knight, in armour). */
+  readonly figures?: Readonly<Partial<Record<Tier, Figure>>>;
   /** Enraged (an ogre whose twin has fallen): a palette per tier, and where its steam rises in each frame. */
   readonly rage?: {
     readonly tiers: Readonly<Record<Tier, Palette>>;
@@ -97,7 +100,6 @@ interface EnemyArt {
   /** Its shadow's width as a multiple of a body's (none: a body's). */
   readonly shade?: number;
 }
-const BONE_LOOK = { ...rampSwap("Ss1", "Bb6"), ...rampSwap("Ll9", "Ww5") };
 /** Every enemy kind's art. A kind from a build with more of them draws as a ravager, as `enemyFrame` plays it. */
 export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   ravager: {
@@ -118,31 +120,17 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
     figure: CAPTAIN,
     tiers: { 0: undefined, 1: undefined, 2: undefined },
   },
-  // A bonewalker until it has art of its own: a ravager in bone, in ash, rust or a knight's dark steel.
+  // A bonewalker in its grave cloth or rust rags; the violet knight in armour and a violet cape.
   bonewalker: {
-    figure: RAVAGER,
+    figure: BONEWALKER,
     tiers: {
-      0: { ...BONE_LOOK, ...rampSwap("Aa$", "Ww5") },
-      1: { ...BONE_LOOK, ...RAVAGER_TIERS.rust },
-      2: { ...BONE_LOOK, ...rampSwap("Aa$", "Ii#") },
+      0: BONEWALKER_TIERS.grave,
+      1: BONEWALKER_TIERS.rust,
+      2: BONEWALKER_TIERS.violet,
     },
+    figures: { 2: BONE_KNIGHT },
   },
 };
-/** A bonewalker's bone pile, and one shattered, until it has art of its own: a skull and a few bones on the floor. */
-export const BONE_PILE = paintItem(
-  [
-    "....kkk.........",
-    "...kBBbk..kk....",
-    "..kBkbkbkkBbk...",
-    ".kkbbbbkbBbbbkk.",
-    "kBBbbBbbbbbb66bk",
-    ".kkkkkkkkkkkkkk.",
-  ],
-  8,
-);
-const bonesOf = (enemy: EnemyView) =>
-  enemy.kind === "bonewalker" &&
-  (enemy.anim === "pile" || enemy.anim === "dead");
 /** What each item kind draws (a kind from a build with more of them, a pot), and the half-width of its shadow. */
 export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = {
   pot: POT,
@@ -461,11 +449,11 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         // An enraged ogre burns in its rage palette and steams, unless it has fallen.
         const rage = enemy.enraged ? art.rage : undefined;
         const crown = rage?.crowns[pose];
-        const bones = bonesOf(enemy);
+        const figure = art.figures?.[enemy.tier] ?? art.figure;
         standing.push({
           ...at(enemy),
           ...(crown && enemy.anim !== "dead" && { steam: { enemy, crown } }),
-          sprite: bones ? BONE_PILE : art.figure.sprite(pose),
+          sprite: figure.sprite(pose),
           options: {
             swap: (rage ?? art).tiers[enemy.tier],
             flash: enemy.flash,
@@ -475,7 +463,6 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           ...(art.shade && {
             shade: Math.round(shadowRadius(enemy.z) * art.shade),
           }),
-          ...(bones && { shade: ITEM_SHADE * 2 }),
           // A rider sits on its beast's saddle, sinking as it dips, in its shadow.
           ...(dip !== undefined && { z: Math.floor(enemy.z) - dip, shade: 0 }),
         });
