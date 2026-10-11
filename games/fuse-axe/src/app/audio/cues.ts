@@ -1,5 +1,10 @@
 import { TICK_MS } from "fuse-netcode";
-import type { HeroAnim, HeroKind, WorldView } from "../../engine/view.js";
+import type {
+  FxKind,
+  HeroAnim,
+  HeroKind,
+  WorldView,
+} from "../../engine/view.js";
 import type { View } from "../../online/game.js";
 import type { Cue } from "./sounds.js";
 
@@ -40,11 +45,16 @@ interface Figure {
   pots: number;
 }
 interface Spark {
-  kind: string;
+  kind: FxKind;
   born: number;
   x: number;
   y: number;
 }
+const sparksOf = (world: WorldView): Spark[] =>
+  world.fx.map(({ kind, x, y, age }) => ({
+    ...{ kind, x, y },
+    born: world.step - age,
+  }));
 
 /**
  * What the speakers hear of the game, found by diffing the frames the page is shown, never by the simulation: a
@@ -60,22 +70,28 @@ export class CueTracker {
   private heard = new Map<string, number>();
   private sparks: Spark[] = [];
   private world: WorldView | null = null;
-  /** Moments that happen once in a run (a wave locking, a stage's fanfare), by key. */
+  /** Moments that happen once in the run (a wave locking, a stage's fanfare), by key. */
   private once = new Set<string>();
 
   /** The cues `frame` brings since the frame before, each at most once. */
   next(frame: Heard): Cue[] {
     const cues = new Set<Cue>(),
       run = `${frame.matchId}:${frame.round}`;
+    if (run !== this.run) {
+      // A stage or a rematch has its one-off moments to itself, and the set never holds more than one run's.
+      this.run = run;
+      this.once.clear();
+      this.world = null;
+    }
     this.stageCues(frame, run, cues);
     const world = frame.world;
-    if (run !== this.run || !world || !this.world) {
-      // A new stage starts from what it shows: nothing in its first frame is news.
-      this.run = run;
+    if (world && this.world) this.worldCues(this.world, world, run, cues);
+    else {
+      // A stage starts from what it shows: nothing in its first frame is news, its sparks included.
       this.figures.clear();
       this.heard.clear();
-      this.sparks = [];
-    } else this.worldCues(this.world, world, run, cues);
+      this.sparks = world ? sparksOf(world) : [];
+    }
     this.world = world;
     if (world) this.remember(world);
     return [...cues];
@@ -84,7 +100,6 @@ export class CueTracker {
   private stageCues(frame: Heard, run: string, cues: Set<Cue>): void {
     const was = this.stage;
     this.stage = frame.stage;
-    if (this.once.size > 256) this.once.clear();
     if (was !== undefined && was !== frame.stage) {
       if (frame.stage === "running") this.first(`go:${run}`, "go", cues);
       if (
@@ -118,11 +133,12 @@ export class CueTracker {
       const cue =
         this.began(key, hero, was, step) && heroCue(hero.anim, hero.kind);
       if (cue) cues.add(cue);
-      // A blow that knocks the hero down sounds as the fall; any other is a grunt.
+      // A blow that knocks the hero down sounds as the fall; any other is a grunt. A rollback shows the same blow
+      // again, leaving the same hit points; a second blow within `ECHO_STEPS` leaves fewer, so it is heard too.
       if (
         hero.hp < was.hp &&
         hero.anim !== "knockdown" &&
-        this.fresh(`${key}:hp`, step)
+        this.fresh(`${key}:hp${hero.hp}`, step)
       )
         cues.add("hurt");
       // A pot picked up off the floor; one drunk for magic takes one away.
@@ -168,7 +184,7 @@ export class CueTracker {
    */
   private sparkCues(world: WorldView, cues: Set<Cue>): void {
     const step = world.step,
-      shown = world.fx.map((fx) => ({ ...fx, born: step - fx.age }));
+      shown = sparksOf(world);
     const same = (a: Spark, b: Spark) =>
       a.kind === b.kind && a.born === b.born && a.x === b.x && a.y === b.y;
     for (const spark of shown) {
