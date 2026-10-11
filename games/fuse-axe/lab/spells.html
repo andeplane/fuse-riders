@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fuse Axe · spells</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        background: #150c1f;
+        color: #d8c8e8;
+        font:
+          13px/1.4 ui-monospace,
+          monospace;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 15px;
+        color: #ffe08a;
+      }
+      main {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      figure {
+        margin: 0;
+      }
+      canvas {
+        display: block;
+        image-rendering: pixelated;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Fuse Axe · spells (dev only)</h1>
+    <p>
+      Storm, fire and earth in the game's scene, cast from a real engine world.
+      <code>?level=N</code> picks the level, <code>?age=N</code> or
+      <code>?age=hit</code> freezes them, <code>?sheet</code> draws the docs'
+      contact sheet.
+    </p>
+    <main></main>
+    <script type="module" src="./spells.ts"></script>
+  </body>
+</html>
