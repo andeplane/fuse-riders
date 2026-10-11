@@ -2,6 +2,7 @@ import { ATTACK, DOWN, JUMP, LEFT, MAGIC, RIGHT, UP } from "./input.js";
 import { clamp } from "./math.js";
 import { isImp, kickable, wants } from "./imps.js";
 import { isOgre, threatLane, threatens } from "./ogre.js";
+import { reachOf } from "./ai.js";
 import { hits, isLancer, lancerLane } from "./lancer.js";
 import { lashes } from "./mount.js";
 import { next } from "./rng.js";
@@ -26,7 +27,8 @@ import {
  * aimed at it, or a rider's beast's tail, breath or spear, is answered with a swing that lands first (a blow on a rider
  * breaks off the wind-up), or a step out of its lane, as is a lancer's leap coming down on it, a drake's flame or an
  * ogre's blow; an enemy (a rider too, the lancer captain on his drake among them:
- * the combo's finisher knocks it off) or a sack imp in reach takes a swing, and a swing chains the combo while one stays
+ * the combo's finisher knocks it off; a bonewalker's bone pile, which it goes for first, to shatter it) or a sack imp in
+ * reach takes a swing, and a swing chains the combo while one stays
  * in reach; a pot nobody nearer wants is picked up when no enemy is close; otherwise it walks to stand beside the
  * nearest foe fewer heroes are on (a lower seat keeps its side; a lancer on guard it closes on from out of its spear's
  * lane), or a sack imp; with none, it follows the party. Every press is let go a tick before the next, and it never
@@ -94,7 +96,10 @@ export function botInput(
   if (index >= 0) return combo(world, hero, index);
   if (!FREE.includes(hero.state)) return 0;
   const foes = world.enemies.filter(
-      (enemy) => !isImp(enemy) && enemy.hp > 0 && onScreen(world, enemy),
+      (enemy) =>
+        !isImp(enemy) &&
+        (enemy.hp > 0 || enemy.state === "pile") &&
+        onScreen(world, enemy),
     ),
     imps = world.enemies.filter((enemy) => kickable(world, enemy));
   if (casts(world, hero, foes)) return hero.held & MAGIC ? 0 : MAGIC;
@@ -190,12 +195,16 @@ function combo(world: World, hero: Hero, index: number): number {
     : 0;
 }
 
-/** Magic: a pot held, no spell already playing, and enemies about it, or few about it while low on health. */
+/**
+ * Magic: a pot held, no spell already playing, and enemies about it, or few about it while low on health. A bonewalker's
+ * bone pile is none to cast at: a blade shatters it, and it swings at nobody.
+ */
 function casts(world: World, hero: Hero, foes: readonly Enemy[]): boolean {
   if (hero.pots === 0 || world.spells.length > 0) return false;
   const about = foes.filter(
     (foe) =>
       hittable(world, foe) &&
+      foe.state !== "pile" &&
       Math.abs(foe.x - hero.x) <= NEAR_X &&
       Math.abs(foe.y - hero.y) <= NEAR_Y,
   ).length;
@@ -247,7 +256,7 @@ function menaces(world: World, hero: Hero, foe: Enemy): boolean {
             hits(foe, hero, T.px(2))
           : foe.state === "windup" &&
             ahead + T.HERO_HALF_W >= -T.px(2) &&
-            ahead - T.HERO_HALF_W <= T.MACE_REACH + T.px(4) &&
+            ahead - T.HERO_HALF_W <= reachOf(foe) + T.px(4) &&
             Math.abs(hero.y - foe.y) <= T.LANE + T.px(2)) &&
     clock.timer >= REACT + (chance(world, hero, clock, 0) % REACT_SPREAD) &&
     chance(world, hero, clock, 1) >= MISS
@@ -298,7 +307,8 @@ function dodge(world: World, hero: Hero, foe: Enemy): number {
 
 /**
  * The ravager to fight: the nearest, counting an enemy going for this hero nearer, one off its feet further, and one
- * other heroes are on much further (two, as far as a crowd).
+ * other heroes are on much further (two, as far as a crowd); a bonewalker's bone pile, to finish before it reassembles,
+ * nearer still.
  */
 function pick(
   world: World,
@@ -315,7 +325,8 @@ function pick(
       gap(foe, hero) +
       (on >= 2 ? T.px(320) : on * T.px(48)) +
       (hittable(world, foe) ? 0 : T.px(32)) -
-      (foe.target === hero.id ? T.px(24) : 0);
+      (foe.target === hero.id ? T.px(24) : 0) -
+      (foe.state === "pile" ? T.px(32) : 0);
     if (each < score) {
       best = foe;
       score = each;

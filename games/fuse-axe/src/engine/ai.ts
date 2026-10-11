@@ -60,12 +60,16 @@ export function rest(world: World, enemy: Enemy): void {
   enemy.thinkAt = world.step + think + roll(world, jitter);
 }
 
+/** How far a ravager's mace, or a bonewalker's sword, reaches in front of it. */
+export const reachOf = (enemy: Enemy): number =>
+  enemy.kind === "bonewalker" ? T.BONE_REACH[enemy.tier] : T.MACE_REACH;
+
 /**
- * One step of a ravager that thinks (`thinks`): an ogre and a lancer have their own (`ogreAct`, `lancerAct`), which
- * share `decide`, `stride` and `rest` with it, so this reads the ravager's tier stats (`T.RAVAGER`) directly.
+ * One step of a ravager, or a bonewalker (its own fighter and reach), that thinks (`thinks`): an ogre and a lancer
+ * have their own (`ogreAct`, `lancerAct`), which share `decide`, `stride` and `rest` with it.
  */
 export function act(world: World, enemy: Enemy): void {
-  const stats = T.RAVAGER[enemy.tier],
+  const stats = fighter(enemy),
     target = world.heroes.find((hero) => hero.id === enemy.target);
   if (enemy.target && !(target && present(target))) enemy.target = 0;
   if (enemy.state === "idle") {
@@ -84,7 +88,7 @@ export function act(world: World, enemy: Enemy): void {
       walkTo(world, enemy, enemy.x - enemy.facing * T.BACKSTEP, enemy.y);
     } else if (enemy.timer >= stats.windup) {
       setState(enemy, "attack");
-      mace(world, enemy, stats.damage);
+      mace(world, enemy, stats.damage, reachOf(enemy));
     }
   } else if (enemy.state === "attack") {
     if (enemy.timer >= T.ATTACK_STEPS) setState(enemy, "recover");
@@ -223,14 +227,14 @@ const STRUCK: readonly HeroState[] = [
 export const exposed = (world: World, hero: Hero): boolean =>
   STRUCK.includes(hero.state) && world.step > hero.invulnUntil;
 
-/** The mace lands on every hero it reaches in front of the enemy, in the depth lane and below its sweep. */
-function mace(world: World, enemy: Enemy, damage: number): void {
+/** The mace (or sword) lands on every hero within `reach` in front of the enemy, in the depth lane and below its sweep. */
+function mace(world: World, enemy: Enemy, damage: number, reach: number) {
   for (const hero of world.heroes) {
     const ahead = (hero.x - enemy.x) * enemy.facing;
     if (
       exposed(world, hero) &&
       ahead + T.HERO_HALF_W >= 0 &&
-      ahead - T.HERO_HALF_W <= T.MACE_REACH &&
+      ahead - T.HERO_HALF_W <= reach &&
       Math.abs(hero.y - enemy.y) <= T.LANE &&
       hero.z < T.MACE_HEIGHT
     )

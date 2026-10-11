@@ -1,5 +1,5 @@
 /** Fuse Axe's engine: deterministic rules with no imports from outside this folder. */
-export const RULES = "fuse-axe-18";
+export const RULES = "fuse-axe-19";
 export * from "./input.js";
 export {
   carryOf,
@@ -49,9 +49,11 @@ export {
   CAMP,
   STAGE_1,
   STAGE_2,
+  STAGE_3,
   STAGES,
   planOf,
   waveSpawns,
+  type Grave,
   type ImpCue,
   type Placed,
   type Side,

@@ -12,6 +12,7 @@ import {
 import { px } from "../src/engine/tuning.js";
 import {
   ENEMY_STATES,
+  BONE_ONLY,
   IMP_ONLY,
   LANCER_ONLY,
   OGRE_ONLY,
@@ -209,7 +210,10 @@ test("every anim plays frames the figure has, for whole steps, and every frame i
   assert.deepEqual(
     Object.keys(RAVAGER_ANIMS).sort(),
     ENEMY_STATES.filter(
-      (state) => ![...IMP_ONLY, ...OGRE_ONLY, ...LANCER_ONLY].includes(state),
+      (state) =>
+        ![...IMP_ONLY, ...OGRE_ONLY, ...LANCER_ONLY, ...BONE_ONLY].includes(
+          state,
+        ),
     ).sort(),
   );
   const played = new Set<string>();
