@@ -2,6 +2,7 @@ import { cameraEndPx, VIEW_W } from "../../engine/view-kit.js";
 import { pixelSurface, type MakeSurface } from "../surface.js";
 import { ASHEN_VILLAGE } from "./ashen-village.js";
 import { CAMP_ART } from "./camp.js";
+import { DROWNED_CRYPT } from "./drowned-crypt.js";
 import {
   Raster,
   type Brush,
@@ -45,12 +46,13 @@ export interface Backdrop<S> {
   readonly prop?: Prop;
 }
 
-/** The stages with art of their own, so far Ashen Village's and Wyrmbone Pass's. */
-export type StageNumber = 1 | 2;
+/** The stages with art of their own, so far Ashen Village's, Wyrmbone Pass's and the Drowned Crypt's. */
+export type StageNumber = 1 | 2 | 3;
 
 const STAGES: Record<StageNumber, StageArt> = {
   1: ASHEN_VILLAGE,
   2: WYRMBONE_PASS,
+  3: DROWNED_CRYPT,
 };
 
 /** Whether `stage` has a backdrop of its own; one that has none is drawn on Stage 1's (`createScene`). */
@@ -110,7 +112,8 @@ export function createBackdrop<S>(
 ): Backdrop<S> {
   if (!hasBackdrop(stage))
     throw new RangeError(`no backdrop for stage ${String(stage)}`);
-  return fromArt(make, STAGES[stage], cameraEndPx(stage));
+  const art = STAGES[stage];
+  return fromArt(make, art, art.cameraEnd ?? cameraEndPx(stage));
 }
 
 /** Camp's backdrop between stages: one screen, whose camera never moves. */
