@@ -333,8 +333,7 @@ interface Standing {
  * The backdrop a stage draws on, and where its camera stands: the stage's own art at the camera, or for a stage with
  * none Stage 1's, its camera scaled from the stage's road onto the village's so the scenery runs out at the same end.
  * On a longer road than the village's the layers scroll the slower for it, the floor-speed ones too: a placeholder
- * until the stage has its own art, which takes the camera as it is (Ashen Village's, Wyrmbone Pass's and the Drowned
- * Crypt's do).
+ * until the stage has its own art, which takes the camera as it is.
  */
 export function scenery(
   stage: number,
@@ -351,6 +350,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
     1: createBackdrop(make, 1),
     2: createBackdrop(make, 2),
     3: createBackdrop(make, 3),
+    4: createBackdrop(make, 4),
   } satisfies Record<StageNumber, Backdrop<Image>>;
   const backdropOf = (art: StageNumber) => backdrops[art];
   const camp = createCampBackdrop(make);
