@@ -1,7 +1,8 @@
-import { CAMERA_END_PX, VIEW_W } from "../../engine/view-kit.js";
+import { cameraEndPx, VIEW_W } from "../../engine/view-kit.js";
 import { pixelSurface, type MakeSurface } from "../surface.js";
 import { ASHEN_VILLAGE } from "./ashen-village.js";
 import { Raster, type Brush, type LayerArt, type StageArt } from "./kit.js";
+import { WYRMBONE_PASS } from "./wyrmbone-pass.js";
 
 /**
  * A stage's parallax backdrop at the native 320 × 180. Each static layer is painted once into a pixel buffer and
@@ -32,10 +33,13 @@ export interface Backdrop<S> {
   drawFront(pen: Pen<S>, camX: number): void;
 }
 
-/** The stages with art of their own, so far Ashen Village's. */
-export type StageNumber = 1;
+/** The stages with art of their own, so far Ashen Village's and Wyrmbone Pass's. */
+export type StageNumber = 1 | 2;
 
-const STAGES: Record<StageNumber, StageArt> = { 1: ASHEN_VILLAGE };
+const STAGES: Record<StageNumber, StageArt> = {
+  1: ASHEN_VILLAGE,
+  2: WYRMBONE_PASS,
+};
 
 /** Whether `stage` has a backdrop of its own; one that has none is drawn on Stage 1's (`createScene`). */
 export const hasBackdrop = (stage: number): stage is StageNumber =>
@@ -48,10 +52,11 @@ interface Baked<S> {
   height: number;
 }
 
-function bake<S>(make: MakeSurface<S>, layer: LayerArt): Baked<S> {
+/** A layer painted as wide as it scrolls across the stage, to the camera's furthest point `end`. */
+function bake<S>(make: MakeSurface<S>, layer: LayerArt, end: number): Baked<S> {
   const [num, den] = layer.rate;
   const raster = new Raster(
-    VIEW_W + Math.floor((CAMERA_END_PX * num) / den),
+    VIEW_W + Math.floor((end * num) / den),
     layer.top,
     layer.height,
   );
@@ -80,10 +85,8 @@ function blit<S>(pen: Pen<S>, layer: Baked<S>, camX: number) {
 }
 
 /** The camera in whole pixels, held to the stage so no layer is sampled past its end. */
-const camera = (camX: number) =>
-  Number.isFinite(camX)
-    ? Math.min(Math.max(Math.floor(camX), 0), CAMERA_END_PX)
-    : 0;
+const camera = (camX: number, end: number) =>
+  Number.isFinite(camX) ? Math.min(Math.max(Math.floor(camX), 0), end) : 0;
 
 /** The fires' clock: a step count that is never negative or NaN, so no flame or ember gets an invalid colour. */
 const clock = (frame: number) =>
@@ -96,18 +99,19 @@ export function createBackdrop<S>(
   if (!hasBackdrop(stage))
     throw new RangeError(`no backdrop for stage ${String(stage)}`);
   const art = STAGES[stage];
-  const back = art.back.map((layer) => bake(make, layer));
-  const front = bake(make, art.front);
+  const end = cameraEndPx(stage);
+  const back = art.back.map((layer) => bake(make, layer, end));
+  const front = bake(make, art.front, end);
   return {
     draw(pen, camX, frame) {
-      const cam = camera(camX);
+      const cam = camera(camX, end);
       for (const layer of back) blit(pen, layer, cam);
       const style = pen.fillStyle;
       art.animate(pen, cam, clock(frame));
       pen.fillStyle = style;
     },
     drawFront(pen, camX) {
-      blit(pen, front, camera(camX));
+      blit(pen, front, camera(camX, end));
     },
   };
 }

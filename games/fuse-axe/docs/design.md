@@ -144,8 +144,12 @@ Wyrmbone Pass but the last.
 2. **Wyrmbone Pass** — a mountain path through the ribs of a dead giant wyrm. Mounts appear; boss: a lancer captain
    on an ember drake. Playable as gameplay for now (`STAGE_2`): five screens of road, five waves of ravagers mostly in
    rust and violet, each with a lancer or two, and two imps, and a pair of violet ravagers at the end in place of the
-   captain until mounts come;
-   it draws on Stage 1's backdrop until it has its own.
+   captain until mounts come. Its backdrop is a cold dawn under a setting moon: ribs arching over the road, a lesser
+   wyrm's skull partway, the raiders' camp, and the wyrm's great skull in the cliff at the end, its open jaws the gate
+   the boss waits in.
+
+   ![Wyrmbone Pass: the ribs and the lesser skull, and the skull gate in the last screen](images/stage2-backdrop.png)
+
 3. **Drowned Crypt** — a flooded graveyard under a broken cathedral; bonewalkers rise from the ground.
 4. **Vorhal's Keep** — torch-lit halls to the throne room and Vorhal.
 
@@ -210,15 +214,17 @@ the checkpoint to check against, so a later row is bounded below by its own stag
   seat's colour over each hero tells the players apart ([screenshot](images/scene.png)).
 - Sprites are drawn from palette-indexed pixel data in code, so palette swaps (enemy tiers, duplicate heroes,
   damage flash) are free and no sprite sheet is checked in. (The PNGs under `docs/images/` are screenshots of the
-  concept page, the sprite lab and the Stage 1 backdrop, for readers who cannot open them.)
+  concept page, the sprite lab and the stage backdrops, for readers who cannot open them.)
 - Draw order is by floor depth (further up the screen is further away), then by height.
 - Parallax backgrounds (`src/render/backdrop/`, one module per stage): static layers are painted once and blitted at
-  whole-pixel offsets, and only fires and torches draw per frame. Stage 1 has the sky, a ridge with Vorhal's keep (1/8
-  speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in front; it ends at the
-  village gate ([screenshot](images/stage1-backdrop.png)). The scene picks the backdrop by the view's `stage`; a stage
-  without art of its own draws Stage 1's, its camera scaled from the stage's road (`cameraEndPx(stage)` in
-  `view-kit.ts`) onto the village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery; on Wyrmbone
-  Pass's longer road that scrolls every layer at 3/4 of its speed, the floor-speed ones too, until it has its own art.
+  whole-pixel offsets, and only fires, torches, mist and snow draw per frame. Stage 1 has the sky, a ridge with
+  Vorhal's keep (1/8 speed), hills (1/4) and the village at the floor's speed behind the heroes, and grass (5/4) in
+  front; it ends at the village gate ([screenshot](images/stage1-backdrop.png)). Stage 2 (`wyrmbone-pass.ts`) has the
+  same rates: the sky and moon, snowy peaks, near mountains with a winding path, the road and the wyrm's bones, and
+  stones and bone chips in front; it ends at the skull gate ([screenshot](images/stage2-backdrop.png)). Each layer is
+  as wide as it scrolls across its stage (`cameraEndPx(stage)` in `view-kit.ts`). The scene picks the backdrop by the
+  view's `stage`; a stage without art of its own draws Stage 1's, its camera scaled from the stage's road onto the
+  village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery.
 - Palette: warm dusk golds and embers against deep violet shadows, with the platform's neon accents for UI, magic
   and hit sparks. The HUD is a strip along the top: per hero a portrait, health bar, pots and lives
   ([screenshot](images/hud.png)); the pots light up to the level chosen while a hero charges magic.
