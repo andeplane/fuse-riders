@@ -4,13 +4,16 @@ import {
   ITEM_BLINK,
   ITEM_LIFE,
   MAX_POTS,
+  SPELLS,
   SUB,
   enemyMaxHp,
   type EnemyKind,
   type HeroKind,
   type ItemKind,
+  type SpellKind,
   type Tier,
 } from "./tuning.js";
+import { chosenLevel } from "./magic.js";
 import {
   defeated,
   showsGo,
@@ -27,7 +30,13 @@ import {
  * is `(x − camX, y − z)` and its shadow sits at `(x − camX, y)`. Each value is floored once on its own, so every
  * sprite shares the same whole-pixel camera offset as the backdrop and none shimmers against it.
  */
-export type { EnemyKind, HeroKind, ItemKind, Tier } from "./tuning.js";
+export type {
+  EnemyKind,
+  HeroKind,
+  ItemKind,
+  SpellKind,
+  Tier,
+} from "./tuning.js";
 export type { FxKind } from "./world.js";
 /**
  * `attack1` and `attack2` are the slashes, `attack3` the finisher. `run` is the run a double tap starts and `dash`
@@ -35,7 +44,8 @@ export type { FxKind } from "./world.js";
  * running (the blade is out from `STAB_STEPS` until it lands), `backattack` strikes behind the hero without turning
  * it (`BACK_STEPS`), `grab` holds an enemy for `GRAB_STEPS` and `throw` follows through for `THROW_STEPS`. `hurt`
  * reels, `knockdown` flies, `down` lies and `getup` rises; `dead` lies fallen until `respawn` drops the hero in from
- * the top of the screen, or it is `out`.
+ * the top of the screen, or it is `out`. `charge` holds Magic (the level chosen is `charge` in the view) and `cast`
+ * stands casting its spell (`spells` in the world's view) until the spell is gone.
  */
 export type HeroAnim = HeroState;
 /**
@@ -67,6 +77,23 @@ export interface HeroView {
   /** Magic pots held, and the most the hero's kind can hold. */
   pots: number;
   maxPots: number;
+  /**
+   * While charging magic (`charge`), the level chosen, from 1, which letting go casts once the charge is past a tap
+   * (`MAGIC_TAP`; a tap casts every pot); 0 otherwise.
+   */
+  charge: number;
+}
+
+/**
+ * A spell playing: its caster's id, which spell, its level and its age in steps. Its timing per kind and level is
+ * `SPELL_STEPS` in `view-kit.ts`: every enemy stands frozen until `hit`, when the blow lands on the screen, and the
+ * caster stands in `cast` until `steps`, when the spell is gone.
+ */
+export interface SpellView {
+  hero: number;
+  kind: SpellKind;
+  level: number;
+  age: number;
 }
 
 export interface EnemyView {
@@ -114,6 +141,8 @@ export interface WorldView {
   fx: FxView[];
   /** In id order, which no hero or enemy shares. */
   items: ItemView[];
+  /** The spells playing, in the order they were cast: at most one per hero. */
+  spells: SpellView[];
   /** The wave begun latest, from 1 (0 before the first), of `waves` in the stage. */
   wave: number;
   waves: number;
@@ -150,6 +179,8 @@ export function toView(world: World): WorldView {
       invulnerable: hero.invulnUntil > 0 && world.step <= hero.invulnUntil,
       pots: hero.pots,
       maxPots: MAX_POTS[hero.kind],
+      // The step shown is one more held than `timer` counts since the press.
+      charge: hero.state === "charge" ? chosenLevel(hero, hero.timer + 1) : 0,
     })),
     enemies: world.enemies.map((enemy) => ({
       id: enemy.id,
@@ -179,6 +210,13 @@ export function toView(world: World): WorldView {
       y: whole(item.y),
       z: whole(item.z),
       blink: world.step - item.born >= ITEM_LIFE - ITEM_BLINK,
+    })),
+    spells: world.spells.map((spell) => ({
+      hero: spell.hero,
+      kind: SPELLS[world.heroes.find((each) => each.id === spell.hero)!.kind]
+        .kind,
+      level: spell.level,
+      age: world.step - spell.born,
     })),
     wave: world.wave,
     waves: STAGE_1.waves.length,

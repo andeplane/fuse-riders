@@ -1,5 +1,5 @@
 /** Fuse Axe's engine: deterministic rules with no imports from outside this folder. */
-export const RULES = "fuse-axe-9";
+export const RULES = "fuse-axe-10";
 export * from "./input.js";
 export {
   createWorld,
@@ -19,6 +19,7 @@ export {
   type HeroEntry,
   type HeroState,
   type Item,
+  type Spell,
   type World,
 } from "./world.js";
 export { revive, step, stepTick } from "./step.js";
@@ -31,6 +32,7 @@ export {
   type HeroAnim,
   type HeroView,
   type ItemView,
+  type SpellView,
   type WorldView,
 } from "./view.js";
 export {
@@ -50,6 +52,8 @@ export {
   ENEMY_KINDS,
   HERO_KINDS,
   MAX_POTS,
+  SPELLS,
+  SPELL_KINDS,
   STEPS_PER_SECOND,
   STEPS_PER_TICK,
   TIERS,
@@ -57,5 +61,6 @@ export {
   type EnemyKind,
   type HeroKind,
   type ItemKind,
+  type SpellKind,
   type Tier,
 } from "./tuning.js";

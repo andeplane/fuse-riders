@@ -18,7 +18,7 @@ or the run is over. The host sets out again with **REMATCH** or goes back to the
 | Arrows / WASD | 8-way d-pad (slide for diagonal) | Walk the road, up and down in depth; double-tap left or right to run  |
 | J / Z         | ATTACK                           | Attack (a dash from a run, a stab in the air, a throw at a dazed one) |
 | K / X         | JUMP                             | Jump (a running jump from a run); with Attack, a back attack          |
-| L / C         | MAGIC                            | Magic                                                                 |
+| L / C         | MAGIC                            | Magic: tap to cast every pot, hold to charge level by level, let go   |
 
 On a touch screen the pads (`src/app/pad.ts`) sit over the game's corners while your hero fights; a thumb slides
 round the d-pad for the diagonals, and a double tap of left or right (a second tap, or a slide back through the
