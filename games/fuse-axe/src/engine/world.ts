@@ -1,6 +1,6 @@
 import {
   CAPACITY,
-  ENEMY_HALF_W,
+  ENEMY_BODY,
   FX_MAX,
   ENEMY_KINDS,
   ENEMY_MAX,
@@ -13,12 +13,12 @@ import {
   KNOCK_VX,
   KNOCK_VZ,
   LIVES,
-  RAVAGER,
   STAGE_LENGTH,
   SUB,
   TIERS,
   VIEW_W,
   enemyMaxHp,
+  fighterOf,
   px,
   type EnemyKind,
   type HeroKind,
@@ -134,6 +134,9 @@ export const ENEMY_STATES = [
   "thrown",
   "stumble",
   "flee",
+  "slam",
+  "sweep",
+  "stagger",
 ] as const;
 export type EnemyState = (typeof ENEMY_STATES)[number];
 /**
@@ -149,6 +152,15 @@ export const IMP_STATES: readonly EnemyState[] = [
   "flee",
 ];
 export const IMP_ONLY: readonly EnemyState[] = ["stumble", "flee"];
+/**
+ * An ogre's states (`ogre.ts`): it walks in, walks and stands; winds up its slam, slams, sweeps and recovers; staggers
+ * from a heavy blow; and is knocked down, lies, gets up or falls for good. It never reels, nor is held or thrown.
+ * `slam`, `sweep` and `stagger` are the ogre's alone (`OGRE_ONLY`).
+ */
+export const OGRE_STATES: readonly EnemyState[] = ENEMY_STATES.filter(
+  (state) => !["hurt", "attack", "held", "thrown", ...IMP_ONLY].includes(state),
+);
+export const OGRE_ONLY: readonly EnemyState[] = ["slam", "sweep", "stagger"];
 
 export interface Enemy {
   id: number;
@@ -178,6 +190,12 @@ export interface Enemy {
   holder: number;
   /** The magic pots left in a sack imp's sack, up to `IMP_POTS`; 0 for every other kind. */
   pots: number;
+  /** An ogre's poise: hit points taken since it last fell (`POISE`); 0 for every other kind. */
+  poise: number;
+  /** An ogre flashes from a blow its armour takes, without holding still, up to and including this step; else 0. */
+  flashUntil: number;
+  /** An ogre whose twin has fallen fights faster (`OGRE.rage`); false for every other kind. */
+  enraged: boolean;
 }
 
 /**
@@ -348,8 +366,8 @@ export const showsGo = (world: World): boolean =>
 
 /** Whether an enemy's whole body is on screen. */
 export const inView = (world: World, enemy: Enemy): boolean =>
-  enemy.x >= world.camX + ENEMY_HALF_W &&
-  enemy.x <= world.camX + VIEW_W * SUB - ENEMY_HALF_W;
+  enemy.x >= world.camX + ENEMY_BODY[enemy.kind].half &&
+  enemy.x <= world.camX + VIEW_W * SUB - ENEMY_BODY[enemy.kind].half;
 
 /**
  * A new enemy at full hit points for its tier and the party, with the world's next id, facing `facing`: a sack imp
@@ -383,9 +401,12 @@ export function newEnemy(
     goal: clamp(x, 0, STAGE_LENGTH),
     goalY: y,
     target: 0,
-    thinkAt: world.step + RAVAGER[tier].think,
+    thinkAt: world.step + fighterOf(kind, tier, false).think,
     holder: 0,
     pots: imp ? IMP_POTS : 0,
+    poise: 0,
+    flashUntil: 0,
+    enraged: false,
   };
 }
 
@@ -451,10 +472,11 @@ export function spark(
 
 /**
  * Knocks an enemy down, launched up and away the way `dir` points along the road (facing back at the blow), going for
- * nobody and held still for the heavy hit-stop.
+ * nobody and held still for the heavy hit-stop. An ogre's poise is whole again.
  */
 export function launch(world: World, enemy: Enemy, dir: 1 | -1): void {
   enemy.state = "knockdown";
+  enemy.poise = 0;
   enemy.timer = enemy.target = 0;
   enemy.facing = dir > 0 ? -1 : 1;
   enemy.vx = dir * KNOCK_VX;

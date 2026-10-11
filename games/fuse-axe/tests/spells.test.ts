@@ -68,6 +68,7 @@ const hero = (more: Partial<V.HeroView> = {}): V.HeroView => ({
 const enemy = (id: number, x: number, y: number): V.EnemyView => ({
   ...{ id, kind: "ravager", tier: 0, x, y, z: 0, facing: -1 },
   ...{ anim: "idle", animStep: 0, hp: 4, maxHp: 4, flash: false },
+  ...{ boss: false, enraged: false },
 });
 const ENEMIES = [[200, 120], [250, 150], [60, 160], [300, 130]].map(([x, y], i) => enemy(10 + i, x!, y!)); // prettier-ignore
 const spell = (kind: V.SpellKind, level: number, age: number, id = 1) =>
@@ -77,7 +78,7 @@ const world = (list: V.SpellView[], more: Partial<V.WorldView> = {}) =>
     ...{ step: 0, camX: 0, enemies: ENEMIES, fx: [], items: [], spells: list },
     heroes: [hero({ kind: CASTER[list[0]?.kind ?? "storm"] ?? "brakka" })],
     ...{ wave: 1, waves: 5, locked: true, go: false, cleared: false },
-    ...{ defeated: false, ...more },
+    ...{ defeated: false, boss: null, ...more },
   }) satisfies V.WorldView;
 const levels = (kind: V.SpellKind) => SPELL_STEPS[kind].map((_, i) => i + 1);
 const timing = (kind: V.SpellKind, level: number) => SPELL_STEPS[kind][level - 1]!; // prettier-ignore
@@ -352,6 +353,40 @@ test("a blow is drawn on the enemies the engine's blow strikes: not a sack imp, 
     marksOf(view),
     spots.map(({ x, y }) => ({ x, y })),
   );
+});
+
+test("a blow's marks use each kind's own width: an ogre, a half bigger, is struck (and marked) only further inside the screen than a ravager", () => {
+  let w = createWorld({ seed: 3, heroes: [{ seat: 0, kind: "brakka" }] });
+  const y = w.heroes[0]!.y,
+    right = w.camX + px(VIEW_W);
+  // The ravager's half-width is 10 px and the ogre's 15: 12 px from an edge is whole for the one and not for the other.
+  const [near, far] = [px(12), px(16)];
+  w = spawnEnemy(w, "ravager", w.camX + near, y); // struck
+  w = spawnEnemy(w, "ogre", w.camX + near, y); // not whole
+  w = spawnEnemy(w, "ravager", right - near, y); // struck
+  w = spawnEnemy(w, "ogre", right - near, y); // not whole
+  w = spawnEnemy(w, "ogre", w.camX + far, y); // struck
+  w = spawnEnemy(w, "ogre", right - far, y); // struck
+  const { hit } = SPELL_STEPS.storm[0]!;
+  const spell = { hero: w.heroes[0]!.id, level: 1, born: w.step };
+  w = { ...w, spells: [spell], heroes: w.heroes.map((h) => ({ ...h, state: "cast" })) }; // prettier-ignore
+  for (let i = 0; i < hit - 1; i++) w = step(w, []);
+  const view = toView(w);
+  assert.equal(view.spells[0]!.age, hit - 1, "the last step before the blow");
+  const struck = step(w, []).enemies.filter((e, i) => e.hp < w.enemies[i]!.hp);
+  assert.deepEqual(
+    struck.map((e) => w.enemies.findIndex((o) => o.id === e.id)),
+    [0, 2, 4, 5],
+  );
+  assert.deepEqual(
+    marksOf(view),
+    view.enemies.filter((e) => struck.some((s) => s.id === e.id)).map(({ x, y }) => ({ x, y })), // prettier-ignore
+  );
+  // A kind from a newer build is as wide as a ravager.
+  const wyvern = JSON.parse('"wyvern"') as V.EnemyKind;
+  const odd = (x: number) => ({ ...view.enemies[0]!, kind: wyvern, x });
+  assert.equal(marksOf({ ...view, camX: 0, enemies: [odd(12)] }).length, 1);
+  assert.equal(marksOf({ ...view, camX: 0, enemies: [odd(9)] }).length, 0);
 });
 
 test("a blow's marks stay where the enemies stood as it fell, whatever it does to them; seen first later, they are where the enemies are", () => {
