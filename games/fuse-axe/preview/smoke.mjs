@@ -43,6 +43,19 @@ const open = async (
   options = { viewport: { width: 1280, height: 800 } },
 ) => {
   const context = await browser.newContext(options);
+  // Counts the audio contexts the page makes (`window.audioContexts`): a page opened with `?mute` must make none.
+  // Instruments only the constructor, which is what a page uses to make one.
+  await context.addInitScript(() => {
+    const Real = window.AudioContext;
+    if (!Real) return;
+    window.audioContexts = 0;
+    window.AudioContext = class extends Real {
+      constructor(...args) {
+        super(...args);
+        window.audioContexts++;
+      }
+    };
+  });
   const page = await context.newPage();
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => {
@@ -323,9 +336,15 @@ try {
   await snap(landing, "solo-play");
   await landing.keyboard.up("KeyJ");
   // Sound is wired but silent: `?mute` plays nothing and greys out the toggles (never click them: they keep a choice),
-  // while the page still hears its cues (GO, the jump, the landing, the swing).
+  // while the page still hears its cues (GO, the jump, the landing, the swing). The keys pressed were gestures, yet no
+  // audio context was made, so the stage's loop never started either.
   const room = landing.locator("main.fa-room");
   assert.equal(await room.getAttribute("data-audio"), "muted");
+  assert.equal(
+    await landing.evaluate(() => window.audioContexts),
+    0,
+    "?mute makes no audio context",
+  );
   const heard = Number(await room.getAttribute("data-cues"));
   assert.ok(heard >= 3, `cues heard: ${heard}`);
   for (const name of ["♫ MUSIC OFF", "EFFECTS OFF"])

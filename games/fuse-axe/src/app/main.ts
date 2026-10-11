@@ -676,6 +676,7 @@ function room(solo: boolean): void {
     ended() {
       status.show("Room ended", "error");
       over = true;
+      audio.stop();
       controls.close();
       for (const part of [
         connecting,
