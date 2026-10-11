@@ -87,13 +87,11 @@ export const spellbound = (world: World): boolean =>
       world.step - spell.born < played(caster(world, spell), spell).hit,
   );
 
-/** An enemy a spell's blow lands on: not a bonewalker clawing out of its grave, which nothing strikes. */
+/** An enemy a spell's blow lands on: not a bonewalker clawing out of its grave, nor Vorhal roaring, which nothing strikes. */
 const blasted = (world: World, enemy: Enemy): boolean =>
   !isImp(enemy) &&
   enemy.hp > 0 &&
-  enemy.state !== "held" &&
-  enemy.state !== "thrown" &&
-  enemy.state !== "rise" &&
+  !["held", "thrown", "rise", "roar"].includes(enemy.state) &&
   inView(world, enemy);
 
 /**

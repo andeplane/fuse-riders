@@ -33,6 +33,7 @@ import {
   FX_KINDS,
   FX_LIFE,
   OGRE_STEPS,
+  SIGIL,
   QUAKE,
   SPEAR,
   VIEW_H,
@@ -77,6 +78,7 @@ import {
   OGRE_CROWNS,
   OGRE_RAGE,
   OGRE_TIERS,
+  type OgreFrame,
 } from "../src/render/art/ogre.js";
 import { MEAT } from "../src/render/art/meat.js";
 import { POT } from "../src/render/art/pot.js";
@@ -117,6 +119,7 @@ import {
   SHADOW_RX,
 } from "../src/render/scene.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
+import { MASTER, UNLIT } from "../src/render/pixel/palette.js";
 import { drawSpark, HIT_STEPS } from "../src/render/sparks.js";
 import {
   paintPixels,
@@ -220,7 +223,7 @@ const world = (more: Partial<WorldView>): WorldView => ({
   ...{ step: 0, camX: 0, heroes: [], enemies: [], fx: [], items: [] },
   ...{ spells: [], mounts: [], stage: 1, camp: false },
   ...{ wave: 0, waves: 5, locked: false, go: false, cleared: false },
-  ...{ defeated: false, boss: null },
+  ...{ defeated: false, boss: null, sigils: [] },
   ...more,
 });
 
@@ -1198,7 +1201,9 @@ test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage witho
   assert.notDeepEqual(layers(world({ stage: 2 })), layers(world({ stage: 1 })));
   assert.deepEqual(scenery(2, 700), { art: 2, camX: 700 });
   assert.deepEqual(scenery(1, 500), { art: 1, camX: 500 });
-  assert.deepEqual(scenery(4, 500), { art: 1, camX: 500 }, "an unknown one");
+  assert.deepEqual(scenery(5, 500), { art: 1, camX: 500 }, "an unknown one");
+  // Vorhal's Keep has no art yet: Stage 1's, run out over its longer road.
+  assert.deepEqual(scenery(4, 1280), { art: 1, camX: 960 });
   assert.deepEqual(layers(world({ stage: 4 })), layers(world({ stage: 1 })));
 });
 
@@ -1370,4 +1375,47 @@ test("the captain draws from his own art in his own colours, and in the saddle d
   for (const anim of MOUNT_STATES)
     for (const animStep of [0, 23, 24, 1e9, -3, 2.5, Number.NaN, Infinity])
       assert.ok(ridden(anim, animStep).length >= 2, `${anim} ${animStep}`);
+});
+
+test("Vorhal draws as a horned dark ogre in every anim, his sigils glow on the floor and their pillars burn over the figures, and nothing throws", () => {
+  const vorhal = (more: Partial<EnemyView> = {}) =>
+    enemy(3, 200, 150, { kind: "vorhal", boss: true, ...more });
+  const horns = (view: WorldView) =>
+    draw(view).pen.fills.filter((f) => f.style === MASTER.B).length;
+  for (const anim of ENEMY_STATES)
+    for (const animStep of [0, 30, 1e9, -3, 2.5, Number.NaN])
+      assert.doesNotThrow(
+        () => draw(world({ enemies: [vorhal({ anim, animStep })] })),
+        `${anim} ${animStep}`,
+      );
+  // His figure is the ogre's in his own palette, with horns; enraged, crimson.
+  assert.deepEqual(
+    draw(world({ enemies: [vorhal()] })).sprites[0]!.image.fills,
+    fillsOf(OGRE.sprite(enemyFrame("vorhal", "idle", 0) as OgreFrame), {
+      swap: ENEMY_ART.vorhal.tiers[0],
+      flash: false,
+      flip: false,
+    }),
+  );
+  assert.ok(horns(world({ enemies: [vorhal()] })) >= 4);
+  assert.equal(horns(world({ enemies: [vorhal({ kind: "ogre" })] })), 0);
+  assert.notDeepEqual(ENEMY_ART.vorhal.rage!.tiers[0], ENEMY_ART.vorhal.tiers[0]); // prettier-ignore
+  // A sigil glows until its pillar erupts, which burns white-hot for its steps, then nothing is left.
+  const fire = (age: number, colour: string, frame = 0) =>
+    draw(world({ sigils: [{ x: 160, y: 140, age }] }), frame).pen.fills.filter(
+      (f) => f.style === colour,
+    );
+  const none = (colour: string, frame = 0) =>
+    draw(world({}), frame).pen.fills.filter((f) => f.style === colour).length;
+  assert.ok(fire(0, UNLIT["~"]!).length > none(UNLIT["~"]!), "its ring");
+  assert.ok(fire(SIGIL.delay - 1, UNLIT.f!).length > none(UNLIT.f!));
+  assert.equal(fire(SIGIL.delay - 1, UNLIT.f!, 4).length, none(UNLIT.f!, 4), "blinking"); // prettier-ignore
+  const pillar = fire(SIGIL.delay + 10, UNLIT.F!);
+  assert.ok(pillar.some((f) => f.h >= 40 && f.y + f.h >= 140), "up from the floor"); // prettier-ignore
+  assert.equal(fire(SIGIL.delay + SIGIL.burn, UNLIT.F!).length, none(UNLIT.F!));
+  for (const age of [-3, 1.5, Number.NaN, 1e9])
+    assert.doesNotThrow(() => fire(age, UNLIT.F!));
+  assert.doesNotThrow(() =>
+    draw(world({ sigils: [{ x: Number.NaN, y: -50, age: 60 }] })),
+  );
 });

@@ -69,6 +69,7 @@ const world = (extra: Partial<WorldView> = {}): WorldView => ({
   cleared: false,
   defeated: false,
   boss: null,
+  sigils: [],
   ...extra,
 });
 

@@ -79,7 +79,7 @@ const world = (list: V.SpellView[], more: Partial<V.WorldView> = {}) =>
     mounts: [],
     heroes: [hero({ kind: CASTER[list[0]?.kind ?? "storm"] ?? "brakka" })],
     ...{ stage: 1, camp: false, wave: 1, waves: 5, locked: true, go: false },
-    ...{ cleared: false, defeated: false, boss: null, ...more },
+    ...{ cleared: false, defeated: false, boss: null, sigils: [], ...more },
   }) satisfies V.WorldView;
 const levels = (kind: V.SpellKind) => SPELL_STEPS[kind].map((_, i) => i + 1);
 const timing = (kind: V.SpellKind, level: number) => SPELL_STEPS[kind][level - 1]!; // prettier-ignore
