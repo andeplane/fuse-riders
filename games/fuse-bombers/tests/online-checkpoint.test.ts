@@ -5,7 +5,12 @@ import { MAX_SNAPSHOT_BYTES, SnapshotAssembler, World } from "fuse-netcode";
 import { decodeSnapshot, encodeSnapshot } from "fuse-netcode";
 import { packMessage, unpackMessage, type StreamEntries } from "fuse-netcode";
 import { DEFAULT_TUNING, DOWN, LEFT, RIGHT, UP } from "../src/engine/index.js";
-import { createRound, encodeRound } from "../src/engine/index.js";
+import {
+  createRound,
+  decodeRound,
+  encodeRound,
+  step,
+} from "../src/engine/index.js";
 import { carveCircle, createGrid, encodeGrid } from "../src/engine/grid.js";
 import { buildTempleGrid } from "../src/engine/temple-map.js";
 import {
@@ -13,6 +18,7 @@ import {
   DEFAULT_SETTINGS,
   PLAY,
   PRESS,
+  roundSeed,
 } from "../src/online/game.js";
 import { bombersGame as game, createRoom } from "../src/online/game.js";
 import { foldTick, hash, type Entry, type Room } from "../src/online/game.js";
@@ -295,7 +301,9 @@ test("seeded random corruption never throws, and whatever is accepted checkpoint
     const again = restore(room);
     assert.ok(again, "an accepted room checkpoints");
     assert.equal(hash(again), hash(room));
-    for (let i = 0; i < 3; i++) fold(room, script(room));
+    // What a peer accepted it can serve again after play: stepping never leaves what the decoder takes.
+    for (let i = 0; i < 90; i++) fold(room, script(room));
+    assert.ok(restore(room), "an accepted room checkpoints after a minute on");
   }
   t.diagnostic(`${accepted} of 1500 mutated checkpoints accepted`);
   assert.ok(accepted > 0 && accepted < 1500);
@@ -356,4 +364,343 @@ test("a late joiner restores a running match from a peer's snapshot and folds on
   assert.equal(joiner.tick, 900);
   assert.equal(hash(joiner.state), hash(source.state));
   assert.ok(source.state.world!.castles[1]!.stats.volleys > 6, "b flew on");
+});
+
+// ---- what a hostile snapshot is held to: the ranges and relations the engine itself keeps ----
+
+type Change = readonly [Path, unknown];
+/** `fields` with every change applied. */
+const changed = (fields: unknown[], ...changes: Change[]) =>
+  changes.reduce((copy, [path, value]) => edit(copy, path, value), fields);
+
+test("a value the engine cannot reach is refused, and each range is taken up to its edge", () => {
+  const fields = wire(battle),
+    world = fields[WORLD] as unknown[][],
+    steps = battle.world!.tick;
+  const rows = (list: number) => world[list] as unknown[][];
+  const alive = rows(8).findIndex((c) => c[6]);
+  const shell = rows(9).findIndex((r) => !r[8] && !r[9]);
+  // The memory of a bot whose castle still flies.
+  const bot = rows(14).findIndex(
+    (_, i) => rows(8)[(world[3] as number[][])[i]![0]!]![6],
+  );
+  assert.ok(alive >= 0 && shell >= 0 && bot >= 0);
+  const accepts = (...change: Change[]) =>
+    decode(changed(fields, ...change), battle.tick) !== undefined;
+  const spawn = rows(10)[0]![2] as number;
+  // [what, where, an edge of its range that stays, the next value out that goes]
+  // prettier-ignore
+  const ranges: [string, Path, unknown, unknown][] = [
+    ["a castle's x", [WORLD, 8, alive, 0], 4800, 4801],
+    ["a castle's y", [WORLD, 8, alive, 1], 2700, -1],
+    ["a castle's speed", [WORLD, 8, alive, 2], 400, 401],
+    ["a castle's reload", [WORLD, 8, alive, 9], 156, 157],
+    ["a tally", [WORLD, 8, 0, 19], 2 ** 30 - 1, 2 ** 30],
+    ["the damage dealt", [WORLD, 8, 0, 21], 1e100, 1e101],
+    ["a rocket's right edge", [WORLD, 9, shell, 2], 4880, 4881],
+    ["a rocket's left edge", [WORLD, 9, shell, 2], -80, -81],
+    ["a rocket's floor", [WORLD, 9, shell, 3], 2760, 2761],
+    ["a rocket's sky", [WORLD, 9, shell, 3], -1e5, -100_001],
+    ["a rocket's speed", [WORLD, 9, shell, 4], 1e4, 10_001],
+    ["a gate's drift", [WORLD, 10, 0, 5], 30, 31],
+    ["a gate's bob", [WORLD, 10, 0, 9], 420, 421],
+    ["a gate's span", [WORLD, 10, 0, 3], spawn + 1320, spawn + 1321],
+    ["a gate's start within its ends", [WORLD, 10, 0, 4], rows(10)[0]![7], (rows(10)[0]![7] as number) + 1],
+    ["a crate's x", [WORLD, 11, 0, 2], 4800, 4801],
+    ["a ghost's x", [WORLD, 12, 0, 1], 4800, 4801],
+    ["a ghost's speed", [WORLD, 12, 0, 3], 520, 521],
+    ["a ghost's reload", [WORLD, 12, 0, 7], 210, 211],
+    ["a bot's spot", [WORLD, 14, bot, 3], 4800, 4801],
+    ["a bot's plan", [WORLD, 14, bot, 7], steps + 512, steps + 513],
+    ["a bot's press", [WORLD, 14, bot, 8], steps + 512, steps + 513],
+    ["a bot's dodge", [WORLD, 14, bot, 10], steps + 512, steps + 513],
+    ["the next id", [WORLD, 17], 2 ** 30 - 1, 2 ** 30],
+  ];
+  assert.ok(accepts(), "the checkpoint itself");
+  for (const [what, path, edge, past] of ranges) {
+    assert.ok(accepts([path, edge]), `${what} at its edge`);
+    assert.ok(!accepts([path, past]), `${what} past it`);
+  }
+  // Power is what the gates passed can have made, ×10 at most each; more is a few gates from Infinity.
+  const power = (value: number, gates: number): Change[] => [
+    [[WORLD, 9, shell, 6], value],
+    [[WORLD, 9, shell, 10], Array.from({ length: gates }, (_, i) => i + 1)],
+  ];
+  for (const [value, gates] of [
+    [1, 0],
+    [10, 1],
+    [100, 2],
+    [1e64, 64],
+  ] as const)
+    assert.ok(
+      accepts(...power(value, gates)),
+      `power ${value} through ${gates} gates`,
+    );
+  for (const [value, gates] of [
+    [11, 0],
+    [100.001, 2],
+    [1e300, 0],
+    [1e65, 64],
+  ] as const)
+    assert.ok(
+      !accepts(...power(value, gates)),
+      `power ${value} through ${gates} gates`,
+    );
+  // Parts that each fit but do not fit together.
+  assert.ok(!accepts([[WORLD, 12], []]), "a fallen castle without its ghost");
+  assert.ok(
+    !accepts([[WORLD, 14, bot, 1], true]),
+    "a bot flying a ghost over a living castle",
+  );
+  assert.ok(
+    !accepts(
+      [[WORLD, 9, shell, 8], true],
+      [[WORLD, 9, shell, 1], -1],
+      [[WORLD, 9, shell, 7], false],
+    ),
+    "a sudden-death bomb before sudden death",
+  );
+});
+
+test("a decided round's result is what its survivors make it, and an undecided round is under its time limit", () => {
+  const limit = DEFAULT_TUNING.maxRoundTime * 60;
+  /** A round stepped once at `tick` of sudden death by hand, castles with the HP given and nobody firing. */
+  function warped(tick: number, ...hp: number[]) {
+    const world = createRound({ seed: 5, playerCount: hp.length });
+    world.tick = tick;
+    world.phase = "sudden-death";
+    hp.forEach((left, i) => (world.castles[i]!.hp = left));
+    step(world);
+    return world;
+  }
+  const timedOut = (...hp: number[]) => warped(limit - 1, ...hp);
+  const accepts = (fields: unknown[], ...change: Change[]) =>
+    decodeRound(changed(fields, ...change)) !== undefined;
+  const RESULT = 6;
+  // The most HP wins; level at the top is a draw.
+  const lead = encodeRound(timedOut(100, 60, 80)),
+    level = encodeRound(timedOut(90, 90, 40));
+  assert.deepEqual(lead[RESULT], [0, "timeout", limit - 1]);
+  assert.deepEqual(level[RESULT], [null, "timeout", limit - 1]);
+  assert.ok(accepts(lead) && accepts(level));
+  for (const [fields, winner] of [
+    [lead, 2],
+    [lead, null],
+    [level, 0],
+  ] as const)
+    assert.ok(
+      !accepts(fields, [[RESULT, 0], winner]),
+      `timeout won by ${winner}`,
+    );
+  for (const reason of ["last-standing", "wipeout"])
+    assert.ok(!accepts(lead, [[RESULT, 1], reason]), `${reason} with 3 left`);
+  assert.ok(!accepts(lead, [[RESULT, 2], limit - 2]), "a timeout early");
+  assert.ok(!accepts(lead, [[RESULT, 2], limit]), "a result past the limit");
+  assert.ok(!accepts(lead, [[4], limit - 1]), "decided at the step it ends on");
+  // The same against a round that is over with one survivor.
+  const over = wire(rooms.get("over")!)[WORLD] as unknown[];
+  assert.ok(accepts(over));
+  const survivor = (over[RESULT] as unknown[])[0] as number;
+  assert.ok(!accepts(over, [[RESULT, 0], survivor === 0 ? 1 : 0]), "a loser");
+  assert.ok(!accepts(over, [[RESULT, 0], null]), "a draw with one left");
+  assert.ok(!accepts(over, [[RESULT, 1], "wipeout"]), "a wipeout, one left");
+  assert.ok(!accepts(over, [[RESULT, 1], "timeout"]), "a timeout, one left");
+  // A round not yet decided has not reached its limit: the step that does decides it.
+  const late = encodeRound(warped(limit - 3, 100, 60, 80));
+  assert.deepEqual(
+    [late[4], late[5], late[6]],
+    [limit - 2, "sudden-death", null],
+  );
+  assert.ok(accepts(late) && accepts(late, [[4], limit - 1]));
+  assert.ok(!accepts(late, [[4], limit]), "undecided at the limit");
+});
+
+test("a match that was decided plays no further round", () => {
+  const tick = (name: string) => rooms.get(name)!.tick;
+  const over = wire(rooms.get("over")!),
+    running = wire(rooms.get("sudden death")!);
+  const settle = (wins: number) => ({
+    wins,
+    difficulty: "hard",
+    display: false,
+  });
+  // Over: the latest round crowns bot:2 (two wins) and nobody was crowned before it.
+  assert.ok(decode(over, tick("over")));
+  const results = over[6] as unknown[][];
+  const crowned = changed(over, [[6, 0, 1], "bot:2"]);
+  assert.deepEqual(
+    results.map((r) => r[1]),
+    ["bot:3", "bot:2", "bot:2"],
+  );
+  assert.ok(decode(crowned, tick("over")) === undefined, "crowned in round 2");
+  // Running: the round before it already gave bot:3 the wins the match needs.
+  assert.ok(decode(running, tick("sudden death")));
+  const done = changed(running, [[4], settle(1)]);
+  assert.ok(decode(done, tick("sudden death")) === undefined, "crowned, on");
+});
+
+test("a sparse array or a −0 from a source other than MessagePack does not get through", () => {
+  const hole = (list: unknown) => {
+    const copy = [...(list as unknown[])];
+    delete copy[1];
+    return copy;
+  };
+  const fields = wire(battle),
+    world = fields[WORLD] as unknown[][];
+  const withHole = (path: Path) =>
+    changed(fields, [path, hole(at(fields, path))]);
+  for (const path of [
+    [5],
+    [8],
+    [WORLD, 8],
+    [WORLD, 9],
+    [WORLD, 13],
+    [WORLD, 14],
+  ])
+    assert.ok(
+      decode(withHole(path), battle.tick) === undefined,
+      path.join("."),
+    );
+  const chunks = [(world[7] as unknown[])[0]]; // the terrain's runs, then a hole where a second chunk would be
+  chunks.length = 2;
+  for (const [part, value] of [
+    [13, hole(world[13])],
+    [7, chunks],
+  ] as const)
+    assert.ok(
+      decodeRound(changed(world, [[part], value])) === undefined,
+      `a hole in part ${part}`,
+    );
+  // −0 reads as 0 wherever the round takes a number, as the hash counts it, so no peer holds a sign the others lack.
+  const negate = (v: unknown): unknown =>
+    v === 0 ? -0 : Array.isArray(v) ? v.map(negate) : v;
+  const negative = [...fields];
+  negative[WORLD] = world.map((part, i) => (i === 7 ? part : negate(part)));
+  const room = decode(negative, battle.tick);
+  assert.ok(room, "the round with every zero negative");
+  assert.equal(hash(room), hash(battle));
+  assert.deepEqual(negativeZeros(room.world), []);
+});
+/** The paths of every number in `value` that `bad` picks out. */
+function numbersWhere(
+  value: unknown,
+  bad: (n: number) => boolean,
+  path = "",
+  out: string[] = [],
+) {
+  if (typeof value === "number") {
+    if (bad(value)) out.push(path);
+  } else if (Array.isArray(value))
+    value.forEach((v, i) => numbersWhere(v, bad, `${path}[${i}]`, out));
+  else if (
+    value !== null &&
+    typeof value === "object" &&
+    !ArrayBuffer.isView(value)
+  )
+    for (const [k, v] of Object.entries(value))
+      numbersWhere(v, bad, `${path}.${k}`, out);
+  return out;
+}
+const negativeZeros = (value: unknown) =>
+  numbersWhere(value, (n) => Object.is(n, -0));
+const nonFinite = (value: unknown) =>
+  numbersWhere(value, (n) => !Number.isFinite(n));
+
+test("a rocket through gate after gate keeps a power its lineage explains, and the room still checkpoints", () => {
+  const room = structuredClone(battle),
+    world = room.world!;
+  // Every gate on the first, ×10, and the rocket cap full of rockets that leave at once: no gate has room for a child,
+  // so each only multiplies the power of the one rocket.
+  const { x0, baseY } = world.gates[0]!;
+  for (const g of world.gates)
+    Object.assign(g, { multiplier: 10, x0, minX: x0, maxX: x0, vx: 0, baseY });
+  const rocket = (id: number, x: number, y: number) => ({
+    id,
+    owner: 0,
+    x,
+    y,
+    vx: 0,
+    vy: 0,
+    power: 1,
+    mega: false,
+    bomb: false,
+    ghost: false,
+    gates: [] as number[],
+    age: 0,
+  });
+  const first = world.nextId;
+  world.nextId += 1500;
+  for (let i = 0; i < 1400; i++)
+    world.rockets.push(rocket(first + i, -5000, 0));
+  const lone = first + 1400;
+  world.rockets.push(rocket(lone, x0, baseY));
+  fold(room);
+  const after = world.rockets.find((r) => r.id === lone)!;
+  assert.deepEqual([after.gates.length, after.power], [7, 1e7]);
+  const back = restore(room);
+  assert.ok(back, "the room after seven gates");
+  assert.equal(hash(back), hash(room));
+});
+
+test("a value pushed to an extreme in any field is refused, or leaves a round that folds on finite and checkpoints", () => {
+  const fields = wire(battle),
+    world = fields[WORLD] as unknown[][];
+  const lists = [8, 9, 10, 11, 12, 14].map(
+    (list) => world[list] as unknown[][],
+  );
+  const alive = lists[0]!.findIndex((c) => c[6]),
+    dead = lists[0]!.findIndex((c) => !c[6]);
+  const EXTREMES = [-1, 0.5, 4800, 1e6, 1e300, 2 ** 30 - 1];
+  let tried = 0,
+    taken = 0;
+  for (const [l, list] of lists.entries()) {
+    for (const item of l === 0 ? [alive, dead] : [0]) {
+      for (let field = 0; field < list[item]!.length; field++)
+        for (const extreme of EXTREMES) {
+          const path = [WORLD, [8, 9, 10, 11, 12, 14][l]!, item, field];
+          const room = decode(changed(fields, [path, extreme]), battle.tick);
+          tried++;
+          if (!room) continue;
+          taken++;
+          for (let i = 0; i < 20; i++) fold(room, script(room));
+          const why = `${path.join(".")} = ${extreme}`;
+          assert.deepEqual(nonFinite(room.world), [], why);
+          assert.ok(restore(room), `${why} after 20 ticks`);
+        }
+    }
+  }
+  assert.ok(taken > 100 && taken < tried, `${taken} of ${tried}`);
+});
+
+test("rooms of every size checkpoint all through a round", () => {
+  for (const riders of [2, 3, 5]) {
+    const id = `s${riders}`,
+      room = createRoom(id, {
+        ...DEFAULT_SETTINGS,
+        wins: 1,
+        difficulty: riders === 3 ? "easy" : "normal",
+      });
+    const bots = Array.from({ length: riders - 2 }, (_, i) => [
+      BOT,
+      "add",
+      `bot:${i + 1}`,
+      "Zeppo",
+      i + 2,
+    ]);
+    // prettier-ignore
+    fold(room, { a: [[JOIN, "a", "Ada", 0, "gunship", 1], [JOIN, "b", "Bo", 1, "gunship", 1], ...bots] });
+    fold(room, { a: [[ACTION, "start", id]] });
+    let checked = 0;
+    while (room.stage !== "over" && room.tick < 6000) {
+      fold(room, script(room));
+      if (room.tick % 41 && !(room.world?.result && room.tick % 7 === 0))
+        continue;
+      const back = restore(room);
+      assert.ok(back, `${riders} riders at ${room.tick}`);
+      assert.equal(hash(back), hash(room), `${riders} riders at ${room.tick}`);
+      checked++;
+    }
+    assert.equal(room.stage, "over", `${riders} riders`);
+    assert.ok(checked > 10, `${checked} checkpoints`);
+  }
 });
