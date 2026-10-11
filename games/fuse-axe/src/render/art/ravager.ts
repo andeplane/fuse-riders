@@ -357,7 +357,7 @@ export type RavagerFrame = keyof typeof RAVAGER_POSES;
 
 /**
  * The enemy view's anims but a sack imp's, an ogre's and a lancer's own (`dead` lies in the `down` frame while the
- * renderer blinks it).
+ * renderer blinks it), `ride` (on a beast) its own.
  */
 export type RavagerAnim = Exclude<
   EnemyAnim,
@@ -412,6 +412,8 @@ export const RAVAGER_ANIMS: Readonly<
   // Until they have frames of their own, one held in a hero's grab reels, and a thrown one flies as if knocked down.
   held: { frames: [["hurt", 12]], loop: false },
   thrown: { frames: [["knockdown", 30]], loop: false },
+  // Riding a beast it stands in the saddle, mace raised, until the mount art seats it.
+  ride: { frames: [["windup", 32]], loop: false },
 };
 
 const HAFT = 11.5;

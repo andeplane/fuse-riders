@@ -407,7 +407,7 @@ export type LancerFrame = keyof typeof LANCER_POSES;
 /** The enemy view's anims but a ravager's mace, a sack imp's and an ogre's own. */
 export type LancerAnim = Exclude<
   EnemyAnim,
-  "attack" | "stumble" | "flee" | "slam" | "sweep" | "stagger"
+  "attack" | "stumble" | "flee" | "slam" | "sweep" | "stagger" | "ride"
 >;
 
 const W = LANCER_WALK_STEPS;
