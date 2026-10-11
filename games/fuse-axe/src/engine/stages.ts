@@ -356,8 +356,7 @@ const KEEP_SLABS = [
 ] as const;
 /** A bonewalker clawing up out of the keep's slab `slab`. */
 const slabRiser = (tier: Tier, slab: number, delay: number): Spawn => ({
-  ...riser(tier, 0, delay),
-  y: px(KEEP_SLABS[slab]![1]),
+  ...walker(tier, "left", KEEP_SLABS[slab]![1], delay),
   grave: slab,
 });
 /** Vorhal, walking out of his throne room. */

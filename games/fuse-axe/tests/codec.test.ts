@@ -182,7 +182,9 @@ test("every world the bots reach on any stage, in a party of one or five, is acc
       })),
     });
     let furthest = 0;
-    // A party wiped out continues once a stage, as a room's does (`revive`): a lone hero reaches Vorhal on its last life.
+    // A party wiped out continues once a stage, as a room's does (`revive`). A lone bot hero is wiped out on a quarter to
+    // a half of the seeds in each of Stages 2 to 4 (the keep no oftener than the crypt), a party of two or more in none
+    // of those tried; a second wipe-out in one stage still ends its play and fails the stage's clear below.
     const play = (from: World, name: string) => {
       let at = from,
         continued = false;
