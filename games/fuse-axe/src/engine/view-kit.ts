@@ -2,6 +2,7 @@ import {
   BACK_ATTACK,
   CAMERA_END,
   COMBO,
+  ENEMY_HALF_W,
   FLOOR_BOTTOM,
   FLOOR_TOP,
   GRAVITY,
@@ -57,6 +58,8 @@ export const FLOOR_BOTTOM_PX = FLOOR_BOTTOM / SUB;
 /** Stage 1's length and the furthest the camera's left edge goes. */
 export const STAGE_LENGTH_PX = STAGE_LENGTH / SUB;
 export const CAMERA_END_PX = CAMERA_END / SUB;
+/** Half an enemy's width: a spell's blow lands only on those at least this far inside either edge of the screen. */
+export const ENEMY_HALF_W_PX = ENEMY_HALF_W / SUB;
 
 export interface SwingSteps {
   readonly startup: number;

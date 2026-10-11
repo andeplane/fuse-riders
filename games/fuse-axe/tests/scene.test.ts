@@ -177,8 +177,14 @@ function draw(view: WorldView, frame = 0, scene = shared.scene) {
     shadows: field.filter(shadow),
     markers: field.filter(marker),
     signs: pen.blits.filter(sign),
+    // A spell's art and a charging hero's glow are pixel buffers (`spells.test.ts`), which paint no rectangles.
     sprites: field.filter(
-      (b) => !layer(b) && !shadow(b) && !marker(b) && !sign(b),
+      (b) =>
+        !layer(b) &&
+        !shadow(b) &&
+        !marker(b) &&
+        !sign(b) &&
+        b.image.fills.length > 0,
     ),
     hud: pen.blits.slice(front + 1).filter((b) => !sign(b)),
   };

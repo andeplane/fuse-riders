@@ -19,10 +19,11 @@ import type { MakeSurface } from "./surface.js";
  * The HUD: a strip along the top of the frame with a panel a seat, P1 to P5 left to right. A hero's panel holds its
  * portrait in the hero's own look (the palette it wears on the field) framed in its seat's colour, its player's name,
  * its lives as ×N, a segmented health bar whose lost part shows white for a moment and then drains, and its row of
- * magic pots. A hero out of lives is greyed; one lying fallen, dropping back in or invulnerable blinks, in step with
- * its sprite. An empty seat shows its tag and blinks JOIN (not in a solo game, where nobody can), or names the player
- * who joins with the next run. A hero that has lost its last life is out as it lands: the counter has already
- * dropped to ×0, so its panel greys then, not when it has finished lying there.
+ * magic pots, which glow up to the level chosen while it charges magic. A hero out of lives is greyed; one lying
+ * fallen, dropping back in or invulnerable blinks, in step with its sprite. An empty seat shows its tag and blinks
+ * JOIN (not in a solo game, where nobody can), or names the player who joins with the next run. A hero that has lost
+ * its last life is out as it lands: the counter has already dropped to ×0, so its panel greys then, not when it has
+ * finished lying there.
  *
  * Portraits and labels are baked once; a frame is a few flat rectangles and blits.
  */
@@ -95,29 +96,44 @@ export const HEALTH = {
 export const healthTone = (share: number) =>
   share > 0.5 ? HEALTH.high : share > 0.25 ? HEALTH.low : HEALTH.critical;
 
-/** A hero's magic pots: how many it holds and the most it can hold. */
+/** The pots a charge has chosen glow white-hot in cyan; the last of them, the level it has reached, blinks. */
+export const CHARGED = {
+  pot: "#16e7ff",
+  lit: "#c8fcff",
+  glint: "#ffffff",
+} as const;
+export const CHARGE_BLINK = 6;
+
+/** A hero's magic pots: how many it holds, the most it can hold, and how many a charge has chosen (none by default). */
 export interface Pots {
   readonly held: number;
   readonly max: number;
+  readonly charged?: number;
 }
 
-/** A row of `max` pots with its top-left at (`x`, `y`), the first `held` of them full. */
+/**
+ * A row of `max` pots with its top-left at (`x`, `y`), the first `held` of them full: the charge meter too, the first
+ * `charged` of them glowing and the last of those blinking every `CHARGE_BLINK` frames.
+ */
 export function drawPots<Image>(
   pen: Pen<Image>,
   x: number,
   y: number,
-  { held, max }: Pots,
+  { held, max, charged = 0 }: Pots,
+  frame = 0,
 ): void {
   const c = HUD_COLORS;
+  const blinks = Math.floor(frame / CHARGE_BLINK) % 2 === 1;
   for (let i = 0; i < max; i++) {
     const left = x + i * POTS.step;
-    pen.fillStyle = i < held ? c.pot : c.potEmpty;
+    const glow = i < held && i < charged && !(blinks && i === charged - 1);
+    pen.fillStyle = glow ? CHARGED.pot : i < held ? c.pot : c.potEmpty;
     fill(pen, left + 1, y, 3, 1);
     fill(pen, left, y + 1, 5, 4);
     if (i >= held) continue;
-    pen.fillStyle = c.potLit;
+    pen.fillStyle = glow ? CHARGED.lit : c.potLit;
     fill(pen, left + 1, y + 1, 3, 3);
-    pen.fillStyle = c.potGlint;
+    pen.fillStyle = glow ? CHARGED.glint : c.potGlint;
     fill(pen, left + 1, y + 1, 1, 1);
   }
 }
@@ -299,10 +315,13 @@ export function createHud<Image>(
     for (let x = SEGMENT - 1; x < BAR.w; x += SEGMENT)
       fill(pen, bx + x, by, 1, BAR.h);
 
-    drawPots(pen, x0 + POTS.x, POTS.y, {
-      held: hero.pots,
-      max: hero.maxPots,
-    });
+    drawPots(
+      pen,
+      x0 + POTS.x,
+      POTS.y,
+      { held: hero.pots, max: hero.maxPots, charged: out ? 0 : hero.charge },
+      frame,
+    );
   };
 
   return {
