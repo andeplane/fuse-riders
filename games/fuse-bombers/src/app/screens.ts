@@ -4,7 +4,7 @@
 import type { MatchState, RoundView } from "../engine/index.js";
 import { castleSvg } from "../render/art.js";
 import { css } from "../render/palette.js";
-import { KEY_BINDINGS, deviceLabel } from "./input/index.js";
+import { KEY_BINDINGS, deviceLabel, fireKeyLabel } from "./input/index.js";
 import type { Lobby, Seat } from "./lobby.js";
 
 /** What the in-match screens show. */
@@ -14,7 +14,10 @@ export interface MatchInfo {
   readonly view: RoundView;
 }
 
-const KEYS = KEY_BINDINGS.map((b) => deviceLabel(b.device)).join(" ");
+/** Each keyboard rider's fire key, then its direction keys: `SPACE (WASD) · H (IJKL) · …`. */
+const KEYS = KEY_BINDINGS.map(
+  (b) => `${b.fire} (${deviceLabel(b.device)})`,
+).join(" · ");
 
 const pips = ({ match }: MatchInfo, slot: number): string =>
   `<span class="pips">${Array.from(
@@ -34,8 +37,13 @@ function slotCard(lobby: Lobby, slot: number, seat: Seat | undefined): string {
     return `<div class="slot off" data-action="players:${slot + 1}"><div class="castle"></div><b>OPEN</b><small>CLICK TO ADD A BOT</small></div>`;
   const head = `<div class="castle">${castleSvg(seat.color)}</div><b>${seat.name}</b>`;
   const style = `style="--c:${css(seat.color)}"`;
-  if (seat.device)
-    return `<div class="slot human" ${style}>${head}<span class="key">${seat.tag}</span><small>PRESS AGAIN TO LEAVE</small></div>`;
+  if (seat.device) {
+    const fire = fireKeyLabel(seat.device);
+    const leave = fire
+      ? `PRESS ${fire} TO LEAVE`
+      : `${seat.device.startsWith("touch:") ? "TAP FIRE" : "PRESS"} AGAIN TO LEAVE`;
+    return `<div class="slot human" ${style}>${head}<span class="key">${seat.tag}</span><small>${leave}</small></div>`;
+  }
   const next = lobby.devices.indexOf(undefined) === slot;
   const level = button(
     `bot:${slot}`,
@@ -52,8 +60,8 @@ export function lobbyHtml(lobby: Lobby, touch: boolean): string {
     slotCard(lobby, slot, seats[slot]),
   ).join("");
   const join = touch
-    ? "TAP JOIN BELOW, PRESS A KEY OR A GAMEPAD BUTTON TO JOIN"
-    : `PRESS YOUR BUTTON TO JOIN: ${KEYS} OR ANY GAMEPAD BUTTON`;
+    ? "TAP JOIN ON YOUR SIDE, OR PRESS FIRE ON A KEYBOARD OR GAMEPAD"
+    : `FIRE TO JOIN: ${KEYS} · PAD BUTTONS`;
   const start = seats.some((s) => s.device) ? "START" : "WATCH BOTS";
   return `<div class="panel lobby">
   <h1>FUSE BOMBERS</h1>
@@ -65,8 +73,8 @@ export function lobbyHtml(lobby: Lobby, touch: boolean): string {
     ${button("bots", "ALL BOTS", "B")}
   </div>
   ${button("start", start, "ENTER", "start")}
-  <p>ONE BUTTON EACH: PRESS TO FIRE AS THE LAUNCHER SWEEPS · ESC${touch ? ", II" : ""} OR PAD START PAUSES</p>
-  <p>GAMEPADS: START BEGINS, OR HOLD YOUR BUTTON FOR A SECOND</p>
+  <p>FIRE AS THE LAUNCHER TURNS · UP TO FOUR RIDERS PER KEYBOARD${touch ? ", TWO PER TOUCH SCREEN" : ""} · ESC${touch ? ", II" : ""} OR PAD START PAUSES</p>
+  <p>GAMEPADS: STICK OR D-PAD, ANY FACE BUTTON FIRES · START BEGINS, OR HOLD FIRE FOR A SECOND</p>
 </div>`;
 }
 

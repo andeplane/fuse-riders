@@ -1,28 +1,47 @@
 // The round simulation: `createRound` builds the initial state, `step` advances it one tick.
 
+import { botInput, createBotMemory, validateBots } from "./bot.js";
+import { atan2, cos, hypot, sin } from "./det-math.js";
 import {
-  arcFor,
   castleCenter,
+  CRATE_BOB,
   crateYAt,
   DEG,
   gatePositionAt,
-  ghostPositionAt,
+  GHOST_SKY,
   insideGate,
   integrate,
   isOffscreen,
+  launcherPivot,
   launchState,
+  TAU,
+  turnLauncher,
 } from "./geometry.js";
-import { everyPairReachable } from "./reach.js";
+import {
+  flyStep,
+  GHOST_FLIGHT,
+  GUNSHIP_FLIGHT,
+  placeClear,
+  separate,
+  type FlightWorld,
+} from "./flight.js";
+import {
+  carveCircle,
+  cellSolid,
+  segmentHit,
+  solidAt,
+  type Grid,
+  type ReadGrid,
+} from "./grid.js";
+import { DOWN, FIRE, isInput, LEFT, RIGHT, UP } from "./input.js";
 import { hashSeed, int, random, range, weighted } from "./rng.js";
 import {
-  carveCrater,
-  castlePositions,
-  generateTerrain,
-  highestGround,
-  surfaceAt,
-} from "./terrain.js";
+  buildTempleGrid,
+  skyZones,
+  spawnOrder,
+  type Rect,
+} from "./temple-map.js";
 import {
-  ARENA_WIDTH,
   CARDS,
   DT,
   MAX_PLAYERS,
@@ -30,6 +49,7 @@ import {
   resolveTuning,
   secondsToTicks,
   SUBSTEPS,
+  WORLD_WIDTH,
   type Card,
   type Tuning,
 } from "./tuning.js";
@@ -50,6 +70,22 @@ import type {
 
 const NO_GATES: readonly number[] = [];
 const NO_GATE_LIST: readonly Gate[] = [];
+const STEER = UP | DOWN | LEFT | RIGHT;
+
+/** Flight's view of each round's grid, made once per grid object (a clone gets its own), so no step allocates one. */
+const worlds = new WeakMap<ReadGrid, FlightWorld>();
+function terrainWorld(grid: ReadGrid): FlightWorld {
+  let world = worlds.get(grid);
+  if (!world) {
+    world = {
+      width: grid.width,
+      height: grid.height,
+      solidAt: (x, y) => solidAt(grid, x, y),
+    };
+    worlds.set(grid, world);
+  }
+  return world;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Creation
@@ -63,22 +99,22 @@ export function createRound(config: RoundConfig): RoundState {
   }
   if (!Number.isFinite(config.seed))
     throw new RangeError("seed must be a finite number");
+  const seats = validateBots(config.bots, n);
   const tuning = resolveTuning(config.tuning);
-  const { holder, spots, terrain } = generateArena(config.seed, n, tuning);
-
+  // The temple, with the gunships at rest at a spread set of its spawn anchors.
+  const terrain = buildTempleGrid();
   const hp = tuning.castleHp[n] ?? 200;
-  const castles: Castle[] = spots.map(({ x, y }, id) => ({
+  const castles: Castle[] = spawnOrder(n, config.seed).map(({ x, y }, id) => ({
     id,
     x,
     y,
+    vx: 0,
+    vy: 0,
+    thrust: 0,
     hp,
     maxHp: hp,
     alive: true,
     angle: 0,
-    arcMin: 0,
-    arcMax: 0,
-    sweepDir: 1,
-    facing: "both",
     reloadTicks: secondsToTicks(tuning.initialReload),
     reloadTotalTicks: secondsToTicks(tuning.initialReload),
     reloadTime: tuning.reloadTime,
@@ -89,7 +125,6 @@ export function createRound(config: RoundConfig): RoundState {
     volleyAngle: 0,
     volleyMega: false,
     volleyCooldown: 0,
-    fallSpeed: 0,
     lastHitBy: -1,
     stats: {
       volleys: 0,
@@ -102,6 +137,8 @@ export function createRound(config: RoundConfig): RoundState {
       ghostDamage: 0,
     },
   }));
+  for (const c of castles)
+    placeClear(c, GUNSHIP_FLIGHT.shape, terrainWorld(terrain));
 
   const state: RoundState = {
     config,
@@ -117,19 +154,19 @@ export function createRound(config: RoundConfig): RoundState {
     gates: [],
     crates: [],
     ghosts: [],
+    lastHeld: castles.map(() => 0),
+    bots: seats.map((s) =>
+      createBotMemory(s, config.seed, castles[s.id] ?? { x: 0, y: 0 }),
+    ),
     events: [],
     nextCrateTick: secondsToTicks(tuning.firstCrateDelay),
     nextBombTick: 0,
     nextId: 1,
-    rng: holder.rng,
+    rng: hashSeed(config.seed, 0x7e3a1e),
   };
 
-  for (const c of castles) {
-    updateArc(state, c, true);
-    // Start somewhere random on the arc so castles do not tick in lockstep.
-    c.angle = range(state, c.arcMin, c.arcMax);
-    c.sweepDir = random(state) < 0.5 ? 1 : -1;
-  }
+  // Start each launcher somewhere random on its circle so castles do not turn in lockstep.
+  for (const c of castles) c.angle = range(state, 0, TAU);
   const gateCount = tuning.gateCounts[n] ?? 3;
   for (let i = 0; i < gateCount; i++) {
     // Stagger initial lifetimes so gates do not all respawn at once.
@@ -137,36 +174,6 @@ export function createRound(config: RoundConfig): RoundState {
   }
   state.events = [];
   return state;
-}
-
-/** Arena attempts before `createRound` settles for the last one (peaks shrink as attempts fail). */
-const ARENA_ATTEMPTS = 12;
-
-/**
- * Castle spots and terrain for a seed. An arena where some castle could never hit some other castle
- * (at spawn, or in the duel the two would end up in) is re-rolled with a derived seed, and after a
- * few failures the peaks are lowered, so every seed deterministically yields a fair arena.
- */
-function generateArena(seed: number, n: number, tuning: Tuning) {
-  let arena;
-  for (let attempt = 0; attempt < ARENA_ATTEMPTS; attempt++) {
-    const holder = { rng: hashSeed(seed, 0x5eed + attempt) };
-    const xs = castlePositions(holder, n);
-    const peakScale = Math.max(0, 1 - 0.1 * Math.max(0, attempt - 3));
-    const terrain = generateTerrain(holder, xs, peakScale);
-    const spots = xs.map((x) => ({
-      x,
-      y: highestGround(
-        terrain,
-        x - tuning.castleHalfWidth,
-        x + tuning.castleHalfWidth,
-      ),
-    }));
-    arena = { holder, spots, terrain };
-    if (everyPairReachable(terrain, tuning, spots)) break;
-  }
-  if (!arena) throw new Error("unreachable: no arena attempts");
-  return arena;
 }
 
 /** The read-only view of a round (the same object, typed so consumers cannot mutate it). */
@@ -187,9 +194,13 @@ export function ghostOf(
   return state.ghosts.find((g) => g.owner === owner);
 }
 
-/** True when the ghost would drop a bomb if its button were pressed this tick. */
-export function isGhostLoaded(g: GhostView): boolean {
-  return g.reloadTicks === 0;
+/**
+ * True when the ghost would drop a bomb on a fire press this tick: it is reloaded and the blimp is in the open. A
+ * bomb released inside rock would blow up at the drop point that very step, so the press is ignored (and the reload
+ * kept) until the blimp, which flies through rock, comes out of it. Pass the round's `terrain`.
+ */
+export function isGhostLoaded(g: GhostView, terrain: ReadGrid): boolean {
+  return g.reloadTicks === 0 && !solidAt(terrain, g.x, g.y);
 }
 
 /** Fuse progress in [0, 1] (1 = burnt out, sudden death). */
@@ -206,16 +217,43 @@ export function damageScale(state: RoundView): number {
 // ---------------------------------------------------------------------------------------------
 // Step
 
+/** Seat `id`'s input bits this step: `held[id]` when it is valid input (`isInput`), else 0 (nothing held). */
+function bitsOf(held: readonly number[], id: number): number {
+  const bits = held[id];
+  return isInput(bits) ? bits | 0 : 0; // `| 0` turns -0 into 0, so the state never holds -0
+}
+
+/** Whether seat `id`'s fire button went down this step: `FIRE` held now and not on the latest step. */
+function firePressed(
+  state: RoundState,
+  held: readonly number[],
+  id: number,
+): boolean {
+  const before = state.lastHeld[id] ?? 0;
+  return (bitsOf(held, id) & FIRE) !== 0 && (before & FIRE) === 0;
+}
+
+/** `held` with each bot seat's entry replaced by the bits its bot holds (what `held` says for a bot seat is ignored). */
+function withBots(state: RoundState, held: readonly number[]): number[] {
+  const input = state.castles.map((c) => bitsOf(held, c.id));
+  for (const m of state.bots) input[m.id] = botInput(state, m);
+  return input;
+}
+
 /**
- * Advances the round by one tick. `pressed[i]` is true when player i's button went down this
- * tick (edge, not level). Mutates `state` in place and returns this tick's events (also stored on
- * `state.events`). Stepping a finished round keeps rockets flying for the aftermath but no longer
+ * Advances the round by one tick. `held[i]` is the input bits player i holds this tick (`UP | DOWN | LEFT | RIGHT |
+ * FIRE` from input.ts); a missing entry, or one that is not an integer of those bits, holds nothing. The seats
+ * `config.bots` names hold what their bots decide (`botInput`, from the state before this step), whatever `held`
+ * says. The directions steer the gunship (or the ghost), and a fire press is the rising edge of `FIRE` against the previous step's bits,
+ * so holding fire never fires again. Mutates `state` in place and returns this tick's events (also stored on
+ * `state.events`). Stepping a finished round keeps rockets and gunships flying for the aftermath but no longer
  * fires, damages or changes the result.
  */
 export function step(
   state: RoundState,
-  pressed: readonly boolean[] = [],
+  held: readonly number[] = [],
 ): readonly TickEvent[] {
+  const input = state.bots.length > 0 ? withBots(state, held) : held;
   state.events = [];
   const tick = state.tick;
 
@@ -225,13 +263,15 @@ export function step(
     state.events.push({ type: "sudden-death-started", tick });
   }
 
-  updateCastles(state, pressed);
-  updateGhosts(state, pressed);
+  updateCastles(state, input);
+  flyGunships(state, input);
+  updateGhosts(state, input);
+  for (let id = 0; id < state.lastHeld.length; id++)
+    state.lastHeld[id] = bitsOf(input, id);
   updateGates(state);
   updateCrates(state);
   if (state.phase === "sudden-death") dropBombs(state);
   updateRockets(state);
-  settleCastles(state);
   checkRoundOver(state);
 
   state.tick = tick + 1;
@@ -241,38 +281,20 @@ export function step(
 // ---------------------------------------------------------------------------------------------
 // Castles
 
-/** Castles aim at the side(s) where living opponents are; the arc narrows as the field thins. */
-function updateArc(state: RoundState, c: Castle, force = false): void {
-  let left = false;
-  let right = false;
-  for (const o of state.castles) {
-    if (o === c || !o.alive) continue;
-    if (o.x < c.x) left = true;
-    else right = true;
-  }
-  if (!left && !right) return;
-  const facing = left && right ? "both" : left ? "left" : "right";
-  if (!force && facing === c.facing) return;
-  c.facing = facing;
-  [c.arcMin, c.arcMax] = arcFor(facing, state.tuning);
-  c.angle = Math.min(c.arcMax, Math.max(c.arcMin, c.angle));
-}
-
 function volleyInterval(c: Castle, t: Tuning): number {
   const fit = Math.floor(t.volleyMaxTime / DT / Math.max(1, c.units));
   return Math.max(2, Math.min(t.volleyIntervalTicks, fit));
 }
 
-function updateCastles(state: RoundState, pressed: readonly boolean[]): void {
+function updateCastles(state: RoundState, held: readonly number[]): void {
   const t = state.tuning;
   const tick = state.tick;
   const over = state.phase === "over";
   for (const c of state.castles) {
     if (!c.alive) continue;
-    updateArc(state, c);
 
-    // Fire at the angle the player saw when pressing (the angle after the previous tick).
-    if (!over && pressed[c.id] === true && isLoaded(c)) {
+    // Fire at the angle the player saw when pressing, and from where the ship was then (flight comes after).
+    if (!over && firePressed(state, held, c.id) && isLoaded(c)) {
       c.volleyLeft = c.units;
       c.volleyAngle = c.angle;
       c.volleyMega = c.megaReady;
@@ -301,31 +323,27 @@ function updateCastles(state: RoundState, pressed: readonly boolean[]): void {
       }
     }
 
-    sweep(c, t);
+    c.angle = turnLauncher(c.angle, t);
     if (c.reloadTicks > 0) c.reloadTicks--;
   }
 }
 
-/** Advances a launcher angle by one tick of its metronome sweep. */
-function sweep(
-  c: Pick<Castle, "angle" | "sweepDir" | "arcMin" | "arcMax" | "facing">,
-  t: Tuning,
-): void {
-  const sweepTime = c.facing === "both" ? t.sweepTimeWide : t.sweepTimeNarrow;
-  c.angle += (c.sweepDir * (c.arcMax - c.arcMin) * DT) / sweepTime;
-  if (c.angle >= c.arcMax) {
-    c.angle = Math.max(c.arcMin, 2 * c.arcMax - c.angle);
-    c.sweepDir = -1;
-  } else if (c.angle <= c.arcMin) {
-    c.angle = Math.min(c.arcMax, 2 * c.arcMin - c.angle);
-    c.sweepDir = 1;
+/** Every living gunship flies one step on its held directions; then overlapping ones are parted, in seat order. */
+function flyGunships(state: RoundState, held: readonly number[]): void {
+  const world = terrainWorld(state.terrain);
+  for (const c of state.castles) {
+    if (!c.alive) continue;
+    c.thrust = bitsOf(held, c.id) & STEER;
+    flyStep(c, c.thrust, GUNSHIP_FLIGHT, world);
   }
+  const living = state.castles.filter((c) => c.alive);
+  separate(living, GUNSHIP_FLIGHT.shape, world);
 }
 
 /**
- * The launcher angle a castle will have after `ticks` more steps, assuming its arc does not change
- * (it only changes when a castle dies). `futureAngle(state, id, 0)` is the current angle, the one a
- * press on the next step fires at. Bots use this to plan around their reaction time.
+ * The launcher angle a castle will have after `ticks` more steps (it turns at a steady rate, so this is
+ * exact, bit for bit). `futureAngle(state, id, 0)` is the current angle, the one a press on the next
+ * step fires at. Bots use this to plan around their reaction time.
  */
 export function futureAngle(
   state: RoundView,
@@ -334,15 +352,9 @@ export function futureAngle(
 ): number {
   const c = state.castles[castleId];
   if (!c) throw new RangeError(`no castle ${castleId}`);
-  const probe = {
-    angle: c.angle,
-    sweepDir: c.sweepDir,
-    arcMin: c.arcMin,
-    arcMax: c.arcMax,
-    facing: c.facing,
-  };
-  for (let i = 0; i < ticks; i++) sweep(probe, state.tuning);
-  return probe.angle;
+  let angle = c.angle;
+  for (let i = 0; i < ticks; i++) angle = turnLauncher(angle, state.tuning);
+  return angle;
 }
 
 function launchRocket(state: RoundState, c: Castle): void {
@@ -352,7 +364,7 @@ function launchRocket(state: RoundState, c: Castle): void {
   const speed =
     t.launchSpeed * (1 + range(state, -t.speedJitter, t.speedJitter));
   const l = launchState(c, t, angle, speed);
-  state.rockets.push({
+  const rocket: Rocket = {
     id: state.nextId++,
     owner: c.id,
     x: l.x,
@@ -365,27 +377,19 @@ function launchRocket(state: RoundState, c: Castle): void {
     ghost: false,
     gates: NO_GATES,
     age: 0,
-  });
+  };
   c.stats.rocketsFired++;
-}
-
-function settleCastles(state: RoundState): void {
-  const t = state.tuning;
-  for (const c of state.castles) {
-    const ground = highestGround(
-      state.terrain,
-      c.x - t.castleHalfWidth,
-      c.x + t.castleHalfWidth,
-    );
-    if (c.y < ground) {
-      c.fallSpeed += t.castleFallGravity * DT;
-      c.y = Math.min(ground, c.y + c.fallSpeed * DT);
-    }
-    if (c.y >= ground) {
-      c.y = ground;
-      c.fallSpeed = 0;
-    }
+  // Rock on the barrel (pivot to tip: a gunship flown up against a wall) stops the rocket where the barrel enters
+  // it, so it blows up on the near face instead of starting beyond the wall.
+  const pivot = launcherPivot(c, t);
+  const wall = segmentHit(state.terrain, pivot.x, pivot.y, l.x, l.y);
+  if (!wall) {
+    state.rockets.push(rocket);
+    return;
   }
+  rocket.x = wall.x;
+  rocket.y = wall.y;
+  explode(state, rocket);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -394,26 +398,20 @@ function settleCastles(state: RoundState): void {
 function spawnGhost(state: RoundState, c: Castle): void {
   const t = state.tuning;
   if (!t.ghosts || state.ghosts.some((g) => g.owner === c.id)) return;
-  const minX = t.ghostMargin;
-  const maxX = ARENA_WIDTH - t.ghostMargin;
-  const x0 = Math.min(maxX, Math.max(minX, c.x));
   const reload = secondsToTicks(t.ghostFirstReload);
   const ghost: Ghost = {
     owner: c.id,
-    x: x0,
-    y: t.ghostY,
+    // At rest above the wreck (inside the world's edges), in play from the next step.
+    x: c.x,
+    y: Math.max(t.ghostMargin, c.y - t.ghostRise),
     vx: 0,
+    vy: 0,
+    thrust: 0,
     reloadTicks: reload,
     reloadTotalTicks: reload,
-    // It is at `x0` when the next step starts (see `ghostPositionAt`).
     spawnTick: state.tick + 1,
-    x0,
-    // Head for the middle of the arena first.
-    speed: x0 < ARENA_WIDTH / 2 ? t.ghostSpeed : -t.ghostSpeed,
-    minX,
-    maxX,
   };
-  ghost.vx = ghost.speed;
+  placeClear(ghost, GHOST_FLIGHT.shape, GHOST_SKY);
   state.ghosts.push(ghost);
   state.events.push({
     type: "ghost-spawned",
@@ -424,14 +422,19 @@ function spawnGhost(state: RoundState, c: Castle): void {
   });
 }
 
-function updateGhosts(state: RoundState, pressed: readonly boolean[]): void {
+function updateGhosts(state: RoundState, held: readonly number[]): void {
   for (const g of state.ghosts) {
+    // A ghost born this step (from a barrel blast) plays from the next one.
+    if (g.spawnTick > state.tick) continue;
     // Drop from where the player saw the blimp (its position after the previous tick).
-    if (state.phase !== "over" && pressed[g.owner] === true && isGhostLoaded(g))
+    if (
+      state.phase !== "over" &&
+      firePressed(state, held, g.owner) &&
+      isGhostLoaded(g, state.terrain)
+    )
       dropGhostBomb(state, g);
-    const p = ghostPositionAt(g, state.tick + 1);
-    g.x = p.x;
-    g.vx = p.vx;
+    g.thrust = bitsOf(held, g.owner) & STEER;
+    flyStep(g, g.thrust, GHOST_FLIGHT, GHOST_SKY);
     if (g.reloadTicks > 0) g.reloadTicks--;
   }
 }
@@ -448,7 +451,7 @@ function dropGhostBomb(state: RoundState, g: Ghost): void {
     x: g.x,
     y: g.y,
     vx: g.vx,
-    vy: t.ghostBombSpeed,
+    vy: g.vy + t.ghostBombSpeed,
     power: 1,
     mega: false,
     bomb: false,
@@ -491,106 +494,142 @@ function ghostBombHit(
 // ---------------------------------------------------------------------------------------------
 // Gates and crates
 
-function sideBounds(state: RoundState, inset: number): [number, number] {
-  const first = state.castles[0];
-  const last = state.castles[state.castles.length - 1];
-  const lo = (first?.x ?? 0) + inset;
-  const hi = (last?.x ?? ARENA_WIDTH) - inset;
-  return hi > lo ? [lo, hi] : [ARENA_WIDTH / 2 - 1, ARENA_WIDTH / 2 + 1];
+/** Tries per gate or crate at finding a spot in the sky before giving up until later. */
+const PLACE_ATTEMPTS = 16;
+/** Gates and crates prefer to keep this far from a living castle's hit circle. */
+const CASTLE_CLEARANCE = 60;
+/** A gate refill or a crate is tried again this often (in ticks, 0.5 s) when the sky had no room. */
+const PLACE_RETRY_TICKS = 30;
+
+/** Whether two boxes are at least `gap` apart along one axis (so they do not overlap). */
+function apart(a: Rect, b: Rect, gap: number): boolean {
+  return (
+    a.x1 + gap <= b.x0 ||
+    b.x1 + gap <= a.x0 ||
+    a.y1 + gap <= b.y0 ||
+    b.y1 + gap <= a.y0
+  );
 }
 
-type Span = readonly [number, number];
-
-/** `[lo, hi]` minus the open `blocked` spans, as disjoint spans. */
-function freeSpans(lo: number, hi: number, blocked: readonly Span[]): Span[] {
-  let free: Span[] = [[lo, hi]];
-  for (const [a, b] of blocked) {
-    free = free.flatMap(([l, h]): Span[] => {
-      if (b <= l || a >= h) return [[l, h]];
-      const out: Span[] = [];
-      if (a > l) out.push([l, a]);
-      if (b < h) out.push([b, h]);
-      return out;
-    });
-  }
-  return free;
+/** Whether no rock cell touches the box. */
+function clearOfRock(grid: Grid, b: Rect): boolean {
+  const c = grid.cell;
+  for (let row = Math.floor(b.y0 / c); row * c < b.y1; row++)
+    for (let col = Math.floor(b.x0 / c); col * c < b.x1; col++)
+      if (cellSolid(grid, col, row)) return false;
+  return true;
 }
 
-const spanLength = (spans: readonly Span[]): number =>
-  spans.reduce((sum, [l, h]) => sum + h - l, 0);
+/** Whether the box keeps `CASTLE_CLEARANCE` from every living castle's hit circle. */
+function clearOfCastles(state: RoundState, b: Rect): boolean {
+  const reach = state.tuning.castleRadius + CASTLE_CLEARANCE;
+  return state.castles.every((c) => {
+    if (!c.alive) return true;
+    const dx = Math.max(b.x0 - c.x, 0, c.x - b.x1);
+    const dy = Math.max(b.y0 - c.y, 0, c.y - b.y1);
+    return dx * dx + dy * dy >= reach * reach;
+  });
+}
 
-/** A uniformly random point of `spans` (one RNG draw). */
-function pickIn(state: RoundState, spans: readonly Span[]): number {
-  let u = range(state, 0, spanLength(spans));
-  for (const [l, h] of spans) {
-    if (u <= h - l) return l + u;
-    u -= h - l;
-  }
-  return spans[spans.length - 1]?.[1] ?? ARENA_WIDTH / 2;
+/** The area a gate sweeps while drifting between `minX` and `maxX` and bobbing round `baseY`. */
+export function gateBox(
+  g: Pick<Gate, "minX" | "maxX" | "baseY" | "width" | "height" | "bobAmp">,
+): Rect {
+  return {
+    x0: g.minX - g.width / 2,
+    y0: g.baseY - g.height / 2 - g.bobAmp,
+    x1: g.maxX + g.width / 2,
+    y1: g.baseY + g.height / 2 + g.bobAmp,
+  };
+}
+
+/** The area a crate covers while bobbing. */
+export function crateBox(k: Pick<Crate, "x" | "baseY" | "radius">): Rect {
+  return {
+    x0: k.x - k.radius,
+    y0: k.baseY - k.radius - CRATE_BOB,
+    x1: k.x + k.radius,
+    y1: k.baseY + k.radius + CRATE_BOB,
+  };
+}
+
+/** A sky zone that fits a `w × h` box, picked with odds by area (one RNG draw), or undefined if none fits. */
+function pickZone(state: RoundState, w: number, h: number): Rect | undefined {
+  const fits = skyZones.filter((z) => z.x1 - z.x0 >= w && z.y1 - z.y0 >= h);
+  if (fits.length === 0) return undefined;
+  return weighted(state, fits, (z) => (z.x1 - z.x0) * (z.y1 - z.y0));
 }
 
 /**
- * Every gate drifts in its own lane `[minX, maxX]`, at least `gateSpacing` from every other live
- * gate's lane, so two gates never overlap. A lane is at most `1/count` of the sky minus the
- * spacing, which always leaves room for one more lane. Drifting clear of crates and spawning clear
- * of castles are preferences, dropped when there is no room.
+ * Seeded spots in the map's sky zones until one is free: `make` turns a zone into a candidate and its box, which
+ * must hold no rock and pass `free`. A spot that also keeps clear of the castles wins; otherwise the first free
+ * one does, even when that puts it right over a castle: with 16 tries all near castles, a crate or gate on top of one
+ * is intended (a crate there is just a card for whoever's rocket touches it, a gate a multiplier), better than none.
+ * Undefined when the sky has no room (the caller tries again later).
  */
-function spawnGate(state: RoundState, lifeFraction = 1): void {
+function placeInSky<S>(
+  state: RoundState,
+  size: readonly [number, number],
+  make: (zone: Rect) => { spot: S; box: Rect },
+  free: (box: Rect) => boolean,
+): S | undefined {
+  let fallback: S | undefined;
+  for (let attempt = 0; attempt < PLACE_ATTEMPTS; attempt++) {
+    const zone = pickZone(state, size[0], size[1]);
+    if (!zone) return undefined;
+    const { spot, box } = make(zone);
+    if (!free(box) || !clearOfRock(state.terrain, box)) continue;
+    if (clearOfCastles(state, box)) return spot;
+    fallback ??= spot;
+  }
+  return fallback;
+}
+
+/**
+ * A gate drifts and bobs inside one sky zone, in a box that holds no rock and keeps `gateSpacing` from every
+ * other live gate's box and clear of the crates present when it spawns (crates avoid gates in turn), so gates
+ * never overlap rock, each other or crates. Keeping clear of castles is a preference.
+ */
+function spawnGate(state: RoundState, lifeFraction = 1): boolean {
   const t = state.tuning;
-  const [leftX, rightX] = sideBounds(state, 130);
-  const lanes = state.gates.map((g): Span => [
-    g.minX - t.gateSpacing,
-    g.maxX + t.gateSpacing,
-  ]);
-  const crates = state.crates.map((k): Span => [
-    k.x - k.radius - t.gateWidth,
-    k.x + k.radius + t.gateWidth,
-  ]);
-  const castles = state.castles.map((c): Span => [c.x - 90, c.x + 90]);
-  let free = freeSpans(leftX, rightX, [...lanes, ...crates]);
-  if (spanLength(free) <= 0) free = freeSpans(leftX, rightX, lanes);
-  if (spanLength(free) <= 0) free = [[leftX, rightX]]; // only with extreme tuning
-  let spawnable = free.flatMap(([l, h]) => freeSpans(l, h, castles));
-  if (spanLength(spawnable) <= 0) spawnable = free;
-  const x0 = pickIn(state, spawnable);
-  const lane = free.find(([l, h]) => l <= x0 && x0 <= h) ?? [x0, x0];
-  const count = t.gateCounts[state.castles.length] ?? 3;
-  const half = Math.min(
-    t.gateDriftRange,
-    Math.max(0, (rightX - leftX) / count - t.gateSpacing) / 2,
+  const [w, h, bob] = [t.gateWidth, t.gateHeight, t.gateBobAmp];
+  const gates = state.gates.map(gateBox);
+  const crates = state.crates.map(crateBox);
+  const spot = placeInSky(
+    state,
+    [w, h + 2 * bob],
+    (zone) => {
+      const half = Math.min(t.gateDriftRange, (zone.x1 - zone.x0 - w) / 2);
+      const cx = range(state, zone.x0 + w / 2 + half, zone.x1 - w / 2 - half);
+      const baseY = range(state, zone.y0 + h / 2 + bob, zone.y1 - h / 2 - bob);
+      const [minX, maxX] = [cx - half, cx + half];
+      const shape = { minX, maxX, baseY, width: w, height: h, bobAmp: bob };
+      return { spot: { minX, maxX, baseY }, box: gateBox(shape) };
+    },
+    (box) =>
+      gates.every((g) => apart(g, box, t.gateSpacing)) &&
+      crates.every((k) => apart(k, box, 10)),
   );
-  const minX = Math.max(lane[0], x0 - half);
-  const maxX = Math.min(lane[1], x0 + half);
-  const ground = highestGround(
-    state.terrain,
-    minX - t.gateWidth,
-    maxX + t.gateWidth,
-  );
-  const loY = 110;
-  const hiY = Math.max(
-    loY,
-    Math.min(470, ground - t.gateHeight / 2 - t.gateBobAmp - 25),
-  );
+  if (!spot) return false;
   const { multiplier } = weighted(state, t.gateMultipliers, (m) => m.weight);
   const life = range(state, t.gateLife[0], t.gateLife[1]) * lifeFraction;
   const gate: Gate = {
     id: state.nextId++,
     multiplier,
-    x: x0,
+    x: 0,
     y: 0,
-    width: t.gateWidth,
-    height: t.gateHeight,
+    width: w,
+    height: h,
     spawnTick: state.tick,
     expireTick: state.tick + Math.max(1, secondsToTicks(life)),
-    x0,
+    x0: range(state, spot.minX, spot.maxX),
     vx:
       range(state, t.gateDriftSpeed[0], t.gateDriftSpeed[1]) *
       (random(state) < 0.5 ? -1 : 1),
-    minX,
-    maxX,
-    // Prefer the band rockets actually fly through rather than the very top of the sky.
-    baseY: range(state, Math.max(loY, hiY - 260), hiY),
-    bobAmp: t.gateBobAmp,
+    minX: spot.minX,
+    maxX: spot.maxX,
+    baseY: spot.baseY,
+    bobAmp: bob,
     bobPeriodTicks: secondsToTicks(t.gateBobPeriod * range(state, 0.8, 1.2)),
     bobPhase: range(state, 0, Math.PI * 2),
   };
@@ -604,6 +643,7 @@ function spawnGate(state: RoundState, lifeFraction = 1): void {
     gateId: gate.id,
     multiplier,
   });
+  return true;
 }
 
 function updateGates(state: RoundState): void {
@@ -623,36 +663,48 @@ function updateGates(state: RoundState): void {
     g.x = p.x;
     g.y = p.y;
   }
-  for (let i = 0; i < expired; i++) spawnGate(state);
+  // Expired gates respawn at once; gates that found no room earlier try again every so often.
+  const count = state.tuning.gateCounts[state.castles.length] ?? 5;
+  const retry = tick % PLACE_RETRY_TICKS === 0;
+  const missing = count - state.gates.length;
+  for (let i = 0; i < missing && (i < expired || retry); i++)
+    if (!spawnGate(state)) break;
 }
 
-function spawnCrate(state: RoundState): void {
+/**
+ * A crate bobs in a sky zone, clear of rock, of every live gate's box and of other crates. Returns false when the sky
+ * had no room.
+ */
+function spawnCrate(state: RoundState): boolean {
   const t = state.tuning;
-  const [leftX, rightX] = sideBounds(state, 90);
-  let x = range(state, leftX, rightX);
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const clear =
-      state.castles.every((c) => Math.abs(c.x - x) > 80) &&
-      state.crates.every((k) => Math.abs(k.x - x) > 120) &&
-      state.gates.every((g) => Math.abs(g.x - x) > 50);
-    if (clear) break;
-    x = range(state, leftX, rightX);
-  }
-  const ground = highestGround(
-    state.terrain,
-    x - t.crateRadius,
-    x + t.crateRadius,
+  const r = t.crateRadius;
+  const gates = state.gates.map(gateBox);
+  const crates = state.crates.map(crateBox);
+  const spot = placeInSky(
+    state,
+    [2 * r, 2 * (r + CRATE_BOB)],
+    (zone) => {
+      const x = range(state, zone.x0 + r, zone.x1 - r);
+      const baseY = range(
+        state,
+        zone.y0 + r + CRATE_BOB,
+        zone.y1 - r - CRATE_BOB,
+      );
+      return { spot: { x, baseY }, box: crateBox({ x, baseY, radius: r }) };
+    },
+    (box) =>
+      gates.every((g) => apart(g, box, 10)) &&
+      crates.every((k) => apart(k, box, 100)),
   );
-  const loY = 130;
-  const hiY = Math.max(loY, Math.min(520, ground - t.crateRadius - 50));
+  if (!spot) return false;
   const card = weighted(state, CARDS, (c) => t.cardWeights[c]);
   const crate: Crate = {
     id: state.nextId++,
     card,
-    x,
+    x: spot.x,
     y: 0,
-    radius: t.crateRadius,
-    baseY: range(state, loY, hiY),
+    radius: r,
+    baseY: spot.baseY,
     bobPhase: range(state, 0, Math.PI * 2),
     spawnTick: state.tick,
   };
@@ -663,9 +715,10 @@ function spawnCrate(state: RoundState): void {
     tick: state.tick,
     crateId: crate.id,
     card,
-    x,
+    x: crate.x,
     y: crate.y,
   });
+  return true;
 }
 
 function updateCrates(state: RoundState): void {
@@ -676,10 +729,12 @@ function updateCrates(state: RoundState): void {
     state.crates.length < max &&
     state.tick >= state.nextCrateTick
   ) {
-    spawnCrate(state);
+    // A sky with no room (rock carved away, gates in the way) is tried again soon, not after a full respawn wait.
     state.nextCrateTick =
       state.tick +
-      secondsToTicks(range(state, t.crateRespawn[0], t.crateRespawn[1]));
+      (spawnCrate(state)
+        ? secondsToTicks(range(state, t.crateRespawn[0], t.crateRespawn[1]))
+        : PLACE_RETRY_TICKS);
   }
   for (const k of state.crates)
     k.y = crateYAt(k.baseY, k.bobPhase, k.spawnTick, state.tick);
@@ -723,14 +778,14 @@ function dropBombs(state: RoundState): void {
   if (!target) return;
   const scatter = t.bombScatter[0] + (t.bombScatter[1] - t.bombScatter[0]) * u;
   const x = Math.min(
-    ARENA_WIDTH - 10,
+    WORLD_WIDTH - 10,
     Math.max(10, target.x + range(state, -scatter, scatter)),
   );
   state.rockets.push({
     id: state.nextId++,
     owner: -1,
     x,
-    y: -30,
+    y: bombStartY(state.terrain, x, target.y, t.bombHeight),
     vx: range(state, -40, 40),
     vy: range(state, 40, 120),
     power: 1,
@@ -740,6 +795,21 @@ function dropBombs(state: RoundState): void {
     gates: NO_GATES,
     age: 0,
   });
+}
+
+/**
+ * Where a sudden-death bomb above a castle at height `y` appears: `height` above it, but never above the top of the
+ * world, and just under the rock when the column above the castle has a ceiling.
+ */
+export function bombStartY(
+  grid: ReadGrid,
+  x: number,
+  y: number,
+  height: number,
+): number {
+  const top = Math.max(grid.cell, y - height);
+  const roof = segmentHit(grid, x, y, x, top);
+  return roof && roof.t > 0 ? roof.y + grid.cell / 2 : top;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -783,18 +853,18 @@ function simulateRocket(
 ): boolean {
   const t = state.tuning;
   const terrain = state.terrain;
-  const halfH = t.castleHeight / 2;
   const shieldR = t.shieldRadius + t.rocketRadius;
   const castleR = t.castleRadius + t.rocketRadius;
   const crateR = t.crateRadius + t.rocketRadius;
   for (let s = 0; s < SUBSTEPS; s++) {
+    const [px, py] = [r.x, r.y];
     integrate(r, t.gravity);
     if (isOffscreen(r.x, r.y, terrain.width, terrain.height)) return false;
 
     for (const c of state.castles) {
       if (!c.alive || c.id === r.owner) continue;
       const dx = r.x - c.x;
-      const dy = r.y - (c.y - halfH);
+      const dy = r.y - c.y;
       const d2 = dx * dx + dy * dy;
       if (
         (c.shieldHp > 0 && d2 < shieldR * shieldR) ||
@@ -807,7 +877,11 @@ function simulateRocket(
       }
     }
 
-    if (r.y >= surfaceAt(terrain, r.x)) {
+    // Rock anywhere along this sub-step's path stops the rocket where it enters.
+    const rock = segmentHit(terrain, px, py, r.x, r.y);
+    if (rock) {
+      r.x = rock.x;
+      r.y = rock.y;
       explode(state, r);
       return false;
     }
@@ -889,8 +963,8 @@ function splitRocket(
   });
   if (created === 0) return;
 
-  const speed = Math.hypot(r.vx, r.vy);
-  const dir = Math.atan2(r.vy, r.vx);
+  const speed = hypot(r.vx, r.vy);
+  const dir = atan2(r.vy, r.vx);
   const fan = Math.min(t.splitFanMaxDeg, t.splitFanPerChildDeg * (n - 1)) * DEG;
   const slots = created + 1;
   const parentSlot = Math.floor(created / 2);
@@ -899,8 +973,8 @@ function splitRocket(
     const v =
       speed * (1 + range(state, -t.splitSpeedJitter, t.splitSpeedJitter));
     if (j === parentSlot) {
-      r.vx = Math.cos(a) * v;
-      r.vy = Math.sin(a) * v;
+      r.vx = cos(a) * v;
+      r.vy = sin(a) * v;
       continue;
     }
     born.push({
@@ -908,8 +982,8 @@ function splitRocket(
       owner: r.owner,
       x: r.x,
       y: r.y,
-      vx: Math.cos(a) * v,
-      vy: Math.sin(a) * v,
+      vx: cos(a) * v,
+      vy: sin(a) * v,
       power: r.power,
       mega: r.mega,
       bomb: r.bomb,
@@ -936,7 +1010,7 @@ function explode(state: RoundState, r: Rocket): void {
   let dealt = 0;
   for (const c of state.castles) {
     if (!c.alive || c.id === r.owner) continue;
-    const center = castleCenter(c, t);
+    const center = castleCenter(c);
     const dx = r.x - center.x;
     const dy = r.y - center.y;
     if (dx * dx + dy * dy >= reach * reach) continue;
@@ -970,7 +1044,7 @@ function crater(
   radius: number,
   owner: number,
 ): boolean {
-  const changed = carveCrater(state.terrain, x, y, radius);
+  const changed = carveCircle(state.terrain, x, y, radius);
   if (!changed) return false;
   state.events.push({
     type: "crater",
@@ -979,8 +1053,10 @@ function crater(
     x,
     y,
     radius,
-    x0: changed.x0,
-    x1: changed.x1,
+    col0: changed.col0,
+    row0: changed.row0,
+    col1: changed.col1,
+    row1: changed.row1,
   });
   return true;
 }
@@ -1030,6 +1106,7 @@ function damageCastle(
   c.alive = false;
   c.shieldHp = 0;
   c.volleyLeft = 0;
+  c.vx = c.vy = c.thrust = 0;
   if (attacker && attacker !== c) attacker.stats.kills++;
   state.events.push({
     type: "castle-destroyed",
@@ -1039,7 +1116,8 @@ function damageCastle(
     x: c.x,
     y: c.y,
   });
-  crater(state, c.x, c.y - 8, state.tuning.wreckCraterRadius, owner);
+  // The wreck blows a big crater where it flew (harmless in open air).
+  crater(state, c.x, c.y, state.tuning.wreckCraterRadius, owner);
   spawnGhost(state, c);
   return amount;
 }

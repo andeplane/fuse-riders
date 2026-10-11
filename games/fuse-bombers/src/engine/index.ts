@@ -1,9 +1,13 @@
 // Public entry point of the Fuse Bombers engine. Everything outside src/engine/ imports from here.
 // See docs/engine.md for the contract.
 
+/**
+ * The rules online peers compare (`<prefix>-<n>`): a change to how a logged room plays bumps `n` and re-records
+ * the golden replay (`tests/online-golden.test.ts`) in the same commit.
+ */
+export const RULES = "fuse-bombers-1";
+
 export {
-  ARENA_HEIGHT,
-  ARENA_WIDTH,
   CARDS,
   DEFAULT_TUNING,
   DT,
@@ -11,6 +15,8 @@ export {
   MIN_PLAYERS,
   SUBSTEPS,
   TICK_HZ,
+  WORLD_HEIGHT,
+  WORLD_WIDTH,
   resolveTuning,
   secondsToTicks,
 } from "./tuning.js";
@@ -28,8 +34,10 @@ export {
   view,
 } from "./round.js";
 export { predictGhostBomb, predictTrajectory } from "./predict.js";
-export { BOT_DIFFICULTIES, createBot } from "./bot.js";
-export type { Bot, BotConfig, BotDifficulty } from "./bot.js";
+export * from "./input.js";
+export { GHOST_FLIGHT, GUNSHIP_FLIGHT } from "./flight.js";
+export { BOT_DIFFICULTIES } from "./bot.js";
+export type { BotDifficulty, BotMemory, BotSeat } from "./bot.js";
 export type {
   ImpactKind,
   PredictOptions,
@@ -45,7 +53,15 @@ export {
   launcherPivot,
   launchState,
 } from "./geometry.js";
-export { surfaceAt } from "./terrain.js";
+export {
+  cellHard,
+  cellSolid,
+  gridHash,
+  hardAt,
+  segmentHit,
+  solidAt,
+} from "./grid.js";
+export type { CellRect, Grid } from "./grid.js";
 
 export type {
   Castle,
@@ -64,7 +80,6 @@ export type {
   RoundResult,
   RoundState,
   RoundView,
-  Terrain,
   TerrainView,
   TickEvent,
   TickEventType,

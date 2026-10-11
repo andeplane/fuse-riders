@@ -1,168 +1,187 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createBot,
-  ghostOf,
-  isGhostLoaded,
-  isLoaded,
+  createMatch,
+  createRound,
+  FIRE,
+  GUNSHIP_FLIGHT,
+  LEFT,
+  segmentHit,
+  step,
   TICK_HZ,
   type BotDifficulty,
+  type RoundConfig,
   type RoundState,
 } from "../src/engine/index.js";
+import { circleOverlapsSolid } from "../src/engine/grid.js";
+import { buildTempleGrid, TEMPLE_FLYWAY } from "../src/engine/temple-map.js";
 import { fingerprint, playOut } from "./engine-helpers.js";
 
-// Headless bot checks. Bots press the same one button as humans; these pin that the difficulties
-// are ordered, that bot-only rounds finish, and that bots behave (deterministic, no wasted presses).
+// Bots inside the round (`RoundConfig.bots`, memory in `state.bots`): they fly and fight, keep off rock, are ordered
+// by difficulty, stay cheap, and a clone (what rollback restores) carries everything a bot remembers.
 
-/** An input script where castle `id` is played by a bot of `kinds[id]`. */
-function botInputs(seed: number, kinds: readonly BotDifficulty[]) {
-  const bots = kinds.map((difficulty, playerId) =>
-    createBot({ difficulty, playerId, seed }),
+const botRound = (seed: number, ...kinds: BotDifficulty[]): RoundConfig => ({
+  seed,
+  playerCount: kinds.length,
+  bots: kinds.map((difficulty, id) => ({ id, difficulty })),
+});
+const nobody = () => [];
+const gap = ({ castles: [a, b] }: RoundState) =>
+  Math.hypot(a!.x - b!.x, a!.y - b!.y);
+
+test("bot seats are validated, and what held says for them is ignored", () => {
+  // prettier-ignore
+  const bad = [{}, [{ id: 2, difficulty: "easy" }], [{ id: -1, difficulty: "easy" }], [{ id: 0.5, difficulty: "hard" }],
+    [{ id: 0, difficulty: "easy" }, { id: 0, difficulty: "hard" }], [{ id: 1, difficulty: "insane" }], [{ id: 1 }], [null],
+    Array(1)];
+  for (const bots of bad) {
+    const config = { seed: 1, playerCount: 2, bots } as unknown as RoundConfig;
+    assert.throws(() => createRound(config), RangeError, JSON.stringify(bots));
+    assert.throws(() => createMatch(config), RangeError, JSON.stringify(bots));
+  }
+  // prettier-ignore
+  const a = createRound({ seed: 3, playerCount: 4, bots: [{ id: 2, difficulty: "hard" }, { id: 0, difficulty: "easy" },
+    { id: 3, difficulty: "normal" }], tuning: { castleHp: [0, 0, 0, 0, 40] } });
+  assert.deepEqual(
+    a.bots.map((m) => m.id + m.difficulty),
+    ["0easy", "2hard", "3normal"],
   );
-  const log = { presses: 0, pressedWhileBusy: 0 };
-  const inputs = (state: RoundState): boolean[] =>
-    bots.map((bot, id) => {
-      const press = bot(state);
-      if (press) {
-        log.presses++;
-        // An eliminated bot presses for its ghost bomber.
-        const ghost = ghostOf(state, id);
-        const ready = ghost
-          ? isGhostLoaded(ghost)
-          : isLoaded(state.castles[id] ?? state.castles[0]!);
-        if (!ready) log.pressedWhileBusy++;
-      }
-      return press;
-    });
-  return { inputs, log };
-}
-
-test("hard bots clearly beat easy bots head to head", () => {
-  let hardWins = 0;
-  const rounds = 12;
-  for (let seed = 1; seed <= rounds; seed++) {
-    const hard = seed % 2; // swap sides every round
-    const kinds: BotDifficulty[] = hard ? ["easy", "hard"] : ["hard", "easy"];
-    const s = playOut({ seed, playerCount: 2 }, botInputs(seed, kinds).inputs);
-    if (s.result?.winner === hard) hardWins++;
+  const b = structuredClone(a);
+  while (!a.result) {
+    step(a, [0, LEFT, 0]);
+    step(b, [FIRE | LEFT, LEFT, NaN, 31]);
   }
-  assert.ok(hardWins >= 9, `hard won only ${hardWins}/${rounds}`);
+  const flew = a.ghosts.some((g) => g.owner !== 1 && g.spawnTick < a.tick - 60);
+  assert.ok(flew, "a bot's ghost flew");
+  assert.equal(fingerprint(b), fingerprint(a));
 });
 
-test("bot-only 6-player rounds end within the time limit", () => {
-  const mixes: BotDifficulty[][] = [
-    ["hard", "hard", "hard", "hard", "hard", "hard"],
-    ["easy", "normal", "hard", "easy", "normal", "hard"],
-  ];
-  for (const [i, kinds] of mixes.entries()) {
-    const seed = 40 + i;
-    const s = playOut({ seed, playerCount: 6 }, botInputs(seed, kinds).inputs);
-    assert.ok(s.result, `mix ${i} did not end`);
-    assert.notEqual(s.result.reason, "timeout", `mix ${i} hit the hard stop`);
-    assert.ok(s.result.tick / TICK_HZ <= 180);
-  }
-});
-
-test("bots only press when loaded, and fire regularly", () => {
-  for (const difficulty of ["easy", "normal", "hard"] as const) {
-    const { inputs, log } = botInputs(5, [difficulty, difficulty, difficulty]);
-    const s = playOut({ seed: 5, playerCount: 3 }, inputs);
-    assert.equal(log.pressedWhileBusy, 0, `${difficulty} pressed while busy`);
-    const volleys = s.castles.reduce(
-      (n, c) => n + c.stats.volleys + c.stats.ghostBombs,
-      0,
-    );
-    assert.equal(volleys, log.presses, `${difficulty}: a press did not fire`);
-    // Reload is 2.6 s; a purposeful bot still fires at least every ~6 s on average.
-    for (const c of s.castles.filter((c) => c.alive)) {
-      const seconds = s.tick / TICK_HZ;
-      assert.ok(
-        c.stats.volleys >= seconds / 6,
-        `${difficulty}: ${c.stats.volleys} volleys in ${seconds}s`,
-      );
+test("bots fly at each other from across the map, fire and hit", () => {
+  for (const seed of [5, 6]) {
+    const s = createRound(botRound(seed, "normal", "normal"));
+    const start = gap(s);
+    let closest = start;
+    while (!s.result && s.tick < 60 * TICK_HZ) {
+      step(s);
+      closest = Math.min(closest, gap(s));
     }
+    assert.ok(start > 1500 && closest < 800, `${start} px, closest ${closest}`);
+    for (const c of s.castles)
+      assert.ok(c.stats.volleys > 3 && c.stats.damageDealt > 0, `${c.id}`);
   }
 });
 
-test("bots are deterministic given the seed", () => {
-  const kinds: BotDifficulty[] = ["hard", "normal", "easy"];
-  const a = playOut({ seed: 9, playerCount: 3 }, botInputs(9, kinds).inputs);
-  const b = playOut({ seed: 9, playerCount: 3 }, botInputs(9, kinds).inputs);
-  assert.equal(fingerprint(a), fingerprint(b));
+test("bots keep off rock: they seldom touch it and never hug it for long", () => {
+  const rim = GUNSHIP_FLIGHT.shape.radius + 2; // rock this near the hull centre touches it
+  for (const seed of [1, 2, 3]) {
+    const s = createRound(
+      botRound(seed, "hard", "normal", "easy", "hard", "normal", "easy"),
+    );
+    const streak = s.castles.map(() => 0);
+    let [touching, flying, longest] = [0, 0, 0];
+    while (!s.result) {
+      step(s);
+      for (const c of s.castles) {
+        if (!c.alive) continue;
+        flying++;
+        const touch = circleOverlapsSolid(s.terrain, c.x, c.y, rim);
+        streak[c.id] = touch ? streak[c.id]! + 1 : 0;
+        if (touch) touching++;
+        longest = Math.max(longest, streak[c.id]!);
+      }
+    }
+    assert.ok(touching / flying < 0.02, `seed ${seed}: ${touching}/${flying}`);
+    assert.ok(longest < TICK_HZ, `seed ${seed}: ${longest} ticks on rock`);
+  }
 });
 
-const ALL: readonly BotDifficulty[] = ["easy", "normal", "hard"];
+test("better bots beat worse ones in most seeded duels", () => {
+  const pairs = [
+    ["hard", "easy"],
+    ["normal", "easy"],
+    ["hard", "normal"],
+  ] as const;
+  for (const [better, worse] of pairs) {
+    let wins = 0;
+    for (let seed = 1; seed <= 12; seed++) {
+      const seat = seed % 2; // swap seats every round
+      const s = playOut(
+        botRound(seed, ...(seat ? [worse, better] : [better, worse])),
+        nobody,
+      );
+      if (s.result?.winner === seat) wins++;
+    }
+    assert.ok(wins >= 9, `${better} beat ${worse} only ${wins}/12`);
+  }
+});
 
-/** A frozen deep copy of the state, as an app handing out snapshots might pass it. */
-function snapshot(state: RoundState): RoundState {
-  const freeze = (o: unknown): void => {
-    if (typeof o !== "object" || o === null || ArrayBuffer.isView(o)) return;
-    Object.freeze(o);
-    for (const v of Object.values(o)) freeze(v);
+test("bots press only when loaded: every press fires a volley or drops a bomb", () => {
+  for (const kind of ["easy", "normal", "hard"] as const) {
+    let presses = 0;
+    const s = createRound(botRound(8, kind, kind, kind, kind));
+    while (!s.result) {
+      const before = [...s.lastHeld];
+      step(s);
+      for (const [id, bits] of s.lastHeld.entries())
+        if (bits & FIRE && !(before[id]! & FIRE)) presses++;
+    }
+    let fired = 0;
+    for (const c of s.castles) fired += c.stats.volleys + c.stats.ghostBombs;
+    assert.ok(presses > 20, `${kind}: ${presses} presses`);
+    assert.equal(fired, presses, `${kind}: a press did not fire`);
+  }
+});
+
+test("rollback: a clone taken mid-round, bot memory and all, continues bit for bit", () => {
+  // A human steers seat 0 by a script; the engine plays the other three.
+  const config: RoundConfig = {
+    seed: 77,
+    playerCount: 4,
+    bots: [1, 2, 3].map((id) => ({ id, difficulty: "hard" as const })),
   };
-  const copy = structuredClone(state);
-  freeze(copy);
-  return copy;
-}
-
-/** Plays rounds back to back with one set of bots, each fed `view(state)`; returns fingerprints. */
-function playMatch(
-  rounds: readonly number[],
-  kinds: readonly BotDifficulty[],
-  view: (state: RoundState) => RoundState = (s) => s,
-) {
-  const bots = kinds.map((difficulty, playerId) =>
-    createBot({ difficulty, playerId, seed: 3 }),
-  );
-  const presses = kinds.map(() => 0);
-  const prints = rounds.map((seed) =>
-    fingerprint(
-      playOut({ seed, playerCount: kinds.length }, (state) => {
-        const v = view(state);
-        return bots.map((bot, id) => {
-          const press = bot(v);
-          if (press) presses[id]!++;
-          return press;
-        });
-      }),
-    ),
-  );
-  return { prints, presses };
-}
-
-test("bots handed a fresh copy of the view every tick play exactly as with the live state", () => {
-  // Round 2 has a new seed; round 3 repeats it, so only the tick going backwards marks it as new.
-  const rounds = [11, 12, 12];
-  const live = playMatch(rounds, ALL);
-  const copied = playMatch(rounds, ALL, snapshot);
-  for (const [id, n] of copied.presses.entries())
-    assert.ok(n > 0, `${ALL[id]} bot never pressed on copied views`);
-  assert.deepEqual(copied.presses, live.presses, "press counts differ");
-  assert.deepEqual(copied.prints, live.prints, "rounds differ");
+  const script = (s: RoundState) => [
+    ((s.tick >> 6) & 15) | (s.tick % 50 ? 0 : FIRE),
+  ];
+  const s = createRound(config);
+  const clones: RoundState[] = [];
+  let pending = false;
+  while (s.tick < 3600 && !s.result) {
+    // Odd ticks across the round, and the first a bot waits to press (mid-plan).
+    const waiting: boolean =
+      !pending && s.bots.some((m) => m.pressTick > s.tick);
+    if (s.tick % 613 === 101 || waiting) clones.push(structuredClone(s));
+    pending ||= waiting;
+    step(s, script(s));
+  }
+  assert.ok(pending && clones.length >= 4);
+  assert.deepEqual(JSON.parse(JSON.stringify(s.bots)), s.bots, "plain data");
+  for (const c of clones) {
+    const from = c.tick;
+    while (c.tick < s.tick) step(c, script(c));
+    assert.equal(fingerprint(c), fingerprint(s), `replayed from tick ${from}`);
+  }
 });
 
-test("bots never mutate the state they are shown", () => {
-  const kinds: BotDifficulty[] = ["easy", "normal", "hard", "hard"];
-  const bots = kinds.map((difficulty, playerId) =>
-    createBot({ difficulty, playerId, seed: 4 }),
-  );
-  playOut({ seed: 4, playerCount: kinds.length }, (state) => {
-    const before = fingerprint(state);
-    const pressed = bots.map((bot) => bot(state));
-    assert.equal(fingerprint(state), before, `mutated at tick ${state.tick}`);
-    return pressed;
-  });
+test("cost: six hard bots flying and fighting stay cheap (a runaway check, not a benchmark)", () => {
+  const s = createRound(botRound(3, ...Array<BotDifficulty>(6).fill("hard")));
+  const start = performance.now();
+  while (!s.result) step(s);
+  const perStep = (performance.now() - start) / s.tick;
+  // About 0.05 ms a step on a desktop (preview/step-cost.ts); 2 ms only catches a runaway.
+  assert.ok(perStep < 2, `${perStep.toFixed(3)} ms a step`);
 });
 
-test("a bot reused across rounds plays each round like a fresh bot", () => {
-  const kinds: BotDifficulty[] = ["hard", "easy"];
-  // New seed, and the same seed again (the reset must then come from the tick going backwards).
-  for (const [first, second] of [
-    [1, 2],
-    [2, 2],
-  ] as const) {
-    const reused = playMatch([first, second], kinds).prints[1];
-    const fresh = playMatch([second], kinds).prints[0];
-    assert.equal(reused, fresh, `round ${first} leaked into round ${second}`);
+test("the flyway: open sky with room, each point in sight of the next along a gunship-wide lane", () => {
+  const grid = buildTempleGrid();
+  for (const [i, a] of TEMPLE_FLYWAY.entries()) {
+    const b = TEMPLE_FLYWAY[(i + 1) % TEMPLE_FLYWAY.length]!;
+    assert.ok(!circleOverlapsSolid(grid, a.x, a.y, 100), `point ${i}`);
+    const [dx, dy] = [b.x - a.x, b.y - a.y];
+    const d = Math.hypot(dx, dy);
+    for (const side of [-40, 0, 40]) {
+      const [ox, oy] = [(-dy / d) * side, (dx / d) * side];
+      const hit = segmentHit(grid, a.x + ox, a.y + oy, b.x + ox, b.y + oy);
+      assert.equal(hit, null, `point ${i} to the next`);
+    }
   }
 });
