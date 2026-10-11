@@ -112,9 +112,10 @@ export const RUN_STEPS: Readonly<Record<HeroKind, number>> = {
 };
 /**
  * Steps the throw shows its heave, the body over the hero's head, from the step it leaves the hands; the toss
- * follows through to the throw's end.
+ * follows through to the throw's end. A quarter of the throw, rounded up so that it counts whole steps whatever the
+ * engine tunes the throw to.
  */
-export const HEAVE_STEPS = THROW_STEPS / 4;
+export const HEAVE_STEPS = Math.ceil(THROW_STEPS / 4);
 const WALK = ["walk0", "walk1", "walk2", "walk3", "walk4", "walk5"] as const;
 const RUN = ["run0", "run1", "run2", "run3", "run4", "run5"] as const;
 const SWING = [

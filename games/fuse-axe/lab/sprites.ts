@@ -88,9 +88,17 @@ function cellFor(
 }
 
 const params = new URLSearchParams(location.search);
-const only = params.get("frames")?.split(",");
+// `?frames=` with no names asks for no filter; a name no figure has is said so, not left to show an empty page.
+const names = (params.get("frames") ?? "").split(",").filter(Boolean);
+const only = names.length > 0 ? new Set(names) : undefined;
+const known = new Set<string>(
+  Object.values(FIGURES).flatMap((figure) => figure.frames),
+);
+const unknown = names.filter((name) => !known.has(name));
+if (unknown.length > 0)
+  add(main, "p", `No figure has a frame named ${unknown.join(", ")}.`);
 for (const [name, figure] of Object.entries(FIGURES)) {
-  const frames = figure.frames.filter((frame) => only?.includes(frame) ?? true);
+  const frames = figure.frames.filter((frame) => only?.has(frame) ?? true);
   if (frames.length === 0) continue;
   const section = add(main, "section");
   add(section, "h2", `${name} · ${frames.length} frames at 3× and 1×`);
@@ -103,6 +111,9 @@ for (const [name, figure] of Object.entries(FIGURES)) {
     cell.append(big(sprite).image, small(sprite).image);
   });
 }
+
+/** Steps the jump attack's reel flies before Attack is pressed in the air; the jump's arc goes on from there. */
+const LEAP_STEPS = 4;
 
 /** Each reel plays anims in turn for so many steps, `anim:steps`; the combo chains each swing as its blade ends. */
 function reels({ swings, back, dash }: HeroTiming): Record<string, string> {
@@ -118,7 +129,7 @@ function reels({ swings, back, dash }: HeroTiming): Record<string, string> {
     combo: `attack1:${c1} attack2:${c2} attack3:${a3} idle:30`,
     run: "run:72",
     dash: `run:24 dash:${dash.active + dash.recovery} idle:20`,
-    "jump attack": "jump:4 jumpattack:36 land:8 idle:24",
+    "jump attack": `jump:${LEAP_STEPS} jumpattack:36 land:8 idle:24`,
     "back attack": `backattack:${back.startup + back.active + back.recovery} idle:24`,
     "grab, throw": `grab:${GRAB_STEPS} throw:${THROW_STEPS} idle:24`,
     hurt: "hurt:20 idle:30",
@@ -153,7 +164,7 @@ function playOut(spec: string, pace: Paces) {
         anim === "jump"
           ? arc(step, 3.7)
           : anim === "jumpattack"
-            ? arc(step + 4, 3.7)
+            ? arc(step + LEAP_STEPS, 3.7)
             : anim === "knockdown"
               ? arc(step, 2.5)
               : 0;

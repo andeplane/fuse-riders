@@ -172,6 +172,11 @@ export function sprint(
   frames: number,
   { reach, lift, dip }: { reach: number; lift: number; dip: number },
 ): PoseChanges<Pose> {
+  // A cycle that a third and a half of it do not fall on whole frames of would drift the planted foot, with no error.
+  if (!Number.isInteger(frames / 6) || frames < 6)
+    throw new RangeError(
+      `A sprint's frames are a multiple of 6, not ${frames}`,
+    );
   const centre = (pose.far.hip[0] + pose.near.hip[0]) / 2;
   // Where a foot is along the cycle, counted in whole frames so a third of it falls exactly on a frame.
   const foot = (shift: number): Point => {
