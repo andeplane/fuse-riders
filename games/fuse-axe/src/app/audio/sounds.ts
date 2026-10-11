@@ -134,3 +134,9 @@ export const SOUNDS = {
 /** Everything the page can hear: a swing (one a hero), a hit, a hero's moment, a wave's or a stage's. */
 export type Cue = keyof typeof SOUNDS;
 export const CUES = Object.keys(SOUNDS) as Cue[];
+
+/** The most voices sounding at once: a crowded fight lets the sounds it has no room for go. */
+export const MAX_VOICES = 32;
+/** Whether `sound` may start with `live` voices sounding: past the cap an effect is dropped, a jingle always sounds. */
+export const fits = (sound: Sound, live: number): boolean =>
+  sound.channel === "music" || live + sound.voices.length <= MAX_VOICES;

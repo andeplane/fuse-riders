@@ -1,15 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CueTracker, type Heard } from "../src/app/audio/cues.js";
+import { CueTracker, ECHO_STEPS, type Heard } from "../src/app/audio/cues.js";
 import { AxeAudio, type AudioBackend } from "../src/app/audio/director.js";
 import {
   CUES,
+  MAX_VOICES,
   SOUNDS,
+  fits,
   hz,
   melody,
   type Sound,
 } from "../src/app/audio/sounds.js";
 import { keys } from "../src/app/session.js";
+import { BACK_ATTACK, COMBO, DASH, THROW_STEPS } from "../src/engine/tuning.js";
 import type * as V from "../src/engine/view.js";
 
 const hero = (extra: Partial<V.HeroView> = {}): V.HeroView => ({
@@ -67,6 +70,29 @@ test("each hero swings with its own whoosh, once across the frames that show it"
   ).map((cue) => SOUNDS[cue].voices[0]!);
   assert.ok(rhea!.freq > brakka!.freq && brakka!.freq > gorm!.freq);
   assert.ok(rhea!.dur < brakka!.dur && brakka!.dur < gorm!.dur);
+});
+
+test("a real second swing is never taken for a rollback's echo: no move takes less than the echo window to repeat", () => {
+  // The fewest steps a hero is busy with one swing, dash or throw before it can begin the same again.
+  const busy = [
+    ...Object.values(COMBO).flat(),
+    ...Object.values(BACK_ATTACK),
+  ].map((move) => move.startup + move.active + move.recovery);
+  busy.push(...Object.values(DASH).map((dash) => dash.active + dash.recovery));
+  busy.push(THROW_STEPS);
+  assert.ok(Math.min(...busy) >= ECHO_STEPS, `${Math.min(...busy)} steps`);
+  // And a swing's second sounds even with the first heard a window and a step before.
+  const at = (step: number, anim: V.HeroAnim, animStep: number) =>
+    heroes(step, hero({ anim, animStep }));
+  assert.deepEqual(
+    hear([
+      at(30, "idle", 9),
+      at(33, "attack1", 0),
+      at(33 + ECHO_STEPS, "idle", 9),
+      at(36 + ECHO_STEPS, "attack1", 0),
+    ]),
+    [[], ["swing-brakka"], [], ["swing-brakka"]],
+  );
 });
 
 test("a swing a rollback corrects away and shows again sounds once; one begun long ago is history", () => {
@@ -197,7 +223,78 @@ test("the stage flow: GO, the continue clock's seconds, game over, and a won run
   assert.deepEqual(
     late.next(frame(null, { matchId: "r2" })),
     ["go"],
-    "memory is bounded: the oldest run's GO is forgotten",
+    "a run's one-off moments are forgotten with it",
+  );
+});
+
+test("a run's one-off moments are never heard twice, however many runs came before it", () => {
+  const ears = new CueTracker();
+  /** Lobby, the stage's GO, four waves locking, clearing and calling GO, and the last wave's fanfare. */
+  const script = (matchId: string): Heard[] => {
+    const at = (step: number, extra: Partial<V.WorldView>, stage = "running") =>
+      frame(world(step, extra), { matchId, stage: stage as Heard["stage"] });
+    const waves = [1, 2, 3, 4].flatMap((wave) => [
+      at(10 * wave, { wave, locked: true }),
+      at(10 * wave + 3, { wave }),
+      at(10 * wave + 6, { wave, go: true }),
+    ]);
+    return [
+      frame(null, { matchId, round: 0, stage: "lobby" }),
+      at(0, {}),
+      ...waves,
+      at(60, { wave: 4, cleared: true }, "between"),
+    ];
+  };
+  for (let i = 0; i < 40; i++) {
+    const [lobby, ...run] = script(`m${i}`);
+    ears.next(lobby!);
+    const first = run.flatMap((each) => ears.next(each));
+    assert.equal(first.length, 14, `run ${i}: GO, 4 × 3 wave cues, fanfare`);
+    // A rollback runs the same frames again: every moment has been heard.
+    assert.deepEqual(
+      run.flatMap((each) => ears.next(each)),
+      [],
+      `run ${i} again`,
+    );
+  }
+});
+
+test("a page that opens mid-fight does not hear the sparks already flying; the next blow sounds", () => {
+  assert.deepEqual(
+    hear([
+      frame(world(300, { fx: [spark(2)] })),
+      frame(world(303, { fx: [spark(5)] })),
+      frame(world(306, { fx: [spark(8)] })),
+      frame(world(309, { fx: [spark(11), spark(0, { x: 400 })] })),
+    ]),
+    [[], [], [], ["hit"]],
+  );
+});
+
+test("two blows on one hero in quick succession each grunt; a blow a rollback shows again grunts once", () => {
+  const at = (step: number, hp: number) =>
+    heroes(step, hero({ anim: "hurt", animStep: 1, hp }));
+  assert.deepEqual(
+    hear([
+      at(30, 60),
+      at(33, 50), // a blow
+      at(36, 44), // another, a tick later
+      at(39, 60), // both corrected away
+      at(42, 50), // the first again
+      at(45, 44), // and the second
+    ]),
+    [[], ["hurt"], ["hurt"], [], [], []],
+  );
+});
+
+test("a crowded fight sounds only so many voices: an effect past the cap is dropped, a jingle never", () => {
+  assert.ok(fits(SOUNDS.hit, 0));
+  assert.ok(fits(SOUNDS.hit, MAX_VOICES - SOUNDS.hit.voices.length));
+  assert.ok(!fits(SOUNDS.hit, MAX_VOICES - SOUNDS.hit.voices.length + 1));
+  assert.ok(fits(SOUNDS.fanfare, MAX_VOICES * 2));
+  assert.ok(
+    CUES.every((cue) => SOUNDS[cue].voices.length <= MAX_VOICES / 2),
+    "no one cue needs more than half the cap",
   );
 });
 
@@ -309,6 +406,19 @@ test("MUSIC and EFFECTS are kept for the next page, and each silences only its o
     "play:gameover",
   ]);
   assert.equal(store.data.get(NAMES.effects), "1");
+});
+
+test("a backend that fails costs a sound, never the frame", () => {
+  const { backend, audio } = setUp();
+  audio.unlock();
+  let tried = 0;
+  backend.play = () => {
+    tried++;
+    throw new Error("the audio graph is gone");
+  };
+  audio.frame(frame(world(0)));
+  assert.doesNotThrow(() => audio.frame(swing(3)));
+  assert.deepEqual([tried, audio.heard], [1, 1], "it tried; the page heard");
 });
 
 test("a hidden tab is silent until it is shown again", () => {
