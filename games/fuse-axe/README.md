@@ -48,9 +48,12 @@ of every pad.
 Sound is synthesised in the browser, with nothing to load: every cue is found by diffing the frames the page is shown
 (`src/app/audio/cues.ts`), never by the simulation, and plays after the first key or tap. Stage 1 marches to a short
 chiptune loop in A minor (`src/app/audio/music.ts`) that ducks under GO and the stage-clear fanfare and stops in the
-lobby and at the run's end. **♫ MUSIC** (the loop and the jingles) and **EFFECTS** in the header are this browser's
-choices and are kept; `?mute` silences the page without touching them. With a shared screen the TV sounds for the
-room and a phone that is only a controller stays quiet.
+lobby and at the run's end. Every later enemy, beast and boss has its moments (a lancer's leap, a drake's flame, an
+ogre's slam and its shockwave, a bonewalker clattering to a pile, Vorhal's pillars of fire and his roar), as do riding,
+each level of a Magic charge and each spell; the loudest duck the loop. Stages 2–4 open on a horn of their own, a boss's
+health bar on a sting, and a won run ends on a victory fanfare after the last stage's. **♫ MUSIC** (the loop and the
+jingles) and **EFFECTS** in the header are this browser's choices and are kept; `?mute` silences the page without
+touching them. With a shared screen the TV sounds for the room and a phone that is only a controller stays quiet.
 
 ![Solo with ?mute: the sound toggles greyed out in the header](docs/images/app-sound-toggles.png)
 
