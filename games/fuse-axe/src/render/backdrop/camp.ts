@@ -10,7 +10,9 @@ import { dither, hash, Raster, type Brush, type StageArt } from "./kit.js";
 
 const FLOOR = FLOOR_TOP_PX;
 const SKY = [0x05030c, 0x090616, 0x0f0a22, 0x17102e, 0x21173a, 0x2c1f44];
-const GRASS = [0x120d1c, 0x1a1426, 0x221a2e, 0x2b2034, 0x3a2a36, 0x5a3c34];
+const GRASS = [
+  0x120d1c, 0x1a1426, 0x221a2e, 0x2b2034, 0x3a2a36, 0x5a3c34,
+] as const;
 const TREE = 0x0a0812;
 const TREE_EDGE = 0x161024;
 const HILL = 0x110c1e;
@@ -136,8 +138,10 @@ function fire(brush: Brush, frame: number) {
     const rx = FIRE.reach * 0.8 * ring,
       ry = 22 * ring;
     for (let y = -ry; y < ry; y += 2) {
-      const half = Math.round(rx * Math.sqrt(1 - ((y + 1) / ry) ** 2));
-      brush.fillRect(FIRE.x - half, Math.round(FIRE.y + y), 2 * half, 2);
+      const across = Math.min(1, Math.abs(y + 1) / ry),
+        half = Math.round(rx * Math.sqrt(1 - across * across));
+      if (half > 0)
+        brush.fillRect(FIRE.x - half, Math.round(FIRE.y + y), 2 * half, 2);
     }
   }
   for (let i = -5; i <= 5; i++) {
