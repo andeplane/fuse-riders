@@ -223,4 +223,4 @@ Small pull requests, each reviewed and merged before the next one that depends o
 7. Sack imps, pots and magic for each hero.
 8. More enemies (lancer, brute), the Ogre twins and the stage flow.
 9. Camp, stages 2–4, mounts, bonewalkers and Vorhal.
-10. Sound effects and music (the effects and the stage jingles are in; the Stage 1 march follows); bot companions.
+10. Sound effects and music (in: the effects, the jingles and the Stage 1 march); bot companions.

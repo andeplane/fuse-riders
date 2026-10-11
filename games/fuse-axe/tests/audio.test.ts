@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { CueTracker, type Heard } from "../src/app/audio/cues.js";
 import { AxeAudio, type AudioBackend } from "../src/app/audio/director.js";
+import { MARCH, Sequencer, song, type Song } from "../src/app/audio/music.js";
 import {
   CUES,
   SOUNDS,
@@ -206,6 +207,9 @@ class FakeBackend implements AudioBackend {
   unlock = () => this.calls.push("unlock");
   play = (sound: Sound) =>
     this.calls.push(`play:${CUES.find((cue) => SOUNDS[cue] === sound)}`);
+  music = (tune: Song | null) =>
+    this.calls.push(`music:${tune?.name ?? "none"}`);
+  duck = (seconds: number) => this.calls.push(`duck:${seconds}`);
   hide = (hidden: boolean) => this.calls.push(`hide:${hidden}`);
   take = () => this.calls.splice(0);
 }
@@ -232,7 +236,7 @@ const swing = (step: number, extra: Partial<Heard> = {}) =>
   );
 const LOBBY = frame(null, { stage: "lobby" });
 
-test("nothing sounds before a gesture; the cues after it play", () => {
+test("nothing sounds before a gesture; the first starts the stage's loop and the cues after it play", () => {
   const { backend, audio } = setUp();
   audio.frame(LOBBY);
   audio.frame(frame(world(0)));
@@ -247,12 +251,48 @@ test("nothing sounds before a gesture; the cues after it play", () => {
   audio.unlock();
   audio.frame(swing(3));
   audio.unlock();
-  assert.deepEqual(backend.take(), ["unlock", "play:swing-brakka", "unlock"]);
+  assert.deepEqual(backend.take(), [
+    "unlock",
+    "music:march",
+    "play:swing-brakka",
+    "unlock",
+  ]);
   assert.equal(audio.state, "on");
   audio.frame(frame(world(30)), true);
   audio.frame(swing(60), true);
-  assert.deepEqual(backend.take(), [], "a controller phone hears, quietly");
+  assert.deepEqual(backend.take(), ["music:none"], "a controller is quiet");
   assert.equal(audio.heard, 3);
+});
+
+test("the loop follows the stage, ducks under the fanfare and stops in the lobby and at the run's end", () => {
+  const { backend, audio } = setUp(),
+    go = ["music:march", "play:go", "duck:0.9"];
+  audio.unlock();
+  audio.frame(LOBBY);
+  assert.deepEqual(backend.take(), ["unlock"]);
+  audio.frame(frame(world(0)));
+  audio.frame(frame(world(3), { stage: "between" }));
+  audio.frame(frame(world(6), { stage: "over", outcome: "victory" }));
+  audio.frame(LOBBY);
+  assert.deepEqual(backend.take(), [
+    ...go,
+    "play:fanfare",
+    "duck:2.2",
+    "music:none",
+  ]);
+  audio.frame(frame(world(0), { matchId: "m2" }));
+  audio.frame(
+    frame(world(3), { matchId: "m2", stage: "over", outcome: "defeat" }),
+  );
+  audio.frame(frame(world(0), { matchId: "m3" }));
+  audio.stop();
+  assert.deepEqual(backend.take(), [
+    ...go,
+    "music:none",
+    "play:gameover",
+    ...go,
+    "music:none",
+  ]);
 });
 
 test("?mute: nothing reaches the backend, the kept choices are never read or written, the toggles do nothing", () => {
@@ -287,7 +327,12 @@ test("MUSIC and EFFECTS are kept for the next page, and each silences only its o
   audio.setEffects(false);
   audio.frame(frame(world(30), { stage: "between" }));
   audio.frame(swing(60, { stage: "between" }));
-  assert.deepEqual(backend.take(), ["unlock", "play:swing-brakka"]);
+  assert.deepEqual(backend.take(), [
+    "unlock",
+    "music:march",
+    "music:none",
+    "play:swing-brakka",
+  ]);
   assert.deepEqual(
     store.log.filter((line) => line.startsWith("set")),
     ["set fuse-axe-music=0", "set fuse-axe-effects=0"],
@@ -303,30 +348,34 @@ test("MUSIC and EFFECTS are kept for the next page, and each silences only its o
     frame(world(3), { matchId: "m3", stage: "over", outcome: "defeat" }),
   );
   assert.deepEqual(backend.take(), [
+    "music:march",
     "play:go",
+    "duck:0.9",
     "play:fanfare",
+    "duck:2.2",
     "play:go",
+    "duck:0.9",
+    "music:none",
     "play:gameover",
   ]);
   assert.equal(store.data.get(NAMES.effects), "1");
 });
 
-test("a hidden tab is silent until it is shown again", () => {
+test("a hidden tab is silent, and shown again comes back to the loop the stage wants", () => {
   const { backend, audio } = setUp();
   audio.unlock();
   audio.frame(frame(world(0)));
   audio.hide(true);
   audio.unlock();
   audio.frame(swing(3));
+  audio.frame(LOBBY);
   assert.equal(audio.state, "hidden");
   audio.hide(false);
   audio.frame(frame(world(30)));
   audio.frame(swing(60));
   assert.deepEqual(backend.take(), [
-    "unlock",
-    "hide:true",
-    "hide:false",
-    "play:swing-brakka",
+    ...["unlock", "music:march", "hide:true", "hide:false", "music:none"],
+    ...["music:march", "play:go", "duck:0.9", "play:swing-brakka"],
   ]);
 });
 
@@ -348,4 +397,49 @@ test("notes and melodies: the jingles play on the music channel, every other cue
     ["fanfare", "gameover"],
   );
   assert.ok(CUES.every((cue) => SOUNDS[cue].voices.length > 0));
+  assert.ok(SOUNDS.fanfare.duck > 1 && SOUNDS.gameover.duck > 1);
+});
+
+test("the march: a 30 to 60 second loop in A minor whose bass never rests", () => {
+  const seconds = MARCH.steps.length * MARCH.step;
+  assert.ok(seconds >= 30 && seconds <= 60, `${seconds} s`);
+  const tones = MARCH.steps
+    .flat()
+    .filter((one) => one.wave !== "noise" && one.wave !== "sine");
+  const pitches = new Set(
+    tones.map((one) => (Math.round(12 * Math.log2(one.freq / 440)) + 120) % 12),
+  );
+  // A B C D E F G and the leading note G#, in semitones above A.
+  assert.deepEqual(
+    [...pitches].sort((a, b) => a - b),
+    [0, 2, 3, 5, 7, 8, 10, 11],
+  );
+  assert.ok(
+    MARCH.steps.every((voices) =>
+      voices.some((one) => one.wave === "triangle"),
+    ),
+  );
+  assert.throws(
+    () => song("short", "a4 a4", "a", "k ."),
+    /short: lead 2, bass 4, drums 2/,
+  );
+});
+
+test("the sequencer hands out each step once, a little ahead, loops, and skips a stall's backlog", () => {
+  const tune = song("t", "a4 c5 e5 a5", "a", "k . s ."),
+    seq = new Sequencer(tune, 0.05),
+    step = tune.step;
+  const times = (list: { at: number }[]) => [
+    ...new Set(list.map((one) => one.at)),
+  ];
+  assert.deepEqual(times(seq.due(0, step + 0.06)), [0.05, 0.05 + step]);
+  assert.deepEqual(seq.due(0.01, step + 0.06), []);
+  assert.deepEqual(times(seq.due(3 * step, step)), [0.05 + 3 * step]);
+  assert.equal(seq.due(4 * step, step)[0]!.voice.freq, 440, "round again");
+  const late = seq.due(100, step);
+  assert.ok(
+    late.length > 0 &&
+      late.every((one) => one.at >= 100 && one.at < 100 + step),
+    "no backlog",
+  );
 });
