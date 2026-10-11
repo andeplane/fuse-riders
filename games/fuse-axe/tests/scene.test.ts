@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { isDeepStrictEqual } from "node:util";
 import {
   ATTACK,
   createWorld,
@@ -120,7 +121,7 @@ import {
   SHADOW_RX,
 } from "../src/render/scene.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
-import { UNLIT } from "../src/render/pixel/palette.js";
+import { pillarSprite, sigilSprite } from "../src/render/vorhal-fx.js";
 import { drawSpark, HIT_STEPS } from "../src/render/sparks.js";
 import {
   paintPixels,
@@ -1400,7 +1401,7 @@ test("the captain draws from his own art in his own colours, and in the saddle d
       assert.ok(ridden(anim, animStep).length >= 2, `${anim} ${animStep}`);
 });
 
-test("Vorhal draws as his own figure in every anim, burning red enraged; his sigils glow on the floor and their pillars burn over the figures, and nothing throws", () => {
+test("Vorhal draws as his own figure in every anim, his sigils glow under the figures and their pillars stand among them by depth, and nothing throws", () => {
   const vorhal = (more: Partial<EnemyView> = {}) =>
     enemy(3, 200, 150, { kind: "vorhal", boss: true, ...more });
   for (const anim of ENEMY_STATES)
@@ -1421,22 +1422,57 @@ test("Vorhal draws as his own figure in every anim, burning red enraged; his sig
       draw(world({ enemies: [vorhal({ enraged, anim: "cast", animStep: 30 })] })).sprites[0]!.image.fills, // prettier-ignore
       fillsOf(VORHAL.sprite("cast"), { swap: enraged ? VORHAL_RAGE : undefined, flash: false, flip: false }), // prettier-ignore
     );
-  // A sigil glows until its pillar erupts, which burns white-hot for its steps, then nothing is left.
-  const fire = (age: number, colour: string, frame = 0) =>
-    draw(world({ sigils: [{ x: 160, y: 140, age }] }), frame).pen.fills.filter(
-      (f) => f.style === colour,
-    );
-  const none = (colour: string, frame = 0) =>
-    draw(world({}), frame).pen.fills.filter((f) => f.style === colour).length;
-  assert.ok(fire(0, UNLIT["~"]!).length > none(UNLIT["~"]!), "its ring");
-  assert.ok(fire(SIGIL.delay - 1, UNLIT.f!).length > none(UNLIT.f!));
-  assert.equal(fire(SIGIL.delay - 1, UNLIT.f!, 4).length, none(UNLIT.f!, 4), "blinking"); // prettier-ignore
-  const pillar = fire(SIGIL.delay + 10, UNLIT.F!);
-  assert.ok(pillar.some((f) => f.h >= 40 && f.y + f.h >= 140), "up from the floor"); // prettier-ignore
-  assert.equal(fire(SIGIL.delay + SIGIL.burn, UNLIT.F!).length, none(UNLIT.F!));
-  for (const age of [-3, 1.5, Number.NaN, 1e9])
-    assert.doesNotThrow(() => fire(age, UNLIT.F!));
-  assert.doesNotThrow(() =>
-    draw(world({ sigils: [{ x: Number.NaN, y: -50, age: 60 }] })),
-  );
+  // Brakka at `y`, `z` up, by a sigil at (160, 140) `age` steps old: where its sigil's and its pillar's blits fall
+  // among the blits, and his.
+  const scene = (
+    age: number,
+    y = 140,
+    sigil = { x: 160, y: 140, age },
+    z = 0,
+  ) => {
+    const { blits } = draw(world({ heroes: [hero(1, 0, 160, y, { z })], sigils: [sigil] })).pen; // prettier-ignore
+    const of = (sprite: Sprite | undefined) =>
+      sprite ? blits.findIndex((b) => isDeepStrictEqual(b.image.fills, fillsOf(sprite))) : -1; // prettier-ignore
+    const idle = BRAKKA.sprite("idle0");
+    return {
+      blits,
+      sigil: of(sigilSprite(age, 0)),
+      pillar: of(pillarSprite(age, 0)),
+      brakka: blits.findIndex((b) => b.image.w === idle.w && b.image.h === idle.h), // prettier-ignore
+    };
+  };
+  // The sigil lies on the floor under him, on its place, through its glow.
+  for (const age of [0, 20, SIGIL.delay - 1]) {
+    const { blits, sigil, pillar, brakka } = scene(age);
+    const s = sigilSprite(age, 0)!;
+    assert.ok(sigil >= 0 && sigil < brakka, `${age}`);
+    assert.deepEqual([blits[sigil]!.dx, blits[sigil]!.dy], [160 - s.ax, 140 - s.ay]); // prettier-ignore
+    assert.equal(pillar, -1);
+  }
+  // Its pillar stands on it among the figures: drawn after one behind it or on its very row (engulfing him), before
+  // one in front.
+  const burning = SIGIL.delay + 10;
+  for (const [y, after] of [
+    [132, true],
+    [140, true],
+    [146, false],
+  ] as const) {
+    const { blits, sigil, pillar, brakka } = scene(burning, y);
+    const p = pillarSprite(burning, 0)!;
+    assert.ok(pillar >= 0 && sigil === -1, `${y}`);
+    assert.equal(pillar > brakka, after, `${y}`);
+    assert.deepEqual([blits[pillar]!.dx, blits[pillar]!.dy], [160 - p.ax, 140 - p.ay]); // prettier-ignore
+  }
+  // It burns whatever is over its row too: Brakka in the air above it is engulfed, not drawn in front of it.
+  for (const z of [1, 20, 36]) {
+    const { pillar, brakka } = scene(burning, 140, { x: 160, y: 140, age: burning }, z); // prettier-ignore
+    assert.ok(pillar > brakka && brakka >= 0, `${z}`);
+  }
+  // Burnt out, nothing is left; an odd age or place draws nothing amiss.
+  const bare = draw(world({ heroes: [hero(1, 0, 160, 140)] })).pen.blits.length;
+  assert.equal(scene(SIGIL.delay + SIGIL.burn).blits.length, bare);
+  for (const age of [-3, 1.5, Number.NaN, 1e9, Infinity])
+    assert.doesNotThrow(() => scene(age));
+  for (const odd of [Number.NaN, -50, 1e9])
+    assert.doesNotThrow(() => scene(burning, 140, { x: odd, y: odd, age: burning })); // prettier-ignore
 });
