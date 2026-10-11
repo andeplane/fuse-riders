@@ -2,6 +2,7 @@ import type { HeroKind } from "../../engine/view.js";
 import type { Figure, Pose } from "../pixel/kit.js";
 import type { Sprite } from "../pixel/sprite.js";
 import type { HeroFrame } from "./animate.js";
+import { BONE_KNIGHT, BONEWALKER } from "./bonewalker.js";
 import { BRAKKA, BRAKKA_PORTRAIT, BRAKKA_POSES } from "./brakka.js";
 import { CLAWBEAK_FIGURE } from "./clawbeak.js";
 import { GORM, GORM_PORTRAIT, GORM_POSES } from "./gorm.js";
@@ -20,6 +21,8 @@ export const FIGURES: Readonly<Record<string, Figure>> = {
   imp: IMP,
   ogre: OGRE,
   lancer: LANCER,
+  bonewalker: BONEWALKER,
+  boneknight: BONE_KNIGHT,
   clawbeak: CLAWBEAK_FIGURE,
 };
 
