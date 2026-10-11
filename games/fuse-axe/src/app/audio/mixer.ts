@@ -16,6 +16,8 @@ export interface Synth {
   readonly running: boolean;
   /** Renders `voice` from `at` into `bus`, and calls `ended` once it has stopped and its nodes are off the graph. */
   voice(voice: Voice, at: number, bus: Bus, ended: () => void): void;
+  /** Lowers the loop's bus from now and brings it back up at `until` on the audio clock. */
+  duck(until: number): void;
 }
 
 /** Calls `tick` every `ms` until the function it returns is called: `setInterval` in the browser, by hand in tests. */
@@ -29,6 +31,7 @@ export type Repeat = (tick: () => void, ms: number) => () => void;
  */
 export class Mixer {
   private live = 0;
+  private duckedUntil = 0;
   private stopPump?: () => void;
 
   constructor(
@@ -57,11 +60,26 @@ export class Mixer {
     this.stopPump = this.repeat(() => this.pump(sequencer), PUMP_MS);
   }
 
+  /**
+   * Lowers the loop under a jingle for `seconds`. A longer duck still in force is not cut short by a shorter one that
+   * starts inside it: the loop comes back when the last of them ends.
+   */
+  duck(seconds: number): void {
+    const { synth } = this;
+    this.duckedUntil = Math.max(this.duckedUntil, synth.time + seconds);
+    synth.duck(this.duckedUntil);
+  }
+
+  /** A timer's callback, so nothing may throw: a voice the graph will not take is skipped and the rest still start. */
   private pump(sequencer: Sequencer): void {
     const { synth } = this;
     if (!synth.running) return;
     for (const { at, voice } of sequencer.due(synth.time, AHEAD))
-      this.start(voice, at, "loop");
+      try {
+        this.start(voice, at, "loop");
+      } catch {
+        // Silent: audio never gets in the way of the game, and the voices due beside this one still sound.
+      }
   }
 
   private start(voice: Voice, at: number, bus: Bus): void {

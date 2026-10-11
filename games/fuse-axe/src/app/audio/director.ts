@@ -25,8 +25,9 @@ export interface AudioKeys {
 /**
  * The page's sound: it hears every frame (`frame`), plays the cues that frame brings and keeps the stage's loop going;
  * the loop and the jingles are the music channel, the rest the effects channel. Nothing sounds before a user gesture
- * (`unlock`), since browsers refuse audio until one, nor while the tab is hidden. The MUSIC and EFFECTS choices are this browser's, kept in `store`; a
- * page opened with `?mute` (`muted`) never sounds, never touches the backend and neither reads nor writes them.
+ * (`unlock`), since browsers refuse audio until one, nor while the tab is hidden. The MUSIC and EFFECTS choices are
+ * this browser's, kept in `store`; a page opened with `?mute` (`muted`) never sounds, never touches the backend and
+ * neither reads nor writes them.
  */
 export class AxeAudio {
   /** Cues heard so far, played or not: what a muted page shows a smoke test. */

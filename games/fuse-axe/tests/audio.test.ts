@@ -525,7 +525,14 @@ test("notes and melodies: the jingles play on the music channel, every other cue
     ["fanfare", "gameover"],
   );
   assert.ok(CUES.every((cue) => SOUNDS[cue].voices.length > 0));
-  assert.ok(SOUNDS.fanfare.duck > 1 && SOUNDS.gameover.duck > 1);
+  // Only what is heard over the loop ducks it: the game over comes after the loop has stopped.
+  assert.deepEqual(
+    CUES.filter((cue) => {
+      const sound: Sound = SOUNDS[cue];
+      return sound.duck !== undefined;
+    }),
+    ["go", "fanfare"],
+  );
 });
 
 test("the march: a 30 to 60 second loop in A minor whose bass never rests", () => {
@@ -576,10 +583,13 @@ test("the sequencer hands out each step once, a little ahead, loops, and skips a
 class FakeSynth implements Synth {
   time = 0;
   running = true;
-  voices: { at: number; bus: Bus; end: () => void }[] = [];
-  voice = (_voice: Voice, at: number, bus: Bus, ended: () => void) => {
-    this.voices.push({ at, bus, end: ended });
+  voices: { at: number; bus: Bus; voice: Voice; end: () => void }[] = [];
+  /** The moments each duck was asked to lift at. */
+  ducks: number[] = [];
+  voice = (voice: Voice, at: number, bus: Bus, ended: () => void) => {
+    this.voices.push({ at, bus, voice, end: ended });
   };
+  duck = (until: number) => this.ducks.push(until);
   on = (bus: Bus) => this.voices.filter((one) => one.bus === bus);
   /** Ends every voice handed out so far. */
   endAll = () => this.voices.splice(0).forEach((one) => one.end());
@@ -698,4 +708,75 @@ test("a voice the graph fails to render never holds a place under the cap", () =
   };
   assert.throws(() => mixer.play(SOUNDS.hit), /closed/);
   assert.equal(mixer.sounding, 0);
+});
+
+test("a voice of the loop the graph will not take costs that voice, never the timer's tick or the voices beside it", () => {
+  const { synth, timer, mixer } = mixing(),
+    refused: Voice[] = [],
+    render = synth.voice;
+  // The first voice of the first step fails, the way a node on a closing context would.
+  synth.voice = (voice, at, bus, ended) => {
+    if (refused.length === 0) {
+      refused.push(voice);
+      throw new Error("the context is closed");
+    }
+    render(voice, at, bus, ended);
+  };
+  mixer.music(MARCH);
+  assert.doesNotThrow(() => timer.tick());
+  const step = MARCH.steps[0]!;
+  assert.deepEqual(
+    synth.voices.map((one) => one.voice),
+    step.slice(1),
+    "the others of the step still sound",
+  );
+  assert.equal(
+    mixer.sounding,
+    step.length - 1,
+    "the failed one holds no place",
+  );
+  synth.time = MARCH.step;
+  timer.tick();
+  assert.ok(synth.voices.length > step.length - 1, "the loop goes on");
+});
+
+test("through two loops at a jittery pump every step sounds exactly once, on the grid: no drift, none doubled at the loop's end", () => {
+  const { synth, timer, mixer } = mixing(),
+    start = 0.05,
+    steps = MARCH.steps.length * 2;
+  mixer.music(MARCH);
+  // Each pump comes a little early or late, never so late as to miss the lookahead.
+  const gaps = [0.04, 0.07, 0.03, 0.1, 0.04];
+  for (
+    let i = 0, t = 0;
+    t < steps * MARCH.step;
+    t += gaps[i++ % gaps.length]!
+  ) {
+    synth.time = t;
+    timer.tick();
+  }
+  // The last pump hands out a step or two of the third time round, a little ahead: those are not counted.
+  const heard = synth.voices
+    .filter((one) => one.at < start + steps * MARCH.step)
+    .map((one) => [one.at, one.voice]);
+  const due = [];
+  for (let i = 0; i < steps; i++)
+    for (const voice of MARCH.steps[i % MARCH.steps.length]!)
+      due.push([start + i * MARCH.step, voice]);
+  assert.deepEqual(heard, due);
+});
+
+test("a duck lasts until the longest cue under it is over: a shorter one inside it never lifts it early", () => {
+  const { synth, mixer } = mixing();
+  synth.time = 10;
+  mixer.duck(SOUNDS.fanfare.duck);
+  synth.time = 11; // GO, inside the fanfare's duck
+  mixer.duck(SOUNDS.go.duck);
+  synth.time = 20; // and on its own, long after
+  mixer.duck(SOUNDS.go.duck);
+  assert.deepEqual(synth.ducks, [
+    10 + SOUNDS.fanfare.duck,
+    10 + SOUNDS.fanfare.duck,
+    20 + SOUNDS.go.duck,
+  ]);
 });
