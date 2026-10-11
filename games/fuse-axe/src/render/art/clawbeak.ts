@@ -303,6 +303,8 @@ const loop = (...frames: Frames): AnimStrip<ClawbeakFrame> => ({
 const W = CLAWBEAK_WALK_STEPS;
 const strip = (steps: number) =>
   loop(["walk0", steps], ["walk1", steps], ["walk2", steps], ["walk3", steps]);
+/** A clawbeak's anims: every beast's but a drake's breath and the captain's saddle thrust (`DRAKE_ONLY`). */
+export type ClawbeakAnim = Exclude<MountAnim, "breathe" | "lance">;
 /** The lash shows from the step the tail lands for `LASH_STEPS`, then the beast recovers to the sweep's end. */
 export const LASH_STEPS = 6;
 const COIL = CLAWBEAK_STEPS.windup / 2;
@@ -314,7 +316,7 @@ const COIL = CLAWBEAK_STEPS.windup / 2;
  * (`CLAWBEAK_STEPS.windup`) and recovers to its end; the panic bolts; a hero's hop leaps and drops.
  */
 export const CLAWBEAK_ANIMS: Readonly<
-  Record<MountAnim, AnimStrip<ClawbeakFrame>>
+  Record<ClawbeakAnim, AnimStrip<ClawbeakFrame>>
 > = {
   idle: loop(["idle", 32], ["breathe", 32]),
   walk: strip(W),

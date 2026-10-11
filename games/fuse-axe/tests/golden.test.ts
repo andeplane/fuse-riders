@@ -22,7 +22,8 @@ import {
  * pots, magic, throws, then the Ogre twins at the gate — make camp, kicking its imps for meat and pots, and go
  * on through Wyrmbone Pass and its riders on clawbeaks with the lives, pots and health they carry (`carryOf`, as
  * the room's stage flow does), and the world's hash is compared every ten seconds and at the end of each stage and
- * camp. A refactor must keep these; a change to the rules (the bot's play included, as a bot seat folds
+ * camp; the pass ends with its boss, the lancer captain on his ember drake, whom both runs beat to clear it. A
+ * refactor must keep these; a change to the rules (the bot's play included, as a bot seat folds
  * `botInput`) must bump `RULES` in `src/engine/index.ts` and re-record them in the same commit: `GOLDEN_RECORD=1`
  * prints the new ones.
  *
@@ -39,30 +40,30 @@ interface Run {
   hashes: string[];
 }
 const GOLDEN: { rules: string; runs: Run[] } = {
-  rules: "fuse-axe-17",
+  rules: "fuse-axe-18",
   runs: [
     {
       seed: 20261011,
       humans: [],
-      steps: [5523, 702, 6387],
+      steps: [5523, 702, 6807],
       hashes: [
-        ...["ce198dc3", "6ce8077c", "3770858c", "794f5b4b", "3adf2404"],
-        ...["236062d9", "54038edd", "35924576", "1e7a67b8", "f6f59f33"],
-        ...["a6591d38", "fe3be356", "59086cfa", "d209a19d", "6a706b44"],
-        ...["2a156f7b", "9695cc85", "bfebbafa", "0a04ca7b", "3603623f"],
-        ...["8730e576", "79ef133e", "c47e9c1d"],
+        ...["cf0dfbbd", "58693af7", "369f17d3", "e58d782f", "3adf2404"],
+        ...["2441d1d7", "12379f8c", "4b0e53eb", "c21b6b87", "f6f59f33"],
+        ...["27e6f3db", "fe3be356", "083e12df", "851d1029", "6014107b"],
+        ...["dfca48ad", "768a1a81", "1a0cb639", "ed96f319", "99d622d9"],
+        ...["a01f6e48", "f73cab5b", "cd880756", "7ab3182e"],
       ],
     },
     {
       seed: 20261012,
       humans: [1],
-      steps: [5937, 717, 6507],
+      steps: [5937, 717, 6777],
       hashes: [
-        ...["bc9499b9", "b59139b6", "f4ef79db", "278dcf24", "e8c26338"],
-        ...["84a63064", "35c9c1e2", "c8885600", "3091a701", "6f013c9a"],
-        ...["899f3800", "3a1c3fe3", "ec5499b2", "97516d97", "48d24699"],
-        ...["b6c8734d", "494e7c3e", "d4bc8e3f", "8eb517e3", "3691169d"],
-        ...["4e69a7bf", "c96fd13c", "82ca96c0"],
+        ...["457efc89", "0bf29f37", "3b7048fe", "a202d543", "ac3a28e7"],
+        ...["47070339", "58168026", "734a9004", "f2b53b0b", "6f013c9a"],
+        ...["201e53e3", "3a1c3fe3", "25bc1ea3", "a899dc0c", "da515bab"],
+        ...["6159903c", "958481d2", "a6ee36e2", "6fd89b16", "506a30bb"],
+        ...["9e5dc84b", "97454ac9", "d4d31dd7", "5886fa5e"],
       ],
     },
   ],

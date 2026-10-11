@@ -20,8 +20,11 @@ import type {
 import {
   CLAWBEAK,
   CLAWBEAK_STEPS,
+  DRAKE_STEPS,
+  FLAME as BREATH,
   MOUNT_STATES,
   DEAD_STEPS,
+  flamePx,
   ENEMY_KINDS,
   ENEMY_STATES,
   FLOOR_BOTTOM_PX,
@@ -82,6 +85,8 @@ import {
   createLooks,
   createScene,
   deadShows,
+  ENEMY_ART,
+  MOUNT_ART,
   GO_AT,
   GO_FLASH,
   GO_SIGN,
@@ -94,6 +99,8 @@ import {
   SHADOW_RX,
 } from "../src/render/scene.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
+import { FLAME_ROW } from "../src/render/drake-fx.js";
+import { UNLIT } from "../src/render/pixel/palette.js";
 import { drawSpark, HIT_STEPS } from "../src/render/sparks.js";
 import {
   paintPixels,
@@ -549,10 +556,10 @@ test("a beast blinks as its tail winds up, coiling, and lashes with the ring in 
     [],
   );
   // Every anim at any step, facing either way, and a kind from a build with more of them, draws one beast.
-  const odd = JSON.parse('"drake"') as MountView["kind"];
+  const odd = JSON.parse('"wyvern"') as MountView["kind"];
   for (const anim of MOUNT_STATES)
     for (const animStep of [0, 7, 21, 1e9, -3, 2.5, Number.NaN])
-      for (const kind of ["clawbeak", odd] as const) {
+      for (const kind of ["clawbeak", "drake", odd] as const) {
         const more = { anim, animStep, kind, facing: -1 as const };
         const { sprites } = draw(world({ mounts: [beast(more)] }));
         assert.equal(sprites.length, 1);
@@ -1175,4 +1182,65 @@ test("camp's fire stands among the figures: in front of one behind it, behind on
   assert.deepEqual(order(), [], "with nobody there");
   // A figure on the fire's own row is drawn before it, as one further up the floor would be.
   assert.deepEqual(order(hero(1, 0, FIRE.x - 30, FIRE.y)), [true]);
+});
+
+test("an ember drake draws as a clawbeak in ember, blinking as it inhales, its flame a stream from its mouth to the front; the captain draws as a lancer in his own colours", () => {
+  const drake = (more: Partial<MountView> = {}): MountView => ({
+    ...{ id: 9, kind: "drake", x: 150, y: 140, z: 0, facing: 1 },
+    ...{ anim: "breathe", animStep: 0, rider: null, ...more },
+  });
+  // What a drake adds to the rectangles the frame fills (the backdrop's own fires among them), all in fire's colours.
+  const fire = new Set(["=", "~", "f", "F"].map((key) => UNLIT[key]!));
+  const flames = (more: Partial<MountView>, frame = 0) => {
+    const key = (f: object) => JSON.stringify(f);
+    const bare = new Set(draw(world({}), frame).pen.fills.map(key));
+    const added = draw(world({ mounts: [drake(more)] }), frame).pen.fills;
+    const own = added.filter((f) => !bare.has(key(f)));
+    assert.ok(own.every((f) => fire.has(f.style)));
+    return own;
+  };
+  const swap = MOUNT_ART.drake.swap;
+  assert.deepEqual(
+    draw(world({ mounts: [drake()] })).sprites[0]!.image.fills,
+    fillsOf(CLAWBEAK_FIGURE.sprite("coil1"), {
+      swap,
+      flash: true,
+      flip: false,
+    }),
+  );
+  assert.deepEqual(flames({ animStep: DRAKE_STEPS.inhale - 1 }), []);
+  // The stream runs from the mouth to the front, along its facing either way, about its head's row.
+  const animStep = DRAKE_STEPS.inhale + 20,
+    front = flamePx(animStep);
+  for (const facing of [1, -1] as const)
+    for (const frame of [0, 7]) {
+      const fills = flames({ animStep, facing }, frame);
+      const left = Math.min(...fills.map((f) => f.x)),
+        right = Math.max(...fills.map((f) => f.x + f.w));
+      assert.deepEqual(
+        facing > 0 ? [left - 150, right - 150] : [150 - right, 150 - left],
+        [
+          BREATH.mouth,
+          BREATH.mouth + 2 * Math.ceil((front - BREATH.mouth) / 2),
+        ],
+        `${facing}`,
+      );
+      for (const f of fills)
+        assert.ok(Math.abs(f.y + f.h / 2 - (140 - FLAME_ROW)) <= 6, `${f.y}`);
+    }
+  // Any step of any anim, odd ones too, draws one beast and never throws.
+  for (const anim of MOUNT_STATES)
+    for (const step of [0, 40, 79, 1e9, -3, 2.5, Number.NaN])
+      assert.equal(draw(world({ mounts: [drake({ anim, animStep: step })] })).sprites.length, 1); // prettier-ignore
+  // The captain: a lancer's figure in gold and dark steel, whatever his palette.
+  const boss = enemy(3, 200, 150, { kind: "captain", tier: 2, boss: true });
+  assert.deepEqual(
+    draw(world({ enemies: [boss] })).sprites[0]!.image.fills,
+    fillsOf(LANCER.sprite(enemyFrame("lancer", "idle", 0) as LancerFrame), {
+      swap: ENEMY_ART.captain.tiers[2],
+      flash: false,
+      flip: false,
+    }),
+  );
+  assert.notDeepEqual(ENEMY_ART.captain.tiers[2], LANCER_TIERS[2]);
 });

@@ -145,7 +145,7 @@ test("lancers leap into the village's later waves and every wave of the pass but
   );
 });
 
-test("Wyrmbone Pass is a longer road of six waves of ravagers and lancers, tougher than the village's, ending in a violet pair", () => {
+test("Wyrmbone Pass is a longer road of six waves of ravagers and lancers, tougher than the village's, ending in the lancer captain on his drake", () => {
   const { length, cameraEnd, waves } = STAGE_2;
   assert.deepEqual(STAGES, [STAGE_1, STAGE_2]);
   assert.ok(length > T.STAGE_LENGTH);
@@ -154,7 +154,8 @@ test("Wyrmbone Pass is a longer road of six waves of ravagers and lancers, tough
   waves.forEach((wave, index) => {
     assert.ok(wave.at > (waves[index - 1]?.at ?? 0) && wave.at <= cameraEnd);
     for (const [i, spawn] of wave.spawns.entries()) {
-      assert.ok(["ravager", "lancer"].includes(spawn.kind));
+      const boss = index === waves.length - 1 ? ["captain"] : [];
+      assert.ok(["ravager", "lancer", ...boss].includes(spawn.kind));
       assert.ok(spawn.y >= T.FLOOR_TOP && spawn.y <= T.FLOOR_BOTTOM);
       assert.ok(i === 0 || spawn.delay >= wave.spawns[i - 1]!.delay);
     }
@@ -169,16 +170,16 @@ test("Wyrmbone Pass is a longer road of six waves of ravagers and lancers, tough
     return all.reduce((sum, s) => sum + s.tier, 0) / all.length;
   };
   assert.ok(tier(STAGE_2) > tier(STAGE_1));
-  // The pass's end: two violet ravagers from both sides, and rust ones for a bigger party.
+  // The pass's end: the lancer captain rides his drake out of the skull gate, and a bigger party meets a violet ravager
+  // and lancer too, from either side.
   const end = waves.at(-1)!;
   assert.equal(end.at, cameraEnd);
   assert.deepEqual(
-    waveSpawns(end, 3).map((s) => [s.side, s.tier]),
+    waveSpawns(end, 3).map((s) => [s.kind, s.side, s.tier, s.mount]),
     [
-      ["left", 2],
-      ["right", 2],
-      ["right", 1],
-      ["left", 1],
+      ["captain", "right", 2, "drake"],
+      ["ravager", "right", 2, undefined],
+      ["lancer", "left", 2, undefined],
     ],
   );
 });
