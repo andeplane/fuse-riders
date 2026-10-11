@@ -182,10 +182,12 @@ may claw up out of an open grave on the screen it holds (`Spawn.grave`, `StagePl
 second (`RISE_STEPS`) climbing out, struck by no blade, thrown body or spell, then fights; a bigger party's copy of one
 rises from the same grave a rise later. The first time a fall leaves it with no hit points it lies as a bone pile
 (`pile`) rather than falling for good, and after 2.5 s (`PILE_STEPS`) pulls itself together (`reassemble`, half a
-second, invulnerable as one getting up is) with half its full hit points. Any blow that lands on the pile, a slash, a
-jump attack's stab, a beast's, a thrown body or a spell, shatters it for good (a knockdown in the tally); nobody grabs
-a pile, and the second fall with no hit points is the last. A bot goes for a pile first, to shatter it. Until its art
-comes it is drawn as a ravager in bone, its pile as a skull and a few bones.
+second; no blade lands on it, as on one getting up, but a spell does) with half its full hit points. Any blow that lands
+on the pile, a slash, a jump attack's stab, a beast's, a thrown body or a spell, shatters it for good (a knockdown in
+the tally); nobody grabs a pile, and the second fall with no hit points is the last. A wave waits for its piles: one
+left alone pulls itself together and fights on, so the wave is not cleared while a pile lies. A bot goes for a pile
+first, to shatter it, and casts no pot because piles are about it. Until its art comes it is drawn as a ravager in
+bone, its pile as a skull and a few bones.
 
 ## Stages
 

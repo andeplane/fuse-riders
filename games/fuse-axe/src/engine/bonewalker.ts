@@ -18,10 +18,11 @@ import {
  * body or spell), then stands and decides.
  *
  * It falls apart once: the first time a fall leaves it with no hit points it lies as a bone pile (`pile`) instead of
- * falling for good, and after `PILE_STEPS` pulls itself together (`reassemble`, invulnerable as one getting up is) with
- * half its full hit points, to fight on. Any blow that lands on the pile (a blade, a jump attack's stab, a beast's
- * blow, a thrown body or a spell) shatters it for good, counting as a knockdown to the hero who struck it; nobody
- * grabs a pile, as it is never dazed. The second fall with no hit points is the last.
+ * falling for good, and after `PILE_STEPS` pulls itself together (`reassemble`: no blade lands on it, as on one getting
+ * up, but a spell, which lands on a getting-up enemy too, does) with half its full hit points, to fight on. Any blow
+ * that lands on the pile (a blade, a jump attack's stab, a beast's blow, a thrown body or a spell) shatters it for
+ * good, counting as a knockdown to the hero who struck it; nobody grabs a pile, as it is never dazed. The second fall
+ * with no hit points is the last.
  */
 export const isBonewalker = (enemy: Enemy): boolean =>
   enemy.kind === "bonewalker";

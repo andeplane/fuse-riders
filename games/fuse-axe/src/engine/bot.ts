@@ -195,12 +195,16 @@ function combo(world: World, hero: Hero, index: number): number {
     : 0;
 }
 
-/** Magic: a pot held, no spell already playing, and enemies about it, or few about it while low on health. */
+/**
+ * Magic: a pot held, no spell already playing, and enemies about it, or few about it while low on health. A bonewalker's
+ * bone pile is none to cast at: a blade shatters it, and it swings at nobody.
+ */
 function casts(world: World, hero: Hero, foes: readonly Enemy[]): boolean {
   if (hero.pots === 0 || world.spells.length > 0) return false;
   const about = foes.filter(
     (foe) =>
       hittable(world, foe) &&
+      foe.state !== "pile" &&
       Math.abs(foe.x - hero.x) <= NEAR_X &&
       Math.abs(foe.y - hero.y) <= NEAR_Y,
   ).length;
