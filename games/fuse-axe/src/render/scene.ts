@@ -256,8 +256,8 @@ interface Standing {
 /**
  * The backdrop a stage draws on, and where its camera stands: the stage's own art at the camera, or for a stage with
  * none Stage 1's, its camera scaled from the stage's road onto the village's so the scenery runs out at the same end.
- * On a longer road than the village's the layers scroll the slower for it, the floor-speed ones too (3/4 of the
- * floor's on Wyrmbone Pass): a placeholder until the stage has its own art, which takes the camera as it is.
+ * On a longer road than the village's the layers scroll the slower for it, the floor-speed ones too: a placeholder
+ * until the stage has its own art, which takes the camera as it is (Ashen Village's and Wyrmbone Pass's do).
  */
 export function scenery(
   stage: number,
@@ -268,15 +268,13 @@ export function scenery(
 }
 
 export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
-  // Stage 1's is baked at once; another stage's the first time it is drawn.
-  const backdrops = new Map<StageNumber, Backdrop<Image>>([
-    [1, createBackdrop(make, 1)],
-  ]);
-  const backdropOf = (art: StageNumber) => {
-    const known = backdrops.get(art) ?? createBackdrop(make, art);
-    backdrops.set(art, known);
-    return known;
-  };
+  // Every stage's backdrop is baked now, not as its stage is first drawn: a long road's takes long enough to stall the
+  // frame the stage begins on. `satisfies` has a new stage's art added here.
+  const backdrops = {
+    1: createBackdrop(make, 1),
+    2: createBackdrop(make, 2),
+  } satisfies Record<StageNumber, Backdrop<Image>>;
+  const backdropOf = (art: StageNumber) => backdrops[art];
   const baker = createSpriteBaker(make);
   const shadows = new Map<number, { image: Image; w: number; h: number }>();
   const crowns = new Map<Figure, number>();

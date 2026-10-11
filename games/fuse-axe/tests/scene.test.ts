@@ -17,7 +17,6 @@ import type {
   WorldView,
 } from "../src/engine/view.js";
 import {
-  CAMERA_END_PX,
   DEAD_STEPS,
   ENEMY_KINDS,
   ENEMY_STATES,
@@ -30,6 +29,7 @@ import {
   VIEW_H,
   VIEW_W,
   cameraEndPx,
+  stageLengthPx,
 } from "../src/engine/view-kit.js";
 import {
   enemyFrame,
@@ -875,20 +875,36 @@ test("the backdrop painted through a plain surface matches its pixel buffers exa
   );
 });
 
-test("a stage without art of its own draws Stage 1's backdrop across its own road, and no stage throws", () => {
+test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage without art Stage 1's, and no stage throws", () => {
   const layers = (view: WorldView) =>
     draw(view).pen.blits.filter((b) => b.image.w >= VIEW_W);
   for (const stage of [2, 3, 0, -1, 1.5, Number.NaN])
     assert.doesNotThrow(() => draw(world({ stage, camX: 100 })), `${stage}`);
-  // Wyrmbone Pass's road runs from the village's start to its gate.
+  // Its road is the stage's whole length, scrolled with the floor out to the skull gate.
   const end = cameraEndPx(2);
-  assert.ok(end > CAMERA_END_PX);
-  assert.deepEqual(layers(world({ stage: 2 })), layers(world({ stage: 1 })));
-  assert.deepEqual(
-    layers(world({ stage: 2, camX: end })),
-    layers(world({ stage: 1, camX: CAMERA_END_PX })),
-  );
+  const road = (camX: number) =>
+    layers(world({ stage: 2, camX })).find(
+      (b) => b.image.w === stageLengthPx(2),
+    );
+  assert.equal(road(0)?.sx, 0);
+  assert.equal(road(end)?.sx, end);
+  assert.notDeepEqual(layers(world({ stage: 2 })), layers(world({ stage: 1 })));
+  assert.deepEqual(scenery(2, 700), { art: 2, camX: 700 });
   assert.deepEqual(scenery(1, 500), { art: 1, camX: 500 });
-  assert.deepEqual(scenery(2, end / 2), { art: 1, camX: CAMERA_END_PX / 2 });
-  assert.deepEqual(scenery(9, 500), { art: 1, camX: 500 }, "an unknown one");
+  assert.deepEqual(scenery(3, 500), { art: 1, camX: 500 }, "an unknown one");
+  assert.deepEqual(layers(world({ stage: 3 })), layers(world({ stage: 1 })));
+});
+
+test("every stage's backdrop is baked with the scene, so no frame stalls baking one as its stage begins", () => {
+  const { images, scene } = fakeScene();
+  const wide = () => images.filter((image) => image.w >= VIEW_W).length;
+  const baked = wide();
+  for (const stage of [1, 2])
+    assert.ok(
+      images.some((image) => image.w === stageLengthPx(stage)),
+      `stage ${stage}'s road`,
+    );
+  for (const stage of [1, 2, 3, 2, 1, Number.NaN])
+    draw(world({ stage, camX: 100 }), 0, scene);
+  assert.equal(wide(), baked, "drawing a stage baked a layer");
 });
