@@ -162,14 +162,17 @@ export function isEntry(raw: unknown): raw is Entry {
 }
 
 export function createRoom(matchId: string, settings: Settings): Room {
+  // Only what `parseSettings` takes: a stray or out-of-range field would make every checkpoint of the room refused.
+  const { wins, difficulty, display } = settings,
+    valid = parseSettings({ wins, difficulty, display }) ?? DEFAULT_SETTINGS;
   return {
     tick: 0,
     matchId,
     round: 0,
     stage: "lobby",
     seats: new Map(),
-    settings: { ...settings },
-    play: { ...settings },
+    settings: { ...valid },
+    play: { ...valid },
     wins: {},
     results: [],
     winner: "",
@@ -293,7 +296,7 @@ function inputs(
   return steps;
 }
 
-/** The match winner once its latest round decides the match ("" when nobody won a round); undefined while it plays on. */
+/** The match winner once its latest round decides it ("" when nobody won a round); undefined while it plays on. */
 function verdict({ wins, results, round, play }: Room): string | undefined {
   const winner = results.at(-1)?.winner ?? "";
   const crowned = winner !== "" && wins[winner]! >= play.wins;
@@ -517,12 +520,10 @@ export function decode(
     ships.some((id, i) => seats.has(id) && seats.get(id)!.bot !== bots.has(i))
   )
     return;
-  if (running)
-    return results.length === round - 1 &&
-      startAt <= tick + COUNTDOWN_TICKS &&
-      (!result || endAt > tick)
-      ? room
-      : undefined;
+  // prettier-ignore
+  if (running) // in its countdown, or in play until its aftermath ends
+    return results.length === round - 1 && startAt <= tick + COUNTDOWN_TICKS && (!result || endAt > tick)
+      ? room : undefined;
   // Between rounds and after the match: the latest result is the world's, and the match goes on, or is won.
   const winner = !result || result.winner === null ? "" : ships[result.winner];
   if (

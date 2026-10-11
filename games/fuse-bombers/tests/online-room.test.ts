@@ -207,32 +207,23 @@ test("a match of nothing but draws ends at its round limit with no winner", () =
 });
 
 test("past the round limit the leader never depends on the order the crowns were recorded in", () => {
-  const leaders = [
-    ["y", "x"],
-    ["x", "y"],
-  ].map((order) => {
+  const leaders = ["yx", "xy"].map((order) => {
     const room = started({ ...SETUP, wins: 1 });
     room.round = maxRounds(room.play);
-    room.wins = Object.fromEntries(order.map((id) => [id, 2])); // tied, and neither won a round on record
+    room.wins = Object.fromEntries([...order].map((id) => [id, 2])); // tied; neither won a round on record
     toFlight(room);
     knockOut(room, "nobody");
     run(room, OUTRO_TICKS + 1);
-    return [room.stage, room.winner];
+    return `${room.stage} ${room.winner}`;
   });
-  assert.deepEqual(leaders, [
-    ["over", "x"],
-    ["over", "x"],
-  ]);
+  assert.deepEqual(leaders, ["over x", "over x"]);
 });
 
 test("settings are exactly their three own keys, each of its type and range", () => {
   const ok = { wins: 9, difficulty: "hard", display: true };
   assert.deepEqual(parseSettings(ok), ok);
-  const inherited = Object.assign(Object.create({ display: true }), {
-    wins: 3,
-    difficulty: "easy",
-    show: true,
-  });
+  const inherited = Object.create({ display: true }) as object;
+  Object.assign(inherited, { wins: 3, difficulty: "easy", show: true });
   // prettier-ignore
   for (const bad of [{ ...ok, extra: 1 }, { wins: 3, difficulty: "easy" }, { ...ok, wins: 0 }, { ...ok, wins: 10 },
     { ...ok, wins: 2.5 }, { ...ok, wins: "3" }, { ...ok, difficulty: "x" }, { ...ok, display: 1 }, inherited,

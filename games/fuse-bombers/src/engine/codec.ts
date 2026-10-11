@@ -110,7 +110,8 @@ export function encodeRound(state: RoundState): unknown[] {
       c.reloadTotalTicks, c.reloadTime, c.units, c.shieldHp, c.megaReady, c.volleyLeft, c.volleyAngle, c.volleyMega,
       c.volleyCooldown, c.lastHitBy, s.volleys, s.rocketsFired, s.damageDealt, s.kills, s.gateSplits, s.crates,
       s.ghostBombs, s.ghostDamage]),
-    state.rockets.map((r) => [r.id, r.owner, r.x, r.y, r.vx, r.vy, r.power, r.mega, r.bomb, r.ghost, [...r.gates], r.age]),
+    state.rockets.map((r) => [r.id, r.owner, r.x, r.y, r.vx, r.vy, r.power, r.mega, r.bomb, r.ghost, [...r.gates],
+      r.age]),
     state.gates.map((g) => [g.id, g.multiplier, g.spawnTick, g.expireTick, g.x0, g.vx, g.minX, g.maxX, g.baseY,
       g.bobPeriodTicks, g.bobPhase]),
     state.crates.map((k) => [k.id, k.card, k.x, k.baseY, k.bobPhase, k.spawnTick]),
@@ -123,7 +124,7 @@ export function encodeRound(state: RoundState): unknown[] {
 }
 
 let temple: Grid | undefined;
-/** The terrain from its runs: the temple's size, with no rock the temple lacked (craters only remove it) and exactly its indestructible rock. */
+/** The terrain: the temple's size, no rock it lacked (craters only remove rock), exactly its indestructible rock. */
 function readTerrain(raw: unknown): Grid | undefined {
   const map = (temple ??= buildTempleGrid());
   if (
@@ -301,20 +302,12 @@ export function decodeRound(raw: unknown): RoundState | undefined {
 }
 
 /** `[winner or null, reason, tick]` before the round's `tick`; null when the round is undecided. */
-function readResult(
-  raw: unknown,
-  n: number,
-  tick: number,
-): RoundResult | null | undefined {
-  if (raw === null) return null;
+// prettier-ignore
+function readResult(raw: unknown, n: number, tick: number): RoundResult | null | undefined {
   const f = Fields.of(raw, 3);
-  if (!f) return;
-  const result = {
-    winner: f.intOrNull(0, n - 1),
-    reason: f.pick(ROUND_REASONS),
-    tick: f.int(0, tick - 1),
-  };
-  return f.done ? result : undefined;
+  if (raw === null || !f) return raw === null ? null : undefined;
+  const result = { winner: f.intOrNull(0, n - 1), reason: f.pick(ROUND_REASONS), tick: f.int(0, tick - 1) };
+  if (f.done) return result;
 }
 
 /** A finished round's result agrees with who is left: the one survivor, nobody, or on time a survivor or a draw. */
