@@ -92,6 +92,7 @@ import {
   CRYPT_END,
   CRYPT_LENGTH,
 } from "../src/render/backdrop/drowned-crypt.js";
+import { KEEP_END } from "../src/render/backdrop/vorhals-keep.js";
 import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
 import {
@@ -1182,7 +1183,7 @@ test("the backdrop painted through a plain surface matches its pixel buffers exa
 test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage without art Stage 1's, and no stage throws", () => {
   const layers = (view: WorldView) =>
     draw(view).pen.blits.filter((b) => b.image.w >= VIEW_W);
-  for (const stage of [2, 3, 4, 0, -1, 1.5, Number.NaN])
+  for (const stage of [2, 3, 4, 5, 0, -1, 1.5, Number.NaN])
     assert.doesNotThrow(() => draw(world({ stage, camX: 100 })), `${stage}`);
   // Its road is the stage's whole length, scrolled with the floor out to the skull gate.
   const end = cameraEndPx(2);
@@ -1196,9 +1197,25 @@ test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage witho
   assert.deepEqual(scenery(2, 700), { art: 2, camX: 700 });
   assert.deepEqual(scenery(1, 500), { art: 1, camX: 500 });
   assert.deepEqual(scenery(5, 500), { art: 1, camX: 500 }, "an unknown one");
-  // Vorhal's Keep has no art yet: Stage 1's, run out over its longer road.
-  assert.deepEqual(scenery(4, 1280), { art: 1, camX: 960 });
-  assert.deepEqual(layers(world({ stage: 4 })), layers(world({ stage: 1 })));
+  assert.deepEqual(layers(world({ stage: 5 })), layers(world({ stage: 1 })));
+});
+
+test("Stage 4 draws Vorhal's Keep at the camera as it is, out to the throne room, not Stage 1's village", () => {
+  const layers = (stage: number, camX = 0) =>
+    draw(world({ stage, camX })).pen.blits.filter((b) => b.image.w >= VIEW_W);
+  const road = (camX: number) =>
+    layers(4, camX).find((b) => b.image.w === stageLengthPx(4));
+  assert.equal(road(0)?.sx, 0);
+  assert.equal(road(KEEP_END)?.sx, KEEP_END);
+  const images = (stage: number) => layers(stage).map((b) => b.image);
+  for (const other of [1, 2, 3]) {
+    const theirs = new Set(images(other));
+    assert.ok(
+      images(4).every((image) => !theirs.has(image)),
+      `${other}`,
+    );
+  }
+  assert.deepEqual(scenery(4, KEEP_END), { art: 4, camX: KEEP_END });
 });
 
 test("Stage 3 draws the Drowned Crypt at the camera as it is, out to its great doors", () => {

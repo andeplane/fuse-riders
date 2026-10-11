@@ -218,7 +218,13 @@ bone, its pile as a skull and a few bones.
    floor (the crypt's graves, `gravesPx(4)`: five in the halls, three in the throne room), a ravager on a clawbeak in
    wave 4 and an imp before the throne room; there Vorhal walks out to the party, with a rust bonewalker and a violet ravager in turn for each hero beyond the
    first. Beating him clears the stage and wins the run; the victory card tells of the Ember Axe made whole. Until his
-   art and the keep's backdrop come he is drawn as a horned ogre in dark steel and the halls as Stage 1's road.
+   art comes he is drawn as a horned ogre in dark steel. Its backdrop is the inside of his fortress, cold blue-black
+   stone under warm torchlight: a blood-red moon glimpsed through tall vaulted windows hung with his horned banners,
+   the nave's pillars, chains, iron cages and statues of horned knights, wall torches and braziers, polished flagstones
+   with a long red carpet and the crypt slabs pushed open, and at the end the throne room, lit red by a rose window:
+   his horned throne on its dais and, on the wall, the Ember Axe he broke, its shards glowing faintly.
+
+   ![Vorhal's Keep: a hall under the blood moon, the throne room, and Vorhal walking out to the party](images/stage4-backdrop.png)
 
    **Vorhal** (`src/engine/vorhal.ts`, `VORHAL_*`, `CUT_*`, `SIGIL*`, `PILLAR_*`, `SUMMON*` in `tuning.ts`) is a boss
    as the ogres are (super armour and poise, a spell takes no more than a boss's share, nobody throws him, hit points
@@ -331,10 +337,12 @@ or is a bot.
   same rates: the sky and moon, snowy peaks, near mountains with a winding path, the road and the wyrm's bones, and
   stones and bone chips in front; it ends at the skull gate ([screenshot](images/stage2-backdrop.png)). Stage 3
   (`drowned-crypt.ts`) too: the sky and moon, the cathedral, cloisters and mausoleums, the bank, water and causeway,
-  and reeds in front; ripples, fog, green fires and drips move. Each layer is as wide as it scrolls across its stage
+  and reeds in front; ripples, fog, green fires and drips move. Stage 4 (`vorhals-keep.ts`) too: the blood-red sky,
+  the far wall's windows and banners, the nave's pillars and statues, the halls and throne room, and pillar bases in
+  front; torch and brazier flames, embers and the axe's shards move. Each layer is as wide as it scrolls across its stage
   (`cameraEndPx(stage)` in `view-kit.ts`; a stage the engine lacks may set its own through `StageArt.cameraEnd`). The
   crypt's four open graves are the engine's (`STAGE_3.graves`, `gravesPx(3)`: world x and floor row), where its
-  bonewalkers rise. The scene picks the backdrop by the
+  bonewalkers rise, and so are the keep's eight slabs (`gravesPx(4)`). The scene picks the backdrop by the
   view's `stage`; a stage without art of its own draws Stage 1's, its camera scaled from the stage's road onto the
   village's (`scenery` in `src/render/scene.ts`), so it never runs out of scenery. A camp (the view's `camp`) draws
   `camp.ts` instead, whatever stage it follows: one screen, baked once with the scene, whose camera is held at 0.
