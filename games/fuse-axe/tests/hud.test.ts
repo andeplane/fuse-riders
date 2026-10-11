@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { HeroView, WorldView } from "../src/engine/view.js";
-import { CAPACITY, VIEW_W } from "../src/engine/view-kit.js";
+import type { EnemyKind, HeroView, WorldView } from "../src/engine/view.js";
+import { CAPACITY, VIEW_H, VIEW_W } from "../src/engine/view-kit.js";
 import { HEROES } from "../src/render/art/index.js";
 import {
   ADVANCE,
@@ -15,7 +15,10 @@ import {
 import {
   BAR,
   BLINK_FRAMES,
+  BOSS_BAR,
   createHud,
+  CHARGE_BLINK,
+  CHARGED,
   drawPots,
   FRAME,
   HEALTH,
@@ -100,15 +103,17 @@ const hero = (
 ): HeroView => ({
   ...{ id, seat, kind: "brakka", x: 100, y: 140, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
-  ...{ invulnerable: false, pots: 0, maxPots: 4, charge: 0 },
+  ...{ invulnerable: false, pots: 0, maxPots: 4, charge: 0, mounted: false },
   ...more,
 });
 const out = (id: number, seat: number) =>
   hero(id, seat, { anim: "out", lives: 0, hp: 0 });
 const world = (heroes: HeroView[]): WorldView => ({
   ...{ step: 0, camX: 0, heroes, enemies: [], fx: [], items: [], spells: [] },
-  ...{ wave: 0, waves: 5, locked: false, go: false, cleared: false },
-  ...{ defeated: false },
+  mounts: [],
+  ...{ stage: 1, wave: 0, waves: 5, locked: false, go: false, cleared: false },
+  camp: false,
+  ...{ defeated: false, boss: null },
 });
 
 /** The blits of `text` written in `color`, known by what the font paints for it. */
@@ -376,6 +381,67 @@ test("pots: a row of the most a hero can hold, the held ones full, as each hero'
   assert.deepEqual(row(1), [...Array(5).fill(C.pot), C.potEmpty]);
   assert.deepEqual(row(3), Array(3).fill(C.potEmpty));
   assert.deepEqual(row(0), []);
+});
+
+test("while a boss's wave is fought, its name and a bar of its health run under the strip", () => {
+  const { draw } = fakeHud();
+  const name = "OGRE TWINS",
+    bx = BOSS_BAR.x + textWidth(name) + BOSS_BAR.gap,
+    w = VIEW_W - BOSS_BAR.x - bx;
+  const boss = (hp: number, kind: EnemyKind = "ogre") =>
+    draw({ ...world([hero(1, 0)]), boss: { kind, hp, maxHp: 300 } });
+  const lit = (pen: RecordingPen) =>
+    pen.fills.filter((f) => f.style === C.boss).map((f) => [f.x, f.w, f.h]);
+  assert.equal(wrote(draw(world([hero(1, 0)])), name, C.text), 0);
+  const half = boss(150);
+  assert.equal(wrote(half, name, C.text), 1);
+  assert.deepEqual(lit(half), [[bx, Math.round(w / 2), BOSS_BAR.h]]);
+  assert.deepEqual(
+    lit(boss(1)),
+    [[bx, 1, BOSS_BAR.h]],
+    "never none while any is left",
+  );
+  assert.deepEqual(lit(boss(0)), []);
+  for (const r of [...half.fills, ...half.blits])
+    assert.ok(r.x >= 0 && r.x + r.w <= VIEW_W && r.y + r.h <= VIEW_H);
+  // A boss of a kind from a newer build is the BOSS.
+  const odd = boss(100, JSON.parse('"wyvern"') as EnemyKind);
+  assert.equal(wrote(odd, "BOSS", C.text), 1);
+});
+
+test("the charge meter: while a hero charges, its pots glow up to the level chosen, the last of them blinking", () => {
+  const row = (pen: RecordingPen, seat = 0) =>
+    pen.fills
+      .filter((f) => f.w === 5 && f.h === 4 && f.y === POTS.y + 1)
+      .filter((f) => f.x >= seat * PANEL_W && f.x < (seat + 1) * PANEL_W)
+      .map((f) => f.style);
+  const { draw } = fakeHud();
+  const charging = (charge: number, frame = 0) =>
+    row(draw(world([hero(1, 0, { anim: "charge", pots: 3, charge })]), frame));
+  assert.deepEqual(charging(0), Array(3).fill(C.pot).concat(C.potEmpty));
+  assert.deepEqual(charging(2), [CHARGED.pot, CHARGED.pot, C.pot, C.potEmpty]);
+  // The level just reached blinks: every other `CHARGE_BLINK` frames it shows as a pot only held.
+  assert.deepEqual(charging(2, CHARGE_BLINK), [
+    CHARGED.pot,
+    C.pot,
+    C.pot,
+    C.potEmpty,
+  ]);
+  assert.deepEqual(charging(3, CHARGE_BLINK * 2), [
+    ...Array(3).fill(CHARGED.pot),
+    C.potEmpty,
+  ]);
+  // A charge past the pots held lights only those; one out of lives lights none.
+  assert.deepEqual(charging(9), [...Array(3).fill(CHARGED.pot), C.potEmpty]);
+  const gone = draw(
+    world([hero(1, 0, { anim: "out", lives: 0, pots: 2, charge: 2 })]),
+  );
+  assert.ok(!row(gone).includes(CHARGED.pot));
+  // Each glowing pot keeps its highlight and glint, in white-hot cyan.
+  const pen = new RecordingPen();
+  drawPots(pen, 20, POTS.y, { held: 4, max: 4, charged: 2 });
+  assert.equal(pen.fills.filter((f) => f.style === CHARGED.glint).length, 2);
+  assert.equal(pen.fills.filter((f) => f.style === C.potGlint).length, 2);
 });
 
 test("the HUD keeps to its strip at the top of the 320 × 180 screen", () => {

@@ -299,7 +299,8 @@ kbd {
 
 /* The sound toggle is for the lobby and menus; mid-round the HUD owns the bottom edge (pause to reach it). */
 #screen[data-screen="countdown"] ~ .audio-toggle,
-#screen[data-screen="playing"] ~ .audio-toggle {
+#screen[data-screen="playing"] ~ .audio-toggle,
+#screen[data-screen="controller"] ~ .audio-toggle {
   display: none;
 }
 /* With touch pads in the bottom corners (the lobby shows both), the toggle moves to the free top right corner. */

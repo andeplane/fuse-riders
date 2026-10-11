@@ -27,8 +27,8 @@ import {
   type Entry,
   type Room,
 } from "../src/online/game.js";
-import { RIGHT, STAGE_1, seedOf } from "../src/engine/index.js";
-import { HERO_HP, LIVES } from "../src/engine/tuning.js";
+import { RIGHT, STAGE_1, seedOf, type World } from "../src/engine/index.js";
+import { CAMP_STEPS, HERO_HP, LIVES } from "../src/engine/tuning.js";
 import { cleared, wiped } from "./fixtures/stage.js";
 
 type Bodies = Record<string, readonly unknown[][]>;
@@ -69,6 +69,12 @@ function kept(room: Room): void {
   assert.equal(hash(back), hash(room));
   assert.deepEqual(view(back), view(room));
 }
+/** Camp, its imps left alone (a bot may kick them), until it is over: the next stage (or the lobby) begins. */
+function breakCamp(room: Room): void {
+  assert.equal(room.world?.camp, true, "camp follows the tally");
+  for (let i = 0; i < CAMP_STEPS && room.world?.camp; i++) fold(room);
+  assert.notEqual(room.world?.camp, true);
+}
 /** The run with every hero out: the fold starts the countdown on the next tick. */
 function countdown(room = started()): Room {
   room.world = wiped(room.world!);
@@ -77,7 +83,7 @@ function countdown(room = started()): Room {
   return room;
 }
 
-test("a cleared stage banks its tallies and shows them, then the run is won", () => {
+test("a cleared stage banks its tallies and shows them, then camp, then the next stage begins", () => {
   const room = started();
   fold(room, { b: [[PLAY, "m1", 1, RIGHT]] });
   // The heroes' tallies as a fight leaves them, and the stage won where it stands.
@@ -137,16 +143,172 @@ test("a cleared stage banks its tallies and shows them, then the run is won", ()
   );
   kept(room);
   fold(room);
-  // Stage 1 is the last, so far: the run is won.
+  // Camp: its own world after stage 1, seeded for the run and its camp, between the stages with no clock of the room's.
+  assert.deepEqual(
+    [room.stage, room.round, room.until, room.continued, room.outcome],
+    ["between", 1, 0, false, ""],
+  );
+  assert.deepEqual(
+    [room.world!.camp, room.world!.stage, room.world!.seed, room.world!.step],
+    [true, 1, seedOf("m1:1:camp"), 0],
+  );
+  assert.equal(view(room).countdown, CAMP_STEPS / 3);
+  kept(room);
+  breakCamp(room);
+  // Wyrmbone Pass sets out: its own world, seeded for the run and the stage, with nothing of it tallied yet.
+  assert.deepEqual(
+    [room.stage, room.outcome, room.until, room.round, room.continued],
+    ["running", "", 0, 2, false],
+  );
+  assert.deepEqual(
+    [room.world!.stage, room.world!.seed, room.world!.step, room.world!.wave],
+    [2, seedOf("m1:2"), 0, 0],
+  );
+  assert.deepEqual(view(room).world!.stage, 2);
+  assert.deepEqual(
+    view(room).tally.map((row) => [row.stage.damage, row.run.damage]),
+    [
+      [0, 10],
+      [0, 20],
+      [0, 30],
+    ],
+  );
+  kept(room);
+  // Stage 1's controls are stale now: only this stage's count.
+  fold(room, { b: [[PLAY, "m1", 1, RIGHT]] });
+  assert.equal(room.held.b, undefined);
+  fold(room, { b: [[PLAY, "m1", 2, RIGHT]] });
+  assert.equal(room.held.b, RIGHT);
+});
+
+/** The run taken past Stage 1's tally and camp into Stage 2, as play does. */
+function second(room = started()): Room {
+  room.world = cleared(room.world!);
+  fold(room);
+  run(room, CLEAR_TICKS);
+  breakCamp(room);
+  assert.deepEqual([room.stage, room.round], ["running", 2]);
+  return room;
+}
+
+test("camp and the next stage carry each hero's lives, pots and health, one that went out back with one at full health, and a fresh continue", () => {
+  // The continue spent in stage 1, and the heroes as its fight leaves them.
+  const room = countdown();
+  fold(room, { a: [vote()] });
+  assert.equal(room.continued, true);
+  const [rhea, brakka, gorm] = room.world!.heroes;
+  const as = { state: "idle", timer: 0, z: 0, vz: 0 } as const;
+  room.world = cleared({
+    ...room.world!,
+    heroes: [
+      { ...rhea!, ...as, hp: 9, lives: 1, pots: 5 },
+      { ...brakka!, ...as, state: "out", hp: 0, lives: 0, pots: 2 },
+      { ...gorm!, ...as, hp: 30, lives: 3, pots: 3 },
+    ],
+  });
+  fold(room);
+  assert.equal(room.stage, "between");
+  kept(room);
+  run(room, CLEAR_TICKS);
+  const carried = (world: World) =>
+    world.heroes.map((h) => [h.seat, h.kind, h.lives, h.pots, h.hp]);
+  assert.deepEqual(
+    [room.stage, room.world!.camp, room.continued, carried(room.world!)],
+    [
+      "between",
+      true,
+      false,
+      [
+        [0, "rhea", 1, 5, 9],
+        [1, "brakka", 1, 2, HERO_HP.brakka],
+        [2, "gorm", 3, 3, 30],
+      ],
+    ],
+  );
+  kept(room);
+  // Out of camp with what it left them (the bot may have kicked its imps for meat and pots).
+  let camp = room.world!;
+  for (let i = 0; i < CAMP_STEPS && room.world!.camp; i++) {
+    camp = room.world!;
+    fold(room);
+  }
+  assert.deepEqual(
+    [room.stage, room.round, room.continued, room.until],
+    ["running", 2, false, 0],
+  );
+  assert.deepEqual(carried(room.world!), carried(camp));
+  assert.ok(room.world!.heroes.every((h) => h.state === "idle"));
+  kept(room);
+  // The continue is fresh: every hero out starts the countdown again, and only this stage's vote counts.
+  room.world = wiped(room.world!);
+  fold(room);
+  assert.equal(room.until, room.tick + CONTINUE_TICKS);
+  fold(room, { a: [vote("m1", 1)] });
+  assert.equal(room.continued, false, "a vote for stage 1");
+  kept(room);
+  fold(room, { a: [vote("m1", 2)] });
+  assert.deepEqual([room.stage, room.continued], ["running", true]);
+  kept(room);
+});
+
+test("the last stage cleared shows its tally, then the run is won with every stage's tallies", () => {
+  const room = started();
+  const fought = (world: World, damage: number) => ({
+    ...world,
+    heroes: world.heroes.map((hero, index) => ({
+      ...hero,
+      damage: damage * (index + 1),
+      knockdowns: index,
+    })),
+  });
+  room.world = cleared(fought(room.world!, 10));
+  fold(room);
+  run(room, CLEAR_TICKS);
+  breakCamp(room);
+  const worn = fought(room.world!, 1);
+  room.world = cleared({
+    ...worn,
+    heroes: worn.heroes.map((h, i) => ({ ...h, lives: 1 + i, pots: i, hp: 9 + i })), // prettier-ignore
+  });
+  fold(room);
+  // Stage 2 cleared short of the last: camp, then the Drowned Crypt, each hero carrying its lives, pots and health.
+  run(room, CLEAR_TICKS);
+  assert.deepEqual([room.stage, room.world!.camp], ["between", true]);
+  breakCamp(room);
+  assert.deepEqual([room.stage, room.round, room.world!.stage], ["running", 3, 3]); // prettier-ignore
+  // The players' heroes stood at camp; the bot's (Ironhide) kicked its imps, so may have eaten.
+  const [ada, bo, bot] = room.world!.heroes;
+  assert.deepEqual(
+    [ada, bo].map((h) => [h!.lives, h!.pots, h!.hp]),
+    [
+      [1, 0, 9],
+      [2, 1, 10],
+    ],
+  );
+  assert.ok(bot!.lives === 3 && bot!.pots >= 2 && bot!.hp >= 11);
+  kept(room);
+  room.world = cleared(fought(room.world!, 100));
+  fold(room);
+  assert.equal(LAST_STAGE, 3);
+  assert.deepEqual(
+    [room.stage, room.round, view(room).countdown, room.world!.stage],
+    ["between", LAST_STAGE, CLEAR_TICKS, 3],
+  );
+  assert.deepEqual(
+    view(room).tally.map((row) => [row.stage.damage, row.run]),
+    [
+      [100, { damage: 111, knockdowns: 0 }],
+      [200, { damage: 222, knockdowns: 3 }],
+      [300, { damage: 333, knockdowns: 6 }],
+    ],
+  );
+  kept(room);
+  run(room, CLEAR_TICKS);
   assert.deepEqual(
     [room.stage, room.outcome, room.until, room.round],
     ["over", "victory", 0, LAST_STAGE],
   );
   assert.equal(view(room).countdown, 0);
-  assert.deepEqual(
-    view(room).tally.map((row) => row.run.damage),
-    [10, 20, 30],
-  );
   kept(room);
 });
 
@@ -284,7 +446,7 @@ test("the countdown holds the seats of a run: with every human gone it runs out 
   kept(back);
 });
 
-test("a seat that leaves between stages is dropped, and the tally and the win stand", () => {
+test("a seat that leaves between stages is dropped: its hero stays behind, and the tally and the win stand", () => {
   const room = started();
   room.world = cleared({
     ...room.world!,
@@ -306,6 +468,38 @@ test("a seat that leaves between stages is dropped, and the tally and the win st
   );
   kept(room);
   run(room, CLEAR_TICKS);
+  // Camp, then stage 2, set out with the heroes whose seats are still here; the one that left keeps its row.
+  assert.deepEqual(
+    room.world!.heroes.map((hero) => hero.seat),
+    [0, 2],
+  );
+  kept(room);
+  breakCamp(room);
+  assert.deepEqual(
+    [room.stage, room.round, room.world!.heroes.map((hero) => hero.seat)],
+    ["running", 2, [0, 2]],
+  );
+  assert.deepEqual(
+    view(room).tally.map((row) => [row.seat, row.stage.damage, row.run.damage]),
+    [
+      [0, 0, 7],
+      [1, 0, 7],
+      [2, 0, 7],
+    ],
+  );
+  kept(room);
+  room.world = cleared(room.world!);
+  fold(room);
+  kept(room);
+  run(room, CLEAR_TICKS);
+  breakCamp(room);
+  assert.deepEqual(
+    [room.round, room.world!.stage, room.world!.heroes.map((h) => h.seat)],
+    [3, 3, [0, 2]],
+  );
+  room.world = cleared(room.world!);
+  fold(room);
+  run(room, CLEAR_TICKS);
   assert.deepEqual([room.stage, room.outcome], ["over", "victory"]);
   kept(room);
   // The next run sets out with whoever is seated.
@@ -321,6 +515,103 @@ test("a seat that leaves between stages is dropped, and the tally and the win st
       [2, 0],
     ],
   );
+});
+
+test("only a seat still playing its hero goes on: not a newcomer in a freed slot or a removed bot, and with nobody left the room is an empty lobby", () => {
+  const room = started();
+  room.world = cleared(room.world!);
+  fold(room);
+  // Bo leaves and Cy takes the slot with another hero, the bot is taken off, and Ada steps away (her seat is kept).
+  fold(room, {
+    a: [
+      [LEAVE, "b"],
+      [BOT, "remove", "bot:1"],
+    ],
+  });
+  fold(room, {
+    a: [
+      [JOIN, "c", "Cy", 1, "gorm", 1],
+      [PRESENCE, "a", false, 1],
+    ],
+  });
+  kept(room);
+  run(room, CLEAR_TICKS);
+  breakCamp(room);
+  assert.deepEqual(
+    [room.stage, room.world!.heroes.map((hero) => [hero.seat, hero.kind])],
+    ["running", [[0, "rhea"]]],
+  );
+  assert.equal(room.tally.length, 3);
+  kept(room);
+  // Nobody of the run is left in camp: the room is an empty lobby again.
+  const empty = started();
+  empty.world = cleared(empty.world!);
+  fold(empty);
+  fold(empty, {
+    a: [
+      [LEAVE, "a"],
+      [LEAVE, "b"],
+      [BOT, "remove", "bot:1"],
+    ],
+  });
+  run(empty, CLEAR_TICKS);
+  assert.deepEqual(
+    [empty.stage, empty.round, empty.world, empty.tally],
+    ["lobby", 0, null, []],
+  );
+  kept(empty);
+});
+
+test("a hero belongs to its slot: a newcomer or a bot in the freed slot playing the same hero carries it on, tallies and all", () => {
+  const room = started();
+  room.world = cleared({
+    ...room.world!,
+    heroes: room.world!.heroes.map((hero) => ({
+      ...hero,
+      damage: 7,
+      lives: hero.seat === 1 ? 2 : hero.lives,
+      pots: hero.seat === 1 ? 4 : hero.pots,
+    })),
+  });
+  fold(room);
+  // Bo leaves, and Cy takes Brakka's slot with Brakka; the bot's slot is taken by another bot (Ironhide's own hero).
+  fold(room, {
+    a: [
+      [LEAVE, "b"],
+      [JOIN, "c", "Cy", 1, "brakka", 1],
+      [BOT, "remove", "bot:1"],
+      [BOT, "add", "bot:2", "Flint", 2],
+    ],
+  });
+  kept(room);
+  run(room, CLEAR_TICKS);
+  // Camp sets out with them (and the new bot may kick its imps for pots on the way to stage 2).
+  assert.deepEqual(
+    room.world!.heroes.map((hero) => [hero.seat, hero.kind, hero.lives, hero.pots]),
+    [
+      [0, "rhea", LIVES, 0],
+      [1, "brakka", 2, 4],
+      [2, "gorm", LIVES, 0],
+    ],
+  ); // prettier-ignore
+  breakCamp(room);
+  assert.deepEqual(
+    room.world!.heroes.map((hero) => [hero.seat, hero.kind, hero.lives]),
+    [
+      [0, "rhea", LIVES],
+      [1, "brakka", 2],
+      [2, "gorm", LIVES],
+    ],
+  );
+  assert.deepEqual(
+    view(room).tally.map((row) => [row.seat, row.run.damage]),
+    [
+      [0, 7],
+      [1, 7],
+      [2, 7],
+    ],
+  );
+  kept(room);
 });
 
 test("a stage cleared as the last hero falls is won; the lobby ends a countdown", () => {
@@ -364,18 +655,37 @@ test("the checkpoint refuses a stage flow the fold cannot reach, without partial
   const counting = countdown(),
     lost = countdown();
   run(lost, CONTINUE_TICKS);
-  const won = started();
-  won.world = cleared(won.world!);
-  fold(won);
-  run(won, CLEAR_TICKS);
+  const won = second();
+  for (const camps of [true, false]) {
+    won.world = cleared(won.world!);
+    fold(won);
+    run(won, CLEAR_TICKS);
+    if (camps) breakCamp(won);
+  }
+  const later = second(),
+    ended = second();
+  ended.world = cleared({
+    ...ended.world!,
+    heroes: ended.world!.heroes.map((hero) => ({ ...hero, damage: 5 })),
+  });
+  fold(ended);
   const playing = started(),
-    lobby = createRoom("m0", DEFAULT_SETTINGS);
+    lobby = createRoom("m0", DEFAULT_SETTINGS),
+    camp = started();
+  camp.world = cleared(camp.world!);
+  fold(camp);
+  run(camp, CLEAR_TICKS + 40);
+  fold(camp, { a: [[PLAY, "m1", 1, RIGHT]] });
+  assert.deepEqual([camp.world!.camp, camp.held], [true, { a: RIGHT }]);
   const rooms: Record<string, Room> = {
     playing,
     between,
+    camp,
     counting,
     lost,
     won,
+    later,
+    ended,
     lobby,
   };
   for (const room of Object.values(rooms)) kept(room);
@@ -430,16 +740,55 @@ test("the checkpoint refuses a stage flow the fold cannot reach, without partial
     ["a lobby with the continue spent", lobby, (f) => (f[8] = true)],
     ["a lobby with an outcome", lobby, (f) => (f[9] = "defeat")],
     ["a lobby with tallies", lobby, (f) => (f[10] = [[0, "rhea", 0, 0]])],
-  ];
+    [
+      "a win short of the last stage",
+      between,
+      (f) => ([f[2], f[7], f[9]] = ["over", 0, "victory"]),
+    ],
+    ["a stage past the last", later, (f) => (f[1] = LAST_STAGE + 1)],
+    ["a world of another stage", later, (f) => ((f[6] as unknown[])[16] = 1)],
+    ["a later tally out of seat order", later, (f) => (f[10] as []).reverse()],
+    ["a later tally missing a hero", later, (f) => (f[10] as []).pop()],
+    ["a later tally for another hero", later, (f) => (row(f)[1] = "gorm")],
+    ["a later stage banked short", ended, (f) => (row(f)[2] = 4)],
+    ["held bits over a tally", between, (f) => (f[5] = [["a", RIGHT]])],
+    ["a camp in play", camp, (f) => (f[2] = "running")],
+    ["a camp once over", camp, (f) => ([f[2], f[9]] = ["over", "victory"])],
+    ["a camp with a clock", camp, (f) => (f[7] = camp.tick + 5)],
+    ["a camp with the continue spent", camp, (f) => (f[8] = true)],
+    [
+      "a camp after the last stage",
+      camp,
+      (f) => {
+        const world = f[6] as unknown[];
+        [f[1], world[16]] = [LAST_STAGE, LAST_STAGE];
+        world[0] = seedOf(`m1:${LAST_STAGE}:camp`);
+      },
+    ],
+    ["a camp seeded as a stage", camp, (f) => ((f[6] as number[])[0] = seedOf("m1:1"))],
+    ["a stage seeded as a camp", playing, (f) => ((f[6] as number[])[0] = seedOf("m1:1:camp"))],
+    ["a camp's world as a stage's", camp, (f) => ((f[6] as unknown[])[17] = false)],
+    ["a tally's world as a camp's", between, (f) => ((f[6] as unknown[])[17] = true)],
+    ["held bits for no hero", camp, (f) => (f[5] = [["w", RIGHT]])],
+    ["held bits for a bot", camp, (f) => (f[5] = [["bot:1", RIGHT]])],
+  ]; // prettier-ignore
   for (const [what, room, change] of cases)
     assert.equal(broken(room, change), undefined, what);
-  // A loss with a hero still standing is no loss.
+  // A loss with a hero still standing is no loss, and a run has a hero.
   const standing = { ...lost.world!, heroes: started().world!.heroes };
   assert.equal(
     decode(encode({ ...lost, world: standing }), lost.tick),
     undefined,
     "a loss with heroes standing",
   );
-  // Every stage's world is seeded for its run and stage.
-  assert.equal(won.world!.seed, seedOf("m1:1"));
+  const nobody = { ...later.world!, heroes: [] };
+  assert.equal(
+    decode(encode({ ...later, world: nobody }), later.tick),
+    undefined,
+  );
+  // Every stage's world is seeded for its run and stage, and is of that stage.
+  assert.deepEqual(
+    [won.world!.seed, won.world!.stage, won.outcome],
+    [seedOf("m1:3"), 3, "victory"],
+  );
 });

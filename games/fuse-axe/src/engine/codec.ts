@@ -1,8 +1,12 @@
 import { INPUT_MASK, LEFT, RIGHT } from "./input.js";
 import {
+  BEAST_COOL,
+  BEAST_WALK,
+  BONEWALKER,
+  BOSS,
   BUFFER_STEPS,
-  CAMERA_END,
   CAPACITY,
+  CAPTAIN,
   ENEMY_KINDS,
   ENEMY_MAX,
   FLOOR_BOTTOM,
@@ -14,6 +18,8 @@ import {
   GO_STEPS,
   HEAVY_HITSTOP,
   HERO_HP,
+  HITSTOP,
+  OGRE,
   HERO_KINDS,
   IMP_POTS,
   ITEM_KINDS,
@@ -21,32 +27,55 @@ import {
   ITEM_MAX,
   JUGGLE_HITS,
   JUGGLE_WINDOW,
+  JUMP_VZ,
+  LANCER,
+  LEAP_VX,
   LIVES,
   MAX_POTS,
+  MOUNT_KINDS,
+  MOUNT_MAX,
   RAVAGER,
   RESPAWN_INVULN,
   RUN_GAP,
   RUN_TAP,
   SPELLS,
-  STAGE_LENGTH,
   TIERS,
   VIEW_H,
   VIEW_W,
   enemyMaxHp,
   px,
+  type EnemyKind,
 } from "./tuning.js";
-import { STAGE_1, waveSpawns } from "./stages.js";
 import {
+  CAMP,
+  STAGES,
+  planOf,
+  waveSpawns,
+  type ImpCue,
+  type StagePlan,
+} from "./stages.js";
+import {
+  BONEWALKER_STATES,
+  BONE_ONLY,
+  CAPTAIN_STATES,
+  DRAKE_ONLY,
   ENEMY_STATES,
   FX_KINDS,
   HERO_STATES,
   IMP_ONLY,
   IMP_STATES,
+  LANCER_ONLY,
+  LANCER_STATES,
+  MOUNT_STATES,
+  OGRE_ONLY,
+  OGRE_STATES,
+  RIDDEN,
   type Enemy,
   type Fx,
   type Hero,
   type HeroState,
   type Item,
+  type Mount,
   type Spell,
   type World,
 } from "./world.js";
@@ -120,10 +149,16 @@ const ascending = <T>(items: readonly T[], key: (item: T) => number) =>
   );
 
 // Bounds with room to spare around what the rules keep: a checkpoint is refused for nonsense, not for a hero a
-// later rule moves a little further than this one does.
+// later rule moves a little further than this one does. Along the road the fields allow the longest stage's (camp's
+// among them), and the world holds them to its own stage's (`onRoad`).
+const most = (of: (plan: StagePlan) => number) =>
+  Math.max(...[...STAGES, CAMP].map(of));
+const LENGTH = most((plan) => plan.length),
+  /** How far outside the road a figure stands: one walking in from beyond its end, or knocked off its start. */
+  BEYOND = px(VIEW_W);
 const ID = int(1, UINT32),
   COUNT = int(0, UINT32),
-  X = int(-px(VIEW_W), STAGE_LENGTH + px(VIEW_W)),
+  X = int(-BEYOND, LENGTH + BEYOND),
   Y = int(0, px(VIEW_H)),
   Z = int(0, px(VIEW_H)),
   SPEED = int(-px(16), px(16)),
@@ -131,7 +166,7 @@ const ID = int(1, UINT32),
   BUFFER = int(0, BUFFER_STEPS),
   // Where an enemy walks to: `walkTo` and `walkIn` keep a goal on the road and in the floor band, and one past either
   // is a walk that never ends.
-  GOAL_X = int(0, STAGE_LENGTH),
+  GOAL_X = int(0, LENGTH),
   GOAL_Y = int(FLOOR_TOP, FLOOR_BOTTOM);
 
 /** The most pots any hero holds, and the highest level a spell has. */
@@ -140,7 +175,16 @@ const POTS = Math.max(...HERO_KINDS.map((kind) => MAX_POTS[kind]));
 const INVULN = Math.max(RESPAWN_INVULN, GETUP_STEPS + GETUP_GRACE),
   TAP = Math.max(RUN_TAP, RUN_GAP),
   THINK = Math.max(
-    ...TIERS.map((tier) => RAVAGER[tier].think + RAVAGER[tier].jitter),
+    ...[
+      ...TIERS.flatMap((tier) => [
+        RAVAGER[tier],
+        LANCER[tier],
+        BONEWALKER[tier],
+      ]),
+      OGRE.calm,
+      OGRE.rage,
+      CAPTAIN,
+    ].map((each) => each.think + each.jitter),
   );
 /**
  * A hero with no hit points is flying from the blow, fallen or out; one fallen or out has none. A hero with no life
@@ -226,15 +270,78 @@ const enemy = record<Enemy>({
   thinkAt: COUNT,
   holder: COUNT,
   pots: int(0, IMP_POTS),
+  poise: COUNT,
+  flashUntil: COUNT,
+  enraged: oneOf([false, true]),
+  remounted: oneOf([false, true]),
+  reassembled: oneOf([false, true]),
 });
+/** The states a lancer is off the floor in: leaping, flying from a blow or from a throw. */
+const ALOFT: readonly Enemy["state"][] = ["leap", "knockdown", "thrown"],
+  LANCERS: readonly EnemyKind[] = ["lancer", "captain"];
+/** Each kind's states: a ravager's are every state no other kind has alone, and it rides. */
+const STATES: Readonly<Record<EnemyKind, readonly Enemy["state"][]>> = {
+  ravager: ENEMY_STATES.filter(
+    (state) =>
+      ![...IMP_ONLY, ...OGRE_ONLY, ...LANCER_ONLY, ...BONE_ONLY].includes(
+        state,
+      ),
+  ),
+  imp: IMP_STATES,
+  ogre: OGRE_STATES,
+  lancer: LANCER_STATES,
+  captain: CAPTAIN_STATES,
+  bonewalker: BONEWALKER_STATES,
+};
 /**
- * A sack imp is of the lowest tier, in an imp's state and going for nobody; every other enemy has no sack and is
- * never in a state only an imp is in.
+ * Every enemy is in one of its kind's states (`STATES`: only a ravager and the captain ride). A sack imp is of the
+ * lowest tier and going for nobody; every other enemy has no sack. Only a boss has poise or a flash of its own, only an
+ * ogre rage, only the captain a remount and only a bonewalker a reassembly. A lancer and the captain stand on the floor
+ * unless aloft (the captain's drake carries him on it), and leap no faster than `LEAP_VX`. A bonewalker's bone pile
+ * lies still with no hit points, short of the reassembly it has not had; one clawing out of its grave stands still,
+ * whole and going for nobody, and one pulling itself together has.
  */
-const sackKept = (value: Enemy): boolean =>
-  value.kind === "imp"
-    ? value.tier === 0 && IMP_STATES.includes(value.state) && !value.target
-    : value.pots === 0 && !IMP_ONLY.includes(value.state);
+const kindKept = (value: Enemy): boolean =>
+  STATES[value.kind].includes(value.state) &&
+  (value.kind === "imp"
+    ? value.tier === 0 && !value.target
+    : value.pots === 0) &&
+  (BOSS[value.kind] || (value.poise === 0 && value.flashUntil === 0)) &&
+  (value.kind === "ogre" || !value.enraged) &&
+  (value.kind === "captain" || !value.remounted) &&
+  (value.kind === "bonewalker" || !value.reassembled) &&
+  (value.state !== "pile" ||
+    (value.hp === 0 &&
+      !value.reassembled &&
+      value.z === 0 &&
+      value.vx === 0 &&
+      value.vz === 0)) &&
+  (value.state !== "rise" ||
+    (!value.reassembled &&
+      value.target === 0 &&
+      value.z === 0 &&
+      value.vx === 0 &&
+      value.vz === 0)) &&
+  (value.state !== "reassemble" || value.reassembled) &&
+  (!LANCERS.includes(value.kind) ||
+    ((value.z === 0 || ALOFT.includes(value.state)) &&
+      (value.state !== "leap" || Math.abs(value.vx) <= LEAP_VX)));
+
+/**
+ * A bonewalker clawing out of its grave stands at one of its stage's graves with every hit point, and one that has
+ * reassembled has no more than the half it came back with.
+ */
+function boneKept(value: Enemy, world: World): boolean {
+  const full = enemyMaxHp(value.kind, value.tier, world.heroes.length);
+  return (
+    (value.state !== "rise" ||
+      (value.hp === full &&
+        (planOf(world).graves ?? []).some(
+          (grave) => grave.x === value.x && grave.y === value.y,
+        ))) &&
+    (!value.reassembled || 2 * value.hp <= full)
+  );
+}
 
 const fx = record<Fx>({
   kind: oneOf(FX_KINDS),
@@ -259,6 +366,80 @@ const item = record<Item>(
 );
 
 const spell = record<Spell>({ hero: ID, level: int(1, POTS), born: COUNT });
+
+/**
+ * A beast stands on the floor, but in a hop or coming down from one its rider was thrown out of (`flee`), and strikes
+ * only with its own kind's blow (a clawbeak's tail; a drake's breath, and the captain's spear from its saddle).
+ */
+const mount = record<Mount>(
+  {
+    id: ID,
+    kind: oneOf(MOUNT_KINDS),
+    x: X,
+    y: Y,
+    z: Z,
+    vx: SPEED,
+    vy: SPEED,
+    vz: SPEED,
+    facing: FACING,
+    state: oneOf(MOUNT_STATES),
+    timer: COUNT,
+    rider: COUNT,
+    goal: GOAL_X,
+    coolUntil: COUNT,
+  },
+  (value) =>
+    ((value.z === 0 && value.vz === 0) ||
+      value.state === "hop" ||
+      value.state === "flee") &&
+    (value.kind === "drake"
+      ? value.state !== "sweep"
+      : !DRAKE_ONLY.includes(value.state)),
+);
+
+/**
+ * The beasts and their riders, both ways: every hero or enemy in `ride` rides exactly one beast and every other none,
+ * and a rider stands where its beast does, at its height, facing its way, with no speed of its own. A beast with a
+ * rider is in a ridden state (only a hero's hops, only an enemy's walks in, only the captain's thrusts from the
+ * saddle) and one without is not; only a hero's walks of its own (`vx`, `vy`, no faster than the beast's walk) and
+ * none rises faster than a hop leaves the floor (`vz`); none strikes again later than one resting now would.
+ */
+function mountsKept(value: World): boolean {
+  const riders = new Map<number, Hero | Enemy>();
+  for (const each of [...value.heroes, ...value.enemies])
+    if (each.state === "ride") riders.set(each.id, each);
+  const heroIds = new Set(value.heroes.map((each) => each.id)),
+    ridden = value.mounts.flatMap((each) => (each.rider ? [each.rider] : []));
+  return (
+    value.mounts.every((each) => {
+      const rider = riders.get(each.rider),
+        hero = heroIds.has(each.rider);
+      return (
+        (rider
+          ? rider.x === each.x &&
+            rider.y === each.y &&
+            rider.z === each.z &&
+            rider.facing === each.facing &&
+            rider.vx === 0 &&
+            rider.vz === 0 &&
+            (!("vy" in rider) || rider.vy === 0) &&
+            RIDDEN.includes(each.state) &&
+            (each.state !== "hop" || hero) &&
+            (each.state !== "enter" || !hero) &&
+            (each.state !== "lance" || rider.kind === "captain")
+          : each.rider === 0 && !RIDDEN.includes(each.state)) &&
+        (hero
+          ? Math.abs(each.vx) <= BEAST_WALK.x &&
+            Math.abs(each.vy) <= BEAST_WALK.y
+          : each.vx === 0 && each.vy === 0) &&
+        each.vz <= JUMP_VZ &&
+        each.coolUntil <= value.step + BEAST_COOL
+      );
+    }) &&
+    new Set(ridden).size === ridden.length &&
+    ridden.length === riders.size
+  );
+}
 
 /**
  * The spells: one for each hero casting (`cast`) and none for anyone else, in the order they were cast (a step's in
@@ -295,16 +476,18 @@ function spellsKept(value: World): boolean {
  * an unlocked one has all its spawns in. No GO runs longer than one starting now.
  */
 function wavesKept(value: World): boolean {
-  const latest = STAGE_1.waves[value.wave - 1],
-    next = STAGE_1.waves[value.wave];
+  const { waves } = planOf(value),
+    latest = waves[value.wave - 1],
+    next = waves[value.wave];
   if (value.goUntil > value.step + GO_STEPS) return false;
+  // Camp has no wave, so nothing begins there.
   if (!latest)
     return (
       !value.locked &&
       value.waveStep === 0 &&
       value.spawned === 0 &&
       value.goUntil === 0 &&
-      value.camX < next!.at
+      (!next || value.camX < next.at)
     );
   const count = waveSpawns(latest, value.heroes.length).length;
   return (
@@ -337,14 +520,35 @@ function holdsKept(value: World): boolean {
 }
 
 /**
+ * Everything along the road is within the world's own stage: the camera short of its end, no more waves begun or imps
+ * sent than it has, every figure and spark no further outside the road than `BEYOND`, and every goal and item on it.
+ */
+function onRoad(value: World): boolean {
+  const { length, cameraEnd, waves, imps } = planOf(value),
+    x = (each: { x: number }) => each.x <= length + BEYOND;
+  return (
+    value.camX <= cameraEnd &&
+    value.wave <= waves.length &&
+    value.impsSent <= imps.length &&
+    value.heroes.every(x) &&
+    value.enemies.every((each) => x(each) && each.goal <= length) &&
+    value.mounts.every((each) => x(each) && each.goal <= length) &&
+    value.fx.every(x) &&
+    value.items.every((each) => each.x <= length)
+  );
+}
+
+/**
  * Heroes in id order, which is seat order, and enemies in id order, every id below `nextId` and none both a hero's
  * and an enemy's; the ids a swing has hit are enemy ids too, though the enemy may since be gone, and an enemy goes
  * for a hero in the world or nobody. No enemy has more hit points than its tier's for this party, no hit-stop,
  * invulnerability, run of hits, double tap or idle pause runs past the longest one starting now, the sparks run
  * oldest first, each born no later than now and not yet past its life, the items run in id order, each id issued and
- * no hero's or enemy's, each born no later than now and not yet past its life, no imp is sent before the camera
- * reached its cue, and the sacks, the waves, the grabs and the spells are as `sackKept`, `wavesKept`, `holdsKept`
- * and `spellsKept` say.
+ * no hero's or enemy's, each born no later than now and not yet past its life and meat only at camp, no imp is sent
+ * before the camera reached its cue and its step came, no spell plays at camp, and nothing but sack imps is there
+ * (no other enemy, no beast), the beasts run in id order, each id issued and no hero's, enemy's or item's, and the
+ * road, the sacks, the waves, the grabs, the spells and the riders are as `onRoad`, `sackKept`, `wavesKept`,
+ * `holdsKept`, `spellsKept` and `mountsKept` say.
  */
 const world = record<World>(
   {
@@ -352,26 +556,42 @@ const world = record<World>(
     step: COUNT,
     rng: COUNT,
     nextId: ID,
-    camX: int(0, CAMERA_END),
+    camX: int(
+      0,
+      most((plan) => plan.cameraEnd),
+    ),
     heroes: list(hero, CAPACITY),
     enemies: list(enemy, ENEMY_MAX),
     fx: list(fx, FX_MAX),
-    wave: int(0, STAGE_1.waves.length),
+    wave: int(
+      0,
+      most((plan) => plan.waves.length),
+    ),
     locked: oneOf([false, true]),
     waveStep: COUNT,
     spawned: COUNT,
     goUntil: COUNT,
     items: list(item, ITEM_MAX),
-    impsSent: int(0, STAGE_1.imps.length),
+    impsSent: int(
+      0,
+      most((plan) => plan.imps.length),
+    ),
     spells: list(spell, CAPACITY),
+    stage: int(1, STAGES.length),
+    mounts: list(mount, MOUNT_MAX),
+    camp: oneOf([false, true]),
   },
   (value) => {
+    if (!onRoad(value)) return false;
     const heroIds = new Set(value.heroes.map((each) => each.id)),
       enemyIds = new Set(value.enemies.map((each) => each.id)),
+      itemIds = new Set(value.items.map((each) => each.id)),
       issued = (id: number) => id < value.nextId,
       enemyId = (id: number) => issued(id) && !heroIds.has(id),
       stopped = (each: Hero | Enemy) =>
-        each.stopUntil <= value.step + HEAVY_HITSTOP;
+        each.stopUntil <= value.step + HEAVY_HITSTOP,
+      sent = (cue: ImpCue) =>
+        cue.at <= value.camX && (cue.step ?? 0) <= value.step;
     return (
       ascending(value.heroes, (each) => each.id) &&
       ascending(value.heroes, (each) => each.seat) &&
@@ -389,10 +609,14 @@ const world = record<World>(
         (each) =>
           enemyId(each.id) &&
           stopped(each) &&
-          each.hp <= enemyMaxHp(each.kind, each.tier, value.heroes.length) &&
+          // An ogre's poise counts hit points it has lost since it last fell.
+          each.hp + each.poise <=
+            enemyMaxHp(each.kind, each.tier, value.heroes.length) &&
+          each.flashUntil <= value.step + HITSTOP &&
           (each.target === 0 || heroIds.has(each.target)) &&
           each.thinkAt <= value.step + THINK &&
-          sackKept(each),
+          kindKept(each) &&
+          boneKept(each, value),
       ) &&
       value.fx.every(
         (each, index) =>
@@ -406,13 +630,23 @@ const world = record<World>(
           enemyId(each.id) &&
           !enemyIds.has(each.id) &&
           each.born <= value.step &&
-          value.step - each.born < ITEM_LIFE,
+          value.step - each.born < ITEM_LIFE &&
+          (each.kind === "pot" || value.camp),
       ) &&
-      (value.impsSent === 0 ||
-        STAGE_1.imps[value.impsSent - 1]!.at <= value.camX) &&
+      (value.impsSent === 0 || sent(planOf(value).imps[value.impsSent - 1]!)) &&
+      (!value.camp ||
+        (value.spells.length === 0 &&
+          value.mounts.length === 0 &&
+          value.enemies.every((each) => each.kind === "imp"))) &&
+      ascending(value.mounts, (each) => each.id) &&
+      value.mounts.every(
+        (each) =>
+          enemyId(each.id) && !enemyIds.has(each.id) && !itemIds.has(each.id),
+      ) &&
       wavesKept(value) &&
       holdsKept(value) &&
-      spellsKept(value)
+      spellsKept(value) &&
+      mountsKept(value)
     );
   },
 );

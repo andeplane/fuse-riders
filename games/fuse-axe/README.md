@@ -8,7 +8,8 @@ A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Wo
 
 Open `/fuse-axe/` on a running service, or pick **Fuse Axe** from the app portal (the dot grid at the top left of
 every game). **PLAY SOLO** opens the hero picker; **CREATE ROOM** makes a room to share by code, link or QR code,
-where everyone picks a hero (duplicates are allowed) and the host presses **START**. The heroes walk, run, jump and swing
+where everyone picks a hero (duplicates are allowed) and the host presses **START**. In either lobby the host's
+**+ BOT** seats a bot companion (see [Bots and the golden replay](#bots-and-the-golden-replay)). The heroes walk, run, jump and swing
 through Stage 1's waves of ravagers in the pixel-art scene under the HUD. Clearing the stage shows each hero's
 tally, then the run's victory; when every hero is out, any hero may press Attack within ten seconds to continue once,
 or the run is over. The host sets out again with **REMATCH** or goes back to the lobby.
@@ -25,6 +26,10 @@ menu); a pad with no standard mapping offers only its stick and first four butto
 | J / Z         | ATTACK                           | Attack (a dash from a run, a stab in the air, a throw at a dazed one) |
 | K / X         | JUMP                             | Jump (a running jump from a run); with Attack, a back attack          |
 | L / C         | MAGIC                            | Magic: tap to cast every pot, hold to charge level by level, let go   |
+
+Beside a riderless beast, Jump climbs on. Riding, Attack sweeps a clawbeak's tail or breathes a drake's fire, Jump hops
+it, Down + Jump climbs off and Magic climbs off to charge or cast; a hard blow throws the rider off
+([design](docs/design.md#enemies)).
 
 On a touch screen the pads (`src/app/pad.ts`) sit over the game's corners while your hero fights; a thumb slides
 round the d-pad for the diagonals, and a double tap of left or right (a second tap, or a slide back through the
@@ -59,6 +64,28 @@ node games/fuse-axe/preview/flow.mjs http://localhost:8787/ [screenshot-dir]    
 Production serves Fuse Axe rooms only once `EXTRA_GAME_IDS` names `fuse-axe` ([GCP deploy](../../docs/online/GCP-DEPLOY.md));
 until then the page offers solo only.
 
+## Bots and the golden replay
+
+The host's **+ BOT** in the lobby seats a bot, which plays its seat's hero (Brakka, Rhea, Gorm, Brakka, Rhea), and its
+× removes it before the run. `botInput(world, heroId, humans)` in `src/engine/bot.ts` gives the bits a bot holds for a
+log tick, read off the world as a player reads the screen: it taps Magic with a pot when three enemies are about it
+(or one while it is low on health), steps out of a ravager's wind-up aimed at it or beats it to the blow (after a
+seeded reaction time, and it misses a few), swings and chains the combo at whatever is in reach, kicks sack imps and
+picks up pots, walks to the nearest ravager fewer heroes are on, and with nothing to fight follows the heroes players
+steer, or leads the camera on when there are none. It never presses Attack with no enemy in reach, and keeps nothing
+between ticks but what its hero holds. The room folds those bits for every bot seat (`playTick` in
+`src/online/game.ts`), so every replica plays a bot alike and a rollback replays it.
+
+![Solo with two bot companions in the lobby](docs/images/app-lobby-bots.png)
+![The bots following the player through the first wave](docs/images/app-play-bots.png)
+
+A bot's play is folded rather than logged, so it is part of the rules. `tests/golden.test.ts` has three bots clear
+Stage 1 twice (about 5,100 steps each, under a second): once with no player, so they lead the camera on, and once
+with Brakka standing in for one, so Rhea and Gorm follow it between fights. It compares the world's hash every ten
+seconds, and the step count, with the recorded ones. A change meant to alter the engine's behaviour or the bot's bumps `RULES` in `src/engine/index.ts` and
+re-records the golden in the same commit (`GOLDEN_RECORD=1 pnpm exec tsx --test games/fuse-axe/tests/golden.test.ts`
+prints the new values). A golden that fails without such a change is a regression to fix, not one to re-record.
+
 ## Sprites
 
 Sprites are palette-indexed pixel data painted in code (`src/render/pixel/`): a rig paints shapes with surface
@@ -71,31 +98,41 @@ widen `size` for a long reach. The renderer bakes a frame once per swap, flash a
 
 Every hero paints the same frames, `HERO_FRAMES` in `src/render/art/animate.ts`: a two-frame breath, a six-frame
 walk, rise, fall and land, a wind-up, strike and follow-through for each of the combo's three swings, then hurt,
-knockdown, down and getup; plus a 16 × 16 HUD portrait and palette swaps for up to five of the same hero. The kit's
-`stride` lays out a walk's legs, `breath` an exhale and `bend` a knee or elbow (`armTo` and `legTo` place a limb from
-its ends with another pose's bones), so a new hero only adds its poses. `pixel/head.ts` holds what every hero shares
+knockdown, down and getup, magic's charge and cast, and the moves: a six-frame sprint, the dash's lunge and stop (a
+shoulder charge, Gorm's a headbutt), the jump attack's wind-up and downward stab, the back attack's wind-up, strike and
+follow-through behind the hero, the grab's clutch and the throw's heave and toss; plus a 16 × 16 HUD portrait and
+palette swaps for up to five of the same hero. The kit's `stride` lays out a walk's legs, `sprint` a run's, `breath` an
+exhale and `bend` a knee or elbow (`armTo` and `legTo` place a limb from its ends with another pose's bones), so a new
+hero only adds its poses. The engine keeps a hero's facing through the back attack, so the figure is not flipped: a
+pose's `lookBack` turns only the head, and what is on it, to look over the shoulder (`headTurn`), while the blade
+swings behind. `pixel/head.ts` holds what every hero shares
 above the neck: `turn(tilt)`, the body's frame for lying poses, `head` (skull, jaw, nose), `stampFace` for a hero's
 `Faces` (calm, yell, pain, out), `beard`, `hornedHelm` and `portrait`, which paints the plate, shoulders and face and
 takes the hair, headgear and face pixels. A shape's `grain` darkens a regular run of its pixels into strands, as a
 beard's. A hero's `stride` reach is 1.5 × its `WALK_STEPS` × its walking speed in px per step (the engine's exact
-sub-pixel speed: Gorm's 0.8 px is 205/256), so a planted foot stays put; `tests/hero-art.test.ts` checks that for
+sub-pixel speed: Gorm's 0.8 px is 205/256), and its `sprint` reach its `RUN_STEPS` × its running speed, so a planted
+foot stays put; `tests/hero-art.test.ts` checks that for
 every hero in `HEROES`, which has art for every `HERO_KINDS` hero. Brakka (`src/render/art/brakka.ts`) swings a
 broadsword; Rhea (`rhea.ts`) is slimmer, in bronze and green, with a longsword: a level slash, a thrust, and a spinning
 overhead finisher. Gorm (`gorm.ts`) is a dwarf about three quarters of Brakka's height and broader, in a horned helm
 and a blue tunic, with the kit's double-bit `axe` (its angle and haft length are pose fields) gripped in both hands
 for the combo: a level hack, a rising uppercut chop, and an overhead cleave that bites into the ground, which hides
 whatever reaches below the floor.
-`heroFrame(kind, anim, animStep)` picks the frame for a hero in the view, timed by view-kit's `SWING_STEPS` and
-`JUMP_RISE_STEPS`: the strike exactly in the swing's active steps (a hit's freeze holds it, as the engine stops
-counting `animStep`), the walk at a cadence that keeps a planted foot still on a straight walk along the road. It
+`heroFrame(kind, anim, animStep)` picks the frame for a hero in the view, timed by view-kit's `SWING_STEPS`,
+`BACK_STEPS`, `STAB_STEPS`, `DASH_STEPS`, `THROW_STEPS` and `JUMP_RISE_STEPS`: a strike (`STRIKE_FRAMES`) exactly in
+the steps a blow is out, a swing's, the back attack's, the jump attack's or the dash's (a hit's freeze holds it, as the
+engine stops counting `animStep`), the grab while the body is held and the heave from the step it is thrown, and the
+walk and the run at cadences that keep a planted foot still on a straight line along the road. It
 never throws, so a frame cannot stop the renderer: an odd `animStep` is rounded to a whole step from 0, and a new
 engine state fails to compile until it has frames. `tests/animate-engine.test.ts` checks it against the real engine.
 
 To see every figure's frames at 3× and 1×, each hero's swaps, flash, flip and portrait, and a reel per anim at game
-speed, run `pnpm exec vite` and open `/games/fuse-axe/lab/sprites.html`. The lab is dev-only: it is not in the build
-and not on the portal. [`docs/images/brakka-frames.png`](docs/images/brakka-frames.png),
-[`docs/images/rhea-frames.png`](docs/images/rhea-frames.png) and
-[`docs/images/gorm-frames.png`](docs/images/gorm-frames.png) are screenshots of it.
+speed, run `pnpm exec vite` and open `/games/fuse-axe/lab/sprites.html` (`?frames=run0,dash` shows only those
+frames). The lab is dev-only: it is not in the build and not on the portal.
+[`docs/images/brakka-frames.png`](docs/images/brakka-frames.png),
+[`docs/images/rhea-frames.png`](docs/images/rhea-frames.png),
+[`docs/images/gorm-frames.png`](docs/images/gorm-frames.png) and
+[`docs/images/move-frames.png`](docs/images/move-frames.png) (the moves' frames) are screenshots of it.
 
 The ravager (`src/render/art/ravager.ts`) paints every frame on one canvas with one feet anchor, so its frames line
 up on the floor; its falling poses are standing poses tipped over backwards (`tipped`). `RAVAGER_ANIMS` lists each
@@ -113,17 +150,96 @@ the ravager's, and `enemyFrame(kind, anim, animStep)` (`animate.ts`) picks any e
 `heroFrame` it never throws, an anim a kind has no strip for stands idle and a kind from a newer build plays as a
 ravager, the scene's fallback. [`docs/images/imp-frames.png`](docs/images/imp-frames.png) is the lab's imp and pot.
 
+The Ogre twins (`src/render/art/ogre.ts`) are drawn at their own size, half as big again as a ravager (about 70 px
+boots to crown): a hunched brute with a pot belly, a topknot, tusks jutting from an underbite, an iron pauldron,
+bracers and a hide kilt, and a huge two-handed war hammer. A pose gives only a limb's ends; `bend` places the elbows
+and knees, and the far hand grips the haft below the near one unless the pose lets go. It stands leaning on the
+hammer and stomps in a four-frame walk that keeps a planted foot on the road at the calm walking speed; the slam lifts
+the hammer, holds it high behind the head (the telegraph), brings it down through a motion arc and stays bent over
+it with its head driven into the floor (what reaches below the feet is cut off and clods fly); the sweep draws the
+hammer back behind the hip and swings it round in a flat ring of motion either side; it pants while it stands open,
+reels when staggered, and falls, lies and gets up leaning on the hammer. `OGRE_ANIMS` is timed by view-kit's
+`OGRE_STEPS`: the slam's blow shows on the step the hammer lands and the sweep's strike from the step it lands, which
+`tests/ogre-art.test.ts` checks against the real engine. Its skin is the olive ramp, which `OGRE_TIERS` recolours
+green and red for the twins (ember for a higher tier); `OGRE_RAGE` turns an enraged twin's eyes red, and the scene
+lets it blow off steam from its crown (`OGRE_CROWNS`). The lab plays the twins in the real scene below their frames.
+
+![The ogre's frames in the twins' palettes and enraged, and the lab's scene](docs/images/ogre-frames.png)
+
+The lancer (`src/render/art/lancer.ts`) is a ravager's height: a bronze helm with a plume, a white steel cuirass over
+a pleated skirt, boots banded at the knee and a spear longer than it is tall, built as the ogre is (`bend` places the
+elbows and knees, the far hand grips the haft behind the near one). It stands with the spear upright and walks with it
+sloped; the wind-up brings it down level and draws it back, its point glinting (the telegraph), and the thrust lunges
+with it level and speed lines streaking back along the haft, its steel point drawn on the very column `SPEAR.reach`
+reaches. The leap raises it overhead while it climbs (to `LANCER_STEPS.leapApex`) and points it down as it falls, and
+the plunge drives it into the floor at `SPEAR.plunge`, what reaches below the feet cut off and clods flying; it
+falls, lies with the spear dropped beside it and gets up leaning on it. `LANCER_ANIMS` is timed by view-kit's
+`LANCER_STEPS`, which `tests/lancer-art.test.ts` checks against the real engine. Its plume, skirt and knee bands are
+its own red, which `LANCER_TIERS` recolours in the ravagers' rust and violet.
+
+![The lancer's frames in its three tiers, and two frames of the scene from a real engine world](docs/images/lancer-frames.png)
+
+The clawbeak (`src/render/art/clawbeak.ts`), the beast a ravager rides, is a teal two-legged runner a little over 40 px
+to its crest, with a long tail, a big hooked gold beak, a red crest, a leather saddle and a brass stirrup. It breathes
+swaying its tail, struts in a four-frame walk that keeps a planted foot on the road (wandering, it stoops to peck), and
+bolts head high when it loses its rider. The sweep coils the tail up over its back (the scene blinks it every
+`TELEGRAPH` steps), then from the step the tail lands whips it round in a flat ring `CLAWBEAK.reach` either side.
+`mountFrame` (`animate.ts`) plays `CLAWBEAK_ANIMS` as `enemyFrame` plays an enemy's. The scene seats the rider, in the
+ravager's own `ride` frame (astride, mace raised), on each frame's saddle point (`CLAWBEAK.saddle` over the feet, lower
+as the body dips: `CLAWBEAK_DIPS`), in the beast's shadow; `tests/clawbeak-art.test.ts` checks it all against the engine.
+
+![The clawbeak's frames, riderless and ridden, and two frames of the scene from a real engine world: the wind-up and the lash](docs/images/clawbeak-frames.png)
+
+The ember drake (`src/render/art/drake.ts`), the beast the lancer captain rides, is an orange-red dragon on four legs
+about the clawbeak's height, with a long neck, a horned head, gold belly plates, red bat wings folded up behind a black
+and gold saddle, and red spines. It walks with diagonal pairs of feet keeping pace with the road, and gallops when it
+loses its rider. Its breath (`DRAKE_ANIMS.breathe`, timed by view-kit's `DRAKE_STEPS`) rears it back, its chest
+swelling and its throat kindling, for exactly the inhale (the telegraph, which the scene also blinks). From the step
+the flame is out it lunges with its jaws wide and its throat blazing. Through the captain's saddle thrust it crouches
+and then braces. Its saddle point is the clawbeak's (`DRAKE_DIPS`), so the captain (`captain.ts`, a seated `ride`
+frame until he has a look of his own) and the heroes sit it as they sit a clawbeak.
+
+The flame (`src/render/drake-fx.ts`) is a jet from the frame's jaws (`DRAKE_MOUTHS`) to the front `flamePx` gives. It
+has a white-hot core cooling to a red rim, streaks and tongues streaming forward, a billow at the front and rising
+embers. Each length and phase is one sprite, made and baked once (a breath runs through about fifty), so a breath
+costs one blit a frame. While the front is still behind the jaws, in the breath's first steps and its last, where the
+flame already burns whatever stands that close, a four-pixel flare shows at the jaws (`FLARE`). It is drawn straight
+after the drake, at its depth: over a figure further up the floor, under one in front.
+`tests/drake-art.test.ts` plays the real engine against the drake's frames and checks that the drawn front matches
+`flamePx`.
+
+![The ember drake's frames, riderless and ridden, and two frames of the scene from a real engine world: the captain's drake inhaling, then its flame on the party](docs/images/drake-frames.png)
+
+A hero riding sits astride too, in four frames of its own (`ride`, `ridewindup`, `rideattack`, `ridehop`): hips on
+the seat, the far leg out of sight (`astride` on the pose skips it), the near boot in the stirrup and the weapon held
+ready. The hero's anim is `ride` throughout, so `riderFrame(anim, animStep)` (`animate.ts`) picks the frame from its
+beast's: braced, weapon cocked, while the tail winds up or an ember drake inhales; leaning in, weapon pointed at the
+foe, from the step the tail lands (or the flame is out) to the blow's end; crouched forward, weapon raised, through a
+hop; seated otherwise (the captain's saddle thrust, `lance`, is his, not a hero's, and `heroFrame` sits a rider whose
+beast is not in the view). Gorm's legs are shorter than the stirrup a ravager rides with, so his seated near leg is
+drawn longer, its thigh under the tunic. The rider's marker hangs over its seated head. `tests/hero-ride.test.ts`
+seats every frame on every frame a ridden clawbeak or drake shows and checks the mapping against the engine; the lab
+plays the three heroes riding each.
+
+![Each hero's riding frames on the clawbeak (sitting, walking, the wind-up, the lash, the hop), and a frame of the scene from a real engine world: Brakka's lash, Rhea's hop, Gorm's wind-up](docs/images/hero-riders.png)
+
 ## Scene
 
 `src/render/scene.ts` draws one native 320 × 180 frame of the view: `createScene(make).draw(ctx, view, frame)`, where
-`frame` counts 60 Hz frames and moves only scenery (fires, the GO flash); the app blends the two newest ticks
+`frame` counts 60 Hz frames and moves only scenery (fires, the GO flash, an ogre's steam); the app blends the two newest ticks
 (`src/app/interpolate.ts`) before it calls it. In order: the backdrop, a soft dithered shadow on the floor under every
 figure (narrower the higher it jumps), heroes and enemies by depth (further up the floor first, then lower before
 higher, then by id) flipped to their facing, each hero's chevron in its seat's colour, the hit sparks
 (`sparks.ts`), the grass in front and a flashing GO → when a cleared wave opens the road. An enemy in hit-stop
 flashes, a tier wears its palette and a defeated one blinks out over `DEAD_STEPS`; an invulnerable hero (getting up,
 or just risen) blinks its sprite, keeping its shadow and chevron. Heroes of one kind each get a palette of their own,
-in seat order.
+in seat order. A beast stands among the figures, its rider drawn over it astride the saddle, and blinks as its tail
+winds up. An ogre's slam sends its shockwave along the floor (`ogre-fx.ts`), placed by view-kit's `QUAKE`
+exactly where the engine's runs: a crack splits the floor from the hammer's reach to the front under the figures,
+and over them rock shards burst up at the front and crumble behind it (the last ones faster, to be gone as the
+hammer rises), dust rolling and pebbles flying; an enraged twin steams, drawn with it by depth so a hero in front of
+it hides the puffs ([screenshot](docs/images/ogre-twins.png)). The crack, shards and dust are flat rectangles drawn
+each frame (a few hundred for the 24 steps of a slam), not baked.
 Nothing is drawn off screen (`pen.ts` clips every call), and every sprite, shadow and sign is baked once.
 
 Everything the renderer pre-paints goes through one injected surface factory, `MakeSurface` in
@@ -138,11 +254,25 @@ Over it all the HUD (`src/render/hud.ts`) is a strip along the top with a panel 
 in the palette it wears on the field, framed in its seat's colour; the player's name in a 3 × 5 pixel font
 (`font.ts`: capitals, digits and a few marks; accents dropped, anything else left out, cut to fit); its lives as ×N;
 a segmented health bar whose lost part trails white for a moment and then drains; and a row of its kind's most magic
-pots, the ones it holds full (`pots` and `maxPots` in the view). A hero out of lives is greyed (from the moment
-it lands on its last life), one that cannot be hit blinks with its sprite, an empty seat blinks JOIN (not in a solo
-game) or names a player who joins with the next run (by its tag when the font cannot write the name), and this
-device's seat is underlined. Names are not in the world: the app passes the room's, by seat, as the scene's
-`draw(pen, view, frame, { names, you, open })`. Portraits and labels are baked once. The canvas carries the party in
-words for screen readers (`partyLabel`), since the pixel font cuts names to eight capitals.
+pots, the ones it holds full (`pots` and `maxPots` in the view), which double as the charge meter: while a hero holds
+Magic the pots up to the level chosen (`charge`) glow white-hot cyan, the newest blinking. A hero out of lives is
+greyed (from the moment it lands on its last life), one that cannot be hit blinks with its sprite, an empty seat
+blinks JOIN (not in a solo game) or names a player who joins with the next run (by its tag when the font cannot write
+the name), and this device's seat is underlined. Names are not in the world: the app passes the room's, by seat, as
+the scene's `draw(pen, view, frame, { names, you, open })`. Portraits and labels are baked once. The canvas carries
+the party in words for screen readers (`partyLabel`), since the pixel font cuts names to eight capitals.
 
 ![The HUD over a three-hero fight](docs/images/hud.png)
+
+### Spells
+
+`src/render/spells/` (a module a kind) draws the view's `spells`, timed by `age` against `SPELL_STEPS`: a dithered
+dusk while the enemies stand frozen, then a flash and a moment's shake of the field (never the HUD or the simulation)
+at the blow. Storm strikes every enemy on screen with lightning and the floor about them with 1–8 more bolts by level,
+from a thunderhead at level 4; fire rolls a wall out to both edges, taller and longer each level, flaring at the blow,
+with a firebird at level 6; earth drops a boulder on every enemy and 2–7 more about them, splitting the floor at level 3. The enemies a blow lands on are the ones the engine's blow hits, read off the frozen screen before it and kept where
+they stood once it flings them. A charging or casting hero glows in its spell's colour and has poses of its own. Every
+picture is baked once, and all of it is a pure function of the view and the frame (but for those kept spots), so
+rollback never flickers.
+
+![Storm, fire and earth: gathering and at the blow at their top level, and at the blow at level 1](docs/images/spells.png)

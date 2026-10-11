@@ -1,6 +1,7 @@
 import { MAGIC } from "./input.js";
 import { div } from "./math.js";
 import { isImp } from "./imps.js";
+import { shatter } from "./bonewalker.js";
 import * as T from "./tuning.js";
 import {
   inView,
@@ -38,9 +39,12 @@ export const chosenLevel = (hero: Hero, held: number): number =>
     1 + Math.floor(Math.max(0, held - T.MAGIC_TAP - 1) / T.CHARGE_STEPS),
   );
 
-/** A Magic press is waiting, and the hero has a pot to spend on it. */
-export const conjures = (hero: Hero): boolean =>
-  hero.magicBuf > 0 && hero.pots > 0;
+/**
+ * A Magic press is waiting, and the hero has a pot to spend on it. At camp there is nothing to cast at, so none is
+ * (from a walk or from a run alike) and the pots are kept for the road.
+ */
+export const conjures = (world: World, hero: Hero): boolean =>
+  !world.camp && hero.magicBuf > 0 && hero.pots > 0;
 
 /** A free hero's Magic: still held, it starts the charge; already let go, it was a tap and casts every pot. */
 export function conjure(world: World, hero: Hero, bits: number): void {
@@ -83,17 +87,18 @@ export const spellbound = (world: World): boolean =>
       world.step - spell.born < played(caster(world, spell), spell).hit,
   );
 
-/** An enemy a spell's blow lands on. */
+/** An enemy a spell's blow lands on: not a bonewalker clawing out of its grave, which nothing strikes. */
 const blasted = (world: World, enemy: Enemy): boolean =>
   !isImp(enemy) &&
   enemy.hp > 0 &&
   enemy.state !== "held" &&
   enemy.state !== "thrown" &&
+  enemy.state !== "rise" &&
   inView(world, enemy);
 
 /**
- * The spells' step, in the order they were cast, once the heroes have moved: a blow due lands, and a spell played
- * out is gone and leaves its hero standing.
+ * The spells' step, in the order they were cast, once the heroes have moved: a blow due lands (and shatters every
+ * bonewalker's bone pile on screen), and a spell played out is gone and leaves its hero standing.
  */
 export function advanceSpells(world: World): void {
   world.spells = world.spells.filter((spell) => {
@@ -103,6 +108,8 @@ export function advanceSpells(world: World): void {
     if (age === hit)
       for (const enemy of world.enemies)
         if (blasted(world, enemy)) blast(world, hero, enemy, share);
+        else if (enemy.state === "pile" && inView(world, enemy))
+          shatter(world, enemy, hero);
     if (age < steps) return true;
     setState(hero, "idle");
     return false;
@@ -110,8 +117,10 @@ export function advanceSpells(world: World): void {
 }
 
 function blast(world: World, hero: Hero, enemy: Enemy, share: number): void {
+  // A boss takes no more than its cap, whatever the level.
   const full = T.enemyMaxHp(enemy.kind, enemy.tier, world.heroes.length),
-    taken = Math.min(enemy.hp, div(full * share, T.SHARE));
+    cap = T.BOSS[enemy.kind] ? Math.min(share, T.BOSS_SHARE) : share,
+    taken = Math.min(enemy.hp, div(full * cap, T.SHARE));
   enemy.hp -= taken;
   hero.damage += taken;
   hero.magicDamage += taken;

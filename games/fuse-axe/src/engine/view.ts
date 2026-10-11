@@ -1,15 +1,18 @@
-import { STAGE_1 } from "./stages.js";
+import { planOf, waveSpawns } from "./stages.js";
 import {
+  BOSS,
   HERO_HP,
   ITEM_BLINK,
   ITEM_LIFE,
   MAX_POTS,
+  SADDLE,
   SPELLS,
   SUB,
   enemyMaxHp,
   type EnemyKind,
   type HeroKind,
   type ItemKind,
+  type MountKind,
   type SpellKind,
   type Tier,
 } from "./tuning.js";
@@ -21,6 +24,7 @@ import {
   type EnemyState,
   type FxKind,
   type HeroState,
+  type MountState,
   type World,
 } from "./world.js";
 
@@ -34,6 +38,7 @@ export type {
   EnemyKind,
   HeroKind,
   ItemKind,
+  MountKind,
   SpellKind,
   Tier,
 } from "./tuning.js";
@@ -45,7 +50,8 @@ export type { FxKind } from "./world.js";
  * it (`BACK_STEPS`), `grab` holds an enemy for `GRAB_STEPS` and `throw` follows through for `THROW_STEPS`. `hurt`
  * reels, `knockdown` flies, `down` lies and `getup` rises; `dead` lies fallen until `respawn` drops the hero in from
  * the top of the screen, or it is `out`. `charge` holds Magic (the level chosen is `charge` in the view) and `cast`
- * stands casting its spell (`spells` in the world's view) until the spell is gone.
+ * stands casting its spell (`spells` in the world's view) until the spell is gone. `ride` sits a beast (`mounted`)
+ * throughout: the beast's anim says what the pair does.
  */
 export type HeroAnim = HeroState;
 /**
@@ -54,8 +60,43 @@ export type HeroAnim = HeroState;
  * `recover` follows. `held` waits in a hero's hands, and `thrown` flies behind it, then lands `down` (or `dead`).
  * A sack imp (kind `imp`) scurries in `walk`, `stumble`s from a kick (or from a heavy one flies in `knockdown`, lies
  * `down` and gets up), then runs in `flee`; it is never `dead`.
+ *
+ * An ogre (kind `ogre`, a `boss`) walks in, walks and stands as a ravager does; `windup` raises its hammer for its
+ * mood's steps (`OGRE_STEPS` in `view-kit.ts`), `slam` brings it down (it lands on the first step, and the shockwave
+ * runs on along the floor from `SLAM_REACH` at `QUAKE_SPEED` for `QUAKE_STEPS`), `sweep` swings it round (landing at
+ * `sweepWindup`) and `recover` stands open; `stagger` reels from a heavy blow without being nudged, and it is knocked
+ * down, lies, gets up and is `dead` as a ravager is. It never reels (`hurt`), nor is `held` or `thrown`.
+ *
+ * A lancer (kind `lancer`) has a ravager's anims but `attack`: `windup` draws back its spear for its tier's steps,
+ * `thrust` holds it out (it lands on the first step, `SPEAR.reach` in front) and `recover` follows. `leap` jumps in
+ * from the screen's edge or at a hero (rising, then falling, `LANCER_STEPS` in `view-kit.ts`), and `plunge` drives the
+ * spear down where it lands, then stands over it. It walks back in to a locked screen in `enter`.
+ *
+ * A ravager riding a beast (`mounted`) is in `ride` throughout: the beast's anim says what the pair does.
+ *
+ * The lancer captain (kind `captain`, a `boss`, Wyrmbone Pass's) has a lancer's anims, and rides his ember drake in
+ * `ride` (its anim says what the pair does, his saddle thrust among them); on foot he `stagger`s from a heavy blow his
+ * armour takes, as an ogre does, rather than reeling.
+ *
+ * A bonewalker (kind `bonewalker`, the violet tier the armoured knight) has a ravager's anims but `ride`, its sword
+ * timed by `BONEWALKER_STEPS` in `view-kit.ts` (reaching `BONE_SWORD` in front). A wave's may claw up out of a grave
+ * (`gravesPx`) in `rise`, struck by nothing, standing clear of it at `rise` steps. The first time it falls with no hit
+ * points it lies as a bone pile (`pile`, `pile` steps) a blow shatters into `dead`, or pulls itself together
+ * (`reassemble`, invulnerable) with half its hit points; the second time it lies `dead` from the fall.
  */
 export type EnemyAnim = EnemyState;
+
+/**
+ * A beast's anims (`CLAWBEAK_STEPS` and `DRAKE_STEPS` in `view-kit.ts` time them). Ridden: `enter` walks a wave's in,
+ * `idle` and `walk`; a clawbeak's `sweep` winds up its tail (`windup` steps), lashing it round on that `animStep`
+ * (`CLAWBEAK.reach` either side), then recovers to `sweep` steps; a drake's `breathe` inhales for `inhale` steps, then
+ * breathes fire to `breathe` (its front `flamePx(animStep)` in front of the drake's centre, in `FLAME.lane` either side),
+ * and the captain on one thrusts his spear from its saddle in `lance` (landing on `lanceWindup`, `SPEAR.reach` in front,
+ * to `lance` steps); `hop` is a hero's beast jumping (rising for `hopRise` steps, then falling, as a hero's jump).
+ * Riderless: `flee` panics for `panic` steps (coming down first if thrown out of a hop), `wander` walks back and forth
+ * (turning every `turn` steps) and `leave` walks off the screen.
+ */
+export type MountAnim = MountState;
 
 export interface HeroView {
   id: number;
@@ -85,6 +126,8 @@ export interface HeroView {
    * (`MAGIC_TAP`; a tap casts every pot); 0 otherwise.
    */
   charge: number;
+  /** Riding a beast (`ride`): its `z` is the saddle's, `CLAWBEAK.saddle` over the beast's. */
+  mounted: boolean;
 }
 
 /**
@@ -113,8 +156,37 @@ export interface EnemyView {
   animStep: number;
   hp: number;
   maxHp: number;
-  /** In hit-stop from a hit just taken: draw the damage flash. */
+  /** In hit-stop from a hit just taken, or an ogre's armour taking one: draw the damage flash. */
   flash: boolean;
+  /** A stage boss (an ogre, the lancer captain): its health shows in the world's `boss` bar. */
+  boss: boolean;
+  /** An ogre whose twin has fallen: it fights faster. */
+  enraged: boolean;
+  /** Riding a beast (`ride`), its `z` the saddle's, as a hero's. */
+  mounted: boolean;
+}
+
+/** A beast, ridden or not. Its rider, a hero or an enemy, stands where it does, `CLAWBEAK.saddle` higher, over it. */
+export interface MountView {
+  id: number;
+  kind: MountKind;
+  x: number;
+  y: number;
+  z: number;
+  facing: 1 | -1;
+  anim: MountAnim;
+  animStep: number;
+  rider: { kind: "hero" | "enemy"; id: number } | null;
+}
+
+/**
+ * The stage boss's health while its wave is fought, once the first of it has come: every boss of the wave together,
+ * one still to come counting full and one fallen none, so the bar only ever drains. `kind` names it.
+ */
+export interface BossView {
+  kind: EnemyKind;
+  hp: number;
+  maxHp: number;
 }
 
 /** A hit spark at its impact point, `age` steps old (under `FX_LIFE`). */
@@ -146,6 +218,15 @@ export interface WorldView {
   items: ItemView[];
   /** The spells playing, in the order they were cast: at most one per hero. */
   spells: SpellView[];
+  /** The beasts, in id order, which no other figure shares. */
+  mounts: MountView[];
+  /** The stage being fought, from 1: its road's length is `stageLengthPx(stage)` and its backdrop the stage's art. */
+  stage: number;
+  /**
+   * Camp after stage `stage`: one screen of night clearing round a fire (its own backdrop), no wave, and sack imps
+   * that spill meat (an item of kind `meat`) as well as pots.
+   */
+  camp: boolean;
   /** The wave begun latest, from 1 (0 before the first), of `waves` in the stage. */
   wave: number;
   waves: number;
@@ -157,11 +238,37 @@ export interface WorldView {
   cleared: boolean;
   /** Every hero is out of lives. */
   defeated: boolean;
+  /** The boss's health bar, while its wave is fought; null otherwise. */
+  boss: BossView | null;
 }
 
 const whole = (value: number) => Math.floor(value / SUB);
 
+function bossOf(world: World): BossView | null {
+  const wave = planOf(world).waves[world.wave - 1],
+    party = world.heroes.length;
+  if (!world.locked || !wave || world.spawned === 0) return null;
+  const spawns = waveSpawns(wave, party),
+    bosses = spawns.filter((each) => BOSS[each.kind]);
+  if (bosses.length === 0) return null;
+  const full = (each: { kind: EnemyKind; tier: Tier }) =>
+    BOSS[each.kind] ? enemyMaxHp(each.kind, each.tier, party) : 0;
+  let hp = 0,
+    maxHp = 0;
+  spawns.forEach((each, index) => {
+    maxHp += full(each);
+    if (index >= world.spawned) hp += full(each);
+  });
+  for (const enemy of world.enemies) if (BOSS[enemy.kind]) hp += enemy.hp;
+  return { kind: bosses[0]!.kind, hp, maxHp };
+}
+
+/** A figure's height in the view: a rider's in the saddle, over its beast's. */
+const seated = (figure: { state: string; z: number }) =>
+  whole(figure.z + (figure.state === "ride" ? SADDLE : 0));
+
 export function toView(world: World): WorldView {
+  const heroIds = new Set(world.heroes.map((hero) => hero.id));
   return {
     step: world.step,
     camX: whole(world.camX),
@@ -171,7 +278,7 @@ export function toView(world: World): WorldView {
       kind: hero.kind,
       x: whole(hero.x),
       y: whole(hero.y),
-      z: whole(hero.z),
+      z: seated(hero),
       facing: hero.facing,
       anim: hero.state,
       animStep: hero.timer,
@@ -184,6 +291,7 @@ export function toView(world: World): WorldView {
       maxPots: MAX_POTS[hero.kind],
       // The step shown is one more held than `timer` counts since the press.
       charge: hero.state === "charge" ? chosenLevel(hero, hero.timer + 1) : 0,
+      mounted: hero.state === "ride",
     })),
     enemies: world.enemies.map((enemy) => ({
       id: enemy.id,
@@ -191,13 +299,18 @@ export function toView(world: World): WorldView {
       tier: enemy.tier,
       x: whole(enemy.x),
       y: whole(enemy.y),
-      z: whole(enemy.z),
+      z: seated(enemy),
       facing: enemy.facing,
       anim: enemy.state,
       animStep: enemy.timer,
       hp: enemy.hp,
       maxHp: enemyMaxHp(enemy.kind, enemy.tier, world.heroes.length),
-      flash: world.step <= enemy.stopUntil,
+      flash:
+        world.step <= enemy.stopUntil ||
+        (enemy.flashUntil > 0 && world.step <= enemy.flashUntil),
+      boss: BOSS[enemy.kind],
+      enraged: enemy.enraged,
+      mounted: enemy.state === "ride",
     })),
     fx: world.fx.map((fx) => ({
       kind: fx.kind,
@@ -221,11 +334,27 @@ export function toView(world: World): WorldView {
       level: spell.level,
       age: world.step - spell.born,
     })),
+    mounts: world.mounts.map((mount) => ({
+      id: mount.id,
+      kind: mount.kind,
+      x: whole(mount.x),
+      y: whole(mount.y),
+      z: whole(mount.z),
+      facing: mount.facing,
+      anim: mount.state,
+      animStep: mount.timer,
+      rider: mount.rider
+        ? { kind: heroIds.has(mount.rider) ? "hero" : "enemy", id: mount.rider }
+        : null,
+    })),
+    stage: world.stage,
+    camp: world.camp,
     wave: world.wave,
-    waves: STAGE_1.waves.length,
+    waves: planOf(world).waves.length,
     locked: world.locked,
     go: showsGo(world),
     cleared: stageCleared(world),
     defeated: defeated(world),
+    boss: bossOf(world),
   };
 }

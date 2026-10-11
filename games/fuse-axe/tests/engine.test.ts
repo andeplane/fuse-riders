@@ -16,6 +16,7 @@ import {
   RULES,
   STAGE_1,
   UP,
+  carryOf,
   createWorld,
   isInput,
   pressed,
@@ -122,6 +123,64 @@ test("createWorld seats heroes in id order across the left of the screen", () =>
       RangeError,
       String(kind),
     );
+});
+
+test("createWorld sets out on a stage, Stage 1 by default, with each hero's carry or every life, full health and no pots", () => {
+  const heroes = [
+    { seat: 0, kind: "rhea" as const, carry: { lives: 1, pots: 6, hp: 9 } },
+    { seat: 3, kind: "gorm" as const },
+  ];
+  assert.equal(solo().stage, 1);
+  const world = createWorld({ seed: 5, heroes, stage: 2 });
+  assert.equal(world.stage, 2);
+  assert.deepEqual(
+    world.heroes.map((h) => [h.seat, h.lives, h.pots, h.hp]),
+    [
+      [0, 1, 6, 9],
+      [3, T.LIVES, 0, T.HERO_HP.gorm],
+    ],
+  );
+  assert.deepEqual(decodeWorld(encodeWorld(world)), world);
+  // The same seed on another stage is another world only in its stage.
+  assert.deepEqual(
+    { ...createWorld({ seed: 5, heroes, stage: 1 }), stage: 2 },
+    world,
+  );
+  for (const stage of [0, 4, 1.5, Number.NaN])
+    assert.throws(
+      () => createWorld({ seed: 1, heroes: [], stage }),
+      RangeError,
+      `stage ${stage}`,
+    );
+  const hp = T.HERO_HP.gorm;
+  for (const carry of [
+    { lives: 0, pots: 0, hp },
+    { lives: T.LIVES + 1, pots: 0, hp },
+    { lives: 1.5, pots: 0, hp },
+    { lives: 1, pots: -1, hp },
+    { lives: 1, pots: T.MAX_POTS.gorm + 1, hp },
+    { lives: 1, pots: 0, hp: 0 },
+    { lives: 1, pots: 0, hp: hp + 1 },
+    { lives: 1, pots: 0, hp: 1.5 },
+  ])
+    assert.throws(
+      () =>
+        createWorld({ seed: 1, heroes: [{ seat: 0, kind: "gorm", carry }] }),
+      RangeError,
+      JSON.stringify(carry),
+    );
+  // The policy: lives kept (one that went out comes back with one), pots and health kept (one fallen at full health).
+  const [kept] = world.heroes;
+  assert.deepEqual(carryOf({ ...kept!, lives: 2, pots: 3 }), {
+    lives: 2,
+    pots: 3,
+    hp: 9,
+  });
+  assert.deepEqual(carryOf({ ...kept!, state: "out", lives: 0, hp: 0 }), {
+    lives: 1,
+    pots: 6,
+    hp: T.HERO_HP.rhea,
+  });
 });
 
 test("heroes walk in eight directions, slower in depth, and no diagonal beats straight", () => {
@@ -316,7 +375,8 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
     b = play();
   assert.equal(seedOf(JSON.stringify(a)), seedOf(JSON.stringify(b)));
   // Falling for good, dropping back in and running out of lives are in ai.test.ts, grabs and throws in
-  // moves.test.ts, a sack imp's own states in imps.test.ts and magic in magic.test.ts.
+  // moves.test.ts, a sack imp's own states in imps.test.ts, an ogre's in ogre.test.ts, a lancer's in lancer.test.ts,
+  // magic in magic.test.ts and riding in mount.test.ts.
   const covered = (states: readonly string[]) =>
     states
       .filter(
@@ -325,7 +385,10 @@ test("the same seed and inputs fold to the same world, and a step leaves its inp
             ...["dead", "respawn", "out"],
             ...["grab", "throw", "held", "thrown"],
             ...["stumble", "flee"],
-            ...["charge", "cast"],
+            ...["slam", "sweep", "stagger"],
+            ...["thrust", "leap", "plunge"],
+            ...["charge", "cast", "ride"],
+            ...["rise", "pile", "reassemble"],
           ].includes(state),
       )
       .sort();
@@ -445,7 +508,7 @@ test("the seeded stream and the seed hash are stable", () => {
   assert.notEqual(first.value, second.value);
   assert.equal(seedOf(""), 0x811c9dc5);
   assert.equal(seedOf("a"), 0xe40c292c);
-  assert.equal(RULES, "fuse-axe-10");
+  assert.equal(RULES, "fuse-axe-19");
 });
 
 test("the view gives whole pixels, the anim and its step count", () => {
@@ -475,6 +538,19 @@ test("the view gives whole pixels, the anim and its step count", () => {
   assert.ok(Kit.FLOOR_BOTTOM_PX < Kit.VIEW_H);
   assert.ok(Kit.STAGE_LENGTH_PX >= 3 * Kit.VIEW_W);
   assert.equal(Kit.CAMERA_END_PX, Kit.STAGE_LENGTH_PX - Kit.VIEW_W);
+  // Each stage's road for the renderer; a stage this build lacks has Stage 1's.
+  assert.equal(Kit.STAGE_COUNT, 3);
+  assert.deepEqual(
+    [0, 1, 2, 3, 4, 1.5].map((s) => [Kit.stageLengthPx(s), Kit.cameraEndPx(s)]),
+    [
+      [Kit.STAGE_LENGTH_PX, Kit.CAMERA_END_PX],
+      [Kit.STAGE_LENGTH_PX, Kit.CAMERA_END_PX],
+      [5 * Kit.VIEW_W, 4 * Kit.VIEW_W],
+      [5 * Kit.VIEW_W, 4 * Kit.VIEW_W],
+      [Kit.STAGE_LENGTH_PX, Kit.CAMERA_END_PX],
+      [Kit.STAGE_LENGTH_PX, Kit.CAMERA_END_PX],
+    ],
+  );
   assert.deepEqual(Kit.HERO_STATES.slice(0, 4), [
     "idle",
     "walk",

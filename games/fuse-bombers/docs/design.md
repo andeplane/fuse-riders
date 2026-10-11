@@ -62,7 +62,8 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
   half-width, 8 sectors); each finger keeps the control it went down on (pointer capture) until it lifts, and a cancel,
   lost capture, blur or hidden page lets go. A lone touch rider's D-pad and FIRE spread to opposite corners, and the
   pads hide while a menu (pause, results, winner) is up.
-- Phone controller (online shared TV): a held D-pad and a FIRE button (each tap is one fire press).
+- Phone controller (online shared TV): the touch D-pad and FIRE above, laid out big (`controllerPadLayout`); each FIRE
+  tap is one fire press.
 
 ### Technical rules for the overhaul
 
@@ -110,12 +111,13 @@ circle, so a gunship can fire down at a ship below it). The dotted guide, reload
 6. Devices and render, in parallel: touch pads and lobby texts (done: two riders per touch screen); the framing camera
    and gunship art (done: shared-screen camera, edge arrows, the art in the round; [engine.md](engine.md) "Camera").
 7. Online game: the checkpoint codec, `RULES` with a golden-hash replay, and the `RollbackGame` with tests for rollback,
-   checkpoints, bad input, and dropped, duplicated and reordered fire presses (in progress: the `RollbackGame`, `RULES`
-   with the golden replay, and this device's runtime are in; next the codec).
+   checkpoints, bad input, and dropped, duplicated and reordered fire presses (done: the `RollbackGame`, `RULES` with
+   the golden replay, this device's runtime and the validated checkpoint codec, so a joiner loads a room from a peer).
 8. Online app: registration (the game's `package.json` `exports` and workspace dependencies, the root `package.json`,
    `Dockerfile.cloud`, `service/history.ts`, the game list in `tests/dice-service.test.ts`, `.c8rc.json`), runtime,
    session, landing and room lobby, then the shared TV and phone controller, a `preview/smoke.mjs` like Choppers', and
-   the docs the change makes stale (the README says "a local game: no rooms"; the `docs/architecture.md` row). Cloud
+   the docs the change makes stale (in progress: registration, runtime, session, landing, room lobby, the online round
+   with a joiner or reloaded page loading the room from a peer, the shared TV, phone controller and smoke are in). Cloud
    Run serves a game beyond Fuse Riders only once the operator adds its id to `EXTRA_GAME_IDS`; that is not part of these
    pull requests.
 

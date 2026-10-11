@@ -54,10 +54,26 @@ export interface LayerArt {
 export interface StageArt {
   /** Behind the heroes, far to near. */
   readonly back: readonly LayerArt[];
+  /**
+   * The furthest the camera's left edge goes, for a stage the engine does not have yet (its `cameraEndPx` is Stage
+   * 1's until it has); a stage the engine has leaves it out and takes the engine's.
+   */
+  readonly cameraEnd?: number;
   /** In front of the heroes. */
   readonly front: LayerArt;
   /** Draws what moves (flames, embers) over the back layers; `camX` is the floor's offset, `frame` counts 60 Hz steps. */
   animate(brush: Brush, camX: number, frame: number): void;
+  /** Something that moves standing on the floor among the figures (camp's fire), drawn between them by depth. */
+  readonly prop?: Prop;
+}
+
+/**
+ * A moving thing on the floor of a screen that never scrolls (camp's), in screen pixels: the row it stands on, which
+ * places it among the figures, and what it draws from `frame` (60 Hz steps) alone.
+ */
+export interface Prop {
+  readonly y: number;
+  draw(brush: Brush, frame: number): void;
 }
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];

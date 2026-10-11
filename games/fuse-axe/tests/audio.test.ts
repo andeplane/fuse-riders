@@ -28,11 +28,13 @@ import type * as V from "../src/engine/view.js";
 const hero = (extra: Partial<V.HeroView> = {}): V.HeroView => ({
   ...{ id: 1, seat: 0, kind: "brakka", x: 100, y: 140, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
-  ...{ invulnerable: false, pots: 0, maxPots: 3, charge: 0, ...extra },
+  ...{ invulnerable: false, pots: 0, maxPots: 3, charge: 0, mounted: false },
+  ...extra,
 });
 const enemy = (extra: Partial<V.EnemyView> = {}): V.EnemyView => ({
   ...{ id: 9, kind: "ravager", tier: 0, x: 200, y: 140, z: 0, facing: -1 },
-  ...{ anim: "idle", animStep: 0, hp: 30, maxHp: 30, flash: false, ...extra },
+  ...{ anim: "idle", animStep: 0, hp: 30, maxHp: 30, flash: false },
+  ...{ boss: false, enraged: false, mounted: false, ...extra },
 });
 const spark = (age: number, extra: Partial<V.FxView> = {}): V.FxView => ({
   ...{ kind: "hit", x: 150, y: 140, z: 20, age, ...extra },
@@ -42,9 +44,9 @@ const world = (
   extra: Partial<V.WorldView> = {},
 ): V.WorldView => ({
   ...{ step, camX: 0, heroes: [hero()], enemies: [], fx: [], items: [] },
-  spells: [],
-  wave: 1,
+  ...{ spells: [], mounts: [], stage: 1, camp: false, wave: 1 },
   ...{ waves: 4, locked: false, go: false, cleared: false, defeated: false },
+  boss: null,
   ...extra,
 });
 const frame = (w: V.WorldView | null, extra: Partial<Heard> = {}): Heard => ({
@@ -155,6 +157,60 @@ test("every moment of a hero and the mace's wind-up have their cues", () => {
   assert.deepEqual(
     hear(frames),
     rows.map((row) => row[3]),
+  );
+});
+
+test("a beast's tail winding up has the mace's wind-up cue, once, and nothing else the beast or its rider does is heard", () => {
+  const beast = (anim: V.MountAnim, animStep: number): V.MountView => ({
+    ...{ id: 7, kind: "clawbeak", x: 200, y: 140, z: 0, facing: -1 },
+    ...{ anim, animStep, rider: { kind: "enemy", id: 9 } },
+  });
+  const at = (step: number, mount: V.MountView) =>
+    frame(
+      world(step, {
+        enemies: [enemy({ anim: "ride", animStep: 40, mounted: true })],
+        mounts: [mount],
+      }),
+    );
+  assert.deepEqual(
+    hear([
+      at(30, beast("walk", 40)),
+      at(33, beast("sweep", 1)), // the wind-up begins
+      at(36, beast("sweep", 4)),
+      at(39, beast("sweep", 21)), // the tail lands, in silence
+      at(60, beast("idle", 3)),
+      at(63, beast("sweep", 1)), // another
+      at(66, beast("sweep", 4)),
+      at(90, beast("flee", 2)),
+      at(93, beast("sweep", 30)), // first seen well into its sweep: history
+    ]),
+    [[], ["windup"], [], [], [], ["windup"], [], [], []],
+  );
+});
+
+test("a hero climbing on lands in the saddle, its beast's hop is a jump and its tail a wind-up, each once", () => {
+  const at = (step: number, anim: V.MountAnim, animStep: number, on = true) =>
+    frame(
+      world(step, {
+        heroes: [hero(on ? { anim: "ride", animStep: 1, mounted: true } : {})],
+        mounts: [
+          {
+            ...{ id: 7, kind: "clawbeak", x: 100, y: 140, z: 0, facing: 1 },
+            ...{ anim, animStep, rider: on ? { kind: "hero", id: 1 } : null },
+          },
+        ],
+      }),
+    );
+  assert.deepEqual(
+    hear([
+      at(30, "wander", 30, false),
+      at(33, "idle", 1), // climbs on
+      at(36, "hop", 1),
+      at(39, "hop", 4),
+      at(60, "sweep", 1),
+      at(63, "sweep", 4),
+    ]),
+    [[], ["land"], ["jump"], [], ["windup"], []],
   );
 });
 
@@ -295,6 +351,21 @@ test("two blows on one hero in quick succession each grunt; a blow a rollback sh
       at(45, 44), // and the second
     ]),
     [[], ["hurt"], ["hurt"], [], [], []],
+  );
+});
+
+test("camp starts from what it shows, and meat eaten there sounds as a pot picked up", () => {
+  const between = (step: number, hp: number, camp: boolean) =>
+    frame(world(step, { camp, heroes: [hero({ hp })] }), { stage: "between" });
+  const camp = (step: number, hp: number) => between(step, hp, true);
+  assert.deepEqual(
+    hear([
+      between(900, 60, false), // the stage's tally
+      camp(0, 30), // a new world, its step and health and all: no news
+      camp(3, 45), // meat
+      camp(6, 45),
+    ]),
+    [[], [], ["pot"], []],
   );
 });
 

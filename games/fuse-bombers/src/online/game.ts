@@ -23,9 +23,12 @@ import {
   MAX_PLAYERS,
   MIN_PLAYERS,
   RIGHT,
+  ROUND_REASONS,
   RULES,
   UP,
   createRound,
+  decodeRound,
+  encodeRound,
   step,
   view as roundView,
   type BotDifficulty,
@@ -56,10 +59,14 @@ export const DEFAULT_SETTINGS: Settings = {
   difficulty: "normal",
   display: false,
 };
-/** The settings a log entry carries, exactly; anything else is refused. */
+const SETTING_KEYS = ["difficulty", "display", "wins"];
+/** The settings a log entry carries, exactly (these three own keys and no other); anything else is refused. */
 export function parseSettings(raw: unknown): Settings | undefined {
-  if (raw === null || typeof raw !== "object" || Object.keys(raw).length !== 3)
-    return;
+  if (raw === null || typeof raw !== "object") return;
+  // Key by key: a joined string cannot tell two keys from one that holds a comma.
+  const keys = Object.keys(raw);
+  if (keys.length !== SETTING_KEYS.length) return;
+  if (!SETTING_KEYS.every((key) => keys.includes(key))) return;
   const { wins, difficulty, display } = raw as Record<string, unknown>;
   const level = BOT_DIFFICULTIES.find((d) => d === difficulty);
   if (uint32(wins) && wins >= 1 && wins <= MAX_WINS && level)
@@ -158,14 +165,17 @@ export function isEntry(raw: unknown): raw is Entry {
 }
 
 export function createRoom(matchId: string, settings: Settings): Room {
+  // Only what `parseSettings` takes: a stray or out-of-range field would make every checkpoint of the room refused.
+  const { wins, difficulty, display } = settings,
+    valid = parseSettings({ wins, difficulty, display }) ?? DEFAULT_SETTINGS;
   return {
     tick: 0,
     matchId,
     round: 0,
     stage: "lobby",
     seats: new Map(),
-    settings: { ...settings },
-    play: { ...settings },
+    settings: { ...valid },
+    play: { ...valid },
     wins: {},
     results: [],
     winner: "",
@@ -182,11 +192,11 @@ const seatOrder = (seats: Iterable<SeatRecord>) =>
   [...seats].sort(
     (a, b) => a.slot - b.slot || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   );
-/** Who flies a new round, in slot order: every seat that is here, stepped away or a bot. */
-const entrants = (room: Room) =>
-  seatOrder(room.seats.values()).filter(
-    (seat) => !seat.watcher && (seat.connected || seat.away || seat.bot),
-  );
+/** Whether a seat flies a new round: it is here, stepped away, or a bot (an offline rider is skipped). */
+export const entrant = (seat: SeatRecord): boolean =>
+  !seat.watcher && (seat.connected || seat.away || seat.bot);
+/** Who flies a new round, in slot order. */
+const entrants = (room: Room) => seatOrder(room.seats.values()).filter(entrant);
 
 /** A round's seed: FNV-1a over its match id and number. */
 export function roundSeed(matchId: string, round: number): number {
@@ -289,21 +299,36 @@ function inputs(
   return steps;
 }
 
+/** The match winner once its latest round decides it ("" when nobody won a round); undefined while it plays on. */
+function verdict({
+  wins,
+  results,
+  round,
+  play,
+}: Pick<Room, "wins" | "results" | "round" | "play">): string | undefined {
+  const winner = results.at(-1)?.winner ?? "";
+  const crowned = winner !== "" && wins[winner]! >= play.wins;
+  if (!crowned && round < maxRounds(play)) return;
+  // Past the round limit: most crowns, then the latest round won (two crowned members never share one), then the id,
+  // so the leader never depends on the order the crowns were recorded in.
+  const last = (id: string) => results.map((r) => r.winner).lastIndexOf(id);
+  const leader = Object.keys(wins).sort(
+    (a, b) =>
+      wins[b]! - wins[a]! || last(b) - last(a) || (a < b ? -1 : a > b ? 1 : 0),
+  )[0];
+  return crowned ? winner : (leader ?? "");
+}
+
 function endRound(room: Room, tick: number): void {
   const result = room.world!.result!,
     { wins, results } = room;
   const winner = result.winner === null ? "" : room.ships[result.winner]!;
   if (winner) wins[winner] = (wins[winner] ?? 0) + 1;
   results.push({ round: room.round, winner, reason: result.reason });
-  const crowned = winner !== "" && wins[winner]! >= room.play.wins;
-  if (crowned || room.round >= maxRounds(room.play)) {
-    // Past the round limit: most crowns, then the latest round won.
-    const last = (id: string) => results.map((r) => r.winner).lastIndexOf(id);
-    const leader = Object.keys(wins).sort(
-      (a, b) => wins[b]! - wins[a]! || last(b) - last(a),
-    )[0];
+  const decided = verdict(room);
+  if (decided !== undefined) {
     room.stage = "over";
-    room.winner = crowned ? winner : (leader ?? "");
+    room.winner = decided;
   } else {
     room.stage = "between";
     room.resumeAt = tick + BETWEEN_TICKS;
@@ -339,22 +364,199 @@ export function foldTick(
 
 /**
  * The desync hash: the whole room, so whatever the engine adds to the round state later (bot memory) is covered. The
- * round's `events` are the latest step's output, rebuilt by the next one, not state, so they are left out.
+ * round's own `events` are the latest step's output, rebuilt by the next one, not state, so they alone are left out
+ * (an undefined field counts as absent); a field named `events` anywhere else is hashed like any other.
  */
-const TRANSIENT = new Set(["events"]);
-export const hash = (room: Room): string => hashPlain(room, TRANSIENT);
+export const hash = (room: Room): string =>
+  hashPlain({
+    ...room,
+    world: room.world && { ...room.world, events: undefined },
+  });
+
+// ---- checkpoint ----
+const STAGES: readonly Stage[] = ["lobby", "running", "between", "over"];
+/** An array of at most `max` items without holes (MessagePack makes none, but `decode` can be handed a value from anywhere). */
+const list = (raw: unknown, max: number): raw is unknown[] =>
+  Array.isArray(raw) &&
+  raw.length <= max &&
+  Object.keys(raw).length === raw.length;
+// prettier-ignore
+const SEAT_KEYS = new Set(["id", "name", "slot", "avatarId", "connected", "bot", "watcher", "generation", "away"]);
 
 /**
- * NOT YET A CHECKPOINT. The validated codec is the next pull request (`src/engine/codec.ts`: seats, match and round,
- * the terrain through `encodeGrid`/`decodeGrid`, bounded rockets, gates, crates and ghosts, every field checked). Until
- * then a snapshot carries only its format and `decode` refuses every one, so no device restores a room from a peer,
- * whole or in part: a room plays on the devices that have folded it from its first tick.
+ * The room as checkpoint fields: `[matchId, round, stage, settings, play]` before the netcode's streams and hash, then
+ * `[seats, results, startAt, ships, held, world]`, the world by `encodeRound`. The crowns, the match winner and the
+ * aftermath and scoreboard ticks are not sent: `decode` derives them from the results and the round.
  */
-const checkpoint = {
-  leading: 1,
-  encode: (): unknown[] => [0],
-  decode: (): Room | undefined => undefined,
-};
+export function encode(room: Room): unknown[] {
+  return [
+    room.matchId,
+    room.round,
+    room.stage,
+    { ...room.settings },
+    { ...room.play },
+    [...room.seats.values()].map((seat) => ({ ...seat })),
+    room.results.map((r) => [r.round, r.winner, r.reason]),
+    room.startAt,
+    [...room.ships],
+    Object.entries(room.held),
+    room.world && encodeRound(room.world),
+  ];
+}
+
+function decodeSeat(raw: unknown): SeatRecord | undefined {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return;
+  if (Object.keys(raw).some((key) => !SEAT_KEYS.has(key))) return;
+  // prettier-ignore
+  const { id, name, slot, avatarId, connected, bot, watcher, generation, away } = raw as Record<string, unknown>;
+  if (
+    !names.playerKey(id) ||
+    !names.validName(name) ||
+    typeof connected !== "boolean" ||
+    typeof bot !== "boolean" ||
+    (watcher !== undefined && watcher !== true) ||
+    (away !== undefined && away !== true) ||
+    (away === true && connected) ||
+    (watcher ? slot !== -1 : !uint32(slot) || slot >= CAPACITY) ||
+    (watcher ? avatarId !== "" : !names.isAvatar(avatarId)) ||
+    (bot ? generation !== undefined || watcher : !uint32(generation))
+  )
+    return;
+  return {
+    id,
+    name,
+    slot: slot as number,
+    avatarId: avatarId as string,
+    connected,
+    bot,
+    ...(watcher ? { watcher: true } : {}),
+    ...(generation !== undefined ? { generation: generation as number } : {}),
+    ...(away ? { away: true } : {}),
+  };
+}
+
+/**
+ * The room `encode` wrote at log tick `tick`, or undefined: every field checked, and the parts against each other —
+ * the stage against the round, the results and the world, the world's seed, seats and bots against the match, and its
+ * step count against the countdown and the aftermath. Never a partial room, and never a throw.
+ */
+export function decode(
+  fields: readonly unknown[],
+  tick: number,
+): Room | undefined {
+  if (fields.length !== 11 || !uint32(tick)) return;
+  // prettier-ignore
+  const [matchId, round, stage, rawSettings, rawPlay, rawSeats, rawResults, startAt, ships, rawHeld, rawWorld] = fields;
+  const settings = parseSettings(rawSettings),
+    play = parseSettings(rawPlay);
+  if (
+    !names.validMatchId(matchId) ||
+    !uint32(round) ||
+    !STAGES.includes(stage as Stage) ||
+    !settings ||
+    !play ||
+    round > maxRounds(play) ||
+    !uint32(startAt) ||
+    !list(rawSeats, CAPACITY + MAX_WATCHERS) ||
+    !list(rawResults, round) ||
+    !list(ships, CAPACITY) ||
+    !ships.every(names.playerKey) ||
+    new Set(ships).size !== ships.length ||
+    !list(rawHeld, ships.length)
+  )
+    return;
+  const seats = new Map<string, SeatRecord>();
+  for (const raw of rawSeats) {
+    const seat = decodeSeat(raw),
+      taken = (s: SeatRecord) => !s.watcher && s.slot === seat?.slot;
+    if (!seat || seats.has(seat.id)) return;
+    if (!seat.watcher && [...seats.values()].some(taken)) return;
+    seats.set(seat.id, seat);
+  }
+  const watchers = [...seats.values()].filter((seat) => seat.watcher);
+  if (watchers.length > MAX_WATCHERS) return;
+  // Round by round from the first; the crowns are counted from them. A decided match plays no further round, so only
+  // the latest result of a match that is over or between rounds may decide it (the checks below say which).
+  const results: RoundRecord[] = [],
+    wins: Record<string, number> = {};
+  for (const [i, raw] of rawResults.entries()) {
+    if (!list(raw, 3) || raw.length !== 3) return;
+    const [number, winner, reason] = raw;
+    const kind = ROUND_REASONS.find((r) => r === reason);
+    if (number !== i + 1 || !kind || typeof winner !== "string") return;
+    if (winner !== "" && !names.playerKey(winner)) return;
+    results.push({ round: i + 1, winner, reason: kind });
+    if (winner) wins[winner] = (wins[winner] ?? 0) + 1;
+    const latest = i === rawResults.length - 1 && stage !== "running";
+    if (!latest && verdict({ wins, results, round: i + 1, play }) !== undefined)
+      return;
+  }
+  // Only the round's gunships hold directions, and only while they hold some.
+  const held: Record<string, number> = {};
+  for (const pair of rawHeld) {
+    if (!list(pair, 2) || pair.length !== 2) return;
+    const [id, bits] = pair;
+    if (typeof id !== "string" || !ships.includes(id)) return;
+    if (Object.hasOwn(held, id) || !uint32(bits) || !bits) return;
+    if (bits > DIRECTIONS) return;
+    held[id] = bits;
+  }
+  const world = rawWorld === null ? null : decodeRound(rawWorld);
+  if (world === undefined) return;
+  const result = world?.result,
+    running = stage === "running";
+  // The aftermath ends `OUTRO_TICKS` after the log tick whose steps decided the round; the scoreboard follows it.
+  const endAt = result
+    ? startAt + Math.floor(result.tick / STEPS_PER_TICK) + OUTRO_TICKS
+    : 0;
+  const resumeAt = stage === "between" ? endAt + BETWEEN_TICKS : 0;
+  // prettier-ignore
+  const room: Room = { tick, matchId, round, stage: stage as Stage, seats, settings, play, wins, results, winner: "",
+    startAt, endAt, resumeAt, ships: [...ships], held, world };
+  if (stage === "lobby")
+    return round === 0 && startAt === 0 && !world && !ships.length
+      ? room
+      : undefined;
+  const config = world?.config;
+  if (!world || !config?.bots) return;
+  // The round's seed is the match's; its bots play at the match's level, in the seats that are bots.
+  const bots = new Set(config.bots.map((b) => b.id));
+  const last = results.at(-1),
+    decided = running ? undefined : verdict(room);
+  // A round folds three steps a log tick from `startAt` until its aftermath ends (or now, while it runs).
+  const stepped = Math.max(0, (running ? tick : endAt) - startAt + 1);
+  if (
+    round === 0 ||
+    world.tick !== stepped * STEPS_PER_TICK ||
+    config.seed !== roundSeed(matchId, round) ||
+    config.playerCount !== ships.length ||
+    config.bots.some((b) => b.difficulty !== play.difficulty) ||
+    ships.some((id, i) => seats.has(id) && seats.get(id)!.bot !== bots.has(i))
+  )
+    return;
+  // prettier-ignore
+  if (running) // in its countdown, or in play until its aftermath ends
+    return results.length === round - 1 && startAt <= tick + COUNTDOWN_TICKS && (!result || endAt > tick)
+      ? room : undefined;
+  // Between rounds and after the match: the latest result is the world's, and the match goes on, or is won.
+  const winner = !result || result.winner === null ? "" : ships[result.winner];
+  if (
+    !result ||
+    results.length !== round ||
+    !last ||
+    last.winner !== winner ||
+    last.reason !== result.reason ||
+    endAt > tick ||
+    (stage === "between"
+      ? decided !== undefined || tick >= room.resumeAt
+      : decided === undefined)
+  )
+    return;
+  room.winner = decided ?? "";
+  return room;
+}
+
+const checkpoint = { leading: 5, encode, decode };
 
 /** What the screen renders: a copy of the room (a kept frame must not change under the next fold), seats in order. */
 export interface View extends Omit<Room, "tick" | "seats" | "world"> {
@@ -364,14 +566,31 @@ export interface View extends Omit<Room, "tick" | "seats" | "world"> {
   seats: SeatRecord[];
   world: RoundView | null;
 }
+type Terrain = RoundState["terrain"];
+/** Each live grid's latest copy: carving (the one change a round's grid sees) bumps `version`, and a rollback restores
+ * another grid, so frames share one copy (about 200 KB) until a carve instead of copying it every frame. */
+const terrainCopies = new WeakMap<Terrain, Terrain>();
+function terrainCopy(grid: Terrain): Terrain {
+  let copy = terrainCopies.get(grid);
+  if (copy?.version !== grid.version)
+    terrainCopies.set(grid, (copy = structuredClone(grid)));
+  return copy;
+}
+function roundCopy(world: RoundState): RoundView {
+  const { terrain, ...round } = world;
+  return roundView({
+    ...structuredClone(round),
+    terrain: terrainCopy(terrain),
+  });
+}
 export function view(room: Room): View {
-  const { tick, seats, world, ...rest } = structuredClone(room);
+  const { tick, seats, world, ...rest } = room;
   return {
-    ...rest,
+    ...structuredClone(rest),
     tick: tick * STEPS_PER_TICK,
     logTick: tick,
-    seats: seatOrder(seats.values()),
-    world: world && roundView(world),
+    seats: structuredClone(seatOrder(seats.values())),
+    world: world && roundCopy(world),
   };
 }
 

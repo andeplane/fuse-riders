@@ -6,6 +6,8 @@ import {
   HERO_KINDS,
   RIGHT,
   STAGE_1,
+  STAGE_2,
+  STAGES,
   createWorld,
   decodeWorld,
   encodeWorld,
@@ -17,6 +19,7 @@ import {
   toView,
   waveSpawns,
   type Spawn,
+  type Wave,
   type World,
   type WorldView,
 } from "../src/engine/index.js";
@@ -29,14 +32,15 @@ const WAVES = STAGE_1.waves;
 const hero = (world: World) => world.heroes[0]!;
 const enemy = (world: World, index = 0) => world.enemies[index]!;
 
-/** A party of `count` heroes in seats 0 up. */
-const party = (count: number): World =>
+/** A party of `count` heroes in seats 0 up, setting out on `stage`. */
+const party = (count: number, stage = 1): World =>
   createWorld({
     seed: 4,
     heroes: Array.from({ length: count }, (_, seat) => ({
       seat,
       kind: HERO_KINDS[seat % HERO_KINDS.length]!,
     })),
+    stage,
   });
 /** The bits held: one for every seat or by seat, or those for step `index`. */
 type Bits = number | readonly number[];
@@ -64,12 +68,15 @@ const toWave = (world: World): World =>
   until(world, (w) => w.wave > world.wave, RIGHT);
 /** The latest wave's spawns for this party. */
 const due = (world: World) =>
-  waveSpawns(WAVES[world.wave - 1]!, world.heroes.length);
+  waveSpawns(
+    STAGES[world.stage - 1]!.waves[world.wave - 1]!,
+    world.heroes.length,
+  );
 /** Until every spawn of the wave is in. */
 const allIn = (world: World): World =>
   until(world, (w) => w.spawned === due(w).length);
-/** Every enemy gone, as if the party had fought them all down: the rules clear the wave on the next step. */
-const rout = (world: World): World => ({ ...world, enemies: [] });
+/** Every enemy gone, as if the party had fought them all down (their beasts too): the rules clear the wave next step. */
+const rout = (world: World): World => ({ ...world, enemies: [], mounts: [] });
 /** The view's wave fields: [wave, waves, locked, go, cleared]. */
 const waveOf = ({ wave, waves, locked, go, cleared }: WorldView) => [
   wave,
@@ -79,14 +86,15 @@ const waveOf = ({ wave, waves, locked, go, cleared }: WorldView) => [
   cleared,
 ];
 
-test("Stage 1 is five waves along the road, building in size and tier, the last at the stage's end", () => {
+test("Stage 1 is five waves along the road, building in size and tier, the last the Ogre twins at the stage's end", () => {
   const toughness = (spawns: readonly Spawn[]) =>
     spawns.reduce((sum, s) => sum + enemyMaxHp(s.kind, s.tier, 1), 0);
   assert.equal(WAVES.length, 5);
   WAVES.forEach((wave, index) => {
     const before = WAVES[index - 1];
     assert.ok(wave.at > (before?.at ?? 0) && wave.at <= T.CAMERA_END);
-    assert.ok(wave.spawns.length > (before?.spawns.length ?? 1));
+    if (index < WAVES.length - 1)
+      assert.ok(wave.spawns.length > (before?.spawns.length ?? 1));
     assert.ok(toughness(wave.spawns) > toughness(before?.spawns ?? []));
     wave.spawns.forEach((spawn, i) => {
       assert.ok(spawn.y >= T.FLOOR_TOP && spawn.y <= T.FLOOR_BOTTOM);
@@ -97,12 +105,83 @@ test("Stage 1 is five waves along the road, building in size and tier, the last 
       wave.spawns.map((spawn) => ({ ...spawn, inset: T.ENTER_INSET })),
     );
   });
-  // The village gate, where the Ogre twins will stand: the violets come there.
-  assert.equal(WAVES.at(-1)!.at, T.CAMERA_END);
-  assert.ok(WAVES.at(-1)!.spawns.filter((s) => s.tier === 2).length >= 2);
+  // The village gate: the Ogre twins, one from each side in a palette of its own, and ravagers for a bigger party.
+  const gate = WAVES.at(-1)!;
+  assert.equal(gate.at, T.CAMERA_END);
+  assert.deepEqual(
+    gate.spawns.map((s) => [s.kind, s.side, s.tier]),
+    [
+      ["ogre", "left", 0],
+      ["ogre", "right", 1],
+    ],
+  );
+  assert.ok(
+    waveSpawns(gate, 5)
+      .slice(2)
+      .every((s) => s.kind === "ravager"),
+  );
   // Five heroes' biggest wave leaves the world plenty of room under its enemy bound.
   const most = Math.max(...WAVES.map((w) => waveSpawns(w, 5).length));
   assert.ok(most <= T.ENEMY_MAX / 4, `${most} at once`);
+});
+
+test("lancers leap into the village's later waves and every wave of the pass but its end, as many as a party's extras copy", () => {
+  const lancers = (wave: Wave, heroes = 1) =>
+    waveSpawns(wave, heroes).filter((s) => s.kind === "lancer").length;
+  assert.deepEqual(
+    WAVES.map((wave) => lancers(wave)),
+    [0, 0, 1, 1, 0],
+  );
+  assert.deepEqual(
+    STAGE_2.waves.map((wave) => lancers(wave)),
+    [1, 1, 1, 1, 2, 0],
+  );
+  // A bigger party's extras copy the wave's spawns, its lancers among them; lancers scale with the party as ravagers do.
+  assert.equal(lancers(WAVES[2]!, 5), 2);
+  assert.ok(T.enemyMaxHp("lancer", 0, 1) < T.enemyMaxHp("ravager", 0, 1));
+  assert.equal(
+    T.enemyMaxHp("lancer", 2, 5),
+    Math.trunc((T.ENEMY_HP.lancer * T.TIER_HP[2] * 8) / 16),
+  );
+});
+
+test("Wyrmbone Pass is a longer road of six waves of ravagers and lancers, tougher than the village's, ending in the lancer captain on his drake", () => {
+  const { length, cameraEnd, waves } = STAGE_2;
+  assert.deepEqual(STAGES.slice(0, 2), [STAGE_1, STAGE_2]);
+  assert.ok(length > T.STAGE_LENGTH);
+  assert.equal(cameraEnd, length - SCREEN);
+  assert.equal(waves.length, 6);
+  waves.forEach((wave, index) => {
+    assert.ok(wave.at > (waves[index - 1]?.at ?? 0) && wave.at <= cameraEnd);
+    for (const [i, spawn] of wave.spawns.entries()) {
+      const boss = index === waves.length - 1 ? ["captain"] : [];
+      assert.ok(["ravager", "lancer", ...boss].includes(spawn.kind));
+      assert.ok(spawn.y >= T.FLOOR_TOP && spawn.y <= T.FLOOR_BOTTOM);
+      assert.ok(i === 0 || spawn.delay >= wave.spawns[i - 1]!.delay);
+    }
+    const most = waveSpawns(wave, 5).length;
+    assert.ok(most <= T.ENEMY_MAX / 4, `${most} at once`);
+  });
+  // Mostly rust and violet: a higher tier on average than the village's ravagers.
+  const tier = (plan: typeof STAGE_1) => {
+    const all = plan.waves
+      .flatMap((wave) => wave.spawns)
+      .filter((s) => s.kind === "ravager");
+    return all.reduce((sum, s) => sum + s.tier, 0) / all.length;
+  };
+  assert.ok(tier(STAGE_2) > tier(STAGE_1));
+  // The pass's end: the lancer captain rides his drake out of the skull gate, and a bigger party meets a violet ravager
+  // and lancer too, from either side.
+  const end = waves.at(-1)!;
+  assert.equal(end.at, cameraEnd);
+  assert.deepEqual(
+    waveSpawns(end, 3).map((s) => [s.kind, s.side, s.tier, s.mount]),
+    [
+      ["captain", "right", 2, "drake"],
+      ["ravager", "right", 2, undefined],
+      ["lancer", "left", 2, undefined],
+    ],
+  );
 });
 
 test("reaching a trigger begins its wave and locks the camera, which no hero can push past", () => {
@@ -209,26 +288,31 @@ test("a wave is fought until every spawn is in and none is left; then the lock l
   );
 });
 
-test("fighting through every wave clears the stage, and the camera then reaches the stage's end", () => {
-  let world = party(2);
-  for (const [index, wave] of WAVES.entries()) {
+test("fighting through every wave clears the stage, and the camera then reaches the stage's end, on every stage", () => {
+  STAGES.forEach((_, at) => fightThrough(at + 1));
+});
+function fightThrough(stage: number) {
+  const { waves, length, cameraEnd } = STAGES[stage - 1]!;
+  let world = party(2, stage);
+  for (const [index, wave] of waves.entries()) {
     world = toWave(world);
     assert.deepEqual([world.wave, world.camX], [index + 1, wave.at]);
     assert.ok(!stageCleared(world));
     world = step(rout(allIn(world)), []);
-    const last = index === WAVES.length - 1;
+    const last = index === waves.length - 1;
     assert.deepEqual(
       [world.locked, showsGo(world), stageCleared(world)],
       [false, !last, last],
     );
   }
-  assert.deepEqual(waveOf(toView(world)), [5, 5, false, false, true]);
-  const end = run(world, 600, RIGHT);
-  assert.equal(end.camX, T.CAMERA_END);
-  assert.equal(hero(end).x, T.STAGE_LENGTH - T.HERO_MARGIN);
+  const [n, view] = [waves.length, toView(world)];
+  assert.deepEqual([view.stage, ...waveOf(view)], [stage, n, n, false, false, true]); // prettier-ignore
+  const end = run(world, 900, RIGHT);
+  assert.equal(end.camX, cameraEnd);
+  assert.equal(hero(end).x, length - T.HERO_MARGIN);
   assert.ok(stageCleared(end) && end.enemies.length === 0);
   assert.deepEqual(decodeWorld(structuredClone(encodeWorld(end))), end);
-});
+}
 
 test("each hero beyond the first adds a spawn from the other side, and a quarter more hit points", () => {
   const wave = WAVES[0]!;
@@ -351,7 +435,7 @@ test("the last wave enters from beyond the stage's end, walks in to its goal, an
   world = toWave(world);
   assert.deepEqual([world.wave, world.camX], [WAVES.length, T.CAMERA_END]);
   const beyond = world.enemies.filter((e) => e.x > T.STAGE_LENGTH);
-  assert.ok(beyond.length >= 2);
+  assert.ok(beyond.length >= 1);
   assert.ok(beyond.every((e) => e.state === "enter"));
   for (const checked of [world, run(world, 5)]) {
     const back = decodeWorld(structuredClone(encodeWorld(checked)));
@@ -363,7 +447,7 @@ test("the last wave enters from beyond the stage's end, walks in to its goal, an
     (w) => w.enemies.every((e) => e.state !== "enter"),
     [],
   );
-  assert.equal(settled.enemies.length, 10);
+  assert.equal(settled.enemies.length, waveSpawns(WAVES.at(-1)!, 5).length);
   assert.ok(settled.enemies.every((e) => inView(settled, e)));
   assert.ok(settled.enemies.every((e) => e.x <= T.STAGE_LENGTH));
 });
