@@ -289,17 +289,23 @@ test("the last stage cleared shows its tally, then the run is won with every sta
   kept(room);
   room.world = cleared(fought(room.world!, 100));
   fold(room);
-  assert.equal(LAST_STAGE, 3);
+  // The Drowned Crypt cleared: camp once more, then Vorhal's Keep, the last stage.
+  run(room, CLEAR_TICKS);
+  breakCamp(room);
+  assert.deepEqual([room.stage, room.round, room.world!.stage], ["running", 4, 4]); // prettier-ignore
+  room.world = cleared(fought(room.world!, 1000));
+  fold(room);
+  assert.equal(LAST_STAGE, 4);
   assert.deepEqual(
     [room.stage, room.round, view(room).countdown, room.world!.stage],
-    ["between", LAST_STAGE, CLEAR_TICKS, 3],
+    ["between", LAST_STAGE, CLEAR_TICKS, 4],
   );
   assert.deepEqual(
     view(room).tally.map((row) => [row.stage.damage, row.run]),
     [
-      [100, { damage: 111, knockdowns: 0 }],
-      [200, { damage: 222, knockdowns: 3 }],
-      [300, { damage: 333, knockdowns: 6 }],
+      [1000, { damage: 1111, knockdowns: 0 }],
+      [2000, { damage: 2222, knockdowns: 4 }],
+      [3000, { damage: 3333, knockdowns: 8 }],
     ],
   );
   kept(room);
@@ -500,6 +506,11 @@ test("a seat that leaves between stages is dropped: its hero stays behind, and t
   room.world = cleared(room.world!);
   fold(room);
   run(room, CLEAR_TICKS);
+  breakCamp(room);
+  assert.deepEqual([room.round, room.world!.stage], [4, 4]);
+  room.world = cleared(room.world!);
+  fold(room);
+  run(room, CLEAR_TICKS);
   assert.deepEqual([room.stage, room.outcome], ["over", "victory"]);
   kept(room);
   // The next run sets out with whoever is seated.
@@ -656,7 +667,7 @@ test("the checkpoint refuses a stage flow the fold cannot reach, without partial
     lost = countdown();
   run(lost, CONTINUE_TICKS);
   const won = second();
-  for (const camps of [true, false]) {
+  for (const camps of [true, true, false]) {
     won.world = cleared(won.world!);
     fold(won);
     run(won, CLEAR_TICKS);
@@ -789,6 +800,6 @@ test("the checkpoint refuses a stage flow the fold cannot reach, without partial
   // Every stage's world is seeded for its run and stage, and is of that stage.
   assert.deepEqual(
     [won.world!.seed, won.world!.stage, won.outcome],
-    [seedOf("m1:3"), 3, "victory"],
+    [seedOf("m1:4"), 4, "victory"],
   );
 });

@@ -1,4 +1,4 @@
-import type { EnemyAnim, Tier } from "../../engine/view.js";
+import type { EnemyAnim, Tier, VorhalAnim } from "../../engine/view.js";
 import { LANCER_STEPS, SPEAR } from "../../engine/view-kit.js";
 import type { AnimStrip } from "./animate.js";
 import {
@@ -410,6 +410,7 @@ export type LancerAnim = Exclude<
   | "rise"
   | "pile"
   | "reassemble"
+  | VorhalAnim
 >;
 
 const W = LANCER_WALK_STEPS;
@@ -467,14 +468,43 @@ export const LANCER_ANIMS: Readonly<
   thrown: once("knockdown", 30),
 };
 
+/**
+ * What a lancer wears: the cuirass's, the helm's and the pauldron's metal, the plume (forward, down and girth from the
+ * head along its sweep), the spear haft's girth and its head's width, and a captain's cape and gold trim.
+ */
+export interface LancerGear {
+  readonly armour: string;
+  readonly helm: string;
+  readonly pad: string;
+  readonly plume: readonly (readonly [number, number, number])[];
+  readonly haft: number;
+  readonly blade: number;
+  readonly cape?: string;
+  readonly trim?: string;
+}
+/** A foot soldier's: white steel, a bronze helm with a red plume, an ash spear. */
+const FOOT_SOLDIER: LancerGear = {
+  armour: "m",
+  helm: "n",
+  pad: "m",
+  plume: [
+    [1.5, -6.5, 1.2],
+    [-1.5, -9.5, 1.9],
+    [-6, -8.5, 1.5],
+    [-8.8, -3.5, 0.6],
+  ],
+  haft: 0.75,
+  blade: 3.4,
+};
+
 /** The ash-wood haft with an iron butt cap, the bronze socket and the leaf-shaped steel head. */
-function spear(rig: Rig, pose: LancerPose) {
+function spear(rig: Rig, pose: LancerPose, gear: LancerGear) {
   const { tip, butt } = spearEnds(pose);
   const along = turned(tip, pose.spear);
-  rig.capsule(butt, along(-HEAD + 0.5, 0), 0.75, 0.75, "l");
+  rig.capsule(butt, along(-HEAD + 0.5, 0), gear.haft, gear.haft, "l");
   rig.capsule(butt, turned(butt, pose.spear)(1.5, 0), 0.95, 0.95, "i");
   // The point is drawn through the pixel it lies in.
-  rig.blade(along(-HEAD, 0), along(1, 0), 3.4, "m", { tip: 4.5 });
+  rig.blade(along(-HEAD, 0), along(1, 0), gear.blade, "m", { tip: 4.5 });
   rig.capsule(along(-HEAD - 0.6, 0), along(-HEAD + 0.6, 0), 1.2, 1.2, "n");
 }
 
@@ -501,7 +531,22 @@ const SKIRT: readonly Point[] = [
   [-6.5, 6],
 ];
 
-export function paintLancer(pose: LancerPose): Sprite {
+/** A captain's cape hanging from his shoulders down his back, forward and down along his chest's axes. */
+const CAPE: readonly Point[] = [
+  [2.5, -4.6],
+  [-5.5, -4.2],
+  [-9.5, 6],
+  [-13.5, 17],
+  [-10, 19.5],
+  [-6.5, 17.5],
+  [-3, 19],
+  [-1, 8],
+];
+
+export function paintLancer(
+  pose: LancerPose,
+  gear: LancerGear = FOOT_SOLDIER,
+): Sprite {
   const { chest, waist, far, near } = pose;
   const rig = new Rig(...pose.size);
   if (pose.lunge) lunge(rig, pose);
@@ -511,13 +556,28 @@ export function paintLancer(pose: LancerPose): Sprite {
   const hips = turned(between(far.hip, near.hip), spine);
   const head = turned(pose.head, pose.tilt);
   const legs = { material: "s", boot: "l", cuff: "c", bootTop: 0.08 };
+  // A cape hangs down the back; on a figure flung down or lying, what would reach under the floor drapes along it.
+  if (gear.cape)
+    rig.poly(
+      CAPE.map(([forward, down]): Point => {
+        const [x, y] = torso(forward, down);
+        return [x, Math.min(y, pose.anchor[1])];
+      }),
+      gear.cape,
+      { bevel: 1.5, bias: -0.35 },
+    );
   arm(rig, far, { ...BACK, bracer: "l" });
   if (pose.loose) fist(rig, far.hand, BACK);
   if (!pose.astride) leg(rig, far, { ...BACK, ...legs });
-  // The white steel cuirass, broad at the chest over a narrower waist.
+  // The white steel cuirass, broad at the chest over a narrower waist; a captain's edged in gold at collar and waist.
   const body = { group: "body" };
-  rig.capsule(torso(-2, 0), torso(2, 0), 6, 6, "m", body);
-  rig.capsule(belly(-1, 0), belly(1, 0), 5.2, 5.2, "m", body);
+  rig.capsule(torso(-2, 0), torso(2, 0), 6, 6, gear.armour, body);
+  rig.capsule(belly(-1, 0), belly(1, 0), 5.2, 5.2, gear.armour, body);
+  const trim = { edge: "none" } as const;
+  if (gear.trim) {
+    rig.capsule(torso(-3.5, -5), torso(4, -4.4), 0.7, 0.7, gear.trim, trim);
+    rig.capsule(belly(-4.4, 3.4), belly(4.6, 3.4), 0.7, 0.7, gear.trim, trim);
+  }
   leg(rig, near, legs);
   // The pleated skirt hanging from a bronze belt.
   rig.poly(
@@ -539,19 +599,23 @@ export function paintLancer(pose: LancerPose): Sprite {
   rig.capsule(head(0, 0), head(0.5, 1), 3.7, 3.7, "s", face);
   rig.capsule(head(1.8, 2.4), head(2.4, 2.4), 2.1, 2.1, "s", face);
   const helm = { group: "helm" };
-  rig.capsule(head(-1.5, -2), head(1.2, -2), 3.9, 3.9, "n", helm);
-  rig.capsule(head(-3.2, 0), head(-2.5, 3.2), 2.4, 2, "n", helm);
-  rig.capsule(head(1.8, -0.2), head(3.6, 1.2), 1.6, 1.2, "n", helm);
+  rig.capsule(head(-1.5, -2), head(1.2, -2), 3.9, 3.9, gear.helm, helm);
+  rig.capsule(head(-3.2, 0), head(-2.5, 3.2), 2.4, 2, gear.helm, helm);
+  rig.capsule(head(1.8, -0.2), head(3.6, 1.2), 1.6, 1.2, gear.helm, helm);
+  if (gear.trim)
+    rig.capsule(head(-4.6, -2), head(3, -2.6), 0.7, 0.7, gear.trim, trim);
   const plume = { group: "plume" };
-  rig.capsule(head(1.5, -6.5), head(-1.5, -9.5), 1.2, 1.9, "C", plume);
-  rig.capsule(head(-1.5, -9.5), head(-6, -8.5), 1.9, 1.5, "C", plume);
-  rig.capsule(head(-6, -8.5), head(-8.8, -3.5), 1.5, 0.6, "C", plume);
-  spear(rig, pose);
+  gear.plume.forEach(([forward, down, girth], i) => {
+    const next = gear.plume[i + 1];
+    if (next)
+      rig.capsule(head(forward, down), head(next[0], next[1]), girth, next[2], "C", plume); // prettier-ignore
+  });
+  spear(rig, pose, gear);
   if (!pose.loose) fist(rig, far.hand, BACK);
   arm(rig, near, { bracer: "l" });
   // A steel pauldron capping the near shoulder.
   const pad = turned(offset(near.shoulder, 0.2, -0.6), spine);
-  rig.capsule(pad(-1.6, 0), pad(1.6, 0), 2.5, 2.3, "m");
+  rig.capsule(pad(-1.6, 0), pad(1.6, 0), 2.5, 2.3, gear.pad);
   fist(rig, near.hand);
   const painting = rig.bake();
   // The eye a dark slit in the helm, the mouth below it; hurt opens the mouth.
@@ -596,5 +660,5 @@ export const LANCER = figure(LANCER_POSES, paintLancer, {
   violet: LANCER_TIERS[2],
 });
 
-/** The pose builder and the feet-anchored point the captain's seated pose is built with (`captain.ts`). */
-export { build as buildLancer, F as lancerAt };
+/** The pose builder, the feet-anchored point and the thrust's grip the captain's own poses are built with (`captain.ts`). */
+export { build as buildLancer, F as lancerAt, THRUST_HOLD };

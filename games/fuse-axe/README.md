@@ -1,7 +1,7 @@
 # Fuse Axe
 
-A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Work in progress: see
-[`docs/design.md`](docs/design.md) for the game and the delivery plan, and
+A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Playable from the first stage to the
+final boss; see [`docs/design.md`](docs/design.md) for the game, the delivery plan and its status, and
 [`docs/concept-art.html`](docs/concept-art.html) (open it in a browser) for the concept art.
 
 ## Play it
@@ -9,10 +9,13 @@ A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Wo
 Open `/fuse-axe/` on a running service, or pick **Fuse Axe** from the app portal (the dot grid at the top left of
 every game). **PLAY SOLO** opens the hero picker; **CREATE ROOM** makes a room to share by code, link or QR code,
 where everyone picks a hero (duplicates are allowed) and the host presses **START**. In either lobby the host's
-**+ BOT** seats a bot companion (see [Bots and the golden replay](#bots-and-the-golden-replay)). The heroes walk, run, jump and swing
-through Stage 1's waves of ravagers in the pixel-art scene under the HUD. Clearing the stage shows each hero's
-tally, then the run's victory; when every hero is out, any hero may press Attack within ten seconds to continue once,
-or the run is over. The host sets out again with **REMATCH** or goes back to the lobby.
+**+ BOT** seats a bot companion (see [Bots and the golden replay](#bots-and-the-golden-replay)). A run is four stages
+with a camp between each: Ashen Village (ravagers, lancers, sack imps, the Ogre twins), Wyrmbone Pass (clawbeak riders
+and the lancer captain on his ember drake), the Drowned Crypt (bonewalkers rising from the graves, bone knights) and
+Vorhal's Keep (ravagers, lancers, a clawbeak rider and bonewalkers from the floor slabs, then Vorhal himself).
+Clearing a stage shows each hero's tally; when every hero is out, any hero may press Attack within ten seconds to
+continue once per stage, or the run is over. Beating Vorhal wins the run. The host sets out again with **REMATCH** or
+goes back to the lobby.
 
 A gamepad (`src/app/gamepad.ts`, polled each animation frame) drives this device's hero too: the d-pad or the left
 stick walks, A (Cross) attacks, B (Circle) jumps and X (Square) or Y (Triangle) casts magic. With several pads, the one
@@ -46,11 +49,15 @@ of every pad.
 ![The same held upright](docs/images/app-phone-controller-upright.png)
 
 Sound is synthesised in the browser, with nothing to load: every cue is found by diffing the frames the page is shown
-(`src/app/audio/cues.ts`), never by the simulation, and plays after the first key or tap. Stage 1 marches to a short
-chiptune loop in A minor (`src/app/audio/music.ts`) that ducks under GO and the stage-clear fanfare and stops in the
-lobby and at the run's end. **♫ MUSIC** (the loop and the jingles) and **EFFECTS** in the header are this browser's
-choices and are kept; `?mute` silences the page without touching them. With a shared screen the TV sounds for the
-room and a phone that is only a controller stays quiet.
+(`src/app/audio/cues.ts`), never by the simulation, and plays after the first key or tap. Ashen Village's march, a
+short chiptune loop in A minor (`src/app/audio/music.ts`), is the one song and plays through every stage, tally and
+camp; it ducks under GO and the stage-clear fanfare and stops in the lobby and at the run's end. Every later enemy,
+beast and boss has its moments (a lancer's leap, a drake's flame, an
+ogre's slam and its shockwave, a bonewalker clattering to a pile, Vorhal's pillars of fire and his roar), as do riding,
+each level of a Magic charge and each spell; the loudest duck the loop. Stages 2–4 open on a horn of their own, a boss's
+health bar on a sting, and a won run ends on a victory fanfare after the last stage's. **♫ MUSIC** (the loop and the
+jingles) and **EFFECTS** in the header are this browser's choices and are kept; `?mute` silences the page without
+touching them. With a shared screen the TV sounds for the room and a phone that is only a controller stays quiet.
 
 ![Solo with ?mute: the sound toggles greyed out in the header](docs/images/app-sound-toggles.png)
 
@@ -79,10 +86,11 @@ between ticks but what its hero holds. The room folds those bits for every bot s
 ![Solo with two bot companions in the lobby](docs/images/app-lobby-bots.png)
 ![The bots following the player through the first wave](docs/images/app-play-bots.png)
 
-A bot's play is folded rather than logged, so it is part of the rules. `tests/golden.test.ts` has three bots clear
-Stage 1 twice (about 5,100 steps each, under a second): once with no player, so they lead the camera on, and once
-with Brakka standing in for one, so Rhea and Gorm follow it between fights. It compares the world's hash every ten
-seconds, and the step count, with the recorded ones. A change meant to alter the engine's behaviour or the bot's bumps `RULES` in `src/engine/index.ts` and
+A bot's play is folded rather than logged, so it is part of the rules. `tests/golden.test.ts` has three bots play the whole
+run twice (about 30,000 steps each: the four stages and the three camps between them, to Vorhal's fall): once with no
+player, so they lead the camera on, and once with Brakka standing in for one, so Rhea and Gorm follow it between
+fights. It compares the world's hash every ten seconds and at the end of each stage and camp, and the step counts,
+with the recorded ones. A change meant to alter the engine's behaviour or the bot's bumps `RULES` in `src/engine/index.ts` and
 re-records the golden in the same commit (`GOLDEN_RECORD=1 pnpm exec tsx --test games/fuse-axe/tests/golden.test.ts`
 prints the new values). A golden that fails without such a change is a regression to fix, not one to re-record.
 
@@ -179,6 +187,23 @@ its own red, which `LANCER_TIERS` recolours in the ravagers' rust and violet.
 
 ![The lancer's frames in its three tiers, and two frames of the scene from a real engine world](docs/images/lancer-frames.png)
 
+The bonewalker (`src/render/art/bonewalker.ts`) is a ravager's height: a skull with a glowing eye socket, a ribcage on
+a bare spine, long bones knobbed at the joints, a tattered loincloth and a notched, rusty sword. A frame is a skeleton,
+each bone's two ends: one on its feet is built from a pose's joints as the lancer's are, the bone pile is the bones
+heaped on the floor with the sword stuck in it, and the reassembly mixes the two, every bone flying from the heap back
+to its place onto one knee. It sways, lurches in a four-frame walk that keeps a planted foot on the road, raises the
+sword over its skull (the telegraph) and slashes through a motion arc whose front is on the very column `BONE_SWORD`
+reaches, and rattles when struck. It claws up out of its grave over the whole of `BONEWALKER_STEPS.rise` (a claw
+bursting through the earth, the sword's point and a claw on the lip, the skull, the shoulders, a leg over the lip,
+crouched), what is still below the floor cut off; its pile falls apart in a puff of dust, lies with its eyes dark,
+twitches quicker and quicker through its last `PILE_STILL` steps, and pulls itself together; the last fall crumbles
+the bones. Its rags are the tier ramp: grave cloth, rust and violet (`BONEWALKER_TIERS`), and the violet tier is
+`BONE_KNIGHT`, the same frames painted in a rusted steel helm, breastplate and pauldron, with a tattered cape and a
+longer, bright blade (the scene's `ENEMY_ART` gives a tier a figure of its own). `tests/bonewalker-art.test.ts`
+checks it all against the engine; the lab plays both figures and bonewalkers at a grave in the real scene.
+
+![The bonewalker's frames in grave cloth, rust and as the violet knight, and a frame of the scene from a real engine Stage 3 world: one clawing out of its grave, the knight's slash and a rust one's pile](docs/images/bonewalker-frames.png)
+
 The clawbeak (`src/render/art/clawbeak.ts`), the beast a ravager rides, is a teal two-legged runner a little over 40 px
 to its crest, with a long tail, a big hooked gold beak, a red crest, a leather saddle and a brass stirrup. It breathes
 swaying its tail, struts in a four-frame walk that keeps a planted foot on the road (wandering, it stoops to peck), and
@@ -196,8 +221,8 @@ and gold saddle, and red spines. It walks with diagonal pairs of feet keeping pa
 loses its rider. Its breath (`DRAKE_ANIMS.breathe`, timed by view-kit's `DRAKE_STEPS`) rears it back, its chest
 swelling and its throat kindling, for exactly the inhale (the telegraph, which the scene also blinks). From the step
 the flame is out it lunges with its jaws wide and its throat blazing. Through the captain's saddle thrust it crouches
-and then braces. Its saddle point is the clawbeak's (`DRAKE_DIPS`), so the captain (`captain.ts`, a seated `ride`
-frame until he has a look of his own) and the heroes sit it as they sit a clawbeak.
+and then braces. Its saddle point is the clawbeak's (`DRAKE_DIPS`), so the captain and the heroes sit it as they sit
+a clawbeak.
 
 The flame (`src/render/drake-fx.ts`) is a jet from the frame's jaws (`DRAKE_MOUTHS`) to the front `flamePx` gives. It
 has a white-hot core cooling to a red rim, streaks and tongues streaming forward, a billow at the front and rising
@@ -210,15 +235,42 @@ after the drake, at its depth: over a figure further up the floor, under one in 
 
 ![The ember drake's frames, riderless and ridden, and two frames of the scene from a real engine world: the captain's drake inhaling, then its flame on the party](docs/images/drake-frames.png)
 
+The lancer captain (`src/render/art/captain.ts`) is a lancer's build in his own gear (`CAPTAIN_GEAR`, which
+`paintLancer` takes): black steel edged in gold at the collar, waist and brow, a gold pauldron, a black helm under a
+tall red crest, a dark red cape down his back and a heavier spear with a broader head. On foot he fights in the lancer's
+poses and staggers in a frame of his own, rocked back with the spear across him, for as long as the engine staggers a
+boss (`OGRE_STEPS.stagger`). His anim is `ride` throughout on his drake, so what he does in the saddle follows the
+drake's, as a hero's does: `enemyRiderFrame(kind, anim, animStep)` (`animate.ts`) plays `CAPTAIN_SADDLE`, drawn back
+and glinting (`ridewindup`) through the saddle thrust's wind-up and lunging with the spear out to `SPEAR.reach`
+(`ridethrust`) from the step it lands (`DRAKE_STEPS.lanceWindup`) to its end; for anything else his drake does, and for
+any other rider, it has nothing and the scene draws the rider's own `ride` frame. His palette is his own whatever his
+tier. `tests/captain-art.test.ts` plays the real engine against the thrust and the stagger.
+
+![The captain's frames beside a lancer's, on foot and in the saddle, and two frames of the scene from a real engine world: his saddle thrust winding up, then landing on Brakka](docs/images/captain.png)
+
+Vorhal (`src/render/art/vorhal.ts`) is a figure of his own, as tall as an ogre to his horns' tips: a dark knight in
+black-violet plate with violet trims and a gold belt, a horned great helm whose visor's eyes glow, a red cape that
+streams behind him as he moves and a greatsword as long as a hero is tall. He stands with its point planted and both
+hands on the hilt, drags it walking, draws it back over his shoulder through the wind-up, and cuts twice, each cut's
+smear sweeping out to `CUT.reach` from the step it lands (a slash down, then the rising backhand that knocks down). He
+plants the sword to raise a hand that burns from the step the sigils are marked, lifts it into a green light from the
+step the bonewalkers rise, vaults with his cape streaming until the leap's apex and drops after it, roars in a ring of
+flame, and lies cracked open, embers in his armour and his eyes dark, when he falls. Enraged (`VORHAL_RAGE`) his eyes
+and trims burn red, his plate's shadows go crimson and the embers on his cape's hem glow. Every strip is timed by
+`VORHAL_STEPS`; `tests/vorhal-art.test.ts` plays the real engine against the cuts, the cast, the summons, the leap and
+the roar.
+
+![Vorhal's frames, calm and enraged, and three frames of the scene from a real engine throne room: casting, a sigil glowing on the floor beside the heroes; the pillars of fire erupting from their sigils; his first cut landing on Brakka](docs/images/vorhal.png)
+
 A hero riding sits astride too, in four frames of its own (`ride`, `ridewindup`, `rideattack`, `ridehop`): hips on
 the seat, the far leg out of sight (`astride` on the pose skips it), the near boot in the stirrup and the weapon held
 ready. The hero's anim is `ride` throughout, so `riderFrame(anim, animStep)` (`animate.ts`) picks the frame from its
 beast's: braced, weapon cocked, while the tail winds up or an ember drake inhales; leaning in, weapon pointed at the
 foe, from the step the tail lands (or the flame is out) to the blow's end; crouched forward, weapon raised, through a
-hop; seated otherwise (the captain's saddle thrust, `lance`, is his, not a hero's, and `heroFrame` sits a rider whose
-beast is not in the view). Gorm's legs are shorter than the stirrup a ravager rides with, so his seated near leg is
-drawn longer, its thigh under the tunic. The rider's marker hangs over its seated head. `tests/hero-ride.test.ts`
-seats every frame on every frame a ridden clawbeak or drake shows and checks the mapping against the engine; the lab
+hop; seated otherwise (the captain's saddle thrust, `lance`, is his, not a hero's: `enemyRiderFrame`; and `heroFrame`
+sits a rider whose beast is not in the view). Gorm's legs are shorter than the stirrup a ravager rides with, so his
+seated near leg is drawn longer, its thigh under the tunic. The rider's marker hangs over its seated head.
+`tests/hero-ride.test.ts` seats every frame on every frame a ridden clawbeak or drake shows and checks the mapping against the engine; the lab
 plays the three heroes riding each.
 
 ![Each hero's riding frames on the clawbeak (sitting, walking, the wind-up, the lash, the hop), and a frame of the scene from a real engine world: Brakka's lash, Rhea's hop, Gorm's wind-up](docs/images/hero-riders.png)
@@ -239,7 +291,11 @@ exactly where the engine's runs: a crack splits the floor from the hammer's reac
 and over them rock shards burst up at the front and crumble behind it (the last ones faster, to be gone as the
 hammer rises), dust rolling and pebbles flying; an enraged twin steams, drawn with it by depth so a hero in front of
 it hides the puffs ([screenshot](docs/images/ogre-twins.png)). The crack, shards and dust are flat rectangles drawn
-each frame (a few hundred for the 24 steps of a slam), not baked.
+each frame (a few hundred for the 24 steps of a slam), not baked. Vorhal's fire spell is baked (`vorhal-fx.ts`): a
+sigil is a horned rune in a ring on the floor under the figures, its ring tracing itself round and then flashing
+white-hot for its last `PRIMED` of the `SIGIL.delay` steps; then its pillar of fire stands among the figures by the
+sigil's depth (a hero on its very row inside it, in the air too) for exactly `SIGIL.burn` steps, shooting up, licking
+with the frame and sinking.
 Nothing is drawn off screen (`pen.ts` clips every call), and every sprite, shadow and sign is baked once.
 
 Everything the renderer pre-paints goes through one injected surface factory, `MakeSurface` in

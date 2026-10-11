@@ -7,6 +7,7 @@ import { hits, isLancer, lancerLane } from "./lancer.js";
 import { lashes } from "./mount.js";
 import { next } from "./rng.js";
 import { SWINGS, hittable } from "./step.js";
+import { isVorhal, pillars, threatensCut } from "./vorhal.js";
 import * as T from "./tuning.js";
 import {
   SPAWNS,
@@ -80,6 +81,9 @@ const GUARDS: readonly Enemy["state"][] = ["idle", "walk", "windup"];
 const WARY_X = T.px(30),
   WARY_Y = T.px(10);
 
+/** It steps off a sigil of Vorhal's it stands this near, before its pillar erupts. */
+const SIGIL_MARGIN = T.px(3);
+
 /** The states a bot decides afresh in; in a swing it chains the combo, and in any other it holds nothing. */
 const FREE: readonly HeroState[] = ["idle", "walk", "run"];
 
@@ -103,6 +107,8 @@ export function botInput(
     ),
     imps = world.enemies.filter((enemy) => kickable(world, enemy));
   if (casts(world, hero, foes)) return hero.held & MAGIC ? 0 : MAGIC;
+  const sigil = world.sigils.find((each) => pillars(each, hero, SIGIL_MARGIN));
+  if (sigil) return aside(hero, sigil.y, T.PILLAR_LANE + T.px(4)).bits;
   const danger = foes.find((foe) => menaces(world, hero, foe));
   if (danger)
     return counters(world, hero, danger)
@@ -111,6 +117,7 @@ export function botInput(
   const opening = [...foes, ...imps].find(
     (enemy) =>
       hittable(world, enemy) &&
+      !guarded(hero, enemy) &&
       reaches(hero, enemy, T.COMBO[hero.kind][0]!.reach, true),
   );
   if (opening) return swingAt(hero, opening);
@@ -190,10 +197,29 @@ function combo(world: World, hero: Hero, index: number): number {
   const reach = combo[index + 1]!.reach;
   return world.enemies.some(
     (enemy) => hittable(world, enemy) && reaches(hero, enemy, reach),
-  )
+  ) && !world.enemies.some((enemy) => braced(world, hero, enemy))
     ? ATTACK
     : 0;
 }
+
+/** Vorhal's cut the bot has seen coming at it, which no swing breaks off: it chains no more, to step out of it. */
+const braced = (world: World, hero: Hero, enemy: Enemy): boolean =>
+  isVorhal(enemy) && menaces(world, hero, enemy);
+
+/**
+ * Vorhal is open to a bot's blade only between his moves (recovering, casting, summoning or staggered), or with his
+ * back to it; otherwise it keeps out of his lane (`approach`).
+ */
+const OPEN: readonly Enemy["state"][] = [
+  "recover",
+  "cast",
+  "summon",
+  "stagger",
+];
+const guarded = (hero: Hero, enemy: Enemy): boolean =>
+  isVorhal(enemy) &&
+  !OPEN.includes(enemy.state) &&
+  (hero.x - enemy.x) * enemy.facing >= 0;
 
 /**
  * Magic: a pot held, no spell already playing, and enemies about it, or few about it while low on health. A bonewalker's
@@ -251,13 +277,15 @@ function menaces(world: World, hero: Hero, foe: Enemy): boolean {
       ? lashes(clock.beast, hero, T.px(2))
       : isOgre(foe)
         ? threatens(foe, hero, T.px(2))
-        : isLancer(foe)
-          ? (foe.state === "windup" || foe.state === "leap") &&
-            hits(foe, hero, T.px(2))
-          : foe.state === "windup" &&
-            ahead + T.HERO_HALF_W >= -T.px(2) &&
-            ahead - T.HERO_HALF_W <= reachOf(foe) + T.px(4) &&
-            Math.abs(hero.y - foe.y) <= T.LANE + T.px(2)) &&
+        : isVorhal(foe)
+          ? threatensCut(foe, hero, T.px(2))
+          : isLancer(foe)
+            ? (foe.state === "windup" || foe.state === "leap") &&
+              hits(foe, hero, T.px(2))
+            : foe.state === "windup" &&
+              ahead + T.HERO_HALF_W >= -T.px(2) &&
+              ahead - T.HERO_HALF_W <= reachOf(foe) + T.px(4) &&
+              Math.abs(hero.y - foe.y) <= T.LANE + T.px(2)) &&
     clock.timer >= REACT + (chance(world, hero, clock, 0) % REACT_SPREAD) &&
     chance(world, hero, clock, 1) >= MISS
   );
@@ -287,22 +315,30 @@ function counters(world: World, hero: Hero, foe: Enemy): boolean {
 }
 
 /**
- * Out of the lane (an ogre's blow's, `threatLane`; a leaping lancer's about where it comes down; a beast's tail's or
- * flame's): away from it in depth, toward the middle of the floor band if level with it, the other way against the
- * band's edge, and then also on along the road out of its reach (but from a leap, whose landing is ahead of it).
+ * Out of a lane about depth `y`, `room` deep: away from it in depth, toward the middle of the floor band if level with
+ * it, the other way against the band's edge; `crossing` when that takes the hero across it.
+ */
+function aside(hero: Hero, y: number, room: number) {
+  let down =
+    hero.y !== y ? hero.y > y : 2 * hero.y < T.FLOOR_TOP + T.FLOOR_BOTTOM;
+  if (down && hero.y + room > T.FLOOR_BOTTOM) down = false;
+  else if (!down && hero.y - room < T.FLOOR_TOP) down = true;
+  return { bits: down ? DOWN : UP, crossing: down ? hero.y < y : hero.y > y };
+}
+
+/**
+ * Out of the lane (an ogre's blow's, `threatLane`; Vorhal's cut's; a leaping lancer's about where it comes down; a
+ * beast's tail's or flame's), `aside`, and crossing it also on along the road out of its reach (but from a leap, whose
+ * landing is ahead of it).
  */
 function dodge(world: World, hero: Hero, foe: Enemy): number {
   const leaping = foe.state === "leap",
     y = isLancer(foe) ? lancerLane(foe) : foe.y,
     breath = mountOf(world, foe.id)?.state === "breathe",
     lane = breath ? T.FLAME_LANE : foe.state === "ride" ? T.TAIL_LANE : T.LANE,
-    room = (isOgre(foe) ? threatLane(foe) : lane) + T.px(4);
-  let down =
-    hero.y !== y ? hero.y > y : 2 * hero.y < T.FLOOR_TOP + T.FLOOR_BOTTOM;
-  if (down && hero.y + room > T.FLOOR_BOTTOM) down = false;
-  else if (!down && hero.y - room < T.FLOOR_TOP) down = true;
-  const crossing = !leaping && (down ? hero.y < y : hero.y > y);
-  return (down ? DOWN : UP) | (crossing ? (foe.facing > 0 ? RIGHT : LEFT) : 0);
+    wide = isOgre(foe) ? threatLane(foe) : isVorhal(foe) ? T.CUT_LANE : lane,
+    { bits, crossing } = aside(hero, y, wide + T.px(4));
+  return bits | (crossing && !leaping ? (foe.facing > 0 ? RIGHT : LEFT) : 0);
 }
 
 /**
@@ -385,11 +421,28 @@ function approach(world: World, hero: Hero, enemy: Enemy): number {
   if (!fits(side) || (taken(side) && fits(-side) && !taken(-side)))
     side = -side;
   const wary =
-    isLancer(enemy) &&
-    GUARDS.includes(enemy.state) &&
-    Math.abs(hero.x - enemy.x) > WARY_X;
-  const off = 2 * enemy.y < T.FLOOR_TOP + T.FLOOR_BOTTOM ? WARY_Y : -WARY_Y;
-  return steer(world, hero, enemy.x + side * STAND, enemy.y + (wary ? off : 0));
+    (isLancer(enemy) &&
+      GUARDS.includes(enemy.state) &&
+      Math.abs(hero.x - enemy.x) > WARY_X) ||
+    guarded(hero, enemy);
+  return steer(
+    world,
+    hero,
+    enemy.x + side * STAND,
+    enemy.y + (wary ? standOff(hero, enemy) : 0),
+  );
+}
+
+/**
+ * How far out of a guarding foe's lane a bot keeps, in depth: `WARY_Y` from a lancer's, toward the middle of the floor
+ * band; `CUT_LANE` and a margin from Vorhal's, on the side the bot is on while the band has room for it there.
+ */
+function standOff(hero: Hero, enemy: Enemy): number {
+  if (!isVorhal(enemy))
+    return 2 * enemy.y < T.FLOOR_TOP + T.FLOOR_BOTTOM ? WARY_Y : -WARY_Y;
+  const room = T.CUT_LANE + T.px(6),
+    up = hero.y < enemy.y ? enemy.y - room >= T.FLOOR_TOP : enemy.y + room > T.FLOOR_BOTTOM; // prettier-ignore
+  return up ? -room : room;
 }
 
 /**

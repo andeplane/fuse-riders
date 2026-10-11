@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { isDeepStrictEqual } from "node:util";
 import {
   ATTACK,
   createWorld,
@@ -9,12 +10,15 @@ import {
 } from "../src/engine/index.js";
 import { px } from "../src/engine/tuning.js";
 import type {
+  EnemyKind,
   EnemyView,
   FxView,
   HeroKind,
   HeroView,
   ItemView,
+  MountAnim,
   MountView,
+  Tier,
   WorldView,
 } from "../src/engine/view.js";
 import {
@@ -30,6 +34,7 @@ import {
   FX_KINDS,
   FX_LIFE,
   OGRE_STEPS,
+  SIGIL,
   QUAKE,
   SPEAR,
   VIEW_H,
@@ -45,8 +50,13 @@ import {
   riderFrame,
   stripFrame,
 } from "../src/render/art/animate.js";
+import {
+  BONE_KNIGHT,
+  BONEWALKER,
+  type BonewalkerFrame,
+} from "../src/render/art/bonewalker.js";
 import { BRAKKA } from "../src/render/art/brakka.js";
-import { CAPTAIN, CAPTAIN_LOOK } from "../src/render/art/captain.js";
+import { CAPTAIN, type CaptainFrame } from "../src/render/art/captain.js";
 import {
   DRAKE_DIPS,
   DRAKE_FIGURE,
@@ -70,9 +80,14 @@ import {
   OGRE_RAGE,
   OGRE_TIERS,
 } from "../src/render/art/ogre.js";
+import { VORHAL, VORHAL_RAGE } from "../src/render/art/vorhal.js";
 import { MEAT } from "../src/render/art/meat.js";
 import { POT } from "../src/render/art/pot.js";
-import { RAVAGER, RAVAGER_ANIMS } from "../src/render/art/ravager.js";
+import {
+  RAVAGER,
+  RAVAGER_ANIMS,
+  RAVAGER_TIERS,
+} from "../src/render/art/ravager.js";
 import { flipSprite, type Sprite } from "../src/render/pixel/sprite.js";
 import {
   createSpriteBaker,
@@ -84,10 +99,10 @@ import {
   CRYPT_END,
   CRYPT_LENGTH,
 } from "../src/render/backdrop/drowned-crypt.js";
+import { KEEP_END, KEEP_LENGTH } from "../src/render/backdrop/vorhals-keep.js";
 import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
 import {
-  BONE_PILE,
   createLooks,
   createScene,
   deadShows,
@@ -106,6 +121,7 @@ import {
   SHADOW_RX,
 } from "../src/render/scene.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
+import { pillarSprite, sigilSprite } from "../src/render/vorhal-fx.js";
 import { drawSpark, HIT_STEPS } from "../src/render/sparks.js";
 import {
   paintPixels,
@@ -209,7 +225,7 @@ const world = (more: Partial<WorldView>): WorldView => ({
   ...{ step: 0, camX: 0, heroes: [], enemies: [], fx: [], items: [] },
   ...{ spells: [], mounts: [], stage: 1, camp: false },
   ...{ wave: 0, waves: 5, locked: false, go: false, cleared: false },
-  ...{ defeated: false, boss: null },
+  ...{ defeated: false, boss: null, sigils: [] },
   ...more,
 });
 
@@ -658,34 +674,73 @@ test("every anim of a hero and an enemy draws at any step, and one the art lacks
   assert.deepEqual(odd, idle);
 });
 
-test("a bonewalker draws as a ravager in bone, by tier, and its pile or shattered bones as a few bones on the floor", () => {
+test("a bonewalker draws its own figure in its tier's rags, the violet one the armoured knight, its pile and crumbling bones too", () => {
   const drawn = (more: Partial<EnemyView>) =>
     draw(
       world({
         enemies: [enemy(2, 150, 150, { kind: "bonewalker", ...more })],
       }),
     );
-  for (const anim of ["pile", "dead"] as const) {
-    const { sprites, shadows } = drawn({ anim, animStep: 3, facing: -1 });
-    assert.deepEqual(
-      sprites[0]!.image.fills,
-      fillsOf(BONE_PILE, { swap: ENEMY_ART.bonewalker.tiers[0], flip: true }),
-    );
-    assert.ok(shadows[0]!.image.w < 2 * SHADOW_RX);
-  }
+  const { tiers } = ENEMY_ART.bonewalker;
+  // prettier-ignore
+  const shows = [["idle", 0], ["rise", 25], ["attack", 0], ["pile", 3], ["pile", 149], ["reassemble", 12], ["dead", 3]] as const;
+  for (const tier of [0, 1, 2] as const)
+    for (const [anim, animStep] of shows) {
+      const figure = tier === 2 ? BONE_KNIGHT : BONEWALKER;
+      const frame = enemyFrame("bonewalker", anim, animStep) as BonewalkerFrame;
+      const { sprites, shadows } = drawn({ tier, anim, animStep, facing: -1 });
+      assert.deepEqual(
+        sprites[0]!.image.fills,
+        fillsOf(figure.sprite(frame), { swap: tiers[tier], flip: true }),
+        `${tier} ${anim}`,
+      );
+      assert.equal(shadows[0]!.image.w, 2 * SHADOW_RX + 1);
+    }
   const looks = ([0, 1, 2] as const).map(
     (tier) => drawn({ tier }).sprites[0]!.image.fills,
   );
   assert.equal(new Set(looks.map((each) => JSON.stringify(each))).size, 3);
-  assert.notDeepEqual(
-    looks[0],
-    draw(world({ enemies: [enemy(2, 150, 150)] })).sprites[0]!.image.fills,
-    "not a ravager's colours",
-  );
-  // It climbs out of its grave and pulls itself together standing; no step of either throws.
-  for (const anim of ["rise", "reassemble"] as const)
+  // No anim at any step throws, nor a tier from a build with more of them, which draws in the figure's own rags.
+  const odd = JSON.parse("7") as Tier;
+  for (const anim of ENEMY_STATES)
     for (const animStep of [0, 30, 1e9, Number.NaN])
-      assert.equal(drawn({ anim, animStep }).sprites.length, 1);
+      assert.equal(
+        drawn({ anim, animStep }).sprites.length,
+        anim === "dead" && !deadShows(animStep) ? 0 : 1,
+      );
+  assert.deepEqual(
+    drawn({ tier: odd }).sprites[0]!.image.fills,
+    fillsOf(BONEWALKER.sprite("idle")),
+  );
+});
+
+test("no state of a bonewalker, in any tier at any step, draws a frame its own figure lacks, a ravager's stand-in least of all", () => {
+  const { tiers } = ENEMY_ART.bonewalker;
+  for (const tier of [0, 1, 2] as const)
+    for (const anim of ENEMY_STATES)
+      for (const animStep of [0, 1, 7, 29, 59, 149, 1e9, Number.NaN]) {
+        const figure = tier === 2 ? BONE_KNIGHT : BONEWALKER;
+        const frame = enemyFrame("bonewalker", anim, animStep);
+        assert.ok(
+          (figure.frames as readonly string[]).includes(frame),
+          `${tier} ${anim} ${animStep}: ${frame}`,
+        );
+        const { sprites } = draw(
+          world({
+            enemies: [
+              enemy(2, 150, 150, { kind: "bonewalker", tier, anim, animStep }),
+            ],
+          }),
+        );
+        if (anim === "dead" && !deadShows(animStep)) continue;
+        assert.deepEqual(
+          sprites[0]!.image.fills,
+          fillsOf(figure.sprite(frame as BonewalkerFrame), {
+            swap: tiers[tier],
+          }),
+          `${tier} ${anim} ${animStep}`,
+        );
+      }
 });
 
 test("an ogre draws its own figure in its twin's colours on its feet, burns and steams once enraged, casts a bigger shadow, cracks the floor and is cut to the screen", () => {
@@ -1135,7 +1190,7 @@ test("the backdrop painted through a plain surface matches its pixel buffers exa
 test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage without art Stage 1's, and no stage throws", () => {
   const layers = (view: WorldView) =>
     draw(view).pen.blits.filter((b) => b.image.w >= VIEW_W);
-  for (const stage of [2, 3, 4, 0, -1, 1.5, Number.NaN])
+  for (const stage of [2, 3, 4, 5, 0, -1, 1.5, Number.NaN])
     assert.doesNotThrow(() => draw(world({ stage, camX: 100 })), `${stage}`);
   // Its road is the stage's whole length, scrolled with the floor out to the skull gate.
   const end = cameraEndPx(2);
@@ -1148,8 +1203,26 @@ test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage witho
   assert.notDeepEqual(layers(world({ stage: 2 })), layers(world({ stage: 1 })));
   assert.deepEqual(scenery(2, 700), { art: 2, camX: 700 });
   assert.deepEqual(scenery(1, 500), { art: 1, camX: 500 });
-  assert.deepEqual(scenery(4, 500), { art: 1, camX: 500 }, "an unknown one");
-  assert.deepEqual(layers(world({ stage: 4 })), layers(world({ stage: 1 })));
+  assert.deepEqual(scenery(5, 500), { art: 1, camX: 500 }, "an unknown one");
+  assert.deepEqual(layers(world({ stage: 5 })), layers(world({ stage: 1 })));
+});
+
+test("Stage 4 draws Vorhal's Keep at the camera as it is, out to the throne room, not Stage 1's village", () => {
+  const layers = (stage: number, camX = 0) =>
+    draw(world({ stage, camX })).pen.blits.filter((b) => b.image.w >= VIEW_W);
+  const road = (camX: number) =>
+    layers(4, camX).find((b) => b.image.w === stageLengthPx(4));
+  assert.equal(road(0)?.sx, 0);
+  assert.equal(road(KEEP_END)?.sx, KEEP_END);
+  const images = (stage: number) => layers(stage).map((b) => b.image);
+  for (const other of [1, 2, 3]) {
+    const theirs = new Set(images(other));
+    assert.ok(
+      images(4).every((image) => !theirs.has(image)),
+      `${other}`,
+    );
+  }
+  assert.deepEqual(scenery(4, KEEP_END), { art: 4, camX: KEEP_END });
 });
 
 test("Stage 3 draws the Drowned Crypt at the camera as it is, out to its great doors", () => {
@@ -1179,6 +1252,12 @@ test("every stage's backdrop is baked with the scene, so no frame stalls baking 
       images.some((image) => image.w === length),
       `a ${length} px road`,
     );
+  // Wyrmbone Pass's, the crypt's and the keep's roads are all five screens long: three of that width.
+  assert.equal(
+    images.filter((image) => image.w === KEEP_LENGTH).length,
+    3,
+    "the keep's road is baked with the scene",
+  );
   for (const stage of [1, 2, 3, 4, 3, 2, 1, Number.NaN])
     draw(world({ stage, camX: 100 }), 0, scene);
   assert.equal(wide(), baked, "drawing a stage baked a layer");
@@ -1245,7 +1324,7 @@ test("camp's fire stands among the figures: in front of one behind it, behind on
   assert.deepEqual(order(hero(1, 0, FIRE.x - 30, FIRE.y)), [true]);
 });
 
-test("an ember drake draws from its own art, blinking as it inhales; its flame is one jet from its jaws to the front, drawn at its depth; the captain sits it in his colours", () => {
+test("an ember drake draws from its own art, blinking as it inhales; its flame is one jet from its jaws to the front, drawn at its depth", () => {
   const drake = (more: Partial<MountView> = {}): MountView => ({
     ...{ id: 9, kind: "drake", x: 150, y: 140, z: 0, facing: 1 },
     ...{ anim: "breathe", animStep: 0, rider: null, ...more },
@@ -1275,19 +1354,125 @@ test("an ember drake draws from its own art, blinking as it inhales; its flame i
   for (const anim of MOUNT_STATES)
     for (const step of [0, 40, 79, 1e9, -3, 2.5, Number.NaN, Infinity])
       assert.ok(draw(world({ mounts: [drake({ anim, animStep: step })] })).sprites.length >= 1); // prettier-ignore
-  // The captain: his own figure in gold and dark steel whatever his palette, seated on his drake's saddle.
+});
+
+test("the captain draws from his own art in his own colours, and in the saddle does what his drake's anim says: sits, or draws back and thrusts", () => {
   const boss = enemy(3, 150, 140, { kind: "captain", tier: 2, boss: true });
-  const captain = (frame: string) =>
-    fillsOf(CAPTAIN.sprite(frame as "ride"), { swap: CAPTAIN_LOOK, flash: false, flip: false }); // prettier-ignore
-  assert.deepEqual(draw(world({ enemies: [boss] })).sprites[0]!.image.fills, captain("idle")); // prettier-ignore
-  const ridden = draw(
-    world({
-      enemies: [{ ...boss, anim: "ride", mounted: true, z: CLAWBEAK.saddle }],
-      mounts: [drake({ anim: "walk", animStep: 0, rider: { kind: "enemy", id: 3 } })], // prettier-ignore
-    }),
-  ).sprites;
-  const seat = CAPTAIN.sprite("ride");
-  assert.deepEqual(ridden[1]!.image.fills, captain("ride"));
-  assert.equal(ridden[1]!.dy + seat.ay, 140 - CLAWBEAK.saddle + DRAKE_DIPS.walk0); // prettier-ignore
-  assert.deepEqual([0, 1, 2].map((tier) => ENEMY_ART.captain.tiers[tier as 0]), [CAPTAIN_LOOK, CAPTAIN_LOOK, CAPTAIN_LOOK]); // prettier-ignore
+  const captain = (frame: CaptainFrame) =>
+    fillsOf(CAPTAIN.sprite(frame), { flash: false, flip: false });
+  // On foot: his own figure whatever his palette, staggering in his own frame.
+  for (const tier of [0, 1, 2] as const)
+    assert.deepEqual(draw(world({ enemies: [{ ...boss, tier }] })).sprites[0]!.image.fills, captain("idle")); // prettier-ignore
+  assert.deepEqual(draw(world({ enemies: [{ ...boss, anim: "stagger" }] })).sprites[0]!.image.fills, captain("stagger")); // prettier-ignore
+  // On his drake: the frame his beast's anim and step say, on its saddle as it dips, over it.
+  const ridden = (
+    anim: MountAnim,
+    animStep: number,
+    kind: EnemyKind = "captain",
+  ) =>
+    // prettier-ignore
+    draw(
+      world({
+        enemies: [{ ...boss, kind, anim: "ride", animStep: 90, mounted: true, z: CLAWBEAK.saddle }], // prettier-ignore
+        mounts: [{ id: 9, kind: "drake", x: 150, y: 140, z: 0, facing: 1, anim, animStep, rider: { kind: "enemy", id: 3 } }], // prettier-ignore
+      }),
+    ).sprites;
+  const { lanceWindup, lance } = DRAKE_STEPS;
+  for (const [anim, animStep, frame, under] of [
+    ["walk", 0, "ride", "walk0"],
+    ["breathe", 30, "ride", mountFrame("drake", "breathe", 30)],
+    ["lance", 0, "ridewindup", "crouch"],
+    ["lance", lanceWindup - 1, "ridewindup", "crouch"],
+    ["lance", lanceWindup, "ridethrust", "brace"],
+    ["lance", lance - 1, "ridethrust", "brace"],
+  ] as const) {
+    // The drake first (its flame after it, if it breathes one), then its rider over it.
+    const rider = ridden(anim, animStep).at(-1)!;
+    assert.deepEqual(rider.image.fills, captain(frame), `${anim} ${animStep}`);
+    const seat = CAPTAIN.sprite(frame).ay;
+    assert.equal(rider.dy + seat, 140 - CLAWBEAK.saddle + DRAKE_DIPS[under as DrakeFrame], `${anim} ${animStep}`); // prettier-ignore
+  }
+  assert.deepEqual([0, 1, 2].map((tier) => ENEMY_ART.captain.tiers[tier as 0]), [undefined, undefined, undefined]); // prettier-ignore
+  // Another rider of the drake's lance (none the rules make) sits; any anim at any step draws, never throwing.
+  const sat = ridden("lance", lance - 1, "ravager").at(-1)!;
+  assert.deepEqual(sat.image.fills, fillsOf(RAVAGER.sprite("ride"), { swap: RAVAGER_TIERS.violet, flash: false, flip: false })); // prettier-ignore
+  for (const anim of MOUNT_STATES)
+    for (const animStep of [0, 23, 24, 1e9, -3, 2.5, Number.NaN, Infinity])
+      assert.ok(ridden(anim, animStep).length >= 2, `${anim} ${animStep}`);
+});
+
+test("Vorhal draws as his own figure in every anim, his sigils glow under the figures and their pillars stand among them by depth, and nothing throws", () => {
+  const vorhal = (more: Partial<EnemyView> = {}) =>
+    enemy(3, 200, 150, { kind: "vorhal", boss: true, ...more });
+  for (const anim of ENEMY_STATES)
+    for (const animStep of [0, 30, 1e9, -3, 2.5, Number.NaN])
+      assert.doesNotThrow(
+        () => draw(world({ enemies: [vorhal({ anim, animStep })] })),
+        `${anim} ${animStep}`,
+      );
+  // Enraged he burns but does not steam as an ogre does (nothing rises from his helm), and fallen he stands as before.
+  for (const anim of ["idle", "windup", "cut1", "dead"] as const) {
+    const drawn = (enraged: boolean) =>
+      draw(world({ enemies: [vorhal({ enraged, anim, animStep: 5 })] }), 7).pen.fills; // prettier-ignore
+    assert.deepEqual(drawn(true), drawn(false), anim);
+  }
+  // His own figure, burning red enraged.
+  for (const enraged of [false, true])
+    assert.deepEqual(
+      draw(world({ enemies: [vorhal({ enraged, anim: "cast", animStep: 30 })] })).sprites[0]!.image.fills, // prettier-ignore
+      fillsOf(VORHAL.sprite("cast"), { swap: enraged ? VORHAL_RAGE : undefined, flash: false, flip: false }), // prettier-ignore
+    );
+  // Brakka at `y`, `z` up, by a sigil at (160, 140) `age` steps old: where its sigil's and its pillar's blits fall
+  // among the blits, and his.
+  const scene = (
+    age: number,
+    y = 140,
+    sigil = { x: 160, y: 140, age },
+    z = 0,
+  ) => {
+    const { blits } = draw(world({ heroes: [hero(1, 0, 160, y, { z })], sigils: [sigil] })).pen; // prettier-ignore
+    const of = (sprite: Sprite | undefined) =>
+      sprite ? blits.findIndex((b) => isDeepStrictEqual(b.image.fills, fillsOf(sprite))) : -1; // prettier-ignore
+    const idle = BRAKKA.sprite("idle0");
+    return {
+      blits,
+      sigil: of(sigilSprite(age, 0)),
+      pillar: of(pillarSprite(age, 0)),
+      brakka: blits.findIndex((b) => b.image.w === idle.w && b.image.h === idle.h), // prettier-ignore
+    };
+  };
+  // The sigil lies on the floor under him, on its place, through its glow.
+  for (const age of [0, 20, SIGIL.delay - 1]) {
+    const { blits, sigil, pillar, brakka } = scene(age);
+    const s = sigilSprite(age, 0)!;
+    assert.ok(sigil >= 0 && sigil < brakka, `${age}`);
+    assert.deepEqual([blits[sigil]!.dx, blits[sigil]!.dy], [160 - s.ax, 140 - s.ay]); // prettier-ignore
+    assert.equal(pillar, -1);
+  }
+  // Its pillar stands on it among the figures: drawn after one behind it or on its very row (engulfing him), before
+  // one in front.
+  const burning = SIGIL.delay + 10;
+  for (const [y, after] of [
+    [132, true],
+    [140, true],
+    [146, false],
+  ] as const) {
+    const { blits, sigil, pillar, brakka } = scene(burning, y);
+    const p = pillarSprite(burning, 0)!;
+    assert.ok(pillar >= 0 && sigil === -1, `${y}`);
+    assert.equal(pillar > brakka, after, `${y}`);
+    assert.deepEqual([blits[pillar]!.dx, blits[pillar]!.dy], [160 - p.ax, 140 - p.ay]); // prettier-ignore
+  }
+  // It burns whatever is over its row too: Brakka in the air above it is engulfed, not drawn in front of it.
+  for (const z of [1, 20, 36]) {
+    const { pillar, brakka } = scene(burning, 140, { x: 160, y: 140, age: burning }, z); // prettier-ignore
+    assert.ok(pillar > brakka && brakka >= 0, `${z}`);
+  }
+  // Burnt out, nothing is left; an odd age or place draws nothing amiss.
+  const bare = draw(world({ heroes: [hero(1, 0, 160, 140)] })).pen.blits.length;
+  assert.equal(scene(SIGIL.delay + SIGIL.burn).blits.length, bare);
+  for (const age of [-3, 1.5, Number.NaN, 1e9, Infinity])
+    assert.doesNotThrow(() => scene(age));
+  for (const odd of [Number.NaN, -50, 1e9])
+    assert.doesNotThrow(() => scene(burning, 140, { x: odd, y: odd, age: burning })); // prettier-ignore
 });

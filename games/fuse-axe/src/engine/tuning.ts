@@ -226,6 +226,7 @@ export const THROWABLE: Readonly<Record<EnemyKind, boolean>> = {
   lancer: true,
   captain: false,
   bonewalker: true,
+  vorhal: false,
 };
 
 // ---- the enemies ----
@@ -233,7 +234,8 @@ export const THROWABLE: Readonly<Record<EnemyKind, boolean>> = {
  * A sack imp (`imps.ts`) is no fighter: it crosses the screen with magic pots for the heroes to kick out of it. An
  * ogre (`ogre.ts`) is Stage 1's boss, one of the twins. A lancer (`lancer.ts`) fights with a spear and leaps in, and
  * the lancer captain, Wyrmbone Pass's boss, is one who rides an ember drake. A bonewalker (`bonewalker.ts`), the
- * Drowned Crypt's skeleton swordsman, claws up out of a grave and pulls itself together once from its bones.
+ * Drowned Crypt's skeleton swordsman, claws up out of a grave and pulls itself together once from its bones. Vorhal
+ * (`vorhal.ts`) is the final boss, in his keep.
  */
 export const ENEMY_KINDS = [
   "ravager",
@@ -242,6 +244,7 @@ export const ENEMY_KINDS = [
   "lancer",
   "captain",
   "bonewalker",
+  "vorhal",
 ] as const;
 export type EnemyKind = (typeof ENEMY_KINDS)[number];
 /** The kinds that fight, which a wave is made of and holds the screen for. */
@@ -254,6 +257,7 @@ export const BOSS: Readonly<Record<EnemyKind, boolean>> = {
   lancer: false,
   captain: true,
   bonewalker: false,
+  vorhal: true,
 };
 /** A kind's hit points at its lowest tier with one hero; `enemyMaxHp` scales them. An imp takes no damage. */
 export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = {
@@ -263,6 +267,7 @@ export const ENEMY_HP: Readonly<Record<EnemyKind, number>> = {
   lancer: 32,
   captain: 180,
   bonewalker: 32,
+  vorhal: 260,
 };
 /** Tiers by palette (ash, rust, violet): each adds hit points, and aggression (`RAVAGER`). */
 export const TIERS = [0, 1, 2] as const;
@@ -301,6 +306,7 @@ export const ENEMY_BODY: Readonly<
   lancer: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
   captain: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
   bonewalker: { half: ENEMY_HALF_W, height: ENEMY_HEIGHT },
+  vorhal: { half: px(14), height: px(64) },
 };
 /** A hurt enemy is nudged back at this speed, slowing by `HURT_FRICTION` a step, and reels for `HURT_STEPS`. */
 export const HURT_PUSH = px(1.5);
@@ -390,13 +396,15 @@ export const fighterOf = (
 ): Fighter =>
   kind === "ogre"
     ? OGRE[enraged ? "rage" : "calm"]
-    : kind === "captain"
-      ? CAPTAIN
-      : kind === "lancer"
-        ? LANCER[tier]
-        : kind === "bonewalker"
-          ? BONEWALKER[tier]
-          : RAVAGER[tier];
+    : kind === "vorhal"
+      ? VORHAL[enraged ? "rage" : "calm"]
+      : kind === "captain"
+        ? CAPTAIN
+        : kind === "lancer"
+          ? LANCER[tier]
+          : kind === "bonewalker"
+            ? BONEWALKER[tier]
+            : RAVAGER[tier];
 /** It walks to stand this far from its hero along the road, and winds up within `OGRE_SLACK` more and `OGRE_LANE` in depth. */
 export const OGRE_ENGAGE = px(30);
 export const OGRE_SLACK = px(10);
@@ -520,6 +528,78 @@ export const BONE_REACH: Readonly<Record<Tier, number>> = {
 export const RISE_STEPS = 60;
 export const PILE_STEPS = 150;
 export const REASSEMBLE_STEPS = 30;
+
+// ---- Vorhal (`vorhal.ts`), the final boss ----
+/**
+ * Vorhal as he starts and from half his hit points on (`enraged`, his second phase): his greatsword's wind-up, his
+ * pause between moves, his walk and the first cut's damage. He never feints.
+ */
+export const VORHAL: Readonly<Record<"calm" | "rage", Fighter>> = {
+  calm: fighter(34, 30, 20, 0.6, 8, 0),
+  rage: fighter(24, 16, 12, 0.75, 10, 0),
+};
+/** He walks to stand `VORHAL_ENGAGE` from his hero, winding up within `VORHAL_SLACK` more and `VORHAL_LANE` in depth. */
+export const VORHAL_ENGAGE = px(34);
+export const VORHAL_SLACK = px(10);
+export const VORHAL_LANE = px(3);
+/** A walk after a hero who keeps away ends after `VORHAL_CHASE` steps, and he decides again. */
+export const VORHAL_CHASE = 150;
+/**
+ * The greatsword's two cuts: each lands on its first step on every hero in front within `CUT_REACH`, `CUT_LANE` either
+ * side in depth and under `CUT_HEIGHT`; the second follows `CUT_GAP` steps after the first, harder (`CUT2_DAMAGE` more),
+ * and knocks down. It is held out `CUT_STEPS`, then he stands open for `VORHAL_RECOVER`.
+ */
+export const CUT_REACH = px(50);
+export const CUT_LANE = px(10);
+export const CUT_HEIGHT = px(40);
+export const CUT_GAP = 14;
+export const CUT_STEPS = 18;
+export const CUT2_DAMAGE = 4;
+export const VORHAL_RECOVER = 36;
+/**
+ * The fire spell: he raises his hand, and on `CAST_MARK` marks a sigil under each hero on its feet (the first up to the
+ * count, round the party from a seat drawn at random: `SIGILS` and one more by chance, in his second phase `SIGILS + 1`
+ * and one more), and any left on the floor at random; he stands casting until `CAST_STEPS`. A sigil glows for
+ * `SIGIL_DELAY` steps, then a pillar of fire erupts from it and burns for `PILLAR_STEPS`: every hero on or over it
+ * (within `PILLAR_HALF` along the road and `PILLAR_LANE` in depth) takes `PILLAR_DAMAGE` and is knocked down. He casts
+ * only while no sigil is left.
+ */
+export const CAST_MARK = 20;
+export const CAST_STEPS = 44;
+export const SIGILS = 2;
+export const SIGIL_MAX = 4;
+export const SIGIL_DELAY = 54;
+export const PILLAR_STEPS = 30;
+export const SIGIL_LIFE = SIGIL_DELAY + PILLAR_STEPS;
+export const PILLAR_HALF = px(9);
+export const PILLAR_LANE = px(6);
+export const PILLAR_DAMAGE = 10;
+/**
+ * The summons: he raises his sword, and on `SUMMON_AT` `SUMMONED` bonewalkers claw up out of the slabs on screen (none
+ * where one is still rising), ash and in his second phase rust; he stands until `SUMMON_STEPS`. He summons only while
+ * fewer than `SUMMON_CAP` bonewalkers stand.
+ */
+export const SUMMON_AT = 24;
+export const SUMMON_STEPS = 48;
+export const SUMMONED = 2;
+export const SUMMON_CAP = 3;
+/**
+ * How he picks a move, in 256ths, calm and enraged: the fire spell, the summons, else the greatsword. With his back
+ * within `CORNER_X` of the screen's edge and a hero within `CORNER_NEAR` in front, he leaps over to `VAULT_INSET` inside
+ * the far edge instead, `VAULT_CHANCE` times in 256: a jump of `VAULT_VZ` under gravity, `VAULT_STEPS` in the air.
+ */
+export const VORHAL_MOVES = {
+  calm: { cast: 60, summon: 36 },
+  rage: { cast: 76, summon: 64 },
+} as const;
+export const CORNER_X = px(56);
+export const CORNER_NEAR = px(72);
+export const VAULT_CHANCE = 160;
+export const VAULT_INSET = px(56);
+export const VAULT_VZ = px(4.5);
+export const VAULT_STEPS = 1 + Math.ceil((2 * VAULT_VZ) / GRAVITY);
+/** At half his hit points he roars for `ROAR_STEPS`, nothing landing on him, and fights on enraged. */
+export const ROAR_STEPS = 60;
 
 // ---- mounts (`mount.ts`) ----
 /** The beasts a hero or an enemy rides: a clawbeak, which sweeps its tail round it, and an ember drake, breathing fire. */
