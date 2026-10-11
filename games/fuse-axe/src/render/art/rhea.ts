@@ -322,6 +322,33 @@ const poses: Readonly<Record<HeroFrame, RheaPose>> = {
     sword: 30,
     hair: 0,
   }),
+  // Magic: braced, the longsword raised upright before her and her free hand open to the sky, then thrust up.
+  charge: adjust(idle, {
+    far: {
+      ...armTo(F, [33.5, 46.2], [27, 38]),
+      ...legTo(F, [35.5, 61], [29, 77.5]),
+    },
+    near: {
+      ...armTo(N, [42.8, 46.2], [47.5, 44], 1),
+      ...legTo(N, [40.5, 61], [47, 77.5]),
+    },
+    sword: -84,
+    hair: 12,
+  }),
+  cast: adjust(idle, {
+    head: [38.5, 37.5],
+    far: {
+      ...armTo(F, [33.5, 45.5], [30, 32]),
+      ...legTo(F, [35.5, 61], [29, 77.5]),
+    },
+    near: {
+      ...armTo(N, [42.8, 45.5], [44, 32], 1),
+      ...legTo(N, [40.5, 61], [47, 77.5]),
+    },
+    sword: -90,
+    hair: 28,
+    face: "yell",
+  }),
 };
 export const RHEA_POSES = poses;
 

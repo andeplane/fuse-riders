@@ -294,6 +294,15 @@ const poses: Readonly<Record<HeroFrame, GormPose>> = {
     },
     axe: -50,
   }),
+  // Magic: squatting, the axe gripped upright before his beard in both fists, then heaved up overhead.
+  charge: adjust(squat, {
+    ...twoHanded(squat, [27.5, 51.5], [42, 51.5], [44, 44], -90, 5),
+  }),
+  cast: adjust(squat, {
+    head: [36.5, 44.5],
+    ...twoHanded(squat, [28, 50.5], [41.5, 50.5], [38, 34], -90, 5),
+    face: "yell",
+  }),
 };
 export const GORM_POSES = poses;
 
