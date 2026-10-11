@@ -40,6 +40,8 @@ chiptune loop in A minor (`src/app/audio/music.ts`) that ducks under the stage-c
 and at the run's end. **♫ MUSIC** (the loop and the jingles) and **EFFECTS** in the header are this browser's choices and are kept; `?mute` silences the page without
 touching them. With a shared screen the TV sounds for the room and a phone that is only a controller stays quiet.
 
+![Solo with ?mute: the sound toggles greyed out in the header](docs/images/app-sound-toggles.png)
+
 ```sh
 pnpm build && pnpm exec tsx service/dev.ts   # then open http://localhost:8787/fuse-axe/?mute
 pnpm exec tsx --test games/fuse-axe/tests/*.test.ts
