@@ -70,6 +70,7 @@ import {
   type BakeOptions,
 } from "../src/render/pixel/surface.js";
 import { createBackdrop } from "../src/render/backdrop/backdrop.js";
+import { FIRE, FLAME } from "../src/render/backdrop/camp.js";
 import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
 import {
@@ -131,9 +132,17 @@ class FakePaint implements PixelPaint {
 /** Enough of a 2D context for the scene, recording every call. */
 class RecordingPen extends FakePaint implements Pen<FakeImage> {
   readonly blits: Blit[] = [];
+  /** Every fill and blit, in the order they were drawn. */
+  readonly calls: (Fill | Blit)[] = [];
+  override fillRect(x: number, y: number, w: number, h: number) {
+    super.fillRect(x, y, w, h);
+    this.calls.push(this.fills.at(-1)!);
+  }
   drawImage(image: FakeImage, ...r: number[]) {
     const [sx = 0, sy = 0, sw = 0, sh = 0, dx = 0, dy = 0, dw = 0, dh = 0] = r;
-    this.blits.push({ image, sx, sy, sw, sh, dx, dy, dw, dh });
+    const blit = { image, sx, sy, sw, sh, dx, dy, dw, dh };
+    this.blits.push(blit);
+    this.calls.push(blit);
   }
 }
 
@@ -1082,30 +1091,63 @@ test("every stage's backdrop is baked with the scene, so no frame stalls baking 
   assert.equal(wide(), baked, "drawing a stage baked a layer");
 });
 
-test("camp draws its own night clearing, baked with the scene, where only the fire moves", () => {
+test("camp draws its own night clearing, baked with the scene, and a stage its own backdrop", () => {
   const { images, scene } = fakeScene();
   const wide = () => images.filter((image) => image.w >= VIEW_W).length;
   const baked = wide();
   const camp = (frame: number, more: Partial<WorldView> = {}) =>
     draw(world({ camp: true, ...more }), frame, scene).pen;
   const layers = (pen: RecordingPen) =>
-    pen.blits.filter((b) => b.image.w >= VIEW_W).map((b) => b.image.id);
+    pen.blits.filter((b) => b.image.w >= VIEW_W).map((b) => [b.image.id, b.sx]);
+  const stage = (stage: number) =>
+    layers(draw(world({ stage, camX: 90 }), 0, scene).pen);
   // Whatever stage it follows and wherever the view says the camera is, camp is one screen at rest.
-  assert.deepEqual(layers(camp(0)), layers(camp(0, { stage: 2, camX: 90 })));
-  assert.notDeepEqual(
-    layers(camp(0)),
-    layers(draw(world({}), 0, scene).pen),
-    "not Stage 1's backdrop",
-  );
-  for (const frame of [-5, Number.NaN, 1e9])
+  const clearing = layers(camp(0));
+  for (const more of [{ stage: 2, camX: 90 }, { stage: 3 }, { camX: NaN }])
+    assert.deepEqual(layers(camp(0, more)), clearing, JSON.stringify(more));
+  assert.ok(clearing.every(([, sx]) => sx === 0));
+  // A stage draws its own backdrop at its camera, none of it camp's, and camp none of a stage's.
+  for (const each of [stage(1), stage(2)]) {
+    assert.ok(
+      each.some(([, sx]) => sx !== 0),
+      "a stage scrolls",
+    );
+    const ids = new Set(each.map(([id]) => id));
+    assert.ok(clearing.every(([id]) => !ids.has(id)));
+  }
+  assert.notDeepEqual(stage(1), stage(2));
+  for (const frame of [-5, Number.NaN, Infinity, 1e9])
     assert.doesNotThrow(() => camp(frame), `frame ${frame}`);
   // The flames and their light flicker frame to frame, each fill a whole pixel's rectangle on screen.
-  const fire = (frame: number) => camp(frame).fills;
-  assert.notDeepEqual(fire(0), fire(7));
-  assert.ok(
-    fire(7).every(
-      (f) => f.x >= 0 && f.x + f.w <= VIEW_W && f.y >= 0 && f.y + f.h <= 180,
-    ),
-  );
+  const fills = (frame: number) => camp(frame).fills;
+  assert.notDeepEqual(fills(0), fills(7));
+  for (const frame of [0, 7, 1e9])
+    for (const f of fills(frame))
+      assert.ok(
+        f.x >= 0 && f.x + f.w <= VIEW_W && f.y >= 0 && f.y + f.h <= VIEW_H,
+        `frame ${frame}: ${JSON.stringify(f)}`,
+      );
   assert.equal(wide(), baked, "drawing camp baked no layer");
+});
+
+test("camp's fire stands among the figures: in front of one behind it, behind one in front", () => {
+  const flame = new Set<string>(FLAME);
+  const order = (...heroes: HeroView[]) => {
+    const { pen, sprites } = draw(world({ camp: true, heroes }), 12);
+    const fire = pen.calls.findIndex(
+      (c) => "style" in c && flame.has(c.style) && c.y + c.h <= FIRE.y,
+    );
+    assert.ok(fire >= 0, "the fire is drawn");
+    return sprites.map((s) => pen.calls.indexOf(s) < fire);
+  };
+  const [behind, before] = [FIRE.y - 6, FIRE.y + 18];
+  assert.deepEqual(
+    order(hero(1, 0, FIRE.x, behind), hero(2, 1, FIRE.x + 4, before)),
+    [true, false],
+  );
+  assert.deepEqual(order(hero(1, 0, FIRE.x, behind)), [true], "the last");
+  assert.deepEqual(order(hero(1, 0, FIRE.x, before)), [false], "the first");
+  assert.deepEqual(order(), [], "with nobody there");
+  // A figure on the fire's own row is drawn before it, as one further up the floor would be.
+  assert.deepEqual(order(hero(1, 0, FIRE.x - 30, FIRE.y)), [true]);
 });
