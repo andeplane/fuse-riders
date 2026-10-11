@@ -1,7 +1,7 @@
 # Fuse Axe
 
-A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Work in progress: see
-[`docs/design.md`](docs/design.md) for the game and the delivery plan, and
+A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Playable from the first stage to the
+final boss; see [`docs/design.md`](docs/design.md) for the game, the delivery plan and its status, and
 [`docs/concept-art.html`](docs/concept-art.html) (open it in a browser) for the concept art.
 
 ## Play it
@@ -9,10 +9,13 @@ A co-op pixel-art beat-em-up for 1–5 heroes in the spirit of Golden Axe II. Wo
 Open `/fuse-axe/` on a running service, or pick **Fuse Axe** from the app portal (the dot grid at the top left of
 every game). **PLAY SOLO** opens the hero picker; **CREATE ROOM** makes a room to share by code, link or QR code,
 where everyone picks a hero (duplicates are allowed) and the host presses **START**. In either lobby the host's
-**+ BOT** seats a bot companion (see [Bots and the golden replay](#bots-and-the-golden-replay)). The heroes walk, run, jump and swing
-through Stage 1's waves of ravagers in the pixel-art scene under the HUD. Clearing the stage shows each hero's
-tally, then the run's victory; when every hero is out, any hero may press Attack within ten seconds to continue once,
-or the run is over. The host sets out again with **REMATCH** or goes back to the lobby.
+**+ BOT** seats a bot companion (see [Bots and the golden replay](#bots-and-the-golden-replay)). A run is four stages
+with a camp between each: Ashen Village (ravagers, lancers, sack imps, the Ogre twins), Wyrmbone Pass (clawbeak riders
+and the lancer captain on his ember drake), the Drowned Crypt (bonewalkers rising from the graves, bone knights) and
+Vorhal's Keep (ravagers, lancers, a clawbeak rider and bonewalkers from the floor slabs, then Vorhal himself).
+Clearing a stage shows each hero's tally; when every hero is out, any hero may press Attack within ten seconds to
+continue once per stage, or the run is over. Beating Vorhal wins the run. The host sets out again with **REMATCH** or
+goes back to the lobby.
 
 A gamepad (`src/app/gamepad.ts`, polled each animation frame) drives this device's hero too: the d-pad or the left
 stick walks, A (Cross) attacks, B (Circle) jumps and X (Square) or Y (Triangle) casts magic. With several pads, the one
@@ -46,9 +49,10 @@ of every pad.
 ![The same held upright](docs/images/app-phone-controller-upright.png)
 
 Sound is synthesised in the browser, with nothing to load: every cue is found by diffing the frames the page is shown
-(`src/app/audio/cues.ts`), never by the simulation, and plays after the first key or tap. Stage 1 marches to a short
-chiptune loop in A minor (`src/app/audio/music.ts`) that ducks under GO and the stage-clear fanfare and stops in the
-lobby and at the run's end. Every later enemy, beast and boss has its moments (a lancer's leap, a drake's flame, an
+(`src/app/audio/cues.ts`), never by the simulation, and plays after the first key or tap. Ashen Village's march, a
+short chiptune loop in A minor (`src/app/audio/music.ts`), is the one song and plays through every stage, tally and
+camp; it ducks under GO and the stage-clear fanfare and stops in the lobby and at the run's end. Every later enemy,
+beast and boss has its moments (a lancer's leap, a drake's flame, an
 ogre's slam and its shockwave, a bonewalker clattering to a pile, Vorhal's pillars of fire and his roar), as do riding,
 each level of a Magic charge and each spell; the loudest duck the loop. Stages 2–4 open on a horn of their own, a boss's
 health bar on a sting, and a won run ends on a victory fanfare after the last stage's. **♫ MUSIC** (the loop and the
@@ -82,10 +86,11 @@ between ticks but what its hero holds. The room folds those bits for every bot s
 ![Solo with two bot companions in the lobby](docs/images/app-lobby-bots.png)
 ![The bots following the player through the first wave](docs/images/app-play-bots.png)
 
-A bot's play is folded rather than logged, so it is part of the rules. `tests/golden.test.ts` has three bots clear
-Stage 1 twice (about 5,100 steps each, under a second): once with no player, so they lead the camera on, and once
-with Brakka standing in for one, so Rhea and Gorm follow it between fights. It compares the world's hash every ten
-seconds, and the step count, with the recorded ones. A change meant to alter the engine's behaviour or the bot's bumps `RULES` in `src/engine/index.ts` and
+A bot's play is folded rather than logged, so it is part of the rules. `tests/golden.test.ts` has three bots play the whole
+run twice (about 30,000 steps each: the four stages and the three camps between them, to Vorhal's fall): once with no
+player, so they lead the camera on, and once with Brakka standing in for one, so Rhea and Gorm follow it between
+fights. It compares the world's hash every ten seconds and at the end of each stage and camp, and the step counts,
+with the recorded ones. A change meant to alter the engine's behaviour or the bot's bumps `RULES` in `src/engine/index.ts` and
 re-records the golden in the same commit (`GOLDEN_RECORD=1 pnpm exec tsx --test games/fuse-axe/tests/golden.test.ts`
 prints the new values). A golden that fails without such a change is a regression to fix, not one to re-record.
 
