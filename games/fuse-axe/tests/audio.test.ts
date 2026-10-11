@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CueTracker, ECHO_STEPS, type Heard } from "../src/app/audio/cues.js";
+import {
+  CHARGE_TICKS,
+  CRACKLES,
+  CRACKLE_CYCLE,
+  CueTracker,
+  ECHO_STEPS,
+  type Heard,
+} from "../src/app/audio/cues.js";
 import { AxeAudio, type AudioBackend } from "../src/app/audio/director.js";
 import {
   AHEAD,
@@ -23,6 +30,13 @@ import {
 } from "../src/app/audio/sounds.js";
 import { keys } from "../src/app/session.js";
 import { BACK_ATTACK, COMBO, DASH, THROW_STEPS } from "../src/engine/tuning.js";
+import {
+  CLAWBEAK_STEPS,
+  DRAKE_STEPS,
+  OGRE_STEPS,
+  SIGIL,
+  SPELL_STEPS,
+} from "../src/engine/view-kit.js";
 import type * as V from "../src/engine/view.js";
 
 const hero = (extra: Partial<V.HeroView> = {}): V.HeroView => ({
@@ -35,6 +49,15 @@ const enemy = (extra: Partial<V.EnemyView> = {}): V.EnemyView => ({
   ...{ id: 9, kind: "ravager", tier: 0, x: 200, y: 140, z: 0, facing: -1 },
   ...{ anim: "idle", animStep: 0, hp: 30, maxHp: 30, flash: false },
   ...{ boss: false, enraged: false, mounted: false, ...extra },
+});
+const mount = (
+  kind: V.MountKind,
+  anim: V.MountAnim,
+  animStep: number,
+  extra: Partial<V.MountView> = {},
+): V.MountView => ({
+  ...{ id: 7, kind, x: 200, y: 140, z: 0, facing: -1, anim, animStep },
+  ...{ rider: { kind: "enemy", id: 9 }, ...extra },
 });
 const spark = (age: number, extra: Partial<V.FxView> = {}): V.FxView => ({
   ...{ kind: "hit", x: 150, y: 140, z: 20, age, ...extra },
@@ -161,7 +184,7 @@ test("every moment of a hero and the mace's wind-up have their cues", () => {
   );
 });
 
-test("a beast's tail winding up has the mace's wind-up cue, once, and nothing else the beast or its rider does is heard", () => {
+test("a beast's tail winds up with the mace's wind-up cue and lashes round where it lands, once each; its walk and its rider are silent", () => {
   const beast = (anim: V.MountAnim, animStep: number): V.MountView => ({
     ...{ id: 7, kind: "clawbeak", x: 200, y: 140, z: 0, facing: -1 },
     ...{ anim, animStep, rider: { kind: "enemy", id: 9 } },
@@ -178,40 +201,54 @@ test("a beast's tail winding up has the mace's wind-up cue, once, and nothing el
       at(30, beast("walk", 40)),
       at(33, beast("sweep", 1)), // the wind-up begins
       at(36, beast("sweep", 4)),
-      at(39, beast("sweep", 21)), // the tail lands, in silence
-      at(60, beast("idle", 3)),
-      at(63, beast("sweep", 1)), // another
-      at(66, beast("sweep", 4)),
+      at(50, beast("sweep", CLAWBEAK_STEPS.windup - 2)),
+      at(53, beast("sweep", CLAWBEAK_STEPS.windup + 1)), // the tail lands
+      at(56, beast("sweep", CLAWBEAK_STEPS.windup - 1)), // a rollback: not yet
+      at(59, beast("sweep", CLAWBEAK_STEPS.windup + 2)), // and landed again
+      at(70, beast("idle", 3)),
+      at(73, beast("sweep", 1)), // another
+      at(76, beast("sweep", 4)),
       at(90, beast("flee", 2)),
       at(93, beast("sweep", 30)), // first seen well into its sweep: history
     ]),
-    [[], ["windup"], [], [], [], ["windup"], [], [], []],
+    [[], ["windup"], [], [], ["lash"], [], [], [], ["windup"], [], [], []],
   );
 });
 
-test("a hero climbing on lands in the saddle, its beast's hop is a jump and its tail a wind-up, each once", () => {
-  const at = (step: number, anim: V.MountAnim, animStep: number, on = true) =>
+test("a hero climbs on, its beast hops and its tail winds up, it climbs off and is thrown off: each once", () => {
+  const at = (step: number, me: Partial<V.HeroView>, anim: V.MountAnim) =>
     frame(
       world(step, {
-        heroes: [hero(on ? { anim: "ride", animStep: 1, mounted: true } : {})],
+        heroes: [hero({ animStep: 1, mounted: me.anim === "ride", ...me })],
         mounts: [
-          {
-            ...{ id: 7, kind: "clawbeak", x: 100, y: 140, z: 0, facing: 1 },
-            ...{ anim, animStep, rider: on ? { kind: "hero", id: 1 } : null },
-          },
+          mount("clawbeak", anim, 1, {
+            rider: me.anim === "ride" ? { kind: "hero", id: 1 } : null,
+          }),
         ],
       }),
     );
+  const ride = { anim: "ride" } as const;
   assert.deepEqual(
     hear([
-      at(30, "wander", 30, false),
-      at(33, "idle", 1), // climbs on
-      at(36, "hop", 1),
-      at(39, "hop", 4),
-      at(60, "sweep", 1),
-      at(63, "sweep", 4),
+      at(30, { anim: "walk" }, "wander"),
+      at(33, ride, "idle"), // climbs on
+      at(36, ride, "hop"),
+      at(39, ride, "hop"), // the same hop drawn again
+      at(60, ride, "sweep"),
+      at(90, { anim: "jump" }, "wander"), // Down and Jump: off the saddle
+      at(120, ride, "idle"),
+      at(150, { anim: "knockdown", hp: 40 }, "flee"), // thrown off
     ]),
-    [[], ["land"], ["jump"], [], ["windup"], []],
+    [
+      [],
+      ["board"],
+      ["hop"],
+      [],
+      ["windup"],
+      ["dismount"],
+      ["board"],
+      ["knocked"],
+    ],
   );
 });
 
@@ -249,7 +286,7 @@ test("waves lock, clear and call GO once each; the last wave's end is the stage'
   );
 });
 
-test("the stage flow: GO, the continue clock's seconds, game over, and a won run's fanfare once", () => {
+test("the stage flow: GO, the continue clock's seconds, game over, a cleared stage's fanfare and the won run's victory", () => {
   const at = (step: number, extra: Partial<Heard> = {}) =>
     frame(world(step), extra);
   const over = (outcome: Heard["outcome"], matchId = "m1") =>
@@ -274,7 +311,7 @@ test("the stage flow: GO, the continue clock's seconds, game over, and a won run
       ["gameover"],
       ["go"],
       ["fanfare"],
-      [],
+      ["victory"],
     ],
   );
   const late = new CueTracker();
@@ -339,6 +376,33 @@ test("a page that opens mid-fight does not hear the sparks already flying; the n
   );
 });
 
+test("a hero who joins mid-run and a gap in the frames are not news: only what began just now sounds, each cue once", () => {
+  const lancer = (id: number, anim: V.EnemyAnim, animStep: number) =>
+    enemy({ id, kind: "lancer", anim, animStep });
+  const newcomer = (anim: V.HeroAnim, animStep: number) =>
+    hero({ id: 2, seat: 1, kind: "rhea", anim, animStep });
+  const at = (step: number, friends: V.HeroView[], ...foes: V.EnemyView[]) =>
+    frame(world(step, { heroes: [hero(), ...friends], enemies: foes }));
+  assert.deepEqual(
+    hear([
+      at(300, [], lancer(1, "idle", 9), lancer(2, "idle", 9)),
+      // Ten seconds on (a tab brought back): the two it knew are long into their plunge and thrust, four more are new
+      // (two long into a plunge and a thrust, two just taking off), and a hero it never saw is already swinging.
+      at(
+        900,
+        [newcomer("attack1", 1)],
+        ...[lancer(1, "plunge", 30), lancer(2, "thrust", 20)],
+        ...[lancer(3, "plunge", 40), lancer(4, "thrust", 30)],
+        ...[lancer(5, "leap", 2), lancer(6, "leap", 3)],
+      ),
+      at(903, [newcomer("attack1", 4)], lancer(5, "leap", 5)),
+      // Seen now, the newcomer's next swing is its own to sound.
+      at(930, [newcomer("attack2", 1)], lancer(5, "recover", 2)),
+    ]),
+    [[], ["leap"], [], ["swing-rhea"]],
+  );
+});
+
 test("two blows on one hero in quick succession each grunt; a blow a rollback shows again grunts once", () => {
   const at = (step: number, hp: number) =>
     heroes(step, hero({ anim: "hurt", animStep: 1, hp }));
@@ -355,10 +419,10 @@ test("two blows on one hero in quick succession each grunt; a blow a rollback sh
   );
 });
 
-test("camp starts from what it shows, and meat eaten there sounds as a pot picked up", () => {
+test("camp starts from what it shows, meat eaten there munches, and its fire crackles once on each of its steps", () => {
   const between = (step: number, hp: number, camp: boolean) =>
     frame(world(step, { camp, heroes: [hero({ hp })] }), { stage: "between" });
-  const camp = (step: number, hp: number) => between(step, hp, true);
+  const camp = (step: number, hp = 60) => between(step, hp, true);
   assert.deepEqual(
     hear([
       between(900, 60, false), // the stage's tally
@@ -366,8 +430,320 @@ test("camp starts from what it shows, and meat eaten there sounds as a pot picke
       camp(3, 45), // meat
       camp(6, 45),
     ]),
-    [[], [], ["pot"], []],
+    [[], [], ["munch"], []],
   );
+  const ears = new CueTracker(),
+    crackled: number[] = [];
+  for (let step = 0; step <= 2 * CRACKLE_CYCLE; step += 3)
+    if (ears.next(camp(step)).includes("crackle")) crackled.push(step);
+  // Each crackle after the first frame, heard on the frame that steps past it.
+  const due = [...CRACKLES, ...CRACKLES.map((at) => at + CRACKLE_CYCLE)]
+    .concat(2 * CRACKLE_CYCLE)
+    .filter((at) => at > 0)
+    .map((at) => 3 * Math.ceil(at / 3));
+  assert.deepEqual(crackled, due);
+  // A rollback steps back over one and shows it again: heard once. Off the road there is no fire.
+  const back = CRACKLE_CYCLE + CRACKLES[2]!;
+  assert.deepEqual(
+    hear([camp(back - 4), camp(back - 1), camp(back + 2)], ears),
+    [[], [], []],
+  );
+  assert.deepEqual(
+    hear([0, 3, 6, 9, 12, 15].map((step) => frame(world(step)))),
+    [[], [], [], [], [], []],
+  );
+});
+
+const foes = (step: number, ...list: V.EnemyView[]) =>
+  frame(world(step, { enemies: list }));
+
+test("a lancer thrusts, leaps (one leaping in sounds as it first shows) and plunges, each once; one first seen mid-leap is history", () => {
+  const lancer = (anim: V.EnemyAnim, animStep: number, id = 9) =>
+    enemy({ id, kind: "lancer", anim, animStep });
+  assert.deepEqual(
+    hear([
+      foes(30, lancer("idle", 9)),
+      foes(33, lancer("windup", 1)),
+      foes(36, lancer("thrust", 1)),
+      foes(39, lancer("recover", 2)),
+      foes(42, lancer("thrust", 7)), // a rollback shows the thrust again
+      foes(45, lancer("recover", 2), lancer("leap", 2, 10)), // in from the edge
+      foes(48, lancer("recover", 5), lancer("plunge", 1, 10)),
+      foes(
+        51,
+        lancer("idle", 1),
+        lancer("plunge", 4, 10),
+        lancer("leap", 20, 11),
+      ),
+    ]),
+    [[], ["windup"], ["thrust"], [], [], ["leap"], ["plunge"], []],
+  );
+});
+
+test("an ember drake draws breath, then its flame catches; the captain's saddle thrust winds up and lands: each once", () => {
+  const { inhale, lanceWindup } = DRAKE_STEPS;
+  const at = (step: number, anim: V.MountAnim, animStep: number) =>
+    frame(
+      world(step, {
+        enemies: [enemy({ kind: "captain", anim: "ride", mounted: true })],
+        mounts: [mount("drake", anim, animStep)],
+      }),
+    );
+  assert.deepEqual(
+    hear([
+      at(30, "walk", 10),
+      at(33, "breathe", 1),
+      at(36, "breathe", 4),
+      at(60, "breathe", inhale - 2),
+      at(63, "breathe", inhale + 1), // the flame
+      at(66, "breathe", inhale - 1), // a rollback: not yet
+      at(69, "breathe", inhale + 2), // caught again
+      at(100, "lance", 1),
+      at(120, "lance", lanceWindup - 1),
+      at(123, "lance", lanceWindup + 2), // the spear lands
+    ]),
+    [[], ["inhale"], [], [], ["flame"], [], [], ["windup"], [], ["thrust"]],
+  );
+});
+
+test("the Ogre twins: the slam, the sweep drawn back and heaved round, and the twin left standing bellowing once", () => {
+  const ogre = (
+    id: number,
+    anim: V.EnemyAnim,
+    animStep: number,
+    enraged = false,
+  ) => enemy({ id, kind: "ogre", boss: true, anim, animStep, enraged });
+  const { sweepWindup } = OGRE_STEPS;
+  assert.deepEqual(
+    hear([
+      foes(30, ogre(9, "windup", 20), ogre(10, "walk", 5)),
+      foes(33, ogre(9, "slam", 1), ogre(10, "walk", 8)),
+      foes(36, ogre(9, "slam", 4), ogre(10, "sweep", 1)),
+      foes(48, ogre(9, "recover", 2), ogre(10, "sweep", sweepWindup - 2)),
+      foes(51, ogre(9, "recover", 5), ogre(10, "sweep", sweepWindup + 1)),
+      foes(54, ogre(9, "dead", 1), ogre(10, "sweep", sweepWindup + 4, true)),
+      foes(57, ogre(9, "dead", 4), ogre(10, "sweep", sweepWindup + 7)), // a rollback
+      foes(60, ogre(9, "dead", 7), ogre(10, "sweep", sweepWindup + 10, true)),
+    ]),
+    [[], ["slam"], ["windup"], [], ["heave"], ["enrage"], [], []],
+  );
+  // An ogre first seen enraged (a page opened late) is not news.
+  assert.deepEqual(
+    hear([
+      foes(30, ogre(10, "walk", 5, true)),
+      foes(33, ogre(10, "walk", 8, true)),
+    ]),
+    [[], []],
+  );
+});
+
+test("bonewalkers claw up, fall to a pile, pull themselves together and shatter, each once; a second fall to dead is silent", () => {
+  const bones = (anim: V.EnemyAnim, animStep: number, id = 9) =>
+    enemy({ id, kind: "bonewalker", anim, animStep });
+  assert.deepEqual(
+    hear([
+      foes(30, bones("walk", 5)),
+      foes(33, bones("walk", 8), bones("rise", 2, 10)), // claws up
+      foes(36, bones("knockdown", 1), bones("rise", 5, 10)),
+      foes(60, bones("pile", 1), bones("idle", 3, 10), bones("rise", 30, 11)),
+      foes(63, bones("pile", 4), bones("idle", 6, 10), bones("rise", 33, 11)),
+      foes(90, bones("reassemble", 2), bones("walk", 9, 10)),
+      foes(120, bones("walk", 9), bones("pile", 1, 10)),
+      foes(123, bones("knockdown", 1), bones("dead", 1, 10)), // a blow shatters it
+      foes(150, bones("dead", 1), bones("dead", 28, 10)), // the second fall
+    ]),
+    [
+      [],
+      ["rise"],
+      [],
+      ["collapse"],
+      [],
+      ["reassemble"],
+      ["collapse"],
+      ["shatter"],
+      [],
+    ],
+  );
+});
+
+test("Vorhal: wind-up and two cuts, the spell, its sigils and their pillars, the summons, the leap, the roar and the fall, each once", () => {
+  const sigil = (age: number, x = 100): V.SigilView => ({ x, y: 140, age });
+  const at = (
+    step: number,
+    anim: V.EnemyAnim,
+    animStep: number,
+    sigils: V.SigilView[] = [],
+  ) =>
+    frame(
+      world(step, {
+        enemies: [enemy({ kind: "vorhal", boss: true, anim, animStep })],
+        sigils,
+      }),
+    );
+  const erupt = SIGIL.delay;
+  assert.deepEqual(
+    hear([
+      at(30, "idle", 9),
+      at(33, "windup", 1),
+      at(60, "cut1", 1),
+      at(75, "cut2", 1),
+      at(100, "cast", 1),
+      at(120, "cast", 21, [sigil(1), sigil(1, 200)]), // two sigils, one glint
+      at(123, "cast", 24, [sigil(4), sigil(4, 200)]),
+      at(126, "cast", 27, [sigil(5, 104), sigil(7, 200)]), // a rollback moved one
+      at(170, "idle", 30, [sigil(erupt - 2), sigil(erupt - 2, 200)]),
+      at(173, "idle", 33, [sigil(erupt + 1), sigil(erupt + 1, 200)]), // the pillars
+      at(176, "idle", 36, [sigil(erupt + 4), sigil(erupt + 4, 200)]),
+      at(200, "summon", 1),
+      at(260, "leap", 1),
+      at(300, "roar", 1),
+      at(303, "roar", 4),
+      at(400, "dead", 1),
+    ]),
+    [
+      ...[[], ["windup"], ["cut"], ["cut"], ["hex"], ["sigil"], [], []],
+      ...[[], ["pillar"], [], ["summon"], ["leap"], ["roar"], []],
+      ["vorhal-falls"],
+    ],
+  );
+  // A page that opens on sigils already marked hears neither them nor pillars already burning, nor pillars of sigils
+  // it never saw glow.
+  assert.deepEqual(
+    hear([
+      at(500, "cast", 25, [sigil(5)]),
+      at(503, "cast", 28, [sigil(8)]),
+      at(600, "idle", 9, [sigil(erupt + 2, 300)]),
+    ]).concat(
+      hear([
+        at(600, "idle", 9, [sigil(erupt + 2)]),
+        at(603, "idle", 12, [sigil(erupt + 5)]),
+      ]),
+    ),
+    [[], [], [], [], []],
+  );
+});
+
+test("Magic: each level of the charge chimes a step higher, once; the spell's cast and its blow sound its kind, once each", () => {
+  const spell = (kind: V.SpellKind, age: number): V.SpellView => ({
+    ...{ hero: 1, kind, level: 2, age },
+  });
+  const at = (
+    step: number,
+    me: Partial<V.HeroView>,
+    spells: V.SpellView[] = [],
+  ) => frame(world(step, { heroes: [hero({ pots: 3, ...me })], spells }));
+  const charging = (animStep: number, charge: number) =>
+    ({ anim: "charge", animStep, charge }) as const;
+  assert.deepEqual(
+    hear([
+      at(30, {}),
+      at(33, charging(1, 1)),
+      at(36, charging(4, 1)),
+      at(57, charging(25, 2)),
+      at(60, charging(28, 1)), // a rollback: not yet
+      at(63, charging(31, 2)), // and again
+      at(80, charging(48, 3)),
+    ]),
+    [[], ["charge1"], [], ["charge2"], [], [], ["charge3"]],
+  );
+  const pitches = CHARGE_TICKS.map((cue) => SOUNDS[cue].voices[0]!.freq);
+  assert.deepEqual(
+    pitches,
+    [...new Set(pitches)].sort((a, b) => a - b),
+  );
+  assert.deepEqual(
+    hear([at(30, charging(48, 9))]).concat(
+      hear([at(30, {}), at(33, charging(1, 9))]),
+    ),
+    [[], [], ["charge6"]],
+    "a first frame mid-charge is not news; Rhea's sixth level is the top chime",
+  );
+  const blows = { storm: "thunder", fire: "blaze", earth: "tremor" } as const;
+  for (const kind of ["storm", "fire", "earth"] as const) {
+    const { hit } = SPELL_STEPS[kind][1]!,
+      cast = { anim: "cast", animStep: 1, pots: 1 } as const;
+    assert.deepEqual(
+      hear([
+        at(30, {}),
+        at(33, cast, [spell(kind, 1)]),
+        at(36, cast, [spell(kind, 4)]),
+        at(30 + hit, cast, [spell(kind, hit - 2)]),
+        at(33 + hit, cast, [spell(kind, hit + 1)]),
+        at(36 + hit, cast, [spell(kind, hit - 1)]), // a rollback: not yet
+        at(39 + hit, cast, [spell(kind, hit + 2)]),
+      ]),
+      [[], [`cast-${kind}`], [], [], [blows[kind]], [], []],
+      kind,
+    );
+    // Opened mid-spell, or first shown past its blow: neither is news.
+    assert.deepEqual(
+      hear([
+        at(30, cast, [spell(kind, 5)]),
+        at(33, cast, [spell(kind, 8)]),
+        at(30 + hit, { pots: 1 }),
+        at(33 + hit, cast, [spell(kind, hit + 1)]),
+      ]),
+      [[], [], [], []],
+      kind,
+    );
+  }
+});
+
+test("stages 2 to 4 open on a horn of their own, a boss's bar on a sting once a wave, and the run's win on the victory after the stage's fanfare", () => {
+  const boss: V.BossView = { kind: "captain", hp: 300, maxHp: 300 };
+  const at = (
+    step: number,
+    round: number,
+    extra: Partial<V.WorldView> = {},
+    stage: Heard["stage"] = "running",
+  ) => frame(world(step, { stage: round, ...extra }), { round, stage });
+  const fight = { locked: true, wave: 4 };
+  assert.deepEqual(
+    hear([
+      frame(null, { stage: "lobby" }),
+      at(0, 1),
+      at(3, 1, { cleared: true }, "between"),
+      at(0, 2),
+      at(30, 2, fight),
+      at(33, 2, { ...fight, boss }),
+      at(36, 2, fight), // a rollback's flicker
+      at(39, 2, { ...fight, boss }),
+      at(42, 2, { ...fight, locked: false, cleared: true }, "between"),
+      at(0, 3),
+      at(3, 3, { cleared: true }, "between"),
+      at(0, 4),
+      at(3, 4, { cleared: true }, "between"),
+      frame(world(6, { stage: 4 }), {
+        round: 4,
+        stage: "over",
+        outcome: "victory",
+      }),
+    ]),
+    [
+      ...[[], ["go"], ["fanfare"], ["stage2"], ["locked"], ["boss"], [], []],
+      ...[["fanfare"], ["stage3"], ["fanfare"], ["stage4"], ["fanfare"]],
+      ["victory"],
+    ],
+  );
+  const length = (sound: Sound) =>
+    Math.max(...sound.voices.map((one) => (one.at ?? 0) + one.dur));
+  assert.ok(length(SOUNDS.victory) > length(SOUNDS.fanfare));
+});
+
+test("the mix: no cue peaks louder than the heavy hit, and every effect is a handful of voices", () => {
+  const peak = (sound: Sound) =>
+    Math.max(
+      ...sound.voices.map(({ at = 0 }) =>
+        sound.voices
+          .filter((one) => (one.at ?? 0) <= at && at < (one.at ?? 0) + one.dur)
+          .reduce((sum, one) => sum + one.vol, 0),
+      ),
+    );
+  for (const cue of CUES)
+    assert.ok(peak(SOUNDS[cue]) <= peak(SOUNDS.heavy) + 1e-9, cue);
+  for (const cue of CUES)
+    if (SOUNDS[cue].channel === "effects")
+      assert.ok(SOUNDS[cue].voices.length <= 6, cue);
 });
 
 test("a crowded fight sounds only so many voices: an effect past the cap is dropped, a jingle never", () => {
@@ -453,11 +829,13 @@ test("the loop follows the stage, ducks under the fanfare and stops in the lobby
   audio.frame(frame(world(3), { stage: "between" }));
   audio.frame(frame(world(6), { stage: "over", outcome: "victory" }));
   audio.frame(LOBBY);
+  // The victory comes once the loop has stopped: there is nothing to duck.
   assert.deepEqual(backend.take(), [
     ...go,
     "play:fanfare",
     "duck:2.2",
     "music:none",
+    "play:victory",
   ]);
   audio.frame(frame(world(0), { matchId: "m2" }));
   audio.frame(
@@ -496,6 +874,37 @@ test("?mute: nothing reaches the backend (no context is built, no loop starts), 
     [audio.music, audio.effects, audio.state],
     [false, false, "muted"],
   );
+});
+
+test("a boss's loud moments duck the loop; muted, none of them reaches the backend, though each is heard", () => {
+  const vorhal = (step: number, anim: V.EnemyAnim) =>
+    frame(
+      world(step, { enemies: [enemy({ kind: "vorhal", anim, animStep: 1 })] }),
+    );
+  for (const muted of [false, true]) {
+    const { backend, store, audio } = setUp(muted);
+    audio.unlock();
+    for (const each of [
+      LOBBY,
+      vorhal(0, "idle"),
+      vorhal(30, "roar"),
+      vorhal(90, "summon"),
+    ])
+      audio.frame(each);
+    assert.deepEqual(
+      [backend.take(), store.log],
+      [
+        muted
+          ? []
+          : [
+              ...["unlock", "music:march", "play:go", "duck:0.9", "play:roar"],
+              ...[`duck:${SOUNDS.roar.duck}`, "play:summon", "duck:1.2"],
+            ],
+        muted ? [] : ["get fuse-axe-music", "get fuse-axe-effects"],
+      ],
+    );
+    assert.equal(audio.heard, 3);
+  }
 });
 
 test("MUSIC and EFFECTS are kept for the next page, and each silences only its own channel", () => {
@@ -594,16 +1003,21 @@ test("notes and melodies: the jingles play on the music channel, every other cue
   );
   assert.deepEqual(
     CUES.filter((cue) => SOUNDS[cue].channel === "music"),
-    ["fanfare", "gameover"],
+    ["fanfare", "gameover", "victory", "boss", "stage2", "stage3", "stage4"],
   );
   assert.ok(CUES.every((cue) => SOUNDS[cue].voices.length > 0));
-  // Only what is heard over the loop ducks it: the game over comes after the loop has stopped.
+  // Only what is heard over the loop ducks it, and of the effects only the long and loud: the game over and the
+  // victory come after the loop has stopped.
   assert.deepEqual(
     CUES.filter((cue) => {
       const sound: Sound = SOUNDS[cue];
       return sound.duck !== undefined;
     }),
-    ["go", "fanfare"],
+    [
+      ...["go", "fanfare", "boss", "stage2", "stage3", "stage4", "slam"],
+      ...["enrage", "pillar", "summon", "roar", "vorhal-falls", "thunder"],
+      ...["blaze", "tremor"],
+    ],
   );
 });
 
