@@ -33,6 +33,8 @@ import { DEFAULT_HERO, isHero, seatName } from "../online/names.js";
 import { AxeRuntime, type AxeCallbacks } from "../online/runtime.js";
 import { createScene } from "../render/scene.js";
 import type { MakeSurface } from "../render/surface.js";
+import { AxeAudio } from "./audio/director.js";
+import { WebAudioBackend } from "./audio/web-backend.js";
 import { HeldControls, KEY_HELP } from "./controls.js";
 import { PendingPick, SoloOpening } from "./flow.js";
 import { GamepadInput, browserGamepads } from "./gamepad.js";
@@ -207,10 +209,49 @@ function room(solo: boolean): void {
     runtime.stop();
     location.href = withFlags(endpoints.appUrl());
   };
+  // Sound: this browser's MUSIC and EFFECTS choices, kept; `?mute` silences the page and leaves them alone.
+  const muted = query.has("mute"),
+    audio = new AxeAudio(new WebAudioBackend(), store, names, muted);
+  const soundToggle = (
+    label: string,
+    on: () => boolean,
+    set: (on: boolean) => void,
+  ) => {
+    const toggle = button("", "fa-sound");
+    const show = () => {
+      setText(toggle, `${label} ${on() ? "ON" : "OFF"}`);
+      toggle.setAttribute("aria-pressed", String(on()));
+    };
+    toggle.disabled = muted;
+    if (muted) toggle.title = "Silenced by ?mute";
+    toggle.onclick = () => {
+      set(!on());
+      show();
+      toggle.blur(); // Space or Enter steers the hero, never toggles it again.
+    };
+    show();
+    return toggle;
+  };
+  // Browsers hold audio until a gesture; every gesture retries, since a phone can suspend it again later.
+  for (const type of ["pointerdown", "keydown", "touchend"] as const)
+    window.addEventListener(type, () => audio.unlock(), {
+      capture: true,
+      passive: true,
+    });
   const top = header([
     el("strong", code, "fa-code"),
     status.element,
     tvInvite,
+    soundToggle(
+      "♫ MUSIC",
+      () => audio.music,
+      (on) => audio.setMusic(on),
+    ),
+    soundToggle(
+      "EFFECTS",
+      () => audio.effects,
+      (on) => audio.setEffects(on),
+    ),
     toLobby,
     leave,
   ]);
@@ -595,6 +636,11 @@ function room(solo: boolean): void {
         return;
       viewer.touch = coarse.matches;
       const next = present(frame, viewer);
+      // The frames shown are what is heard: the cues come from them, never from the simulation. A phone that is only
+      // a controller stays quiet; the shared screen plays the room's sound.
+      audio.frame(frame, next.screen === "controller");
+      main.dataset.audio = audio.state;
+      main.dataset.cues = String(audio.heard);
       if (next.askName && remembered && !joinSent) {
         joinSent = true;
         runtime.command({
@@ -630,6 +676,7 @@ function room(solo: boolean): void {
     ended() {
       status.show("Room ended", "error");
       over = true;
+      audio.stop();
       controls.close();
       for (const part of [
         connecting,
@@ -698,6 +745,7 @@ function room(solo: boolean): void {
   window.addEventListener("blur", letGo);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) letGo();
+    audio.hide(document.hidden);
   });
   runtime.start();
 }
