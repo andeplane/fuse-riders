@@ -1,28 +1,29 @@
 /**
- * Dev-only, below the sprite sheet: for each animated figure, every frame packed on one floor in each palette swap,
- * then its anims playing at the simulation's 60 steps a second in the swap picked above them. A one-shot anim holds
- * its last frame for a moment, then plays again.
+ * Dev-only, below the sprite sheet: for each enemy, every frame packed on one floor in each palette swap, then its
+ * anims playing at the simulation's 60 steps a second in the swap picked above them. A one-shot anim holds its last
+ * frame for a moment, then plays again. Last, the floor items at 6×, 3× and 1×.
  */
-import {
-  RAVAGER,
-  RAVAGER_ANIMS,
-  type AnimStrip,
-} from "../src/render/art/ravager.js";
+import { ENEMY_KINDS } from "../src/engine/view-kit.js";
+import { ENEMY_ANIMS, type AnimStrip } from "../src/render/art/animate.js";
+import { POT } from "../src/render/art/pot.js";
 import type { Figure } from "../src/render/pixel/kit.js";
 import type { Palette } from "../src/render/pixel/palette.js";
 import {
   createSpriteBaker,
   type MakeSurface,
 } from "../src/render/pixel/surface.js";
+import { ENEMY_ART } from "../src/render/scene.js";
 
 interface Animated {
   readonly name: string;
   readonly figure: Figure;
   readonly anims: Readonly<Record<string, AnimStrip<string>>>;
 }
-const ANIMATED: readonly Animated[] = [
-  { name: "ravager", figure: RAVAGER, anims: RAVAGER_ANIMS },
-];
+const ANIMATED: readonly Animated[] = ENEMY_KINDS.map((kind) => ({
+  name: kind,
+  figure: ENEMY_ART[kind].figure,
+  anims: ENEMY_ANIMS[kind],
+}));
 
 const canvas = (width: number, height: number) => {
   const image = document.createElement("canvas");
@@ -139,6 +140,23 @@ for (const animated of ANIMATED) {
       );
     });
   }
+  main.append(section);
+}
+
+{
+  const section = document.createElement("section");
+  section.append(document.createElement("h2"));
+  section.firstElementChild!.textContent = `pot · ${POT.w}×${POT.h} at 6×, 3× and 1×`;
+  const baked = baker.bake(POT);
+  const [w, h] = [baked.w * 10 + PAD * 8, baked.h * 6 + PAD * 2];
+  const items = canvas(w, h);
+  let x = PAD;
+  for (const scale of [6, 3, 1]) {
+    const [bw, bh] = [baked.w * scale, baked.h * scale];
+    items.paint.drawImage(baked.image, x, h - PAD - bh, bw, bh);
+    x += bw + PAD * 3;
+  }
+  section.append(items.image);
   main.append(section);
 }
 

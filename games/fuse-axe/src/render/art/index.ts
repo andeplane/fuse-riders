@@ -4,6 +4,7 @@ import type { Sprite } from "../pixel/sprite.js";
 import type { HeroFrame } from "./animate.js";
 import { BRAKKA, BRAKKA_PORTRAIT, BRAKKA_POSES } from "./brakka.js";
 import { GORM, GORM_PORTRAIT, GORM_POSES } from "./gorm.js";
+import { IMP } from "./imp.js";
 import { RAVAGER } from "./ravager.js";
 import { RHEA, RHEA_PORTRAIT, RHEA_POSES } from "./rhea.js";
 
@@ -13,6 +14,7 @@ export const FIGURES: Readonly<Record<string, Figure>> = {
   rhea: RHEA,
   gorm: GORM,
   ravager: RAVAGER,
+  imp: IMP,
 };
 
 /** A hero's figure, which paints every `HERO_FRAMES` frame, the poses it paints them from, and its HUD portrait. */
