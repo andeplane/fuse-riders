@@ -90,7 +90,16 @@ export class AxeAudio {
     for (const cue of cues) {
       const sound = SOUNDS[cue];
       if (sound.channel === "music" ? this.musicOn : this.effectsOn)
-        this.backend.play(sound);
+        this.play(sound);
+    }
+  }
+
+  /** A backend that fails costs the page that sound, never the frame it came with. */
+  private play(sound: Sound): void {
+    try {
+      this.backend.play(sound);
+    } catch {
+      // Silent: audio never gets in the way of the game.
     }
   }
 }
