@@ -28,7 +28,8 @@ export class AxeRuntime extends RoomRuntime<
   Settings
 > {
   private bits = 0;
-  private sent = { matchId: "", round: -1, bits: 0 };
+  /** What was logged last: the bits, and for which run, stage and camp (`matchId:round:camp`). */
+  private sent = { phase: "", bits: 0 };
   /** The countdown (run, stage and its end tick) this device last voted in, so a held or mashed Attack votes once. */
   private voted = "";
   constructor(
@@ -75,24 +76,24 @@ export class AxeRuntime extends RoomRuntime<
     return true;
   }
   /**
-   * Re-logs the held bits when the stage has moved on since they were last logged. The runtime does not call it on
-   * its own: the page calls it from its `state` callback, so a key held across the start of a run or a stage is
-   * logged for the new one without a fresh key event.
+   * Re-logs the held bits when the stage has moved on since they were last logged, in play or at camp (which the fold
+   * starts with nothing held too). The runtime does not call it on its own: the page calls it from its `state`
+   * callback, so a key held across the start of a run, a camp or a stage is logged for the new one without a fresh key
+   * event.
    */
   flush(): void {
     const room = this.world?.state,
       seat = this.player();
     if (
       !room?.world ||
-      room.stage !== "running" ||
+      (room.stage !== "running" && !room.world.camp) ||
       !seat?.connected ||
       !room.world.heroes.some((hero) => hero.seat === seat.slot)
     )
       return;
-    const { matchId, round, bits } = this.sent;
-    if (matchId === room.matchId && round === room.round && bits === this.bits)
-      return;
-    this.sent = { matchId: room.matchId, round: room.round, bits: this.bits };
+    const phase = `${room.matchId}:${room.round}:${room.world.camp}`;
+    if (phase === this.sent.phase && this.bits === this.sent.bits) return;
+    this.sent = { phase, bits: this.bits };
     this.append(PLAY, room.matchId, room.round, this.bits);
     this.sendPackets(this.deps.now());
   }
@@ -127,7 +128,7 @@ export class AxeRuntime extends RoomRuntime<
    * vote to continue that was lost with the log can be cast again.
    */
   protected resetControls(): void {
-    this.sent = { matchId: "", round: -1, bits: 0 };
+    this.sent = { phase: "", bits: 0 };
     this.voted = "";
   }
   protected releaseControls(): void {

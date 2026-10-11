@@ -208,6 +208,11 @@ export interface WorldView {
   mounts: MountView[];
   /** The stage being fought, from 1: its road's length is `stageLengthPx(stage)` and its backdrop the stage's art. */
   stage: number;
+  /**
+   * Camp after stage `stage`: one screen of night clearing round a fire (its own backdrop), no wave, and sack imps
+   * that spill meat (an item of kind `meat`) as well as pots.
+   */
+  camp: boolean;
   /** The wave begun latest, from 1 (0 before the first), of `waves` in the stage. */
   wave: number;
   waves: number;
@@ -322,6 +327,7 @@ export function toView(world: World): WorldView {
       rider: mount.rider ? { kind: "enemy", id: mount.rider } : null,
     })),
     stage: world.stage,
+    camp: world.camp,
     wave: world.wave,
     waves: planOf(world).waves.length,
     locked: world.locked,

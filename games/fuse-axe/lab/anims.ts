@@ -200,6 +200,7 @@ for (const animated of ANIMATED) {
     const view: WorldView = {
       ...{ step, stage: 1, camX: 0, heroes: [], fx: [], items: [], spells: [] },
       mounts: [],
+      camp: false,
       enemies: [
         twin({ anim, animStep }),
         twin({ id: 2, tier: 1, x: 260, y: 128, facing: -1, enraged: true }),
@@ -240,6 +241,7 @@ for (const animated of ANIMATED) {
         { ...beast(8, 90, 126, 1), ...playing(loose) },
         { ...beast(9, 200, 150, -1), ...playing(ridden), rider: { kind: "enemy", id: 2 } }, // prettier-ignore
       ],
+      camp: false,
       enemies: [
         {
           ...{ id: 2, kind: "ravager", tier: 1, x: 200, y: 150, facing: -1 },
