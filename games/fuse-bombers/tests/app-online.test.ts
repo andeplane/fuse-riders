@@ -1,13 +1,13 @@
 import test from "node:test";
 import { deepEqual as eq, equal, match, ok } from "node:assert/strict";
-import { ACTION, BOT, JOIN, type StreamEntries } from "fuse-netcode";
+import { ACTION, BOT, JOIN, SPECTATOR, type StreamEntries } from "fuse-netcode";
 import * as online from "../src/app/online-source.js";
-import { present, trouble, type Viewer } from "../src/app/presenter.js";
+import { buzz, present, trouble, type Viewer } from "../src/app/presenter.js";
 import { carry, keys, safeStore, sessionFor } from "../src/app/session.js";
 import type { TickEvent } from "../src/engine/index.js";
 import * as game from "../src/online/game.js";
 
-test("the query opens the landing, the local lobby, solo or a room, with one token per room", () => {
+test("the query opens the landing, the local lobby, solo or a room, with one token per room and the TV with none", () => {
   const items = new Map<string, string>();
   const store = safeStore(() => ({
     getItem: (key) => items.get(key) ?? null,
@@ -22,10 +22,22 @@ test("the query opens the landing, the local lobby, solo or a room, with one tok
     ["landing", "local", "local", "solo"],
   );
   eq(at("?room=no!"), { kind: "invalid", code: "NO!" });
-  eq(at("?room=ab12&touch"), { kind: "room", code: "AB12", token: "new" });
+  const room = (code: string, token: string, role: string) => ({
+    ...{ kind: "room", code, token, role },
+  });
+  eq(at("?room=ab12&touch"), room("AB12", "new", "joiner"));
   equal(items.get(keys("g").peer("AB12")), "new", "the same member on reload");
+  const kept = keys("g");
+  equal(
+    new Set([kept.shared, kept.sharedRoom("AB12"), kept.host("AB12")]).size,
+    3,
+    "a room's own Shared TV choice is a key of its own",
+  );
   store.setItem(keys("g").host("CD34"), "made");
-  eq(at("?room=CD34"), { kind: "room", code: "CD34", token: "made" });
+  eq(at("?room=CD34"), room("CD34", "made", "host"));
+  const stored = items.size;
+  eq(at("?room=CD34&display=1"), room("CD34", "new", "display"));
+  equal(items.size, stored, "the TV keeps no token: it holds no seat");
   const blocked = safeStore(() => {
     throw new Error("blocked");
   });
@@ -61,7 +73,12 @@ const start = (room: game.Room) => {
   fold(room, { a: [[ACTION, "start", `m${room.round}`]] });
   while (room.tick < room.startAt) fold(room);
 };
-const seen = { hostPresent: true, touch: false };
+const seen = {
+  hostPresent: true,
+  touch: false,
+  display: false,
+  tvWaiting: false,
+};
 const viewer = (me: string, host = false): Viewer => ({ ...seen, me, host });
 const host = viewer("a", true),
   guest = viewer("z");
@@ -140,6 +157,162 @@ test("between rounds the scoreboard counts down to the next; at the end the host
   match(show(room, guest).overlay, /WAITING FOR THE HOST/);
 });
 
+test("a shared TV: the TV frames everyone and asks no name; each seated device is a controller", () => {
+  const room = lobby(2);
+  room.settings.display = true;
+  const tv: Viewer = { ...seen, me: "tv", host: false, display: true };
+  match(show(room, tv).note, /Scan the code/);
+  ok(!show(room, tv).askName && !show(room, tv).openTv);
+  ok(show(room).openTv && !show(room, guest).openTv, "OPEN TV SCREEN: host");
+  fold(room, { a: [[ACTION, "start", "m1"]] });
+  const screen = show(room, tv);
+  eq(
+    [screen.screen, screen.follow, screen.controller, screen.note],
+    ["countdown", undefined, null, ""],
+  );
+  match(screen.overlay, /&#60;b&#62;Ada/);
+  ok(
+    !screen.overlay.includes("<b>"),
+    "the TV shows a name as text, not markup",
+  );
+  let model = show(room);
+  eq(
+    [model.screen, model.flying, model.controller?.line],
+    ["controller", true, "3"],
+  );
+  eq(
+    model.controller && [
+      model.controller.name,
+      model.controller.tag,
+      model.controller.wins,
+    ],
+    ["<b>Ada</b>", "P1", "0 / 2"],
+  );
+  equal(show(room, guest).screen, "countdown", "an unseated page watches");
+  while (room.tick < room.startAt + 20) fold(room);
+  const castle = room.world!.castles[0]!;
+  [castle.hp, castle.reloadTicks, castle.reloadTotalTicks] = [
+    castle.maxHp / 4,
+    10,
+    40,
+  ];
+  model = show(room);
+  eq(
+    model.controller && [
+      model.controller.hp,
+      model.controller.state,
+      model.controller.loaded,
+      model.controller.reload,
+      model.controller.line,
+    ],
+    [0.25, "flying", false, 0.75, ""],
+  );
+  castle.alive = false;
+  room.world!.ghosts.push({
+    owner: 0,
+    x: 9,
+    y: 9,
+    vx: 0,
+    vy: 0,
+    thrust: 0,
+    reloadTicks: 0,
+    reloadTotalTicks: 9,
+    spawnTick: 0,
+  });
+  model = show(room);
+  eq(
+    model.controller && [
+      model.controller.state,
+      model.controller.loaded,
+      model.controller.line,
+    ],
+    ["ghost", true, "GHOST: DROP BOMBS"],
+  );
+  decide(room, "bot:1");
+  match(show(room).controller!.line, /^BARON WINS THE ROUND · NEXT IN \d$/);
+  while (room.stage === "between") fold(room);
+  while (room.tick < room.startAt) fold(room);
+  decide(room, "bot:1");
+  model = show(room);
+  eq(
+    [model.controller?.line, model.controller?.actions],
+    ["BARON WINS THE MATCH", true],
+  );
+  equal(
+    show(room, viewer("a")).controller?.line,
+    "BARON WINS THE MATCH · WAITING FOR THE HOST",
+  );
+});
+
+test("a shared room's host is told to open the TV until one is open; nobody else is", () => {
+  const room = lobby();
+  room.settings.display = true;
+  const waiting = (who: Viewer): Viewer => ({ ...who, tvWaiting: true });
+  match(show(room, waiting(host)).note, /open the TV screen/);
+  equal(show(room, host).note, "", "the TV is open: no more telling");
+  equal(
+    show(room, waiting(viewer("bot:1"))).note,
+    "Waiting for the host to start",
+  );
+  const plain = lobby();
+  equal(show(plain, waiting(host)).note, "", "a plain room has no TV to open");
+});
+
+test("only a seated rider of a shared room is a controller: not in the lobby, a plain room, a watcher or the TV", () => {
+  const plain = lobby();
+  fold(plain, { a: [[ACTION, "start", "m1"]] });
+  const flat = show(plain);
+  eq(
+    [flat.screen, flat.controller, flat.openTv, flat.flying],
+    ["countdown", null, false, true],
+  );
+
+  const room = lobby();
+  room.settings.display = true;
+  const waiting = show(room);
+  eq([waiting.screen, waiting.controller], ["lobby", null]);
+  fold(room, { a: [[SPECTATOR, "join", "w", "Wanda", 1]] });
+  fold(room, { a: [[ACTION, "start", "m1"]] });
+  fold(room, { a: [[JOIN, "late", "Zed", 2, "gunship", 1]] });
+  eq(
+    room.seats.get("w")?.watcher && room.seats.has("late"),
+    true,
+    "a watcher and a latecomer are seated",
+  );
+  const watcher = show(room, viewer("w"));
+  eq([watcher.screen, watcher.controller], ["countdown", null], "watching");
+  const late = show(room, viewer("late"));
+  eq(
+    [late.screen, late.follow, late.flying, late.controller?.state],
+    ["controller", undefined, false, "out"],
+  );
+  eq(
+    [late.controller?.line, late.controller?.hp, late.controller?.loaded],
+    ["YOU FLY FROM THE NEXT ROUND", 0, false],
+  );
+  equal(late.note, "", "the controller's panel says it, not a second line");
+  const tv: Viewer = { ...seen, me: "tv", host: false, display: true };
+  equal(show(room, tv).controller, null, "the TV never is one");
+  equal(show(room, guest).controller, null, "nor an unseated page");
+});
+
+test("a controller buzzes when its own gunship is hit or falls", () => {
+  const hit = (castleId: number, shielded = false): TickEvent => ({
+    ...{ type: "hit", tick: 1, castleId, owner: 1, x: 0, y: 0 },
+    ...{ damage: 5, shielded, splash: false },
+  });
+  const fell: TickEvent = {
+    type: "castle-destroyed",
+    tick: 1,
+    castleId: 0,
+    by: 1,
+    x: 0,
+    y: 0,
+  };
+  eq([buzz(hit(0), 0), buzz(hit(0, true), 0), buzz(fell, 0)], [60, 20, 300]);
+  eq([buzz(hit(1), 0), buzz(fell, 1), buzz(hit(0), undefined)], [0, 0, 0]);
+});
+
 test("room status lines: dead ends, a link being retried, and news", () => {
   const lines = {
     "Room full (five players, five spectators and TV)": "full",
@@ -151,6 +324,7 @@ test("room status lines: dead ends, a link being retried, and news", () => {
     "This host tab was replaced — use the newer tab": "fatal",
     "This room is on an older game version — start a new room": "fatal",
     "Connected · direct game link": "",
+    "Waiting for a display": "display",
   };
   for (const [text, kind] of Object.entries(lines)) equal(trouble(text), kind);
 });

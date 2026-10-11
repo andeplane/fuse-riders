@@ -13,8 +13,16 @@ import { css } from "../render/palette.js";
 import { RoundScene, type PlayerLook } from "../render/round-scene.js";
 import type { GameAudio } from "./audio/index.js";
 import { createBrowserInput, type DeviceId } from "./input/index.js";
+import { controllerPadLayout } from "./input/touch.js";
 import { OnlineSource } from "./online-source.js";
-import { present, trouble, type Model, type Viewer } from "./presenter.js";
+import {
+  buzz,
+  present,
+  trouble,
+  type Model,
+  type Trouble,
+  type Viewer,
+} from "./presenter.js";
 import { carry, keys, type Session, type Store } from "./session.js";
 
 /**
@@ -64,6 +72,14 @@ function page(...parts: HTMLElement[]): HTMLElement {
 
 /** The first screen: create or join a room, play against bots, or everyone at this screen (the local lobby). */
 export function showLanding(store: Store, error = ""): void {
+  // A room made with this ticked shows the arena on a TV (OPEN TV SCREEN) and every seated phone is a controller.
+  const shared = el("label", "", "fb-shared"),
+    toggle = el("input");
+  toggle.type = "checkbox";
+  toggle.checked = store.getItem(names.shared) === "1";
+  toggle.onchange = () =>
+    store.setItem(names.shared, toggle.checked ? "1" : "0");
+  shared.append(toggle, el("span", "Shared TV: phones are the controllers"));
   const card = ui.createLandingCard({
     title: "FUSE BOMBERS",
     tagline:
@@ -78,6 +94,8 @@ export function showLanding(store: Store, error = ""): void {
             : failure;
         });
       store.setItem(names.host(room.code), room.token);
+      // Kept with the room, so a reload of its creator's page makes the same room whatever the box says by then.
+      store.setItem(names.sharedRoom(room.code), toggle.checked ? "1" : "0");
       go(`room=${room.code}`);
     },
     onSolo: () => go("solo=1"),
@@ -87,11 +105,13 @@ export function showLanding(store: Store, error = ""): void {
   const local = button("EVERYONE AT THIS SCREEN");
   local.onclick = () => go("local");
   card.solo?.after(local);
+  card.create.after(shared);
   card.error.textContent = error;
   page(card.element);
 }
 
-/** A room, as its creator or a joiner, or a match against bots (`solo`), drawn by `game`'s round scene. */
+/** A room, as its creator, a joiner or the shared TV, or a match against bots (`solo`), drawn by `game`'s round scene;
+ * on a shared TV a seated device is a controller instead. */
 export function showRoom(
   session: Extract<Session, { kind: "room" | "solo" }>,
   { store, audio, game }: { store: Store; audio: GameAudio; game: Phaser.Game },
@@ -99,8 +119,17 @@ export function showRoom(
   const solo = session.kind === "solo",
     code = solo ? "SOLO" : session.code;
   const input = createBrowserInput(window, { forceTouch: flags.has("touch") });
-  const touch = input.touchEnabled;
-  const viewer: Viewer = { me: "", host: solo, hostPresent: true, touch };
+  const touch = input.touchEnabled,
+    display = !solo && session.role === "display";
+  document.body.classList.toggle("fb-display", display);
+  const viewer: Viewer = {
+    me: "",
+    host: solo,
+    hostPresent: true,
+    touch,
+    display,
+    tvWaiting: true, // until the runtime says a display is here
+  };
   let settings = DEFAULT_SETTINGS,
     dead = false;
 
@@ -142,6 +171,9 @@ export function showRoom(
   wins.onclick = () => set({ wins: (settings.wins % MAX_WINS) + 1 });
   level.onclick = () => set({ difficulty: after(LEVELS, settings.difficulty) });
   match.append(el("h2", "MATCH", "fui-lobby-title"), wins, level, start);
+  match.hidden = display;
+  const tv = button("OPEN TV SCREEN", "fui-button-primary");
+  tv.onclick = () => window.open(link(`room=${code}&display=1`), "_blank");
   if (!solo)
     pilots.append(
       ui.createInviteCard({
@@ -149,10 +181,35 @@ export function showRoom(
         link: endpoints.appUrl(`?room=${code}`),
         qr: (text) => QRCode.toDataURL(text, { margin: 1, width: 360 }),
       }).element,
+      tv,
     );
   pilots.append(el("h2", "PILOTS", "fui-lobby-title"), roster.element, addBot);
   lobby.append(pilots, match);
-  const bar = page(card, nameEntry.form, note, lobby);
+  // A phone's controller for the shared TV: who it flies, hull and launcher, the round's word; the pads are the input
+  // layer's, laid out big (`controllerPadLayout`).
+  const pad = el("section", "", "fb-pad"),
+    padName = el("b"),
+    padTag = el("small"),
+    padWins = el("span"),
+    padHull = el("i"),
+    padReload = el("i"),
+    padState = el("p", "", "fb-pad-state"),
+    padLine = el("p", "", "fb-pad-line"),
+    padActions = el("div", "", "fb-pad-actions"),
+    rematch = button("REMATCH", "fui-button-primary"),
+    toLobby = button("BACK TO LOBBY"),
+    head = el("header"),
+    meters = el("div", "", "fb-pad-meters");
+  rematch.onclick = () =>
+    runtime.command({ type: "action", action: "rematch" });
+  toLobby.onclick = () => runtime.command({ type: "action", action: "lobby" });
+  head.append(padName, padTag, padWins);
+  meters.append(el("span", "HULL"), padHull, el("span", "LAUNCHER"), padReload);
+  padActions.append(rematch, toLobby);
+  pad.append(head, meters, padState, padLine, padActions);
+  if (!touch) pad.append(el("p", "WASD TO FLY · SPACE TO FIRE"));
+  pad.hidden = true;
+  const bar = page(card, nameEntry.form, note, lobby, pad);
   bar.append(el("strong", code), status.element, leave);
   const root = bar.parentElement!;
   root.dataset.screen = "card";
@@ -160,6 +217,7 @@ export function showRoom(
   const overlay = el("div");
   overlay.id = "screen";
   if (touch) overlay.dataset.touch = ""; // screens.css moves the HUD clear of the pads
+  if (display) overlay.dataset.display = ""; // and makes it big enough to read across the room
   document.body.append(overlay);
   audio.mountToggle(); // After `#screen`, so screens.css hides it mid-round.
   overlay.addEventListener("click", (event) => {
@@ -178,10 +236,14 @@ export function showRoom(
     runtime.stop();
     input.setTouchPads([]);
     audio.music(null);
-    game.destroy(true); // Nothing of the round shows again: stop its loop, scene and sound hooks, drop the canvas.
-    nameEntry.form.hidden = lobby.hidden = overlay.hidden = true;
+    // Nothing of the round shows again: stop its loop, scene and sound hooks, drop the canvas. Phaser destroys on its
+    // next frame, so a loop put to sleep for a controller wakes first.
+    if (stopped) game.loop.wake();
+    game.destroy(true);
+    nameEntry.form.hidden = lobby.hidden = overlay.hidden = pad.hidden = true;
     root.dataset.screen = "card";
     root.classList.remove("fb-match");
+    document.body.classList.remove("fb-controller", "fb-display");
     cardTitle.textContent = title;
     cardText.textContent = text;
     card.hidden = false;
@@ -189,14 +251,70 @@ export function showRoom(
 
   // `looks` is the round scene's, kept up to date in place: it reads them when a round starts.
   const looks: PlayerLook[] = [];
-  let source: OnlineSource | undefined;
+  let source: OnlineSource | undefined,
+    model: Model | undefined,
+    frame: Parameters<BombersCallbacks["state"]>[0] | undefined,
+    shown = "",
+    heard: { text: string; kind: Trouble } = { text: "", kind: "" },
+    shownPanel = "", // what the controller's panel and the touch pads show: unchanged, nothing is written again
+    shownPads = "",
+    stopped = false; // the game's loop sleeps: a controller needs no frames
+  /** The runtime's status line. Pink while a link is being retried, and when a shared room has no TV mid-match. */
+  const showStatus = () => {
+    const urgent =
+      heard.kind === "retry" ||
+      (heard.kind === "display" && !!model && model.screen !== "lobby");
+    status.show(heard.text, urgent ? "error" : "info");
+  };
   const render = (next: Model) => {
+    model = next;
+    showStatus();
+    const controller = next.controller;
     card.hidden = true;
     root.dataset.screen = overlay.dataset.screen = next.screen;
-    root.classList.toggle("fb-match", next.screen !== "lobby");
+    root.classList.toggle("fb-match", next.screen !== "lobby" && !controller);
     nameEntry.form.hidden = !next.askName;
     lobby.hidden = next.screen !== "lobby";
-    overlay.hidden = next.screen === "lobby";
+    overlay.hidden = next.screen === "lobby" || !!controller;
+    pad.hidden = !controller;
+    document.body.classList.toggle("fb-controller", !!controller);
+    // A frame comes every tick: write the panel only when something in it changed.
+    const panel = JSON.stringify(controller);
+    if (controller && panel !== shownPanel) {
+      shownPanel = panel;
+      const { state, loaded } = controller;
+      pad.style.setProperty("--c", controller.color);
+      pad.dataset.state = state;
+      padName.textContent = controller.name;
+      padTag.textContent = controller.tag;
+      padWins.textContent = `WINS ${controller.wins}`;
+      padHull.style.setProperty("--v", `${controller.hp * 100}%`);
+      padReload.style.setProperty("--v", `${controller.reload * 100}%`);
+      padState.textContent =
+        state === "out"
+          ? ""
+          : `${state === "ghost" ? "GHOST · BOMB" : "LAUNCHER"} ${loaded ? "LOADED" : "RELOADING"}`;
+      padLine.textContent = controller.line;
+      padActions.hidden = !controller.actions;
+    }
+    // A controller draws nothing: the TV shows the arena and plays its sounds. The round scene sleeps and the game
+    // stops drawing frames (no scene is no work, but still a canvas redrawn sixty times a second on a phone's
+    // battery); both wake together if this device is ever in the arena again.
+    const scene = game.scene.getScene(RoundScene.KEY);
+    if (controller) {
+      if (scene?.sys.isActive()) game.scene.sleep(RoundScene.KEY);
+      if (!stopped && game.loop.running) {
+        game.loop.sleep();
+        stopped = true;
+      }
+    } else {
+      if (stopped) {
+        game.loop.wake();
+        stopped = false;
+      }
+      if (scene?.sys.isSleeping()) game.scene.wake(RoundScene.KEY);
+    }
+    tv.hidden = !next.openTv;
     if (overlay.dataset.html !== next.overlay)
       overlay.innerHTML = overlay.dataset.html = next.overlay;
     roster.update(next.members);
@@ -222,26 +340,40 @@ export function showRoom(
     wins.disabled = level.disabled = !next.host;
     looks.splice(0, looks.length, ...next.looks);
     const color = next.looks[next.follow ?? -1]?.color;
-    const pad = { label: "FIRE", color: css(color ?? 0) };
-    input.setTouchPads(next.flying ? [pad] : []);
+    const label = controller?.state === "ghost" ? "BOMB" : "FIRE";
+    // Laying the pads out reads the page's size: only when they changed (a resize redraws them by itself).
+    const padsKey = JSON.stringify([next.flying, label, color, !!controller]);
+    if (padsKey !== shownPads) {
+      shownPads = padsKey;
+      input.setTouchPads(
+        next.flying ? [{ label, color: css(color ?? 0) }] : [],
+        controller ? controllerPadLayout : undefined,
+      );
+    }
+    // The lobby's music plays in the lobby; the arena brings its own (`audio.attachRound`), and a controller has
+    // none: the TV plays the round.
     if (next.screen !== root.dataset.music) {
       root.dataset.music = next.screen;
       if (next.screen === "lobby") audio.music("lobby");
+      else if (controller) audio.music(null);
     }
   };
 
   const callbacks: BombersCallbacks = {
-    state(frame, roomSettings) {
+    state(next, roomSettings) {
       if (dead) return;
+      frame = next;
       settings = roomSettings;
-      viewer.host = solo || frame.managerId === viewer.me;
+      shown = `${next.matchId}:${next.round}`;
+      viewer.host = solo || next.managerId === viewer.me;
       viewer.hostPresent = solo || runtime.hostPresent;
-      render(present(frame, viewer));
-      if (!frame.world || source) return;
+      render(present(next, viewer));
+      // A controller never needs the arena; a page that drew it and then took a seat puts it to sleep (`render`).
+      if (!next.world || source || model?.controller) return;
       source = new OnlineSource(
         () => runtime.frameTiming(),
         () => viewer.me,
-        frame.world,
+        next.world,
       );
       game.scene.start(RoundScene.KEY, { source, players: looks });
       const attach = () => {
@@ -252,7 +384,17 @@ export function showRoom(
     },
     // A hidden tab draws nothing: its effects would only pile up and all play at once when it returns.
     event(event, matchId, round) {
-      if (!document.hidden) source?.push(event, matchId, round);
+      if (document.hidden) return;
+      source?.push(event, matchId, round);
+      // A controller buzzes when its gunship is hit, where the phone can (Android; iOS has no vibration): once per
+      // hit, for the round on screen.
+      const ms = model?.controller ? buzz(event, model.follow) : 0;
+      if (
+        ms &&
+        shown === `${matchId}:${round}` &&
+        typeof navigator.vibrate === "function"
+      )
+        navigator.vibrate(ms);
     },
     status(text) {
       const kind = trouble(text);
@@ -262,7 +404,18 @@ export function showRoom(
         deadEnd("OUT OF SYNC", "This page lost step with the room: rejoin.");
       else if (kind === "fatal") deadEnd("CANNOT PLAY HERE", text);
       else {
-        status.show(text, kind === "retry" ? "error" : "info"); // retrying: pink
+        heard = { text, kind };
+        // The runtime names a shared room's missing TV and says "Connected" once it is here; other news says nothing
+        // of it.
+        const waiting =
+          kind === "display" || (!/^connected/i.test(text) && viewer.tvWaiting);
+        if (waiting !== viewer.tvWaiting && frame) {
+          viewer.tvWaiting = waiting;
+          render(present(frame, viewer));
+        } else {
+          viewer.tvWaiting = waiting;
+          showStatus();
+        }
       }
     },
     ready(id) {
@@ -272,9 +425,14 @@ export function showRoom(
     ended: () =>
       deadEnd("ROOM CLOSED", "This room has ended, or it never existed."),
   };
+  // What the creator chose on the landing page for this room; a joiner's settings are the room's anyway.
+  const shared =
+    !solo &&
+    session.role === "host" &&
+    store.getItem(names.sharedRoom(code)) === "1";
   const runtime = new BombersRuntime(
     code,
-    DEFAULT_SETTINGS,
+    { ...DEFAULT_SETTINGS, display: shared },
     callbacks,
     session.kind === "solo"
       ? { humanName: store.getItem(names.name) ?? undefined }
@@ -285,8 +443,12 @@ export function showRoom(
               gameId: GAME,
               maxFastBytes: MAX_PACKET_BYTES,
             }),
+          displayOnly: display,
         },
   );
+  // `?debug` only: preview/smoke.mjs reads this page's room and whether its game draws.
+  if (flags.has("debug"))
+    Object.assign(window, { fuseBombers: { runtime, game } });
   // WASD and Space, the touch pad and gamepads fly this device's gunship: presses fire at once, holds steer each frame.
   const flies = (device: DeviceId) =>
     device === "key:WASD" || !device.startsWith("key:");
@@ -300,9 +462,22 @@ export function showRoom(
     requestAnimationFrame(poll);
   };
   requestAnimationFrame(poll);
+  // A hidden page draws no frames to poll from: let go of everything at once (the sources forget their holds too).
+  const release = () => {
+    if (!dead) runtime.input(0);
+  };
+  const hide = () => {
+    if (document.hidden) release();
+  };
+  window.addEventListener("blur", release);
+  document.addEventListener("visibilitychange", hide);
   net.installRoomLifecycle(window, {
     stop: () => runtime.stop(),
-    destroy: () => input.hub.dispose(),
+    destroy: () => {
+      input.hub.dispose();
+      window.removeEventListener("blur", release);
+      document.removeEventListener("visibilitychange", hide);
+    },
     reload: () => location.reload(),
   });
   runtime.start();
