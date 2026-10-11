@@ -26,7 +26,8 @@ import {
  * the attack's first step, then recovers and pauses again. One with no place free hovers at a distance from the
  * nearest hero, a fresh spot each time, and a wind-up is now and then a feint that backs off. Every random choice
  * draws from the world's stream. An enemy only thinks standing, walking or in its own swing: hit-stop, reeling, a
- * knockdown, lying, getting up, a defeat and a walk-in leave it to the rules in `step.ts`. Its walk is no faster
+ * knockdown, lying, getting up, a defeat and a walk-in leave it to the rules in `step.ts`, and a spell's freeze
+ * (`magic.ts`) holds it as it stands, wind-up and all, thinking nothing until the blow lands. Its walk is no faster
  * than its tier's and keeps to the screen, and its mace lands only on heroes.
  */
 const THINKS: readonly EnemyState[] = [
@@ -174,7 +175,8 @@ const BLOWS: readonly HeroState[] = ["attack1", "attack2", "attack3", "dash"];
 const FLOORED: readonly HeroState[] = ["knockdown", "down", "getup"];
 /**
  * The states a mace lands in: on its feet or in the air, running, swinging, dashing, stabbing, striking behind,
- * throwing or reeling. A hero mid-grab is out of its way: the grab is brief and always ends in the throw.
+ * throwing, reeling or charging magic, which the hit breaks off. A hero mid-grab is out of its way: the grab is brief
+ * and always ends in the throw. So is one casting a spell (`magic.ts`).
  */
 const STRUCK: readonly HeroState[] = [
   "idle",
@@ -187,6 +189,7 @@ const STRUCK: readonly HeroState[] = [
   "jumpattack",
   "backattack",
   "throw",
+  "charge",
 ];
 
 /** The mace lands on every hero it reaches in front of the enemy, in the depth lane and below its sweep. */

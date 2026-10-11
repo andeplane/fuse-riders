@@ -1,4 +1,4 @@
-import type { HeroKind } from "../../engine/view.js";
+import type { EnemyAnim, EnemyKind, HeroKind } from "../../engine/view.js";
 import {
   BACK_STEPS,
   HERO_STATES,
@@ -8,7 +8,8 @@ import {
   type SwingSteps,
   type Swings,
 } from "../../engine/view-kit.js";
-import type { AnimStrip } from "./ravager.js";
+import { IMP_ANIMS } from "./imp.js";
+import { RAVAGER_ANIMS } from "./ravager.js";
 
 /**
  * Which sprite frame a hero shows: a pure function of its anim, the steps since the anim began and the engine's
@@ -31,13 +32,15 @@ export type HeroFrame = (typeof HERO_FRAMES)[number];
  * `dead` does. Until the run and the dash have frames of their own, the run strides through the walk's faster and the
  * dash holds the first strike; until the other moves do, they borrow the swings': the jump attack the second swing's
  * wind-up and strike, the back attack the first swing's (the figure is not turned: the engine keeps its facing), the
- * grab the finisher's wind-up and the throw its follow-through.
+ * grab the finisher's wind-up and the throw its follow-through; until magic does, charging holds the finisher's
+ * wind-up and casting its strike.
  */
 export const HERO_ANIMS = [
   ...["idle", "walk", "run", "jump", "land"],
   ...["attack1", "attack2", "attack3", "dash"],
   ...["jumpattack", "backattack", "grab", "throw"],
   ...["hurt", "knockdown", "down", "getup", "dead", "respawn", "out"],
+  ...["charge", "cast"],
 ] as const;
 export type FigureAnim = (typeof HERO_ANIMS)[number];
 // The engine's states must all have frames: a new one fails to compile here until it is mapped below.
@@ -143,9 +146,12 @@ export function heroFrame(
     case "backattack":
       return swingFrame(timing[kind].back, SWING[0], step);
     case "grab":
+    case "charge":
       return "windup3";
     case "throw":
       return "follow3";
+    case "cast":
+      return "strike3";
     case "hurt":
       return "hurt";
     case "knockdown":
@@ -162,6 +168,41 @@ export function heroFrame(
       anim satisfies never;
       return "idle0";
   }
+}
+
+/** An anim's frames in order, each with the simulation steps (60 a second) it shows. */
+export interface AnimStrip<F extends string> {
+  readonly frames: readonly (readonly [frame: F, steps: number])[];
+  /** Starts over after the last frame; an anim that does not loop holds its last frame for as long as it lasts. */
+  readonly loop: boolean;
+}
+
+/** An enemy kind's strip per anim: an anim it lacks stands idle. */
+export type EnemyAnims = Readonly<
+  Partial<Record<EnemyAnim, AnimStrip<string>>>
+> & { readonly idle: AnimStrip<string> };
+/** Every enemy kind's anims, which `enemyFrame` plays. */
+export const ENEMY_ANIMS: Readonly<Record<EnemyKind, EnemyAnims>> = {
+  ravager: RAVAGER_ANIMS,
+  imp: IMP_ANIMS,
+};
+
+/**
+ * The frame of its kind's figure an enemy shows `animStep` steps into `anim`, played from `ENEMY_ANIMS`. Like
+ * `heroFrame` it never throws, as the renderer calls it every frame: an anim the kind has no strip for (a ravager's
+ * `flee`, or one from a build with more of them) stands idle, a kind from such a build plays as a ravager (the
+ * scene's fallback figure), and an odd step is rounded down to a whole one from 0.
+ */
+export function enemyFrame(
+  kind: EnemyKind,
+  anim: EnemyAnim,
+  animStep: number,
+): string {
+  const anims = Object.hasOwn(ENEMY_ANIMS, kind)
+    ? ENEMY_ANIMS[kind]
+    : ENEMY_ANIMS.ravager;
+  const strip = Object.hasOwn(anims, anim) ? anims[anim] : undefined;
+  return stripFrame(strip ?? anims.idle, animStep);
 }
 
 /**

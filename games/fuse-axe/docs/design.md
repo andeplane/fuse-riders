@@ -33,6 +33,24 @@ Magic spends pots: tap Magic to cast at the level of every pot held (up to the h
 level by level and release early to save pots, as Golden Axe II allowed. Magic hits every enemy on screen, more at
 higher levels, and never hurts other heroes.
 
+Built (`src/engine/magic.ts`, tuned in `tuning.ts`'s `SPELLS`): a hero standing, walking or running with a pot casts;
+never in the air, reeling or off its feet, and a Magic press made while busy waits a few steps as Attack's does.
+Magic let go within `MAGIC_TAP` (0.2 s) is a tap and casts every pot; held longer, the level chosen starts at 1 and
+rises one every `CHARGE_STEPS` (a third of a second) up to the pots held, shown in the view as the hero's `charge`. A
+charging hero stands still and a hit breaks the charge with nothing spent. The cast spends the level's pots and the
+hero stands invulnerable in `cast` for the spell's 1.5–2.5 s. Every enemy stands frozen, thinking nothing, until the
+blow lands partway through; it strikes every fighting enemy wholly on screen (not one in a hero's hands or flying
+from a throw) for a share of its full hit points, so a spell reads the same at every tier and party size, and knocks
+it down away from the caster. Sack imps freeze with the rest but are never struck: their pots come from kicks. Two
+heroes casting on one step land in id order. Magic's hit points count in the hero's damage, and casts and magic
+damage are tallied too. The spell's blow in sixteenths of an enemy's full hit points, by level:
+
+| Hero (spell)   | 1   | 2   | 3   | 4   | 5   | 6   |
+| -------------- | --- | --- | --- | --- | --- | --- |
+| Brakka (storm) | 4   | 7   | 10  | 13  |     |     |
+| Rhea (fire)    | 3   | 5   | 7   | 9   | 12  | 15  |
+| Gorm (earth)   | 5   | 9   | 14  |     |     |     |
+
 ## Moves
 
 - **Walk** in eight directions on the floor: left/right along the road, up/down in depth (slower, as in the
@@ -148,8 +166,9 @@ The room (`src/online/game.ts`) runs it on the netcode's stages, so every peer f
   and [game over](images/app-game-over.png), from `preview/flow.mjs`.
 - **The next stage** (once there is one) slots in where the tally ends (`nextStage`): a world seeded
   `seedOf("matchId:round+1")` as `beginStage` makes every stage's, with each hero whose seat is still here. Policy:
-  lives carry over (a hero who went out comes back with one), health is full, the continue is fresh, and the
-  tallies stay banked in the room; camp sits between the tally and the next stage.
+  lives carry over (a hero who went out comes back with one), and so do magic pots, as in the original (the new
+  world takes each hero's pots from the cleared one); health is full, the continue is fresh, and the tallies stay
+  banked in the room; camp sits between the tally and the next stage.
 
 The checkpoint carries the clock (`until`), the spent continue, the outcome and the banked tallies, and refuses any
 combination the fold cannot reach (a clock in play with heroes standing, a win short of the last stage, tallies that
@@ -223,4 +242,4 @@ Small pull requests, each reviewed and merged before the next one that depends o
 7. Sack imps, pots and magic for each hero.
 8. More enemies (lancer, brute), the Ogre twins and the stage flow.
 9. Camp, stages 2–4, mounts, bonewalkers and Vorhal.
-10. Sound effects and music; bot companions.
+10. Sound effects and music (in: the effects, the jingles and the Stage 1 march); bot companions.
