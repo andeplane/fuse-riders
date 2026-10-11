@@ -19,7 +19,9 @@ import {
   type SwingSteps,
   type Swings,
 } from "../../engine/view-kit.js";
+import { CAPTAIN_ANIMS } from "./captain.js";
 import { CLAWBEAK_ANIMS } from "./clawbeak.js";
+import { DRAKE_ANIMS } from "./drake.js";
 import { IMP_ANIMS } from "./imp.js";
 import { LANCER_ANIMS } from "./lancer.js";
 import { OGRE_ANIMS } from "./ogre.js";
@@ -259,8 +261,7 @@ export const ENEMY_ANIMS: Readonly<Record<EnemyKind, EnemyAnims>> = {
   imp: IMP_ANIMS,
   ogre: OGRE_ANIMS,
   lancer: LANCER_ANIMS,
-  // The lancer captain is a lancer until he has art of his own: he staggers as he reels.
-  captain: { ...LANCER_ANIMS, stagger: LANCER_ANIMS.hurt },
+  captain: CAPTAIN_ANIMS,
 };
 
 /**
@@ -285,30 +286,10 @@ export function enemyFrame(
 export type MountAnims = Readonly<
   Partial<Record<MountAnim, AnimStrip<string>>>
 > & { readonly idle: AnimStrip<string> };
-/**
- * Every beast kind's anims, which `mountFrame` plays. The ember drake is the clawbeak's figure until it has art of its
- * own: its inhale coils, it snarls (the wind-up's gape, without the lash's ring) while the flame is out, and the captain's
- * saddle thrust coils and recovers.
- */
+/** Every beast kind's anims, which `mountFrame` plays: a clawbeak's sweeps its tail, an ember drake's breathes fire. */
 export const MOUNT_ANIMS: Readonly<Record<MountKind, MountAnims>> = {
   clawbeak: CLAWBEAK_ANIMS,
-  drake: {
-    ...CLAWBEAK_ANIMS,
-    breathe: {
-      frames: [
-        ["coil1", DRAKE_STEPS.inhale],
-        ["coil2", DRAKE_STEPS.breathe - DRAKE_STEPS.inhale],
-      ],
-      loop: false,
-    },
-    lance: {
-      frames: [
-        ["coil1", DRAKE_STEPS.lanceWindup],
-        ["recover", DRAKE_STEPS.lance - DRAKE_STEPS.lanceWindup],
-      ],
-      loop: false,
-    },
-  },
+  drake: DRAKE_ANIMS,
 };
 
 /**

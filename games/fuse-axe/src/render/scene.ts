@@ -24,7 +24,9 @@ import {
   mountFrame,
   riderFrame,
 } from "./art/animate.js";
+import { CAPTAIN, CAPTAIN_LOOK } from "./art/captain.js";
 import { CLAWBEAK_DIPS, CLAWBEAK_FIGURE } from "./art/clawbeak.js";
+import { DRAKE_DIPS, DRAKE_FIGURE } from "./art/drake.js";
 import { IMP } from "./art/imp.js";
 import { MEAT } from "./art/meat.js";
 import { HEROES } from "./art/index.js";
@@ -41,11 +43,11 @@ import {
 } from "./backdrop/backdrop.js";
 import { bayer } from "./backdrop/kit.js";
 import { blinksOn, createHud, type HudSeats } from "./hud.js";
-import { drawFlames } from "./drake-fx.js";
+import { drawFlame } from "./drake-fx.js";
 import { drawCracks, drawShards, drawSteam } from "./ogre-fx.js";
 import { blit, fill, type Pen } from "./pen.js";
 import type { Figure } from "./pixel/kit.js";
-import { UNLIT, rampSwap, type Palette } from "./pixel/palette.js";
+import { UNLIT, type Palette } from "./pixel/palette.js";
 import type { Point } from "./pixel/rig.js";
 import { cropSprite, type Sprite } from "./pixel/sprite.js";
 import { createSpriteBaker, type BakeOptions } from "./pixel/surface.js";
@@ -94,7 +96,6 @@ interface EnemyArt {
   /** Its shadow's width as a multiple of a body's (none: a body's). */
   readonly shade?: number;
 }
-const CAPTAIN_LOOK = { ...rampSwap("Cc0", "Nn8"), ...rampSwap("Mm7", "Ii#") };
 /** Every enemy kind's art. A kind from a build with more of them draws as a ravager, as `enemyFrame` plays it. */
 export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
   ravager: {
@@ -109,9 +110,9 @@ export const ENEMY_ART: Readonly<Record<EnemyKind, EnemyArt>> = {
     shade: 1.5,
   },
   lancer: { figure: LANCER, tiers: LANCER_TIERS },
-  // The lancer captain until he has art of his own: a lancer in gold and dark steel, whatever his palette.
+  // The lancer captain, a lancer in gold and dark steel whatever his palette, seated on his drake (`captain.ts`).
   captain: {
-    figure: LANCER,
+    figure: CAPTAIN,
     tiers: { 0: CAPTAIN_LOOK, 1: CAPTAIN_LOOK, 2: CAPTAIN_LOOK },
   },
 };
@@ -122,28 +123,20 @@ export const ITEM_ART: Readonly<Record<ItemKind, Sprite>> = {
 };
 export const ITEM_SHADE = 3;
 
-/**
- * What a beast kind draws with: its figure, whose frames `mountFrame` picks, the rows each frame's saddle dips, and its
- * palette (none: the figure's own).
- */
+/** What a beast kind draws with: its figure, whose frames `mountFrame` picks, and the rows each frame's saddle dips. */
 interface MountArt {
   readonly figure: Figure;
   readonly dips: Readonly<Record<string, number>>;
-  readonly swap?: Palette;
 }
 /**
- * Every beast kind's art (a kind from a build with more of them draws as a clawbeak, as `mountFrame` plays it); the
- * ember drake is a clawbeak in ember red until it has its own, its flame drawn over the figures (`drake-fx.ts`). It
- * blinks as its blow winds up (a tail, an inhale, a saddle thrust: every `TELEGRAPH` steps); the lash's ring is its own
- * frame's. Its shadow is a third wider than a body's, and its rider, sinking with the saddle as it dips, casts none.
+ * Every beast kind's art (a kind from a build with more of them draws as a clawbeak, as `mountFrame` plays it); an
+ * ember drake's flame is drawn with it, at its depth (`drake-fx.ts`). It blinks as its blow winds up (a tail, an
+ * inhale, a saddle thrust: every `TELEGRAPH` steps); the lash's ring is its own frame's. Its shadow is a third wider
+ * than a body's, and its rider, sinking with the saddle as it dips (rising as a drake rears), casts none.
  */
 export const MOUNT_ART: Readonly<Record<MountKind, MountArt>> = {
   clawbeak: { figure: CLAWBEAK_FIGURE, dips: CLAWBEAK_DIPS },
-  drake: {
-    figure: CLAWBEAK_FIGURE,
-    dips: CLAWBEAK_DIPS,
-    swap: rampSwap("Yy&", "Xx*"),
-  },
+  drake: { figure: DRAKE_FIGURE, dips: DRAKE_DIPS },
 };
 export const TELEGRAPH = 3;
 /** The steps each beast blow's anim winds up for, which it blinks through. */
@@ -308,6 +301,8 @@ interface Standing {
   readonly shade?: number;
   /** An enraged ogre's steam, drawn with it so a figure in front of it hides the puffs: where it rises from its feet. */
   readonly steam?: { readonly enemy: EnemyView; readonly crown: Point };
+  /** A beast's flame if it is a drake breathing one, drawn with it likewise, from the jaws of the frame it shows. */
+  readonly flame?: { readonly mount: MountView; readonly frame: string };
 }
 
 /**
@@ -470,12 +465,9 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           art = mountArt(mount.kind);
         standing.push({
           ...at(mount),
+          flame: { mount, frame },
           sprite: art.figure.sprite(frame),
-          options: {
-            swap: art.swap,
-            flash: winding(mount),
-            flip: mount.facing < 0,
-          },
+          options: { flash: winding(mount), flip: mount.facing < 0 },
           lit: true,
           shade: Math.round((shadowRadius(mount.z) * 4) / 3),
         });
@@ -495,7 +487,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
       }
       // Camp's fire stands among the figures: after those further up the floor, before those in front of it.
       let prop = backdrop.prop;
-      for (const { y, z, sx, sprite, options, lit, steam } of standing) {
+      for (const { y, z, sx, sprite, options, lit, steam, flame } of standing) {
         if (prop && y > prop.y) {
           prop.draw(field, frame);
           prop = undefined;
@@ -504,6 +496,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         const b = baker.bake(sprite, options);
         blit(field, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
         if (steam) drawSteam(field, steam.enemy, steam.crown, camX, frame);
+        if (flame) drawFlame(field, baker, flame.mount, flame.frame, camX);
       }
       prop?.draw(field, frame);
       for (const { y, z, sx, marker } of standing) {
@@ -515,7 +508,6 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         blit(field, m.image, m.w, m.h, sx - (m.w >> 1), top);
       }
       drawShards(field, view.enemies, camX);
-      drawFlames(field, view.mounts, camX, frame);
       for (const fx of view.fx) drawSpark(field, fx, camX);
       backdrop.drawFront(field, backX);
       spells.draw(field, view, frame);

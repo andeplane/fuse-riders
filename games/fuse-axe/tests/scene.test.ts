@@ -21,10 +21,8 @@ import {
   CLAWBEAK,
   CLAWBEAK_STEPS,
   DRAKE_STEPS,
-  FLAME as BREATH,
   MOUNT_STATES,
   DEAD_STEPS,
-  flamePx,
   ENEMY_KINDS,
   HERO_KINDS,
   ENEMY_STATES,
@@ -48,6 +46,12 @@ import {
   stripFrame,
 } from "../src/render/art/animate.js";
 import { BRAKKA } from "../src/render/art/brakka.js";
+import { CAPTAIN, CAPTAIN_LOOK } from "../src/render/art/captain.js";
+import {
+  DRAKE_DIPS,
+  DRAKE_FIGURE,
+  type DrakeFrame,
+} from "../src/render/art/drake.js";
 import {
   CLAWBEAK_DIPS,
   CLAWBEAK_FIGURE,
@@ -101,8 +105,6 @@ import {
   SHADOW_RX,
 } from "../src/render/scene.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
-import { FLAME_ROW } from "../src/render/drake-fx.js";
-import { UNLIT } from "../src/render/pixel/palette.js";
 import { drawSpark, HIT_STEPS } from "../src/render/sparks.js";
 import {
   paintPixels,
@@ -1212,63 +1214,49 @@ test("camp's fire stands among the figures: in front of one behind it, behind on
   assert.deepEqual(order(hero(1, 0, FIRE.x - 30, FIRE.y)), [true]);
 });
 
-test("an ember drake draws as a clawbeak in ember, blinking as it inhales, its flame a stream from its mouth to the front; the captain draws as a lancer in his own colours", () => {
+test("an ember drake draws from its own art, blinking as it inhales; its flame is one jet from its jaws to the front, drawn at its depth; the captain sits it in his colours", () => {
   const drake = (more: Partial<MountView> = {}): MountView => ({
     ...{ id: 9, kind: "drake", x: 150, y: 140, z: 0, facing: 1 },
     ...{ anim: "breathe", animStep: 0, rider: null, ...more },
   });
-  // What a drake adds to the rectangles the frame fills (the backdrop's own fires among them), all in fire's colours.
-  const fire = new Set(["=", "~", "f", "F"].map((key) => UNLIT[key]!));
-  const flames = (more: Partial<MountView>, frame = 0) => {
-    const key = (f: object) => JSON.stringify(f);
-    const bare = new Set(draw(world({}), frame).pen.fills.map(key));
-    const added = draw(world({ mounts: [drake(more)] }), frame).pen.fills;
-    const own = added.filter((f) => !bare.has(key(f)));
-    assert.ok(own.every((f) => fire.has(f.style)));
-    return own;
-  };
-  const swap = MOUNT_ART.drake.swap;
-  assert.deepEqual(
-    draw(world({ mounts: [drake()] })).sprites[0]!.image.fills,
-    fillsOf(CLAWBEAK_FIGURE.sprite("coil1"), {
-      swap,
-      flash: true,
-      flip: false,
-    }),
-  );
-  assert.deepEqual(flames({ animStep: DRAKE_STEPS.inhale - 1 }), []);
-  // The stream runs from the mouth to the front, along its facing either way, about its head's row.
-  const animStep = DRAKE_STEPS.inhale + 20,
-    front = flamePx(animStep);
-  for (const facing of [1, -1] as const)
-    for (const frame of [0, 7]) {
-      const fills = flames({ animStep, facing }, frame);
-      const left = Math.min(...fills.map((f) => f.x)),
-        right = Math.max(...fills.map((f) => f.x + f.w));
-      assert.deepEqual(
-        facing > 0 ? [left - 150, right - 150] : [150 - right, 150 - left],
-        [
-          BREATH.mouth,
-          BREATH.mouth + 2 * Math.ceil((front - BREATH.mouth) / 2),
-        ],
-        `${facing}`,
-      );
-      for (const f of fills)
-        assert.ok(Math.abs(f.y + f.h / 2 - (140 - FLAME_ROW)) <= 6, `${f.y}`);
-    }
-  // Any step of any anim, odd ones too, draws one beast and never throws.
+  const look = (more: Partial<MountView>) =>
+    draw(world({ mounts: [drake(more)] })).sprites[0]!.image.fills;
+  const art = (frame: DrakeFrame, flash: boolean) =>
+    fillsOf(DRAKE_FIGURE.sprite(frame), { flash, flip: false });
+  assert.deepEqual(look({}), art("inhale1", true));
+  assert.deepEqual(look({ animStep: TELEGRAPH }), art("inhale1", false));
+  assert.deepEqual(look({ animStep: DRAKE_STEPS.inhale }), art("blast0", false)); // prettier-ignore
+  // The jet (`drake-fx.ts`) is drawn once the flame is out, nothing while it inhales; at the drake's depth, over a
+  // hero further up the floor in its lane, under one in front of it.
+  const jets = (animStep: number) =>
+    draw(world({ mounts: [drake({ animStep })] })).sprites.length - 1;
+  assert.deepEqual([jets(DRAKE_STEPS.inhale - 1), jets(DRAKE_STEPS.inhale + 20)], [0, 1]); // prettier-ignore
+  const flaming = drake({ animStep: DRAKE_STEPS.inhale + 20 });
+  const [behind, before] = [hero(1, 0, 200, 136), hero(2, 1, 210, 144)];
+  const { sprites } = draw(world({ heroes: [behind, before], mounts: [flaming] })); // prettier-ignore
+  // In order: the hero behind, the drake, its jet, the hero in front.
+  assert.equal(sprites.length, 4);
+  assert.deepEqual(sprites[0]!.image.fills, fillsOf(BRAKKA.sprite("idle0"), {})); // prettier-ignore
+  assert.deepEqual(sprites[1]!.image.fills, look(flaming));
+  assert.notDeepEqual(sprites[3]!.image.fills, sprites[2]!.image.fills);
+  assert.equal(sprites[3]!.dy + BRAKKA.sprite("idle0").ay, 144);
+  // Any step of any anim, odd ones too, draws the drake and never throws.
   for (const anim of MOUNT_STATES)
-    for (const step of [0, 40, 79, 1e9, -3, 2.5, Number.NaN])
-      assert.equal(draw(world({ mounts: [drake({ anim, animStep: step })] })).sprites.length, 1); // prettier-ignore
-  // The captain: a lancer's figure in gold and dark steel, whatever his palette.
-  const boss = enemy(3, 200, 150, { kind: "captain", tier: 2, boss: true });
-  assert.deepEqual(
-    draw(world({ enemies: [boss] })).sprites[0]!.image.fills,
-    fillsOf(LANCER.sprite(enemyFrame("lancer", "idle", 0) as LancerFrame), {
-      swap: ENEMY_ART.captain.tiers[2],
-      flash: false,
-      flip: false,
+    for (const step of [0, 40, 79, 1e9, -3, 2.5, Number.NaN, Infinity])
+      assert.ok(draw(world({ mounts: [drake({ anim, animStep: step })] })).sprites.length >= 1); // prettier-ignore
+  // The captain: his own figure in gold and dark steel whatever his palette, seated on his drake's saddle.
+  const boss = enemy(3, 150, 140, { kind: "captain", tier: 2, boss: true });
+  const captain = (frame: string) =>
+    fillsOf(CAPTAIN.sprite(frame as "ride"), { swap: CAPTAIN_LOOK, flash: false, flip: false }); // prettier-ignore
+  assert.deepEqual(draw(world({ enemies: [boss] })).sprites[0]!.image.fills, captain("idle")); // prettier-ignore
+  const ridden = draw(
+    world({
+      enemies: [{ ...boss, anim: "ride", mounted: true, z: CLAWBEAK.saddle }],
+      mounts: [drake({ anim: "walk", animStep: 0, rider: { kind: "enemy", id: 3 } })], // prettier-ignore
     }),
-  );
-  assert.notDeepEqual(ENEMY_ART.captain.tiers[2], LANCER_TIERS[2]);
+  ).sprites;
+  const seat = CAPTAIN.sprite("ride");
+  assert.deepEqual(ridden[1]!.image.fills, captain("ride"));
+  assert.equal(ridden[1]!.dy + seat.ay, 140 - CLAWBEAK.saddle + DRAKE_DIPS.walk0); // prettier-ignore
+  assert.deepEqual([0, 1, 2].map((tier) => ENEMY_ART.captain.tiers[tier as 0]), [CAPTAIN_LOOK, CAPTAIN_LOOK, CAPTAIN_LOOK]); // prettier-ignore
 });
