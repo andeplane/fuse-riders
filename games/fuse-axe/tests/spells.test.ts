@@ -2,14 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import * as guards from "../../../tests/fixtures/source-guards.js";
+import { createWorld, MAGIC, spawnEnemy, step, toView, type Enemy } from "../src/engine/index.js"; // prettier-ignore
+import { px, THROW_LIFT } from "../src/engine/tuning.js";
 import type * as V from "../src/engine/view.js";
-import { SPELL_KINDS, SPELL_STEPS, VIEW_H, VIEW_W } from "../src/engine/view-kit.js"; // prettier-ignore
+import { SPELL_KINDS, SPELL_STEPS, STEPS_PER_TICK, VIEW_H, VIEW_W } from "../src/engine/view-kit.js"; // prettier-ignore
 import { HEROES } from "../src/render/art/index.js";
 import { HUD_COLORS, HUD_H } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
 import { createScene } from "../src/render/scene.js";
 import * as spells from "../src/render/spells/index.js";
-import { FLASH_STEPS, SHAKE_STEPS } from "../src/render/spells/kit.js";
+import { FLASH_STEPS, SHAKE_STEPS, marksOf } from "../src/render/spells/kit.js"; // prettier-ignore
 import type { MakeSurface } from "../src/render/surface.js";
 
 interface FakeImage {
@@ -284,4 +286,97 @@ test("a charging or casting hero glows in its spell's colour behind its sprite, 
   const body = pen.calls.findIndex((c) => c.image?.w === sprite.w && c.image.h === sprite.h); // prettier-ignore
   const aura = pen.calls.findIndex((c) => colours(c.image).has(spells.AURA.brakka)); // prettier-ignore
   assert.ok(aura >= 0 && aura < body, `aura ${aura}, body ${body}`);
+});
+
+test("the view moves a spell a whole tick on at a time, so the flash and the shake show whatever step it was cast on", () => {
+  const s = spells.createSpells(fakeMake().make);
+  for (const kind of SPELL_KINDS)
+    for (const level of levels(kind)) {
+      const { hit, steps } = timing(kind, level);
+      // The ages the view reaches are STEPS_PER_TICK apart, from any one of the steps of the tick it was cast in.
+      for (let phase = 0; phase < STEPS_PER_TICK; phase++) {
+        const seen = { flash: 0, shake: 0 };
+        for (let age = phase; age < steps; age += STEPS_PER_TICK) {
+          const view = world([spell(kind, level, age)]);
+          const flash = drawn(s, view, age).some(
+            (c) => screenSized(c) && colours(c.image).has(spells.FLASH[kind]),
+          );
+          if (flash) seen.flash++;
+          if (age >= hit && shakeOf(view)[0] !== 0) seen.shake++;
+        }
+        const label = `${kind} ${level} from step ${phase}`;
+        assert.ok(seen.flash >= Math.floor(FLASH_STEPS / STEPS_PER_TICK), label); // prettier-ignore
+        assert.ok(seen.shake >= Math.floor(SHAKE_STEPS / STEPS_PER_TICK), label); // prettier-ignore
+      }
+    }
+});
+
+test("a blow is drawn on the enemies the engine's blow strikes: not a sack imp, a beaten, held or thrown one, or one not whole on screen", () => {
+  const heroes = [
+    { seat: 0, kind: "brakka" },
+    { seat: 1, kind: "rhea" },
+  ] as const;
+  let w = createWorld({ seed: 3, heroes });
+  w = { ...w, heroes: w.heroes.map((h, i) => (i ? h : { ...h, pots: 1 })) };
+  const [caster, thrower] = [w.heroes[0]!, w.heroes[1]!];
+  const lane = (dx: number) => [caster.x + px(dx), caster.y] as const;
+  w = spawnEnemy(w, "ravager", ...lane(60)); // struck
+  w = spawnEnemy(w, "ravager", ...lane(-40)); // struck
+  w = spawnEnemy(w, "imp", ...lane(90)); // never
+  w = spawnEnemy(w, "ravager", ...lane(100)); // beaten
+  w = spawnEnemy(w, "ravager", ...lane(120)); // held
+  w = spawnEnemy(w, "ravager", ...lane(140)); // thrown
+  w = spawnEnemy(w, "ravager", w.camX + px(4), caster.y); // half on screen
+  w = spawnEnemy(w, "ravager", w.camX + px(340), caster.y); // off screen
+  const patch = (index: number, change: Partial<Enemy>) => {
+    const enemies = w.enemies.map((e, i) => (i === index ? { ...e, ...change } : e)); // prettier-ignore
+    w = { ...w, enemies };
+  };
+  const { hit } = SPELL_STEPS.storm[0]!;
+  // Brakka holds Magic for a few steps and lets go; Rhea has a body in her hands, and another flying from her.
+  for (const held of [[MAGIC], [MAGIC], [MAGIC], []]) w = step(w, held);
+  for (let i = 0; i < hit - 4; i++) w = step(w, []);
+  patch(3, { state: "dead", hp: 0 });
+  patch(4, { state: "held", holder: thrower.id });
+  patch(5, { state: "thrown", holder: thrower.id, z: THROW_LIFT });
+  const grabber = { state: "grab", timer: 0, x: w.enemies[4]!.x, y: w.enemies[4]!.y } as const; // prettier-ignore
+  w = { ...w, heroes: w.heroes.map((h, i) => (i ? { ...h, ...grabber } : h)) };
+  for (let i = 0; i < 3; i++) w = step(w, []);
+  const view = toView(w);
+  assert.equal(view.spells[0]!.age, hit - 1, "the last step before the blow");
+  const blown = step(w, []);
+  const struck = blown.enemies.filter((e, i) => e.hp < w.enemies[i]!.hp);
+  assert.equal(struck.length, 2, "the two on screen");
+  const spots = view.enemies.filter((e) => struck.some((s) => s.id === e.id));
+  assert.deepEqual(
+    marksOf(view),
+    spots.map(({ x, y }) => ({ x, y })),
+  );
+});
+
+test("a blow's marks stay where the enemies stood as it fell, whatever it does to them; seen first later, they are where the enemies are", () => {
+  const born = 400;
+  const flung = ENEMIES.map((e, i) => ({ ...e, x: e.x + 30, hp: i ? 0 : 1, anim: "knockdown" as const })); // prettier-ignore
+  const calls = (s: spells.Spells<FakeImage>, v: V.WorldView, frame: number) =>
+    drawn(s, v, frame).map((c) => ({ ...c, image: c.image && [c.image.w, c.image.h] })); // prettier-ignore
+  for (const kind of ["storm", "earth"] as const) {
+    const { hit } = timing(kind, 1);
+    const view = (age: number, enemies: V.EnemyView[]) =>
+      world([spell(kind, 1, age)], { step: born + age, enemies });
+    const watched = spells.createSpells(fakeMake().make);
+    calls(watched, view(hit - 3, ENEMIES), 0);
+    const after: [number, V.EnemyView[]][] = [
+      [hit + 3, flung],
+      [hit + 6, flung],
+      [hit + 6, []],
+    ];
+    for (const [age, enemies] of after) {
+      const kept = calls(watched, view(age, enemies), age);
+      const [still, cold] = [ENEMIES, enemies].map((standing) =>
+        calls(spells.createSpells(fakeMake().make), view(age, standing), age),
+      );
+      assert.deepEqual(kept, still, `${kind} ${age} ${enemies.length}`);
+      assert.notDeepEqual(cold, kept, `${kind} ${age} ${enemies.length} cold`);
+    }
+  }
 });

@@ -119,6 +119,7 @@ export function createStorm<I>(make: MakeSurface<I>): S.KindArt<I> {
     age,
     view,
     frame,
+    marks,
   ) => {
     const seed = spell.hero * 97 + 13;
     let top = S.SKY;
@@ -148,9 +149,7 @@ export function createStorm<I>(make: MakeSurface<I>): S.KindArt<I> {
           );
         }
     // Every enemy on screen is struck at the blow, and the floor around them through the strikes.
-    const strikes = S.targets(view).map(
-      (e) => [e.x - view.camX, e.y, hit - 1] as const,
-    );
+    const strikes = marks.map((m) => [m.x - view.camX, m.y, hit - 1] as const);
     for (let i = 0; i < STRIKES[level - 1]!; i++)
       strikes.push([
         ...S.spot(i, seed),

@@ -19,10 +19,11 @@ import type { MakeSurface } from "./surface.js";
  * The HUD: a strip along the top of the frame with a panel a seat, P1 to P5 left to right. A hero's panel holds its
  * portrait in the hero's own look (the palette it wears on the field) framed in its seat's colour, its player's name,
  * its lives as ×N, a segmented health bar whose lost part shows white for a moment and then drains, and its row of
- * magic pots, which glow up to the level chosen while it charges magic. A hero out of lives is greyed; one lying fallen, dropping back in or invulnerable blinks, in step with
- * its sprite. An empty seat shows its tag and blinks JOIN (not in a solo game, where nobody can), or names the player
- * who joins with the next run. A hero that has lost its last life is out as it lands: the counter has already
- * dropped to ×0, so its panel greys then, not when it has finished lying there.
+ * magic pots, which glow up to the level chosen while it charges magic. A hero out of lives is greyed; one lying
+ * fallen, dropping back in or invulnerable blinks, in step with its sprite. An empty seat shows its tag and blinks
+ * JOIN (not in a solo game, where nobody can), or names the player who joins with the next run. A hero that has lost
+ * its last life is out as it lands: the counter has already dropped to ×0, so its panel greys then, not when it has
+ * finished lying there.
  *
  * Portraits and labels are baked once; a frame is a few flat rectangles and blits.
  */

@@ -1,5 +1,10 @@
-import type { HeroKind, HeroView, SpellKind } from "../../engine/view.js";
-import type { WorldView } from "../../engine/view.js";
+import type {
+  HeroKind,
+  HeroView,
+  SpellKind,
+  SpellView,
+  WorldView,
+} from "../../engine/view.js";
 import { bayer } from "../backdrop/kit.js";
 import { fill } from "../pen.js";
 import { createEarth } from "./earth.js";
@@ -15,8 +20,11 @@ import { createStorm } from "./storm.js";
  * flashes the screen at the blow, when the field shakes a moment (`shakeOf`, an offset the scene draws the field at;
  * the simulation never moves). A hero charging or casting glows in its spell's colour behind its sprite (`aura`).
  *
- * All of it is a pure function of the view and the 60 Hz frame, so rollback and blending never flicker. Every picture
- * is painted once, on the first frame that needs it; a kind this build lacks, or an odd age, draws nothing.
+ * All of it is a pure function of the view and the 60 Hz frame, so rollback and blending never flicker, but for where
+ * a blow lands: the enemies it strikes are read off the frozen screen before it and kept where they stood once it
+ * flings them (`marked`). The view moves a spell on a whole tick, `STEPS_PER_TICK` steps, at a time, so no moment is
+ * tested for at one exact age: each lasts a window of steps. Every picture is painted once, on the first frame that
+ * needs it; a kind this build lacks, or an odd age, draws nothing.
  */
 export interface Spells<I> {
   ground(pen: Pen<I>, view: WorldView, frame: number): void;
@@ -114,6 +122,22 @@ export function createSpells<I>(make: MakeSurface<I>): Spells<I> {
           }
       });
     });
+  /**
+   * Where each playing spell's blow lands, by its caster and the step it was born: refreshed while the enemies stand
+   * frozen before the blow, then kept, so a boulder or a bolt stays where it fell whatever the blow does to the enemy
+   * under it. A spell first seen after its blow (a device that joined or recovered meanwhile) keeps what it finds.
+   */
+  const marked = new Map<string, readonly S.Mark[]>();
+  const marksFor = (
+    spell: SpellView,
+    t: S.Timing,
+    age: number,
+    view: WorldView,
+  ) => {
+    const key = `${spell.hero} ${view.step - age}`;
+    if (age < t.hit || !marked.has(key)) marked.set(key, S.marksOf(view));
+    return { key, marks: marked.get(key)! };
+  };
   const playing = (view: WorldView) =>
     view.spells.flatMap((spell) => {
       const now = S.playing(spell);
@@ -122,11 +146,17 @@ export function createSpells<I>(make: MakeSurface<I>): Spells<I> {
 
   return {
     ground(pen, view, frame) {
-      for (const { spell, t, age } of playing(view))
-        kindArt(spell.kind).ground?.(pen, spell, t, age, view, whole(frame));
+      for (const { spell, t, age } of playing(view)) {
+        const { marks } = marksFor(spell, t, age, view);
+        const art = kindArt(spell.kind);
+        art.ground?.(pen, spell, t, age, view, whole(frame), marks);
+      }
     },
     draw(pen, view, frame) {
+      const live = new Set<string>();
       for (const { spell, t, age } of playing(view)) {
+        const { key, marks } = marksFor(spell, t, age, view);
+        live.add(key);
         const deepest = DUSK_STEPS - (t.level < t.max ? 1 : 0);
         const step = Math.ceil(S.envelope(age, t.steps) * deepest);
         if (step > 0) put(pen, dusk(spell.kind, step), 0, 0);
@@ -134,8 +164,10 @@ export function createSpells<I>(make: MakeSurface<I>): Spells<I> {
         const since = age - t.hit;
         if (since >= 0 && since < S.FLASH_STEPS)
           put(pen, flash(spell.kind, since < S.FLASH_STEPS / 2), 0, 0);
-        kindArt(spell.kind).over(pen, spell, t, age, view, whole(frame));
+        const art = kindArt(spell.kind);
+        art.over(pen, spell, t, age, view, whole(frame), marks);
       }
+      for (const key of marked.keys()) if (!live.has(key)) marked.delete(key);
     },
     aura(pen, hero, sx, feet, crown, frame) {
       if (hero.anim !== "charge" && hero.anim !== "cast") return;

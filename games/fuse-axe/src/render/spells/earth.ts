@@ -101,10 +101,11 @@ export function createEarth<I>(make: MakeSurface<I>): S.KindArt<I> {
     t: S.Timing,
     age: number,
     view: WorldView,
+    marks: readonly S.Mark[],
   ) => {
     const [seed, cx] = [spell.hero * 53 + 29, S.casterX(view, spell)];
-    const drops = S.targets(view).map(
-      (e) => [e.x - view.camX, e.y, t.hit, Math.min(2, t.level)] as const,
+    const drops = marks.map(
+      (m) => [m.x - view.camX, m.y, t.hit, Math.min(2, t.level)] as const,
     );
     for (let i = 0; i < BOULDERS[t.level - 1]!; i++) {
       const size = Math.floor(hash(seed, i + 3) * Math.min(3, t.level + 1));
@@ -127,8 +128,8 @@ export function createEarth<I>(make: MakeSurface<I>): S.KindArt<I> {
     });
   };
   /** On the ground, under the figures: the boulders' shadows, the crack and its shards. */
-  const ground: S.Play<I> = (pen, spell, t, age, view) => {
-    for (const { x, z, feet, size } of flights(spell, t, age, view)) {
+  const ground: S.Play<I> = (pen, spell, t, age, view, _frame, marks) => {
+    for (const { x, z, feet, size } of flights(spell, t, age, view, marks)) {
       const s = shadows[size]!;
       if (z < DROP * 0.8) put(pen, s, x - (s.w >> 1), feet - (s.h >> 1));
     }
@@ -157,13 +158,14 @@ export function createEarth<I>(make: MakeSurface<I>): S.KindArt<I> {
     }
   };
   /** Over the figures: the boulders and their dust, blinking out over the spell's last steps. */
-  const over: S.Play<I> = (pen, spell, t, age, view, frame) => {
+  const over: S.Play<I> = (pen, spell, t, age, view, frame, marks) => {
     if (age >= t.steps - 12 && (frame >> 2) & 1) return;
     for (const { x0, x, z, feet, size, since } of flights(
       spell,
       t,
       age,
       view,
+      marks,
     )) {
       const puff = dust[since < 4 ? 0 : 1]!;
       if (since >= 0 && since < 8)
