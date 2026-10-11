@@ -1,5 +1,6 @@
 import {
   BACK_ATTACK,
+  BEAST_HALF_W,
   CAMERA_END,
   COMBO,
   DASH,
@@ -14,10 +15,16 @@ import {
   LANCER,
   LEAP_STEPS,
   OGRE,
+  PANIC_STEPS,
   PLUNGE_REACH,
   PLUNGE_STEPS,
+  SADDLE,
   SPEAR_REACH,
+  TAIL_REACH,
+  TAIL_STEPS,
+  TAIL_WINDUP,
   THRUST_STEPS,
+  WANDER_TURN,
   OGRE_RECOVER,
   QUAKE_SPEED,
   QUAKE_STEPS,
@@ -68,6 +75,7 @@ export {
   MAGIC_TAP,
   CHARGE_STEPS,
   SPELL_KINDS,
+  MOUNT_KINDS,
 } from "./tuning.js";
 export {
   ENEMY_STATES,
@@ -75,6 +83,7 @@ export {
   HERO_STATES,
   IMP_ONLY,
   LANCER_ONLY,
+  MOUNT_STATES,
   OGRE_ONLY,
 } from "./world.js";
 
@@ -228,4 +237,23 @@ export const LANCER_STEPS = {
 export const SPEAR = {
   reach: SPEAR_REACH / SUB,
   plunge: PLUNGE_REACH / SUB,
+} as const;
+
+/**
+ * A clawbeak's timing in steps, to time its frames (`MountAnim`): the tail sweep's wind-up (it lands on that
+ * `animStep`) and length, the panic after losing a rider, the steps a wanderer walks before turning, and a hop's rise
+ * (it climbs on every `animStep` below `hopRise`, as a hero's jump).
+ */
+export const CLAWBEAK_STEPS = {
+  windup: TAIL_WINDUP,
+  sweep: TAIL_STEPS,
+  panic: PANIC_STEPS,
+  turn: WANDER_TURN,
+  hopRise: JUMP_RISE_STEPS,
+} as const;
+/** In pixels: the saddle's height over the beast's feet, the tail's reach either side, and half the beast's width. */
+export const CLAWBEAK = {
+  saddle: SADDLE / SUB,
+  reach: TAIL_REACH / SUB,
+  half: BEAST_HALF_W / SUB,
 } as const;

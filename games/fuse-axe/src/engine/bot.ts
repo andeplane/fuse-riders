@@ -1,13 +1,15 @@
-import { ATTACK, DOWN, LEFT, MAGIC, RIGHT, UP } from "./input.js";
+import { ATTACK, DOWN, JUMP, LEFT, MAGIC, RIGHT, UP } from "./input.js";
 import { clamp } from "./math.js";
 import { isImp, kickable } from "./imps.js";
 import { isOgre, threatLane, threatens } from "./ogre.js";
 import { hits, isLancer, lancerLane } from "./lancer.js";
+import { lashes } from "./mount.js";
 import { next } from "./rng.js";
 import { SWINGS, hittable } from "./step.js";
 import * as T from "./tuning.js";
 import {
   SPAWNS,
+  mountOf,
   present,
   type Enemy,
   type Hero,
@@ -20,12 +22,15 @@ import {
  * A bot companion: a hero played by the held bits a player logs, read off the world as a player reads the screen, so
  * it gets no rules of its own. Once per log tick it decides, in order: a charge it holds is let go (casting); with a
  * pot and three enemies about it, or low on health with one about, it taps Magic; a ravager's or a lancer's wind-up
- * aimed at it is answered with a swing that lands first, or a step out of its lane, as is a lancer's leap coming down
- * on it or an ogre's blow; an enemy or a sack imp in reach takes a swing, and a swing chains the combo while one stays
+ * aimed at it, or a rider's beast's tail, is answered with a swing that lands first (a blow on a rider breaks off the
+ * sweep), or a step out of its lane, as is a lancer's leap coming down on it or an ogre's blow; an enemy (a rider too:
+ * the combo's finisher knocks it off) or a sack imp in reach takes a swing, and a swing chains the combo while one stays
  * in reach; a pot nobody nearer wants is picked up when no enemy is close; otherwise it walks to stand beside the
  * nearest foe fewer heroes are on (a lower seat keeps its side; a lancer on guard it closes on from out of its spear's
  * lane), or a sack imp; with none, it follows the party. Every press is let go a tick before the next, and it never
  * presses a direction that would make a double tap unless it means to run, which it does far from where it is going.
+ * It never presses Jump, so never boards a beast, leaving them to the players; one that finds itself riding (a player's
+ * seat it took over) climbs off.
  *
  * It keeps nothing between ticks beyond what the hero itself holds (`held`, `tap`, `tapUntil`), so a rollback
  * replays it exactly. `humans` names the heroes players steer, whom it follows; without any it leads the way.
@@ -82,6 +87,7 @@ export function botInput(
 ): number {
   const hero = world.heroes.find((each) => each.id === heroId);
   if (!hero) return 0;
+  if (hero.state === "ride") return hero.held & JUMP ? 0 : DOWN | JUMP;
   const index = SWINGS.indexOf(hero.state);
   if (index >= 0) return combo(world, hero, index);
   if (!FREE.includes(hero.state)) return 0;
@@ -92,7 +98,9 @@ export function botInput(
   if (casts(world, hero, foes)) return hero.held & MAGIC ? 0 : MAGIC;
   const danger = foes.find((foe) => menaces(world, hero, foe));
   if (danger)
-    return counters(hero, danger) ? swingAt(hero, danger) : dodge(hero, danger);
+    return counters(world, hero, danger)
+      ? swingAt(hero, danger)
+      : dodge(hero, danger);
   const opening = [...foes, ...imps].find(
     (enemy) =>
       hittable(world, enemy) &&
@@ -194,8 +202,13 @@ function casts(world: World, hero: Hero, foes: readonly Enemy[]): boolean {
   );
 }
 
-/** A draw from the seed, under 256, the same for one hero and one enemy's wind-up begun on one step. */
-function chance(world: World, hero: Hero, foe: Enemy, salt: number): number {
+/** A draw from the seed, under 256, the same for one hero and one enemy's wind-up (`foe`'s timer) begun on one step. */
+function chance(
+  world: World,
+  hero: Hero,
+  foe: { readonly id: number; readonly timer: number },
+  salt: number,
+): number {
   const begun = world.step - foe.timer;
   return (
     next(
@@ -208,53 +221,67 @@ function chance(world: World, hero: Hero, foe: Enemy, salt: number): number {
   );
 }
 
+/** The wind-up a foe's blow is in, by its timer: a rider's beast's tail, or its own. */
+const windupOf = (world: World, foe: Enemy) => {
+  const beast = foe.state === "ride" ? mountOf(world, foe.id) : undefined;
+  return { id: foe.id, timer: (beast ?? foe).timer, beast };
+};
+
 /**
- * A ravager winding up with the hero in its mace's way, an ogre's blow coming at it (`threatens`), or a lancer's thrust
- * wound up or its leap coming down (`hits`), once the bot has seen it (and if it does).
+ * A ravager winding up with the hero in its mace's way, an ogre's blow coming at it (`threatens`), a lancer's thrust
+ * wound up or its leap coming down (`hits`), or a rider's beast's tail (`lashes`), once the bot has seen it (and if it
+ * does).
  */
 function menaces(world: World, hero: Hero, foe: Enemy): boolean {
-  const ahead = (hero.x - foe.x) * foe.facing;
+  const ahead = (hero.x - foe.x) * foe.facing,
+    clock = windupOf(world, foe);
   return (
-    (isOgre(foe)
-      ? threatens(foe, hero, T.px(2))
-      : isLancer(foe)
-        ? (foe.state === "windup" || foe.state === "leap") &&
-          hits(foe, hero, T.px(2))
-        : foe.state === "windup" &&
-          ahead + T.HERO_HALF_W >= -T.px(2) &&
-          ahead - T.HERO_HALF_W <= T.MACE_REACH + T.px(4) &&
-          Math.abs(hero.y - foe.y) <= T.LANE + T.px(2)) &&
-    foe.timer >= REACT + (chance(world, hero, foe, 0) % REACT_SPREAD) &&
-    chance(world, hero, foe, 1) >= MISS
+    (clock.beast
+      ? lashes(clock.beast, hero, T.px(2))
+      : isOgre(foe)
+        ? threatens(foe, hero, T.px(2))
+        : isLancer(foe)
+          ? (foe.state === "windup" || foe.state === "leap") &&
+            hits(foe, hero, T.px(2))
+          : foe.state === "windup" &&
+            ahead + T.HERO_HALF_W >= -T.px(2) &&
+            ahead - T.HERO_HALF_W <= T.MACE_REACH + T.px(4) &&
+            Math.abs(hero.y - foe.y) <= T.LANE + T.px(2)) &&
+    clock.timer >= REACT + (chance(world, hero, clock, 0) % REACT_SPREAD) &&
+    chance(world, hero, clock, 1) >= MISS
   );
 }
 
 /**
- * A wind-up the hero can beat: in front of it, in reach, and the first swing's blade out before the mace or the spear.
- * No swing beats an ogre's: its armour takes the blow; nor a leap, which is stepped out of.
+ * A wind-up the hero can beat: in front of it, in reach, and the first swing's blade out before the mace, the spear or
+ * the tail (a blow on its rider breaks it off). No swing beats an ogre's: its armour takes the blow; nor a leap, which
+ * is stepped out of.
  */
-function counters(hero: Hero, foe: Enemy): boolean {
+function counters(world: World, hero: Hero, foe: Enemy): boolean {
   const first = T.COMBO[hero.kind][0]!,
-    late = hero.held & ATTACK ? T.STEPS_PER_TICK : 0;
+    late = hero.held & ATTACK ? T.STEPS_PER_TICK : 0,
+    { beast, timer } = windupOf(world, foe);
   return (
     !isOgre(foe) &&
-    foe.state === "windup" &&
+    (beast ? beast.state === "sweep" : foe.state === "windup") &&
     (foe.x > hero.x ? 1 : -1) === hero.facing &&
     reaches(hero, foe, first.reach) &&
-    T.fighterOf(foe.kind, foe.tier, false).windup - foe.timer >=
+    (beast ? T.TAIL_WINDUP : T.fighterOf(foe.kind, foe.tier, false).windup) -
+      timer >=
       first.startup + 2 + late
   );
 }
 
 /**
- * Out of the lane (an ogre's blow's, `threatLane`; a leaping lancer's about where it comes down): away from it in depth,
- * toward the middle of the floor band if level with it, the other way against the band's edge, and then also on along
- * the road out of its reach (but from a leap, whose landing is ahead of it).
+ * Out of the lane (an ogre's blow's, `threatLane`; a leaping lancer's about where it comes down; a beast's tail's):
+ * away from it in depth, toward the middle of the floor band if level with it, the other way against the band's edge,
+ * and then also on along the road out of its reach (but from a leap, whose landing is ahead of it).
  */
 function dodge(hero: Hero, foe: Enemy): number {
   const leaping = foe.state === "leap",
     y = isLancer(foe) ? lancerLane(foe) : foe.y,
-    room = (isOgre(foe) ? threatLane(foe) : T.LANE) + T.px(4);
+    lane = foe.state === "ride" ? T.TAIL_LANE : T.LANE,
+    room = (isOgre(foe) ? threatLane(foe) : lane) + T.px(4);
   let down =
     hero.y !== y ? hero.y > y : 2 * hero.y < T.FLOOR_TOP + T.FLOOR_BOTTOM;
   if (down && hero.y + room > T.FLOOR_BOTTOM) down = false;

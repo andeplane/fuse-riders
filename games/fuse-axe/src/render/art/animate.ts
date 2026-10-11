@@ -51,14 +51,15 @@ export const STRIKE_FRAMES: readonly HeroFrame[] = [
  * `dead` does. Every move has frames of its own: the run a sprint, the dash a charge and its stop, the jump attack a
  * stab down, the back attack a blow behind (the figure is not turned: the engine keeps its facing, and the hero looks
  * over its shoulder), the grab its clutch and the throw a heave over the shoulder. Magic has two: charging braces with
- * the weapon raised before the face, and casting thrusts it skyward until the spell is gone.
+ * the weapon raised before the face, and casting thrusts it skyward until the spell is gone. Riding a beast sits the
+ * landing crouch in the saddle until the mount art gives it a pose of its own.
  */
 export const HERO_ANIMS = [
   ...["idle", "walk", "run", "jump", "land"],
   ...["attack1", "attack2", "attack3", "dash"],
   ...["jumpattack", "backattack", "grab", "throw"],
   ...["hurt", "knockdown", "down", "getup", "dead", "respawn", "out"],
-  ...["charge", "cast"],
+  ...["charge", "cast", "ride"],
 ] as const;
 export type FigureAnim = (typeof HERO_ANIMS)[number];
 // The engine's states must all have frames: a new one fails to compile here until it is mapped below.
@@ -164,6 +165,7 @@ export function heroFrame(
     case "jump":
       return step < timing[kind].rise ? "rise" : "fall";
     case "land":
+    case "ride":
       return "land";
     case "attack1":
       return swingFrame(timing[kind].swings[0], SWING[0], step);

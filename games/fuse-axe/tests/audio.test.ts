@@ -28,12 +28,13 @@ import type * as V from "../src/engine/view.js";
 const hero = (extra: Partial<V.HeroView> = {}): V.HeroView => ({
   ...{ id: 1, seat: 0, kind: "brakka", x: 100, y: 140, z: 0, facing: 1 },
   ...{ anim: "idle", animStep: 0, hp: 60, maxHp: 60, lives: 3 },
-  ...{ invulnerable: false, pots: 0, maxPots: 3, charge: 0, ...extra },
+  ...{ invulnerable: false, pots: 0, maxPots: 3, charge: 0, mounted: false },
+  ...extra,
 });
 const enemy = (extra: Partial<V.EnemyView> = {}): V.EnemyView => ({
   ...{ id: 9, kind: "ravager", tier: 0, x: 200, y: 140, z: 0, facing: -1 },
   ...{ anim: "idle", animStep: 0, hp: 30, maxHp: 30, flash: false },
-  ...{ boss: false, enraged: false, ...extra },
+  ...{ boss: false, enraged: false, mounted: false, ...extra },
 });
 const spark = (age: number, extra: Partial<V.FxView> = {}): V.FxView => ({
   ...{ kind: "hit", x: 150, y: 140, z: 20, age, ...extra },
@@ -43,7 +44,7 @@ const world = (
   extra: Partial<V.WorldView> = {},
 ): V.WorldView => ({
   ...{ step, camX: 0, heroes: [hero()], enemies: [], fx: [], items: [] },
-  ...{ spells: [], stage: 1, wave: 1 },
+  ...{ spells: [], mounts: [], stage: 1, wave: 1 },
   ...{ waves: 4, locked: false, go: false, cleared: false, defeated: false },
   boss: null,
   ...extra,
