@@ -2,11 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createBackdrop,
+  createCampBackdrop,
+  type Backdrop,
   type Pen,
   type StageNumber,
 } from "../src/render/backdrop/backdrop.js";
 import type { MakeSurface } from "../src/render/surface.js";
 import { ASHEN_VILLAGE } from "../src/render/backdrop/ashen-village.js";
+import { FIRE, FLAME } from "../src/render/backdrop/camp.js";
 import { hash, Raster } from "../src/render/backdrop/kit.js";
 import {
   CAMERA_END_PX,
@@ -74,7 +77,12 @@ class RecordingPen implements Pen<FakeSurface> {
   }
 }
 
-function stage1() {
+const stage1 = () => made((make) => createBackdrop(make, 1));
+
+/** A backdrop from `create`, and the surfaces it made. */
+function made(
+  create: (make: MakeSurface<FakeSurface>) => Backdrop<FakeSurface>,
+) {
   const surfaces: FakeSurface[] = [];
   // The fast path keeps each layer's own pixels; `scene.test.ts` checks the painted fallback draws the same ones.
   const make: MakeSurface<FakeSurface> = (width, height) => {
@@ -95,7 +103,7 @@ function stage1() {
       putPixels: (rgba) => void (surface.rgba = rgba),
     };
   };
-  return { surfaces, backdrop: createBackdrop(make, 1) };
+  return { surfaces, backdrop: create(make) };
 }
 
 const shared = stage1();
@@ -377,4 +385,105 @@ test("the cosmetic hash is a fixed integer function, so every device lays the vi
       const h = hash(a, b);
       assert.ok(h >= 0 && h < 1, `hash(${a}, ${b}) = ${h}`);
     }
+});
+
+// ---- camp's night clearing (`camp.ts`) ----
+
+const camp = made(createCampBackdrop);
+
+/** One camp frame: its back pass, its fire (the prop the scene draws among the figures) and its foreground. */
+function campFrame(camX: number, step: number) {
+  const back = new RecordingPen();
+  camp.backdrop.draw(back, camX, step);
+  const fire = new RecordingPen();
+  camp.backdrop.prop?.draw(fire, step);
+  const front = new RecordingPen();
+  camp.backdrop.drawFront(front, camX);
+  return { back, fire, front, blits: [...back.blits, ...front.blits] };
+}
+
+test("camp is one still screen, baked once when it is made, whatever the camera says", () => {
+  const { surfaces, backdrop } = made(createCampBackdrop);
+  assert.deepEqual(
+    surfaces.map((s) => [s.width, s.height]),
+    [
+      [VIEW_W, VIEW_H],
+      [VIEW_W, 8],
+    ],
+  );
+  for (const camX of [0, 90, -5, Number.NaN, Infinity, CAMERA_END_PX])
+    for (const step of [0, 31, 600]) {
+      const pen = new RecordingPen();
+      backdrop.draw(pen, camX, step);
+      backdrop.prop?.draw(pen, step);
+      backdrop.drawFront(pen, camX);
+      assert.deepEqual(
+        pen.blits.map((b) => [b.surface, b.sx, b.sy, b.dx, b.dy, b.sw, b.sh]),
+        [
+          [surfaces[0], 0, 0, 0, 0, VIEW_W, VIEW_H],
+          [surfaces[1], 0, 0, 0, VIEW_H - 8, VIEW_W, 8],
+        ],
+        `camX ${camX} step ${step}`,
+      );
+    }
+  assert.equal(surfaces.length, 2, "drawing baked nothing");
+  const covered = coverage(campFrame(0, 0).back.blits);
+  assert.equal(covered.indexOf(0), -1, `gap at pixel ${covered.indexOf(0)}`);
+});
+
+test("only camp has a fire among the figures, on its row at the back of the clearing", () => {
+  assert.equal(stage1().backdrop.prop, undefined);
+  assert.equal(
+    made((make) => createBackdrop(make, 2)).backdrop.prop,
+    undefined,
+  );
+  assert.equal(camp.backdrop.prop?.y, FIRE.y);
+  assert.ok(FIRE.y > FLOOR_TOP_PX && FIRE.y < VIEW_H);
+});
+
+test("camp's light and flames move with the frame alone, and only they move", () => {
+  const flames = new Set<string>(FLAME);
+  for (const step of [0, 30, 599]) {
+    const now = campFrame(0, step);
+    const later = campFrame(0, step + 7);
+    assert.deepEqual(now.blits, later.blits);
+    assert.deepEqual(now, campFrame(0, step), "the same frame draws the same");
+    // The back pass lays the flickering light on the ground; the flames and embers are the prop's.
+    assert.ok(now.back.fills.length > 0 && now.fire.fills.length > 0);
+    assert.notDeepEqual(now.back.fills, later.back.fills, `light ${step}`);
+    assert.notDeepEqual(now.fire.fills, later.fire.fills, `flames ${step}`);
+    for (const f of now.back.fills) {
+      assert.match(f.style, /^rgba\(255, 150, 60, 0\.\d{3}\)$/);
+      assert.ok(f.y > FLOOR_TOP_PX, "the light keeps to the floor");
+    }
+    for (const f of now.fire.fills) {
+      assert.ok(flames.has(f.style), f.style);
+      assert.ok(f.y + f.h <= FIRE.y, "nothing of the fire below its row");
+      assert.ok(Math.abs(f.x - FIRE.x) <= 12, "the flames stay over the pit");
+    }
+  }
+});
+
+test("camp draws nothing off the 320 × 180 screen, never throws, and leaves the pen's style", () => {
+  for (let step = -3; step < 400; step += 3) {
+    const { back, fire } = campFrame(0, step);
+    for (const f of [...back.fills, ...fire.fills]) {
+      const where = `step ${step}: ${JSON.stringify(f)}`;
+      assert.ok([f.x, f.y, f.w, f.h].every(Number.isInteger), where);
+      assert.ok(f.w > 0 && f.h > 0 && f.x >= 0 && f.y >= 0, where);
+      assert.ok(f.x + f.w <= VIEW_W && f.y + f.h <= VIEW_H, where);
+    }
+  }
+  for (const bad of [-1, -1000, Number.NaN, Infinity, -Infinity, 2 ** 40]) {
+    const pen = new RecordingPen();
+    pen.fillStyle = "#123456";
+    assert.doesNotThrow(() => {
+      camp.backdrop.draw(pen, bad, bad);
+      camp.backdrop.prop?.draw(pen, bad);
+      camp.backdrop.drawFront(pen, bad);
+    }, `step ${bad}`);
+    assert.equal(pen.fillStyle, "#123456", `step ${bad}`);
+    if (bad < 0 || !Number.isFinite(bad))
+      assert.deepEqual(campFrame(0, bad), campFrame(0, 0), `step ${bad}`);
+  }
 });

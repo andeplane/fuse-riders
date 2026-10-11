@@ -178,9 +178,10 @@ while an odd count is left; meat gives back `MEAT_HEAL` (15) hit points to a her
 its whole health, and one at full leaves it lying for another. Nothing at camp fights back, so no hero is hurt there,
 and Magic casts nothing (the pots are kept for the road). Camp is over (`campOver`) once every imp has come and gone
 and nothing is left on the floor, or after `CAMP_STEPS` (20 s) at most. The backdrop is a starry night clearing with
-a tree line, two tents and the packs, and a campfire whose flames and light flicker (`src/render/backdrop/camp.ts`).
+a tree line, two tents and the packs, and a campfire whose flames and light flicker (`src/render/backdrop/camp.ts`);
+the flames stand among the figures by depth, so a hero behind the fire is partly hidden by it.
 
-![Camp: Ironhide has just kicked a sack imp, which flees with its meat spilled by his feet](images/camp.png)
+![Camp: Ada, Ironhide and Flint by the fire as a sack imp sneaks in from the right](images/camp.png)
 
 ## Structure
 

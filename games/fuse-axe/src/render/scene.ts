@@ -53,7 +53,8 @@ import type { MakeSurface } from "./surface.js";
  * without art of its own draws Stage 1's, scrolled across the stage's longer or shorter road: `scenery`; camp its
  * night clearing, `backdrop/camp.ts`); every
  * figure's shadow on the floor; heroes, enemies, beasts and items on the floor by depth (further up the floor first,
- * then lower before higher, then by id), each flipped to its facing, an enemy flashing in hit-stop and blinking out when
+ * then lower before higher, then by id), camp's fire among them by its row (the backdrop's `prop`), each flipped to
+ * its facing, an enemy flashing in hit-stop and blinking out when
  * defeated, a beast's rider astride its saddle over it, a hero blinking while it is invulnerable and an item before it
  * vanishes; an ogre's shockwave cracking the
  * floor under the figures and bursting dust over them, and an enraged ogre's steam, drawn with it (`ogre-fx.ts`); the hit sparks; the
@@ -438,12 +439,19 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
         const top = crown(looks.get(hero.id)!.figure);
         spells.aura(field, hero, sx, y - z, top, frame);
       }
+      // Camp's fire stands among the figures: after those further up the floor, before those in front of it.
+      let prop = backdrop.prop;
       for (const { y, z, sx, sprite, options, lit, steam } of standing) {
+        if (prop && y > prop.y) {
+          prop.draw(field, frame);
+          prop = undefined;
+        }
         if (!lit) continue;
         const b = baker.bake(sprite, options);
         blit(field, b.image, b.w, b.h, sx - b.ax, y - z - b.ay);
         if (steam) drawSteam(field, steam.enemy, steam.crown, camX, frame);
       }
+      prop?.draw(field, frame);
       for (const { y, z, sx, marker } of standing) {
         if (!marker) continue;
         const { seat, crown } = marker;

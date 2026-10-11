@@ -2,7 +2,13 @@ import { cameraEndPx, VIEW_W } from "../../engine/view-kit.js";
 import { pixelSurface, type MakeSurface } from "../surface.js";
 import { ASHEN_VILLAGE } from "./ashen-village.js";
 import { CAMP_ART } from "./camp.js";
-import { Raster, type Brush, type LayerArt, type StageArt } from "./kit.js";
+import {
+  Raster,
+  type Brush,
+  type LayerArt,
+  type Prop,
+  type StageArt,
+} from "./kit.js";
 import { WYRMBONE_PASS } from "./wyrmbone-pass.js";
 
 /**
@@ -32,6 +38,11 @@ export interface Backdrop<S> {
   draw(pen: Pen<S>, camX: number, frame: number): void;
   /** The foreground in front of the heroes: call after them. */
   drawFront(pen: Pen<S>, camX: number): void;
+  /**
+   * What of it stands on the floor among the figures (camp's fire, `Prop`): draw it after those further up the floor
+   * than its row `y` and before the rest. Like `draw`, it leaves the pen's `fillStyle` as it was found.
+   */
+  readonly prop?: Prop;
 }
 
 /** The stages with art of their own, so far Ashen Village's and Wyrmbone Pass's. */
@@ -114,6 +125,7 @@ function fromArt<S>(
 ): Backdrop<S> {
   const back = art.back.map((layer) => bake(make, layer, end));
   const front = bake(make, art.front, end);
+  const prop = art.prop;
   return {
     draw(pen, camX, frame) {
       const cam = camera(camX, end);
@@ -125,5 +137,15 @@ function fromArt<S>(
     drawFront(pen, camX) {
       blit(pen, front, camera(camX, end));
     },
+    ...(prop && {
+      prop: {
+        y: prop.y,
+        draw(brush, frame) {
+          const style = brush.fillStyle;
+          prop.draw(brush, clock(frame));
+          brush.fillStyle = style;
+        },
+      },
+    }),
   };
 }
