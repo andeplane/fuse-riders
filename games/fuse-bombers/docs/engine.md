@@ -420,13 +420,27 @@ round, and too few gunships send the room back to its lobby.
   `encodeRound` refuses any other), `fuseTicks`, `maxTicks`, `maxHp`, gate and crate positions, the crowns, the match
   winner, `endAt` and `resumeAt`; `events` start empty.
 - `decode` returns a whole room or undefined and never throws. It checks every field's type and range; every list's
-  length against its cap before reading an item (rockets: `maxRockets` plus ghost bombs; a lineage: 64 gates); every
-  reference (owners, ids unique and below `nextId`, ghost bombs of a ghost, bot memory per `config.bots`, held keys
-  among the ships); the terrain against the temple (its size, no rock it lacked, exactly its indestructible rock); and
-  the parts against each other (the result against the survivors, the phase against the fuse, the round's seed, bots
-  and step count against the match, round and countdown). A worst case (1,500 rockets, 6,000 craters: 14k runs) is
-  130 KB of the 2 MB cap. `tests/online-checkpoint.test.ts` covers round trips at every stage, corruption field by
-  field, a seeded fuzz and a late joiner restoring from a peer's snapshot.
+  length against its cap before reading an item (rockets: `maxRockets` plus ghost bombs; a lineage: 64 gates), and
+  that no list has a hole; every reference (owners, ids unique and below `nextId`, ghost bombs of a ghost, bot memory
+  per `config.bots`, held keys among the ships); the terrain against the temple (its size, no rock it lacked, exactly
+  its indestructible rock); and the parts against each other (the result against the survivors, the phase against the
+  fuse, the round's seed, bots and step count against the match, round and countdown).
+- A range is one the engine keeps itself in, not a loose bound, so a hostile snapshot cannot park a value where the
+  fold misbehaves: castles, ghosts, gates, crates and bot waypoints are inside the world; a castle or ghost is under
+  twice its top speed; a rocket is where `isOffscreen` leaves it, its speed under 10,000 px/s; a gate drifts between
+  its ends, at most `gateDriftSpeed`, and lives at most `gateLife`; a rocket's power is at most the largest multiplier
+  to the power of the gates it passed (a lineage of 64 gates is 1e64, and `power` is how a few gates would carry a
+  loose bound to Infinity); a tally is under 2^30; each fallen castle has its ghost, and a bot flies a ghost only
+  after its castle fell; sudden-death bombs fall only in sudden death; an undecided round is under its time limit; a
+  timeout is decided on the last step the limit allows, for the survivor with most HP, a draw when the best are level;
+  and a match that was decided plays no further round (only its latest result may decide it). A value at the very edge
+  of a range can step out of it (a tally past 2^30, a lineage past 64): `decode` takes it, every peer folds it alike,
+  and only the checkpoint of the room after is refused, so that peer cannot serve a late joiner. Honest play is far from
+  every edge (a lineage is at most ~21).
+- A worst case (1,500 rockets, 6,000 craters: 14k runs) is 130 KB of the 2 MB cap. `tests/online-checkpoint.test.ts`
+  covers round trips at every stage and for rooms of 2 to 6 gunships, corruption field by field, each range at its edge
+  and just past it, an extreme in every field (refused, or folds on finite and checkpoints), a seeded fuzz and a late
+  joiner restoring from a peer's snapshot.
 - **This device** (`src/online/runtime.ts`, `BombersRuntime`): `input(bits)` logs the directions on change, and lets go
   of them when the page hides; `flush()`, which the app calls with every frame it renders, logs them again for a new
   round or match and after a resync or an absence. `fire()` logs a `PRESS` with the next ordinal (it only rises along

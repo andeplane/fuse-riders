@@ -224,9 +224,12 @@ test("settings are exactly their three own keys, each of its type and range", ()
   assert.deepEqual(parseSettings(ok), ok);
   const inherited = Object.create({ display: true }) as object;
   Object.assign(inherited, { wins: 3, difficulty: "easy", show: true });
+  // Two own keys whose names joined read as the three: the other two are inherited, which is not a setting.
+  const joined = Object.create({ difficulty: "easy", display: true }) as object;
+  Object.assign(joined, { "difficulty,display": 1, wins: 3 });
   // prettier-ignore
   for (const bad of [{ ...ok, extra: 1 }, { wins: 3, difficulty: "easy" }, { ...ok, wins: 0 }, { ...ok, wins: 10 },
-    { ...ok, wins: 2.5 }, { ...ok, wins: "3" }, { ...ok, difficulty: "x" }, { ...ok, display: 1 }, inherited,
+    { ...ok, wins: 2.5 }, { ...ok, wins: "3" }, { ...ok, difficulty: "x" }, { ...ok, display: 1 }, inherited, joined,
     [3, "easy", true], null, "settings"])
     assert.equal(parseSettings(bad), undefined, JSON.stringify(bad));
 });

@@ -59,11 +59,14 @@ export const DEFAULT_SETTINGS: Settings = {
   difficulty: "normal",
   display: false,
 };
-const SETTING_KEYS = ["difficulty", "display", "wins"].join();
+const SETTING_KEYS = ["difficulty", "display", "wins"];
 /** The settings a log entry carries, exactly (these three own keys and no other); anything else is refused. */
 export function parseSettings(raw: unknown): Settings | undefined {
   if (raw === null || typeof raw !== "object") return;
-  if (Object.keys(raw).sort().join() !== SETTING_KEYS) return;
+  // Key by key: a joined string cannot tell two keys from one that holds a comma.
+  const keys = Object.keys(raw);
+  if (keys.length !== SETTING_KEYS.length) return;
+  if (!SETTING_KEYS.every((key) => keys.includes(key))) return;
   const { wins, difficulty, display } = raw as Record<string, unknown>;
   const level = BOT_DIFFICULTIES.find((d) => d === difficulty);
   if (uint32(wins) && wins >= 1 && wins <= MAX_WINS && level)
@@ -297,7 +300,12 @@ function inputs(
 }
 
 /** The match winner once its latest round decides it ("" when nobody won a round); undefined while it plays on. */
-function verdict({ wins, results, round, play }: Room): string | undefined {
+function verdict({
+  wins,
+  results,
+  round,
+  play,
+}: Pick<Room, "wins" | "results" | "round" | "play">): string | undefined {
   const winner = results.at(-1)?.winner ?? "";
   const crowned = winner !== "" && wins[winner]! >= play.wins;
   if (!crowned && round < maxRounds(play)) return;
@@ -367,6 +375,11 @@ export const hash = (room: Room): string =>
 
 // ---- checkpoint ----
 const STAGES: readonly Stage[] = ["lobby", "running", "between", "over"];
+/** An array of at most `max` items without holes (MessagePack makes none, but `decode` can be handed a value from anywhere). */
+const list = (raw: unknown, max: number): raw is unknown[] =>
+  Array.isArray(raw) &&
+  raw.length <= max &&
+  Object.keys(raw).length === raw.length;
 // prettier-ignore
 const SEAT_KEYS = new Set(["id", "name", "slot", "avatarId", "connected", "bot", "watcher", "generation", "away"]);
 
@@ -444,16 +457,12 @@ export function decode(
     !play ||
     round > maxRounds(play) ||
     !uint32(startAt) ||
-    !Array.isArray(rawSeats) ||
-    rawSeats.length > CAPACITY + MAX_WATCHERS ||
-    !Array.isArray(rawResults) ||
-    rawResults.length > round ||
-    !Array.isArray(ships) ||
-    ships.length > CAPACITY ||
+    !list(rawSeats, CAPACITY + MAX_WATCHERS) ||
+    !list(rawResults, round) ||
+    !list(ships, CAPACITY) ||
     !ships.every(names.playerKey) ||
     new Set(ships).size !== ships.length ||
-    !Array.isArray(rawHeld) ||
-    rawHeld.length > ships.length
+    !list(rawHeld, ships.length)
   )
     return;
   const seats = new Map<string, SeatRecord>();
@@ -466,23 +475,28 @@ export function decode(
   }
   const watchers = [...seats.values()].filter((seat) => seat.watcher);
   if (watchers.length > MAX_WATCHERS) return;
-  // Round by round from the first; the crowns are counted from them.
+  // Round by round from the first; the crowns are counted from them. A decided match plays no further round, so only
+  // the latest result of a match that is over or between rounds may decide it (the checks below say which).
   const results: RoundRecord[] = [],
     wins: Record<string, number> = {};
   for (const [i, raw] of rawResults.entries()) {
-    if (!Array.isArray(raw) || raw.length !== 3) return;
-    const [number, winner, reason] = raw as unknown[];
+    if (!list(raw, 3) || raw.length !== 3) return;
+    const [number, winner, reason] = raw;
     const kind = ROUND_REASONS.find((r) => r === reason);
     if (number !== i + 1 || !kind || typeof winner !== "string") return;
     if (winner !== "" && !names.playerKey(winner)) return;
     results.push({ round: i + 1, winner, reason: kind });
     if (winner) wins[winner] = (wins[winner] ?? 0) + 1;
+    const latest = i === rawResults.length - 1 && stage !== "running";
+    if (!latest && verdict({ wins, results, round: i + 1, play }) !== undefined)
+      return;
   }
   // Only the round's gunships hold directions, and only while they hold some.
   const held: Record<string, number> = {};
   for (const pair of rawHeld) {
-    const [id, bits, ...rest] = Array.isArray(pair) ? (pair as unknown[]) : [];
-    if (typeof id !== "string" || !ships.includes(id) || rest.length) return;
+    if (!list(pair, 2) || pair.length !== 2) return;
+    const [id, bits] = pair;
+    if (typeof id !== "string" || !ships.includes(id)) return;
     if (Object.hasOwn(held, id) || !uint32(bits) || !bits) return;
     if (bits > DIRECTIONS) return;
     held[id] = bits;
