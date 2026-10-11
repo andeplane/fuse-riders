@@ -1,15 +1,14 @@
 import { SIGIL } from "../engine/view-kit.js";
-import type { EnemyView, SigilView } from "../engine/view.js";
+import type { SigilView } from "../engine/view.js";
 import { fill, type Pen } from "./pen.js";
-import { MASTER, UNLIT } from "./pixel/palette.js";
-import type { Point } from "./pixel/rig.js";
+import { UNLIT } from "./pixel/palette.js";
 
 /**
- * Vorhal's fire spell and horns until he has art of his own. A sigil glows on the floor as a ring of ember that blinks
- * faster as its eruption nears (`drawSigils`, under the figures); its pillar of fire rises from the floor in bands, a
- * dark ember rim round orange, gold and a white-hot core, licking with the 60 Hz frame (`drawPillars`, over them). His
- * horns curl up either side of the ogre figure's skull (`drawHorns`). Pure functions of the view, the camera and the
- * frame; an odd age or position draws nothing amiss, and nothing lands off screen (`pen.ts`).
+ * Vorhal's fire spell until it has art of its own. A sigil glows on the floor as a ring of ember that blinks faster as
+ * its eruption nears (`drawSigils`, under the figures); its pillar of fire rises from the floor in bands, a dark ember
+ * rim round orange, gold and a white-hot core, licking with the 60 Hz frame (`drawPillars`, over them). Pure functions
+ * of the view, the camera and the frame; an odd age or position draws nothing amiss, and nothing lands off screen
+ * (`pen.ts`).
  */
 export const PILLAR_H = 72;
 const RING = [
@@ -62,24 +61,5 @@ export function drawPillars<Image>(
       const half = SIGIL.half - inset;
       fill(pen, sx - half + lick, sy - h + inset, 2 * half, h - inset);
     }
-  }
-}
-
-/** Vorhal's horns either side of the top of his skull (`crown`, from his feet facing right). */
-export function drawHorns<Image>(
-  pen: Pen<Image>,
-  enemy: EnemyView,
-  [cx, cy]: Point,
-  camX: number,
-): void {
-  const sx = Math.floor(enemy.x - camX) + enemy.facing * cx,
-    sy = Math.floor(enemy.y) - Math.floor(enemy.z) + cy;
-  for (const side of [-1, 1]) {
-    const x = sx + side * 4;
-    pen.fillStyle = UNLIT.k!;
-    fill(pen, x - 1, sy - 4, 3, 6);
-    pen.fillStyle = MASTER.B!;
-    fill(pen, x, sy - 1, 1, 3);
-    fill(pen, x + side, sy - 3, 1, 2);
   }
 }

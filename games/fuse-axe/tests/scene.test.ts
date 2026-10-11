@@ -78,8 +78,8 @@ import {
   OGRE_CROWNS,
   OGRE_RAGE,
   OGRE_TIERS,
-  type OgreFrame,
 } from "../src/render/art/ogre.js";
+import { VORHAL, VORHAL_RAGE } from "../src/render/art/vorhal.js";
 import { MEAT } from "../src/render/art/meat.js";
 import { POT } from "../src/render/art/pot.js";
 import {
@@ -98,6 +98,7 @@ import {
   CRYPT_END,
   CRYPT_LENGTH,
 } from "../src/render/backdrop/drowned-crypt.js";
+import { KEEP_END, KEEP_LENGTH } from "../src/render/backdrop/vorhals-keep.js";
 import { BLINK_FRAMES } from "../src/render/hud.js";
 import type { Pen } from "../src/render/pen.js";
 import {
@@ -119,7 +120,7 @@ import {
   SHADOW_RX,
 } from "../src/render/scene.js";
 import { SEAT_COLORS } from "../src/render/seat-colors.js";
-import { MASTER, UNLIT } from "../src/render/pixel/palette.js";
+import { UNLIT } from "../src/render/pixel/palette.js";
 import { drawSpark, HIT_STEPS } from "../src/render/sparks.js";
 import {
   paintPixels,
@@ -1188,7 +1189,7 @@ test("the backdrop painted through a plain surface matches its pixel buffers exa
 test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage without art Stage 1's, and no stage throws", () => {
   const layers = (view: WorldView) =>
     draw(view).pen.blits.filter((b) => b.image.w >= VIEW_W);
-  for (const stage of [2, 3, 4, 0, -1, 1.5, Number.NaN])
+  for (const stage of [2, 3, 4, 5, 0, -1, 1.5, Number.NaN])
     assert.doesNotThrow(() => draw(world({ stage, camX: 100 })), `${stage}`);
   // Its road is the stage's whole length, scrolled with the floor out to the skull gate.
   const end = cameraEndPx(2);
@@ -1202,9 +1203,25 @@ test("Wyrmbone Pass draws its own backdrop at the camera as it is, a stage witho
   assert.deepEqual(scenery(2, 700), { art: 2, camX: 700 });
   assert.deepEqual(scenery(1, 500), { art: 1, camX: 500 });
   assert.deepEqual(scenery(5, 500), { art: 1, camX: 500 }, "an unknown one");
-  // Vorhal's Keep has no art yet: Stage 1's, run out over its longer road.
-  assert.deepEqual(scenery(4, 1280), { art: 1, camX: 960 });
-  assert.deepEqual(layers(world({ stage: 4 })), layers(world({ stage: 1 })));
+  assert.deepEqual(layers(world({ stage: 5 })), layers(world({ stage: 1 })));
+});
+
+test("Stage 4 draws Vorhal's Keep at the camera as it is, out to the throne room, not Stage 1's village", () => {
+  const layers = (stage: number, camX = 0) =>
+    draw(world({ stage, camX })).pen.blits.filter((b) => b.image.w >= VIEW_W);
+  const road = (camX: number) =>
+    layers(4, camX).find((b) => b.image.w === stageLengthPx(4));
+  assert.equal(road(0)?.sx, 0);
+  assert.equal(road(KEEP_END)?.sx, KEEP_END);
+  const images = (stage: number) => layers(stage).map((b) => b.image);
+  for (const other of [1, 2, 3]) {
+    const theirs = new Set(images(other));
+    assert.ok(
+      images(4).every((image) => !theirs.has(image)),
+      `${other}`,
+    );
+  }
+  assert.deepEqual(scenery(4, KEEP_END), { art: 4, camX: KEEP_END });
 });
 
 test("Stage 3 draws the Drowned Crypt at the camera as it is, out to its great doors", () => {
@@ -1234,6 +1251,12 @@ test("every stage's backdrop is baked with the scene, so no frame stalls baking 
       images.some((image) => image.w === length),
       `a ${length} px road`,
     );
+  // Wyrmbone Pass's, the crypt's and the keep's roads are all five screens long: three of that width.
+  assert.equal(
+    images.filter((image) => image.w === KEEP_LENGTH).length,
+    3,
+    "the keep's road is baked with the scene",
+  );
   for (const stage of [1, 2, 3, 4, 3, 2, 1, Number.NaN])
     draw(world({ stage, camX: 100 }), 0, scene);
   assert.equal(wide(), baked, "drawing a stage baked a layer");
@@ -1377,29 +1400,27 @@ test("the captain draws from his own art in his own colours, and in the saddle d
       assert.ok(ridden(anim, animStep).length >= 2, `${anim} ${animStep}`);
 });
 
-test("Vorhal draws as a horned dark ogre in every anim, his sigils glow on the floor and their pillars burn over the figures, and nothing throws", () => {
+test("Vorhal draws as his own figure in every anim, burning red enraged; his sigils glow on the floor and their pillars burn over the figures, and nothing throws", () => {
   const vorhal = (more: Partial<EnemyView> = {}) =>
     enemy(3, 200, 150, { kind: "vorhal", boss: true, ...more });
-  const horns = (view: WorldView) =>
-    draw(view).pen.fills.filter((f) => f.style === MASTER.B).length;
   for (const anim of ENEMY_STATES)
     for (const animStep of [0, 30, 1e9, -3, 2.5, Number.NaN])
       assert.doesNotThrow(
         () => draw(world({ enemies: [vorhal({ anim, animStep })] })),
         `${anim} ${animStep}`,
       );
-  // His figure is the ogre's in his own palette, with horns; enraged, crimson.
-  assert.deepEqual(
-    draw(world({ enemies: [vorhal()] })).sprites[0]!.image.fills,
-    fillsOf(OGRE.sprite(enemyFrame("vorhal", "idle", 0) as OgreFrame), {
-      swap: ENEMY_ART.vorhal.tiers[0],
-      flash: false,
-      flip: false,
-    }),
-  );
-  assert.ok(horns(world({ enemies: [vorhal()] })) >= 4);
-  assert.equal(horns(world({ enemies: [vorhal({ kind: "ogre" })] })), 0);
-  assert.notDeepEqual(ENEMY_ART.vorhal.rage!.tiers[0], ENEMY_ART.vorhal.tiers[0]); // prettier-ignore
+  // Enraged he burns but does not steam as an ogre does (nothing rises from his helm), and fallen he stands as before.
+  for (const anim of ["idle", "windup", "cut1", "dead"] as const) {
+    const drawn = (enraged: boolean) =>
+      draw(world({ enemies: [vorhal({ enraged, anim, animStep: 5 })] }), 7).pen.fills; // prettier-ignore
+    assert.deepEqual(drawn(true), drawn(false), anim);
+  }
+  // His own figure, burning red enraged.
+  for (const enraged of [false, true])
+    assert.deepEqual(
+      draw(world({ enemies: [vorhal({ enraged, anim: "cast", animStep: 30 })] })).sprites[0]!.image.fills, // prettier-ignore
+      fillsOf(VORHAL.sprite("cast"), { swap: enraged ? VORHAL_RAGE : undefined, flash: false, flip: false }), // prettier-ignore
+    );
   // A sigil glows until its pillar erupts, which burns white-hot for its steps, then nothing is left.
   const fire = (age: number, colour: string, frame = 0) =>
     draw(world({ sigils: [{ x: 160, y: 140, age }] }), frame).pen.fills.filter(
