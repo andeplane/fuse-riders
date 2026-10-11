@@ -129,12 +129,19 @@ const winding = (mount: MountView) =>
   Math.floor(mount.animStep / TELEGRAPH) % 2 === 0;
 const mountArt = (kind: MountKind) =>
   Object.hasOwn(MOUNT_ART, kind) ? MOUNT_ART[kind] : MOUNT_ART.clawbeak;
-/** The rows the saddle under enemy `id` dips in its beast's frame: none for one whose beast is not in the view. */
-function saddleDip(mounts: readonly MountView[], id: number): number {
+/**
+ * The rows the saddle under rider `id` (of `kind`) dips in its beast's frame, or undefined for one whose beast is not in
+ * the view: it keeps its own height and shadow, rather than hanging in the air shadowless.
+ */
+function saddleDip(
+  mounts: readonly MountView[],
+  kind: "hero" | "enemy",
+  id: number,
+): number | undefined {
   const mount = mounts.find(
-    (each) => each.rider?.kind === "enemy" && each.rider.id === id,
+    (each) => each.rider?.kind === kind && each.rider.id === id,
   );
-  if (!mount) return 0;
+  if (!mount) return undefined;
   const frame = mountFrame(mount.kind, mount.anim, mount.animStep);
   return mountArt(mount.kind).dips[frame] ?? 0;
 }
@@ -372,6 +379,9 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
           ? ENEMY_ART[enemy.kind]
           : ENEMY_ART.ravager;
         const pose = enemyFrame(enemy.kind, enemy.anim, enemy.animStep);
+        const dip = enemy.mounted
+          ? saddleDip(view.mounts, "enemy", enemy.id)
+          : undefined;
         // An enraged ogre burns in its rage palette and steams, unless it has fallen.
         const rage = enemy.enraged ? art.rage : undefined;
         const crown = rage?.crowns[pose];
@@ -389,10 +399,7 @@ export function createScene<Image>(make: MakeSurface<Image>): Scene<Image> {
             shade: Math.round(shadowRadius(enemy.z) * art.shade),
           }),
           // A rider sits on its beast's saddle, sinking as it dips, in its shadow.
-          ...(enemy.mounted && {
-            z: Math.floor(enemy.z) - saddleDip(view.mounts, enemy.id),
-            shade: 0,
-          }),
+          ...(dip !== undefined && { z: Math.floor(enemy.z) - dip, shade: 0 }),
         });
       }
       // Items lie among the figures, a pot in its last moments blinking as an invulnerable hero does.
