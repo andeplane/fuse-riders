@@ -2,6 +2,7 @@ import type Phaser from "phaser";
 import type { CellRect, TerrainView, TickEvent } from "../engine/index.js";
 import type { Theme } from "./palette.js";
 import {
+  changedRect,
   clampRect,
   paintCells,
   repaintRect,
@@ -23,6 +24,7 @@ export class TerrainLayer {
   private readonly image: Phaser.GameObjects.Image;
   private palette: TerrainPalette | null = null;
   private version = -1;
+  private painted: TerrainView | null = null;
 
   constructor(
     private readonly scene: Phaser.Scene,
@@ -47,13 +49,23 @@ export class TerrainLayer {
     this.palette = terrainPalette(theme, grid.rows);
     this.paint(grid, { col0: 0, row0: 0, col1: grid.cols, row1: grid.rows });
     this.version = grid.version;
+    this.painted = grid;
     texture.refresh();
   }
 
   /** Repaints what this frame's `crater` events changed; everything if the grid changed some other way. */
   update(grid: TerrainView, events: readonly TickEvent[]): void {
-    const texture = this.texture;
-    if (!texture || grid.version === this.version) return;
+    const texture = this.texture,
+      before = this.painted;
+    if (!texture || (grid === before && grid.version === this.version)) return;
+    this.painted = grid;
+    if (before && grid !== before) {
+      // A frame's copy, not the live grid (online; a rollback's may differ at one version): repaint what differs.
+      const rect = changedRect(before, grid);
+      if (rect) this.paint(grid, repaintRect(rect));
+      this.version = grid.version;
+      return void (rect && texture.refresh());
+    }
     let carves = 0;
     for (const e of events) {
       if (e.type !== "crater") continue;

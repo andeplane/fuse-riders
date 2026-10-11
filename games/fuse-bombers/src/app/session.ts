@@ -11,10 +11,7 @@ export const keys = (gameId: string) => ({
   peer: (code: string) => `${gameId}-peer-${code}`,
 });
 
-/**
- * Where this page is: the landing card, the local lobby on this screen, a match against bots, or a room with the
- * member token this page connects with (the shared TV comes later).
- */
+/** Where this page is: the landing, the local lobby, a match against bots, or a room with this page's member token. */
 export type Session =
   | { kind: "landing" }
   | { kind: "local" }
@@ -22,13 +19,10 @@ export type Session =
   | { kind: "invalid"; code: string }
   | { kind: "room"; code: string; token: string };
 
-/** `?local`, or a debug flag of the local game (main.ts), opens the lobby on this screen. */
+/** `?local`, or without a room a debug flag of the local game (main.ts), opens the lobby on this screen. */
 const LOCAL_FLAGS = ["local", "seed", "speed", "debug", "touch", "inputdebug"];
 
-/**
- * Reads the page's query. CREATE ROOM stores the creator's token under the room's code, so this browser connects as
- * its creator; a joiner keeps one token per room, so a refresh is the same member.
- */
+/** Reads the query. CREATE ROOM stored the creator's token; a joiner keeps one per room, so a reload is the same member. */
 export function sessionFor(
   search: string,
   store: Store,
@@ -37,10 +31,11 @@ export function sessionFor(
   secret: () => string,
 ): Session {
   const query = new URLSearchParams(search);
-  if (LOCAL_FLAGS.some((flag) => query.has(flag))) return { kind: "local" };
+  const local = LOCAL_FLAGS.some((flag) => query.has(flag));
+  if (query.has("local")) return { kind: "local" };
   if (query.get("solo") === "1") return { kind: "solo" };
   const code = query.get("room")?.trim().toUpperCase();
-  if (code === undefined) return { kind: "landing" };
+  if (code === undefined) return { kind: local ? "local" : "landing" };
   if (!valid(code)) return { kind: "invalid", code };
   const names = keys(gameId);
   let token =

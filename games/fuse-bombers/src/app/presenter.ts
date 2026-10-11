@@ -13,10 +13,8 @@ export interface Viewer {
   me: string;
   /** This page runs the room (its creator or stand-in, or a solo match). */
   host: boolean;
-  /** The room's creator is here. */
-  hostPresent: boolean;
-  /** Touch pads rather than keys. */
-  touch: boolean;
+  hostPresent: boolean; // the room's creator is here
+  touch: boolean; // touch pads rather than keys
 }
 /** What `present` decides; `online.ts` puts it on the page. */
 export type Model = ReturnType<typeof present>;
@@ -106,6 +104,7 @@ export function present(view: View, viewer: Viewer) {
     }
   }
 
+  const few = players.length < MIN_PLAYERS;
   const notes: [boolean, string][] = [
     [!viewer.hostPresent, "The host left: the room plays on without them"],
     [!mine, "Pick a name to take a seat"],
@@ -113,8 +112,8 @@ export function present(view: View, viewer: Viewer) {
     [running && follow === undefined, "You fly from the next round"],
     [screen === "lobby" && !viewer.host, "Waiting for the host to start"],
     [
-      screen === "lobby" && players.length < MIN_PLAYERS,
-      "Two gunships start a match: invite a friend or add a bot",
+      screen === "lobby" && few,
+      "Two gunships start: invite a friend or add a bot",
     ],
   ];
   const note = notes.find(([when]) => when)?.[1] ?? "";
@@ -124,15 +123,12 @@ export function present(view: View, viewer: Viewer) {
     members,
     host: viewer.host,
     canAddBot: viewer.host && players.length < CAPACITY,
-    canStart: viewer.host && players.length >= MIN_PLAYERS,
+    canStart: viewer.host && !few,
     note,
-    /** The HTML over the round (screens.ts). */
-    overlay,
-    /** How the scene draws each gunship, by castle id; `follow` is this device's. */
-    looks,
+    overlay, // over the round (screens.ts)
+    looks, // how the scene draws each gunship, by castle id; `follow` is this device's
     follow,
-    /** This device flies its gunship or ghost in the running round. */
-    flying,
+    flying, // this device flies its gunship (or ghost) in the running round
   };
 }
 
@@ -141,7 +137,7 @@ export type Trouble = "full" | "desync" | "fatal" | "retry" | "";
 const RETRY = /retrying|interrupted|recovering|waiting for the game|could not/i;
 const FATAL = /reload this page|replaced|start a new room|room ended/i;
 export function trouble(text: string): Trouble {
-  if (/^room (is )?full$/i.test(text)) return "full";
+  if (/^room full\b/i.test(text)) return "full"; // the service closed a full room to us
   if (/out of sync/i.test(text)) return "desync";
   return RETRY.test(text) ? "retry" : FATAL.test(text) ? "fatal" : "";
 }

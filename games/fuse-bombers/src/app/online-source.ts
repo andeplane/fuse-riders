@@ -13,11 +13,8 @@ const slide = <T extends { x: number; y: number }>(
   t: number,
 ): T => (a ? { ...b, x: mix(a.x, b.x, t), y: mix(a.y, b.y, t) } : b);
 
-/**
- * A round `t` (0–1) of the way from `older` to `newer`, two frames of it: gunships, launchers (the short way round),
- * ghosts and rockets slide, and the clock is fractional (gates and crates move by it); the rest, terrain included, is
- * `newer`'s. Frames of two rounds are not blended.
- */
+/** A round `t` (0–1) from `older` to `newer`: ships, launchers (the short way round) and rockets slide, the clock is
+ * fractional (gates and crates move by it), the rest is `newer`'s. Frames of two rounds are not blended. */
 export function blendRound(
   older: RoundView | null | undefined,
   newer: RoundView,
@@ -42,11 +39,8 @@ export function blendRound(
   };
 }
 
-/**
- * The round scene's source online, with no simulation of its own: each animation frame it draws the runtime's two
- * newest frames blended to the presentation tick (`frameTiming`), and hands on the events the runtime delivered
- * since, those of the round it shows. `follow` is this device's gunship.
- */
+/** The round scene's source online, no simulation of its own: the runtime's newest frames blended to the presentation
+ * tick, and the events delivered since for the round it shows. `follow` is this device's gunship. */
 export class OnlineSource implements RoundSource {
   round = "";
   follow: number | undefined;

@@ -11,12 +11,11 @@ button at the top left of every Fuse game's lobby): online in rooms, solo agains
 
 ## Play online
 
-The first page offers CREATE ROOM, JOIN with a code (or a `?room=CODE` link), SOLO VS BOTS and EVERYONE AT THIS
-SCREEN (the local lobby, also `?local`). In a room each device flies its own gunship with WASD and Space, a gamepad or
-the touch pad, and its camera follows it. The host adds bots, sets the rounds to win and the bots' level, and starts
-at two gunships; at the end it picks a rematch or the lobby. Locally: `pnpm build`, `pnpm exec tsx service/dev.ts`,
-then `/fuse-bombers/?mute` in two browsers. Until the checkpoint codec lands, only a room's creator can load it (a
-joiner stays on CONNECTING); the shared TV with phones as controllers comes next.
+The first page offers CREATE ROOM, JOIN by code (or `?room=CODE`), SOLO VS BOTS and EVERYONE AT THIS SCREEN (the
+local lobby, also `?local`). In a room each device flies its own gunship (WASD and Space, a gamepad or the touch pad)
+and its camera follows it; the host adds bots, sets rounds to win and bot level, and starts at two gunships. Run it
+with `pnpm build` and `pnpm exec tsx service/dev.ts`. Until the checkpoint codec lands only a room's creator can load
+it (a joiner stays on CONNECTING); the shared TV with phones as controllers comes next.
 
 ## How to play
 
@@ -142,7 +141,8 @@ From the shared packages it takes the neon tokens (`fuse-ui/tokens.css`), the ap
 music catalogue (`fuse-ui/assets`). Its music, the crate and the fuse's flame and bomb are the site root's shared
 `public/` files (`music/`, `props/desert-industrial-v1/`, `themes/clean-neon/`), loaded through
 `import.meta.env.BASE_URL`; everything else is drawn in code, and sound effects are synthesized. Its
-`src/platform.ts` registers it with the room service for admission only; it has no accounts and reports no results. The portal sits in the lobby's top-left corner and hides once a match starts:
+`src/platform.ts` registers it with the room service for admission only; it has no accounts and reports no results. The
+portal sits in the lobby's top-left corner and hides once a match starts:
 
 ![The lobby with the app portal open, listing every Fuse game with Fuse Bombers marked as this one](docs/images/portal.png)
 

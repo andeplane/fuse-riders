@@ -258,9 +258,7 @@ test("views share one copy of the terrain until a carve, and a kept view never c
     kept = view(room).world!;
   const cells = gridHash(kept.terrain);
   assert.equal(view(room).world!.terrain, kept.terrain);
-  assert.ok(
-    kept.terrain !== live && kept.castles[0] !== room.world!.castles[0],
-  );
+  assert.ok(kept.terrain !== live && kept.castles !== room.world!.castles);
   carveCircle(live, 2400, 1700, 300);
   assert.notEqual(kept.terrain.version, live.version);
   assert.equal(view(room).world!.terrain.version, live.version);

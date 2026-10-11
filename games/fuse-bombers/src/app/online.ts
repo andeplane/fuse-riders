@@ -32,7 +32,8 @@ const endpoints = net.createEndpoints(
   location.origin,
 );
 const names = keys(GAME);
-const muted = new URLSearchParams(location.search).has("mute");
+const flags = new URLSearchParams(location.search),
+  muted = flags.has("mute");
 /** A page of this game, keeping `?mute`. */
 const link = (query = "") =>
   endpoints.appUrl(
@@ -98,14 +99,13 @@ export function showRoom(
 ): void {
   const solo = session.kind === "solo",
     code = solo ? "SOLO" : session.code;
-  const input = createBrowserInput(window);
+  const input = createBrowserInput(window, { forceTouch: flags.has("touch") });
   const touch = input.touchEnabled;
   const viewer: Viewer = { me: "", host: solo, hostPresent: true, touch };
   let settings = DEFAULT_SETTINGS,
     dead = false;
 
-  // ---- the page: the bar, a card for connecting and dead ends, the name form, the lobby and the round overlay ----
-  const status = ui.createNotice({ className: "fb-status" }),
+  const status = ui.createNotice({ className: "fui-notice fb-status" }),
     leave = button(solo ? "EXIT" : "LEAVE"),
     card = el("section", "", "fb-card"),
     cardTitle = el("h2", "CONNECTING", "fui-lobby-title"),
@@ -123,6 +123,7 @@ export function showRoom(
     buttonText: "JOIN",
     onSubmit: (name) => runtime.command({ type: "join", name }),
   });
+  // The host cycles the settings as in the local lobby: rounds to win 1–9; bots easy, normal, hard.
   const lobby = el("section", "", "fb-lobby"),
     pilots = el("div"),
     match = el("div"),
@@ -130,7 +131,6 @@ export function showRoom(
     addBot = button("+ ADD BOT"),
     start = button("START", "fui-button-primary"),
     note = el("p", "", "fui-lobby-note"),
-    // The settings cycle as the local lobby's do (the host's to change): rounds to win 1–9; bots easy, normal, hard.
     wins = button(""),
     level = button(""),
     set = (change: Partial<typeof settings>) =>
@@ -142,7 +142,7 @@ export function showRoom(
   start.onclick = () => runtime.command({ type: "action", action: "start" });
   wins.onclick = () => set({ wins: (settings.wins % MAX_WINS) + 1 });
   level.onclick = () => set({ difficulty: after(LEVELS, settings.difficulty) });
-  match.append(el("h2", "MATCH", "fui-lobby-title"), wins, level, note, start);
+  match.append(el("h2", "MATCH", "fui-lobby-title"), wins, level, start);
   if (!solo)
     pilots.append(
       ui.createInviteCard({
@@ -153,13 +153,14 @@ export function showRoom(
     );
   pilots.append(el("h2", "PILOTS", "fui-lobby-title"), roster.element, addBot);
   lobby.append(pilots, match);
-  const bar = page(card, nameEntry.form, lobby);
+  const bar = page(card, nameEntry.form, note, lobby);
   bar.append(el("strong", code), status.element, leave);
   const root = bar.parentElement!;
   root.dataset.screen = "card";
   // The round's overlay (badges, countdown, results) over the canvas, laid out by screens.css as the local game's.
   const overlay = el("div");
   overlay.id = "screen";
+  if (touch) overlay.dataset.touch = ""; // screens.css moves the HUD clear of the pads
   document.body.append(overlay);
   audio.mountToggle(); // After `#screen`, so screens.css hides it mid-round.
   overlay.addEventListener("click", (event) => {
@@ -214,6 +215,7 @@ export function showRoom(
     start.hidden = !next.host;
     start.disabled = !next.canStart;
     note.textContent = next.note;
+    note.hidden = !next.note;
     wins.textContent = `ROUNDS TO WIN: ${settings.wins}`;
     level.textContent = `BOTS: ${settings.difficulty.toUpperCase()}`;
     wins.disabled = level.disabled = !next.host;
@@ -224,7 +226,6 @@ export function showRoom(
     if (next.screen !== root.dataset.music) {
       root.dataset.music = next.screen;
       if (next.screen === "lobby") audio.music("lobby");
-      if (next.screen === "over") audio.music("victory");
     }
   };
 
@@ -256,8 +257,7 @@ export function showRoom(
         deadEnd("OUT OF SYNC", "This page lost step with the room: rejoin.");
       else if (kind === "fatal") deadEnd("CANNOT PLAY HERE", text);
       else {
-        status.show(text, kind === "retry" ? "warn" : "info");
-        root.dataset.trouble = kind;
+        status.show(text, kind === "retry" ? "error" : "info"); // retrying: pink
       }
     },
     ready(id) {
@@ -282,13 +282,12 @@ export function showRoom(
             }),
         },
   );
-  // One gunship: the first keyboard cluster (WASD, Space), the touch pad and gamepads fly it. A fire press fires at
-  // once; each frame the room gets the directions they hold together.
+  // WASD and Space, the touch pad and gamepads fly this device's gunship: presses fire at once, holds steer each frame.
   const flies = (device: DeviceId) =>
     device === "key:WASD" || !device.startsWith("key:");
   const pads = [0, 1, 2, 3].map((i): DeviceId => `pad:${i}`);
   const steering: DeviceId[] = ["key:WASD", "touch:0", ...pads];
-  input.hub.onPress((device) => flies(device) && runtime.fire());
+  input.hub.onPress((device) => !dead && flies(device) && runtime.fire());
   const poll = () => {
     if (dead) return;
     input.hub.poll();

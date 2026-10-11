@@ -34,8 +34,7 @@ const session = sessionFor(
 /**
  * Boots the game: the Phaser round scene fills the window and the match flow's DOM screens sit on top.
  * Debug flags: `?seed=N` fixes the matches, `?speed=N` runs everything N times as fast, `?touch` forces the touch
- * pads, `?debug` exposes `window.fuseBombers = { game, flow, audio }` for browser tests. `?mute` silences audio. A room
- * (`?room=CODE`, or `?solo=1` against bots) draws the same scene from `online.ts`.
+ * pads, `?debug` exposes `window.fuseBombers = { game, flow, audio }` for browser tests. `?mute` silences audio.
  */
 async function boot(): Promise<void> {
   // Phaser rasterises text once, so the pixel font must be ready before the first scene draws.
@@ -117,7 +116,6 @@ function mountPortal(): AppPortal {
   return portal;
 }
 
-// `?local` (or a debug flag above) is the lobby on this screen, `?room=CODE` a room, `?solo=1` bots; else the landing.
 if (session.kind === "landing") showLanding(store);
 else if (session.kind === "invalid")
   showLanding(store, `${session.code} is not a room code`);
