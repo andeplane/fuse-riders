@@ -126,6 +126,7 @@ test("a freezer doubles what a fridge keeps, and the rest goes off", () => {
   const { a, b } = monday(3, (room) => {
     for (const player of [room.players.a!, room.players.b!]) {
       player.home = 1;
+      player.meal = 0; // groceries are this week's food (a meal out would leave them)
       player.groceries = 20;
       player.happiness = 10;
       player.durables.fridge = { n: 1, paid: 876, cheap: false };
