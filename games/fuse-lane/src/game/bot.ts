@@ -212,8 +212,9 @@ function laggingGoal(player: PlayerState, economy: Economy): number {
   let worst = -1,
     least = 1;
   stats(player, economy).forEach((value, index) => {
-    const share = value / Math.max(1, player.goals[index]!);
-    if (share < least) {
+    const goal = player.goals[index]!;
+    const share = value / Math.max(1, goal);
+    if (value < goal && share < least) {
       least = share;
       worst = index;
     }
@@ -302,11 +303,14 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
     } else if (player.bank >= player.rent - cash) {
       const move = go(NEOBANK, WITHDRAW, player.rent - cash);
       if (move) return move;
-    } else if (creditLeft(player) >= player.rent - cash - player.bank) {
+    } else if (creditLeft(player) >= player.rent - cash) {
       const move = go(
         NEOBANK,
         BORROW,
-        Math.ceil((player.rent - cash) / 100) * 100,
+        Math.min(
+          creditLeft(player),
+          Math.ceil((player.rent - cash) / 100) * 100,
+        ),
       );
       if (move) return move;
     } else if ((player.flags & TRIED_EXTENSION) === 0 && player.rentExt >= 0) {

@@ -5,6 +5,7 @@ import {
   ACT,
   APPLY,
   BRIEFING,
+  BORROW,
   BUY,
   CLASS,
   COLLEGE,
@@ -112,7 +113,7 @@ const card = (panel: PanelModel, key: string): Card => {
 const itemIndex = (name: string) =>
   ITEMS.findIndex((entry) => entry.name === name);
 
-test("shops: their own goods with price and effect; owned goods and empty pockets disabled; scratch cards coming soon", () => {
+test("shops: their own goods with price and effect; owned goods and empty pockets disabled; scratch cards five a week", () => {
   const room = started();
   const fresh = panelAt(room, FRESHCO, (a) => (a.cash = 60));
   assert.equal(fresh.name, "FreshCo");
@@ -127,7 +128,7 @@ test("shops: their own goods with price and effect; owned goods and empty pocket
   assert.equal(four.note, "Not enough cash");
   assert.deepEqual(
     [card(fresh, "lottery").enabled, card(fresh, "lottery").note],
-    [false, "Coming soon"],
+    [true, "0 of 5 this week"],
   );
 
   const gadget = panelAt(room, GADGET, (a) => {
@@ -154,7 +155,11 @@ test("shops: their own goods with price and effect; owned goods and empty pocket
     "Why though · -1 ☺",
   );
   assert.equal(panelAt(room, THREADS).sections[0]!.title, "For sale");
-  assert.equal(panelAt(room, MONO).sections[0]!.cards.length, 3);
+  assert.equal(
+    panelAt(room, MONO).sections[0]!.cards.length,
+    4,
+    "two meals, a shake and a karaoke night",
+  );
 });
 
 test("your workplace offers a shift at your wage, and only in the right clothes", () => {
@@ -244,7 +249,7 @@ test("City College: degrees earned, courses under way first, then what you can e
     a.courses[4] = 3;
     a.cash = 500;
   });
-  const fee = enrollFee(room.economy);
+  const fee = enrollFee(room.economy, 1);
   assert.deepEqual(
     [card(college, "course-0").detail, card(college, "course-0").note],
     ["Graduated", "Degree earned"],
@@ -356,7 +361,7 @@ test("KeyNest: rent ahead, more time, arrears and a move, each saying why not", 
   assert.match(card(moved, "pay-rent").detail, /at The Tower$/);
 });
 
-test("Neobank: deposits and withdrawals in steps up to all you have, loans coming soon, and every market", () => {
+test("Neobank: deposits and withdrawals in steps up to all you have, and every market", () => {
   const room = started();
   const bank = panelAt(room, NEOBANK, (a) => {
     a.cash = 750;
@@ -369,7 +374,6 @@ test("Neobank: deposits and withdrawals in steps up to all you have, loans comin
     "deposit-500",
     "deposit-all",
     "withdraw-all",
-    "loan",
   ]);
   assert.equal(card(bank, "deposit-all").title, "Deposit all");
   assert.deepEqual(card(bank, "deposit-500").entry, [
@@ -388,15 +392,26 @@ test("Neobank: deposits and withdrawals in steps up to all you have, loans comin
     100,
     0,
   ]);
+  const loans = bank.sections[1]!;
+  assert.equal(loans.title, "Loans");
   assert.deepEqual(
-    [card(bank, "loan").enabled, card(bank, "loan").note],
-    [false, "Coming soon"],
+    loans.cards.map((entry) => entry.key),
+    ["borrow-max"],
+    "a little credit without a job",
   );
+  assert.deepEqual(card(bank, "borrow-max").entry, [
+    ACT,
+    1,
+    NEOBANK,
+    BORROW,
+    200,
+    0,
+  ]);
   assert.match(
     bank.sections[0]!.info!,
     /^Cash \$750 · Savings \$100 · Savings rate \d+\.\d\d%$/,
   );
-  const markets = bank.sections[1]!;
+  const markets = bank.sections[2]!;
   assert.equal(markets.title, "Markets");
   assert.match(card(bank, "buy-0").detail, /^Gigafactory · \$\d+/);
   assert.match(card(bank, "buy-9").detail, /^Index fund · \$\d+ · you hold 4$/);
@@ -412,7 +427,8 @@ test("Neobank: deposits and withdrawals in steps up to all you have, loans comin
   });
   assert.deepEqual(
     broke.sections[0]!.cards.map((entry) => entry.key),
-    ["loan"],
+    [],
+    "nothing to move with empty pockets",
   );
   assert.deepEqual(
     [card(broke, "buy-0").enabled, card(broke, "buy-0").note],
@@ -435,7 +451,7 @@ test("homes, the factory gate and Second Life; no panel on the street, on Monday
       entry.title.endsWith("· Gigafactory"),
     ),
   );
-  assert.equal(panelAt(room, RESALE).sections[0]!.title, "Second Life");
+  assert.equal(panelAt(room, RESALE).sections[0]!.title, "Used goods");
 
   const view = fuseLaneView(room);
   const ada = view.players.find((player) => player.id === "a")!;
@@ -791,7 +807,7 @@ test("loose ends: withdrawals in steps, a job held by someone who left, a flat c
   });
   assert.deepEqual(
     bank.sections[0]!.cards.map((entry) => entry.key),
-    ["withdraw-100", "withdraw-500", "withdraw-all", "loan"],
+    ["withdraw-100", "withdraw-500", "withdraw-all"],
   );
   assert.equal(card(bank, "withdraw-500").title, "Withdraw $500");
   assert.equal(card(bank, "withdraw-500").price, "+$500");

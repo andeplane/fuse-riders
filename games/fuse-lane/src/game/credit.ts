@@ -1,4 +1,4 @@
-import { ECONOMY } from "./data/economy.js";
+import { ECONOMY, SERVICES } from "./data/economy.js";
 import type { Economy } from "./economy.js";
 import { randInt } from "./random.js";
 import type { FuseLaneRoom } from "./room.js";
@@ -140,7 +140,8 @@ export function scratch(room: FuseLaneRoom, player: PlayerState): void {
     return say(player, `A card costs $${SCRATCH_PRICE}.`, true);
   player.cash -= SCRATCH_PRICE;
   player.scratched++;
-  room.economy.spend[4]! += SCRATCH_PRICE;
+  // A flutter is a service, like a burger's table: it does not move the price of groceries.
+  room.economy.spend[SERVICES]! += SCRATCH_PRICE;
   room.economy.companies[2]!.spend += SCRATCH_PRICE;
   let roll = randInt(room, 1, 1000);
   for (const { odds, prize, happy } of SCRATCH_PRIZES) {

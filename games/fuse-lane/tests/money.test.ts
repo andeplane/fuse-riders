@@ -7,6 +7,7 @@ import {
   COURSES,
   DURABLES,
   FRESHCO,
+  GIG,
   ITEMS,
   JOBS,
   MONO,
@@ -36,6 +37,7 @@ import {
   type FuseLaneRoom,
 } from "../src/game/index.js";
 import { comfort, fading } from "../src/game/week.js";
+import { UNITS_PER_HOUR, WEEK_UNITS } from "../src/game/basics.js";
 import { act, enter, fold, nextWeek, started } from "./fixtures/lane.js";
 
 const FLOOR = JOBS.findIndex((job) => job.title === "Floor Associate");
@@ -108,6 +110,17 @@ test("loans: Monday adds interest and takes a payment; a missed one stops credit
   const gross = Math.round(a.wage * 8);
   assert.equal(a.loan, loan - Math.floor(gross / 2));
   assert.equal(a.cash, gross - Math.floor(gross / 2));
+  assert.match(a.msg, /Neobank took/);
+
+  // Gig work too, once the job is gone.
+  a.job = -1;
+  enter(room, "a", JOBHUB);
+  const before = a.loan,
+    cash = a.cash;
+  fold(room, { a: [act(room, JOBHUB, GIG)] });
+  const taken = before - a.loan;
+  assert.ok(taken > 0, "half the gig's pay to Neobank");
+  assert.ok(Math.abs(a.cash - cash - taken) <= 1);
   assert.match(a.msg, /Neobank took/);
 });
 
@@ -214,6 +227,15 @@ test("a night out: hours, money and happiness, once a week", () => {
   fold(room, { a: [act(room, MONO, BUY, night)] });
   assert.equal(a.cash, cash - ITEMS[night]!.price, "not twice in a week");
   assert.match(a.msg, /already had your night out/);
+
+  const late = started();
+  const b = late.players.a!;
+  enter(late, "a", MONO);
+  b.time = WEEK_UNITS - 2 * UNITS_PER_HOUR; // two hours left
+  const purse = b.cash;
+  fold(late, { a: [act(late, MONO, BUY, night)] });
+  assert.equal(b.cash, purse, "not with two hours left");
+  assert.match(b.msg, /Not enough left/);
 });
 
 test("happiness fades a point per 15 each Monday; home comforts top it up", () => {
