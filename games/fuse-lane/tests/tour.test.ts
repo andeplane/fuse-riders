@@ -124,3 +124,10 @@ test("the tour is owed once per device", () => {
   assert.equal(owesTour(store), false);
   assert.equal(store.getItem(TOUR_KEY), "1");
 });
+
+test("with nobody's turn on screen, the tour is for the first person seated", () => {
+  const view = LocalMatch.create(setup(2, 1)).view();
+  const between = { ...view, current: "" };
+  const first = view.players.find((player) => !player.bot)!.id;
+  assert.deepEqual(tourSteps(between), tourSteps(view, first));
+});

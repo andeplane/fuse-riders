@@ -253,3 +253,28 @@ test("a doubled tap never skips a handoff: a stale READY cannot start the next p
   assert.equal(room.phase, WEEK);
   assert.equal(match.current(), second);
 });
+
+test("the device waits on a person only at a handoff; on Monday only READY is taken, and nothing once it is over", () => {
+  const match = LocalMatch.create(setup(2, 0));
+  const room = match.room;
+  assert.equal(room.phase, HANDOFF);
+  assert.equal(match.waiting(), true, "a handoff waits for the next player");
+  for (let turn = 0; turn < 2; turn++) {
+    tap(match);
+    match.step();
+    assert.equal(match.waiting(), false, "a turn runs on the clock");
+    match.play([END_WEEK, room.week]);
+    match.step();
+  }
+  assert.equal(room.phase, BRIEFING);
+  assert.equal(match.waiting(), false, "Monday runs on the clock");
+  assert.equal(
+    match.play([WALK, room.week, JOBHUB]),
+    false,
+    "no walks on Monday",
+  );
+  assert.equal(match.play([READY, room.week]), true);
+  room.stage = "over";
+  assert.equal(match.waiting(), false);
+  assert.equal(match.play([READY, room.week]), false, "nothing after the end");
+});
