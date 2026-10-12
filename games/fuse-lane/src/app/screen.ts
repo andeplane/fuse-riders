@@ -26,6 +26,7 @@ import {
 import {
   boardModel,
   sparkline,
+  toastTracker,
   type Card,
   type GoalBar,
   type PanelModel,
@@ -445,13 +446,10 @@ export function createGameScreen(
     if (same) panelBody.scrollTop = scroll;
   }
 
-  let toastKey = "",
-    toastTimer: ReturnType<typeof setTimeout> | undefined;
+  const freshToast = toastTracker();
+  let toastTimer: ReturnType<typeof setTimeout> | undefined;
   function showToast(next: ScreenModel["toast"]): void {
-    if (!next || next.key === toastKey) return;
-    const first = toastKey === "";
-    toastKey = next.key;
-    if (first) return; // the message that was up when the page loaded is old news
+    if (!next || !freshToast(next)) return;
     text(toast, next.text);
     toast.dataset.tone = next.bad ? "warn" : "good";
     toast.hidden = false;
