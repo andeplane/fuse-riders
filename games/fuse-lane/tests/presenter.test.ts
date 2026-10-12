@@ -124,7 +124,7 @@ test("shops: their own goods with price and effect; owned goods and empty pocket
   assert.ok(one.enabled);
   const four = card(fresh, `buy-${itemIndex("Groceries · 4 weeks")}`);
   assert.equal(four.enabled, false);
-  assert.equal(four.note, "Not enough cash");
+  assert.equal(four.note, "Needs a fridge", "no fridge: it would only spoil");
   assert.deepEqual(
     [card(fresh, "lottery").enabled, card(fresh, "lottery").note],
     [false, "Coming soon"],
@@ -398,8 +398,11 @@ test("Neobank: deposits and withdrawals in steps up to all you have, loans comin
   );
   const markets = bank.sections[1]!;
   assert.equal(markets.title, "Markets");
-  assert.match(card(bank, "buy-0").detail, /^Gigafactory · \$\d+/);
-  assert.match(card(bank, "buy-9").detail, /^Index fund · \$\d+ · you hold 4$/);
+  assert.match(card(bank, "buy-0").detail, /^Gigafactory · \$\d+ a unit/);
+  assert.match(
+    card(bank, "buy-9").detail,
+    /^Index fund · \$\d+ a unit · you hold 4$/,
+  );
   assert.match(card(bank, "buy-10").detail, /^Bonds · /);
   assert.match(card(bank, "buy-12").detail, /^Crypto · /);
   const sell = card(bank, "sell-9");
