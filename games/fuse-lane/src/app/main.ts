@@ -49,6 +49,12 @@ import { present, type Viewer } from "./presenter.js";
 import { dueReports, sendReport } from "./reports.js";
 import { FuseLaneRuntime, type FuseLaneCallbacks } from "./runtime.js";
 import { markToured, owesTour, tourSteps } from "./tour.js";
+import {
+  advance,
+  checklistModel,
+  loadChecklist,
+  saveChecklist,
+} from "./checklist.js";
 import { createGameScreen, text } from "./screen.js";
 import {
   NOT_OPEN,
@@ -207,12 +213,23 @@ function local(match: LocalMatch, resumed = false): void {
     quit = button("", "fl-icon-button fl-quit");
   quit.setAttribute("aria-label", "Save and go to the menu");
   quit.append(el("span", "", "fl-icon-menu"));
+  const checks = loadChecklist(store, match.room.matchId);
   const screen = createGameScreen(
     art,
     viewer,
     () => runtime,
     {
       controls: [pause, quit],
+      checklist: {
+        fold: (open) => {
+          checks.open = open;
+          saveChecklist(store, checks);
+        },
+        close: (owner) => {
+          checks.closed.push(owner);
+          saveChecklist(store, checks);
+        },
+      },
       again: {
         label: "PLAY AGAIN",
         run: () => startLocal(parseStoredSetup(store.getItem(SETUP_KEY))),
@@ -258,6 +275,15 @@ function local(match: LocalMatch, resumed = false): void {
     match,
     (view) => {
       const model = present(view, viewer);
+      // Whoever plays on this device now ticks off their own "Getting started" steps.
+      const who =
+        view.current || view.players.find((player) => !player.bot)?.id || "";
+      const me = view.players.find((player) => player.id === who)?.state;
+      if (model.hud && me) {
+        if (advance(checks, who, me)) saveChecklist(store, checks);
+        const checklist = checklistModel(checks, who, me);
+        if (checklist) model.checklist = checklist;
+      }
       main.dataset.phase = view.phase;
       main.dataset.week = String(view.week);
       main.dataset.part = view.part;
