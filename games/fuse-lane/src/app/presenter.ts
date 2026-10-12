@@ -62,6 +62,7 @@ import {
   type PlayerState,
 } from "../game/index.js";
 import { tips, type Tip } from "./tips.js";
+import type { ChecklistModel } from "./checklist.js";
 
 /**
  * What the Fuse Lane screen shows, as a pure function of the view and who this device is. The screen renders from
@@ -248,6 +249,8 @@ export interface ScreenModel {
    * whenever you play, also before your first message, so the screen knows where your count started.
    */
   toast?: { owner: string; n: number; text: string; bad: boolean };
+  /** The "Getting started" checklist, which the page adds: it is kept on the device, not in the match. */
+  checklist?: ChecklistModel;
   /** The most pressing tip while you are not walking, shown on the board when no panel is open: a tap walks you to its place. */
   tip?: Tip;
   canEndWeek: boolean;

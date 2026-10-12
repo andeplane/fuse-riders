@@ -58,6 +58,8 @@ export interface ScreenHooks {
   back: { label: string; run(): void };
   /** Small buttons for the HUD's corner (pause, menu, leave). */
   controls?: HTMLElement[];
+  /** The "Getting started" checklist was folded or unfolded, or closed once finished. */
+  checklist?: { fold(open: boolean): void; close(owner: string): void };
 }
 
 export const money = (value: number) =>
@@ -389,6 +391,73 @@ export function createGameScreen(
   centre.append(panel, you, briefing, handoff, result);
   const toast = el("div", "", "fl-toast");
   toast.hidden = true;
+  // The "Getting started" checklist: a corner card that ticks itself off; a tap on a step walks you there.
+  const checklist = el("section", "", "fl-checklist"),
+    checkHead = button("", "fl-checklist-head"),
+    checkTitle = el("strong", "", "fl-checklist-title"),
+    checkCount = el("span", "", "fl-checklist-count"),
+    checkClose = button("×", "fl-checklist-close"),
+    checkItems = el("ul", "", "fl-checklist-items");
+  checkHead.append(checkTitle, checkCount);
+  checkClose.setAttribute("aria-label", "Close the checklist");
+  checklist.append(checkHead, checkClose, checkItems);
+  checklist.hidden = true;
+  let checkOpen: boolean | undefined,
+    checkKey = "";
+  const checkClosed = new Set<string>();
+  checkHead.onclick = () => {
+    checkOpen = !checklist.classList.contains("open");
+    hooks.checklist?.fold(checkOpen);
+    if (model) render(model);
+  };
+  checkClose.onclick = () => {
+    const owner = model?.checklist?.owner;
+    if (owner === undefined) return;
+    checkClosed.add(owner);
+    hooks.checklist?.close(owner);
+    if (model) render(model);
+  };
+  function renderChecklist(next: ScreenModel, covered: boolean): void {
+    const list = next.checklist;
+    checklist.hidden = !list || covered || checkClosed.has(list.owner);
+    if (!list || checklist.hidden) return;
+    // Until the player chooses, it starts open on a wide screen and folded on a phone held upright (the layout's
+    // `compact`), where the map is narrow.
+    const box = game.getBoundingClientRect();
+    const open =
+      checkOpen ?? list.open ?? !(box.width < 700 && box.height > box.width);
+    text(checkTitle, list.complete ? "All set!" : "Getting started");
+    text(checkCount, `${list.done}/${list.total}`);
+    checkHead.setAttribute("aria-expanded", String(open));
+    checklist.classList.toggle("open", open);
+    checklist.classList.toggle("complete", list.complete);
+    checkClose.hidden = !list.complete;
+    checkItems.hidden = !open;
+    const key = JSON.stringify([list.items, Boolean(next.walk)]);
+    if (key === checkKey) return;
+    checkKey = key;
+    checkItems.replaceChildren(
+      ...list.items.map((item) => {
+        const row = el("li", "", item.done ? "done" : "");
+        const go = button("", "fl-checklist-step");
+        go.append(
+          el("i", item.done ? "✓" : "", "fl-checklist-mark"),
+          item.label,
+        );
+        go.disabled = item.done || !next.walk;
+        go.setAttribute(
+          "aria-label",
+          item.done
+            ? `${item.label}: done`
+            : `${item.label}: walk to ${PLACES[item.place]!.name}`,
+        );
+        go.onclick = () => walk(item.place);
+        row.append(go);
+        return row;
+      }),
+    );
+  }
+
   // The most pressing tip, on the board while you stand in the street; a tap walks you there.
   const tip = button("", "fl-tip"),
     tipText = el("span", "", "fl-tip-text");
@@ -419,8 +488,8 @@ export function createGameScreen(
   const tourTargets: Record<TourHud, HTMLElement> = {
     clock: youButton,
     goals: hudGoals.element,
-    end: endWeek,
     tip,
+    list: checklist,
   };
   let tour: { steps: TourStep[]; index: number; done: () => void } | undefined;
   /** Where the camera heads while a tour card frames places, in map px. */
@@ -517,7 +586,17 @@ export function createGameScreen(
     tourCard.style.left = `${Math.round(middle)}px`;
   }
 
-  game.append(stage, strip, rivals.element, centre, hud, tip, toast, tourLayer);
+  game.append(
+    stage,
+    strip,
+    rivals.element,
+    centre,
+    hud,
+    checklist,
+    tip,
+    toast,
+    tourLayer,
+  );
 
   let model: ScreenModel | undefined;
   function walk(place: number): void {
@@ -684,6 +763,7 @@ export function createGameScreen(
     });
     renderPanel(next.panel, modal || youOpen);
     showToast(next.toast);
+    renderChecklist(next, modal || youOpen || !panel.hidden);
     tip.hidden = !next.tip || modal || youOpen || !panel.hidden;
     if (next.tip) {
       text(tipText, next.tip.text);
