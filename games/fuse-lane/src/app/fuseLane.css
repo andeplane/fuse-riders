@@ -1295,7 +1295,9 @@ body.fl-page .fl-handoff-go {
 }
 .fl-result-lines {
   margin: 0;
-  padding: 0 1rem 0 2.4rem;
+  /* Each line carries its own place ("1. Ada: ..."): no second number from the list. */
+  padding: 0 1rem;
+  list-style: none;
   line-height: 1.45;
 }
 .fl-result .fl-ready-note {
