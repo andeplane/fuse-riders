@@ -1,0 +1,853 @@
+{
+  "style": "Bright modern flat vector illustration with soft cel shading and gentle gradients, one consistent dark navy outline (about 3% of the canvas width), rounded friendly shapes, cheerful saturated palette (teal #2ec4b6, coral #ff6b6b, sunflower #ffd23f, sky #4cc9f0, mint #3ddc84, plum #7b2cbf, warm cream #fff4e0), light from the top left, no text, no letters, no logos, no watermark, crisp edges, readable at 64 px on a phone. Same art direction for every asset of the set, like one mobile game's sticker sheet.",
+  "root": "public/",
+  "assets": [
+    {
+      "id": "board-ground",
+      "file": "fuse-lane/board/ground.png",
+      "width": 2048,
+      "height": 1536,
+      "anchor": [0.5, 0.5],
+      "transparent": false,
+      "prompt": "Top-down view of a tidy city block seen from directly above: soft green lawns, a few round trees, flower beds, a small pond and footpaths, with an empty light-grey margin all round where a ring road and buildings will be drawn on top. Calm, low-contrast so characters and buildings read clearly over it. Opaque background, no road, no buildings."
+    },
+    {
+      "id": "board-plaza",
+      "file": "fuse-lane/board/plaza.png",
+      "width": 1024,
+      "height": 768,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Top-down view of a small round town plaza for the centre of the city block: a fountain, benches, a news kiosk and a big clock post, seen from directly above. Transparent background outside the plaza."
+    },
+    {
+      "id": "building-roomshare",
+      "file": "fuse-lane/buildings/roomshare.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "A tired but charming three-storey shared house with mismatched curtains, bikes chained outside and a recycling bin overflowing with takeaway boxes. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "building-keynest",
+      "file": "fuse-lane/buildings/keynest.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "A small modern letting-agency office with a huge key-shaped sign shape above the door (no letters) and a glass front with house listings as coloured cards. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "building-tower",
+      "file": "fuse-lane/buildings/tower.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "A sleek glass residential tower with a doorman canopy, potted plants and warm lights in the windows. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "building-freshco",
+      "file": "fuse-lane/buildings/freshco.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "A bright neighbourhood grocery store with a striped awning, crates of fruit and vegetables outside and a shopping cart. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "building-neobank",
+      "file": "fuse-lane/buildings/neobank.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "A minimalist fintech bank branch with a curved glass facade, a big app-icon-like sign shape and an ATM by the door. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "building-gigafactory",
+      "file": "fuse-lane/buildings/gigafactory.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "A huge clean modern factory with saw-tooth roofs, solar panels, a chimney with a puff of white steam and a robot arm visible through a window. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "building-jobhub",
+      "file": "fuse-lane/buildings/jobhub.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "A friendly job centre with a speech-bubble sign shape, a notice board of job cards outside and a queue line rope. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "building-college",
+      "file": "fuse-lane/buildings/college.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "A small red-brick city college with columns, a clock above the entrance, steps and a tree with a bench. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "building-gadget",
+      "file": "fuse-lane/buildings/gadget.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "An electronics store with a giant plug-shaped sign shape, glowing screens in the window and a delivery van. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "building-threads",
+      "file": "fuse-lane/buildings/threads.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "A stylish clothing boutique with mannequins in the window, a hanger-shaped sign shape and a pink awning. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "building-mono",
+      "file": "fuse-lane/buildings/mono.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "A retro drive-thru burger joint with a giant burger on the roof, a drive-thru lane and a neon-style menu board. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "building-megamart",
+      "file": "fuse-lane/buildings/megamart.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "A big-box discount warehouse store with a huge flat roof, stacked pallets, a cart corral and bargain banners without text. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "building-resale",
+      "file": "fuse-lane/buildings/resale.png",
+      "width": 512,
+      "height": 512,
+      "anchor": [0.5, 0.92],
+      "transparent": true,
+      "prompt": "A quirky second-hand shop with a cluttered window of lamps, guitars and teapots, and a hand-painted sign shape. Three-quarter top-down view (about 35 degrees), the building alone on a small rounded patch of pavement, centred, its front door facing the viewer and the road, filling about 85% of the canvas. Transparent background."
+    },
+    {
+      "id": "avatar-robot-idle",
+      "file": "fuse-lane/avatars/robot-idle.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "prompt": "Full-body game character: a friendly boxy robot with an antenna and a tote bag, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background."
+    },
+    {
+      "id": "avatar-robot-walk",
+      "file": "fuse-lane/avatars/robot-walk.png",
+      "width": 512,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "frames": 2,
+      "prompt": "Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a friendly boxy robot with an antenna and a tote bag, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background."
+    },
+    {
+      "id": "avatar-robot-portrait",
+      "file": "fuse-lane/avatars/robot-portrait.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Head-and-shoulders portrait of a friendly boxy robot with an antenna and a tote bag, smiling, centred inside a circle-friendly composition (nothing important outside the inscribed circle). Transparent background."
+    },
+    {
+      "id": "avatar-cat-idle",
+      "file": "fuse-lane/avatars/cat-idle.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "prompt": "Full-body game character: an orange tabby cat in a hoodie and sneakers, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background."
+    },
+    {
+      "id": "avatar-cat-walk",
+      "file": "fuse-lane/avatars/cat-walk.png",
+      "width": 512,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "frames": 2,
+      "prompt": "Two-frame walk cycle sprite sheet, side by side, each frame 256x256: an orange tabby cat in a hoodie and sneakers, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background."
+    },
+    {
+      "id": "avatar-cat-portrait",
+      "file": "fuse-lane/avatars/cat-portrait.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Head-and-shoulders portrait of an orange tabby cat in a hoodie and sneakers, smiling, centred inside a circle-friendly composition (nothing important outside the inscribed circle). Transparent background."
+    },
+    {
+      "id": "avatar-fox-idle",
+      "file": "fuse-lane/avatars/fox-idle.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "prompt": "Full-body game character: a red fox in a denim jacket with a backpack, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background."
+    },
+    {
+      "id": "avatar-fox-walk",
+      "file": "fuse-lane/avatars/fox-walk.png",
+      "width": 512,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "frames": 2,
+      "prompt": "Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a red fox in a denim jacket with a backpack, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background."
+    },
+    {
+      "id": "avatar-fox-portrait",
+      "file": "fuse-lane/avatars/fox-portrait.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Head-and-shoulders portrait of a red fox in a denim jacket with a backpack, smiling, centred inside a circle-friendly composition (nothing important outside the inscribed circle). Transparent background."
+    },
+    {
+      "id": "avatar-alien-idle",
+      "file": "fuse-lane/avatars/alien-idle.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "prompt": "Full-body game character: a small green alien with big eyes, wearing a bomber jacket, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background."
+    },
+    {
+      "id": "avatar-alien-walk",
+      "file": "fuse-lane/avatars/alien-walk.png",
+      "width": 512,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "frames": 2,
+      "prompt": "Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a small green alien with big eyes, wearing a bomber jacket, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background."
+    },
+    {
+      "id": "avatar-alien-portrait",
+      "file": "fuse-lane/avatars/alien-portrait.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Head-and-shoulders portrait of a small green alien with big eyes, wearing a bomber jacket, smiling, centred inside a circle-friendly composition (nothing important outside the inscribed circle). Transparent background."
+    },
+    {
+      "id": "avatar-astronaut-idle",
+      "file": "fuse-lane/avatars/astronaut-idle.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "prompt": "Full-body game character: a kid-sized astronaut in a white suit with the visor up, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background."
+    },
+    {
+      "id": "avatar-astronaut-walk",
+      "file": "fuse-lane/avatars/astronaut-walk.png",
+      "width": 512,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "frames": 2,
+      "prompt": "Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a kid-sized astronaut in a white suit with the visor up, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background."
+    },
+    {
+      "id": "avatar-astronaut-portrait",
+      "file": "fuse-lane/avatars/astronaut-portrait.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Head-and-shoulders portrait of a kid-sized astronaut in a white suit with the visor up, smiling, centred inside a circle-friendly composition (nothing important outside the inscribed circle). Transparent background."
+    },
+    {
+      "id": "avatar-skull-idle",
+      "file": "fuse-lane/avatars/skull-idle.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "prompt": "Full-body game character: a cheerful skeleton in a beanie and a striped shirt, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background."
+    },
+    {
+      "id": "avatar-skull-walk",
+      "file": "fuse-lane/avatars/skull-walk.png",
+      "width": 512,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "frames": 2,
+      "prompt": "Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a cheerful skeleton in a beanie and a striped shirt, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background."
+    },
+    {
+      "id": "avatar-skull-portrait",
+      "file": "fuse-lane/avatars/skull-portrait.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Head-and-shoulders portrait of a cheerful skeleton in a beanie and a striped shirt, smiling, centred inside a circle-friendly composition (nothing important outside the inscribed circle). Transparent background."
+    },
+    {
+      "id": "avatar-octopus-idle",
+      "file": "fuse-lane/avatars/octopus-idle.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "prompt": "Full-body game character: a purple octopus walking on two tentacles, holding a coffee cup, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background."
+    },
+    {
+      "id": "avatar-octopus-walk",
+      "file": "fuse-lane/avatars/octopus-walk.png",
+      "width": 512,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "frames": 2,
+      "prompt": "Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a purple octopus walking on two tentacles, holding a coffee cup, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background."
+    },
+    {
+      "id": "avatar-octopus-portrait",
+      "file": "fuse-lane/avatars/octopus-portrait.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Head-and-shoulders portrait of a purple octopus walking on two tentacles, holding a coffee cup, smiling, centred inside a circle-friendly composition (nothing important outside the inscribed circle). Transparent background."
+    },
+    {
+      "id": "avatar-dragon-idle",
+      "file": "fuse-lane/avatars/dragon-idle.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "prompt": "Full-body game character: a small teal dragon in a cardigan with tiny wings, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background."
+    },
+    {
+      "id": "avatar-dragon-walk",
+      "file": "fuse-lane/avatars/dragon-walk.png",
+      "width": 512,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "frames": 2,
+      "prompt": "Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a small teal dragon in a cardigan with tiny wings, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background."
+    },
+    {
+      "id": "avatar-dragon-portrait",
+      "file": "fuse-lane/avatars/dragon-portrait.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Head-and-shoulders portrait of a small teal dragon in a cardigan with tiny wings, smiling, centred inside a circle-friendly composition (nothing important outside the inscribed circle). Transparent background."
+    },
+    {
+      "id": "avatar-owl-idle",
+      "file": "fuse-lane/avatars/owl-idle.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "prompt": "Full-body game character: a round brown owl with glasses and a messenger bag, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background."
+    },
+    {
+      "id": "avatar-owl-walk",
+      "file": "fuse-lane/avatars/owl-walk.png",
+      "width": 512,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "frames": 2,
+      "prompt": "Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a round brown owl with glasses and a messenger bag, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background."
+    },
+    {
+      "id": "avatar-owl-portrait",
+      "file": "fuse-lane/avatars/owl-portrait.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Head-and-shoulders portrait of a round brown owl with glasses and a messenger bag, smiling, centred inside a circle-friendly composition (nothing important outside the inscribed circle). Transparent background."
+    },
+    {
+      "id": "avatar-slime-idle",
+      "file": "fuse-lane/avatars/slime-idle.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "prompt": "Full-body game character: a cute lime-green slime blob wearing a baseball cap, standing in a relaxed idle pose, facing the viewer at three-quarter angle, feet at the bottom centre, small soft oval shadow under the feet. Chibi proportions (head about 40% of height). Transparent background."
+    },
+    {
+      "id": "avatar-slime-walk",
+      "file": "fuse-lane/avatars/slime-walk.png",
+      "width": 512,
+      "height": 256,
+      "anchor": [0.5, 0.94],
+      "transparent": true,
+      "frames": 2,
+      "prompt": "Two-frame walk cycle sprite sheet, side by side, each frame 256x256: a cute lime-green slime blob wearing a baseball cap, walking to the right, frame 1 left foot forward, frame 2 right foot forward, identical scale and baseline in both frames, small soft oval shadow under the feet. Chibi proportions. Transparent background."
+    },
+    {
+      "id": "avatar-slime-portrait",
+      "file": "fuse-lane/avatars/slime-portrait.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Head-and-shoulders portrait of a cute lime-green slime blob wearing a baseball cap, smiling, centred inside a circle-friendly composition (nothing important outside the inscribed circle). Transparent background."
+    },
+    {
+      "id": "keeper-roomshare",
+      "file": "fuse-lane/keepers/roomshare.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: a sleepy flatmate in pyjamas holding a mug labelled with a sticky note. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "keeper-keynest",
+      "file": "fuse-lane/keepers/keynest.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: a landlord in a sharp blazer holding a clipboard and a ring of keys. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "keeper-tower",
+      "file": "fuse-lane/keepers/tower.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: a dignified doorman in a uniform with a cap and white gloves. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "keeper-freshco",
+      "file": "fuse-lane/keepers/freshco.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: a grocer in a green apron holding a perfect tomato. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "keeper-neobank",
+      "file": "fuse-lane/keepers/neobank.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: a young banker in a turtleneck holding a phone with a chart on it. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "keeper-gigafactory",
+      "file": "fuse-lane/keepers/gigafactory.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: a shift supervisor in a hard hat and hi-vis vest with a tablet. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "keeper-jobhub",
+      "file": "fuse-lane/keepers/jobhub.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: a cheerful recruiter with a headset and a stack of job cards. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "keeper-college",
+      "file": "fuse-lane/keepers/college.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: a professor with tweed jacket, elbow patches and a coffee mug. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "keeper-gadget",
+      "file": "fuse-lane/keepers/gadget.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: a tech salesperson with a lanyard and a tablet, very enthusiastic. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "keeper-threads",
+      "file": "fuse-lane/keepers/threads.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: a fashion stylist with a measuring tape around the neck and big glasses. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "keeper-mono",
+      "file": "fuse-lane/keepers/mono.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: a teenage burger cashier in a paper hat, visibly bored. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "keeper-megamart",
+      "file": "fuse-lane/keepers/megamart.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: a discount-store clerk in a vest with a price-tag gun. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "keeper-resale",
+      "file": "fuse-lane/keepers/resale.png",
+      "width": 384,
+      "height": 384,
+      "anchor": [0.5, 1],
+      "transparent": true,
+      "prompt": "Shopkeeper portrait, waist up, behind a counter edge at the bottom of the frame: an eccentric collector with a monocle and a vintage scarf. Deadpan, slightly sardonic expression, looking at the viewer. Transparent background."
+    },
+    {
+      "id": "icon-groceries",
+      "file": "fuse-lane/icons/groceries.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a paper grocery bag with bread, carrots and apples, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-burger",
+      "file": "fuse-lane/icons/burger.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a classic cheeseburger, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-double-burger",
+      "file": "fuse-lane/icons/double-burger.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a tall double cheeseburger, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-shake",
+      "file": "fuse-lane/icons/shake.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a strawberry milkshake with a straw, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-clothes-casual",
+      "file": "fuse-lane/icons/clothes-casual.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a folded hoodie and jeans, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-clothes-smart",
+      "file": "fuse-lane/icons/clothes-smart.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a blazer over a polo shirt on a hanger, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-clothes-business",
+      "file": "fuse-lane/icons/clothes-business.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a dark business suit with a tie on a hanger, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-fridge",
+      "file": "fuse-lane/icons/fridge.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a modern smart fridge with a small screen on the door, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-freezer",
+      "file": "fuse-lane/icons/freezer.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a white chest freezer with frost, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-stove",
+      "file": "fuse-lane/icons/stove.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: an induction stove top with a pan, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-tv",
+      "file": "fuse-lane/icons/tv.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a flat smart TV on a stand, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-console",
+      "file": "fuse-lane/icons/console.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a game console with a controller, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-speakers",
+      "file": "fuse-lane/icons/speakers.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a pair of bookshelf speakers, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-airfryer",
+      "file": "fuse-lane/icons/airfryer.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: an air fryer with a basket, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-hottub",
+      "file": "fuse-lane/icons/hottub.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a round hot tub with bubbles, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-laptop",
+      "file": "fuse-lane/icons/laptop.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: an open laptop with a sticker on the lid, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-books",
+      "file": "fuse-lane/icons/books.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a stack of three textbooks with a bookmark, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-joke-phonecase",
+      "file": "fuse-lane/icons/joke-phonecase.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a phone case covered in glitter, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-joke-nft",
+      "file": "fuse-lane/icons/joke-nft.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a framed pixelated picture of a sandwich, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "icon-joke-audiobook",
+      "file": "fuse-lane/icons/joke-audiobook.png",
+      "width": 256,
+      "height": 256,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Item icon: a box set of audio CDs with a rocket on the cover, centred, filling about 80% of the canvas, slight three-quarter angle, soft shadow below. Transparent background."
+    },
+    {
+      "id": "ui-clock",
+      "file": "fuse-lane/ui/clock.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a round alarm clock, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-cash",
+      "file": "fuse-lane/ui/cash.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a green banknote, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-bank",
+      "file": "fuse-lane/ui/bank.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a classical bank building, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-wealth",
+      "file": "fuse-lane/ui/wealth.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a gold coin stack, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-happiness",
+      "file": "fuse-lane/ui/happiness.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a smiling face, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-education",
+      "file": "fuse-lane/ui/education.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a graduation cap, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-career",
+      "file": "fuse-lane/ui/career.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a briefcase, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-rent",
+      "file": "fuse-lane/ui/rent.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a house key, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-food",
+      "file": "fuse-lane/ui/food.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a fork and knife, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-work",
+      "file": "fuse-lane/ui/work.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a hard hat, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-study",
+      "file": "fuse-lane/ui/study.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: an open book, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-relax",
+      "file": "fuse-lane/ui/relax.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a sofa with a pillow, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-stocks",
+      "file": "fuse-lane/ui/stocks.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a rising line chart, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-week",
+      "file": "fuse-lane/ui/week.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a calendar page, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    },
+    {
+      "id": "ui-ready",
+      "file": "fuse-lane/ui/ready.png",
+      "width": 128,
+      "height": 128,
+      "anchor": [0.5, 0.5],
+      "transparent": true,
+      "prompt": "Simple UI glyph: a check mark in a circle, centred, bold and readable at 24 px, flat with one highlight, no shadow. Transparent background."
+    }
+  ]
+}
