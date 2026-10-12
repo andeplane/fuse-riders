@@ -7,9 +7,22 @@ You live a week against the clock on one loop road with 13 places. You work, stu
 
 Online rooms still work through a link (`?room=CODE`), but the menu does not offer them for now.
 
-![Menu on a phone](docs/screenshots/phone-menu.png) ![A week on a phone](docs/screenshots/phone-week1.png) ![The handoff between players](docs/screenshots/phone-handoff.png)
+## The screen
 
-![Shopping on a desktop](docs/screenshots/desktop-shop.png)
+The board fills the screen: a loop street with sidewalks, crossings and street furniture around a park, the 13 places on their lots outside it, and every player walking the sidewalk. A slim glass HUD sits on the board's edges and shows only the hours left with the real seconds left, cash and bank, the four goals, **CALL IT A WEEK**, pause and menu. Everything else opens in the middle of the board, over the park: a place's panel when you walk in, the **you** panel (tap the clock: food, clothes, rent, job and this week's private news), the Monday briefing, the **Pass the device** card and the result.
+
+- **Phone (portrait):** a tall loop with big buildings. The clock, money and buttons sit at the top, the goals and CALL IT A WEEK at the bottom. The rivals are not on the street: their standings (portrait, four goal bars, what they are doing) head every place panel.
+- **Wide screen:** a wide loop, one HUD bar along the top, and the rivals in the park's corners.
+
+The geometry is `src/app/layout.ts` (pure and unit-tested): it maps the rules' ring positions onto the drawn street, so each place's ring position lands at its door. It changes nothing in the rules.
+
+![Menu on a phone](docs/screenshots/phone-menu.png) ![A week on a phone](docs/screenshots/phone-week.png) ![A place on a phone, rivals on top](docs/screenshots/phone-place.png) ![The you panel](docs/screenshots/phone-you.png) ![The Monday briefing](docs/screenshots/phone-briefing.png) ![The handoff between players](docs/screenshots/phone-handoff.png)
+
+![A week on a desktop](docs/screenshots/desktop-week.png)
+
+![A place on a desktop](docs/screenshots/desktop-place.png)
+
+![The menu on a desktop](docs/screenshots/desktop-menu.png) ![The Monday briefing on a desktop](docs/screenshots/desktop-briefing.png) ![The handoff on a desktop](docs/screenshots/desktop-handoff.png)
 
 ## How to play
 
@@ -20,7 +33,7 @@ Online rooms still work through a link (`?room=CODE`), but the menu does not off
 
    The device remembers your choices. A game in progress is saved on the device, and the menu offers **Continue** next time.
 
-2. **A week** has 60 hours. Tap a building on the board, or its button in the strip, to walk there. Walking costs 1 hour per 15 steps and entering a place costs 2 hours. Inside, the place's cards are what you can do there:
+2. **A week** has 60 hours. Tap a building on the board to walk there (keyboards can Tab to a hidden list of the places). Walking costs 1 hour per 15 steps and entering a place costs 2 hours. Inside, the place's cards are what you can do there:
    - work a shift: 6 hours, paid as 8;
    - apply for a job: 4 hours;
    - attend a class: 6 hours;
@@ -36,7 +49,7 @@ Online rooms still work through a link (`?room=CODE`), but the menu does not off
    - AI players play their whole week at once when their turn comes.
    - Between people, a full-screen **Pass the device to …** card hides the last player's week. The next player's clock starts only when they tap.
    - Jobs, shelves and market prices are shared. Whoever plays earlier in the week gets first pick: if they take a job, it is gone for everyone after them.
-4. **Monday briefing.** You see the economy ticker, the City500 chart and the week's headlines. On a shared device, each player's private news (sleep, hunger, rent, break-ins) shows on their own next turn. Tap **Start the week**, or the next week starts by itself after 8 s.
+4. **Monday briefing.** You see the economy ticker, the City500 chart and the week's headlines. On a shared device, each player's private news (sleep, hunger, rent, break-ins) opens in their **you** panel on their own next turn. Tap **Start the week**, or the next week starts by itself after 8 s.
 5. **Pause** stops the clock. Locking the phone pauses the game too. **Menu** saves the game and quits.
 
 Weekly upkeep (food, clothes wearing out, rent every 4 weeks, garnishment) and the economy follow the design docs:
@@ -61,7 +74,8 @@ Every coefficient lives in `src/game/data/economy.ts`.
 | `src/game/checkpoint.ts`                                        | Encode and fully validate a room. Saves and netcode snapshots both use it.                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `src/app/local.ts`, `local-runtime.ts`                          | A match on one device. It runs the same fold with one stream per person, in real time, with pause and save/resume.                                                                                                                                                                                                                                                                                                                                                             |
 | `src/app/presenter.ts`                                          | A pure view model built from a frame: HUD, panels as cards, scores, briefing, handoff, result.                                                                                                                                                                                                                                                                                                                                                                                 |
-| `src/app/screen.ts`, `board.ts`, `art.ts`, `menu.ts`, `main.ts` | The page: a Canvas 2D board drawn every animation frame between the two newest frames, plus DOM cards, the menu and routing.                                                                                                                                                                                                                                                                                                                                                   |
+| `src/app/layout.ts`                                             | The board's geometry, pure and tested: the street loop, the building lots (each place keeps its order around the loop), the park and where panels open, for any screen shape.                                                                                                                                                                                                                                                                                                  |
+| `src/app/screen.ts`, `board.ts`, `art.ts`, `menu.ts`, `main.ts` | The page: a full-screen Canvas 2D diorama drawn every animation frame between the two newest frames (textured street, props and buildings y-sorted with cast shadows; procedural stand-ins for missing art), the glass HUD, the panels in the board's middle, the menu and routing.                                                                                                                                                                                            |
 | `src/app/runtime.ts`, `reports.ts`, `session.ts`                | The online room on fuse-netcode, kept working but not in the menu.                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `art/assets.ts` → `art/manifest.json`, `art/prompts.md`         | Every raster PNG the game draws, each with its path under `public/fuse-lane/`, size, anchor, transparency and a generation prompt sharing one style. Regenerate the two files with `pnpm exec tsx scripts/fuse-lane-art.ts`; `--check` fails when they are stale. Any missing PNG is drawn as a coloured placeholder with a label, so the game is fully playable before the art exists. All 93 PNGs are generated from these prompts and checked in under `public/fuse-lane/`. |
 | `tests/`                                                        | Rules, economy determinism, checkpoint round trips, rollback over lossy links, hot-seat turns and saves, the presenter and the menu.                                                                                                                                                                                                                                                                                                                                           |
