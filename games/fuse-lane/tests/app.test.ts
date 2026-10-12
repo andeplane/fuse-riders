@@ -9,7 +9,7 @@ import {
   WALK,
   type FuseLaneView,
 } from "../src/game/index.js";
-import { LocalMatch, type LocalSetup } from "../src/app/local.js";
+import { LocalMatch, validSetup, type LocalSetup } from "../src/app/local.js";
 import {
   DEFAULT_CHOICE,
   chooseSetup,
@@ -86,7 +86,7 @@ test("hot-seat: the handoff hides the HUD and the panel, names who is next and i
   assert.equal(model.hud, undefined, "nothing private shows on the handoff");
   assert.equal(model.panel, undefined);
   assert.equal(model.walk, undefined);
-  assert.deepEqual(model.readyEntry, [READY, 1]);
+  assert.deepEqual(model.readyEntry, [READY, 1, view.turn]);
   assert.equal(
     model.scores.find((row) => row.id === view.current)?.turn,
     "Up next",
@@ -102,7 +102,7 @@ test("hot-seat: Monday's private news waits for its owner's turn; the briefing R
   const match = LocalMatch.create(setup(2, 0));
   for (let turn = 0; turn < 2; turn++) {
     until(match, () => match.view().part === "handoff", 10);
-    match.play([READY, 1]);
+    match.play(present(match.view(), LOCAL).readyEntry!);
     match.step();
     match.play([END_WEEK, 1]);
     match.step();
@@ -120,7 +120,7 @@ test("hot-seat: Monday's private news waits for its owner's turn; the briefing R
   match.play(model.readyEntry!);
   match.step();
   until(match, () => match.view().part === "handoff", 10);
-  match.play([READY, 2]);
+  match.play(present(match.view(), LOCAL).readyEntry!);
   match.step();
   const turn = present(match.view(), LOCAL);
   assert.ok(turn.hud!.notices.length > 0, "slept-off hours are your own news");
@@ -163,6 +163,19 @@ test("the menu keeps choices in range: seats, bots, names, presets", () => {
   assert.equal(wild.weekSeconds, 60);
   const start = chooseSetup(wild, "seed-1");
   assert.deepEqual(start.goals, [50, 50, 50, 50]);
+  // A duplicate name is cut by code points: never half an emoji, so START still makes a valid setup.
+  const emoji = "Ab" + "😀".repeat(16);
+  const twins = normalizeChoice({
+    ...DEFAULT_CHOICE,
+    humans: [
+      { name: emoji, avatar: "fox" },
+      { name: emoji, avatar: "cat" },
+    ],
+  });
+  assert.equal(twins.humans[1]!.name, "Ab" + "😀".repeat(11) + " 2");
+  const twinSetup = chooseSetup(twins, "seed-2");
+  assert.ok(validSetup(twinSetup));
+  assert.equal(twinSetup.humans.length, 2);
   assert.equal(parseStoredSetup("{bad json"), DEFAULT_CHOICE);
   assert.equal(parseStoredSetup(null), DEFAULT_CHOICE);
   assert.equal(

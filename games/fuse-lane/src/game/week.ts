@@ -165,21 +165,33 @@ function upkeep(room: FuseLaneRoom, player: PlayerState): void {
     }
 }
 
-/** Every player's finish, best first: winners by overshoot then net worth, the rest by goal progress then net worth. */
+/** Orders two players: winners by overshoot then net worth, the rest by goal progress then net worth; 0 is a tie. */
+function compare(room: FuseLaneRoom, a: string, b: string): number {
+  const economy = room.economy,
+    pa = room.players[a]!,
+    pb = room.players[b]!;
+  const wa = pa.finished > 0 ? 1 : 0,
+    wb = pb.finished > 0 ? 1 : 0;
+  if (wa !== wb) return wb - wa;
+  if (wa && pa.finished !== pb.finished) return pa.finished - pb.finished;
+  const first = wa
+    ? overshoot(pb, economy) - overshoot(pa, economy)
+    : progress(pb, economy) - progress(pa, economy);
+  return first || netWorth(pb, economy) - netWorth(pa, economy);
+}
+/** Every player's finish, best first (`compare`), ties in seat order. */
 export function rank(room: FuseLaneRoom): string[] {
-  const economy = room.economy;
-  return playerOrder(room).sort((a, b) => {
-    const pa = room.players[a]!,
-      pb = room.players[b]!;
-    const wa = pa.finished > 0 ? 1 : 0,
-      wb = pb.finished > 0 ? 1 : 0;
-    if (wa !== wb) return wb - wa;
-    if (wa && pa.finished !== pb.finished) return pa.finished - pb.finished;
-    const first = wa
-      ? overshoot(pb, economy) - overshoot(pa, economy)
-      : progress(pb, economy) - progress(pa, economy);
-    return first || netWorth(pb, economy) - netWorth(pa, economy);
-  });
+  return playerOrder(room).sort((a, b) => compare(room, a, b));
+}
+/**
+ * Who won: the top of the ranking. Several players meeting every goal in the same week do not all win; only an exact
+ * tie with the top (the same overshoot and the same net worth) shares the win.
+ */
+export function winnersOf(room: FuseLaneRoom, ranking: string[]): string[] {
+  const top = ranking[0];
+  return top === undefined
+    ? []
+    : ranking.filter((id) => compare(room, id, top) === 0);
 }
 
 /**
@@ -255,9 +267,7 @@ export function endWeek(room: FuseLaneRoom): boolean {
   }
   if (winners.length || room.week > MAX_WEEKS) {
     room.ranking = rank(room);
-    room.winners = room.ranking.filter((id) => room.players[id]!.finished > 0);
-    if (!room.winners.length && room.ranking[0])
-      room.winners = [room.ranking[0]];
+    room.winners = winnersOf(room, room.ranking);
     room.stage = "over";
     return true;
   }

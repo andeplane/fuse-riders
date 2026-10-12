@@ -1106,10 +1106,11 @@ export function present(view: FuseLaneView, viewer: Viewer): ScreenModel {
           walk: (place: number) => [WALK, view.week, place],
         }
       : {}),
-    ...((briefing && (viewer.local ? !briefing.ready : me && !me.ready)) ||
-    handoff
-      ? { readyEntry: [READY, view.week] }
-      : {}),
+    ...(handoff
+      ? { readyEntry: [READY, view.week, view.turn] }
+      : briefing && (viewer.local ? !briefing.ready : me && !me.ready)
+        ? { readyEntry: [READY, view.week] }
+        : {}),
     headline:
       view.phase === "lobby"
         ? "PICK YOUR GOALS"

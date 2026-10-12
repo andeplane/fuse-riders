@@ -32,6 +32,13 @@ const setup = (humans: number, bots: number, level = 2): LocalSetup => ({
 function runWhile(match: LocalMatch, going: () => boolean, most = 5000): void {
   for (let n = 0; n < most && going(); n++) match.step();
 }
+/** The tap that moves the device on: a handoff's READY names its turn, Monday's does not. */
+const tap = (match: LocalMatch): boolean =>
+  match.play(
+    match.room.phase === HANDOFF
+      ? [READY, match.room.week, match.room.turn]
+      : [READY, match.room.week],
+  );
 /** The current player walks into `place` and the device folds until they are inside. */
 function enter(match: LocalMatch, place: number): void {
   const id = match.current();
@@ -97,7 +104,7 @@ test("hot-seat: each human waits on a handoff, plays alone, and the turn passes 
   runWhile(match, () => true, 200);
   assert.equal(room.phase, HANDOFF);
   assert.equal(room.players[first]!.time, 0);
-  match.play([READY, room.week]);
+  tap(match);
   match.step();
   assert.equal(room.phase, WEEK);
   // Only the current player's entries count: a walk logged on the other seat's stream is ignored by the rules.
@@ -119,7 +126,7 @@ test("a turn whose clock runs out ends there: the unspent hours are sleep", () =
   const match = LocalMatch.create(setup(2, 0));
   const room = match.room;
   const first = match.current();
-  match.play([READY, room.week]);
+  tap(match);
   match.step();
   const start = room.tick;
   runWhile(match, () => match.current() === first, 2000);
@@ -136,7 +143,7 @@ test("the first seat rotates each week, and contention resolves in play order", 
   const week1 = [...room.order];
   // Both apply for the Line Cook post (a sure hire): whoever plays first this week gets it.
   for (let turn = 0; turn < 2; turn++) {
-    match.play([READY, room.week]);
+    tap(match);
     match.step();
     enter(match, JOBHUB);
     match.play([ACT, room.week, JOBHUB, APPLY, 3, 0]);
@@ -155,7 +162,7 @@ test("the first seat rotates each week, and contention resolves in play order", 
 
 test("a saved hot-seat match resumes exactly where it was", () => {
   const match = LocalMatch.create(setup(2, 2));
-  match.play([READY, match.room.week]);
+  tap(match);
   runWhile(match, () => true, 60);
   const saved = JSON.parse(JSON.stringify(match.save()));
   const resumed = LocalMatch.resume(saved)!;
@@ -168,6 +175,15 @@ test("a saved hot-seat match resumes exactly where it was", () => {
   assert.equal(hashRoom(resumed.room), hashRoom(match.room));
   assert.equal(LocalMatch.resume({ ...saved, v: 2 }), undefined);
   assert.equal(LocalMatch.resume({ ...saved, humans: ["bot:1"] }), undefined);
+  assert.equal(
+    LocalMatch.resume({ ...saved, humans: ["p1"] }),
+    undefined,
+    "p2 is seated but nobody on this device plays it",
+  );
+  assert.equal(
+    LocalMatch.resume({ ...saved, humans: ["p1", "p1"] }),
+    undefined,
+  );
   assert.equal(LocalMatch.resume(null), undefined);
 });
 
@@ -195,4 +211,45 @@ test("bot levels: harder bots get further toward their goals in the same weeks",
     normal = worth(1),
     hard = worth(2);
   assert.ok(hard > normal && normal > easy, `${easy} < ${normal} < ${hard}`);
+});
+
+test("a doubled tap never skips a handoff: a stale READY cannot start the next player's clock", () => {
+  const match = LocalMatch.create(setup(2, 0));
+  const room = match.room;
+  // Week 1 played out by both, then Monday's READY tapped twice: the second tap lands on the first handoff.
+  for (let turn = 0; turn < 2; turn++) {
+    tap(match);
+    match.step();
+    match.play([END_WEEK, room.week]);
+    match.step();
+  }
+  assert.equal(room.phase, BRIEFING);
+  match.play([READY, room.week]);
+  match.step();
+  assert.equal(room.phase, HANDOFF);
+  const first = match.current(),
+    monday = room.players[first]!.time;
+  match.play([READY, room.week]);
+  runWhile(match, () => true, 20);
+  assert.equal(room.phase, HANDOFF, "Monday's READY does not start a turn");
+  assert.equal(room.players[first]!.time, monday);
+  // The handoff tap, then a second one: it names the turn it was for, which is over by the time it lands.
+  const stale = [READY, room.week, room.turn];
+  match.play(stale);
+  match.step();
+  assert.equal(room.phase, WEEK);
+  match.play([END_WEEK, room.week]);
+  match.step();
+  assert.equal(room.phase, HANDOFF);
+  const second = match.current(),
+    waiting = room.players[second]!.time;
+  assert.notEqual(second, first);
+  match.play(stale);
+  runWhile(match, () => true, 20);
+  assert.equal(room.phase, HANDOFF, "the stale tap is ignored");
+  assert.equal(room.players[second]!.time, waiting);
+  tap(match);
+  match.step();
+  assert.equal(room.phase, WEEK);
+  assert.equal(match.current(), second);
 });

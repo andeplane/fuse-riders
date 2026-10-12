@@ -199,27 +199,59 @@ export const gigWage = (economy: Economy): number =>
 /** The quoted price of an asset, impact included. */
 export const quote = (economy: Economy, asset: number): number =>
   r2(economy.price[asset]! * (1 + economy.impact[asset]!));
-/** Cost of buying `qty` units now, spread included. */
+/** The bounds of an asset's market impact, as a fraction of its price. */
+export const IMPACT_MIN = -0.5,
+  IMPACT_MAX = 1;
+
+/** An order against the market before the spread: what its units fill for in all, and the impact it leaves. */
+export interface Fill {
+  value: number;
+  impact: number;
+}
+/**
+ * An order of `qty` units. Each unit moves the impact by impact × price / liquidity (linear in units, so a trade of
+ * value v at the impact-free price moves it by impact × v / liquidity), and every unit fills on the way: the order
+ * pays the average of the quote before and after it, not the quote it started at. The quote is then a function of
+ * the units traded on net only, so no sequence of trades within a week can buy low and sell high against its own
+ * impact: a round trip costs at least the spread. Past the impact bounds the quote stops moving and the remaining
+ * units fill at the bound, which only ever costs the trader.
+ */
+export function fill(
+  economy: Economy,
+  asset: number,
+  qty: number,
+  buy: boolean,
+): Fill {
+  const price = economy.price[asset]!,
+    from = economy.impact[asset]!,
+    step = (C.impact * price) / C.liquidity[asset]!;
+  const to = clamp(from + (buy ? step : -step) * qty, IMPACT_MIN, IMPACT_MAX);
+  const moving = step > 0 ? Math.min(qty, Math.abs(to - from) / step) : qty;
+  return {
+    value: price * (moving * (1 + (from + to) / 2) + (qty - moving) * (1 + to)),
+    impact: to,
+  };
+}
+/** Cost of buying `qty` units now: the filled value with the spread on top. */
 export const buyCost = (economy: Economy, asset: number, qty: number): number =>
-  Math.ceil(quote(economy, asset) * (1 + C.spread[asset]! / 2) * qty);
-/** Proceeds of selling `qty` units now, spread taken. */
+  Math.ceil(fill(economy, asset, qty, true).value * (1 + C.spread[asset]! / 2));
+/** Proceeds of selling `qty` units now: the filled value with the spread taken. */
 export const sellValue = (
   economy: Economy,
   asset: number,
   qty: number,
 ): number =>
-  Math.floor(quote(economy, asset) * (1 - C.spread[asset]! / 2) * qty);
-/** A trade moves the quote by impact × ln(1 + value / liquidity), up for a buy and down for a sale. */
-export function applyImpact(
+  Math.floor(
+    fill(economy, asset, qty, false).value * (1 - C.spread[asset]! / 2),
+  );
+/** Applies an order's market impact (`fill`): the quote moves up for a buy and down for a sale. */
+export function applyTrade(
   economy: Economy,
   asset: number,
-  value: number,
+  qty: number,
   buy: boolean,
 ): void {
-  const move = C.impact * ln(1 + value / C.liquidity[asset]!);
-  economy.impact[asset] = r4(
-    clamp(economy.impact[asset]! + (buy ? move : -move), -0.5, 1),
-  );
+  economy.impact[asset] = fill(economy, asset, qty, buy).impact;
 }
 /** Savings interest this week on `balance`: (policy rate − 1%) a year. */
 export const interest = (economy: Economy, balance: number): number =>

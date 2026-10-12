@@ -3,7 +3,13 @@ import {
   type GameRegistration,
   type PlayerResult,
 } from "fuse-platform";
-import { CAPACITY, MAX_WEEKS, isBotId, validName } from "./game/basics.js";
+import {
+  CAPACITY,
+  MAX_NET_WORTH,
+  MAX_WEEKS,
+  isBotId,
+  validName,
+} from "./game/basics.js";
 
 /**
  * Fuse Lane's part of the shared backend (`fuse-platform`): what a player's reported stats are and what a confirmed
@@ -81,7 +87,7 @@ export function parseFuseLaneStats(
     matchPlacement: MAX_MATCH_PARTICIPANTS,
     earlyExits: 1,
     weeks: MAX_WEEKS + 2,
-    netWorth: 100_000_000,
+    netWorth: MAX_NET_WORTH,
     degrees: 11,
     shifts: 10 * (MAX_WEEKS + 2),
   };

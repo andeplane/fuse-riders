@@ -57,7 +57,10 @@ export interface FuseLaneRoom extends ManagedRoom<FuseLaneSettings> {
   roster: Record<string, RosterEntry>;
   /** This Monday's headlines. */
   headlines: string[];
-  /** When the match is over: every player, best first; and the winners (who met all goals in the same week). */
+  /**
+   * When the match is over: every player, best first; and the winners, the top of that ranking (several only on an
+   * exact tie).
+   */
   ranking: string[];
   winners: string[];
 }

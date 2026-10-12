@@ -119,7 +119,7 @@ function menu(): void {
       onStart: (choice) => startLocal(choice),
       onResume: () => {
         const match = LocalRuntime.saved(store);
-        if (match) local(match);
+        if (match) local(match, true);
         else menu();
       },
       onDiscard: () => LocalRuntime.forget(store),
@@ -136,7 +136,8 @@ function startLocal(choice: MenuChoice): void {
 }
 
 let leaveLocal: (() => void) | undefined;
-function local(match: LocalMatch): void {
+/** Plays `match` on this device; a `resumed` save opens on the PAUSED card, as does a page opened in the background. */
+function local(match: LocalMatch, resumed = false): void {
   leaveLocal?.();
   const viewer: Viewer = {
     me: "",
@@ -215,7 +216,8 @@ function local(match: LocalMatch): void {
     )
       return;
     if (event.key === "p") setPaused(!runtime.paused);
-    else screen.keydown(event);
+    // The clock is stopped: no key plays (or skips a handoff) until RESUME.
+    else if (!runtime.paused) screen.keydown(event);
   };
   const onHide = () => runtime.save();
   document.addEventListener("visibilitychange", onVisibility);
@@ -231,7 +233,7 @@ function local(match: LocalMatch): void {
     runtime.stop();
     cleanup();
   };
-  runtime.start();
+  runtime.start(resumed || document.hidden);
 }
 
 // ---- an online room (by link: ?room=CODE) ---------------------------------------------------------------------

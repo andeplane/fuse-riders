@@ -57,7 +57,9 @@ export function normalizeChoice(choice: MenuChoice): MenuChoice {
   humans.forEach((human, index) => {
     let name = human.name,
       n = 2;
-    while (seen.has(name)) name = `${human.name.slice(0, 13)} ${n++}`;
+    // Cut by code points, so a name never ends in half a surrogate pair (which `validSetup` refuses).
+    const stem = Array.from(human.name).slice(0, 13).join("").trim();
+    while (seen.has(name)) name = `${stem} ${n++}`;
     seen.add(name);
     humans[index] = { ...human, name };
   });
@@ -79,13 +81,18 @@ export function normalizeChoice(choice: MenuChoice): MenuChoice {
   };
 }
 
-/** The setup a choice starts, with a fresh seed. */
+/**
+ * The setup a choice starts, with a fresh seed. It never throws (it runs in a click handler): a choice that still
+ * does not make a valid setup starts the default one.
+ */
 export function chooseSetup(choice: MenuChoice, seed: string): LocalSetup {
-  const clean = normalizeChoice(choice);
-  const goals: Goals = [clean.goal, clean.goal, clean.goal, clean.goal];
-  const setup: LocalSetup = { ...clean, goals, seed };
-  if (!validSetup(setup)) throw new Error("Invalid setup");
-  return setup;
+  const setupOf = (from: MenuChoice): LocalSetup => {
+    const clean = normalizeChoice(from);
+    const goals: Goals = [clean.goal, clean.goal, clean.goal, clean.goal];
+    return { ...clean, goals, seed };
+  };
+  const setup = setupOf(choice);
+  return validSetup(setup) ? setup : setupOf(DEFAULT_CHOICE);
 }
 
 /** What the device remembered, or the defaults. */
