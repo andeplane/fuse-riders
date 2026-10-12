@@ -13,6 +13,7 @@ import {
   ITEMS,
   GOALS,
   JOBHUB,
+  COURSES,
   JOBS,
   KEYNEST,
   MAX_NET_WORTH,
@@ -195,7 +196,7 @@ test("study: enroll pays the fee, each class costs 6 hours, and a degree lifts e
   a.cash = 1000;
   fold(room, { a: [act(room, COLLEGE, ENROLL, 0)] });
   assert.equal(a.courses[0], 0);
-  assert.equal(a.cash, 950);
+  assert.equal(a.cash, 1000 - COURSES[0]!.fee, "Trade Cert's tuition");
   for (let lesson = 0; lesson < 6; lesson++)
     fold(room, { a: [act(room, COLLEGE, CLASS, 0)] });
   assert.equal(a.courses[0], 6);
@@ -203,7 +204,7 @@ test("study: enroll pays the fee, each class costs 6 hours, and a degree lifts e
   a.time = 0;
   fold(room, { a: [act(room, COLLEGE, CLASS, 0)] });
   assert.equal(a.courses[0], 10);
-  assert.equal(stats(a, room.economy)[2], 10, "education = 1 + 9 × 1");
+  assert.equal(stats(a, room.economy)[2], 11, "education = 11 a degree");
   assert.equal(a.dep, 25);
   assert.equal(a.eduCredit, 5);
   // A course needs its prerequisite: Engineering needs Pre-Engineering.

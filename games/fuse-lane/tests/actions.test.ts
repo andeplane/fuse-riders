@@ -221,6 +221,7 @@ test("clothes add weeks every time; a durable is owned once, its first-owner hap
 test("a raise needs the market above your wage and a record of showing up", () => {
   const room = started();
   const a = hireCook(room);
+  a.exp = 0; // no seniority step due: only the market moves the wage here
   const wage = a.wage;
   room.economy.wageIndex *= 1.5;
   const market = marketWage(room.economy, JOBS[COOK]!);
@@ -234,7 +235,7 @@ test("a raise needs the market above your wage and a record of showing up", () =
   doing(room, "a", JOBHUB, RAISE);
   assert.equal(
     a.msg,
-    `The market pays $${market.toFixed(2)}/h. You already get more.`,
+    `The market pays $${market.toFixed(2)}/h. You already get more. Put in more shifts first.`,
   );
   assert.ok(a.msgBad);
   room.economy.wageIndex *= 1.5;
@@ -402,7 +403,7 @@ test("study: enrolling needs the fee and an open course, a class needs enrolment
   const a = standIn(room, "a", COLLEGE);
   a.cash = 10;
   doing(room, "a", COLLEGE, ENROLL, 0);
-  assert.equal(a.msg, `You need $${enrollFee(room.economy)}. You have $10.`);
+  assert.equal(a.msg, `You need $${enrollFee(room.economy, 0)}. You have $10.`);
   assert.equal(a.courses[0], -1);
   doing(room, "a", COLLEGE, CLASS, 0);
   assert.equal(a.msg, "Enroll first.");

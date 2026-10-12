@@ -199,7 +199,11 @@ export const GREETINGS: readonly (readonly string[])[] = [
     "Prices so low, so is the build quality.",
     "Today's deal: aisle-cleanup surprise.",
   ],
-  ["Someone's treasure, slightly used.", "Back next season. Probably."],
+  [
+    "Someone's treasure, slightly used.",
+    "Everything has a second life. Even that.",
+    "Cash today, regrets by Friday.",
+  ],
   [
     "The sea is calm. The paperwork is not.",
     "Mind the ropes. They have seniority.",

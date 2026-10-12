@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  BORROW,
   BUY,
+  FUN_HAPPY,
   DEPOSIT,
   EXTEND,
   FRESHCO,
@@ -18,6 +20,7 @@ import {
   PAY_ARREARS,
   PAY_RENT,
   RAISE,
+  SCRATCH_PER_WEEK,
   TOWER,
   TRADE_BUY,
   TRADE_SELL,
@@ -42,7 +45,7 @@ const FLOOR = JOBS.findIndex((job) => job.title === "Floor Associate");
 
 /**
  * A bot with nothing pressing: employed at MegaMart and paid the market rate, dressed, fed, rent paid, its shifts and
- * classes done, rested, content and living in The Tower, with a little cash. Its only move is more work.
+ * classes done (more than any style and lean ask for), no scratch cards left this week, rested, content and living in The Tower, with a little cash. Its only move is more work.
  */
 function settled(room: FuseLaneRoom, id = "a"): PlayerState {
   const player = room.players[id]!;
@@ -54,14 +57,16 @@ function settled(room: FuseLaneRoom, id = "a"): PlayerState {
     clothes: [6, 0, 0],
     meal: 1,
     rentWeeks: 3,
-    weekShifts: 3,
-    weekClasses: 3,
+    weekShifts: 7,
+    weekClasses: 7,
     relax: 30,
     happiness: 10,
     goals: [10, 10, 10, 10],
     home: 1,
     cash: 500,
+    scratched: SCRATCH_PER_WEEK,
   });
+  room.shelf = [];
   return player;
 }
 function inside(player: PlayerState, place: number): void {
@@ -101,6 +106,12 @@ test("rent comes first: paid from cash, or from savings, or an extension asked o
   assert.deepEqual(botMove(room, "a"), act(NEOBANK, WITHDRAW, a.rent - 100));
 
   a.bank = 0;
+  assert.deepEqual(
+    botMove(room, "a"),
+    act(NEOBANK, BORROW, Math.ceil((a.rent - 100) / 100) * 100),
+    "a loan for the rest",
+  );
+  a.loanLate = 1; // no credit while a loan payment is missed
   assert.deepEqual(botMove(room, "a"), { kind: "walk", place: KEYNEST });
   inside(a, KEYNEST);
   assert.deepEqual(botMove(room, "a"), act(KEYNEST, EXTEND));
@@ -161,14 +172,20 @@ test("climbing: it asks for a raise once the market pays 5% more and its record 
   const room = started();
   const a = settled(room);
   a.raises = 0;
-  a.dep = 15;
+  a.dep = 10;
   room.economy.wageIndex *= 1.2;
   inside(a, JOBHUB);
   assert.deepEqual(botMove(room, "a"), act(JOBHUB, RAISE));
-  a.dep = 14; // 10 for the job + 5
-  assert.notDeepEqual(botMove(room, "a"), act(JOBHUB, RAISE));
-  room.level = 0; // an easy bot never asks
+  a.raises = 1;
+  a.wage = marketWage(room.economy, JOBS[FLOOR]!) / 1.2;
+  assert.notDeepEqual(
+    botMove(room, "a"),
+    act(JOBHUB, RAISE),
+    "10 for the job + 5 per raise had",
+  );
   a.dep = 15;
+  assert.deepEqual(botMove(room, "a"), act(JOBHUB, RAISE));
+  room.level = 0; // an easy bot never asks
   assert.notDeepEqual(botMove(room, "a"), act(JOBHUB, RAISE));
 });
 
@@ -176,6 +193,7 @@ test("comfort: spare cash buys the next appliance; with a fridge and a stove it 
   const room = started();
   const a = settled(room);
   a.happiness = 0;
+  a.flags |= FUN_HAPPY; // its night out is done
   a.cash = 1500;
   inside(a, GADGET);
   const fridge = ITEMS.findIndex(
@@ -201,7 +219,7 @@ test("comfort: spare cash buys the next appliance; with a fridge and a stove it 
   assert.equal(TOWER, 2);
 });
 
-test("investing: a hard bot sells the index fund when the mood sours and buys when it is bullish; otherwise it saves", () => {
+test("investing: a bot sells the index fund when the mood sours and buys when it is bullish; otherwise it saves", () => {
   const room = started();
   const a = settled(room);
   a.goals = [0, 10, 10, 10];
@@ -225,9 +243,9 @@ test("investing: a hard bot sells the index fund when the mood sours and buys wh
       move.b > 0,
   );
 
-  room.economy.sentiment = 0;
+  room.economy.sentiment = -0.2;
   assert.deepEqual(botMove(room, "a"), act(NEOBANK, DEPOSIT, 2300));
-  room.level = 1; // a normal bot does not trade
+  room.level = 0; // an easy bot does not trade
   room.economy.sentiment = 0.5;
   assert.deepEqual(botMove(room, "a"), act(NEOBANK, DEPOSIT, 2300));
 });
