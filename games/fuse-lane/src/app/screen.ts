@@ -416,6 +416,8 @@ export function createGameScreen(
     if (owner === undefined) return;
     checkHidden.set(owner, hidden);
     hooks.checklist?.hide(owner, hidden);
+    if (hidden) flash("Checklist hidden. Tap the clock to bring it back.");
+    else youOpen = false;
     if (model) render(model);
   };
   checkHead.onclick = () => {
@@ -430,9 +432,10 @@ export function createGameScreen(
     const hidden = list ? (checkHidden.get(list.owner) ?? list.hidden) : false;
     youShowList.hidden = !hidden;
     checklist.hidden = !list || covered || hidden;
+    game.classList.toggle("listed", !checklist.hidden);
     if (!list || checklist.hidden) return;
-    // Until the player chooses, it starts open on a wide screen and folded on a phone held upright (the layout's
-    // `compact`), where the map is narrow.
+    // Until the player chooses, it starts open on a wide screen and folded on a phone, upright (the layout's
+    // `compact`, where the map is narrow) or on its side (`short`, where it is low).
     const box = game.getBoundingClientRect();
     // It stands on the fourth rival's card (bottom left, wide screens) rather than covering it.
     const rival =
@@ -442,7 +445,9 @@ export function createGameScreen(
       `${rival?.offsetHeight ? rival.offsetHeight + 8 : 0}px`,
     );
     const open =
-      checkOpen ?? list.open ?? !(box.width < 700 && box.height > box.width);
+      checkOpen ??
+      list.open ??
+      !((box.width < 700 && box.height > box.width) || box.height < SHORT);
     text(checkTitle, list.complete ? "All set!" : "Getting started");
     text(checkCount, `${list.done}/${list.total}`);
     checkHead.setAttribute("aria-expanded", String(open));
@@ -576,6 +581,7 @@ export function createGameScreen(
       };
     }
     tourSpot.hidden = !spot;
+    tourLayer.classList.toggle("plain", !spot);
     if (!spot) {
       tourCard.dataset.at = "middle";
       tourCard.style.left = tourCard.style.top = "";
@@ -701,13 +707,15 @@ export function createGameScreen(
 
   const freshToast = toastTracker();
   let toastTimer: ReturnType<typeof setTimeout> | undefined;
-  function showToast(next: ScreenModel["toast"]): void {
-    if (!next || !freshToast(next)) return;
-    text(toast, next.text);
-    toast.dataset.tone = next.bad ? "warn" : "good";
+  function flash(message: string, bad = false): void {
+    text(toast, message);
+    toast.dataset.tone = bad ? "warn" : "good";
     toast.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => (toast.hidden = true), 2600);
+  }
+  function showToast(next: ScreenModel["toast"]): void {
+    if (next && freshToast(next)) flash(next.text, next.bad);
   }
 
   function renderYou(next: ScreenModel, modal: boolean): void {

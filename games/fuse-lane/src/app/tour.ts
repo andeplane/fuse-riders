@@ -49,7 +49,9 @@ export function tourSteps(
   const me = view.players.find((player) => player.id === you);
   const goals = me?.state.goals ?? [];
   const rivals = view.players.filter((player) => player.id !== you).length;
-  const sure = JOBS.find((job) => job.sure);
+  const sure = JOBS.find(
+    (job, index) => job.sure && view.holders[index] === undefined,
+  );
   const targets = list(
     GOAL_NAMES.map((name, index) => `${name} ${goals[index] ?? 0}`),
   );
