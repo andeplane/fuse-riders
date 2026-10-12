@@ -35,6 +35,7 @@
     "fuse-choppers": "workspace:*",
     "fuse-craft": "workspace:*",
     "fuse-freight": "workspace:*",
+    "fuse-lane": "workspace:*",
     "fuse-network-be": "workspace:*",
     "fuse-platform": "workspace:*",
     "fuse-riders-game": "workspace:*",
