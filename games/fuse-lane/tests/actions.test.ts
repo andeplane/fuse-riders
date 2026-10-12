@@ -99,6 +99,15 @@ function doing(
   fold(room, { [id]: [act(room, place, action, a, b)] });
   return room.players[id]!;
 }
+/** Refused with a reason, but no hours or money spent. */
+function refused(player: PlayerState, why: RegExp, run: () => void): void {
+  const { msgN, time, cash, bank } = player;
+  run();
+  assert.equal(player.msgN, msgN + 1, "it answers");
+  assert.match(player.msg, why);
+  assert.ok(player.msgBad);
+  assert.deepEqual([player.time, player.cash, player.bank], [time, cash, bank]);
+}
 /** Nothing happened: no answer, no hours, no money. */
 function unchanged(player: PlayerState, run: () => void): void {
   const { msgN, time, cash, bank } = player;
@@ -212,6 +221,7 @@ test("clothes add weeks every time; a durable is owned once, its first-owner hap
 test("a raise needs the market above your wage and a record of showing up", () => {
   const room = started();
   const a = hireCook(room);
+  a.exp = 0; // no seniority step due: only the market moves the wage here
   const wage = a.wage;
   room.economy.wageIndex *= 1.5;
   const market = marketWage(room.economy, JOBS[COOK]!);
@@ -225,7 +235,7 @@ test("a raise needs the market above your wage and a record of showing up", () =
   doing(room, "a", JOBHUB, RAISE);
   assert.equal(
     a.msg,
-    `The market pays $${market.toFixed(2)}/h. You already get more.`,
+    `The market pays $${market.toFixed(2)}/h. You already get more. Put in more shifts first.`,
   );
   assert.ok(a.msgBad);
   room.economy.wageIndex *= 1.5;
@@ -275,7 +285,7 @@ test("an application answers why not: your own job, a freeze, missing requiremen
   room.economy.companies[MEGA]!.health = -1;
   doing(room, "a", JOBHUB, APPLY, floor);
   assert.equal(a.msg, "MegaMart has a hiring freeze.");
-  assert.equal(a.time, HOURS.apply * UNITS_PER_HOUR, "asking still costs");
+  assert.equal(a.time, 0, "a freeze the posting shows costs no hours");
   room.economy.companies[MEGA]!.health = 0.2;
 
   const b = standIn(room, "b", JOBHUB);
@@ -393,14 +403,14 @@ test("study: enrolling needs the fee and an open course, a class needs enrolment
   const a = standIn(room, "a", COLLEGE);
   a.cash = 10;
   doing(room, "a", COLLEGE, ENROLL, 0);
-  assert.equal(a.msg, `You need $${enrollFee(room.economy)}. You have $10.`);
+  assert.equal(a.msg, `You need $${enrollFee(room.economy, 0)}. You have $10.`);
   assert.equal(a.courses[0], -1);
   doing(room, "a", COLLEGE, CLASS, 0);
   assert.equal(a.msg, "Enroll first.");
   a.cash = 1000;
   doing(room, "a", COLLEGE, ENROLL, 0);
   assert.equal(a.msg, "Enrolled in Trade Cert.");
-  unchanged(a, () => doing(room, "a", COLLEGE, ENROLL, 0));
+  refused(a, /already enrolled/, () => doing(room, "a", COLLEGE, ENROLL, 0));
   unchanged(a, () => doing(room, "a", COLLEGE, ENROLL, 99));
   unchanged(a, () => doing(room, "a", COLLEGE, CLASS, 99));
 
@@ -414,7 +424,7 @@ test("study: enrolling needs the fee and an open course, a class needs enrolment
   assert.equal(a.msg, "Graduated: Trade Cert! Hat toss.");
   assert.equal(a.courses[0], 10, "eight lessons with books and a laptop");
   assert.equal(a.happiness, 5);
-  unchanged(a, () => doing(room, "a", COLLEGE, CLASS, 0));
+  refused(a, /already hold/, () => doing(room, "a", COLLEGE, CLASS, 0));
   standIn(room, "a", JOBHUB);
   unchanged(a, () => doing(room, "a", JOBHUB, ENROLL, 4));
 });
@@ -428,7 +438,7 @@ test("rent: pay ahead up to a cap, the first payment after rent day covers the r
   assert.equal(a.msg, "Rent paid: 7 weeks covered.");
   doing(room, "a", KEYNEST, PAY_RENT);
   assert.equal(a.rentWeeks, 11);
-  unchanged(a, () => doing(room, "a", KEYNEST, PAY_RENT));
+  refused(a, /won't take more/, () => doing(room, "a", KEYNEST, PAY_RENT));
 
   const b = standIn(room, "b", KEYNEST);
   b.rentWeeks = 0;
@@ -446,7 +456,7 @@ test("rent: pay ahead up to a cap, the first payment after rent day covers the r
 test("an extension is asked once a week, granted with falling odds, and never after a garnishment", () => {
   const room = started();
   const a = standIn(room, "a", KEYNEST);
-  unchanged(a, () => doing(room, "a", KEYNEST, EXTEND));
+  refused(a, /Nothing to extend/, () => doing(room, "a", KEYNEST, EXTEND));
   a.rentWeeks = 0;
   doing(room, "a", KEYNEST, EXTEND);
   assert.equal(a.msg, "Fine. One more week. Don't make it a habit.");
@@ -454,7 +464,7 @@ test("an extension is asked once a week, granted with falling odds, and never af
   assert.ok(a.flags & EXTENDED);
   assert.ok(a.flags & TRIED_EXTENSION);
   assert.equal(a.happiness, 1);
-  unchanged(a, () => doing(room, "a", KEYNEST, EXTEND));
+  refused(a, /already asked/, () => doing(room, "a", KEYNEST, EXTEND));
 
   // The odds below take hundreds of folds: keep the week from timing out under them.
   room.phaseEnd = Number.MAX_SAFE_INTEGER;
@@ -497,23 +507,24 @@ test("arrears are cleared in one payment; moving home signs a 12-week lease, and
   assert.equal(a.cash, 4700);
   assert.equal(a.msg, "Arrears cleared. KeyNest smiles (briefly).");
 
-  unchanged(a, () => doing(room, "a", KEYNEST, MOVE, 0));
+  refused(a, /already live/, () => doing(room, "a", KEYNEST, MOVE, 0));
   unchanged(a, () => doing(room, "a", KEYNEST, MOVE, 2));
   const tower = rentPrice(room.economy, 1);
   doing(room, "a", KEYNEST, MOVE, 1);
   assert.equal(
     a.msg,
-    `Moved to The Tower: $${tower} per 4 weeks, locked 12 weeks.`,
+    `Moved to The Tower: $${tower} per 4 weeks, locked 12 weeks. 7 weeks covered.`,
   );
+  // Week 1: the 4 weeks paid for, then on to the week-8 rent day.
   assert.deepEqual(
     [a.home, a.rent, a.rentWeeks, a.leaseEnd, a.cash],
-    [1, tower, 4, room.week + 12, 4700 - tower],
+    [1, tower, 7, room.week + 12, 4700 - tower],
   );
   const roomshare = rentPrice(room.economy, 0);
   doing(room, "a", KEYNEST, MOVE, 0);
   assert.equal(
     a.msg,
-    `Moved to Roomshare: $${roomshare} per 4 weeks, locked 12 weeks, $${tower} lease break fee.`,
+    `Moved to Roomshare: $${roomshare} per 4 weeks, locked 12 weeks, $${tower} lease break fee. 7 weeks covered.`,
   );
   assert.equal(a.cash, 4700 - tower - roomshare - tower);
   a.cash = 0;

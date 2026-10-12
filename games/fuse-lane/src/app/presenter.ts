@@ -3,7 +3,9 @@ import {
   ACT,
   APPLY,
   ASSET_NAMES,
+  BORROW,
   BUY,
+  BUY_USED,
   CAPACITY,
   CLASS,
   CRYPTO,
@@ -12,10 +14,14 @@ import {
   COURSES,
   CYCLES,
   DEPOSIT,
+  DURABLES,
+  DURABLE_NAMES,
+  durableName,
   EMPLOYERS,
   END_WEEK,
   ENROLL,
   EXTEND,
+  FUN_HAPPY,
   GIG,
   GOAL_NAMES,
   GREETINGS,
@@ -26,12 +32,19 @@ import {
   PAID_HOURS,
   PAY_ARREARS,
   PAY_RENT,
+  PAWN,
   PLACES,
   QUIT,
   RAISE,
   READY,
+  REDEEM,
   RELAX,
   RENT,
+  REPAY,
+  SCRATCH,
+  SCRATCH_PER_WEEK,
+  SCRATCH_PRICE,
+  SCRATCH_PRIZES,
   TICKS_PER_SECOND,
   TRADE_BUY,
   UNITS_PER_HOUR,
@@ -43,7 +56,13 @@ import {
   WORK,
   WORKPLACE,
   buyCost,
+  creditLeft,
+  creditLine,
   enrollFee,
+  loanPayment,
+  loanRate,
+  pawnValue,
+  redeemPrice,
   gigWage,
   hireOdds,
   hiring,
@@ -62,6 +81,10 @@ import {
   type FuseLanePlayerView,
   type FuseLaneView,
   type PlayerState,
+  FLU,
+  NO_EVENT,
+  PICKPOCKETS,
+  eventChip,
 } from "../game/index.js";
 import { route } from "./layout.js";
 import { tips, type Tip } from "./tips.js";
@@ -143,6 +166,8 @@ export interface HudModel {
   job: string;
   /** Short life status chips: food, clothes, rent. */
   chips: { label: string; warn: boolean }[];
+  /** This week's town event under the clock, or "" (`warn` for a hazard). */
+  event: { label: string; warn: boolean };
   /** What to do next, most pressing first (the you panel's Tips). */
   tips: string[];
   /** Whose week this is (hot-seat), and this Monday's private news for them. */
@@ -264,6 +289,7 @@ export interface ScreenModel {
   headline: string;
 }
 
+const unitsOf = (n: number) => `${n} unit${n === 1 ? "" : "s"}`;
 const money = (value: number) =>
   `${value < 0 ? "-" : ""}$${Math.abs(Math.round(value)).toLocaleString("en-US")}`;
 const hours = (value: number) => `${value}h`;
@@ -309,7 +335,12 @@ function shopCards(view: FuseLaneView, me: PlayerState, place: number): Card[] {
       owned =
         item.durable !== undefined && (me.durables[item.durable]?.n ?? 0) > 0,
       firstTime =
-        item.durable !== undefined && me.durables[item.durable] === undefined;
+        item.durable !== undefined && me.durables[item.durable] === undefined,
+      wentOut = item.kind === "fun" && (me.flags & FUN_HAPPY) !== 0,
+      needsFridge =
+        item.kind === "groceries" &&
+        (item.weeks ?? 1) > 1 &&
+        (me.durables.fridge?.n ?? 0) === 0;
     const happy =
       item.happy > 0 && (item.kind !== "durable" || firstTime)
         ? ` · +${item.happy} ☺`
@@ -322,10 +353,19 @@ function shopCards(view: FuseLaneView, me: PlayerState, place: number): Card[] {
         title: item.name,
         detail: `${item.effect}${happy}`,
         price: money(price),
+        hours: item.hours ? hours(item.hours) : "",
         icon: `icon-${item.icon}`,
         entry: actEntry(view, place, BUY, index),
-        enabled: !owned && me.cash >= price,
-        note: owned ? "Owned" : me.cash < price ? "Not enough cash" : "",
+        enabled: !owned && !wentOut && !needsFridge && me.cash >= price,
+        note: owned
+          ? "Owned"
+          : wentOut
+            ? "Done this week"
+            : needsFridge
+              ? "Needs a fridge"
+              : me.cash < price
+                ? "Not enough cash"
+                : "",
       }),
     ];
   });
@@ -515,10 +555,10 @@ function college(
   me: PlayerState,
   place: number,
 ): Section[] {
-  const fee = enrollFee(view.economy),
-    need = lessonsNeeded(me);
+  const need = lessonsNeeded(me);
   const cards = COURSES.map((course, index) => {
-    const lessons = me.courses[index]!,
+    const fee = enrollFee(view.economy, index),
+      lessons = me.courses[index]!,
       prereq = course.prereq;
     if (lessons >= 10)
       return card({
@@ -679,19 +719,65 @@ function neobank(
         entry: actEntry(view, place, WITHDRAW, amount),
       }),
     ),
-    card({
-      key: "loan",
-      title: "Loans",
-      detail: "Credit scores are being calculated",
-      icon: "ui-bank",
-      enabled: false,
-      note: "Coming soon",
-    }),
+  ];
+  const left = creditLeft(me),
+    rate = loanRate(economy).toFixed(1);
+  const loans: Card[] = [
+    ...[200, 500]
+      .filter((amount) => amount < left)
+      .concat(left > 0 ? [left] : [])
+      .map((amount) =>
+        card({
+          key: `borrow-${amount === left ? "max" : amount}`,
+          title: `Borrow ${money(amount)}`,
+          detail: `${rate}% a year · counts against Wealth until repaid`,
+          price: `+${money(amount)}`,
+          hours: hours(HOURS.trade),
+          icon: "ui-cash",
+          entry: actEntry(view, place, BORROW, amount),
+        }),
+      ),
+    ...(left <= 0 && me.loan === 0
+      ? [
+          card({
+            key: "borrow-none",
+            title: "Borrow",
+            detail: me.job < 0 ? "Neobank lends against a payslip" : "",
+            icon: "ui-cash",
+            enabled: false,
+            note: me.loanLate > 0 ? "Payments missed" : "No credit yet",
+          }),
+        ]
+      : []),
+    ...[100]
+      .filter((amount) => amount < me.loan)
+      .concat(me.loan > 0 ? [me.loan] : [])
+      .map((amount) =>
+        card({
+          key: `repay-${amount === me.loan ? "all" : amount}`,
+          title:
+            amount === me.loan ? "Pay off the loan" : `Repay ${money(amount)}`,
+          detail: amount === me.loan ? "Debt free, and Wealth goes up" : "",
+          price: money(amount),
+          icon: "ui-bank",
+          entry: actEntry(view, place, REPAY, amount),
+          enabled: me.cash >= amount,
+          note: me.cash < amount ? "Not enough cash" : "",
+        }),
+      ),
   ];
   const assets = ASSET_NAMES.map((name, asset) => {
     const price = quote(economy, asset),
       held = me.holdings[asset]!,
-      cost = buyCost(economy, asset, 1);
+      // One tap buys as many units as up to $1000 of cash pays for, along the order's own price impact; the card
+      // shows what that whole order costs, not one unit.
+      budget = Math.min(me.cash, 1000);
+    let units = Math.max(
+      1,
+      Math.floor(budget / Math.max(1, buyCost(economy, asset, 1))),
+    );
+    while (units > 1 && buyCost(economy, asset, units) > budget) units--;
+    const cost = buyCost(economy, asset, units);
     const company =
       asset < COMPANIES.length
         ? COMPANIES[asset]!.name
@@ -702,28 +788,19 @@ function neobank(
       card({
         key: `buy-${asset}`,
         title: `Buy ${name}`,
-        detail: `${company} · ${money(price)}${held ? ` · you hold ${held}` : ""}`,
+        detail: `${company} · ${money(price)} a unit${held ? ` · you hold ${held}` : ""}`,
         price: money(cost),
         icon: "ui-stocks",
-        entry: actEntry(
-          view,
-          place,
-          TRADE_BUY,
-          asset,
-          Math.max(1, Math.floor(Math.min(me.cash, 1000) / Math.max(1, cost))),
-        ),
+        entry: actEntry(view, place, TRADE_BUY, asset, units),
         enabled: me.cash >= cost,
-        note:
-          me.cash >= cost
-            ? `${Math.max(1, Math.floor(Math.min(me.cash, 1000) / Math.max(1, cost)))} units`
-            : "Not enough cash",
+        note: me.cash >= cost ? unitsOf(units) : "Not enough cash",
       }),
       ...(held
         ? [
             card({
               key: `sell-${asset}`,
               title: `Sell all ${name}`,
-              detail: `${held} units`,
+              detail: unitsOf(held),
               price: `+${money(sellValue(economy, asset, held))}`,
               icon: "ui-stocks",
               entry: actEntry(view, place, TRADE_SELL, asset, held),
@@ -739,9 +816,94 @@ function neobank(
       cards: cash,
     },
     {
+      title: "Loans",
+      info:
+        me.loan > 0
+          ? `You owe ${money(me.loan)}${me.loanLate > 0 ? " · payments missed: half of each shift goes to Neobank" : ` · Monday payment ${money(loanPayment(me.loan))}`} · credit line ${money(creditLine(me))}`
+          : `Credit line ${money(creditLine(me))} (${me.job >= 0 ? "about four weeks' pay" : "more with a job"}) · paid back a tenth each Monday`,
+      cards: loans,
+    },
+    {
       title: "Markets",
       info: "Spreads apply; big orders move the price.",
       cards: assets,
+    },
+  ];
+}
+
+/** An item's picture: its full-price shop card's icon. */
+const durableIcon = (item: number): string =>
+  `icon-${ITEMS.find((data) => data.durable === DURABLES[item])?.icon ?? "fridge"}`;
+
+function secondLife(
+  view: FuseLaneView,
+  me: PlayerState,
+  place: number,
+): Section[] {
+  const shelf = view.shelf.map((offer, slot) => {
+    const id = DURABLES[offer.item]!,
+      owned = (me.durables[id]?.n ?? 0) > 0;
+    return card({
+      key: `used-${slot}-${offer.item}`,
+      title: `${DURABLE_NAMES[id]} (used)`,
+      detail: "Second-hand: breaks down a bit more often",
+      price: money(offer.price),
+      icon: durableIcon(offer.item),
+      entry: actEntry(view, place, BUY_USED, slot, offer.item),
+      enabled: !owned && me.cash >= offer.price,
+      note: owned
+        ? "You have one"
+        : me.cash < offer.price
+          ? "Not enough cash"
+          : "",
+    });
+  });
+  const pawnable = DURABLES.flatMap((id, item) =>
+    (me.durables[id]?.n ?? 0) > 0
+      ? [
+          card({
+            key: `pawn-${item}`,
+            title: `Pawn your ${durableName(id)}`,
+            detail: `Buy it back for ${money(redeemPrice(me.durables[id]!.paid))} within 3 weeks`,
+            price: `+${money(pawnValue(me, item))}`,
+            icon: durableIcon(item),
+            entry: actEntry(view, place, PAWN, item),
+            enabled: me.pawned.length < 4,
+            note: me.pawned.length >= 4 ? "4 tickets at most" : "",
+          }),
+        ]
+      : [],
+  );
+  const tickets = me.pawned.map((ticket, index) => {
+    const id = DURABLES[ticket.item]!,
+      price = redeemPrice(ticket.paid),
+      home = (me.durables[id]?.n ?? 0) > 0;
+    return card({
+      key: `redeem-${index}-${ticket.item}`,
+      title: `Redeem your ${durableName(id)}`,
+      detail: `Until the end of week ${ticket.due}, then it goes on the shelf`,
+      price: money(price),
+      icon: durableIcon(ticket.item),
+      entry: actEntry(view, place, REDEEM, index),
+      enabled: !home && me.cash >= price,
+      note: home ? "You have one" : me.cash < price ? "Not enough cash" : "",
+    });
+  });
+  return [
+    {
+      title: "Used goods",
+      info: view.shelf.length
+        ? "First come, first served: whatever is pawned and never redeemed ends up here."
+        : "The shelf is empty. Check back next week.",
+      cards: shelf,
+    },
+    ...(tickets.length ? [{ title: "Your pawn tickets", cards: tickets }] : []),
+    {
+      title: "Pawn",
+      info: pawnable.length
+        ? "Quick cash for things you own: 40% of what you paid."
+        : "Nothing to pawn: Second Life takes appliances and gadgets.",
+      cards: pawnable,
     },
   ];
 }
@@ -797,11 +959,19 @@ export function panelFor(
         sections[0]!.cards.push(
           card({
             key: "lottery",
-            title: "Scratch cards",
-            detail: "Feeling lucky?",
-            icon: "icon-groceries",
-            enabled: false,
-            note: "Coming soon",
+            title: "Scratch card",
+            detail: `Top prize ${money(SCRATCH_PRIZES[0].prize)} · 1 in ${Math.round(1000 / SCRATCH_PRIZES.reduce((sum, prize) => sum + prize.odds, 0))} wins something`,
+            price: money(SCRATCH_PRICE),
+            icon: "ui-happiness",
+            entry: actEntry(view, place, SCRATCH),
+            enabled:
+              me.scratched < SCRATCH_PER_WEEK && me.cash >= SCRATCH_PRICE,
+            note:
+              me.scratched >= SCRATCH_PER_WEEK
+                ? `${SCRATCH_PER_WEEK} a week`
+                : me.cash < SCRATCH_PRICE
+                  ? "Not enough cash"
+                  : `${me.scratched} of ${SCRATCH_PER_WEEK} this week`,
           }),
         );
       break;
@@ -819,13 +989,7 @@ export function panelFor(
       sections = gate(view, me, players, place);
       break;
     case "resale":
-      sections = [
-        {
-          title: "Second Life",
-          info: "The resale shop is still sorting its shelves. Coming soon.",
-          cards: [],
-        },
-      ];
+      sections = secondLife(view, me, place);
       break;
   }
   const work = workCard(view, me, place);
@@ -909,7 +1073,18 @@ function hud(
               : `Rent ${me.rentWeeks}w`,
         warn: me.rentOwed > 0 || me.rentWeeks === 0,
       },
+      ...(me.loan > 0
+        ? [{ label: `Loan ${money(me.loan)}`, warn: me.loanLate > 0 }]
+        : []),
     ],
+    // This week's town event, all week: a hazard warns, an opportunity does not.
+    event: {
+      label:
+        view.economy.event === NO_EVENT
+          ? ""
+          : eventChip(view.economy.event, view.economy.eventArg),
+      warn: view.economy.event === PICKPOCKETS || view.economy.event === FLU,
+    },
   };
 }
 

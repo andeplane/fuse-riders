@@ -5,10 +5,14 @@ import {
   APPLY,
   DOCKS,
   END_WEEK,
+  FRESHCO,
   HOURS,
   JOBHUB,
   JOBS,
+  NEOBANK,
   READY,
+  RESALE,
+  buyCost,
   ROOMSHARE,
   WALK,
   type FuseLaneView,
@@ -18,8 +22,14 @@ import {
   DEFAULT_CHOICE,
   chooseSetup,
   maxBots,
+  PLAYED_KEY,
+  SETUP_KEY,
+  nextAvatar,
   normalizeChoice,
   parseStoredSetup,
+  playedChoice,
+  rememberPlayed,
+  renamed,
 } from "../src/app/menu.js";
 import {
   present,
@@ -350,4 +360,114 @@ test("art and links resolve from the site root, also under a relative base", () 
     "/previews/pr-505/",
   );
   assert.equal(siteBase("", "http://x/assets/a.js"), "/");
+});
+
+/** Walks the solo player into `place` and returns the panel's cards. */
+function cardsAt(match: LocalMatch, place: number): Card[] {
+  match.play([WALK, match.room.week, place]);
+  until(match, () => match.room.players.p1!.inside === place);
+  return present(match.view(), LOCAL).panel!.sections.flatMap(
+    (section) => section.cards,
+  );
+}
+
+test("Second Life sells a used fridge from its card, and the toast says so", () => {
+  const match = LocalMatch.create(setup(1, 0));
+  match.room.players.p1!.cash = 800;
+  const fridge = cardsAt(match, RESALE).find(
+    (card) => card.title === "Smart fridge (used)",
+  )!;
+  assert.ok(fridge.enabled);
+  match.play(fridge.entry!);
+  match.step();
+  const after = present(match.view(), LOCAL);
+  assert.match(after.toast!.text, /Second-hand smart fridge/);
+  const pawn = after
+    .panel!.sections.flatMap((section) => section.cards)
+    .find((card) => card.title === "Pawn your smart fridge");
+  assert.ok(pawn?.enabled, "and now it can be pawned");
+});
+
+test("Neobank lends from a card and FreshCo sells scratch cards", () => {
+  const match = LocalMatch.create(setup(1, 0));
+  const borrow = cardsAt(match, NEOBANK).find((card) =>
+    card.key.startsWith("borrow-"),
+  )!;
+  assert.ok(borrow.enabled, "a little credit even without a job");
+  match.play(borrow.entry!);
+  match.step();
+  let model = present(match.view(), LOCAL);
+  assert.match(model.toast!.text, /Borrowed \$200/);
+  assert.ok(model.hud!.chips.some((chip) => chip.label === "Loan $200"));
+  const scratch = cardsAt(match, FRESHCO).find(
+    (card) => card.key === "lottery",
+  )!;
+  assert.ok(scratch.enabled);
+  match.play(scratch.entry!);
+  match.step();
+  model = present(match.view(), LOCAL);
+  assert.equal(match.room.players.p1!.scratched, 1);
+  assert.ok(model.toast!.text.length > 0);
+});
+
+test("changing a face keeps a rename, and neither edit touches the defaults", () => {
+  const before = JSON.stringify(DEFAULT_CHOICE);
+  let choice = normalizeChoice({
+    ...DEFAULT_CHOICE,
+    humans: [...DEFAULT_CHOICE.humans, { name: "Player 2", avatar: "fox" }],
+  });
+  choice = renamed(choice, 1, "Zed");
+  choice = nextAvatar(choice, 1);
+  assert.equal(choice.humans[1]!.name, "Zed");
+  assert.notEqual(choice.humans[1]!.avatar, "fox");
+  // A rename that clashes is made unique.
+  choice = renamed(choice, 0, "Zed");
+  assert.deepEqual(
+    choice.humans.map((human) => human.name),
+    ["Zed", "Zed 2"],
+  );
+  assert.equal(JSON.stringify(DEFAULT_CHOICE), before);
+});
+
+test("PLAY AGAIN replays the group a match started with, not the menu's later edits", () => {
+  const items = new Map<string, string>();
+  const store = {
+    getItem: (key: string) => items.get(key) ?? null,
+    setItem: (key: string, value: string) => void items.set(key, value),
+    removeItem: (key: string) => void items.delete(key),
+  };
+  const four = normalizeChoice({
+    ...DEFAULT_CHOICE,
+    humans: ["Ann", "Bo", "Cy", "Di"].map((name) => ({ name, avatar: "fox" })),
+    bots: 0,
+  });
+  rememberPlayed(store, "match-1", four);
+  items.set(SETUP_KEY, JSON.stringify(DEFAULT_CHOICE));
+  assert.deepEqual(playedChoice(store, "match-1"), four);
+  // Another match, or a damaged record: the menu's setup.
+  assert.deepEqual(playedChoice(store, "match-2"), DEFAULT_CHOICE);
+  items.set(PLAYED_KEY, "{oops");
+  assert.deepEqual(playedChoice(store, "match-1"), DEFAULT_CHOICE);
+});
+
+test("a market card's price is what the tap charges: the whole order, which the cash covers", () => {
+  const match = LocalMatch.create(setup(1, 0));
+  match.play([WALK, 1, NEOBANK]);
+  until(match, () => match.room.players.p1!.inside === NEOBANK);
+  const me = match.room.players.p1!;
+  const cash = me.cash;
+  const cards = present(match.view(), LOCAL).panel!.sections.flatMap(
+    (section) => section.cards,
+  );
+  const buy = cards.find((card) => card.title === "Buy MEGA")!;
+  const units = buy.entry![5] as number;
+  assert.ok(units > 1, "a cheap stock buys several units");
+  assert.equal(buy.note, `${units} units`);
+  const cost = buyCost(match.room.economy, buy.entry![4] as number, units);
+  assert.equal(buy.price, `$${cost}`);
+  assert.ok(cost <= cash);
+  match.play(buy.entry!);
+  match.step();
+  assert.equal(me.cash, cash - cost);
+  assert.match(present(match.view(), LOCAL).toast!.text, /Bought/);
 });

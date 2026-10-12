@@ -458,11 +458,17 @@ body.fl-page .fl-clock:enabled:hover {
 }
 .fl-clock-words {
   display: grid;
+  min-width: 0;
   line-height: 1.15;
 }
 .fl-week {
+  overflow: hidden;
   font-size: 0.95rem;
   font-weight: 900;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.fl-bank {
   white-space: nowrap;
 }
 .fl-timer-text {
@@ -472,6 +478,22 @@ body.fl-page .fl-clock:enabled:hover {
 }
 .fl-timer-text.low {
   color: var(--fl-coral);
+}
+/* This week's town event, under the clock. */
+.fl-event-text {
+  max-width: 8.5rem;
+  overflow: hidden;
+  color: var(--fl-forest);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fl-event-text.warn {
+  color: var(--fl-coral);
+}
+.fl-event-text[hidden] {
+  display: none;
 }
 .fl-badge {
   position: absolute;
@@ -505,6 +527,7 @@ body.fl-page .fl-clock:enabled:hover {
   color: #b9c7d2;
   font-size: 0.72rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 .fl-hud-goals {
   display: flex;
@@ -1124,6 +1147,9 @@ body.fl-page .fl-card:disabled .fl-card-icon {
   text-align: center;
 }
 .fl-paused {
+  /* Above an open panel, whose card art would otherwise show through. */
+  position: relative;
+  z-index: 3;
   width: min(24rem, 100%);
   padding: 0 0 1rem;
   text-align: center;
@@ -1131,6 +1157,25 @@ body.fl-page .fl-card:disabled .fl-card-icon {
 .fl-paused > button,
 .fl-paused > p {
   margin: 0 1rem;
+}
+.fl-paused.nudge {
+  animation: fl-nudge 0.4s ease-in-out;
+}
+@keyframes fl-nudge {
+  20%,
+  60% {
+    transform: translateX(-8px);
+  }
+  40%,
+  80% {
+    transform: translateX(8px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-paused.nudge {
+    animation: none;
+    outline: 3px solid var(--fl-forest);
+  }
 }
 .fl-sheet-body {
   display: grid;
@@ -1276,7 +1321,9 @@ body.fl-page .fl-handoff-go {
 }
 .fl-result-lines {
   margin: 0;
-  padding: 0 1rem 0 2.4rem;
+  /* Each line carries its own place ("1. Ada: ..."): no second number from the list. */
+  padding: 0 1rem;
+  list-style: none;
   line-height: 1.45;
 }
 .fl-result .fl-ready-note {
@@ -1318,7 +1365,8 @@ body.fl-page .fl-handoff-go {
   left: 8px;
   right: 8px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* The clock gives way to the money: a long name is cut short, the cash never covered. */
+  grid-template-columns: minmax(0, 1fr) auto auto;
   grid-template-rows: auto 1fr auto;
   grid-template-areas:
     "clock money controls"
@@ -1353,6 +1401,8 @@ body.fl-page .fl-handoff-go {
 }
 body.fl-page .fl-game.compact .fl-clock {
   grid-area: clock;
+  justify-self: start;
+  max-width: 100%;
   gap: 0.4rem;
   min-width: 0;
   padding: 0.25rem 0.65rem 0.25rem 0.25rem;
@@ -2150,4 +2200,11 @@ body.fl-page .fl-card:enabled:active {
   .fl-panel.entering .fl-card {
     animation: none;
   }
+}
+
+/* DISCARD asks once before a saved game is lost */
+.fl-resume-discard.confirm {
+  color: #fff;
+  background: #c0392b;
+  border-color: #c0392b;
 }
