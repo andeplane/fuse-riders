@@ -58,8 +58,11 @@ export interface ScreenHooks {
   back: { label: string; run(): void };
   /** Small buttons for the HUD's corner (pause, menu, leave). */
   controls?: HTMLElement[];
-  /** The "Getting started" checklist was folded or unfolded, or closed once finished. */
-  checklist?: { fold(open: boolean): void; close(owner: string): void };
+  /** The "Getting started" checklist was folded or unfolded, or hidden or brought back. */
+  checklist?: {
+    fold(open: boolean): void;
+    hide(owner: string, hidden: boolean): void;
+  };
 }
 
 export const money = (value: number) =>
@@ -306,6 +309,7 @@ export function createGameScreen(
     youNews = el("ul", "", "fl-news"),
     youTips = el("section", "", "fl-tips"),
     youTipList = el("ul"),
+    youShowList = button("Show the checklist", "fl-show-checklist"),
     youGoals = createGoalBars(art, "fl-you-goals");
   youTips.append(el("h3", "Tips", "fl-tips-title"), youTipList);
   youClose.setAttribute("aria-label", "Close");
@@ -317,6 +321,7 @@ export function createGameScreen(
     youJob,
     youChips,
     youTips,
+    youShowList,
     youGoals.element,
     youNews,
   );
@@ -399,27 +404,32 @@ export function createGameScreen(
     checkClose = button("×", "fl-checklist-close"),
     checkItems = el("ul", "", "fl-checklist-items");
   checkHead.append(checkTitle, checkCount);
-  checkClose.setAttribute("aria-label", "Close the checklist");
+  checkClose.setAttribute("aria-label", "Hide the checklist");
   checklist.append(checkHead, checkClose, checkItems);
   checklist.hidden = true;
   let checkOpen: boolean | undefined,
     checkKey = "";
-  const checkClosed = new Set<string>();
+  // Hidden or shown here, ahead of the model catching up.
+  const checkHidden = new Map<string, boolean>();
+  const hideList = (hidden: boolean): void => {
+    const owner = model?.checklist?.owner;
+    if (owner === undefined) return;
+    checkHidden.set(owner, hidden);
+    hooks.checklist?.hide(owner, hidden);
+    if (model) render(model);
+  };
   checkHead.onclick = () => {
     checkOpen = !checklist.classList.contains("open");
     hooks.checklist?.fold(checkOpen);
     if (model) render(model);
   };
-  checkClose.onclick = () => {
-    const owner = model?.checklist?.owner;
-    if (owner === undefined) return;
-    checkClosed.add(owner);
-    hooks.checklist?.close(owner);
-    if (model) render(model);
-  };
+  checkClose.onclick = () => hideList(true);
+  youShowList.onclick = () => hideList(false);
   function renderChecklist(next: ScreenModel, covered: boolean): void {
     const list = next.checklist;
-    checklist.hidden = !list || covered || checkClosed.has(list.owner);
+    const hidden = list ? (checkHidden.get(list.owner) ?? list.hidden) : false;
+    youShowList.hidden = !hidden;
+    checklist.hidden = !list || covered || hidden;
     if (!list || checklist.hidden) return;
     // Until the player chooses, it starts open on a wide screen and folded on a phone held upright (the layout's
     // `compact`), where the map is narrow.
@@ -431,7 +441,6 @@ export function createGameScreen(
     checkHead.setAttribute("aria-expanded", String(open));
     checklist.classList.toggle("open", open);
     checklist.classList.toggle("complete", list.complete);
-    checkClose.hidden = !list.complete;
     checkItems.hidden = !open;
     const key = JSON.stringify([list.items, Boolean(next.walk)]);
     if (key === checkKey) return;

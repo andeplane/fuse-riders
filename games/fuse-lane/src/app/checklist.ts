@@ -18,7 +18,7 @@ import type { Store } from "./session.js";
 /**
  * The "Getting started" checklist: a new player's first steps, each ticked off the first time the player's state
  * shows it done (and kept ticked after: food gets eaten, savings get spent). It lives on this device, per match and
- * player, beside the save; the screen shows it until every step is done and the player closes it.
+ * player, beside the save; the screen shows it all game unless the player hides it (and they can bring it back).
  */
 export const CHECKLIST_KEY = "fuse-lane-checklist";
 
@@ -79,7 +79,7 @@ export interface ChecklistSave {
   open?: boolean;
   /** Steps done, per player id. */
   done: Record<string, string[]>;
-  /** Players who closed their finished list. */
+  /** Players who hid their list. */
   closed: string[];
 }
 
@@ -91,6 +91,8 @@ export interface ChecklistModel {
   total: number;
   open?: boolean;
   complete: boolean;
+  /** The player hid it. */
+  hidden: boolean;
 }
 
 /** This match's checklist from the device, or a fresh one (another match's, or nothing readable). */
@@ -130,13 +132,22 @@ export function advance(
   return true;
 }
 
-/** The checklist as the screen shows it, or nothing once the player closed it finished. */
+/** Hides `id`'s list, or brings it back. */
+export function hideChecklist(
+  save: ChecklistSave,
+  id: string,
+  hidden: boolean,
+): void {
+  save.closed = save.closed.filter((owner) => owner !== id);
+  if (hidden) save.closed.push(id);
+}
+
+/** The checklist as the screen shows it. */
 export function checklistModel(
   save: ChecklistSave,
   id: string,
   me: PlayerState,
-): ChecklistModel | undefined {
-  if (save.closed.includes(id)) return undefined;
+): ChecklistModel {
   const done = new Set(save.done[id] ?? []);
   const items = STEPS.map((step) => ({
     id: step.id,
@@ -152,5 +163,6 @@ export function checklistModel(
     total: items.length,
     ...(save.open === undefined ? {} : { open: save.open }),
     complete: count === items.length,
+    hidden: save.closed.includes(id),
   };
 }

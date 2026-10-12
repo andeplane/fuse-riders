@@ -20,6 +20,7 @@ import {
   STEPS,
   advance,
   checklistModel,
+  hideChecklist,
   loadChecklist,
   reached,
   saveChecklist,
@@ -101,27 +102,48 @@ test("steps stay ticked once done, per player, and save on the device per match"
   assert.deepEqual(loadChecklist(store, "lane-a").done, {});
 });
 
-test("the model lists every step with its place, until the finished list is closed", () => {
+test("the model lists every step with its place, and the player can hide it any time", () => {
   const save = loadChecklist(memory(), "lane-a");
   const me = fresh();
   me.bank = 5;
   advance(save, "p1", me);
-  const model = checklistModel(save, "p1", me)!;
+  const model = checklistModel(save, "p1", me);
   assert.equal(model.owner, "p1");
   assert.equal(model.done, 1);
   assert.equal(model.total, 8);
   assert.equal(model.open, undefined, "the screen picks until the player does");
   assert.equal(model.complete, false);
+  assert.equal(model.hidden, false);
   assert.deepEqual(
     model.items.find((item) => item.id === "save"),
     { id: "save", label: "Save money at Neobank", done: true, place: NEOBANK },
   );
   save.open = false;
   save.done.p1 = STEPS.map((step) => step.id);
-  const finished = checklistModel(save, "p1", me)!;
+  const finished = checklistModel(save, "p1", me);
   assert.equal(finished.open, false);
   assert.equal(finished.complete, true);
-  save.closed.push("p1");
-  assert.equal(checklistModel(save, "p1", me), undefined);
-  assert.ok(checklistModel(save, "p2", me), "p2 keeps theirs");
+});
+
+test("hiding the list is per player, survives a reload and can be undone", () => {
+  const store = memory();
+  const save = loadChecklist(store, "lane-a");
+  const me = fresh();
+  hideChecklist(save, "p1", true);
+  hideChecklist(save, "p1", true);
+  assert.deepEqual(save.closed, ["p1"], "hiding twice keeps one entry");
+  saveChecklist(store, save);
+  const again = loadChecklist(store, "lane-a");
+  assert.equal(
+    checklistModel(again, "p1", me).hidden,
+    true,
+    "unfinished, but hidden",
+  );
+  assert.equal(
+    checklistModel(again, "p2", me).hidden,
+    false,
+    "p2 keeps theirs",
+  );
+  hideChecklist(again, "p1", false);
+  assert.equal(checklistModel(again, "p1", me).hidden, false);
 });
