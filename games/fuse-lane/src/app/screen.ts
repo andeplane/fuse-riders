@@ -747,7 +747,12 @@ export function createGameScreen(
     panelKey = key;
     if (!same) cardRow.clear();
     panel.dataset.place = String(view.place);
-    panelKeeper.replaceChildren(art.element(view.keeper, 72, "fl-keeper-art"));
+    if (panelKeeper.dataset.art !== view.keeper) {
+      panelKeeper.dataset.art = view.keeper;
+      panelKeeper.replaceChildren(
+        art.element(view.keeper, 72, "fl-keeper-art"),
+      );
+    }
     const building = `building-${PLACES[view.place]?.id ?? ""}`;
     if (panelBuilding.dataset.art !== building) {
       panelBuilding.dataset.art = building;
@@ -768,7 +773,24 @@ export function createGameScreen(
       }),
     );
     if (same) panelBody.scrollTop = scroll;
+    else {
+      // Walking in: the keeper pops up, says hello, the building drops in and the cards follow one by one.
+      panelBody
+        .querySelectorAll<HTMLElement>(".fl-card")
+        .forEach((card, k) =>
+          card.style.setProperty("--k", String(Math.min(k, 10))),
+        );
+      panel.classList.remove("entering");
+      void panel.offsetWidth;
+      panel.classList.add("entering");
+      clearTimeout(enteringTimer);
+      enteringTimer = setTimeout(
+        () => panel.classList.remove("entering"),
+        1000,
+      );
+    }
   }
+  let enteringTimer: ReturnType<typeof setTimeout> | undefined;
 
   const freshToast = toastTracker();
   let toastTimer: ReturnType<typeof setTimeout> | undefined;

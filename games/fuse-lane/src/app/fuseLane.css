@@ -2086,3 +2086,68 @@ body.fl-page .fl-card:enabled:active {
     transition: none;
   }
 }
+
+/* Walking into a place: the keeper pops up and sways while you are there, their greeting pops after, the building
+   drops in and the cards follow one by one. */
+.fl-keeper .fl-art {
+  transform-origin: 50% 100%;
+  animation: fl-keeper-idle 3.6s ease-in-out infinite;
+}
+@keyframes fl-keeper-idle {
+  0%,
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+  30% {
+    transform: rotate(-2.5deg) translateY(-1px);
+  }
+  65% {
+    transform: rotate(2deg) translateY(0);
+  }
+}
+.fl-panel.entering .fl-keeper {
+  animation: fl-keeper-in 520ms cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+@keyframes fl-keeper-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.6rem) scale(0.6);
+  }
+}
+.fl-panel.entering .fl-greeting {
+  transform-origin: 0 50%;
+  animation: fl-bubble-in 380ms 180ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+@keyframes fl-bubble-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+.fl-panel.entering .fl-panel-building {
+  animation: fl-drop-in 560ms 60ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+@keyframes fl-drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-1.2rem) rotate(-6deg) scale(0.85);
+  }
+}
+.fl-panel.entering .fl-card {
+  animation: fl-card-in 340ms calc(140ms + var(--k, 0) * 35ms) ease-out both;
+}
+@keyframes fl-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fl-keeper .fl-art,
+  .fl-panel.entering .fl-keeper,
+  .fl-panel.entering .fl-greeting,
+  .fl-panel.entering .fl-panel-building,
+  .fl-panel.entering .fl-card {
+    animation: none;
+  }
+}
