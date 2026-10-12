@@ -250,6 +250,8 @@ export const ECONOMY = {
     /** Shares are priced from at least this share of normal earnings: a bad quarter is not a bankruptcy. */
     earningsFloor: 0.25,
     noise: 0.03,
+    /** The share of a week's growth the city adds to every share's fair value (linear in weeks played). */
+    drift: 0.005,
     /** A crash knocks shares down by a share between these. */
     crash: [0.15, 0.35] as const,
     floor: 1,
@@ -266,6 +268,19 @@ export const ECONOMY = {
     crash: 0.4,
   },
   savings: { below: 1 },
+  /**
+   * Neobank's loans: a credit line of `weeksOfPay` weeks of three shifts at the borrower's wage (`withoutJob` with
+   * none, at most `max`), at the policy rate + `margin` a year, and a Monday payment of `payShare` of the balance
+   * (at least `minPayment`).
+   */
+  loans: {
+    weeksOfPay: 4,
+    withoutJob: 200,
+    max: 6000,
+    margin: 12,
+    payShare: 0.1,
+    minPayment: 20,
+  },
   /** Bid/ask spread per asset, as a fraction (half each side). */
   spread: [
     0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0,
@@ -286,7 +301,9 @@ export const ECONOMY = {
     inflationPass: 0.8,
     tightness: 0.0005,
     /** Gig work pays this per hour (× wage index), builds nothing. */
-    gig: 5,
+    gig: 4,
+    /** Every position pays its base wage × this (× wage index × health): the balance knob for take-home pay. */
+    scale: 1.2,
   },
   /** Hiring luck gets this much harder per point of unemployment over 5. */
   hiringSlack: 2,

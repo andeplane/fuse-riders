@@ -7,7 +7,7 @@ import { FRESHCO, GADGET, MEGAMART, MONO, THREADS } from "./places.js";
  * category's price index. Happiness on durables is a first-time-owner bonus (the original meant it and never paid it).
  */
 export type ItemKind =
-  "groceries" | "meal" | "drink" | "clothes" | "durable" | "joke";
+  "groceries" | "meal" | "drink" | "fun" | "clothes" | "durable" | "joke";
 
 /** Durable goods a player can own. */
 export const DURABLES = [
@@ -35,6 +35,9 @@ export const DURABLE_NAMES: Record<DurableId, string> = {
   laptop: "Laptop",
   books: "Study books",
 };
+/** A durable's name mid-sentence: "smart fridge", "smart TV". */
+export const durableName = (id: DurableId): string =>
+  DURABLE_NAMES[id].charAt(0).toLowerCase() + DURABLE_NAMES[id].slice(1);
 /** Never stolen in a break-in (too heavy to carry off). */
 export const BOLTED_DOWN: readonly DurableId[] = ["fridge", "freezer", "stove"];
 
@@ -51,6 +54,8 @@ export interface ItemData {
   durable?: DurableId;
   /** Happiness: first purchase of the week (food), first ownership (durables) or every purchase (clothes, jokes). */
   happy: number;
+  /** Hours it takes (a night out), 0 for shopping. */
+  hours?: number;
   /** Sold at the discount store: breaks down more often. */
   cheap?: boolean;
   /** What the card says it does. */
@@ -395,8 +400,18 @@ export const ITEMS: readonly ItemData[] = [
     effect: "Wake up at 4am, it says",
     icon: "joke-audiobook",
   },
+  {
+    name: "Karaoke night",
+    place: MONO,
+    category: SERVICES,
+    price: 40,
+    kind: "fun",
+    hours: 4,
+    happy: 4,
+    effect: "A night out with friends, once a week",
+    icon: "shake",
+  },
 ];
 
 /** Base rent per 4 weeks: Roomshare, The Tower. */
 export const RENT = [325, 475] as const;
-export const ENROLL_FEE = 50;
