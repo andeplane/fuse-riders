@@ -1103,6 +1103,8 @@ body.fl-page .fl-card:disabled .fl-card-icon {
 .fl-handoff,
 .fl-result,
 .fl-paused {
+  position: relative;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -1804,6 +1806,11 @@ body.fl-page .fl-tip {
 body.fl-page .fl-tip:disabled {
   opacity: 1;
 }
+.fl-game.listed:not(.compact) .fl-tip {
+  /* Beside a showing checklist (bottom left on a wide screen, top left on a low one), not over it. */
+  left: calc(var(--free-x, 0px) + 16rem + (var(--free-w, 100%) - 16rem) / 2);
+  max-width: min(30rem, calc(var(--free-w, 100%) - 17rem));
+}
 .fl-tip-badge {
   flex: none;
   padding: 0.25rem 0.5rem;
@@ -1846,7 +1853,10 @@ body.fl-page .fl-tip:disabled {
   position: absolute;
   z-index: 2;
   left: calc(var(--free-x, 0px) + 0.5rem);
-  bottom: calc(100% - var(--free-y, 0px) - var(--free-h, 100%) + 0.5rem);
+  bottom: calc(
+    100% - var(--free-y, 0px) - var(--free-h, 100%) + 0.5rem +
+      var(--fl-under, 0px)
+  );
   width: min(15rem, calc(100% - 1rem));
   color: var(--fl-ink);
   background: var(--fl-glass);
@@ -1861,6 +1871,8 @@ body.fl-page .fl-tip:disabled {
   top: calc(var(--free-y, 0px) + 0.5rem);
   bottom: auto;
   width: min(13.5rem, calc(100% - 1rem));
+  max-height: calc(var(--free-h, 100%) - 1rem);
+  overflow-y: auto;
 }
 body.fl-page .fl-checklist-head {
   display: flex;
