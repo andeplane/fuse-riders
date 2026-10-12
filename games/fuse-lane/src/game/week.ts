@@ -151,7 +151,8 @@ function upkeep(room: FuseLaneRoom, player: PlayerState): void {
   }
   const eaten = hadMeal || player.groceries > 0 || spoiled;
   player.meal = 0;
-  if (player.groceries > 0) player.groceries--;
+  // A meal out covers the week, so the groceries keep.
+  if (!hadMeal && player.groceries > 0) player.groceries--;
   let doctor = false;
   if (!eaten) {
     addHappiness(player, -2);
