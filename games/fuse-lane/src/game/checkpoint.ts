@@ -39,6 +39,7 @@ import {
   type Goals,
   type Owned,
   type PlayerState,
+  TRAIL_WALKS,
 } from "./state.js";
 
 /**
@@ -312,6 +313,7 @@ const PLAYER_KEYS = [
   "msgBad",
   "botAt",
   "botActs",
+  "trail",
   "weekShifts",
   "weekClasses",
   "shifts",
@@ -341,8 +343,10 @@ export function decodePlayer(
   raw: unknown,
   tick: number,
 ): PlayerState | undefined {
-  if (!plain(raw) || !keys(raw, PLAYER_KEYS)) return;
-  const r = raw;
+  if (!plain(raw)) return;
+  // A save from before the trail had none: it starts empty.
+  const r = Object.hasOwn(raw, "trail") ? raw : { ...raw, trail: [] };
+  if (!keys(r, PLAYER_KEYS)) return;
   const holdings = list(
       r.holdings,
       ASSET_COUNT,
@@ -368,6 +372,20 @@ export function decodePlayer(
     durables = decodeDurables(r.durables),
     picked = goals(r.goals);
   const place = (value: unknown) => int(value, -1, PLACES.length - 1);
+  // Each walk: the clock unit it set off, the step it set off from and the place it headed for.
+  const trail = list(r.trail, TRAIL_WALKS * 3, (value): value is number =>
+    Number.isInteger(value),
+  );
+  const trailOk =
+    trail !== undefined &&
+    trail.length % 3 === 0 &&
+    trail.every((value, k) =>
+      k % 3 === 0
+        ? int(value, 0, WEEK_UNITS)
+        : k % 3 === 1
+          ? int(value, 0, STEPS - 1)
+          : int(value, 0, PLACES.length - 1),
+    );
   if (
     !holdings ||
     !clothes ||
@@ -376,6 +394,7 @@ export function decodePlayer(
     !notices ||
     !durables ||
     !picked ||
+    !trailOk ||
     !int(r.pos, 0, STEPS - 1) ||
     !place(r.dest) ||
     !place(r.inside) ||
@@ -464,6 +483,7 @@ export function decodePlayer(
     msgBad: r.msgBad,
     botAt: r.botAt,
     botActs: r.botActs,
+    trail: trail!,
     weekShifts: r.weekShifts,
     weekClasses: r.weekClasses,
     shifts: r.shifts,
