@@ -159,7 +159,11 @@ body.fl-page input {
 }
 .fl-back {
   margin-left: auto;
+  padding: 0;
   color: var(--fl-forest);
+  background: none;
+  border: 0;
+  cursor: pointer;
   font: 800 0.8rem var(--fl-font);
   text-decoration: none;
 }
