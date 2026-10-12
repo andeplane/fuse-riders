@@ -31,6 +31,7 @@ import {
   fuseLaneGame,
   seatName,
   type FuseLaneSettings,
+  type FuseLaneView,
 } from "../game/index.js";
 import { createArt, siteBase, type ArtImage } from "./art.js";
 import { drawBoard } from "./board.js";
@@ -47,6 +48,7 @@ import {
 import { present, type Viewer } from "./presenter.js";
 import { dueReports, sendReport } from "./reports.js";
 import { FuseLaneRuntime, type FuseLaneCallbacks } from "./runtime.js";
+import { markToured, owesTour, tourSteps } from "./tour.js";
 import { createGameScreen, text } from "./screen.js";
 import {
   NOT_OPEN,
@@ -221,6 +223,7 @@ function local(match: LocalMatch, resumed = false): void {
   );
   const paused = el("section", "", "fl-sheet fl-paused"),
     resume = button("RESUME", "fl-primary"),
+    howTo = button("HOW TO PLAY"),
     saveQuit = button("SAVE AND QUIT");
   paused.append(
     el("h2", "PAUSED", "fl-banner"),
@@ -230,6 +233,7 @@ function local(match: LocalMatch, resumed = false): void {
       "fl-hint",
     ),
     resume,
+    howTo,
     saveQuit,
   );
   paused.hidden = true;
@@ -239,6 +243,17 @@ function local(match: LocalMatch, resumed = false): void {
   app.replaceChildren(main);
   window.scrollTo(0, 0);
 
+  // The first game on this device opens with the tour, once someone's week is on screen, with the clock stopped.
+  let owed = owesTour(store);
+  const showTour = (view: FuseLaneView, then: () => void) => {
+    screen.tour(tourSteps(view), then);
+    showPaused();
+  };
+  const showPaused = () => {
+    const touring = screen.touring();
+    paused.hidden = !runtime.paused || touring;
+    screen.game.classList.toggle("paused", runtime.paused && !touring);
+  };
   const runtime = new LocalRuntime(
     match,
     (view) => {
@@ -248,8 +263,15 @@ function local(match: LocalMatch, resumed = false): void {
       main.dataset.part = view.part;
       main.dataset.current = view.current;
       screen.render(model);
-      paused.hidden = !runtime.paused;
-      screen.game.classList.toggle("paused", runtime.paused);
+      if (owed && model.hud && view.part === "week" && !resumed) {
+        owed = false;
+        runtime.setPaused(true);
+        showTour(view, () => {
+          markToured(store);
+          runtime.setPaused(false);
+        });
+      }
+      showPaused();
       pause.classList.toggle("on", runtime.paused);
       pause.setAttribute(
         "aria-label",
@@ -262,6 +284,7 @@ function local(match: LocalMatch, resumed = false): void {
   const setPaused = (on: boolean) => runtime.setPaused(on);
   pause.onclick = () => setPaused(!runtime.paused);
   resume.onclick = () => setPaused(false);
+  howTo.onclick = () => showTour(match.view(), showPaused);
   const toMenu = () => {
     runtime.stop();
     leaveLocal = undefined;
@@ -275,10 +298,16 @@ function local(match: LocalMatch, resumed = false): void {
     if (document.hidden && match.room.stage === "running") setPaused(true);
   };
   const onKey = (event: KeyboardEvent) => {
+    if (event.repeat) return;
+    if (screen.touring()) {
+      // The tour's own keys (arrows, Escape); Enter on its focused button already presses it.
+      if (!(event.key === "Enter" && event.target instanceof HTMLButtonElement))
+        screen.keydown(event);
+      return;
+    }
     if (
       event.target instanceof HTMLInputElement ||
-      event.target instanceof HTMLButtonElement ||
-      event.repeat
+      event.target instanceof HTMLButtonElement
     )
       return;
     if (event.key === "p") setPaused(!runtime.paused);

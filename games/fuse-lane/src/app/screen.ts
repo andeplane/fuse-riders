@@ -16,6 +16,7 @@ import {
   placeAt,
   SHORT,
   toMap,
+  toScreen,
   walkerAt,
   type BoardView,
   type Camera,
@@ -34,6 +35,7 @@ import {
   type ScreenModel,
   type Viewer,
 } from "./presenter.js";
+import { tourArea, tourFocus, type TourHud, type TourStep } from "./tour.js";
 
 /**
  * The game screen, shared by a match on this device and an online room. The city's map fills the screen; a slim HUD
@@ -377,7 +379,126 @@ export function createGameScreen(
   centre.append(panel, you, briefing, handoff, result);
   const toast = el("div", "", "fl-toast");
   toast.hidden = true;
-  game.append(stage, strip, rivals.element, centre, hud, toast);
+
+  // ---- the tour: a card that points at a HUD piece or frames places on the map, over everything else ----
+  const tourLayer = el("div", "", "fl-tour"),
+    tourSpot = el("div", "", "fl-tour-spot"),
+    tourCard = el("section", "", "fl-sheet fl-tour-card"),
+    tourCount = el("small", "", "fl-tour-count"),
+    tourTitle = el("h2", "", "fl-tour-title"),
+    tourBody = el("p", "", "fl-tour-body"),
+    tourSkip = button("SKIP", "fl-tour-skip"),
+    tourBack = button("BACK", "fl-tour-back"),
+    tourNext = button("NEXT", "fl-primary fl-tour-next"),
+    tourActions = el("div", "", "fl-tour-actions");
+  tourCard.setAttribute("role", "dialog");
+  tourCard.setAttribute("aria-live", "polite");
+  tourActions.append(tourSkip, tourBack, tourNext);
+  tourCard.append(tourCount, tourTitle, tourBody, tourActions);
+  tourLayer.append(tourSpot, tourCard);
+  tourLayer.hidden = true;
+  const tourTargets: Record<TourHud, HTMLElement> = {
+    clock: youButton,
+    goals: hudGoals.element,
+    money: cash,
+    end: endWeek,
+  };
+  let tour: { steps: TourStep[]; index: number; done: () => void } | undefined;
+  /** Where the camera heads while a tour card frames places, in map px. */
+  let tourAt: MapPoint | undefined;
+  function showTourStep(): void {
+    if (!tour) return;
+    const step = tour.steps[tour.index]!,
+      last = tour.index === tour.steps.length - 1;
+    text(tourCount, `${tour.index + 1} of ${tour.steps.length}`);
+    text(tourTitle, step.title);
+    text(tourBody, step.body);
+    text(tourNext, last ? "LET'S GO" : "NEXT");
+    tourBack.hidden = tour.index === 0;
+    tourSkip.hidden = last;
+    tourAt = tourFocus(step.places ?? []);
+    tourLayer.classList.toggle("plain", !step.hud && !step.places?.length);
+    placeTourSpot();
+    tourNext.focus({ preventScroll: true });
+  }
+  function endTour(): void {
+    const finished = tour;
+    tour = undefined;
+    tourAt = undefined;
+    tourLayer.hidden = true;
+    follow = true;
+    finished?.done();
+  }
+  function stepTour(by: number): void {
+    if (!tour) return;
+    const next = tour.index + by;
+    if (next >= tour.steps.length) return endTour();
+    tour.index = Math.max(0, next);
+    showTourStep();
+  }
+  tourNext.onclick = () => stepTour(1);
+  tourBack.onclick = () => stepTour(-1);
+  tourSkip.onclick = () => endTour();
+  /** Moves the spotlight onto this card's target (each frame, as the camera glides) and puts the card out of its way. */
+  function placeTourSpot(): void {
+    if (!tour) return;
+    const step = tour.steps[tour.index]!;
+    const box = game.getBoundingClientRect(),
+      area = tourArea(step.places ?? []);
+    let spot: Rect | undefined;
+    if (step.hud) {
+      const rect = tourTargets[step.hud].getBoundingClientRect();
+      if (rect.width > 0)
+        spot = {
+          x: rect.left - box.left - 6,
+          y: rect.top - box.top - 6,
+          w: rect.width + 12,
+          h: rect.height + 12,
+        };
+    } else if (area && view && camera) {
+      const from = toScreen(view, camera, [area.x, area.y]),
+        to = toScreen(view, camera, [area.x + area.w, area.y + area.h]);
+      spot = {
+        x: from.x - 8,
+        y: from.y - 8,
+        w: to.x - from.x + 16,
+        h: to.y - from.y + 16,
+      };
+    }
+    tourSpot.hidden = !spot;
+    if (!spot) {
+      tourCard.dataset.at = "middle";
+      tourCard.style.left = tourCard.style.top = "";
+      return;
+    }
+    // Kept on screen: two places far apart, or one by the edge the camera cannot pass, are framed up to the edge of
+    // the board the HUD leaves free.
+    const edge: Rect =
+      area && view ? view.free : { x: 0, y: 0, w: box.width, h: box.height };
+    const left = Math.max(edge.x + 4, spot.x),
+      top = Math.max(edge.y + 4, spot.y),
+      right = Math.min(edge.x + edge.w - 4, spot.x + spot.w),
+      bottom = Math.min(edge.y + edge.h - 4, spot.y + spot.h);
+    tourSpot.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+    tourSpot.style.width = `${Math.round(Math.max(0, right - left))}px`;
+    tourSpot.style.height = `${Math.round(Math.max(0, bottom - top))}px`;
+    // The card sits just below or above the spotlight when it fits there, else along the far edge of the screen.
+    const width = tourCard.offsetWidth,
+      height = tourCard.offsetHeight,
+      gap = 12;
+    let at = bottom + gap + height <= box.height - gap ? bottom + gap : -1;
+    if (at < 0 && top - gap - height >= gap) at = top - gap - height;
+    tourCard.dataset.at =
+      at >= 0 ? "near" : (top + bottom) / 2 < box.height / 2 ? "bottom" : "top";
+    tourCard.style.top = at >= 0 ? `${Math.round(at)}px` : "";
+    const middle = Math.min(
+      Math.max((left + right) / 2, width / 2 + gap),
+      box.width - width / 2 - gap,
+    );
+    tourCard.style.left = `${Math.round(middle)}px`;
+  }
+
+  game.append(stage, strip, rivals.element, centre, hud, toast, tourLayer);
 
   let model: ScreenModel | undefined;
   function walk(place: number): void {
@@ -816,6 +937,12 @@ export function createGameScreen(
     const mine = myPoint(frame);
     const middle: MapPoint = [CITY.map.width / 2, CITY.map.height / 2];
     if (!camera) camera = centreOn(view, mine ?? middle);
+    else if (tourAt)
+      camera = easeCamera(
+        camera,
+        centreOn(view, tourAt),
+        Math.min(0.1, (now - (lastFrame || now)) / 1000),
+      );
     else if (follow && mine && !press?.dragged)
       camera = easeCamera(
         camera,
@@ -828,6 +955,7 @@ export function createGameScreen(
     drawBoard(context, view, camera, frame, art, ratio, {
       debug: Boolean(options.debugRoads),
     });
+    if (tour) placeTourSpot();
     // With `?debug-roads`, the camera is readable from the page too, so a browser test can tap a building.
     if (options.debugRoads)
       game.dataset.camera = `${camera.x},${camera.y},${view.scale}`;
@@ -842,10 +970,29 @@ export function createGameScreen(
     centre,
     render,
     hidePanel,
+    /** Shows the tour over the board; `done` runs once it is finished or skipped. */
+    tour(steps: TourStep[], done: () => void) {
+      if (steps.length === 0) return done();
+      tour = { steps, index: 0, done };
+      hidePanel();
+      youOpen = false;
+      if (model) render(model);
+      tourLayer.hidden = false;
+      showTourStep();
+    },
+    /** Whether the tour is up: the page's own keys and cards stand aside. */
+    touring: () => tour !== undefined,
     destroy() {
       running = false;
     },
     keydown(event: KeyboardEvent) {
+      if (tour) {
+        if (event.key === "Escape") endTour();
+        else if (event.key === "ArrowRight" || event.key === "Enter")
+          stepTour(1);
+        else if (event.key === "ArrowLeft") stepTour(-1);
+        return;
+      }
       if (event.key === "Escape") {
         if (youOpen) {
           youOpen = false;
