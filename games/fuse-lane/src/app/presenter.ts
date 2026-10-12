@@ -61,6 +61,7 @@ import {
   type FuseLaneView,
   type PlayerState,
 } from "../game/index.js";
+import { tips, type Tip } from "./tips.js";
 
 /**
  * What the Fuse Lane screen shows, as a pure function of the view and who this device is. The screen renders from
@@ -138,6 +139,8 @@ export interface HudModel {
   job: string;
   /** Short life status chips: food, clothes, rent. */
   chips: { label: string; warn: boolean }[];
+  /** What to do next, most pressing first (the you panel's Tips). */
+  tips: string[];
   /** Whose week this is (hot-seat), and this Monday's private news for them. */
   name: string;
   color: string;
@@ -245,6 +248,8 @@ export interface ScreenModel {
    * whenever you play, also before your first message, so the screen knows where your count started.
    */
   toast?: { owner: string; n: number; text: string; bad: boolean };
+  /** The most pressing tip while you are not walking, shown on the board when no panel is open: a tap walks you to its place. */
+  tip?: Tip;
   canEndWeek: boolean;
   endWeekEntry?: unknown[];
   readyEntry?: unknown[];
@@ -866,6 +871,9 @@ function hud(
     name: you.name,
     color: colorOf(you.slot),
     notices: news ? [...me.notices] : [],
+    tips: tips(view, you.id)
+      .slice(0, 3)
+      .map((tip) => tip.text),
     where,
     job: job
       ? `${job.title}, ${EMPLOYERS[job.employer]} · $${me.wage.toFixed(2)}/h`
@@ -1129,6 +1137,9 @@ export function present(view: FuseLaneView, viewer: Viewer): ScreenModel {
     ? { owner: you!.id, n: me.msgN, text: me.msg, bad: me.msgBad }
     : undefined;
   const canAct = inWeek && me !== undefined && !me.done;
+  const panel = seated && canAct ? panelFor(view, you, players) : undefined;
+  // The screen hides it while a place's panel is open; closed, it shows again outside that place.
+  const tip = canAct && me.dest < 0 ? tips(view, you!.id)[0] : undefined;
   return {
     screen:
       view.phase === "lobby"
@@ -1144,17 +1155,13 @@ export function present(view: FuseLaneView, viewer: Viewer): ScreenModel {
       : {}),
     ...(handoff ? { handoff } : {}),
     board,
-    ...(seated && canAct
-      ? (() => {
-          const panel = panelFor(view, you!, players);
-          return panel ? { panel } : {};
-        })()
-      : {}),
+    ...(panel ? { panel } : {}),
     ...(briefing ? { briefing } : {}),
     scores,
     ...(result ? { result } : {}),
     lobby: lobby(view, viewer),
     ...(toast ? { toast } : {}),
+    ...(tip ? { tip } : {}),
     canEndWeek: canAct,
     ...(canAct
       ? {
