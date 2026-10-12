@@ -1,7 +1,16 @@
-import { CITY, STREETS, type MapPoint } from "../game/index.js";
+import { CITY, STREETS, doorOf, type MapPoint } from "../game/index.js";
+import {
+  drawBurst,
+  drawCloudShadows,
+  drawDaylight,
+  drawGlints,
+  drawRoute,
+  glints,
+} from "./ambience.js";
 import { roundRect, type Art } from "./art.js";
 import {
   bounds,
+  route,
   standingPoints,
   stepPoint,
   toScreen,
@@ -30,11 +39,19 @@ export interface BoardFrame {
   time: number;
   /** A place to outline (the pointer is over it). */
   hover: number;
+  /** The share of this device's player's hours left, 0..1, for the week's light (leave out: plain daylight). */
+  daylight?: number;
+  /** The players who just walked into a place, and how many seconds ago. */
+  arrivals?: readonly { id: string; age: number }[];
 }
 export interface BoardOptions {
   /** Draw the street graph, the doors and the tap outlines over the picture (`?debug-roads`). */
   debug?: boolean;
+  /** Reduced motion: no drifting clouds or twinkling water, and the way you walk stands still. */
+  calm?: boolean;
 }
+
+const GLINTS = glints();
 
 const INK = "#26304a";
 const OUTLINE = "#2f3a52";
@@ -401,6 +418,7 @@ export function drawBoard(
   const map = picture(view, art, ratio);
   context.clearRect(0, 0, view.width, view.height);
   context.drawImage(map, camera.x, camera.y, view.mapWidth, view.mapHeight);
+  if (!options.calm) drawGlints(context, view, camera, GLINTS, frame.time);
 
   for (const place of frame.places)
     if (place.here || place.dest || place.index === frame.hover)
@@ -438,11 +456,30 @@ export function drawBoard(
         player.dest >= 0 &&
         moves[index]!.before !== player.pos,
       left: moves[index]!.facing < 0,
+      moving: moves[index]!.at,
     }))
     .sort(
       (a, b) =>
         a.ground - b.ground || Number(a.player.you) - Number(b.player.you),
     );
+  // The way you are walking: from where you are now, along the rest of the streets, to the door.
+  for (const walker of walkers) {
+    const player = walker.player;
+    if (!player.you || player.dest < 0 || player.inside >= 0) continue;
+    const steps =
+      route(player.pos, doorOf(player.dest), player.dest, STREETS.size) ?? [];
+    drawRoute(
+      context,
+      [
+        toScreen(view, camera, walker.moving),
+        ...steps.map((step) => toScreen(view, camera, stepPoint(step))),
+      ],
+      player.color,
+      view.scale,
+      frame.time,
+      options.calm,
+    );
+  }
   for (const walker of walkers)
     drawWalker(
       context,
@@ -480,6 +517,20 @@ export function drawBoard(
     context.drawImage(map, camera.x, camera.y, view.mapWidth, view.mapHeight);
     context.restore();
   }
+
+  for (const arrival of frame.arrivals ?? []) {
+    const walker = walkers.find((one) => one.player.id === arrival.id);
+    if (walker)
+      drawBurst(
+        context,
+        walker.at,
+        arrival.age,
+        walker.player.color,
+        view.scale,
+      );
+  }
+  if (!options.calm) drawCloudShadows(context, view, camera, frame.time);
+  if (frame.daylight !== undefined) drawDaylight(context, view, frame.daylight);
 
   if (options.debug) drawDebug(context, view, camera);
   // Labels on top, except on a picture too small to read (the menu's), and your marker over everything.
