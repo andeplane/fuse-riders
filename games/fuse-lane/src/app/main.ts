@@ -52,6 +52,7 @@ import { markToured, owesTour, tourSteps } from "./tour.js";
 import {
   advance,
   checklistModel,
+  hideChecklist,
   loadChecklist,
   saveChecklist,
 } from "./checklist.js";
@@ -225,8 +226,8 @@ function local(match: LocalMatch, resumed = false): void {
           checks.open = open;
           saveChecklist(store, checks);
         },
-        close: (owner) => {
-          checks.closed.push(owner);
+        hide: (owner, hidden) => {
+          hideChecklist(checks, owner, hidden);
           saveChecklist(store, checks);
         },
       },
@@ -281,8 +282,7 @@ function local(match: LocalMatch, resumed = false): void {
       const me = view.players.find((player) => player.id === who)?.state;
       if (model.hud && me) {
         if (advance(checks, who, me)) saveChecklist(store, checks);
-        const checklist = checklistModel(checks, who, me);
-        if (checklist) model.checklist = checklist;
+        model.checklist = checklistModel(checks, who, me);
       }
       main.dataset.phase = view.phase;
       main.dataset.week = String(view.week);
