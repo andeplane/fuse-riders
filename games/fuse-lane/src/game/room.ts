@@ -22,6 +22,13 @@ export const WEEK = 0,
   HANDOFF = 2;
 export type Phase = typeof WEEK | typeof BRIEFING | typeof HANDOFF;
 
+/** A second-hand durable on Second Life's shelf: anyone may buy it, first come, first served. */
+export interface ShelfItem {
+  /** `DURABLES` index. */
+  item: number;
+  price: number;
+}
+
 export interface RosterEntry {
   name: string;
   slot: number;
@@ -57,6 +64,8 @@ export interface FuseLaneRoom extends ManagedRoom<FuseLaneSettings> {
   roster: Record<string, RosterEntry>;
   /** This Monday's headlines. */
   headlines: string[];
+  /** Second Life's shelf of used goods, oldest first. */
+  shelf: ShelfItem[];
   /**
    * When the match is over: every player, best first; and the winners, the top of that ranking (several only on an
    * exact tie).

@@ -22,6 +22,7 @@ import {
   type FuseLaneEvent,
   type FuseLaneRoom,
   type FuseLaneSettings,
+  type ShelfItem,
 } from "./rules.js";
 import {
   createPlayer,
@@ -77,6 +78,8 @@ export interface FuseLaneView {
   /** Who holds each position, by job index. */
   holders: Record<number, string>;
   headlines: string[];
+  /** Second Life's shelf of used goods. */
+  shelf: ShelfItem[];
   ranking: string[];
   winners: string[];
   /** Goals picked in the lobby, by member id. */
@@ -154,6 +157,7 @@ export function fuseLaneView(room: FuseLaneRoom): FuseLaneView {
     economy: structuredClone(economy),
     holders,
     headlines: [...room.headlines],
+    shelf: room.shelf.map((offer) => ({ ...offer })),
     ranking: [...room.ranking],
     winners: [...room.winners],
     goals: structuredClone(room.goals),
@@ -168,7 +172,7 @@ export const fuseLaneGame: RollbackGame<
   FuseLaneSettings
 > = {
   id: "fuse-lane",
-  rules: "fuse-lane-3",
+  rules: "fuse-lane-4",
   isEntry: isFuseLaneEntry,
   createRoom,
   createTicker: () => foldTick,

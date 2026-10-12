@@ -271,6 +271,7 @@ export function createGameScreen(
     clockWords = el("span", "", "fl-clock-words"),
     weekLabel = el("strong", "", "fl-week"),
     timerText = el("small", "", "fl-timer-text"),
+    eventText = el("small", "", "fl-event-text"),
     badge = el("i", "", "fl-badge"),
     cash = el("div", "", "fl-money"),
     cashValue = el("b", "", "fl-cash"),
@@ -279,7 +280,7 @@ export function createGameScreen(
     controls = el("div", "", "fl-controls");
   youButton.setAttribute("aria-label", "You: hours left and your week");
   dial.append(hoursText, el("small", "h"));
-  clockWords.append(weekLabel, timerText);
+  clockWords.append(weekLabel, timerText, eventText);
   youButton.append(dial, clockWords, badge);
   cash.append(cashValue, bankValue);
   const hudGoals = createGoalRings(art);
@@ -877,6 +878,9 @@ export function createGameScreen(
       );
       timerText.classList.toggle("low", h.timer > 0 && h.timer < 0.2);
       text(timerText, h.seconds ? `${h.seconds}s left` : "Week over");
+      text(eventText, h.event.label);
+      eventText.hidden = h.event.label === "";
+      eventText.classList.toggle("warn", h.event.warn);
       // Keyed by player and week: a new turn, a new week's bills or a new match simply show.
       showCash(`${h.name}:${h.week}`, h.cash);
       text(bankValue, `bank ${money(h.bank)}`);

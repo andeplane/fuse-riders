@@ -13,6 +13,15 @@ export interface Owned {
   cheap: boolean;
 }
 
+/** A durable left at Second Life for cash: redeemable until the end of week `due`, then it goes on the shelf. */
+export interface Pawned {
+  /** `DURABLES` index. */
+  item: number;
+  paid: number;
+  cheap: boolean;
+  due: number;
+}
+
 /** Flags that reset each week. */
 export const RELAXED = 1,
   GROCERY_HAPPY = 2,
@@ -22,7 +31,8 @@ export const RELAXED = 1,
   EXTENDED = 32,
   TRIED_EXTENSION = 64,
   ASKED_RAISE = 128,
-  FLAG_MASK = 255;
+  FUN_HAPPY = 256,
+  FLAG_MASK = 511;
 
 /** The four goals, in this order everywhere: Wealth, Happiness, Education, Career. */
 export type Goals = [number, number, number, number];
@@ -53,6 +63,10 @@ export interface PlayerState {
   // Money.
   cash: number;
   bank: number;
+  /** What they owe Neobank, interest included. */
+  loan: number;
+  /** Monday payments missed in a row: while above 0 there is no new credit and shifts are garnished. */
+  loanLate: number;
   /** Units held per asset (`ASSET_NAMES`). */
   holdings: number[];
 
@@ -78,6 +92,10 @@ export interface PlayerState {
   /** Weeks left per clothing level: casual, smart, business. */
   clothes: number[];
   durables: Partial<Record<DurableId, Owned>>;
+  /** Pawn tickets at Second Life. */
+  pawned: Pawned[];
+  /** Scratch cards bought this week. */
+  scratched: number;
 
   // Work.
   /** `JOBS` index, or -1. */
@@ -147,6 +165,8 @@ export function createPlayer(
     penalty: 0,
     cash: 200,
     bank: 0,
+    loan: 0,
+    loanLate: 0,
     holdings: Array.from({ length: ASSET_COUNT }, () => 0),
     happiness: 0,
     relax: 25,
@@ -161,6 +181,8 @@ export function createPlayer(
     meal: 0,
     clothes: [6, 0, 0],
     durables: {},
+    pawned: [],
+    scratched: 0,
     job: -1,
     wage: 0,
     raises: 0,
@@ -228,9 +250,13 @@ export const investments = (player: PlayerState, economy: Economy): number =>
     (sum, qty, asset) => sum + Math.floor(qty * economy.price[asset]!),
     0,
   );
-/** Cash + savings + investments − rent owed: what the Wealth goal counts. */
+/** Cash + savings + investments − rent owed − the loan: what the Wealth goal counts. */
 export const liquid = (player: PlayerState, economy: Economy): number =>
-  player.cash + player.bank + investments(player, economy) - player.rentOwed;
+  player.cash +
+  player.bank +
+  investments(player, economy) -
+  player.rentOwed -
+  player.loan;
 export const goods = (player: PlayerState): number =>
   DURABLES.reduce((sum, id) => {
     const owned = player.durables[id];
@@ -239,14 +265,17 @@ export const goods = (player: PlayerState): number =>
 export const netWorth = (player: PlayerState, economy: Economy): number =>
   liquid(player, economy) + goods(player);
 
-/** Career: 10 × ⌊dependability / 8⌋ while employed, capped at 100. */
+/** The highest career a position can show: its rung's bar + 20 (a starter job tops out at 30, the top jobs at 90 and 100). */
+export const careerCap = (job: number): number =>
+  job >= 0 ? Math.min(100, (JOBS[job]?.dep ?? 0) + 20) : 0;
+/** Career: 10 × ⌊dependability / 8⌋ while employed, capped by the rung of the job held. */
 export const career = (player: PlayerState): number =>
-  player.job >= 0 ? Math.min(100, 10 * Math.floor(player.dep / 8)) : 0;
-/** Education: 1 + 9 × degrees (0 with none). */
-export const education = (player: PlayerState): number => {
-  const count = degrees(player);
-  return count === 0 ? 0 : Math.min(100, 1 + 9 * count);
-};
+  Math.min(careerCap(player.job), 10 * Math.floor(player.dep / 8));
+/** Points of education per degree. */
+export const DEGREE_POINTS = 11;
+/** Education: 11 per degree, at most 100. */
+export const education = (player: PlayerState): number =>
+  Math.min(100, DEGREE_POINTS * degrees(player));
 export const wealth = (player: PlayerState, economy: Economy): number =>
   Math.max(0, Math.min(100, Math.floor(liquid(player, economy) / 100)));
 /** The four goal stats, in `GOAL_NAMES` order. */
