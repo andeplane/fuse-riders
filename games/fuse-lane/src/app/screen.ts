@@ -297,7 +297,10 @@ export function createGameScreen(
     cashOwner = owner;
     cancelAnimationFrame(cashTween);
     cashTween = 0;
-    if (!same) {
+    const still =
+      typeof matchMedia === "function" &&
+      matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!same || still) {
       cashShown = cashTarget = value;
       text(cashValue, money(value));
       return;
@@ -813,9 +816,10 @@ export function createGameScreen(
       );
       timerText.classList.toggle("low", h.timer > 0 && h.timer < 0.2);
       text(timerText, h.seconds ? `${h.seconds}s left` : "Week over");
-      showCash(h.name, h.cash);
+      // Keyed by player and week: a new turn, a new week's bills or a new match simply show.
+      showCash(`${h.name}:${h.week}`, h.cash);
       text(bankValue, `bank ${money(h.bank)}`);
-      hudGoals.render(h.goals, h.name);
+      hudGoals.render(h.goals, `${h.name}:${h.week}`);
       endWeek.disabled = !next.canEndWeek;
       text(endWeek, h.done ? "WEEK OVER" : "CALL IT A WEEK");
     }
@@ -1112,6 +1116,18 @@ export function createGameScreen(
     }
     arrivals = arrivals.filter((one) => now - one.at < BURST * 1000);
   };
+  // The week's light eases to its target, so a new week (or the next player's turn) dawns instead of snapping.
+  let daylight = 1,
+    daylightAt = 0;
+  const easeDaylight = (target: number, now: number) => {
+    const dt = daylightAt ? Math.min(0.1, (now - daylightAt) / 1000) : 1;
+    daylightAt = now;
+    daylight =
+      calm || dt >= 1
+        ? target
+        : daylight + (target - daylight) * Math.min(1, dt * 4);
+    return daylight;
+  };
   const frameLoop = () => {
     if (!running) return;
     requestAnimationFrame(frameLoop);
@@ -1132,7 +1148,7 @@ export function createGameScreen(
       fraction: span > 0 ? (timing.tick - older!.tick) / span : 1,
       time: (now - started) / 1000,
       hover,
-      daylight: model?.hud ? 1 - model.hud.ring : undefined,
+      daylight: easeDaylight(model?.hud ? 1 - model.hud.ring : 1, now),
     };
     noticeArrivals(frame, now);
     frame.arrivals = arrivals.map((one) => ({
