@@ -402,9 +402,13 @@ export function act(
         Math.round(gigWage(economy) * PAID_HOURS),
         hoursLeft(player),
       );
-      player.cash += gross;
+      const toBank = garnishLoan(player, gross);
+      player.cash += gross - toBank;
       spendHours(player, HOURS.gig);
-      return say(player, `Delivered 14 burritos: +$${gross}.`);
+      return say(
+        player,
+        `Delivered 14 burritos: +$${gross - toBank}.${toBank ? ` Neobank took $${toBank} for the loan.` : ""}`,
+      );
     }
     case ENROLL: {
       const course = COURSES[a];
@@ -574,6 +578,12 @@ function buy(
     return say(player, "You already own one.", true);
   if (item.kind === "fun" && (player.flags & FUN_HAPPY) !== 0)
     return say(player, "You already had your night out this week.", true);
+  if (item.hours && hoursLeft(player) < item.hours)
+    return say(
+      player,
+      `That takes ${item.hours} hours. Not enough left this week.`,
+      true,
+    );
   const price = shelfPrice(room.economy, item);
   if (!pay(room, player, price, place, item.category)) return;
   if (item.hours) spendHours(player, item.hours);
