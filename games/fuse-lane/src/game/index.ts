@@ -11,5 +11,7 @@ export * from "./data/jobs.js";
 export * from "./data/places.js";
 export * from "./data/cities/index.js";
 export * from "./streets.js";
-export { botMove, bestJob } from "./bot.js";
+export * from "./credit.js";
+export * from "./resale.js";
+export { botMove, bestJob, botStyle, BOT_STYLES } from "./bot.js";
 export { random, randInt, seedOf, ln, clamp } from "./random.js";

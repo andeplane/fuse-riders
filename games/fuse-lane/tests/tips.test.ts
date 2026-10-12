@@ -198,6 +198,7 @@ test("short of the education goal: enroll, then go to class", () => {
   const enroll = tipsAfter((me) => {
     settled(me);
     me.goals = [0, 0, 50, 0];
+    me.cash = 200;
   });
   assert.equal(enroll[0]!.place, COLLEGE);
   assert.match(enroll[0]!.text, /^Enroll in Trade Cert/);

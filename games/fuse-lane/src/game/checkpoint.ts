@@ -32,14 +32,18 @@ import {
   validMatchId,
   type FuseLaneRoom,
   type RosterEntry,
+  type ShelfItem,
 } from "./rules.js";
 import { validName } from "./basics.js";
 import {
   FLAG_MASK,
   type Goals,
   type Owned,
+  type Pawned,
   type PlayerState,
 } from "./state.js";
+import { MAX_TICKETS, SHELF_MAX } from "./resale.js";
+import { SCRATCH_PER_WEEK } from "./credit.js";
 
 /**
  * The room as snapshot fields, and back. `decode` checks every field and how the fields fit together and builds a
@@ -79,6 +83,7 @@ export function encodeRoom(room: FuseLaneRoom): unknown[] {
       goals: room.goals,
       roster: room.roster,
       headlines: room.headlines,
+      shelf: room.shelf,
       ranking: room.ranking,
       winners: room.winners,
     },
@@ -278,6 +283,8 @@ const PLAYER_KEYS = [
   "penalty",
   "cash",
   "bank",
+  "loan",
+  "loanLate",
   "holdings",
   "happiness",
   "relax",
@@ -292,6 +299,8 @@ const PLAYER_KEYS = [
   "meal",
   "clothes",
   "durables",
+  "pawned",
+  "scratched",
   "job",
   "wage",
   "raises",
@@ -317,6 +326,44 @@ const PLAYER_KEYS = [
   "shifts",
   "bestWorth",
 ] as const;
+
+function decodePawned(raw: unknown): Pawned[] | undefined {
+  if (!Array.isArray(raw) || raw.length > MAX_TICKETS) return;
+  const out: Pawned[] = [];
+  for (const ticket of raw) {
+    if (
+      !plain(ticket) ||
+      !keys(ticket, ["item", "paid", "cheap", "due"]) ||
+      !int(ticket.item, 0, DURABLES.length - 1) ||
+      !int(ticket.paid, 0, MONEY) ||
+      !bool(ticket.cheap) ||
+      !int(ticket.due, 0, MAX_WEEKS + 20)
+    )
+      return;
+    out.push({
+      item: ticket.item,
+      paid: ticket.paid,
+      cheap: ticket.cheap,
+      due: ticket.due,
+    });
+  }
+  return out;
+}
+function decodeShelf(raw: unknown): ShelfItem[] | undefined {
+  if (!Array.isArray(raw) || raw.length > SHELF_MAX) return;
+  const out: ShelfItem[] = [];
+  for (const offer of raw) {
+    if (
+      !plain(offer) ||
+      !keys(offer, ["item", "price"]) ||
+      !int(offer.item, 0, DURABLES.length - 1) ||
+      !int(offer.price, 0, MONEY)
+    )
+      return;
+    out.push({ item: offer.item, price: offer.price });
+  }
+  return out;
+}
 
 function decodeDurables(
   raw: unknown,
@@ -366,6 +413,7 @@ export function decodePlayer(
     ),
     notices = list(r.notices, 12, text),
     durables = decodeDurables(r.durables),
+    pawned = decodePawned(r.pawned),
     picked = goals(r.goals);
   const place = (value: unknown) => int(value, -1, PLACES.length - 1);
   if (
@@ -375,6 +423,7 @@ export function decodePlayer(
     !courses ||
     !notices ||
     !durables ||
+    !pawned ||
     !picked ||
     !int(r.pos, 0, STEPS - 1) ||
     !place(r.dest) ||
@@ -386,6 +435,9 @@ export function decodePlayer(
     !int(r.penalty, 0, 1000) ||
     !int(r.cash, 0, MONEY) ||
     !int(r.bank, 0, MONEY) ||
+    !int(r.loan, 0, MONEY) ||
+    !int(r.loanLate, 0, 1000) ||
+    !int(r.scratched, 0, SCRATCH_PER_WEEK) ||
     !int(r.happiness, 0, 100) ||
     !int(r.relax, 0, 50) ||
     !int(r.home, 0, 1) ||
@@ -430,6 +482,8 @@ export function decodePlayer(
     penalty: r.penalty,
     cash: r.cash,
     bank: r.bank,
+    loan: r.loan,
+    loanLate: r.loanLate,
     holdings,
     happiness: r.happiness,
     relax: r.relax,
@@ -444,6 +498,8 @@ export function decodePlayer(
     meal: r.meal,
     clothes,
     durables,
+    pawned,
+    scratched: r.scratched,
     job: r.job,
     wage: r.wage,
     raises: r.raises,
@@ -485,6 +541,7 @@ const GAME_KEYS = [
   "goals",
   "roster",
   "headlines",
+  "shelf",
   "ranking",
   "winners",
 ] as const;
@@ -592,6 +649,8 @@ export function decodeRoom(
       (value): value is string =>
         typeof value === "string" && Object.hasOwn(players, value),
     );
+  const shelf = decodeShelf(game.shelf);
+  if (!shelf) return;
   const headlines = list(game.headlines, 8, text),
     ranking = ids(game.ranking),
     winners = ids(game.winners);
@@ -643,6 +702,7 @@ export function decodeRoom(
     goals: picked,
     roster,
     headlines,
+    shelf,
     ranking,
     winners,
   };

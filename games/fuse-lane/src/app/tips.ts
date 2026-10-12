@@ -17,6 +17,7 @@ import {
   TRIED_EXTENSION,
   WORKPLACE,
   education,
+  creditLeft,
   enrollFee,
   fed,
   hasDegree,
@@ -116,6 +117,11 @@ export function tips(view: FuseLaneView, you: string): Tip[] {
         `Rent of ${usd(me.rent)} is due: take cash out at Neobank, then pay at KeyNest.`,
         NEOBANK,
       );
+    else if (me.cash + me.bank + creditLeft(me) >= me.rent)
+      add(
+        `Rent of ${usd(me.rent)} is due and you are short: Neobank can lend you the rest.`,
+        NEOBANK,
+      );
     else if ((me.flags & TRIED_EXTENSION) === 0 && me.rentExt >= 0)
       add("Rent is due and you are short: ask KeyNest for more time.", KEYNEST);
     else
@@ -124,6 +130,11 @@ export function tips(view: FuseLaneView, you: string): Tip[] {
         job ? WORKPLACE[job.employer]! : JOBHUB,
       );
   }
+  if (me.loanLate > 0)
+    add(
+      `You missed a loan payment: pay Neobank back, or half of every shift goes to them.`,
+      NEOBANK,
+    );
 
   if (!fed(me))
     add(
@@ -181,7 +192,7 @@ export function tips(view: FuseLaneView, you: string): Tip[] {
         `Go to class at City College: ${me.courses[course]} of ${lessonsNeeded(me)} lessons done in ${COURSES[course]!.name}.`,
         COLLEGE,
       );
-    else if (course >= 0 && me.cash >= enrollFee(economy))
+    else if (course >= 0 && me.cash >= enrollFee(economy, course))
       add(
         `Enroll in ${COURSES[course]!.name} at City College: degrees lift education and open better jobs.`,
         COLLEGE,
