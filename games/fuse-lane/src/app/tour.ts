@@ -1,13 +1,16 @@
 import {
   CITY,
   COLLEGE,
+  EMPLOYERS,
   FRESHCO,
+  GADGET,
   GIGAFACTORY,
   GOAL_NAMES,
   JOBHUB,
+  JOBS,
   KEYNEST,
   NEOBANK,
-  GADGET,
+  ROOMSHARE,
   WEEK_HOURS,
   type FuseLaneView,
 } from "../game/index.js";
@@ -23,7 +26,7 @@ import { bounds, type Rect } from "./layout.js";
 export const TOUR_KEY = "fuse-lane-toured";
 
 /** A HUD piece a card points at. */
-export type TourHud = "clock" | "goals" | "money" | "end";
+export type TourHud = "clock" | "goals" | "end" | "tip";
 
 export interface TourStep {
   title: string;
@@ -46,6 +49,7 @@ export function tourSteps(
   const me = view.players.find((player) => player.id === you);
   const goals = me?.state.goals ?? [];
   const rivals = view.players.filter((player) => player.id !== you).length;
+  const sure = JOBS.find((job) => job.sure);
   const targets = list(
     GOAL_NAMES.map((name, index) => `${name} ${goals[index] ?? 0}`),
   );
@@ -58,7 +62,7 @@ export function tourSteps(
     },
     {
       title: "Your week",
-      body: `Every week has ${WEEK_HOURS} hours and ${view.weekSeconds} real seconds. Walking and everything you do costs hours. The hours you don't use, you sleep.`,
+      body: `Every week has ${WEEK_HOURS} hours and ${view.weekSeconds} real seconds. Walking and everything you do costs hours. When either runs out, your week is over.`,
       hud: "clock",
     },
     {
@@ -68,12 +72,12 @@ export function tourSteps(
     },
     {
       title: "Find a job",
-      body: "Start at the Job Hub. Every employer posts its jobs there, with your odds of getting hired.",
+      body: `Start at the Job Hub. Every employer posts its jobs there, with your odds of getting hired.${sure ? ` ${sure.title} at ${EMPLOYERS[sure.employer]} is a sure thing to begin with.` : ""}`,
       places: [JOBHUB],
     },
     {
       title: "Go to work",
-      body: "A shift is 6 hours where your employer is: the Gigafactory, the docks, the shops. The more you work, the better your career.",
+      body: "A shift is 6 hours where your employer is: the Gigafactory, the docks, the shops. Steady work builds your career. Jobs need the right clothes, and Threads sells them.",
       places: [GIGAFACTORY],
     },
     {
@@ -82,9 +86,14 @@ export function tourSteps(
       places: [COLLEGE],
     },
     {
-      title: "Eat and pay rent",
-      body: "Buy food every week at FreshCo or Mono Burger, or lose 20 hours to hunger. Rent is due at KeyNest every 4 weeks.",
-      places: [FRESHCO, KEYNEST],
+      title: "Eat every week",
+      body: "Buy groceries at FreshCo (they go off without a fridge) or a meal at Mono Burger. Go a week without food and you lose 20 hours.",
+      places: [FRESHCO],
+    },
+    {
+      title: "Home, rent and sleep",
+      body: "You live at Roomshare and pay rent at KeyNest every 4 weeks. Relax at home, or leave hours unused and you sleep them off. Rest keeps the doctor and burglars away, and your first rest each week makes you happier.",
+      places: [ROOMSHARE, KEYNEST],
     },
     {
       title: "Money and nice things",
@@ -92,18 +101,18 @@ export function tourSteps(
       places: [NEOBANK, GADGET],
     },
     {
-      title: "Your money",
-      body: "Cash in your pocket, with your bank balance underneath.",
-      hud: "money",
-    },
-    {
       title: "Call it a week",
-      body: "Done early? Call it a week. Your week also ends when the hours or the clock run out.",
+      body: "Done early? Call it a week, and the hours left become sleep.",
       hud: "end",
     },
     {
+      title: "Tips",
+      body: "Not sure what to do? This tip always shows your next step: tap it to walk there. Tap the clock for more tips and how your week is going.",
+      hud: "tip",
+    },
+    {
       title: "Your move",
-      body: "Tap a building to walk there. Drag the map to look around. Good luck!",
+      body: "Tap a building to walk there, and drag the map to look around. Good luck!",
     },
   ];
 }

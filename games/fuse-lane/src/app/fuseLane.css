@@ -1742,3 +1742,69 @@ body.fl-page .fl-tour-skip {
     transition: none;
   }
 }
+
+/* Tips: the most pressing one floats at the bottom of the free board while you stand in the street (a tap walks you
+   there); the you panel lists the first few. */
+body.fl-page .fl-tip {
+  position: absolute;
+  z-index: 3;
+  left: calc(var(--free-x, 0px) + var(--free-w, 100%) / 2);
+  top: calc(var(--free-y, 0px) + var(--free-h, 100%) - 0.5rem);
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  width: max-content;
+  max-width: min(30rem, calc(100% - 24px));
+  min-height: 2.75rem;
+  padding: 0.35rem 0.9rem 0.35rem 0.4rem;
+  color: var(--fl-ink);
+  background: var(--fl-glass);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  box-shadow: var(--fl-shadow);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: left;
+  transform: translate(-50%, -100%);
+}
+body.fl-page .fl-tip:disabled {
+  opacity: 1;
+}
+.fl-tip-badge {
+  flex: none;
+  padding: 0.25rem 0.5rem;
+  color: #fff;
+  background: var(--fl-amber);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+}
+.fl-tip-text {
+  min-width: 0;
+}
+.fl-tips {
+  margin: 0.9rem 0 0;
+  padding: 0.6rem 0.8rem;
+  background: #eaf6ef;
+  border-radius: 0.8rem;
+  font-size: 0.88rem;
+}
+.fl-tips-title {
+  margin: 0 0 0.3rem;
+  color: var(--fl-green-deep);
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.fl-tips ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.fl-tips li + li {
+  margin-top: 0.3rem;
+}
