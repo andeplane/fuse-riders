@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   COLLEGE,
+  EXTENDED,
   FRESHCO,
   GADGET,
   JOBHUB,
@@ -11,7 +12,9 @@ import {
   NEOBANK,
   ROOMSHARE,
   THREADS,
+  TRIED_EXTENSION,
   WALK,
+  WORKPLACE,
   type PlayerState,
 } from "../src/game/index.js";
 import { LocalMatch, type LocalSetup } from "../src/app/local.js";
@@ -91,6 +94,36 @@ test("rent: pay it, fetch cash from the bank for it, ask for time, or clear arre
     me.cash = 10;
   });
   assert.equal(find(short, /ask KeyNest for more time/)?.place, KEYNEST);
+  // Once you have asked, or KeyNest won't hear you, it says how much you are short and where to earn it.
+  for (const flags of [TRIED_EXTENSION, 0]) {
+    const asked = tipsAfter((me) => {
+      me.rentWeeks = 0;
+      me.cash = 10;
+      me.flags |= flags;
+      if (!flags) me.rentExt = -1;
+    });
+    assert.equal(find(asked, /more time/), undefined);
+    assert.equal(
+      find(asked, /Rent is due and you are \$315 short/)?.place,
+      JOBHUB,
+    );
+  }
+  const working = tipsAfter((me) => {
+    me.rentWeeks = 0;
+    me.cash = 10;
+    me.flags |= TRIED_EXTENSION;
+    me.job = 0;
+  });
+  assert.equal(
+    find(working, /you are \$315 short/)?.place,
+    WORKPLACE[JOBS[0]!.employer],
+  );
+  const extended = tipsAfter((me) => {
+    me.rentWeeks = 0;
+    me.cash = 10;
+    me.flags |= TRIED_EXTENSION | EXTENDED;
+  });
+  assert.equal(find(extended, /Rent/), undefined, "KeyNest gave you time");
   const owed = tipsAfter((me) => {
     me.rentOwed = 120;
   });

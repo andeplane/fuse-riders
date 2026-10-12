@@ -109,7 +109,7 @@ function harness(options: Options = {}) {
     again: 0,
     back: 0,
     folds: [] as boolean[],
-    closes: [] as string[],
+    hides: [] as [string, boolean][],
   };
   let older: FuseLaneView | undefined,
     newer = match.view(),
@@ -132,7 +132,8 @@ function harness(options: Options = {}) {
       ? {
           checklist: {
             fold: (open: boolean) => calls.folds.push(open),
-            close: (owner: string) => calls.closes.push(owner),
+            hide: (owner: string, hidden: boolean) =>
+              calls.hides.push([owner, hidden]),
           },
         }
       : {}),
@@ -381,6 +382,38 @@ test("place buttons walk there; inside a place its panel opens, cards log their 
   assert.equal(h.$(".fl-panel-building").dataset.art, "building-freshco");
   h.render(model);
 
+  // While you stay, cards keep the rows they had (a hire that unlocks jobs doesn't shuffle them); new ones go after,
+  // and leaving the place starts afresh.
+  const keys = () => dom.$$(".fl-card", panel).map((card) => card.dataset.key);
+  const [first, ...more] = sections;
+  const reordered = {
+    ...model.panel!,
+    greeting: "Reordered",
+    sections: [{ ...first!, cards: [...first!.cards].reverse() }, ...more],
+  };
+  const before = keys();
+  h.render({ ...model, panel: reordered });
+  assert.deepEqual(keys(), before);
+  const extra = { ...first!.cards[0]!, key: "job-extra" };
+  h.render({
+    ...model,
+    panel: {
+      ...reordered,
+      greeting: "One more",
+      sections: [{ ...first!, cards: [extra, ...first!.cards] }, ...more],
+    },
+  });
+  assert.equal(keys()[first!.cards.length], "job-extra");
+  const { panel: _gone, ...outside } = model;
+  h.render(outside);
+  h.render({ ...model, panel: reordered });
+  assert.deepEqual(
+    keys().slice(0, first!.cards.length),
+    reordered.sections[0]!.cards.map((card) => card.key),
+    "a new visit takes the new order",
+  );
+  h.render(model);
+
   // × closes it for this visit; the place's own button opens it again without walking.
   const logged = h.plays.length;
   dom.$<HTMLButtonElement>(".fl-close", panel).click();
@@ -573,9 +606,10 @@ const LIST: ChecklistModel = {
   done: 1,
   total: 2,
   complete: false,
+  hidden: false,
 };
 
-test("the Getting started checklist: starts open on a wide screen, folds, its steps walk there, and closes once complete", () => {
+test("the Getting started checklist: starts open on a wide screen, folds, its steps walk there, and × hides it any time until the you panel brings it back", () => {
   const h = harness();
   const model = h.render();
   const card = h.$(".fl-checklist"),
@@ -590,7 +624,7 @@ test("the Getting started checklist: starts open on a wide screen, folds, its st
   assert.ok(card.classList.contains("open"));
   assert.equal(head.getAttribute("aria-expanded"), "true");
   assert.equal(items.hidden, false);
-  assert.equal(close.hidden, true, "closed only once complete");
+  assert.equal(close.hidden, false, "it can be hidden at any time");
   const steps = h.$$<HTMLButtonElement>(".fl-checklist-step");
   assert.deepEqual(
     steps.map((step) => [step.getAttribute("aria-label"), step.disabled]),
@@ -651,15 +685,37 @@ test("the Getting started checklist: starts open on a wide screen, folds, its st
   h.render({ ...model, checklist: complete });
   assert.equal(h.$(".fl-checklist-title").textContent, "All set!");
   assert.ok(card.classList.contains("complete"));
-  assert.equal(close.hidden, false);
+  const show = h.$<HTMLButtonElement>(".fl-show-checklist");
+  assert.equal(show.hidden, true, "nothing to bring back");
   close.click();
-  assert.deepEqual(h.calls.closes, ["p1"]);
+  assert.deepEqual(h.calls.hides, [["p1", true]]);
   assert.equal(card.hidden, true);
+  assert.equal(h.$(".fl-toast").hidden, false);
+  assert.equal(
+    h.$(".fl-toast").textContent,
+    "Checklist hidden. Tap the clock to bring it back.",
+  );
+  h.$<HTMLButtonElement>(".fl-clock").click();
+  assert.equal(h.$(".fl-you").hidden, false);
+  assert.equal(show.hidden, false, "the you panel offers it back");
   h.render({ ...model, checklist: complete });
-  assert.equal(card.hidden, true, "closed for good on this screen");
+  assert.equal(card.hidden, true, "hidden here before the save catches up");
+  show.click();
+  assert.equal(h.$(".fl-you").hidden, true, "the you panel steps aside for it");
+  assert.deepEqual(h.calls.hides, [
+    ["p1", true],
+    ["p1", false],
+  ]);
+  assert.equal(card.hidden, false);
+  assert.equal(show.hidden, true);
+  // Another player's list follows its own save.
+  h.render({ ...model, checklist: { ...LIST, owner: "p2", hidden: true } });
+  assert.equal(card.hidden, true);
+  assert.equal(show.hidden, false);
   h.render(model);
+  assert.equal(show.hidden, true);
   close.click();
-  assert.deepEqual(h.calls.closes, ["p1"], "nothing to close");
+  assert.equal(h.calls.hides.length, 2, "nothing to hide");
 });
 
 /** A Monday model from a match of its own (for a briefing to cover things with). */
@@ -1209,11 +1265,20 @@ test("the tour: NEXT and BACK step through its cards, the last says LET'S GO, an
   h.render(model);
   h.frame();
   const steps = tourSteps(h.match.view());
+  dom.place(h.$(".fl-clock"), { left: 10, top: 10, width: 200, height: 50 });
   let done = 0;
   h.screen.tour(steps, () => done++);
   assert.equal(h.screen.touring(), true);
   assert.equal(placePanel(h).hidden, true, "the tour clears the board");
   assert.equal(h.$(".fl-you").hidden, true);
+  const under = [...h.screen.game.children].filter(
+    (part) => !part.classList.contains("fl-tour"),
+  );
+  assert.ok(under.length > 0);
+  assert.ok(
+    under.every((part) => part.hasAttribute("inert")),
+    "nothing under the tour takes a tap or focus",
+  );
   const layer = h.$(".fl-tour"),
     next = h.$<HTMLButtonElement>(".fl-tour-next"),
     back = h.$<HTMLButtonElement>(".fl-tour-back"),
@@ -1250,6 +1315,7 @@ test("the tour: NEXT and BACK step through its cards, the last says LET'S GO, an
   assert.equal(done, 1);
   assert.equal(h.screen.touring(), false);
   assert.equal(layer.hidden, true);
+  assert.ok(under.every((part) => !part.hasAttribute("inert")));
   assert.equal(
     h.plays.length,
     logged,
@@ -1316,6 +1382,10 @@ test("a tour card spotlights its HUD piece and sits below or above it, else alon
     spot.hidden,
     true,
     "the tip is not on screen: nothing to spotlight",
+  );
+  assert.ok(
+    h.$(".fl-tour").classList.contains("plain"),
+    "so the whole board dims",
   );
   assert.equal(card.dataset.at, "middle");
   assert.equal(card.style.left, "");
