@@ -199,7 +199,7 @@ function menu(): void {
               },
             );
             store.setItem(names.host(room.code), room.token);
-            store.setItem(names.shared, mode === "shared" ? "1" : "0");
+            if (mode === "shared") store.setItem(names.tvRoom(room.code), "1");
             location.href = endpoints.appUrl(`?room=${room.code}`);
           },
           onJoin: (code) => {
@@ -400,7 +400,8 @@ function room(): void {
   if (!display) store.setItem(names.last, code);
   document.body.classList.toggle("fl-display", display);
   // A shared-screen room's creator is the TV: it seats nobody and keeps START and REMATCH.
-  const sharedHost = role === "host" && store.getItem(names.shared) === "1";
+  const sharedHost =
+    role === "host" && store.getItem(names.tvRoom(code)) === "1";
   const viewer: Viewer = {
     me: "",
     host: false,
@@ -564,12 +565,16 @@ function room(): void {
     status(message) {
       const shown = roomFailure(message);
       status.show(shown, shown === message ? "info" : "error");
+      if (shown !== message) connecting.hidden = true;
     },
     ready(id, host) {
       viewer.me = id;
       viewer.host = host;
     },
     ended() {
+      connecting.hidden = true;
+      // A room that ended is not one to go back to.
+      if (store.getItem(names.last) === code) store.removeItem(names.last);
       status.show("Room ended", "error");
       void fetch(endpoints.apiUrl(`/api/games/${GAME}/leaderboard`))
         .then(async (response) => {
