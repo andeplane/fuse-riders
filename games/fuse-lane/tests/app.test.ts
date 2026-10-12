@@ -5,10 +5,13 @@ import {
   APPLY,
   DOCKS,
   END_WEEK,
+  FRESHCO,
   HOURS,
   JOBHUB,
   JOBS,
+  NEOBANK,
   READY,
+  RESALE,
   ROOMSHARE,
   WALK,
   type FuseLaneView,
@@ -350,4 +353,52 @@ test("art and links resolve from the site root, also under a relative base", () 
     "/previews/pr-505/",
   );
   assert.equal(siteBase("", "http://x/assets/a.js"), "/");
+});
+
+/** Walks the solo player into `place` and returns the panel's cards. */
+function cardsAt(match: LocalMatch, place: number): Card[] {
+  match.play([WALK, match.room.week, place]);
+  until(match, () => match.room.players.p1!.inside === place);
+  return present(match.view(), LOCAL).panel!.sections.flatMap(
+    (section) => section.cards,
+  );
+}
+
+test("Second Life sells a used fridge from its card, and the toast says so", () => {
+  const match = LocalMatch.create(setup(1, 0));
+  match.room.players.p1!.cash = 800;
+  const fridge = cardsAt(match, RESALE).find(
+    (card) => card.title === "Smart fridge (used)",
+  )!;
+  assert.ok(fridge.enabled);
+  match.play(fridge.entry!);
+  match.step();
+  const after = present(match.view(), LOCAL);
+  assert.match(after.toast!.text, /Second-hand smart fridge/);
+  const pawn = after
+    .panel!.sections.flatMap((section) => section.cards)
+    .find((card) => card.title === "Pawn your smart fridge");
+  assert.ok(pawn?.enabled, "and now it can be pawned");
+});
+
+test("Neobank lends from a card and FreshCo sells scratch cards", () => {
+  const match = LocalMatch.create(setup(1, 0));
+  const borrow = cardsAt(match, NEOBANK).find((card) =>
+    card.key.startsWith("borrow-"),
+  )!;
+  assert.ok(borrow.enabled, "a little credit even without a job");
+  match.play(borrow.entry!);
+  match.step();
+  let model = present(match.view(), LOCAL);
+  assert.match(model.toast!.text, /Borrowed \$200/);
+  assert.ok(model.hud!.chips.some((chip) => chip.label === "Loan $200"));
+  const scratch = cardsAt(match, FRESHCO).find(
+    (card) => card.key === "lottery",
+  )!;
+  assert.ok(scratch.enabled);
+  match.play(scratch.entry!);
+  match.step();
+  model = present(match.view(), LOCAL);
+  assert.equal(match.room.players.p1!.scratched, 1);
+  assert.ok(model.toast!.text.length > 0);
 });

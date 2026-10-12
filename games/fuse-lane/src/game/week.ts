@@ -4,6 +4,8 @@ import { BOLTED_DOWN, DURABLES, DURABLE_NAMES } from "./data/items.js";
 import { CLOTHING_NAMES, JOBS } from "./data/jobs.js";
 import { COLLEGE_EMPLOYER } from "./data/places.js";
 import { sleep } from "./actions.js";
+import { loanMonday } from "./credit.js";
+import { resaleMonday } from "./resale.js";
 import { interest, stepEconomy } from "./economy.js";
 import { chance, randInt } from "./random.js";
 import { active, playerOrder, type FuseLaneRoom } from "./room.js";
@@ -52,10 +54,24 @@ function layOff(player: PlayerState, why: string): void {
   notify(player, why);
 }
 
+/** Happiness lost each Monday: 1 point per 15 held. */
+export const fading = (happiness: number): number => Math.floor(happiness / 15);
+/** Happiness home comforts give each Monday: a kitchen gadget, something to watch or play, and a hot tub. */
+export function comfort(player: PlayerState): number {
+  return (
+    (owns(player, "stove") || owns(player, "airfryer") ? 1 : 0) +
+    (owns(player, "tv") || owns(player, "console") || owns(player, "speakers")
+      ? 1
+      : 0) +
+    (owns(player, "hottub") ? 1 : 0)
+  );
+}
+
 /** Monday upkeep for one player (from week 2 on). */
 function upkeep(room: FuseLaneRoom, player: PlayerState): void {
-  if (owns(player, "stove") || owns(player, "airfryer"))
-    addHappiness(player, 1);
+  // The shine wears off: a happy life needs topping up, and the higher it is, the faster it fades.
+  const fade = fading(player.happiness);
+  addHappiness(player, comfort(player) - fade);
   if (owns(player, "laptop") && chance(room, 1 / 7)) {
     const fee = randInt(room, 20, 100);
     player.cash += fee;
@@ -222,6 +238,7 @@ export function endWeek(room: FuseLaneRoom): boolean {
     const player = room.players[id]!;
     const savings = interest(economy, player.bank);
     if (savings > 0) player.bank += savings;
+    loanMonday(room, player, economy);
     news.dividends.forEach((perShare, company) => {
       const paid = Math.floor(perShare * player.holdings[company]!);
       if (paid > 0) {
@@ -230,6 +247,10 @@ export function endWeek(room: FuseLaneRoom): boolean {
       }
     });
   }
+  resaleMonday(
+    room,
+    ids.map((id) => room.players[id]!),
+  );
   // Layoffs: the least dependable player on each struggling company's staff; a crash hits everyone's job.
   for (const company of news.layoffs) {
     const staff = ids
@@ -289,6 +310,7 @@ export function endWeek(room: FuseLaneRoom): boolean {
     player.botActs = 0;
     player.weekShifts = 0;
     player.weekClasses = 0;
+    player.scratched = 0;
   }
   return false;
 }

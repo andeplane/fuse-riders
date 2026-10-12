@@ -16,9 +16,9 @@ import {
   RECESSION,
   type Cycle,
 } from "./data/economy.js";
-import { ENROLL_FEE, RENT, type ItemData } from "./data/items.js";
+import { RENT, type ItemData } from "./data/items.js";
 import { COLLEGE_EMPLOYER } from "./data/places.js";
-import type { JobData } from "./data/jobs.js";
+import { COURSES, type JobData } from "./data/jobs.js";
 import {
   chance,
   clamp,
@@ -120,9 +120,12 @@ function targetPrice(economy: Economy, index: number): number {
     company.earnings,
     data.baseline * data.margin * C.stocks.earningsFloor,
   );
+  // Fusetown grows: earnings priced a little higher each week, so shares beat the mattress over a game, crashes aside.
   return Math.max(
     C.stocks.floor,
-    ((earnings * 52) / data.shares) * multiple(economy),
+    ((earnings * 52) / data.shares) *
+      multiple(economy) *
+      (1 + C.stocks.drift * economy.weeks),
   );
 }
 function cap(economy: Economy): number {
@@ -188,11 +191,17 @@ export const shelfPrice = (economy: Economy, item: ItemData): number =>
   Math.max(1, Math.round(item.price * economy.prices[item.category]!));
 export const rentPrice = (economy: Economy, home: number): number =>
   Math.round(RENT[home]! * economy.prices[HOUSING]!);
-export const enrollFee = (economy: Economy): number =>
-  Math.round(ENROLL_FEE * economy.prices[EDUCATION]!);
+/** A course's tuition now: its fee × the education price index. */
+export const enrollFee = (economy: Economy, course: number): number =>
+  Math.round((COURSES[course]?.fee ?? 0) * economy.prices[EDUCATION]!);
 /** What an employer offers for a position now: base × wage index × its health. */
 export const marketWage = (economy: Economy, job: JobData): number =>
-  r2(job.wage * economy.wageIndex * healthFactor(economy, job.employer));
+  r2(
+    job.wage *
+      C.wages.scale *
+      economy.wageIndex *
+      healthFactor(economy, job.employer),
+  );
 export const gigWage = (economy: Economy): number =>
   r2(C.wages.gig * economy.wageIndex);
 

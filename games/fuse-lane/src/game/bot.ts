@@ -1,6 +1,7 @@
 import { UNITS_PER_HOUR } from "./basics.js";
 import { INDEX_FUND } from "./data/economy.js";
-import { ITEMS, type DurableId } from "./data/items.js";
+import { DURABLES, ITEMS, type DurableId } from "./data/items.js";
+import { creditLeft } from "./credit.js";
 import { COURSES, JOBS } from "./data/jobs.js";
 import {
   COLLEGE,
@@ -11,6 +12,7 @@ import {
   MEGAMART,
   MONO,
   NEOBANK,
+  RESALE,
   THREADS,
   WORKPLACE,
   hiresAtGate,
@@ -33,8 +35,14 @@ import {
   TRADE_SELL,
   WITHDRAW,
   WORK,
+  MAX_SENIORITY,
+  BORROW,
+  BUY_USED,
+  REPAY,
+  SCRATCH,
   holder,
   missing,
+  seniorityRaise,
 } from "./actions.js";
 import {
   buyCost,
@@ -44,11 +52,14 @@ import {
   quote,
   rentPrice,
   shelfPrice,
+  type Economy,
 } from "./economy.js";
+import { seedOf } from "./random.js";
 import type { FuseLaneRoom } from "./room.js";
 import { walkSteps } from "./streets.js";
 import {
   ASKED_RAISE,
+  FUN_HAPPY,
   homePlace,
   TRIED_EXTENSION,
   education,
@@ -56,6 +67,7 @@ import {
   hasDegree,
   hoursLeft,
   owns,
+  stats,
   wealth,
   wearing,
   type PlayerState,
@@ -81,10 +93,66 @@ export const BOT_MAX_ACTS = 60;
  * whether it trades.
  */
 export const BOT_LEVELS = [
-  { acts: 14, shifts: 2, classes: 1, climb: false, trade: false },
-  { acts: 30, shifts: 3, classes: 2, climb: true, trade: false },
-  { acts: BOT_MAX_ACTS, shifts: 3, classes: 3, climb: true, trade: true },
+  { acts: 12, shifts: 2, classes: 1, climb: false, trade: false, idle: 0 },
+  { acts: 22, shifts: 3, classes: 2, climb: true, trade: true, idle: 8 },
+  {
+    acts: BOT_MAX_ACTS,
+    shifts: 3,
+    classes: 3,
+    climb: true,
+    trade: true,
+    idle: 0,
+  },
 ] as const;
+
+/**
+ * How each bot likes to live, so rivals play differently: shifts and classes a week at full skill, the share of a
+ * surplus it invests rather than saves, and how much of a cushion it keeps before buying comfort. Every match deals
+ * them out from its seed (`botStyle`), so the same match always has the same rivals.
+ */
+export const BOT_STYLES = [
+  {
+    name: "Steady",
+    shifts: 3,
+    classes: 3,
+    invest: 0.5,
+    comfort: 900,
+    scratch: 1,
+    borrow: false,
+  },
+  {
+    name: "Hustler",
+    shifts: 5,
+    classes: 3,
+    invest: 0.3,
+    comfort: 1400,
+    scratch: 3,
+    borrow: false,
+  },
+  {
+    name: "Scholar",
+    shifts: 2,
+    classes: 5,
+    invest: 0.3,
+    comfort: 900,
+    scratch: 0,
+    borrow: true,
+  },
+  {
+    name: "Investor",
+    shifts: 3,
+    classes: 3,
+    invest: 0.9,
+    comfort: 1200,
+    scratch: 0,
+    borrow: true,
+  },
+] as const;
+/** A bot's style: dealt from the match seed and the bot's slot, so every replica agrees and no state is kept. */
+export function botStyle(room: FuseLaneRoom, id: string) {
+  const slot = room.roster[id]?.slot ?? 0;
+  return BOT_STYLES[(seedOf(room.matchId) + slot) % BOT_STYLES.length]!;
+}
 
 /** Courses in the order a bot studies them: the ones that open the most jobs first. */
 const STUDY_ORDER = [4, 0, 5, 2, 3, 1, 6, 7, 8, 9, 10];
@@ -139,13 +207,54 @@ function nextUniform(room: FuseLaneRoom, player: PlayerState): number {
   return level;
 }
 
+/** The goal (`GOAL_NAMES` index) furthest from done, as a share of its target; -1 when all are met. */
+function laggingGoal(player: PlayerState, economy: Economy): number {
+  let worst = -1,
+    least = 1;
+  stats(player, economy).forEach((value, index) => {
+    const share = value / Math.max(1, player.goals[index]!);
+    if (share < least) {
+      least = share;
+      worst = index;
+    }
+  });
+  return worst;
+}
+
 export function botMove(room: FuseLaneRoom, id: string): BotMove {
   const player = room.players[id]!,
     economy = room.economy,
     left = hoursLeft(player),
     cash = player.cash;
-  const level = BOT_LEVELS[room.level] ?? BOT_LEVELS[2];
-  if (player.botActs >= level.acts) return { kind: "end" };
+  const level = BOT_LEVELS[room.level] ?? BOT_LEVELS[2],
+    style = botStyle(room, id),
+    // A bot leans into whichever goal lags furthest behind: a hard one by two more shifts or classes, a normal one by
+    // one, an easy one not at all.
+    lean = room.level,
+    lag = lean > 0 ? laggingGoal(player, economy) : -1,
+    // An easy bot works and studies less than its style would.
+    baseShifts = Math.max(
+      level.shifts - 1,
+      style.shifts - (room.level ? 0 : 1),
+    ),
+    baseClasses = Math.max(1, style.classes - (room.level ? 0 : 2)),
+    // ...and makes room for it by easing off the other.
+    shifts =
+      lag === 0
+        ? baseShifts + lean
+        : lag === 2
+          ? Math.min(baseShifts, 2)
+          : baseShifts,
+    classes =
+      lag === 2
+        ? baseClasses + lean
+        : lag === 0
+          ? Math.min(baseClasses, 2)
+          : baseClasses,
+    comfort = lag === 1 ? style.comfort / 2 : style.comfort;
+  // A normal bot dawdles like a person does: the last hours of its week go unplanned (and become sleep).
+  if (player.botActs >= level.acts || left <= level.idle)
+    return { kind: "end" };
   const travel = (place: number) =>
     player.inside === place
       ? 0
@@ -193,6 +302,13 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
     } else if (player.bank >= player.rent - cash) {
       const move = go(NEOBANK, WITHDRAW, player.rent - cash);
       if (move) return move;
+    } else if (creditLeft(player) >= player.rent - cash - player.bank) {
+      const move = go(
+        NEOBANK,
+        BORROW,
+        Math.ceil((player.rent - cash) / 100) * 100,
+      );
+      if (move) return move;
     } else if ((player.flags & TRIED_EXTENSION) === 0 && player.rentExt >= 0) {
       const move = go(KEYNEST, EXTEND);
       if (move) return move;
@@ -201,6 +317,17 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
   if (player.rentOwed > 0 && cash > player.rentOwed + 300) {
     const move = go(KEYNEST, PAY_ARREARS);
     if (move) return move;
+  }
+
+  // 2b. A second-hand fridge, if Second Life has one: groceries keep, and they are cheaper than burgers.
+  if (!owns(player, "fridge")) {
+    const slot = room.shelf.findIndex(
+      (offer) => DURABLES[offer.item] === "fridge",
+    );
+    if (slot >= 0 && cash >= room.shelf[slot]!.price + 250) {
+      const move = go(RESALE, BUY_USED, slot, room.shelf[slot]!.item);
+      if (move) return move;
+    }
   }
 
   // 3. Food for Monday.
@@ -239,7 +366,7 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
 
   // 5. Work three shifts a week (more while broke).
   const dressed = job !== undefined && wearing(player) >= job.uniform;
-  if (job && dressed && (player.weekShifts < level.shifts || cash < 150)) {
+  if (job && dressed && (player.weekShifts < shifts || cash < 150)) {
     const move = go(workplace, WORK, 0, 0, Math.min(HOURS.work, left));
     if (move && left >= 1) return move;
   }
@@ -249,27 +376,29 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
     level.climb &&
     job &&
     (player.flags & ASKED_RAISE) === 0 &&
-    player.raises < 3
+    player.raises < 3 + MAX_SENIORITY
   ) {
     const market = marketWage(economy, job);
     if (
-      market > player.wage * 1.05 &&
-      player.dep >= job.dep + 5 * player.raises + 5
+      (market > player.wage * 1.05 ||
+        seniorityRaise(player, job) > player.wage) &&
+      player.dep >= job.dep + 5 * player.raises
     ) {
       const move = go(JOBHUB, RAISE, 0, 0, HOURS.raise);
       if (move) return move;
     }
   }
-  if (job && level.climb) {
+  // Every bot climbs the ladder; a weaker one waits for more experience first.
+  if (job) {
     const best = bestJob(room, id, player);
-    if (best >= 0 && player.exp >= player.maxExp - 2) {
+    if (best >= 0 && player.exp >= job.exp + (level.climb ? 8 : 24)) {
       const move = go(office(best), APPLY, best, 0, HOURS.apply);
       if (move) return move;
     }
   }
 
   // 7. Study, while education is short of the goal.
-  if (education(player) < goals[2] && player.weekClasses < level.classes) {
+  if (education(player) < goals[2] && player.weekClasses < classes) {
     const active = player.courses.findIndex(
       (lessons) => lessons >= 0 && lessons < 10,
     );
@@ -283,8 +412,16 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
           (COURSES[course]!.prereq < 0 ||
             hasDegree(player, COURSES[course]!.prereq)),
       );
-      if (next !== undefined && cash > enrollFee(economy) + 150) {
+      if (next !== undefined && cash > enrollFee(economy, next) + 150) {
         const move = go(COLLEGE, ENROLL, next, 0, HOURS.class);
+        if (move) return move;
+      } else if (
+        next !== undefined &&
+        style.borrow &&
+        player.job >= 0 &&
+        creditLeft(player) >= enrollFee(economy, next) + 100
+      ) {
+        const move = go(NEOBANK, BORROW, enrollFee(economy, next) + 100);
         if (move) return move;
       }
     }
@@ -307,10 +444,28 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
     const move = go(homePlace(player.home), RELAX, 0, 0, HOURS.relax);
     if (move) return move;
   }
-  if (level.climb && player.happiness < goals[1] && cash > 900) {
+  if (
+    player.happiness < goals[1] &&
+    (player.flags & FUN_HAPPY) === 0 &&
+    cash > 250
+  ) {
+    const night = itemAt(MONO, (index) => ITEMS[index]!.kind === "fun");
+    const move = go(MONO, BUY, night, 0, ITEMS[night]!.hours ?? 0);
+    if (move) return move;
+  }
+  if (level.climb && player.happiness < goals[1] && cash > comfort) {
     const want = APPLIANCES.find(
       (durable) => player.durables[durable] === undefined,
     );
+    const slot = room.shelf.findIndex(
+      (offer) =>
+        player.durables[DURABLES[offer.item]!] === undefined &&
+        cash >= offer.price + 400,
+    );
+    if (slot >= 0) {
+      const move = go(RESALE, BUY_USED, slot, room.shelf[slot]!.item);
+      if (move) return move;
+    }
     if (want) {
       const item = itemAt(GADGET, (index) => ITEMS[index]!.durable === want);
       if (cash >= price(item) + 400) {
@@ -330,7 +485,15 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
     if (move) return move;
   }
 
-  // 9. Save and invest the surplus.
+  // 9. Pay off a loan, a flutter on scratch cards, then save and invest the surplus.
+  if (player.loan > 0 && cash > player.loan + 600) {
+    const move = go(NEOBANK, REPAY, player.loan);
+    if (move) return move;
+  }
+  if (player.scratched < style.scratch && cash > 300) {
+    const move = go(FRESHCO, SCRATCH);
+    if (move) return move;
+  }
   if (
     level.trade &&
     economy.sentiment < -0.3 &&
@@ -346,10 +509,10 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
   }
   if (cash > 1400) {
     const fund = quote(economy, INDEX_FUND);
-    const units = Math.floor((cash - 900) / 2 / fund);
+    const units = Math.floor(((cash - 900) * style.invest) / fund);
     if (
       level.trade &&
-      economy.sentiment > 0.15 &&
+      economy.sentiment > -0.1 &&
       units > 0 &&
       buyCost(economy, INDEX_FUND, units) < cash - 600
     ) {
