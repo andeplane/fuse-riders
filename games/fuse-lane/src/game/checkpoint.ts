@@ -8,6 +8,14 @@ import {
   WEEK_UNITS,
 } from "./basics.js";
 import { ASSET_COUNT, CATEGORIES, COMPANIES, HISTORY } from "./data/economy.js";
+import {
+  EVENT_COUNT,
+  NO_EVENT,
+  OVERTIME,
+  OVERTIME_EMPLOYERS,
+  SALE,
+  SALE_PLACES,
+} from "./data/events.js";
 import { DURABLES, type DurableId } from "./data/items.js";
 import { COURSES, JOBS, LESSONS } from "./data/jobs.js";
 import { PLACES } from "./data/places.js";
@@ -202,7 +210,15 @@ const ECONOMY_KEYS = [
   "indexBase",
   "history",
   "weeks",
+  "event",
+  "eventArg",
 ] as const;
+/** An event's argument as `nextEvent` draws it: a sale's shop, an overtime employer, otherwise 0. */
+function validEventArg(event: number, arg: unknown): arg is number {
+  if (event === SALE) return (SALE_PLACES as readonly unknown[]).includes(arg);
+  if (event === OVERTIME) return int(arg, 0, OVERTIME_EMPLOYERS - 1);
+  return arg === 0;
+}
 export function decodeEconomy(raw: unknown): Economy | undefined {
   if (!plain(raw) || !keys(raw, ECONOMY_KEYS)) return;
   const positive = (value: unknown): value is number => num(value, 0, MONEY);
@@ -244,7 +260,9 @@ export function decodeEconomy(raw: unknown): Economy | undefined {
     !num(raw.wageIndex, 0.01, 1000) ||
     !num(raw.level, 0.01, 1000) ||
     !num(raw.indexBase, 1, MONEY) ||
-    !int(raw.weeks, 0, MAX_WEEKS + 2)
+    !int(raw.weeks, 0, MAX_WEEKS + 2) ||
+    !int(raw.event, NO_EVENT, EVENT_COUNT - 1) ||
+    !validEventArg(raw.event, raw.eventArg)
   )
     return;
   return {
@@ -265,6 +283,8 @@ export function decodeEconomy(raw: unknown): Economy | undefined {
     indexBase: raw.indexBase,
     history,
     weeks: raw.weeks,
+    event: raw.event,
+    eventArg: raw.eventArg,
   };
 }
 

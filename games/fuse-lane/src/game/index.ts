@@ -8,6 +8,7 @@ export * from "./game.js";
 export * from "./data/economy.js";
 export * from "./data/items.js";
 export * from "./data/jobs.js";
+export * from "./data/events.js";
 export * from "./data/places.js";
 export * from "./data/cities/index.js";
 export * from "./streets.js";

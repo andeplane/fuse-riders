@@ -1,5 +1,6 @@
 import { UNITS_PER_HOUR, WALK_SPEED, WEEK_UNITS } from "./basics.js";
 import { COMPANIES, ECONOMY, EDUCATION, HOUSING } from "./data/economy.js";
+import { FESTIVAL } from "./data/events.js";
 import { ITEMS } from "./data/items.js";
 import { COURSES, JOBS, type JobData } from "./data/jobs.js";
 import { borrow, garnishLoan, repay, scratch } from "./credit.js";
@@ -27,6 +28,7 @@ import {
   rentPrice,
   sellValue,
   shelfPrice,
+  shiftBonus,
   type Economy,
 } from "./economy.js";
 import { r2, randInt } from "./random.js";
@@ -301,7 +303,9 @@ function work(room: FuseLaneRoom, player: PlayerState): void {
   if (player.dep < player.minDep + 20 + player.eduCredit) player.dep++;
   player.flags |= WORKED;
   const gross = prorate(
-    Math.round(player.wage * PAID_HOURS),
+    Math.round(
+      player.wage * PAID_HOURS * shiftBonus(room.economy, job.employer),
+    ),
     hoursLeft(player),
   );
   let net = gross;
@@ -335,7 +339,7 @@ function work(room: FuseLaneRoom, player: PlayerState): void {
         ? `Shift done: $${net} (KeyNest garnished $${garnished}).`
         : warn
           ? `Shift done: $${net}. Your boss says: show up more, or else.`
-          : `Shift done: +$${net}.`,
+          : `Shift done: +$${net}.${shiftBonus(room.economy, job.employer) > 1 ? " Rush pay!" : ""}`,
     garnished > 0 || toBank > 0 || warn,
   );
 }
@@ -607,7 +611,7 @@ function buy(
     case "fun":
       if ((player.flags & FUN_HAPPY) === 0) {
         player.flags |= FUN_HAPPY;
-        happy = item.happy;
+        happy = item.happy * (room.economy.event === FESTIVAL ? 2 : 1);
       }
       break;
     case "drink":

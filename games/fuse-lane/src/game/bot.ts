@@ -1,5 +1,6 @@
 import { UNITS_PER_HOUR } from "./basics.js";
 import { INDEX_FUND } from "./data/economy.js";
+import { FLU, FLU_REST, PICKPOCKETS, POCKET_SAFE } from "./data/events.js";
 import { DURABLES, ITEMS, type DurableId } from "./data/items.js";
 import { creditLeft } from "./credit.js";
 import { COURSES, JOBS } from "./data/jobs.js";
@@ -52,6 +53,7 @@ import {
   quote,
   rentPrice,
   shelfPrice,
+  shiftBonus,
   type Economy,
 } from "./economy.js";
 import { seedOf } from "./random.js";
@@ -252,7 +254,14 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
         : lag === 0
           ? Math.min(baseClasses, 2)
           : baseClasses,
-    comfort = lag === 1 ? style.comfort / 2 : style.comfort;
+    comfort = lag === 1 ? style.comfort / 2 : style.comfort,
+    // A bot that reads the news (normal or hard) works an extra shift when its employer pays rush rates.
+    rush =
+      level.climb &&
+      player.job >= 0 &&
+      shiftBonus(economy, JOBS[player.job]!.employer) > 1
+        ? 1
+        : 0;
   // A normal bot dawdles like a person does: the last hours of its week go unplanned (and become sleep).
   if (player.botActs >= level.acts || left <= level.idle)
     return { kind: "end" };
@@ -370,7 +379,7 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
 
   // 5. Work three shifts a week (more while broke).
   const dressed = job !== undefined && wearing(player) >= job.uniform;
-  if (job && dressed && (player.weekShifts < shifts || cash < 150)) {
+  if (job && dressed && (player.weekShifts < shifts + rush || cash < 150)) {
     const move = go(workplace, WORK, 0, 0, Math.min(HOURS.work, left));
     if (move && left >= 1) return move;
   }
@@ -421,6 +430,17 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
         if (move) return move;
       } else if (
         next !== undefined &&
+        player.bank >= enrollFee(economy, next) + 151 - cash
+      ) {
+        // Its own savings before a loan (say, banked ahead of pickpockets).
+        const move = go(
+          NEOBANK,
+          WITHDRAW,
+          enrollFee(economy, next) + 151 - cash,
+        );
+        if (move) return move;
+      } else if (
+        next !== undefined &&
         style.borrow &&
         player.job >= 0 &&
         creditLeft(player) >= enrollFee(economy, next) + 100
@@ -443,8 +463,11 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
     }
   }
 
-  // 8. Rest and goods, while happiness is short of the goal.
-  if (player.relax < 17) {
+  // 8. Rest and goods, while happiness is short of the goal (more rest in flu week, for a bot that reads the news).
+  if (
+    player.relax < 17 ||
+    (level.climb && economy.event === FLU && player.relax < FLU_REST)
+  ) {
     const move = go(homePlace(player.home), RELAX, 0, 0, HOURS.relax);
     if (move) return move;
   }
@@ -489,7 +512,16 @@ export function botMove(room: FuseLaneRoom, id: string): BotMove {
     if (move) return move;
   }
 
-  // 9. Pay off a loan, a flutter on scratch cards, then save and invest the surplus.
+  // 9. Bank the cash before pickpockets get it, pay off a loan, a flutter on scratch cards, then save and invest the
+  // surplus.
+  if (
+    level.climb &&
+    economy.event === PICKPOCKETS &&
+    cash > POCKET_SAFE + 100
+  ) {
+    const move = go(NEOBANK, DEPOSIT, cash - POCKET_SAFE);
+    if (move) return move;
+  }
   if (player.loan > 0 && cash > player.loan + 600) {
     const move = go(NEOBANK, REPAY, player.loan);
     if (move) return move;

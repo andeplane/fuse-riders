@@ -188,8 +188,14 @@ test("a saved hot-seat match resumes exactly where it was", () => {
 });
 
 test("bot levels: harder bots get further toward their goals in the same weeks", () => {
-  const worth = (level: number) => {
-    const match = LocalMatch.create({ ...setup(1, 3, level), seed: "levels" });
+  // Summed over a few seeds: one match's town events and luck can let a normal bot edge out a hard one.
+  const worth = (level: number) =>
+    ["levels", "levels-2", "levels-3"].reduce(
+      (sum, seed) => sum + progressAfter(level, seed),
+      0,
+    );
+  const progressAfter = (level: number, seed: string) => {
+    const match = LocalMatch.create({ ...setup(1, 3, level), seed });
     const room = match.room;
     for (let week = 0; week < 12; week++) {
       runWhile(
