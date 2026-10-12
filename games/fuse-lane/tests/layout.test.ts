@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CITY,
+  JOBHUB,
   PLACES,
   STREETS,
   doorOf,
@@ -251,4 +252,62 @@ test("players at one door stand side by side along the street; walkers on one sp
     streetDirection(0, { ...STREETS, neighbours: [[]] }),
     [1, 0],
   );
+});
+
+test("off the map's streets: an unknown step stands at the start, and a walker at its door has no way to go", () => {
+  const start = STREETS.points[STREETS.start]!;
+  assert.deepEqual(stepPoint(-1), start);
+  assert.deepEqual(stepPoint(STREETS.points.length), start);
+  const door = doorOf(JOBHUB);
+  assert.equal(nextStep(door, JOBHUB), door);
+  assert.equal(route(door, STREETS.start, JOBHUB), undefined);
+});
+
+test("a walker heading straight up or down the map faces neither way", () => {
+  const home = doorOf(PLACES.findIndex((place) => place.id === "roomshare"));
+  const to = nextStep(nextStep(home, JOBHUB), JOBHUB);
+  // The same streets, every step moved onto one north-south line.
+  const upright = {
+    ...STREETS,
+    points: STREETS.points.map(([, y]): MapPoint => [0, y]),
+  };
+  const { at, facing } = walkerAt(home, to, JOBHUB, 0.5, upright);
+  assert.equal(facing, 0);
+  assert.equal(at[0], 0);
+  assert.notEqual(
+    walkerAt(home, to, JOBHUB, 0.5).facing,
+    0,
+    "on the real map it turns",
+  );
+});
+
+test("a place whose door is not on the map waits by the first node; one centred on its door waits on it", () => {
+  const first = CITY.nodes[0]!.at;
+  const lost = { ...CITY.places[0]!, door: "nowhere" };
+  const box = bounds(lost.tap),
+    toward: MapPoint = [
+      box.x + box.w / 2 - first[0],
+      box.y + box.h / 2 - first[1],
+    ];
+  const stand = standPoint(0, { ...CITY, places: [lost] });
+  const d = Math.hypot(toward[0], toward[1]),
+    reach = Math.min(22, d * 0.5);
+  assert.ok(
+    near(stand, [
+      first[0] + (toward[0] / d) * reach,
+      first[1] + (toward[1] / d) * reach,
+    ]),
+  );
+  const [x, y] = first;
+  const centred = {
+    ...CITY.places[0]!,
+    door: CITY.nodes[0]!.id,
+    tap: [
+      [x - 10, y - 10],
+      [x + 10, y - 10],
+      [x + 10, y + 10],
+      [x - 10, y + 10],
+    ] as MapPoint[],
+  };
+  assert.deepEqual(standPoint(0, { ...CITY, places: [centred] }), first);
 });
