@@ -3,7 +3,7 @@ import { ASSET_COUNT } from "./data/economy.js";
 import { DURABLES, RENT, type DurableId } from "./data/items.js";
 import { COURSES, JOBS, LESSONS } from "./data/jobs.js";
 import { PLACES, ROOMSHARE, TOWER } from "./data/places.js";
-import { quote, type Economy } from "./economy.js";
+import type { Economy } from "./economy.js";
 
 /** One owned durable: how many, what the last one cost and whether it came from the discount store. */
 export interface Owned {
@@ -208,10 +208,13 @@ export const fed = (player: PlayerState): boolean =>
 export const employer = (player: PlayerState): number =>
   player.job >= 0 ? JOBS[player.job]!.employer : -1;
 
-/** Investments at market value. */
+/**
+ * Investments at market value: the impact-free price, so pushing a quote up with your own order (or down with a
+ * sale) never shows as wealth. Only the week's price step moves what holdings are worth.
+ */
 export const investments = (player: PlayerState, economy: Economy): number =>
   player.holdings.reduce(
-    (sum, qty, asset) => sum + Math.floor(qty * quote(economy, asset)),
+    (sum, qty, asset) => sum + Math.floor(qty * economy.price[asset]!),
     0,
   );
 /** Cash + savings + investments − rent owed: what the Wealth goal counts. */

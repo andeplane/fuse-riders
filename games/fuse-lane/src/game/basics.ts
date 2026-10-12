@@ -20,6 +20,8 @@ export const WEEK_SECONDS = [45, 60, 90] as const;
 export const BRIEFING_TICKS = 8 * TICKS_PER_SECOND;
 /** A game that runs this long ends with the leader on goal progress. */
 export const MAX_WEEKS = 150;
+/** The largest net worth a match result reports (the history boundary refuses more). */
+export const MAX_NET_WORTH = 100_000_000;
 /** Goals are 10..100 in steps of 10; 50 by default. */
 export const GOAL_MIN = 10,
   GOAL_MAX = 100,

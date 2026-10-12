@@ -11,7 +11,12 @@ import { ASSET_COUNT, CATEGORIES, COMPANIES, HISTORY } from "./data/economy.js";
 import { DURABLES, type DurableId } from "./data/items.js";
 import { COURSES, JOBS, LESSONS } from "./data/jobs.js";
 import { PLACES, RING } from "./data/places.js";
-import type { CompanyState, Economy } from "./economy.js";
+import {
+  IMPACT_MAX,
+  IMPACT_MIN,
+  type CompanyState,
+  type Economy,
+} from "./economy.js";
 import {
   BRIEFING,
   HANDOFF,
@@ -206,7 +211,7 @@ export function decodeEconomy(raw: unknown): Economy | undefined {
     impact = list(
       raw.impact,
       ASSET_COUNT,
-      (value): value is number => num(value, -1, 2),
+      (value): value is number => num(value, IMPACT_MIN, IMPACT_MAX),
       true,
     ),
     history = list(raw.history, HISTORY, positive);
@@ -610,7 +615,9 @@ export function decodeRoom(
     !(Number.isSafeInteger(turn) && (turn as number) >= -1) ||
     (turn as number) >= Math.max(order.length, 1) ||
     (!turns && (order.length > 0 || turn !== -1)) ||
-    (phase === HANDOFF && (!turns || turn === -1))
+    (phase === HANDOFF && (!turns || turn === -1)) ||
+    // A running hot-seat week always has someone's turn: -1 is only between weeks (the briefing) or before the start.
+    (running && turns && phase === WEEK && turn === -1)
   )
     return;
 

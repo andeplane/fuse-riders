@@ -1,6 +1,6 @@
 # Fuse Lane
 
-You live a week against the clock on one loop road with 13 places. You work, study, shop and invest in a city whose economy reacts to what you do. The first player to reach all four goals (wealth, happiness, education and career) in the same week wins. The game is played on **one device**:
+You live a week against the clock on one loop road with 13 places. You work, study, shop and invest in a city whose economy reacts to what you do. The first player to reach all four goals (wealth, happiness, education and career) in the same week wins; when several get there the same Monday, the one furthest past the goals wins (then the richest). The game is played on **one device**:
 
 - **Solo against 1–3 AI opponents.** Their level is easy, normal or hard.
 - **Pass and play.** 1–4 people share the phone, with or without AI.
@@ -27,7 +27,7 @@ Online rooms still work through a link (`?room=CODE`), but the menu does not off
    - relax at home: 6 hours;
    - buy food, clothes and goods;
    - pay rent;
-   - save, or trade shares, bonds, gold and crypto.
+   - save, or trade shares, bonds, gold and crypto: 1 hour per order. A big order moves the price as it fills, so it pays the average of the price before and after it, plus the spread.
 
    Each card shows its price, its hours and why it is greyed out. **Call it a week** when you are done. Hours you don't use become sleep, which adds to your rest. The real-time clock ends your turn if you forget.
 

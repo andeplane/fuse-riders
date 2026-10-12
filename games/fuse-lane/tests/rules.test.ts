@@ -7,15 +7,18 @@ import {
   BRIEFING_TICKS,
   BUY,
   CLASS,
+  END_WEEK,
   ENROLL,
   GOALS,
   JOBHUB,
   JOBS,
   KEYNEST,
+  MAX_NET_WORTH,
   MONO,
   COLLEGE,
   PAY_RENT,
   PLACES,
+  READY,
   RELAX,
   ROOMSHARE,
   UNITS_PER_HOUR,
@@ -23,9 +26,12 @@ import {
   WEEK_UNITS,
   WORK,
   createRoom,
+  decodeRoom,
+  encodeRoom,
   hashRoom,
   isFuseLaneEntry,
   marketWage,
+  matchResult,
   stats,
 } from "../src/game/index.js";
 import {
@@ -41,6 +47,7 @@ import {
   started,
   walk,
 } from "./fixtures/lane.js";
+import { parseFuseLaneStats } from "../src/platform.js";
 
 const COOK = JOBS.findIndex((job) => job.sure === true);
 const BURGER = 3;
@@ -310,25 +317,44 @@ function winner(
   player.dep = 30;
 }
 
-test("the goal check runs on Monday; same-week winners rank by overshoot, then net worth", () => {
+test("the goal check runs on Monday; of same-week finishers the top of the ranking wins, exact ties share", () => {
   const room = started();
   winner(room, "a", 0);
   winner(room, "b", 500);
   nextWeek(room);
   assert.equal(room.stage, "over");
-  assert.deepEqual(room.winners, ["b", "a"], "b overshoots wealth by 5 more");
+  assert.deepEqual(room.ranking, ["b", "a"], "b overshoots wealth by 5 more");
+  assert.deepEqual(room.winners, ["b"], "and only the top wins");
   assert.equal(room.players.a!.finished, 2);
+  const result = matchResult(room)!;
+  assert.equal(result.winnerId, "b");
+  assert.deepEqual(
+    result.players.map((row) => [row.playerId, row.roundWins]),
+    [
+      ["a", 0],
+      ["b", 1],
+    ],
+  );
 
   const even = started();
   winner(even, "a", 0);
   winner(even, "b", 0);
   even.players.a!.durables.tv = { n: 1, paid: 525, cheap: false };
   nextWeek(even);
+  assert.deepEqual(even.ranking, ["a", "b"]);
   assert.deepEqual(
     even.winners,
-    ["a", "b"],
-    "equal overshoot: a's TV makes a richer",
+    ["a"],
+    "equal overshoot: a's TV makes a richer, and the winner",
   );
+
+  const tie = started();
+  winner(tie, "a", 0);
+  winner(tie, "b", 0);
+  tie.players.b!.job = 1; // one player per position, as a checkpoint insists
+  nextWeek(tie);
+  assert.deepEqual(tie.winners, ["a", "b"], "an exact tie shares the win");
+  assert.ok(decodeRoom(encodeRoom(tie), tie.tick), "and checkpoints");
 
   const nobody = started();
   winner(nobody, "a", 0);
@@ -342,6 +368,12 @@ test("goals are picked in the lobby and carried into the match; bots play the fi
   fold(room, { a: [[10, "a", "Ada", 0, "fox", 1], addBot("bot:1", 1)] });
   assert.ok(isFuseLaneEntry([1, 1, GOALS, 0, 80, 20, 30, 100]));
   assert.ok(!isFuseLaneEntry([1, 1, GOALS, 0, 85, 20, 30, 100]));
+  // READY: Monday's has four fields, a handoff's names the turn it starts.
+  assert.ok(isFuseLaneEntry([1, 1, READY, 2]));
+  assert.ok(isFuseLaneEntry([1, 1, READY, 2, 3]));
+  assert.ok(!isFuseLaneEntry([1, 1, READY, 2, -1]));
+  assert.ok(!isFuseLaneEntry([1, 1, READY, 2, 1, 1]));
+  assert.ok(!isFuseLaneEntry([1, 1, END_WEEK, 2, 1]));
   fold(room, { a: [[GOALS, 0, 80, 20, 30, 100]] });
   fold(room, { a: [[ACTION, "start", "m1"]] });
   assert.deepEqual(room.players.a!.goals, [80, 20, 30, 100]);
@@ -369,4 +401,14 @@ test("bots play whole weeks on their own, identically on every replica", () => {
   const bot = one.players["bot:1"]!;
   assert.ok(bot.job >= 0, "a bot finds a job");
   assert.ok(bot.shifts > 0, "and works");
+});
+
+test("a match result clamps net worth to what the history boundary accepts", () => {
+  const room = started();
+  winner(room, "a", 0);
+  room.players.a!.bank = 5_000_000_000;
+  nextWeek(room);
+  const row = matchResult(room)!.players.find((p) => p.playerId === "a")!;
+  assert.equal(row.netWorth, MAX_NET_WORTH);
+  assert.ok(parseFuseLaneStats({ ...row, playerId: "a".repeat(24) }, 1));
 });

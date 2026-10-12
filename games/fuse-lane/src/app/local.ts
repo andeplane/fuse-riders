@@ -142,11 +142,16 @@ export class LocalMatch {
       room.stage !== "running" ||
       !room.turns ||
       humans.length < 1 ||
+      new Set(humans).size !== humans.length ||
       !humans.every(
         (id) =>
           typeof id === "string" &&
           room.seats.has(id) &&
           !room.seats.get(id)!.bot,
+      ) ||
+      // Every person seated plays on this device: a seat nobody here can play would stall its turn for ever.
+      ![...room.seats.values()].every(
+        (seat) => seat.bot || (humans as unknown[]).includes(seat.id),
       )
     )
       return;

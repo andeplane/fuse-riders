@@ -64,6 +64,8 @@ export interface FuseLaneView {
   turns: boolean;
   order: string[];
   current: string;
+  /** The index of the current turn in `order` (-1 before any): a handoff's READY names it. */
+  turn: number;
   week: number;
   /** Ticks left in the current part, and the part's length. */
   timerTicks: number;
@@ -134,6 +136,7 @@ export function fuseLaneView(room: FuseLaneRoom): FuseLaneView {
     order: [...room.order],
     current:
       running && room.phase !== BRIEFING ? (room.order[room.turn] ?? "") : "",
+    turn: room.turn,
     week: room.week,
     timerTicks: running ? Math.max(0, room.phaseEnd - room.tick) : 0,
     partTicks: running ? Math.max(1, room.phaseEnd - room.phaseStart) : 1,
@@ -165,7 +168,7 @@ export const fuseLaneGame: RollbackGame<
   FuseLaneSettings
 > = {
   id: "fuse-lane",
-  rules: "fuse-lane-1",
+  rules: "fuse-lane-2",
   isEntry: isFuseLaneEntry,
   createRoom,
   createTicker: () => foldTick,

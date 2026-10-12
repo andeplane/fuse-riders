@@ -1,5 +1,6 @@
 import type { MatchResult } from "fuse-platform";
 import type { FuseLaneStats } from "../platform.js";
+import { MAX_NET_WORTH } from "./basics.js";
 import { active, playerOrder, type FuseLaneRoom } from "./room.js";
 import { degrees, netWorth, progress } from "./state.js";
 
@@ -30,7 +31,11 @@ export function matchResult(
       matchPlacement: room.ranking.indexOf(id) + 1,
       earlyExits: present(id) ? 0 : 1,
       weeks: Math.max(1, player.finished || room.week),
-      netWorth: Math.max(0, Math.round(netWorth(player, economy))),
+      // Clamped to what `parseFuseLaneStats` accepts, so a fortune never gets the whole result refused.
+      netWorth: Math.min(
+        MAX_NET_WORTH,
+        Math.max(0, Math.round(netWorth(player, economy))),
+      ),
       degrees: degrees(player),
       shifts: player.shifts,
     };

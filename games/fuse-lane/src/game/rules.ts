@@ -64,7 +64,10 @@ export const WALK = 0,
   READY = 3,
   GOALS = 4;
 
-/** `[seq, tick, WALK, week, place]`, `[seq, tick, ACT, week, place, action, a, b]`, `[seq, tick, END_WEEK|READY, week]`, `[seq, tick, GOALS, 0, w, h, e, c]`. */
+/**
+ * `[seq, tick, WALK, week, place]`, `[seq, tick, ACT, week, place, action, a, b]`, `[seq, tick, END_WEEK|READY, week]`,
+ * `[seq, tick, READY, week, turn]` (a hot-seat handoff), `[seq, tick, GOALS, 0, w, h, e, c]`.
+ */
 export type PlayEntry =
   | [seq: number, tick: number, kind: typeof WALK, week: number, place: number]
   | [
@@ -83,6 +86,8 @@ export type PlayEntry =
       kind: typeof END_WEEK | typeof READY,
       week: number,
     ]
+  /** A hot-seat handoff's READY names the turn it starts, so a stale or doubled tap cannot start the next one. */
+  | [seq: number, tick: number, kind: typeof READY, week: number, turn: number]
   | [
       seq: number,
       tick: number,
@@ -210,8 +215,12 @@ export function isFuseLaneEntry(raw: unknown): raw is FuseLaneEntry {
         small(raw[7], MAX_AMOUNT)
       );
     case END_WEEK:
-    case READY:
       return raw.length === 4;
+    case READY:
+      return (
+        raw.length === 4 ||
+        (raw.length === 5 && small(raw[4], MAX_PARTICIPANTS - 1))
+      );
     case GOALS:
       return (
         raw.length === 8 &&
@@ -481,6 +490,10 @@ export function foldTick(
   return events;
 }
 
+/** Monday's READY: the four-field one, never a handoff's (which names a turn). */
+const mondayReady = (entry: PlayEntry): boolean =>
+  entry[2] === READY && entry.length === 4;
+
 /** A week everyone plays at once: every seat's entries in slot order, the tick's applications together, walking. */
 function togetherTick(
   room: FuseLaneRoom,
@@ -500,7 +513,7 @@ function togetherTick(
     for (const entry of entries) {
       if (entry[2] === GOALS || entry[3] !== room.week) continue;
       if (room.phase === BRIEFING) {
-        if (entry[2] === READY) player.ready = true;
+        if (mondayReady(entry)) player.ready = true;
         continue;
       }
       if (entry[2] === WALK) walkTo(player, entry[4]);
@@ -550,7 +563,7 @@ function turnsTick(
         : seat.connected
           ? playEntries(seat, streams, tick)
           : [];
-      if (entries.some((entry) => entry[2] === READY && entry[3] === room.week))
+      if (entries.some((entry) => mondayReady(entry) && entry[3] === room.week))
         room.players[seat.id]!.ready = true;
     }
     briefingTick(room, seats, tick, events);
@@ -569,7 +582,14 @@ function turnsTick(
     (entry) => entry[2] !== GOALS && entry[3] === room.week,
   );
   if (room.phase === HANDOFF) {
-    if (entries.some((entry) => entry[2] === READY)) startTurn(room, tick);
+    // Only a READY for this very turn: Monday's READY, or a second tap meant for the turn before, is stale.
+    if (
+      entries.some(
+        (entry) =>
+          entry[2] === READY && entry.length === 5 && entry[4] === room.turn,
+      )
+    )
+      startTurn(room, tick);
     return;
   }
   for (const entry of entries) {

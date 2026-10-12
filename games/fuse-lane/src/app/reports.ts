@@ -6,7 +6,11 @@ import {
   type FuseLaneRoom,
 } from "../game/index.js";
 
-/** The one result this device owes the room service: the whole match. */
+/**
+ * The one result this device owes the room service: the whole match. Results are best effort and sent once: the page
+ * marks the key sent before it posts, and a post that fails after `sendReport`'s retries is not tried again (the
+ * other finishers' reports usually carry the match; a lost one costs a history entry, never the game).
+ */
 export interface DueReport {
   /** Unique per match, so a report is sent once. */
   key: string;

@@ -14,13 +14,13 @@ import {
   ringDirection,
 } from "./data/places.js";
 import {
-  applyImpact,
+  applyTrade,
   buyCost,
   enrollFee,
+  fill,
   gigWage,
   hiring,
   marketWage,
-  quote,
   rentPrice,
   sellValue,
   shelfPrice,
@@ -82,6 +82,8 @@ export const HOURS = {
   apply: 4,
   raise: 4,
   gig: 6,
+  /** One order at Neobank's trading desk, so trades are a choice with a cost in time, not a free loop. */
+  trade: 1,
 } as const;
 /** Paid hours per shift: 6 on the clock, 8 on the payslip. */
 export const PAID_HOURS = 8;
@@ -469,6 +471,7 @@ export function act(
         b <= 0
       )
         return;
+      // The order fills along its own impact (`fill`), and the spread on top of that is Neobank's revenue.
       if (action === TRADE_BUY) {
         const cost = buyCost(economy, a, b);
         if (player.cash < cost)
@@ -477,9 +480,10 @@ export function act(
         player.holdings[a]! += b;
         economy.companies[1]!.spend += Math.max(
           0,
-          cost - Math.floor(quote(economy, a) * b),
+          cost - Math.floor(fill(economy, a, b, true).value),
         );
-        applyImpact(economy, a, cost, true);
+        applyTrade(economy, a, b, true);
+        spendHours(player, HOURS.trade);
         return say(player, `Bought ${b} for $${cost}.`);
       }
       if (player.holdings[a]! < b)
@@ -489,9 +493,10 @@ export function act(
       player.cash += value;
       economy.companies[1]!.spend += Math.max(
         0,
-        Math.floor(quote(economy, a) * b) - value,
+        Math.floor(fill(economy, a, b, false).value) - value,
       );
-      applyImpact(economy, a, value, false);
+      applyTrade(economy, a, b, false);
+      spendHours(player, HOURS.trade);
       return say(player, `Sold ${b} for $${value}.`);
     }
   }

@@ -51,14 +51,26 @@ export class LocalRuntime {
     return new LocalRuntime(LocalMatch.create(setup), onFrame, deps);
   }
 
-  /** The saved match on this device, or undefined (none, another version, or a store that refuses). */
+  /**
+   * The saved match on this device, or undefined (none, or a store that refuses). A save that does not decode (damaged,
+   * or from another version) is forgotten, so the menu stops offering it.
+   */
   static saved(store: Store): LocalMatch | undefined {
+    let raw: string | null;
     try {
-      const raw = store.getItem(SAVE_KEY);
-      return raw ? LocalMatch.resume(JSON.parse(raw)) : undefined;
+      raw = store.getItem(SAVE_KEY);
     } catch {
       return undefined;
     }
+    if (!raw) return undefined;
+    let match: LocalMatch | undefined;
+    try {
+      match = LocalMatch.resume(JSON.parse(raw));
+    } catch {
+      match = undefined;
+    }
+    if (!match) LocalRuntime.forget(store);
+    return match;
   }
 
   static forget(store: Store): void {
@@ -69,7 +81,12 @@ export class LocalRuntime {
     }
   }
 
-  start(): void {
+  /**
+   * Starts the clock, or shows the match paused (`paused`): a resumed save waits for the player to tap RESUME, and a
+   * page opened in the background does not burn a turn.
+   */
+  start(paused = false): void {
+    if (paused && this.match.room.stage === "running") this.paused = true;
     this.newerAt = this.deps.now();
     this.onFrame(this.newer);
     this.stopLoop ??= this.deps.every(() => this.tick(), TICK_MS);
@@ -103,8 +120,9 @@ export class LocalRuntime {
     this.onFrame(this.newer);
   }
 
+  /** Logs a play entry for the next fold; nothing is taken while paused, since the clock is stopped. */
   play(body: readonly unknown[]): boolean {
-    return this.match.play(body);
+    return !this.paused && this.match.play(body);
   }
 
   frameTiming(): LocalTiming {

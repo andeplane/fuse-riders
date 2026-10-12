@@ -4,6 +4,7 @@ import { ACTION } from "fuse-netcode";
 import {
   BRIEFING,
   HANDOFF,
+  WEEK,
   createRoom,
   decodeRoom,
   encodeRoom,
@@ -188,6 +189,7 @@ test("a hot-seat room round-trips at a handoff, and turn state that does not fit
     { order: [...room.order, room.order[0]] },
     { order: ["nobody"] },
     { level: 5 },
+    { phase: WEEK, turn: -1 },
   ]) {
     const bad = [...fields];
     bad[3] = { ...game, ...broken };

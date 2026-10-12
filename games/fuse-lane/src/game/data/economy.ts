@@ -260,7 +260,10 @@ export const ECONOMY = {
     0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0.005, 0, 0.01,
     0.03,
   ] as const,
-  /** Market impact: a trade of value v moves the quote by impact × ln(1 + v / liquidity), decaying by `decay` a week. */
+  /**
+   * Market impact: a trade of value v (at the impact-free price) moves the quote by impact × v / liquidity and fills
+   * at the average of the quote before and after (`fill` in `../economy.ts`), decaying by `impactDecay` a week.
+   */
   impact: 0.04,
   liquidity: [
     20_000, 20_000, 20_000, 20_000, 20_000, 20_000, 20_000, 20_000, 100_000,
