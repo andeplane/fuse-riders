@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { ACTION } from "fuse-netcode";
+import { ACTION, PRESENCE, SPECTATOR } from "fuse-netcode";
 import {
   BRIEFING,
   DOCKS,
@@ -209,4 +209,104 @@ test("a hot-seat room round-trips at a handoff, and turn state that does not fit
     bad[3] = { ...game, ...broken };
     assert.equal(decodeRoom(bad, room.tick), undefined, JSON.stringify(broken));
   }
+});
+
+test("watchers, an away seat and owned goods survive the checkpoint; seats, goods, roster and picks that do not fit are refused", () => {
+  const room = started(FAST, [
+    addBot("bot:1", 2),
+    [SPECTATOR, "join", "w2", "Wes", 1],
+    [SPECTATOR, "join", "w1", "Una", 1],
+  ]);
+  fold(room, { b: [[PRESENCE, "b", false, 1]] });
+  assert.equal(room.seats.get("b")!.away, true, "b stepped away itself");
+  room.players.a!.durables.tv = { n: 1, paid: 525, cheap: false };
+  room.players.a!.durables.fridge = { n: 0, paid: 650, cheap: true };
+  room.goals.a = [30, 40, 50, 60];
+  const copy = roundTrip(room);
+  assert.equal(hashRoom(copy), hashRoom(room));
+  assert.equal(copy.seats.get("w1")!.watcher, true);
+  assert.equal(copy.seats.get("w1")!.slot, -1);
+  assert.equal(copy.seats.get("b")!.away, true);
+  assert.equal(copy.seats.get("bot:1")!.generation, undefined);
+  assert.deepEqual(copy.players.a!.durables, room.players.a!.durables);
+  assert.deepEqual(copy.goals, { a: [30, 40, 50, 60] });
+
+  const good = encodeRoom(room);
+  const mutate = (change: (fields: any[]) => void) => {
+    const fields = JSON.parse(JSON.stringify(good)) as any[];
+    change(fields);
+    return decodeRoom(fields, room.tick);
+  };
+  const seat = (f: any[], id: string) =>
+    (f[1] as any[][]).find((row) => row[0] === id)!;
+  const many = (count: number, value: (n: number) => unknown) =>
+    Object.fromEntries(
+      Array.from({ length: count }, (_, n) => [`m${n}`, value(n)]),
+    );
+  const cases: [string, (fields: any[]) => void][] = [
+    ["a seat that is not a list", (f) => (f[1][0] = "a")],
+    ["a seat with a field missing", (f) => seat(f, "a").pop()],
+    ["a watcher in a seat", (f) => (seat(f, "w1")[2] = 3)],
+    ["a watcher with an avatar", (f) => (seat(f, "w1")[3] = "fox")],
+    ["a slot past the last seat", (f) => (seat(f, "a")[2] = 5)],
+    ["a role that is no role", (f) => (seat(f, "a")[5] = "admin")],
+    ["a bot with a stream", (f) => (seat(f, "bot:1")[6] = 1)],
+    ["a human without a stream", (f) => (seat(f, "a")[6] = null)],
+    ["away that is not a flag", (f) => (seat(f, "b")[7] = "yes")],
+    ["the same member twice", (f) => f[1].push(seat(f, "a"))],
+    [
+      "more watchers than the room takes",
+      (f) => {
+        for (let n = 0; n < 7; n++)
+          f[1].push([`x${n}`, "Xi", -1, "", true, "watcher", 1, false]);
+      },
+    ],
+    ["an economy that is a list", (f) => (f[3].economy = [])],
+    ["an economy with an extra field", (f) => (f[3].economy.extra = 1)],
+    ["a company missing", (f) => f[3].economy.companies.pop()],
+    ["a company with an extra field", (f) => (f[3].economy.companies[0].x = 1)],
+    [
+      "a company past full health",
+      (f) => (f[3].economy.companies[0].health = 11),
+    ],
+    ["goods that are a list", (f) => (f[3].players.a.durables = [])],
+    ["a good that is a number", (f) => (f[3].players.a.durables.tv = 5)],
+    ["a good with an extra field", (f) => (f[3].players.a.durables.tv.x = 1)],
+    ["two of one good", (f) => (f[3].players.a.durables.tv.n = 2)],
+    ["a negative price paid", (f) => (f[3].players.a.durables.tv.paid = -1)],
+    ["cheap that is not a flag", (f) => (f[3].players.a.durables.tv.cheap = 1)],
+    ["a roster that is a list", (f) => (f[3].roster = [])],
+    [
+      "a roster past every participant",
+      (f) =>
+        Object.assign(
+          f[3].roster,
+          many(64, () => ({ name: "M", slot: 0 })),
+        ),
+    ],
+    ["a roster entry with an extra field", (f) => (f[3].roster.a.x = 1)],
+    ["a roster entry without a name", (f) => (f[3].roster.a.name = "")],
+    ["a roster slot past the last seat", (f) => (f[3].roster.a.slot = 5)],
+    ["players that are a list", (f) => (f[3].players = [])],
+    [
+      "players past every participant",
+      (f) =>
+        Object.assign(
+          f[3].players,
+          many(64, () => f[3].players.a),
+        ),
+    ],
+    ["goal picks that are a number", (f) => (f[3].goals = 5)],
+    [
+      "goal picks past every participant",
+      (f) => (f[3].goals = many(65, () => [50, 50, 50, 50])),
+    ],
+    ["a goal pick off the scale", (f) => (f[3].goals.a = [55, 50, 50, 50])],
+    [
+      "a goal pick for no member",
+      (f) => (f[3].goals["no one"] = [50, 50, 50, 50]),
+    ],
+  ];
+  for (const [name, change] of cases)
+    assert.equal(mutate(change), undefined, name);
 });

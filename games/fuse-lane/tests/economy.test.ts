@@ -26,6 +26,7 @@ import {
   investments,
   ln,
   quote,
+  randInt,
   sellValue,
   stepEconomy,
   type Economy,
@@ -231,4 +232,36 @@ test("at Neobank each order costs an hour, and buying then selling never adds to
   // Out of hours, the desk is closed.
   act(room, player, NEOBANK, TRADE_BUY, 0, 1);
   assert.equal(player.holdings[0], 0);
+});
+
+test("a category price that moves 3% or more in a week makes the headlines, and says when shoppers pushed it", () => {
+  // Gadgets far below the general price level: the pull back up, and a spree on top of it.
+  const cheap = createEconomy();
+  cheap.prices[GADGETS] = 0.6;
+  cheap.spend[GADGETS] = 50_000;
+  const up = stepEconomy(cheap, { rng: 3 }, 1).headlines;
+  assert.ok(
+    up.some((line) =>
+      /^Gadgets prices jump \+\d+\.\d%: shoppers did that$/.test(line),
+    ),
+    up.join(" | "),
+  );
+  // Food far above it, with nobody buying: it slides back on its own.
+  const dear = createEconomy();
+  dear.prices[0] = 1.6;
+  const down = stepEconomy(dear, { rng: 3 }, 1).headlines;
+  assert.ok(
+    down.some((line) => /^Food prices slide -\d+\.\d%$/.test(line)),
+    down.join(" | "),
+  );
+});
+
+test("a whole number in an empty range is its bound, and the generator does not move", () => {
+  const seeded = { rng: 12345 };
+  assert.equal(randInt(seeded, 7, 7), 7);
+  assert.equal(randInt(seeded, 9, 3), 9);
+  assert.equal(seeded.rng, 12345);
+  const value = randInt(seeded, 1, 6);
+  assert.ok(value >= 1 && value <= 6);
+  assert.notEqual(seeded.rng, 12345);
 });
